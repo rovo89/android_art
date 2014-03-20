@@ -549,6 +549,10 @@ class RosAlloc {
   void RevokeThreadLocalRuns(Thread* thread);
   // Releases the thread-local runs assigned to all the threads back to the common set of runs.
   void RevokeAllThreadLocalRuns() LOCKS_EXCLUDED(Locks::thread_list_lock_);
+  // Assert the thread local runs of a thread are revoked.
+  void AssertThreadLocalRunsAreRevoked(Thread* thread);
+  // Assert all the thread local runs are revoked.
+  void AssertAllThreadLocalRunsAreRevoked() LOCKS_EXCLUDED(Locks::thread_list_lock_);
   // Dumps the page map for debugging.
   std::string DumpPageMap() EXCLUSIVE_LOCKS_REQUIRED(lock_);
 

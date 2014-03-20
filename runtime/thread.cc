@@ -2074,6 +2074,16 @@ void Thread::SetTlab(byte* start, byte* end) {
   thread_local_objects_ = 0;
 }
 
+bool Thread::HasTlab() const {
+  bool has_tlab = thread_local_pos_ != nullptr;
+  if (has_tlab) {
+    DCHECK(thread_local_start_ != nullptr && thread_local_end_ != nullptr);
+  } else {
+    DCHECK(thread_local_start_ == nullptr && thread_local_end_ == nullptr);
+  }
+  return has_tlab;
+}
+
 std::ostream& operator<<(std::ostream& os, const Thread& thread) {
   thread.ShortDump(os);
   return os;

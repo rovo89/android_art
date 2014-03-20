@@ -338,6 +338,9 @@ class MarkSweep : public GarbageCollector {
   // IsExclusiveHeld.
   void RevokeAllThreadLocalAllocationStacks(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
 
+  // Revoke all the thread-local buffers.
+  void RevokeAllThreadLocalBuffers();
+
   // Whether or not we count how many of each type of object were scanned.
   static const bool kCountScannedTypes = false;
 

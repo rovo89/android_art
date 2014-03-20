@@ -63,12 +63,6 @@ void GarbageCollector::ResetCumulativeStatistics() {
   total_freed_bytes_ = 0;
 }
 
-void GarbageCollector::RevokeAllThreadLocalBuffers() {
-  timings_.StartSplit("(Paused)RevokeAllThreadLocalBuffers");
-  GetHeap()->RevokeAllThreadLocalBuffers();
-  timings_.EndSplit();
-}
-
 void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   Thread* self = Thread::Current();

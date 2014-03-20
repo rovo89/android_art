@@ -155,7 +155,8 @@ void RememberedSet::AssertAllDirtyCardsAreWithinSpace() const {
   for (const byte* card_addr : dirty_cards_) {
     auto start = reinterpret_cast<byte*>(card_table->AddrFromCard(card_addr));
     auto end = start + CardTable::kCardSize;
-    DCHECK(space_->Begin() <= start && end <= space_->Limit());
+    DCHECK_LE(space_->Begin(), start);
+    DCHECK_LE(end, space_->Limit());
   }
 }
 
