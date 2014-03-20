@@ -80,7 +80,11 @@ namespace art {
 Runtime* Runtime::instance_ = NULL;
 
 Runtime::Runtime()
-    : compiler_callbacks_(nullptr),
+    : pre_allocated_OutOfMemoryError_(nullptr),
+      resolution_method_(nullptr),
+      imt_conflict_method_(nullptr),
+      default_imt_(nullptr),
+      compiler_callbacks_(nullptr),
       is_zygote_(false),
       is_concurrent_gc_enabled_(true),
       is_explicit_gc_disabled_(false),
@@ -94,10 +98,6 @@ Runtime::Runtime()
       class_linker_(nullptr),
       signal_catcher_(nullptr),
       java_vm_(nullptr),
-      pre_allocated_OutOfMemoryError_(nullptr),
-      resolution_method_(nullptr),
-      imt_conflict_method_(nullptr),
-      default_imt_(nullptr),
       fault_message_lock_("Fault message lock"),
       fault_message_(""),
       method_verifier_lock_("Method verifiers lock"),
