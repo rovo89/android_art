@@ -528,7 +528,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
       static_cast<Instruction::Code>(kMirOpCheck);
   // Associate the two halves
   insn->meta.throw_insn = new_insn;
-  AppendMIR(new_block, new_insn);
+  new_block->AppendMIR(new_insn);
   return new_block;
 }
 
@@ -646,7 +646,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
       }
       if (width == 1) {
         // It is a simple nop - treat normally.
-        AppendMIR(cur_block, insn);
+        cur_block->AppendMIR(insn);
       } else {
         DCHECK(cur_block->fall_through == NullBasicBlockId);
         DCHECK(cur_block->taken == NullBasicBlockId);
@@ -654,7 +654,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
         flags &= ~Instruction::kContinue;
       }
     } else {
-      AppendMIR(cur_block, insn);
+      cur_block->AppendMIR(insn);
     }
 
     // Associate the starting dex_pc for this opcode with its containing basic block.
@@ -873,42 +873,42 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
 }
 
 /* Insert an MIR instruction to the end of a basic block */
-void MIRGraph::AppendMIR(BasicBlock* bb, MIR* mir) {
-  if (bb->first_mir_insn == NULL) {
-    DCHECK(bb->last_mir_insn == NULL);
-    bb->last_mir_insn = bb->first_mir_insn = mir;
-    mir->next = NULL;
+void BasicBlock::AppendMIR(MIR* mir) {
+  if (first_mir_insn == nullptr) {
+    DCHECK(last_mir_insn == nullptr);
+    last_mir_insn = first_mir_insn = mir;
+    mir->next = nullptr;
   } else {
-    bb->last_mir_insn->next = mir;
-    mir->next = NULL;
-    bb->last_mir_insn = mir;
+    last_mir_insn->next = mir;
+    mir->next = nullptr;
+    last_mir_insn = mir;
   }
 }
 
 /* Insert an MIR instruction to the head of a basic block */
-void MIRGraph::PrependMIR(BasicBlock* bb, MIR* mir) {
-  if (bb->first_mir_insn == NULL) {
-    DCHECK(bb->last_mir_insn == NULL);
-    bb->last_mir_insn = bb->first_mir_insn = mir;
-    mir->next = NULL;
+void BasicBlock::PrependMIR(MIR* mir) {
+  if (first_mir_insn == nullptr) {
+    DCHECK(last_mir_insn == nullptr);
+    last_mir_insn = first_mir_insn = mir;
+    mir->next = nullptr;
   } else {
-    mir->next = bb->first_mir_insn;
-    bb->first_mir_insn = mir;
+    mir->next = first_mir_insn;
+    first_mir_insn = mir;
   }
 }
 
 /* Insert a MIR instruction after the specified MIR */
-void MIRGraph::InsertMIRAfter(BasicBlock* bb, MIR* current_mir, MIR* new_mir) {
+void BasicBlock::InsertMIRAfter(MIR* current_mir, MIR* new_mir) {
   new_mir->next = current_mir->next;
   current_mir->next = new_mir;
 
-  if (bb->last_mir_insn == current_mir) {
+  if (last_mir_insn == current_mir) {
     /* Is the last MIR in the block */
-    bb->last_mir_insn = new_mir;
+    last_mir_insn = new_mir;
   }
 }
 
-MIR* MIRGraph::GetNextUnconditionalMir(BasicBlock* bb, MIR* current) {
+MIR* BasicBlock::GetNextUnconditionalMir(MIRGraph* mir_graph, MIR* current) {
   MIR* next_mir = nullptr;
 
   if (current != nullptr) {
@@ -917,8 +917,8 @@ MIR* MIRGraph::GetNextUnconditionalMir(BasicBlock* bb, MIR* current) {
 
   if (next_mir == nullptr) {
     // Only look for next MIR that follows unconditionally.
-    if ((bb->taken == NullBasicBlockId) && (bb->fall_through != NullBasicBlockId)) {
-      next_mir = GetBasicBlock(bb->fall_through)->first_mir_insn;
+    if ((taken == NullBasicBlockId) && (fall_through != NullBasicBlockId)) {
+      next_mir = mir_graph->GetBasicBlock(fall_through)->first_mir_insn;
     }
   }
 
