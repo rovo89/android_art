@@ -1659,7 +1659,7 @@ static std::string DescribeCommand(Request& request) {
  *
  * On entry, the JDWP thread is in VMWAIT.
  */
-void JdwpState::ProcessRequest(Request& request, ExpandBuf* pReply) {
+size_t JdwpState::ProcessRequest(Request& request, ExpandBuf* pReply) {
   JdwpError result = ERR_NONE;
 
   if (request.GetCommandSet() != kJDWPDdmCmdSet) {
@@ -1728,14 +1728,11 @@ void JdwpState::ProcessRequest(Request& request, ExpandBuf* pReply) {
    * If we encountered an error, only send the header back.
    */
   uint8_t* replyBuf = expandBufGetBuffer(pReply);
+  size_t replyLength = (result == ERR_NONE) ? expandBufGetLength(pReply) : kJDWPHeaderLen;
+  Set4BE(replyBuf + 0, replyLength);
   Set4BE(replyBuf + 4, request.GetId());
   Set1(replyBuf + 8, kJDWPFlagReply);
   Set2BE(replyBuf + 9, result);
-  if (result == ERR_NONE) {
-    Set4BE(replyBuf + 0, expandBufGetLength(pReply));
-  } else {
-    Set4BE(replyBuf + 0, kJDWPHeaderLen);
-  }
 
   CHECK_GT(expandBufGetLength(pReply), 0U) << GetCommandName(request) << " " << request.GetId();
 
@@ -1757,6 +1754,8 @@ void JdwpState::ProcessRequest(Request& request, ExpandBuf* pReply) {
 
   /* tell the VM that GC is okay again */
   self->TransitionFromRunnableToSuspended(old_state);
+
+  return replyLength;
 }
 
 /*
