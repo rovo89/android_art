@@ -88,7 +88,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       rosalloc_space_(nullptr),
       dlmalloc_space_(nullptr),
       main_space_(nullptr),
-      concurrent_gc_(false),
       collector_type_(kCollectorTypeNone),
       post_zygote_collector_type_(post_zygote_collector_type),
       background_collector_type_(background_collector_type),
@@ -1443,10 +1442,8 @@ void Heap::ChangeCollector(CollectorType collector_type) {
     collector_type_ = collector_type;
     gc_plan_.clear();
     switch (collector_type_) {
-      case kCollectorTypeSS:
-        // Fall-through.
+      case kCollectorTypeSS:  // Fall-through.
       case kCollectorTypeGSS: {
-        concurrent_gc_ = false;
         gc_plan_.push_back(collector::kGcTypeFull);
         if (use_tlab_) {
           ChangeAllocator(kAllocatorTypeTLAB);
@@ -1456,7 +1453,6 @@ void Heap::ChangeCollector(CollectorType collector_type) {
         break;
       }
       case kCollectorTypeMS: {
-        concurrent_gc_ = false;
         gc_plan_.push_back(collector::kGcTypeSticky);
         gc_plan_.push_back(collector::kGcTypePartial);
         gc_plan_.push_back(collector::kGcTypeFull);
@@ -1464,7 +1460,6 @@ void Heap::ChangeCollector(CollectorType collector_type) {
         break;
       }
       case kCollectorTypeCMS: {
-        concurrent_gc_ = true;
         gc_plan_.push_back(collector::kGcTypeSticky);
         gc_plan_.push_back(collector::kGcTypePartial);
         gc_plan_.push_back(collector::kGcTypeFull);
@@ -1475,7 +1470,7 @@ void Heap::ChangeCollector(CollectorType collector_type) {
         LOG(FATAL) << "Unimplemented";
       }
     }
-    if (concurrent_gc_) {
+    if (IsGcConcurrent()) {
       concurrent_start_bytes_ =
           std::max(max_allowed_footprint_, kMinConcurrentRemainingBytes) - kMinConcurrentRemainingBytes;
     } else {
@@ -1809,7 +1804,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   } else if (current_allocator_ == kAllocatorTypeRosAlloc ||
       current_allocator_ == kAllocatorTypeDlMalloc) {
     for (const auto& cur_collector : garbage_collectors_) {
-      if (cur_collector->IsConcurrent() == concurrent_gc_ &&
+      if (cur_collector->GetCollectorType() == collector_type_ &&
           cur_collector->GetGcType() == gc_type) {
         collector = cur_collector;
         break;
@@ -1819,8 +1814,8 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
     LOG(FATAL) << "Invalid current allocator " << current_allocator_;
   }
   CHECK(collector != nullptr)
-      << "Could not find garbage collector with concurrent=" << concurrent_gc_
-      << " and type=" << gc_type;
+      << "Could not find garbage collector with collector_type="
+      << static_cast<size_t>(collector_type_) << " and gc_type=" << gc_type;
   ATRACE_BEGIN(StringPrintf("%s %s GC", PrettyCause(gc_cause), collector->GetName()).c_str());
   if (!clear_soft_references) {
     clear_soft_references = gc_type != collector::kGcTypeSticky;  // TODO: GSS?
@@ -2488,7 +2483,7 @@ void Heap::GrowForUtilization(collector::GcType gc_type, uint64_t gc_duration) {
   }
   if (!ignore_max_footprint_) {
     SetIdealFootprint(target_size);
-    if (concurrent_gc_) {
+    if (IsGcConcurrent()) {
       // Calculate when to perform the next ConcurrentGC.
       // Calculate the estimated GC duration.
       const double gc_duration_seconds = NsToMs(gc_duration) / 1000.0;
@@ -2708,7 +2703,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
       // finalizers released native managed allocations.
       UpdateMaxNativeFootprint();
     } else if (!IsGCRequestPending()) {
-      if (concurrent_gc_) {
+      if (IsGcConcurrent()) {
         RequestConcurrentGC(self);
       } else {
         CollectGarbageInternal(gc_type, kGcCauseForAlloc, false);

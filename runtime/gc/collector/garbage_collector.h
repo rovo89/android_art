@@ -20,6 +20,7 @@
 #include "base/histogram.h"
 #include "base/mutex.h"
 #include "base/timing_logger.h"
+#include "gc/collector_type.h"
 #include "gc/gc_cause.h"
 #include "gc_type.h"
 #include <stdint.h>
@@ -34,9 +35,6 @@ namespace collector {
 
 class GarbageCollector {
  public:
-  // Returns true iff the garbage collector is concurrent.
-  virtual bool IsConcurrent() const = 0;
-
   GarbageCollector(Heap* heap, const std::string& name);
   virtual ~GarbageCollector() { }
 
@@ -45,6 +43,8 @@ class GarbageCollector {
   }
 
   virtual GcType GetGcType() const = 0;
+
+  virtual CollectorType GetCollectorType() const = 0;
 
   // Run the garbage collector.
   void Run(GcCause gc_cause, bool clear_soft_references);
@@ -118,8 +118,8 @@ class GarbageCollector {
   // Mark all reachable objects, done concurrently.
   virtual void MarkingPhase() = 0;
 
-  // Only called for concurrent GCs. Gets called repeatedly until it succeeds.
-  virtual bool HandleDirtyObjectsPhase() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // Only called for concurrent GCs.
+  virtual void HandleDirtyObjectsPhase() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Called with mutators running.
   virtual void ReclaimPhase() = 0;
