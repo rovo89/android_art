@@ -571,7 +571,7 @@ public class Main {
        if ((long)res == 160087) {
            System.out.println("ManyFloatArgs passes");
        } else {
-           System.out.println("ManyFloatArgs fails, expected 30600, got: " + res);
+           System.out.println("ManyFloatArgs fails, expected 160087, got: " + res);
        }
     }
     static long largeFrame() {
