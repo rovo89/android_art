@@ -279,7 +279,9 @@ void StackVisitor::SanityCheckFrame() const {
       // 2 words Sirt overhead
       // 3+3 register spills
       // TODO: this seems architecture specific for the case of JNI frames.
-      const size_t kMaxExpectedFrameSize = (256 + 2 + 3 + 3) * sizeof(word);
+      // TODO: 083-compiler-regressions ManyFloatArgs shows this estimate is wrong.
+      // const size_t kMaxExpectedFrameSize = (256 + 2 + 3 + 3) * sizeof(word);
+      const size_t kMaxExpectedFrameSize = 2 * KB;
       CHECK_LE(frame_size, kMaxExpectedFrameSize);
       size_t return_pc_offset = method->GetReturnPcOffsetInBytes();
       CHECK_LT(return_pc_offset, frame_size);
