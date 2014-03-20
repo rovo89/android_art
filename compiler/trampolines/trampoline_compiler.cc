@@ -18,6 +18,7 @@
 
 #include "jni_internal.h"
 #include "utils/arm/assembler_arm.h"
+#include "utils/arm64/assembler_arm64.h"
 #include "utils/mips/assembler_mips.h"
 #include "utils/x86/assembler_x86.h"
 
@@ -52,6 +53,46 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
   return entry_stub.release();
 }
 }  // namespace arm
+
+namespace arm64 {
+static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention abi,
+                                                    ThreadOffset offset) {
+  UniquePtr<Arm64Assembler> assembler(static_cast<Arm64Assembler*>(Assembler::Create(kArm64)));
+
+  switch (abi) {
+    case kInterpreterAbi:  // Thread* is first argument (X0) in interpreter ABI.
+      // FIXME IPx used by VIXL - this is unsafe.
+      __ Call(Arm64ManagedRegister::FromCoreRegister(X0), Offset(offset.Int32Value()),
+          Arm64ManagedRegister::FromCoreRegister(IP1));
+
+      break;
+    case kJniAbi:  // Load via Thread* held in JNIEnv* in first argument (X0).
+
+      __ LoadRawPtr(Arm64ManagedRegister::FromCoreRegister(IP1),
+                      Arm64ManagedRegister::FromCoreRegister(X0),
+                      Offset(JNIEnvExt::SelfOffset().Int32Value()));
+
+      // FIXME IPx used by VIXL - this is unsafe.
+      __ Call(Arm64ManagedRegister::FromCoreRegister(IP1), Offset(offset.Int32Value()),
+                Arm64ManagedRegister::FromCoreRegister(IP0));
+
+      break;
+    case kPortableAbi:  // X18 holds Thread*.
+    case kQuickAbi:  // Fall-through.
+      __ Call(Arm64ManagedRegister::FromCoreRegister(TR), Offset(offset.Int32Value()),
+                Arm64ManagedRegister::FromCoreRegister(IP0));
+
+      break;
+  }
+
+  size_t cs = assembler->CodeSize();
+  UniquePtr<std::vector<uint8_t> > entry_stub(new std::vector<uint8_t>(cs));
+  MemoryRegion code(&(*entry_stub)[0], entry_stub->size());
+  assembler->FinalizeInstructions(code);
+
+  return entry_stub.release();
+}
+}  // namespace arm64
 
 namespace mips {
 static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention abi,
@@ -123,6 +164,8 @@ const std::vector<uint8_t>* CreateTrampoline(InstructionSet isa, EntryPointCalli
     case kArm:
     case kThumb2:
       return arm::CreateTrampoline(abi, offset);
+    case kArm64:
+      return arm64::CreateTrampoline(abi, offset);
     case kMips:
       return mips::CreateTrampoline(abi, offset);
     case kX86:

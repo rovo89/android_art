@@ -68,6 +68,38 @@ class QuickArgumentVisitor {
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     return gpr_index * kBytesPerGprSpillLocation;
   }
+#elif defined(__aarch64__)
+  // The callee save frame is pointed to by SP.
+  // | argN       |  |
+  // | ...        |  |
+  // | arg4       |  |
+  // | arg3 spill |  |  Caller's frame
+  // | arg2 spill |  |
+  // | arg1 spill |  |
+  // | Method*    | ---
+  // | LR         |
+  // | X28        |
+  // |  :         |
+  // | X19        |
+  // | X7         |
+  // | :          |
+  // | X1         |
+  // | D15        |
+  // |  :         |
+  // | D0         |
+  // |            |    padding
+  // | Method*    |  <- sp
+  static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
+  static constexpr size_t kNumQuickGprArgs = 7;  // 7 arguments passed in GPRs.
+  static constexpr size_t kNumQuickFprArgs = 8;  // 8 arguments passed in FPRs.
+  static constexpr size_t kBytesPerFprSpillLocation = 8;  // FPR spill size is 8 bytes.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset =16;  // Offset of first FPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 144;  // Offset of first GPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 296;  // Offset of return address.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_FrameSize = 304;  // Frame size.
+  static size_t GprIndexToGprOffset(uint32_t gpr_index) {
+    return gpr_index * kBytesPerGprSpillLocation;
+  }
 #elif defined(__mips__)
   // The callee save frame is pointed to by SP.
   // | argN       |  |
@@ -888,6 +920,17 @@ template <class T> class BuildGenericJniFrameStateMachine {
   static constexpr bool kMultiRegistersWidened = false;
   static constexpr bool kAlignLongOnStack = true;
   static constexpr bool kAlignDoubleOnStack = true;
+#elif defined(__aarch64__)
+  static constexpr bool kNativeSoftFloatAbi = false;  // This is a hard float ABI.
+  static constexpr size_t kNumNativeGprArgs = 8;  // 6 arguments passed in GPRs.
+  static constexpr size_t kNumNativeFprArgs = 8;  // 8 arguments passed in FPRs.
+
+  static constexpr size_t kRegistersNeededForLong = 1;
+  static constexpr size_t kRegistersNeededForDouble = 1;
+  static constexpr bool kMultiRegistersAligned = false;
+  static constexpr bool kMultiRegistersWidened = false;
+  static constexpr bool kAlignLongOnStack = false;
+  static constexpr bool kAlignDoubleOnStack = false;
 #elif defined(__mips__)
   // TODO: These are all dummy values!
   static constexpr bool kNativeSoftFloatAbi = true;  // This is a hard float ABI.
