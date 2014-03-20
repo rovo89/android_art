@@ -18,6 +18,7 @@
 #define ART_COMPILER_UTILS_ARM64_ASSEMBLER_ARM64_H_
 
 #include <vector>
+#include <stdint.h>
 
 #include "base/logging.h"
 #include "constants_arm64.h"

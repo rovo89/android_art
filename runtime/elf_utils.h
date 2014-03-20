@@ -33,6 +33,8 @@
 #define EF_MIPS_CPIC 4
 #define STV_DEFAULT 0
 
+#define EM_AARCH64 183
+
 #define DT_BIND_NOW 24
 #define DT_INIT_ARRAY 25
 #define DT_FINI_ARRAY 26

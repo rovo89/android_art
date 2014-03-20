@@ -30,6 +30,7 @@
 #include <fcntl.h>
 
 #include "arch/arm/registers_arm.h"
+#include "arch/arm64/registers_arm64.h"
 #include "arch/mips/registers_mips.h"
 #include "arch/x86/registers_x86.h"
 #include "arch/x86_64/registers_x86_64.h"
@@ -1035,6 +1036,46 @@ mirror::ArtMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_se
     method->SetFrameSizeInBytes(frame_size);
     method->SetCoreSpillMask(core_spills);
     method->SetFpSpillMask(fp_spills);
+  } else if (instruction_set == kArm64) {
+      // Callee saved registers
+      uint32_t ref_spills = (1 << art::arm64::X19) | (1 << art::arm64::X20) | (1 << art::arm64::X21) |
+                            (1 << art::arm64::X22) | (1 << art::arm64::X23) | (1 << art::arm64::X24) |
+                            (1 << art::arm64::X25) | (1 << art::arm64::X26) | (1 << art::arm64::X27) |
+                            (1 << art::arm64::X28);
+      // X0 is the method pointer. Not saved.
+      uint32_t arg_spills = (1 << art::arm64::X1) | (1 << art::arm64::X2) | (1 << art::arm64::X3) |
+                            (1 << art::arm64::X4) | (1 << art::arm64::X5) | (1 << art::arm64::X6) |
+                            (1 << art::arm64::X7);
+      // TODO  This is conservative. Only ALL should include the thread register.
+      // The thread register is not preserved by the aapcs64.
+      // LR is always saved.
+      uint32_t all_spills =  0;  // (1 << art::arm64::LR);
+      uint32_t core_spills = ref_spills | (type == kRefsAndArgs ? arg_spills : 0) |
+                             (type == kSaveAll ? all_spills : 0) | (1 << art::arm64::FP)
+                             | (1 << art::arm64::X18) | (1 << art::arm64::LR);
+
+      // Save callee-saved floating point registers. Rest are scratch/parameters.
+      uint32_t fp_arg_spills = (1 << art::arm64::D0) | (1 << art::arm64::D1) | (1 << art::arm64::D2) |
+                            (1 << art::arm64::D3) | (1 << art::arm64::D4) | (1 << art::arm64::D5) |
+                            (1 << art::arm64::D6) | (1 << art::arm64::D7);
+      uint32_t fp_ref_spills = (1 << art::arm64::D8)  | (1 << art::arm64::D9)  | (1 << art::arm64::D10) |
+                               (1 << art::arm64::D11)  | (1 << art::arm64::D12)  | (1 << art::arm64::D13) |
+                               (1 << art::arm64::D14)  | (1 << art::arm64::D15);
+      uint32_t fp_all_spills = fp_arg_spills |
+                          (1 << art::arm64::D16)  | (1 << art::arm64::D17) | (1 << art::arm64::D18) |
+                          (1 << art::arm64::D19)  | (1 << art::arm64::D20) | (1 << art::arm64::D21) |
+                          (1 << art::arm64::D22)  | (1 << art::arm64::D23) | (1 << art::arm64::D24) |
+                          (1 << art::arm64::D25)  | (1 << art::arm64::D26) | (1 << art::arm64::D27) |
+                          (1 << art::arm64::D28)  | (1 << art::arm64::D29) | (1 << art::arm64::D30) |
+                          (1 << art::arm64::D31);
+      uint32_t fp_spills = fp_ref_spills | (type == kRefsAndArgs ? fp_arg_spills: 0)
+                          | (type == kSaveAll ? fp_all_spills : 0);
+      size_t frame_size = RoundUp((__builtin_popcount(core_spills) /* gprs */ +
+                                   __builtin_popcount(fp_spills) /* fprs */ +
+                                   1 /* Method* */) * kPointerSize, kStackAlignment);
+      method->SetFrameSizeInBytes(frame_size);
+      method->SetCoreSpillMask(core_spills);
+      method->SetFpSpillMask(fp_spills);
   } else {
     UNIMPLEMENTED(FATAL) << instruction_set;
   }
