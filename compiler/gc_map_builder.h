@@ -20,22 +20,19 @@
 #include <vector>
 
 #include "gc_map.h"
+#include "utils.h"
 
 namespace art {
 
 class GcMapBuilder {
  public:
-  GcMapBuilder(std::vector<uint8_t>* table,
-               size_t entries, uint32_t max_native_offset,
-               size_t references_width) : entries_(entries),
-               references_width_(references_width), in_use_(entries),
-               table_(table) {
-    // Compute width in bytes needed to hold max_native_offset.
-    native_offset_width_ = 0;
-    while (max_native_offset != 0) {
-      native_offset_width_++;
-      max_native_offset >>= 8;
-    }
+  GcMapBuilder(std::vector<uint8_t>* table, size_t entries, uint32_t max_native_offset,
+               size_t references_width)
+      : entries_(entries), references_width_(entries != 0u ? references_width : 0u),
+        native_offset_width_(entries != 0 && max_native_offset != 0
+                             ? sizeof(max_native_offset) - CLZ(max_native_offset) / 8u
+                             : 0u),
+        in_use_(entries), table_(table) {
     // Resize table and set up header.
     table->resize((EntryWidth() * entries) + sizeof(uint32_t));
     CHECK_LT(native_offset_width_, 1U << 3);
@@ -94,7 +91,7 @@ class GcMapBuilder {
   // Number of bytes used to encode the reference bitmap.
   const size_t references_width_;
   // Number of bytes used to encode a native offset.
-  size_t native_offset_width_;
+  const size_t native_offset_width_;
   // Entries that are in use.
   std::vector<bool> in_use_;
   // The table we're building.
