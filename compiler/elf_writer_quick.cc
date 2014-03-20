@@ -372,6 +372,11 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
       elf_header.e_flags = EF_ARM_EABI_VER5;
       break;
     }
+    case kArm64: {
+      elf_header.e_machine = EM_AARCH64;
+      elf_header.e_flags = 0;
+      break;
+    }
     case kX86: {
       elf_header.e_machine = EM_386;
       elf_header.e_flags = 0;

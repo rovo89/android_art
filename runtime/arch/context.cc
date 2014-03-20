@@ -18,6 +18,8 @@
 
 #if defined(__arm__)
 #include "arm/context_arm.h"
+#elif defined(__aarch64__)
+#include "arm64/context_arm64.h"
 #elif defined(__mips__)
 #include "mips/context_mips.h"
 #elif defined(__i386__)
@@ -33,6 +35,8 @@ namespace art {
 Context* Context::Create() {
 #if defined(__arm__)
   return new arm::ArmContext();
+#elif defined(__aarch64__)
+  return new arm64::Arm64Context();
 #elif defined(__mips__)
   return new mips::MipsContext();
 #elif defined(__i386__)

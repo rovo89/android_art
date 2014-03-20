@@ -61,10 +61,10 @@ enum Register {
   IP1 = 17,     // Used as scratch by ART JNI Assembler.
   FP  = 29,
   LR  = 30,
-  XZR = 31,
-  SP  = 32,     // SP is X31 and overlaps with XRZ but we encode it as a
+  SP  = 31,     // SP is X31 and overlaps with XRZ but we encode it as a
                 // special register, due to the different instruction semantics.
-  kNumberOfCoreRegisters = 33,
+  XZR = 32,     // FIXME This needs to be reconciled with the JNI assembler.
+  kNumberOfCoreRegisters = 32,
   kNoRegister = -1,
 };
 std::ostream& operator<<(std::ostream& os, const Register& rhs);
@@ -103,6 +103,7 @@ enum WRegister {
   W29 = 29,
   W30 = 30,
   W31 = 31,
+  WSP = 31,
   WZR = 31,
   kNumberOfWRegisters = 32,
   kNoWRegister = -1,

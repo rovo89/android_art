@@ -18,6 +18,7 @@
 
 #include "base/logging.h"
 #include "jni/quick/arm/calling_convention_arm.h"
+#include "jni/quick/arm64/calling_convention_arm64.h"
 #include "jni/quick/mips/calling_convention_mips.h"
 #include "jni/quick/x86/calling_convention_x86.h"
 #include "utils.h"
@@ -37,6 +38,8 @@ ManagedRuntimeCallingConvention* ManagedRuntimeCallingConvention::Create(
     case kArm:
     case kThumb2:
       return new arm::ArmManagedRuntimeCallingConvention(is_static, is_synchronized, shorty);
+    case kArm64:
+      return new arm64::Arm64ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty);
     case kMips:
       return new mips::MipsManagedRuntimeCallingConvention(is_static, is_synchronized, shorty);
     case kX86:
@@ -91,6 +94,8 @@ JniCallingConvention* JniCallingConvention::Create(bool is_static, bool is_synch
     case kArm:
     case kThumb2:
       return new arm::ArmJniCallingConvention(is_static, is_synchronized, shorty);
+    case kArm64:
+      return new arm64::Arm64JniCallingConvention(is_static, is_synchronized, shorty);
     case kMips:
       return new mips::MipsJniCallingConvention(is_static, is_synchronized, shorty);
     case kX86:
