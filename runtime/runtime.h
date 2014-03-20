@@ -442,6 +442,12 @@ class Runtime {
   // A pointer to the active runtime or NULL.
   static Runtime* instance_;
 
+  mirror::ArtMethod* callee_save_methods_[kLastCalleeSaveType];
+  mirror::Throwable* pre_allocated_OutOfMemoryError_;
+  mirror::ArtMethod* resolution_method_;
+  mirror::ArtMethod* imt_conflict_method_;
+  mirror::ObjectArray<mirror::ArtMethod>* default_imt_;
+
   CompilerCallbacks* compiler_callbacks_;
   bool is_zygote_;
   bool is_concurrent_gc_enabled_;
@@ -474,16 +480,6 @@ class Runtime {
   std::string stack_trace_file_;
 
   JavaVMExt* java_vm_;
-
-  mirror::Throwable* pre_allocated_OutOfMemoryError_;
-
-  mirror::ArtMethod* callee_save_methods_[kLastCalleeSaveType];
-
-  mirror::ArtMethod* resolution_method_;
-
-  mirror::ArtMethod* imt_conflict_method_;
-
-  mirror::ObjectArray<mirror::ArtMethod>* default_imt_;
 
   // Fault message, printed when we get a SIGSEGV.
   Mutex fault_message_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
