@@ -22,53 +22,53 @@
 namespace art {
 namespace x86 {
 
-class X86ManagedRuntimeCallingConvention : public ManagedRuntimeCallingConvention {
+class X86ManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingConvention {
  public:
   explicit X86ManagedRuntimeCallingConvention(bool is_static, bool is_synchronized,
                                               const char* shorty)
       : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty) {}
-  virtual ~X86ManagedRuntimeCallingConvention() {}
+  ~X86ManagedRuntimeCallingConvention() OVERRIDE {}
   // Calling convention
-  virtual ManagedRegister ReturnRegister();
-  virtual ManagedRegister InterproceduralScratchRegister();
+  ManagedRegister ReturnRegister() OVERRIDE;
+  ManagedRegister InterproceduralScratchRegister() OVERRIDE;
   // Managed runtime calling convention
-  virtual ManagedRegister MethodRegister();
-  virtual bool IsCurrentParamInRegister();
-  virtual bool IsCurrentParamOnStack();
-  virtual ManagedRegister CurrentParamRegister();
-  virtual FrameOffset CurrentParamStackOffset();
-  virtual const std::vector<ManagedRegister>& EntrySpills();
+  ManagedRegister MethodRegister() OVERRIDE;
+  bool IsCurrentParamInRegister() OVERRIDE;
+  bool IsCurrentParamOnStack() OVERRIDE;
+  ManagedRegister CurrentParamRegister() OVERRIDE;
+  FrameOffset CurrentParamStackOffset() OVERRIDE;
+  const std::vector<ManagedRegister>& EntrySpills() OVERRIDE;
  private:
   std::vector<ManagedRegister> entry_spills_;
   DISALLOW_COPY_AND_ASSIGN(X86ManagedRuntimeCallingConvention);
 };
 
-class X86JniCallingConvention : public JniCallingConvention {
+class X86JniCallingConvention FINAL : public JniCallingConvention {
  public:
   explicit X86JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
-  virtual ~X86JniCallingConvention() {}
+  ~X86JniCallingConvention() OVERRIDE {}
   // Calling convention
-  virtual ManagedRegister ReturnRegister();
-  virtual ManagedRegister IntReturnRegister();
-  virtual ManagedRegister InterproceduralScratchRegister();
+  ManagedRegister ReturnRegister() OVERRIDE;
+  ManagedRegister IntReturnRegister() OVERRIDE;
+  ManagedRegister InterproceduralScratchRegister() OVERRIDE;
   // JNI calling convention
-  virtual size_t FrameSize();
-  virtual size_t OutArgSize();
-  virtual const std::vector<ManagedRegister>& CalleeSaveRegisters() const {
+  size_t FrameSize() OVERRIDE;
+  size_t OutArgSize() OVERRIDE;
+  const std::vector<ManagedRegister>& CalleeSaveRegisters() const OVERRIDE {
     return callee_save_regs_;
   }
-  virtual ManagedRegister ReturnScratchRegister() const;
-  virtual uint32_t CoreSpillMask() const;
-  virtual uint32_t FpSpillMask() const {
+  ManagedRegister ReturnScratchRegister() const OVERRIDE;
+  uint32_t CoreSpillMask() const OVERRIDE;
+  uint32_t FpSpillMask() const OVERRIDE {
     return 0;
   }
-  virtual bool IsCurrentParamInRegister();
-  virtual bool IsCurrentParamOnStack();
-  virtual ManagedRegister CurrentParamRegister();
-  virtual FrameOffset CurrentParamStackOffset();
+  bool IsCurrentParamInRegister() OVERRIDE;
+  bool IsCurrentParamOnStack() OVERRIDE;
+  ManagedRegister CurrentParamRegister() OVERRIDE;
+  FrameOffset CurrentParamStackOffset() OVERRIDE;
 
  protected:
-  virtual size_t NumberOfOutgoingStackArgs();
+  size_t NumberOfOutgoingStackArgs() OVERRIDE;
 
  private:
   // TODO: these values aren't unique and can be shared amongst instances
