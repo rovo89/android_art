@@ -212,7 +212,7 @@ bool Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& speci
       RegLocation rl_dest = GetReturn(cu_->shorty[0] == 'F');
       GenPrintLabel(mir);
       LoadConstant(rl_dest.reg.GetReg(), static_cast<int>(special.d.data));
-      return_mir = mir_graph_->GetNextUnconditionalMir(bb, mir);
+      return_mir = bb->GetNextUnconditionalMir(mir_graph_, mir);
       break;
     }
     case kInlineOpReturnArg:
@@ -221,11 +221,11 @@ bool Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& speci
       break;
     case kInlineOpIGet:
       successful = GenSpecialIGet(mir, special);
-      return_mir = mir_graph_->GetNextUnconditionalMir(bb, mir);
+      return_mir = bb->GetNextUnconditionalMir(mir_graph_, mir);
       break;
     case kInlineOpIPut:
       successful = GenSpecialIPut(mir, special);
-      return_mir = mir_graph_->GetNextUnconditionalMir(bb, mir);
+      return_mir = bb->GetNextUnconditionalMir(mir_graph_, mir);
       break;
     default:
       break;
