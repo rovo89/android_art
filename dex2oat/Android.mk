@@ -22,10 +22,10 @@ DEX2OAT_SRC_FILES := \
 	dex2oat.cc
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libcutils libart-compiler,art/compiler,target,ndebug))
+  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libcutils libart-compiler,art/compiler,target,ndebug,32))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libcutils libartd-compiler,art/compiler,target,debug))
+  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libcutils libartd-compiler,art/compiler,target,debug,32))
 endif
 
 ifeq ($(WITH_HOST_DALVIK),true)
