@@ -65,7 +65,7 @@ RosAllocSpace* RosAllocSpace::CreateFromMemMap(MemMap* mem_map, const std::strin
   byte* begin = mem_map->Begin();
   // TODO: Fix RosAllocSpace to support valgrind. There is currently some issues with
   // AllocationSize caused by redzones. b/12944686
-  if (false && RUNNING_ON_VALGRIND > 0) {
+  if (false && Runtime::Current()->GetHeap()->RunningOnValgrind()) {
     return new ValgrindMallocSpace<RosAllocSpace, allocator::RosAlloc*>(
         name, mem_map, rosalloc, begin, end, begin + capacity, growth_limit, initial_size);
   } else {
