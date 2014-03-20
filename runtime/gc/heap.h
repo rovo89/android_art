@@ -314,6 +314,12 @@ class Heap {
   }
 
   static mirror::Object* PreserveSoftReferenceCallback(mirror::Object* obj, void* arg);
+  void ProcessSoftReferences(TimingLogger& timings, bool clear_soft,
+                             IsMarkedCallback* is_marked_callback,
+                             MarkObjectCallback* mark_object_callback,
+                             ProcessMarkStackCallback* process_mark_stack_callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
   void ProcessReferences(TimingLogger& timings, bool clear_soft,
                          IsMarkedCallback* is_marked_callback,
                          MarkObjectCallback* mark_object_callback,
