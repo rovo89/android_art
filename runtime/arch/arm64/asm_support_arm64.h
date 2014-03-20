@@ -22,11 +22,11 @@
 // TODO Thread offsets need to be checked when on Aarch64.
 
 // Offset of field Runtime::callee_save_methods_[kSaveAll]
-#define RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET 320
+#define RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET 0
 // Offset of field Runtime::callee_save_methods_[kRefsOnly]
-#define RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET 328
+#define RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET 8
 // Offset of field Runtime::callee_save_methods_[kRefsAndArgs]
-#define RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET 336
+#define RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET 16
 
 // Register holding Thread::Current().
 #define xSELF x18
