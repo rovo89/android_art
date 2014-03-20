@@ -563,7 +563,7 @@ void MIRGraph::InsertPhiNodes() {
       phi->dalvikInsn.vA = dalvik_reg;
       phi->offset = phi_bb->start_offset;
       phi->m_unit_index = 0;  // Arbitrarily assign all Phi nodes to outermost method.
-      PrependMIR(phi_bb, phi);
+      phi_bb->PrependMIR(phi);
     }
   }
 }
