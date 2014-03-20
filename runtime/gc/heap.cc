@@ -751,22 +751,31 @@ mirror::Object* Heap::PreserveSoftReferenceCallback(mirror::Object* obj, void* a
   return args->mark_callback_(obj, args->arg_);
 }
 
+void Heap::ProcessSoftReferences(TimingLogger& timings, bool clear_soft,
+                                 IsMarkedCallback* is_marked_callback,
+                                 MarkObjectCallback* mark_object_callback,
+                                 ProcessMarkStackCallback* process_mark_stack_callback, void* arg) {
+  // Unless required to clear soft references with white references, preserve some white referents.
+  if (!clear_soft) {
+    // Don't clear for sticky GC.
+    SoftReferenceArgs soft_reference_args;
+    soft_reference_args.is_marked_callback_ = is_marked_callback;
+    soft_reference_args.mark_callback_ = mark_object_callback;
+    soft_reference_args.arg_ = arg;
+    // References with a marked referent are removed from the list.
+    soft_reference_queue_.PreserveSomeSoftReferences(&PreserveSoftReferenceCallback,
+                                                     &soft_reference_args);
+    process_mark_stack_callback(arg);
+  }
+}
+
 // Process reference class instances and schedule finalizations.
 void Heap::ProcessReferences(TimingLogger& timings, bool clear_soft,
                              IsMarkedCallback* is_marked_callback,
                              MarkObjectCallback* mark_object_callback,
                              ProcessMarkStackCallback* process_mark_stack_callback, void* arg) {
-  // Unless we are in the zygote or required to clear soft references with white references,
-  // preserve some white referents.
-  if (!clear_soft && !Runtime::Current()->IsZygote()) {
-    SoftReferenceArgs soft_reference_args;
-    soft_reference_args.is_marked_callback_ = is_marked_callback;
-    soft_reference_args.mark_callback_ = mark_object_callback;
-    soft_reference_args.arg_ = arg;
-    soft_reference_queue_.PreserveSomeSoftReferences(&PreserveSoftReferenceCallback,
-                                                     &soft_reference_args);
-    process_mark_stack_callback(arg);
-  }
+  ProcessSoftReferences(timings, clear_soft, is_marked_callback, mark_object_callback,
+                        process_mark_stack_callback, arg);
   timings.StartSplit("(Paused)ProcessReferences");
   // Clear all remaining soft and weak references with white referents.
   soft_reference_queue_.ClearWhiteReferences(cleared_references_, is_marked_callback, arg);
@@ -1813,7 +1822,10 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
       << "Could not find garbage collector with concurrent=" << concurrent_gc_
       << " and type=" << gc_type;
   ATRACE_BEGIN(StringPrintf("%s %s GC", PrettyCause(gc_cause), collector->GetName()).c_str());
-  collector->Run(gc_cause, clear_soft_references);
+  if (!clear_soft_references) {
+    clear_soft_references = gc_type != collector::kGcTypeSticky;  // TODO: GSS?
+  }
+  collector->Run(gc_cause, clear_soft_references || Runtime::Current()->IsZygote());
   total_objects_freed_ever_ += collector->GetFreedObjects();
   total_bytes_freed_ever_ += collector->GetFreedBytes();
   RequestHeapTrim();
