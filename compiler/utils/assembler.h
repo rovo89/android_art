@@ -38,6 +38,9 @@ class AssemblerFixup;
 namespace arm {
   class ArmAssembler;
 }
+namespace arm64 {
+  class Arm64Assembler;
+}
 namespace mips {
   class MipsAssembler;
 }

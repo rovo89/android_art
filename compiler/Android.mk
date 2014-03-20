@@ -66,6 +66,7 @@ LIBART_COMPILER_SRC_FILES := \
 	driver/compiler_driver.cc \
 	driver/dex_compilation_unit.cc \
 	jni/quick/arm/calling_convention_arm.cc \
+	jni/quick/arm64/calling_convention_arm64.cc \
 	jni/quick/mips/calling_convention_mips.cc \
 	jni/quick/x86/calling_convention_x86.cc \
 	jni/quick/calling_convention.cc \

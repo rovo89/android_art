@@ -53,7 +53,8 @@ class PortableArgumentVisitor {
 #define PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE 96
 #define PORTABLE_STACK_ARG_SKIP 0
 #else
-#error "Unsupported architecture"
+// TODO: portable should be disabled for aarch64 for now.
+// #error "Unsupported architecture"
 #define PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__R1_OFFSET 0
 #define PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE 0
 #define PORTABLE_STACK_ARG_SKIP 0
