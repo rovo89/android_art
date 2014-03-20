@@ -46,16 +46,29 @@ class ImmuneRegion {
   bool ContainsSpace(const space::ContinuousSpace* space) const;
   // Returns true if an object is inside of the immune region (assumed to be marked).
   bool ContainsObject(const mirror::Object* obj) const ALWAYS_INLINE {
-    return obj >= begin_ && obj < end_;
+    // Note: Relies on integer underflow behavior.
+    return reinterpret_cast<uintptr_t>(obj) - reinterpret_cast<uintptr_t>(begin_) < size_;
+  }
+  void SetBegin(mirror::Object* begin) {
+    begin_ = begin;
+    UpdateSize();
+  }
+  void SetEnd(mirror::Object* end) {
+    end_ = end;
+    UpdateSize();
   }
 
  private:
   bool IsEmpty() const {
-    return begin_ == end_;
+    return size_ == 0;
+  }
+  void UpdateSize() {
+    size_ = reinterpret_cast<uintptr_t>(end_) - reinterpret_cast<uintptr_t>(begin_);
   }
 
   mirror::Object* begin_;
   mirror::Object* end_;
+  uintptr_t size_;
 };
 
 }  // namespace collector

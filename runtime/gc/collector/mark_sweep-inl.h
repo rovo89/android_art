@@ -48,26 +48,25 @@ inline void MarkSweep::ScanObjectVisit(mirror::Object* obj, const MarkVisitor& v
     if (kCountScannedTypes) {
       ++class_count_;
     }
-    VisitClassReferences(klass, obj, visitor);
+    VisitClassReferences<false>(klass, obj, visitor);
   } else {
     if (kCountScannedTypes) {
       ++other_count_;
     }
-    VisitOtherReferences(klass, obj, visitor);
+    VisitInstanceFieldsReferences<false>(klass, obj, visitor);
     if (UNLIKELY(klass->IsReferenceClass<kVerifyNone>())) {
       DelayReferenceReferent(klass, obj);
     }
   }
 }
 
-template <typename Visitor>
-inline void MarkSweep::VisitObjectReferences(mirror::Object* obj, const Visitor& visitor,
-                                             bool visit_class)
+template <bool kVisitClass, typename Visitor>
+inline void MarkSweep::VisitObjectReferences(mirror::Object* obj, const Visitor& visitor)
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
                           Locks::mutator_lock_) {
   mirror::Class* klass = obj->GetClass();
   if (klass->IsArrayClass()) {
-    if (visit_class) {
+    if (kVisitClass) {
       visitor(obj, klass, mirror::Object::ClassOffset(), false);
     }
     if (klass->IsObjectArrayClass<kVerifyNone>()) {
@@ -75,37 +74,46 @@ inline void MarkSweep::VisitObjectReferences(mirror::Object* obj, const Visitor&
     }
   } else if (klass == mirror::Class::GetJavaLangClass()) {
     DCHECK_EQ(klass->GetClass<kVerifyNone>(), mirror::Class::GetJavaLangClass());
-    VisitClassReferences(klass, obj, visitor);
+    VisitClassReferences<kVisitClass>(klass, obj, visitor);
   } else {
-    VisitOtherReferences(klass, obj, visitor);
+    VisitInstanceFieldsReferences<kVisitClass>(klass, obj, visitor);
   }
 }
 
-template <typename Visitor>
-inline void MarkSweep::VisitInstanceFieldsReferences(mirror::Class* klass, mirror::Object* obj,
-                                                     const Visitor& visitor)
+template <bool kVisitClass, typename Visitor>
+inline void MarkSweep::VisitInstanceFieldsReferences(mirror::Class* klass,
+                                                     mirror::Object* obj, const Visitor& visitor)
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-  VisitFieldsReferences(obj, klass->GetReferenceInstanceOffsets<kVerifyNone>(), false, visitor);
+  VisitFieldsReferences<kVisitClass>(obj, klass->GetReferenceInstanceOffsets<kVerifyNone>(), false,
+                                     visitor);
 }
 
-template <typename Visitor>
+template <bool kVisitClass, typename Visitor>
 inline void MarkSweep::VisitClassReferences(mirror::Class* klass, mirror::Object* obj,
                                             const Visitor& visitor)
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-  VisitInstanceFieldsReferences(klass, obj, visitor);
-  VisitStaticFieldsReferences(obj->AsClass<kVerifyNone>(), visitor);
+  VisitInstanceFieldsReferences<kVisitClass>(klass, obj, visitor);
+  VisitStaticFieldsReferences<kVisitClass>(obj->AsClass<kVerifyNone>(), visitor);
 }
 
-template <typename Visitor>
+template <bool kVisitClass, typename Visitor>
 inline void MarkSweep::VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor)
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-  VisitFieldsReferences(klass, klass->GetReferenceStaticOffsets<kVerifyNone>(), true, visitor);
+  VisitFieldsReferences<kVisitClass>(klass, klass->GetReferenceStaticOffsets<kVerifyNone>(), true,
+                                     visitor);
 }
 
-template <typename Visitor>
+template <bool kVisitClass, typename Visitor>
 inline void MarkSweep::VisitFieldsReferences(mirror::Object* obj, uint32_t ref_offsets,
                                              bool is_static, const Visitor& visitor) {
   if (LIKELY(ref_offsets != CLASS_WALK_SUPER)) {
+    if (!kVisitClass) {
+      // Currently the class bit is always set in the word. Since we count leading zeros to find
+      // the offset and the class bit is at offset 0, it means that the highest bit is the class
+      // bit. We can quickly clear this using xor.
+      ref_offsets ^= kWordHighBitMask;
+      DCHECK_EQ(mirror::Object::ClassOffset().Uint32Value(), 0U);
+    }
     // Found a reference offset bitmap.  Mark the specified offsets.
     while (ref_offsets != 0) {
       size_t right_shift = CLZ(ref_offsets);
