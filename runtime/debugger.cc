@@ -3072,7 +3072,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   // Translate the method through the vtable, unless the debugger wants to suppress it.
   SirtRef<mirror::ArtMethod> m(soa.Self(), pReq->method);
   if ((pReq->options & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver != NULL) {
-    mirror::ArtMethod* actual_method = pReq->klass->FindVirtualMethodForVirtualOrInterface(pReq->method);
+    mirror::ArtMethod* actual_method = pReq->klass->FindVirtualMethodForVirtualOrInterface(m.get());
     if (actual_method != m.get()) {
       VLOG(jdwp) << "ExecuteMethod translated " << PrettyMethod(m.get()) << " to " << PrettyMethod(actual_method);
       m.reset(actual_method);
@@ -3085,7 +3085,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
 
   CHECK_EQ(sizeof(jvalue), sizeof(uint64_t));
 
-  pReq->result_value = InvokeWithJValues(soa, pReq->receiver, soa.EncodeMethod(pReq->method),
+  pReq->result_value = InvokeWithJValues(soa, pReq->receiver, soa.EncodeMethod(m.get()),
                                          reinterpret_cast<jvalue*>(pReq->arg_values));
 
   mirror::Throwable* exception = soa.Self()->GetException(NULL);
