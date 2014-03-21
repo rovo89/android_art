@@ -577,7 +577,7 @@ void Arm64Assembler::EmitExceptionPoll(Arm64Exception *exception) {
 
 void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                         const std::vector<ManagedRegister>& callee_save_regs,
-                        const std::vector<ManagedRegister>& entry_spills) {
+                        const ManagedRegisterEntrySpills& entry_spills) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
   CHECK(X0 == method_reg.AsArm64().AsCoreRegister());
 

@@ -111,7 +111,7 @@ class Arm64Assembler : public Assembler {
   // Emit code that will create an activation on the stack.
   void BuildFrame(size_t frame_size, ManagedRegister method_reg,
                   const std::vector<ManagedRegister>& callee_save_regs,
-                  const std::vector<ManagedRegister>& entry_spills);
+                  const ManagedRegisterEntrySpills& entry_spills);
 
   // Emit code that will remove an activation from the stack.
   void RemoveFrame(size_t frame_size,
