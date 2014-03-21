@@ -398,7 +398,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
           (*cfi_info)[offset_to_update+1] = new_value >> 8;
           (*cfi_info)[offset_to_update+2] = new_value >> 16;
           (*cfi_info)[offset_to_update+3] = new_value >> 24;
-          method_info_.push_back(DebugInfo(PrettyMethod(class_def_method_index, dex_file, false),
+          method_info_.push_back(DebugInfo(PrettyMethod(method_idx, dex_file, false),
                                            new_value, new_value + code_size));
         }
       }
