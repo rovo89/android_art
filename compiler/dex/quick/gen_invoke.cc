@@ -1163,40 +1163,35 @@ bool Mir2Lir::GenInlinedAbsLong(CallInfo* info) {
     // TODO - add Mips implementation
     return false;
   }
-  if (cu_->instruction_set == kThumb2) {
-    RegLocation rl_src = info->args[0];
-    rl_src = LoadValueWide(rl_src, kCoreReg);
-    RegLocation rl_dest = InlineTargetWide(info);
-    RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-    int sign_reg = AllocTemp();
-    // abs(x) = y<=x>>31, (x+y)^y.
-    OpRegRegImm(kOpAsr, sign_reg, rl_src.reg.GetHighReg(), 31);
-    OpRegRegReg(kOpAdd, rl_result.reg.GetReg(), rl_src.reg.GetReg(), sign_reg);
-    OpRegRegReg(kOpAdc, rl_result.reg.GetHighReg(), rl_src.reg.GetHighReg(), sign_reg);
-    OpRegReg(kOpXor, rl_result.reg.GetReg(), sign_reg);
-    OpRegReg(kOpXor, rl_result.reg.GetHighReg(), sign_reg);
-    StoreValueWide(rl_dest, rl_result);
-    return true;
-  } else {
-    DCHECK_EQ(cu_->instruction_set, kX86);
-    // Reuse source registers to avoid running out of temps
-    RegLocation rl_src = info->args[0];
-    rl_src = LoadValueWide(rl_src, kCoreReg);
-    RegLocation rl_dest = InlineTargetWide(info);
-    RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-    OpRegCopyWide(rl_result.reg.GetReg(), rl_result.reg.GetHighReg(), rl_src.reg.GetReg(), rl_src.reg.GetHighReg());
-    FreeTemp(rl_src.reg.GetReg());
-    FreeTemp(rl_src.reg.GetHighReg());
-    int sign_reg = AllocTemp();
-    // abs(x) = y<=x>>31, (x+y)^y.
-    OpRegRegImm(kOpAsr, sign_reg, rl_result.reg.GetHighReg(), 31);
-    OpRegReg(kOpAdd, rl_result.reg.GetReg(), sign_reg);
-    OpRegReg(kOpAdc, rl_result.reg.GetHighReg(), sign_reg);
-    OpRegReg(kOpXor, rl_result.reg.GetReg(), sign_reg);
-    OpRegReg(kOpXor, rl_result.reg.GetHighReg(), sign_reg);
-    StoreValueWide(rl_dest, rl_result);
-    return true;
+  RegLocation rl_src = info->args[0];
+  rl_src = LoadValueWide(rl_src, kCoreReg);
+  RegLocation rl_dest = InlineTargetWide(info);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+
+  // If on x86 or if we would clobber a register needed later, just copy the source first.
+  if (cu_->instruction_set == kX86 || rl_result.reg.GetReg() == rl_src.reg.GetHighReg()) {
+    OpRegCopyWide(rl_result.reg.GetReg(), rl_result.reg.GetHighReg(),
+                  rl_src.reg.GetReg(), rl_src.reg.GetHighReg());
+    if (rl_result.reg.GetReg() != rl_src.reg.GetReg() &&
+        rl_result.reg.GetReg() != rl_src.reg.GetHighReg() &&
+        rl_result.reg.GetHighReg() != rl_src.reg.GetReg() &&
+        rl_result.reg.GetHighReg() != rl_src.reg.GetHighReg()) {
+      // Reuse source registers to avoid running out of temps.
+      FreeTemp(rl_src.reg.GetReg());
+      FreeTemp(rl_src.reg.GetHighReg());
+    }
+    rl_src = rl_result;
   }
+
+  // abs(x) = y<=x>>31, (x+y)^y.
+  int sign_reg = AllocTemp();
+  OpRegRegImm(kOpAsr, sign_reg, rl_src.reg.GetHighReg(), 31);
+  OpRegRegReg(kOpAdd, rl_result.reg.GetReg(), rl_src.reg.GetReg(), sign_reg);
+  OpRegRegReg(kOpAdc, rl_result.reg.GetHighReg(), rl_src.reg.GetHighReg(), sign_reg);
+  OpRegReg(kOpXor, rl_result.reg.GetReg(), sign_reg);
+  OpRegReg(kOpXor, rl_result.reg.GetHighReg(), sign_reg);
+  StoreValueWide(rl_dest, rl_result);
+  return true;
 }
 
 bool Mir2Lir::GenInlinedAbsFloat(CallInfo* info) {
