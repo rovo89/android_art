@@ -621,8 +621,9 @@ void MIRGraph::DoDFSPreOrderSSARename(BasicBlock* block) {
   int map_size = sizeof(int) * cu_->num_dalvik_registers;
 
   /* Save SSA map snapshot */
+  ScopedArenaAllocator allocator(&cu_->arena_stack);
   int* saved_ssa_map =
-      static_cast<int*>(arena_->Alloc(map_size, kArenaAllocDalvikToSSAMap));
+      static_cast<int*>(allocator.Alloc(map_size, kArenaAllocDalvikToSSAMap));
   memcpy(saved_ssa_map, vreg_to_ssa_map_, map_size);
 
   if (block->fall_through != NullBasicBlockId) {
@@ -648,7 +649,6 @@ void MIRGraph::DoDFSPreOrderSSARename(BasicBlock* block) {
       memcpy(vreg_to_ssa_map_, saved_ssa_map, map_size);
     }
   }
-  vreg_to_ssa_map_ = saved_ssa_map;
   return;
 }
 
