@@ -118,7 +118,7 @@ class Instrumentation {
   void EnableDeoptimization() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(deoptimized_methods_lock_);
   void DisableDeoptimization() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-    LOCKS_EXCLUDED(deoptimized_methods_lock_);
+      LOCKS_EXCLUDED(deoptimized_methods_lock_);
   bool ShouldNotifyMethodEnterExitEvents() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Executes everything with interpreter.
@@ -142,7 +142,7 @@ class Instrumentation {
   // (except a class initializer) set to the resolution trampoline will be updated only once its
   // declaring class is initialized.
   void Undeoptimize(mirror::ArtMethod* method)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, deoptimized_methods_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsDeoptimized(mirror::ArtMethod* method) const LOCKS_EXCLUDED(deoptimized_methods_lock_);
