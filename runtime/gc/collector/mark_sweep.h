@@ -68,17 +68,23 @@ class MarkSweep : public GarbageCollector {
 
   virtual void InitializePhase() OVERRIDE;
   virtual void MarkingPhase() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  virtual bool HandleDirtyObjectsPhase() OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void HandleDirtyObjectsPhase() OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   virtual void ReclaimPhase() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   virtual void FinishPhase() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   virtual void MarkReachableObjects()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  virtual bool IsConcurrent() const OVERRIDE;
+  bool IsConcurrent() const {
+    return is_concurrent_;
+  }
 
   virtual GcType GetGcType() const OVERRIDE {
     return kGcTypeFull;
+  }
+
+  virtual CollectorType GetCollectorType() const OVERRIDE {
+    return is_concurrent_ ? kCollectorTypeCMS : kCollectorTypeMS;
   }
 
   // Initializes internal structures.
