@@ -37,6 +37,8 @@ class ArenaStack : private DebugStackRefCounter {
   explicit ArenaStack(ArenaPool* arena_pool);
   ~ArenaStack();
 
+  void Reset();
+
   size_t PeakBytesAllocated() {
     return PeakStats()->BytesAllocated();
   }
