@@ -27,10 +27,6 @@
 namespace art {
 namespace mirror {
 
-static inline size_t HeaderSize(size_t component_size) {
-  return sizeof(Object) + (component_size == sizeof(int64_t) ? 8 : 4);
-}
-
 template<VerifyObjectFlags kVerifyFlags>
 inline size_t Array::SizeOf() {
   // This is safe from overflow because the array was already allocated, so we know it's sane.
@@ -38,7 +34,7 @@ inline size_t Array::SizeOf() {
   // Don't need to check this since we already check this in GetClass.
   int32_t component_count =
       GetLength<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis)>();
-  size_t header_size = HeaderSize(component_size);
+  size_t header_size = DataOffset(component_size).SizeValue();
   size_t data_size = component_count * component_size;
   return header_size + data_size;
 }
@@ -50,7 +46,7 @@ static inline size_t ComputeArraySize(Thread* self, Class* array_class, int32_t 
   DCHECK_GE(component_count, 0);
   DCHECK(array_class->IsArrayClass());
 
-  size_t header_size = HeaderSize(component_size);
+  size_t header_size = Array::DataOffset(component_size).SizeValue();
   size_t data_size = component_count * component_size;
   size_t size = header_size + data_size;
 
@@ -134,7 +130,7 @@ inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_c
         heap->AllocObjectWithAllocator<kIsInstrumented, true>(self, array_class, size,
                                                               allocator_type, visitor));
   } else {
-    SetLengthToUsableSizeVisitor visitor(component_count, HeaderSize(component_size),
+    SetLengthToUsableSizeVisitor visitor(component_count, DataOffset(component_size).SizeValue(),
                                          component_size);
     result = down_cast<Array*>(
         heap->AllocObjectWithAllocator<kIsInstrumented, true>(self, array_class, size,
