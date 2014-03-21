@@ -852,6 +852,7 @@ class PACKED(4) Thread {
   // Doesn't check that there is room.
   mirror::Object* AllocTlab(size_t bytes);
   void SetTlab(byte* start, byte* end);
+  bool HasTlab() const;
 
   // Remove the suspend trigger for this thread by making the suspend_trigger_ TLS value
   // equal to a valid pointer.
