@@ -2314,26 +2314,26 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
 }
 
 mirror::Class* ClassLinker::FindPrimitiveClass(char type) {
-  switch (Primitive::GetType(type)) {
-    case Primitive::kPrimByte:
+  switch (type) {
+    case 'B':
       return GetClassRoot(kPrimitiveByte);
-    case Primitive::kPrimChar:
+    case 'C':
       return GetClassRoot(kPrimitiveChar);
-    case Primitive::kPrimDouble:
+    case 'D':
       return GetClassRoot(kPrimitiveDouble);
-    case Primitive::kPrimFloat:
+    case 'F':
       return GetClassRoot(kPrimitiveFloat);
-    case Primitive::kPrimInt:
+    case 'I':
       return GetClassRoot(kPrimitiveInt);
-    case Primitive::kPrimLong:
+    case 'J':
       return GetClassRoot(kPrimitiveLong);
-    case Primitive::kPrimShort:
+    case 'S':
       return GetClassRoot(kPrimitiveShort);
-    case Primitive::kPrimBoolean:
+    case 'Z':
       return GetClassRoot(kPrimitiveBoolean);
-    case Primitive::kPrimVoid:
+    case 'V':
       return GetClassRoot(kPrimitiveVoid);
-    case Primitive::kPrimNot:
+    default:
       break;
   }
   std::string printable_type(PrintableChar(type));
