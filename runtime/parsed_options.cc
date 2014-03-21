@@ -203,11 +203,13 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
     std::string checks(buf);
     std::vector<std::string> checkvec;
     Split(checks, ',', checkvec);
+    explicit_checks_ = kExplicitNullCheck | kExplicitSuspendCheck |
+        kExplicitStackOverflowCheck;
     for (auto& str : checkvec) {
       std::string val = Trim(str);
       if (val == "none") {
         explicit_checks_ = kExplicitNullCheck | kExplicitSuspendCheck |
-            kExplicitStackOverflowCheck;
+          kExplicitStackOverflowCheck;
       } else if (val == "null") {
         explicit_checks_ &= ~kExplicitNullCheck;
       } else if (val == "suspend") {
