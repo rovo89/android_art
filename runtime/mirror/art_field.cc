@@ -21,13 +21,22 @@
 #include "object-inl.h"
 #include "object_utils.h"
 #include "runtime.h"
+#include "scoped_thread_state_change.h"
 #include "utils.h"
+#include "well_known_classes.h"
 
 namespace art {
 namespace mirror {
 
 // TODO: get global references for these
 Class* ArtField::java_lang_reflect_ArtField_ = NULL;
+
+ArtField* ArtField::FromReflectedField(const ScopedObjectAccess& soa, jobject jlr_field) {
+  mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_reflect_Field_artField);
+  mirror::ArtField* field = f->GetObject(soa.Decode<mirror::Object*>(jlr_field))->AsArtField();
+  DCHECK(field != nullptr);
+  return field;
+}
 
 void ArtField::SetClass(Class* java_lang_reflect_ArtField) {
   CHECK(java_lang_reflect_ArtField_ == NULL);
