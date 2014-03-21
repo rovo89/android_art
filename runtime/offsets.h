@@ -32,6 +32,10 @@ class Offset {
   uint32_t Uint32Value() const {
     return static_cast<uint32_t>(val_);
   }
+  size_t SizeValue() const {
+    return val_;
+  }
+
  protected:
   size_t val_;
 };
