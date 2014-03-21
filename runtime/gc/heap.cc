@@ -2228,6 +2228,14 @@ void Heap::RevokeAllThreadLocalAllocationStacks(Thread* self) {
   }
 }
 
+void Heap::AssertAllBumpPointerSpaceThreadLocalBuffersAreRevoked() {
+  if (kIsDebugBuild) {
+    if (bump_pointer_space_ != nullptr) {
+      bump_pointer_space_->AssertAllThreadLocalBuffersAreRevoked();
+    }
+  }
+}
+
 accounting::ModUnionTable* Heap::FindModUnionTableFromSpace(space::Space* space) {
   auto it = mod_union_tables_.find(space);
   if (it == mod_union_tables_.end()) {
@@ -2647,6 +2655,12 @@ void Heap::RevokeThreadLocalBuffers(Thread* thread) {
   }
   if (bump_pointer_space_ != nullptr) {
     bump_pointer_space_->RevokeThreadLocalBuffers(thread);
+  }
+}
+
+void Heap::RevokeRosAllocThreadLocalBuffers(Thread* thread) {
+  if (rosalloc_space_ != nullptr) {
+    rosalloc_space_->RevokeThreadLocalBuffers(thread);
   }
 }
 

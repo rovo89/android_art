@@ -437,7 +437,9 @@ class Heap {
   void Trim() LOCKS_EXCLUDED(heap_trim_request_lock_);
 
   void RevokeThreadLocalBuffers(Thread* thread);
+  void RevokeRosAllocThreadLocalBuffers(Thread* thread);
   void RevokeAllThreadLocalBuffers();
+  void AssertAllBumpPointerSpaceThreadLocalBuffersAreRevoked();
 
   void PreGcRosAllocVerification(TimingLogger* timings)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);

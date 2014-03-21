@@ -308,6 +308,12 @@ void RosAllocSpace::RevokeAllThreadLocalBuffers() {
   rosalloc_->RevokeAllThreadLocalRuns();
 }
 
+void RosAllocSpace::AssertAllThreadLocalBuffersAreRevoked() {
+  if (kIsDebugBuild) {
+    rosalloc_->AssertAllThreadLocalRunsAreRevoked();
+  }
+}
+
 void RosAllocSpace::Clear() {
   madvise(GetMemMap()->Begin(), GetMemMap()->Size(), MADV_DONTNEED);
   GetLiveBitmap()->Clear();

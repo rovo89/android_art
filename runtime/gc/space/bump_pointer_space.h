@@ -103,6 +103,9 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
   void RevokeThreadLocalBuffers(Thread* thread) LOCKS_EXCLUDED(block_lock_);
   void RevokeAllThreadLocalBuffers() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_,
                                                     Locks::thread_list_lock_);
+  void AssertThreadLocalBuffersAreRevoked(Thread* thread) LOCKS_EXCLUDED(block_lock_);
+  void AssertAllThreadLocalBuffersAreRevoked() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_,
+                                                              Locks::thread_list_lock_);
 
   uint64_t GetBytesAllocated() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   uint64_t GetObjectsAllocated() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

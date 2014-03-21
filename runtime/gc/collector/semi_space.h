@@ -246,6 +246,9 @@ class SemiSpace : public GarbageCollector {
 
   inline mirror::Object* GetForwardingAddressInFromSpace(mirror::Object* obj) const;
 
+  // Revoke all the thread-local buffers.
+  void RevokeAllThreadLocalBuffers();
+
   // Current space, we check this space first to avoid searching for the appropriate space for an
   // object.
   accounting::ObjectStack* mark_stack_;

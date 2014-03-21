@@ -89,6 +89,7 @@ class RosAllocSpace : public MallocSpace {
 
   void RevokeThreadLocalBuffers(Thread* thread);
   void RevokeAllThreadLocalBuffers();
+  void AssertAllThreadLocalBuffersAreRevoked();
 
   // Returns the class of a recently freed object.
   mirror::Class* FindRecentFreedObject(const mirror::Object* obj);
