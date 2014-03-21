@@ -80,8 +80,15 @@ COMPILE_ASSERT(InlineMethodAnalyser::IGetVariant(Instruction::IGET_CHAR) ==
 COMPILE_ASSERT(InlineMethodAnalyser::IGetVariant(Instruction::IGET_SHORT) ==
     InlineMethodAnalyser::IPutVariant(Instruction::IPUT_SHORT), check_iget_iput_short_variant);
 
+// This is used by compiler and debugger. We look into the dex cache for resolved methods and
+// fields. However, in the context of the debugger, not all methods and fields are resolved. Since
+// we need to be able to detect possibly inlined method, we pass a null inline method to indicate
+// we don't want to take unresolved methods and fields into account during analysis.
 bool InlineMethodAnalyser::AnalyseMethodCode(verifier::MethodVerifier* verifier,
                                              InlineMethod* method) {
+  DCHECK(verifier != nullptr);
+  DCHECK_EQ(Runtime::Current()->IsCompiler(), method != nullptr);
+  DCHECK_EQ(verifier->CanLoadClasses(), method != nullptr);
   // We currently support only plain return or 2-instruction methods.
 
   const DexFile::CodeItem* code_item = verifier->CodeItem();
@@ -91,9 +98,11 @@ bool InlineMethodAnalyser::AnalyseMethodCode(verifier::MethodVerifier* verifier,
 
   switch (opcode) {
     case Instruction::RETURN_VOID:
-      method->opcode = kInlineOpNop;
-      method->flags = kInlineSpecial;
-      method->d.data = 0u;
+      if (method != nullptr) {
+        method->opcode = kInlineOpNop;
+        method->flags = kInlineSpecial;
+        method->d.data = 0u;
+      }
       return true;
     case Instruction::RETURN:
     case Instruction::RETURN_OBJECT:
@@ -136,14 +145,16 @@ bool InlineMethodAnalyser::AnalyseReturnMethod(const DexFile::CodeItem* code_ite
   DCHECK_LT((return_opcode == Instruction::RETURN_WIDE) ? reg + 1 : reg,
       code_item->registers_size_);
 
-  result->opcode = kInlineOpReturnArg;
-  result->flags = kInlineSpecial;
-  InlineReturnArgData* data = &result->d.return_data;
-  data->arg = reg - arg_start;
-  data->is_wide = (return_opcode == Instruction::RETURN_WIDE) ? 1u : 0u;
-  data->is_object = (return_opcode == Instruction::RETURN_OBJECT) ? 1u : 0u;
-  data->reserved = 0u;
-  data->reserved2 = 0u;
+  if (result != nullptr) {
+    result->opcode = kInlineOpReturnArg;
+    result->flags = kInlineSpecial;
+    InlineReturnArgData* data = &result->d.return_data;
+    data->arg = reg - arg_start;
+    data->is_wide = (return_opcode == Instruction::RETURN_WIDE) ? 1u : 0u;
+    data->is_object = (return_opcode == Instruction::RETURN_OBJECT) ? 1u : 0u;
+    data->reserved = 0u;
+    data->reserved2 = 0u;
+  }
   return true;
 }
 
@@ -173,9 +184,11 @@ bool InlineMethodAnalyser::AnalyseConstMethod(const DexFile::CodeItem* code_item
   if (return_opcode == Instruction::RETURN_OBJECT && vB != 0) {
     return false;  // Returning non-null reference constant?
   }
-  result->opcode = kInlineOpNonWideConst;
-  result->flags = kInlineSpecial;
-  result->d.data = static_cast<uint64_t>(vB);
+  if (result != nullptr) {
+    result->opcode = kInlineOpNonWideConst;
+    result->flags = kInlineSpecial;
+    result->d.data = static_cast<uint64_t>(vB);
+  }
   return true;
 }
 
@@ -215,18 +228,19 @@ bool InlineMethodAnalyser::AnalyseIGetMethod(verifier::MethodVerifier* verifier,
     return false;
   }
 
-  if (!ComputeSpecialAccessorInfo(field_idx, false, verifier, &result->d.ifield_data)) {
-    return false;
+  if (result != nullptr) {
+    InlineIGetIPutData* data = &result->d.ifield_data;
+    if (!ComputeSpecialAccessorInfo(field_idx, false, verifier, data)) {
+      return false;
+    }
+    result->opcode = kInlineOpIGet;
+    result->flags = kInlineSpecial;
+    data->op_variant = IGetVariant(opcode);
+    data->object_arg = object_reg - arg_start;  // Allow IGET on any register, not just "this".
+    data->src_arg = 0;
+    data->method_is_static = (verifier->GetAccessFlags() & kAccStatic) != 0;
+    data->reserved = 0;
   }
-
-  result->opcode = kInlineOpIGet;
-  result->flags = kInlineSpecial;
-  InlineIGetIPutData* data = &result->d.ifield_data;
-  data->op_variant = IGetVariant(opcode);
-  data->object_arg = object_reg - arg_start;  // Allow IGET on any register, not just "this".
-  data->src_arg = 0;
-  data->method_is_static = (verifier->GetAccessFlags() & kAccStatic) != 0;
-  data->reserved = 0;
   return true;
 }
 
@@ -262,18 +276,19 @@ bool InlineMethodAnalyser::AnalyseIPutMethod(verifier::MethodVerifier* verifier,
     return false;
   }
 
-  if (!ComputeSpecialAccessorInfo(field_idx, true, verifier, &result->d.ifield_data)) {
-    return false;
+  if (result != nullptr) {
+    InlineIGetIPutData* data = &result->d.ifield_data;
+    if (!ComputeSpecialAccessorInfo(field_idx, true, verifier, data)) {
+      return false;
+    }
+    result->opcode = kInlineOpIPut;
+    result->flags = kInlineSpecial;
+    data->op_variant = IPutVariant(opcode);
+    data->object_arg = object_reg - arg_start;  // Allow IPUT on any register, not just "this".
+    data->src_arg = src_reg - arg_start;
+    data->method_is_static = (verifier->GetAccessFlags() & kAccStatic) != 0;
+    data->reserved = 0;
   }
-
-  result->opcode = kInlineOpIPut;
-  result->flags = kInlineSpecial;
-  InlineIGetIPutData* data = &result->d.ifield_data;
-  data->op_variant = IPutVariant(opcode);
-  data->object_arg = object_reg - arg_start;  // Allow IPUT on any register, not just "this".
-  data->src_arg = src_reg - arg_start;
-  data->method_is_static = (verifier->GetAccessFlags() & kAccStatic) != 0;
-  data->reserved = 0;
   return true;
 }
 
