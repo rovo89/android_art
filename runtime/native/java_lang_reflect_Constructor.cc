@@ -36,10 +36,7 @@ namespace art {
  */
 static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
   ScopedFastNativeObjectAccess soa(env);
-  jobject art_method = soa.Env()->GetObjectField(
-      javaMethod, WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod);
-
-  mirror::ArtMethod* m = soa.Decode<mirror::Object*>(art_method)->AsArtMethod();
+  mirror::ArtMethod* m = mirror::ArtMethod::FromReflectedMethod(soa, javaMethod);
   SirtRef<mirror::Class> c(soa.Self(), m->GetDeclaringClass());
   if (UNLIKELY(c->IsAbstract())) {
     ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
