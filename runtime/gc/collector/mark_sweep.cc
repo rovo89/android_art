@@ -155,7 +155,7 @@ void MarkSweep::PreProcessReferences() {
   }
 }
 
-bool MarkSweep::HandleDirtyObjectsPhase() {
+void MarkSweep::HandleDirtyObjectsPhase() {
   TimingLogger::ScopedSplit split("(Paused)HandleDirtyObjectsPhase", &timings_);
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertExclusiveHeld(self);
@@ -198,11 +198,6 @@ bool MarkSweep::HandleDirtyObjectsPhase() {
   // incorrectly sweep it. This also fixes a race where interning may attempt to return a strong
   // reference to a string that is about to be swept.
   Runtime::Current()->DisallowNewSystemWeaks();
-  return true;
-}
-
-bool MarkSweep::IsConcurrent() const {
-  return is_concurrent_;
 }
 
 void MarkSweep::PreCleanCards() {

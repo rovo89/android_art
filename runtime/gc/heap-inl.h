@@ -118,11 +118,11 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   } else {
     DCHECK(!Dbg::IsAllocTrackingEnabled());
   }
-  // concurrent_gc_ isn't known at compile time so we can optimize by not checking it for
+  // IsConcurrentGc() isn't known at compile time so we can optimize by not checking it for
   // the BumpPointer or TLAB allocators. This is nice since it allows the entire if statement to be
   // optimized out. And for the other allocators, AllocatorMayHaveConcurrentGC is a constant since
   // the allocator_type should be constant propagated.
-  if (AllocatorMayHaveConcurrentGC(allocator) && concurrent_gc_) {
+  if (AllocatorMayHaveConcurrentGC(allocator) && IsGcConcurrent()) {
     CheckConcurrentGC(self, new_num_bytes_allocated, &obj);
   }
   VerifyObject(obj);
@@ -276,7 +276,7 @@ inline bool Heap::IsOutOfMemoryOnAllocation(AllocatorType allocator_type, size_t
     if (UNLIKELY(new_footprint > growth_limit_)) {
       return true;
     }
-    if (!AllocatorMayHaveConcurrentGC(allocator_type) || !concurrent_gc_) {
+    if (!AllocatorMayHaveConcurrentGC(allocator_type) || !IsGcConcurrent()) {
       if (!kGrow) {
         return true;
       }
