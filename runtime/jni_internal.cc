@@ -550,24 +550,16 @@ class JNI {
     return soa.AddLocalReference<jclass>(c);
   }
 
-  static jmethodID FromReflectedMethod(JNIEnv* env, jobject java_method) {
-    CHECK_NON_NULL_ARGUMENT(FromReflectedMethod, java_method);
+  static jmethodID FromReflectedMethod(JNIEnv* env, jobject jlr_method) {
+    CHECK_NON_NULL_ARGUMENT(FromReflectedMethod, jlr_method);
     ScopedObjectAccess soa(env);
-    jobject art_method = env->GetObjectField(
-        java_method, WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod);
-    mirror::ArtMethod* method = soa.Decode<mirror::ArtMethod*>(art_method);
-    DCHECK(method != nullptr);
-    return soa.EncodeMethod(method);
+    return soa.EncodeMethod(mirror::ArtMethod::FromReflectedMethod(soa, jlr_method));
   }
 
-  static jfieldID FromReflectedField(JNIEnv* env, jobject java_field) {
-    CHECK_NON_NULL_ARGUMENT(FromReflectedField, java_field);
+  static jfieldID FromReflectedField(JNIEnv* env, jobject jlr_field) {
+    CHECK_NON_NULL_ARGUMENT(FromReflectedField, jlr_field);
     ScopedObjectAccess soa(env);
-    jobject art_field = env->GetObjectField(java_field,
-                                            WellKnownClasses::java_lang_reflect_Field_artField);
-    mirror::ArtField* field = soa.Decode<mirror::ArtField*>(art_field);
-    DCHECK(field != nullptr);
-    return soa.EncodeField(field);
+    return soa.EncodeField(mirror::ArtField::FromReflectedField(soa, jlr_field));
   }
 
   static jobject ToReflectedMethod(JNIEnv* env, jclass, jmethodID mid, jboolean) {

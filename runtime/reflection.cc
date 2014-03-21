@@ -462,8 +462,7 @@ void InvokeWithShadowFrame(Thread* self, ShadowFrame* shadow_frame, uint16_t arg
 
 jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod,
                      jobject javaReceiver, jobject javaArgs) {
-  jmethodID mid = soa.Env()->FromReflectedMethod(javaMethod);
-  mirror::ArtMethod* m = soa.DecodeMethod(mid);
+  mirror::ArtMethod* m = mirror::ArtMethod::FromReflectedMethod(soa, javaMethod);
 
   mirror::Class* declaring_class = m->GetDeclaringClass();
   if (UNLIKELY(!declaring_class->IsInitialized())) {

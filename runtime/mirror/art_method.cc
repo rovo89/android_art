@@ -16,6 +16,7 @@
 
 #include "art_method.h"
 
+#include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/stringpiece.h"
 #include "class-inl.h"
@@ -28,8 +29,10 @@
 #include "object-inl.h"
 #include "object_array.h"
 #include "object_array-inl.h"
+#include "scoped_thread_state_change.h"
 #include "string.h"
 #include "object_utils.h"
+#include "well_known_classes.h"
 
 namespace art {
 namespace mirror {
@@ -44,6 +47,15 @@ extern "C" void art_quick_invoke_static_stub(ArtMethod*, uint32_t*, uint32_t, Th
 
 // TODO: get global references for these
 Class* ArtMethod::java_lang_reflect_ArtMethod_ = NULL;
+
+ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccess& soa, jobject jlr_method) {
+  mirror::ArtField* f =
+      soa.DecodeField(WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod);
+  mirror::ArtMethod* method = f->GetObject(soa.Decode<mirror::Object*>(jlr_method))->AsArtMethod();
+  DCHECK(method != nullptr);
+  return method;
+}
+
 
 void ArtMethod::VisitRoots(RootCallback* callback, void* arg) {
   if (java_lang_reflect_ArtMethod_ != nullptr) {
