@@ -34,7 +34,17 @@ ArenaStack::ArenaStack(ArenaPool* arena_pool)
 }
 
 ArenaStack::~ArenaStack() {
+  DebugStackRefCounter::CheckNoRefs();
   stats_and_pool_.pool->FreeArenaChain(bottom_arena_);
+}
+
+void ArenaStack::Reset() {
+  DebugStackRefCounter::CheckNoRefs();
+  stats_and_pool_.pool->FreeArenaChain(bottom_arena_);
+  bottom_arena_ = nullptr;
+  top_arena_  = nullptr;
+  top_ptr_ = nullptr;
+  top_end_ = nullptr;
 }
 
 MemStats ArenaStack::GetPeakStats() const {
