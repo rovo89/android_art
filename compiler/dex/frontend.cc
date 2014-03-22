@@ -251,6 +251,15 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   /* Reassociate sreg names with original Dalvik vreg names. */
   cu.mir_graph->RemapRegLocations();
 
+  /* Free Arenas from the cu.arena_stack for reuse by the cu.arena in the codegen. */
+  if (cu.enable_debug & (1 << kDebugShowMemoryUsage)) {
+    if (cu.arena_stack.PeakBytesAllocated() > 256 * 1024) {
+      MemStats stack_stats(cu.arena_stack.GetPeakStats());
+      LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(stack_stats);
+    }
+  }
+  cu.arena_stack.Reset();
+
   CompiledMethod* result = NULL;
 
   cu.cg->Materialize();
@@ -266,12 +275,9 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   }
 
   if (cu.enable_debug & (1 << kDebugShowMemoryUsage)) {
-    if (cu.arena.BytesAllocated() > (1 * 1024 *1024) ||
-        cu.arena_stack.PeakBytesAllocated() > 256 * 1024) {
+    if (cu.arena.BytesAllocated() > (1 * 1024 *1024)) {
       MemStats mem_stats(cu.arena.GetMemStats());
-      MemStats peak_stats(cu.arena_stack.GetPeakStats());
-      LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(mem_stats)
-          << Dumpable<MemStats>(peak_stats);
+      LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(mem_stats);
     }
   }
 
