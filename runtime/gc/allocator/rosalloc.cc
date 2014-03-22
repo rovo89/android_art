@@ -1652,6 +1652,30 @@ void RosAlloc::RevokeAllThreadLocalRuns() {
   }
 }
 
+void RosAlloc::AssertThreadLocalRunsAreRevoked(Thread* thread) {
+  if (kIsDebugBuild) {
+    Thread* self = Thread::Current();
+    // Avoid race conditions on the bulk free bit maps with BulkFree() (GC).
+    WriterMutexLock wmu(self, bulk_free_lock_);
+    for (size_t idx = 0; idx < kNumOfSizeBrackets; idx++) {
+      MutexLock mu(self, *size_bracket_locks_[idx]);
+      Run* thread_local_run = reinterpret_cast<Run*>(thread->rosalloc_runs_[idx]);
+      DCHECK(thread_local_run == nullptr);
+    }
+  }
+}
+
+void RosAlloc::AssertAllThreadLocalRunsAreRevoked() {
+  if (kIsDebugBuild) {
+    MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
+    MutexLock mu2(Thread::Current(), *Locks::thread_list_lock_);
+    std::list<Thread*> thread_list = Runtime::Current()->GetThreadList()->GetList();
+    for (Thread* t : thread_list) {
+      AssertThreadLocalRunsAreRevoked(t);
+    }
+  }
+}
+
 void RosAlloc::Initialize() {
   // Check the consistency of the number of size brackets.
   DCHECK_EQ(Thread::kRosAllocNumOfSizeBrackets, kNumOfSizeBrackets);

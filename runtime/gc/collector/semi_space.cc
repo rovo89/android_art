@@ -858,6 +858,12 @@ void SemiSpace::FinishPhase() {
   }
 }
 
+void SemiSpace::RevokeAllThreadLocalBuffers() {
+  timings_.StartSplit("(Paused)RevokeAllThreadLocalBuffers");
+  GetHeap()->RevokeAllThreadLocalBuffers();
+  timings_.EndSplit();
+}
+
 }  // namespace collector
 }  // namespace gc
 }  // namespace art

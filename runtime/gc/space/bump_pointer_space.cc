@@ -104,6 +104,26 @@ void BumpPointerSpace::RevokeAllThreadLocalBuffers() {
   }
 }
 
+void BumpPointerSpace::AssertThreadLocalBuffersAreRevoked(Thread* thread) {
+  if (kIsDebugBuild) {
+    MutexLock mu(Thread::Current(), block_lock_);
+    DCHECK(!thread->HasTlab());
+  }
+}
+
+void BumpPointerSpace::AssertAllThreadLocalBuffersAreRevoked() {
+  if (kIsDebugBuild) {
+    Thread* self = Thread::Current();
+    MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+    MutexLock mu2(self, *Locks::thread_list_lock_);
+    // TODO: Not do a copy of the thread list?
+    std::list<Thread*> thread_list = Runtime::Current()->GetThreadList()->GetList();
+    for (Thread* thread : thread_list) {
+      AssertThreadLocalBuffersAreRevoked(thread);
+    }
+  }
+}
+
 void BumpPointerSpace::UpdateMainBlock() {
   DCHECK_EQ(num_blocks_, 0U);
   main_block_size_ = Size();
