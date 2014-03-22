@@ -143,7 +143,7 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* expected, size_t byte_count
         // Not enough memory until 4GB.
         if (first_run) {
           // Try another time from the bottom;
-          next_mem_pos_ = LOW_MEM_START;
+          ptr = LOW_MEM_START - kPageSize;
           first_run = false;
           continue;
         } else {
