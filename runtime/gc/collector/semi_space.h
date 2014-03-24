@@ -72,9 +72,6 @@ class SemiSpace : public GarbageCollector {
   ~SemiSpace() {}
 
   virtual void InitializePhase();
-  virtual bool IsConcurrent() const {
-    return false;
-  }
   virtual void MarkingPhase() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   virtual void ReclaimPhase() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   virtual void FinishPhase() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -82,6 +79,9 @@ class SemiSpace : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
   virtual GcType GetGcType() const {
     return kGcTypePartial;
+  }
+  virtual CollectorType GetCollectorType() const OVERRIDE {
+    return generational_ ? kCollectorTypeGSS : kCollectorTypeSS;
   }
 
   // Sets which space we will be copying objects to.

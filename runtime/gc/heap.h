@@ -683,6 +683,12 @@ class Heap {
   // Push an object onto the allocation stack.
   void PushOnAllocationStack(Thread* self, mirror::Object* obj);
 
+  // What kind of concurrency behavior is the runtime after? Currently true for concurrent mark
+  // sweep GC, false for other GC types.
+  bool IsGcConcurrent() const ALWAYS_INLINE {
+    return collector_type_ == kCollectorTypeCMS;
+  }
+
   // All-known continuous spaces, where objects lie within fixed bounds.
   std::vector<space::ContinuousSpace*> continuous_spaces_;
 
@@ -724,10 +730,6 @@ class Heap {
 
   // The mem-map which we will use for the non-moving space after the zygote is done forking:
   UniquePtr<MemMap> post_zygote_non_moving_space_mem_map_;
-
-  // What kind of concurrency behavior is the runtime after? Currently true for concurrent mark
-  // sweep GC, false for other GC types.
-  bool concurrent_gc_;
 
   // The current collector type.
   CollectorType collector_type_;

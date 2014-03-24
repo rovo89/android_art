@@ -47,9 +47,8 @@ GarbageCollector::GarbageCollector(Heap* heap, const std::string& name)
   ResetCumulativeStatistics();
 }
 
-bool GarbageCollector::HandleDirtyObjectsPhase() {
-  DCHECK(IsConcurrent());
-  return true;
+void GarbageCollector::HandleDirtyObjectsPhase() {
+  LOG(FATAL) << "Unreachable";
 }
 
 void GarbageCollector::RegisterPause(uint64_t nano_length) {
@@ -85,50 +84,56 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
   freed_objects_ = 0;
   freed_large_objects_ = 0;
 
-  InitializePhase();
-
-  if (!IsConcurrent()) {
-    // Pause is the entire length of the GC.
-    uint64_t pause_start = NanoTime();
-    ATRACE_BEGIN("Application threads suspended");
-    // Mutator lock may be already exclusively held when we do garbage collections for changing the
-    // current collector / allocator during process state updates.
-    if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
-      // PreGcRosAllocVerification() is called in Heap::TransitionCollector().
-      RevokeAllThreadLocalBuffers();
-      MarkingPhase();
-      ReclaimPhase();
-      // PostGcRosAllocVerification() is called in Heap::TransitionCollector().
-    } else {
-      thread_list->SuspendAll();
-      GetHeap()->PreGcRosAllocVerification(&timings_);
-      RevokeAllThreadLocalBuffers();
-      MarkingPhase();
-      ReclaimPhase();
-      GetHeap()->PostGcRosAllocVerification(&timings_);
-      thread_list->ResumeAll();
+  CollectorType collector_type = GetCollectorType();
+  switch (collector_type) {
+    case kCollectorTypeMS:      // Fall through.
+    case kCollectorTypeSS:      // Fall through.
+    case kCollectorTypeGSS: {
+      InitializePhase();
+      // Pause is the entire length of the GC.
+      uint64_t pause_start = NanoTime();
+      ATRACE_BEGIN("Application threads suspended");
+      // Mutator lock may be already exclusively held when we do garbage collections for changing the
+      // current collector / allocator during process state updates.
+      if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
+        // PreGcRosAllocVerification() is called in Heap::TransitionCollector().
+        RevokeAllThreadLocalBuffers();
+        MarkingPhase();
+        ReclaimPhase();
+        // PostGcRosAllocVerification() is called in Heap::TransitionCollector().
+      } else {
+        ATRACE_BEGIN("Suspending mutator threads");
+        thread_list->SuspendAll();
+        ATRACE_END();
+        GetHeap()->PreGcRosAllocVerification(&timings_);
+        RevokeAllThreadLocalBuffers();
+        MarkingPhase();
+        ReclaimPhase();
+        GetHeap()->PostGcRosAllocVerification(&timings_);
+        ATRACE_BEGIN("Resuming mutator threads");
+        thread_list->ResumeAll();
+        ATRACE_END();
+      }
+      ATRACE_END();
+      RegisterPause(NanoTime() - pause_start);
+      FinishPhase();
+      break;
     }
-    ATRACE_END();
-    RegisterPause(NanoTime() - pause_start);
-  } else {
-    CHECK(!Locks::mutator_lock_->IsExclusiveHeld(self));
-    Thread* self = Thread::Current();
-    {
-      ReaderMutexLock mu(self, *Locks::mutator_lock_);
-      MarkingPhase();
-    }
-    bool done = false;
-    while (!done) {
+    case kCollectorTypeCMS: {
+      InitializePhase();
+      CHECK(!Locks::mutator_lock_->IsExclusiveHeld(self));
+      {
+        ReaderMutexLock mu(self, *Locks::mutator_lock_);
+        MarkingPhase();
+      }
       uint64_t pause_start = NanoTime();
       ATRACE_BEGIN("Suspending mutator threads");
       thread_list->SuspendAll();
       ATRACE_END();
       ATRACE_BEGIN("All mutator threads suspended");
       GetHeap()->PreGcRosAllocVerification(&timings_);
-      done = HandleDirtyObjectsPhase();
-      if (done) {
-        RevokeAllThreadLocalBuffers();
-      }
+      HandleDirtyObjectsPhase();
+      RevokeAllThreadLocalBuffers();
       GetHeap()->PostGcRosAllocVerification(&timings_);
       ATRACE_END();
       uint64_t pause_end = NanoTime();
@@ -136,13 +141,19 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
       thread_list->ResumeAll();
       ATRACE_END();
       RegisterPause(pause_end - pause_start);
+      {
+        ReaderMutexLock mu(self, *Locks::mutator_lock_);
+        ReclaimPhase();
+      }
+      FinishPhase();
+      break;
     }
-    {
-      ReaderMutexLock mu(self, *Locks::mutator_lock_);
-      ReclaimPhase();
+    default: {
+      LOG(FATAL) << "Unreachable collector type=" << static_cast<size_t>(collector_type);
+      break;
     }
   }
-  FinishPhase();
+
   uint64_t end_time = NanoTime();
   duration_ns_ = end_time - start_time;
   total_time_ns_ += GetDurationNs();
