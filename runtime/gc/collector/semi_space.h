@@ -66,18 +66,19 @@ class SemiSpace : public GarbageCollector {
   // If true, use remembered sets in the generational mode.
   static constexpr bool kUseRememberedSet = true;
 
-  explicit SemiSpace(Heap* heap, bool generational = false,
-                     const std::string& name_prefix = "");
+  explicit SemiSpace(Heap* heap, bool generational = false, const std::string& name_prefix = "");
 
   ~SemiSpace() {}
 
-  virtual void InitializePhase();
-  virtual void MarkingPhase() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
-  virtual void ReclaimPhase() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
-  virtual void FinishPhase() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
-  virtual void MarkReachableObjects()
+  virtual void InitializePhase() OVERRIDE;
+  virtual void MarkingPhase() OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+  virtual void ReclaimPhase() OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+  virtual void FinishPhase() OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void MarkReachableObjects()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
-  virtual GcType GetGcType() const {
+  virtual GcType GetGcType() const OVERRIDE {
     return kGcTypePartial;
   }
   virtual CollectorType GetCollectorType() const OVERRIDE {
@@ -112,12 +113,13 @@ class SemiSpace : public GarbageCollector {
 
   // Bind the live bits to the mark bits of bitmaps for spaces that are never collected, ie
   // the image. Mark that portion of the heap as immune.
-  virtual void BindBitmaps() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void BindBitmaps() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   void UnBindBitmaps()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  void ProcessReferences(Thread* self)
+  void ProcessReferences(Thread* self) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Sweeps unmarked objects to complete the garbage collection.
@@ -126,21 +128,8 @@ class SemiSpace : public GarbageCollector {
   // Sweeps unmarked objects to complete the garbage collection.
   void SweepLargeObjects(bool swap_bitmaps) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  // Sweep only pointers within an array. WARNING: Trashes objects.
-  void SweepArray(accounting::ObjectStack* allocation_stack_, bool swap_bitmaps)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  // TODO: enable thread safety analysis when in use by multiple worker threads.
-  template <typename MarkVisitor>
-  void ScanObjectVisit(const mirror::Object* obj, const MarkVisitor& visitor)
-      NO_THREAD_SAFETY_ANALYSIS;
-
   void SweepSystemWeaks()
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  template <typename Visitor>
-  static void VisitObjectReferencesAndClass(mirror::Object* obj, const Visitor& visitor)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   static void MarkRootCallback(mirror::Object** root, void* arg, uint32_t /*tid*/,
                                RootType /*root_type*/)
@@ -158,15 +147,18 @@ class SemiSpace : public GarbageCollector {
  protected:
   // Returns null if the object is not marked, otherwise returns the forwarding address (same as
   // object for non movable things).
-  mirror::Object* GetMarkedForwardAddress(mirror::Object* object) const;
+  mirror::Object* GetMarkedForwardAddress(mirror::Object* object) const
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   static mirror::Object* MarkedForwardingAddressCallback(mirror::Object* object, void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Marks or unmarks a large object based on whether or not set is true. If set is true, then we
   // mark, otherwise we unmark.
   bool MarkLargeObject(const mirror::Object* obj)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   // Expand mark stack to 2x its current size.
   void ResizeMarkStack(size_t new_size);
@@ -174,48 +166,8 @@ class SemiSpace : public GarbageCollector {
   // Returns true if we should sweep the space.
   virtual bool ShouldSweepSpace(space::ContinuousSpace* space) const;
 
-  static void VerifyRootCallback(const mirror::Object* root, void* arg, size_t vreg,
-                                 const StackVisitor *visitor);
-
-  void VerifyRoot(const mirror::Object* root, size_t vreg, const StackVisitor* visitor)
-      NO_THREAD_SAFETY_ANALYSIS;
-
-  template <typename Visitor>
-  static void VisitInstanceFieldsReferences(const mirror::Class* klass, const mirror::Object* obj,
-                                            const Visitor& visitor)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  // Visit the header, static field references, and interface pointers of a class object.
-  template <typename Visitor>
-  static void VisitClassReferences(const mirror::Class* klass, const mirror::Object* obj,
-                                   const Visitor& visitor)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  template <typename Visitor>
-  static void VisitStaticFieldsReferences(const mirror::Class* klass, const Visitor& visitor)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  template <typename Visitor>
-  static void VisitFieldsReferences(const mirror::Object* obj, uint32_t ref_offsets, bool is_static,
-                                    const Visitor& visitor)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  // Visit all of the references in an object array.
-  template <typename Visitor>
-  static void VisitObjectArrayReferences(const mirror::ObjectArray<mirror::Object>* array,
-                                         const Visitor& visitor)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  // Visits the header and field references of a data object.
-  template <typename Visitor>
-  static void VisitOtherReferences(const mirror::Class* klass, const mirror::Object* obj,
-                                   const Visitor& visitor)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-    return VisitInstanceFieldsReferences(klass, obj, visitor);
-  }
-
   // Push an object onto the mark stack.
-  inline void MarkStackPush(mirror::Object* obj);
+  void MarkStackPush(mirror::Object* obj);
 
   void UpdateAndMarkModUnion()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
@@ -227,15 +179,6 @@ class SemiSpace : public GarbageCollector {
 
   // Recursively blackens objects on the mark stack.
   void ProcessMarkStack()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
-
-  void EnqueueFinalizerReferences(mirror::Object** ref)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
-
-  void PreserveSomeSoftReferences(mirror::Object** ref)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
-
-  void ClearWhiteReferences(mirror::Object** list)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   void ProcessReferences(mirror::Object** soft_references, bool clear_soft_references,

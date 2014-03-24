@@ -91,7 +91,7 @@ class MarkSweep : public GarbageCollector {
   void Init();
 
   // Find the default mark bitmap.
-  void FindDefaultMarkBitmap();
+  void FindDefaultSpaceBitmap();
 
   // Marks all objects in the root set at the start of a garbage collection.
   void MarkRoots(Thread* self)
@@ -180,10 +180,9 @@ class MarkSweep : public GarbageCollector {
   void VerifyIsLive(const mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  template <typename Visitor>
-  static void VisitObjectReferences(mirror::Object* obj, const Visitor& visitor, bool visit_class)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
-                            Locks::mutator_lock_);
+  template <bool kVisitClass, typename Visitor>
+  static void VisitObjectReferences(mirror::Object* obj, const Visitor& visitor)
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   static mirror::Object* MarkObjectCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
@@ -207,7 +206,7 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Marks an object.
-  void MarkObject(const mirror::Object* obj)
+  void MarkObject(mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
@@ -223,10 +222,9 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   static void VerifyImageRootVisitor(mirror::Object* root, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
-                            Locks::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
-  void MarkObjectNonNull(const mirror::Object* obj)
+  void MarkObjectNonNull(mirror::Object* obj)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
@@ -242,12 +240,12 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Marks an object atomically, safe to use from multiple threads.
-  void MarkObjectNonNullParallel(const mirror::Object* obj);
+  void MarkObjectNonNullParallel(mirror::Object* obj);
 
   // Marks or unmarks a large object based on whether or not set is true. If set is true, then we
   // mark, otherwise we unmark.
   bool MarkLargeObject(const mirror::Object* obj, bool set)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) LOCKS_EXCLUDED(large_object_lock_);
 
   // Returns true if we need to add obj to a mark stack.
   bool MarkObjectParallel(const mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS;
@@ -271,22 +269,22 @@ class MarkSweep : public GarbageCollector {
   void VerifyRoot(const mirror::Object* root, size_t vreg, const StackVisitor* visitor)
       NO_THREAD_SAFETY_ANALYSIS;
 
-  template <typename Visitor>
+  template <bool kVisitClass, typename Visitor>
   static void VisitInstanceFieldsReferences(mirror::Class* klass, mirror::Object* obj,
                                             const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Visit the header, static field references, and interface pointers of a class object.
-  template <typename Visitor>
+  template <bool kVisitClass, typename Visitor>
   static void VisitClassReferences(mirror::Class* klass, mirror::Object* obj,
                                    const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
-  template <typename Visitor>
+  template <bool kVisitClass, typename Visitor>
   static void VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
-  template <typename Visitor>
+  template <bool kVisitClass, typename Visitor>
   static void VisitFieldsReferences(mirror::Object* obj, uint32_t ref_offsets, bool is_static,
                                     const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
@@ -297,13 +295,8 @@ class MarkSweep : public GarbageCollector {
                                          const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
-  // Visits the header and field references of a data object.
-  template <typename Visitor>
-  static void VisitOtherReferences(mirror::Class* klass, mirror::Object* obj,
-                                   const Visitor& visitor)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-    return VisitInstanceFieldsReferences(klass, obj, visitor);
-  }
+  // Push a single reference on a mark stack.
+  void PushOnMarkStack(mirror::Object* obj);
 
   // Blackens objects grayed during a garbage collection.
   void ScanGrayObjects(bool paused, byte minimum_age)
@@ -346,7 +339,9 @@ class MarkSweep : public GarbageCollector {
 
   // Current space, we check this space first to avoid searching for the appropriate space for an
   // object.
-  accounting::SpaceBitmap* current_mark_bitmap_;
+  accounting::SpaceBitmap* current_space_bitmap_;
+  // Cache the heap's mark bitmap to prevent having to do 2 loads during slow path marking.
+  accounting::HeapBitmap* mark_bitmap_;
 
   accounting::ObjectStack* mark_stack_;
 
@@ -363,11 +358,14 @@ class MarkSweep : public GarbageCollector {
   AtomicInteger other_count_;
   AtomicInteger large_object_test_;
   AtomicInteger large_object_mark_;
-  AtomicInteger classes_marked_;
   AtomicInteger overhead_time_;
   AtomicInteger work_chunks_created_;
   AtomicInteger work_chunks_deleted_;
   AtomicInteger reference_count_;
+  AtomicInteger mark_null_count_;
+  AtomicInteger mark_immune_count_;
+  AtomicInteger mark_fastpath_count_;
+  AtomicInteger mark_slowpath_count_;
 
   // Verification.
   size_t live_stack_freeze_size_;
@@ -386,6 +384,7 @@ class MarkSweep : public GarbageCollector {
   friend class art::gc::Heap;
   friend class InternTableEntryIsUnmarked;
   friend class MarkIfReachesAllocspaceVisitor;
+  friend class MarkObjectVisitor;
   friend class ModUnionCheckReferences;
   friend class ModUnionClearCardVisitor;
   friend class ModUnionReferenceVisitor;

@@ -99,7 +99,7 @@ class RememberedSetObjectVisitor {
     DCHECK(obj != NULL);
     RememberedSetReferenceVisitor ref_visitor(callback_, target_space_,
                                               contains_reference_to_target_space_, arg_);
-    collector::MarkSweep::VisitObjectReferences(obj, ref_visitor, true);
+    collector::MarkSweep::VisitObjectReferences<kMovingClasses>(obj, ref_visitor);
   }
 
  private:
