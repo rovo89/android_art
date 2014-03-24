@@ -33,11 +33,9 @@ class ModUnionTableToZygoteAllocspace : public ModUnionTableReferenceCache {
       : ModUnionTableReferenceCache(name, heap, space) {}
 
   bool AddReference(const mirror::Object* /* obj */, const mirror::Object* ref) ALWAYS_INLINE {
-    const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
-    typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-    for (It it = spaces.begin(); it != spaces.end(); ++it) {
-      if ((*it)->Contains(ref)) {
-        return (*it)->IsMallocSpace();
+    for (space::ContinuousSpace* space : GetHeap()->GetContinuousSpaces()) {
+      if (space->HasAddress(ref)) {
+        return !space->IsImageSpace();
       }
     }
     // Assume it points to a large object.
