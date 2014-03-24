@@ -861,6 +861,10 @@ class MANAGED Class : public Object {
   // When class is verified, set the kAccPreverified flag on each method.
   void SetPreverifiedFlagOnAllMethods() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  template <bool kVisitClass, typename Visitor>
+  void VisitReferences(mirror::Class* klass, const Visitor& visitor)
+      NO_THREAD_SAFETY_ANALYSIS;
+
  private:
   void SetVerifyErrorClass(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

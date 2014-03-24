@@ -1018,20 +1018,20 @@ bool Heap::IsLiveObjectLocked(mirror::Object* obj, bool search_allocation_stack,
     }
     if (search_allocation_stack) {
       if (sorted) {
-        if (allocation_stack_->ContainsSorted(const_cast<mirror::Object*>(obj))) {
+        if (allocation_stack_->ContainsSorted(obj)) {
           return true;
         }
-      } else if (allocation_stack_->Contains(const_cast<mirror::Object*>(obj))) {
+      } else if (allocation_stack_->Contains(obj)) {
         return true;
       }
     }
 
     if (search_live_stack) {
       if (sorted) {
-        if (live_stack_->ContainsSorted(const_cast<mirror::Object*>(obj))) {
+        if (live_stack_->ContainsSorted(obj)) {
           return true;
         }
-      } else if (live_stack_->Contains(const_cast<mirror::Object*>(obj))) {
+      } else if (live_stack_->Contains(obj)) {
         return true;
       }
     }
@@ -1303,14 +1303,15 @@ class ReferringObjectsFinder {
   // TODO: Fix lock analysis to not use NO_THREAD_SAFETY_ANALYSIS, requires support for
   // annotalysis on visitors.
   void operator()(mirror::Object* o) const NO_THREAD_SAFETY_ANALYSIS {
-    collector::MarkSweep::VisitObjectReferences<true>(o, *this);
+    o->VisitReferences<true>(*this);
   }
 
   // For MarkSweep::VisitObjectReferences.
-  void operator()(mirror::Object* referrer, mirror::Object* object,
-                  const MemberOffset&, bool) const {
-    if (object == object_ && (max_count_ == 0 || referring_objects_.size() < max_count_)) {
-      referring_objects_.push_back(referrer);
+  void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset, false);
+    if (ref == object_ && (max_count_ == 0 || referring_objects_.size() < max_count_)) {
+      referring_objects_.push_back(obj);
     }
   }
 
@@ -1910,10 +1911,18 @@ class VerifyReferenceVisitor {
     return failed_;
   }
 
-  // TODO: Fix lock analysis to not use NO_THREAD_SAFETY_ANALYSIS, requires support for smarter
-  // analysis on visitors.
-  void operator()(mirror::Object* obj, mirror::Object* ref,
-                  const MemberOffset& offset, bool /* is_static */) const
+  void operator()(mirror::Class* klass, mirror::Reference* ref) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    this->operator()(ref, mirror::Reference::ReferentOffset(), false);
+  }
+
+  void operator()(mirror::Object* obj, MemberOffset offset, bool /* static */) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    this->operator()(obj, obj->GetFieldObject<mirror::Object>(offset, false), offset);
+  }
+
+  // TODO: Fix the no thread safety analysis.
+  void operator()(mirror::Object* obj, mirror::Object* ref, MemberOffset offset) const
       NO_THREAD_SAFETY_ANALYSIS {
     if (ref == nullptr || IsLive(ref)) {
       // Verify that the reference is live.
@@ -2014,7 +2023,7 @@ class VerifyReferenceVisitor {
   static void VerifyRoots(mirror::Object** root, void* arg, uint32_t /*thread_id*/,
                           RootType /*root_type*/) {
     VerifyReferenceVisitor* visitor = reinterpret_cast<VerifyReferenceVisitor*>(arg);
-    (*visitor)(nullptr, *root, MemberOffset(0), true);
+    (*visitor)(nullptr, *root, MemberOffset(0));
   }
 
  private:
@@ -2033,11 +2042,7 @@ class VerifyObjectVisitor {
     // be live or else how did we find it in the live bitmap?
     VerifyReferenceVisitor visitor(heap_);
     // The class doesn't count as a reference but we should verify it anyways.
-    collector::MarkSweep::VisitObjectReferences<true>(obj, visitor);
-    if (obj->IsReferenceInstance()) {
-      mirror::Reference* ref = obj->AsReference();
-      visitor(obj, ref->GetReferent(), mirror::Reference::ReferentOffset(), false);
-    }
+    obj->VisitReferences<true>(visitor, visitor);
     failed_ = failed_ || visitor.Failed();
   }
 
@@ -2102,11 +2107,12 @@ class VerifyReferenceCardVisitor {
 
   // TODO: Fix lock analysis to not use NO_THREAD_SAFETY_ANALYSIS, requires support for
   // annotalysis on visitors.
-  void operator()(mirror::Object* obj, mirror::Object* ref, const MemberOffset& offset,
-                  bool is_static) const NO_THREAD_SAFETY_ANALYSIS {
+  void operator()(mirror::Object* obj, MemberOffset offset, bool is_static) const
+      NO_THREAD_SAFETY_ANALYSIS {
+    mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset, false);
     // Filter out class references since changing an object's class does not mark the card as dirty.
     // Also handles large objects, since the only reference they hold is a class reference.
-    if (ref != NULL && !ref->IsClass()) {
+    if (ref != nullptr && !ref->IsClass()) {
       accounting::CardTable* card_table = heap_->GetCardTable();
       // If the object is not dirty and it is referencing something in the live stack other than
       // class, then it must be on a dirty card.
@@ -2118,8 +2124,8 @@ class VerifyReferenceCardVisitor {
         // Card should be either kCardDirty if it got re-dirtied after we aged it, or
         // kCardDirty - 1 if it didnt get touched since we aged it.
         accounting::ObjectStack* live_stack = heap_->live_stack_.get();
-        if (live_stack->ContainsSorted(const_cast<mirror::Object*>(ref))) {
-          if (live_stack->ContainsSorted(const_cast<mirror::Object*>(obj))) {
+        if (live_stack->ContainsSorted(ref)) {
+          if (live_stack->ContainsSorted(obj)) {
             LOG(ERROR) << "Object " << obj << " found in live stack";
           }
           if (heap_->GetLiveBitmap()->Test(obj)) {
@@ -2173,7 +2179,7 @@ class VerifyLiveStackReferences {
   void operator()(mirror::Object* obj) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     VerifyReferenceCardVisitor visitor(heap_, const_cast<bool*>(&failed_));
-    collector::MarkSweep::VisitObjectReferences<true>(obj, visitor);
+    obj->VisitReferences<true>(visitor);
   }
 
   bool Failed() const {
@@ -2282,8 +2288,7 @@ void Heap::ProcessCards(TimingLogger& timings, bool use_rem_sets) {
   }
 }
 
-static mirror::Object* IdentityMarkObjectCallback(mirror::Object* obj, void*) {
-  return obj;
+static void IdentityMarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>*, void*) {
 }
 
 void Heap::PreGcVerification(collector::GarbageCollector* gc) {
@@ -2321,7 +2326,7 @@ void Heap::PreGcVerification(collector::GarbageCollector* gc) {
     ReaderMutexLock reader_lock(self, *Locks::heap_bitmap_lock_);
     for (const auto& table_pair : mod_union_tables_) {
       accounting::ModUnionTable* mod_union_table = table_pair.second;
-      mod_union_table->UpdateAndMarkReferences(IdentityMarkObjectCallback, nullptr);
+      mod_union_table->UpdateAndMarkReferences(IdentityMarkHeapReferenceCallback, nullptr);
       mod_union_table->Verify();
     }
     thread_list->ResumeAll();

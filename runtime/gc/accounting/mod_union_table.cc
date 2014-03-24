@@ -70,37 +70,29 @@ class ModUnionClearCardVisitor {
 
 class ModUnionUpdateObjectReferencesVisitor {
  public:
-  ModUnionUpdateObjectReferencesVisitor(MarkObjectCallback* callback, void* arg)
+  ModUnionUpdateObjectReferencesVisitor(MarkHeapReferenceCallback* callback, void* arg)
     : callback_(callback),
       arg_(arg) {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
-  void operator()(Object* obj, Object* ref, const MemberOffset& offset,
-                  bool /* is_static */) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void operator()(Object* obj, MemberOffset offset, bool /* static */) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Only add the reference if it is non null and fits our criteria.
-    if (ref != nullptr) {
-      Object* new_ref = callback_(ref, arg_);
-      if (new_ref != ref) {
-        // Use SetFieldObjectWithoutWriteBarrier to avoid card mark as an optimization which
-        // reduces dirtied pages and improves performance.
-        if (Runtime::Current()->IsActiveTransaction()) {
-          obj->SetFieldObjectWithoutWriteBarrier<true>(offset, new_ref, true);
-        } else {
-          obj->SetFieldObjectWithoutWriteBarrier<false>(offset, new_ref, true);
-        }
-      }
+    mirror::HeapReference<Object>* obj_ptr = obj->GetFieldObjectReferenceAddr(offset);
+    if (obj_ptr->AsMirrorPtr() != nullptr) {
+      callback_(obj_ptr, arg_);
     }
   }
 
  private:
-  MarkObjectCallback* const callback_;
+  MarkHeapReferenceCallback* const callback_;
   void* arg_;
 };
 
 class ModUnionScanImageRootVisitor {
  public:
-  ModUnionScanImageRootVisitor(MarkObjectCallback* callback, void* arg)
+  ModUnionScanImageRootVisitor(MarkHeapReferenceCallback* callback, void* arg)
       : callback_(callback), arg_(arg) {}
 
   void operator()(Object* root) const
@@ -108,11 +100,11 @@ class ModUnionScanImageRootVisitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(root != NULL);
     ModUnionUpdateObjectReferencesVisitor ref_visitor(callback_, arg_);
-    collector::MarkSweep::VisitObjectReferences<kMovingClasses>(root, ref_visitor);
+    root->VisitReferences<kMovingClasses>(ref_visitor);
   }
 
  private:
-  MarkObjectCallback* const callback_;
+  MarkHeapReferenceCallback* const callback_;
   void* const arg_;
 };
 
@@ -131,12 +123,14 @@ class AddToReferenceArrayVisitor {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
-  void operator()(Object* obj, Object* ref, const MemberOffset& offset,
-                  bool /* is_static */) const {
+  void operator()(Object* obj, MemberOffset offset, bool /* static */) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::HeapReference<Object>* ref_ptr = obj->GetFieldObjectReferenceAddr(offset);
+    mirror::Object* ref = ref_ptr->AsMirrorPtr();
     // Only add the reference if it is non null and fits our criteria.
-    if (ref != nullptr && mod_union_table_->AddReference(obj, ref)) {
+    if (ref  != nullptr && mod_union_table_->AddReference(obj, ref)) {
       // Push the adddress of the reference.
-      references_->push_back(obj->GetFieldObjectReferenceAddr(offset));
+      references_->push_back(ref_ptr);
     }
   }
 
@@ -155,11 +149,10 @@ class ModUnionReferenceVisitor {
 
   void operator()(Object* obj) const
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-    DCHECK(obj != NULL);
     // We don't have an early exit since we use the visitor pattern, an early
     // exit should significantly speed this up.
     AddToReferenceArrayVisitor visitor(mod_union_table_, references_);
-    collector::MarkSweep::VisitObjectReferences<kMovingClasses>(obj, visitor);
+    obj->VisitReferences<kMovingClasses>(visitor);
   }
  private:
   ModUnionTableReferenceCache* const mod_union_table_;
@@ -175,20 +168,22 @@ class CheckReferenceVisitor {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
-  void operator()(Object* obj, Object* ref,
-                  const MemberOffset& /* offset */, bool /* is_static */) const
+  void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-    Heap* heap = mod_union_table_->GetHeap();
-    if (ref != NULL && mod_union_table_->AddReference(obj, ref) &&
+    mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset, false);
+    if (ref != nullptr && mod_union_table_->AddReference(obj, ref) &&
         references_.find(ref) == references_.end()) {
+      Heap* heap = mod_union_table_->GetHeap();
       space::ContinuousSpace* from_space = heap->FindContinuousSpaceFromObject(obj, false);
       space::ContinuousSpace* to_space = heap->FindContinuousSpaceFromObject(ref, false);
-      LOG(INFO) << "Object " << reinterpret_cast<const void*>(obj) << "(" << PrettyTypeOf(obj) << ")"
-                << "References " << reinterpret_cast<const void*>(ref)
-                << "(" << PrettyTypeOf(ref) << ") without being in mod-union table";
-      LOG(INFO) << "FromSpace " << from_space->GetName() << " type " << from_space->GetGcRetentionPolicy();
-      LOG(INFO) << "ToSpace " << to_space->GetName() << " type " << to_space->GetGcRetentionPolicy();
-      mod_union_table_->GetHeap()->DumpSpaces();
+      LOG(INFO) << "Object " << reinterpret_cast<const void*>(obj) << "(" << PrettyTypeOf(obj)
+          << ")" << "References " << reinterpret_cast<const void*>(ref) << "(" << PrettyTypeOf(ref)
+          << ") without being in mod-union table";
+      LOG(INFO) << "FromSpace " << from_space->GetName() << " type "
+          << from_space->GetGcRetentionPolicy();
+      LOG(INFO) << "ToSpace " << to_space->GetName() << " type "
+          << to_space->GetGcRetentionPolicy();
+      heap->DumpSpaces();
       LOG(FATAL) << "FATAL ERROR";
     }
   }
@@ -208,9 +203,8 @@ class ModUnionCheckReferences {
 
   void operator()(Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
     Locks::heap_bitmap_lock_->AssertSharedHeld(Thread::Current());
-    DCHECK(obj != NULL);
     CheckReferenceVisitor visitor(mod_union_table_, references_);
-    collector::MarkSweep::VisitObjectReferences<kMovingClasses>(obj, visitor);
+    obj->VisitReferences<kMovingClasses>(visitor);
   }
 
  private:
@@ -264,7 +258,7 @@ void ModUnionTableReferenceCache::Dump(std::ostream& os) {
   }
 }
 
-void ModUnionTableReferenceCache::UpdateAndMarkReferences(MarkObjectCallback* callback,
+void ModUnionTableReferenceCache::UpdateAndMarkReferences(MarkHeapReferenceCallback* callback,
                                                           void* arg) {
   Heap* heap = GetHeap();
   CardTable* card_table = heap->GetCardTable();
@@ -298,14 +292,7 @@ void ModUnionTableReferenceCache::UpdateAndMarkReferences(MarkObjectCallback* ca
   size_t count = 0;
   for (const auto& ref : references_) {
     for (mirror::HeapReference<Object>* obj_ptr : ref.second) {
-      Object* obj = obj_ptr->AsMirrorPtr();
-      if (obj != nullptr) {
-        Object* new_obj = callback(obj, arg);
-        // Avoid dirtying pages in the image unless necessary.
-        if (new_obj != obj) {
-          obj_ptr->Assign(new_obj);
-        }
-      }
+      callback(obj_ptr, arg);
     }
     count += ref.second.size();
   }
@@ -322,7 +309,8 @@ void ModUnionTableCardCache::ClearCards() {
 }
 
 // Mark all references to the alloc space(s).
-void ModUnionTableCardCache::UpdateAndMarkReferences(MarkObjectCallback* callback, void* arg) {
+void ModUnionTableCardCache::UpdateAndMarkReferences(MarkHeapReferenceCallback* callback,
+                                                     void* arg) {
   CardTable* card_table = heap_->GetCardTable();
   ModUnionScanImageRootVisitor scan_visitor(callback, arg);
   SpaceBitmap* bitmap = space_->GetLiveBitmap();
