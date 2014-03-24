@@ -125,6 +125,9 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* expected, size_t byte_count
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
 #endif
 
+  // We need to store and potentially set an error number for pretty printing of errors
+  int saved_errno = 0;
+
   // TODO:
   // A page allocator would be a useful abstraction here, as
   // 1) It is doubtful that MAP_32BIT on x86_64 is doing the right job for us
@@ -132,7 +135,6 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* expected, size_t byte_count
 #if defined(__LP64__) && !defined(__x86_64__)
   // MAP_32BIT only available on x86_64.
   void* actual = MAP_FAILED;
-  std::string strerr;
   if (low_4gb && expected == nullptr) {
     flags |= MAP_FIXED;
 
@@ -180,11 +182,12 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* expected, size_t byte_count
     }
 
     if (actual == MAP_FAILED) {
-      strerr = "Could not find contiguous low-memory space.";
+      LOG(ERROR) << "Could not find contiguous low-memory space.";
+      saved_errno = ENOMEM;
     }
   } else {
     actual = mmap(expected, page_aligned_byte_count, prot, flags, fd.get(), 0);
-    strerr = strerror(errno);
+    saved_errno = errno;
   }
 
 #else
@@ -195,15 +198,16 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* expected, size_t byte_count
 #endif
 
   void* actual = mmap(expected, page_aligned_byte_count, prot, flags, fd.get(), 0);
-  std::string strerr(strerror(errno));
+  saved_errno = errno;
 #endif
 
   if (actual == MAP_FAILED) {
     std::string maps;
     ReadFileToString("/proc/self/maps", &maps);
+
     *error_msg = StringPrintf("Failed anonymous mmap(%p, %zd, 0x%x, 0x%x, %d, 0): %s\n%s",
                               expected, page_aligned_byte_count, prot, flags, fd.get(),
-                              strerr.c_str(), maps.c_str());
+                              strerror(saved_errno), maps.c_str());
     return nullptr;
   }
   std::ostringstream check_map_request_error_msg;
@@ -247,15 +251,17 @@ MemMap* MemMap::MapFileAtAddress(byte* expected, size_t byte_count, int prot, in
                                               flags,
                                               fd,
                                               page_aligned_offset));
-  std::string strerr(strerror(errno));
   if (actual == MAP_FAILED) {
+    auto saved_errno = errno;
+
     std::string maps;
     ReadFileToString("/proc/self/maps", &maps);
+
     *error_msg = StringPrintf("mmap(%p, %zd, 0x%x, 0x%x, %d, %" PRId64
                               ") of file '%s' failed: %s\n%s",
                               page_aligned_expected, page_aligned_byte_count, prot, flags, fd,
-                              static_cast<int64_t>(page_aligned_offset), filename, strerr.c_str(),
-                              maps.c_str());
+                              static_cast<int64_t>(page_aligned_offset), filename,
+                              strerror(saved_errno), maps.c_str());
     return nullptr;
   }
   std::ostringstream check_map_request_error_msg;
