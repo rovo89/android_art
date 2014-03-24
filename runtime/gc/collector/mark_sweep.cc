@@ -89,6 +89,10 @@ static constexpr bool kCountJavaLangRefs = false;
 static constexpr bool kCheckLocks = kDebugLocking;
 static constexpr bool kVerifyRoots = kIsDebugBuild;
 
+// If true, revoke the rosalloc thread-local buffers at the
+// checkpoint, as opposed to during the pause.
+static constexpr bool kRevokeRosAllocThreadLocalBuffersAtCheckpoint = true;
+
 void MarkSweep::BindBitmaps() {
   timings_.StartSplit("BindBitmaps");
   WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
@@ -1028,6 +1032,9 @@ class CheckpointMarkThreadRoots : public Closure {
     if (kUseThreadLocalAllocationStack) {
       thread->RevokeThreadLocalAllocationStack();
     }
+    if (kRevokeRosAllocThreadLocalBuffersAtCheckpoint) {
+      mark_sweep_->GetHeap()->RevokeRosAllocThreadLocalBuffers(thread);
+    }
     mark_sweep_->GetBarrier().Pass(self);
   }
 
@@ -1358,6 +1365,19 @@ void MarkSweep::FinishPhase() {
   // Reset the marked large objects.
   space::LargeObjectSpace* large_objects = GetHeap()->GetLargeObjectsSpace();
   large_objects->GetMarkObjects()->Clear();
+}
+
+void MarkSweep::RevokeAllThreadLocalBuffers() {
+  if (kRevokeRosAllocThreadLocalBuffersAtCheckpoint && IsConcurrent()) {
+    // If concurrent, rosalloc thread-local buffers are revoked at the
+    // thread checkpoint. Bump pointer space thread-local buffers must
+    // not be in use.
+    GetHeap()->AssertAllBumpPointerSpaceThreadLocalBuffersAreRevoked();
+  } else {
+    timings_.StartSplit("(Paused)RevokeAllThreadLocalBuffers");
+    GetHeap()->RevokeAllThreadLocalBuffers();
+    timings_.EndSplit();
+  }
 }
 
 }  // namespace collector
