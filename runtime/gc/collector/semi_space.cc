@@ -278,7 +278,7 @@ void SemiSpace::VerifyNoFromSpaceReferences(Object* obj) {
   DCHECK(obj != NULL);
   DCHECK(!from_space_->HasAddress(obj)) << "Scanning object " << obj << " in from space";
   SemiSpaceVerifyNoFromSpaceReferencesVisitor visitor(from_space_);
-  MarkSweep::VisitObjectReferences(obj, visitor, kMovingClasses);
+  MarkSweep::VisitObjectReferences<kMovingClasses>(obj, visitor);
 }
 
 class SemiSpaceVerifyNoFromSpaceReferencesObjectVisitor {
@@ -739,7 +739,7 @@ void SemiSpace::ScanObject(Object* obj) {
   DCHECK(obj != NULL);
   DCHECK(!from_space_->HasAddress(obj)) << "Scanning object " << obj << " in from space";
   SemiSpaceMarkObjectVisitor visitor(this);
-  MarkSweep::VisitObjectReferences(obj, visitor, kMovingClasses);
+  MarkSweep::VisitObjectReferences<kMovingClasses>(obj, visitor);
   mirror::Class* klass = obj->GetClass<kVerifyNone>();
   if (UNLIKELY(klass->IsReferenceClass<kVerifyNone>())) {
     DelayReferenceReferent(klass, obj);

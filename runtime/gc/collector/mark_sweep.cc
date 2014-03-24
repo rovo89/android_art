@@ -79,11 +79,11 @@ static constexpr size_t kMinimumParallelMarkStackSize = 128;
 static constexpr bool kParallelProcessMarkStack = true;
 
 // Profiling and information flags.
-static constexpr bool kCountClassesMarked = false;
 static constexpr bool kProfileLargeObjects = false;
 static constexpr bool kMeasureOverhead = false;
 static constexpr bool kCountTasks = false;
 static constexpr bool kCountJavaLangRefs = false;
+static constexpr bool kCountMarkedObjects = false;
 
 // Turn off kCheckLocks when profiling the GC since it slows the GC down by up to 40%.
 static constexpr bool kCheckLocks = kDebugLocking;
@@ -109,9 +109,6 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_pre
     : GarbageCollector(heap,
                        name_prefix +
                        (is_concurrent ? "concurrent mark sweep": "mark sweep")),
-      current_mark_bitmap_(NULL),
-      mark_stack_(NULL),
-      live_stack_freeze_size_(0),
       gc_barrier_(new Barrier(0)),
       large_object_lock_("mark sweep large object lock", kMarkSweepLargeObjectLock),
       mark_stack_lock_("mark sweep mark stack lock", kMarkSweepMarkStackLock),
@@ -129,13 +126,20 @@ void MarkSweep::InitializePhase() {
   other_count_ = 0;
   large_object_test_ = 0;
   large_object_mark_ = 0;
-  classes_marked_ = 0;
   overhead_time_ = 0;
   work_chunks_created_ = 0;
   work_chunks_deleted_ = 0;
   reference_count_ = 0;
-
-  FindDefaultMarkBitmap();
+  mark_null_count_ = 0;
+  mark_immune_count_ = 0;
+  mark_fastpath_count_ = 0;
+  mark_slowpath_count_ = 0;
+  FindDefaultSpaceBitmap();
+  {
+    // TODO: I don't think we should need heap bitmap lock to get the mark bitmap.
+    ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
+    mark_bitmap_ = heap_->GetMarkBitmap();
+  }
 
   // Do any pre GC verification.
   timings_.NewSplit("PreGcVerification");
@@ -247,7 +251,7 @@ void MarkSweep::MarkingPhase() {
   Thread* self = Thread::Current();
 
   BindBitmaps();
-  FindDefaultMarkBitmap();
+  FindDefaultSpaceBitmap();
 
   // Process dirty cards and add dirty cards to mod union tables.
   heap_->ProcessCards(timings_, false);
@@ -356,14 +360,13 @@ void MarkSweep::ReclaimPhase() {
   }
 }
 
-void MarkSweep::FindDefaultMarkBitmap() {
+void MarkSweep::FindDefaultSpaceBitmap() {
   TimingLogger::ScopedSplit split("FindDefaultMarkBitmap", &timings_);
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     accounting::SpaceBitmap* bitmap = space->GetMarkBitmap();
     if (bitmap != nullptr &&
         space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect) {
-      current_mark_bitmap_ = bitmap;
-      CHECK(current_mark_bitmap_ != NULL);
+      current_space_bitmap_ = bitmap;
       return;
     }
   }
@@ -389,7 +392,7 @@ void MarkSweep::ResizeMarkStack(size_t new_size) {
   }
 }
 
-inline void MarkSweep::MarkObjectNonNullParallel(const Object* obj) {
+inline void MarkSweep::MarkObjectNonNullParallel(Object* obj) {
   DCHECK(obj != NULL);
   if (MarkObjectParallel(obj)) {
     MutexLock mu(Thread::Current(), mark_stack_lock_);
@@ -397,7 +400,7 @@ inline void MarkSweep::MarkObjectNonNullParallel(const Object* obj) {
       ExpandMarkStack();
     }
     // The object must be pushed on to the mark stack.
-    mark_stack_->PushBack(const_cast<Object*>(obj));
+    mark_stack_->PushBack(obj);
   }
 }
 
@@ -409,17 +412,15 @@ mirror::Object* MarkSweep::MarkObjectCallback(mirror::Object* obj, void* arg) {
 
 inline void MarkSweep::UnMarkObjectNonNull(const Object* obj) {
   DCHECK(!immune_region_.ContainsObject(obj));
-
   if (kUseBrooksPointer) {
     // Verify all the objects have the correct Brooks pointer installed.
     obj->AssertSelfBrooksPointer();
   }
-
   // Try to take advantage of locality of references within a space, failing this find the space
   // the hard way.
-  accounting::SpaceBitmap* object_bitmap = current_mark_bitmap_;
+  accounting::SpaceBitmap* object_bitmap = current_space_bitmap_;
   if (UNLIKELY(!object_bitmap->HasAddress(obj))) {
-    accounting::SpaceBitmap* new_bitmap = heap_->GetMarkBitmap()->GetContinuousSpaceBitmap(obj);
+    accounting::SpaceBitmap* new_bitmap = mark_bitmap_->GetContinuousSpaceBitmap(obj);
     if (LIKELY(new_bitmap != NULL)) {
       object_bitmap = new_bitmap;
     } else {
@@ -427,48 +428,52 @@ inline void MarkSweep::UnMarkObjectNonNull(const Object* obj) {
       return;
     }
   }
-
   DCHECK(object_bitmap->HasAddress(obj));
   object_bitmap->Clear(obj);
 }
 
-inline void MarkSweep::MarkObjectNonNull(const Object* obj) {
-  DCHECK(obj != NULL);
-
+inline void MarkSweep::MarkObjectNonNull(Object* obj) {
+  DCHECK(obj != nullptr);
   if (kUseBrooksPointer) {
     // Verify all the objects have the correct Brooks pointer installed.
     obj->AssertSelfBrooksPointer();
   }
-
   if (immune_region_.ContainsObject(obj)) {
+    if (kCountMarkedObjects) {
+      ++mark_immune_count_;
+    }
     DCHECK(IsMarked(obj));
     return;
   }
-
   // Try to take advantage of locality of references within a space, failing this find the space
   // the hard way.
-  accounting::SpaceBitmap* object_bitmap = current_mark_bitmap_;
+  accounting::SpaceBitmap* object_bitmap = current_space_bitmap_;
   if (UNLIKELY(!object_bitmap->HasAddress(obj))) {
-    accounting::SpaceBitmap* new_bitmap = heap_->GetMarkBitmap()->GetContinuousSpaceBitmap(obj);
-    if (LIKELY(new_bitmap != NULL)) {
-      object_bitmap = new_bitmap;
-    } else {
+    object_bitmap = mark_bitmap_->GetContinuousSpaceBitmap(obj);
+    if (kCountMarkedObjects) {
+      ++mark_slowpath_count_;
+    }
+    if (UNLIKELY(object_bitmap == nullptr)) {
       MarkLargeObject(obj, true);
       return;
     }
+  } else if (kCountMarkedObjects) {
+    ++mark_fastpath_count_;
   }
-
   // This object was not previously marked.
-  if (!object_bitmap->Test(obj)) {
-    object_bitmap->Set(obj);
-    if (UNLIKELY(mark_stack_->Size() >= mark_stack_->Capacity())) {
-      // Lock is not needed but is here anyways to please annotalysis.
-      MutexLock mu(Thread::Current(), mark_stack_lock_);
-      ExpandMarkStack();
-    }
-    // The object must be pushed on to the mark stack.
-    mark_stack_->PushBack(const_cast<Object*>(obj));
+  if (!object_bitmap->Set(obj)) {
+    PushOnMarkStack(obj);
   }
+}
+
+inline void MarkSweep::PushOnMarkStack(Object* obj) {
+  if (UNLIKELY(mark_stack_->Size() >= mark_stack_->Capacity())) {
+    // Lock is not needed but is here anyways to please annotalysis.
+    MutexLock mu(Thread::Current(), mark_stack_lock_);
+    ExpandMarkStack();
+  }
+  // The object must be pushed on to the mark stack.
+  mark_stack_->PushBack(obj);
 }
 
 // Rare case, probably not worth inlining since it will increase instruction cache miss rate.
@@ -500,23 +505,20 @@ bool MarkSweep::MarkLargeObject(const Object* obj, bool set) {
 }
 
 inline bool MarkSweep::MarkObjectParallel(const Object* obj) {
-  DCHECK(obj != NULL);
-
+  DCHECK(obj != nullptr);
   if (kUseBrooksPointer) {
     // Verify all the objects have the correct Brooks pointer installed.
     obj->AssertSelfBrooksPointer();
   }
-
   if (immune_region_.ContainsObject(obj)) {
     DCHECK(IsMarked(obj));
     return false;
   }
-
   // Try to take advantage of locality of references within a space, failing this find the space
   // the hard way.
-  accounting::SpaceBitmap* object_bitmap = current_mark_bitmap_;
+  accounting::SpaceBitmap* object_bitmap = current_space_bitmap_;
   if (UNLIKELY(!object_bitmap->HasAddress(obj))) {
-    accounting::SpaceBitmap* new_bitmap = heap_->GetMarkBitmap()->GetContinuousSpaceBitmap(obj);
+    accounting::SpaceBitmap* new_bitmap = mark_bitmap_->GetContinuousSpaceBitmap(obj);
     if (new_bitmap != NULL) {
       object_bitmap = new_bitmap;
     } else {
@@ -526,23 +528,20 @@ inline bool MarkSweep::MarkObjectParallel(const Object* obj) {
       return MarkLargeObject(obj, true);
     }
   }
-
   // Return true if the object was not previously marked.
   return !object_bitmap->AtomicTestAndSet(obj);
 }
 
-// Used to mark objects when recursing.  Recursion is done by moving
-// the finger across the bitmaps in address order and marking child
-// objects.  Any newly-marked objects whose addresses are lower than
-// the finger won't be visited by the bitmap scan, so those objects
-// need to be added to the mark stack.
-inline void MarkSweep::MarkObject(const Object* obj) {
-  if (obj != NULL) {
+// Used to mark objects when processing the mark stack. If an object is null, it is not marked.
+inline void MarkSweep::MarkObject(Object* obj) {
+  if (obj != nullptr) {
     MarkObjectNonNull(obj);
+  } else if (kCountMarkedObjects) {
+    ++mark_null_count_;
   }
 }
 
-void MarkSweep::MarkRootParallelCallback(mirror::Object** root, void* arg, uint32_t /*thread_id*/,
+void MarkSweep::MarkRootParallelCallback(Object** root, void* arg, uint32_t /*thread_id*/,
                                          RootType /*root_type*/) {
   reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNullParallel(*root);
 }
@@ -630,7 +629,7 @@ template <bool kUseFinger = false>
 class MarkStackTask : public Task {
  public:
   MarkStackTask(ThreadPool* thread_pool, MarkSweep* mark_sweep, size_t mark_stack_size,
-                const Object** mark_stack)
+                Object** mark_stack)
       : mark_sweep_(mark_sweep),
         thread_pool_(thread_pool),
         mark_stack_pos_(mark_stack_size) {
@@ -686,11 +685,11 @@ class MarkStackTask : public Task {
   MarkSweep* const mark_sweep_;
   ThreadPool* const thread_pool_;
   // Thread local mark stack for this task.
-  const Object* mark_stack_[kMaxSize];
+  Object* mark_stack_[kMaxSize];
   // Mark stack position.
   size_t mark_stack_pos_;
 
-  void MarkStackPush(const Object* obj) ALWAYS_INLINE {
+  void MarkStackPush(Object* obj) ALWAYS_INLINE {
     if (UNLIKELY(mark_stack_pos_ == kMaxSize)) {
       // Mark stack overflow, give 1/2 the stack to the thread pool as a new work task.
       mark_stack_pos_ /= 2;
@@ -699,7 +698,7 @@ class MarkStackTask : public Task {
       thread_pool_->AddTask(Thread::Current(), task);
     }
     DCHECK(obj != nullptr);
-    DCHECK(mark_stack_pos_ < kMaxSize);
+    DCHECK_LT(mark_stack_pos_, kMaxSize);
     mark_stack_[mark_stack_pos_++] = obj;
   }
 
@@ -712,12 +711,12 @@ class MarkStackTask : public Task {
     ScanObjectParallelVisitor visitor(this);
     // TODO: Tune this.
     static const size_t kFifoSize = 4;
-    BoundedFifoPowerOfTwo<const Object*, kFifoSize> prefetch_fifo;
+    BoundedFifoPowerOfTwo<Object*, kFifoSize> prefetch_fifo;
     for (;;) {
-      const Object* obj = nullptr;
+      Object* obj = nullptr;
       if (kUseMarkStackPrefetch) {
         while (mark_stack_pos_ != 0 && prefetch_fifo.size() < kFifoSize) {
-          const Object* obj = mark_stack_[--mark_stack_pos_];
+          Object* obj = mark_stack_[--mark_stack_pos_];
           DCHECK(obj != nullptr);
           __builtin_prefetch(obj);
           prefetch_fifo.push_back(obj);
@@ -734,7 +733,7 @@ class MarkStackTask : public Task {
         obj = mark_stack_[--mark_stack_pos_];
       }
       DCHECK(obj != nullptr);
-      visitor(const_cast<mirror::Object*>(obj));
+      visitor(obj);
     }
   }
 };
@@ -743,7 +742,7 @@ class CardScanTask : public MarkStackTask<false> {
  public:
   CardScanTask(ThreadPool* thread_pool, MarkSweep* mark_sweep, accounting::SpaceBitmap* bitmap,
                byte* begin, byte* end, byte minimum_age, size_t mark_stack_size,
-               const Object** mark_stack_obj)
+               Object** mark_stack_obj)
       : MarkStackTask<false>(thread_pool, mark_sweep, mark_stack_size, mark_stack_obj),
         bitmap_(bitmap),
         begin_(begin),
@@ -794,8 +793,8 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
     // scanned at the same time.
     timings_.StartSplit(paused ? "(Paused)ScanGrayObjects" : "ScanGrayObjects");
     // Try to take some of the mark stack since we can pass this off to the worker tasks.
-    const Object** mark_stack_begin = const_cast<const Object**>(mark_stack_->Begin());
-    const Object** mark_stack_end = const_cast<const Object**>(mark_stack_->End());
+    Object** mark_stack_begin = mark_stack_->Begin();
+    Object** mark_stack_end = mark_stack_->End();
     const size_t mark_stack_size = mark_stack_end - mark_stack_begin;
     // Estimated number of work tasks we will create.
     const size_t mark_stack_tasks = GetHeap()->GetContinuousSpaces().size() * thread_count;
@@ -828,7 +827,7 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
         size_t mark_stack_increment = std::min(mark_stack_delta, mark_stack_remaining);
         mark_stack_end -= mark_stack_increment;
         mark_stack_->PopBackCount(static_cast<int32_t>(mark_stack_increment));
-        DCHECK_EQ(mark_stack_end, const_cast<const art::mirror::Object **>(mark_stack_->End()));
+        DCHECK_EQ(mark_stack_end, mark_stack_->End());
         // Add the new task to the thread pool.
         auto* task = new CardScanTask(thread_pool, this, space->GetMarkBitmap(), card_begin,
                                       card_begin + card_increment, minimum_age,
@@ -917,8 +916,8 @@ void MarkSweep::RecursiveMark() {
     for (const auto& space : GetHeap()->GetContinuousSpaces()) {
       if ((space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect) ||
           (!partial && space->GetGcRetentionPolicy() == space::kGcRetentionPolicyFullCollect)) {
-        current_mark_bitmap_ = space->GetMarkBitmap();
-        if (current_mark_bitmap_ == nullptr) {
+        current_space_bitmap_ = space->GetMarkBitmap();
+        if (current_space_bitmap_ == nullptr) {
           continue;
         }
         if (parallel) {
@@ -937,7 +936,7 @@ void MarkSweep::RecursiveMark() {
             delta = RoundUp(delta, KB);
             if (delta < 16 * KB) delta = end - begin;
             begin += delta;
-            auto* task = new RecursiveMarkTask(thread_pool, this, current_mark_bitmap_, start,
+            auto* task = new RecursiveMarkTask(thread_pool, this, current_space_bitmap_, start,
                                                begin);
             thread_pool->AddTask(self, task);
           }
@@ -949,7 +948,7 @@ void MarkSweep::RecursiveMark() {
           // This function does not handle heap end increasing, so we must use the space end.
           uintptr_t begin = reinterpret_cast<uintptr_t>(space->Begin());
           uintptr_t end = reinterpret_cast<uintptr_t>(space->End());
-          current_mark_bitmap_->VisitMarkedRange(begin, end, scan_visitor);
+          current_space_bitmap_->VisitMarkedRange(begin, end, scan_visitor);
         }
       }
     }
@@ -1203,6 +1202,9 @@ void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
 // the heap for later processing.
 void MarkSweep::DelayReferenceReferent(mirror::Class* klass, Object* obj) {
   DCHECK(klass != nullptr);
+  if (kCountJavaLangRefs) {
+    ++reference_count_;
+  }
   heap_->DelayReferenceReferent(klass, obj->AsReference(), IsMarkedCallback, this);
 }
 
@@ -1211,7 +1213,7 @@ class MarkObjectVisitor {
   explicit MarkObjectVisitor(MarkSweep* const mark_sweep) ALWAYS_INLINE : mark_sweep_(mark_sweep) {}
 
   // TODO: Fixme when anotatalysis works with visitors.
-  void operator()(const Object* /* obj */, const Object* ref, const MemberOffset& /* offset */,
+  void operator()(Object* /* obj */, Object* ref, const MemberOffset& /* offset */,
                   bool /* is_static */) const ALWAYS_INLINE
       NO_THREAD_SAFETY_ANALYSIS {
     if (kCheckLocks) {
@@ -1233,7 +1235,6 @@ void MarkSweep::ScanObject(Object* obj) {
 }
 
 void MarkSweep::ProcessMarkStackPausedCallback(void* arg) {
-  DCHECK(arg != nullptr);
   reinterpret_cast<MarkSweep*>(arg)->ProcessMarkStack(true);
 }
 
@@ -1246,8 +1247,7 @@ void MarkSweep::ProcessMarkStackParallel(size_t thread_count) {
   // Split the current mark stack up into work tasks.
   for (mirror::Object **it = mark_stack_->Begin(), **end = mark_stack_->End(); it < end; ) {
     const size_t delta = std::min(static_cast<size_t>(end - it), chunk_size);
-    thread_pool->AddTask(self, new MarkStackTask<false>(thread_pool, this, delta,
-                                                        const_cast<const mirror::Object**>(it)));
+    thread_pool->AddTask(self, new MarkStackTask<false>(thread_pool, this, delta, it));
     it += delta;
   }
   thread_pool->SetMaxActiveWorkers(thread_count - 1);
@@ -1301,11 +1301,10 @@ inline bool MarkSweep::IsMarked(const Object* object) const
   if (immune_region_.ContainsObject(object)) {
     return true;
   }
-  DCHECK(current_mark_bitmap_ != NULL);
-  if (current_mark_bitmap_->HasAddress(object)) {
-    return current_mark_bitmap_->Test(object);
+  if (current_space_bitmap_->HasAddress(object)) {
+    return current_space_bitmap_->Test(object);
   }
-  return heap_->GetMarkBitmap()->Test(object);
+  return mark_bitmap_->Test(object);
 }
 
 void MarkSweep::FinishPhase() {
@@ -1314,44 +1313,35 @@ void MarkSweep::FinishPhase() {
   Heap* heap = GetHeap();
   timings_.NewSplit("PostGcVerification");
   heap->PostGcVerification(this);
-
-  // Update the cumulative statistics
+  // Update the cumulative statistics.
   total_freed_objects_ += GetFreedObjects() + GetFreedLargeObjects();
   total_freed_bytes_ += GetFreedBytes() + GetFreedLargeObjectBytes();
-
   // Ensure that the mark stack is empty.
   CHECK(mark_stack_->IsEmpty());
-
   if (kCountScannedTypes) {
     VLOG(gc) << "MarkSweep scanned classes=" << class_count_ << " arrays=" << array_count_
              << " other=" << other_count_;
   }
-
   if (kCountTasks) {
     VLOG(gc) << "Total number of work chunks allocated: " << work_chunks_created_;
   }
-
   if (kMeasureOverhead) {
     VLOG(gc) << "Overhead time " << PrettyDuration(overhead_time_);
   }
-
   if (kProfileLargeObjects) {
     VLOG(gc) << "Large objects tested " << large_object_test_ << " marked " << large_object_mark_;
   }
-
-  if (kCountClassesMarked) {
-    VLOG(gc) << "Classes marked " << classes_marked_;
-  }
-
   if (kCountJavaLangRefs) {
     VLOG(gc) << "References scanned " << reference_count_;
   }
-
+  if (kCountMarkedObjects) {
+    VLOG(gc) << "Marked: null=" << mark_null_count_ << " immune=" <<  mark_immune_count_
+        << " fastpath=" << mark_fastpath_count_ << " slowpath=" << mark_slowpath_count_;
+  }
   // Update the cumulative loggers.
   cumulative_timings_.Start();
   cumulative_timings_.AddLogger(timings_);
   cumulative_timings_.End();
-
   // Clear all of the spaces' mark bitmaps.
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     accounting::SpaceBitmap* bitmap = space->GetMarkBitmap();
@@ -1361,7 +1351,6 @@ void MarkSweep::FinishPhase() {
     }
   }
   mark_stack_->Reset();
-
   // Reset the marked large objects.
   space::LargeObjectSpace* large_objects = GetHeap()->GetLargeObjectsSpace();
   large_objects->GetMarkObjects()->Clear();
