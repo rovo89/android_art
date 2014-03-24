@@ -108,7 +108,7 @@ class ModUnionScanImageRootVisitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(root != NULL);
     ModUnionUpdateObjectReferencesVisitor ref_visitor(callback_, arg_);
-    collector::MarkSweep::VisitObjectReferences(root, ref_visitor, true);
+    collector::MarkSweep::VisitObjectReferences<kMovingClasses>(root, ref_visitor);
   }
 
  private:
@@ -159,7 +159,7 @@ class ModUnionReferenceVisitor {
     // We don't have an early exit since we use the visitor pattern, an early
     // exit should significantly speed this up.
     AddToReferenceArrayVisitor visitor(mod_union_table_, references_);
-    collector::MarkSweep::VisitObjectReferences(obj, visitor, true);
+    collector::MarkSweep::VisitObjectReferences<kMovingClasses>(obj, visitor);
   }
  private:
   ModUnionTableReferenceCache* const mod_union_table_;
@@ -210,7 +210,7 @@ class ModUnionCheckReferences {
     Locks::heap_bitmap_lock_->AssertSharedHeld(Thread::Current());
     DCHECK(obj != NULL);
     CheckReferenceVisitor visitor(mod_union_table_, references_);
-    collector::MarkSweep::VisitObjectReferences(obj, visitor, true);
+    collector::MarkSweep::VisitObjectReferences<kMovingClasses>(obj, visitor);
   }
 
  private:

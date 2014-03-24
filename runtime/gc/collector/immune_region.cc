@@ -28,8 +28,8 @@ ImmuneRegion::ImmuneRegion() {
 }
 
 void ImmuneRegion::Reset() {
-  begin_ = nullptr;
-  end_ = nullptr;
+  SetBegin(nullptr);
+  SetEnd(nullptr);
 }
 
 bool ImmuneRegion::AddContinuousSpace(space::ContinuousSpace* space) {
@@ -41,13 +41,13 @@ bool ImmuneRegion::AddContinuousSpace(space::ContinuousSpace* space) {
   mirror::Object* space_begin = reinterpret_cast<mirror::Object*>(space->Begin());
   mirror::Object* space_limit = reinterpret_cast<mirror::Object*>(space->Limit());
   if (IsEmpty()) {
-    begin_ = space_begin;
-    end_ = space_limit;
+    SetBegin(space_begin);
+    SetEnd(space_limit);
   } else {
     if (space_limit <= begin_) {  // Space is before the immune region.
-      begin_ = space_begin;
+      SetBegin(space_begin);
     } else if (space_begin >= end_) {  // Space is after the immune region.
-      end_ = space_limit;
+      SetEnd(space_limit);
     } else {
       return false;
     }

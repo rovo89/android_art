@@ -31,12 +31,9 @@ namespace accounting {
 
 class HeapBitmap {
  public:
-  typedef std::vector<SpaceBitmap*, GcAllocator<SpaceBitmap*> > SpaceBitmapVector;
-  typedef std::vector<ObjectSet*, GcAllocator<ObjectSet*> > ObjectSetVector;
-
   bool Test(const mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     SpaceBitmap* bitmap = GetContinuousSpaceBitmap(obj);
-    if (LIKELY(bitmap != NULL)) {
+    if (LIKELY(bitmap != nullptr)) {
       return bitmap->Test(obj);
     } else {
       return GetDiscontinuousSpaceObjectSet(obj) != NULL;
@@ -71,7 +68,7 @@ class HeapBitmap {
         return bitmap;
       }
     }
-    return NULL;
+    return nullptr;
   }
 
   ObjectSet* GetDiscontinuousSpaceObjectSet(const mirror::Object* obj) {
@@ -80,7 +77,7 @@ class HeapBitmap {
         return space_set;
       }
     }
-    return NULL;
+    return nullptr;
   }
 
   void Walk(ObjectCallback* callback, void* arg)
@@ -110,10 +107,10 @@ class HeapBitmap {
   void RemoveDiscontinuousObjectSet(ObjectSet* set);
 
   // Bitmaps covering continuous spaces.
-  SpaceBitmapVector continuous_space_bitmaps_;
+  std::vector<SpaceBitmap*, GcAllocator<SpaceBitmap*>> continuous_space_bitmaps_;
 
   // Sets covering discontinuous spaces.
-  ObjectSetVector discontinuous_space_sets_;
+  std::vector<ObjectSet*, GcAllocator<ObjectSet*>> discontinuous_space_sets_;
 
   friend class art::gc::Heap;
 };
