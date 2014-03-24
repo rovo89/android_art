@@ -584,10 +584,10 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
         Usage("Unknown -Xverify option %s", verify_mode.c_str());
         return false;
       }
-    } else if (StartsWith(option, "-ea:") ||
-               StartsWith(option, "-da:") ||
-               StartsWith(option, "-enableassertions:") ||
-               StartsWith(option, "-disableassertions:") ||
+    } else if (StartsWith(option, "-ea") ||
+               StartsWith(option, "-da") ||
+               StartsWith(option, "-enableassertions") ||
+               StartsWith(option, "-disableassertions") ||
                (option == "--runtime-arg") ||
                (option == "-esa") ||
                (option == "-dsa") ||
