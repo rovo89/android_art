@@ -453,7 +453,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
     cmp w17, #'J'           // is this a long?
     bne .LisOther
 
-    cmp x8, # 7*12          // Skip this load if all registers full.
+    cmp x8, # 6*12          // Skip this load if all registers full.
     beq .LfillRegisters
 
     add x17, x12, x8        // Calculate subroutine to jump to.
@@ -461,7 +461,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
 
 
 .LisOther:                  // Everything else takes one vReg.
-    cmp x8, # 7*12          // Skip this load if all registers full.
+    cmp x8, # 6*12          // Skip this load if all registers full.
     beq .LfillRegisters
     add x17, x11, x8        // Calculate subroutine to jump to.
     br x17
