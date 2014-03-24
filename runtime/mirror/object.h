@@ -240,6 +240,14 @@ class MANAGED LOCKABLE Object {
 #endif
   }
 
+  // TODO fix thread safety analysis broken by the use of template. This should be
+  // SHARED_LOCKS_REQUIRED(Locks::mutator_lock_).
+  template <const bool kVisitClass, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+      typename Visitor, typename JavaLangRefVisitor = VoidFunctor>
+  void VisitReferences(const Visitor& visitor,
+                       const JavaLangRefVisitor& ref_visitor = VoidFunctor())
+      NO_THREAD_SAFETY_ANALYSIS;
+
  protected:
   // Accessors for non-Java type fields
   template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -250,6 +258,17 @@ class MANAGED LOCKABLE Object {
     return reinterpret_cast<T>(GetField64<kVerifyFlags>(field_offset, is_volatile));
 #endif
   }
+
+  // TODO: Fixme when anotatalysis works with visitors.
+  template<bool kVisitClass, bool kIsStatic, typename Visitor>
+  void VisitFieldsReferences(uint32_t ref_offsets, const Visitor& visitor)
+      NO_THREAD_SAFETY_ANALYSIS;
+  template<bool kVisitClass, typename Visitor>
+  void VisitInstanceFieldsReferences(mirror::Class* klass, const Visitor& visitor)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template<bool kVisitClass, typename Visitor>
+  void VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   // Verify the type correctness of stores to fields.

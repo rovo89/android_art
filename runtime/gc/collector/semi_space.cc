@@ -97,18 +97,13 @@ void SemiSpace::BindBitmaps() {
 SemiSpace::SemiSpace(Heap* heap, bool generational, const std::string& name_prefix)
     : GarbageCollector(heap,
                        name_prefix + (name_prefix.empty() ? "" : " ") + "marksweep + semispace"),
-      mark_stack_(nullptr),
-      is_large_object_space_immune_(false),
       to_space_(nullptr),
-      to_space_live_bitmap_(nullptr),
       from_space_(nullptr),
-      self_(nullptr),
       generational_(generational),
       last_gc_to_space_end_(nullptr),
       bytes_promoted_(0),
       whole_heap_collection_(true),
-      whole_heap_collection_interval_counter_(0),
-      saved_bytes_(0) {
+      whole_heap_collection_interval_counter_(0) {
 }
 
 void SemiSpace::InitializePhase() {
@@ -214,7 +209,7 @@ void SemiSpace::UpdateAndMarkModUnion() {
             space->IsZygoteSpace() ? "UpdateAndMarkZygoteModUnionTable" :
                                      "UpdateAndMarkImageModUnionTable",
                                      &timings_);
-        table->UpdateAndMarkReferences(MarkObjectCallback, this);
+        table->UpdateAndMarkReferences(MarkHeapReferenceCallback, this);
       } else if (heap_->FindRememberedSetFromSpace(space) != nullptr) {
         DCHECK(kUseRememberedSet);
         // If a bump pointer space only collection, the non-moving
@@ -246,7 +241,8 @@ void SemiSpace::UpdateAndMarkModUnion() {
 class SemiSpaceScanObjectVisitor {
  public:
   explicit SemiSpaceScanObjectVisitor(SemiSpace* ss) : semi_space_(ss) {}
-  void operator()(Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
+  void operator()(Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     // TODO: fix NO_THREAD_SAFETY_ANALYSIS. ScanObject() requires an
     // exclusive lock on the mutator lock, but
     // SpaceBitmap::VisitMarkedRange() only requires the shared lock.
@@ -263,22 +259,21 @@ class SemiSpaceVerifyNoFromSpaceReferencesVisitor {
   explicit SemiSpaceVerifyNoFromSpaceReferencesVisitor(space::ContinuousMemMapAllocSpace* from_space) :
       from_space_(from_space) {}
 
-  void operator()(Object* obj, Object* ref, const MemberOffset& offset, bool /* is_static */)
-      const ALWAYS_INLINE {
+  void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
+    mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset, false);
     if (from_space_->HasAddress(ref)) {
       Runtime::Current()->GetHeap()->DumpObject(LOG(INFO), obj);
     }
-    DCHECK(!from_space_->HasAddress(ref));
   }
  private:
   space::ContinuousMemMapAllocSpace* from_space_;
 };
 
 void SemiSpace::VerifyNoFromSpaceReferences(Object* obj) {
-  DCHECK(obj != NULL);
   DCHECK(!from_space_->HasAddress(obj)) << "Scanning object " << obj << " in from space";
   SemiSpaceVerifyNoFromSpaceReferencesVisitor visitor(from_space_);
-  MarkSweep::VisitObjectReferences<kMovingClasses>(obj, visitor);
+  obj->VisitReferences<kMovingClasses>(visitor);
 }
 
 class SemiSpaceVerifyNoFromSpaceReferencesObjectVisitor {
@@ -313,7 +308,7 @@ void SemiSpace::MarkReachableObjects() {
       accounting::RememberedSet* rem_set = heap_->FindRememberedSetFromSpace(space);
       if (kUseRememberedSet) {
         DCHECK(rem_set != nullptr);
-        rem_set->UpdateAndMarkReferences(MarkObjectCallback, from_space_, this);
+        rem_set->UpdateAndMarkReferences(MarkHeapReferenceCallback, from_space_, this);
         if (kIsDebugBuild) {
           // Verify that there are no from-space references that
           // remain in the space, that is, the remembered set (and the
@@ -475,9 +470,9 @@ static inline size_t CopyAvoidingDirtyingPages(void* dest, const void* src, size
   memcpy(dest, src, page_remain);
   byte_src += page_remain;
   byte_dest += page_remain;
-  CHECK_ALIGNED(reinterpret_cast<uintptr_t>(byte_dest), kPageSize);
-  CHECK_ALIGNED(reinterpret_cast<uintptr_t>(byte_dest), sizeof(uintptr_t));
-  CHECK_ALIGNED(reinterpret_cast<uintptr_t>(byte_src), sizeof(uintptr_t));
+  DCHECK_ALIGNED(reinterpret_cast<uintptr_t>(byte_dest), kPageSize);
+  DCHECK_ALIGNED(reinterpret_cast<uintptr_t>(byte_dest), sizeof(uintptr_t));
+  DCHECK_ALIGNED(reinterpret_cast<uintptr_t>(byte_src), sizeof(uintptr_t));
   while (byte_src + kPageSize < limit) {
     bool all_zero = true;
     uintptr_t* word_dest = reinterpret_cast<uintptr_t*>(byte_dest);
@@ -582,17 +577,18 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
 // Used to mark and copy objects. Any newly-marked objects who are in the from space get moved to
 // the to-space and have their forward address updated. Objects which have been newly marked are
 // pushed on the mark stack.
-Object* SemiSpace::MarkObject(Object* obj) {
+void SemiSpace::MarkObject(mirror::HeapReference<Object>* obj_ptr) {
+  Object* obj = obj_ptr->AsMirrorPtr();
+  if (obj == nullptr) {
+    return;
+  }
   if (kUseBrooksPointer) {
     // Verify all the objects have the correct forward pointer installed.
-    if (obj != nullptr) {
-      obj->AssertSelfBrooksPointer();
-    }
+    obj->AssertSelfBrooksPointer();
   }
-  Object* forward_address = obj;
-  if (obj != nullptr && !immune_region_.ContainsObject(obj)) {
+  if (!immune_region_.ContainsObject(obj)) {
     if (from_space_->HasAddress(obj)) {
-      forward_address = GetForwardingAddressInFromSpace(obj);
+      mirror::Object* forward_address = GetForwardingAddressInFromSpace(obj);
       // If the object has already been moved, return the new forward address.
       if (forward_address == nullptr) {
         forward_address = MarkNonForwardedObject(obj);
@@ -604,9 +600,10 @@ Object* SemiSpace::MarkObject(Object* obj) {
         // Push the object onto the mark stack for later processing.
         MarkStackPush(forward_address);
       }
-      // TODO: Do we need this if in the else statement?
+      obj_ptr->Assign(forward_address);
     } else {
-      accounting::SpaceBitmap* object_bitmap = heap_->GetMarkBitmap()->GetContinuousSpaceBitmap(obj);
+      accounting::SpaceBitmap* object_bitmap =
+          heap_->GetMarkBitmap()->GetContinuousSpaceBitmap(obj);
       if (LIKELY(object_bitmap != nullptr)) {
         if (generational_) {
           // If a bump pointer space only collection, we should not
@@ -615,9 +612,8 @@ Object* SemiSpace::MarkObject(Object* obj) {
           // the non-moving space is added to the immune space.
           DCHECK(whole_heap_collection_);
         }
-        // This object was not previously marked.
-        if (!object_bitmap->Test(obj)) {
-          object_bitmap->Set(obj);
+        if (!object_bitmap->Set(obj)) {
+          // This object was not previously marked.
           MarkStackPush(obj);
         }
       } else {
@@ -628,25 +624,30 @@ Object* SemiSpace::MarkObject(Object* obj) {
       }
     }
   }
-  return forward_address;
 }
 
 void SemiSpace::ProcessMarkStackCallback(void* arg) {
-  DCHECK(arg != nullptr);
   reinterpret_cast<SemiSpace*>(arg)->ProcessMarkStack();
 }
 
 mirror::Object* SemiSpace::MarkObjectCallback(mirror::Object* root, void* arg) {
-  DCHECK(root != nullptr);
-  DCHECK(arg != nullptr);
-  return reinterpret_cast<SemiSpace*>(arg)->MarkObject(root);
+  auto ref = mirror::HeapReference<mirror::Object>::FromMirrorPtr(root);
+  reinterpret_cast<SemiSpace*>(arg)->MarkObject(&ref);
+  return ref.AsMirrorPtr();
+}
+
+void SemiSpace::MarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>* obj_ptr,
+                                          void* arg) {
+  reinterpret_cast<SemiSpace*>(arg)->MarkObject(obj_ptr);
 }
 
 void SemiSpace::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*/,
                                  RootType /*root_type*/) {
-  DCHECK(root != nullptr);
-  DCHECK(arg != nullptr);
-  *root = reinterpret_cast<SemiSpace*>(arg)->MarkObject(*root);
+  auto ref = mirror::HeapReference<mirror::Object>::FromMirrorPtr(*root);
+  reinterpret_cast<SemiSpace*>(arg)->MarkObject(&ref);
+  if (*root != ref.AsMirrorPtr()) {
+    *root = ref.AsMirrorPtr();
+  }
 }
 
 // Marks all objects in the root set.
@@ -708,42 +709,35 @@ void SemiSpace::SweepLargeObjects(bool swap_bitmaps) {
 
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
 // marked, put it on the appropriate list in the heap for later processing.
-void SemiSpace::DelayReferenceReferent(mirror::Class* klass, Object* obj) {
-  heap_->DelayReferenceReferent(klass, obj->AsReference(), MarkedForwardingAddressCallback, this);
+void SemiSpace::DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference) {
+  heap_->DelayReferenceReferent(klass, reference, MarkedForwardingAddressCallback, this);
 }
 
 class SemiSpaceMarkObjectVisitor {
  public:
-  explicit SemiSpaceMarkObjectVisitor(SemiSpace* semi_space) : semi_space_(semi_space) {
+  explicit SemiSpaceMarkObjectVisitor(SemiSpace* collector) : collector_(collector) {
   }
 
-  void operator()(Object* obj, Object* ref, const MemberOffset& offset, bool /* is_static */)
-      const ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS /* EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) */ {
-    mirror::Object* new_address = semi_space_->MarkObject(ref);
-    if (new_address != ref) {
-      DCHECK(new_address != nullptr);
-      // Don't need to mark the card since we updating the object address and not changing the
-      // actual objects its pointing to. Using SetFieldObjectWithoutWriteBarrier is better in this
-      // case since it does not dirty cards and use additional memory.
-      // Since we do not change the actual object, we can safely use non-transactional mode. Also
-      // disable check as we could run inside a transaction.
-      obj->SetFieldObjectWithoutWriteBarrier<false, false, kVerifyNone>(offset, new_address, false);
-    }
+  void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const ALWAYS_INLINE
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+    collector_->MarkObject(obj->GetFieldObjectReferenceAddr(offset));
   }
+
+  void operator()(mirror::Class* klass, mirror::Reference* ref) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    collector_->DelayReferenceReferent(klass, ref);
+  }
+
  private:
-  SemiSpace* const semi_space_;
+  SemiSpace* const collector_;
 };
 
 // Visit all of the references of an object and update.
 void SemiSpace::ScanObject(Object* obj) {
-  DCHECK(obj != NULL);
   DCHECK(!from_space_->HasAddress(obj)) << "Scanning object " << obj << " in from space";
   SemiSpaceMarkObjectVisitor visitor(this);
-  MarkSweep::VisitObjectReferences<kMovingClasses>(obj, visitor);
-  mirror::Class* klass = obj->GetClass<kVerifyNone>();
-  if (UNLIKELY(klass->IsReferenceClass<kVerifyNone>())) {
-    DelayReferenceReferent(klass, obj);
-  }
+  obj->VisitReferences<kMovingClasses>(visitor, visitor);
 }
 
 // Scan anything that's on the mark stack.
