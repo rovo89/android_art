@@ -44,23 +44,31 @@ static jboolean DdmVmInternal_getRecentAllocationStatus(JNIEnv*, jclass) {
  * NULL on failure, e.g. if the threadId couldn't be found.
  */
 static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint thin_lock_id) {
-  // Suspend thread to build stack trace.
-  ThreadList* thread_list = Runtime::Current()->GetThreadList();
   jobjectArray trace = nullptr;
-  bool timed_out;
-  Thread* thread = thread_list->SuspendThreadByThreadId(thin_lock_id, false, &timed_out);
-  if (thread != NULL) {
-    {
-      ScopedObjectAccess soa(env);
-      jobject internal_trace = thread->CreateInternalStackTrace(soa);
-      trace = Thread::InternalStackTraceToStackTraceElementArray(soa, internal_trace);
-    }
-    // Restart suspended thread.
-    thread_list->Resume(thread, false);
+  Thread* const self = Thread::Current();
+  if (static_cast<uint32_t>(thin_lock_id) == self->GetThreadId()) {
+    // No need to suspend ourself to build stacktrace.
+    ScopedObjectAccess soa(env);
+    jobject internal_trace = self->CreateInternalStackTrace(soa);
+    trace = Thread::InternalStackTraceToStackTraceElementArray(soa, internal_trace);
   } else {
-    if (timed_out) {
-      LOG(ERROR) << "Trying to get thread's stack by id failed as the thread failed to suspend "
-          "within a generous timeout.";
+    // Suspend thread to build stack trace.
+    ThreadList* thread_list = Runtime::Current()->GetThreadList();
+    bool timed_out;
+    Thread* thread = thread_list->SuspendThreadByThreadId(thin_lock_id, false, &timed_out);
+    if (thread != nullptr) {
+      {
+        ScopedObjectAccess soa(env);
+        jobject internal_trace = thread->CreateInternalStackTrace(soa);
+        trace = Thread::InternalStackTraceToStackTraceElementArray(soa, internal_trace);
+      }
+      // Restart suspended thread.
+      thread_list->Resume(thread, false);
+    } else {
+      if (timed_out) {
+        LOG(ERROR) << "Trying to get thread's stack by id failed as the thread failed to suspend "
+            "within a generous timeout.";
+      }
     }
   }
   return trace;
