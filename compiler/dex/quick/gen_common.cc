@@ -1626,14 +1626,31 @@ bool Mir2Lir::HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
 // Returns true if it added instructions to 'cu' to multiply 'rl_src' by 'lit'
 // and store the result in 'rl_dest'.
 bool Mir2Lir::HandleEasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) {
+  if (lit < 0) {
+    return false;
+  }
+  if (lit == 0) {
+    RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+    LoadConstant(rl_result.reg, 0);
+    StoreValue(rl_dest, rl_result);
+    return true;
+  }
+  if (lit == 1) {
+    rl_src = LoadValue(rl_src, kCoreReg);
+    RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+    OpRegCopy(rl_result.reg, rl_src.reg);
+    StoreValue(rl_dest, rl_result);
+    return true;
+  }
+  // There is RegRegRegShift on Arm, so check for more special cases
+  if (cu_->instruction_set == kThumb2) {
+    return EasyMultiply(rl_src, rl_dest, lit);
+  }
   // Can we simplify this multiplication?
   bool power_of_two = false;
   bool pop_count_le2 = false;
   bool power_of_two_minus_one = false;
-  if (lit < 2) {
-    // Avoid special cases.
-    return false;
-  } else if (IsPowerOfTwo(lit)) {
+  if (IsPowerOfTwo(lit)) {
     power_of_two = true;
   } else if (IsPopCountLE2(lit)) {
     pop_count_le2 = true;
