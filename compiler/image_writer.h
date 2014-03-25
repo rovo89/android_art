@@ -141,21 +141,9 @@ class ImageWriter {
   void CopyAndFixupObjects();
   static void CopyAndFixupObjectsCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupClass(mirror::Class* orig, mirror::Class* copy)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void FixupMethod(mirror::ArtMethod* orig, mirror::ArtMethod* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void FixupObject(mirror::Object* orig, mirror::Object* copy)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupObjectArray(mirror::ObjectArray<mirror::Object>* orig,
-                        mirror::ObjectArray<mirror::Object>* copy)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupInstanceFields(mirror::Object* orig, mirror::Object* copy)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupStaticFields(mirror::Class* orig, mirror::Class* copy)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupFields(mirror::Object* orig, mirror::Object* copy, uint32_t ref_offsets,
-                   bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Patches references in OatFile to expect runtime addresses.
@@ -163,7 +151,6 @@ class ImageWriter {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetPatchLocation(const CompilerDriver::PatchInformation* patch, uint32_t value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
 
   const CompilerDriver& compiler_driver_;
 
@@ -199,6 +186,9 @@ class ImageWriter {
   uint32_t quick_imt_conflict_trampoline_offset_;
   uint32_t quick_resolution_trampoline_offset_;
   uint32_t quick_to_interpreter_bridge_offset_;
+
+  friend class FixupVisitor;
+  DISALLOW_COPY_AND_ASSIGN(ImageWriter);
 };
 
 }  // namespace art
