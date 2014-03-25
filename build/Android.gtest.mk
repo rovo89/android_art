@@ -171,15 +171,7 @@ define build-art-test
     LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libz-host
-    LOCAL_STATIC_LIBRARIES += libcutils
-    ifeq ($(HOST_OS),darwin)
-      # Mac OS complains about unresolved symbols if you don't include this.
-      LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_host
-    endif
-    ifneq ($(BUILD_HOST_64bit),)
-      # 64bit Linux complains about unresolved symbols if you don't include this.
-      LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_host
-    endif
+    LOCAL_STATIC_LIBRARIES += libcutils libgtest_host
     include $(BUILD_HOST_EXECUTABLE)
     art_gtest_exe := $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
     ART_HOST_GTEST_EXECUTABLES += $$(art_gtest_exe)
