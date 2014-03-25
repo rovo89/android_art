@@ -98,7 +98,8 @@ class SemiSpace : public GarbageCollector {
   void FindDefaultMarkBitmap();
 
   // Returns the new address of the object.
-  void MarkObject(mirror::HeapReference<mirror::Object>* obj_ptr)
+  template<bool kPoisonReferences>
+  void MarkObject(mirror::ObjectReference<kPoisonReferences, mirror::Object>* obj_ptr)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

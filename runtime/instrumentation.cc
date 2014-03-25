@@ -57,6 +57,19 @@ static bool InstallStubsClassVisitor(mirror::Class* klass, void* arg)
   return instrumentation->InstallStubsForClass(klass);
 }
 
+Instrumentation::Instrumentation()
+    : instrumentation_stubs_installed_(false), entry_exit_stubs_installed_(false),
+      interpreter_stubs_installed_(false),
+      interpret_only_(false), forced_interpret_only_(false),
+      have_method_entry_listeners_(false), have_method_exit_listeners_(false),
+      have_method_unwind_listeners_(false), have_dex_pc_listeners_(false),
+      have_exception_caught_listeners_(false),
+      deoptimized_methods_lock_("deoptimized methods lock"),
+      deoptimization_enabled_(false),
+      interpreter_handler_table_(kMainHandlerTable),
+      quick_alloc_entry_points_instrumentation_counter_(0) {
+}
+
 bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
   for (size_t i = 0, e = klass->NumDirectMethods(); i < e; i++) {
     InstallStubsForMethod(klass->GetDirectMethod(i));
@@ -445,7 +458,12 @@ void Instrumentation::ConfigureStubs(bool require_entry_exit_stubs, bool require
     entry_exit_stubs_installed_ = false;
     runtime->GetClassLinker()->VisitClasses(InstallStubsClassVisitor, this);
     // Restore stack only if there is no method currently deoptimized.
-    if (deoptimized_methods_.empty()) {
+    bool empty;
+    {
+      ReaderMutexLock mu(self, deoptimized_methods_lock_);
+      empty = deoptimized_methods_.empty();  // Avoid lock violation.
+    }
+    if (empty) {
       instrumentation_stubs_installed_ = false;
       MutexLock mu(self, *Locks::thread_list_lock_);
       Runtime::Current()->GetThreadList()->ForEach(InstrumentationRestoreStack, this);
@@ -542,7 +560,12 @@ void Instrumentation::Deoptimize(mirror::ArtMethod* method) {
   CHECK(!method->IsProxyMethod());
   CHECK(!method->IsAbstract());
 
-  std::pair<std::set<mirror::ArtMethod*>::iterator, bool> pair = deoptimized_methods_.insert(method);
+  Thread* self = Thread::Current();
+  std::pair<std::set<mirror::ArtMethod*>::iterator, bool> pair;
+  {
+    WriterMutexLock mu(self, deoptimized_methods_lock_);
+    pair = deoptimized_methods_.insert(method);
+  }
   bool already_deoptimized = !pair.second;
   CHECK(!already_deoptimized) << "Method " << PrettyMethod(method) << " is already deoptimized";
 
@@ -553,7 +576,7 @@ void Instrumentation::Deoptimize(mirror::ArtMethod* method) {
     // Install instrumentation exit stub and instrumentation frames. We may already have installed
     // these previously so it will only cover the newly created frames.
     instrumentation_stubs_installed_ = true;
-    MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+    MutexLock mu(self, *Locks::thread_list_lock_);
     Runtime::Current()->GetThreadList()->ForEach(InstrumentationInstallStack, this);
   }
 }
@@ -563,9 +586,16 @@ void Instrumentation::Undeoptimize(mirror::ArtMethod* method) {
   CHECK(!method->IsProxyMethod());
   CHECK(!method->IsAbstract());
 
-  auto it = deoptimized_methods_.find(method);
-  CHECK(it != deoptimized_methods_.end()) << "Method " << PrettyMethod(method) << " is not deoptimized";
-  deoptimized_methods_.erase(it);
+  Thread* self = Thread::Current();
+  bool empty;
+  {
+    WriterMutexLock mu(self, deoptimized_methods_lock_);
+    auto it = deoptimized_methods_.find(method);
+    CHECK(it != deoptimized_methods_.end()) << "Method " << PrettyMethod(method)
+        << " is not deoptimized";
+    deoptimized_methods_.erase(it);
+    empty = deoptimized_methods_.empty();
+  }
 
   // Restore code and possibly stack only if we did not deoptimize everything.
   if (!interpreter_stubs_installed_) {
@@ -583,8 +613,8 @@ void Instrumentation::Undeoptimize(mirror::ArtMethod* method) {
     }
 
     // If there is no deoptimized method left, we can restore the stack of each thread.
-    if (deoptimized_methods_.empty()) {
-      MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+    if (empty) {
+      MutexLock mu(self, *Locks::thread_list_lock_);
       Runtime::Current()->GetThreadList()->ForEach(InstrumentationRestoreStack, this);
       instrumentation_stubs_installed_ = false;
     }
@@ -592,11 +622,13 @@ void Instrumentation::Undeoptimize(mirror::ArtMethod* method) {
 }
 
 bool Instrumentation::IsDeoptimized(mirror::ArtMethod* method) const {
+  ReaderMutexLock mu(Thread::Current(), deoptimized_methods_lock_);
   DCHECK(method != nullptr);
-  return deoptimized_methods_.count(method);
+  return deoptimized_methods_.find(method) != deoptimized_methods_.end();
 }
 
 void Instrumentation::EnableDeoptimization() {
+  ReaderMutexLock mu(Thread::Current(), deoptimized_methods_lock_);
   CHECK(deoptimized_methods_.empty());
   CHECK_EQ(deoptimization_enabled_, false);
   deoptimization_enabled_ = true;
@@ -609,11 +641,17 @@ void Instrumentation::DisableDeoptimization() {
     UndeoptimizeEverything();
   }
   // Undeoptimized selected methods.
-  while (!deoptimized_methods_.empty()) {
-    auto it_begin = deoptimized_methods_.begin();
-    Undeoptimize(*it_begin);
+  while (true) {
+    mirror::ArtMethod* method;
+    {
+      ReaderMutexLock mu(Thread::Current(), deoptimized_methods_lock_);
+      if (deoptimized_methods_.empty()) {
+        break;
+      }
+      method = *deoptimized_methods_.begin();
+    }
+    Undeoptimize(method);
   }
-  CHECK(deoptimized_methods_.empty());
   deoptimization_enabled_ = false;
 }
 
@@ -825,6 +863,20 @@ void Instrumentation::PopMethodForUnwind(Thread* self, bool is_deoptimization) c
     uint32_t dex_pc = DexFile::kDexNoIndex;
     MethodUnwindEvent(self, instrumentation_frame.this_object_, method, dex_pc);
   }
+}
+
+void Instrumentation::VisitRoots(RootCallback* callback, void* arg) {
+  WriterMutexLock mu(Thread::Current(), deoptimized_methods_lock_);
+  if (deoptimized_methods_.empty()) {
+    return;
+  }
+  std::set<mirror::ArtMethod*> new_deoptimized_methods;
+  for (mirror::ArtMethod* method : deoptimized_methods_) {
+    DCHECK(method != nullptr);
+    callback(reinterpret_cast<mirror::Object**>(&method), arg, 0, kRootVMInternal);
+    new_deoptimized_methods.insert(method);
+  }
+  deoptimized_methods_ = new_deoptimized_methods;
 }
 
 std::string InstrumentationStackFrame::Dump() const {

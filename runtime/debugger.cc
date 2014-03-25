@@ -104,6 +104,12 @@ struct Breakpoint {
   mirror::ArtMethod* method;
   uint32_t dex_pc;
   Breakpoint(mirror::ArtMethod* method, uint32_t dex_pc) : method(method), dex_pc(dex_pc) {}
+
+  void VisitRoots(RootCallback* callback, void* arg) {
+    if (method != nullptr) {
+      callback(reinterpret_cast<mirror::Object**>(&method), arg, 0, kRootDebugger);
+    }
+  }
 };
 
 static std::ostream& operator<<(std::ostream& os, const Breakpoint& rhs)
@@ -208,6 +214,29 @@ static std::vector<MethodInstrumentationRequest> gDeoptimizationRequests GUARDED
 
 // Breakpoints.
 static std::vector<Breakpoint> gBreakpoints GUARDED_BY(Locks::breakpoint_lock_);
+
+void DebugInvokeReq::VisitRoots(RootCallback* callback, void* arg, uint32_t tid,
+                                RootType root_type) {
+  if (receiver != nullptr) {
+    callback(&receiver, arg, tid, root_type);
+  }
+  if (thread != nullptr) {
+    callback(&thread, arg, tid, root_type);
+  }
+  if (klass != nullptr) {
+    callback(reinterpret_cast<mirror::Object**>(&klass), arg, tid, root_type);
+  }
+  if (method != nullptr) {
+    callback(reinterpret_cast<mirror::Object**>(&method), arg, tid, root_type);
+  }
+}
+
+void SingleStepControl::VisitRoots(RootCallback* callback, void* arg, uint32_t tid,
+                                   RootType root_type) {
+  if (method != nullptr) {
+    callback(reinterpret_cast<mirror::Object**>(&method), arg, tid, root_type);
+  }
+}
 
 static bool IsBreakpoint(const mirror::ArtMethod* m, uint32_t dex_pc)
     LOCKS_EXCLUDED(Locks::breakpoint_lock_)
@@ -491,6 +520,13 @@ void Dbg::StartJdwp() {
     if (!gJdwpState->PostVMStart()) {
       LOG(WARNING) << "Failed to post 'start' message to debugger";
     }
+  }
+}
+
+void Dbg::VisitRoots(RootCallback* callback, void* arg) {
+  MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
+  for (Breakpoint& bp : gBreakpoints) {
+    bp.VisitRoots(callback, arg);
   }
 }
 
@@ -3861,7 +3897,7 @@ void Dbg::DumpRecentAllocations() {
   }
 }
 
-void Dbg::UpdateObjectPointers(IsMarkedCallback* visitor, void* arg) {
+void Dbg::UpdateObjectPointers(IsMarkedCallback* callback, void* arg) {
   if (recent_allocation_records_ != nullptr) {
     MutexLock mu(Thread::Current(), *alloc_tracker_lock_);
     size_t i = HeadIndex();
@@ -3869,12 +3905,12 @@ void Dbg::UpdateObjectPointers(IsMarkedCallback* visitor, void* arg) {
     while (count--) {
       AllocRecord* record = &recent_allocation_records_[i];
       DCHECK(record != nullptr);
-      record->UpdateObjectPointers(visitor, arg);
+      record->UpdateObjectPointers(callback, arg);
       i = (i + 1) & (alloc_record_max_ - 1);
     }
   }
   if (gRegistry != nullptr) {
-    gRegistry->UpdateObjectPointers(visitor, arg);
+    gRegistry->UpdateObjectPointers(callback, arg);
   }
 }
 
