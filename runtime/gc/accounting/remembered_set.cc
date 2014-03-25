@@ -68,6 +68,7 @@ class RememberedSetReferenceVisitor {
 
   void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(obj != nullptr);
     mirror::HeapReference<mirror::Object>* ref_ptr = obj->GetFieldObjectReferenceAddr(offset);
     if (target_space_->HasAddress(ref_ptr->AsMirrorPtr())) {
       *contains_reference_to_target_space_ = true;

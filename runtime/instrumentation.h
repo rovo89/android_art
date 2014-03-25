@@ -20,6 +20,7 @@
 #include "atomic.h"
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "object_callbacks.h"
 
 #include <stdint.h>
 #include <set>
@@ -98,16 +99,7 @@ class Instrumentation {
     kExceptionCaught = 16
   };
 
-  Instrumentation() :
-      instrumentation_stubs_installed_(false), entry_exit_stubs_installed_(false),
-      interpreter_stubs_installed_(false),
-      interpret_only_(false), forced_interpret_only_(false),
-      have_method_entry_listeners_(false), have_method_exit_listeners_(false),
-      have_method_unwind_listeners_(false), have_dex_pc_listeners_(false),
-      have_exception_caught_listeners_(false),
-      deoptimization_enabled_(false),
-      interpreter_handler_table_(kMainHandlerTable),
-      quick_alloc_entry_points_instrumentation_counter_(0) {}
+  Instrumentation();
 
   // Add a listener to be notified of the masked together sent of instrumentation events. This
   // suspend the runtime to install stubs. You are expected to hold the mutator lock as a proxy
@@ -123,8 +115,10 @@ class Instrumentation {
       LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_);
 
   // Deoptimization.
-  void EnableDeoptimization() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void DisableDeoptimization() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void EnableDeoptimization() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(deoptimized_methods_lock_);
+  void DisableDeoptimization() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+    LOCKS_EXCLUDED(deoptimized_methods_lock_);
   bool ShouldNotifyMethodEnterExitEvents() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Executes everything with interpreter.
@@ -141,7 +135,7 @@ class Instrumentation {
   // method (except a class initializer) set to the resolution trampoline will be deoptimized only
   // once its declaring class is initialized.
   void Deoptimize(mirror::ArtMethod* method)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, deoptimized_methods_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Undeoptimze the method by restoring its entrypoints. Nevertheless, a static method
@@ -151,7 +145,7 @@ class Instrumentation {
       LOCKS_EXCLUDED(Locks::thread_list_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsDeoptimized(mirror::ArtMethod* method) const;
+  bool IsDeoptimized(mirror::ArtMethod* method) const LOCKS_EXCLUDED(deoptimized_methods_lock_);
 
   // Enable method tracing by installing instrumentation entry/exit stubs.
   void EnableMethodTracing()
@@ -286,11 +280,15 @@ class Instrumentation {
   void InstallStubsForMethod(mirror::ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void VisitRoots(RootCallback* callback, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(deoptimized_methods_lock_);
+
  private:
   // Does the job of installing or removing instrumentation code within methods.
   void ConfigureStubs(bool require_entry_exit_stubs, bool require_interpreter)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_,
+                     deoptimized_methods_lock_);
 
   void UpdateInterpreterHandlerTable() {
     interpreter_handler_table_ = IsActive() ? kAlternativeHandlerTable : kMainHandlerTable;
@@ -354,8 +352,8 @@ class Instrumentation {
 
   // The set of methods being deoptimized (by the debugger) which must be executed with interpreter
   // only.
-  // TODO we need to visit these methods as roots.
-  std::set<mirror::ArtMethod*> deoptimized_methods_;
+  mutable ReaderWriterMutex deoptimized_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  std::set<mirror::ArtMethod*> deoptimized_methods_ GUARDED_BY(deoptimized_methods_lock_);
   bool deoptimization_enabled_;
 
   // Current interpreter handler table. This is updated each time the thread state flags are

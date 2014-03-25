@@ -839,7 +839,7 @@ void Runtime::DetachCurrentThread() {
 
 void Runtime::VisitConstantRoots(RootCallback* callback, void* arg) {
   // Visit the classes held as static in mirror classes, these can be visited concurrently and only
-  // need to be visited once since they never change.
+  // need to be visited once per GC since they never change.
   mirror::ArtField::VisitRoots(callback, arg);
   mirror::ArtMethod::VisitRoots(callback, arg);
   mirror::Class::VisitRoots(callback, arg);
@@ -860,6 +860,7 @@ void Runtime::VisitConstantRoots(RootCallback* callback, void* arg) {
 void Runtime::VisitConcurrentRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
   intern_table_->VisitRoots(callback, arg, flags);
   class_linker_->VisitRoots(callback, arg, flags);
+  Dbg::VisitRoots(callback, arg);
   if ((flags & kVisitRootFlagNewRoots) == 0) {
     // Guaranteed to have no new roots in the constant roots.
     VisitConstantRoots(callback, arg);
@@ -896,6 +897,7 @@ void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
   if (preinitialization_transaction != nullptr) {
     preinitialization_transaction->VisitRoots(callback, arg);
   }
+  instrumentation_.VisitRoots(callback, arg);
 }
 
 void Runtime::VisitNonConcurrentRoots(RootCallback* callback, void* arg) {
