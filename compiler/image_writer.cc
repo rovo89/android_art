@@ -579,37 +579,51 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* obj, void* arg) {
   image_writer->FixupObject(obj, copy);
 }
 
+class FixupVisitor {
+ public:
+  FixupVisitor(ImageWriter* image_writer, Object* copy) : image_writer_(image_writer), copy_(copy) {
+  }
+
+  void operator()(Object* obj, MemberOffset offset, bool /*is_static*/) const
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+    Object* ref = obj->GetFieldObject<Object, kVerifyNone>(offset, false);
+    // Use SetFieldObjectWithoutWriteBarrier to avoid card marking since we are writing to the
+    // image.
+    copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(
+        offset, image_writer_->GetImageAddress(ref), false);
+  }
+
+  // java.lang.ref.Reference visitor.
+  void operator()(mirror::Class* /*klass*/, mirror::Reference* ref) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(
+        mirror::Reference::ReferentOffset(), image_writer_->GetImageAddress(ref->GetReferent()),
+        false);
+  }
+
+ private:
+  ImageWriter* const image_writer_;
+  mirror::Object* const copy_;
+};
+
 void ImageWriter::FixupObject(Object* orig, Object* copy) {
-  DCHECK(orig != NULL);
-  DCHECK(copy != NULL);
-  copy->SetClass<kVerifyNone>(down_cast<Class*>(GetImageAddress(orig->GetClass())));
+  DCHECK(orig != nullptr);
+  DCHECK(copy != nullptr);
   if (kUseBrooksPointer) {
     orig->AssertSelfBrooksPointer();
     // Note the address 'copy' isn't the same as the image address of 'orig'.
     copy->SetBrooksPointer(GetImageAddress(orig));
-    DCHECK(copy->GetBrooksPointer() == GetImageAddress(orig));
+    DCHECK_EQ(copy->GetBrooksPointer(), GetImageAddress(orig));
   }
-  // TODO: special case init of pointers to malloc data (or removal of these pointers)
-  if (orig->IsClass<kVerifyNone>()) {
-    FixupClass(orig->AsClass<kVerifyNone>(), down_cast<Class*>(copy));
-  } else if (orig->IsObjectArray<kVerifyNone>()) {
-    FixupObjectArray(orig->AsObjectArray<Object, kVerifyNone>(),
-                     down_cast<ObjectArray<Object>*>(copy));
-  } else if (orig->IsArtMethod<kVerifyNone>()) {
+  FixupVisitor visitor(this, copy);
+  orig->VisitReferences<true /*visit class*/>(visitor, visitor);
+  if (orig->IsArtMethod<kVerifyNone>()) {
     FixupMethod(orig->AsArtMethod<kVerifyNone>(), down_cast<ArtMethod*>(copy));
-  } else {
-    FixupInstanceFields(orig, copy);
   }
-}
-
-void ImageWriter::FixupClass(Class* orig, Class* copy) {
-  FixupInstanceFields(orig, copy);
-  FixupStaticFields(orig, copy);
 }
 
 void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
-  FixupInstanceFields(orig, copy);
-
   // OatWriter replaces the code_ with an offset value. Here we re-adjust to a pointer relative to
   // oat_begin_
 
@@ -677,79 +691,6 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
         copy->SetNativeGcMap<kVerifyNone>(reinterpret_cast<const uint8_t*>(native_gc_map));
       }
     }
-  }
-}
-
-void ImageWriter::FixupObjectArray(ObjectArray<Object>* orig, ObjectArray<Object>* copy) {
-  for (int32_t i = 0; i < orig->GetLength(); ++i) {
-    Object* element = orig->Get(i);
-    copy->SetWithoutChecksAndWriteBarrier<false, true, kVerifyNone>(i, GetImageAddress(element));
-  }
-}
-
-void ImageWriter::FixupInstanceFields(Object* orig, Object* copy) {
-  DCHECK(orig != NULL);
-  DCHECK(copy != NULL);
-  Class* klass = orig->GetClass();
-  DCHECK(klass != NULL);
-  FixupFields(orig, copy, klass->GetReferenceInstanceOffsets(), false);
-}
-
-void ImageWriter::FixupStaticFields(Class* orig, Class* copy) {
-  DCHECK(orig != NULL);
-  DCHECK(copy != NULL);
-  FixupFields(orig, copy, orig->GetReferenceStaticOffsets(), true);
-}
-
-void ImageWriter::FixupFields(Object* orig,
-                              Object* copy,
-                              uint32_t ref_offsets,
-                              bool is_static) {
-  if (ref_offsets != CLASS_WALK_SUPER) {
-    // Found a reference offset bitmap.  Fixup the specified offsets.
-    while (ref_offsets != 0) {
-      size_t right_shift = CLZ(ref_offsets);
-      MemberOffset byte_offset = CLASS_OFFSET_FROM_CLZ(right_shift);
-      Object* ref = orig->GetFieldObject<Object, kVerifyNone>(byte_offset, false);
-      // Use SetFieldObjectWithoutWriteBarrier to avoid card marking since we are writing to the
-      // image.
-      copy->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(
-          byte_offset, GetImageAddress(ref), false);
-      ref_offsets &= ~(CLASS_HIGH_BIT >> right_shift);
-    }
-  } else {
-    // There is no reference offset bitmap.  In the non-static case,
-    // walk up the class inheritance hierarchy and find reference
-    // offsets the hard way. In the static case, just consider this
-    // class.
-    for (Class *klass = is_static ? orig->AsClass() : orig->GetClass();
-         klass != NULL;
-         klass = is_static ? NULL : klass->GetSuperClass()) {
-      size_t num_reference_fields = (is_static
-                                     ? klass->NumReferenceStaticFields()
-                                     : klass->NumReferenceInstanceFields());
-      for (size_t i = 0; i < num_reference_fields; ++i) {
-        ArtField* field = (is_static
-                           ? klass->GetStaticField(i)
-                           : klass->GetInstanceField(i));
-        MemberOffset field_offset = field->GetOffset();
-        Object* ref = orig->GetFieldObject<Object, kVerifyNone>(field_offset, false);
-        // Use SetFieldObjectWithoutWriteBarrier to avoid card marking since we are writing to the
-        // image.
-        copy->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(
-            field_offset, GetImageAddress(ref), false);
-      }
-    }
-  }
-  if (!is_static && orig->IsReferenceInstance()) {
-    // Fix-up referent, that isn't marked as an object field, for References.
-    ArtField* field = orig->GetClass()->FindInstanceField("referent", "Ljava/lang/Object;");
-    MemberOffset field_offset = field->GetOffset();
-    Object* ref = orig->GetFieldObject<Object>(field_offset, false);
-    // Use SetFieldObjectWithoutWriteBarrier to avoid card marking since we are writing to the
-    // image.
-    copy->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(
-        field_offset, GetImageAddress(ref), false);
   }
 }
 
