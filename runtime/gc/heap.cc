@@ -70,6 +70,8 @@ namespace art {
 
 namespace gc {
 
+static constexpr size_t kCollectorTransitionStressIterations = 0;
+static constexpr size_t kCollectorTransitionStressWait = 10 * 1000;  // Microseconds
 static constexpr bool kGCALotMode = false;
 static constexpr size_t kGcAlotInterval = KB;
 // Minimum amount of remaining bytes before a concurrent GC is triggered.
@@ -482,6 +484,13 @@ void Heap::DecrementDisableMovingGC(Thread* self) {
 void Heap::UpdateProcessState(ProcessState process_state) {
   if (process_state_ != process_state) {
     process_state_ = process_state;
+    for (size_t i = 1; i <= kCollectorTransitionStressIterations; ++i) {
+      // Start at index 1 to avoid "is always false" warning.
+      // Have iteration 1 always transition the collector.
+      TransitionCollector((((i & 1) == 1) == (process_state_ == kProcessStateJankPerceptible))
+                          ? post_zygote_collector_type_ : background_collector_type_);
+      usleep(kCollectorTransitionStressWait);
+    }
     if (process_state_ == kProcessStateJankPerceptible) {
       // Transition back to foreground right away to prevent jank.
       RequestCollectorTransition(post_zygote_collector_type_, 0);
