@@ -565,8 +565,8 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
         uint32_t S = (instr >> 20) & 1;
         uint32_t imm3 = ((instr >> 12) & 0x7);
         uint32_t imm2 = ((instr >> 6) & 0x3);
-        uint32_t imm5 = ((imm3 << 3) | imm2) & 0x1F;
-        uint32_t shift_type = ((instr >> 4) & 0x2);
+        uint32_t imm5 = ((imm3 << 2) | imm2);
+        uint32_t shift_type = ((instr >> 4) & 0x3);
         ArmRegister Rd(instr, 8);
         ArmRegister Rn(instr, 16);
         ArmRegister Rm(instr, 0);
@@ -672,7 +672,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               break;
           }
           if (shift_type != 0x3 /* rrx */) {
-            args << StringPrintf(" #%d", imm5);
+            args << StringPrintf(" #%d", (0 != imm5 || 0 == shift_type) ? imm5 : 32);
           }
         }
 
