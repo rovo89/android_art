@@ -81,6 +81,9 @@ struct DebugInvokeReq {
   Mutex lock DEFAULT_MUTEX_ACQUIRED_AFTER;
   ConditionVariable cond GUARDED_BY(lock);
 
+  void VisitRoots(RootCallback* callback, void* arg, uint32_t tid, RootType root_type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(DebugInvokeReq);
 };
@@ -110,6 +113,9 @@ struct SingleStepControl {
   // The stack depth when this single-step was initiated. This is used to support SD_OVER and SD_OUT
   // single-step depth.
   int stack_depth;
+
+  void VisitRoots(RootCallback* callback, void* arg, uint32_t tid, RootType root_type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(SingleStepControl);
@@ -457,6 +463,9 @@ class Dbg {
   static void DdmSendChunk(uint32_t type, size_t len, const uint8_t* buf)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static void VisitRoots(RootCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*

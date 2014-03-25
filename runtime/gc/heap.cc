@@ -805,7 +805,8 @@ void Heap::ProcessReferences(TimingLogger& timings, bool clear_soft,
 // marked, put it on the appropriate list in the heap for later processing.
 void Heap::DelayReferenceReferent(mirror::Class* klass, mirror::Reference* ref,
                                   IsMarkedCallback is_marked_callback, void* arg) {
-  DCHECK_EQ(klass, ref->GetClass());
+  // klass can be the class of the old object if the visitor already updated the class of ref.
+  DCHECK(klass->IsReferenceClass());
   mirror::Object* referent = ref->GetReferent();
   if (referent != nullptr) {
     mirror::Object* forward_address = is_marked_callback(referent, arg);
@@ -1306,7 +1307,7 @@ class ReferringObjectsFinder {
     o->VisitReferences<true>(*this);
   }
 
-  // For MarkSweep::VisitObjectReferences.
+  // For Object::VisitReferences.
   void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset, false);
@@ -1916,7 +1917,7 @@ class VerifyReferenceVisitor {
     this->operator()(ref, mirror::Reference::ReferentOffset(), false);
   }
 
-  void operator()(mirror::Object* obj, MemberOffset offset, bool /* static */) const
+  void operator()(mirror::Object* obj, MemberOffset offset, bool /*is_static*/) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     this->operator()(obj, obj->GetFieldObject<mirror::Object>(offset, false), offset);
   }

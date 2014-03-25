@@ -2025,6 +2025,12 @@ void Thread::VisitRoots(RootCallback* visitor, void* arg) {
   jni_env_->locals.VisitRoots(visitor, arg, thread_id, kRootJNILocal);
   jni_env_->monitors.VisitRoots(visitor, arg, thread_id, kRootJNIMonitor);
   SirtVisitRoots(visitor, arg, thread_id);
+  if (debug_invoke_req_ != nullptr) {
+    debug_invoke_req_->VisitRoots(visitor, arg, thread_id, kRootDebugger);
+  }
+  if (single_step_control_ != nullptr) {
+    single_step_control_->VisitRoots(visitor, arg, thread_id, kRootDebugger);
+  }
   // Visit roots on this thread's stack
   Context* context = GetLongJumpContext();
   RootCallbackVisitor visitorToCallback(visitor, arg, thread_id);

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "semi_space.h"
+#include "semi_space-inl.h"
 
 #include <functional>
 #include <numeric>
@@ -50,7 +50,7 @@
 #include "mirror/object_array.h"
 #include "mirror/object_array-inl.h"
 #include "runtime.h"
-#include "semi_space-inl.h"
+#include "stack.h"
 #include "thread-inl.h"
 #include "thread_list.h"
 #include "verifier/method_verifier.h"
@@ -264,6 +264,7 @@ class SemiSpaceVerifyNoFromSpaceReferencesVisitor {
     mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset, false);
     if (from_space_->HasAddress(ref)) {
       Runtime::Current()->GetHeap()->DumpObject(LOG(INFO), obj);
+      LOG(FATAL) << ref << " found in from space";
     }
   }
  private:
@@ -574,64 +575,12 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
   return forward_address;
 }
 
-// Used to mark and copy objects. Any newly-marked objects who are in the from space get moved to
-// the to-space and have their forward address updated. Objects which have been newly marked are
-// pushed on the mark stack.
-void SemiSpace::MarkObject(mirror::HeapReference<Object>* obj_ptr) {
-  Object* obj = obj_ptr->AsMirrorPtr();
-  if (obj == nullptr) {
-    return;
-  }
-  if (kUseBrooksPointer) {
-    // Verify all the objects have the correct forward pointer installed.
-    obj->AssertSelfBrooksPointer();
-  }
-  if (!immune_region_.ContainsObject(obj)) {
-    if (from_space_->HasAddress(obj)) {
-      mirror::Object* forward_address = GetForwardingAddressInFromSpace(obj);
-      // If the object has already been moved, return the new forward address.
-      if (forward_address == nullptr) {
-        forward_address = MarkNonForwardedObject(obj);
-        DCHECK(forward_address != nullptr);
-        // Make sure to only update the forwarding address AFTER you copy the object so that the
-        // monitor word doesn't get stomped over.
-        obj->SetLockWord(LockWord::FromForwardingAddress(
-            reinterpret_cast<size_t>(forward_address)));
-        // Push the object onto the mark stack for later processing.
-        MarkStackPush(forward_address);
-      }
-      obj_ptr->Assign(forward_address);
-    } else {
-      accounting::SpaceBitmap* object_bitmap =
-          heap_->GetMarkBitmap()->GetContinuousSpaceBitmap(obj);
-      if (LIKELY(object_bitmap != nullptr)) {
-        if (generational_) {
-          // If a bump pointer space only collection, we should not
-          // reach here as we don't/won't mark the objects in the
-          // non-moving space (except for the promoted objects.)  Note
-          // the non-moving space is added to the immune space.
-          DCHECK(whole_heap_collection_);
-        }
-        if (!object_bitmap->Set(obj)) {
-          // This object was not previously marked.
-          MarkStackPush(obj);
-        }
-      } else {
-        CHECK(!to_space_->HasAddress(obj)) << "Marking object in to_space_";
-        if (MarkLargeObject(obj)) {
-          MarkStackPush(obj);
-        }
-      }
-    }
-  }
-}
-
 void SemiSpace::ProcessMarkStackCallback(void* arg) {
   reinterpret_cast<SemiSpace*>(arg)->ProcessMarkStack();
 }
 
 mirror::Object* SemiSpace::MarkObjectCallback(mirror::Object* root, void* arg) {
-  auto ref = mirror::HeapReference<mirror::Object>::FromMirrorPtr(root);
+  auto ref = StackReference<mirror::Object>::FromMirrorPtr(root);
   reinterpret_cast<SemiSpace*>(arg)->MarkObject(&ref);
   return ref.AsMirrorPtr();
 }
@@ -643,7 +592,7 @@ void SemiSpace::MarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>*
 
 void SemiSpace::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*/,
                                  RootType /*root_type*/) {
-  auto ref = mirror::HeapReference<mirror::Object>::FromMirrorPtr(*root);
+  auto ref = StackReference<mirror::Object>::FromMirrorPtr(*root);
   reinterpret_cast<SemiSpace*>(arg)->MarkObject(&ref);
   if (*root != ref.AsMirrorPtr()) {
     *root = ref.AsMirrorPtr();
