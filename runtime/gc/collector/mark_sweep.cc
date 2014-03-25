@@ -279,7 +279,7 @@ void MarkSweep::UpdateAndMarkModUnion() {
       TimingLogger::ScopedSplit split(name, &timings_);
       accounting::ModUnionTable* mod_union_table = heap_->FindModUnionTableFromSpace(space);
       CHECK(mod_union_table != nullptr);
-      mod_union_table->UpdateAndMarkReferences(MarkObjectCallback, this);
+      mod_union_table->UpdateAndMarkReferences(MarkHeapReferenceCallback, this);
     }
   }
 }
@@ -408,6 +408,10 @@ mirror::Object* MarkSweep::MarkObjectCallback(mirror::Object* obj, void* arg) {
   MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
   mark_sweep->MarkObject(obj);
   return obj;
+}
+
+void MarkSweep::MarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>* ref, void* arg) {
+  reinterpret_cast<MarkSweep*>(arg)->MarkObject(ref->AsMirrorPtr());
 }
 
 inline void MarkSweep::UnMarkObjectNonNull(const Object* obj) {
@@ -612,8 +616,8 @@ class ScanObjectVisitor {
   explicit ScanObjectVisitor(MarkSweep* const mark_sweep) ALWAYS_INLINE
       : mark_sweep_(mark_sweep) {}
 
-  // TODO: Fixme when anotatalysis works with visitors.
-  void operator()(Object* obj) const ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS {
+  void operator()(Object* obj) const ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     if (kCheckLocks) {
       Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
       Locks::heap_bitmap_lock_->AssertExclusiveHeld(Thread::Current());
@@ -623,6 +627,21 @@ class ScanObjectVisitor {
 
  private:
   MarkSweep* const mark_sweep_;
+};
+
+class DelayReferenceReferentVisitor {
+ public:
+  explicit DelayReferenceReferentVisitor(MarkSweep* collector) : collector_(collector) {
+  }
+
+  void operator()(mirror::Class* klass, mirror::Reference* ref) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    collector_->DelayReferenceReferent(klass, ref);
+  }
+
+ private:
+  MarkSweep* const collector_;
 };
 
 template <bool kUseFinger = false>
@@ -647,27 +666,44 @@ class MarkStackTask : public Task {
   static const size_t kMaxSize = 1 * KB;
 
  protected:
+  class MarkObjectParallelVisitor {
+   public:
+    explicit MarkObjectParallelVisitor(MarkStackTask<kUseFinger>* chunk_task,
+                                       MarkSweep* mark_sweep) ALWAYS_INLINE
+            : chunk_task_(chunk_task), mark_sweep_(mark_sweep) {}
+
+    void operator()(Object* obj, MemberOffset offset, bool /* static */) const ALWAYS_INLINE
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset, false);
+      if (ref != nullptr && mark_sweep_->MarkObjectParallel(ref)) {
+        if (kUseFinger) {
+          android_memory_barrier();
+          if (reinterpret_cast<uintptr_t>(ref) >=
+              static_cast<uintptr_t>(mark_sweep_->atomic_finger_)) {
+            return;
+          }
+        }
+        chunk_task_->MarkStackPush(ref);
+      }
+    }
+
+   private:
+    MarkStackTask<kUseFinger>* const chunk_task_;
+    MarkSweep* const mark_sweep_;
+  };
+
   class ScanObjectParallelVisitor {
    public:
     explicit ScanObjectParallelVisitor(MarkStackTask<kUseFinger>* chunk_task) ALWAYS_INLINE
         : chunk_task_(chunk_task) {}
 
-    void operator()(Object* obj) const {
-      MarkSweep* mark_sweep = chunk_task_->mark_sweep_;
-      mark_sweep->ScanObjectVisit(obj,
-          [mark_sweep, this](Object* /* obj */, Object* ref, const MemberOffset& /* offset */,
-              bool /* is_static */) ALWAYS_INLINE_LAMBDA {
-        if (ref != nullptr && mark_sweep->MarkObjectParallel(ref)) {
-          if (kUseFinger) {
-            android_memory_barrier();
-            if (reinterpret_cast<uintptr_t>(ref) >=
-                static_cast<uintptr_t>(mark_sweep->atomic_finger_)) {
-              return;
-            }
-          }
-          chunk_task_->MarkStackPush(ref);
-        }
-      });
+    // No thread safety analysis since multiple threads will use this visitor.
+    void operator()(Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+      MarkSweep* const mark_sweep = chunk_task_->mark_sweep_;
+      MarkObjectParallelVisitor mark_visitor(chunk_task_, mark_sweep);
+      DelayReferenceReferentVisitor ref_visitor(mark_sweep);
+      mark_sweep->ScanObjectVisit(obj, mark_visitor, ref_visitor);
     }
 
    private:
@@ -707,7 +743,8 @@ class MarkStackTask : public Task {
   }
 
   // Scans all of the objects
-  virtual void Run(Thread* self) {
+  virtual void Run(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     ScanObjectParallelVisitor visitor(this);
     // TODO: Tune this.
     static const size_t kFifoSize = 4;
@@ -1197,30 +1234,29 @@ void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
   GetHeap()->RecordFree(freed_objects, freed_bytes);
 }
 
-// Process the "referent" field in a java.lang.ref.Reference.  If the
-// referent has not yet been marked, put it on the appropriate list in
-// the heap for later processing.
-void MarkSweep::DelayReferenceReferent(mirror::Class* klass, Object* obj) {
+// Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
+// marked, put it on the appropriate list in the heap for later processing.
+void MarkSweep::DelayReferenceReferent(mirror::Class* klass, mirror::Reference* ref) {
   DCHECK(klass != nullptr);
   if (kCountJavaLangRefs) {
     ++reference_count_;
   }
-  heap_->DelayReferenceReferent(klass, obj->AsReference(), IsMarkedCallback, this);
+  heap_->DelayReferenceReferent(klass, ref, IsMarkedCallback, this);
 }
 
 class MarkObjectVisitor {
  public:
-  explicit MarkObjectVisitor(MarkSweep* const mark_sweep) ALWAYS_INLINE : mark_sweep_(mark_sweep) {}
+  explicit MarkObjectVisitor(MarkSweep* const mark_sweep) ALWAYS_INLINE : mark_sweep_(mark_sweep) {
+  }
 
-  // TODO: Fixme when anotatalysis works with visitors.
-  void operator()(Object* /* obj */, Object* ref, const MemberOffset& /* offset */,
-                  bool /* is_static */) const ALWAYS_INLINE
-      NO_THREAD_SAFETY_ANALYSIS {
+  void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const
+      ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     if (kCheckLocks) {
       Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
       Locks::heap_bitmap_lock_->AssertExclusiveHeld(Thread::Current());
     }
-    mark_sweep_->MarkObject(ref);
+    mark_sweep_->MarkObject(obj->GetFieldObject<mirror::Object>(offset, false));
   }
 
  private:
@@ -1230,8 +1266,9 @@ class MarkObjectVisitor {
 // Scans an object reference.  Determines the type of the reference
 // and dispatches to a specialized scanning routine.
 void MarkSweep::ScanObject(Object* obj) {
-  MarkObjectVisitor visitor(this);
-  ScanObjectVisit(obj, visitor);
+  MarkObjectVisitor mark_visitor(this);
+  DelayReferenceReferentVisitor ref_visitor(this);
+  ScanObjectVisit(obj, mark_visitor, ref_visitor);
 }
 
 void MarkSweep::ProcessMarkStackPausedCallback(void* arg) {
