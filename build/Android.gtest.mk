@@ -171,7 +171,11 @@ define build-art-test
     LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libz-host
-    LOCAL_STATIC_LIBRARIES += libcutils libgtest_host
+    LOCAL_STATIC_LIBRARIES += libcutils
+    ifneq ($(WITHOUT_HOST_CLANG),true)
+        # GCC host compiled tests fail with this linked, presumably due to destructors that run.
+        LOCAL_STATIC_LIBRARIES += libgtest_host
+    endif
     include $(BUILD_HOST_EXECUTABLE)
     art_gtest_exe := $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
     ART_HOST_GTEST_EXECUTABLES += $$(art_gtest_exe)
