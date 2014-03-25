@@ -204,6 +204,9 @@ class Arm64Assembler : public Assembler {
   void Call(FrameOffset base, Offset offset, ManagedRegister scratch);
   void Call(ThreadOffset offset, ManagedRegister scratch);
 
+  // Jump to address (not setting link register)
+  void JumpTo(ManagedRegister m_base, Offset offs, ManagedRegister m_scratch);
+
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.
   void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust);

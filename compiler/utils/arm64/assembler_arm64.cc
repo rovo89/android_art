@@ -468,6 +468,15 @@ void Arm64Assembler::Call(ManagedRegister m_base, Offset offs, ManagedRegister m
   ___ Blr(reg_x(scratch.AsCoreRegister()));
 }
 
+void Arm64Assembler::JumpTo(ManagedRegister m_base, Offset offs, ManagedRegister m_scratch) {
+  Arm64ManagedRegister base = m_base.AsArm64();
+  Arm64ManagedRegister scratch = m_scratch.AsArm64();
+  CHECK(base.IsCoreRegister()) << base;
+  CHECK(scratch.IsCoreRegister()) << scratch;
+  LoadFromOffset(scratch.AsCoreRegister(), base.AsCoreRegister(), offs.Int32Value());
+  ___ Br(reg_x(scratch.AsCoreRegister()));
+}
+
 void Arm64Assembler::Call(FrameOffset base, Offset offs, ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   CHECK(scratch.IsCoreRegister()) << scratch;
