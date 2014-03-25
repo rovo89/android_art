@@ -887,13 +887,15 @@ UNIMPLEMENTED art_quick_imt_conflict_trampoline
 
 ENTRY art_quick_resolution_trampoline
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    mov x19, x0           // save the called method
     mov x2, xSELF
     mov x3, sp
     bl artQuickResolutionTrampoline  // (called, receiver, Thread*, SP)
-    mov x9, x0           // Remember returned code pointer in x9.
+    mov x9, x0            // Remember returned code pointer in x9.
+    mov x0, x19           // Restore the method, before x19 is restored to on-call value
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     cbz x9, 1f
-    br x0
+    br x9
 1:
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     DELIVER_PENDING_EXCEPTION
