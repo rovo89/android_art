@@ -766,7 +766,7 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
   for (idx = 0; idx < num_blocks; idx++) {
     int block_idx = all_blocks ? idx : dfs_order_->Get(idx);
     BasicBlock *bb = GetBasicBlock(block_idx);
-    if (bb == NULL) break;
+    if (bb == NULL) continue;
     if (bb->block_type == kDead) continue;
     if (bb->block_type == kEntryBlock) {
       fprintf(file, "  entry_%d [shape=Mdiamond];\n", bb->id);
@@ -838,21 +838,19 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
       fprintf(file, "  %s:s -> succ%04x_%d:n [style=dashed]\n",
               block_name1, bb->start_offset, bb->id);
 
-      if (bb->successor_block_list_type == kPackedSwitch ||
-          bb->successor_block_list_type == kSparseSwitch) {
-        GrowableArray<SuccessorBlockInfo*>::Iterator iter(bb->successor_blocks);
+      // Link the successor pseudo-block with all of its potential targets.
+      GrowableArray<SuccessorBlockInfo*>::Iterator iter(bb->successor_blocks);
 
-        succ_id = 0;
-        while (true) {
-          SuccessorBlockInfo *successor_block_info = iter.Next();
-          if (successor_block_info == NULL) break;
+      succ_id = 0;
+      while (true) {
+        SuccessorBlockInfo *successor_block_info = iter.Next();
+        if (successor_block_info == NULL) break;
 
-          BasicBlock* dest_block = GetBasicBlock(successor_block_info->block);
+        BasicBlock* dest_block = GetBasicBlock(successor_block_info->block);
 
-          GetBlockName(dest_block, block_name2);
-          fprintf(file, "  succ%04x_%d:f%d:e -> %s:n\n", bb->start_offset,
-                  bb->id, succ_id++, block_name2);
-        }
+        GetBlockName(dest_block, block_name2);
+        fprintf(file, "  succ%04x_%d:f%d:e -> %s:n\n", bb->start_offset,
+                bb->id, succ_id++, block_name2);
       }
     }
     fprintf(file, "\n");
