@@ -482,9 +482,9 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::SHL_INT_LIT8:
     case Instruction::SHR_INT_LIT8:
     case Instruction::USHR_INT_LIT8: {
-        // Same as res = op + 2 operands, except use vB as operand 2
+        // Same as res = op + 2 operands, except use vC as operand 2
         uint16_t operand1 = GetOperandValue(mir->ssa_rep->uses[0]);
-        uint16_t operand2 = LookupValue(Instruction::CONST, mir->dalvikInsn.vB, 0, 0);
+        uint16_t operand2 = LookupValue(Instruction::CONST, mir->dalvikInsn.vC, 0, 0);
         res = LookupValue(opcode, operand1, operand2, NO_VALUE);
         SetOperandValue(mir->ssa_rep->defs[0], res);
       }
