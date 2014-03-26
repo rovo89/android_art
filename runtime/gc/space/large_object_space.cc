@@ -29,6 +29,50 @@ namespace art {
 namespace gc {
 namespace space {
 
+class ValgrindLargeObjectMapSpace FINAL : public LargeObjectMapSpace {
+ public:
+  explicit ValgrindLargeObjectMapSpace(const std::string& name) : LargeObjectMapSpace(name) {
+  }
+
+  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                                size_t* usable_size) OVERRIDE {
+    mirror::Object* obj =
+        LargeObjectMapSpace::Alloc(self, num_bytes + kValgrindRedZoneBytes * 2, bytes_allocated,
+                                   usable_size);
+    mirror::Object* object_without_rdz = reinterpret_cast<mirror::Object*>(
+        reinterpret_cast<uintptr_t>(obj) + kValgrindRedZoneBytes);
+    VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<void*>(obj), kValgrindRedZoneBytes);
+    VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<byte*>(object_without_rdz) + num_bytes,
+                               kValgrindRedZoneBytes);
+    if (usable_size != nullptr) {
+      *usable_size = num_bytes;  // Since we have redzones, shrink the usable size.
+    }
+    return object_without_rdz;
+  }
+
+  virtual size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE {
+    mirror::Object* object_with_rdz = reinterpret_cast<mirror::Object*>(
+        reinterpret_cast<uintptr_t>(obj) - kValgrindRedZoneBytes);
+    return LargeObjectMapSpace::AllocationSize(object_with_rdz, usable_size);
+  }
+
+  virtual size_t Free(Thread* self, mirror::Object* obj) OVERRIDE {
+    mirror::Object* object_with_rdz = reinterpret_cast<mirror::Object*>(
+        reinterpret_cast<uintptr_t>(obj) - kValgrindRedZoneBytes);
+    VALGRIND_MAKE_MEM_UNDEFINED(object_with_rdz, AllocationSize(obj, nullptr));
+    return LargeObjectMapSpace::Free(self, object_with_rdz);
+  }
+
+  bool Contains(const mirror::Object* obj) const OVERRIDE {
+    mirror::Object* object_with_rdz = reinterpret_cast<mirror::Object*>(
+        reinterpret_cast<uintptr_t>(obj) - kValgrindRedZoneBytes);
+    return LargeObjectMapSpace::Contains(object_with_rdz);
+  }
+
+ private:
+  static constexpr size_t kValgrindRedZoneBytes = kPageSize;
+};
+
 void LargeObjectSpace::SwapBitmaps() {
   live_objects_.swap(mark_objects_);
   // Swap names to get more descriptive diagnostics.
@@ -53,7 +97,11 @@ LargeObjectMapSpace::LargeObjectMapSpace(const std::string& name)
       lock_("large object map space lock", kAllocSpaceLock) {}
 
 LargeObjectMapSpace* LargeObjectMapSpace::Create(const std::string& name) {
-  return new LargeObjectMapSpace(name);
+  if (RUNNING_ON_VALGRIND > 0) {
+    return new ValgrindLargeObjectMapSpace(name);
+  } else {
+    return new LargeObjectMapSpace(name);
+  }
 }
 
 mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
