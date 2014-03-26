@@ -113,6 +113,22 @@ ifeq ($(ART_USE_PORTABLE_COMPILER),true)
   ART_TEST_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
 
+# Build a make target for a target test.
+# (1) Prefix for variables
+define build-art-test-make-target
+.PHONY: $$(art_gtest_target)$($(1)ART_PHONY_TEST_TARGET_SUFFIX)
+$$(art_gtest_target)$($(1)ART_PHONY_TEST_TARGET_SUFFIX): $($(1)ART_NATIVETEST_OUT)/$$(LOCAL_MODULE) test-art-target-sync
+	adb shell touch $($(1)ART_TEST_DIR)/$$@
+	adb shell rm $($(1)ART_TEST_DIR)/$$@
+	adb shell chmod 755 $($(1)ART_NATIVETEST_DIR)/$$(notdir $$<)
+	adb shell sh -c "$($(1)ART_NATIVETEST_DIR)/$$(notdir $$<) && touch $($(1)ART_TEST_DIR)/$$@"
+	$(hide) (adb pull $($(1)ART_TEST_DIR)/$$@ /tmp/ && echo $$@ PASSED) || (echo $$@ FAILED && exit 1)
+	$(hide) rm /tmp/$$@
+
+    ART_TARGET_GTEST_TARGETS += $$(art_gtest_target)$($(1)ART_PHONY_TEST_TARGET_SUFFIX)
+endef
+
+
 # $(1): target or host
 # $(2): file name
 # $(3): extra C includes
@@ -163,10 +179,23 @@ define build-art-test
     LOCAL_CFLAGS_x86 := $(ART_TARGET_CFLAGS_x86)
     LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libz libcutils
     LOCAL_STATIC_LIBRARIES += libgtest
-    LOCAL_MODULE_PATH := $(ART_NATIVETEST_OUT)
+    LOCAL_MODULE_PATH_32 := $(ART_BASE_NATIVETEST_OUT)
+    LOCAL_MODULE_PATH_64 := $(ART_BASE_NATIVETEST_OUT)64
+    LOCAL_MULTILIB := both
     include $(BUILD_EXECUTABLE)
-    art_gtest_exe := $$(LOCAL_MODULE_PATH)/$$(LOCAL_MODULE)
     ART_TARGET_GTEST_EXECUTABLES += $$(art_gtest_exe)
+    art_gtest_target := test-art-$$(art_target_or_host)-gtest-$$(art_gtest_name)
+
+    ifdef TARGET_2ND_ARCH
+      $(call build-art-test-make-target,2ND_)
+
+      # Bind the primary to the non-suffix rule
+      ifneq ($(ART_PHONY_TEST_TARGET_SUFFIX),)
+$$(art_gtest_target): $$(art_gtest_target)$(ART_PHONY_TEST_TARGET_SUFFIX)
+      endif
+    endif
+    $(call build-art-test-make-target,)
+
   else # host
     LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
@@ -180,34 +209,21 @@ define build-art-test
     include $(BUILD_HOST_EXECUTABLE)
     art_gtest_exe := $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
     ART_HOST_GTEST_EXECUTABLES += $$(art_gtest_exe)
-  endif
-art_gtest_target := test-art-$$(art_target_or_host)-gtest-$$(art_gtest_name)
-ifeq ($$(art_target_or_host),target)
-.PHONY: $$(art_gtest_target)
-$$(art_gtest_target): $$(art_gtest_exe) test-art-target-sync
-	adb shell touch $(ART_TEST_DIR)/$$@
-	adb shell rm $(ART_TEST_DIR)/$$@
-	adb shell chmod 755 $(ART_NATIVETEST_DIR)/$$(notdir $$<)
-	adb shell sh -c "$(ART_NATIVETEST_DIR)/$$(notdir $$<) && touch $(ART_TEST_DIR)/$$@"
-	$(hide) (adb pull $(ART_TEST_DIR)/$$@ /tmp/ && echo $$@ PASSED) || (echo $$@ FAILED && exit 1)
-	$(hide) rm /tmp/$$@
-
-ART_TARGET_GTEST_TARGETS += $$(art_gtest_target)
-else
+    art_gtest_target := test-art-$$(art_target_or_host)-gtest-$$(art_gtest_name)
 .PHONY: $$(art_gtest_target)
 $$(art_gtest_target): $$(art_gtest_exe) test-art-host-dependencies
 	$$<
 	@echo $$@ PASSED
 
-ART_HOST_GTEST_TARGETS += $$(art_gtest_target)
+    ART_HOST_GTEST_TARGETS += $$(art_gtest_target)
 
 .PHONY: valgrind-$$(art_gtest_target)
 valgrind-$$(art_gtest_target): $$(art_gtest_exe) test-art-host-dependencies
 	valgrind --leak-check=full --error-exitcode=1 $$<
 	@echo $$@ PASSED
 
-ART_HOST_VALGRIND_GTEST_TARGETS += valgrind-$$(art_gtest_target)
-endif
+    ART_HOST_VALGRIND_GTEST_TARGETS += valgrind-$$(art_gtest_target)
+  endif
 endef
 
 ifeq ($(ART_BUILD_TARGET),true)

@@ -77,6 +77,12 @@ define build-art-test-dex
     LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
     include $(BUILD_JAVA_LIBRARY)
     ART_TEST_TARGET_DEX_FILES += $$(LOCAL_INSTALLED_MODULE)
+
+    ifdef TARGET_2ND_ARCH
+      # TODO: make this a simple copy
+$(4)/$(1)-$(2).jar: $(3)/$(1)-$(2).jar
+	cp $$< $(4)/
+    endif
   endif
 
   ifeq ($(ART_BUILD_HOST),true)
@@ -93,8 +99,8 @@ define build-art-test-dex
     ART_TEST_HOST_DEX_FILES += $$(LOCAL_INSTALLED_MODULE)
   endif
 endef
-$(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,art-test-dex,$(dir),$(ART_NATIVETEST_OUT))))
-$(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-dex,oat-test-dex,$(dir),$(ART_TEST_OUT))))
+$(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,art-test-dex,$(dir),$(ART_NATIVETEST_OUT),$(2ND_ART_NATIVETEST_OUT))))
+$(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-dex,oat-test-dex,$(dir),$(ART_TEST_OUT),$(2ND_ART_TEST_OUT))))
 
 ########################################################################
 
@@ -102,16 +108,28 @@ ART_TEST_TARGET_OAT_TARGETS :=
 ART_TEST_HOST_OAT_DEFAULT_TARGETS :=
 ART_TEST_HOST_OAT_INTERPRETER_TARGETS :=
 
+define declare-test-art-oat-targets-impl
+.PHONY: test-art-target-oat-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX)
+test-art-target-oat-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX): $($(2)ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-target-sync
+	adb shell touch $($(2)ART_TEST_DIR)/test-art-target-oat-$(1)
+	adb shell rm $($(2)ART_TEST_DIR)/test-art-target-oat-$(1)
+	adb shell sh -c "/system/bin/dalvikvm$($(2)ART_TARGET_BINARY_SUFFIX) $(DALVIKVM_FLAGS) -XXlib:libartd.so -Ximage:$($(2)ART_TEST_DIR)/core.art -classpath $($(2)ART_TEST_DIR)/oat-test-dex-$(1).jar -Djava.library.path=$($(2)ART_TEST_DIR) $(1) && touch $($(2)ART_TEST_DIR)/test-art-target-oat-$(1)"
+	$(hide) (adb pull $($(2)ART_TEST_DIR)/test-art-target-oat-$(1) /tmp/ && echo test-art-target-oat-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX) PASSED) || (echo test-art-target-oat-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX) FAILED && exit 1)
+	$(hide) rm /tmp/test-art-target-oat-$(1)
+endef
+
 # $(1): directory
 # $(2): arguments
 define declare-test-art-oat-targets
-.PHONY: test-art-target-oat-$(1)
-test-art-target-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-target-sync
-	adb shell touch $(ART_TEST_DIR)/test-art-target-oat-$(1)
-	adb shell rm $(ART_TEST_DIR)/test-art-target-oat-$(1)
-	adb shell sh -c "/system/bin/dalvikvm $(DALVIKVM_FLAGS) -XXlib:libartd.so -Ximage:$(ART_TEST_DIR)/core.art -classpath $(ART_TEST_DIR)/oat-test-dex-$(1).jar -Djava.library.path=$(ART_TEST_DIR) $(1) $(2) && touch $(ART_TEST_DIR)/test-art-target-oat-$(1)"
-	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-oat-$(1) /tmp/ && echo test-art-target-oat-$(1) PASSED) || (echo test-art-target-oat-$(1) FAILED && exit 1)
-	$(hide) rm /tmp/test-art-target-oat-$(1)
+  ifdef TARGET_2ND_ARCH
+    $(call declare-test-art-oat-targets-impl,$(1),2ND_)
+
+    # Bind the primary to the non-suffix rule
+    ifneq ($(ART_PHONY_TEST_TARGET_SUFFIX),)
+test-art-target-oat-$(1): test-art-target-oat-$(1)$(ART_PHONY_TEST_TARGET_SUFFIX)
+    endif
+  endif
+  $(call declare-test-art-oat-targets-impl,$(1),)
 
 $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).odex: $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar $(HOST_CORE_IMG_OUT) | $(DEX2OAT)
 	$(DEX2OAT) $(DEX2OAT_FLAGS) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_OUT) --dex-file=$(PWD)/$$< --oat-file=$(PWD)/$$@ --instruction-set=$(ART_HOST_ARCH) --host --android-root=$(HOST_OUT)
