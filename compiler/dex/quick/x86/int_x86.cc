@@ -772,6 +772,11 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
                    : (SRegOffset(rl_src_offset.s_reg_low) + push_offset));
     LoadWordDisp(TargetReg(kSp), srcOffsetSp, rSI);
     NewLIR4(kX86LockCmpxchg8bA, rDI, rSI, 0, 0);
+
+    // After a store we need to insert barrier in case of potential load. Since the
+    // locked cmpxchg has full barrier semantics, only a scheduling barrier will be generated.
+    GenMemBarrier(kStoreLoad);
+
     FreeTemp(rSI);
     UnmarkTemp(rSI);
     NewLIR1(kX86Pop32R, rSI);
@@ -783,9 +788,6 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
     // EAX must hold expected for CMPXCHG. Neither rl_new_value, nor r_ptr may be in EAX.
     FlushReg(r0);
     LockTemp(r0);
-
-    // Release store semantics, get the barrier out of the way.  TODO: revisit
-    GenMemBarrier(kStoreLoad);
 
     RegLocation rl_object = LoadValue(rl_src_obj, kCoreReg);
     RegLocation rl_new_value = LoadValue(rl_src_new_value, kCoreReg);
@@ -800,6 +802,10 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
     RegLocation rl_offset = LoadValue(rl_src_offset, kCoreReg);
     LoadValueDirect(rl_src_expected, r0);
     NewLIR5(kX86LockCmpxchgAR, rl_object.reg.GetReg(), rl_offset.reg.GetReg(), 0, 0, rl_new_value.reg.GetReg());
+
+    // After a store we need to insert barrier in case of potential load. Since the
+    // locked cmpxchg has full barrier semantics, only a scheduling barrier will be generated.
+    GenMemBarrier(kStoreLoad);
 
     FreeTemp(r0);
   }
