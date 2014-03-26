@@ -1091,6 +1091,8 @@ void X86Mir2Lir::GenLongRegOrMemOp(RegLocation rl_dest, RegLocation rl_src,
   X86OpCode x86op = GetOpcode(op, rl_dest, rl_src, false);
   if (rl_src.location == kLocPhysReg) {
     // Both operands are in registers.
+    // But we must ensure that rl_src is in pair
+    rl_src = EvalLocWide(rl_src, kCoreReg, true);
     if (rl_dest.reg.GetReg() == rl_src.reg.GetHighReg()) {
       // The registers are the same, so we would clobber it before the use.
       int temp_reg = AllocTemp();
