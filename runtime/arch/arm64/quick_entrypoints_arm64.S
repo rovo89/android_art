@@ -197,6 +197,33 @@
     .cfi_adjust_cfa_offset -304
 .endm
 
+.macro RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME_NO_D0
+
+    ldr d1,   [sp, #24]
+    ldp d2, d3,   [sp, #32]
+    ldp d4, d5,   [sp, #48]
+    ldp d6, d7,   [sp, #64]
+    ldp d8, d9,   [sp, #80]
+    ldp d10, d11, [sp, #96]
+    ldp d12, d13, [sp, #112]
+    ldp d14, d15, [sp, #128]
+
+    // args.
+    ldp x1,  x2, [sp, #144]
+    ldp x3,  x4, [sp, #160]
+    ldp x5,  x6, [sp, #176]
+    ldp x7,  xSELF, [sp, #192]
+    ldp x19, x20, [sp, #208]
+    ldp x21, x22, [sp, #224]
+    ldp x23, x24, [sp, #240]
+    ldp x25, x26, [sp, #256]
+    ldp x27, x28, [sp, #272]
+    ldp xFP, xLR, [sp, #288]
+
+    add sp, sp, #304
+    .cfi_adjust_cfa_offset -304
+.endm
+
 .macro RETURN_IF_RESULT_IS_ZERO
     brk 0
 .endm
@@ -876,11 +903,27 @@ GENERATE_ALL_ALLOC_ENTRYPOINTS
 
 UNIMPLEMENTED art_quick_test_suspend
 
-/**
- * Returned by ClassLinker::GetOatCodeFor
- *
- */
-UNIMPLEMENTED art_quick_proxy_invoke_handler
+     /*
+     * Called by managed code that is attempting to call a method on a proxy class. On entry
+     * x0 holds the proxy method and x1 holds the receiver; The frame size of the invoked proxy
+     * method agrees with a ref and args callee save frame.
+     */
+     .extern artQuickProxyInvokeHandler
+ENTRY art_quick_proxy_invoke_handler
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    str     x0, [sp, #0]                // place proxy method at bottom of frame
+    mov     x2, xSELF                   // pass Thread::Current
+    mov     x3, sp                      // pass SP
+    bl      artQuickProxyInvokeHandler  // (Method* proxy method, receiver, Thread*, SP)
+    ldr  xSELF, [sp, #200]              // Restore self pointer.
+    ldr     x2, [xSELF, THREAD_EXCEPTION_OFFSET]
+    cbnz    x2, .Lexception_in_proxy    // success if no exception is pending
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME_NO_D0 // keep d0
+    ret                                 // return on success
+.Lexception_in_proxy:
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    DELIVER_PENDING_EXCEPTION
+END art_quick_proxy_invoke_handler
 
 UNIMPLEMENTED art_quick_imt_conflict_trampoline
 
