@@ -119,8 +119,9 @@ class Main {
     try {
       f = Main.class.getDeclaredField("s");
       f.set(null, Integer.valueOf(14));
+      System.out.println("************* should have thrown!");
     } catch (IllegalArgumentException expected) {
-      expected.printStackTrace();
+      System.out.println("got expected IllegalArgumentException");
     }
 
     f = Main.class.getDeclaredField("z");
@@ -209,8 +210,8 @@ class Main {
       System.out.println(Arrays.toString(m.getParameterTypes()));
       show(m.invoke(null));
       System.out.println("************* should have thrown!");
-    } catch (Exception expected) {
-      expected.printStackTrace();
+    } catch (InvocationTargetException expected) {
+      System.out.println("got expected InvocationTargetException");
     }
   }
 

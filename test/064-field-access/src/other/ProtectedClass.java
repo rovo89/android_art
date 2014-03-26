@@ -97,4 +97,10 @@ class ProtectedClass {
  /* package */ static float otherProtectedClassPackageFloatStaticField = 63.0f;
  /* package */ static double otherProtectedClassPackageDoubleStaticField = 64.0;
  /* package */ static Object otherProtectedClassPackageObjectStaticField = "65";
+
+    public void otherPublicMethod() { }
+    protected void otherProtectedMethod() { }
+    private void otherPrivateMethod() { }
+    /* package */ void otherPackageMethod() { }
+
 }

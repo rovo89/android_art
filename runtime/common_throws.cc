@@ -175,6 +175,12 @@ void ThrowIllegalAccessError(mirror::Class* referrer, const char* fmt, ...) {
   va_end(args);
 }
 
+// IllegalAccessException
+
+void ThrowIllegalAccessException(const ThrowLocation* throw_location, const char* msg) {
+  ThrowException(throw_location, "Ljava/lang/IllegalAccessException;", NULL, msg);
+}
+
 // IllegalArgumentException
 
 void ThrowIllegalArgumentException(const ThrowLocation* throw_location, const char* msg) {

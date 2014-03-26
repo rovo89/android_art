@@ -335,11 +335,12 @@ public class Main {
             System.out.println("  cantTouchThis is " + intVal);
             try {
                 field.setInt(instance, 99);
+                System.out.println("ERROR: set-final did not throw exception");
             } catch (IllegalAccessException iae) {
-                System.out.println("ERROR: set-final failed");
+                System.out.println("  as expected: set-final throws exception");
             }
             intVal = field.getInt(instance);
-            System.out.println("  cantTouchThis is now " + intVal);
+            System.out.println("  cantTouchThis is still " + intVal);
 
             System.out.println("  " + field + " accessible=" + field.isAccessible());
             field.setAccessible(true);

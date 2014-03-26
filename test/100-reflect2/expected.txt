@@ -22,10 +22,7 @@ z
 30
 62
 14
-java.lang.IllegalArgumentException: Invalid primitive conversion from int to short
-	at java.lang.reflect.Field.set(Native Method)
-	at Main.testFieldReflection(Main.java:121)
-	at Main.main(Main.java:269)
+got expected IllegalArgumentException
 true (class java.lang.Boolean)
 6 (class java.lang.Byte)
 z (class java.lang.Character)
@@ -66,12 +63,6 @@ null (null)
 true 0 1 2.0  hello world 3.0 4 5 6
 null (null)
 []
-java.lang.reflect.InvocationTargetException
-	at java.lang.reflect.Method.invoke(Native Method)
-	at Main.testMethodReflection(Main.java:210)
-	at Main.main(Main.java:270)
-Caused by: java.lang.ArithmeticException: surprise!
-	at Main.thrower(Main.java:218)
-	... 3 more
+got expected InvocationTargetException
  (class java.lang.String)
 yz (class java.lang.String)
