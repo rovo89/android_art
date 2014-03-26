@@ -43,10 +43,11 @@ TARGET_CORE_IMG_OUT := $(ART_TEST_OUT)/core.art
 
 TARGET_INSTRUCTION_SET_FEATURES := $(DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES)
 
-$(HOST_CORE_IMG_OUT): $(HOST_CORE_DEX_FILES) $(DEX2OAT_DEPENDENCY)
+# Use dex2oat debug version for better error reporting
+$(HOST_CORE_IMG_OUT): $(HOST_CORE_DEX_FILES) $(DEX2OATD_DEPENDENCY)
 	@echo "host dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
-	$(hide) $(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix \
+	$(hide) $(DEX2OATD) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix \
 		--dex-file=,$(HOST_CORE_DEX_FILES)) $(addprefix --dex-location=,$(HOST_CORE_DEX_LOCATIONS)) --oat-file=$(HOST_CORE_OAT_OUT) \
 		--oat-location=$(HOST_CORE_OAT) --image=$(HOST_CORE_IMG_OUT) --base=$(LIBART_IMG_HOST_BASE_ADDRESS) \
 		--instruction-set=$(ART_HOST_ARCH) --host --android-root=$(HOST_OUT)
