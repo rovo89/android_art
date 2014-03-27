@@ -828,6 +828,7 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
   int encoded_disp = displacement;
   bool already_generated = false;
   int dest_low_reg = r_dest.IsPair() ? r_dest.GetLowReg() : r_dest.GetReg();
+  bool null_pointer_safepoint = false;
   switch (size) {
     case kDouble:
     case kLong:
@@ -848,6 +849,7 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
                          displacement >> 2);
         } else {
           load = LoadBaseDispBody(r_base, displacement, r_dest.GetLow(), kWord, s_reg);
+          null_pointer_safepoint = true;
           LoadBaseDispBody(r_base, displacement + 4, r_dest.GetHigh(), kWord, INVALID_SREG);
         }
         already_generated = true;
@@ -939,6 +941,11 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
   // TODO: in future may need to differentiate Dalvik accesses w/ spills
   if (r_base == rs_rARM_SP) {
     AnnotateDalvikRegAccess(load, displacement >> 2, true /* is_load */, r_dest.Is64Bit());
+  } else {
+     // We might need to generate a safepoint if we have two store instructions (wide or double).
+     if (!Runtime::Current()->ExplicitNullChecks() && null_pointer_safepoint) {
+       MarkSafepointPC(load);
+     }
   }
   return load;
 }
@@ -965,6 +972,7 @@ LIR* ArmMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStora
   int encoded_disp = displacement;
   bool already_generated = false;
   int src_low_reg = r_src.IsPair() ? r_src.GetLowReg() : r_src.GetReg();
+  bool null_pointer_safepoint = false;
   switch (size) {
     case kLong:
     case kDouble:
@@ -974,6 +982,7 @@ LIR* ArmMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStora
                           displacement >> 2);
         } else {
           store = StoreBaseDispBody(r_base, displacement, r_src.GetLow(), kWord);
+          null_pointer_safepoint = true;
           StoreBaseDispBody(r_base, displacement + 4, r_src.GetHigh(), kWord);
         }
         already_generated = true;
@@ -1061,6 +1070,11 @@ LIR* ArmMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStora
   // TODO: In future, may need to differentiate Dalvik & spill accesses
   if (r_base == rs_rARM_SP) {
     AnnotateDalvikRegAccess(store, displacement >> 2, false /* is_load */, r_src.Is64Bit());
+  } else {
+    // We might need to generate a safepoint if we have two store instructions (wide or double).
+    if (!Runtime::Current()->ExplicitNullChecks() && null_pointer_safepoint) {
+      MarkSafepointPC(store);
+    }
   }
   return store;
 }

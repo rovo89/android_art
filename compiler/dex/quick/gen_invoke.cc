@@ -781,7 +781,17 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
                            type, skip_this);
 
   if (pcrLabel) {
-    *pcrLabel = GenNullCheck(TargetReg(kArg1), info->opt_flags);
+    if (Runtime::Current()->ExplicitNullChecks()) {
+      *pcrLabel = GenExplicitNullCheck(TargetReg(kArg1), info->opt_flags);
+    } else {
+      *pcrLabel = nullptr;
+      // In lieu of generating a check for kArg1 being null, we need to
+      // perform a load when doing implicit checks.
+      RegStorage tmp = AllocTemp();
+      LoadWordDisp(TargetReg(kArg1), 0, tmp);
+      MarkPossibleNullPointerException(info->opt_flags);
+      FreeTemp(tmp);
+    }
   }
   return call_state;
 }
@@ -987,7 +997,17 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
   call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                            direct_code, direct_method, type);
   if (pcrLabel) {
-    *pcrLabel = GenNullCheck(TargetReg(kArg1), info->opt_flags);
+    if (Runtime::Current()->ExplicitNullChecks()) {
+      *pcrLabel = GenExplicitNullCheck(TargetReg(kArg1), info->opt_flags);
+    } else {
+      *pcrLabel = nullptr;
+      // In lieu of generating a check for kArg1 being null, we need to
+      // perform a load when doing implicit checks.
+      RegStorage tmp = AllocTemp();
+      LoadWordDisp(TargetReg(kArg1), 0, tmp);
+      MarkPossibleNullPointerException(info->opt_flags);
+      FreeTemp(tmp);
+    }
   }
   return call_state;
 }
@@ -1299,7 +1319,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
     LoadValueDirectFixed(rl_start, reg_start);
   }
   RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pIndexOf));
-  GenNullCheck(reg_ptr, info->opt_flags);
+  GenExplicitNullCheck(reg_ptr, info->opt_flags);
   LIR* high_code_point_branch =
       rl_char.is_const ? nullptr : OpCmpImmBranch(kCondGt, reg_char, 0xFFFF, nullptr);
   // NOTE: not a safepoint
@@ -1337,7 +1357,7 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
   LoadValueDirectFixed(rl_cmp, reg_cmp);
   RegStorage r_tgt = (cu_->instruction_set != kX86) ?
       LoadHelper(QUICK_ENTRYPOINT_OFFSET(pStringCompareTo)) : RegStorage::InvalidReg();
-  GenNullCheck(reg_this, info->opt_flags);
+  GenExplicitNullCheck(reg_this, info->opt_flags);
   info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've null checked.
   // TUNING: check if rl_cmp.s_reg_low is already null checked
   LIR* cmp_null_check_branch = OpCmpImmBranch(kCondEq, reg_cmp, 0, nullptr);

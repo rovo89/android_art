@@ -446,6 +446,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       GenNullCheck(rl_src[0].reg, opt_flags);
       rl_result = EvalLoc(rl_dest, kCoreReg, true);
       LoadWordDisp(rl_src[0].reg, len_offset, rl_result.reg);
+      MarkPossibleNullPointerException(opt_flags);
       StoreValue(rl_dest, rl_result);
       break;
 

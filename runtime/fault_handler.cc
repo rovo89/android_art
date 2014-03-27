@@ -61,8 +61,11 @@ void FaultManager::Init() {
 
 void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
   bool handled = false;
+  LOG(DEBUG) << "Handling fault";
   if (IsInGeneratedCode(context)) {
+    LOG(DEBUG) << "in generated code, looking for handler";
     for (auto& handler : handlers_) {
+      LOG(DEBUG) << "invoking Action on handler " << handler;
       handled = handler->Action(sig, info, context);
       if (handled) {
         return;
@@ -71,7 +74,7 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
   }
 
   if (!handled) {
-    LOG(INFO)<< "Caught unknown SIGSEGV in ART fault handler";
+    LOG(ERROR)<< "Caught unknown SIGSEGV in ART fault handler";
     oldaction_.sa_sigaction(sig, info, context);
   }
 }
@@ -96,19 +99,23 @@ void FaultManager::RemoveHandler(FaultHandler* handler) {
 bool FaultManager::IsInGeneratedCode(void *context) {
   // We can only be running Java code in the current thread if it
   // is in Runnable state.
+  LOG(DEBUG) << "Checking for generated code";
   Thread* thread = Thread::Current();
   if (thread == nullptr) {
+    LOG(DEBUG) << "no current thread";
     return false;
   }
 
   ThreadState state = thread->GetState();
   if (state != kRunnable) {
+    LOG(DEBUG) << "not runnable";
     return false;
   }
 
   // Current thread is runnable.
   // Make sure it has the mutator lock.
   if (!Locks::mutator_lock_->IsSharedHeld(thread)) {
+    LOG(DEBUG) << "no lock";
     return false;
   }
 
@@ -120,7 +127,9 @@ bool FaultManager::IsInGeneratedCode(void *context) {
   GetMethodAndReturnPC(context, /*out*/potential_method, /*out*/return_pc);
 
   // If we don't have a potential method, we're outta here.
+  LOG(DEBUG) << "potential method: " << potential_method;
   if (potential_method == 0) {
+    LOG(DEBUG) << "no method";
     return false;
   }
 
@@ -133,19 +142,23 @@ bool FaultManager::IsInGeneratedCode(void *context) {
   // Check that the class pointer inside the object is not null and is aligned.
   mirror::Class* cls = method_obj->GetClass<kVerifyNone>();
   if (cls == nullptr) {
+    LOG(DEBUG) << "not a class";
     return false;
   }
   if (!IsAligned<kObjectAlignment>(cls)) {
+    LOG(DEBUG) << "not aligned";
     return false;
   }
 
 
   if (!VerifyClassClass(cls)) {
+    LOG(DEBUG) << "not a class class";
     return false;
   }
 
   // Now make sure the class is a mirror::ArtMethod.
   if (!cls->IsArtMethodClass()) {
+    LOG(DEBUG) << "not a method";
     return false;
   }
 
@@ -153,7 +166,15 @@ bool FaultManager::IsInGeneratedCode(void *context) {
   // at the return PC address.
   mirror::ArtMethod* method =
       reinterpret_cast<mirror::ArtMethod*>(potential_method);
-  return method->ToDexPc(return_pc, false) != DexFile::kDexNoIndex;
+  if (true || kIsDebugBuild) {
+    LOG(DEBUG) << "looking for dex pc for return pc " << std::hex << return_pc;
+    const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(method);
+    uint32_t sought_offset = return_pc - reinterpret_cast<uintptr_t>(code);
+    LOG(DEBUG) << "pc offset: " << std::hex << sought_offset;
+  }
+  uint32_t dexpc = method->ToDexPc(return_pc, false);
+  LOG(DEBUG) << "dexpc: " << dexpc;
+  return dexpc != DexFile::kDexNoIndex;
 }
 
 //

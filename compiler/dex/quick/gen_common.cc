@@ -74,12 +74,17 @@ LIR* Mir2Lir::GenImmedCheck(ConditionCode c_code, RegStorage reg, int imm_val, T
 /* Perform null-check on a register.  */
 LIR* Mir2Lir::GenNullCheck(RegStorage m_reg, int opt_flags) {
   if (Runtime::Current()->ExplicitNullChecks()) {
-    if (!(cu_->disable_opt & (1 << kNullCheckElimination)) && (opt_flags & MIR_IGNORE_NULL_CHECK)) {
-      return NULL;
-    }
-    return GenImmedCheck(kCondEq, m_reg, 0, kThrowNullPointer);
+    return GenExplicitNullCheck(m_reg, opt_flags);
   }
   return nullptr;
+}
+
+/* Perform an explicit null-check on a register.  */
+LIR* Mir2Lir::GenExplicitNullCheck(RegStorage m_reg, int opt_flags) {
+  if (!(cu_->disable_opt & (1 << kNullCheckElimination)) && (opt_flags & MIR_IGNORE_NULL_CHECK)) {
+    return NULL;
+  }
+  return GenImmedCheck(kCondEq, m_reg, 0, kThrowNullPointer);
 }
 
 void Mir2Lir::MarkPossibleNullPointerException(int opt_flags) {
@@ -732,6 +737,7 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
         OpRegRegImm(kOpAdd, reg_ptr, rl_obj.reg, field_info.FieldOffset().Int32Value());
         rl_result = EvalLoc(rl_dest, reg_class, true);
         LoadBaseDispWide(reg_ptr, 0, rl_result.reg, INVALID_SREG);
+        MarkPossibleNullPointerException(opt_flags);
         if (field_info.IsVolatile()) {
           // Without context sensitive analysis, we must issue the most conservative barriers.
           // In this case, either a load or store may follow so we issue both barriers.

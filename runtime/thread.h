@@ -112,6 +112,14 @@ class PACKED(4) Thread {
   static constexpr size_t kStackOverflowReservedUsableBytes =
       kStackOverflowReservedBytes - kStackOverflowSignalReservedBytes;
 
+  // For implicit overflow checks we reserve an extra piece of memory at the bottom
+  // of the stack (lowest memory).  The higher portion of the memory
+  // is protected against reads and the lower is available for use while
+  // throwing the StackOverflow exception.
+  static constexpr size_t kStackOverflowProtectedSize = 32 * KB;
+  static constexpr size_t kStackOverflowImplicitCheckSize = kStackOverflowProtectedSize +
+    kStackOverflowReservedBytes;
+
   // Creates a new native thread corresponding to the given managed peer.
   // Used to implement Thread.start.
   static void CreateNativeThread(JNIEnv* env, jobject peer, size_t stack_size, bool daemon);
@@ -461,11 +469,20 @@ class PACKED(4) Thread {
   void SetStackEndForStackOverflow() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Set the stack end to that to be used during regular execution
-  void ResetDefaultStackEnd() {
+  void ResetDefaultStackEnd(bool implicit_overflow_check) {
     // Our stacks grow down, so we want stack_end_ to be near there, but reserving enough room
     // to throw a StackOverflowError.
-    stack_end_ = stack_begin_ + kStackOverflowReservedBytes;
+    if (implicit_overflow_check) {
+      // For implicit checks we also need to add in the protected region above the
+      // overflow region.
+      stack_end_ = stack_begin_ + kStackOverflowImplicitCheckSize;
+    } else {
+      stack_end_ = stack_begin_ + kStackOverflowReservedBytes;
+    }
   }
+
+  // Install the protected region for implicit stack checks.
+  void InstallImplicitProtection(bool is_main_stack);
 
   bool IsHandlingStackOverflow() const {
     return stack_end_ == stack_begin_;
