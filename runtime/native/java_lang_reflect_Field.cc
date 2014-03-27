@@ -141,7 +141,7 @@ static JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj,
   // Widen it if necessary (and possible).
   JValue wide_value;
   if (!ConvertPrimitiveValue(NULL, false, field_type, Primitive::GetType(dst_descriptor),
-                             field_value, wide_value)) {
+                             field_value, &wide_value)) {
     DCHECK(soa.Self()->IsExceptionPending());
     return JValue();
   }
@@ -257,7 +257,7 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
   // Unbox the value, if necessary.
   mirror::Object* boxed_value = soa.Decode<mirror::Object*>(javaValue);
   JValue unboxed_value;
-  if (!UnboxPrimitiveForField(boxed_value, field_type, unboxed_value, f)) {
+  if (!UnboxPrimitiveForField(boxed_value, field_type, f, &unboxed_value)) {
     DCHECK(soa.Self()->IsExceptionPending());
     return;
   }
@@ -282,7 +282,7 @@ static void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, c
   // Widen the value if necessary (and possible).
   JValue wide_value;
   if (!ConvertPrimitiveValue(nullptr, false, Primitive::GetType(src_descriptor),
-                             field_type, new_value, wide_value)) {
+                             field_type, new_value, &wide_value)) {
     DCHECK(soa.Self()->IsExceptionPending());
     return;
   }
