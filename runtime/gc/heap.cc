@@ -708,9 +708,11 @@ Heap::~Heap() {
   allocation_stack_->Reset();
   live_stack_->Reset();
   STLDeleteValues(&mod_union_tables_);
+  STLDeleteValues(&remembered_sets_);
   STLDeleteElements(&continuous_spaces_);
   STLDeleteElements(&discontinuous_spaces_);
   delete gc_complete_lock_;
+  delete heap_trim_request_lock_;
   VLOG(heap) << "Finished ~Heap()";
 }
 
