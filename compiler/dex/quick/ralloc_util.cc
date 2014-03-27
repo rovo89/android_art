@@ -743,11 +743,15 @@ void Mir2Lir::MarkInUse(RegStorage reg) {
 void Mir2Lir::CopyRegInfo(int new_reg, int old_reg) {
   RegisterInfo* new_info = GetRegInfo(new_reg);
   RegisterInfo* old_info = GetRegInfo(old_reg);
-  // Target temp status must not change
+  // Target temp, live, dirty status must not change
   bool is_temp = new_info->is_temp;
+  bool live = new_info->live;
+  bool dirty = new_info->dirty;
   *new_info = *old_info;
-  // Restore target's temp status
+  // Restore target's temp, live, dirty status
   new_info->is_temp = is_temp;
+  new_info->live = live;
+  new_info->dirty = dirty;
   new_info->reg = new_reg;
 }
 
