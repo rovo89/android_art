@@ -235,6 +235,28 @@ std::ostream& operator<<(std::ostream& os, const Dumpable<T>& rhs) {
   return os;
 }
 
+template<typename T>
+class ConstDumpable {
+ public:
+  explicit ConstDumpable(const T& value) : value_(value) {
+  }
+
+  void Dump(std::ostream& os) const {
+    value_.Dump(os);
+  }
+
+ private:
+  const T& value_;
+
+  DISALLOW_COPY_AND_ASSIGN(ConstDumpable);
+};
+
+template<typename T>
+std::ostream& operator<<(std::ostream& os, const ConstDumpable<T>& rhs) {
+  rhs.Dump(os);
+  return os;
+}
+
 // Helps you use operator<< in a const char*-like context such as our various 'F' methods with
 // format strings.
 template<typename T>
