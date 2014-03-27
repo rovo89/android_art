@@ -254,6 +254,9 @@ class Heap {
   void IncrementDisableMovingGC(Thread* self);
   void DecrementDisableMovingGC(Thread* self);
 
+  // Clear all of the mark bits, doesn't clear bitmaps which have the same live bits as mark bits.
+  void ClearMarkedObjects() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
   // Initiates an explicit garbage collection.
   void CollectGarbage(bool clear_soft_references);
 

@@ -19,6 +19,8 @@
 
 #include "heap_bitmap.h"
 
+#include "space_bitmap-inl.h"
+
 namespace art {
 namespace gc {
 namespace accounting {
@@ -32,6 +34,55 @@ inline void HeapBitmap::Visit(const Visitor& visitor) {
   for (const auto& space_set : discontinuous_space_sets_) {
     space_set->Visit(visitor);
   }
+}
+
+inline bool HeapBitmap::Test(const mirror::Object* obj) {
+  SpaceBitmap* bitmap = GetContinuousSpaceBitmap(obj);
+  if (LIKELY(bitmap != nullptr)) {
+    return bitmap->Test(obj);
+  } else {
+    return GetDiscontinuousSpaceObjectSet(obj) != NULL;
+  }
+}
+
+inline void HeapBitmap::Clear(const mirror::Object* obj) {
+  SpaceBitmap* bitmap = GetContinuousSpaceBitmap(obj);
+  if (LIKELY(bitmap != nullptr)) {
+    bitmap->Clear(obj);
+  } else {
+    ObjectSet* set = GetDiscontinuousSpaceObjectSet(obj);
+    DCHECK(set != NULL);
+    set->Clear(obj);
+  }
+}
+
+inline void HeapBitmap::Set(const mirror::Object* obj) {
+  SpaceBitmap* bitmap = GetContinuousSpaceBitmap(obj);
+  if (LIKELY(bitmap != NULL)) {
+    bitmap->Set(obj);
+  } else {
+    ObjectSet* set = GetDiscontinuousSpaceObjectSet(obj);
+    DCHECK(set != NULL);
+    set->Set(obj);
+  }
+}
+
+inline SpaceBitmap* HeapBitmap::GetContinuousSpaceBitmap(const mirror::Object* obj) const {
+  for (const auto& bitmap : continuous_space_bitmaps_) {
+    if (bitmap->HasAddress(obj)) {
+      return bitmap;
+    }
+  }
+  return nullptr;
+}
+
+inline ObjectSet* HeapBitmap::GetDiscontinuousSpaceObjectSet(const mirror::Object* obj) const {
+  for (const auto& space_set : discontinuous_space_sets_) {
+    if (space_set->Test(obj)) {
+      return space_set;
+    }
+  }
+  return nullptr;
 }
 
 }  // namespace accounting

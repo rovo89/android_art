@@ -46,10 +46,6 @@ class StickyMarkSweep FINAL : public PartialMarkSweep {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  // Don't need to do anything special here since we scan all the cards which may have references
-  // to the newly allocated objects.
-  void UpdateAndMarkModUnion() OVERRIDE { }
-
  private:
   DISALLOW_COPY_AND_ASSIGN(StickyMarkSweep);
 };

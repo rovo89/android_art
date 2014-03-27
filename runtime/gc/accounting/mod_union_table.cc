@@ -76,7 +76,7 @@ class ModUnionUpdateObjectReferencesVisitor {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
-  void operator()(Object* obj, MemberOffset offset, bool /* static */) const
+  void operator()(Object* obj, MemberOffset offset, bool /*is_static*/) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Only add the reference if it is non null and fits our criteria.
     mirror::HeapReference<Object>* obj_ptr = obj->GetFieldObjectReferenceAddr(offset);
@@ -123,12 +123,12 @@ class AddToReferenceArrayVisitor {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
-  void operator()(Object* obj, MemberOffset offset, bool /* static */) const
+  void operator()(Object* obj, MemberOffset offset, bool /*is_static*/) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::HeapReference<Object>* ref_ptr = obj->GetFieldObjectReferenceAddr(offset);
     mirror::Object* ref = ref_ptr->AsMirrorPtr();
     // Only add the reference if it is non null and fits our criteria.
-    if (ref  != nullptr && mod_union_table_->AddReference(obj, ref)) {
+    if (ref != nullptr && mod_union_table_->ShouldAddReference(ref)) {
       // Push the adddress of the reference.
       references_->push_back(ref_ptr);
     }
@@ -168,10 +168,10 @@ class CheckReferenceVisitor {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
-  void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const
+  void operator()(Object* obj, MemberOffset offset, bool /*is_static*/) const
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset, false);
-    if (ref != nullptr && mod_union_table_->AddReference(obj, ref) &&
+    if (ref != nullptr && mod_union_table_->ShouldAddReference(ref) &&
         references_.find(ref) == references_.end()) {
       Heap* heap = mod_union_table_->GetHeap();
       space::ContinuousSpace* from_space = heap->FindContinuousSpaceFromObject(obj, false);
@@ -260,8 +260,7 @@ void ModUnionTableReferenceCache::Dump(std::ostream& os) {
 
 void ModUnionTableReferenceCache::UpdateAndMarkReferences(MarkHeapReferenceCallback* callback,
                                                           void* arg) {
-  Heap* heap = GetHeap();
-  CardTable* card_table = heap->GetCardTable();
+  CardTable* card_table = heap_->GetCardTable();
 
   std::vector<mirror::HeapReference<Object>*> cards_references;
   ModUnionReferenceVisitor add_visitor(this, &cards_references);
@@ -271,7 +270,7 @@ void ModUnionTableReferenceCache::UpdateAndMarkReferences(MarkHeapReferenceCallb
     cards_references.clear();
     uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
     uintptr_t end = start + CardTable::kCardSize;
-    auto* space = heap->FindContinuousSpaceFromObject(reinterpret_cast<Object*>(start), false);
+    auto* space = heap_->FindContinuousSpaceFromObject(reinterpret_cast<Object*>(start), false);
     DCHECK(space != nullptr);
     SpaceBitmap* live_bitmap = space->GetLiveBitmap();
     live_bitmap->VisitMarkedRange(start, end, add_visitor);

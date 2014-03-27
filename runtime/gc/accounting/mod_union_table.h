@@ -117,7 +117,7 @@ class ModUnionTableReferenceCache : public ModUnionTable {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Function that tells whether or not to add a reference to the table.
-  virtual bool AddReference(const mirror::Object* obj, const mirror::Object* ref) = 0;
+  virtual bool ShouldAddReference(const mirror::Object* ref) const = 0;
 
   void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

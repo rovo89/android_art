@@ -2821,5 +2821,19 @@ void Heap::RemoveRememberedSet(space::Space* space) {
   CHECK(remembered_sets_.find(space) == remembered_sets_.end());
 }
 
+void Heap::ClearMarkedObjects() {
+  // Clear all of the spaces' mark bitmaps.
+  for (const auto& space : GetContinuousSpaces()) {
+    accounting::SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
+    if (space->GetLiveBitmap() != mark_bitmap) {
+      mark_bitmap->Clear();
+    }
+  }
+  // Clear the marked objects in the discontinous space object sets.
+  for (const auto& space : GetDiscontinuousSpaces()) {
+    space->GetMarkObjects()->Clear();
+  }
+}
+
 }  // namespace gc
 }  // namespace art
