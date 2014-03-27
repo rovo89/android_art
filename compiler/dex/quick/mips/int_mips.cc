@@ -368,6 +368,11 @@ bool MipsMir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_di
   return false;
 }
 
+bool MipsMir2Lir::EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) {
+  LOG(FATAL) << "Unexpected use of easyMultiply in Mips";
+  return false;
+}
+
 LIR* MipsMir2Lir::OpIT(ConditionCode cond, const char* guide) {
   LOG(FATAL) << "Unexpected use of OpIT in Mips";
   return NULL;
