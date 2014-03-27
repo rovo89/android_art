@@ -200,7 +200,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char
       }
       ThrowLocation throw_location(rcvr, proxy_method, -1);
       JValue result_unboxed;
-      if (!UnboxPrimitiveForResult(throw_location, result_ref, result_type, result_unboxed)) {
+      if (!UnboxPrimitiveForResult(throw_location, result_ref, result_type, &result_unboxed)) {
         DCHECK(soa.Self()->IsExceptionPending());
         return zero;
       }
