@@ -36,9 +36,8 @@ inline void VerifyObject(mirror::Object* obj) {
       bool failed = !IsAligned<kObjectAlignment>(obj);
       if (!failed) {
         mirror::Class* c = obj->GetClass<kVerifyNone>();
-        failed = failed || c == nullptr;
-        failed = failed ||!IsAligned<kObjectAlignment>(c);
-        failed = failed ||!VerifyClassClass(c);
+        failed = failed || !IsAligned<kObjectAlignment>(c);
+        failed = failed || !VerifyClassClass(c);
       }
       if (UNLIKELY(failed)) {
         Runtime::Current()->GetHeap()->VerifyObjectBody(obj);

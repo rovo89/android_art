@@ -39,9 +39,8 @@ GarbageCollector::GarbageCollector(Heap* heap, const std::string& name)
       name_(name),
       gc_cause_(kGcCauseForAlloc),
       clear_soft_references_(false),
-      verbose_(VLOG_IS_ON(heap)),
       duration_ns_(0),
-      timings_(name_.c_str(), true, verbose_),
+      timings_(name_.c_str(), true, VLOG_IS_ON(heap)),
       pause_histogram_((name_ + " paused").c_str(), kPauseBucketSize, kPauseBucketCount),
       cumulative_timings_(name) {
   ResetCumulativeStatistics();
@@ -184,6 +183,16 @@ void GarbageCollector::SwapBitmaps() {
     heap_->GetMarkBitmap()->ReplaceObjectSet(mark_set, live_set);
     down_cast<space::LargeObjectSpace*>(space)->SwapBitmaps();
   }
+}
+
+uint64_t GarbageCollector::GetEstimatedMeanThroughput() const {
+  // Add 1ms to prevent possible division by 0.
+  return (total_freed_bytes_ * 1000) / (NsToMs(GetCumulativeTimings().GetTotalNs()) + 1);
+}
+
+uint64_t GarbageCollector::GetEstimatedLastIterationThroughput() const {
+  // Add 1ms to prevent possible division by 0.
+  return (freed_bytes_ * 1000) / (NsToMs(GetDurationNs()) + 1);
 }
 
 }  // namespace collector

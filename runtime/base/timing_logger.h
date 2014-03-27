@@ -35,8 +35,10 @@ class CumulativeLogger {
   void Start();
   void End() LOCKS_EXCLUDED(lock_);
   void Reset() LOCKS_EXCLUDED(lock_);
-  void Dump(std::ostream& os) LOCKS_EXCLUDED(lock_);
-  uint64_t GetTotalNs() const;
+  void Dump(std::ostream& os) const LOCKS_EXCLUDED(lock_);
+  uint64_t GetTotalNs() const {
+    return GetTotalTime() * kAdjust;
+  }
   // Allow the name to be modified, particularly when the cumulative logger is a field within a
   // parent class that is unable to determine the "name" of a sub-class.
   void SetName(const std::string& name) LOCKS_EXCLUDED(lock_);
@@ -57,14 +59,17 @@ class CumulativeLogger {
 
   void AddPair(const std::string &label, uint64_t delta_time)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
-  void DumpHistogram(std::ostream &os) EXCLUSIVE_LOCKS_REQUIRED(lock_);
-  uint64_t GetTotalTime() const;
+  void DumpHistogram(std::ostream &os) const EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  uint64_t GetTotalTime() const {
+    return total_time_;
+  }
   static const uint64_t kAdjust = 1000;
   std::set<Histogram<uint64_t>*, HistogramComparator> histograms_ GUARDED_BY(lock_);
   std::string name_;
   const std::string lock_name_;
   mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   size_t iterations_ GUARDED_BY(lock_);
+  uint64_t total_time_;
 
   DISALLOW_COPY_AND_ASSIGN(CumulativeLogger);
 };
