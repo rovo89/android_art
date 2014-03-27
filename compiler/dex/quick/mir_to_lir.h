@@ -482,11 +482,11 @@ class Mir2Lir : public Backend {
     void FreeTemp(int reg);
     void FreeTemp(RegStorage reg);
     RegisterInfo* IsLive(int reg);
-    RegisterInfo* IsLive(RegStorage reg);
+    bool IsLive(RegStorage reg);
     RegisterInfo* IsTemp(int reg);
-    RegisterInfo* IsTemp(RegStorage reg);
+    bool IsTemp(RegStorage reg);
     RegisterInfo* IsPromoted(int reg);
-    RegisterInfo* IsPromoted(RegStorage reg);
+    bool IsPromoted(RegStorage reg);
     bool IsDirty(int reg);
     bool IsDirty(RegStorage reg);
     void LockTemp(int reg);
