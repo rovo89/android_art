@@ -909,6 +909,11 @@ bool X86Mir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div
   return false;
 }
 
+bool X86Mir2Lir::EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) {
+  LOG(FATAL) << "Unexpected use of easyMultiply in x86";
+  return false;
+}
+
 LIR* X86Mir2Lir::OpIT(ConditionCode cond, const char* guide) {
   LOG(FATAL) << "Unexpected use of OpIT in x86";
   return NULL;
