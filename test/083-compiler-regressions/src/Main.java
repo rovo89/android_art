@@ -15,6 +15,7 @@
  */
 
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Test for Jit regressions.
@@ -47,6 +48,18 @@ public class Main {
         ZeroTests.longModTest();
         MirOpSelectTests.testIfCcz();
         ManyFloatArgs();
+        atomicLong();
+    }
+
+    public static void atomicLong() {
+        AtomicLong atomicLong = new AtomicLong();
+        atomicLong.addAndGet(3);
+        atomicLong.addAndGet(2);
+        atomicLong.addAndGet(1);
+        long result = atomicLong.get();
+        System.out.println(result == 6L ? "atomicLong passes" :
+          ("atomicLong failes: returns " + result + ", expected 6")
+        );
     }
 
     public static void returnConstantTest() {

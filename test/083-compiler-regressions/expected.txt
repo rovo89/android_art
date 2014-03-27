@@ -16,3 +16,4 @@ longDivTest passes
 longModTest passes
 testIfCcz passes
 ManyFloatArgs passes
+atomicLong passes
