@@ -431,10 +431,9 @@ Mir2Lir::RegisterInfo* Mir2Lir::IsLive(int reg) {
   return p->live ? p : NULL;
 }
 
-Mir2Lir::RegisterInfo* Mir2Lir::IsLive(RegStorage reg) {
+bool Mir2Lir::IsLive(RegStorage reg) {
   if (reg.IsPair()) {
-    DCHECK_EQ(IsLive(reg.GetLowReg()) == nullptr, IsLive(reg.GetHighReg()) == nullptr);
-    return IsLive(reg.GetLowReg());
+    return IsLive(reg.GetLowReg()) || IsLive(reg.GetHighReg());
   } else {
     return IsLive(reg.GetReg());
   }
@@ -445,10 +444,9 @@ Mir2Lir::RegisterInfo* Mir2Lir::IsTemp(int reg) {
   return (p->is_temp) ? p : NULL;
 }
 
-Mir2Lir::RegisterInfo* Mir2Lir::IsTemp(RegStorage reg) {
+bool Mir2Lir::IsTemp(RegStorage reg) {
   if (reg.IsPair()) {
-    DCHECK_EQ(IsTemp(reg.GetLowReg()) == nullptr, IsTemp(reg.GetHighReg()) == nullptr);
-    return IsTemp(reg.GetLowReg());
+    return IsTemp(reg.GetLowReg()) || IsTemp(reg.GetHighReg());
   } else {
     return IsTemp(reg.GetReg());
   }
@@ -459,10 +457,9 @@ Mir2Lir::RegisterInfo* Mir2Lir::IsPromoted(int reg) {
   return (p->is_temp) ? NULL : p;
 }
 
-Mir2Lir::RegisterInfo* Mir2Lir::IsPromoted(RegStorage reg) {
+bool Mir2Lir::IsPromoted(RegStorage reg) {
   if (reg.IsPair()) {
-    DCHECK_EQ(IsPromoted(reg.GetLowReg()) == nullptr, IsPromoted(reg.GetHighReg()) == nullptr);
-    return IsPromoted(reg.GetLowReg());
+    return IsPromoted(reg.GetLowReg()) || IsPromoted(reg.GetHighReg());
   } else {
     return IsPromoted(reg.GetReg());
   }
@@ -475,8 +472,7 @@ bool Mir2Lir::IsDirty(int reg) {
 
 bool Mir2Lir::IsDirty(RegStorage reg) {
   if (reg.IsPair()) {
-    DCHECK_EQ(IsDirty(reg.GetLowReg()), IsDirty(reg.GetHighReg()));
-    return IsDirty(reg.GetLowReg());
+    return IsDirty(reg.GetLowReg()) || IsDirty(reg.GetHighReg());
   } else {
     return IsDirty(reg.GetReg());
   }
