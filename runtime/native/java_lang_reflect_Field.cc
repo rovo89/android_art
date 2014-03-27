@@ -32,7 +32,6 @@ static bool GetFieldValue(const ScopedFastNativeObjectAccess& soa, mirror::Objec
                           JValue* value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK_EQ(value->GetJ(), INT64_C(0));
-  DCHECK(f->GetDeclaringClass()->IsInitialized());
   switch (field_type) {
     case Primitive::kPrimBoolean:
       value->SetZ(f->GetBoolean(o));
