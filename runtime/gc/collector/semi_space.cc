@@ -669,7 +669,8 @@ class SemiSpaceMarkObjectVisitor {
 
   void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const ALWAYS_INLINE
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
-    collector_->MarkObject(obj->GetFieldObjectReferenceAddr(offset));
+    // Object was already verified when we scanned it.
+    collector_->MarkObject(obj->GetFieldObjectReferenceAddr<kVerifyNone>(offset));
   }
 
   void operator()(mirror::Class* klass, mirror::Reference* ref) const
