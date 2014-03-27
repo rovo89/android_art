@@ -335,12 +335,10 @@ struct JdwpState {
   AtomicInteger event_serial_;
 
   // Linked list of events requested by the debugger (breakpoints, class prep, etc).
-  Mutex event_list_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex event_list_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER ACQUIRED_BEFORE(Locks::breakpoint_lock_);
 
   JdwpEvent* event_list_ GUARDED_BY(event_list_lock_);
   size_t event_list_size_ GUARDED_BY(event_list_lock_);  // Number of elements in event_list_.
-  size_t full_deoptimization_requests_ GUARDED_BY(event_list_lock_);  // Number of events requiring
-                                                                      // full deoptimization.
 
   // Used to synchronize suspension of the event thread (to avoid receiving "resume"
   // events before the thread has finished suspending itself).
