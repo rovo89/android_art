@@ -215,7 +215,6 @@ JdwpState::JdwpState(const JdwpOptions* options)
       event_list_lock_("JDWP event list lock", kJdwpEventListLock),
       event_list_(NULL),
       event_list_size_(0),
-      full_deoptimization_requests_(0),
       event_thread_lock_("JDWP event thread lock"),
       event_thread_cond_("JDWP event thread condition variable", event_thread_lock_),
       event_thread_id_(0),
