@@ -17,3 +17,5 @@ longModTest passes
 testIfCcz passes
 ManyFloatArgs passes
 atomicLong passes
+LiveFlags passes trip 3
+LiveFlags passes trip 1
