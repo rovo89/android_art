@@ -612,17 +612,17 @@ inline void Object::VisitReferences(const Visitor& visitor,
                                     const JavaLangRefVisitor& ref_visitor) {
   mirror::Class* klass = GetClass<kVerifyFlags>();
   if (UNLIKELY(klass == Class::GetJavaLangClass())) {
-    DCHECK_EQ(klass->GetClass(), Class::GetJavaLangClass());
+    DCHECK_EQ(klass->GetClass<kVerifyNone>(), Class::GetJavaLangClass());
     AsClass<kVerifyNone>()->VisitReferences<kVisitClass>(klass, visitor);
   } else if (UNLIKELY(klass->IsArrayClass<kVerifyFlags>())) {
     if (klass->IsObjectArrayClass<kVerifyNone>()) {
-      AsObjectArray<mirror::Object>()->VisitReferences<kVisitClass>(visitor);
+      AsObjectArray<mirror::Object, kVerifyNone>()->VisitReferences<kVisitClass>(visitor);
     } else if (kVisitClass) {
       visitor(this, ClassOffset(), false);
     }
   } else {
-    VisitFieldsReferences<kVisitClass, false>(klass->GetReferenceInstanceOffsets(), visitor);
-    if (UNLIKELY(klass->IsReferenceClass())) {
+    VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
+    if (UNLIKELY(klass->IsReferenceClass<kVerifyNone>())) {
       ref_visitor(klass, AsReference());
     }
   }
