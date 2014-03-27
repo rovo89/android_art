@@ -25,6 +25,7 @@
 
 #include <set>
 #include <string>
+#include <vector>
 
 #include "jdwp/jdwp.h"
 #include "jni.h"
@@ -121,6 +122,25 @@ struct SingleStepControl {
   DISALLOW_COPY_AND_ASSIGN(SingleStepControl);
 };
 
+struct DeoptimizationRequest {
+  enum Kind {
+    kNothing,                   // no action.
+    kFullDeoptimization,        // deoptimize everything.
+    kFullUndeoptimization,      // undeoptimize everything.
+    kSelectiveDeoptimization,   // deoptimize one method.
+    kSelectiveUndeoptimization  // undeoptimize one method.
+  };
+
+  DeoptimizationRequest() : kind(kNothing), method(nullptr) {}
+
+  void VisitRoots(RootCallback* callback, void* arg);
+
+  Kind kind;
+
+  // Method for selective deoptimization.
+  mirror::ArtMethod* method;
+};
+
 class Dbg {
  public:
   static bool ParseJdwpOptions(const std::string& options);
@@ -144,8 +164,8 @@ class Dbg {
    */
   static void Connected();
   static void GoActive()
-      LOCKS_EXCLUDED(Locks::breakpoint_lock_, Locks::deoptimization_lock_, Locks::mutator_lock_);
-  static void Disconnected() LOCKS_EXCLUDED(Locks::deoptimization_lock_, Locks::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::breakpoint_lock_, deoptimization_lock_, Locks::mutator_lock_);
+  static void Disconnected() LOCKS_EXCLUDED(deoptimization_lock_, Locks::mutator_lock_);
   static void Disposed();
 
   // Returns true if we're actually debugging with a real debugger, false if it's
@@ -407,26 +427,23 @@ class Dbg {
       LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Full Deoptimization control. Only used for method entry/exit and single-stepping.
-  static void EnableFullDeoptimization()
-      LOCKS_EXCLUDED(Locks::deoptimization_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void DisableFullDeoptimization()
-      LOCKS_EXCLUDED(Locks::deoptimization_lock_)
+  // Records deoptimization request in the queue.
+  static void RequestDeoptimization(const DeoptimizationRequest& req)
+      LOCKS_EXCLUDED(deoptimization_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Manage deoptimization after updating JDWP events list. This must be done while all mutator
-  // threads are suspended.
+  // Manage deoptimization after updating JDWP events list. Suspends all threads, processes each
+  // request and finally resumes all threads.
   static void ManageDeoptimization()
-      LOCKS_EXCLUDED(Locks::deoptimization_lock_)
+      LOCKS_EXCLUDED(deoptimization_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Breakpoints.
-  static void WatchLocation(const JDWP::JdwpLocation* pLoc)
-      LOCKS_EXCLUDED(Locks::breakpoint_lock_, Locks::deoptimization_lock_)
+  static void WatchLocation(const JDWP::JdwpLocation* pLoc, DeoptimizationRequest* req)
+      LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void UnwatchLocation(const JDWP::JdwpLocation* pLoc)
-      LOCKS_EXCLUDED(Locks::breakpoint_lock_, Locks::deoptimization_lock_)
+  static void UnwatchLocation(const JDWP::JdwpLocation* pLoc, DeoptimizationRequest* req)
+      LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Single-stepping.
@@ -521,12 +538,29 @@ class Dbg {
   static void PostThreadStartOrStop(Thread*, uint32_t)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  static void ProcessDeoptimizationRequest(const DeoptimizationRequest& request)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   static Mutex* alloc_tracker_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   static AllocRecord* recent_allocation_records_ PT_GUARDED_BY(alloc_tracker_lock_);
   static size_t alloc_record_max_ GUARDED_BY(alloc_tracker_lock_);
   static size_t alloc_record_head_ GUARDED_BY(alloc_tracker_lock_);
   static size_t alloc_record_count_ GUARDED_BY(alloc_tracker_lock_);
+
+  // Guards deoptimization requests.
+  static Mutex* deoptimization_lock_ ACQUIRED_AFTER(Locks::breakpoint_lock_);
+
+  // Deoptimization requests to be processed each time the event list is updated. This is used when
+  // registering and unregistering events so we do not deoptimize while holding the event list
+  // lock.
+  static std::vector<DeoptimizationRequest> deoptimization_requests_ GUARDED_BY(deoptimization_lock_);
+
+  // Count the number of events requiring full deoptimization. When the counter is > 0, everything
+  // is deoptimized, otherwise everything is undeoptimized.
+  // Note: we fully deoptimize on the first event only (when the counter is set to 1). We fully
+  // undeoptimize when the last event is unregistered (when the counter is set to 0).
+  static size_t full_deoptimization_event_count_ GUARDED_BY(deoptimization_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(Dbg);
 };
