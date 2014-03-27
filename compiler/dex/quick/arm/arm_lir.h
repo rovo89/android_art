@@ -203,19 +203,53 @@ enum ArmNativeRegisterPool {
   dr15 = fr30 + ARM_FP_DOUBLE,
 };
 
+// TODO: clean this up; reduce use of or eliminate macros
+
+const RegStorage rs_r0(RegStorage::k32BitSolo, r0);
+const RegStorage rs_r1(RegStorage::k32BitSolo, r1);
+const RegStorage rs_r2(RegStorage::k32BitSolo, r2);
+const RegStorage rs_r3(RegStorage::k32BitSolo, r3);
+const RegStorage rs_rARM_SUSPEND(RegStorage::k32BitSolo, rARM_SUSPEND);
+const RegStorage rs_r5(RegStorage::k32BitSolo, r5);
+const RegStorage rs_r6(RegStorage::k32BitSolo, r6);
+const RegStorage rs_r7(RegStorage::k32BitSolo, r7);
+const RegStorage rs_r8(RegStorage::k32BitSolo, r8);
+const RegStorage rs_rARM_SELF(RegStorage::k32BitSolo, rARM_SELF);
+const RegStorage rs_r10(RegStorage::k32BitSolo, r10);
+const RegStorage rs_r11(RegStorage::k32BitSolo, r11);
+const RegStorage rs_r12(RegStorage::k32BitSolo, r12);
+const RegStorage rs_r13sp(RegStorage::k32BitSolo, r13sp);
+const RegStorage rs_rARM_SP(RegStorage::k32BitSolo, rARM_SP);
+const RegStorage rs_r14lr(RegStorage::k32BitSolo, r14lr);
+const RegStorage rs_rARM_LR(RegStorage::k32BitSolo, rARM_LR);
+const RegStorage rs_r15pc(RegStorage::k32BitSolo, r15pc);
+const RegStorage rs_rARM_PC(RegStorage::k32BitSolo, rARM_PC);
+const RegStorage rs_invalid(RegStorage::kInvalid);
+
 // Target-independent aliases.
 #define rARM_ARG0 r0
+#define rs_rARM_ARG0 rs_r0
 #define rARM_ARG1 r1
+#define rs_rARM_ARG1 rs_r1
 #define rARM_ARG2 r2
+#define rs_rARM_ARG2 rs_r2
 #define rARM_ARG3 r3
+#define rs_rARM_ARG3 rs_r3
 #define rARM_FARG0 r0
+#define rs_ARM_FARG0 rs_r0
 #define rARM_FARG1 r1
+#define rs_rARM_FARG1 rs_r1
 #define rARM_FARG2 r2
+#define rs_rARM_FARG2 rs_r2
 #define rARM_FARG3 r3
+#define rs_rARM_FARG3 rs_r3
 #define rARM_RET0 r0
+#define rs_rARM_RET0 rs_r0
 #define rARM_RET1 r1
+#define rs_rARM_RET1 rs_r1
 #define rARM_INVOKE_TGT rARM_LR
-#define rARM_COUNT INVALID_REG
+#define rs_rARM_INVOKE_TGT rs_rARM_LR
+#define rARM_COUNT RegStorage::kInvalidRegVal
 
 // RegisterLocation templates return values (r0, or r0/r1).
 const RegLocation arm_loc_c_return

@@ -109,36 +109,37 @@ namespace art {
 // Mask to strip off fp flags.
 #define MIPS_FP_REG_MASK (MIPS_FP_REG_OFFSET-1)
 
-#ifdef HAVE_LITTLE_ENDIAN
 #define LOWORD_OFFSET 0
 #define HIWORD_OFFSET 4
-#define r_ARG0 r_A0
-#define r_ARG1 r_A1
-#define r_ARG2 r_A2
-#define r_ARG3 r_A3
-#define r_RESULT0 r_V0
-#define r_RESULT1 r_V1
-#else
-#define LOWORD_OFFSET 4
-#define HIWORD_OFFSET 0
-#define r_ARG0 r_A1
-#define r_ARG1 r_A0
-#define r_ARG2 r_A3
-#define r_ARG3 r_A2
-#define r_RESULT0 r_V1
-#define r_RESULT1 r_V0
-#endif
+#define rARG0 rA0
+#define rs_rARG0 rs_rA0
+#define rARG1 rA1
+#define rs_rARG1 rs_rA1
+#define rARG2 rA2
+#define rs_rARG2 rs_rA2
+#define rARG3 rA3
+#define rs_rARG3 rs_rA3
+#define rRESULT0 rV0
+#define rs_rRESULT0 rs_rV0
+#define rRESULT1 rV1
+#define rs_rRESULT1 rs_rV1
 
-// These are the same for both big and little endian.
-#define r_FARG0 r_F12
-#define r_FARG1 r_F13
-#define r_FARG2 r_F14
-#define r_FARG3 r_F15
-#define r_FRESULT0 r_F0
-#define r_FRESULT1 r_F1
+#define rFARG0 rF12
+#define rs_rFARG0 rs_rF12
+#define rFARG1 rF13
+#define rs_rFARG1 rs_rF13
+#define rFARG2 rF14
+#define rs_rFARG2 rs_rF14
+#define rFARG3 rF15
+#define rs_rFARG3 rs_rF15
+#define rFRESULT0 rF0
+#define rs_rFRESULT0 rs_rF0
+#define rFRESULT1 rF1
+#define rs_rFRESULT1 rs_rF1
 
 // Regs not used for Mips.
-#define rMIPS_PC INVALID_REG
+#define rMIPS_LR RegStorage::kInvalidRegVal
+#define rMIPS_PC RegStorage::kInvalidRegVal
 
 enum MipsResourceEncodingPos {
   kMipsGPReg0   = 0,
@@ -158,130 +159,183 @@ enum MipsResourceEncodingPos {
 #define ENCODE_MIPS_REG_PC           (1ULL << kMipsRegPC)
 
 enum MipsNativeRegisterPool {
-  r_ZERO = 0,
-  r_AT = 1,
-  r_V0 = 2,
-  r_V1 = 3,
-  r_A0 = 4,
-  r_A1 = 5,
-  r_A2 = 6,
-  r_A3 = 7,
-  r_T0 = 8,
-  r_T1 = 9,
-  r_T2 = 10,
-  r_T3 = 11,
-  r_T4 = 12,
-  r_T5 = 13,
-  r_T6 = 14,
-  r_T7 = 15,
-  r_S0 = 16,
-  r_S1 = 17,
-  r_S2 = 18,
-  r_S3 = 19,
-  r_S4 = 20,
-  r_S5 = 21,
-  r_S6 = 22,
-  r_S7 = 23,
-  r_T8 = 24,
-  r_T9 = 25,
-  r_K0 = 26,
-  r_K1 = 27,
-  r_GP = 28,
-  r_SP = 29,
-  r_FP = 30,
-  r_RA = 31,
+  rZERO = 0,
+  rAT = 1,
+  rV0 = 2,
+  rV1 = 3,
+  rA0 = 4,
+  rA1 = 5,
+  rA2 = 6,
+  rA3 = 7,
+  rT0 = 8,
+  rT1 = 9,
+  rT2 = 10,
+  rT3 = 11,
+  rT4 = 12,
+  rT5 = 13,
+  rT6 = 14,
+  rT7 = 15,
+  rS0 = 16,
+  rS1 = 17,
+  rS2 = 18,
+  rS3 = 19,
+  rS4 = 20,
+  rS5 = 21,
+  rS6 = 22,
+  rS7 = 23,
+  rT8 = 24,
+  rT9 = 25,
+  rK0 = 26,
+  rK1 = 27,
+  rGP = 28,
+  rSP = 29,
+  rFP = 30,
+  rRA = 31,
 
-  r_F0 = 0 + MIPS_FP_REG_OFFSET,
-  r_F1,
-  r_F2,
-  r_F3,
-  r_F4,
-  r_F5,
-  r_F6,
-  r_F7,
-  r_F8,
-  r_F9,
-  r_F10,
-  r_F11,
-  r_F12,
-  r_F13,
-  r_F14,
-  r_F15,
+  rF0 = 0 + MIPS_FP_REG_OFFSET,
+  rF1,
+  rF2,
+  rF3,
+  rF4,
+  rF5,
+  rF6,
+  rF7,
+  rF8,
+  rF9,
+  rF10,
+  rF11,
+  rF12,
+  rF13,
+  rF14,
+  rF15,
 #if 0
   /*
    * TODO: The shared resource mask doesn't have enough bit positions to describe all
    * MIPS registers.  Expand it and enable use of fp registers 16 through 31.
    */
-  r_F16,
-  r_F17,
-  r_F18,
-  r_F19,
-  r_F20,
-  r_F21,
-  r_F22,
-  r_F23,
-  r_F24,
-  r_F25,
-  r_F26,
-  r_F27,
-  r_F28,
-  r_F29,
-  r_F30,
-  r_F31,
+  rF16,
+  rF17,
+  rF18,
+  rF19,
+  rF20,
+  rF21,
+  rF22,
+  rF23,
+  rF24,
+  rF25,
+  rF26,
+  rF27,
+  rF28,
+  rF29,
+  rF30,
+  rF31,
 #endif
-  r_DF0 = r_F0 + MIPS_FP_DOUBLE,
-  r_DF1 = r_F2 + MIPS_FP_DOUBLE,
-  r_DF2 = r_F4 + MIPS_FP_DOUBLE,
-  r_DF3 = r_F6 + MIPS_FP_DOUBLE,
-  r_DF4 = r_F8 + MIPS_FP_DOUBLE,
-  r_DF5 = r_F10 + MIPS_FP_DOUBLE,
-  r_DF6 = r_F12 + MIPS_FP_DOUBLE,
-  r_DF7 = r_F14 + MIPS_FP_DOUBLE,
+  rDF0 = rF0 + MIPS_FP_DOUBLE,
+  rDF1 = rF2 + MIPS_FP_DOUBLE,
+  rDF2 = rF4 + MIPS_FP_DOUBLE,
+  rDF3 = rF6 + MIPS_FP_DOUBLE,
+  rDF4 = rF8 + MIPS_FP_DOUBLE,
+  rDF5 = rF10 + MIPS_FP_DOUBLE,
+  rDF6 = rF12 + MIPS_FP_DOUBLE,
+  rDF7 = rF14 + MIPS_FP_DOUBLE,
 #if 0  // TODO: expand resource mask to enable use of all MIPS fp registers.
-  r_DF8 = r_F16 + MIPS_FP_DOUBLE,
-  r_DF9 = r_F18 + MIPS_FP_DOUBLE,
-  r_DF10 = r_F20 + MIPS_FP_DOUBLE,
-  r_DF11 = r_F22 + MIPS_FP_DOUBLE,
-  r_DF12 = r_F24 + MIPS_FP_DOUBLE,
-  r_DF13 = r_F26 + MIPS_FP_DOUBLE,
-  r_DF14 = r_F28 + MIPS_FP_DOUBLE,
-  r_DF15 = r_F30 + MIPS_FP_DOUBLE,
+  rDF8 = rF16 + MIPS_FP_DOUBLE,
+  rDF9 = rF18 + MIPS_FP_DOUBLE,
+  rDF10 = rF20 + MIPS_FP_DOUBLE,
+  rDF11 = rF22 + MIPS_FP_DOUBLE,
+  rDF12 = rF24 + MIPS_FP_DOUBLE,
+  rDF13 = rF26 + MIPS_FP_DOUBLE,
+  rDF14 = rF28 + MIPS_FP_DOUBLE,
+  rDF15 = rF30 + MIPS_FP_DOUBLE,
 #endif
-  r_HI = MIPS_EXTRA_REG_OFFSET,
-  r_LO,
-  r_PC,
+  rHI = MIPS_EXTRA_REG_OFFSET,
+  rLO,
+  rPC,
 };
 
-#define rMIPS_SUSPEND r_S0
-#define rMIPS_SELF r_S1
-#define rMIPS_SP r_SP
-#define rMIPS_ARG0 r_ARG0
-#define rMIPS_ARG1 r_ARG1
-#define rMIPS_ARG2 r_ARG2
-#define rMIPS_ARG3 r_ARG3
-#define rMIPS_FARG0 r_FARG0
-#define rMIPS_FARG1 r_FARG1
-#define rMIPS_FARG2 r_FARG2
-#define rMIPS_FARG3 r_FARG3
-#define rMIPS_RET0 r_RESULT0
-#define rMIPS_RET1 r_RESULT1
-#define rMIPS_INVOKE_TGT r_T9
-#define rMIPS_COUNT INVALID_REG
-#define rMIPS_LR r_RA
+const RegStorage rs_rZERO(RegStorage::k32BitSolo, rZERO);
+const RegStorage rs_rAT(RegStorage::k32BitSolo, rAT);
+const RegStorage rs_rV0(RegStorage::k32BitSolo, rV0);
+const RegStorage rs_rV1(RegStorage::k32BitSolo, rV1);
+const RegStorage rs_rA0(RegStorage::k32BitSolo, rA0);
+const RegStorage rs_rA1(RegStorage::k32BitSolo, rA1);
+const RegStorage rs_rA2(RegStorage::k32BitSolo, rA2);
+const RegStorage rs_rA3(RegStorage::k32BitSolo, rA3);
+const RegStorage rs_rT0(RegStorage::k32BitSolo, rT0);
+const RegStorage rs_rT1(RegStorage::k32BitSolo, rT1);
+const RegStorage rs_rT2(RegStorage::k32BitSolo, rT2);
+const RegStorage rs_rT3(RegStorage::k32BitSolo, rT3);
+const RegStorage rs_rT4(RegStorage::k32BitSolo, rT4);
+const RegStorage rs_rT5(RegStorage::k32BitSolo, rT5);
+const RegStorage rs_rT6(RegStorage::k32BitSolo, rT6);
+const RegStorage rs_rT7(RegStorage::k32BitSolo, rT7);
+const RegStorage rs_rS0(RegStorage::k32BitSolo, rS0);
+const RegStorage rs_rS1(RegStorage::k32BitSolo, rS1);
+const RegStorage rs_rS2(RegStorage::k32BitSolo, rS2);
+const RegStorage rs_rS3(RegStorage::k32BitSolo, rS3);
+const RegStorage rs_rS4(RegStorage::k32BitSolo, rS4);
+const RegStorage rs_rS5(RegStorage::k32BitSolo, rS5);
+const RegStorage rs_rS6(RegStorage::k32BitSolo, rS6);
+const RegStorage rs_rS7(RegStorage::k32BitSolo, rS7);
+const RegStorage rs_rT8(RegStorage::k32BitSolo, rT8);
+const RegStorage rs_rT9(RegStorage::k32BitSolo, rT9);
+const RegStorage rs_rK0(RegStorage::k32BitSolo, rK0);
+const RegStorage rs_rK1(RegStorage::k32BitSolo, rK1);
+const RegStorage rs_rGP(RegStorage::k32BitSolo, rGP);
+const RegStorage rs_rSP(RegStorage::k32BitSolo, rSP);
+const RegStorage rs_rFP(RegStorage::k32BitSolo, rFP);
+const RegStorage rs_rRA(RegStorage::k32BitSolo, rRA);
+const RegStorage rs_rF12(RegStorage::k32BitSolo, rF12);
+const RegStorage rs_rF13(RegStorage::k32BitSolo, rF13);
+const RegStorage rs_rF14(RegStorage::k32BitSolo, rF14);
+const RegStorage rs_rF15(RegStorage::k32BitSolo, rF15);
+const RegStorage rs_rF0(RegStorage::k32BitSolo, rF0);
+const RegStorage rs_rF1(RegStorage::k32BitSolo, rF1);
+
+// TODO: reduce/eliminate use of these.
+#define rMIPS_SUSPEND rS0
+#define rs_rMIPS_SUSPEND rs_rS0
+#define rMIPS_SELF rS1
+#define rs_rMIPS_SELF rs_rS1
+#define rMIPS_SP rSP
+#define rs_rMIPS_SP rs_rSP
+#define rMIPS_ARG0 rARG0
+#define rs_rMIPS_ARG0 rs_rARG0
+#define rMIPS_ARG1 rARG1
+#define rs_rMIPS_ARG1 rs_rARG1
+#define rMIPS_ARG2 rARG2
+#define rs_rMIPS_ARG2 rs_rARG2
+#define rMIPS_ARG3 rARG3
+#define rs_rMIPS_ARG3 rs_rARG3
+#define rMIPS_FARG0 rFARG0
+#define rs_rMIPS_FARG0 rs_rFARG0
+#define rMIPS_FARG1 rFARG1
+#define rs_rMIPS_FARG1 rs_rFARG1
+#define rMIPS_FARG2 rFARG2
+#define rs_rMIPS_FARG2 rs_rFARG2
+#define rMIPS_FARG3 rFARG3
+#define rs_MIPS_FARG3 rs_rFARG3
+#define rMIPS_RET0 rRESULT0
+#define rs_MIPS_RET0 rs_rRESULT0
+#define rMIPS_RET1 rRESULT1
+#define rs_rMIPS_RET1 rs_rRESULT1
+#define rMIPS_INVOKE_TGT rT9
+#define rs_rMIPS_INVOKE_TGT rs_rT9
+#define rMIPS_COUNT RegStorage::kInvalidRegVal
 
 // RegisterLocation templates return values (r_V0, or r_V0/r_V1).
 const RegLocation mips_loc_c_return
     {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
-     RegStorage(RegStorage::k32BitSolo, r_V0), INVALID_SREG, INVALID_SREG};
+     RegStorage(RegStorage::k32BitSolo, rV0), INVALID_SREG, INVALID_SREG};
 const RegLocation mips_loc_c_return_wide
     {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
-     RegStorage(RegStorage::k64BitPair, r_V0, r_V1), INVALID_SREG, INVALID_SREG};
+     RegStorage(RegStorage::k64BitPair, rV0, rV1), INVALID_SREG, INVALID_SREG};
 const RegLocation mips_loc_c_return_float
     {kLocPhysReg, 0, 0, 0, 1, 0, 0, 0, 1, kVectorNotUsed,
-     RegStorage(RegStorage::k32BitSolo, r_F0), INVALID_SREG, INVALID_SREG};
+     RegStorage(RegStorage::k32BitSolo, rF0), INVALID_SREG, INVALID_SREG};
 const RegLocation mips_loc_c_return_double
     {kLocPhysReg, 1, 0, 0, 1, 0, 0, 0, 1, kVectorNotUsed,
-     RegStorage(RegStorage::k64BitPair, r_F0, r_F1), INVALID_SREG, INVALID_SREG};
+     RegStorage(RegStorage::k64BitPair, rF0, rF1), INVALID_SREG, INVALID_SREG};
 
 enum MipsShiftEncodings {
   kMipsLsl = 0x0,

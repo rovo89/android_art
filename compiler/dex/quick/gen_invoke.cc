@@ -66,12 +66,13 @@ void Mir2Lir::AddIntrinsicLaunchpad(CallInfo* info, LIR* branch, LIR* resume) {
  * has a memory call operation, part 1 is a NOP for x86.  For other targets,
  * load arguments between the two parts.
  */
-int Mir2Lir::CallHelperSetup(ThreadOffset helper_offset) {
-  return (cu_->instruction_set == kX86) ? 0 : LoadHelper(helper_offset);
+RegStorage Mir2Lir::CallHelperSetup(ThreadOffset helper_offset) {
+  return (cu_->instruction_set == kX86) ? RegStorage::InvalidReg() : LoadHelper(helper_offset);
 }
 
 /* NOTE: if r_tgt is a temp, it will be freed following use */
-LIR* Mir2Lir::CallHelper(int r_tgt, ThreadOffset helper_offset, bool safepoint_pc, bool use_link) {
+LIR* Mir2Lir::CallHelper(RegStorage r_tgt, ThreadOffset helper_offset, bool safepoint_pc,
+                         bool use_link) {
   LIR* call_inst;
   OpKind op = use_link ? kOpBlx : kOpBx;
   if (cu_->instruction_set == kX86) {
@@ -87,14 +88,14 @@ LIR* Mir2Lir::CallHelper(int r_tgt, ThreadOffset helper_offset, bool safepoint_p
 }
 
 void Mir2Lir::CallRuntimeHelperImm(ThreadOffset helper_offset, int arg0, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
   LoadConstant(TargetReg(kArg0), arg0);
   ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperReg(ThreadOffset helper_offset, int arg0, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
+void Mir2Lir::CallRuntimeHelperReg(ThreadOffset helper_offset, RegStorage arg0, bool safepoint_pc) {
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
   OpRegCopy(TargetReg(kArg0), arg0);
   ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
@@ -102,12 +103,12 @@ void Mir2Lir::CallRuntimeHelperReg(ThreadOffset helper_offset, int arg0, bool sa
 
 void Mir2Lir::CallRuntimeHelperRegLocation(ThreadOffset helper_offset, RegLocation arg0,
                                            bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
-  if (arg0.wide) {
-    LoadValueDirectWideFixed(arg0, arg0.fp ? TargetReg(kFArg0) : TargetReg(kArg0),
-        arg0.fp ? TargetReg(kFArg1) : TargetReg(kArg1));
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
+  if (arg0.wide == 0) {
+    LoadValueDirectFixed(arg0, TargetReg(kArg0));
   } else {
-    LoadValueDirectFixed(arg0, arg0.fp ? TargetReg(kFArg0) : TargetReg(kArg0));
+    RegStorage r_tmp = RegStorage::MakeRegPair(TargetReg(kArg0), TargetReg(kArg1));
+    LoadValueDirectWideFixed(arg0, r_tmp);
   }
   ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
@@ -115,7 +116,7 @@ void Mir2Lir::CallRuntimeHelperRegLocation(ThreadOffset helper_offset, RegLocati
 
 void Mir2Lir::CallRuntimeHelperImmImm(ThreadOffset helper_offset, int arg0, int arg1,
                                       bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
   LoadConstant(TargetReg(kArg0), arg0);
   LoadConstant(TargetReg(kArg1), arg1);
   ClobberCallerSave();
@@ -124,11 +125,12 @@ void Mir2Lir::CallRuntimeHelperImmImm(ThreadOffset helper_offset, int arg0, int 
 
 void Mir2Lir::CallRuntimeHelperImmRegLocation(ThreadOffset helper_offset, int arg0,
                                               RegLocation arg1, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
   if (arg1.wide == 0) {
     LoadValueDirectFixed(arg1, TargetReg(kArg1));
   } else {
-    LoadValueDirectWideFixed(arg1, TargetReg(kArg1), TargetReg(kArg2));
+    RegStorage r_tmp = RegStorage::MakeRegPair(TargetReg(kArg1), TargetReg(kArg2));
+    LoadValueDirectWideFixed(arg1, r_tmp);
   }
   LoadConstant(TargetReg(kArg0), arg0);
   ClobberCallerSave();
@@ -137,25 +139,25 @@ void Mir2Lir::CallRuntimeHelperImmRegLocation(ThreadOffset helper_offset, int ar
 
 void Mir2Lir::CallRuntimeHelperRegLocationImm(ThreadOffset helper_offset, RegLocation arg0, int arg1,
                                               bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
   LoadValueDirectFixed(arg0, TargetReg(kArg0));
   LoadConstant(TargetReg(kArg1), arg1);
   ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperImmReg(ThreadOffset helper_offset, int arg0, int arg1,
+void Mir2Lir::CallRuntimeHelperImmReg(ThreadOffset helper_offset, int arg0, RegStorage arg1,
                                       bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
   OpRegCopy(TargetReg(kArg1), arg1);
   LoadConstant(TargetReg(kArg0), arg0);
   ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperRegImm(ThreadOffset helper_offset, int arg0, int arg1,
+void Mir2Lir::CallRuntimeHelperRegImm(ThreadOffset helper_offset, RegStorage arg0, int arg1,
                                       bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
   OpRegCopy(TargetReg(kArg0), arg0);
   LoadConstant(TargetReg(kArg1), arg1);
   ClobberCallerSave();
@@ -163,16 +165,17 @@ void Mir2Lir::CallRuntimeHelperRegImm(ThreadOffset helper_offset, int arg0, int 
 }
 
 void Mir2Lir::CallRuntimeHelperImmMethod(ThreadOffset helper_offset, int arg0, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
   LoadCurrMethodDirect(TargetReg(kArg1));
   LoadConstant(TargetReg(kArg0), arg0);
   ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperRegMethod(ThreadOffset helper_offset, int arg0, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
-  DCHECK_NE(TargetReg(kArg1), arg0);
+void Mir2Lir::CallRuntimeHelperRegMethod(ThreadOffset helper_offset, RegStorage arg0,
+                                         bool safepoint_pc) {
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
+  DCHECK_NE(TargetReg(kArg1).GetReg(), arg0.GetReg());
   if (TargetReg(kArg0) != arg0) {
     OpRegCopy(TargetReg(kArg0), arg0);
   }
@@ -181,10 +184,10 @@ void Mir2Lir::CallRuntimeHelperRegMethod(ThreadOffset helper_offset, int arg0, b
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperRegMethodRegLocation(ThreadOffset helper_offset, int arg0,
+void Mir2Lir::CallRuntimeHelperRegMethodRegLocation(ThreadOffset helper_offset, RegStorage arg0,
                                                     RegLocation arg2, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
-  DCHECK_NE(TargetReg(kArg1), arg0);
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
+  DCHECK_NE(TargetReg(kArg1).GetReg(), arg0.GetReg());
   if (TargetReg(kArg0) != arg0) {
     OpRegCopy(TargetReg(kArg0), arg0);
   }
@@ -196,7 +199,7 @@ void Mir2Lir::CallRuntimeHelperRegMethodRegLocation(ThreadOffset helper_offset, 
 
 void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(ThreadOffset helper_offset, RegLocation arg0,
                                                       RegLocation arg1, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
   if (arg0.wide == 0) {
     LoadValueDirectFixed(arg0, arg0.fp ? TargetReg(kFArg0) : TargetReg(kArg0));
     if (arg1.wide == 0) {
@@ -207,37 +210,56 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(ThreadOffset helper_offset
       }
     } else {
       if (cu_->instruction_set == kMips) {
-        LoadValueDirectWideFixed(arg1, arg1.fp ? TargetReg(kFArg2) : TargetReg(kArg1), arg1.fp ? TargetReg(kFArg3) : TargetReg(kArg2));
+        RegStorage r_tmp;
+        if (arg1.fp) {
+          r_tmp = RegStorage::MakeRegPair(TargetReg(kFArg2), TargetReg(kFArg3));
+        } else {
+          r_tmp = RegStorage::MakeRegPair(TargetReg(kArg1), TargetReg(kArg2));
+        }
+        LoadValueDirectWideFixed(arg1, r_tmp);
       } else {
-        LoadValueDirectWideFixed(arg1, TargetReg(kArg1), TargetReg(kArg2));
+        RegStorage r_tmp = RegStorage::MakeRegPair(TargetReg(kArg1), TargetReg(kArg2));
+        LoadValueDirectWideFixed(arg1, r_tmp);
       }
     }
   } else {
-    LoadValueDirectWideFixed(arg0, arg0.fp ? TargetReg(kFArg0) : TargetReg(kArg0), arg0.fp ? TargetReg(kFArg1) : TargetReg(kArg1));
+    RegStorage r_tmp;
+    if (arg0.fp) {
+      r_tmp = RegStorage::MakeRegPair(TargetReg(kFArg0), TargetReg(kFArg1));
+    } else {
+      r_tmp = RegStorage::MakeRegPair(TargetReg(kArg0), TargetReg(kArg1));
+    }
+    LoadValueDirectWideFixed(arg0, r_tmp);
     if (arg1.wide == 0) {
       LoadValueDirectFixed(arg1, arg1.fp ? TargetReg(kFArg2) : TargetReg(kArg2));
     } else {
-      LoadValueDirectWideFixed(arg1, arg1.fp ? TargetReg(kFArg2) : TargetReg(kArg2), arg1.fp ? TargetReg(kFArg3) : TargetReg(kArg3));
+      RegStorage r_tmp;
+      if (arg1.fp) {
+        r_tmp = RegStorage::MakeRegPair(TargetReg(kFArg2), TargetReg(kFArg3));
+      } else {
+        r_tmp = RegStorage::MakeRegPair(TargetReg(kArg2), TargetReg(kArg3));
+      }
+      LoadValueDirectWideFixed(arg1, r_tmp);
     }
   }
   ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperRegReg(ThreadOffset helper_offset, int arg0, int arg1,
-                                      bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
-  DCHECK_NE(TargetReg(kArg0), arg1);  // check copy into arg0 won't clobber arg1
+void Mir2Lir::CallRuntimeHelperRegReg(ThreadOffset helper_offset, RegStorage arg0,
+                                      RegStorage arg1, bool safepoint_pc) {
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
+  DCHECK_NE(TargetReg(kArg0).GetReg(), arg1.GetReg());  // check copy into arg0 won't clobber arg1
   OpRegCopy(TargetReg(kArg0), arg0);
   OpRegCopy(TargetReg(kArg1), arg1);
   ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperRegRegImm(ThreadOffset helper_offset, int arg0, int arg1,
-                                         int arg2, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
-  DCHECK_NE(TargetReg(kArg0), arg1);  // check copy into arg0 won't clobber arg1
+void Mir2Lir::CallRuntimeHelperRegRegImm(ThreadOffset helper_offset, RegStorage arg0,
+                                         RegStorage arg1, int arg2, bool safepoint_pc) {
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
+  DCHECK_NE(TargetReg(kArg0).GetReg(), arg1.GetReg());  // check copy into arg0 won't clobber arg1
   OpRegCopy(TargetReg(kArg0), arg0);
   OpRegCopy(TargetReg(kArg1), arg1);
   LoadConstant(TargetReg(kArg2), arg2);
@@ -247,7 +269,7 @@ void Mir2Lir::CallRuntimeHelperRegRegImm(ThreadOffset helper_offset, int arg0, i
 
 void Mir2Lir::CallRuntimeHelperImmMethodRegLocation(ThreadOffset helper_offset,
                                                     int arg0, RegLocation arg2, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
   LoadValueDirectFixed(arg2, TargetReg(kArg2));
   LoadCurrMethodDirect(TargetReg(kArg1));
   LoadConstant(TargetReg(kArg0), arg0);
@@ -257,7 +279,7 @@ void Mir2Lir::CallRuntimeHelperImmMethodRegLocation(ThreadOffset helper_offset,
 
 void Mir2Lir::CallRuntimeHelperImmMethodImm(ThreadOffset helper_offset, int arg0,
                                             int arg2, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
   LoadCurrMethodDirect(TargetReg(kArg1));
   LoadConstant(TargetReg(kArg2), arg2);
   LoadConstant(TargetReg(kArg0), arg0);
@@ -268,13 +290,14 @@ void Mir2Lir::CallRuntimeHelperImmMethodImm(ThreadOffset helper_offset, int arg0
 void Mir2Lir::CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset helper_offset,
                                                          int arg0, RegLocation arg1,
                                                          RegLocation arg2, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
   DCHECK_EQ(arg1.wide, 0U);
   LoadValueDirectFixed(arg1, TargetReg(kArg1));
   if (arg2.wide == 0) {
     LoadValueDirectFixed(arg2, TargetReg(kArg2));
   } else {
-    LoadValueDirectWideFixed(arg2, TargetReg(kArg2), TargetReg(kArg3));
+    RegStorage r_tmp = RegStorage::MakeRegPair(TargetReg(kArg2), TargetReg(kArg3));
+    LoadValueDirectWideFixed(arg2, r_tmp);
   }
   LoadConstant(TargetReg(kArg0), arg0);
   ClobberCallerSave();
@@ -285,7 +308,7 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocationRegLocation(ThreadOffset he
                                                                  RegLocation arg0, RegLocation arg1,
                                                                  RegLocation arg2,
                                                                  bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
   DCHECK_EQ(arg0.wide, 0U);
   LoadValueDirectFixed(arg0, TargetReg(kArg0));
   DCHECK_EQ(arg1.wide, 0U);
@@ -312,9 +335,9 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
    */
   RegLocation rl_src = rl_method;
   rl_src.location = kLocPhysReg;
-  rl_src.reg = RegStorage(RegStorage::k32BitSolo, TargetReg(kArg0));
+  rl_src.reg = TargetReg(kArg0);
   rl_src.home = false;
-  MarkLive(rl_src.reg.GetReg(), rl_src.s_reg_low);
+  MarkLive(rl_src.reg, rl_src.s_reg_low);
   StoreValue(rl_method, rl_src);
   // If Method* has been promoted, explicitly flush
   if (rl_method.location == kLocPhysReg) {
@@ -340,17 +363,17 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
    */
   for (int i = 0; i < cu_->num_ins; i++) {
     PromotionMap* v_map = &promotion_map_[start_vreg + i];
-    int reg = GetArgMappingToPhysicalReg(i);
+    RegStorage reg = GetArgMappingToPhysicalReg(i);
 
-    if (reg != INVALID_REG) {
+    if (reg.Valid()) {
       // If arriving in register
       bool need_flush = true;
       RegLocation* t_loc = &ArgLocs[i];
       if ((v_map->core_location == kLocPhysReg) && !t_loc->fp) {
-        OpRegCopy(v_map->core_reg, reg);
+        OpRegCopy(RegStorage::Solo32(v_map->core_reg), reg);
         need_flush = false;
       } else if ((v_map->fp_location == kLocPhysReg) && t_loc->fp) {
-        OpRegCopy(v_map->FpReg, reg);
+        OpRegCopy(RegStorage::Solo32(v_map->FpReg), reg);
         need_flush = false;
       } else {
         need_flush = true;
@@ -386,11 +409,10 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
       // If arriving in frame & promoted
       if (v_map->core_location == kLocPhysReg) {
         LoadWordDisp(TargetReg(kSp), SRegOffset(start_vreg + i),
-                     v_map->core_reg);
+                     RegStorage::Solo32(v_map->core_reg));
       }
       if (v_map->fp_location == kLocPhysReg) {
-        LoadWordDisp(TargetReg(kSp), SRegOffset(start_vreg + i),
-                     v_map->FpReg);
+        LoadWordDisp(TargetReg(kSp), SRegOffset(start_vreg + i), RegStorage::Solo32(v_map->FpReg));
       }
     }
   }
@@ -433,7 +455,8 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       break;
     case 1:  // Get method->dex_cache_resolved_methods_
       cg->LoadWordDisp(cg->TargetReg(kArg0),
-        mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(), cg->TargetReg(kArg0));
+                       mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
+                       cg->TargetReg(kArg0));
       // Set up direct code if known.
       if (direct_code != 0) {
         if (direct_code != static_cast<unsigned int>(-1)) {
@@ -448,8 +471,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       CHECK_EQ(cu->dex_file, target_method.dex_file);
       cg->LoadWordDisp(cg->TargetReg(kArg0),
                        mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
-                           (target_method.dex_method_index * 4),
-                       cg-> TargetReg(kArg0));
+                       (target_method.dex_method_index * 4), cg->TargetReg(kArg0));
       break;
     case 3:  // Grab the code from the method*
       if (cu->instruction_set != kX86) {
@@ -643,8 +665,8 @@ int Mir2Lir::LoadArgRegs(CallInfo* info, int call_state,
                          const MethodReference& target_method,
                          uint32_t vtable_idx, uintptr_t direct_code,
                          uintptr_t direct_method, InvokeType type, bool skip_this) {
-  int last_arg_reg = TargetReg(kArg3);
-  int next_reg = TargetReg(kArg1);
+  int last_arg_reg = TargetReg(kArg3).GetReg();
+  int next_reg = TargetReg(kArg1).GetReg();
   int next_arg = 0;
   if (skip_this) {
     next_reg++;
@@ -653,16 +675,17 @@ int Mir2Lir::LoadArgRegs(CallInfo* info, int call_state,
   for (; (next_reg <= last_arg_reg) && (next_arg < info->num_arg_words); next_reg++) {
     RegLocation rl_arg = info->args[next_arg++];
     rl_arg = UpdateRawLoc(rl_arg);
-    if (rl_arg.wide && (next_reg <= TargetReg(kArg2))) {
-      LoadValueDirectWideFixed(rl_arg, next_reg, next_reg + 1);
+    if (rl_arg.wide && (next_reg <= TargetReg(kArg2).GetReg())) {
+      RegStorage r_tmp(RegStorage::k64BitPair, next_reg, next_reg + 1);
+      LoadValueDirectWideFixed(rl_arg, r_tmp);
       next_reg++;
       next_arg++;
     } else {
       if (rl_arg.wide) {
-        rl_arg.wide = false;
+        rl_arg = NarrowRegLoc(rl_arg);
         rl_arg.is_const = false;
       }
-      LoadValueDirectFixed(rl_arg, next_reg);
+      LoadValueDirectFixed(rl_arg, RegStorage::Solo32(next_reg));
     }
     call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                                 direct_code, direct_method, type);
@@ -698,13 +721,12 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
     RegLocation rl_use0 = info->args[0];
     RegLocation rl_use1 = info->args[1];
     RegLocation rl_use2 = info->args[2];
-    if (((!rl_use0.wide && !rl_use1.wide) || rl_use0.wide) &&
-      rl_use2.wide) {
-      int reg = -1;
+    if (((!rl_use0.wide && !rl_use1.wide) || rl_use0.wide) && rl_use2.wide) {
+      RegStorage reg;
       // Wide spans, we need the 2nd half of uses[2].
       rl_arg = UpdateLocWide(rl_use2);
       if (rl_arg.location == kLocPhysReg) {
-        reg = rl_arg.reg.GetHighReg();
+        reg = rl_arg.reg.GetHigh();
       } else {
         // kArg2 & rArg3 can safely be used here
         reg = TargetReg(kArg3);
@@ -719,20 +741,22 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
     }
     // Loop through the rest
     while (next_use < info->num_arg_words) {
-      int low_reg;
-      int high_reg = -1;
+      RegStorage low_reg;
+      RegStorage high_reg;
       rl_arg = info->args[next_use];
       rl_arg = UpdateRawLoc(rl_arg);
       if (rl_arg.location == kLocPhysReg) {
-        low_reg = rl_arg.reg.GetReg();
         if (rl_arg.wide) {
-          high_reg = rl_arg.reg.GetHighReg();
+          low_reg = rl_arg.reg.GetLow();
+          high_reg = rl_arg.reg.GetHigh();
+        } else {
+          low_reg = rl_arg.reg;
         }
       } else {
         low_reg = TargetReg(kArg2);
         if (rl_arg.wide) {
           high_reg = TargetReg(kArg3);
-          LoadValueDirectWideFixed(rl_arg, low_reg, high_reg);
+          LoadValueDirectWideFixed(rl_arg, RegStorage::MakeRegPair(low_reg, high_reg));
         } else {
           LoadValueDirectFixed(rl_arg, low_reg);
         }
@@ -741,7 +765,7 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
       }
       int outs_offset = (next_use + 1) * 4;
       if (rl_arg.wide) {
-        StoreBaseDispWide(TargetReg(kSp), outs_offset, low_reg, high_reg);
+        StoreBaseDispWide(TargetReg(kSp), outs_offset, RegStorage::MakeRegPair(low_reg, high_reg));
         next_use += 2;
       } else {
         StoreWordDisp(TargetReg(kSp), outs_offset, low_reg);
@@ -799,15 +823,13 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     if (loc.wide) {
       loc = UpdateLocWide(loc);
       if ((next_arg >= 2) && (loc.location == kLocPhysReg)) {
-        StoreBaseDispWide(TargetReg(kSp), SRegOffset(loc.s_reg_low),
-                          loc.reg.GetReg(), loc.reg.GetHighReg());
+        StoreBaseDispWide(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg);
       }
       next_arg += 2;
     } else {
       loc = UpdateLoc(loc);
       if ((next_arg >= 3) && (loc.location == kLocPhysReg)) {
-        StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low),
-                      loc.reg.GetReg(), kWord);
+        StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, kWord);
       }
       next_arg++;
     }
@@ -866,8 +888,8 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
 
         // Allocate a free xmm temp. Since we are working through the calling sequence,
         // we expect to have an xmm temporary available.
-        int temp = AllocTempDouble();
-        CHECK_GT(temp, 0);
+        RegStorage temp = AllocTempDouble();
+        CHECK_GT(temp.GetLowReg(), 0);
 
         LIR* ld1 = nullptr;
         LIR* ld2 = nullptr;
@@ -888,7 +910,8 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
           ld1 = OpMovRegMem(temp, TargetReg(kSp), current_src_offset, kMovA128FP);
         } else if (src_is_8b_aligned) {
           ld1 = OpMovRegMem(temp, TargetReg(kSp), current_src_offset, kMovLo128FP);
-          ld2 = OpMovRegMem(temp, TargetReg(kSp), current_src_offset + (bytes_to_move >> 1), kMovHi128FP);
+          ld2 = OpMovRegMem(temp, TargetReg(kSp), current_src_offset + (bytes_to_move >> 1),
+                            kMovHi128FP);
         } else {
           ld1 = OpMovRegMem(temp, TargetReg(kSp), current_src_offset, kMovU128FP);
         }
@@ -897,7 +920,8 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
           st1 = OpMovMemReg(TargetReg(kSp), current_dest_offset, temp, kMovA128FP);
         } else if (dest_is_8b_aligned) {
           st1 = OpMovMemReg(TargetReg(kSp), current_dest_offset, temp, kMovLo128FP);
-          st2 = OpMovMemReg(TargetReg(kSp), current_dest_offset + (bytes_to_move >> 1), temp, kMovHi128FP);
+          st2 = OpMovMemReg(TargetReg(kSp), current_dest_offset + (bytes_to_move >> 1),
+                            temp, kMovHi128FP);
         } else {
           st1 = OpMovMemReg(TargetReg(kSp), current_dest_offset, temp, kMovU128FP);
         }
@@ -928,14 +952,16 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
         }
 
         // Free the temporary used for the data movement.
-        FreeTemp(temp);
+        // CLEANUP: temp is currently a bogus pair, elmiminate extra free when updated.
+        FreeTemp(temp.GetLow());
+        FreeTemp(temp.GetHigh());
       } else {
         // Moving 32-bits via general purpose register.
         bytes_to_move = sizeof(uint32_t);
 
         // Instead of allocating a new temp, simply reuse one of the registers being used
         // for argument passing.
-        int temp = TargetReg(kArg3);
+        RegStorage temp = TargetReg(kArg3);
 
         // Now load the argument VR and store to the outs.
         LoadWordDisp(TargetReg(kSp), current_src_offset, temp);
@@ -1007,26 +1033,26 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
   if (!(cu_->instruction_set == kX86 && rl_idx.is_const)) {
     rl_idx = LoadValue(rl_idx, kCoreReg);
   }
-  int reg_max;
-  GenNullCheck(rl_obj.reg.GetReg(), info->opt_flags);
+  RegStorage reg_max;
+  GenNullCheck(rl_obj.reg, info->opt_flags);
   bool range_check = (!(info->opt_flags & MIR_IGNORE_RANGE_CHECK));
   LIR* range_check_branch = nullptr;
-  int reg_off = INVALID_REG;
-  int reg_ptr = INVALID_REG;
+  RegStorage reg_off;
+  RegStorage reg_ptr;
   if (cu_->instruction_set != kX86) {
     reg_off = AllocTemp();
     reg_ptr = AllocTemp();
     if (range_check) {
       reg_max = AllocTemp();
-      LoadWordDisp(rl_obj.reg.GetReg(), count_offset, reg_max);
+      LoadWordDisp(rl_obj.reg, count_offset, reg_max);
       MarkPossibleNullPointerException(info->opt_flags);
     }
-    LoadWordDisp(rl_obj.reg.GetReg(), offset_offset, reg_off);
+    LoadWordDisp(rl_obj.reg, offset_offset, reg_off);
     MarkPossibleNullPointerException(info->opt_flags);
-    LoadWordDisp(rl_obj.reg.GetReg(), value_offset, reg_ptr);
+    LoadWordDisp(rl_obj.reg, value_offset, reg_ptr);
     if (range_check) {
       // Set up a launch pad to allow retry in case of bounds violation */
-      OpRegReg(kOpCmp, rl_idx.reg.GetReg(), reg_max);
+      OpRegReg(kOpCmp, rl_idx.reg, reg_max);
       FreeTemp(reg_max);
       range_check_branch = OpCondBranch(kCondUge, nullptr);
     }
@@ -1037,34 +1063,34 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
       // Set up a launch pad to allow retry in case of bounds violation */
       if (rl_idx.is_const) {
         range_check_branch = OpCmpMemImmBranch(
-            kCondUlt, INVALID_REG, rl_obj.reg.GetReg(), count_offset,
+            kCondUlt, RegStorage::InvalidReg(), rl_obj.reg, count_offset,
             mir_graph_->ConstantValue(rl_idx.orig_sreg), nullptr);
       } else {
-        OpRegMem(kOpCmp, rl_idx.reg.GetReg(), rl_obj.reg.GetReg(), count_offset);
+        OpRegMem(kOpCmp, rl_idx.reg, rl_obj.reg, count_offset);
         range_check_branch = OpCondBranch(kCondUge, nullptr);
       }
     }
     reg_off = AllocTemp();
     reg_ptr = AllocTemp();
-    LoadWordDisp(rl_obj.reg.GetReg(), offset_offset, reg_off);
-    LoadWordDisp(rl_obj.reg.GetReg(), value_offset, reg_ptr);
+    LoadWordDisp(rl_obj.reg, offset_offset, reg_off);
+    LoadWordDisp(rl_obj.reg, value_offset, reg_ptr);
   }
   if (rl_idx.is_const) {
     OpRegImm(kOpAdd, reg_off, mir_graph_->ConstantValue(rl_idx.orig_sreg));
   } else {
-    OpRegReg(kOpAdd, reg_off, rl_idx.reg.GetReg());
+    OpRegReg(kOpAdd, reg_off, rl_idx.reg);
   }
-  FreeTemp(rl_obj.reg.GetReg());
+  FreeTemp(rl_obj.reg);
   if (rl_idx.location == kLocPhysReg) {
-    FreeTemp(rl_idx.reg.GetReg());
+    FreeTemp(rl_idx.reg);
   }
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (cu_->instruction_set != kX86) {
-    LoadBaseIndexed(reg_ptr, reg_off, rl_result.reg.GetReg(), 1, kUnsignedHalf);
+    LoadBaseIndexed(reg_ptr, reg_off, rl_result.reg, 1, kUnsignedHalf);
   } else {
-    LoadBaseIndexedDisp(reg_ptr, reg_off, 1, data_offset, rl_result.reg.GetReg(),
-                        INVALID_REG, kUnsignedHalf, INVALID_SREG);
+    LoadBaseIndexedDisp(reg_ptr, reg_off, 1, data_offset, rl_result.reg,
+                        RegStorage::InvalidReg(), kUnsignedHalf, INVALID_SREG);
   }
   FreeTemp(reg_off);
   FreeTemp(reg_ptr);
@@ -1088,20 +1114,19 @@ bool Mir2Lir::GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty) {
   rl_obj = LoadValue(rl_obj, kCoreReg);
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  GenNullCheck(rl_obj.reg.GetReg(), info->opt_flags);
-  LoadWordDisp(rl_obj.reg.GetReg(), mirror::String::CountOffset().Int32Value(),
-               rl_result.reg.GetReg());
+  GenNullCheck(rl_obj.reg, info->opt_flags);
+  LoadWordDisp(rl_obj.reg, mirror::String::CountOffset().Int32Value(), rl_result.reg);
   MarkPossibleNullPointerException(info->opt_flags);
   if (is_empty) {
     // dst = (dst == 0);
     if (cu_->instruction_set == kThumb2) {
-      int t_reg = AllocTemp();
-      OpRegReg(kOpNeg, t_reg, rl_result.reg.GetReg());
-      OpRegRegReg(kOpAdc, rl_result.reg.GetReg(), rl_result.reg.GetReg(), t_reg);
+      RegStorage t_reg = AllocTemp();
+      OpRegReg(kOpNeg, t_reg, rl_result.reg);
+      OpRegRegReg(kOpAdc, rl_result.reg, rl_result.reg, t_reg);
     } else {
       DCHECK_EQ(cu_->instruction_set, kX86);
-      OpRegImm(kOpSub, rl_result.reg.GetReg(), 1);
-      OpRegImm(kOpLsr, rl_result.reg.GetReg(), 31);
+      OpRegImm(kOpSub, rl_result.reg, 1);
+      OpRegImm(kOpLsr, rl_result.reg, 31);
     }
   }
   StoreValue(rl_dest, rl_result);
@@ -1118,15 +1143,15 @@ bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (size == kLong) {
     RegLocation rl_i = LoadValueWide(rl_src_i, kCoreReg);
-    int r_i_low = rl_i.reg.GetReg();
-    if (rl_i.reg.GetReg() == rl_result.reg.GetReg()) {
+    RegStorage r_i_low = rl_i.reg.GetLow();
+    if (rl_i.reg.GetLowReg() == rl_result.reg.GetLowReg()) {
       // First REV shall clobber rl_result.reg.GetReg(), save the value in a temp for the second REV.
       r_i_low = AllocTemp();
-      OpRegCopy(r_i_low, rl_i.reg.GetReg());
+      OpRegCopy(r_i_low, rl_i.reg);
     }
-    OpRegReg(kOpRev, rl_result.reg.GetReg(), rl_i.reg.GetHighReg());
-    OpRegReg(kOpRev, rl_result.reg.GetHighReg(), r_i_low);
-    if (rl_i.reg.GetReg() == rl_result.reg.GetReg()) {
+    OpRegReg(kOpRev, rl_result.reg.GetLow(), rl_i.reg.GetHigh());
+    OpRegReg(kOpRev, rl_result.reg.GetHigh(), r_i_low);
+    if (rl_i.reg.GetLowReg() == rl_result.reg.GetLowReg()) {
       FreeTemp(r_i_low);
     }
     StoreValueWide(rl_dest, rl_result);
@@ -1134,7 +1159,7 @@ bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {
     DCHECK(size == kWord || size == kSignedHalf);
     OpKind op = (size == kWord) ? kOpRev : kOpRevsh;
     RegLocation rl_i = LoadValue(rl_src_i, kCoreReg);
-    OpRegReg(op, rl_result.reg.GetReg(), rl_i.reg.GetReg());
+    OpRegReg(op, rl_result.reg, rl_i.reg);
     StoreValue(rl_dest, rl_result);
   }
   return true;
@@ -1149,11 +1174,11 @@ bool Mir2Lir::GenInlinedAbsInt(CallInfo* info) {
   rl_src = LoadValue(rl_src, kCoreReg);
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  int sign_reg = AllocTemp();
+  RegStorage sign_reg = AllocTemp();
   // abs(x) = y<=x>>31, (x+y)^y.
-  OpRegRegImm(kOpAsr, sign_reg, rl_src.reg.GetReg(), 31);
-  OpRegRegReg(kOpAdd, rl_result.reg.GetReg(), rl_src.reg.GetReg(), sign_reg);
-  OpRegReg(kOpXor, rl_result.reg.GetReg(), sign_reg);
+  OpRegRegImm(kOpAsr, sign_reg, rl_src.reg, 31);
+  OpRegRegReg(kOpAdd, rl_result.reg, rl_src.reg, sign_reg);
+  OpRegReg(kOpXor, rl_result.reg, sign_reg);
   StoreValue(rl_dest, rl_result);
   return true;
 }
@@ -1169,27 +1194,25 @@ bool Mir2Lir::GenInlinedAbsLong(CallInfo* info) {
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
 
   // If on x86 or if we would clobber a register needed later, just copy the source first.
-  if (cu_->instruction_set == kX86 || rl_result.reg.GetReg() == rl_src.reg.GetHighReg()) {
-    OpRegCopyWide(rl_result.reg.GetReg(), rl_result.reg.GetHighReg(),
-                  rl_src.reg.GetReg(), rl_src.reg.GetHighReg());
-    if (rl_result.reg.GetReg() != rl_src.reg.GetReg() &&
-        rl_result.reg.GetReg() != rl_src.reg.GetHighReg() &&
-        rl_result.reg.GetHighReg() != rl_src.reg.GetReg() &&
+  if (cu_->instruction_set == kX86 || rl_result.reg.GetLowReg() == rl_src.reg.GetHighReg()) {
+    OpRegCopyWide(rl_result.reg, rl_src.reg);
+    if (rl_result.reg.GetLowReg() != rl_src.reg.GetLowReg() &&
+        rl_result.reg.GetLowReg() != rl_src.reg.GetHighReg() &&
+        rl_result.reg.GetHighReg() != rl_src.reg.GetLowReg() &&
         rl_result.reg.GetHighReg() != rl_src.reg.GetHighReg()) {
       // Reuse source registers to avoid running out of temps.
-      FreeTemp(rl_src.reg.GetReg());
-      FreeTemp(rl_src.reg.GetHighReg());
+      FreeTemp(rl_src.reg);
     }
     rl_src = rl_result;
   }
 
   // abs(x) = y<=x>>31, (x+y)^y.
-  int sign_reg = AllocTemp();
-  OpRegRegImm(kOpAsr, sign_reg, rl_src.reg.GetHighReg(), 31);
-  OpRegRegReg(kOpAdd, rl_result.reg.GetReg(), rl_src.reg.GetReg(), sign_reg);
-  OpRegRegReg(kOpAdc, rl_result.reg.GetHighReg(), rl_src.reg.GetHighReg(), sign_reg);
-  OpRegReg(kOpXor, rl_result.reg.GetReg(), sign_reg);
-  OpRegReg(kOpXor, rl_result.reg.GetHighReg(), sign_reg);
+  RegStorage sign_reg = AllocTemp();
+  OpRegRegImm(kOpAsr, sign_reg, rl_src.reg.GetHigh(), 31);
+  OpRegRegReg(kOpAdd, rl_result.reg.GetLow(), rl_src.reg.GetLow(), sign_reg);
+  OpRegRegReg(kOpAdc, rl_result.reg.GetHigh(), rl_src.reg.GetHigh(), sign_reg);
+  OpRegReg(kOpXor, rl_result.reg.GetLow(), sign_reg);
+  OpRegReg(kOpXor, rl_result.reg.GetHigh(), sign_reg);
   StoreValueWide(rl_dest, rl_result);
   return true;
 }
@@ -1203,7 +1226,7 @@ bool Mir2Lir::GenInlinedAbsFloat(CallInfo* info) {
   rl_src = LoadValue(rl_src, kCoreReg);
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  OpRegRegImm(kOpAnd, rl_result.reg.GetReg(), rl_src.reg.GetReg(), 0x7fffffff);
+  OpRegRegImm(kOpAnd, rl_result.reg, rl_src.reg, 0x7fffffff);
   StoreValue(rl_dest, rl_result);
   return true;
 }
@@ -1217,8 +1240,8 @@ bool Mir2Lir::GenInlinedAbsDouble(CallInfo* info) {
   rl_src = LoadValueWide(rl_src, kCoreReg);
   RegLocation rl_dest = InlineTargetWide(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  OpRegCopyWide(rl_result.reg.GetReg(), rl_result.reg.GetHighReg(), rl_src.reg.GetReg(), rl_src.reg.GetHighReg());
-  OpRegImm(kOpAnd, rl_result.reg.GetHighReg(), 0x7fffffff);
+  OpRegCopyWide(rl_result.reg, rl_src.reg);
+  OpRegImm(kOpAnd, rl_result.reg.GetHigh(), 0x7fffffff);
   StoreValueWide(rl_dest, rl_result);
   return true;
 }
@@ -1263,9 +1286,9 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
 
   ClobberCallerSave();
   LockCallTemps();  // Using fixed registers
-  int reg_ptr = TargetReg(kArg0);
-  int reg_char = TargetReg(kArg1);
-  int reg_start = TargetReg(kArg2);
+  RegStorage reg_ptr = TargetReg(kArg0);
+  RegStorage reg_char = TargetReg(kArg1);
+  RegStorage reg_start = TargetReg(kArg2);
 
   LoadValueDirectFixed(rl_obj, reg_ptr);
   LoadValueDirectFixed(rl_char, reg_char);
@@ -1275,7 +1298,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
     RegLocation rl_start = info->args[2];     // 3rd arg only present in III flavor of IndexOf.
     LoadValueDirectFixed(rl_start, reg_start);
   }
-  int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pIndexOf));
+  RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pIndexOf));
   GenNullCheck(reg_ptr, info->opt_flags);
   LIR* high_code_point_branch =
       rl_char.is_const ? nullptr : OpCmpImmBranch(kCondGt, reg_char, 0xFFFF, nullptr);
@@ -1305,15 +1328,15 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
   }
   ClobberCallerSave();
   LockCallTemps();  // Using fixed registers
-  int reg_this = TargetReg(kArg0);
-  int reg_cmp = TargetReg(kArg1);
+  RegStorage reg_this = TargetReg(kArg0);
+  RegStorage reg_cmp = TargetReg(kArg1);
 
   RegLocation rl_this = info->args[0];
   RegLocation rl_cmp = info->args[1];
   LoadValueDirectFixed(rl_this, reg_this);
   LoadValueDirectFixed(rl_cmp, reg_cmp);
-  int r_tgt = (cu_->instruction_set != kX86) ?
-      LoadHelper(QUICK_ENTRYPOINT_OFFSET(pStringCompareTo)) : 0;
+  RegStorage r_tgt = (cu_->instruction_set != kX86) ?
+      LoadHelper(QUICK_ENTRYPOINT_OFFSET(pStringCompareTo)) : RegStorage::InvalidReg();
   GenNullCheck(reg_this, info->opt_flags);
   info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've null checked.
   // TUNING: check if rl_cmp.s_reg_low is already null checked
@@ -1336,7 +1359,7 @@ bool Mir2Lir::GenInlinedCurrentThread(CallInfo* info) {
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   ThreadOffset offset = Thread::PeerOffset();
   if (cu_->instruction_set == kThumb2 || cu_->instruction_set == kMips) {
-    LoadWordDisp(TargetReg(kSelf), offset.Int32Value(), rl_result.reg.GetReg());
+    LoadWordDisp(TargetReg(kSelf), offset.Int32Value(), rl_result.reg);
   } else {
     CHECK(cu_->instruction_set == kX86);
     reinterpret_cast<X86Mir2Lir*>(this)->OpRegThreadMem(kOpMov, rl_result.reg.GetReg(), offset);
@@ -1354,17 +1377,17 @@ bool Mir2Lir::GenInlinedUnsafeGet(CallInfo* info,
   // Unused - RegLocation rl_src_unsafe = info->args[0];
   RegLocation rl_src_obj = info->args[1];  // Object
   RegLocation rl_src_offset = info->args[2];  // long low
-  rl_src_offset.wide = 0;  // ignore high half in info->args[3]
+  rl_src_offset = NarrowRegLoc(rl_src_offset);  // ignore high half in info->args[3]
   RegLocation rl_dest = is_long ? InlineTargetWide(info) : InlineTarget(info);  // result reg
 
   RegLocation rl_object = LoadValue(rl_src_obj, kCoreReg);
   RegLocation rl_offset = LoadValue(rl_src_offset, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (is_long) {
-    OpRegReg(kOpAdd, rl_object.reg.GetReg(), rl_offset.reg.GetReg());
-    LoadBaseDispWide(rl_object.reg.GetReg(), 0, rl_result.reg.GetReg(), rl_result.reg.GetHighReg(), INVALID_SREG);
+    OpRegReg(kOpAdd, rl_object.reg, rl_offset.reg);
+    LoadBaseDispWide(rl_object.reg, 0, rl_result.reg, INVALID_SREG);
   } else {
-    LoadBaseIndexed(rl_object.reg.GetReg(), rl_offset.reg.GetReg(), rl_result.reg.GetReg(), 0, kWord);
+    LoadBaseIndexed(rl_object.reg, rl_offset.reg, rl_result.reg, 0, kWord);
   }
 
   if (is_volatile) {
@@ -1391,7 +1414,7 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
   // Unused - RegLocation rl_src_unsafe = info->args[0];
   RegLocation rl_src_obj = info->args[1];  // Object
   RegLocation rl_src_offset = info->args[2];  // long low
-  rl_src_offset.wide = 0;  // ignore high half in info->args[3]
+  rl_src_offset = NarrowRegLoc(rl_src_offset);  // ignore high half in info->args[3]
   RegLocation rl_src_value = info->args[4];  // value to store
   if (is_volatile || is_ordered) {
     // There might have been a store before this volatile one so insert StoreStore barrier.
@@ -1402,11 +1425,11 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
   RegLocation rl_value;
   if (is_long) {
     rl_value = LoadValueWide(rl_src_value, kCoreReg);
-    OpRegReg(kOpAdd, rl_object.reg.GetReg(), rl_offset.reg.GetReg());
-    StoreBaseDispWide(rl_object.reg.GetReg(), 0, rl_value.reg.GetReg(), rl_value.reg.GetHighReg());
+    OpRegReg(kOpAdd, rl_object.reg, rl_offset.reg);
+    StoreBaseDispWide(rl_object.reg, 0, rl_value.reg);
   } else {
     rl_value = LoadValue(rl_src_value, kCoreReg);
-    StoreBaseIndexed(rl_object.reg.GetReg(), rl_offset.reg.GetReg(), rl_value.reg.GetReg(), 0, kWord);
+    StoreBaseIndexed(rl_object.reg, rl_offset.reg, rl_value.reg, 0, kWord);
   }
 
   // Free up the temp early, to ensure x86 doesn't run out of temporaries in MarkGCCard.
@@ -1417,7 +1440,7 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
     GenMemBarrier(kStoreLoad);
   }
   if (is_object) {
-    MarkGCCard(rl_value.reg.GetReg(), rl_object.reg.GetReg());
+    MarkGCCard(rl_value.reg, rl_object.reg);
   }
   return true;
 }
@@ -1429,7 +1452,7 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
         ((cu_->disable_opt & (1 << kNullCheckElimination)) != 0 ||
          (info->opt_flags & MIR_IGNORE_NULL_CHECK) == 0))  {
       RegLocation rl_obj = LoadValue(info->args[0], kCoreReg);
-      GenImmedCheck(kCondEq, rl_obj.reg.GetReg(), 0, kThrowNullPointer);
+      GenImmedCheck(kCondEq, rl_obj.reg, 0, kThrowNullPointer);
     }
     return;
   }

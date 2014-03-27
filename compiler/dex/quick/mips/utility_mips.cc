@@ -21,29 +21,29 @@
 namespace art {
 
 /* This file contains codegen for the MIPS32 ISA. */
-LIR* MipsMir2Lir::OpFpRegCopy(int r_dest, int r_src) {
+LIR* MipsMir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
   int opcode;
   /* must be both DOUBLE or both not DOUBLE */
-  DCHECK_EQ(MIPS_DOUBLEREG(r_dest), MIPS_DOUBLEREG(r_src));
-  if (MIPS_DOUBLEREG(r_dest)) {
+  DCHECK_EQ(MIPS_DOUBLEREG(r_dest.GetReg()), MIPS_DOUBLEREG(r_src.GetReg()));
+  if (MIPS_DOUBLEREG(r_dest.GetReg())) {
     opcode = kMipsFmovd;
   } else {
-    if (MIPS_SINGLEREG(r_dest)) {
-      if (MIPS_SINGLEREG(r_src)) {
+    if (MIPS_SINGLEREG(r_dest.GetReg())) {
+      if (MIPS_SINGLEREG(r_src.GetReg())) {
         opcode = kMipsFmovs;
       } else {
         /* note the operands are swapped for the mtc1 instr */
-        int t_opnd = r_src;
+        RegStorage t_opnd = r_src;
         r_src = r_dest;
         r_dest = t_opnd;
         opcode = kMipsMtc1;
       }
     } else {
-      DCHECK(MIPS_SINGLEREG(r_src));
+      DCHECK(MIPS_SINGLEREG(r_src.GetReg()));
       opcode = kMipsMfc1;
     }
   }
-  LIR* res = RawLIR(current_dalvik_offset_, opcode, r_src, r_dest);
+  LIR* res = RawLIR(current_dalvik_offset_, opcode, r_src.GetReg(), r_dest.GetReg());
   if (!(cu_->disable_opt & (1 << kSafeOptimizations)) && r_dest == r_src) {
     res->flags.is_nop = true;
   }
@@ -75,31 +75,31 @@ bool MipsMir2Lir::InexpensiveConstantDouble(int64_t value) {
  * 1) r_dest is freshly returned from AllocTemp or
  * 2) The codegen is under fixed register usage
  */
-LIR* MipsMir2Lir::LoadConstantNoClobber(int r_dest, int value) {
+LIR* MipsMir2Lir::LoadConstantNoClobber(RegStorage r_dest, int value) {
   LIR *res;
 
-  int r_dest_save = r_dest;
-  int is_fp_reg = MIPS_FPREG(r_dest);
+  RegStorage r_dest_save = r_dest;
+  int is_fp_reg = MIPS_FPREG(r_dest.GetReg());
   if (is_fp_reg) {
-    DCHECK(MIPS_SINGLEREG(r_dest));
+    DCHECK(MIPS_SINGLEREG(r_dest.GetReg()));
     r_dest = AllocTemp();
   }
 
   /* See if the value can be constructed cheaply */
   if (value == 0) {
-    res = NewLIR2(kMipsMove, r_dest, r_ZERO);
+    res = NewLIR2(kMipsMove, r_dest.GetReg(), rZERO);
   } else if ((value > 0) && (value <= 65535)) {
-    res = NewLIR3(kMipsOri, r_dest, r_ZERO, value);
+    res = NewLIR3(kMipsOri, r_dest.GetReg(), rZERO, value);
   } else if ((value < 0) && (value >= -32768)) {
-    res = NewLIR3(kMipsAddiu, r_dest, r_ZERO, value);
+    res = NewLIR3(kMipsAddiu, r_dest.GetReg(), rZERO, value);
   } else {
-    res = NewLIR2(kMipsLui, r_dest, value >> 16);
+    res = NewLIR2(kMipsLui, r_dest.GetReg(), value >> 16);
     if (value & 0xffff)
-      NewLIR3(kMipsOri, r_dest, r_dest, value);
+      NewLIR3(kMipsOri, r_dest.GetReg(), r_dest.GetReg(), value);
   }
 
   if (is_fp_reg) {
-    NewLIR2(kMipsMtc1, r_dest, r_dest_save);
+    NewLIR2(kMipsMtc1, r_dest.GetReg(), r_dest_save.GetReg());
     FreeTemp(r_dest);
   }
 
@@ -112,23 +112,22 @@ LIR* MipsMir2Lir::OpUnconditionalBranch(LIR* target) {
   return res;
 }
 
-LIR* MipsMir2Lir::OpReg(OpKind op, int r_dest_src) {
+LIR* MipsMir2Lir::OpReg(OpKind op, RegStorage r_dest_src) {
   MipsOpCode opcode = kMipsNop;
   switch (op) {
     case kOpBlx:
       opcode = kMipsJalr;
       break;
     case kOpBx:
-      return NewLIR1(kMipsJr, r_dest_src);
+      return NewLIR1(kMipsJr, r_dest_src.GetReg());
       break;
     default:
       LOG(FATAL) << "Bad case in OpReg";
   }
-  return NewLIR2(opcode, r_RA, r_dest_src);
+  return NewLIR2(opcode, rRA, r_dest_src.GetReg());
 }
 
-LIR* MipsMir2Lir::OpRegImm(OpKind op, int r_dest_src1,
-          int value) {
+LIR* MipsMir2Lir::OpRegImm(OpKind op, RegStorage r_dest_src1, int value) {
   LIR *res;
   bool neg = (value < 0);
   int abs_value = (neg) ? -value : value;
@@ -146,19 +145,19 @@ LIR* MipsMir2Lir::OpRegImm(OpKind op, int r_dest_src1,
       break;
   }
   if (short_form) {
-    res = NewLIR2(opcode, r_dest_src1, abs_value);
+    res = NewLIR2(opcode, r_dest_src1.GetReg(), abs_value);
   } else {
-    int r_scratch = AllocTemp();
+    RegStorage r_scratch = AllocTemp();
     res = LoadConstant(r_scratch, value);
     if (op == kOpCmp)
-      NewLIR2(opcode, r_dest_src1, r_scratch);
+      NewLIR2(opcode, r_dest_src1.GetReg(), r_scratch.GetReg());
     else
-      NewLIR3(opcode, r_dest_src1, r_dest_src1, r_scratch);
+      NewLIR3(opcode, r_dest_src1.GetReg(), r_dest_src1.GetReg(), r_scratch.GetReg());
   }
   return res;
 }
 
-LIR* MipsMir2Lir::OpRegRegReg(OpKind op, int r_dest, int r_src1, int r_src2) {
+LIR* MipsMir2Lir::OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2) {
   MipsOpCode opcode = kMipsNop;
   switch (op) {
     case kOpAdd:
@@ -196,10 +195,10 @@ LIR* MipsMir2Lir::OpRegRegReg(OpKind op, int r_dest, int r_src1, int r_src2) {
       LOG(FATAL) << "bad case in OpRegRegReg";
       break;
   }
-  return NewLIR3(opcode, r_dest, r_src1, r_src2);
+  return NewLIR3(opcode, r_dest.GetReg(), r_src1.GetReg(), r_src2.GetReg());
 }
 
-LIR* MipsMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
+LIR* MipsMir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, int value) {
   LIR *res;
   MipsOpCode opcode = kMipsNop;
   bool short_form = true;
@@ -268,21 +267,21 @@ LIR* MipsMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
   }
 
   if (short_form) {
-    res = NewLIR3(opcode, r_dest, r_src1, value);
+    res = NewLIR3(opcode, r_dest.GetReg(), r_src1.GetReg(), value);
   } else {
     if (r_dest != r_src1) {
       res = LoadConstant(r_dest, value);
-      NewLIR3(opcode, r_dest, r_src1, r_dest);
+      NewLIR3(opcode, r_dest.GetReg(), r_src1.GetReg(), r_dest.GetReg());
     } else {
-      int r_scratch = AllocTemp();
+      RegStorage r_scratch = AllocTemp();
       res = LoadConstant(r_scratch, value);
-      NewLIR3(opcode, r_dest, r_src1, r_scratch);
+      NewLIR3(opcode, r_dest.GetReg(), r_src1.GetReg(), r_scratch.GetReg());
     }
   }
   return res;
 }
 
-LIR* MipsMir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2) {
+LIR* MipsMir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2) {
   MipsOpCode opcode = kMipsNop;
   LIR *res;
   switch (op) {
@@ -290,9 +289,9 @@ LIR* MipsMir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2) {
       opcode = kMipsMove;
       break;
     case kOpMvn:
-      return NewLIR3(kMipsNor, r_dest_src1, r_src2, r_ZERO);
+      return NewLIR3(kMipsNor, r_dest_src1.GetReg(), r_src2.GetReg(), rZERO);
     case kOpNeg:
-      return NewLIR3(kMipsSubu, r_dest_src1, r_ZERO, r_src2);
+      return NewLIR3(kMipsSubu, r_dest_src1.GetReg(), rZERO, r_src2.GetReg());
     case kOpAdd:
     case kOpAnd:
     case kOpMul:
@@ -302,7 +301,7 @@ LIR* MipsMir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2) {
       return OpRegRegReg(op, r_dest_src1, r_dest_src1, r_src2);
     case kOp2Byte:
 #if __mips_isa_rev >= 2
-      res = NewLIR2(kMipsSeb, r_dest_src1, r_src2);
+      res = NewLIR2(kMipsSeb, r_dest_src1.GetReg(), r_src2.GetReg());
 #else
       res = OpRegRegImm(kOpLsl, r_dest_src1, r_src2, 24);
       OpRegRegImm(kOpAsr, r_dest_src1, r_dest_src1, 24);
@@ -310,53 +309,54 @@ LIR* MipsMir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2) {
       return res;
     case kOp2Short:
 #if __mips_isa_rev >= 2
-      res = NewLIR2(kMipsSeh, r_dest_src1, r_src2);
+      res = NewLIR2(kMipsSeh, r_dest_src1.GetReg(), r_src2.GetReg());
 #else
       res = OpRegRegImm(kOpLsl, r_dest_src1, r_src2, 16);
       OpRegRegImm(kOpAsr, r_dest_src1, r_dest_src1, 16);
 #endif
       return res;
     case kOp2Char:
-       return NewLIR3(kMipsAndi, r_dest_src1, r_src2, 0xFFFF);
+       return NewLIR3(kMipsAndi, r_dest_src1.GetReg(), r_src2.GetReg(), 0xFFFF);
     default:
       LOG(FATAL) << "Bad case in OpRegReg";
       break;
   }
-  return NewLIR2(opcode, r_dest_src1, r_src2);
+  return NewLIR2(opcode, r_dest_src1.GetReg(), r_src2.GetReg());
 }
 
-LIR* MipsMir2Lir::OpMovRegMem(int r_dest, int r_base, int offset, MoveType move_type) {
+LIR* MipsMir2Lir::OpMovRegMem(RegStorage r_dest, RegStorage r_base, int offset,
+                              MoveType move_type) {
   UNIMPLEMENTED(FATAL);
   return nullptr;
 }
 
-LIR* MipsMir2Lir::OpMovMemReg(int r_base, int offset, int r_src, MoveType move_type) {
+LIR* MipsMir2Lir::OpMovMemReg(RegStorage r_base, int offset, RegStorage r_src, MoveType move_type) {
   UNIMPLEMENTED(FATAL);
   return nullptr;
 }
 
-LIR* MipsMir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, int r_dest, int r_src) {
+LIR* MipsMir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, RegStorage r_dest, RegStorage r_src) {
   LOG(FATAL) << "Unexpected use of OpCondRegReg for MIPS";
   return NULL;
 }
 
-LIR* MipsMir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value) {
+LIR* MipsMir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
   LIR *res;
-  res = LoadConstantNoClobber(r_dest_lo, Low32Bits(value));
-  LoadConstantNoClobber(r_dest_hi, High32Bits(value));
+  res = LoadConstantNoClobber(r_dest.GetLow(), Low32Bits(value));
+  LoadConstantNoClobber(r_dest.GetHigh(), High32Bits(value));
   return res;
 }
 
 /* Load value from base + scaled index. */
-LIR* MipsMir2Lir::LoadBaseIndexed(int rBase, int r_index, int r_dest,
+LIR* MipsMir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest,
                                   int scale, OpSize size) {
   LIR *first = NULL;
   LIR *res;
   MipsOpCode opcode = kMipsNop;
-  int t_reg = AllocTemp();
+  RegStorage t_reg = AllocTemp();
 
-  if (MIPS_FPREG(r_dest)) {
-    DCHECK(MIPS_SINGLEREG(r_dest));
+  if (MIPS_FPREG(r_dest.GetReg())) {
+    DCHECK(MIPS_SINGLEREG(r_dest.GetReg()));
     DCHECK((size == kWord) || (size == kSingle));
     size = kSingle;
   } else {
@@ -365,10 +365,10 @@ LIR* MipsMir2Lir::LoadBaseIndexed(int rBase, int r_index, int r_dest,
   }
 
   if (!scale) {
-    first = NewLIR3(kMipsAddu, t_reg , rBase, r_index);
+    first = NewLIR3(kMipsAddu, t_reg.GetReg() , r_base.GetReg(), r_index.GetReg());
   } else {
     first = OpRegRegImm(kOpLsl, t_reg, r_index, scale);
-    NewLIR3(kMipsAddu, t_reg , rBase, t_reg);
+    NewLIR3(kMipsAddu, t_reg.GetReg() , r_base.GetReg(), t_reg.GetReg());
   }
 
   switch (size) {
@@ -394,21 +394,20 @@ LIR* MipsMir2Lir::LoadBaseIndexed(int rBase, int r_index, int r_dest,
       LOG(FATAL) << "Bad case in LoadBaseIndexed";
   }
 
-  res = NewLIR3(opcode, r_dest, 0, t_reg);
+  res = NewLIR3(opcode, r_dest.GetReg(), 0, t_reg.GetReg());
   FreeTemp(t_reg);
   return (first) ? first : res;
 }
 
 /* store value base base + scaled index. */
-LIR* MipsMir2Lir::StoreBaseIndexed(int rBase, int r_index, int r_src,
+LIR* MipsMir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
                                    int scale, OpSize size) {
   LIR *first = NULL;
   MipsOpCode opcode = kMipsNop;
-  int r_new_index = r_index;
-  int t_reg = AllocTemp();
+  RegStorage t_reg = AllocTemp();
 
-  if (MIPS_FPREG(r_src)) {
-    DCHECK(MIPS_SINGLEREG(r_src));
+  if (MIPS_FPREG(r_src.GetReg())) {
+    DCHECK(MIPS_SINGLEREG(r_src.GetReg()));
     DCHECK((size == kWord) || (size == kSingle));
     size = kSingle;
   } else {
@@ -417,10 +416,10 @@ LIR* MipsMir2Lir::StoreBaseIndexed(int rBase, int r_index, int r_src,
   }
 
   if (!scale) {
-    first = NewLIR3(kMipsAddu, t_reg , rBase, r_index);
+    first = NewLIR3(kMipsAddu, t_reg.GetReg() , r_base.GetReg(), r_index.GetReg());
   } else {
     first = OpRegRegImm(kOpLsl, t_reg, r_index, scale);
-    NewLIR3(kMipsAddu, t_reg , rBase, t_reg);
+    NewLIR3(kMipsAddu, t_reg.GetReg() , r_base.GetReg(), t_reg.GetReg());
   }
 
   switch (size) {
@@ -441,13 +440,13 @@ LIR* MipsMir2Lir::StoreBaseIndexed(int rBase, int r_index, int r_src,
     default:
       LOG(FATAL) << "Bad case in StoreBaseIndexed";
   }
-  NewLIR3(opcode, r_src, 0, t_reg);
-  FreeTemp(r_new_index);
+  NewLIR3(opcode, r_src.GetReg(), 0, t_reg.GetReg());
   return first;
 }
 
-LIR* MipsMir2Lir::LoadBaseDispBody(int rBase, int displacement, int r_dest,
-                                   int r_dest_hi, OpSize size, int s_reg) {
+// FIXME: don't split r_dest into 2 containers.
+LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorage r_dest,
+                                   RegStorage r_dest_hi, OpSize size, int s_reg) {
 /*
  * Load value from base + displacement.  Optionally perform null check
  * on base (which must have an associated s_reg and MIR).  If not
@@ -468,15 +467,16 @@ LIR* MipsMir2Lir::LoadBaseDispBody(int rBase, int displacement, int r_dest,
     case kDouble:
       pair = true;
       opcode = kMipsLw;
-      if (MIPS_FPREG(r_dest)) {
+      if (MIPS_FPREG(r_dest.GetReg())) {
         opcode = kMipsFlwc1;
-        if (MIPS_DOUBLEREG(r_dest)) {
-          r_dest = r_dest - MIPS_FP_DOUBLE;
+        if (MIPS_DOUBLEREG(r_dest.GetReg())) {
+          // TODO: rework to use k64BitSolo
+          r_dest.SetReg(r_dest.GetReg() - MIPS_FP_DOUBLE);
         } else {
-          DCHECK(MIPS_FPREG(r_dest_hi));
-          DCHECK(r_dest == (r_dest_hi - 1));
+          DCHECK(MIPS_FPREG(r_dest_hi.GetReg()));
+          DCHECK_EQ(r_dest.GetReg(), r_dest_hi.GetReg() - 1);
         }
-        r_dest_hi = r_dest + 1;
+        r_dest_hi.SetReg(r_dest.GetReg() + 1);
       }
       short_form = IS_SIMM16_2WORD(displacement);
       DCHECK_EQ((displacement & 0x3), 0);
@@ -484,9 +484,9 @@ LIR* MipsMir2Lir::LoadBaseDispBody(int rBase, int displacement, int r_dest,
     case kWord:
     case kSingle:
       opcode = kMipsLw;
-      if (MIPS_FPREG(r_dest)) {
+      if (MIPS_FPREG(r_dest.GetReg())) {
         opcode = kMipsFlwc1;
-        DCHECK(MIPS_SINGLEREG(r_dest));
+        DCHECK(MIPS_SINGLEREG(r_dest.GetReg()));
       }
       DCHECK_EQ((displacement & 0x3), 0);
       break;
@@ -510,30 +510,28 @@ LIR* MipsMir2Lir::LoadBaseDispBody(int rBase, int displacement, int r_dest,
 
   if (short_form) {
     if (!pair) {
-      load = res = NewLIR3(opcode, r_dest, displacement, rBase);
+      load = res = NewLIR3(opcode, r_dest.GetReg(), displacement, r_base.GetReg());
     } else {
-      load = res = NewLIR3(opcode, r_dest,
-                           displacement + LOWORD_OFFSET, rBase);
-      load2 = NewLIR3(opcode, r_dest_hi,
-                      displacement + HIWORD_OFFSET, rBase);
+      load = res = NewLIR3(opcode, r_dest.GetReg(), displacement + LOWORD_OFFSET, r_base.GetReg());
+      load2 = NewLIR3(opcode, r_dest_hi.GetReg(), displacement + HIWORD_OFFSET, r_base.GetReg());
     }
   } else {
     if (pair) {
-      int r_tmp = AllocTemp();
-      res = OpRegRegImm(kOpAdd, r_tmp, rBase, displacement);
-      load = NewLIR3(opcode, r_dest, LOWORD_OFFSET, r_tmp);
-      load2 = NewLIR3(opcode, r_dest_hi, HIWORD_OFFSET, r_tmp);
+      RegStorage r_tmp = AllocTemp();
+      res = OpRegRegImm(kOpAdd, r_tmp, r_base, displacement);
+      load = NewLIR3(opcode, r_dest.GetReg(), LOWORD_OFFSET, r_tmp.GetReg());
+      load2 = NewLIR3(opcode, r_dest_hi.GetReg(), HIWORD_OFFSET, r_tmp.GetReg());
       FreeTemp(r_tmp);
     } else {
-      int r_tmp = (rBase == r_dest) ? AllocTemp() : r_dest;
-      res = OpRegRegImm(kOpAdd, r_tmp, rBase, displacement);
-      load = NewLIR3(opcode, r_dest, 0, r_tmp);
+      RegStorage r_tmp = (r_base == r_dest) ? AllocTemp() : r_dest;
+      res = OpRegRegImm(kOpAdd, r_tmp, r_base, displacement);
+      load = NewLIR3(opcode, r_dest.GetReg(), 0, r_tmp.GetReg());
       if (r_tmp != r_dest)
         FreeTemp(r_tmp);
     }
   }
 
-  if (rBase == rMIPS_SP) {
+  if (r_base == rs_rMIPS_SP) {
     AnnotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                             true /* is_load */, pair /* is64bit */);
     if (pair) {
@@ -544,19 +542,19 @@ LIR* MipsMir2Lir::LoadBaseDispBody(int rBase, int displacement, int r_dest,
   return load;
 }
 
-LIR* MipsMir2Lir::LoadBaseDisp(int rBase, int displacement, int r_dest,
+LIR* MipsMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
                                OpSize size, int s_reg) {
-  return LoadBaseDispBody(rBase, displacement, r_dest, -1,
-                          size, s_reg);
+  return LoadBaseDispBody(r_base, displacement, r_dest, RegStorage::InvalidReg(), size,
+                          s_reg);
 }
 
-LIR* MipsMir2Lir::LoadBaseDispWide(int rBase, int displacement,
-                                   int r_dest_lo, int r_dest_hi, int s_reg) {
-  return LoadBaseDispBody(rBase, displacement, r_dest_lo, r_dest_hi, kLong, s_reg);
+LIR* MipsMir2Lir::LoadBaseDispWide(RegStorage r_base, int displacement, RegStorage r_dest,
+                                   int s_reg) {
+  return LoadBaseDispBody(r_base, displacement, r_dest.GetLow(), r_dest.GetHigh(), kLong, s_reg);
 }
 
-LIR* MipsMir2Lir::StoreBaseDispBody(int rBase, int displacement,
-                                    int r_src, int r_src_hi, OpSize size) {
+LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement,
+                                    RegStorage r_src, RegStorage r_src_hi, OpSize size) {
   LIR *res;
   LIR *store = NULL;
   LIR *store2 = NULL;
@@ -569,15 +567,15 @@ LIR* MipsMir2Lir::StoreBaseDispBody(int rBase, int displacement,
     case kDouble:
       pair = true;
       opcode = kMipsSw;
-      if (MIPS_FPREG(r_src)) {
+      if (MIPS_FPREG(r_src.GetReg())) {
         opcode = kMipsFswc1;
-        if (MIPS_DOUBLEREG(r_src)) {
-          r_src = r_src - MIPS_FP_DOUBLE;
+        if (MIPS_DOUBLEREG(r_src.GetReg())) {
+          r_src.SetReg(r_src.GetReg() - MIPS_FP_DOUBLE);
         } else {
-          DCHECK(MIPS_FPREG(r_src_hi));
-          DCHECK_EQ(r_src, (r_src_hi - 1));
+          DCHECK(MIPS_FPREG(r_src_hi.GetReg()));
+          DCHECK_EQ(r_src.GetReg(), (r_src_hi.GetReg() - 1));
         }
-        r_src_hi = r_src + 1;
+        r_src_hi.SetReg(r_src.GetReg() + 1);
       }
       short_form = IS_SIMM16_2WORD(displacement);
       DCHECK_EQ((displacement & 0x3), 0);
@@ -585,9 +583,9 @@ LIR* MipsMir2Lir::StoreBaseDispBody(int rBase, int displacement,
     case kWord:
     case kSingle:
       opcode = kMipsSw;
-      if (MIPS_FPREG(r_src)) {
+      if (MIPS_FPREG(r_src.GetReg())) {
         opcode = kMipsFswc1;
-        DCHECK(MIPS_SINGLEREG(r_src));
+        DCHECK(MIPS_SINGLEREG(r_src.GetReg()));
       }
       DCHECK_EQ((displacement & 0x3), 0);
       break;
@@ -601,31 +599,29 @@ LIR* MipsMir2Lir::StoreBaseDispBody(int rBase, int displacement,
       opcode = kMipsSb;
       break;
     default:
-      LOG(FATAL) << "Bad case in StoreBaseIndexedBody";
+      LOG(FATAL) << "Bad case in StoreBaseDispBody";
   }
 
   if (short_form) {
     if (!pair) {
-      store = res = NewLIR3(opcode, r_src, displacement, rBase);
+      store = res = NewLIR3(opcode, r_src.GetReg(), displacement, r_base.GetReg());
     } else {
-      store = res = NewLIR3(opcode, r_src, displacement + LOWORD_OFFSET,
-                            rBase);
-      store2 = NewLIR3(opcode, r_src_hi, displacement + HIWORD_OFFSET,
-                       rBase);
+      store = res = NewLIR3(opcode, r_src.GetReg(), displacement + LOWORD_OFFSET, r_base.GetReg());
+      store2 = NewLIR3(opcode, r_src_hi.GetReg(), displacement + HIWORD_OFFSET, r_base.GetReg());
     }
   } else {
-    int r_scratch = AllocTemp();
-    res = OpRegRegImm(kOpAdd, r_scratch, rBase, displacement);
+    RegStorage r_scratch = AllocTemp();
+    res = OpRegRegImm(kOpAdd, r_scratch, r_base, displacement);
     if (!pair) {
-      store =  NewLIR3(opcode, r_src, 0, r_scratch);
+      store =  NewLIR3(opcode, r_src.GetReg(), 0, r_scratch.GetReg());
     } else {
-      store =  NewLIR3(opcode, r_src, LOWORD_OFFSET, r_scratch);
-      store2 = NewLIR3(opcode, r_src_hi, HIWORD_OFFSET, r_scratch);
+      store =  NewLIR3(opcode, r_src.GetReg(), LOWORD_OFFSET, r_scratch.GetReg());
+      store2 = NewLIR3(opcode, r_src_hi.GetReg(), HIWORD_OFFSET, r_scratch.GetReg());
     }
     FreeTemp(r_scratch);
   }
 
-  if (rBase == rMIPS_SP) {
+  if (r_base == rs_rMIPS_SP) {
     AnnotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                             false /* is_load */, pair /* is64bit */);
     if (pair) {
@@ -637,14 +633,13 @@ LIR* MipsMir2Lir::StoreBaseDispBody(int rBase, int displacement,
   return res;
 }
 
-LIR* MipsMir2Lir::StoreBaseDisp(int rBase, int displacement, int r_src,
+LIR* MipsMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
                                 OpSize size) {
-  return StoreBaseDispBody(rBase, displacement, r_src, -1, size);
+  return StoreBaseDispBody(r_base, displacement, r_src, RegStorage::InvalidReg(), size);
 }
 
-LIR* MipsMir2Lir::StoreBaseDispWide(int rBase, int displacement,
-                                    int r_src_lo, int r_src_hi) {
-  return StoreBaseDispBody(rBase, displacement, r_src_lo, r_src_hi, kLong);
+LIR* MipsMir2Lir::StoreBaseDispWide(RegStorage r_base, int displacement, RegStorage r_src) {
+  return StoreBaseDispBody(r_base, displacement, r_src.GetLow(), r_src.GetHigh(), kLong);
 }
 
 LIR* MipsMir2Lir::OpThreadMem(OpKind op, ThreadOffset thread_offset) {
@@ -652,25 +647,26 @@ LIR* MipsMir2Lir::OpThreadMem(OpKind op, ThreadOffset thread_offset) {
   return NULL;
 }
 
-LIR* MipsMir2Lir::OpMem(OpKind op, int rBase, int disp) {
+LIR* MipsMir2Lir::OpMem(OpKind op, RegStorage r_base, int disp) {
   LOG(FATAL) << "Unexpected use of OpMem for MIPS";
   return NULL;
 }
 
-LIR* MipsMir2Lir::StoreBaseIndexedDisp(int rBase, int r_index, int scale, int displacement,
-                                       int r_src, int r_src_hi, OpSize size, int s_reg) {
+LIR* MipsMir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
+                                       int displacement, RegStorage r_src, RegStorage r_src_hi,
+                                       OpSize size, int s_reg) {
   LOG(FATAL) << "Unexpected use of StoreBaseIndexedDisp for MIPS";
   return NULL;
 }
 
-LIR* MipsMir2Lir::OpRegMem(OpKind op, int r_dest, int rBase,
-              int offset) {
+LIR* MipsMir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int offset) {
   LOG(FATAL) << "Unexpected use of OpRegMem for MIPS";
   return NULL;
 }
 
-LIR* MipsMir2Lir::LoadBaseIndexedDisp(int rBase, int r_index, int scale, int displacement,
-                                      int r_dest, int r_dest_hi, OpSize size, int s_reg) {
+LIR* MipsMir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
+                                      int displacement, RegStorage r_dest, RegStorage r_dest_hi,
+                                      OpSize size, int s_reg) {
   LOG(FATAL) << "Unexpected use of LoadBaseIndexedDisp for MIPS";
   return NULL;
 }

@@ -72,6 +72,7 @@ class RegStorage {
   };
 
   static const uint16_t kRegValMask = 0x007f;
+  static const uint16_t kInvalidRegVal = 0x007f;
   static const uint16_t kHighRegShift = 7;
   static const uint16_t kHighRegMask = kRegValMask << kHighRegShift;
 
@@ -92,45 +93,64 @@ class RegStorage {
   RegStorage() : reg_(kInvalid) {}
   ~RegStorage() {}
 
-  bool IsInvalid() const {
-    return ((reg_ & kShapeMask) == kInvalid);
+  bool operator==(const RegStorage rhs) const {
+    return (reg_ == rhs.GetRawBits());
+  }
+
+  bool operator!=(const RegStorage rhs) const {
+    return (reg_ != rhs.GetRawBits());
+  }
+
+  bool Valid() const {
+    return ((reg_ & kShapeMask) != kInvalid);
   }
 
   bool Is32Bit() const {
-    DCHECK(!IsInvalid());
     return ((reg_ & kSizeMask) == k32Bit);
   }
 
   bool Is64Bit() const {
-    DCHECK(!IsInvalid());
     return ((reg_ & kSizeMask) == k64Bit);
   }
 
   bool IsPair() const {
-    DCHECK(!IsInvalid());
     return ((reg_ & kPairMask) == kPair);
   }
 
   bool IsSolo() const {
-    DCHECK(!IsInvalid());
     return ((reg_ & kVectorMask) == kSolo);
   }
 
   bool IsVector() const {
-    DCHECK(!IsInvalid());
     return ((reg_ & kVectorMask) == kVector);
   }
 
   // Used to retrieve either the low register of a pair, or the only register.
   int GetReg() const {
-    DCHECK(!IsInvalid());
-    return (reg_ & kRegValMask);
+    DCHECK(!IsPair());
+    return Valid() ? (reg_ & kRegValMask) : kInvalidRegVal;
   }
 
   void SetReg(int reg) {
-    DCHECK(!IsInvalid());
+    DCHECK(Valid());
     reg_ = (reg_ & ~kRegValMask) | reg;
-    DCHECK_EQ(GetReg(), reg);
+  }
+
+  void SetLowReg(int reg) {
+    DCHECK(IsPair());
+    reg_ = (reg_ & ~kRegValMask) | reg;
+  }
+
+  // Retrieve the least significant register of a pair.
+  int GetLowReg() const {
+    DCHECK(IsPair());
+    return (reg_ & kRegValMask);
+  }
+
+  // Create a stand-alone RegStorage from the low reg of a pair.
+  RegStorage GetLow() const {
+    DCHECK(IsPair());
+    return RegStorage(k32BitSolo, reg_ & kRegValMask);
   }
 
   // Retrieve the most significant register of a pair.
@@ -139,10 +159,39 @@ class RegStorage {
     return (reg_ & kHighRegMask) >> kHighRegShift;
   }
 
+  // Create a stand-alone RegStorage from the high reg of a pair.
+  RegStorage GetHigh() const {
+    DCHECK(IsPair());
+    return RegStorage(k32BitSolo, (reg_ & kHighRegMask) >> kHighRegShift);
+  }
+
   void SetHighReg(int reg) {
     DCHECK(IsPair());
     reg_ = (reg_ & ~kHighRegMask) | (reg << kHighRegShift);
     DCHECK_EQ(GetHighReg(), reg);
+  }
+
+  // Combine 2 32-bit solo regs into a pair.
+  static RegStorage MakeRegPair(RegStorage low, RegStorage high) {
+    DCHECK(!low.IsPair());
+    DCHECK(low.Is32Bit());
+    DCHECK(!high.IsPair());
+    DCHECK(high.Is32Bit());
+    return RegStorage(k64BitPair, low.GetReg(), high.GetReg());
+  }
+
+  // Create a 32-bit solo.
+  static RegStorage Solo32(int reg_num) {
+    return RegStorage(k32BitSolo, reg_num);
+  }
+
+  // Create a 64-bit solo.
+  static RegStorage Solo64(int reg_num) {
+    return RegStorage(k64BitSolo, reg_num);
+  }
+
+  static RegStorage InvalidReg() {
+    return RegStorage(kInvalid);
   }
 
   int GetRawBits() const {

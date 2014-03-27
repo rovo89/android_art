@@ -28,33 +28,37 @@ class X86Mir2Lir : public Mir2Lir {
 
     // Required for target - codegen helpers.
     bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div, RegLocation rl_src,
-                                    RegLocation rl_dest, int lit);
-    int LoadHelper(ThreadOffset offset);
+                            RegLocation rl_dest, int lit);
     LIR* CheckSuspendUsingLoad() OVERRIDE;
-    LIR* LoadBaseDisp(int rBase, int displacement, int r_dest, OpSize size, int s_reg);
-    LIR* LoadBaseDispWide(int rBase, int displacement, int r_dest_lo, int r_dest_hi,
-                                  int s_reg);
-    LIR* LoadBaseIndexed(int rBase, int r_index, int r_dest, int scale, OpSize size);
-    LIR* LoadBaseIndexedDisp(int rBase, int r_index, int scale, int displacement,
-                                     int r_dest, int r_dest_hi, OpSize size, int s_reg);
-    LIR* LoadConstantNoClobber(int r_dest, int value);
-    LIR* LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value);
-    LIR* StoreBaseDisp(int rBase, int displacement, int r_src, OpSize size);
-    LIR* StoreBaseDispWide(int rBase, int displacement, int r_src_lo, int r_src_hi);
-    LIR* StoreBaseIndexed(int rBase, int r_index, int r_src, int scale, OpSize size);
-    LIR* StoreBaseIndexedDisp(int rBase, int r_index, int scale, int displacement,
-                                      int r_src, int r_src_hi, OpSize size, int s_reg);
-    void MarkGCCard(int val_reg, int tgt_addr_reg);
+    RegStorage LoadHelper(ThreadOffset offset);
+    LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
+                      int s_reg);
+    LIR* LoadBaseDispWide(RegStorage r_base, int displacement, RegStorage r_dest, int s_reg);
+    LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale,
+                         OpSize size);
+    // TODO: collapse r_dest, r_dest_hi
+    LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
+                             RegStorage r_dest, RegStorage r_dest_hi, OpSize size, int s_reg);
+    LIR* LoadConstantNoClobber(RegStorage r_dest, int value);
+    LIR* LoadConstantWide(RegStorage r_dest, int64_t value);
+    LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src, OpSize size);
+    LIR* StoreBaseDispWide(RegStorage r_base, int displacement, RegStorage r_src);
+    LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
+                          OpSize size);
+    // TODO: collapse r_src, r_src_hi
+    LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
+                              RegStorage r_src, RegStorage r_src_hi, OpSize size, int s_reg);
+    void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg);
 
     // Required for target - register utilities.
     bool IsFpReg(int reg);
+    bool IsFpReg(RegStorage reg);
     bool SameRegType(int reg1, int reg2);
-    // TODO: for consistency, make this return a RegStorage as well?
-    int AllocTypedTemp(bool fp_hint, int reg_class);
+    RegStorage AllocTypedTemp(bool fp_hint, int reg_class);
     RegStorage AllocTypedTempWide(bool fp_hint, int reg_class);
     int S2d(int low_reg, int high_reg);
-    int TargetReg(SpecialTargetRegister reg);
-    int GetArgMappingToPhysicalReg(int arg_num);
+    RegStorage TargetReg(SpecialTargetRegister reg);
+    RegStorage GetArgMappingToPhysicalReg(int arg_num);
     RegLocation GetReturnAlt();
     RegLocation GetReturnWideAlt();
     RegLocation LocCReturn();
@@ -65,8 +69,8 @@ class X86Mir2Lir : public Mir2Lir {
     uint64_t GetRegMaskCommon(int reg);
     void AdjustSpillMask();
     void ClobberCallerSave();
-    void FlushReg(int reg);
-    void FlushRegWide(int reg1, int reg2);
+    void FlushReg(RegStorage reg);
+    void FlushRegWide(RegStorage reg);
     void FreeCallTemps();
     void FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free);
     void LockCallTemps();
@@ -89,23 +93,26 @@ class X86Mir2Lir : public Mir2Lir {
     bool IsUnconditionalBranch(LIR* lir);
 
     // Required for target - Dalvik-level generators.
-    void GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                                   RegLocation rl_src1, RegLocation rl_src2);
-    void GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
-                             RegLocation rl_index, RegLocation rl_dest, int scale);
+    void GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                           RegLocation rl_src2);
+    void GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array, RegLocation rl_index,
+                     RegLocation rl_dest, int scale);
     void GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
                      RegLocation rl_index, RegLocation rl_src, int scale, bool card_mark);
     void GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                            RegLocation rl_src1, RegLocation rl_shift);
-    void GenMulLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
-    void GenAddLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
-    void GenAndLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
-    void GenArithOpDouble(Instruction::Code opcode, RegLocation rl_dest,
-                                  RegLocation rl_src1, RegLocation rl_src2);
-    void GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest,
-                                 RegLocation rl_src1, RegLocation rl_src2);
-    void GenCmpFP(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+    void GenMulLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                    RegLocation rl_src2);
+    void GenAddLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                    RegLocation rl_src2);
+    void GenAndLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                    RegLocation rl_src2);
+    void GenArithOpDouble(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                           RegLocation rl_src2);
+    void GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                         RegLocation rl_src2);
+    void GenCmpFP(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                  RegLocation rl_src2);
     void GenConversion(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src);
     bool GenInlinedCas(CallInfo* info, bool is_long, bool is_object);
     bool GenInlinedMinMaxInt(CallInfo* info, bool is_min);
@@ -113,17 +120,21 @@ class X86Mir2Lir : public Mir2Lir {
     bool GenInlinedPeek(CallInfo* info, OpSize size);
     bool GenInlinedPoke(CallInfo* info, OpSize size);
     void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
-    void GenOrLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
-    void GenSubLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
-    void GenXorLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
-    LIR* GenRegMemCheck(ConditionCode c_code, int reg1, int base, int offset,
-                                ThrowKind kind);
-    LIR* GenMemImmedCheck(ConditionCode c_code, int base, int offset, int check_value,
+    void GenOrLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                   RegLocation rl_src2);
+    void GenSubLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                    RegLocation rl_src2);
+    void GenXorLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                    RegLocation rl_src2);
+    LIR* GenRegMemCheck(ConditionCode c_code, RegStorage reg1, RegStorage base, int offset,
+                        ThrowKind kind);
+    LIR* GenMemImmedCheck(ConditionCode c_code, RegStorage base, int offset, int check_value,
                           ThrowKind kind);
-    RegLocation GenDivRem(RegLocation rl_dest, int reg_lo, int reg_hi, bool is_div);
-    RegLocation GenDivRemLit(RegLocation rl_dest, int reg_lo, int lit, bool is_div);
+    // TODO: collapse reg_lo, reg_hi
+    RegLocation GenDivRem(RegLocation rl_dest, RegStorage reg_lo, RegStorage reg_hi, bool is_div);
+    RegLocation GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int lit, bool is_div);
     void GenCmpLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
-    void GenDivZeroCheck(int reg_lo, int reg_hi);
+    void GenDivZeroCheck(RegStorage reg);
     void GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method);
     void GenExitSequence();
     void GenSpecialExitSequence();
@@ -133,8 +144,8 @@ class X86Mir2Lir : public Mir2Lir {
     void GenSelect(BasicBlock* bb, MIR* mir);
     void GenMemBarrier(MemBarrierKind barrier_kind);
     void GenMoveException(RegLocation rl_dest);
-    void GenMultiplyByTwoBitMultiplier(RegLocation rl_src, RegLocation rl_result,
-                                               int lit, int first_bit, int second_bit);
+    void GenMultiplyByTwoBitMultiplier(RegLocation rl_src, RegLocation rl_result, int lit,
+                                       int first_bit, int second_bit);
     void GenNegDouble(RegLocation rl_dest, RegLocation rl_src);
     void GenNegFloat(RegLocation rl_dest, RegLocation rl_src);
     void GenPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
@@ -154,8 +165,8 @@ class X86Mir2Lir : public Mir2Lir {
      * @param rl_src2 constant source operand
      * @param op Opcode to be generated
      */
-    void GenLongLongImm(RegLocation rl_dest, RegLocation rl_src1,
-                        RegLocation rl_src2, Instruction::Code op);
+    void GenLongLongImm(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
+                        Instruction::Code op);
 
     /**
       * @brief Generate a long arithmetic operation.
@@ -165,8 +176,8 @@ class X86Mir2Lir : public Mir2Lir {
       * @param op The DEX opcode for the operation.
       * @param is_commutative The sources can be swapped if needed.
       */
-    void GenLongArith(RegLocation rl_dest, RegLocation rl_src1,
-                      RegLocation rl_src2, Instruction::Code op, bool is_commutative);
+    void GenLongArith(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
+                      Instruction::Code op, bool is_commutative);
 
     /**
       * @brief Generate a two operand long arithmetic operation.
@@ -191,8 +202,8 @@ class X86Mir2Lir : public Mir2Lir {
      * @param rl_dest Result to be set to 0 or 1.
      * @param rl_src Object to be tested.
      */
-    void GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
-                            RegLocation rl_dest, RegLocation rl_src);
+    void GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, RegLocation rl_dest,
+                            RegLocation rl_src);
     /*
      *
      * @brief Implement Set up instanceof a class with x86 specific code.
@@ -208,38 +219,37 @@ class X86Mir2Lir : public Mir2Lir {
     void GenInstanceofCallingHelper(bool needs_access_check, bool type_known_final,
                                     bool type_known_abstract, bool use_declaring_class,
                                     bool can_assume_type_is_in_dex_cache,
-                                    uint32_t type_idx, RegLocation rl_dest,
-                                    RegLocation rl_src);
+                                    uint32_t type_idx, RegLocation rl_dest, RegLocation rl_src);
 
     // Single operation generators.
     LIR* OpUnconditionalBranch(LIR* target);
-    LIR* OpCmpBranch(ConditionCode cond, int src1, int src2, LIR* target);
-    LIR* OpCmpImmBranch(ConditionCode cond, int reg, int check_value, LIR* target);
+    LIR* OpCmpBranch(ConditionCode cond, RegStorage src1, RegStorage src2, LIR* target);
+    LIR* OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_value, LIR* target);
     LIR* OpCondBranch(ConditionCode cc, LIR* target);
-    LIR* OpDecAndBranch(ConditionCode c_code, int reg, LIR* target);
-    LIR* OpFpRegCopy(int r_dest, int r_src);
+    LIR* OpDecAndBranch(ConditionCode c_code, RegStorage reg, LIR* target);
+    LIR* OpFpRegCopy(RegStorage r_dest, RegStorage r_src);
     LIR* OpIT(ConditionCode cond, const char* guide);
-    LIR* OpMem(OpKind op, int rBase, int disp);
-    LIR* OpPcRelLoad(int reg, LIR* target);
-    LIR* OpReg(OpKind op, int r_dest_src);
-    LIR* OpRegCopy(int r_dest, int r_src);
-    LIR* OpRegCopyNoInsert(int r_dest, int r_src);
-    LIR* OpRegImm(OpKind op, int r_dest_src1, int value);
-    LIR* OpRegMem(OpKind op, int r_dest, int rBase, int offset);
+    LIR* OpMem(OpKind op, RegStorage r_base, int disp);
+    LIR* OpPcRelLoad(RegStorage reg, LIR* target);
+    LIR* OpReg(OpKind op, RegStorage r_dest_src);
+    LIR* OpRegCopy(RegStorage r_dest, RegStorage r_src);
+    LIR* OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src);
+    LIR* OpRegImm(OpKind op, RegStorage r_dest_src1, int value);
+    LIR* OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int offset);
+    LIR* OpRegMem(OpKind op, RegStorage r_dest, RegLocation value);
     LIR* OpMemReg(OpKind op, RegLocation rl_dest, int value);
-    LIR* OpRegMem(OpKind op, int r_dest, RegLocation value);
-    LIR* OpRegReg(OpKind op, int r_dest_src1, int r_src2);
-    LIR* OpMovRegMem(int r_dest, int r_base, int offset, MoveType move_type);
-    LIR* OpMovMemReg(int r_base, int offset, int r_src, MoveType move_type);
-    LIR* OpCondRegReg(OpKind op, ConditionCode cc, int r_dest, int r_src);
-    LIR* OpRegRegImm(OpKind op, int r_dest, int r_src1, int value);
-    LIR* OpRegRegReg(OpKind op, int r_dest, int r_src1, int r_src2);
+    LIR* OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2);
+    LIR* OpMovRegMem(RegStorage r_dest, RegStorage r_base, int offset, MoveType move_type);
+    LIR* OpMovMemReg(RegStorage r_base, int offset, RegStorage r_src, MoveType move_type);
+    LIR* OpCondRegReg(OpKind op, ConditionCode cc, RegStorage r_dest, RegStorage r_src);
+    LIR* OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, int value);
+    LIR* OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2);
     LIR* OpTestSuspend(LIR* target);
     LIR* OpThreadMem(OpKind op, ThreadOffset thread_offset);
-    LIR* OpVldm(int rBase, int count);
-    LIR* OpVstm(int rBase, int count);
-    void OpLea(int rBase, int reg1, int reg2, int scale, int offset);
-    void OpRegCopyWide(int dest_lo, int dest_hi, int src_lo, int src_hi);
+    LIR* OpVldm(RegStorage r_base, int count);
+    LIR* OpVstm(RegStorage r_base, int count);
+    void OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int scale, int offset);
+    void OpRegCopyWide(RegStorage dest, RegStorage src);
     void OpTlsCmp(ThreadOffset offset, int val);
 
     void OpRegThreadMem(OpKind op, int r_dest, ThreadOffset thread_offset);
@@ -254,7 +264,7 @@ class X86Mir2Lir : public Mir2Lir {
     RegLocation UpdateLocWide(RegLocation loc);
     RegLocation EvalLocWide(RegLocation loc, int reg_class, bool update);
     RegLocation EvalLoc(RegLocation loc, int reg_class, bool update);
-    int AllocTempDouble();
+    RegStorage AllocTempDouble();
     void ResetDefLocWide(RegLocation rl);
 
     /*
@@ -264,8 +274,8 @@ class X86Mir2Lir : public Mir2Lir {
      * @param rl_lhs Left hand operand.
      * @param rl_rhs Right hand operand.
      */
-    void GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
-                       RegLocation rl_lhs, RegLocation rl_rhs);
+    void GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_lhs,
+                       RegLocation rl_rhs);
 
     /*
      * @brief Dump a RegLocation using printf
@@ -327,8 +337,7 @@ class X86Mir2Lir : public Mir2Lir {
     void EmitOpRegOpcode(const X86EncodingMap* entry, uint8_t reg);
     void EmitOpReg(const X86EncodingMap* entry, uint8_t reg);
     void EmitOpMem(const X86EncodingMap* entry, uint8_t base, int disp);
-    void EmitOpArray(const X86EncodingMap* entry, uint8_t base, uint8_t index,
-                     int scale, int disp);
+    void EmitOpArray(const X86EncodingMap* entry, uint8_t base, uint8_t index, int scale, int disp);
     void EmitMemReg(const X86EncodingMap* entry, uint8_t base, int disp, uint8_t reg);
     void EmitMemImm(const X86EncodingMap* entry, uint8_t base, int disp, int32_t imm);
     void EmitRegMem(const X86EncodingMap* entry, uint8_t reg, uint8_t base, int disp);
@@ -340,7 +349,8 @@ class X86Mir2Lir : public Mir2Lir {
     void EmitRegReg(const X86EncodingMap* entry, uint8_t reg1, uint8_t reg2);
     void EmitRegRegImm(const X86EncodingMap* entry, uint8_t reg1, uint8_t reg2, int32_t imm);
     void EmitRegRegImmRev(const X86EncodingMap* entry, uint8_t reg1, uint8_t reg2, int32_t imm);
-    void EmitRegMemImm(const X86EncodingMap* entry, uint8_t reg1, uint8_t base, int disp, int32_t imm);
+    void EmitRegMemImm(const X86EncodingMap* entry, uint8_t reg1, uint8_t base, int disp,
+                       int32_t imm);
     void EmitRegImm(const X86EncodingMap* entry, uint8_t reg, int imm);
     void EmitThreadImm(const X86EncodingMap* entry, int disp, int imm);
     void EmitMovRegImm(const X86EncodingMap* entry, uint8_t reg, int imm);
@@ -429,8 +439,8 @@ class X86Mir2Lir : public Mir2Lir {
      * @param is_div 'true' if this is a division, 'false' for a remainder.
      * @param check_zero 'true' if an exception should be generated if the divisor is 0.
      */
-    RegLocation GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
-                                  RegLocation rl_src2, bool is_div, bool check_zero);
+    RegLocation GenDivRem(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
+                          bool is_div, bool check_zero);
 
     /*
      * @brief Generate an integer div or rem operation by a literal.
@@ -457,7 +467,7 @@ class X86Mir2Lir : public Mir2Lir {
      * @param src Source Register.
      * @param val Constant multiplier.
      */
-    void GenImulRegImm(int dest, int src, int val);
+    void GenImulRegImm(RegStorage dest, RegStorage src, int val);
 
     /*
      * Generate an imul of a memory location by a constant or a better sequence.
@@ -466,7 +476,7 @@ class X86Mir2Lir : public Mir2Lir {
      * @param displacement Displacement on stack of Symbolic Register.
      * @param val Constant multiplier.
      */
-    void GenImulMemImm(int dest, int sreg, int displacement, int val);
+    void GenImulMemImm(RegStorage dest, int sreg, int displacement, int val);
 
     /*
      * @brief Compare memory to immediate, and branch if condition true.
@@ -477,7 +487,7 @@ class X86Mir2Lir : public Mir2Lir {
      * @param offset The offset from the base.
      * @param check_value The immediate to compare to.
      */
-    LIR* OpCmpMemImmBranch(ConditionCode cond, int temp_reg, int base_reg,
+    LIR* OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,
                            int offset, int check_value, LIR* target);
 
     /*

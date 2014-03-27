@@ -26,18 +26,18 @@
 
 namespace art {
 
-static int core_regs[] = {r_ZERO, r_AT, r_V0, r_V1, r_A0, r_A1, r_A2, r_A3,
-                          r_T0, r_T1, r_T2, r_T3, r_T4, r_T5, r_T6, r_T7,
-                          r_S0, r_S1, r_S2, r_S3, r_S4, r_S5, r_S6, r_S7, r_T8,
-                          r_T9, r_K0, r_K1, r_GP, r_SP, r_FP, r_RA};
-static int ReservedRegs[] = {r_ZERO, r_AT, r_S0, r_S1, r_K0, r_K1, r_GP, r_SP,
-                             r_RA};
-static int core_temps[] = {r_V0, r_V1, r_A0, r_A1, r_A2, r_A3, r_T0, r_T1, r_T2,
-                           r_T3, r_T4, r_T5, r_T6, r_T7, r_T8};
-static int FpRegs[] = {r_F0, r_F1, r_F2, r_F3, r_F4, r_F5, r_F6, r_F7,
-                       r_F8, r_F9, r_F10, r_F11, r_F12, r_F13, r_F14, r_F15};
-static int fp_temps[] = {r_F0, r_F1, r_F2, r_F3, r_F4, r_F5, r_F6, r_F7,
-                         r_F8, r_F9, r_F10, r_F11, r_F12, r_F13, r_F14, r_F15};
+static int core_regs[] = {rZERO, rAT, rV0, rV1, rA0, rA1, rA2, rA3,
+                          rT0, rT1, rT2, rT3, rT4, rT5, rT6, rT7,
+                          rS0, rS1, rS2, rS3, rS4, rS5, rS6, rS7, rT8,
+                          rT9, rK0, rK1, rGP, rSP, rFP, rRA};
+static int ReservedRegs[] = {rZERO, rAT, rS0, rS1, rK0, rK1, rGP, rSP,
+                             rRA};
+static int core_temps[] = {rV0, rV1, rA0, rA1, rA2, rA3, rT0, rT1, rT2,
+                           rT3, rT4, rT5, rT6, rT7, rT8};
+static int FpRegs[] = {rF0, rF1, rF2, rF3, rF4, rF5, rF6, rF7,
+                       rF8, rF9, rF10, rF11, rF12, rF13, rF14, rF15};
+static int fp_temps[] = {rF0, rF1, rF2, rF3, rF4, rF5, rF6, rF7,
+                         rF8, rF9, rF10, rF11, rF12, rF13, rF14, rF15};
 
 RegLocation MipsMir2Lir::LocCReturn() {
   return mips_loc_c_return;
@@ -56,43 +56,43 @@ RegLocation MipsMir2Lir::LocCReturnDouble() {
 }
 
 // Return a target-dependent special register.
-int MipsMir2Lir::TargetReg(SpecialTargetRegister reg) {
-  int res = INVALID_REG;
+RegStorage MipsMir2Lir::TargetReg(SpecialTargetRegister reg) {
+  int res_reg = RegStorage::kInvalidRegVal;
   switch (reg) {
-    case kSelf: res = rMIPS_SELF; break;
-    case kSuspend: res =  rMIPS_SUSPEND; break;
-    case kLr: res =  rMIPS_LR; break;
-    case kPc: res =  rMIPS_PC; break;
-    case kSp: res =  rMIPS_SP; break;
-    case kArg0: res = rMIPS_ARG0; break;
-    case kArg1: res = rMIPS_ARG1; break;
-    case kArg2: res = rMIPS_ARG2; break;
-    case kArg3: res = rMIPS_ARG3; break;
-    case kFArg0: res = rMIPS_FARG0; break;
-    case kFArg1: res = rMIPS_FARG1; break;
-    case kFArg2: res = rMIPS_FARG2; break;
-    case kFArg3: res = rMIPS_FARG3; break;
-    case kRet0: res = rMIPS_RET0; break;
-    case kRet1: res = rMIPS_RET1; break;
-    case kInvokeTgt: res = rMIPS_INVOKE_TGT; break;
-    case kHiddenArg: res = r_T0; break;
-    case kHiddenFpArg: res = INVALID_REG; break;
-    case kCount: res = rMIPS_COUNT; break;
+    case kSelf: res_reg = rMIPS_SELF; break;
+    case kSuspend: res_reg =  rMIPS_SUSPEND; break;
+    case kLr: res_reg =  rMIPS_LR; break;
+    case kPc: res_reg =  rMIPS_PC; break;
+    case kSp: res_reg =  rMIPS_SP; break;
+    case kArg0: res_reg = rMIPS_ARG0; break;
+    case kArg1: res_reg = rMIPS_ARG1; break;
+    case kArg2: res_reg = rMIPS_ARG2; break;
+    case kArg3: res_reg = rMIPS_ARG3; break;
+    case kFArg0: res_reg = rMIPS_FARG0; break;
+    case kFArg1: res_reg = rMIPS_FARG1; break;
+    case kFArg2: res_reg = rMIPS_FARG2; break;
+    case kFArg3: res_reg = rMIPS_FARG3; break;
+    case kRet0: res_reg = rMIPS_RET0; break;
+    case kRet1: res_reg = rMIPS_RET1; break;
+    case kInvokeTgt: res_reg = rMIPS_INVOKE_TGT; break;
+    case kHiddenArg: res_reg = rT0; break;
+    case kHiddenFpArg: res_reg = RegStorage::kInvalidRegVal; break;
+    case kCount: res_reg = rMIPS_COUNT; break;
   }
-  return res;
+  return RegStorage::Solo32(res_reg);
 }
 
-int MipsMir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
+RegStorage MipsMir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
   // For the 32-bit internal ABI, the first 3 arguments are passed in registers.
   switch (arg_num) {
     case 0:
-      return rMIPS_ARG1;
+      return rs_rMIPS_ARG1;
     case 1:
-      return rMIPS_ARG2;
+      return rs_rMIPS_ARG2;
     case 2:
-      return rMIPS_ARG3;
+      return rs_rMIPS_ARG3;
     default:
-      return INVALID_REG;
+      return RegStorage::InvalidReg();
   }
 }
 
@@ -311,7 +311,7 @@ void MipsMir2Lir::DumpResourceMask(LIR *mips_lir, uint64_t mask, const char *pre
  */
 
 void MipsMir2Lir::AdjustSpillMask() {
-  core_spill_mask_ |= (1 << r_RA);
+  core_spill_mask_ |= (1 << rRA);
   num_core_spills_++;
 }
 
@@ -325,9 +325,9 @@ void MipsMir2Lir::MarkPreservedSingle(int s_reg, int reg) {
   LOG(FATAL) << "No support yet for promoted FP regs";
 }
 
-void MipsMir2Lir::FlushRegWide(int reg1, int reg2) {
-  RegisterInfo* info1 = GetRegInfo(reg1);
-  RegisterInfo* info2 = GetRegInfo(reg2);
+void MipsMir2Lir::FlushRegWide(RegStorage reg) {
+  RegisterInfo* info1 = GetRegInfo(reg.GetLowReg());
+  RegisterInfo* info2 = GetRegInfo(reg.GetHighReg());
   DCHECK(info1 && info2 && info1->pair && info2->pair &&
          (info1->partner == info2->reg) &&
          (info2->partner == info1->reg));
@@ -342,16 +342,18 @@ void MipsMir2Lir::FlushRegWide(int reg1, int reg2) {
     if (mir_graph_->SRegToVReg(info2->s_reg) < mir_graph_->SRegToVReg(info1->s_reg))
       info1 = info2;
     int v_reg = mir_graph_->SRegToVReg(info1->s_reg);
-    StoreBaseDispWide(rMIPS_SP, VRegOffset(v_reg), info1->reg, info1->partner);
+    StoreBaseDispWide(rs_rMIPS_SP, VRegOffset(v_reg),
+                      RegStorage(RegStorage::k64BitPair, info1->reg, info1->partner));
   }
 }
 
-void MipsMir2Lir::FlushReg(int reg) {
-  RegisterInfo* info = GetRegInfo(reg);
+void MipsMir2Lir::FlushReg(RegStorage reg) {
+  DCHECK(!reg.IsPair());
+  RegisterInfo* info = GetRegInfo(reg.GetReg());
   if (info->live && info->dirty) {
     info->dirty = false;
     int v_reg = mir_graph_->SRegToVReg(info->s_reg);
-    StoreBaseDisp(rMIPS_SP, VRegOffset(v_reg), reg, kWord);
+    StoreBaseDisp(rs_rMIPS_SP, VRegOffset(v_reg), reg, kWord);
   }
 }
 
@@ -360,47 +362,51 @@ bool MipsMir2Lir::IsFpReg(int reg) {
   return MIPS_FPREG(reg);
 }
 
+bool MipsMir2Lir::IsFpReg(RegStorage reg) {
+  return IsFpReg(reg.IsPair() ? reg.GetLowReg() : reg.GetReg());
+}
+
 /* Clobber all regs that might be used by an external C call */
 void MipsMir2Lir::ClobberCallerSave() {
-  Clobber(r_ZERO);
-  Clobber(r_AT);
-  Clobber(r_V0);
-  Clobber(r_V1);
-  Clobber(r_A0);
-  Clobber(r_A1);
-  Clobber(r_A2);
-  Clobber(r_A3);
-  Clobber(r_T0);
-  Clobber(r_T1);
-  Clobber(r_T2);
-  Clobber(r_T3);
-  Clobber(r_T4);
-  Clobber(r_T5);
-  Clobber(r_T6);
-  Clobber(r_T7);
-  Clobber(r_T8);
-  Clobber(r_T9);
-  Clobber(r_K0);
-  Clobber(r_K1);
-  Clobber(r_GP);
-  Clobber(r_FP);
-  Clobber(r_RA);
-  Clobber(r_F0);
-  Clobber(r_F1);
-  Clobber(r_F2);
-  Clobber(r_F3);
-  Clobber(r_F4);
-  Clobber(r_F5);
-  Clobber(r_F6);
-  Clobber(r_F7);
-  Clobber(r_F8);
-  Clobber(r_F9);
-  Clobber(r_F10);
-  Clobber(r_F11);
-  Clobber(r_F12);
-  Clobber(r_F13);
-  Clobber(r_F14);
-  Clobber(r_F15);
+  Clobber(rZERO);
+  Clobber(rAT);
+  Clobber(rV0);
+  Clobber(rV1);
+  Clobber(rA0);
+  Clobber(rA1);
+  Clobber(rA2);
+  Clobber(rA3);
+  Clobber(rT0);
+  Clobber(rT1);
+  Clobber(rT2);
+  Clobber(rT3);
+  Clobber(rT4);
+  Clobber(rT5);
+  Clobber(rT6);
+  Clobber(rT7);
+  Clobber(rT8);
+  Clobber(rT9);
+  Clobber(rK0);
+  Clobber(rK1);
+  Clobber(rGP);
+  Clobber(rFP);
+  Clobber(rRA);
+  Clobber(rF0);
+  Clobber(rF1);
+  Clobber(rF2);
+  Clobber(rF3);
+  Clobber(rF4);
+  Clobber(rF5);
+  Clobber(rF6);
+  Clobber(rF7);
+  Clobber(rF8);
+  Clobber(rF9);
+  Clobber(rF10);
+  Clobber(rF11);
+  Clobber(rF12);
+  Clobber(rF13);
+  Clobber(rF14);
+  Clobber(rF15);
 }
 
 RegLocation MipsMir2Lir::GetReturnWideAlt() {
@@ -443,17 +449,15 @@ RegStorage MipsMir2Lir::AllocTypedTempWide(bool fp_hint, int reg_class) {
   int low_reg;
 
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
-    low_reg = AllocTempDouble();
-    high_reg = low_reg + 1;
-    return RegStorage(RegStorage::k64BitPair, low_reg, high_reg);
+    return AllocTempDouble();
   }
 
-  low_reg = AllocTemp();
-  high_reg = AllocTemp();
+  low_reg = AllocTemp().GetReg();
+  high_reg = AllocTemp().GetReg();
   return RegStorage(RegStorage::k64BitPair, low_reg, high_reg);
 }
 
-int MipsMir2Lir::AllocTypedTemp(bool fp_hint, int reg_class) {
+RegStorage MipsMir2Lir::AllocTypedTemp(bool fp_hint, int reg_class) {
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
     return AllocTempFloat();
 }
@@ -494,11 +498,14 @@ void MipsMir2Lir::CompilerInitializeRegAlloc() {
 }
 
 void MipsMir2Lir::FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free) {
-  if ((rl_free.reg.GetReg() != rl_keep.reg.GetReg()) && (rl_free.reg.GetReg() != rl_keep.reg.GetHighReg()) &&
-    (rl_free.reg.GetHighReg() != rl_keep.reg.GetReg()) && (rl_free.reg.GetHighReg() != rl_keep.reg.GetHighReg())) {
-    // No overlap, free both
-    FreeTemp(rl_free.reg.GetReg());
-    FreeTemp(rl_free.reg.GetHighReg());
+  DCHECK(rl_keep.wide);
+  DCHECK(rl_free.wide);
+  if ((rl_free.reg.GetLowReg() != rl_keep.reg.GetLowReg()) &&
+      (rl_free.reg.GetLowReg() != rl_keep.reg.GetHighReg()) &&
+      (rl_free.reg.GetHighReg() != rl_keep.reg.GetLowReg()) &&
+      (rl_free.reg.GetHighReg() != rl_keep.reg.GetHighReg())) {
+    // No overlap, free.
+    FreeTemp(rl_free.reg);
   }
 }
 /*
@@ -507,14 +514,14 @@ void MipsMir2Lir::FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free) {
  * ensure that all branch instructions can be restarted if
  * there is a trap in the shadow.  Allocate a temp register.
  */
-int MipsMir2Lir::LoadHelper(ThreadOffset offset) {
-  LoadWordDisp(rMIPS_SELF, offset.Int32Value(), r_T9);
-  return r_T9;
+RegStorage MipsMir2Lir::LoadHelper(ThreadOffset offset) {
+  LoadWordDisp(rs_rMIPS_SELF, offset.Int32Value(), rs_rT9);
+  return rs_rT9;
 }
 
 LIR* MipsMir2Lir::CheckSuspendUsingLoad() {
-  int tmp = AllocTemp();
-  LoadWordDisp(rMIPS_SELF, Thread::ThreadSuspendTriggerOffset().Int32Value(), tmp);
+  RegStorage tmp = AllocTemp();
+  LoadWordDisp(rs_rMIPS_SELF, Thread::ThreadSuspendTriggerOffset().Int32Value(), tmp);
   LIR *inst = LoadWordDisp(tmp, 0, tmp);
   FreeTemp(tmp);
   return inst;
@@ -526,11 +533,11 @@ void MipsMir2Lir::SpillCoreRegs() {
   }
   uint32_t mask = core_spill_mask_;
   int offset = num_core_spills_ * 4;
-  OpRegImm(kOpSub, rMIPS_SP, offset);
+  OpRegImm(kOpSub, rs_rSP, offset);
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
       offset -= 4;
-      StoreWordDisp(rMIPS_SP, offset, reg);
+      StoreWordDisp(rs_rMIPS_SP, offset, RegStorage::Solo32(reg));
     }
   }
 }
@@ -544,10 +551,10 @@ void MipsMir2Lir::UnSpillCoreRegs() {
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
       offset -= 4;
-      LoadWordDisp(rMIPS_SP, offset, reg);
+      LoadWordDisp(rs_rMIPS_SP, offset, RegStorage::Solo32(reg));
     }
   }
-  OpRegImm(kOpAdd, rMIPS_SP, frame_size_);
+  OpRegImm(kOpAdd, rs_rSP, frame_size_);
 }
 
 bool MipsMir2Lir::IsUnconditionalBranch(LIR* lir) {

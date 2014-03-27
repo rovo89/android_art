@@ -32,8 +32,8 @@ bool MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
 /*
  * The lack of pc-relative loads on Mips presents somewhat of a challenge
  * for our PIC switch table strategy.  To materialize the current location
- * we'll do a dummy JAL and reference our tables using r_RA as the
- * base register.  Note that r_RA will be used both as the base to
+ * we'll do a dummy JAL and reference our tables using rRA as the
+ * base register.  Note that rRA will be used both as the base to
  * locate the switch table data and as the reference base for the switch
  * target offsets stored in the table.  We'll use a special pseudo-instruction
  * to represent the jal and trigger the construction of the
@@ -42,21 +42,21 @@ bool MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
  *
  * The test loop will look something like:
  *
- *   ori   rEnd, r_ZERO, #table_size  ; size in bytes
- *   jal   BaseLabel         ; stores "return address" (BaseLabel) in r_RA
+ *   ori   r_end, rZERO, #table_size  ; size in bytes
+ *   jal   BaseLabel         ; stores "return address" (BaseLabel) in rRA
  *   nop                     ; opportunistically fill
  * BaseLabel:
- *   addiu rBase, r_RA, <table> - <BaseLabel>  ; table relative to BaseLabel
-     addu  rEnd, rEnd, rBase                   ; end of table
+ *   addiu r_base, rRA, <table> - <BaseLabel>    ; table relative to BaseLabel
+     addu  r_end, r_end, r_base                   ; end of table
  *   lw    r_val, [rSP, v_reg_off]                ; Test Value
  * loop:
- *   beq   rBase, rEnd, done
- *   lw    r_key, 0(rBase)
- *   addu  rBase, 8
+ *   beq   r_base, r_end, done
+ *   lw    r_key, 0(r_base)
+ *   addu  r_base, 8
  *   bne   r_val, r_key, loop
- *   lw    r_disp, -4(rBase)
- *   addu  r_RA, r_disp
- *   jr    r_RA
+ *   lw    r_disp, -4(r_base)
+ *   addu  rRA, r_disp
+ *   jr    rRA
  * done:
  *
  */
@@ -82,18 +82,18 @@ void MipsMir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset,
   int size_hi = byte_size >> 16;
   int size_lo = byte_size & 0xffff;
 
-  int rEnd = AllocTemp();
+  RegStorage r_end = AllocTemp();
   if (size_hi) {
-    NewLIR2(kMipsLui, rEnd, size_hi);
+    NewLIR2(kMipsLui, r_end.GetReg(), size_hi);
   }
   // Must prevent code motion for the curr pc pair
   GenBarrier();  // Scheduling barrier
   NewLIR0(kMipsCurrPC);  // Really a jal to .+8
   // Now, fill the branch delay slot
   if (size_hi) {
-    NewLIR3(kMipsOri, rEnd, rEnd, size_lo);
+    NewLIR3(kMipsOri, r_end.GetReg(), r_end.GetReg(), size_lo);
   } else {
-    NewLIR3(kMipsOri, rEnd, r_ZERO, size_lo);
+    NewLIR3(kMipsOri, r_end.GetReg(), rZERO, size_lo);
   }
   GenBarrier();  // Scheduling barrier
 
@@ -101,24 +101,24 @@ void MipsMir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset,
   LIR* base_label = NewLIR0(kPseudoTargetLabel);
   // Remember base label so offsets can be computed later
   tab_rec->anchor = base_label;
-  int rBase = AllocTemp();
-  NewLIR4(kMipsDelta, rBase, 0, WrapPointer(base_label), WrapPointer(tab_rec));
-  OpRegRegReg(kOpAdd, rEnd, rEnd, rBase);
+  RegStorage r_base = AllocTemp();
+  NewLIR4(kMipsDelta, r_base.GetReg(), 0, WrapPointer(base_label), WrapPointer(tab_rec));
+  OpRegRegReg(kOpAdd, r_end, r_end, r_base);
 
   // Grab switch test value
   rl_src = LoadValue(rl_src, kCoreReg);
 
   // Test loop
-  int r_key = AllocTemp();
+  RegStorage r_key = AllocTemp();
   LIR* loop_label = NewLIR0(kPseudoTargetLabel);
-  LIR* exit_branch = OpCmpBranch(kCondEq, rBase, rEnd, NULL);
-  LoadWordDisp(rBase, 0, r_key);
-  OpRegImm(kOpAdd, rBase, 8);
-  OpCmpBranch(kCondNe, rl_src.reg.GetReg(), r_key, loop_label);
-  int r_disp = AllocTemp();
-  LoadWordDisp(rBase, -4, r_disp);
-  OpRegRegReg(kOpAdd, r_RA, r_RA, r_disp);
-  OpReg(kOpBx, r_RA);
+  LIR* exit_branch = OpCmpBranch(kCondEq, r_base, r_end, NULL);
+  LoadWordDisp(r_base, 0, r_key);
+  OpRegImm(kOpAdd, r_base, 8);
+  OpCmpBranch(kCondNe, rl_src.reg, r_key, loop_label);
+  RegStorage r_disp = AllocTemp();
+  LoadWordDisp(r_base, -4, r_disp);
+  OpRegRegReg(kOpAdd, rs_rRA, rs_rRA, r_disp);
+  OpReg(kOpBx, rs_rRA);
 
   // Loop exit
   LIR* exit_label = NewLIR0(kPseudoTargetLabel);
@@ -129,13 +129,13 @@ void MipsMir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset,
  * Code pattern will look something like:
  *
  *   lw    r_val
- *   jal   BaseLabel         ; stores "return address" (BaseLabel) in r_RA
+ *   jal   BaseLabel         ; stores "return address" (BaseLabel) in rRA
  *   nop                     ; opportunistically fill
  *   [subiu r_val, bias]      ; Remove bias if low_val != 0
  *   bound check -> done
- *   lw    r_disp, [r_RA, r_val]
- *   addu  r_RA, r_disp
- *   jr    r_RA
+ *   lw    r_disp, [rRA, r_val]
+ *   addu  rRA, r_disp
+ *   jr    rRA
  * done:
  */
 void MipsMir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
@@ -160,9 +160,9 @@ void MipsMir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
   // Prepare the bias.  If too big, handle 1st stage here
   int low_key = s4FromSwitchData(&table[2]);
   bool large_bias = false;
-  int r_key;
+  RegStorage r_key;
   if (low_key == 0) {
-    r_key = rl_src.reg.GetReg();
+    r_key = rl_src.reg;
   } else if ((low_key & 0xffff) != low_key) {
     r_key = AllocTemp();
     LoadConstant(r_key, low_key);
@@ -179,9 +179,9 @@ void MipsMir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
     NewLIR0(kMipsNop);
   } else {
     if (large_bias) {
-      OpRegRegReg(kOpSub, r_key, rl_src.reg.GetReg(), r_key);
+      OpRegRegReg(kOpSub, r_key, rl_src.reg, r_key);
     } else {
-      OpRegRegImm(kOpSub, r_key, rl_src.reg.GetReg(), low_key);
+      OpRegRegImm(kOpSub, r_key, rl_src.reg, low_key);
     }
   }
   GenBarrier();  // Scheduling barrier
@@ -195,16 +195,16 @@ void MipsMir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
   LIR* branch_over = OpCmpImmBranch(kCondHi, r_key, size-1, NULL);
 
   // Materialize the table base pointer
-  int rBase = AllocTemp();
-  NewLIR4(kMipsDelta, rBase, 0, WrapPointer(base_label), WrapPointer(tab_rec));
+  RegStorage r_base = AllocTemp();
+  NewLIR4(kMipsDelta, r_base.GetReg(), 0, WrapPointer(base_label), WrapPointer(tab_rec));
 
   // Load the displacement from the switch table
-  int r_disp = AllocTemp();
-  LoadBaseIndexed(rBase, r_key, r_disp, 2, kWord);
+  RegStorage r_disp = AllocTemp();
+  LoadBaseIndexed(r_base, r_key, r_disp, 2, kWord);
 
-  // Add to r_AP and go
-  OpRegRegReg(kOpAdd, r_RA, r_RA, r_disp);
-  OpReg(kOpBx, r_RA);
+  // Add to rAP and go
+  OpRegRegReg(kOpAdd, rs_rRA, rs_rRA, r_disp);
+  OpReg(kOpBx, rs_rRA);
 
   /* branch_over target here */
   LIR* target = NewLIR0(kPseudoTargetLabel);
@@ -238,13 +238,13 @@ void MipsMir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
   // Making a call - use explicit registers
   FlushAllRegs();   /* Everything to home location */
   LockCallTemps();
-  LoadValueDirectFixed(rl_src, rMIPS_ARG0);
+  LoadValueDirectFixed(rl_src, rs_rMIPS_ARG0);
 
   // Must prevent code motion for the curr pc pair
   GenBarrier();
   NewLIR0(kMipsCurrPC);  // Really a jal to .+8
   // Now, fill the branch delay slot with the helper load
-  int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pHandleFillArrayData));
+  RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pHandleFillArrayData));
   GenBarrier();  // Scheduling barrier
 
   // Construct BaseLabel and set up table base register
@@ -262,10 +262,10 @@ void MipsMir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
 void MipsMir2Lir::GenMoveException(RegLocation rl_dest) {
   int ex_offset = Thread::ExceptionOffset().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  int reset_reg = AllocTemp();
-  LoadWordDisp(rMIPS_SELF, ex_offset, rl_result.reg.GetReg());
+  RegStorage reset_reg = AllocTemp();
+  LoadWordDisp(rs_rMIPS_SELF, ex_offset, rl_result.reg);
   LoadConstant(reset_reg, 0);
-  StoreWordDisp(rMIPS_SELF, ex_offset, reset_reg);
+  StoreWordDisp(rs_rMIPS_SELF, ex_offset, reset_reg);
   FreeTemp(reset_reg);
   StoreValue(rl_dest, rl_result);
 }
@@ -273,14 +273,13 @@ void MipsMir2Lir::GenMoveException(RegLocation rl_dest) {
 /*
  * Mark garbage collection card. Skip if the value we're storing is null.
  */
-void MipsMir2Lir::MarkGCCard(int val_reg, int tgt_addr_reg) {
-  int reg_card_base = AllocTemp();
-  int reg_card_no = AllocTemp();
+void MipsMir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
+  RegStorage reg_card_base = AllocTemp();
+  RegStorage reg_card_no = AllocTemp();
   LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
-  LoadWordDisp(rMIPS_SELF, Thread::CardTableOffset().Int32Value(), reg_card_base);
+  LoadWordDisp(rs_rMIPS_SELF, Thread::CardTableOffset().Int32Value(), reg_card_base);
   OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, gc::accounting::CardTable::kCardShift);
-  StoreBaseIndexed(reg_card_base, reg_card_no, reg_card_base, 0,
-                   kUnsignedByte);
+  StoreBaseIndexed(reg_card_base, reg_card_no, reg_card_base, 0, kUnsignedByte);
   LIR* target = NewLIR0(kPseudoTargetLabel);
   branch_over->target = target;
   FreeTemp(reg_card_base);
@@ -307,11 +306,11 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
   bool skip_overflow_check = (mir_graph_->MethodIsLeaf() &&
       (static_cast<size_t>(frame_size_) < Thread::kStackOverflowReservedBytes));
   NewLIR0(kPseudoMethodEntry);
-  int check_reg = AllocTemp();
-  int new_sp = AllocTemp();
+  RegStorage check_reg = AllocTemp();
+  RegStorage new_sp = AllocTemp();
   if (!skip_overflow_check) {
     /* Load stack limit */
-    LoadWordDisp(rMIPS_SELF, Thread::StackEndOffset().Int32Value(), check_reg);
+    LoadWordDisp(rs_rMIPS_SELF, Thread::StackEndOffset().Int32Value(), check_reg);
   }
   /* Spill core callee saves */
   SpillCoreRegs();
@@ -329,24 +328,24 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
         m2l_->ResetDefTracking();
         GenerateTargetLabel();
         // LR is offset 0 since we push in reverse order.
-        m2l_->LoadWordDisp(kMipsRegSP, 0, kMipsRegLR);
-        m2l_->OpRegImm(kOpAdd, kMipsRegSP, sp_displace_);
+        m2l_->LoadWordDisp(rs_rMIPS_SP, 0, rs_rRA);
+        m2l_->OpRegImm(kOpAdd, rs_rMIPS_SP, sp_displace_);
         m2l_->ClobberCallerSave();
         ThreadOffset func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowStackOverflow);
-        int r_tgt = m2l_->CallHelperSetup(func_offset);  // Doesn't clobber LR.
+        RegStorage r_tgt = m2l_->CallHelperSetup(func_offset);  // Doesn't clobber LR.
         m2l_->CallHelper(r_tgt, func_offset, false /* MarkSafepointPC */, false /* UseLink */);
       }
 
      private:
       const size_t sp_displace_;
     };
-    OpRegRegImm(kOpSub, new_sp, rMIPS_SP, frame_sub);
+    OpRegRegImm(kOpSub, new_sp, rs_rMIPS_SP, frame_sub);
     LIR* branch = OpCmpBranch(kCondUlt, new_sp, check_reg, nullptr);
     AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, spill_count * 4));
     // TODO: avoid copy for small frame sizes.
-    OpRegCopy(rMIPS_SP, new_sp);     // Establish stack
+    OpRegCopy(rs_rMIPS_SP, new_sp);     // Establish stack
   } else {
-    OpRegImm(kOpSub, rMIPS_SP, frame_sub);
+    OpRegImm(kOpSub, rs_rMIPS_SP, frame_sub);
   }
 
   FlushIns(ArgLocs, rl_method);
@@ -367,11 +366,11 @@ void MipsMir2Lir::GenExitSequence() {
 
   NewLIR0(kPseudoMethodExit);
   UnSpillCoreRegs();
-  OpReg(kOpBx, r_RA);
+  OpReg(kOpBx, rs_rRA);
 }
 
 void MipsMir2Lir::GenSpecialExitSequence() {
-  OpReg(kOpBx, r_RA);
+  OpReg(kOpBx, rs_rRA);
 }
 
 }  // namespace art

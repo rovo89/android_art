@@ -111,8 +111,8 @@ void MipsMir2Lir::GenArithOpDouble(Instruction::Code opcode,
   rl_result = EvalLoc(rl_dest, kFPReg, true);
   DCHECK(rl_dest.wide);
   DCHECK(rl_result.wide);
-  NewLIR3(op, S2d(rl_result.reg.GetReg(), rl_result.reg.GetHighReg()), S2d(rl_src1.reg.GetReg(), rl_src1.reg.GetHighReg()),
-          S2d(rl_src2.reg.GetReg(), rl_src2.reg.GetHighReg()));
+  NewLIR3(op, S2d(rl_result.reg.GetLowReg(), rl_result.reg.GetHighReg()), S2d(rl_src1.reg.GetLowReg(), rl_src1.reg.GetHighReg()),
+          S2d(rl_src2.reg.GetLowReg(), rl_src2.reg.GetHighReg()));
   StoreValueWide(rl_dest, rl_result);
 }
 
@@ -157,14 +157,14 @@ void MipsMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
   }
   if (rl_src.wide) {
     rl_src = LoadValueWide(rl_src, kFPReg);
-    src_reg = S2d(rl_src.reg.GetReg(), rl_src.reg.GetHighReg());
+    src_reg = S2d(rl_src.reg.GetLowReg(), rl_src.reg.GetHighReg());
   } else {
     rl_src = LoadValue(rl_src, kFPReg);
     src_reg = rl_src.reg.GetReg();
   }
   if (rl_dest.wide) {
     rl_result = EvalLoc(rl_dest, kFPReg, true);
-    NewLIR2(op, S2d(rl_result.reg.GetReg(), rl_result.reg.GetHighReg()), src_reg);
+    NewLIR2(op, S2d(rl_result.reg.GetLowReg(), rl_result.reg.GetHighReg()), src_reg);
     StoreValueWide(rl_dest, rl_result);
   } else {
     rl_result = EvalLoc(rl_dest, kFPReg, true);
@@ -199,13 +199,15 @@ void MipsMir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest,
   FlushAllRegs();
   LockCallTemps();
   if (wide) {
-    LoadValueDirectWideFixed(rl_src1, rMIPS_FARG0, rMIPS_FARG1);
-    LoadValueDirectWideFixed(rl_src2, rMIPS_FARG2, rMIPS_FARG3);
+    RegStorage r_tmp1(RegStorage::k64BitPair, rMIPS_FARG0, rMIPS_FARG1);
+    RegStorage r_tmp2(RegStorage::k64BitPair, rMIPS_FARG2, rMIPS_FARG3);
+    LoadValueDirectWideFixed(rl_src1, r_tmp1);
+    LoadValueDirectWideFixed(rl_src2, r_tmp2);
   } else {
-    LoadValueDirectFixed(rl_src1, rMIPS_FARG0);
-    LoadValueDirectFixed(rl_src2, rMIPS_FARG2);
+    LoadValueDirectFixed(rl_src1, rs_rMIPS_FARG0);
+    LoadValueDirectFixed(rl_src2, rs_rMIPS_FARG2);
   }
-  int r_tgt = LoadHelper(offset);
+  RegStorage r_tgt = LoadHelper(offset);
   // NOTE: not a safepoint
   OpReg(kOpBlx, r_tgt);
   RegLocation rl_result = GetReturn(false);
@@ -221,7 +223,7 @@ void MipsMir2Lir::GenNegFloat(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result;
   rl_src = LoadValue(rl_src, kCoreReg);
   rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  OpRegRegImm(kOpAdd, rl_result.reg.GetReg(), rl_src.reg.GetReg(), 0x80000000);
+  OpRegRegImm(kOpAdd, rl_result.reg, rl_src.reg, 0x80000000);
   StoreValue(rl_dest, rl_result);
 }
 
@@ -229,8 +231,8 @@ void MipsMir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result;
   rl_src = LoadValueWide(rl_src, kCoreReg);
   rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  OpRegRegImm(kOpAdd, rl_result.reg.GetHighReg(), rl_src.reg.GetHighReg(), 0x80000000);
-  OpRegCopy(rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  OpRegRegImm(kOpAdd, rl_result.reg.GetHigh(), rl_src.reg.GetHigh(), 0x80000000);
+  OpRegCopy(rl_result.reg, rl_src.reg);
   StoreValueWide(rl_dest, rl_result);
 }
 
