@@ -95,9 +95,13 @@ enum ThreadFlag {
 class PACKED(4) Thread {
  public:
   // Space to throw a StackOverflowError in.
-#if __LP64__
   // TODO: shrink reserved space, in particular for 64bit.
+#if defined(__x86_64__)
   static constexpr size_t kStackOverflowReservedBytes = 24 * KB;
+#elif defined(__aarch64__)
+  // Worst-case, we would need about 2.6x the amount of x86_64 for many more registers.
+  // But this one works rather well.
+  static constexpr size_t kStackOverflowReservedBytes = 32 * KB;
 #else
   static constexpr size_t kStackOverflowReservedBytes = 16 * KB;
 #endif
