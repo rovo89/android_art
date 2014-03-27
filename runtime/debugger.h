@@ -432,6 +432,13 @@ class Dbg {
       LOCKS_EXCLUDED(deoptimization_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Support delayed full undeoptimization requests. This is currently only used for single-step
+  // events.
+  static void DelayFullUndeoptimization() LOCKS_EXCLUDED(deoptimization_lock_);
+  static void ProcessDelayedFullUndeoptimizations()
+      LOCKS_EXCLUDED(deoptimization_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Manage deoptimization after updating JDWP events list. Suspends all threads, processes each
   // request and finally resumes all threads.
   static void ManageDeoptimization()
@@ -541,6 +548,10 @@ class Dbg {
   static void ProcessDeoptimizationRequest(const DeoptimizationRequest& request)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  static void RequestDeoptimizationLocked(const DeoptimizationRequest& req)
+      EXCLUSIVE_LOCKS_REQUIRED(deoptimization_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   static Mutex* alloc_tracker_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   static AllocRecord* recent_allocation_records_ PT_GUARDED_BY(alloc_tracker_lock_);
@@ -561,6 +572,10 @@ class Dbg {
   // Note: we fully deoptimize on the first event only (when the counter is set to 1). We fully
   // undeoptimize when the last event is unregistered (when the counter is set to 0).
   static size_t full_deoptimization_event_count_ GUARDED_BY(deoptimization_lock_);
+
+  // Count the number of full undeoptimization requests delayed to next resume or end of debug
+  // session.
+  static size_t delayed_full_undeoptimization_count_ GUARDED_BY(deoptimization_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(Dbg);
 };

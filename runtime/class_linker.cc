@@ -1620,9 +1620,10 @@ const void* ClassLinker::GetPortableOatCodeFor(mirror::ArtMethod* method,
   if (method->IsProxyMethod()) {
     return GetPortableProxyInvokeHandler();
   }
-  const void* result = GetOatMethodFor(method).GetPortableCode();
+  const OatFile::OatMethod oat_method = GetOatMethodFor(method);
+  const void* result = oat_method.GetPortableCode();
   if (result == nullptr) {
-    if (GetOatMethodFor(method).GetQuickCode() == nullptr) {
+    if (oat_method.GetQuickCode() == nullptr) {
       // No code? You must mean to go into the interpreter.
       result = GetPortableToInterpreterBridge();
     } else {

@@ -255,7 +255,7 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
   visitor.WalkStack(true);
   CHECK_EQ(visitor.dex_pcs_.size(), thread->GetInstrumentationStack()->size());
 
-  if (!instrumentation->ShouldNotifyMethodEnterExitEvents()) {
+  if (instrumentation->ShouldNotifyMethodEnterExitEvents()) {
     // Create method enter events for all methods currently on the thread's stack. We only do this
     // if no debugger is attached to prevent from posting events twice.
     typedef std::deque<InstrumentationStackFrame>::const_reverse_iterator It;
@@ -302,8 +302,9 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
       }
       bool removed_stub = false;
       // TODO: make this search more efficient?
-      for (InstrumentationStackFrame instrumentation_frame : *instrumentation_stack_) {
-        if (instrumentation_frame.frame_id_ == GetFrameId()) {
+      const size_t frameId = GetFrameId();
+      for (const InstrumentationStackFrame& instrumentation_frame : *instrumentation_stack_) {
+        if (instrumentation_frame.frame_id_ == frameId) {
           if (kVerboseInstrumentation) {
             LOG(INFO) << "  Removing exit stub in " << DescribeLocation();
           }
@@ -313,7 +314,7 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
             CHECK(m == instrumentation_frame.method_) << PrettyMethod(m);
           }
           SetReturnPc(instrumentation_frame.return_pc_);
-          if (!instrumentation_->ShouldNotifyMethodEnterExitEvents()) {
+          if (instrumentation_->ShouldNotifyMethodEnterExitEvents()) {
             // Create the method exit events. As the methods didn't really exit the result is 0.
             // We only do this if no debugger is attached to prevent from posting events twice.
             instrumentation_->MethodExitEvent(thread_, instrumentation_frame.this_object_, m,
@@ -439,7 +440,7 @@ void Instrumentation::ConfigureStubs(bool require_entry_exit_stubs, bool require
     // We're already set.
     return;
   }
-  Thread* self = Thread::Current();
+  Thread* const self = Thread::Current();
   Runtime* runtime = Runtime::Current();
   Locks::thread_list_lock_->AssertNotHeld(self);
   if (desired_level > 0) {
@@ -451,7 +452,7 @@ void Instrumentation::ConfigureStubs(bool require_entry_exit_stubs, bool require
     }
     runtime->GetClassLinker()->VisitClasses(InstallStubsClassVisitor, this);
     instrumentation_stubs_installed_ = true;
-    MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+    MutexLock mu(self, *Locks::thread_list_lock_);
     runtime->GetThreadList()->ForEach(InstrumentationInstallStack, this);
   } else {
     interpreter_stubs_installed_ = false;
@@ -657,7 +658,7 @@ void Instrumentation::DisableDeoptimization() {
 
 // Indicates if instrumentation should notify method enter/exit events to the listeners.
 bool Instrumentation::ShouldNotifyMethodEnterExitEvents() const {
-  return deoptimization_enabled_ || interpreter_stubs_installed_;
+  return !deoptimization_enabled_ && !interpreter_stubs_installed_;
 }
 
 void Instrumentation::DeoptimizeEverything() {
