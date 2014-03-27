@@ -49,6 +49,7 @@ public class Main {
         MirOpSelectTests.testIfCcz();
         ManyFloatArgs();
         atomicLong();
+        LiveFlags.test();
     }
 
     public static void atomicLong() {
@@ -8927,4 +8928,35 @@ class MirOpSelectTests {
             System.out.println("testIfCcz fails for" + fails.toString());
         }
     }
+}
+
+class LiveFlags {
+  private static void show_results(double a[], double b[], int trip) {
+    if ((a[0]+a[1]+b[0]+b[1]) == 0) {
+      System.out.println("LiveFlags passes trip " + trip);
+    } else {
+      System.out.println("LiveFlags fails trip " + trip);
+      System.out.println("a[0] = " + a[0] + " a[1] = " + a[1]);
+      System.out.println("b[0] = " + b[0] + " b[1] = " + b[1]);
+    }
+  }
+  static void test()
+  {
+    final double A[] = new double[2];
+    final double B[] = new double[2];
+    final double C[] = new double[2];
+    B[0] = B[1] = 0.0;
+    A[0] = A[1] = 0.0;
+    C[0] = C[1] = 0.0;
+    for (int i = 3; i >= 1; i--) {
+      if ( (i & 1) == 0) {
+        continue;
+      }
+      if ( (i & 2) != 0 ) {
+        B[1] = -B[1];
+      }
+      show_results(A, B, i);
+      A[0] = C[0]; A[1] = C[1];
+    }
+  }
 }
