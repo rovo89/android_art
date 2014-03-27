@@ -3767,22 +3767,27 @@ static size_t GetAllocTrackerMax() {
 }
 
 void Dbg::SetAllocTrackingEnabled(bool enabled) {
-  MutexLock mu(Thread::Current(), *alloc_tracker_lock_);
   if (enabled) {
-    if (recent_allocation_records_ == NULL) {
-      alloc_record_max_ = GetAllocTrackerMax();
-      LOG(INFO) << "Enabling alloc tracker (" << alloc_record_max_ << " entries of "
-                << kMaxAllocRecordStackDepth << " frames, taking "
-                << PrettySize(sizeof(AllocRecord) * alloc_record_max_) << ")";
-      alloc_record_head_ = alloc_record_count_ = 0;
-      recent_allocation_records_ = new AllocRecord[alloc_record_max_];
-      CHECK(recent_allocation_records_ != NULL);
+    {
+      MutexLock mu(Thread::Current(), *alloc_tracker_lock_);
+      if (recent_allocation_records_ == NULL) {
+        alloc_record_max_ = GetAllocTrackerMax();
+        LOG(INFO) << "Enabling alloc tracker (" << alloc_record_max_ << " entries of "
+            << kMaxAllocRecordStackDepth << " frames, taking "
+            << PrettySize(sizeof(AllocRecord) * alloc_record_max_) << ")";
+        alloc_record_head_ = alloc_record_count_ = 0;
+        recent_allocation_records_ = new AllocRecord[alloc_record_max_];
+        CHECK(recent_allocation_records_ != NULL);
+      }
     }
     Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints();
   } else {
     Runtime::Current()->GetInstrumentation()->UninstrumentQuickAllocEntryPoints();
-    delete[] recent_allocation_records_;
-    recent_allocation_records_ = NULL;
+    {
+      MutexLock mu(Thread::Current(), *alloc_tracker_lock_);
+      delete[] recent_allocation_records_;
+      recent_allocation_records_ = NULL;
+    }
   }
 }
 
