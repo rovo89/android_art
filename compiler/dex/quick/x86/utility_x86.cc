@@ -368,6 +368,7 @@ LIR* X86Mir2Lir::OpMemReg(OpKind op, RegLocation rl_dest, int r_value) {
       break;
   }
   LIR *l = NewLIR3(opcode, rX86_SP, displacement, r_value);
+  AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, false /* is_64bit */);
   AnnotateDalvikRegAccess(l, displacement >> 2, false /* is_load */, false /* is_64bit */);
   return l;
 }
