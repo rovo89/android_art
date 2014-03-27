@@ -658,9 +658,9 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   // Dump cumulative loggers for each GC type.
   uint64_t total_paused_time = 0;
   for (const auto& collector : garbage_collectors_) {
-    CumulativeLogger& logger = collector->GetCumulativeTimings();
+    const CumulativeLogger& logger = collector->GetCumulativeTimings();
     if (logger.GetTotalNs() != 0) {
-      os << Dumpable<CumulativeLogger>(logger);
+      os << ConstDumpable<CumulativeLogger>(logger);
       const uint64_t total_ns = logger.GetTotalNs();
       const uint64_t total_pause_ns = collector->GetTotalPausedTimeNs();
       double seconds = NsToMs(logger.GetTotalNs()) / 1000.0;
@@ -1440,7 +1440,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   // Can't call into java code with all threads suspended.
   EnqueueClearedReferences();
   uint64_t duration = NanoTime() - start_time;
-  GrowForUtilization(collector::kGcTypeFull, duration);
+  GrowForUtilization(semi_space_collector_);
   FinishGC(self, collector::kGcTypeFull);
   int32_t after_size = GetTotalMemory();
   int32_t delta_size = before_size - after_size;
@@ -1821,13 +1821,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
     gc_type = collector::kGcTypeFull;
   } else if (current_allocator_ == kAllocatorTypeRosAlloc ||
       current_allocator_ == kAllocatorTypeDlMalloc) {
-    for (const auto& cur_collector : garbage_collectors_) {
-      if (cur_collector->GetCollectorType() == collector_type_ &&
-          cur_collector->GetGcType() == gc_type) {
-        collector = cur_collector;
-        break;
-      }
-    }
+    collector = FindCollectorByGcType(gc_type);
   } else {
     LOG(FATAL) << "Invalid current allocator " << current_allocator_;
   }
@@ -1838,14 +1832,14 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   if (!clear_soft_references) {
     clear_soft_references = gc_type != collector::kGcTypeSticky;  // TODO: GSS?
   }
-  collector->Run(gc_cause, clear_soft_references || Runtime::Current()->IsZygote());
+  collector->Run(gc_cause, clear_soft_references || runtime->IsZygote());
   total_objects_freed_ever_ += collector->GetFreedObjects();
   total_bytes_freed_ever_ += collector->GetFreedBytes();
   RequestHeapTrim();
   // Enqueue cleared references.
   EnqueueClearedReferences();
   // Grow the heap so that we know when to perform the next GC.
-  GrowForUtilization(gc_type, collector->GetDurationNs());
+  GrowForUtilization(collector);
   if (CareAboutPauseTimes()) {
     const size_t duration = collector->GetDurationNs();
     std::vector<uint64_t> pauses = collector->GetPauseTimes();
@@ -1874,9 +1868,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
                   << percent_free << "% free, " << PrettySize(current_heap_size) << "/"
                   << PrettySize(total_memory) << ", " << "paused " << pause_string.str()
                   << " total " << PrettyDuration((duration / 1000) * 1000);
-        if (VLOG_IS_ON(heap)) {
-            LOG(INFO) << Dumpable<TimingLogger>(collector->GetTimings());
-        }
+        VLOG(heap) << ConstDumpable<TimingLogger>(collector->GetTimings());
     }
   }
   FinishGC(self, gc_type);
@@ -2479,13 +2471,24 @@ void Heap::UpdateMaxNativeFootprint() {
   native_footprint_limit_ = 2 * target_size - native_size;
 }
 
-void Heap::GrowForUtilization(collector::GcType gc_type, uint64_t gc_duration) {
+collector::GarbageCollector* Heap::FindCollectorByGcType(collector::GcType gc_type) {
+  for (const auto& collector : garbage_collectors_) {
+    if (collector->GetCollectorType() == collector_type_ &&
+        collector->GetGcType() == gc_type) {
+      return collector;
+    }
+  }
+  return nullptr;
+}
+
+void Heap::GrowForUtilization(collector::GarbageCollector* collector_ran) {
   // We know what our utilization is at this moment.
   // This doesn't actually resize any memory. It just lets the heap grow more when necessary.
   const size_t bytes_allocated = GetBytesAllocated();
   last_gc_size_ = bytes_allocated;
   last_gc_time_ns_ = NanoTime();
   size_t target_size;
+  collector::GcType gc_type = collector_ran->GetGcType();
   if (gc_type != collector::kGcTypeSticky) {
     // Grow the heap for non sticky GC.
     target_size = bytes_allocated / GetTargetHeapUtilization();
@@ -2497,12 +2500,22 @@ void Heap::GrowForUtilization(collector::GcType gc_type, uint64_t gc_duration) {
     native_need_to_run_finalization_ = true;
     next_gc_type_ = collector::kGcTypeSticky;
   } else {
-    // Based on how close the current heap size is to the target size, decide
-    // whether or not to do a partial or sticky GC next.
-    if (bytes_allocated + min_free_ <= max_allowed_footprint_) {
+    collector::GcType non_sticky_gc_type =
+        have_zygote_space_ ? collector::kGcTypePartial : collector::kGcTypeFull;
+    // Find what the next non sticky collector will be.
+    collector::GarbageCollector* non_sticky_collector = FindCollectorByGcType(non_sticky_gc_type);
+    // If the throughput of the current sticky GC >= throughput of the non sticky collector, then
+    // do another sticky collection next.
+    // We also check that the bytes allocated aren't over the footprint limit in order to prevent a
+    // pathological case where dead objects which aren't reclaimed by sticky could get accumulated
+    // if the sticky GC throughput always remained >= the full/partial throughput.
+    if (collector_ran->GetEstimatedLastIterationThroughput() >=
+        non_sticky_collector->GetEstimatedMeanThroughput() &&
+        non_sticky_collector->GetIterations() > 0 &&
+        bytes_allocated <= max_allowed_footprint_) {
       next_gc_type_ = collector::kGcTypeSticky;
     } else {
-      next_gc_type_ = have_zygote_space_ ? collector::kGcTypePartial : collector::kGcTypeFull;
+      next_gc_type_ = non_sticky_gc_type;
     }
     // If we have freed enough memory, shrink the heap back down.
     if (bytes_allocated + max_free_ < max_allowed_footprint_) {
@@ -2516,7 +2529,7 @@ void Heap::GrowForUtilization(collector::GcType gc_type, uint64_t gc_duration) {
     if (IsGcConcurrent()) {
       // Calculate when to perform the next ConcurrentGC.
       // Calculate the estimated GC duration.
-      const double gc_duration_seconds = NsToMs(gc_duration) / 1000.0;
+      const double gc_duration_seconds = NsToMs(collector_ran->GetDurationNs()) / 1000.0;
       // Estimate how many remaining bytes we will have when we need to start the next GC.
       size_t remaining_bytes = allocation_rate_ * gc_duration_seconds;
       remaining_bytes = std::min(remaining_bytes, kMaxConcurrentRemainingBytes);
