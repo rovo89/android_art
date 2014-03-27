@@ -53,43 +53,43 @@ RegLocation ArmMir2Lir::LocCReturnDouble() {
 }
 
 // Return a target-dependent special register.
-int ArmMir2Lir::TargetReg(SpecialTargetRegister reg) {
-  int res = INVALID_REG;
+RegStorage ArmMir2Lir::TargetReg(SpecialTargetRegister reg) {
+  int res_reg = RegStorage::kInvalidRegVal;
   switch (reg) {
-    case kSelf: res = rARM_SELF; break;
-    case kSuspend: res =  rARM_SUSPEND; break;
-    case kLr: res =  rARM_LR; break;
-    case kPc: res =  rARM_PC; break;
-    case kSp: res =  rARM_SP; break;
-    case kArg0: res = rARM_ARG0; break;
-    case kArg1: res = rARM_ARG1; break;
-    case kArg2: res = rARM_ARG2; break;
-    case kArg3: res = rARM_ARG3; break;
-    case kFArg0: res = rARM_FARG0; break;
-    case kFArg1: res = rARM_FARG1; break;
-    case kFArg2: res = rARM_FARG2; break;
-    case kFArg3: res = rARM_FARG3; break;
-    case kRet0: res = rARM_RET0; break;
-    case kRet1: res = rARM_RET1; break;
-    case kInvokeTgt: res = rARM_INVOKE_TGT; break;
-    case kHiddenArg: res = r12; break;
-    case kHiddenFpArg: res = INVALID_REG; break;
-    case kCount: res = rARM_COUNT; break;
+    case kSelf: res_reg = rARM_SELF; break;
+    case kSuspend: res_reg =  rARM_SUSPEND; break;
+    case kLr: res_reg =  rARM_LR; break;
+    case kPc: res_reg =  rARM_PC; break;
+    case kSp: res_reg =  rARM_SP; break;
+    case kArg0: res_reg = rARM_ARG0; break;
+    case kArg1: res_reg = rARM_ARG1; break;
+    case kArg2: res_reg = rARM_ARG2; break;
+    case kArg3: res_reg = rARM_ARG3; break;
+    case kFArg0: res_reg = rARM_FARG0; break;
+    case kFArg1: res_reg = rARM_FARG1; break;
+    case kFArg2: res_reg = rARM_FARG2; break;
+    case kFArg3: res_reg = rARM_FARG3; break;
+    case kRet0: res_reg = rARM_RET0; break;
+    case kRet1: res_reg = rARM_RET1; break;
+    case kInvokeTgt: res_reg = rARM_INVOKE_TGT; break;
+    case kHiddenArg: res_reg = r12; break;
+    case kHiddenFpArg: res_reg = RegStorage::kInvalidRegVal; break;
+    case kCount: res_reg = rARM_COUNT; break;
   }
-  return res;
+  return RegStorage::Solo32(res_reg);
 }
 
-int ArmMir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
+RegStorage ArmMir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
   // For the 32-bit internal ABI, the first 3 arguments are passed in registers.
   switch (arg_num) {
     case 0:
-      return rARM_ARG1;
+      return rs_rARM_ARG1;
     case 1:
-      return rARM_ARG2;
+      return rs_rARM_ARG2;
     case 2:
-      return rARM_ARG3;
+      return rs_rARM_ARG3;
     default:
-      return INVALID_REG;
+      return RegStorage::InvalidReg();
   }
 }
 
@@ -528,20 +528,16 @@ Mir2Lir* ArmCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 
 // Alloc a pair of core registers, or a double.
 RegStorage ArmMir2Lir::AllocTypedTempWide(bool fp_hint, int reg_class) {
-  int high_reg;
-  int low_reg;
-
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
-    low_reg = AllocTempDouble();
-    high_reg = low_reg + 1;
+    return AllocTempDouble();
   } else {
-    low_reg = AllocTemp();
-    high_reg = AllocTemp();
+    RegStorage low_reg = AllocTemp();
+    RegStorage high_reg = AllocTemp();
+    return RegStorage::MakeRegPair(low_reg, high_reg);
   }
-  return RegStorage(RegStorage::k64BitPair, low_reg, high_reg);
 }
 
-int ArmMir2Lir::AllocTypedTemp(bool fp_hint, int reg_class) {
+RegStorage ArmMir2Lir::AllocTypedTemp(bool fp_hint, int reg_class) {
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg))
     return AllocTempFloat();
   return AllocTemp();
@@ -583,15 +579,18 @@ void ArmMir2Lir::CompilerInitializeRegAlloc() {
   reg_pool_->next_core_reg = r2;
 }
 
-void ArmMir2Lir::FreeRegLocTemps(RegLocation rl_keep,
-                     RegLocation rl_free) {
-  if ((rl_free.reg.GetReg() != rl_keep.reg.GetReg()) && (rl_free.reg.GetReg() != rl_keep.reg.GetHighReg()) &&
-    (rl_free.reg.GetHighReg() != rl_keep.reg.GetReg()) && (rl_free.reg.GetHighReg() != rl_keep.reg.GetHighReg())) {
-    // No overlap, free both
-    FreeTemp(rl_free.reg.GetReg());
-    FreeTemp(rl_free.reg.GetHighReg());
+void ArmMir2Lir::FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free) {
+  DCHECK(rl_keep.wide);
+  DCHECK(rl_free.wide);
+  if ((rl_free.reg.GetLowReg() != rl_keep.reg.GetLowReg()) &&
+      (rl_free.reg.GetLowReg() != rl_keep.reg.GetHighReg()) &&
+      (rl_free.reg.GetHighReg() != rl_keep.reg.GetLowReg()) &&
+      (rl_free.reg.GetHighReg() != rl_keep.reg.GetHighReg())) {
+    // No overlap, free.
+    FreeTemp(rl_free.reg);
   }
 }
+
 /*
  * TUNING: is true leaf?  Can't just use METHOD_IS_LEAF to determine as some
  * instructions might call out to C/assembly helper functions.  Until
@@ -624,9 +623,9 @@ void ArmMir2Lir::MarkPreservedSingle(int v_reg, int reg) {
   fp_spill_mask_ = ((1 << num_fp_spills_) - 1) << ARM_FP_CALLEE_SAVE_BASE;
 }
 
-void ArmMir2Lir::FlushRegWide(int reg1, int reg2) {
-  RegisterInfo* info1 = GetRegInfo(reg1);
-  RegisterInfo* info2 = GetRegInfo(reg2);
+void ArmMir2Lir::FlushRegWide(RegStorage reg) {
+  RegisterInfo* info1 = GetRegInfo(reg.GetLowReg());
+  RegisterInfo* info2 = GetRegInfo(reg.GetHighReg());
   DCHECK(info1 && info2 && info1->pair && info2->pair &&
        (info1->partner == info2->reg) &&
        (info2->partner == info1->reg));
@@ -642,22 +641,28 @@ void ArmMir2Lir::FlushRegWide(int reg1, int reg2) {
       mir_graph_->SRegToVReg(info1->s_reg))
       info1 = info2;
     int v_reg = mir_graph_->SRegToVReg(info1->s_reg);
-    StoreBaseDispWide(rARM_SP, VRegOffset(v_reg), info1->reg, info1->partner);
+    StoreBaseDispWide(rs_rARM_SP, VRegOffset(v_reg),
+                      RegStorage(RegStorage::k64BitPair, info1->reg, info1->partner));
   }
 }
 
-void ArmMir2Lir::FlushReg(int reg) {
-  RegisterInfo* info = GetRegInfo(reg);
+void ArmMir2Lir::FlushReg(RegStorage reg) {
+  DCHECK(!reg.IsPair());
+  RegisterInfo* info = GetRegInfo(reg.GetReg());
   if (info->live && info->dirty) {
     info->dirty = false;
     int v_reg = mir_graph_->SRegToVReg(info->s_reg);
-    StoreBaseDisp(rARM_SP, VRegOffset(v_reg), reg, kWord);
+    StoreBaseDisp(rs_rARM_SP, VRegOffset(v_reg), reg, kWord);
   }
 }
 
 /* Give access to the target-dependent FP register encoding to common code */
 bool ArmMir2Lir::IsFpReg(int reg) {
   return ARM_FPREG(reg);
+}
+
+bool ArmMir2Lir::IsFpReg(RegStorage reg) {
+  return IsFpReg(reg.IsPair() ? reg.GetLowReg() : reg.GetReg());
 }
 
 /* Clobber all regs that might be used by an external C call */
@@ -694,7 +699,7 @@ RegLocation ArmMir2Lir::GetReturnWideAlt() {
   Clobber(r3);
   MarkInUse(r2);
   MarkInUse(r3);
-  MarkPair(res.reg.GetReg(), res.reg.GetHighReg());
+  MarkPair(res.reg.GetLowReg(), res.reg.GetHighReg());
   return res;
 }
 
@@ -722,14 +727,14 @@ void ArmMir2Lir::FreeCallTemps() {
   FreeTemp(r3);
 }
 
-int ArmMir2Lir::LoadHelper(ThreadOffset offset) {
-  LoadWordDisp(rARM_SELF, offset.Int32Value(), rARM_LR);
-  return rARM_LR;
+RegStorage ArmMir2Lir::LoadHelper(ThreadOffset offset) {
+  LoadWordDisp(rs_rARM_SELF, offset.Int32Value(), rs_rARM_LR);
+  return rs_rARM_LR;
 }
 
 LIR* ArmMir2Lir::CheckSuspendUsingLoad() {
-  int tmp = r0;
-  LoadWordDisp(rARM_SELF, Thread::ThreadSuspendTriggerOffset().Int32Value(), tmp);
+  RegStorage tmp = rs_r0;
+  LoadWordDisp(rs_rARM_SELF, Thread::ThreadSuspendTriggerOffset().Int32Value(), tmp);
   LIR* load2 = LoadWordDisp(tmp, 0, tmp);
   return load2;
 }

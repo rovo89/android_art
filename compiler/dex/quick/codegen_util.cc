@@ -1113,7 +1113,7 @@ bool Mir2Lir::BadOverlap(RegLocation rl_src, RegLocation rl_dest) {
   return (abs(mir_graph_->SRegToVReg(rl_src.s_reg_low) - mir_graph_->SRegToVReg(rl_dest.s_reg_low)) == 1);
 }
 
-LIR *Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, int temp_reg, int base_reg,
+LIR *Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,
                                 int offset, int check_value, LIR* target) {
   // Handle this for architectures that can't compare to memory.
   LoadWordDisp(base_reg, offset, temp_reg);
@@ -1166,6 +1166,14 @@ void Mir2Lir::LoadClassType(uint32_t type_idx, SpecialTargetRegister symbolic_re
 std::vector<uint8_t>* Mir2Lir::ReturnCallFrameInformation() {
   // Default case is to do nothing.
   return nullptr;
+}
+
+RegLocation Mir2Lir::NarrowRegLoc(RegLocation loc) {
+  loc.wide = false;
+  if (loc.reg.IsPair()) {
+    loc.reg = loc.reg.GetLow();
+  }
+  return loc;
 }
 
 }  // namespace art
