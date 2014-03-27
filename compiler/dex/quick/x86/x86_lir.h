@@ -189,22 +189,52 @@ enum X86NativeRegisterPool {
   fr15 = 15 + X86_FP_REG_OFFSET,
 };
 
+const RegStorage rs_r0(RegStorage::k32BitSolo, r0);
+const RegStorage rs_rAX = rs_r0;
+const RegStorage rs_r1(RegStorage::k32BitSolo, r1);
+const RegStorage rs_rCX = rs_r1;
+const RegStorage rs_r2(RegStorage::k32BitSolo, r2);
+const RegStorage rs_rDX = rs_r2;
+const RegStorage rs_r3(RegStorage::k32BitSolo, r3);
+const RegStorage rs_rBX = rs_r3;
+const RegStorage rs_r4sp(RegStorage::k32BitSolo, r4sp);
+const RegStorage rs_rX86_SP = rs_r4sp;
+const RegStorage rs_r5(RegStorage::k32BitSolo, r5);
+const RegStorage rs_rBP = rs_r5;
+const RegStorage rs_r6(RegStorage::k32BitSolo, r6);
+const RegStorage rs_rSI = rs_r6;
+const RegStorage rs_r7(RegStorage::k32BitSolo, r7);
+const RegStorage rs_rDI = rs_r7;
+
+// TODO: elminate these #defines?
 #define rX86_ARG0 rAX
+#define rs_rX86_ARG0 rs_rAX
 #define rX86_ARG1 rCX
+#define rs_rX86_ARG1 rs_rCX
 #define rX86_ARG2 rDX
+#define rs_rX86_ARG2 rs_rDX
 #define rX86_ARG3 rBX
+#define rs_rX86_ARG3 rs_rBX
 #define rX86_FARG0 rAX
+#define rs_rX86_FARG0 rs_rAX
 #define rX86_FARG1 rCX
+#define rs_rX86_FARG1 rs_rCX
 #define rX86_FARG2 rDX
+#define rs_rX86_FARG2 rs_rDX
 #define rX86_FARG3 rBX
+#define rs_rX86_FARG3 rs_rBX
 #define rX86_RET0 rAX
+#define rs_rX86_RET0 rs_rAX
 #define rX86_RET1 rDX
+#define rs_rX86_RET1 rs_rDX
 #define rX86_INVOKE_TGT rAX
-#define rX86_LR INVALID_REG
-#define rX86_SUSPEND INVALID_REG
-#define rX86_SELF INVALID_REG
+#define rs_rX86_INVOKE_TGT rs_rAX
+#define rX86_LR RegStorage::kInvalidRegVal
+#define rX86_SUSPEND RegStorage::kInvalidRegVal
+#define rX86_SELF RegStorage::kInvalidRegVal
 #define rX86_COUNT rCX
-#define rX86_PC INVALID_REG
+#define rs_rX86_COUNT rs_rCX
+#define rX86_PC RegStorage::kInvalidRegVal
 
 // RegisterLocation templates return values (r_V0, or r_V0/r_V1).
 const RegLocation x86_loc_c_return

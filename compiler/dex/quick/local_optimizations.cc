@@ -39,7 +39,7 @@ static bool IsDalvikRegisterClobbered(LIR* lir1, LIR* lir2) {
 }
 
 /* Convert a more expensive instruction (ie load) into a move */
-void Mir2Lir::ConvertMemOpIntoMove(LIR* orig_lir, int dest, int src) {
+void Mir2Lir::ConvertMemOpIntoMove(LIR* orig_lir, RegStorage dest, RegStorage src) {
   /* Insert a move to replace the load */
   LIR* move_lir;
   move_lir = OpRegCopyNoInsert(dest, src);
@@ -169,7 +169,9 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
              * a move
              */
             if (check_lir->operands[0] != native_reg_id) {
-              ConvertMemOpIntoMove(check_lir, check_lir->operands[0], native_reg_id);
+              // TODO: update for 64-bit regs.
+              ConvertMemOpIntoMove(check_lir, RegStorage::Solo32(check_lir->operands[0]),
+                                   RegStorage::Solo32(native_reg_id));
             }
             NopLIR(check_lir);
           }
@@ -186,9 +188,10 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
                  * Different destination register -
                  * insert a move
                  */
-                if (check_lir->operands[0] !=
-                  native_reg_id) {
-                  ConvertMemOpIntoMove(check_lir, check_lir->operands[0], native_reg_id);
+                if (check_lir->operands[0] != native_reg_id) {
+                  // TODO: update for 64-bit regs.
+                  ConvertMemOpIntoMove(check_lir, RegStorage::Solo32(check_lir->operands[0]),
+                                       RegStorage::Solo32(native_reg_id));
                 }
                 NopLIR(check_lir);
               } else {
