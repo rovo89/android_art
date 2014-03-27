@@ -91,7 +91,7 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
 };
 
 // A discontinuous large object space implemented by individual mmap/munmap calls.
-class LargeObjectMapSpace FINAL : public LargeObjectSpace {
+class LargeObjectMapSpace : public LargeObjectSpace {
  public:
   // Creates a large object space. Allocations into the large object space use memory maps instead
   // of malloc.
@@ -106,7 +106,7 @@ class LargeObjectMapSpace FINAL : public LargeObjectSpace {
   // TODO: disabling thread safety analysis as this may be called when we already hold lock_.
   bool Contains(const mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS;
 
- private:
+ protected:
   explicit LargeObjectMapSpace(const std::string& name);
   virtual ~LargeObjectMapSpace() {}
 
@@ -115,7 +115,7 @@ class LargeObjectMapSpace FINAL : public LargeObjectSpace {
   std::vector<mirror::Object*,
       accounting::GcAllocator<mirror::Object*> > large_objects_ GUARDED_BY(lock_);
   typedef SafeMap<mirror::Object*, MemMap*, std::less<mirror::Object*>,
-      accounting::GcAllocator<std::pair<const mirror::Object*, MemMap*> > > MemMaps;
+      accounting::GcAllocator<std::pair<mirror::Object*, MemMap*> > > MemMaps;
   MemMaps mem_maps_ GUARDED_BY(lock_);
 };
 
@@ -150,7 +150,7 @@ class FreeListSpace FINAL : public LargeObjectSpace {
 
   void Dump(std::ostream& os) const;
 
- private:
+ protected:
   static const size_t kAlignment = kPageSize;
 
   class AllocationHeader {
