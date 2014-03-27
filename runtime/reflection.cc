@@ -543,76 +543,58 @@ bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c) {
 
 bool ConvertPrimitiveValue(const ThrowLocation* throw_location, bool unbox_for_result,
                            Primitive::Type srcType, Primitive::Type dstType,
-                           const JValue& src, JValue& dst) {
-  CHECK(srcType != Primitive::kPrimNot && dstType != Primitive::kPrimNot);
+                           const JValue& src, JValue* dst) {
+  DCHECK(srcType != Primitive::kPrimNot && dstType != Primitive::kPrimNot);
+  if (LIKELY(srcType == dstType)) {
+    dst->SetJ(src.GetJ());
+    return true;
+  }
   switch (dstType) {
-  case Primitive::kPrimBoolean:
-    if (srcType == Primitive::kPrimBoolean) {
-      dst.SetZ(src.GetZ());
-      return true;
-    }
-    break;
-  case Primitive::kPrimChar:
-    if (srcType == Primitive::kPrimChar) {
-      dst.SetC(src.GetC());
-      return true;
-    }
-    break;
+  case Primitive::kPrimBoolean:  // Fall-through.
+  case Primitive::kPrimChar:  // Fall-through.
   case Primitive::kPrimByte:
-    if (srcType == Primitive::kPrimByte) {
-      dst.SetB(src.GetB());
-      return true;
-    }
+    // Only expect assignment with source and destination of identical type.
     break;
   case Primitive::kPrimShort:
-    if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimShort) {
-      dst.SetS(src.GetI());
+    if (srcType == Primitive::kPrimByte) {
+      dst->SetS(src.GetI());
       return true;
     }
     break;
   case Primitive::kPrimInt:
     if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
-        srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
-      dst.SetI(src.GetI());
+        srcType == Primitive::kPrimShort) {
+      dst->SetI(src.GetI());
       return true;
     }
     break;
   case Primitive::kPrimLong:
     if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
         srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
-      dst.SetJ(src.GetI());
-      return true;
-    } else if (srcType == Primitive::kPrimLong) {
-      dst.SetJ(src.GetJ());
+      dst->SetJ(src.GetI());
       return true;
     }
     break;
   case Primitive::kPrimFloat:
     if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
         srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
-      dst.SetF(src.GetI());
+      dst->SetF(src.GetI());
       return true;
     } else if (srcType == Primitive::kPrimLong) {
-      dst.SetF(src.GetJ());
-      return true;
-    } else if (srcType == Primitive::kPrimFloat) {
-      dst.SetF(src.GetF());
+      dst->SetF(src.GetJ());
       return true;
     }
     break;
   case Primitive::kPrimDouble:
     if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
         srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
-      dst.SetD(src.GetI());
+      dst->SetD(src.GetI());
       return true;
     } else if (srcType == Primitive::kPrimLong) {
-      dst.SetD(src.GetJ());
+      dst->SetD(src.GetJ());
       return true;
     } else if (srcType == Primitive::kPrimFloat) {
-      dst.SetD(src.GetF());
-      return true;
-    } else if (srcType == Primitive::kPrimDouble) {
-      dst.SetJ(src.GetJ());
+      dst->SetD(src.GetF());
       return true;
     }
     break;
@@ -642,7 +624,7 @@ mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
     return nullptr;
   }
 
-  jmethodID m = NULL;
+  jmethodID m = nullptr;
   const char* shorty;
   switch (src_class) {
   case Primitive::kPrimBoolean:
@@ -698,29 +680,25 @@ mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
   return result.GetL();
 }
 
-static std::string UnboxingFailureKind(mirror::ArtMethod* m, int index, mirror::ArtField* f)
+static std::string UnboxingFailureKind(mirror::ArtField* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (m != NULL && index != -1) {
-    ++index;  // Humans count from 1.
-    return StringPrintf("method %s argument %d", PrettyMethod(m, false).c_str(), index);
-  }
-  if (f != NULL) {
+  if (f != nullptr) {
     return "field " + PrettyField(f, false);
   }
   return "result";
 }
 
 static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* o,
-                           mirror::Class* dst_class, JValue& unboxed_value,
-                           mirror::ArtMethod* m, int index, mirror::ArtField* f)
+                           mirror::Class* dst_class, mirror::ArtField* f,
+                           JValue* unboxed_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  bool unbox_for_result = (f == NULL) && (index == -1);
+  bool unbox_for_result = (f == nullptr);
   if (!dst_class->IsPrimitive()) {
-    if (UNLIKELY(o != NULL && !o->InstanceOf(dst_class))) {
+    if (UNLIKELY(o != nullptr && !o->InstanceOf(dst_class))) {
       if (!unbox_for_result) {
         ThrowIllegalArgumentException(throw_location,
                                       StringPrintf("%s has type %s, got %s",
-                                                   UnboxingFailureKind(m, index, f).c_str(),
+                                                   UnboxingFailureKind(f).c_str(),
                                                    PrettyDescriptor(dst_class).c_str(),
                                                    PrettyTypeOf(o).c_str()).c_str());
       } else {
@@ -731,20 +709,20 @@ static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* 
       }
       return false;
     }
-    unboxed_value.SetL(o);
+    unboxed_value->SetL(o);
     return true;
   }
   if (UNLIKELY(dst_class->GetPrimitiveType() == Primitive::kPrimVoid)) {
     ThrowIllegalArgumentException(throw_location,
                                   StringPrintf("Can't unbox %s to void",
-                                               UnboxingFailureKind(m, index, f).c_str()).c_str());
+                                               UnboxingFailureKind(f).c_str()).c_str());
     return false;
   }
-  if (UNLIKELY(o == NULL)) {
+  if (UNLIKELY(o == nullptr)) {
     if (!unbox_for_result) {
       ThrowIllegalArgumentException(throw_location,
                                     StringPrintf("%s has type %s, got null",
-                                                 UnboxingFailureKind(m, index, f).c_str(),
+                                                 UnboxingFailureKind(f).c_str(),
                                                  PrettyDescriptor(dst_class).c_str()).c_str());
     } else {
       ThrowNullPointerException(throw_location,
@@ -756,7 +734,7 @@ static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* 
 
   JValue boxed_value;
   const StringPiece src_descriptor(ClassHelper(o->GetClass()).GetDescriptor());
-  mirror::Class* src_class = NULL;
+  mirror::Class* src_class = nullptr;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   mirror::ArtField* primitive_field = o->GetClass()->GetIFields()->Get(0);
   if (src_descriptor == "Ljava/lang/Boolean;") {
@@ -786,7 +764,7 @@ static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* 
   } else {
     ThrowIllegalArgumentException(throw_location,
                                   StringPrintf("%s has type %s, got %s",
-                                               UnboxingFailureKind(m, index, f).c_str(),
+                                               UnboxingFailureKind(f).c_str(),
                                                PrettyDescriptor(dst_class).c_str(),
                                                PrettyDescriptor(src_descriptor.data()).c_str()).c_str());
     return false;
@@ -797,21 +775,15 @@ static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* 
                                boxed_value, unboxed_value);
 }
 
-bool UnboxPrimitiveForArgument(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value,
-                               mirror::ArtMethod* m, size_t index) {
-  CHECK(m != NULL);
-  return UnboxPrimitive(NULL, o, dst_class, unboxed_value, m, index, NULL);
-}
-
-bool UnboxPrimitiveForField(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value,
-                            mirror::ArtField* f) {
-  CHECK(f != NULL);
-  return UnboxPrimitive(NULL, o, dst_class, unboxed_value, NULL, -1, f);
+bool UnboxPrimitiveForField(mirror::Object* o, mirror::Class* dst_class, mirror::ArtField* f,
+                            JValue* unboxed_value) {
+  DCHECK(f != nullptr);
+  return UnboxPrimitive(nullptr, o, dst_class, f, unboxed_value);
 }
 
 bool UnboxPrimitiveForResult(const ThrowLocation& throw_location, mirror::Object* o,
-                             mirror::Class* dst_class, JValue& unboxed_value) {
-  return UnboxPrimitive(&throw_location, o, dst_class, unboxed_value, NULL, -1, NULL);
+                             mirror::Class* dst_class, JValue* unboxed_value) {
+  return UnboxPrimitive(&throw_location, o, dst_class, nullptr, unboxed_value);
 }
 
 }  // namespace art
