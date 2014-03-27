@@ -226,6 +226,12 @@ DISASSEMBLER_ENTRY(cmp,
     opcode << "j" << condition_codes[*instr & 0xF];
     branch_bytes = 1;
     break;
+  case 0x86: case 0x87:
+    opcode << "xchg";
+    store = true;
+    has_modrm = true;
+    byte_operand = (*instr == 0x86);
+    break;
   case 0x88: opcode << "mov"; store = true; has_modrm = true; byte_operand = true; break;
   case 0x89: opcode << "mov"; store = true; has_modrm = true; break;
   case 0x8A: opcode << "mov"; load = true; has_modrm = true; byte_operand = true; break;

@@ -372,6 +372,8 @@ class X86Mir2Lir : public Mir2Lir {
     void OpVectorRegCopyWide(uint8_t fp_reg, uint8_t low_reg, uint8_t high_reg);
     void GenConstWide(RegLocation rl_dest, int64_t value);
 
+    static bool ProvidesFullMemoryBarrier(X86OpCode opcode);
+
     /*
      * @brief generate inline code for fast case of Strng.indexOf.
      * @param info Call parameters

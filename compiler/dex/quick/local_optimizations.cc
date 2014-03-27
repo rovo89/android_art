@@ -92,7 +92,10 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
         ((target_flags & (REG_DEF0 | REG_DEF1)) == (REG_DEF0 | REG_DEF1)) ||  // Skip wide loads.
         ((target_flags & (REG_USE0 | REG_USE1 | REG_USE2)) ==
          (REG_USE0 | REG_USE1 | REG_USE2)) ||  // Skip wide stores.
-        !(target_flags & (IS_LOAD | IS_STORE))) {
+        // Skip instructions that are neither loads or stores.
+        !(target_flags & (IS_LOAD | IS_STORE)) ||
+        // Skip instructions that do both load and store.
+        ((target_flags & (IS_STORE | IS_LOAD)) == (IS_STORE | IS_LOAD))) {
       continue;
     }
 
@@ -293,7 +296,8 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
     /* Skip non-interesting instructions */
     if (!(target_flags & IS_LOAD) ||
         (this_lir->flags.is_nop == true) ||
-        ((target_flags & (REG_DEF0 | REG_DEF1)) == (REG_DEF0 | REG_DEF1))) {
+        ((target_flags & (REG_DEF0 | REG_DEF1)) == (REG_DEF0 | REG_DEF1)) ||
+        ((target_flags & (IS_STORE | IS_LOAD)) == (IS_STORE | IS_LOAD))) {
       continue;
     }
 
