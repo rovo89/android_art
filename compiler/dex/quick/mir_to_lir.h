@@ -84,6 +84,10 @@ typedef uint32_t CodeOffset;         // Native code offset in bytes.
 #define SETS_CCODES          (1ULL << kSetsCCodes)
 #define USES_CCODES          (1ULL << kUsesCCodes)
 #define USE_FP_STACK         (1ULL << kUseFpStack)
+#define REG_USE_LO           (1ULL << kUseLo)
+#define REG_USE_HI           (1ULL << kUseHi)
+#define REG_DEF_LO           (1ULL << kDefLo)
+#define REG_DEF_HI           (1ULL << kDefHi)
 
 // Common combo register usage patterns.
 #define REG_DEF01            (REG_DEF0 | REG_DEF1)

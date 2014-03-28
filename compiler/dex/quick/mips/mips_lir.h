@@ -90,14 +90,12 @@ namespace art {
 #define MIPS_FP_REG_OFFSET 32
 // Offset to distinguish DP FP regs.
 #define MIPS_FP_DOUBLE 64
-// Offset to distingish the extra regs.
-#define MIPS_EXTRA_REG_OFFSET 128
 // Reg types.
 #define MIPS_REGTYPE(x) (x & (MIPS_FP_REG_OFFSET | MIPS_FP_DOUBLE))
 #define MIPS_FPREG(x) ((x & MIPS_FP_REG_OFFSET) == MIPS_FP_REG_OFFSET)
-#define MIPS_EXTRAREG(x) ((x & MIPS_EXTRA_REG_OFFSET) == MIPS_EXTRA_REG_OFFSET)
 #define MIPS_DOUBLEREG(x) ((x & MIPS_FP_DOUBLE) == MIPS_FP_DOUBLE)
 #define MIPS_SINGLEREG(x) (MIPS_FPREG(x) && !MIPS_DOUBLEREG(x))
+// FIXME: out of date comment.
 /*
  * Note: the low register of a floating point pair is sufficient to
  * create the name of a double, but require both names to be passed to
@@ -157,6 +155,8 @@ enum MipsResourceEncodingPos {
 #define ENCODE_MIPS_REG_SP           (1ULL << kMipsRegSP)
 #define ENCODE_MIPS_REG_LR           (1ULL << kMipsRegLR)
 #define ENCODE_MIPS_REG_PC           (1ULL << kMipsRegPC)
+#define ENCODE_MIPS_REG_HI           (1ULL << kMipsRegHI)
+#define ENCODE_MIPS_REG_LO           (1ULL << kMipsRegLO)
 
 enum MipsNativeRegisterPool {
   rZERO = 0,
@@ -248,9 +248,6 @@ enum MipsNativeRegisterPool {
   rDF14 = rF28 + MIPS_FP_DOUBLE,
   rDF15 = rF30 + MIPS_FP_DOUBLE,
 #endif
-  rHI = MIPS_EXTRA_REG_OFFSET,
-  rLO,
-  rPC,
 };
 
 const RegStorage rs_rZERO(RegStorage::k32BitSolo, rZERO);

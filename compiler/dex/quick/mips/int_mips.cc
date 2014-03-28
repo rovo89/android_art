@@ -229,12 +229,12 @@ LIR* MipsMir2Lir::GenRegMemCheck(ConditionCode c_code, RegStorage reg1, RegStora
 
 RegLocation MipsMir2Lir::GenDivRem(RegLocation rl_dest, RegStorage reg1, RegStorage reg2,
                                     bool is_div) {
-  NewLIR4(kMipsDiv, rHI, rLO, reg1.GetReg(), reg2.GetReg());
+  NewLIR2(kMipsDiv, reg1.GetReg(), reg2.GetReg());
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (is_div) {
-    NewLIR2(kMipsMflo, rl_result.reg.GetReg(), rLO);
+    NewLIR1(kMipsMflo, rl_result.reg.GetReg());
   } else {
-    NewLIR2(kMipsMfhi, rl_result.reg.GetReg(), rHI);
+    NewLIR1(kMipsMfhi, rl_result.reg.GetReg());
   }
   return rl_result;
 }
@@ -243,12 +243,12 @@ RegLocation MipsMir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg1, int 
                                        bool is_div) {
   int t_reg = AllocTemp().GetReg();
   NewLIR3(kMipsAddiu, t_reg, rZERO, lit);
-  NewLIR4(kMipsDiv, rHI, rLO, reg1.GetReg(), t_reg);
+  NewLIR2(kMipsDiv, reg1.GetReg(), t_reg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (is_div) {
-    NewLIR2(kMipsMflo, rl_result.reg.GetReg(), rLO);
+    NewLIR1(kMipsMflo, rl_result.reg.GetReg());
   } else {
-    NewLIR2(kMipsMfhi, rl_result.reg.GetReg(), rHI);
+    NewLIR1(kMipsMfhi, rl_result.reg.GetReg());
   }
   FreeTemp(t_reg);
   return rl_result;
