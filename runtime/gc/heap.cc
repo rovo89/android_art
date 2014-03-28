@@ -35,6 +35,7 @@
 #include "gc/accounting/mod_union_table-inl.h"
 #include "gc/accounting/remembered_set.h"
 #include "gc/accounting/space_bitmap-inl.h"
+#include "gc/collector/concurrent_copying.h"
 #include "gc/collector/mark_sweep-inl.h"
 #include "gc/collector/partial_mark_sweep.h"
 #include "gc/collector/semi_space.h"
@@ -328,6 +329,9 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     bool generational = post_zygote_collector_type_ == kCollectorTypeGSS;
     semi_space_collector_ = new collector::SemiSpace(this, generational);
     garbage_collectors_.push_back(semi_space_collector_);
+
+    concurrent_copying_collector_ = new collector::ConcurrentCopying(this);
+    garbage_collectors_.push_back(concurrent_copying_collector_);
   }
 
   if (running_on_valgrind_) {
@@ -1430,7 +1434,8 @@ void Heap::TransitionCollector(CollectorType collector_type) {
       break;
     }
     default: {
-      LOG(FATAL) << "Attempted to transition to invalid collector type";
+      LOG(FATAL) << "Attempted to transition to invalid collector type "
+                 << static_cast<size_t>(collector_type);
       break;
     }
   }
@@ -1460,6 +1465,7 @@ void Heap::ChangeCollector(CollectorType collector_type) {
     collector_type_ = collector_type;
     gc_plan_.clear();
     switch (collector_type_) {
+      case kCollectorTypeCC:  // Fall-through.
       case kCollectorTypeSS:  // Fall-through.
       case kCollectorTypeGSS: {
         gc_plan_.push_back(collector::kGcTypeFull);
@@ -1812,12 +1818,19 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   if (compacting_gc) {
     DCHECK(current_allocator_ == kAllocatorTypeBumpPointer ||
            current_allocator_ == kAllocatorTypeTLAB);
-    gc_type = semi_space_collector_->GetGcType();
-    CHECK(temp_space_->IsEmpty());
-    semi_space_collector_->SetFromSpace(bump_pointer_space_);
-    semi_space_collector_->SetToSpace(temp_space_);
+    if (collector_type_ == kCollectorTypeSS || collector_type_ == kCollectorTypeGSS) {
+      gc_type = semi_space_collector_->GetGcType();
+      semi_space_collector_->SetFromSpace(bump_pointer_space_);
+      semi_space_collector_->SetToSpace(temp_space_);
+      collector = semi_space_collector_;
+    } else if (collector_type_ == kCollectorTypeCC) {
+      gc_type = concurrent_copying_collector_->GetGcType();
+      collector = concurrent_copying_collector_;
+    } else {
+      LOG(FATAL) << "Unreachable - invalid collector type " << static_cast<size_t>(collector_type_);
+    }
     temp_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
-    collector = semi_space_collector_;
+    CHECK(temp_space_->IsEmpty());
     gc_type = collector::kGcTypeFull;
   } else if (current_allocator_ == kAllocatorTypeRosAlloc ||
       current_allocator_ == kAllocatorTypeDlMalloc) {
