@@ -81,7 +81,8 @@ Field name is cantTouchThis
  Field type is int
  Access flags are 0x11
   cantTouchThis is 77
-  cantTouchThis is now 99
+  as expected: set-final throws exception
+  cantTouchThis is still 77
   public final int Target.cantTouchThis accessible=false
   public final int Target.cantTouchThis accessible=true
   cantTouchThis is now 87

@@ -92,6 +92,11 @@ void ThrowIllegalAccessError(mirror::Class* referrer, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
+// IllegalAccessException
+
+void ThrowIllegalAccessException(const ThrowLocation* throw_location, const char* msg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
+
 // IllegalArgumentException
 
 void ThrowIllegalArgumentException(const ThrowLocation* throw_location, const char* msg)

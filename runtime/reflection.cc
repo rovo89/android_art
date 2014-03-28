@@ -26,6 +26,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/object_array.h"
 #include "mirror/object_array-inl.h"
+#include "nth_caller_visitor.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
 #include "stack.h"
@@ -461,7 +462,7 @@ void InvokeWithShadowFrame(Thread* self, ShadowFrame* shadow_frame, uint16_t arg
 }
 
 jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod,
-                     jobject javaReceiver, jobject javaArgs) {
+                     jobject javaReceiver, jobject javaArgs, bool accessible) {
   mirror::ArtMethod* m = mirror::ArtMethod::FromReflectedMethod(soa, javaMethod);
 
   mirror::Class* declaring_class = m->GetDeclaringClass();
@@ -497,6 +498,13 @@ jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod,
                                   StringPrintf("Wrong number of arguments; expected %d, got %d",
                                                classes_size, arg_count).c_str());
     return NULL;
+  }
+
+  // Validate access.
+  if (!accessible && !ValidateAccess(receiver, declaring_class, m->GetAccessFlags())) {
+    ThrowIllegalAccessException(nullptr, StringPrintf("Cannot access method: %s",
+                                                      PrettyMethod(m).c_str()).c_str());
+    return nullptr;
   }
 
   // Invoke the method.
@@ -784,6 +792,32 @@ bool UnboxPrimitiveForField(mirror::Object* o, mirror::Class* dst_class, mirror:
 bool UnboxPrimitiveForResult(const ThrowLocation& throw_location, mirror::Object* o,
                              mirror::Class* dst_class, JValue* unboxed_value) {
   return UnboxPrimitive(&throw_location, o, dst_class, nullptr, unboxed_value);
+}
+
+bool ValidateAccess(mirror::Object* obj, mirror::Class* declaring_class, uint32_t access_flags) {
+  NthCallerVisitor visitor(Thread::Current(), 2);
+  visitor.WalkStack();
+  mirror::Class* caller_class = visitor.caller->GetDeclaringClass();
+
+  if (((access_flags & kAccPublic) && declaring_class->IsPublic()) ||
+      caller_class == declaring_class) {
+    return true;
+  }
+  if (access_flags & kAccPrivate) {
+    return false;
+  }
+  if (access_flags & kAccProtected) {
+    if (obj != nullptr && !obj->InstanceOf(caller_class) &&
+        !declaring_class->IsInSamePackage(caller_class)) {
+      return false;
+    } else if (declaring_class->IsAssignableFrom(caller_class)) {
+      return true;
+    }
+  }
+  if (!declaring_class->IsInSamePackage(caller_class)) {
+    return false;
+  }
+  return true;
 }
 
 }  // namespace art
