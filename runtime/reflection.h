@@ -74,7 +74,7 @@ jobject InvokeMethod(const ScopedObjectAccess& soa, jobject method, jobject rece
 bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-bool ValidateAccess(mirror::Object* obj, mirror::Class* declaring_class, uint32_t access_flags)
+bool VerifyAccess(mirror::Object* obj, mirror::Class* declaring_class, uint32_t access_flags)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 }  // namespace art
