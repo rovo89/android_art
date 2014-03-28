@@ -142,6 +142,10 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
       FinishPhase();
       break;
     }
+    case kCollectorTypeCC: {
+      // To be implemented.
+      break;
+    }
     default: {
       LOG(FATAL) << "Unreachable collector type=" << static_cast<size_t>(collector_type);
       break;

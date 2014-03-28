@@ -52,6 +52,7 @@ LIBART_COMMON_SRC_FILES := \
 	gc/accounting/mod_union_table.cc \
 	gc/accounting/remembered_set.cc \
 	gc/accounting/space_bitmap.cc \
+	gc/collector/concurrent_copying.cc \
 	gc/collector/garbage_collector.cc \
 	gc/collector/immune_region.cc \
 	gc/collector/mark_sweep.cc \

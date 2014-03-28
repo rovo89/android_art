@@ -60,6 +60,7 @@ namespace accounting {
 }  // namespace accounting
 
 namespace collector {
+  class ConcurrentCopying;
   class GarbageCollector;
   class MarkSweep;
   class SemiSpace;
@@ -575,7 +576,8 @@ class Heap {
     return AllocatorHasAllocationStack(allocator_type);
   }
   static bool IsCompactingGC(CollectorType collector_type) {
-    return collector_type == kCollectorTypeSS || collector_type == kCollectorTypeGSS;
+    return collector_type == kCollectorTypeSS || collector_type == kCollectorTypeGSS ||
+        collector_type == kCollectorTypeCC;
   }
   bool ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -688,7 +690,7 @@ class Heap {
   // What kind of concurrency behavior is the runtime after? Currently true for concurrent mark
   // sweep GC, false for other GC types.
   bool IsGcConcurrent() const ALWAYS_INLINE {
-    return collector_type_ == kCollectorTypeCMS;
+    return collector_type_ == kCollectorTypeCMS || collector_type_ == kCollectorTypeCC;
   }
 
   // All-known continuous spaces, where objects lie within fixed bounds.
@@ -932,6 +934,7 @@ class Heap {
 
   std::vector<collector::GarbageCollector*> garbage_collectors_;
   collector::SemiSpace* semi_space_collector_;
+  collector::ConcurrentCopying* concurrent_copying_collector_;
 
   const bool running_on_valgrind_;
   const bool use_tlab_;
