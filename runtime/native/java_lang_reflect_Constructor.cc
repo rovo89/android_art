@@ -68,7 +68,7 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
   }
 
   jobject javaReceiver = soa.AddLocalReference<jobject>(receiver);
-  InvokeMethod(soa, javaMethod, javaReceiver, javaArgs, accessible);
+  InvokeMethod(soa, javaMethod, javaReceiver, javaArgs, (accessible == JNI_TRUE));
 
   // Constructors are ()V methods, so we shouldn't touch the result of InvokeMethod.
   return javaReceiver;
