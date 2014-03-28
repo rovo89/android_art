@@ -34,7 +34,8 @@ namespace art {
  * check.  We can also safely assume the constructor isn't associated
  * with an interface, array, or primitive class.
  */
-static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
+static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs,
+                                       jboolean accessible) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::ArtMethod* m = mirror::ArtMethod::FromReflectedMethod(soa, javaMethod);
   SirtRef<mirror::Class> c(soa.Self(), m->GetDeclaringClass());
@@ -67,14 +68,14 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
   }
 
   jobject javaReceiver = soa.AddLocalReference<jobject>(receiver);
-  InvokeMethod(soa, javaMethod, javaReceiver, javaArgs);
+  InvokeMethod(soa, javaMethod, javaReceiver, javaArgs, accessible);
 
   // Constructors are ()V methods, so we shouldn't touch the result of InvokeMethod.
   return javaReceiver;
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Constructor, newInstance, "!([Ljava/lang/Object;)Ljava/lang/Object;"),
+  NATIVE_METHOD(Constructor, newInstance, "!([Ljava/lang/Object;Z)Ljava/lang/Object;"),
 };
 
 void register_java_lang_reflect_Constructor(JNIEnv* env) {

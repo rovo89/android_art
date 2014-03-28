@@ -97,4 +97,9 @@ public class PublicClass extends ProtectedClass {
  /* package */ static float otherPublicClassPackageFloatStaticField = -63.0f;
  /* package */ static double otherPublicClassPackageDoubleStaticField = -64.0;
  /* package */ static Object otherPublicClassPackageObjectStaticField = "-65";
+
+    public void otherPublicMethod() { }
+    protected void otherProtectedMethod() { }
+    private void otherPrivateMethod() { }
+    /* package */ void otherPackageMethod() { }
 }

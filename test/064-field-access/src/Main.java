@@ -16,6 +16,7 @@
 
 import other.PublicClass;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 /*
  * Test field access through reflection.
@@ -192,6 +193,11 @@ class SamePackage {
   /* package */ static float samePackagePackageFloatStaticField = 63.0f;
   /* package */ static double samePackagePackageDoubleStaticField = 64.0;
   /* package */ static Object samePackagePackageObjectStaticField = "65";
+
+  public void samePublicMethod() { }
+  protected void sameProtectedMethod() { }
+  private void samePrivateMethod() { }
+  /* package */ void samePackageMethod() { }
 }
 
 /*
@@ -510,23 +516,32 @@ class SubClass extends PublicClass {
     for (int round = 0; round < 3; round++) {
       Object validInst;
       Field[] fields;
+      Method[] methods;
       boolean same_package = false;
+      boolean protected_class = false;
       switch (round) {
         case 0:
           validInst = new SamePackage();
           fields = SamePackage.class.getDeclaredFields();
           check(fields.length == 72);
+          methods = SamePackage.class.getDeclaredMethods();
+          check(methods.length == 4);
           same_package = true;
           break;
         case 1:
           validInst = new PublicClass();
           fields = PublicClass.class.getDeclaredFields();
           check(fields.length == 72);
+          methods = PublicClass.class.getDeclaredMethods();
+          check(methods.length == 4);
           break;
         default:
           validInst = new PublicClass();
           fields = PublicClass.class.getSuperclass().getDeclaredFields();
           check(fields.length == 72);
+          methods = PublicClass.class.getSuperclass().getDeclaredMethods();
+          check(methods.length == 4);
+          protected_class = true;
           break;
       }
       for (Field f : fields) {
@@ -540,16 +555,15 @@ class SubClass extends PublicClass {
         // Check access or lack of to field.
         Class<?> subClassAccessExceptionClass = null;
         if (f.getName().contains("Private") ||
-            (!same_package && f.getName().contains("Package"))) {
-          // ART deliberately doesn't throw IllegalAccessException.
-          // subClassAccessExceptionClass = IllegalAccessException.class;
+            (!same_package && f.getName().contains("Package")) ||
+            (!same_package && f.getName().contains("Protected"))) {
+          subClassAccessExceptionClass = IllegalAccessException.class;
         }
         Class<?> mainClassAccessExceptionClass = null;
         if (f.getName().contains("Private") ||
             (!same_package && f.getName().contains("Package")) ||
             (!same_package && f.getName().contains("Protected"))) {
-          // ART deliberately doesn't throw IllegalAccessException.
-          // mainClassAccessExceptionClass = IllegalAccessException.class;
+          mainClassAccessExceptionClass = IllegalAccessException.class;
         }
 
         this.getValue(f, validInst, typeChar, subClassAccessExceptionClass);
@@ -588,6 +602,16 @@ class SubClass extends PublicClass {
           }
         }
       }
+
+      for (Method m : methods) {
+        Class<?> subClassAccessExceptionClass = null;
+        if (protected_class || m.getName().contains("Private") ||
+            (!same_package && m.getName().contains("Package")) ||
+            (!same_package && m.getName().contains("Protected"))) {
+          subClassAccessExceptionClass = IllegalAccessException.class;
+        }
+        this.invoke(m, validInst, subClassAccessExceptionClass);
+      }
     }
     System.out.println("good");
   }
@@ -598,7 +622,6 @@ class SubClass extends PublicClass {
    */
   public Object getValue(Field field, Object obj, char type,
       Class expectedException) {
-
     Object result = null;
     try {
       switch (type) {
@@ -655,6 +678,31 @@ class SubClass extends PublicClass {
       }
     }
 
+    return result;
+  }
+
+  public Object invoke(Method method, Object obj, Class expectedException) {
+    Object result = null;
+    try {
+      result = method.invoke(obj);
+      /* success; expected? */
+      if (expectedException != null) {
+        System.err.println("ERROR: call succeeded for method " + method + "', was expecting " +
+                           expectedException);
+        Thread.dumpStack();
+      }
+    } catch (Exception ex) {
+      if (expectedException == null) {
+        System.err.println("ERROR: call failed unexpectedly: " + ex.getClass());
+        ex.printStackTrace();
+      } else {
+        if (!expectedException.equals(ex.getClass())) {
+          System.err.println("ERROR: incorrect exception: wanted " + expectedException.getName() +
+                             ", got " + ex.getClass());
+          ex.printStackTrace();
+        }
+      }
+    }
     return result;
   }
 }
