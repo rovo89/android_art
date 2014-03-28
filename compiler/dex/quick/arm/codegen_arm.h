@@ -22,14 +22,13 @@
 
 namespace art {
 
-class ArmMir2Lir FINAL : public Mir2Lir {
+class ArmMir2Lir : public Mir2Lir {
   public:
     ArmMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
     // Required for target - codegen helpers.
     bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div, RegLocation rl_src,
                             RegLocation rl_dest, int lit);
-    bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) OVERRIDE;
     LIR* CheckSuspendUsingLoad() OVERRIDE;
     RegStorage LoadHelper(ThreadOffset offset);
     LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
@@ -182,9 +181,8 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     LIR* LoadBaseDispBody(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
                           int s_reg);
     LIR* StoreBaseDispBody(RegStorage r_base, int displacement, RegStorage r_src, OpSize size);
-    LIR* OpRegRegRegShift(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2,
-                          int shift);
-    LIR* OpRegRegShift(OpKind op, RegStorage r_dest_src1, RegStorage r_src2, int shift);
+    LIR* OpRegRegRegShift(OpKind op, int r_dest, int r_src1, int r_src2, int shift);
+    LIR* OpRegRegShift(OpKind op, int r_dest_src1, int r_src2, int shift);
     static const ArmEncodingMap EncodingMap[kArmLast];
     int EncodeShift(int code, int amount);
     int ModifiedImmediate(uint32_t value);
@@ -204,13 +202,6 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     RegLocation GenDivRem(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
                           bool is_div, bool check_zero);
     RegLocation GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit, bool is_div);
-    typedef struct {
-      OpKind op;
-      uint32_t shift;
-    } EasyMultiplyOp;
-    bool GetEasyMultiplyOp(int lit, EasyMultiplyOp* op);
-    bool GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops);
-    void GenEasyMultiplyTwoOps(RegStorage r_dest, RegStorage r_src, EasyMultiplyOp* ops);
 };
 
 }  // namespace art
