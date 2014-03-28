@@ -129,7 +129,7 @@ class GarbageCollector {
   virtual void MarkingPhase() = 0;
 
   // Only called for concurrent GCs.
-  virtual void HandleDirtyObjectsPhase() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void PausePhase();
 
   // Called with mutators running.
   virtual void ReclaimPhase() = 0;

@@ -58,7 +58,7 @@ class MarkSweep : public GarbageCollector {
 
   virtual void InitializePhase() OVERRIDE;
   virtual void MarkingPhase() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  virtual void HandleDirtyObjectsPhase() OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void PausePhase() OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   virtual void ReclaimPhase() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   virtual void FinishPhase() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   virtual void MarkReachableObjects()
@@ -96,7 +96,7 @@ class MarkSweep : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void MarkRootsCheckpoint(Thread* self)
+  void MarkRootsCheckpoint(Thread* self, bool revoke_ros_alloc_thread_local_buffers_at_checkpoint)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -159,8 +159,8 @@ class MarkSweep : public GarbageCollector {
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
     EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  void SweepSystemWeaks()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
+  void SweepSystemWeaks(Thread* self)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   static mirror::Object* VerifySystemWeakIsLiveCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
@@ -223,17 +223,6 @@ class MarkSweep : public GarbageCollector {
   void MarkObjectNonNull(mirror::Object* obj)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  // Unmarks an object by clearing the bit inside of the corresponding bitmap, or if it is in a
-  // space set, removing the object from the set.
-  void UnMarkObjectNonNull(const mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  // Mark the vm thread roots.
-  void MarkThreadRoots(Thread* self)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Marks an object atomically, safe to use from multiple threads.
   void MarkObjectNonNullParallel(mirror::Object* obj);
