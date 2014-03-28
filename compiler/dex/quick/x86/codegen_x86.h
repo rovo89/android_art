@@ -22,14 +22,13 @@
 
 namespace art {
 
-class X86Mir2Lir FINAL : public Mir2Lir {
+class X86Mir2Lir : public Mir2Lir {
   public:
     X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
     // Required for target - codegen helpers.
     bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div, RegLocation rl_src,
                             RegLocation rl_dest, int lit);
-    bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) OVERRIDE;
     LIR* CheckSuspendUsingLoad() OVERRIDE;
     RegStorage LoadHelper(ThreadOffset offset);
     LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
