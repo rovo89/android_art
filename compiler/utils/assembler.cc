@@ -23,6 +23,7 @@
 #include "arm64/assembler_arm64.h"
 #include "mips/assembler_mips.h"
 #include "x86/assembler_x86.h"
+#include "x86_64/assembler_x86_64.h"
 #include "globals.h"
 #include "memory_region.h"
 
@@ -111,9 +112,10 @@ Assembler* Assembler::Create(InstructionSet instruction_set) {
       return new arm64::Arm64Assembler();
     case kMips:
       return new mips::MipsAssembler();
-    case kX86:  // Fall-through.
-    case kX86_64:
+    case kX86:
       return new x86::X86Assembler();
+    case kX86_64:
+      return new x86_64::X86_64Assembler();
     default:
       LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
       return NULL;

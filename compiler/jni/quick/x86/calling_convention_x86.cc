@@ -90,7 +90,7 @@ FrameOffset X86ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
                      (itr_slots_ * kPointerSize));  // offset into in args
 }
 
-const std::vector<ManagedRegister>& X86ManagedRuntimeCallingConvention::EntrySpills() {
+const ManagedRegisterEntrySpills& X86ManagedRuntimeCallingConvention::EntrySpills() {
   // We spill the argument registers on X86 to free them up for scratch use, we then assume
   // all arguments are on the stack.
   if (entry_spills_.size() == 0) {

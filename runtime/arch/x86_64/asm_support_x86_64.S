@@ -29,7 +29,7 @@
 
     // Clang's as(1) uses $0, $1, and so on for macro arguments.
     #define VAR(name,index) SYMBOL($index)
-    #define PLT_VAR(name, index) SYMBOL($index)
+    #define PLT_VAR(name, index) SYMBOL($index)@PLT
     #define REG_VAR(name,index) %$index
     #define CALL_MACRO(name,index) $index
     #define FUNCTION_TYPE(name,index) .type $index, @function

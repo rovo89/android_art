@@ -85,7 +85,7 @@ FrameOffset MipsManagedRuntimeCallingConvention::CurrentParamStackOffset() {
   return result;
 }
 
-const std::vector<ManagedRegister>& MipsManagedRuntimeCallingConvention::EntrySpills() {
+const ManagedRegisterEntrySpills& MipsManagedRuntimeCallingConvention::EntrySpills() {
   // We spill the argument registers on MIPS to free them up for scratch use, we then assume
   // all arguments are on the stack.
   if (entry_spills_.size() == 0) {

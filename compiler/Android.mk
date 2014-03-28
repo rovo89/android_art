@@ -69,6 +69,7 @@ LIBART_COMPILER_SRC_FILES := \
 	jni/quick/arm64/calling_convention_arm64.cc \
 	jni/quick/mips/calling_convention_mips.cc \
 	jni/quick/x86/calling_convention_x86.cc \
+	jni/quick/x86_64/calling_convention_x86_64.cc \
 	jni/quick/calling_convention.cc \
 	jni/quick/jni_compiler.cc \
 	optimizing/builder.cc \
@@ -89,6 +90,8 @@ LIBART_COMPILER_SRC_FILES := \
 	utils/mips/managed_register_mips.cc \
 	utils/x86/assembler_x86.cc \
 	utils/x86/managed_register_x86.cc \
+	utils/x86_64/assembler_x86_64.cc \
+	utils/x86_64/managed_register_x86_64.cc \
 	utils/scoped_arena_allocator.cc \
 	buffered_output_stream.cc \
 	compilers.cc \
