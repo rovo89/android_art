@@ -22,14 +22,13 @@
 
 namespace art {
 
-class MipsMir2Lir FINAL : public Mir2Lir {
+class MipsMir2Lir : public Mir2Lir {
   public:
     MipsMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
     // Required for target - codegen utilities.
     bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div, RegLocation rl_src,
                             RegLocation rl_dest, int lit);
-    bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) OVERRIDE;
     LIR* CheckSuspendUsingLoad() OVERRIDE;
     RegStorage LoadHelper(ThreadOffset offset);
     LIR* LoadBaseDisp(int r_base, int displacement, int r_dest, OpSize size, int s_reg);
