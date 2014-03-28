@@ -152,49 +152,38 @@ void MarkSweep::PreProcessReferences() {
   }
 }
 
-void MarkSweep::HandleDirtyObjectsPhase() {
-  TimingLogger::ScopedSplit split("(Paused)HandleDirtyObjectsPhase", &timings_);
+void MarkSweep::PausePhase() {
+  TimingLogger::ScopedSplit split("(Paused)PausePhase", &timings_);
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertExclusiveHeld(self);
-
-  {
+  if (IsConcurrent()) {
+    // Handle the dirty objects if we are a concurrent GC.
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-
     // Re-mark root set.
     ReMarkRoots();
-
     // Scan dirty objects, this is only required if we are not doing concurrent GC.
     RecursiveMarkDirtyObjects(true, accounting::CardTable::kCardDirty);
   }
-
   ProcessReferences(self);
-
-  // Only need to do this if we have the card mark verification on, and only during concurrent GC.
-  if (GetHeap()->verify_missing_card_marks_ || GetHeap()->verify_pre_gc_heap_||
-      GetHeap()->verify_post_gc_heap_) {
+  {
+    timings_.NewSplit("SwapStacks");
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    // This second sweep makes sure that we don't have any objects in the live stack which point to
-    // freed objects. These cause problems since their references may be previously freed objects.
-    SweepArray(GetHeap()->allocation_stack_.get(), false);
-    // Since SweepArray() above resets the (active) allocation
-    // stack. Need to revoke the thread-local allocation stacks that
-    // point into it.
+    heap_->SwapStacks(self);
+    live_stack_freeze_size_ = heap_->GetLiveStack()->Size();
+    // Need to revoke all the thread local allocation stacks since we just swapped the allocation
+    // stacks and don't want anybody to allocate into the live stack.
     RevokeAllThreadLocalAllocationStacks(self);
   }
-
   timings_.StartSplit("PreSweepingGcVerification");
   heap_->PreSweepingGcVerification(this);
   timings_.EndSplit();
-
-  // Ensure that nobody inserted items in the live stack after we swapped the stacks.
-  ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  CHECK_GE(live_stack_freeze_size_, GetHeap()->GetLiveStack()->Size());
-
-  // Disallow new system weaks to prevent a race which occurs when someone adds a new system
-  // weak before we sweep them. Since this new system weak may not be marked, the GC may
-  // incorrectly sweep it. This also fixes a race where interning may attempt to return a strong
-  // reference to a string that is about to be swept.
-  Runtime::Current()->DisallowNewSystemWeaks();
+  if (IsConcurrent()) {
+    // Disallow new system weaks to prevent a race which occurs when someone adds a new system
+    // weak before we sweep them. Since this new system weak may not be marked, the GC may
+    // incorrectly sweep it. This also fixes a race where interning may attempt to return a strong
+    // reference to a string that is about to be swept.
+    Runtime::Current()->DisallowNewSystemWeaks();
+  }
 }
 
 void MarkSweep::PreCleanCards() {
@@ -216,7 +205,7 @@ void MarkSweep::PreCleanCards() {
     // reference write are visible to the GC before the card is scanned (this is due to locks being
     // acquired / released in the checkpoint code).
     // The other roots are also marked to help reduce the pause.
-    MarkThreadRoots(self);
+    MarkRootsCheckpoint(self, false);
     MarkNonThreadRoots();
     MarkConcurrentRoots(
         static_cast<VisitRootFlags>(kVisitRootFlagClearRootLog | kVisitRootFlagNewRoots));
@@ -229,6 +218,7 @@ void MarkSweep::PreCleanCards() {
 
 void MarkSweep::RevokeAllThreadLocalAllocationStacks(Thread* self) {
   if (kUseThreadLocalAllocationStack) {
+    timings_.NewSplit("RevokeAllThreadLocalAllocationStacks");
     Locks::mutator_lock_->AssertExclusiveHeld(self);
     heap_->RevokeAllThreadLocalAllocationStacks(self);
   }
@@ -244,14 +234,8 @@ void MarkSweep::MarkingPhase() {
   // Process dirty cards and add dirty cards to mod union tables.
   heap_->ProcessCards(timings_, false);
 
-  // Need to do this before the checkpoint since we don't want any threads to add references to
-  // the live stack during the recursive mark.
-  timings_.NewSplit("SwapStacks");
-  heap_->SwapStacks(self);
-
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   MarkRoots(self);
-  live_stack_freeze_size_ = heap_->GetLiveStack()->Size();
   MarkReachableObjects();
   // Pre-clean dirtied cards to reduce pauses.
   PreCleanCards();
@@ -271,19 +255,8 @@ void MarkSweep::UpdateAndMarkModUnion() {
   }
 }
 
-void MarkSweep::MarkThreadRoots(Thread* self) {
-  MarkRootsCheckpoint(self);
-}
-
 void MarkSweep::MarkReachableObjects() {
   UpdateAndMarkModUnion();
-  // Mark everything allocated since the last as GC live so that we can sweep concurrently,
-  // knowing that new allocations won't be marked as live.
-  timings_.StartSplit("MarkStackAsLive");
-  accounting::ObjectStack* live_stack = heap_->GetLiveStack();
-  heap_->MarkAllocStackAsLive(live_stack);
-  live_stack->Reset();
-  timings_.EndSplit();
   // Recursively mark all the non-image bits set in the mark bitmap.
   RecursiveMark();
 }
@@ -291,44 +264,10 @@ void MarkSweep::MarkReachableObjects() {
 void MarkSweep::ReclaimPhase() {
   TimingLogger::ScopedSplit split("ReclaimPhase", &timings_);
   Thread* self = Thread::Current();
-
-  if (!IsConcurrent()) {
-    ProcessReferences(self);
-  }
-
-  {
-    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    SweepSystemWeaks();
-  }
-
+  SweepSystemWeaks(self);
   if (IsConcurrent()) {
     Runtime::Current()->AllowNewSystemWeaks();
-
-    TimingLogger::ScopedSplit split("UnMarkAllocStack", &timings_);
-    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    accounting::ObjectStack* allocation_stack = GetHeap()->allocation_stack_.get();
-    if (!kPreCleanCards) {
-      // The allocation stack contains things allocated since the start of the GC. These may have
-      // been marked during this GC meaning they won't be eligible for reclaiming in the next
-      // sticky GC. Unmark these objects so that they are eligible for reclaiming in the next
-      // sticky GC.
-      // There is a race here which is safely handled. Another thread such as the hprof could
-      // have flushed the alloc stack after we resumed the threads. This is safe however, since
-      // reseting the allocation stack zeros it out with madvise. This means that we will either
-      // read NULLs or attempt to unmark a newly allocated object which will not be marked in the
-      // first place.
-      // We can't do this if we pre-clean cards since we will unmark objects which are no longer on
-      // a dirty card since we aged cards during the pre-cleaning process.
-      mirror::Object** end = allocation_stack->End();
-      for (mirror::Object** it = allocation_stack->Begin(); it != end; ++it) {
-        const Object* obj = *it;
-        if (obj != nullptr) {
-          UnMarkObjectNonNull(obj);
-        }
-      }
-    }
   }
-
   {
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
 
@@ -400,28 +339,6 @@ mirror::Object* MarkSweep::MarkObjectCallback(mirror::Object* obj, void* arg) {
 
 void MarkSweep::MarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>* ref, void* arg) {
   reinterpret_cast<MarkSweep*>(arg)->MarkObject(ref->AsMirrorPtr());
-}
-
-inline void MarkSweep::UnMarkObjectNonNull(const Object* obj) {
-  DCHECK(!immune_region_.ContainsObject(obj));
-  if (kUseBrooksPointer) {
-    // Verify all the objects have the correct Brooks pointer installed.
-    obj->AssertSelfBrooksPointer();
-  }
-  // Try to take advantage of locality of references within a space, failing this find the space
-  // the hard way.
-  accounting::SpaceBitmap* object_bitmap = current_space_bitmap_;
-  if (UNLIKELY(!object_bitmap->HasAddress(obj))) {
-    accounting::SpaceBitmap* new_bitmap = mark_bitmap_->GetContinuousSpaceBitmap(obj);
-    if (LIKELY(new_bitmap != NULL)) {
-      object_bitmap = new_bitmap;
-    } else {
-      MarkLargeObject(obj, false);
-      return;
-    }
-  }
-  DCHECK(object_bitmap->HasAddress(obj));
-  object_bitmap->Clear(obj);
 }
 
 inline void MarkSweep::MarkObjectNonNull(Object* obj) {
@@ -578,7 +495,7 @@ void MarkSweep::MarkRoots(Thread* self) {
     timings_.EndSplit();
     RevokeAllThreadLocalAllocationStacks(self);
   } else {
-    MarkThreadRoots(self);
+    MarkRootsCheckpoint(self, kRevokeRosAllocThreadLocalBuffersAtCheckpoint);
     // At this point the live stack should no longer have any mutators which push into it.
     MarkNonThreadRoots();
     MarkConcurrentRoots(
@@ -1008,10 +925,10 @@ void MarkSweep::ReMarkRoots() {
   }
 }
 
-void MarkSweep::SweepSystemWeaks() {
-  Runtime* runtime = Runtime::Current();
+void MarkSweep::SweepSystemWeaks(Thread* self) {
+  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   timings_.StartSplit("SweepSystemWeaks");
-  runtime->SweepSystemWeaks(IsMarkedCallback, this);
+  Runtime::Current()->SweepSystemWeaks(IsMarkedCallback, this);
   timings_.EndSplit();
 }
 
@@ -1042,7 +959,12 @@ void MarkSweep::VerifySystemWeaks() {
 
 class CheckpointMarkThreadRoots : public Closure {
  public:
-  explicit CheckpointMarkThreadRoots(MarkSweep* mark_sweep) : mark_sweep_(mark_sweep) {}
+  explicit CheckpointMarkThreadRoots(MarkSweep* mark_sweep,
+                                     bool revoke_ros_alloc_thread_local_buffers_at_checkpoint)
+      : mark_sweep_(mark_sweep),
+        revoke_ros_alloc_thread_local_buffers_at_checkpoint_(
+            revoke_ros_alloc_thread_local_buffers_at_checkpoint) {
+  }
 
   virtual void Run(Thread* thread) OVERRIDE NO_THREAD_SAFETY_ANALYSIS {
     ATRACE_BEGIN("Marking thread roots");
@@ -1052,21 +974,22 @@ class CheckpointMarkThreadRoots : public Closure {
         << thread->GetState() << " thread " << thread << " self " << self;
     thread->VisitRoots(MarkSweep::MarkRootParallelCallback, mark_sweep_);
     ATRACE_END();
-    if (kUseThreadLocalAllocationStack) {
-      thread->RevokeThreadLocalAllocationStack();
-    }
-    if (kRevokeRosAllocThreadLocalBuffersAtCheckpoint) {
+    if (revoke_ros_alloc_thread_local_buffers_at_checkpoint_) {
+      ATRACE_BEGIN("RevokeRosAllocThreadLocalBuffers");
       mark_sweep_->GetHeap()->RevokeRosAllocThreadLocalBuffers(thread);
+      ATRACE_END();
     }
     mark_sweep_->GetBarrier().Pass(self);
   }
 
  private:
   MarkSweep* const mark_sweep_;
+  const bool revoke_ros_alloc_thread_local_buffers_at_checkpoint_;
 };
 
-void MarkSweep::MarkRootsCheckpoint(Thread* self) {
-  CheckpointMarkThreadRoots check_point(this);
+void MarkSweep::MarkRootsCheckpoint(Thread* self,
+                                    bool revoke_ros_alloc_thread_local_buffers_at_checkpoint) {
+  CheckpointMarkThreadRoots check_point(this, revoke_ros_alloc_thread_local_buffers_at_checkpoint);
   timings_.StartSplit("MarkRootsCheckpoint");
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   // Request the check point is run on all threads returning a count of the threads that must
@@ -1095,7 +1018,7 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
   size_t freed_objects = 0;
   size_t freed_large_objects = 0;
   // How many objects are left in the array, modified after each space is swept.
-  Object** objects = const_cast<Object**>(allocations->Begin());
+  Object** objects = allocations->Begin();
   size_t count = allocations->Size();
   // Change the order to ensure that the non-moving space last swept as an optimization.
   std::vector<space::ContinuousSpace*> sweep_spaces;
@@ -1193,6 +1116,16 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
 }
 
 void MarkSweep::Sweep(bool swap_bitmaps) {
+  // Ensure that nobody inserted items in the live stack after we swapped the stacks.
+  CHECK_GE(live_stack_freeze_size_, GetHeap()->GetLiveStack()->Size());
+  // Mark everything allocated since the last as GC live so that we can sweep concurrently,
+  // knowing that new allocations won't be marked as live.
+  timings_.StartSplit("MarkStackAsLive");
+  accounting::ObjectStack* live_stack = heap_->GetLiveStack();
+  heap_->MarkAllocStackAsLive(live_stack);
+  live_stack->Reset();
+  timings_.EndSplit();
+
   DCHECK(mark_stack_->IsEmpty());
   TimingLogger::ScopedSplit("Sweep", &timings_);
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
