@@ -196,4 +196,42 @@ TEST(CodegenTest, ReturnIf2) {
   TestCode(data, true, 0);
 }
 
+TEST(CodegenTest, ReturnAdd1) {
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 3 << 12 | 0,
+    Instruction::CONST_4 | 4 << 12 | 1 << 8,
+    Instruction::ADD_INT, 1 << 8 | 0,
+    Instruction::RETURN);
+
+  TestCode(data, true, 7);
+}
+
+TEST(CodegenTest, ReturnAdd2) {
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 3 << 12 | 0,
+    Instruction::CONST_4 | 4 << 12 | 1 << 8,
+    Instruction::ADD_INT_2ADDR | 1 << 12,
+    Instruction::RETURN);
+
+  TestCode(data, true, 7);
+}
+
+TEST(CodegenTest, ReturnAdd3) {
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 4 << 12 | 0 << 8,
+    Instruction::ADD_INT_LIT8, 3 << 8 | 0,
+    Instruction::RETURN);
+
+  TestCode(data, true, 7);
+}
+
+TEST(CodegenTest, ReturnAdd4) {
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 4 << 12 | 0 << 8,
+    Instruction::ADD_INT_LIT16, 3,
+    Instruction::RETURN);
+
+  TestCode(data, true, 7);
+}
+
 }  // namespace art
