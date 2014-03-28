@@ -124,7 +124,11 @@ class RosAllocSpace : public MallocSpace {
                                              size_t maximum_size, bool low_memory_mode);
 
   void InspectAllRosAlloc(void (*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
-                          void* arg)
+                          void* arg, bool do_null_callback_at_end)
+      LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_, Locks::thread_list_lock_);
+  void InspectAllRosAllocWithSuspendAll(
+      void (*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
+      void* arg, bool do_null_callback_at_end)
       LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_, Locks::thread_list_lock_);
 
   // Underlying rosalloc.
