@@ -85,7 +85,7 @@ FrameOffset Arm64ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
   return result;
 }
 
-const std::vector<ManagedRegister>& Arm64ManagedRuntimeCallingConvention::EntrySpills() {
+const ManagedRegisterEntrySpills& Arm64ManagedRuntimeCallingConvention::EntrySpills() {
   // We spill the argument registers on ARM64 to free them up for scratch use, we then assume
   // all arguments are on the stack.
   if (entry_spills_.size() == 0) {

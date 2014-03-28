@@ -24,6 +24,7 @@
 #include "arm/constants_arm.h"
 #include "mips/constants_mips.h"
 #include "x86/constants_x86.h"
+#include "x86_64/constants_x86_64.h"
 #include "instruction_set.h"
 #include "managed_register.h"
 #include "memory_region.h"
@@ -46,6 +47,9 @@ namespace mips {
 }
 namespace x86 {
   class X86Assembler;
+}
+namespace x86_64 {
+  class X86_64Assembler;
 }
 
 class Label {
@@ -95,6 +99,7 @@ class Label {
   friend class arm::ArmAssembler;
   friend class mips::MipsAssembler;
   friend class x86::X86Assembler;
+  friend class x86_64::X86_64Assembler;
 
   DISALLOW_COPY_AND_ASSIGN(Label);
 };
@@ -335,7 +340,7 @@ class Assembler {
   // Emit code that will create an activation on the stack
   virtual void BuildFrame(size_t frame_size, ManagedRegister method_reg,
                           const std::vector<ManagedRegister>& callee_save_regs,
-                          const std::vector<ManagedRegister>& entry_spills) = 0;
+                          const ManagedRegisterEntrySpills& entry_spills) = 0;
 
   // Emit code that will remove an activation from the stack
   virtual void RemoveFrame(size_t frame_size,
