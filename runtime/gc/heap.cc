@@ -1157,13 +1157,29 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
     ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated, usable_size);
   }
 
+  collector::GcType tried_type = next_gc_type_;
+  if (ptr == nullptr) {
+    const bool gc_ran =
+        CollectGarbageInternal(tried_type, kGcCauseForAlloc, false) != collector::kGcTypeNone;
+    if (was_default_allocator && allocator != GetCurrentAllocator()) {
+      *klass = sirt_klass.get();
+      return nullptr;
+    }
+    if (gc_ran) {
+      ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated, usable_size);
+    }
+  }
+
   // Loop through our different Gc types and try to Gc until we get enough free memory.
   for (collector::GcType gc_type : gc_plan_) {
     if (ptr != nullptr) {
       break;
     }
+    if (gc_type == tried_type) {
+      continue;
+    }
     // Attempt to run the collector, if we succeed, re-try the allocation.
-    bool gc_ran =
+    const bool gc_ran =
         CollectGarbageInternal(gc_type, kGcCauseForAlloc, false) != collector::kGcTypeNone;
     if (was_default_allocator && allocator != GetCurrentAllocator()) {
       *klass = sirt_klass.get();
