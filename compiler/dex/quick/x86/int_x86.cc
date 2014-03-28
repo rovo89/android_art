@@ -1179,9 +1179,13 @@ void X86Mir2Lir::GenLongArith(RegLocation rl_dest, RegLocation rl_src, Instructi
 
   LIR *lir = NewLIR3(x86op, r_base, displacement + LOWORD_OFFSET, rl_src.reg.GetLowReg());
   AnnotateDalvikRegAccess(lir, (displacement + LOWORD_OFFSET) >> 2,
+                          true /* is_load */, true /* is64bit */);
+  AnnotateDalvikRegAccess(lir, (displacement + LOWORD_OFFSET) >> 2,
                           false /* is_load */, true /* is64bit */);
   x86op = GetOpcode(op, rl_dest, rl_src, true);
   lir = NewLIR3(x86op, r_base, displacement + HIWORD_OFFSET, rl_src.reg.GetHighReg());
+  AnnotateDalvikRegAccess(lir, (displacement + HIWORD_OFFSET) >> 2,
+                          true /* is_load */, true /* is64bit */);
   AnnotateDalvikRegAccess(lir, (displacement + HIWORD_OFFSET) >> 2,
                           false /* is_load */, true /* is64bit */);
   FreeTemp(rl_src.reg);
@@ -1679,11 +1683,15 @@ void X86Mir2Lir::GenLongImm(RegLocation rl_dest, RegLocation rl_src, Instruction
       X86OpCode x86op = GetOpcode(op, rl_dest, false, val_lo);
       LIR *lir = NewLIR3(x86op, r_base, displacement + LOWORD_OFFSET, val_lo);
       AnnotateDalvikRegAccess(lir, (displacement + LOWORD_OFFSET) >> 2,
+                              true /* is_load */, true /* is64bit */);
+      AnnotateDalvikRegAccess(lir, (displacement + LOWORD_OFFSET) >> 2,
                               false /* is_load */, true /* is64bit */);
     }
     if (!IsNoOp(op, val_hi)) {
       X86OpCode x86op = GetOpcode(op, rl_dest, true, val_hi);
       LIR *lir = NewLIR3(x86op, r_base, displacement + HIWORD_OFFSET, val_hi);
+      AnnotateDalvikRegAccess(lir, (displacement + HIWORD_OFFSET) >> 2,
+                                true /* is_load */, true /* is64bit */);
       AnnotateDalvikRegAccess(lir, (displacement + HIWORD_OFFSET) >> 2,
                                 false /* is_load */, true /* is64bit */);
     }
