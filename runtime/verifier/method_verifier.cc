@@ -3377,7 +3377,7 @@ void MethodVerifier::VerifyPrimitivePut(const RegType& target_type, const RegTyp
 }
 
 void MethodVerifier::VerifyAPut(const Instruction* inst,
-                             const RegType& insn_type, bool is_primitive) {
+                                const RegType& insn_type, bool is_primitive) {
   const RegType& index_type = work_line_->GetRegisterType(inst->VRegC_23x());
   if (!index_type.IsArrayIndexTypes()) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Invalid reg type for array index (" << index_type << ")";
@@ -3533,6 +3533,7 @@ void MethodVerifier::VerifyISGet(const Instruction* inst, const RegType& insn_ty
     const char* descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
     field_type = &reg_types_.FromDescriptor(class_loader_->get(), descriptor, false);
   }
+  DCHECK(field_type != nullptr);
   const uint32_t vregA = (is_static) ? inst->VRegA_21c() : inst->VRegA_22c();
   if (is_primitive) {
     if (field_type->Equals(insn_type) ||
@@ -3546,14 +3547,14 @@ void MethodVerifier::VerifyISGet(const Instruction* inst, const RegType& insn_ty
       // compile time
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << PrettyField(field)
                                         << " to be of type '" << insn_type
-                                        << "' but found type '" << field_type << "' in get";
+                                        << "' but found type '" << *field_type << "' in get";
       return;
     }
   } else {
     if (!insn_type.IsAssignableFrom(*field_type)) {
       Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
                                         << " to be compatible with type '" << insn_type
-                                        << "' but found type '" << field_type
+                                        << "' but found type '" << *field_type
                                         << "' in get-object";
       work_line_->SetRegisterType(vregA, reg_types_.Conflict());
       return;
@@ -3599,6 +3600,7 @@ void MethodVerifier::VerifyISPut(const Instruction* inst, const RegType& insn_ty
     const char* descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
     field_type = &reg_types_.FromDescriptor(class_loader_->get(), descriptor, false);
   }
+  DCHECK(field_type != nullptr);
   const uint32_t vregA = (is_static) ? inst->VRegA_21c() : inst->VRegA_22c();
   if (is_primitive) {
     VerifyPrimitivePut(*field_type, insn_type, vregA);
@@ -3606,7 +3608,7 @@ void MethodVerifier::VerifyISPut(const Instruction* inst, const RegType& insn_ty
     if (!insn_type.IsAssignableFrom(*field_type)) {
       Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
                                         << " to be compatible with type '" << insn_type
-                                        << "' but found type '" << field_type
+                                        << "' but found type '" << *field_type
                                         << "' in put-object";
       return;
     }
@@ -3692,6 +3694,7 @@ void MethodVerifier::VerifyIGetQuick(const Instruction* inst, const RegType& ins
     field_type = &reg_types_.FromDescriptor(field->GetDeclaringClass()->GetClassLoader(),
                                             fh.GetTypeDescriptor(), false);
   }
+  DCHECK(field_type != nullptr);
   const uint32_t vregA = inst->VRegA_22c();
   if (is_primitive) {
     if (field_type->Equals(insn_type) ||
@@ -3705,14 +3708,14 @@ void MethodVerifier::VerifyIGetQuick(const Instruction* inst, const RegType& ins
       // compile time
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << PrettyField(field)
                                         << " to be of type '" << insn_type
-                                        << "' but found type '" << field_type << "' in get";
+                                        << "' but found type '" << *field_type << "' in get";
       return;
     }
   } else {
     if (!insn_type.IsAssignableFrom(*field_type)) {
       Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
                                         << " to be compatible with type '" << insn_type
-                                        << "' but found type '" << field_type
+                                        << "' but found type '" << *field_type
                                         << "' in get-object";
       work_line_->SetRegisterType(vregA, reg_types_.Conflict());
       return;
