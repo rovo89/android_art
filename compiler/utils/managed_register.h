@@ -17,6 +17,8 @@
 #ifndef ART_COMPILER_UTILS_MANAGED_REGISTER_H_
 #define ART_COMPILER_UTILS_MANAGED_REGISTER_H_
 
+#include <vector>
+
 namespace art {
 
 namespace arm {
@@ -28,8 +30,13 @@ class Arm64ManagedRegister;
 namespace mips {
 class MipsManagedRegister;
 }
+
 namespace x86 {
 class X86ManagedRegister;
+}
+
+namespace x86_64 {
+class X86_64ManagedRegister;
 }
 
 class ManagedRegister {
@@ -48,6 +55,7 @@ class ManagedRegister {
   arm64::Arm64ManagedRegister AsArm64() const;
   mips::MipsManagedRegister AsMips() const;
   x86::X86ManagedRegister AsX86() const;
+  x86_64::X86_64ManagedRegister AsX86_64() const;
 
   // It is valid to invoke Equals on and with a NoRegister.
   bool Equals(const ManagedRegister& other) const {
@@ -69,6 +77,44 @@ class ManagedRegister {
   explicit ManagedRegister(int reg_id) : id_(reg_id) { }
 
   int id_;
+};
+
+class ManagedRegisterSpill : public ManagedRegister {
+ public:
+  // ManagedRegisterSpill contains information about data type size and location in caller frame
+  // These additional attributes could be defined by calling convention (EntrySpills)
+  ManagedRegisterSpill(const ManagedRegister& other, uint32_t size, uint32_t spill_offset)
+      : ManagedRegister(other), size_(size), spill_offset_(spill_offset)  { }
+
+  explicit ManagedRegisterSpill(const ManagedRegister& other)
+      : ManagedRegister(other), size_(-1), spill_offset_(-1) { }
+
+  int32_t getSpillOffset() {
+    return spill_offset_;
+  }
+
+  int32_t getSize() {
+    return size_;
+  }
+
+ private:
+  int32_t size_;
+  int32_t spill_offset_;
+};
+
+class ManagedRegisterEntrySpills : public std::vector<ManagedRegisterSpill> {
+ public:
+  // The ManagedRegister does not have information about size and offset.
+  // In this case it's size and offset determined by BuildFrame (assembler)
+  void push_back(ManagedRegister __x) {
+    ManagedRegisterSpill spill(__x);
+    std::vector<ManagedRegisterSpill>::push_back(spill);
+  }
+
+  void push_back(ManagedRegisterSpill __x) {
+    std::vector<ManagedRegisterSpill>::push_back(__x);
+  }
+ private:
 };
 
 }  // namespace art

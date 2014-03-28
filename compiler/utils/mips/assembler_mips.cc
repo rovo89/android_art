@@ -538,7 +538,7 @@ void MipsAssembler::StoreDToOffset(DRegister reg, Register base, int32_t offset)
 
 void MipsAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                                const std::vector<ManagedRegister>& callee_save_regs,
-                               const std::vector<ManagedRegister>& entry_spills) {
+                               const ManagedRegisterEntrySpills& entry_spills) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
 
   // Increase frame to required size.

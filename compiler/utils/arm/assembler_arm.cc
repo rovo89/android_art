@@ -1438,7 +1438,7 @@ void ArmAssembler::Rrx(Register rd, Register rm, Condition cond) {
 
 void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                               const std::vector<ManagedRegister>& callee_save_regs,
-                              const std::vector<ManagedRegister>& entry_spills) {
+                              const ManagedRegisterEntrySpills& entry_spills) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
   CHECK_EQ(R0, method_reg.AsArm().AsCoreRegister());
 

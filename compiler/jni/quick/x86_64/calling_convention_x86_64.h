@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2014 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_JNI_QUICK_MIPS_CALLING_CONVENTION_MIPS_H_
-#define ART_COMPILER_JNI_QUICK_MIPS_CALLING_CONVENTION_MIPS_H_
+#ifndef ART_COMPILER_JNI_QUICK_X86_64_CALLING_CONVENTION_X86_64_H_
+#define ART_COMPILER_JNI_QUICK_X86_64_CALLING_CONVENTION_X86_64_H_
 
 #include "jni/quick/calling_convention.h"
 
 namespace art {
-namespace mips {
-class MipsManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingConvention {
+namespace x86_64 {
+
+class X86_64ManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingConvention {
  public:
-  MipsManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty)
+  explicit X86_64ManagedRuntimeCallingConvention(bool is_static, bool is_synchronized,
+                                              const char* shorty)
       : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty) {}
-  ~MipsManagedRuntimeCallingConvention() OVERRIDE {}
+  ~X86_64ManagedRuntimeCallingConvention() OVERRIDE {}
   // Calling convention
   ManagedRegister ReturnRegister() OVERRIDE;
   ManagedRegister InterproceduralScratchRegister() OVERRIDE;
@@ -36,23 +38,20 @@ class MipsManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingCo
   ManagedRegister CurrentParamRegister() OVERRIDE;
   FrameOffset CurrentParamStackOffset() OVERRIDE;
   const ManagedRegisterEntrySpills& EntrySpills() OVERRIDE;
-
  private:
   ManagedRegisterEntrySpills entry_spills_;
-
-  DISALLOW_COPY_AND_ASSIGN(MipsManagedRuntimeCallingConvention);
+  DISALLOW_COPY_AND_ASSIGN(X86_64ManagedRuntimeCallingConvention);
 };
 
-class MipsJniCallingConvention FINAL : public JniCallingConvention {
+class X86_64JniCallingConvention FINAL : public JniCallingConvention {
  public:
-  explicit MipsJniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
-  ~MipsJniCallingConvention() OVERRIDE {}
+  explicit X86_64JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
+  ~X86_64JniCallingConvention() OVERRIDE {}
   // Calling convention
   ManagedRegister ReturnRegister() OVERRIDE;
   ManagedRegister IntReturnRegister() OVERRIDE;
   ManagedRegister InterproceduralScratchRegister() OVERRIDE;
   // JNI calling convention
-  void Next() OVERRIDE;  // Override default behavior for AAPCS
   size_t FrameSize() OVERRIDE;
   size_t OutArgSize() OVERRIDE;
   const std::vector<ManagedRegister>& CalleeSaveRegisters() const OVERRIDE {
@@ -61,7 +60,7 @@ class MipsJniCallingConvention FINAL : public JniCallingConvention {
   ManagedRegister ReturnScratchRegister() const OVERRIDE;
   uint32_t CoreSpillMask() const OVERRIDE;
   uint32_t FpSpillMask() const OVERRIDE {
-    return 0;  // Floats aren't spilled in JNI down call
+    return 0;
   }
   bool IsCurrentParamInRegister() OVERRIDE;
   bool IsCurrentParamOnStack() OVERRIDE;
@@ -75,13 +74,10 @@ class MipsJniCallingConvention FINAL : public JniCallingConvention {
   // TODO: these values aren't unique and can be shared amongst instances
   std::vector<ManagedRegister> callee_save_regs_;
 
-  // Padding to ensure longs and doubles are not split in AAPCS
-  size_t padding_;
-
-  DISALLOW_COPY_AND_ASSIGN(MipsJniCallingConvention);
+  DISALLOW_COPY_AND_ASSIGN(X86_64JniCallingConvention);
 };
 
-}  // namespace mips
+}  // namespace x86_64
 }  // namespace art
 
-#endif  // ART_COMPILER_JNI_QUICK_MIPS_CALLING_CONVENTION_MIPS_H_
+#endif  // ART_COMPILER_JNI_QUICK_X86_64_CALLING_CONVENTION_X86_64_H_

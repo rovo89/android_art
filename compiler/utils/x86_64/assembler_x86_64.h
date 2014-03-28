@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2014 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_X86_ASSEMBLER_X86_H_
-#define ART_COMPILER_UTILS_X86_ASSEMBLER_X86_H_
+#ifndef ART_COMPILER_UTILS_X86_64_ASSEMBLER_X86_64_H_
+#define ART_COMPILER_UTILS_X86_64_ASSEMBLER_X86_64_H_
 
 #include <vector>
 #include "base/macros.h"
-#include "constants_x86.h"
+#include "constants_x86_64.h"
 #include "globals.h"
-#include "managed_register_x86.h"
+#include "managed_register_x86_64.h"
 #include "offsets.h"
 #include "utils/assembler.h"
 #include "utils.h"
 
 namespace art {
-namespace x86 {
+namespace x86_64 {
 
 class Immediate {
  public:
@@ -128,7 +128,7 @@ class Operand {
     return encoding_[index];
   }
 
-  friend class X86Assembler;
+  friend class X86_64Assembler;
 
   DISALLOW_COPY_AND_ASSIGN(Operand);
 };
@@ -145,8 +145,8 @@ class Address : public Operand {
   }
 
   Address(Register base, FrameOffset disp) {
-    CHECK_EQ(base, ESP);
-    Init(ESP, disp.Int32Value());
+    CHECK_EQ(base, RSP);
+    Init(RSP, disp.Int32Value());
   }
 
   Address(Register base, MemberOffset disp) {
@@ -154,39 +154,39 @@ class Address : public Operand {
   }
 
   void Init(Register base, int32_t disp) {
-    if (disp == 0 && base != EBP) {
+    if (disp == 0 && base != RBP) {
       SetModRM(0, base);
-      if (base == ESP) SetSIB(TIMES_1, ESP, base);
+      if (base == RSP) SetSIB(TIMES_1, RSP, base);
     } else if (disp >= -128 && disp <= 127) {
       SetModRM(1, base);
-      if (base == ESP) SetSIB(TIMES_1, ESP, base);
+      if (base == RSP) SetSIB(TIMES_1, RSP, base);
       SetDisp8(disp);
     } else {
       SetModRM(2, base);
-      if (base == ESP) SetSIB(TIMES_1, ESP, base);
+      if (base == RSP) SetSIB(TIMES_1, RSP, base);
       SetDisp32(disp);
     }
   }
 
 
   Address(Register index, ScaleFactor scale, int32_t disp) {
-    CHECK_NE(index, ESP);  // Illegal addressing mode.
-    SetModRM(0, ESP);
-    SetSIB(scale, index, EBP);
+    CHECK_NE(index, RSP);  // Illegal addressing mode.
+    SetModRM(0, RSP);
+    SetSIB(scale, index, RBP);
     SetDisp32(disp);
   }
 
   Address(Register base, Register index, ScaleFactor scale, int32_t disp) {
-    CHECK_NE(index, ESP);  // Illegal addressing mode.
-    if (disp == 0 && base != EBP) {
-      SetModRM(0, ESP);
+    CHECK_NE(index, RSP);  // Illegal addressing mode.
+    if (disp == 0 && base != RBP) {
+      SetModRM(0, RSP);
       SetSIB(scale, index, base);
     } else if (disp >= -128 && disp <= 127) {
-      SetModRM(1, ESP);
+      SetModRM(1, RSP);
       SetSIB(scale, index, base);
       SetDisp8(disp);
     } else {
-      SetModRM(2, ESP);
+      SetModRM(2, RSP);
       SetSIB(scale, index, base);
       SetDisp32(disp);
     }
@@ -195,11 +195,11 @@ class Address : public Operand {
   static Address Absolute(uword addr, bool has_rip = false) {
     Address result;
     if (has_rip) {
-      result.SetModRM(0, ESP);
-      result.SetSIB(TIMES_1, ESP, EBP);
+      result.SetModRM(0, RSP);
+      result.SetSIB(TIMES_1, RSP, RBP);
       result.SetDisp32(addr);
     } else {
-      result.SetModRM(0, EBP);
+      result.SetModRM(0, RBP);
       result.SetDisp32(addr);
     }
     return result;
@@ -216,10 +216,10 @@ class Address : public Operand {
 };
 
 
-class X86Assembler FINAL : public Assembler {
+class X86_64Assembler : public Assembler {
  public:
-  explicit X86Assembler() {}
-  virtual ~X86Assembler() {}
+  X86_64Assembler() {}
+  virtual ~X86_64Assembler() {}
 
   /*
    * Emit Machine Instructions.
@@ -228,17 +228,21 @@ class X86Assembler FINAL : public Assembler {
   void call(const Address& address);
   void call(Label* label);
 
-  void pushl(Register reg);
-  void pushl(const Address& address);
-  void pushl(const Immediate& imm);
+  void pushq(Register reg);
+  void pushq(const Address& address);
+  void pushq(const Immediate& imm);
 
-  void popl(Register reg);
-  void popl(const Address& address);
+  void popq(Register reg);
+  void popq(const Address& address);
 
+  void movq(Register dst, const Immediate& src);
   void movl(Register dst, const Immediate& src);
+  void movq(Register dst, Register src);
   void movl(Register dst, Register src);
 
+  void movq(Register dst, const Address& src);
   void movl(Register dst, const Address& src);
+  void movq(const Address& dst, Register src);
   void movl(const Address& dst, Register src);
   void movl(const Address& dst, const Immediate& imm);
   void movl(const Address& dst, Label* lbl);
@@ -258,7 +262,7 @@ class X86Assembler FINAL : public Assembler {
   void movw(Register dst, const Address& src);
   void movw(const Address& dst, Register src);
 
-  void leal(Register dst, const Address& src);
+  void leaq(Register dst, const Address& src);
 
   void cmovl(Condition condition, Register dst, Register src);
 
@@ -362,6 +366,7 @@ class X86Assembler FINAL : public Assembler {
   void xorl(Register dst, Register src);
 
   void addl(Register dst, Register src);
+  void addq(Register reg, const Immediate& imm);
   void addl(Register reg, const Immediate& imm);
   void addl(Register reg, const Address& address);
 
@@ -427,13 +432,12 @@ class X86Assembler FINAL : public Assembler {
   void jmp(const Address& address);
   void jmp(Label* label);
 
-  X86Assembler* lock();
+  X86_64Assembler* lock();
   void cmpxchgl(const Address& address, Register reg);
 
   void mfence();
 
-  X86Assembler* fs();
-  X86Assembler* gs();
+  X86_64Assembler* gs();
 
   //
   // Macros for High-level operations.
@@ -605,33 +609,36 @@ class X86Assembler FINAL : public Assembler {
 
   void EmitGenericShift(int rm, Register reg, const Immediate& imm);
   void EmitGenericShift(int rm, Register operand, Register shifter);
+  void rex(Register &dst, Register &src, size_t size = 4);
+  void rex_reg(Register &dst, size_t size = 4);
+  void rex_rm(Register &src, size_t size = 4);
 
-  DISALLOW_COPY_AND_ASSIGN(X86Assembler);
+  DISALLOW_COPY_AND_ASSIGN(X86_64Assembler);
 };
 
-inline void X86Assembler::EmitUint8(uint8_t value) {
+inline void X86_64Assembler::EmitUint8(uint8_t value) {
   buffer_.Emit<uint8_t>(value);
 }
 
-inline void X86Assembler::EmitInt32(int32_t value) {
+inline void X86_64Assembler::EmitInt32(int32_t value) {
   buffer_.Emit<int32_t>(value);
 }
 
-inline void X86Assembler::EmitRegisterOperand(int rm, int reg) {
+inline void X86_64Assembler::EmitRegisterOperand(int rm, int reg) {
   CHECK_GE(rm, 0);
   CHECK_LT(rm, 8);
   buffer_.Emit<uint8_t>(0xC0 + (rm << 3) + reg);
 }
 
-inline void X86Assembler::EmitXmmRegisterOperand(int rm, XmmRegister reg) {
+inline void X86_64Assembler::EmitXmmRegisterOperand(int rm, XmmRegister reg) {
   EmitRegisterOperand(rm, static_cast<Register>(reg));
 }
 
-inline void X86Assembler::EmitFixup(AssemblerFixup* fixup) {
+inline void X86_64Assembler::EmitFixup(AssemblerFixup* fixup) {
   buffer_.EmitFixup(fixup);
 }
 
-inline void X86Assembler::EmitOperandSizeOverride() {
+inline void X86_64Assembler::EmitOperandSizeOverride() {
   EmitUint8(0x66);
 }
 
@@ -644,7 +651,7 @@ class X86ExceptionSlowPath : public SlowPath {
   const size_t stack_adjust_;
 };
 
-}  // namespace x86
+}  // namespace x86_64
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_X86_ASSEMBLER_X86_H_
+#endif  // ART_COMPILER_UTILS_X86_64_ASSEMBLER_X86_64_H_
