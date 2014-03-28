@@ -28,36 +28,27 @@
 
 namespace art {
 
+class Thread;
+
 namespace mirror {
   class Class;
   class Object;
-  template<class T> class ObjectArray;
 }  // namespace mirror
-
-class StackVisitor;
-class Thread;
 
 namespace gc {
 
+class Heap;
+
 namespace accounting {
   template <typename T> class AtomicStack;
-  class MarkIfReachesAllocspaceVisitor;
-  class ModUnionClearCardVisitor;
-  class ModUnionVisitor;
-  class ModUnionTableBitmap;
-  class MarkStackChunk;
   typedef AtomicStack<mirror::Object*> ObjectStack;
   class SpaceBitmap;
 }  // namespace accounting
 
 namespace space {
-  class BumpPointerSpace;
   class ContinuousMemMapAllocSpace;
   class ContinuousSpace;
-  class MallocSpace;
 }  // namespace space
-
-class Heap;
 
 namespace collector {
 
@@ -187,12 +178,6 @@ class SemiSpace : public GarbageCollector {
 
   // Recursively blackens objects on the mark stack.
   void ProcessMarkStack()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
-
-  void ProcessReferences(mirror::Object** soft_references, bool clear_soft_references,
-                         mirror::Object** weak_references,
-                         mirror::Object** finalizer_references,
-                         mirror::Object** phantom_references)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   inline mirror::Object* GetForwardingAddressInFromSpace(mirror::Object* obj) const;
