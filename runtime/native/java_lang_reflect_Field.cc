@@ -28,14 +28,14 @@
 
 namespace art {
 
-static bool ValidateFieldAccess(mirror::ArtField* field, mirror::Object* obj, bool is_set)
+static bool VerifyFieldAccess(mirror::ArtField* field, mirror::Object* obj, bool is_set)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (field->IsFinal() && is_set) {
     ThrowIllegalAccessException(nullptr, StringPrintf("Cannot set final field: %s",
                                                       PrettyField(field).c_str()).c_str());
     return false;
   }
-  if (!ValidateAccess(obj, field->GetDeclaringClass(), field->GetAccessFlags())) {
+  if (!VerifyAccess(obj, field->GetDeclaringClass(), field->GetAccessFlags())) {
     ThrowIllegalAccessException(nullptr, StringPrintf("Cannot access field: %s",
                                                       PrettyField(field).c_str()).c_str());
     return false;
@@ -123,8 +123,8 @@ static jobject Field_get(JNIEnv* env, jobject javaField, jobject javaObj, jboole
     DCHECK(soa.Self()->IsExceptionPending());
     return nullptr;
   }
-  // Validate access.
-  if (!accessible && !ValidateFieldAccess(f, o, false)) {
+  // If field is not set to be accessible, verify it can be accessed by the caller.
+  if ((accessible == JNI_FALSE) && !VerifyFieldAccess(f, o, false)) {
     DCHECK(soa.Self()->IsExceptionPending());
     return nullptr;
   }
@@ -150,8 +150,8 @@ static JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj,
     return JValue();
   }
 
-  // Validate access.
-  if (!accessible && !ValidateFieldAccess(f, o, false)) {
+  // If field is not set to be accessible, verify it can be accessed by the caller.
+  if ((accessible == JNI_FALSE) && !VerifyFieldAccess(f, o, false)) {
     DCHECK(soa.Self()->IsExceptionPending());
     return JValue();
   }
@@ -291,8 +291,8 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
     DCHECK(soa.Self()->IsExceptionPending());
     return;
   }
-  // Validate access.
-  if (!accessible && !ValidateFieldAccess(f, o, true)) {
+  // If field is not set to be accessible, verify it can be accessed by the caller.
+  if ((accessible == JNI_FALSE) && !VerifyFieldAccess(f, o, true)) {
     DCHECK(soa.Self()->IsExceptionPending());
     return;
   }
@@ -322,8 +322,8 @@ static void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, c
     return;
   }
 
-  // Validate access.
-  if (!accessible && !ValidateFieldAccess(f, o, true)) {
+  // If field is not set to be accessible, verify it can be accessed by the caller.
+  if ((accessible == JNI_FALSE) && !VerifyFieldAccess(f, o, true)) {
     DCHECK(soa.Self()->IsExceptionPending());
     return;
   }
