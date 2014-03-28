@@ -471,7 +471,7 @@ TEST_F(RegTypeReferenceTest, Merging) {
   EXPECT_EQ(ref_type_1.GetId(), *((++merged_ids.begin())));
 }
 
-TEST_F(RegTypeReferenceTest, MergingFloat) {
+TEST_F(RegTypeTest, MergingFloat) {
   // Testing merging logic with float and float constants.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache_new(true);
@@ -502,7 +502,7 @@ TEST_F(RegTypeReferenceTest, MergingFloat) {
   }
 }
 
-TEST_F(RegTypeReferenceTest, MergingLong) {
+TEST_F(RegTypeTest, MergingLong) {
   // Testing merging logic with long and long constants.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache_new(true);
@@ -556,7 +556,7 @@ TEST_F(RegTypeReferenceTest, MergingLong) {
   }
 }
 
-TEST_F(RegTypeReferenceTest, MergingDouble) {
+TEST_F(RegTypeTest, MergingDouble) {
   // Testing merging logic with double and double constants.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache_new(true);
