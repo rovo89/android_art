@@ -32,32 +32,21 @@ namespace art {
 namespace mirror {
   class Class;
   class Object;
-  template<class T> class ObjectArray;
   class Reference;
 }  // namespace mirror
 
-class StackVisitor;
 class Thread;
 enum VisitRootFlags : uint8_t;
 
 namespace gc {
 
+class Heap;
+
 namespace accounting {
-  template <typename T> class AtomicStack;
-  class MarkIfReachesAllocspaceVisitor;
-  class ModUnionClearCardVisitor;
-  class ModUnionVisitor;
-  class ModUnionTableBitmap;
-  class MarkStackChunk;
+  template<typename T> class AtomicStack;
   typedef AtomicStack<mirror::Object*> ObjectStack;
   class SpaceBitmap;
 }  // namespace accounting
-
-namespace space {
-  class ContinuousSpace;
-}  // namespace space
-
-class Heap;
 
 namespace collector {
 
@@ -137,8 +126,8 @@ class MarkSweep : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Update and mark references from immune spaces. Virtual as overridden by StickyMarkSweep.
-  virtual void UpdateAndMarkModUnion()
+  // Update and mark references from immune spaces.
+  void UpdateAndMarkModUnion()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Pre clean cards to reduce how much work is needed in the pause.
@@ -311,7 +300,7 @@ class MarkSweep : public GarbageCollector {
 
   accounting::ObjectStack* mark_stack_;
 
-  // Immune range, every object inside the immune range is assumed to be marked.
+  // Immune region, every object inside the immune range is assumed to be marked.
   ImmuneRegion immune_region_;
 
   // Parallel finger.

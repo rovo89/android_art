@@ -54,7 +54,7 @@ void CumulativeLogger::Start() {
 
 void CumulativeLogger::End() {
   MutexLock mu(Thread::Current(), lock_);
-  iterations_++;
+  ++iterations_;
 }
 
 void CumulativeLogger::Reset() {
@@ -66,13 +66,12 @@ void CumulativeLogger::Reset() {
 
 void CumulativeLogger::AddLogger(const TimingLogger &logger) {
   MutexLock mu(Thread::Current(), lock_);
-  const TimingLogger::SplitTimings& splits = logger.GetSplits();
-  for (auto it = splits.begin(), end = splits.end(); it != end; ++it) {
-    TimingLogger::SplitTiming split = *it;
+  for (const TimingLogger::SplitTiming& split : logger.GetSplits()) {
     uint64_t split_time = split.first;
     const char* split_name = split.second;
     AddPair(split_name, split_time);
   }
+  ++iterations_;
 }
 
 size_t CumulativeLogger::GetIterations() const {
@@ -161,8 +160,7 @@ void TimingLogger::NewSplit(const char* new_split_label) {
 
 uint64_t TimingLogger::GetTotalNs() const {
   uint64_t total_ns = 0;
-  for (auto it = splits_.begin(), end = splits_.end(); it != end; ++it) {
-    TimingLogger::SplitTiming split = *it;
+  for (const TimingLogger::SplitTiming& split : splits_) {
     total_ns += split.first;
   }
   return total_ns;
@@ -171,8 +169,7 @@ uint64_t TimingLogger::GetTotalNs() const {
 void TimingLogger::Dump(std::ostream &os) const {
   uint64_t longest_split = 0;
   uint64_t total_ns = 0;
-  for (auto it = splits_.begin(), end = splits_.end(); it != end; ++it) {
-    TimingLogger::SplitTiming split = *it;
+  for (const SplitTiming& split : splits_) {
     uint64_t split_time = split.first;
     longest_split = std::max(longest_split, split_time);
     total_ns += split_time;
@@ -181,8 +178,7 @@ void TimingLogger::Dump(std::ostream &os) const {
   TimeUnit tu = GetAppropriateTimeUnit(longest_split);
   uint64_t divisor = GetNsToTimeUnitDivisor(tu);
   // Print formatted splits.
-  for (auto it = splits_.begin(), end = splits_.end(); it != end; ++it) {
-    const TimingLogger::SplitTiming& split = *it;
+  for (const SplitTiming& split : splits_) {
     uint64_t split_time = split.first;
     if (!precise_ && divisor >= 1000) {
       // Make the fractional part 0.
@@ -193,7 +189,6 @@ void TimingLogger::Dump(std::ostream &os) const {
   }
   os << name_ << ": end, " << NsToMs(total_ns) << " ms\n";
 }
-
 
 TimingLogger::ScopedSplit::ScopedSplit(const char* label, TimingLogger* timing_logger) {
   DCHECK(label != NULL) << "New scoped split (" << label << ") with null label.";

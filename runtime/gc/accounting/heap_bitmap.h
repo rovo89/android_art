@@ -31,54 +31,11 @@ namespace accounting {
 
 class HeapBitmap {
  public:
-  bool Test(const mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
-    SpaceBitmap* bitmap = GetContinuousSpaceBitmap(obj);
-    if (LIKELY(bitmap != nullptr)) {
-      return bitmap->Test(obj);
-    } else {
-      return GetDiscontinuousSpaceObjectSet(obj) != NULL;
-    }
-  }
-
-  void Clear(const mirror::Object* obj) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
-    SpaceBitmap* bitmap = GetContinuousSpaceBitmap(obj);
-    if (LIKELY(bitmap != NULL)) {
-      bitmap->Clear(obj);
-    } else {
-      ObjectSet* set = GetDiscontinuousSpaceObjectSet(obj);
-      DCHECK(set != NULL);
-      set->Clear(obj);
-    }
-  }
-
-  void Set(const mirror::Object* obj) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
-    SpaceBitmap* bitmap = GetContinuousSpaceBitmap(obj);
-    if (LIKELY(bitmap != NULL)) {
-      bitmap->Set(obj);
-    } else {
-      ObjectSet* set = GetDiscontinuousSpaceObjectSet(obj);
-      DCHECK(set != NULL);
-      set->Set(obj);
-    }
-  }
-
-  SpaceBitmap* GetContinuousSpaceBitmap(const mirror::Object* obj) {
-    for (const auto& bitmap : continuous_space_bitmaps_) {
-      if (bitmap->HasAddress(obj)) {
-        return bitmap;
-      }
-    }
-    return nullptr;
-  }
-
-  ObjectSet* GetDiscontinuousSpaceObjectSet(const mirror::Object* obj) {
-    for (const auto& space_set : discontinuous_space_sets_) {
-      if (space_set->Test(obj)) {
-        return space_set;
-      }
-    }
-    return nullptr;
-  }
+  bool Test(const mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void Clear(const mirror::Object* obj) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void Set(const mirror::Object* obj) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  SpaceBitmap* GetContinuousSpaceBitmap(const mirror::Object* obj) const;
+  ObjectSet* GetDiscontinuousSpaceObjectSet(const mirror::Object* obj) const;
 
   void Walk(ObjectCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);

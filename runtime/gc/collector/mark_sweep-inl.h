@@ -21,7 +21,7 @@
 
 #include "gc/heap.h"
 #include "mirror/art_field.h"
-#include "mirror/class.h"
+#include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/reference.h"
 

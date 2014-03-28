@@ -287,9 +287,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   }
 
   cu.EndTiming();
-  driver.GetTimingsLogger()->Start();
   driver.GetTimingsLogger()->AddLogger(cu.timings);
-  driver.GetTimingsLogger()->End();
   return result;
 }
 
