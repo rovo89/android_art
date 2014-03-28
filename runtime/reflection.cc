@@ -500,8 +500,8 @@ jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod,
     return NULL;
   }
 
-  // Validate access.
-  if (!accessible && !ValidateAccess(receiver, declaring_class, m->GetAccessFlags())) {
+  // If method is not set to be accessible, verify it can be accessed by the caller.
+  if (!accessible && !VerifyAccess(receiver, declaring_class, m->GetAccessFlags())) {
     ThrowIllegalAccessException(nullptr, StringPrintf("Cannot access method: %s",
                                                       PrettyMethod(m).c_str()).c_str());
     return nullptr;
@@ -794,19 +794,19 @@ bool UnboxPrimitiveForResult(const ThrowLocation& throw_location, mirror::Object
   return UnboxPrimitive(&throw_location, o, dst_class, nullptr, unboxed_value);
 }
 
-bool ValidateAccess(mirror::Object* obj, mirror::Class* declaring_class, uint32_t access_flags) {
+bool VerifyAccess(mirror::Object* obj, mirror::Class* declaring_class, uint32_t access_flags) {
   NthCallerVisitor visitor(Thread::Current(), 2);
   visitor.WalkStack();
   mirror::Class* caller_class = visitor.caller->GetDeclaringClass();
 
-  if (((access_flags & kAccPublic) && declaring_class->IsPublic()) ||
+  if ((((access_flags & kAccPublic) != 0) && declaring_class->IsPublic()) ||
       caller_class == declaring_class) {
     return true;
   }
-  if (access_flags & kAccPrivate) {
+  if ((access_flags & kAccPrivate) != 0) {
     return false;
   }
-  if (access_flags & kAccProtected) {
+  if ((access_flags & kAccProtected) != 0) {
     if (obj != nullptr && !obj->InstanceOf(caller_class) &&
         !declaring_class->IsInSamePackage(caller_class)) {
       return false;
