@@ -46,8 +46,7 @@ GarbageCollector::GarbageCollector(Heap* heap, const std::string& name)
   ResetCumulativeStatistics();
 }
 
-void GarbageCollector::HandleDirtyObjectsPhase() {
-  LOG(FATAL) << "Unreachable";
+void GarbageCollector::PausePhase() {
 }
 
 void GarbageCollector::RegisterPause(uint64_t nano_length) {
@@ -92,6 +91,7 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
         // PreGcRosAllocVerification() is called in Heap::TransitionCollector().
         RevokeAllThreadLocalBuffers();
         MarkingPhase();
+        PausePhase();
         ReclaimPhase();
         // PostGcRosAllocVerification() is called in Heap::TransitionCollector().
       } else {
@@ -101,6 +101,7 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
         GetHeap()->PreGcRosAllocVerification(&timings_);
         RevokeAllThreadLocalBuffers();
         MarkingPhase();
+        PausePhase();
         ReclaimPhase();
         GetHeap()->PostGcRosAllocVerification(&timings_);
         ATRACE_BEGIN("Resuming mutator threads");
@@ -125,7 +126,7 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
       ATRACE_END();
       ATRACE_BEGIN("All mutator threads suspended");
       GetHeap()->PreGcRosAllocVerification(&timings_);
-      HandleDirtyObjectsPhase();
+      PausePhase();
       RevokeAllThreadLocalBuffers();
       GetHeap()->PostGcRosAllocVerification(&timings_);
       ATRACE_END();
