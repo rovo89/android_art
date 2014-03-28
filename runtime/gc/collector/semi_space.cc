@@ -25,7 +25,7 @@
 #include "base/macros.h"
 #include "base/mutex-inl.h"
 #include "base/timing_logger.h"
-#include "gc/accounting/heap_bitmap.h"
+#include "gc/accounting/heap_bitmap-inl.h"
 #include "gc/accounting/mod_union_table.h"
 #include "gc/accounting/remembered_set.h"
 #include "gc/accounting/space_bitmap-inl.h"
@@ -726,8 +726,8 @@ inline Object* SemiSpace::GetMarkedForwardAddress(mirror::Object* obj) const
     return obj;
   }
   if (from_space_->HasAddress(obj)) {
-    mirror::Object* forwarding_address = GetForwardingAddressInFromSpace(const_cast<Object*>(obj));
-    return forwarding_address;  // Returns either the forwarding address or nullptr.
+    // Returns either the forwarding address or nullptr.
+    return GetForwardingAddressInFromSpace(obj);
   } else if (to_space_->HasAddress(obj)) {
     // Should be unlikely.
     // Already forwarded, must be marked.
@@ -751,38 +751,12 @@ void SemiSpace::FinishPhase() {
   Heap* heap = GetHeap();
   timings_.NewSplit("PostGcVerification");
   heap->PostGcVerification(this);
-
   // Null the "to" and "from" spaces since compacting from one to the other isn't valid until
   // further action is done by the heap.
   to_space_ = nullptr;
   from_space_ = nullptr;
-
-  // Update the cumulative statistics
-  total_freed_objects_ += GetFreedObjects() + GetFreedLargeObjects();
-  total_freed_bytes_ += GetFreedBytes() + GetFreedLargeObjectBytes();
-
-  // Ensure that the mark stack is empty.
   CHECK(mark_stack_->IsEmpty());
-
-  // Update the cumulative loggers.
-  cumulative_timings_.Start();
-  cumulative_timings_.AddLogger(timings_);
-  cumulative_timings_.End();
-
-  // Clear all of the spaces' mark bitmaps.
-  for (const auto& space : GetHeap()->GetContinuousSpaces()) {
-    accounting::SpaceBitmap* bitmap = space->GetMarkBitmap();
-    if (bitmap != nullptr &&
-        space->GetGcRetentionPolicy() != space::kGcRetentionPolicyNeverCollect) {
-      bitmap->Clear();
-    }
-  }
   mark_stack_->Reset();
-
-  // Reset the marked large objects.
-  space::LargeObjectSpace* large_objects = GetHeap()->GetLargeObjectsSpace();
-  large_objects->GetMarkObjects()->Clear();
-
   if (generational_) {
     // Decide whether to do a whole heap collection or a bump pointer
     // only space collection at the next collection by updating
@@ -800,6 +774,9 @@ void SemiSpace::FinishPhase() {
       whole_heap_collection_ = false;
     }
   }
+  // Clear all of the spaces' mark bitmaps.
+  WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
+  heap_->ClearMarkedObjects();
 }
 
 void SemiSpace::RevokeAllThreadLocalBuffers() {

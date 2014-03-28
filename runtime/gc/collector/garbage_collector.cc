@@ -86,8 +86,8 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
       // Pause is the entire length of the GC.
       uint64_t pause_start = NanoTime();
       ATRACE_BEGIN("Application threads suspended");
-      // Mutator lock may be already exclusively held when we do garbage collections for changing the
-      // current collector / allocator during process state updates.
+      // Mutator lock may be already exclusively held when we do garbage collections for changing
+      // the current collector / allocator during process state updates.
       if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
         // PreGcRosAllocVerification() is called in Heap::TransitionCollector().
         RevokeAllThreadLocalBuffers();
@@ -150,7 +150,11 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
       break;
     }
   }
-
+  // Add the current timings to the cumulative timings.
+  cumulative_timings_.AddLogger(timings_);
+  // Update cumulative statistics with how many bytes the GC iteration freed.
+  total_freed_objects_ += GetFreedObjects() + GetFreedLargeObjects();
+  total_freed_bytes_ += GetFreedBytes() + GetFreedLargeObjectBytes();
   uint64_t end_time = NanoTime();
   duration_ns_ = end_time - start_time;
   total_time_ns_ += GetDurationNs();
