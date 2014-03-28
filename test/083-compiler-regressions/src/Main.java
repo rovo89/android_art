@@ -34,6 +34,7 @@ public class Main {
         b2302318Test();
         b2487514Test();
         b5884080Test();
+        b13679511Test();
         largeFrameTest();
         largeFrameTestFloat();
         mulBy1Test();
@@ -289,6 +290,21 @@ public class Main {
             System.out.println("b5884080 fails: vA is " + vA +
                                " (expecting 100001)");
         }
+    }
+
+    static void b13679511Test() {
+       System.out.println("b13679511Test starting");
+       int[] nn = { 1, 2, 3, 4 };
+       for (int i : nn) {
+           System.out.println(i);
+       }
+       int len = nn.length;
+       System.out.println(nn.length);
+       System.out.println(nn.length % 3);
+       System.out.println(len % 3);
+       System.out.println(4 % 3);
+       System.out.println((nn.length % 3) != 1);
+       System.out.println("b13679511Test finishing");
     }
 
     static double TooManyArgs(
