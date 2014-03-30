@@ -29,7 +29,8 @@
 
 namespace art {
 
-void FaultManager::GetMethodAndReturnPC(void* context, uintptr_t& method, uintptr_t& return_pc) {
+void FaultManager::GetMethodAndReturnPCAndSP(void* context, mirror::ArtMethod** out_method,
+                                             uintptr_t* out_return_pc, uintptr_t* out_sp) {
 }
 
 bool NullPointerHandler::Action(int sig, siginfo_t* info, void* context) {

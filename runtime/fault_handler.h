@@ -26,6 +26,11 @@
 #include "base/mutex.h"   // For annotalysis.
 
 namespace art {
+
+namespace mirror {
+class ArtMethod;
+}       // namespace mirror
+
 class FaultHandler;
 
 class FaultManager {
@@ -36,52 +41,76 @@ class FaultManager {
   void Init();
 
   void HandleFault(int sig, siginfo_t* info, void* context);
-  void AddHandler(FaultHandler* handler);
+  void AddHandler(FaultHandler* handler, bool generated_code);
   void RemoveHandler(FaultHandler* handler);
+  void GetMethodAndReturnPCAndSP(void* context, mirror::ArtMethod** out_method,
+                                 uintptr_t* out_return_pc, uintptr_t* out_sp);
+  bool IsInGeneratedCode(void *context, bool check_dex_pc) NO_THREAD_SAFETY_ANALYSIS;
 
  private:
-  bool IsInGeneratedCode(void *context) NO_THREAD_SAFETY_ANALYSIS;
-  void GetMethodAndReturnPC(void* context, uintptr_t& method, uintptr_t& return_pc);
-
-  typedef std::vector<FaultHandler*> Handlers;
-  Handlers handlers_;
+  std::vector<FaultHandler*> generated_code_handlers_;
+  std::vector<FaultHandler*> other_handlers_;
   struct sigaction oldaction_;
+  DISALLOW_COPY_AND_ASSIGN(FaultManager);
 };
 
 class FaultHandler {
  public:
-  FaultHandler() : manager_(nullptr) {}
-  explicit FaultHandler(FaultManager* manager) : manager_(manager) {}
+  explicit FaultHandler(FaultManager* manager);
   virtual ~FaultHandler() {}
+  FaultManager* GetFaultManager() {
+    return manager_;
+  }
 
   virtual bool Action(int sig, siginfo_t* siginfo, void* context) = 0;
+
  protected:
   FaultManager* const manager_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FaultHandler);
 };
 
 class NullPointerHandler FINAL : public FaultHandler {
  public:
-  NullPointerHandler() {}
   explicit NullPointerHandler(FaultManager* manager);
 
   bool Action(int sig, siginfo_t* siginfo, void* context) OVERRIDE;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(NullPointerHandler);
 };
 
 class SuspensionHandler FINAL : public FaultHandler {
  public:
-  SuspensionHandler() {}
   explicit SuspensionHandler(FaultManager* manager);
 
   bool Action(int sig, siginfo_t* siginfo, void* context) OVERRIDE;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SuspensionHandler);
 };
 
 class StackOverflowHandler FINAL : public FaultHandler {
  public:
-  StackOverflowHandler() {}
   explicit StackOverflowHandler(FaultManager* manager);
 
   bool Action(int sig, siginfo_t* siginfo, void* context) OVERRIDE;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(StackOverflowHandler);
 };
+
+class JavaStackTraceHandler FINAL : public FaultHandler {
+ public:
+  explicit JavaStackTraceHandler(FaultManager* manager);
+
+  bool Action(int sig, siginfo_t* siginfo, void* context) OVERRIDE NO_THREAD_SAFETY_ANALYSIS;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(JavaStackTraceHandler);
+};
+
 
 // Statically allocated so the the signal handler can get access to it.
 extern FaultManager fault_manager;
