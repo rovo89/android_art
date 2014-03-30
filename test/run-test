@@ -36,7 +36,7 @@ test_dir="test-$$"
 tmp_dir="/tmp/${test_dir}"
 
 export JAVA="java"
-export JAVAC="javac -g -source 1.5 -target 1.5"
+export JAVAC="javac -g"
 export RUN="${progdir}/etc/push-and-run-test-jar"
 export DEX_LOCATION=/data/run-test/${test_dir}
 export NEED_DEX="true"
