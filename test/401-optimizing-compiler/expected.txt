@@ -1,0 +1,3 @@
+In static method
+Forced GC
+java.lang.Error: Error
