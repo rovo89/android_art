@@ -99,6 +99,7 @@ void* ArenaStack::AllocValgrind(size_t bytes, ArenaAllocKind kind) {
   }
   CurrentStats()->RecordAlloc(bytes, kind);
   top_ptr_ = ptr + rounded_bytes;
+  VALGRIND_MAKE_MEM_UNDEFINED(ptr, bytes);
   VALGRIND_MAKE_MEM_NOACCESS(ptr + bytes, rounded_bytes - bytes);
   return ptr;
 }
