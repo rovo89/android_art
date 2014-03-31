@@ -17,7 +17,7 @@ problems that need to be addressed:
       code generation for switch tables, fill array data, 64-bit
       data handling and the register usage conventions.
 
-    o The memory model.  Verify that oatGenMemoryBarrier() generates the
+    o The memory model.  Verify that GenMemoryBarrier() generates the
       appropriate flavor of sync.
 
 Register promotion

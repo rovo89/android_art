@@ -322,7 +322,7 @@ LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_va
    */
   bool skip = ((target != NULL) && (target->opcode == kPseudoThrowTarget));
   skip &= ((cu_->code_item->insns_size_in_code_units_ - current_dalvik_offset_) > 64);
-  if (!skip && (ARM_LOWREG(reg.GetReg())) && (check_value == 0) &&
+  if (!skip && reg.Low8() && (check_value == 0) &&
      ((arm_cond == kArmCondEq) || (arm_cond == kArmCondNe))) {
     branch = NewLIR2((arm_cond == kArmCondEq) ? kThumb2Cbz : kThumb2Cbnz,
                      reg.GetReg(), 0);
@@ -344,13 +344,13 @@ LIR* ArmMir2Lir::OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) {
   if (r_src.IsPair()) {
     r_src = r_src.GetLow();
   }
-  if (ARM_FPREG(r_dest.GetReg()) || ARM_FPREG(r_src.GetReg()))
+  if (r_dest.IsFloat() || r_src.IsFloat())
     return OpFpRegCopy(r_dest, r_src);
-  if (ARM_LOWREG(r_dest.GetReg()) && ARM_LOWREG(r_src.GetReg()))
+  if (r_dest.Low8() && r_src.Low8())
     opcode = kThumbMovRR;
-  else if (!ARM_LOWREG(r_dest.GetReg()) && !ARM_LOWREG(r_src.GetReg()))
+  else if (!r_dest.Low8() && !r_src.Low8())
      opcode = kThumbMovRR_H2H;
-  else if (ARM_LOWREG(r_dest.GetReg()))
+  else if (r_dest.Low8())
      opcode = kThumbMovRR_H2L;
   else
      opcode = kThumbMovRR_L2H;
@@ -370,21 +370,19 @@ void ArmMir2Lir::OpRegCopy(RegStorage r_dest, RegStorage r_src) {
 
 void ArmMir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
   if (r_dest != r_src) {
-    bool dest_fp = ARM_FPREG(r_dest.GetLowReg());
-    bool src_fp = ARM_FPREG(r_src.GetLowReg());
+    bool dest_fp = r_dest.IsFloat();
+    bool src_fp = r_src.IsFloat();
+    DCHECK(r_dest.Is64Bit());
+    DCHECK(r_src.Is64Bit());
     if (dest_fp) {
       if (src_fp) {
-        // FIXME: handle 64-bit solo's here.
-        OpRegCopy(RegStorage::Solo64(S2d(r_dest.GetLowReg(), r_dest.GetHighReg())),
-                  RegStorage::Solo64(S2d(r_src.GetLowReg(), r_src.GetHighReg())));
+        OpRegCopy(r_dest, r_src);
       } else {
-        NewLIR3(kThumb2Fmdrr, S2d(r_dest.GetLowReg(), r_dest.GetHighReg()),
-                r_src.GetLowReg(), r_src.GetHighReg());
+        NewLIR3(kThumb2Fmdrr, r_dest.GetReg(), r_src.GetLowReg(), r_src.GetHighReg());
       }
     } else {
       if (src_fp) {
-        NewLIR3(kThumb2Fmrrd, r_dest.GetLowReg(), r_dest.GetHighReg(), S2d(r_src.GetLowReg(),
-                r_src.GetHighReg()));
+        NewLIR3(kThumb2Fmrrd, r_dest.GetLowReg(), r_dest.GetHighReg(), r_src.GetReg());
       } else {
         // Handle overlap
         if (r_src.GetHighReg() == r_dest.GetLowReg()) {
@@ -747,16 +745,18 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   // around the potentially locked temp by using LR for r_ptr, unconditionally.
   // TODO: Pass information about the need for more temps to the stack frame generation
   // code so that we can rely on being able to allocate enough temps.
-  DCHECK(!reg_pool_->core_regs[rARM_LR].is_temp);
-  MarkTemp(rARM_LR);
-  FreeTemp(rARM_LR);
-  LockTemp(rARM_LR);
+  DCHECK(!GetRegInfo(rs_rARM_LR)->IsTemp());
+  MarkTemp(rs_rARM_LR);
+  FreeTemp(rs_rARM_LR);
+  LockTemp(rs_rARM_LR);
   bool load_early = true;
   if (is_long) {
-    int expected_reg = is_long ? rl_src_expected.reg.GetLowReg() : rl_src_expected.reg.GetReg();
-    int new_val_reg = is_long ? rl_src_new_value.reg.GetLowReg() : rl_src_new_value.reg.GetReg();
-    bool expected_is_core_reg = rl_src_expected.location == kLocPhysReg && !IsFpReg(expected_reg);
-    bool new_value_is_core_reg = rl_src_new_value.location == kLocPhysReg && !IsFpReg(new_val_reg);
+    RegStorage expected_reg = rl_src_expected.reg.IsPair() ? rl_src_expected.reg.GetLow() :
+        rl_src_expected.reg;
+    RegStorage new_val_reg = rl_src_new_value.reg.IsPair() ? rl_src_new_value.reg.GetLow() :
+        rl_src_new_value.reg;
+    bool expected_is_core_reg = rl_src_expected.location == kLocPhysReg && !expected_reg.IsFloat();
+    bool new_value_is_core_reg = rl_src_new_value.location == kLocPhysReg && !new_val_reg.IsFloat();
     bool expected_is_good_reg = expected_is_core_reg && !IsTemp(expected_reg);
     bool new_value_is_good_reg = new_value_is_core_reg && !IsTemp(new_val_reg);
 
@@ -802,9 +802,9 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
 
   // Free now unneeded rl_object and rl_offset to give more temps.
   ClobberSReg(rl_object.s_reg_low);
-  FreeTemp(rl_object.reg.GetReg());
+  FreeTemp(rl_object.reg);
   ClobberSReg(rl_offset.s_reg_low);
-  FreeTemp(rl_offset.reg.GetReg());
+  FreeTemp(rl_offset.reg);
 
   RegLocation rl_expected;
   if (!is_long) {
@@ -813,9 +813,9 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
     rl_expected = LoadValueWide(rl_src_expected, kCoreReg);
   } else {
     // NOTE: partially defined rl_expected & rl_new_value - but we just want the regs.
-    int low_reg = AllocTemp().GetReg();
-    int high_reg = AllocTemp().GetReg();
-    rl_new_value.reg = RegStorage(RegStorage::k64BitPair, low_reg, high_reg);
+    RegStorage low_reg = AllocTemp();
+    RegStorage high_reg = AllocTemp();
+    rl_new_value.reg = RegStorage::MakeRegPair(low_reg, high_reg);
     rl_expected = rl_new_value;
   }
 
@@ -840,7 +840,7 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
       LoadValueDirectWide(rl_src_new_value, rl_new_value.reg);
     }
     // Make sure we use ORR that sets the ccode
-    if (ARM_LOWREG(r_tmp.GetReg()) && ARM_LOWREG(r_tmp_high.GetReg())) {
+    if (r_tmp.Low8() && r_tmp_high.Low8()) {
       NewLIR2(kThumbOrr, r_tmp.GetReg(), r_tmp_high.GetReg());
     } else {
       NewLIR4(kThumb2OrrRRRs, r_tmp.GetReg(), r_tmp.GetReg(), r_tmp_high.GetReg(), 0);
@@ -881,8 +881,8 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   StoreValue(rl_dest, rl_result);
 
   // Now, restore lr to its non-temp status.
-  Clobber(rARM_LR);
-  UnmarkTemp(rARM_LR);
+  Clobber(rs_rARM_LR);
+  UnmarkTemp(rs_rARM_LR);
   return true;
 }
 
@@ -891,11 +891,11 @@ LIR* ArmMir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
 }
 
 LIR* ArmMir2Lir::OpVldm(RegStorage r_base, int count) {
-  return NewLIR3(kThumb2Vldms, r_base.GetReg(), fr0, count);
+  return NewLIR3(kThumb2Vldms, r_base.GetReg(), rs_fr0.GetReg(), count);
 }
 
 LIR* ArmMir2Lir::OpVstm(RegStorage r_base, int count) {
-  return NewLIR3(kThumb2Vstms, r_base.GetReg(), fr0, count);
+  return NewLIR3(kThumb2Vstms, r_base.GetReg(), rs_fr0.GetReg(), count);
 }
 
 void ArmMir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
@@ -918,7 +918,7 @@ void ArmMir2Lir::GenDivZeroCheckWide(RegStorage reg) {
 
 // Test suspend flag, return target of taken suspend branch
 LIR* ArmMir2Lir::OpTestSuspend(LIR* target) {
-  NewLIR2(kThumbSubRI8, rARM_SUSPEND, 1);
+  NewLIR2(kThumbSubRI8, rs_rARM_SUSPEND.GetReg(), 1);
   return OpCondBranch((target == NULL) ? kCondEq : kCondNe, target);
 }
 
@@ -1012,9 +1012,9 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
     RegStorage res_lo;
     RegStorage res_hi;
     bool dest_promoted = rl_dest.location == kLocPhysReg && rl_dest.reg.Valid() &&
-        !IsTemp(rl_dest.reg.GetLowReg()) && !IsTemp(rl_dest.reg.GetHighReg());
-    bool src1_promoted = !IsTemp(rl_src1.reg.GetLowReg()) && !IsTemp(rl_src1.reg.GetHighReg());
-    bool src2_promoted = !IsTemp(rl_src2.reg.GetLowReg()) && !IsTemp(rl_src2.reg.GetHighReg());
+        !IsTemp(rl_dest.reg.GetLow()) && !IsTemp(rl_dest.reg.GetHigh());
+    bool src1_promoted = !IsTemp(rl_src1.reg.GetLow()) && !IsTemp(rl_src1.reg.GetHigh());
+    bool src2_promoted = !IsTemp(rl_src2.reg.GetLow()) && !IsTemp(rl_src2.reg.GetHigh());
     // Check if rl_dest is *not* either operand and we have enough temp registers.
     if ((rl_dest.s_reg_low != rl_src1.s_reg_low && rl_dest.s_reg_low != rl_src2.s_reg_low) &&
         (dest_promoted || src1_promoted || src2_promoted)) {
@@ -1036,10 +1036,10 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
     }
 
     // Temporarily add LR to the temp pool, and assign it to tmp1
-    MarkTemp(rARM_LR);
-    FreeTemp(rARM_LR);
+    MarkTemp(rs_rARM_LR);
+    FreeTemp(rs_rARM_LR);
     RegStorage tmp1 = rs_rARM_LR;
-    LockTemp(rARM_LR);
+    LockTemp(rs_rARM_LR);
 
     if (rl_src1.reg == rl_src2.reg) {
       DCHECK(res_hi.Valid());
@@ -1054,7 +1054,7 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
         DCHECK(!res_hi.Valid());
         DCHECK_NE(rl_src1.reg.GetLowReg(), rl_src2.reg.GetLowReg());
         DCHECK_NE(rl_src1.reg.GetHighReg(), rl_src2.reg.GetHighReg());
-        FreeTemp(rl_src1.reg.GetHighReg());
+        FreeTemp(rl_src1.reg.GetHigh());
         res_hi = AllocTemp();
       }
       DCHECK(res_hi.Valid());
@@ -1073,8 +1073,8 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
 
     // Now, restore lr to its non-temp status.
     FreeTemp(tmp1);
-    Clobber(rARM_LR);
-    UnmarkTemp(rARM_LR);
+    Clobber(rs_rARM_LR);
+    UnmarkTemp(rs_rARM_LR);
 
     if (reg_status != 0) {
       // We had manually allocated registers for rl_result.
@@ -1116,7 +1116,7 @@ void ArmMir2Lir::GenXorLong(Instruction::Code opcode, RegLocation rl_dest, RegLo
  */
 void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_dest, int scale) {
-  RegisterClass reg_class = oat_reg_class_by_size(size);
+  RegisterClass reg_class = RegClassBySize(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
   RegLocation rl_result;
@@ -1158,7 +1158,7 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       // No special indexed operation, lea + load w/ displacement
       reg_ptr = AllocTemp();
       OpRegRegRegShift(kOpAdd, reg_ptr, rl_array.reg, rl_index.reg, EncodeShift(kArmLsl, scale));
-      FreeTemp(rl_index.reg.GetReg());
+      FreeTemp(rl_index.reg);
     }
     rl_result = EvalLoc(rl_dest, reg_class, true);
 
@@ -1189,7 +1189,7 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
     // Offset base, then use indexed load
     RegStorage reg_ptr = AllocTemp();
     OpRegRegImm(kOpAdd, reg_ptr, rl_array.reg, data_offset);
-    FreeTemp(rl_array.reg.GetReg());
+    FreeTemp(rl_array.reg);
     rl_result = EvalLoc(rl_dest, reg_class, true);
 
     if (needs_range_check) {
@@ -1209,7 +1209,7 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
  */
 void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_src, int scale, bool card_mark) {
-  RegisterClass reg_class = oat_reg_class_by_size(size);
+  RegisterClass reg_class = RegClassBySize(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   bool constant_index = rl_index.is_const;
 
@@ -1234,8 +1234,8 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   bool allocated_reg_ptr_temp = false;
   if (constant_index) {
     reg_ptr = rl_array.reg;
-  } else if (IsTemp(rl_array.reg.GetReg()) && !card_mark) {
-    Clobber(rl_array.reg.GetReg());
+  } else if (IsTemp(rl_array.reg) && !card_mark) {
+    Clobber(rl_array.reg);
     reg_ptr = rl_array.reg;
   } else {
     allocated_reg_ptr_temp = true;

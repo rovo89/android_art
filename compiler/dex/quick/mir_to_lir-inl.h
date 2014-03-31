@@ -25,20 +25,21 @@ namespace art {
 
 /* Mark a temp register as dead.  Does not affect allocation state. */
 inline void Mir2Lir::ClobberBody(RegisterInfo* p) {
-  if (p->is_temp) {
-    DCHECK(!(p->live && p->dirty))  << "Live & dirty temp in clobber";
-    p->live = false;
-    p->s_reg = INVALID_SREG;
-    p->def_start = NULL;
-    p->def_end = NULL;
-    if (p->pair) {
-      p->pair = false;
-      p = GetRegInfo(p->partner);
-      p->pair = false;
-      p->live = false;
-      p->s_reg = INVALID_SREG;
-      p->def_start = NULL;
-      p->def_end = NULL;
+  if (p->IsTemp()) {
+    DCHECK(!(p->IsLive() && p->IsDirty()))  << "Live & dirty temp in clobber";
+    p->SetIsLive(false);
+    p->SetSReg(INVALID_SREG);
+    p->ResetDefBody();
+    if (p->IsWide()) {
+      p->SetIsWide(false);
+      if (p->GetReg() != p->Partner()) {
+        // Register pair - deal with the other half.
+        p = GetRegInfo(p->Partner());
+        p->SetIsWide(false);
+        p->SetIsLive(false);
+        p->SetSReg(INVALID_SREG);
+        p->ResetDefBody();
+      }
     }
   }
 }
@@ -143,7 +144,9 @@ inline LIR* Mir2Lir::NewLIR5(int opcode, int dest, int src1, int src2, int info1
  * Mark the corresponding bit(s).
  */
 inline void Mir2Lir::SetupRegMask(uint64_t* mask, int reg) {
-  *mask |= GetRegMaskCommon(reg);
+  DCHECK_EQ((reg & ~RegStorage::kRegValMask), 0);
+  DCHECK(reginfo_map_.Get(reg) != nullptr) << "No info for 0x" << reg;
+  *mask |= reginfo_map_.Get(reg)->DefUseMask();
 }
 
 /*
@@ -228,9 +231,11 @@ inline void Mir2Lir::SetupResourceMasks(LIR* lir) {
   SetupTargetResourceMasks(lir, flags);
 }
 
-inline art::Mir2Lir::RegisterInfo* Mir2Lir::GetRegInfo(int reg) {
-  DCHECK(reginfo_map_.Get(reg) != NULL);
-  return reginfo_map_.Get(reg);
+inline art::Mir2Lir::RegisterInfo* Mir2Lir::GetRegInfo(RegStorage reg) {
+  RegisterInfo* res = reg.IsPair() ? reginfo_map_.Get(reg.GetLowReg()) :
+      reginfo_map_.Get(reg.GetReg());
+  DCHECK(res != nullptr);
+  return res;
 }
 
 }  // namespace art

@@ -86,26 +86,6 @@ namespace art {
  * +========================+
  */
 
-// Offset to distingish FP regs.
-#define MIPS_FP_REG_OFFSET 32
-// Offset to distinguish DP FP regs.
-#define MIPS_FP_DOUBLE 64
-// Reg types.
-#define MIPS_REGTYPE(x) (x & (MIPS_FP_REG_OFFSET | MIPS_FP_DOUBLE))
-#define MIPS_FPREG(x) ((x & MIPS_FP_REG_OFFSET) == MIPS_FP_REG_OFFSET)
-#define MIPS_DOUBLEREG(x) ((x & MIPS_FP_DOUBLE) == MIPS_FP_DOUBLE)
-#define MIPS_SINGLEREG(x) (MIPS_FPREG(x) && !MIPS_DOUBLEREG(x))
-// FIXME: out of date comment.
-/*
- * Note: the low register of a floating point pair is sufficient to
- * create the name of a double, but require both names to be passed to
- * allow for asserts to verify that the pair is consecutive if significant
- * rework is done in this area.  Also, it is a good reminder in the calling
- * code that reg locations always describe doubles as a pair of singles.
- */
-#define MIPS_S2D(x, y) ((x) | MIPS_FP_DOUBLE)
-// Mask to strip off fp flags.
-#define MIPS_FP_REG_MASK (MIPS_FP_REG_OFFSET-1)
 
 #define LOWORD_OFFSET 0
 #define HIWORD_OFFSET 4
@@ -159,135 +139,159 @@ enum MipsResourceEncodingPos {
 #define ENCODE_MIPS_REG_LO           (1ULL << kMipsRegLO)
 
 enum MipsNativeRegisterPool {
-  rZERO = 0,
-  rAT = 1,
-  rV0 = 2,
-  rV1 = 3,
-  rA0 = 4,
-  rA1 = 5,
-  rA2 = 6,
-  rA3 = 7,
-  rT0 = 8,
-  rT1 = 9,
-  rT2 = 10,
-  rT3 = 11,
-  rT4 = 12,
-  rT5 = 13,
-  rT6 = 14,
-  rT7 = 15,
-  rS0 = 16,
-  rS1 = 17,
-  rS2 = 18,
-  rS3 = 19,
-  rS4 = 20,
-  rS5 = 21,
-  rS6 = 22,
-  rS7 = 23,
-  rT8 = 24,
-  rT9 = 25,
-  rK0 = 26,
-  rK1 = 27,
-  rGP = 28,
-  rSP = 29,
-  rFP = 30,
-  rRA = 31,
+  rZERO = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  0,
+  rAT   = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  1,
+  rV0   = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  2,
+  rV1   = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  3,
+  rA0   = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  4,
+  rA1   = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  5,
+  rA2   = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  6,
+  rA3   = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  7,
+  rT0   = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  8,
+  rT1   = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  9,
+  rT2   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 10,
+  rT3   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 11,
+  rT4   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 12,
+  rT5   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 13,
+  rT6   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 14,
+  rT7   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 15,
+  rS0   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 16,
+  rS1   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 17,
+  rS2   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 18,
+  rS3   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 19,
+  rS4   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 20,
+  rS5   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 21,
+  rS6   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 22,
+  rS7   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 23,
+  rT8   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 24,
+  rT9   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 25,
+  rK0   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 26,
+  rK1   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 27,
+  rGP   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 28,
+  rSP   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 29,
+  rFP   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 30,
+  rRA   = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 31,
 
-  rF0 = 0 + MIPS_FP_REG_OFFSET,
-  rF1,
-  rF2,
-  rF3,
-  rF4,
-  rF5,
-  rF6,
-  rF7,
-  rF8,
-  rF9,
-  rF10,
-  rF11,
-  rF12,
-  rF13,
-  rF14,
-  rF15,
+  rF0  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  0,
+  rF1  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  1,
+  rF2  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  2,
+  rF3  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  3,
+  rF4  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  4,
+  rF5  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  5,
+  rF6  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  6,
+  rF7  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  7,
+  rF8  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  8,
+  rF9  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  9,
+  rF10 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 10,
+  rF11 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 11,
+  rF12 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 12,
+  rF13 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 13,
+  rF14 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 14,
+  rF15 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 15,
 #if 0
   /*
    * TODO: The shared resource mask doesn't have enough bit positions to describe all
    * MIPS registers.  Expand it and enable use of fp registers 16 through 31.
    */
-  rF16,
-  rF17,
-  rF18,
-  rF19,
-  rF20,
-  rF21,
-  rF22,
-  rF23,
-  rF24,
-  rF25,
-  rF26,
-  rF27,
-  rF28,
-  rF29,
-  rF30,
-  rF31,
+  rF16 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 16,
+  rF17 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 17,
+  rF18 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 18,
+  rF19 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 19,
+  rF20 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 20,
+  rF21 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 21,
+  rF22 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 22,
+  rF23 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 23,
+  rF24 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 24,
+  rF25 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 25,
+  rF26 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 26,
+  rF27 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 27,
+  rF28 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 28,
+  rF29 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 29,
+  rF30 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 30,
+  rF31 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 31,
 #endif
-  rDF0 = rF0 + MIPS_FP_DOUBLE,
-  rDF1 = rF2 + MIPS_FP_DOUBLE,
-  rDF2 = rF4 + MIPS_FP_DOUBLE,
-  rDF3 = rF6 + MIPS_FP_DOUBLE,
-  rDF4 = rF8 + MIPS_FP_DOUBLE,
-  rDF5 = rF10 + MIPS_FP_DOUBLE,
-  rDF6 = rF12 + MIPS_FP_DOUBLE,
-  rDF7 = rF14 + MIPS_FP_DOUBLE,
+  rD0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  0,
+  rD1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  1,
+  rD2  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  2,
+  rD3  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  3,
+  rD4  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  4,
+  rD5  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  5,
+  rD6  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  6,
+  rD7  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  7,
 #if 0  // TODO: expand resource mask to enable use of all MIPS fp registers.
-  rDF8 = rF16 + MIPS_FP_DOUBLE,
-  rDF9 = rF18 + MIPS_FP_DOUBLE,
-  rDF10 = rF20 + MIPS_FP_DOUBLE,
-  rDF11 = rF22 + MIPS_FP_DOUBLE,
-  rDF12 = rF24 + MIPS_FP_DOUBLE,
-  rDF13 = rF26 + MIPS_FP_DOUBLE,
-  rDF14 = rF28 + MIPS_FP_DOUBLE,
-  rDF15 = rF30 + MIPS_FP_DOUBLE,
+  rD8  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  8,
+  rD9  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  9,
+  rD10 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 10,
+  rD11 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 11,
+  rD12 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 12,
+  rD13 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 13,
+  rD14 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 14,
+  rD15 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 15,
 #endif
 };
 
-const RegStorage rs_rZERO(RegStorage::k32BitSolo, rZERO);
-const RegStorage rs_rAT(RegStorage::k32BitSolo, rAT);
-const RegStorage rs_rV0(RegStorage::k32BitSolo, rV0);
-const RegStorage rs_rV1(RegStorage::k32BitSolo, rV1);
-const RegStorage rs_rA0(RegStorage::k32BitSolo, rA0);
-const RegStorage rs_rA1(RegStorage::k32BitSolo, rA1);
-const RegStorage rs_rA2(RegStorage::k32BitSolo, rA2);
-const RegStorage rs_rA3(RegStorage::k32BitSolo, rA3);
-const RegStorage rs_rT0(RegStorage::k32BitSolo, rT0);
-const RegStorage rs_rT1(RegStorage::k32BitSolo, rT1);
-const RegStorage rs_rT2(RegStorage::k32BitSolo, rT2);
-const RegStorage rs_rT3(RegStorage::k32BitSolo, rT3);
-const RegStorage rs_rT4(RegStorage::k32BitSolo, rT4);
-const RegStorage rs_rT5(RegStorage::k32BitSolo, rT5);
-const RegStorage rs_rT6(RegStorage::k32BitSolo, rT6);
-const RegStorage rs_rT7(RegStorage::k32BitSolo, rT7);
-const RegStorage rs_rS0(RegStorage::k32BitSolo, rS0);
-const RegStorage rs_rS1(RegStorage::k32BitSolo, rS1);
-const RegStorage rs_rS2(RegStorage::k32BitSolo, rS2);
-const RegStorage rs_rS3(RegStorage::k32BitSolo, rS3);
-const RegStorage rs_rS4(RegStorage::k32BitSolo, rS4);
-const RegStorage rs_rS5(RegStorage::k32BitSolo, rS5);
-const RegStorage rs_rS6(RegStorage::k32BitSolo, rS6);
-const RegStorage rs_rS7(RegStorage::k32BitSolo, rS7);
-const RegStorage rs_rT8(RegStorage::k32BitSolo, rT8);
-const RegStorage rs_rT9(RegStorage::k32BitSolo, rT9);
-const RegStorage rs_rK0(RegStorage::k32BitSolo, rK0);
-const RegStorage rs_rK1(RegStorage::k32BitSolo, rK1);
-const RegStorage rs_rGP(RegStorage::k32BitSolo, rGP);
-const RegStorage rs_rSP(RegStorage::k32BitSolo, rSP);
-const RegStorage rs_rFP(RegStorage::k32BitSolo, rFP);
-const RegStorage rs_rRA(RegStorage::k32BitSolo, rRA);
-const RegStorage rs_rF12(RegStorage::k32BitSolo, rF12);
-const RegStorage rs_rF13(RegStorage::k32BitSolo, rF13);
-const RegStorage rs_rF14(RegStorage::k32BitSolo, rF14);
-const RegStorage rs_rF15(RegStorage::k32BitSolo, rF15);
-const RegStorage rs_rF0(RegStorage::k32BitSolo, rF0);
-const RegStorage rs_rF1(RegStorage::k32BitSolo, rF1);
+constexpr RegStorage rs_rZERO(RegStorage::kValid | rZERO);
+constexpr RegStorage rs_rAT(RegStorage::kValid | rAT);
+constexpr RegStorage rs_rV0(RegStorage::kValid | rV0);
+constexpr RegStorage rs_rV1(RegStorage::kValid | rV1);
+constexpr RegStorage rs_rA0(RegStorage::kValid | rA0);
+constexpr RegStorage rs_rA1(RegStorage::kValid | rA1);
+constexpr RegStorage rs_rA2(RegStorage::kValid | rA2);
+constexpr RegStorage rs_rA3(RegStorage::kValid | rA3);
+constexpr RegStorage rs_rT0(RegStorage::kValid | rT0);
+constexpr RegStorage rs_rT1(RegStorage::kValid | rT1);
+constexpr RegStorage rs_rT2(RegStorage::kValid | rT2);
+constexpr RegStorage rs_rT3(RegStorage::kValid | rT3);
+constexpr RegStorage rs_rT4(RegStorage::kValid | rT4);
+constexpr RegStorage rs_rT5(RegStorage::kValid | rT5);
+constexpr RegStorage rs_rT6(RegStorage::kValid | rT6);
+constexpr RegStorage rs_rT7(RegStorage::kValid | rT7);
+constexpr RegStorage rs_rS0(RegStorage::kValid | rS0);
+constexpr RegStorage rs_rS1(RegStorage::kValid | rS1);
+constexpr RegStorage rs_rS2(RegStorage::kValid | rS2);
+constexpr RegStorage rs_rS3(RegStorage::kValid | rS3);
+constexpr RegStorage rs_rS4(RegStorage::kValid | rS4);
+constexpr RegStorage rs_rS5(RegStorage::kValid | rS5);
+constexpr RegStorage rs_rS6(RegStorage::kValid | rS6);
+constexpr RegStorage rs_rS7(RegStorage::kValid | rS7);
+constexpr RegStorage rs_rT8(RegStorage::kValid | rT8);
+constexpr RegStorage rs_rT9(RegStorage::kValid | rT9);
+constexpr RegStorage rs_rK0(RegStorage::kValid | rK0);
+constexpr RegStorage rs_rK1(RegStorage::kValid | rK1);
+constexpr RegStorage rs_rGP(RegStorage::kValid | rGP);
+constexpr RegStorage rs_rSP(RegStorage::kValid | rSP);
+constexpr RegStorage rs_rFP(RegStorage::kValid | rFP);
+constexpr RegStorage rs_rRA(RegStorage::kValid | rRA);
+
+constexpr RegStorage rs_rMIPS_LR(RegStorage::kInvalid);     // Not used for MIPS.
+constexpr RegStorage rs_rMIPS_PC(RegStorage::kInvalid);     // Not used for MIPS.
+constexpr RegStorage rs_rMIPS_COUNT(RegStorage::kInvalid);  // Not used for MIPS.
+
+constexpr RegStorage rs_rF0(RegStorage::kValid | rF0);
+constexpr RegStorage rs_rF1(RegStorage::kValid | rF1);
+constexpr RegStorage rs_rF2(RegStorage::kValid | rF2);
+constexpr RegStorage rs_rF3(RegStorage::kValid | rF3);
+constexpr RegStorage rs_rF4(RegStorage::kValid | rF4);
+constexpr RegStorage rs_rF5(RegStorage::kValid | rF5);
+constexpr RegStorage rs_rF6(RegStorage::kValid | rF6);
+constexpr RegStorage rs_rF7(RegStorage::kValid | rF7);
+constexpr RegStorage rs_rF8(RegStorage::kValid | rF8);
+constexpr RegStorage rs_rF9(RegStorage::kValid | rF9);
+constexpr RegStorage rs_rF10(RegStorage::kValid | rF10);
+constexpr RegStorage rs_rF11(RegStorage::kValid | rF11);
+constexpr RegStorage rs_rF12(RegStorage::kValid | rF12);
+constexpr RegStorage rs_rF13(RegStorage::kValid | rF13);
+constexpr RegStorage rs_rF14(RegStorage::kValid | rF14);
+constexpr RegStorage rs_rF15(RegStorage::kValid | rF15);
+
+constexpr RegStorage rs_rD0(RegStorage::kValid | rD0);
+constexpr RegStorage rs_rD1(RegStorage::kValid | rD1);
+constexpr RegStorage rs_rD2(RegStorage::kValid | rD2);
+constexpr RegStorage rs_rD3(RegStorage::kValid | rD3);
+constexpr RegStorage rs_rD4(RegStorage::kValid | rD4);
+constexpr RegStorage rs_rD5(RegStorage::kValid | rD5);
+constexpr RegStorage rs_rD6(RegStorage::kValid | rD6);
+constexpr RegStorage rs_rD7(RegStorage::kValid | rD7);
 
 // TODO: reduce/eliminate use of these.
 #define rMIPS_SUSPEND rS0
@@ -311,9 +315,9 @@ const RegStorage rs_rF1(RegStorage::k32BitSolo, rF1);
 #define rMIPS_FARG2 rFARG2
 #define rs_rMIPS_FARG2 rs_rFARG2
 #define rMIPS_FARG3 rFARG3
-#define rs_MIPS_FARG3 rs_rFARG3
+#define rs_rMIPS_FARG3 rs_rFARG3
 #define rMIPS_RET0 rRESULT0
-#define rs_MIPS_RET0 rs_rRESULT0
+#define rs_rMIPS_RET0 rs_rRESULT0
 #define rMIPS_RET1 rRESULT1
 #define rs_rMIPS_RET1 rs_rRESULT1
 #define rMIPS_INVOKE_TGT rT9
@@ -322,16 +326,17 @@ const RegStorage rs_rF1(RegStorage::k32BitSolo, rF1);
 
 // RegisterLocation templates return values (r_V0, or r_V0/r_V1).
 const RegLocation mips_loc_c_return
-    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1,
      RegStorage(RegStorage::k32BitSolo, rV0), INVALID_SREG, INVALID_SREG};
 const RegLocation mips_loc_c_return_wide
-    {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+    {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1,
      RegStorage(RegStorage::k64BitPair, rV0, rV1), INVALID_SREG, INVALID_SREG};
 const RegLocation mips_loc_c_return_float
-    {kLocPhysReg, 0, 0, 0, 1, 0, 0, 0, 1, kVectorNotUsed,
+    {kLocPhysReg, 0, 0, 0, 1, 0, 0, 0, 1,
      RegStorage(RegStorage::k32BitSolo, rF0), INVALID_SREG, INVALID_SREG};
+// FIXME: move MIPS to k64Bitsolo for doubles
 const RegLocation mips_loc_c_return_double
-    {kLocPhysReg, 1, 0, 0, 1, 0, 0, 0, 1, kVectorNotUsed,
+    {kLocPhysReg, 1, 0, 0, 1, 0, 0, 0, 1,
      RegStorage(RegStorage::k64BitPair, rF0, rF1), INVALID_SREG, INVALID_SREG};
 
 enum MipsShiftEncodings {

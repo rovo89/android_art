@@ -38,7 +38,7 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale,
                          OpSize size);
     LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
-                             RegStorage r_dest, RegStorage r_dest_hi, OpSize size, int s_reg);
+                             RegStorage r_dest, OpSize size, int s_reg);
     LIR* LoadConstantNoClobber(RegStorage r_dest, int value);
     LIR* LoadConstantWide(RegStorage r_dest, int64_t value);
     LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src, OpSize size);
@@ -46,16 +46,12 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
                           OpSize size);
     LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
-                              RegStorage r_src, RegStorage r_src_hi, OpSize size, int s_reg);
+                              RegStorage r_src, OpSize size, int s_reg);
     void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg);
 
     // Required for target - register utilities.
-    bool IsFpReg(int reg);
-    bool IsFpReg(RegStorage reg);
-    bool SameRegType(int reg1, int reg2);
     RegStorage AllocTypedTemp(bool fp_hint, int reg_class);
     RegStorage AllocTypedTempWide(bool fp_hint, int reg_class);
-    int S2d(int low_reg, int high_reg);
     RegStorage TargetReg(SpecialTargetRegister reg);
     RegStorage GetArgMappingToPhysicalReg(int arg_num);
     RegLocation GetReturnAlt();
@@ -64,17 +60,16 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     RegLocation LocCReturnDouble();
     RegLocation LocCReturnFloat();
     RegLocation LocCReturnWide();
-    uint32_t FpRegMask();
-    uint64_t GetRegMaskCommon(int reg);
+    uint64_t GetRegMaskCommon(RegStorage reg);
     void AdjustSpillMask();
     void ClobberCallerSave();
-    void FlushReg(RegStorage reg);
-    void FlushRegWide(RegStorage reg);
     void FreeCallTemps();
     void FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free);
     void LockCallTemps();
-    void MarkPreservedSingle(int v_reg, int reg);
+    void MarkPreservedSingle(int v_reg, RegStorage reg);
+    void MarkPreservedDouble(int v_reg, RegStorage reg);
     void CompilerInitializeRegAlloc();
+    RegStorage AllocPreservedDouble(int s_reg);
 
     // Required for target - miscellaneous.
     void AssembleLIR();

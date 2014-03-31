@@ -111,15 +111,13 @@ void MipsMir2Lir::GenArithOpDouble(Instruction::Code opcode,
   rl_result = EvalLoc(rl_dest, kFPReg, true);
   DCHECK(rl_dest.wide);
   DCHECK(rl_result.wide);
-  NewLIR3(op, S2d(rl_result.reg.GetLowReg(), rl_result.reg.GetHighReg()), S2d(rl_src1.reg.GetLowReg(), rl_src1.reg.GetHighReg()),
-          S2d(rl_src2.reg.GetLowReg(), rl_src2.reg.GetHighReg()));
+  NewLIR3(op, rl_result.reg.GetReg(), rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
   StoreValueWide(rl_dest, rl_result);
 }
 
 void MipsMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
                                 RegLocation rl_src) {
   int op = kMipsNop;
-  int src_reg;
   RegLocation rl_result;
   switch (opcode) {
     case Instruction::INT_TO_FLOAT:
@@ -157,18 +155,14 @@ void MipsMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
   }
   if (rl_src.wide) {
     rl_src = LoadValueWide(rl_src, kFPReg);
-    src_reg = S2d(rl_src.reg.GetLowReg(), rl_src.reg.GetHighReg());
   } else {
     rl_src = LoadValue(rl_src, kFPReg);
-    src_reg = rl_src.reg.GetReg();
   }
+  rl_result = EvalLoc(rl_dest, kFPReg, true);
+  NewLIR2(op, rl_result.reg.GetReg(), rl_src.reg.GetReg());
   if (rl_dest.wide) {
-    rl_result = EvalLoc(rl_dest, kFPReg, true);
-    NewLIR2(op, S2d(rl_result.reg.GetLowReg(), rl_result.reg.GetHighReg()), src_reg);
     StoreValueWide(rl_dest, rl_result);
   } else {
-    rl_result = EvalLoc(rl_dest, kFPReg, true);
-    NewLIR2(op, rl_result.reg.GetReg(), src_reg);
     StoreValue(rl_dest, rl_result);
   }
 }
