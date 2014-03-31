@@ -417,7 +417,7 @@ std::ostream& operator<<(std::ostream& os, const SelectInstructionKind& kind);
 enum FixupKind {
   kFixupNone,
   kFixupLabel,       // For labels we just adjust the offset.
-  kFixupLoad,        // Mostly for imediates.
+  kFixupLoad,        // Mostly for immediates.
   kFixupVLoad,       // FP load which *may* be pc-relative.
   kFixupCBxZ,        // Cbz, Cbnz.
   kFixupPushPop,     // Not really pc relative, but changes size based on args.

@@ -131,7 +131,6 @@ struct UseDefMasks {
 
 struct AssemblyInfo {
   LIR* pcrel_next;           // Chain of LIR nodes needing pc relative fixups.
-  uint8_t bytes[16];         // Encoded instruction bytes.
 };
 
 struct LIR {
@@ -151,7 +150,7 @@ struct LIR {
   } flags;
   union {
     UseDefMasks m;               // Use & Def masks used during optimization.
-    AssemblyInfo a;              // Instruction encoding used during assembly phase.
+    AssemblyInfo a;              // Instruction info used during assembly phase.
   } u;
   int32_t operands[5];           // [0..4] = [dest, src1, src2, extra, extra2].
 };
@@ -340,7 +339,7 @@ class Mir2Lir : public Backend {
       return code_buffer_.size() / sizeof(code_buffer_[0]);
     }
 
-    bool IsPseudoLirOp(int opcode) {
+    static bool IsPseudoLirOp(int opcode) {
       return (opcode < 0);
     }
 
