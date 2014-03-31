@@ -231,7 +231,7 @@ size_t RosAllocSpace::Trim() {
   if (!rosalloc_->DoesReleaseAllPages()) {
     VLOG(heap) << "RosAllocSpace::Trim() ";
     size_t reclaimed = 0;
-    InspectAllRosAlloc(DlmallocMadviseCallback, &reclaimed);
+    InspectAllRosAlloc(DlmallocMadviseCallback, &reclaimed, false);
     return reclaimed;
   }
   return 0;
@@ -239,8 +239,7 @@ size_t RosAllocSpace::Trim() {
 
 void RosAllocSpace::Walk(void(*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
                          void* arg) {
-  InspectAllRosAlloc(callback, arg);
-  callback(NULL, NULL, 0, arg);  // Indicate end of a space.
+  InspectAllRosAlloc(callback, arg, true);
 }
 
 size_t RosAllocSpace::GetFootprint() {
@@ -268,35 +267,56 @@ void RosAllocSpace::SetFootprintLimit(size_t new_size) {
 
 uint64_t RosAllocSpace::GetBytesAllocated() {
   size_t bytes_allocated = 0;
-  InspectAllRosAlloc(art::gc::allocator::RosAlloc::BytesAllocatedCallback, &bytes_allocated);
+  InspectAllRosAlloc(art::gc::allocator::RosAlloc::BytesAllocatedCallback, &bytes_allocated, false);
   return bytes_allocated;
 }
 
 uint64_t RosAllocSpace::GetObjectsAllocated() {
   size_t objects_allocated = 0;
-  InspectAllRosAlloc(art::gc::allocator::RosAlloc::ObjectsAllocatedCallback, &objects_allocated);
+  InspectAllRosAlloc(art::gc::allocator::RosAlloc::ObjectsAllocatedCallback, &objects_allocated, false);
   return objects_allocated;
 }
 
+void RosAllocSpace::InspectAllRosAllocWithSuspendAll(
+    void (*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
+    void* arg, bool do_null_callback_at_end) NO_THREAD_SAFETY_ANALYSIS {
+  // TODO: NO_THREAD_SAFETY_ANALYSIS.
+  Thread* self = Thread::Current();
+  ThreadList* tl = Runtime::Current()->GetThreadList();
+  tl->SuspendAll();
+  {
+    MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+    MutexLock mu2(self, *Locks::thread_list_lock_);
+    rosalloc_->InspectAll(callback, arg);
+    if (do_null_callback_at_end) {
+      callback(NULL, NULL, 0, arg);  // Indicate end of a space.
+    }
+  }
+  tl->ResumeAll();
+}
+
 void RosAllocSpace::InspectAllRosAlloc(void (*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
-                                       void* arg) NO_THREAD_SAFETY_ANALYSIS {
+                                       void* arg, bool do_null_callback_at_end) NO_THREAD_SAFETY_ANALYSIS {
   // TODO: NO_THREAD_SAFETY_ANALYSIS.
   Thread* self = Thread::Current();
   if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
     // The mutators are already suspended. For example, a call path
     // from SignalCatcher::HandleSigQuit().
     rosalloc_->InspectAll(callback, arg);
-  } else {
-    // The mutators are not suspended yet.
-    DCHECK(!Locks::mutator_lock_->IsSharedHeld(self));
-    ThreadList* tl = Runtime::Current()->GetThreadList();
-    tl->SuspendAll();
-    {
-      MutexLock mu(self, *Locks::runtime_shutdown_lock_);
-      MutexLock mu2(self, *Locks::thread_list_lock_);
-      rosalloc_->InspectAll(callback, arg);
+    if (do_null_callback_at_end) {
+      callback(NULL, NULL, 0, arg);  // Indicate end of a space.
     }
-    tl->ResumeAll();
+  } else if (Locks::mutator_lock_->IsSharedHeld(self)) {
+    // The mutators are not suspended yet and we have a shared access
+    // to the mutator lock. Temporarily release the shared access by
+    // transitioning to the suspend state, and suspend the mutators.
+    self->TransitionFromRunnableToSuspended(kSuspended);
+    InspectAllRosAllocWithSuspendAll(callback, arg, do_null_callback_at_end);
+    self->TransitionFromSuspendedToRunnable();
+    Locks::mutator_lock_->AssertSharedHeld(self);
+  } else {
+    // The mutators are not suspended yet. Suspend the mutators.
+    InspectAllRosAllocWithSuspendAll(callback, arg, do_null_callback_at_end);
   }
 }
 
