@@ -218,5 +218,32 @@ void InstructionCodeGeneratorX86::VisitInvokeStatic(HInvokeStatic* invoke) {
   codegen_->RecordPcInfo(invoke->GetDexPc());
 }
 
+void LocationsBuilderX86::VisitAdd(HAdd* add) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(add);
+  switch (add->GetResultType()) {
+    case Primitive::kPrimInt: {
+      locations->SetInAt(0, Location(EAX));
+      locations->SetInAt(1, Location(ECX));
+      locations->SetOut(Location(EAX));
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unimplemented";
+  }
+  add->SetLocations(locations);
+}
+
+void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
+  LocationSummary* locations = add->GetLocations();
+  switch (add->GetResultType()) {
+    case Primitive::kPrimInt:
+      DCHECK_EQ(locations->InAt(0).reg<Register>(), locations->Out().reg<Register>());
+      __ addl(locations->InAt(0).reg<Register>(), locations->InAt(1).reg<Register>());
+      break;
+    default:
+      LOG(FATAL) << "Unimplemented";
+  }
+}
+
 }  // namespace x86
 }  // namespace art

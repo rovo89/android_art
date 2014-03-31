@@ -180,6 +180,7 @@ class HBasicBlock : public ArenaObject {
 };
 
 #define FOR_EACH_INSTRUCTION(M)                            \
+  M(Add)                                                   \
   M(Equal)                                                 \
   M(Exit)                                                  \
   M(Goto)                                                  \
@@ -477,13 +478,35 @@ class HIf : public HTemplateInstruction<1> {
   DISALLOW_COPY_AND_ASSIGN(HIf);
 };
 
-// Instruction to check if two inputs are equal to each other.
-class HEqual : public HTemplateInstruction<2> {
+class HBinaryOperation : public HTemplateInstruction<2> {
  public:
-  HEqual(HInstruction* first, HInstruction* second) {
-    SetRawInputAt(0, first);
-    SetRawInputAt(1, second);
+  HBinaryOperation(Primitive::Type result_type,
+                   HInstruction* left,
+                   HInstruction* right) : result_type_(result_type) {
+    SetRawInputAt(0, left);
+    SetRawInputAt(1, right);
   }
+
+  HInstruction* GetLeft() const { return InputAt(0); }
+  HInstruction* GetRight() const { return InputAt(1); }
+  Primitive::Type GetResultType() const { return result_type_; }
+
+  virtual bool IsCommutative() { return false; }
+
+ private:
+  const Primitive::Type result_type_;
+
+  DISALLOW_COPY_AND_ASSIGN(HBinaryOperation);
+};
+
+
+// Instruction to check if two inputs are equal to each other.
+class HEqual : public HBinaryOperation {
+ public:
+  HEqual(HInstruction* first, HInstruction* second)
+      : HBinaryOperation(Primitive::kPrimBoolean, first, second) {}
+
+  virtual bool IsCommutative() { return true; }
 
   DECLARE_INSTRUCTION(Equal)
 
@@ -589,6 +612,19 @@ class HInvokeStatic : public HInvoke {
   uint32_t index_in_dex_cache_;
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeStatic);
+};
+
+class HAdd : public HBinaryOperation {
+ public:
+  HAdd(Primitive::Type result_type, HInstruction* left, HInstruction* right)
+      : HBinaryOperation(result_type, left, right) {}
+
+  virtual bool IsCommutative() { return true; }
+
+  DECLARE_INSTRUCTION(Add);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HAdd);
 };
 
 class HGraphVisitor : public ValueObject {
