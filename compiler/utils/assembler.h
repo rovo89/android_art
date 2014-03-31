@@ -52,6 +52,23 @@ namespace x86_64 {
   class X86_64Assembler;
 }
 
+class ExternalLabel {
+ public:
+  ExternalLabel(const char* name, uword address)
+      : name_(name), address_(address) {
+    DCHECK(name != nullptr);
+  }
+
+  const char* name() const { return name_; }
+  uword address() const {
+    return address_;
+  }
+
+ private:
+  const char* name_;
+  const uword address_;
+};
+
 class Label {
  public:
   Label() : position_(0) {}

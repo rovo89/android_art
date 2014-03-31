@@ -18,6 +18,7 @@ ZYGOTE=""
 QUIET="n"
 DEV_MODE="n"
 INVOKE_WITH=""
+FLAGS=""
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -30,6 +31,11 @@ while true; do
             exit 1
         fi
         LIB="$1"
+        shift
+    elif [ "x$1" = "x-Xcompiler-option" ]; then
+        shift
+        option="$1"
+        FLAGS="${FLAGS} -Xcompiler-option $option"
         shift
     elif [ "x$1" = "x--boot" ]; then
         shift
@@ -141,7 +147,7 @@ fi
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
 
 cmdline="cd $DEX_LOCATION && mkdir dalvik-cache && export ANDROID_DATA=$DEX_LOCATION && export DEX_LOCATION=$DEX_LOCATION && \
-    $INVOKE_WITH $gdb /system/bin/dalvikvm $gdbargs -XXlib:$LIB $ZYGOTE $JNI_OPTS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar Main"
+    $INVOKE_WITH $gdb /system/bin/dalvikvm $FLAGS $gdbargs -XXlib:$LIB $ZYGOTE $JNI_OPTS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar Main"
 if [ "$DEV_MODE" = "y" ]; then
   echo $cmdline "$@"
 fi

@@ -18,17 +18,27 @@
 #include "utils/assembler.h"
 #include "utils/arm/assembler_arm.h"
 
+#include "mirror/array.h"
+#include "mirror/art_method.h"
+
 #define __ reinterpret_cast<ArmAssembler*>(GetAssembler())->
 
 namespace art {
 namespace arm {
 
 void CodeGeneratorARM::GenerateFrameEntry() {
+  core_spill_mask_ |= (1 << LR);
+  // We're currently always using FP, which is callee-saved in Quick.
+  core_spill_mask_ |= (1 << FP);
+
   __ PushList((1 << FP) | (1 << LR));
   __ mov(FP, ShifterOperand(SP));
-  if (GetFrameSize() != 0) {
-    __ AddConstant(SP, -GetFrameSize());
-  }
+
+  // Add the current ART method to the frame size, the return pc, and FP.
+  SetFrameSize(RoundUp(GetFrameSize() + 3 * kWordSize, kStackAlignment));
+  // PC and FP have already been pushed on the stack.
+  __ AddConstant(SP, -(GetFrameSize() - 2 * kWordSize));
+  __ str(R0, Address(SP, 0));
 }
 
 void CodeGeneratorARM::GenerateFrameExit() {
@@ -171,6 +181,44 @@ void LocationsBuilderARM::VisitReturn(HReturn* ret) {
 void InstructionCodeGeneratorARM::VisitReturn(HReturn* ret) {
   DCHECK_EQ(ret->GetLocations()->InAt(0).reg<Register>(), R0);
   codegen_->GenerateFrameExit();
+}
+
+void LocationsBuilderARM::VisitInvokeStatic(HInvokeStatic* invoke) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(invoke);
+  CHECK_EQ(invoke->InputCount(), 0);
+  locations->AddTemp(Location(R0));
+  invoke->SetLocations(locations);
+}
+
+void InstructionCodeGeneratorARM::LoadCurrentMethod(Register reg) {
+  __ ldr(reg, Address(SP, 0));
+}
+
+void InstructionCodeGeneratorARM::VisitInvokeStatic(HInvokeStatic* invoke) {
+  Register temp = invoke->GetLocations()->GetTemp(0).reg<Register>();
+  size_t index_in_cache = mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
+      invoke->GetIndexInDexCache() * kWordSize;
+
+  // TODO: Implement all kinds of calls:
+  // 1) boot -> boot
+  // 2) app -> boot
+  // 3) app -> app
+  //
+  // Currently we implement the app -> app logic, which looks up in the resolve cache.
+
+  // temp = method;
+  LoadCurrentMethod(temp);
+  // temp = temp->dex_cache_resolved_methods_;
+  __ ldr(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
+  // temp = temp[index_in_cache]
+  __ ldr(temp, Address(temp, index_in_cache));
+  // LR = temp[offset_of_quick_compiled_code]
+  __ ldr(LR, Address(temp,
+                     mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value()));
+  // LR()
+  __ blx(LR);
+
+  codegen_->RecordPcInfo(invoke->GetDexPc());
 }
 
 }  // namespace arm

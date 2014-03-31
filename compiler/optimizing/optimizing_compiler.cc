@@ -62,17 +62,31 @@ CompiledMethod* OptimizingCompiler::TryCompile(CompilerDriver& driver,
     nullptr, class_loader, art::Runtime::Current()->GetClassLinker(), dex_file, code_item,
     class_def_idx, method_idx, access_flags, driver.GetVerifiedMethod(&dex_file, method_idx));
 
+  // For testing purposes, we put a special marker on method names that should be compiled
+  // with this compiler. This makes sure we're not regressing.
+  bool shouldCompile = dex_compilation_unit.GetSymbol().find("00024opt_00024") != std::string::npos;
+
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  HGraphBuilder builder(&arena);
+  HGraphBuilder builder(&arena, &dex_compilation_unit, &dex_file);
   HGraph* graph = builder.BuildGraph(*code_item);
   if (graph == nullptr) {
+    if (shouldCompile) {
+      LOG(FATAL) << "Could not build graph in optimizing compiler";
+    }
     return nullptr;
   }
 
   InstructionSet instruction_set = driver.GetInstructionSet();
+  // The optimizing compiler currently does not have a Thumb2 assembler.
+  if (instruction_set == kThumb2) {
+    instruction_set = kArm;
+  }
   CodeGenerator* codegen = CodeGenerator::Create(&arena, graph, instruction_set);
   if (codegen == nullptr) {
+    if (shouldCompile) {
+      LOG(FATAL) << "Could not find code generator for optimizing compiler";
+    }
     return nullptr;
   }
 
@@ -90,7 +104,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(CompilerDriver& driver,
                             instruction_set,
                             allocator.GetMemory(),
                             codegen->GetFrameSize(),
-                            0, /* GPR spill mask, unused */
+                            codegen->GetCoreSpillMask(),
                             0, /* FPR spill mask, unused */
                             mapping_table,
                             vmap_table,
