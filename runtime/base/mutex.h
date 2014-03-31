@@ -76,6 +76,7 @@ enum LockLevel {
   kClassLinkerClassesLock,
   kBreakpointLock,
   kMonitorLock,
+  kMonitorListLock,
   kThreadListLock,
   kBreakpointInvokeLock,
   kDeoptimizationLock,
