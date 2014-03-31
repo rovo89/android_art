@@ -16,10 +16,12 @@
  */
 
 #include "dex_file.h"
+#include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "dex_instruction-inl.h"
 #include "builder.h"
 #include "nodes.h"
+#include "primitive.h"
 
 namespace art {
 
@@ -189,6 +191,23 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
       current_block_->AddInstruction(new (arena_) HReturn(value));
       current_block_->AddSuccessor(exit_block_);
       current_block_ = nullptr;
+      break;
+    }
+
+    case Instruction::INVOKE_STATIC: {
+      uint32_t method_idx = instruction.VRegB_35c();
+      const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
+      uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
+      const char* descriptor = dex_file_->StringByTypeIdx(return_type_idx);
+      const size_t number_of_arguments = instruction.VRegA_35c();
+      if (number_of_arguments != 0) {
+        return false;
+      }
+      if (Primitive::GetType(descriptor[0]) != Primitive::kPrimVoid) {
+        return false;
+      }
+      current_block_->AddInstruction(new (arena_) HInvokeStatic(
+          arena_, number_of_arguments, dex_offset, method_idx));
       break;
     }
 
