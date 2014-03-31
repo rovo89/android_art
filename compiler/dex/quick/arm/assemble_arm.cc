@@ -1062,134 +1062,142 @@ void ArmMir2Lir::InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir) {
  */
 #define PADDING_MOV_R5_R5               0x1C2D
 
-void ArmMir2Lir::EncodeLIR(LIR* lir) {
-  int opcode = lir->opcode;
-  if (IsPseudoLirOp(opcode)) {
-    if (UNLIKELY(opcode == kPseudoPseudoAlign4)) {
-      // Note: size for this opcode will be either 0 or 2 depending on final alignment.
-      lir->u.a.bytes[0] = (PADDING_MOV_R5_R5 & 0xff);
-      lir->u.a.bytes[1] = ((PADDING_MOV_R5_R5 >> 8) & 0xff);
-      lir->flags.size = (lir->offset & 0x2);
-    }
-  } else if (LIKELY(!lir->flags.is_nop)) {
-    const ArmEncodingMap *encoder = &EncodingMap[lir->opcode];
-    uint32_t bits = encoder->skeleton;
-    for (int i = 0; i < 4; i++) {
-      uint32_t operand;
-      uint32_t value;
-      operand = lir->operands[i];
-      ArmEncodingKind kind = encoder->field_loc[i].kind;
-      if (LIKELY(kind == kFmtBitBlt)) {
-        value = (operand << encoder->field_loc[i].start) &
-            ((1 << (encoder->field_loc[i].end + 1)) - 1);
-        bits |= value;
-      } else {
-        switch (encoder->field_loc[i].kind) {
-          case kFmtSkip:
-            break;  // Nothing to do, but continue to next.
-          case kFmtUnused:
-            i = 4;  // Done, break out of the enclosing loop.
-            break;
-          case kFmtFPImm:
-            value = ((operand & 0xF0) >> 4) << encoder->field_loc[i].end;
-            value |= (operand & 0x0F) << encoder->field_loc[i].start;
-            bits |= value;
-            break;
-          case kFmtBrOffset:
-            value = ((operand  & 0x80000) >> 19) << 26;
-            value |= ((operand & 0x40000) >> 18) << 11;
-            value |= ((operand & 0x20000) >> 17) << 13;
-            value |= ((operand & 0x1f800) >> 11) << 16;
-            value |= (operand  & 0x007ff);
-            bits |= value;
-            break;
-          case kFmtShift5:
-            value = ((operand & 0x1c) >> 2) << 12;
-            value |= (operand & 0x03) << 6;
-            bits |= value;
-            break;
-          case kFmtShift:
-            value = ((operand & 0x70) >> 4) << 12;
-            value |= (operand & 0x0f) << 4;
-            bits |= value;
-            break;
-          case kFmtBWidth:
-            value = operand - 1;
-            bits |= value;
-            break;
-          case kFmtLsb:
-            value = ((operand & 0x1c) >> 2) << 12;
-            value |= (operand & 0x03) << 6;
-            bits |= value;
-            break;
-          case kFmtImm6:
-            value = ((operand & 0x20) >> 5) << 9;
-            value |= (operand & 0x1f) << 3;
-            bits |= value;
-            break;
-          case kFmtDfp: {
-            DCHECK(ARM_DOUBLEREG(operand));
-            DCHECK_EQ((operand & 0x1), 0U);
-            uint32_t reg_name = (operand & ARM_FP_REG_MASK) >> 1;
-            /* Snag the 1-bit slice and position it */
-            value = ((reg_name & 0x10) >> 4) << encoder->field_loc[i].end;
-            /* Extract and position the 4-bit slice */
-            value |= (reg_name & 0x0f) << encoder->field_loc[i].start;
-            bits |= value;
-            break;
+uint8_t* ArmMir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
+  for (; lir != NULL; lir = NEXT_LIR(lir)) {
+    if (!lir->flags.is_nop) {
+      int opcode = lir->opcode;
+      if (IsPseudoLirOp(opcode)) {
+        if (UNLIKELY(opcode == kPseudoPseudoAlign4)) {
+          // Note: size for this opcode will be either 0 or 2 depending on final alignment.
+          if (lir->offset & 0x2) {
+            write_pos[0] = (PADDING_MOV_R5_R5 & 0xff);
+            write_pos[1] = ((PADDING_MOV_R5_R5 >> 8) & 0xff);
+            write_pos += 2;
           }
-          case kFmtSfp:
-            DCHECK(ARM_SINGLEREG(operand));
-            /* Snag the 1-bit slice and position it */
-            value = (operand & 0x1) << encoder->field_loc[i].end;
-            /* Extract and position the 4-bit slice */
-            value |= ((operand & 0x1e) >> 1) << encoder->field_loc[i].start;
+        }
+      } else if (LIKELY(!lir->flags.is_nop)) {
+        const ArmEncodingMap *encoder = &EncodingMap[lir->opcode];
+        uint32_t bits = encoder->skeleton;
+        for (int i = 0; i < 4; i++) {
+          uint32_t operand;
+          uint32_t value;
+          operand = lir->operands[i];
+          ArmEncodingKind kind = encoder->field_loc[i].kind;
+          if (LIKELY(kind == kFmtBitBlt)) {
+            value = (operand << encoder->field_loc[i].start) &
+                ((1 << (encoder->field_loc[i].end + 1)) - 1);
             bits |= value;
-            break;
-          case kFmtImm12:
-          case kFmtModImm:
-            value = ((operand & 0x800) >> 11) << 26;
-            value |= ((operand & 0x700) >> 8) << 12;
-            value |= operand & 0x0ff;
-            bits |= value;
-            break;
-          case kFmtImm16:
-            value = ((operand & 0x0800) >> 11) << 26;
-            value |= ((operand & 0xf000) >> 12) << 16;
-            value |= ((operand & 0x0700) >> 8) << 12;
-            value |= operand & 0x0ff;
-            bits |= value;
-            break;
-          case kFmtOff24: {
-            uint32_t signbit = (operand >> 31) & 0x1;
-            uint32_t i1 = (operand >> 22) & 0x1;
-            uint32_t i2 = (operand >> 21) & 0x1;
-            uint32_t imm10 = (operand >> 11) & 0x03ff;
-            uint32_t imm11 = operand & 0x07ff;
-            uint32_t j1 = (i1 ^ signbit) ? 0 : 1;
-            uint32_t j2 = (i2 ^ signbit) ? 0 : 1;
-            value = (signbit << 26) | (j1 << 13) | (j2 << 11) | (imm10 << 16) |
-                imm11;
-            bits |= value;
+          } else {
+            switch (encoder->field_loc[i].kind) {
+              case kFmtSkip:
+                break;  // Nothing to do, but continue to next.
+              case kFmtUnused:
+                i = 4;  // Done, break out of the enclosing loop.
+                break;
+              case kFmtFPImm:
+                value = ((operand & 0xF0) >> 4) << encoder->field_loc[i].end;
+                value |= (operand & 0x0F) << encoder->field_loc[i].start;
+                bits |= value;
+                break;
+              case kFmtBrOffset:
+                value = ((operand  & 0x80000) >> 19) << 26;
+                value |= ((operand & 0x40000) >> 18) << 11;
+                value |= ((operand & 0x20000) >> 17) << 13;
+                value |= ((operand & 0x1f800) >> 11) << 16;
+                value |= (operand  & 0x007ff);
+                bits |= value;
+                break;
+              case kFmtShift5:
+                value = ((operand & 0x1c) >> 2) << 12;
+                value |= (operand & 0x03) << 6;
+                bits |= value;
+                break;
+              case kFmtShift:
+                value = ((operand & 0x70) >> 4) << 12;
+                value |= (operand & 0x0f) << 4;
+                bits |= value;
+                break;
+              case kFmtBWidth:
+                value = operand - 1;
+                bits |= value;
+                break;
+              case kFmtLsb:
+                value = ((operand & 0x1c) >> 2) << 12;
+                value |= (operand & 0x03) << 6;
+                bits |= value;
+                break;
+              case kFmtImm6:
+                value = ((operand & 0x20) >> 5) << 9;
+                value |= (operand & 0x1f) << 3;
+                bits |= value;
+                break;
+              case kFmtDfp: {
+                DCHECK(ARM_DOUBLEREG(operand));
+                DCHECK_EQ((operand & 0x1), 0U);
+                uint32_t reg_name = (operand & ARM_FP_REG_MASK) >> 1;
+                /* Snag the 1-bit slice and position it */
+                value = ((reg_name & 0x10) >> 4) << encoder->field_loc[i].end;
+                /* Extract and position the 4-bit slice */
+                value |= (reg_name & 0x0f) << encoder->field_loc[i].start;
+                bits |= value;
+                break;
+              }
+              case kFmtSfp:
+                DCHECK(ARM_SINGLEREG(operand));
+                /* Snag the 1-bit slice and position it */
+                value = (operand & 0x1) << encoder->field_loc[i].end;
+                /* Extract and position the 4-bit slice */
+                value |= ((operand & 0x1e) >> 1) << encoder->field_loc[i].start;
+                bits |= value;
+                break;
+              case kFmtImm12:
+              case kFmtModImm:
+                value = ((operand & 0x800) >> 11) << 26;
+                value |= ((operand & 0x700) >> 8) << 12;
+                value |= operand & 0x0ff;
+                bits |= value;
+                break;
+              case kFmtImm16:
+                value = ((operand & 0x0800) >> 11) << 26;
+                value |= ((operand & 0xf000) >> 12) << 16;
+                value |= ((operand & 0x0700) >> 8) << 12;
+                value |= operand & 0x0ff;
+                bits |= value;
+                break;
+              case kFmtOff24: {
+                uint32_t signbit = (operand >> 31) & 0x1;
+                uint32_t i1 = (operand >> 22) & 0x1;
+                uint32_t i2 = (operand >> 21) & 0x1;
+                uint32_t imm10 = (operand >> 11) & 0x03ff;
+                uint32_t imm11 = operand & 0x07ff;
+                uint32_t j1 = (i1 ^ signbit) ? 0 : 1;
+                uint32_t j2 = (i2 ^ signbit) ? 0 : 1;
+                value = (signbit << 26) | (j1 << 13) | (j2 << 11) | (imm10 << 16) |
+                    imm11;
+                bits |= value;
+                }
+                break;
+              default:
+                LOG(FATAL) << "Bad fmt:" << encoder->field_loc[i].kind;
             }
-            break;
-          default:
-            LOG(FATAL) << "Bad fmt:" << encoder->field_loc[i].kind;
+          }
+        }
+        if (encoder->size == 4) {
+          write_pos[0] = ((bits >> 16) & 0xff);
+          write_pos[1] = ((bits >> 24) & 0xff);
+          write_pos[2] = (bits & 0xff);
+          write_pos[3] = ((bits >> 8) & 0xff);
+          write_pos += 4;
+        } else {
+          DCHECK_EQ(encoder->size, 2);
+          write_pos[0] = (bits & 0xff);
+          write_pos[1] = ((bits >> 8) & 0xff);
+          write_pos += 2;
         }
       }
     }
-    if (encoder->size == 4) {
-      lir->u.a.bytes[0] = ((bits >> 16) & 0xff);
-      lir->u.a.bytes[1] = ((bits >> 24) & 0xff);
-      lir->u.a.bytes[2] = (bits & 0xff);
-      lir->u.a.bytes[3] = ((bits >> 8) & 0xff);
-    } else {
-      DCHECK_EQ(encoder->size, 2);
-      lir->u.a.bytes[0] = (bits & 0xff);
-      lir->u.a.bytes[1] = ((bits >> 8) & 0xff);
-    }
-    lir->flags.size = encoder->size;
   }
+  return write_pos;
 }
 
 // Assemble the LIR into binary instruction format.
@@ -1198,7 +1206,7 @@ void ArmMir2Lir::AssembleLIR() {
   LIR* prev_lir;
   cu_->NewTimingSplit("Assemble");
   int assembler_retries = 0;
-  CodeOffset starting_offset = EncodeRange(first_lir_insn_, last_lir_insn_, 0);
+  CodeOffset starting_offset = LinkFixupInsns(first_lir_insn_, last_lir_insn_, 0);
   data_offset_ = (starting_offset + 0x3) & ~0x3;
   int32_t offset_adjustment;
   AssignDataOffsets();
@@ -1304,8 +1312,6 @@ void ArmMir2Lir::AssembleLIR() {
               lir->operands[2] = 0;
               lir->operands[1] = base_reg;
             }
-            // Must redo encoding here - won't ever revisit this node.
-            EncodeLIR(lir);
             prev_lir = new_adr;  // Continue scan with new_adr;
             lir = new_adr->u.a.pcrel_next;
             res = kRetryAll;
@@ -1346,9 +1352,8 @@ void ArmMir2Lir::AssembleLIR() {
             /* operand[0] is src1 in both cb[n]z & CmpRI8 */
             lir->operands[1] = 0;
             lir->target = 0;
-            EncodeLIR(lir);   // NOTE: sets flags.size.
+            lir->flags.size = EncodingMap[lir->opcode].size;
             // Add back the new size.
-            DCHECK_EQ(lir->flags.size, static_cast<uint32_t>(EncodingMap[lir->opcode].size));
             offset_adjustment += lir->flags.size;
             // Set up the new following inst.
             new_inst->offset = lir->offset + lir->flags.size;
@@ -1570,20 +1575,6 @@ void ArmMir2Lir::AssembleLIR() {
         default:
           LOG(FATAL) << "Unexpected case " << lir->flags.fixup;
       }
-      /*
-       * If one of the pc-relative instructions expanded we'll have
-       * to make another pass.  Don't bother to fully assemble the
-       * instruction.
-       */
-      if (res == kSuccess) {
-        EncodeLIR(lir);
-        if (assembler_retries == 0) {
-          // Go ahead and fix up the code buffer image.
-          for (int i = 0; i < lir->flags.size; i++) {
-            code_buffer_[lir->offset + i] = lir->u.a.bytes[i];
-          }
-        }
-      }
       prev_lir = lir;
       lir = lir->u.a.pcrel_next;
     }
@@ -1602,21 +1593,15 @@ void ArmMir2Lir::AssembleLIR() {
     }
   }
 
-  // Rebuild the CodeBuffer if we had to retry; otherwise it should be good as-is.
-  if (assembler_retries != 0) {
-    code_buffer_.clear();
-    for (LIR* lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
-      if (lir->flags.is_nop) {
-        continue;
-      } else  {
-        for (int i = 0; i < lir->flags.size; i++) {
-          code_buffer_.push_back(lir->u.a.bytes[i]);
-        }
-      }
-    }
-  }
+  // Build the CodeBuffer.
+  DCHECK_LE(data_offset_, total_size_);
+  code_buffer_.reserve(total_size_);
+  code_buffer_.resize(starting_offset);
+  uint8_t* write_pos = &code_buffer_[0];
+  write_pos = EncodeLIRs(write_pos, first_lir_insn_);
+  DCHECK_EQ(static_cast<CodeOffset>(write_pos - &code_buffer_[0]), starting_offset);
 
-  data_offset_ = (code_buffer_.size() + 0x3) & ~0x3;
+  DCHECK_EQ(data_offset_, (code_buffer_.size() + 0x3) & ~0x3);
 
   // Install literals
   InstallLiteralPools();
@@ -1641,19 +1626,11 @@ int ArmMir2Lir::GetInsnSize(LIR* lir) {
 }
 
 // Encode instruction bit pattern and assign offsets.
-uint32_t ArmMir2Lir::EncodeRange(LIR* head_lir, LIR* tail_lir, uint32_t offset) {
+uint32_t ArmMir2Lir::LinkFixupInsns(LIR* head_lir, LIR* tail_lir, uint32_t offset) {
   LIR* end_lir = tail_lir->next;
 
-  /*
-   * A significant percentage of methods can be assembled in a single pass.  We'll
-   * go ahead and build the code image here, leaving holes for pc-relative fixup
-   * codes.  If the code size changes during that pass, we'll have to throw away
-   * this work - but if not, we're ready to go.
-   */
-  code_buffer_.reserve(estimated_native_code_size_ + 256);  // Add a little slop.
   LIR* last_fixup = NULL;
   for (LIR* lir = head_lir; lir != end_lir; lir = NEXT_LIR(lir)) {
-    lir->offset = offset;
     if (!lir->flags.is_nop) {
       if (lir->flags.fixup != kFixupNone) {
         if (!IsPseudoLirOp(lir->opcode)) {
@@ -1675,11 +1652,7 @@ uint32_t ArmMir2Lir::EncodeRange(LIR* head_lir, LIR* tail_lir, uint32_t offset) 
           last_fixup->u.a.pcrel_next = lir;
         }
         last_fixup = lir;
-      } else {
-        EncodeLIR(lir);
-      }
-      for (int i = 0; i < lir->flags.size; i++) {
-        code_buffer_.push_back(lir->u.a.bytes[i]);
+        lir->offset = offset;
       }
       offset += lir->flags.size;
     }
