@@ -73,9 +73,11 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   DCHECK_GT(bytes_allocated, 0u);
   DCHECK_GT(usable_size, 0u);
   obj->SetClass(klass);
-  if (kUseBrooksPointer) {
-    obj->SetBrooksPointer(obj);
-    obj->AssertSelfBrooksPointer();
+  if (kUseBakerOrBrooksReadBarrier) {
+    if (kUseBrooksReadBarrier) {
+      obj->SetReadBarrierPointer(obj);
+    }
+    obj->AssertReadBarrierPointer();
   }
   if (collector::SemiSpace::kUseRememberedSet && UNLIKELY(allocator == kAllocatorTypeNonMoving)) {
     // (Note this if statement will be constant folded away for the

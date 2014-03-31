@@ -1605,11 +1605,13 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
     }
     // Copy the object over to its new location.
     memcpy(reinterpret_cast<void*>(forward_address), obj, object_size);
-    if (kUseBrooksPointer) {
-      obj->AssertSelfBrooksPointer();
-      DCHECK_EQ(forward_address->GetBrooksPointer(), obj);
-      forward_address->SetBrooksPointer(forward_address);
-      forward_address->AssertSelfBrooksPointer();
+    if (kUseBakerOrBrooksReadBarrier) {
+      obj->AssertReadBarrierPointer();
+      if (kUseBrooksReadBarrier) {
+        DCHECK_EQ(forward_address->GetReadBarrierPointer(), obj);
+        forward_address->SetReadBarrierPointer(forward_address);
+      }
+      forward_address->AssertReadBarrierPointer();
     }
     return forward_address;
   }

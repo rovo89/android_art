@@ -610,11 +610,13 @@ class FixupVisitor {
 void ImageWriter::FixupObject(Object* orig, Object* copy) {
   DCHECK(orig != nullptr);
   DCHECK(copy != nullptr);
-  if (kUseBrooksPointer) {
-    orig->AssertSelfBrooksPointer();
-    // Note the address 'copy' isn't the same as the image address of 'orig'.
-    copy->SetBrooksPointer(GetImageAddress(orig));
-    DCHECK_EQ(copy->GetBrooksPointer(), GetImageAddress(orig));
+  if (kUseBakerOrBrooksReadBarrier) {
+    orig->AssertReadBarrierPointer();
+    if (kUseBrooksReadBarrier) {
+      // Note the address 'copy' isn't the same as the image address of 'orig'.
+      copy->SetReadBarrierPointer(GetImageAddress(orig));
+      DCHECK_EQ(copy->GetReadBarrierPointer(), GetImageAddress(orig));
+    }
   }
   FixupVisitor visitor(this, copy);
   orig->VisitReferences<true /*visit class*/>(visitor, visitor);

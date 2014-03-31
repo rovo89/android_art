@@ -14,14 +14,24 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_BROOKS_POINTER_H_
-#define ART_RUNTIME_BROOKS_POINTER_H_
+#ifndef ART_RUNTIME_READ_BARRIER_H_
+#define ART_RUNTIME_READ_BARRIER_H_
 
 // This is in a separate file (from globals.h) because asm_support.h
 // (a C header, not C++) can't include globals.h.
 
-// Uncomment this and the two fields in Object.java (libcore) to
-// enable brooks pointers.
-// #define USE_BROOKS_POINTER
+// Uncomment one of the following two and the two fields in
+// Object.java (libcore) to enable baker or brooks pointers.
 
-#endif  // ART_RUNTIME_BROOKS_POINTER_H_
+// #define USE_BAKER_READ_BARRIER
+// #define USE_BROOKS_READ_BARRIER
+
+#if defined(USE_BAKER_READ_BARRIER) || defined(USE_BROOKS_READ_BARRIER)
+#define USE_BAKER_OR_BROOKS_READ_BARRIER
+#endif
+
+#if defined(USE_BAKER_READ_BARRIER) && defined(USE_BROOKS_READ_BARRIER)
+#error "Only one of Baker or Brooks can be enabled at a time."
+#endif
+
+#endif  // ART_RUNTIME_READ_BARRIER_H_

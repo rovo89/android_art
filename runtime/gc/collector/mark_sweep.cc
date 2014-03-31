@@ -343,9 +343,9 @@ void MarkSweep::MarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>*
 
 inline void MarkSweep::MarkObjectNonNull(Object* obj) {
   DCHECK(obj != nullptr);
-  if (kUseBrooksPointer) {
-    // Verify all the objects have the correct Brooks pointer installed.
-    obj->AssertSelfBrooksPointer();
+  if (kUseBakerOrBrooksReadBarrier) {
+    // Verify all the objects have the correct pointer installed.
+    obj->AssertReadBarrierPointer();
   }
   if (immune_region_.ContainsObject(obj)) {
     if (kCountMarkedObjects) {
@@ -415,9 +415,9 @@ bool MarkSweep::MarkLargeObject(const Object* obj, bool set) {
 
 inline bool MarkSweep::MarkObjectParallel(const Object* obj) {
   DCHECK(obj != nullptr);
-  if (kUseBrooksPointer) {
-    // Verify all the objects have the correct Brooks pointer installed.
-    obj->AssertSelfBrooksPointer();
+  if (kUseBakerOrBrooksReadBarrier) {
+    // Verify all the objects have the correct pointer installed.
+    obj->AssertReadBarrierPointer();
   }
   if (immune_region_.ContainsObject(obj)) {
     DCHECK(IsMarked(obj));
