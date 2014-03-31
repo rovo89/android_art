@@ -105,7 +105,8 @@ COMPILER_GTEST_TARGET_SRC_FILES := \
 
 COMPILER_GTEST_HOST_SRC_FILES := \
 	$(COMPILER_GTEST_COMMON_SRC_FILES) \
-	compiler/utils/x86/assembler_x86_test.cc
+	compiler/utils/x86/assembler_x86_test.cc \
+	compiler/utils/x86_64/assembler_x86_64_test.cc
 
 ART_HOST_GTEST_EXECUTABLES :=
 ART_TARGET_GTEST_EXECUTABLES$(ART_PHONY_TEST_TARGET_SUFFIX) :=

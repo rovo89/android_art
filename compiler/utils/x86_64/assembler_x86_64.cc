@@ -77,6 +77,7 @@ void X86_64Assembler::pushq(const Address& address) {
 
 void X86_64Assembler::pushq(const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  CHECK(imm.is_int32());  // pushq only supports 32b immediate.
   if (imm.is_int8()) {
     EmitUint8(0x6A);
     EmitUint8(imm.value() & 0xFF);
@@ -104,9 +105,17 @@ void X86_64Assembler::popq(const Address& address) {
 
 void X86_64Assembler::movq(CpuRegister dst, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitRex64(dst);
-  EmitUint8(0xB8 + dst.LowBits());
-  EmitImmediate(imm);
+  if (imm.is_int32()) {
+    // 32 bit. Note: sign-extends.
+    EmitRex64(dst);
+    EmitUint8(0xC7);
+    EmitRegisterOperand(0, dst.LowBits());
+    EmitInt32(static_cast<int32_t>(imm.value()));
+  } else {
+    EmitRex64(dst);
+    EmitUint8(0xB8 + dst.LowBits());
+    EmitInt64(imm.value());
+  }
 }
 
 
@@ -120,7 +129,8 @@ void X86_64Assembler::movl(CpuRegister dst, const Immediate& imm) {
 
 void X86_64Assembler::movq(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitRex64(dst, src);
+  // 0x89 is movq r/m64 <- r64, with op1 in r/m and op2 in reg: so reverse EmitRex64
+  EmitRex64(src, dst);
   EmitUint8(0x89);
   EmitRegisterOperand(src.LowBits(), dst.LowBits());
 }
@@ -843,6 +853,14 @@ void X86_64Assembler::cmpl(CpuRegister reg, const Address& address) {
 }
 
 
+void X86_64Assembler::cmpq(CpuRegister reg0, CpuRegister reg1) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(reg0, reg1);
+  EmitUint8(0x3B);
+  EmitOperand(reg0.LowBits(), Operand(reg1));
+}
+
+
 void X86_64Assembler::addl(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(dst, src);
@@ -945,6 +963,14 @@ void X86_64Assembler::xorl(CpuRegister dst, CpuRegister src) {
   EmitOperand(dst.LowBits(), Operand(src));
 }
 
+
+void X86_64Assembler::xorq(CpuRegister dst, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  CHECK(imm.is_int32());  // xorq only supports 32b immediate.
+  EmitRex64(dst);
+  EmitComplex(6, Operand(dst), imm);
+}
+
 #if 0
 void X86_64Assembler::rex(bool force, bool w, Register* r, Register* x, Register* b) {
   // REX.WRXB
@@ -1007,8 +1033,18 @@ void X86_64Assembler::addl(CpuRegister reg, const Immediate& imm) {
 
 void X86_64Assembler::addq(CpuRegister reg, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  CHECK(imm.is_int32());  // addq only supports 32b immediate.
   EmitRex64(reg);
   EmitComplex(0, Operand(reg), imm);
+}
+
+
+void X86_64Assembler::addq(CpuRegister dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  // 0x01 is addq r/m64 <- r/m64 + r64, with op1 in r/m and op2 in reg: so reverse EmitRex64
+  EmitRex64(src, dst);
+  EmitUint8(0x01);
+  EmitRegisterOperand(src.LowBits(), dst.LowBits());
 }
 
 
@@ -1039,6 +1075,22 @@ void X86_64Assembler::subl(CpuRegister reg, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(reg);
   EmitComplex(5, Operand(reg), imm);
+}
+
+
+void X86_64Assembler::subq(CpuRegister reg, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  CHECK(imm.is_int32());  // subq only supports 32b immediate.
+  EmitRex64(reg);
+  EmitComplex(5, Operand(reg), imm);
+}
+
+
+void X86_64Assembler::subq(CpuRegister dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(dst, src);
+  EmitUint8(0x2B);
+  EmitRegisterOperand(dst.LowBits(), src.LowBits());
 }
 
 
@@ -1299,12 +1351,14 @@ void X86_64Assembler::mfence() {
   EmitUint8(0xF0);
 }
 
+
 X86_64Assembler* X86_64Assembler::gs() {
-  // TODO: fs is a prefix and not an instruction
+  // TODO: gs is a prefix and not an instruction
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x65);
   return this;
 }
+
 
 void X86_64Assembler::AddImmediate(CpuRegister reg, const Immediate& imm) {
   int value = imm.value();
@@ -1315,6 +1369,18 @@ void X86_64Assembler::AddImmediate(CpuRegister reg, const Immediate& imm) {
       subl(reg, Immediate(value));
     }
   }
+}
+
+
+void X86_64Assembler::setcc(Condition condition, CpuRegister dst) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  // RSP, RBP, RDI, RSI need rex prefix (else the pattern encodes ah/bh/ch/dh).
+  if (dst.NeedsRex() || dst.AsRegister() > 3) {
+    EmitOptionalRex(true, false, false, false, dst.NeedsRex());
+  }
+  EmitUint8(0x0F);
+  EmitUint8(0x90 + condition);
+  EmitUint8(0xC0 + dst.LowBits());
 }
 
 
@@ -1398,7 +1464,11 @@ void X86_64Assembler::EmitOperand(uint8_t reg_or_opcode, const Operand& operand)
 
 
 void X86_64Assembler::EmitImmediate(const Immediate& imm) {
-  EmitInt32(imm.value());
+  if (imm.is_int32()) {
+    EmitInt32(static_cast<int32_t>(imm.value()));
+  } else {
+    EmitInt64(imm.value());
+  }
 }
 
 
