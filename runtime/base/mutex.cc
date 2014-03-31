@@ -649,7 +649,13 @@ ConditionVariable::ConditionVariable(const char* name, Mutex& guard)
   sequence_ = 0;
   num_waiters_ = 0;
 #else
-  CHECK_MUTEX_CALL(pthread_cond_init, (&cond_, NULL));
+  pthread_condattr_t cond_attrs;
+  CHECK_MUTEX_CALL(pthread_condattr_init(&cond_attrs));
+#if !defined(__APPLE__)
+  // Apple doesn't have CLOCK_MONOTONIC or pthread_condattr_setclock.
+  CHECK_MUTEX_CALL(pthread_condattr_setclock(&cond_attrs, CLOCK_MONOTONIC));
+#endif
+  CHECK_MUTEX_CALL(pthread_cond_init, (&cond_, &cond_attrs));
 #endif
 }
 
@@ -787,17 +793,15 @@ void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
   CHECK_GE(guard_.num_contenders_, 0);
   guard_.num_contenders_--;
 #else
-#ifdef HAVE_TIMEDWAIT_MONOTONIC
-#define TIMEDWAIT pthread_cond_timedwait_monotonic
+#if !defined(__APPLE__)
   int clock = CLOCK_MONOTONIC;
 #else
-#define TIMEDWAIT pthread_cond_timedwait
   int clock = CLOCK_REALTIME;
 #endif
   guard_.recursion_count_ = 0;
   timespec ts;
   InitTimeSpec(true, clock, ms, ns, &ts);
-  int rc = TEMP_FAILURE_RETRY(TIMEDWAIT(&cond_, &guard_.mutex_, &ts));
+  int rc = TEMP_FAILURE_RETRY(pthread_cond_timedwait(&cond_, &guard_.mutex_, &ts));
   if (rc != 0 && rc != ETIMEDOUT) {
     errno = rc;
     PLOG(FATAL) << "TimedWait failed for " << name_;
