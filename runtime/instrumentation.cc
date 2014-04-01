@@ -750,7 +750,10 @@ void Instrumentation::ExceptionCaughtEvent(Thread* thread, const ThrowLocation& 
   if (have_exception_caught_listeners_) {
     DCHECK_EQ(thread->GetException(NULL), exception_object);
     thread->ClearException();
-    for (InstrumentationListener* listener : exception_caught_listeners_) {
+    // TODO: The copy below is due to the debug listener having an action where it can remove
+    // itself as a listener and break the iterator. The copy only works around the problem.
+    std::list<InstrumentationListener*> copy(exception_caught_listeners_);
+    for (InstrumentationListener* listener : copy) {
       listener->ExceptionCaught(thread, throw_location, catch_method, catch_dex_pc, exception_object);
     }
     thread->SetException(throw_location, exception_object);
