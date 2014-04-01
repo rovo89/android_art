@@ -968,6 +968,18 @@ void Dbg::DisposeObject(JDWP::ObjectId object_id, uint32_t reference_count)
   gRegistry->DisposeObject(object_id, reference_count);
 }
 
+static JDWP::JdwpTypeTag GetTypeTag(mirror::Class* klass)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK(klass != nullptr);
+  if (klass->IsArrayClass()) {
+    return JDWP::TT_ARRAY;
+  } else if (klass->IsInterface()) {
+    return JDWP::TT_INTERFACE;
+  } else {
+    return JDWP::TT_CLASS;
+  }
+}
+
 JDWP::JdwpError Dbg::GetReflectedType(JDWP::RefTypeId class_id, JDWP::ExpandBuf* pReply) {
   JDWP::JdwpError status;
   mirror::Class* c = DecodeClass(class_id, status);
@@ -975,7 +987,8 @@ JDWP::JdwpError Dbg::GetReflectedType(JDWP::RefTypeId class_id, JDWP::ExpandBuf*
     return status;
   }
 
-  expandBufAdd1(pReply, c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS);
+  JDWP::JdwpTypeTag type_tag = GetTypeTag(c);
+  expandBufAdd1(pReply, type_tag);
   expandBufAddRefTypeId(pReply, class_id);
   return JDWP::ERR_NONE;
 }
@@ -1049,14 +1062,7 @@ JDWP::JdwpError Dbg::GetReferenceType(JDWP::ObjectId object_id, JDWP::ExpandBuf*
     return JDWP::ERR_INVALID_OBJECT;
   }
 
-  JDWP::JdwpTypeTag type_tag;
-  if (o->GetClass()->IsArrayClass()) {
-    type_tag = JDWP::TT_ARRAY;
-  } else if (o->GetClass()->IsInterface()) {
-    type_tag = JDWP::TT_INTERFACE;
-  } else {
-    type_tag = JDWP::TT_CLASS;
-  }
+  JDWP::JdwpTypeTag type_tag = GetTypeTag(o->GetClass());
   JDWP::RefTypeId type_id = gRegistry->AddRefType(o->GetClass());
 
   expandBufAdd1(pReply, type_tag);
@@ -1309,7 +1315,7 @@ static void SetLocation(JDWP::JdwpLocation& location, mirror::ArtMethod* m, uint
     memset(&location, 0, sizeof(location));
   } else {
     mirror::Class* c = m->GetDeclaringClass();
-    location.type_tag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
+    location.type_tag = GetTypeTag(c);
     location.class_id = gRegistry->AddRefType(c);
     location.method_id = ToMethodId(m);
     location.dex_pc = (m->IsNative() || m->IsProxyMethod()) ? static_cast<uint64_t>(-1) : dex_pc;
@@ -2481,7 +2487,7 @@ void Dbg::PostClassPrepare(mirror::Class* c) {
   // debuggers seem to like that.  There might be some advantage to honesty,
   // since the class may not yet be verified.
   int state = JDWP::CS_VERIFIED | JDWP::CS_PREPARED;
-  JDWP::JdwpTypeTag tag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
+  JDWP::JdwpTypeTag tag = GetTypeTag(c);
   gJdwpState->PostClassPrepare(tag, gRegistry->Add(c),
                                ClassHelper(c).GetDescriptor(), state);
 }
