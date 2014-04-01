@@ -234,9 +234,10 @@ LIR* ArmMir2Lir::OpReg(OpKind op, RegStorage r_dest_src) {
   return NewLIR1(opcode, r_dest_src.GetReg());
 }
 
-LIR* ArmMir2Lir::OpRegRegShift(OpKind op, int r_dest_src1, int r_src2,
+LIR* ArmMir2Lir::OpRegRegShift(OpKind op, RegStorage r_dest_src1, RegStorage r_src2,
                                int shift) {
-  bool thumb_form = ((shift == 0) && ARM_LOWREG(r_dest_src1) && ARM_LOWREG(r_src2));
+  bool thumb_form =
+      ((shift == 0) && ARM_LOWREG(r_dest_src1.GetReg()) && ARM_LOWREG(r_src2.GetReg()));
   ArmOpcode opcode = kThumbBkpt;
   switch (op) {
     case kOpAdc:
@@ -255,9 +256,9 @@ LIR* ArmMir2Lir::OpRegRegShift(OpKind op, int r_dest_src1, int r_src2,
     case kOpCmp:
       if (thumb_form)
         opcode = kThumbCmpRR;
-      else if ((shift == 0) && !ARM_LOWREG(r_dest_src1) && !ARM_LOWREG(r_src2))
+      else if ((shift == 0) && !ARM_LOWREG(r_dest_src1.GetReg()) && !ARM_LOWREG(r_src2.GetReg()))
         opcode = kThumbCmpHH;
-      else if ((shift == 0) && ARM_LOWREG(r_dest_src1))
+      else if ((shift == 0) && ARM_LOWREG(r_dest_src1.GetReg()))
         opcode = kThumbCmpLH;
       else if (shift == 0)
         opcode = kThumbCmpHL;
@@ -269,11 +270,11 @@ LIR* ArmMir2Lir::OpRegRegShift(OpKind op, int r_dest_src1, int r_src2,
       break;
     case kOpMov:
       DCHECK_EQ(shift, 0);
-      if (ARM_LOWREG(r_dest_src1) && ARM_LOWREG(r_src2))
+      if (ARM_LOWREG(r_dest_src1.GetReg()) && ARM_LOWREG(r_src2.GetReg()))
         opcode = kThumbMovRR;
-      else if (!ARM_LOWREG(r_dest_src1) && !ARM_LOWREG(r_src2))
+      else if (!ARM_LOWREG(r_dest_src1.GetReg()) && !ARM_LOWREG(r_src2.GetReg()))
         opcode = kThumbMovRR_H2H;
-      else if (ARM_LOWREG(r_dest_src1))
+      else if (ARM_LOWREG(r_dest_src1.GetReg()))
         opcode = kThumbMovRR_H2L;
       else
         opcode = kThumbMovRR_L2H;
@@ -324,7 +325,7 @@ LIR* ArmMir2Lir::OpRegRegShift(OpKind op, int r_dest_src1, int r_src2,
       DCHECK_EQ(shift, 0);
       if (!thumb_form) {
         // Binary, but rm is encoded twice.
-        return NewLIR3(kThumb2RevRR, r_dest_src1, r_src2, r_src2);
+        return NewLIR3(kThumb2RevRR, r_dest_src1.GetReg(), r_src2.GetReg(), r_src2.GetReg());
       }
       opcode = kThumbRev;
       break;
@@ -332,34 +333,34 @@ LIR* ArmMir2Lir::OpRegRegShift(OpKind op, int r_dest_src1, int r_src2,
       DCHECK_EQ(shift, 0);
       if (!thumb_form) {
         // Binary, but rm is encoded twice.
-        return NewLIR3(kThumb2RevshRR, r_dest_src1, r_src2, r_src2);
+        return NewLIR3(kThumb2RevshRR, r_dest_src1.GetReg(), r_src2.GetReg(), r_src2.GetReg());
       }
       opcode = kThumbRevsh;
       break;
     case kOp2Byte:
       DCHECK_EQ(shift, 0);
-      return NewLIR4(kThumb2Sbfx, r_dest_src1, r_src2, 0, 8);
+      return NewLIR4(kThumb2Sbfx, r_dest_src1.GetReg(), r_src2.GetReg(), 0, 8);
     case kOp2Short:
       DCHECK_EQ(shift, 0);
-      return NewLIR4(kThumb2Sbfx, r_dest_src1, r_src2, 0, 16);
+      return NewLIR4(kThumb2Sbfx, r_dest_src1.GetReg(), r_src2.GetReg(), 0, 16);
     case kOp2Char:
       DCHECK_EQ(shift, 0);
-      return NewLIR4(kThumb2Ubfx, r_dest_src1, r_src2, 0, 16);
+      return NewLIR4(kThumb2Ubfx, r_dest_src1.GetReg(), r_src2.GetReg(), 0, 16);
     default:
       LOG(FATAL) << "Bad opcode: " << op;
       break;
   }
   DCHECK(!IsPseudoLirOp(opcode));
   if (EncodingMap[opcode].flags & IS_BINARY_OP) {
-    return NewLIR2(opcode, r_dest_src1, r_src2);
+    return NewLIR2(opcode, r_dest_src1.GetReg(), r_src2.GetReg());
   } else if (EncodingMap[opcode].flags & IS_TERTIARY_OP) {
     if (EncodingMap[opcode].field_loc[2].kind == kFmtShift) {
-      return NewLIR3(opcode, r_dest_src1, r_src2, shift);
+      return NewLIR3(opcode, r_dest_src1.GetReg(), r_src2.GetReg(), shift);
     } else {
-      return NewLIR3(opcode, r_dest_src1, r_dest_src1, r_src2);
+      return NewLIR3(opcode, r_dest_src1.GetReg(), r_dest_src1.GetReg(), r_src2.GetReg());
     }
   } else if (EncodingMap[opcode].flags & IS_QUAD_OP) {
-    return NewLIR4(opcode, r_dest_src1, r_dest_src1, r_src2, shift);
+    return NewLIR4(opcode, r_dest_src1.GetReg(), r_dest_src1.GetReg(), r_src2.GetReg(), shift);
   } else {
     LOG(FATAL) << "Unexpected encoding operand count";
     return NULL;
@@ -367,7 +368,7 @@ LIR* ArmMir2Lir::OpRegRegShift(OpKind op, int r_dest_src1, int r_src2,
 }
 
 LIR* ArmMir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2) {
-  return OpRegRegShift(op, r_dest_src1.GetReg(), r_src2.GetReg(), 0);
+  return OpRegRegShift(op, r_dest_src1, r_src2, 0);
 }
 
 LIR* ArmMir2Lir::OpMovRegMem(RegStorage r_dest, RegStorage r_base, int offset, MoveType move_type) {
@@ -385,11 +386,11 @@ LIR* ArmMir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, RegStorage r_dest, Re
   return NULL;
 }
 
-LIR* ArmMir2Lir::OpRegRegRegShift(OpKind op, int r_dest, int r_src1,
-                                  int r_src2, int shift) {
+LIR* ArmMir2Lir::OpRegRegRegShift(OpKind op, RegStorage r_dest, RegStorage r_src1,
+                                  RegStorage r_src2, int shift) {
   ArmOpcode opcode = kThumbBkpt;
-  bool thumb_form = (shift == 0) && ARM_LOWREG(r_dest) && ARM_LOWREG(r_src1) &&
-      ARM_LOWREG(r_src2);
+  bool thumb_form = (shift == 0) && ARM_LOWREG(r_dest.GetReg()) && ARM_LOWREG(r_src1.GetReg()) &&
+      ARM_LOWREG(r_src2.GetReg());
   switch (op) {
     case kOpAdd:
       opcode = (thumb_form) ? kThumbAddRRR : kThumb2AddRRR;
@@ -448,15 +449,15 @@ LIR* ArmMir2Lir::OpRegRegRegShift(OpKind op, int r_dest, int r_src1,
   }
   DCHECK(!IsPseudoLirOp(opcode));
   if (EncodingMap[opcode].flags & IS_QUAD_OP) {
-    return NewLIR4(opcode, r_dest, r_src1, r_src2, shift);
+    return NewLIR4(opcode, r_dest.GetReg(), r_src1.GetReg(), r_src2.GetReg(), shift);
   } else {
     DCHECK(EncodingMap[opcode].flags & IS_TERTIARY_OP);
-    return NewLIR3(opcode, r_dest, r_src1, r_src2);
+    return NewLIR3(opcode, r_dest.GetReg(), r_src1.GetReg(), r_src2.GetReg());
   }
 }
 
 LIR* ArmMir2Lir::OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2) {
-  return OpRegRegRegShift(op, r_dest.GetReg(), r_src1.GetReg(), r_src2.GetReg(), 0);
+  return OpRegRegRegShift(op, r_dest, r_src1, r_src2, 0);
 }
 
 LIR* ArmMir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, int value) {
