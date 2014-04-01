@@ -176,6 +176,7 @@ define build-art-test
         # GCC host compiled tests fail with this linked, presumably due to destructors that run.
         LOCAL_STATIC_LIBRARIES += libgtest_host
     endif
+    LOCAL_LDLIBS += -lpthread -ldl
     include $(BUILD_HOST_EXECUTABLE)
     art_gtest_exe := $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
     ART_HOST_GTEST_EXECUTABLES += $$(art_gtest_exe)
