@@ -78,9 +78,9 @@ class MANAGED LOCKABLE Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   void SetClass(Class* new_klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Object* GetBrooksPointer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetBrooksPointer(Object* brooks_pointer) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void AssertSelfBrooksPointer() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Object* GetReadBarrierPointer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetReadBarrierPointer(Object* rb_pointer) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void AssertReadBarrierPointer() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // The verifier treats all interfaces as java.lang.Object and relies on runtime checks in
   // invoke-interface to detect incompatible interface types.
@@ -289,12 +289,12 @@ class MANAGED LOCKABLE Object {
   // Monitor and hash code information.
   uint32_t monitor_;
 
-#ifdef USE_BROOKS_POINTER
-  // Note names use a 'x' prefix and the x_brooks_ptr_ is of type int
+#ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
+  // Note names use a 'x' prefix and the x_rb_ptr_ is of type int
   // instead of Object to go with the alphabetical/by-type field order
   // on the Java side.
-  uint32_t x_brooks_ptr_;  // For the Brooks pointer.
-  uint32_t x_padding_;     // For 8-byte alignment. TODO: get rid of this.
+  uint32_t x_rb_ptr_;      // For the Baker or Brooks pointer.
+  uint32_t x_xpadding_;    // For 8-byte alignment. TODO: get rid of this.
 #endif
 
   friend class art::ImageWriter;

@@ -561,11 +561,13 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
   // references.
   saved_bytes_ +=
       CopyAvoidingDirtyingPages(reinterpret_cast<void*>(forward_address), obj, object_size);
-  if (kUseBrooksPointer) {
-    obj->AssertSelfBrooksPointer();
-    DCHECK_EQ(forward_address->GetBrooksPointer(), obj);
-    forward_address->SetBrooksPointer(forward_address);
-    forward_address->AssertSelfBrooksPointer();
+  if (kUseBakerOrBrooksReadBarrier) {
+    obj->AssertReadBarrierPointer();
+    if (kUseBrooksReadBarrier) {
+      DCHECK_EQ(forward_address->GetReadBarrierPointer(), obj);
+      forward_address->SetReadBarrierPointer(forward_address);
+    }
+    forward_address->AssertReadBarrierPointer();
   }
   if (to_space_live_bitmap_ != nullptr) {
     to_space_live_bitmap_->Set(forward_address);

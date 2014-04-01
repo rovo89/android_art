@@ -45,9 +45,9 @@ inline void SemiSpace::MarkObject(
   if (obj == nullptr) {
     return;
   }
-  if (kUseBrooksPointer) {
+  if (kUseBakerOrBrooksReadBarrier) {
     // Verify all the objects have the correct forward pointer installed.
-    obj->AssertSelfBrooksPointer();
+    obj->AssertReadBarrierPointer();
   }
   if (!immune_region_.ContainsObject(obj)) {
     if (from_space_->HasAddress(obj)) {
