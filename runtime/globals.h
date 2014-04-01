@@ -19,7 +19,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include "brooks_pointer.h"
+#include "read_barrier.h"
 
 namespace art {
 
@@ -97,11 +97,19 @@ static constexpr bool kMovingMethods = false;
 // code, if possible.
 static constexpr bool kEmbedClassInCode = true;
 
-#ifdef USE_BROOKS_POINTER
-static constexpr bool kUseBrooksPointer = true;
+#ifdef USE_BAKER_READ_BARRIER
+static constexpr bool kUseBakerReadBarrier = true;
 #else
-static constexpr bool kUseBrooksPointer = false;
+static constexpr bool kUseBakerReadBarrier = false;
 #endif
+
+#ifdef USE_BROOKS_READ_BARRIER
+static constexpr bool kUseBrooksReadBarrier = true;
+#else
+static constexpr bool kUseBrooksReadBarrier = false;
+#endif
+
+static constexpr bool kUseBakerOrBrooksReadBarrier = kUseBakerReadBarrier || kUseBrooksReadBarrier;
 
 // If true, references within the heap are poisoned (negated).
 static constexpr bool kPoisonHeapReferences = false;

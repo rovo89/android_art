@@ -93,33 +93,41 @@ inline void Object::Wait(Thread* self, int64_t ms, int32_t ns) {
   Monitor::Wait(self, this, ms, ns, true, kTimedWaiting);
 }
 
-inline Object* Object::GetBrooksPointer() {
-#ifdef USE_BROOKS_POINTER
-  DCHECK(kUseBrooksPointer);
-  return GetFieldObject<Object, kVerifyNone>(OFFSET_OF_OBJECT_MEMBER(Object, x_brooks_ptr_), false);
+inline Object* Object::GetReadBarrierPointer() {
+#ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
+  DCHECK(kUseBakerOrBrooksReadBarrier);
+  return GetFieldObject<Object, kVerifyNone>(OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_), false);
 #else
   LOG(FATAL) << "Unreachable";
   return nullptr;
 #endif
 }
 
-inline void Object::SetBrooksPointer(Object* brooks_pointer) {
-#ifdef USE_BROOKS_POINTER
-  DCHECK(kUseBrooksPointer);
+inline void Object::SetReadBarrierPointer(Object* rb_pointer) {
+#ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
+  DCHECK(kUseBakerOrBrooksReadBarrier);
   // We don't mark the card as this occurs as part of object allocation. Not all objects have
   // backing cards, such as large objects.
   SetFieldObjectWithoutWriteBarrier<false, false, kVerifyNone>(
-      OFFSET_OF_OBJECT_MEMBER(Object, x_brooks_ptr_), brooks_pointer, false);
+      OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_), rb_pointer, false);
 #else
   LOG(FATAL) << "Unreachable";
 #endif
 }
 
-inline void Object::AssertSelfBrooksPointer() const {
-#ifdef USE_BROOKS_POINTER
-  DCHECK(kUseBrooksPointer);
+inline void Object::AssertReadBarrierPointer() const {
+#if defined(USE_BAKER_READ_BARRIER)
+  DCHECK(kUseBakerReadBarrier);
   Object* obj = const_cast<Object*>(this);
-  DCHECK_EQ(obj, obj->GetBrooksPointer());
+  DCHECK(obj->GetReadBarrierPointer() == nullptr)
+      << "Bad Baker pointer: obj=" << reinterpret_cast<void*>(obj)
+      << " ptr=" << reinterpret_cast<void*>(obj->GetReadBarrierPointer());
+#elif defined(USE_BROOKS_READ_BARRIER)
+  DCHECK(kUseBrooksReadBarrier);
+  Object* obj = const_cast<Object*>(this);
+  DCHECK_EQ(obj, obj->GetReadBarrierPointer())
+      << "Bad Brooks pointer: obj=" << reinterpret_cast<void*>(obj)
+      << " ptr=" << reinterpret_cast<void*>(obj->GetReadBarrierPointer());
 #else
   LOG(FATAL) << "Unreachable";
 #endif
