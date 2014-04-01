@@ -60,8 +60,8 @@ bool X86_64ManagedRegister::Overlaps(const X86_64ManagedRegister& other) const {
   CHECK(other.IsValidManagedRegister());
   if (Equals(other)) return true;
   if (IsRegisterPair()) {
-    Register low = AsRegisterPairLow();
-    Register high = AsRegisterPairHigh();
+    Register low = AsRegisterPairLow().AsRegister();
+    Register high = AsRegisterPairHigh().AsRegister();
     return X86_64ManagedRegister::FromCpuRegister(low).Overlaps(other) ||
         X86_64ManagedRegister::FromCpuRegister(high).Overlaps(other);
   }
@@ -94,11 +94,11 @@ void X86_64ManagedRegister::Print(std::ostream& os) const {
   if (!IsValidManagedRegister()) {
     os << "No Register";
   } else if (IsXmmRegister()) {
-    os << "XMM: " << static_cast<int>(AsXmmRegister());
+    os << "XMM: " << static_cast<int>(AsXmmRegister().AsFloatRegister());
   } else if (IsX87Register()) {
     os << "X87: " << static_cast<int>(AsX87Register());
   } else if (IsCpuRegister()) {
-    os << "CPU: " << static_cast<int>(AsCpuRegister());
+    os << "CPU: " << static_cast<int>(AsCpuRegister().AsRegister());
   } else if (IsRegisterPair()) {
     os << "Pair: " << AsRegisterPairLow() << ", " << AsRegisterPairHigh();
   } else {

@@ -146,7 +146,6 @@ MACRO2(ONE_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     // Outgoing argument set up
     mov %rsp, %rdx                    // pass SP
     mov %gs:THREAD_SELF_OFFSET, %rsi  // pass Thread::Current()
-    mov %rax, %rdi                    // pass arg1
     call PLT_VAR(cxx_name, 1)     // cxx_name(arg1, Thread*, SP)
     int3                          // unreached
     END_FUNCTION VAR(c_name, 0)

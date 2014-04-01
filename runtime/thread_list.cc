@@ -63,7 +63,7 @@ bool ThreadList::Contains(Thread* thread) {
 
 bool ThreadList::Contains(pid_t tid) {
   for (const auto& thread : list_) {
-    if (thread->tid_ == tid) {
+    if (thread->GetTid() == tid) {
       return true;
     }
   }
@@ -77,8 +77,8 @@ pid_t ThreadList::GetLockOwner() {
 void ThreadList::DumpNativeStacks(std::ostream& os) {
   MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
   for (const auto& thread : list_) {
-    os << "DUMPING THREAD " << thread->tid_ << "\n";
-    DumpNativeStack(os, thread->tid_, "\t", true);
+    os << "DUMPING THREAD " << thread->GetTid() << "\n";
+    DumpNativeStack(os, thread->GetTid(), "\t", true);
     os << "\n";
   }
 }
@@ -607,7 +607,7 @@ void ThreadList::SuspendSelfForDebugger() {
     // though.
     MutexLock mu(self, *Locks::thread_suspend_count_lock_);
     self->ModifySuspendCount(self, +1, true);
-    CHECK_GT(self->suspend_count_, 0);
+    CHECK_GT(self->GetSuspendCount(), 0);
   }
 
   VLOG(threads) << *self << " self-suspending (debugger)";
@@ -631,18 +631,18 @@ void ThreadList::SuspendSelfForDebugger() {
 
   {
     MutexLock mu(self, *Locks::thread_suspend_count_lock_);
-    while (self->suspend_count_ != 0) {
+    while (self->GetSuspendCount() != 0) {
       Thread::resume_cond_->Wait(self);
-      if (self->suspend_count_ != 0) {
+      if (self->GetSuspendCount() != 0) {
         // The condition was signaled but we're still suspended. This
         // can happen if the debugger lets go while a SIGQUIT thread
         // dump event is pending (assuming SignalCatcher was resumed for
         // just long enough to try to grab the thread-suspend lock).
         LOG(DEBUG) << *self << " still suspended after undo "
-                   << "(suspend count=" << self->suspend_count_ << ")";
+                   << "(suspend count=" << self->GetSuspendCount() << ")";
       }
     }
-    CHECK_EQ(self->suspend_count_, 0);
+    CHECK_EQ(self->GetSuspendCount(), 0);
   }
 
   VLOG(threads) << *self << " self-reviving (debugger)";
@@ -661,10 +661,10 @@ void ThreadList::UndoDebuggerSuspensions() {
     debug_suspend_all_count_ = 0;
     // Update running threads.
     for (const auto& thread : list_) {
-      if (thread == self || thread->debug_suspend_count_ == 0) {
+      if (thread == self || thread->GetDebugSuspendCount() == 0) {
         continue;
       }
-      thread->ModifySuspendCount(self, -thread->debug_suspend_count_, true);
+      thread->ModifySuspendCount(self, -thread->GetDebugSuspendCount(), true);
     }
   }
 
@@ -749,11 +749,15 @@ void ThreadList::Register(Thread* self) {
   // SuspendAll requests.
   MutexLock mu(self, *Locks::thread_list_lock_);
   MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
-  self->suspend_count_ = suspend_all_count_;
-  self->debug_suspend_count_ = debug_suspend_all_count_;
-  if (self->suspend_count_ > 0) {
-    self->AtomicSetFlag(kSuspendRequest);
-    self->TriggerSuspend();
+  CHECK_GE(suspend_all_count_, debug_suspend_all_count_);
+  if (debug_suspend_all_count_ > 0) {
+    self->ModifySuspendCount(self, debug_suspend_all_count_, true);
+  }
+  if (suspend_all_count_ > 0) {
+    int delta = suspend_all_count_ - debug_suspend_all_count_;
+    if (delta > 0) {
+      self->ModifySuspendCount(self, delta, false);
+    }
   }
   CHECK(!Contains(self));
   list_.push_back(self);
@@ -768,7 +772,7 @@ void ThreadList::Unregister(Thread* self) {
   // suspend and so on, must happen at this point, and not in ~Thread.
   self->Destroy();
 
-  uint32_t thin_lock_id = self->thin_lock_thread_id_;
+  uint32_t thin_lock_id = self->GetThreadId();
   while (self != nullptr) {
     // Remove and delete the Thread* while holding the thread_list_lock_ and
     // thread_suspend_count_lock_ so that the unregistering thread cannot be suspended.

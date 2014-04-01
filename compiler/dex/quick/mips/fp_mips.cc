@@ -50,7 +50,7 @@ void MipsMir2Lir::GenArithOpFloat(Instruction::Code opcode,
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(pFmodf), rl_src1, rl_src2,
+      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmodf), rl_src1, rl_src2,
                                               false);
       rl_result = GetReturn(true);
       StoreValue(rl_dest, rl_result);
@@ -93,7 +93,7 @@ void MipsMir2Lir::GenArithOpDouble(Instruction::Code opcode,
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(pFmod), rl_src1, rl_src2,
+      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmod), rl_src1, rl_src2,
                                               false);
       rl_result = GetReturnWide(true);
       StoreValueWide(rl_dest, rl_result);
@@ -135,22 +135,22 @@ void MipsMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
       op = kMipsFcvtdw;
       break;
     case Instruction::FLOAT_TO_INT:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pF2iz), rl_dest, rl_src);
+      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pF2iz), rl_dest, rl_src);
       return;
     case Instruction::DOUBLE_TO_INT:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pD2iz), rl_dest, rl_src);
+      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pD2iz), rl_dest, rl_src);
       return;
     case Instruction::LONG_TO_DOUBLE:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pL2d), rl_dest, rl_src);
+      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pL2d), rl_dest, rl_src);
       return;
     case Instruction::FLOAT_TO_LONG:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pF2l), rl_dest, rl_src);
+      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pF2l), rl_dest, rl_src);
       return;
     case Instruction::LONG_TO_FLOAT:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pL2f), rl_dest, rl_src);
+      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pL2f), rl_dest, rl_src);
       return;
     case Instruction::DOUBLE_TO_LONG:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pD2l), rl_dest, rl_src);
+      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pD2l), rl_dest, rl_src);
       return;
     default:
       LOG(FATAL) << "Unexpected opcode: " << opcode;
@@ -176,22 +176,22 @@ void MipsMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
 void MipsMir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest,
                            RegLocation rl_src1, RegLocation rl_src2) {
   bool wide = true;
-  ThreadOffset offset(-1);
+  ThreadOffset<4> offset(-1);
 
   switch (opcode) {
     case Instruction::CMPL_FLOAT:
-      offset = QUICK_ENTRYPOINT_OFFSET(pCmplFloat);
+      offset = QUICK_ENTRYPOINT_OFFSET(4, pCmplFloat);
       wide = false;
       break;
     case Instruction::CMPG_FLOAT:
-      offset = QUICK_ENTRYPOINT_OFFSET(pCmpgFloat);
+      offset = QUICK_ENTRYPOINT_OFFSET(4, pCmpgFloat);
       wide = false;
       break;
     case Instruction::CMPL_DOUBLE:
-      offset = QUICK_ENTRYPOINT_OFFSET(pCmplDouble);
+      offset = QUICK_ENTRYPOINT_OFFSET(4, pCmplDouble);
       break;
     case Instruction::CMPG_DOUBLE:
-      offset = QUICK_ENTRYPOINT_OFFSET(pCmpgDouble);
+      offset = QUICK_ENTRYPOINT_OFFSET(4, pCmpgDouble);
       break;
     default:
       LOG(FATAL) << "Unexpected opcode: " << opcode;

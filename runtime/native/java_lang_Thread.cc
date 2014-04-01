@@ -104,11 +104,11 @@ static jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject java_thread, jobject
 }
 
 static void Thread_nativeInterrupt(JNIEnv* env, jobject java_thread) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread = Thread::FromManagedThread(soa, java_thread);
   if (thread != NULL) {
-    thread->Interrupt();
+    thread->Interrupt(soa.Self());
   }
 }
 
@@ -175,7 +175,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Thread, nativeCreate, "(Ljava/lang/Thread;JZ)V"),
   NATIVE_METHOD(Thread, nativeGetStatus, "(Z)I"),
   NATIVE_METHOD(Thread, nativeHoldsLock, "(Ljava/lang/Object;)Z"),
-  NATIVE_METHOD(Thread, nativeInterrupt, "()V"),
+  NATIVE_METHOD(Thread, nativeInterrupt, "!()V"),
   NATIVE_METHOD(Thread, nativeSetName, "(Ljava/lang/String;)V"),
   NATIVE_METHOD(Thread, nativeSetPriority, "(I)V"),
   NATIVE_METHOD(Thread, sleep, "!(Ljava/lang/Object;JI)V"),

@@ -22,10 +22,10 @@
 namespace art {
 
 void Thread::InitCpu() {
-  CHECK_EQ(THREAD_FLAGS_OFFSET, OFFSETOF_MEMBER(Thread, state_and_flags_));
-  CHECK_EQ(THREAD_CARD_TABLE_OFFSET, OFFSETOF_MEMBER(Thread, card_table_));
-  CHECK_EQ(THREAD_EXCEPTION_OFFSET, OFFSETOF_MEMBER(Thread, exception_));
-  CHECK_EQ(THREAD_ID_OFFSET, OFFSETOF_MEMBER(Thread, thin_lock_thread_id_));
+  CHECK_EQ(THREAD_FLAGS_OFFSET, ThreadFlagsOffset<4>().Int32Value());
+  CHECK_EQ(THREAD_CARD_TABLE_OFFSET, CardTableOffset<4>().Int32Value());
+  CHECK_EQ(THREAD_EXCEPTION_OFFSET, ExceptionOffset<4>().Int32Value());
+  CHECK_EQ(THREAD_ID_OFFSET, ThinLockIdOffset<4>().Int32Value());
 }
 
 void Thread::CleanupCpu() {

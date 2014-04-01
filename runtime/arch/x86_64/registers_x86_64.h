@@ -67,7 +67,7 @@ enum FloatRegister {
   XMM15 = 15,
   kNumberOfFloatRegisters = 16
 };
-std::ostream& operator<<(std::ostream& os, const Register& rhs);
+std::ostream& operator<<(std::ostream& os, const FloatRegister& rhs);
 
 }  // namespace x86_64
 }  // namespace art

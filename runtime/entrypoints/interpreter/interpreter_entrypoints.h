@@ -21,9 +21,8 @@
 #include "dex_file.h"
 #include "offsets.h"
 
-#define INTERPRETER_ENTRYPOINT_OFFSET(x) \
-    ThreadOffset(static_cast<uintptr_t>(OFFSETOF_MEMBER(Thread, interpreter_entrypoints_)) + \
-                 static_cast<uintptr_t>(OFFSETOF_MEMBER(InterpreterEntryPoints, x)))
+#define INTERPRETER_ENTRYPOINT_OFFSET(ptr_size, x) \
+    Thread::InterpreterEntryPointOffset<ptr_size>(OFFSETOF_MEMBER(InterpreterEntryPoints, x))
 
 namespace art {
 

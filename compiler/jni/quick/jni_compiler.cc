@@ -101,10 +101,10 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   __ StoreImmediateToFrame(main_jni_conv->SirtNumRefsOffset(),
                            main_jni_conv->ReferenceCount(),
                            mr_conv->InterproceduralScratchRegister());
-  __ CopyRawPtrFromThread(main_jni_conv->SirtLinkOffset(),
-                          Thread::TopSirtOffset(),
+  __ CopyRawPtrFromThread32(main_jni_conv->SirtLinkOffset(),
+                          Thread::TopSirtOffset<4>(),
                           mr_conv->InterproceduralScratchRegister());
-  __ StoreStackOffsetToThread(Thread::TopSirtOffset(),
+  __ StoreStackOffsetToThread32(Thread::TopSirtOffset<4>(),
                               main_jni_conv->SirtOffset(),
                               mr_conv->InterproceduralScratchRegister());
 
@@ -154,8 +154,8 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   }
 
   // 4. Write out the end of the quick frames.
-  __ StoreStackPointerToThread(Thread::TopOfManagedStackOffset());
-  __ StoreImmediateToThread(Thread::TopOfManagedStackPcOffset(), 0,
+  __ StoreStackPointerToThread32(Thread::TopOfManagedStackOffset<4>());
+  __ StoreImmediateToThread32(Thread::TopOfManagedStackPcOffset<4>(), 0,
                             mr_conv->InterproceduralScratchRegister());
 
   // 5. Move frame down to allow space for out going args.
@@ -169,8 +169,8 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   //    can occur. The result is the saved JNI local state that is restored by the exit call. We
   //    abuse the JNI calling convention here, that is guaranteed to support passing 2 pointer
   //    arguments.
-  ThreadOffset jni_start = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(pJniMethodStartSynchronized)
-                                           : QUICK_ENTRYPOINT_OFFSET(pJniMethodStart);
+  ThreadOffset<4> jni_start = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(4, pJniMethodStartSynchronized)
+                                              : QUICK_ENTRYPOINT_OFFSET(4, pJniMethodStart);
   main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
   FrameOffset locked_object_sirt_offset(0);
   if (is_synchronized) {
@@ -197,7 +197,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   } else {
     __ GetCurrentThread(main_jni_conv->CurrentParamStackOffset(),
                         main_jni_conv->InterproceduralScratchRegister());
-    __ Call(ThreadOffset(jni_start), main_jni_conv->InterproceduralScratchRegister());
+    __ CallFromThread32(jni_start, main_jni_conv->InterproceduralScratchRegister());
   }
   if (is_synchronized) {  // Check for exceptions from monitor enter.
     __ ExceptionPoll(main_jni_conv->InterproceduralScratchRegister(), main_out_arg_size);
@@ -259,10 +259,10 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   if (main_jni_conv->IsCurrentParamInRegister()) {
     ManagedRegister jni_env = main_jni_conv->CurrentParamRegister();
     DCHECK(!jni_env.Equals(main_jni_conv->InterproceduralScratchRegister()));
-    __ LoadRawPtrFromThread(jni_env, Thread::JniEnvOffset());
+    __ LoadRawPtrFromThread32(jni_env, Thread::JniEnvOffset<4>());
   } else {
     FrameOffset jni_env = main_jni_conv->CurrentParamStackOffset();
-    __ CopyRawPtrFromThread(jni_env, Thread::JniEnvOffset(),
+    __ CopyRawPtrFromThread32(jni_env, Thread::JniEnvOffset<4>(),
                             main_jni_conv->InterproceduralScratchRegister());
   }
 
@@ -298,16 +298,16 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   // 12. Call into JNI method end possibly passing a returned reference, the method and the current
   //     thread.
   end_jni_conv->ResetIterator(FrameOffset(end_out_arg_size));
-  ThreadOffset jni_end(-1);
+  ThreadOffset<4> jni_end(-1);
   if (reference_return) {
     // Pass result.
-    jni_end = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(pJniMethodEndWithReferenceSynchronized)
-                              : QUICK_ENTRYPOINT_OFFSET(pJniMethodEndWithReference);
+    jni_end = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(4, pJniMethodEndWithReferenceSynchronized)
+                              : QUICK_ENTRYPOINT_OFFSET(4, pJniMethodEndWithReference);
     SetNativeParameter(jni_asm.get(), end_jni_conv.get(), end_jni_conv->ReturnRegister());
     end_jni_conv->Next();
   } else {
-    jni_end = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(pJniMethodEndSynchronized)
-                              : QUICK_ENTRYPOINT_OFFSET(pJniMethodEnd);
+    jni_end = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(4, pJniMethodEndSynchronized)
+                              : QUICK_ENTRYPOINT_OFFSET(4, pJniMethodEnd);
   }
   // Pass saved local reference state.
   if (end_jni_conv->IsCurrentParamOnStack()) {
@@ -339,7 +339,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   } else {
     __ GetCurrentThread(end_jni_conv->CurrentParamStackOffset(),
                         end_jni_conv->InterproceduralScratchRegister());
-    __ Call(ThreadOffset(jni_end), end_jni_conv->InterproceduralScratchRegister());
+    __ CallFromThread32(ThreadOffset<4>(jni_end), end_jni_conv->InterproceduralScratchRegister());
   }
 
   // 13. Reload return value

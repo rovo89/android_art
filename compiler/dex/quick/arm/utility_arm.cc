@@ -1109,7 +1109,7 @@ LIR* ArmMir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
   return res;
 }
 
-LIR* ArmMir2Lir::OpThreadMem(OpKind op, ThreadOffset thread_offset) {
+LIR* ArmMir2Lir::OpThreadMem(OpKind op, ThreadOffset<4> thread_offset) {
   LOG(FATAL) << "Unexpected use of OpThreadMem for Arm";
   return NULL;
 }

@@ -157,7 +157,7 @@ Monitor::~Monitor() {
 void Monitor::AppendToWaitSet(Thread* thread) {
   DCHECK(owner_ == Thread::Current());
   DCHECK(thread != NULL);
-  DCHECK(thread->wait_next_ == NULL) << thread->wait_next_;
+  DCHECK(thread->GetWaitNext() == nullptr) << thread->GetWaitNext();
   if (wait_set_ == NULL) {
     wait_set_ = thread;
     return;
@@ -165,10 +165,10 @@ void Monitor::AppendToWaitSet(Thread* thread) {
 
   // push_back.
   Thread* t = wait_set_;
-  while (t->wait_next_ != NULL) {
-    t = t->wait_next_;
+  while (t->GetWaitNext() != nullptr) {
+    t = t->GetWaitNext();
   }
-  t->wait_next_ = thread;
+  t->SetWaitNext(thread);
 }
 
 /*
@@ -182,19 +182,19 @@ void Monitor::RemoveFromWaitSet(Thread *thread) {
     return;
   }
   if (wait_set_ == thread) {
-    wait_set_ = thread->wait_next_;
-    thread->wait_next_ = NULL;
+    wait_set_ = thread->GetWaitNext();
+    thread->SetWaitNext(nullptr);
     return;
   }
 
   Thread* t = wait_set_;
-  while (t->wait_next_ != NULL) {
-    if (t->wait_next_ == thread) {
-      t->wait_next_ = thread->wait_next_;
-      thread->wait_next_ = NULL;
+  while (t->GetWaitNext() != NULL) {
+    if (t->GetWaitNext() == thread) {
+      t->SetWaitNext(thread->GetWaitNext());
+      thread->SetWaitNext(nullptr);
       return;
     }
-    t = t->wait_next_;
+    t = t->GetWaitNext();
   }
 }
 
@@ -226,6 +226,7 @@ void Monitor::Lock(Thread* self) {
     monitor_lock_.Unlock(self);  // Let go of locks in order.
     {
       ScopedThreadStateChange tsc(self, kBlocked);  // Change to blocked and give up mutator_lock_.
+      self->SetMonitorEnterObject(obj_);
       MutexLock mu2(self, monitor_lock_);  // Reacquire monitor_lock_ without mutator_lock_ for Wait.
       if (owner_ != NULL) {  // Did the owner_ give the lock up?
         ++num_waiters_;
@@ -248,6 +249,7 @@ void Monitor::Lock(Thread* self) {
           }
         }
       }
+      self->SetMonitorEnterObject(nullptr);
     }
     monitor_lock_.Lock(self);  // Reacquire locks in order.
   }
@@ -447,33 +449,33 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
   bool was_interrupted = false;
   {
     // Pseudo-atomically wait on self's wait_cond_ and release the monitor lock.
-    MutexLock mu(self, *self->wait_mutex_);
+    MutexLock mu(self, *self->GetWaitMutex());
 
     // Set wait_monitor_ to the monitor object we will be waiting on. When wait_monitor_ is
     // non-NULL a notifying or interrupting thread must signal the thread's wait_cond_ to wake it
     // up.
-    DCHECK(self->wait_monitor_ == NULL);
-    self->wait_monitor_ = this;
+    DCHECK(self->GetWaitMonitor() == nullptr);
+    self->SetWaitMonitor(this);
 
     // Release the monitor lock.
     monitor_contenders_.Signal(self);
     monitor_lock_.Unlock(self);
 
     // Handle the case where the thread was interrupted before we called wait().
-    if (self->interrupted_) {
+    if (self->IsInterruptedLocked()) {
       was_interrupted = true;
     } else {
       // Wait for a notification or a timeout to occur.
       if (why == kWaiting) {
-        self->wait_cond_->Wait(self);
+        self->GetWaitConditionVariable()->Wait(self);
       } else {
         DCHECK(why == kTimedWaiting || why == kSleeping) << why;
-        self->wait_cond_->TimedWait(self, ms, ns);
+        self->GetWaitConditionVariable()->TimedWait(self, ms, ns);
       }
-      if (self->interrupted_) {
+      if (self->IsInterruptedLocked()) {
         was_interrupted = true;
       }
-      self->interrupted_ = false;
+      self->SetInterruptedLocked(false);
     }
   }
 
@@ -485,15 +487,15 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
     // that a thread in a waiting/sleeping state has a non-null wait_monitor_ for debugging
     // and diagnostic purposes. (If you reset this earlier, stack dumps will claim that threads
     // are waiting on "null".)
-    MutexLock mu(self, *self->wait_mutex_);
-    DCHECK(self->wait_monitor_ != NULL);
-    self->wait_monitor_ = NULL;
+    MutexLock mu(self, *self->GetWaitMutex());
+    DCHECK(self->GetWaitMonitor() != nullptr);
+    self->SetWaitMonitor(nullptr);
   }
 
   // Re-acquire the monitor and lock.
   Lock(self);
   monitor_lock_.Lock(self);
-  self->wait_mutex_->AssertNotHeld(self);
+  self->GetWaitMutex()->AssertNotHeld(self);
 
   /*
    * We remove our thread from wait set after restoring the count
@@ -516,8 +518,8 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
      * cleared when this exception is thrown."
      */
     {
-      MutexLock mu(self, *self->wait_mutex_);
-      self->interrupted_ = false;
+      MutexLock mu(self, *self->GetWaitMutex());
+      self->SetInterruptedLocked(false);
     }
     if (interruptShouldThrow) {
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
@@ -538,13 +540,13 @@ void Monitor::Notify(Thread* self) {
   // Signal the first waiting thread in the wait set.
   while (wait_set_ != NULL) {
     Thread* thread = wait_set_;
-    wait_set_ = thread->wait_next_;
-    thread->wait_next_ = NULL;
+    wait_set_ = thread->GetWaitNext();
+    thread->SetWaitNext(nullptr);
 
     // Check to see if the thread is still waiting.
-    MutexLock mu(self, *thread->wait_mutex_);
-    if (thread->wait_monitor_ != NULL) {
-      thread->wait_cond_->Signal(self);
+    MutexLock mu(self, *thread->GetWaitMutex());
+    if (thread->GetWaitMonitor() != nullptr) {
+      thread->GetWaitConditionVariable()->Signal(self);
       return;
     }
   }
@@ -561,8 +563,8 @@ void Monitor::NotifyAll(Thread* self) {
   // Signal all threads in the wait set.
   while (wait_set_ != NULL) {
     Thread* thread = wait_set_;
-    wait_set_ = thread->wait_next_;
-    thread->wait_next_ = NULL;
+    wait_set_ = thread->GetWaitNext();
+    thread->SetWaitNext(nullptr);
     thread->Notify();
   }
 }
@@ -633,6 +635,7 @@ void Monitor::InflateThinLocked(Thread* self, SirtRef<mirror::Object>& obj, Lock
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
     // Suspend the owner, inflate. First change to blocked and give up mutator_lock_.
     ScopedThreadStateChange tsc(self, kBlocked);
+    self->SetMonitorEnterObject(obj.get());
     if (lock_word == obj->GetLockWord()) {  // If lock word hasn't changed.
       bool timed_out;
       Thread* owner = thread_list->SuspendThreadByThreadId(owner_thread_id, false, &timed_out);
@@ -647,6 +650,7 @@ void Monitor::InflateThinLocked(Thread* self, SirtRef<mirror::Object>& obj, Lock
         thread_list->Resume(owner, false);
       }
     }
+    self->SetMonitorEnterObject(nullptr);
   }
 }
 
@@ -880,8 +884,8 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
     }
     {
       Thread* self = Thread::Current();
-      MutexLock mu(self, *thread->wait_mutex_);
-      Monitor* monitor = thread->wait_monitor_;
+      MutexLock mu(self, *thread->GetWaitMutex());
+      Monitor* monitor = thread->GetWaitMonitor();
       if (monitor != NULL) {
         mirror::Object* object = monitor->obj_;
         object_identity_hashcode = object->IdentityHashCode();
@@ -890,7 +894,7 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
     }
   } else if (state == kBlocked) {
     os << "  - waiting to lock ";
-    mirror::Object* object = thread->monitor_enter_object_;
+    mirror::Object* object = thread->GetMonitorEnterObject();
     if (object != NULL) {
       object_identity_hashcode = object->IdentityHashCode();
       lock_owner = object->GetLockOwnerThreadId();
@@ -915,11 +919,11 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
 mirror::Object* Monitor::GetContendedMonitor(Thread* thread) {
   // This is used to implement JDWP's ThreadReference.CurrentContendedMonitor, and has a bizarre
   // definition of contended that includes a monitor a thread is trying to enter...
-  mirror::Object* result = thread->monitor_enter_object_;
+  mirror::Object* result = thread->GetMonitorEnterObject();
   if (result == NULL) {
     // ...but also a monitor that the thread is waiting on.
-    MutexLock mu(Thread::Current(), *thread->wait_mutex_);
-    Monitor* monitor = thread->wait_monitor_;
+    MutexLock mu(Thread::Current(), *thread->GetWaitMutex());
+    Monitor* monitor = thread->GetWaitMonitor();
     if (monitor != NULL) {
       result = monitor->GetObject();
     }
@@ -1118,7 +1122,7 @@ MonitorInfo::MonitorInfo(mirror::Object* obj) : owner_(NULL), entry_count_(0) {
       Monitor* mon = lock_word.FatLockMonitor();
       owner_ = mon->owner_;
       entry_count_ = 1 + mon->lock_count_;
-      for (Thread* waiter = mon->wait_set_; waiter != NULL; waiter = waiter->wait_next_) {
+      for (Thread* waiter = mon->wait_set_; waiter != NULL; waiter = waiter->GetWaitNext()) {
         waiters_.push_back(waiter);
       }
       break;

@@ -374,14 +374,20 @@ class Assembler {
   virtual void StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
                                      ManagedRegister scratch) = 0;
 
-  virtual void StoreImmediateToThread(ThreadOffset dest, uint32_t imm,
-                                      ManagedRegister scratch) = 0;
+  virtual void StoreImmediateToThread32(ThreadOffset<4> dest, uint32_t imm,
+                                        ManagedRegister scratch);
+  virtual void StoreImmediateToThread64(ThreadOffset<8> dest, uint32_t imm,
+                                        ManagedRegister scratch);
 
-  virtual void StoreStackOffsetToThread(ThreadOffset thr_offs,
-                                        FrameOffset fr_offs,
-                                        ManagedRegister scratch) = 0;
+  virtual void StoreStackOffsetToThread32(ThreadOffset<4> thr_offs,
+                                          FrameOffset fr_offs,
+                                          ManagedRegister scratch);
+  virtual void StoreStackOffsetToThread64(ThreadOffset<8> thr_offs,
+                                          FrameOffset fr_offs,
+                                          ManagedRegister scratch);
 
-  virtual void StoreStackPointerToThread(ThreadOffset thr_offs) = 0;
+  virtual void StoreStackPointerToThread32(ThreadOffset<4> thr_offs);
+  virtual void StoreStackPointerToThread64(ThreadOffset<8> thr_offs);
 
   virtual void StoreSpanning(FrameOffset dest, ManagedRegister src,
                              FrameOffset in_off, ManagedRegister scratch) = 0;
@@ -389,27 +395,29 @@ class Assembler {
   // Load routines
   virtual void Load(ManagedRegister dest, FrameOffset src, size_t size) = 0;
 
-  virtual void Load(ManagedRegister dest, ThreadOffset src, size_t size) = 0;
+  virtual void LoadFromThread32(ManagedRegister dest, ThreadOffset<4> src, size_t size);
+  virtual void LoadFromThread64(ManagedRegister dest, ThreadOffset<8> src, size_t size);
 
   virtual void LoadRef(ManagedRegister dest, FrameOffset  src) = 0;
+  virtual void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs) = 0;
 
-  virtual void LoadRef(ManagedRegister dest, ManagedRegister base,
-                       MemberOffset offs) = 0;
+  virtual void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) = 0;
 
-  virtual void LoadRawPtr(ManagedRegister dest, ManagedRegister base,
-                          Offset offs) = 0;
-
-  virtual void LoadRawPtrFromThread(ManagedRegister dest,
-                                    ThreadOffset offs) = 0;
+  virtual void LoadRawPtrFromThread32(ManagedRegister dest, ThreadOffset<4> offs);
+  virtual void LoadRawPtrFromThread64(ManagedRegister dest, ThreadOffset<8> offs);
 
   // Copying routines
   virtual void Move(ManagedRegister dest, ManagedRegister src, size_t size) = 0;
 
-  virtual void CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset thr_offs,
-                                    ManagedRegister scratch) = 0;
+  virtual void CopyRawPtrFromThread32(FrameOffset fr_offs, ThreadOffset<4> thr_offs,
+                                      ManagedRegister scratch);
+  virtual void CopyRawPtrFromThread64(FrameOffset fr_offs, ThreadOffset<8> thr_offs,
+                                      ManagedRegister scratch);
 
-  virtual void CopyRawPtrToThread(ThreadOffset thr_offs, FrameOffset fr_offs,
-                                  ManagedRegister scratch) = 0;
+  virtual void CopyRawPtrToThread32(ThreadOffset<4> thr_offs, FrameOffset fr_offs,
+                                    ManagedRegister scratch);
+  virtual void CopyRawPtrToThread64(ThreadOffset<8> thr_offs, FrameOffset fr_offs,
+                                    ManagedRegister scratch);
 
   virtual void CopyRef(FrameOffset dest, FrameOffset src,
                        ManagedRegister scratch) = 0;
@@ -471,7 +479,8 @@ class Assembler {
                     ManagedRegister scratch) = 0;
   virtual void Call(FrameOffset base, Offset offset,
                     ManagedRegister scratch) = 0;
-  virtual void Call(ThreadOffset offset, ManagedRegister scratch) = 0;
+  virtual void CallFromThread32(ThreadOffset<4> offset, ManagedRegister scratch);
+  virtual void CallFromThread64(ThreadOffset<8> offset, ManagedRegister scratch);
 
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.

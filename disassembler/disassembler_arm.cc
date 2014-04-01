@@ -305,7 +305,7 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
           }
           if (rn.r == 9) {
             args << "  ; ";
-            Thread::DumpThreadOffset(args, offset, 4);
+            Thread::DumpThreadOffset<4>(args, offset);
           }
         }
       }
@@ -1291,7 +1291,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               args << Rt << ", [" << Rn << ", #" << imm12 << "]";
               if (Rn.r == 9) {
                 args << "  ; ";
-                Thread::DumpThreadOffset(args, imm12, 4);
+                Thread::DumpThreadOffset<4>(args, imm12);
               } else if (Rn.r == 15) {
                 intptr_t lit_adr = reinterpret_cast<intptr_t>(instr_ptr);
                 lit_adr = RoundDown(lit_adr, 4) + 4 + imm12;
@@ -1304,7 +1304,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               args << Rt << ", [" << Rn << ", #" << imm12 << "]";
               if (Rn.r == 9) {
                 args << "  ; ";
-                Thread::DumpThreadOffset(args, imm12, 4);
+                Thread::DumpThreadOffset<4>(args, imm12);
               } else if (Rn.r == 15) {
                 intptr_t lit_adr = reinterpret_cast<intptr_t>(instr_ptr);
                 lit_adr = RoundDown(lit_adr, 4) + 4 + imm12;
@@ -1361,7 +1361,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             args << Rt << ", [" << Rn << ", #" << imm12 << "]";
             if (Rn.r == 9) {
               args << "  ; ";
-              Thread::DumpThreadOffset(args, imm12, 4);
+              Thread::DumpThreadOffset<4>(args, imm12);
             } else if (Rn.r == 15) {
               intptr_t lit_adr = reinterpret_cast<intptr_t>(instr_ptr);
               lit_adr = RoundDown(lit_adr, 4) + 4 + imm12;
