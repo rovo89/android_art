@@ -564,6 +564,7 @@ class Mir2Lir : public Backend {
     void ForceImplicitNullCheck(RegStorage reg, int opt_flags);
     LIR* GenImmedCheck(ConditionCode c_code, RegStorage reg, int imm_val, ThrowKind kind);
     LIR* GenNullCheck(RegStorage m_reg, int opt_flags);
+    LIR* GenExplicitNullCheck(RegStorage m_reg, int opt_flags);
     LIR* GenRegRegCheck(ConditionCode c_code, RegStorage reg1, RegStorage reg2, ThrowKind kind);
     void GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
                              RegLocation rl_src2, LIR* taken, LIR* fall_through);
