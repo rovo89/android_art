@@ -554,15 +554,17 @@ class SubClass extends PublicClass {
         }
         // Check access or lack of to field.
         Class<?> subClassAccessExceptionClass = null;
-        if (f.getName().contains("Private") ||
+        if ((f.getName().contains("Private") ||
             (!same_package && f.getName().contains("Package")) ||
-            (!same_package && f.getName().contains("Protected"))) {
+            (!same_package && f.getName().contains("Protected"))) &&
+            !(protected_class && f.getName().contains("Public"))) {
           subClassAccessExceptionClass = IllegalAccessException.class;
         }
         Class<?> mainClassAccessExceptionClass = null;
-        if (f.getName().contains("Private") ||
+        if ((f.getName().contains("Private") ||
             (!same_package && f.getName().contains("Package")) ||
-            (!same_package && f.getName().contains("Protected"))) {
+            (!same_package && f.getName().contains("Protected"))) &&
+            !(protected_class && f.getName().contains("Public"))) {
           mainClassAccessExceptionClass = IllegalAccessException.class;
         }
 
@@ -605,7 +607,7 @@ class SubClass extends PublicClass {
 
       for (Method m : methods) {
         Class<?> subClassAccessExceptionClass = null;
-        if (protected_class || m.getName().contains("Private") ||
+        if (m.getName().contains("Private") ||
             (!same_package && m.getName().contains("Package")) ||
             (!same_package && m.getName().contains("Protected"))) {
           subClassAccessExceptionClass = IllegalAccessException.class;
