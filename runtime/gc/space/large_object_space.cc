@@ -97,7 +97,7 @@ LargeObjectMapSpace::LargeObjectMapSpace(const std::string& name)
       lock_("large object map space lock", kAllocSpaceLock) {}
 
 LargeObjectMapSpace* LargeObjectMapSpace::Create(const std::string& name) {
-  if (RUNNING_ON_VALGRIND > 0) {
+  if (Runtime::Current()->RunningOnValgrind()) {
     return new ValgrindLargeObjectMapSpace(name);
   } else {
     return new LargeObjectMapSpace(name);

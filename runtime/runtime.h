@@ -417,6 +417,10 @@ class Runtime {
     return stack_overflow_handler_ == nullptr;
   }
 
+  bool RunningOnValgrind() const {
+    return running_on_valgrind_;
+  }
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -516,6 +520,8 @@ class Runtime {
 
   bool stats_enabled_;
   RuntimeStats stats_;
+
+  const bool running_on_valgrind_;
 
   // Runtime profile support.
   bool profile_;

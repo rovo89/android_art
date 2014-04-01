@@ -22,6 +22,7 @@
 
 #include <signal.h>
 #include <sys/syscall.h>
+#include <valgrind.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -111,6 +112,7 @@ Runtime::Runtime()
       exit_(nullptr),
       abort_(nullptr),
       stats_enabled_(false),
+      running_on_valgrind_(RUNNING_ON_VALGRIND > 0),
       profile_(false),
       profile_period_s_(0),
       profile_duration_s_(0),
