@@ -40,10 +40,10 @@
 // Offset of field Thread::suspend_count_ verified in InitCpu
 #define THREAD_FLAGS_OFFSET 0
 // Offset of field Thread::card_table_ verified in InitCpu
-#define THREAD_CARD_TABLE_OFFSET 8
+#define THREAD_CARD_TABLE_OFFSET 112
 // Offset of field Thread::exception_ verified in InitCpu
-#define THREAD_EXCEPTION_OFFSET 16
+#define THREAD_EXCEPTION_OFFSET 120
 // Offset of field Thread::thin_lock_thread_id_ verified in InitCpu
-#define THREAD_ID_OFFSET 112
+#define THREAD_ID_OFFSET 12
 
 #endif  // ART_RUNTIME_ARCH_ARM64_ASM_SUPPORT_ARM64_H_
