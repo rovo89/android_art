@@ -128,7 +128,7 @@ class GarbageCollector {
   // Mark all reachable objects, done concurrently.
   virtual void MarkingPhase() = 0;
 
-  // Only called for concurrent GCs.
+  // Phase of the GC which is run with mutator lock exclusively held.
   virtual void PausePhase();
 
   // Called with mutators running.

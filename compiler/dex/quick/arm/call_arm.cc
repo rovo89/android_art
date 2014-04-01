@@ -365,8 +365,8 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
     NewLIR1(kThumb2VPushCS, num_fp_spills_);
   }
 
-  // TODO: 64 bit will be different code.
-  const int frame_size_without_spills = frame_size_ - spill_count * 4;
+  const int spill_size = spill_count * 4;
+  const int frame_size_without_spills = frame_size_ - spill_size;
   if (!skip_overflow_check) {
     if (Runtime::Current()->ExplicitStackOverflowChecks()) {
       class StackOverflowSlowPath : public LIRSlowPath {
@@ -398,8 +398,7 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
         OpRegRegImm(kOpSub, rs_rARM_LR, rs_rARM_SP, frame_size_without_spills);
         LIR* branch = OpCmpBranch(kCondUlt, rs_rARM_LR, rs_r12, nullptr);
         // Need to restore LR since we used it as a temp.
-        AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, true,
-                                                     frame_size_without_spills));
+        AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, true, spill_size));
         OpRegCopy(rs_rARM_SP, rs_rARM_LR);     // Establish stack
       } else {
         // If the frame is small enough we are guaranteed to have enough space that remains to
