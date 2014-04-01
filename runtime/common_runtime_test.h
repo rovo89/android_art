@@ -255,7 +255,11 @@ class CommonRuntimeTest : public testing::Test {
       filename += getenv("ANDROID_HOST_OUT");
       filename += "/framework/";
     } else {
+#ifdef __LP64__
+      filename += "/data/nativetest/art64/";
+#else
       filename += "/data/nativetest/art/";
+#endif
     }
     filename += "art-test-dex-";
     filename += name;
