@@ -408,6 +408,19 @@ const ArmEncodingMap ArmMir2Lir::EncodingMap[kArmLast] = {
                  kFmtBitBlt, 2, 0, kFmtBitBlt, 5, 3, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | REG_USE01 | SETS_CCODES,
                  "tst", "!0C, !1C", 2, kFixupNone),
+    /*
+     * Note: The encoding map entries for vldrd and vldrs include REG_DEF_LR, even though
+     * these instructions don't define lr.  The reason is that these instructions
+     * are used for loading values from the literal pool, and the displacement may be found
+     * to be insuffient at assembly time.  In that case, we need to materialize a new base
+     * register - and will use lr as the temp register.  This works because lr is used as
+     * a temp register in very limited situations, and never in conjunction with a floating
+     * point constant load.  However, it is possible that during instruction scheduling,
+     * another use of lr could be moved across a vldrd/vldrs.  By setting REG_DEF_LR, we
+     * prevent that from happening.  Note that we set REG_DEF_LR on all vldrd/vldrs - even those
+     * not used in a pc-relative case.  It is really only needed on the pc-relative loads, but
+     * the case we're handling is rare enough that it seemed not worth the trouble to distinguish.
+     */
     ENCODING_MAP(kThumb2Vldrs,       0xed900a00,
                  kFmtSfp, 22, 12, kFmtBitBlt, 19, 16, kFmtBitBlt, 7, 0,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1 | IS_LOAD |
