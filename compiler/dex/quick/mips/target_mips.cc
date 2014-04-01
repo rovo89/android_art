@@ -151,6 +151,22 @@ void MipsMir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags) {
   if (flags & REG_DEF_LR) {
     lir->u.m.def_mask |= ENCODE_MIPS_REG_LR;
   }
+
+  if (flags & REG_DEF_HI) {
+    lir->u.m.def_mask |= ENCODE_MIPS_REG_HI;
+  }
+
+  if (flags & REG_DEF_LO) {
+    lir->u.m.def_mask |= ENCODE_MIPS_REG_LO;
+  }
+
+  if (flags & REG_USE_HI) {
+    lir->u.m.use_mask |= ENCODE_MIPS_REG_HI;
+  }
+
+  if (flags & REG_USE_LO) {
+    lir->u.m.use_mask |= ENCODE_MIPS_REG_LO;
+  }
 }
 
 /* For dumping instructions */
