@@ -452,9 +452,9 @@ struct ObjectOffsets : public CheckOffsets<mirror::Object> {
 
     // alphabetical 32-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Object, monitor_), "shadow$_monitor_"));
-#ifdef USE_BROOKS_POINTER
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Object, x_brooks_ptr_), "shadow$_x_brooks_ptr_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Object, x_padding_), "shadow$_x_padding_"));
+#ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Object, x_rb_ptr_), "shadow$_x_rb_ptr_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Object, x_xpadding_), "shadow$_x_xpadding_"));
 #endif
   };
 };
@@ -731,7 +731,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_FALSE(JavaLangObject->IsSynthetic());
   EXPECT_EQ(2U, JavaLangObject->NumDirectMethods());
   EXPECT_EQ(11U, JavaLangObject->NumVirtualMethods());
-  if (!kUseBrooksPointer) {
+  if (!kUseBakerOrBrooksReadBarrier) {
     EXPECT_EQ(2U, JavaLangObject->NumInstanceFields());
   } else {
     EXPECT_EQ(4U, JavaLangObject->NumInstanceFields());
@@ -740,11 +740,11 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_STREQ(fh.GetName(), "shadow$_klass_");
   fh.ChangeField(JavaLangObject->GetInstanceField(1));
   EXPECT_STREQ(fh.GetName(), "shadow$_monitor_");
-  if (kUseBrooksPointer) {
+  if (kUseBakerOrBrooksReadBarrier) {
     fh.ChangeField(JavaLangObject->GetInstanceField(2));
-    EXPECT_STREQ(fh.GetName(), "shadow$_x_brooks_ptr_");
+    EXPECT_STREQ(fh.GetName(), "shadow$_x_rb_ptr_");
     fh.ChangeField(JavaLangObject->GetInstanceField(3));
-    EXPECT_STREQ(fh.GetName(), "shadow$_x_padding_");
+    EXPECT_STREQ(fh.GetName(), "shadow$_x_xpadding_");
   }
 
   EXPECT_EQ(0U, JavaLangObject->NumStaticFields());

@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_ASM_SUPPORT_H_
 #define ART_RUNTIME_ASM_SUPPORT_H_
 
-#include "brooks_pointer.h"
+#include "read_barrier.h"
 
 // Value loaded into rSUSPEND for quick. When this value is counted down to zero we do a suspend
 // check.
@@ -27,7 +27,7 @@
 #define CLASS_OFFSET 0
 #define LOCK_WORD_OFFSET 4
 
-#ifndef USE_BROOKS_POINTER
+#ifndef USE_BAKER_OR_BROOKS_READ_BARRIER
 
 // Offsets within java.lang.Class.
 #define CLASS_COMPONENT_TYPE_OFFSET 12

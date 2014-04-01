@@ -206,8 +206,8 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   CHECK(java_lang_Class.get() != NULL);
   mirror::Class::SetClassClass(java_lang_Class.get());
   java_lang_Class->SetClass(java_lang_Class.get());
-  if (kUseBrooksPointer) {
-    java_lang_Class->AssertSelfBrooksPointer();
+  if (kUseBakerOrBrooksReadBarrier) {
+    java_lang_Class->AssertReadBarrierPointer();
   }
   java_lang_Class->SetClassSize(sizeof(mirror::ClassClass));
   heap->DecrementDisableMovingGC(self);
@@ -1864,8 +1864,8 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   CHECK(descriptor != NULL);
 
   klass->SetClass(GetClassRoot(kJavaLangClass));
-  if (kUseBrooksPointer) {
-    klass->AssertSelfBrooksPointer();
+  if (kUseBakerOrBrooksReadBarrier) {
+    klass->AssertReadBarrierPointer();
   }
   uint32_t access_flags = dex_class_def.access_flags_;
   // Make sure that none of our runtime-only flags are set.
