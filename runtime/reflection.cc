@@ -799,7 +799,8 @@ bool VerifyAccess(mirror::Object* obj, mirror::Class* declaring_class, uint32_t 
   visitor.WalkStack();
   mirror::Class* caller_class = visitor.caller->GetDeclaringClass();
 
-  if (((access_flags & kAccPublic) != 0) || caller_class == declaring_class) {
+  if ((((access_flags & kAccPublic) != 0) && declaring_class->IsPublic()) ||
+      caller_class == declaring_class) {
     return true;
   }
   if ((access_flags & kAccPrivate) != 0) {
