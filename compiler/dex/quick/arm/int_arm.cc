@@ -439,23 +439,124 @@ bool ArmMir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div
   NewLIR4(kThumb2Smull, r_lo.GetReg(), r_hi.GetReg(), r_magic.GetReg(), rl_src.reg.GetReg());
   switch (pattern) {
     case Divide3:
-      OpRegRegRegShift(kOpSub, rl_result.reg.GetReg(), r_hi.GetReg(),
-               rl_src.reg.GetReg(), EncodeShift(kArmAsr, 31));
+      OpRegRegRegShift(kOpSub, rl_result.reg, r_hi, rl_src.reg, EncodeShift(kArmAsr, 31));
       break;
     case Divide5:
       OpRegRegImm(kOpAsr, r_lo, rl_src.reg, 31);
-      OpRegRegRegShift(kOpRsub, rl_result.reg.GetReg(), r_lo.GetReg(), r_hi.GetReg(),
-               EncodeShift(kArmAsr, magic_table[lit].shift));
+      OpRegRegRegShift(kOpRsub, rl_result.reg, r_lo, r_hi,
+                       EncodeShift(kArmAsr, magic_table[lit].shift));
       break;
     case Divide7:
       OpRegReg(kOpAdd, r_hi, rl_src.reg);
       OpRegRegImm(kOpAsr, r_lo, rl_src.reg, 31);
-      OpRegRegRegShift(kOpRsub, rl_result.reg.GetReg(), r_lo.GetReg(), r_hi.GetReg(),
-               EncodeShift(kArmAsr, magic_table[lit].shift));
+      OpRegRegRegShift(kOpRsub, rl_result.reg, r_lo, r_hi,
+                       EncodeShift(kArmAsr, magic_table[lit].shift));
       break;
     default:
       LOG(FATAL) << "Unexpected pattern: " << pattern;
   }
+  StoreValue(rl_dest, rl_result);
+  return true;
+}
+
+// Try to convert *lit to 1 RegRegRegShift/RegRegShift form.
+bool ArmMir2Lir::GetEasyMultiplyOp(int lit, ArmMir2Lir::EasyMultiplyOp* op) {
+  if (IsPowerOfTwo(lit)) {
+    op->op = kOpLsl;
+    op->shift = LowestSetBit(lit);
+    return true;
+  }
+
+  if (IsPowerOfTwo(lit - 1)) {
+    op->op = kOpAdd;
+    op->shift = LowestSetBit(lit - 1);
+    return true;
+  }
+
+  if (IsPowerOfTwo(lit + 1)) {
+    op->op = kOpRsub;
+    op->shift = LowestSetBit(lit + 1);
+    return true;
+  }
+
+  op->op = kOpInvalid;
+  return false;
+}
+
+// Try to convert *lit to 1~2 RegRegRegShift/RegRegShift forms.
+bool ArmMir2Lir::GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops) {
+  GetEasyMultiplyOp(lit, &ops[0]);
+  if (GetEasyMultiplyOp(lit, &ops[0])) {
+    ops[1].op = kOpInvalid;
+    return true;
+  }
+
+  int lit1 = lit;
+  uint32_t shift = LowestSetBit(lit1);
+  if (GetEasyMultiplyOp(lit1 >> shift, &ops[0])) {
+    ops[1].op = kOpLsl;
+    ops[1].shift = shift;
+    return true;
+  }
+
+  lit1 = lit - 1;
+  shift = LowestSetBit(lit1);
+  if (GetEasyMultiplyOp(lit1 >> shift, &ops[0])) {
+    ops[1].op = kOpAdd;
+    ops[1].shift = shift;
+    return true;
+  }
+
+  lit1 = lit + 1;
+  shift = LowestSetBit(lit1);
+  if (GetEasyMultiplyOp(lit1 >> shift, &ops[0])) {
+    ops[1].op = kOpRsub;
+    ops[1].shift = shift;
+    return true;
+  }
+
+  return false;
+}
+
+void ArmMir2Lir::GenEasyMultiplyTwoOps(RegStorage r_dest, RegStorage r_src, EasyMultiplyOp* ops) {
+  // dest = ( src << shift1) + [ src | -src | 0 ]
+  // dest = (dest << shift2) + [ src | -src | 0 ]
+  for (int i = 0; i < 2; i++) {
+    RegStorage r_src2;
+    if (i == 0) {
+      r_src2 = r_src;
+    } else {
+      r_src2 = r_dest;
+    }
+    switch (ops[i].op) {
+    case kOpLsl:
+      OpRegRegImm(kOpLsl, r_dest, r_src2, ops[i].shift);
+      break;
+    case kOpAdd:
+      OpRegRegRegShift(kOpAdd, r_dest, r_src, r_src2, EncodeShift(kArmLsl, ops[i].shift));
+      break;
+    case kOpRsub:
+      OpRegRegRegShift(kOpRsub, r_dest, r_src, r_src2, EncodeShift(kArmLsl, ops[i].shift));
+      break;
+    default:
+      DCHECK_NE(i, 0);
+      DCHECK_EQ(ops[i].op, kOpInvalid);
+      break;
+    }
+  }
+}
+
+bool ArmMir2Lir::EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) {
+  EasyMultiplyOp ops[2];
+
+  if (!GetEasyMultiplyTwoOps(lit, ops)) {
+    return false;
+  }
+
+  rl_src = LoadValue(rl_src, kCoreReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+
+  GenEasyMultiplyTwoOps(rl_result.reg, rl_src.reg, ops);
   StoreValue(rl_dest, rl_result);
   return true;
 }
@@ -752,7 +853,7 @@ LIR* ArmMir2Lir::OpVstm(RegStorage r_base, int count) {
 void ArmMir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
                                                RegLocation rl_result, int lit,
                                                int first_bit, int second_bit) {
-  OpRegRegRegShift(kOpAdd, rl_result.reg.GetReg(), rl_src.reg.GetReg(), rl_src.reg.GetReg(),
+  OpRegRegRegShift(kOpAdd, rl_result.reg, rl_src.reg, rl_src.reg,
                    EncodeShift(kArmLsl, second_bit - first_bit));
   if (first_bit != 0) {
     OpRegRegImm(kOpLsl, rl_result.reg, rl_result.reg, first_bit);
@@ -898,8 +999,7 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
       NewLIR3(kThumb2MulRRR, tmp1.GetReg(), rl_src1.reg.GetLowReg(), rl_src1.reg.GetHighReg());
       NewLIR4(kThumb2Umull, res_lo.GetReg(), res_hi.GetReg(), rl_src1.reg.GetLowReg(),
               rl_src1.reg.GetLowReg());
-      OpRegRegRegShift(kOpAdd, res_hi.GetReg(), res_hi.GetReg(), tmp1.GetReg(),
-                       EncodeShift(kArmLsl, 1));
+      OpRegRegRegShift(kOpAdd, res_hi, res_hi, tmp1, EncodeShift(kArmLsl, 1));
     } else {
       NewLIR3(kThumb2MulRRR, tmp1.GetReg(), rl_src2.reg.GetLowReg(), rl_src1.reg.GetHighReg());
       if (reg_status == 2) {
@@ -1009,8 +1109,7 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
     } else {
       // No special indexed operation, lea + load w/ displacement
       reg_ptr = AllocTemp();
-      OpRegRegRegShift(kOpAdd, reg_ptr.GetReg(), rl_array.reg.GetReg(), rl_index.reg.GetReg(),
-                       EncodeShift(kArmLsl, scale));
+      OpRegRegRegShift(kOpAdd, reg_ptr, rl_array.reg, rl_index.reg, EncodeShift(kArmLsl, scale));
       FreeTemp(rl_index.reg.GetReg());
     }
     rl_result = EvalLoc(rl_dest, reg_class, true);
@@ -1117,8 +1216,7 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
       rl_src = LoadValue(rl_src, reg_class);
     }
     if (!constant_index) {
-      OpRegRegRegShift(kOpAdd, reg_ptr.GetReg(), rl_array.reg.GetReg(), rl_index.reg.GetReg(),
-                       EncodeShift(kArmLsl, scale));
+      OpRegRegRegShift(kOpAdd, reg_ptr, rl_array.reg, rl_index.reg, EncodeShift(kArmLsl, scale));
     }
     if (needs_range_check) {
       if (constant_index) {
@@ -1183,7 +1281,7 @@ void ArmMir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
         LoadConstant(rl_result.reg.GetLow(), 0);
       } else {
         OpRegRegImm(kOpLsl, rl_result.reg.GetHigh(), rl_src.reg.GetHigh(), shift_amount);
-        OpRegRegRegShift(kOpOr, rl_result.reg.GetHighReg(), rl_result.reg.GetHighReg(), rl_src.reg.GetLowReg(),
+        OpRegRegRegShift(kOpOr, rl_result.reg.GetHigh(), rl_result.reg.GetHigh(), rl_src.reg.GetLow(),
                          EncodeShift(kArmLsr, 32 - shift_amount));
         OpRegRegImm(kOpLsl, rl_result.reg.GetLow(), rl_src.reg.GetLow(), shift_amount);
       }
@@ -1199,7 +1297,7 @@ void ArmMir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
       } else {
         RegStorage t_reg = AllocTemp();
         OpRegRegImm(kOpLsr, t_reg, rl_src.reg.GetLow(), shift_amount);
-        OpRegRegRegShift(kOpOr, rl_result.reg.GetLowReg(), t_reg.GetReg(), rl_src.reg.GetHighReg(),
+        OpRegRegRegShift(kOpOr, rl_result.reg.GetLow(), t_reg, rl_src.reg.GetHigh(),
                          EncodeShift(kArmLsl, 32 - shift_amount));
         FreeTemp(t_reg);
         OpRegRegImm(kOpAsr, rl_result.reg.GetHigh(), rl_src.reg.GetHigh(), shift_amount);
@@ -1216,7 +1314,7 @@ void ArmMir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
       } else {
         RegStorage t_reg = AllocTemp();
         OpRegRegImm(kOpLsr, t_reg, rl_src.reg.GetLow(), shift_amount);
-        OpRegRegRegShift(kOpOr, rl_result.reg.GetLowReg(), t_reg.GetReg(), rl_src.reg.GetHighReg(),
+        OpRegRegRegShift(kOpOr, rl_result.reg.GetLow(), t_reg, rl_src.reg.GetHigh(),
                          EncodeShift(kArmLsl, 32 - shift_amount));
         FreeTemp(t_reg);
         OpRegRegImm(kOpLsr, rl_result.reg.GetHigh(), rl_src.reg.GetHigh(), shift_amount);
