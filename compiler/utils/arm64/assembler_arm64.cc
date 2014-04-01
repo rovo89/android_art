@@ -575,6 +575,8 @@ void Arm64Assembler::EmitExceptionPoll(Arm64Exception *exception) {
   ___ Brk();
 }
 
+constexpr size_t kFramePointerSize = 8;
+
 void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                         const std::vector<ManagedRegister>& callee_save_regs,
                         const ManagedRegisterEntrySpills& entry_spills) {
@@ -589,8 +591,8 @@ void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   ___ PushCalleeSavedRegisters();
 
   // Increate frame to required size - must be at least space to push Method*.
-  CHECK_GT(frame_size, kCalleeSavedRegsSize * kPointerSize);
-  size_t adjust = frame_size - (kCalleeSavedRegsSize * kPointerSize);
+  CHECK_GT(frame_size, kCalleeSavedRegsSize * kFramePointerSize);
+  size_t adjust = frame_size - (kCalleeSavedRegsSize * kFramePointerSize);
   IncreaseFrameSize(adjust);
 
   // Write Method*.
@@ -600,7 +602,7 @@ void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   // TODO: we can implement a %2 STRP variant of StoreToOffset.
   for (size_t i = 0; i < entry_spills.size(); ++i) {
     Register reg = entry_spills.at(i).AsArm64().AsCoreRegister();
-    StoreToOffset(reg, SP, frame_size + kPointerSize + (i * kPointerSize));
+    StoreToOffset(reg, SP, frame_size + kFramePointerSize + (i * kFramePointerSize));
   }
 }
 
@@ -610,10 +612,10 @@ void Arm64Assembler::RemoveFrame(size_t frame_size, const std::vector<ManagedReg
   // For now we only check that the size of the frame is greater than the
   // no of APCS callee saved regs [X19, X30] [D8, D15].
   CHECK_EQ(callee_save_regs.size(), kCalleeSavedRegsSize);
-  CHECK_GT(frame_size, kCalleeSavedRegsSize * kPointerSize);
+  CHECK_GT(frame_size, kCalleeSavedRegsSize * kFramePointerSize);
 
   // Decrease frame size to start of callee saved regs.
-  size_t adjust = frame_size - (kCalleeSavedRegsSize * kPointerSize);
+  size_t adjust = frame_size - (kCalleeSavedRegsSize * kFramePointerSize);
   DecreaseFrameSize(adjust);
 
   // Pop callee saved and return to LR.
