@@ -156,6 +156,10 @@ class Thread {
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void DumpJavaStack(std::ostream& os) const
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Dumps the SIGQUIT per-thread header. 'thread' can be NULL for a non-attached thread, in which
   // case we use 'tid' to identify the thread, and we'll include as much information as we can.
   static void DumpState(std::ostream& os, const Thread* thread, pid_t tid)

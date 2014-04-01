@@ -77,6 +77,7 @@
 
 namespace art {
 
+static constexpr bool kEnableJavaStackTraceHandler = true;
 Runtime* Runtime::instance_ = NULL;
 
 Runtime::Runtime()
@@ -523,12 +524,11 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   if (options->explicit_checks_ != (ParsedOptions::kExplicitSuspendCheck |
         ParsedOptions::kExplicitNullCheck |
-        ParsedOptions::kExplicitStackOverflowCheck)) {
-    // Initialize the fault manager.
+        ParsedOptions::kExplicitStackOverflowCheck) || kEnableJavaStackTraceHandler) {
     fault_manager.Init();
 
-    // These need to be in a specific order.  The null point check must be
-    // the last in the list.
+    // These need to be in a specific order.  The null point check handler must be
+    // after the suspend check and stack overflow check handlers.
     if ((options->explicit_checks_ & ParsedOptions::kExplicitSuspendCheck) == 0) {
       suspend_handler_ = new SuspensionHandler(&fault_manager);
     }
@@ -539,6 +539,10 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
     if ((options->explicit_checks_ & ParsedOptions::kExplicitNullCheck) == 0) {
       null_pointer_handler_ = new NullPointerHandler(&fault_manager);
+    }
+
+    if (kEnableJavaStackTraceHandler) {
+      new JavaStackTraceHandler(&fault_manager);
     }
   }
 
