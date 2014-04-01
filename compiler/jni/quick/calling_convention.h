@@ -298,9 +298,8 @@ class JniCallingConvention : public CallingConvention {
   }
 
   FrameOffset SirtReferencesOffset() const {
-    // The StackIndirectReferenceTable::number_of_references_ type is uint32_t
-    return FrameOffset(SirtNumRefsOffset().Int32Value() +
-                       sizeof(uint32_t));
+    return FrameOffset(SirtOffset().Int32Value() +
+                       StackIndirectReferenceTable::ReferencesOffset());
   }
 
   virtual ~JniCallingConvention() {}
