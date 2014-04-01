@@ -107,7 +107,8 @@ class ProxyTest : public CommonCompilerTest {
 TEST_F(ProxyTest, ProxyClassHelper) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("Interfaces");
-  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(jclass_loader));
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
+                                            soa.Decode<mirror::ClassLoader*>(jclass_loader));
 
   mirror::Class* I = class_linker_->FindClass(soa.Self(), "LInterfaces$I;", class_loader);
   mirror::Class* J = class_linker_->FindClass(soa.Self(), "LInterfaces$J;", class_loader);
@@ -120,20 +121,66 @@ TEST_F(ProxyTest, ProxyClassHelper) {
   mirror::Class* proxyClass = GenerateProxyClass(soa, jclass_loader, "$Proxy1234", interfaces);
   ASSERT_TRUE(proxyClass != nullptr);
   ASSERT_TRUE(proxyClass->IsProxyClass());
-
-  mirror::Class* javaIoSerializable = class_linker_->FindSystemClass(soa.Self(), "Ljava/io/Serializable;");
-  ASSERT_TRUE(javaIoSerializable != nullptr);
+  ASSERT_TRUE(proxyClass->IsInitialized());
 
   // Check ClassHelper for proxy.
   ClassHelper kh(proxyClass);
-  EXPECT_EQ(kh.NumDirectInterfaces(), 3U);  // java.io.Serializable, Interfaces$I and Interfaces$J.
-  EXPECT_EQ(javaIoSerializable, kh.GetDirectInterface(0));
-  EXPECT_EQ(I, kh.GetDirectInterface(1));
-  EXPECT_EQ(J, kh.GetDirectInterface(2));
+  EXPECT_EQ(kh.NumDirectInterfaces(), 2U);  // Interfaces$I and Interfaces$J.
+  EXPECT_EQ(I, kh.GetDirectInterface(0));
+  EXPECT_EQ(J, kh.GetDirectInterface(1));
   std::string proxyClassDescriptor(kh.GetDescriptor());
   EXPECT_EQ("L$Proxy1234;", proxyClassDescriptor);
-//  EXPECT_EQ(nullptr, kh.GetSourceFile());
 }
 
+// Creates a proxy class and check FieldHelper works correctly.
+TEST_F(ProxyTest, ProxyFieldHelper) {
+  ScopedObjectAccess soa(Thread::Current());
+  jobject jclass_loader = LoadDex("Interfaces");
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
+                                            soa.Decode<mirror::ClassLoader*>(jclass_loader));
+
+  mirror::Class* I = class_linker_->FindClass(soa.Self(), "LInterfaces$I;", class_loader);
+  mirror::Class* J = class_linker_->FindClass(soa.Self(), "LInterfaces$J;", class_loader);
+  ASSERT_TRUE(I != nullptr);
+  ASSERT_TRUE(J != nullptr);
+  std::vector<mirror::Class*> interfaces;
+  interfaces.push_back(I);
+  interfaces.push_back(J);
+
+  mirror::Class* proxyClass = GenerateProxyClass(soa, jclass_loader, "$Proxy1234", interfaces);
+  ASSERT_TRUE(proxyClass != nullptr);
+  ASSERT_TRUE(proxyClass->IsProxyClass());
+  ASSERT_TRUE(proxyClass->IsInitialized());
+
+  mirror::ObjectArray<mirror::ArtField>* instance_fields = proxyClass->GetIFields();
+  EXPECT_TRUE(instance_fields == nullptr);
+
+  mirror::ObjectArray<mirror::ArtField>* static_fields = proxyClass->GetSFields();
+  ASSERT_TRUE(static_fields != nullptr);
+  ASSERT_EQ(2, static_fields->GetLength());
+
+  mirror::Class* interfacesFieldClass = class_linker_->FindSystemClass(soa.Self(),
+                                                                       "[Ljava/lang/Class;");
+  ASSERT_TRUE(interfacesFieldClass != nullptr);
+  mirror::Class* throwsFieldClass = class_linker_->FindSystemClass(soa.Self(),
+                                                                   "[[Ljava/lang/Class;");
+  ASSERT_TRUE(throwsFieldClass != nullptr);
+
+  // Test "Class[] interfaces" field.
+  FieldHelper fh(static_fields->Get(0));
+  EXPECT_EQ("interfaces", std::string(fh.GetName()));
+  EXPECT_EQ("[Ljava/lang/Class;", std::string(fh.GetTypeDescriptor()));
+  EXPECT_EQ(interfacesFieldClass, fh.GetType());
+  EXPECT_EQ("L$Proxy1234;", std::string(fh.GetDeclaringClassDescriptor()));
+  EXPECT_FALSE(fh.IsPrimitiveType());
+
+  // Test "Class[][] throws" field.
+  fh.ChangeField(static_fields->Get(1));
+  EXPECT_EQ("throws", std::string(fh.GetName()));
+  EXPECT_EQ("[[Ljava/lang/Class;", std::string(fh.GetTypeDescriptor()));
+  EXPECT_EQ(throwsFieldClass, fh.GetType());
+  EXPECT_EQ("L$Proxy1234;", std::string(fh.GetDeclaringClassDescriptor()));
+  EXPECT_FALSE(fh.IsPrimitiveType());
+}
 
 }  // namespace art
