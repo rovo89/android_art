@@ -84,6 +84,7 @@ define build-art-executable
     else
       LOCAL_CFLAGS += $(ART_HOST_NON_DEBUG_CFLAGS)
     endif
+    LOCAL_LDLIBS += -lpthread
   endif
 
   ifeq ($$(art_ndebug_or_debug),ndebug)
