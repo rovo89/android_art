@@ -127,12 +127,48 @@ endif
 ART_DALVIK_CACHE_DIR := /data/dalvik-cache
 
 # directory used for gtests on device
-ART_NATIVETEST_DIR := /data/nativetest/art
-ART_NATIVETEST_OUT := $(TARGET_OUT_DATA_NATIVE_TESTS)/art
+ART_BASE_NATIVETEST_DIR := /data/nativetest/art
+ART_BASE_NATIVETEST_OUT := $(TARGET_OUT_DATA_NATIVE_TESTS)/art
 
 # directory used for tests on device
-ART_TEST_DIR := /data/art-test
-ART_TEST_OUT := $(TARGET_OUT_DATA)/art-test
+ART_BASE_TEST_DIR := /data/art-test
+ART_BASE_TEST_OUT := $(TARGET_OUT_DATA)/art-test
+
+# Primary vs. secondary
+2ND_TARGET_ARCH := $(TARGET_2ND_ARCH)
+ART_PHONY_TEST_TARGET_SUFFIX :=
+2ND_ART_PHONY_TEST_TARGET_SUFFIX :=
+ART_TARGET_BINARY_SUFFIX :=
+2ND_ART_TARGET_BINARY_SUFFIX :=
+ifdef TARGET_2ND_ARCH
+  art_test_primary_suffix :=
+  art_test_secondary_suffix :=
+  ifneq ($(filter %64,$(TARGET_ARCH)),)
+    art_test_primary_suffix := 64
+    ART_PHONY_TEST_TARGET_SUFFIX := 64
+    2ND_ART_PHONY_TEST_TARGET_SUFFIX := 32
+    ART_TARGET_BINARY_SUFFIX := 64
+  else
+    # TODO: ???
+    $(error Do not know what to do with this multi-target configuration!)
+  endif
+  # Primary with primary suffix
+  ART_NATIVETEST_DIR := $(ART_BASE_NATIVETEST_DIR)$(art_test_primary_suffix)
+  ART_NATIVETEST_OUT := $(ART_BASE_NATIVETEST_OUT)$(art_test_primary_suffix)
+  ART_TEST_DIR := $(ART_BASE_TEST_DIR)$(art_test_primary_suffix)
+  ART_TEST_OUT := $(ART_BASE_TEST_OUT)$(art_test_primary_suffix)
+  # Secondary with 2ND_ prefix and secondary suffix
+  2ND_ART_NATIVETEST_DIR := $(ART_BASE_NATIVETEST_DIR)$(art_test_secondary_suffix)
+  2ND_ART_NATIVETEST_OUT := $(ART_BASE_NATIVETEST_OUT)$(art_test_secondary_suffix)
+  2ND_ART_TEST_DIR := $(ART_BASE_TEST_DIR)$(art_test_secondary_suffix)
+  2ND_ART_TEST_OUT := $(ART_BASE_TEST_OUT)$(art_test_secondary_suffix)
+else
+  ART_NATIVETEST_DIR := $(ART_BASE_NATIVETEST_DIR)
+  ART_NATIVETEST_OUT := $(ART_BASE_NATIVETEST_OUT)
+  ART_TEST_DIR := $(ART_BASE_TEST_DIR)
+  ART_TEST_OUT := $(ART_BASE_TEST_OUT)
+  # No secondary
+endif
 
 ART_CPP_EXTENSION := .cc
 

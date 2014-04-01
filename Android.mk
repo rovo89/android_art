@@ -229,13 +229,26 @@ test-art-target-gtest: $(ART_TARGET_GTEST_TARGETS)
 test-art-target-oat: $(ART_TEST_TARGET_OAT_TARGETS)
 	@echo test-art-target-oat PASSED
 
-define declare-test-art-target-run-test
-.PHONY: test-art-target-run-test-$(1)
-test-art-target-run-test-$(1): test-art-target-sync $(DX) $(HOST_OUT_EXECUTABLES)/jasmin
-	DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) art/test/run-test $(DALVIKVM_FLAGS) $(1)
-	@echo test-art-target-run-test-$(1) PASSED
+define declare-test-art-target-run-test-impl
+.PHONY: test-art-target-run-test-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX)
+test-art-target-run-test-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX): test-art-target-sync $(DX) $(HOST_OUT_EXECUTABLES)/jasmin
+	DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) art/test/run-test $(DALVIKVM_FLAGS) $(1) $(3)
+	@echo test-art-target-run-test-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX) PASSED
+endef
 
-TEST_ART_TARGET_RUN_TEST_TARGETS += test-art-target-run-test-$(1)
+define declare-test-art-target-run-test
+
+  ifdef TARGET_2ND_ARCH
+    $(call declare-test-art-target-run-test-impl,$(1),2ND_,)
+
+    ifneq ($(ART_PHONY_TEST_TARGET_SUFFIX),)
+      # Link primary to non-suffix
+test-art-target-run-test-$(1): test-art-target-run-test-$(1)$(ART_PHONY_TEST_TARGET_SUFFIX)
+    endif
+  endif
+  $(call declare-test-art-target-run-test-impl,$(1),,--$(ART_TARGET_BINARY_SUFFIX))
+
+  TEST_ART_TARGET_RUN_TEST_TARGETS += test-art-target-run-test-$(1)
 
 test-art-run-test-$(1): test-art-host-run-test-$(1) test-art-target-run-test-$(1)
 
