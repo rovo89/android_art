@@ -183,15 +183,18 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
   LockCallTemps();  // Prepare for explicit register usage
   constexpr bool kArchVariantHasGoodBranchPredictor = false;  // TODO: true if cortex-A15.
   if (kArchVariantHasGoodBranchPredictor) {
-    LIR* null_check_branch;
+    LIR* null_check_branch = nullptr;
     if ((opt_flags & MIR_IGNORE_NULL_CHECK) && !(cu_->disable_opt & (1 << kNullCheckElimination))) {
       null_check_branch = nullptr;  // No null check.
     } else {
       // If the null-check fails its handled by the slow-path to reduce exception related meta-data.
-      null_check_branch = OpCmpImmBranch(kCondEq, rs_r0, 0, NULL);
+      if (Runtime::Current()->ExplicitNullChecks()) {
+        null_check_branch = OpCmpImmBranch(kCondEq, rs_r0, 0, NULL);
+      }
     }
     LoadWordDisp(rs_rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), rs_r2);
     NewLIR3(kThumb2Ldrex, r1, r0, mirror::Object::MonitorOffset().Int32Value() >> 2);
+    MarkPossibleNullPointerException(opt_flags);
     LIR* not_unlocked_branch = OpCmpImmBranch(kCondNe, rs_r1, 0, NULL);
     NewLIR4(kThumb2Strex, r1, r2, r0, mirror::Object::MonitorOffset().Int32Value() >> 2);
     LIR* lock_success_branch = OpCmpImmBranch(kCondEq, rs_r1, 0, NULL);
@@ -216,8 +219,8 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
     // Explicit null-check as slow-path is entered using an IT.
     GenNullCheck(rs_r0, opt_flags);
     LoadWordDisp(rs_rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), rs_r2);
-    MarkPossibleNullPointerException(opt_flags);
     NewLIR3(kThumb2Ldrex, r1, r0, mirror::Object::MonitorOffset().Int32Value() >> 2);
+    MarkPossibleNullPointerException(opt_flags);
     OpRegImm(kOpCmp, rs_r1, 0);
     OpIT(kCondEq, "");
     NewLIR4(kThumb2Strex/*eq*/, r1, r2, r0, mirror::Object::MonitorOffset().Int32Value() >> 2);
@@ -241,7 +244,7 @@ void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
   FlushAllRegs();
   LoadValueDirectFixed(rl_src, rs_r0);  // Get obj
   LockCallTemps();  // Prepare for explicit register usage
-  LIR* null_check_branch;
+  LIR* null_check_branch = nullptr;
   LoadWordDisp(rs_rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), rs_r2);
   constexpr bool kArchVariantHasGoodBranchPredictor = false;  // TODO: true if cortex-A15.
   if (kArchVariantHasGoodBranchPredictor) {
@@ -249,9 +252,12 @@ void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
       null_check_branch = nullptr;  // No null check.
     } else {
       // If the null-check fails its handled by the slow-path to reduce exception related meta-data.
-      null_check_branch = OpCmpImmBranch(kCondEq, rs_r0, 0, NULL);
+      if (Runtime::Current()->ExplicitNullChecks()) {
+        null_check_branch = OpCmpImmBranch(kCondEq, rs_r0, 0, NULL);
+      }
     }
     LoadWordDisp(rs_r0, mirror::Object::MonitorOffset().Int32Value(), rs_r1);
+    MarkPossibleNullPointerException(opt_flags);
     LoadConstantNoClobber(rs_r3, 0);
     LIR* slow_unlock_branch = OpCmpBranch(kCondNe, rs_r1, rs_r2, NULL);
     StoreWordDisp(rs_r0, mirror::Object::MonitorOffset().Int32Value(), rs_r3);
@@ -404,11 +410,17 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
       }
     } else {
       // Implicit stack overflow check.
-      // Generate a load from [sp, #-framesize].  If this is in the stack
+      // Generate a load from [sp, #-overflowsize].  If this is in the stack
       // redzone we will get a segmentation fault.
-      OpRegImm(kOpSub, rs_rARM_SP, frame_size_without_spills);
-      LoadWordDisp(rs_rARM_SP, 0, rs_rARM_LR);
+      //
+      // Caveat coder: if someone changes the kStackOverflowReservedBytes value
+      // we need to make sure that it's loadable in an immediate field of
+      // a sub instruction.  Otherwise we will get a temp allocation and the
+      // code size will increase.
+      OpRegRegImm(kOpSub, rs_r12, rs_rARM_SP, Thread::kStackOverflowReservedBytes);
+      LoadWordDisp(rs_r12, 0, rs_r12);
       MarkPossibleStackOverflowException();
+      OpRegImm(kOpSub, rs_rARM_SP, frame_size_without_spills);
     }
   } else {
     OpRegImm(kOpSub, rs_rARM_SP, frame_size_without_spills);

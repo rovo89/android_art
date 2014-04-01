@@ -100,6 +100,14 @@ enum VRegBaseRegNum : int {
   kVRegNonSpecialTempBaseReg = -3,
 };
 
+// Special object used to mark the gap in the stack placed when a stack
+// overflow fault occurs during implicit stack checking.  This is not
+// a real object - it is used simply as a valid address to which a
+// mirror::ArtMethod* can be compared during a stack walk.  It is inserted
+// into the stack during the stack overflow signal handling to mark the gap
+// in which the memory is protected against read and write.
+extern void* stack_overflow_gap_marker;
+
 // A reference from the shadow stack to a MirrorType object within the Java heap.
 template<class MirrorType>
 class MANAGED StackReference : public mirror::ObjectReference<false, MirrorType> {

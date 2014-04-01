@@ -702,7 +702,8 @@ void Mir2Lir::CreateNativeGcMap() {
     uint32_t native_offset = it.NativePcOffset();
     uint32_t dex_pc = it.DexPc();
     const uint8_t* references = dex_gc_map.FindBitMap(dex_pc, false);
-    CHECK(references != NULL) << "Missing ref for dex pc 0x" << std::hex << dex_pc;
+    CHECK(references != NULL) << "Missing ref for dex pc 0x" << std::hex << dex_pc <<
+        ": " << PrettyMethod(cu_->method_idx, *cu_->dex_file);
     native_gc_map_builder.AddEntry(native_offset, references);
   }
 }
