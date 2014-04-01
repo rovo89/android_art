@@ -244,7 +244,7 @@ void MipsMir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
   GenBarrier();
   NewLIR0(kMipsCurrPC);  // Really a jal to .+8
   // Now, fill the branch delay slot with the helper load
-  RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pHandleFillArrayData));
+  RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pHandleFillArrayData));
   GenBarrier();  // Scheduling barrier
 
   // Construct BaseLabel and set up table base register
@@ -260,7 +260,7 @@ void MipsMir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
 }
 
 void MipsMir2Lir::GenMoveException(RegLocation rl_dest) {
-  int ex_offset = Thread::ExceptionOffset().Int32Value();
+  int ex_offset = Thread::ExceptionOffset<4>().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   RegStorage reset_reg = AllocTemp();
   LoadWordDisp(rs_rMIPS_SELF, ex_offset, rl_result.reg);
@@ -277,7 +277,7 @@ void MipsMir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
   RegStorage reg_card_base = AllocTemp();
   RegStorage reg_card_no = AllocTemp();
   LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
-  LoadWordDisp(rs_rMIPS_SELF, Thread::CardTableOffset().Int32Value(), reg_card_base);
+  LoadWordDisp(rs_rMIPS_SELF, Thread::CardTableOffset<4>().Int32Value(), reg_card_base);
   OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, gc::accounting::CardTable::kCardShift);
   StoreBaseIndexed(reg_card_base, reg_card_no, reg_card_base, 0, kUnsignedByte);
   LIR* target = NewLIR0(kPseudoTargetLabel);
@@ -310,7 +310,7 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
   RegStorage new_sp = AllocTemp();
   if (!skip_overflow_check) {
     /* Load stack limit */
-    LoadWordDisp(rs_rMIPS_SELF, Thread::StackEndOffset().Int32Value(), check_reg);
+    LoadWordDisp(rs_rMIPS_SELF, Thread::StackEndOffset<4>().Int32Value(), check_reg);
   }
   /* Spill core callee saves */
   SpillCoreRegs();
@@ -331,7 +331,7 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
         m2l_->LoadWordDisp(rs_rMIPS_SP, 0, rs_rRA);
         m2l_->OpRegImm(kOpAdd, rs_rMIPS_SP, sp_displace_);
         m2l_->ClobberCallerSave();
-        ThreadOffset func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowStackOverflow);
+        ThreadOffset<4> func_offset = QUICK_ENTRYPOINT_OFFSET(4, pThrowStackOverflow);
         RegStorage r_tgt = m2l_->CallHelperSetup(func_offset);  // Doesn't clobber LR.
         m2l_->CallHelper(r_tgt, func_offset, false /* MarkSafepointPC */, false /* UseLink */);
       }

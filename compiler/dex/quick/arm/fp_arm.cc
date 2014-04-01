@@ -49,7 +49,7 @@ void ArmMir2Lir::GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest,
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(pFmodf), rl_src1, rl_src2,
+      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmodf), rl_src1, rl_src2,
                                               false);
       rl_result = GetReturn(true);
       StoreValue(rl_dest, rl_result);
@@ -92,7 +92,7 @@ void ArmMir2Lir::GenArithOpDouble(Instruction::Code opcode,
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(pFmod), rl_src1, rl_src2,
+      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmod), rl_src1, rl_src2,
                                               false);
       rl_result = GetReturnWide(true);
       StoreValueWide(rl_dest, rl_result);
@@ -162,7 +162,7 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode,
       return;
     }
     case Instruction::FLOAT_TO_LONG:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pF2l), rl_dest, rl_src);
+      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pF2l), rl_dest, rl_src);
       return;
     case Instruction::LONG_TO_FLOAT: {
       rl_src = LoadValueWide(rl_src, kFPReg);
@@ -192,7 +192,7 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode,
       return;
     }
     case Instruction::DOUBLE_TO_LONG:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pD2l), rl_dest, rl_src);
+      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pD2l), rl_dest, rl_src);
       return;
     default:
       LOG(FATAL) << "Unexpected opcode: " << opcode;
@@ -359,7 +359,7 @@ bool ArmMir2Lir::GenInlinedSqrt(CallInfo* info) {
   branch = NewLIR2(kThumbBCond, 0, kArmCondEq);
   ClobberCallerSave();
   LockCallTemps();  // Using fixed registers
-  RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pSqrt));
+  RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pSqrt));
   NewLIR3(kThumb2Fmrrd, r0, r1, S2d(rl_src.reg.GetLowReg(), rl_src.reg.GetHighReg()));
   NewLIR1(kThumbBlxR, r_tgt.GetReg());
   NewLIR3(kThumb2Fmdrr, S2d(rl_result.reg.GetLowReg(), rl_result.reg.GetHighReg()), r0, r1);

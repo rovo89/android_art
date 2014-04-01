@@ -155,7 +155,7 @@ void Arm64Assembler::StoreImmediateToFrame(FrameOffset offs, uint32_t imm,
   StoreToOffset(scratch.AsCoreRegister(), SP, offs.Int32Value());
 }
 
-void Arm64Assembler::StoreImmediateToThread(ThreadOffset offs, uint32_t imm,
+void Arm64Assembler::StoreImmediateToThread32(ThreadOffset<4> offs, uint32_t imm,
                                             ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   CHECK(scratch.IsCoreRegister()) << scratch;
@@ -163,7 +163,7 @@ void Arm64Assembler::StoreImmediateToThread(ThreadOffset offs, uint32_t imm,
   StoreToOffset(scratch.AsCoreRegister(), TR, offs.Int32Value());
 }
 
-void Arm64Assembler::StoreStackOffsetToThread(ThreadOffset tr_offs,
+void Arm64Assembler::StoreStackOffsetToThread32(ThreadOffset<4> tr_offs,
                                               FrameOffset fr_offs,
                                               ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
@@ -172,7 +172,7 @@ void Arm64Assembler::StoreStackOffsetToThread(ThreadOffset tr_offs,
   StoreToOffset(scratch.AsCoreRegister(), TR, tr_offs.Int32Value());
 }
 
-void Arm64Assembler::StoreStackPointerToThread(ThreadOffset tr_offs) {
+void Arm64Assembler::StoreStackPointerToThread32(ThreadOffset<4> tr_offs) {
   // Arm64 does not support: "str sp, [dest]" therefore we use IP1 as a temp reg.
   ___ Mov(reg_x(IP1), reg_x(SP));
   StoreToOffset(IP1, TR, tr_offs.Int32Value());
@@ -269,7 +269,7 @@ void Arm64Assembler::Load(ManagedRegister m_dst, FrameOffset src, size_t size) {
   return Load(m_dst.AsArm64(), SP, src.Int32Value(), size);
 }
 
-void Arm64Assembler::Load(ManagedRegister m_dst, ThreadOffset src, size_t size) {
+void Arm64Assembler::LoadFromThread32(ManagedRegister m_dst, ThreadOffset<4> src, size_t size) {
   return Load(m_dst.AsArm64(), TR, src.Int32Value(), size);
 }
 
@@ -294,7 +294,7 @@ void Arm64Assembler::LoadRawPtr(ManagedRegister m_dst, ManagedRegister m_base, O
   LoadFromOffset(dst.AsCoreRegister(), base.AsCoreRegister(), offs.Int32Value());
 }
 
-void Arm64Assembler::LoadRawPtrFromThread(ManagedRegister m_dst, ThreadOffset offs) {
+void Arm64Assembler::LoadRawPtrFromThread32(ManagedRegister m_dst, ThreadOffset<4> offs) {
   Arm64ManagedRegister dst = m_dst.AsArm64();
   CHECK(dst.IsCoreRegister()) << dst;
   LoadFromOffset(dst.AsCoreRegister(), TR, offs.Int32Value());
@@ -322,8 +322,8 @@ void Arm64Assembler::Move(ManagedRegister m_dst, ManagedRegister m_src, size_t s
   }
 }
 
-void Arm64Assembler::CopyRawPtrFromThread(FrameOffset fr_offs,
-                                          ThreadOffset tr_offs,
+void Arm64Assembler::CopyRawPtrFromThread32(FrameOffset fr_offs,
+                                          ThreadOffset<4> tr_offs,
                                           ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   CHECK(scratch.IsCoreRegister()) << scratch;
@@ -331,7 +331,7 @@ void Arm64Assembler::CopyRawPtrFromThread(FrameOffset fr_offs,
   StoreToOffset(scratch.AsCoreRegister(), SP, fr_offs.Int32Value());
 }
 
-void Arm64Assembler::CopyRawPtrToThread(ThreadOffset tr_offs,
+void Arm64Assembler::CopyRawPtrToThread32(ThreadOffset<4> tr_offs,
                                         FrameOffset fr_offs,
                                         ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
@@ -486,7 +486,7 @@ void Arm64Assembler::Call(FrameOffset base, Offset offs, ManagedRegister m_scrat
   ___ Blr(reg_x(scratch.AsCoreRegister()));
 }
 
-void Arm64Assembler::Call(ThreadOffset /*offset*/, ManagedRegister /*scratch*/) {
+void Arm64Assembler::CallFromThread32(ThreadOffset<4> /*offset*/, ManagedRegister /*scratch*/) {
   UNIMPLEMENTED(FATAL) << "Unimplemented Call() variant";
 }
 
@@ -555,7 +555,7 @@ void Arm64Assembler::ExceptionPoll(ManagedRegister m_scratch, size_t stack_adjus
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   Arm64Exception *current_exception = new Arm64Exception(scratch, stack_adjust);
   exception_blocks_.push_back(current_exception);
-  LoadFromOffset(scratch.AsCoreRegister(), TR, Thread::ExceptionOffset().Int32Value());
+  LoadFromOffset(scratch.AsCoreRegister(), TR, Thread::ExceptionOffset<4>().Int32Value());
   ___ Cmp(reg_x(scratch.AsCoreRegister()), 0);
   ___ B(current_exception->Entry(), COND_OP(NE));
 }
@@ -569,7 +569,7 @@ void Arm64Assembler::EmitExceptionPoll(Arm64Exception *exception) {
   // Pass exception object as argument.
   // Don't care about preserving X0 as this won't return.
   ___ Mov(reg_x(X0), reg_x(exception->scratch_.AsCoreRegister()));
-  LoadFromOffset(IP1, TR, QUICK_ENTRYPOINT_OFFSET(pDeliverException).Int32Value());
+  LoadFromOffset(IP1, TR, QUICK_ENTRYPOINT_OFFSET(8, pDeliverException).Int32Value());
   ___ Blr(reg_x(IP1));
   // Call should never return.
   ___ Brk();

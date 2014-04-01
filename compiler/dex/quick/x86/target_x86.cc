@@ -581,16 +581,18 @@ bool X86Mir2Lir::IsUnconditionalBranch(LIR* lir) {
 
 X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : Mir2Lir(cu, mir_graph, arena),
+      base_of_code_(nullptr), store_method_addr_(false), store_method_addr_used_(false),
       method_address_insns_(arena, 100, kGrowableArrayMisc),
       class_type_address_insns_(arena, 100, kGrowableArrayMisc),
       call_method_insns_(arena, 100, kGrowableArrayMisc),
       stack_decrement_(nullptr), stack_increment_(nullptr) {
-  store_method_addr_used_ = false;
-  for (int i = 0; i < kX86Last; i++) {
-    if (X86Mir2Lir::EncodingMap[i].opcode != i) {
-      LOG(FATAL) << "Encoding order for " << X86Mir2Lir::EncodingMap[i].name
-                 << " is wrong: expecting " << i << ", seeing "
-                 << static_cast<int>(X86Mir2Lir::EncodingMap[i].opcode);
+  if (kIsDebugBuild) {
+    for (int i = 0; i < kX86Last; i++) {
+      if (X86Mir2Lir::EncodingMap[i].opcode != i) {
+        LOG(FATAL) << "Encoding order for " << X86Mir2Lir::EncodingMap[i].name
+            << " is wrong: expecting " << i << ", seeing "
+            << static_cast<int>(X86Mir2Lir::EncodingMap[i].opcode);
+      }
     }
   }
 }
@@ -601,7 +603,7 @@ Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 }
 
 // Not used in x86
-RegStorage X86Mir2Lir::LoadHelper(ThreadOffset offset) {
+RegStorage X86Mir2Lir::LoadHelper(ThreadOffset<4> offset) {
   LOG(FATAL) << "Unexpected use of LoadHelper in x86";
   return RegStorage::InvalidReg();
 }

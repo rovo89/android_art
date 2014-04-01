@@ -117,7 +117,6 @@ class Operand {
  private:
   byte length_;
   byte encoding_[6];
-  byte padding_;
 
   explicit Operand(Register reg) { SetModRM(3, reg); }
 
@@ -192,21 +191,15 @@ class Address : public Operand {
     }
   }
 
-  static Address Absolute(uword addr, bool has_rip = false) {
+  static Address Absolute(uword addr) {
     Address result;
-    if (has_rip) {
-      result.SetModRM(0, ESP);
-      result.SetSIB(TIMES_1, ESP, EBP);
-      result.SetDisp32(addr);
-    } else {
-      result.SetModRM(0, EBP);
-      result.SetDisp32(addr);
-    }
+    result.SetModRM(0, EBP);
+    result.SetDisp32(addr);
     return result;
   }
 
-  static Address Absolute(ThreadOffset addr, bool has_rip = false) {
-    return Absolute(addr.Int32Value(), has_rip);
+  static Address Absolute(ThreadOffset<4> addr) {
+    return Absolute(addr.Int32Value());
   }
 
  private:
@@ -465,129 +458,116 @@ class X86Assembler FINAL : public Assembler {
   //
 
   // Emit code that will create an activation on the stack
-  virtual void BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                          const std::vector<ManagedRegister>& callee_save_regs,
-                          const ManagedRegisterEntrySpills& entry_spills);
+  void BuildFrame(size_t frame_size, ManagedRegister method_reg,
+                  const std::vector<ManagedRegister>& callee_save_regs,
+                  const ManagedRegisterEntrySpills& entry_spills) OVERRIDE;
 
   // Emit code that will remove an activation from the stack
-  virtual void RemoveFrame(size_t frame_size,
-                           const std::vector<ManagedRegister>& callee_save_regs);
+  void RemoveFrame(size_t frame_size, const std::vector<ManagedRegister>& callee_save_regs)
+      OVERRIDE;
 
-  virtual void IncreaseFrameSize(size_t adjust);
-  virtual void DecreaseFrameSize(size_t adjust);
+  void IncreaseFrameSize(size_t adjust) OVERRIDE;
+  void DecreaseFrameSize(size_t adjust) OVERRIDE;
 
   // Store routines
-  virtual void Store(FrameOffset offs, ManagedRegister src, size_t size);
-  virtual void StoreRef(FrameOffset dest, ManagedRegister src);
-  virtual void StoreRawPtr(FrameOffset dest, ManagedRegister src);
+  void Store(FrameOffset offs, ManagedRegister src, size_t size) OVERRIDE;
+  void StoreRef(FrameOffset dest, ManagedRegister src) OVERRIDE;
+  void StoreRawPtr(FrameOffset dest, ManagedRegister src) OVERRIDE;
 
-  virtual void StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
-                                     ManagedRegister scratch);
+  void StoreImmediateToFrame(FrameOffset dest, uint32_t imm, ManagedRegister scratch) OVERRIDE;
 
-  virtual void StoreImmediateToThread(ThreadOffset dest, uint32_t imm,
-                                      ManagedRegister scratch);
+  void StoreImmediateToThread32(ThreadOffset<4> dest, uint32_t imm, ManagedRegister scratch)
+      OVERRIDE;
 
-  virtual void StoreStackOffsetToThread(ThreadOffset thr_offs,
-                                        FrameOffset fr_offs,
-                                        ManagedRegister scratch);
+  void StoreStackOffsetToThread32(ThreadOffset<4> thr_offs, FrameOffset fr_offs,
+                                  ManagedRegister scratch) OVERRIDE;
 
-  virtual void StoreStackPointerToThread(ThreadOffset thr_offs);
+  void StoreStackPointerToThread32(ThreadOffset<4> thr_offs) OVERRIDE;
 
-  void StoreLabelToThread(ThreadOffset thr_offs, Label* lbl);
-
-  virtual void StoreSpanning(FrameOffset dest, ManagedRegister src,
-                             FrameOffset in_off, ManagedRegister scratch);
+  void StoreSpanning(FrameOffset dest, ManagedRegister src, FrameOffset in_off,
+                     ManagedRegister scratch) OVERRIDE;
 
   // Load routines
-  virtual void Load(ManagedRegister dest, FrameOffset src, size_t size);
+  void Load(ManagedRegister dest, FrameOffset src, size_t size) OVERRIDE;
 
-  virtual void Load(ManagedRegister dest, ThreadOffset src, size_t size);
+  void LoadFromThread32(ManagedRegister dest, ThreadOffset<4> src, size_t size) OVERRIDE;
 
-  virtual void LoadRef(ManagedRegister dest, FrameOffset  src);
+  void LoadRef(ManagedRegister dest, FrameOffset  src) OVERRIDE;
 
-  virtual void LoadRef(ManagedRegister dest, ManagedRegister base,
-                       MemberOffset offs);
+  void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs) OVERRIDE;
 
-  virtual void LoadRawPtr(ManagedRegister dest, ManagedRegister base,
-                          Offset offs);
+  void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) OVERRIDE;
 
-  virtual void LoadRawPtrFromThread(ManagedRegister dest,
-                                    ThreadOffset offs);
+  void LoadRawPtrFromThread32(ManagedRegister dest, ThreadOffset<4> offs) OVERRIDE;
 
   // Copying routines
-  virtual void Move(ManagedRegister dest, ManagedRegister src, size_t size);
+  void Move(ManagedRegister dest, ManagedRegister src, size_t size) OVERRIDE;
 
-  virtual void CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset thr_offs,
-                                    ManagedRegister scratch);
+  void CopyRawPtrFromThread32(FrameOffset fr_offs, ThreadOffset<4> thr_offs,
+                              ManagedRegister scratch) OVERRIDE;
 
-  virtual void CopyRawPtrToThread(ThreadOffset thr_offs, FrameOffset fr_offs,
-                                  ManagedRegister scratch);
+  void CopyRawPtrToThread32(ThreadOffset<4> thr_offs, FrameOffset fr_offs, ManagedRegister scratch)
+      OVERRIDE;
 
-  virtual void CopyRef(FrameOffset dest, FrameOffset src,
-                       ManagedRegister scratch);
+  void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister scratch) OVERRIDE;
 
-  virtual void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch, size_t size);
+  void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch, size_t size) OVERRIDE;
 
-  virtual void Copy(FrameOffset dest, ManagedRegister src_base, Offset src_offset,
-                    ManagedRegister scratch, size_t size);
+  void Copy(FrameOffset dest, ManagedRegister src_base, Offset src_offset, ManagedRegister scratch,
+            size_t size) OVERRIDE;
 
-  virtual void Copy(ManagedRegister dest_base, Offset dest_offset, FrameOffset src,
-                    ManagedRegister scratch, size_t size);
+  void Copy(ManagedRegister dest_base, Offset dest_offset, FrameOffset src, ManagedRegister scratch,
+            size_t size) OVERRIDE;
 
-  virtual void Copy(FrameOffset dest, FrameOffset src_base, Offset src_offset,
-                    ManagedRegister scratch, size_t size);
+  void Copy(FrameOffset dest, FrameOffset src_base, Offset src_offset, ManagedRegister scratch,
+            size_t size) OVERRIDE;
 
-  virtual void Copy(ManagedRegister dest, Offset dest_offset,
-                    ManagedRegister src, Offset src_offset,
-                    ManagedRegister scratch, size_t size);
+  void Copy(ManagedRegister dest, Offset dest_offset, ManagedRegister src, Offset src_offset,
+            ManagedRegister scratch, size_t size) OVERRIDE;
 
-  virtual void Copy(FrameOffset dest, Offset dest_offset, FrameOffset src, Offset src_offset,
-                    ManagedRegister scratch, size_t size);
+  void Copy(FrameOffset dest, Offset dest_offset, FrameOffset src, Offset src_offset,
+            ManagedRegister scratch, size_t size) OVERRIDE;
 
-  virtual void MemoryBarrier(ManagedRegister);
+  void MemoryBarrier(ManagedRegister) OVERRIDE;
 
   // Sign extension
-  virtual void SignExtend(ManagedRegister mreg, size_t size);
+  void SignExtend(ManagedRegister mreg, size_t size) OVERRIDE;
 
   // Zero extension
-  virtual void ZeroExtend(ManagedRegister mreg, size_t size);
+  void ZeroExtend(ManagedRegister mreg, size_t size) OVERRIDE;
 
   // Exploit fast access in managed code to Thread::Current()
-  virtual void GetCurrentThread(ManagedRegister tr);
-  virtual void GetCurrentThread(FrameOffset dest_offset,
-                                ManagedRegister scratch);
+  void GetCurrentThread(ManagedRegister tr) OVERRIDE;
+  void GetCurrentThread(FrameOffset dest_offset, ManagedRegister scratch) OVERRIDE;
 
   // Set up out_reg to hold a Object** into the SIRT, or to be NULL if the
   // value is null and null_allowed. in_reg holds a possibly stale reference
   // that can be used to avoid loading the SIRT entry to see if the value is
   // NULL.
-  virtual void CreateSirtEntry(ManagedRegister out_reg, FrameOffset sirt_offset,
-                               ManagedRegister in_reg, bool null_allowed);
+  void CreateSirtEntry(ManagedRegister out_reg, FrameOffset sirt_offset, ManagedRegister in_reg,
+                       bool null_allowed) OVERRIDE;
 
   // Set up out_off to hold a Object** into the SIRT, or to be NULL if the
   // value is null and null_allowed.
-  virtual void CreateSirtEntry(FrameOffset out_off, FrameOffset sirt_offset,
-                               ManagedRegister scratch, bool null_allowed);
+  void CreateSirtEntry(FrameOffset out_off, FrameOffset sirt_offset, ManagedRegister scratch,
+                       bool null_allowed) OVERRIDE;
 
   // src holds a SIRT entry (Object**) load this into dst
-  virtual void LoadReferenceFromSirt(ManagedRegister dst,
-                                     ManagedRegister src);
+  void LoadReferenceFromSirt(ManagedRegister dst, ManagedRegister src) OVERRIDE;
 
   // Heap::VerifyObject on src. In some cases (such as a reference to this) we
   // know that src may not be null.
-  virtual void VerifyObject(ManagedRegister src, bool could_be_null);
-  virtual void VerifyObject(FrameOffset src, bool could_be_null);
+  void VerifyObject(ManagedRegister src, bool could_be_null) OVERRIDE;
+  void VerifyObject(FrameOffset src, bool could_be_null) OVERRIDE;
 
   // Call to address held at [base+offset]
-  virtual void Call(ManagedRegister base, Offset offset,
-                    ManagedRegister scratch);
-  virtual void Call(FrameOffset base, Offset offset,
-                    ManagedRegister scratch);
-  virtual void Call(ThreadOffset offset, ManagedRegister scratch);
+  void Call(ManagedRegister base, Offset offset, ManagedRegister scratch) OVERRIDE;
+  void Call(FrameOffset base, Offset offset, ManagedRegister scratch) OVERRIDE;
+  void CallFromThread32(ThreadOffset<4> offset, ManagedRegister scratch) OVERRIDE;
 
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.
-  virtual void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust);
+  void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust) OVERRIDE;
 
  private:
   inline void EmitUint8(uint8_t value);
@@ -637,10 +617,10 @@ inline void X86Assembler::EmitOperandSizeOverride() {
 }
 
 // Slowpath entered when Thread::Current()->_exception is non-null
-class X86ExceptionSlowPath : public SlowPath {
+class X86ExceptionSlowPath FINAL : public SlowPath {
  public:
   explicit X86ExceptionSlowPath(size_t stack_adjust) : stack_adjust_(stack_adjust) {}
-  virtual void Emit(Assembler *sp_asm);
+  virtual void Emit(Assembler *sp_asm) OVERRIDE;
  private:
   const size_t stack_adjust_;
 };

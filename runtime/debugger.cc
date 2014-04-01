@@ -1924,7 +1924,7 @@ JDWP::JdwpError Dbg::Interrupt(JDWP::ObjectId thread_id) {
   if (error != JDWP::ERR_NONE) {
     return error;
   }
-  thread->Interrupt();
+  thread->Interrupt(soa.Self());
   return JDWP::ERR_NONE;
 }
 

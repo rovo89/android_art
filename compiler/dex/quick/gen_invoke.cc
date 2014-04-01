@@ -66,12 +66,12 @@ void Mir2Lir::AddIntrinsicLaunchpad(CallInfo* info, LIR* branch, LIR* resume) {
  * has a memory call operation, part 1 is a NOP for x86.  For other targets,
  * load arguments between the two parts.
  */
-RegStorage Mir2Lir::CallHelperSetup(ThreadOffset helper_offset) {
+RegStorage Mir2Lir::CallHelperSetup(ThreadOffset<4> helper_offset) {
   return (cu_->instruction_set == kX86) ? RegStorage::InvalidReg() : LoadHelper(helper_offset);
 }
 
 /* NOTE: if r_tgt is a temp, it will be freed following use */
-LIR* Mir2Lir::CallHelper(RegStorage r_tgt, ThreadOffset helper_offset, bool safepoint_pc,
+LIR* Mir2Lir::CallHelper(RegStorage r_tgt, ThreadOffset<4> helper_offset, bool safepoint_pc,
                          bool use_link) {
   LIR* call_inst;
   OpKind op = use_link ? kOpBlx : kOpBx;
@@ -87,21 +87,22 @@ LIR* Mir2Lir::CallHelper(RegStorage r_tgt, ThreadOffset helper_offset, bool safe
   return call_inst;
 }
 
-void Mir2Lir::CallRuntimeHelperImm(ThreadOffset helper_offset, int arg0, bool safepoint_pc) {
+void Mir2Lir::CallRuntimeHelperImm(ThreadOffset<4> helper_offset, int arg0, bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   LoadConstant(TargetReg(kArg0), arg0);
   ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperReg(ThreadOffset helper_offset, RegStorage arg0, bool safepoint_pc) {
+void Mir2Lir::CallRuntimeHelperReg(ThreadOffset<4> helper_offset, RegStorage arg0,
+                                   bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   OpRegCopy(TargetReg(kArg0), arg0);
   ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperRegLocation(ThreadOffset helper_offset, RegLocation arg0,
+void Mir2Lir::CallRuntimeHelperRegLocation(ThreadOffset<4> helper_offset, RegLocation arg0,
                                            bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   if (arg0.wide == 0) {
@@ -114,7 +115,7 @@ void Mir2Lir::CallRuntimeHelperRegLocation(ThreadOffset helper_offset, RegLocati
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperImmImm(ThreadOffset helper_offset, int arg0, int arg1,
+void Mir2Lir::CallRuntimeHelperImmImm(ThreadOffset<4> helper_offset, int arg0, int arg1,
                                       bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   LoadConstant(TargetReg(kArg0), arg0);
@@ -123,7 +124,7 @@ void Mir2Lir::CallRuntimeHelperImmImm(ThreadOffset helper_offset, int arg0, int 
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperImmRegLocation(ThreadOffset helper_offset, int arg0,
+void Mir2Lir::CallRuntimeHelperImmRegLocation(ThreadOffset<4> helper_offset, int arg0,
                                               RegLocation arg1, bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   if (arg1.wide == 0) {
@@ -137,8 +138,8 @@ void Mir2Lir::CallRuntimeHelperImmRegLocation(ThreadOffset helper_offset, int ar
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperRegLocationImm(ThreadOffset helper_offset, RegLocation arg0, int arg1,
-                                              bool safepoint_pc) {
+void Mir2Lir::CallRuntimeHelperRegLocationImm(ThreadOffset<4> helper_offset, RegLocation arg0,
+                                              int arg1, bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   LoadValueDirectFixed(arg0, TargetReg(kArg0));
   LoadConstant(TargetReg(kArg1), arg1);
@@ -146,7 +147,7 @@ void Mir2Lir::CallRuntimeHelperRegLocationImm(ThreadOffset helper_offset, RegLoc
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperImmReg(ThreadOffset helper_offset, int arg0, RegStorage arg1,
+void Mir2Lir::CallRuntimeHelperImmReg(ThreadOffset<4> helper_offset, int arg0, RegStorage arg1,
                                       bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   OpRegCopy(TargetReg(kArg1), arg1);
@@ -155,7 +156,7 @@ void Mir2Lir::CallRuntimeHelperImmReg(ThreadOffset helper_offset, int arg0, RegS
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperRegImm(ThreadOffset helper_offset, RegStorage arg0, int arg1,
+void Mir2Lir::CallRuntimeHelperRegImm(ThreadOffset<4> helper_offset, RegStorage arg0, int arg1,
                                       bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   OpRegCopy(TargetReg(kArg0), arg0);
@@ -164,7 +165,8 @@ void Mir2Lir::CallRuntimeHelperRegImm(ThreadOffset helper_offset, RegStorage arg
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperImmMethod(ThreadOffset helper_offset, int arg0, bool safepoint_pc) {
+void Mir2Lir::CallRuntimeHelperImmMethod(ThreadOffset<4> helper_offset, int arg0,
+                                         bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   LoadCurrMethodDirect(TargetReg(kArg1));
   LoadConstant(TargetReg(kArg0), arg0);
@@ -172,7 +174,7 @@ void Mir2Lir::CallRuntimeHelperImmMethod(ThreadOffset helper_offset, int arg0, b
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperRegMethod(ThreadOffset helper_offset, RegStorage arg0,
+void Mir2Lir::CallRuntimeHelperRegMethod(ThreadOffset<4> helper_offset, RegStorage arg0,
                                          bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   DCHECK_NE(TargetReg(kArg1).GetReg(), arg0.GetReg());
@@ -184,7 +186,7 @@ void Mir2Lir::CallRuntimeHelperRegMethod(ThreadOffset helper_offset, RegStorage 
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperRegMethodRegLocation(ThreadOffset helper_offset, RegStorage arg0,
+void Mir2Lir::CallRuntimeHelperRegMethodRegLocation(ThreadOffset<4> helper_offset, RegStorage arg0,
                                                     RegLocation arg2, bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   DCHECK_NE(TargetReg(kArg1).GetReg(), arg0.GetReg());
@@ -197,8 +199,9 @@ void Mir2Lir::CallRuntimeHelperRegMethodRegLocation(ThreadOffset helper_offset, 
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(ThreadOffset helper_offset, RegLocation arg0,
-                                                      RegLocation arg1, bool safepoint_pc) {
+void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(ThreadOffset<4> helper_offset,
+                                                      RegLocation arg0, RegLocation arg1,
+                                                      bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   if (arg0.wide == 0) {
     LoadValueDirectFixed(arg0, arg0.fp ? TargetReg(kFArg0) : TargetReg(kArg0));
@@ -246,7 +249,7 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(ThreadOffset helper_offset
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperRegReg(ThreadOffset helper_offset, RegStorage arg0,
+void Mir2Lir::CallRuntimeHelperRegReg(ThreadOffset<4> helper_offset, RegStorage arg0,
                                       RegStorage arg1, bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   DCHECK_NE(TargetReg(kArg0).GetReg(), arg1.GetReg());  // check copy into arg0 won't clobber arg1
@@ -256,7 +259,7 @@ void Mir2Lir::CallRuntimeHelperRegReg(ThreadOffset helper_offset, RegStorage arg
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperRegRegImm(ThreadOffset helper_offset, RegStorage arg0,
+void Mir2Lir::CallRuntimeHelperRegRegImm(ThreadOffset<4> helper_offset, RegStorage arg0,
                                          RegStorage arg1, int arg2, bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   DCHECK_NE(TargetReg(kArg0).GetReg(), arg1.GetReg());  // check copy into arg0 won't clobber arg1
@@ -267,7 +270,7 @@ void Mir2Lir::CallRuntimeHelperRegRegImm(ThreadOffset helper_offset, RegStorage 
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperImmMethodRegLocation(ThreadOffset helper_offset,
+void Mir2Lir::CallRuntimeHelperImmMethodRegLocation(ThreadOffset<4> helper_offset,
                                                     int arg0, RegLocation arg2, bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   LoadValueDirectFixed(arg2, TargetReg(kArg2));
@@ -277,7 +280,7 @@ void Mir2Lir::CallRuntimeHelperImmMethodRegLocation(ThreadOffset helper_offset,
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperImmMethodImm(ThreadOffset helper_offset, int arg0,
+void Mir2Lir::CallRuntimeHelperImmMethodImm(ThreadOffset<4> helper_offset, int arg0,
                                             int arg2, bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   LoadCurrMethodDirect(TargetReg(kArg1));
@@ -287,7 +290,7 @@ void Mir2Lir::CallRuntimeHelperImmMethodImm(ThreadOffset helper_offset, int arg0
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset helper_offset,
+void Mir2Lir::CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset<4> helper_offset,
                                                          int arg0, RegLocation arg1,
                                                          RegLocation arg2, bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
@@ -304,7 +307,7 @@ void Mir2Lir::CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset helper_off
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CallRuntimeHelperRegLocationRegLocationRegLocation(ThreadOffset helper_offset,
+void Mir2Lir::CallRuntimeHelperRegLocationRegLocationRegLocation(ThreadOffset<4> helper_offset,
                                                                  RegLocation arg0, RegLocation arg1,
                                                                  RegLocation arg2,
                                                                  bool safepoint_pc) {
@@ -597,7 +600,7 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
   return state + 1;
 }
 
-static int NextInvokeInsnSP(CompilationUnit* cu, CallInfo* info, ThreadOffset trampoline,
+static int NextInvokeInsnSP(CompilationUnit* cu, CallInfo* info, ThreadOffset<4> trampoline,
                             int state, const MethodReference& target_method,
                             uint32_t method_idx) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
@@ -623,7 +626,7 @@ static int NextStaticCallInsnSP(CompilationUnit* cu, CallInfo* info,
                                 const MethodReference& target_method,
                                 uint32_t unused, uintptr_t unused2,
                                 uintptr_t unused3, InvokeType unused4) {
-  ThreadOffset trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck);
+  ThreadOffset<4> trampoline = QUICK_ENTRYPOINT_OFFSET(4, pInvokeStaticTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
@@ -631,7 +634,7 @@ static int NextDirectCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                                 const MethodReference& target_method,
                                 uint32_t unused, uintptr_t unused2,
                                 uintptr_t unused3, InvokeType unused4) {
-  ThreadOffset trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);
+  ThreadOffset<4> trampoline = QUICK_ENTRYPOINT_OFFSET(4, pInvokeDirectTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
@@ -639,7 +642,7 @@ static int NextSuperCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                                const MethodReference& target_method,
                                uint32_t unused, uintptr_t unused2,
                                uintptr_t unused3, InvokeType unused4) {
-  ThreadOffset trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck);
+  ThreadOffset<4> trampoline = QUICK_ENTRYPOINT_OFFSET(4, pInvokeSuperTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
@@ -647,7 +650,7 @@ static int NextVCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                            const MethodReference& target_method,
                            uint32_t unused, uintptr_t unused2,
                            uintptr_t unused3, InvokeType unused4) {
-  ThreadOffset trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
+  ThreadOffset<4> trampoline = QUICK_ENTRYPOINT_OFFSET(4, pInvokeVirtualTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
@@ -656,7 +659,8 @@ static int NextInterfaceCallInsnWithAccessCheck(CompilationUnit* cu,
                                                 const MethodReference& target_method,
                                                 uint32_t unused, uintptr_t unused2,
                                                 uintptr_t unused3, InvokeType unused4) {
-  ThreadOffset trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
+  ThreadOffset<4> trampoline =
+      QUICK_ENTRYPOINT_OFFSET(4, pInvokeInterfaceTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
@@ -986,7 +990,7 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     // Generate memcpy
     OpRegRegImm(kOpAdd, TargetReg(kArg0), TargetReg(kSp), outs_offset);
     OpRegRegImm(kOpAdd, TargetReg(kArg1), TargetReg(kSp), start_offset);
-    CallRuntimeHelperRegRegImm(QUICK_ENTRYPOINT_OFFSET(pMemcpy), TargetReg(kArg0),
+    CallRuntimeHelperRegRegImm(QUICK_ENTRYPOINT_OFFSET(4, pMemcpy), TargetReg(kArg0),
                                TargetReg(kArg1), (info->num_arg_words - 3) * 4, false);
   }
 
@@ -1318,7 +1322,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
     RegLocation rl_start = info->args[2];     // 3rd arg only present in III flavor of IndexOf.
     LoadValueDirectFixed(rl_start, reg_start);
   }
-  RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pIndexOf));
+  RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pIndexOf));
   GenExplicitNullCheck(reg_ptr, info->opt_flags);
   LIR* high_code_point_branch =
       rl_char.is_const ? nullptr : OpCmpImmBranch(kCondGt, reg_char, 0xFFFF, nullptr);
@@ -1356,7 +1360,7 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
   LoadValueDirectFixed(rl_this, reg_this);
   LoadValueDirectFixed(rl_cmp, reg_cmp);
   RegStorage r_tgt = (cu_->instruction_set != kX86) ?
-      LoadHelper(QUICK_ENTRYPOINT_OFFSET(pStringCompareTo)) : RegStorage::InvalidReg();
+      LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pStringCompareTo)) : RegStorage::InvalidReg();
   GenExplicitNullCheck(reg_this, info->opt_flags);
   info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've null checked.
   // TUNING: check if rl_cmp.s_reg_low is already null checked
@@ -1366,7 +1370,7 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
   if (cu_->instruction_set != kX86) {
     OpReg(kOpBlx, r_tgt);
   } else {
-    OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(pStringCompareTo));
+    OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(4, pStringCompareTo));
   }
   RegLocation rl_return = GetReturn(false);
   RegLocation rl_dest = InlineTarget(info);
@@ -1377,7 +1381,7 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
 bool Mir2Lir::GenInlinedCurrentThread(CallInfo* info) {
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  ThreadOffset offset = Thread::PeerOffset();
+  ThreadOffset<4> offset = Thread::PeerOffset<4>();
   if (cu_->instruction_set == kThumb2 || cu_->instruction_set == kMips) {
     LoadWordDisp(TargetReg(kSelf), offset.Int32Value(), rl_result.reg);
   } else {
@@ -1551,22 +1555,22 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
                           mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
       }
     } else {
-      ThreadOffset trampoline(-1);
+      ThreadOffset<4> trampoline(-1);
       switch (info->type) {
       case kInterface:
-        trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
+        trampoline = QUICK_ENTRYPOINT_OFFSET(4, pInvokeInterfaceTrampolineWithAccessCheck);
         break;
       case kDirect:
-        trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);
+        trampoline = QUICK_ENTRYPOINT_OFFSET(4, pInvokeDirectTrampolineWithAccessCheck);
         break;
       case kStatic:
-        trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck);
+        trampoline = QUICK_ENTRYPOINT_OFFSET(4, pInvokeStaticTrampolineWithAccessCheck);
         break;
       case kSuper:
-        trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck);
+        trampoline = QUICK_ENTRYPOINT_OFFSET(4, pInvokeSuperTrampolineWithAccessCheck);
         break;
       case kVirtual:
-        trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
+        trampoline = QUICK_ENTRYPOINT_OFFSET(4, pInvokeVirtualTrampolineWithAccessCheck);
         break;
       default:
         LOG(FATAL) << "Unexpected invoke type";

@@ -21,6 +21,7 @@
 #include "utils/arm64/assembler_arm64.h"
 #include "utils/mips/assembler_mips.h"
 #include "utils/x86/assembler_x86.h"
+#include "utils/x86_64/assembler_x86_64.h"
 
 #define __ assembler->
 
@@ -28,7 +29,7 @@ namespace art {
 
 namespace arm {
 static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention abi,
-                                                    ThreadOffset offset) {
+                                                    ThreadOffset<4> offset) {
   UniquePtr<ArmAssembler> assembler(static_cast<ArmAssembler*>(Assembler::Create(kArm)));
 
   switch (abi) {
@@ -56,7 +57,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
 
 namespace arm64 {
 static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention abi,
-                                                    ThreadOffset offset) {
+                                                    ThreadOffset<8> offset) {
   UniquePtr<Arm64Assembler> assembler(static_cast<Arm64Assembler*>(Assembler::Create(kArm64)));
 
   switch (abi) {
@@ -96,7 +97,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
 
 namespace mips {
 static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention abi,
-                                                    ThreadOffset offset) {
+                                                    ThreadOffset<4> offset) {
   UniquePtr<MipsAssembler> assembler(static_cast<MipsAssembler*>(Assembler::Create(kMips)));
 
   switch (abi) {
@@ -125,7 +126,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
 }  // namespace mips
 
 namespace x86 {
-static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset offset) {
+static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset<4> offset) {
   UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
   // All x86 trampolines call via the Thread* held in fs.
@@ -142,11 +143,12 @@ static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset offset) {
 }  // namespace x86
 
 namespace x86_64 {
-static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset offset) {
-  UniquePtr<x86::X86Assembler> assembler(static_cast<x86::X86Assembler*>(Assembler::Create(kX86_64)));
+static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset<8> offset) {
+  UniquePtr<x86_64::X86_64Assembler>
+      assembler(static_cast<x86_64::X86_64Assembler*>(Assembler::Create(kX86_64)));
 
   // All x86 trampolines call via the Thread* held in gs.
-  __ gs()->jmp(x86::Address::Absolute(offset, true));
+  __ gs()->jmp(x86_64::Address::Absolute(offset, true));
   __ int3();
 
   size_t cs = assembler->CodeSize();
@@ -158,23 +160,32 @@ static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset offset) {
 }
 }  // namespace x86_64
 
-const std::vector<uint8_t>* CreateTrampoline(InstructionSet isa, EntryPointCallingConvention abi,
-                                             ThreadOffset offset) {
+const std::vector<uint8_t>* CreateTrampoline64(InstructionSet isa, EntryPointCallingConvention abi,
+                                               ThreadOffset<8> offset) {
+  switch (isa) {
+    case kArm64:
+      return arm64::CreateTrampoline(abi, offset);
+    case kX86_64:
+      return x86_64::CreateTrampoline(offset);
+    default:
+      LOG(FATAL) << "Unexpected InstructionSet: " << isa;
+      return nullptr;
+  }
+}
+
+const std::vector<uint8_t>* CreateTrampoline32(InstructionSet isa, EntryPointCallingConvention abi,
+                                               ThreadOffset<4> offset) {
   switch (isa) {
     case kArm:
     case kThumb2:
       return arm::CreateTrampoline(abi, offset);
-    case kArm64:
-      return arm64::CreateTrampoline(abi, offset);
     case kMips:
       return mips::CreateTrampoline(abi, offset);
     case kX86:
       return x86::CreateTrampoline(offset);
-    case kX86_64:
-      return x86_64::CreateTrampoline(offset);
     default:
-      LOG(FATAL) << "Unknown InstructionSet: " << isa;
-      return NULL;
+      LOG(FATAL) << "Unexpected InstructionSet: " << isa;
+      return nullptr;
   }
 }
 

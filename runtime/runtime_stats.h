@@ -89,20 +89,20 @@ struct PACKED(4) RuntimeStats {
   }
 
   // Number of objects allocated.
-  int allocated_objects;
+  uint64_t allocated_objects;
   // Cumulative size of all objects allocated.
-  int allocated_bytes;
+  uint64_t allocated_bytes;
 
   // Number of objects freed.
-  int freed_objects;
+  uint64_t freed_objects;
   // Cumulative size of all freed objects.
-  int freed_bytes;
+  uint64_t freed_bytes;
 
   // Number of times an allocation triggered a GC.
-  int gc_for_alloc_count;
+  uint64_t gc_for_alloc_count;
 
   // Number of initialized classes.
-  int class_init_count;
+  uint64_t class_init_count;
   // Cumulative time spent in class initialization.
   uint64_t class_init_time_ns;
 

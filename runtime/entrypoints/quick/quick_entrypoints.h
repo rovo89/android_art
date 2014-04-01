@@ -22,9 +22,8 @@
 #include "base/macros.h"
 #include "offsets.h"
 
-#define QUICK_ENTRYPOINT_OFFSET(x) \
-    ThreadOffset(static_cast<uintptr_t>(OFFSETOF_MEMBER(Thread, quick_entrypoints_)) + \
-                 static_cast<uintptr_t>(OFFSETOF_MEMBER(QuickEntryPoints, x)))
+#define QUICK_ENTRYPOINT_OFFSET(ptr_size, x) \
+    Thread::QuickEntryPointOffset<ptr_size>(OFFSETOF_MEMBER(QuickEntryPoints, x))
 
 namespace art {
 

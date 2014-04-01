@@ -51,8 +51,8 @@ inline ThreadState Thread::SetState(ThreadState new_state) {
   DCHECK_NE(new_state, kRunnable);
   DCHECK_EQ(this, Thread::Current());
   union StateAndFlags old_state_and_flags;
-  old_state_and_flags.as_int = state_and_flags_.as_int;
-  state_and_flags_.as_struct.state = new_state;
+  old_state_and_flags.as_int = tls32_.state_and_flags.as_int;
+  tls32_.state_and_flags.as_struct.state = new_state;
   return static_cast<ThreadState>(old_state_and_flags.as_struct.state);
 }
 
@@ -60,7 +60,7 @@ inline void Thread::AssertThreadSuspensionIsAllowable(bool check_locks) const {
 #ifdef NDEBUG
   UNUSED(check_locks);  // Keep GCC happy about unused parameters.
 #else
-  CHECK_EQ(0u, no_thread_suspension_) << last_no_thread_suspension_cause_;
+  CHECK_EQ(0u, tls32_.no_thread_suspension) << tlsPtr_.last_no_thread_suspension_cause;
   if (check_locks) {
     bool bad_mutexes_held = false;
     for (int i = kLockLevelCount - 1; i >= 0; --i) {
@@ -88,7 +88,7 @@ inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
   union StateAndFlags old_state_and_flags;
   union StateAndFlags new_state_and_flags;
   while (true) {
-    old_state_and_flags.as_int = state_and_flags_.as_int;
+    old_state_and_flags.as_int = tls32_.state_and_flags.as_int;
     if (UNLIKELY((old_state_and_flags.as_struct.flags & kCheckpointRequest) != 0)) {
       RunCheckpointFunction();
       continue;
@@ -98,7 +98,7 @@ inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
     new_state_and_flags.as_struct.flags = old_state_and_flags.as_struct.flags;
     new_state_and_flags.as_struct.state = new_state;
     int status = android_atomic_cas(old_state_and_flags.as_int, new_state_and_flags.as_int,
-                                       &state_and_flags_.as_int);
+                                       &tls32_.state_and_flags.as_int);
     if (LIKELY(status == 0)) {
       break;
     }
@@ -110,22 +110,22 @@ inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
 inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
   bool done = false;
   union StateAndFlags old_state_and_flags;
-  old_state_and_flags.as_int = state_and_flags_.as_int;
+  old_state_and_flags.as_int = tls32_.state_and_flags.as_int;
   int16_t old_state = old_state_and_flags.as_struct.state;
   DCHECK_NE(static_cast<ThreadState>(old_state), kRunnable);
   do {
     Locks::mutator_lock_->AssertNotHeld(this);  // Otherwise we starve GC..
-    old_state_and_flags.as_int = state_and_flags_.as_int;
+    old_state_and_flags.as_int = tls32_.state_and_flags.as_int;
     DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
     if (UNLIKELY((old_state_and_flags.as_struct.flags & kSuspendRequest) != 0)) {
       // Wait while our suspend count is non-zero.
       MutexLock mu(this, *Locks::thread_suspend_count_lock_);
-      old_state_and_flags.as_int = state_and_flags_.as_int;
+      old_state_and_flags.as_int = tls32_.state_and_flags.as_int;
       DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
       while ((old_state_and_flags.as_struct.flags & kSuspendRequest) != 0) {
         // Re-check when Thread::resume_cond_ is notified.
         Thread::resume_cond_->Wait(this);
-        old_state_and_flags.as_int = state_and_flags_.as_int;
+        old_state_and_flags.as_int = tls32_.state_and_flags.as_int;
         DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
       }
       DCHECK_EQ(GetSuspendCount(), 0);
@@ -133,7 +133,7 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
     // Re-acquire shared mutator_lock_ access.
     Locks::mutator_lock_->SharedLock(this);
     // Atomically change from suspended to runnable if no suspend request pending.
-    old_state_and_flags.as_int = state_and_flags_.as_int;
+    old_state_and_flags.as_int = tls32_.state_and_flags.as_int;
     DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
     if (LIKELY((old_state_and_flags.as_struct.flags & kSuspendRequest) == 0)) {
       union StateAndFlags new_state_and_flags;
@@ -141,7 +141,7 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
       new_state_and_flags.as_struct.state = kRunnable;
       // CAS the value without a memory barrier, that occurred in the lock above.
       done = android_atomic_cas(old_state_and_flags.as_int, new_state_and_flags.as_int,
-                                &state_and_flags_.as_int) == 0;
+                                &tls32_.state_and_flags.as_int) == 0;
     }
     if (UNLIKELY(!done)) {
       // Failed to transition to Runnable. Release shared mutator_lock_ access and try again.
@@ -161,26 +161,27 @@ inline void Thread::VerifyStack() {
 }
 
 inline size_t Thread::TlabSize() const {
-  return thread_local_end_ - thread_local_pos_;
+  return tlsPtr_.thread_local_end - tlsPtr_.thread_local_pos;
 }
 
 inline mirror::Object* Thread::AllocTlab(size_t bytes) {
   DCHECK_GE(TlabSize(), bytes);
-  ++thread_local_objects_;
-  mirror::Object* ret = reinterpret_cast<mirror::Object*>(thread_local_pos_);
-  thread_local_pos_ += bytes;
+  ++tlsPtr_.thread_local_objects;
+  mirror::Object* ret = reinterpret_cast<mirror::Object*>(tlsPtr_.thread_local_pos);
+  tlsPtr_.thread_local_pos += bytes;
   return ret;
 }
 
 inline bool Thread::PushOnThreadLocalAllocationStack(mirror::Object* obj) {
-  DCHECK_LE(thread_local_alloc_stack_top_, thread_local_alloc_stack_end_);
-  if (thread_local_alloc_stack_top_ < thread_local_alloc_stack_end_) {
+  DCHECK_LE(tlsPtr_.thread_local_alloc_stack_top, tlsPtr_.thread_local_alloc_stack_end);
+  if (tlsPtr_.thread_local_alloc_stack_top < tlsPtr_.thread_local_alloc_stack_end) {
     // There's room.
-    DCHECK_LE(reinterpret_cast<byte*>(thread_local_alloc_stack_top_) + sizeof(mirror::Object*),
-              reinterpret_cast<byte*>(thread_local_alloc_stack_end_));
-    DCHECK(*thread_local_alloc_stack_top_ == nullptr);
-    *thread_local_alloc_stack_top_ = obj;
-    ++thread_local_alloc_stack_top_;
+    DCHECK_LE(reinterpret_cast<byte*>(tlsPtr_.thread_local_alloc_stack_top) +
+                  sizeof(mirror::Object*),
+              reinterpret_cast<byte*>(tlsPtr_.thread_local_alloc_stack_end));
+    DCHECK(*tlsPtr_.thread_local_alloc_stack_top == nullptr);
+    *tlsPtr_.thread_local_alloc_stack_top = obj;
+    ++tlsPtr_.thread_local_alloc_stack_top;
     return true;
   }
   return false;
@@ -193,8 +194,8 @@ inline void Thread::SetThreadLocalAllocationStack(mirror::Object** start, mirror
   DCHECK_ALIGNED(start, sizeof(mirror::Object*));
   DCHECK_ALIGNED(end, sizeof(mirror::Object*));
   DCHECK_LT(start, end);
-  thread_local_alloc_stack_end_ = end;
-  thread_local_alloc_stack_top_ = start;
+  tlsPtr_.thread_local_alloc_stack_end = end;
+  tlsPtr_.thread_local_alloc_stack_top = start;
 }
 
 inline void Thread::RevokeThreadLocalAllocationStack() {
@@ -204,8 +205,8 @@ inline void Thread::RevokeThreadLocalAllocationStack() {
     DCHECK(this == self || IsSuspended() || GetState() == kWaitingPerformingGc)
         << GetState() << " thread " << this << " self " << self;
   }
-  thread_local_alloc_stack_end_ = nullptr;
-  thread_local_alloc_stack_top_ = nullptr;
+  tlsPtr_.thread_local_alloc_stack_end = nullptr;
+  tlsPtr_.thread_local_alloc_stack_top = nullptr;
 }
 
 }  // namespace art
