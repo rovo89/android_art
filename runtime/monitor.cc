@@ -871,49 +871,50 @@ uint32_t Monitor::GetLockOwnerThreadId(mirror::Object* obj) {
 }
 
 void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
-  ThreadState state = thread->GetState();
-
-  int32_t object_identity_hashcode = 0;
+  // Determine the wait message and object we're waiting or blocked upon.
+  mirror::Object* pretty_object = nullptr;
+  const char* wait_message = nullptr;
   uint32_t lock_owner = ThreadList::kInvalidThreadId;
-  std::string pretty_type;
+  ThreadState state = thread->GetState();
   if (state == kWaiting || state == kTimedWaiting || state == kSleeping) {
-    if (state == kSleeping) {
-      os << "  - sleeping on ";
-    } else {
-      os << "  - waiting on ";
-    }
-    {
-      Thread* self = Thread::Current();
-      MutexLock mu(self, *thread->GetWaitMutex());
-      Monitor* monitor = thread->GetWaitMonitor();
-      if (monitor != NULL) {
-        mirror::Object* object = monitor->obj_;
-        object_identity_hashcode = object->IdentityHashCode();
-        pretty_type = PrettyTypeOf(object);
-      }
+    wait_message = (state == kSleeping) ? "  - sleeping on " : "  - waiting on ";
+    Thread* self = Thread::Current();
+    MutexLock mu(self, *thread->GetWaitMutex());
+    Monitor* monitor = thread->GetWaitMonitor();
+    if (monitor != nullptr) {
+      pretty_object = monitor->obj_;
     }
   } else if (state == kBlocked) {
-    os << "  - waiting to lock ";
-    mirror::Object* object = thread->GetMonitorEnterObject();
-    if (object != NULL) {
-      object_identity_hashcode = object->IdentityHashCode();
-      lock_owner = object->GetLockOwnerThreadId();
-      pretty_type = PrettyTypeOf(object);
+    wait_message = "  - waiting to lock ";
+    pretty_object = thread->GetMonitorEnterObject();
+    if (pretty_object != nullptr) {
+      lock_owner = pretty_object->GetLockOwnerThreadId();
     }
-  } else {
-    // We're not waiting on anything.
-    return;
   }
 
-  // - waiting on <0x6008c468> (a java.lang.Class<java.lang.ref.ReferenceQueue>)
-  os << StringPrintf("<0x%08x> (a %s)", object_identity_hashcode, pretty_type.c_str());
-
-  // - waiting to lock <0x613f83d8> (a java.lang.Object) held by thread 5
-  if (lock_owner != ThreadList::kInvalidThreadId) {
-    os << " held by thread " << lock_owner;
+  if (wait_message != nullptr) {
+    if (pretty_object == nullptr) {
+      os << wait_message << "an unknown object";
+    } else {
+      if ((pretty_object->GetLockWord().GetState() == LockWord::kThinLocked) &&
+          Locks::mutator_lock_->IsExclusiveHeld(Thread::Current())) {
+        // Getting the identity hashcode here would result in lock inflation and suspension of the
+        // current thread, which isn't safe if this is the only runnable thread.
+        os << wait_message << StringPrintf("<@addr=0x%" PRIxPTR "> (a %s)",
+                                           reinterpret_cast<intptr_t>(pretty_object),
+                                           PrettyTypeOf(pretty_object).c_str());
+      } else {
+        // - waiting on <0x6008c468> (a java.lang.Class<java.lang.ref.ReferenceQueue>)
+        os << wait_message << StringPrintf("<0x%08x> (a %s)", pretty_object->IdentityHashCode(),
+                                           PrettyTypeOf(pretty_object).c_str());
+      }
+    }
+    // - waiting to lock <0x613f83d8> (a java.lang.Object) held by thread 5
+    if (lock_owner != ThreadList::kInvalidThreadId) {
+      os << " held by thread " << lock_owner;
+    }
+    os << "\n";
   }
-
-  os << "\n";
 }
 
 mirror::Object* Monitor::GetContendedMonitor(Thread* thread) {

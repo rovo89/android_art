@@ -868,7 +868,21 @@ struct StackDumpVisitor : public StackVisitor {
   static void DumpLockedObject(mirror::Object* o, void* context)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::ostream& os = *reinterpret_cast<std::ostream*>(context);
-    os << "  - locked <" << o << "> (a " << PrettyTypeOf(o) << ")\n";
+    os << "  - locked ";
+    if (o == nullptr) {
+      os << "an unknown object";
+    } else {
+      if ((o->GetLockWord().GetState() == LockWord::kThinLocked) &&
+          Locks::mutator_lock_->IsExclusiveHeld(Thread::Current())) {
+        // Getting the identity hashcode here would result in lock inflation and suspension of the
+        // current thread, which isn't safe if this is the only runnable thread.
+        os << StringPrintf("<@addr=0x%" PRIxPTR "> (a %s)", reinterpret_cast<intptr_t>(o),
+                           PrettyTypeOf(o).c_str());
+      } else {
+        os << StringPrintf("<0x%08x> (a %s)", o->IdentityHashCode(), PrettyTypeOf(o).c_str());
+      }
+    }
+    os << "\n";
   }
 
   std::ostream& os;
