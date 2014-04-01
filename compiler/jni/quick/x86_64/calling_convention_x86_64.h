@@ -22,11 +22,13 @@
 namespace art {
 namespace x86_64 {
 
+constexpr size_t kFramePointerSize = 8;
+
 class X86_64ManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingConvention {
  public:
   explicit X86_64ManagedRuntimeCallingConvention(bool is_static, bool is_synchronized,
                                               const char* shorty)
-      : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty) {}
+      : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {}
   ~X86_64ManagedRuntimeCallingConvention() OVERRIDE {}
   // Calling convention
   ManagedRegister ReturnRegister() OVERRIDE;

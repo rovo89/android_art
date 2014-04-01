@@ -79,9 +79,9 @@ ManagedRegister MipsManagedRuntimeCallingConvention::CurrentParamRegister() {
 FrameOffset MipsManagedRuntimeCallingConvention::CurrentParamStackOffset() {
   CHECK(IsCurrentParamOnStack());
   FrameOffset result =
-      FrameOffset(displacement_.Int32Value() +   // displacement
-                  kPointerSize +                 // Method*
-                  (itr_slots_ * kPointerSize));  // offset into in args
+      FrameOffset(displacement_.Int32Value() +        // displacement
+                  kFramePointerSize +                 // Method*
+                  (itr_slots_ * kFramePointerSize));  // offset into in args
   return result;
 }
 
@@ -105,8 +105,8 @@ const ManagedRegisterEntrySpills& MipsManagedRuntimeCallingConvention::EntrySpil
 // JNI calling convention
 
 MipsJniCallingConvention::MipsJniCallingConvention(bool is_static, bool is_synchronized,
-                                                 const char* shorty)
-    : JniCallingConvention(is_static, is_synchronized, shorty) {
+                                                   const char* shorty)
+    : JniCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {
   // Compute padding to ensure longs and doubles are not split in AAPCS. Ignore the 'this' jobject
   // or jclass for static methods and the JNIEnv. We start at the aligned register A2.
   size_t padding = 0;
@@ -147,16 +147,15 @@ ManagedRegister MipsJniCallingConvention::ReturnScratchRegister() const {
 
 size_t MipsJniCallingConvention::FrameSize() {
   // Method*, LR and callee save area size, local reference segment state
-  size_t frame_data_size = (3 + CalleeSaveRegisters().size()) * kPointerSize;
+  size_t frame_data_size = (3 + CalleeSaveRegisters().size()) * kFramePointerSize;
   // References plus 2 words for SIRT header
-  size_t sirt_size = (ReferenceCount() + 2) * kPointerSize;
+  size_t sirt_size = (ReferenceCount() + 2) * sirt_pointer_size_;
   // Plus return value spill area size
   return RoundUp(frame_data_size + sirt_size + SizeOfReturnValue(), kStackAlignment);
 }
 
 size_t MipsJniCallingConvention::OutArgSize() {
-  return RoundUp(NumberOfOutgoingStackArgs() * kPointerSize + padding_,
-                 kStackAlignment);
+  return RoundUp(NumberOfOutgoingStackArgs() * kFramePointerSize + padding_, kStackAlignment);
 }
 
 // JniCallingConvention ABI follows AAPCS where longs and doubles must occur
@@ -199,7 +198,7 @@ ManagedRegister MipsJniCallingConvention::CurrentParamRegister() {
 
 FrameOffset MipsJniCallingConvention::CurrentParamStackOffset() {
   CHECK_GE(itr_slots_, 4u);
-  size_t offset = displacement_.Int32Value() - OutArgSize() + (itr_slots_ * kPointerSize);
+  size_t offset = displacement_.Int32Value() - OutArgSize() + (itr_slots_ * kFramePointerSize);
   CHECK_LT(offset, OutArgSize());
   return FrameOffset(offset);
 }

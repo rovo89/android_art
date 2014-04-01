@@ -536,6 +536,8 @@ void MipsAssembler::StoreDToOffset(DRegister reg, Register base, int32_t offset)
   Sdc1(reg, base, offset);
 }
 
+constexpr size_t kFramePointerSize = 4;
+
 void MipsAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                                const std::vector<ManagedRegister>& callee_save_regs,
                                const ManagedRegisterEntrySpills& entry_spills) {
@@ -545,10 +547,10 @@ void MipsAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   IncreaseFrameSize(frame_size);
 
   // Push callee saves and return address
-  int stack_offset = frame_size - kPointerSize;
+  int stack_offset = frame_size - kFramePointerSize;
   StoreToOffset(kStoreWord, RA, SP, stack_offset);
   for (int i = callee_save_regs.size() - 1; i >= 0; --i) {
-    stack_offset -= kPointerSize;
+    stack_offset -= kFramePointerSize;
     Register reg = callee_save_regs.at(i).AsMips().AsCoreRegister();
     StoreToOffset(kStoreWord, reg, SP, stack_offset);
   }
@@ -559,7 +561,7 @@ void MipsAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   // Write out entry spills.
   for (size_t i = 0; i < entry_spills.size(); ++i) {
     Register reg = entry_spills.at(i).AsMips().AsCoreRegister();
-    StoreToOffset(kStoreWord, reg, SP, frame_size + kPointerSize + (i * kPointerSize));
+    StoreToOffset(kStoreWord, reg, SP, frame_size + kFramePointerSize + (i * kFramePointerSize));
   }
 }
 
@@ -568,11 +570,11 @@ void MipsAssembler::RemoveFrame(size_t frame_size,
   CHECK_ALIGNED(frame_size, kStackAlignment);
 
   // Pop callee saves and return address
-  int stack_offset = frame_size - (callee_save_regs.size() * kPointerSize) - kPointerSize;
+  int stack_offset = frame_size - (callee_save_regs.size() * kFramePointerSize) - kFramePointerSize;
   for (size_t i = 0; i < callee_save_regs.size(); ++i) {
     Register reg = callee_save_regs.at(i).AsMips().AsCoreRegister();
     LoadFromOffset(kLoadWord, reg, SP, stack_offset);
-    stack_offset += kPointerSize;
+    stack_offset += kFramePointerSize;
   }
   LoadFromOffset(kLoadWord, RA, SP, stack_offset);
 

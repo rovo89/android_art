@@ -26,11 +26,6 @@
 
 namespace art {
 
-// Offset of Method within the frame
-FrameOffset CallingConvention::MethodStackOffset() {
-  return displacement_;
-}
-
 // Managed runtime calling convention
 
 ManagedRuntimeCallingConvention* ManagedRuntimeCallingConvention::Create(
@@ -123,7 +118,7 @@ size_t JniCallingConvention::ReferenceCount() const {
 }
 
 FrameOffset JniCallingConvention::SavedLocalReferenceCookieOffset() const {
-  size_t references_size = kSirtPointerSize * ReferenceCount();  // size excluding header
+  size_t references_size = sirt_pointer_size_ * ReferenceCount();  // size excluding header
   return FrameOffset(SirtReferencesOffset().Int32Value() + references_size);
 }
 
@@ -191,14 +186,14 @@ bool JniCallingConvention::IsCurrentParamAFloatOrDouble() {
 FrameOffset JniCallingConvention::CurrentParamSirtEntryOffset() {
   CHECK(IsCurrentParamAReference());
   CHECK_LT(SirtLinkOffset(), SirtNumRefsOffset());
-  int result = SirtReferencesOffset().Int32Value() + itr_refs_ * kSirtPointerSize;
+  int result = SirtReferencesOffset().Int32Value() + itr_refs_ * sirt_pointer_size_;
   CHECK_GT(result, SirtNumRefsOffset().Int32Value());
   return FrameOffset(result);
 }
 
 size_t JniCallingConvention::CurrentParamSize() {
   if (itr_args_ <= kObjectOrClass) {
-    return kPointerSize;  // JNIEnv or jobject/jclass
+    return frame_pointer_size_;  // JNIEnv or jobject/jclass
   } else {
     int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
     return ParamSize(arg_pos);

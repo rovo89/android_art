@@ -68,6 +68,10 @@ class Operand {
     return static_cast<Register>(encoding_at(1) & 7);
   }
 
+  uint8_t rex() const {
+    return rex_;
+  }
+
   int8_t disp8() const {
     CHECK_GE(length_, 2);
     return static_cast<int8_t>(encoding_[length_ - 1]);
@@ -81,27 +85,33 @@ class Operand {
   }
 
   bool IsRegister(CpuRegister reg) const {
-    CHECK(!reg.NeedsRex()) << "TODO: rex support:" << reg;
     return ((encoding_[0] & 0xF8) == 0xC0)  // Addressing mode is register only.
-        && ((encoding_[0] & 0x07) == reg.LowBits());  // Register codes match.
+        && ((encoding_[0] & 0x07) == reg.LowBits())  // Register codes match.
+        && (reg.NeedsRex() == ((rex_ & 1) != 0));  // REX.000B bits match.
   }
 
  protected:
   // Operand can be sub classed (e.g: Address).
-  Operand() : length_(0) { }
+  Operand() : rex_(0), length_(0) { }
 
-  void SetModRM(int mod, CpuRegister rm) {
+  void SetModRM(uint8_t mod, CpuRegister rm) {
     CHECK_EQ(mod & ~3, 0);
-    CHECK(!rm.NeedsRex());
-    encoding_[0] = (mod << 6) | static_cast<uint8_t>(rm.AsRegister());
+    if (rm.NeedsRex()) {
+      rex_ |= 0x41;  // REX.000B
+    }
+    encoding_[0] = (mod << 6) | rm.LowBits();
     length_ = 1;
   }
 
   void SetSIB(ScaleFactor scale, CpuRegister index, CpuRegister base) {
-    CHECK(!index.NeedsRex()) << "TODO: rex support: " << index;
-    CHECK(!base.NeedsRex()) << "TODO: rex support: " << base;
     CHECK_EQ(length_, 1);
     CHECK_EQ(scale & ~3, 0);
+    if (base.NeedsRex()) {
+      rex_ |= 0x41;  // REX.000B
+    }
+    if (index.NeedsRex()) {
+      rex_ |= 0x42;  // REX.00X0
+    }
     encoding_[1] = (scale << 6) | (static_cast<uint8_t>(index.AsRegister()) << 3) |
         static_cast<uint8_t>(base.AsRegister());
     length_ = 2;
@@ -120,8 +130,9 @@ class Operand {
   }
 
  private:
-  byte length_;
-  byte encoding_[6];
+  uint8_t rex_;
+  uint8_t length_;
+  uint8_t encoding_[6];
 
   explicit Operand(CpuRegister reg) { SetModRM(3, reg); }
 
