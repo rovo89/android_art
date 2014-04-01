@@ -551,6 +551,20 @@ std::string Instruction::DumpString(const DexFile* file) const {
       uint32_t arg[5];
       GetArgs(arg);
       switch (Opcode()) {
+        case FILLED_NEW_ARRAY:
+        {
+          const int32_t a = VRegA_35c();
+          os << opcode << " {";
+          for (int i = 0; i < a; ++i) {
+            if (i > 0) {
+              os << ", ";
+            }
+            os << "v" << arg[i];
+          }
+          os << "}, type@" << VRegB_35c();
+        }
+        break;
+
         case INVOKE_VIRTUAL:
         case INVOKE_SUPER:
         case INVOKE_DIRECT:
