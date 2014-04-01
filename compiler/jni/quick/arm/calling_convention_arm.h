@@ -22,10 +22,12 @@
 namespace art {
 namespace arm {
 
+constexpr size_t kFramePointerSize = 4;
+
 class ArmManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingConvention {
  public:
   ArmManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty)
-      : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty) {}
+      : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {}
   ~ArmManagedRuntimeCallingConvention() OVERRIDE {}
   // Calling convention
   ManagedRegister ReturnRegister() OVERRIDE;

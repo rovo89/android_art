@@ -21,10 +21,13 @@
 
 namespace art {
 namespace mips {
+
+constexpr size_t kFramePointerSize = 4;
+
 class MipsManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingConvention {
  public:
   MipsManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty)
-      : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty) {}
+      : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {}
   ~MipsManagedRuntimeCallingConvention() OVERRIDE {}
   // Calling convention
   ManagedRegister ReturnRegister() OVERRIDE;

@@ -1513,15 +1513,30 @@ void X86_64Assembler::EmitOptionalRex32(XmmRegister dst, CpuRegister src) {
 }
 
 void X86_64Assembler::EmitOptionalRex32(const Operand& operand) {
-  UNIMPLEMENTED(FATAL);
+  uint8_t rex = operand.rex();
+  if (rex != 0) {
+    EmitUint8(rex);
+  }
 }
 
 void X86_64Assembler::EmitOptionalRex32(CpuRegister dst, const Operand& operand) {
-  UNIMPLEMENTED(FATAL);
+  uint8_t rex = operand.rex();
+  if (dst.NeedsRex()) {
+    rex |= 0x44;  // REX.0R00
+  }
+  if (rex != 0) {
+    EmitUint8(rex);
+  }
 }
 
 void X86_64Assembler::EmitOptionalRex32(XmmRegister dst, const Operand& operand) {
-  UNIMPLEMENTED(FATAL);
+  uint8_t rex = operand.rex();
+  if (dst.NeedsRex()) {
+    rex |= 0x44;  // REX.0R00
+  }
+  if (rex != 0) {
+    EmitUint8(rex);
+  }
 }
 
 void X86_64Assembler::EmitRex64(CpuRegister reg) {
@@ -1532,7 +1547,13 @@ void X86_64Assembler::EmitRex64(CpuRegister dst, CpuRegister src) {
 }
 
 void X86_64Assembler::EmitRex64(CpuRegister dst, const Operand& operand) {
-  UNIMPLEMENTED(FATAL);
+  uint8_t rex = 0x48 | operand.rex();  // REX.W000
+  if (dst.NeedsRex()) {
+    rex |= 0x44;  // REX.0R00
+  }
+  if (rex != 0) {
+    EmitUint8(rex);
+  }
 }
 
 void X86_64Assembler::EmitOptionalByteRegNormalizingRex32(CpuRegister dst, CpuRegister src) {
@@ -1540,19 +1561,27 @@ void X86_64Assembler::EmitOptionalByteRegNormalizingRex32(CpuRegister dst, CpuRe
 }
 
 void X86_64Assembler::EmitOptionalByteRegNormalizingRex32(CpuRegister dst, const Operand& operand) {
-  UNIMPLEMENTED(FATAL);
+  uint8_t rex = 0x40 | operand.rex();  // REX.0000
+  if (dst.NeedsRex()) {
+    rex |= 0x44;  // REX.0R00
+  }
+  if (rex != 0) {
+    EmitUint8(rex);
+  }
 }
 
+constexpr size_t kFramePointerSize = 8;
+
 void X86_64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                              const std::vector<ManagedRegister>& spill_regs,
-                              const ManagedRegisterEntrySpills& entry_spills) {
+                                 const std::vector<ManagedRegister>& spill_regs,
+                                 const ManagedRegisterEntrySpills& entry_spills) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
   for (int i = spill_regs.size() - 1; i >= 0; --i) {
     pushq(spill_regs.at(i).AsX86_64().AsCpuRegister());
   }
   // return address then method on stack
-  addq(CpuRegister(RSP), Immediate(-frame_size + (spill_regs.size() * kPointerSize) +
-                                   kPointerSize /*method*/ + kPointerSize /*return address*/));
+  addq(CpuRegister(RSP), Immediate(-frame_size + (spill_regs.size() * kFramePointerSize) +
+                                   kFramePointerSize /*method*/ + kFramePointerSize /*return address*/));
   pushq(method_reg.AsX86_64().AsCpuRegister());
 
   for (size_t i = 0; i < entry_spills.size(); ++i) {
@@ -1579,7 +1608,7 @@ void X86_64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 void X86_64Assembler::RemoveFrame(size_t frame_size,
                             const std::vector<ManagedRegister>& spill_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
-  addq(CpuRegister(RSP), Immediate(frame_size - (spill_regs.size() * kPointerSize) - kPointerSize));
+  addq(CpuRegister(RSP), Immediate(frame_size - (spill_regs.size() * kFramePointerSize) - kFramePointerSize));
   for (size_t i = 0; i < spill_regs.size(); ++i) {
     popq(spill_regs.at(i).AsX86_64().AsCpuRegister());
   }
