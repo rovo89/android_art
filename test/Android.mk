@@ -168,7 +168,13 @@ dmart_target :=
 endef
 
 # Expand all tests.
-$(foreach test, $(wildcard $(LOCAL_PATH)/[0-9]*), $(eval $(call declare-make-art-run-test,$(notdir $(test)))))
+TEST_ART_RUN_TESTS := $(wildcard $(LOCAL_PATH)/[0-9]*)
+TEST_ART_RUN_TESTS := $(subst $(LOCAL_PATH)/,, $(TEST_ART_RUN_TESTS))
+TEST_ART_TIMING_SENSITIVE_RUN_TESTS := 055-enum-performance
+ifdef dist_goal # disable timing sensitive tests on "dist" builds.
+  $(foreach test, $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(eval TEST_ART_RUN_TESTS := $(filter-out $(test), $(TEST_ART_RUN_TESTS))))
+endif
+$(foreach test, $(TEST_ART_RUN_TESTS), $(eval $(call declare-make-art-run-test,$(test))))
 
 include $(CLEAR_VARS)
 LOCAL_MODULE_TAGS := tests
