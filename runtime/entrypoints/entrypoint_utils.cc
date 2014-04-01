@@ -134,7 +134,9 @@ void ThrowStackOverflowError(Thread* self) {
     LOG(ERROR) << "Couldn't throw new StackOverflowError because JNI ThrowNew failed.";
     CHECK(self->IsExceptionPending());
   }
-  self->ResetDefaultStackEnd();  // Return to default stack size.
+
+  bool explicit_overflow_check = Runtime::Current()->ExplicitStackOverflowChecks();
+  self->ResetDefaultStackEnd(!explicit_overflow_check);  // Return to default stack size.
 }
 
 JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char* shorty,

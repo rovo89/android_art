@@ -215,15 +215,54 @@ static size_t FixStackSize(size_t stack_size) {
     stack_size = PTHREAD_STACK_MIN;
   }
 
-  // It's likely that callers are trying to ensure they have at least a certain amount of
-  // stack space, so we should add our reserved space on top of what they requested, rather
-  // than implicitly take it away from them.
-  stack_size += Thread::kStackOverflowReservedBytes;
+  if (Runtime::Current()->ExplicitStackOverflowChecks()) {
+    // It's likely that callers are trying to ensure they have at least a certain amount of
+    // stack space, so we should add our reserved space on top of what they requested, rather
+    // than implicitly take it away from them.
+    stack_size += Thread::kStackOverflowReservedBytes;
+  } else {
+    // If we are going to use implicit stack checks, allocate space for the protected
+    // region at the bottom of the stack.
+    stack_size += Thread::kStackOverflowImplicitCheckSize;
+  }
 
   // Some systems require the stack size to be a multiple of the system page size, so round up.
   stack_size = RoundUp(stack_size, kPageSize);
 
   return stack_size;
+}
+
+// Install a protected region in the stack.  This is used to trigger a SIGSEGV if a stack
+// overflow is detected.  It is located right below the stack_end_.  Just below that
+// is the StackOverflow reserved region used when creating the StackOverflow
+// exception.
+void Thread::InstallImplicitProtection(bool is_main_stack) {
+  byte* pregion = stack_end_;
+
+  constexpr uint32_t kMarker = 0xdadadada;
+  uintptr_t *marker = reinterpret_cast<uintptr_t*>(pregion);
+  if (*marker == kMarker) {
+    // The region has already been set up.
+    return;
+  }
+  // Add marker so that we can detect a second attempt to do this.
+  *marker = kMarker;
+
+  pregion -= kStackOverflowProtectedSize;
+
+  // Touch the pages in the region to map them in.  Otherwise mprotect fails.  Only
+  // need to do this on the main stack.
+  if (is_main_stack) {
+    memset(pregion, 0x55, kStackOverflowProtectedSize);
+  }
+  VLOG(threads) << "installing stack protected region at " << std::hex <<
+      static_cast<void*>(pregion) << " to " <<
+      static_cast<void*>(pregion + kStackOverflowProtectedSize - 1);
+
+  if (mprotect(pregion, kStackOverflowProtectedSize, PROT_NONE) == -1) {
+    LOG(FATAL) << "Unable to create protected region in stack for implicit overflow check. Reason:"
+        << strerror(errno);
+  }
 }
 
 void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_size, bool is_daemon) {
@@ -472,7 +511,22 @@ void Thread::InitStackHwm() {
 #endif
 
   // Set stack_end_ to the bottom of the stack saving space of stack overflows
-  ResetDefaultStackEnd();
+  bool implicit_stack_check = !Runtime::Current()->ExplicitStackOverflowChecks();
+  ResetDefaultStackEnd(implicit_stack_check);
+
+  // Install the protected region if we are doing implicit overflow checks.
+  if (implicit_stack_check) {
+    if (is_main_thread) {
+      // The main thread has a 16K protected region at the bottom.  We need
+      // to install our own region so we need to move the limits
+      // of the stack to make room for it.
+      constexpr uint32_t kDelta = 16 * KB;
+      stack_begin_ += kDelta;
+      stack_end_ += kDelta;
+      stack_size_ -= kDelta;
+    }
+    InstallImplicitProtection(is_main_thread);
+  }
 
   // Sanity check.
   int stack_variable;
@@ -967,6 +1021,7 @@ Thread::Thread(bool daemon)
       pthread_self_(0),
       no_thread_suspension_(0),
       last_no_thread_suspension_cause_(nullptr),
+      suspend_trigger_(reinterpret_cast<uintptr_t*>(&suspend_trigger_)),
       thread_exit_check_count_(0),
       thread_local_start_(nullptr),
       thread_local_pos_(nullptr),
