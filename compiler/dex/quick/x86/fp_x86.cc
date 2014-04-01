@@ -146,6 +146,11 @@ void X86Mir2Lir::GenLongToFP(RegLocation rl_dest, RegLocation rl_src, bool is_do
     if (lo_info != nullptr && lo_info->is_temp) {
       // Calling FlushSpecificReg because it will only write back VR if it is dirty.
       FlushSpecificReg(lo_info);
+      // ResetDef for low/high to prevent NullifyRange from removing stores.
+      ResetDef(rl_src.reg.GetLowReg());
+      if (rl_src.reg.GetLowReg() != rl_src.reg.GetHighReg() && GetRegInfo(rl_src.reg.GetHighReg()) != nullptr) {
+        ResetDef(rl_src.reg.GetHighReg());
+      }
     } else {
       // It must have been register promoted if it is not a temp but is still in physical
       // register. Since we need it to be in memory to convert, we place it there now.
