@@ -96,7 +96,7 @@ ManagedRegister X86_64ManagedRuntimeCallingConvention::CurrentParamRegister() {
 
 FrameOffset X86_64ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
   return FrameOffset(displacement_.Int32Value() +   // displacement
-                     kPointerSize +                 // Method*
+                     kFramePointerSize +                 // Method*
                      (itr_slots_ * sizeof(uint32_t)));  // offset into in args
 }
 
@@ -122,8 +122,8 @@ const ManagedRegisterEntrySpills& X86_64ManagedRuntimeCallingConvention::EntrySp
 // JNI calling convention
 
 X86_64JniCallingConvention::X86_64JniCallingConvention(bool is_static, bool is_synchronized,
-                                                 const char* shorty)
-    : JniCallingConvention(is_static, is_synchronized, shorty) {
+                                                       const char* shorty)
+    : JniCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {
   callee_save_regs_.push_back(X86_64ManagedRegister::FromCpuRegister(RBX));
   callee_save_regs_.push_back(X86_64ManagedRegister::FromCpuRegister(RBP));
   callee_save_regs_.push_back(X86_64ManagedRegister::FromCpuRegister(R12));
@@ -133,20 +133,21 @@ X86_64JniCallingConvention::X86_64JniCallingConvention(bool is_static, bool is_s
 }
 
 uint32_t X86_64JniCallingConvention::CoreSpillMask() const {
-  return 1 << RBX | 1 << RBP | 1 << R12 | 1 << R13 | 1 << R14 | 1 << R15 | 1 << R13 | 1 << kNumberOfCpuRegisters;
+  return 1 << RBX | 1 << RBP | 1 << R12 | 1 << R13 | 1 << R14 | 1 << R15 | 1 << R13 |
+      1 << kNumberOfCpuRegisters;
 }
 
 size_t X86_64JniCallingConvention::FrameSize() {
   // Method*, return address and callee save area size, local reference segment state
-  size_t frame_data_size = (3 + CalleeSaveRegisters().size()) * kPointerSize;
+  size_t frame_data_size = (3 + CalleeSaveRegisters().size()) * kFramePointerSize;
   // References plus link_ (pointer) and number_of_references_ (uint32_t) for SIRT header
-  size_t sirt_size = kPointerSize + sizeof(uint32_t) + ReferenceCount()*kSirtPointerSize;
+  size_t sirt_size = kFramePointerSize + sizeof(uint32_t) + (ReferenceCount() * sirt_pointer_size_);
   // Plus return value spill area size
   return RoundUp(frame_data_size + sirt_size + SizeOfReturnValue(), kStackAlignment);
 }
 
 size_t X86_64JniCallingConvention::OutArgSize() {
-  return RoundUp(NumberOfOutgoingStackArgs() * kPointerSize, kStackAlignment);
+  return RoundUp(NumberOfOutgoingStackArgs() * kFramePointerSize, kStackAlignment);
 }
 
 bool X86_64JniCallingConvention::IsCurrentParamInRegister() {
@@ -180,7 +181,7 @@ FrameOffset X86_64JniCallingConvention::CurrentParamStackOffset() {
   size_t offset = itr_args_
       - std::min(8U, itr_float_and_doubles_)               // Float arguments passed through Xmm0..Xmm7
       - std::min(6U, itr_args_ - itr_float_and_doubles_);  // Integer arguments passed through GPR
-  return FrameOffset(displacement_.Int32Value() - OutArgSize() + (offset * kPointerSize));
+  return FrameOffset(displacement_.Int32Value() - OutArgSize() + (offset * kFramePointerSize));
 }
 
 size_t X86_64JniCallingConvention::NumberOfOutgoingStackArgs() {

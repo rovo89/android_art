@@ -79,9 +79,9 @@ ManagedRegister Arm64ManagedRuntimeCallingConvention::CurrentParamRegister() {
 FrameOffset Arm64ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
   CHECK(IsCurrentParamOnStack());
   FrameOffset result =
-      FrameOffset(displacement_.Int32Value() +   // displacement
-                  kPointerSize +                 // Method*
-                  (itr_slots_ * kPointerSize));  // offset into in args
+      FrameOffset(displacement_.Int32Value() +         // displacement
+                  kFramePointerSize +                 // Method*
+                  (itr_slots_ * kFramePointerSize));  // offset into in args
   return result;
 }
 
@@ -119,8 +119,8 @@ const ManagedRegisterEntrySpills& Arm64ManagedRuntimeCallingConvention::EntrySpi
 // JNI calling convention
 
 Arm64JniCallingConvention::Arm64JniCallingConvention(bool is_static, bool is_synchronized,
-                                                 const char* shorty)
-    : JniCallingConvention(is_static, is_synchronized, shorty) {
+                                                     const char* shorty)
+    : JniCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {
   // TODO This needs to be converted to 64bit.
   // Compute padding to ensure longs and doubles are not split in AAPCS. Ignore the 'this' jobject
   // or jclass for static methods and the JNIEnv. We start at the aligned register r2.
@@ -135,7 +135,7 @@ Arm64JniCallingConvention::Arm64JniCallingConvention(bool is_static, bool is_syn
 //    }
 //    cur_reg++;  // bump the iterator for every argument
 //  }
-//  padding_ =0;
+  padding_ =0;
 
   callee_save_regs_.push_back(Arm64ManagedRegister::FromCoreRegister(X19));
   callee_save_regs_.push_back(Arm64ManagedRegister::FromCoreRegister(X20));
@@ -173,15 +173,15 @@ ManagedRegister Arm64JniCallingConvention::ReturnScratchRegister() const {
 
 size_t Arm64JniCallingConvention::FrameSize() {
   // Method*, LR and callee save area size, local reference segment state
-  size_t frame_data_size = (3 + CalleeSaveRegisters().size()) * kPointerSize;
+  size_t frame_data_size = (3 + CalleeSaveRegisters().size()) * kFramePointerSize;
   // References plus 2 words for SIRT header
-  size_t sirt_size = (ReferenceCount() + 2) * kPointerSize;
+  size_t sirt_size = (ReferenceCount() + 2) * sirt_pointer_size_;
   // Plus return value spill area size
   return RoundUp(frame_data_size + sirt_size + SizeOfReturnValue(), kStackAlignment);
 }
 
 size_t Arm64JniCallingConvention::OutArgSize() {
-  return RoundUp(NumberOfOutgoingStackArgs() * kPointerSize + padding_,
+  return RoundUp(NumberOfOutgoingStackArgs() * kFramePointerSize + padding_,
                  kStackAlignment);
 }
 
@@ -228,7 +228,7 @@ ManagedRegister Arm64JniCallingConvention::CurrentParamRegister() {
 
 FrameOffset Arm64JniCallingConvention::CurrentParamStackOffset() {
   CHECK_GE(itr_slots_, 4u);
-  size_t offset = displacement_.Int32Value() - OutArgSize() + ((itr_slots_ - 4) * kPointerSize);
+  size_t offset = displacement_.Int32Value() - OutArgSize() + ((itr_slots_ - 4) * kFramePointerSize);
   CHECK_LT(offset, OutArgSize());
   return FrameOffset(offset);
 }

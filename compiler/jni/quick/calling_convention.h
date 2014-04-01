@@ -24,7 +24,7 @@
 
 namespace art {
 
-// Top-level abstraction for different calling conventions
+// Top-level abstraction for different calling conventions.
 class CallingConvention {
  public:
   bool IsReturnAReference() const { return shorty_[0] == 'L'; }
@@ -46,8 +46,10 @@ class CallingConvention {
   // Register reserved for scratch usage during procedure calls.
   virtual ManagedRegister InterproceduralScratchRegister() = 0;
 
-  // Offset of Method within the frame
-  FrameOffset MethodStackOffset();
+  // Offset of Method within the frame.
+  FrameOffset MethodStackOffset() {
+    return displacement_;
+  }
 
   // Iterator interface
 
@@ -66,8 +68,13 @@ class CallingConvention {
   virtual ~CallingConvention() {}
 
  protected:
-  CallingConvention(bool is_static, bool is_synchronized, const char* shorty)
-      : displacement_(0), kSirtPointerSize(sizeof(StackReference<mirror::Object>)), is_static_(is_static), is_synchronized_(is_synchronized),
+  CallingConvention(bool is_static, bool is_synchronized, const char* shorty,
+                    size_t frame_pointer_size)
+      : itr_slots_(0), itr_refs_(0), itr_args_(0), itr_longs_and_doubles_(0),
+        itr_float_and_doubles_(0), displacement_(0),
+        frame_pointer_size_(frame_pointer_size),
+        sirt_pointer_size_(sizeof(StackReference<mirror::Object>)),
+        is_static_(is_static), is_synchronized_(is_synchronized),
         shorty_(shorty) {
     num_args_ = (is_static ? 0 : 1) + strlen(shorty) - 1;
     num_ref_args_ = is_static ? 0 : 1;  // The implicit this pointer.
@@ -145,7 +152,7 @@ class CallingConvention {
     if (IsStatic()) {
       param++;  // 0th argument must skip return value at start of the shorty
     } else if (param == 0) {
-      return kPointerSize;  // this argument
+      return frame_pointer_size_;  // this argument
     }
     size_t result = Primitive::ComponentSize(Primitive::GetType(shorty_[param]));
     if (result >= 1 && result < 4) {
@@ -160,17 +167,20 @@ class CallingConvention {
   // Note that each slot is 32-bit. When the current argument is bigger
   // than 32 bits, return the first slot number for this argument.
   unsigned int itr_slots_;
-  // The number of references iterated past
+  // The number of references iterated past.
   unsigned int itr_refs_;
-  // The argument number along argument list for current argument
+  // The argument number along argument list for current argument.
   unsigned int itr_args_;
-  // Number of longs and doubles seen along argument list
+  // Number of longs and doubles seen along argument list.
   unsigned int itr_longs_and_doubles_;
-  // Number of float and doubles seen along argument list
+  // Number of float and doubles seen along argument list.
   unsigned int itr_float_and_doubles_;
-  // Space for frames below this on the stack
+  // Space for frames below this on the stack.
   FrameOffset displacement_;
-  size_t kSirtPointerSize;
+  // The size of a reference.
+  const size_t frame_pointer_size_;
+  // The size of a reference entry within the SIRT.
+  const size_t sirt_pointer_size_;
 
  private:
   const bool is_static_;
@@ -218,8 +228,9 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
   virtual const ManagedRegisterEntrySpills& EntrySpills() = 0;
 
  protected:
-  ManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty)
-      : CallingConvention(is_static, is_synchronized, shorty) {}
+  ManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty,
+                                  size_t frame_pointer_size)
+      : CallingConvention(is_static, is_synchronized, shorty, frame_pointer_size) {}
 };
 
 // Abstraction for JNI calling conventions
@@ -283,8 +294,7 @@ class JniCallingConvention : public CallingConvention {
 
   // Position of SIRT and interior fields
   FrameOffset SirtOffset() const {
-    return FrameOffset(displacement_.Int32Value() +
-                       kPointerSize);  // above Method*
+    return FrameOffset(this->displacement_.Int32Value() + frame_pointer_size_);  // above Method*
   }
 
   FrameOffset SirtLinkOffset() const {
@@ -311,8 +321,9 @@ class JniCallingConvention : public CallingConvention {
     kObjectOrClass = 1
   };
 
-  explicit JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty)
-      : CallingConvention(is_static, is_synchronized, shorty) {}
+  explicit JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty,
+                                size_t frame_pointer_size)
+      : CallingConvention(is_static, is_synchronized, shorty, frame_pointer_size) {}
 
   // Number of stack slots for outgoing arguments, above which the SIRT is
   // located

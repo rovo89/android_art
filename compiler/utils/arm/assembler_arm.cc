@@ -1436,6 +1436,8 @@ void ArmAssembler::Rrx(Register rd, Register rm, Condition cond) {
   mov(rd, ShifterOperand(rm, ROR, 0), cond);
 }
 
+constexpr size_t kFramePointerSize = 4;
+
 void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                               const std::vector<ManagedRegister>& callee_save_regs,
                               const ManagedRegisterEntrySpills& entry_spills) {
@@ -1453,8 +1455,8 @@ void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   PushList(push_list);
 
   // Increase frame to required size.
-  CHECK_GT(frame_size, pushed_values * kPointerSize);  // Must be at least space to push Method*
-  size_t adjust = frame_size - (pushed_values * kPointerSize);
+  CHECK_GT(frame_size, pushed_values * kFramePointerSize);  // Must at least have space for Method*.
+  size_t adjust = frame_size - (pushed_values * kFramePointerSize);
   IncreaseFrameSize(adjust);
 
   // Write out Method*.
@@ -1463,7 +1465,7 @@ void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   // Write out entry spills.
   for (size_t i = 0; i < entry_spills.size(); ++i) {
     Register reg = entry_spills.at(i).AsArm().AsCoreRegister();
-    StoreToOffset(kStoreWord, reg, SP, frame_size + kPointerSize + (i * kPointerSize));
+    StoreToOffset(kStoreWord, reg, SP, frame_size + kFramePointerSize + (i * kFramePointerSize));
   }
 }
 
@@ -1480,8 +1482,8 @@ void ArmAssembler::RemoveFrame(size_t frame_size,
   }
 
   // Decrease frame to start of callee saves
-  CHECK_GT(frame_size, pop_values * kPointerSize);
-  size_t adjust = frame_size - (pop_values * kPointerSize);
+  CHECK_GT(frame_size, pop_values * kFramePointerSize);
+  size_t adjust = frame_size - (pop_values * kFramePointerSize);
   DecreaseFrameSize(adjust);
 
   // Pop callee saves and PC
