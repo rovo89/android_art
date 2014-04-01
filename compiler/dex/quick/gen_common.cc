@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #include "dex/compiler_ir.h"
 #include "dex/compiler_internals.h"
 #include "dex/quick/arm/arm_lir.h"
@@ -1084,6 +1083,7 @@ void Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, Re
     OpRegReg(kOpCmp, check_class, object_class);  // Same?
     OpIT(kCondEq, "");   // if-convert the test
     LoadConstant(result_reg, 1);     // .eq case - load true
+    GenBarrier();
   } else {
     ne_branchover = OpCmpBranch(kCondNe, check_class, object_class, NULL);
     LoadConstant(result_reg, 1);     // eq case - load true
@@ -1168,6 +1168,7 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
       OpIT(kCondEq, "E");   // if-convert the test
       LoadConstant(rl_result.reg, 1);     // .eq case - load true
       LoadConstant(rl_result.reg, 0);     // .ne case - load false
+      GenBarrier();
     } else {
       LoadConstant(rl_result.reg, 0);     // ne case - load false
       branchover = OpCmpBranch(kCondNe, TargetReg(kArg1), TargetReg(kArg2), NULL);
@@ -1184,6 +1185,7 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
       }
       OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));    // .ne case - arg0 <= class
       OpReg(kOpBlx, r_tgt);    // .ne case: helper(class, ref->class)
+      GenBarrier();
       FreeTemp(r_tgt);
     } else {
       if (!type_known_abstract) {

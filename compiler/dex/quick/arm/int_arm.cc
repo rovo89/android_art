@@ -816,6 +816,8 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
 
   // Still one conditional left from OpIT(kCondEq, "T") from either branch
   OpRegImm(kOpCmp /* eq */, r_tmp, 1);
+  GenBarrier();
+
   OpCondBranch(kCondEq, target);
 
   if (!load_early) {
@@ -829,6 +831,7 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   OpIT(kCondUlt, "");
   LoadConstant(rl_result.reg, 0); /* cc */
   FreeTemp(r_tmp);  // Now unneeded.
+  GenBarrier();     // Barrier to terminate OpIT.
 
   StoreValue(rl_dest, rl_result);
 
