@@ -814,6 +814,7 @@ class Mir2Lir : public Backend {
     // Required for target - codegen helpers.
     virtual bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div,
                                     RegLocation rl_src, RegLocation rl_dest, int lit) = 0;
+    virtual bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) = 0;
     virtual LIR* CheckSuspendUsingLoad() = 0;
     virtual RegStorage LoadHelper(ThreadOffset<4> offset) = 0;
     virtual LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
