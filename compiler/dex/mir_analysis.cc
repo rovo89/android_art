@@ -1013,7 +1013,7 @@ bool MIRGraph::SkipCompilation() {
     return true;
   }
 
-  if (compiler_filter == CompilerOptions::kInterpretOnly || compiler_filter == CompilerOptions::kProfiled) {
+  if (!compiler_options.IsCompilationEnabled() || compiler_filter == CompilerOptions::kProfiled) {
     return true;
   }
 
