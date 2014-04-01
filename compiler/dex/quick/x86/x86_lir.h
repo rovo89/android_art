@@ -106,12 +106,9 @@ namespace art {
 #define X86_FP_REG_OFFSET 32
 // Offset to distinguish DP FP regs.
 #define X86_FP_DOUBLE (X86_FP_REG_OFFSET + 16)
-// Offset to distingish the extra regs.
-#define X86_EXTRA_REG_OFFSET (X86_FP_DOUBLE + 16)
 // Reg types.
 #define X86_REGTYPE(x) (x & (X86_FP_REG_OFFSET | X86_FP_DOUBLE))
 #define X86_FPREG(x) ((x & X86_FP_REG_OFFSET) == X86_FP_REG_OFFSET)
-#define X86_EXTRAREG(x) ((x & X86_EXTRA_REG_OFFSET) == X86_EXTRA_REG_OFFSET)
 #define X86_DOUBLEREG(x) ((x & X86_FP_DOUBLE) == X86_FP_DOUBLE)
 #define X86_SINGLEREG(x) (X86_FPREG(x) && !X86_DOUBLEREG(x))
 
@@ -135,7 +132,6 @@ enum X86ResourceEncodingPos {
   kX86RegEnd   = kX86FPStack,
 };
 
-#define ENCODE_X86_REG_LIST(N)      (static_cast<uint64_t>(N))
 #define ENCODE_X86_REG_SP           (1ULL << kX86RegSP)
 #define ENCODE_X86_FP_STACK         (1ULL << kX86FPStack)
 

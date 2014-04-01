@@ -143,9 +143,9 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
                  kFmtUnused, -1, -1, IS_BINARY_OP | IS_BRANCH | REG_USE01 |
                  NEEDS_FIXUP, "bne", "!0r,!1r,!2t!0N", 8),
     ENCODING_MAP(kMipsDiv, 0x0000001a,
-                 kFmtUnused, -1, -1, kFmtUnused, -1, -1, kFmtBitBlt, 25, 21,
-                 kFmtBitBlt, 20, 16, IS_QUAD_OP | REG_DEF01 | REG_USE23,
-                 "div", "!2r,!3r", 4),
+                 kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF_HI | REG_DEF_LO | REG_USE01,
+                 "div", "!0r,!1r", 4),
 #if __mips_isa_rev >= 2
     ENCODING_MAP(kMipsExt, 0x7c000000,
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 25, 21, kFmtBitBlt, 10, 6,
@@ -198,11 +198,11 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
                  "lw", "!0r,!1d(!2r)", 4),
     ENCODING_MAP(kMipsMfhi, 0x00000010,
                  kFmtBitBlt, 15, 11, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
+                 kFmtUnused, -1, -1, IS_UNARY_OP | REG_DEF0 | REG_USE_HI,
                  "mfhi", "!0r", 4),
     ENCODING_MAP(kMipsMflo, 0x00000012,
                  kFmtBitBlt, 15, 11, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
+                 kFmtUnused, -1, -1, IS_UNARY_OP | REG_DEF0 | REG_USE_LO,
                  "mflo", "!0r", 4),
     ENCODING_MAP(kMipsMove, 0x00000025, /* or using zero reg */
                  kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtUnused, -1, -1,
