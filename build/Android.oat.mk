@@ -31,12 +31,15 @@ TARGET_CORE_DEX_FILES := $(foreach jar,$(TARGET_CORE_JARS),$(call intermediates-
 
 HOST_CORE_OAT := $(HOST_OUT_JAVA_LIBRARIES)/core.oat
 TARGET_CORE_OAT := $(ART_TEST_DIR)/core.oat
+2ND_TARGET_CORE_OAT := $(2ND_ART_TEST_DIR)/core.oat
 
 HOST_CORE_OAT_OUT := $(HOST_OUT_JAVA_LIBRARIES)/core.oat
 TARGET_CORE_OAT_OUT := $(ART_TEST_OUT)/core.oat
+2ND_TARGET_CORE_OAT_OUT := $(2ND_ART_TEST_OUT)/core.oat
 
 HOST_CORE_IMG_OUT := $(HOST_OUT_JAVA_LIBRARIES)/core.art
 TARGET_CORE_IMG_OUT := $(ART_TEST_OUT)/core.art
+2ND_TARGET_CORE_IMG_OUT := $(2ND_ART_TEST_OUT)/core.art
 
 TARGET_INSTRUCTION_SET_FEATURES := $(DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES)
 
@@ -48,17 +51,25 @@ $(HOST_CORE_IMG_OUT): $(HOST_CORE_DEX_FILES) $(DEX2OAT_DEPENDENCY)
 		--oat-location=$(HOST_CORE_OAT) --image=$(HOST_CORE_IMG_OUT) --base=$(LIBART_IMG_HOST_BASE_ADDRESS) \
 		--instruction-set=$(ART_HOST_ARCH) --host --android-root=$(HOST_OUT)
 
-$(TARGET_CORE_IMG_OUT): $(TARGET_CORE_DEX_FILES) $(DEX2OAT_DEPENDENCY)
-	@echo "target dex2oat: $@ ($?)"
-	@mkdir -p $(dir $@)
-	$(hide) $(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix \
-		--dex-file=,$(TARGET_CORE_DEX_FILES)) $(addprefix --dex-location=,$(TARGET_CORE_DEX_LOCATIONS)) --oat-file=$(TARGET_CORE_OAT_OUT) \
-		--oat-location=$(TARGET_CORE_OAT) --image=$(TARGET_CORE_IMG_OUT) --base=$(LIBART_IMG_TARGET_BASE_ADDRESS) \
-		--instruction-set=$(TARGET_ARCH) --instruction-set-features=$(TARGET_INSTRUCTION_SET_FEATURES) --android-root=$(PRODUCT_OUT)/system
-
 $(HOST_CORE_OAT_OUT): $(HOST_CORE_IMG_OUT)
 
-$(TARGET_CORE_OAT_OUT): $(TARGET_CORE_IMG_OUT)
+define create-oat-target-targets
+$$($(1)TARGET_CORE_IMG_OUT): $$($(1)TARGET_CORE_DEX_FILES) $$(DEX2OAT_DEPENDENCY)
+	@echo "target dex2oat: $$@ ($$?)"
+	@mkdir -p $$(dir $$@)
+	$$(hide) $$(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$$(PRELOADED_CLASSES) $$(addprefix \
+		--dex-file=,$$(TARGET_CORE_DEX_FILES)) $$(addprefix --dex-location=,$$(TARGET_CORE_DEX_LOCATIONS)) --oat-file=$$($(1)TARGET_CORE_OAT_OUT) \
+		--oat-location=$$($(1)TARGET_CORE_OAT) --image=$$($(1)TARGET_CORE_IMG_OUT) --base=$$(LIBART_IMG_TARGET_BASE_ADDRESS) \
+		--instruction-set=$$($(1)TARGET_ARCH) --instruction-set-features=$$(TARGET_INSTRUCTION_SET_FEATURES) --android-root=$$(PRODUCT_OUT)/system
+
+$$($(1)TARGET_CORE_OAT_OUT): $$($(1)TARGET_CORE_IMG_OUT)
+endef
+
+ifdef TARGET_2ND_ARCH
+$(eval $(call create-oat-target-targets,2ND_))
+endif
+$(eval $(call create-oat-target-targets,))
+
 
 ifeq ($(ART_BUILD_HOST),true)
 include $(CLEAR_VARS)
