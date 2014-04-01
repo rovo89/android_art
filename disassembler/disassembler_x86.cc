@@ -849,9 +849,13 @@ DISASSEMBLER_ENTRY(cmp,
     }
     args << StringPrintf("%+d (%p)", displacement, instr + displacement);
   }
-  if (prefix[1] == kFs) {
+  if (prefix[1] == kFs && !supports_rex_) {
     args << "  ; ";
-    Thread::DumpThreadOffset(args, address_bits, 4);
+    Thread::DumpThreadOffset<4>(args, address_bits);
+  }
+  if (prefix[1] == kGs && supports_rex_) {
+    args << "  ; ";
+    Thread::DumpThreadOffset<8>(args, address_bits);
   }
   std::stringstream hex;
   for (size_t i = 0; begin_instr + i < instr; ++i) {

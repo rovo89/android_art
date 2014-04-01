@@ -20,9 +20,8 @@
 #include "base/macros.h"
 #include "offsets.h"
 
-#define JNI_ENTRYPOINT_OFFSET(x) \
-    ThreadOffset(static_cast<uintptr_t>(OFFSETOF_MEMBER(Thread, jni_entrypoints_)) + \
-                 static_cast<uintptr_t>(OFFSETOF_MEMBER(JniEntryPoints, x)))
+#define JNI_ENTRYPOINT_OFFSET(ptr_size, x) \
+    Thread::JniEntryPointOffset<ptr_size>(OFFSETOF_MEMBER(JniEntryPoints, x))
 
 namespace art {
 

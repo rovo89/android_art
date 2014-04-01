@@ -23,13 +23,13 @@
 #define rSUSPEND r4
 // Register holding Thread::Current().
 #define rSELF r9
-// Offset of field Thread::suspend_count_ verified in InitCpu
+// Offset of field Thread::tls32_.state_and_flags verified in InitCpu
 #define THREAD_FLAGS_OFFSET 0
-// Offset of field Thread::card_table_ verified in InitCpu
-#define THREAD_CARD_TABLE_OFFSET 8
-// Offset of field Thread::exception_ verified in InitCpu
-#define THREAD_EXCEPTION_OFFSET 12
-// Offset of field Thread::thin_lock_thread_id_ verified in InitCpu
-#define THREAD_ID_OFFSET 60
+// Offset of field Thread::tls32_.thin_lock_thread_id verified in InitCpu
+#define THREAD_ID_OFFSET 12
+// Offset of field Thread::tlsPtr_.card_table verified in InitCpu
+#define THREAD_CARD_TABLE_OFFSET 112
+// Offset of field Thread::tlsPtr_.exception verified in InitCpu
+#define THREAD_EXCEPTION_OFFSET 116
 
 #endif  // ART_RUNTIME_ARCH_ARM_ASM_SUPPORT_ARM_H_

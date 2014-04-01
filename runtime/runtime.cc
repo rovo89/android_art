@@ -576,7 +576,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   // objects. We can't supply a thread group yet; it will be fixed later. Since we are the main
   // thread, we do not get a java peer.
   Thread* self = Thread::Attach("main", false, NULL, false);
-  CHECK_EQ(self->thin_lock_thread_id_, ThreadList::kMainThreadId);
+  CHECK_EQ(self->GetThreadId(), ThreadList::kMainThreadId);
   CHECK(self != NULL);
 
   // Set us to runnable so tools using a runtime can allocate and GC by default

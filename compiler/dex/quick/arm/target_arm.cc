@@ -727,14 +727,14 @@ void ArmMir2Lir::FreeCallTemps() {
   FreeTemp(r3);
 }
 
-RegStorage ArmMir2Lir::LoadHelper(ThreadOffset offset) {
+RegStorage ArmMir2Lir::LoadHelper(ThreadOffset<4> offset) {
   LoadWordDisp(rs_rARM_SELF, offset.Int32Value(), rs_rARM_LR);
   return rs_rARM_LR;
 }
 
 LIR* ArmMir2Lir::CheckSuspendUsingLoad() {
   RegStorage tmp = rs_r0;
-  LoadWordDisp(rs_rARM_SELF, Thread::ThreadSuspendTriggerOffset().Int32Value(), tmp);
+  LoadWordDisp(rs_rARM_SELF, Thread::ThreadSuspendTriggerOffset<4>().Int32Value(), tmp);
   LIR* load2 = LoadWordDisp(tmp, 0, tmp);
   return load2;
 }

@@ -122,4 +122,78 @@ Assembler* Assembler::Create(InstructionSet instruction_set) {
   }
 }
 
+void Assembler::StoreImmediateToThread32(ThreadOffset<4> dest, uint32_t imm,
+                                         ManagedRegister scratch) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void Assembler::StoreImmediateToThread64(ThreadOffset<8> dest, uint32_t imm,
+                                         ManagedRegister scratch) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void Assembler::StoreStackOffsetToThread32(ThreadOffset<4> thr_offs,
+                                           FrameOffset fr_offs,
+                                           ManagedRegister scratch) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void Assembler::StoreStackOffsetToThread64(ThreadOffset<8> thr_offs,
+                                           FrameOffset fr_offs,
+                                           ManagedRegister scratch) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void Assembler::StoreStackPointerToThread32(ThreadOffset<4> thr_offs) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void Assembler::StoreStackPointerToThread64(ThreadOffset<8> thr_offs) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void Assembler::LoadFromThread32(ManagedRegister dest, ThreadOffset<4> src, size_t size) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void Assembler::LoadFromThread64(ManagedRegister dest, ThreadOffset<8> src, size_t size) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void Assembler::LoadRawPtrFromThread32(ManagedRegister dest, ThreadOffset<4> offs) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void Assembler::LoadRawPtrFromThread64(ManagedRegister dest, ThreadOffset<8> offs) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void Assembler::CopyRawPtrFromThread32(FrameOffset fr_offs, ThreadOffset<4> thr_offs,
+                                       ManagedRegister scratch) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void Assembler::CopyRawPtrFromThread64(FrameOffset fr_offs, ThreadOffset<8> thr_offs,
+                                       ManagedRegister scratch) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void Assembler::CopyRawPtrToThread32(ThreadOffset<4> thr_offs, FrameOffset fr_offs,
+                                     ManagedRegister scratch) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void Assembler::CopyRawPtrToThread64(ThreadOffset<8> thr_offs, FrameOffset fr_offs,
+                                     ManagedRegister scratch) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void Assembler::CallFromThread32(ThreadOffset<4> offset, ManagedRegister scratch) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void Assembler::CallFromThread64(ThreadOffset<8> offset, ManagedRegister scratch) {
+  UNIMPLEMENTED(FATAL);
+}
+
 }  // namespace art

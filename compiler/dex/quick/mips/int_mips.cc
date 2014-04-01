@@ -270,7 +270,7 @@ void MipsMir2Lir::OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int
   LOG(FATAL) << "Unexpected use of OpLea for Arm";
 }
 
-void MipsMir2Lir::OpTlsCmp(ThreadOffset offset, int val) {
+void MipsMir2Lir::OpTlsCmp(ThreadOffset<4> offset, int val) {
   LOG(FATAL) << "Unexpected use of OpTlsCmp for Arm";
 }
 

@@ -213,7 +213,7 @@ uint64_t BumpPointerSpace::GetBytesAllocated() {
   // since there can exist multiple bump pointer spaces which exist at the same time.
   if (num_blocks_ > 0) {
     for (Thread* thread : thread_list) {
-      total += thread->thread_local_pos_ - thread->thread_local_start_;
+      total += thread->GetThreadLocalBytesAllocated();
     }
   }
   return total;
@@ -231,15 +231,15 @@ uint64_t BumpPointerSpace::GetObjectsAllocated() {
   // since there can exist multiple bump pointer spaces which exist at the same time.
   if (num_blocks_ > 0) {
     for (Thread* thread : thread_list) {
-      total += thread->thread_local_objects_;
+      total += thread->GetThreadLocalObjectsAllocated();
     }
   }
   return total;
 }
 
 void BumpPointerSpace::RevokeThreadLocalBuffersLocked(Thread* thread) {
-  objects_allocated_.FetchAndAdd(thread->thread_local_objects_);
-  bytes_allocated_.FetchAndAdd(thread->thread_local_pos_ - thread->thread_local_start_);
+  objects_allocated_.FetchAndAdd(thread->GetThreadLocalObjectsAllocated());
+  bytes_allocated_.FetchAndAdd(thread->GetThreadLocalBytesAllocated());
   thread->SetTlab(nullptr, nullptr);
 }
 

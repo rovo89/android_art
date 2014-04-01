@@ -294,6 +294,7 @@ endif # HOST_ARCH != x86
 
 
 LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
+	arch/x86_64/registers_x86_64.h \
 	base/mutex.h \
 	dex_file.h \
 	dex_instruction.h \

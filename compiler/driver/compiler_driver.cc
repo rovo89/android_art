@@ -336,6 +336,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
       compiler_(Compiler::Create(compiler_kind)),
       instruction_set_(instruction_set),
       instruction_set_features_(instruction_set_features),
+      instruction_set_is_64_bit_(instruction_set == kX86_64 || instruction_set == kArm64),
       freezing_constructor_lock_("freezing constructor lock"),
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
@@ -443,54 +444,55 @@ CompilerTls* CompilerDriver::GetTls() {
   return res;
 }
 
+#define CREATE_TRAMPOLINE(type, abi, offset) \
+    if (instruction_set_is_64_bit_) { \
+      return CreateTrampoline64(instruction_set_, abi, \
+                                type ## _ENTRYPOINT_OFFSET(8, offset)); \
+    } else { \
+      return CreateTrampoline32(instruction_set_, abi, \
+                                type ## _ENTRYPOINT_OFFSET(4, offset)); \
+    }
+
 const std::vector<uint8_t>* CompilerDriver::CreateInterpreterToInterpreterBridge() const {
-  return CreateTrampoline(instruction_set_, kInterpreterAbi,
-                          INTERPRETER_ENTRYPOINT_OFFSET(pInterpreterToInterpreterBridge));
+  CREATE_TRAMPOLINE(INTERPRETER, kInterpreterAbi, pInterpreterToInterpreterBridge)
 }
 
 const std::vector<uint8_t>* CompilerDriver::CreateInterpreterToCompiledCodeBridge() const {
-  return CreateTrampoline(instruction_set_, kInterpreterAbi,
-                          INTERPRETER_ENTRYPOINT_OFFSET(pInterpreterToCompiledCodeBridge));
+  CREATE_TRAMPOLINE(INTERPRETER, kInterpreterAbi, pInterpreterToCompiledCodeBridge)
 }
 
 const std::vector<uint8_t>* CompilerDriver::CreateJniDlsymLookup() const {
-  return CreateTrampoline(instruction_set_, kJniAbi, JNI_ENTRYPOINT_OFFSET(pDlsymLookup));
+  CREATE_TRAMPOLINE(JNI, kJniAbi, pDlsymLookup)
 }
 
 const std::vector<uint8_t>* CompilerDriver::CreatePortableImtConflictTrampoline() const {
-  return CreateTrampoline(instruction_set_, kPortableAbi,
-                          PORTABLE_ENTRYPOINT_OFFSET(pPortableImtConflictTrampoline));
+  CREATE_TRAMPOLINE(PORTABLE, kPortableAbi, pPortableImtConflictTrampoline)
 }
 
 const std::vector<uint8_t>* CompilerDriver::CreatePortableResolutionTrampoline() const {
-  return CreateTrampoline(instruction_set_, kPortableAbi,
-                          PORTABLE_ENTRYPOINT_OFFSET(pPortableResolutionTrampoline));
+  CREATE_TRAMPOLINE(PORTABLE, kPortableAbi, pPortableResolutionTrampoline)
 }
 
 const std::vector<uint8_t>* CompilerDriver::CreatePortableToInterpreterBridge() const {
-  return CreateTrampoline(instruction_set_, kPortableAbi,
-                          PORTABLE_ENTRYPOINT_OFFSET(pPortableToInterpreterBridge));
+  CREATE_TRAMPOLINE(PORTABLE, kPortableAbi, pPortableToInterpreterBridge)
 }
 
 const std::vector<uint8_t>* CompilerDriver::CreateQuickGenericJniTrampoline() const {
-  return CreateTrampoline(instruction_set_, kQuickAbi,
-                          QUICK_ENTRYPOINT_OFFSET(pQuickGenericJniTrampoline));
+  CREATE_TRAMPOLINE(QUICK, kQuickAbi, pQuickGenericJniTrampoline)
 }
 
 const std::vector<uint8_t>* CompilerDriver::CreateQuickImtConflictTrampoline() const {
-  return CreateTrampoline(instruction_set_, kQuickAbi,
-                          QUICK_ENTRYPOINT_OFFSET(pQuickImtConflictTrampoline));
+  CREATE_TRAMPOLINE(QUICK, kQuickAbi, pQuickImtConflictTrampoline)
 }
 
 const std::vector<uint8_t>* CompilerDriver::CreateQuickResolutionTrampoline() const {
-  return CreateTrampoline(instruction_set_, kQuickAbi,
-                          QUICK_ENTRYPOINT_OFFSET(pQuickResolutionTrampoline));
+  CREATE_TRAMPOLINE(QUICK, kQuickAbi, pQuickResolutionTrampoline)
 }
 
 const std::vector<uint8_t>* CompilerDriver::CreateQuickToInterpreterBridge() const {
-  return CreateTrampoline(instruction_set_, kQuickAbi,
-                          QUICK_ENTRYPOINT_OFFSET(pQuickToInterpreterBridge));
+  CREATE_TRAMPOLINE(QUICK, kQuickAbi, pQuickToInterpreterBridge)
 }
+#undef CREATE_TRAMPOLINE
 
 void CompilerDriver::CompileAll(jobject class_loader,
                                 const std::vector<const DexFile*>& dex_files,

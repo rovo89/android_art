@@ -30,7 +30,7 @@ class X86Mir2Lir : public Mir2Lir {
     bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div, RegLocation rl_src,
                             RegLocation rl_dest, int lit);
     LIR* CheckSuspendUsingLoad() OVERRIDE;
-    RegStorage LoadHelper(ThreadOffset offset);
+    RegStorage LoadHelper(ThreadOffset<4> offset);
     LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
                       int s_reg);
     LIR* LoadBaseDispWide(RegStorage r_base, int displacement, RegStorage r_dest, int s_reg);
@@ -245,14 +245,14 @@ class X86Mir2Lir : public Mir2Lir {
     LIR* OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, int value);
     LIR* OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2);
     LIR* OpTestSuspend(LIR* target);
-    LIR* OpThreadMem(OpKind op, ThreadOffset thread_offset);
+    LIR* OpThreadMem(OpKind op, ThreadOffset<4> thread_offset);
     LIR* OpVldm(RegStorage r_base, int count);
     LIR* OpVstm(RegStorage r_base, int count);
     void OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int scale, int offset);
     void OpRegCopyWide(RegStorage dest, RegStorage src);
-    void OpTlsCmp(ThreadOffset offset, int val);
+    void OpTlsCmp(ThreadOffset<4> offset, int val);
 
-    void OpRegThreadMem(OpKind op, int r_dest, ThreadOffset thread_offset);
+    void OpRegThreadMem(OpKind op, int r_dest, ThreadOffset<4> thread_offset);
     void SpillCoreRegs();
     void UnSpillCoreRegs();
     static const X86EncodingMap EncodingMap[kX86Last];

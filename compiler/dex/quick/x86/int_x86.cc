@@ -742,7 +742,7 @@ void X86Mir2Lir::OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int 
   NewLIR5(kX86Lea32RA, r_base.GetReg(), reg1.GetReg(), reg2.GetReg(), scale, offset);
 }
 
-void X86Mir2Lir::OpTlsCmp(ThreadOffset offset, int val) {
+void X86Mir2Lir::OpTlsCmp(ThreadOffset<4> offset, int val) {
   NewLIR2(kX86Cmp16TI8, offset.Int32Value(), val);
 }
 
@@ -893,7 +893,7 @@ void X86Mir2Lir::GenDivZeroCheck(RegStorage reg) {
 
 // Test suspend flag, return target of taken suspend branch
 LIR* X86Mir2Lir::OpTestSuspend(LIR* target) {
-  OpTlsCmp(Thread::ThreadFlagsOffset(), 0);
+  OpTlsCmp(Thread::ThreadFlagsOffset<4>(), 0);
   return OpCondBranch((target == NULL) ? kCondNe : kCondEq, target);
 }
 
@@ -1293,7 +1293,7 @@ void X86Mir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   StoreValueWide(rl_dest, rl_result);
 }
 
-void X86Mir2Lir::OpRegThreadMem(OpKind op, int r_dest, ThreadOffset thread_offset) {
+void X86Mir2Lir::OpRegThreadMem(OpKind op, int r_dest, ThreadOffset<4> thread_offset) {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
   case kOpCmp: opcode = kX86Cmp32RT;  break;
@@ -1834,7 +1834,7 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
   if (needs_access_check) {
     // Check we have access to type_idx and if not throw IllegalAccessError,
     // Caller function returns Class* in kArg0.
-    CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(pInitializeTypeAndVerifyAccess),
+    CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(4, pInitializeTypeAndVerifyAccess),
                          type_idx, true);
     OpRegCopy(class_reg, TargetReg(kRet0));
     LoadValueDirectFixed(rl_src, TargetReg(kArg0));
@@ -1855,7 +1855,7 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
       // Need to test presence of type in dex cache at runtime.
       LIR* hop_branch = OpCmpImmBranch(kCondNe, class_reg, 0, NULL);
       // Type is not resolved. Call out to helper, which will return resolved type in kRet0/kArg0.
-      CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(pInitializeType), type_idx, true);
+      CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(4, pInitializeType), type_idx, true);
       OpRegCopy(TargetReg(kArg2), TargetReg(kRet0));  // Align usage with fast path.
       LoadValueDirectFixed(rl_src, TargetReg(kArg0));  /* Reload Ref. */
       // Rejoin code paths
@@ -1889,7 +1889,7 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
       branchover = OpCmpBranch(kCondEq, TargetReg(kArg1), TargetReg(kArg2), NULL);
     }
     OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));
-    OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(pInstanceofNonTrivial));
+    OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(4, pInstanceofNonTrivial));
   }
   // TODO: only clobber when type isn't final?
   ClobberCallerSave();
