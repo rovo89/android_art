@@ -98,14 +98,19 @@ class StackIndirectReferenceTable {
             && (sirt_entry <= (&references_[number_of_references_ - 1])));
   }
 
+  // Offset of link within SIRT, used by generated code
+  static size_t LinkOffset() {
+    return OFFSETOF_MEMBER(StackIndirectReferenceTable, link_);
+  }
+
   // Offset of length within SIRT, used by generated code
   static uint32_t NumberOfReferencesOffset() {
     return OFFSETOF_MEMBER(StackIndirectReferenceTable, number_of_references_);
   }
 
   // Offset of link within SIRT, used by generated code
-  static size_t LinkOffset() {
-    return OFFSETOF_MEMBER(StackIndirectReferenceTable, link_);
+  static size_t ReferencesOffset() {
+    return OFFSETOF_MEMBER(StackIndirectReferenceTable, references_);
   }
 
  private:
