@@ -45,12 +45,13 @@ static uint32_t GetInstructionSize(uint8_t* pc) {
   return instr_size;
 }
 
-void FaultManager::GetMethodAndReturnPC(void* context, uintptr_t& method, uintptr_t& return_pc) {
+void FaultManager::GetMethodAndReturnPCAndSP(void* context, mirror::ArtMethod** out_method,
+                                             uintptr_t* out_return_pc, uintptr_t* out_sp) {
   struct ucontext *uc = (struct ucontext *)context;
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
-  uintptr_t* sp = reinterpret_cast<uint32_t*>(sc->arm_sp);
-  LOG(DEBUG) << "sp: " << sp;
-  if (sp == nullptr) {
+  *out_sp = static_cast<uintptr_t>(sc->arm_sp);
+  LOG(DEBUG) << "sp: " << *out_sp;
+  if (*out_sp == 0) {
     return;
   }
 
@@ -58,12 +59,12 @@ void FaultManager::GetMethodAndReturnPC(void* context, uintptr_t& method, uintpt
   // get the method from the top of the stack.  However it's in r0.
   uintptr_t* fault_addr = reinterpret_cast<uintptr_t*>(sc->fault_address);
   uintptr_t* overflow_addr = reinterpret_cast<uintptr_t*>(
-      reinterpret_cast<uint8_t*>(sp) - Thread::kStackOverflowReservedBytes);
+      reinterpret_cast<uint8_t*>(*out_sp) - Thread::kStackOverflowReservedBytes);
   if (overflow_addr == fault_addr) {
-    method = sc->arm_r0;
+    *out_method = reinterpret_cast<mirror::ArtMethod*>(sc->arm_r0);
   } else {
     // The method is at the top of the stack.
-    method = sp[0];
+    *out_method = reinterpret_cast<mirror::ArtMethod*>(reinterpret_cast<uintptr_t*>(*out_sp)[0]);
   }
 
   // Work out the return PC.  This will be the address of the instruction
@@ -76,7 +77,7 @@ void FaultManager::GetMethodAndReturnPC(void* context, uintptr_t& method, uintpt
   LOG(DEBUG) << "pc: " << std::hex << static_cast<void*>(ptr);
   uint32_t instr_size = GetInstructionSize(ptr);
 
-  return_pc = (sc->arm_pc + instr_size) | 1;
+  *out_return_pc = (sc->arm_pc + instr_size) | 1;
 }
 
 bool NullPointerHandler::Action(int sig, siginfo_t* info, void* context) {
@@ -87,7 +88,7 @@ bool NullPointerHandler::Action(int sig, siginfo_t* info, void* context) {
   // register in order to find the mapping.
 
   // Need to work out the size of the instruction that caused the exception.
-  struct ucontext *uc = (struct ucontext *)context;
+  struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
   uint8_t* ptr = reinterpret_cast<uint8_t*>(sc->arm_pc);
 
