@@ -30,6 +30,7 @@ endif
 # $(4): extra include directories
 # $(5): target or host
 # $(6): ndebug or debug
+# $(7): value for LOCAL_MULTILIB (empty means default)
 define build-art-executable
   ifneq ($(5),target)
     ifneq ($(5),host)
@@ -48,6 +49,7 @@ define build-art-executable
   art_c_includes := $(4)
   art_target_or_host := $(5)
   art_ndebug_or_debug := $(6)
+  art_multilib := $(7)
 
   include $(CLEAR_VARS)
   ifeq ($$(art_target_or_host),target)
@@ -98,6 +100,7 @@ define build-art-executable
 
   ifeq ($$(art_target_or_host),target)
     LOCAL_MODULE_TARGET_ARCH := $(ART_SUPPORTED_ARCH)
+    LOCAL_MULTILIB := $$(art_multilib)
   endif
 
   ifeq ($$(art_target_or_host),target)
