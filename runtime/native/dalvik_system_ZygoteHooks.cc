@@ -25,6 +25,8 @@
 #include <sys/prctl.h>
 #endif
 
+#include <sys/resource.h>
+
 namespace art {
 
 static void EnableDebugger() {
