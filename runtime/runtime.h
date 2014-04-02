@@ -378,7 +378,9 @@ class Runtime {
   void UpdateProfilerState(int state);
 
   // Transaction support.
-  bool IsActiveTransaction() const;
+  bool IsActiveTransaction() const {
+    return preinitialization_transaction_ != nullptr;
+  }
   void EnterTransactionMode(Transaction* transaction);
   void ExitTransactionMode();
   void RecordWriteField32(mirror::Object* obj, MemberOffset field_offset, uint32_t value,
@@ -550,7 +552,7 @@ class Runtime {
   bool dump_gc_performance_on_shutdown_;
 
   // Transaction used for pre-initializing classes at compilation time.
-  Transaction* preinitialization_transaction;
+  Transaction* preinitialization_transaction_;
   NullPointerHandler* null_pointer_handler_;
   SuspensionHandler* suspend_handler_;
   StackOverflowHandler* stack_overflow_handler_;

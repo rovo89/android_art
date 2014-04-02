@@ -84,19 +84,18 @@ void Transaction::RecordWriteFieldReference(mirror::Object* obj, MemberOffset fi
 void Transaction::RecordWriteArray(mirror::Array* array, size_t index, uint64_t value) {
   DCHECK(array != nullptr);
   DCHECK(array->IsArrayInstance());
+  DCHECK(!array->IsObjectArray());
   MutexLock mu(Thread::Current(), log_lock_);
   ArrayLog& array_log = array_logs_[array];
   array_log.LogValue(index, value);
 }
 
 void Transaction::RecordStrongStringInsertion(mirror::String* s, uint32_t hash_code) {
-  DCHECK(s != nullptr);
   InternStringLog log(s, hash_code, InternStringLog::kStrongString, InternStringLog::kInsert);
   LogInternedString(log);
 }
 
 void Transaction::RecordWeakStringInsertion(mirror::String* s, uint32_t hash_code) {
-  DCHECK(s != nullptr);
   InternStringLog log(s, hash_code, InternStringLog::kWeakString, InternStringLog::kInsert);
   LogInternedString(log);
 }
@@ -198,9 +197,7 @@ void Transaction::VisitArrayLogs(RootCallback* callback, void* arg) {
 
   for (auto it : array_logs_) {
     mirror::Array* old_root = it.first;
-    if (old_root->IsObjectArray()) {
-      it.second.VisitRoots(callback, arg);
-    }
+    CHECK(!old_root->IsObjectArray());
     mirror::Array* new_root = old_root;
     callback(reinterpret_cast<mirror::Object**>(&new_root), arg, 0, kRootUnknown);
     if (new_root != old_root) {
@@ -403,22 +400,11 @@ void Transaction::ArrayLog::UndoArrayWrite(mirror::Array* array, Primitive::Type
     case Primitive::kPrimDouble:
       array->AsDoubleArray()->SetWithoutChecks<false>(index, static_cast<double>(value));
       break;
-    case Primitive::kPrimNot: {
-      mirror::ObjectArray<mirror::Object>* obj_array = array->AsObjectArray<mirror::Object>();
-      obj_array->SetWithoutChecks<false>(index, reinterpret_cast<mirror::Object*>(
-          static_cast<uintptr_t>(value)));
+    case Primitive::kPrimNot:
+      LOG(FATAL) << "ObjectArray should be treated as Object";
       break;
-    }
     default:
       LOG(FATAL) << "Unsupported type " << array_type;
-  }
-}
-
-void Transaction::ArrayLog::VisitRoots(RootCallback* callback, void* arg) {
-  for (auto& it : array_values_) {
-    mirror::Object* obj = reinterpret_cast<mirror::Object*>(static_cast<uintptr_t>(it.second));
-    callback(&obj, arg, 0, kRootUnknown);
-    it.second = reinterpret_cast<uintptr_t>(obj);
   }
 }
 

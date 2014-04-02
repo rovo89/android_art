@@ -59,10 +59,11 @@ int32_t String::FastIndexOf(int32_t ch, int32_t start) {
   return -1;
 }
 
-template<bool kTransactionActive>
 void String::SetArray(CharArray* new_array) {
+  // Array is invariant so use non-transactional mode. Also disable check as we may run inside
+  // a transaction.
   DCHECK(new_array != NULL);
-  SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(String, array_), new_array, false);
+  SetFieldObject<false, false>(OFFSET_OF_OBJECT_MEMBER(String, array_), new_array, false);
 }
 
 // TODO: get global references for these
@@ -168,13 +169,8 @@ String* String::Alloc(Thread* self, const SirtRef<CharArray>& array) {
   // Hold reference in case AllocObject causes GC.
   String* string = down_cast<String*>(GetJavaLangString()->AllocObject(self));
   if (LIKELY(string != nullptr)) {
-    if (Runtime::Current()->IsActiveTransaction()) {
-      string->SetArray<true>(array.get());
-      string->SetCount<true>(array->GetLength());
-    } else {
-      string->SetArray<false>(array.get());
-      string->SetCount<false>(array->GetLength());
-    }
+    string->SetArray(array.get());
+    string->SetCount(array->GetLength());
   }
   return string;
 }

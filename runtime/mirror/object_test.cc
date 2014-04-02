@@ -425,8 +425,8 @@ TEST_F(ObjectTest, StringLength) {
   EXPECT_EQ(string->GetLength(), 7);
   EXPECT_EQ(string->GetUtfLength(), 7);
 
-  string->SetOffset<false>(2);
-  string->SetCount<false>(5);
+  string->SetOffset(2);
+  string->SetCount(5);
   EXPECT_TRUE(string->Equals("droid"));
   EXPECT_EQ(string->GetLength(), 5);
   EXPECT_EQ(string->GetUtfLength(), 5);

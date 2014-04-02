@@ -199,7 +199,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
     thread->PushShadowFrame(reinterpret_cast<ShadowFrame*>(&fake_stack[0]));
   }
 
-  jobject internal = thread->CreateInternalStackTrace(soa);
+  jobject internal = thread->CreateInternalStackTrace<false>(soa);
   ASSERT_TRUE(internal != NULL);
   jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(soa, internal);
   ASSERT_TRUE(ste_array != NULL);

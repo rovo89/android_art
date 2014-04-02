@@ -450,7 +450,8 @@ class Thread {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Create the internal representation of a stack trace, that is more time
-  // and space efficient to compute than the StackTraceElement[]
+  // and space efficient to compute than the StackTraceElement[].
+  template<bool kTransactionActive>
   jobject CreateInternalStackTrace(const ScopedObjectAccessUnchecked& soa) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
