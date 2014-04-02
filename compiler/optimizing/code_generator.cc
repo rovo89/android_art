@@ -112,6 +112,9 @@ CodeGenerator* CodeGenerator::Create(ArenaAllocator* allocator,
     case kX86: {
       return new (allocator) x86::CodeGeneratorX86(graph);
     }
+    case kX86_64: {
+      return new (allocator) x86::CodeGeneratorX86(graph);
+    }
     default:
       return nullptr;
   }
