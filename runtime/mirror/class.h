@@ -391,11 +391,8 @@ class MANAGED Class : public Object {
   void SetComponentType(Class* new_component_type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(GetComponentType() == NULL);
     DCHECK(new_component_type != NULL);
-    if (Runtime::Current()->IsActiveTransaction()) {
-      SetFieldObject<true>(ComponentTypeOffset(), new_component_type, false);
-    } else {
-      SetFieldObject<false>(ComponentTypeOffset(), new_component_type, false);
-    }
+    // Component type is invariant: use non-transactional mode without check.
+    SetFieldObject<false, false>(ComponentTypeOffset(), new_component_type, false);
   }
 
   size_t GetComponentSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

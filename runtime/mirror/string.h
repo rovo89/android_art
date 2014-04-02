@@ -118,17 +118,18 @@ class MANAGED String : public Object {
     SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, hash_code_), new_hash_code, false);
   }
 
-  template<bool kTransactionActive>
   void SetCount(int32_t new_count) {
+    // Count is invariant so use non-transactional mode. Also disable check as we may run inside
+    // a transaction.
     DCHECK_LE(0, new_count);
-    SetField32<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(String, count_), new_count, false);
+    SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, count_), new_count, false);
   }
 
-  template<bool kTransactionActive>
   void SetOffset(int32_t new_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Offset is only used during testing so use non-transactional mode.
     DCHECK_LE(0, new_offset);
     DCHECK_GE(GetLength(), new_offset);
-    SetField32<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(String, offset_), new_offset, false);
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(String, offset_), new_offset, false);
   }
 
   static String* Alloc(Thread* self, int32_t utf16_length)
@@ -137,7 +138,6 @@ class MANAGED String : public Object {
   static String* Alloc(Thread* self, const SirtRef<CharArray>& array)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  template<bool kTransactionActive>
   void SetArray(CharArray* new_array) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".

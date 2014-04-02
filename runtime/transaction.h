@@ -118,7 +118,6 @@ class Transaction {
     void LogValue(size_t index, uint64_t value);
 
     void Undo(mirror::Array* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-    void VisitRoots(RootCallback* callback, void* arg);
 
     size_t Size() const {
       return array_values_.size();
@@ -145,6 +144,7 @@ class Transaction {
     };
     InternStringLog(mirror::String* s, uint32_t hash_code, StringKind kind, StringOp op)
       : str_(s), hash_code_(hash_code), string_kind_(kind), string_op_(op) {
+      DCHECK(s != nullptr);
     }
 
     void Undo(InternTable* intern_table) EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);

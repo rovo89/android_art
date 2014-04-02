@@ -127,7 +127,7 @@ Runtime::Runtime()
       system_thread_group_(nullptr),
       system_class_loader_(nullptr),
       dump_gc_performance_on_shutdown_(false),
-      preinitialization_transaction(nullptr),
+      preinitialization_transaction_(nullptr),
       null_pointer_handler_(nullptr),
       suspend_handler_(nullptr),
       stack_overflow_handler_(nullptr) {
@@ -900,8 +900,8 @@ void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
       verifier->VisitRoots(callback, arg);
     }
   }
-  if (preinitialization_transaction != nullptr) {
-    preinitialization_transaction->VisitRoots(callback, arg);
+  if (preinitialization_transaction_ != nullptr) {
+    preinitialization_transaction_->VisitRoots(callback, arg);
   }
   instrumentation_.VisitRoots(callback, arg);
 }
@@ -1147,73 +1147,68 @@ void Runtime::StartProfiler(const char* appDir, const char* procName, bool start
 }
 
 // Transaction support.
-// TODO move them to header file for inlining.
-bool Runtime::IsActiveTransaction() const {
-  return preinitialization_transaction != nullptr;
-}
-
 void Runtime::EnterTransactionMode(Transaction* transaction) {
   DCHECK(IsCompiler());
   DCHECK(transaction != nullptr);
   DCHECK(!IsActiveTransaction());
-  preinitialization_transaction = transaction;
+  preinitialization_transaction_ = transaction;
 }
 
 void Runtime::ExitTransactionMode() {
   DCHECK(IsCompiler());
   DCHECK(IsActiveTransaction());
-  preinitialization_transaction = nullptr;
+  preinitialization_transaction_ = nullptr;
 }
 
 void Runtime::RecordWriteField32(mirror::Object* obj, MemberOffset field_offset,
                                  uint32_t value, bool is_volatile) const {
   DCHECK(IsCompiler());
   DCHECK(IsActiveTransaction());
-  preinitialization_transaction->RecordWriteField32(obj, field_offset, value, is_volatile);
+  preinitialization_transaction_->RecordWriteField32(obj, field_offset, value, is_volatile);
 }
 
 void Runtime::RecordWriteField64(mirror::Object* obj, MemberOffset field_offset,
                                  uint64_t value, bool is_volatile) const {
   DCHECK(IsCompiler());
   DCHECK(IsActiveTransaction());
-  preinitialization_transaction->RecordWriteField64(obj, field_offset, value, is_volatile);
+  preinitialization_transaction_->RecordWriteField64(obj, field_offset, value, is_volatile);
 }
 
 void Runtime::RecordWriteFieldReference(mirror::Object* obj, MemberOffset field_offset,
                                         mirror::Object* value, bool is_volatile) const {
   DCHECK(IsCompiler());
   DCHECK(IsActiveTransaction());
-  preinitialization_transaction->RecordWriteFieldReference(obj, field_offset, value, is_volatile);
+  preinitialization_transaction_->RecordWriteFieldReference(obj, field_offset, value, is_volatile);
 }
 
 void Runtime::RecordWriteArray(mirror::Array* array, size_t index, uint64_t value) const {
   DCHECK(IsCompiler());
   DCHECK(IsActiveTransaction());
-  preinitialization_transaction->RecordWriteArray(array, index, value);
+  preinitialization_transaction_->RecordWriteArray(array, index, value);
 }
 
 void Runtime::RecordStrongStringInsertion(mirror::String* s, uint32_t hash_code) const {
   DCHECK(IsCompiler());
   DCHECK(IsActiveTransaction());
-  preinitialization_transaction->RecordStrongStringInsertion(s, hash_code);
+  preinitialization_transaction_->RecordStrongStringInsertion(s, hash_code);
 }
 
 void Runtime::RecordWeakStringInsertion(mirror::String* s, uint32_t hash_code) const {
   DCHECK(IsCompiler());
   DCHECK(IsActiveTransaction());
-  preinitialization_transaction->RecordWeakStringInsertion(s, hash_code);
+  preinitialization_transaction_->RecordWeakStringInsertion(s, hash_code);
 }
 
 void Runtime::RecordStrongStringRemoval(mirror::String* s, uint32_t hash_code) const {
   DCHECK(IsCompiler());
   DCHECK(IsActiveTransaction());
-  preinitialization_transaction->RecordStrongStringRemoval(s, hash_code);
+  preinitialization_transaction_->RecordStrongStringRemoval(s, hash_code);
 }
 
 void Runtime::RecordWeakStringRemoval(mirror::String* s, uint32_t hash_code) const {
   DCHECK(IsCompiler());
   DCHECK(IsActiveTransaction());
-  preinitialization_transaction->RecordWeakStringRemoval(s, hash_code);
+  preinitialization_transaction_->RecordWeakStringRemoval(s, hash_code);
 }
 
 void Runtime::SetFaultMessage(const std::string& message) {

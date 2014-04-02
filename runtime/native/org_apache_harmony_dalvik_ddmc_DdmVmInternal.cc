@@ -49,7 +49,7 @@ static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint th
   if (static_cast<uint32_t>(thin_lock_id) == self->GetThreadId()) {
     // No need to suspend ourself to build stacktrace.
     ScopedObjectAccess soa(env);
-    jobject internal_trace = self->CreateInternalStackTrace(soa);
+    jobject internal_trace = self->CreateInternalStackTrace<false>(soa);
     trace = Thread::InternalStackTraceToStackTraceElementArray(soa, internal_trace);
   } else {
     // Suspend thread to build stack trace.
@@ -59,7 +59,7 @@ static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint th
     if (thread != nullptr) {
       {
         ScopedObjectAccess soa(env);
-        jobject internal_trace = thread->CreateInternalStackTrace(soa);
+        jobject internal_trace = thread->CreateInternalStackTrace<false>(soa);
         trace = Thread::InternalStackTraceToStackTraceElementArray(soa, internal_trace);
       }
       // Restart suspended thread.
