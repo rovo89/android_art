@@ -2050,7 +2050,7 @@ bool CompilerDriver::ReadProfile(const std::string& filename) {
   // This is the number of hits in all methods.
   uint32_t total_count = 0;
   for (int i = 0 ; i < 3; ++i) {
-    total_count += atoi(summary_info[0].c_str());
+    total_count += atoi(summary_info[i].c_str());
   }
 
   // Now read each line until the end of file.  Each line consists of 3 fields separated by /
