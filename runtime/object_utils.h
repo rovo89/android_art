@@ -25,6 +25,7 @@
 #include "mirror/class.h"
 #include "mirror/dex_cache.h"
 #include "mirror/iftable.h"
+#include "mirror/proxy.h"
 #include "mirror/string.h"
 
 #include "runtime.h"
@@ -133,7 +134,9 @@ class ClassHelper {
     } else if (klass_->IsArrayClass()) {
       return 2;
     } else if (klass_->IsProxyClass()) {
-      return klass_->GetIfTable()->Count();
+      mirror::SynthesizedProxyClass* proxyClass = reinterpret_cast<mirror::SynthesizedProxyClass*>(klass_);
+      mirror::ObjectArray<mirror::Class>* interfaces = proxyClass->GetInterfaces();
+      return interfaces != nullptr ? interfaces->GetLength() : 0;
     } else {
       const DexFile::TypeList* interfaces = GetInterfaceTypeList();
       if (interfaces == nullptr) {
@@ -164,7 +167,10 @@ class ClassHelper {
         return GetClassLinker()->FindSystemClass(Thread::Current(), "Ljava/io/Serializable;");
       }
     } else if (klass_->IsProxyClass()) {
-      return klass_->GetIfTable()->GetInterface(idx);
+      mirror::SynthesizedProxyClass* proxyClass = reinterpret_cast<mirror::SynthesizedProxyClass*>(klass_);
+      mirror::ObjectArray<mirror::Class>* interfaces = proxyClass->GetInterfaces();
+      DCHECK(interfaces != nullptr);
+      return interfaces->Get(idx);
     } else {
       uint16_t type_idx = GetDirectInterfaceTypeIdx(idx);
       mirror::Class* interface = GetDexCache()->GetResolvedType(type_idx);
