@@ -131,8 +131,8 @@ test-art-target-oat-$(1): test-art-target-oat-$(1)$(ART_PHONY_TEST_TARGET_SUFFIX
   endif
   $(call declare-test-art-oat-targets-impl,$(1),)
 
-$(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).odex: $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar $(HOST_CORE_IMG_OUT) | $(DEX2OAT)
-	$(DEX2OAT) $(DEX2OAT_FLAGS) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_OUT) --dex-file=$(PWD)/$$< --oat-file=$(PWD)/$$@ --instruction-set=$(ART_HOST_ARCH) --host --android-root=$(HOST_OUT)
+$(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).odex: $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar $(HOST_CORE_IMG_OUT) | $(DEX2OATD)
+	$(DEX2OATD) $(DEX2OAT_FLAGS) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_OUT) --dex-file=$(PWD)/$$< --oat-file=$(PWD)/$$@ --instruction-set=$(ART_HOST_ARCH) --host --android-root=$(HOST_OUT)
 
 .PHONY: test-art-host-oat-default-$(1)
 test-art-host-oat-default-$(1): $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).odex test-art-host-dependencies
