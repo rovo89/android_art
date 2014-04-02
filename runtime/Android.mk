@@ -103,7 +103,7 @@ LIBART_COMMON_SRC_FILES := \
 	native/dalvik_system_VMDebug.cc \
 	native/dalvik_system_VMRuntime.cc \
 	native/dalvik_system_VMStack.cc \
-	native/dalvik_system_Zygote.cc \
+	native/dalvik_system_ZygoteHooks.cc \
 	native/java_lang_Class.cc \
 	native/java_lang_DexCache.cc \
 	native/java_lang_Object.cc \
