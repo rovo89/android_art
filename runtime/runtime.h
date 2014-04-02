@@ -355,7 +355,7 @@ class Runtime {
 
   void SetStatsEnabled(bool new_state);
 
-  bool PreZygoteFork();
+  void PreZygoteFork();
   bool InitZygote();
   void DidForkFromZygote();
 
