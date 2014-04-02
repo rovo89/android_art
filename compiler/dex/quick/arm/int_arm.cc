@@ -425,10 +425,6 @@ bool ArmMir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div
   if (pattern == DivideNone) {
     return false;
   }
-  // Tuning: add rem patterns
-  if (!is_div) {
-    return false;
-  }
 
   RegStorage r_magic = AllocTemp();
   LoadConstant(r_magic, magic_table[lit].magic);
@@ -436,25 +432,45 @@ bool ArmMir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   RegStorage r_hi = AllocTemp();
   RegStorage r_lo = AllocTemp();
+
+  // rl_dest and rl_src might overlap.
+  // Reuse r_hi to save the div result for reminder case.
+  RegStorage r_div_result = is_div ? rl_result.reg : r_hi;
+
   NewLIR4(kThumb2Smull, r_lo.GetReg(), r_hi.GetReg(), r_magic.GetReg(), rl_src.reg.GetReg());
   switch (pattern) {
     case Divide3:
-      OpRegRegRegShift(kOpSub, rl_result.reg, r_hi, rl_src.reg, EncodeShift(kArmAsr, 31));
+      OpRegRegRegShift(kOpSub, r_div_result, r_hi, rl_src.reg, EncodeShift(kArmAsr, 31));
       break;
     case Divide5:
       OpRegRegImm(kOpAsr, r_lo, rl_src.reg, 31);
-      OpRegRegRegShift(kOpRsub, rl_result.reg, r_lo, r_hi,
+      OpRegRegRegShift(kOpRsub, r_div_result, r_lo, r_hi,
                        EncodeShift(kArmAsr, magic_table[lit].shift));
       break;
     case Divide7:
       OpRegReg(kOpAdd, r_hi, rl_src.reg);
       OpRegRegImm(kOpAsr, r_lo, rl_src.reg, 31);
-      OpRegRegRegShift(kOpRsub, rl_result.reg, r_lo, r_hi,
+      OpRegRegRegShift(kOpRsub, r_div_result, r_lo, r_hi,
                        EncodeShift(kArmAsr, magic_table[lit].shift));
       break;
     default:
       LOG(FATAL) << "Unexpected pattern: " << pattern;
   }
+
+  if (!is_div) {
+    // div_result = src / lit
+    // tmp1 = div_result * lit
+    // dest = src - tmp1
+    RegStorage tmp1 = r_lo;
+    EasyMultiplyOp ops[2];
+
+    bool canEasyMultiply = GetEasyMultiplyTwoOps(lit, ops);
+    DCHECK_NE(canEasyMultiply, false);
+
+    GenEasyMultiplyTwoOps(tmp1, r_div_result, ops);
+    OpRegRegReg(kOpSub, rl_result.reg, rl_src.reg, tmp1);
+  }
+
   StoreValue(rl_dest, rl_result);
   return true;
 }
@@ -480,6 +496,7 @@ bool ArmMir2Lir::GetEasyMultiplyOp(int lit, ArmMir2Lir::EasyMultiplyOp* op) {
   }
 
   op->op = kOpInvalid;
+  op->shift = 0;
   return false;
 }
 
@@ -488,6 +505,7 @@ bool ArmMir2Lir::GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops) {
   GetEasyMultiplyOp(lit, &ops[0]);
   if (GetEasyMultiplyOp(lit, &ops[0])) {
     ops[1].op = kOpInvalid;
+    ops[1].shift = 0;
     return true;
   }
 
@@ -518,31 +536,52 @@ bool ArmMir2Lir::GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops) {
   return false;
 }
 
+// Generate instructions to do multiply.
+// Additional temporary register is required,
+// if it need to generate 2 instructions and src/dest overlap.
 void ArmMir2Lir::GenEasyMultiplyTwoOps(RegStorage r_dest, RegStorage r_src, EasyMultiplyOp* ops) {
-  // dest = ( src << shift1) + [ src | -src | 0 ]
-  // dest = (dest << shift2) + [ src | -src | 0 ]
-  for (int i = 0; i < 2; i++) {
-    RegStorage r_src2;
-    if (i == 0) {
-      r_src2 = r_src;
-    } else {
-      r_src2 = r_dest;
-    }
-    switch (ops[i].op) {
+  // tmp1 = ( src << shift1) + [ src | -src | 0 ]
+  // dest = (tmp1 << shift2) + [ src | -src | 0 ]
+
+  RegStorage r_tmp1;
+  if (ops[1].op == kOpInvalid) {
+    r_tmp1 = r_dest;
+  } else if (r_dest.GetReg() != r_src.GetReg()) {
+    r_tmp1 = r_dest;
+  } else {
+    r_tmp1 = AllocTemp();
+  }
+
+  switch (ops[0].op) {
     case kOpLsl:
-      OpRegRegImm(kOpLsl, r_dest, r_src2, ops[i].shift);
+      OpRegRegImm(kOpLsl, r_tmp1, r_src, ops[0].shift);
       break;
     case kOpAdd:
-      OpRegRegRegShift(kOpAdd, r_dest, r_src, r_src2, EncodeShift(kArmLsl, ops[i].shift));
+      OpRegRegRegShift(kOpAdd, r_tmp1, r_src, r_src, EncodeShift(kArmLsl, ops[0].shift));
       break;
     case kOpRsub:
-      OpRegRegRegShift(kOpRsub, r_dest, r_src, r_src2, EncodeShift(kArmLsl, ops[i].shift));
+      OpRegRegRegShift(kOpRsub, r_tmp1, r_src, r_src, EncodeShift(kArmLsl, ops[0].shift));
       break;
     default:
-      DCHECK_NE(i, 0);
-      DCHECK_EQ(ops[i].op, kOpInvalid);
+      DCHECK_EQ(ops[0].op, kOpInvalid);
       break;
-    }
+  }
+
+  switch (ops[1].op) {
+    case kOpInvalid:
+      return;
+    case kOpLsl:
+      OpRegRegImm(kOpLsl, r_dest, r_tmp1, ops[1].shift);
+      break;
+    case kOpAdd:
+      OpRegRegRegShift(kOpAdd, r_dest, r_src, r_tmp1, EncodeShift(kArmLsl, ops[1].shift));
+      break;
+    case kOpRsub:
+      OpRegRegRegShift(kOpRsub, r_dest, r_src, r_tmp1, EncodeShift(kArmLsl, ops[1].shift));
+      break;
+    default:
+      LOG(FATAL) << "Unexpected opcode passed to GenEasyMultiplyTwoOps";
+      break;
   }
 }
 
