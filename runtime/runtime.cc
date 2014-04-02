@@ -708,7 +708,7 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
   REGISTER(register_dalvik_system_VMDebug);
   REGISTER(register_dalvik_system_VMRuntime);
   REGISTER(register_dalvik_system_VMStack);
-  REGISTER(register_dalvik_system_Zygote);
+  REGISTER(register_dalvik_system_ZygoteHooks);
   REGISTER(register_java_lang_Class);
   REGISTER(register_java_lang_DexCache);
   REGISTER(register_java_lang_Object);
