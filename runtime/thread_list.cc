@@ -750,14 +750,13 @@ void ThreadList::Register(Thread* self) {
   MutexLock mu(self, *Locks::thread_list_lock_);
   MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
   CHECK_GE(suspend_all_count_, debug_suspend_all_count_);
-  if (debug_suspend_all_count_ > 0) {
-    self->ModifySuspendCount(self, debug_suspend_all_count_, true);
+  // Modify suspend count in increments of 1 to maintain invariants in ModifySuspendCount. While
+  // this isn't particularly efficient the suspend counts are most commonly 0 or 1.
+  for (int delta = debug_suspend_all_count_; delta > 0; delta--) {
+    self->ModifySuspendCount(self, +1, true);
   }
-  if (suspend_all_count_ > 0) {
-    int delta = suspend_all_count_ - debug_suspend_all_count_;
-    if (delta > 0) {
-      self->ModifySuspendCount(self, delta, false);
-    }
+  for (int delta = suspend_all_count_ - debug_suspend_all_count_; delta > 0; delta--) {
+    self->ModifySuspendCount(self, +1, false);
   }
   CHECK(!Contains(self));
   list_.push_back(self);

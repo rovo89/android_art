@@ -598,12 +598,14 @@ static void UnsafeLogFatalForSuspendCount(Thread* self, Thread* thread) NO_THREA
 }
 
 void Thread::ModifySuspendCount(Thread* self, int delta, bool for_debugger) {
-  DCHECK(delta == -1 || delta == +1 || delta == -tls32_.debug_suspend_count)
-      << delta << " " << tls32_.debug_suspend_count << " " << this;
-  DCHECK_GE(tls32_.suspend_count, tls32_.debug_suspend_count) << this;
-  Locks::thread_suspend_count_lock_->AssertHeld(self);
-  if (this != self && !IsSuspended()) {
-    Locks::thread_list_lock_->AssertHeld(self);
+  if (kIsDebugBuild) {
+    DCHECK(delta == -1 || delta == +1 || delta == -tls32_.debug_suspend_count)
+          << delta << " " << tls32_.debug_suspend_count << " " << this;
+    DCHECK_GE(tls32_.suspend_count, tls32_.debug_suspend_count) << this;
+    Locks::thread_suspend_count_lock_->AssertHeld(self);
+    if (this != self && !IsSuspended()) {
+      Locks::thread_list_lock_->AssertHeld(self);
+    }
   }
   if (UNLIKELY(delta < 0 && tls32_.suspend_count <= 0)) {
     UnsafeLogFatalForSuspendCount(self, this);
