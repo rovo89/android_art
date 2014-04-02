@@ -80,4 +80,16 @@ class MyClassNatives {
         Object o248, Object o249, Object o250, Object o251, Object o252, Object o253);
 
     native void withoutImplementation();
+    
+    native static void stackArgsIntsFirst(int i1, int i2, int i3, int i4, int i5, int i6, int i7,
+        int i8, int i9, int i10, float f1, float f2, float f3, float f4, float f5, float f6,
+        float f7, float f8, float f9, float f10);
+    
+    native static void stackArgsFloatsFirst(float f1, float f2, float f3, float f4, float f5,
+        float f6, float f7, float f8, float f9, float f10, int i1, int i2, int i3, int i4, int i5,
+        int i6, int i7, int i8, int i9, int i10);
+    
+    native static void stackArgsMixed(int i1, float f1, int i2, float f2, int i3, float f3, int i4,
+        float f4, int i5, float f5, int i6, float f6, int i7, float f7, int i8, float f8, int i9,
+        float f9, int i10, float f10);
 }

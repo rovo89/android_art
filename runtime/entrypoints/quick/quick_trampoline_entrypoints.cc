@@ -250,6 +250,7 @@ class QuickArgumentVisitor {
         if ((kNumQuickFprArgs != 0) && (fpr_index_ + 1 < kNumQuickFprArgs + 1)) {
           return fpr_args_ + (fpr_index_ * kBytesPerFprSpillLocation);
         }
+        return stack_args_ + (stack_index_ * kBytesStackArgLocation);
       }
     }
     if (gpr_index_ < kNumQuickGprArgs) {
@@ -283,6 +284,12 @@ class QuickArgumentVisitor {
   }
 
   void VisitArguments() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // This implementation doesn't support reg-spill area for hard float
+    // ABI targets such as x86_64 and aarch64. So, for those targets whose
+    // 'kQuickSoftFloatAbi' is 'false':
+    //     (a) 'stack_args_' should point to the first method's argument
+    //     (b) whatever the argument type it is, the 'stack_index_' should
+    //         be moved forward along with every visiting.
     gpr_index_ = 0;
     fpr_index_ = 0;
     stack_index_ = 0;
@@ -290,10 +297,11 @@ class QuickArgumentVisitor {
       cur_type_ = Primitive::kPrimNot;
       is_split_long_or_double_ = false;
       Visit();
+      if (!kQuickSoftFloatAbi || kNumQuickGprArgs == 0) {
+        stack_index_++;
+      }
       if (kNumQuickGprArgs > 0) {
         gpr_index_++;
-      } else {
-        stack_index_++;
       }
     }
     for (uint32_t shorty_index = 1; shorty_index < shorty_len_; ++shorty_index) {
@@ -307,10 +315,11 @@ class QuickArgumentVisitor {
         case Primitive::kPrimInt:
           is_split_long_or_double_ = false;
           Visit();
+          if (!kQuickSoftFloatAbi || kNumQuickGprArgs == gpr_index_) {
+            stack_index_++;
+          }
           if (gpr_index_ < kNumQuickGprArgs) {
             gpr_index_++;
-          } else {
-            stack_index_++;
           }
           break;
         case Primitive::kPrimFloat:
@@ -325,9 +334,8 @@ class QuickArgumentVisitor {
           } else {
             if ((kNumQuickFprArgs != 0) && (fpr_index_ + 1 < kNumQuickFprArgs + 1)) {
               fpr_index_++;
-            } else {
-              stack_index_++;
             }
+            stack_index_++;
           }
           break;
         case Primitive::kPrimDouble:
@@ -336,21 +344,22 @@ class QuickArgumentVisitor {
             is_split_long_or_double_ = (kBytesPerGprSpillLocation == 4) &&
                 ((gpr_index_ + 1) == kNumQuickGprArgs);
             Visit();
-            if (gpr_index_ < kNumQuickGprArgs) {
-              gpr_index_++;
-              if (kBytesPerGprSpillLocation == 4) {
-                if (gpr_index_ < kNumQuickGprArgs) {
-                  gpr_index_++;
-                } else {
-                  stack_index_++;
-                }
-              }
-            } else {
+            if (!kQuickSoftFloatAbi || kNumQuickGprArgs == gpr_index_) {
               if (kBytesStackArgLocation == 4) {
                 stack_index_+= 2;
               } else {
                 CHECK_EQ(kBytesStackArgLocation, 8U);
                 stack_index_++;
+              }
+            }
+            if (gpr_index_ < kNumQuickGprArgs) {
+              gpr_index_++;
+              if (kBytesPerGprSpillLocation == 4) {
+                if (gpr_index_ < kNumQuickGprArgs) {
+                  gpr_index_++;
+                } else if (kQuickSoftFloatAbi) {
+                  stack_index_++;
+                }
               }
             }
           } else {
@@ -362,17 +371,14 @@ class QuickArgumentVisitor {
               if (kBytesPerFprSpillLocation == 4) {
                 if ((kNumQuickFprArgs != 0) && (fpr_index_ + 1 < kNumQuickFprArgs + 1)) {
                   fpr_index_++;
-                } else {
-                  stack_index_++;
                 }
               }
+            }
+            if (kBytesStackArgLocation == 4) {
+              stack_index_+= 2;
             } else {
-              if (kBytesStackArgLocation == 4) {
-                stack_index_+= 2;
-              } else {
-                CHECK_EQ(kBytesStackArgLocation, 8U);
-                stack_index_++;
-              }
+              CHECK_EQ(kBytesStackArgLocation, 8U);
+              stack_index_++;
             }
           }
           break;
@@ -389,59 +395,10 @@ class QuickArgumentVisitor {
       CHECK_EQ(kNumQuickFprArgs, 0U);
       return (kNumQuickGprArgs * kBytesPerGprSpillLocation) + kBytesPerGprSpillLocation /* ArtMethod* */;
     } else {
-      size_t offset = kBytesPerGprSpillLocation;  // Skip Method*.
-      size_t gprs_seen = 0;
-      size_t fprs_seen = 0;
-      if (!is_static && (gprs_seen < kNumQuickGprArgs)) {
-        gprs_seen++;
-        offset += kBytesStackArgLocation;
-      }
-      for (uint32_t i = 1; i < shorty_len; ++i) {
-        switch (shorty[i]) {
-          case 'Z':
-          case 'B':
-          case 'C':
-          case 'S':
-          case 'I':
-          case 'L':
-            if (gprs_seen < kNumQuickGprArgs) {
-              gprs_seen++;
-              offset += kBytesStackArgLocation;
-            }
-            break;
-          case 'J':
-            if (gprs_seen < kNumQuickGprArgs) {
-              gprs_seen++;
-              offset += 2 * kBytesStackArgLocation;
-              if (kBytesPerGprSpillLocation == 4) {
-                if (gprs_seen < kNumQuickGprArgs) {
-                  gprs_seen++;
-                }
-              }
-            }
-            break;
-          case 'F':
-            if ((kNumQuickFprArgs != 0) && (fprs_seen + 1 < kNumQuickFprArgs + 1)) {
-              fprs_seen++;
-              offset += kBytesStackArgLocation;
-            }
-            break;
-          case 'D':
-            if ((kNumQuickFprArgs != 0) && (fprs_seen + 1 < kNumQuickFprArgs + 1)) {
-              fprs_seen++;
-              offset += 2 * kBytesStackArgLocation;
-              if (kBytesPerFprSpillLocation == 4) {
-                if ((kNumQuickFprArgs != 0) && (fprs_seen + 1 < kNumQuickFprArgs + 1)) {
-                  fprs_seen++;
-                }
-              }
-            }
-            break;
-          default:
-            LOG(FATAL) << "Unexpected shorty character: " << shorty[i] << " in " << shorty;
-        }
-      }
-      return offset;
+      // For now, there is no reg-spill area for the targets with
+      // hard float ABI. So, the offset pointing to the first method's
+      // parameter ('this' for non-static methods) should be returned.
+      return kBytesPerGprSpillLocation;  // Skip Method*.
     }
   }
 
