@@ -191,7 +191,7 @@ test-art-host-run-test-$(1): test-art-host-run-test-default-$(1) test-art-host-r
 
 endef
 
-$(foreach test, $(wildcard art/test/[0-9]*), $(eval $(call declare-test-art-host-run-test,$(notdir $(test)))))
+$(foreach test, $(TEST_ART_RUN_TESTS), $(eval $(call declare-test-art-host-run-test,$(test))))
 
 .PHONY: test-art-host-run-test-default
 test-art-host-run-test-default: $(TEST_ART_HOST_RUN_TEST_DEFAULT_TARGETS)
@@ -254,7 +254,7 @@ test-art-run-test-$(1): test-art-host-run-test-$(1) test-art-target-run-test-$(1
 
 endef
 
-$(foreach test, $(wildcard art/test/[0-9]*), $(eval $(call declare-test-art-target-run-test,$(notdir $(test)))))
+$(foreach test, $(TEST_ART_RUN_TESTS), $(eval $(call declare-test-art-target-run-test,$(test))))
 
 .PHONY: test-art-target-run-test
 test-art-target-run-test: $(TEST_ART_TARGET_RUN_TEST_TARGETS)
