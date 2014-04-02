@@ -190,7 +190,9 @@ TEST_ART_RUN_TESTS := $(wildcard $(LOCAL_PATH)/[0-9]*)
 TEST_ART_RUN_TESTS := $(subst $(LOCAL_PATH)/,, $(TEST_ART_RUN_TESTS))
 TEST_ART_TIMING_SENSITIVE_RUN_TESTS := 055-enum-performance
 ifdef dist_goal # disable timing sensitive tests on "dist" builds.
-  $(foreach test, $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(eval TEST_ART_RUN_TESTS := $(filter-out $(test), $(TEST_ART_RUN_TESTS))))
+  $(foreach test, $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), \
+    $(info Skipping $(test)) \
+    $(eval TEST_ART_RUN_TESTS := $(filter-out $(test), $(TEST_ART_RUN_TESTS))))
 endif
 $(foreach test, $(TEST_ART_RUN_TESTS), $(eval $(call declare-make-art-run-test,$(test))))
 
