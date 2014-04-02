@@ -559,10 +559,13 @@ void ArmMir2Lir::CompilerInitializeRegAlloc() {
       (arena_->Alloc(num_fp_regs * sizeof(*reg_pool_->FPRegs), kArenaAllocRegAlloc));
   CompilerInitPool(reg_pool_->core_regs, core_regs, reg_pool_->num_core_regs);
   CompilerInitPool(reg_pool_->FPRegs, FpRegs, reg_pool_->num_fp_regs);
+
   // Keep special registers from being allocated
+  // Don't reserve the r4 if we are doing implicit suspend checks.
+  bool no_suspend = NO_SUSPEND || !Runtime::Current()->ExplicitSuspendChecks();
   for (int i = 0; i < num_reserved; i++) {
-    if (NO_SUSPEND && (ReservedRegs[i] == rARM_SUSPEND)) {
-      // To measure cost of suspend check
+    if (no_suspend && (ReservedRegs[i] == rARM_SUSPEND)) {
+      // Don't reserve the suspend register.
       continue;
     }
     MarkInUse(ReservedRegs[i]);
