@@ -73,6 +73,7 @@ LIBART_COMMON_SRC_FILES := \
 	hprof/hprof.cc \
 	image.cc \
 	indirect_reference_table.cc \
+	instruction_set.cc \
 	instrumentation.cc \
 	intern_table.cc \
 	interpreter/interpreter.cc \
