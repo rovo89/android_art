@@ -70,9 +70,9 @@ class SpaceBitmap {
     return static_cast<uintptr_t>(index * kAlignment * kBitsPerWord);
   }
 
-  // Pack the bits in backwards so they come out in address order when using CLZ.
-  static word OffsetToMask(uintptr_t offset) {
-    return static_cast<uintptr_t>(kWordHighBitMask) >> ((offset / kAlignment) % kBitsPerWord);
+  // Bits are packed in the obvious way.
+  static uword OffsetToMask(uintptr_t offset) {
+    return (static_cast<size_t>(1)) << ((offset / kAlignment) % kBitsPerWord);
   }
 
   inline bool Set(const mirror::Object* obj) {
@@ -140,7 +140,7 @@ class SpaceBitmap {
   void CopyFrom(SpaceBitmap* source_bitmap);
 
   // Starting address of our internal storage.
-  word* Begin() {
+  uword* Begin() {
     return bitmap_begin_;
   }
 
@@ -181,7 +181,7 @@ class SpaceBitmap {
  private:
   // TODO: heap_end_ is initialized so that the heap bitmap is empty, this doesn't require the -1,
   // however, we document that this is expected on heap_end_
-  SpaceBitmap(const std::string& name, MemMap* mem_map, word* bitmap_begin, size_t bitmap_size,
+  SpaceBitmap(const std::string& name, MemMap* mem_map, uword* bitmap_begin, size_t bitmap_size,
               const void* heap_begin)
       : mem_map_(mem_map), bitmap_begin_(bitmap_begin), bitmap_size_(bitmap_size),
         heap_begin_(reinterpret_cast<uintptr_t>(heap_begin)),
@@ -193,7 +193,7 @@ class SpaceBitmap {
   UniquePtr<MemMap> mem_map_;
 
   // This bitmap itself, word sized for efficiency in scanning.
-  word* const bitmap_begin_;
+  uword* const bitmap_begin_;
 
   // Size of this bitmap.
   size_t bitmap_size_;
