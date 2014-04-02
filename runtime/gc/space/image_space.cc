@@ -67,36 +67,6 @@ static bool GenerateImage(const std::string& image_file_name, std::string* error
   arg_vector.push_back("--runtime-arg");
   arg_vector.push_back("-Xmx64m");
 
-  arg_vector.push_back("--runtime-arg");
-  std::string checkstr = "-implicit-checks";
-  int nchecks = 0;
-  char checksep = ':';
-
-  if (!Runtime::Current()->ExplicitNullChecks()) {
-    checkstr += checksep;
-    checksep = ',';
-    checkstr += "null";
-    ++nchecks;
-  }
-  if (!Runtime::Current()->ExplicitSuspendChecks()) {
-    checkstr += checksep;
-    checksep = ',';
-    checkstr += "suspend";
-    ++nchecks;
-  }
-
-  if (!Runtime::Current()->ExplicitStackOverflowChecks()) {
-    checkstr += checksep;
-    checksep = ',';
-    checkstr += "stack";
-    ++nchecks;
-  }
-
-  if (nchecks == 0) {
-    checkstr += ":none";
-  }
-
-  arg_vector.push_back(checkstr);
 
   for (size_t i = 0; i < boot_class_path.size(); i++) {
     arg_vector.push_back(std::string("--dex-file=") + boot_class_path[i]);
@@ -107,6 +77,8 @@ static bool GenerateImage(const std::string& image_file_name, std::string* error
   oat_file_option_string.erase(oat_file_option_string.size() - 3);
   oat_file_option_string += "oat";
   arg_vector.push_back(oat_file_option_string);
+
+  Runtime::Current()->AddCurrentRuntimeFeaturesAsDex2OatArguments(&arg_vector);
 
   arg_vector.push_back(StringPrintf("--base=0x%x", ART_BASE_ADDRESS));
 

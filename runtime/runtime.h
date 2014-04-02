@@ -407,6 +407,8 @@ class Runtime {
     return fault_message_;
   }
 
+  void AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::string>* arg_vector) const;
+
   bool ExplicitNullChecks() const {
     return null_pointer_handler_ == nullptr;
   }
@@ -421,6 +423,10 @@ class Runtime {
 
   bool RunningOnValgrind() const {
     return running_on_valgrind_;
+  }
+
+  static const char* GetDefaultInstructionSetFeatures() {
+    return kDefaultInstructionSetFeatures;
   }
 
  private:
@@ -439,14 +445,14 @@ class Runtime {
   void StartDaemonThreads();
   void StartSignalCatcher();
 
-  // NOTE: these must match the gc::ProcessState values as they come directly
-  // from the framework.
-  static constexpr int kProfileForground = 0;
-  static constexpr int kProfileBackgrouud = 1;
-
-
   // A pointer to the active runtime or NULL.
   static Runtime* instance_;
+
+  static const char* kDefaultInstructionSetFeatures;
+
+  // NOTE: these must match the gc::ProcessState values as they come directly from the framework.
+  static constexpr int kProfileForground = 0;
+  static constexpr int kProfileBackgrouud = 1;
 
   mirror::ArtMethod* callee_save_methods_[kLastCalleeSaveType];
   mirror::Throwable* pre_allocated_OutOfMemoryError_;

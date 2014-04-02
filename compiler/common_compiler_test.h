@@ -291,7 +291,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
 
       // Take the default set of instruction features from the build.
       InstructionSetFeatures instruction_set_features =
-          ParseFeatureList(STRINGIFY(ART_DEFAULT_INSTRUCTION_SET_FEATURES));
+          ParseFeatureList(Runtime::GetDefaultInstructionSetFeatures());
 
 #if defined(__arm__)
       instruction_set = kThumb2;

@@ -567,40 +567,12 @@ bool ClassLinker::GenerateOatFile(const char* dex_filename,
   argv.push_back("--runtime-arg");
   argv.push_back(Runtime::Current()->GetClassPathString());
 
-  argv.push_back("--runtime-arg");
-  std::string checkstr = "-implicit-checks";
-
-  int nchecks = 0;
-  char checksep = ':';
-
-  if (!Runtime::Current()->ExplicitNullChecks()) {
-    checkstr += checksep;
-    checksep = ',';
-    checkstr += "null";
-    ++nchecks;
-  }
-  if (!Runtime::Current()->ExplicitSuspendChecks()) {
-    checkstr += checksep;
-    checksep = ',';
-    checkstr += "suspend";
-    ++nchecks;
-  }
-
-  if (!Runtime::Current()->ExplicitStackOverflowChecks()) {
-    checkstr += checksep;
-    checksep = ',';
-    checkstr += "stack";
-    ++nchecks;
-  }
-
-  if (nchecks == 0) {
-    checkstr += ":none";
-  }
-  argv.push_back(checkstr);
+  Runtime::Current()->AddCurrentRuntimeFeaturesAsDex2OatArguments(&argv);
 
   if (!kIsTargetBuild) {
     argv.push_back("--host");
   }
+
   argv.push_back(boot_image_option);
   argv.push_back(dex_file_option);
   argv.push_back(oat_fd_option);
