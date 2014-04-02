@@ -598,22 +598,28 @@ class CompilerDriver {
   // in a file.  It is used to determine whether to compile a particular method or not.
   class ProfileData {
    public:
-    ProfileData() : count_(0), method_size_(0), percent_(0) {}
-    ProfileData(const std::string& method_name, uint32_t count, uint32_t method_size, double percent) :
-      method_name_(method_name), count_(count), method_size_(method_size), percent_(percent) {
+    ProfileData() : count_(0), method_size_(0), usedPercent_(0) {}
+    ProfileData(const std::string& method_name, uint32_t count, uint32_t method_size,
+      double usedPercent, double topKUsedPercentage) :
+      method_name_(method_name), count_(count), method_size_(method_size),
+      usedPercent_(usedPercent), topKUsedPercentage_(topKUsedPercentage) {
       // TODO: currently method_size_ and count_ are unused.
       UNUSED(method_size_);
       UNUSED(count_);
     }
 
-    bool IsAbove(double v) const { return percent_ >= v; }
-    double GetPercent() const { return percent_; }
+    bool IsAbove(double v) const { return usedPercent_ >= v; }
+    double GetUsedPercent() const { return usedPercent_; }
+    uint32_t GetCount() const { return count_; }
+    double GetTopKUsedPercentage() const { return topKUsedPercentage_; }
 
    private:
-    std::string method_name_;   // Method name.
-    uint32_t count_;            // Number number of times it has been called.
-    uint32_t method_size_;      // Size of the method on dex instructions.
-    double percent_;            // Percentage of time spent in this method.
+    std::string method_name_;    // Method name.
+    uint32_t count_;             // Number of times it has been called.
+    uint32_t method_size_;       // Size of the method on dex instructions.
+    double usedPercent_;         // Percentage of how many times this method was called.
+    double topKUsedPercentage_;  // The percentage of the group that comprise K% of the total used
+                                 // methods this methods belongs to.
   };
 
   // Profile data is stored in a map, indexed by the full method name.
