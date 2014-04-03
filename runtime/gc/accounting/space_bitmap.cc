@@ -53,7 +53,7 @@ void ObjectSet::Walk(ObjectCallback* callback, void* arg) {
 SpaceBitmap* SpaceBitmap::CreateFromMemMap(const std::string& name, MemMap* mem_map,
                                            byte* heap_begin, size_t heap_capacity) {
   CHECK(mem_map != nullptr);
-  word* bitmap_begin = reinterpret_cast<word*>(mem_map->Begin());
+  uword* bitmap_begin = reinterpret_cast<uword*>(mem_map->Begin());
   size_t bitmap_size = OffsetToIndex(RoundUp(heap_capacity, kAlignment * kBitsPerWord)) * kWordSize;
   return new SpaceBitmap(name, mem_map, bitmap_begin, bitmap_size, heap_begin);
 }
@@ -107,16 +107,16 @@ void SpaceBitmap::Walk(ObjectCallback* callback, void* arg) {
   CHECK(callback != NULL);
 
   uintptr_t end = OffsetToIndex(HeapLimit() - heap_begin_ - 1);
-  word* bitmap_begin = bitmap_begin_;
+  uword* bitmap_begin = bitmap_begin_;
   for (uintptr_t i = 0; i <= end; ++i) {
-    word w = bitmap_begin[i];
+    uword w = bitmap_begin[i];
     if (w != 0) {
       uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
       do {
-        const size_t shift = CLZ(w);
+        const size_t shift = CTZ(w);
         mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
         (*callback)(obj, arg);
-        w ^= static_cast<size_t>(kWordHighBitMask) >> shift;
+        w ^= (static_cast<uword>(1)) << shift;
       } while (w != 0);
     }
   }
@@ -150,15 +150,15 @@ void SpaceBitmap::SweepWalk(const SpaceBitmap& live_bitmap,
   size_t start = OffsetToIndex(sweep_begin - live_bitmap.heap_begin_);
   size_t end = OffsetToIndex(sweep_end - live_bitmap.heap_begin_ - 1);
   CHECK_LT(end, live_bitmap.Size() / kWordSize);
-  word* live = live_bitmap.bitmap_begin_;
-  word* mark = mark_bitmap.bitmap_begin_;
+  uword* live = live_bitmap.bitmap_begin_;
+  uword* mark = mark_bitmap.bitmap_begin_;
   for (size_t i = start; i <= end; i++) {
-    word garbage = live[i] & ~mark[i];
+    uword garbage = live[i] & ~mark[i];
     if (UNLIKELY(garbage != 0)) {
       uintptr_t ptr_base = IndexToOffset(i) + live_bitmap.heap_begin_;
       do {
-        const size_t shift = CLZ(garbage);
-        garbage ^= static_cast<size_t>(kWordHighBitMask) >> shift;
+        const size_t shift = CTZ(garbage);
+        garbage ^= (static_cast<uword>(1)) << shift;
         *pb++ = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
       } while (garbage != 0);
       // Make sure that there are always enough slots available for an
@@ -254,14 +254,15 @@ void SpaceBitmap::InOrderWalk(ObjectCallback* callback, void* arg) {
   CHECK(callback != NULL);
   uintptr_t end = Size() / kWordSize;
   for (uintptr_t i = 0; i < end; ++i) {
-    word w = bitmap_begin_[i];
+    // Need uint for unsigned shift.
+    uword w = bitmap_begin_[i];
     if (UNLIKELY(w != 0)) {
       uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
       while (w != 0) {
-        const size_t shift = CLZ(w);
+        const size_t shift = CTZ(w);
         mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
         WalkFieldsInOrder(visited.get(), callback, obj, arg);
-        w ^= static_cast<size_t>(kWordHighBitMask) >> shift;
+        w ^= (static_cast<uword>(1)) << shift;
       }
     }
   }
