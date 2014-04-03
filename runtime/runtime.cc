@@ -272,9 +272,8 @@ void Runtime::Abort() {
   // notreached
 }
 
-bool Runtime::PreZygoteFork() {
+void Runtime::PreZygoteFork() {
   heap_->PreZygoteFork();
-  return true;
 }
 
 void Runtime::CallExitHook(jint status) {

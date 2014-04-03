@@ -91,9 +91,8 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
 static jlong ZygoteHooks_nativePreFork(JNIEnv* env, jclass) {
   Runtime* runtime = Runtime::Current();
   CHECK(runtime->IsZygote()) << "runtime instance not started with -Xzygote";
-  if (!runtime->PreZygoteFork()) {
-    LOG(FATAL) << "pre-fork heap failed";
-  }
+
+  runtime->PreZygoteFork();
 
   // Grab thread before fork potentially makes Thread::pthread_key_self_ unusable.
   Thread* self = Thread::Current();
