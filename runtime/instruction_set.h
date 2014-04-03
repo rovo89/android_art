@@ -33,6 +33,7 @@ enum InstructionSet {
   kX86_64,
   kMips
 };
+std::ostream& operator<<(std::ostream& os, const InstructionSet& rhs);
 
 enum InstructionFeatures {
   kHwDiv = 1                  // Supports hardware divide.
@@ -44,6 +45,8 @@ class PACKED(4) InstructionSetFeatures {
   InstructionSetFeatures() : mask_(0) {}
   explicit InstructionSetFeatures(uint32_t mask) : mask_(mask) {}
 
+  static InstructionSetFeatures GuessInstructionSetFeatures();
+
   bool HasDivideInstruction() const {
       return (mask_ & kHwDiv) != 0;
   }
@@ -52,20 +55,7 @@ class PACKED(4) InstructionSetFeatures {
     mask_ = (mask_ & ~kHwDiv) | (v ? kHwDiv : 0);
   }
 
-  std::string GetFeatureString() const {
-    std::string result;
-    if ((mask_ & kHwDiv) != 0) {
-      result += "div";
-    }
-    if (result.size() == 0) {
-      result = "none";
-    }
-    return result;
-  }
-
-  uint32_t get_mask() const {
-    return mask_;
-  }
+  std::string GetFeatureString() const;
 
   // Other features in here.
 
@@ -80,8 +70,6 @@ class PACKED(4) InstructionSetFeatures {
  private:
   uint32_t mask_;
 };
-
-std::ostream& operator<<(std::ostream& os, const InstructionSet& rhs);
 
 }  // namespace art
 
