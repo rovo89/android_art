@@ -43,12 +43,11 @@ class LocationsBuilderARM : public HGraphVisitor {
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderARM);
 };
 
+class CodeGeneratorARM;
+
 class InstructionCodeGeneratorARM : public HGraphVisitor {
  public:
-  explicit InstructionCodeGeneratorARM(HGraph* graph, CodeGenerator* codegen)
-      : HGraphVisitor(graph),
-        assembler_(codegen->GetAssembler()),
-        codegen_(codegen) { }
+  InstructionCodeGeneratorARM(HGraph* graph, CodeGeneratorARM* codegen);
 
 #define DECLARE_VISIT_INSTRUCTION(name)     \
   virtual void Visit##name(H##name* instr);
@@ -57,12 +56,12 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
 
 #undef DECLARE_VISIT_INSTRUCTION
 
-  Assembler* GetAssembler() const { return assembler_; }
+  ArmAssembler* GetAssembler() const { return assembler_; }
   void LoadCurrentMethod(Register reg);
 
  private:
-  Assembler* const assembler_;
-  CodeGenerator* const codegen_;
+  ArmAssembler* const assembler_;
+  CodeGeneratorARM* const codegen_;
 
   DISALLOW_COPY_AND_ASSIGN(InstructionCodeGeneratorARM);
 };
@@ -75,12 +74,10 @@ class CodeGeneratorARM : public CodeGenerator {
         instruction_visitor_(graph, this) { }
   virtual ~CodeGeneratorARM() { }
 
- protected:
   virtual void GenerateFrameEntry() OVERRIDE;
   virtual void GenerateFrameExit() OVERRIDE;
   virtual void Bind(Label* label) OVERRIDE;
-  virtual void Move(HInstruction* instruction, Location location) OVERRIDE;
-  virtual void Push(HInstruction* instruction, Location location) OVERRIDE;
+  virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
 
   virtual HGraphVisitor* GetLocationBuilder() OVERRIDE {
     return &location_builder_;
@@ -90,15 +87,16 @@ class CodeGeneratorARM : public CodeGenerator {
     return &instruction_visitor_;
   }
 
-  virtual Assembler* GetAssembler() OVERRIDE {
+  virtual ArmAssembler* GetAssembler() OVERRIDE {
     return &assembler_;
   }
+
+  int32_t GetStackSlot(HLocal* local) const;
 
  private:
   LocationsBuilderARM location_builder_;
   InstructionCodeGeneratorARM instruction_visitor_;
   ArmAssembler assembler_;
-
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM);
 };

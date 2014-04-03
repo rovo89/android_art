@@ -26,45 +26,54 @@
 namespace art {
 namespace x86 {
 
+static constexpr int kNumberOfPushedRegistersAtEntry = 1;
+static constexpr int kCurrentMethodStackOffset = 0;
+
+InstructionCodeGeneratorX86::InstructionCodeGeneratorX86(HGraph* graph, CodeGeneratorX86* codegen)
+      : HGraphVisitor(graph),
+        assembler_(codegen->GetAssembler()),
+        codegen_(codegen) {}
+
 void CodeGeneratorX86::GenerateFrameEntry() {
   // Create a fake register to mimic Quick.
   static const int kFakeReturnRegister = 8;
   core_spill_mask_ |= (1 << kFakeReturnRegister);
-  // We're currently always using EBP, which is callee-saved in Quick.
-  core_spill_mask_ |= (1 << EBP);
 
-  __ pushl(EBP);
-  __ movl(EBP, ESP);
-  // Add the current ART method to the frame size, the return pc, and EBP.
-  SetFrameSize(RoundUp(GetFrameSize() + 3 * kWordSize, kStackAlignment));
-  // The PC and EBP have already been pushed on the stack.
-  __ subl(ESP, Immediate(GetFrameSize() - 2 * kWordSize));
+  // Add the current ART method to the frame size and the return PC.
+  SetFrameSize(RoundUp(GetFrameSize() + 2 * kWordSize, kStackAlignment));
+  // The return PC has already been pushed on the stack.
+  __ subl(ESP, Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kWordSize));
   __ movl(Address(ESP, 0), EAX);
 }
 
 void CodeGeneratorX86::GenerateFrameExit() {
-  __ movl(ESP, EBP);
-  __ popl(EBP);
+  __ addl(ESP, Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kWordSize));
 }
 
 void CodeGeneratorX86::Bind(Label* label) {
   __ Bind(label);
 }
 
-void CodeGeneratorX86::Push(HInstruction* instruction, Location location) {
-  __ pushl(location.reg<Register>());
-}
-
 void InstructionCodeGeneratorX86::LoadCurrentMethod(Register reg) {
-  __ movl(reg, Address(ESP, 0));
+  __ movl(reg, Address(ESP, kCurrentMethodStackOffset));
 }
 
-void CodeGeneratorX86::Move(HInstruction* instruction, Location location) {
-  HIntConstant* constant = instruction->AsIntConstant();
-  if (constant != nullptr) {
-    __ movl(location.reg<Register>(), Immediate(constant->GetValue()));
+int32_t CodeGeneratorX86::GetStackSlot(HLocal* local) const {
+  return (GetGraph()->GetMaximumNumberOfOutVRegs() + local->GetRegNumber()) * kWordSize;
+}
+
+void CodeGeneratorX86::Move(HInstruction* instruction, Location location, HInstruction* move_for) {
+  if (instruction->AsIntConstant() != nullptr) {
+    __ movl(location.reg<Register>(), Immediate(instruction->AsIntConstant()->GetValue()));
+  } else if (instruction->AsLoadLocal() != nullptr) {
+    __ movl(location.reg<Register>(),
+            Address(ESP, GetStackSlot(instruction->AsLoadLocal()->GetLocal())));
   } else {
-    __ popl(location.reg<Register>());
+    // This can currently only happen when the instruction that requests the move
+    // is the next to be compiled.
+    DCHECK_EQ(instruction->GetNext(), move_for);
+    __ movl(location.reg<Register>(),
+            instruction->GetLocations()->Out().reg<Register>());
   }
 }
 
@@ -117,20 +126,11 @@ void InstructionCodeGeneratorX86::VisitLocal(HLocal* local) {
 }
 
 void LocationsBuilderX86::VisitLoadLocal(HLoadLocal* local) {
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(local);
-  locations->SetOut(Location(EAX));
-  local->SetLocations(locations);
-}
-
-static int32_t GetStackSlot(HLocal* local) {
-  // We are currently using EBP to access locals, so the offset must be negative.
-  // +1 for going backwards, +1 for the method pointer.
-  return (local->GetRegNumber() + 2) * -kWordSize;
+  local->SetLocations(nullptr);
 }
 
 void InstructionCodeGeneratorX86::VisitLoadLocal(HLoadLocal* load) {
-  __ movl(load->GetLocations()->Out().reg<Register>(),
-          Address(EBP, GetStackSlot(load->GetLocal())));
+  // Nothing to do, this is driven by the code generator.
 }
 
 void LocationsBuilderX86::VisitStoreLocal(HStoreLocal* local) {
@@ -140,7 +140,7 @@ void LocationsBuilderX86::VisitStoreLocal(HStoreLocal* local) {
 }
 
 void InstructionCodeGeneratorX86::VisitStoreLocal(HStoreLocal* store) {
-  __ movl(Address(EBP, GetStackSlot(store->GetLocal())),
+  __ movl(Address(ESP, codegen_->GetStackSlot(store->GetLocal())),
           store->GetLocations()->InAt(1).reg<Register>());
 }
 
@@ -187,9 +187,48 @@ void InstructionCodeGeneratorX86::VisitReturn(HReturn* ret) {
   __ ret();
 }
 
+static constexpr Register kParameterCoreRegisters[] = { ECX, EDX, EBX };
+static constexpr int kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
+
+class InvokeStaticCallingConvention : public CallingConvention<Register> {
+ public:
+  InvokeStaticCallingConvention()
+      : CallingConvention(kParameterCoreRegisters, kParameterCoreRegistersLength) {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InvokeStaticCallingConvention);
+};
+
+void LocationsBuilderX86::VisitPushArgument(HPushArgument* argument) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(argument);
+  InvokeStaticCallingConvention calling_convention;
+  if (argument->GetArgumentIndex() < calling_convention.GetNumberOfRegisters()) {
+    Location location = Location(calling_convention.GetRegisterAt(argument->GetArgumentIndex()));
+    locations->SetInAt(0, location);
+    locations->SetOut(location);
+  } else {
+    locations->SetInAt(0, Location(EAX));
+  }
+  argument->SetLocations(locations);
+}
+
+void InstructionCodeGeneratorX86::VisitPushArgument(HPushArgument* argument) {
+  uint8_t argument_index = argument->GetArgumentIndex();
+  InvokeStaticCallingConvention calling_convention;
+  size_t parameter_registers = calling_convention.GetNumberOfRegisters();
+  if (argument_index >= parameter_registers) {
+    uint8_t offset = calling_convention.GetStackOffsetOf(argument_index);
+    __ movl(Address(ESP, offset),
+            argument->GetLocations()->InAt(0).reg<Register>());
+
+  } else {
+    DCHECK_EQ(argument->GetLocations()->Out().reg<Register>(),
+              argument->GetLocations()->InAt(0).reg<Register>());
+  }
+}
+
 void LocationsBuilderX86::VisitInvokeStatic(HInvokeStatic* invoke) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(invoke);
-  CHECK_EQ(invoke->InputCount(), 0);
   locations->AddTemp(Location(EAX));
   invoke->SetLocations(locations);
 }
