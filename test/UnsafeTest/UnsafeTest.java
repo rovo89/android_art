@@ -29,6 +29,13 @@ public class UnsafeTest {
     }
   }
 
+  private static void check(long actual, long expected, String msg) {
+    if (actual != expected) {
+      System.logE(msg + " : " + actual + " != " + expected);
+      System.exit(-1);
+    }
+  }
+
   private static Unsafe getUnsafe() throws Exception {
     Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
     Field f = unsafeClass.getDeclaredField("theUnsafe");
@@ -71,6 +78,27 @@ public class UnsafeTest {
         "Unsafe.arrayIndexScale(long[])");
     check(unsafe.arrayIndexScale(Object[].class), vmArrayIndexScale(Object[].class),
         "Unsafe.arrayIndexScale(Object[])");
+
+    TestClass t = new TestClass();
+    int intValue = 12345678;
+    Field intField = TestClass.class.getDeclaredField("intVar");
+    long intOffset = unsafe.objectFieldOffset(intField);
+    check(unsafe.getInt(t, intOffset), 0, "Unsafe.getInt(Object, long) - initial");
+    unsafe.putInt(t, intOffset, intValue);
+    check(t.intVar, intValue, "Unsafe.putInt(Object, long, int)");
+    check(unsafe.getInt(t, intOffset), intValue, "Unsafe.getInt(Object, long)");
+    Field longField = TestClass.class.getDeclaredField("longVar");
+    long longOffset = unsafe.objectFieldOffset(longField);
+    long longValue = 1234567887654321L;
+    check(unsafe.getLong(t, longOffset), 0, "Unsafe.getLong(Object, long) - initial");
+    unsafe.putLong(t, longOffset, longValue);
+    check(t.longVar, longValue, "Unsafe.putLong(Object, long, long)");
+    check(unsafe.getLong(t, longOffset), longValue, "Unsafe.getLong(Object, long)");
+  }
+
+  private static class TestClass {
+    public int intVar = 0;
+    public long longVar = 0;
   }
 
   private static native int vmArrayBaseOffset(Class clazz);
