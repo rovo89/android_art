@@ -123,6 +123,9 @@ class SpaceBitmap {
     }
   }
 
+  /**
+   * Visit the live objects in the range [visit_begin, visit_end).
+   */
   template <typename Visitor>
   void VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end, const Visitor& visitor) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
