@@ -26,6 +26,7 @@
 #include "class.h"
 #include "lock_word-inl.h"
 #include "monitor.h"
+#include "read_barrier-inl.h"
 #include "runtime.h"
 #include "reference.h"
 #include "throwable.h"
@@ -96,7 +97,7 @@ inline void Object::Wait(Thread* self, int64_t ms, int32_t ns) {
 inline Object* Object::GetReadBarrierPointer() {
 #ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
   DCHECK(kUseBakerOrBrooksReadBarrier);
-  return GetFieldObject<Object, kVerifyNone>(OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_), false);
+  return GetFieldObject<Object, kVerifyNone, false>(OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_), false);
 #else
   LOG(FATAL) << "Unreachable";
   return nullptr;
@@ -116,21 +117,19 @@ inline void Object::SetReadBarrierPointer(Object* rb_pointer) {
 }
 
 inline void Object::AssertReadBarrierPointer() const {
-#if defined(USE_BAKER_READ_BARRIER)
-  DCHECK(kUseBakerReadBarrier);
-  Object* obj = const_cast<Object*>(this);
-  DCHECK(obj->GetReadBarrierPointer() == nullptr)
-      << "Bad Baker pointer: obj=" << reinterpret_cast<void*>(obj)
-      << " ptr=" << reinterpret_cast<void*>(obj->GetReadBarrierPointer());
-#elif defined(USE_BROOKS_READ_BARRIER)
-  DCHECK(kUseBrooksReadBarrier);
-  Object* obj = const_cast<Object*>(this);
-  DCHECK_EQ(obj, obj->GetReadBarrierPointer())
-      << "Bad Brooks pointer: obj=" << reinterpret_cast<void*>(obj)
-      << " ptr=" << reinterpret_cast<void*>(obj->GetReadBarrierPointer());
-#else
-  LOG(FATAL) << "Unreachable";
-#endif
+  if (kUseBakerReadBarrier) {
+    Object* obj = const_cast<Object*>(this);
+    DCHECK(obj->GetReadBarrierPointer() == nullptr)
+        << "Bad Baker pointer: obj=" << reinterpret_cast<void*>(obj)
+        << " ptr=" << reinterpret_cast<void*>(obj->GetReadBarrierPointer());
+  } else if (kUseBrooksReadBarrier) {
+    Object* obj = const_cast<Object*>(this);
+    DCHECK_EQ(obj, obj->GetReadBarrierPointer())
+        << "Bad Brooks pointer: obj=" << reinterpret_cast<void*>(obj)
+        << " ptr=" << reinterpret_cast<void*>(obj->GetReadBarrierPointer());
+  } else {
+    LOG(FATAL) << "Unreachable";
+  }
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -470,19 +469,17 @@ inline bool Object::CasField64(MemberOffset field_offset, int64_t old_value, int
   return QuasiAtomic::Cas64(old_value, new_value, addr);
 }
 
-template<class T, VerifyObjectFlags kVerifyFlags>
+template<class T, VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
 inline T* Object::GetFieldObject(MemberOffset field_offset, bool is_volatile) {
   if (kVerifyFlags & kVerifyThis) {
     VerifyObject(this);
   }
   byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
   HeapReference<T>* objref_addr = reinterpret_cast<HeapReference<T>*>(raw_addr);
-  HeapReference<T> objref = *objref_addr;
-
+  T* result = ReadBarrier::Barrier<T, kDoReadBarrier>(this, field_offset, objref_addr);
   if (UNLIKELY(is_volatile)) {
     QuasiAtomic::MembarLoadLoad();  // Ensure loads don't re-order.
   }
-  T* result = objref.AsMirrorPtr();
   if (kVerifyFlags & kVerifyReads) {
     VerifyObject(result);
   }
