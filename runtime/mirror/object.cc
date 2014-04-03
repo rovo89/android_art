@@ -66,6 +66,26 @@ static Object* CopyObject(Thread* self, mirror::Object* dest, mirror::Object* sr
   return dest;
 }
 
+// An allocation pre-fence visitor that copies the object.
+class CopyObjectVisitor {
+ public:
+  explicit CopyObjectVisitor(Thread* self, SirtRef<Object>* orig, size_t num_bytes)
+      : self_(self), orig_(orig), num_bytes_(num_bytes) {
+  }
+
+  void operator()(Object* obj, size_t usable_size) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    UNUSED(usable_size);
+    CopyObject(self_, obj, orig_->get(), num_bytes_);
+  }
+
+ private:
+  Thread* const self_;
+  SirtRef<Object>* const orig_;
+  const size_t num_bytes_;
+  DISALLOW_COPY_AND_ASSIGN(CopyObjectVisitor);
+};
+
 Object* Object::Clone(Thread* self) {
   CHECK(!IsClass()) << "Can't clone classes.";
   // Object::SizeOf gets the right size even if we're an array. Using c->AllocObject() here would
@@ -74,13 +94,11 @@ Object* Object::Clone(Thread* self) {
   size_t num_bytes = SizeOf();
   SirtRef<Object> this_object(self, this);
   Object* copy;
+  CopyObjectVisitor visitor(self, &this_object, num_bytes);
   if (heap->IsMovableObject(this)) {
-    copy = heap->AllocObject<true>(self, GetClass(), num_bytes);
+    copy = heap->AllocObject<true>(self, GetClass(), num_bytes, visitor);
   } else {
-    copy = heap->AllocNonMovableObject<true>(self, GetClass(), num_bytes);
-  }
-  if (LIKELY(copy != nullptr)) {
-    return CopyObject(self, copy, this_object.get(), num_bytes);
+    copy = heap->AllocNonMovableObject<true>(self, GetClass(), num_bytes, visitor);
   }
   return copy;
 }

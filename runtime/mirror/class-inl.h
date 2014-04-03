@@ -442,7 +442,14 @@ inline void Class::SetName(String* name) {
 }
 
 inline void Class::CheckObjectAlloc() {
-  DCHECK(!IsArrayClass()) << PrettyClass(this);
+  DCHECK(!IsArrayClass())
+      << PrettyClass(this)
+      << "A array shouldn't be allocated through this "
+      << "as it requires a pre-fence visitor that sets the class size.";
+  DCHECK(!IsClassClass())
+      << PrettyClass(this)
+      << "A class object shouldn't be allocated through this "
+      << "as it requires a pre-fence visitor that sets the class size.";
   DCHECK(IsInstantiable()) << PrettyClass(this);
   // TODO: decide whether we want this check. It currently fails during bootstrap.
   // DCHECK(!Runtime::Current()->IsStarted() || IsInitializing()) << PrettyClass(this);
@@ -454,7 +461,7 @@ inline Object* Class::Alloc(Thread* self, gc::AllocatorType allocator_type) {
   CheckObjectAlloc();
   gc::Heap* heap = Runtime::Current()->GetHeap();
   return heap->AllocObjectWithAllocator<kIsInstrumented, false>(self, this, this->object_size_,
-                                                                allocator_type);
+                                                                allocator_type, VoidFunctor());
 }
 
 inline Object* Class::AllocObject(Thread* self) {
