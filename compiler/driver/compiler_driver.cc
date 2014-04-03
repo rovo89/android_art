@@ -2020,6 +2020,11 @@ void CompilerDriver::InstructionSetToLLVMTarget(InstructionSet instruction_set,
       *target_attr = "";
       break;
 
+    case kX86_64:
+      *target_triple = "x86_64-pc-linux-gnu";
+      *target_attr = "";
+      break;
+
     case kMips:
       *target_triple = "mipsel-unknown-linux";
       *target_attr = "mips32r2";

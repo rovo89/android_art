@@ -349,6 +349,7 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
         r_val = TargetReg(kLr);
         break;
       case kX86:
+      case kX86_64:
         FreeTemp(TargetReg(kRet0));
         r_val = AllocTemp();
         break;
@@ -372,7 +373,7 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
     StoreBaseIndexed(r_dst, r_idx, r_val, 2, kWord);
     FreeTemp(r_val);
     OpDecAndBranch(kCondGe, r_idx, target);
-    if (cu_->instruction_set == kX86) {
+    if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
       // Restore the target pointer
       OpRegRegImm(kOpAdd, TargetReg(kRet0), r_dst,
                   -mirror::Array::DataOffset(component_size).Int32Value());
@@ -634,7 +635,7 @@ void Mir2Lir::HandleThrowLaunchPads() {
     ThreadOffset<4> func_offset(-1);
     int v1 = lab->operands[2];
     int v2 = lab->operands[3];
-    const bool target_x86 = cu_->instruction_set == kX86;
+    const bool target_x86 = cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64;
     switch (lab->operands[0]) {
       case kThrowNullPointer:
         func_offset = QUICK_ENTRYPOINT_OFFSET(4, pThrowNullPointer);
@@ -718,7 +719,7 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
     if (is_long_or_double) {
       DCHECK(rl_dest.wide);
       GenNullCheck(rl_obj.reg, opt_flags);
-      if (cu_->instruction_set == kX86) {
+      if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
         rl_result = EvalLoc(rl_dest, reg_class, true);
         // FIXME?  duplicate null check?
         GenNullCheck(rl_obj.reg, opt_flags);
@@ -966,7 +967,7 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
       // Add to list for future.
       AddSlowPath(new (arena_) SlowPath(this, fromfast, cont, r_method));
     } else {
-      DCHECK_EQ(cu_->instruction_set, kX86);
+      DCHECK(cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64);
       LIR* branch = OpCmpImmBranch(kCondNe, TargetReg(kRet0), 0, NULL);
       LoadConstant(TargetReg(kArg1), string_idx);
       CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pResolveString), r_method, TargetReg(kArg1),
@@ -1050,7 +1051,7 @@ void Mir2Lir::GenThrow(RegLocation rl_src) {
 void Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, RegLocation rl_dest,
                                  RegLocation rl_src) {
   // X86 has its own implementation.
-  DCHECK_NE(cu_->instruction_set, kX86);
+  DCHECK(cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64);
 
   RegLocation object = LoadValue(rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
@@ -1108,7 +1109,7 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
                                          uint32_t type_idx, RegLocation rl_dest,
                                          RegLocation rl_src) {
   // X86 has its own implementation.
-  DCHECK_NE(cu_->instruction_set, kX86);
+  DCHECK(cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64);
 
   FlushAllRegs();
   // May generate a call - use explicit registers
@@ -1430,7 +1431,7 @@ void Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
 
 void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
                             RegLocation rl_src1, RegLocation rl_src2) {
-  DCHECK_NE(cu_->instruction_set, kX86);
+  DCHECK(cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64);
   OpKind op = kOpBkpt;
   bool is_div_rem = false;
   bool check_zero = false;
@@ -1801,7 +1802,7 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
         rl_src = LoadValue(rl_src, kCoreReg);
         rl_result = GenDivRemLit(rl_dest, rl_src.reg, lit, is_div);
         done = true;
-      } else if (cu_->instruction_set == kX86) {
+      } else if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
         rl_result = GenDivRemLit(rl_dest, rl_src, lit, is_div);
         done = true;
       } else if (cu_->instruction_set == kThumb2) {
@@ -1915,7 +1916,7 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
       break;
     case Instruction::AND_LONG_2ADDR:
     case Instruction::AND_LONG:
-      if (cu_->instruction_set == kX86) {
+      if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
         return GenAndLong(opcode, rl_dest, rl_src1, rl_src2);
       }
       first_op = kOpAnd;
@@ -1923,7 +1924,7 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
       break;
     case Instruction::OR_LONG:
     case Instruction::OR_LONG_2ADDR:
-      if (cu_->instruction_set == kX86) {
+      if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
         GenOrLong(opcode, rl_dest, rl_src1, rl_src2);
         return;
       }
@@ -1932,7 +1933,7 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
       break;
     case Instruction::XOR_LONG:
     case Instruction::XOR_LONG_2ADDR:
-      if (cu_->instruction_set == kX86) {
+      if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
         GenXorLong(opcode, rl_dest, rl_src1, rl_src2);
         return;
       }

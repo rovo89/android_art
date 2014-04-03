@@ -160,6 +160,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   // TODO: x86_64 & arm64 are not yet implemented.
   DCHECK((cu.instruction_set == kThumb2) ||
          (cu.instruction_set == kX86) ||
+         (cu.instruction_set == kX86_64) ||
          (cu.instruction_set == kMips));
 
 

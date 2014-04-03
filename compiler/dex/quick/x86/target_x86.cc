@@ -149,7 +149,7 @@ uint64_t X86Mir2Lir::GetPCUseDefEncoding() {
 }
 
 void X86Mir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags) {
-  DCHECK_EQ(cu_->instruction_set, kX86);
+  DCHECK(cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64);
   DCHECK(!lir->flags.use_def_invalid);
 
   // X86-specific resource map setup here.

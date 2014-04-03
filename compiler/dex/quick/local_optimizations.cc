@@ -100,7 +100,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
     }
 
     int native_reg_id;
-    if (cu_->instruction_set == kX86) {
+    if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
       // If x86, location differs depending on whether memory/reg operation.
       native_reg_id = (target_flags & IS_STORE) ? this_lir->operands[2] : this_lir->operands[0];
     } else {
@@ -121,7 +121,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
 
     uint64_t stop_def_reg_mask = this_lir->u.m.def_mask & ~ENCODE_MEM;
     uint64_t stop_use_reg_mask;
-    if (cu_->instruction_set == kX86) {
+    if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
       stop_use_reg_mask = (IS_BRANCH | this_lir->u.m.use_mask) & ~ENCODE_MEM;
     } else {
       /*
@@ -241,7 +241,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
       }
 
       if (stop_here == true) {
-        if (cu_->instruction_set == kX86) {
+        if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
           // Prevent stores from being sunk between ops that generate ccodes and
           // ops that use them.
           uint64_t flags = GetTargetInstFlags(check_lir->opcode);
@@ -306,7 +306,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
 
     uint64_t stop_use_all_mask = this_lir->u.m.use_mask;
 
-    if (cu_->instruction_set != kX86) {
+    if (cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64) {
       /*
        * Branches for null/range checks are marked with the true resource
        * bits, and loads to Dalvik registers, constant pools, and non-alias
