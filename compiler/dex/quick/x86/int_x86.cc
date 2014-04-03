@@ -663,7 +663,7 @@ RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
 }
 
 bool X86Mir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
-  DCHECK_EQ(cu_->instruction_set, kX86);
+  DCHECK(cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64);
 
   // Get the two arguments to the invoke and place them in GP registers.
   RegLocation rl_src1 = info->args[0];
@@ -751,7 +751,7 @@ static bool IsInReg(X86Mir2Lir *pMir2Lir, const RegLocation &rl, RegStorage reg)
 }
 
 bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
-  DCHECK_EQ(cu_->instruction_set, kX86);
+  DCHECK(cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64);
   // Unused - RegLocation rl_src_unsafe = info->args[0];
   RegLocation rl_src_obj = info->args[1];  // Object - known non-null
   RegLocation rl_src_offset = info->args[2];  // long low

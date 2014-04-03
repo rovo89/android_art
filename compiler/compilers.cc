@@ -107,6 +107,9 @@ Backend* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_
     case kX86:
       mir_to_lir = X86CodeGenerator(cu, cu->mir_graph.get(), &cu->arena);
       break;
+    case kX86_64:
+      mir_to_lir = X86CodeGenerator(cu, cu->mir_graph.get(), &cu->arena);
+      break;
     default:
       LOG(FATAL) << "Unexpected instruction set: " << cu->instruction_set;
   }
@@ -123,6 +126,9 @@ Backend* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_
 std::vector<uint8_t>* QuickCompiler::GetCallFrameInformationInitialization(
     const CompilerDriver& driver) const {
   if (driver.GetInstructionSet() == kX86) {
+    return X86CFIInitialization();
+  }
+  if (driver.GetInstructionSet() == kX86_64) {
     return X86CFIInitialization();
   }
   return nullptr;
