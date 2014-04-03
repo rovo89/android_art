@@ -188,7 +188,7 @@ void InstructionCodeGeneratorX86::VisitReturn(HReturn* ret) {
 }
 
 static constexpr Register kParameterCoreRegisters[] = { ECX, EDX, EBX };
-static constexpr int kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
+static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
 
 class InvokeStaticCallingConvention : public CallingConvention<Register> {
  public:
@@ -197,6 +197,20 @@ class InvokeStaticCallingConvention : public CallingConvention<Register> {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(InvokeStaticCallingConvention);
+};
+
+static constexpr Register kRuntimeParameterCoreRegisters[] = { EAX, ECX, EDX };
+static constexpr size_t kRuntimeParameterCoreRegistersLength =
+    arraysize(kRuntimeParameterCoreRegisters);
+
+class InvokeRuntimeCallingConvention : public CallingConvention<Register> {
+ public:
+  InvokeRuntimeCallingConvention()
+      : CallingConvention(kRuntimeParameterCoreRegisters,
+                          kRuntimeParameterCoreRegistersLength) {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
 };
 
 void LocationsBuilderX86::VisitPushArgument(HPushArgument* argument) {
@@ -282,6 +296,23 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
     default:
       LOG(FATAL) << "Unimplemented";
   }
+}
+
+void LocationsBuilderX86::VisitNewInstance(HNewInstance* instruction) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
+  locations->SetOut(Location(EAX));
+  instruction->SetLocations(locations);
+}
+
+void InstructionCodeGeneratorX86::VisitNewInstance(HNewInstance* instruction) {
+  InvokeRuntimeCallingConvention calling_convention;
+  LoadCurrentMethod(calling_convention.GetRegisterAt(1));
+  __ movl(calling_convention.GetRegisterAt(0),
+          Immediate(instruction->GetTypeIndex()));
+
+  __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kWordSize, pAllocObjectWithAccessCheck)));
+
+  codegen_->RecordPcInfo(instruction->GetDexPc());
 }
 
 }  // namespace x86
