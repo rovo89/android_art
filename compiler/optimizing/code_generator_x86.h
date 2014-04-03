@@ -23,9 +23,6 @@
 
 namespace art {
 
-class Assembler;
-class Label;
-
 namespace x86 {
 
 class LocationsBuilderX86 : public HGraphVisitor {
@@ -43,12 +40,11 @@ class LocationsBuilderX86 : public HGraphVisitor {
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderX86);
 };
 
+class CodeGeneratorX86;
+
 class InstructionCodeGeneratorX86 : public HGraphVisitor {
  public:
-  explicit InstructionCodeGeneratorX86(HGraph* graph, CodeGenerator* codegen)
-      : HGraphVisitor(graph),
-        assembler_(codegen->GetAssembler()),
-        codegen_(codegen) { }
+  InstructionCodeGeneratorX86(HGraph* graph, CodeGeneratorX86* codegen);
 
 #define DECLARE_VISIT_INSTRUCTION(name)     \
   virtual void Visit##name(H##name* instr);
@@ -59,11 +55,11 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
 
   void LoadCurrentMethod(Register reg);
 
-  Assembler* GetAssembler() const { return assembler_; }
+  X86Assembler* GetAssembler() const { return assembler_; }
 
  private:
-  Assembler* const assembler_;
-  CodeGenerator* const codegen_;
+  X86Assembler* const assembler_;
+  CodeGeneratorX86* const codegen_;
 
   DISALLOW_COPY_AND_ASSIGN(InstructionCodeGeneratorX86);
 };
@@ -76,12 +72,10 @@ class CodeGeneratorX86 : public CodeGenerator {
         instruction_visitor_(graph, this) { }
   virtual ~CodeGeneratorX86() { }
 
- protected:
   virtual void GenerateFrameEntry() OVERRIDE;
   virtual void GenerateFrameExit() OVERRIDE;
   virtual void Bind(Label* label) OVERRIDE;
-  virtual void Move(HInstruction* instruction, Location location) OVERRIDE;
-  virtual void Push(HInstruction* instruction, Location location) OVERRIDE;
+  virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
 
   virtual HGraphVisitor* GetLocationBuilder() OVERRIDE {
     return &location_builder_;
@@ -94,6 +88,8 @@ class CodeGeneratorX86 : public CodeGenerator {
   virtual X86Assembler* GetAssembler() OVERRIDE {
     return &assembler_;
   }
+
+  int32_t GetStackSlot(HLocal* local) const;
 
  private:
   LocationsBuilderX86 location_builder_;

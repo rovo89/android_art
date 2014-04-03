@@ -30,12 +30,29 @@ public class Main {
 
   public static void $opt$TestInvokeStatic() {
     printStaticMethod();
+    printStaticMethodWith2Args(1, 2);
+    printStaticMethodWith5Args(1, 2, 3, 4, 5);
+    printStaticMethodWith7Args(1, 2, 3, 4, 5, 6, 7);
     forceGCStaticMethod();
     throwStaticMethod();
   }
 
   public static void printStaticMethod() {
     System.out.println("In static method");
+  }
+
+  public static void printStaticMethodWith2Args(int a, int b) {
+    System.out.println("In static method with 2 args " + a + " " + b);
+  }
+
+  public static void printStaticMethodWith5Args(int a, int b, int c, int d, int e) {
+    System.out.println("In static method with 5 args "
+        + a + " " + b + " " + c + " " + d + " " + e);
+  }
+
+  public static void printStaticMethodWith7Args(int a, int b, int c, int d, int e, int f, int g) {
+    System.out.println("In static method with 7 args "
+        + a + " " + b + " " + c + " " + d + " " + e + " " + f + " " + g);
   }
 
   public static void forceGCStaticMethod() {

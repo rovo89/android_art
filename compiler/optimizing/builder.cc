@@ -37,8 +37,6 @@ void HGraphBuilder::InitializeLocals(int count) {
 static bool CanHandleCodeItem(const DexFile::CodeItem& code_item) {
   if (code_item.tries_size_ > 0) {
     return false;
-  } else if (code_item.outs_size_ > 0) {
-    return false;
   } else if (code_item.ins_size_ > 0) {
     return false;
   }
@@ -62,6 +60,7 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
   graph_->SetExitBlock(exit_block_);
 
   InitializeLocals(code_item.registers_size_);
+  graph_->UpdateMaximumNumberOfOutVRegs(code_item.outs_size_);
 
   // To avoid splitting blocks, we compute ahead of time the instructions that
   // start a new block, and create these blocks.
@@ -200,14 +199,49 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
       uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
       const char* descriptor = dex_file_->StringByTypeIdx(return_type_idx);
       const size_t number_of_arguments = instruction.VRegA_35c();
-      if (number_of_arguments != 0) {
-        return false;
-      }
+
       if (Primitive::GetType(descriptor[0]) != Primitive::kPrimVoid) {
         return false;
       }
-      current_block_->AddInstruction(new (arena_) HInvokeStatic(
-          arena_, number_of_arguments, dex_offset, method_idx));
+
+      HInvokeStatic* invoke = new (arena_) HInvokeStatic(
+          arena_, number_of_arguments, dex_offset, method_idx);
+
+      uint32_t args[5];
+      instruction.GetArgs(args);
+
+      for (size_t i = 0; i < number_of_arguments; i++) {
+        HInstruction* arg = LoadLocal(args[i]);
+        HInstruction* push = new (arena_) HPushArgument(arg, i);
+        current_block_->AddInstruction(push);
+        invoke->SetArgumentAt(i, push);
+      }
+
+      current_block_->AddInstruction(invoke);
+      break;
+    }
+
+    case Instruction::INVOKE_STATIC_RANGE: {
+      uint32_t method_idx = instruction.VRegB_3rc();
+      const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
+      uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
+      const char* descriptor = dex_file_->StringByTypeIdx(return_type_idx);
+      const size_t number_of_arguments = instruction.VRegA_3rc();
+
+      if (Primitive::GetType(descriptor[0]) != Primitive::kPrimVoid) {
+        return false;
+      }
+
+      HInvokeStatic* invoke = new (arena_) HInvokeStatic(
+          arena_, number_of_arguments, dex_offset, method_idx);
+      int32_t register_index = instruction.VRegC();
+      for (size_t i = 0; i < number_of_arguments; i++) {
+        HInstruction* arg = LoadLocal(register_index + i);
+        HInstruction* push = new (arena_) HPushArgument(arg, i);
+        current_block_->AddInstruction(push);
+        invoke->SetArgumentAt(i, push);
+      }
+      current_block_->AddInstruction(invoke);
       break;
     }
 

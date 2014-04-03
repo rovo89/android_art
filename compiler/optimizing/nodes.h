@@ -41,6 +41,7 @@ class HGraph : public ArenaObject {
       : arena_(arena),
         blocks_(arena, kDefaultNumberOfBlocks),
         dominator_order_(arena, kDefaultNumberOfBlocks),
+        maximum_number_of_out_vregs_(0),
         current_instruction_id_(0) { }
 
   ArenaAllocator* GetArena() const { return arena_; }
@@ -57,6 +58,14 @@ class HGraph : public ArenaObject {
 
   int GetNextInstructionId() {
     return current_instruction_id_++;
+  }
+
+  uint16_t GetMaximumNumberOfOutVRegs() const {
+    return maximum_number_of_out_vregs_;
+  }
+
+  void UpdateMaximumNumberOfOutVRegs(uint16_t new_value) {
+    maximum_number_of_out_vregs_ = std::max(new_value, maximum_number_of_out_vregs_);
   }
 
  private:
@@ -80,6 +89,9 @@ class HGraph : public ArenaObject {
 
   HBasicBlock* entry_block_;
   HBasicBlock* exit_block_;
+
+  // The maximum number of arguments passed to a HInvoke in this graph.
+  uint16_t maximum_number_of_out_vregs_;
 
   // The current id to assign to a newly added instruction. See HInstruction.id_.
   int current_instruction_id_;
@@ -189,6 +201,7 @@ class HBasicBlock : public ArenaObject {
   M(InvokeStatic)                                          \
   M(LoadLocal)                                             \
   M(Local)                                                 \
+  M(PushArgument)                                          \
   M(Return)                                                \
   M(ReturnVoid)                                            \
   M(StoreLocal)                                            \
@@ -589,6 +602,10 @@ class HInvoke : public HInstruction {
   virtual intptr_t InputCount() const { return inputs_.Size(); }
   virtual HInstruction* InputAt(intptr_t i) const { return inputs_.Get(i); }
 
+  void SetArgumentAt(size_t index, HInstruction* argument) {
+    inputs_.Put(index, argument);
+  }
+
   int32_t GetDexPc() const { return dex_pc_; }
 
  protected:
@@ -601,17 +618,38 @@ class HInvoke : public HInstruction {
 
 class HInvokeStatic : public HInvoke {
  public:
-  HInvokeStatic(ArenaAllocator* arena, uint32_t number_of_arguments, int32_t dex_pc, int32_t index_in_dex_cache)
-      : HInvoke(arena, number_of_arguments, dex_pc), index_in_dex_cache_(index_in_dex_cache) { }
+  HInvokeStatic(ArenaAllocator* arena,
+                uint32_t number_of_arguments,
+                int32_t dex_pc,
+                int32_t index_in_dex_cache)
+      : HInvoke(arena, number_of_arguments, dex_pc), index_in_dex_cache_(index_in_dex_cache) {}
 
   uint32_t GetIndexInDexCache() const { return index_in_dex_cache_; }
 
   DECLARE_INSTRUCTION(InvokeStatic)
 
  private:
-  uint32_t index_in_dex_cache_;
+  const uint32_t index_in_dex_cache_;
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeStatic);
+};
+
+// HPushArgument nodes are inserted after the evaluation of an argument
+// of a call. Their mere purpose is to ease the code generator's work.
+class HPushArgument : public HTemplateInstruction<1> {
+ public:
+  HPushArgument(HInstruction* argument, uint8_t argument_index) : argument_index_(argument_index) {
+    SetRawInputAt(0, argument);
+  }
+
+  uint8_t GetArgumentIndex() const { return argument_index_; }
+
+  DECLARE_INSTRUCTION(PushArgument)
+
+ private:
+  const uint8_t argument_index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HPushArgument);
 };
 
 class HAdd : public HBinaryOperation {
