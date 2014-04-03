@@ -211,7 +211,12 @@ RegLocation Mir2Lir::LoadValueWide(RegLocation rl_src, RegisterClass op_kind) {
     LoadValueDirectWide(rl_src, rl_src.reg);
     rl_src.location = kLocPhysReg;
     MarkLive(rl_src.reg.GetLow(), rl_src.s_reg_low);
-    MarkLive(rl_src.reg.GetHigh(), GetSRegHi(rl_src.s_reg_low));
+    if (rl_src.reg.GetLowReg() != rl_src.reg.GetHighReg()) {
+      MarkLive(rl_src.reg.GetHigh(), GetSRegHi(rl_src.s_reg_low));
+    } else {
+      // This must be an x86 vector register value.
+      DCHECK(IsFpReg(rl_src.reg) && (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64));
+    }
   }
   return rl_src;
 }
