@@ -1010,6 +1010,7 @@ class Mir2Lir : public Backend {
     virtual LIR* OpDecAndBranch(ConditionCode c_code, RegStorage reg, LIR* target) = 0;
     virtual LIR* OpFpRegCopy(RegStorage r_dest, RegStorage r_src) = 0;
     virtual LIR* OpIT(ConditionCode cond, const char* guide) = 0;
+    virtual void OpEndIT(LIR* it) = 0;
     virtual LIR* OpMem(OpKind op, RegStorage r_base, int disp) = 0;
     virtual LIR* OpPcRelLoad(RegStorage reg, LIR* target) = 0;
     virtual LIR* OpReg(OpKind op, RegStorage r_dest_src) = 0;

@@ -378,6 +378,11 @@ LIR* MipsMir2Lir::OpIT(ConditionCode cond, const char* guide) {
   return NULL;
 }
 
+void MipsMir2Lir::OpEndIT(LIR* it) {
+  LOG(FATAL) << "Unexpected use of OpEndIT in Mips";
+}
+
+
 void MipsMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
                              RegLocation rl_src1, RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenMulLong for Mips";

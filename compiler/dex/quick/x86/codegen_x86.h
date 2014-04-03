@@ -230,6 +230,7 @@ class X86Mir2Lir FINAL : public Mir2Lir {
     LIR* OpDecAndBranch(ConditionCode c_code, RegStorage reg, LIR* target);
     LIR* OpFpRegCopy(RegStorage r_dest, RegStorage r_src);
     LIR* OpIT(ConditionCode cond, const char* guide);
+    void OpEndIT(LIR* it);
     LIR* OpMem(OpKind op, RegStorage r_base, int disp);
     LIR* OpPcRelLoad(RegStorage reg, LIR* target);
     LIR* OpReg(OpKind op, RegStorage r_dest_src);
