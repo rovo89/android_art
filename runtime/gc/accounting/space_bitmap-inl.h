@@ -29,10 +29,10 @@ inline bool SpaceBitmap::AtomicTestAndSet(const mirror::Object* obj) {
   DCHECK_GE(addr, heap_begin_);
   const uintptr_t offset = addr - heap_begin_;
   const size_t index = OffsetToIndex(offset);
-  const word mask = OffsetToMask(offset);
-  word* const address = &bitmap_begin_[index];
+  const uword mask = OffsetToMask(offset);
+  uword* const address = &bitmap_begin_[index];
   DCHECK_LT(index, bitmap_size_ / kWordSize) << " bitmap_size_ = " << bitmap_size_;
-  word old_word;
+  uword old_word;
   do {
     old_word = *address;
     // Fast path: The bit is already set.
@@ -58,74 +58,79 @@ template <typename Visitor>
 void SpaceBitmap::VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
                                    const Visitor& visitor) const {
   DCHECK_LT(visit_begin, visit_end);
-#ifdef __LP64__
-  // TODO: make the optimized code below work in the 64bit case.
-  for (uintptr_t i = visit_begin; i < visit_end; i += kAlignment) {
-    mirror::Object* obj = reinterpret_cast<mirror::Object*>(i);
-    if (Test(obj)) {
-      visitor(obj);
-    }
-  }
-#else
-  const size_t bit_index_start = (visit_begin - heap_begin_) / kAlignment;
-  const size_t bit_index_end = (visit_end - heap_begin_ - 1) / kAlignment;
+  DCHECK_LE(heap_begin_, visit_begin);
+  DCHECK_LE(visit_end, HeapLimit());
 
-  size_t word_start = bit_index_start / kBitsPerWord;
-  size_t word_end = bit_index_end / kBitsPerWord;
-  DCHECK_LT(word_end * kWordSize, Size());
+  const uintptr_t offset_start = visit_begin - heap_begin_;
+  const uintptr_t offset_end = visit_end - heap_begin_;
 
-  // Trim off left_bits of left bits.
-  size_t edge_word = bitmap_begin_[word_start];
+  const uintptr_t index_start = OffsetToIndex(offset_start);
+  const uintptr_t index_end = OffsetToIndex(offset_end);
 
-  // Handle bits on the left first as a special case
-  size_t left_bits = bit_index_start & (kBitsPerWord - 1);
-  if (left_bits != 0) {
-    edge_word &= (1 << (kBitsPerWord - left_bits)) - 1;
-  }
+  const size_t bit_start = (offset_start / kAlignment) % kBitsPerWord;
+  const size_t bit_end = (offset_end / kAlignment) % kBitsPerWord;
 
-  // If word_start == word_end then handle this case at the same place we handle the right edge.
-  if (edge_word != 0 && word_start < word_end) {
-    uintptr_t ptr_base = IndexToOffset(word_start) + heap_begin_;
-    do {
-      const size_t shift = CLZ(edge_word);
-      mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
-      visitor(obj);
-      edge_word ^= static_cast<size_t>(kWordHighBitMask) >> shift;
-    } while (edge_word != 0);
-  }
-  word_start++;
+  // Index(begin)  ...    Index(end)
+  // [xxxxx???][........][????yyyy]
+  //      ^                   ^
+  //      |                   #---- Bit of visit_end
+  //      #---- Bit of visit_begin
+  //
 
-  for (size_t i = word_start; i < word_end; i++) {
-    size_t w = bitmap_begin_[i];
-    if (w != 0) {
-      uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
+  // Left edge.
+  uword left_edge = bitmap_begin_[index_start];
+  // Mark of lower bits that are not in range.
+  left_edge &= ~((static_cast<uword>(1) << bit_start) - 1);
+
+  // Right edge. Either unique, or left_edge.
+  uword right_edge;
+
+  if (index_start < index_end) {
+    // Left edge != right edge.
+
+    // Traverse left edge.
+    if (left_edge != 0) {
+      const uintptr_t ptr_base = IndexToOffset(index_start) + heap_begin_;
       do {
-        const size_t shift = CLZ(w);
+        const size_t shift = CTZ(left_edge);
         mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
         visitor(obj);
-        w ^= static_cast<size_t>(kWordHighBitMask) >> shift;
-      } while (w != 0);
+        left_edge ^= (static_cast<uword>(1)) << shift;
+      } while (left_edge != 0);
     }
+
+    // Traverse the middle, full part.
+    for (size_t i = index_start + 1; i < index_end; ++i) {
+      uword w = bitmap_begin_[i];
+      if (w != 0) {
+        const uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
+        do {
+          const size_t shift = CTZ(w);
+          mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
+          visitor(obj);
+          w ^= (static_cast<uword>(1)) << shift;
+        } while (w != 0);
+      }
+    }
+
+    // Right edge is unique.
+    right_edge = bitmap_begin_[index_end];
+  } else {
+    // Right edge = left edge.
+    right_edge = left_edge;
   }
 
-  // Handle the right edge, and also the left edge if both edges are on the same word.
-  size_t right_bits = bit_index_end & (kBitsPerWord - 1);
-
-  // If word_start == word_end then we need to use the word which we removed the left bits.
-  if (word_start <= word_end) {
-    edge_word = bitmap_begin_[word_end];
+  // Right edge handling.
+  right_edge &= ((static_cast<uword>(1) << bit_end) - 1) | (static_cast<uword>(1) << bit_end);
+  if (right_edge != 0) {
+    const uintptr_t ptr_base = IndexToOffset(index_end) + heap_begin_;
+    do {
+      const size_t shift = CTZ(right_edge);
+      mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
+      visitor(obj);
+      right_edge ^= (static_cast<uword>(1)) << shift;
+    } while (right_edge != 0);
   }
-
-  // Bits that we trim off the right.
-  edge_word &= ~((static_cast<size_t>(kWordHighBitMask) >> right_bits) - 1);
-  uintptr_t ptr_base = IndexToOffset(word_end) + heap_begin_;
-  while (edge_word != 0) {
-    const size_t shift = CLZ(edge_word);
-    mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
-    visitor(obj);
-    edge_word ^= static_cast<size_t>(kWordHighBitMask) >> shift;
-  }
-#endif
 }
 
 inline bool SpaceBitmap::Modify(const mirror::Object* obj, bool do_set) {
@@ -133,10 +138,10 @@ inline bool SpaceBitmap::Modify(const mirror::Object* obj, bool do_set) {
   DCHECK_GE(addr, heap_begin_);
   const uintptr_t offset = addr - heap_begin_;
   const size_t index = OffsetToIndex(offset);
-  const word mask = OffsetToMask(offset);
+  const uword mask = OffsetToMask(offset);
   DCHECK_LT(index, bitmap_size_ / kWordSize) << " bitmap_size_ = " << bitmap_size_;
-  word* address = &bitmap_begin_[index];
-  word old_word = *address;
+  uword* address = &bitmap_begin_[index];
+  uword old_word = *address;
   if (do_set) {
     *address = old_word | mask;
   } else {
