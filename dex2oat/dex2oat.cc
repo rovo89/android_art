@@ -153,8 +153,8 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Example: --compiler-backend=Portable");
   UsageError("      Default: Quick");
   UsageError("");
-  UsageError("  --compiler-filter=(interpret-only|space|balanced|speed|everything): select");
-  UsageError("      compiler filter.");
+  UsageError("  --compiler-filter=(verify-none|interpret-only|space|balanced|speed|everything):");
+  UsageError("      select compiler filter.");
   UsageError("      Example: --compiler-filter=everything");
 #if ART_SMALL_MODE
   UsageError("      Default: interpret-only");
@@ -189,7 +189,8 @@ static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --num-dex-methods=<method-count>: threshold size for a small dex file for");
   UsageError("      compiler filter tuning. If the input has fewer than this many methods");
-  UsageError("      and the filter is not interpret-only, overrides the filter to use speed");
+  UsageError("      and the filter is not interpret-only or verify-none, overrides the");
+  UsageError("      filter to use speed");
   UsageError("      Example: --num-dex-method=%d", CompilerOptions::kDefaultNumDexMethodsThreshold);
   UsageError("      Default: %d", CompilerOptions::kDefaultNumDexMethodsThreshold);
   UsageError("");
@@ -201,8 +202,8 @@ static void Usage(const char* fmt, ...) {
   UsageError("      such as initial heap size, maximum heap size, and verbose output.");
   UsageError("      Use a separate --runtime-arg switch for each argument.");
   UsageError("      Example: --runtime-arg -Xms256m");
-    UsageError("");
-    UsageError("  --profile-file=<filename>: specify profiler output file to use for compilation.");
+  UsageError("");
+  UsageError("  --profile-file=<filename>: specify profiler output file to use for compilation.");
   UsageError("");
   UsageError("  --print-pass-names: print a list of pass names");
   UsageError("");
@@ -1037,7 +1038,9 @@ static int dex2oat(int argc, char** argv) {
   }
   CHECK(compiler_filter_string != nullptr);
   CompilerOptions::CompilerFilter compiler_filter = CompilerOptions::kDefaultCompilerFilter;
-  if (strcmp(compiler_filter_string, "interpret-only") == 0) {
+  if (strcmp(compiler_filter_string, "verify-none") == 0) {
+    compiler_filter = CompilerOptions::kVerifyNone;
+  } else if (strcmp(compiler_filter_string, "interpret-only") == 0) {
     compiler_filter = CompilerOptions::kInterpretOnly;
   } else if (strcmp(compiler_filter_string, "space") == 0) {
     compiler_filter = CompilerOptions::kSpace;
@@ -1208,10 +1211,10 @@ static int dex2oat(int argc, char** argv) {
   }
 
   /*
-   * If we're not in interpret-only mode, go ahead and compile small applications. Don't
-   * bother to check if we're doing the image.
+   * If we're not in interpret-only or verify-none mode, go ahead and compile small applications.
+   * Don't bother to check if we're doing the image.
    */
-  if (!image && (compiler_options.GetCompilerFilter() != CompilerOptions::kInterpretOnly)) {
+  if (!image && compiler_options.IsCompilationEnabled()) {
     size_t num_methods = 0;
     for (size_t i = 0; i != dex_files.size(); ++i) {
       const DexFile* dex_file = dex_files[i];

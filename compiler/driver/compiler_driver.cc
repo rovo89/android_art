@@ -598,6 +598,11 @@ void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const De
                                 ThreadPool* thread_pool, TimingLogger* timings) {
   LoadImageClasses(timings);
 
+  if (!compiler_options_->IsVerificationEnabled()) {
+    VLOG(compiler) << "Verify none mode specified, skipping pre-compilation";
+    return;
+  }
+
   Resolve(class_loader, dex_files, thread_pool, timings);
 
   Verify(class_loader, dex_files, thread_pool, timings);
@@ -1872,7 +1877,7 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
 
   if ((access_flags & kAccNative) != 0) {
     // Are we interpreting only and have support for generic JNI down calls?
-    if ((compiler_options_->GetCompilerFilter() == CompilerOptions::kInterpretOnly) &&
+    if (!compiler_options_->IsCompilationEnabled() &&
         (instruction_set_ == kX86_64 || instruction_set_ == kArm64)) {
       // Leaving this empty will trigger the generic JNI version
     } else {
