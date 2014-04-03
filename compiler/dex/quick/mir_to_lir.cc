@@ -43,7 +43,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, bool wide) {
       RegStorage::InvalidReg();
 
   int offset = StackVisitor::GetOutVROffset(in_position);
-  if (cu_->instruction_set == kX86) {
+  if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
     /*
      * When doing a call for x86, it moves the stack pointer in order to push return.
      * Thus, we add another 4 bytes to figure out the out of caller (in of callee).
@@ -82,7 +82,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, bool wide) {
 
 void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
   int offset = StackVisitor::GetOutVROffset(in_position);
-  if (cu_->instruction_set == kX86) {
+  if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
     /*
      * When doing a call for x86, it moves the stack pointer in order to push return.
      * Thus, we add another 4 bytes to figure out the out of caller (in of callee).
