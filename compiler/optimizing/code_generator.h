@@ -141,8 +141,7 @@ class CodeGenerator : public ArenaObject {
   virtual void GenerateFrameEntry() = 0;
   virtual void GenerateFrameExit() = 0;
   virtual void Bind(Label* label) = 0;
-  virtual void Move(HInstruction* instruction, Location location) = 0;
-  virtual void Push(HInstruction* instruction, Location location) = 0;
+  virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) = 0;
   virtual HGraphVisitor* GetLocationBuilder() = 0;
   virtual HGraphVisitor* GetInstructionVisitor() = 0;
   virtual Assembler* GetAssembler() = 0;
@@ -189,6 +188,33 @@ class CodeGenerator : public ArenaObject {
   GrowableArray<PcInfo> pc_infos_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGenerator);
+};
+
+template <typename T>
+class CallingConvention {
+ public:
+  CallingConvention(const T* registers, int number_of_registers)
+      : registers_(registers), number_of_registers_(number_of_registers) {}
+
+  size_t GetNumberOfRegisters() const { return number_of_registers_; }
+
+  T GetRegisterAt(size_t index) const {
+    DCHECK_LT(index, number_of_registers_);
+    return registers_[index];
+  }
+
+  uint8_t GetStackOffsetOf(size_t index) const {
+    DCHECK_GE(index, number_of_registers_);
+    // We still reserve the space for parameters passed by registers.
+    // Add kWordSize for the method pointer.
+    return index * kWordSize + kWordSize;
+  }
+
+ private:
+  const T* registers_;
+  const size_t number_of_registers_;
+
+  DISALLOW_COPY_AND_ASSIGN(CallingConvention);
 };
 
 }  // namespace art
