@@ -454,8 +454,6 @@ enum ArmOpcode {
   kThumb2Vcmps,      // vcmp [111011101] D [11010] rd[15-12] [1011] E [1] M [0] rm[3-0].
   kThumb2LdrPcRel12,  // ldr rd,[pc,#imm12] [1111100011011111] rt[15-12] imm12[11-0].
   kThumb2BCond,      // b<c> [1110] S cond[25-22] imm6[21-16] [10] J1 [0] J2 imm11[10..0].
-  kThumb2Vmovd_RR,   // vmov [111011101] D [110000] vd[15-12 [101101] M [0] vm[3-0].
-  kThumb2Vmovs_RR,   // vmov [111011101] D [110000] vd[15-12 [101001] M [0] vm[3-0].
   kThumb2Fmrs,       // vmov [111011100000] vn[19-16] rt[15-12] [1010] N [0010000].
   kThumb2Fmsr,       // vmov [111011100001] vn[19-16] rt[15-12] [1010] N [0010000].
   kThumb2Fmrrd,      // vmov [111011000100] rt2[19-16] rt[15-12] [101100] M [1] vm[3-0].
