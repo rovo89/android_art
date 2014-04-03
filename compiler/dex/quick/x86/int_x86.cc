@@ -919,6 +919,10 @@ LIR* X86Mir2Lir::OpIT(ConditionCode cond, const char* guide) {
   return NULL;
 }
 
+void X86Mir2Lir::OpEndIT(LIR* it) {
+  LOG(FATAL) << "Unexpected use of OpEndIT in x86";
+}
+
 void X86Mir2Lir::GenImulRegImm(RegStorage dest, RegStorage src, int val) {
   switch (val) {
     case 0:
