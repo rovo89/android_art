@@ -59,6 +59,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
 	runtime/verifier/method_verifier_test.cc \
 	runtime/verifier/reg_type_test.cc \
 	runtime/zip_archive_test.cc \
+	runtime/stack_indirect_reference_table_test.cc
 
 COMPILER_GTEST_COMMON_SRC_FILES := \
 	runtime/jni_internal_test.cc \
