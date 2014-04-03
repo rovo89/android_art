@@ -569,6 +569,10 @@ bool ClassLinker::GenerateOatFile(const char* dex_filename,
 
   Runtime::Current()->AddCurrentRuntimeFeaturesAsDex2OatArguments(&argv);
 
+  if (!Runtime::Current()->IsVerificationEnabled()) {
+    argv.push_back("--compiler-filter=verify-none");
+  }
+
   if (!kIsTargetBuild) {
     argv.push_back("--host");
   }
@@ -2531,6 +2535,12 @@ void ClassLinker::VerifyClass(const SirtRef<mirror::Class>& klass) {
         << PrettyClass(klass.get());
     CHECK(!Runtime::Current()->IsCompiler());
     klass->SetStatus(mirror::Class::kStatusVerifyingAtRuntime, self);
+  }
+
+  // Skip verification if disabled.
+  if (!Runtime::Current()->IsVerificationEnabled()) {
+    klass->SetStatus(mirror::Class::kStatusVerified, self);
+    return;
   }
 
   // Verify super class.

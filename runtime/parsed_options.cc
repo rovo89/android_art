@@ -196,6 +196,8 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
   profile_backoff_coefficient_ = 2.0;
   profile_clock_source_ = kDefaultProfilerClockSource;
 
+  verify_ = true;
+
   // Default to explicit checks.  Switch off with -implicit-checks:.
   // or setprop dalvik.vm.implicit_checks check1,check2,...
 #ifdef HAVE_ANDROID_OS
@@ -569,6 +571,16 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
         return false;
       }
       image_compiler_options_.push_back(options[i].first);
+    } else if (StartsWith(option, "-Xverify:")) {
+      std::string verify_mode = option.substr(strlen("-Xverify:"));
+      if (verify_mode == "none") {
+        verify_ = false;
+      } else if (verify_mode == "remote" || verify_mode == "all") {
+        verify_ = true;
+      } else {
+        Usage("Unknown -Xverify option %s", verify_mode.c_str());
+        return false;
+      }
     } else if (StartsWith(option, "-ea:") ||
                StartsWith(option, "-da:") ||
                StartsWith(option, "-enableassertions:") ||
@@ -578,7 +590,6 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
                (option == "-dsa") ||
                (option == "-enablesystemassertions") ||
                (option == "-disablesystemassertions") ||
-               StartsWith(option, "-Xverify:") ||
                (option == "-Xrs") ||
                StartsWith(option, "-Xint:") ||
                StartsWith(option, "-Xdexopt:") ||

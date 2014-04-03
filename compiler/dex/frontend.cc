@@ -145,9 +145,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
     return NULL;
   }
 
-  const CompilerOptions& compiler_options = driver.GetCompilerOptions();
-  CompilerOptions::CompilerFilter compiler_filter = compiler_options.GetCompilerFilter();
-  if (compiler_filter == CompilerOptions::kInterpretOnly) {
+  if (!driver.GetCompilerOptions().IsCompilationEnabled()) {
     return nullptr;
   }
 
@@ -230,10 +228,8 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
                               class_loader, dex_file);
 
   cu.NewTimingSplit("MIROpt:CheckFilters");
-  if (compiler_filter != CompilerOptions::kInterpretOnly) {
-    if (cu.mir_graph->SkipCompilation()) {
-      return NULL;
-    }
+  if (cu.mir_graph->SkipCompilation()) {
+    return NULL;
   }
 
   /* Create the pass driver and launch it */

@@ -421,6 +421,10 @@ class Runtime {
     return stack_overflow_handler_ == nullptr;
   }
 
+  bool IsVerificationEnabled() const {
+    return verify_;
+  }
+
   bool RunningOnValgrind() const {
     return running_on_valgrind_;
   }
@@ -562,6 +566,9 @@ class Runtime {
   NullPointerHandler* null_pointer_handler_;
   SuspensionHandler* suspend_handler_;
   StackOverflowHandler* stack_overflow_handler_;
+
+  // If false, verification is disabled. True by default.
+  bool verify_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
