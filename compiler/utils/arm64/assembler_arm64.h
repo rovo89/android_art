@@ -85,17 +85,6 @@ class Arm64Assembler FINAL : public Assembler {
   vixl_masm_(new vixl::MacroAssembler(vixl_buf_, BUF_SIZE)) {}
 
   virtual ~Arm64Assembler() {
-    if (kIsDebugBuild) {
-      vixl::Decoder *decoder = new vixl::Decoder();
-      vixl::PrintDisassembler *test = new vixl::PrintDisassembler(stdout);
-      decoder->AppendVisitor(test);
-
-      for (size_t i = 0; i < CodeSize() / vixl::kInstructionSize; ++i) {
-        vixl::Instruction *instr =
-          reinterpret_cast<vixl::Instruction*>(vixl_buf_ + i * vixl::kInstructionSize);
-        decoder->Decode(instr);
-      }
-    }
     delete[] vixl_buf_;
   }
 
