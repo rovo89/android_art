@@ -215,17 +215,13 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::CONST_STRING_JUMBO:
     case Instruction::CONST_CLASS:
     case Instruction::NEW_ARRAY:
-      if ((mir->optimization_flags & MIR_INLINED) == 0) {
-        // 1 result, treat as unique each time, use result s_reg - will be unique.
-        res = MarkNonAliasingNonNull(mir);
-      }
+      // 1 result, treat as unique each time, use result s_reg - will be unique.
+      res = MarkNonAliasingNonNull(mir);
       break;
     case Instruction::MOVE_RESULT_WIDE:
-      if ((mir->optimization_flags & MIR_INLINED) == 0) {
-        // 1 wide result, treat as unique each time, use result s_reg - will be unique.
-        res = GetOperandValueWide(mir->ssa_rep->defs[0]);
-        SetOperandValueWide(mir->ssa_rep->defs[0], res);
-      }
+      // 1 wide result, treat as unique each time, use result s_reg - will be unique.
+      res = GetOperandValueWide(mir->ssa_rep->defs[0]);
+      SetOperandValueWide(mir->ssa_rep->defs[0], res);
       break;
 
     case kMirOpPhi:
