@@ -28,6 +28,7 @@
 
 namespace art {
 namespace mirror {
+  class ArtField;
   class ArtMethod;
   class Class;
   class Object;
@@ -78,6 +79,14 @@ struct InstrumentationListener {
                           mirror::ArtMethod* method, uint32_t new_dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
+  // Call-back for when we read from a field.
+  virtual void FieldRead(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
+                         uint32_t dex_pc, mirror::ArtField* field) = 0;
+
+  // Call-back for when we write into a field.
+  virtual void FieldWritten(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
+                            uint32_t dex_pc, mirror::ArtField* field, const JValue& field_value) = 0;
+
   // Call-back when an exception is caught.
   virtual void ExceptionCaught(Thread* thread, const ThrowLocation& throw_location,
                                mirror::ArtMethod* catch_method, uint32_t catch_dex_pc,
@@ -92,11 +101,13 @@ struct InstrumentationListener {
 class Instrumentation {
  public:
   enum InstrumentationEvent {
-    kMethodEntered = 1,
-    kMethodExited = 2,
-    kMethodUnwind = 4,
-    kDexPcMoved = 8,
-    kExceptionCaught = 16
+    kMethodEntered =   1 << 0,
+    kMethodExited =    1 << 1,
+    kMethodUnwind =    1 << 2,
+    kDexPcMoved =      1 << 3,
+    kFieldRead =       1 << 4,
+    kFieldWritten =    1 << 5,
+    kExceptionCaught = 1 << 6,
   };
 
   Instrumentation();
@@ -217,6 +228,14 @@ class Instrumentation {
     return have_dex_pc_listeners_;
   }
 
+  bool HasFieldReadListeners() const {
+    return have_field_read_listeners_;
+  }
+
+  bool HasFieldWriteListeners() const {
+    return have_field_write_listeners_;
+  }
+
   bool IsActive() const {
     return have_dex_pc_listeners_ || have_method_entry_listeners_ || have_method_exit_listeners_ ||
         have_exception_caught_listeners_ || have_method_unwind_listeners_;
@@ -253,6 +272,26 @@ class Instrumentation {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (UNLIKELY(HasDexPcListeners())) {
       DexPcMovedEventImpl(thread, this_object, method, dex_pc);
+    }
+  }
+
+  // Inform listeners that we read a field (only supported by the interpreter).
+  void FieldReadEvent(Thread* thread, mirror::Object* this_object,
+                      mirror::ArtMethod* method, uint32_t dex_pc,
+                      mirror::ArtField* field) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (UNLIKELY(HasFieldReadListeners())) {
+      FieldReadEventImpl(thread, this_object, method, dex_pc, field);
+    }
+  }
+
+  // Inform listeners that we write a field (only supported by the interpreter).
+  void FieldWriteEvent(Thread* thread, mirror::Object* this_object,
+                       mirror::ArtMethod* method, uint32_t dex_pc,
+                       mirror::ArtField* field, const JValue& field_value) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (UNLIKELY(HasFieldWriteListeners())) {
+      FieldWriteEventImpl(thread, this_object, method, dex_pc, field, field_value);
     }
   }
 
@@ -313,6 +352,14 @@ class Instrumentation {
   void DexPcMovedEventImpl(Thread* thread, mirror::Object* this_object,
                            mirror::ArtMethod* method, uint32_t dex_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void FieldReadEventImpl(Thread* thread, mirror::Object* this_object,
+                           mirror::ArtMethod* method, uint32_t dex_pc,
+                           mirror::ArtField* field) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void FieldWriteEventImpl(Thread* thread, mirror::Object* this_object,
+                           mirror::ArtMethod* method, uint32_t dex_pc,
+                           mirror::ArtField* field, const JValue& field_value) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Have we hijacked ArtMethod::code_ so that it calls instrumentation/interpreter code?
   bool instrumentation_stubs_installed_;
@@ -345,6 +392,14 @@ class Instrumentation {
   // instrumentation_lock_.
   bool have_dex_pc_listeners_;
 
+  // Do we have any listeners for field read events? Short-cut to avoid taking the
+  // instrumentation_lock_.
+  bool have_field_read_listeners_;
+
+  // Do we have any listeners for field write events? Short-cut to avoid taking the
+  // instrumentation_lock_.
+  bool have_field_write_listeners_;
+
   // Do we have any exception caught listeners? Short-cut to avoid taking the instrumentation_lock_.
   bool have_exception_caught_listeners_;
 
@@ -353,6 +408,8 @@ class Instrumentation {
   std::list<InstrumentationListener*> method_exit_listeners_ GUARDED_BY(Locks::mutator_lock_);
   std::list<InstrumentationListener*> method_unwind_listeners_ GUARDED_BY(Locks::mutator_lock_);
   std::list<InstrumentationListener*> dex_pc_listeners_ GUARDED_BY(Locks::mutator_lock_);
+  std::list<InstrumentationListener*> field_read_listeners_ GUARDED_BY(Locks::mutator_lock_);
+  std::list<InstrumentationListener*> field_write_listeners_ GUARDED_BY(Locks::mutator_lock_);
   std::list<InstrumentationListener*> exception_caught_listeners_ GUARDED_BY(Locks::mutator_lock_);
 
   // The set of methods being deoptimized (by the debugger) which must be executed with interpreter

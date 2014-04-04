@@ -197,6 +197,17 @@ struct JdwpState {
      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
+   * A field of interest has been accessed or modified. This is used for field access and field
+   * modification events.
+   *
+   * "fieldValue" is non-null for field modification events only.
+   * "is_modification" is true for field modification, false for field access.
+   */
+  bool PostFieldEvent(const JdwpLocation* pLoc, RefTypeId typeId, FieldId fieldId,
+                      ObjectId thisPtr, const JValue* fieldValue, bool is_modification)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  /*
    * An exception has been thrown.
    *
    * Pass in a zeroed-out "*pCatchLoc" if the exception wasn't caught.
