@@ -2070,6 +2070,9 @@ void Thread::VisitRoots(RootCallback* visitor, void* arg) {
     visitor(reinterpret_cast<mirror::Object**>(&tlsPtr_.class_loader_override), arg, thread_id,
             kRootNativeStack);
   }
+  if (tlsPtr_.monitor_enter_object != nullptr) {
+    visitor(&tlsPtr_.monitor_enter_object, arg, thread_id, kRootNativeStack);
+  }
   tlsPtr_.jni_env->locals.VisitRoots(visitor, arg, thread_id, kRootJNILocal);
   tlsPtr_.jni_env->monitors.VisitRoots(visitor, arg, thread_id, kRootJNIMonitor);
   SirtVisitRoots(visitor, arg, thread_id);
