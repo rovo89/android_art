@@ -22,6 +22,7 @@
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "utils.h"
+#include "instruction_set.h"
 
 namespace art {
 
@@ -773,6 +774,40 @@ size_t ElfFile::GetLoadedSize() const {
 
 bool ElfFile::Load(bool executable, std::string* error_msg) {
   CHECK(program_header_only_) << file_->GetPath();
+
+  if (executable) {
+    InstructionSet elf_ISA = kNone;
+    switch (GetHeader().e_machine) {
+      case EM_ARM: {
+        elf_ISA = kArm;
+        break;
+      }
+      case EM_AARCH64: {
+        elf_ISA = kArm64;
+        break;
+      }
+      case EM_386: {
+        elf_ISA = kX86;
+        break;
+      }
+      case EM_X86_64: {
+        elf_ISA = kX86_64;
+        break;
+      }
+      case EM_MIPS: {
+        elf_ISA = kMips;
+        break;
+      }
+    }
+
+    if (elf_ISA != kRuntimeISA) {
+      std::ostringstream oss;
+      oss << "Expected ISA " << kRuntimeISA << " but found " << elf_ISA;
+      *error_msg = oss.str();
+      return false;
+    }
+  }
+
   for (Elf32_Word i = 0; i < GetProgramHeaderNum(); i++) {
     Elf32_Phdr& program_header = GetProgramHeader(i);
 
