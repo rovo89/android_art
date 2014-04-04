@@ -1898,8 +1898,9 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
       compiled_method = compiler_->Compile(
           *this, code_item, access_flags, invoke_type, class_def_idx,
           method_idx, class_loader, dex_file);
-    } else if (dex_to_dex_compilation_level != kDontDexToDexCompile) {
-      // TODO: add a mode to disable DEX-to-DEX compilation ?
+    }
+    if (compiled_method == nullptr && dex_to_dex_compilation_level != kDontDexToDexCompile) {
+      // TODO: add a command-line option to disable DEX-to-DEX compilation ?
       (*dex_to_dex_compiler_)(*this, code_item, access_flags,
                               invoke_type, class_def_idx,
                               method_idx, class_loader, dex_file,
