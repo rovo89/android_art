@@ -888,6 +888,14 @@ ENTRY art_quick_test_suspend
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
 END art_quick_test_suspend
 
+ENTRY art_quick_implicit_suspend
+    mov    r0, rSELF
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME          @ save callee saves for stack crawl
+    mov    r1, sp
+    bl     artTestSuspendFromCode             @ (Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+END art_quick_implicit_suspend
+
     /*
      * Called by managed code that is attempting to call a method on a proxy class. On entry
      * r0 holds the proxy method and r1 holds the receiver; r2 and r3 may contain arguments. The
