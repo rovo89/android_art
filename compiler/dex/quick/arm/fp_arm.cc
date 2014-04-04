@@ -314,14 +314,14 @@ void ArmMir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest,
   DCHECK(!ARM_FPREG(rl_result.reg.GetReg()));
   NewLIR0(kThumb2Fmstat);
 
-  OpIT((default_result == -1) ? kCondGt : kCondMi, "");
+  LIR* it = OpIT((default_result == -1) ? kCondGt : kCondMi, "");
   NewLIR2(kThumb2MovI8M, rl_result.reg.GetReg(),
           ModifiedImmediate(-default_result));  // Must not alter ccodes
-  GenBarrier();
+  OpEndIT(it);
 
-  OpIT(kCondEq, "");
+  it = OpIT(kCondEq, "");
   LoadConstant(rl_result.reg, 0);
-  GenBarrier();
+  OpEndIT(it);
 
   StoreValue(rl_dest, rl_result);
 }

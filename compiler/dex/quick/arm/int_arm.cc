@@ -67,6 +67,14 @@ LIR* ArmMir2Lir::OpIT(ConditionCode ccode, const char* guide) {
   return NewLIR2(kThumb2It, code, mask);
 }
 
+void ArmMir2Lir::OpEndIT(LIR* it) {
+  // TODO: use the 'it' pointer to do some checks with the LIR, for example
+  //       we could check that the number of instructions matches the mask
+  //       in the IT instruction.
+  CHECK(it != nullptr);
+  GenBarrier();
+}
+
 /*
  * 64-bit 3way compare function.
  *     mov   rX, #-1
@@ -96,10 +104,10 @@ void ArmMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
   OpRegRegReg(kOpSub, t_reg, rl_src1.reg, rl_src2.reg);
   LIR* branch3 = OpCondBranch(kCondEq, NULL);
 
-  OpIT(kCondHi, "E");
+  LIR* it = OpIT(kCondHi, "E");
   NewLIR2(kThumb2MovI8M, t_reg.GetReg(), ModifiedImmediate(-1));
   LoadConstant(t_reg, 1);
-  GenBarrier();
+  OpEndIT(it);
 
   target2 = NewLIR0(kPseudoTargetLabel);
   OpRegReg(kOpNeg, t_reg, t_reg);
@@ -187,21 +195,21 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
     if (cheap_false_val && ccode == kCondEq && (true_val == 0 || true_val == -1)) {
       OpRegRegImm(kOpSub, rl_result.reg, rl_src.reg, -true_val);
       DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
-      OpIT(true_val == 0 ? kCondNe : kCondUge, "");
+      LIR* it = OpIT(true_val == 0 ? kCondNe : kCondUge, "");
       LoadConstant(rl_result.reg, false_val);
-      GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
+      OpEndIT(it);  // Add a scheduling barrier to keep the IT shadow intact
     } else if (cheap_false_val && ccode == kCondEq && true_val == 1) {
       OpRegRegImm(kOpRsub, rl_result.reg, rl_src.reg, 1);
       DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
-      OpIT(kCondLs, "");
+      LIR* it = OpIT(kCondLs, "");
       LoadConstant(rl_result.reg, false_val);
-      GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
+      OpEndIT(it);  // Add a scheduling barrier to keep the IT shadow intact
     } else if (cheap_false_val && InexpensiveConstantInt(true_val)) {
       OpRegImm(kOpCmp, rl_src.reg, 0);
-      OpIT(ccode, "E");
+      LIR* it = OpIT(ccode, "E");
       LoadConstant(rl_result.reg, true_val);
       LoadConstant(rl_result.reg, false_val);
-      GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
+      OpEndIT(it);  // Add a scheduling barrier to keep the IT shadow intact
     } else {
       // Unlikely case - could be tuned.
       RegStorage t_reg1 = AllocTemp();
@@ -209,10 +217,10 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
       LoadConstant(t_reg1, true_val);
       LoadConstant(t_reg2, false_val);
       OpRegImm(kOpCmp, rl_src.reg, 0);
-      OpIT(ccode, "E");
+      LIR* it = OpIT(ccode, "E");
       OpRegCopy(rl_result.reg, t_reg1);
       OpRegCopy(rl_result.reg, t_reg2);
-      GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
+      OpEndIT(it);  // Add a scheduling barrier to keep the IT shadow intact
     }
   } else {
     // MOVE case
@@ -222,18 +230,19 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
     rl_false = LoadValue(rl_false, kCoreReg);
     rl_result = EvalLoc(rl_dest, kCoreReg, true);
     OpRegImm(kOpCmp, rl_src.reg, 0);
+    LIR* it = nullptr;
     if (rl_result.reg.GetReg() == rl_true.reg.GetReg()) {  // Is the "true" case already in place?
-      OpIT(NegateComparison(ccode), "");
+      it = OpIT(NegateComparison(ccode), "");
       OpRegCopy(rl_result.reg, rl_false.reg);
     } else if (rl_result.reg.GetReg() == rl_false.reg.GetReg()) {  // False case in place?
-      OpIT(ccode, "");
+      it = OpIT(ccode, "");
       OpRegCopy(rl_result.reg, rl_true.reg);
     } else {  // Normal - select between the two.
-      OpIT(ccode, "E");
+      it = OpIT(ccode, "E");
       OpRegCopy(rl_result.reg, rl_true.reg);
       OpRegCopy(rl_result.reg, rl_false.reg);
     }
-    GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
+    OpEndIT(it);  // Add a scheduling barrier to keep the IT shadow intact
   }
   StoreValue(rl_dest, rl_result);
 }
@@ -623,10 +632,10 @@ bool ArmMir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   OpRegReg(kOpCmp, rl_src1.reg, rl_src2.reg);
-  OpIT((is_min) ? kCondGt : kCondLt, "E");
+  LIR* it = OpIT((is_min) ? kCondGt : kCondLt, "E");
   OpRegReg(kOpMov, rl_result.reg, rl_src2.reg);
   OpRegReg(kOpMov, rl_result.reg, rl_src1.reg);
-  GenBarrier();
+  OpEndIT(it);
   StoreValue(rl_dest, rl_result);
   return true;
 }
@@ -783,6 +792,7 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   RegStorage r_tmp = AllocTemp();
   LIR* target = NewLIR0(kPseudoTargetLabel);
 
+  LIR* it = nullptr;
   if (is_long) {
     RegStorage r_tmp_high = AllocTemp();
     if (!load_early) {
@@ -803,20 +813,20 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
     FreeTemp(r_tmp_high);  // Now unneeded
 
     DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
-    OpIT(kCondEq, "T");
+    it = OpIT(kCondEq, "T");
     NewLIR4(kThumb2Strexd /* eq */, r_tmp.GetReg(), rl_new_value.reg.GetLowReg(), rl_new_value.reg.GetHighReg(), r_ptr.GetReg());
 
   } else {
     NewLIR3(kThumb2Ldrex, r_tmp.GetReg(), r_ptr.GetReg(), 0);
     OpRegReg(kOpSub, r_tmp, rl_expected.reg);
     DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
-    OpIT(kCondEq, "T");
+    it = OpIT(kCondEq, "T");
     NewLIR4(kThumb2Strex /* eq */, r_tmp.GetReg(), rl_new_value.reg.GetReg(), r_ptr.GetReg(), 0);
   }
 
   // Still one conditional left from OpIT(kCondEq, "T") from either branch
   OpRegImm(kOpCmp /* eq */, r_tmp, 1);
-  GenBarrier();
+  OpEndIT(it);
 
   OpCondBranch(kCondEq, target);
 
@@ -828,10 +838,10 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   OpRegRegImm(kOpRsub, rl_result.reg, r_tmp, 1);
   DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
-  OpIT(kCondUlt, "");
+  it = OpIT(kCondUlt, "");
   LoadConstant(rl_result.reg, 0); /* cc */
   FreeTemp(r_tmp);  // Now unneeded.
-  GenBarrier();     // Barrier to terminate OpIT.
+  OpEndIT(it);     // Barrier to terminate OpIT.
 
   StoreValue(rl_dest, rl_result);
 
