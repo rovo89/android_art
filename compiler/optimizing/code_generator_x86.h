@@ -22,8 +22,9 @@
 #include "utils/x86/assembler_x86.h"
 
 namespace art {
-
 namespace x86 {
+
+static constexpr size_t kX86WordSize = 4;
 
 class LocationsBuilderX86 : public HGraphVisitor {
  public:
@@ -76,6 +77,10 @@ class CodeGeneratorX86 : public CodeGenerator {
   virtual void GenerateFrameExit() OVERRIDE;
   virtual void Bind(Label* label) OVERRIDE;
   virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
+
+  virtual size_t GetWordSize() const OVERRIDE {
+    return kX86WordSize;
+  }
 
   virtual HGraphVisitor* GetLocationBuilder() OVERRIDE {
     return &location_builder_;
