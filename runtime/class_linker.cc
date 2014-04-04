@@ -202,7 +202,7 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   // The GC can't handle an object with a null class since we can't get the size of this object.
   heap->IncrementDisableMovingGC(self);
   SirtRef<mirror::Class> java_lang_Class(self, down_cast<mirror::Class*>(
-      heap->AllocNonMovableObject<true>(self, nullptr, sizeof(mirror::ClassClass))));
+      heap->AllocNonMovableObject<true>(self, nullptr, sizeof(mirror::ClassClass), VoidFunctor())));
   CHECK(java_lang_Class.get() != NULL);
   mirror::Class::SetClassClass(java_lang_Class.get());
   java_lang_Class->SetClass(java_lang_Class.get());
@@ -1180,7 +1180,8 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self, const DexFile& dex_fi
   SirtRef<mirror::Class> dex_cache_class(self, GetClassRoot(kJavaLangDexCache));
   SirtRef<mirror::DexCache> dex_cache(
       self, down_cast<mirror::DexCache*>(
-          heap->AllocObject<true>(self, dex_cache_class.get(), dex_cache_class->GetObjectSize())));
+          heap->AllocObject<true>(self, dex_cache_class.get(), dex_cache_class->GetObjectSize(),
+                                  VoidFunctor())));
   if (dex_cache.get() == NULL) {
     return NULL;
   }

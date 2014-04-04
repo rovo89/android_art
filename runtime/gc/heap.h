@@ -158,28 +158,28 @@ class Heap {
   ~Heap();
 
   // Allocates and initializes storage for an object instance.
-  template <bool kInstrumented, typename PreFenceVisitor = VoidFunctor>
+  template <bool kInstrumented, typename PreFenceVisitor>
   mirror::Object* AllocObject(Thread* self, mirror::Class* klass, size_t num_bytes,
-                              const PreFenceVisitor& pre_fence_visitor = VoidFunctor())
+                              const PreFenceVisitor& pre_fence_visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return AllocObjectWithAllocator<kInstrumented, true>(self, klass, num_bytes,
                                                          GetCurrentAllocator(),
                                                          pre_fence_visitor);
   }
 
-  template <bool kInstrumented, typename PreFenceVisitor = VoidFunctor>
+  template <bool kInstrumented, typename PreFenceVisitor>
   mirror::Object* AllocNonMovableObject(Thread* self, mirror::Class* klass, size_t num_bytes,
-                                        const PreFenceVisitor& pre_fence_visitor = VoidFunctor())
+                                        const PreFenceVisitor& pre_fence_visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return AllocObjectWithAllocator<kInstrumented, true>(self, klass, num_bytes,
                                                          GetCurrentNonMovingAllocator(),
                                                          pre_fence_visitor);
   }
 
-  template <bool kInstrumented, bool kCheckLargeObject, typename PreFenceVisitor = VoidFunctor>
+  template <bool kInstrumented, bool kCheckLargeObject, typename PreFenceVisitor>
   ALWAYS_INLINE mirror::Object* AllocObjectWithAllocator(
       Thread* self, mirror::Class* klass, size_t byte_count, AllocatorType allocator,
-      const PreFenceVisitor& pre_fence_visitor = VoidFunctor())
+      const PreFenceVisitor& pre_fence_visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   AllocatorType GetCurrentAllocator() const {
@@ -691,7 +691,8 @@ class Heap {
   void SignalHeapTrimDaemon(Thread* self);
 
   // Push an object onto the allocation stack.
-  void PushOnAllocationStack(Thread* self, mirror::Object* obj);
+  void PushOnAllocationStack(Thread* self, mirror::Object** obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // What kind of concurrency behavior is the runtime after? Currently true for concurrent mark
   // sweep GC, false for other GC types.
