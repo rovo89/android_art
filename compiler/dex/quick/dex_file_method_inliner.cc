@@ -412,7 +412,8 @@ bool DexFileMethodInliner::GenInline(MIRGraph* mir_graph, BasicBlock* bb, MIR* i
       result = GenInlineIGet(mir_graph, bb, invoke, move_result, method, method_idx);
       break;
     case kInlineOpIPut:
-      result = GenInlineIPut(mir_graph, bb, invoke, method, method_idx);
+      move_result = mir_graph->FindMoveResult(bb, invoke);
+      result = GenInlineIPut(mir_graph, bb, invoke, move_result, method, method_idx);
       break;
     default:
       LOG(FATAL) << "Unexpected inline op: " << method.opcode;
@@ -672,7 +673,8 @@ bool DexFileMethodInliner::GenInlineIGet(MIRGraph* mir_graph, BasicBlock* bb, MI
 }
 
 bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke,
-                                         const InlineMethod& method, uint32_t method_idx) {
+                                         MIR* move_result, const InlineMethod& method,
+                                         uint32_t method_idx) {
   CompilationUnit* cu = mir_graph->GetCurrentDexCompilationUnit()->GetCompilationUnit();
   if (cu->enable_debug & (1 << kDebugSlowFieldPath)) {
     return false;
@@ -683,9 +685,18 @@ bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MI
   DCHECK_EQ(InlineMethodAnalyser::IPutVariant(opcode), data.op_variant);
   uint32_t object_reg = GetInvokeReg(invoke, data.object_arg);
   uint32_t src_reg = GetInvokeReg(invoke, data.src_arg);
+  uint32_t return_reg =
+      data.return_arg_plus1 != 0u ? GetInvokeReg(invoke, data.return_arg_plus1 - 1u) : 0u;
 
   if (opcode == Instruction::IPUT_WIDE && !WideArgIsInConsecutiveDalvikRegs(invoke, data.src_arg)) {
     // The two halfs of the source value are not in consecutive dalvik registers in INVOKE.
+    return false;
+  }
+
+  DCHECK(move_result == nullptr || data.return_arg_plus1 != 0u);
+  if (move_result != nullptr && move_result->dalvikInsn.opcode == Instruction::MOVE_RESULT_WIDE &&
+      !WideArgIsInConsecutiveDalvikRegs(invoke, data.return_arg_plus1 - 1u)) {
+    // The two halfs of the return value are not in consecutive dalvik registers in INVOKE.
     return false;
   }
 
@@ -703,7 +714,7 @@ bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MI
     invoke->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
   }
 
-  MIR* insn = AllocReplacementMIR(mir_graph, invoke, nullptr);
+  MIR* insn = AllocReplacementMIR(mir_graph, invoke, move_result);
   insn->dalvikInsn.opcode = opcode;
   insn->dalvikInsn.vA = src_reg;
   insn->dalvikInsn.vB = object_reg;
@@ -715,6 +726,23 @@ bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MI
   DCHECK_EQ(data.is_volatile, mir_graph->GetIFieldLoweringInfo(insn).IsVolatile() ? 1u : 0u);
 
   bb->InsertMIRAfter(invoke, insn);
+
+  if (move_result != nullptr) {
+    MIR* move = AllocReplacementMIR(mir_graph, invoke, move_result);
+    insn->width = invoke->width;
+    move->offset = move_result->offset;
+    move->width = move_result->width;
+    if (move_result->dalvikInsn.opcode == Instruction::MOVE_RESULT) {
+      move->dalvikInsn.opcode = Instruction::MOVE_FROM16;
+    } else if (move_result->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {
+      move->dalvikInsn.opcode = Instruction::MOVE_OBJECT_FROM16;
+    } else {
+      DCHECK_EQ(move_result->dalvikInsn.opcode, Instruction::MOVE_RESULT_WIDE);
+      move->dalvikInsn.opcode = Instruction::MOVE_WIDE_FROM16;
+    }
+    move->dalvikInsn.vA = move_result->dalvikInsn.vA;
+    move->dalvikInsn.vB = return_reg;
+  }
   return true;
 }
 
