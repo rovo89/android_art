@@ -532,12 +532,12 @@ DEFINE_FUNCTION art_quick_lock_object
     movl  %ecx, %eax                       // restore eax
     jmp  .Lretry_lock
 .Lalready_thin:
-    cmpw %ax, %dx                         // do we hold the lock already?
+    cmpw %cx, %dx                         // do we hold the lock already?
     jne  .Lslow_lock
-    addl LITERAL(65536), %eax             // increment recursion count
-    test LITERAL(0xC0000000), %eax        // overflowed if either of top two bits are set
+    addl LITERAL(65536), %ecx             // increment recursion count
+    test LITERAL(0xC0000000), %ecx        // overflowed if either of top two bits are set
     jne  .Lslow_lock                      // count overflowed so go slow
-    movl %eax, LOCK_WORD_OFFSET(%ecx)     // update lockword, cmpxchg not necessary as we hold lock
+    movl %ecx, LOCK_WORD_OFFSET(%eax)     // update lockword, cmpxchg not necessary as we hold lock
     ret
 .Lslow_lock:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
