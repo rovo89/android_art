@@ -17,21 +17,28 @@
 #ifndef ART_RUNTIME_READ_BARRIER_H_
 #define ART_RUNTIME_READ_BARRIER_H_
 
-// This is in a separate file (from globals.h) because asm_support.h
-// (a C header, not C++) can't include globals.h.
+#include "base/mutex.h"
+#include "base/macros.h"
+#include "offsets.h"
+#include "read_barrier_c.h"
 
-// Uncomment one of the following two and the two fields in
-// Object.java (libcore) to enable baker or brooks pointers.
+// This is a C++ (not C) header file, separate from read_barrier_c.h
+// which needs to be a C header file for asm_support.h.
 
-// #define USE_BAKER_READ_BARRIER
-// #define USE_BROOKS_READ_BARRIER
+namespace art {
+namespace mirror {
+  class Object;
+  template<typename MirrorType> class HeapReference;
+}  // namespace mirror
 
-#if defined(USE_BAKER_READ_BARRIER) || defined(USE_BROOKS_READ_BARRIER)
-#define USE_BAKER_OR_BROOKS_READ_BARRIER
-#endif
+class ReadBarrier {
+ public:
+  template <typename MirrorType, bool kDoReadBarrier = true>
+  ALWAYS_INLINE static MirrorType* Barrier(
+      mirror::Object* obj, MemberOffset offset, mirror::HeapReference<MirrorType>* ref_addr)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+};
 
-#if defined(USE_BAKER_READ_BARRIER) && defined(USE_BROOKS_READ_BARRIER)
-#error "Only one of Baker or Brooks can be enabled at a time."
-#endif
+}  // namespace art
 
 #endif  // ART_RUNTIME_READ_BARRIER_H_
