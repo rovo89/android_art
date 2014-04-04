@@ -367,6 +367,8 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
   elf_header.e_ident[EI_ABIVERSION] = 0;
   elf_header.e_type = ET_DYN;
   switch (compiler_driver_->GetInstructionSet()) {
+    case kArm:
+      // Fall through.
     case kThumb2: {
       elf_header.e_machine = EM_ARM;
       elf_header.e_flags = EF_ARM_EABI_VER5;
@@ -396,7 +398,6 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
                             EF_MIPS_ARCH_32R2);
       break;
     }
-    case kArm:
     default: {
       LOG(FATAL) << "Unknown instruction set: " << compiler_driver_->GetInstructionSet();
       break;
