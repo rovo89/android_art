@@ -22,11 +22,9 @@
 #include "utils/arm/assembler_arm.h"
 
 namespace art {
-
-class Assembler;
-class Label;
-
 namespace arm {
+
+static constexpr size_t kArmWordSize = 4;
 
 class LocationsBuilderARM : public HGraphVisitor {
  public:
@@ -78,6 +76,10 @@ class CodeGeneratorARM : public CodeGenerator {
   virtual void GenerateFrameExit() OVERRIDE;
   virtual void Bind(Label* label) OVERRIDE;
   virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
+
+  virtual size_t GetWordSize() const OVERRIDE {
+    return kArmWordSize;
+  }
 
   virtual HGraphVisitor* GetLocationBuilder() OVERRIDE {
     return &location_builder_;
