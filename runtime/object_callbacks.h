@@ -56,7 +56,7 @@ typedef mirror::Object* (MarkObjectCallback)(mirror::Object* obj, void* arg)
     __attribute__((warn_unused_result));
 // A callback for verifying roots.
 typedef void (VerifyRootCallback)(const mirror::Object* root, void* arg, size_t vreg,
-    const StackVisitor* visitor);
+    const StackVisitor* visitor, RootType root_type);
 
 typedef void (MarkHeapReferenceCallback)(mirror::HeapReference<mirror::Object>* ref, void* arg);
 

@@ -76,7 +76,7 @@ static constexpr bool kCountMarkedObjects = false;
 
 // Turn off kCheckLocks when profiling the GC since it slows the GC down by up to 40%.
 static constexpr bool kCheckLocks = kDebugLocking;
-static constexpr bool kVerifyRoots = kIsDebugBuild;
+static constexpr bool kVerifyRootsMarked = kIsDebugBuild;
 
 // If true, revoke the rosalloc thread-local buffers at the
 // checkpoint, as opposed to during the pause.
@@ -466,16 +466,17 @@ void MarkSweep::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*
 }
 
 void MarkSweep::VerifyRootCallback(const Object* root, void* arg, size_t vreg,
-                                   const StackVisitor* visitor) {
-  reinterpret_cast<MarkSweep*>(arg)->VerifyRoot(root, vreg, visitor);
+                                   const StackVisitor* visitor, RootType root_type) {
+  reinterpret_cast<MarkSweep*>(arg)->VerifyRoot(root, vreg, visitor, root_type);
 }
 
-void MarkSweep::VerifyRoot(const Object* root, size_t vreg, const StackVisitor* visitor) {
+void MarkSweep::VerifyRoot(const Object* root, size_t vreg, const StackVisitor* visitor,
+                           RootType root_type) {
   // See if the root is on any space bitmap.
-  if (GetHeap()->GetLiveBitmap()->GetContinuousSpaceBitmap(root) == NULL) {
+  if (GetHeap()->GetLiveBitmap()->GetContinuousSpaceBitmap(root) == nullptr) {
     space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
     if (!large_object_space->Contains(root)) {
-      LOG(ERROR) << "Found invalid root: " << root;
+      LOG(ERROR) << "Found invalid root: " << root << " with type " << root_type;
       if (visitor != NULL) {
         LOG(ERROR) << visitor->DescribeLocation() << " in VReg: " << vreg;
       }
@@ -918,7 +919,7 @@ void MarkSweep::ReMarkRoots() {
                                                           kVisitRootFlagStopLoggingNewRoots |
                                                           kVisitRootFlagClearRootLog));
   timings_.EndSplit();
-  if (kVerifyRoots) {
+  if (kVerifyRootsMarked) {
     timings_.StartSplit("(Paused)VerifyRoots");
     Runtime::Current()->VisitRoots(VerifyRootMarked, this);
     timings_.EndSplit();
