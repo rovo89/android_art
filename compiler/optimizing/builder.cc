@@ -193,7 +193,8 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
       break;
     }
 
-    case Instruction::INVOKE_STATIC: {
+    case Instruction::INVOKE_STATIC:
+    case Instruction::INVOKE_DIRECT: {
       uint32_t method_idx = instruction.VRegB_35c();
       const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
       uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
@@ -204,6 +205,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
         return false;
       }
 
+      // Treat invoke-direct like static calls for now.
       HInvokeStatic* invoke = new (arena_) HInvokeStatic(
           arena_, number_of_arguments, dex_offset, method_idx);
 
@@ -221,7 +223,8 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
       break;
     }
 
-    case Instruction::INVOKE_STATIC_RANGE: {
+    case Instruction::INVOKE_STATIC_RANGE:
+    case Instruction::INVOKE_DIRECT_RANGE: {
       uint32_t method_idx = instruction.VRegB_3rc();
       const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
       uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
@@ -232,6 +235,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
         return false;
       }
 
+      // Treat invoke-direct like static calls for now.
       HInvokeStatic* invoke = new (arena_) HInvokeStatic(
           arena_, number_of_arguments, dex_offset, method_idx);
       int32_t register_index = instruction.VRegC();
@@ -273,6 +277,13 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
       HInstruction* first = LoadLocal(instruction.VRegB());
       HInstruction* second = GetConstant(instruction.VRegC_22b());
       current_block_->AddInstruction(new (arena_) HAdd(Primitive::kPrimInt, first, second));
+      UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+      break;
+    }
+
+    case Instruction::NEW_INSTANCE: {
+      current_block_->AddInstruction(
+          new (arena_) HNewInstance(dex_offset, instruction.VRegB_21c()));
       UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
       break;
     }
