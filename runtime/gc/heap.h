@@ -115,6 +115,8 @@ enum ProcessState {
 };
 std::ostream& operator<<(std::ostream& os, const ProcessState& process_state);
 
+std::ostream& operator<<(std::ostream& os, const RootType& root_type);
+
 class Heap {
  public:
   // If true, measure the total allocation time.
