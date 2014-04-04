@@ -79,4 +79,5 @@ class MyClassNatives {
         Object o240, Object o241, Object o242, Object o243, Object o244, Object o245, Object o246, Object o247,
         Object o248, Object o249, Object o250, Object o251, Object o252, Object o253);
 
+    native void withoutImplementation();
 }

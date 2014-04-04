@@ -1268,4 +1268,14 @@ TEST_F(JniCompilerTest, MaxParamNumber) {
   env_->CallNonvirtualVoidMethodA(jobj_, jklass_, jmethod_, args);
 }
 
+TEST_F(JniCompilerTest, WithoutImplementation) {
+  TEST_DISABLED_FOR_PORTABLE();
+  SetUpForTest(false, "withoutImplementation", "()V", nullptr);
+
+  env_->CallVoidMethod(jobj_, jmethod_);
+
+  EXPECT_TRUE(Thread::Current()->IsExceptionPending());
+  EXPECT_TRUE(env_->ExceptionCheck() == JNI_TRUE);
+}
+
 }  // namespace art
