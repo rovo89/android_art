@@ -115,6 +115,10 @@ static const char* kThumbDataProcessingOperations[] = {
   "tst", "rsb", "cmp", "cmn", "orr", "mul", "bic", "mvn",
 };
 
+static const char* const kThumb2ShiftOperations[] = {
+    "lsl", "lsr", "asr", "ror"
+};
+
 static const char* kThumbReverseOperations[] = {
     "rev", "rev16", "rbit", "revsh"
 };
@@ -356,6 +360,61 @@ int32_t ThumbExpand(int32_t imm12) {
     uint32_t val = 0x80 | (imm12 & 0x7F);
     int32_t rotate = (imm12 >> 7) & 0x1F;
     return (val >> rotate) | (val << (32 - rotate));
+  }
+}
+
+uint32_t VFPExpand32(uint32_t imm8) {
+  CHECK_EQ(imm8 & 0xffu, imm8);
+  uint32_t bit_a = (imm8 >> 7) & 1;
+  uint32_t bit_b = (imm8 >> 6) & 1;
+  uint32_t slice = imm8 & 0x3f;
+  return (bit_a << 31) | ((1 << 30) - (bit_b << 25)) | (slice << 19);
+}
+
+uint64_t VFPExpand64(uint32_t imm8) {
+  CHECK_EQ(imm8 & 0xffu, imm8);
+  uint64_t bit_a = (imm8 >> 7) & 1;
+  uint64_t bit_b = (imm8 >> 6) & 1;
+  uint64_t slice = imm8 & 0x3f;
+  return (bit_a << 31) | ((UINT64_C(1) << 62) - (bit_b << 54)) | (slice << 48);
+}
+
+uint64_t AdvSIMDExpand(uint32_t op, uint32_t cmode, uint32_t imm8) {
+  CHECK_EQ(op & 1, op);
+  CHECK_EQ(cmode & 0xf, cmode);
+  CHECK_EQ(imm8 & 0xff, imm8);
+  int32_t cmode321 = cmode >> 1;
+  if (imm8 == 0 && cmode321 != 0 && cmode321 != 4 && cmode321 != 7) {
+    return INT64_C(0x00000000deadbeef);  // UNPREDICTABLE
+  }
+  uint64_t imm = imm8;
+  switch (cmode321) {
+    case 3: imm <<= 8;  // Fall through.
+    case 2: imm <<= 8;  // Fall through.
+    case 1: imm <<= 8;  // Fall through.
+    case 0: return static_cast<int64_t>((imm << 32) | imm);
+    case 5: imm <<= 8;  // Fall through.
+    case 4: return static_cast<int64_t>((imm << 48) | (imm << 32) | (imm << 16) | imm);
+    case 6:
+      imm = ((imm + 1u) << ((cmode & 1) != 0 ? 16 : 8)) - 1u;  // Add 8 or 16 ones.
+      return static_cast<int64_t>((imm << 32) | imm);
+    default:
+      CHECK_EQ(cmode321, 7);
+      if ((cmode & 1) == 0 && op == 0) {
+        imm = (imm << 8) | imm;
+        return static_cast<int64_t>((imm << 48) | (imm << 32) | (imm << 16) | imm);
+      } else if ((cmode & 1) == 0 && op != 0) {
+        for (int i = 1; i != 8; ++i) {
+          imm |= ((imm >> i) & UINT64_C(1)) << (i * 8);
+        }
+        imm = imm & ~UINT64_C(0xfe);
+        return static_cast<int64_t>((imm << 8) - imm);
+      } else if ((cmode & 1) != 0 && op == 0) {
+        imm = static_cast<uint32_t>(VFPExpand32(imm8));
+        return static_cast<int64_t>((imm << 32) | imm);
+      } else {
+        return INT64_C(0xdeadbeef00000000);  // UNDEFINED
+      }
   }
 }
 
@@ -757,83 +816,136 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             }
           } else if ((op3 >> 4) == 2 && op4 == 0) {     // 10xxxx, op = 0
             // fp data processing
+            // VMLA, VMLS, VMUL, VNMUL, VADD, VSUB, VDIV, VMOV, ...
+            // |1111|1100|0|0|00|0000|1111|110|0|0|0|0|0|0000|
+            // |5  2|1  8|7|6|54|3  0|5  2|1 9|8|7|6|5|4|3  0|
+            // |----|----|-|-|--|----|----|---|-|-|-|-|-|----|
+            // |3322|2222|2|2|22|1111|1111|110|0|0|0|0|0|0000|
+            // |1  8|7  4|3|2|10|9  6|5  2|1 9|8|7|6|5|4|3  0|
+            // |----|----|-|-|--|----|----|---|-|-|-|-|-|----|
+            // |1110|1110|  op3 | Vn | Vd |101|S|N|Q|M|0| Vm |
+            // |1110|1110|0|D|00| Vn | Vd |101|S|N|0|M|0| Vm | VMLA
+            // |1110|1110|0|D|00| Vn | Vd |101|S|N|1|M|0| Vm | VMLS
+            // |1110|1110|0|D|10| Vn | Vd |101|S|N|0|M|0| Vm | VMUL
+            // |1110|1110|0|D|10| Vn | Vd |101|S|N|1|M|0| Vm | VNMUL
+            // |1110|1110|0|D|11| Vn | Vd |101|S|N|0|M|0| Vm | VADD
+            // |1110|1110|0|D|11| Vn | Vd |101|S|N|1|M|0| Vm | VSUB
+            // |1110|1110|1|D|00| Vn | Vd |101|S|N|0|M|0| Vm | VDIV
+            // |1110|1110|1|D|11| iH | Vd |101|S|0|0|0|0| iL | VMOV (imm)
+            // |1110|1110|1|D|11|op5 | Vd |101|S|.|1|M|0| Vm | ... (see below)
+            uint32_t S = (instr >> 8) & 1;
+            uint32_t Q = (instr >> 6) & 1;
+            FpRegister d(instr, 12, 22);
+            FpRegister n(instr, 16, 7);
+            FpRegister m(instr, 0, 5);
             if ((op3 & 0xB) == 0) {  // 100x00
-              // VMLA, VMLS
-              // |1111|1100|0|0|00|0000|1111|110|0|0|0 |0|0|0000|
-              // |5  2|1  8|7|6|54|3  0|5  2|1 9|8|7|6 |5|4|3  0|
-              // |----|----|-|-|--|----|----|---|-|-|- |-|-|----|
-              // |3322|2222|2|2|22|1111|1111|110|0|0|0 |0|0|0000|
-              // |1  8|7  4|3|2|10|9  6|5  2|1 9|8|7|6 |5|4|3  0|
-              // |----|----|-|-|--|----|----|---|-|-|- |-|-|----|
-              // |1110|1110|0|D|00| Vn | Vd |101|S|N|op|M|0| Vm |
-              uint32_t op = (instr >> 6) & 1;
-              FpRegister d(instr, 12, 22);
-              FpRegister n(instr, 16, 7);
-              FpRegister m(instr, 0, 5);
-              opcode << (op == 0 ? "vmla" : "vmls");
+              opcode << (Q == 0 ? "vmla" : "vmls") << (S != 0 ? ".f64" : ".f32");
               args << d << ", " << n << ", " << m;
-            } else if ((op3 & 0xB) == 0xB) {  // 101x11
-              uint32_t Q = (instr >> 6) & 1;
-              if (Q == 1) {
-                // VCVT (floating-point conversion)
-                // |1111|1100|0|0|00|0000|1111|110|0|0 |0|0|0|0000|
-                // |5  2|1  8|7|6|54|3  0|5  2|1 9|8|7 |6|5|4|3  0|
-                // |----|----|-|-|--|----|----|---|-|- |-|-|-|----|
-                // |3322|2222|2|2|22|1111|1111|110|0|0 |0|0|0|0000|
-                // |1  8|7  4|3|2|10|9  6|5  2|1 9|8|7 |6|5|4|3  0|
-                // |----|----|-|-|--|----|----|---|-|- |-|-|-|----|
-                // |1110|1110|1|D|11|op5 | Vd |101|S|op|1|M|0| Vm |
-                uint32_t op5 = (instr >> 16) & 0xF;
-                uint32_t S = (instr >> 8) & 1;
-                uint32_t op = (instr >> 7) & 1;
-                // Register types in these instructions relies on the combination of op5 and S.
-                FpRegister Dd(instr, 12, 22, 1);
-                FpRegister Sd(instr, 12, 22, 0);
-                FpRegister Dm(instr, 0, 5, 1);
-                FpRegister Sm(instr, 0, 5, 0);
-                if (op5 == 0xD) {
+            } else if ((op3 & 0xB) == 0x2) {  // 100x10
+              opcode << (Q == 0 ? "vmul" : "vnmul") << (S != 0 ? ".f64" : ".f32");
+              args << d << ", " << n << ", " << m;
+            } else if ((op3 & 0xB) == 0x3) {  // 100x11
+              opcode << (Q == 0 ? "vadd" : "vsub") << (S != 0 ? ".f64" : ".f32");
+              args << d << ", " << n << ", " << m;
+            } else if ((op3 & 0xB) == 0x8 && Q == 0) {  // 101x00, Q == 0
+              opcode << "vdiv" << (S != 0 ? ".f64" : ".f32");
+              args << d << ", " << n << ", " << m;
+            } else if ((op3 & 0xB) == 0xB && Q == 0) {  // 101x11, Q == 0
+              uint32_t imm8 = ((instr & 0xf0000u) >> 12) | (instr & 0xfu);
+              opcode << "vmov" << (S != 0 ? ".f64" : ".f32");
+              args << d << ", " << (S != 0 ? StringPrintf("0x%016" PRIx64, VFPExpand64(imm8))
+                                           : StringPrintf("0x%08x", VFPExpand32(imm8)));
+              if ((instr & 0xa0) != 0) {
+                args << " (UNPREDICTABLE)";
+              }
+            } else if ((op3 & 0xB) == 0xB && Q == 1) {  // 101x11, Q == 1
+              // VNEG, VSQRT, VCMP, VCMPE, VCVT (floating-point conversion)
+              // |1111|1100|0|0|00|0000|1111|110|0|0 |0|0|0|0000|
+              // |5  2|1  8|7|6|54|3  0|5  2|1 9|8|7 |6|5|4|3  0|
+              // |----|----|-|-|--|----|----|---|-|- |-|-|-|----|
+              // |3322|2222|2|2|22|1111|1111|110|0|0 |0|0|0|0000|
+              // |1  8|7  4|3|2|10|9  6|5  2|1 9|8|7 |6|5|4|3  0|
+              // |----|----|-|-|--|----|----|---|-|- |-|-|-|----|
+              // |1110|1110|1|D|11|0000| Vd |101|S|0 |1|M|0| Vm | VMOV (reg)
+              // |1110|1110|1|D|11|0000| Vd |101|S|1 |1|M|0| Vm | VABS
+              // |1110|1110|1|D|11|0001| Vd |101|S|0 |1|M|0| Vm | VNEG
+              // |1110|1110|1|D|11|0001| Vd |101|S|1 |1|M|0| Vm | VSQRT
+              // |1110|1110|1|D|11|0100| Vd |101|S|op|1|M|0| Vm | VCMP
+              // |1110|1110|1|D|11|0101| Vd |101|S|op|1|0|0|0000| VCMPE
+              // |1110|1110|1|D|11|op5 | Vd |101|S|op|1|M|0| Vm | VCVT
+              uint32_t op5 = (instr >> 16) & 0xF;
+              uint32_t op = (instr >> 7) & 1;
+              // Register types in VCVT instructions rely on the combination of op5 and S.
+              FpRegister Dd(instr, 12, 22, 1);
+              FpRegister Sd(instr, 12, 22, 0);
+              FpRegister Dm(instr, 0, 5, 1);
+              FpRegister Sm(instr, 0, 5, 0);
+              if (op5 == 0) {
+                opcode << (op == 0 ? "vmov" : "vabs") << (S != 0 ? ".f64" : ".f32");
+                args << d << ", " << m;
+              } else if (op5 == 1) {
+                opcode << (op != 0 ? "vsqrt" : "vneg") << (S != 0 ? ".f64" : ".f32");
+                args << d << ", " << m;
+              } else if (op5 == 4) {
+                opcode << "vcmp" << (S != 0 ? ".f64" : ".f32");
+                args << d << ", " << m;
+                if (op != 0) {
+                  args << " (quiet nan)";
+                }
+              } else if (op5 == 5) {
+                opcode << "vcmpe" << (S != 0 ? ".f64" : ".f32");
+                args << d << ", #0.0";
+                if (op != 0) {
+                  args << " (quiet nan)";
+                }
+                if ((instr & 0x2f) != 0) {
+                  args << " (UNPREDICTABLE)";
+                }
+              } else if (op5 == 0xD) {
+                if (S == 1) {
+                  // vcvt{r}.s32.f64
+                  opcode << "vcvt" << (op == 0 ? "r" : "") << ".s32.f64";
+                  args << Sd << ", " << Dm;
+                } else {
+                  // vcvt{r}.s32.f32
+                  opcode << "vcvt" << (op == 0 ? "r" : "") << ".s32.f32";
+                  args << Sd << ", " << Sm;
+                }
+              } else if (op5 == 0xC) {
+                if (S == 1) {
+                  // vcvt{r}.u32.f64
+                  opcode << "vcvt" << (op == 0 ? "r" : "") << ".u32.f64";
+                  args << Sd << ", " << Dm;
+                } else {
+                  // vcvt{r}.u32.f32
+                  opcode << "vcvt" << (op == 0 ? "r" : "") << ".u32.f32";
+                  args << Sd << ", " << Sm;
+                }
+              } else if (op5 == 0x8) {
+                if (S == 1) {
+                  // vcvt.f64.<Tm>
+                  opcode << "vcvt.f64." << (op == 0 ? "u" : "s") << "32";
+                  args << Dd << ", " << Sm;
+                } else {
+                  // vcvt.f32.<Tm>
+                  opcode << "vcvt.f32." << (op == 0 ? "u" : "s") << "32";
+                  args << Sd << ", " << Sm;
+                }
+              } else if (op5 == 0x7) {
+                if (op == 1) {
                   if (S == 1) {
-                    // vcvt{r}.s32.f64
-                    opcode << "vcvt" << (op == 0 ? "r" : "") << ".s32.f64";
-                    args << Sd << ", " << Dm;
-                  } else {
-                    // vcvt{r}.s32.f32
-                    opcode << "vcvt" << (op == 0 ? "r" : "") << ".s32.f32";
-                    args << Sd << ", " << Sm;
-                  }
-                } else if (op5 == 0xC) {
-                  if (S == 1) {
-                    // vcvt{r}.u32.f64
-                    opcode << "vcvt" << (op == 0 ? "r" : "") << ".u32.f64";
-                    args << Sd << ", " << Dm;
-                  } else {
-                    // vcvt{r}.u32.f32
-                    opcode << "vcvt" << (op == 0 ? "r" : "") << ".u32.f32";
-                    args << Sd << ", " << Sm;
-                  }
-                } else if (op5 == 0x8) {
-                  if (S == 1) {
-                    // vcvt.f64.<Tm>
-                    opcode << "vcvt.f64." << (op == 0 ? "u" : "s") << "32";
+                    // vcvt.f64.f32
+                    opcode << "vcvt.f64.f32";
                     args << Dd << ", " << Sm;
                   } else {
-                    // vcvt.f32.<Tm>
-                    opcode << "vcvt.f32." << (op == 0 ? "u" : "s") << "32";
-                    args << Sd << ", " << Sm;
-                  }
-                } else if (op5 == 0x7) {
-                  if (op == 1) {
-                    if (S == 1) {
-                      // vcvt.f64.f32
-                      opcode << "vcvt.f64.f32";
-                      args << Dd << ", " << Sm;
-                    } else {
-                      // vcvt.f32.f64
-                      opcode << "vcvt.f32.f64";
-                      args << Sd << ", " << Dm;
-                    }
+                    // vcvt.f32.f64
+                    opcode << "vcvt.f32.f64";
+                    args << Sd << ", " << Dm;
                   }
                 }
+              } else if ((op5 & 0xa) == 0xa) {
+                opcode << "vcvt";
+                args << "[undecoded: floating <-> fixed]";
               }
             }
           } else if ((op3 >> 4) == 2 && op4 == 1) {     // 10xxxx, op = 1
@@ -884,53 +996,6 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             } else if (coproc == 11 && (op3 & 0x9) != 8) {
               // VMOV (ARM core register to scalar or vice versa; 8/16/32-bit)
             }
-          }
-        }
-
-        if ((op3 & 0x30) == 0x20 && op4 == 0) {  // 10 xxxx ... 0
-          if ((coproc & 0xE) == 0xA) {
-            // VFP data-processing instructions
-            // |111|1|1100|0000|0000|1111|110|0|00  |0|0|0000|
-            // |5 3|2|1098|7654|3  0|54 2|10 |8|76  |5|4|3  0|
-            // |---|-|----|----|----|----|---|-|----|-|-|----|
-            // |332|2|2222|2222|1111|1111|110|0|00  |0|0|0000|
-            // |1 9|8|7654|3210|9  6|54 2|109|8|76  |5|4|3  0|
-            // |---|-|----|----|----|----|---|-|----|-|-|----|
-            // |111|T|1110|opc1|opc2|    |101| |opc3| | |    |
-            //  111 0 1110|1111 0100 1110 101 0 01   1 0 1001 - eef4ea69
-            uint32_t opc1 = (instr >> 20) & 0xF;
-            uint32_t opc2 = (instr >> 16) & 0xF;
-            uint32_t opc3 = (instr >> 6) & 0x3;
-            if ((opc1 & 0xB) == 0xB) {  // 1x11
-              // Other VFP data-processing instructions.
-              uint32_t sz = (instr >> 8) & 1;
-              FpRegister d(instr, 12, 22);
-              FpRegister m(instr, 0, 5);
-              switch (opc2) {
-                case 0x1:  // Vneg/Vsqrt
-                  //  1110 11101 D 11 0001 dddd 101s o1M0 mmmm
-                  opcode << (opc3 == 1 ? "vneg" : "vsqrt") << (sz == 1 ? ".f64" : ".f32");
-                  args << d << ", " << m;
-                  break;
-                case 0x4: case 0x5:  {  // Vector compare
-                  // 1110 11101 D 11 0100 dddd 101 sE1M0 mmmm
-                  opcode << (opc3 == 1 ? "vcmp" : "vcmpe") << (sz == 1 ? ".f64" : ".f32");
-                  args << d << ", " << m;
-                  break;
-                }
-              }
-            }
-          }
-        } else if ((op3 & 0x30) == 0x30) {  // 11 xxxx
-          // Advanced SIMD
-          if ((instr & 0xFFBF0ED0) == 0xeeb10ac0) {  // Vsqrt
-            //  1110 11101 D 11 0001 dddd 101S 11M0 mmmm
-            //  1110 11101 0 11 0001 1101 1011 1100 1000 - eeb1dbc8
-            uint32_t sz = (instr >> 8) & 1;
-            FpRegister d(instr, 12, 22);
-            FpRegister m(instr, 0, 5);
-            opcode << "vsqrt" << (sz == 1 ? ".f64" : ".f32");
-            args << d << ", " << m;
           }
         }
       }
@@ -1388,6 +1453,16 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
       default:      // more formats
         if ((op2 >> 4) == 2) {      // 010xxxx
           // data processing (register)
+          if ((instr & 0x0080f0f0) == 0x0000f000) {
+            // LSL, LSR, ASR, ROR
+            uint32_t shift_op = (instr >> 21) & 3;
+            uint32_t S = (instr >> 20) & 1;
+            ArmRegister Rd(instr, 8);
+            ArmRegister Rn(instr, 16);
+            ArmRegister Rm(instr, 0);
+            opcode << kThumb2ShiftOperations[shift_op] << (S != 0 ? "s" : "");
+            args << Rd << ", " << Rn << ", " << Rm;
+          }
         } else if ((op2 >> 3) == 6) {       // 0110xxx
           // Multiply, multiply accumulate, and absolute difference
           op1 = (instr >> 20) & 0x7;
