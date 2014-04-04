@@ -35,6 +35,20 @@ enum InstructionSet {
 };
 std::ostream& operator<<(std::ostream& os, const InstructionSet& rhs);
 
+#if defined(__arm__)
+static constexpr InstructionSet kRuntimeISA = kArm;
+#elif defined(__aarch64__)
+static constexpr InstructionSet kRuntimeISA = kArm64;
+#elif defined(__mips__)
+static constexpr InstructionSet kRuntimeISA = kMips;
+#elif defined(__i386__)
+static constexpr InstructionSet kRuntimeISA = kX86;
+#elif defined(__x86_64__)
+static constexpr InstructionSet kRuntimeISA = kX86_64;
+#else
+static constexpr InstructionSet kRuntimeISA = kNone;
+#endif
+
 enum InstructionFeatures {
   kHwDiv = 1                  // Supports hardware divide.
 };
