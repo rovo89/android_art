@@ -185,7 +185,7 @@ void InstructionCodeGeneratorARM::VisitReturn(HReturn* ret) {
 }
 
 static constexpr Register kParameterCoreRegisters[] = { R1, R2, R3 };
-static constexpr int kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
+static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
 
 class InvokeStaticCallingConvention : public CallingConvention<Register> {
  public:
@@ -285,6 +285,38 @@ void InstructionCodeGeneratorARM::VisitAdd(HAdd* add) {
     default:
       LOG(FATAL) << "Unimplemented";
   }
+}
+
+static constexpr Register kRuntimeParameterCoreRegisters[] = { R0, R1 };
+static constexpr size_t kRuntimeParameterCoreRegistersLength =
+    arraysize(kRuntimeParameterCoreRegisters);
+
+class InvokeRuntimeCallingConvention : public CallingConvention<Register> {
+ public:
+  InvokeRuntimeCallingConvention()
+      : CallingConvention(kRuntimeParameterCoreRegisters,
+                          kRuntimeParameterCoreRegistersLength) {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
+};
+
+void LocationsBuilderARM::VisitNewInstance(HNewInstance* instruction) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
+  locations->SetOut(Location(R0));
+  instruction->SetLocations(locations);
+}
+
+void InstructionCodeGeneratorARM::VisitNewInstance(HNewInstance* instruction) {
+  InvokeRuntimeCallingConvention calling_convention;
+  LoadCurrentMethod(calling_convention.GetRegisterAt(1));
+  __ LoadImmediate(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex());
+
+  int32_t offset = QUICK_ENTRYPOINT_OFFSET(kWordSize, pAllocObjectWithAccessCheck).Int32Value();
+  __ ldr(LR, Address(TR, offset));
+  __ blx(LR);
+
+  codegen_->RecordPcInfo(instruction->GetDexPc());
 }
 
 }  // namespace arm
