@@ -1684,10 +1684,10 @@ static uint64_t artInvokeCommon(uint32_t method_idx, mirror::Object* this_object
 // Explicit artInvokeCommon template function declarations to please analysis tool.
 #define EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(type, access_check)                                \
   template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                          \
-  static uint64_t artInvokeCommon<type, access_check>(uint32_t method_idx,                      \
-                                                      mirror::Object* this_object,              \
-                                                      mirror::ArtMethod* caller_method,         \
-                                                      Thread* self, mirror::ArtMethod** sp)     \
+  uint64_t artInvokeCommon<type, access_check>(uint32_t method_idx,                             \
+                                               mirror::Object* this_object,                     \
+                                               mirror::ArtMethod* caller_method,                \
+                                               Thread* self, mirror::ArtMethod** sp)            \
 
 EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kVirtual, false);
 EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kVirtual, true);
