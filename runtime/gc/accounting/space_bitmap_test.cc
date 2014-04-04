@@ -86,6 +86,79 @@ TEST_F(SpaceBitmapTest, ScanRange) {
   }
 }
 
+class SimpleCounter {
+ public:
+  explicit SimpleCounter(size_t* counter) : count_(counter) {}
+
+  void operator()(mirror::Object* obj) const {
+    (*count_)++;
+  }
+
+  size_t* count_;
+};
+
+class RandGen {
+ public:
+  explicit RandGen(uint32_t seed) : val_(seed) {}
+
+  uint32_t next() {
+    val_ = val_ * 48271 % 2147483647;
+    return val_;
+  }
+
+  uint32_t val_;
+};
+
+void compat_test() NO_THREAD_SAFETY_ANALYSIS {
+  byte* heap_begin = reinterpret_cast<byte*>(0x10000000);
+  size_t heap_capacity = 16 * MB;
+
+  // Seed with 0x1234 for reproducability.
+  RandGen r(0x1234);
+
+
+  for (int i = 0; i < 5 ; ++i) {
+    UniquePtr<SpaceBitmap> space_bitmap(SpaceBitmap::Create("test bitmap",
+                                                            heap_begin, heap_capacity));
+
+    for (int j = 0; j < 10000; ++j) {
+      size_t offset = (r.next() % heap_capacity) & ~(0x7);
+      bool set = r.next() % 2 == 1;
+
+      if (set) {
+        space_bitmap->Set(reinterpret_cast<mirror::Object*>(heap_begin + offset));
+      } else {
+        space_bitmap->Clear(reinterpret_cast<mirror::Object*>(heap_begin + offset));
+      }
+    }
+
+    for (int j = 0; j < 50; ++j) {
+      size_t count = 0;
+      SimpleCounter c(&count);
+
+      size_t offset = (r.next() % heap_capacity) & ~(0x7);
+      size_t remain = heap_capacity - offset;
+      size_t end = offset + ((r.next() % (remain + 1)) & ~(0x7));
+
+      space_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(heap_begin) + offset,
+                                     reinterpret_cast<uintptr_t>(heap_begin) + end, c);
+
+      size_t manual = 0;
+      for (uintptr_t k = offset; k < end; k += kObjectAlignment) {
+        if (space_bitmap->Test(reinterpret_cast<mirror::Object*>(heap_begin + k))) {
+          manual++;
+        }
+      }
+
+      EXPECT_EQ(count, manual);
+    }
+  }
+}
+
+TEST_F(SpaceBitmapTest, Visitor) {
+  compat_test();
+}
+
 }  // namespace accounting
 }  // namespace gc
 }  // namespace art

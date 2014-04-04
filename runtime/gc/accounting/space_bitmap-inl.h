@@ -58,6 +58,14 @@ template <typename Visitor>
 void SpaceBitmap::VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
                                    const Visitor& visitor) const {
   DCHECK_LT(visit_begin, visit_end);
+#if 0
+  for (uintptr_t i = visit_begin; i < visit_end; i += kAlignment) {
+    mirror::Object* obj = reinterpret_cast<mirror::Object*>(i);
+    if (Test(obj)) {
+      visitor(obj);
+    }
+  }
+#else
   DCHECK_LE(heap_begin_, visit_begin);
   DCHECK_LE(visit_end, HeapLimit());
 
@@ -114,14 +122,20 @@ void SpaceBitmap::VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
     }
 
     // Right edge is unique.
-    right_edge = bitmap_begin_[index_end];
+    // But maybe we don't have anything to do: visit_end starts in a new word...
+    if (bit_end == 0) {
+      // Do not read memory, as it could be after the end of the bitmap.
+      right_edge = 0;
+    } else {
+      right_edge = bitmap_begin_[index_end];
+    }
   } else {
     // Right edge = left edge.
     right_edge = left_edge;
   }
 
   // Right edge handling.
-  right_edge &= ((static_cast<uword>(1) << bit_end) - 1) | (static_cast<uword>(1) << bit_end);
+  right_edge &= ((static_cast<uword>(1) << bit_end) - 1);
   if (right_edge != 0) {
     const uintptr_t ptr_base = IndexToOffset(index_end) + heap_begin_;
     do {
@@ -131,6 +145,7 @@ void SpaceBitmap::VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
       right_edge ^= (static_cast<uword>(1)) << shift;
     } while (right_edge != 0);
   }
+#endif
 }
 
 inline bool SpaceBitmap::Modify(const mirror::Object* obj, bool do_set) {
