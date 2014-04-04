@@ -249,10 +249,10 @@ class MarkSweep : public GarbageCollector {
   size_t GetThreadCount(bool paused) const;
 
   static void VerifyRootCallback(const mirror::Object* root, void* arg, size_t vreg,
-                                 const StackVisitor *visitor);
+                                 const StackVisitor *visitor, RootType root_type);
 
-  void VerifyRoot(const mirror::Object* root, size_t vreg, const StackVisitor* visitor)
-      NO_THREAD_SAFETY_ANALYSIS;
+  void VerifyRoot(const mirror::Object* root, size_t vreg, const StackVisitor* visitor,
+                  RootType root_type) NO_THREAD_SAFETY_ANALYSIS;
 
   // Push a single reference on a mark stack.
   void PushOnMarkStack(mirror::Object* obj);
