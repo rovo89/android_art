@@ -57,6 +57,16 @@ class StackIndirectReferenceTable {
     return RoundUp(sirt_size, 8);
   }
 
+  // Get the size of the SIRT for the number of entries, with padding added for potential alignment.
+  static size_t GetAlignedSirtSizeTarget(size_t pointer_size, uint32_t num_references) {
+    // Assume that the layout is packed.
+    size_t header_size = pointer_size + sizeof(uint32_t);
+    // This assumes there is no layout change between 32 and 64b.
+    size_t data_size = sizeof(StackReference<mirror::Object>) * num_references;
+    size_t sirt_size = header_size + data_size;
+    return RoundUp(sirt_size, 8);
+  }
+
   // Link to previous SIRT or NULL.
   StackIndirectReferenceTable* GetLink() const {
     return link_;
