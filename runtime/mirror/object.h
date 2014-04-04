@@ -185,7 +185,7 @@ class MANAGED LOCKABLE Object {
   bool IsPhantomReferenceInstance() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Accessor for Java type fields.
-  template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kDoReadBarrier = true>
   T* GetFieldObject(MemberOffset field_offset, bool is_volatile)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   template<bool kTransactionActive, bool kCheckTransaction = true,
