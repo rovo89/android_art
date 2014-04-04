@@ -1654,9 +1654,8 @@ bool Mir2Lir::HandleEasyMultiply(RegLocation rl_src, RegLocation rl_dest, int li
     StoreValue(rl_dest, rl_result);
     return true;
   }
-  // There is RegRegRegShift on Arm, so check for more special cases.
-  // TODO: disabled, need to handle case of "dest == src" properly.
-  if (false && cu_->instruction_set == kThumb2) {
+  // There is RegRegRegShift on Arm, so check for more special cases
+  if (cu_->instruction_set == kThumb2) {
     return EasyMultiply(rl_src, rl_dest, lit);
   }
   // Can we simplify this multiplication?
