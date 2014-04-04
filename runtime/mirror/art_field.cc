@@ -19,6 +19,7 @@
 #include "art_field-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "object-inl.h"
+#include "object_array-inl.h"
 #include "object_utils.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
@@ -66,6 +67,26 @@ void ArtField::VisitRoots(RootCallback* callback, void* arg) {
   if (java_lang_reflect_ArtField_ != nullptr) {
     callback(reinterpret_cast<mirror::Object**>(&java_lang_reflect_ArtField_), arg, 0,
              kRootStickyClass);
+  }
+}
+
+// TODO: we could speed up the search if fields are ordered by offsets.
+ArtField* ArtField::FindInstanceFieldWithOffset(mirror::Class* klass, uint32_t field_offset) {
+  DCHECK(klass != nullptr);
+  ObjectArray<ArtField>* instance_fields = klass->GetIFields();
+  if (instance_fields != nullptr) {
+    for (int32_t i = 0, e = instance_fields->GetLength(); i < e; ++i) {
+      mirror::ArtField* field = instance_fields->GetWithoutChecks(i);
+      if (field->GetOffset().Uint32Value() == field_offset) {
+        return field;
+      }
+    }
+  }
+  // We did not find field in the class: look into superclass.
+  if (klass->GetSuperClass() != NULL) {
+    return FindInstanceFieldWithOffset(klass->GetSuperClass(), field_offset);
+  } else {
+    return nullptr;
   }
 }
 
