@@ -508,7 +508,12 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
           refs++;
         }
       }
-      size_t sirt_size = StackIndirectReferenceTable::GetAlignedSirtSize(refs);
+      InstructionSet trg_isa = compiler_driver_->GetInstructionSet();
+      size_t pointer_size = 4;
+      if (trg_isa == kArm64 || trg_isa == kX86_64) {
+        pointer_size = 8;
+      }
+      size_t sirt_size = StackIndirectReferenceTable::GetAlignedSirtSizeTarget(pointer_size, refs);
 
       // Get the generic spill masks and base frame size.
       mirror::ArtMethod* callee_save_method =

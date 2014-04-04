@@ -31,8 +31,16 @@ static constexpr size_t KB = 1024;
 static constexpr size_t MB = KB * KB;
 static constexpr size_t GB = KB * KB * KB;
 
+// Runtime sizes.
 static constexpr size_t kWordSize = sizeof(word);
 static constexpr size_t kPointerSize = sizeof(void*);
+
+// Architecture-specific pointer sizes
+static constexpr size_t kArmPointerSize = 4;
+static constexpr size_t kArm64PointerSize = 8;
+static constexpr size_t kMipsPointerSize = 4;
+static constexpr size_t kX86PointerSize = 4;
+static constexpr size_t kX86_64PointerSize = 8;
 
 static constexpr size_t kBitsPerByte = 8;
 static constexpr size_t kBitsPerByteLog2 = 3;
