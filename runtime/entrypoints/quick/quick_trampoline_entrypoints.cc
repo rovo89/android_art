@@ -1496,6 +1496,22 @@ void BuildGenericJniFrameVisitor::FinalizeSirt(Thread* self) {
 
 extern "C" void* artFindNativeMethod();
 
+uint64_t artQuickGenericJniEndJNIRef(Thread* self, uint32_t cookie, jobject l, jobject lock) {
+  if (lock != nullptr) {
+    return reinterpret_cast<uint64_t>(JniMethodEndWithReferenceSynchronized(l, cookie, lock, self));
+  } else {
+    return reinterpret_cast<uint64_t>(JniMethodEndWithReference(l, cookie, self));
+  }
+}
+
+void artQuickGenericJniEndJNINonRef(Thread* self, uint32_t cookie, jobject lock) {
+  if (lock != nullptr) {
+    JniMethodEndSynchronized(cookie, lock, self);
+  } else {
+    JniMethodEnd(cookie, self);
+  }
+}
+
 /*
  * Initializes an alloca region assumed to be directly below sp for a native call:
  * Create a Sirt and call stack and fill a mini stack with values to be pushed to registers.
@@ -1555,6 +1571,15 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod*
 
     if (nativeCode == nullptr) {
       DCHECK(self->IsExceptionPending());    // There should be an exception pending now.
+
+      // End JNI, as the assembly will move to deliver the exception.
+      jobject lock = called->IsSynchronized() ? visitor.GetFirstSirtEntry() : nullptr;
+      if (mh.GetShorty()[0] == 'L') {
+        artQuickGenericJniEndJNIRef(self, cookie, nullptr, lock);
+      } else {
+        artQuickGenericJniEndJNINonRef(self, cookie, lock);
+      }
+
       return -1;
     }
     // Note that the native code pointer will be automatically set by artFindNativeMethod().
@@ -1580,33 +1605,21 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, mirror::ArtMet
   mirror::ArtMethod* called = *sp;
   uint32_t cookie = *(sp32 - 1);
 
+  jobject lock = nullptr;
+  if (called->IsSynchronized()) {
+    StackIndirectReferenceTable* table =
+        reinterpret_cast<StackIndirectReferenceTable*>(
+            reinterpret_cast<uint8_t*>(sp) + kPointerSize);
+    lock = reinterpret_cast<jobject>(table->GetStackReference(0));
+  }
+
   MethodHelper mh(called);
   char return_shorty_char = mh.GetShorty()[0];
 
   if (return_shorty_char == 'L') {
-    // the only special ending call
-    if (called->IsSynchronized()) {
-      StackIndirectReferenceTable* table =
-          reinterpret_cast<StackIndirectReferenceTable*>(
-              reinterpret_cast<uint8_t*>(sp) + kPointerSize);
-      jobject tmp = reinterpret_cast<jobject>(table->GetStackReference(0));
-
-      return reinterpret_cast<uint64_t>(JniMethodEndWithReferenceSynchronized(result.l, cookie, tmp,
-                                                                              self));
-    } else {
-      return reinterpret_cast<uint64_t>(JniMethodEndWithReference(result.l, cookie, self));
-    }
+    return artQuickGenericJniEndJNIRef(self, cookie, result.l, lock);
   } else {
-    if (called->IsSynchronized()) {
-      StackIndirectReferenceTable* table =
-          reinterpret_cast<StackIndirectReferenceTable*>(
-              reinterpret_cast<uint8_t*>(sp) + kPointerSize);
-      jobject tmp = reinterpret_cast<jobject>(table->GetStackReference(0));
-
-      JniMethodEndSynchronized(cookie, tmp, self);
-    } else {
-      JniMethodEnd(cookie, self);
-    }
+    artQuickGenericJniEndJNINonRef(self, cookie, lock);
 
     switch (return_shorty_char) {
       case 'F':  // Fall-through.
