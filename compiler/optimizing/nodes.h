@@ -201,6 +201,7 @@ class HBasicBlock : public ArenaObject {
   M(InvokeStatic)                                          \
   M(LoadLocal)                                             \
   M(Local)                                                 \
+  M(NewInstance)                                           \
   M(PushArgument)                                          \
   M(Return)                                                \
   M(ReturnVoid)                                            \
@@ -593,7 +594,7 @@ class HIntConstant : public HTemplateInstruction<0> {
 
 class HInvoke : public HInstruction {
  public:
-  HInvoke(ArenaAllocator* arena, uint32_t number_of_arguments, int32_t dex_pc)
+  HInvoke(ArenaAllocator* arena, uint32_t number_of_arguments, uint32_t dex_pc)
     : inputs_(arena, number_of_arguments),
       dex_pc_(dex_pc) {
     inputs_.SetSize(number_of_arguments);
@@ -606,11 +607,11 @@ class HInvoke : public HInstruction {
     inputs_.Put(index, argument);
   }
 
-  int32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const { return dex_pc_; }
 
  protected:
   GrowableArray<HInstruction*> inputs_;
-  const int32_t dex_pc_;
+  const uint32_t dex_pc_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HInvoke);
@@ -620,8 +621,8 @@ class HInvokeStatic : public HInvoke {
  public:
   HInvokeStatic(ArenaAllocator* arena,
                 uint32_t number_of_arguments,
-                int32_t dex_pc,
-                int32_t index_in_dex_cache)
+                uint32_t dex_pc,
+                uint32_t index_in_dex_cache)
       : HInvoke(arena, number_of_arguments, dex_pc), index_in_dex_cache_(index_in_dex_cache) {}
 
   uint32_t GetIndexInDexCache() const { return index_in_dex_cache_; }
@@ -632,6 +633,22 @@ class HInvokeStatic : public HInvoke {
   const uint32_t index_in_dex_cache_;
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeStatic);
+};
+
+class HNewInstance : public HTemplateInstruction<0> {
+ public:
+  HNewInstance(uint32_t dex_pc, uint16_t type_index) : dex_pc_(dex_pc), type_index_(type_index) {}
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+  uint16_t GetTypeIndex() const { return type_index_; }
+
+  DECLARE_INSTRUCTION(NewInstance)
+
+ private:
+  const uint32_t dex_pc_;
+  const uint16_t type_index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HNewInstance);
 };
 
 // HPushArgument nodes are inserted after the evaluation of an argument

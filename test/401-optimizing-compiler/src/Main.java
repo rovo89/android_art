@@ -26,6 +26,8 @@ public class Main {
       error = e;
     }
     System.out.println(error);
+
+    $opt$TestInvokeNew();
   }
 
   public static void $opt$TestInvokeStatic() {
@@ -35,6 +37,13 @@ public class Main {
     printStaticMethodWith7Args(1, 2, 3, 4, 5, 6, 7);
     forceGCStaticMethod();
     throwStaticMethod();
+  }
+
+  public static void $opt$TestInvokeNew() {
+    Object o = new Object();
+    forceGCStaticMethod();
+    printStaticMethodWithObjectArg(o);
+    forceGCStaticMethod();
   }
 
   public static void printStaticMethod() {
@@ -53,6 +62,10 @@ public class Main {
   public static void printStaticMethodWith7Args(int a, int b, int c, int d, int e, int f, int g) {
     System.out.println("In static method with 7 args "
         + a + " " + b + " " + c + " " + d + " " + e + " " + f + " " + g);
+  }
+
+  public static void printStaticMethodWithObjectArg(Object a) {
+    System.out.println("In static method with object arg " + a.getClass());
   }
 
   public static void forceGCStaticMethod() {
