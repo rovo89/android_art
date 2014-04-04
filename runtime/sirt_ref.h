@@ -28,7 +28,7 @@ namespace art {
 template<class T>
 class SirtRef {
  public:
-  SirtRef(Thread* self, T* object);
+  SirtRef(Thread* self, T* object, bool should_verify = true);
   ~SirtRef();
 
   T& operator*() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -42,13 +42,25 @@ class SirtRef {
   }
 
   // Returns the old reference.
-  T* reset(T* object = nullptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  T* reset(T* object = nullptr, bool should_verify = true)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   Thread* const self_;
   StackIndirectReferenceTable sirt_;
 
   DISALLOW_COPY_AND_ASSIGN(SirtRef);
+};
+
+// A version of SirtRef which disables the object verification.
+template<class T>
+class SirtRefNoVerify : public SirtRef<T> {
+ public:
+  SirtRefNoVerify(Thread* self, T* object) : SirtRef<T>(self, object, false) {}
+  // Returns the old reference.
+  T* reset(T* object = nullptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return SirtRef<T>::reset(object, false);
+  }
 };
 
 }  // namespace art

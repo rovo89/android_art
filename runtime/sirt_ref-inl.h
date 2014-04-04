@@ -23,8 +23,11 @@
 
 namespace art {
 
-template<class T> inline SirtRef<T>::SirtRef(Thread* self, T* object) : self_(self), sirt_(object) {
-  VerifyObject(object);
+template<class T> inline SirtRef<T>::SirtRef(Thread* self, T* object, bool should_verify)
+  : self_(self), sirt_(object) {
+  if (should_verify) {
+    VerifyObject(object);
+  }
   self_->PushSirt(&sirt_);
 }
 
@@ -33,8 +36,10 @@ template<class T> inline SirtRef<T>::~SirtRef() {
   DCHECK_EQ(top_sirt, &sirt_);
 }
 
-template<class T> inline T* SirtRef<T>::reset(T* object) {
-  VerifyObject(object);
+template<class T> inline T* SirtRef<T>::reset(T* object, bool should_verify) {
+  if (should_verify) {
+    VerifyObject(object);
+  }
   T* old_ref = get();
   sirt_.SetReference(0, object);
   return old_ref;
