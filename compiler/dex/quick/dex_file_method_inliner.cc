@@ -47,6 +47,22 @@ MIR* AllocReplacementMIR(MIRGraph* mir_graph, MIR* invoke, MIR* move_return) {
   return insn;
 }
 
+uint32_t GetInvokeReg(MIR* invoke, uint32_t arg) {
+  DCHECK_LT(arg, invoke->dalvikInsn.vA);
+  if (Instruction::FormatOf(invoke->dalvikInsn.opcode) == Instruction::k3rc) {
+    return invoke->dalvikInsn.vC + arg;  // Non-range invoke.
+  } else {
+    DCHECK_EQ(Instruction::FormatOf(invoke->dalvikInsn.opcode), Instruction::k35c);
+    return invoke->dalvikInsn.arg[arg];  // Range invoke.
+  }
+}
+
+bool WideArgIsInConsecutiveDalvikRegs(MIR* invoke, uint32_t arg) {
+  DCHECK_LT(arg + 1, invoke->dalvikInsn.vA);
+  return Instruction::FormatOf(invoke->dalvikInsn.opcode) == Instruction::k3rc ||
+      invoke->dalvikInsn.arg[arg + 1u] == invoke->dalvikInsn.arg[arg] + 1u;
+}
+
 }  // anonymous namespace
 
 const uint32_t DexFileMethodInliner::kIndexUnresolved;
@@ -578,24 +594,23 @@ bool DexFileMethodInliner::GenInlineReturnArg(MIRGraph* mir_graph, BasicBlock* b
   // Select opcode and argument.
   const InlineReturnArgData& data = method.d.return_data;
   Instruction::Code opcode = Instruction::MOVE_FROM16;
+  uint32_t arg = GetInvokeReg(invoke, data.arg);
   if (move_result->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {
     DCHECK_EQ(data.is_object, 1u);
+    DCHECK_EQ(data.is_wide, 0u);
     opcode = Instruction::MOVE_OBJECT_FROM16;
   } else if (move_result->dalvikInsn.opcode == Instruction::MOVE_RESULT_WIDE) {
     DCHECK_EQ(data.is_wide, 1u);
+    DCHECK_EQ(data.is_object, 0u);
     opcode = Instruction::MOVE_WIDE_FROM16;
+    if (!WideArgIsInConsecutiveDalvikRegs(invoke, data.arg)) {
+      // The two halfs of the source value are not in consecutive dalvik registers in INVOKE.
+      return false;
+    }
   } else {
     DCHECK(move_result->dalvikInsn.opcode == Instruction::MOVE_RESULT);
     DCHECK_EQ(data.is_wide, 0u);
     DCHECK_EQ(data.is_object, 0u);
-  }
-  DCHECK_LT(data.is_wide ? data.arg + 1u : data.arg, invoke->dalvikInsn.vA);
-  int arg;
-  if (Instruction::FormatOf(invoke->dalvikInsn.opcode) == Instruction::k35c) {
-    arg = invoke->dalvikInsn.arg[data.arg];  // Non-range invoke.
-  } else {
-    DCHECK_EQ(Instruction::FormatOf(invoke->dalvikInsn.opcode), Instruction::k3rc);
-    arg = invoke->dalvikInsn.vC + data.arg;  // Range invoke.
   }
 
   // Insert the move instruction
@@ -616,33 +631,35 @@ bool DexFileMethodInliner::GenInlineIGet(MIRGraph* mir_graph, BasicBlock* bb, MI
   }
 
   const InlineIGetIPutData& data = method.d.ifield_data;
-  if (invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC ||
-      invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC_RANGE ||
-      data.object_arg != 0) {
-    // TODO: Implement inlining of IGET on non-"this" registers (needs correct stack trace for NPE).
-    return false;
-  }
+  Instruction::Code opcode = static_cast<Instruction::Code>(Instruction::IGET + data.op_variant);
+  DCHECK_EQ(InlineMethodAnalyser::IGetVariant(opcode), data.op_variant);
+  uint32_t object_reg = GetInvokeReg(invoke, data.object_arg);
 
   if (move_result == nullptr) {
     // Result is unused. If volatile, we still need to emit the IGET but we have no destination.
     return !data.is_volatile;
   }
 
-  Instruction::Code opcode = static_cast<Instruction::Code>(Instruction::IGET + data.op_variant);
-  DCHECK_EQ(InlineMethodAnalyser::IGetVariant(opcode), data.op_variant);
+  DCHECK_EQ(data.method_is_static != 0u,
+            invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC ||
+            invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC_RANGE);
+  bool object_is_this = (data.method_is_static == 0u && data.object_arg == 0u);
+  if (!object_is_this) {
+    // TODO: Implement inlining of IGET on non-"this" registers (needs correct stack trace for NPE).
+    return false;
+  }
+
+  if (object_is_this) {
+    // Mark invoke as NOP, null-check is done on IGET. No aborts after this.
+    invoke->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+  }
 
   MIR* insn = AllocReplacementMIR(mir_graph, invoke, move_result);
   insn->width += insn->offset - invoke->offset;
   insn->offset = invoke->offset;
   insn->dalvikInsn.opcode = opcode;
   insn->dalvikInsn.vA = move_result->dalvikInsn.vA;
-  DCHECK_LT(data.object_arg, invoke->dalvikInsn.vA);
-  if (Instruction::FormatOf(invoke->dalvikInsn.opcode) == Instruction::k3rc) {
-    insn->dalvikInsn.vB = invoke->dalvikInsn.vC + data.object_arg;
-  } else {
-    DCHECK_EQ(Instruction::FormatOf(invoke->dalvikInsn.opcode), Instruction::k35c);
-    insn->dalvikInsn.vB = invoke->dalvikInsn.arg[data.object_arg];
-  }
+  insn->dalvikInsn.vB = object_reg;
   mir_graph->ComputeInlineIFieldLoweringInfo(data.field_idx, invoke, insn);
 
   DCHECK(mir_graph->GetIFieldLoweringInfo(insn).IsResolved());
@@ -662,25 +679,34 @@ bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MI
   }
 
   const InlineIGetIPutData& data = method.d.ifield_data;
-  if (invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC ||
-      invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC_RANGE ||
-      data.object_arg != 0) {
+  Instruction::Code opcode = static_cast<Instruction::Code>(Instruction::IPUT + data.op_variant);
+  DCHECK_EQ(InlineMethodAnalyser::IPutVariant(opcode), data.op_variant);
+  uint32_t object_reg = GetInvokeReg(invoke, data.object_arg);
+  uint32_t src_reg = GetInvokeReg(invoke, data.src_arg);
+
+  if (opcode == Instruction::IPUT_WIDE && !WideArgIsInConsecutiveDalvikRegs(invoke, data.src_arg)) {
+    // The two halfs of the source value are not in consecutive dalvik registers in INVOKE.
+    return false;
+  }
+
+  DCHECK_EQ(data.method_is_static != 0u,
+            invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC ||
+            invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC_RANGE);
+  bool object_is_this = (data.method_is_static == 0u && data.object_arg == 0u);
+  if (!object_is_this) {
     // TODO: Implement inlining of IPUT on non-"this" registers (needs correct stack trace for NPE).
     return false;
   }
 
-  Instruction::Code opcode = static_cast<Instruction::Code>(Instruction::IPUT + data.op_variant);
-  DCHECK_EQ(InlineMethodAnalyser::IPutVariant(opcode), data.op_variant);
+  if (object_is_this) {
+    // Mark invoke as NOP, null-check is done on IPUT. No aborts after this.
+    invoke->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+  }
 
   MIR* insn = AllocReplacementMIR(mir_graph, invoke, nullptr);
   insn->dalvikInsn.opcode = opcode;
-  if (Instruction::FormatOf(invoke->dalvikInsn.opcode) == Instruction::k3rc) {
-    insn->dalvikInsn.vA = invoke->dalvikInsn.vC + data.src_arg;
-    insn->dalvikInsn.vB = invoke->dalvikInsn.vC + data.object_arg;
-  } else {
-    insn->dalvikInsn.vA = invoke->dalvikInsn.arg[data.src_arg];
-    insn->dalvikInsn.vB = invoke->dalvikInsn.arg[data.object_arg];
-  }
+  insn->dalvikInsn.vA = src_reg;
+  insn->dalvikInsn.vB = object_reg;
   mir_graph->ComputeInlineIFieldLoweringInfo(data.field_idx, invoke, insn);
 
   DCHECK(mir_graph->GetIFieldLoweringInfo(insn).IsResolved());
