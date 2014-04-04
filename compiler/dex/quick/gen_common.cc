@@ -1082,9 +1082,9 @@ void Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, Re
   LIR* ne_branchover = NULL;
   if (cu_->instruction_set == kThumb2) {
     OpRegReg(kOpCmp, check_class, object_class);  // Same?
-    OpIT(kCondEq, "");   // if-convert the test
+    LIR* it = OpIT(kCondEq, "");   // if-convert the test
     LoadConstant(result_reg, 1);     // .eq case - load true
-    GenBarrier();
+    OpEndIT(it);
   } else {
     ne_branchover = OpCmpBranch(kCondNe, check_class, object_class, NULL);
     LoadConstant(result_reg, 1);     // eq case - load true
@@ -1166,10 +1166,10 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
     // rl_result == ref == null == 0.
     if (cu_->instruction_set == kThumb2) {
       OpRegReg(kOpCmp, TargetReg(kArg1), TargetReg(kArg2));  // Same?
-      OpIT(kCondEq, "E");   // if-convert the test
+      LIR* it = OpIT(kCondEq, "E");   // if-convert the test
       LoadConstant(rl_result.reg, 1);     // .eq case - load true
       LoadConstant(rl_result.reg, 0);     // .ne case - load false
-      GenBarrier();
+      OpEndIT(it);
     } else {
       LoadConstant(rl_result.reg, 0);     // ne case - load false
       branchover = OpCmpBranch(kCondNe, TargetReg(kArg1), TargetReg(kArg2), NULL);
@@ -1178,15 +1178,18 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
   } else {
     if (cu_->instruction_set == kThumb2) {
       RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pInstanceofNonTrivial));
+      LIR* it = nullptr;
       if (!type_known_abstract) {
       /* Uses conditional nullification */
         OpRegReg(kOpCmp, TargetReg(kArg1), TargetReg(kArg2));  // Same?
-        OpIT(kCondEq, "EE");   // if-convert the test
+        it = OpIT(kCondEq, "EE");   // if-convert the test
         LoadConstant(TargetReg(kArg0), 1);     // .eq case - load true
       }
       OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));    // .ne case - arg0 <= class
       OpReg(kOpBlx, r_tgt);    // .ne case: helper(class, ref->class)
-      GenBarrier();
+      if (it != nullptr) {
+        OpEndIT(it);
+      }
       FreeTemp(r_tgt);
     } else {
       if (!type_known_abstract) {

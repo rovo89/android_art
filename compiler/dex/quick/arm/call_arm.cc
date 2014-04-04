@@ -81,8 +81,9 @@ void ArmMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
   NewLIR2(kThumb2LdmiaWB, r_base.GetReg(), (1 << r_key.GetReg()) | (1 << r_disp.GetReg()));
   OpRegReg(kOpCmp, r_key, rl_src.reg);
   // Go if match. NOTE: No instruction set switch here - must stay Thumb2
-  OpIT(kCondEq, "");
+  LIR* it = OpIT(kCondEq, "");
   LIR* switch_branch = NewLIR1(kThumb2AddPCR, r_disp.GetReg());
+  OpEndIT(it);
   tab_rec->anchor = switch_branch;
   // Needs to use setflags encoding here
   OpRegRegImm(kOpSub, r_idx, r_idx, 1);  // For value == 1, this should set flags.
@@ -222,14 +223,16 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
     NewLIR3(kThumb2Ldrex, r1, r0, mirror::Object::MonitorOffset().Int32Value() >> 2);
     MarkPossibleNullPointerException(opt_flags);
     OpRegImm(kOpCmp, rs_r1, 0);
-    OpIT(kCondEq, "");
+    LIR* it = OpIT(kCondEq, "");
     NewLIR4(kThumb2Strex/*eq*/, r1, r2, r0, mirror::Object::MonitorOffset().Int32Value() >> 2);
+    OpEndIT(it);
     OpRegImm(kOpCmp, rs_r1, 0);
-    OpIT(kCondNe, "T");
+    it = OpIT(kCondNe, "T");
     // Go expensive route - artLockObjectFromCode(self, obj);
     LoadWordDisp/*ne*/(rs_rARM_SELF, QUICK_ENTRYPOINT_OFFSET(4, pLockObject).Int32Value(), rs_rARM_LR);
     ClobberCallerSave();
     LIR* call_inst = OpReg(kOpBlx/*ne*/, rs_rARM_LR);
+    OpEndIT(it);
     MarkSafepointPC(call_inst);
     GenMemBarrier(kLoadLoad);
   }
@@ -287,13 +290,14 @@ void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
     LoadConstantNoClobber(rs_r3, 0);
     // Is lock unheld on lock or held by us (==thread_id) on unlock?
     OpRegReg(kOpCmp, rs_r1, rs_r2);
-    OpIT(kCondEq, "EE");
+    LIR* it = OpIT(kCondEq, "EE");
     StoreWordDisp/*eq*/(rs_r0, mirror::Object::MonitorOffset().Int32Value(), rs_r3);
     // Go expensive route - UnlockObjectFromCode(obj);
     LoadWordDisp/*ne*/(rs_rARM_SELF, QUICK_ENTRYPOINT_OFFSET(4, pUnlockObject).Int32Value(),
                        rs_rARM_LR);
     ClobberCallerSave();
     LIR* call_inst = OpReg(kOpBlx/*ne*/, rs_rARM_LR);
+    OpEndIT(it);
     MarkSafepointPC(call_inst);
     GenMemBarrier(kStoreLoad);
   }
