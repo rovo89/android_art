@@ -182,7 +182,6 @@ LIBART_COMMON_SRC_FILES += \
 	entrypoints/quick/quick_field_entrypoints.cc \
 	entrypoints/quick/quick_fillarray_entrypoints.cc \
 	entrypoints/quick/quick_instrumentation_entrypoints.cc \
-	entrypoints/quick/quick_invoke_entrypoints.cc \
 	entrypoints/quick/quick_jni_entrypoints.cc \
 	entrypoints/quick/quick_lock_entrypoints.cc \
 	entrypoints/quick/quick_math_entrypoints.cc \
