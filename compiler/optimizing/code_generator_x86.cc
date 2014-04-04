@@ -40,14 +40,14 @@ void CodeGeneratorX86::GenerateFrameEntry() {
   core_spill_mask_ |= (1 << kFakeReturnRegister);
 
   // Add the current ART method to the frame size and the return PC.
-  SetFrameSize(RoundUp(GetFrameSize() + 2 * kWordSize, kStackAlignment));
+  SetFrameSize(RoundUp(GetFrameSize() + 2 * kX86WordSize, kStackAlignment));
   // The return PC has already been pushed on the stack.
-  __ subl(ESP, Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kWordSize));
+  __ subl(ESP, Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86WordSize));
   __ movl(Address(ESP, 0), EAX);
 }
 
 void CodeGeneratorX86::GenerateFrameExit() {
-  __ addl(ESP, Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kWordSize));
+  __ addl(ESP, Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86WordSize));
 }
 
 void CodeGeneratorX86::Bind(Label* label) {
@@ -59,7 +59,7 @@ void InstructionCodeGeneratorX86::LoadCurrentMethod(Register reg) {
 }
 
 int32_t CodeGeneratorX86::GetStackSlot(HLocal* local) const {
-  return (GetGraph()->GetMaximumNumberOfOutVRegs() + local->GetRegNumber()) * kWordSize;
+  return (GetGraph()->GetMaximumNumberOfOutVRegs() + local->GetRegNumber()) * kX86WordSize;
 }
 
 void CodeGeneratorX86::Move(HInstruction* instruction, Location location, HInstruction* move_for) {
@@ -122,7 +122,7 @@ void LocationsBuilderX86::VisitLocal(HLocal* local) {
 
 void InstructionCodeGeneratorX86::VisitLocal(HLocal* local) {
   DCHECK_EQ(local->GetBlock(), GetGraph()->GetEntryBlock());
-  codegen_->SetFrameSize(codegen_->GetFrameSize() + kWordSize);
+  codegen_->SetFrameSize(codegen_->GetFrameSize() + kX86WordSize);
 }
 
 void LocationsBuilderX86::VisitLoadLocal(HLoadLocal* local) {
@@ -250,7 +250,7 @@ void LocationsBuilderX86::VisitInvokeStatic(HInvokeStatic* invoke) {
 void InstructionCodeGeneratorX86::VisitInvokeStatic(HInvokeStatic* invoke) {
   Register temp = invoke->GetLocations()->GetTemp(0).reg<Register>();
   size_t index_in_cache = mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
-      invoke->GetIndexInDexCache() * kWordSize;
+      invoke->GetIndexInDexCache() * kX86WordSize;
 
   // TODO: Implement all kinds of calls:
   // 1) boot -> boot
@@ -310,7 +310,8 @@ void InstructionCodeGeneratorX86::VisitNewInstance(HNewInstance* instruction) {
   __ movl(calling_convention.GetRegisterAt(0),
           Immediate(instruction->GetTypeIndex()));
 
-  __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kWordSize, pAllocObjectWithAccessCheck)));
+  __ fs()->call(
+      Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pAllocObjectWithAccessCheck)));
 
   codegen_->RecordPcInfo(instruction->GetDexPc());
 }

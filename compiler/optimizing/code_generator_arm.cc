@@ -39,14 +39,14 @@ void CodeGeneratorARM::GenerateFrameEntry() {
   __ PushList((1 << LR));
 
   // Add the current ART method to the frame size and the return PC.
-  SetFrameSize(RoundUp(GetFrameSize() + 2 * kWordSize, kStackAlignment));
+  SetFrameSize(RoundUp(GetFrameSize() + 2 * kArmWordSize, kStackAlignment));
   // The retrn PC has already been pushed on the stack.
-  __ AddConstant(SP, -(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kWordSize));
+  __ AddConstant(SP, -(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kArmWordSize));
   __ str(R0, Address(SP, 0));
 }
 
 void CodeGeneratorARM::GenerateFrameExit() {
-  __ AddConstant(SP, GetFrameSize() - kNumberOfPushedRegistersAtEntry * kWordSize);
+  __ AddConstant(SP, GetFrameSize() - kNumberOfPushedRegistersAtEntry * kArmWordSize);
   __ PopList((1 << PC));
 }
 
@@ -55,7 +55,7 @@ void CodeGeneratorARM::Bind(Label* label) {
 }
 
 int32_t CodeGeneratorARM::GetStackSlot(HLocal* local) const {
-  return (GetGraph()->GetMaximumNumberOfOutVRegs() + local->GetRegNumber()) * kWordSize;
+  return (GetGraph()->GetMaximumNumberOfOutVRegs() + local->GetRegNumber()) * kArmWordSize;
 }
 
 void CodeGeneratorARM::Move(HInstruction* instruction, Location location, HInstruction* move_for) {
@@ -134,7 +134,7 @@ void LocationsBuilderARM::VisitLocal(HLocal* local) {
 
 void InstructionCodeGeneratorARM::VisitLocal(HLocal* local) {
   DCHECK_EQ(local->GetBlock(), GetGraph()->GetEntryBlock());
-  codegen_->SetFrameSize(codegen_->GetFrameSize() + kWordSize);
+  codegen_->SetFrameSize(codegen_->GetFrameSize() + kArmWordSize);
 }
 
 void LocationsBuilderARM::VisitLoadLocal(HLoadLocal* load) {
@@ -235,7 +235,7 @@ void InstructionCodeGeneratorARM::LoadCurrentMethod(Register reg) {
 void InstructionCodeGeneratorARM::VisitInvokeStatic(HInvokeStatic* invoke) {
   Register temp = invoke->GetLocations()->GetTemp(0).reg<Register>();
   size_t index_in_cache = mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
-      invoke->GetIndexInDexCache() * kWordSize;
+      invoke->GetIndexInDexCache() * kArmWordSize;
 
   // TODO: Implement all kinds of calls:
   // 1) boot -> boot
@@ -312,7 +312,7 @@ void InstructionCodeGeneratorARM::VisitNewInstance(HNewInstance* instruction) {
   LoadCurrentMethod(calling_convention.GetRegisterAt(1));
   __ LoadImmediate(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex());
 
-  int32_t offset = QUICK_ENTRYPOINT_OFFSET(kWordSize, pAllocObjectWithAccessCheck).Int32Value();
+  int32_t offset = QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pAllocObjectWithAccessCheck).Int32Value();
   __ ldr(LR, Address(TR, offset));
   __ blx(LR);
 

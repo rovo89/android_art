@@ -30,7 +30,7 @@
 namespace art {
 
 void CodeGenerator::Compile(CodeAllocator* allocator) {
-  frame_size_ = GetGraph()->GetMaximumNumberOfOutVRegs() * kWordSize;
+  frame_size_ = GetGraph()->GetMaximumNumberOfOutVRegs() * GetWordSize();
   const GrowableArray<HBasicBlock*>* blocks = GetGraph()->GetBlocks();
   DCHECK(blocks->Get(0) == GetGraph()->GetEntryBlock());
   DCHECK(GoesToNextBlock(GetGraph()->GetEntryBlock(), blocks->Get(1)));
