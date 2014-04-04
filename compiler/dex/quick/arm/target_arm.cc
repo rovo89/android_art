@@ -562,7 +562,8 @@ void ArmMir2Lir::CompilerInitializeRegAlloc() {
 
   // Keep special registers from being allocated
   // Don't reserve the r4 if we are doing implicit suspend checks.
-  bool no_suspend = NO_SUSPEND || !Runtime::Current()->ExplicitSuspendChecks();
+  // TODO: re-enable this when we can safely save r4 over the suspension code path.
+  bool no_suspend = NO_SUSPEND;  // || !Runtime::Current()->ExplicitSuspendChecks();
   for (int i = 0; i < num_reserved; i++) {
     if (no_suspend && (ReservedRegs[i] == rARM_SUSPEND)) {
       // Don't reserve the suspend register.

@@ -35,7 +35,7 @@ namespace art {
 
 extern "C" void art_quick_throw_null_pointer_exception();
 extern "C" void art_quick_throw_stack_overflow(void*);
-extern "C" void art_quick_test_suspend();
+extern "C" void art_quick_implicit_suspend();
 
 // Get the size of a thumb2 instruction in bytes.
 static uint32_t GetInstructionSize(uint8_t* pc) {
@@ -142,7 +142,7 @@ bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
   if (found) {
     LOG(DEBUG) << "suspend check match";
     // This is a suspend check.  Arrange for the signal handler to return to
-    // art_quick_test_suspend.  Also set LR so that after the suspend check it
+    // art_quick_implicit_suspend.  Also set LR so that after the suspend check it
     // will resume the instruction (current PC + 2).  PC points to the
     // ldr r0,[r0,#0] instruction (r0 will be 0, set by the trigger).
 
@@ -151,7 +151,7 @@ bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
     LOG(DEBUG) << "arm lr: " << std::hex << sc->arm_lr;
     LOG(DEBUG) << "arm pc: " << std::hex << sc->arm_pc;
     sc->arm_lr = sc->arm_pc + 3;      // +2 + 1 (for thumb)
-    sc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_test_suspend);
+    sc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_implicit_suspend);
 
     // Now remove the suspend trigger that caused this fault.
     Thread::Current()->RemoveSuspendTrigger();
