@@ -302,7 +302,7 @@ class DexFileMethodInliner {
     static bool GenInlineIGet(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke,
                               MIR* move_result, const InlineMethod& method, uint32_t method_idx);
     static bool GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke,
-                              MIR* move_result, const InlineMethod& method, uint32_t method_idx);
+                              const InlineMethod& method, uint32_t method_idx);
 
     ReaderWriterMutex lock_;
     /*
