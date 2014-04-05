@@ -21,7 +21,6 @@
 #include "base/mutex.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
-#include "method_reference.h"
 
 /*
  * NOTE: This code is part of the quick compiler. It lives in the runtime
@@ -156,9 +155,6 @@ class InlineMethodAnalyser {
   static constexpr uint16_t IPutVariant(Instruction::Code opcode) {
     return opcode - Instruction::IPUT;
   }
-
-  // Determines whether the method is a synthetic accessor (method name starts with "access$").
-  static bool IsSyntheticAccessor(MethodReference ref);
 
  private:
   static bool AnalyseReturnMethod(const DexFile::CodeItem* code_item, InlineMethod* result);
