@@ -120,7 +120,7 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
 bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
   // FastInstance() already checked by DexFileMethodInliner.
   const InlineIGetIPutData& data = special.d.ifield_data;
-  if (data.method_is_static != 0u || data.object_arg != 0u) {
+  if (data.method_is_static || data.object_arg != 0) {
     // The object is not "this" and has to be null-checked.
     return false;
   }
@@ -151,12 +151,8 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
 bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
   // FastInstance() already checked by DexFileMethodInliner.
   const InlineIGetIPutData& data = special.d.ifield_data;
-  if (data.method_is_static != 0u || data.object_arg != 0u) {
+  if (data.method_is_static || data.object_arg != 0) {
     // The object is not "this" and has to be null-checked.
-    return false;
-  }
-  if (data.return_arg_plus1 != 0u) {
-    // The setter returns a method argument which we don't support here.
     return false;
   }
 
