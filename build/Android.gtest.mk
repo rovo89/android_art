@@ -177,7 +177,7 @@ define build-art-test
     LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
     LOCAL_CFLAGS_x86 := $(ART_TARGET_CFLAGS_x86)
-    LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libz libcutils
+    LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libz libcutils libvixl
     LOCAL_STATIC_LIBRARIES += libgtest
     LOCAL_MODULE_PATH_32 := $(ART_BASE_NATIVETEST_OUT)
     LOCAL_MODULE_PATH_64 := $(ART_BASE_NATIVETEST_OUT)64
@@ -200,7 +200,7 @@ $$(art_gtest_target): $$(art_gtest_target)$(ART_PHONY_TEST_TARGET_SUFFIX)
     LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libz-host
-    LOCAL_STATIC_LIBRARIES += libcutils
+    LOCAL_STATIC_LIBRARIES += libcutils libvixl
     ifneq ($(WITHOUT_HOST_CLANG),true)
         # GCC host compiled tests fail with this linked, presumably due to destructors that run.
         LOCAL_STATIC_LIBRARIES += libgtest_host
