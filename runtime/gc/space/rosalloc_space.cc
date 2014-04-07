@@ -222,6 +222,7 @@ extern "C" void* art_heap_rosalloc_morecore(allocator::RosAlloc* rosalloc, intpt
 }
 
 size_t RosAllocSpace::Trim() {
+  VLOG(heap) << "RosAllocSpace::Trim() ";
   {
     MutexLock mu(Thread::Current(), lock_);
     // Trim to release memory at the end of the space.
@@ -229,10 +230,7 @@ size_t RosAllocSpace::Trim() {
   }
   // Attempt to release pages if it does not release all empty pages.
   if (!rosalloc_->DoesReleaseAllPages()) {
-    VLOG(heap) << "RosAllocSpace::Trim() ";
-    size_t reclaimed = 0;
-    InspectAllRosAlloc(DlmallocMadviseCallback, &reclaimed, false);
-    return reclaimed;
+    return rosalloc_->ReleasePages();
   }
   return 0;
 }
