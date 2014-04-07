@@ -201,7 +201,7 @@ uint64_t GarbageCollector::GetEstimatedMeanThroughput() const {
 
 uint64_t GarbageCollector::GetEstimatedLastIterationThroughput() const {
   // Add 1ms to prevent possible division by 0.
-  return (freed_bytes_ * 1000) / (NsToMs(GetDurationNs()) + 1);
+  return (static_cast<uint64_t>(freed_bytes_) * 1000) / (NsToMs(GetDurationNs()) + 1);
 }
 
 }  // namespace collector
