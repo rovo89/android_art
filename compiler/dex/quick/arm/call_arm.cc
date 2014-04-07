@@ -19,6 +19,7 @@
 #include "arm_lir.h"
 #include "codegen_arm.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "driver/compiler_options.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 
 namespace art {
@@ -468,4 +469,34 @@ void ArmMir2Lir::GenSpecialExitSequence() {
   NewLIR1(kThumbBx, rARM_LR);
 }
 
+// Entrypoint calls.
+RegStorage ArmMir2Lir::CallHelperSetup(ThreadOffset<4> helper_offset) {
+  const CompilerOptions& compiler_options = cu_->compiler_driver->GetCompilerOptions();
+  if (compiler_options.GenerateHelperTrampolines()) {
+    return RegStorage::InvalidReg();
+  } else {
+    return LoadHelper(helper_offset);
+  }
+}
+
+LIR* ArmMir2Lir::CallHelper(RegStorage r_tgt, ThreadOffset<4> helper_offset, bool safepoint_pc,
+    bool use_link) {
+  LIR* call_inst = nullptr;
+  if (use_link) {
+    const CompilerOptions& compiler_options = cu_->compiler_driver->GetCompilerOptions();
+    if (compiler_options.GenerateHelperTrampolines()) {
+      call_inst = OpThreadMem(kOpBlx, helper_offset);
+    } else {
+      call_inst = OpReg(kOpBlx, r_tgt);
+      FreeTemp(r_tgt);
+    }
+  } else {
+    call_inst = OpReg(kOpBx, r_tgt);
+    FreeTemp(r_tgt);
+  }
+  if (safepoint_pc) {
+    MarkSafepointPC(call_inst);
+  }
+  return call_inst;
+}
 }  // namespace art
