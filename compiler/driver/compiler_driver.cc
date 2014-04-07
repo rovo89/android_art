@@ -19,10 +19,8 @@
 #define ATRACE_TAG ATRACE_TAG_DALVIK
 #include <utils/Trace.h>
 
-#include <fstream>
 #include <vector>
 #include <unistd.h>
-#include <utility>
 
 #include "base/stl_util.h"
 #include "base/timing_logger.h"
@@ -372,7 +370,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
 
   // Read the profile file if one is provided.
   if (profile_file != "") {
-    profile_ok_ = ReadProfile(profile_file);
+    profile_ok_ = ProfileHelper::LoadProfileMap(profile_map_, profile_file);
   }
 
   dex_to_dex_compiler_ = reinterpret_cast<DexToDexCompilerFn>(ArtCompileDEX);
@@ -2029,83 +2027,6 @@ void CompilerDriver::InstructionSetToLLVMTarget(InstructionSet instruction_set,
       LOG(FATAL) << "Unknown instruction set: " << instruction_set;
     }
   }
-
-bool CompilerDriver::ReadProfile(const std::string& filename) {
-  VLOG(compiler) << "reading profile file " << filename;
-  struct stat st;
-  int err = stat(filename.c_str(), &st);
-  if (err == -1) {
-    VLOG(compiler) << "not found";
-    return false;
-  }
-  std::ifstream in(filename.c_str());
-  if (!in) {
-    VLOG(compiler) << "profile file " << filename << " exists but can't be opened";
-    VLOG(compiler) << "file owner: " << st.st_uid << ":" << st.st_gid;
-    VLOG(compiler) << "me: " << getuid() << ":" << getgid();
-    VLOG(compiler) << "file permissions: " << std::oct << st.st_mode;
-    VLOG(compiler) << "errno: " << errno;
-    return false;
-  }
-  // The first line contains summary information.
-  std::string line;
-  std::getline(in, line);
-  if (in.eof()) {
-    return false;
-  }
-  std::vector<std::string> summary_info;
-  Split(line, '/', summary_info);
-  if (summary_info.size() != 3) {
-    // Bad summary info.  It should be count/total/bootpath.
-    return false;
-  }
-  // This is the number of hits in all methods.
-  uint32_t total_count = 0;
-  for (int i = 0 ; i < 3; ++i) {
-    total_count += atoi(summary_info[i].c_str());
-  }
-
-  // Now read each line until the end of file.  Each line consists of 3 fields separated by '/'.
-  // Store the info in descending order given by the most used methods.
-  typedef std::set<std::pair<int, std::vector<std::string>>> ProfileSet;
-  ProfileSet countSet;
-  while (!in.eof()) {
-    std::getline(in, line);
-    if (in.eof()) {
-      break;
-    }
-    std::vector<std::string> info;
-    Split(line, '/', info);
-    if (info.size() != 3) {
-      // Malformed.
-      break;
-    }
-    int count = atoi(info[1].c_str());
-    countSet.insert(std::make_pair(-count, info));
-  }
-
-  uint32_t curTotalCount = 0;
-  ProfileSet::iterator end = countSet.end();
-  const ProfileData* prevData = nullptr;
-  for (ProfileSet::iterator it = countSet.begin(); it != end ; it++) {
-    const std::string& methodname = it->second[0];
-    uint32_t count = -it->first;
-    uint32_t size = atoi(it->second[2].c_str());
-    double usedPercent = (count * 100.0) / total_count;
-
-    curTotalCount += count;
-    // Methods with the same count should be part of the same top K percentage bucket.
-    double topKPercentage = (prevData != nullptr) && (prevData->GetCount() == count)
-      ? prevData->GetTopKUsedPercentage()
-      : 100 * static_cast<double>(curTotalCount) / static_cast<double>(total_count);
-
-    // Add it to the profile map.
-    ProfileData curData = ProfileData(methodname, count, size, usedPercent, topKPercentage);
-    profile_map_[methodname] = curData;
-    prevData = &curData;
-  }
-  return true;
-}
 
 bool CompilerDriver::SkipCompilation(const std::string& method_name) {
   if (!profile_ok_) {

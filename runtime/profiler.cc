@@ -16,6 +16,7 @@
 
 #include "profiler.h"
 
+#include <fstream>
 #include <sys/uio.h>
 #include <sys/file.h>
 
@@ -579,5 +580,101 @@ void ProfileSampleResults::ReadPrevious(int fd) {
     previous_[methodname] = PreviousValue(count, size);
   }
 }
-}  // namespace art
 
+bool ProfileHelper::LoadProfileMap(ProfileMap& profileMap, const std::string& fileName) {
+  LOG(VERBOSE) << "reading profile file " << fileName;
+  struct stat st;
+  int err = stat(fileName.c_str(), &st);
+  if (err == -1) {
+    LOG(VERBOSE) << "not found";
+    return false;
+  }
+  if (st.st_size == 0) {
+    return true;  // empty profiles are ok.
+  }
+  std::ifstream in(fileName.c_str());
+  if (!in) {
+    LOG(VERBOSE) << "profile file " << fileName << " exists but can't be opened";
+    LOG(VERBOSE) << "file owner: " << st.st_uid << ":" << st.st_gid;
+    LOG(VERBOSE) << "me: " << getuid() << ":" << getgid();
+    LOG(VERBOSE) << "file permissions: " << std::oct << st.st_mode;
+    LOG(VERBOSE) << "errno: " << errno;
+    return false;
+  }
+  // The first line contains summary information.
+  std::string line;
+  std::getline(in, line);
+  if (in.eof()) {
+    return false;
+  }
+  std::vector<std::string> summary_info;
+  Split(line, '/', summary_info);
+  if (summary_info.size() != 3) {
+    // Bad summary info.  It should be count/total/bootpath.
+    return false;
+  }
+  // This is the number of hits in all methods.
+  uint32_t total_count = 0;
+  for (int i = 0 ; i < 3; ++i) {
+    total_count += atoi(summary_info[i].c_str());
+  }
+
+  // Now read each line until the end of file.  Each line consists of 3 fields separated by '/'.
+  // Store the info in descending order given by the most used methods.
+  typedef std::set<std::pair<int, std::vector<std::string>>> ProfileSet;
+  ProfileSet countSet;
+  while (!in.eof()) {
+    std::getline(in, line);
+    if (in.eof()) {
+      break;
+    }
+    std::vector<std::string> info;
+    Split(line, '/', info);
+    if (info.size() != 3) {
+      // Malformed.
+      break;
+    }
+    int count = atoi(info[1].c_str());
+    countSet.insert(std::make_pair(-count, info));
+  }
+
+  uint32_t curTotalCount = 0;
+  ProfileSet::iterator end = countSet.end();
+  const ProfileData* prevData = nullptr;
+  for (ProfileSet::iterator it = countSet.begin(); it != end ; it++) {
+    const std::string& methodname = it->second[0];
+    uint32_t count = -it->first;
+    uint32_t size = atoi(it->second[2].c_str());
+    double usedPercent = (count * 100.0) / total_count;
+
+    curTotalCount += count;
+    // Methods with the same count should be part of the same top K percentage bucket.
+    double topKPercentage = (prevData != nullptr) && (prevData->GetCount() == count)
+      ? prevData->GetTopKUsedPercentage()
+      : 100 * static_cast<double>(curTotalCount) / static_cast<double>(total_count);
+
+    // Add it to the profile map.
+    ProfileData curData = ProfileData(methodname, count, size, usedPercent, topKPercentage);
+    profileMap[methodname] = curData;
+    prevData = &curData;
+  }
+  return true;
+}
+
+bool ProfileHelper::LoadTopKSamples(std::set<std::string>& topKSamples, const std::string& fileName,
+                                    double topKPercentage) {
+  ProfileMap profileMap;
+  bool loadOk = LoadProfileMap(profileMap, fileName);
+  if (!loadOk) {
+    return false;
+  }
+  ProfileMap::iterator end = profileMap.end();
+  for (ProfileMap::iterator it = profileMap.begin(); it != end; it++) {
+    if (it->second.GetTopKUsedPercentage() < topKPercentage) {
+      topKSamples.insert(it->first);
+    }
+  }
+  return true;
+}
+
+}  // namespace art
