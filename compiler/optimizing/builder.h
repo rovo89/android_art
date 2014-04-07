@@ -79,6 +79,7 @@ class HGraphBuilder : public ValueObject {
   template<typename T> void Binop_12x(const Instruction& instruction);
   template<typename T> void Binop_22b(const Instruction& instruction, bool reverse);
   template<typename T> void Binop_22s(const Instruction& instruction, bool reverse);
+  template<typename T> void If_22t(const Instruction& instruction, int32_t dex_offset, bool is_not);
 
   ArenaAllocator* const arena_;
 

@@ -149,7 +149,6 @@ void LocationsBuilderARM::VisitLocal(HLocal* local) {
 
 void InstructionCodeGeneratorARM::VisitLocal(HLocal* local) {
   DCHECK_EQ(local->GetBlock(), GetGraph()->GetEntryBlock());
-  codegen_->SetFrameSize(codegen_->GetFrameSize() + kArmWordSize);
 }
 
 void LocationsBuilderARM::VisitLoadLocal(HLoadLocal* load) {
@@ -382,6 +381,18 @@ void InstructionCodeGeneratorARM::VisitParameterValue(HParameterValue* instructi
     uint8_t offset = calling_convention.GetStackOffsetOf(argument_index);
     __ ldr(locations->Out().reg<Register>(), Address(SP, offset + codegen_->GetFrameSize()));
   }
+}
+
+void LocationsBuilderARM::VisitNot(HNot* instruction) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
+  locations->SetInAt(0, Location(R0));
+  locations->SetOut(Location(R0));
+  instruction->SetLocations(locations);
+}
+
+void InstructionCodeGeneratorARM::VisitNot(HNot* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  __ eor(locations->Out().reg<Register>(), locations->InAt(0).reg<Register>(), ShifterOperand(1));
 }
 
 }  // namespace arm
