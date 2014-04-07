@@ -24,8 +24,6 @@
 #include <unistd.h>
 #include <utility>
 
-#include "arch/arm/final_relocations_arm.h"
-#include "base/hex_dump.h"
 #include "base/stl_util.h"
 #include "base/timing_logger.h"
 #include "class_linker.h"
@@ -508,7 +506,6 @@ void CompilerDriver::CompileAll(jobject class_loader,
   UniquePtr<ThreadPool> thread_pool(new ThreadPool("Compiler driver thread pool", thread_count_ - 1));
   PreCompile(class_loader, dex_files, thread_pool.get(), timings);
   Compile(class_loader, dex_files, thread_pool.get(), timings);
-  PostCompile();
   if (dump_stats_) {
     stats_->Dump();
   }
@@ -618,10 +615,6 @@ void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const De
   InitializeClasses(class_loader, dex_files, thread_pool, timings);
 
   UpdateImageClasses(timings);
-}
-
-void CompilerDriver::PostCompile() {
-  BuildEntrypointTrampolineCode();
 }
 
 bool CompilerDriver::IsImageClass(const char* descriptor) const {
@@ -1246,25 +1239,6 @@ bool CompilerDriver::IsSafeCast(const DexCompilationUnit* mUnit, uint32_t dex_pc
   }
   return result;
 }
-
-uint32_t CompilerDriver::AddEntrypointTrampoline(uint32_t entrypoint) {
-  return entrypoint_trampolines_.AddEntrypoint(Thread::Current(), entrypoint);
-}
-
-
-void CompilerDriver::BuildEntrypointTrampolineCode() {
-  const auto& table = entrypoint_trampolines_.GetTrampolineTable();
-  for (uint32_t offset : table) {
-    switch (instruction_set_) {
-      case kThumb2:
-        BuildArmEntrypointTrampolineCall(ThreadOffset<4>(offset));
-        break;
-      default:
-        UNIMPLEMENTED(FATAL) << "No entrypoint trampolines for this architecture";
-    }
-  }
-}
-
 
 void CompilerDriver::AddCodePatch(const DexFile* dex_file,
                                   uint16_t referrer_class_def_idx,
@@ -2176,17 +2150,4 @@ bool CompilerDriver::SkipCompilation(const std::string& method_name) {
   }
   return !compile;
 }
-
-FinalEntrypointRelocationSet* CompilerDriver::AllocateFinalEntrypointRelocationSet(
-    CompilationUnit* cu) const {
-  switch (instruction_set_) {
-    case kArm:
-    case kThumb2:
-      return new FinalEntrypointRelocationSetArm(this);
-    default:
-      UNIMPLEMENTED(FATAL) << "Cannot allocate FinalEntrypointRelocationSet for non-ARM";
-      return nullptr;
-  }
-}
-
 }  // namespace art
