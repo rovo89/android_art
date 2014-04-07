@@ -430,12 +430,10 @@ enum FixupKind {
   kFixupT2Branch,    // Thumb2 Unconditional branch
   kFixupBlx1,        // Blx1 (start of Blx1/Blx2 pair).
   kFixupBl1,         // Bl1 (start of Bl1/Bl2 pair).
-  kFixup2Bl1,        // Thumb2 Bl1 (start of Bl1/Bl2 pair).
   kFixupAdr,         // Adr.
   kFixupMovImmLST,   // kThumb2MovImm16LST.
   kFixupMovImmHST,   // kThumb2MovImm16HST.
   kFixupAlign4,      // Align to 4-byte boundary.
-  kFixupTrampCall,   // Call into trampoline for runtime helper.
 };
 
 std::ostream& operator<<(std::ostream& os, const FixupKind& kind);

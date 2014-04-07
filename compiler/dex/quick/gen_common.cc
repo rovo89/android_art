@@ -17,7 +17,6 @@
 #include "dex/compiler_internals.h"
 #include "dex/quick/arm/arm_lir.h"
 #include "dex/quick/mir_to_lir-inl.h"
-#include "driver/compiler_options.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "mirror/array.h"
 #include "mirror/object-inl.h"
@@ -951,20 +950,12 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
         void Compile() {
           GenerateTargetLabel();
 
-          const CompilerOptions& compiler_options =
-            m2l_->cu_->compiler_driver->GetCompilerOptions();
-          if (compiler_options.GenerateHelperTrampolines()) {
-            m2l_->OpRegCopy(m2l_->TargetReg(kArg0), r_method_);
-            m2l_->CallHelper(RegStorage::InvalidReg(), QUICK_ENTRYPOINT_OFFSET(4, pResolveString),
-                             true);
-          } else {
-            RegStorage r_tgt = m2l_->CallHelperSetup(QUICK_ENTRYPOINT_OFFSET(4, pResolveString));
+          RegStorage r_tgt = m2l_->CallHelperSetup(QUICK_ENTRYPOINT_OFFSET(4, pResolveString));
 
-            m2l_->OpRegCopy(m2l_->TargetReg(kArg0), r_method_);
-            LIR* call_inst = m2l_->OpReg(kOpBlx, r_tgt);
-            m2l_->MarkSafepointPC(call_inst);
-            m2l_->FreeTemp(r_tgt);
-          }
+          m2l_->OpRegCopy(m2l_->TargetReg(kArg0), r_method_);   // .eq
+          LIR* call_inst = m2l_->OpReg(kOpBlx, r_tgt);
+          m2l_->MarkSafepointPC(call_inst);
+          m2l_->FreeTemp(r_tgt);
 
           m2l_->OpUnconditionalBranch(cont_);
         }
