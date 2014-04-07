@@ -7,3 +7,7 @@ java.lang.Error: Error
 Forced GC
 In static method with object arg class java.lang.Object
 Forced GC
+Forced GC
+Forced GC
+Forced GC
+Forced GC
