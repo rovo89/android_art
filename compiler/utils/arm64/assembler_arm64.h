@@ -197,6 +197,8 @@ class Arm64Assembler FINAL : public Assembler {
     CHECK(code < kNumberOfCoreRegisters) << code;
     if (code == SP) {
       return vixl::sp;
+    } else if (code == XZR) {
+      return vixl::xzr;
     }
     return vixl::Register::XRegFromCode(code);
   }
@@ -243,6 +245,9 @@ class Arm64Assembler FINAL : public Assembler {
 
   // List of exception blocks to generate at the end of the code cache.
   std::vector<Arm64Exception*> exception_blocks_;
+
+  // Used for testing.
+  friend class Arm64ManagedRegister_VixlRegisters_Test;
 };
 
 class Arm64Exception {
