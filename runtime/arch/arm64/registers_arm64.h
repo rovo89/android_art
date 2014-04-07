@@ -63,8 +63,8 @@ enum Register {
   LR  = 30,
   SP  = 31,     // SP is X31 and overlaps with XRZ but we encode it as a
                 // special register, due to the different instruction semantics.
-  XZR = 32,     // FIXME This needs to be reconciled with the JNI assembler.
-  kNumberOfCoreRegisters = 32,
+  XZR = 32,
+  kNumberOfCoreRegisters = 33,
   kNoRegister = -1,
 };
 std::ostream& operator<<(std::ostream& os, const Register& rhs);
@@ -103,7 +103,6 @@ enum WRegister {
   W29 = 29,
   W30 = 30,
   W31 = 31,
-  WSP = 31,
   WZR = 31,
   kNumberOfWRegisters = 32,
   kNoWRegister = -1,

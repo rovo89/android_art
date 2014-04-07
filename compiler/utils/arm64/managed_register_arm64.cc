@@ -53,7 +53,7 @@ int Arm64ManagedRegister::RegNo() const {
   CHECK(!IsNoRegister());
   int no;
   if (IsCoreRegister()) {
-    if (IsStackPointer()) {
+    if (IsZeroRegister()) {
       no = static_cast<int>(X31);
     } else {
       no = static_cast<int>(AsCoreRegister());

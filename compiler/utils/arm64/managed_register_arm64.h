@@ -24,7 +24,7 @@
 namespace art {
 namespace arm64 {
 
-const int kNumberOfCoreRegIds = 32;
+const int kNumberOfCoreRegIds = kNumberOfCoreRegisters;
 const int kNumberOfWRegIds = kNumberOfWRegisters;
 const int kNumberOfDRegIds = kNumberOfDRegisters;
 const int kNumberOfSRegIds = kNumberOfSRegisters;
@@ -78,7 +78,7 @@ class Arm64ManagedRegister : public ManagedRegister {
 
   WRegister AsOverlappingCoreRegisterLow() const {
     CHECK(IsValidManagedRegister());
-    if (IsStackPointer()) return W31;
+    if (IsZeroRegister()) return W31;
     return static_cast<WRegister>(AsCoreRegister());
   }
 
@@ -187,6 +187,10 @@ class Arm64ManagedRegister : public ManagedRegister {
 
   bool IsStackPointer() const {
     return IsCoreRegister() && (id_ == SP);
+  }
+
+  bool IsZeroRegister() const {
+    return IsCoreRegister() && (id_ == XZR);
   }
 
   int RegId() const {
