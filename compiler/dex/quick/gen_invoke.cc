@@ -87,6 +87,12 @@ LIR* Mir2Lir::CallHelper(RegStorage r_tgt, ThreadOffset<4> helper_offset, bool s
   return call_inst;
 }
 
+void Mir2Lir::CallRuntimeHelper(ThreadOffset<4> helper_offset, bool safepoint_pc) {
+  RegStorage r_tgt = CallHelperSetup(helper_offset);
+  ClobberCallerSave();
+  CallHelper(r_tgt, helper_offset, safepoint_pc);
+}
+
 void Mir2Lir::CallRuntimeHelperImm(ThreadOffset<4> helper_offset, int arg0, bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   LoadConstant(TargetReg(kArg0), arg0);
