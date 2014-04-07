@@ -19,8 +19,6 @@ LOCAL_PATH := $(call my-dir)
 include art/build/Android.common.mk
 
 LIBART_COMPILER_SRC_FILES := \
-	arch/arm/final_relocations_arm.cc \
-	arch/arm/entrypoint_trampoline.cc \
 	compiled_method.cc \
 	dex/local_value_numbering.cc \
 	dex/quick/arm/assemble_arm.cc \
@@ -67,7 +65,6 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/ssa_transformation.cc \
 	driver/compiler_driver.cc \
 	driver/dex_compilation_unit.cc \
-	final_relocations.cc \
 	jni/quick/arm/calling_convention_arm.cc \
 	jni/quick/arm64/calling_convention_arm64.cc \
 	jni/quick/mips/calling_convention_mips.cc \
