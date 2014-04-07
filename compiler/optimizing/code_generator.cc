@@ -30,7 +30,6 @@
 namespace art {
 
 void CodeGenerator::Compile(CodeAllocator* allocator) {
-  frame_size_ = GetGraph()->GetMaximumNumberOfOutVRegs() * GetWordSize();
   const GrowableArray<HBasicBlock*>* blocks = GetGraph()->GetBlocks();
   DCHECK(blocks->Get(0) == GetGraph()->GetEntryBlock());
   DCHECK(GoesToNextBlock(GetGraph()->GetEntryBlock(), blocks->Get(1)));
@@ -47,16 +46,14 @@ void CodeGenerator::Compile(CodeAllocator* allocator) {
 void CodeGenerator::CompileEntryBlock() {
   HGraphVisitor* location_builder = GetLocationBuilder();
   HGraphVisitor* instruction_visitor = GetInstructionVisitor();
-  // The entry block contains all locals for this method. By visiting the entry block,
-  // we're computing the required frame size.
-  for (HInstructionIterator it(GetGraph()->GetEntryBlock()); !it.Done(); it.Advance()) {
-    HInstruction* current = it.Current();
-    // Instructions in the entry block should not generate code.
-    if (kIsDebugBuild) {
+  if (kIsDebugBuild) {
+    for (HInstructionIterator it(GetGraph()->GetEntryBlock()); !it.Done(); it.Advance()) {
+      HInstruction* current = it.Current();
+      // Instructions in the entry block should not generate code.
       current->Accept(location_builder);
       DCHECK(current->GetLocations() == nullptr);
+      current->Accept(instruction_visitor);
     }
-    current->Accept(instruction_visitor);
   }
   GenerateFrameEntry();
 }

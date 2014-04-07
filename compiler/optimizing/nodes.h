@@ -42,6 +42,8 @@ class HGraph : public ArenaObject {
         blocks_(arena, kDefaultNumberOfBlocks),
         dominator_order_(arena, kDefaultNumberOfBlocks),
         maximum_number_of_out_vregs_(0),
+        number_of_vregs_(0),
+        number_of_in_vregs_(0),
         current_instruction_id_(0) { }
 
   ArenaAllocator* GetArena() const { return arena_; }
@@ -68,6 +70,23 @@ class HGraph : public ArenaObject {
     maximum_number_of_out_vregs_ = std::max(new_value, maximum_number_of_out_vregs_);
   }
 
+  void SetNumberOfVRegs(uint16_t number_of_vregs) {
+    number_of_vregs_ = number_of_vregs;
+  }
+
+  uint16_t GetNumberOfVRegs() const {
+    return number_of_vregs_;
+  }
+
+  void SetNumberOfInVRegs(uint16_t value) {
+    number_of_in_vregs_ = value;
+  }
+
+  uint16_t GetNumberOfInVRegs() const {
+    return number_of_in_vregs_;
+  }
+
+
  private:
   HBasicBlock* FindCommonDominator(HBasicBlock* first, HBasicBlock* second) const;
   void VisitBlockForDominatorTree(HBasicBlock* block,
@@ -90,8 +109,14 @@ class HGraph : public ArenaObject {
   HBasicBlock* entry_block_;
   HBasicBlock* exit_block_;
 
-  // The maximum number of arguments passed to a HInvoke in this graph.
+  // The maximum number of virtual registers arguments passed to a HInvoke in this graph.
   uint16_t maximum_number_of_out_vregs_;
+
+  // The number of virtual registers in this method. Contains the parameters.
+  uint16_t number_of_vregs_;
+
+  // The number of virtual registers used by parameters of this method.
+  uint16_t number_of_in_vregs_;
 
   // The current id to assign to a newly added instruction. See HInstruction.id_.
   int current_instruction_id_;
@@ -202,10 +227,12 @@ class HBasicBlock : public ArenaObject {
   M(LoadLocal)                                             \
   M(Local)                                                 \
   M(NewInstance)                                           \
+  M(ParameterValue)                                        \
   M(PushArgument)                                          \
   M(Return)                                                \
   M(ReturnVoid)                                            \
   M(StoreLocal)                                            \
+  M(Sub)                                                   \
 
 #define FORWARD_DECLARATION(type) class H##type;
 FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
@@ -680,6 +707,37 @@ class HAdd : public HBinaryOperation {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HAdd);
+};
+
+class HSub : public HBinaryOperation {
+ public:
+  HSub(Primitive::Type result_type, HInstruction* left, HInstruction* right)
+      : HBinaryOperation(result_type, left, right) {}
+
+  virtual bool IsCommutative() { return false; }
+
+  DECLARE_INSTRUCTION(Sub);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HSub);
+};
+
+// The value of a parameter in this method. Its location depends on
+// the calling convention.
+class HParameterValue : public HTemplateInstruction<0> {
+ public:
+  explicit HParameterValue(uint8_t index) : index_(index) {}
+
+  uint8_t GetIndex() const { return index_; }
+
+  DECLARE_INSTRUCTION(ParameterValue);
+
+ private:
+  // The index of this parameter in the parameters list. Must be less
+  // than HGraph::number_of_in_vregs_;
+  const uint8_t index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HParameterValue);
 };
 
 class HGraphVisitor : public ValueObject {

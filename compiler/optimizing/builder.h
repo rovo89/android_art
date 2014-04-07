@@ -66,10 +66,19 @@ class HGraphBuilder : public ValueObject {
   HIntConstant* GetConstant0();
   HIntConstant* GetConstant1();
   HIntConstant* GetConstant(int constant);
-  void InitializeLocals(int count);
+  void InitializeLocals(uint16_t count);
   HLocal* GetLocalAt(int register_index) const;
   void UpdateLocal(int register_index, HInstruction* instruction) const;
   HInstruction* LoadLocal(int register_index) const;
+
+  // Temporarily returns whether the compiler supports the parameters
+  // of the method.
+  bool InitializeParameters(uint16_t number_of_parameters);
+
+  template<typename T> void Binop_32x(const Instruction& instruction);
+  template<typename T> void Binop_12x(const Instruction& instruction);
+  template<typename T> void Binop_22b(const Instruction& instruction, bool reverse);
+  template<typename T> void Binop_22s(const Instruction& instruction, bool reverse);
 
   ArenaAllocator* const arena_;
 
