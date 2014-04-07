@@ -218,13 +218,21 @@ bool InlineMethodAnalyser::AnalyseIGetMethod(verifier::MethodVerifier* verifier,
   uint32_t arg_start = code_item->registers_size_ - code_item->ins_size_;
   DCHECK_GE(object_reg, arg_start);
   DCHECK_LT(object_reg, code_item->registers_size_);
+  uint32_t object_arg = object_reg - arg_start;
+
   DCHECK_LT(opcode == Instruction::IGET_WIDE ? dst_reg + 1 : dst_reg, code_item->registers_size_);
   if (dst_reg != return_reg) {
     return false;  // Not returning the value retrieved by IGET?
   }
 
-  if ((verifier->GetAccessFlags() & kAccStatic) != 0 || object_reg != arg_start) {
+  if ((verifier->GetAccessFlags() & kAccStatic) != 0u || object_arg != 0u) {
     // TODO: Support inlining IGET on other register than "this".
+    return false;
+  }
+
+  // InlineIGetIPutData::object_arg is only 4 bits wide.
+  static constexpr uint16_t kMaxObjectArg = 15u;
+  if (object_arg > kMaxObjectArg) {
     return false;
   }
 
@@ -236,10 +244,10 @@ bool InlineMethodAnalyser::AnalyseIGetMethod(verifier::MethodVerifier* verifier,
     result->opcode = kInlineOpIGet;
     result->flags = kInlineSpecial;
     data->op_variant = IGetVariant(opcode);
-    data->object_arg = object_reg - arg_start;  // Allow IGET on any register, not just "this".
+    data->method_is_static = (verifier->GetAccessFlags() & kAccStatic) != 0 ? 1u : 0u;
+    data->object_arg = object_arg;  // Allow IGET on any register, not just "this".
     data->src_arg = 0;
-    data->method_is_static = (verifier->GetAccessFlags() & kAccStatic) != 0;
-    data->reserved = 0;
+    data->return_arg_plus1 = 0u;
   }
   return true;
 }
@@ -253,26 +261,42 @@ bool InlineMethodAnalyser::AnalyseIPutMethod(verifier::MethodVerifier* verifier,
 
   const Instruction* return_instruction = instruction->Next();
   Instruction::Code return_opcode = return_instruction->Opcode();
+  uint32_t arg_start = code_item->registers_size_ - code_item->ins_size_;
+  uint16_t return_arg_plus1 = 0u;
   if (return_opcode != Instruction::RETURN_VOID) {
-    // TODO: Support returning an argument.
-    // This is needed by builder classes and generated accessor setters.
-    //    builder.setX(value): iput value, this, fieldX; return-object this;
-    //    object.access$nnn(value): iput value, this, fieldX; return value;
-    // Use InlineIGetIPutData::reserved to hold the information.
-    return false;
+    if (return_opcode != Instruction::RETURN &&
+        return_opcode != Instruction::RETURN_OBJECT &&
+        return_opcode != Instruction::RETURN_WIDE) {
+      return false;
+    }
+    // Returning an argument.
+    uint32_t return_reg = return_instruction->VRegA_11x();
+    DCHECK_GE(return_reg, arg_start);
+    DCHECK_LT(return_opcode == Instruction::RETURN_WIDE ? return_reg + 1u : return_reg,
+              code_item->registers_size_);
+    return_arg_plus1 = return_reg - arg_start + 1u;
   }
 
   uint32_t src_reg = instruction->VRegA_22c();
   uint32_t object_reg = instruction->VRegB_22c();
   uint32_t field_idx = instruction->VRegC_22c();
-  uint32_t arg_start = code_item->registers_size_ - code_item->ins_size_;
   DCHECK_GE(object_reg, arg_start);
   DCHECK_LT(object_reg, code_item->registers_size_);
   DCHECK_GE(src_reg, arg_start);
   DCHECK_LT(opcode == Instruction::IPUT_WIDE ? src_reg + 1 : src_reg, code_item->registers_size_);
+  uint32_t object_arg = object_reg - arg_start;
+  uint32_t src_arg = src_reg - arg_start;
 
-  if ((verifier->GetAccessFlags() & kAccStatic) != 0 || object_reg != arg_start) {
+  if ((verifier->GetAccessFlags() & kAccStatic) != 0 || object_arg != 0) {
     // TODO: Support inlining IPUT on other register than "this".
+    return false;
+  }
+
+  // InlineIGetIPutData::object_arg/src_arg/return_arg_plus1 are each only 4 bits wide.
+  static constexpr uint16_t kMaxObjectArg = 15u;
+  static constexpr uint16_t kMaxSrcArg = 15u;
+  static constexpr uint16_t kMaxReturnArgPlus1 = 15u;
+  if (object_arg > kMaxObjectArg || src_arg > kMaxSrcArg || return_arg_plus1 > kMaxReturnArgPlus1) {
     return false;
   }
 
@@ -284,10 +308,10 @@ bool InlineMethodAnalyser::AnalyseIPutMethod(verifier::MethodVerifier* verifier,
     result->opcode = kInlineOpIPut;
     result->flags = kInlineSpecial;
     data->op_variant = IPutVariant(opcode);
-    data->object_arg = object_reg - arg_start;  // Allow IPUT on any register, not just "this".
-    data->src_arg = src_reg - arg_start;
-    data->method_is_static = (verifier->GetAccessFlags() & kAccStatic) != 0;
-    data->reserved = 0;
+    data->method_is_static = (verifier->GetAccessFlags() & kAccStatic) != 0 ? 1u : 0u;
+    data->object_arg = object_arg;  // Allow IPUT on any register, not just "this".
+    data->src_arg = src_arg;
+    data->return_arg_plus1 = return_arg_plus1;
   }
   return true;
 }

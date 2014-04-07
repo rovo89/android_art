@@ -21,6 +21,10 @@ identityTest passes
 wideGetterSetterTest passes
 wideIdentityTest passes
 returnConstantTest passes
+setterTestWithReturnArgIgnoreReturn passes
+setterTestWithReturnArgUseReturn passes
+wideSetterTestWithReturnArgIgnoreReturn passes
+wideSetterTestWithReturnArgUseReturn passes
 LVNTests.testNPE1 passes
 LVNTests.testNPE2 passes
 longDivTest passes
