@@ -195,6 +195,11 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     bool InexpensiveConstantLong(int64_t value);
     bool InexpensiveConstantDouble(int64_t value);
 
+    // Entrypoint calls.
+    RegStorage CallHelperSetup(ThreadOffset<4> helper_offset);
+    LIR* CallHelper(RegStorage r_tgt, ThreadOffset<4> helper_offset,
+      bool safepoint_pc, bool use_link);
+
   private:
     void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1, int64_t val,
                                   ConditionCode ccode);
