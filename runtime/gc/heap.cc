@@ -914,8 +914,16 @@ void Heap::DoPendingTransitionOrTrim() {
   // Transition the collector if the desired collector type is not the same as the current
   // collector type.
   TransitionCollector(desired_collector_type);
-  // Do a heap trim if it is needed.
-  Trim();
+  if (!CareAboutPauseTimes()) {
+    // Deflate the monitors, this can cause a pause but shouldn't matter since we don't care
+    // about pauses.
+    Runtime* runtime = Runtime::Current();
+    runtime->GetThreadList()->SuspendAll();
+    runtime->GetMonitorList()->DeflateMonitors();
+    runtime->GetThreadList()->ResumeAll();
+    // Do a heap trim if it is needed.
+    Trim();
+  }
 }
 
 void Heap::Trim() {
@@ -2663,6 +2671,10 @@ void Heap::RequestCollectorTransition(CollectorType desired_collector_type, uint
 }
 
 void Heap::RequestHeapTrim() {
+  // Request a heap trim only if we do not currently care about pause times.
+  if (CareAboutPauseTimes()) {
+    return;
+  }
   // GC completed and now we must decide whether to request a heap trim (advising pages back to the
   // kernel) or not. Issuing a request will also cause trimming of the libc heap. As a trim scans
   // a space it will hold its lock and can become a cause of jank.
@@ -2684,21 +2696,17 @@ void Heap::RequestHeapTrim() {
     // as we don't hold the lock while requesting the trim).
     return;
   }
-
-  // Request a heap trim only if we do not currently care about pause times.
-  if (!CareAboutPauseTimes()) {
-    {
-      MutexLock mu(self, *heap_trim_request_lock_);
-      if (last_trim_time_ + kHeapTrimWait >= NanoTime()) {
-        // We have done a heap trim in the last kHeapTrimWait nanosecs, don't request another one
-        // just yet.
-        return;
-      }
-      heap_trim_request_pending_ = true;
+  {
+    MutexLock mu(self, *heap_trim_request_lock_);
+    if (last_trim_time_ + kHeapTrimWait >= NanoTime()) {
+      // We have done a heap trim in the last kHeapTrimWait nanosecs, don't request another one
+      // just yet.
+      return;
     }
-    // Notify the daemon thread which will actually do the heap trim.
-    SignalHeapTrimDaemon(self);
+    heap_trim_request_pending_ = true;
   }
+  // Notify the daemon thread which will actually do the heap trim.
+  SignalHeapTrimDaemon(self);
 }
 
 void Heap::SignalHeapTrimDaemon(Thread* self) {
