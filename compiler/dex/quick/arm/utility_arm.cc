@@ -1111,8 +1111,14 @@ LIR* ArmMir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
 }
 
 LIR* ArmMir2Lir::OpThreadMem(OpKind op, ThreadOffset<4> thread_offset) {
-  LOG(FATAL) << "Unexpected use of OpThreadMem for Arm";
-  return NULL;
+  if (op == kOpBlx) {
+    const uint32_t trampoline = cu_->compiler_driver->AddEntrypointTrampoline(
+        thread_offset.Int32Value());
+    return NewLIR1(kThumb2BlTramp, trampoline);
+  } else {
+    LOG(FATAL) << "Invalid opcode for ARM OpThreadMem on Arm";
+    return NULL;
+  }
 }
 
 LIR* ArmMir2Lir::OpMem(OpKind op, RegStorage r_base, int disp) {
