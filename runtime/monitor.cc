@@ -205,7 +205,7 @@ void Monitor::SetObject(mirror::Object* object) {
 void Monitor::Lock(Thread* self) {
   MutexLock mu(self, monitor_lock_);
   while (true) {
-    if (owner_ == NULL) {  // Unowned.
+    if (owner_ == nullptr) {  // Unowned.
       owner_ = self;
       CHECK_EQ(lock_count_, 0);
       // When debugging, save the current monitor holder for future
@@ -223,15 +223,15 @@ void Monitor::Lock(Thread* self) {
     uint64_t wait_start_ms = log_contention ? 0 : MilliTime();
     mirror::ArtMethod* owners_method = locking_method_;
     uint32_t owners_dex_pc = locking_dex_pc_;
+    // Do this before releasing the lock so that we don't get deflated.
+    ++num_waiters_;
     monitor_lock_.Unlock(self);  // Let go of locks in order.
     {
       ScopedThreadStateChange tsc(self, kBlocked);  // Change to blocked and give up mutator_lock_.
       self->SetMonitorEnterObject(obj_);
       MutexLock mu2(self, monitor_lock_);  // Reacquire monitor_lock_ without mutator_lock_ for Wait.
       if (owner_ != NULL) {  // Did the owner_ give the lock up?
-        ++num_waiters_;
         monitor_contenders_.Wait(self);  // Still contended so wait.
-        --num_waiters_;
         // Woken from contention.
         if (log_contention) {
           uint64_t wait_ms = MilliTime() - wait_start_ms;
@@ -252,6 +252,7 @@ void Monitor::Lock(Thread* self) {
       self->SetMonitorEnterObject(nullptr);
     }
     monitor_lock_.Lock(self);  // Reacquire locks in order.
+    --num_waiters_;
   }
 }
 
@@ -431,6 +432,7 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
    * not order sensitive as we hold the pthread mutex.
    */
   AppendToWaitSet(self);
+  ++num_waiters_;
   int prev_lock_count = lock_count_;
   lock_count_ = 0;
   owner_ = NULL;
@@ -507,6 +509,7 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
   lock_count_ = prev_lock_count;
   locking_method_ = saved_method;
   locking_dex_pc_ = saved_dex_pc;
+  --num_waiters_;
   RemoveFromWaitSet(self);
 
   if (was_interrupted) {
@@ -575,8 +578,12 @@ bool Monitor::Deflate(Thread* self, mirror::Object* obj) {
   // If the lock isn't an inflated monitor, then we don't need to deflate anything.
   if (lw.GetState() == LockWord::kFatLocked) {
     Monitor* monitor = lw.FatLockMonitor();
-    CHECK(monitor != nullptr);
+    DCHECK(monitor != nullptr);
     MutexLock mu(self, monitor->monitor_lock_);
+    // Can't deflate if we have anybody waiting on the CV.
+    if (monitor->num_waiters_ > 0) {
+      return false;
+    }
     Thread* owner = monitor->owner_;
     if (owner != nullptr) {
       // Can't deflate if we are locked and have a hash code.
@@ -587,17 +594,16 @@ bool Monitor::Deflate(Thread* self, mirror::Object* obj) {
       if (monitor->lock_count_ > LockWord::kThinLockMaxCount) {
         return false;
       }
-      // Can't deflate if we have anybody waiting on the CV.
-      if (monitor->num_waiters_ > 0) {
-        return false;
-      }
       // Deflate to a thin lock.
-      obj->SetLockWord(LockWord::FromThinLockId(owner->GetTid(), monitor->lock_count_));
+      obj->SetLockWord(LockWord::FromThinLockId(owner->GetThreadId(), monitor->lock_count_));
+      VLOG(monitor) << "Deflated " << obj << " to thin lock " << owner->GetTid() << " / " << monitor->lock_count_;
     } else if (monitor->HasHashCode()) {
       obj->SetLockWord(LockWord::FromHashCode(monitor->GetHashCode()));
+      VLOG(monitor) << "Deflated " << obj << " to hash monitor " << monitor->GetHashCode();
     } else {
       // No lock and no hash, just put an empty lock word inside the object.
       obj->SetLockWord(LockWord());
+      VLOG(monitor) << "Deflated" << obj << " to empty lock word";
     }
     // The monitor is deflated, mark the object as nullptr so that we know to delete it during the
     // next GC.
@@ -1054,7 +1060,7 @@ uint32_t Monitor::GetOwnerThreadId() {
 }
 
 MonitorList::MonitorList()
-    : allow_new_monitors_(true), monitor_list_lock_("MonitorList lock"),
+    : allow_new_monitors_(true), monitor_list_lock_("MonitorList lock", kMonitorListLock),
       monitor_add_condition_("MonitorList disallow condition", monitor_list_lock_) {
 }
 
@@ -1101,6 +1107,22 @@ void MonitorList::SweepMonitorList(IsMarkedCallback* callback, void* arg) {
       ++it;
     }
   }
+}
+
+static mirror::Object* MonitorDeflateCallback(mirror::Object* object, void* arg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (Monitor::Deflate(reinterpret_cast<Thread*>(arg), object)) {
+    DCHECK_NE(object->GetLockWord().GetState(), LockWord::kFatLocked);
+    // If we deflated, return nullptr so that the monitor gets removed from the array.
+    return nullptr;
+  }
+  return object;  // Monitor was not deflated.
+}
+
+void MonitorList::DeflateMonitors() {
+  Thread* self = Thread::Current();
+  Locks::mutator_lock_->AssertExclusiveHeld(self);
+  SweepMonitorList(MonitorDeflateCallback, reinterpret_cast<Thread*>(self));
 }
 
 MonitorInfo::MonitorInfo(mirror::Object* obj) : owner_(NULL), entry_count_(0) {
