@@ -539,6 +539,8 @@ class RosAlloc {
   void InspectAll(void (*handler)(void* start, void* end, size_t used_bytes, void* callback_arg),
                   void* arg)
       LOCKS_EXCLUDED(lock_);
+  // Release empty pages.
+  size_t ReleasePages() LOCKS_EXCLUDED(lock_);
   // Returns the current footprint.
   size_t Footprint() LOCKS_EXCLUDED(lock_);
   // Returns the current capacity, maximum footprint.

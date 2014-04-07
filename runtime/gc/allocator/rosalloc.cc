@@ -2005,6 +2005,61 @@ void RosAlloc::Run::Verify(Thread* self, RosAlloc* rosalloc) {
   }
 }
 
+size_t RosAlloc::ReleasePages() {
+  VLOG(heap) << "RosAlloc::ReleasePages()";
+  DCHECK(!DoesReleaseAllPages());
+  Thread* self = Thread::Current();
+  size_t reclaimed_bytes = 0;
+  size_t i = 0;
+  while (true) {
+    MutexLock mu(self, lock_);
+    // Check the page map size which might have changed due to grow/shrink.
+    size_t pm_end = page_map_size_;
+    if (i >= pm_end) {
+      // Reached the end.
+      break;
+    }
+    byte pm = page_map_[i];
+    switch (pm) {
+      case kPageMapEmpty: {
+        // The start of a free page run. Release pages.
+        FreePageRun* fpr = reinterpret_cast<FreePageRun*>(base_ + i * kPageSize);
+        DCHECK(free_page_runs_.find(fpr) != free_page_runs_.end());
+        size_t fpr_size = fpr->ByteSize(this);
+        DCHECK(IsAligned<kPageSize>(fpr_size));
+        byte* start = reinterpret_cast<byte*>(fpr);
+        if (kIsDebugBuild) {
+          // In the debug build, the first page of a free page run
+          // contains a magic number for debugging. Exclude it.
+          start = reinterpret_cast<byte*>(fpr) + kPageSize;
+        }
+        byte* end = reinterpret_cast<byte*>(fpr) + fpr_size;
+        CHECK_EQ(madvise(start, end - start, MADV_DONTNEED), 0);
+        reclaimed_bytes += fpr_size;
+        size_t num_pages = fpr_size / kPageSize;
+        if (kIsDebugBuild) {
+          for (size_t j = i + 1; j < i + num_pages; ++j) {
+            DCHECK_EQ(page_map_[j], kPageMapEmpty);
+          }
+        }
+        i += num_pages;
+        DCHECK_LE(i, pm_end);
+        break;
+      }
+      case kPageMapLargeObject:      // Fall through.
+      case kPageMapLargeObjectPart:  // Fall through.
+      case kPageMapRun:              // Fall through.
+      case kPageMapRunPart:          // Fall through.
+        ++i;
+        break;  // Skip.
+      default:
+        LOG(FATAL) << "Unreachable - page map type: " << pm;
+        break;
+    }
+  }
+  return reclaimed_bytes;
+}
+
 }  // namespace allocator
 }  // namespace gc
 }  // namespace art
