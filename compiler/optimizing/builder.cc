@@ -25,7 +25,8 @@
 
 namespace art {
 
-void HGraphBuilder::InitializeLocals(int count) {
+void HGraphBuilder::InitializeLocals(uint16_t count) {
+  graph_->SetNumberOfVRegs(count);
   locals_.SetSize(count);
   for (int i = 0; i < count; i++) {
     HLocal* local = new (arena_) HLocal(i);
@@ -34,10 +35,53 @@ void HGraphBuilder::InitializeLocals(int count) {
   }
 }
 
+bool HGraphBuilder::InitializeParameters(uint16_t number_of_parameters) {
+  // dex_compilation_unit_ is null only when unit testing.
+  if (dex_compilation_unit_ == nullptr) {
+    return true;
+  }
+
+  graph_->SetNumberOfInVRegs(number_of_parameters);
+  const char* shorty = dex_compilation_unit_->GetShorty();
+  int locals_index = locals_.Size() - number_of_parameters;
+  HBasicBlock* first_block = entry_block_->GetSuccessors()->Get(0);
+  int parameter_index = 0;
+
+  if (!dex_compilation_unit_->IsStatic()) {
+    // Add the implicit 'this' argument, not expressed in the signature.
+    HParameterValue* parameter = new (arena_) HParameterValue(parameter_index++);
+    first_block->AddInstruction(parameter);
+    HLocal* local = GetLocalAt(locals_index++);
+    first_block->AddInstruction(new (arena_) HStoreLocal(local, parameter));
+    number_of_parameters--;
+  }
+
+  uint32_t pos = 1;
+  for (int i = 0; i < number_of_parameters; i++) {
+    switch (shorty[pos++]) {
+      case 'F':
+      case 'D':
+      case 'J': {
+        return false;
+      }
+
+      default: {
+        // integer and reference parameters.
+        HParameterValue* parameter = new (arena_) HParameterValue(parameter_index++);
+        first_block->AddInstruction(parameter);
+        HLocal* local = GetLocalAt(locals_index++);
+        // Store the parameter value in the local that the dex code will use
+        // to reference that parameter.
+        first_block->AddInstruction(new (arena_) HStoreLocal(local, parameter));
+        break;
+      }
+    }
+  }
+  return true;
+}
+
 static bool CanHandleCodeItem(const DexFile::CodeItem& code_item) {
   if (code_item.tries_size_ > 0) {
-    return false;
-  } else if (code_item.ins_size_ > 0) {
     return false;
   }
   return true;
@@ -65,6 +109,10 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
   // To avoid splitting blocks, we compute ahead of time the instructions that
   // start a new block, and create these blocks.
   ComputeBranchTargets(code_ptr, code_end);
+
+  if (!InitializeParameters(code_item.ins_size_)) {
+    return nullptr;
+  }
 
   size_t dex_offset = 0;
   while (code_ptr < code_end) {
@@ -139,6 +187,44 @@ HBasicBlock* HGraphBuilder::FindBlockStartingAt(int32_t index) const {
   return branch_targets_.Get(index);
 }
 
+template<typename T>
+void HGraphBuilder::Binop_32x(const Instruction& instruction) {
+  HInstruction* first = LoadLocal(instruction.VRegB());
+  HInstruction* second = LoadLocal(instruction.VRegC());
+  current_block_->AddInstruction(new (arena_) T(Primitive::kPrimInt, first, second));
+  UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+}
+
+template<typename T>
+void HGraphBuilder::Binop_12x(const Instruction& instruction) {
+  HInstruction* first = LoadLocal(instruction.VRegA());
+  HInstruction* second = LoadLocal(instruction.VRegB());
+  current_block_->AddInstruction(new (arena_) T(Primitive::kPrimInt, first, second));
+  UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+}
+
+template<typename T>
+void HGraphBuilder::Binop_22s(const Instruction& instruction, bool reverse) {
+  HInstruction* first = LoadLocal(instruction.VRegB());
+  HInstruction* second = GetConstant(instruction.VRegC_22s());
+  if (reverse) {
+    std::swap(first, second);
+  }
+  current_block_->AddInstruction(new (arena_) T(Primitive::kPrimInt, first, second));
+  UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+}
+
+template<typename T>
+void HGraphBuilder::Binop_22b(const Instruction& instruction, bool reverse) {
+  HInstruction* first = LoadLocal(instruction.VRegB());
+  HInstruction* second = GetConstant(instruction.VRegC_22b());
+  if (reverse) {
+    std::swap(first, second);
+  }
+  current_block_->AddInstruction(new (arena_) T(Primitive::kPrimInt, first, second));
+  UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+}
+
 bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_t dex_offset) {
   if (current_block_ == nullptr) {
     return true;  // Dead code
@@ -185,7 +271,8 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
       break;
     }
 
-    case Instruction::RETURN: {
+    case Instruction::RETURN:
+    case Instruction::RETURN_OBJECT: {
       HInstruction* value = LoadLocal(instruction.VRegA());
       current_block_->AddInstruction(new (arena_) HReturn(value));
       current_block_->AddSuccessor(exit_block_);
@@ -250,34 +337,42 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
     }
 
     case Instruction::ADD_INT: {
-      HInstruction* first = LoadLocal(instruction.VRegB());
-      HInstruction* second = LoadLocal(instruction.VRegC());
-      current_block_->AddInstruction(new (arena_) HAdd(Primitive::kPrimInt, first, second));
-      UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+      Binop_32x<HAdd>(instruction);
+      break;
+    }
+
+    case Instruction::SUB_INT: {
+      Binop_32x<HSub>(instruction);
       break;
     }
 
     case Instruction::ADD_INT_2ADDR: {
-      HInstruction* first = LoadLocal(instruction.VRegA());
-      HInstruction* second = LoadLocal(instruction.VRegB());
-      current_block_->AddInstruction(new (arena_) HAdd(Primitive::kPrimInt, first, second));
-      UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+      Binop_12x<HAdd>(instruction);
+      break;
+    }
+
+    case Instruction::SUB_INT_2ADDR: {
+      Binop_12x<HSub>(instruction);
       break;
     }
 
     case Instruction::ADD_INT_LIT16: {
-      HInstruction* first = LoadLocal(instruction.VRegB());
-      HInstruction* second = GetConstant(instruction.VRegC_22s());
-      current_block_->AddInstruction(new (arena_) HAdd(Primitive::kPrimInt, first, second));
-      UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+      Binop_22s<HAdd>(instruction, false);
+      break;
+    }
+
+    case Instruction::RSUB_INT: {
+      Binop_22s<HSub>(instruction, true);
       break;
     }
 
     case Instruction::ADD_INT_LIT8: {
-      HInstruction* first = LoadLocal(instruction.VRegB());
-      HInstruction* second = GetConstant(instruction.VRegC_22b());
-      current_block_->AddInstruction(new (arena_) HAdd(Primitive::kPrimInt, first, second));
-      UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+      Binop_22b<HAdd>(instruction, false);
+      break;
+    }
+
+    case Instruction::RSUB_INT_LIT8: {
+      Binop_22b<HSub>(instruction, true);
       break;
     }
 
