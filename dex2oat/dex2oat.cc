@@ -203,12 +203,7 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Use a separate --runtime-arg switch for each argument.");
   UsageError("      Example: --runtime-arg -Xms256m");
   UsageError("");
-  UsageError("  --profile-file=<filename>: profile file from a previous run used to determine");
-  UsageError("      whether to compile methods or not.");
-  UsageError("");
-  UsageError("  --no-profile-file: don't use a profile file for compilation.");
-  UsageError("");
-  UsageError("  --no-helper-trampolines: don't use trampolines for calls to ARM helper functions.");
+  UsageError("  --profile-file=<filename>: specify profiler output file to use for compilation.");
   UsageError("");
   UsageError("  --print-pass-names: print a list of pass names");
   UsageError("");
@@ -760,7 +755,6 @@ static int dex2oat(int argc, char** argv) {
   bool dump_slow_timing = kIsDebugBuild;
   bool watch_dog_enabled = !kIsTargetBuild;
   bool generate_gdb_information = kIsDebugBuild;
-  bool generate_helper_trampolines = true;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -800,8 +794,6 @@ static int dex2oat(int argc, char** argv) {
       watch_dog_enabled = false;
     } else if (option == "--gen-gdb-info") {
       generate_gdb_information = true;
-    } else if (option == "--no-helper-trampolines") {
-       generate_helper_trampolines = false;
     } else if (option == "--no-gen-gdb-info") {
       generate_gdb_information = false;
     } else if (option.starts_with("-j")) {
@@ -917,7 +909,7 @@ static int dex2oat(int argc, char** argv) {
       profile_file = option.substr(strlen("--profile-file=")).data();
       VLOG(compiler) << "dex2oat: profile file is " << profile_file;
     } else if (option == "--no-profile-file") {
-      LOG(INFO) << "dex2oat: no profile file supplied (explicitly)";
+      LOG(INFO) << "dex2oat: no profile file supplied (explictly)";
       // No profile
     } else if (option == "--print-pass-names") {
       PassDriver::PrintPassNames();
@@ -1056,8 +1048,7 @@ static int dex2oat(int argc, char** argv) {
                                    small_method_threshold,
                                    tiny_method_threshold,
                                    num_dex_methods_threshold,
-                                   generate_gdb_information,
-                                   generate_helper_trampolines
+                                   generate_gdb_information
 #ifdef ART_SEA_IR_MODE
                                    , compiler_options.sea_ir_ = true;
 #endif

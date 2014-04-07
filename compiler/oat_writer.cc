@@ -80,8 +80,7 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
     size_oat_class_type_(0),
     size_oat_class_status_(0),
     size_oat_class_method_bitmaps_(0),
-    size_oat_class_method_offsets_(0),
-    current_trampoline_island_offset_(0xffffffff) {
+    size_oat_class_method_offsets_(0) {
   size_t offset;
   {
     TimingLogger::ScopedSplit split("InitOatHeader", timings);
@@ -378,28 +377,15 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
       CHECK(quick_code != nullptr);
       offset = compiled_method->AlignCode(offset);
       DCHECK_ALIGNED(offset, kArmAlignment);
-
-      uint32_t thumb_offset = compiled_method->CodeDelta();
-      uint32_t tramp_offset = offset + thumb_offset;
-
-      // Allocate a trampoline island if we need to.
-      uint32_t trampsize = AllocateTrampolineIslandIfNecessary(tramp_offset);
-      if (trampsize > 0) {
-        offset += trampsize;    // Account for island in current offset.
-
-        // Realign code after trampoline island.
-        offset = compiled_method->AlignCode(offset);
-        DCHECK_ALIGNED(offset, kArmAlignment);
-      }
-
       uint32_t code_size = quick_code->size() * sizeof(uint8_t);
       CHECK_NE(code_size, 0U);
+      uint32_t thumb_offset = compiled_method->CodeDelta();
       quick_code_offset = offset + sizeof(code_size) + thumb_offset;
 
       std::vector<uint8_t>* cfi_info = compiler_driver_->GetCallFrameInformation();
       if (cfi_info != nullptr) {
-        // Copy in the FDE, if present
-        const std::vector<uint8_t>* fde = compiled_method->GetCFIInfo();
+      // Copy in the FDE, if present
+      const std::vector<uint8_t>* fde = compiled_method->GetCFIInfo();
         if (fde != nullptr) {
           // Copy the information into cfi_info and then fix the address in the new copy.
           int cur_offset = cfi_info->size();
@@ -417,7 +403,6 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
         }
       }
 
-
       // Deduplicate code arrays
       SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator code_iter =
           code_offsets_.find(quick_code);
@@ -428,13 +413,8 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
         offset += sizeof(code_size);  // code size is prepended before code
         offset += code_size;
         oat_header_->UpdateChecksum(&(*quick_code)[0], code_size);
-
-        // Apply the final relocations to the code now that we
-        // know the offset.
-        compiled_method->ApplyFinalRelocations(this, quick_code_offset);
       }
     }
-
     frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
     core_spill_mask = compiled_method->GetCoreSpillMask();
     fp_spill_mask = compiled_method->GetFpSpillMask();
@@ -847,39 +827,11 @@ size_t OatWriter::WriteCodeMethod(OutputStream* out, const size_t file_offset,
         DCHECK_OFFSET();
       }
       DCHECK_ALIGNED(relative_offset, kArmAlignment);
-
-      // Write out a trampoline island if there is one at this point.
-      uint32_t trampsize = WriteTrampolineIslandIfNecessary(out, relative_offset +
-                                                            compiled_method->CodeDelta());
-      if (trampsize > 0) {
-        relative_offset += trampsize;
-        size_code_ += trampsize;
-        DCHECK_OFFSET();
-
-        // Need to realign the code again after the island.
-        uint32_t aligned_offset = compiled_method->AlignCode(relative_offset);
-        uint32_t aligned_code_delta = aligned_offset - relative_offset;
-        if (aligned_code_delta != 0) {
-          off_t new_offset = out->Seek(aligned_code_delta, kSeekCurrent);
-          size_code_alignment_ += aligned_code_delta;
-          uint32_t expected_offset = file_offset + aligned_offset;
-          if (static_cast<uint32_t>(new_offset) != expected_offset) {
-            PLOG(ERROR) << "Failed to seek to align oat code. Actual: " << new_offset
-                << " Expected: " << expected_offset << " File: " << out->GetLocation();
-            return 0;
-          }
-          relative_offset += aligned_code_delta;
-          DCHECK_OFFSET();
-        }
-        DCHECK_ALIGNED(relative_offset, kArmAlignment);
-      }
-
       uint32_t code_size = quick_code->size() * sizeof(uint8_t);
       CHECK_NE(code_size, 0U);
 
       // Deduplicate code arrays
       size_t code_offset = relative_offset + sizeof(code_size) + compiled_method->CodeDelta();
-
       SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator code_iter =
           code_offsets_.find(quick_code);
       if (code_iter != code_offsets_.end() && code_offset != method_offsets.code_offset_) {
@@ -1167,38 +1119,6 @@ bool OatWriter::OatClass::Write(OatWriter* oat_writer,
   }
   oat_writer->size_oat_class_method_offsets_ += sizeof(method_offsets_[0]) * method_offsets_.size();
   return true;
-}
-
-// Allocate a trampoline island if we need to.
-uint32_t OatWriter::AllocateTrampolineIslandIfNecessary(uint32_t offset) {
-  size_t max_offset = compiler_driver_->GetMaxEntrypointTrampolineOffset();
-  if (max_offset == 0) {
-    // Compiler driver says we don't need trampoline islands.
-    return 0;
-  }
-  uint32_t next_trampoline = current_trampoline_island_offset_ + max_offset;
-  if (current_trampoline_island_offset_ == 0xffffffff || offset >= next_trampoline) {
-    LOG(DEBUG) << "Need trampoline island at offset " << std::hex << offset;
-    uint32_t size = compiler_driver_->GetEntrypointTrampolineTableSize();
-    trampoline_island_offsets_.push_back(offset);
-    current_trampoline_island_offset_ = offset;
-    return size;
-  }
-  return 0;
-}
-
-uint32_t OatWriter::WriteTrampolineIslandIfNecessary(OutputStream* out, uint32_t offset) {
-  for (size_t i = 0; i < trampoline_island_offsets_.size(); ++i) {
-    if (trampoline_island_offsets_[i] == offset) {
-      uint32_t size = compiler_driver_->GetEntrypointTrampolineTableSize();
-      LOG(DEBUG) << "Writing trampoline island at offset " << std::hex << offset << " size: "
-          << std::dec << size;
-      const std::vector<uint8_t>& code = compiler_driver_->GetEntrypointTrampolineTableCode();
-      out->WriteFully(&code[0], size);
-      return size;
-    }
-  }
-  return 0;
 }
 
 }  // namespace art

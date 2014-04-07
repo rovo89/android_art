@@ -1012,26 +1012,11 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
     vmap_encoder.PushBackUnsigned(0u);  // Size is 0.
   }
 
-  // All relocations
-  UniquePtr<FinalRelocations> all_relocs(new FinalRelocations());
-
-  // Build the final relocations for this method.
-  if (trampoline_calls_.size() != 0) {
-    FinalEntrypointRelocationSet* ep_relocs =
-      cu_->compiler_driver->AllocateFinalEntrypointRelocationSet(cu_);
-    for (size_t i = 0 ; i < trampoline_calls_.size(); ++i) {
-      const TrampolineCall& call = trampoline_calls_[i];
-      ep_relocs->Add(call.code_offset_, call.trampoline_offset_);
-    }
-    all_relocs->push_back(ep_relocs);
-  }
-
   UniquePtr<std::vector<uint8_t> > cfi_info(ReturnCallFrameInformation());
   CompiledMethod* result =
       new CompiledMethod(*cu_->compiler_driver, cu_->instruction_set, code_buffer_, frame_size_,
                          core_spill_mask_, fp_spill_mask_, encoded_mapping_table_,
-                         vmap_encoder.GetData(), native_gc_map_, cfi_info.get(),
-                         all_relocs.release());
+                         vmap_encoder.GetData(), native_gc_map_, cfi_info.get());
   return result;
 }
 

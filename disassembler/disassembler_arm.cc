@@ -1221,43 +1221,23 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             // |332|22|2|2222221111|11|1 |1|1 |10000000000|
             // |1 9|87|6|5    0   6|54|3 |2|1 |0    5    0|
             // |---|--|-|----------|--|--|-|--|-----------|
-            // |111|10|S| imm10    |11|J1|X|J2| imm11     |
+            // |111|10|S| imm10    |11|J1|L|J2| imm11     |
             uint32_t S = (instr >> 26) & 1;
             uint32_t J2 = (instr >> 11) & 1;
-            uint32_t X = (instr >> 12) & 1;
+            uint32_t L = (instr >> 12) & 1;
             uint32_t J1 = (instr >> 13) & 1;
             uint32_t imm10 = (instr >> 16) & 0x3FF;
             uint32_t imm11 = instr & 0x7FF;
-            if (X == 0) {
-              // This bit is unnamed in spec, but if zero, the instruction
-              // is BLX.
-              opcode << "blx";
+            if (L == 0) {
+              opcode << "bx";
             } else {
-              opcode << "bl";
+              opcode << "blx";
             }
             uint32_t I1 = ~(J1 ^ S);
             uint32_t I2 = ~(J2 ^ S);
             int32_t imm32 = (S << 24) | (I1 << 23) | (I2 << 22) | (imm10 << 12) | (imm11 << 1);
             imm32 = (imm32 << 8) >> 8;  // sign extend 24 bit immediate.
             DumpBranchTarget(args, instr_ptr + 4, imm32);
-            if (X == 1) {
-              // For a BL instruction we look and see if it's an entrypoint
-              // trampoline.
-              const uint16_t* target = reinterpret_cast<const uint16_t*>(instr_ptr + 4 + imm32);
-              if (target == nullptr) {
-                // Defensive, will probably never happen.
-                break;
-              }
-              const uint32_t targetinst = static_cast<uint32_t>(*target << 16 | *(target + 1));
-
-              // Is the target instruction an entrypoint trampoline:
-              // ldr pc,[r9,#foo]
-              if ((targetinst & 0xfffff000) == (0xf8d0f000 | (9 << 16))) {
-                  uint16_t offset = targetinst & 0xfff;
-                  args << "  ; ";
-                  Thread::DumpThreadOffset<4>(args, offset);
-              }
-            }
             break;
           }
         }

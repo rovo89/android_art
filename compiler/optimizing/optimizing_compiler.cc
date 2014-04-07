@@ -109,7 +109,6 @@ CompiledMethod* OptimizingCompiler::TryCompile(CompilerDriver& driver,
                             mapping_table,
                             vmap_table,
                             gc_map,
-                            nullptr,
                             nullptr);
 }
 
