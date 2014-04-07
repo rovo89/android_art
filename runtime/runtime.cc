@@ -121,6 +121,7 @@ Runtime::Runtime()
       profile_duration_s_(0),
       profile_interval_us_(0),
       profile_backoff_coefficient_(0),
+      profile_start_immediately_(true),
       method_trace_(false),
       method_trace_file_size_(0),
       instrumentation_(),
@@ -392,7 +393,7 @@ bool Runtime::Start() {
     if (fd >= 0) {
       close(fd);
     }
-    StartProfiler(profile_output_filename_.c_str(), "", true);
+    StartProfiler(profile_output_filename_.c_str(), "");
   }
 
   return true;
@@ -617,6 +618,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   profile_duration_s_ = options->profile_duration_s_;
   profile_interval_us_ = options->profile_interval_us_;
   profile_backoff_coefficient_ = options->profile_backoff_coefficient_;
+  profile_start_immediately_ = options->profile_start_immediately_;
   profile_ = options->profile_;
   profile_output_filename_ = options->profile_output_filename_;
   // TODO: move this to just be an Trace::Start argument
@@ -1144,10 +1146,9 @@ void Runtime::RemoveMethodVerifier(verifier::MethodVerifier* verifier) {
   method_verifiers_.erase(it);
 }
 
-void Runtime::StartProfiler(const char* appDir, const char* procName, bool startImmediately) {
+void Runtime::StartProfiler(const char* appDir, const char* procName) {
   BackgroundMethodSamplingProfiler::Start(profile_period_s_, profile_duration_s_, appDir,
-      procName, profile_interval_us_,
-      profile_backoff_coefficient_, startImmediately);
+      procName, profile_interval_us_, profile_backoff_coefficient_, profile_start_immediately_);
 }
 
 // Transaction support.

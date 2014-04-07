@@ -194,6 +194,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
   profile_duration_s_ = 20;          // Seconds.
   profile_interval_us_ = 500;       // Microseconds.
   profile_backoff_coefficient_ = 2.0;
+  profile_start_immediately_ = true;
   profile_clock_source_ = kDefaultProfilerClockSource;
 
   verify_ = true;
@@ -509,6 +510,8 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
       if (!ParseDouble(option, ':', 1.0, 10.0, &profile_backoff_coefficient_)) {
         return false;
       }
+    } else if (option == "-Xprofile-start-lazy") {
+      profile_start_immediately_ = false;
     } else if (StartsWith(option, "-implicit-checks:")) {
       std::string checks;
       if (!ParseStringAfterChar(option, ':', &checks)) {
