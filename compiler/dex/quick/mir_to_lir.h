@@ -562,7 +562,8 @@ class Mir2Lir : public Backend {
     void HandleThrowLaunchPads();
     void HandleSlowPaths();
     void GenBarrier();
-    LIR* GenCheck(ConditionCode c_code, ThrowKind kind);
+    void AddDivZeroSlowPath(ConditionCode c_code);
+    void AddDivZeroSlowPath(ConditionCode c_code, RegStorage reg, int imm_val);
     void MarkPossibleNullPointerException(int opt_flags);
     void MarkPossibleStackOverflowException();
     void ForceImplicitNullCheck(RegStorage reg, int opt_flags);
@@ -619,6 +620,7 @@ class Mir2Lir : public Backend {
     LIR* CallHelper(RegStorage r_tgt, ThreadOffset<4> helper_offset, bool safepoint_pc,
                     bool use_link = true);
     RegStorage CallHelperSetup(ThreadOffset<4> helper_offset);
+    void CallRuntimeHelper(ThreadOffset<4> helper_offset, bool safepoint_pc);
     void CallRuntimeHelperImm(ThreadOffset<4> helper_offset, int arg0, bool safepoint_pc);
     void CallRuntimeHelperReg(ThreadOffset<4> helper_offset, RegStorage arg0, bool safepoint_pc);
     void CallRuntimeHelperRegLocation(ThreadOffset<4> helper_offset, RegLocation arg0,
@@ -1220,6 +1222,7 @@ class Mir2Lir : public Backend {
      */
     bool GenSpecialIdentity(MIR* mir, const InlineMethod& special);
 
+    void AddDivZeroCheckSlowPath(LIR* branch);
 
   public:
     // TODO: add accessors for these.

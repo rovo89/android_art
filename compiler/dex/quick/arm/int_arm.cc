@@ -917,7 +917,7 @@ void ArmMir2Lir::GenDivZeroCheck(RegStorage reg) {
   RegStorage t_reg = AllocTemp();
   NewLIR4(kThumb2OrrRRRs, t_reg.GetReg(), reg.GetLowReg(), reg.GetHighReg(), 0);
   FreeTemp(t_reg);
-  GenCheck(kCondEq, kThrowDivZero);
+  AddDivZeroSlowPath(kCondEq);
 }
 
 // Test suspend flag, return target of taken suspend branch
