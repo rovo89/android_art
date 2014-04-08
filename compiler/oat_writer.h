@@ -95,6 +95,10 @@ class OatWriter {
     return method_info_;
   }
 
+  uint32_t GetCurrentTrampolineIslandOffset() const {
+    return current_trampoline_island_offset_;
+  }
+
  private:
   size_t InitOatHeader();
   size_t InitOatDexFiles(size_t offset);
@@ -133,6 +137,9 @@ class OatWriter {
 
   void ReportWriteFailure(const char* what, uint32_t method_idx, const DexFile& dex_file,
                           const OutputStream& out) const;
+
+  uint32_t AllocateTrampolineIslandIfNecessary(uint32_t offset);
+  uint32_t WriteTrampolineIslandIfNecessary(OutputStream* out, uint32_t offset);
 
   class OatDexFile {
    public:
@@ -287,6 +294,21 @@ class OatWriter {
   SafeMap<const std::vector<uint8_t>*, uint32_t> vmap_table_offsets_;
   SafeMap<const std::vector<uint8_t>*, uint32_t> mapping_table_offsets_;
   SafeMap<const std::vector<uint8_t>*, uint32_t> gc_map_offsets_;
+
+  // The trampoline islands.  These are sequences of code inserted between methods
+  // in the output.  They contain jumps to other addresses and are accessed
+  // by direct calls in the method code.  Due to the range of call instructions
+  // on certain architectures, we need to be able to put down multiple islands that
+  // are in range of the call instructions.  On ARM this is done every 15MB (the call range
+  // on Thumb2 is 16MB).  At any point in the output we have a current island that is
+  // guaranteed to be in range.  This is held in the 'current_trampoline_island_offset'
+  // variable (an offset into the instruction stream).
+  //
+  // The vector 'trampoline_island_offsets' contains the offsets of the all the
+  // islands we have generated.  This is used when performing the write of the file.
+
+  uint32_t current_trampoline_island_offset_;         // Current island offset.
+  std::vector<uint32_t> trampoline_island_offsets_;   // All the island offsets.
 
   DISALLOW_COPY_AND_ASSIGN(OatWriter);
 };

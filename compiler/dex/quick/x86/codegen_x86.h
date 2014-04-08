@@ -328,6 +328,11 @@ class X86Mir2Lir FINAL : public Mir2Lir {
      */
     std::vector<uint8_t>* ReturnCallFrameInformation();
 
+    // Entrypoint calls.
+    RegStorage CallHelperSetup(ThreadOffset<4> helper_offset);
+    LIR* CallHelper(RegStorage r_tgt, ThreadOffset<4> helper_offset,
+      bool safepoint_pc, bool use_link);
+
   private:
     void EmitPrefix(const X86EncodingMap* entry);
     void EmitOpcode(const X86EncodingMap* entry);
