@@ -58,18 +58,18 @@ LIR* Mir2Lir::GenImmedCheck(ConditionCode c_code, RegStorage reg, int imm_val, T
   return branch;
 }
 
-void Mir2Lir::AddDivZeroSlowPath(ConditionCode c_code) {
+void Mir2Lir::GenDivZeroException() {
+  LIR* branch = OpUnconditionalBranch(nullptr);
+  AddDivZeroCheckSlowPath(branch);
+}
+
+void Mir2Lir::GenDivZeroCheck(ConditionCode c_code) {
   LIR* branch = OpCondBranch(c_code, nullptr);
   AddDivZeroCheckSlowPath(branch);
 }
 
-void Mir2Lir::AddDivZeroSlowPath(ConditionCode c_code, RegStorage reg, int imm_val) {
-  LIR* branch;
-  if (c_code == kCondAl) {
-    branch = OpUnconditionalBranch(nullptr);
-  } else {
-    branch = OpCmpImmBranch(c_code, reg, imm_val, nullptr);
-  }
+void Mir2Lir::GenDivZeroCheck(RegStorage reg) {
+  LIR* branch = OpCmpImmBranch(kCondEq, reg, 0, nullptr);
   AddDivZeroCheckSlowPath(branch);
 }
 
@@ -80,7 +80,7 @@ void Mir2Lir::AddDivZeroCheckSlowPath(LIR* branch) {
         : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch) {
     }
 
-    void Compile() {
+    void Compile() OVERRIDE {
       m2l_->ResetRegPool();
       m2l_->ResetDefTracking();
       GenerateTargetLabel();
@@ -89,6 +89,26 @@ void Mir2Lir::AddDivZeroCheckSlowPath(LIR* branch) {
   };
 
   AddSlowPath(new (arena_) DivZeroCheckSlowPath(this, branch));
+}
+
+LIR* Mir2Lir::GenNullCheck(RegStorage reg) {
+  class NullCheckSlowPath : public Mir2Lir::LIRSlowPath {
+   public:
+    NullCheckSlowPath(Mir2Lir* m2l, LIR* branch)
+        : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch) {
+    }
+
+    void Compile() OVERRIDE {
+      m2l_->ResetRegPool();
+      m2l_->ResetDefTracking();
+      GenerateTargetLabel();
+      m2l_->CallRuntimeHelper(QUICK_ENTRYPOINT_OFFSET(4, pThrowNullPointer), true);
+    }
+  };
+
+  LIR* branch = OpCmpImmBranch(kCondEq, reg, 0, nullptr);
+  AddSlowPath(new (arena_) NullCheckSlowPath(this, branch));
+  return branch;
 }
 
 /* Perform null-check on a register.  */
@@ -104,7 +124,7 @@ LIR* Mir2Lir::GenExplicitNullCheck(RegStorage m_reg, int opt_flags) {
   if (!(cu_->disable_opt & (1 << kNullCheckElimination)) && (opt_flags & MIR_IGNORE_NULL_CHECK)) {
     return NULL;
   }
-  return GenImmedCheck(kCondEq, m_reg, 0, kThrowNullPointer);
+  return GenNullCheck(m_reg);
 }
 
 void Mir2Lir::MarkPossibleNullPointerException(int opt_flags) {
@@ -658,9 +678,6 @@ void Mir2Lir::HandleThrowLaunchPads() {
     int v2 = lab->operands[3];
     const bool target_x86 = cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64;
     switch (lab->operands[0]) {
-      case kThrowNullPointer:
-        func_offset = QUICK_ENTRYPOINT_OFFSET(4, pThrowNullPointer);
-        break;
       case kThrowConstantArrayBounds:  // v1 is length reg (for Arm/Mips), v2 constant index
         // v1 holds the constant array index.  Mips/Arm uses v2 for length, x86 reloads.
         if (target_x86) {
@@ -1551,7 +1568,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       rl_src1 = LoadValue(rl_src1, kCoreReg);
       rl_src2 = LoadValue(rl_src2, kCoreReg);
       if (check_zero) {
-          AddDivZeroSlowPath(kCondEq, rl_src2.reg, 0);
+          GenDivZeroCheck(rl_src2.reg);
       }
       rl_result = GenDivRem(rl_dest, rl_src1.reg, rl_src2.reg, op == kOpDiv);
       done = true;
@@ -1562,7 +1579,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
         rl_src1 = LoadValue(rl_src1, kCoreReg);
         rl_src2 = LoadValue(rl_src2, kCoreReg);
         if (check_zero) {
-            AddDivZeroSlowPath(kCondEq, rl_src2.reg, 0);
+            GenDivZeroCheck(rl_src2.reg);
         }
         rl_result = GenDivRem(rl_dest, rl_src1.reg, rl_src2.reg, op == kOpDiv);
         done = true;
@@ -1577,7 +1594,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       RegStorage r_tgt = CallHelperSetup(func_offset);
       LoadValueDirectFixed(rl_src1, TargetReg(kArg0));
       if (check_zero) {
-        AddDivZeroSlowPath(kCondEq, TargetReg(kArg1), 0);
+        GenDivZeroCheck(TargetReg(kArg1));
       }
       // NOTE: callout here is not a safepoint.
       CallHelper(r_tgt, func_offset, false /* not a safepoint */);
@@ -1802,7 +1819,7 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
     case Instruction::REM_INT_LIT8:
     case Instruction::REM_INT_LIT16: {
       if (lit == 0) {
-        AddDivZeroSlowPath(kCondAl, RegStorage::InvalidReg(), 0);
+        GenDivZeroException();
         return;
       }
       if ((opcode == Instruction::DIV_INT) ||
@@ -1976,7 +1993,7 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
       RegStorage r_tmp2 = RegStorage::MakeRegPair(TargetReg(kArg2), TargetReg(kArg3));
       LoadValueDirectWideFixed(rl_src2, r_tmp2);
       RegStorage r_tgt = CallHelperSetup(func_offset);
-      GenDivZeroCheck(RegStorage::MakeRegPair(TargetReg(kArg2), TargetReg(kArg3)));
+      GenDivZeroCheckWide(RegStorage::MakeRegPair(TargetReg(kArg2), TargetReg(kArg3)));
       LoadValueDirectWideFixed(rl_src1, r_tmp1);
       // NOTE: callout here is not a safepoint
       CallHelper(r_tgt, func_offset, false /* not safepoint */);
