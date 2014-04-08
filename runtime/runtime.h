@@ -374,7 +374,7 @@ class Runtime {
   const std::vector<const DexFile*>& GetCompileTimeClassPath(jobject class_loader);
   void SetCompileTimeClassPath(jobject class_loader, std::vector<const DexFile*>& class_path);
 
-  void StartProfiler(const char* appDir, const char* procName, bool startImmediately = false);
+  void StartProfiler(const char* appDir, const char* procName);
   void UpdateProfilerState(int state);
 
   // Transaction support.
@@ -542,6 +542,8 @@ class Runtime {
   uint32_t profile_duration_s_;         // Run profile for n seconds.
   uint32_t profile_interval_us_;        // Microseconds between samples.
   double profile_backoff_coefficient_;  // Coefficient to exponential backoff.
+  bool profile_start_immediately_;      // Whether the profile should start upon app
+                                        // startup or be delayed by some random offset.
 
   bool method_trace_;
   std::string method_trace_file_;
