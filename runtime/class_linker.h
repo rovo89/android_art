@@ -273,14 +273,14 @@ class ClassLinker {
   const DexFile* FindOrCreateOatFileForDexLocation(const char* dex_location,
                                                    uint32_t dex_location_checksum,
                                                    const char* oat_location,
-                                                   std::string* error_msg)
+                                                   std::vector<std::string>* error_msgs)
       LOCKS_EXCLUDED(dex_lock_, Locks::mutator_lock_);
   // Find a DexFile within an OatFile given a DexFile location. Note
   // that this returns null if the location checksum of the DexFile
   // does not match the OatFile.
   const DexFile* FindDexFileInOatFileFromDexLocation(const char* location,
                                                      const uint32_t* const location_checksum,
-                                                     std::string* error_msg)
+                                                     std::vector<std::string>* error_msgs)
       LOCKS_EXCLUDED(dex_lock_, Locks::mutator_lock_);
 
 

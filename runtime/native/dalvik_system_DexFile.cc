@@ -104,6 +104,7 @@ static jlong DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNa
 
   uint32_t dex_location_checksum;
   uint32_t* dex_location_checksum_pointer = &dex_location_checksum;
+  std::vector<std::string> error_msgs;
   std::string error_msg;
   if (!DexFile::GetChecksum(sourceName.c_str(), dex_location_checksum_pointer, &error_msg)) {
     dex_location_checksum_pointer = NULL;
@@ -113,9 +114,8 @@ static jlong DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNa
   const DexFile* dex_file;
   if (outputName.c_str() == nullptr) {
     // FindOrCreateOatFileForDexLocation can tolerate a missing dex_location_checksum
-    error_msg.clear();
     dex_file = linker->FindDexFileInOatFileFromDexLocation(sourceName.c_str(),
-                                                           dex_location_checksum_pointer, &error_msg);
+                                                           dex_location_checksum_pointer, &error_msgs);
   } else {
     // FindOrCreateOatFileForDexLocation requires the dex_location_checksum
     if (dex_location_checksum_pointer == NULL) {
@@ -125,12 +125,19 @@ static jlong DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNa
       return 0;
     }
     dex_file = linker->FindOrCreateOatFileForDexLocation(sourceName.c_str(), dex_location_checksum,
-                                                         outputName.c_str(), &error_msg);
+                                                         outputName.c_str(), &error_msgs);
   }
   if (dex_file == nullptr) {
     ScopedObjectAccess soa(env);
-    CHECK(!error_msg.empty());
-    ThrowIOException("%s", error_msg.c_str());
+    CHECK(!error_msgs.empty());
+    // The most important message is at the end. So set up nesting by going forward, which will
+    // wrap the existing exception as a cause for the following one.
+    auto it = error_msgs.begin();
+    auto itEnd = error_msgs.end();
+    for ( ; it != itEnd; ++it) {
+      ThrowWrappedIOException("%s", it->c_str());
+    }
+
     return 0;
   }
   return static_cast<jlong>(reinterpret_cast<uintptr_t>(dex_file));
