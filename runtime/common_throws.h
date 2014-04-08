@@ -126,6 +126,9 @@ void ThrowIncompatibleClassChangeError(mirror::Class* referrer, const char* fmt,
 void ThrowIOException(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)))
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
+void ThrowWrappedIOException(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)))
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
+
 // LinkageError
 
 void ThrowLinkageError(mirror::Class* referrer, const char* fmt, ...)
