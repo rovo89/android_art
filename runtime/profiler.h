@@ -39,7 +39,6 @@ namespace mirror {
 }  // namespace mirror
 class Thread;
 
-
 //
 // This class holds all the results for all runs of the profiler.  It also
 // counts the number of null methods (where we can't determine the method) and
@@ -63,7 +62,7 @@ class ProfileSampleResults {
  private:
   uint32_t Hash(mirror::ArtMethod* method);
   static constexpr int kHashSize = 17;
-  Mutex& lock_;         // Reference to the main profiler lock - we don't need two of them.
+  Mutex& lock_;                   // Reference to the main profiler lock - we don't need two of them.
   uint32_t num_samples_;          // Total number of samples taken.
   uint32_t num_null_methods_;     // Number of samples where can don't know the method.
   uint32_t num_boot_methods_;     // Number of samples in the boot path.
@@ -187,6 +186,54 @@ class BackgroundMethodSamplingProfiler {
   FilteredMethods filtered_methods_;
 
   DISALLOW_COPY_AND_ASSIGN(BackgroundMethodSamplingProfiler);
+};
+
+// TODO: incorporate in ProfileSampleResults
+
+// Profile data.  This is generated from previous runs of the program and stored
+// in a file.  It is used to determine whether to compile a particular method or not.
+class ProfileData {
+ public:
+  ProfileData() : count_(0), method_size_(0), usedPercent_(0) {}
+  ProfileData(const std::string& method_name, uint32_t count, uint32_t method_size,
+    double usedPercent, double topKUsedPercentage) :
+    method_name_(method_name), count_(count), method_size_(method_size),
+    usedPercent_(usedPercent), topKUsedPercentage_(topKUsedPercentage) {
+    // TODO: currently method_size_ and count_ are unused.
+    UNUSED(method_size_);
+    UNUSED(count_);
+  }
+
+  bool IsAbove(double v) const { return usedPercent_ >= v; }
+  double GetUsedPercent() const { return usedPercent_; }
+  uint32_t GetCount() const { return count_; }
+  double GetTopKUsedPercentage() const { return topKUsedPercentage_; }
+
+ private:
+  std::string method_name_;    // Method name.
+  uint32_t count_;             // Number of times it has been called.
+  uint32_t method_size_;       // Size of the method on dex instructions.
+  double usedPercent_;         // Percentage of how many times this method was called.
+  double topKUsedPercentage_;  // The percentage of the group that comprise K% of the total used
+                               // methods this methods belongs to.
+};
+
+// Profile data is stored in a map, indexed by the full method name.
+typedef std::map<std::string, ProfileData> ProfileMap;
+
+class ProfileHelper {
+ private:
+  ProfileHelper();
+
+ public:
+  // Read the profile data from the given file.  Calculates the percentage for each method.
+  // Returns false if there was no profile file or it was malformed.
+  static bool LoadProfileMap(ProfileMap& profileMap, const std::string& fileName);
+
+  // Read the profile data from the given file and computes the group that comprise
+  // topKPercentage of the total used methods.
+  static bool LoadTopKSamples(std::set<std::string>& topKMethods, const std::string& fileName,
+                              double topKPercentage);
 };
 
 }  // namespace art
