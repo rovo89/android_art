@@ -227,6 +227,7 @@ class HBasicBlock : public ArenaObject {
   M(LoadLocal)                                             \
   M(Local)                                                 \
   M(NewInstance)                                           \
+  M(Not)                                                   \
   M(ParameterValue)                                        \
   M(PushArgument)                                          \
   M(Return)                                                \
@@ -738,6 +739,18 @@ class HParameterValue : public HTemplateInstruction<0> {
   const uint8_t index_;
 
   DISALLOW_COPY_AND_ASSIGN(HParameterValue);
+};
+
+class HNot : public HTemplateInstruction<1> {
+ public:
+  explicit HNot(HInstruction* input) {
+    SetRawInputAt(0, input);
+  }
+
+  DECLARE_INSTRUCTION(Not);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HNot);
 };
 
 class HGraphVisitor : public ValueObject {
