@@ -180,7 +180,6 @@ class CodeGenerator : public ArenaObject {
  private:
   void InitLocations(HInstruction* instruction);
   void CompileBlock(HBasicBlock* block);
-  void CompileEntryBlock();
 
   HGraph* const graph_;
 
