@@ -326,7 +326,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   if (kMovingCollector) {
     // TODO: Clean this up.
     bool generational = post_zygote_collector_type_ == kCollectorTypeGSS;
-    semi_space_collector_ = new collector::SemiSpace(this, generational);
+    semi_space_collector_ = new collector::SemiSpace(this, generational,
+                                                     generational ? "generational" : "");
     garbage_collectors_.push_back(semi_space_collector_);
 
     concurrent_copying_collector_ = new collector::ConcurrentCopying(this);
@@ -1859,9 +1860,6 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
       << "Could not find garbage collector with collector_type="
       << static_cast<size_t>(collector_type_) << " and gc_type=" << gc_type;
   ATRACE_BEGIN(StringPrintf("%s %s GC", PrettyCause(gc_cause), collector->GetName()).c_str());
-  if (!clear_soft_references) {
-    clear_soft_references = gc_type != collector::kGcTypeSticky;  // TODO: GSS?
-  }
   collector->Run(gc_cause, clear_soft_references || runtime->IsZygote());
   total_objects_freed_ever_ += collector->GetFreedObjects();
   total_bytes_freed_ever_ += collector->GetFreedBytes();
