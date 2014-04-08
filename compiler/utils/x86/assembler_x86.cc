@@ -863,6 +863,10 @@ void X86Assembler::xorl(Register dst, Register src) {
   EmitOperand(dst, Operand(src));
 }
 
+void X86Assembler::xorl(Register dst, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitComplex(6, Operand(dst), imm);
+}
 
 void X86Assembler::addl(Register reg, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);

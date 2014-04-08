@@ -379,5 +379,18 @@ void InstructionCodeGeneratorX86::VisitParameterValue(HParameterValue* instructi
   }
 }
 
+void LocationsBuilderX86::VisitNot(HNot* instruction) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
+  locations->SetInAt(0, Location(EAX));
+  locations->SetOut(Location(EAX));
+  instruction->SetLocations(locations);
+}
+
+void InstructionCodeGeneratorX86::VisitNot(HNot* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  DCHECK_EQ(locations->InAt(0).reg<Register>(), locations->Out().reg<Register>());
+  __ xorl(locations->Out().reg<Register>(), Immediate(1));
+}
+
 }  // namespace x86
 }  // namespace art
