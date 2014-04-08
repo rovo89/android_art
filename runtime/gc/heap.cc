@@ -660,7 +660,7 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
 
   // Dump cumulative loggers for each GC type.
   uint64_t total_paused_time = 0;
-  for (const auto& collector : garbage_collectors_) {
+  for (auto& collector : garbage_collectors_) {
     const CumulativeLogger& logger = collector->GetCumulativeTimings();
     if (logger.GetTotalNs() != 0) {
       os << ConstDumpable<CumulativeLogger>(logger);
@@ -680,6 +680,7 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
       total_duration += total_ns;
       total_paused_time += total_pause_ns;
     }
+    collector->ResetMeasurements();
   }
   uint64_t allocation_time = static_cast<uint64_t>(total_allocation_time_) * kTimeAdjust;
   if (total_duration != 0) {

@@ -204,6 +204,14 @@ uint64_t GarbageCollector::GetEstimatedLastIterationThroughput() const {
   return (static_cast<uint64_t>(freed_bytes_) * 1000) / (NsToMs(GetDurationNs()) + 1);
 }
 
+void GarbageCollector::ResetMeasurements() {
+  cumulative_timings_.Reset();
+  pause_histogram_.Reset();
+  total_time_ns_ = 0;
+  total_freed_objects_ = 0;
+  total_freed_bytes_ = 0;
+}
+
 }  // namespace collector
 }  // namespace gc
 }  // namespace art

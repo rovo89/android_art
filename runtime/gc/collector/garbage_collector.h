@@ -110,6 +110,9 @@ class GarbageCollector {
     return pause_histogram_;
   }
 
+  // Reset the cumulative timings and pause histogram.
+  void ResetMeasurements();
+
   // Returns the estimated throughput in bytes / second.
   uint64_t GetEstimatedMeanThroughput() const;
 
