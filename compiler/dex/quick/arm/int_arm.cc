@@ -90,8 +90,7 @@ void ArmMir2Lir::OpEndIT(LIR* it) {
  *     neg   rX
  * done:
  */
-void ArmMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) {
+void ArmMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   LIR* target1;
   LIR* target2;
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
@@ -101,7 +100,7 @@ void ArmMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
   OpRegReg(kOpCmp, rl_src1.reg.GetHigh(), rl_src2.reg.GetHigh());
   LIR* branch1 = OpCondBranch(kCondLt, NULL);
   LIR* branch2 = OpCondBranch(kCondGt, NULL);
-  OpRegRegReg(kOpSub, t_reg, rl_src1.reg, rl_src2.reg);
+  OpRegRegReg(kOpSub, t_reg, rl_src1.reg.GetLow(), rl_src2.reg.GetLow());
   LIR* branch3 = OpCondBranch(kCondEq, NULL);
 
   LIR* it = OpIT(kCondHi, "E");
