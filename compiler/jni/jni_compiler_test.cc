@@ -1278,4 +1278,217 @@ TEST_F(JniCompilerTest, WithoutImplementation) {
   EXPECT_TRUE(env_->ExceptionCheck() == JNI_TRUE);
 }
 
+template <typename U, typename V> V convert(U in) {
+  DCHECK_LE(sizeof(U), sizeof(V));
+  union { U u; V v; } tmp;
+  tmp.u = in;
+  return tmp.v;
+}
+
+void Java_MyClassNatives_stackArgsIntsFirst(JNIEnv* env, jclass klass, jint i1, jint i2, jint i3,
+                                            jint i4, jint i5, jint i6, jint i7, jint i8, jint i9,
+                                            jint i10, jfloat f1, jfloat f2, jfloat f3, jfloat f4,
+                                            jfloat f5, jfloat f6, jfloat f7, jfloat f8, jfloat f9,
+                                            jfloat f10) {
+  EXPECT_EQ(i1, 1);
+  EXPECT_EQ(i2, 2);
+  EXPECT_EQ(i3, 3);
+  EXPECT_EQ(i4, 4);
+  EXPECT_EQ(i5, 5);
+  EXPECT_EQ(i6, 6);
+  EXPECT_EQ(i7, 7);
+  EXPECT_EQ(i8, 8);
+  EXPECT_EQ(i9, 9);
+  EXPECT_EQ(i10, 10);
+
+  jint i11 = convert<jfloat, jint>(f1);
+  EXPECT_EQ(i11, 11);
+  jint i12 = convert<jfloat, jint>(f2);
+  EXPECT_EQ(i12, 12);
+  jint i13 = convert<jfloat, jint>(f3);
+  EXPECT_EQ(i13, 13);
+  jint i14 = convert<jfloat, jint>(f4);
+  EXPECT_EQ(i14, 14);
+  jint i15 = convert<jfloat, jint>(f5);
+  EXPECT_EQ(i15, 15);
+  jint i16 = convert<jfloat, jint>(f6);
+  EXPECT_EQ(i16, 16);
+  jint i17 = convert<jfloat, jint>(f7);
+  EXPECT_EQ(i17, 17);
+  jint i18 = convert<jfloat, jint>(f8);
+  EXPECT_EQ(i18, 18);
+  jint i19 = convert<jfloat, jint>(f9);
+  EXPECT_EQ(i19, 19);
+  jint i20 = convert<jfloat, jint>(f10);
+  EXPECT_EQ(i20, 20);
+}
+
+TEST_F(JniCompilerTest, StackArgsIntsFirst) {
+  TEST_DISABLED_FOR_PORTABLE();
+  SetUpForTest(true, "stackArgsIntsFirst", "(IIIIIIIIIIFFFFFFFFFF)V",
+               reinterpret_cast<void*>(&Java_MyClassNatives_stackArgsIntsFirst));
+
+  jint i1 = 1;
+  jint i2 = 2;
+  jint i3 = 3;
+  jint i4 = 4;
+  jint i5 = 5;
+  jint i6 = 6;
+  jint i7 = 7;
+  jint i8 = 8;
+  jint i9 = 9;
+  jint i10 = 10;
+
+  jfloat f1 = convert<jint, jfloat>(11);
+  jfloat f2 = convert<jint, jfloat>(12);
+  jfloat f3 = convert<jint, jfloat>(13);
+  jfloat f4 = convert<jint, jfloat>(14);
+  jfloat f5 = convert<jint, jfloat>(15);
+  jfloat f6 = convert<jint, jfloat>(16);
+  jfloat f7 = convert<jint, jfloat>(17);
+  jfloat f8 = convert<jint, jfloat>(18);
+  jfloat f9 = convert<jint, jfloat>(19);
+  jfloat f10 = convert<jint, jfloat>(20);
+
+  env_->CallStaticVoidMethod(jklass_, jmethod_, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, f1, f2,
+                             f3, f4, f5, f6, f7, f8, f9, f10);
+}
+
+void Java_MyClassNatives_stackArgsFloatsFirst(JNIEnv* env, jclass klass, jfloat f1, jfloat f2,
+                                              jfloat f3, jfloat f4, jfloat f5, jfloat f6, jfloat f7,
+                                              jfloat f8, jfloat f9, jfloat f10, jint i1, jint i2,
+                                              jint i3, jint i4, jint i5, jint i6, jint i7, jint i8,
+                                              jint i9, jint i10) {
+  EXPECT_EQ(i1, 1);
+  EXPECT_EQ(i2, 2);
+  EXPECT_EQ(i3, 3);
+  EXPECT_EQ(i4, 4);
+  EXPECT_EQ(i5, 5);
+  EXPECT_EQ(i6, 6);
+  EXPECT_EQ(i7, 7);
+  EXPECT_EQ(i8, 8);
+  EXPECT_EQ(i9, 9);
+  EXPECT_EQ(i10, 10);
+
+  jint i11 = convert<jfloat, jint>(f1);
+  EXPECT_EQ(i11, 11);
+  jint i12 = convert<jfloat, jint>(f2);
+  EXPECT_EQ(i12, 12);
+  jint i13 = convert<jfloat, jint>(f3);
+  EXPECT_EQ(i13, 13);
+  jint i14 = convert<jfloat, jint>(f4);
+  EXPECT_EQ(i14, 14);
+  jint i15 = convert<jfloat, jint>(f5);
+  EXPECT_EQ(i15, 15);
+  jint i16 = convert<jfloat, jint>(f6);
+  EXPECT_EQ(i16, 16);
+  jint i17 = convert<jfloat, jint>(f7);
+  EXPECT_EQ(i17, 17);
+  jint i18 = convert<jfloat, jint>(f8);
+  EXPECT_EQ(i18, 18);
+  jint i19 = convert<jfloat, jint>(f9);
+  EXPECT_EQ(i19, 19);
+  jint i20 = convert<jfloat, jint>(f10);
+  EXPECT_EQ(i20, 20);
+}
+
+TEST_F(JniCompilerTest, StackArgsFloatsFirst) {
+  TEST_DISABLED_FOR_PORTABLE();
+  SetUpForTest(true, "stackArgsFloatsFirst", "(FFFFFFFFFFIIIIIIIIII)V",
+               reinterpret_cast<void*>(&Java_MyClassNatives_stackArgsFloatsFirst));
+
+  jint i1 = 1;
+  jint i2 = 2;
+  jint i3 = 3;
+  jint i4 = 4;
+  jint i5 = 5;
+  jint i6 = 6;
+  jint i7 = 7;
+  jint i8 = 8;
+  jint i9 = 9;
+  jint i10 = 10;
+
+  jfloat f1 = convert<jint, jfloat>(11);
+  jfloat f2 = convert<jint, jfloat>(12);
+  jfloat f3 = convert<jint, jfloat>(13);
+  jfloat f4 = convert<jint, jfloat>(14);
+  jfloat f5 = convert<jint, jfloat>(15);
+  jfloat f6 = convert<jint, jfloat>(16);
+  jfloat f7 = convert<jint, jfloat>(17);
+  jfloat f8 = convert<jint, jfloat>(18);
+  jfloat f9 = convert<jint, jfloat>(19);
+  jfloat f10 = convert<jint, jfloat>(20);
+
+  env_->CallStaticVoidMethod(jklass_, jmethod_, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, i1, i2, i3,
+                             i4, i5, i6, i7, i8, i9, i10);
+}
+
+void Java_MyClassNatives_stackArgsMixed(JNIEnv* env, jclass klass, jint i1, jfloat f1, jint i2,
+                                        jfloat f2, jint i3, jfloat f3, jint i4, jfloat f4, jint i5,
+                                        jfloat f5, jint i6, jfloat f6, jint i7, jfloat f7, jint i8,
+                                        jfloat f8, jint i9, jfloat f9, jint i10, jfloat f10) {
+  EXPECT_EQ(i1, 1);
+  EXPECT_EQ(i2, 2);
+  EXPECT_EQ(i3, 3);
+  EXPECT_EQ(i4, 4);
+  EXPECT_EQ(i5, 5);
+  EXPECT_EQ(i6, 6);
+  EXPECT_EQ(i7, 7);
+  EXPECT_EQ(i8, 8);
+  EXPECT_EQ(i9, 9);
+  EXPECT_EQ(i10, 10);
+
+  jint i11 = convert<jfloat, jint>(f1);
+  EXPECT_EQ(i11, 11);
+  jint i12 = convert<jfloat, jint>(f2);
+  EXPECT_EQ(i12, 12);
+  jint i13 = convert<jfloat, jint>(f3);
+  EXPECT_EQ(i13, 13);
+  jint i14 = convert<jfloat, jint>(f4);
+  EXPECT_EQ(i14, 14);
+  jint i15 = convert<jfloat, jint>(f5);
+  EXPECT_EQ(i15, 15);
+  jint i16 = convert<jfloat, jint>(f6);
+  EXPECT_EQ(i16, 16);
+  jint i17 = convert<jfloat, jint>(f7);
+  EXPECT_EQ(i17, 17);
+  jint i18 = convert<jfloat, jint>(f8);
+  EXPECT_EQ(i18, 18);
+  jint i19 = convert<jfloat, jint>(f9);
+  EXPECT_EQ(i19, 19);
+  jint i20 = convert<jfloat, jint>(f10);
+  EXPECT_EQ(i20, 20);
+}
+
+TEST_F(JniCompilerTest, StackArgsMixed) {
+  TEST_DISABLED_FOR_PORTABLE();
+  SetUpForTest(true, "stackArgsMixed", "(IFIFIFIFIFIFIFIFIFIF)V",
+               reinterpret_cast<void*>(&Java_MyClassNatives_stackArgsMixed));
+
+  jint i1 = 1;
+  jint i2 = 2;
+  jint i3 = 3;
+  jint i4 = 4;
+  jint i5 = 5;
+  jint i6 = 6;
+  jint i7 = 7;
+  jint i8 = 8;
+  jint i9 = 9;
+  jint i10 = 10;
+
+  jfloat f1 = convert<jint, jfloat>(11);
+  jfloat f2 = convert<jint, jfloat>(12);
+  jfloat f3 = convert<jint, jfloat>(13);
+  jfloat f4 = convert<jint, jfloat>(14);
+  jfloat f5 = convert<jint, jfloat>(15);
+  jfloat f6 = convert<jint, jfloat>(16);
+  jfloat f7 = convert<jint, jfloat>(17);
+  jfloat f8 = convert<jint, jfloat>(18);
+  jfloat f9 = convert<jint, jfloat>(19);
+  jfloat f10 = convert<jint, jfloat>(20);
+
+  env_->CallStaticVoidMethod(jklass_, jmethod_, i1, f1, i2, f2, i3, f3, i4, f4, i5, f5, i6, f6, i7,
+                             f7, i8, f8, i9, f9, i10, f10);
+}
+
 }  // namespace art
