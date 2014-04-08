@@ -77,6 +77,10 @@ static constexpr size_t kGcAlotInterval = KB;
 // Minimum amount of remaining bytes before a concurrent GC is triggered.
 static constexpr size_t kMinConcurrentRemainingBytes = 128 * KB;
 static constexpr size_t kMaxConcurrentRemainingBytes = 512 * KB;
+// Sticky GC throughput adjustment, divided by 4. Increasing this causes sticky GC to occur more
+// relative to partial/full GC. This is desirable since sticky GCs interfere less with mutator
+// threads (lower pauses, use less memory bandwidth).
+static constexpr double kStickyGcThroughputAdjustment = 1.25;
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
            double target_utilization, size_t capacity, const std::string& image_file_name,
@@ -2548,7 +2552,7 @@ void Heap::GrowForUtilization(collector::GarbageCollector* collector_ran) {
     // We also check that the bytes allocated aren't over the footprint limit in order to prevent a
     // pathological case where dead objects which aren't reclaimed by sticky could get accumulated
     // if the sticky GC throughput always remained >= the full/partial throughput.
-    if (collector_ran->GetEstimatedLastIterationThroughput() >=
+    if (collector_ran->GetEstimatedLastIterationThroughput() * kStickyGcThroughputAdjustment >=
         non_sticky_collector->GetEstimatedMeanThroughput() &&
         non_sticky_collector->GetIterations() > 0 &&
         bytes_allocated <= max_allowed_footprint_) {
