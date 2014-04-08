@@ -60,26 +60,31 @@
 
     // Callee saved.
     stp xSELF, x19, [sp, #264]
-    stp x20, x21, [sp, #280]
-    stp x22, x23, [sp, #296]
-    stp x24, x25, [sp, #312]
-    stp x26, x27, [sp, #328]
-    stp x28, xFP, [sp, #344]    // Save FP.
-    str xLR, [sp, #360]
+    .cfi_rel_offset x18, 264
+    .cfi_rel_offset x19, 272
 
-    .cfi_offset x18,72
-    .cfi_offset x19,80
-    .cfi_offset x20,88
-    .cfi_offset x21,96
-    .cfi_offset x22,104
-    .cfi_offset x23,112
-    .cfi_offset x24,120
-    .cfi_offset x25,128
-    .cfi_offset x26,136
-    .cfi_offset x27,144
-    .cfi_offset x28,152
-    .cfi_offset x29,160
-    .cfi_offset x30,168
+    stp x20, x21, [sp, #280]
+    .cfi_rel_offset x20, 280
+    .cfi_rel_offset x21, 288
+
+    stp x22, x23, [sp, #296]
+    .cfi_rel_offset x22, 296
+    .cfi_rel_offset x23, 304
+
+    stp x24, x25, [sp, #312]
+    .cfi_rel_offset x24, 312
+    .cfi_rel_offset x25, 320
+
+    stp x26, x27, [sp, #328]
+    .cfi_rel_offset x26, 328
+    .cfi_rel_offset x27, 336
+
+    stp x28, xFP, [sp, #344]    // Save FP.
+    .cfi_rel_offset x28, 344
+    .cfi_rel_offset x29, 352
+
+    str xLR, [sp, #360]
+    .cfi_rel_offset x30, 360
 
     // Loads appropriate callee-save-method
     str x9, [sp]    // Store ArtMethod* Runtime::callee_save_methods_[kRefsAndArgs]
@@ -117,36 +122,44 @@
     stp d14, d15, [sp, #128]
 
     stp x1,  x2, [sp, #144]
-    stp x3,  x4, [sp, #160]
-    stp x5,  x6, [sp, #176]
-    stp x7,  xSELF, [sp, #192]
-    stp x19, x20, [sp, #208]
-    stp x21, x22, [sp, #224]
-    stp x23, x24, [sp, #240]
-    stp x25, x26, [sp, #256]
-    stp x27, x28, [sp, #272]
-    stp xFP, xLR, [sp, #288]
+    .cfi_rel_offset x1, 144
+    .cfi_rel_offset x2, 152
 
-    .cfi_offset x1,144
-    .cfi_offset x2,152
-    .cfi_offset x3,160
-    .cfi_offset x4,168
-    .cfi_offset x5,176
-    .cfi_offset x6,184
-    .cfi_offset x7,192
-    .cfi_offset x18,200
-    .cfi_offset x19,208
-    .cfi_offset x20,216
-    .cfi_offset x21,224
-    .cfi_offset x22,232
-    .cfi_offset x23,240
-    .cfi_offset x24,248
-    .cfi_offset x25,256
-    .cfi_offset x26,264
-    .cfi_offset x27,272
-    .cfi_offset x28,280
-    .cfi_offset x29,288
-    .cfi_offset x30,296
+    stp x3,  x4, [sp, #160]
+    .cfi_rel_offset x3, 160
+    .cfi_rel_offset x4, 168
+
+    stp x5,  x6, [sp, #176]
+    .cfi_rel_offset x5, 176
+    .cfi_rel_offset x6, 184
+
+    stp x7,  xSELF, [sp, #192]
+    .cfi_rel_offset x7, 192
+    .cfi_rel_offset x18, 200
+
+    stp x19, x20, [sp, #208]
+    .cfi_rel_offset x19, 208
+    .cfi_rel_offset x20, 216
+
+    stp x21, x22, [sp, #224]
+    .cfi_rel_offset x21, 224
+    .cfi_rel_offset x22, 232
+
+    stp x23, x24, [sp, #240]
+    .cfi_rel_offset x23, 240
+    .cfi_rel_offset x24, 248
+
+    stp x25, x26, [sp, #256]
+    .cfi_rel_offset x25, 256
+    .cfi_rel_offset x26, 264
+
+    stp x27, x28, [sp, #272]
+    .cfi_rel_offset x27, 272
+    .cfi_rel_offset x28, 280
+
+    stp xFP, xLR, [sp, #288]
+    .cfi_rel_offset x29, 288
+    .cfi_rel_offset x30, 296
 .endm
 
     /*
@@ -183,15 +196,44 @@
 
     // args.
     ldp x1,  x2, [sp, #144]
+    .cfi_restore x1
+    .cfi_restore x2
+
     ldp x3,  x4, [sp, #160]
+    .cfi_restore x3
+    .cfi_restore x4
+
     ldp x5,  x6, [sp, #176]
+    .cfi_restore x5
+    .cfi_restore x6
+
     ldp x7,  xSELF, [sp, #192]
+    .cfi_restore x7
+    .cfi_restore x18
+
     ldp x19, x20, [sp, #208]
+    .cfi_restore x19
+    .cfi_restore x20
+
     ldp x21, x22, [sp, #224]
+    .cfi_restore x21
+    .cfi_restore x22
+
     ldp x23, x24, [sp, #240]
+    .cfi_restore x23
+    .cfi_restore x24
+
     ldp x25, x26, [sp, #256]
+    .cfi_restore x25
+    .cfi_restore x26
+
     ldp x27, x28, [sp, #272]
+    .cfi_restore x27
+    .cfi_restore x28
+
     ldp xFP, xLR, [sp, #288]
+    .cfi_restore x29
+    .cfi_restore x30
 
     add sp, sp, #304
     .cfi_adjust_cfa_offset -304
@@ -210,15 +252,44 @@
 
     // args.
     ldp x1,  x2, [sp, #144]
+    .cfi_restore x1
+    .cfi_restore x2
+
     ldp x3,  x4, [sp, #160]
+    .cfi_restore x3
+    .cfi_restore x4
+
     ldp x5,  x6, [sp, #176]
+    .cfi_restore x5
+    .cfi_restore x6
+
     ldp x7,  xSELF, [sp, #192]
+    .cfi_restore x7
+    .cfi_restore x18
+
     ldp x19, x20, [sp, #208]
+    .cfi_restore x19
+    .cfi_restore x20
+
     ldp x21, x22, [sp, #224]
+    .cfi_restore x21
+    .cfi_restore x22
+
     ldp x23, x24, [sp, #240]
+    .cfi_restore x23
+    .cfi_restore x24
+
     ldp x25, x26, [sp, #256]
+    .cfi_restore x25
+    .cfi_restore x26
+
     ldp x27, x28, [sp, #272]
+    .cfi_restore x27
+    .cfi_restore x28
+
     ldp xFP, xLR, [sp, #288]
+    .cfi_restore x29
+    .cfi_restore x30
 
     add sp, sp, #304
     .cfi_adjust_cfa_offset -304
@@ -340,6 +411,113 @@ INVOKE_TRAMPOLINE art_quick_invoke_direct_trampoline_with_access_check, artInvok
 INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
+
+.macro INVOKE_STUB_CREATE_FRAME
+
+SAVE_SIZE=5*8   // x4, x5, SP, LR & FP saved.
+SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
+
+    mov x9, sp                          // Save stack pointer.
+    .cfi_register sp,x9
+
+    add x10, x2, # SAVE_SIZE_AND_METHOD // calculate size of frame.
+    sub x10, sp, x10                    // Calculate SP position - saves + ArtMethod* +  args
+    and x10, x10, # ~0xf                // Enforce 16 byte stack alignment.
+    mov sp, x10                         // Set new SP.
+
+    sub x10, x9, #SAVE_SIZE             // Calculate new FP (later). Done here as we must move SP
+    .cfi_def_cfa_register x10           // before this.
+    .cfi_adjust_cfa_offset SAVE_SIZE
+
+    str x9, [x10, #32]                  // Save old stack pointer.
+    .cfi_rel_offset sp, 32
+
+    stp x4, x5, [x10, #16]              // Save result and shorty addresses.
+    .cfi_rel_offset x4, 16
+    .cfi_rel_offset x5, 24
+
+    stp xFP, xLR, [x10]                 // Store LR & FP.
+    .cfi_rel_offset x29, 0
+    .cfi_rel_offset x30, 8
+
+    mov xFP, x10                        // Use xFP now, as it's callee-saved.
+    .cfi_def_cfa_register x29
+    mov xSELF, x3                       // Move thread pointer into SELF register.
+
+    // Copy arguments into stack frame.
+    // Use simple copy routine for now.
+    // 4 bytes per slot.
+    // X1 - source address
+    // W2 - args length
+    // X9 - destination address.
+    // W10 - temporary
+    add x9, sp, #8     // Destination address is bottom of stack + NULL.
+
+    // Use \@ to differentiate between macro invocations.
+.LcopyParams\@:
+    cmp w2, #0
+    beq .LendCopyParams\@
+    sub w2, w2, #4      // Need 65536 bytes of range.
+    ldr w10, [x1, x2]
+    str w10, [x9, x2]
+
+    b .LcopyParams\@
+
+.LendCopyParams\@:
+
+    // Store NULL into Method* at bottom of frame.
+    str xzr, [sp]
+
+.endm
+
+.macro INVOKE_STUB_CALL_AND_RETURN
+
+    // load method-> METHOD_QUICK_CODE_OFFSET
+    ldr x9, [x0 , #METHOD_QUICK_CODE_OFFSET]
+    // Branch to method.
+    blr x9
+
+    // Restore return value address and shorty address.
+    ldp x4,x5, [xFP, #16]
+    .cfi_restore x4
+    .cfi_restore x5
+
+    // Store result (w0/x0/s0/d0) appropriately, depending on resultType.
+    ldrb w10, [x5]
+
+    // Don't set anything for a void type.
+    cmp w10, #'V'
+    beq .Lexit_art_quick_invoke_stub\@
+
+    cmp w10, #'D'
+    bne .Lreturn_is_float\@
+    str d0, [x4]
+    b .Lexit_art_quick_invoke_stub\@
+
+.Lreturn_is_float\@:
+    cmp w10, #'F'
+    bne .Lreturn_is_int\@
+    str s0, [x4]
+    b .Lexit_art_quick_invoke_stub\@
+
+    // Just store x0. Doesn't matter if it is 64 or 32 bits.
+.Lreturn_is_int\@:
+    str x0, [x4]
+
+.Lexit_art_quick_invoke_stub\@:
+    ldr x2, [x29, #32]   // Restore stack pointer.
+    mov sp, x2
+    .cfi_restore sp
+
+    ldp x29, x30, [x29]    // Restore old frame pointer and link register.
+    .cfi_restore x29
+    .cfi_restore x30
+
+    ret
+
+.endm
+
+
 /*
  *  extern"C" void art_quick_invoke_stub(ArtMethod *method,   x0
  *                                       uint32_t  *args,     x1
@@ -377,63 +555,7 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
  */
 ENTRY art_quick_invoke_stub
     // Spill registers as per AACPS64 calling convention.
-
-SAVE_SIZE=5*8   // x4, x5, LR & FP saved.
-SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
-
-    mov x9, sp     // Save stack pointer.
-
-    mov x10, xFP   // Save frame pointer
-    .cfi_register x29,x10
-    add x11, x2, # SAVE_SIZE_AND_METHOD // calculate size of frame.
-
-    sub x11, sp, x11 // Calculate SP position - saves + ArtMethod* +  args
-
-    and x11, x11, # ~0xf  // Enforce 16 byte stack alignment.
-
-    sub xFP, x9, #SAVE_SIZE   // Calculate new FP. Don't store here until SP moved.
-    .cfi_def_cfa_register x29
-
-    mov sp, x11        // set new SP.
-
-    str x9, [xFP, #32]     // Save old stack pointer.
-
-    .cfi_offset x9, 32
-
-    stp x4, x5, [xFP, #16]  // Save result and shorty addresses.
-
-    .cfi_offset x4, 16
-    .cfi_offset x5, 24
-
-    stp x10, xLR, [xFP]   // Store lr & old fp @ fp
-
-    .cfi_offset x30, 0
-    .cfi_offset x10, 8
-
-    mov xSELF, x3       // Move thread pointer into SELF register.
-
-    // Copy arguments into stack frame.
-    // Use simple copy routine for now.
-    // 4 bytes per slot.
-    // X1 - source address
-    // W2 - args length
-    // X10 - destination address.
-    add x9, sp, #8     // Destination address is bottom of stack + NULL.
-
-    // w2 = argsize parameter.
-.LcopyParams:
-    cmp w2, #0
-    beq .LendCopyParams
-    sub w2, w2, #4      // Need 65536 bytes of range.
-    ldr w10, [x1, x2]
-    str w10, [x9, x2]
-
-    b .LcopyParams
-
-.LendCopyParams:
-
-    // Store NULL into Method* at bottom of frame.
-    str xzr, [sp]
+    INVOKE_STUB_CREATE_FRAME
 
     // Fill registers x/w1 to x/w7 and s/d0 to s/d7 with parameters.
     // Parse the passed shorty to determine which register to load.
@@ -460,7 +582,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
     bne .LisDouble
 
     cmp x15, # 8*12         // Skip this load if all registers full.
-    beq .LfillRegisters
+    beq .Ladvance4
 
     add x17, x13, x15       // Calculate subroutine to jump to.
     br  x17
@@ -470,8 +592,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
     bne .LisLong
 
     cmp x15, # 8*12         // Skip this load if all registers full.
-    beq .LfillRegisters
-
+    beq .Ladvance8
 
     add x17, x14, x15       // Calculate subroutine to jump to.
     br x17
@@ -481,17 +602,25 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
     bne .LisOther
 
     cmp x8, # 6*12          // Skip this load if all registers full.
-    beq .LfillRegisters
+    beq .Ladvance8
 
     add x17, x12, x8        // Calculate subroutine to jump to.
     br x17
 
-
 .LisOther:                  // Everything else takes one vReg.
     cmp x8, # 6*12          // Skip this load if all registers full.
-    beq .LfillRegisters
+    beq .Ladvance4
+
     add x17, x11, x8        // Calculate subroutine to jump to.
     br x17
+
+.Ladvance4:
+    add x9, x9, #4
+    b .LfillRegisters
+
+.Ladvance8:
+    add x9, x9, #8
+    b .LfillRegisters
 
 // Macro for loading a parameter into a register.
 //  counter - the register with offset into these tables
@@ -546,48 +675,8 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
 
 .LcallFunction:
 
-    // load method-> METHOD_QUICK_CODE_OFFSET
-    ldr x9, [x0 , #METHOD_QUICK_CODE_OFFSET]
-    // Branch to method.
-    blr x9
+    INVOKE_STUB_CALL_AND_RETURN
 
-    // Restore return value address and shorty address.
-    ldp x4,x5, [xFP, #16]
-    .cfi_restore x4
-    .cfi_restore x5
-
-    // Store result (w0/x0/s0/d0) appropriately, depending on resultType.
-    ldrb w10, [x5]
-
-    // Don't set anything for a void type.
-    cmp w10, #'V'
-    beq .Lexit_art_quick_invoke_stub
-
-    cmp w10, #'D'
-    bne .Lreturn_is_float
-    str d0, [x4]
-    b .Lexit_art_quick_invoke_stub
-
-.Lreturn_is_float:
-    cmp w10, #'F'
-    bne .Lreturn_is_int
-    str s0, [x4]
-    b .Lexit_art_quick_invoke_stub
-
-    // Just store x0. Doesn't matter if it is 64 or 32 bits.
-.Lreturn_is_int:
-    str x0, [x4]
-
-.Lexit_art_quick_invoke_stub:
-    ldr x2, [x29, #32]   // Restore stack pointer.
-    mov sp, x2
-    .cfi_restore sp
-
-    ldp x29, x30, [x29]    // Restore old frame pointer and link register.
-    .cfi_restore x29
-    .cfi_restore x30
-
-    ret
 END art_quick_invoke_stub
 
 /*  extern"C"
@@ -600,64 +689,7 @@ END art_quick_invoke_stub
  */
 ENTRY art_quick_invoke_static_stub
     // Spill registers as per AACPS64 calling convention.
-
-SAVE_SIZE=5*8   // x4, x5, SP, LR & FP saved
-SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
-
-    mov x9, sp     // Save stack pointer.
-
-    mov x10, xFP   // Save frame pointer
-    .cfi_register x29,x10
-    add x11, x2, # SAVE_SIZE_AND_METHOD // calculate size of frame.
-
-    sub x11, sp, x11 // Calculate SP position - saves + ArtMethod* +  args
-
-    and x11, x11, # ~0xf  // Enforce 16 byte stack alignment.
-
-    sub xFP, x9, #SAVE_SIZE   // Calculate new FP. Don't store here until SP moved.
-
-    mov sp, x11        // set new SP.
-
-    .cfi_def_cfa_register   29
-
-    str x9, [xFP, #32]     // Save old stack pointer.
-
-    .cfi_offset x9, 32
-
-    stp x4, x5, [xFP, #16]  // Save result and shorty addresses.
-
-    .cfi_offset x4, 16
-    .cfi_offset x5, 24
-
-    stp x10, xLR, [x29]   // Store lr & old fp @ fp
-
-    .cfi_offset x30, 0
-    .cfi_offset x10, 8
-
-    mov xSELF, x3       // Move thread pointer into SELF register.
-
-    // Copy arguments into stack frame.
-    // Use simple copy routine for now.
-    // 4 bytes per slot.
-    // X1 - source address
-    // W2 - args length
-    // X10 - destination address.
-    add x9, sp, #8     // Destination address is bottom of stack + NULL.
-
-    // w2 = argsize parameter.
-.LcopyParams2:
-    cmp w2, #0
-    beq .LendCopyParams2
-    sub w2, w2, #4      // Need 65536 bytes of range.
-    ldr w10, [x1, x2]
-    str w10, [x9, x2]
-
-    b .LcopyParams2
-
-.LendCopyParams2:
-
-    // Store NULL into Method* at bottom of frame.
-    str xzr, [sp]
+    INVOKE_STUB_CREATE_FRAME
 
     // Fill registers x/w1 to x/w7 and s/d0 to s/d7 with parameters.
     // Parse the passed shorty to determine which register to load.
@@ -683,7 +715,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
     bne .LisDouble2
 
     cmp x15, # 8*12         // Skip this load if all registers full.
-    beq .LfillRegisters2
+    beq .Ladvance4_2
 
     add x17, x13, x15       // Calculate subroutine to jump to.
     br  x17
@@ -693,8 +725,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
     bne .LisLong2
 
     cmp x15, # 8*12         // Skip this load if all registers full.
-    beq .LfillRegisters2
-
+    beq .Ladvance8_2
 
     add x17, x14, x15       // Calculate subroutine to jump to.
     br x17
@@ -704,17 +735,25 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
     bne .LisOther2
 
     cmp x8, # 7*12          // Skip this load if all registers full.
-    beq .LfillRegisters2
+    beq .Ladvance8_2
 
     add x17, x12, x8        // Calculate subroutine to jump to.
     br x17
 
-
 .LisOther2:                 // Everything else takes one vReg.
     cmp x8, # 7*12          // Skip this load if all registers full.
-    beq .LfillRegisters2
+    beq .Ladvance4_2
+
     add x17, x11, x8        // Calculate subroutine to jump to.
     br x17
+
+.Ladvance4_2:
+    add x9, x9, #4
+    b .LfillRegisters2
+
+.Ladvance8_2:
+    add x9, x9, #8
+    b .LfillRegisters2
 
 // Store ints.
 .LstoreW1_2:
@@ -761,52 +800,11 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
 
 .LcallFunction2:
 
-    // load method-> METHOD_QUICK_CODE_OFFSET.
-    ldr x9, [x0 , #METHOD_QUICK_CODE_OFFSET]
-    // Branch to method.
-    blr x9
+    INVOKE_STUB_CALL_AND_RETURN
 
-    // Restore return value address and shorty address.
-    ldp x4, x5, [xFP, #16]
-    .cfi_restore x4
-    .cfi_restore x5
-
-    // Store result (w0/x0/s0/d0) appropriately, depending on resultType.
-    ldrb w10, [x5]
-
-    // Don't set anything for a void type.
-    cmp w10, #'V'
-    beq .Lexit_art_quick_invoke_stub2
-
-    cmp w10, #'D'
-    bne .Lreturn_is_float2
-    str d0, [x4]
-    b .Lexit_art_quick_invoke_stub2
-
-.Lreturn_is_float2:
-    cmp w10, #'F'
-    bne .Lreturn_is_int2
-    str s0, [x4]
-    b .Lexit_art_quick_invoke_stub2
-
-    // Just store x0. Doesn't matter if it is 64 or 32 bits.
-.Lreturn_is_int2:
-    str x0, [x4]
-
-.Lexit_art_quick_invoke_stub2:
-
-    ldr x2, [xFP, #32]   // Restore stack pointer.
-    mov sp, x2
-    .cfi_restore sp
-
-    ldp xFP, xLR, [xFP]    // Restore old frame pointer and link register.
-    .cfi_restore x29
-    .cfi_restore x30
-
-    ret
 END art_quick_invoke_static_stub
 
-// UNIMPLEMENTED art_quick_do_long_jump
+
 
     /*
      * On entry x0 is uintptr_t* gprs_ and x1 is uint64_t* fprs_
