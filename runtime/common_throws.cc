@@ -66,6 +66,28 @@ static void ThrowException(const ThrowLocation* throw_location, const char* exce
   }
 }
 
+static void ThrowWrappedException(const ThrowLocation* throw_location,
+                                  const char* exception_descriptor,
+                                  mirror::Class* referrer, const char* fmt, va_list* args = NULL)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  std::ostringstream msg;
+  if (args != NULL) {
+    std::string vmsg;
+    StringAppendV(&vmsg, fmt, *args);
+    msg << vmsg;
+  } else {
+    msg << fmt;
+  }
+  AddReferrerLocation(msg, referrer);
+  Thread* self = Thread::Current();
+  if (throw_location == NULL) {
+    ThrowLocation computed_throw_location = self->GetCurrentLocationForThrow();
+    self->ThrowNewWrappedException(computed_throw_location, exception_descriptor, msg.str().c_str());
+  } else {
+    self->ThrowNewWrappedException(*throw_location, exception_descriptor, msg.str().c_str());
+  }
+}
+
 // AbstractMethodError
 
 void ThrowAbstractMethodError(mirror::ArtMethod* method) {
@@ -240,6 +262,13 @@ void ThrowIOException(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   ThrowException(NULL, "Ljava/io/IOException;", NULL, fmt, &args);
+  va_end(args);
+}
+
+void ThrowWrappedIOException(const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  ThrowWrappedException(NULL, "Ljava/io/IOException;", NULL, fmt, &args);
   va_end(args);
 }
 
