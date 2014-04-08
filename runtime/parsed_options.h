@@ -79,6 +79,7 @@ class ParsedOptions {
   uint32_t profile_duration_s_;
   uint32_t profile_interval_us_;
   double profile_backoff_coefficient_;
+  bool profile_start_immediately_;
   ProfilerClockSource profile_clock_source_;
   bool verify_;
 
