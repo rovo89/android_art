@@ -270,9 +270,11 @@ class MANAGED ArtMethod : public Object {
       return pc == 0;
     }
     /*
-     * During a stack walk, a return PC may point to the end of the code + 1
-     * (in the case that the last instruction is a call that isn't expected to
+     * During a stack walk, a return PC may point past-the-end of the code
+     * in the case that the last instruction is a call that isn't expected to
      * return.  Thus, we check <= code + GetCodeSize().
+     *
+     * NOTE: For Thumb both pc and code are offset by 1 indicating the Thumb state.
      */
     return (code <= pc && pc <= code + GetCodeSize());
   }
