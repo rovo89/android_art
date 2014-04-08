@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-#include <unistd.h>
+#include <algorithm>
 #include <fcntl.h>
+#include <set>
+#include <unistd.h>
 
 #include "base/logging.h"
 #include "class_linker.h"
@@ -30,6 +32,7 @@
 #include "mirror/string.h"
 #include "oat.h"
 #include "os.h"
+#include "profiler.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
@@ -230,13 +233,31 @@ static void CopyProfileFile(const char* oldfile, const char* newfile) {
   close(fd2);
 }
 
+static double GetDoubleProperty(const char* property, double minValue, double maxValue, double defaultValue) {
+#ifndef HAVE_ANDROID_OS
+  return defaultValue;
+#else
+  char buf[PROP_VALUE_MAX];
+  char* endptr;
+
+  property_get(property, buf, "");
+  double value = strtod(buf, &endptr);
+
+  if (value == 0 && endptr == buf) {
+    value = defaultValue;
+  } else if (value < minValue || value > maxValue) {
+    value = defaultValue;
+  }
+  return value;
+#endif
+}
+
 static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring javaFilename,
     jstring javaPkgname, jboolean defer) {
   const bool kVerboseLogging = false;  // Spammy logging.
   const bool kDebugLogging = true;  // Logging useful for debugging.
 
   ScopedUtfChars filename(env, javaFilename);
-
   if ((filename.c_str() == nullptr) || !OS::FileExists(filename.c_str())) {
     LOG(ERROR) << "DexFile_isDexOptNeeded file '" << filename.c_str() << "' does not exist";
     ScopedLocalRef<jclass> fnfe(env, env->FindClass("java/io/FileNotFoundException"));
@@ -282,7 +303,6 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
     struct stat profstat, prevstat;
     int e1 = stat(profile_file.c_str(), &profstat);
     int e2 = stat(prev_profile_file.c_str(), &prevstat);
-
     if (e1 < 0) {
       // No profile file, need to run dex2oat
       if (kDebugLogging) {
@@ -290,48 +310,47 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
       }
       return JNI_TRUE;
     }
+
     if (e2 == 0) {
       // There is a previous profile file.  Check if the profile has changed significantly.
-      // Let's use the file size as a proxy for significance.  If the new profile is 10%
-      // different in size than the the old profile then we run dex2oat.
-      double newsize = profstat.st_size;
-      double oldsize = prevstat.st_size;
-      bool need_profile = false;
+      // A change in profile is considered significant if X% (change_thr property) of the top K%
+      // (compile_thr property) samples has changed.
 
-      double ratio = 0;     // If the old file was empty and the new one not
-      if (oldsize > 0 && newsize > 0) {
-        ratio = newsize / oldsize;
-      } else if (oldsize == 0 && newsize > 0) {
-        need_profile = true;
-      } else if (oldsize > 0 && newsize == 0) {
-        // Unlikely to happen, but cover all the bases.
-        need_profile = true;
+      double topKThreshold = GetDoubleProperty("dalvik.vm.profiler.dex2oat.compile_thr", 10.0, 90.0, 90.0);
+      double changeThreshold = GetDoubleProperty("dalvik.vm.profiler.dex2oat.change_thr", 1.0, 90.0, 10.0);
+      double changePercent = 0.0;
+      std::set<std::string> newTopK, oldTopK;
+      bool newOk = ProfileHelper::LoadTopKSamples(newTopK, profile_file, topKThreshold);
+      bool oldOk = ProfileHelper::LoadTopKSamples(oldTopK, prev_profile_file, topKThreshold);
+      if (!newOk || !oldOk) {
+        if (kDebugLogging) {
+          LOG(INFO) << "DexFile_isDexOptNeeded Ignoring invalid profiles: "
+                    << (newOk ?  "" : profile_file) << " " << (oldOk ? "" : prev_profile_file);
+        }
+      } else if (newTopK.empty()) {
+        if (kDebugLogging && kVerboseLogging) {
+          LOG(INFO) << "DexFile_isDexOptNeeded empty profile: " << profile_file;
+        }
+        // If the new topK is empty we shouldn't optimize so we leave the changePercent at 0.0.
+      } else {
+        std::set<std::string> diff;
+        std::set_difference(newTopK.begin(), newTopK.end(), oldTopK.begin(), oldTopK.end(),
+          std::inserter(diff, diff.end()));
+        // TODO: consider using the usedPercentage instead of the plain diff count.
+        changePercent = 100.0 * static_cast<double>(diff.size()) / static_cast<double>(newTopK.size());
+        if (kDebugLogging && kVerboseLogging) {
+          std::set<std::string>::iterator end = diff.end();
+          for (std::set<std::string>::iterator it = diff.begin(); it != end; it++) {
+            LOG(INFO) << "DexFile_isDexOptNeeded new in topK: " << *it;
+          }
+        }
       }
 
-      double significant_difference = 10.0;
-#ifdef HAVE_ANDROID_OS
-      // Switch off profiler if the dalvik.vm.profiler property has value 0.
-      char buf[PROP_VALUE_MAX];
-      property_get("dalvik.vm.profiler.dex2oat.threshold", buf, "10.0");
-      significant_difference = strtod(buf, nullptr);
-
-      // Something reasonable?
-      if (significant_difference < 1.0 || significant_difference > 90.0) {
-        significant_difference = 10.0;
-      }
-#endif      // The percentage difference that we consider as being significant.
-      double diff_hwm = 1.0 + significant_difference/10.0;
-      double diff_lwm = 1.0 - significant_difference/10.0;
-
-      if (ratio > diff_hwm || ratio < diff_lwm) {
-        need_profile = true;
-      }
-
-      if (need_profile) {
+      if (changePercent > changeThreshold) {
         if (kDebugLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded size of new profile file " << profile_file <<
-          " is significantly different from old profile file " << prev_profile_file << " (new: " <<
-          newsize << ", old: " << oldsize << ", ratio: " << ratio << ")";
+          " is significantly different from old profile file " << prev_profile_file << " (top "
+          << topKThreshold << "% samples changed in proportion of " << changePercent << "%)";
         }
         if (!defer) {
           CopyProfileFile(profile_file.c_str(), prev_profile_file.c_str());
