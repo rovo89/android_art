@@ -44,6 +44,7 @@
 #include "mirror/object_array-inl.h"
 #include "noop_compiler_callbacks.h"
 #include "oat.h"
+#include "oat_file-inl.h"
 #include "object_utils.h"
 #include "os.h"
 #include "runtime.h"

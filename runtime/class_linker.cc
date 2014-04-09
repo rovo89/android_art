@@ -185,7 +185,8 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       quick_resolution_trampoline_(nullptr),
       portable_imt_conflict_trampoline_(nullptr),
       quick_imt_conflict_trampoline_(nullptr),
-      quick_generic_jni_trampoline_(nullptr) {
+      quick_generic_jni_trampoline_(nullptr),
+      quick_to_interpreter_bridge_trampoline_(nullptr) {
   CHECK_EQ(arraysize(class_roots_descriptors_), size_t(kClassRootsMax));
   memset(find_array_class_cache_, 0, kFindArrayCacheSize * sizeof(mirror::Class*));
 }
@@ -1002,6 +1003,7 @@ void ClassLinker::InitFromImage() {
   portable_imt_conflict_trampoline_ = oat_file.GetOatHeader().GetPortableImtConflictTrampoline();
   quick_imt_conflict_trampoline_ = oat_file.GetOatHeader().GetQuickImtConflictTrampoline();
   quick_generic_jni_trampoline_ = oat_file.GetOatHeader().GetQuickGenericJniTrampoline();
+  quick_to_interpreter_bridge_trampoline_ = oat_file.GetOatHeader().GetQuickToInterpreterBridge();
   mirror::Object* dex_caches_object = space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
   mirror::ObjectArray<mirror::DexCache>* dex_caches =
       dex_caches_object->AsObjectArray<mirror::DexCache>();

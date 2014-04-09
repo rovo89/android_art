@@ -132,34 +132,24 @@ static inline InstructionSetFeatures ParseFeatureList(std::string str) {
 
 class CommonCompilerTest : public CommonRuntimeTest {
  public:
-  static void MakeExecutable(const std::vector<uint8_t>& code) {
-    CHECK_NE(code.size(), 0U);
-    MakeExecutable(&code[0], code.size());
-  }
-
   // Create an OatMethod based on pointers (for unit tests).
   OatFile::OatMethod CreateOatMethod(const void* code,
                                      const size_t frame_size_in_bytes,
                                      const uint32_t core_spill_mask,
                                      const uint32_t fp_spill_mask,
-                                     const uint8_t* mapping_table,
-                                     const uint8_t* vmap_table,
                                      const uint8_t* gc_map) {
+    CHECK(code != nullptr);
     const byte* base;
-    uint32_t code_offset, mapping_table_offset, vmap_table_offset, gc_map_offset;
-    if (mapping_table == nullptr && vmap_table == nullptr && gc_map == nullptr) {
+    uint32_t code_offset, gc_map_offset;
+    if (gc_map == nullptr) {
       base = reinterpret_cast<const byte*>(code);  // Base of data points at code.
       base -= kPointerSize;  // Move backward so that code_offset != 0.
       code_offset = kPointerSize;
-      mapping_table_offset = 0;
-      vmap_table_offset = 0;
       gc_map_offset = 0;
     } else {
       // TODO: 64bit support.
       base = nullptr;  // Base of data in oat file, ie 0.
       code_offset = PointerToLowMemUInt32(code);
-      mapping_table_offset = PointerToLowMemUInt32(mapping_table);
-      vmap_table_offset = PointerToLowMemUInt32(vmap_table);
       gc_map_offset = PointerToLowMemUInt32(gc_map);
     }
     return OatFile::OatMethod(base,
@@ -167,8 +157,6 @@ class CommonCompilerTest : public CommonRuntimeTest {
                               frame_size_in_bytes,
                               core_spill_mask,
                               fp_spill_mask,
-                              mapping_table_offset,
-                              vmap_table_offset,
                               gc_map_offset);
   }
 
@@ -185,19 +173,44 @@ class CommonCompilerTest : public CommonRuntimeTest {
     }
     if (compiled_method != nullptr) {
       const std::vector<uint8_t>* code = compiled_method->GetQuickCode();
-      if (code == nullptr) {
+      const void* code_ptr;
+      if (code != nullptr) {
+        uint32_t code_size = code->size();
+        CHECK_NE(0u, code_size);
+        const std::vector<uint8_t>& vmap_table = compiled_method->GetVmapTable();
+        uint32_t vmap_table_offset = vmap_table.empty() ? 0u
+            : sizeof(OatMethodHeader) + vmap_table.size();
+        const std::vector<uint8_t>& mapping_table = compiled_method->GetMappingTable();
+        uint32_t mapping_table_offset = mapping_table.empty() ? 0u
+            : sizeof(OatMethodHeader) + vmap_table.size() + mapping_table.size();
+        OatMethodHeader method_header(vmap_table_offset, mapping_table_offset, code_size);
+
+        header_code_and_maps_chunks_.push_back(std::vector<uint8_t>());
+        std::vector<uint8_t>* chunk = &header_code_and_maps_chunks_.back();
+        size_t size = sizeof(method_header) + code_size + vmap_table.size() + mapping_table.size();
+        size_t code_offset = compiled_method->AlignCode(size - code_size);
+        size_t padding = code_offset - (size - code_size);
+        chunk->reserve(padding + size);
+        chunk->resize(sizeof(method_header));
+        memcpy(&(*chunk)[0], &method_header, sizeof(method_header));
+        chunk->insert(chunk->begin(), vmap_table.begin(), vmap_table.end());
+        chunk->insert(chunk->begin(), mapping_table.begin(), mapping_table.end());
+        chunk->insert(chunk->begin(), padding, 0);
+        chunk->insert(chunk->end(), code->begin(), code->end());
+        CHECK_EQ(padding + size, chunk->size());
+        code_ptr = &(*chunk)[code_offset];
+      } else {
         code = compiled_method->GetPortableCode();
+        code_ptr = &(*code)[0];
       }
-      MakeExecutable(*code);
-      const void* method_code = CompiledMethod::CodePointer(&(*code)[0],
+      MakeExecutable(code_ptr, code->size());
+      const void* method_code = CompiledMethod::CodePointer(code_ptr,
                                                             compiled_method->GetInstructionSet());
       LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
       OatFile::OatMethod oat_method = CreateOatMethod(method_code,
                                                       compiled_method->GetFrameSizeInBytes(),
                                                       compiled_method->GetCoreSpillMask(),
                                                       compiled_method->GetFpSpillMask(),
-                                                      &compiled_method->GetMappingTable()[0],
-                                                      &compiled_method->GetVmapTable()[0],
                                                       nullptr);
       oat_method.LinkMethod(method);
       method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
@@ -211,8 +224,6 @@ class CommonCompilerTest : public CommonRuntimeTest {
                                                         kStackAlignment,
                                                         0,
                                                         0,
-                                                        nullptr,
-                                                        nullptr,
                                                         nullptr);
         oat_method.LinkMethod(method);
         method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
@@ -230,8 +241,6 @@ class CommonCompilerTest : public CommonRuntimeTest {
                                                             sirt_size,
                                                         callee_save_method->GetCoreSpillMask(),
                                                         callee_save_method->GetFpSpillMask(),
-                                                        nullptr,
-                                                        nullptr,
                                                         nullptr);
         oat_method.LinkMethod(method);
         method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
@@ -436,6 +445,9 @@ class CommonCompilerTest : public CommonRuntimeTest {
 
  private:
   UniquePtr<MemMap> image_reservation_;
+
+  // Chunks must not move their storage after being created - use the node-based std::list.
+  std::list<std::vector<uint8_t> > header_code_and_maps_chunks_;
 };
 
 }  // namespace art

@@ -680,14 +680,6 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
         copy->SetNativeMethod<kVerifyNone>(GetOatAddress(jni_dlsym_lookup_offset_));
       } else {
         // Normal (non-abstract non-native) methods have various tables to relocate.
-        uint32_t mapping_table_off = orig->GetOatMappingTableOffset();
-        const byte* mapping_table = GetOatAddress(mapping_table_off);
-        copy->SetMappingTable<kVerifyNone>(mapping_table);
-
-        uint32_t vmap_table_offset = orig->GetOatVmapTableOffset();
-        const byte* vmap_table = GetOatAddress(vmap_table_offset);
-        copy->SetVmapTable<kVerifyNone>(vmap_table);
-
         uint32_t native_gc_map_offset = orig->GetOatNativeGcMapOffset();
         const byte* native_gc_map = GetOatAddress(native_gc_map_offset);
         copy->SetNativeGcMap<kVerifyNone>(reinterpret_cast<const uint8_t*>(native_gc_map));

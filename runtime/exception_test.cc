@@ -49,10 +49,6 @@ class ExceptionTest : public CommonRuntimeTest {
     dex_ = my_klass_->GetDexCache()->GetDexFile();
 
     uint32_t code_size = 12;
-    fake_code_.push_back((code_size >> 24) & 0xFF);
-    fake_code_.push_back((code_size >> 16) & 0xFF);
-    fake_code_.push_back((code_size >>  8) & 0xFF);
-    fake_code_.push_back((code_size >>  0) & 0xFF);
     for (size_t i = 0 ; i < code_size; i++) {
       fake_code_.push_back(0x70 | i);
     }
@@ -74,20 +70,35 @@ class ExceptionTest : public CommonRuntimeTest {
     fake_gc_map_.push_back(0);  // 0 entries.
     fake_gc_map_.push_back(0);
 
+    const std::vector<uint8_t>& fake_vmap_table_data = fake_vmap_table_data_.GetData();
+    const std::vector<uint8_t>& fake_mapping_data = fake_mapping_data_.GetData();
+    uint32_t vmap_table_offset = sizeof(OatMethodHeader) + fake_vmap_table_data.size();
+    uint32_t mapping_table_offset = vmap_table_offset + fake_mapping_data.size();
+    OatMethodHeader method_header(vmap_table_offset, mapping_table_offset, code_size);
+    fake_header_code_and_maps_.resize(sizeof(method_header));
+    memcpy(&fake_header_code_and_maps_[0], &method_header, sizeof(method_header));
+    fake_header_code_and_maps_.insert(fake_header_code_and_maps_.begin(),
+                                      fake_vmap_table_data.begin(), fake_vmap_table_data.end());
+    fake_header_code_and_maps_.insert(fake_header_code_and_maps_.begin(),
+                                      fake_mapping_data.begin(), fake_mapping_data.end());
+    fake_header_code_and_maps_.insert(fake_header_code_and_maps_.end(),
+                                      fake_code_.begin(), fake_code_.end());
+
+    // NOTE: Don't align the code (it will not be executed) but check that the Thumb2
+    // adjustment will be a NOP, see ArtMethod::EntryPointToCodePointer().
+    CHECK_EQ(mapping_table_offset & 1u, 0u);
+    const uint8_t* code_ptr = &fake_header_code_and_maps_[mapping_table_offset];
+
     method_f_ = my_klass_->FindVirtualMethod("f", "()I");
     ASSERT_TRUE(method_f_ != NULL);
     method_f_->SetFrameSizeInBytes(4 * kPointerSize);
-    method_f_->SetEntryPointFromQuickCompiledCode(&fake_code_[sizeof(code_size)]);
-    method_f_->SetMappingTable(&fake_mapping_data_.GetData()[0]);
-    method_f_->SetVmapTable(&fake_vmap_table_data_.GetData()[0]);
+    method_f_->SetEntryPointFromQuickCompiledCode(code_ptr);
     method_f_->SetNativeGcMap(&fake_gc_map_[0]);
 
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
     ASSERT_TRUE(method_g_ != NULL);
     method_g_->SetFrameSizeInBytes(4 * kPointerSize);
-    method_g_->SetEntryPointFromQuickCompiledCode(&fake_code_[sizeof(code_size)]);
-    method_g_->SetMappingTable(&fake_mapping_data_.GetData()[0]);
-    method_g_->SetVmapTable(&fake_vmap_table_data_.GetData()[0]);
+    method_g_->SetEntryPointFromQuickCompiledCode(code_ptr);
     method_g_->SetNativeGcMap(&fake_gc_map_[0]);
   }
 
@@ -97,6 +108,7 @@ class ExceptionTest : public CommonRuntimeTest {
   Leb128EncodingVector fake_mapping_data_;
   Leb128EncodingVector fake_vmap_table_data_;
   std::vector<uint8_t> fake_gc_map_;
+  std::vector<uint8_t> fake_header_code_and_maps_;
 
   mirror::ArtMethod* method_f_;
   mirror::ArtMethod* method_g_;
