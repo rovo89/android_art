@@ -3128,15 +3128,14 @@ mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst
     this_class = actual_arg_type.GetClass();
   } else {
     const std::string& descriptor(actual_arg_type.GetDescriptor());
-    Thread* self = Thread::Current();
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    this_class = class_linker->FindClass(self, descriptor.c_str(), *class_loader_);
+    // TODO: Precise or not?
+    this_class = reg_types_.FromDescriptor(class_loader_->get(), descriptor.c_str(),
+                                           false).GetClass();
     if (this_class == NULL) {
       Thread* self = Thread::Current();
       self->ClearException();
       // Look for a system class
-      SirtRef<mirror::ClassLoader> null_class_loader(self, nullptr);
-      this_class = class_linker->FindClass(self, descriptor.c_str(), null_class_loader);
+      this_class = reg_types_.FromDescriptor(nullptr, descriptor.c_str(), false).GetClass();
     }
   }
   if (this_class == NULL) {
@@ -3654,14 +3653,14 @@ mirror::ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
   } else {
     // We need to resolve the class from its descriptor.
     const std::string& descriptor(object_type.GetDescriptor());
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     Thread* self = Thread::Current();
-    object_class = class_linker->FindClass(self, descriptor.c_str(), *class_loader_);
+    object_class = reg_types_.FromDescriptor(class_loader_->get(), descriptor.c_str(),
+                                             false).GetClass();
     if (object_class == NULL) {
       self->ClearException();
       // Look for a system class
-      SirtRef<mirror::ClassLoader> null_class_loader(self, nullptr);
-      object_class = class_linker->FindClass(self, descriptor.c_str(), null_class_loader);
+      object_class = reg_types_.FromDescriptor(nullptr, descriptor.c_str(),
+                                               false).GetClass();
     }
   }
   if (object_class == NULL) {
