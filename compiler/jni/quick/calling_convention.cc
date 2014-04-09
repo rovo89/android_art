@@ -90,6 +90,14 @@ bool ManagedRuntimeCallingConvention::IsCurrentParamAFloatOrDouble() {
   return IsParamAFloatOrDouble(itr_args_);
 }
 
+bool ManagedRuntimeCallingConvention::IsCurrentParamADouble() {
+  return IsParamADouble(itr_args_);
+}
+
+bool ManagedRuntimeCallingConvention::IsCurrentParamALong() {
+  return IsParamALong(itr_args_);
+}
+
 // JNI calling convention
 
 JniCallingConvention* JniCallingConvention::Create(bool is_static, bool is_synchronized,
@@ -168,6 +176,10 @@ bool JniCallingConvention::IsCurrentParamAReference() {
   }
 }
 
+bool JniCallingConvention::IsCurrentParamJniEnv() {
+  return (itr_args_ == kJniEnv);
+}
+
 bool JniCallingConvention::IsCurrentParamAFloatOrDouble() {
   switch (itr_args_) {
     case kJniEnv:
@@ -177,6 +189,32 @@ bool JniCallingConvention::IsCurrentParamAFloatOrDouble() {
     default: {
       int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
       return IsParamAFloatOrDouble(arg_pos);
+    }
+  }
+}
+
+bool JniCallingConvention::IsCurrentParamADouble() {
+  switch (itr_args_) {
+    case kJniEnv:
+      return false;  // JNIEnv*
+    case kObjectOrClass:
+      return false;   // jobject or jclass
+    default: {
+      int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
+      return IsParamADouble(arg_pos);
+    }
+  }
+}
+
+bool JniCallingConvention::IsCurrentParamALong() {
+  switch (itr_args_) {
+    case kJniEnv:
+      return false;  // JNIEnv*
+    case kObjectOrClass:
+      return false;   // jobject or jclass
+    default: {
+      int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
+      return IsParamALong(arg_pos);
     }
   }
 }
