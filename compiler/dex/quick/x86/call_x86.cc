@@ -278,4 +278,18 @@ void X86Mir2Lir::GenSpecialExitSequence() {
   NewLIR0(kX86Ret);
 }
 
+RegStorage X86Mir2Lir::CallHelperSetup(ThreadOffset<4> helper_offset) {
+  return RegStorage::InvalidReg();
+}
+
+LIR* X86Mir2Lir::CallHelper(RegStorage r_tgt, ThreadOffset<4> helper_offset, bool safepoint_pc,
+    bool use_link) {
+  LIR* call_inst = OpThreadMem(use_link ? kOpBlx : kOpBx, helper_offset);
+  if (safepoint_pc) {
+    MarkSafepointPC(call_inst);
+  }
+  return call_inst;
+}
+
+
 }  // namespace art
