@@ -65,6 +65,8 @@ namespace collector {
 static constexpr bool kProtectFromSpace = true;
 static constexpr bool kClearFromSpace = true;
 static constexpr bool kStoreStackTraces = false;
+static constexpr bool kUseBytesPromoted = true;
+static constexpr size_t kBytesPromotedThreshold = 4 * MB;
 
 void SemiSpace::BindBitmaps() {
   timings_.StartSplit("BindBitmaps");
@@ -102,8 +104,10 @@ SemiSpace::SemiSpace(Heap* heap, bool generational, const std::string& name_pref
       generational_(generational),
       last_gc_to_space_end_(nullptr),
       bytes_promoted_(0),
+      bytes_promoted_since_last_whole_heap_collection_(0),
       whole_heap_collection_(true),
-      whole_heap_collection_interval_counter_(0) {
+      whole_heap_collection_interval_counter_(0),
+      collector_name_(name_) {
 }
 
 void SemiSpace::InitializePhase() {
@@ -150,14 +154,31 @@ void SemiSpace::MarkingPhase() {
       // collection, collect the whole heap (and reset the interval
       // counter to be consistent.)
       whole_heap_collection_ = true;
-      whole_heap_collection_interval_counter_ = 0;
+      if (!kUseBytesPromoted) {
+        whole_heap_collection_interval_counter_ = 0;
+      }
     }
     if (whole_heap_collection_) {
       VLOG(heap) << "Whole heap collection";
+      name_ = collector_name_ + " whole";
     } else {
       VLOG(heap) << "Bump pointer space only collection";
+      name_ = collector_name_ + " bps";
     }
   }
+
+  if (!clear_soft_references_) {
+    if (!generational_) {
+      // If non-generational, always clear soft references.
+      clear_soft_references_ = true;
+    } else {
+      // If generational, clear soft references if a whole heap collection.
+      if (whole_heap_collection_) {
+        clear_soft_references_ = true;
+      }
+    }
+  }
+
   Locks::mutator_lock_->AssertExclusiveHeld(self_);
 
   TimingLogger::ScopedSplit split("MarkingPhase", &timings_);
@@ -762,18 +783,34 @@ void SemiSpace::FinishPhase() {
   if (generational_) {
     // Decide whether to do a whole heap collection or a bump pointer
     // only space collection at the next collection by updating
-    // whole_heap_collection. Enable whole_heap_collection once every
-    // kDefaultWholeHeapCollectionInterval collections.
+    // whole_heap_collection.
     if (!whole_heap_collection_) {
-      --whole_heap_collection_interval_counter_;
-      DCHECK_GE(whole_heap_collection_interval_counter_, 0);
-      if (whole_heap_collection_interval_counter_ == 0) {
-        whole_heap_collection_ = true;
+      if (!kUseBytesPromoted) {
+        // Enable whole_heap_collection once every
+        // kDefaultWholeHeapCollectionInterval collections.
+        --whole_heap_collection_interval_counter_;
+        DCHECK_GE(whole_heap_collection_interval_counter_, 0);
+        if (whole_heap_collection_interval_counter_ == 0) {
+          whole_heap_collection_ = true;
+        }
+      } else {
+        // Enable whole_heap_collection if the bytes promoted since
+        // the last whole heap collection exceeds a threshold.
+        bytes_promoted_since_last_whole_heap_collection_ += bytes_promoted_;
+        if (bytes_promoted_since_last_whole_heap_collection_ >= kBytesPromotedThreshold) {
+          whole_heap_collection_ = true;
+        }
       }
     } else {
-      DCHECK_EQ(whole_heap_collection_interval_counter_, 0);
-      whole_heap_collection_interval_counter_ = kDefaultWholeHeapCollectionInterval;
-      whole_heap_collection_ = false;
+      if (!kUseBytesPromoted) {
+        DCHECK_EQ(whole_heap_collection_interval_counter_, 0);
+        whole_heap_collection_interval_counter_ = kDefaultWholeHeapCollectionInterval;
+        whole_heap_collection_ = false;
+      } else {
+        // Reset it.
+        bytes_promoted_since_last_whole_heap_collection_ = bytes_promoted_;
+        whole_heap_collection_ = false;
+      }
     }
   }
   // Clear all of the spaces' mark bitmaps.

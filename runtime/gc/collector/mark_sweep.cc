@@ -129,7 +129,10 @@ void MarkSweep::InitializePhase() {
     ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
     mark_bitmap_ = heap_->GetMarkBitmap();
   }
-
+  if (!clear_soft_references_) {
+    // Always clear soft references if a non-sticky collection.
+    clear_soft_references_ = GetGcType() != collector::kGcTypeSticky;
+  }
   // Do any pre GC verification.
   timings_.NewSplit("PreGcVerification");
   heap_->PreGcVerification(this);
