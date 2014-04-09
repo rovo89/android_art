@@ -19,6 +19,7 @@
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex_file-inl.h"
+#include "driver/compiler_options.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "invoke_type.h"
 #include "mirror/array.h"
@@ -62,25 +63,19 @@ void Mir2Lir::AddIntrinsicLaunchpad(CallInfo* info, LIR* branch, LIR* resume) {
 
 /*
  * To save scheduling time, helper calls are broken into two parts: generation of
- * the helper target address, and the actual call to the helper.  Because x86
- * has a memory call operation, part 1 is a NOP for x86.  For other targets,
- * load arguments between the two parts.
+ * the helper target address, and the actual call to the helper.
+ * These functions can be overridden by architecture specific codegen.
  */
 RegStorage Mir2Lir::CallHelperSetup(ThreadOffset<4> helper_offset) {
-  return (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) ? RegStorage::InvalidReg() : LoadHelper(helper_offset);
+  return LoadHelper(helper_offset);
 }
 
 /* NOTE: if r_tgt is a temp, it will be freed following use */
 LIR* Mir2Lir::CallHelper(RegStorage r_tgt, ThreadOffset<4> helper_offset, bool safepoint_pc,
                          bool use_link) {
-  LIR* call_inst;
   OpKind op = use_link ? kOpBlx : kOpBx;
-  if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
-    call_inst = OpThreadMem(op, helper_offset);
-  } else {
-    call_inst = OpReg(op, r_tgt);
-    FreeTemp(r_tgt);
-  }
+  LIR* call_inst = OpReg(op, r_tgt);
+  FreeTemp(r_tgt);
   if (safepoint_pc) {
     MarkSafepointPC(call_inst);
   }
