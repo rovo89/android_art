@@ -50,9 +50,6 @@ static constexpr size_t kWordHighBitMask = static_cast<size_t>(1) << (kBitsPerWo
 // Required stack alignment
 static constexpr size_t kStackAlignment = 16;
 
-// Required object alignment
-static constexpr size_t kObjectAlignment = 8;
-
 // ARM instruction alignment. ARM processors require code to be 4-byte aligned,
 // but ARM ELF requires 8..
 static constexpr size_t kArmAlignment = 8;
@@ -71,6 +68,10 @@ static constexpr size_t kX86Alignment = 16;
 // System page size. We check this against sysconf(_SC_PAGE_SIZE) at runtime, but use a simple
 // compile-time constant so the compiler can generate better code.
 static constexpr int kPageSize = 4096;
+
+// Required object alignment
+static constexpr size_t kObjectAlignment = 8;
+static constexpr size_t kLargeObjectAlignment = kPageSize;
 
 // Whether or not this is a debug build. Useful in conditionals where NDEBUG isn't.
 #if defined(NDEBUG)

@@ -174,8 +174,8 @@ void GarbageCollector::SwapBitmaps() {
     if (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect ||
         (gc_type == kGcTypeFull &&
          space->GetGcRetentionPolicy() == space::kGcRetentionPolicyFullCollect)) {
-      accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
-      accounting::SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
+      accounting::ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
+      accounting::ContinuousSpaceBitmap* mark_bitmap = space->GetMarkBitmap();
       if (live_bitmap != nullptr && live_bitmap != mark_bitmap) {
         heap_->GetLiveBitmap()->ReplaceBitmap(live_bitmap, mark_bitmap);
         heap_->GetMarkBitmap()->ReplaceBitmap(mark_bitmap, live_bitmap);

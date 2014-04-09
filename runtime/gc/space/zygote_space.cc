@@ -40,8 +40,8 @@ class CountObjectsAllocated {
 };
 
 ZygoteSpace* ZygoteSpace::Create(const std::string& name, MemMap* mem_map,
-                                 accounting::SpaceBitmap* live_bitmap,
-                                 accounting::SpaceBitmap* mark_bitmap) {
+                                 accounting::ContinuousSpaceBitmap* live_bitmap,
+                                 accounting::ContinuousSpaceBitmap* mark_bitmap) {
   DCHECK(live_bitmap != nullptr);
   DCHECK(mark_bitmap != nullptr);
   size_t objects_allocated = 0;
@@ -105,7 +105,7 @@ void ZygoteSpace::SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* ar
   // If the bitmaps aren't swapped we need to clear the bits since the GC isn't going to re-swap
   // the bitmaps as an optimization.
   if (!context->swap_bitmaps) {
-    accounting::SpaceBitmap* bitmap = zygote_space->GetLiveBitmap();
+    accounting::ContinuousSpaceBitmap* bitmap = zygote_space->GetLiveBitmap();
     for (size_t i = 0; i < num_ptrs; ++i) {
       bitmap->Clear(ptrs[i]);
     }

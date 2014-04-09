@@ -44,7 +44,6 @@ class Heap;
 
 namespace accounting {
 
-class SpaceBitmap;
 class HeapBitmap;
 
 // The mod-union table is the union of modified cards. It is used to allow the card table to be

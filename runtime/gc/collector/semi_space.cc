@@ -333,7 +333,7 @@ void SemiSpace::MarkReachableObjects() {
           // remain in the space, that is, the remembered set (and the
           // card table) didn't miss any from-space references in the
           // space.
-          accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
+          accounting::ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
           SemiSpaceVerifyNoFromSpaceReferencesObjectVisitor visitor(this);
           live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
                                         reinterpret_cast<uintptr_t>(space->End()),
@@ -341,7 +341,7 @@ void SemiSpace::MarkReachableObjects() {
         }
       } else {
         DCHECK(rem_set == nullptr);
-        accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
+        accounting::ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
         SemiSpaceScanObjectVisitor visitor(this);
         live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
                                       reinterpret_cast<uintptr_t>(space->End()),
@@ -535,9 +535,9 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
       // space.
       GetHeap()->WriteBarrierEveryFieldOf(forward_address);
       // Handle the bitmaps marking.
-      accounting::SpaceBitmap* live_bitmap = promo_dest_space->GetLiveBitmap();
+      accounting::ContinuousSpaceBitmap* live_bitmap = promo_dest_space->GetLiveBitmap();
       DCHECK(live_bitmap != nullptr);
-      accounting::SpaceBitmap* mark_bitmap = promo_dest_space->GetMarkBitmap();
+      accounting::ContinuousSpaceBitmap* mark_bitmap = promo_dest_space->GetMarkBitmap();
       DCHECK(mark_bitmap != nullptr);
       DCHECK(!live_bitmap->Test(forward_address));
       if (!whole_heap_collection_) {
@@ -710,8 +710,8 @@ void SemiSpace::ScanObject(Object* obj) {
 
 // Scan anything that's on the mark stack.
 void SemiSpace::ProcessMarkStack() {
-  space::MallocSpace* promo_dest_space = NULL;
-  accounting::SpaceBitmap* live_bitmap = NULL;
+  space::MallocSpace* promo_dest_space = nullptr;
+  accounting::ContinuousSpaceBitmap* live_bitmap = nullptr;
   if (generational_ && !whole_heap_collection_) {
     // If a bump pointer space only collection (and the promotion is
     // enabled,) we delay the live-bitmap marking of promoted objects
@@ -719,7 +719,7 @@ void SemiSpace::ProcessMarkStack() {
     promo_dest_space = GetHeap()->GetPrimaryFreeListSpace();
     live_bitmap = promo_dest_space->GetLiveBitmap();
     DCHECK(live_bitmap != nullptr);
-    accounting::SpaceBitmap* mark_bitmap = promo_dest_space->GetMarkBitmap();
+    accounting::ContinuousSpaceBitmap* mark_bitmap = promo_dest_space->GetMarkBitmap();
     DCHECK(mark_bitmap != nullptr);
     DCHECK_EQ(live_bitmap, mark_bitmap);
   }

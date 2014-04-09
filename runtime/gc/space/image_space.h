@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_GC_SPACE_IMAGE_SPACE_H_
 #define ART_RUNTIME_GC_SPACE_IMAGE_SPACE_H_
 
+#include "gc/accounting/space_bitmap.h"
 #include "space.h"
 
 namespace art {
@@ -59,11 +60,11 @@ class ImageSpace : public MemMapSpace {
     return GetName();
   }
 
-  accounting::SpaceBitmap* GetLiveBitmap() const {
+  accounting::ContinuousSpaceBitmap* GetLiveBitmap() const OVERRIDE {
     return live_bitmap_.get();
   }
 
-  accounting::SpaceBitmap* GetMarkBitmap() const {
+  accounting::ContinuousSpaceBitmap* GetMarkBitmap() const OVERRIDE {
     // ImageSpaces have the same bitmap for both live and marked. This helps reduce the number of
     // special cases to test against.
     return live_bitmap_.get();
@@ -100,9 +101,10 @@ class ImageSpace : public MemMapSpace {
 
   static Atomic<uint32_t> bitmap_index_;
 
-  UniquePtr<accounting::SpaceBitmap> live_bitmap_;
+  UniquePtr<accounting::ContinuousSpaceBitmap> live_bitmap_;
 
-  ImageSpace(const std::string& name, MemMap* mem_map, accounting::SpaceBitmap* live_bitmap);
+  ImageSpace(const std::string& name, MemMap* mem_map,
+             accounting::ContinuousSpaceBitmap* live_bitmap);
 
   // The OatFile associated with the image during early startup to
   // reserve space contiguous to the image. It is later released to

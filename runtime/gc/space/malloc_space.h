@@ -149,7 +149,7 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
-  virtual accounting::SpaceBitmap::SweepCallback* GetSweepCallback() {
+  virtual accounting::ContinuousSpaceBitmap::SweepCallback* GetSweepCallback() {
     return &SweepCallback;
   }
 

@@ -173,7 +173,7 @@ class ImageWriter {
   const byte* oat_data_begin_;
 
   // Image bitmap which lets us know where the objects inside of the image reside.
-  UniquePtr<gc::accounting::SpaceBitmap> image_bitmap_;
+  UniquePtr<gc::accounting::ContinuousSpaceBitmap> image_bitmap_;
 
   // Offset from oat_data_begin_ to the stubs.
   uint32_t interpreter_to_interpreter_bridge_offset_;
