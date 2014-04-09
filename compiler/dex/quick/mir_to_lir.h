@@ -328,6 +328,18 @@ class Mir2Lir : public Backend {
       LIR* const cont_;
     };
 
+    // This holds the data for a call to a trampoline.  An instruction is making a call
+    // to something through a trampoline and this holds the offset into the code containing
+    // the instruction, and which trampoline offset to call.
+    struct TrampolineCall {
+      TrampolineCall(uint32_t code_offset, uint32_t trampoline_offset) : code_offset_(code_offset),
+         trampoline_offset_(trampoline_offset) {
+      }
+
+      uint32_t code_offset_;          // Offset of instruction in method code stream (bytes).
+      uint32_t trampoline_offset_;    // Which trampoline to call.
+    };
+
     virtual ~Mir2Lir() {}
 
     int32_t s4FromSwitchData(const void* switch_data) {
@@ -615,11 +627,11 @@ class Mir2Lir : public Backend {
     virtual void GenConstWide(RegLocation rl_dest, int64_t value);
     virtual void GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
                        RegLocation rl_src1, RegLocation rl_src2);
+    virtual LIR* CallHelper(RegStorage r_tgt, ThreadOffset<4> helper_offset, bool safepoint_pc,
+                    bool use_link = true);
+    virtual RegStorage CallHelperSetup(ThreadOffset<4> helper_offset);
 
     // Shared by all targets - implemented in gen_invoke.cc.
-    LIR* CallHelper(RegStorage r_tgt, ThreadOffset<4> helper_offset, bool safepoint_pc,
-                    bool use_link = true);
-    RegStorage CallHelperSetup(ThreadOffset<4> helper_offset);
     void CallRuntimeHelper(ThreadOffset<4> helper_offset, bool safepoint_pc);
     void CallRuntimeHelperImm(ThreadOffset<4> helper_offset, int arg0, bool safepoint_pc);
     void CallRuntimeHelperReg(ThreadOffset<4> helper_offset, RegStorage arg0, bool safepoint_pc);
@@ -1280,6 +1292,7 @@ class Mir2Lir : public Backend {
     LIR* last_lir_insn_;
 
     GrowableArray<LIRSlowPath*> slow_paths_;
+    std::vector<TrampolineCall> trampoline_calls_;
 };  // Class Mir2Lir
 
 }  // namespace art
