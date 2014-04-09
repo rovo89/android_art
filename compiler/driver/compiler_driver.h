@@ -601,118 +601,6 @@ class CompilerDriver {
   // Should the compiler run on this method given profile information?
   bool SkipCompilation(const std::string& method_name);
 
-  // Entrypoint trampolines.
-  //
-  // The idea here is that we can save code size by collecting the branches
-  // to the entrypoints (helper functions called by the generated code) into a
-  // table and then branching relative to that table from the code.  On ARM 32 this
-  // will save 2 bytes per call.  Only the entrypoints used by the program (the whole
-  // program - these are global) are in this table and are in no particular order.
-  //
-  // The trampolines will be placed right at the start of the .text section in the file
-  // and will consist of a table of instructions, each of which will branch relative to
-  // the thread register (r9 on ARM) to an entrypoint.  On ARM this would look like:
-  //
-  // trampolines:
-  // 1: ldr pc, [r9, #40]
-  // 2: ldr pc, [r9, #8]
-  //    ...
-  //
-  // Then a call to an entrypoint would be an immediate BL instruction to the appropriate
-  // label (1 or 2 in the above example).  Because the entrypoint table has the lower bit
-  // of the address already set, the ldr pc will switch from ARM to Thumb for the entrypoint as
-  // necessary.
-  //
-  // On ARM, the range of a BL instruction is +-32M to this is more than enough for an
-  // immediate BL instruction in the generated code.
-  //
-  // The actual address of the trampoline for a particular entrypoint is not known until
-  // the OAT file is written and we know the addresses of all the branch instructions in
-  // the program.  At this point we can rewrite the BL instruction to have the correct relative
-  // offset.
-  class EntrypointTrampolines {
-   public:
-    EntrypointTrampolines() : current_offset_(0), lock_("Entrypoint Trampolines") {}
-    ~EntrypointTrampolines() {}
-
-    // Add a trampoline and return the offset added.  If it already exists
-    // return the offset it was added at previously.
-    uint32_t AddEntrypoint(Thread* self, uint32_t ep) LOCKS_EXCLUDED(lock_) {
-      MutexLock mu(self, lock_);
-      Trampolines::iterator tramp = trampolines_.find(ep);
-      if (tramp == trampolines_.end()) {
-        trampolines_[ep] = current_offset_;
-        trampoline_table_.push_back(ep);
-        LOG(DEBUG) << "adding new trampoline for " << ep << " at offset " << current_offset_;
-        return current_offset_++;
-      } else {
-        return tramp->second;
-      }
-    }
-
-    const std::vector<uint32_t>& GetTrampolineTable() const {
-      return trampoline_table_;
-    }
-
-    uint32_t GetTrampolineTableSize() const {
-      return current_offset_;
-    }
-
-   private:
-    uint32_t current_offset_;
-    // Mapping of entrypoint offset vs offset into trampoline table.
-    typedef std::map<uint32_t, uint32_t> Trampolines;
-    Trampolines trampolines_ GUARDED_BY(lock_);
-
-    // Table of all registered offsets in order of registration.
-    std::vector<uint32_t> trampoline_table_;
-    Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  };
-
-  uint32_t AddEntrypointTrampoline(uint32_t entrypoint);
-
-  const std::vector<uint32_t>& GetEntrypointTrampolineTable() const {
-    return entrypoint_trampolines_.GetTrampolineTable();
-  }
-
-  uint32_t GetEntrypointTrampolineTableSize() const {
-    uint32_t size = entrypoint_trampolines_.GetTrampolineTableSize();
-    switch (instruction_set_) {
-      case kThumb2:
-      case kArm:
-         return size * 4;
-      default:
-       return size;
-    }
-  }
-
-  // Get the maximum offset between entrypoint trampoline islands.  Different architectures
-  // have limitations on the max offset for a call instruction.  This function is used
-  // to determine when we need to generate a new trampoline island in the output to keep
-  // subsequent calls in range.
-  size_t GetMaxEntrypointTrampolineOffset() const {
-    switch (instruction_set_) {
-      case kThumb2:
-      case kArm:
-        // On Thumb2, the max range of a BL instruction is 16MB.  Give it a little wiggle room.
-         return 15*MB;
-      default:
-        // Returning 0 means we won't generate a trampoline island.
-       return 0;
-    }
-  }
-
-  void BuildEntrypointTrampolineCode();
-
-  // Architecture specific Entrypoint trampoline builder.
-  void BuildArmEntrypointTrampolineCall(ThreadOffset<4> offset);
-
-  const std::vector<uint8_t>& GetEntrypointTrampolineTableCode() const {
-    return entrypoint_trampoline_code_;
-  }
-
-  FinalEntrypointRelocationSet* AllocateFinalEntrypointRelocationSet(CompilationUnit* cu) const;
-
  private:
   // These flags are internal to CompilerDriver for collecting INVOKE resolution statistics.
   // The only external contract is that unresolved method has flags 0 and resolved non-0.
@@ -750,7 +638,6 @@ class CompilerDriver {
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   void LoadImageClasses(TimingLogger* timings);
-  void PostCompile() LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Attempt to resolve all type, methods, fields, and strings
   // referenced from code in the dex file following PathClassLoader
@@ -910,10 +797,6 @@ class CompilerDriver {
   DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_vmap_table_;
   DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_gc_map_;
   DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_cfi_info_;
-
-  EntrypointTrampolines entrypoint_trampolines_;
-
-  std::vector<uint8_t> entrypoint_trampoline_code_;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };
