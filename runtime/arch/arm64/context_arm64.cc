@@ -116,7 +116,8 @@ void Arm64Context::DoLongJump() {
   uint64_t gprs[32];
   uint64_t fprs[32];
 
-  for (size_t i = 0; i < kNumberOfCoreRegisters; ++i) {
+  // Do not use kNumberOfCoreRegisters, as this is with the distinction of SP and XZR
+  for (size_t i = 0; i < 32; ++i) {
     gprs[i] = gprs_[i] != NULL ? *gprs_[i] : Arm64Context::kBadGprBase + i;
   }
   for (size_t i = 0; i < kNumberOfDRegisters; ++i) {
