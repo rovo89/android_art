@@ -154,11 +154,8 @@ bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
     sc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_implicit_suspend);
 
     // Now remove the suspend trigger that caused this fault.
-    Thread* thread = reinterpret_cast<Thread*>(sc->arm_r9);
-    DCHECK_EQ(thread, Thread::Current());
-
-    LOG(DEBUG) << "removed suspend trigger invoking test suspend on thread " << thread;
-    thread->RemoveSuspendTrigger();
+    Thread::Current()->RemoveSuspendTrigger();
+    LOG(DEBUG) << "removed suspend trigger invoking test suspend";
     return true;
   }
   return false;
