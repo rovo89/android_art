@@ -16,23 +16,20 @@
 
 #include "compiled_method.h"
 #include "driver/compiler_driver.h"
-#include "oat_writer.h"
-#include "dex/compiler_ir.h"
 
 namespace art {
 
 CompiledCode::CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
-                           const std::vector<uint8_t>& quick_code,
-                           const FinalRelocations* relocs)
+                           const std::vector<uint8_t>& quick_code)
     : compiler_driver_(compiler_driver), instruction_set_(instruction_set),
-      portable_code_(nullptr), quick_code_(nullptr), final_relocations_(relocs) {
+      portable_code_(nullptr), quick_code_(nullptr) {
   SetCode(&quick_code, nullptr);
 }
 
 CompiledCode::CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
                            const std::string& elf_object, const std::string& symbol)
     : compiler_driver_(compiler_driver), instruction_set_(instruction_set),
-      portable_code_(nullptr), quick_code_(nullptr), symbol_(symbol), final_relocations_(nullptr) {
+      portable_code_(nullptr), quick_code_(nullptr), symbol_(symbol) {
   CHECK_NE(elf_object.size(), 0U);
   CHECK_NE(symbol.size(), 0U);
   std::vector<uint8_t> temp_code(elf_object.size());
@@ -164,9 +161,8 @@ CompiledMethod::CompiledMethod(CompilerDriver& driver,
                                const std::vector<uint8_t>& mapping_table,
                                const std::vector<uint8_t>& vmap_table,
                                const std::vector<uint8_t>& native_gc_map,
-                               const std::vector<uint8_t>* cfi_info,
-                               const FinalRelocations* relocs)
-    : CompiledCode(&driver, instruction_set, quick_code, relocs), frame_size_in_bytes_(frame_size_in_bytes),
+                               const std::vector<uint8_t>* cfi_info)
+    : CompiledCode(&driver, instruction_set, quick_code), frame_size_in_bytes_(frame_size_in_bytes),
       core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask),
   mapping_table_(driver.DeduplicateMappingTable(mapping_table)),
   vmap_table_(driver.DeduplicateVMapTable(vmap_table)),
@@ -180,7 +176,7 @@ CompiledMethod::CompiledMethod(CompilerDriver& driver,
                                const size_t frame_size_in_bytes,
                                const uint32_t core_spill_mask,
                                const uint32_t fp_spill_mask)
-    : CompiledCode(&driver, instruction_set, code, nullptr),
+    : CompiledCode(&driver, instruction_set, code),
       frame_size_in_bytes_(frame_size_in_bytes),
       core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask),
       mapping_table_(driver.DeduplicateMappingTable(std::vector<uint8_t>())),
@@ -209,4 +205,5 @@ CompiledMethod::CompiledMethod(CompilerDriver& driver, InstructionSet instructio
   vmap_table_ = driver.DeduplicateVMapTable(std::vector<uint8_t>());
   gc_map_ = driver.DeduplicateGCMap(std::vector<uint8_t>());
 }
+
 }  // namespace art
