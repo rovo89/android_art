@@ -303,14 +303,12 @@ void BackgroundMethodSamplingProfiler::Start(int period, int duration,
 
   // Only on target...
 #ifdef HAVE_ANDROID_OS
-  if (!startImmediately) {
-    // Switch off profiler if the dalvik.vm.profiler property has value 0.
-    char buf[PROP_VALUE_MAX];
-    property_get("dalvik.vm.profiler", buf, "0");
-    if (strcmp(buf, "0") == 0) {
-      LOG(INFO) << "Profiler disabled.  To enable setprop dalvik.vm.profiler 1";
-      return;
-    }
+  // Switch off profiler if the dalvik.vm.profiler property has value 0.
+  char buf[PROP_VALUE_MAX];
+  property_get("dalvik.vm.profiler", buf, "0");
+  if (strcmp(buf, "0") == 0) {
+    LOG(INFO) << "Profiler disabled.  To enable setprop dalvik.vm.profiler 1";
+    return;
   }
 #endif
 
