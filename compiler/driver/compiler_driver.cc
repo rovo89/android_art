@@ -2036,7 +2036,7 @@ void CompilerDriver::InstructionSetToLLVMTarget(InstructionSet instruction_set,
 
 bool CompilerDriver::SkipCompilation(const std::string& method_name) {
   if (!profile_ok_) {
-    return true;
+    return false;
   }
   // Methods that comprise topKPercentThreshold % of the total samples will be compiled.
   double topKPercentThreshold = 90.0;
