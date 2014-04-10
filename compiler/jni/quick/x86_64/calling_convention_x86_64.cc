@@ -141,7 +141,7 @@ size_t X86_64JniCallingConvention::FrameSize() {
   // Method*, return address and callee save area size, local reference segment state
   size_t frame_data_size = (3 + CalleeSaveRegisters().size()) * kFramePointerSize;
   // References plus link_ (pointer) and number_of_references_ (uint32_t) for SIRT header
-  size_t sirt_size = kFramePointerSize + sizeof(uint32_t) + (ReferenceCount() * sirt_pointer_size_);
+  size_t sirt_size = StackIndirectReferenceTable::GetAlignedSirtSizeTarget(kFramePointerSize, ReferenceCount());
   // Plus return value spill area size
   return RoundUp(frame_data_size + sirt_size + SizeOfReturnValue(), kStackAlignment);
 }
