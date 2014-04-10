@@ -44,6 +44,10 @@ class StackIndirectReferenceTable {
     return number_of_references_;
   }
 
+  // We have versions with and without explicit pointer size of the following. The first two are
+  // used at runtime, so OFFSETOF_MEMBER computes the right offsets automatically. The last one
+  // takes the pointer size explicitly so that at compile time we can cross-compile correctly.
+
   // Returns the size of a StackIndirectReferenceTable containing num_references sirts.
   static size_t SizeOf(uint32_t num_references) {
     size_t header_size = OFFSETOF_MEMBER(StackIndirectReferenceTable, references_);
@@ -60,7 +64,7 @@ class StackIndirectReferenceTable {
   // Get the size of the SIRT for the number of entries, with padding added for potential alignment.
   static size_t GetAlignedSirtSizeTarget(size_t pointer_size, uint32_t num_references) {
     // Assume that the layout is packed.
-    size_t header_size = pointer_size + sizeof(uint32_t);
+    size_t header_size = pointer_size + sizeof(number_of_references_);
     // This assumes there is no layout change between 32 and 64b.
     size_t data_size = sizeof(StackReference<mirror::Object>) * num_references;
     size_t sirt_size = header_size + data_size;
@@ -109,18 +113,18 @@ class StackIndirectReferenceTable {
   }
 
   // Offset of link within SIRT, used by generated code
-  static size_t LinkOffset() {
-    return OFFSETOF_MEMBER(StackIndirectReferenceTable, link_);
+  static size_t LinkOffset(size_t pointer_size) {
+    return 0;
   }
 
   // Offset of length within SIRT, used by generated code
-  static uint32_t NumberOfReferencesOffset() {
-    return OFFSETOF_MEMBER(StackIndirectReferenceTable, number_of_references_);
+  static size_t NumberOfReferencesOffset(size_t pointer_size) {
+    return pointer_size;
   }
 
   // Offset of link within SIRT, used by generated code
-  static size_t ReferencesOffset() {
-    return OFFSETOF_MEMBER(StackIndirectReferenceTable, references_);
+  static size_t ReferencesOffset(size_t pointer_size) {
+    return pointer_size + sizeof(number_of_references_);
   }
 
  private:
