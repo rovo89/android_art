@@ -128,7 +128,27 @@ inline void ObjectArray<T>::AssignableMemmove(int32_t dst_pos, ObjectArray<T>* s
   CHECK_EQ(sizeof(HeapReference<T>), sizeof(uint32_t));
   IntArray* dstAsIntArray = reinterpret_cast<IntArray*>(this);
   IntArray* srcAsIntArray = reinterpret_cast<IntArray*>(src);
-  dstAsIntArray->Memmove(dst_pos, srcAsIntArray, src_pos, count);
+  if (kUseBakerOrBrooksReadBarrier) {
+    // TODO: Optimize this later?
+    const bool copy_forward = (src != this) || (dst_pos < src_pos) || (dst_pos - src_pos >= count);
+    if (copy_forward) {
+      // Forward copy.
+      for (int i = 0; i < count; ++i) {
+        // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
+        Object* obj = src->GetWithoutChecks(src_pos + i);
+        SetWithoutChecks<false>(dst_pos + i, obj);
+      }
+    } else {
+      // Backward copy.
+      for (int i = count - 1; i >= 0; --i) {
+        // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
+        Object* obj = src->GetWithoutChecks(src_pos + i);
+        SetWithoutChecks<false>(dst_pos + i, obj);
+      }
+    }
+  } else {
+    dstAsIntArray->Memmove(dst_pos, srcAsIntArray, src_pos, count);
+  }
   Runtime::Current()->GetHeap()->WriteBarrierArray(this, dst_pos, count);
   if (kIsDebugBuild) {
     for (int i = 0; i < count; ++i) {
@@ -151,7 +171,16 @@ inline void ObjectArray<T>::AssignableMemcpy(int32_t dst_pos, ObjectArray<T>* sr
   CHECK_EQ(sizeof(HeapReference<T>), sizeof(uint32_t));
   IntArray* dstAsIntArray = reinterpret_cast<IntArray*>(this);
   IntArray* srcAsIntArray = reinterpret_cast<IntArray*>(src);
-  dstAsIntArray->Memcpy(dst_pos, srcAsIntArray, src_pos, count);
+  if (kUseBakerOrBrooksReadBarrier) {
+    // TODO: Optimize this later?
+    for (int i = 0; i < count; ++i) {
+      // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
+      T* obj = src->GetWithoutChecks(src_pos + i);
+      SetWithoutChecks<false>(dst_pos + i, obj);
+    }
+  } else {
+    dstAsIntArray->Memcpy(dst_pos, srcAsIntArray, src_pos, count);
+  }
   Runtime::Current()->GetHeap()->WriteBarrierArray(this, dst_pos, count);
   if (kIsDebugBuild) {
     for (int i = 0; i < count; ++i) {
@@ -176,6 +205,7 @@ inline void ObjectArray<T>::AssignableCheckingMemcpy(int32_t dst_pos, ObjectArra
   int i = 0;
   for (; i < count; ++i) {
     // The follow get operations force the objects to be verified.
+    // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
     o = src->GetWithoutChecks(src_pos + i);
     if (o == nullptr) {
       // Null is always assignable.
