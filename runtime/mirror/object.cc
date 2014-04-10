@@ -39,6 +39,32 @@
 namespace art {
 namespace mirror {
 
+class CopyReferenceFieldsWithReadBarrierVisitor {
+ public:
+  explicit CopyReferenceFieldsWithReadBarrierVisitor(Object* dest_obj)
+      : dest_obj_(dest_obj) {}
+
+  void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const
+      ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // GetFieldObject() contains a RB.
+    Object* ref = obj->GetFieldObject<Object>(offset, false);
+    // No WB here as a large object space does not have a card table
+    // coverage. Instead, cards will be marked separately.
+    dest_obj_->SetFieldObjectWithoutWriteBarrier<false, false>(offset, ref, false);
+  }
+
+  void operator()(mirror::Class* klass, mirror::Reference* ref) const
+      ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Copy java.lang.ref.Reference.referent which isn't visited in
+    // Object::VisitReferences().
+    DCHECK(klass->IsReferenceClass());
+    this->operator()(ref, mirror::Reference::ReferentOffset(), false);
+  }
+
+ private:
+  Object* const dest_obj_;
+};
+
 static Object* CopyObject(Thread* self, mirror::Object* dest, mirror::Object* src, size_t num_bytes)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Copy instance data.  We assume memcpy copies by words.
@@ -47,6 +73,13 @@ static Object* CopyObject(Thread* self, mirror::Object* dest, mirror::Object* sr
   byte* dst_bytes = reinterpret_cast<byte*>(dest);
   size_t offset = sizeof(Object);
   memcpy(dst_bytes + offset, src_bytes + offset, num_bytes - offset);
+  if (kUseBakerOrBrooksReadBarrier) {
+    // We need a RB here. After the memcpy that covers the whole
+    // object above, copy references fields one by one again with a
+    // RB. TODO: Optimize this later?
+    CopyReferenceFieldsWithReadBarrierVisitor visitor(dest);
+    src->VisitReferences<true>(visitor, visitor);
+  }
   gc::Heap* heap = Runtime::Current()->GetHeap();
   // Perform write barriers on copied object references.
   Class* c = src->GetClass();
