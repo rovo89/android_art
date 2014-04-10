@@ -588,7 +588,7 @@ bool ProfileHelper::LoadProfileMap(ProfileMap& profileMap, const std::string& fi
     return false;
   }
   if (st.st_size == 0) {
-    return true;  // empty profiles are ok.
+    return false;  // Empty profiles are invalid.
   }
   std::ifstream in(fileName.c_str());
   if (!in) {
