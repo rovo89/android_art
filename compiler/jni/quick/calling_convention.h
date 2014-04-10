@@ -299,17 +299,17 @@ class JniCallingConvention : public CallingConvention {
 
   FrameOffset SirtLinkOffset() const {
     return FrameOffset(SirtOffset().Int32Value() +
-                       StackIndirectReferenceTable::LinkOffset());
+                       StackIndirectReferenceTable::LinkOffset(frame_pointer_size_));
   }
 
   FrameOffset SirtNumRefsOffset() const {
     return FrameOffset(SirtOffset().Int32Value() +
-                       StackIndirectReferenceTable::NumberOfReferencesOffset());
+                       StackIndirectReferenceTable::NumberOfReferencesOffset(frame_pointer_size_));
   }
 
   FrameOffset SirtReferencesOffset() const {
     return FrameOffset(SirtOffset().Int32Value() +
-                       StackIndirectReferenceTable::ReferencesOffset());
+                       StackIndirectReferenceTable::ReferencesOffset(frame_pointer_size_));
   }
 
   virtual ~JniCallingConvention() {}
