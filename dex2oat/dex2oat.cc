@@ -139,7 +139,7 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Example: --android-root=out/host/linux-x86");
   UsageError("      Default: $ANDROID_ROOT");
   UsageError("");
-  UsageError("  --instruction-set=(arm|mips|x86|x86_64): compile for a particular instruction");
+  UsageError("  --instruction-set=(arm|arm64|mips|x86|x86_64): compile for a particular instruction");
   UsageError("      set.");
   UsageError("      Example: --instruction-set=x86");
   UsageError("      Default: arm");
