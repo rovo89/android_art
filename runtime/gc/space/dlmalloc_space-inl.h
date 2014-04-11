@@ -52,7 +52,7 @@ inline size_t DlMallocSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_
 inline mirror::Object* DlMallocSpace::AllocWithoutGrowthLocked(Thread* /*self*/, size_t num_bytes,
                                                                size_t* bytes_allocated,
                                                                size_t* usable_size) {
-  mirror::Object* result = reinterpret_cast<mirror::Object*>(mspace_malloc(mspace_for_alloc_, num_bytes));
+  mirror::Object* result = reinterpret_cast<mirror::Object*>(mspace_malloc(mspace_, num_bytes));
   if (LIKELY(result != NULL)) {
     if (kDebugSpaces) {
       CHECK(Contains(result)) << "Allocation (" << reinterpret_cast<void*>(result)

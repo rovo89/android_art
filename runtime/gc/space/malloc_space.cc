@@ -37,10 +37,12 @@ size_t MallocSpace::bitmap_index_ = 0;
 
 MallocSpace::MallocSpace(const std::string& name, MemMap* mem_map,
                          byte* begin, byte* end, byte* limit, size_t growth_limit,
-                         bool create_bitmaps)
+                         bool create_bitmaps, bool can_move_objects, size_t starting_size,
+                         size_t initial_size)
     : ContinuousMemMapAllocSpace(name, mem_map, begin, end, limit, kGcRetentionPolicyAlwaysCollect),
       recent_free_pos_(0), lock_("allocation space lock", kAllocSpaceLock),
-      growth_limit_(growth_limit) {
+      growth_limit_(growth_limit), can_move_objects_(can_move_objects),
+      starting_size_(starting_size), initial_size_(initial_size) {
   if (create_bitmaps) {
     size_t bitmap_index = bitmap_index_++;
     static const uintptr_t kGcCardSize = static_cast<uintptr_t>(accounting::CardTable::kCardSize);
@@ -201,7 +203,7 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
     CHECK_MEMORY_CALL(mprotect, (end, capacity - initial_size, PROT_NONE), alloc_space_name);
   }
   *out_malloc_space = CreateInstance(alloc_space_name, mem_map.release(), allocator, end_, end,
-                                     limit_, growth_limit);
+                                     limit_, growth_limit, CanMoveObjects());
   SetLimit(End());
   live_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(End()));
   CHECK_EQ(live_bitmap_->HeapLimit(), reinterpret_cast<uintptr_t>(End()));

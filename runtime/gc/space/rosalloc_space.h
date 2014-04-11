@@ -39,11 +39,12 @@ class RosAllocSpace : public MallocSpace {
   // the caller should call Begin on the returned space to confirm the
   // request was granted.
   static RosAllocSpace* Create(const std::string& name, size_t initial_size, size_t growth_limit,
-                               size_t capacity, byte* requested_begin, bool low_memory_mode);
+                               size_t capacity, byte* requested_begin, bool low_memory_mode,
+                               bool can_move_objects);
   static RosAllocSpace* CreateFromMemMap(MemMap* mem_map, const std::string& name,
                                          size_t starting_size, size_t initial_size,
                                          size_t growth_limit, size_t capacity,
-                                         bool low_memory_mode);
+                                         bool low_memory_mode, bool can_move_objects);
 
   mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes, size_t* bytes_allocated,
                                   size_t* usable_size) OVERRIDE LOCKS_EXCLUDED(lock_);
@@ -80,9 +81,10 @@ class RosAllocSpace : public MallocSpace {
   void SetFootprintLimit(size_t limit) OVERRIDE;
 
   void Clear() OVERRIDE;
-  void Reset() OVERRIDE;
+
   MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
-                              byte* begin, byte* end, byte* limit, size_t growth_limit);
+                              byte* begin, byte* end, byte* limit, size_t growth_limit,
+                              bool can_move_objects) OVERRIDE;
 
   uint64_t GetBytesAllocated() OVERRIDE;
   uint64_t GetObjectsAllocated() OVERRIDE;
@@ -110,7 +112,8 @@ class RosAllocSpace : public MallocSpace {
 
  protected:
   RosAllocSpace(const std::string& name, MemMap* mem_map, allocator::RosAlloc* rosalloc,
-                byte* begin, byte* end, byte* limit, size_t growth_limit);
+                byte* begin, byte* end, byte* limit, size_t growth_limit, bool can_move_objects,
+                size_t starting_size, size_t initial_size, bool low_memory_mode);
 
  private:
   mirror::Object* AllocCommon(Thread* self, size_t num_bytes, size_t* bytes_allocated,
@@ -132,7 +135,9 @@ class RosAllocSpace : public MallocSpace {
       LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_, Locks::thread_list_lock_);
 
   // Underlying rosalloc.
-  allocator::RosAlloc* const rosalloc_;
+  allocator::RosAlloc* rosalloc_;
+
+  const bool low_memory_mode_;
 
   friend class collector::MarkSweep;
 
