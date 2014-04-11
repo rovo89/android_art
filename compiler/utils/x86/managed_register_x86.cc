@@ -33,7 +33,8 @@ namespace x86 {
   P(EDX, EDI)                 \
   P(ECX, EBX)                 \
   P(ECX, EDI)                 \
-  P(EBX, EDI)
+  P(EBX, EDI)                 \
+  P(ECX, EDX)
 
 
 struct RegisterPairDescriptor {

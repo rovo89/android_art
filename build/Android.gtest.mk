@@ -18,6 +18,7 @@ LOCAL_PATH := art
 
 RUNTIME_GTEST_COMMON_SRC_FILES := \
 	runtime/barrier_test.cc \
+	runtime/base/bit_field_test.cc \
 	runtime/base/bit_vector_test.cc \
 	runtime/base/hex_dump_test.cc \
 	runtime/base/histogram_test.cc \
