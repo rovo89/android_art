@@ -31,6 +31,9 @@ namespace arm64 {
 
 constexpr unsigned int kCalleeSavedRegsSize = 20;
 
+// Vixl buffer size.
+constexpr size_t kBufferSizeArm64 = 4096*2;
+
 }  // arm64
 }  // art
 

@@ -89,6 +89,9 @@ class ManagedRegisterSpill : public ManagedRegister {
   explicit ManagedRegisterSpill(const ManagedRegister& other)
       : ManagedRegister(other), size_(-1), spill_offset_(-1) { }
 
+  explicit ManagedRegisterSpill(const ManagedRegister& other, int32_t size)
+      : ManagedRegister(other), size_(size), spill_offset_(-1) { }
+
   int32_t getSpillOffset() {
     return spill_offset_;
   }
@@ -108,6 +111,11 @@ class ManagedRegisterEntrySpills : public std::vector<ManagedRegisterSpill> {
   // In this case it's size and offset determined by BuildFrame (assembler)
   void push_back(ManagedRegister __x) {
     ManagedRegisterSpill spill(__x);
+    std::vector<ManagedRegisterSpill>::push_back(spill);
+  }
+
+  void push_back(ManagedRegister __x, int32_t __size) {
+    ManagedRegisterSpill spill(__x, __size);
     std::vector<ManagedRegisterSpill>::push_back(spill);
   }
 
