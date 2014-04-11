@@ -126,6 +126,24 @@ class CallingConvention {
     char ch = shorty_[param];
     return (ch == 'F' || ch == 'D');
   }
+  bool IsParamADouble(unsigned int param) const {
+    DCHECK_LT(param, NumArgs());
+    if (IsStatic()) {
+      param++;  // 0th argument must skip return value at start of the shorty
+    } else if (param == 0) {
+      return false;  // this argument
+    }
+    return shorty_[param] == 'D';
+  }
+  bool IsParamALong(unsigned int param) const {
+    DCHECK_LT(param, NumArgs());
+    if (IsStatic()) {
+      param++;  // 0th argument must skip return value at start of the shorty
+    } else if (param == 0) {
+      return true;  // this argument
+    }
+    return shorty_[param] == 'J';
+  }
   bool IsParamAReference(unsigned int param) const {
     DCHECK_LT(param, NumArgs());
     if (IsStatic()) {
@@ -214,6 +232,8 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
   void Next();
   bool IsCurrentParamAReference();
   bool IsCurrentParamAFloatOrDouble();
+  bool IsCurrentParamADouble();
+  bool IsCurrentParamALong();
   bool IsCurrentArgExplicit();  // ie a non-implict argument such as this
   bool IsCurrentArgPossiblyNull();
   size_t CurrentParamSize();
@@ -283,6 +303,9 @@ class JniCallingConvention : public CallingConvention {
   virtual void Next();
   bool IsCurrentParamAReference();
   bool IsCurrentParamAFloatOrDouble();
+  bool IsCurrentParamADouble();
+  bool IsCurrentParamALong();
+  bool IsCurrentParamJniEnv();
   size_t CurrentParamSize();
   virtual bool IsCurrentParamInRegister() = 0;
   virtual bool IsCurrentParamOnStack() = 0;

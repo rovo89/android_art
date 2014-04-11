@@ -29,6 +29,7 @@
 #include "utils/assembler.h"
 #include "utils/managed_register.h"
 #include "utils/arm/managed_register_arm.h"
+#include "utils/arm64/managed_register_arm64.h"
 #include "utils/mips/managed_register_mips.h"
 #include "utils/x86/managed_register_x86.h"
 #include "thread.h"
@@ -73,11 +74,17 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
 
   // Calling conventions to call into JNI method "end" possibly passing a returned reference, the
   //     method and the current thread.
-  size_t jni_end_arg_count = 0;
-  if (reference_return) { jni_end_arg_count++; }
-  if (is_synchronized) { jni_end_arg_count++; }
-  const char* jni_end_shorty = jni_end_arg_count == 0 ? "I"
-                                                        : (jni_end_arg_count == 1 ? "II" : "III");
+  const char* jni_end_shorty;
+  if (reference_return && is_synchronized) {
+    jni_end_shorty = "ILL";
+  } else if (reference_return) {
+    jni_end_shorty = "IL";
+  } else if (is_synchronized) {
+    jni_end_shorty = "VL";
+  } else {
+    jni_end_shorty = "V";
+  }
+
   UniquePtr<JniCallingConvention> end_jni_conv(
       JniCallingConvention::Create(is_static, is_synchronized, jni_end_shorty, instruction_set));
 
@@ -101,12 +108,22 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   __ StoreImmediateToFrame(main_jni_conv->SirtNumRefsOffset(),
                            main_jni_conv->ReferenceCount(),
                            mr_conv->InterproceduralScratchRegister());
-  __ CopyRawPtrFromThread32(main_jni_conv->SirtLinkOffset(),
-                          Thread::TopSirtOffset<4>(),
-                          mr_conv->InterproceduralScratchRegister());
-  __ StoreStackOffsetToThread32(Thread::TopSirtOffset<4>(),
-                              main_jni_conv->SirtOffset(),
-                              mr_conv->InterproceduralScratchRegister());
+
+  if (instruction_set == kArm64 || instruction_set == kX86_64) {
+    __ CopyRawPtrFromThread64(main_jni_conv->SirtLinkOffset(),
+                            Thread::TopSirtOffset<8>(),
+                            mr_conv->InterproceduralScratchRegister());
+    __ StoreStackOffsetToThread64(Thread::TopSirtOffset<8>(),
+                                main_jni_conv->SirtOffset(),
+                                mr_conv->InterproceduralScratchRegister());
+  } else {
+    __ CopyRawPtrFromThread32(main_jni_conv->SirtLinkOffset(),
+                            Thread::TopSirtOffset<4>(),
+                            mr_conv->InterproceduralScratchRegister());
+    __ StoreStackOffsetToThread32(Thread::TopSirtOffset<4>(),
+                                main_jni_conv->SirtOffset(),
+                                mr_conv->InterproceduralScratchRegister());
+  }
 
   // 3. Place incoming reference arguments into SIRT
   main_jni_conv->Next();  // Skip JNIEnv*
@@ -154,9 +171,15 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   }
 
   // 4. Write out the end of the quick frames.
-  __ StoreStackPointerToThread32(Thread::TopOfManagedStackOffset<4>());
-  __ StoreImmediateToThread32(Thread::TopOfManagedStackPcOffset<4>(), 0,
-                            mr_conv->InterproceduralScratchRegister());
+  if (instruction_set == kArm64 || instruction_set == kX86_64) {
+    __ StoreStackPointerToThread64(Thread::TopOfManagedStackOffset<8>());
+    __ StoreImmediateToThread64(Thread::TopOfManagedStackPcOffset<8>(), 0,
+                              mr_conv->InterproceduralScratchRegister());
+  } else {
+    __ StoreStackPointerToThread32(Thread::TopOfManagedStackOffset<4>());
+    __ StoreImmediateToThread32(Thread::TopOfManagedStackPcOffset<4>(), 0,
+                              mr_conv->InterproceduralScratchRegister());
+  }
 
   // 5. Move frame down to allow space for out going args.
   const size_t main_out_arg_size = main_jni_conv->OutArgSize();
@@ -164,13 +187,14 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   const size_t max_out_arg_size = std::max(main_out_arg_size, end_out_arg_size);
   __ IncreaseFrameSize(max_out_arg_size);
 
-
   // 6. Call into appropriate JniMethodStart passing Thread* so that transition out of Runnable
   //    can occur. The result is the saved JNI local state that is restored by the exit call. We
   //    abuse the JNI calling convention here, that is guaranteed to support passing 2 pointer
   //    arguments.
-  ThreadOffset<4> jni_start = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(4, pJniMethodStartSynchronized)
-                                              : QUICK_ENTRYPOINT_OFFSET(4, pJniMethodStart);
+  ThreadOffset<4> jni_start32 = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(4, pJniMethodStartSynchronized)
+                                                : QUICK_ENTRYPOINT_OFFSET(4, pJniMethodStart);
+  ThreadOffset<8> jni_start64 = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(8, pJniMethodStartSynchronized)
+                                                : QUICK_ENTRYPOINT_OFFSET(8, pJniMethodStart);
   main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
   FrameOffset locked_object_sirt_offset(0);
   if (is_synchronized) {
@@ -192,12 +216,21 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   }
   if (main_jni_conv->IsCurrentParamInRegister()) {
     __ GetCurrentThread(main_jni_conv->CurrentParamRegister());
-    __ Call(main_jni_conv->CurrentParamRegister(), Offset(jni_start),
-            main_jni_conv->InterproceduralScratchRegister());
+    if (instruction_set == kArm64 || instruction_set == kX86_64) {
+      __ Call(main_jni_conv->CurrentParamRegister(), Offset(jni_start64),
+             main_jni_conv->InterproceduralScratchRegister());
+    } else {
+      __ Call(main_jni_conv->CurrentParamRegister(), Offset(jni_start32),
+             main_jni_conv->InterproceduralScratchRegister());
+    }
   } else {
     __ GetCurrentThread(main_jni_conv->CurrentParamStackOffset(),
                         main_jni_conv->InterproceduralScratchRegister());
-    __ CallFromThread32(jni_start, main_jni_conv->InterproceduralScratchRegister());
+    if (instruction_set == kArm64 || instruction_set == kX86_64) {
+      __ CallFromThread64(jni_start64, main_jni_conv->InterproceduralScratchRegister());
+    } else {
+      __ CallFromThread32(jni_start32, main_jni_conv->InterproceduralScratchRegister());
+    }
   }
   if (is_synchronized) {  // Check for exceptions from monitor enter.
     __ ExceptionPoll(main_jni_conv->InterproceduralScratchRegister(), main_out_arg_size);
@@ -259,11 +292,20 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   if (main_jni_conv->IsCurrentParamInRegister()) {
     ManagedRegister jni_env = main_jni_conv->CurrentParamRegister();
     DCHECK(!jni_env.Equals(main_jni_conv->InterproceduralScratchRegister()));
-    __ LoadRawPtrFromThread32(jni_env, Thread::JniEnvOffset<4>());
+    if (instruction_set == kArm64 || instruction_set == kX86_64) {
+      __ LoadRawPtrFromThread64(jni_env, Thread::JniEnvOffset<8>());
+    } else {
+      __ LoadRawPtrFromThread32(jni_env, Thread::JniEnvOffset<4>());
+    }
   } else {
     FrameOffset jni_env = main_jni_conv->CurrentParamStackOffset();
-    __ CopyRawPtrFromThread32(jni_env, Thread::JniEnvOffset<4>(),
+    if (instruction_set == kArm64 || instruction_set == kX86_64) {
+      __ CopyRawPtrFromThread64(jni_env, Thread::JniEnvOffset<8>(),
                             main_jni_conv->InterproceduralScratchRegister());
+    } else {
+      __ CopyRawPtrFromThread32(jni_env, Thread::JniEnvOffset<4>(),
+                            main_jni_conv->InterproceduralScratchRegister());
+    }
   }
 
   // 9. Plant call to native code associated with method.
@@ -295,19 +337,23 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
     __ Store(return_save_location, main_jni_conv->ReturnRegister(), main_jni_conv->SizeOfReturnValue());
   }
 
-  // 12. Call into JNI method end possibly passing a returned reference, the method and the current
   //     thread.
   end_jni_conv->ResetIterator(FrameOffset(end_out_arg_size));
-  ThreadOffset<4> jni_end(-1);
+  ThreadOffset<4> jni_end32(-1);
+  ThreadOffset<8> jni_end64(-1);
   if (reference_return) {
     // Pass result.
-    jni_end = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(4, pJniMethodEndWithReferenceSynchronized)
-                              : QUICK_ENTRYPOINT_OFFSET(4, pJniMethodEndWithReference);
+    jni_end32 = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(4, pJniMethodEndWithReferenceSynchronized)
+                                : QUICK_ENTRYPOINT_OFFSET(4, pJniMethodEndWithReference);
+    jni_end64 = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(8, pJniMethodEndWithReferenceSynchronized)
+                                : QUICK_ENTRYPOINT_OFFSET(8, pJniMethodEndWithReference);
     SetNativeParameter(jni_asm.get(), end_jni_conv.get(), end_jni_conv->ReturnRegister());
     end_jni_conv->Next();
   } else {
-    jni_end = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(4, pJniMethodEndSynchronized)
-                              : QUICK_ENTRYPOINT_OFFSET(4, pJniMethodEnd);
+    jni_end32 = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(4, pJniMethodEndSynchronized)
+                                : QUICK_ENTRYPOINT_OFFSET(4, pJniMethodEnd);
+    jni_end64 = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(8, pJniMethodEndSynchronized)
+                                : QUICK_ENTRYPOINT_OFFSET(8, pJniMethodEnd);
   }
   // Pass saved local reference state.
   if (end_jni_conv->IsCurrentParamOnStack()) {
@@ -334,12 +380,21 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   }
   if (end_jni_conv->IsCurrentParamInRegister()) {
     __ GetCurrentThread(end_jni_conv->CurrentParamRegister());
-    __ Call(end_jni_conv->CurrentParamRegister(), Offset(jni_end),
-            end_jni_conv->InterproceduralScratchRegister());
+    if (instruction_set == kArm64 || instruction_set == kX86_64) {
+      __ Call(end_jni_conv->CurrentParamRegister(), Offset(jni_end64),
+              end_jni_conv->InterproceduralScratchRegister());
+    } else {
+      __ Call(end_jni_conv->CurrentParamRegister(), Offset(jni_end32),
+              end_jni_conv->InterproceduralScratchRegister());
+    }
   } else {
     __ GetCurrentThread(end_jni_conv->CurrentParamStackOffset(),
                         end_jni_conv->InterproceduralScratchRegister());
-    __ CallFromThread32(ThreadOffset<4>(jni_end), end_jni_conv->InterproceduralScratchRegister());
+    if (instruction_set == kArm64 || instruction_set == kX86_64) {
+      __ CallFromThread64(ThreadOffset<8>(jni_end64), end_jni_conv->InterproceduralScratchRegister());
+    } else {
+      __ CallFromThread32(ThreadOffset<4>(jni_end32), end_jni_conv->InterproceduralScratchRegister());
+    }
   }
 
   // 13. Reload return value
@@ -360,6 +415,10 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   // 17. Finalize code generation
   __ EmitSlowPaths();
   size_t cs = __ CodeSize();
+  if (instruction_set == kArm64) {
+    // Test that we do not exceed the buffer size.
+    CHECK(cs < arm64::kBufferSizeArm64);
+  }
   std::vector<uint8_t> managed_code(cs);
   MemoryRegion code(&managed_code[0], managed_code.size());
   __ FinalizeInstructions(code);

@@ -332,9 +332,14 @@ ENTRY \c_name
 END \c_name
 .endm
 
+// FIXME: Temporary fix for TR(XSELF).
 .macro ONE_ARG_RUNTIME_EXCEPTION c_name, cxx_name
     .extern \cxx_name
 ENTRY \c_name
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context.
+    mov x1, x19                       // pass Thread::Current.
+    mov x2, sp                        // pass SP.
+    b   \cxx_name                     // \cxx_name(Thread*, SP).
     brk 0
 END \c_name
 .endm
