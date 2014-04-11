@@ -81,6 +81,10 @@ class PACKED(4) InstructionSetFeatures {
     return mask_ != peer.mask_;
   }
 
+  bool operator<=(const InstructionSetFeatures &peer) const {
+    return (mask_ & peer.mask_) == mask_;
+  }
+
  private:
   uint32_t mask_;
 };

@@ -56,7 +56,8 @@ enum Register {
   X29 = 29,
   X30 = 30,
   X31 = 31,
-  TR  = 18,     // ART Thread Register.
+  TR  = 18,     // ART Thread Register - Needs to be one of the callee saved regs.
+  TR1 = 19,     // FIXME!
   IP0 = 16,     // Used as scratch by VIXL.
   IP1 = 17,     // Used as scratch by ART JNI Assembler.
   FP  = 29,
