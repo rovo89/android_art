@@ -372,7 +372,7 @@ static JdwpError VM_CapabilitiesNew(JdwpState*, Request& request, ExpandBuf* rep
   expandBufAdd1(reply, false);   // canAddMethod
   expandBufAdd1(reply, false);   // canUnrestrictedlyRedefineClasses
   expandBufAdd1(reply, false);   // canPopFrames
-  expandBufAdd1(reply, false);   // canUseInstanceFilters
+  expandBufAdd1(reply, true);    // canUseInstanceFilters
   expandBufAdd1(reply, false);   // canGetSourceDebugExtension
   expandBufAdd1(reply, false);   // canRequestVMDeathEvent
   expandBufAdd1(reply, false);   // canSetDefaultStratum
