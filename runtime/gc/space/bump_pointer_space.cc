@@ -38,6 +38,10 @@ BumpPointerSpace* BumpPointerSpace::Create(const std::string& name, size_t capac
   return new BumpPointerSpace(name, mem_map.release());
 }
 
+BumpPointerSpace* BumpPointerSpace::CreateFromMemMap(const std::string& name, MemMap* mem_map) {
+  return new BumpPointerSpace(name, mem_map);
+}
+
 BumpPointerSpace::BumpPointerSpace(const std::string& name, byte* begin, byte* limit)
     : ContinuousMemMapAllocSpace(name, nullptr, begin, begin, limit,
                                  kGcRetentionPolicyAlwaysCollect),
@@ -61,9 +65,6 @@ BumpPointerSpace::BumpPointerSpace(const std::string& name, MemMap* mem_map)
 void BumpPointerSpace::Clear() {
   // Release the pages back to the operating system.
   CHECK_NE(madvise(Begin(), Limit() - Begin(), MADV_DONTNEED), -1) << "madvise failed";
-}
-
-void BumpPointerSpace::Reset() {
   // Reset the end of the space back to the beginning, we move the end forward as we allocate
   // objects.
   SetEnd(Begin());

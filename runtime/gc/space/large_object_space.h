@@ -75,6 +75,10 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
 
   void Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes);
 
+  virtual bool CanMoveObjects() const OVERRIDE {
+    return false;
+  }
+
  protected:
   explicit LargeObjectSpace(const std::string& name);
 

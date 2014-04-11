@@ -36,14 +36,15 @@ class DlMallocSpace : public MallocSpace {
   // Create a DlMallocSpace from an existing mem_map.
   static DlMallocSpace* CreateFromMemMap(MemMap* mem_map, const std::string& name,
                                          size_t starting_size, size_t initial_size,
-                                         size_t growth_limit, size_t capacity);
+                                         size_t growth_limit, size_t capacity,
+                                         bool can_move_objects);
 
   // Create a DlMallocSpace with the requested sizes. The requested
   // base address is not guaranteed to be granted, if it is required,
   // the caller should call Begin on the returned space to confirm the
   // request was granted.
   static DlMallocSpace* Create(const std::string& name, size_t initial_size, size_t growth_limit,
-                               size_t capacity, byte* requested_begin);
+                               size_t capacity, byte* requested_begin, bool can_move_objects);
 
   // Virtual to allow ValgrindMallocSpace to intercept.
   virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes, size_t* bytes_allocated,
@@ -107,13 +108,13 @@ class DlMallocSpace : public MallocSpace {
   void SetFootprintLimit(size_t limit) OVERRIDE;
 
   MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
-                              byte* begin, byte* end, byte* limit, size_t growth_limit);
+                              byte* begin, byte* end, byte* limit, size_t growth_limit,
+                              bool can_move_objects);
 
   uint64_t GetBytesAllocated() OVERRIDE;
   uint64_t GetObjectsAllocated() OVERRIDE;
 
-  void Clear() OVERRIDE;
-  void Reset() OVERRIDE;
+  virtual void Clear() OVERRIDE;
 
   bool IsDlMallocSpace() const OVERRIDE {
     return true;
@@ -125,7 +126,8 @@ class DlMallocSpace : public MallocSpace {
 
  protected:
   DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin, byte* end,
-                byte* limit, size_t growth_limit);
+                byte* limit, size_t growth_limit, bool can_move_objects, size_t starting_size,
+                size_t initial_size);
 
  private:
   mirror::Object* AllocWithoutGrowthLocked(Thread* self, size_t num_bytes, size_t* bytes_allocated,
@@ -142,11 +144,7 @@ class DlMallocSpace : public MallocSpace {
   static const size_t kChunkOverhead = kWordSize;
 
   // Underlying malloc space.
-  void* const mspace_;
-
-  // An mspace pointer used for allocation. Equals  mspace_ or nullptr after InvalidateAllocator()
-  // is called.
-  void* mspace_for_alloc_;
+  void* mspace_;
 
   friend class collector::MarkSweep;
 

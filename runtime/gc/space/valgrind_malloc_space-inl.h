@@ -95,8 +95,10 @@ template <typename S, typename A>
 ValgrindMallocSpace<S, A>::ValgrindMallocSpace(const std::string& name, MemMap* mem_map,
                                                A allocator, byte* begin,
                                                byte* end, byte* limit, size_t growth_limit,
-                                               size_t initial_size) :
-    S(name, mem_map, allocator, begin, end, limit, growth_limit) {
+                                               size_t initial_size,
+                                               bool can_move_objects, size_t starting_size) :
+    S(name, mem_map, allocator, begin, end, limit, growth_limit, can_move_objects, starting_size,
+      initial_size) {
   VALGRIND_MAKE_MEM_UNDEFINED(mem_map->Begin() + initial_size, mem_map->Size() - initial_size);
 }
 
