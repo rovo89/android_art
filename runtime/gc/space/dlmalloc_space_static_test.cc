@@ -23,7 +23,7 @@ namespace space {
 
 MallocSpace* CreateDlMallocSpace(const std::string& name, size_t initial_size, size_t growth_limit,
                                  size_t capacity, byte* requested_begin) {
-  return DlMallocSpace::Create(name, initial_size, growth_limit, capacity, requested_begin);
+  return DlMallocSpace::Create(name, initial_size, growth_limit, capacity, requested_begin, false);
 }
 
 TEST_SPACE_CREATE_FN_STATIC(DlMallocSpace, CreateDlMallocSpace)

@@ -160,6 +160,9 @@ class Space {
   }
   virtual ContinuousMemMapAllocSpace* AsContinuousMemMapAllocSpace();
 
+  // Returns true if objects in the space are movable.
+  virtual bool CanMoveObjects() const = 0;
+
   virtual ~Space() {}
 
  protected:
@@ -396,11 +399,8 @@ class ContinuousMemMapAllocSpace : public MemMapSpace, public AllocSpace {
   // Swap the live and mark bitmaps of this space. This is used by the GC for concurrent sweeping.
   void SwapBitmaps();
 
-  // Free all memory associated with this space.
+  // Reset the space back to an empty space and release memory.
   virtual void Clear() = 0;
-
-  // Reset the space back to an empty space.
-  virtual void Reset() = 0;
 
   accounting::SpaceBitmap* GetLiveBitmap() const {
     return live_bitmap_.get();

@@ -36,15 +36,19 @@ static constexpr bool kPrefetchDuringDlMallocFreeList = true;
 template class ValgrindMallocSpace<DlMallocSpace, void*>;
 
 DlMallocSpace::DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin,
-                             byte* end, byte* limit, size_t growth_limit)
-    : MallocSpace(name, mem_map, begin, end, limit, growth_limit),
-      mspace_(mspace), mspace_for_alloc_(mspace) {
+                             byte* end, byte* limit, size_t growth_limit,
+                             bool can_move_objects, size_t starting_size,
+                             size_t initial_size)
+    : MallocSpace(name, mem_map, begin, end, limit, growth_limit, true, can_move_objects,
+                  starting_size, initial_size),
+      mspace_(mspace) {
   CHECK(mspace != NULL);
 }
 
 DlMallocSpace* DlMallocSpace::CreateFromMemMap(MemMap* mem_map, const std::string& name,
                                                size_t starting_size, size_t initial_size,
-                                               size_t growth_limit, size_t capacity) {
+                                               size_t growth_limit, size_t capacity,
+                                               bool can_move_objects) {
   DCHECK(mem_map != nullptr);
   void* mspace = CreateMspace(mem_map->Begin(), starting_size, initial_size);
   if (mspace == nullptr) {
@@ -62,14 +66,17 @@ DlMallocSpace* DlMallocSpace::CreateFromMemMap(MemMap* mem_map, const std::strin
   byte* begin = mem_map->Begin();
   if (Runtime::Current()->RunningOnValgrind()) {
     return new ValgrindMallocSpace<DlMallocSpace, void*>(
-        name, mem_map, mspace, begin, end, begin + capacity, growth_limit, initial_size);
+        name, mem_map, mspace, begin, end, begin + capacity, growth_limit, initial_size,
+        can_move_objects, starting_size);
   } else {
-    return new DlMallocSpace(name, mem_map, mspace, begin, end, begin + capacity, growth_limit);
+    return new DlMallocSpace(name, mem_map, mspace, begin, end, begin + capacity, growth_limit,
+                             can_move_objects, starting_size, initial_size);
   }
 }
 
-DlMallocSpace* DlMallocSpace::Create(const std::string& name, size_t initial_size, size_t growth_limit,
-                                     size_t capacity, byte* requested_begin) {
+DlMallocSpace* DlMallocSpace::Create(const std::string& name, size_t initial_size,
+                                     size_t growth_limit, size_t capacity, byte* requested_begin,
+                                     bool can_move_objects) {
   uint64_t start_time = 0;
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     start_time = NanoTime();
@@ -93,7 +100,7 @@ DlMallocSpace* DlMallocSpace::Create(const std::string& name, size_t initial_siz
     return nullptr;
   }
   DlMallocSpace* space = CreateFromMemMap(mem_map, name, starting_size, initial_size,
-                                          growth_limit, capacity);
+                                          growth_limit, capacity, can_move_objects);
   // We start out with only the initial size possibly containing objects.
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "DlMallocSpace::Create exiting (" << PrettyDuration(NanoTime() - start_time)
@@ -143,8 +150,10 @@ mirror::Object* DlMallocSpace::AllocWithGrowth(Thread* self, size_t num_bytes,
 
 MallocSpace* DlMallocSpace::CreateInstance(const std::string& name, MemMap* mem_map,
                                            void* allocator, byte* begin, byte* end,
-                                           byte* limit, size_t growth_limit) {
-  return new DlMallocSpace(name, mem_map, allocator, begin, end, limit, growth_limit);
+                                           byte* limit, size_t growth_limit,
+                                           bool can_move_objects) {
+  return new DlMallocSpace(name, mem_map, allocator, begin, end, limit, growth_limit,
+                           can_move_objects, starting_size_, initial_size_);
 }
 
 size_t DlMallocSpace::Free(Thread* self, mirror::Object* ptr) {
@@ -280,13 +289,13 @@ uint64_t DlMallocSpace::GetObjectsAllocated() {
 }
 
 void DlMallocSpace::Clear() {
+  size_t footprint_limit = GetFootprintLimit();
   madvise(GetMemMap()->Begin(), GetMemMap()->Size(), MADV_DONTNEED);
-  GetLiveBitmap()->Clear();
-  GetMarkBitmap()->Clear();
-}
-
-void DlMallocSpace::Reset() {
-  // TODO: Delete and create new mspace here.
+  live_bitmap_->Clear();
+  mark_bitmap_->Clear();
+  end_ = Begin() + starting_size_;
+  mspace_ = CreateMspace(mem_map_->Begin(), starting_size_, initial_size_);
+  SetFootprintLimit(footprint_limit);
 }
 
 #ifndef NDEBUG

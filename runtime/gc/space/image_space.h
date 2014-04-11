@@ -75,6 +75,10 @@ class ImageSpace : public MemMapSpace {
   void Sweep(bool /* swap_bitmaps */, size_t* /* freed_objects */, size_t* /* freed_bytes */) {
   }
 
+  bool CanMoveObjects() const OVERRIDE {
+    return false;
+  }
+
  private:
   // Tries to initialize an ImageSpace from the given image path,
   // returning NULL on error.

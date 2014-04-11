@@ -114,7 +114,8 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   void SetGrowthLimit(size_t growth_limit);
 
   virtual MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
-                                      byte* begin, byte* end, byte* limit, size_t growth_limit) = 0;
+                                      byte* begin, byte* end, byte* limit, size_t growth_limit,
+                                      bool can_move_objects) = 0;
 
   // Splits ourself into a zygote space and new malloc space which has our unused memory. When true,
   // the low memory mode argument specifies that the heap wishes the created space to be more
@@ -127,9 +128,14 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   // Returns the class of a recently freed object.
   mirror::Class* FindRecentFreedObject(const mirror::Object* obj);
 
+  bool CanMoveObjects() const OVERRIDE {
+    return can_move_objects_;
+  }
+
  protected:
   MallocSpace(const std::string& name, MemMap* mem_map, byte* begin, byte* end,
-              byte* limit, size_t growth_limit, bool create_bitmaps = true);
+              byte* limit, size_t growth_limit, bool create_bitmaps, bool can_move_objects,
+              size_t starting_size, size_t initial_size);
 
   static MemMap* CreateMemMap(const std::string& name, size_t starting_size, size_t* initial_size,
                               size_t* growth_limit, size_t* capacity, byte* requested_begin);
@@ -166,6 +172,13 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   // however, capacity normally can't vary. In the case of the growth_limit_ it can be cleared
   // one time by a call to ClearGrowthLimit.
   size_t growth_limit_;
+
+  // True if objects in the space are movable.
+  const bool can_move_objects_;
+
+  // Starting and initial sized, used when you reset the space.
+  const size_t starting_size_;
+  const size_t initial_size_;
 
  private:
   static void SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg)
