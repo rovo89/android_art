@@ -1523,7 +1523,7 @@ uint32_t ClassLinker::SizeOfClass(const DexFile& dex_file,
   return size;
 }
 
-const OatFile::OatClass* ClassLinker::GetOatClass(const DexFile& dex_file, uint16_t class_def_idx) {
+OatFile::OatClass ClassLinker::GetOatClass(const DexFile& dex_file, uint16_t class_def_idx) {
   DCHECK_NE(class_def_idx, DexFile::kDexNoIndex16);
   const OatFile* oat_file = FindOpenedOatFileForDexFile(dex_file);
   CHECK(oat_file != NULL) << dex_file.GetLocation();
@@ -1531,9 +1531,7 @@ const OatFile::OatClass* ClassLinker::GetOatClass(const DexFile& dex_file, uint1
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation().c_str(),
                                                                     &dex_location_checksum);
   CHECK(oat_dex_file != NULL) << dex_file.GetLocation();
-  const OatFile::OatClass* oat_class = oat_dex_file->GetOatClass(class_def_idx);
-  CHECK(oat_class != NULL) << dex_file.GetLocation() << " " << class_def_idx;
-  return oat_class;
+  return oat_dex_file->GetOatClass(class_def_idx);
 }
 
 static uint32_t GetOatMethodIndexFromMethodIndex(const DexFile& dex_file, uint16_t class_def_idx,
@@ -1593,16 +1591,14 @@ const OatFile::OatMethod ClassLinker::GetOatMethodFor(mirror::ArtMethod* method)
     }
     CHECK(found) << "Didn't find oat method index for virtual method: " << PrettyMethod(method);
   }
-  UniquePtr<const OatFile::OatClass>
-      oat_class(GetOatClass(*declaring_class->GetDexCache()->GetDexFile(),
-                            declaring_class->GetDexClassDefIndex()));
-  CHECK(oat_class.get() != NULL);
   DCHECK_EQ(oat_method_index,
             GetOatMethodIndexFromMethodIndex(*declaring_class->GetDexCache()->GetDexFile(),
                                              method->GetDeclaringClass()->GetDexClassDefIndex(),
                                              method->GetDexMethodIndex()));
+  const OatFile::OatClass oat_class = GetOatClass(*declaring_class->GetDexCache()->GetDexFile(),
+                                                  declaring_class->GetDexClassDefIndex());
 
-  return oat_class->GetOatMethod(oat_method_index);
+  return oat_class.GetOatMethod(oat_method_index);
 }
 
 // Special case to get oat code without overwriting a trampoline.
@@ -1651,18 +1647,16 @@ const void* ClassLinker::GetPortableOatCodeFor(mirror::ArtMethod* method,
 
 const void* ClassLinker::GetQuickOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx,
                                             uint32_t method_idx) {
-  UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(dex_file, class_def_idx));
-  CHECK(oat_class.get() != nullptr);
+  const OatFile::OatClass oat_class = GetOatClass(dex_file, class_def_idx);
   uint32_t oat_method_idx = GetOatMethodIndexFromMethodIndex(dex_file, class_def_idx, method_idx);
-  return oat_class->GetOatMethod(oat_method_idx).GetQuickCode();
+  return oat_class.GetOatMethod(oat_method_idx).GetQuickCode();
 }
 
 const void* ClassLinker::GetPortableOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx,
                                                uint32_t method_idx) {
-  UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(dex_file, class_def_idx));
-  CHECK(oat_class.get() != nullptr);
+  const OatFile::OatClass oat_class = GetOatClass(dex_file, class_def_idx);
   uint32_t oat_method_idx = GetOatMethodIndexFromMethodIndex(dex_file, class_def_idx, method_idx);
-  return oat_class->GetOatMethod(oat_method_idx).GetPortableCode();
+  return oat_class.GetOatMethod(oat_method_idx).GetPortableCode();
 }
 
 // Returns true if the method must run with interpreter, false otherwise.
@@ -1703,8 +1697,7 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
   const byte* class_data = dex_file.GetClassData(*dex_class_def);
   // There should always be class data if there were direct methods.
   CHECK(class_data != nullptr) << PrettyDescriptor(klass);
-  UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(dex_file, klass->GetDexClassDefIndex()));
-  CHECK(oat_class.get() != nullptr);
+  const OatFile::OatClass oat_class = GetOatClass(dex_file, klass->GetDexClassDefIndex());
   ClassDataItemIterator it(dex_file, class_data);
   // Skip fields
   while (it.HasNextStaticField()) {
@@ -1720,8 +1713,8 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
       // Only update static methods.
       continue;
     }
-    const void* portable_code = oat_class->GetOatMethod(method_index).GetPortableCode();
-    const void* quick_code = oat_class->GetOatMethod(method_index).GetQuickCode();
+    const void* portable_code = oat_class.GetOatMethod(method_index).GetPortableCode();
+    const void* quick_code = oat_class.GetOatMethod(method_index).GetQuickCode();
     const bool enter_interpreter = NeedsInterpreter(method, quick_code, portable_code);
     bool have_portable_code = false;
     if (enter_interpreter) {
@@ -1869,11 +1862,25 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   klass->SetDexClassDefIndex(dex_file.GetIndexForClassDef(dex_class_def));
   klass->SetDexTypeIndex(dex_class_def.class_idx_);
 
-  // Load fields fields.
   const byte* class_data = dex_file.GetClassData(dex_class_def);
   if (class_data == NULL) {
     return;  // no fields or methods - for example a marker interface
   }
+
+  if (Runtime::Current()->IsStarted() && !Runtime::Current()->UseCompileTimeClassPath()) {
+    const OatFile::OatClass oat_class = GetOatClass(dex_file, klass->GetDexClassDefIndex());
+    LoadClassMembers(dex_file, class_data, klass, class_loader, &oat_class);
+  } else {
+    LoadClassMembers(dex_file, class_data, klass, class_loader, nullptr);
+  }
+}
+
+void ClassLinker::LoadClassMembers(const DexFile& dex_file,
+                                   const byte* class_data,
+                                   const SirtRef<mirror::Class>& klass,
+                                   mirror::ClassLoader* class_loader,
+                                   const OatFile::OatClass* oat_class) {
+  // Load fields.
   ClassDataItemIterator it(dex_file, class_data);
   Thread* self = Thread::Current();
   if (it.NumStaticFields() != 0) {
@@ -1912,11 +1919,6 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     LoadField(dex_file, it, klass, ifield);
   }
 
-  UniquePtr<const OatFile::OatClass> oat_class;
-  if (Runtime::Current()->IsStarted() && !Runtime::Current()->UseCompileTimeClassPath()) {
-    oat_class.reset(GetOatClass(dex_file, klass->GetDexClassDefIndex()));
-  }
-
   // Load methods.
   if (it.NumDirectMethods() != 0) {
     // TODO: append direct methods to class object
@@ -1946,8 +1948,8 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
       return;
     }
     klass->SetDirectMethod(i, method.get());
-    if (oat_class.get() != NULL) {
-      LinkCode(method, oat_class.get(), dex_file, it.GetMemberIndex(), class_def_method_index);
+    if (oat_class != nullptr) {
+      LinkCode(method, oat_class, dex_file, it.GetMemberIndex(), class_def_method_index);
     }
     method->SetMethodIndex(class_def_method_index);
     class_def_method_index++;
@@ -1960,8 +1962,8 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     }
     klass->SetVirtualMethod(i, method.get());
     DCHECK_EQ(class_def_method_index, it.NumDirectMethods() + i);
-    if (oat_class.get() != NULL) {
-      LinkCode(method, oat_class.get(), dex_file, it.GetMemberIndex(), class_def_method_index);
+    if (oat_class != nullptr) {
+      LinkCode(method, oat_class, dex_file, it.GetMemberIndex(), class_def_method_index);
     }
     class_def_method_index++;
   }
@@ -2691,11 +2693,7 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class
                                                                     &dex_location_checksum);
   CHECK(oat_dex_file != NULL) << dex_file.GetLocation() << " " << PrettyClass(klass);
   uint16_t class_def_index = klass->GetDexClassDefIndex();
-  UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(class_def_index));
-  CHECK(oat_class.get() != NULL)
-          << dex_file.GetLocation() << " " << PrettyClass(klass) << " "
-          << ClassHelper(klass).GetDescriptor();
-  oat_file_class_status = oat_class->GetStatus();
+  oat_file_class_status = oat_dex_file->GetOatClass(class_def_index).GetStatus();
   if (oat_file_class_status == mirror::Class::kStatusVerified ||
       oat_file_class_status == mirror::Class::kStatusInitialized) {
       return true;

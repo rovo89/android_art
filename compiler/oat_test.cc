@@ -155,19 +155,19 @@ TEST_F(OatTest, WriteRead) {
     SirtRef<mirror::ClassLoader> loader(soa.Self(), nullptr);
     mirror::Class* klass = class_linker->FindClass(soa.Self(), descriptor, loader);
 
-    UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(i));
-    CHECK_EQ(mirror::Class::Status::kStatusNotReady, oat_class->GetStatus()) << descriptor;
+    const OatFile::OatClass oat_class = oat_dex_file->GetOatClass(i);
+    CHECK_EQ(mirror::Class::Status::kStatusNotReady, oat_class.GetStatus()) << descriptor;
     CHECK_EQ(kCompile ? OatClassType::kOatClassAllCompiled : OatClassType::kOatClassNoneCompiled,
-             oat_class->GetType()) << descriptor;
+             oat_class.GetType()) << descriptor;
 
     size_t method_index = 0;
     for (size_t i = 0; i < klass->NumDirectMethods(); i++, method_index++) {
       CheckMethod(klass->GetDirectMethod(i),
-                  oat_class->GetOatMethod(method_index), dex_file);
+                  oat_class.GetOatMethod(method_index), dex_file);
     }
     for (size_t i = 0; i < num_virtual_methods; i++, method_index++) {
       CheckMethod(klass->GetVirtualMethod(i),
-                  oat_class->GetOatMethod(method_index), dex_file);
+                  oat_class.GetOatMethod(method_index), dex_file);
     }
   }
 }
