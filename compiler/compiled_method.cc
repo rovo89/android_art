@@ -82,21 +82,7 @@ uint32_t CompiledCode::AlignCode(uint32_t offset) const {
 }
 
 uint32_t CompiledCode::AlignCode(uint32_t offset, InstructionSet instruction_set) {
-  switch (instruction_set) {
-    case kArm:
-    case kThumb2:
-      return RoundUp(offset, kArmAlignment);
-    case kArm64:
-      return RoundUp(offset, kArm64Alignment);
-    case kMips:
-      return RoundUp(offset, kMipsAlignment);
-    case kX86:  // Fall-through.
-    case kX86_64:
-      return RoundUp(offset, kX86Alignment);
-    default:
-      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
-      return 0;
-  }
+  return RoundUp(offset, GetInstructionSetAlignment(instruction_set));
 }
 
 size_t CompiledCode::CodeDelta() const {
