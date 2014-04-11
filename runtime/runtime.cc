@@ -188,7 +188,7 @@ Runtime::~Runtime() {
 }
 
 struct AbortState {
-  void Dump(std::ostream& os) {
+  void Dump(std::ostream& os) NO_THREAD_SAFETY_ANALYSIS {
     if (gAborting > 1) {
       os << "Runtime aborting --- recursively, so no thread-specific detail!\n";
       return;
@@ -200,24 +200,31 @@ struct AbortState {
       return;
     }
     Thread* self = Thread::Current();
-    if (self == NULL) {
+    if (self == nullptr) {
       os << "(Aborting thread was not attached to runtime!)\n";
     } else {
-      // TODO: we're aborting and the ScopedObjectAccess may attempt to acquire the mutator_lock_
-      //       which may block indefinitely if there's a misbehaving thread holding it exclusively.
-      //       The code below should be made robust to this.
-      ScopedObjectAccess soa(self);
       os << "Aborting thread:\n";
-      self->Dump(os);
-      if (self->IsExceptionPending()) {
-        ThrowLocation throw_location;
-        mirror::Throwable* exception = self->GetException(&throw_location);
-        os << "Pending exception " << PrettyTypeOf(exception)
-            << " thrown by '" << throw_location.Dump() << "'\n"
-            << exception->Dump();
+      if (Locks::mutator_lock_->IsExclusiveHeld(self) || Locks::mutator_lock_->IsSharedHeld(self)) {
+        DumpThread(os, self);
+      } else {
+        if (Locks::mutator_lock_->SharedTryLock(self)) {
+          DumpThread(os, self);
+          Locks::mutator_lock_->SharedUnlock(self);
+        }
       }
     }
     DumpAllThreads(os, self);
+  }
+
+  void DumpThread(std::ostream& os, Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    self->Dump(os);
+    if (self->IsExceptionPending()) {
+      ThrowLocation throw_location;
+      mirror::Throwable* exception = self->GetException(&throw_location);
+      os << "Pending exception " << PrettyTypeOf(exception)
+          << " thrown by '" << throw_location.Dump() << "'\n"
+          << exception->Dump();
+    }
   }
 
   void DumpAllThreads(std::ostream& os, Thread* self) NO_THREAD_SAFETY_ANALYSIS {

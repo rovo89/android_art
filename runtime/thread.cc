@@ -711,7 +711,9 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   bool is_daemon = false;
   Thread* self = Thread::Current();
 
-  if (self != nullptr && thread != nullptr && thread->tlsPtr_.opeer != nullptr) {
+  // Don't do this if we are aborting since the GC may have all the threads suspended. This will
+  // cause ScopedObjectAccessUnchecked to deadlock.
+  if (gAborting == 0 && self != nullptr && thread != nullptr && thread->tlsPtr_.opeer != nullptr) {
     ScopedObjectAccessUnchecked soa(self);
     priority = soa.DecodeField(WellKnownClasses::java_lang_Thread_priority)
         ->GetInt(thread->tlsPtr_.opeer);
