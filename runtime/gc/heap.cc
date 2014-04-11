@@ -667,7 +667,8 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   for (auto& collector : garbage_collectors_) {
     const CumulativeLogger& logger = collector->GetCumulativeTimings();
     const size_t iterations = logger.GetIterations();
-    if (iterations != 0) {
+    const Histogram<uint64_t>& pause_histogram = collector->GetPauseHistogram();
+    if (iterations != 0 && pause_histogram.SampleSize() != 0) {
       os << ConstDumpable<CumulativeLogger>(logger);
       const uint64_t total_ns = logger.GetTotalNs();
       const uint64_t total_pause_ns = collector->GetTotalPausedTimeNs();
@@ -675,8 +676,8 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
       const uint64_t freed_bytes = collector->GetTotalFreedBytes();
       const uint64_t freed_objects = collector->GetTotalFreedObjects();
       Histogram<uint64_t>::CumulativeData cumulative_data;
-      collector->GetPauseHistogram().CreateHistogram(&cumulative_data);
-      collector->GetPauseHistogram().PrintConfidenceIntervals(os, 0.99, cumulative_data);
+      pause_histogram.CreateHistogram(&cumulative_data);
+      pause_histogram.PrintConfidenceIntervals(os, 0.99, cumulative_data);
       os << collector->GetName() << " total time: " << PrettyDuration(total_ns)
          << " mean time: " << PrettyDuration(total_ns / iterations) << "\n"
          << collector->GetName() << " freed: " << freed_objects
@@ -2797,7 +2798,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
       if (IsGcConcurrent()) {
         RequestConcurrentGC(self);
       } else {
-        CollectGarbageInternal(gc_type, kGcCauseForAlloc, false);
+        CollectGarbageInternal(gc_type, kGcCauseForNativeAlloc, false);
       }
     }
   }
