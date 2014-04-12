@@ -393,10 +393,10 @@ void SemiSpace::ReclaimPhase() {
   // Note: Freed bytes can be negative if we copy form a compacted space to a free-list backed
   // space.
   heap_->RecordFree(freed_objects, freed_bytes);
+
   timings_.StartSplit("PreSweepingGcVerification");
   heap_->PreSweepingGcVerification(this);
   timings_.EndSplit();
-
   {
     WriterMutexLock mu(self_, *Locks::heap_bitmap_lock_);
     // Reclaim unmarked objects.
@@ -411,6 +411,8 @@ void SemiSpace::ReclaimPhase() {
     TimingLogger::ScopedSplit split("UnBindBitmaps", &timings_);
     GetHeap()->UnBindBitmaps();
   }
+  // TODO: Do this before doing verification since the from space may have objects which weren't
+  // moved and point to dead objects.
   from_space_->Clear();
   // Protect the from space.
   VLOG(heap) << "Protecting space " << *from_space_;
