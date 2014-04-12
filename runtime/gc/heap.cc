@@ -2403,9 +2403,11 @@ void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
       WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       // Swapping bound bitmaps does nothing.
       gc->SwapBitmaps();
+      SwapSemiSpaces();
       if (!VerifyHeapReferences()) {
         LOG(FATAL) << "Pre sweeping " << gc->GetName() << " GC verification failed";
       }
+      SwapSemiSpaces();
       gc->SwapBitmaps();
     }
   }
