@@ -78,9 +78,9 @@ static constexpr size_t kGcAlotInterval = KB;
 static constexpr size_t kMinConcurrentRemainingBytes = 128 * KB;
 static constexpr size_t kMaxConcurrentRemainingBytes = 512 * KB;
 // Sticky GC throughput adjustment, divided by 4. Increasing this causes sticky GC to occur more
-// relative to partial/full GC. This is desirable since sticky GCs interfere less with mutator
+// relative to partial/full GC. This may be desirable since sticky GCs interfere less with mutator
 // threads (lower pauses, use less memory bandwidth).
-static constexpr double kStickyGcThroughputAdjustment = 1.25;
+static constexpr double kStickyGcThroughputAdjustment = 1.0;
 // Whether or not we use the free list large object space.
 static constexpr bool kUseFreeListSpaceForLOS = false;
 // Whtehr or not we compact the zygote in PreZygoteFork.
@@ -595,6 +595,11 @@ void Heap::AddSpace(space::Space* space, bool set_as_default) {
       if (continuous_space->IsDlMallocSpace()) {
         dlmalloc_space_ = continuous_space->AsDlMallocSpace();
       } else if (continuous_space->IsRosAllocSpace()) {
+        // Revoke before if we already have a rosalloc_space_ so that we don't end up with non full
+        // runs from the previous one during the revoke after.
+        if (rosalloc_space_ != nullptr) {
+          rosalloc_space_->RevokeAllThreadLocalBuffers();
+        }
         rosalloc_space_ = continuous_space->AsRosAllocSpace();
       }
     }
@@ -615,7 +620,7 @@ void Heap::AddSpace(space::Space* space, bool set_as_default) {
   }
 }
 
-void Heap::RemoveSpace(space::Space* space) {
+void Heap::RemoveSpace(space::Space* space, bool unset_as_default) {
   DCHECK(space != nullptr);
   WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   if (space->IsContinuousSpace()) {
@@ -632,17 +637,19 @@ void Heap::RemoveSpace(space::Space* space) {
     auto it = std::find(continuous_spaces_.begin(), continuous_spaces_.end(), continuous_space);
     DCHECK(it != continuous_spaces_.end());
     continuous_spaces_.erase(it);
-    if (continuous_space == dlmalloc_space_) {
-      dlmalloc_space_ = nullptr;
-    } else if (continuous_space == rosalloc_space_) {
-      rosalloc_space_ = nullptr;
-    }
-    if (continuous_space == main_space_) {
-      main_space_ = nullptr;
-    } else if (continuous_space == bump_pointer_space_) {
-      bump_pointer_space_ = nullptr;
-    } else if (continuous_space == temp_space_) {
-      temp_space_ = nullptr;
+    if (unset_as_default) {
+      if (continuous_space == dlmalloc_space_) {
+        dlmalloc_space_ = nullptr;
+      } else if (continuous_space == rosalloc_space_) {
+        rosalloc_space_ = nullptr;
+      }
+      if (continuous_space == main_space_) {
+        main_space_ = nullptr;
+      } else if (continuous_space == bump_pointer_space_) {
+        bump_pointer_space_ = nullptr;
+      } else if (continuous_space == temp_space_) {
+        temp_space_ = nullptr;
+      }
     }
   } else {
     DCHECK(space->IsDiscontinuousSpace());
@@ -725,6 +732,7 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   os << "Total mutator paused time: " << PrettyDuration(total_paused_time) << "\n";
   os << "Total time waiting for GC to complete: " << PrettyDuration(total_wait_time_) << "\n";
   os << "Approximate GC data structures memory overhead: " << gc_memory_overhead_;
+  BaseMutex::DumpAll(os);
 }
 
 Heap::~Heap() {
@@ -1457,6 +1465,10 @@ void Heap::TransitionCollector(CollectorType collector_type) {
         // pointer space last transition it will be protected.
         bump_pointer_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
         Compact(bump_pointer_space_, main_space_);
+        // Remove the main space so that we don't try to trim it, this doens't work for debug
+        // builds since RosAlloc attempts to read the magic number from a protected page.
+        // TODO: Clean this up by getting rid of the remove_as_default parameter.
+        RemoveSpace(main_space_, false);
       }
       break;
     }
@@ -1465,6 +1477,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
     case kCollectorTypeCMS: {
       if (IsMovingGc(collector_type_)) {
         // Compact to the main space from the bump pointer space, don't need to swap semispaces.
+        AddSpace(main_space_, false);
         main_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
         Compact(main_space_, bump_pointer_space_);
       }

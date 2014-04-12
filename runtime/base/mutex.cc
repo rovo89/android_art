@@ -206,16 +206,16 @@ void BaseMutex::DumpContention(std::ostream& os) const {
       os << "never contended";
     } else {
       os << "contended " << contention_count
-         << " times, average wait of contender " << PrettyDuration(wait_time / contention_count);
+         << " total wait of contender " << PrettyDuration(wait_time)
+         << " average " << PrettyDuration(wait_time / contention_count);
       SafeMap<uint64_t, size_t> most_common_blocker;
       SafeMap<uint64_t, size_t> most_common_blocked;
-      typedef SafeMap<uint64_t, size_t>::const_iterator It;
       for (size_t i = 0; i < kContentionLogSize; ++i) {
         uint64_t blocked_tid = log[i].blocked_tid;
         uint64_t owner_tid = log[i].owner_tid;
         uint32_t count = log[i].count;
         if (count > 0) {
-          It it = most_common_blocked.find(blocked_tid);
+          auto it = most_common_blocked.find(blocked_tid);
           if (it != most_common_blocked.end()) {
             most_common_blocked.Overwrite(blocked_tid, it->second + count);
           } else {
@@ -231,10 +231,10 @@ void BaseMutex::DumpContention(std::ostream& os) const {
       }
       uint64_t max_tid = 0;
       size_t max_tid_count = 0;
-      for (It it = most_common_blocked.begin(); it != most_common_blocked.end(); ++it) {
-        if (it->second > max_tid_count) {
-          max_tid = it->first;
-          max_tid_count = it->second;
+      for (const auto& pair : most_common_blocked) {
+        if (pair.second > max_tid_count) {
+          max_tid = pair.first;
+          max_tid_count = pair.second;
         }
       }
       if (max_tid != 0) {
@@ -242,10 +242,10 @@ void BaseMutex::DumpContention(std::ostream& os) const {
       }
       max_tid = 0;
       max_tid_count = 0;
-      for (It it = most_common_blocker.begin(); it != most_common_blocker.end(); ++it) {
-        if (it->second > max_tid_count) {
-          max_tid = it->first;
-          max_tid_count = it->second;
+      for (const auto& pair : most_common_blocker) {
+        if (pair.second > max_tid_count) {
+          max_tid = pair.first;
+          max_tid_count = pair.second;
         }
       }
       if (max_tid != 0) {
