@@ -203,7 +203,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     non_moving_space_ = space::DlMallocSpace::Create(
         "zygote / non moving space", initial_size, kNonMovingSpaceCapacity, kNonMovingSpaceCapacity,
         requested_alloc_space_begin, false);
-    non_moving_space_->SetGrowthLimit(non_moving_space_->Capacity());
+    non_moving_space_->SetFootprintLimit(non_moving_space_->Capacity());
     CreateMainMallocSpace(mem_map, initial_size, growth_limit, capacity);
   } else {
     std::string error_str;
