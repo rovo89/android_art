@@ -38,11 +38,9 @@ namespace mirror {
 namespace gc {
 namespace accounting {
 
+template<size_t kAlignment>
 class SpaceBitmap {
  public:
-  // Alignment of objects within spaces.
-  static const size_t kAlignment = 8;
-
   typedef void ScanCallback(mirror::Object* obj, void* finger, void* arg);
 
   typedef void SweepCallback(size_t ptr_count, mirror::Object** ptrs, void* arg);
@@ -57,30 +55,31 @@ class SpaceBitmap {
   static SpaceBitmap* CreateFromMemMap(const std::string& name, MemMap* mem_map,
                                        byte* heap_begin, size_t heap_capacity);
 
-  ~SpaceBitmap();
+  ~SpaceBitmap() {
+  }
 
   // <offset> is the difference from .base to a pointer address.
   // <index> is the index of .bits that contains the bit representing
   //         <offset>.
-  static size_t OffsetToIndex(size_t offset) {
+  static size_t OffsetToIndex(size_t offset) ALWAYS_INLINE {
     return offset / kAlignment / kBitsPerWord;
   }
 
-  static uintptr_t IndexToOffset(size_t index) {
+  static uintptr_t IndexToOffset(size_t index) ALWAYS_INLINE {
     return static_cast<uintptr_t>(index * kAlignment * kBitsPerWord);
   }
 
   // Bits are packed in the obvious way.
-  static uword OffsetToMask(uintptr_t offset) {
+  static uword OffsetToMask(uintptr_t offset) ALWAYS_INLINE {
     return (static_cast<size_t>(1)) << ((offset / kAlignment) % kBitsPerWord);
   }
 
-  inline bool Set(const mirror::Object* obj) {
-    return Modify(obj, true);
+  bool Set(const mirror::Object* obj) ALWAYS_INLINE {
+    return Modify<true>(obj);
   }
 
-  inline bool Clear(const mirror::Object* obj) {
-    return Modify(obj, false);
+  bool Clear(const mirror::Object* obj) ALWAYS_INLINE {
+    return Modify<false>(obj);
   }
 
   // Returns true if the object was previously marked.
@@ -131,12 +130,19 @@ class SpaceBitmap {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Visits set bits in address order.  The callback is not permitted to change the bitmap bits or
+  // max during the traversal.
   void Walk(ObjectCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
+  // Visits set bits with an in order traversal.  The callback is not permitted to change the bitmap
+  // bits or max during the traversal.
   void InOrderWalk(ObjectCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
+  // Walk through the bitmaps in increasing address order, and find the object pointers that
+  // correspond to garbage objects.  Call <callback> zero or more times with lists of these object
+  // pointers. The callback is not permitted to increase the max of either bitmap.
   static void SweepWalk(const SpaceBitmap& live, const SpaceBitmap& mark, uintptr_t base,
                         uintptr_t max, SweepCallback* thunk, void* arg);
 
@@ -169,10 +175,18 @@ class SpaceBitmap {
   // Set the max address which can covered by the bitmap.
   void SetHeapLimit(uintptr_t new_end);
 
-  std::string GetName() const;
-  void SetName(const std::string& name);
+  std::string GetName() const {
+    return name_;
+  }
 
-  std::string Dump() const;
+  void SetName(const std::string& name) {
+    name_ = name;
+  }
+
+  std::string Dump() const {
+    return StringPrintf("%s: %p-%p", name_.c_str(), reinterpret_cast<void*>(HeapBegin()),
+                        reinterpret_cast<void*>(HeapLimit()));
+  }
 
   const void* GetObjectWordAddress(const mirror::Object* obj) const {
     uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
@@ -190,7 +204,17 @@ class SpaceBitmap {
         heap_begin_(reinterpret_cast<uintptr_t>(heap_begin)),
         name_(name) {}
 
-  bool Modify(const mirror::Object* obj, bool do_set);
+  template<bool kSetBit>
+  bool Modify(const mirror::Object* obj);
+
+  // For an unvisited object, visit it then all its children found via fields.
+  static void WalkFieldsInOrder(SpaceBitmap* visited, ObjectCallback* callback, mirror::Object* obj,
+                                void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // Walk instance fields of the given Class. Separate function to allow recursion on the super
+  // class.
+  static void WalkInstanceFields(SpaceBitmap<kAlignment>* visited, ObjectCallback* callback,
+                                 mirror::Object* obj, mirror::Class* klass, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Backing storage for bitmap.
   UniquePtr<MemMap> mem_map_;
@@ -272,7 +296,12 @@ class ObjectSet {
   Objects contained_;
 };
 
-std::ostream& operator << (std::ostream& stream, const SpaceBitmap& bitmap);
+typedef SpaceBitmap<kObjectAlignment> ContinuousSpaceBitmap;
+// TODO: Replace usage of ObjectSet with LargeObjectBitmap.
+typedef SpaceBitmap<kLargeObjectAlignment> LargeObjectBitmap;
+
+template<size_t kAlignment>
+std::ostream& operator << (std::ostream& stream, const SpaceBitmap<kAlignment>& bitmap);
 
 }  // namespace accounting
 }  // namespace gc

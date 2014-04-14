@@ -21,6 +21,7 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "garbage_collector.h"
+#include "gc/accounting/space_bitmap.h"
 #include "immune_region.h"
 #include "object_callbacks.h"
 #include "offsets.h"
@@ -42,7 +43,6 @@ class Heap;
 namespace accounting {
   template <typename T> class AtomicStack;
   typedef AtomicStack<mirror::Object*> ObjectStack;
-  class SpaceBitmap;
 }  // namespace accounting
 
 namespace space {
@@ -198,7 +198,8 @@ class SemiSpace : public GarbageCollector {
   // Destination and source spaces (can be any type of ContinuousMemMapAllocSpace which either has
   // a live bitmap or doesn't).
   space::ContinuousMemMapAllocSpace* to_space_;
-  accounting::SpaceBitmap* to_space_live_bitmap_;  // Cached live bitmap as an optimization.
+  // Cached live bitmap as an optimization.
+  accounting::ContinuousSpaceBitmap* to_space_live_bitmap_;
   space::ContinuousMemMapAllocSpace* from_space_;
 
   Thread* self_;
