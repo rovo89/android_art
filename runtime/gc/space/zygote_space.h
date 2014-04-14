@@ -17,15 +17,12 @@
 #ifndef ART_RUNTIME_GC_SPACE_ZYGOTE_SPACE_H_
 #define ART_RUNTIME_GC_SPACE_ZYGOTE_SPACE_H_
 
+#include "gc/accounting/space_bitmap.h"
 #include "malloc_space.h"
 #include "mem_map.h"
 
 namespace art {
 namespace gc {
-
-namespace accounting {
-class SpaceBitmap;
-}
 
 namespace space {
 
@@ -34,8 +31,8 @@ class ZygoteSpace FINAL : public ContinuousMemMapAllocSpace {
  public:
   // Returns the remaining storage in the out_map field.
   static ZygoteSpace* Create(const std::string& name, MemMap* mem_map,
-                             accounting::SpaceBitmap* live_bitmap,
-                             accounting::SpaceBitmap* mark_bitmap)
+                             accounting::ContinuousSpaceBitmap* live_bitmap,
+                             accounting::ContinuousSpaceBitmap* mark_bitmap)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Dump(std::ostream& os) const;
@@ -78,7 +75,7 @@ class ZygoteSpace FINAL : public ContinuousMemMapAllocSpace {
   }
 
  protected:
-  virtual accounting::SpaceBitmap::SweepCallback* GetSweepCallback() {
+  virtual accounting::ContinuousSpaceBitmap::SweepCallback* GetSweepCallback() {
     return &SweepCallback;
   }
 

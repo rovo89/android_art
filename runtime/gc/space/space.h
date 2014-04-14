@@ -34,10 +34,6 @@ namespace mirror {
 
 namespace gc {
 
-namespace accounting {
-  class SpaceBitmap;
-}  // namespace accounting
-
 class Heap;
 
 namespace space {
@@ -268,8 +264,8 @@ class ContinuousSpace : public Space {
     return End() - Begin();
   }
 
-  virtual accounting::SpaceBitmap* GetLiveBitmap() const = 0;
-  virtual accounting::SpaceBitmap* GetMarkBitmap() const = 0;
+  virtual accounting::ContinuousSpaceBitmap* GetLiveBitmap() const = 0;
+  virtual accounting::ContinuousSpaceBitmap* GetMarkBitmap() const = 0;
 
   // Maximum which the mapped space can grow to.
   virtual size_t Capacity() const {
@@ -399,24 +395,24 @@ class ContinuousMemMapAllocSpace : public MemMapSpace, public AllocSpace {
   // Swap the live and mark bitmaps of this space. This is used by the GC for concurrent sweeping.
   void SwapBitmaps();
 
-  // Reset the space back to an empty space and release memory.
+  // Clear the space back to an empty space.
   virtual void Clear() = 0;
 
-  accounting::SpaceBitmap* GetLiveBitmap() const {
+  accounting::ContinuousSpaceBitmap* GetLiveBitmap() const {
     return live_bitmap_.get();
   }
 
-  accounting::SpaceBitmap* GetMarkBitmap() const {
+  accounting::ContinuousSpaceBitmap* GetMarkBitmap() const {
     return mark_bitmap_.get();
   }
 
   void Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes);
-  virtual accounting::SpaceBitmap::SweepCallback* GetSweepCallback() = 0;
+  virtual accounting::ContinuousSpaceBitmap::SweepCallback* GetSweepCallback() = 0;
 
  protected:
-  UniquePtr<accounting::SpaceBitmap> live_bitmap_;
-  UniquePtr<accounting::SpaceBitmap> mark_bitmap_;
-  UniquePtr<accounting::SpaceBitmap> temp_bitmap_;
+  UniquePtr<accounting::ContinuousSpaceBitmap> live_bitmap_;
+  UniquePtr<accounting::ContinuousSpaceBitmap> mark_bitmap_;
+  UniquePtr<accounting::ContinuousSpaceBitmap> temp_bitmap_;
 
   ContinuousMemMapAllocSpace(const std::string& name, MemMap* mem_map, byte* begin,
                              byte* end, byte* limit, GcRetentionPolicy gc_retention_policy)

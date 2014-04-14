@@ -235,8 +235,8 @@ bool ImageWriter::AllocMemory() {
   }
 
   // Create the image bitmap.
-  image_bitmap_.reset(gc::accounting::SpaceBitmap::Create("image bitmap", image_->Begin(),
-                                                          length));
+  image_bitmap_.reset(gc::accounting::ContinuousSpaceBitmap::Create("image bitmap", image_->Begin(),
+                                                                    length));
   if (image_bitmap_.get() == nullptr) {
     LOG(ERROR) << "Failed to allocate memory for image bitmap";
     return false;
@@ -525,7 +525,7 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
 
   // Return to write header at start of image with future location of image_roots. At this point,
   // image_end_ is the size of the image (excluding bitmaps).
-  const size_t heap_bytes_per_bitmap_byte = kBitsPerByte * gc::accounting::SpaceBitmap::kAlignment;
+  const size_t heap_bytes_per_bitmap_byte = kBitsPerByte * kObjectAlignment;
   const size_t bitmap_bytes = RoundUp(image_end_, heap_bytes_per_bitmap_byte) /
       heap_bytes_per_bitmap_byte;
   ImageHeader image_header(PointerToLowMemUInt32(image_begin_),

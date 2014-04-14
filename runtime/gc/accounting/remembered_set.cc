@@ -112,7 +112,7 @@ void RememberedSet::UpdateAndMarkReferences(MarkHeapReferenceCallback* callback,
   bool contains_reference_to_target_space = false;
   RememberedSetObjectVisitor obj_visitor(callback, target_space,
                                          &contains_reference_to_target_space, arg);
-  SpaceBitmap* bitmap = space_->GetLiveBitmap();
+  ContinuousSpaceBitmap* bitmap = space_->GetLiveBitmap();
   CardSet remove_card_set;
   for (byte* const card_addr : dirty_cards_) {
     contains_reference_to_target_space = false;

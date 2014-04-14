@@ -65,7 +65,7 @@ inline void SemiSpace::MarkObject(
       }
       obj_ptr->Assign(forward_address);
     } else {
-      accounting::SpaceBitmap* object_bitmap =
+      accounting::ContinuousSpaceBitmap* object_bitmap =
           heap_->GetMarkBitmap()->GetContinuousSpaceBitmap(obj);
       if (LIKELY(object_bitmap != nullptr)) {
         if (generational_) {

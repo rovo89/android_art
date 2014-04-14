@@ -22,6 +22,7 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "garbage_collector.h"
+#include "gc/accounting/space_bitmap.h"
 #include "immune_region.h"
 #include "object_callbacks.h"
 #include "offsets.h"
@@ -45,7 +46,6 @@ class Heap;
 namespace accounting {
   template<typename T> class AtomicStack;
   typedef AtomicStack<mirror::Object*> ObjectStack;
-  class SpaceBitmap;
 }  // namespace accounting
 
 namespace collector {
@@ -283,7 +283,7 @@ class MarkSweep : public GarbageCollector {
 
   // Current space, we check this space first to avoid searching for the appropriate space for an
   // object.
-  accounting::SpaceBitmap* current_space_bitmap_;
+  accounting::ContinuousSpaceBitmap* current_space_bitmap_;
   // Cache the heap's mark bitmap to prevent having to do 2 loads during slow path marking.
   accounting::HeapBitmap* mark_bitmap_;
 

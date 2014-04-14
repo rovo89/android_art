@@ -48,15 +48,15 @@ MallocSpace::MallocSpace(const std::string& name, MemMap* mem_map,
     static const uintptr_t kGcCardSize = static_cast<uintptr_t>(accounting::CardTable::kCardSize);
     CHECK(IsAligned<kGcCardSize>(reinterpret_cast<uintptr_t>(mem_map->Begin())));
     CHECK(IsAligned<kGcCardSize>(reinterpret_cast<uintptr_t>(mem_map->End())));
-    live_bitmap_.reset(accounting::SpaceBitmap::Create(
+    live_bitmap_.reset(accounting::ContinuousSpaceBitmap::Create(
         StringPrintf("allocspace %s live-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
         Begin(), Capacity()));
-    DCHECK(live_bitmap_.get() != NULL) << "could not create allocspace live bitmap #"
+    DCHECK(live_bitmap_.get() != nullptr) << "could not create allocspace live bitmap #"
         << bitmap_index;
-    mark_bitmap_.reset(accounting::SpaceBitmap::Create(
+    mark_bitmap_.reset(accounting::ContinuousSpaceBitmap::Create(
         StringPrintf("allocspace %s mark-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
         Begin(), Capacity()));
-    DCHECK(live_bitmap_.get() != NULL) << "could not create allocspace mark bitmap #"
+    DCHECK(live_bitmap_.get() != nullptr) << "could not create allocspace mark bitmap #"
         << bitmap_index;
   }
   for (auto& freed : recent_freed_objects_) {
@@ -238,7 +238,7 @@ void MallocSpace::SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* ar
   // If the bitmaps aren't swapped we need to clear the bits since the GC isn't going to re-swap
   // the bitmaps as an optimization.
   if (!context->swap_bitmaps) {
-    accounting::SpaceBitmap* bitmap = space->GetLiveBitmap();
+    accounting::ContinuousSpaceBitmap* bitmap = space->GetLiveBitmap();
     for (size_t i = 0; i < num_ptrs; ++i) {
       bitmap->Clear(ptrs[i]);
     }
