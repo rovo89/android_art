@@ -223,10 +223,15 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   // the bitmap from the main space.
   if (kMovingCollector) {
     // TODO: Place bump-pointer spaces somewhere to minimize size of card table.
-    bump_pointer_space_ = space::BumpPointerSpace::Create("Bump pointer space", capacity, nullptr);
+    // TODO: Not create all the bump pointer spaces if not necessary (currently only GSS needs all
+    // 2 of bump pointer spaces + main space) b/14059466. Divide by 2 for a temporary fix.
+    const size_t bump_pointer_space_capacity = capacity / 2;
+    bump_pointer_space_ = space::BumpPointerSpace::Create("Bump pointer space",
+                                                          bump_pointer_space_capacity, nullptr);
     CHECK(bump_pointer_space_ != nullptr) << "Failed to create bump pointer space";
     AddSpace(bump_pointer_space_);
-    temp_space_ = space::BumpPointerSpace::Create("Bump pointer space 2", capacity, nullptr);
+    temp_space_ = space::BumpPointerSpace::Create("Bump pointer space 2",
+                                                  bump_pointer_space_capacity, nullptr);
     CHECK(temp_space_ != nullptr) << "Failed to create bump pointer space";
     AddSpace(temp_space_);
   }
