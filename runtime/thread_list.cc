@@ -617,7 +617,7 @@ void ThreadList::SuspendSelfForDebugger() {
   DCHECK(pReq != NULL);
   if (pReq->invoke_needed) {
     // Clear this before signaling.
-    pReq->invoke_needed = false;
+    pReq->Clear();
 
     VLOG(jdwp) << "invoke complete, signaling";
     MutexLock mu(self, pReq->lock);
