@@ -17,14 +17,26 @@
 #ifndef ART_RUNTIME_GC_ACCOUNTING_SPACE_BITMAP_INL_H_
 #define ART_RUNTIME_GC_ACCOUNTING_SPACE_BITMAP_INL_H_
 
+#include "space_bitmap.h"
+
 #include "base/logging.h"
+#include "dex_file-inl.h"
+#include "heap_bitmap.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/class-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
+#include "object_utils.h"
+#include "space_bitmap-inl.h"
+#include "UniquePtr.h"
 #include "utils.h"
 
 namespace art {
 namespace gc {
 namespace accounting {
 
-inline bool SpaceBitmap::AtomicTestAndSet(const mirror::Object* obj) {
+template<size_t kAlignment>
+inline bool SpaceBitmap<kAlignment>::AtomicTestAndSet(const mirror::Object* obj) {
   uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
   DCHECK_GE(addr, heap_begin_);
   const uintptr_t offset = addr - heap_begin_;
@@ -45,7 +57,8 @@ inline bool SpaceBitmap::AtomicTestAndSet(const mirror::Object* obj) {
   return false;
 }
 
-inline bool SpaceBitmap::Test(const mirror::Object* obj) const {
+template<size_t kAlignment>
+inline bool SpaceBitmap<kAlignment>::Test(const mirror::Object* obj) const {
   uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
   DCHECK(HasAddress(obj)) << obj;
   DCHECK(bitmap_begin_ != NULL);
@@ -54,8 +67,8 @@ inline bool SpaceBitmap::Test(const mirror::Object* obj) const {
   return (bitmap_begin_[OffsetToIndex(offset)] & OffsetToMask(offset)) != 0;
 }
 
-template <typename Visitor>
-void SpaceBitmap::VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
+template<size_t kAlignment> template<typename Visitor>
+void SpaceBitmap<kAlignment>::VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
                                    const Visitor& visitor) const {
   DCHECK_LT(visit_begin, visit_end);
 #if 0
@@ -148,7 +161,8 @@ void SpaceBitmap::VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
 #endif
 }
 
-inline bool SpaceBitmap::Modify(const mirror::Object* obj, bool do_set) {
+template<size_t kAlignment> template<bool kSetBit>
+inline bool SpaceBitmap<kAlignment>::Modify(const mirror::Object* obj) {
   uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
   DCHECK_GE(addr, heap_begin_);
   const uintptr_t offset = addr - heap_begin_;
@@ -157,13 +171,22 @@ inline bool SpaceBitmap::Modify(const mirror::Object* obj, bool do_set) {
   DCHECK_LT(index, bitmap_size_ / kWordSize) << " bitmap_size_ = " << bitmap_size_;
   uword* address = &bitmap_begin_[index];
   uword old_word = *address;
-  if (do_set) {
+  if (kSetBit) {
     *address = old_word | mask;
   } else {
     *address = old_word & ~mask;
   }
-  DCHECK_EQ(Test(obj), do_set);
+  DCHECK_EQ(Test(obj), kSetBit);
   return (old_word & mask) != 0;
+}
+
+template<size_t kAlignment>
+inline std::ostream& operator << (std::ostream& stream, const SpaceBitmap<kAlignment>& bitmap) {
+  return stream
+    << bitmap.GetName() << "["
+    << "begin=" << reinterpret_cast<const void*>(bitmap.HeapBegin())
+    << ",end=" << reinterpret_cast<const void*>(bitmap.HeapLimit())
+    << "]";
 }
 
 }  // namespace accounting

@@ -15,10 +15,10 @@
  * limitations under the License.
  */
 
-#include "rosalloc_space.h"
-
 #include "rosalloc_space-inl.h"
+
 #include "gc/accounting/card_table.h"
+#include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"

@@ -32,14 +32,15 @@ class SpaceBitmapTest : public CommonRuntimeTest {};
 TEST_F(SpaceBitmapTest, Init) {
   byte* heap_begin = reinterpret_cast<byte*>(0x10000000);
   size_t heap_capacity = 16 * MB;
-  UniquePtr<SpaceBitmap> space_bitmap(SpaceBitmap::Create("test bitmap",
-                                                          heap_begin, heap_capacity));
+  UniquePtr<ContinuousSpaceBitmap> space_bitmap(
+      ContinuousSpaceBitmap::Create("test bitmap", heap_begin, heap_capacity));
   EXPECT_TRUE(space_bitmap.get() != NULL);
 }
 
 class BitmapVerify {
  public:
-  BitmapVerify(SpaceBitmap* bitmap, const mirror::Object* begin, const mirror::Object* end)
+  BitmapVerify(ContinuousSpaceBitmap* bitmap, const mirror::Object* begin,
+               const mirror::Object* end)
     : bitmap_(bitmap),
       begin_(begin),
       end_(end) {}
@@ -50,7 +51,7 @@ class BitmapVerify {
     EXPECT_EQ(bitmap_->Test(obj), ((reinterpret_cast<uintptr_t>(obj) & 0xF) != 0));
   }
 
-  SpaceBitmap* bitmap_;
+  ContinuousSpaceBitmap* bitmap_;
   const mirror::Object* begin_;
   const mirror::Object* end_;
 };
@@ -59,14 +60,14 @@ TEST_F(SpaceBitmapTest, ScanRange) {
   byte* heap_begin = reinterpret_cast<byte*>(0x10000000);
   size_t heap_capacity = 16 * MB;
 
-  UniquePtr<SpaceBitmap> space_bitmap(SpaceBitmap::Create("test bitmap",
-                                                          heap_begin, heap_capacity));
+  UniquePtr<ContinuousSpaceBitmap> space_bitmap(
+      ContinuousSpaceBitmap::Create("test bitmap", heap_begin, heap_capacity));
   EXPECT_TRUE(space_bitmap.get() != NULL);
 
   // Set all the odd bits in the first BitsPerWord * 3 to one.
   for (size_t j = 0; j < kBitsPerWord * 3; ++j) {
     const mirror::Object* obj =
-        reinterpret_cast<mirror::Object*>(heap_begin + j * SpaceBitmap::kAlignment);
+        reinterpret_cast<mirror::Object*>(heap_begin + j * kObjectAlignment);
     if (reinterpret_cast<uintptr_t>(obj) & 0xF) {
       space_bitmap->Set(obj);
     }
@@ -77,10 +78,10 @@ TEST_F(SpaceBitmapTest, ScanRange) {
   // words.
   for (size_t i = 0; i < static_cast<size_t>(kBitsPerWord); ++i) {
     mirror::Object* start =
-        reinterpret_cast<mirror::Object*>(heap_begin + i * SpaceBitmap::kAlignment);
+        reinterpret_cast<mirror::Object*>(heap_begin + i * kObjectAlignment);
     for (size_t j = 0; j < static_cast<size_t>(kBitsPerWord * 2); ++j) {
       mirror::Object* end =
-          reinterpret_cast<mirror::Object*>(heap_begin + (i + j) * SpaceBitmap::kAlignment);
+          reinterpret_cast<mirror::Object*>(heap_begin + (i + j) * kObjectAlignment);
       BitmapVerify(space_bitmap.get(), start, end);
     }
   }
@@ -118,8 +119,8 @@ void compat_test() NO_THREAD_SAFETY_ANALYSIS {
 
 
   for (int i = 0; i < 5 ; ++i) {
-    UniquePtr<SpaceBitmap> space_bitmap(SpaceBitmap::Create("test bitmap",
-                                                            heap_begin, heap_capacity));
+    UniquePtr<ContinuousSpaceBitmap> space_bitmap(
+        ContinuousSpaceBitmap::Create("test bitmap", heap_begin, heap_capacity));
 
     for (int j = 0; j < 10000; ++j) {
       size_t offset = (r.next() % heap_capacity) & ~(0x7);

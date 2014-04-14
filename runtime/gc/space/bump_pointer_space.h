@@ -85,11 +85,11 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
     return GetMemMap()->Size();
   }
 
-  accounting::SpaceBitmap* GetLiveBitmap() const OVERRIDE {
+  accounting::ContinuousSpaceBitmap* GetLiveBitmap() const OVERRIDE {
     return nullptr;
   }
 
-  accounting::SpaceBitmap* GetMarkBitmap() const OVERRIDE {
+  accounting::ContinuousSpaceBitmap* GetMarkBitmap() const OVERRIDE {
     return nullptr;
   }
 
@@ -138,7 +138,7 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
   void Walk(ObjectCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  accounting::SpaceBitmap::SweepCallback* GetSweepCallback() OVERRIDE;
+  accounting::ContinuousSpaceBitmap::SweepCallback* GetSweepCallback() OVERRIDE;
 
   // Object alignment within the space.
   static constexpr size_t kAlignment = 8;

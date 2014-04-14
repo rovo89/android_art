@@ -38,7 +38,7 @@ class Heap;
 
 namespace accounting {
 
-class SpaceBitmap;
+template<size_t kAlignment> class SpaceBitmap;
 
 // Maintain a card table from the the write barrier. All writes of
 // non-NULL values to heap addresses should go through an entry in
@@ -102,7 +102,8 @@ class CardTable {
   // For every dirty at least minumum age between begin and end invoke the visitor with the
   // specified argument. Returns how many cards the visitor was run on.
   template <typename Visitor>
-  size_t Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_end, const Visitor& visitor,
+  size_t Scan(SpaceBitmap<kObjectAlignment>* bitmap, byte* scan_begin, byte* scan_end,
+              const Visitor& visitor,
               const byte minimum_age = kCardDirty) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

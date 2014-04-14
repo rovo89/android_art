@@ -16,13 +16,15 @@
 
 #include "heap_bitmap.h"
 
+#include "gc/accounting/space_bitmap-inl.h"
 #include "gc/space/space.h"
 
 namespace art {
 namespace gc {
 namespace accounting {
 
-void HeapBitmap::ReplaceBitmap(SpaceBitmap* old_bitmap, SpaceBitmap* new_bitmap) {
+void HeapBitmap::ReplaceBitmap(ContinuousSpaceBitmap* old_bitmap,
+                               ContinuousSpaceBitmap* new_bitmap) {
   for (auto& bitmap : continuous_space_bitmaps_) {
     if (bitmap == old_bitmap) {
       bitmap = new_bitmap;
@@ -42,7 +44,7 @@ void HeapBitmap::ReplaceObjectSet(ObjectSet* old_set, ObjectSet* new_set) {
   LOG(FATAL) << "object set " << static_cast<const void*>(old_set) << " not found";
 }
 
-void HeapBitmap::AddContinuousSpaceBitmap(accounting::SpaceBitmap* bitmap) {
+void HeapBitmap::AddContinuousSpaceBitmap(accounting::ContinuousSpaceBitmap* bitmap) {
   DCHECK(bitmap != NULL);
 
   // Check for interval overlap.
@@ -55,14 +57,14 @@ void HeapBitmap::AddContinuousSpaceBitmap(accounting::SpaceBitmap* bitmap) {
   continuous_space_bitmaps_.push_back(bitmap);
 }
 
-void HeapBitmap::RemoveContinuousSpaceBitmap(accounting::SpaceBitmap* bitmap) {
+void HeapBitmap::RemoveContinuousSpaceBitmap(accounting::ContinuousSpaceBitmap* bitmap) {
   auto it = std::find(continuous_space_bitmaps_.begin(), continuous_space_bitmaps_.end(), bitmap);
   DCHECK(it != continuous_space_bitmaps_.end());
   continuous_space_bitmaps_.erase(it);
 }
 
 void HeapBitmap::AddDiscontinuousObjectSet(ObjectSet* set) {
-  DCHECK(set != NULL);
+  DCHECK(set != nullptr);
   discontinuous_space_sets_.push_back(set);
 }
 

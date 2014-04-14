@@ -470,7 +470,9 @@ class Heap {
       LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_, Locks::thread_list_lock_);
 
   // Mark all the objects in the allocation stack in the specified bitmap.
-  void MarkAllocStack(accounting::SpaceBitmap* bitmap1, accounting::SpaceBitmap* bitmap2,
+  // TODO: Refactor?
+  void MarkAllocStack(accounting::SpaceBitmap<kObjectAlignment>* bitmap1,
+                      accounting::SpaceBitmap<kObjectAlignment>* bitmap2,
                       accounting::ObjectSet* large_objects, accounting::ObjectStack* stack)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 

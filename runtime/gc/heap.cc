@@ -581,8 +581,8 @@ void Heap::AddSpace(space::Space* space, bool set_as_default) {
     DCHECK(!space->IsDiscontinuousSpace());
     space::ContinuousSpace* continuous_space = space->AsContinuousSpace();
     // Continuous spaces don't necessarily have bitmaps.
-    accounting::SpaceBitmap* live_bitmap = continuous_space->GetLiveBitmap();
-    accounting::SpaceBitmap* mark_bitmap = continuous_space->GetMarkBitmap();
+    accounting::ContinuousSpaceBitmap* live_bitmap = continuous_space->GetLiveBitmap();
+    accounting::ContinuousSpaceBitmap* mark_bitmap = continuous_space->GetMarkBitmap();
     if (live_bitmap != nullptr) {
       DCHECK(mark_bitmap != nullptr);
       live_bitmap_->AddContinuousSpaceBitmap(live_bitmap);
@@ -622,8 +622,8 @@ void Heap::RemoveSpace(space::Space* space) {
     DCHECK(!space->IsDiscontinuousSpace());
     space::ContinuousSpace* continuous_space = space->AsContinuousSpace();
     // Continuous spaces don't necessarily have bitmaps.
-    accounting::SpaceBitmap* live_bitmap = continuous_space->GetLiveBitmap();
-    accounting::SpaceBitmap* mark_bitmap = continuous_space->GetMarkBitmap();
+    accounting::ContinuousSpaceBitmap* live_bitmap = continuous_space->GetLiveBitmap();
+    accounting::ContinuousSpaceBitmap* mark_bitmap = continuous_space->GetMarkBitmap();
     if (live_bitmap != nullptr) {
       DCHECK(mark_bitmap != nullptr);
       live_bitmap_->RemoveContinuousSpaceBitmap(live_bitmap);
@@ -1103,8 +1103,8 @@ bool Heap::IsLiveObjectLocked(mirror::Object* obj, bool search_allocation_stack,
 
 void Heap::DumpSpaces(std::ostream& stream) {
   for (const auto& space : continuous_spaces_) {
-    accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
-    accounting::SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
+    accounting::ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
+    accounting::ContinuousSpaceBitmap* mark_bitmap = space->GetMarkBitmap();
     stream << space << " " << *space << "\n";
     if (live_bitmap != nullptr) {
       stream << live_bitmap << " " << *live_bitmap << "\n";
@@ -1566,9 +1566,9 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
   // Maps from bin sizes to locations.
   std::multimap<size_t, uintptr_t> bins_;
   // Live bitmap of the space which contains the bins.
-  accounting::SpaceBitmap* bin_live_bitmap_;
+  accounting::ContinuousSpaceBitmap* bin_live_bitmap_;
   // Mark bitmap of the space which contains the bins.
-  accounting::SpaceBitmap* bin_mark_bitmap_;
+  accounting::ContinuousSpaceBitmap* bin_mark_bitmap_;
 
   static void Callback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -1764,8 +1764,8 @@ void Heap::FlushAllocStack() {
   allocation_stack_->Reset();
 }
 
-void Heap::MarkAllocStack(accounting::SpaceBitmap* bitmap1,
-                          accounting::SpaceBitmap* bitmap2,
+void Heap::MarkAllocStack(accounting::ContinuousSpaceBitmap* bitmap1,
+                          accounting::ContinuousSpaceBitmap* bitmap2,
                           accounting::ObjectSet* large_objects,
                           accounting::ObjectStack* stack) {
   DCHECK(bitmap1 != nullptr);
@@ -2038,7 +2038,8 @@ class VerifyReferenceVisitor {
           accounting::CardTable::kCardSize);
       LOG(ERROR) << "Card " << reinterpret_cast<void*>(card_addr) << " covers " << cover_begin
           << "-" << cover_end;
-      accounting::SpaceBitmap* bitmap = heap_->GetLiveBitmap()->GetContinuousSpaceBitmap(obj);
+      accounting::ContinuousSpaceBitmap* bitmap =
+          heap_->GetLiveBitmap()->GetContinuousSpaceBitmap(obj);
 
       if (bitmap == nullptr) {
         LOG(ERROR) << "Object " << obj << " has no bitmap";
@@ -2873,7 +2874,7 @@ void Heap::RemoveRememberedSet(space::Space* space) {
 void Heap::ClearMarkedObjects() {
   // Clear all of the spaces' mark bitmaps.
   for (const auto& space : GetContinuousSpaces()) {
-    accounting::SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
+    accounting::ContinuousSpaceBitmap* mark_bitmap = space->GetMarkBitmap();
     if (space->GetLiveBitmap() != mark_bitmap) {
       mark_bitmap->Clear();
     }

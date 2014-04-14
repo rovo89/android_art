@@ -34,7 +34,7 @@ class HeapBitmap {
   bool Test(const mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
   void Clear(const mirror::Object* obj) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
   void Set(const mirror::Object* obj) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-  SpaceBitmap* GetContinuousSpaceBitmap(const mirror::Object* obj) const;
+  ContinuousSpaceBitmap* GetContinuousSpaceBitmap(const mirror::Object* obj) const;
   ObjectSet* GetDiscontinuousSpaceObjectSet(const mirror::Object* obj) const;
 
   void Walk(ObjectCallback* callback, void* arg)
@@ -46,7 +46,7 @@ class HeapBitmap {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Find and replace a bitmap pointer, this is used by for the bitmap swapping in the GC.
-  void ReplaceBitmap(SpaceBitmap* old_bitmap, SpaceBitmap* new_bitmap)
+  void ReplaceBitmap(ContinuousSpaceBitmap* old_bitmap, ContinuousSpaceBitmap* new_bitmap)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Find and replace a object set pointer, this is used by for the bitmap swapping in the GC.
@@ -58,13 +58,14 @@ class HeapBitmap {
  private:
   const Heap* const heap_;
 
-  void AddContinuousSpaceBitmap(SpaceBitmap* bitmap);
-  void RemoveContinuousSpaceBitmap(SpaceBitmap* bitmap);
+  void AddContinuousSpaceBitmap(ContinuousSpaceBitmap* bitmap);
+  void RemoveContinuousSpaceBitmap(ContinuousSpaceBitmap* bitmap);
   void AddDiscontinuousObjectSet(ObjectSet* set);
   void RemoveDiscontinuousObjectSet(ObjectSet* set);
 
   // Bitmaps covering continuous spaces.
-  std::vector<SpaceBitmap*, GcAllocator<SpaceBitmap*>> continuous_space_bitmaps_;
+  std::vector<ContinuousSpaceBitmap*, GcAllocator<ContinuousSpaceBitmap*>>
+      continuous_space_bitmaps_;
 
   // Sets covering discontinuous spaces.
   std::vector<ObjectSet*, GcAllocator<ObjectSet*>> discontinuous_space_sets_;

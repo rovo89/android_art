@@ -35,7 +35,7 @@ namespace space {
 Atomic<uint32_t> ImageSpace::bitmap_index_(0);
 
 ImageSpace::ImageSpace(const std::string& name, MemMap* mem_map,
-                       accounting::SpaceBitmap* live_bitmap)
+                       accounting::ContinuousSpaceBitmap* live_bitmap)
     : MemMapSpace(name, mem_map, mem_map->Begin(), mem_map->End(), mem_map->End(),
                   kGcRetentionPolicyNeverCollect) {
   DCHECK(live_bitmap != nullptr);
@@ -197,10 +197,10 @@ ImageSpace* ImageSpace::Init(const char* image_file_name, bool validate_oat_file
   uint32_t bitmap_index = bitmap_index_.FetchAndAdd(1);
   std::string bitmap_name(StringPrintf("imagespace %s live-bitmap %u", image_file_name,
                                        bitmap_index));
-  UniquePtr<accounting::SpaceBitmap> bitmap(
-      accounting::SpaceBitmap::CreateFromMemMap(bitmap_name, image_map.release(),
-                                                reinterpret_cast<byte*>(map->Begin()),
-                                                map->Size()));
+  UniquePtr<accounting::ContinuousSpaceBitmap> bitmap(
+      accounting::ContinuousSpaceBitmap::CreateFromMemMap(bitmap_name, image_map.release(),
+                                                          reinterpret_cast<byte*>(map->Begin()),
+                                                          map->Size()));
   if (bitmap.get() == nullptr) {
     *error_msg = StringPrintf("Could not create bitmap '%s'", bitmap_name.c_str());
     return nullptr;

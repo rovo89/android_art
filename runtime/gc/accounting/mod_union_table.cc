@@ -19,6 +19,7 @@
 #include "base/stl_util.h"
 #include "card_table-inl.h"
 #include "heap_bitmap.h"
+#include "gc/accounting/space_bitmap-inl.h"
 #include "gc/collector/mark_sweep.h"
 #include "gc/collector/mark_sweep-inl.h"
 #include "gc/heap.h"
@@ -222,7 +223,7 @@ void ModUnionTableReferenceCache::Verify() {
 
   // Check the references of each clean card which is also in the mod union table.
   CardTable* card_table = heap_->GetCardTable();
-  SpaceBitmap* live_bitmap = space_->GetLiveBitmap();
+  ContinuousSpaceBitmap* live_bitmap = space_->GetLiveBitmap();
   for (const auto& ref_pair : references_) {
     const byte* card = ref_pair.first;
     if (*card == CardTable::kCardClean) {
@@ -272,7 +273,7 @@ void ModUnionTableReferenceCache::UpdateAndMarkReferences(MarkHeapReferenceCallb
     uintptr_t end = start + CardTable::kCardSize;
     auto* space = heap_->FindContinuousSpaceFromObject(reinterpret_cast<Object*>(start), false);
     DCHECK(space != nullptr);
-    SpaceBitmap* live_bitmap = space->GetLiveBitmap();
+    ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
     live_bitmap->VisitMarkedRange(start, end, add_visitor);
 
     // Update the corresponding references for the card.
@@ -312,7 +313,7 @@ void ModUnionTableCardCache::UpdateAndMarkReferences(MarkHeapReferenceCallback* 
                                                      void* arg) {
   CardTable* card_table = heap_->GetCardTable();
   ModUnionScanImageRootVisitor scan_visitor(callback, arg);
-  SpaceBitmap* bitmap = space_->GetLiveBitmap();
+  ContinuousSpaceBitmap* bitmap = space_->GetLiveBitmap();
   for (const byte* card_addr : cleared_cards_) {
     uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card_addr));
     DCHECK(space_->HasAddress(reinterpret_cast<Object*>(start)));
