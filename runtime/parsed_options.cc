@@ -140,7 +140,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
   collector_type_ = gc::kCollectorTypeCMS;
   // If background_collector_type_ is kCollectorTypeNone, it defaults to the collector_type_ after
   // parsing options.
-  background_collector_type_ = gc::kCollectorTypeNone;
+  background_collector_type_ = gc::kCollectorTypeSS;
   stack_size_ = 0;  // 0 means default.
   max_spins_before_thin_lock_inflation_ = Monitor::kDefaultMaxSpinsBeforeThinLockInflation;
   low_memory_mode_ = false;
