@@ -180,11 +180,6 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
              << "GrowthLimit " << growth_limit_ << "\n"
              << "Capacity " << Capacity();
   SetGrowthLimit(RoundUp(size, kPageSize));
-  SetFootprintLimit(RoundUp(size, kPageSize));
-
-  // TODO: Not hardcode these in?
-  const size_t starting_size = kPageSize;
-  const size_t initial_size = 2 * MB;
   // FIXME: Do we need reference counted pointers here?
   // Make the two spaces share the same mark bitmaps since the bitmaps span both of the spaces.
   VLOG(heap) << "Creating new AllocSpace: ";
@@ -196,11 +191,11 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   UniquePtr<MemMap> mem_map(GetMemMap()->RemapAtEnd(end_, alloc_space_name,
                                                     PROT_READ | PROT_WRITE, &error_msg));
   CHECK(mem_map.get() != nullptr) << error_msg;
-  void* allocator = CreateAllocator(end_, starting_size, initial_size, capacity, low_memory_mode);
+  void* allocator = CreateAllocator(end_, starting_size_, initial_size_, capacity, low_memory_mode);
   // Protect memory beyond the initial size.
-  byte* end = mem_map->Begin() + starting_size;
-  if (capacity - initial_size > 0) {
-    CHECK_MEMORY_CALL(mprotect, (end, capacity - initial_size, PROT_NONE), alloc_space_name);
+  byte* end = mem_map->Begin() + starting_size_;
+  if (capacity > initial_size_) {
+    CHECK_MEMORY_CALL(mprotect, (end, capacity - initial_size_, PROT_NONE), alloc_space_name);
   }
   *out_malloc_space = CreateInstance(alloc_space_name, mem_map.release(), allocator, end_, end,
                                      limit_, growth_limit, CanMoveObjects());
