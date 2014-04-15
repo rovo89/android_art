@@ -63,6 +63,7 @@ Instrumentation::Instrumentation()
       interpret_only_(false), forced_interpret_only_(false),
       have_method_entry_listeners_(false), have_method_exit_listeners_(false),
       have_method_unwind_listeners_(false), have_dex_pc_listeners_(false),
+      have_field_read_listeners_(false), have_field_write_listeners_(false),
       have_exception_caught_listeners_(false),
       deoptimized_methods_lock_("deoptimized methods lock"),
       deoptimization_enabled_(false),
@@ -373,6 +374,14 @@ void Instrumentation::AddListener(InstrumentationListener* listener, uint32_t ev
     dex_pc_listeners_.push_back(listener);
     have_dex_pc_listeners_ = true;
   }
+  if ((events & kFieldRead) != 0) {
+    field_read_listeners_.push_back(listener);
+    have_field_read_listeners_ = true;
+  }
+  if ((events & kFieldWritten) != 0) {
+    field_write_listeners_.push_back(listener);
+    have_field_write_listeners_ = true;
+  }
   if ((events & kExceptionCaught) != 0) {
     exception_caught_listeners_.push_back(listener);
     have_exception_caught_listeners_ = true;
@@ -409,6 +418,22 @@ void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t
       dex_pc_listeners_.remove(listener);
     }
     have_dex_pc_listeners_ = dex_pc_listeners_.size() > 0;
+  }
+  if ((events & kFieldRead) != 0) {
+    bool contains = std::find(field_read_listeners_.begin(), field_read_listeners_.end(),
+                              listener) != field_read_listeners_.end();
+    if (contains) {
+      field_read_listeners_.remove(listener);
+    }
+    have_field_read_listeners_ = field_read_listeners_.size() > 0;
+  }
+  if ((events & kFieldWritten) != 0) {
+    bool contains = std::find(field_write_listeners_.begin(), field_write_listeners_.end(),
+                              listener) != field_write_listeners_.end();
+    if (contains) {
+      field_write_listeners_.remove(listener);
+    }
+    have_field_write_listeners_ = field_write_listeners_.size() > 0;
   }
   if ((events & kExceptionCaught) != 0) {
     exception_caught_listeners_.remove(listener);
@@ -740,6 +765,30 @@ void Instrumentation::DexPcMovedEventImpl(Thread* thread, mirror::Object* this_o
   std::list<InstrumentationListener*> copy(dex_pc_listeners_);
   for (InstrumentationListener* listener : copy) {
     listener->DexPcMoved(thread, this_object, method, dex_pc);
+  }
+}
+
+void Instrumentation::FieldReadEventImpl(Thread* thread, mirror::Object* this_object,
+                                         mirror::ArtMethod* method, uint32_t dex_pc,
+                                         mirror::ArtField* field) const {
+  if (have_field_read_listeners_) {
+    // TODO: same comment than DexPcMovedEventImpl.
+    std::list<InstrumentationListener*> copy(field_read_listeners_);
+    for (InstrumentationListener* listener : copy) {
+      listener->FieldRead(thread, this_object, method, dex_pc, field);
+    }
+  }
+}
+
+void Instrumentation::FieldWriteEventImpl(Thread* thread, mirror::Object* this_object,
+                                         mirror::ArtMethod* method, uint32_t dex_pc,
+                                         mirror::ArtField* field, const JValue& field_value) const {
+  if (have_field_write_listeners_) {
+    // TODO: same comment than DexPcMovedEventImpl.
+    std::list<InstrumentationListener*> copy(field_write_listeners_);
+    for (InstrumentationListener* listener : copy) {
+      listener->FieldWritten(thread, this_object, method, dex_pc, field, field_value);
+    }
   }
 }
 

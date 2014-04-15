@@ -549,6 +549,21 @@ void Trace::DexPcMoved(Thread* thread, mirror::Object* this_object,
   LOG(ERROR) << "Unexpected dex PC event in tracing " << PrettyMethod(method) << " " << new_dex_pc;
 };
 
+void Trace::FieldRead(Thread* /*thread*/, mirror::Object* this_object,
+                       mirror::ArtMethod* method, uint32_t dex_pc, mirror::ArtField* field)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // We're not recorded to listen to this kind of event, so complain.
+  LOG(ERROR) << "Unexpected field read event in tracing " << PrettyMethod(method) << " " << dex_pc;
+}
+
+void Trace::FieldWritten(Thread* /*thread*/, mirror::Object* this_object,
+                          mirror::ArtMethod* method, uint32_t dex_pc, mirror::ArtField* field,
+                          const JValue& field_value)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // We're not recorded to listen to this kind of event, so complain.
+  LOG(ERROR) << "Unexpected field write event in tracing " << PrettyMethod(method) << " " << dex_pc;
+}
+
 void Trace::MethodEntered(Thread* thread, mirror::Object* this_object,
                           mirror::ArtMethod* method, uint32_t dex_pc) {
   uint32_t thread_clock_diff = 0;
