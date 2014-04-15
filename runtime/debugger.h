@@ -85,6 +85,8 @@ struct DebugInvokeReq {
   void VisitRoots(RootCallback* callback, void* arg, uint32_t tid, RootType root_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void Clear();
+
  private:
   DISALLOW_COPY_AND_ASSIGN(DebugInvokeReq);
 };
@@ -117,6 +119,10 @@ struct SingleStepControl {
 
   void VisitRoots(RootCallback* callback, void* arg, uint32_t tid, RootType root_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool ContainsDexPc(uint32_t dex_pc) const;
+
+  void Clear();
 
  private:
   DISALLOW_COPY_AND_ASSIGN(SingleStepControl);
