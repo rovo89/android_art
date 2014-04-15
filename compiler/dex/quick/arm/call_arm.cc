@@ -360,6 +360,22 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
     if (Runtime::Current()->ExplicitStackOverflowChecks()) {
       /* Load stack limit */
       Load32Disp(rs_rARM_SELF, Thread::StackEndOffset<4>().Int32Value(), rs_r12);
+    } else {
+      // Implicit stack overflow check.
+      // Generate a load from [sp, #-overflowsize].  If this is in the stack
+      // redzone we will get a segmentation fault.
+      //
+      // Caveat coder: if someone changes the kStackOverflowReservedBytes value
+      // we need to make sure that it's loadable in an immediate field of
+      // a sub instruction.  Otherwise we will get a temp allocation and the
+      // code size will increase.
+      //
+      // This is done before the callee save instructions to avoid any possibility
+      // of these overflowing.  This uses r12 and that's never saved in a callee
+      // save.
+      OpRegRegImm(kOpSub, rs_r12, rs_rARM_SP, Thread::kStackOverflowReservedBytes);
+      Load32Disp(rs_r12, 0, rs_r12);
+      MarkPossibleStackOverflowException();
     }
   }
   /* Spill core callee saves */
@@ -418,17 +434,8 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
         AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, false, frame_size_));
       }
     } else {
-      // Implicit stack overflow check.
-      // Generate a load from [sp, #-overflowsize].  If this is in the stack
-      // redzone we will get a segmentation fault.
-      //
-      // Caveat coder: if someone changes the kStackOverflowReservedBytes value
-      // we need to make sure that it's loadable in an immediate field of
-      // a sub instruction.  Otherwise we will get a temp allocation and the
-      // code size will increase.
-      OpRegRegImm(kOpSub, rs_r12, rs_rARM_SP, Thread::kStackOverflowReservedBytes);
-      Load32Disp(rs_r12, 0, rs_r12);
-      MarkPossibleStackOverflowException();
+      // Implicit stack overflow check has already been done.  Just make room on the
+      // stack for the frame now.
       OpRegImm(kOpSub, rs_rARM_SP, frame_size_without_spills);
     }
   } else {
