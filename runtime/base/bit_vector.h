@@ -142,6 +142,14 @@ class BitVector {
     // Number of bits set in range [0, end) in storage. (No range check.)
     static uint32_t NumSetBits(const uint32_t* storage, uint32_t end);
 
+    bool EnsureSizeAndClear(unsigned int num);
+
+    void Dump(std::ostream& os, const char* prefix);
+    void DumpDot(FILE* file, const char* prefix, bool last_entry = false);
+
+  protected:
+    void DumpHelper(std::ostringstream& buffer, const char* prefix);
+
   private:
     Allocator* const allocator_;
     const bool expandable_;         // expand bitmap if we run out?
