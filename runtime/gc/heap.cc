@@ -1412,7 +1412,6 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   VLOG(heap) << "TransitionCollector: " << static_cast<int>(collector_type_)
              << " -> " << static_cast<int>(collector_type);
   uint64_t start_time = NanoTime();
-  uint32_t before_size  = GetTotalMemory();
   uint32_t before_allocated = num_bytes_allocated_.Load();
   ThreadList* tl = Runtime::Current()->GetThreadList();
   Thread* self = Thread::Current();
@@ -1482,16 +1481,10 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   uint64_t duration = NanoTime() - start_time;
   GrowForUtilization(semi_space_collector_);
   FinishGC(self, collector::kGcTypeFull);
-  int32_t after_size = GetTotalMemory();
-  int32_t delta_size = before_size - after_size;
   int32_t after_allocated = num_bytes_allocated_.Load();
   int32_t delta_allocated = before_allocated - after_allocated;
-  const std::string saved_bytes_str =
-      delta_size < 0 ? "-" + PrettySize(-delta_size) : PrettySize(delta_size);
   LOG(INFO) << "Heap transition to " << process_state_ << " took "
-      << PrettyDuration(duration) << " " << PrettySize(before_size) << "->"
-      << PrettySize(after_size) << " from " << PrettySize(delta_allocated) << " to "
-      << PrettySize(delta_size) << " saved";
+      << PrettyDuration(duration) << " saved at least " << PrettySize(delta_allocated);
 }
 
 void Heap::ChangeCollector(CollectorType collector_type) {
