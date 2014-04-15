@@ -237,55 +237,41 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
   Locks::mutator_lock_->AssertNotHeld(self);
   UniquePtr<JdwpState> state(new JdwpState(options));
   switch (options->transport) {
-  case kJdwpTransportSocket:
-    InitSocketTransport(state.get(), options);
-    break;
+    case kJdwpTransportSocket:
+      InitSocketTransport(state.get(), options);
+      break;
 #ifdef HAVE_ANDROID_OS
-  case kJdwpTransportAndroidAdb:
-    InitAdbTransport(state.get(), options);
-    break;
+    case kJdwpTransportAndroidAdb:
+      InitAdbTransport(state.get(), options);
+      break;
 #endif
-  default:
-    LOG(FATAL) << "Unknown transport: " << options->transport;
+    default:
+      LOG(FATAL) << "Unknown transport: " << options->transport;
   }
 
-  if (!options->suspend) {
+  {
     /*
      * Grab a mutex before starting the thread.  This ensures they
      * won't signal the cond var before we're waiting.
      */
     MutexLock thread_start_locker(self, state->thread_start_lock_);
+
     /*
      * We have bound to a port, or are trying to connect outbound to a
      * debugger.  Create the JDWP thread and let it continue the mission.
      */
-    CHECK_PTHREAD_CALL(pthread_create, (&state->pthread_, NULL, StartJdwpThread, state.get()), "JDWP thread");
+    CHECK_PTHREAD_CALL(pthread_create, (&state->pthread_, nullptr, StartJdwpThread, state.get()),
+                       "JDWP thread");
 
     /*
      * Wait until the thread finishes basic initialization.
-     * TODO: cond vars should be waited upon in a loop
      */
-    state->thread_start_cond_.Wait(self);
-  } else {
-    {
-      /*
-       * Grab a mutex before starting the thread.  This ensures they
-       * won't signal the cond var before we're waiting.
-       */
-      MutexLock thread_start_locker(self, state->thread_start_lock_);
-      /*
-       * We have bound to a port, or are trying to connect outbound to a
-       * debugger.  Create the JDWP thread and let it continue the mission.
-       */
-      CHECK_PTHREAD_CALL(pthread_create, (&state->pthread_, NULL, StartJdwpThread, state.get()), "JDWP thread");
-
-      /*
-       * Wait until the thread finishes basic initialization.
-       * TODO: cond vars should be waited upon in a loop
-       */
+    while (!state->debug_thread_started_) {
       state->thread_start_cond_.Wait(self);
     }
+  }
 
+  if (options->suspend) {
     /*
      * For suspend=y, wait for the debugger to connect to us or for us to
      * connect to the debugger.
@@ -481,11 +467,8 @@ void JdwpState::Run() {
     /* process requests until the debugger drops */
     bool first = true;
     while (!Dbg::IsDisposed()) {
-      {
-        // sanity check -- shouldn't happen?
-        MutexLock mu(thread_, *Locks::thread_suspend_count_lock_);
-        CHECK_EQ(thread_->GetState(), kWaitingInMainDebuggerLoop);
-      }
+      // sanity check -- shouldn't happen?
+      CHECK_EQ(thread_->GetState(), kWaitingInMainDebuggerLoop);
 
       if (!netState->ProcessIncoming()) {
         /* blocking read */
