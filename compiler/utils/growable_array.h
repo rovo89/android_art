@@ -50,9 +50,14 @@ class GrowableArray {
           : idx_(0),
             g_list_(g_list) {}
 
+        explicit Iterator()
+          : idx_(0),
+            g_list_(nullptr) {}
+
         // NOTE: returns 0/NULL when no next.
         // TODO: redo to make usage consistent with other iterators.
         T Next() {
+          DCHECK(g_list_ != nullptr);
           if (idx_ >= g_list_->Size()) {
             return 0;
           } else {
@@ -62,6 +67,15 @@ class GrowableArray {
 
         void Reset() {
           idx_ = 0;
+        }
+
+        void Reset(GrowableArray* g_list) {
+          idx_ = 0;
+          g_list_ = g_list;
+        }
+
+        size_t GetIndex() const {
+          return idx_;
         }
 
       private:
