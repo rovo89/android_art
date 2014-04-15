@@ -2126,6 +2126,8 @@ void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
         // Can we do this directly into memory?
         rl_result = UpdateLoc(rl_dest);
         if (rl_result.location == kLocPhysReg) {
+          // Ensure res is in a core reg
+          rl_result = EvalLoc(rl_dest, kCoreReg, true);
           // Can we do this from memory directly?
           rl_rhs = UpdateLoc(rl_rhs);
           if (rl_rhs.location != kLocPhysReg) {
