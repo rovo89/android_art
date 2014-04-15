@@ -122,13 +122,12 @@ class SpaceBitmap {
     }
   }
 
-  /**
-   * Visit the live objects in the range [visit_begin, visit_end).
-   */
+  // Visit the live objects in the range [visit_begin, visit_end).
+  // TODO: Use lock annotations when clang is fixed.
+  // EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   template <typename Visitor>
   void VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end, const Visitor& visitor) const
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      NO_THREAD_SAFETY_ANALYSIS;
 
   // Visits set bits in address order.  The callback is not permitted to change the bitmap bits or
   // max during the traversal.
