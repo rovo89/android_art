@@ -1493,7 +1493,7 @@ void X86_64Assembler::EmitOptionalRex(bool force, bool w, bool r, bool x, bool b
 }
 
 void X86_64Assembler::EmitOptionalRex32(CpuRegister reg) {
-  EmitOptionalRex(false, false, reg.NeedsRex(), false, false);
+  EmitOptionalRex(false, false, false, false, reg.NeedsRex());
 }
 
 void X86_64Assembler::EmitOptionalRex32(CpuRegister dst, CpuRegister src) {
@@ -1540,8 +1540,9 @@ void X86_64Assembler::EmitOptionalRex32(XmmRegister dst, const Operand& operand)
 }
 
 void X86_64Assembler::EmitRex64(CpuRegister reg) {
-  EmitOptionalRex(false, true, reg.NeedsRex(), false, false);
+  EmitOptionalRex(false, true, false, false, reg.NeedsRex());
 }
+
 void X86_64Assembler::EmitRex64(CpuRegister dst, CpuRegister src) {
   EmitOptionalRex(false, true, dst.NeedsRex(), false, src.NeedsRex());
 }
