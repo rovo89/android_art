@@ -121,26 +121,14 @@ struct ModBasket {
   /* nothing for StepOnly -- handled differently */
 };
 
-/*
- * Dump an event to the log file.
- */
-static void dumpEvent(const JdwpEvent* pEvent) {
-  LOG(INFO) << StringPrintf("Event id=0x%4x %p (prev=%p next=%p):", pEvent->requestId, pEvent, pEvent->prev, pEvent->next);
-  LOG(INFO) << "  kind=" << pEvent->eventKind << " susp=" << pEvent->suspend_policy << " modCount=" << pEvent->modCount;
-
-  for (int i = 0; i < pEvent->modCount; i++) {
-    const JdwpEventMod* pMod = &pEvent->mods[i];
-    LOG(INFO) << "  " << pMod->modKind;
-    /* TODO - show details */
-  }
-}
-
 static bool NeedsFullDeoptimization(JdwpEventKind eventKind) {
   switch (eventKind) {
       case EK_METHOD_ENTRY:
       case EK_METHOD_EXIT:
       case EK_METHOD_EXIT_WITH_RETURN_VALUE:
       case EK_SINGLE_STEP:
+      case EK_FIELD_ACCESS:
+      case EK_FIELD_MODIFICATION:
         return true;
       default:
         return false;
@@ -177,9 +165,6 @@ JdwpError JdwpState::RegisterEvent(JdwpEvent* pEvent) {
       if (status != ERR_NONE) {
         return status;
       }
-    } else if (pMod->modKind == MK_FIELD_ONLY) {
-      /* should be for EK_FIELD_ACCESS or EK_FIELD_MODIFICATION */
-      dumpEvent(pEvent);  /* TODO - need for field watches */
     }
   }
   if (NeedsFullDeoptimization(pEvent->eventKind)) {
@@ -830,6 +815,86 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
         expandBufAddLocation(pReq, *pLoc);
         if (match_list[i]->eventKind == EK_METHOD_EXIT_WITH_RETURN_VALUE) {
           Dbg::OutputMethodReturnValue(pLoc->method_id, returnValue, pReq);
+        }
+      }
+    }
+
+    CleanupMatchList(match_list, match_count);
+  }
+
+  Dbg::ManageDeoptimization();
+
+  SendRequestAndPossiblySuspend(pReq, suspend_policy, basket.threadId);
+  return match_count != 0;
+}
+
+bool JdwpState::PostFieldEvent(const JdwpLocation* pLoc, RefTypeId typeId, FieldId fieldId,
+                               ObjectId thisPtr, const JValue* fieldValue, bool is_modification) {
+  ModBasket basket;
+  basket.pLoc = pLoc;
+  basket.classId = pLoc->class_id;
+  basket.thisPtr = thisPtr;
+  basket.threadId = Dbg::GetThreadSelfId();
+  basket.className = Dbg::GetClassName(pLoc->class_id);
+  basket.field = fieldId;
+
+  if (InvokeInProgress()) {
+    VLOG(jdwp) << "Not posting field event during invoke";
+    return false;
+  }
+
+  // Get field's reference type tag.
+  JDWP::JdwpTypeTag type_tag;
+  uint32_t class_status;  // unused here.
+  JdwpError error = Dbg::GetClassInfo(typeId, &type_tag, &class_status, NULL);
+  if (error != ERR_NONE) {
+    return false;
+  }
+
+  // Get instance type tag.
+  uint8_t tag;
+  error = Dbg::GetObjectTag(thisPtr, tag);
+  if (error != ERR_NONE) {
+    return false;
+  }
+
+  int match_count = 0;
+  ExpandBuf* pReq = NULL;
+  JdwpSuspendPolicy suspend_policy = SP_NONE;
+  {
+    MutexLock mu(Thread::Current(), event_list_lock_);
+    JdwpEvent** match_list = AllocMatchList(event_list_size_);
+
+    if (is_modification) {
+      FindMatchingEvents(EK_FIELD_MODIFICATION, &basket, match_list, &match_count);
+    } else {
+      FindMatchingEvents(EK_FIELD_ACCESS, &basket, match_list, &match_count);
+    }
+    if (match_count != 0) {
+      VLOG(jdwp) << "EVENT: " << match_list[0]->eventKind << "(" << match_count << " total) "
+                 << basket.className << "." << Dbg::GetMethodName(pLoc->method_id)
+                 << StringPrintf(" thread=%#" PRIx64 "  dex_pc=%#" PRIx64 ")",
+                                 basket.threadId, pLoc->dex_pc);
+
+      suspend_policy = scanSuspendPolicy(match_list, match_count);
+      VLOG(jdwp) << "  suspend_policy=" << suspend_policy;
+
+      pReq = eventPrep();
+      expandBufAdd1(pReq, suspend_policy);
+      expandBufAdd4BE(pReq, match_count);
+
+      for (int i = 0; i < match_count; i++) {
+        expandBufAdd1(pReq, match_list[i]->eventKind);
+        expandBufAdd4BE(pReq, match_list[i]->requestId);
+        expandBufAdd8BE(pReq, basket.threadId);
+        expandBufAddLocation(pReq, *pLoc);
+        expandBufAdd1(pReq, type_tag);
+        expandBufAddRefTypeId(pReq, typeId);
+        expandBufAddFieldId(pReq, fieldId);
+        expandBufAdd1(pReq, tag);
+        expandBufAddObjectId(pReq, thisPtr);
+        if (is_modification) {
+          Dbg::OutputFieldValue(fieldId, fieldValue, pReq);
         }
       }
     }

@@ -35,6 +35,7 @@
 
 namespace art {
 namespace mirror {
+class ArtField;
 class ArtMethod;
 class Class;
 class Object;
@@ -303,6 +304,9 @@ class Dbg {
   static void OutputMethodReturnValue(JDWP::MethodId method_id, const JValue* return_value,
                                       JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void OutputFieldValue(JDWP::FieldId field_id, const JValue* field_value,
+                               JDWP::ExpandBuf* pReply)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetBytecodes(JDWP::RefTypeId class_id, JDWP::MethodId method_id,
                                       std::vector<uint8_t>& bytecodes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -417,8 +421,14 @@ class Dbg {
                                 mirror::Object* thisPtr, int eventFlags,
                                 const JValue* return_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void PostException(Thread* thread, const ThrowLocation& throw_location,
-                            mirror::ArtMethod* catch_method,
+  static void PostFieldAccessEvent(mirror::ArtMethod* m, int dex_pc, mirror::Object* this_object,
+                                   mirror::ArtField* f)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void PostFieldModificationEvent(mirror::ArtMethod* m, int dex_pc,
+                                         mirror::Object* this_object, mirror::ArtField* f,
+                                         const JValue* field_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void PostException(const ThrowLocation& throw_location, mirror::ArtMethod* catch_method,
                             uint32_t catch_dex_pc, mirror::Throwable* exception)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadStart(Thread* t)
@@ -542,6 +552,9 @@ class Dbg {
  private:
   static void DdmBroadcast(bool connect) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadStartOrStop(Thread*, uint32_t)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static JDWP::ObjectId GetThisObjectIdForEvent(mirror::Object* this_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void ProcessDeoptimizationRequest(const DeoptimizationRequest& request)
