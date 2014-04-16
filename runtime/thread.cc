@@ -1094,7 +1094,7 @@ void Thread::Destroy() {
     if (lock != nullptr) {
       SirtRef<mirror::Object> sirt_obj(self, lock);
       ObjectLock<mirror::Object> locker(self, &sirt_obj);
-      locker.Notify();
+      locker.NotifyAll();
     }
   }
 
