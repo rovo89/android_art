@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_CODE_GENERATOR_H_
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATOR_H_
 
+#include "base/bit_field.h"
 #include "globals.h"
 #include "instruction_set.h"
 #include "memory_region.h"
@@ -49,30 +50,149 @@ struct PcInfo {
  */
 class Location : public ValueObject {
  public:
-  template<typename T>
-  T reg() const { return static_cast<T>(reg_); }
+  enum Kind {
+    kInvalid = 0,
+    kStackSlot = 1,  // Word size slot.
+    kDoubleStackSlot = 2,  // 64bit stack slot.
+    kRegister = 3,
+    // On 32bits architectures, quick can pass a long where the
+    // low bits are in the last parameter register, and the high
+    // bits are in a stack slot. The kQuickParameter kind is for
+    // handling this special case.
+    kQuickParameter = 4,
+  };
 
-  Location() : reg_(kInvalid) { }
-  explicit Location(uword reg) : reg_(reg) { }
-
-  static Location RegisterLocation(uword reg) {
-    return Location(reg);
+  Location() : value_(kInvalid) {
+    DCHECK(!IsValid());
   }
 
-  bool IsValid() const { return reg_ != kInvalid; }
-
-  Location(const Location& other) : reg_(other.reg_) { }
+  Location(const Location& other) : ValueObject(), value_(other.value_) {}
 
   Location& operator=(const Location& other) {
-    reg_ = other.reg_;
+    value_ = other.value_;
     return *this;
   }
 
+  bool IsValid() const {
+    return value_ != kInvalid;
+  }
+
+  // Register locations.
+  static Location RegisterLocation(ManagedRegister reg) {
+    return Location(kRegister, reg.RegId());
+  }
+
+  bool IsRegister() const {
+    return GetKind() == kRegister;
+  }
+
+  ManagedRegister reg() const {
+    DCHECK(IsRegister());
+    return static_cast<ManagedRegister>(GetPayload());
+  }
+
+  static uword EncodeStackIndex(intptr_t stack_index) {
+    DCHECK(-kStackIndexBias <= stack_index);
+    DCHECK(stack_index < kStackIndexBias);
+    return static_cast<uword>(kStackIndexBias + stack_index);
+  }
+
+  static Location StackSlot(intptr_t stack_index) {
+    uword payload = EncodeStackIndex(stack_index);
+    Location loc(kStackSlot, payload);
+    // Ensure that sign is preserved.
+    DCHECK_EQ(loc.GetStackIndex(), stack_index);
+    return loc;
+  }
+
+  bool IsStackSlot() const {
+    return GetKind() == kStackSlot;
+  }
+
+  static Location DoubleStackSlot(intptr_t stack_index) {
+    uword payload = EncodeStackIndex(stack_index);
+    Location loc(kDoubleStackSlot, payload);
+    // Ensure that sign is preserved.
+    DCHECK_EQ(loc.GetStackIndex(), stack_index);
+    return loc;
+  }
+
+  bool IsDoubleStackSlot() const {
+    return GetKind() == kDoubleStackSlot;
+  }
+
+  intptr_t GetStackIndex() const {
+    DCHECK(IsStackSlot() || IsDoubleStackSlot());
+    // Decode stack index manually to preserve sign.
+    return GetPayload() - kStackIndexBias;
+  }
+
+  intptr_t GetHighStackIndex(uintptr_t word_size) const {
+    DCHECK(IsDoubleStackSlot());
+    // Decode stack index manually to preserve sign.
+    return GetPayload() - kStackIndexBias + word_size;
+  }
+
+  static Location QuickParameter(uint32_t parameter_index) {
+    return Location(kQuickParameter, parameter_index);
+  }
+
+  uint32_t GetQuickParameterIndex() const {
+    DCHECK(IsQuickParameter());
+    return GetPayload();
+  }
+
+  bool IsQuickParameter() const {
+    return GetKind() == kQuickParameter;
+  }
+
+  arm::ArmManagedRegister AsArm() const;
+  x86::X86ManagedRegister AsX86() const;
+
+  Kind GetKind() const {
+    return KindField::Decode(value_);
+  }
+
+  bool Equals(Location other) const {
+    return value_ == other.value_;
+  }
+
+  const char* DebugString() const {
+    switch (GetKind()) {
+      case kInvalid: return "?";
+      case kRegister: return "R";
+      case kStackSlot: return "S";
+      case kDoubleStackSlot: return "DS";
+      case kQuickParameter: return "Q";
+    }
+    return "?";
+  }
+
  private:
-  // The target register for that location.
-  // TODO: Support stack location.
-  uword reg_;
-  static const uword kInvalid = -1;
+  // Number of bits required to encode Kind value.
+  static constexpr uint32_t kBitsForKind = 4;
+  static constexpr uint32_t kBitsForPayload = kWordSize * kBitsPerByte - kBitsForKind;
+
+  explicit Location(uword value) : value_(value) {}
+
+  Location(Kind kind, uword payload)
+      : value_(KindField::Encode(kind) | PayloadField::Encode(payload)) {}
+
+  uword GetPayload() const {
+    return PayloadField::Decode(value_);
+  }
+
+  typedef BitField<Kind, 0, kBitsForKind> KindField;
+  typedef BitField<uword, kBitsForKind, kBitsForPayload> PayloadField;
+
+  // Layout for stack slots.
+  static const intptr_t kStackIndexBias =
+      static_cast<intptr_t>(1) << (kBitsForPayload - 1);
+
+  // Location either contains kind and payload fields or a tagged handle for
+  // a constant locations. Values of enumeration Kind are selected in such a
+  // way that none of them can be interpreted as a kConstant tag.
+  uword value_;
 };
 
 /**
@@ -204,7 +324,6 @@ class CallingConvention {
   }
 
   uint8_t GetStackOffsetOf(size_t index) const {
-    DCHECK_GE(index, number_of_registers_);
     // We still reserve the space for parameters passed by registers.
     // Add kWordSize for the method pointer.
     return index * kWordSize + kWordSize;

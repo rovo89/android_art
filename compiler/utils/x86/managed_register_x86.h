@@ -37,7 +37,8 @@ enum RegisterPair {
   ECX_EBX = 7,
   ECX_EDI = 8,
   EBX_EDI = 9,
-  kNumberOfRegisterPairs = 10,
+  ECX_EDX = 10,  // Dalvik style passing
+  kNumberOfRegisterPairs = 11,
   kNoRegisterPair = -1,
 };
 
@@ -119,6 +120,12 @@ class X86ManagedRegister : public ManagedRegister {
     CHECK(IsRegisterPair());
     // Appropriate mapping of register ids allows to use AllocIdHigh().
     return FromRegId(AllocIdHigh()).AsCpuRegister();
+  }
+
+  RegisterPair AsRegisterPair() const {
+    CHECK(IsRegisterPair());
+    return static_cast<RegisterPair>(id_ -
+        (kNumberOfCpuRegIds + kNumberOfXmmRegIds + kNumberOfX87RegIds));
   }
 
   bool IsCpuRegister() const {
