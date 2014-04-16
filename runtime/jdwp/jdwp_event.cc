@@ -407,6 +407,9 @@ static bool ModsMatch(JdwpEvent* pEvent, ModBasket* basket)
     case MK_COUNT:
       CHECK_GT(pMod->count.count, 0);
       pMod->count.count--;
+      if (pMod->count.count > 0) {
+        return false;
+      }
       break;
     case MK_CONDITIONAL:
       CHECK(false);  // should not be getting these
