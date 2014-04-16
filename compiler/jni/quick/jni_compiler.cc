@@ -64,6 +64,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   if (instruction_set == kThumb2) {
     instruction_set = kArm;
   }
+  const bool is_64_bit_target = Is64BitInstructionSet(instruction_set);
   // Calling conventions used to iterate over parameters to method
   UniquePtr<JniCallingConvention> main_jni_conv(
       JniCallingConvention::Create(is_static, is_synchronized, shorty, instruction_set));
@@ -109,7 +110,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
                            main_jni_conv->ReferenceCount(),
                            mr_conv->InterproceduralScratchRegister());
 
-  if (instruction_set == kArm64 || instruction_set == kX86_64) {
+  if (is_64_bit_target) {
     __ CopyRawPtrFromThread64(main_jni_conv->SirtLinkOffset(),
                             Thread::TopSirtOffset<8>(),
                             mr_conv->InterproceduralScratchRegister());
@@ -171,7 +172,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   }
 
   // 4. Write out the end of the quick frames.
-  if (instruction_set == kArm64 || instruction_set == kX86_64) {
+  if (is_64_bit_target) {
     __ StoreStackPointerToThread64(Thread::TopOfManagedStackOffset<8>());
     __ StoreImmediateToThread64(Thread::TopOfManagedStackPcOffset<8>(), 0,
                               mr_conv->InterproceduralScratchRegister());
@@ -216,7 +217,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   }
   if (main_jni_conv->IsCurrentParamInRegister()) {
     __ GetCurrentThread(main_jni_conv->CurrentParamRegister());
-    if (instruction_set == kArm64 || instruction_set == kX86_64) {
+    if (is_64_bit_target) {
       __ Call(main_jni_conv->CurrentParamRegister(), Offset(jni_start64),
              main_jni_conv->InterproceduralScratchRegister());
     } else {
@@ -226,7 +227,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   } else {
     __ GetCurrentThread(main_jni_conv->CurrentParamStackOffset(),
                         main_jni_conv->InterproceduralScratchRegister());
-    if (instruction_set == kArm64 || instruction_set == kX86_64) {
+    if (is_64_bit_target) {
       __ CallFromThread64(jni_start64, main_jni_conv->InterproceduralScratchRegister());
     } else {
       __ CallFromThread32(jni_start32, main_jni_conv->InterproceduralScratchRegister());
@@ -292,14 +293,14 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   if (main_jni_conv->IsCurrentParamInRegister()) {
     ManagedRegister jni_env = main_jni_conv->CurrentParamRegister();
     DCHECK(!jni_env.Equals(main_jni_conv->InterproceduralScratchRegister()));
-    if (instruction_set == kArm64 || instruction_set == kX86_64) {
+    if (is_64_bit_target) {
       __ LoadRawPtrFromThread64(jni_env, Thread::JniEnvOffset<8>());
     } else {
       __ LoadRawPtrFromThread32(jni_env, Thread::JniEnvOffset<4>());
     }
   } else {
     FrameOffset jni_env = main_jni_conv->CurrentParamStackOffset();
-    if (instruction_set == kArm64 || instruction_set == kX86_64) {
+    if (is_64_bit_target) {
       __ CopyRawPtrFromThread64(jni_env, Thread::JniEnvOffset<8>(),
                             main_jni_conv->InterproceduralScratchRegister());
     } else {
@@ -313,7 +314,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
           mr_conv->InterproceduralScratchRegister());
 
   // 10. Fix differences in result widths.
-  if (instruction_set == kX86 || instruction_set == kX86_64) {
+  if (is_64_bit_target) {
     if (main_jni_conv->GetReturnType() == Primitive::kPrimByte ||
         main_jni_conv->GetReturnType() == Primitive::kPrimShort) {
       __ SignExtend(main_jni_conv->ReturnRegister(),
@@ -331,7 +332,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
     if (instruction_set == kMips && main_jni_conv->GetReturnType() == Primitive::kPrimDouble &&
         return_save_location.Uint32Value() % 8 != 0) {
       // Ensure doubles are 8-byte aligned for MIPS
-      return_save_location = FrameOffset(return_save_location.Uint32Value() + kPointerSize);
+      return_save_location = FrameOffset(return_save_location.Uint32Value() + kMipsPointerSize);
     }
     CHECK_LT(return_save_location.Uint32Value(), frame_size+main_out_arg_size);
     __ Store(return_save_location, main_jni_conv->ReturnRegister(), main_jni_conv->SizeOfReturnValue());
@@ -380,7 +381,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   }
   if (end_jni_conv->IsCurrentParamInRegister()) {
     __ GetCurrentThread(end_jni_conv->CurrentParamRegister());
-    if (instruction_set == kArm64 || instruction_set == kX86_64) {
+    if (is_64_bit_target) {
       __ Call(end_jni_conv->CurrentParamRegister(), Offset(jni_end64),
               end_jni_conv->InterproceduralScratchRegister());
     } else {
@@ -390,7 +391,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   } else {
     __ GetCurrentThread(end_jni_conv->CurrentParamStackOffset(),
                         end_jni_conv->InterproceduralScratchRegister());
-    if (instruction_set == kArm64 || instruction_set == kX86_64) {
+    if (is_64_bit_target) {
       __ CallFromThread64(ThreadOffset<8>(jni_end64), end_jni_conv->InterproceduralScratchRegister());
     } else {
       __ CallFromThread32(ThreadOffset<4>(jni_end32), end_jni_conv->InterproceduralScratchRegister());
