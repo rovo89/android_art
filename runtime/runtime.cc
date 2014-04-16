@@ -564,6 +564,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
                        options->heap_min_free_,
                        options->heap_max_free_,
                        options->heap_target_utilization_,
+                       options->foreground_heap_growth_multiplier_,
                        options->heap_maximum_size_,
                        options->image_,
                        options->collector_type_,

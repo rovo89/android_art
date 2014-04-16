@@ -54,6 +54,7 @@ class ParsedOptions {
   size_t heap_min_free_;
   size_t heap_max_free_;
   double heap_target_utilization_;
+  double foreground_heap_growth_multiplier_;
   unsigned int parallel_gc_threads_;
   unsigned int conc_gc_threads_;
   gc::CollectorType collector_type_;
