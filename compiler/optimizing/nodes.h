@@ -226,6 +226,7 @@ class HBasicBlock : public ArenaObject {
   M(InvokeStatic)                                          \
   M(LoadLocal)                                             \
   M(Local)                                                 \
+  M(LongConstant)                                          \
   M(NewInstance)                                           \
   M(Not)                                                   \
   M(ParameterValue)                                        \
@@ -282,6 +283,8 @@ class HInstruction : public ArenaObject {
 
   virtual void Accept(HGraphVisitor* visitor) = 0;
   virtual const char* DebugName() const = 0;
+
+  virtual Primitive::Type GetType() const { return Primitive::kPrimVoid; }
 
   void AddUse(HInstruction* user) {
     uses_ = new (block_->GetGraph()->GetArena()) HUseListNode(user, uses_);
@@ -534,6 +537,7 @@ class HBinaryOperation : public HTemplateInstruction<2> {
   Primitive::Type GetResultType() const { return result_type_; }
 
   virtual bool IsCommutative() { return false; }
+  virtual Primitive::Type GetType() const { return GetResultType(); }
 
  private:
   const Primitive::Type result_type_;
@@ -549,6 +553,8 @@ class HEqual : public HBinaryOperation {
       : HBinaryOperation(Primitive::kPrimBoolean, first, second) {}
 
   virtual bool IsCommutative() { return true; }
+
+  virtual Primitive::Type GetType() const { return Primitive::kPrimBoolean; }
 
   DECLARE_INSTRUCTION(Equal)
 
@@ -575,15 +581,19 @@ class HLocal : public HTemplateInstruction<0> {
 // Load a given local. The local is an input of this instruction.
 class HLoadLocal : public HTemplateInstruction<1> {
  public:
-  explicit HLoadLocal(HLocal* local) {
+  explicit HLoadLocal(HLocal* local, Primitive::Type type) : type_(type) {
     SetRawInputAt(0, local);
   }
+
+  virtual Primitive::Type GetType() const { return type_; }
 
   HLocal* GetLocal() const { return reinterpret_cast<HLocal*>(InputAt(0)); }
 
   DECLARE_INSTRUCTION(LoadLocal)
 
  private:
+  const Primitive::Type type_;
+
   DISALLOW_COPY_AND_ASSIGN(HLoadLocal);
 };
 
@@ -611,6 +621,7 @@ class HIntConstant : public HTemplateInstruction<0> {
   explicit HIntConstant(int32_t value) : value_(value) { }
 
   int32_t GetValue() const { return value_; }
+  virtual Primitive::Type GetType() const { return Primitive::kPrimInt; }
 
   DECLARE_INSTRUCTION(IntConstant)
 
@@ -620,10 +631,30 @@ class HIntConstant : public HTemplateInstruction<0> {
   DISALLOW_COPY_AND_ASSIGN(HIntConstant);
 };
 
+class HLongConstant : public HTemplateInstruction<0> {
+ public:
+  explicit HLongConstant(int64_t value) : value_(value) { }
+
+  int64_t GetValue() const { return value_; }
+
+  virtual Primitive::Type GetType() const { return Primitive::kPrimLong; }
+
+  DECLARE_INSTRUCTION(LongConstant)
+
+ private:
+  const int64_t value_;
+
+  DISALLOW_COPY_AND_ASSIGN(HLongConstant);
+};
+
 class HInvoke : public HInstruction {
  public:
-  HInvoke(ArenaAllocator* arena, uint32_t number_of_arguments, uint32_t dex_pc)
+  HInvoke(ArenaAllocator* arena,
+          uint32_t number_of_arguments,
+          Primitive::Type return_type,
+          uint32_t dex_pc)
     : inputs_(arena, number_of_arguments),
+      return_type_(return_type),
       dex_pc_(dex_pc) {
     inputs_.SetSize(number_of_arguments);
   }
@@ -635,10 +666,13 @@ class HInvoke : public HInstruction {
     inputs_.Put(index, argument);
   }
 
+  virtual Primitive::Type GetType() const { return return_type_; }
+
   uint32_t GetDexPc() const { return dex_pc_; }
 
  protected:
   GrowableArray<HInstruction*> inputs_;
+  const Primitive::Type return_type_;
   const uint32_t dex_pc_;
 
  private:
@@ -649,9 +683,11 @@ class HInvokeStatic : public HInvoke {
  public:
   HInvokeStatic(ArenaAllocator* arena,
                 uint32_t number_of_arguments,
+                Primitive::Type return_type,
                 uint32_t dex_pc,
                 uint32_t index_in_dex_cache)
-      : HInvoke(arena, number_of_arguments, dex_pc), index_in_dex_cache_(index_in_dex_cache) {}
+      : HInvoke(arena, number_of_arguments, return_type, dex_pc),
+        index_in_dex_cache_(index_in_dex_cache) {}
 
   uint32_t GetIndexInDexCache() const { return index_in_dex_cache_; }
 
@@ -669,6 +705,8 @@ class HNewInstance : public HTemplateInstruction<0> {
 
   uint32_t GetDexPc() const { return dex_pc_; }
   uint16_t GetTypeIndex() const { return type_index_; }
+
+  virtual Primitive::Type GetType() const { return Primitive::kPrimNot; }
 
   DECLARE_INSTRUCTION(NewInstance)
 
@@ -727,9 +765,12 @@ class HSub : public HBinaryOperation {
 // the calling convention.
 class HParameterValue : public HTemplateInstruction<0> {
  public:
-  explicit HParameterValue(uint8_t index) : index_(index) {}
+  HParameterValue(uint8_t index, Primitive::Type parameter_type)
+      : index_(index), parameter_type_(parameter_type) {}
 
   uint8_t GetIndex() const { return index_; }
+
+  virtual Primitive::Type GetType() const { return parameter_type_; }
 
   DECLARE_INSTRUCTION(ParameterValue);
 
@@ -737,6 +778,8 @@ class HParameterValue : public HTemplateInstruction<0> {
   // The index of this parameter in the parameters list. Must be less
   // than HGraph::number_of_in_vregs_;
   const uint8_t index_;
+
+  const Primitive::Type parameter_type_;
 
   DISALLOW_COPY_AND_ASSIGN(HParameterValue);
 };
@@ -746,6 +789,8 @@ class HNot : public HTemplateInstruction<1> {
   explicit HNot(HInstruction* input) {
     SetRawInputAt(0, input);
   }
+
+  virtual Primitive::Type GetType() const { return Primitive::kPrimBoolean; }
 
   DECLARE_INSTRUCTION(Not);
 
