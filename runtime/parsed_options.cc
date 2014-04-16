@@ -131,6 +131,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
   heap_min_free_ = gc::Heap::kDefaultMinFree;
   heap_max_free_ = gc::Heap::kDefaultMaxFree;
   heap_target_utilization_ = gc::Heap::kDefaultTargetUtilization;
+  foreground_heap_growth_multiplier_ = gc::Heap::kDefaultHeapGrowthMultiplier;
   heap_growth_limit_ = 0;  // 0 means no growth limit .
   // Default to number of processors minus one since the main GC thread also does work.
   parallel_gc_threads_ = sysconf(_SC_NPROCESSORS_CONF) - 1;
@@ -312,6 +313,10 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
       heap_max_free_ = size;
     } else if (StartsWith(option, "-XX:HeapTargetUtilization=")) {
       if (!ParseDouble(option, '=', 0.1, 0.9, &heap_target_utilization_)) {
+        return false;
+      }
+    } else if (StartsWith(option, "-XX:ForegroundHeapGrowthMultiplier=")) {
+      if (!ParseDouble(option, '=', 0.1, 0.9, &foreground_heap_growth_multiplier_)) {
         return false;
       }
     } else if (StartsWith(option, "-XX:ParallelGCThreads=")) {
