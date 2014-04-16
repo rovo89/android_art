@@ -70,11 +70,13 @@ class ManagedRegister {
     return ManagedRegister();
   }
 
+  int RegId() const { return id_; }
+  explicit ManagedRegister(int reg_id) : id_(reg_id) { }
+
  protected:
   static const int kNoRegister = -1;
 
   ManagedRegister() : id_(kNoRegister) { }
-  explicit ManagedRegister(int reg_id) : id_(reg_id) { }
 
   int id_;
 };

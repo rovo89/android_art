@@ -19,6 +19,7 @@
 
 #include "dex_file.h"
 #include "driver/dex_compilation_unit.h"
+#include "primitive.h"
 #include "utils/allocation.h"
 #include "utils/growable_array.h"
 
@@ -29,13 +30,14 @@ class Instruction;
 class HBasicBlock;
 class HGraph;
 class HIntConstant;
+class HLongConstant;
 class HInstruction;
 class HLocal;
 
 class HGraphBuilder : public ValueObject {
  public:
   HGraphBuilder(ArenaAllocator* arena,
-                const DexCompilationUnit* dex_compilation_unit = nullptr,
+                DexCompilationUnit* dex_compilation_unit = nullptr,
                 const DexFile* dex_file = nullptr)
       : arena_(arena),
         branch_targets_(arena, 0),
@@ -63,23 +65,43 @@ class HGraphBuilder : public ValueObject {
   void MaybeUpdateCurrentBlock(size_t index);
   HBasicBlock* FindBlockStartingAt(int32_t index) const;
 
-  HIntConstant* GetConstant0();
-  HIntConstant* GetConstant1();
-  HIntConstant* GetConstant(int constant);
+  HIntConstant* GetIntConstant0();
+  HIntConstant* GetIntConstant1();
+  HIntConstant* GetIntConstant(int32_t constant);
+  HLongConstant* GetLongConstant(int64_t constant);
   void InitializeLocals(uint16_t count);
   HLocal* GetLocalAt(int register_index) const;
   void UpdateLocal(int register_index, HInstruction* instruction) const;
-  HInstruction* LoadLocal(int register_index) const;
+  HInstruction* LoadLocal(int register_index, Primitive::Type type) const;
 
   // Temporarily returns whether the compiler supports the parameters
   // of the method.
   bool InitializeParameters(uint16_t number_of_parameters);
 
-  template<typename T> void Binop_32x(const Instruction& instruction);
-  template<typename T> void Binop_12x(const Instruction& instruction);
-  template<typename T> void Binop_22b(const Instruction& instruction, bool reverse);
-  template<typename T> void Binop_22s(const Instruction& instruction, bool reverse);
+  template<typename T>
+  void Binop_32x(const Instruction& instruction, Primitive::Type type);
+
+  template<typename T>
+  void Binop_12x(const Instruction& instruction, Primitive::Type type);
+
+  template<typename T>
+  void Binop_22b(const Instruction& instruction, bool reverse);
+
+  template<typename T>
+  void Binop_22s(const Instruction& instruction, bool reverse);
+
   template<typename T> void If_22t(const Instruction& instruction, int32_t dex_offset, bool is_not);
+
+  void BuildReturn(const Instruction& instruction, Primitive::Type type);
+
+  // Builds an invocation node and returns whether the instruction is supported.
+  bool BuildInvoke(const Instruction& instruction,
+                   uint32_t dex_offset,
+                   uint32_t method_idx,
+                   uint32_t number_of_vreg_arguments,
+                   bool is_range,
+                   uint32_t* args,
+                   uint32_t register_index);
 
   ArenaAllocator* const arena_;
 
@@ -99,7 +121,7 @@ class HGraphBuilder : public ValueObject {
   HIntConstant* constant1_;
 
   const DexFile* const dex_file_;
-  const DexCompilationUnit* const dex_compilation_unit_;
+  DexCompilationUnit* const dex_compilation_unit_;
 
   DISALLOW_COPY_AND_ASSIGN(HGraphBuilder);
 };
