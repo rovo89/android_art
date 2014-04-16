@@ -132,9 +132,8 @@ class Heap {
   static constexpr size_t kDefaultLongPauseLogThreshold = MsToNs(5);
   static constexpr size_t kDefaultLongGCLogThreshold = MsToNs(100);
   static constexpr size_t kDefaultTLABSize = 256 * KB;
-
-  // Default target utilization.
   static constexpr double kDefaultTargetUtilization = 0.5;
+  static constexpr double kDefaultHeapGrowthMultiplier = 2.0;
 
   // Used so that we don't overflow the allocation time atomic integer.
   static constexpr size_t kTimeAdjust = 1024;
@@ -148,7 +147,8 @@ class Heap {
   // image_file_names names specify Spaces to load based on
   // ImageWriter output.
   explicit Heap(size_t initial_size, size_t growth_limit, size_t min_free,
-                size_t max_free, double target_utilization, size_t capacity,
+                size_t max_free, double target_utilization,
+                double foreground_heap_growth_multiplier, size_t capacity,
                 const std::string& original_image_file_name,
                 CollectorType foreground_collector_type, CollectorType background_collector_type,
                 size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
@@ -350,6 +350,10 @@ class Heap {
   bool IsLowMemoryMode() const {
     return low_memory_mode_;
   }
+
+  // Returns the heap growth multiplier, this affects how much we grow the heap after a GC.
+  // Scales heap growth, min free, and max free.
+  double HeapGrowthMultiplier() const;
 
   // Freed bytes can be negative in cases where we copy objects from a compacted space to a
   // free-list backed space.
@@ -926,6 +930,9 @@ class Heap {
 
   // Target ideal heap utilization ratio
   double target_utilization_;
+
+  // How much more we grow the heap when we are a foreground app instead of background.
+  double foreground_heap_growth_multiplier_;
 
   // Total time which mutators are paused or waiting for GC to complete.
   uint64_t total_wait_time_;
