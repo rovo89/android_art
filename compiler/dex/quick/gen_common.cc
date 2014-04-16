@@ -500,7 +500,12 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, bool is_long_or_double,
     }
     // rBase now holds static storage base
     if (is_long_or_double) {
-      rl_src = LoadValueWide(rl_src, kAnyReg);
+      RegisterClass register_kind = kAnyReg;
+      if (field_info.IsVolatile() && cu_->instruction_set == kX86) {
+        // Force long/double volatile stores into SSE registers to avoid tearing.
+        register_kind = kFPReg;
+      }
+      rl_src = LoadValueWide(rl_src, register_kind);
     } else {
       rl_src = LoadValue(rl_src, kAnyReg);
     }
@@ -581,7 +586,12 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
       FreeTemp(r_method);
     }
     // r_base now holds static storage base
-    RegLocation rl_result = EvalLoc(rl_dest, kAnyReg, true);
+    RegisterClass result_reg_kind = kAnyReg;
+    if (field_info.IsVolatile() && cu_->instruction_set == kX86) {
+      // Force long/double volatile loads into SSE registers to avoid tearing.
+      result_reg_kind = kFPReg;
+    }
+    RegLocation rl_result = EvalLoc(rl_dest, result_reg_kind, true);
 
     if (is_long_or_double) {
       LoadBaseDispWide(r_base, field_info.FieldOffset().Int32Value(), rl_result.reg, INVALID_SREG);
@@ -738,9 +748,12 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
       DCHECK(rl_dest.wide);
       GenNullCheck(rl_obj.reg, opt_flags);
       if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
-        rl_result = EvalLoc(rl_dest, reg_class, true);
-        // FIXME?  duplicate null check?
-        GenNullCheck(rl_obj.reg, opt_flags);
+        RegisterClass result_reg_kind = kAnyReg;
+        if (field_info.IsVolatile() && cu_->instruction_set == kX86) {
+          // Force long/double volatile loads into SSE registers to avoid tearing.
+          result_reg_kind = kFPReg;
+        }
+        rl_result = EvalLoc(rl_dest, result_reg_kind, true);
         LoadBaseDispWide(rl_obj.reg, field_info.FieldOffset().Int32Value(), rl_result.reg,
                          rl_obj.s_reg_low);
         MarkPossibleNullPointerException(opt_flags);
@@ -805,7 +818,12 @@ void Mir2Lir::GenIPut(MIR* mir, int opt_flags, OpSize size,
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     rl_obj = LoadValue(rl_obj, kCoreReg);
     if (is_long_or_double) {
-      rl_src = LoadValueWide(rl_src, kAnyReg);
+      RegisterClass src_reg_kind = kAnyReg;
+      if (field_info.IsVolatile() && cu_->instruction_set == kX86) {
+        // Force long/double volatile stores into SSE registers to avoid tearing.
+        src_reg_kind = kFPReg;
+      }
+      rl_src = LoadValueWide(rl_src, src_reg_kind);
       GenNullCheck(rl_obj.reg, opt_flags);
       RegStorage reg_ptr = AllocTemp();
       OpRegRegImm(kOpAdd, reg_ptr, rl_obj.reg, field_info.FieldOffset().Int32Value());
