@@ -314,23 +314,8 @@ bool LlvmCompilationUnit::MaterializeToRawOStream(::llvm::raw_ostream& out_strea
 // section if the section alignment is greater than kArchAlignment.
 void LlvmCompilationUnit::CheckCodeAlign(uint32_t align) const {
   InstructionSet insn_set = GetInstructionSet();
-  switch (insn_set) {
-  case kThumb2:
-  case kArm:
-    CHECK_LE(align, static_cast<uint32_t>(kArmAlignment));
-    break;
-
-  case kX86:
-    CHECK_LE(align, static_cast<uint32_t>(kX86Alignment));
-    break;
-
-  case kMips:
-    CHECK_LE(align, static_cast<uint32_t>(kMipsAlignment));
-    break;
-
-  default:
-    LOG(FATAL) << "Unknown instruction set: " << insn_set;
-  }
+  size_t insn_set_align = GetInstructionSetAlignment(insn_set);
+  CHECK_LE(align, static_cast<uint32_t>(insn_set_align));
 }
 
 

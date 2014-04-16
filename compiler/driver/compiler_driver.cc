@@ -339,7 +339,6 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
       compiler_(Compiler::Create(compiler_kind)),
       instruction_set_(instruction_set),
       instruction_set_features_(instruction_set_features),
-      instruction_set_is_64_bit_(instruction_set == kX86_64 || instruction_set == kArm64),
       freezing_constructor_lock_("freezing constructor lock"),
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
@@ -448,7 +447,7 @@ CompilerTls* CompilerDriver::GetTls() {
 }
 
 #define CREATE_TRAMPOLINE(type, abi, offset) \
-    if (instruction_set_is_64_bit_) { \
+    if (Is64BitInstructionSet(instruction_set_)) { \
       return CreateTrampoline64(instruction_set_, abi, \
                                 type ## _ENTRYPOINT_OFFSET(8, offset)); \
     } else { \

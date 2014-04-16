@@ -692,7 +692,6 @@ class CompilerDriver {
 
   const InstructionSet instruction_set_;
   const InstructionSetFeatures instruction_set_features_;
-  const bool instruction_set_is_64_bit_;
 
   // All class references that require
   mutable ReaderWriterMutex freezing_constructor_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
