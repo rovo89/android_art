@@ -101,7 +101,7 @@ void ZygoteSpace::SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* ar
   DCHECK(context->space->IsZygoteSpace());
   ZygoteSpace* zygote_space = context->space->AsZygoteSpace();
   Locks::heap_bitmap_lock_->AssertExclusiveHeld(context->self);
-  accounting::CardTable* card_table = context->heap->GetCardTable();
+  accounting::CardTable* card_table = Runtime::Current()->GetHeap()->GetCardTable();
   // If the bitmaps aren't swapped we need to clear the bits since the GC isn't going to re-swap
   // the bitmaps as an optimization.
   if (!context->swap_bitmaps) {

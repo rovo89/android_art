@@ -99,7 +99,6 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_pre
                        name_prefix +
                        (is_concurrent ? "concurrent mark sweep": "mark sweep")),
       gc_barrier_(new Barrier(0)),
-      large_object_lock_("mark sweep large object lock", kMarkSweepLargeObjectLock),
       mark_stack_lock_("mark sweep mark stack lock", kMarkSweepMarkStackLock),
       is_concurrent_(is_concurrent) {
 }
@@ -293,14 +292,20 @@ void MarkSweep::FindDefaultSpaceBitmap() {
   TimingLogger::ScopedSplit split("FindDefaultMarkBitmap", &timings_);
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     accounting::ContinuousSpaceBitmap* bitmap = space->GetMarkBitmap();
+    // We want to have the main space instead of non moving if possible.
     if (bitmap != nullptr &&
         space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect) {
       current_space_bitmap_ = bitmap;
-      return;
+      // If we are not the non moving space exit the loop early since this will be good enough.
+      if (space != heap_->GetNonMovingSpace()) {
+        break;
+      }
     }
   }
-  GetHeap()->DumpSpaces();
-  LOG(FATAL) << "Could not find a default mark bitmap";
+  if (current_space_bitmap_ == nullptr) {
+    heap_->DumpSpaces();
+    LOG(FATAL) << "Could not find a default mark bitmap";
+  }
 }
 
 void MarkSweep::ExpandMarkStack() {
@@ -322,7 +327,7 @@ void MarkSweep::ResizeMarkStack(size_t new_size) {
 }
 
 inline void MarkSweep::MarkObjectNonNullParallel(Object* obj) {
-  DCHECK(obj != NULL);
+  DCHECK(obj != nullptr);
   if (MarkObjectParallel(obj)) {
     MutexLock mu(Thread::Current(), mark_stack_lock_);
     if (UNLIKELY(mark_stack_->Size() >= mark_stack_->Capacity())) {
@@ -343,6 +348,31 @@ void MarkSweep::MarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>*
   reinterpret_cast<MarkSweep*>(arg)->MarkObject(ref->AsMirrorPtr());
 }
 
+class MarkSweepMarkObjectSlowPath {
+ public:
+  explicit MarkSweepMarkObjectSlowPath(MarkSweep* mark_sweep) : mark_sweep_(mark_sweep) {
+  }
+
+  void operator()(const Object* obj) const ALWAYS_INLINE {
+    if (kProfileLargeObjects) {
+      // TODO: Differentiate between marking and testing somehow.
+      ++mark_sweep_->large_object_test_;
+      ++mark_sweep_->large_object_mark_;
+    }
+    space::LargeObjectSpace* large_object_space = mark_sweep_->GetHeap()->GetLargeObjectsSpace();
+    if (UNLIKELY(!IsAligned<kPageSize>(obj) ||
+                 (kIsDebugBuild && !large_object_space->Contains(obj)))) {
+      LOG(ERROR) << "Tried to mark " << obj << " not contained by any spaces";
+      LOG(ERROR) << "Attempting see if it's a bad root";
+      mark_sweep_->VerifyRoots();
+      LOG(FATAL) << "Can't mark invalid object";
+    }
+  }
+
+ private:
+  MarkSweep* const mark_sweep_;
+};
+
 inline void MarkSweep::MarkObjectNonNull(Object* obj) {
   DCHECK(obj != nullptr);
   if (kUseBakerOrBrooksReadBarrier) {
@@ -353,27 +383,24 @@ inline void MarkSweep::MarkObjectNonNull(Object* obj) {
     if (kCountMarkedObjects) {
       ++mark_immune_count_;
     }
-    DCHECK(IsMarked(obj));
-    return;
-  }
-  // Try to take advantage of locality of references within a space, failing this find the space
-  // the hard way.
-  accounting::ContinuousSpaceBitmap* object_bitmap = current_space_bitmap_;
-  if (UNLIKELY(!object_bitmap->HasAddress(obj))) {
-    object_bitmap = mark_bitmap_->GetContinuousSpaceBitmap(obj);
+    DCHECK(mark_bitmap_->Test(obj));
+  } else if (LIKELY(current_space_bitmap_->HasAddress(obj))) {
+    if (kCountMarkedObjects) {
+      ++mark_fastpath_count_;
+    }
+    if (UNLIKELY(!current_space_bitmap_->Set(obj))) {
+      PushOnMarkStack(obj);  // This object was not previously marked.
+    }
+  } else {
     if (kCountMarkedObjects) {
       ++mark_slowpath_count_;
     }
-    if (UNLIKELY(object_bitmap == nullptr)) {
-      MarkLargeObject(obj, true);
-      return;
+    MarkSweepMarkObjectSlowPath visitor(this);
+    // TODO: We already know that the object is not in the current_space_bitmap_ but MarkBitmap::Set
+    // will check again.
+    if (!mark_bitmap_->Set(obj, visitor)) {
+      PushOnMarkStack(obj);  // Was not already marked, push.
     }
-  } else if (kCountMarkedObjects) {
-    ++mark_fastpath_count_;
-  }
-  // This object was not previously marked.
-  if (!object_bitmap->Set(obj)) {
-    PushOnMarkStack(obj);
   }
 }
 
@@ -385,34 +412,6 @@ inline void MarkSweep::PushOnMarkStack(Object* obj) {
   }
   // The object must be pushed on to the mark stack.
   mark_stack_->PushBack(obj);
-}
-
-// Rare case, probably not worth inlining since it will increase instruction cache miss rate.
-bool MarkSweep::MarkLargeObject(const Object* obj, bool set) {
-  // TODO: support >1 discontinuous space.
-  space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
-  accounting::ObjectSet* large_objects = large_object_space->GetMarkObjects();
-  if (kProfileLargeObjects) {
-    ++large_object_test_;
-  }
-  if (UNLIKELY(!large_objects->Test(obj))) {
-    if (!large_object_space->Contains(obj)) {
-      LOG(ERROR) << "Tried to mark " << obj << " not contained by any spaces";
-      LOG(ERROR) << "Attempting see if it's a bad root";
-      VerifyRoots();
-      LOG(FATAL) << "Can't mark bad root";
-    }
-    if (kProfileLargeObjects) {
-      ++large_object_mark_;
-    }
-    if (set) {
-      large_objects->Set(obj);
-    } else {
-      large_objects->Clear(obj);
-    }
-    return true;
-  }
-  return false;
 }
 
 inline bool MarkSweep::MarkObjectParallel(const Object* obj) {
@@ -428,19 +427,11 @@ inline bool MarkSweep::MarkObjectParallel(const Object* obj) {
   // Try to take advantage of locality of references within a space, failing this find the space
   // the hard way.
   accounting::ContinuousSpaceBitmap* object_bitmap = current_space_bitmap_;
-  if (UNLIKELY(!object_bitmap->HasAddress(obj))) {
-    accounting::ContinuousSpaceBitmap* new_bitmap = mark_bitmap_->GetContinuousSpaceBitmap(obj);
-    if (new_bitmap != NULL) {
-      object_bitmap = new_bitmap;
-    } else {
-      // TODO: Remove the Thread::Current here?
-      // TODO: Convert this to some kind of atomic marking?
-      MutexLock mu(Thread::Current(), large_object_lock_);
-      return MarkLargeObject(obj, true);
-    }
+  if (LIKELY(object_bitmap->HasAddress(obj))) {
+    return !object_bitmap->AtomicTestAndSet(obj);
   }
-  // Return true if the object was not previously marked.
-  return !object_bitmap->AtomicTestAndSet(obj);
+  MarkSweepMarkObjectSlowPath visitor(this);
+  return !mark_bitmap_->AtomicTestAndSet(obj, visitor);
 }
 
 // Used to mark objects when processing the mark stack. If an object is null, it is not marked.
@@ -719,7 +710,7 @@ class CardScanTask : public MarkStackTask<false> {
 
 size_t MarkSweep::GetThreadCount(bool paused) const {
   if (heap_->GetThreadPool() == nullptr || !heap_->CareAboutPauseTimes()) {
-    return 0;
+    return 1;
   }
   if (paused) {
     return heap_->GetParallelGCThreadCount() + 1;
@@ -733,7 +724,7 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
   ThreadPool* thread_pool = GetHeap()->GetThreadPool();
   size_t thread_count = GetThreadCount(paused);
   // The parallel version with only one thread is faster for card scanning, TODO: fix.
-  if (kParallelCardScan && thread_count > 0) {
+  if (kParallelCardScan && thread_count > 1) {
     Thread* self = Thread::Current();
     // Can't have a different split for each space since multiple spaces can have their cards being
     // scanned at the same time.
@@ -944,14 +935,11 @@ mirror::Object* MarkSweep::VerifySystemWeakIsLiveCallback(Object* obj, void* arg
 
 void MarkSweep::VerifyIsLive(const Object* obj) {
   if (!heap_->GetLiveBitmap()->Test(obj)) {
-    space::LargeObjectSpace* large_object_space = heap_->GetLargeObjectsSpace();
-    if (!large_object_space->GetLiveObjects()->Test(obj)) {
-      if (std::find(heap_->allocation_stack_->Begin(), heap_->allocation_stack_->End(), obj) ==
-          heap_->allocation_stack_->End()) {
-        // Object not found!
-        heap_->DumpSpaces();
-        LOG(FATAL) << "Found dead object " << obj;
-      }
+    if (std::find(heap_->allocation_stack_->Begin(), heap_->allocation_stack_->End(), obj) ==
+        heap_->allocation_stack_->End()) {
+      // Object not found!
+      heap_->DumpSpaces();
+      LOG(FATAL) << "Found dead object " << obj;
     }
   }
 }
@@ -1086,8 +1074,8 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
   }
   // Handle the large object space.
   space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
-  accounting::ObjectSet* large_live_objects = large_object_space->GetLiveObjects();
-  accounting::ObjectSet* large_mark_objects = large_object_space->GetMarkObjects();
+  accounting::LargeObjectBitmap* large_live_objects = large_object_space->GetLiveBitmap();
+  accounting::LargeObjectBitmap* large_mark_objects = large_object_space->GetMarkBitmap();
   if (swap_bitmaps) {
     std::swap(large_live_objects, large_mark_objects);
   }
@@ -1131,7 +1119,6 @@ void MarkSweep::Sweep(bool swap_bitmaps) {
   timings_.EndSplit();
 
   DCHECK(mark_stack_->IsEmpty());
-  TimingLogger::ScopedSplit("Sweep", &timings_);
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->IsContinuousMemMapAllocSpace()) {
       space::ContinuousMemMapAllocSpace* alloc_space = space->AsContinuousMemMapAllocSpace();
@@ -1149,13 +1136,13 @@ void MarkSweep::Sweep(bool swap_bitmaps) {
 }
 
 void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
-  TimingLogger::ScopedSplit("SweepLargeObjects", &timings_);
+  TimingLogger::ScopedSplit split("SweepLargeObjects", &timings_);
   size_t freed_objects = 0;
   size_t freed_bytes = 0;
-  GetHeap()->GetLargeObjectsSpace()->Sweep(swap_bitmaps, &freed_objects, &freed_bytes);
+  heap_->GetLargeObjectsSpace()->Sweep(swap_bitmaps, &freed_objects, &freed_bytes);
   freed_large_objects_.FetchAndAdd(freed_objects);
   freed_large_object_bytes_.FetchAndAdd(freed_bytes);
-  GetHeap()->RecordFree(freed_objects, freed_bytes);
+  heap_->RecordFree(freed_objects, freed_bytes);
 }
 
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
