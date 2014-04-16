@@ -15,11 +15,10 @@
  */
 
 #include <signal.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <algorithm>
-#include <cstdio>
-#include <cstring>
-#include <string>
 
 #include "jni.h"
 #include "JniInvocation.h"

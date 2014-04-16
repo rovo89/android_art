@@ -344,9 +344,6 @@ define build-libart
   art_clang := $(3)
 
   include $(CLEAR_VARS)
-  ifeq ($$(art_target_or_host),target)
-    include external/stlport/libstlport.mk
-  endif
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
   ifeq ($$(art_ndebug_or_debug),ndebug)
     LOCAL_MODULE := libart
@@ -365,6 +362,8 @@ define build-libart
     LOCAL_SRC_FILES := $(LIBART_HOST_SRC_FILES)
     LOCAL_IS_HOST_MODULE := true
   endif
+
+  include art/build/Android.libcxx.mk
 
   GENERATED_SRC_DIR := $$(call local-generated-sources-dir)
   ENUM_OPERATOR_OUT_CC_FILES := $$(patsubst %.h,%_operator_out.cc,$$(LIBART_ENUM_OPERATOR_OUT_HEADER_FILES))
