@@ -353,8 +353,8 @@ static JdwpError VM_DisposeObjects(JdwpState*, Request& request, ExpandBuf*)
 
 static JdwpError VM_Capabilities(JdwpState*, Request&, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  expandBufAdd1(reply, true);    // canWatchFieldModification
-  expandBufAdd1(reply, true);    // canWatchFieldAccess
+  expandBufAdd1(reply, false);   // canWatchFieldModification
+  expandBufAdd1(reply, false);   // canWatchFieldAccess
   expandBufAdd1(reply, true);    // canGetBytecodes
   expandBufAdd1(reply, true);    // canGetSyntheticAttribute
   expandBufAdd1(reply, true);    // canGetOwnedMonitorInfo
