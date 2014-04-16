@@ -21,11 +21,19 @@ include art/build/Android.executable.mk
 DEX2OAT_SRC_FILES := \
 	dex2oat.cc
 
+# TODO: Remove this when the framework (installd) supports pushing the
+# right instruction-set parameter for the primary architecture.
+ifneq ($(filter ro.zygote=zygote64,$(PRODUCT_DEFAULT_PROPERTY_OVERRIDES)),)
+  dex2oat_arch := 64
+else
+  dex2oat_arch := 32
+endif
+
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libcutils libart-compiler,art/compiler,target,ndebug,32))
+  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libcutils libart-compiler,art/compiler,target,ndebug,$(dex2oat_arch)))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libcutils libartd-compiler,art/compiler,target,debug,32))
+  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libcutils libartd-compiler,art/compiler,target,debug,$(dex2oat_arch)))
 endif
 
 ifeq ($(WITH_HOST_DALVIK),true)
