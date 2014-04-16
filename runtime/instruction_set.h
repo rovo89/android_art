@@ -35,6 +35,10 @@ enum InstructionSet {
 };
 std::ostream& operator<<(std::ostream& os, const InstructionSet& rhs);
 
+size_t GetInstructionSetPointerSize(InstructionSet isa);
+size_t GetInstructionSetAlignment(InstructionSet isa);
+bool Is64BitInstructionSet(InstructionSet isa);
+
 #if defined(__arm__)
 static constexpr InstructionSet kRuntimeISA = kArm;
 #elif defined(__aarch64__)
