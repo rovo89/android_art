@@ -382,6 +382,20 @@ template<int SZ, class T> struct AtomicHelper {
   }
 };
 
+// Interpret the bit pattern of input (type U) as type V. Requires the size
+// of V >= size of U (compile-time checked).
+// Reproduced here from utils.h to keep dependencies small.
+template<typename U, typename V>
+static inline V bit_cast_atomic(U in) {
+  COMPILE_ASSERT(sizeof(U) == sizeof(V), size_of_u_not_eq_size_of_v);
+  union {
+    U u;
+    V v;
+  } tmp;
+  tmp.u = in;
+  return tmp.v;
+}
+
 template<class T> struct AtomicHelper<8, T> {
   friend class Atomic<T>;
 
@@ -392,15 +406,14 @@ template<class T> struct AtomicHelper<8, T> {
     // sizeof(T) == 8
     volatile const int64_t* loc_ptr =
               reinterpret_cast<volatile const int64_t*>(loc);
-    return static_cast<T>(QuasiAtomic::Read64(loc_ptr));
+    return bit_cast_atomic<int64_t, T>(QuasiAtomic::Read64(loc_ptr));
   }
 
   static void StoreRelaxed(volatile T* loc, T desired) {
     // sizeof(T) == 8
     volatile int64_t* loc_ptr =
                 reinterpret_cast<volatile int64_t*>(loc);
-    QuasiAtomic::Write64(loc_ptr,
-                         static_cast<int64_t>(desired));
+    QuasiAtomic::Write64(loc_ptr, bit_cast_atomic<T, int64_t>(desired));
   }
 
 
@@ -408,9 +421,9 @@ template<class T> struct AtomicHelper<8, T> {
                                                   T expected_value, T desired_value) {
     // sizeof(T) == 8
     volatile int64_t* loc_ptr = reinterpret_cast<volatile int64_t*>(loc);
-    return QuasiAtomic::Cas64(
-                 static_cast<int64_t>(reinterpret_cast<uintptr_t>(expected_value)),
-                 static_cast<int64_t>(reinterpret_cast<uintptr_t>(desired_value)), loc_ptr);
+    return QuasiAtomic::Cas64(bit_cast_atomic<T, int64_t>(expected_value),
+                              bit_cast_atomic<T, int64_t>(desired_value),
+                              loc_ptr);
   }
 };
 

@@ -23,36 +23,118 @@
 
 namespace art {
 
-MonitorPool::MonitorPool() : allocated_ids_lock_("allocated monitor ids lock",
-                                                 LockLevel::kMonitorPoolLock) {
+namespace mirror {
+  class Object;
+}  // namespace mirror
+
+MonitorPool::MonitorPool()
+    : num_chunks_(0), capacity_(0), first_free_(nullptr) {
+  AllocateChunk();  // Get our first chunk.
 }
 
-Monitor* MonitorPool::LookupMonitorFromTable(MonitorId mon_id) {
-  ReaderMutexLock mu(Thread::Current(), allocated_ids_lock_);
-  return table_.Get(mon_id);
-}
+// Assumes locks are held appropriately when necessary.
+// We do not need a lock in the constructor, but we need one when in CreateMonitorInPool.
+void MonitorPool::AllocateChunk() {
+  DCHECK(first_free_ == nullptr);
 
-MonitorId MonitorPool::AllocMonitorIdFromTable(Thread* self, Monitor* mon) {
-  WriterMutexLock mu(self, allocated_ids_lock_);
-  for (size_t i = 0; i < allocated_ids_.size(); ++i) {
-    if (!allocated_ids_[i]) {
-      allocated_ids_.set(i);
-      MonitorId mon_id = i + 1;  // Zero is reserved to mean "invalid".
-      table_.Put(mon_id, mon);
-      return mon_id;
+  // Do we need to resize?
+  if (num_chunks_ == capacity_) {
+    if (capacity_ == 0U) {
+      // Initialization.
+      capacity_ = kInitialChunkStorage;
+      uintptr_t* new_backing = new uintptr_t[capacity_];
+      monitor_chunks_.StoreRelaxed(new_backing);
+    } else {
+      size_t new_capacity = 2 * capacity_;
+      uintptr_t* new_backing = new uintptr_t[new_capacity];
+      uintptr_t* old_backing = monitor_chunks_.LoadRelaxed();
+      memcpy(new_backing, old_backing, sizeof(uintptr_t) * capacity_);
+      monitor_chunks_.StoreRelaxed(new_backing);
+      capacity_ = new_capacity;
+      old_chunk_arrays_.push_back(old_backing);
+      LOG(INFO) << "Resizing to capacity " << capacity_;
     }
   }
-  LOG(FATAL) << "Out of internal monitor ids";
-  return 0;
+
+  // Allocate the chunk.
+  void* chunk = malloc(kChunkSize);
+  // Check we allocated memory.
+  CHECK_NE(reinterpret_cast<uintptr_t>(nullptr), reinterpret_cast<uintptr_t>(chunk));
+  // Check it is aligned as we need it.
+  CHECK_EQ(0U, reinterpret_cast<uintptr_t>(chunk) % kMonitorAlignment);
+
+  // Add the chunk.
+  *(monitor_chunks_.LoadRelaxed()+num_chunks_) = reinterpret_cast<uintptr_t>(chunk);
+  num_chunks_++;
+
+  // Set up the free list
+  Monitor* last = reinterpret_cast<Monitor*>(reinterpret_cast<uintptr_t>(chunk) +
+                                             (kChunkCapacity - 1) * kAlignedMonitorSize);
+  last->next_free_ = nullptr;
+  // Eagerly compute id.
+  last->monitor_id_ = OffsetToMonitorId((num_chunks_ - 1) * kChunkSize +
+                                        (kChunkCapacity - 1) * kAlignedMonitorSize);
+  for (size_t i = 0; i < kChunkCapacity - 1; ++i) {
+    Monitor* before = reinterpret_cast<Monitor*>(reinterpret_cast<uintptr_t>(last) -
+                                                 kAlignedMonitorSize);
+    before->next_free_ = last;
+    // Derive monitor_id from last.
+    before->monitor_id_ = OffsetToMonitorId(MonitorIdToOffset(last->monitor_id_) -
+                                            kAlignedMonitorSize);
+
+    last = before;
+  }
+  DCHECK(last == reinterpret_cast<Monitor*>(chunk));
+  first_free_ = last;
 }
 
-void MonitorPool::ReleaseMonitorIdFromTable(MonitorId mon_id) {
-  WriterMutexLock mu(Thread::Current(), allocated_ids_lock_);
-  DCHECK(table_.Get(mon_id) != nullptr);
-  table_.erase(mon_id);
-  --mon_id;  // Zero is reserved to mean "invalid".
-  DCHECK(allocated_ids_[mon_id]) << mon_id;
-  allocated_ids_.reset(mon_id);
+Monitor* MonitorPool::CreateMonitorInPool(Thread* self, Thread* owner, mirror::Object* obj,
+                                          int32_t hash_code)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // We are gonna allocate, so acquire the writer lock.
+  MutexLock mu(self, *Locks::allocated_monitor_ids_lock_);
+
+  // Enough space, or need to resize?
+  if (first_free_ == nullptr) {
+    LOG(INFO) << "Allocating a new chunk.";
+    AllocateChunk();
+  }
+
+  Monitor* mon_uninitialized = first_free_;
+  first_free_ = first_free_->next_free_;
+
+  // Pull out the id which was preinitialized.
+  MonitorId id = mon_uninitialized->monitor_id_;
+
+  // Initialize it.
+  Monitor* monitor = new(mon_uninitialized) Monitor(self, owner, obj, hash_code, id);
+
+  return monitor;
+}
+
+void MonitorPool::ReleaseMonitorToPool(Thread* self, Monitor* monitor) {
+  // Might be racy with allocation, so acquire lock.
+  MutexLock mu(self, *Locks::allocated_monitor_ids_lock_);
+
+  // Keep the monitor id. Don't trust it's not cleared.
+  MonitorId id = monitor->monitor_id_;
+
+  // Call the destructor.
+  // TODO: Exception safety?
+  monitor->~Monitor();
+
+  // Add to the head of the free list.
+  monitor->next_free_ = first_free_;
+  first_free_ = monitor;
+
+  // Rewrite monitor id.
+  monitor->monitor_id_ = id;
+}
+
+void MonitorPool::ReleaseMonitorsToPool(Thread* self, std::list<Monitor*>* monitors) {
+  for (Monitor* mon : *monitors) {
+    ReleaseMonitorToPool(self, mon);
+  }
 }
 
 }  // namespace art
