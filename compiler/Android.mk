@@ -158,11 +158,10 @@ define build-libart-compiler
   art_ndebug_or_debug := $(2)
 
   include $(CLEAR_VARS)
-  ifeq ($$(art_target_or_host),target)
-    include external/stlport/libstlport.mk
-  else
+  ifeq ($$(art_target_or_host),host)
     LOCAL_IS_HOST_MODULE := true
   endif
+  include art/build/Android.libcxx.mk
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
   ifeq ($$(art_ndebug_or_debug),ndebug)
     LOCAL_MODULE := libart-compiler
