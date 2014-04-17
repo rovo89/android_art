@@ -392,7 +392,7 @@ mirror::ArtMethod* MethodVerifier::FindInvokedMethodAtDexPc(mirror::ArtMethod* m
   SirtRef<mirror::DexCache> dex_cache(self, mh.GetDexCache());
   SirtRef<mirror::ClassLoader> class_loader(self, mh.GetClassLoader());
   MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader, &mh.GetClassDef(),
-                          mh.GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(), false,
+                          mh.GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(), true,
                           true);
   return verifier.FindInvokedMethodAtDexPc(dex_pc);
 }
@@ -3119,18 +3119,22 @@ mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst
          inst->Opcode() == Instruction::INVOKE_VIRTUAL_RANGE_QUICK);
   const RegType& actual_arg_type = reg_line->GetInvocationThis(inst, is_range);
   if (actual_arg_type.IsConflict()) {  // GetInvocationThis failed.
-    return NULL;
+    return nullptr;
   } else if (actual_arg_type.IsZero()) {  // Invoke on "null" instance: we can't go further.
-    return NULL;
+    return nullptr;
   }
   mirror::Class* this_class = NULL;
   if (!actual_arg_type.IsUnresolvedTypes()) {
     this_class = actual_arg_type.GetClass();
   } else {
     const std::string& descriptor(actual_arg_type.GetDescriptor());
-    // TODO: Precise or not?
-    this_class = reg_types_.FromDescriptor(class_loader_->get(), descriptor.c_str(),
-                                           false).GetClass();
+    // Try to resolve type.
+    const RegType& resolved_arg_type = reg_types_.FromDescriptor(class_loader_->get(),
+                                                                 descriptor.c_str(), false);
+    if (!resolved_arg_type.HasClass()) {
+      return nullptr;  // Resolution failed.
+    }
+    this_class = resolved_arg_type.GetClass();
     if (this_class == NULL) {
       Thread* self = Thread::Current();
       self->ClearException();
