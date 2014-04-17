@@ -231,6 +231,11 @@ class SemiSpace : public GarbageCollector {
   // whole_heap_collection_ once per interval.
   int whole_heap_collection_interval_counter_;
 
+  // How many objects and bytes we moved, used so that we don't need to get the size of the
+  // to_space_ when calculating how many objects and bytes we freed.
+  size_t bytes_moved_;
+  size_t objects_moved_;
+
   // How many bytes we avoided dirtying.
   size_t saved_bytes_;
 

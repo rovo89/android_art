@@ -100,8 +100,10 @@ class MANAGED LOCKABLE Object {
     return OFFSET_OF_OBJECT_MEMBER(Object, monitor_);
   }
 
-  LockWord GetLockWord();
-  void SetLockWord(LockWord new_val);
+  // As volatile can be false if the mutators are suspended. This is an optimization since it
+  // avoids the barriers.
+  LockWord GetLockWord(bool as_volatile);
+  void SetLockWord(LockWord new_val, bool as_volatile);
   bool CasLockWord(LockWord old_val, LockWord new_val) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   uint32_t GetLockOwnerThreadId();
 
