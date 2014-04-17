@@ -231,6 +231,10 @@ class MonitorList {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
+  // During sweeping we may free an object and on a separate thread have an object created using
+  // the newly freed memory. That object may then have its lock-word inflated and a monitor created.
+  // If we allow new monitor registration during sweeping this monitor may be incorrectly freed as
+  // the object wasn't marked when sweeping began.
   bool allow_new_monitors_ GUARDED_BY(monitor_list_lock_);
   Mutex monitor_list_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ConditionVariable monitor_add_condition_ GUARDED_BY(monitor_list_lock_);
