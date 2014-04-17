@@ -117,6 +117,8 @@ void SemiSpace::InitializePhase() {
   immune_region_.Reset();
   is_large_object_space_immune_ = false;
   saved_bytes_ = 0;
+  bytes_moved_ = 0;
+  objects_moved_ = 0;
   self_ = Thread::Current();
   // Do any pre GC verification.
   timings_.NewSplit("PreGcVerification");
@@ -382,9 +384,9 @@ void SemiSpace::ReclaimPhase() {
   }
   // Record freed memory.
   uint64_t from_bytes = from_space_->GetBytesAllocated();
-  uint64_t to_bytes = to_space_->GetBytesAllocated();
+  uint64_t to_bytes = bytes_moved_;
   uint64_t from_objects = from_space_->GetObjectsAllocated();
-  uint64_t to_objects = to_space_->GetObjectsAllocated();
+  uint64_t to_objects = objects_moved_;
   CHECK_LE(to_objects, from_objects);
   int64_t freed_bytes = from_bytes - to_bytes;
   int64_t freed_objects = from_objects - to_objects;
@@ -521,15 +523,13 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
     // If it's allocated before the last GC (older), move
     // (pseudo-promote) it to the main free list space (as sort
     // of an old generation.)
-    size_t bytes_promoted;
     space::MallocSpace* promo_dest_space = GetHeap()->GetPrimaryFreeListSpace();
-    forward_address = promo_dest_space->Alloc(self_, object_size, &bytes_promoted, nullptr);
-    if (forward_address == nullptr) {
+    forward_address = promo_dest_space->Alloc(self_, object_size, &bytes_allocated, nullptr);
+    if (UNLIKELY(forward_address == nullptr)) {
       // If out of space, fall back to the to-space.
       forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated, nullptr);
     } else {
-      GetHeap()->num_bytes_allocated_.FetchAndAdd(bytes_promoted);
-      bytes_promoted_ += bytes_promoted;
+      bytes_promoted_ += bytes_allocated;
       // Dirty the card at the destionation as it may contain
       // references (including the class pointer) to the bump pointer
       // space.
@@ -573,6 +573,8 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
     // If it's allocated after the last GC (younger), copy it to the to-space.
     forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated, nullptr);
   }
+  ++objects_moved_;
+  bytes_moved_ += bytes_allocated;
   // Copy over the object and add it to the mark stack since we still need to update its
   // references.
   saved_bytes_ +=
@@ -619,10 +621,9 @@ void SemiSpace::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*
 
 // Marks all objects in the root set.
 void SemiSpace::MarkRoots() {
-  timings_.StartSplit("MarkRoots");
+  timings_.NewSplit("MarkRoots");
   // TODO: Visit up image roots as well?
   Runtime::Current()->VisitRoots(MarkRootCallback, this);
-  timings_.EndSplit();
 }
 
 mirror::Object* SemiSpace::MarkedForwardingAddressCallback(mirror::Object* object, void* arg) {
@@ -641,7 +642,7 @@ bool SemiSpace::ShouldSweepSpace(space::ContinuousSpace* space) const {
 
 void SemiSpace::Sweep(bool swap_bitmaps) {
   DCHECK(mark_stack_->IsEmpty());
-  TimingLogger::ScopedSplit("Sweep", &timings_);
+  TimingLogger::ScopedSplit split("Sweep", &timings_);
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->IsContinuousMemMapAllocSpace()) {
       space::ContinuousMemMapAllocSpace* alloc_space = space->AsContinuousMemMapAllocSpace();
@@ -665,13 +666,13 @@ void SemiSpace::Sweep(bool swap_bitmaps) {
 
 void SemiSpace::SweepLargeObjects(bool swap_bitmaps) {
   DCHECK(!is_large_object_space_immune_);
-  TimingLogger::ScopedSplit("SweepLargeObjects", &timings_);
+  TimingLogger::ScopedSplit split("SweepLargeObjects", &timings_);
   size_t freed_objects = 0;
   size_t freed_bytes = 0;
-  GetHeap()->GetLargeObjectsSpace()->Sweep(swap_bitmaps, &freed_objects, &freed_bytes);
+  heap_->GetLargeObjectsSpace()->Sweep(swap_bitmaps, &freed_objects, &freed_bytes);
   freed_large_objects_.FetchAndAdd(freed_objects);
   freed_large_object_bytes_.FetchAndAdd(freed_bytes);
-  GetHeap()->RecordFree(freed_objects, freed_bytes);
+  heap_->RecordFree(freed_objects, freed_bytes);
 }
 
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been

@@ -179,7 +179,7 @@ void ImageWriter::SetImageOffset(mirror::Object* object, size_t offset) {
   image_bitmap_->Set(obj);
   // Before we stomp over the lock word, save the hash code for later.
   Monitor::Deflate(Thread::Current(), object);;
-  LockWord lw(object->GetLockWord());
+  LockWord lw(object->GetLockWord(false));
   switch (lw.GetState()) {
     case LockWord::kFatLocked: {
       LOG(FATAL) << "Fat locked object " << obj << " found during object copy";
@@ -199,7 +199,7 @@ void ImageWriter::SetImageOffset(mirror::Object* object, size_t offset) {
       LOG(FATAL) << "Unreachable.";
       break;
   }
-  object->SetLockWord(LockWord::FromForwardingAddress(offset));
+  object->SetLockWord(LockWord::FromForwardingAddress(offset), false);
   DCHECK(IsImageOffsetAssigned(object));
 }
 
@@ -212,13 +212,13 @@ void ImageWriter::AssignImageOffset(mirror::Object* object) {
 
 bool ImageWriter::IsImageOffsetAssigned(mirror::Object* object) const {
   DCHECK(object != nullptr);
-  return object->GetLockWord().GetState() == LockWord::kForwardingAddress;
+  return object->GetLockWord(false).GetState() == LockWord::kForwardingAddress;
 }
 
 size_t ImageWriter::GetImageOffset(mirror::Object* object) const {
   DCHECK(object != nullptr);
   DCHECK(IsImageOffsetAssigned(object));
-  LockWord lock_word = object->GetLockWord();
+  LockWord lock_word = object->GetLockWord(false);
   size_t offset = lock_word.ForwardingAddress();
   DCHECK_LT(offset, image_end_);
   return offset;
@@ -555,15 +555,15 @@ void ImageWriter::CopyAndFixupObjects()
   heap->VisitObjects(CopyAndFixupObjectsCallback, this);
   // Fix up the object previously had hash codes.
   for (const std::pair<mirror::Object*, uint32_t>& hash_pair : saved_hashes_) {
-    hash_pair.first->SetLockWord(LockWord::FromHashCode(hash_pair.second));
+    hash_pair.first->SetLockWord(LockWord::FromHashCode(hash_pair.second), false);
   }
   saved_hashes_.clear();
   self->EndAssertNoThreadSuspension(old_cause);
 }
 
 void ImageWriter::CopyAndFixupObjectsCallback(Object* obj, void* arg) {
-  DCHECK(obj != NULL);
-  DCHECK(arg != NULL);
+  DCHECK(obj != nullptr);
+  DCHECK(arg != nullptr);
   ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
   // see GetLocalAddress for similar computation
   size_t offset = image_writer->GetImageOffset(obj);
@@ -575,7 +575,7 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* obj, void* arg) {
   Object* copy = reinterpret_cast<Object*>(dst);
   // Write in a hash code of objects which have inflated monitors or a hash code in their monitor
   // word.
-  copy->SetLockWord(LockWord());
+  copy->SetLockWord(LockWord(), false);
   image_writer->FixupObject(obj, copy);
 }
 
