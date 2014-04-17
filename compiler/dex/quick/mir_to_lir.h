@@ -562,8 +562,12 @@ class Mir2Lir : public Backend {
     void HandleThrowLaunchPads();
     void HandleSlowPaths();
     void GenBarrier();
-    void AddDivZeroSlowPath(ConditionCode c_code);
-    void AddDivZeroSlowPath(ConditionCode c_code, RegStorage reg, int imm_val);
+    void GenDivZeroException();
+    // c_code holds condition code that's generated from testing divisor against 0.
+    void GenDivZeroCheck(ConditionCode c_code);
+    // reg holds divisor.
+    void GenDivZeroCheck(RegStorage reg);
+    LIR* GenNullCheck(RegStorage reg);
     void MarkPossibleNullPointerException(int opt_flags);
     void MarkPossibleStackOverflowException();
     void ForceImplicitNullCheck(RegStorage reg, int opt_flags);
@@ -960,10 +964,9 @@ class Mir2Lir : public Backend {
      * @brief Used for generating code that throws ArithmeticException if both registers are zero.
      * @details This is used for generating DivideByZero checks when divisor is held in two
      *  separate registers.
-     * @param reg_lo The register holding the lower 32-bits.
-     * @param reg_hi The register holding the upper 32-bits.
+     * @param reg The register holding the pair of 32-bit values.
      */
-    virtual void GenDivZeroCheck(RegStorage reg) = 0;
+    virtual void GenDivZeroCheckWide(RegStorage reg) = 0;
 
     virtual void GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) = 0;
     virtual void GenExitSequence() = 0;
