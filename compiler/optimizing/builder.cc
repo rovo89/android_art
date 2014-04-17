@@ -282,9 +282,7 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   size_t start_index = 0;
   if (is_instance_call) {
     HInstruction* arg = LoadLocal(is_range ? register_index : args[0], Primitive::kPrimNot);
-    HInstruction* push = new (arena_) HPushArgument(arg, 0);
-    current_block_->AddInstruction(push);
-    invoke->SetArgumentAt(0, push);
+    invoke->SetArgumentAt(0, arg);
     start_index = 1;
   }
 
@@ -305,9 +303,7 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
           return false;
         }
         HInstruction* arg = LoadLocal(is_range ? register_index + i : args[i], type);
-        HInstruction* push = new (arena_) HPushArgument(arg, i);
-        current_block_->AddInstruction(push);
-        invoke->SetArgumentAt(argument_index, push);
+        invoke->SetArgumentAt(argument_index, arg);
         if (type == Primitive::kPrimLong) {
           i++;
         }

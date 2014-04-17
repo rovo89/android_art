@@ -101,6 +101,58 @@ class InvokeDexCallingConvention : public CallingConvention<Register> {
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConvention);
 };
 
+class InvokeDexCallingConventionVisitor {
+ public:
+  InvokeDexCallingConventionVisitor() : gp_index_(0) {}
+
+  Location GetNextLocation(Primitive::Type type) {
+    switch (type) {
+      case Primitive::kPrimBoolean:
+      case Primitive::kPrimByte:
+      case Primitive::kPrimChar:
+      case Primitive::kPrimShort:
+      case Primitive::kPrimInt:
+      case Primitive::kPrimNot: {
+        uint32_t index = gp_index_++;
+        if (index < calling_convention.GetNumberOfRegisters()) {
+          return ArmCoreLocation(calling_convention.GetRegisterAt(index));
+        } else {
+          return Location::StackSlot(calling_convention.GetStackOffsetOf(index));
+        }
+      }
+
+      case Primitive::kPrimLong: {
+        uint32_t index = gp_index_;
+        gp_index_ += 2;
+        if (index + 1 < calling_convention.GetNumberOfRegisters()) {
+          return Location::RegisterLocation(ArmManagedRegister::FromRegisterPair(
+              calling_convention.GetRegisterPairAt(index)));
+        } else if (index + 1 == calling_convention.GetNumberOfRegisters()) {
+          return Location::QuickParameter(index);
+        } else {
+          return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(index));
+        }
+      }
+
+      case Primitive::kPrimDouble:
+      case Primitive::kPrimFloat:
+        LOG(FATAL) << "Unimplemented parameter type " << type;
+        break;
+
+      case Primitive::kPrimVoid:
+        LOG(FATAL) << "Unexpected parameter type " << type;
+        break;
+    }
+    return Location();
+  }
+
+ private:
+  InvokeDexCallingConvention calling_convention;
+  uint32_t gp_index_;
+
+  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
+};
+
 void CodeGeneratorARM::Move32(Location destination, Location source) {
   if (source.Equals(destination)) {
     return;
@@ -417,52 +469,17 @@ void InstructionCodeGeneratorARM::VisitReturn(HReturn* ret) {
   codegen_->GenerateFrameExit();
 }
 
-void LocationsBuilderARM::VisitPushArgument(HPushArgument* argument) {
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(argument);
-  InvokeDexCallingConvention calling_convention;
-  uint32_t argument_index = argument->GetArgumentIndex();
-  switch (argument->InputAt(0)->GetType()) {
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot: {
-      if (argument_index < calling_convention.GetNumberOfRegisters()) {
-        locations->SetInAt(0, ArmCoreLocation(calling_convention.GetRegisterAt(argument_index)));
-      } else {
-        locations->SetInAt(
-            0, Location::StackSlot(calling_convention.GetStackOffsetOf(argument_index)));
-      }
-      break;
-    }
-    case Primitive::kPrimLong: {
-      if (argument_index + 1 < calling_convention.GetNumberOfRegisters()) {
-        Location location = Location::RegisterLocation(ArmManagedRegister::FromRegisterPair(
-            calling_convention.GetRegisterPairAt(argument_index)));
-        locations->SetInAt(0, location);
-      } else if (argument_index + 1 == calling_convention.GetNumberOfRegisters()) {
-        locations->SetInAt(0, Location::QuickParameter(argument_index));
-      } else {
-        locations->SetInAt(
-            0, Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(argument_index)));
-      }
-      break;
-    }
-    default:
-      LOG(FATAL) << "Unimplemented argument type " << argument->InputAt(0)->GetType();
-  }
-  argument->SetLocations(locations);
-}
-
-void InstructionCodeGeneratorARM::VisitPushArgument(HPushArgument* argument) {
-  // Nothing to do.
-}
-
 void LocationsBuilderARM::VisitInvokeStatic(HInvokeStatic* invoke) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(invoke);
   locations->AddTemp(ArmCoreLocation(R0));
-    switch (invoke->GetType()) {
+
+  InvokeDexCallingConventionVisitor calling_convention_visitor;
+  for (int i = 0; i < invoke->InputCount(); i++) {
+    HInstruction* input = invoke->InputAt(i);
+    locations->SetInAt(i, calling_convention_visitor.GetNextLocation(input->GetType()));
+  }
+
+  switch (invoke->GetType()) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
     case Primitive::kPrimChar:
