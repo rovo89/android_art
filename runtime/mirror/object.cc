@@ -150,7 +150,7 @@ int32_t Object::GenerateIdentityHashCode() {
 int32_t Object::IdentityHashCode() const {
   mirror::Object* current_this = const_cast<mirror::Object*>(this);
   while (true) {
-    LockWord lw = current_this->GetLockWord();
+    LockWord lw = current_this->GetLockWord(false);
     switch (lw.GetState()) {
       case LockWord::kUnlocked: {
         // Try to compare and swap in a new hash, if we succeed we will return the hash on the next

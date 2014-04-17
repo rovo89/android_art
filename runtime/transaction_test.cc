@@ -55,18 +55,18 @@ TEST_F(TransactionTest, Object_monitor) {
 
   // Lock object's monitor outside the transaction.
   sirt_obj->MonitorEnter(soa.Self());
-  uint32_t old_lock_word = sirt_obj->GetLockWord().GetValue();
+  uint32_t old_lock_word = sirt_obj->GetLockWord(false).GetValue();
 
   Transaction transaction;
   Runtime::Current()->EnterTransactionMode(&transaction);
   // Unlock object's monitor inside the transaction.
   sirt_obj->MonitorExit(soa.Self());
-  uint32_t new_lock_word = sirt_obj->GetLockWord().GetValue();
+  uint32_t new_lock_word = sirt_obj->GetLockWord(false).GetValue();
   Runtime::Current()->ExitTransactionMode();
 
   // Aborting transaction must not clear the Object::class field.
   transaction.Abort();
-  uint32_t aborted_lock_word = sirt_obj->GetLockWord().GetValue();
+  uint32_t aborted_lock_word = sirt_obj->GetLockWord(false).GetValue();
   EXPECT_NE(old_lock_word, new_lock_word);
   EXPECT_EQ(aborted_lock_word, new_lock_word);
 }
