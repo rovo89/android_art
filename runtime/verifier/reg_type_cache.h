@@ -38,10 +38,7 @@ class RegType;
 
 class RegTypeCache {
  public:
-  explicit RegTypeCache(bool can_load_classes) : can_load_classes_(can_load_classes) {
-    entries_.reserve(64);
-    FillPrimitiveAndSmallConstantTypes();
-  }
+  explicit RegTypeCache(bool can_load_classes);
   ~RegTypeCache();
   static void Init() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (!RegTypeCache::primitive_initialized_) {
@@ -152,7 +149,6 @@ class RegTypeCache {
   void FillPrimitiveAndSmallConstantTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::Class* ResolveClass(const char* descriptor, mirror::ClassLoader* loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void ClearException();
   bool MatchDescriptor(size_t idx, const char* descriptor, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const ConstantType& FromCat1NonSmallConstant(int32_t value, bool precise)
