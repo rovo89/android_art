@@ -1230,6 +1230,10 @@ void Runtime::SetFaultMessage(const std::string& message) {
 
 void Runtime::AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::string>* argv)
     const {
+  if (GetInstrumentation()->InterpretOnly()) {
+    argv->push_back("--compiler-filter=interpret-only");
+  }
+
   argv->push_back("--runtime-arg");
   std::string checkstr = "-implicit-checks";
 
