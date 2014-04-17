@@ -1496,7 +1496,7 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
         ((cu_->disable_opt & (1 << kNullCheckElimination)) != 0 ||
          (info->opt_flags & MIR_IGNORE_NULL_CHECK) == 0))  {
       RegLocation rl_obj = LoadValue(info->args[0], kCoreReg);
-      GenImmedCheck(kCondEq, rl_obj.reg, 0, kThrowNullPointer);
+      GenNullCheck(rl_obj.reg);
     }
     return;
   }

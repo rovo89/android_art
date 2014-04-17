@@ -629,7 +629,7 @@ RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
 
   if (check_zero) {
     // Handle division by zero case.
-    AddDivZeroSlowPath(kCondEq, rs_r1, 0);
+    GenDivZeroCheck(rs_r1);
   }
 
   // Have to catch 0x80000000/-1 case, or we will get an exception!
@@ -876,7 +876,7 @@ void X86Mir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
   }
 }
 
-void X86Mir2Lir::GenDivZeroCheck(RegStorage reg) {
+void X86Mir2Lir::GenDivZeroCheckWide(RegStorage reg) {
   DCHECK(reg.IsPair());  // TODO: allow 64BitSolo.
   // We are not supposed to clobber the incoming storage, so allocate a temporary.
   RegStorage t_reg = AllocTemp();
@@ -885,7 +885,7 @@ void X86Mir2Lir::GenDivZeroCheck(RegStorage reg) {
   OpRegRegReg(kOpOr, t_reg, reg.GetLow(), reg.GetHigh());
 
   // In case of zero, throw ArithmeticException.
-  AddDivZeroSlowPath(kCondEq);
+  GenDivZeroCheck(kCondEq);
 
   // The temp is no longer needed so free it at this time.
   FreeTemp(t_reg);
