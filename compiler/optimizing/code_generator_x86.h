@@ -28,6 +28,37 @@ static constexpr size_t kX86WordSize = 4;
 
 class CodeGeneratorX86;
 
+static constexpr Register kParameterCoreRegisters[] = { ECX, EDX, EBX };
+static constexpr RegisterPair kParameterCorePairRegisters[] = { ECX_EDX, EDX_EBX };
+static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
+
+class InvokeDexCallingConvention : public CallingConvention<Register> {
+ public:
+  InvokeDexCallingConvention()
+      : CallingConvention(kParameterCoreRegisters, kParameterCoreRegistersLength) {}
+
+  RegisterPair GetRegisterPairAt(size_t argument_index) {
+    DCHECK_LT(argument_index + 1, GetNumberOfRegisters());
+    return kParameterCorePairRegisters[argument_index];
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConvention);
+};
+
+class InvokeDexCallingConventionVisitor {
+ public:
+  InvokeDexCallingConventionVisitor() : gp_index_(0) {}
+
+  Location GetNextLocation(Primitive::Type type);
+
+ private:
+  InvokeDexCallingConvention calling_convention;
+  uint32_t gp_index_;
+
+  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
+};
+
 class LocationsBuilderX86 : public HGraphVisitor {
  public:
   LocationsBuilderX86(HGraph* graph, CodeGeneratorX86* codegen)
@@ -42,6 +73,7 @@ class LocationsBuilderX86 : public HGraphVisitor {
 
  private:
   CodeGeneratorX86* const codegen_;
+  InvokeDexCallingConventionVisitor parameter_visitor_;
 
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderX86);
 };
