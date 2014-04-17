@@ -49,10 +49,13 @@ void CodeGeneratorX86::GenerateFrameEntry() {
   static const int kFakeReturnRegister = 8;
   core_spill_mask_ |= (1 << kFakeReturnRegister);
 
-  // Add the current ART method to the frame size, the return PC, and the filler.
-  SetFrameSize(RoundUp((
-      GetGraph()->GetMaximumNumberOfOutVRegs() + GetGraph()->GetNumberOfVRegs() + 3) * kX86WordSize,
+  SetFrameSize(RoundUp(
+      (GetGraph()->GetMaximumNumberOfOutVRegs() + GetGraph()->GetNumberOfVRegs()) * kVRegSize
+      + kVRegSize  // filler
+      + kX86WordSize  // Art method
+      + kNumberOfPushedRegistersAtEntry * kX86WordSize,
       kStackAlignment));
+
   // The return PC has already been pushed on the stack.
   __ subl(ESP, Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86WordSize));
   __ movl(Address(ESP, kCurrentMethodStackOffset), EAX);
@@ -77,33 +80,15 @@ int32_t CodeGeneratorX86::GetStackSlot(HLocal* local) const {
   if (reg_number >= number_of_vregs - number_of_in_vregs) {
     // Local is a parameter of the method. It is stored in the caller's frame.
     return GetFrameSize() + kX86WordSize  // ART method
-                          + (reg_number - number_of_vregs + number_of_in_vregs) * kX86WordSize;
+                          + (reg_number - number_of_vregs + number_of_in_vregs) * kVRegSize;
   } else {
     // Local is a temporary in this method. It is stored in this method's frame.
     return GetFrameSize() - (kNumberOfPushedRegistersAtEntry * kX86WordSize)
-                          - kX86WordSize  // filler.
-                          - (number_of_vregs * kX86WordSize)
-                          + (reg_number * kX86WordSize);
+                          - kVRegSize  // filler.
+                          - (number_of_vregs * kVRegSize)
+                          + (reg_number * kVRegSize);
   }
 }
-
-static constexpr Register kParameterCoreRegisters[] = { ECX, EDX, EBX };
-static constexpr RegisterPair kParameterCorePairRegisters[] = { ECX_EDX, EDX_EBX };
-static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
-
-class InvokeDexCallingConvention : public CallingConvention<Register> {
- public:
-  InvokeDexCallingConvention()
-      : CallingConvention(kParameterCoreRegisters, kParameterCoreRegistersLength) {}
-
-  RegisterPair GetRegisterPairAt(size_t argument_index) {
-    DCHECK_LT(argument_index + 1, GetNumberOfRegisters());
-    return kParameterCorePairRegisters[argument_index];
-  }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConvention);
-};
 
 static constexpr Register kRuntimeParameterCoreRegisters[] = { EAX, ECX, EDX };
 static constexpr size_t kRuntimeParameterCoreRegistersLength =
@@ -119,57 +104,46 @@ class InvokeRuntimeCallingConvention : public CallingConvention<Register> {
   DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
 };
 
-class InvokeDexCallingConventionVisitor {
- public:
-  InvokeDexCallingConventionVisitor() : gp_index_(0) {}
-
-  Location GetNextLocation(Primitive::Type type) {
-    switch (type) {
-      case Primitive::kPrimBoolean:
-      case Primitive::kPrimByte:
-      case Primitive::kPrimChar:
-      case Primitive::kPrimShort:
-      case Primitive::kPrimInt:
-      case Primitive::kPrimNot: {
-        uint32_t index = gp_index_++;
-        if (index < calling_convention.GetNumberOfRegisters()) {
-          return X86CpuLocation(calling_convention.GetRegisterAt(index));
-        } else {
-          return Location::StackSlot(calling_convention.GetStackOffsetOf(index));
-        }
+Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type) {
+  switch (type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot: {
+      uint32_t index = gp_index_++;
+      if (index < calling_convention.GetNumberOfRegisters()) {
+        return X86CpuLocation(calling_convention.GetRegisterAt(index));
+      } else {
+        return Location::StackSlot(calling_convention.GetStackOffsetOf(index, kX86WordSize));
       }
-
-      case Primitive::kPrimLong: {
-        uint32_t index = gp_index_;
-        gp_index_ += 2;
-        if (index + 1 < calling_convention.GetNumberOfRegisters()) {
-          return Location::RegisterLocation(X86ManagedRegister::FromRegisterPair(
-              calling_convention.GetRegisterPairAt(index)));
-        } else if (index + 1 == calling_convention.GetNumberOfRegisters()) {
-          return Location::QuickParameter(index);
-        } else {
-          return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(index));
-        }
-      }
-
-      case Primitive::kPrimDouble:
-      case Primitive::kPrimFloat:
-        LOG(FATAL) << "Unimplemented parameter type " << type;
-        break;
-
-      case Primitive::kPrimVoid:
-        LOG(FATAL) << "Unexpected parameter type " << type;
-        break;
     }
-    return Location();
+
+    case Primitive::kPrimLong: {
+      uint32_t index = gp_index_;
+      gp_index_ += 2;
+      if (index + 1 < calling_convention.GetNumberOfRegisters()) {
+        return Location::RegisterLocation(X86ManagedRegister::FromRegisterPair(
+            calling_convention.GetRegisterPairAt(index)));
+      } else if (index + 1 == calling_convention.GetNumberOfRegisters()) {
+        return Location::QuickParameter(index);
+      } else {
+        return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(index, kX86WordSize));
+      }
+    }
+
+    case Primitive::kPrimDouble:
+    case Primitive::kPrimFloat:
+      LOG(FATAL) << "Unimplemented parameter type " << type;
+      break;
+
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unexpected parameter type " << type;
+      break;
   }
-
- private:
-  InvokeDexCallingConvention calling_convention;
-  uint32_t gp_index_;
-
-  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
-};
+  return Location();
+}
 
 void CodeGeneratorX86::Move32(Location destination, Location source) {
   if (source.Equals(destination)) {
@@ -206,9 +180,8 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
       InvokeDexCallingConvention calling_convention;
       __ movl(destination.AsX86().AsRegisterPairLow(),
               calling_convention.GetRegisterAt(argument_index));
-      __ movl(destination.AsX86().AsRegisterPairHigh(),
-              Address(ESP,
-                      calling_convention.GetStackOffsetOf(argument_index + 1) + GetFrameSize()));
+      __ movl(destination.AsX86().AsRegisterPairHigh(), Address(ESP,
+          calling_convention.GetStackOffsetOf(argument_index + 1, kX86WordSize) + GetFrameSize()));
     } else {
       DCHECK(source.IsDoubleStackSlot());
       __ movl(destination.AsX86().AsRegisterPairLow(), Address(ESP, source.GetStackIndex()));
@@ -220,14 +193,14 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
     uint32_t argument_index = destination.GetQuickParameterIndex();
     if (source.IsRegister()) {
       __ movl(calling_convention.GetRegisterAt(argument_index), source.AsX86().AsRegisterPairLow());
-      __ movl(Address(ESP, calling_convention.GetStackOffsetOf(argument_index + 1)),
+      __ movl(Address(ESP, calling_convention.GetStackOffsetOf(argument_index + 1, kX86WordSize)),
               source.AsX86().AsRegisterPairHigh());
     } else {
       DCHECK(source.IsDoubleStackSlot());
       __ movl(calling_convention.GetRegisterAt(argument_index),
               Address(ESP, source.GetStackIndex()));
       __ movl(EAX, Address(ESP, source.GetHighStackIndex(kX86WordSize)));
-      __ movl(Address(ESP, calling_convention.GetStackOffsetOf(argument_index + 1)), EAX);
+      __ movl(Address(ESP, calling_convention.GetStackOffsetOf(argument_index + 1, kX86WordSize)), EAX);
     }
   } else {
     if (source.IsRegister()) {
@@ -239,9 +212,8 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
       uint32_t argument_index = source.GetQuickParameterIndex();
       __ movl(Address(ESP, destination.GetStackIndex()),
               calling_convention.GetRegisterAt(argument_index));
-      __ movl(EAX,
-              Address(ESP,
-                      calling_convention.GetStackOffsetOf(argument_index + 1) + GetFrameSize()));
+      __ movl(EAX, Address(ESP,
+          calling_convention.GetStackOffsetOf(argument_index + 1, kX86WordSize) + GetFrameSize()));
       __ movl(Address(ESP, destination.GetHighStackIndex(kX86WordSize)), EAX);
     } else {
       DCHECK(source.IsDoubleStackSlot());
@@ -688,38 +660,13 @@ void InstructionCodeGeneratorX86::VisitNewInstance(HNewInstance* instruction) {
 
 void LocationsBuilderX86::VisitParameterValue(HParameterValue* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
-  InvokeDexCallingConvention calling_convention;
-  uint32_t argument_index = instruction->GetIndex();
-  switch (instruction->GetType()) {
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot:
-      if (argument_index < calling_convention.GetNumberOfRegisters()) {
-        locations->SetOut(X86CpuLocation(calling_convention.GetRegisterAt(argument_index)));
-      } else {
-        locations->SetOut(Location::StackSlot(
-            calling_convention.GetStackOffsetOf(argument_index) + codegen_->GetFrameSize()));
-      }
-      break;
-
-    case Primitive::kPrimLong:
-      if (argument_index + 1 < calling_convention.GetNumberOfRegisters()) {
-        locations->SetOut(Location::RegisterLocation(X86ManagedRegister::FromRegisterPair(
-            (calling_convention.GetRegisterPairAt(argument_index)))));
-      } else if (argument_index + 1 == calling_convention.GetNumberOfRegisters()) {
-        locations->SetOut(Location::QuickParameter(argument_index));
-      } else {
-        locations->SetOut(Location::DoubleStackSlot(
-            calling_convention.GetStackOffsetOf(argument_index) + codegen_->GetFrameSize()));
-      }
-      break;
-
-    default:
-      LOG(FATAL) << "Unimplemented parameter type " << instruction->GetType();
+  Location location = parameter_visitor_.GetNextLocation(instruction->GetType());
+  if (location.IsStackSlot()) {
+    location = Location::StackSlot(location.GetStackIndex() + codegen_->GetFrameSize());
+  } else if (location.IsDoubleStackSlot()) {
+    location = Location::DoubleStackSlot(location.GetStackIndex() + codegen_->GetFrameSize());
   }
+  locations->SetOut(location);
   instruction->SetLocations(locations);
 }
 
