@@ -31,10 +31,6 @@ define build-libarttest
   art_target_or_host := $(1)
 
   include $(CLEAR_VARS)
-  ifeq ($$(art_target_or_host),target)
-   include external/stlport/libstlport.mk
-  endif
-
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
   LOCAL_MODULE := libarttest
   ifeq ($$(art_target_or_host),target)
@@ -55,6 +51,7 @@ define build-libarttest
     LOCAL_MODULE_PATH_32 := $(ART_BASE_TEST_OUT)
     LOCAL_MODULE_PATH_64 := $(ART_BASE_TEST_OUT)64
     LOCAL_MODULE_TARGET_ARCH := $(ART_SUPPORTED_ARCH)
+    include art/build/Android.libcxx.mk
     include $(BUILD_SHARED_LIBRARY)
   else # host
     LOCAL_CLANG := $(ART_HOST_CLANG)
@@ -64,6 +61,8 @@ define build-libarttest
     ifeq ($(HOST_OS),linux)
       LOCAL_LDLIBS += -lrt
     endif
+    LOCAL_IS_HOST_MODULE := true
+    include art/build/Android.libcxx.mk
     include $(BUILD_HOST_SHARED_LIBRARY)
   endif
 endef
