@@ -164,7 +164,7 @@ TEST_F(ImageTest, WriteRead) {
       EXPECT_TRUE(reinterpret_cast<byte*>(klass) >= image_end ||
                   reinterpret_cast<byte*>(klass) < image_begin) << descriptor;
     }
-    EXPECT_TRUE(Monitor::IsValidLockWord(klass->GetLockWord()));
+    EXPECT_TRUE(Monitor::IsValidLockWord(klass->GetLockWord(false)));
   }
 }
 
