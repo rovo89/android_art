@@ -26,7 +26,7 @@ MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
     // R10 := Runtime::Current()
     movq _ZN3art7Runtime9instance_E@GOTPCREL(%rip), %r10
     movq (%r10), %r10
-    // Save callee and GPR args, mixed together to agree with core spills bitmap.
+    // Save callee save registers to agree with core spills bitmap.
     PUSH r15  // Callee save.
     PUSH r14  // Callee save.
     PUSH r13  // Callee save.
@@ -35,7 +35,7 @@ MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
     PUSH rbx  // Callee save.
     subq MACRO_LITERAL(8), %rsp  // Space for Method* (also aligns the frame).
     CFI_ADJUST_CFA_OFFSET(8)
-    // R10 := ArtMethod* for ref and args callee save frame method.
+    // R10 := ArtMethod* for save all callee save frame method.
     movq RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
     // Store ArtMethod* to bottom of stack.
     movq %r10, 0(%rsp)
@@ -46,13 +46,36 @@ END_MACRO
      * Runtime::CreateCalleeSaveMethod(kRefsOnly)
      */
 MACRO0(SETUP_REF_ONLY_CALLEE_SAVE_FRAME)
-    int3
-    int3
+    UNTESTED
+    // R10 := Runtime::Current()
+    movq _ZN3art7Runtime9instance_E@GOTPCREL(%rip), %r10
+    movq (%r10), %r10
+    // Save callee and GPR args, mixed together to agree with core spills bitmap.
+    PUSH r15  // Callee save.
+    PUSH r14  // Callee save.
+    PUSH r13  // Callee save.
+    PUSH r12  // Callee save.
+    PUSH rbp  // Callee save.
+    PUSH rbx  // Callee save.
+    subq MACRO_LITERAL(8), %rsp  // Space for Method* (also aligns the frame).
+    CFI_ADJUST_CFA_OFFSET(8)
+    // R10 := ArtMethod* for refs only callee save frame method.
+    movq RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
+    // Store ArtMethod* to bottom of stack.
+    movq %r10, 0(%rsp)
 END_MACRO
 
 MACRO0(RESTORE_REF_ONLY_CALLEE_SAVE_FRAME)
-    int3
-    int3
+    UNTESTED
+    addq MACRO_LITERAL(8), %rsp
+    CFI_ADJUST_CFA_OFFSET(-8)
+    // TODO: optimize by not restoring callee-saves restored by the ABI
+    POP rbx
+    POP rbp
+    POP r12
+    POP r13
+    POP r14
+    POP r15
 END_MACRO
 
     /*
@@ -130,13 +153,18 @@ MACRO0(DELIVER_PENDING_EXCEPTION)
     movq %gs:THREAD_SELF_OFFSET, %rdi
     movq %rsp, %rsi
     call PLT_SYMBOL(artDeliverPendingExceptionFromCode)  // artDeliverPendingExceptionFromCode(Thread*, SP)
-    int3                                     // unreached
+    UNREACHABLE
 END_MACRO
 
 MACRO2(NO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     DEFINE_FUNCTION VAR(c_name, 0)
-    int3
-    int3
+    UNTESTED
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
+    // Outgoing argument set up
+    movq %rsp, %rsi                    // pass SP
+    movq %gs:THREAD_SELF_OFFSET, %rdi  // pass Thread::Current()
+    call PLT_VAR(cxx_name, 1)     // cxx_name(Thread*, SP)
+    UNREACHABLE
     END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
@@ -144,17 +172,22 @@ MACRO2(ONE_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     DEFINE_FUNCTION VAR(c_name, 0)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
     // Outgoing argument set up
-    mov %rsp, %rdx                    // pass SP
-    mov %gs:THREAD_SELF_OFFSET, %rsi  // pass Thread::Current()
+    movq %rsp, %rdx                    // pass SP
+    movq %gs:THREAD_SELF_OFFSET, %rsi  // pass Thread::Current()
     call PLT_VAR(cxx_name, 1)     // cxx_name(arg1, Thread*, SP)
-    int3                          // unreached
+    UNREACHABLE
     END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
 MACRO2(TWO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     DEFINE_FUNCTION VAR(c_name, 0)
-    int3
-    int3
+    UNTESTED
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
+    // Outgoing argument set up
+    movq %rsp, %rcx                    // pass SP
+    movq %gs:THREAD_SELF_OFFSET, %rdx  // pass Thread::Current()
+    call PLT_VAR(cxx_name, 1)     // cxx_name(Thread*, SP)
+    UNREACHABLE
     END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
@@ -314,7 +347,7 @@ DEFINE_FUNCTION art_quick_invoke_stub
     PUSH rbp                      // Save rbp.
     PUSH r8                       // Save r8/result*.
     PUSH r9                       // Save r9/shorty*.
-    mov %rsp, %rbp                // Copy value of stack pointer into base pointer.
+    movq %rsp, %rbp               // Copy value of stack pointer into base pointer.
     CFI_DEF_CFA_REGISTER(rbp)
     movl %edx, %r10d
     addl LITERAL(64), %edx        // Reserve space for return addr, method*, rbp, r8 and r9 in frame.
@@ -385,7 +418,7 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
     PUSH rbp                      // Save rbp.
     PUSH r8                       // Save r8/result*.
     PUSH r9                       // Save r9/shorty*.
-    mov %rsp, %rbp                // Copy value of stack pointer into base pointer.
+    movq %rsp, %rbp               // Copy value of stack pointer into base pointer.
     CFI_DEF_CFA_REGISTER(rbp)
     movl %edx, %r10d
     addl LITERAL(64), %edx        // Reserve space for return addr, method*, rbp, r8 and r9 in frame.
@@ -429,43 +462,67 @@ END_FUNCTION art_quick_invoke_static_stub
 
 MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
-    int3
-    int3
+    UNTESTED
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
+    // Outgoing argument set up
+    movq %rsp, %rsi                   // pass SP
+    movq %gs:THREAD_SELF_OFFSET, %rdi // pass Thread::Current()
+    call PLT_VAR(cxx_name, 1)         // cxx_name(Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
+    CALL_MACRO(return_macro, 2)       // return or deliver exception
     END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
 MACRO3(ONE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
-    int3
-    int3
+    UNTESTED
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME   // save ref containing registers for GC
+    // Outgoing argument set up
+    movq %rsp, %rdx                    // pass SP
+    movq %gs:THREAD_SELF_OFFSET, %rsi  // pass Thread::Current()
+    call PLT_VAR(cxx_name, 1)          // cxx_name(arg0, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
+    CALL_MACRO(return_macro, 2)        // return or deliver exception
     END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
 MACRO3(TWO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
-    int3
-    int3
+    UNTESTED
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME   // save ref containing registers for GC
+    // Outgoing argument set up
+    movq %rsp, %rcx                    // pass SP
+    movq %gs:THREAD_SELF_OFFSET, %rdx  // pass Thread::Current()
+    call PLT_VAR(cxx_name, 1)          // cxx_name(arg0, arg1, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
+    CALL_MACRO(return_macro, 2)       // return or deliver exception
     END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
 MACRO3(THREE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
-    int3
-    int3
+    UNTESTED
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME   // save ref containing registers for GC
+    // Outgoing argument set up
+    movq %rsp, %r8                     // pass SP
+    movq %gs:THREAD_SELF_OFFSET, %rcx  // pass Thread::Current()
+    call PLT_VAR(cxx_name, 1)          // cxx_name(arg0, arg1, arg2, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
+    CALL_MACRO(return_macro, 2)        // return or deliver exception
     END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
 MACRO0(RETURN_IF_RESULT_IS_NON_ZERO)
-    int3
-    testl %eax, %eax               // eax == 0 ?
-    jz  1f                         // if eax == 0 goto 1
+    UNTESTED
+    testq %rax, %rax               // rax == 0 ?
+    jz  1f                         // if rax == 0 goto 1
     ret                            // return
 1:                                 // deliver exception on current thread
     DELIVER_PENDING_EXCEPTION
 END_MACRO
 
 MACRO0(RETURN_IF_EAX_ZERO)
-    int3
+    UNTESTED
     testl %eax, %eax               // eax == 0 ?
     jnz  1f                        // if eax != 0 goto 1
     ret                            // return
