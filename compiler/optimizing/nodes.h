@@ -230,7 +230,6 @@ class HBasicBlock : public ArenaObject {
   M(NewInstance)                                           \
   M(Not)                                                   \
   M(ParameterValue)                                        \
-  M(PushArgument)                                          \
   M(Return)                                                \
   M(ReturnVoid)                                            \
   M(StoreLocal)                                            \
@@ -715,24 +714,6 @@ class HNewInstance : public HTemplateInstruction<0> {
   const uint16_t type_index_;
 
   DISALLOW_COPY_AND_ASSIGN(HNewInstance);
-};
-
-// HPushArgument nodes are inserted after the evaluation of an argument
-// of a call. Their mere purpose is to ease the code generator's work.
-class HPushArgument : public HTemplateInstruction<1> {
- public:
-  HPushArgument(HInstruction* argument, uint8_t argument_index) : argument_index_(argument_index) {
-    SetRawInputAt(0, argument);
-  }
-
-  uint8_t GetArgumentIndex() const { return argument_index_; }
-
-  DECLARE_INSTRUCTION(PushArgument)
-
- private:
-  const uint8_t argument_index_;
-
-  DISALLOW_COPY_AND_ASSIGN(HPushArgument);
 };
 
 class HAdd : public HBinaryOperation {
