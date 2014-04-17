@@ -156,15 +156,6 @@ mirror::Class* RegTypeCache::ResolveClass(const char* descriptor, mirror::ClassL
   return klass;
 }
 
-void RegTypeCache::ClearException() {
-  if (can_load_classes_) {
-    DCHECK(Thread::Current()->IsExceptionPending());
-    Thread::Current()->ClearException();
-  } else {
-    DCHECK(!Thread::Current()->IsExceptionPending());
-  }
-}
-
 const RegType& RegTypeCache::From(mirror::ClassLoader* loader, const char* descriptor,
                                   bool precise) {
   // Try looking up the class in the cache first.
@@ -199,7 +190,12 @@ const RegType& RegTypeCache::From(mirror::ClassLoader* loader, const char* descr
   } else {  // Class not resolved.
     // We tried loading the class and failed, this might get an exception raised
     // so we want to clear it before we go on.
-    ClearException();
+    if (can_load_classes_) {
+      DCHECK(Thread::Current()->IsExceptionPending());
+      Thread::Current()->ClearException();
+    } else {
+      DCHECK(!Thread::Current()->IsExceptionPending());
+    }
     if (IsValidDescriptor(descriptor)) {
       RegType* entry = new UnresolvedReferenceType(descriptor, entries_.size());
       entries_.push_back(entry);
@@ -236,6 +232,14 @@ const RegType& RegTypeCache::FromClass(const char* descriptor, mirror::Class* kl
     entries_.push_back(entry);
     return *entry;
   }
+}
+
+RegTypeCache::RegTypeCache(bool can_load_classes) : can_load_classes_(can_load_classes) {
+  if (kIsDebugBuild && can_load_classes) {
+    Thread::Current()->AssertThreadSuspensionIsAllowable();
+  }
+  entries_.reserve(64);
+  FillPrimitiveAndSmallConstantTypes();
 }
 
 RegTypeCache::~RegTypeCache() {
