@@ -1064,6 +1064,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   LoadWordDisp(rs_rDX, count_offset, rs_rCX);
   LIR *length_compare = nullptr;
   int start_value = 0;
+  bool is_index_on_stack = false;
   if (zero_based) {
     // We have to handle an empty string.  Use special instruction JECXZ.
     length_compare = NewLIR0(kX86Jecxz8);
@@ -1084,14 +1085,32 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
       // Runtime start index.
       rl_start = UpdateLoc(rl_start);
       if (rl_start.location == kLocPhysReg) {
+        // Handle "start index < 0" case.
+        OpRegReg(kOpXor, rs_rBX, rs_rBX);
+        OpRegReg(kOpCmp, rl_start.reg, rs_rBX);
+        OpCondRegReg(kOpCmov, kCondLt, rl_start.reg, rs_rBX);
+
+        // The length of the string should be greater than the start index.
         length_compare = OpCmpBranch(kCondLe, rs_rCX, rl_start.reg, nullptr);
         OpRegReg(kOpSub, rs_rCX, rl_start.reg);
+        if (rl_start.reg == rs_rDI) {
+          // The special case. We will use EDI further, so lets put start index to stack.
+          NewLIR1(kX86Push32R, rDI);
+          is_index_on_stack = true;
+        }
       } else {
-        // Compare to memory to avoid a register load.  Handle pushed EDI.
+        // Load the start index from stack, remembering that we pushed EDI.
         int displacement = SRegOffset(rl_start.s_reg_low) + sizeof(uint32_t);
-        OpRegMem(kOpCmp, rs_rCX, rs_rX86_SP, displacement);
-        length_compare = NewLIR2(kX86Jcc8, 0, kX86CondLe);
-        OpRegMem(kOpSub, rs_rCX, rs_rX86_SP, displacement);
+        LoadWordDisp(rs_rX86_SP, displacement, rs_rBX);
+        OpRegReg(kOpXor, rs_rDI, rs_rDI);
+        OpRegReg(kOpCmp, rs_rBX, rs_rDI);
+        OpCondRegReg(kOpCmov, kCondLt, rs_rBX, rs_rDI);
+
+        length_compare = OpCmpBranch(kCondLe, rs_rCX, rs_rBX, nullptr);
+        OpRegReg(kOpSub, rs_rCX, rs_rBX);
+        // Put the start index to stack.
+        NewLIR1(kX86Push32R, rBX);
+        is_index_on_stack = true;
       }
     }
   }
@@ -1113,21 +1132,12 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
       NewLIR3(kX86Lea32RM, rDI, rBX, 2 * start_value);
     }
   } else {
-    if (rl_start.location == kLocPhysReg) {
-      if (rl_start.reg.GetReg() == rDI) {
-        // We have a slight problem here.  We are already using RDI!
-        // Grab the value from the stack.
-        LoadWordDisp(rs_rX86_SP, 0, rs_rDX);
-        OpLea(rs_rDI, rs_rBX, rs_rDX, 1, 0);
-      } else {
-        OpLea(rs_rDI, rs_rBX, rl_start.reg, 1, 0);
-      }
-    } else {
-      OpRegCopy(rs_rDI, rs_rBX);
-      // Load the start index from stack, remembering that we pushed EDI.
-      int displacement = SRegOffset(rl_start.s_reg_low) + sizeof(uint32_t);
-      LoadWordDisp(rs_rX86_SP, displacement, rs_rDX);
+    if (is_index_on_stack == true) {
+      // Load the start index from stack.
+      NewLIR1(kX86Pop32R, rDX);
       OpLea(rs_rDI, rs_rBX, rs_rDX, 1, 0);
+    } else {
+      OpLea(rs_rDI, rs_rBX, rl_start.reg, 1, 0);
     }
   }
 
