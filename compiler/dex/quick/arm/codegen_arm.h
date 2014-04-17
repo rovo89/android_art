@@ -131,7 +131,7 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     RegLocation GenDivRem(RegLocation rl_dest, RegStorage reg_lo, RegStorage reg_hi, bool is_div);
     RegLocation GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int lit, bool is_div);
     void GenCmpLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
-    void GenDivZeroCheck(RegStorage reg);
+    void GenDivZeroCheckWide(RegStorage reg);
     void GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method);
     void GenExitSequence();
     void GenSpecialExitSequence();

@@ -342,11 +342,11 @@ void MipsMir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
   }
 }
 
-void MipsMir2Lir::GenDivZeroCheck(RegStorage reg) {
+void MipsMir2Lir::GenDivZeroCheckWide(RegStorage reg) {
   DCHECK(reg.IsPair());   // TODO: support k64BitSolo.
   RegStorage t_reg = AllocTemp();
   OpRegRegReg(kOpOr, t_reg, reg.GetLow(), reg.GetHigh());
-  AddDivZeroSlowPath(kCondEq, t_reg, 0);
+  GenDivZeroCheck(kCondEq);
   FreeTemp(t_reg);
 }
 
