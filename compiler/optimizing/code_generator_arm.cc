@@ -48,9 +48,11 @@ void CodeGeneratorARM::GenerateFrameEntry() {
   core_spill_mask_ |= (1 << LR);
   __ PushList((1 << LR));
 
-  // Add the current ART method to the frame size, the return PC, and the filler.
-  SetFrameSize(RoundUp((
-      GetGraph()->GetMaximumNumberOfOutVRegs() + GetGraph()->GetNumberOfVRegs() + 3) * kArmWordSize,
+  SetFrameSize(RoundUp(
+      (GetGraph()->GetMaximumNumberOfOutVRegs() + GetGraph()->GetNumberOfVRegs()) * kVRegSize
+      + kVRegSize  // filler
+      + kArmWordSize  // Art method
+      + kNumberOfPushedRegistersAtEntry * kArmWordSize,
       kStackAlignment));
   // The return PC has already been pushed on the stack.
   __ AddConstant(SP, -(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kArmWordSize));
@@ -73,85 +75,56 @@ int32_t CodeGeneratorARM::GetStackSlot(HLocal* local) const {
   if (reg_number >= number_of_vregs - number_of_in_vregs) {
     // Local is a parameter of the method. It is stored in the caller's frame.
     return GetFrameSize() + kArmWordSize  // ART method
-                          + (reg_number - number_of_vregs + number_of_in_vregs) * kArmWordSize;
+                          + (reg_number - number_of_vregs + number_of_in_vregs) * kVRegSize;
   } else {
     // Local is a temporary in this method. It is stored in this method's frame.
     return GetFrameSize() - (kNumberOfPushedRegistersAtEntry * kArmWordSize)
-                          - kArmWordSize  // filler.
-                          - (number_of_vregs * kArmWordSize)
-                          + (reg_number * kArmWordSize);
+                          - kVRegSize  // filler.
+                          - (number_of_vregs * kVRegSize)
+                          + (reg_number * kVRegSize);
   }
 }
 
-static constexpr Register kParameterCoreRegisters[] = { R1, R2, R3 };
-static constexpr RegisterPair kParameterCorePairRegisters[] = { R1_R2, R2_R3 };
-static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
-
-class InvokeDexCallingConvention : public CallingConvention<Register> {
- public:
-  InvokeDexCallingConvention()
-      : CallingConvention(kParameterCoreRegisters, kParameterCoreRegistersLength) {}
-
-  RegisterPair GetRegisterPairAt(size_t argument_index) {
-    DCHECK_LT(argument_index + 1, GetNumberOfRegisters());
-    return kParameterCorePairRegisters[argument_index];
-  }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConvention);
-};
-
-class InvokeDexCallingConventionVisitor {
- public:
-  InvokeDexCallingConventionVisitor() : gp_index_(0) {}
-
-  Location GetNextLocation(Primitive::Type type) {
-    switch (type) {
-      case Primitive::kPrimBoolean:
-      case Primitive::kPrimByte:
-      case Primitive::kPrimChar:
-      case Primitive::kPrimShort:
-      case Primitive::kPrimInt:
-      case Primitive::kPrimNot: {
-        uint32_t index = gp_index_++;
-        if (index < calling_convention.GetNumberOfRegisters()) {
-          return ArmCoreLocation(calling_convention.GetRegisterAt(index));
-        } else {
-          return Location::StackSlot(calling_convention.GetStackOffsetOf(index));
-        }
+Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type) {
+  switch (type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot: {
+      uint32_t index = gp_index_++;
+      if (index < calling_convention.GetNumberOfRegisters()) {
+        return ArmCoreLocation(calling_convention.GetRegisterAt(index));
+      } else {
+        return Location::StackSlot(calling_convention.GetStackOffsetOf(index, kArmWordSize));
       }
-
-      case Primitive::kPrimLong: {
-        uint32_t index = gp_index_;
-        gp_index_ += 2;
-        if (index + 1 < calling_convention.GetNumberOfRegisters()) {
-          return Location::RegisterLocation(ArmManagedRegister::FromRegisterPair(
-              calling_convention.GetRegisterPairAt(index)));
-        } else if (index + 1 == calling_convention.GetNumberOfRegisters()) {
-          return Location::QuickParameter(index);
-        } else {
-          return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(index));
-        }
-      }
-
-      case Primitive::kPrimDouble:
-      case Primitive::kPrimFloat:
-        LOG(FATAL) << "Unimplemented parameter type " << type;
-        break;
-
-      case Primitive::kPrimVoid:
-        LOG(FATAL) << "Unexpected parameter type " << type;
-        break;
     }
-    return Location();
+
+    case Primitive::kPrimLong: {
+      uint32_t index = gp_index_;
+      gp_index_ += 2;
+      if (index + 1 < calling_convention.GetNumberOfRegisters()) {
+        return Location::RegisterLocation(ArmManagedRegister::FromRegisterPair(
+            calling_convention.GetRegisterPairAt(index)));
+      } else if (index + 1 == calling_convention.GetNumberOfRegisters()) {
+        return Location::QuickParameter(index);
+      } else {
+        return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(index, kArmWordSize));
+      }
+    }
+
+    case Primitive::kPrimDouble:
+    case Primitive::kPrimFloat:
+      LOG(FATAL) << "Unimplemented parameter type " << type;
+      break;
+
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unexpected parameter type " << type;
+      break;
   }
-
- private:
-  InvokeDexCallingConvention calling_convention;
-  uint32_t gp_index_;
-
-  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
-};
+  return Location();
+}
 
 void CodeGeneratorARM::Move32(Location destination, Location source) {
   if (source.Equals(destination)) {
@@ -188,7 +161,7 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
       __ Mov(destination.AsArm().AsRegisterPairLow(),
              calling_convention.GetRegisterAt(argument_index));
       __ ldr(destination.AsArm().AsRegisterPairHigh(),
-             Address(SP, calling_convention.GetStackOffsetOf(argument_index + 1) + GetFrameSize()));
+             Address(SP, calling_convention.GetStackOffsetOf(argument_index + 1, kArmWordSize) + GetFrameSize()));
     } else {
       DCHECK(source.IsDoubleStackSlot());
       if (destination.AsArm().AsRegisterPair() == R1_R2) {
@@ -205,12 +178,12 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
     if (source.IsRegister()) {
       __ Mov(calling_convention.GetRegisterAt(argument_index), source.AsArm().AsRegisterPairLow());
       __ str(source.AsArm().AsRegisterPairHigh(),
-             Address(SP, calling_convention.GetStackOffsetOf(argument_index + 1)));
+             Address(SP, calling_convention.GetStackOffsetOf(argument_index + 1, kArmWordSize)));
     } else {
       DCHECK(source.IsDoubleStackSlot());
       __ ldr(calling_convention.GetRegisterAt(argument_index), Address(SP, source.GetStackIndex()));
       __ ldr(R0, Address(SP, source.GetHighStackIndex(kArmWordSize)));
-      __ str(R0, Address(SP, calling_convention.GetStackOffsetOf(argument_index + 1)));
+      __ str(R0, Address(SP, calling_convention.GetStackOffsetOf(argument_index + 1, kArmWordSize)));
     }
   } else {
     DCHECK(destination.IsDoubleStackSlot());
@@ -228,7 +201,7 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
       __ str(calling_convention.GetRegisterAt(argument_index),
              Address(SP, destination.GetStackIndex()));
       __ ldr(R0,
-             Address(SP, calling_convention.GetStackOffsetOf(argument_index + 1) + GetFrameSize()));
+             Address(SP, calling_convention.GetStackOffsetOf(argument_index + 1, kArmWordSize) + GetFrameSize()));
       __ str(R0, Address(SP, destination.GetHighStackIndex(kArmWordSize)));
     } else {
       DCHECK(source.IsDoubleStackSlot());
@@ -694,39 +667,13 @@ void InstructionCodeGeneratorARM::VisitNewInstance(HNewInstance* instruction) {
 
 void LocationsBuilderARM::VisitParameterValue(HParameterValue* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
-  InvokeDexCallingConvention calling_convention;
-  uint32_t argument_index = instruction->GetIndex();
-  switch (instruction->GetType()) {
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot:
-      if (argument_index < calling_convention.GetNumberOfRegisters()) {
-        locations->SetOut(ArmCoreLocation(calling_convention.GetRegisterAt(argument_index)));
-      } else {
-        locations->SetOut(Location::StackSlot(
-            calling_convention.GetStackOffsetOf(argument_index) + codegen_->GetFrameSize()));
-      }
-      break;
-
-    case Primitive::kPrimLong:
-      if (argument_index + 1 < calling_convention.GetNumberOfRegisters()) {
-        locations->SetOut(Location::RegisterLocation(ArmManagedRegister::FromRegisterPair(
-            (calling_convention.GetRegisterPairAt(argument_index)))));
-      } else if (argument_index + 1 == calling_convention.GetNumberOfRegisters()) {
-        // Spanning a register and a stack slot. Use the quick parameter kind.
-        locations->SetOut(Location::QuickParameter(argument_index));
-      } else {
-        locations->SetOut(Location::DoubleStackSlot(
-            calling_convention.GetStackOffsetOf(argument_index) + codegen_->GetFrameSize()));
-      }
-      break;
-
-    default:
-      LOG(FATAL) << "Unimplemented parameter type " << instruction->GetType();
+  Location location = parameter_visitor_.GetNextLocation(instruction->GetType());
+  if (location.IsStackSlot()) {
+    location = Location::StackSlot(location.GetStackIndex() + codegen_->GetFrameSize());
+  } else if (location.IsDoubleStackSlot()) {
+    location = Location::DoubleStackSlot(location.GetStackIndex() + codegen_->GetFrameSize());
   }
+  locations->SetOut(location);
   instruction->SetLocations(locations);
 }
 

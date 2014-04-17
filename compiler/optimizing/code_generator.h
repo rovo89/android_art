@@ -26,6 +26,8 @@
 
 namespace art {
 
+static size_t constexpr kVRegSize = 4;
+
 class DexCompilationUnit;
 
 class CodeAllocator {
@@ -323,10 +325,10 @@ class CallingConvention {
     return registers_[index];
   }
 
-  uint8_t GetStackOffsetOf(size_t index) const {
+  uint8_t GetStackOffsetOf(size_t index, size_t word_size) const {
     // We still reserve the space for parameters passed by registers.
-    // Add kWordSize for the method pointer.
-    return index * kWordSize + kWordSize;
+    // Add word_size for the method pointer.
+    return index * kVRegSize + word_size;
   }
 
  private:
