@@ -97,6 +97,7 @@ public class Main {
   }
 
   static int start;
+  private static int[] negIndex = { -100000 };
   public static void test_String_indexOf() {
     String str0 = "";
     String str1 = "/";
@@ -125,6 +126,7 @@ public class Main {
     Assert.assertEquals(str0.indexOf('a',0), -1);
     Assert.assertEquals(str0.indexOf('a',-1), -1);
     Assert.assertEquals(str1.indexOf('/',++start), -1);
+    Assert.assertEquals(str1.indexOf('a',negIndex[0]), -1);
     Assert.assertEquals(str3.indexOf('a',0), 0);
     Assert.assertEquals(str3.indexOf('a',1), -1);
     Assert.assertEquals(str3.indexOf('a',1234), -1);
