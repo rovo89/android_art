@@ -1591,7 +1591,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       rl_src1 = LoadValue(rl_src1, kCoreReg);
       rl_src2 = LoadValue(rl_src2, kCoreReg);
       if (check_zero) {
-          GenDivZeroCheck(rl_src2.reg);
+        GenDivZeroCheck(rl_src2.reg);
       }
       rl_result = GenDivRem(rl_dest, rl_src1.reg, rl_src2.reg, op == kOpDiv);
       done = true;
@@ -1602,7 +1602,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
         rl_src1 = LoadValue(rl_src1, kCoreReg);
         rl_src2 = LoadValue(rl_src2, kCoreReg);
         if (check_zero) {
-            GenDivZeroCheck(rl_src2.reg);
+          GenDivZeroCheck(rl_src2.reg);
         }
         rl_result = GenDivRem(rl_dest, rl_src1.reg, rl_src2.reg, op == kOpDiv);
         done = true;
