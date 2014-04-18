@@ -1167,9 +1167,9 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
 
     if (needs_range_check) {
       if (constant_index) {
-        GenArrayBoundsCheck(mir_graph_->ConstantValue(rl_index), reg_len);
+        GenImmedCheck(kCondLs, reg_len, mir_graph_->ConstantValue(rl_index), kThrowConstantArrayBounds);
       } else {
-        GenArrayBoundsCheck(rl_index.reg, reg_len);
+        GenRegRegCheck(kCondLs, reg_len, rl_index.reg, kThrowArrayBounds);
       }
       FreeTemp(reg_len);
     }
@@ -1196,7 +1196,7 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
     rl_result = EvalLoc(rl_dest, reg_class, true);
 
     if (needs_range_check) {
-      GenArrayBoundsCheck(rl_index.reg, reg_len);
+      GenRegRegCheck(kCondUge, rl_index.reg, reg_len, kThrowArrayBounds);
       FreeTemp(reg_len);
     }
     LoadBaseIndexed(reg_ptr, rl_index.reg, rl_result.reg, scale, size);
@@ -1271,9 +1271,9 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     }
     if (needs_range_check) {
       if (constant_index) {
-        GenArrayBoundsCheck(mir_graph_->ConstantValue(rl_index), reg_len);
+        GenImmedCheck(kCondLs, reg_len, mir_graph_->ConstantValue(rl_index), kThrowConstantArrayBounds);
       } else {
-        GenArrayBoundsCheck(rl_index.reg, reg_len);
+        GenRegRegCheck(kCondLs, reg_len, rl_index.reg, kThrowArrayBounds);
       }
       FreeTemp(reg_len);
     }
@@ -1289,7 +1289,7 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     OpRegRegImm(kOpAdd, reg_ptr, rl_array.reg, data_offset);
     rl_src = LoadValue(rl_src, reg_class);
     if (needs_range_check) {
-      GenArrayBoundsCheck(rl_index.reg, reg_len);
+      GenRegRegCheck(kCondUge, rl_index.reg, reg_len, kThrowArrayBounds);
       FreeTemp(reg_len);
     }
     StoreBaseIndexed(reg_ptr, rl_index.reg, rl_src.reg, scale, size);

@@ -255,27 +255,12 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(ThreadOffset<4> helper_off
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
-void Mir2Lir::CopyToArgumentRegs(RegStorage arg0, RegStorage arg1) {
-  if (arg1.GetReg() == TargetReg(kArg0).GetReg()) {
-    if (arg0.GetReg() == TargetReg(kArg1).GetReg()) {
-      // Swap kArg0 and kArg1 with kArg2 as temp.
-      OpRegCopy(TargetReg(kArg2), arg1);
-      OpRegCopy(TargetReg(kArg0), arg0);
-      OpRegCopy(TargetReg(kArg1), TargetReg(kArg2));
-    } else {
-      OpRegCopy(TargetReg(kArg1), arg1);
-      OpRegCopy(TargetReg(kArg0), arg0);
-    }
-  } else {
-    OpRegCopy(TargetReg(kArg0), arg0);
-    OpRegCopy(TargetReg(kArg1), arg1);
-  }
-}
-
 void Mir2Lir::CallRuntimeHelperRegReg(ThreadOffset<4> helper_offset, RegStorage arg0,
                                       RegStorage arg1, bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
-  CopyToArgumentRegs(arg0, arg1);
+  DCHECK_NE(TargetReg(kArg0).GetReg(), arg1.GetReg());  // check copy into arg0 won't clobber arg1
+  OpRegCopy(TargetReg(kArg0), arg0);
+  OpRegCopy(TargetReg(kArg1), arg1);
   ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
@@ -283,7 +268,9 @@ void Mir2Lir::CallRuntimeHelperRegReg(ThreadOffset<4> helper_offset, RegStorage 
 void Mir2Lir::CallRuntimeHelperRegRegImm(ThreadOffset<4> helper_offset, RegStorage arg0,
                                          RegStorage arg1, int arg2, bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
-  CopyToArgumentRegs(arg0, arg1);
+  DCHECK_NE(TargetReg(kArg0).GetReg(), arg1.GetReg());  // check copy into arg0 won't clobber arg1
+  OpRegCopy(TargetReg(kArg0), arg0);
+  OpRegCopy(TargetReg(kArg1), arg1);
   LoadConstant(TargetReg(kArg2), arg2);
   ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
