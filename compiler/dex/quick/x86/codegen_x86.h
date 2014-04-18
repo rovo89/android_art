@@ -136,6 +136,8 @@ class X86Mir2Lir FINAL : public Mir2Lir {
     RegLocation GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int lit, bool is_div);
     void GenCmpLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
     void GenDivZeroCheckWide(RegStorage reg);
+    void GenArrayBoundsCheck(RegStorage index, RegStorage array_base, int len_offset);
+    void GenArrayBoundsCheck(int index, RegStorage array_base, int len_offset);
     void GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method);
     void GenExitSequence();
     void GenSpecialExitSequence();
