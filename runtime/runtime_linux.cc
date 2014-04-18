@@ -33,7 +33,7 @@ static constexpr bool kDumpHeapObjectOnSigsevg = false;
 
 struct Backtrace {
   void Dump(std::ostream& os) {
-    DumpNativeStack(os, GetTid(), "\t", true);
+    DumpNativeStack(os, GetTid(), "\t");
   }
 };
 
