@@ -346,7 +346,7 @@ void MipsMir2Lir::GenDivZeroCheckWide(RegStorage reg) {
   DCHECK(reg.IsPair());   // TODO: support k64BitSolo.
   RegStorage t_reg = AllocTemp();
   OpRegRegReg(kOpOr, t_reg, reg.GetLow(), reg.GetHigh());
-  GenDivZeroCheck(kCondEq);
+  GenDivZeroCheck(t_reg);
   FreeTemp(t_reg);
 }
 
