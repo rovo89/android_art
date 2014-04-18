@@ -50,7 +50,11 @@ TEST_F(ElfWriterTest, dlsym) {
     CHECK(host_dir != NULL);
     elf_filename = StringPrintf("%s/framework/core.oat", host_dir);
   } else {
+#ifdef __LP64__
+    elf_filename = "/data/art-test64/core.oat";
+#else
     elf_filename = "/data/art-test/core.oat";
+#endif
   }
   LOG(INFO) << "elf_filename=" << elf_filename;
 
