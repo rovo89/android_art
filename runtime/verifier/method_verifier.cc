@@ -361,7 +361,7 @@ mirror::ArtField* MethodVerifier::FindAccessedFieldAtDexPc(mirror::ArtMethod* m,
   SirtRef<mirror::DexCache> dex_cache(self, mh.GetDexCache());
   SirtRef<mirror::ClassLoader> class_loader(self, mh.GetClassLoader());
   MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader, &mh.GetClassDef(),
-                          mh.GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(), false,
+                          mh.GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(), true,
                           true);
   return verifier.FindAccessedFieldAtDexPc(dex_pc);
 }
@@ -375,11 +375,11 @@ mirror::ArtField* MethodVerifier::FindAccessedFieldAtDexPc(uint32_t dex_pc) {
   // got what we wanted.
   bool success = Verify();
   if (!success) {
-    return NULL;
+    return nullptr;
   }
   RegisterLine* register_line = reg_table_.GetLine(dex_pc);
   if (register_line == NULL) {
-    return NULL;
+    return nullptr;
   }
   const Instruction* inst = Instruction::At(code_item_->insns_ + dex_pc);
   return GetQuickFieldAccess(inst, register_line);
@@ -3118,37 +3118,14 @@ mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst
   DCHECK(inst->Opcode() == Instruction::INVOKE_VIRTUAL_QUICK ||
          inst->Opcode() == Instruction::INVOKE_VIRTUAL_RANGE_QUICK);
   const RegType& actual_arg_type = reg_line->GetInvocationThis(inst, is_range);
-  if (actual_arg_type.IsConflict()) {  // GetInvocationThis failed.
+  if (!actual_arg_type.HasClass()) {
+    VLOG(verifier) << "Failed to get mirror::Class* from '" << actual_arg_type << "'";
     return nullptr;
-  } else if (actual_arg_type.IsZero()) {  // Invoke on "null" instance: we can't go further.
-    return nullptr;
   }
-  mirror::Class* this_class = NULL;
-  if (!actual_arg_type.IsUnresolvedTypes()) {
-    this_class = actual_arg_type.GetClass();
-  } else {
-    const std::string& descriptor(actual_arg_type.GetDescriptor());
-    // Try to resolve type.
-    const RegType& resolved_arg_type = reg_types_.FromDescriptor(class_loader_->get(),
-                                                                 descriptor.c_str(), false);
-    if (!resolved_arg_type.HasClass()) {
-      return nullptr;  // Resolution failed.
-    }
-    this_class = resolved_arg_type.GetClass();
-    if (this_class == NULL) {
-      Thread* self = Thread::Current();
-      self->ClearException();
-      // Look for a system class
-      this_class = reg_types_.FromDescriptor(nullptr, descriptor.c_str(), false).GetClass();
-    }
-  }
-  if (this_class == NULL) {
-    return NULL;
-  }
-  mirror::ObjectArray<mirror::ArtMethod>* vtable = this_class->GetVTable();
-  CHECK(vtable != NULL);
+  mirror::ObjectArray<mirror::ArtMethod>* vtable = actual_arg_type.GetClass()->GetVTable();
+  CHECK(vtable != nullptr);
   uint16_t vtable_index = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
-  CHECK(vtable_index < vtable->GetLength());
+  CHECK_LT(static_cast<int32_t>(vtable_index), vtable->GetLength());
   mirror::ArtMethod* res_method = vtable->Get(vtable_index);
   CHECK(!Thread::Current()->IsExceptionPending());
   return res_method;
@@ -3636,12 +3613,12 @@ static mirror::ArtField* FindInstanceFieldWithOffset(mirror::Class* klass, uint3
   if (klass->GetSuperClass() != NULL) {
     return FindInstanceFieldWithOffset(klass->GetSuperClass(), field_offset);
   } else {
-    return NULL;
+    VLOG(verifier) << "Failed to find instance field at offset '" << field_offset
+        << "' from '" << PrettyDescriptor(klass) << "'";
+    return nullptr;
   }
 }
 
-// Returns the access field of a quick field access (iget/iput-quick) or NULL
-// if it cannot be found.
 mirror::ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
                                                       RegisterLine* reg_line) {
   DCHECK(inst->Opcode() == Instruction::IGET_QUICK ||
@@ -3651,29 +3628,12 @@ mirror::ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
          inst->Opcode() == Instruction::IPUT_WIDE_QUICK ||
          inst->Opcode() == Instruction::IPUT_OBJECT_QUICK);
   const RegType& object_type = reg_line->GetRegisterType(inst->VRegB_22c());
-  mirror::Class* object_class = NULL;
-  if (!object_type.IsUnresolvedTypes()) {
-    object_class = object_type.GetClass();
-  } else {
-    // We need to resolve the class from its descriptor.
-    const std::string& descriptor(object_type.GetDescriptor());
-    Thread* self = Thread::Current();
-    object_class = reg_types_.FromDescriptor(class_loader_->get(), descriptor.c_str(),
-                                             false).GetClass();
-    if (object_class == NULL) {
-      self->ClearException();
-      // Look for a system class
-      object_class = reg_types_.FromDescriptor(nullptr, descriptor.c_str(),
-                                               false).GetClass();
-    }
-  }
-  if (object_class == NULL) {
-    // Failed to get the Class* from reg type.
-    LOG(WARNING) << "Failed to get Class* from " << object_type;
-    return NULL;
+  if (!object_type.HasClass()) {
+    VLOG(verifier) << "Failed to get mirror::Class* from '" << object_type << "'";
+    return nullptr;
   }
   uint32_t field_offset = static_cast<uint32_t>(inst->VRegC_22c());
-  return FindInstanceFieldWithOffset(object_class, field_offset);
+  return FindInstanceFieldWithOffset(object_type.GetClass(), field_offset);
 }
 
 void MethodVerifier::VerifyIGetQuick(const Instruction* inst, const RegType& insn_type,
