@@ -359,6 +359,10 @@ class Runtime {
   bool InitZygote();
   void DidForkFromZygote();
 
+  const instrumentation::Instrumentation* GetInstrumentation() const {
+    return &instrumentation_;
+  }
+
   instrumentation::Instrumentation* GetInstrumentation() {
     return &instrumentation_;
   }
