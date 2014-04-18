@@ -323,6 +323,8 @@ enum X86ConditionCode {
 std::ostream& operator<<(std::ostream& os, const X86ConditionCode& kind);
 
 enum ThrowKind {
+  kThrowArrayBounds,
+  kThrowConstantArrayBounds,
   kThrowNoSuchMethod,
 };
 
