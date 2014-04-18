@@ -26,6 +26,8 @@ namespace art {
 
 LogVerbosity gLogVerbosity;
 
+std::vector<std::string> gVerboseMethods;
+
 unsigned int gAborting = 0;
 
 static LogSeverity gMinimumLogSeverity = INFO;
