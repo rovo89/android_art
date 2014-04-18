@@ -1041,20 +1041,7 @@ std::string GetSchedulerGroupName(pid_t tid) {
   return "";
 }
 
-static std::string CleanMapName(const backtrace_map_t* map) {
-  if (map == NULL || map->name.empty()) {
-    return "???";
-  }
-  // Turn "/usr/local/google/home/enh/clean-dalvik-dev/out/host/linux-x86/lib/libartd.so"
-  // into "libartd.so".
-  size_t last_slash = map->name.rfind('/');
-  if (last_slash == std::string::npos) {
-    return map->name;
-  }
-  return map->name.substr(last_slash + 1);
-}
-
-void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool include_count,
+void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     mirror::ArtMethod* current_method) {
   // We may be called from contexts where current_method is not null, so we must assert this.
   if (current_method != nullptr) {
@@ -1072,27 +1059,34 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool inclu
   for (Backtrace::const_iterator it = backtrace->begin();
        it != backtrace->end(); ++it) {
     // We produce output like this:
-    // ]    #00 unwind_backtrace_thread+536 [0x55d75bb8] (libbacktrace.so)
-    os << prefix;
-    if (include_count) {
-      os << StringPrintf("#%02zu ", it->num);
-    }
-    if (!it->func_name.empty()) {
-      os << it->func_name;
+    // ]    #00 pc 000075bb8  /system/lib/libc.so (unwind_backtrace_thread+536)
+    // In order for parsing tools to continue to function, the stack dump
+    // format must at least adhere to this format:
+    //  #XX pc <RELATIVE_ADDR>  <FULL_PATH_TO_SHARED_LIBRARY> ...
+    // The parsers require a single space before and after pc, and two spaces
+    // after the <RELATIVE_ADDR>. There can be any prefix data before the
+    // #XX. <RELATIVE_ADDR> has to be a hex number but with no 0x prefix.
+    os << prefix << StringPrintf("#%02zu pc ", it->num);
+    if (!it->map) {
+      os << StringPrintf("%08" PRIxPTR "  ???", it->pc);
     } else {
-      if (current_method != nullptr && current_method->IsWithinQuickCode(it->pc)) {
+      os << StringPrintf("%08" PRIxPTR "  ", it->pc - it->map->start)
+         << it->map->name << " (";
+      if (!it->func_name.empty()) {
+        os << it->func_name;
+        if (it->func_offset != 0) {
+          os << "+" << it->func_offset;
+        }
+      } else if (current_method != nullptr && current_method->IsWithinQuickCode(it->pc)) {
         const void* start_of_code = current_method->GetEntryPointFromQuickCompiledCode();
         os << JniLongName(current_method) << "+"
            << (it->pc - reinterpret_cast<uintptr_t>(start_of_code));
       } else {
         os << "???";
       }
+      os << ")";
     }
-    if (it->func_offset != 0) {
-      os << "+" << it->func_offset;
-    }
-    os << StringPrintf(" [%p]", reinterpret_cast<void*>(it->pc));
-    os << " (" << CleanMapName(it->map) << ")\n";
+    os << "\n";
   }
 }
 
