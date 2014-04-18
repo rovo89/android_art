@@ -939,7 +939,7 @@ void Thread::DumpStack(std::ostream& os) const {
     if (dump_for_abort || ShouldShowNativeStack(this)) {
       DumpKernelStack(os, GetTid(), "  kernel: ", false);
       SirtRef<mirror::ArtMethod> method_ref(Thread::Current(), GetCurrentMethod(nullptr));
-      DumpNativeStack(os, GetTid(), "  native: ", false, method_ref.get());
+      DumpNativeStack(os, GetTid(), "  native: ", method_ref.get());
     }
     DumpJavaStack(os);
   } else {
