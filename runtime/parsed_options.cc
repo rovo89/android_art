@@ -316,7 +316,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
         return false;
       }
     } else if (StartsWith(option, "-XX:ForegroundHeapGrowthMultiplier=")) {
-      if (!ParseDouble(option, '=', 0.1, 0.9, &foreground_heap_growth_multiplier_)) {
+      if (!ParseDouble(option, '=', 0.1, 10.0, &foreground_heap_growth_multiplier_)) {
         return false;
       }
     } else if (StartsWith(option, "-XX:ParallelGCThreads=")) {
@@ -717,6 +717,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -XX:HeapMinFree=N\n");
   UsageMessage(stream, "  -XX:HeapMaxFree=N\n");
   UsageMessage(stream, "  -XX:HeapTargetUtilization=doublevalue\n");
+  UsageMessage(stream, "  -XX:ForegroundHeapGrowthMultiplier=doublevalue\n");
   UsageMessage(stream, "  -XX:LowMemoryMode\n");
   UsageMessage(stream, "  -Xprofile:{threadcpuclock,wallclock,dualclock}\n");
   UsageMessage(stream, "\n");
@@ -821,7 +822,7 @@ bool ParsedOptions::ParseUnsignedInteger(const std::string& s, char after_char,
     return false;
   }
   if (i < 0) {
-    Usage("Negative value %d passed for unsigned option %s", i, s.c_str());
+    Usage("Negative value %d passed for unsigned option %s\n", i, s.c_str());
     return false;
   }
   *parsed_value = i;
@@ -840,7 +841,7 @@ bool ParsedOptions::ParseDouble(const std::string& option, char after_char,
   // Ensure that we have a value, there was no cruft after it and it satisfies a sensible range.
   const bool sane_val = iss.eof() && (value >= min) && (value <= max);
   if (!sane_val) {
-    Usage("Invalid double value %s for option %s", option.c_str());
+    Usage("Invalid double value %s for option %s\n", substring.c_str(), option.c_str());
     return false;
   }
   *parsed_value = value;
