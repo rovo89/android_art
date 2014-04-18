@@ -33,9 +33,13 @@ class HeapBitmap {
  public:
   bool Test(const mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
   void Clear(const mirror::Object* obj) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-  void Set(const mirror::Object* obj) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  template<typename LargeObjectSetVisitor>
+  bool Set(const mirror::Object* obj, const LargeObjectSetVisitor& visitor)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) ALWAYS_INLINE;
+  template<typename LargeObjectSetVisitor>
+  bool AtomicTestAndSet(const mirror::Object* obj, const LargeObjectSetVisitor& visitor)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) ALWAYS_INLINE;
   ContinuousSpaceBitmap* GetContinuousSpaceBitmap(const mirror::Object* obj) const;
-  ObjectSet* GetDiscontinuousSpaceObjectSet(const mirror::Object* obj) const;
 
   void Walk(ObjectCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
@@ -50,7 +54,7 @@ class HeapBitmap {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Find and replace a object set pointer, this is used by for the bitmap swapping in the GC.
-  void ReplaceObjectSet(ObjectSet* old_set, ObjectSet* new_set)
+  void ReplaceLargeObjectBitmap(LargeObjectBitmap* old_bitmap, LargeObjectBitmap* new_bitmap)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   explicit HeapBitmap(Heap* heap) : heap_(heap) {}
@@ -60,15 +64,15 @@ class HeapBitmap {
 
   void AddContinuousSpaceBitmap(ContinuousSpaceBitmap* bitmap);
   void RemoveContinuousSpaceBitmap(ContinuousSpaceBitmap* bitmap);
-  void AddDiscontinuousObjectSet(ObjectSet* set);
-  void RemoveDiscontinuousObjectSet(ObjectSet* set);
+  void AddLargeObjectBitmap(LargeObjectBitmap* bitmap);
+  void RemoveLargeObjectBitmap(LargeObjectBitmap* bitmap);
 
   // Bitmaps covering continuous spaces.
   std::vector<ContinuousSpaceBitmap*, GcAllocator<ContinuousSpaceBitmap*>>
       continuous_space_bitmaps_;
 
   // Sets covering discontinuous spaces.
-  std::vector<ObjectSet*, GcAllocator<ObjectSet*>> discontinuous_space_sets_;
+  std::vector<LargeObjectBitmap*, GcAllocator<LargeObjectBitmap*>> large_object_bitmaps_;
 
   friend class art::gc::Heap;
 };

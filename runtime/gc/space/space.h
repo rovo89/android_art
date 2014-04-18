@@ -173,10 +173,11 @@ class Space {
 
  protected:
   struct SweepCallbackContext {
-    bool swap_bitmaps;
-    Heap* heap;
-    space::Space* space;
-    Thread* self;
+   public:
+    SweepCallbackContext(bool swap_bitmaps, space::Space* space);
+    const bool swap_bitmaps;
+    space::Space* const space;
+    Thread* const self;
     size_t freed_objects;
     size_t freed_bytes;
   };
@@ -313,15 +314,15 @@ class ContinuousSpace : public Space {
 // is suitable for use for large primitive arrays.
 class DiscontinuousSpace : public Space {
  public:
-  accounting::ObjectSet* GetLiveObjects() const {
-    return live_objects_.get();
+  accounting::LargeObjectBitmap* GetLiveBitmap() const {
+    return live_bitmap_.get();
   }
 
-  accounting::ObjectSet* GetMarkObjects() const {
-    return mark_objects_.get();
+  accounting::LargeObjectBitmap* GetMarkBitmap() const {
+    return mark_bitmap_.get();
   }
 
-  virtual bool IsDiscontinuousSpace() const {
+  virtual bool IsDiscontinuousSpace() const OVERRIDE {
     return true;
   }
 
@@ -330,8 +331,8 @@ class DiscontinuousSpace : public Space {
  protected:
   DiscontinuousSpace(const std::string& name, GcRetentionPolicy gc_retention_policy);
 
-  UniquePtr<accounting::ObjectSet> live_objects_;
-  UniquePtr<accounting::ObjectSet> mark_objects_;
+  UniquePtr<accounting::LargeObjectBitmap> live_bitmap_;
+  UniquePtr<accounting::LargeObjectBitmap> mark_bitmap_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(DiscontinuousSpace);

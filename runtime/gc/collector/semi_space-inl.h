@@ -26,6 +26,21 @@ namespace art {
 namespace gc {
 namespace collector {
 
+class BitmapSetSlowPathVisitor {
+ public:
+  explicit BitmapSetSlowPathVisitor(SemiSpace* semi_space) : semi_space_(semi_space) {
+  }
+
+  void operator()(const mirror::Object* obj) const {
+    CHECK(!semi_space_->to_space_->HasAddress(obj)) << "Marking " << obj << " in to_space_";
+    // Marking a large object, make sure its aligned as a sanity check.
+    CHECK(IsAligned<kPageSize>(obj));
+  }
+
+ private:
+  SemiSpace* const semi_space_;
+};
+
 inline mirror::Object* SemiSpace::GetForwardingAddressInFromSpace(mirror::Object* obj) const {
   DCHECK(from_space_->HasAddress(obj));
   LockWord lock_word = obj->GetLockWord(false);
@@ -53,7 +68,7 @@ inline void SemiSpace::MarkObject(
     if (from_space_->HasAddress(obj)) {
       mirror::Object* forward_address = GetForwardingAddressInFromSpace(obj);
       // If the object has already been moved, return the new forward address.
-      if (forward_address == nullptr) {
+      if (UNLIKELY(forward_address == nullptr)) {
         forward_address = MarkNonForwardedObject(obj);
         DCHECK(forward_address != nullptr);
         // Make sure to only update the forwarding address AFTER you copy the object so that the
@@ -65,25 +80,17 @@ inline void SemiSpace::MarkObject(
       }
       obj_ptr->Assign(forward_address);
     } else {
-      accounting::ContinuousSpaceBitmap* object_bitmap =
-          heap_->GetMarkBitmap()->GetContinuousSpaceBitmap(obj);
-      if (LIKELY(object_bitmap != nullptr)) {
-        if (generational_) {
-          // If a bump pointer space only collection, we should not
-          // reach here as we don't/won't mark the objects in the
-          // non-moving space (except for the promoted objects.)  Note
-          // the non-moving space is added to the immune space.
-          DCHECK(whole_heap_collection_);
-        }
-        if (!object_bitmap->Set(obj)) {
-          // This object was not previously marked.
-          MarkStackPush(obj);
-        }
-      } else {
-        CHECK(!to_space_->HasAddress(obj)) << "Marking " << obj << " in to_space_";
-        if (MarkLargeObject(obj)) {
-          MarkStackPush(obj);
-        }
+      BitmapSetSlowPathVisitor visitor(this);
+      if (kIsDebugBuild && mark_bitmap_->GetContinuousSpaceBitmap(obj) != nullptr) {
+        // If a bump pointer space only collection, we should not
+        // reach here as we don't/won't mark the objects in the
+        // non-moving space (except for the promoted objects.)  Note
+        // the non-moving space is added to the immune space.
+        DCHECK(!generational_ || whole_heap_collection_);
+      }
+      if (!mark_bitmap_->Set(obj, visitor)) {
+        // This object was not previously marked.
+        MarkStackPush(obj);
       }
     }
   }

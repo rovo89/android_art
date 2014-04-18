@@ -55,7 +55,6 @@ namespace gc {
 namespace accounting {
   class HeapBitmap;
   class ModUnionTable;
-  class ObjectSet;
   class RememberedSet;
 }  // namespace accounting
 
@@ -477,7 +476,8 @@ class Heap {
   // TODO: Refactor?
   void MarkAllocStack(accounting::SpaceBitmap<kObjectAlignment>* bitmap1,
                       accounting::SpaceBitmap<kObjectAlignment>* bitmap2,
-                      accounting::ObjectSet* large_objects, accounting::ObjectStack* stack)
+                      accounting::SpaceBitmap<kLargeObjectAlignment>* large_objects,
+                      accounting::ObjectStack* stack)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Mark the specified allocation stack as live.

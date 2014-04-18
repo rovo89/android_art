@@ -185,12 +185,12 @@ void GarbageCollector::SwapBitmaps() {
     }
   }
   for (const auto& disc_space : GetHeap()->GetDiscontinuousSpaces()) {
-    space::LargeObjectSpace* space = down_cast<space::LargeObjectSpace*>(disc_space);
-    accounting::ObjectSet* live_set = space->GetLiveObjects();
-    accounting::ObjectSet* mark_set = space->GetMarkObjects();
-    heap_->GetLiveBitmap()->ReplaceObjectSet(live_set, mark_set);
-    heap_->GetMarkBitmap()->ReplaceObjectSet(mark_set, live_set);
-    down_cast<space::LargeObjectSpace*>(space)->SwapBitmaps();
+    space::LargeObjectSpace* space = disc_space->AsLargeObjectSpace();
+    accounting::LargeObjectBitmap* live_set = space->GetLiveBitmap();
+    accounting::LargeObjectBitmap* mark_set = space->GetMarkBitmap();
+    heap_->GetLiveBitmap()->ReplaceLargeObjectBitmap(live_set, mark_set);
+    heap_->GetMarkBitmap()->ReplaceLargeObjectBitmap(mark_set, live_set);
+    space->SwapBitmaps();
   }
 }
 

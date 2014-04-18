@@ -126,6 +126,11 @@ void SemiSpace::InitializePhase() {
   CHECK(from_space_->CanMoveObjects()) << "Attempting to move from " << *from_space_;
   // Set the initial bitmap.
   to_space_live_bitmap_ = to_space_->GetLiveBitmap();
+  {
+    // TODO: I don't think we should need heap bitmap lock to get the mark bitmap.
+    ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
+    mark_bitmap_ = heap_->GetMarkBitmap();
+  }
 }
 
 void SemiSpace::ProcessReferences(Thread* self) {
@@ -314,8 +319,8 @@ void SemiSpace::MarkReachableObjects() {
   accounting::ObjectStack* live_stack = heap_->GetLiveStack();
   heap_->MarkAllocStackAsLive(live_stack);
   live_stack->Reset();
-  timings_.EndSplit();
 
+  timings_.NewSplit("UpdateAndMarkRememberedSets");
   for (auto& space : heap_->GetContinuousSpaces()) {
     // If the space is immune and has no mod union table (the
     // non-moving space when the bump pointer space only collection is
@@ -353,6 +358,7 @@ void SemiSpace::MarkReachableObjects() {
   }
 
   if (is_large_object_space_immune_) {
+    timings_.NewSplit("VisitLargeObjects");
     DCHECK(generational_ && !whole_heap_collection_);
     // Delay copying the live set to the marked set until here from
     // BindBitmaps() as the large objects on the allocation stack may
@@ -364,13 +370,13 @@ void SemiSpace::MarkReachableObjects() {
     // classes (primitive array classes) that could move though they
     // don't contain any other references.
     space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
-    accounting::ObjectSet* large_live_objects = large_object_space->GetLiveObjects();
+    accounting::LargeObjectBitmap* large_live_bitmap = large_object_space->GetLiveBitmap();
     SemiSpaceScanObjectVisitor visitor(this);
-    for (const Object* obj : large_live_objects->GetObjects()) {
-      visitor(const_cast<Object*>(obj));
-    }
+    large_live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(large_object_space->Begin()),
+                                        reinterpret_cast<uintptr_t>(large_object_space->End()),
+                                        visitor);
   }
-
+  timings_.EndSplit();
   // Recursively process the mark stack.
   ProcessMarkStack();
 }
@@ -450,19 +456,6 @@ inline void SemiSpace::MarkStackPush(Object* obj) {
   }
   // The object must be pushed on to the mark stack.
   mark_stack_->PushBack(obj);
-}
-
-// Rare case, probably not worth inlining since it will increase instruction cache miss rate.
-bool SemiSpace::MarkLargeObject(const Object* obj) {
-  // TODO: support >1 discontinuous space.
-  space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
-  DCHECK(large_object_space->Contains(obj));
-  accounting::ObjectSet* large_objects = large_object_space->GetMarkObjects();
-  if (UNLIKELY(!large_objects->Test(obj))) {
-    large_objects->Set(obj);
-    return true;
-  }
-  return false;
 }
 
 static inline size_t CopyAvoidingDirtyingPages(void* dest, const void* src, size_t size) {

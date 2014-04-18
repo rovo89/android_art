@@ -25,61 +25,58 @@ namespace accounting {
 
 void HeapBitmap::ReplaceBitmap(ContinuousSpaceBitmap* old_bitmap,
                                ContinuousSpaceBitmap* new_bitmap) {
-  for (auto& bitmap : continuous_space_bitmaps_) {
-    if (bitmap == old_bitmap) {
-      bitmap = new_bitmap;
-      return;
-    }
-  }
-  LOG(FATAL) << "bitmap " << static_cast<const void*>(old_bitmap) << " not found";
+  auto it = std::find(continuous_space_bitmaps_.begin(), continuous_space_bitmaps_.end(),
+                      old_bitmap);
+  CHECK(it != continuous_space_bitmaps_.end()) << " continuous space bitmap " << old_bitmap
+      << " not found";
+  *it = new_bitmap;
 }
 
-void HeapBitmap::ReplaceObjectSet(ObjectSet* old_set, ObjectSet* new_set) {
-  for (auto& space_set : discontinuous_space_sets_) {
-    if (space_set == old_set) {
-      space_set = new_set;
-      return;
-    }
-  }
-  LOG(FATAL) << "object set " << static_cast<const void*>(old_set) << " not found";
+void HeapBitmap::ReplaceLargeObjectBitmap(LargeObjectBitmap* old_bitmap,
+                                          LargeObjectBitmap* new_bitmap) {
+  auto it = std::find(large_object_bitmaps_.begin(), large_object_bitmaps_.end(), old_bitmap);
+  CHECK(it != large_object_bitmaps_.end()) << " large object bitmap " << old_bitmap
+      << " not found";
+  *it = new_bitmap;
 }
 
 void HeapBitmap::AddContinuousSpaceBitmap(accounting::ContinuousSpaceBitmap* bitmap) {
-  DCHECK(bitmap != NULL);
-
-  // Check for interval overlap.
+  DCHECK(bitmap != nullptr);
+  // Check that there is no bitmap overlap.
   for (const auto& cur_bitmap : continuous_space_bitmaps_) {
-    CHECK(!(
-        bitmap->HeapBegin() < cur_bitmap->HeapLimit() &&
-        bitmap->HeapLimit() > cur_bitmap->HeapBegin()))
-        << "Bitmap " << bitmap->Dump() << " overlaps with existing bitmap " << cur_bitmap->Dump();
+    CHECK(bitmap->HeapBegin() >= cur_bitmap->HeapLimit() ||
+          bitmap->HeapLimit() <= cur_bitmap->HeapBegin())
+              << "Bitmap " << bitmap->Dump() << " overlaps with existing bitmap "
+              << cur_bitmap->Dump();
   }
   continuous_space_bitmaps_.push_back(bitmap);
 }
 
 void HeapBitmap::RemoveContinuousSpaceBitmap(accounting::ContinuousSpaceBitmap* bitmap) {
+  DCHECK(bitmap != nullptr);
   auto it = std::find(continuous_space_bitmaps_.begin(), continuous_space_bitmaps_.end(), bitmap);
   DCHECK(it != continuous_space_bitmaps_.end());
   continuous_space_bitmaps_.erase(it);
 }
 
-void HeapBitmap::AddDiscontinuousObjectSet(ObjectSet* set) {
-  DCHECK(set != nullptr);
-  discontinuous_space_sets_.push_back(set);
+void HeapBitmap::AddLargeObjectBitmap(LargeObjectBitmap* bitmap) {
+  DCHECK(bitmap != nullptr);
+  large_object_bitmaps_.push_back(bitmap);
 }
 
-void HeapBitmap::RemoveDiscontinuousObjectSet(ObjectSet* set) {
-  auto it = std::find(discontinuous_space_sets_.begin(), discontinuous_space_sets_.end(), set);
-  DCHECK(it != discontinuous_space_sets_.end());
-  discontinuous_space_sets_.erase(it);
+void HeapBitmap::RemoveLargeObjectBitmap(LargeObjectBitmap* bitmap) {
+  DCHECK(bitmap != nullptr);
+  auto it = std::find(large_object_bitmaps_.begin(), large_object_bitmaps_.end(), bitmap);
+  DCHECK(it != large_object_bitmaps_.end());
+  large_object_bitmaps_.erase(it);
 }
 
 void HeapBitmap::Walk(ObjectCallback* callback, void* arg) {
   for (const auto& bitmap : continuous_space_bitmaps_) {
     bitmap->Walk(callback, arg);
   }
-  for (const auto& space_set : discontinuous_space_sets_) {
-    space_set->Walk(callback, arg);
+  for (const auto& bitmap : large_object_bitmaps_) {
+    bitmap->Walk(callback, arg);
   }
 }
 

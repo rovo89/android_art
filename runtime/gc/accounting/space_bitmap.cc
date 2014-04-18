@@ -25,22 +25,35 @@ SpaceBitmap<kAlignment>* SpaceBitmap<kAlignment>::CreateFromMemMap(
     const std::string& name, MemMap* mem_map, byte* heap_begin, size_t heap_capacity) {
   CHECK(mem_map != nullptr);
   uword* bitmap_begin = reinterpret_cast<uword*>(mem_map->Begin());
-  size_t bitmap_size = OffsetToIndex(RoundUp(heap_capacity, kAlignment * kBitsPerWord)) * kWordSize;
+  const uint64_t kBytesCoveredPerWord = kAlignment * kBitsPerWord;
+  size_t bitmap_size = (RoundUp(static_cast<uint64_t>(heap_capacity), kBytesCoveredPerWord) /
+      kBytesCoveredPerWord) * kWordSize;
   return new SpaceBitmap(name, mem_map, bitmap_begin, bitmap_size, heap_begin);
+}
+
+template<size_t kAlignment>
+SpaceBitmap<kAlignment>::SpaceBitmap(const std::string& name, MemMap* mem_map, uword* bitmap_begin,
+                                     size_t bitmap_size, const void* heap_begin)
+    : mem_map_(mem_map), bitmap_begin_(bitmap_begin), bitmap_size_(bitmap_size),
+      heap_begin_(reinterpret_cast<uintptr_t>(heap_begin)),
+      name_(name) {
+  CHECK(bitmap_begin_ != nullptr);
+  CHECK_NE(bitmap_size, 0U);
 }
 
 template<size_t kAlignment>
 SpaceBitmap<kAlignment>* SpaceBitmap<kAlignment>::Create(
     const std::string& name, byte* heap_begin, size_t heap_capacity) {
-  CHECK(heap_begin != NULL);
   // Round up since heap_capacity is not necessarily a multiple of kAlignment * kBitsPerWord.
-  size_t bitmap_size = OffsetToIndex(RoundUp(heap_capacity, kAlignment * kBitsPerWord)) * kWordSize;
+  const uint64_t kBytesCoveredPerWord = kAlignment * kBitsPerWord;
+  size_t bitmap_size = (RoundUp(static_cast<uint64_t>(heap_capacity), kBytesCoveredPerWord) /
+      kBytesCoveredPerWord) * kWordSize;
   std::string error_msg;
-  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(name.c_str(), NULL, bitmap_size,
+  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(name.c_str(), nullptr, bitmap_size,
                                                  PROT_READ | PROT_WRITE, false, &error_msg));
   if (UNLIKELY(mem_map.get() == nullptr)) {
     LOG(ERROR) << "Failed to allocate bitmap " << name << ": " << error_msg;
-    return NULL;
+    return nullptr;
   }
   return CreateFromMemMap(name, mem_map.release(), heap_begin, heap_capacity);
 }
@@ -68,13 +81,13 @@ void SpaceBitmap<kAlignment>::Clear() {
 }
 
 template<size_t kAlignment>
-inline void SpaceBitmap<kAlignment>::CopyFrom(SpaceBitmap* source_bitmap) {
+void SpaceBitmap<kAlignment>::CopyFrom(SpaceBitmap* source_bitmap) {
   DCHECK_EQ(Size(), source_bitmap->Size());
   std::copy(source_bitmap->Begin(), source_bitmap->Begin() + source_bitmap->Size() / kWordSize, Begin());
 }
 
 template<size_t kAlignment>
-inline void SpaceBitmap<kAlignment>::Walk(ObjectCallback* callback, void* arg) {
+void SpaceBitmap<kAlignment>::Walk(ObjectCallback* callback, void* arg) {
   CHECK(bitmap_begin_ != NULL);
   CHECK(callback != NULL);
 
@@ -96,11 +109,11 @@ inline void SpaceBitmap<kAlignment>::Walk(ObjectCallback* callback, void* arg) {
 
 template<size_t kAlignment>
 void SpaceBitmap<kAlignment>::SweepWalk(const SpaceBitmap<kAlignment>& live_bitmap,
-                                               const SpaceBitmap<kAlignment>& mark_bitmap,
-                                               uintptr_t sweep_begin, uintptr_t sweep_end,
-                                               SpaceBitmap::SweepCallback* callback, void* arg) {
-  CHECK(live_bitmap.bitmap_begin_ != NULL);
-  CHECK(mark_bitmap.bitmap_begin_ != NULL);
+                                        const SpaceBitmap<kAlignment>& mark_bitmap,
+                                        uintptr_t sweep_begin, uintptr_t sweep_end,
+                                        SpaceBitmap::SweepCallback* callback, void* arg) {
+  CHECK(live_bitmap.bitmap_begin_ != nullptr);
+  CHECK(mark_bitmap.bitmap_begin_ != nullptr);
   CHECK_EQ(live_bitmap.heap_begin_, mark_bitmap.heap_begin_);
   CHECK_EQ(live_bitmap.bitmap_size_, mark_bitmap.bitmap_size_);
   CHECK(callback != NULL);
@@ -170,8 +183,8 @@ void SpaceBitmap<kAlignment>::WalkInstanceFields(SpaceBitmap<kAlignment>* visite
 
 template<size_t kAlignment>
 void SpaceBitmap<kAlignment>::WalkFieldsInOrder(SpaceBitmap<kAlignment>* visited,
-                                                       ObjectCallback* callback,
-                                                       mirror::Object* obj, void* arg) {
+                                                ObjectCallback* callback, mirror::Object* obj,
+                                                void* arg) {
   if (visited->Test(obj)) {
     return;
   }
@@ -229,12 +242,6 @@ void SpaceBitmap<kAlignment>::InOrderWalk(ObjectCallback* callback, void* arg) {
         w ^= (static_cast<uword>(1)) << shift;
       }
     }
-  }
-}
-
-void ObjectSet::Walk(ObjectCallback* callback, void* arg) {
-  for (const mirror::Object* obj : contained_) {
-    callback(const_cast<mirror::Object*>(obj), arg);
   }
 }
 
