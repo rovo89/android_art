@@ -51,14 +51,14 @@ inline void Object::SetClass(Class* new_klass) {
       OFFSET_OF_OBJECT_MEMBER(Object, klass_), new_klass, false);
 }
 
-inline LockWord Object::GetLockWord(bool is_volatile) {
-  return LockWord(GetField32(OFFSET_OF_OBJECT_MEMBER(Object, monitor_), is_volatile));
+inline LockWord Object::GetLockWord(bool as_volatile) {
+  return LockWord(GetField32(OFFSET_OF_OBJECT_MEMBER(Object, monitor_), as_volatile));
 }
 
-inline void Object::SetLockWord(LockWord new_val, bool is_volatile) {
+inline void Object::SetLockWord(LockWord new_val, bool as_volatile) {
   // Force use of non-transactional mode and do not check.
   SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(Object, monitor_), new_val.GetValue(),
-                           is_volatile);
+                           as_volatile);
 }
 
 inline bool Object::CasLockWord(LockWord old_val, LockWord new_val) {

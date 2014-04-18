@@ -355,15 +355,15 @@ void Heap::CreateMainMallocSpace(MemMap* mem_map, size_t initial_size, size_t gr
   }
   if (kUseRosAlloc) {
     main_space_ = space::RosAllocSpace::CreateFromMemMap(mem_map, "main rosalloc space",
-                                                          kDefaultStartingSize, initial_size,
-                                                          growth_limit, capacity, low_memory_mode_,
-                                                          can_move_objects);
+                                                         kDefaultStartingSize, initial_size,
+                                                         growth_limit, capacity, low_memory_mode_,
+                                                         can_move_objects);
     CHECK(main_space_ != nullptr) << "Failed to create rosalloc space";
   } else {
     main_space_ = space::DlMallocSpace::CreateFromMemMap(mem_map, "main dlmalloc space",
-                                                          kDefaultStartingSize, initial_size,
-                                                          growth_limit, capacity,
-                                                          can_move_objects);
+                                                         kDefaultStartingSize, initial_size,
+                                                         growth_limit, capacity,
+                                                         can_move_objects);
     CHECK(main_space_ != nullptr) << "Failed to create dlmalloc space";
   }
   main_space_->SetFootprintLimit(main_space_->Capacity());
@@ -569,7 +569,7 @@ void Heap::MarkAllocStackAsLive(accounting::ObjectStack* stack) {
     space2 = space1;
   }
   MarkAllocStack(space1->GetLiveBitmap(), space2->GetLiveBitmap(),
-                 large_object_space_->GetLiveObjects(), stack);
+                 large_object_space_->GetLiveBitmap(), stack);
 }
 
 void Heap::DeleteThreadPool() {
@@ -606,10 +606,8 @@ void Heap::AddSpace(space::Space* space, bool set_as_default) {
   } else {
     DCHECK(space->IsDiscontinuousSpace());
     space::DiscontinuousSpace* discontinuous_space = space->AsDiscontinuousSpace();
-    DCHECK(discontinuous_space->GetLiveObjects() != nullptr);
-    live_bitmap_->AddDiscontinuousObjectSet(discontinuous_space->GetLiveObjects());
-    DCHECK(discontinuous_space->GetMarkObjects() != nullptr);
-    mark_bitmap_->AddDiscontinuousObjectSet(discontinuous_space->GetMarkObjects());
+    live_bitmap_->AddLargeObjectBitmap(discontinuous_space->GetLiveBitmap());
+    mark_bitmap_->AddLargeObjectBitmap(discontinuous_space->GetMarkBitmap());
     discontinuous_spaces_.push_back(discontinuous_space);
   }
   if (space->IsAllocSpace()) {
@@ -649,10 +647,8 @@ void Heap::RemoveSpace(space::Space* space) {
   } else {
     DCHECK(space->IsDiscontinuousSpace());
     space::DiscontinuousSpace* discontinuous_space = space->AsDiscontinuousSpace();
-    DCHECK(discontinuous_space->GetLiveObjects() != nullptr);
-    live_bitmap_->RemoveDiscontinuousObjectSet(discontinuous_space->GetLiveObjects());
-    DCHECK(discontinuous_space->GetMarkObjects() != nullptr);
-    mark_bitmap_->RemoveDiscontinuousObjectSet(discontinuous_space->GetMarkObjects());
+    live_bitmap_->RemoveLargeObjectBitmap(discontinuous_space->GetLiveBitmap());
+    mark_bitmap_->RemoveLargeObjectBitmap(discontinuous_space->GetMarkBitmap());
     auto it = std::find(discontinuous_spaces_.begin(), discontinuous_spaces_.end(),
                         discontinuous_space);
     DCHECK(it != discontinuous_spaces_.end());
@@ -1050,7 +1046,7 @@ bool Heap::IsLiveObjectLocked(mirror::Object* obj, bool search_allocation_stack,
     return temp_space_->Contains(obj);
   }
   space::ContinuousSpace* c_space = FindContinuousSpaceFromObject(obj, true);
-  space::DiscontinuousSpace* d_space = NULL;
+  space::DiscontinuousSpace* d_space = nullptr;
   if (c_space != nullptr) {
     if (c_space->GetLiveBitmap()->Test(obj)) {
       return true;
@@ -1058,7 +1054,7 @@ bool Heap::IsLiveObjectLocked(mirror::Object* obj, bool search_allocation_stack,
   } else {
     d_space = FindDiscontinuousSpaceFromObject(obj, true);
     if (d_space != nullptr) {
-      if (d_space->GetLiveObjects()->Test(obj)) {
+      if (d_space->GetLiveBitmap()->Test(obj)) {
         return true;
       }
     }
@@ -1096,7 +1092,7 @@ bool Heap::IsLiveObjectLocked(mirror::Object* obj, bool search_allocation_stack,
     }
   } else {
     d_space = FindDiscontinuousSpaceFromObject(obj, true);
-    if (d_space != nullptr && d_space->GetLiveObjects()->Test(obj)) {
+    if (d_space != nullptr && d_space->GetLiveBitmap()->Test(obj)) {
       return true;
     }
   }
@@ -1761,7 +1757,7 @@ void Heap::FlushAllocStack() {
 
 void Heap::MarkAllocStack(accounting::ContinuousSpaceBitmap* bitmap1,
                           accounting::ContinuousSpaceBitmap* bitmap2,
-                          accounting::ObjectSet* large_objects,
+                          accounting::LargeObjectBitmap* large_objects,
                           accounting::ObjectStack* stack) {
   DCHECK(bitmap1 != nullptr);
   DCHECK(bitmap2 != nullptr);
@@ -2888,7 +2884,7 @@ void Heap::ClearMarkedObjects() {
   }
   // Clear the marked objects in the discontinous space object sets.
   for (const auto& space : GetDiscontinuousSpaces()) {
-    space->GetMarkObjects()->Clear();
+    space->GetMarkBitmap()->Clear();
   }
 }
 

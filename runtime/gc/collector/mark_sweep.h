@@ -227,11 +227,6 @@ class MarkSweep : public GarbageCollector {
   // Marks an object atomically, safe to use from multiple threads.
   void MarkObjectNonNullParallel(mirror::Object* obj);
 
-  // Marks or unmarks a large object based on whether or not set is true. If set is true, then we
-  // mark, otherwise we unmark.
-  bool MarkLargeObject(const mirror::Object* obj, bool set)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) LOCKS_EXCLUDED(large_object_lock_);
-
   // Returns true if we need to add obj to a mark stack.
   bool MarkObjectParallel(const mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS;
 
@@ -315,7 +310,6 @@ class MarkSweep : public GarbageCollector {
   size_t live_stack_freeze_size_;
 
   UniquePtr<Barrier> gc_barrier_;
-  Mutex large_object_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   Mutex mark_stack_lock_ ACQUIRED_AFTER(Locks::classlinker_classes_lock_);
 
   const bool is_concurrent_;
@@ -326,8 +320,6 @@ class MarkSweep : public GarbageCollector {
   friend class CheckBitmapVisitor;
   friend class CheckReferenceVisitor;
   friend class art::gc::Heap;
-  friend class InternTableEntryIsUnmarked;
-  friend class MarkIfReachesAllocspaceVisitor;
   friend class MarkObjectVisitor;
   friend class ModUnionCheckReferences;
   friend class ModUnionClearCardVisitor;
@@ -336,10 +328,9 @@ class MarkSweep : public GarbageCollector {
   friend class ModUnionTableBitmap;
   friend class ModUnionTableReferenceCache;
   friend class ModUnionScanImageRootVisitor;
-  friend class ScanBitmapVisitor;
-  friend class ScanImageRootVisitor;
   template<bool kUseFinger> friend class MarkStackTask;
   friend class FifoMarkStackChunk;
+  friend class MarkSweepMarkObjectSlowPath;
 
   DISALLOW_COPY_AND_ASSIGN(MarkSweep);
 };

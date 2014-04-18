@@ -70,9 +70,15 @@ ContinuousMemMapAllocSpace* Space::AsContinuousMemMapAllocSpace() {
 
 DiscontinuousSpace::DiscontinuousSpace(const std::string& name,
                                        GcRetentionPolicy gc_retention_policy) :
-    Space(name, gc_retention_policy),
-    live_objects_(new accounting::ObjectSet("large live objects")),
-    mark_objects_(new accounting::ObjectSet("large marked objects")) {
+    Space(name, gc_retention_policy) {
+  // TODO: Fix this if we ever support objects not in the low 32 bit.
+  const size_t capacity = static_cast<size_t>(std::numeric_limits<uint32_t>::max());
+  live_bitmap_.reset(accounting::LargeObjectBitmap::Create("large live objects", nullptr,
+                                                           capacity));
+  CHECK(live_bitmap_.get() != nullptr);
+  mark_bitmap_.reset(accounting::LargeObjectBitmap::Create("large marked objects", nullptr,
+                                                           capacity));
+  CHECK(mark_bitmap_.get() != nullptr);
 }
 
 void ContinuousMemMapAllocSpace::Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes) {
@@ -84,13 +90,7 @@ void ContinuousMemMapAllocSpace::Sweep(bool swap_bitmaps, size_t* freed_objects,
   if (live_bitmap == mark_bitmap) {
     return;
   }
-  SweepCallbackContext scc;
-  scc.swap_bitmaps = swap_bitmaps;
-  scc.heap = Runtime::Current()->GetHeap();
-  scc.self = Thread::Current();
-  scc.space = this;
-  scc.freed_objects = 0;
-  scc.freed_bytes = 0;
+  SweepCallbackContext scc(swap_bitmaps, this);
   if (swap_bitmaps) {
     std::swap(live_bitmap, mark_bitmap);
   }
@@ -134,6 +134,11 @@ void ContinuousMemMapAllocSpace::SwapBitmaps() {
   std::string temp_name(live_bitmap_->GetName());
   live_bitmap_->SetName(mark_bitmap_->GetName());
   mark_bitmap_->SetName(temp_name);
+}
+
+Space::SweepCallbackContext::SweepCallbackContext(bool swap_bitmaps, space::Space* space)
+    : swap_bitmaps(swap_bitmaps), space(space), self(Thread::Current()), freed_objects(0),
+      freed_bytes(0) {
 }
 
 }  // namespace space

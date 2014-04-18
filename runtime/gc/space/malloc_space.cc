@@ -226,7 +226,6 @@ void MallocSpace::Dump(std::ostream& os) const {
 
 void MallocSpace::SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg) {
   SweepCallbackContext* context = static_cast<SweepCallbackContext*>(arg);
-  DCHECK(context->space->IsMallocSpace());
   space::MallocSpace* space = context->space->AsMallocSpace();
   Thread* self = context->self;
   Locks::heap_bitmap_lock_->AssertExclusiveHeld(self);

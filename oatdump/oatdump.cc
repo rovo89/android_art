@@ -864,7 +864,7 @@ class ImageDumper {
         }
       }
       // Dump the large objects separately.
-      heap->GetLargeObjectsSpace()->GetLiveObjects()->Walk(ImageDumper::Callback, this);
+      heap->GetLargeObjectsSpace()->GetLiveBitmap()->Walk(ImageDumper::Callback, this);
       indent_os << "\n";
       os_ = saved_os;
     }
