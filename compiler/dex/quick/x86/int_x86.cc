@@ -891,78 +891,6 @@ void X86Mir2Lir::GenDivZeroCheckWide(RegStorage reg) {
   FreeTemp(t_reg);
 }
 
-void X86Mir2Lir::GenArrayBoundsCheck(RegStorage index,
-                                     RegStorage array_base,
-                                     int len_offset) {
-  class ArrayBoundsCheckSlowPath : public Mir2Lir::LIRSlowPath {
-   public:
-    ArrayBoundsCheckSlowPath(Mir2Lir* m2l, LIR* branch,
-                             RegStorage index, RegStorage array_base, int len_offset)
-        : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch),
-          index_(index), array_base_(array_base), len_offset_(len_offset) {
-    }
-
-    void Compile() OVERRIDE {
-      m2l_->ResetRegPool();
-      m2l_->ResetDefTracking();
-      GenerateTargetLabel();
-      // Load array length to array_base_.
-      m2l_->OpRegMem(kOpMov, array_base_, array_base_, len_offset_);
-      m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pThrowArrayBounds),
-                                    index_, array_base_, true);
-    }
-
-   private:
-    RegStorage index_;
-    RegStorage array_base_;
-    int len_offset_;
-  };
-
-  OpRegMem(kOpCmp, index, array_base, len_offset);
-  LIR* branch = OpCondBranch(kCondUge, nullptr);
-  AddSlowPath(new (arena_) ArrayBoundsCheckSlowPath(this, branch,
-                                                    index, array_base, len_offset));
-}
-
-void X86Mir2Lir::GenArrayBoundsCheck(int index,
-                                     RegStorage array_base,
-                                     int len_offset) {
-  class ArrayBoundsCheckSlowPath : public Mir2Lir::LIRSlowPath {
-   public:
-    ArrayBoundsCheckSlowPath(Mir2Lir* m2l, LIR* branch,
-                             int index, RegStorage array_base, int len_offset)
-        : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch),
-          index_(index), array_base_(array_base), len_offset_(len_offset) {
-    }
-
-    void Compile() OVERRIDE {
-      m2l_->ResetRegPool();
-      m2l_->ResetDefTracking();
-      GenerateTargetLabel();
-      // kArg0 will be used to hold the constant index.
-      if (array_base_.GetReg() == m2l_->TargetReg(kArg0).GetReg()) {
-        m2l_->OpRegCopy(m2l_->TargetReg(kArg1), array_base_);
-        array_base_ = m2l_->TargetReg(kArg1);
-      }
-      m2l_->LoadConstant(m2l_->TargetReg(kArg0), index_);
-      // Load array length to kArg1.
-      m2l_->OpRegMem(kOpMov, m2l_->TargetReg(kArg1), array_base_, len_offset_);
-      m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pThrowArrayBounds),
-                                    m2l_->TargetReg(kArg0), m2l_->TargetReg(kArg1), true);
-    }
-
-   private:
-    int index_;
-    RegStorage array_base_;
-    int len_offset_;
-  };
-
-  NewLIR3(IS_SIMM8(index) ? kX86Cmp32MI8 : kX86Cmp32MI, array_base.GetReg(), len_offset, index);
-  LIR* branch = OpCondBranch(kCondLs, nullptr);
-  AddSlowPath(new (arena_) ArrayBoundsCheckSlowPath(this, branch,
-                                                    index, array_base, len_offset));
-}
-
 // Test suspend flag, return target of taken suspend branch
 LIR* X86Mir2Lir::OpTestSuspend(LIR* target) {
   OpTlsCmp(Thread::ThreadFlagsOffset<4>(), 0);
@@ -1420,9 +1348,10 @@ void X86Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
 
   if (!(opt_flags & MIR_IGNORE_RANGE_CHECK)) {
     if (constant_index) {
-      GenArrayBoundsCheck(constant_index_value, rl_array.reg, len_offset);
+      GenMemImmedCheck(kCondLs, rl_array.reg, len_offset,
+                       constant_index_value, kThrowConstantArrayBounds);
     } else {
-      GenArrayBoundsCheck(rl_index.reg, rl_array.reg, len_offset);
+      GenRegMemCheck(kCondUge, rl_index.reg, rl_array.reg, len_offset, kThrowArrayBounds);
     }
   }
   rl_result = EvalLoc(rl_dest, reg_class, true);
@@ -1471,9 +1400,10 @@ void X86Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
 
   if (!(opt_flags & MIR_IGNORE_RANGE_CHECK)) {
     if (constant_index) {
-      GenArrayBoundsCheck(constant_index_value, rl_array.reg, len_offset);
+      GenMemImmedCheck(kCondLs, rl_array.reg, len_offset,
+                       constant_index_value, kThrowConstantArrayBounds);
     } else {
-      GenArrayBoundsCheck(rl_index.reg, rl_array.reg, len_offset);
+      GenRegMemCheck(kCondUge, rl_index.reg, rl_array.reg, len_offset, kThrowArrayBounds);
     }
   }
   if ((size == kLong) || (size == kDouble)) {
