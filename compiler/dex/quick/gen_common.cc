@@ -91,6 +91,59 @@ void Mir2Lir::AddDivZeroCheckSlowPath(LIR* branch) {
   AddSlowPath(new (arena_) DivZeroCheckSlowPath(this, branch));
 }
 
+void Mir2Lir::GenArrayBoundsCheck(RegStorage index, RegStorage length) {
+  class ArrayBoundsCheckSlowPath : public Mir2Lir::LIRSlowPath {
+   public:
+    ArrayBoundsCheckSlowPath(Mir2Lir* m2l, LIR* branch, RegStorage index, RegStorage length)
+        : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch),
+          index_(index), length_(length) {
+    }
+
+    void Compile() OVERRIDE {
+      m2l_->ResetRegPool();
+      m2l_->ResetDefTracking();
+      GenerateTargetLabel();
+      m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pThrowArrayBounds),
+                                    index_, length_, true);
+    }
+
+   private:
+    const RegStorage index_;
+    const RegStorage length_;
+  };
+
+  LIR* branch = OpCmpBranch(kCondUge, index, length, nullptr);
+  AddSlowPath(new (arena_) ArrayBoundsCheckSlowPath(this, branch, index, length));
+}
+
+void Mir2Lir::GenArrayBoundsCheck(int index, RegStorage length) {
+  class ArrayBoundsCheckSlowPath : public Mir2Lir::LIRSlowPath {
+   public:
+    ArrayBoundsCheckSlowPath(Mir2Lir* m2l, LIR* branch, int index, RegStorage length)
+        : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch),
+          index_(index), length_(length) {
+    }
+
+    void Compile() OVERRIDE {
+      m2l_->ResetRegPool();
+      m2l_->ResetDefTracking();
+      GenerateTargetLabel();
+
+      m2l_->OpRegCopy(m2l_->TargetReg(kArg1), length_);
+      m2l_->LoadConstant(m2l_->TargetReg(kArg0), index_);
+      m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pThrowArrayBounds),
+                                    m2l_->TargetReg(kArg0), m2l_->TargetReg(kArg1), true);
+    }
+
+   private:
+    const int32_t index_;
+    const RegStorage length_;
+  };
+
+  LIR* branch = OpCmpImmBranch(kCondLs, length, index, nullptr);
+  AddSlowPath(new (arena_) ArrayBoundsCheckSlowPath(this, branch, index, length));
+}
+
 LIR* Mir2Lir::GenNullCheck(RegStorage reg) {
   class NullCheckSlowPath : public Mir2Lir::LIRSlowPath {
    public:
@@ -685,58 +738,7 @@ void Mir2Lir::HandleThrowLaunchPads() {
     AppendLIR(lab);
     ThreadOffset<4> func_offset(-1);
     int v1 = lab->operands[2];
-    int v2 = lab->operands[3];
-    const bool target_x86 = cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64;
     switch (lab->operands[0]) {
-      case kThrowConstantArrayBounds:  // v1 is length reg (for Arm/Mips), v2 constant index
-        // v1 holds the constant array index.  Mips/Arm uses v2 for length, x86 reloads.
-        if (target_x86) {
-          OpRegMem(kOpMov, TargetReg(kArg1), RegStorage::Solo32(v1),
-                   mirror::Array::LengthOffset().Int32Value());
-        } else {
-          OpRegCopy(TargetReg(kArg1), RegStorage::Solo32(v1));
-        }
-        // Make sure the following LoadConstant doesn't mess with kArg1.
-        LockTemp(TargetReg(kArg1));
-        LoadConstant(TargetReg(kArg0), v2);
-        func_offset = QUICK_ENTRYPOINT_OFFSET(4, pThrowArrayBounds);
-        break;
-      case kThrowArrayBounds:
-        // Move v1 (array index) to kArg0 and v2 (array length) to kArg1
-        if (v2 != TargetReg(kArg0).GetReg()) {
-          OpRegCopy(TargetReg(kArg0), RegStorage::Solo32(v1));
-          if (target_x86) {
-            // x86 leaves the array pointer in v2, so load the array length that the handler expects
-            OpRegMem(kOpMov, TargetReg(kArg1), RegStorage::Solo32(v2),
-                     mirror::Array::LengthOffset().Int32Value());
-          } else {
-            OpRegCopy(TargetReg(kArg1), RegStorage::Solo32(v2));
-          }
-        } else {
-          if (v1 == TargetReg(kArg1).GetReg()) {
-            // Swap v1 and v2, using kArg2 as a temp
-            OpRegCopy(TargetReg(kArg2), RegStorage::Solo32(v1));
-            if (target_x86) {
-              // x86 leaves the array pointer in v2; load the array length that the handler expects
-              OpRegMem(kOpMov, TargetReg(kArg1), RegStorage::Solo32(v2),
-                       mirror::Array::LengthOffset().Int32Value());
-            } else {
-              OpRegCopy(TargetReg(kArg1), RegStorage::Solo32(v2));
-            }
-            OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));
-          } else {
-            if (target_x86) {
-              // x86 leaves the array pointer in v2; load the array length that the handler expects
-              OpRegMem(kOpMov, TargetReg(kArg1), RegStorage::Solo32(v2),
-                       mirror::Array::LengthOffset().Int32Value());
-            } else {
-              OpRegCopy(TargetReg(kArg1), RegStorage::Solo32(v2));
-            }
-            OpRegCopy(TargetReg(kArg0), RegStorage::Solo32(v1));
-          }
-        }
-        func_offset = QUICK_ENTRYPOINT_OFFSET(4, pThrowArrayBounds);
-        break;
       case kThrowNoSuchMethod:
         OpRegCopy(TargetReg(kArg0), RegStorage::Solo32(v1));
         func_offset =

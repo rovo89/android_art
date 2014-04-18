@@ -567,6 +567,8 @@ class Mir2Lir : public Backend {
     void GenDivZeroCheck(ConditionCode c_code);
     // reg holds divisor.
     void GenDivZeroCheck(RegStorage reg);
+    void GenArrayBoundsCheck(RegStorage index, RegStorage length);
+    void GenArrayBoundsCheck(int32_t index, RegStorage length);
     LIR* GenNullCheck(RegStorage reg);
     void MarkPossibleNullPointerException(int opt_flags);
     void MarkPossibleStackOverflowException();
@@ -1226,6 +1228,10 @@ class Mir2Lir : public Backend {
     bool GenSpecialIdentity(MIR* mir, const InlineMethod& special);
 
     void AddDivZeroCheckSlowPath(LIR* branch);
+
+    // Copy arg0 and arg1 to kArg0 and kArg1 safely, possibly using
+    // kArg2 as temp.
+    void CopyToArgumentRegs(RegStorage arg0, RegStorage arg1);
 
   public:
     // TODO: add accessors for these.
