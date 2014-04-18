@@ -110,7 +110,8 @@ class RandGen {
   uint32_t val_;
 };
 
-void compat_test() NO_THREAD_SAFETY_ANALYSIS {
+template <size_t kAlignment>
+void RunTest() NO_THREAD_SAFETY_ANALYSIS {
   byte* heap_begin = reinterpret_cast<byte*>(0x10000000);
   size_t heap_capacity = 16 * MB;
 
@@ -123,7 +124,7 @@ void compat_test() NO_THREAD_SAFETY_ANALYSIS {
         ContinuousSpaceBitmap::Create("test bitmap", heap_begin, heap_capacity));
 
     for (int j = 0; j < 10000; ++j) {
-      size_t offset = (r.next() % heap_capacity) & ~(0x7);
+      size_t offset = RoundDown(r.next() % heap_capacity, kAlignment);
       bool set = r.next() % 2 == 1;
 
       if (set) {
@@ -137,15 +138,15 @@ void compat_test() NO_THREAD_SAFETY_ANALYSIS {
       size_t count = 0;
       SimpleCounter c(&count);
 
-      size_t offset = (r.next() % heap_capacity) & ~(0x7);
+      size_t offset = RoundDown(r.next() % heap_capacity, kAlignment);
       size_t remain = heap_capacity - offset;
-      size_t end = offset + ((r.next() % (remain + 1)) & ~(0x7));
+      size_t end = offset + RoundDown(r.next() % (remain + 1), kAlignment);
 
       space_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(heap_begin) + offset,
                                      reinterpret_cast<uintptr_t>(heap_begin) + end, c);
 
       size_t manual = 0;
-      for (uintptr_t k = offset; k < end; k += kObjectAlignment) {
+      for (uintptr_t k = offset; k < end; k += kAlignment) {
         if (space_bitmap->Test(reinterpret_cast<mirror::Object*>(heap_begin + k))) {
           manual++;
         }
@@ -156,8 +157,12 @@ void compat_test() NO_THREAD_SAFETY_ANALYSIS {
   }
 }
 
-TEST_F(SpaceBitmapTest, Visitor) {
-  compat_test();
+TEST_F(SpaceBitmapTest, VisitorObjectAlignment) {
+  RunTest<kObjectAlignment>();
+}
+
+TEST_F(SpaceBitmapTest, VisitorPageAlignment) {
+  RunTest<kPageSize>();
 }
 
 }  // namespace accounting

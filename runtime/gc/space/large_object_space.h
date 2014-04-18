@@ -49,11 +49,11 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
     return num_objects_allocated_;
   }
 
-  uint64_t GetTotalBytesAllocated() {
+  uint64_t GetTotalBytesAllocated() const {
     return total_bytes_allocated_;
   }
 
-  uint64_t GetTotalObjectsAllocated() {
+  uint64_t GetTotalObjectsAllocated() const {
     return total_objects_allocated_;
   }
 
@@ -73,20 +73,36 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
     return this;
   }
 
-  void Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes);
+  void Sweep(bool swap_bitmaps, size_t* out_freed_objects, size_t* out_freed_bytes);
 
   virtual bool CanMoveObjects() const OVERRIDE {
     return false;
   }
 
+  // Current address at which the space begins, which may vary as the space is filled.
+  byte* Begin() const {
+    return begin_;
+  }
+
+  // Current address at which the space ends, which may vary as the space is filled.
+  byte* End() const {
+    return end_;
+  }
+
  protected:
-  explicit LargeObjectSpace(const std::string& name);
+  explicit LargeObjectSpace(const std::string& name, byte* begin, byte* end);
+
+  static void SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg);
 
   // Approximate number of bytes which have been allocated into the space.
-  size_t num_bytes_allocated_;
-  size_t num_objects_allocated_;
-  size_t total_bytes_allocated_;
-  size_t total_objects_allocated_;
+  uint64_t num_bytes_allocated_;
+  uint64_t num_objects_allocated_;
+  uint64_t total_bytes_allocated_;
+  uint64_t total_objects_allocated_;
+
+  // Begin and end, may change as more large objects are allocated.
+  byte* begin_;
+  byte* end_;
 
   friend class Space;
 
@@ -241,9 +257,6 @@ class FreeListSpace FINAL : public LargeObjectSpace {
 
   typedef std::set<AllocationHeader*, AllocationHeader::SortByPrevFree,
                    accounting::GcAllocator<AllocationHeader*> > FreeBlocks;
-
-  byte* const begin_;
-  byte* const end_;
 
   // There is not footer for any allocations at the end of the space, so we keep track of how much
   // free space there is at the end manually.

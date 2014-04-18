@@ -198,10 +198,7 @@ class SpaceBitmap {
   // TODO: heap_end_ is initialized so that the heap bitmap is empty, this doesn't require the -1,
   // however, we document that this is expected on heap_end_
   SpaceBitmap(const std::string& name, MemMap* mem_map, uword* bitmap_begin, size_t bitmap_size,
-              const void* heap_begin)
-      : mem_map_(mem_map), bitmap_begin_(bitmap_begin), bitmap_size_(bitmap_size),
-        heap_begin_(reinterpret_cast<uintptr_t>(heap_begin)),
-        name_(name) {}
+              const void* heap_begin);
 
   template<bool kSetBit>
   bool Modify(const mirror::Object* obj);
@@ -232,71 +229,7 @@ class SpaceBitmap {
   std::string name_;
 };
 
-// Like a bitmap except it keeps track of objects using sets.
-class ObjectSet {
- public:
-  typedef std::set<
-      const mirror::Object*, std::less<const mirror::Object*>,
-      GcAllocator<const mirror::Object*> > Objects;
-
-  bool IsEmpty() const {
-    return contained_.empty();
-  }
-
-  inline void Set(const mirror::Object* obj) {
-    contained_.insert(obj);
-  }
-
-  inline void Clear(const mirror::Object* obj) {
-    Objects::iterator found = contained_.find(obj);
-    if (found != contained_.end()) {
-      contained_.erase(found);
-    }
-  }
-
-  void Clear() {
-    contained_.clear();
-  }
-
-  inline bool Test(const mirror::Object* obj) const {
-    return contained_.find(obj) != contained_.end();
-  }
-
-  const std::string& GetName() const {
-    return name_;
-  }
-
-  void SetName(const std::string& name) {
-    name_ = name;
-  }
-
-  void CopyFrom(const ObjectSet& space_set) {
-    contained_ = space_set.contained_;
-  }
-
-  void Walk(ObjectCallback* callback, void* arg) SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  template <typename Visitor>
-  void Visit(const Visitor& visitor) NO_THREAD_SAFETY_ANALYSIS {
-    for (const mirror::Object* obj : contained_) {
-      visitor(const_cast<mirror::Object*>(obj));
-    }
-  }
-
-  explicit ObjectSet(const std::string& name) : name_(name) {}
-  ~ObjectSet() {}
-
-  Objects& GetObjects() {
-    return contained_;
-  }
-
- private:
-  std::string name_;
-  Objects contained_;
-};
-
 typedef SpaceBitmap<kObjectAlignment> ContinuousSpaceBitmap;
-// TODO: Replace usage of ObjectSet with LargeObjectBitmap.
 typedef SpaceBitmap<kLargeObjectAlignment> LargeObjectBitmap;
 
 template<size_t kAlignment>
