@@ -251,7 +251,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
       // TODO: support -Djava.class.path
       i++;
       if (i == options.size()) {
-        Usage("Missing required class path value for %s", option.c_str());
+        Usage("Missing required class path value for %s\n", option.c_str());
         return false;
       }
       const StringPiece& value = options[i].first;
@@ -279,35 +279,35 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
     } else if (StartsWith(option, "-Xms")) {
       size_t size = ParseMemoryOption(option.substr(strlen("-Xms")).c_str(), 1024);
       if (size == 0) {
-        Usage("Failed to parse memory option %s", option.c_str());
+        Usage("Failed to parse memory option %s\n", option.c_str());
         return false;
       }
       heap_initial_size_ = size;
     } else if (StartsWith(option, "-Xmx")) {
       size_t size = ParseMemoryOption(option.substr(strlen("-Xmx")).c_str(), 1024);
       if (size == 0) {
-        Usage("Failed to parse memory option %s", option.c_str());
+        Usage("Failed to parse memory option %s\n", option.c_str());
         return false;
       }
       heap_maximum_size_ = size;
     } else if (StartsWith(option, "-XX:HeapGrowthLimit=")) {
       size_t size = ParseMemoryOption(option.substr(strlen("-XX:HeapGrowthLimit=")).c_str(), 1024);
       if (size == 0) {
-        Usage("Failed to parse memory option %s", option.c_str());
+        Usage("Failed to parse memory option %s\n", option.c_str());
         return false;
       }
       heap_growth_limit_ = size;
     } else if (StartsWith(option, "-XX:HeapMinFree=")) {
       size_t size = ParseMemoryOption(option.substr(strlen("-XX:HeapMinFree=")).c_str(), 1024);
       if (size == 0) {
-        Usage("Failed to parse memory option %s", option.c_str());
+        Usage("Failed to parse memory option %s\n", option.c_str());
         return false;
       }
       heap_min_free_ = size;
     } else if (StartsWith(option, "-XX:HeapMaxFree=")) {
       size_t size = ParseMemoryOption(option.substr(strlen("-XX:HeapMaxFree=")).c_str(), 1024);
       if (size == 0) {
-        Usage("Failed to parse memory option %s", option.c_str());
+        Usage("Failed to parse memory option %s\n", option.c_str());
         return false;
       }
       heap_max_free_ = size;
@@ -330,7 +330,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
     } else if (StartsWith(option, "-Xss")) {
       size_t size = ParseMemoryOption(option.substr(strlen("-Xss")).c_str(), 1);
       if (size == 0) {
-        Usage("Failed to parse memory option %s", option.c_str());
+        Usage("Failed to parse memory option %s\n", option.c_str());
         return false;
       }
       stack_size_ = size;
@@ -398,7 +398,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
                    (gc_option == "noverifycardtable")) {
           // Ignored for backwards compatibility.
         } else {
-          Usage("Unknown -Xgc option %s", gc_option.c_str());
+          Usage("Unknown -Xgc option %s\n", gc_option.c_str());
           return false;
         }
       }
@@ -411,7 +411,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
       if (collector_type != gc::kCollectorTypeNone) {
         background_collector_type_ = collector_type;
       } else {
-        Usage("Unknown -XX:BackgroundGC option %s", substring.c_str());
+        Usage("Unknown -XX:BackgroundGC option %s\n", substring.c_str());
         return false;
       }
     } else if (option == "-XX:+DisableExplicitGC") {
@@ -443,7 +443,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
         } else if (verbose_options[i] == "threads") {
           gLogVerbosity.threads = true;
         } else {
-          Usage("Unknown -verbose option %s", verbose_options[i].c_str());
+          Usage("Unknown -verbose option %s\n", verbose_options[i].c_str());
           return false;
         }
       }
@@ -476,7 +476,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
     } else if (option == "abort") {
       const void* hook = options[i].second;
       if (hook == nullptr) {
-        Usage("abort was NULL");
+        Usage("abort was NULL\n");
         return false;
       }
       hook_abort_ = reinterpret_cast<void(*)()>(const_cast<void*>(hook));
@@ -568,14 +568,14 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
     } else if (option == "-Xcompiler-option") {
       i++;
       if (i == options.size()) {
-        Usage("Missing required compiler option for %s", option.c_str());
+        Usage("Missing required compiler option for %s\n", option.c_str());
         return false;
       }
       compiler_options_.push_back(options[i].first);
     } else if (option == "-Ximage-compiler-option") {
       i++;
       if (i == options.size()) {
-        Usage("Missing required compiler option for %s", option.c_str());
+        Usage("Missing required compiler option for %s\n", option.c_str());
         return false;
       }
       image_compiler_options_.push_back(options[i].first);
@@ -586,7 +586,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
       } else if (verify_mode == "remote" || verify_mode == "all") {
         verify_ = true;
       } else {
-        Usage("Unknown -Xverify option %s", verify_mode.c_str());
+        Usage("Unknown -Xverify option %s\n", verify_mode.c_str());
         return false;
       }
     } else if (StartsWith(option, "-ea") ||
@@ -626,7 +626,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
                StartsWith(option, "-XX:mainThreadStackSize=")) {
       // Ignored for backwards compatibility.
     } else if (!ignore_unrecognized) {
-      Usage("Unrecognized option %s", option.c_str());
+      Usage("Unrecognized option %s\n", option.c_str());
       return false;
     }
   }
@@ -790,7 +790,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
 bool ParsedOptions::ParseStringAfterChar(const std::string& s, char c, std::string* parsed_value) {
   std::string::size_type colon = s.find(c);
   if (colon == std::string::npos) {
-    Usage("Missing char %c in option %s", c, s.c_str());
+    Usage("Missing char %c in option %s\n", c, s.c_str());
     return false;
   }
   // Add one to remove the char we were trimming until.
@@ -801,14 +801,14 @@ bool ParsedOptions::ParseStringAfterChar(const std::string& s, char c, std::stri
 bool ParsedOptions::ParseInteger(const std::string& s, char after_char, int* parsed_value) {
   std::string::size_type colon = s.find(after_char);
   if (colon == std::string::npos) {
-    Usage("Missing char %c in option %s", after_char, s.c_str());
+    Usage("Missing char %c in option %s\n", after_char, s.c_str());
     return false;
   }
   const char* begin = &s[colon + 1];
   char* end;
   size_t result = strtoul(begin, &end, 10);
   if (begin == end || *end != '\0') {
-    Usage("Failed to parse integer from %s ", s.c_str());
+    Usage("Failed to parse integer from %s\n", s.c_str());
     return false;
   }
   *parsed_value = result;
