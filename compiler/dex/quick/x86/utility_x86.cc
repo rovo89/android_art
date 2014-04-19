@@ -554,7 +554,7 @@ LIR* X86Mir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int 
   bool is64bit = false;
   X86OpCode opcode = kX86Nop;
   switch (size) {
-    case kLong:
+    case k64:
     case kDouble:
       // TODO: use regstorage attributes here.
       is64bit = true;
@@ -567,8 +567,9 @@ LIR* X86Mir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int 
       // TODO: double store is to unaligned address
       DCHECK_EQ((displacement & 0x3), 0);
       break;
-    case kWord:
+    case k32:
     case kSingle:
+    case kReference:  // TODO: update for reference decompression on 64-bit targets.
       opcode = is_array ? kX86Mov32RA : kX86Mov32RM;
       if (X86_FPREG(r_dest.GetReg())) {
         opcode = is_array ? kX86MovssRA : kX86MovssRM;
@@ -669,6 +670,10 @@ LIR* X86Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStora
 
 LIR* X86Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement,
                   RegStorage r_dest, OpSize size, int s_reg) {
+  // TODO: base this on target.
+  if (size == kWord) {
+    size = k32;
+  }
   return LoadBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement,
                              r_dest, RegStorage::InvalidReg(), size, s_reg);
 }
@@ -676,7 +681,7 @@ LIR* X86Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement,
 LIR* X86Mir2Lir::LoadBaseDispWide(RegStorage r_base, int displacement, RegStorage r_dest,
                                   int s_reg) {
   return LoadBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement,
-                             r_dest.GetLow(), r_dest.GetHigh(), kLong, s_reg);
+                             r_dest.GetLow(), r_dest.GetHigh(), k64, s_reg);
 }
 
 LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
@@ -690,7 +695,7 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
   bool is64bit = false;
   X86OpCode opcode = kX86Nop;
   switch (size) {
-    case kLong:
+    case k64:
     case kDouble:
       is64bit = true;
       if (X86_FPREG(r_src.GetReg())) {
@@ -702,8 +707,9 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
       // TODO: double store is to unaligned address
       DCHECK_EQ((displacement & 0x3), 0);
       break;
-    case kWord:
+    case k32:
     case kSingle:
+    case kReference:
       opcode = is_array ? kX86Mov32AR : kX86Mov32MR;
       if (X86_FPREG(r_src.GetReg())) {
         opcode = is_array ? kX86MovssAR : kX86MovssMR;
@@ -763,13 +769,17 @@ LIR* X86Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStor
 
 LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement,
                                RegStorage r_src, OpSize size) {
-    return StoreBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_src,
-                                RegStorage::InvalidReg(), size, INVALID_SREG);
+  // TODO: base this on target.
+  if (size == kWord) {
+    size = k32;
+  }
+  return StoreBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_src,
+                              RegStorage::InvalidReg(), size, INVALID_SREG);
 }
 
 LIR* X86Mir2Lir::StoreBaseDispWide(RegStorage r_base, int displacement, RegStorage r_src) {
   return StoreBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement,
-                              r_src.GetLow(), r_src.GetHigh(), kLong, INVALID_SREG);
+                              r_src.GetLow(), r_src.GetHigh(), k64, INVALID_SREG);
 }
 
 /*

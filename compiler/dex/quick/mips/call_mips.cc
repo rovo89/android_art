@@ -112,11 +112,11 @@ void MipsMir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset,
   RegStorage r_key = AllocTemp();
   LIR* loop_label = NewLIR0(kPseudoTargetLabel);
   LIR* exit_branch = OpCmpBranch(kCondEq, r_base, r_end, NULL);
-  LoadWordDisp(r_base, 0, r_key);
+  Load32Disp(r_base, 0, r_key);
   OpRegImm(kOpAdd, r_base, 8);
   OpCmpBranch(kCondNe, rl_src.reg, r_key, loop_label);
   RegStorage r_disp = AllocTemp();
-  LoadWordDisp(r_base, -4, r_disp);
+  Load32Disp(r_base, -4, r_disp);
   OpRegRegReg(kOpAdd, rs_rRA, rs_rRA, r_disp);
   OpReg(kOpBx, rs_rRA);
 
@@ -200,7 +200,7 @@ void MipsMir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
 
   // Load the displacement from the switch table
   RegStorage r_disp = AllocTemp();
-  LoadBaseIndexed(r_base, r_key, r_disp, 2, kWord);
+  LoadBaseIndexed(r_base, r_key, r_disp, 2, k32);
 
   // Add to rAP and go
   OpRegRegReg(kOpAdd, rs_rRA, rs_rRA, r_disp);
@@ -263,9 +263,9 @@ void MipsMir2Lir::GenMoveException(RegLocation rl_dest) {
   int ex_offset = Thread::ExceptionOffset<4>().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   RegStorage reset_reg = AllocTemp();
-  LoadWordDisp(rs_rMIPS_SELF, ex_offset, rl_result.reg);
+  Load32Disp(rs_rMIPS_SELF, ex_offset, rl_result.reg);
   LoadConstant(reset_reg, 0);
-  StoreWordDisp(rs_rMIPS_SELF, ex_offset, reset_reg);
+  Store32Disp(rs_rMIPS_SELF, ex_offset, reset_reg);
   FreeTemp(reset_reg);
   StoreValue(rl_dest, rl_result);
 }
@@ -277,6 +277,7 @@ void MipsMir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
   RegStorage reg_card_base = AllocTemp();
   RegStorage reg_card_no = AllocTemp();
   LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
+  // NOTE: native pointer.
   LoadWordDisp(rs_rMIPS_SELF, Thread::CardTableOffset<4>().Int32Value(), reg_card_base);
   OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, gc::accounting::CardTable::kCardShift);
   StoreBaseIndexed(reg_card_base, reg_card_no, reg_card_base, 0, kUnsignedByte);
@@ -310,7 +311,7 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
   RegStorage new_sp = AllocTemp();
   if (!skip_overflow_check) {
     /* Load stack limit */
-    LoadWordDisp(rs_rMIPS_SELF, Thread::StackEndOffset<4>().Int32Value(), check_reg);
+    Load32Disp(rs_rMIPS_SELF, Thread::StackEndOffset<4>().Int32Value(), check_reg);
   }
   /* Spill core callee saves */
   SpillCoreRegs();
@@ -328,7 +329,7 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
         m2l_->ResetDefTracking();
         GenerateTargetLabel();
         // LR is offset 0 since we push in reverse order.
-        m2l_->LoadWordDisp(rs_rMIPS_SP, 0, rs_rRA);
+        m2l_->Load32Disp(rs_rMIPS_SP, 0, rs_rRA);
         m2l_->OpRegImm(kOpAdd, rs_rMIPS_SP, sp_displace_);
         m2l_->ClobberCallerSave();
         ThreadOffset<4> func_offset = QUICK_ENTRYPOINT_OFFSET(4, pThrowStackOverflow);

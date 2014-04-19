@@ -480,7 +480,7 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
   rl_array = LoadValue(rl_array, kCoreReg);
   rl_index = LoadValue(rl_index, kCoreReg);
 
-  if (size == kLong || size == kDouble) {
+  if (size == k64 || size == kDouble) {
     data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Int32Value();
   } else {
     data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Int32Value();
@@ -495,12 +495,12 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
   if (needs_range_check) {
     reg_len = AllocTemp();
     /* Get len */
-    LoadWordDisp(rl_array.reg, len_offset, reg_len);
+    Load32Disp(rl_array.reg, len_offset, reg_len);
   }
   /* reg_ptr -> array data */
   OpRegRegImm(kOpAdd, reg_ptr, rl_array.reg, data_offset);
   FreeTemp(rl_array.reg.GetReg());
-  if ((size == kLong) || (size == kDouble)) {
+  if ((size == k64) || (size == kDouble)) {
     if (scale) {
       RegStorage r_new_index = AllocTemp();
       OpRegRegImm(kOpLsl, r_new_index, rl_index.reg, scale);
@@ -544,7 +544,7 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
 
-  if (size == kLong || size == kDouble) {
+  if (size == k64 || size == kDouble) {
     data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Int32Value();
   } else {
     data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Int32Value();
@@ -572,12 +572,12 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     reg_len = AllocTemp();
     // NOTE: max live temps(4) here.
     /* Get len */
-    LoadWordDisp(rl_array.reg, len_offset, reg_len);
+    Load32Disp(rl_array.reg, len_offset, reg_len);
   }
   /* reg_ptr -> array data */
   OpRegImm(kOpAdd, reg_ptr, data_offset);
   /* at this point, reg_ptr points to array, 2 live temps */
-  if ((size == kLong) || (size == kDouble)) {
+  if ((size == k64) || (size == kDouble)) {
     // TUNING: specific wide routine that can handle fp regs
     if (scale) {
       RegStorage r_new_index = AllocTemp();
