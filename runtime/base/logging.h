@@ -22,6 +22,7 @@
 #include <iostream>  // NOLINT
 #include <sstream>
 #include <signal.h>
+#include <vector>
 #include "base/macros.h"
 #include "log_severity.h"
 #include "UniquePtr.h"
@@ -298,6 +299,8 @@ struct LogVerbosity {
 };
 
 extern LogVerbosity gLogVerbosity;
+
+extern std::vector<std::string> gVerboseMethods;
 
 // Used on fatal exit. Prevents recursive aborts. Allows us to disable
 // some error checking to ensure fatal shutdown makes forward progress.
