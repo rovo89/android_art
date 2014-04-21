@@ -291,4 +291,71 @@ ifeq ($(ART_BUILD_HOST_DEBUG),true)
   ART_BUILD_DEBUG := true
 endif
 
+# Helper function to call a function twice with a target suffix
+# $(1): The generator function for the rules
+#         Has one argument, the suffix
+define call-art-multi-target
+  $(call $(1),$(ART_PHONY_TEST_TARGET_SUFFIX))
+  
+  ifdef TARGET_2ND_ARCH
+    $(call $(1),$(2ND_ART_PHONY_TEST_TARGET_SUFFIX))
+  endif
+endef
+
+# Helper function to combine two variables with suffixes together.
+# $(1): The base name.
+define combine-art-multi-target-var
+  ifdef TARGET_2ND_ARCH
+    ifneq ($(ART_PHONY_TEST_TARGET_SUFFIX),)
+      ifneq ($(2ND_ART_PHONY_TEST_TARGET_SUFFIX),)
+$(1) := $($(1)$(ART_PHONY_TEST_TARGET_SUFFIX)) $($(1)$(2ND_ART_PHONY_TEST_TARGET_SUFFIX))
+      endif
+    endif
+  endif
+endef
+
+
+# Helper function to define a variable twice with a target suffix. Assume the name generated is
+# derived from $(2) so we can create a combined var.
+# $(1): The generator function for the rules
+#         Has one argument, the suffix
+define call-art-multi-target-var
+  $(call $(1),$(ART_PHONY_TEST_TARGET_SUFFIX))
+  
+  ifdef TARGET_2ND_ARCH
+    $(call $(1),$(2ND_ART_PHONY_TEST_TARGET_SUFFIX))
+    
+    # Link both together, if it makes sense
+    ifneq ($(ART_PHONY_TEST_TARGET_SUFFIX),)
+      ifneq ($(2ND_ART_PHONY_TEST_TARGET_SUFFIX),)
+$(2) := $(2)$(ART_PHONY_TEST_TARGET_SUFFIX) $(2)$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)
+      endif
+    endif
+
+  endif
+endef
+
+# Helper function to call a function twice with a target suffix. Assume it generates make rules
+# with the given name, and link them.
+# $(1): The generator function for the rules
+#         Has one argument, the suffix
+# $(2): The base rule name, necessary for the link
+#       We assume we can link the names together easily...
+define call-art-multi-target-rule
+  $(call $(1),$(ART_PHONY_TEST_TARGET_SUFFIX))
+  
+  ifdef TARGET_2ND_ARCH
+    $(call $(1),$(2ND_ART_PHONY_TEST_TARGET_SUFFIX))
+  
+    # Link both together, if it makes sense
+    ifneq ($(ART_PHONY_TEST_TARGET_SUFFIX),)
+      ifneq ($(2ND_ART_PHONY_TEST_TARGET_SUFFIX),)
+.PHONY: $(2)
+$(2): $(2)$(ART_PHONY_TEST_TARGET_SUFFIX) $(2)$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)
+      endif
+    endif
+  endif
+endef
+
+
 endif # ANDROID_COMMON_MK

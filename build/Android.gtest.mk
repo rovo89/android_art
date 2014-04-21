@@ -105,10 +105,12 @@ COMPILER_GTEST_HOST_SRC_FILES := \
 	compiler/utils/x86/assembler_x86_test.cc
 
 ART_HOST_GTEST_EXECUTABLES :=
-ART_TARGET_GTEST_EXECUTABLES :=
+ART_TARGET_GTEST_EXECUTABLES$(ART_PHONY_TEST_TARGET_SUFFIX) :=
+ART_TARGET_GTEST_EXECUTABLES$(2ND_ART_PHONY_TEST_TARGET_SUFFIX) :=
 ART_HOST_GTEST_TARGETS :=
 ART_HOST_VALGRIND_GTEST_TARGETS :=
-ART_TARGET_GTEST_TARGETS :=
+ART_TARGET_GTEST_TARGETS$(ART_PHONY_TEST_TARGET_SUFFIX) :=
+ART_TARGET_GTEST_TARGETS$(2ND_ART_PHONY_TEST_TARGET_SUFFIX) :=
 
 ART_TEST_CFLAGS :=
 ifeq ($(ART_USE_PORTABLE_COMPILER),true)
@@ -127,7 +129,7 @@ $$(art_gtest_target)$($(1)ART_PHONY_TEST_TARGET_SUFFIX): $($(1)ART_NATIVETEST_OU
 	$(hide) (adb pull $($(1)ART_TEST_DIR)/$$@ /tmp/ && echo $$@ PASSED) || (echo $$@ FAILED && exit 1)
 	$(hide) rm /tmp/$$@
 
-    ART_TARGET_GTEST_TARGETS += $$(art_gtest_target)$($(1)ART_PHONY_TEST_TARGET_SUFFIX)
+  ART_TARGET_GTEST_TARGETS$($(1)ART_PHONY_TEST_TARGET_SUFFIX) += $$(art_gtest_target)$($(1)ART_PHONY_TEST_TARGET_SUFFIX)
 endef
 
 
@@ -182,11 +184,14 @@ define build-art-test
     LOCAL_MULTILIB := both
     include art/build/Android.libcxx.mk
     include $(BUILD_EXECUTABLE)
-    ART_TARGET_GTEST_EXECUTABLES += $$(art_gtest_exe)
+    
+    ART_TARGET_GTEST_EXECUTABLES$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_NATIVETEST_OUT)/$$(LOCAL_MODULE)
     art_gtest_target := test-art-$$(art_target_or_host)-gtest-$$(art_gtest_name)
 
     ifdef TARGET_2ND_ARCH
       $(call build-art-test-make-target,2ND_)
+
+      ART_TARGET_GTEST_EXECUTABLES$(2ND_ART_PHONY_TEST_TARGET_SUFFIX) += $(2ND_ART_NATIVETEST_OUT)/$$(LOCAL_MODULE)
 
       # Bind the primary to the non-suffix rule
       ifneq ($(ART_PHONY_TEST_TARGET_SUFFIX),)
