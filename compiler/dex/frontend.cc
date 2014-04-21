@@ -181,6 +181,17 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
         (cu.enable_debug & (1 << kDebugVerbose));
   }
 
+  if (gVerboseMethods.size() != 0) {
+    cu.verbose = false;
+    for (size_t i = 0; i < gVerboseMethods.size(); ++i) {
+      if (PrettyMethod(method_idx, dex_file).find(gVerboseMethods[i])
+          != std::string::npos) {
+        cu.verbose = true;
+        break;
+      }
+    }
+  }
+
   /*
    * TODO: rework handling of optimization and debug flags.  Should we split out
    * MIR and backend flags?  Need command-line setting as well.
