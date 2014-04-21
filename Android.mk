@@ -99,6 +99,8 @@ include $(art_path)/dalvikvm/Android.mk
 include $(art_path)/tools/Android.mk
 include $(art_build_path)/Android.oat.mk
 
+
+
 # ART_HOST_DEPENDENCIES depends on Android.executable.mk above for ART_HOST_EXECUTABLES
 ART_HOST_DEPENDENCIES := $(ART_HOST_EXECUTABLES) $(HOST_OUT_JAVA_LIBRARIES)/core-libart-hostdex.jar
 ART_HOST_DEPENDENCIES += $(HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
@@ -110,11 +112,18 @@ ART_TARGET_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_JAVA_LIBRARIES
 include $(art_path)/test/Android.mk
 include $(art_build_path)/Android.gtest.mk
 
+$(eval $(call combine-art-multi-target-var,ART_TARGET_GTEST_TARGETS))
+$(eval $(call combine-art-multi-target-var,ART_TARGET_GTEST_EXECUTABLES))
+
 # The ART_*_TEST_DEPENDENCIES definitions:
 # - depend on Android.oattest.mk above for ART_TEST_*_DEX_FILES
 # - depend on Android.gtest.mk above for ART_*_GTEST_EXECUTABLES
 ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_HOST_GTEST_EXECUTABLES)   $(ART_TEST_HOST_DEX_FILES)   $(HOST_CORE_IMG_OUT)
-ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TARGET_GTEST_EXECUTABLES) $(ART_TEST_TARGET_DEX_FILES) $(TARGET_CORE_IMG_OUT)
+
+define declare-art-target-test-dependencies-var
+ART_TARGET_TEST_DEPENDENCIES$(1) := $(ART_TARGET_DEPENDENCIES) $(ART_TARGET_GTEST_EXECUTABLES$(1)) $(ART_TEST_TARGET_DEX_FILES$(1)) $(TARGET_CORE_IMG_OUT$(1))
+endef
+$(eval $(call call-art-multi-target-var,declare-art-target-test-dependencies-var,ART_TARGET_TEST_DEPENDENCIES))
 
 include $(art_build_path)/Android.libarttest.mk
 
@@ -209,46 +218,69 @@ test-art-host-run-test: test-art-host-run-test-default test-art-host-run-test-in
 # target test targets
 
 # "mm test-art-target" to build and run all target tests
-.PHONY: test-art-target
-test-art-target: test-art-target-gtest test-art-target-oat test-art-target-run-test
-	@echo test-art-target PASSED
+define declare-test-art-target
+.PHONY: test-art-target$(1)
+test-art-target$(1): test-art-target-gtest$(1) test-art-target-oat$(1) test-art-target-run-test$(1)
+	@echo test-art-target$(1) PASSED
+endef
+$(eval $(call call-art-multi-target-rule,declare-test-art-target,test-art-target))
 
-.PHONY: test-art-target-dependencies
-test-art-target-dependencies: $(ART_TARGET_TEST_DEPENDENCIES) $(ART_TEST_OUT)/libarttest.so
+
+define declare-test-art-target-dependencies
+.PHONY: test-art-target-dependencies$(1)
+test-art-target-dependencies$(1): $(ART_TARGET_TEST_DEPENDENCIES$(1)) $(ART_TEST_OUT)/libarttest.so
+endef
+$(eval $(call call-art-multi-target-rule,declare-test-art-target-dependencies,test-art-target-dependencies))
+
 
 .PHONY: test-art-target-sync
-test-art-target-sync: test-art-target-dependencies
+test-art-target-sync: test-art-target-dependencies$(ART_PHONY_TEST_TARGET_SUFFIX) test-art-target-dependencies$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)
 	adb remount
 	adb sync
 	adb shell mkdir -p $(ART_TEST_DIR)
 
-.PHONY: test-art-target-gtest
-test-art-target-gtest: $(ART_TARGET_GTEST_TARGETS)
 
-.PHONY: test-art-target-oat
-test-art-target-oat: $(ART_TEST_TARGET_OAT_TARGETS)
-	@echo test-art-target-oat PASSED
+define declare-test-art-target-gtest
+.PHONY: test-art-target-gtest$(1)
+test-art-target-gtest$(1): $(ART_TARGET_GTEST_TARGETS$(1))
+endef
+$(eval $(call call-art-multi-target-rule,declare-test-art-target-gtest,test-art-target-gtest))
+
+
+define declare-test-art-target-oat
+.PHONY: test-art-target-oat$(1)
+test-art-target-oat$(1): $(ART_TEST_TARGET_OAT_TARGETS$(1))
+	@echo test-art-target-oat$(1) PASSED
+endef
+$(eval $(call call-art-multi-target-rule,declare-test-art-target-oat,test-art-target-oat))
+
 
 define declare-test-art-target-run-test-impl
+$(2)run_test_$(1) :=
+ifeq ($($(2)ART_PHONY_TEST_TARGET_SUFFIX),64)
+ $(2)run_test_$(1) := --64
+endif
 .PHONY: test-art-target-run-test-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX)
 test-art-target-run-test-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX): test-art-target-sync $(DX) $(HOST_OUT_EXECUTABLES)/jasmin
-	DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) art/test/run-test $(DALVIKVM_FLAGS) $(1) $(3)
+	DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) art/test/run-test $(DALVIKVM_FLAGS) $$($(2)run_test_$(1)) $(1)
 	@echo test-art-target-run-test-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX) PASSED
 endef
 
 define declare-test-art-target-run-test
 
   ifdef TARGET_2ND_ARCH
-    $(call declare-test-art-target-run-test-impl,$(1),2ND_,)
+    $(call declare-test-art-target-run-test-impl,$(1),2ND_)
+    
+    TEST_ART_TARGET_RUN_TEST_TARGETS$(2ND_ART_PHONY_TEST_TARGET_SUFFIX) += test-art-target-run-test-$(1)$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)
 
     ifneq ($(ART_PHONY_TEST_TARGET_SUFFIX),)
       # Link primary to non-suffix
 test-art-target-run-test-$(1): test-art-target-run-test-$(1)$(ART_PHONY_TEST_TARGET_SUFFIX)
     endif
   endif
-  $(call declare-test-art-target-run-test-impl,$(1),,--$(ART_TARGET_BINARY_SUFFIX))
+  $(call declare-test-art-target-run-test-impl,$(1),)
 
-  TEST_ART_TARGET_RUN_TEST_TARGETS += test-art-target-run-test-$(1)
+  TEST_ART_TARGET_RUN_TEST_TARGETS$(ART_PHONY_TEST_TARGET_SUFFIX) += test-art-target-run-test-$(1)$(ART_PHONY_TEST_TARGET_SUFFIX)
 
 test-art-run-test-$(1): test-art-host-run-test-$(1) test-art-target-run-test-$(1)
 
@@ -256,9 +288,14 @@ endef
 
 $(foreach test, $(TEST_ART_RUN_TESTS), $(eval $(call declare-test-art-target-run-test,$(test))))
 
-.PHONY: test-art-target-run-test
-test-art-target-run-test: $(TEST_ART_TARGET_RUN_TEST_TARGETS)
-	@echo test-art-target-run-test PASSED
+
+define declare-test-art-target-run-test
+.PHONY: test-art-target-run-test$(1)
+test-art-target-run-test$(1): $(TEST_ART_TARGET_RUN_TEST_TARGETS$(1))
+	@echo test-art-target-run-test$(1) PASSED
+endef
+$(eval $(call call-art-multi-target-rule,declare-test-art-target-run-test,test-art-target-run-test))
+
 
 ########################################################################
 # oat-target and oat-target-sync targets
