@@ -243,6 +243,7 @@ test-art-target-sync: test-art-target-dependencies$(ART_PHONY_TEST_TARGET_SUFFIX
 define declare-test-art-target-gtest
 .PHONY: test-art-target-gtest$(1)
 test-art-target-gtest$(1): $(ART_TARGET_GTEST_TARGETS$(1))
+	@echo test-art-target-gtest$(1) PASSED
 endef
 $(eval $(call call-art-multi-target-rule,declare-test-art-target-gtest,test-art-target-gtest))
 
