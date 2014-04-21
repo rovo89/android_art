@@ -221,12 +221,6 @@ void MipsMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
   UNIMPLEMENTED(FATAL) << "Need codegen for fused long cmp branch";
 }
 
-LIR* MipsMir2Lir::GenRegMemCheck(ConditionCode c_code, RegStorage reg1, RegStorage base,
-                                 int offset, ThrowKind kind) {
-  LOG(FATAL) << "Unexpected use of GenRegMemCheck for Arm";
-  return NULL;
-}
-
 RegLocation MipsMir2Lir::GenDivRem(RegLocation rl_dest, RegStorage reg1, RegStorage reg2,
                                     bool is_div) {
   NewLIR2(kMipsDiv, reg1.GetReg(), reg2.GetReg());

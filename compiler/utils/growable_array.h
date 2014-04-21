@@ -31,7 +31,6 @@ enum OatListKind {
   kGrowableArrayDfsOrder,
   kGrowableArrayDfsPostOrder,
   kGrowableArrayDomPostOrderTraversal,
-  kGrowableArrayThrowLaunchPads,
   kGrowableArraySuspendLaunchPads,
   kGrowableArraySwitchTables,
   kGrowableArrayFillArrayData,

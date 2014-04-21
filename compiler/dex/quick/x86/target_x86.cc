@@ -1033,14 +1033,14 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've null checked.
 
   // Does the character fit in 16 bits?
-  LIR* launchpad_branch = nullptr;
+  LIR* slowpath_branch = nullptr;
   if (rl_char.is_const) {
     // We need the value in EAX.
     LoadConstantNoClobber(rs_rAX, char_value);
   } else {
     // Character is not a constant; compare at runtime.
     LoadValueDirectFixed(rl_char, rs_rAX);
-    launchpad_branch = OpCmpImmBranch(kCondGt, rs_rAX, 0xFFFF, nullptr);
+    slowpath_branch = OpCmpImmBranch(kCondGt, rs_rAX, 0xFFFF, nullptr);
   }
 
   // From here down, we know that we are looking for a char that fits in 16 bits.
@@ -1167,9 +1167,9 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   NewLIR1(kX86Pop32R, rDI);
 
   // Out of line code returns here.
-  if (launchpad_branch != nullptr) {
+  if (slowpath_branch != nullptr) {
     LIR *return_point = NewLIR0(kPseudoTargetLabel);
-    AddIntrinsicLaunchpad(info, launchpad_branch, return_point);
+    AddIntrinsicSlowPath(info, slowpath_branch, return_point);
   }
 
   StoreValue(rl_dest, rl_return);

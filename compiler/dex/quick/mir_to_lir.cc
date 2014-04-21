@@ -1097,8 +1097,6 @@ void Mir2Lir::MethodMIR2LIR() {
 
   cu_->NewTimingSplit("Launchpads");
   HandleSuspendLaunchPads();
-
-  HandleThrowLaunchPads();
 }
 
 //

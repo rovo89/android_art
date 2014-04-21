@@ -42,22 +42,6 @@ void Mir2Lir::GenBarrier() {
   barrier->u.m.def_mask = ENCODE_ALL;
 }
 
-LIR* Mir2Lir::GenImmedCheck(ConditionCode c_code, RegStorage reg, int imm_val, ThrowKind kind) {
-  LIR* tgt;
-  LIR* branch;
-  if (c_code == kCondAl) {
-    tgt = RawLIR(0, kPseudoThrowTarget, kind, current_dalvik_offset_, RegStorage::kInvalidRegVal,
-                 imm_val);
-    branch = OpUnconditionalBranch(tgt);
-  } else {
-    tgt = RawLIR(0, kPseudoThrowTarget, kind, current_dalvik_offset_, reg.GetReg(), imm_val);
-    branch = OpCmpImmBranch(c_code, reg, imm_val, tgt);
-  }
-  // Remember branch target - will process later
-  throw_launchpads_.Insert(tgt);
-  return branch;
-}
-
 void Mir2Lir::GenDivZeroException() {
   LIR* branch = OpUnconditionalBranch(nullptr);
   AddDivZeroCheckSlowPath(branch);
@@ -208,17 +192,6 @@ void Mir2Lir::ForceImplicitNullCheck(RegStorage reg, int opt_flags) {
     FreeTemp(tmp);
     MarkSafepointPC(load);
   }
-}
-
-/* Perform check on two registers */
-LIR* Mir2Lir::GenRegRegCheck(ConditionCode c_code, RegStorage reg1, RegStorage reg2,
-                             ThrowKind kind) {
-  LIR* tgt = RawLIR(0, kPseudoThrowTarget, kind, current_dalvik_offset_, reg1.GetReg(),
-                    reg2.GetReg());
-  LIR* branch = OpCmpBranch(c_code, reg1, reg2, tgt);
-  // Remember branch target - will process later
-  throw_launchpads_.Insert(tgt);
-  return branch;
 }
 
 void Mir2Lir::GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
@@ -725,31 +698,6 @@ void Mir2Lir::HandleSuspendLaunchPads() {
     RegStorage r_tgt = CallHelperSetup(helper_offset);
     CallHelper(r_tgt, helper_offset, true /* MarkSafepointPC */);
     OpUnconditionalBranch(resume_lab);
-  }
-}
-
-void Mir2Lir::HandleThrowLaunchPads() {
-  int num_elems = throw_launchpads_.Size();
-  for (int i = 0; i < num_elems; i++) {
-    ResetRegPool();
-    ResetDefTracking();
-    LIR* lab = throw_launchpads_.Get(i);
-    current_dalvik_offset_ = lab->operands[1];
-    AppendLIR(lab);
-    ThreadOffset<4> func_offset(-1);
-    int v1 = lab->operands[2];
-    switch (lab->operands[0]) {
-      case kThrowNoSuchMethod:
-        OpRegCopy(TargetReg(kArg0), RegStorage::Solo32(v1));
-        func_offset =
-          QUICK_ENTRYPOINT_OFFSET(4, pThrowNoSuchMethod);
-        break;
-      default:
-        LOG(FATAL) << "Unexpected throw kind: " << lab->operands[0];
-    }
-    ClobberCallerSave();
-    RegStorage r_tgt = CallHelperSetup(func_offset);
-    CallHelper(r_tgt, func_offset, true /* MarkSafepointPC */, true /* UseLink */);
   }
 }
 

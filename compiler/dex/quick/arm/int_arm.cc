@@ -314,11 +314,11 @@ LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_va
   /*
    * A common use of OpCmpImmBranch is for null checks, and using the Thumb 16-bit
    * compare-and-branch if zero is ideal if it will reach.  However, because null checks
-   * branch forward to a launch pad, they will frequently not reach - and thus have to
+   * branch forward to a slow path, they will frequently not reach - and thus have to
    * be converted to a long form during assembly (which will trigger another assembly
    * pass).  Here we estimate the branch distance for checks, and if large directly
    * generate the long form in an attempt to avoid an extra assembly pass.
-   * TODO: consider interspersing launchpads in code following unconditional branches.
+   * TODO: consider interspersing slowpaths in code following unconditional branches.
    */
   bool skip = ((target != NULL) && (target->opcode == kPseudoThrowTarget));
   skip &= ((cu_->code_item->insns_size_in_code_units_ - current_dalvik_offset_) > 64);
@@ -606,12 +606,6 @@ bool ArmMir2Lir::EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) 
   GenEasyMultiplyTwoOps(rl_result.reg, rl_src.reg, ops);
   StoreValue(rl_dest, rl_result);
   return true;
-}
-
-LIR* ArmMir2Lir::GenRegMemCheck(ConditionCode c_code, RegStorage reg1, RegStorage base,
-                                int offset, ThrowKind kind) {
-  LOG(FATAL) << "Unexpected use of GenRegMemCheck for Arm";
-  return NULL;
 }
 
 RegLocation ArmMir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
