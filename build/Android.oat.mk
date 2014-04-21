@@ -63,6 +63,9 @@ $$($(1)TARGET_CORE_IMG_OUT): $$($(1)TARGET_CORE_DEX_FILES) $$(DEX2OATD_DEPENDENC
 		--oat-location=$$($(1)TARGET_CORE_OAT) --image=$$($(1)TARGET_CORE_IMG_OUT) --base=$$(LIBART_IMG_TARGET_BASE_ADDRESS) \
 		--instruction-set=$$($(1)TARGET_ARCH) --instruction-set-features=$$(TARGET_INSTRUCTION_SET_FEATURES) --android-root=$$(PRODUCT_OUT)/system
 
+# This "renaming" eases declaration in art/Android.mk
+TARGET_CORE_IMG_OUT$($(1)ART_PHONY_TEST_TARGET_SUFFIX) := $($(1)TARGET_CORE_IMG_OUT)
+
 $$($(1)TARGET_CORE_OAT_OUT): $$($(1)TARGET_CORE_IMG_OUT)
 endef
 
