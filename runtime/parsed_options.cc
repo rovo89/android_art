@@ -447,6 +447,9 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
           return false;
         }
       }
+    } else if (StartsWith(option, "-verbose-methods:")) {
+      gLogVerbosity.compiler = false;
+      Split(option.substr(strlen("-verbose-methods:")), ',', gVerboseMethods);
     } else if (StartsWith(option, "-Xlockprofthreshold:")) {
       if (!ParseUnsignedInteger(option, ':', &lock_profiling_threshold_)) {
         return false;
