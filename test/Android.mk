@@ -57,6 +57,8 @@ TEST_OAT_DIRECTORIES := \
 #	StackWalk2 \
 
 ART_TEST_TARGET_DEX_FILES :=
+ART_TEST_TARGET_DEX_FILES$(ART_PHONY_TEST_TARGET_SUFFIX) :=
+ART_TEST_TARGET_DEX_FILES$(2ND_ART_PHONY_TEST_TARGET_SUFFIX) :=
 ART_TEST_HOST_DEX_FILES :=
 
 # $(1): module prefix
@@ -76,13 +78,17 @@ define build-art-test-dex
     LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
     LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
     include $(BUILD_JAVA_LIBRARY)
+    
     ART_TEST_TARGET_DEX_FILES += $$(LOCAL_INSTALLED_MODULE)
+    ART_TEST_TARGET_DEX_FILES$(ART_PHONY_TEST_TARGET_SUFFIX) += $$(LOCAL_INSTALLED_MODULE)
 
     ifdef TARGET_2ND_ARCH
+	    ART_TEST_TARGET_DEX_FILES$(2ND_ART_PHONY_TEST_TARGET_SUFFIX) += $(4)/$(1)-$(2).jar
+
       # TODO: make this a simple copy
-$(4)/$(1)-$(2).jar: $(3)/$(1)-$(2).jar
+$(4)/$(1)-$(2).jar: $(3)/$(1)-$(2).jar $(4)
 	cp $$< $(4)/
-    endif
+    endif    
   endif
 
   ifeq ($(ART_BUILD_HOST),true)
@@ -102,9 +108,22 @@ endef
 $(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,art-test-dex,$(dir),$(ART_NATIVETEST_OUT),$(2ND_ART_NATIVETEST_OUT))))
 $(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-dex,oat-test-dex,$(dir),$(ART_TEST_OUT),$(2ND_ART_TEST_OUT))))
 
+# Rules to explicitly create 2nd-arch test directories, as we use a "cp" for them
+# instead of BUILD_JAVA_LIBRARY
+ifneq ($(2ND_ART_NATIVETEST_OUT),)
+$(2ND_ART_NATIVETEST_OUT):
+	$(hide) mkdir -p $@
+endif
+
+ifneq ($(2ND_ART_TEST_OUT),)
+$(2ND_ART_TEST_OUT):
+	$(hide) mkdir -p $@
+endif
+
 ########################################################################
 
-ART_TEST_TARGET_OAT_TARGETS :=
+ART_TEST_TARGET_OAT_TARGETS$(ART_PHONY_TEST_TARGET_SUFFIX) :=
+ART_TEST_TARGET_OAT_TARGETS$(2ND_ART_PHONY_TEST_TARGET_SUFFIX) :=
 ART_TEST_HOST_OAT_DEFAULT_TARGETS :=
 ART_TEST_HOST_OAT_INTERPRETER_TARGETS :=
 
@@ -160,7 +179,10 @@ test-art-host-oat-$(1): test-art-host-oat-default-$(1) test-art-host-oat-interpr
 .PHONY: test-art-oat-$(1)
 test-art-oat-$(1): test-art-host-oat-$(1) test-art-target-oat-$(1)
 
-ART_TEST_TARGET_OAT_TARGETS += test-art-target-oat-$(1)
+ART_TEST_TARGET_OAT_TARGETS$(ART_PHONY_TEST_TARGET_SUFFIX) += test-art-target-oat-$(1)$(ART_PHONY_TEST_TARGET_SUFFIX)
+ifdef TARGET_2ND_ARCH
+  ART_TEST_TARGET_OAT_TARGETS$(2ND_ART_PHONY_TEST_TARGET_SUFFIX) += test-art-target-oat-$(1)$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)
+endif
 ART_TEST_HOST_OAT_DEFAULT_TARGETS += test-art-host-oat-default-$(1)
 ART_TEST_HOST_OAT_INTERPRETER_TARGETS += test-art-host-oat-interpreter-$(1)
 endef
