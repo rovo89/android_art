@@ -254,19 +254,10 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
 
   int idx = ExtractIndex(iref);
 
-  JavaVMExt* vm = Runtime::Current()->GetJavaVM();
   if (GetIndirectRefKind(iref) == kSirtOrInvalid &&
       Thread::Current()->SirtContains(reinterpret_cast<jobject>(iref))) {
     LOG(WARNING) << "Attempt to remove local SIRT entry from IRT, ignoring";
     return true;
-  }
-  if (GetIndirectRefKind(iref) == kSirtOrInvalid && vm->work_around_app_jni_bugs) {
-    mirror::Object* direct_pointer = reinterpret_cast<mirror::Object*>(iref);
-    idx = Find(direct_pointer, bottomIndex, topIndex, table_);
-    if (idx == -1) {
-      LOG(WARNING) << "Trying to work around app JNI bugs, but didn't find " << iref << " in table!";
-      return false;
-    }
   }
 
   if (idx < bottomIndex) {
@@ -285,7 +276,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
   if (idx == topIndex-1) {
     // Top-most entry.  Scan up and consume holes.
 
-    if (!vm->work_around_app_jni_bugs && !CheckEntry("remove", iref, idx)) {
+    if (!CheckEntry("remove", iref, idx)) {
       return false;
     }
 
@@ -321,7 +312,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
       LOG(INFO) << "--- WEIRD: removing null entry " << idx;
       return false;
     }
-    if (!vm->work_around_app_jni_bugs && !CheckEntry("remove", iref, idx)) {
+    if (!CheckEntry("remove", iref, idx)) {
       return false;
     }
 

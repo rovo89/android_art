@@ -171,7 +171,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
 
     DCHECK_NE((reinterpret_cast<uintptr_t>(obj) & 0xffff0000), 0xebad0000);
 
-    return Env()->AddLocalReference<T>(obj, Vm()->work_around_app_jni_bugs);
+    return Env()->AddLocalReference<T>(obj);
   }
 
   template<typename T>

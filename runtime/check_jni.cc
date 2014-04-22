@@ -765,14 +765,9 @@ class ScopedCheck {
     // Verify that the current thread is (a) attached and (b) associated with
     // this particular instance of JNIEnv.
     if (soa_.Env() != threadEnv) {
-      if (soa_.Vm()->work_around_app_jni_bugs) {
-        // If we're keeping broken code limping along, we need to suppress the abort...
-        LOG(ERROR) << "APP BUG DETECTED: thread " << *self << " using JNIEnv* from thread " << *soa_.Self();
-      } else {
-        JniAbortF(function_name_, "thread %s using JNIEnv* from thread %s",
-                  ToStr<Thread>(*self).c_str(), ToStr<Thread>(*soa_.Self()).c_str());
-        return;
-      }
+      JniAbortF(function_name_, "thread %s using JNIEnv* from thread %s",
+                ToStr<Thread>(*self).c_str(), ToStr<Thread>(*soa_.Self()).c_str());
+      return;
     }
 
     // Verify that, if this thread previously made a critical "get" call, we
