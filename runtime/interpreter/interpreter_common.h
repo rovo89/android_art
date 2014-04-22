@@ -498,7 +498,8 @@ static inline uint32_t FindNextInstructionFollowingException(Thread* self,
   ThrowLocation throw_location;
   mirror::Throwable* exception = self->GetException(&throw_location);
   bool clear_exception = false;
-  uint32_t found_dex_pc = shadow_frame.GetMethod()->FindCatchBlock(exception->GetClass(), dex_pc,
+  SirtRef<mirror::Class> exception_class(self, exception->GetClass());
+  uint32_t found_dex_pc = shadow_frame.GetMethod()->FindCatchBlock(exception_class, dex_pc,
                                                                    &clear_exception);
   if (found_dex_pc == DexFile::kDexNoIndex) {
     instrumentation->MethodUnwindEvent(self, this_object,

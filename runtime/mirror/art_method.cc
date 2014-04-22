@@ -230,10 +230,15 @@ uintptr_t ArtMethod::ToNativePc(const uint32_t dex_pc) {
   return 0;
 }
 
-uint32_t ArtMethod::FindCatchBlock(Class* exception_type, uint32_t dex_pc,
+uint32_t ArtMethod::FindCatchBlock(SirtRef<Class>& exception_type, uint32_t dex_pc,
                                    bool* has_no_move_exception) {
   MethodHelper mh(this);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  // Set aside the exception while we resolve its type.
+  Thread* self = Thread::Current();
+  ThrowLocation throw_location;
+  SirtRef<mirror::Throwable> exception(self, self->GetException(&throw_location));
+  self->ClearException();
   // Default to handler not found.
   uint32_t found_dex_pc = DexFile::kDexNoIndex;
   // Iterate over the catch handlers associated with dex_pc.
@@ -245,20 +250,24 @@ uint32_t ArtMethod::FindCatchBlock(Class* exception_type, uint32_t dex_pc,
       break;
     }
     // Does this catch exception type apply?
-    Class* iter_exception_type = mh.GetDexCacheResolvedType(iter_type_idx);
-    if (iter_exception_type == NULL) {
-      // The verifier should take care of resolving all exception classes early
+    Class* iter_exception_type = mh.GetClassFromTypeIdx(iter_type_idx);
+    if (exception_type.get() == nullptr) {
+      self->ClearException();
       LOG(WARNING) << "Unresolved exception class when finding catch block: "
         << mh.GetTypeDescriptorFromTypeIdx(iter_type_idx);
-    } else if (iter_exception_type->IsAssignableFrom(exception_type)) {
+    } else if (iter_exception_type->IsAssignableFrom(exception_type.get())) {
       found_dex_pc = it.GetHandlerAddress();
       break;
     }
   }
   if (found_dex_pc != DexFile::kDexNoIndex) {
     const Instruction* first_catch_instr =
-        Instruction::At(&mh.GetCodeItem()->insns_[found_dex_pc]);
+        Instruction::At(&code_item->insns_[found_dex_pc]);
     *has_no_move_exception = (first_catch_instr->Opcode() != Instruction::MOVE_EXCEPTION);
+  }
+  // Put the exception back.
+  if (exception.get() != nullptr) {
+    self->SetException(throw_location, exception.get());
   }
   return found_dex_pc;
 }

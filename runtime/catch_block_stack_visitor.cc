@@ -53,7 +53,9 @@ bool CatchBlockStackVisitor::HandleTryItems(mirror::ArtMethod* method) {
   }
   if (dex_pc != DexFile::kDexNoIndex) {
     bool clear_exception = false;
-    uint32_t found_dex_pc = method->FindCatchBlock(to_find_, dex_pc, &clear_exception);
+    SirtRef<mirror::Class> sirt_method_to_find(Thread::Current(), to_find_);
+    uint32_t found_dex_pc = method->FindCatchBlock(sirt_method_to_find, dex_pc, &clear_exception);
+    to_find_ = sirt_method_to_find.get();
     catch_finder_->SetClearException(clear_exception);
     if (found_dex_pc != DexFile::kDexNoIndex) {
       catch_finder_->SetHandlerDexPc(found_dex_pc);
