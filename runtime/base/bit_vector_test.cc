@@ -29,8 +29,8 @@ TEST(BitVector, Test) {
   EXPECT_FALSE(bv.IsExpandable());
 
   EXPECT_EQ(0U, bv.NumSetBits());
-  EXPECT_EQ(0U, bv.NumSetBits(0));
-  EXPECT_EQ(0U, bv.NumSetBits(kBits - 1));
+  EXPECT_EQ(0U, bv.NumSetBits(1));
+  EXPECT_EQ(0U, bv.NumSetBits(kBits));
   for (size_t i = 0; i < kBits; i++) {
     EXPECT_FALSE(bv.IsBitSet(i));
   }
@@ -46,8 +46,8 @@ TEST(BitVector, Test) {
   bv.SetBit(0);
   bv.SetBit(kBits - 1);
   EXPECT_EQ(2U, bv.NumSetBits());
-  EXPECT_EQ(1U, bv.NumSetBits(0));
-  EXPECT_EQ(2U, bv.NumSetBits(kBits - 1));
+  EXPECT_EQ(1U, bv.NumSetBits(1));
+  EXPECT_EQ(2U, bv.NumSetBits(kBits));
   EXPECT_TRUE(bv.IsBitSet(0));
   for (size_t i = 1; i < kBits - 1; i++) {
     EXPECT_FALSE(bv.IsBitSet(i));
@@ -98,25 +98,25 @@ TEST(BitVector, NoopAllocator) {
   EXPECT_EQ(0x00010001U, bv.GetRawStorageWord(1));
   EXPECT_EQ(4U, bv.NumSetBits());
 
-  EXPECT_EQ(0U, bv.NumSetBits(0));
+  EXPECT_EQ(0U, bv.NumSetBits(1));
 
-  EXPECT_EQ(0U, bv.NumSetBits(7));
-  EXPECT_EQ(1U, bv.NumSetBits(8));
+  EXPECT_EQ(0U, bv.NumSetBits(8));
   EXPECT_EQ(1U, bv.NumSetBits(9));
+  EXPECT_EQ(1U, bv.NumSetBits(10));
 
-  EXPECT_EQ(1U, bv.NumSetBits(15));
-  EXPECT_EQ(2U, bv.NumSetBits(16));
+  EXPECT_EQ(1U, bv.NumSetBits(16));
   EXPECT_EQ(2U, bv.NumSetBits(17));
+  EXPECT_EQ(2U, bv.NumSetBits(18));
 
-  EXPECT_EQ(2U, bv.NumSetBits(31));
-  EXPECT_EQ(3U, bv.NumSetBits(32));
+  EXPECT_EQ(2U, bv.NumSetBits(32));
   EXPECT_EQ(3U, bv.NumSetBits(33));
+  EXPECT_EQ(3U, bv.NumSetBits(34));
 
-  EXPECT_EQ(3U, bv.NumSetBits(47));
-  EXPECT_EQ(4U, bv.NumSetBits(48));
+  EXPECT_EQ(3U, bv.NumSetBits(48));
   EXPECT_EQ(4U, bv.NumSetBits(49));
+  EXPECT_EQ(4U, bv.NumSetBits(50));
 
-  EXPECT_EQ(4U, bv.NumSetBits(63));
+  EXPECT_EQ(4U, bv.NumSetBits(64));
 }
 
 TEST(BitVector, SetInitialBits) {
