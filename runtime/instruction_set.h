@@ -41,24 +41,14 @@ bool Is64BitInstructionSet(InstructionSet isa);
 
 #if defined(__arm__)
 static constexpr InstructionSet kRuntimeISA = kArm;
-static constexpr size_t kBytesPerGprSpillLocation = 4;
-static constexpr size_t kBytesPerFprSpillLocation = 4;
 #elif defined(__aarch64__)
 static constexpr InstructionSet kRuntimeISA = kArm64;
-static constexpr size_t kBytesPerGprSpillLocation = 8;
-static constexpr size_t kBytesPerFprSpillLocation = 8;
 #elif defined(__mips__)
 static constexpr InstructionSet kRuntimeISA = kMips;
-static constexpr size_t kBytesPerGprSpillLocation = 4;
-static constexpr size_t kBytesPerFprSpillLocation = 4;
 #elif defined(__i386__)
 static constexpr InstructionSet kRuntimeISA = kX86;
-static constexpr size_t kBytesPerGprSpillLocation = 4;
-static constexpr size_t kBytesPerFprSpillLocation = 8;
 #elif defined(__x86_64__)
 static constexpr InstructionSet kRuntimeISA = kX86_64;
-static constexpr size_t kBytesPerGprSpillLocation = 8;
-static constexpr size_t kBytesPerFprSpillLocation = 8;
 #else
 static constexpr InstructionSet kRuntimeISA = kNone;
 #endif
