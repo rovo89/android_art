@@ -34,9 +34,10 @@
 namespace art {
 namespace mirror {
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
 inline Class* Object::GetClass() {
-  return GetFieldObject<Class, kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Object, klass_), false);
+  return GetFieldObject<Class, kVerifyFlags, kDoReadBarrier>(
+      OFFSET_OF_OBJECT_MEMBER(Object, klass_), false);
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -104,15 +105,42 @@ inline Object* Object::GetReadBarrierPointer() {
 #endif
 }
 
-inline void Object::SetReadBarrierPointer(Object* rb_pointer) {
+inline void Object::SetReadBarrierPointer(Object* rb_ptr) {
 #ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
   DCHECK(kUseBakerOrBrooksReadBarrier);
   // We don't mark the card as this occurs as part of object allocation. Not all objects have
   // backing cards, such as large objects.
   SetFieldObjectWithoutWriteBarrier<false, false, kVerifyNone>(
-      OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_), rb_pointer, false);
+      OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_), rb_ptr, false);
 #else
   LOG(FATAL) << "Unreachable";
+#endif
+}
+
+inline bool Object::AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object* rb_ptr) {
+#ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
+  DCHECK(kUseBakerOrBrooksReadBarrier);
+  MemberOffset offset = OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_);
+  byte* raw_addr = reinterpret_cast<byte*>(this) + offset.SizeValue();
+  HeapReference<Object>* ref = reinterpret_cast<HeapReference<Object>*>(raw_addr);
+  HeapReference<Object> expected_ref(HeapReference<Object>::FromMirrorPtr(expected_rb_ptr));
+  HeapReference<Object> new_ref(HeapReference<Object>::FromMirrorPtr(rb_ptr));
+  uint32_t expected_val = expected_ref.reference_;
+  uint32_t new_val;
+  do {
+    uint32_t old_val = ref->reference_;
+    if (old_val != expected_val) {
+      // Lost the race.
+      return false;
+    }
+    new_val = new_ref.reference_;
+  } while (!__sync_bool_compare_and_swap(
+      reinterpret_cast<uint32_t*>(raw_addr), expected_val, new_val));
+  DCHECK_EQ(new_val, ref->reference_);
+  return true;
+#else
+  LOG(FATAL) << "Unreachable";
+  return false;
 #endif
 }
 
@@ -146,16 +174,17 @@ inline bool Object::InstanceOf(Class* klass) {
   return klass->IsAssignableFrom(GetClass<kVerifyFlags>());
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
 inline bool Object::IsClass() {
-  Class* java_lang_Class = GetClass<kVerifyFlags>()->GetClass();
-  return GetClass<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis)>() ==
+  Class* java_lang_Class =
+      GetClass<kVerifyFlags, kDoReadBarrier>()->template GetClass<kVerifyFlags, kDoReadBarrier>();
+  return GetClass<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis), kDoReadBarrier>() ==
       java_lang_Class;
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
 inline Class* Object::AsClass() {
-  DCHECK(IsClass<kVerifyFlags>());
+  DCHECK((IsClass<kVerifyFlags, kDoReadBarrier>()));
   return down_cast<Class*>(this);
 }
 
@@ -172,14 +201,15 @@ inline ObjectArray<T>* Object::AsObjectArray() {
   return down_cast<ObjectArray<T>*>(this);
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
 inline bool Object::IsArrayInstance() {
-  return GetClass<kVerifyFlags>()->IsArrayClass();
+  return GetClass<kVerifyFlags, kDoReadBarrier>()->
+      template IsArrayClass<kVerifyFlags, kDoReadBarrier>();
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
 inline bool Object::IsArtField() {
-  return GetClass<kVerifyFlags>()->IsArtFieldClass();
+  return GetClass<kVerifyFlags, kDoReadBarrier>()->template IsArtFieldClass<kDoReadBarrier>();
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -188,9 +218,9 @@ inline ArtField* Object::AsArtField() {
   return down_cast<ArtField*>(this);
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
 inline bool Object::IsArtMethod() {
-  return GetClass<kVerifyFlags>()->IsArtMethodClass();
+  return GetClass<kVerifyFlags, kDoReadBarrier>()->template IsArtMethodClass<kDoReadBarrier>();
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -210,9 +240,9 @@ inline Reference* Object::AsReference() {
   return down_cast<Reference*>(this);
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
 inline Array* Object::AsArray() {
-  DCHECK(IsArrayInstance<kVerifyFlags>());
+  DCHECK((IsArrayInstance<kVerifyFlags, kDoReadBarrier>()));
   return down_cast<Array*>(this);
 }
 
@@ -338,20 +368,21 @@ inline bool Object::IsPhantomReferenceInstance() {
   return GetClass<kVerifyFlags>()->IsPhantomReferenceClass();
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
 inline size_t Object::SizeOf() {
   size_t result;
   constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
-  if (IsArrayInstance<kVerifyFlags>()) {
-    result = AsArray<kNewFlags>()->template SizeOf<kNewFlags>();
-  } else if (IsClass<kNewFlags>()) {
-    result = AsClass<kNewFlags>()->template SizeOf<kNewFlags>();
+  if (IsArrayInstance<kVerifyFlags, kDoReadBarrier>()) {
+    result = AsArray<kNewFlags, kDoReadBarrier>()->template SizeOf<kNewFlags, kDoReadBarrier>();
+  } else if (IsClass<kNewFlags, kDoReadBarrier>()) {
+    result = AsClass<kNewFlags, kDoReadBarrier>()->template SizeOf<kNewFlags, kDoReadBarrier>();
   } else {
-    result = GetClass<kNewFlags>()->GetObjectSize();
+    result = GetClass<kNewFlags, kDoReadBarrier>()->GetObjectSize();
   }
-  DCHECK_GE(result, sizeof(Object)) << " class=" << PrettyTypeOf(GetClass<kNewFlags>());
-  DCHECK(!IsArtField<kNewFlags>()  || result == sizeof(ArtField));
-  DCHECK(!IsArtMethod<kNewFlags>() || result == sizeof(ArtMethod));
+  DCHECK_GE(result, sizeof(Object))
+      << " class=" << PrettyTypeOf(GetClass<kNewFlags, kDoReadBarrier>());
+  DCHECK(!(IsArtField<kNewFlags, kDoReadBarrier>())  || result == sizeof(ArtField));
+  DCHECK(!(IsArtMethod<kNewFlags, kDoReadBarrier>()) || result == sizeof(ArtMethod));
   return result;
 }
 
