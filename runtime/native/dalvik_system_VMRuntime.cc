@@ -164,23 +164,12 @@ static jstring VMRuntime_vmLibrary(JNIEnv* env, jobject) {
 }
 
 static void VMRuntime_setTargetSdkVersionNative(JNIEnv* env, jobject, jint targetSdkVersion) {
-  // This is the target SDK version of the app we're about to run.
+  // This is the target SDK version of the app we're about to run. It is intended that this a place
+  // where workarounds can be enabled.
   // Note that targetSdkVersion may be CUR_DEVELOPMENT (10000).
   // Note that targetSdkVersion may be 0, meaning "current".
-  if (targetSdkVersion > 0 && targetSdkVersion <= 13 /* honeycomb-mr2 */) {
-    Runtime* runtime = Runtime::Current();
-    JavaVMExt* vm = runtime->GetJavaVM();
-    if (vm->check_jni) {
-      LOG(INFO) << "CheckJNI enabled: not enabling JNI app bug workarounds.";
-    } else {
-      LOG(INFO) << "Turning on JNI app bug workarounds for target SDK version "
-          << targetSdkVersion << "...";
-
-      vm->work_around_app_jni_bugs = true;
-      LOG(WARNING) << "Permenantly disabling heap compaction due to jni workarounds";
-      Runtime::Current()->GetHeap()->DisableCompaction();
-    }
-  }
+  UNUSED(env);
+  UNUSED(targetSdkVersion);
 }
 
 static void VMRuntime_registerNativeAllocation(JNIEnv* env, jobject, jint bytes) {
