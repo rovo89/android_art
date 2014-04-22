@@ -360,7 +360,11 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
   rl_src.reg = TargetReg(kArg0);
   rl_src.home = false;
   MarkLive(rl_src.reg, rl_src.s_reg_low);
-  StoreValue(rl_method, rl_src);
+  if (rl_method.wide) {
+    StoreValueWide(rl_method, rl_src);
+  } else {
+    StoreValue(rl_method, rl_src);
+  }
   // If Method* has been promoted, explicitly flush
   if (rl_method.location == kLocPhysReg) {
     StoreWordDisp(TargetReg(kSp), 0, TargetReg(kArg0));
@@ -425,16 +429,15 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
         }
       }
       if (need_flush) {
-        StoreBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i), reg, kWord);
+        Store32Disp(TargetReg(kSp), SRegOffset(start_vreg + i), reg);
       }
     } else {
       // If arriving in frame & promoted
       if (v_map->core_location == kLocPhysReg) {
-        LoadWordDisp(TargetReg(kSp), SRegOffset(start_vreg + i),
-                     RegStorage::Solo32(v_map->core_reg));
+        Load32Disp(TargetReg(kSp), SRegOffset(start_vreg + i), RegStorage::Solo32(v_map->core_reg));
       }
       if (v_map->fp_location == kLocPhysReg) {
-        LoadWordDisp(TargetReg(kSp), SRegOffset(start_vreg + i), RegStorage::Solo32(v_map->FpReg));
+        Load32Disp(TargetReg(kSp), SRegOffset(start_vreg + i), RegStorage::Solo32(v_map->FpReg));
       }
     }
   }
@@ -476,9 +479,9 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       cg->LoadCurrMethodDirect(cg->TargetReg(kArg0));
       break;
     case 1:  // Get method->dex_cache_resolved_methods_
-      cg->LoadWordDisp(cg->TargetReg(kArg0),
-                       mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
-                       cg->TargetReg(kArg0));
+      cg->LoadRefDisp(cg->TargetReg(kArg0),
+                      mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
+                      cg->TargetReg(kArg0));
       // Set up direct code if known.
       if (direct_code != 0) {
         if (direct_code != static_cast<unsigned int>(-1)) {
@@ -491,9 +494,9 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       break;
     case 2:  // Grab target method*
       CHECK_EQ(cu->dex_file, target_method.dex_file);
-      cg->LoadWordDisp(cg->TargetReg(kArg0),
-                       mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
-                       (target_method.dex_method_index * 4), cg->TargetReg(kArg0));
+      cg->LoadRefDisp(cg->TargetReg(kArg0),
+                      mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
+                      (target_method.dex_method_index * 4), cg->TargetReg(kArg0));
       break;
     case 3:  // Grab the code from the method*
       if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
@@ -537,18 +540,18 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
     case 1:  // Is "this" null? [use kArg1]
       cg->GenNullCheck(cg->TargetReg(kArg1), info->opt_flags);
       // get this->klass_ [use kArg1, set kInvokeTgt]
-      cg->LoadWordDisp(cg->TargetReg(kArg1), mirror::Object::ClassOffset().Int32Value(),
-                       cg->TargetReg(kInvokeTgt));
+      cg->LoadRefDisp(cg->TargetReg(kArg1), mirror::Object::ClassOffset().Int32Value(),
+                      cg->TargetReg(kInvokeTgt));
       cg->MarkPossibleNullPointerException(info->opt_flags);
       break;
     case 2:  // Get this->klass_->vtable [usr kInvokeTgt, set kInvokeTgt]
-      cg->LoadWordDisp(cg->TargetReg(kInvokeTgt), mirror::Class::VTableOffset().Int32Value(),
-                       cg->TargetReg(kInvokeTgt));
+      cg->LoadRefDisp(cg->TargetReg(kInvokeTgt), mirror::Class::VTableOffset().Int32Value(),
+                      cg->TargetReg(kInvokeTgt));
       break;
     case 3:  // Get target method [use kInvokeTgt, set kArg0]
-      cg->LoadWordDisp(cg->TargetReg(kInvokeTgt), (method_idx * 4) +
-                       mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value(),
-                       cg->TargetReg(kArg0));
+      cg->LoadRefDisp(cg->TargetReg(kInvokeTgt), (method_idx * 4) +
+                      mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value(),
+                      cg->TargetReg(kArg0));
       break;
     case 4:  // Get the compiled code address [uses kArg0, sets kInvokeTgt]
       if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
@@ -592,15 +595,17 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
     case 2:  // Is "this" null? [use kArg1]
       cg->GenNullCheck(cg->TargetReg(kArg1), info->opt_flags);
       // Get this->klass_ [use kArg1, set kInvokeTgt]
-      cg->LoadWordDisp(cg->TargetReg(kArg1), mirror::Object::ClassOffset().Int32Value(),
-                       cg->TargetReg(kInvokeTgt));
+      cg->LoadRefDisp(cg->TargetReg(kArg1), mirror::Object::ClassOffset().Int32Value(),
+                      cg->TargetReg(kInvokeTgt));
       cg->MarkPossibleNullPointerException(info->opt_flags);
       break;
     case 3:  // Get this->klass_->imtable [use kInvokeTgt, set kInvokeTgt]
-      cg->LoadWordDisp(cg->TargetReg(kInvokeTgt), mirror::Class::ImTableOffset().Int32Value(),
-                       cg->TargetReg(kInvokeTgt));
+      // NOTE: native pointer.
+      cg->LoadRefDisp(cg->TargetReg(kInvokeTgt), mirror::Class::ImTableOffset().Int32Value(),
+                      cg->TargetReg(kInvokeTgt));
       break;
     case 4:  // Get target method [use kInvokeTgt, set kArg0]
+      // NOTE: native pointer.
       cg->LoadWordDisp(cg->TargetReg(kInvokeTgt), ((method_idx % ClassLinker::kImtSize) * 4) +
                        mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value(),
                        cg->TargetReg(kArg0));
@@ -753,11 +758,11 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
       } else {
         // kArg2 & rArg3 can safely be used here
         reg = TargetReg(kArg3);
-        LoadWordDisp(TargetReg(kSp), SRegOffset(rl_arg.s_reg_low) + 4, reg);
+        Load32Disp(TargetReg(kSp), SRegOffset(rl_arg.s_reg_low) + 4, reg);
         call_state = next_call_insn(cu_, info, call_state, target_method,
                                     vtable_idx, direct_code, direct_method, type);
       }
-      StoreBaseDisp(TargetReg(kSp), (next_use + 1) * 4, reg, kWord);
+      Store32Disp(TargetReg(kSp), (next_use + 1) * 4, reg);
       call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                                   direct_code, direct_method, type);
       next_use++;
@@ -791,7 +796,7 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
         StoreBaseDispWide(TargetReg(kSp), outs_offset, RegStorage::MakeRegPair(low_reg, high_reg));
         next_use += 2;
       } else {
-        StoreWordDisp(TargetReg(kSp), outs_offset, low_reg);
+        Store32Disp(TargetReg(kSp), outs_offset, low_reg);
         next_use++;
       }
       call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
@@ -811,7 +816,7 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
       // In lieu of generating a check for kArg1 being null, we need to
       // perform a load when doing implicit checks.
       RegStorage tmp = AllocTemp();
-      LoadWordDisp(TargetReg(kArg1), 0, tmp);
+      Load32Disp(TargetReg(kArg1), 0, tmp);
       MarkPossibleNullPointerException(info->opt_flags);
       FreeTemp(tmp);
     }
@@ -862,7 +867,7 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     } else {
       loc = UpdateLoc(loc);
       if ((next_arg >= 3) && (loc.location == kLocPhysReg)) {
-        StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, kWord);
+        Store32Disp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg);
       }
       next_arg++;
     }
@@ -997,8 +1002,8 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
         RegStorage temp = TargetReg(kArg3);
 
         // Now load the argument VR and store to the outs.
-        LoadWordDisp(TargetReg(kSp), current_src_offset, temp);
-        StoreWordDisp(TargetReg(kSp), current_dest_offset, temp);
+        Load32Disp(TargetReg(kSp), current_src_offset, temp);
+        Store32Disp(TargetReg(kSp), current_dest_offset, temp);
       }
 
       current_src_offset += bytes_to_move;
@@ -1027,7 +1032,7 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
       // In lieu of generating a check for kArg1 being null, we need to
       // perform a load when doing implicit checks.
       RegStorage tmp = AllocTemp();
-      LoadWordDisp(TargetReg(kArg1), 0, tmp);
+      Load32Disp(TargetReg(kArg1), 0, tmp);
       MarkPossibleNullPointerException(info->opt_flags);
       FreeTemp(tmp);
     }
@@ -1087,12 +1092,12 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
     reg_ptr = AllocTemp();
     if (range_check) {
       reg_max = AllocTemp();
-      LoadWordDisp(rl_obj.reg, count_offset, reg_max);
+      Load32Disp(rl_obj.reg, count_offset, reg_max);
       MarkPossibleNullPointerException(info->opt_flags);
     }
-    LoadWordDisp(rl_obj.reg, offset_offset, reg_off);
+    Load32Disp(rl_obj.reg, offset_offset, reg_off);
     MarkPossibleNullPointerException(info->opt_flags);
-    LoadWordDisp(rl_obj.reg, value_offset, reg_ptr);
+    Load32Disp(rl_obj.reg, value_offset, reg_ptr);
     if (range_check) {
       // Set up a launch pad to allow retry in case of bounds violation */
       OpRegReg(kOpCmp, rl_idx.reg, reg_max);
@@ -1115,8 +1120,8 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
     }
     reg_off = AllocTemp();
     reg_ptr = AllocTemp();
-    LoadWordDisp(rl_obj.reg, offset_offset, reg_off);
-    LoadWordDisp(rl_obj.reg, value_offset, reg_ptr);
+    Load32Disp(rl_obj.reg, offset_offset, reg_off);
+    Load32Disp(rl_obj.reg, value_offset, reg_ptr);
   }
   if (rl_idx.is_const) {
     OpRegImm(kOpAdd, reg_off, mir_graph_->ConstantValue(rl_idx.orig_sreg));
@@ -1158,7 +1163,7 @@ bool Mir2Lir::GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty) {
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   GenNullCheck(rl_obj.reg, info->opt_flags);
-  LoadWordDisp(rl_obj.reg, mirror::String::CountOffset().Int32Value(), rl_result.reg);
+  Load32Disp(rl_obj.reg, mirror::String::CountOffset().Int32Value(), rl_result.reg);
   MarkPossibleNullPointerException(info->opt_flags);
   if (is_empty) {
     // dst = (dst == 0);
@@ -1182,9 +1187,9 @@ bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {
     return false;
   }
   RegLocation rl_src_i = info->args[0];
-  RegLocation rl_dest = (size == kLong) ? InlineTargetWide(info) : InlineTarget(info);  // result reg
+  RegLocation rl_dest = (size == k64) ? InlineTargetWide(info) : InlineTarget(info);  // result reg
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  if (size == kLong) {
+  if (size == k64) {
     RegLocation rl_i = LoadValueWide(rl_src_i, kCoreReg);
     RegStorage r_i_low = rl_i.reg.GetLow();
     if (rl_i.reg.GetLowReg() == rl_result.reg.GetLowReg()) {
@@ -1199,8 +1204,8 @@ bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {
     }
     StoreValueWide(rl_dest, rl_result);
   } else {
-    DCHECK(size == kWord || size == kSignedHalf);
-    OpKind op = (size == kWord) ? kOpRev : kOpRevsh;
+    DCHECK(size == k32 || size == kSignedHalf);
+    OpKind op = (size == k32) ? kOpRev : kOpRevsh;
     RegLocation rl_i = LoadValue(rl_src_i, kCoreReg);
     OpRegReg(op, rl_result.reg, rl_i.reg);
     StoreValue(rl_dest, rl_result);
@@ -1402,7 +1407,7 @@ bool Mir2Lir::GenInlinedCurrentThread(CallInfo* info) {
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   ThreadOffset<4> offset = Thread::PeerOffset<4>();
   if (cu_->instruction_set == kThumb2 || cu_->instruction_set == kMips) {
-    LoadWordDisp(TargetReg(kSelf), offset.Int32Value(), rl_result.reg);
+    Load32Disp(TargetReg(kSelf), offset.Int32Value(), rl_result.reg);
   } else {
     CHECK(cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64);
     reinterpret_cast<X86Mir2Lir*>(this)->OpRegThreadMem(kOpMov, rl_result.reg.GetReg(), offset);
@@ -1429,7 +1434,7 @@ bool Mir2Lir::GenInlinedUnsafeGet(CallInfo* info,
   if (is_long) {
     if (cu_->instruction_set == kX86) {
       LoadBaseIndexedDisp(rl_object.reg, rl_offset.reg, 0, 0, rl_result.reg.GetLow(),
-                          rl_result.reg.GetHigh(), kLong, INVALID_SREG);
+                          rl_result.reg.GetHigh(), k64, INVALID_SREG);
     } else {
       RegStorage rl_temp_offset = AllocTemp();
       OpRegRegReg(kOpAdd, rl_temp_offset, rl_object.reg, rl_offset.reg);
@@ -1437,7 +1442,7 @@ bool Mir2Lir::GenInlinedUnsafeGet(CallInfo* info,
       FreeTemp(rl_temp_offset.GetReg());
     }
   } else {
-    LoadBaseIndexed(rl_object.reg, rl_offset.reg, rl_result.reg, 0, kWord);
+    LoadBaseIndexed(rl_object.reg, rl_offset.reg, rl_result.reg, 0, k32);
   }
 
   if (is_volatile) {
@@ -1477,7 +1482,7 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
     rl_value = LoadValueWide(rl_src_value, kCoreReg);
     if (cu_->instruction_set == kX86) {
       StoreBaseIndexedDisp(rl_object.reg, rl_offset.reg, 0, 0, rl_value.reg.GetLow(),
-                           rl_value.reg.GetHigh(), kLong, INVALID_SREG);
+                           rl_value.reg.GetHigh(), k64, INVALID_SREG);
     } else {
       RegStorage rl_temp_offset = AllocTemp();
       OpRegRegReg(kOpAdd, rl_temp_offset, rl_object.reg, rl_offset.reg);
@@ -1486,7 +1491,7 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
     }
   } else {
     rl_value = LoadValue(rl_src_value, kCoreReg);
-    StoreBaseIndexed(rl_object.reg, rl_offset.reg, rl_value.reg, 0, kWord);
+    StoreBaseIndexed(rl_object.reg, rl_offset.reg, rl_value.reg, 0, k32);
   }
 
   // Free up the temp early, to ensure x86 doesn't run out of temporaries in MarkGCCard.

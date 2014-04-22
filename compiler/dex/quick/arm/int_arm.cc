@@ -684,18 +684,18 @@ bool ArmMir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  if (size == kLong) {
+  if (size == k64) {
     // Fake unaligned LDRD by two unaligned LDR instructions on ARMv7 with SCTLR.A set to 0.
     if (rl_address.reg.GetReg() != rl_result.reg.GetLowReg()) {
-      LoadWordDisp(rl_address.reg, 0, rl_result.reg.GetLow());
-      LoadWordDisp(rl_address.reg, 4, rl_result.reg.GetHigh());
+      Load32Disp(rl_address.reg, 0, rl_result.reg.GetLow());
+      Load32Disp(rl_address.reg, 4, rl_result.reg.GetHigh());
     } else {
-      LoadWordDisp(rl_address.reg, 4, rl_result.reg.GetHigh());
-      LoadWordDisp(rl_address.reg, 0, rl_result.reg.GetLow());
+      Load32Disp(rl_address.reg, 4, rl_result.reg.GetHigh());
+      Load32Disp(rl_address.reg, 0, rl_result.reg.GetLow());
     }
     StoreValueWide(rl_dest, rl_result);
   } else {
-    DCHECK(size == kSignedByte || size == kSignedHalf || size == kWord);
+    DCHECK(size == kSignedByte || size == kSignedHalf || size == k32);
     // Unaligned load with LDR and LDRSH is allowed on ARMv7 with SCTLR.A set to 0.
     LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size, INVALID_SREG);
     StoreValue(rl_dest, rl_result);
@@ -708,13 +708,13 @@ bool ArmMir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
   rl_src_address = NarrowRegLoc(rl_src_address);  // ignore high half in info->args[1]
   RegLocation rl_src_value = info->args[2];  // [size] value
   RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
-  if (size == kLong) {
+  if (size == k64) {
     // Fake unaligned STRD by two unaligned STR instructions on ARMv7 with SCTLR.A set to 0.
     RegLocation rl_value = LoadValueWide(rl_src_value, kCoreReg);
-    StoreBaseDisp(rl_address.reg, 0, rl_value.reg.GetLow(), kWord);
-    StoreBaseDisp(rl_address.reg, 4, rl_value.reg.GetHigh(), kWord);
+    StoreBaseDisp(rl_address.reg, 0, rl_value.reg.GetLow(), k32);
+    StoreBaseDisp(rl_address.reg, 4, rl_value.reg.GetHigh(), k32);
   } else {
-    DCHECK(size == kSignedByte || size == kSignedHalf || size == kWord);
+    DCHECK(size == kSignedByte || size == kSignedHalf || size == k32);
     // Unaligned store with STR and STRSH is allowed on ARMv7 with SCTLR.A set to 0.
     RegLocation rl_value = LoadValue(rl_src_value, kCoreReg);
     StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size);
@@ -1148,7 +1148,7 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
   if (needs_range_check) {
     reg_len = AllocTemp();
     /* Get len */
-    LoadWordDisp(rl_array.reg, len_offset, reg_len);
+    Load32Disp(rl_array.reg, len_offset, reg_len);
     MarkPossibleNullPointerException(opt_flags);
   } else {
     ForceImplicitNullCheck(rl_array.reg, opt_flags);
@@ -1217,7 +1217,7 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   bool constant_index = rl_index.is_const;
 
   int data_offset;
-  if (size == kLong || size == kDouble) {
+  if (size == k64 || size == kDouble) {
     data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Int32Value();
   } else {
     data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Int32Value();
@@ -1254,7 +1254,7 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     reg_len = AllocTemp();
     // NOTE: max live temps(4) here.
     /* Get len */
-    LoadWordDisp(rl_array.reg, len_offset, reg_len);
+    Load32Disp(rl_array.reg, len_offset, reg_len);
     MarkPossibleNullPointerException(opt_flags);
   } else {
     ForceImplicitNullCheck(rl_array.reg, opt_flags);

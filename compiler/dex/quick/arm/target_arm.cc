@@ -656,7 +656,7 @@ void ArmMir2Lir::FlushReg(RegStorage reg) {
   if (info->live && info->dirty) {
     info->dirty = false;
     int v_reg = mir_graph_->SRegToVReg(info->s_reg);
-    StoreBaseDisp(rs_rARM_SP, VRegOffset(v_reg), reg, kWord);
+    StoreBaseDisp(rs_rARM_SP, VRegOffset(v_reg), reg, k32);
   }
 }
 
@@ -738,8 +738,8 @@ RegStorage ArmMir2Lir::LoadHelper(ThreadOffset<4> offset) {
 
 LIR* ArmMir2Lir::CheckSuspendUsingLoad() {
   RegStorage tmp = rs_r0;
-  LoadWordDisp(rs_rARM_SELF, Thread::ThreadSuspendTriggerOffset<4>().Int32Value(), tmp);
-  LIR* load2 = LoadWordDisp(tmp, 0, tmp);
+  Load32Disp(rs_rARM_SELF, Thread::ThreadSuspendTriggerOffset<4>().Int32Value(), tmp);
+  LIR* load2 = Load32Disp(tmp, 0, tmp);
   return load2;
 }
 

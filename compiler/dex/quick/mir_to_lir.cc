@@ -63,14 +63,14 @@ RegStorage Mir2Lir::LoadArg(int in_position, bool wide) {
     } else {
       reg_arg_high = AllocTemp();
       int offset_high = offset + sizeof(uint32_t);
-      LoadWordDisp(TargetReg(kSp), offset_high, reg_arg_high);
+      Load32Disp(TargetReg(kSp), offset_high, reg_arg_high);
     }
   }
 
   // If the low part is not in a register yet, we need to load it.
   if (!reg_arg_low.Valid()) {
     reg_arg_low = AllocTemp();
-    LoadWordDisp(TargetReg(kSp), offset, reg_arg_low);
+    Load32Disp(TargetReg(kSp), offset, reg_arg_low);
   }
 
   if (wide) {
@@ -96,7 +96,7 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
     if (reg.Valid()) {
       OpRegCopy(rl_dest.reg, reg);
     } else {
-      LoadWordDisp(TargetReg(kSp), offset, rl_dest.reg);
+      Load32Disp(TargetReg(kSp), offset, rl_dest.reg);
     }
   } else {
     RegStorage reg_arg_low = GetArgMappingToPhysicalReg(in_position);
@@ -107,10 +107,10 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
     } else if (reg_arg_low.Valid() && !reg_arg_high.Valid()) {
       OpRegCopy(rl_dest.reg, reg_arg_low);
       int offset_high = offset + sizeof(uint32_t);
-      LoadWordDisp(TargetReg(kSp), offset_high, rl_dest.reg.GetHigh());
+      Load32Disp(TargetReg(kSp), offset_high, rl_dest.reg.GetHigh());
     } else if (!reg_arg_low.Valid() && reg_arg_high.Valid()) {
       OpRegCopy(rl_dest.reg.GetHigh(), reg_arg_high);
-      LoadWordDisp(TargetReg(kSp), offset, rl_dest.reg.GetLow());
+      Load32Disp(TargetReg(kSp), offset, rl_dest.reg.GetLow());
     } else {
       LoadBaseDispWide(TargetReg(kSp), offset, rl_dest.reg, INVALID_SREG);
     }
@@ -137,7 +137,7 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
   if (wide) {
     LoadBaseDispWide(reg_obj, data.field_offset, rl_dest.reg, INVALID_SREG);
   } else {
-    LoadWordDisp(reg_obj, data.field_offset, rl_dest.reg);
+    Load32Disp(reg_obj, data.field_offset, rl_dest.reg);
   }
   if (data.is_volatile) {
     // Without context sensitive analysis, we must issue the most conservative barriers.
@@ -175,7 +175,7 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
   if (wide) {
     StoreBaseDispWide(reg_obj, data.field_offset, reg_src);
   } else {
-    StoreBaseDisp(reg_obj, data.field_offset, reg_src, kWord);
+    Store32Disp(reg_obj, data.field_offset, reg_src);
   }
   if (data.is_volatile) {
     // A load might follow the volatile store so insert a StoreLoad barrier.
@@ -449,7 +449,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       rl_src[0] = LoadValue(rl_src[0], kCoreReg);
       GenNullCheck(rl_src[0].reg, opt_flags);
       rl_result = EvalLoc(rl_dest, kCoreReg, true);
-      LoadWordDisp(rl_src[0].reg, len_offset, rl_result.reg);
+      Load32Disp(rl_src[0].reg, len_offset, rl_result.reg);
       MarkPossibleNullPointerException(opt_flags);
       StoreValue(rl_dest, rl_result);
       break;
@@ -562,11 +562,13 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       }
 
     case Instruction::AGET_WIDE:
-      GenArrayGet(opt_flags, kLong, rl_src[0], rl_src[1], rl_dest, 3);
+      GenArrayGet(opt_flags, k64, rl_src[0], rl_src[1], rl_dest, 3);
+      break;
+    case Instruction::AGET_OBJECT:
+      GenArrayGet(opt_flags, kReference, rl_src[0], rl_src[1], rl_dest, 2);
       break;
     case Instruction::AGET:
-    case Instruction::AGET_OBJECT:
-      GenArrayGet(opt_flags, kWord, rl_src[0], rl_src[1], rl_dest, 2);
+      GenArrayGet(opt_flags, k32, rl_src[0], rl_src[1], rl_dest, 2);
       break;
     case Instruction::AGET_BOOLEAN:
       GenArrayGet(opt_flags, kUnsignedByte, rl_src[0], rl_src[1], rl_dest, 0);
@@ -581,10 +583,10 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       GenArrayGet(opt_flags, kSignedHalf, rl_src[0], rl_src[1], rl_dest, 1);
       break;
     case Instruction::APUT_WIDE:
-      GenArrayPut(opt_flags, kLong, rl_src[1], rl_src[2], rl_src[0], 3, false);
+      GenArrayPut(opt_flags, k64, rl_src[1], rl_src[2], rl_src[0], 3, false);
       break;
     case Instruction::APUT:
-      GenArrayPut(opt_flags, kWord, rl_src[1], rl_src[2], rl_src[0], 2, false);
+      GenArrayPut(opt_flags, k32, rl_src[1], rl_src[2], rl_src[0], 2, false);
       break;
     case Instruction::APUT_OBJECT: {
       bool is_null = mir_graph_->IsConstantNullRef(rl_src[0]);
@@ -597,7 +599,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       if (is_null || is_safe) {
         // Store of constant null doesn't require an assignability test and can be generated inline
         // without fixed register usage or a card mark.
-        GenArrayPut(opt_flags, kWord, rl_src[1], rl_src[2], rl_src[0], 2, !is_null);
+        GenArrayPut(opt_flags, kReference, rl_src[1], rl_src[2], rl_src[0], 2, !is_null);
       } else {
         GenArrayObjPut(opt_flags, rl_src[1], rl_src[2], rl_src[0]);
       }
@@ -613,15 +615,15 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       break;
 
     case Instruction::IGET_OBJECT:
-      GenIGet(mir, opt_flags, kWord, rl_dest, rl_src[0], false, true);
+      GenIGet(mir, opt_flags, kReference, rl_dest, rl_src[0], false, true);
       break;
 
     case Instruction::IGET_WIDE:
-      GenIGet(mir, opt_flags, kLong, rl_dest, rl_src[0], true, false);
+      GenIGet(mir, opt_flags, k64, rl_dest, rl_src[0], true, false);
       break;
 
     case Instruction::IGET:
-      GenIGet(mir, opt_flags, kWord, rl_dest, rl_src[0], false, false);
+      GenIGet(mir, opt_flags, k32, rl_dest, rl_src[0], false, false);
       break;
 
     case Instruction::IGET_CHAR:
@@ -638,15 +640,15 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       break;
 
     case Instruction::IPUT_WIDE:
-      GenIPut(mir, opt_flags, kLong, rl_src[0], rl_src[1], true, false);
+      GenIPut(mir, opt_flags, k64, rl_src[0], rl_src[1], true, false);
       break;
 
     case Instruction::IPUT_OBJECT:
-      GenIPut(mir, opt_flags, kWord, rl_src[0], rl_src[1], false, true);
+      GenIPut(mir, opt_flags, kReference, rl_src[0], rl_src[1], false, true);
       break;
 
     case Instruction::IPUT:
-      GenIPut(mir, opt_flags, kWord, rl_src[0], rl_src[1], false, false);
+      GenIPut(mir, opt_flags, k32, rl_src[0], rl_src[1], false, false);
       break;
 
     case Instruction::IPUT_BOOLEAN:

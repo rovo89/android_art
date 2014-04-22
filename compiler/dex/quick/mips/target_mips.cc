@@ -369,7 +369,7 @@ void MipsMir2Lir::FlushReg(RegStorage reg) {
   if (info->live && info->dirty) {
     info->dirty = false;
     int v_reg = mir_graph_->SRegToVReg(info->s_reg);
-    StoreBaseDisp(rs_rMIPS_SP, VRegOffset(v_reg), reg, kWord);
+    Store32Disp(rs_rMIPS_SP, VRegOffset(v_reg), reg);
   }
 }
 
@@ -531,12 +531,14 @@ void MipsMir2Lir::FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free) {
  * there is a trap in the shadow.  Allocate a temp register.
  */
 RegStorage MipsMir2Lir::LoadHelper(ThreadOffset<4> offset) {
+  // NOTE: native pointer.
   LoadWordDisp(rs_rMIPS_SELF, offset.Int32Value(), rs_rT9);
   return rs_rT9;
 }
 
 LIR* MipsMir2Lir::CheckSuspendUsingLoad() {
   RegStorage tmp = AllocTemp();
+  // NOTE: native pointer.
   LoadWordDisp(rs_rMIPS_SELF, Thread::ThreadSuspendTriggerOffset<4>().Int32Value(), tmp);
   LIR *inst = LoadWordDisp(tmp, 0, tmp);
   FreeTemp(tmp);
@@ -553,7 +555,7 @@ void MipsMir2Lir::SpillCoreRegs() {
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
       offset -= 4;
-      StoreWordDisp(rs_rMIPS_SP, offset, RegStorage::Solo32(reg));
+      Store32Disp(rs_rMIPS_SP, offset, RegStorage::Solo32(reg));
     }
   }
 }
@@ -567,7 +569,7 @@ void MipsMir2Lir::UnSpillCoreRegs() {
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
       offset -= 4;
-      LoadWordDisp(rs_rMIPS_SP, offset, RegStorage::Solo32(reg));
+      Load32Disp(rs_rMIPS_SP, offset, RegStorage::Solo32(reg));
     }
   }
   OpRegImm(kOpAdd, rs_rSP, frame_size_);
