@@ -1176,8 +1176,11 @@ bool MethodVerifier::SetTypesFromSignature() {
         // it's effectively considered initialized the instant we reach here (in the sense that we
         // can return without doing anything or call virtual methods).
         {
-          const RegType& reg_type = reg_types_.FromDescriptor(class_loader_->get(), descriptor,
-                                                              false);
+          const RegType& reg_type = ResolveClassAndCheckAccess(iterator.GetTypeIdx());
+          if (!reg_type.IsNonZeroReferenceTypes()) {
+            DCHECK(HasFailures());
+            return false;
+          }
           reg_line->SetRegisterType(arg_start + cur_arg, reg_type);
         }
         break;
