@@ -369,12 +369,13 @@ void X86Mir2Lir::FlushRegWide(RegStorage reg) {
 }
 
 void X86Mir2Lir::FlushReg(RegStorage reg) {
+  // FIXME: need to handle 32 bits in 64-bit register as well as wide values held in single reg.
   DCHECK(!reg.IsPair());
   RegisterInfo* info = GetRegInfo(reg.GetReg());
   if (info->live && info->dirty) {
     info->dirty = false;
     int v_reg = mir_graph_->SRegToVReg(info->s_reg);
-    StoreBaseDisp(rs_rX86_SP, VRegOffset(v_reg), reg, kWord);
+    StoreBaseDisp(rs_rX86_SP, VRegOffset(v_reg), reg, k32);
   }
 }
 
@@ -1061,7 +1062,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   NewLIR1(kX86Push32R, rDI);
 
   // Compute the number of words to search in to rCX.
-  LoadWordDisp(rs_rDX, count_offset, rs_rCX);
+  Load32Disp(rs_rDX, count_offset, rs_rCX);
   LIR *length_compare = nullptr;
   int start_value = 0;
   bool is_index_on_stack = false;
@@ -1101,7 +1102,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
       } else {
         // Load the start index from stack, remembering that we pushed EDI.
         int displacement = SRegOffset(rl_start.s_reg_low) + sizeof(uint32_t);
-        LoadWordDisp(rs_rX86_SP, displacement, rs_rBX);
+        Load32Disp(rs_rX86_SP, displacement, rs_rBX);
         OpRegReg(kOpXor, rs_rDI, rs_rDI);
         OpRegReg(kOpCmp, rs_rBX, rs_rDI);
         OpCondRegReg(kOpCmov, kCondLt, rs_rBX, rs_rDI);
@@ -1120,8 +1121,8 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
 
   // Load the address of the string into EBX.
   // The string starts at VALUE(String) + 2 * OFFSET(String) + DATA_OFFSET.
-  LoadWordDisp(rs_rDX, value_offset, rs_rDI);
-  LoadWordDisp(rs_rDX, offset_offset, rs_rBX);
+  Load32Disp(rs_rDX, value_offset, rs_rDI);
+  Load32Disp(rs_rDX, offset_offset, rs_rBX);
   OpLea(rs_rBX, rs_rDI, rs_rBX, 1, data_offset);
 
   // Now compute into EDI where the search will start.
