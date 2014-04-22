@@ -54,36 +54,3 @@ ENTRY art_jni_dlsym_lookup_stub
     jr    $ra
     nop
 END art_jni_dlsym_lookup_stub
-
-    /*
-     * Entry point of native methods when JNI bug compatibility is enabled.
-     */
-    .extern artWorkAroundAppJniBugs
-ENTRY art_work_around_app_jni_bugs
-    GENERATE_GLOBAL_POINTER
-    # save registers that may contain arguments and LR that will be crushed by a call
-    addiu    $sp, $sp, -32
-    .cfi_adjust_cfa_offset 32
-    sw       $ra, 28($sp)
-    .cfi_rel_offset 31, 28
-    sw       $a3, 24($sp)
-    .cfi_rel_offset 7, 28
-    sw       $a2, 20($sp)
-    .cfi_rel_offset 6, 28
-    sw       $a1, 16($sp)
-    .cfi_rel_offset 5, 28
-    sw       $a0, 12($sp)
-    .cfi_rel_offset 4, 28
-    move     $a0, rSELF       # pass Thread::Current
-    jal      artWorkAroundAppJniBugs  # (Thread*, $sp)
-    move     $a1, $sp         # pass $sp
-    move     $t9, $v0         # save target address
-    lw       $a0, 12($sp)
-    lw       $a1, 16($sp)
-    lw       $a2, 20($sp)
-    lw       $a3, 24($sp)
-    lw       $ra, 28($sp)
-    jr       $t9              # tail call into JNI routine
-    addiu    $sp, $sp, 32
-    .cfi_adjust_cfa_offset -32
-END art_work_around_app_jni_bugs

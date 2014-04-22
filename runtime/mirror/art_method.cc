@@ -342,30 +342,15 @@ bool ArtMethod::IsRegistered() {
   return native_method != jni_stub;
 }
 
-extern "C" void art_work_around_app_jni_bugs(JNIEnv*, jobject);
 void ArtMethod::RegisterNative(Thread* self, const void* native_method, bool is_fast) {
   DCHECK(Thread::Current() == self);
   CHECK(IsNative()) << PrettyMethod(this);
   CHECK(!IsFastNative()) << PrettyMethod(this);
   CHECK(native_method != NULL) << PrettyMethod(this);
-  if (!self->GetJniEnv()->vm->work_around_app_jni_bugs) {
-    if (is_fast) {
-      SetAccessFlags(GetAccessFlags() | kAccFastNative);
-    }
-    SetNativeMethod(native_method);
-  } else {
-    // We've been asked to associate this method with the given native method but are working
-    // around JNI bugs, that include not giving Object** SIRT references to native methods. Direct
-    // the native method to runtime support and store the target somewhere runtime support will
-    // find it.
-#if defined(__i386__) || defined(__x86_64__)
-    UNIMPLEMENTED(FATAL);
-#else
-    SetNativeMethod(reinterpret_cast<void*>(art_work_around_app_jni_bugs));
-#endif
-    SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, gc_map_),
-                       reinterpret_cast<const uint8_t*>(native_method), false);
+  if (is_fast) {
+    SetAccessFlags(GetAccessFlags() | kAccFastNative);
   }
+  SetNativeMethod(native_method);
 }
 
 void ArtMethod::UnregisterNative(Thread* self) {
