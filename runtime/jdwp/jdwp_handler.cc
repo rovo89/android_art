@@ -291,6 +291,7 @@ static JdwpError VM_Suspend(JdwpState*, Request&, ExpandBuf*)
  */
 static JdwpError VM_Resume(JdwpState*, Request&, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Dbg::ProcessDelayedFullUndeoptimizations();
   Dbg::ResumeVM();
   return ERR_NONE;
 }
@@ -979,6 +980,8 @@ static JdwpError TR_Resume(JdwpState*, Request& request, ExpandBuf*)
     LOG(INFO) << "  Warning: ignoring request to resume self";
     return ERR_NONE;
   }
+
+  Dbg::ProcessDelayedFullUndeoptimizations();
 
   Dbg::ResumeThread(thread_id);
   return ERR_NONE;
