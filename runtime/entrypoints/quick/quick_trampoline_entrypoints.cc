@@ -34,6 +34,12 @@ namespace art {
 
 // Visits the arguments as saved to the stack by a Runtime::kRefAndArgs callee save frame.
 class QuickArgumentVisitor {
+  // Size of each spilled GPR.
+#ifdef __LP64__
+  static constexpr size_t kBytesPerGprSpillLocation = 8;
+#else
+  static constexpr size_t kBytesPerGprSpillLocation = 4;
+#endif
   // Number of bytes for each out register in the caller method's frame.
   static constexpr size_t kBytesStackArgLocation = 4;
 #if defined(__arm__)
@@ -55,6 +61,7 @@ class QuickArgumentVisitor {
   static constexpr bool kQuickSoftFloatAbi = true;  // This is a soft float ABI.
   static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 0;  // 0 arguments passed in FPRs.
+  static constexpr size_t kBytesPerFprSpillLocation = 4;  // FPR spill size is 4 bytes.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 8;  // Offset of first GPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 44;  // Offset of return address.
@@ -86,6 +93,7 @@ class QuickArgumentVisitor {
   static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr size_t kNumQuickGprArgs = 7;  // 7 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 8;  // 8 arguments passed in FPRs.
+  static constexpr size_t kBytesPerFprSpillLocation = 8;  // FPR spill size is 8 bytes.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset =16;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 144;  // Offset of first GPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 296;  // Offset of return address.
@@ -111,6 +119,7 @@ class QuickArgumentVisitor {
   static constexpr bool kQuickSoftFloatAbi = true;  // This is a soft float ABI.
   static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 0;  // 0 arguments passed in FPRs.
+  static constexpr size_t kBytesPerFprSpillLocation = 4;  // FPR spill size is 4 bytes.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 4;  // Offset of first GPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 60;  // Offset of return address.
@@ -136,6 +145,7 @@ class QuickArgumentVisitor {
   static constexpr bool kQuickSoftFloatAbi = true;  // This is a soft float ABI.
   static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 0;  // 0 arguments passed in FPRs.
+  static constexpr size_t kBytesPerFprSpillLocation = 8;  // FPR spill size is 8 bytes.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 4;  // Offset of first GPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 28;  // Offset of return address.
@@ -174,6 +184,7 @@ class QuickArgumentVisitor {
   static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr size_t kNumQuickGprArgs = 5;  // 3 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 8;  // 0 arguments passed in FPRs.
+  static constexpr size_t kBytesPerFprSpillLocation = 8;  // FPR spill size is 8 bytes.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 16;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 80;  // Offset of first GPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 168;  // Offset of return address.
