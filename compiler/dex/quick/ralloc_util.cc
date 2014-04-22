@@ -1141,7 +1141,8 @@ void Mir2Lir::DoPromotion() {
 /* Returns sp-relative offset in bytes for a VReg */
 int Mir2Lir::VRegOffset(int v_reg) {
   return StackVisitor::GetVRegOffset(cu_->code_item, core_spill_mask_,
-                                     fp_spill_mask_, frame_size_, v_reg);
+                                     fp_spill_mask_, frame_size_, v_reg,
+                                     cu_->instruction_set);
 }
 
 /* Returns sp-relative offset in bytes for a SReg */

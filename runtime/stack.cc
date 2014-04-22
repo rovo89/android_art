@@ -187,7 +187,7 @@ void StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_val
       uint32_t core_spills = m->GetCoreSpillMask();
       uint32_t fp_spills = m->GetFpSpillMask();
       size_t frame_size = m->GetFrameSizeInBytes();
-      int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
+      int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg, kRuntimeISA);
       byte* vreg_addr = reinterpret_cast<byte*>(GetCurrentQuickFrame()) + offset;
       *reinterpret_cast<uint32_t*>(vreg_addr) = new_value;
     }

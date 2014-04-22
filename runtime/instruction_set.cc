@@ -86,6 +86,52 @@ size_t GetInstructionSetPointerSize(InstructionSet isa) {
   }
 }
 
+size_t GetBytesPerGprSpillLocation(InstructionSet isa) {
+  switch (isa) {
+    case kArm:
+      // Fall-through.
+    case kThumb2:
+      return 4;
+    case kArm64:
+      return 8;
+    case kX86:
+      return 4;
+    case kX86_64:
+      return 8;
+    case kMips:
+      return 4;
+    case kNone:
+      LOG(FATAL) << "ISA kNone does not have spills.";
+      return 0;
+    default:
+      LOG(FATAL) << "Unknown ISA " << isa;
+      return 0;
+  }
+}
+
+size_t GetBytesPerFprSpillLocation(InstructionSet isa) {
+  switch (isa) {
+    case kArm:
+      // Fall-through.
+    case kThumb2:
+      return 4;
+    case kArm64:
+      return 8;
+    case kX86:
+      return 8;
+    case kX86_64:
+      return 8;
+    case kMips:
+      return 4;
+    case kNone:
+      LOG(FATAL) << "ISA kNone does not have spills.";
+      return 0;
+    default:
+      LOG(FATAL) << "Unknown ISA " << isa;
+      return 0;
+  }
+}
+
 size_t GetInstructionSetAlignment(InstructionSet isa) {
   switch (isa) {
     case kArm:

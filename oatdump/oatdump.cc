@@ -495,7 +495,8 @@ class OatDumper {
       } else {
         uint32_t offset = StackVisitor::GetVRegOffset(code_item, oat_method.GetCoreSpillMask(),
                                                       oat_method.GetFpSpillMask(),
-                                                      oat_method.GetFrameSizeInBytes(), reg);
+                                                      oat_method.GetFrameSizeInBytes(), reg,
+                                                      GetInstructionSet());
         os << "[sp + #" << offset << "]";
       }
     }

@@ -19,9 +19,10 @@
 
 #include "dex_file.h"
 #include "instrumentation.h"
+#include "arch/context.h"
 #include "base/casts.h"
 #include "base/macros.h"
-#include "arch/context.h"
+#include "instruction_set.h"
 #include "mirror/object.h"
 #include "mirror/object_reference.h"
 #include "verify_object.h"
@@ -577,7 +578,7 @@ class StackVisitor {
   uint32_t* GetVRegAddr(mirror::ArtMethod** cur_quick_frame, const DexFile::CodeItem* code_item,
                         uint32_t core_spills, uint32_t fp_spills, size_t frame_size,
                         uint16_t vreg) const {
-    int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
+    int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg, kRuntimeISA);
     DCHECK_EQ(cur_quick_frame, GetCurrentQuickFrame());
     byte* vreg_addr = reinterpret_cast<byte*>(cur_quick_frame) + offset;
     return reinterpret_cast<uint32_t*>(vreg_addr);
@@ -634,14 +635,15 @@ class StackVisitor {
    */
   static int GetVRegOffset(const DexFile::CodeItem* code_item,
                            uint32_t core_spills, uint32_t fp_spills,
-                           size_t frame_size, int reg) {
+                           size_t frame_size, int reg, InstructionSet isa) {
     DCHECK_EQ(frame_size & (kStackAlignment - 1), 0U);
     DCHECK_NE(reg, static_cast<int>(kVRegInvalid));
-
-    int num_spills = __builtin_popcount(core_spills) + __builtin_popcount(fp_spills) + 1;  // Filler.
+    int spill_size = __builtin_popcount(core_spills) * GetBytesPerGprSpillLocation(isa)
+        + __builtin_popcount(fp_spills) * GetBytesPerFprSpillLocation(isa)
+        + sizeof(uint32_t);  // Filler.
     int num_ins = code_item->ins_size_;
     int num_regs = code_item->registers_size_ - num_ins;
-    int locals_start = frame_size - ((num_spills + num_regs) * sizeof(uint32_t));
+    int locals_start = frame_size - spill_size - num_regs * sizeof(uint32_t);
     if (reg == static_cast<int>(kVRegMethodPtrBaseReg)) {
       // The current method pointer corresponds to special location on stack.
       return 0;
@@ -654,19 +656,20 @@ class StackVisitor {
        * temp is at offset -4 bytes from locals, the second is at -8 bytes from locals,
        * and so on.
        */
-      int relative_offset = (reg + std::abs(static_cast<int>(kVRegNonSpecialTempBaseReg)) - 1) * sizeof(uint32_t);
+      int relative_offset =
+          (reg + std::abs(static_cast<int>(kVRegNonSpecialTempBaseReg)) - 1) * sizeof(uint32_t);
       return locals_start + relative_offset;
     }  else if (reg < num_regs) {
       return locals_start + (reg * sizeof(uint32_t));
     } else {
       // Handle ins.
-      return frame_size + ((reg - num_regs) * sizeof(uint32_t)) + sizeof(StackReference<mirror::ArtMethod>);
+      return frame_size + ((reg - num_regs) * sizeof(uint32_t)) + GetBytesPerGprSpillLocation(isa);
     }
   }
 
-  static int GetOutVROffset(uint16_t out_num) {
+  static int GetOutVROffset(uint16_t out_num, InstructionSet isa) {
     // According to stack model, the first out is above the Method ptr.
-    return sizeof(StackReference<mirror::ArtMethod>) + (out_num * sizeof(uint32_t));
+    return GetBytesPerGprSpillLocation(isa) + (out_num * sizeof(uint32_t));
   }
 
   uintptr_t GetCurrentQuickFramePc() const {
