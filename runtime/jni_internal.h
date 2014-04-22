@@ -110,9 +110,6 @@ class JavaVMExt : public JavaVM {
   // Extra diagnostics.
   std::string trace;
 
-  // Used to provide compatibility for apps that assumed direct references.
-  bool work_around_app_jni_bugs;
-
   // Used to hold references to pinned primitive arrays.
   Mutex pins_lock DEFAULT_MUTEX_ACQUIRED_AFTER;
   ReferenceTable pin_table GUARDED_BY(pins_lock);
@@ -149,7 +146,7 @@ struct JNIEnvExt : public JNIEnv {
   void PopFrame();
 
   template<typename T>
-  T AddLocalReference(mirror::Object* obj, bool jni_work_arounds)
+  T AddLocalReference(mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Offset SegmentStateOffset();
@@ -216,7 +213,7 @@ class ScopedJniEnvLocalRefState {
 };
 
 template<typename T>
-inline T JNIEnvExt::AddLocalReference(mirror::Object* obj, bool jni_work_arounds) {
+inline T JNIEnvExt::AddLocalReference(mirror::Object* obj) {
   IndirectRef ref = locals.Add(local_ref_cookie, obj);
 
   // TODO: fix this to understand PushLocalFrame, so we can turn it on.
@@ -231,9 +228,6 @@ inline T JNIEnvExt::AddLocalReference(mirror::Object* obj, bool jni_work_arounds
     }
   }
 
-  if (jni_work_arounds) {
-    return reinterpret_cast<T>(obj);
-  }
   return reinterpret_cast<T>(ref);
 }
 

@@ -2444,23 +2444,6 @@ class JNI {
       if (static_cast<JNIEnvExt*>(env)->self->SirtContains(java_object)) {
         return JNILocalRefType;
       }
-
-      if (!static_cast<JNIEnvExt*>(env)->vm->work_around_app_jni_bugs) {
-        return JNIInvalidRefType;
-      }
-
-      // If we're handing out direct pointers, check whether it's a direct pointer to a local
-      // reference.
-      {
-        ScopedObjectAccess soa(env);
-        if (soa.Decode<mirror::Object*>(java_object) ==
-            reinterpret_cast<mirror::Object*>(java_object)) {
-          mirror::Object* object = reinterpret_cast<mirror::Object*>(java_object);
-          if (soa.Env()->locals.ContainsDirectPointer(object)) {
-            return JNILocalRefType;
-          }
-        }
-      }
       return JNIInvalidRefType;
     }
     LOG(FATAL) << "IndirectRefKind[" << kind << "]";
@@ -2993,7 +2976,6 @@ JavaVMExt::JavaVMExt(Runtime* runtime, ParsedOptions* options)
       check_jni(false),
       force_copy(false),  // TODO: add a way to enable this
       trace(options->jni_trace_),
-      work_around_app_jni_bugs(false),
       pins_lock("JNI pin table lock", kPinTableLock),
       pin_table("pin table", kPinTableInitial, kPinTableMax),
       globals_lock("JNI global reference table lock"),
@@ -3044,7 +3026,6 @@ void JavaVMExt::DumpForSigQuit(std::ostream& os) {
   if (force_copy) {
     os << " (with forcecopy)";
   }
-  os << "; workarounds are " << (work_around_app_jni_bugs ? "on" : "off");
   Thread* self = Thread::Current();
   {
     MutexLock mu(self, pins_lock);
