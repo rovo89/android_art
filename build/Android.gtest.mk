@@ -17,6 +17,7 @@
 LOCAL_PATH := art
 
 RUNTIME_GTEST_COMMON_SRC_FILES := \
+	runtime/arch/arch_test.cc \
 	runtime/arch/stub_test.cc \
 	runtime/barrier_test.cc \
 	runtime/base/bit_field_test.cc \

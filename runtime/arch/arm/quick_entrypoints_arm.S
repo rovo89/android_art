@@ -46,6 +46,11 @@
     sub sp, #12       @ 3 words of space, bottom word will hold Method*
     .pad #12
     .cfi_adjust_cfa_offset 12
+
+     // Ugly compile-time check, but we only have the preprocessor.
+#if (FRAME_SIZE_SAVE_ALL_CALLEE_SAVE != 36 + 128 + 12)
+#error "SAVE_ALL_CALLEE_SAVE_FRAME(ARM) size not as expected."
+#endif
 .endm
 
     /*
@@ -66,6 +71,11 @@
     sub sp, #4                @ bottom word will hold Method*
     .pad #4
     .cfi_adjust_cfa_offset 4
+
+    // Ugly compile-time check, but we only have the preprocessor.
+#if (FRAME_SIZE_REFS_ONLY_CALLEE_SAVE != 28 + 4)
+#error "REFS_ONLY_CALLEE_SAVE_FRAME(ARM) size not as expected."
+#endif
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
@@ -114,6 +124,11 @@
     sub sp, #8                        @ 2 words of space, bottom word will hold Method*
     .pad #8
     .cfi_adjust_cfa_offset 8
+
+    // Ugly compile-time check, but we only have the preprocessor.
+#if (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE != 40 + 8)
+#error "REFS_AND_ARGS_CALLEE_SAVE_FRAME(ARM64) size not as expected."
+#endif
 .endm
 
 .macro RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
