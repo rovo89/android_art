@@ -433,6 +433,12 @@ class ClassLinker {
                  const SirtRef<mirror::Class>& klass,
                  mirror::ClassLoader* class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void LoadClassMembers(const DexFile& dex_file,
+                        const byte* class_data,
+                        const SirtRef<mirror::Class>& klass,
+                        mirror::ClassLoader* class_loader,
+                        const OatFile::OatClass* oat_class)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void LoadField(const DexFile& dex_file, const ClassDataItemIterator& it,
                  const SirtRef<mirror::Class>& klass, const SirtRef<mirror::ArtField>& dst)
@@ -446,7 +452,7 @@ class ClassLinker {
   void FixupStaticTrampolines(mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the associated oat class for a dex_file and descriptor
-  const OatFile::OatClass* GetOatClass(const DexFile& dex_file, uint16_t class_def_idx)
+  OatFile::OatClass GetOatClass(const DexFile& dex_file, uint16_t class_def_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void RegisterDexFileLocked(const DexFile& dex_file, const SirtRef<mirror::DexCache>& dex_cache)

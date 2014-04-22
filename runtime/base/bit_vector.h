@@ -119,7 +119,9 @@ class BitVector {
     bool SameBitsSet(const BitVector *src);
 
     uint32_t NumSetBits() const;
-    uint32_t NumSetBits(uint32_t num) const;
+
+    // Number of bits set in range [0, end).
+    uint32_t NumSetBits(uint32_t end) const;
 
     Iterator* GetIterator() const;
 
@@ -134,6 +136,11 @@ class BitVector {
      * @return the highest bit set, -1 if none are set
      */
     int GetHighestBitSet() const;
+
+    // Is bit set in storage. (No range check.)
+    static bool IsBitSet(const uint32_t* storage, uint32_t num);
+    // Number of bits set in range [0, end) in storage. (No range check.)
+    static uint32_t NumSetBits(const uint32_t* storage, uint32_t end);
 
   private:
     Allocator* const allocator_;

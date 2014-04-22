@@ -65,8 +65,7 @@ bool BitVector::IsBitSet(uint32_t num) const {
     return false;
   }
 
-  uint32_t val = storage_[num >> 5] & check_masks[num & 0x1f];
-  return (val != 0);
+  return IsBitSet(storage_, num);
 }
 
 // Mark all bits bit as "clear".
@@ -213,27 +212,10 @@ uint32_t BitVector::NumSetBits() const {
   return count;
 }
 
-// Count the number of bits that are set up through and including num.
-uint32_t BitVector::NumSetBits(uint32_t num) const {
-  DCHECK_LT(num, storage_size_ * sizeof(*storage_) * 8);
-  uint32_t last_word = num >> 5;
-  uint32_t partial_word_bits = num & 0x1f;
-
-  // partial_word_bits |  # |                         |                      | partial_word_mask
-  //             00000 |  0 | 0xffffffff >> (31 -  0) | (1 <<  (0 + 1)) - 1  | 0x00000001
-  //             00001 |  1 | 0xffffffff >> (31 -  1) | (1 <<  (1 + 1)) - 1  | 0x00000003
-  //             00010 |  2 | 0xffffffff >> (31 -  2) | (1 <<  (2 + 1)) - 1  | 0x00000007
-  //             ..... |
-  //             11110 | 30 | 0xffffffff >> (31 - 30) | (1 << (30 + 1)) - 1  | 0x7fffffff
-  //             11111 | 31 | 0xffffffff >> (31 - 31) | last_full_word++     | 0xffffffff
-  uint32_t partial_word_mask = 0xffffffff >> (0x1f - partial_word_bits);
-
-  uint32_t count = 0;
-  for (uint32_t word = 0; word < last_word; word++) {
-    count += __builtin_popcount(storage_[word]);
-  }
-  count += __builtin_popcount(storage_[last_word] & partial_word_mask);
-  return count;
+// Count the number of bits that are set in range [0, end).
+uint32_t BitVector::NumSetBits(uint32_t end) const {
+  DCHECK_LE(end, storage_size_ * sizeof(*storage_) * 8);
+  return NumSetBits(storage_, end);
 }
 
 BitVector::Iterator* BitVector::GetIterator() const {
@@ -325,6 +307,25 @@ void BitVector::Copy(const BitVector *src) {
   if (left > 0) {
     memset(storage_ + size, 0, sizeof(*storage_) * left);
   }
+}
+
+bool BitVector::IsBitSet(const uint32_t* storage, uint32_t num) {
+  uint32_t val = storage[num >> 5] & check_masks[num & 0x1f];
+  return (val != 0);
+}
+
+uint32_t BitVector::NumSetBits(const uint32_t* storage, uint32_t end) {
+  uint32_t word_end = end >> 5;
+  uint32_t partial_word_bits = end & 0x1f;
+
+  uint32_t count = 0u;
+  for (uint32_t word = 0u; word < word_end; word++) {
+    count += __builtin_popcount(storage[word]);
+  }
+  if (partial_word_bits != 0u) {
+    count += __builtin_popcount(storage[word_end] & ~(0xffffffffu << partial_word_bits));
+  }
+  return count;
 }
 
 }  // namespace art

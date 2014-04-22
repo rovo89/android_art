@@ -215,10 +215,9 @@ class OatDumper {
             dex_file->FindClassDef(mh.GetDeclaringClassDescriptor());
         if (class_def != NULL) {
           uint16_t class_def_index = dex_file->GetIndexForClassDef(*class_def);
-          const OatFile::OatClass* oat_class = oat_dex_file->GetOatClass(class_def_index);
-          CHECK(oat_class != NULL);
+          const OatFile::OatClass oat_class = oat_dex_file->GetOatClass(class_def_index);
           size_t method_index = m->GetMethodIndex();
-          return oat_class->GetOatMethod(method_index).GetQuickCode();
+          return oat_class.GetOatMethod(method_index).GetQuickCode();
         }
       }
     }
@@ -246,18 +245,18 @@ class OatDumper {
            class_def_index < dex_file->NumClassDefs();
            class_def_index++) {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
-        UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(class_def_index));
+        const OatFile::OatClass oat_class = oat_dex_file->GetOatClass(class_def_index);
         const byte* class_data = dex_file->GetClassData(class_def);
         if (class_data != NULL) {
           ClassDataItemIterator it(*dex_file, class_data);
           SkipAllFields(it);
           uint32_t class_method_index = 0;
           while (it.HasNextDirectMethod()) {
-            AddOffsets(oat_class->GetOatMethod(class_method_index++));
+            AddOffsets(oat_class.GetOatMethod(class_method_index++));
             it.Next();
           }
           while (it.HasNextVirtualMethod()) {
-            AddOffsets(oat_class->GetOatMethod(class_method_index++));
+            AddOffsets(oat_class.GetOatMethod(class_method_index++));
             it.Next();
           }
         }
@@ -299,15 +298,14 @@ class OatDumper {
          class_def_index++) {
       const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
       const char* descriptor = dex_file->GetClassDescriptor(class_def);
-      UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file.GetOatClass(class_def_index));
-      CHECK(oat_class.get() != NULL);
+      const OatFile::OatClass oat_class = oat_dex_file.GetOatClass(class_def_index);
       os << StringPrintf("%zd: %s (type_idx=%d)", class_def_index, descriptor, class_def.class_idx_)
-         << " (" << oat_class->GetStatus() << ")"
-         << " (" << oat_class->GetType() << ")\n";
-      // TODO: include bitmap here if type is kOatClassBitmap?
+         << " (" << oat_class.GetStatus() << ")"
+         << " (" << oat_class.GetType() << ")\n";
+      // TODO: include bitmap here if type is kOatClassSomeCompiled?
       Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
       std::ostream indented_os(&indent_filter);
-      DumpOatClass(indented_os, *oat_class.get(), *(dex_file.get()), class_def);
+      DumpOatClass(indented_os, oat_class, *(dex_file.get()), class_def);
     }
 
     os << std::flush;
