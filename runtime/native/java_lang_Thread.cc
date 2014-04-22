@@ -88,6 +88,7 @@ static jint Thread_nativeGetStatus(JNIEnv* env, jobject java_thread, jboolean ha
     case kSuspended:                      return kJavaRunnable;
     // Don't add a 'default' here so the compiler can spot incompatible enum changes.
   }
+  LOG(ERROR) << "Unexpected thread state: " << internal_thread_state;
   return -1;  // Unreachable.
 }
 
