@@ -493,7 +493,8 @@ class RosAlloc {
   // Page-granularity alloc/free
   void* AllocPages(Thread* self, size_t num_pages, byte page_map_type)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
-  void FreePages(Thread* self, void* ptr) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  // Returns how many pages were freed.
+  size_t FreePages(Thread* self, void* ptr) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // Allocate/free a run slot.
   void* AllocFromRun(Thread* self, size_t size, size_t* bytes_allocated)
@@ -506,7 +507,7 @@ class RosAlloc {
   Run* RefillRun(Thread* self, size_t idx) LOCKS_EXCLUDED(lock_);
 
   // The internal of non-bulk Free().
-  void FreeInternal(Thread* self, void* ptr) LOCKS_EXCLUDED(lock_);
+  size_t FreeInternal(Thread* self, void* ptr) LOCKS_EXCLUDED(lock_);
 
   // Allocates large objects.
   void* AllocLargeObject(Thread* self, size_t size, size_t* bytes_allocated) LOCKS_EXCLUDED(lock_);
@@ -518,9 +519,9 @@ class RosAlloc {
   ~RosAlloc();
   void* Alloc(Thread* self, size_t size, size_t* bytes_allocated)
       LOCKS_EXCLUDED(lock_);
-  void Free(Thread* self, void* ptr)
+  size_t Free(Thread* self, void* ptr)
       LOCKS_EXCLUDED(bulk_free_lock_);
-  void BulkFree(Thread* self, void** ptrs, size_t num_ptrs)
+  size_t BulkFree(Thread* self, void** ptrs, size_t num_ptrs)
       LOCKS_EXCLUDED(bulk_free_lock_);
   // Returns the size of the allocated slot for a given allocated memory chunk.
   size_t UsableSize(void* ptr);
