@@ -699,23 +699,24 @@ LIR* ArmMir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStora
 
   if (ARM_FPREG(r_dest.GetReg())) {
     if (ARM_SINGLEREG(r_dest.GetReg())) {
-      DCHECK((size == kWord) || (size == kSingle));
+      DCHECK((size == k32) || (size == kSingle));
       opcode = kThumb2Vldrs;
       size = kSingle;
     } else {
       DCHECK(ARM_DOUBLEREG(r_dest.GetReg()));
-      DCHECK((size == kLong) || (size == kDouble));
+      DCHECK((size == k64) || (size == kDouble));
       DCHECK_EQ((r_dest.GetReg() & 0x1), 0);
       opcode = kThumb2Vldrd;
       size = kDouble;
     }
   } else {
     if (size == kSingle)
-      size = kWord;
+      size = k32;
   }
 
   switch (size) {
     case kDouble:  // fall-through
+    // Intentional fall-though.
     case kSingle:
       reg_ptr = AllocTemp();
       if (scale) {
@@ -727,7 +728,9 @@ LIR* ArmMir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStora
       load = NewLIR3(opcode, r_dest.GetReg(), reg_ptr.GetReg(), 0);
       FreeTemp(reg_ptr);
       return load;
-    case kWord:
+    case k32:
+    // Intentional fall-though.
+    case kReference:
       opcode = (thumb_form) ? kThumbLdrRRR : kThumb2LdrRRR;
       break;
     case kUnsignedHalf:
@@ -764,23 +767,24 @@ LIR* ArmMir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStor
 
   if (ARM_FPREG(r_src.GetReg())) {
     if (ARM_SINGLEREG(r_src.GetReg())) {
-      DCHECK((size == kWord) || (size == kSingle));
+      DCHECK((size == k32) || (size == kSingle));
       opcode = kThumb2Vstrs;
       size = kSingle;
     } else {
       DCHECK(ARM_DOUBLEREG(r_src.GetReg()));
-      DCHECK((size == kLong) || (size == kDouble));
+      DCHECK((size == k64) || (size == kDouble));
       DCHECK_EQ((r_src.GetReg() & 0x1), 0);
       opcode = kThumb2Vstrd;
       size = kDouble;
     }
   } else {
     if (size == kSingle)
-      size = kWord;
+      size = k32;
   }
 
   switch (size) {
     case kDouble:  // fall-through
+    // Intentional fall-though.
     case kSingle:
       reg_ptr = AllocTemp();
       if (scale) {
@@ -792,14 +796,18 @@ LIR* ArmMir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStor
       store = NewLIR3(opcode, r_src.GetReg(), reg_ptr.GetReg(), 0);
       FreeTemp(reg_ptr);
       return store;
-    case kWord:
+    case k32:
+    // Intentional fall-though.
+    case kReference:
       opcode = (thumb_form) ? kThumbStrRRR : kThumb2StrRRR;
       break;
     case kUnsignedHalf:
+    // Intentional fall-though.
     case kSignedHalf:
       opcode = (thumb_form) ? kThumbStrhRRR : kThumb2StrhRRR;
       break;
     case kUnsignedByte:
+    // Intentional fall-though.
     case kSignedByte:
       opcode = (thumb_form) ? kThumbStrbRRR : kThumb2StrbRRR;
       break;
@@ -832,7 +840,8 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
   bool null_pointer_safepoint = false;
   switch (size) {
     case kDouble:
-    case kLong:
+    // Intentional fall-though.
+    case k64:
       if (ARM_FPREG(dest_low_reg)) {
         // Note: following change to avoid using pairs for doubles, replace conversion w/ DCHECK.
         if (r_dest.IsPair()) {
@@ -849,15 +858,18 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
           load = NewLIR4(kThumb2LdrdI8, r_dest.GetLowReg(), r_dest.GetHighReg(), r_base.GetReg(),
                          displacement >> 2);
         } else {
-          load = LoadBaseDispBody(r_base, displacement, r_dest.GetLow(), kWord, s_reg);
+          load = LoadBaseDispBody(r_base, displacement, r_dest.GetLow(), k32, s_reg);
           null_pointer_safepoint = true;
-          LoadBaseDispBody(r_base, displacement + 4, r_dest.GetHigh(), kWord, INVALID_SREG);
+          LoadBaseDispBody(r_base, displacement + 4, r_dest.GetHigh(), k32, INVALID_SREG);
         }
         already_generated = true;
       }
       break;
     case kSingle:
-    case kWord:
+    // Intentional fall-though.
+    case k32:
+    // Intentional fall-though.
+    case kReference:
       if (ARM_FPREG(r_dest.GetReg())) {
         opcode = kThumb2Vldrs;
         if (displacement <= 1020) {
@@ -953,13 +965,17 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
 
 LIR* ArmMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
                               int s_reg) {
-  DCHECK(!((size == kLong) || (size == kDouble)));
+  DCHECK(!((size == k64) || (size == kDouble)));
+  // TODO: base this on target.
+  if (size == kWord) {
+    size = k32;
+  }
   return LoadBaseDispBody(r_base, displacement, r_dest, size, s_reg);
 }
 
 LIR* ArmMir2Lir::LoadBaseDispWide(RegStorage r_base, int displacement, RegStorage r_dest,
                                   int s_reg) {
-  return LoadBaseDispBody(r_base, displacement, r_dest, kLong, s_reg);
+  return LoadBaseDispBody(r_base, displacement, r_dest, k64, s_reg);
 }
 
 
@@ -975,16 +991,16 @@ LIR* ArmMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStora
   int src_low_reg = r_src.IsPair() ? r_src.GetLowReg() : r_src.GetReg();
   bool null_pointer_safepoint = false;
   switch (size) {
-    case kLong:
+    case k64:
     case kDouble:
       if (!ARM_FPREG(src_low_reg)) {
         if (displacement <= 1020) {
           store = NewLIR4(kThumb2StrdI8, r_src.GetLowReg(), r_src.GetHighReg(), r_base.GetReg(),
                           displacement >> 2);
         } else {
-          store = StoreBaseDispBody(r_base, displacement, r_src.GetLow(), kWord);
+          store = StoreBaseDispBody(r_base, displacement, r_src.GetLow(), k32);
           null_pointer_safepoint = true;
-          StoreBaseDispBody(r_base, displacement + 4, r_src.GetHigh(), kWord);
+          StoreBaseDispBody(r_base, displacement + 4, r_src.GetHigh(), k32);
         }
         already_generated = true;
       } else {
@@ -1001,7 +1017,8 @@ LIR* ArmMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStora
       }
       break;
     case kSingle:
-    case kWord:
+    case k32:
+    case kReference:
       if (ARM_FPREG(r_src.GetReg())) {
         DCHECK(ARM_SINGLEREG(r_src.GetReg()));
         opcode = kThumb2Vstrs;
@@ -1082,12 +1099,16 @@ LIR* ArmMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStora
 
 LIR* ArmMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
                                OpSize size) {
-  DCHECK(!((size == kLong) || (size == kDouble)));
+  // TODO: base this on target.
+  if (size == kWord) {
+    size = k32;
+  }
+  DCHECK(!((size == k64) || (size == kDouble)));
   return StoreBaseDispBody(r_base, displacement, r_src, size);
 }
 
 LIR* ArmMir2Lir::StoreBaseDispWide(RegStorage r_base, int displacement, RegStorage r_src) {
-  return StoreBaseDispBody(r_base, displacement, r_src, kLong);
+  return StoreBaseDispBody(r_base, displacement, r_src, k64);
 }
 
 LIR* ArmMir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {

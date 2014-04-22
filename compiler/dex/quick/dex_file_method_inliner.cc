@@ -212,8 +212,8 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     INTRINSIC(JavaLangFloat, FloatToRawIntBits, F_I, kIntrinsicFloatCvt, 0),
     INTRINSIC(JavaLangFloat, IntBitsToFloat, I_F, kIntrinsicFloatCvt, 0),
 
-    INTRINSIC(JavaLangInteger, ReverseBytes, I_I, kIntrinsicReverseBytes, kWord),
-    INTRINSIC(JavaLangLong, ReverseBytes, J_J, kIntrinsicReverseBytes, kLong),
+    INTRINSIC(JavaLangInteger, ReverseBytes, I_I, kIntrinsicReverseBytes, k32),
+    INTRINSIC(JavaLangLong, ReverseBytes, J_J, kIntrinsicReverseBytes, k64),
     INTRINSIC(JavaLangShort, ReverseBytes, S_S, kIntrinsicReverseBytes, kSignedHalf),
 
     INTRINSIC(JavaLangMath,       Abs, I_I, kIntrinsicAbsInt, 0),
@@ -241,12 +241,12 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     INTRINSIC(JavaLangThread, CurrentThread, _Thread, kIntrinsicCurrentThread, 0),
 
     INTRINSIC(LibcoreIoMemory, PeekByte, J_B, kIntrinsicPeek, kSignedByte),
-    INTRINSIC(LibcoreIoMemory, PeekIntNative, J_I, kIntrinsicPeek, kWord),
-    INTRINSIC(LibcoreIoMemory, PeekLongNative, J_J, kIntrinsicPeek, kLong),
+    INTRINSIC(LibcoreIoMemory, PeekIntNative, J_I, kIntrinsicPeek, k32),
+    INTRINSIC(LibcoreIoMemory, PeekLongNative, J_J, kIntrinsicPeek, k64),
     INTRINSIC(LibcoreIoMemory, PeekShortNative, J_S, kIntrinsicPeek, kSignedHalf),
     INTRINSIC(LibcoreIoMemory, PokeByte, JB_V, kIntrinsicPoke, kSignedByte),
-    INTRINSIC(LibcoreIoMemory, PokeIntNative, JI_V, kIntrinsicPoke, kWord),
-    INTRINSIC(LibcoreIoMemory, PokeLongNative, JJ_V, kIntrinsicPoke, kLong),
+    INTRINSIC(LibcoreIoMemory, PokeIntNative, JI_V, kIntrinsicPoke, k32),
+    INTRINSIC(LibcoreIoMemory, PokeLongNative, JJ_V, kIntrinsicPoke, k64),
     INTRINSIC(LibcoreIoMemory, PokeShortNative, JS_V, kIntrinsicPoke, kSignedHalf),
 
     INTRINSIC(SunMiscUnsafe, CompareAndSwapInt, ObjectJII_Z, kIntrinsicCas,

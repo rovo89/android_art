@@ -1118,7 +1118,7 @@ bool Mir2Lir::BadOverlap(RegLocation rl_src, RegLocation rl_dest) {
 LIR *Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,
                                 int offset, int check_value, LIR* target) {
   // Handle this for architectures that can't compare to memory.
-  LoadWordDisp(base_reg, offset, temp_reg);
+  Load32Disp(base_reg, offset, temp_reg);
   LIR* branch = OpCmpImmBranch(cond, temp_reg, check_value, target);
   return branch;
 }
