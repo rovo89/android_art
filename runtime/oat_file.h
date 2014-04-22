@@ -181,7 +181,6 @@ class OatFile {
     // methods. note that runtime created methods such as miranda
     // methods are not included.
     const OatMethod GetOatMethod(uint32_t method_index) const;
-    ~OatClass();
 
    private:
     OatClass(const OatFile* oat_file,
@@ -191,15 +190,13 @@ class OatFile {
              const uint32_t* bitmap_pointer,
              const OatMethodOffsets* methods_pointer);
 
-    const OatFile* oat_file_;
+    const OatFile* const oat_file_;
 
     const mirror::Class::Status status_;
-    COMPILE_ASSERT(mirror::Class::Status::kStatusMax < (2 ^ 16), class_status_wont_fit_in_16bits);
 
-    OatClassType type_;
-    COMPILE_ASSERT(OatClassType::kOatClassMax < (2 ^ 16), oat_class_type_wont_fit_in_16bits);
+    const OatClassType type_;
 
-    const BitVector* bitmap_;
+    const uint32_t* const bitmap_;
 
     const OatMethodOffsets* methods_pointer_;
 
@@ -225,7 +222,7 @@ class OatFile {
     }
 
     // Returns the OatClass for the class specified by the given DexFile class_def_index.
-    const OatClass* GetOatClass(uint16_t class_def_index) const;
+    OatClass GetOatClass(uint16_t class_def_index) const;
 
     ~OatDexFile();
 
