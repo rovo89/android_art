@@ -106,7 +106,37 @@ SemiSpace::SemiSpace(Heap* heap, bool generational, const std::string& name_pref
       bytes_promoted_since_last_whole_heap_collection_(0),
       whole_heap_collection_(true),
       whole_heap_collection_interval_counter_(0),
-      collector_name_(name_) {
+      collector_name_(name_),
+      swap_semi_spaces_(true) {
+}
+
+void SemiSpace::RunPhases() {
+  Thread* self = Thread::Current();
+  InitializePhase();
+  // Semi-space collector is special since it is sometimes called with the mutators suspended
+  // during the zygote creation and collector transitions. If we already exclusively hold the
+  // mutator lock, then we can't lock it again since it will cause a deadlock.
+  if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
+    GetHeap()->PreGcVerificationPaused(this);
+    GetHeap()->PrePauseRosAllocVerification(this);
+    MarkingPhase();
+    ReclaimPhase();
+    GetHeap()->PostGcVerificationPaused(this);
+  } else {
+    Locks::mutator_lock_->AssertNotHeld(self);
+    {
+      ScopedPause pause(this);
+      GetHeap()->PreGcVerificationPaused(this);
+      GetHeap()->PrePauseRosAllocVerification(this);
+      MarkingPhase();
+    }
+    {
+      ReaderMutexLock mu(self, *Locks::mutator_lock_);
+      ReclaimPhase();
+    }
+    GetHeap()->PostGcVerification(this);
+  }
+  FinishPhase();
 }
 
 void SemiSpace::InitializePhase() {
@@ -119,9 +149,6 @@ void SemiSpace::InitializePhase() {
   bytes_moved_ = 0;
   objects_moved_ = 0;
   self_ = Thread::Current();
-  // Do any pre GC verification.
-  timings_.NewSplit("PreGcVerification");
-  heap_->PreGcVerification(this);
   CHECK(from_space_->CanMoveObjects()) << "Attempting to move from " << *from_space_;
   // Set the initial bitmap.
   to_space_live_bitmap_ = to_space_->GetLiveBitmap();
@@ -140,6 +167,7 @@ void SemiSpace::ProcessReferences(Thread* self) {
 }
 
 void SemiSpace::MarkingPhase() {
+  CHECK(Locks::mutator_lock_->IsExclusiveHeld(self_));
   if (kStoreStackTraces) {
     Locks::mutator_lock_->AssertExclusiveHeld(self_);
     // Store the stack traces into the runtime fault string in case we get a heap corruption
@@ -214,12 +242,51 @@ void SemiSpace::MarkingPhase() {
     heap_->RevokeAllThreadLocalAllocationStacks(self_);
   }
   heap_->SwapStacks(self_);
-  WriterMutexLock mu(self_, *Locks::heap_bitmap_lock_);
-  MarkRoots();
-  // Mark roots of immune spaces.
-  UpdateAndMarkModUnion();
-  // Recursively mark remaining objects.
-  MarkReachableObjects();
+  {
+    WriterMutexLock mu(self_, *Locks::heap_bitmap_lock_);
+    MarkRoots();
+    // Mark roots of immune spaces.
+    UpdateAndMarkModUnion();
+    // Recursively mark remaining objects.
+    MarkReachableObjects();
+  }
+  ProcessReferences(self_);
+  {
+    ReaderMutexLock mu(self_, *Locks::heap_bitmap_lock_);
+    SweepSystemWeaks();
+  }
+  timings_.NewSplit("RecordFree");
+  // Revoke buffers before measuring how many objects were moved since the TLABs need to be revoked
+  // before they are properly counted.
+  RevokeAllThreadLocalBuffers();
+  // Record freed memory.
+  uint64_t from_bytes = from_space_->GetBytesAllocated();
+  uint64_t to_bytes = bytes_moved_;
+  uint64_t from_objects = from_space_->GetObjectsAllocated();
+  uint64_t to_objects = objects_moved_;
+  CHECK_LE(to_objects, from_objects);
+  int64_t freed_bytes = from_bytes - to_bytes;
+  int64_t freed_objects = from_objects - to_objects;
+  freed_bytes_.FetchAndAdd(freed_bytes);
+  freed_objects_.FetchAndAdd(freed_objects);
+  // Note: Freed bytes can be negative if we copy form a compacted space to a free-list backed
+  // space.
+  heap_->RecordFree(freed_objects, freed_bytes);
+
+  // Clear and protect the from space.
+  from_space_->Clear();
+  VLOG(heap) << "Protecting space " << *from_space_;
+  if (kProtectFromSpace) {
+    from_space_->GetMemMap()->Protect(PROT_NONE);
+  } else {
+    from_space_->GetMemMap()->Protect(PROT_READ);
+  }
+  if (swap_semi_spaces_) {
+    heap_->SwapSemiSpaces();
+  }
+  timings_.StartSplit("PreSweepingGcVerification");
+  heap_->PreSweepingGcVerification(this);
+  timings_.EndSplit();
 }
 
 void SemiSpace::UpdateAndMarkModUnion() {
@@ -383,28 +450,6 @@ void SemiSpace::MarkReachableObjects() {
 
 void SemiSpace::ReclaimPhase() {
   TimingLogger::ScopedSplit split("ReclaimPhase", &timings_);
-  ProcessReferences(self_);
-  {
-    ReaderMutexLock mu(self_, *Locks::heap_bitmap_lock_);
-    SweepSystemWeaks();
-  }
-  // Record freed memory.
-  uint64_t from_bytes = from_space_->GetBytesAllocated();
-  uint64_t to_bytes = bytes_moved_;
-  uint64_t from_objects = from_space_->GetObjectsAllocated();
-  uint64_t to_objects = objects_moved_;
-  CHECK_LE(to_objects, from_objects);
-  int64_t freed_bytes = from_bytes - to_bytes;
-  int64_t freed_objects = from_objects - to_objects;
-  freed_bytes_.FetchAndAdd(freed_bytes);
-  freed_objects_.FetchAndAdd(freed_objects);
-  // Note: Freed bytes can be negative if we copy form a compacted space to a free-list backed
-  // space.
-  heap_->RecordFree(freed_objects, freed_bytes);
-
-  timings_.StartSplit("PreSweepingGcVerification");
-  heap_->PreSweepingGcVerification(this);
-  timings_.EndSplit();
   {
     WriterMutexLock mu(self_, *Locks::heap_bitmap_lock_);
     // Reclaim unmarked objects.
@@ -418,16 +463,6 @@ void SemiSpace::ReclaimPhase() {
     // Unbind the live and mark bitmaps.
     TimingLogger::ScopedSplit split("UnBindBitmaps", &timings_);
     GetHeap()->UnBindBitmaps();
-  }
-  // TODO: Do this before doing verification since the from space may have objects which weren't
-  // moved and point to dead objects.
-  from_space_->Clear();
-  // Protect the from space.
-  VLOG(heap) << "Protecting space " << *from_space_;
-  if (kProtectFromSpace) {
-    from_space_->GetMemMap()->Protect(PROT_NONE);
-  } else {
-    from_space_->GetMemMap()->Protect(PROT_READ);
   }
   if (saved_bytes_ > 0) {
     VLOG(heap) << "Avoided dirtying " << PrettySize(saved_bytes_);
@@ -765,9 +800,6 @@ void SemiSpace::SetFromSpace(space::ContinuousMemMapAllocSpace* from_space) {
 
 void SemiSpace::FinishPhase() {
   TimingLogger::ScopedSplit split("FinishPhase", &timings_);
-  Heap* heap = GetHeap();
-  timings_.NewSplit("PostGcVerification");
-  heap->PostGcVerification(this);
   // Null the "to" and "from" spaces since compacting from one to the other isn't valid until
   // further action is done by the heap.
   to_space_ = nullptr;

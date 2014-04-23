@@ -93,8 +93,9 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
            CollectorType foreground_collector_type, CollectorType background_collector_type,
            size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
            size_t long_pause_log_threshold, size_t long_gc_log_threshold,
-           bool ignore_max_footprint, bool use_tlab, bool verify_pre_gc_heap,
-           bool verify_post_gc_heap, bool verify_pre_gc_rosalloc,
+           bool ignore_max_footprint, bool use_tlab,
+           bool verify_pre_gc_heap, bool verify_pre_sweeping_heap, bool verify_post_gc_heap,
+           bool verify_pre_gc_rosalloc, bool verify_pre_sweeping_rosalloc,
            bool verify_post_gc_rosalloc)
     : non_moving_space_(nullptr),
       rosalloc_space_(nullptr),
@@ -136,9 +137,11 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       verify_missing_card_marks_(false),
       verify_system_weaks_(false),
       verify_pre_gc_heap_(verify_pre_gc_heap),
+      verify_pre_sweeping_heap_(verify_pre_sweeping_heap),
       verify_post_gc_heap_(verify_post_gc_heap),
       verify_mod_union_table_(false),
       verify_pre_gc_rosalloc_(verify_pre_gc_rosalloc),
+      verify_pre_sweeping_rosalloc_(verify_pre_sweeping_rosalloc),
       verify_post_gc_rosalloc_(verify_post_gc_rosalloc),
       allocation_rate_(0),
       /* For GC a lot mode, we limit the allocations stacks to be kGcAlotInterval allocations. This
@@ -1455,7 +1458,6 @@ void Heap::TransitionCollector(CollectorType collector_type) {
     usleep(1000);
   }
   tl->SuspendAll();
-  PreGcRosAllocVerification(&semi_space_collector_->GetTimings());
   switch (collector_type) {
     case kCollectorTypeSS:
       // Fall-through.
@@ -1490,7 +1492,6 @@ void Heap::TransitionCollector(CollectorType collector_type) {
     }
   }
   ChangeCollector(collector_type);
-  PostGcRosAllocVerification(&semi_space_collector_->GetTimings());
   tl->ResumeAll();
   // Can't call into java code with all threads suspended.
   EnqueueClearedReferences();
@@ -1805,6 +1806,8 @@ void Heap::Compact(space::ContinuousMemMapAllocSpace* target_space,
   CHECK(kMovingCollector);
   CHECK_NE(target_space, source_space) << "In-place compaction currently unsupported";
   if (target_space != source_space) {
+    // Don't swap spaces since this isn't a typical semi space collection.
+    semi_space_collector_->SetSwapSemiSpaces(false);
     semi_space_collector_->SetFromSpace(source_space);
     semi_space_collector_->SetToSpace(target_space);
     semi_space_collector_->Run(kGcCauseCollectorTransition, false);
@@ -1876,6 +1879,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
       semi_space_collector_->SetFromSpace(bump_pointer_space_);
       semi_space_collector_->SetToSpace(temp_space_);
       collector = semi_space_collector_;
+      semi_space_collector_->SetSwapSemiSpaces(true);
     } else if (collector_type_ == kCollectorTypeCC) {
       gc_type = concurrent_copying_collector_->GetGcType();
       collector = concurrent_copying_collector_;
@@ -1895,14 +1899,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
       << "Could not find garbage collector with collector_type="
       << static_cast<size_t>(collector_type_) << " and gc_type=" << gc_type;
   ATRACE_BEGIN(StringPrintf("%s %s GC", PrettyCause(gc_cause), collector->GetName()).c_str());
-  if (compacting_gc) {
-    runtime->GetThreadList()->SuspendAll();
-    collector->Run(gc_cause, clear_soft_references || runtime->IsZygote());
-    SwapSemiSpaces();
-    runtime->GetThreadList()->ResumeAll();
-  } else {
-    collector->Run(gc_cause, clear_soft_references || runtime->IsZygote());
-  }
+  collector->Run(gc_cause, clear_soft_references || runtime->IsZygote());
   total_objects_freed_ever_ += collector->GetFreedObjects();
   total_bytes_freed_ever_ += collector->GetFreedBytes();
   RequestHeapTrim();
@@ -1930,7 +1927,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
     std::ostringstream pause_string;
     for (size_t i = 0; i < pause_times.size(); ++i) {
         pause_string << PrettyDuration((pause_times[i] / 1000) * 1000)
-                     << ((i != pause_times.size() - 1) ? ", " : "");
+                     << ((i != pause_times.size() - 1) ? "," : "");
     }
     LOG(INFO) << gc_cause << " " << collector->GetName()
               << " GC freed "  <<  collector->GetFreedObjects() << "("
@@ -2367,99 +2364,110 @@ void Heap::ProcessCards(TimingLogger& timings, bool use_rem_sets) {
 static void IdentityMarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>*, void*) {
 }
 
-void Heap::PreGcVerification(collector::GarbageCollector* gc) {
-  ThreadList* thread_list = Runtime::Current()->GetThreadList();
-  Thread* self = Thread::Current();
-
+void Heap::PreGcVerificationPaused(collector::GarbageCollector* gc) {
+  Thread* const self = Thread::Current();
+  TimingLogger* const timings = &gc->GetTimings();
   if (verify_pre_gc_heap_) {
-    thread_list->SuspendAll();
-    {
-      ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-      if (!VerifyHeapReferences()) {
-        LOG(FATAL) << "Pre " << gc->GetName() << " heap verification failed";
-      }
+    TimingLogger::ScopedSplit split("PreGcVerifyHeapReferences", timings);
+    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+    if (!VerifyHeapReferences()) {
+      LOG(FATAL) << "Pre " << gc->GetName() << " heap verification failed";
     }
-    thread_list->ResumeAll();
   }
-
   // Check that all objects which reference things in the live stack are on dirty cards.
   if (verify_missing_card_marks_) {
-    thread_list->SuspendAll();
-    {
-      ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-      SwapStacks(self);
-      // Sort the live stack so that we can quickly binary search it later.
-      if (!VerifyMissingCardMarks()) {
-        LOG(FATAL) << "Pre " << gc->GetName() << " missing card mark verification failed";
-      }
-      SwapStacks(self);
+    TimingLogger::ScopedSplit split("PreGcVerifyMissingCardMarks", timings);
+    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+    SwapStacks(self);
+    // Sort the live stack so that we can quickly binary search it later.
+    if (!VerifyMissingCardMarks()) {
+      LOG(FATAL) << "Pre " << gc->GetName() << " missing card mark verification failed";
     }
-    thread_list->ResumeAll();
+    SwapStacks(self);
   }
-
   if (verify_mod_union_table_) {
-    thread_list->SuspendAll();
+    TimingLogger::ScopedSplit split("PreGcVerifyModUnionTables", timings);
     ReaderMutexLock reader_lock(self, *Locks::heap_bitmap_lock_);
     for (const auto& table_pair : mod_union_tables_) {
       accounting::ModUnionTable* mod_union_table = table_pair.second;
       mod_union_table->UpdateAndMarkReferences(IdentityMarkHeapReferenceCallback, nullptr);
       mod_union_table->Verify();
     }
-    thread_list->ResumeAll();
+  }
+}
+
+void Heap::PreGcVerification(collector::GarbageCollector* gc) {
+  if (verify_pre_gc_heap_ || verify_missing_card_marks_ || verify_mod_union_table_ ||
+      verify_pre_gc_rosalloc_) {
+    collector::GarbageCollector::ScopedPause pause(gc);
+    PreGcVerificationPaused(gc);
+  }
+}
+
+void Heap::PrePauseRosAllocVerification(collector::GarbageCollector* gc) {
+  // TODO: Add a new runtime option for this?
+  if (verify_pre_gc_rosalloc_) {
+    RosAllocVerification(&gc->GetTimings(), "PreGcRosAllocVerification");
   }
 }
 
 void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
+  Thread* const self = Thread::Current();
+  TimingLogger* const timings = &gc->GetTimings();
   // Called before sweeping occurs since we want to make sure we are not going so reclaim any
   // reachable objects.
-  if (verify_post_gc_heap_) {
-    Thread* self = Thread::Current();
+  if (verify_pre_sweeping_heap_) {
+    TimingLogger::ScopedSplit split("PostSweepingVerifyHeapReferences", timings);
     CHECK_NE(self->GetState(), kRunnable);
-    {
-      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-      // Swapping bound bitmaps does nothing.
-      gc->SwapBitmaps();
-      SwapSemiSpaces();
-      if (!VerifyHeapReferences()) {
-        LOG(FATAL) << "Pre sweeping " << gc->GetName() << " GC verification failed";
-      }
-      SwapSemiSpaces();
-      gc->SwapBitmaps();
+    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+    // Swapping bound bitmaps does nothing.
+    gc->SwapBitmaps();
+    SwapSemiSpaces();
+    if (!VerifyHeapReferences()) {
+      LOG(FATAL) << "Pre sweeping " << gc->GetName() << " GC verification failed";
+    }
+    SwapSemiSpaces();
+    gc->SwapBitmaps();
+  }
+  if (verify_pre_sweeping_rosalloc_) {
+    RosAllocVerification(timings, "PreSweepingRosAllocVerification");
+  }
+}
+
+void Heap::PostGcVerificationPaused(collector::GarbageCollector* gc) {
+  // Only pause if we have to do some verification.
+  Thread* const self = Thread::Current();
+  TimingLogger* const timings = &gc->GetTimings();
+  if (verify_system_weaks_) {
+    ReaderMutexLock mu2(self, *Locks::heap_bitmap_lock_);
+    collector::MarkSweep* mark_sweep = down_cast<collector::MarkSweep*>(gc);
+    mark_sweep->VerifySystemWeaks();
+  }
+  if (verify_post_gc_rosalloc_) {
+    RosAllocVerification(timings, "PostGcRosAllocVerification");
+  }
+  if (verify_post_gc_heap_) {
+    TimingLogger::ScopedSplit split("PostGcVerifyHeapReferences", timings);
+    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+    if (!VerifyHeapReferences()) {
+      LOG(FATAL) << "Pre " << gc->GetName() << " heap verification failed";
     }
   }
 }
 
 void Heap::PostGcVerification(collector::GarbageCollector* gc) {
-  if (verify_system_weaks_) {
-    Thread* self = Thread::Current();
-    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    collector::MarkSweep* mark_sweep = down_cast<collector::MarkSweep*>(gc);
-    mark_sweep->VerifySystemWeaks();
+  if (verify_system_weaks_ || verify_post_gc_rosalloc_ || verify_post_gc_heap_) {
+    collector::GarbageCollector::ScopedPause pause(gc);
+    PreGcVerificationPaused(gc);
   }
 }
 
-void Heap::PreGcRosAllocVerification(TimingLogger* timings) {
-  if (verify_pre_gc_rosalloc_) {
-    TimingLogger::ScopedSplit split("PreGcRosAllocVerification", timings);
-    for (const auto& space : continuous_spaces_) {
-      if (space->IsRosAllocSpace()) {
-        VLOG(heap) << "PreGcRosAllocVerification : " << space->GetName();
-        space::RosAllocSpace* rosalloc_space = space->AsRosAllocSpace();
-        rosalloc_space->Verify();
-      }
-    }
-  }
-}
-
-void Heap::PostGcRosAllocVerification(TimingLogger* timings) {
-  if (verify_post_gc_rosalloc_) {
-    TimingLogger::ScopedSplit split("PostGcRosAllocVerification", timings);
-    for (const auto& space : continuous_spaces_) {
-      if (space->IsRosAllocSpace()) {
-        VLOG(heap) << "PostGcRosAllocVerification : " << space->GetName();
-        space::RosAllocSpace* rosalloc_space = space->AsRosAllocSpace();
-        rosalloc_space->Verify();
-      }
+void Heap::RosAllocVerification(TimingLogger* timings, const char* name) {
+  TimingLogger::ScopedSplit split(name, timings);
+  for (const auto& space : continuous_spaces_) {
+    if (space->IsRosAllocSpace()) {
+      VLOG(heap) << name << " : " << space->GetName();
+      space->AsRosAllocSpace()->Verify();
     }
   }
 }

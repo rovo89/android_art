@@ -65,8 +65,9 @@ class SpaceBitmap {
     return offset / kAlignment / kBitsPerWord;
   }
 
-  static uintptr_t IndexToOffset(size_t index) ALWAYS_INLINE {
-    return static_cast<uintptr_t>(index * kAlignment * kBitsPerWord);
+  template<typename T>
+  static T IndexToOffset(T index) {
+    return static_cast<T>(index * kAlignment * kBitsPerWord);
   }
 
   // Bits are packed in the obvious way.
@@ -158,8 +159,8 @@ class SpaceBitmap {
   }
 
   // Size in bytes of the memory that the bitmaps spans.
-  size_t HeapSize() const {
-    return IndexToOffset(Size() / kWordSize);
+  uint64_t HeapSize() const {
+    return IndexToOffset<uint64_t>(Size() / kWordSize);
   }
 
   uintptr_t HeapBegin() const {
@@ -167,8 +168,8 @@ class SpaceBitmap {
   }
 
   // The maximum address which the bitmap can span. (HeapBegin() <= object < HeapLimit()).
-  uintptr_t HeapLimit() const {
-    return HeapBegin() + static_cast<uintptr_t>(HeapSize());
+  uint64_t HeapLimit() const {
+    return static_cast<uint64_t>(HeapBegin()) + HeapSize();
   }
 
   // Set the max address which can covered by the bitmap.
