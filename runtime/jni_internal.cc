@@ -3143,7 +3143,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path,
 
   if (handle == nullptr) {
     *detail = dlerror();
-    LOG(ERROR) << "dlopen(\"" << path << "\", RTLD_LAZY) failed: " << detail;
+    LOG(ERROR) << "dlopen(\"" << path << "\", RTLD_LAZY) failed: " << *detail;
     return false;
   }
 
