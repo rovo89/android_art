@@ -36,10 +36,10 @@ LIBART_COMMON_SRC_FILES := \
 	base/unix_file/string_file.cc \
 	check_jni.cc \
 	catch_block_stack_visitor.cc \
-	catch_finder.cc \
 	class_linker.cc \
 	common_throws.cc \
 	debugger.cc \
+	deoptimize_stack_visitor.cc \
 	dex_file.cc \
 	dex_file_verifier.cc \
 	dex_instruction.cc \
@@ -129,6 +129,7 @@ LIBART_COMMON_SRC_FILES := \
 	os_linux.cc \
 	parsed_options.cc \
 	primitive.cc \
+	quick_exception_handler.cc \
 	quick/inline_method_analyser.cc \
 	reference_table.cc \
 	reflection.cc \
