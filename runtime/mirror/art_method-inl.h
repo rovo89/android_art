@@ -22,6 +22,7 @@
 #include "dex_file.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "object_array.h"
+#include "oat.h"
 #include "runtime.h"
 
 namespace art {
@@ -83,7 +84,7 @@ inline uint32_t ArtMethod::GetCodeSize() {
   }
   // TODO: make this Thumb2 specific
   code &= ~0x1;
-  return reinterpret_cast<uint32_t*>(code)[-1];
+  return reinterpret_cast<OatMethodHeader*>(code)[-1].code_size_;
 }
 
 inline bool ArtMethod::CheckIncompatibleClassChange(InvokeType type) {
