@@ -22,7 +22,7 @@
 namespace art {
 
 const uint8_t OatHeader::kOatMagic[] = { 'o', 'a', 't', '\n' };
-const uint8_t OatHeader::kOatVersion[] = { '0', '2', '0', '\0' };
+const uint8_t OatHeader::kOatVersion[] = { '0', '2', '1', '\0' };
 
 OatHeader::OatHeader() {
   memset(this, 0, sizeof(*this));
@@ -371,5 +371,15 @@ OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
 {}
 
 OatMethodOffsets::~OatMethodOffsets() {}
+
+OatMethodHeader::OatMethodHeader()
+  : code_size_(0)
+{}
+
+OatMethodHeader::OatMethodHeader(uint32_t code_size)
+  : code_size_(code_size)
+{}
+
+OatMethodHeader::~OatMethodHeader() {}
 
 }  // namespace art
