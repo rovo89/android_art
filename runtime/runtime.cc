@@ -567,6 +567,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
                        options->foreground_heap_growth_multiplier_,
                        options->heap_maximum_size_,
                        options->image_,
+                       options->image_isa_,
                        options->collector_type_,
                        options->background_collector_type_,
                        options->parallel_gc_threads_,

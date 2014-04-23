@@ -18,6 +18,7 @@
 #define ART_RUNTIME_GC_SPACE_IMAGE_SPACE_H_
 
 #include "gc/accounting/space_bitmap.h"
+#include "runtime.h"
 #include "space.h"
 
 namespace art {
@@ -34,15 +35,16 @@ class ImageSpace : public MemMapSpace {
     return kSpaceTypeImageSpace;
   }
 
-  // Create a Space from an image file. Cannot be used for future
-  // allocation or collected.
+  // Create a Space from an image file for a specified instruction
+  // set. Cannot be used for future allocation or collected.
   //
   // Create also opens the OatFile associated with the image file so
   // that it be contiguously allocated with the image before the
   // creation of the alloc space. The ReleaseOatFile will later be
   // used to transfer ownership of the OatFile to the ClassLinker when
   // it is initialized.
-  static ImageSpace* Create(const char* image) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static ImageSpace* Create(const char* image, const InstructionSet image_isa)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Releases the OatFile from the ImageSpace so it can be transfer to
   // the caller, presumably the ClassLinker.
