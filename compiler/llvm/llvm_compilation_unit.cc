@@ -143,7 +143,7 @@ InstructionSet LlvmCompilationUnit::GetInstructionSet() const {
 
 static std::string DumpDirectory() {
   if (kIsTargetBuild) {
-    return GetDalvikCacheOrDie(GetAndroidData());
+    return GetDalvikCacheOrDie("llvm-dump");
   }
   return "/tmp";
 }

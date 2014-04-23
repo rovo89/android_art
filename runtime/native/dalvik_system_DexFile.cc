@@ -260,16 +260,15 @@ static double GetDoubleProperty(const char* property, double minValue, double ma
 #endif
 }
 
-static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring javaFilename,
-    jstring javaPkgname, jboolean defer) {
+static jboolean IsDexOptNeededInternal(JNIEnv* env, const char* filename,
+    const char* pkgname, const char* instruction_set, const jboolean defer) {
   const bool kVerboseLogging = false;  // Spammy logging.
   const bool kReasonLogging = true;  // Logging of reason for returning JNI_TRUE.
 
-  ScopedUtfChars filename(env, javaFilename);
-  if ((filename.c_str() == nullptr) || !OS::FileExists(filename.c_str())) {
-    LOG(ERROR) << "DexFile_isDexOptNeeded file '" << filename.c_str() << "' does not exist";
+  if ((filename == nullptr) || !OS::FileExists(filename)) {
+    LOG(ERROR) << "DexFile_isDexOptNeeded file '" << filename << "' does not exist";
     ScopedLocalRef<jclass> fnfe(env, env->FindClass("java/io/FileNotFoundException"));
-    const char* message = (filename.c_str() == nullptr) ? "<empty file name>" : filename.c_str();
+    const char* message = (filename == nullptr) ? "<empty file name>" : filename;
     env->ThrowNew(fnfe.get(), message);
     return JNI_FALSE;
   }
@@ -278,11 +277,14 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
   // fact that code is running at all means that this should be true.
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
+  // TODO: We're assuming that the 64 and 32 bit runtimes have identical
+  // class paths. isDexOptNeeded will not necessarily be called on a runtime
+  // that has the same instruction set as the file being dexopted.
   const std::vector<const DexFile*>& boot_class_path = class_linker->GetBootClassPath();
   for (size_t i = 0; i < boot_class_path.size(); i++) {
-    if (boot_class_path[i]->GetLocation() == filename.c_str()) {
+    if (boot_class_path[i]->GetLocation() == filename) {
       if (kVerboseLogging) {
-        LOG(INFO) << "DexFile_isDexOptNeeded ignoring boot class path file: " << filename.c_str();
+        LOG(INFO) << "DexFile_isDexOptNeeded ignoring boot class path file: " << filename;
       }
       return JNI_FALSE;
     }
@@ -293,12 +295,11 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
   // If the 'defer' argument is true then this will be retried later.  In this case we
   // need to make sure that the profile file copy is not made so that we will get the
   // same result second time.
-  if (javaPkgname != NULL) {
-    ScopedUtfChars pkgname(env, javaPkgname);
-    std::string profile_file = GetDalvikCacheOrDie(GetAndroidData()) + std::string("/profiles/") +
-    pkgname.c_str();
-
-    std::string profile_cache_dir = GetDalvikCacheOrDie(GetAndroidData()) + "/profile-cache";
+  if (pkgname != nullptr) {
+    const std::string profile_file = GetDalvikCacheOrDie("profiles", false /* create_if_absent */)
+        + std::string("/") + pkgname;
+    const std::string profile_cache_dir = GetDalvikCacheOrDie("profile-cache",
+                                                              false /* create_if_absent */);
 
     // Make the profile cache if it doesn't exist.
     mkdir(profile_cache_dir.c_str(), 0700);
@@ -306,7 +307,7 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
     // The previous profile file (a copy of the profile the last time this was run) is
     // in the dalvik-cache directory because this is owned by system.  The profiles
     // directory is owned by install so system cannot write files in there.
-    std::string prev_profile_file = profile_cache_dir + std::string("/") + pkgname.c_str();
+    std::string prev_profile_file = profile_cache_dir + std::string("/") + pkgname;
 
     struct stat profstat, prevstat;
     int e1 = stat(profile_file.c_str(), &profstat);
@@ -377,41 +378,41 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
   }
 
   // Check if we have an odex file next to the dex file.
-  std::string odex_filename(OatFile::DexFilenameToOdexFilename(filename.c_str()));
+  std::string odex_filename(OatFile::DexFilenameToOdexFilename(filename));
   std::string error_msg;
   UniquePtr<const OatFile> oat_file(OatFile::Open(odex_filename, odex_filename, NULL, false,
                                                   &error_msg));
   if (oat_file.get() == nullptr) {
     if (kVerboseLogging) {
-      LOG(INFO) << "DexFile_isDexOptNeeded failed to open oat file '" << filename.c_str()
+      LOG(INFO) << "DexFile_isDexOptNeeded failed to open oat file '" << filename
           << "': " << error_msg;
     }
     error_msg.clear();
   } else {
-    const art::OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename.c_str(), NULL,
+    const art::OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename, NULL,
                                                                            kReasonLogging);
     if (oat_dex_file != nullptr) {
       uint32_t location_checksum;
       // If its not possible to read the classes.dex assume up-to-date as we won't be able to
       // compile it anyway.
-      if (!DexFile::GetChecksum(filename.c_str(), &location_checksum, &error_msg)) {
+      if (!DexFile::GetChecksum(filename, &location_checksum, &error_msg)) {
         if (kVerboseLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded ignoring precompiled stripped file: "
-              << filename.c_str() << ": " << error_msg;
+              << filename << ": " << error_msg;
         }
         return JNI_FALSE;
       }
-      if (ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename.c_str(), location_checksum,
+      if (ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename, location_checksum,
                                               &error_msg)) {
         if (kVerboseLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded precompiled file " << odex_filename
-              << " has an up-to-date checksum compared to " << filename.c_str();
+              << " has an up-to-date checksum compared to " << filename;
         }
         return JNI_FALSE;
       } else {
         if (kVerboseLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded found precompiled file " << odex_filename
-              << " with an out-of-date checksum compared to " << filename.c_str()
+              << " with an out-of-date checksum compared to " << filename
               << ": " << error_msg;
         }
         error_msg.clear();
@@ -420,12 +421,14 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
   }
 
   // Check if we have an oat file in the cache
-  std::string cache_location(GetDalvikCacheFilenameOrDie(filename.c_str()));
-  oat_file.reset(OatFile::Open(cache_location, filename.c_str(), NULL, false, &error_msg));
+  const std::string cache_dir(GetDalvikCacheOrDie(instruction_set));
+  const std::string cache_location(
+      GetDalvikCacheFilenameOrDie(filename, cache_dir.c_str()));
+  oat_file.reset(OatFile::Open(cache_location, filename, NULL, false, &error_msg));
   if (oat_file.get() == nullptr) {
     if (kReasonLogging) {
       LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
-          << " does not exist for " << filename.c_str() << ": " << error_msg;
+          << " does not exist for " << filename << ": " << error_msg;
     }
     return JNI_TRUE;
   }
@@ -458,19 +461,19 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
   }
 
   uint32_t location_checksum;
-  if (!DexFile::GetChecksum(filename.c_str(), &location_checksum, &error_msg)) {
+  if (!DexFile::GetChecksum(filename, &location_checksum, &error_msg)) {
     if (kReasonLogging) {
-      LOG(ERROR) << "DexFile_isDexOptNeeded failed to compute checksum of " << filename.c_str()
+      LOG(ERROR) << "DexFile_isDexOptNeeded failed to compute checksum of " << filename
             << " (error " << error_msg << ")";
     }
     return JNI_TRUE;
   }
 
-  if (!ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename.c_str(), location_checksum,
+  if (!ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename, location_checksum,
                                            &error_msg)) {
     if (kReasonLogging) {
       LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
-          << " has out-of-date checksum compared to " << filename.c_str()
+          << " has out-of-date checksum compared to " << filename
           << " (error " << error_msg << ")";
     }
     return JNI_TRUE;
@@ -478,15 +481,28 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
 
   if (kVerboseLogging) {
     LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
-              << " is up-to-date for " << filename.c_str();
+              << " is up-to-date for " << filename;
   }
   CHECK(error_msg.empty()) << error_msg;
   return JNI_FALSE;
 }
 
+static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring javaFilename,
+    jstring javaPkgname, jstring javaInstructionSet, jboolean defer) {
+  ScopedUtfChars filename(env, javaFilename);
+  NullableScopedUtfChars pkgname(env, javaPkgname);
+  ScopedUtfChars instruction_set(env, javaInstructionSet);
+
+  return IsDexOptNeededInternal(env, filename.c_str(), pkgname.c_str(),
+                                instruction_set.c_str(), defer);
+}
+
 // public API, NULL pkgname
-static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass c, jstring javaFilename) {
-  return DexFile_isDexOptNeededInternal(env, c, javaFilename, NULL, false);
+static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
+  const char* instruction_set = GetInstructionSetString(kRuntimeISA);
+  ScopedUtfChars filename(env, javaFilename);
+  return IsDexOptNeededInternal(env, filename.c_str(), nullptr /* pkgname */,
+                                instruction_set, false /* defer */);
 }
 
 
@@ -495,7 +511,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, defineClassNative, "(Ljava/lang/String;Ljava/lang/ClassLoader;J)Ljava/lang/Class;"),
   NATIVE_METHOD(DexFile, getClassNameList, "(J)[Ljava/lang/String;"),
   NATIVE_METHOD(DexFile, isDexOptNeeded, "(Ljava/lang/String;)Z"),
-  NATIVE_METHOD(DexFile, isDexOptNeededInternal, "(Ljava/lang/String;Ljava/lang/String;Z)Z"),
+  NATIVE_METHOD(DexFile, isDexOptNeededInternal, "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)Z"),
   NATIVE_METHOD(DexFile, openDexFileNative, "(Ljava/lang/String;Ljava/lang/String;I)J"),
 };
 

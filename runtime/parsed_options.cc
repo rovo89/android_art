@@ -246,6 +246,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
   profile_clock_source_ = kDefaultProfilerClockSource;
 
   verify_ = true;
+  image_isa_ = kRuntimeISA;
 
   // Default to explicit checks.  Switch off with -implicit-checks:.
   // or setprop dalvik.vm.implicit_checks check1,check2,...
@@ -412,6 +413,9 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
     } else if (option == "compilercallbacks") {
       compiler_callbacks_ =
           reinterpret_cast<CompilerCallbacks*>(const_cast<void*>(options[i].second));
+    } else if (option == "imageinstructionset") {
+      image_isa_ = GetInstructionSetFromString(
+          reinterpret_cast<const char*>(options[i].second));
     } else if (option == "-Xzygote") {
       is_zygote_ = true;
     } else if (option == "-Xint") {
@@ -673,7 +677,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
     background_collector_type_ = collector_type_;
   }
   return true;
-}
+}  // NOLINT(readability/fn_size)
 
 void ParsedOptions::Exit(int status) {
   hook_exit_(status);

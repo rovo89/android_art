@@ -89,7 +89,7 @@ static constexpr size_t kNonMovingSpaceCapacity = 64 * MB;
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
            double target_utilization, double foreground_heap_growth_multiplier, size_t capacity,
-           const std::string& image_file_name,
+           const std::string& image_file_name, const InstructionSet image_instruction_set,
            CollectorType foreground_collector_type, CollectorType background_collector_type,
            size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
            size_t long_pause_log_threshold, size_t long_gc_log_threshold,
@@ -186,7 +186,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   // Requested begin for the alloc space, to follow the mapped image and oat files
   byte* requested_alloc_space_begin = nullptr;
   if (!image_file_name.empty()) {
-    space::ImageSpace* image_space = space::ImageSpace::Create(image_file_name.c_str());
+    space::ImageSpace* image_space = space::ImageSpace::Create(image_file_name.c_str(),
+                                                               image_instruction_set);
     CHECK(image_space != nullptr) << "Failed to create space for " << image_file_name;
     AddSpace(image_space);
     // Oat files referenced by image files immediately follow them in memory, ensure alloc space

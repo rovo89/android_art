@@ -85,6 +85,7 @@ class ParsedOptions {
   bool profile_start_immediately_;
   ProfilerClockSource profile_clock_source_;
   bool verify_;
+  InstructionSet image_isa_;
 
   static constexpr uint32_t kExplicitNullCheck = 1;
   static constexpr uint32_t kExplicitSuspendCheck = 2;
