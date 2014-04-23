@@ -45,7 +45,7 @@ class CatchBlockStackVisitor : public StackVisitor {
   Thread* const self_;
   const bool is_deoptimization_;
   // The type of the exception catch block to find.
-  mirror::Class* const to_find_;
+  mirror::Class* to_find_;
   CatchFinder* const catch_finder_;
   // Number of native methods passed in crawl (equates to number of SIRTs to pop)
   uint32_t native_method_count_;
