@@ -559,12 +559,11 @@ class Mir2Lir : public Backend {
     RegisterInfo* GetRegInfo(int reg);
 
     // Shared by all targets - implemented in gen_common.cc.
-    void AddIntrinsicLaunchpad(CallInfo* info, LIR* branch, LIR* resume = nullptr);
+    void AddIntrinsicSlowPath(CallInfo* info, LIR* branch, LIR* resume = nullptr);
     bool HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
                           RegLocation rl_src, RegLocation rl_dest, int lit);
     bool HandleEasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit);
     void HandleSuspendLaunchPads();
-    void HandleThrowLaunchPads();
     void HandleSlowPaths();
     void GenBarrier();
     void GenDivZeroException();
@@ -581,7 +580,6 @@ class Mir2Lir : public Backend {
     LIR* GenImmedCheck(ConditionCode c_code, RegStorage reg, int imm_val, ThrowKind kind);
     LIR* GenNullCheck(RegStorage m_reg, int opt_flags);
     LIR* GenExplicitNullCheck(RegStorage m_reg, int opt_flags);
-    LIR* GenRegRegCheck(ConditionCode c_code, RegStorage reg1, RegStorage reg2, ThrowKind kind);
     void GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
                              RegLocation rl_src2, LIR* taken, LIR* fall_through);
     void GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_src,
@@ -968,8 +966,6 @@ class Mir2Lir : public Backend {
                             RegLocation rl_src2) = 0;
     virtual void GenXorLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) = 0;
-    virtual LIR* GenRegMemCheck(ConditionCode c_code, RegStorage reg1, RegStorage base,
-                                int offset, ThrowKind kind) = 0;
     virtual RegLocation GenDivRem(RegLocation rl_dest, RegStorage reg_lo, RegStorage reg_hi,
                                   bool is_div) = 0;
     virtual RegLocation GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int lit,
@@ -1279,7 +1275,6 @@ class Mir2Lir : public Backend {
     MIRGraph* const mir_graph_;
     GrowableArray<SwitchTable*> switch_tables_;
     GrowableArray<FillArrayData*> fill_array_data_;
-    GrowableArray<LIR*> throw_launchpads_;
     GrowableArray<LIR*> suspend_launchpads_;
     GrowableArray<RegisterInfo*> tempreg_info_;
     GrowableArray<RegisterInfo*> reginfo_map_;

@@ -24,34 +24,6 @@
 namespace art {
 
 /*
- * Perform register memory operation.
- */
-LIR* X86Mir2Lir::GenRegMemCheck(ConditionCode c_code, RegStorage reg1, RegStorage base,
-                                int offset, ThrowKind kind) {
-  LIR* tgt = RawLIR(0, kPseudoThrowTarget, kind,
-                    current_dalvik_offset_, reg1.GetReg(), base.GetReg(), offset);
-  OpRegMem(kOpCmp, reg1, base, offset);
-  LIR* branch = OpCondBranch(c_code, tgt);
-  // Remember branch target - will process later
-  throw_launchpads_.Insert(tgt);
-  return branch;
-}
-
-/*
- * Perform a compare of memory to immediate value
- */
-LIR* X86Mir2Lir::GenMemImmedCheck(ConditionCode c_code, RegStorage base, int offset,
-                                  int check_value, ThrowKind kind) {
-  LIR* tgt = RawLIR(0, kPseudoThrowTarget, kind,
-                    current_dalvik_offset_, base.GetReg(), check_value, 0);
-  NewLIR3(IS_SIMM8(check_value) ? kX86Cmp32MI8 : kX86Cmp32MI, base.GetReg(), offset, check_value);
-  LIR* branch = OpCondBranch(c_code, tgt);
-  // Remember branch target - will process later
-  throw_launchpads_.Insert(tgt);
-  return branch;
-}
-
-/*
  * Compare two 64-bit values
  *    x = y     return  0
  *    x < y     return -1

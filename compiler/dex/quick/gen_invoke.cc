@@ -34,10 +34,10 @@ namespace art {
  * and "op" calls may be used here.
  */
 
-void Mir2Lir::AddIntrinsicLaunchpad(CallInfo* info, LIR* branch, LIR* resume) {
-  class IntrinsicLaunchpadPath : public Mir2Lir::LIRSlowPath {
+void Mir2Lir::AddIntrinsicSlowPath(CallInfo* info, LIR* branch, LIR* resume) {
+  class IntrinsicSlowPathPath : public Mir2Lir::LIRSlowPath {
    public:
-    IntrinsicLaunchpadPath(Mir2Lir* m2l, CallInfo* info, LIR* branch, LIR* resume = nullptr)
+    IntrinsicSlowPathPath(Mir2Lir* m2l, CallInfo* info, LIR* branch, LIR* resume = nullptr)
         : LIRSlowPath(m2l, info->offset, branch, resume), info_(info) {
     }
 
@@ -57,7 +57,7 @@ void Mir2Lir::AddIntrinsicLaunchpad(CallInfo* info, LIR* branch, LIR* resume) {
     CallInfo* const info_;
   };
 
-  AddSlowPath(new (arena_) IntrinsicLaunchpadPath(this, info, branch, resume));
+  AddSlowPath(new (arena_) IntrinsicSlowPathPath(this, info, branch, resume));
 }
 
 /*
@@ -1099,7 +1099,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
     MarkPossibleNullPointerException(info->opt_flags);
     Load32Disp(rl_obj.reg, value_offset, reg_ptr);
     if (range_check) {
-      // Set up a launch pad to allow retry in case of bounds violation */
+      // Set up a slow path to allow retry in case of bounds violation */
       OpRegReg(kOpCmp, rl_idx.reg, reg_max);
       FreeTemp(reg_max);
       range_check_branch = OpCondBranch(kCondUge, nullptr);
@@ -1146,7 +1146,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
   if (range_check) {
     DCHECK(range_check_branch != nullptr);
     info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've already null checked.
-    AddIntrinsicLaunchpad(info, range_check_branch);
+    AddIntrinsicSlowPath(info, range_check_branch);
   }
   return true;
 }
@@ -1357,7 +1357,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
     DCHECK(high_code_point_branch != nullptr);
     LIR* resume_tgt = NewLIR0(kPseudoTargetLabel);
     info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've null checked.
-    AddIntrinsicLaunchpad(info, high_code_point_branch, resume_tgt);
+    AddIntrinsicSlowPath(info, high_code_point_branch, resume_tgt);
   } else {
     DCHECK_EQ(mir_graph_->ConstantValue(rl_char) & ~0xFFFF, 0);
     DCHECK(high_code_point_branch == nullptr);
@@ -1389,7 +1389,7 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
   info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've null checked.
   // TUNING: check if rl_cmp.s_reg_low is already null checked
   LIR* cmp_null_check_branch = OpCmpImmBranch(kCondEq, reg_cmp, 0, nullptr);
-  AddIntrinsicLaunchpad(info, cmp_null_check_branch);
+  AddIntrinsicSlowPath(info, cmp_null_check_branch);
   // NOTE: not a safepoint
   if (cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64) {
     OpReg(kOpBlx, r_tgt);
