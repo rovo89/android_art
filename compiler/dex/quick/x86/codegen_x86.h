@@ -127,10 +127,6 @@ class X86Mir2Lir FINAL : public Mir2Lir {
                     RegLocation rl_src2);
     void GenXorLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                     RegLocation rl_src2);
-    LIR* GenRegMemCheck(ConditionCode c_code, RegStorage reg1, RegStorage base, int offset,
-                        ThrowKind kind);
-    LIR* GenMemImmedCheck(ConditionCode c_code, RegStorage base, int offset, int check_value,
-                          ThrowKind kind);
     // TODO: collapse reg_lo, reg_hi
     RegLocation GenDivRem(RegLocation rl_dest, RegStorage reg_lo, RegStorage reg_hi, bool is_div);
     RegLocation GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int lit, bool is_div);

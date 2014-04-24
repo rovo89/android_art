@@ -239,7 +239,7 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
     // mov esp, ebp
     // in case a signal comes in that's not using an alternate signal stack and the large frame may
     // have moved us outside of the reserved area at the end of the stack.
-    // cmp rX86_SP, fs:[stack_end_]; jcc throw_launchpad
+    // cmp rX86_SP, fs:[stack_end_]; jcc throw_slowpath
     OpRegThreadMem(kOpCmp, rX86_SP, Thread::StackEndOffset<4>());
     LIR* branch = OpCondBranch(kCondUlt, nullptr);
     AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, frame_size_ - 4));
