@@ -32,6 +32,8 @@ class Arm64Mir2Lir : public Mir2Lir {
     bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) OVERRIDE;
     LIR* CheckSuspendUsingLoad() OVERRIDE;
     RegStorage LoadHelper(A64ThreadOffset offset);
+    LIR* LoadBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
+                              OpSize size) OVERRIDE;
     LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
                       OpSize size) OVERRIDE;
     LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale,
@@ -40,6 +42,8 @@ class Arm64Mir2Lir : public Mir2Lir {
                              RegStorage r_dest, OpSize size) OVERRIDE;
     LIR* LoadConstantNoClobber(RegStorage r_dest, int value);
     LIR* LoadConstantWide(RegStorage r_dest, int64_t value);
+    LIR* StoreBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
+                               OpSize size) OVERRIDE;
     LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
                        OpSize size) OVERRIDE;
     LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
@@ -85,6 +89,11 @@ class Arm64Mir2Lir : public Mir2Lir {
     uint64_t GetTargetInstFlags(int opcode);
     int GetInsnSize(LIR* lir);
     bool IsUnconditionalBranch(LIR* lir);
+
+    // Check support for volatile load/store of a given size.
+    bool SupportsVolatileLoadStore(OpSize size) OVERRIDE;
+    // Get the register class for load/store of a field.
+    RegisterClass RegClassForFieldLoadStore(OpSize size, bool is_volatile) OVERRIDE;
 
     // Required for target - Dalvik-level generators.
     void GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest,

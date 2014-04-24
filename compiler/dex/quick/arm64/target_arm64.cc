@@ -535,6 +535,20 @@ bool Arm64Mir2Lir::IsUnconditionalBranch(LIR* lir) {
   return (lir->opcode == kA64B1t);
 }
 
+bool Arm64Mir2Lir::SupportsVolatileLoadStore(OpSize size) {
+  return true;
+}
+
+RegisterClass Arm64Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatile) {
+  if (UNLIKELY(is_volatile)) {
+    // On arm64, fp register load/store is atomic only for single bytes.
+    if (size != kSignedByte && size != kUnsignedByte) {
+      return kCoreReg;
+    }
+  }
+  return RegClassBySize(size);
+}
+
 Arm64Mir2Lir::Arm64Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : Mir2Lir(cu, mir_graph, arena) {
   // Sanity check - make sure encoding map lines up.

@@ -59,7 +59,8 @@ static constexpr InstructionSet kRuntimeISA = kNone;
 #endif
 
 enum InstructionFeatures {
-  kHwDiv = 1                  // Supports hardware divide.
+  kHwDiv  = 0x1,              // Supports hardware divide.
+  kHwLpae = 0x2,              // Supports Large Physical Address Extension.
 };
 
 // This is a bitmask of supported features per architecture.
@@ -76,6 +77,14 @@ class PACKED(4) InstructionSetFeatures {
 
   void SetHasDivideInstruction(bool v) {
     mask_ = (mask_ & ~kHwDiv) | (v ? kHwDiv : 0);
+  }
+
+  bool HasLpae() const {
+    return (mask_ & kHwLpae) != 0;
+  }
+
+  void SetHasLpae(bool v) {
+    mask_ = (mask_ & ~kHwLpae) | (v ? kHwLpae : 0);
   }
 
   std::string GetFeatureString() const;

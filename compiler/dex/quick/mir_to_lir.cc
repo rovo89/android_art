@@ -128,6 +128,9 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
   bool wide = (data.op_variant == InlineMethodAnalyser::IGetVariant(Instruction::IGET_WIDE));
   bool ref = (data.op_variant == InlineMethodAnalyser::IGetVariant(Instruction::IGET_OBJECT));
   OpSize size = LoadStoreOpSize(wide, ref);
+  if (data.is_volatile && !SupportsVolatileLoadStore(size)) {
+    return false;
+  }
 
   // The inliner doesn't distinguish kDouble or kFloat, use shorty.
   bool double_or_float = cu_->shorty[0] == 'F' || cu_->shorty[0] == 'D';
@@ -137,12 +140,14 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
   LockArg(data.object_arg);
   RegLocation rl_dest = wide ? GetReturnWide(double_or_float) : GetReturn(double_or_float);
   RegStorage reg_obj = LoadArg(data.object_arg);
-  LoadBaseDisp(reg_obj, data.field_offset, rl_dest.reg, size);
   if (data.is_volatile) {
+    LoadBaseDispVolatile(reg_obj, data.field_offset, rl_dest.reg, size);
     // Without context sensitive analysis, we must issue the most conservative barriers.
     // In this case, either a load or store may follow so we issue both barriers.
     GenMemBarrier(kLoadLoad);
     GenMemBarrier(kLoadStore);
+  } else {
+    LoadBaseDisp(reg_obj, data.field_offset, rl_dest.reg, size);
   }
   return true;
 }
@@ -162,6 +167,9 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
   bool wide = (data.op_variant == InlineMethodAnalyser::IPutVariant(Instruction::IPUT_WIDE));
   bool ref = (data.op_variant == InlineMethodAnalyser::IGetVariant(Instruction::IGET_OBJECT));
   OpSize size = LoadStoreOpSize(wide, ref);
+  if (data.is_volatile && !SupportsVolatileLoadStore(size)) {
+    return false;
+  }
 
   // Point of no return - no aborts after this
   GenPrintLabel(mir);
@@ -172,11 +180,11 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
   if (data.is_volatile) {
     // There might have been a store before this volatile one so insert StoreStore barrier.
     GenMemBarrier(kStoreStore);
-  }
-  StoreBaseDisp(reg_obj, data.field_offset, reg_src, size);
-  if (data.is_volatile) {
+    StoreBaseDispVolatile(reg_obj, data.field_offset, reg_src, size);
     // A load might follow the volatile store so insert a StoreLoad barrier.
     GenMemBarrier(kStoreLoad);
+  } else {
+    StoreBaseDisp(reg_obj, data.field_offset, reg_src, size);
   }
   if (ref) {
     MarkGCCard(reg_src, reg_obj);

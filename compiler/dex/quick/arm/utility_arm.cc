@@ -952,7 +952,26 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
   return load;
 }
 
-LIR* ArmMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size) {
+LIR* ArmMir2Lir::LoadBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
+                                      OpSize size) {
+  // Only 64-bit load needs special handling.
+  if (UNLIKELY(size == k64 || size == kDouble)) {
+    DCHECK(!r_dest.IsFloat());  // See RegClassForFieldLoadSave().
+    // If the cpu supports LPAE, aligned LDRD is atomic - fall through to LoadBaseDisp().
+    if (!cu_->compiler_driver->GetInstructionSetFeatures().HasLpae()) {
+      // Use LDREXD for the atomic load. (Expect displacement > 0, don't optimize for == 0.)
+      RegStorage r_ptr = AllocTemp();
+      OpRegRegImm(kOpAdd, r_ptr, r_base, displacement);
+      LIR* lir = NewLIR3(kThumb2Ldrexd, r_dest.GetLowReg(), r_dest.GetHighReg(), r_ptr.GetReg());
+      FreeTemp(r_ptr);
+      return lir;
+    }
+  }
+  return LoadBaseDisp(r_base, displacement, r_dest, size);
+}
+
+LIR* ArmMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
+                              OpSize size) {
   // TODO: base this on target.
   if (size == kWord) {
     size = k32;
@@ -1070,6 +1089,42 @@ LIR* ArmMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStora
     AnnotateDalvikRegAccess(store, displacement >> 2, false /* is_load */, r_src.Is64Bit());
   }
   return store;
+}
+
+LIR* ArmMir2Lir::StoreBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_src,
+                                       OpSize size) {
+  // Only 64-bit store needs special handling.
+  if (UNLIKELY(size == k64 || size == kDouble)) {
+    DCHECK(!r_src.IsFloat());  // See RegClassForFieldLoadSave().
+    // If the cpu supports LPAE, aligned STRD is atomic - fall through to StoreBaseDisp().
+    if (!cu_->compiler_driver->GetInstructionSetFeatures().HasLpae()) {
+      // Use STREXD for the atomic store. (Expect displacement > 0, don't optimize for == 0.)
+      RegStorage r_ptr = AllocTemp();
+      OpRegRegImm(kOpAdd, r_ptr, r_base, displacement);
+      LIR* fail_target = NewLIR0(kPseudoTargetLabel);
+      // We have only 5 temporary registers available and if r_base, r_src and r_ptr already
+      // take 4, we can't directly allocate 2 more for LDREXD temps. In that case clobber r_ptr
+      // in LDREXD and recalculate it from r_base.
+      RegStorage r_temp = AllocTemp();
+      RegStorage r_temp_high = AllocFreeTemp();  // We may not have another temp.
+      if (r_temp_high.Valid()) {
+        NewLIR3(kThumb2Ldrexd, r_temp.GetReg(), r_temp_high.GetReg(), r_ptr.GetReg());
+        FreeTemp(r_temp_high);
+        FreeTemp(r_temp);
+      } else {
+        // If we don't have another temp, clobber r_ptr in LDREXD and reload it.
+        NewLIR3(kThumb2Ldrexd, r_temp.GetReg(), r_ptr.GetReg(), r_ptr.GetReg());
+        FreeTemp(r_temp);  // May need the temp for kOpAdd.
+        OpRegRegImm(kOpAdd, r_ptr, r_base, displacement);
+      }
+      LIR* lir = NewLIR4(kThumb2Strexd, r_temp.GetReg(), r_src.GetLowReg(), r_src.GetHighReg(),
+                         r_ptr.GetReg());
+      OpCmpImmBranch(kCondNe, r_temp, 0, fail_target);
+      FreeTemp(r_ptr);
+      return lir;
+    }
+  }
+  return StoreBaseDisp(r_base, displacement, r_src, size);
 }
 
 LIR* ArmMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
