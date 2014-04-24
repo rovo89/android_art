@@ -68,12 +68,6 @@ class MANAGED Array : public Object {
     }
   }
 
-  template<class MirrorType>
-  static int32_t DataOffsetOfType(uint32_t index) {
-    return DataOffset(sizeof(HeapReference<MirrorType>)).Int32Value() +
-           (sizeof(HeapReference<MirrorType>) * index);
-  }
-
   void* GetRawData(size_t component_size, int32_t index)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     intptr_t data = reinterpret_cast<intptr_t>(this) + DataOffset(component_size).Int32Value() +
