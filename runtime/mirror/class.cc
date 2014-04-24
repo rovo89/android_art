@@ -328,16 +328,6 @@ bool Class::IsThrowableClass() {
   return WellKnownClasses::ToClass(WellKnownClasses::java_lang_Throwable)->IsAssignableFrom(this);
 }
 
-bool Class::IsArtFieldClass() {
-  Class* java_lang_Class = GetClass();
-  Class* java_lang_reflect_ArtField = java_lang_Class->GetInstanceField(0)->GetClass();
-  return this == java_lang_reflect_ArtField;
-}
-
-bool Class::IsArtMethodClass() {
-  return this == ArtMethod::GetJavaLangReflectArtMethod();
-}
-
 void Class::SetClassLoader(ClassLoader* new_class_loader) {
   if (Runtime::Current()->IsActiveTransaction()) {
     SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), new_class_loader, false);
