@@ -92,6 +92,8 @@ SuperTarget constructor ()V
 Target constructor (IF)V : ii=7 ff=3.3333
 myMethod (I)I
  arg=17 anInt=7
+got expected exception for Class.newInstance
+got expected exception for Constructor.newInstance
 ReflectTest done!
 public method
 static java.lang.Object java.util.Collections.checkType(java.lang.Object,java.lang.Class) accessible=false
