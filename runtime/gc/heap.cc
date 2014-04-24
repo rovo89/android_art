@@ -1432,6 +1432,11 @@ void Heap::TransitionCollector(CollectorType collector_type) {
       if (collector_type == collector_type_) {
         return;
       }
+      if (Runtime::Current()->IsShuttingDown(self)) {
+        // Don't allow heap transitions to happen if the runtime is shutting down since these can
+        // cause objects to get finalized.
+        return;
+      }
       // GC can be disabled if someone has a used GetPrimitiveArrayCritical but not yet released.
       if (!copying_transition || disable_moving_gc_count_ == 0) {
         // TODO: Not hard code in semi-space collector?
