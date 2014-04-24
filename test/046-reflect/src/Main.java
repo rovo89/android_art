@@ -362,6 +362,27 @@ public class Main {
             targ = cons.newInstance(args);
             targ.myMethod(17);
 
+            try {
+                Thrower thrower = Thrower.class.newInstance();
+                System.out.println("ERROR: Class.newInstance did not throw exception");
+            } catch (UnsupportedOperationException uoe) {
+                System.out.println("got expected exception for Class.newInstance");
+            } catch (Exception e) {
+                System.out.println("ERROR: Class.newInstance got unexpected exception: " +
+                                   e.getClass().getName());
+            }
+
+            try {
+                Constructor<Thrower> constructor = Thrower.class.getDeclaredConstructor();
+                Thrower thrower = constructor.newInstance();
+                System.out.println("ERROR: Constructor.newInstance did not throw exception");
+            } catch (InvocationTargetException ite) {
+                System.out.println("got expected exception for Constructor.newInstance");
+            } catch (Exception e) {
+                System.out.println("ERROR: Constructor.newInstance got unexpected exception: " +
+                                   e.getClass().getName());
+            }
+
         } catch (Exception ex) {
             System.out.println("----- unexpected exception -----");
             ex.printStackTrace();
@@ -668,4 +689,10 @@ class MethodNoisyInitUser {
   }
   public static void staticMethod() {}
   public void createMethodNoisyInit(MethodNoisyInit ni) {}
+}
+
+class Thrower {
+  public Thrower() throws UnsupportedOperationException {
+    throw new UnsupportedOperationException();
+  }
 }
