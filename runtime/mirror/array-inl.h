@@ -27,10 +27,11 @@
 namespace art {
 namespace mirror {
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
 inline size_t Array::SizeOf() {
   // This is safe from overflow because the array was already allocated, so we know it's sane.
-  size_t component_size = GetClass<kVerifyFlags>()->GetComponentSize();
+  size_t component_size =
+      GetClass<kVerifyFlags, kDoReadBarrier>()->template GetComponentSize<kDoReadBarrier>();
   // Don't need to check this since we already check this in GetClass.
   int32_t component_count =
       GetLength<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis)>();
