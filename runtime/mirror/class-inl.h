@@ -478,6 +478,19 @@ inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor)
   VisitStaticFieldsReferences<kVisitClass>(this, visitor);
 }
 
+template<bool kDoReadBarrier>
+bool Class::IsArtFieldClass() {
+  Class* java_lang_Class = GetClass<kVerifyNone, kDoReadBarrier>();
+  Class* java_lang_reflect_ArtField =
+      java_lang_Class->GetInstanceField(0)->GetClass<kVerifyNone, kDoReadBarrier>();
+  return this == java_lang_reflect_ArtField;
+}
+
+template<bool kDoReadBarrier>
+bool Class::IsArtMethodClass() {
+  return this == ArtMethod::GetJavaLangReflectArtMethod<kDoReadBarrier>();
+}
+
 }  // namespace mirror
 }  // namespace art
 
