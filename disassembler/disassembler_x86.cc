@@ -735,7 +735,7 @@ DISASSEMBLER_ENTRY(cmp,
   std::ostringstream args;
   if (reg_in_opcode) {
     DCHECK(!has_modrm);
-    DumpReg(args, rex, *instr & 0x7, false, prefix[2], GPR);
+    DumpBaseReg(args, rex, *instr & 0x7);
   }
   instr++;
   uint32_t address_bits = 0;
