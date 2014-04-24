@@ -100,6 +100,10 @@ CompiledMethod* OptimizingCompiler::TryCompile(CompilerDriver& driver,
   std::vector<uint8_t> gc_map;
   codegen->BuildNativeGCMap(&gc_map, dex_compilation_unit);
 
+  // Run these phases to get some test coverage.
+  graph->BuildDominatorTree();
+  graph->TransformToSSA();
+
   return new CompiledMethod(driver,
                             instruction_set,
                             allocator.GetMemory(),

@@ -78,6 +78,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/code_generator_x86.cc \
 	optimizing/nodes.cc \
 	optimizing/optimizing_compiler.cc \
+	optimizing/ssa_builder.cc \
 	trampolines/trampoline_compiler.cc \
 	utils/arena_allocator.cc \
 	utils/arena_bit_vector.cc \
