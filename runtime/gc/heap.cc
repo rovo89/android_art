@@ -2611,12 +2611,14 @@ void Heap::ClearGrowthLimit() {
   non_moving_space_->ClearGrowthLimit();
 }
 
-void Heap::AddFinalizerReference(Thread* self, mirror::Object* object) {
+void Heap::AddFinalizerReference(Thread* self, mirror::Object** object) {
   ScopedObjectAccess soa(self);
-  ScopedLocalRef<jobject> arg(self->GetJniEnv(), soa.AddLocalReference<jobject>(object));
+  ScopedLocalRef<jobject> arg(self->GetJniEnv(), soa.AddLocalReference<jobject>(*object));
   jvalue args[1];
   args[0].l = arg.get();
   InvokeWithJValues(soa, nullptr, WellKnownClasses::java_lang_ref_FinalizerReference_add, args);
+  // Restore object in case it gets moved.
+  *object = soa.Decode<mirror::Object*>(arg.get());
 }
 
 void Heap::EnqueueClearedReferences() {

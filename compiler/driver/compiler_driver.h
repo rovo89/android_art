@@ -210,7 +210,7 @@ class CompilerDriver {
 
   bool CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_idx,
                           bool* is_type_initialized, bool* use_direct_type_ptr,
-                          uintptr_t* direct_type_ptr);
+                          uintptr_t* direct_type_ptr, bool* out_is_finalizable);
 
   // Get the DexCache for the
   mirror::DexCache* GetDexCache(const DexCompilationUnit* mUnit)

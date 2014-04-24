@@ -380,7 +380,7 @@ class Heap {
     return card_table_.get();
   }
 
-  void AddFinalizerReference(Thread* self, mirror::Object* object);
+  void AddFinalizerReference(Thread* self, mirror::Object** object);
 
   // Returns the number of bytes currently allocated.
   size_t GetBytesAllocated() const {

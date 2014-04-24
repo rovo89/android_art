@@ -412,7 +412,7 @@ class MANAGED Class : public Object {
   }
 
   // Creates a raw object instance but does not invoke the default constructor.
-  template <bool kIsInstrumented>
+  template<bool kIsInstrumented, bool kCheckAddFinalizer = true>
   ALWAYS_INLINE Object* Alloc(Thread* self, gc::AllocatorType allocator_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
