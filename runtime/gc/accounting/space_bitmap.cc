@@ -21,13 +21,17 @@ namespace gc {
 namespace accounting {
 
 template<size_t kAlignment>
+size_t SpaceBitmap<kAlignment>::ComputeBitmapSize(uint64_t capacity) {
+  const uint64_t kBytesCoveredPerWord = kAlignment * kBitsPerWord;
+  return (RoundUp(capacity, kBytesCoveredPerWord) / kBytesCoveredPerWord) * kWordSize;
+}
+
+template<size_t kAlignment>
 SpaceBitmap<kAlignment>* SpaceBitmap<kAlignment>::CreateFromMemMap(
     const std::string& name, MemMap* mem_map, byte* heap_begin, size_t heap_capacity) {
   CHECK(mem_map != nullptr);
   uword* bitmap_begin = reinterpret_cast<uword*>(mem_map->Begin());
-  const uint64_t kBytesCoveredPerWord = kAlignment * kBitsPerWord;
-  size_t bitmap_size = (RoundUp(static_cast<uint64_t>(heap_capacity), kBytesCoveredPerWord) /
-      kBytesCoveredPerWord) * kWordSize;
+  const size_t bitmap_size = ComputeBitmapSize(heap_capacity);
   return new SpaceBitmap(name, mem_map, bitmap_begin, bitmap_size, heap_begin);
 }
 
@@ -45,9 +49,7 @@ template<size_t kAlignment>
 SpaceBitmap<kAlignment>* SpaceBitmap<kAlignment>::Create(
     const std::string& name, byte* heap_begin, size_t heap_capacity) {
   // Round up since heap_capacity is not necessarily a multiple of kAlignment * kBitsPerWord.
-  const uint64_t kBytesCoveredPerWord = kAlignment * kBitsPerWord;
-  size_t bitmap_size = (RoundUp(static_cast<uint64_t>(heap_capacity), kBytesCoveredPerWord) /
-      kBytesCoveredPerWord) * kWordSize;
+  const size_t bitmap_size = ComputeBitmapSize(heap_capacity);
   std::string error_msg;
   UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(name.c_str(), nullptr, bitmap_size,
                                                  PROT_READ | PROT_WRITE, false, &error_msg));

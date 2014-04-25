@@ -32,7 +32,7 @@ namespace art {
 namespace gc {
 namespace space {
 
-static constexpr bool kPrefetchDuringRosAllocFreeList = true;
+static constexpr bool kPrefetchDuringRosAllocFreeList = false;
 static constexpr size_t kPrefetchLookAhead = 8;
 // Use this only for verification, it is not safe to use since the class of the object may have
 // been freed.
