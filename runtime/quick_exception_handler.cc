@@ -14,37 +14,37 @@
  * limitations under the License.
  */
 
-#include "catch_finder.h"
+#include "quick_exception_handler.h"
+
 #include "catch_block_stack_visitor.h"
+#include "deoptimize_stack_visitor.h"
+#include "entrypoints/entrypoint_utils.h"
+#include "sirt_ref-inl.h"
 
 namespace art {
 
-CatchFinder::CatchFinder(Thread* self, const ThrowLocation& throw_location,
-            mirror::Throwable* exception, bool is_deoptimization)
-  : self_(self), context_(self->GetLongJumpContext()),
-    exception_(exception), is_deoptimization_(is_deoptimization), throw_location_(throw_location),
+QuickExceptionHandler::QuickExceptionHandler(Thread* self, bool is_deoptimization)
+  : self_(self), context_(self->GetLongJumpContext()), is_deoptimization_(is_deoptimization),
     method_tracing_active_(is_deoptimization ||
                            Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()),
-                           handler_quick_frame_(nullptr), handler_quick_frame_pc_(0),
-                           handler_dex_pc_(0), clear_exception_(false), top_shadow_frame_(nullptr),
-                           handler_frame_id_(kInvalidFrameId) {
-  // Exception not in root sets, can't allow GC.
-  last_no_assert_suspension_cause_ = self->StartAssertNoThreadSuspension("Finding catch block");
+    handler_quick_frame_(nullptr), handler_quick_frame_pc_(0), handler_dex_pc_(0),
+    clear_exception_(false), top_shadow_frame_(nullptr), handler_frame_id_(kInvalidFrameId) {
 }
 
-void CatchFinder::FindCatch() {
+void QuickExceptionHandler::FindCatch(const ThrowLocation& throw_location,
+                                      mirror::Throwable* exception) {
+  DCHECK(!is_deoptimization_);
+  SirtRef<mirror::Throwable> exception_ref(self_, exception);
+
   // Walk the stack to find catch handler or prepare for deoptimization.
-  CatchBlockStackVisitor visitor(self_, context_, exception_, is_deoptimization_, this);
+  CatchBlockStackVisitor visitor(self_, context_, exception_ref, this);
   visitor.WalkStack(true);
 
   mirror::ArtMethod* catch_method = *handler_quick_frame_;
-  if (catch_method == nullptr) {
-    if (kDebugExceptionDelivery) {
+  if (kDebugExceptionDelivery) {
+    if (catch_method == nullptr) {
       LOG(INFO) << "Handler is upcall";
-    }
-  } else {
-    CHECK(!is_deoptimization_);
-    if (kDebugExceptionDelivery) {
+    } else {
       const DexFile& dex_file = *catch_method->GetDeclaringClass()->GetDexCache()->GetDexFile();
       int line_number = dex_file.GetLineNumFromPC(catch_method, handler_dex_pc_);
       LOG(INFO) << "Handler: " << PrettyMethod(catch_method) << " (line: " << line_number << ")";
@@ -55,17 +55,23 @@ void CatchFinder::FindCatch() {
     DCHECK(!self_->IsExceptionPending());
   } else {
     // Put exception back in root set with clear throw location.
-    self_->SetException(ThrowLocation(), exception_);
+    self_->SetException(ThrowLocation(), exception_ref.get());
   }
-  self_->EndAssertNoThreadSuspension(last_no_assert_suspension_cause_);
-  // Do instrumentation events after allowing thread suspension again.
-  if (!is_deoptimization_) {
-    // The debugger may suspend this thread and walk its stack. Let's do this before popping
-    // instrumentation frames.
-    instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
-    instrumentation->ExceptionCaughtEvent(self_, throw_location_, catch_method, handler_dex_pc_,
-                                          exception_);
-  }
+  // The debugger may suspend this thread and walk its stack. Let's do this before popping
+  // instrumentation frames.
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+  instrumentation->ExceptionCaughtEvent(self_, throw_location, catch_method, handler_dex_pc_,
+                                        exception_ref.get());
+}
+
+void QuickExceptionHandler::DeoptimizeStack() {
+  DCHECK(is_deoptimization_);
+
+  DeoptimizeStackVisitor visitor(self_, context_, this);
+  visitor.WalkStack(true);
+
+  // Restore deoptimization exception
+  self_->SetException(ThrowLocation(), Thread::GetDeoptimizationException());
 }
 
 // Unwinds all instrumentation stack frame prior to catch handler or upcall.
@@ -105,7 +111,7 @@ class InstrumentationStackVisitor : public StackVisitor {
   DISALLOW_COPY_AND_ASSIGN(InstrumentationStackVisitor);
 };
 
-void CatchFinder::UpdateInstrumentationStack() {
+void QuickExceptionHandler::UpdateInstrumentationStack() {
   if (method_tracing_active_) {
     InstrumentationStackVisitor visitor(self_, is_deoptimization_, handler_frame_id_);
     visitor.WalkStack(true);
@@ -118,7 +124,7 @@ void CatchFinder::UpdateInstrumentationStack() {
   }
 }
 
-void CatchFinder::DoLongJump() {
+void QuickExceptionHandler::DoLongJump() {
   if (is_deoptimization_) {
     // TODO: proper return value.
     self_->SetDeoptimizationShadowFrame(top_shadow_frame_);

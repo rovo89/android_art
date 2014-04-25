@@ -686,6 +686,11 @@ class Thread {
     return tlsPtr_.single_step_control;
   }
 
+  // Returns the fake exception used to activate deoptimization.
+  static mirror::Throwable* GetDeoptimizationException() {
+    return reinterpret_cast<mirror::Throwable*>(-1);
+  }
+
   void SetDeoptimizationShadowFrame(ShadowFrame* sf);
   void SetDeoptimizationReturnValue(const JValue& ret_val);
 

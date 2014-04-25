@@ -14,45 +14,40 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_CATCH_BLOCK_STACK_VISITOR_H_
-#define ART_RUNTIME_CATCH_BLOCK_STACK_VISITOR_H_
+#ifndef ART_RUNTIME_DEOPTIMIZE_STACK_VISITOR_H_
+#define ART_RUNTIME_DEOPTIMIZE_STACK_VISITOR_H_
 
-#include "mirror/object-inl.h"
+#include "base/mutex.h"
 #include "stack.h"
-#include "sirt_ref-inl.h"
 
 namespace art {
 
 namespace mirror {
-class Throwable;
+class ArtMethod;
 }  // namespace mirror
-class Context;
 class QuickExceptionHandler;
 class Thread;
-class ThrowLocation;
 
-// Finds catch handler or prepares deoptimization.
-class CatchBlockStackVisitor FINAL : public StackVisitor {
+// Prepares deoptimization.
+class DeoptimizeStackVisitor FINAL : public StackVisitor {
  public:
-  CatchBlockStackVisitor(Thread* self, Context* context, SirtRef<mirror::Throwable>& exception,
-                         QuickExceptionHandler* exception_handler)
+  DeoptimizeStackVisitor(Thread* self, Context* context, QuickExceptionHandler* exception_handler)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(self, context), self_(self), to_find_(self, exception->GetClass()),
-        exception_handler_(exception_handler) {
+      : StackVisitor(self, context), self_(self), exception_handler_(exception_handler),
+        prev_shadow_frame_(nullptr) {
   }
 
   bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  bool HandleTryItems(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool HandleDeoptimization(mirror::ArtMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Thread* const self_;
-  // The type of the exception catch block to find.
-  SirtRef<mirror::Class> to_find_;
   QuickExceptionHandler* const exception_handler_;
+  ShadowFrame* prev_shadow_frame_;
 
-  DISALLOW_COPY_AND_ASSIGN(CatchBlockStackVisitor);
+  DISALLOW_COPY_AND_ASSIGN(DeoptimizeStackVisitor);
 };
 
 }  // namespace art
-#endif  // ART_RUNTIME_CATCH_BLOCK_STACK_VISITOR_H_
+#endif  // ART_RUNTIME_DEOPTIMIZE_STACK_VISITOR_H_
