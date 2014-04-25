@@ -262,7 +262,7 @@ static double GetDoubleProperty(const char* property, double minValue, double ma
 static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring javaFilename,
     jstring javaPkgname, jboolean defer) {
   const bool kVerboseLogging = false;  // Spammy logging.
-  const bool kDebugLogging = true;  // Logging useful for debugging.
+  const bool kReasonLogging = true;  // Logging of reason for returning JNI_TRUE.
 
   ScopedUtfChars filename(env, javaFilename);
   if ((filename.c_str() == nullptr) || !OS::FileExists(filename.c_str())) {
@@ -312,7 +312,7 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
     int e2 = stat(prev_profile_file.c_str(), &prevstat);
     if (e1 < 0) {
       // No profile file, need to run dex2oat
-      if (kDebugLogging) {
+      if (kReasonLogging) {
         LOG(INFO) << "DexFile_isDexOptNeeded profile file " << profile_file << " doesn't exist";
       }
       return JNI_TRUE;
@@ -330,12 +330,12 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
       bool newOk = ProfileHelper::LoadTopKSamples(newTopK, profile_file, topKThreshold);
       bool oldOk = ProfileHelper::LoadTopKSamples(oldTopK, prev_profile_file, topKThreshold);
       if (!newOk || !oldOk) {
-        if (kDebugLogging) {
+        if (kVerboseLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded Ignoring invalid profiles: "
                     << (newOk ?  "" : profile_file) << " " << (oldOk ? "" : prev_profile_file);
         }
       } else if (newTopK.empty()) {
-        if (kDebugLogging && kVerboseLogging) {
+        if (kVerboseLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded empty profile: " << profile_file;
         }
         // If the new topK is empty we shouldn't optimize so we leave the changePercent at 0.0.
@@ -345,7 +345,7 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
           std::inserter(diff, diff.end()));
         // TODO: consider using the usedPercentage instead of the plain diff count.
         changePercent = 100.0 * static_cast<double>(diff.size()) / static_cast<double>(newTopK.size());
-        if (kDebugLogging && kVerboseLogging) {
+        if (kVerboseLogging) {
           std::set<std::string>::iterator end = diff.end();
           for (std::set<std::string>::iterator it = diff.begin(); it != end; it++) {
             LOG(INFO) << "DexFile_isDexOptNeeded new in topK: " << *it;
@@ -354,7 +354,7 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
       }
 
       if (changePercent > changeThreshold) {
-        if (kDebugLogging) {
+        if (kReasonLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded size of new profile file " << profile_file <<
           " is significantly different from old profile file " << prev_profile_file << " (top "
           << topKThreshold << "% samples changed in proportion of " << changePercent << "%)";
@@ -366,13 +366,12 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
       }
     } else {
       // Previous profile does not exist.  Make a copy of the current one.
-      if (kDebugLogging) {
+      if (kVerboseLogging) {
         LOG(INFO) << "DexFile_isDexOptNeeded previous profile doesn't exist: " << prev_profile_file;
       }
       if (!defer) {
         CopyProfileFile(profile_file.c_str(), prev_profile_file.c_str());
       }
-      return JNI_TRUE;
     }
   }
 
@@ -389,7 +388,7 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
     error_msg.clear();
   } else {
     const art::OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename.c_str(), NULL,
-                                                                           kDebugLogging);
+                                                                           kReasonLogging);
     if (oat_dex_file != nullptr) {
       uint32_t location_checksum;
       // If its not possible to read the classes.dex assume up-to-date as we won't be able to
@@ -423,7 +422,7 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
   std::string cache_location(GetDalvikCacheFilenameOrDie(filename.c_str()));
   oat_file.reset(OatFile::Open(cache_location, filename.c_str(), NULL, false, &error_msg));
   if (oat_file.get() == nullptr) {
-    if (kDebugLogging) {
+    if (kReasonLogging) {
       LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
           << " does not exist for " << filename.c_str() << ": " << error_msg;
     }
@@ -436,7 +435,7 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
       const ImageHeader& image_header = space->AsImageSpace()->GetImageHeader();
       if (oat_file->GetOatHeader().GetImageFileLocationOatChecksum() !=
           image_header.GetOatChecksum()) {
-        if (kDebugLogging) {
+        if (kReasonLogging) {
           ScopedObjectAccess soa(env);
           LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
               << " has out-of-date oat checksum compared to "
@@ -446,7 +445,7 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
       }
       if (oat_file->GetOatHeader().GetImageFileLocationOatDataBegin()
           != reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin())) {
-        if (kDebugLogging) {
+        if (kReasonLogging) {
           ScopedObjectAccess soa(env);
           LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
               << " has out-of-date oat begin compared to "
@@ -459,7 +458,7 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
 
   uint32_t location_checksum;
   if (!DexFile::GetChecksum(filename.c_str(), &location_checksum, &error_msg)) {
-    if (kDebugLogging) {
+    if (kReasonLogging) {
       LOG(ERROR) << "DexFile_isDexOptNeeded failed to compute checksum of " << filename.c_str()
             << " (error " << error_msg << ")";
     }
@@ -468,7 +467,7 @@ static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring java
 
   if (!ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename.c_str(), location_checksum,
                                            &error_msg)) {
-    if (kDebugLogging) {
+    if (kReasonLogging) {
       LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
           << " has out-of-date checksum compared to " << filename.c_str()
           << " (error " << error_msg << ")";
