@@ -302,19 +302,19 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   exit(0);
 }
 // Explicit definitions of ExecuteGotoImpl.
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+template<> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
 JValue ExecuteGotoImpl<true, false>(Thread* self, MethodHelper& mh,
                                     const DexFile::CodeItem* code_item,
                                     ShadowFrame& shadow_frame, JValue result_register);
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+template<> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
 JValue ExecuteGotoImpl<false, false>(Thread* self, MethodHelper& mh,
                                      const DexFile::CodeItem* code_item,
                                      ShadowFrame& shadow_frame, JValue result_register);
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+template<> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
 JValue ExecuteGotoImpl<true, true>(Thread* self, MethodHelper& mh,
                                     const DexFile::CodeItem* code_item,
                                     ShadowFrame& shadow_frame, JValue result_register);
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+template<> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
 JValue ExecuteGotoImpl<false, true>(Thread* self, MethodHelper& mh,
                                      const DexFile::CodeItem* code_item,
                                      ShadowFrame& shadow_frame, JValue result_register);
