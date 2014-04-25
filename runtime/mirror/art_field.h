@@ -132,6 +132,10 @@ class MANAGED ArtField : public Object {
     return (GetAccessFlags() & kAccVolatile) != 0;
   }
 
+  // Returns an instance field with this offset in the given class or nullptr if not found.
+  static ArtField* FindInstanceFieldWithOffset(mirror::Class* klass, uint32_t field_offset)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // The class we are a part of
