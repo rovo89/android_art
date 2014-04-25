@@ -19,15 +19,15 @@
 
 #include "asm_support_x86_64.h"
 
-#if defined(__clang__)
-    // Clang's as(1) doesn't let you name macro parameters.
+#if defined(__clang__) && (__clang_major__ < 4) && (__clang_minor__ < 5)
+    // Clang's as(1) doesn't let you name macro parameters prior to 3.5.
     #define MACRO0(macro_name) .macro macro_name
     #define MACRO1(macro_name, macro_arg1) .macro macro_name
     #define MACRO2(macro_name, macro_arg1, macro_args2) .macro macro_name
     #define MACRO3(macro_name, macro_arg1, macro_args2, macro_args3) .macro macro_name
     #define END_MACRO .endmacro
 
-    // Clang's as(1) uses $0, $1, and so on for macro arguments.
+    // Clang's as(1) uses $0, $1, and so on for macro arguments prior to 3.5.
     #define VAR(name,index) SYMBOL($index)
     #define PLT_VAR(name, index) SYMBOL($index)@PLT
     #define REG_VAR(name,index) %$index

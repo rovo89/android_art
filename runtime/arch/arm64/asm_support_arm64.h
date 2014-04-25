@@ -28,15 +28,6 @@
 // Offset of field Runtime::callee_save_methods_[kRefsAndArgs]
 #define RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET 16
 
-// Register holding Thread::Current().
-#define xSELF x18
-// Frame Pointer
-#define xFP   x29
-// Link Register
-#define xLR   x30
-// Define the intraprocedural linkage temporary registers.
-#define xIP0 x16
-#define xIP1 x17
 // Offset of field Thread::suspend_count_ verified in InitCpu
 #define THREAD_FLAGS_OFFSET 0
 // Offset of field Thread::card_table_ verified in InitCpu
@@ -45,5 +36,9 @@
 #define THREAD_EXCEPTION_OFFSET 120
 // Offset of field Thread::thin_lock_thread_id_ verified in InitCpu
 #define THREAD_ID_OFFSET 12
+
+#define FRAME_SIZE_SAVE_ALL_CALLEE_SAVE 368
+#define FRAME_SIZE_REFS_ONLY_CALLEE_SAVE 176
+#define FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE 304
 
 #endif  // ART_RUNTIME_ARCH_ARM64_ASM_SUPPORT_ARM64_H_

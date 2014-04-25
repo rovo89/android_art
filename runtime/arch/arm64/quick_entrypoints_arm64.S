@@ -36,6 +36,11 @@
     sub sp, sp, #368
     .cfi_adjust_cfa_offset 368
 
+    // Ugly compile-time check, but we only have the preprocessor.
+#if (FRAME_SIZE_SAVE_ALL_CALLEE_SAVE != 368)
+#error "SAVE_ALL_CALLEE_SAVE_FRAME(ARM64) size not as expected."
+#endif
+
     // FP args
     stp d1, d2,   [sp, #8]
     stp d2, d3, [sp, #24]
@@ -95,8 +100,61 @@
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kRefsOnly).
      */
+// WIP.
 .macro SETUP_REF_ONLY_CALLEE_SAVE_FRAME
-    brk 0
+    adrp x9, :got:_ZN3art7Runtime9instance_E
+    ldr x9, [x9, #:got_lo12:_ZN3art7Runtime9instance_E]
+
+    // Our registers aren't intermixed - just spill in order.
+    ldr x9,[x9]  // x9 = & (art::Runtime * art::Runtime.instance_) .
+
+    // x9 = (ArtMethod*) Runtime.instance_.callee_save_methods[kRefAndArgs]  .
+    ldr x9, [x9, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET ]
+
+    sub sp, sp, #176
+    .cfi_adjust_cfa_offset 176
+
+    // Ugly compile-time check, but we only have the preprocessor.
+#if (FRAME_SIZE_REFS_ONLY_CALLEE_SAVE != 176)
+#error "REFS_ONLY_CALLEE_SAVE_FRAME(ARM64) size not as expected."
+#endif
+
+    // FP callee-saves
+    stp d8, d9,   [sp, #8]
+    stp d10, d11, [sp, #24]
+    stp d12, d13, [sp, #40]
+    stp d14, d15, [sp, #56]
+
+    // Callee saved.
+    stp xSELF, x19, [sp, #72]
+    .cfi_rel_offset x18, 72
+    .cfi_rel_offset x19, 80
+
+    stp x20, x21, [sp, #88]
+    .cfi_rel_offset x20, 88
+    .cfi_rel_offset x21, 96
+
+    stp x22, x23, [sp, #104]
+    .cfi_rel_offset x22, 104
+    .cfi_rel_offset x23, 112
+
+    stp x24, x25, [sp, #120]
+    .cfi_rel_offset x24, 120
+    .cfi_rel_offset x25, 128
+
+    stp x26, x27, [sp, #136]
+    .cfi_rel_offset x26, 136
+    .cfi_rel_offset x27, 144
+
+    stp x28, xFP, [sp, #152]    // Save FP.
+    .cfi_rel_offset x28, 152
+    .cfi_rel_offset x29, 160
+
+    str xLR, [sp, #168]
+    .cfi_rel_offset x30, 168
+
+    // Loads appropriate callee-save-method
+    str x9, [sp]    // Store ArtMethod* Runtime::callee_save_methods_[kRefsAndArgs]
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
@@ -111,6 +169,11 @@
 .macro SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME_INTERNAL
     sub sp, sp, #304
     .cfi_adjust_cfa_offset 304
+
+    // Ugly compile-time check, but we only have the preprocessor.
+#if (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE != 304)
+#error "REFS_AND_ARGS_CALLEE_SAVE_FRAME(ARM64) size not as expected."
+#endif
 
     stp d0, d1,   [sp, #16]
     stp d2, d3,   [sp, #32]
@@ -325,10 +388,14 @@
     DELIVER_PENDING_EXCEPTION
 .endm
 
+// FIXME: Temporary fix for TR(XSELF).
 .macro NO_ARG_RUNTIME_EXCEPTION c_name, cxx_name
     .extern \cxx_name
 ENTRY \c_name
-    brk 0
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
+    mov x0, x19                        // pass Thread::Current
+    mov x1, sp                        // pass SP
+    b   \cxx_name                     // \cxx_name(Thread*, SP)
 END \c_name
 .endm
 
@@ -339,15 +406,19 @@ ENTRY \c_name
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context.
     mov x1, x19                       // pass Thread::Current.
     mov x2, sp                        // pass SP.
-    b   \cxx_name                     // \cxx_name(Thread*, SP).
+    b   \cxx_name                     // \cxx_name(arg, Thread*, SP).
     brk 0
 END \c_name
 .endm
 
+// FIXME: Temporary fix for TR(XSELF).
 .macro TWO_ARG_RUNTIME_EXCEPTION c_name, cxx_name
     .extern \cxx_name
 ENTRY \c_name
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
+    mov x2, x19                       // pass Thread::Current
+    mov x3, sp                        // pass SP
+    b   \cxx_name                     // \cxx_name(arg1, arg2, Thread*, SP)
     brk 0
 END \c_name
 .endm
