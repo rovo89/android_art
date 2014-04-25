@@ -169,6 +169,13 @@ static inline bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
       return false;
     }
   }
+  // Report this field access to instrumentation if needed.
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+  if (UNLIKELY(instrumentation->HasFieldReadListeners())) {
+    Object* this_object = f->IsStatic() ? nullptr : obj;
+    instrumentation->FieldReadEvent(self, this_object, shadow_frame.GetMethod(),
+                                    shadow_frame.GetDexPC(), f);
+  }
   uint32_t vregA = is_static ? inst->VRegA_21c(inst_data) : inst->VRegA_22c(inst_data);
   switch (field_type) {
     case Primitive::kPrimBoolean:
@@ -210,6 +217,17 @@ static inline bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* ins
     return false;
   }
   MemberOffset field_offset(inst->VRegC_22c());
+  // Report this field access to instrumentation if needed. Since we only have the offset of
+  // the field from the base of the object, we need to look for it first.
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+  if (UNLIKELY(instrumentation->HasFieldReadListeners())) {
+    ArtField* f = ArtField::FindInstanceFieldWithOffset(obj->GetClass(),
+                                                        field_offset.Uint32Value());
+    DCHECK(f != nullptr);
+    DCHECK(!f->IsStatic());
+    instrumentation->FieldReadEvent(Thread::Current(), obj, shadow_frame.GetMethod(),
+                                    shadow_frame.GetDexPC(), f);
+  }
   const bool is_volatile = false;  // iget-x-quick only on non volatile fields.
   const uint32_t vregA = inst->VRegA_22c(inst_data);
   switch (field_type) {
@@ -226,6 +244,39 @@ static inline bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* ins
       LOG(FATAL) << "Unreachable: " << field_type;
   }
   return true;
+}
+
+template<Primitive::Type field_type>
+static inline JValue GetFieldValue(const ShadowFrame& shadow_frame, uint32_t vreg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  JValue field_value;
+  switch (field_type) {
+    case Primitive::kPrimBoolean:
+      field_value.SetZ(static_cast<uint8_t>(shadow_frame.GetVReg(vreg)));
+      break;
+    case Primitive::kPrimByte:
+      field_value.SetB(static_cast<int8_t>(shadow_frame.GetVReg(vreg)));
+      break;
+    case Primitive::kPrimChar:
+      field_value.SetC(static_cast<uint16_t>(shadow_frame.GetVReg(vreg)));
+      break;
+    case Primitive::kPrimShort:
+      field_value.SetS(static_cast<int16_t>(shadow_frame.GetVReg(vreg)));
+      break;
+    case Primitive::kPrimInt:
+      field_value.SetI(shadow_frame.GetVReg(vreg));
+      break;
+    case Primitive::kPrimLong:
+      field_value.SetJ(shadow_frame.GetVRegLong(vreg));
+      break;
+    case Primitive::kPrimNot:
+      field_value.SetL(shadow_frame.GetVRegReference(vreg));
+      break;
+    default:
+      LOG(FATAL) << "Unreachable: " << field_type;
+      break;
+  }
+  return field_value;
 }
 
 // Handles iput-XXX and sput-XXX instructions.
@@ -254,6 +305,15 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
     }
   }
   uint32_t vregA = is_static ? inst->VRegA_21c(inst_data) : inst->VRegA_22c(inst_data);
+  // Report this field access to instrumentation if needed. Since we only have the offset of
+  // the field from the base of the object, we need to look for it first.
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+  if (UNLIKELY(instrumentation->HasFieldWriteListeners())) {
+    JValue field_value = GetFieldValue<field_type>(shadow_frame, vregA);
+    Object* this_object = f->IsStatic() ? nullptr : obj;
+    instrumentation->FieldWriteEvent(self, this_object, shadow_frame.GetMethod(),
+                                     shadow_frame.GetDexPC(), f, field_value);
+  }
   switch (field_type) {
     case Primitive::kPrimBoolean:
       f->SetBoolean<transaction_active>(obj, shadow_frame.GetVReg(vregA));
@@ -309,8 +369,20 @@ static inline bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instructio
     return false;
   }
   MemberOffset field_offset(inst->VRegC_22c());
-  const bool is_volatile = false;  // iput-x-quick only on non volatile fields.
   const uint32_t vregA = inst->VRegA_22c(inst_data);
+  // Report this field modification to instrumentation if needed. Since we only have the offset of
+  // the field from the base of the object, we need to look for it first.
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+  if (UNLIKELY(instrumentation->HasFieldWriteListeners())) {
+    ArtField* f = ArtField::FindInstanceFieldWithOffset(obj->GetClass(),
+                                                        field_offset.Uint32Value());
+    DCHECK(f != nullptr);
+    DCHECK(!f->IsStatic());
+    JValue field_value = GetFieldValue<field_type>(shadow_frame, vregA);
+    instrumentation->FieldWriteEvent(Thread::Current(), obj, shadow_frame.GetMethod(),
+                                     shadow_frame.GetDexPC(), f, field_value);
+  }
+  const bool is_volatile = false;  // iput-x-quick only on non volatile fields.
   switch (field_type) {
     case Primitive::kPrimInt:
       obj->SetField32<transaction_active>(field_offset, shadow_frame.GetVReg(vregA), is_volatile);
