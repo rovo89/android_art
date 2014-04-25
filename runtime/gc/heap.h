@@ -289,6 +289,12 @@ class Heap {
   void RegisterGCAllocation(size_t bytes);
   void RegisterGCDeAllocation(size_t bytes);
 
+  // Public due to usage by tests.
+  void AddSpace(space::Space* space, bool set_as_default = true)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+  void RemoveSpace(space::Space* space, bool unset_as_default = true)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+
   // Set target ideal heap utilization ratio, implements
   // dalvik.system.VMRuntime.setTargetHeapUtilization.
   void SetTargetHeapUtilization(float target);
@@ -683,10 +689,6 @@ class Heap {
   void GrowForUtilization(collector::GarbageCollector* collector_ran);
 
   size_t GetPercentFree();
-
-  void AddSpace(space::Space* space, bool set_as_default = true)
-      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
-  void RemoveSpace(space::Space* space) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   static void VerificationCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);

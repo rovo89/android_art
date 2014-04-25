@@ -155,7 +155,7 @@ class RosAlloc {
   // +-------------------+
   // | to_be_bulk_freed  |
   // +-------------------+
-  // | top_slot_idx      |
+  // | top_bitmap_idx    |
   // +-------------------+
   // |                   |
   // | alloc bit map     |
@@ -186,12 +186,12 @@ class RosAlloc {
   //
   class Run {
    public:
-    byte magic_num_;             // The magic number used for debugging.
-    byte size_bracket_idx_;      // The index of the size bracket of this run.
-    byte is_thread_local_;       // True if this run is used as a thread-local run.
-    byte to_be_bulk_freed_;      // Used within BulkFree() to flag a run that's involved with a bulk free.
-    uint32_t top_slot_idx_;      // The top slot index when this run is in bump index mode.
-    uint32_t alloc_bit_map_[0];  // The bit map that allocates if each slot is in use.
+    byte magic_num_;                 // The magic number used for debugging.
+    byte size_bracket_idx_;          // The index of the size bracket of this run.
+    byte is_thread_local_;           // True if this run is used as a thread-local run.
+    byte to_be_bulk_freed_;          // Used within BulkFree() to flag a run that's involved with a bulk free.
+    uint32_t first_search_vec_idx_;  // The index of the first bitmap vector which may contain an available slot.
+    uint32_t alloc_bit_map_[0];      // The bit map that allocates if each slot is in use.
 
     // bulk_free_bit_map_[] : The bit map that is used for GC to
     // temporarily mark the slots to free without using a lock. After
@@ -225,6 +225,16 @@ class RosAlloc {
     void* End() {
       return reinterpret_cast<byte*>(this) + kPageSize * numOfPages[size_bracket_idx_];
     }
+    // Returns the number of bitmap words per run.
+    size_t NumberOfBitmapVectors() const {
+      return RoundUp(numOfSlots[size_bracket_idx_], 32) / 32;
+    }
+    void SetIsThreadLocal(bool is_thread_local) {
+      is_thread_local_  = is_thread_local ? 1 : 0;
+    }
+    bool IsThreadLocal() const {
+      return is_thread_local_ != 0;
+    }
     // Frees slots in the allocation bit map with regard to the
     // thread-local free bit map. Used when a thread-local run becomes
     // full.
@@ -243,10 +253,13 @@ class RosAlloc {
     void* AllocSlot();
     // Frees a slot in a run. This is used in a non-bulk free.
     void FreeSlot(void* ptr);
-    // Marks the slots to free in the bulk free bit map.
-    void MarkBulkFreeBitMap(void* ptr);
+    // Marks the slots to free in the bulk free bit map. Returns the bracket size.
+    size_t MarkBulkFreeBitMap(void* ptr);
     // Marks the slots to free in the thread-local free bit map.
     void MarkThreadLocalFreeBitMap(void* ptr);
+    // Last word mask, all of the bits in the last word which aren't valid slots are set to
+    // optimize allocation path.
+    static size_t GetBitmapLastVectorMask(size_t num_slots, size_t num_vec);
     // Returns true if all the slots in the run are not in use.
     bool IsAllFree();
     // Returns true if all the slots in the run are in use.
@@ -255,8 +268,14 @@ class RosAlloc {
     bool IsBulkFreeBitmapClean();
     // Returns true if the thread local free bit map is clean.
     bool IsThreadLocalFreeBitmapClean();
-    // Clear all the bit maps.
-    void ClearBitMaps();
+    // Set the alloc_bit_map_ bits for slots that are past the end of the run.
+    void SetAllocBitMapBitsForInvalidSlots();
+    // Zero the run's data.
+    void ZeroData();
+    // Zero the run's header.
+    void ZeroHeader();
+    // Fill the alloc bitmap with 1s.
+    void FillAllocBitMap();
     // Iterate over all the slots and apply the given function.
     void InspectAllSlots(void (*handler)(void* start, void* end, size_t used_bytes, void* callback_arg), void* arg);
     // Dump the run metadata for debugging.
@@ -267,8 +286,9 @@ class RosAlloc {
         EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_);
 
    private:
-    // The common part of MarkFreeBitMap() and MarkThreadLocalFreeBitMap().
-    void MarkFreeBitMapShared(void* ptr, uint32_t* free_bit_map_base, const char* caller_name);
+    // The common part of MarkFreeBitMap() and MarkThreadLocalFreeBitMap(). Returns the bracket
+    // size.
+    size_t MarkFreeBitMapShared(void* ptr, uint32_t* free_bit_map_base, const char* caller_name);
     // Turns the bit map into a string for debugging.
     static std::string BitMapToStr(uint32_t* bit_map_base, size_t num_vec);
   };
@@ -376,7 +396,7 @@ class RosAlloc {
     return byte_offset / kPageSize;
   }
   // Returns the page map index from an address with rounding.
-  size_t RoundDownToPageMapIndex(void* addr) {
+  size_t RoundDownToPageMapIndex(void* addr) const {
     DCHECK(base_ <= addr && addr < reinterpret_cast<byte*>(base_) + capacity_);
     return (reinterpret_cast<uintptr_t>(addr) - reinterpret_cast<uintptr_t>(base_)) / kPageSize;
   }
@@ -446,12 +466,19 @@ class RosAlloc {
   hash_set<Run*, hash_run, eq_run> full_runs_[kNumOfSizeBrackets];
   // The set of free pages.
   std::set<FreePageRun*> free_page_runs_ GUARDED_BY(lock_);
+  // The dedicated full run, it is always full and shared by all threads when revoking happens.
+  // This is an optimization since enables us to avoid a null check for revoked runs.
+  static Run* dedicated_full_run_;
+  // Using size_t to ensure that it is at least word aligned.
+  static size_t dedicated_full_run_storage_[];
   // The current runs where the allocations are first attempted for
   // the size brackes that do not use thread-local
   // runs. current_runs_[i] is guarded by size_bracket_locks_[i].
   Run* current_runs_[kNumOfSizeBrackets];
   // The mutexes, one per size bracket.
   Mutex* size_bracket_locks_[kNumOfSizeBrackets];
+  // Bracket lock names (since locks only have char* names).
+  std::string size_bracket_lock_names[kNumOfSizeBrackets];
   // The types of page map entries.
   enum {
     kPageMapEmpty           = 0,  // Not allocated.
@@ -493,14 +520,18 @@ class RosAlloc {
   // Page-granularity alloc/free
   void* AllocPages(Thread* self, size_t num_pages, byte page_map_type)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
-  // Returns how many pages were freed.
-  size_t FreePages(Thread* self, void* ptr) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  // Returns how many bytes were freed.
+  size_t FreePages(Thread* self, void* ptr, bool already_zero) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // Allocate/free a run slot.
   void* AllocFromRun(Thread* self, size_t size, size_t* bytes_allocated)
       LOCKS_EXCLUDED(lock_);
-  void FreeFromRun(Thread* self, void* ptr, Run* run)
+  // Returns the bracket size.
+  size_t FreeFromRun(Thread* self, void* ptr, Run* run)
       LOCKS_EXCLUDED(lock_);
+
+  // Used to allocate a new thread local run for a size bracket.
+  Run* AllocRun(Thread* self, size_t idx) LOCKS_EXCLUDED(lock_);
 
   // Used to acquire a new/reused run for a size bracket. Used when a
   // thread-local or current run gets full.
@@ -558,6 +589,9 @@ class RosAlloc {
   void AssertAllThreadLocalRunsAreRevoked() LOCKS_EXCLUDED(Locks::thread_list_lock_);
   // Dumps the page map for debugging.
   std::string DumpPageMap() EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  static Run* GetDedicatedFullRun() {
+    return dedicated_full_run_;
+  }
 
   // Callbacks for InspectAll that will count the number of bytes
   // allocated and objects allocated, respectively.
