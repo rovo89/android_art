@@ -864,7 +864,58 @@ UNIMPLEMENTED art_quick_handle_fill_data
 
 UNIMPLEMENTED art_quick_lock_object
 UNIMPLEMENTED art_quick_unlock_object
-UNIMPLEMENTED art_quick_check_cast
+
+    /*
+     * Entry from managed code that calls artIsAssignableFromCode and on failure calls
+     * artThrowClassCastException.
+     */
+    .extern artThrowClassCastException
+ENTRY art_quick_check_cast
+    // Store arguments and link register
+    sub sp, sp, #32                     // Stack needs to be 16b aligned on calls
+    .cfi_adjust_cfa_offset 32
+    stp x0, x1, [sp]
+    .cfi_rel_offset x0, 0
+    .cfi_rel_offset x1, 8
+    stp xSELF, xLR, [sp, #16]
+    .cfi_rel_offset x18, 16
+    .cfi_rel_offset x30, 24
+
+    // Call runtime code
+    bl artIsAssignableFromCode
+
+    // Check for exception
+    cbz x0, .Lthrow_class_cast_exception
+
+    // Restore and return
+    ldp x0, x1, [sp]
+    .cfi_restore x0
+    .cfi_restore x1
+    ldp xSELF, xLR, [sp, #16]
+    .cfi_restore x18
+    .cfi_restore x30
+    add sp, sp, #32
+    .cfi_adjust_cfa_offset -32
+    ret
+
+.Lthrow_class_cast_exception:
+    // Restore
+    ldp x0, x1, [sp]
+    .cfi_restore x0
+    .cfi_restore x1
+    ldp xSELF, xLR, [sp, #16]
+    .cfi_restore x18
+    .cfi_restore x30
+    add sp, sp, #32
+    .cfi_adjust_cfa_offset -32
+
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
+    mov x2, xSELF                     // pass Thread::Current
+    mov x3, sp                        // pass SP
+    b artThrowClassCastException      // (Class*, Class*, Thread*, SP)
+    brk 0                             // We should not return here...
+END art_quick_check_cast
+
 UNIMPLEMENTED art_quick_aput_obj_with_null_and_bound_check
 UNIMPLEMENTED art_quick_aput_obj_with_bound_check
 UNIMPLEMENTED art_quick_aput_obj
