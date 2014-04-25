@@ -19,8 +19,8 @@
 
 #include "asm_support_x86.h"
 
-#if defined(__clang__)
-    // Clang's as(1) doesn't let you name macro parameters.
+#if defined(__clang__) && (__clang_major__ < 4) && (__clang_minor__ < 5)
+    // Clang's as(1) doesn't let you name macro parameters prior to 3.5.
     #define MACRO0(macro_name) .macro macro_name
     #define MACRO1(macro_name, macro_arg1) .macro macro_name
     #define MACRO2(macro_name, macro_arg1, macro_args2) .macro macro_name
