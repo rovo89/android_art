@@ -28,6 +28,11 @@ MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
     PUSH ebp
     subl  MACRO_LITERAL(16), %esp  // Grow stack by 4 words, bottom word will hold Method*
     CFI_ADJUST_CFA_OFFSET(16)
+    // Ugly compile-time check, but we only have the preprocessor.
+    // Last +4: implicit return address pushed on stack when caller made call.
+#if (FRAME_SIZE_SAVE_ALL_CALLEE_SAVE != 3*4 + 16 + 4)
+#error "SAVE_ALL_CALLEE_SAVE_FRAME(X86) size not as expected."
+#endif
 END_MACRO
 
     /*
@@ -40,6 +45,12 @@ MACRO0(SETUP_REF_ONLY_CALLEE_SAVE_FRAME)
     PUSH ebp
     subl  MACRO_LITERAL(16), %esp  // Grow stack by 4 words, bottom word will hold Method*
     CFI_ADJUST_CFA_OFFSET(16)
+
+    // Ugly compile-time check, but we only have the preprocessor.
+    // Last +4: implicit return address pushed on stack when caller made call.
+#if (FRAME_SIZE_REFS_ONLY_CALLEE_SAVE != 3*4 + 16 + 4)
+#error "REFS_ONLY_CALLEE_SAVE_FRAME(X86) size not as expected."
+#endif
 END_MACRO
 
 MACRO0(RESTORE_REF_ONLY_CALLEE_SAVE_FRAME)
@@ -62,6 +73,12 @@ MACRO0(SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     PUSH edx
     PUSH ecx
     PUSH eax   // Align stack, eax will be clobbered by Method*
+
+    // Ugly compile-time check, but we only have the preprocessor.
+    // Last +4: implicit return address pushed on stack when caller made call.
+#if (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE != 7*4 + 4)
+#error "REFS_AND_ARGS_CALLEE_SAVE_FRAME(X86) size not as expected."
+#endif
 END_MACRO
 
 MACRO0(RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME)

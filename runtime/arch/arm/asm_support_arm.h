@@ -19,10 +19,6 @@
 
 #include "asm_support.h"
 
-// Register holding suspend check count down.
-#define rSUSPEND r4
-// Register holding Thread::Current().
-#define rSELF r9
 // Offset of field Thread::tls32_.state_and_flags verified in InitCpu
 #define THREAD_FLAGS_OFFSET 0
 // Offset of field Thread::tls32_.thin_lock_thread_id verified in InitCpu
@@ -31,5 +27,9 @@
 #define THREAD_CARD_TABLE_OFFSET 112
 // Offset of field Thread::tlsPtr_.exception verified in InitCpu
 #define THREAD_EXCEPTION_OFFSET 116
+
+#define FRAME_SIZE_SAVE_ALL_CALLEE_SAVE 176
+#define FRAME_SIZE_REFS_ONLY_CALLEE_SAVE 32
+#define FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE 48
 
 #endif  // ART_RUNTIME_ARCH_ARM_ASM_SUPPORT_ARM_H_

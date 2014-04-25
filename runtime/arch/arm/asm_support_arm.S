@@ -19,6 +19,13 @@
 
 #include "asm_support_arm.h"
 
+// Define special registers.
+
+// Register holding suspend check count down.
+#define rSUSPEND r4
+// Register holding Thread::Current().
+#define rSELF r9
+
 .cfi_sections   .debug_frame
 .syntax unified
 .arch armv7-a

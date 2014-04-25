@@ -19,6 +19,19 @@
 
 #include "asm_support_arm64.h"
 
+// Define special registers.
+
+// Register holding Thread::Current().
+#define xSELF x18
+// Frame Pointer
+#define xFP   x29
+// Link Register
+#define xLR   x30
+// Define the intraprocedural linkage temporary registers.
+#define xIP0 x16
+#define xIP1 x17
+
+
 .cfi_sections   .debug_frame
 
 .macro ENTRY name

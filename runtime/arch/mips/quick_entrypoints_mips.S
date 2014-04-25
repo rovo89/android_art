@@ -34,6 +34,12 @@
 .macro SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     addiu  $sp, $sp, -64
     .cfi_adjust_cfa_offset 64
+
+     // Ugly compile-time check, but we only have the preprocessor.
+#if (FRAME_SIZE_SAVE_ALL_CALLEE_SAVE != 64)
+#error "SAVE_ALL_CALLEE_SAVE_FRAME(MIPS) size not as expected."
+#endif
+
     sw     $ra, 60($sp)
     .cfi_rel_offset 31, 60
     sw     $s8, 56($sp)
@@ -68,6 +74,12 @@
 .macro SETUP_REF_ONLY_CALLEE_SAVE_FRAME
     addiu  $sp, $sp, -64
     .cfi_adjust_cfa_offset 64
+
+    // Ugly compile-time check, but we only have the preprocessor.
+#if (FRAME_SIZE_REFS_ONLY_CALLEE_SAVE != 64)
+#error "REFS_ONLY_CALLEE_SAVE_FRAME(MIPS) size not as expected."
+#endif
+
     sw     $ra, 60($sp)
     .cfi_rel_offset 31, 60
     sw     $s8, 56($sp)
@@ -144,6 +156,12 @@
 .macro SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     addiu  $sp, $sp, -64
     .cfi_adjust_cfa_offset 64
+
+    // Ugly compile-time check, but we only have the preprocessor.
+#if (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE != 64)
+#error "REFS_AND_ARGS_CALLEE_SAVE_FRAME(MIPS) size not as expected."
+#endif
+
     sw     $ra, 60($sp)
     .cfi_rel_offset 31, 60
     sw     $s8, 56($sp)
