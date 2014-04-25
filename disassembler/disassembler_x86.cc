@@ -145,6 +145,9 @@ size_t DisassemblerX86::DumpInstruction(std::ostream& os, const uint8_t* instr) 
     }
   } while (have_prefixes);
   uint8_t rex = (supports_rex_ && (*instr >= 0x40) && (*instr <= 0x4F)) ? *instr : 0;
+  if (rex != 0) {
+    instr++;
+  }
   bool has_modrm = false;
   bool reg_is_opcode = false;
   size_t immediate_bytes = 0;
@@ -746,14 +749,18 @@ DISASSEMBLER_ENTRY(cmp,
     uint8_t reg_or_opcode = (modrm >> 3) & 7;
     uint8_t rm = modrm & 7;
     std::ostringstream address;
-    if (mod == 0 && rm == 5) {  // fixed address
-      address_bits = *reinterpret_cast<const uint32_t*>(instr);
-      address << StringPrintf("[0x%x]", address_bits);
+    if (mod == 0 && rm == 5) {
+      if (!supports_rex_) {  // Absolute address.
+        address_bits = *reinterpret_cast<const uint32_t*>(instr);
+        address << StringPrintf("[0x%x]", address_bits);
+      } else {  // 64-bit RIP relative addressing.
+        address << StringPrintf("[RIP + 0x%x]",  *reinterpret_cast<const uint32_t*>(instr));
+      }
       instr += 4;
     } else if (rm == 4 && mod != 3) {  // SIB
       uint8_t sib = *instr;
       instr++;
-      uint8_t ss = (sib >> 6) & 3;
+      uint8_t scale = (sib >> 6) & 3;
       uint8_t index = (sib >> 3) & 7;
       uint8_t base = sib & 7;
       address << "[";
@@ -765,11 +772,22 @@ DISASSEMBLER_ENTRY(cmp,
       }
       if (index != 4) {
         DumpIndexReg(address, rex, index);
-        if (ss != 0) {
-          address << StringPrintf(" * %d", 1 << ss);
+        if (scale != 0) {
+          address << StringPrintf(" * %d", 1 << scale);
         }
       }
-      if (mod == 1) {
+      if (mod == 0) {
+        if (base == 5) {
+          if (index != 4) {
+            address << StringPrintf(" + %d", *reinterpret_cast<const int32_t*>(instr));
+          } else {
+            // 64-bit low 32-bit absolute address, redundant absolute address encoding on 32-bit.
+            address_bits = *reinterpret_cast<const uint32_t*>(instr);
+            address << StringPrintf("%d", address_bits);
+          }
+          instr += 4;
+        }
+      } else if (mod == 1) {
         address << StringPrintf(" + %d", *reinterpret_cast<const int8_t*>(instr));
         instr++;
       } else if (mod == 2) {
