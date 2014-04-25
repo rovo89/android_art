@@ -881,7 +881,7 @@ void X86Mir2Lir::GenArrayBoundsCheck(RegStorage index,
     void Compile() OVERRIDE {
       m2l_->ResetRegPool();
       m2l_->ResetDefTracking();
-      GenerateTargetLabel();
+      GenerateTargetLabel(kPseudoThrowTarget);
 
       RegStorage new_index = index_;
       // Move index out of kArg1, either directly to kArg0, or to kArg2.
@@ -926,7 +926,7 @@ void X86Mir2Lir::GenArrayBoundsCheck(int32_t index,
     void Compile() OVERRIDE {
       m2l_->ResetRegPool();
       m2l_->ResetDefTracking();
-      GenerateTargetLabel();
+      GenerateTargetLabel(kPseudoThrowTarget);
 
       // Load array length to kArg1.
       m2l_->OpRegMem(kOpMov, m2l_->TargetReg(kArg1), array_base_, len_offset_);

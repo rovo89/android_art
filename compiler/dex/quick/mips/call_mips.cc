@@ -327,7 +327,7 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
       void Compile() OVERRIDE {
         m2l_->ResetRegPool();
         m2l_->ResetDefTracking();
-        GenerateTargetLabel();
+        GenerateTargetLabel(kPseudoThrowTarget);
         // LR is offset 0 since we push in reverse order.
         m2l_->Load32Disp(rs_rMIPS_SP, 0, rs_rRA);
         m2l_->OpRegImm(kOpAdd, rs_rMIPS_SP, sp_displace_);

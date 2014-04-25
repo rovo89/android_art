@@ -44,8 +44,7 @@ void Mir2Lir::AddIntrinsicSlowPath(CallInfo* info, LIR* branch, LIR* resume) {
     void Compile() {
       m2l_->ResetRegPool();
       m2l_->ResetDefTracking();
-      LIR* label = GenerateTargetLabel();
-      label->opcode = kPseudoIntrinsicRetry;
+      GenerateTargetLabel(kPseudoIntrinsicRetry);
       // NOTE: GenInvokeNoInline() handles MarkSafepointPC.
       m2l_->GenInvokeNoInline(info_);
       if (cont_ != nullptr) {
