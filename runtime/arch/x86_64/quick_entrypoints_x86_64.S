@@ -39,6 +39,12 @@ MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
     movq RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
     // Store ArtMethod* to bottom of stack.
     movq %r10, 0(%rsp)
+
+    // Ugly compile-time check, but we only have the preprocessor.
+    // Last +8: implicit return address pushed on stack when caller made call.
+#if (FRAME_SIZE_SAVE_ALL_CALLEE_SAVE != 6*8 + 8 + 8)
+#error "SAVE_ALL_CALLEE_SAVE_FRAME(X86_64) size not as expected."
+#endif
 END_MACRO
 
     /*
@@ -63,6 +69,12 @@ MACRO0(SETUP_REF_ONLY_CALLEE_SAVE_FRAME)
     movq RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
     // Store ArtMethod* to bottom of stack.
     movq %r10, 0(%rsp)
+
+    // Ugly compile-time check, but we only have the preprocessor.
+    // Last +8: implicit return address pushed on stack when caller made call.
+#if (FRAME_SIZE_REFS_ONLY_CALLEE_SAVE != 6*8 + 8 + 8)
+#error "REFS_ONLY_CALLEE_SAVE_FRAME(X86_64) size not as expected."
+#endif
 END_MACRO
 
 MACRO0(RESTORE_REF_ONLY_CALLEE_SAVE_FRAME)
@@ -114,6 +126,12 @@ MACRO0(SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     movq %xmm7, 72(%rsp)
     // Store ArtMethod* to bottom of stack.
     movq %r10, 0(%rsp)
+
+    // Ugly compile-time check, but we only have the preprocessor.
+    // Last +8: implicit return address pushed on stack when caller made call.
+#if (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE != 11*8 + 80 + 8)
+#error "REFS_AND_ARGS_CALLEE_SAVE_FRAME(X86_64) size not as expected."
+#endif
 END_MACRO
 
 MACRO0(RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME)
