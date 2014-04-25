@@ -83,9 +83,9 @@ class MANAGED ObjectArray : public Array {
   template<const bool kVisitClass, typename Visitor>
   void VisitReferences(const Visitor& visitor) NO_THREAD_SAFETY_ANALYSIS;
 
- private:
   static MemberOffset OffsetOfElement(int32_t i);
 
+ private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(ObjectArray);
 };
 
