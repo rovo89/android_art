@@ -108,7 +108,7 @@ namespace JDWP {
  */
 struct ModBasket {
   ModBasket() : pLoc(NULL), threadId(0), classId(0), excepClassId(0),
-                caught(false), field(0), thisPtr(0) { }
+                caught(false), fieldTypeID(0), fieldId(0), thisPtr(0) { }
 
   const JdwpLocation* pLoc;           /* LocationOnly */
   std::string         className;      /* ClassMatch/ClassExclude */
@@ -116,7 +116,8 @@ struct ModBasket {
   RefTypeId           classId;        /* ClassOnly */
   RefTypeId           excepClassId;   /* ExceptionOnly */
   bool                caught;         /* ExceptionOnly */
-  FieldId             field;          /* FieldOnly */
+  RefTypeId           fieldTypeID;    /* FieldOnly */
+  FieldId             fieldId;        /* FieldOnly */
   ObjectId            thisPtr;        /* InstanceOnly */
   /* nothing for StepOnly -- handled differently */
 };
@@ -457,7 +458,10 @@ static bool ModsMatch(JdwpEvent* pEvent, ModBasket* basket)
       }
       break;
     case MK_FIELD_ONLY:
-      if (!Dbg::MatchType(basket->classId, pMod->fieldOnly.refTypeId) || pMod->fieldOnly.fieldId != basket->field) {
+      if (pMod->fieldOnly.fieldId != basket->fieldId) {
+        return false;
+      }
+      if (!Dbg::MatchType(basket->fieldTypeID, pMod->fieldOnly.refTypeId)) {
         return false;
       }
       break;
@@ -848,7 +852,8 @@ bool JdwpState::PostFieldEvent(const JdwpLocation* pLoc, RefTypeId typeId, Field
   basket.thisPtr = thisPtr;
   basket.threadId = Dbg::GetThreadSelfId();
   basket.className = Dbg::GetClassName(pLoc->class_id);
-  basket.field = fieldId;
+  basket.fieldTypeID = typeId;
+  basket.fieldId = fieldId;
 
   if (InvokeInProgress()) {
     VLOG(jdwp) << "Not posting field event during invoke";

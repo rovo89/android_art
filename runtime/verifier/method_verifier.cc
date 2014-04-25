@@ -3594,29 +3594,6 @@ void MethodVerifier::VerifyISPut(const Instruction* inst, const RegType& insn_ty
   }
 }
 
-// Look for an instance field with this offset.
-// TODO: we may speed up the search if offsets are sorted by doing a quick search.
-static mirror::ArtField* FindInstanceFieldWithOffset(mirror::Class* klass, uint32_t field_offset)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::ObjectArray<mirror::ArtField>* instance_fields = klass->GetIFields();
-  if (instance_fields != NULL) {
-    for (int32_t i = 0, e = instance_fields->GetLength(); i < e; ++i) {
-      mirror::ArtField* field = instance_fields->Get(i);
-      if (field->GetOffset().Uint32Value() == field_offset) {
-        return field;
-      }
-    }
-  }
-  // We did not find field in class: look into superclass.
-  if (klass->GetSuperClass() != NULL) {
-    return FindInstanceFieldWithOffset(klass->GetSuperClass(), field_offset);
-  } else {
-    VLOG(verifier) << "Failed to find instance field at offset '" << field_offset
-        << "' from '" << PrettyDescriptor(klass) << "'";
-    return nullptr;
-  }
-}
-
 mirror::ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
                                                       RegisterLine* reg_line) {
   DCHECK(inst->Opcode() == Instruction::IGET_QUICK ||
@@ -3631,7 +3608,13 @@ mirror::ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
     return nullptr;
   }
   uint32_t field_offset = static_cast<uint32_t>(inst->VRegC_22c());
-  return FindInstanceFieldWithOffset(object_type.GetClass(), field_offset);
+  mirror::ArtField* f = mirror::ArtField::FindInstanceFieldWithOffset(object_type.GetClass(),
+                                                                      field_offset);
+  if (f == nullptr) {
+    VLOG(verifier) << "Failed to find instance field at offset '" << field_offset
+                   << "' from '" << PrettyDescriptor(object_type.GetClass()) << "'";
+  }
+  return f;
 }
 
 void MethodVerifier::VerifyIGetQuick(const Instruction* inst, const RegType& insn_type,
