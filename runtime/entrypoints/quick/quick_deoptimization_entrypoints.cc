@@ -31,7 +31,7 @@ namespace art {
 extern "C" void artDeoptimize(Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
-  self->SetException(ThrowLocation(), reinterpret_cast<mirror::Throwable*>(-1));
+  self->SetException(ThrowLocation(), Thread::GetDeoptimizationException());
   self->QuickDeliverException();
 }
 

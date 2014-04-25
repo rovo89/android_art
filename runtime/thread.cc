@@ -32,7 +32,6 @@
 
 #include "arch/context.h"
 #include "base/mutex.h"
-#include "catch_finder.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "cutils/atomic.h"
@@ -54,6 +53,7 @@
 #include "mirror/stack_trace_element.h"
 #include "monitor.h"
 #include "object_utils.h"
+#include "quick_exception_handler.h"
 #include "reflection.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
@@ -1841,7 +1841,7 @@ void Thread::QuickDeliverException() {
   // Don't leave exception visible while we try to find the handler, which may cause class
   // resolution.
   ClearException();
-  bool is_deoptimization = (exception == reinterpret_cast<mirror::Throwable*>(-1));
+  bool is_deoptimization = (exception == GetDeoptimizationException());
   if (kDebugExceptionDelivery) {
     if (!is_deoptimization) {
       mirror::String* msg = exception->GetDetailMessage();
@@ -1852,10 +1852,14 @@ void Thread::QuickDeliverException() {
       DumpStack(LOG(INFO) << "Deoptimizing: ");
     }
   }
-  CatchFinder catch_finder(this, throw_location, exception, is_deoptimization);
-  catch_finder.FindCatch();
-  catch_finder.UpdateInstrumentationStack();
-  catch_finder.DoLongJump();
+  QuickExceptionHandler exception_handler(this, is_deoptimization);
+  if (is_deoptimization) {
+    exception_handler.DeoptimizeStack();
+  } else {
+    exception_handler.FindCatch(throw_location, exception);
+  }
+  exception_handler.UpdateInstrumentationStack();
+  exception_handler.DoLongJump();
   LOG(FATAL) << "UNREACHABLE";
 }
 
@@ -2060,7 +2064,7 @@ void Thread::VisitRoots(RootCallback* visitor, void* arg) {
   if (tlsPtr_.opeer != nullptr) {
     visitor(&tlsPtr_.opeer, arg, thread_id, kRootThreadObject);
   }
-  if (tlsPtr_.exception != nullptr) {
+  if (tlsPtr_.exception != nullptr && tlsPtr_.exception != GetDeoptimizationException()) {
     visitor(reinterpret_cast<mirror::Object**>(&tlsPtr_.exception), arg, thread_id, kRootNativeStack);
   }
   tlsPtr_.throw_location.VisitRoots(visitor, arg);
