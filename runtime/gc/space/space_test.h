@@ -39,10 +39,8 @@ class SpaceTest : public CommonRuntimeTest {
   }
 
   void AddSpace(ContinuousSpace* space) {
-    // For RosAlloc, revoke the thread local runs before moving onto a
-    // new alloc space.
-    Runtime::Current()->GetHeap()->RevokeAllThreadLocalBuffers();
-    Runtime::Current()->GetHeap()->AddSpace(space);
+    // By passing true, AddSpace() does the revoke.
+    Runtime::Current()->GetHeap()->AddSpace(space, true);
   }
 
   mirror::Class* GetByteArrayClass(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -349,11 +347,8 @@ void SpaceTest::AllocAndFreeListTestBody(CreateSpaceFn create_space) {
     EXPECT_EQ(usable_size, computed_usable_size);
   }
 
-  // Release memory and check pointers are nullptr.
+  // Release memory.
   space->FreeList(self, arraysize(lots_of_objects), lots_of_objects);
-  for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
-    EXPECT_TRUE(lots_of_objects[i] == nullptr);
-  }
 
   // Succeeds, fits by adjusting the max allowed footprint.
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
@@ -367,12 +362,8 @@ void SpaceTest::AllocAndFreeListTestBody(CreateSpaceFn create_space) {
     EXPECT_EQ(usable_size, computed_usable_size);
   }
 
-  // Release memory and check pointers are nullptr
-  // TODO: This isn't compaction safe, fix.
+  // Release memory.
   space->FreeList(self, arraysize(lots_of_objects), lots_of_objects);
-  for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
-    EXPECT_TRUE(lots_of_objects[i] == nullptr);
-  }
 }
 
 void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space, intptr_t object_size,
