@@ -2865,11 +2865,7 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
             common_super = &reg_types_.JavaLangThrowable(false);
           } else {
             const RegType& exception = ResolveClassAndCheckAccess(iterator.GetHandlerTypeIndex());
-            if (common_super == NULL) {
-              // Unconditionally assign for the first handler. We don't assert this is a Throwable
-              // as that is caught at runtime
-              common_super = &exception;
-            } else if (!reg_types_.JavaLangThrowable(false).IsAssignableFrom(exception)) {
+            if (!reg_types_.JavaLangThrowable(false).IsAssignableFrom(exception)) {
               if (exception.IsUnresolvedTypes()) {
                 // We don't know enough about the type. Fail here and let runtime handle it.
                 Fail(VERIFY_ERROR_NO_CLASS) << "unresolved exception class " << exception;
@@ -2878,6 +2874,8 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
                 Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "unexpected non-exception class " << exception;
                 return reg_types_.Conflict();
               }
+            } else if (common_super == nullptr) {
+              common_super = &exception;
             } else if (common_super->Equals(exception)) {
               // odd case, but nothing to do
             } else {
