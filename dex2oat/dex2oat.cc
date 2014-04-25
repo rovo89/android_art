@@ -909,7 +909,6 @@ static int dex2oat(int argc, char** argv) {
       profile_file = option.substr(strlen("--profile-file=")).data();
       VLOG(compiler) << "dex2oat: profile file is " << profile_file;
     } else if (option == "--no-profile-file") {
-      LOG(INFO) << "dex2oat: no profile file supplied (explictly)";
       // No profile
     } else if (option == "--print-pass-names") {
       PassDriver::PrintPassNames();
@@ -1079,7 +1078,7 @@ static int dex2oat(int argc, char** argv) {
   }
 
   timings.StartSplit("dex2oat Setup");
-  LOG(INFO) << "dex2oat: " << CommandLine();
+  LOG(INFO) << CommandLine();
 
   Runtime::Options runtime_options;
   std::vector<const DexFile*> boot_class_path;
