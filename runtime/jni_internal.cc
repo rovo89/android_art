@@ -2548,7 +2548,7 @@ class JNI {
     if (start < 0 || length < 0 || start + length > array->GetLength()) {
       ThrowAIOOBE(soa, array, start, length, "src");
     } else {
-      CHECK_NON_NULL_MEMCPY_ARGUMENT(GetStringRegion, length, buf);
+      CHECK_NON_NULL_MEMCPY_ARGUMENT(GetPrimitiveArrayRegion, length, buf);
       JavaT* data = array->GetData();
       memcpy(buf, data + start, length * sizeof(JavaT));
     }
@@ -2563,7 +2563,7 @@ class JNI {
     if (start < 0 || length < 0 || start + length > array->GetLength()) {
       ThrowAIOOBE(soa, array, start, length, "dst");
     } else {
-      CHECK_NON_NULL_MEMCPY_ARGUMENT(GetStringRegion, length, buf);
+      CHECK_NON_NULL_MEMCPY_ARGUMENT(SetPrimitiveArrayRegion, length, buf);
       JavaT* data = array->GetData();
       memcpy(data + start, buf, length * sizeof(JavaT));
     }
