@@ -38,6 +38,7 @@ public class Main {
         largeFrameTest();
         largeFrameTestFloat();
         mulBy1Test();
+        constantPropagationTest();
         getterSetterTest();
         identityTest();
         wideGetterSetterTest();
@@ -763,6 +764,32 @@ public class Main {
         else {
             System.out.println("mulBy1Test fails: " + res +
                                " (expecting 2)");
+        }
+    }
+
+    static void constantPropagationTest() {
+        int i = 1;
+        int t = 1;
+        float z = 1F;
+        long h = 1L;
+        int g[] = new int[1];
+        int w = 1;
+        long f = 0;
+
+        for (int a = 1; a < 100; a++) {
+            try {
+                i = (int)(z);
+                h >>= (0 % t);
+            }
+            finally {
+                w = (int)(2 * (f * 6));
+            }
+        }
+
+        if (w == 0 && h == 1 && g[0] == 0) {
+            System.out.println("constantPropagationTest passes");
+        } else {
+            System.out.println("constantPropagationTest fails");
         }
     }
 

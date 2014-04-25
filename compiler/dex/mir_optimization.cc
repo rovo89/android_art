@@ -42,6 +42,11 @@ void MIRGraph::DoConstantPropagation(BasicBlock* bb) {
   MIR* mir;
 
   for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
+    // Skip pass if BB has MIR without SSA representation.
+    if (mir->ssa_rep == NULL) {
+       return;
+    }
+
     uint64_t df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
 
     DecodedInstruction *d_insn = &mir->dalvikInsn;

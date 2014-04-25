@@ -16,6 +16,7 @@ b13679511Test finishing
 largeFrame passes
 largeFrameFloat passes
 mulBy1Test passes
+constantPropagationTest passes
 getterSetterTest passes
 identityTest passes
 wideGetterSetterTest passes
