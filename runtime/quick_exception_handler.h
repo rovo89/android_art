@@ -14,29 +14,39 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_CATCH_FINDER_H_
-#define ART_RUNTIME_CATCH_FINDER_H_
+#ifndef ART_RUNTIME_QUICK_EXCEPTION_HANDLER_H_
+#define ART_RUNTIME_QUICK_EXCEPTION_HANDLER_H_
 
-#include "mirror/art_method-inl.h"
-#include "thread.h"
+#include "base/logging.h"
+#include "base/mutex.h"
 
 namespace art {
+
+namespace mirror {
+class ArtMethod;
+class Throwable;
+}  // namespace mirror
+class Context;
+class Thread;
+class ThrowLocation;
+class ShadowFrame;
 
 static constexpr bool kDebugExceptionDelivery = false;
 static constexpr size_t kInvalidFrameId = 0xffffffff;
 
 // Manages exception delivery for Quick backend. Not used by Portable backend.
-class CatchFinder {
+class QuickExceptionHandler {
  public:
-  CatchFinder(Thread* self, const ThrowLocation& throw_location, mirror::Throwable* exception,
-              bool is_deoptimization)
+  QuickExceptionHandler(Thread* self, bool is_deoptimization)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ~CatchFinder() {
+  ~QuickExceptionHandler() {
     LOG(FATAL) << "UNREACHABLE";  // Expected to take long jump.
   }
 
-  void FindCatch() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void FindCatch(const ThrowLocation& throw_location, mirror::Throwable* exception)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void DeoptimizeStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void UpdateInstrumentationStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DoLongJump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -67,14 +77,9 @@ class CatchFinder {
  private:
   Thread* const self_;
   Context* const context_;
-  mirror::Throwable* const exception_;
   const bool is_deoptimization_;
-  // Location of the throw.
-  const ThrowLocation& throw_location_;
   // Is method tracing active?
   const bool method_tracing_active_;
-  // Support for nesting no thread suspension checks.
-  const char* last_no_assert_suspension_cause_;
   // Quick frame with found handler or last frame if no handler found.
   mirror::ArtMethod** handler_quick_frame_;
   // PC to branch to for the handler.
@@ -88,8 +93,8 @@ class CatchFinder {
   // Frame id of the catch handler or the upcall.
   size_t handler_frame_id_;
 
-  DISALLOW_COPY_AND_ASSIGN(CatchFinder);
+  DISALLOW_COPY_AND_ASSIGN(QuickExceptionHandler);
 };
 
 }  // namespace art
-#endif  // ART_RUNTIME_CATCH_FINDER_H_
+#endif  // ART_RUNTIME_QUICK_EXCEPTION_HANDLER_H_

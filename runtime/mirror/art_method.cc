@@ -315,13 +315,13 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
       } else {
         (*art_portable_invoke_stub)(this, args, args_size, self, result, shorty[0]);
       }
-      if (UNLIKELY(reinterpret_cast<intptr_t>(self->GetException(NULL)) == -1)) {
-        // Unusual case where we were running LLVM generated code and an
+      if (UNLIKELY(self->GetException(nullptr) == Thread::GetDeoptimizationException())) {
+        // Unusual case where we were running generated code and an
         // exception was thrown to force the activations to be removed from the
         // stack. Continue execution in the interpreter.
         self->ClearException();
         ShadowFrame* shadow_frame = self->GetAndClearDeoptimizationShadowFrame(result);
-        self->SetTopOfStack(NULL, 0);
+        self->SetTopOfStack(nullptr, 0);
         self->SetTopOfShadowStack(shadow_frame);
         interpreter::EnterInterpreterFromDeoptimize(self, shadow_frame, result);
       }
