@@ -259,7 +259,7 @@ class RosAlloc {
     void MarkThreadLocalFreeBitMap(void* ptr);
     // Last word mask, all of the bits in the last word which aren't valid slots are set to
     // optimize allocation path.
-    static size_t GetBitmapLastVectorMask(size_t num_slots, size_t num_vec);
+    static uint32_t GetBitmapLastVectorMask(size_t num_slots, size_t num_vec);
     // Returns true if all the slots in the run are not in use.
     bool IsAllFree();
     // Returns true if all the slots in the run are in use.
