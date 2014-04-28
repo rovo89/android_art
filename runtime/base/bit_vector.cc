@@ -157,33 +157,27 @@ void BitVector::Intersect(const BitVector* src) {
  * Union with another bit vector.
  */
 void BitVector::Union(const BitVector* src) {
-  uint32_t src_size = src->storage_size_;
+  // Get the highest bit to determine how much we need to expand.
+  int highest_bit = src->GetHighestBitSet();
 
-  // Get our size, we use this variable for the last loop of the method:
-  //   - It can change in the if block if src is of a different size.
-  uint32_t size = storage_size_;
+  // If src has no bit set, we are done: there is no need for a union with src.
+  if (highest_bit == -1) {
+    return;
+  }
+
+  // Update src_size to how many cells we actually care about: where the bit is + 1.
+  uint32_t src_size = BitsToWords(highest_bit + 1);
 
   // Is the storage size smaller than src's?
   if (storage_size_ < src_size) {
-    // Get the highest bit to determine how much we need to expand.
-    int highest_bit = src->GetHighestBitSet();
-
-    // If src has no bit set, we are done: there is no need for a union with src.
-    if (highest_bit == -1) {
-      return;
-    }
-
     // Set it to reallocate.
     SetBit(highest_bit);
 
     // Paranoid: storage size should be big enough to hold this bit now.
     DCHECK_LT(static_cast<uint32_t> (highest_bit), storage_size_ * sizeof(*(storage_)) * 8);
-
-    //  Update the size, our size can now not be bigger than the src size
-    size = storage_size_;
   }
 
-  for (uint32_t idx = 0; idx < size; idx++) {
+  for (uint32_t idx = 0; idx < src_size; idx++) {
     storage_[idx] |= src->GetRawStorageWord(idx);
   }
 }
@@ -284,6 +278,23 @@ int BitVector::GetHighestBitSet() const {
   return -1;
 }
 
+bool BitVector::EnsureSizeAndClear(unsigned int num) {
+  // Check if the bitvector is expandable.
+  if (IsExpandable() == false) {
+    return false;
+  }
+
+  if (num > 0) {
+    // Now try to expand by setting the last bit.
+    SetBit(num - 1);
+  }
+
+  // We must clear all bits as per our specification.
+  ClearAllBits();
+
+  return true;
+}
+
 void BitVector::Copy(const BitVector *src) {
   // Get highest bit set, we only need to copy till then.
   int highest_bit = src->GetHighestBitSet();
@@ -326,6 +337,43 @@ uint32_t BitVector::NumSetBits(const uint32_t* storage, uint32_t end) {
     count += __builtin_popcount(storage[word_end] & ~(0xffffffffu << partial_word_bits));
   }
   return count;
+}
+
+void BitVector::Dump(std::ostream& os, const char *prefix) {
+  std::ostringstream buffer;
+  DumpHelper(buffer, prefix);
+  os << buffer << std::endl;
+}
+
+void BitVector::DumpDot(FILE* file, const char* prefix, bool last_entry) {
+  std::ostringstream buffer;
+  Dump(buffer, prefix);
+
+  // Now print it to the file.
+  fprintf(file, "    {%s}", buffer.str().c_str());
+
+  // If it isn't the last entry, add a |.
+  if (last_entry == false) {
+    fprintf(file, "|");
+  }
+
+  // Add the \n.
+  fprintf(file, "\\\n");
+}
+
+void BitVector::DumpHelper(std::ostringstream& buffer, const char* prefix) {
+  // Initialize it.
+  if (prefix != nullptr) {
+    buffer << prefix;
+  }
+
+  int max = GetHighestBitSet();
+
+  for (int i = 0; i <= max; i++) {
+    if (IsBitSet(i)) {
+      buffer << i << " ";
+    }
+  }
 }
 
 }  // namespace art
