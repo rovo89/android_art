@@ -447,7 +447,7 @@ void LocationsBuilderARM::VisitInvokeStatic(HInvokeStatic* invoke) {
   locations->AddTemp(ArmCoreLocation(R0));
 
   InvokeDexCallingConventionVisitor calling_convention_visitor;
-  for (int i = 0; i < invoke->InputCount(); i++) {
+  for (size_t i = 0; i < invoke->InputCount(); i++) {
     HInstruction* input = invoke->InputAt(i);
     locations->SetInAt(i, calling_convention_visitor.GetNextLocation(input->GetType()));
   }
@@ -692,6 +692,14 @@ void InstructionCodeGeneratorARM::VisitNot(HNot* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   __ eor(locations->Out().AsArm().AsCoreRegister(),
          locations->InAt(0).AsArm().AsCoreRegister(), ShifterOperand(1));
+}
+
+void LocationsBuilderARM::VisitPhi(HPhi* instruction) {
+  LOG(FATAL) << "Unimplemented";
+}
+
+void InstructionCodeGeneratorARM::VisitPhi(HPhi* instruction) {
+  LOG(FATAL) << "Unimplemented";
 }
 
 }  // namespace arm

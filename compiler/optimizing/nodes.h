@@ -24,15 +24,34 @@
 namespace art {
 
 class HBasicBlock;
+class HEnvironment;
 class HInstruction;
 class HIntConstant;
 class HGraphVisitor;
+class HPhi;
 class LocationSummary;
 
 static const int kDefaultNumberOfBlocks = 8;
 static const int kDefaultNumberOfSuccessors = 2;
 static const int kDefaultNumberOfPredecessors = 2;
 static const int kDefaultNumberOfBackEdges = 1;
+
+class HInstructionList {
+ public:
+  HInstructionList() : first_instruction_(nullptr), last_instruction_(nullptr) {}
+
+  void AddInstruction(HInstruction* instruction);
+  void RemoveInstruction(HInstruction* instruction);
+
+ private:
+  HInstruction* first_instruction_;
+  HInstruction* last_instruction_;
+
+  friend class HBasicBlock;
+  friend class HInstructionIterator;
+
+  DISALLOW_COPY_AND_ASSIGN(HInstructionList);
+};
 
 // Control-flow graph of a method. Contains a list of basic blocks.
 class HGraph : public ArenaObject {
@@ -56,7 +75,10 @@ class HGraph : public ArenaObject {
   void SetExitBlock(HBasicBlock* block) { exit_block_ = block; }
 
   void AddBlock(HBasicBlock* block);
+
   void BuildDominatorTree();
+  void TransformToSSA();
+  void SimplifyCFG();
 
   int GetNextInstructionId() {
     return current_instruction_id_++;
@@ -86,6 +108,9 @@ class HGraph : public ArenaObject {
     return number_of_in_vregs_;
   }
 
+  GrowableArray<HBasicBlock*>* GetDominatorOrder() {
+    return &dominator_order_;
+  }
 
  private:
   HBasicBlock* FindCommonDominator(HBasicBlock* first, HBasicBlock* second) const;
@@ -138,7 +163,18 @@ class HLoopInformation : public ArenaObject {
     return back_edges_.Size();
   }
 
+  void SetPreHeader(HBasicBlock* block);
+
+  HBasicBlock* GetPreHeader() const {
+    return pre_header_;
+  }
+
+  const GrowableArray<HBasicBlock*>* GetBackEdges() const {
+    return &back_edges_;
+  }
+
  private:
+  HBasicBlock* pre_header_;
   HBasicBlock* header_;
   GrowableArray<HBasicBlock*> back_edges_;
 
@@ -154,8 +190,6 @@ class HBasicBlock : public ArenaObject {
       : graph_(graph),
         predecessors_(graph->GetArena(), kDefaultNumberOfPredecessors),
         successors_(graph->GetArena(), kDefaultNumberOfSuccessors),
-        first_instruction_(nullptr),
-        last_instruction_(nullptr),
         loop_information_(nullptr),
         dominator_(nullptr),
         block_id_(-1) { }
@@ -189,26 +223,42 @@ class HBasicBlock : public ArenaObject {
         : loop_information_->NumberOfBackEdges();
   }
 
-  HInstruction* GetFirstInstruction() const { return first_instruction_; }
-  HInstruction* GetLastInstruction() const { return last_instruction_; }
+  HInstruction* GetFirstInstruction() const { return instructions_.first_instruction_; }
+  HInstruction* GetLastInstruction() const { return instructions_.last_instruction_; }
+  HInstructionList const* GetInstructions() const { return &instructions_; }
+  HInstructionList const* GetPhis() const { return &phis_; }
 
   void AddSuccessor(HBasicBlock* block) {
     successors_.Add(block);
     block->predecessors_.Add(this);
   }
 
-  void RemovePredecessor(HBasicBlock* block) {
+  void RemovePredecessor(HBasicBlock* block, bool remove_in_successor = true) {
     predecessors_.Delete(block);
+    if (remove_in_successor) {
+      block->successors_.Delete(this);
+    }
   }
 
   void AddInstruction(HInstruction* instruction);
+  void RemoveInstruction(HInstruction* instruction);
+  void AddPhi(HPhi* phi);
+  void RemovePhi(HPhi* phi);
+
+  bool IsLoopHeader() const {
+    return loop_information_ != nullptr;
+  }
+
+  HLoopInformation* GetLoopInformation() const {
+    return loop_information_;
+  }
 
  private:
   HGraph* const graph_;
   GrowableArray<HBasicBlock*> predecessors_;
   GrowableArray<HBasicBlock*> successors_;
-  HInstruction* first_instruction_;
-  HInstruction* last_instruction_;
+  HInstructionList instructions_;
+  HInstructionList phis_;
   HLoopInformation* loop_information_;
   HBasicBlock* dominator_;
   int block_id_;
@@ -230,6 +280,7 @@ class HBasicBlock : public ArenaObject {
   M(NewInstance)                                           \
   M(Not)                                                   \
   M(ParameterValue)                                        \
+  M(Phi)                                                   \
   M(Return)                                                \
   M(ReturnVoid)                                            \
   M(StoreLocal)                                            \
@@ -244,17 +295,22 @@ FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
   virtual const char* DebugName() const { return #type; }  \
   virtual H##type* As##type() { return this; }             \
 
+template <typename T>
 class HUseListNode : public ArenaObject {
  public:
-  HUseListNode(HInstruction* instruction, HUseListNode* tail)
-      : instruction_(instruction), tail_(tail) { }
+  HUseListNode(T* user, size_t index, HUseListNode* tail)
+      : user_(user), index_(index), tail_(tail) { }
 
   HUseListNode* GetTail() const { return tail_; }
-  HInstruction* GetInstruction() const { return instruction_; }
+  T* GetUser() const { return user_; }
+  size_t GetIndex() const { return index_; }
+
+  void SetTail(HUseListNode<T>* node) { tail_ = node; }
 
  private:
-  HInstruction* const instruction_;
-  HUseListNode* const tail_;
+  T* const user_;
+  const size_t index_;
+  HUseListNode<T>* tail_;
 
   DISALLOW_COPY_AND_ASSIGN(HUseListNode);
 };
@@ -267,6 +323,8 @@ class HInstruction : public ArenaObject {
         block_(nullptr),
         id_(-1),
         uses_(nullptr),
+        env_uses_(nullptr),
+        environment_(nullptr),
         locations_(nullptr) { }
 
   virtual ~HInstruction() { }
@@ -277,27 +335,42 @@ class HInstruction : public ArenaObject {
   HBasicBlock* GetBlock() const { return block_; }
   void SetBlock(HBasicBlock* block) { block_ = block; }
 
-  virtual intptr_t InputCount() const  = 0;
-  virtual HInstruction* InputAt(intptr_t i) const = 0;
+  virtual size_t InputCount() const  = 0;
+  virtual HInstruction* InputAt(size_t i) const = 0;
 
   virtual void Accept(HGraphVisitor* visitor) = 0;
   virtual const char* DebugName() const = 0;
 
   virtual Primitive::Type GetType() const { return Primitive::kPrimVoid; }
+  virtual void SetRawInputAt(size_t index, HInstruction* input) = 0;
 
-  void AddUse(HInstruction* user) {
-    uses_ = new (block_->GetGraph()->GetArena()) HUseListNode(user, uses_);
+  virtual bool NeedsEnvironment() const { return false; }
+
+  void AddUseAt(HInstruction* user, size_t index) {
+    uses_ = new (block_->GetGraph()->GetArena()) HUseListNode<HInstruction>(user, index, uses_);
   }
 
-  HUseListNode* GetUses() const { return uses_; }
+  void AddEnvUseAt(HEnvironment* user, size_t index) {
+    env_uses_ = new (block_->GetGraph()->GetArena()) HUseListNode<HEnvironment>(
+        user, index, env_uses_);
+  }
+
+  void RemoveUser(HInstruction* user, size_t index);
+
+  HUseListNode<HInstruction>* GetUses() const { return uses_; }
+  HUseListNode<HEnvironment>* GetEnvUses() const { return env_uses_; }
 
   bool HasUses() const { return uses_ != nullptr; }
 
   int GetId() const { return id_; }
   void SetId(int id) { id_ = id; }
 
+  void SetEnvironment(HEnvironment* environment) { environment_ = environment; }
+
   LocationSummary* GetLocations() const { return locations_; }
   void SetLocations(LocationSummary* locations) { locations_ = locations; }
+
+  void ReplaceWith(HInstruction* instruction);
 
 #define INSTRUCTION_TYPE_CHECK(type)                                           \
   virtual H##type* As##type() { return nullptr; }
@@ -315,19 +388,27 @@ class HInstruction : public ArenaObject {
   // has not beed added to the graph.
   int id_;
 
-  HUseListNode* uses_;
+  // List of instructions that have this instruction as input.
+  HUseListNode<HInstruction>* uses_;
+
+  // List of environments that contain this instruction.
+  HUseListNode<HEnvironment>* env_uses_;
+
+  HEnvironment* environment_;
 
   // Set by the code generator.
   LocationSummary* locations_;
 
   friend class HBasicBlock;
+  friend class HInstructionList;
 
   DISALLOW_COPY_AND_ASSIGN(HInstruction);
 };
 
+template<typename T>
 class HUseIterator : public ValueObject {
  public:
-  explicit HUseIterator(HInstruction* instruction) : current_(instruction->GetUses()) { }
+  explicit HUseIterator(HUseListNode<T>* uses) : current_(uses) {}
 
   bool Done() const { return current_ == nullptr; }
 
@@ -336,15 +417,49 @@ class HUseIterator : public ValueObject {
     current_ = current_->GetTail();
   }
 
-  HInstruction* Current() const {
+  HUseListNode<T>* Current() const {
     DCHECK(!Done());
-    return current_->GetInstruction();
+    return current_;
   }
 
  private:
-  HUseListNode* current_;
+  HUseListNode<T>* current_;
 
   friend class HValue;
+};
+
+// A HEnvironment object contains the values of virtual registers at a given location.
+class HEnvironment : public ArenaObject {
+ public:
+  HEnvironment(ArenaAllocator* arena, size_t number_of_vregs) : vregs_(arena, number_of_vregs) {
+    vregs_.SetSize(number_of_vregs);
+    for (size_t i = 0; i < number_of_vregs; i++) {
+      vregs_.Put(i, nullptr);
+    }
+  }
+
+  void Populate(const GrowableArray<HInstruction*>& env) {
+    for (size_t i = 0; i < env.Size(); i++) {
+      HInstruction* instruction = env.Get(i);
+      vregs_.Put(i, instruction);
+      if (instruction != nullptr) {
+        instruction->AddEnvUseAt(this, i);
+      }
+    }
+  }
+
+  void SetRawEnvAt(size_t index, HInstruction* instruction) {
+    vregs_.Put(index, instruction);
+  }
+
+  GrowableArray<HInstruction*>* GetVRegs() {
+    return &vregs_;
+  }
+
+ private:
+  GrowableArray<HInstruction*> vregs_;
+
+  DISALLOW_COPY_AND_ASSIGN(HEnvironment);
 };
 
 class HInputIterator : public ValueObject {
@@ -357,15 +472,15 @@ class HInputIterator : public ValueObject {
 
  private:
   HInstruction* instruction_;
-  int index_;
+  size_t index_;
 
   DISALLOW_COPY_AND_ASSIGN(HInputIterator);
 };
 
 class HInstructionIterator : public ValueObject {
  public:
-  explicit HInstructionIterator(HBasicBlock* block)
-      : instruction_(block->GetFirstInstruction()) {
+  explicit HInstructionIterator(const HInstructionList& instructions)
+      : instruction_(instructions.first_instruction_) {
     next_ = Done() ? nullptr : instruction_->GetNext();
   }
 
@@ -434,16 +549,18 @@ class HTemplateInstruction: public HInstruction {
   HTemplateInstruction<N>() : inputs_() { }
   virtual ~HTemplateInstruction() { }
 
-  virtual intptr_t InputCount() const { return N; }
-  virtual HInstruction* InputAt(intptr_t i) const { return inputs_[i]; }
+  virtual size_t InputCount() const { return N; }
+  virtual HInstruction* InputAt(size_t i) const { return inputs_[i]; }
 
  protected:
-  void SetRawInputAt(intptr_t i, HInstruction* instruction) {
+  virtual void SetRawInputAt(size_t i, HInstruction* instruction) {
     inputs_[i] = instruction;
   }
 
  private:
   EmbeddedArray<HInstruction*, N> inputs_;
+
+  friend class SsaBuilder;
 };
 
 // Represents dex's RETURN_VOID opcode. A HReturnVoid is a control flow
@@ -658,11 +775,19 @@ class HInvoke : public HInstruction {
     inputs_.SetSize(number_of_arguments);
   }
 
-  virtual intptr_t InputCount() const { return inputs_.Size(); }
-  virtual HInstruction* InputAt(intptr_t i) const { return inputs_.Get(i); }
+  virtual size_t InputCount() const { return inputs_.Size(); }
+  virtual HInstruction* InputAt(size_t i) const { return inputs_.Get(i); }
+
+  // Runtime needs to walk the stack, so Dex -> Dex calls need to
+  // know their environment.
+  virtual bool NeedsEnvironment() const { return true; }
 
   void SetArgumentAt(size_t index, HInstruction* argument) {
-    inputs_.Put(index, argument);
+    SetRawInputAt(index, argument);
+  }
+
+  virtual void SetRawInputAt(size_t index, HInstruction* input) {
+    inputs_.Put(index, input);
   }
 
   virtual Primitive::Type GetType() const { return return_type_; }
@@ -706,6 +831,9 @@ class HNewInstance : public HTemplateInstruction<0> {
   uint16_t GetTypeIndex() const { return type_index_; }
 
   virtual Primitive::Type GetType() const { return Primitive::kPrimNot; }
+
+  // Calls runtime so needs an environment.
+  virtual bool NeedsEnvironment() const { return true; }
 
   DECLARE_INSTRUCTION(NewInstance)
 
@@ -777,6 +905,39 @@ class HNot : public HTemplateInstruction<1> {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HNot);
+};
+
+class HPhi : public HInstruction {
+ public:
+  HPhi(ArenaAllocator* arena, uint32_t reg_number, size_t number_of_inputs, Primitive::Type type)
+      : inputs_(arena, number_of_inputs),
+        reg_number_(reg_number),
+        type_(type) {
+    inputs_.SetSize(number_of_inputs);
+  }
+
+  virtual size_t InputCount() const { return inputs_.Size(); }
+  virtual HInstruction* InputAt(size_t i) const { return inputs_.Get(i); }
+
+  virtual void SetRawInputAt(size_t index, HInstruction* input) {
+    inputs_.Put(index, input);
+  }
+
+  void AddInput(HInstruction* input);
+
+  virtual Primitive::Type GetType() const { return type_; }
+
+  uint32_t GetRegNumber() const { return reg_number_; }
+
+  DECLARE_INSTRUCTION(Phi)
+
+ protected:
+  GrowableArray<HInstruction*> inputs_;
+  const uint32_t reg_number_;
+  const Primitive::Type type_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HPhi);
 };
 
 class HGraphVisitor : public ValueObject {
