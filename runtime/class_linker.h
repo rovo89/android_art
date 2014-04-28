@@ -369,6 +369,10 @@ class ClassLinker {
     return quick_imt_conflict_trampoline_;
   }
 
+  const void* GetQuickToInterpreterBridgeTrampoline() const {
+    return quick_to_interpreter_bridge_trampoline_;
+  }
+
   InternTable* GetInternTable() const {
     return intern_table_;
   }
@@ -658,6 +662,7 @@ class ClassLinker {
   const void* portable_imt_conflict_trampoline_;
   const void* quick_imt_conflict_trampoline_;
   const void* quick_generic_jni_trampoline_;
+  const void* quick_to_interpreter_bridge_trampoline_;
 
   friend class ImageWriter;  // for GetClassRoots
   FRIEND_TEST(ClassLinkerTest, ClassRootDescriptors);

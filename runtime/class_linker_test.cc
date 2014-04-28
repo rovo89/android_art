@@ -485,8 +485,6 @@ struct ArtMethodOffsets : public CheckOffsets<mirror::ArtMethod> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, entry_point_from_portable_compiled_code_), "entryPointFromPortableCompiledCode"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, entry_point_from_quick_compiled_code_),    "entryPointFromQuickCompiledCode"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, gc_map_),                                  "gcMap"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, quick_mapping_table_),                     "quickMappingTable"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, quick_vmap_table_),                        "quickVmapTable"));
 
     // alphabetical 32-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, access_flags_),                   "accessFlags"));

@@ -761,6 +761,10 @@ static inline const void* GetQuickGenericJniTrampoline(ClassLinker* class_linker
   return class_linker->GetQuickGenericJniTrampoline();
 }
 
+static inline const void* GetQuickToInterpreterBridgeTrampoline(ClassLinker* class_linker) {
+  return class_linker->GetQuickToInterpreterBridgeTrampoline();
+}
+
 extern "C" void art_portable_proxy_invoke_handler();
 static inline const void* GetPortableProxyInvokeHandler() {
   return reinterpret_cast<void*>(art_portable_proxy_invoke_handler);

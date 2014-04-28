@@ -32,6 +32,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(mirror::ArtMethod* 
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   const void* result = instrumentation->GetQuickCodeFor(method);
+  DCHECK(result != GetQuickToInterpreterBridgeTrampoline(Runtime::Current()->GetClassLinker()));
   bool interpreter_entry = (result == GetQuickToInterpreterBridge());
   instrumentation->PushInstrumentationStackFrame(self, method->IsStatic() ? NULL : this_object,
                                                  method, lr, interpreter_entry);
