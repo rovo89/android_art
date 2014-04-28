@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
+import android.system.ErrnoException;
+import android.system.Os;
+import android.system.OsConstants;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import libcore.io.*;
 
 // Run on host with:
 //   javac ThreadTest.java && java ThreadStress && rm *.class
@@ -202,7 +204,7 @@ class ThreadStress implements Runnable {
                     }
                     case SIGQUIT: {
                         try {
-                            Libcore.os.kill(Libcore.os.getpid(), OsConstants.SIGQUIT);
+                            Os.kill(Os.getpid(), OsConstants.SIGQUIT);
                         } catch (ErrnoException ex) {
                         }
                     }
