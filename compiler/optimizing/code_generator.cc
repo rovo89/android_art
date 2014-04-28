@@ -47,7 +47,7 @@ void CodeGenerator::CompileBlock(HBasicBlock* block) {
   Bind(GetLabelOf(block));
   HGraphVisitor* location_builder = GetLocationBuilder();
   HGraphVisitor* instruction_visitor = GetInstructionVisitor();
-  for (HInstructionIterator it(block); !it.Done(); it.Advance()) {
+  for (HInstructionIterator it(*block->GetInstructions()); !it.Done(); it.Advance()) {
     HInstruction* current = it.Current();
     current->Accept(location_builder);
     InitLocations(current);
@@ -57,7 +57,7 @@ void CodeGenerator::CompileBlock(HBasicBlock* block) {
 
 void CodeGenerator::InitLocations(HInstruction* instruction) {
   if (instruction->GetLocations() == nullptr) return;
-  for (int i = 0; i < instruction->InputCount(); i++) {
+  for (size_t i = 0; i < instruction->InputCount(); i++) {
     Location location = instruction->GetLocations()->InAt(i);
     if (location.IsValid()) {
       // Move the input to the desired location.

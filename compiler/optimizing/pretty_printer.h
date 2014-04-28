@@ -25,11 +25,19 @@ class HPrettyPrinter : public HGraphVisitor {
  public:
   explicit HPrettyPrinter(HGraph* graph) : HGraphVisitor(graph) { }
 
-  virtual void VisitInstruction(HInstruction* instruction) {
+  void PrintPreInstruction(HInstruction* instruction) {
     PrintString("  ");
     PrintInt(instruction->GetId());
     PrintString(": ");
+  }
+
+  virtual void VisitInstruction(HInstruction* instruction) {
+    PrintPreInstruction(instruction);
     PrintString(instruction->DebugName());
+    PrintPostInstruction(instruction);
+  }
+
+  void PrintPostInstruction(HInstruction* instruction) {
     if (instruction->InputCount() != 0) {
       PrintString("(");
       bool first = true;
@@ -46,13 +54,13 @@ class HPrettyPrinter : public HGraphVisitor {
     if (instruction->HasUses()) {
       PrintString(" [");
       bool first = true;
-      for (HUseIterator it(instruction); !it.Done(); it.Advance()) {
+      for (HUseIterator<HInstruction> it(instruction->GetUses()); !it.Done(); it.Advance()) {
         if (first) {
           first = false;
         } else {
           PrintString(", ");
         }
-        PrintInt(it.Current()->GetId());
+        PrintInt(it.Current()->GetUser()->GetId());
       }
       PrintString("]");
     }

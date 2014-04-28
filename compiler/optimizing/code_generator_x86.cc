@@ -456,7 +456,7 @@ void LocationsBuilderX86::VisitInvokeStatic(HInvokeStatic* invoke) {
   locations->AddTemp(X86CpuLocation(EAX));
 
   InvokeDexCallingConventionVisitor calling_convention_visitor;
-  for (int i = 0; i < invoke->InputCount(); i++) {
+  for (size_t i = 0; i < invoke->InputCount(); i++) {
     HInstruction* input = invoke->InputAt(i);
     locations->SetInAt(i, calling_convention_visitor.GetNextLocation(input->GetType()));
   }
@@ -685,6 +685,14 @@ void InstructionCodeGeneratorX86::VisitNot(HNot* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   DCHECK_EQ(locations->InAt(0).AsX86().AsCpuRegister(), locations->Out().AsX86().AsCpuRegister());
   __ xorl(locations->Out().AsX86().AsCpuRegister(), Immediate(1));
+}
+
+void LocationsBuilderX86::VisitPhi(HPhi* instruction) {
+  LOG(FATAL) << "Unimplemented";
+}
+
+void InstructionCodeGeneratorX86::VisitPhi(HPhi* instruction) {
+  LOG(FATAL) << "Unimplemented";
 }
 
 }  // namespace x86

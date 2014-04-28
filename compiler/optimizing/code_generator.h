@@ -211,7 +211,7 @@ class LocationSummary : public ArenaObject {
       : inputs(instruction->GetBlock()->GetGraph()->GetArena(), instruction->InputCount()),
         temps(instruction->GetBlock()->GetGraph()->GetArena(), 0) {
     inputs.SetSize(instruction->InputCount());
-    for (int i = 0; i < instruction->InputCount(); i++) {
+    for (size_t i = 0; i < instruction->InputCount(); i++) {
       inputs.Put(i, Location());
     }
   }
