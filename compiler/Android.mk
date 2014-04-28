@@ -93,6 +93,8 @@ LIBART_COMPILER_SRC_FILES := \
 	utils/arena_allocator.cc \
 	utils/arena_bit_vector.cc \
 	utils/arm/assembler_arm.cc \
+	utils/arm/assembler_arm32.cc \
+	utils/arm/assembler_thumb2.cc \
 	utils/arm/managed_register_arm.cc \
 	utils/arm64/assembler_arm64.cc \
 	utils/arm64/managed_register_arm64.cc \
