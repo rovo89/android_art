@@ -368,5 +368,43 @@ void ArtMethod::UnregisterNative(Thread* self) {
   RegisterNative(self, GetJniDlsymLookupStub(), false);
 }
 
+const void* ArtMethod::GetOatCodePointer() {
+  if (IsPortableCompiled() || IsNative() || IsAbstract() || IsRuntimeMethod() || IsProxyMethod()) {
+    return nullptr;
+  }
+  Runtime* runtime = Runtime::Current();
+  const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(this);
+  // On failure, instead of nullptr we get the quick-to-interpreter-bridge (but not the trampoline).
+  DCHECK(entry_point != GetQuickToInterpreterBridgeTrampoline(runtime->GetClassLinker()));
+  if (entry_point == GetQuickToInterpreterBridge()) {
+    return nullptr;
+  }
+  return EntryPointToCodePointer(entry_point);
+}
+
+const uint8_t* ArtMethod::GetMappingTable() {
+  const void* code = GetOatCodePointer();
+  if (code == nullptr) {
+    return nullptr;
+  }
+  uint32_t offset = reinterpret_cast<const OatMethodHeader*>(code)[-1].mapping_table_offset_;
+  if (UNLIKELY(offset == 0u)) {
+    return nullptr;
+  }
+  return reinterpret_cast<const uint8_t*>(code) - offset;
+}
+
+const uint8_t* ArtMethod::GetVmapTable() {
+  const void* code = GetOatCodePointer();
+  if (code == nullptr) {
+    return nullptr;
+  }
+  uint32_t offset = reinterpret_cast<const OatMethodHeader*>(code)[-1].vmap_table_offset_;
+  if (UNLIKELY(offset == 0u)) {
+    return nullptr;
+  }
+  return reinterpret_cast<const uint8_t*>(code) - offset;
+}
+
 }  // namespace mirror
 }  // namespace art

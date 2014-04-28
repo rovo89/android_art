@@ -21,6 +21,7 @@
 #include "dex_file.h"
 #include "invoke_type.h"
 #include "modifiers.h"
+#include "oat.h"
 #include "object.h"
 #include "object_callbacks.h"
 
@@ -261,7 +262,6 @@ class MANAGED ArtMethod : public Object {
         EntryPointFromQuickCompiledCodeOffset(), entry_point_from_quick_compiled_code, false);
   }
 
-
   uint32_t GetCodeSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsWithinQuickCode(uintptr_t pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -286,37 +286,20 @@ class MANAGED ArtMethod : public Object {
   void SetQuickOatCodeOffset(uint32_t code_offset);
   void SetPortableOatCodeOffset(uint32_t code_offset);
 
+  static const void* EntryPointToCodePointer(const void* entry_point) ALWAYS_INLINE {
+    uintptr_t code = reinterpret_cast<uintptr_t>(entry_point);
+    code &= ~0x1;  // TODO: Make this Thumb2 specific.
+    return reinterpret_cast<const void*>(code);
+  }
+
+  // Actual pointer to compiled oat code or nullptr.
+  const void* GetOatCodePointer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Callers should wrap the uint8_t* in a MappingTable instance for convenient access.
-  const uint8_t* GetMappingTable() {
-    return GetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_mapping_table_),
-        false);
-  }
-
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  void SetMappingTable(const uint8_t* mapping_table) {
-    SetFieldPtr<false, true, kVerifyFlags>(
-        OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_mapping_table_), mapping_table, false);
-  }
-
-  uint32_t GetOatMappingTableOffset();
-
-  void SetOatMappingTableOffset(uint32_t mapping_table_offset);
+  const uint8_t* GetMappingTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Callers should wrap the uint8_t* in a VmapTable instance for convenient access.
-  const uint8_t* GetVmapTable() {
-    return GetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_vmap_table_),
-        false);
-  }
-
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  void SetVmapTable(const uint8_t* vmap_table) {
-    SetFieldPtr<false, true, kVerifyFlags>(
-        OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_vmap_table_), vmap_table, false);
-  }
-
-  uint32_t GetOatVmapTableOffset();
-
-  void SetOatVmapTableOffset(uint32_t vmap_table_offset);
+  const uint8_t* GetVmapTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const uint8_t* GetNativeGcMap() {
     return GetFieldPtr<uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, gc_map_), false);
@@ -470,20 +453,6 @@ class MANAGED ArtMethod : public Object {
   // determine which registers hold live references to objects within the heap. Keyed by native PC
   // offsets for the quick compiler and dex PCs for the portable.
   uint64_t gc_map_;
-
-  // --- Quick compiler meta-data. ---
-  // TODO: merge and place in native heap, such as done with the code size.
-
-  // Pointer to a data structure created by the quick compiler to map between dex PCs and native
-  // PCs, and vice-versa.
-  uint64_t quick_mapping_table_;
-
-  // When a register is promoted into a register, the spill mask holds which registers hold dex
-  // registers. The first promoted register's corresponding dex register is vmap_table_[1], the Nth
-  // is vmap_table_[N]. vmap_table_[0] holds the length of the table.
-  uint64_t quick_vmap_table_;
-
-  // --- End of quick compiler meta-data. ---
 
   // Access flags; low 16 bits are defined by spec.
   uint32_t access_flags_;

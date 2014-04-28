@@ -78,13 +78,11 @@ inline ObjectArray<Class>* ArtMethod::GetDexCacheResolvedTypes() {
 
 inline uint32_t ArtMethod::GetCodeSize() {
   DCHECK(!IsRuntimeMethod() && !IsProxyMethod()) << PrettyMethod(this);
-  uintptr_t code = reinterpret_cast<uintptr_t>(GetEntryPointFromQuickCompiledCode());
-  if (code == 0) {
-    return 0;
+  const void* code = EntryPointToCodePointer(GetEntryPointFromQuickCompiledCode());
+  if (code == nullptr) {
+    return 0u;
   }
-  // TODO: make this Thumb2 specific
-  code &= ~0x1;
-  return reinterpret_cast<OatMethodHeader*>(code)[-1].code_size_;
+  return reinterpret_cast<const OatMethodHeader*>(code)[-1].code_size_;
 }
 
 inline bool ArtMethod::CheckIncompatibleClassChange(InvokeType type) {
@@ -124,7 +122,8 @@ inline void ArtMethod::AssertPcIsWithinQuickCode(uintptr_t pc) {
     return;
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  if (code == GetQuickResolutionTrampoline(class_linker)) {
+  if (code == GetQuickResolutionTrampoline(class_linker) ||
+      code == GetQuickToInterpreterBridgeTrampoline(class_linker)) {
     return;
   }
   DCHECK(IsWithinQuickCode(pc))
@@ -152,26 +151,6 @@ inline void ArtMethod::SetQuickOatCodeOffset(uint32_t code_offset) {
 inline void ArtMethod::SetPortableOatCodeOffset(uint32_t code_offset) {
   DCHECK(!Runtime::Current()->IsStarted());
   SetEntryPointFromPortableCompiledCode(reinterpret_cast<void*>(code_offset));
-}
-
-inline uint32_t ArtMethod::GetOatMappingTableOffset() {
-  DCHECK(!Runtime::Current()->IsStarted());
-  return PointerToLowMemUInt32(GetMappingTable());
-}
-
-inline void ArtMethod::SetOatMappingTableOffset(uint32_t mapping_table_offset) {
-  DCHECK(!Runtime::Current()->IsStarted());
-  SetMappingTable(reinterpret_cast<const uint8_t*>(mapping_table_offset));
-}
-
-inline uint32_t ArtMethod::GetOatVmapTableOffset() {
-  DCHECK(!Runtime::Current()->IsStarted());
-  return PointerToLowMemUInt32(GetVmapTable());
-}
-
-inline void ArtMethod::SetOatVmapTableOffset(uint32_t vmap_table_offset) {
-  DCHECK(!Runtime::Current()->IsStarted());
-  SetVmapTable(reinterpret_cast<uint8_t*>(vmap_table_offset));
 }
 
 inline void ArtMethod::SetOatNativeGcMapOffset(uint32_t gc_map_offset) {
