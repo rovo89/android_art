@@ -110,7 +110,7 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Example: --oat-file=/system/framework/boot.oat");
   UsageError("");
   UsageError("  --oat-fd=<number>: specifies the oat output destination via a file descriptor.");
-  UsageError("      Example: --oat-file=/system/framework/boot.oat");
+  UsageError("      Example: --oat-fd=6");
   UsageError("");
   UsageError("  --oat-location=<oat-name>: specifies a symbolic name for the file corresponding");
   UsageError("      to the file descriptor specified by --oat-fd.");
