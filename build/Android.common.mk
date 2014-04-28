@@ -254,6 +254,14 @@ ART_HOST_CFLAGS += -Wthread-safety
 # To use oprofile_android --callgraph, uncomment this and recompile with "mmm art -B -j16"
 # ART_TARGET_CFLAGS += -fno-omit-frame-pointer -marm -mapcs
 
+# Addition CPU specific CFLAGS.
+ifeq ($(TARGET_ARCH),arm)
+  ifneq ($(filter cortex-a15, $(TARGET_CPU_VARIANT)),)
+    # Fake a ARM feature for LPAE support.
+    ART_TARGET_CFLAGS += -D__ARM_FEATURE_LPAE=1
+  endif
+endif
+
 ART_HOST_NON_DEBUG_CFLAGS := $(art_non_debug_cflags)
 ART_TARGET_NON_DEBUG_CFLAGS := $(art_non_debug_cflags)
 
