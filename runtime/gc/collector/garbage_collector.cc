@@ -65,6 +65,7 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   Thread* self = Thread::Current();
   uint64_t start_time = NanoTime();
+  timings_.Reset();
   pause_times_.clear();
   duration_ns_ = 0;
   clear_soft_references_ = clear_soft_references;

@@ -110,7 +110,6 @@ SemiSpace::SemiSpace(Heap* heap, bool generational, const std::string& name_pref
 }
 
 void SemiSpace::InitializePhase() {
-  timings_.Reset();
   TimingLogger::ScopedSplit split("InitializePhase", &timings_);
   mark_stack_ = heap_->mark_stack_.get();
   DCHECK(mark_stack_ != nullptr);
