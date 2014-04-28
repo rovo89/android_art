@@ -699,7 +699,7 @@ LIR* ArmMir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStora
 
   if (ARM_FPREG(r_dest.GetReg())) {
     if (ARM_SINGLEREG(r_dest.GetReg())) {
-      DCHECK((size == k32) || (size == kSingle));
+      DCHECK((size == k32) || (size == kSingle) || (size == kReference));
       opcode = kThumb2Vldrs;
       size = kSingle;
     } else {
@@ -767,7 +767,7 @@ LIR* ArmMir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStor
 
   if (ARM_FPREG(r_src.GetReg())) {
     if (ARM_SINGLEREG(r_src.GetReg())) {
-      DCHECK((size == k32) || (size == kSingle));
+      DCHECK((size == k32) || (size == kSingle) || (size == kReference));
       opcode = kThumb2Vstrs;
       size = kSingle;
     } else {
