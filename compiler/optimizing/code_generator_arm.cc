@@ -35,6 +35,81 @@ namespace arm {
 static constexpr int kNumberOfPushedRegistersAtEntry = 1;
 static constexpr int kCurrentMethodStackOffset = 0;
 
+CodeGeneratorARM::CodeGeneratorARM(HGraph* graph)
+    : CodeGenerator(graph, kNumberOfRegIds),
+      location_builder_(graph, this),
+      instruction_visitor_(graph, this) {}
+
+static bool* GetBlockedRegisterPairs(bool* blocked_registers) {
+  return blocked_registers + kNumberOfAllocIds;
+}
+
+ManagedRegister CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type,
+                                                       bool* blocked_registers) const {
+  switch (type) {
+    case Primitive::kPrimLong: {
+      size_t reg = AllocateFreeRegisterInternal(
+          GetBlockedRegisterPairs(blocked_registers), kNumberOfRegisterPairs);
+      ArmManagedRegister pair =
+          ArmManagedRegister::FromRegisterPair(static_cast<RegisterPair>(reg));
+      blocked_registers[pair.AsRegisterPairLow()] = true;
+      blocked_registers[pair.AsRegisterPairHigh()] = true;
+      return pair;
+    }
+
+    case Primitive::kPrimByte:
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot: {
+      size_t reg = AllocateFreeRegisterInternal(blocked_registers, kNumberOfCoreRegisters);
+      return ArmManagedRegister::FromCoreRegister(static_cast<Register>(reg));
+    }
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      LOG(FATAL) << "Unimplemented register type " << type;
+
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unreachable type " << type;
+  }
+
+  return ManagedRegister::NoRegister();
+}
+
+void CodeGeneratorARM::SetupBlockedRegisters(bool* blocked_registers) const {
+  bool* blocked_register_pairs = GetBlockedRegisterPairs(blocked_registers);
+
+  // Don't allocate the dalvik style register pair passing.
+  blocked_register_pairs[R1_R2] = true;
+
+  // Stack register, LR and PC are always reserved.
+  blocked_registers[SP] = true;
+  blocked_registers[LR] = true;
+  blocked_registers[PC] = true;
+
+  // Reserve R4 for suspend check.
+  blocked_registers[R4] = true;
+  blocked_register_pairs[R4_R5] = true;
+
+  // Reserve thread register.
+  blocked_registers[TR] = true;
+
+  // TODO: We currently don't use Quick's callee saved registers.
+  blocked_registers[R5] = true;
+  blocked_registers[R6] = true;
+  blocked_registers[R7] = true;
+  blocked_registers[R8] = true;
+  blocked_registers[R10] = true;
+  blocked_registers[R11] = true;
+  blocked_register_pairs[R6_R7] = true;
+}
+
+size_t CodeGeneratorARM::GetNumberOfRegisters() const {
+  return kNumberOfRegIds;
+}
+
 static Location ArmCoreLocation(Register reg) {
   return Location::RegisterLocation(ArmManagedRegister::FromCoreRegister(reg));
 }
@@ -83,6 +158,32 @@ int32_t CodeGeneratorARM::GetStackSlot(HLocal* local) const {
                           - (number_of_vregs * kVRegSize)
                           + (reg_number * kVRegSize);
   }
+}
+
+Location CodeGeneratorARM::GetStackLocation(HLoadLocal* load) const {
+  switch (load->GetType()) {
+    case Primitive::kPrimLong:
+      return Location::DoubleStackSlot(GetStackSlot(load->GetLocal()));
+      break;
+
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot:
+      return Location::StackSlot(GetStackSlot(load->GetLocal()));
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      LOG(FATAL) << "Unimplemented type " << load->GetType();
+
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unexpected type " << load->GetType();
+  }
+
+  LOG(FATAL) << "Unreachable";
+  return Location();
 }
 
 Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type) {
@@ -302,7 +403,7 @@ void InstructionCodeGeneratorARM::VisitExit(HExit* exit) {
 
 void LocationsBuilderARM::VisitIf(HIf* if_instr) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(if_instr);
-  locations->SetInAt(0, ArmCoreLocation(R0));
+  locations->SetInAt(0, Location::RequiresRegister());
   if_instr->SetLocations(locations);
 }
 
@@ -317,9 +418,9 @@ void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
 
 void LocationsBuilderARM::VisitEqual(HEqual* equal) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(equal);
-  locations->SetInAt(0, ArmCoreLocation(R0));
-  locations->SetInAt(1, ArmCoreLocation(R1));
-  locations->SetOut(ArmCoreLocation(R0));
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister());
   equal->SetLocations(locations);
 }
 
@@ -409,7 +510,8 @@ void LocationsBuilderARM::VisitReturn(HReturn* ret) {
       break;
 
     case Primitive::kPrimLong:
-      locations->SetInAt(0, Location::RegisterLocation(ArmManagedRegister::FromRegisterPair(R0_R1)));
+      locations->SetInAt(
+          0, Location::RegisterLocation(ArmManagedRegister::FromRegisterPair(R0_R1)));
       break;
 
     default:
@@ -444,7 +546,7 @@ void InstructionCodeGeneratorARM::VisitReturn(HReturn* ret) {
 
 void LocationsBuilderARM::VisitInvokeStatic(HInvokeStatic* invoke) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(invoke);
-  locations->AddTemp(ArmCoreLocation(R0));
+  locations->AddTemp(Location::RequiresRegister());
 
   InvokeDexCallingConventionVisitor calling_convention_visitor;
   for (size_t i = 0; i < invoke->InputCount(); i++) {
@@ -512,19 +614,11 @@ void InstructionCodeGeneratorARM::VisitInvokeStatic(HInvokeStatic* invoke) {
 void LocationsBuilderARM::VisitAdd(HAdd* add) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(add);
   switch (add->GetResultType()) {
-    case Primitive::kPrimInt: {
-      locations->SetInAt(0, ArmCoreLocation(R0));
-      locations->SetInAt(1, ArmCoreLocation(R1));
-      locations->SetOut(ArmCoreLocation(R0));
-      break;
-    }
-
+    case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
-      locations->SetInAt(
-          0, Location::RegisterLocation(ArmManagedRegister::FromRegisterPair(R0_R1)));
-      locations->SetInAt(
-          1, Location::RegisterLocation(ArmManagedRegister::FromRegisterPair(R2_R3)));
-      locations->SetOut(Location::RegisterLocation(ArmManagedRegister::FromRegisterPair(R0_R1)));
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister());
       break;
     }
 
@@ -574,19 +668,11 @@ void InstructionCodeGeneratorARM::VisitAdd(HAdd* add) {
 void LocationsBuilderARM::VisitSub(HSub* sub) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(sub);
   switch (sub->GetResultType()) {
-    case Primitive::kPrimInt: {
-      locations->SetInAt(0, ArmCoreLocation(R0));
-      locations->SetInAt(1, ArmCoreLocation(R1));
-      locations->SetOut(ArmCoreLocation(R0));
-      break;
-    }
-
+    case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
-      locations->SetInAt(
-          0, Location::RegisterLocation(ArmManagedRegister::FromRegisterPair(R0_R1)));
-      locations->SetInAt(
-          1, Location::RegisterLocation(ArmManagedRegister::FromRegisterPair(R2_R3)));
-      locations->SetOut(Location::RegisterLocation(ArmManagedRegister::FromRegisterPair(R0_R1)));
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister());
       break;
     }
 
@@ -649,6 +735,9 @@ class InvokeRuntimeCallingConvention : public CallingConvention<Register> {
 
 void LocationsBuilderARM::VisitNewInstance(HNewInstance* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->AddTemp(ArmCoreLocation(calling_convention.GetRegisterAt(0)));
+  locations->AddTemp(ArmCoreLocation(calling_convention.GetRegisterAt(1)));
   locations->SetOut(ArmCoreLocation(R0));
   instruction->SetLocations(locations);
 }
@@ -683,8 +772,8 @@ void InstructionCodeGeneratorARM::VisitParameterValue(HParameterValue* instructi
 
 void LocationsBuilderARM::VisitNot(HNot* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
-  locations->SetInAt(0, ArmCoreLocation(R0));
-  locations->SetOut(ArmCoreLocation(R0));
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister());
   instruction->SetLocations(locations);
 }
 

@@ -55,9 +55,105 @@ void CodeGenerator::CompileBlock(HBasicBlock* block) {
   }
 }
 
+size_t CodeGenerator::AllocateFreeRegisterInternal(
+    bool* blocked_registers, size_t number_of_registers) const {
+  for (size_t regno = 0; regno < number_of_registers; regno++) {
+    if (!blocked_registers[regno]) {
+      blocked_registers[regno] = true;
+      return regno;
+    }
+  }
+  LOG(FATAL) << "Unreachable";
+  return -1;
+}
+
+
+void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
+  LocationSummary* locations = instruction->GetLocations();
+  if (locations == nullptr) return;
+
+  for (size_t i = 0, e = GetNumberOfRegisters(); i < e; ++i) {
+    blocked_registers_[i] = false;
+  }
+
+  // Mark all fixed input, temp and output registers as used.
+  for (size_t i = 0, e = locations->GetInputCount(); i < e; ++i) {
+    Location loc = locations->InAt(i);
+    if (loc.IsRegister()) {
+      // Check that a register is not specified twice in the summary.
+      DCHECK(!blocked_registers_[loc.GetEncoding()]);
+      blocked_registers_[loc.GetEncoding()] = true;
+    }
+  }
+
+  for (size_t i = 0, e = locations->GetTempCount(); i < e; ++i) {
+    Location loc = locations->GetTemp(i);
+    if (loc.IsRegister()) {
+      // Check that a register is not specified twice in the summary.
+      DCHECK(!blocked_registers_[loc.GetEncoding()]);
+      blocked_registers_[loc.GetEncoding()] = true;
+    }
+  }
+
+  SetupBlockedRegisters(blocked_registers_);
+
+  // Allocate all unallocated input locations.
+  for (size_t i = 0, e = locations->GetInputCount(); i < e; ++i) {
+    Location loc = locations->InAt(i);
+    HInstruction* input = instruction->InputAt(i);
+    if (loc.IsUnallocated()) {
+      if (loc.GetPolicy() == Location::kRequiresRegister) {
+        loc = Location::RegisterLocation(
+            AllocateFreeRegister(input->GetType(), blocked_registers_));
+      } else {
+        DCHECK_EQ(loc.GetPolicy(), Location::kAny);
+        HLoadLocal* load = input->AsLoadLocal();
+        if (load != nullptr) {
+          loc = GetStackLocation(load);
+        } else {
+          loc = Location::RegisterLocation(
+              AllocateFreeRegister(input->GetType(), blocked_registers_));
+        }
+      }
+      locations->SetInAt(i, loc);
+    }
+  }
+
+  // Allocate all unallocated temp locations.
+  for (size_t i = 0, e = locations->GetTempCount(); i < e; ++i) {
+    Location loc = locations->GetTemp(i);
+    if (loc.IsUnallocated()) {
+      DCHECK_EQ(loc.GetPolicy(), Location::kRequiresRegister);
+      // TODO: Adjust handling of temps. We currently consider temps to use
+      // core registers. They may also use floating point registers at some point.
+      loc = Location::RegisterLocation(static_cast<ManagedRegister>(
+          AllocateFreeRegister(Primitive::kPrimInt, blocked_registers_)));
+      locations->SetTempAt(i, loc);
+    }
+  }
+
+  Location result_location = locations->Out();
+  if (result_location.IsUnallocated()) {
+    switch (result_location.GetPolicy()) {
+      case Location::kAny:
+      case Location::kRequiresRegister:
+        result_location = Location::RegisterLocation(
+            AllocateFreeRegister(instruction->GetType(), blocked_registers_));
+        break;
+      case Location::kSameAsFirstInput:
+        result_location = locations->InAt(0);
+        break;
+    }
+    locations->SetOut(result_location);
+  }
+}
+
 void CodeGenerator::InitLocations(HInstruction* instruction) {
-  if (instruction->GetLocations() == nullptr) return;
-  for (size_t i = 0; i < instruction->InputCount(); i++) {
+  if (instruction->GetLocations() == nullptr) {
+    return;
+  }
+  AllocateRegistersLocally(instruction);
+  for (size_t i = 0, e = instruction->InputCount(); i < e; ++i) {
     Location location = instruction->GetLocations()->InAt(i);
     if (location.IsValid()) {
       // Move the input to the desired location.

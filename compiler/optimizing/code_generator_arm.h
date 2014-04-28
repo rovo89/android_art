@@ -101,10 +101,7 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
 
 class CodeGeneratorARM : public CodeGenerator {
  public:
-  explicit CodeGeneratorARM(HGraph* graph)
-      : CodeGenerator(graph),
-        location_builder_(graph, this),
-        instruction_visitor_(graph, this) { }
+  explicit CodeGeneratorARM(HGraph* graph);
   virtual ~CodeGeneratorARM() { }
 
   virtual void GenerateFrameEntry() OVERRIDE;
@@ -128,7 +125,13 @@ class CodeGeneratorARM : public CodeGenerator {
     return &assembler_;
   }
 
+  virtual void SetupBlockedRegisters(bool* blocked_registers) const OVERRIDE;
+  virtual ManagedRegister AllocateFreeRegister(
+      Primitive::Type type, bool* blocked_registers) const OVERRIDE;
+  virtual size_t GetNumberOfRegisters() const OVERRIDE;
+
   int32_t GetStackSlot(HLocal* local) const;
+  virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
 
  private:
   // Helper method to move a 32bits value between two locations.
