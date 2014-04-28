@@ -19,6 +19,7 @@
 
 #include "space.h"
 
+#include "base/casts.h"
 #include "dlmalloc_space.h"
 #include "image_space.h"
 #include "large_object_space.h"

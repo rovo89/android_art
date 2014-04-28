@@ -51,11 +51,11 @@ inline ObjectArray<T>* ObjectArray<T>::Alloc(Thread* self, Class* object_array_c
 
 template<class T>
 inline T* ObjectArray<T>::Get(int32_t i) {
-  if (UNLIKELY(!CheckIsValidIndex(i))) {
+  if (!CheckIsValidIndex(i)) {
     DCHECK(Thread::Current()->IsExceptionPending());
     return NULL;
   }
-  return GetFieldObject<T>(OffsetOfElement(i), false);
+  return GetFieldObject<T>(OffsetOfElement(i));
 }
 
 template<class T> template<VerifyObjectFlags kVerifyFlags>
@@ -82,9 +82,8 @@ inline void ObjectArray<T>::Set(int32_t i, T* object) {
 template<class T>
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
 inline void ObjectArray<T>::Set(int32_t i, T* object) {
-  if (LIKELY(CheckIsValidIndex(i) && CheckAssignable<kVerifyFlags>(object))) {
-    SetFieldObject<kTransactionActive, kCheckTransaction, kVerifyFlags>(OffsetOfElement(i), object,
-                                                                        false);
+  if (CheckIsValidIndex(i) && CheckAssignable<kVerifyFlags>(object)) {
+    SetFieldObject<kTransactionActive, kCheckTransaction, kVerifyFlags>(OffsetOfElement(i), object);
   } else {
     DCHECK(Thread::Current()->IsExceptionPending());
   }
@@ -95,8 +94,7 @@ template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVer
 inline void ObjectArray<T>::SetWithoutChecks(int32_t i, T* object) {
   DCHECK(CheckIsValidIndex<kVerifyFlags>(i));
   DCHECK(CheckAssignable<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis)>(object));
-  SetFieldObject<kTransactionActive, kCheckTransaction, kVerifyFlags>(OffsetOfElement(i), object,
-                                                                      false);
+  SetFieldObject<kTransactionActive, kCheckTransaction, kVerifyFlags>(OffsetOfElement(i), object);
 }
 
 template<class T>
@@ -106,13 +104,13 @@ inline void ObjectArray<T>::SetWithoutChecksAndWriteBarrier(int32_t i, T* object
   // TODO:  enable this check. It fails when writing the image in ImageWriter::FixupObjectArray.
   // DCHECK(CheckAssignable(object));
   SetFieldObjectWithoutWriteBarrier<kTransactionActive, kCheckTransaction, kVerifyFlags>(
-      OffsetOfElement(i), object, false);
+      OffsetOfElement(i), object);
 }
 
 template<class T>
 inline T* ObjectArray<T>::GetWithoutChecks(int32_t i) {
   DCHECK(CheckIsValidIndex(i));
-  return GetFieldObject<T>(OffsetOfElement(i), false);
+  return GetFieldObject<T>(OffsetOfElement(i));
 }
 
 template<class T>

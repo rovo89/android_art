@@ -17,12 +17,14 @@
 #ifndef ART_RUNTIME_MIRROR_STRING_H_
 #define ART_RUNTIME_MIRROR_STRING_H_
 
+#include <gtest/gtest.h>
+
 #include "class.h"
-#include "gtest/gtest.h"
 #include "object_callbacks.h"
 
 namespace art {
 
+template<class T> class SirtRef;
 struct StringClassOffsets;
 struct StringOffsets;
 class StringPiece;
@@ -47,7 +49,7 @@ class MANAGED String : public Object {
   CharArray* GetCharArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t GetOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    int32_t result = GetField32(OffsetOffset(), false);
+    int32_t result = GetField32(OffsetOffset());
     DCHECK_LE(0, result);
     return result;
   }
@@ -111,25 +113,25 @@ class MANAGED String : public Object {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  void SetHashCode(int32_t new_hash_code) {
+  void SetHashCode(int32_t new_hash_code) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Hash code is invariant so use non-transactional mode. Also disable check as we may run inside
     // a transaction.
-    DCHECK_EQ(0, GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_), false));
-    SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, hash_code_), new_hash_code, false);
+    DCHECK_EQ(0, GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_)));
+    SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, hash_code_), new_hash_code);
   }
 
-  void SetCount(int32_t new_count) {
+  void SetCount(int32_t new_count) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Count is invariant so use non-transactional mode. Also disable check as we may run inside
     // a transaction.
     DCHECK_LE(0, new_count);
-    SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, count_), new_count, false);
+    SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, count_), new_count);
   }
 
   void SetOffset(int32_t new_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Offset is only used during testing so use non-transactional mode.
     DCHECK_LE(0, new_offset);
     DCHECK_GE(GetLength(), new_offset);
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(String, offset_), new_offset, false);
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(String, offset_), new_offset);
   }
 
   static String* Alloc(Thread* self, int32_t utf16_length)

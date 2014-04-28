@@ -35,6 +35,7 @@
 #include "object-inl.h"
 #include "object_array-inl.h"
 #include "sirt_ref.h"
+#include "string-inl.h"
 #include "UniquePtr.h"
 
 namespace art {

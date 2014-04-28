@@ -15,7 +15,10 @@
  */
 
 #include "interpreter_common.h"
+
 #include <limits>
+
+#include "mirror/string-inl.h"
 
 namespace art {
 namespace interpreter {
@@ -85,7 +88,7 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
     Object* obj = reinterpret_cast<Object*>(args[0]);
     jlong offset = (static_cast<uint64_t>(args[2]) << 32) | args[1];
     Object* newValue = reinterpret_cast<Object*>(args[3]);
-    obj->SetFieldObject<true>(MemberOffset(offset), newValue, false);
+    obj->SetFieldObject<true>(MemberOffset(offset), newValue);
   } else if (name == "int sun.misc.Unsafe.getArrayBaseOffsetForComponentType(java.lang.Class)") {
     mirror::Class* component = reinterpret_cast<Object*>(args[0])->AsClass();
     Primitive::Type primitive_type = component->GetPrimitiveType();

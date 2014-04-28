@@ -40,6 +40,16 @@ inline size_t Array::SizeOf() {
   return header_size + data_size;
 }
 
+template<VerifyObjectFlags kVerifyFlags>
+inline bool Array::CheckIsValidIndex(int32_t index) {
+  if (UNLIKELY(static_cast<uint32_t>(index) >=
+               static_cast<uint32_t>(GetLength<kVerifyFlags>()))) {
+    ThrowArrayIndexOutOfBoundsException(index);
+    return false;
+  }
+  return true;
+}
+
 static inline size_t ComputeArraySize(Thread* self, Class* array_class, int32_t component_count,
                                       size_t component_size)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -164,6 +174,46 @@ inline PrimitiveArray<T>* PrimitiveArray<T>::Alloc(Thread* self, size_t length) 
   return down_cast<PrimitiveArray<T>*>(raw_array);
 }
 
+template<typename T>
+inline T PrimitiveArray<T>::Get(int32_t i) {
+  if (!CheckIsValidIndex(i)) {
+    DCHECK(Thread::Current()->IsExceptionPending());
+    return T(0);
+  }
+  return GetWithoutChecks(i);
+}
+
+template<typename T>
+inline void PrimitiveArray<T>::Set(int32_t i, T value) {
+  if (Runtime::Current()->IsActiveTransaction()) {
+    Set<true>(i, value);
+  } else {
+    Set<false>(i, value);
+  }
+}
+
+template<typename T>
+template<bool kTransactionActive, bool kCheckTransaction>
+inline void PrimitiveArray<T>::Set(int32_t i, T value) {
+  if (CheckIsValidIndex(i)) {
+    SetWithoutChecks<kTransactionActive, kCheckTransaction>(i, value);
+  } else {
+    DCHECK(Thread::Current()->IsExceptionPending());
+  }
+}
+
+template<typename T>
+template<bool kTransactionActive, bool kCheckTransaction>
+inline void PrimitiveArray<T>::SetWithoutChecks(int32_t i, T value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteArray(this, i, GetWithoutChecks(i));
+  }
+  DCHECK(CheckIsValidIndex(i));
+  GetData()[i] = value;
+}
 // Backward copy where elements are of aligned appropriately for T. Count is in T sized units.
 // Copies are guaranteed not to tear when the sizeof T is less-than 64bit.
 template<typename T>

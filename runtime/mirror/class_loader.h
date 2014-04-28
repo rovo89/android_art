@@ -17,9 +17,6 @@
 #ifndef ART_RUNTIME_MIRROR_CLASS_LOADER_H_
 #define ART_RUNTIME_MIRROR_CLASS_LOADER_H_
 
-#include <vector>
-
-#include "dex_file.h"
 #include "mirror/object.h"
 
 namespace art {

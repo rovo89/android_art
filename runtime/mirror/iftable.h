@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_MIRROR_IFTABLE_H_
 #define ART_RUNTIME_MIRROR_IFTABLE_H_
 
+#include "base/casts.h"
 #include "object_array.h"
 
 namespace art {

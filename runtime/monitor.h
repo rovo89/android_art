@@ -31,18 +31,16 @@
 
 namespace art {
 
+class LockWord;
 template<class T> class SirtRef;
+class Thread;
+class StackVisitor;
+typedef uint32_t MonitorId;
 
 namespace mirror {
   class ArtMethod;
   class Object;
 }  // namespace mirror
-class LockWord;
-template<class T> class SirtRef;
-class Thread;
-class StackVisitor;
-
-typedef uint32_t MonitorId;
 
 class Monitor {
  public:
