@@ -357,7 +357,7 @@ LIR* MipsMir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStor
 
   if (MIPS_FPREG(r_dest.GetReg())) {
     DCHECK(MIPS_SINGLEREG(r_dest.GetReg()));
-    DCHECK((size == k32) || (size == kSingle));
+    DCHECK((size == k32) || (size == kSingle) || (size == kReference));
     size = kSingle;
   } else {
     if (size == kSingle)
@@ -409,7 +409,7 @@ LIR* MipsMir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
 
   if (MIPS_FPREG(r_src.GetReg())) {
     DCHECK(MIPS_SINGLEREG(r_src.GetReg()));
-    DCHECK((size == k32) || (size == kSingle));
+    DCHECK((size == k32) || (size == kSingle) || (size == kReference));
     size = kSingle;
   } else {
     if (size == kSingle)
