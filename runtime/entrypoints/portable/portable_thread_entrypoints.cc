@@ -78,7 +78,7 @@ extern "C" void art_portable_test_suspend_from_code(Thread* self)
     visitor.WalkStack(true);
     self->SetDeoptimizationShadowFrame(visitor.GetShadowFrameCopy());
     self->SetDeoptimizationReturnValue(JValue());
-    self->SetException(ThrowLocation(), reinterpret_cast<mirror::Throwable*>(-1));
+    self->SetException(ThrowLocation(), Thread::GetDeoptimizationException());
   }
 }
 
