@@ -837,6 +837,7 @@ bool ElfFile::Load(bool executable, std::string* error_msg) {
     }
   }
 
+  bool reserved = false;
   for (Elf32_Word i = 0; i < GetProgramHeaderNum(); i++) {
     Elf32_Phdr& program_header = GetProgramHeader(i);
 
@@ -853,10 +854,8 @@ bool ElfFile::Load(bool executable, std::string* error_msg) {
 
     // Found something to load.
 
-    // If p_vaddr is zero, it must be the first loadable segment,
-    // since they must be in order.  Since it is zero, there isn't a
-    // specific address requested, so first request a contiguous chunk
-    // of required size for all segments, but with no
+    // Before load the actual segments, reserve a contiguous chunk
+    // of required size and address for all segments, but with no
     // permissions. We'll then carve that up with the proper
     // permissions as we load the actual segments. If p_vaddr is
     // non-zero, the segments require the specific address specified,
@@ -870,18 +869,24 @@ bool ElfFile::Load(bool executable, std::string* error_msg) {
       return false;
     }
     size_t file_length = static_cast<size_t>(temp_file_length);
-    if (program_header.p_vaddr == 0) {
+    if (!reserved) {
+      byte* reserve_base = ((program_header.p_vaddr != 0) ?
+                            reinterpret_cast<byte*>(program_header.p_vaddr) : nullptr);
       std::string reservation_name("ElfFile reservation for ");
       reservation_name += file_->GetPath();
       std::unique_ptr<MemMap> reserve(MemMap::MapAnonymous(reservation_name.c_str(),
-                                                     nullptr, GetLoadedSize(), PROT_NONE, false,
-                                                     error_msg));
+                                                           reserve_base,
+                                                           GetLoadedSize(), PROT_NONE, false,
+                                                           error_msg));
       if (reserve.get() == nullptr) {
         *error_msg = StringPrintf("Failed to allocate %s: %s",
                                   reservation_name.c_str(), error_msg->c_str());
         return false;
       }
-      base_address_ = reserve->Begin();
+      reserved = true;
+      if (reserve_base == nullptr) {
+        base_address_ = reserve->Begin();
+      }
       segments_.push_back(reserve.release());
     }
     // empty segment, nothing to map
@@ -1335,7 +1340,8 @@ void ElfFile::GdbJITSupport() {
   const Elf32_Shdr* symtab_sec = all.FindSectionByName(".symtab");
   Elf32_Shdr* text_sec = all.FindSectionByName(".text");
   if (debug_info == nullptr || debug_abbrev == nullptr || eh_frame == nullptr ||
-      debug_str == nullptr || text_sec == nullptr || strtab_sec == nullptr || symtab_sec == nullptr) {
+      debug_str == nullptr || text_sec == nullptr || strtab_sec == nullptr ||
+      symtab_sec == nullptr) {
     return;
   }
   // We need to add in a strtab and symtab to the image.

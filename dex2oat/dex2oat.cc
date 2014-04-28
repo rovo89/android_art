@@ -430,8 +430,7 @@ class Dex2Oat {
       t2.NewTiming("Patching ELF");
       std::string error_msg;
       if (!PatchOatCode(driver.get(), oat_file, oat_location, &error_msg)) {
-        LOG(ERROR) << "Failed to fixup ELF file " << oat_file->GetPath();
-        LOG(ERROR) << "Error was: " << error_msg;
+        LOG(ERROR) << "Failed to fixup ELF file " << oat_file->GetPath() << ": " << error_msg;
         return nullptr;
       }
     }
