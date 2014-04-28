@@ -87,12 +87,6 @@ class OatFile {
     uint32_t GetFpSpillMask() const {
       return fp_spill_mask_;
     }
-    uint32_t GetMappingTableOffset() const {
-      return mapping_table_offset_;
-    }
-    uint32_t GetVmapTableOffset() const {
-      return vmap_table_offset_;
-    }
     uint32_t GetNativeGcMapOffset() const {
       return native_gc_map_offset_;
     }
@@ -122,15 +116,14 @@ class OatFile {
     }
     uint32_t GetQuickCodeSize() const;
 
-    const uint8_t* GetMappingTable() const {
-      return GetOatPointer<const uint8_t*>(mapping_table_offset_);
-    }
-    const uint8_t* GetVmapTable() const {
-      return GetOatPointer<const uint8_t*>(vmap_table_offset_);
-    }
     const uint8_t* GetNativeGcMap() const {
       return GetOatPointer<const uint8_t*>(native_gc_map_offset_);
     }
+
+    uint32_t GetMappingTableOffset() const;
+    uint32_t GetVmapTableOffset() const;
+    const uint8_t* GetMappingTable() const;
+    const uint8_t* GetVmapTable() const;
 
     ~OatMethod();
 
@@ -140,8 +133,6 @@ class OatFile {
               const size_t frame_size_in_bytes,
               const uint32_t core_spill_mask,
               const uint32_t fp_spill_mask,
-              const uint32_t mapping_table_offset,
-              const uint32_t vmap_table_offset,
               const uint32_t gc_map_offset);
 
    private:
@@ -159,8 +150,6 @@ class OatFile {
     size_t frame_size_in_bytes_;
     uint32_t core_spill_mask_;
     uint32_t fp_spill_mask_;
-    uint32_t mapping_table_offset_;
-    uint32_t vmap_table_offset_;
     uint32_t native_gc_map_offset_;
 
     friend class OatClass;

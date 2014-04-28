@@ -94,6 +94,7 @@ static void UpdateEntrypoints(mirror::ArtMethod* method, const void* quick_code,
   }
   if (!method->IsResolutionMethod()) {
     if (quick_code == GetQuickToInterpreterBridge() ||
+        quick_code == GetQuickToInterpreterBridgeTrampoline(Runtime::Current()->GetClassLinker()) ||
         (quick_code == GetQuickResolutionTrampoline(Runtime::Current()->GetClassLinker()) &&
          Runtime::Current()->GetInstrumentation()->IsForcedInterpretOnly()
          && !method->IsNative() && !method->IsProxyMethod())) {
@@ -147,6 +148,7 @@ void Instrumentation::InstallStubsForMethod(mirror::ArtMethod* method) {
         // Do not overwrite interpreter to prevent from posting method entry/exit events twice.
         new_portable_code = class_linker->GetPortableOatCodeFor(method, &have_portable_code);
         new_quick_code = class_linker->GetQuickOatCodeFor(method);
+        DCHECK(new_quick_code != GetQuickToInterpreterBridgeTrampoline(class_linker));
         if (entry_exit_stubs_installed_ && new_quick_code != GetQuickToInterpreterBridge()) {
           DCHECK(new_portable_code != GetPortableToInterpreterBridge());
           new_portable_code = GetPortableToInterpreterBridge();
@@ -562,7 +564,8 @@ void Instrumentation::UpdateMethodsCode(mirror::ArtMethod* method, const void* q
       new_quick_code = GetQuickToInterpreterBridge();
       new_have_portable_code = false;
     } else if (quick_code == GetQuickResolutionTrampoline(Runtime::Current()->GetClassLinker()) ||
-               quick_code == GetQuickToInterpreterBridge()) {
+        quick_code == GetQuickToInterpreterBridgeTrampoline(Runtime::Current()->GetClassLinker()) ||
+        quick_code == GetQuickToInterpreterBridge()) {
       DCHECK((portable_code == GetPortableResolutionTrampoline(Runtime::Current()->GetClassLinker())) ||
              (portable_code == GetPortableToInterpreterBridge()));
       new_portable_code = portable_code;
@@ -709,9 +712,10 @@ const void* Instrumentation::GetQuickCodeFor(mirror::ArtMethod* method) const {
   Runtime* runtime = Runtime::Current();
   if (LIKELY(!instrumentation_stubs_installed_)) {
     const void* code = method->GetEntryPointFromQuickCompiledCode();
-    DCHECK(code != NULL);
-    if (LIKELY(code != GetQuickResolutionTrampoline(runtime->GetClassLinker()) &&
-               code != GetQuickToInterpreterBridge())) {
+    DCHECK(code != nullptr);
+    if (LIKELY(code != GetQuickResolutionTrampoline(runtime->GetClassLinker())) &&
+        LIKELY(code != GetQuickToInterpreterBridgeTrampoline(runtime->GetClassLinker())) &&
+        LIKELY(code != GetQuickToInterpreterBridge())) {
       return code;
     }
   }

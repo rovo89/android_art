@@ -119,9 +119,9 @@ class PACKED(4) OatHeader {
   DISALLOW_COPY_AND_ASSIGN(OatHeader);
 };
 
-// OatMethodOffsets are currently 7x32-bits=224-bits long, so if we can
+// OatMethodOffsets are currently 5x32-bits=160-bits long, so if we can
 // save even one OatMethodOffsets struct, the more complicated encoding
-// using a bitmap pays for itself since few classes will have 224
+// using a bitmap pays for itself since few classes will have 160
 // methods.
 enum OatClassType {
   kOatClassAllCompiled = 0,   // OatClass is followed by an OatMethodOffsets for each method.
@@ -140,8 +140,6 @@ class PACKED(4) OatMethodOffsets {
                    uint32_t frame_size_in_bytes,
                    uint32_t core_spill_mask,
                    uint32_t fp_spill_mask,
-                   uint32_t mapping_table_offset,
-                   uint32_t vmap_table_offset,
                    uint32_t gc_map_offset);
 
   ~OatMethodOffsets();
@@ -150,8 +148,6 @@ class PACKED(4) OatMethodOffsets {
   uint32_t frame_size_in_bytes_;
   uint32_t core_spill_mask_;
   uint32_t fp_spill_mask_;
-  uint32_t mapping_table_offset_;
-  uint32_t vmap_table_offset_;
   uint32_t gc_map_offset_;
 };
 
@@ -160,10 +156,15 @@ class PACKED(4) OatMethodHeader {
  public:
   OatMethodHeader();
 
-  explicit OatMethodHeader(uint32_t code_size);
+  explicit OatMethodHeader(uint32_t mapping_table_offset, uint32_t vmap_table_offset,
+                           uint32_t code_size);
 
   ~OatMethodHeader();
 
+  // The offset in bytes from the start of the mapping table to the end of the header.
+  uint32_t mapping_table_offset_;
+  // The offset in bytes from the start of the vmap table to the end of the header.
+  uint32_t vmap_table_offset_;
   // The code size in bytes.
   uint32_t code_size_;
 };
