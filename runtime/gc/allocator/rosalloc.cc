@@ -600,8 +600,12 @@ void* RosAlloc::AllocFromRun(Thread* self, size_t size, size_t* bytes_allocated)
     // Use a thread-local run.
     Run* thread_local_run = reinterpret_cast<Run*>(self->GetRosAllocRun(idx));
     // Allow invalid since this will always fail the allocation.
-    DCHECK(non_full_runs_[idx].find(thread_local_run) == non_full_runs_[idx].end());
-    DCHECK(full_runs_[idx].find(thread_local_run) == full_runs_[idx].end());
+    if (kIsDebugBuild) {
+      // Need the lock to prevent race conditions.
+      MutexLock mu(self, *size_bracket_locks_[idx]);
+      CHECK(non_full_runs_[idx].find(thread_local_run) == non_full_runs_[idx].end());
+      CHECK(full_runs_[idx].find(thread_local_run) == full_runs_[idx].end());
+    }
     DCHECK(thread_local_run != nullptr);
     DCHECK(thread_local_run->IsThreadLocal() || thread_local_run == dedicated_full_run_);
     slot_addr = thread_local_run->AllocSlot();
