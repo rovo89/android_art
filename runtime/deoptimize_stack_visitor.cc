@@ -78,7 +78,7 @@ bool DeoptimizeStackVisitor::HandleDeoptimization(mirror::ArtMethod* m) {
   if (prev_shadow_frame_ != nullptr) {
     prev_shadow_frame_->SetLink(new_frame);
   } else {
-    exception_handler_->SetTopShadowFrame(new_frame);
+    self_->SetDeoptimizationShadowFrame(new_frame);
   }
   prev_shadow_frame_ = new_frame;
   return true;

@@ -19,6 +19,7 @@
 
 #include "base/mutex.h"
 #include "stack.h"
+#include "thread.h"
 
 namespace art {
 
@@ -35,6 +36,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(self, context), self_(self), exception_handler_(exception_handler),
         prev_shadow_frame_(nullptr) {
+    CHECK(!self_->HasDeoptimizationShadowFrame());
   }
 
   bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

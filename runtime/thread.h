@@ -696,6 +696,10 @@ class Thread {
 
   ShadowFrame* GetAndClearDeoptimizationShadowFrame(JValue* ret_val);
 
+  bool HasDeoptimizationShadowFrame() const {
+    return tlsPtr_.deoptimization_shadow_frame != nullptr;
+  }
+
   std::deque<instrumentation::InstrumentationStackFrame>* GetInstrumentationStack() {
     return tlsPtr_.instrumentation_stack;
   }
