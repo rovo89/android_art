@@ -22,7 +22,7 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "garbage_collector.h"
-#include "gc/accounting/space_bitmap.h"
+#include "gc/accounting/heap_bitmap.h"
 #include "immune_region.h"
 #include "object_callbacks.h"
 #include "offsets.h"

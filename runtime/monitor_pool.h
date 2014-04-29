@@ -17,11 +17,12 @@
 #ifndef ART_RUNTIME_MONITOR_POOL_H_
 #define ART_RUNTIME_MONITOR_POOL_H_
 
+#include "monitor.h"
+
 #ifdef __LP64__
 #include <bitset>
 #include <stdint.h>
 
-#include "monitor.h"
 #include "runtime.h"
 #include "safe_map.h"
 #endif

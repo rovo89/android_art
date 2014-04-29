@@ -19,8 +19,10 @@
 #include "utils/arm/assembler_arm.h"
 #include "utils/arm/managed_register_arm.h"
 
+#include "entrypoints/quick/quick_entrypoints.h"
 #include "mirror/array.h"
 #include "mirror/art_method.h"
+#include "thread.h"
 
 #define __ reinterpret_cast<ArmAssembler*>(GetAssembler())->
 

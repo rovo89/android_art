@@ -23,7 +23,7 @@
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
-#include "mirror/string.h"
+#include "mirror/string-inl.h"
 #include "thread.h"
 #include "utils.h"
 

@@ -45,6 +45,7 @@
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
+#include "mirror/string-inl.h"
 #include "oat.h"
 #include "oat_file.h"
 #include "object_utils.h"
@@ -448,7 +449,7 @@ void ImageWriter::WalkInstanceFields(mirror::Object* obj, mirror::Class* klass) 
   for (size_t i = 0; i < num_reference_fields; ++i) {
     mirror::ArtField* field = sirt_class->GetInstanceField(i);
     MemberOffset field_offset = field->GetOffset();
-    mirror::Object* value = obj->GetFieldObject<mirror::Object>(field_offset, false);
+    mirror::Object* value = obj->GetFieldObject<mirror::Object>(field_offset);
     if (value != nullptr) {
       WalkFieldsInOrder(value);
     }
@@ -471,7 +472,7 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
       for (size_t i = 0; i < num_static_fields; ++i) {
         mirror::ArtField* field = klass->GetStaticField(i);
         MemberOffset field_offset = field->GetOffset();
-        mirror::Object* value = sirt_obj->GetFieldObject<mirror::Object>(field_offset, false);
+        mirror::Object* value = sirt_obj->GetFieldObject<mirror::Object>(field_offset);
         if (value != nullptr) {
           WalkFieldsInOrder(value);
         }
@@ -586,11 +587,11 @@ class FixupVisitor {
 
   void operator()(Object* obj, MemberOffset offset, bool /*is_static*/) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
-    Object* ref = obj->GetFieldObject<Object, kVerifyNone>(offset, false);
+    Object* ref = obj->GetFieldObject<Object, kVerifyNone, false>(offset);
     // Use SetFieldObjectWithoutWriteBarrier to avoid card marking since we are writing to the
     // image.
     copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(
-        offset, image_writer_->GetImageAddress(ref), false);
+        offset, image_writer_->GetImageAddress(ref));
   }
 
   // java.lang.ref.Reference visitor.
@@ -598,8 +599,7 @@ class FixupVisitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(
-        mirror::Reference::ReferentOffset(), image_writer_->GetImageAddress(ref->GetReferent()),
-        false);
+        mirror::Reference::ReferentOffset(), image_writer_->GetImageAddress(ref->GetReferent()));
   }
 
  private:

@@ -29,6 +29,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
+#include "mirror/string-inl.h"
 #include "mirror/throwable.h"
 #include "object_utils.h"
 #include "runtime.h"

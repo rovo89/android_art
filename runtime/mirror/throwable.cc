@@ -32,16 +32,24 @@ namespace mirror {
 
 Class* Throwable::java_lang_Throwable_ = NULL;
 
+void Throwable::SetDetailMessage(String* new_detail_message) {
+  if (Runtime::Current()->IsActiveTransaction()) {
+    SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), new_detail_message);
+  } else {
+    SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_),
+                          new_detail_message);
+  }
+}
+
 void Throwable::SetCause(Throwable* cause) {
   CHECK(cause != nullptr);
   CHECK(cause != this);
-  Throwable* current_cause = GetFieldObject<Throwable>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_),
-                                                       false);
+  Throwable* current_cause = GetFieldObject<Throwable>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_));
   CHECK(current_cause == NULL || current_cause == this);
   if (Runtime::Current()->IsActiveTransaction()) {
-    SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_), cause, false);
+    SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_), cause);
   } else {
-    SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_), cause, false);
+    SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_), cause);
   }
 }
 
@@ -78,7 +86,7 @@ std::string Throwable::Dump() {
                              source_file, line_number);
     }
   }
-  Throwable* cause = GetFieldObject<Throwable>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_), false);
+  Throwable* cause = GetFieldObject<Throwable>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_));
   if (cause != NULL && cause != this) {  // Constructor makes cause == this by default.
     result += "Caused by: ";
     result += cause->Dump();

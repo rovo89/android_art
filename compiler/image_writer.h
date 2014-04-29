@@ -66,17 +66,20 @@ class ImageWriter {
   void AssignImageOffset(mirror::Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetImageOffset(mirror::Object* object, size_t offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool IsImageOffsetAssigned(mirror::Object* object) const;
-  size_t GetImageOffset(mirror::Object* object) const;
+  bool IsImageOffsetAssigned(mirror::Object* object) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  size_t GetImageOffset(mirror::Object* object) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::Object* GetImageAddress(mirror::Object* object) const {
+  mirror::Object* GetImageAddress(mirror::Object* object) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (object == NULL) {
       return NULL;
     }
     return reinterpret_cast<mirror::Object*>(image_begin_ + GetImageOffset(object));
   }
 
-  mirror::Object* GetLocalAddress(mirror::Object* object) const {
+  mirror::Object* GetLocalAddress(mirror::Object* object) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     size_t offset = GetImageOffset(object);
     byte* dst = image_->Begin() + offset;
     return reinterpret_cast<mirror::Object*>(dst);
@@ -108,7 +111,7 @@ class ImageWriter {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Wire dex cache resolved strings to strings in the image to avoid runtime resolution.
-  void ComputeEagerResolvedStrings();
+  void ComputeEagerResolvedStrings() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void ComputeEagerResolvedStringsCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

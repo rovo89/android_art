@@ -29,8 +29,7 @@ namespace art {
 namespace mirror {
 
 inline Class* ArtMethod::GetDeclaringClass() {
-  Class* result = GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, declaring_class_),
-                                        false);
+  Class* result = GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, declaring_class_));
   DCHECK(result != NULL) << this;
   DCHECK(result->IsIdxLoaded() || result->IsErroneous()) << this;
   return result;
@@ -38,17 +37,17 @@ inline Class* ArtMethod::GetDeclaringClass() {
 
 inline void ArtMethod::SetDeclaringClass(Class *new_declaring_class) {
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, declaring_class_),
-                        new_declaring_class, false);
+                        new_declaring_class);
 }
 
 inline uint32_t ArtMethod::GetAccessFlags() {
   DCHECK(GetDeclaringClass()->IsIdxLoaded() || GetDeclaringClass()->IsErroneous());
-  return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, access_flags_), false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, access_flags_));
 }
 
 inline uint16_t ArtMethod::GetMethodIndex() {
   DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous());
-  return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, method_index_), false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, method_index_));
 }
 
 inline uint32_t ArtMethod::GetDexMethodIndex() {
@@ -58,22 +57,22 @@ inline uint32_t ArtMethod::GetDexMethodIndex() {
 #else
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
 #endif
-  return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_method_index_), false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_method_index_));
 }
 
 inline ObjectArray<String>* ArtMethod::GetDexCacheStrings() {
   return GetFieldObject<ObjectArray<String> >(
-      OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_strings_), false);
+      OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_strings_));
 }
 
 inline ObjectArray<ArtMethod>* ArtMethod::GetDexCacheResolvedMethods() {
   return GetFieldObject<ObjectArray<ArtMethod> >(
-      OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_methods_), false);
+      OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_methods_));
 }
 
 inline ObjectArray<Class>* ArtMethod::GetDexCacheResolvedTypes() {
   return GetFieldObject<ObjectArray<Class> >(
-      OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_), false);
+      OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_));
 }
 
 inline uint32_t ArtMethod::GetCodeSize() {
@@ -199,7 +198,7 @@ inline bool ArtMethod::IsImtConflictMethod() {
 template<VerifyObjectFlags kVerifyFlags>
 inline void ArtMethod::SetNativeMethod(const void* native_method) {
   SetFieldPtr<false, true, kVerifyFlags>(
-      OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_jni_), native_method, false);
+      OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_jni_), native_method);
 }
 
 }  // namespace mirror
