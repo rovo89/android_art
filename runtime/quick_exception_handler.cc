@@ -28,7 +28,7 @@ QuickExceptionHandler::QuickExceptionHandler(Thread* self, bool is_deoptimizatio
     method_tracing_active_(is_deoptimization ||
                            Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()),
     handler_quick_frame_(nullptr), handler_quick_frame_pc_(0), handler_dex_pc_(0),
-    clear_exception_(false), top_shadow_frame_(nullptr), handler_frame_id_(kInvalidFrameId) {
+    clear_exception_(false), handler_frame_id_(kInvalidFrameId) {
 }
 
 void QuickExceptionHandler::FindCatch(const ThrowLocation& throw_location,
@@ -125,10 +125,6 @@ void QuickExceptionHandler::UpdateInstrumentationStack() {
 }
 
 void QuickExceptionHandler::DoLongJump() {
-  if (is_deoptimization_) {
-    // TODO: proper return value.
-    self_->SetDeoptimizationShadowFrame(top_shadow_frame_);
-  }
   // Place context back on thread so it will be available when we continue.
   self_->ReleaseLongJumpContext(context_);
   context_->SetSP(reinterpret_cast<uintptr_t>(handler_quick_frame_));

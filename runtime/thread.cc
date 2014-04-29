@@ -1932,92 +1932,102 @@ class ReferenceMapVisitor : public StackVisitor {
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (false) {
       LOG(INFO) << "Visiting stack roots in " << PrettyMethod(GetMethod())
-          << StringPrintf("@ PC:%04x", GetDexPc());
+                << StringPrintf("@ PC:%04x", GetDexPc());
     }
     ShadowFrame* shadow_frame = GetCurrentShadowFrame();
     if (shadow_frame != nullptr) {
-      mirror::ArtMethod* m = shadow_frame->GetMethod();
-      size_t num_regs = shadow_frame->NumberOfVRegs();
-      if (m->IsNative() || shadow_frame->HasReferenceArray()) {
-        // SIRT for JNI or References for interpreter.
-        for (size_t reg = 0; reg < num_regs; ++reg) {
+      VisitShadowFrame(shadow_frame);
+    } else {
+      VisitQuickFrame();
+    }
+    return true;
+  }
+
+  void VisitShadowFrame(ShadowFrame* shadow_frame) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::ArtMethod* m = shadow_frame->GetMethod();
+    size_t num_regs = shadow_frame->NumberOfVRegs();
+    if (m->IsNative() || shadow_frame->HasReferenceArray()) {
+      // SIRT for JNI or References for interpreter.
+      for (size_t reg = 0; reg < num_regs; ++reg) {
+        mirror::Object* ref = shadow_frame->GetVRegReference(reg);
+        if (ref != nullptr) {
+          mirror::Object* new_ref = ref;
+          visitor_(&new_ref, reg, this);
+          if (new_ref != ref) {
+            shadow_frame->SetVRegReference(reg, new_ref);
+          }
+        }
+      }
+    } else {
+      // Java method.
+      // Portable path use DexGcMap and store in Method.native_gc_map_.
+      const uint8_t* gc_map = m->GetNativeGcMap();
+      CHECK(gc_map != nullptr) << PrettyMethod(m);
+      verifier::DexPcToReferenceMap dex_gc_map(gc_map);
+      uint32_t dex_pc = shadow_frame->GetDexPC();
+      const uint8_t* reg_bitmap = dex_gc_map.FindBitMap(dex_pc);
+      DCHECK(reg_bitmap != nullptr);
+      num_regs = std::min(dex_gc_map.RegWidth() * 8, num_regs);
+      for (size_t reg = 0; reg < num_regs; ++reg) {
+        if (TestBitmap(reg, reg_bitmap)) {
           mirror::Object* ref = shadow_frame->GetVRegReference(reg);
           if (ref != nullptr) {
             mirror::Object* new_ref = ref;
             visitor_(&new_ref, reg, this);
             if (new_ref != ref) {
-             shadow_frame->SetVRegReference(reg, new_ref);
-            }
-          }
-        }
-      } else {
-        // Java method.
-        // Portable path use DexGcMap and store in Method.native_gc_map_.
-        const uint8_t* gc_map = m->GetNativeGcMap();
-        CHECK(gc_map != nullptr) << PrettyMethod(m);
-        verifier::DexPcToReferenceMap dex_gc_map(gc_map);
-        uint32_t dex_pc = GetDexPc();
-        const uint8_t* reg_bitmap = dex_gc_map.FindBitMap(dex_pc);
-        DCHECK(reg_bitmap != nullptr);
-        num_regs = std::min(dex_gc_map.RegWidth() * 8, num_regs);
-        for (size_t reg = 0; reg < num_regs; ++reg) {
-          if (TestBitmap(reg, reg_bitmap)) {
-            mirror::Object* ref = shadow_frame->GetVRegReference(reg);
-            if (ref != nullptr) {
-              mirror::Object* new_ref = ref;
-              visitor_(&new_ref, reg, this);
-              if (new_ref != ref) {
-               shadow_frame->SetVRegReference(reg, new_ref);
-              }
+              shadow_frame->SetVRegReference(reg, new_ref);
             }
           }
         }
       }
-    } else {
-      mirror::ArtMethod* m = GetMethod();
-      // Process register map (which native and runtime methods don't have)
-      if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
-        const uint8_t* native_gc_map = m->GetNativeGcMap();
-        CHECK(native_gc_map != nullptr) << PrettyMethod(m);
-        mh_.ChangeMethod(m);
-        const DexFile::CodeItem* code_item = mh_.GetCodeItem();
-        DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be nullptr or how would we compile its instructions?
-        NativePcOffsetToReferenceMap map(native_gc_map);
-        size_t num_regs = std::min(map.RegWidth() * 8,
-                                   static_cast<size_t>(code_item->registers_size_));
-        if (num_regs > 0) {
-          const uint8_t* reg_bitmap = map.FindBitMap(GetNativePcOffset());
-          DCHECK(reg_bitmap != nullptr);
-          const VmapTable vmap_table(m->GetVmapTable());
-          uint32_t core_spills = m->GetCoreSpillMask();
-          uint32_t fp_spills = m->GetFpSpillMask();
-          size_t frame_size = m->GetFrameSizeInBytes();
-          // For all dex registers in the bitmap
-          mirror::ArtMethod** cur_quick_frame = GetCurrentQuickFrame();
-          DCHECK(cur_quick_frame != nullptr);
-          for (size_t reg = 0; reg < num_regs; ++reg) {
-            // Does this register hold a reference?
-            if (TestBitmap(reg, reg_bitmap)) {
-              uint32_t vmap_offset;
-              if (vmap_table.IsInContext(reg, kReferenceVReg, &vmap_offset)) {
-                int vmap_reg = vmap_table.ComputeRegister(core_spills, vmap_offset, kReferenceVReg);
-                // This is sound as spilled GPRs will be word sized (ie 32 or 64bit).
-                mirror::Object** ref_addr = reinterpret_cast<mirror::Object**>(GetGPRAddress(vmap_reg));
-                if (*ref_addr != nullptr) {
-                  visitor_(ref_addr, reg, this);
-                }
-              } else {
-                StackReference<mirror::Object>* ref_addr =
-                    reinterpret_cast<StackReference<mirror::Object>*>(
-                        GetVRegAddr(cur_quick_frame, code_item, core_spills, fp_spills, frame_size,
-                                    reg));
-                mirror::Object* ref = ref_addr->AsMirrorPtr();
-                if (ref != nullptr) {
-                  mirror::Object* new_ref = ref;
-                  visitor_(&new_ref, reg, this);
-                  if (ref != new_ref) {
-                    ref_addr->Assign(new_ref);
-                  }
+    }
+  }
+
+ private:
+  void VisitQuickFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::ArtMethod* m = GetMethod();
+    // Process register map (which native and runtime methods don't have)
+    if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
+      const uint8_t* native_gc_map = m->GetNativeGcMap();
+      CHECK(native_gc_map != nullptr) << PrettyMethod(m);
+      mh_.ChangeMethod(m);
+      const DexFile::CodeItem* code_item = mh_.GetCodeItem();
+      DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be nullptr or how would we compile its instructions?
+      NativePcOffsetToReferenceMap map(native_gc_map);
+      size_t num_regs = std::min(map.RegWidth() * 8,
+                                 static_cast<size_t>(code_item->registers_size_));
+      if (num_regs > 0) {
+        const uint8_t* reg_bitmap = map.FindBitMap(GetNativePcOffset());
+        DCHECK(reg_bitmap != nullptr);
+        const VmapTable vmap_table(m->GetVmapTable());
+        uint32_t core_spills = m->GetCoreSpillMask();
+        uint32_t fp_spills = m->GetFpSpillMask();
+        size_t frame_size = m->GetFrameSizeInBytes();
+        // For all dex registers in the bitmap
+        mirror::ArtMethod** cur_quick_frame = GetCurrentQuickFrame();
+        DCHECK(cur_quick_frame != nullptr);
+        for (size_t reg = 0; reg < num_regs; ++reg) {
+          // Does this register hold a reference?
+          if (TestBitmap(reg, reg_bitmap)) {
+            uint32_t vmap_offset;
+            if (vmap_table.IsInContext(reg, kReferenceVReg, &vmap_offset)) {
+              int vmap_reg = vmap_table.ComputeRegister(core_spills, vmap_offset, kReferenceVReg);
+              // This is sound as spilled GPRs will be word sized (ie 32 or 64bit).
+              mirror::Object** ref_addr = reinterpret_cast<mirror::Object**>(GetGPRAddress(vmap_reg));
+              if (*ref_addr != nullptr) {
+                visitor_(ref_addr, reg, this);
+              }
+            } else {
+              StackReference<mirror::Object>* ref_addr =
+                  reinterpret_cast<StackReference<mirror::Object>*>(
+                      GetVRegAddr(cur_quick_frame, code_item, core_spills, fp_spills, frame_size,
+                                  reg));
+              mirror::Object* ref = ref_addr->AsMirrorPtr();
+              if (ref != nullptr) {
+                mirror::Object* new_ref = ref;
+                visitor_(&new_ref, reg, this);
+                if (ref != new_ref) {
+                  ref_addr->Assign(new_ref);
                 }
               }
             }
@@ -2025,10 +2035,8 @@ class ReferenceMapVisitor : public StackVisitor {
         }
       }
     }
-    return true;
   }
 
- private:
   static bool TestBitmap(size_t reg, const uint8_t* reg_vector) {
     return ((reg_vector[reg / kBitsPerByte] >> (reg % kBitsPerByte)) & 0x01) != 0;
   }
@@ -2084,6 +2092,14 @@ void Thread::VisitRoots(RootCallback* visitor, void* arg) {
   }
   if (tlsPtr_.single_step_control != nullptr) {
     tlsPtr_.single_step_control->VisitRoots(visitor, arg, thread_id, kRootDebugger);
+  }
+  if (tlsPtr_.deoptimization_shadow_frame != nullptr) {
+    RootCallbackVisitor visitorToCallback(visitor, arg, thread_id);
+    ReferenceMapVisitor<RootCallbackVisitor> mapper(this, nullptr, visitorToCallback);
+    for (ShadowFrame* shadow_frame = tlsPtr_.deoptimization_shadow_frame; shadow_frame != nullptr;
+        shadow_frame = shadow_frame->GetLink()) {
+      mapper.VisitShadowFrame(shadow_frame);
+    }
   }
   // Visit roots on this thread's stack
   Context* context = GetLongJumpContext();
