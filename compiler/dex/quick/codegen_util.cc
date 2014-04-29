@@ -940,7 +940,6 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       mir_graph_(mir_graph),
       switch_tables_(arena, 4, kGrowableArraySwitchTables),
       fill_array_data_(arena, 4, kGrowableArrayFillArrayData),
-      suspend_launchpads_(arena, 4, kGrowableArraySuspendLaunchPads),
       tempreg_info_(arena, 20, kGrowableArrayMisc),
       reginfo_map_(arena, 64, kGrowableArrayMisc),
       pointer_storage_(arena, 128, kGrowableArrayMisc),

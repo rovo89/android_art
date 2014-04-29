@@ -219,7 +219,7 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
       void Compile() OVERRIDE {
         m2l_->ResetRegPool();
         m2l_->ResetDefTracking();
-        GenerateTargetLabel();
+        GenerateTargetLabel(kPseudoThrowTarget);
         m2l_->OpRegImm(kOpAdd, rs_rX86_SP, sp_displace_);
         m2l_->ClobberCallerSave();
         ThreadOffset<4> func_offset = QUICK_ENTRYPOINT_OFFSET(4, pThrowStackOverflow);
