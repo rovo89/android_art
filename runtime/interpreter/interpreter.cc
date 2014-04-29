@@ -98,11 +98,8 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
     Primitive::Type primitive_type = component->GetPrimitiveType();
     result->SetI(Primitive::ComponentSize(primitive_type));
   } else {
-    // Throw an exception so we can abort the transaction and undo every change.
-    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-    self->ThrowNewExceptionF(throw_location, "Ljava/lang/InternalError;",
-                             "Attempt to invoke native method in non-started runtime: %s",
-                             name.c_str());
+    AbortTransaction(self, "Attempt to invoke native method in non-started runtime: %s",
+                     name.c_str());
   }
 }
 
