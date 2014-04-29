@@ -1400,7 +1400,8 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
       return true;  // Ignore runtime frames (in particular callee save).
     }
     method_trace_->Set<kTransactionActive>(count_, m);
-    dex_pc_trace_->Set<kTransactionActive>(count_, m->IsProxyMethod() ? DexFile::kDexNoIndex : GetDexPc());
+    dex_pc_trace_->Set<kTransactionActive>(count_,
+        m->IsProxyMethod() ? DexFile::kDexNoIndex : GetDexPc());
     ++count_;
     return true;
   }

@@ -158,6 +158,7 @@ static void DexFile_closeDexFile(JNIEnv* env, jclass, jlong cookie) {
   if (dex_file == nullptr) {
     return;
   }
+  ScopedObjectAccess soa(env);
   if (Runtime::Current()->GetClassLinker()->IsDexFileRegistered(*dex_file)) {
     return;
   }

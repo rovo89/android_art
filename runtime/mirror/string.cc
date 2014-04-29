@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "string.h"
+#include "string-inl.h"
 
 #include "array.h"
 #include "class-inl.h"
@@ -29,17 +29,8 @@
 namespace art {
 namespace mirror {
 
-CharArray* String::GetCharArray() {
-  return GetFieldObject<CharArray>(ValueOffset(), false);
-}
-
-void String::ComputeHashCode() {
-  SetHashCode(ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength()));
-}
-
-int32_t String::GetUtfLength() {
-  return CountUtf8Bytes(GetCharArray()->GetData() + GetOffset(), GetLength());
-}
+// TODO: get global references for these
+Class* String::java_lang_String_ = NULL;
 
 int32_t String::FastIndexOf(int32_t ch, int32_t start) {
   int32_t count = GetLength();
@@ -59,16 +50,6 @@ int32_t String::FastIndexOf(int32_t ch, int32_t start) {
   return -1;
 }
 
-void String::SetArray(CharArray* new_array) {
-  // Array is invariant so use non-transactional mode. Also disable check as we may run inside
-  // a transaction.
-  DCHECK(new_array != NULL);
-  SetFieldObject<false, false>(OFFSET_OF_OBJECT_MEMBER(String, array_), new_array, false);
-}
-
-// TODO: get global references for these
-Class* String::java_lang_String_ = NULL;
-
 void String::SetClass(Class* java_lang_String) {
   CHECK(java_lang_String_ == NULL);
   CHECK(java_lang_String != NULL);
@@ -80,39 +61,23 @@ void String::ResetClass() {
   java_lang_String_ = NULL;
 }
 
-String* String::Intern() {
-  return Runtime::Current()->GetInternTable()->InternWeak(this);
-}
-
 int32_t String::GetHashCode() {
-  int32_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_), false);
-  if (result == 0) {
+  int32_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_));
+  if (UNLIKELY(result == 0)) {
     ComputeHashCode();
   }
-  result = GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_), false);
+  result = GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_));
   DCHECK(result != 0 || ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength()) == 0)
           << ToModifiedUtf8() << " " << result;
   return result;
 }
 
-int32_t String::GetLength() {
-  int32_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(String, count_), false);
-  DCHECK(result >= 0 && result <= GetCharArray()->GetLength());
-  return result;
+void String::ComputeHashCode() {
+  SetHashCode(ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength()));
 }
 
-uint16_t String::CharAt(int32_t index) {
-  // TODO: do we need this? Equals is the only caller, and could
-  // bounds check itself.
-  DCHECK_GE(count_, 0);  // ensures the unsigned comparison is safe.
-  if (UNLIKELY(static_cast<uint32_t>(index) >= static_cast<uint32_t>(count_))) {
-    Thread* self = Thread::Current();
-    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-    self->ThrowNewExceptionF(throw_location, "Ljava/lang/StringIndexOutOfBoundsException;",
-                             "length=%i; index=%i", count_, index);
-    return 0;
-  }
-  return GetCharArray()->Get(index + GetOffset());
+int32_t String::GetUtfLength() {
+  return CountUtf8Bytes(GetCharArray()->GetData() + GetOffset(), GetLength());
 }
 
 String* String::AllocFromUtf16(Thread* self,

@@ -4053,8 +4053,8 @@ bool ClassLinker::LinkFields(const SirtRef<mirror::Class>& klass, bool is_static
         LOG(INFO) << "LinkFields: " << (is_static ? "static" : "instance")
                     << " class=" << PrettyClass(klass.get())
                     << " field=" << PrettyField(field)
-                    << " offset=" << field->GetField32(MemberOffset(mirror::ArtField::OffsetOffset()),
-                                                       false);
+                    << " offset="
+                    << field->GetField32(MemberOffset(mirror::ArtField::OffsetOffset()));
       }
       FieldHelper fh(field);
       Primitive::Type type = fh.GetTypeAsPrimitiveType();

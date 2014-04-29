@@ -282,17 +282,29 @@ void Transaction::ObjectLog::UndoFieldWrite(mirror::Object* obj, MemberOffset fi
   constexpr bool kCheckTransaction = true;
   switch (field_value.kind) {
     case k32Bits:
-      obj->SetField32<false, kCheckTransaction>(field_offset, static_cast<uint32_t>(field_value.value),
-                                                field_value.is_volatile);
+      if (UNLIKELY(field_value.is_volatile)) {
+        obj->SetField32Volatile<false, kCheckTransaction>(field_offset,
+                                                          static_cast<uint32_t>(field_value.value));
+      } else {
+        obj->SetField32<false, kCheckTransaction>(field_offset,
+                                                  static_cast<uint32_t>(field_value.value));
+      }
       break;
     case k64Bits:
-      obj->SetField64<false, kCheckTransaction>(field_offset, field_value.value,
-                                                field_value.is_volatile);
+      if (UNLIKELY(field_value.is_volatile)) {
+        obj->SetField64Volatile<false, kCheckTransaction>(field_offset, field_value.value);
+      } else {
+        obj->SetField64<false, kCheckTransaction>(field_offset, field_value.value);
+      }
       break;
     case kReference:
-      obj->SetFieldObject<false, kCheckTransaction>(field_offset,
-                                                    reinterpret_cast<mirror::Object*>(field_value.value),
-                                                    field_value.is_volatile);
+      if (UNLIKELY(field_value.is_volatile)) {
+        obj->SetFieldObjectVolatile<false, kCheckTransaction>(field_offset,
+                                                              reinterpret_cast<mirror::Object*>(field_value.value));
+      } else {
+        obj->SetFieldObject<false, kCheckTransaction>(field_offset,
+                                                      reinterpret_cast<mirror::Object*>(field_value.value));
+      }
       break;
     default:
       LOG(FATAL) << "Unknown value kind " << field_value.kind;

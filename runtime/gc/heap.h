@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "allocator_type.h"
 #include "atomic.h"
 #include "base/timing_logger.h"
 #include "gc/accounting/atomic_stack.h"
@@ -88,16 +89,6 @@ class AgeCardVisitor {
       return 0;
     }
   }
-};
-
-// Different types of allocators.
-enum AllocatorType {
-  kAllocatorTypeBumpPointer,  // Use BumpPointer allocator, has entrypoints.
-  kAllocatorTypeTLAB,  // Use TLAB allocator, has entrypoints.
-  kAllocatorTypeRosAlloc,  // Use RosAlloc allocator, has entrypoints.
-  kAllocatorTypeDlMalloc,  // Use dlmalloc allocator, has entrypoints.
-  kAllocatorTypeNonMoving,  // Special allocator for non moving objects, doesn't have entrypoints.
-  kAllocatorTypeLOS,  // Large object space, also doesn't have entrypoints.
 };
 
 // If true, use rosalloc/RosAllocSpace instead of dlmalloc/DlMallocSpace

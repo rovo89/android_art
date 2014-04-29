@@ -44,12 +44,12 @@ void DexCache::Init(const DexFile* dex_file,
   CHECK(resolved_methods != nullptr);
   CHECK(resolved_fields != nullptr);
 
-  SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_), dex_file, false);
-  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_), location, false);
-  SetFieldObject<false>(StringsOffset(), strings, false);
-  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_types_), resolved_types, false);
-  SetFieldObject<false>(ResolvedMethodsOffset(), resolved_methods, false);
-  SetFieldObject<false>(ResolvedFieldsOffset(), resolved_fields, false);
+  SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_), dex_file);
+  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_), location);
+  SetFieldObject<false>(StringsOffset(), strings);
+  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_types_), resolved_types);
+  SetFieldObject<false>(ResolvedMethodsOffset(), resolved_methods);
+  SetFieldObject<false>(ResolvedFieldsOffset(), resolved_fields);
 
   Runtime* runtime = Runtime::Current();
   if (runtime->HasResolutionMethod()) {

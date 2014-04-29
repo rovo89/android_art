@@ -19,8 +19,10 @@
 #include "utils/x86/assembler_x86.h"
 #include "utils/x86/managed_register_x86.h"
 
+#include "entrypoints/quick/quick_entrypoints.h"
 #include "mirror/array.h"
 #include "mirror/art_method.h"
+#include "thread.h"
 
 #define __ reinterpret_cast<X86Assembler*>(GetAssembler())->
 

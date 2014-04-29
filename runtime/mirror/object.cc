@@ -47,10 +47,10 @@ class CopyReferenceFieldsWithReadBarrierVisitor {
   void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const
       ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // GetFieldObject() contains a RB.
-    Object* ref = obj->GetFieldObject<Object>(offset, false);
+    Object* ref = obj->GetFieldObject<Object>(offset);
     // No WB here as a large object space does not have a card table
     // coverage. Instead, cards will be marked separately.
-    dest_obj_->SetFieldObjectWithoutWriteBarrier<false, false>(offset, ref, false);
+    dest_obj_->SetFieldObjectWithoutWriteBarrier<false, false>(offset, ref);
   }
 
   void operator()(mirror::Class* klass, mirror::Reference* ref) const

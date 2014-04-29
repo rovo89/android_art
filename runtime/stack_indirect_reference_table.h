@@ -20,6 +20,7 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "stack.h"
+#include "utils.h"
 
 namespace art {
 namespace mirror {

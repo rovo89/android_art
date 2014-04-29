@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_MIRROR_ART_FIELD_H_
 #define ART_RUNTIME_MIRROR_ART_FIELD_H_
 
+#include <jni.h>
+
 #include "class.h"
 #include "modifiers.h"
 #include "object.h"
@@ -43,7 +45,7 @@ class MANAGED ArtField : public Object {
 
   void SetAccessFlags(uint32_t new_access_flags) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Not called within a transaction.
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtField, access_flags_), new_access_flags, false);
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtField, access_flags_), new_access_flags);
   }
 
   bool IsPublic() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -59,12 +61,12 @@ class MANAGED ArtField : public Object {
   }
 
   uint32_t GetDexFieldIndex() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, field_dex_idx_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, field_dex_idx_));
   }
 
   void SetDexFieldIndex(uint32_t new_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Not called within a transaction.
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtField, field_dex_idx_), new_idx, false);
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtField, field_dex_idx_), new_idx);
   }
 
   // Offset to field within an Object.

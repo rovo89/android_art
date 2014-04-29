@@ -16,7 +16,7 @@
 
 #include "common_throws.h"
 #include "jni_internal.h"
-#include "mirror/string.h"
+#include "mirror/string-inl.h"
 #include "scoped_fast_native_object_access.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"

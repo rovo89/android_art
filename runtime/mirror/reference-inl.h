@@ -25,8 +25,8 @@ namespace mirror {
 inline bool Reference::IsEnqueuable() {
   // Not using volatile reads as an optimization since this is only called with all the mutators
   // suspended.
-  const Object* queue = GetFieldObject<mirror::Object>(QueueOffset(), false);
-  const Object* queue_next = GetFieldObject<mirror::Object>(QueueNextOffset(), false);
+  const Object* queue = GetFieldObject<mirror::Object>(QueueOffset());
+  const Object* queue_next = GetFieldObject<mirror::Object>(QueueNextOffset());
   return queue != nullptr && queue_next == nullptr;
 }
 
