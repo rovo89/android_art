@@ -1099,18 +1099,15 @@ void Mir2Lir::MethodMIR2LIR() {
     } while ((next_bb != NULL) && (next_bb->block_type == kDead));
   }
   HandleSlowPaths();
-
-  cu_->NewTimingSplit("Launchpads");
-  HandleSuspendLaunchPads();
 }
 
 //
 // LIR Slow Path
 //
 
-LIR* Mir2Lir::LIRSlowPath::GenerateTargetLabel() {
+LIR* Mir2Lir::LIRSlowPath::GenerateTargetLabel(int opcode) {
   m2l_->SetCurrentDexPc(current_dex_pc_);
-  LIR* target = m2l_->NewLIR0(kPseudoTargetLabel);
+  LIR* target = m2l_->NewLIR0(opcode);
   fromfast_->target = target;
   return target;
 }

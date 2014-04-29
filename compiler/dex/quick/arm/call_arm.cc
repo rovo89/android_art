@@ -383,7 +383,7 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
         void Compile() OVERRIDE {
           m2l_->ResetRegPool();
           m2l_->ResetDefTracking();
-          GenerateTargetLabel();
+          GenerateTargetLabel(kPseudoThrowTarget);
           if (restore_lr_) {
             m2l_->LoadWordDisp(rs_rARM_SP, sp_displace_ - 4, rs_rARM_LR);
           }
