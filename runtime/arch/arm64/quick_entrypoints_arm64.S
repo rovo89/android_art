@@ -158,7 +158,42 @@
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    brk 0
+    // FP callee saves
+    ldp d8, d9,   [sp, #8]
+    ldp d10, d11, [sp, #24]
+    ldp d12, d13, [sp, #40]
+    ldp d14, d15, [sp, #56]
+
+    // Callee saved.
+    ldp xSELF, x19, [sp, #72]
+    .cfi_restore x18
+    .cfi_restore x19
+
+    ldp x20, x21, [sp, #88]
+    .cfi_restore x20
+    .cfi_restore x21
+
+    ldp x22, x23, [sp, #104]
+    .cfi_restore x22
+    .cfi_restore x23
+
+    ldp x24, x25, [sp, #120]
+    .cfi_restore x24
+    .cfi_restore x25
+
+    ldp x26, x27, [sp, #136]
+    .cfi_restore x26
+    .cfi_restore x27
+
+    ldp x28, xFP, [sp, #152]    // Save FP.
+    .cfi_restore x28
+    .cfi_restore x29
+
+    ldr xLR, [sp, #168]
+    .cfi_restore x30
+
+    add sp, sp, #176
+    .cfi_adjust_cfa_offset -176
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
@@ -359,11 +394,15 @@
 .endm
 
 .macro RETURN_IF_RESULT_IS_ZERO
-    brk 0
+    cbnz x0, 1f                // result non-zero branch over
+    ret                        // return
+1:
 .endm
 
 .macro RETURN_IF_RESULT_IS_NON_ZERO
-    brk 0
+    cbz x0, 1f                 // result zero branch over
+    ret                        // return
+1:
 .endm
 
     /*
@@ -1008,18 +1047,32 @@ UNIMPLEMENTED art_quick_set_obj_instance
 UNIMPLEMENTED art_quick_resolve_string
 
 // Macro to facilitate adding new allocation entrypoints.
+// TODO: xSELF -> x19. Temporarily rely on xSELF being saved in REF_ONLY
 .macro TWO_ARG_DOWNCALL name, entrypoint, return
     .extern \entrypoint
 ENTRY \name
-    brk 0
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case of GC
+    mov    x2, xSELF                  // pass Thread::Current
+    mov    x3, sp                     // pass SP
+    bl     \entrypoint                // (uint32_t type_idx, Method* method, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    \return
+    DELIVER_PENDING_EXCEPTION
 END \name
 .endm
 
 // Macro to facilitate adding new array allocation entrypoints.
+// TODO: xSELF -> x19. Temporarily rely on xSELF being saved in REF_ONLY
 .macro THREE_ARG_DOWNCALL name, entrypoint, return
     .extern \entrypoint
 ENTRY \name
-    brk 0
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case of GC
+    mov    x3, xSELF                  // pass Thread::Current
+    mov    x4, sp                     // pass SP
+    bl     \entrypoint
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    \return
+    DELIVER_PENDING_EXCEPTION
 END \name
 .endm
 
