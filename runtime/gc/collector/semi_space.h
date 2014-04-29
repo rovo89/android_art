@@ -138,6 +138,10 @@ class SemiSpace : public GarbageCollector {
   static void ProcessMarkStackCallback(void* arg)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
+  static void DelayReferenceReferentCallback(mirror::Class* klass, mirror::Reference* ref,
+                                             void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+
   virtual mirror::Object* MarkNonForwardedObject(mirror::Object* obj)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
