@@ -180,7 +180,9 @@ void SemiSpace::MarkingPhase() {
     runtime->SetFaultMessage(oss.str());
     CHECK_EQ(self_->SetStateUnsafe(old_state), kRunnable);
   }
-
+  // Revoke the thread local buffers since the GC may allocate into a RosAllocSpace and this helps
+  // to prevent fragmentation.
+  RevokeAllThreadLocalBuffers();
   if (generational_) {
     if (gc_cause_ == kGcCauseExplicit || gc_cause_ == kGcCauseForNativeAlloc ||
         clear_soft_references_) {
@@ -332,11 +334,8 @@ void SemiSpace::UpdateAndMarkModUnion() {
 class SemiSpaceScanObjectVisitor {
  public:
   explicit SemiSpaceScanObjectVisitor(SemiSpace* ss) : semi_space_(ss) {}
-  void operator()(Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
-    // TODO: fix NO_THREAD_SAFETY_ANALYSIS. ScanObject() requires an
-    // exclusive lock on the mutator lock, but
-    // SpaceBitmap::VisitMarkedRange() only requires the shared lock.
+  void operator()(Object* obj) const EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_,
+                                                              Locks::heap_bitmap_lock_) {
     DCHECK(obj != nullptr);
     semi_space_->ScanObject(obj);
   }
@@ -552,10 +551,11 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
     // (pseudo-promote) it to the main free list space (as sort
     // of an old generation.)
     space::MallocSpace* promo_dest_space = GetHeap()->GetPrimaryFreeListSpace();
-    forward_address = promo_dest_space->Alloc(self_, object_size, &bytes_allocated, nullptr);
+    forward_address = promo_dest_space->AllocThreadUnsafe(self_, object_size, &bytes_allocated,
+                                                          nullptr);
     if (UNLIKELY(forward_address == nullptr)) {
       // If out of space, fall back to the to-space.
-      forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated, nullptr);
+      forward_address = to_space_->AllocThreadUnsafe(self_, object_size, &bytes_allocated, nullptr);
     } else {
       bytes_promoted_ += bytes_allocated;
       // Dirty the card at the destionation as it may contain
@@ -599,7 +599,7 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
     DCHECK(forward_address != nullptr);
   } else {
     // If it's allocated after the last GC (younger), copy it to the to-space.
-    forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated, nullptr);
+    forward_address = to_space_->AllocThreadUnsafe(self_, object_size, &bytes_allocated, nullptr);
   }
   ++objects_moved_;
   bytes_moved_ += bytes_allocated;

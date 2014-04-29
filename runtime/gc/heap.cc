@@ -2396,8 +2396,7 @@ void Heap::PreGcVerificationPaused(collector::GarbageCollector* gc) {
 }
 
 void Heap::PreGcVerification(collector::GarbageCollector* gc) {
-  if (verify_pre_gc_heap_ || verify_missing_card_marks_ || verify_mod_union_table_ ||
-      verify_pre_gc_rosalloc_) {
+  if (verify_pre_gc_heap_ || verify_missing_card_marks_ || verify_mod_union_table_) {
     collector::GarbageCollector::ScopedPause pause(gc);
     PreGcVerificationPaused(gc);
   }

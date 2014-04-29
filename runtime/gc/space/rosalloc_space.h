@@ -52,6 +52,11 @@ class RosAllocSpace : public MallocSpace {
                         size_t* usable_size) OVERRIDE {
     return AllocNonvirtual(self, num_bytes, bytes_allocated, usable_size);
   }
+  mirror::Object* AllocThreadUnsafe(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                                    size_t* usable_size)
+      OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return AllocNonvirtualThreadUnsafe(self, num_bytes, bytes_allocated, usable_size);
+  }
   size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE {
     return AllocationSizeNonvirtual(obj, usable_size);
   }
@@ -64,6 +69,11 @@ class RosAllocSpace : public MallocSpace {
                                   size_t* usable_size) {
     // RosAlloc zeroes memory internally.
     return AllocCommon(self, num_bytes, bytes_allocated, usable_size);
+  }
+  mirror::Object* AllocNonvirtualThreadUnsafe(Thread* self, size_t num_bytes,
+                                              size_t* bytes_allocated, size_t* usable_size) {
+    // RosAlloc zeroes memory internally. Pass in false for thread unsafe.
+    return AllocCommon<false>(self, num_bytes, bytes_allocated, usable_size);
   }
 
   // TODO: NO_THREAD_SAFETY_ANALYSIS because SizeOf() requires that mutator_lock is held.
@@ -116,6 +126,7 @@ class RosAllocSpace : public MallocSpace {
                 size_t starting_size, size_t initial_size, bool low_memory_mode);
 
  private:
+  template<bool kThreadSafe = true>
   mirror::Object* AllocCommon(Thread* self, size_t num_bytes, size_t* bytes_allocated,
                               size_t* usable_size);
 
