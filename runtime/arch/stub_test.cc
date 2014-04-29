@@ -266,6 +266,8 @@ extern "C" void art_quick_aput_obj_with_null_and_bound_check(void);
 #endif
 
 TEST_F(StubTest, APutObj) {
+  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+
 #if defined(__i386__) || defined(__arm__)
   Thread* self = Thread::Current();
   // Create an object
