@@ -426,7 +426,8 @@ LIR* X86Mir2Lir::OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1,
         RegStorage t_reg = AllocTemp();
         OpRegCopy(t_reg, r_src1);
         OpRegReg(op, t_reg, r_src2);
-        LIR* res = OpRegCopy(r_dest, t_reg);
+        LIR* res = OpRegCopyNoInsert(r_dest, t_reg);
+        AppendLIR(res);
         FreeTemp(t_reg);
         return res;
       }

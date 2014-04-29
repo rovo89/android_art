@@ -811,6 +811,8 @@ class Mir2Lir : public Backend {
     bool MethodBlockCodeGen(BasicBlock* bb);
     bool SpecialMIR2LIR(const InlineMethod& special);
     void MethodMIR2LIR();
+    // Update LIR for verbose listings.
+    void UpdateLIROffsets();
 
     /*
      * @brief Load the address of the dex method into the register.
@@ -1050,7 +1052,7 @@ class Mir2Lir : public Backend {
     virtual LIR* OpMem(OpKind op, RegStorage r_base, int disp) = 0;
     virtual LIR* OpPcRelLoad(RegStorage reg, LIR* target) = 0;
     virtual LIR* OpReg(OpKind op, RegStorage r_dest_src) = 0;
-    virtual LIR* OpRegCopy(RegStorage r_dest, RegStorage r_src) = 0;
+    virtual void OpRegCopy(RegStorage r_dest, RegStorage r_src) = 0;
     virtual LIR* OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) = 0;
     virtual LIR* OpRegImm(OpKind op, RegStorage r_dest_src1, int value) = 0;
     virtual LIR* OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int offset) = 0;

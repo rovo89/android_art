@@ -274,6 +274,19 @@ void Mir2Lir::DumpPromotionMap() {
   }
 }
 
+void Mir2Lir::UpdateLIROffsets() {
+  // Only used for code listings.
+  size_t offset = 0;
+  for (LIR* lir = first_lir_insn_; lir != nullptr; lir = lir->next) {
+    lir->offset = offset;
+    if (!lir->flags.is_nop && !IsPseudoLirOp(lir->opcode)) {
+      offset += GetInsnSize(lir);
+    } else if (lir->opcode == kPseudoPseudoAlign4) {
+      offset += (offset & 0x2);
+    }
+  }
+}
+
 /* Dump instructions and constant pool contents */
 void Mir2Lir::CodegenDump() {
   LOG(INFO) << "Dumping LIR insns for "
@@ -293,6 +306,7 @@ void Mir2Lir::CodegenDump() {
   LOG(INFO) << "expansion factor: "
             << static_cast<float>(total_size_) / static_cast<float>(insns_size * 2);
   DumpPromotionMap();
+  UpdateLIROffsets();
   for (lir_insn = first_lir_insn_; lir_insn != NULL; lir_insn = lir_insn->next) {
     DumpLIRInsn(lir_insn, 0);
   }

@@ -990,6 +990,9 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
     ResetRegPool();
     if (cu_->disable_opt & (1 << kTrackLiveTemps)) {
       ClobberAllRegs();
+      // Reset temp allocation to minimize differences when A/B testing.
+      reg_pool_->next_core_reg = 0;
+      reg_pool_->next_fp_reg = 0;
     }
 
     if (cu_->disable_opt & (1 << kSuppressLoads)) {

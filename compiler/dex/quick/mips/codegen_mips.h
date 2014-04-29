@@ -159,7 +159,7 @@ class MipsMir2Lir FINAL : public Mir2Lir {
     LIR* OpMem(OpKind op, RegStorage r_base, int disp);
     LIR* OpPcRelLoad(RegStorage reg, LIR* target);
     LIR* OpReg(OpKind op, RegStorage r_dest_src);
-    LIR* OpRegCopy(RegStorage r_dest, RegStorage r_src);
+    void OpRegCopy(RegStorage r_dest, RegStorage r_src);
     LIR* OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src);
     LIR* OpRegImm(OpKind op, RegStorage r_dest_src1, int value);
     LIR* OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int offset);
