@@ -45,6 +45,20 @@ const char* MIRGraph::extended_mir_op_names_[kMirOpLast - kMirOpFirst] = {
   "Check1",
   "Check2",
   "Select",
+  "ConstVector",
+  "MoveVector",
+  "PackedMultiply",
+  "PackedAddition",
+  "PackedSubtract",
+  "PackedShiftLeft",
+  "PackedSignedShiftRight",
+  "PackedUnsignedShiftRight",
+  "PackedAnd",
+  "PackedOr",
+  "PackedXor",
+  "PackedAddReduce",
+  "PackedReduce",
+  "PackedSet",
 };
 
 MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
@@ -798,13 +812,35 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
                 bb->first_mir_insn ? " | " : " ");
         for (mir = bb->first_mir_insn; mir; mir = mir->next) {
             int opcode = mir->dalvikInsn.opcode;
-            fprintf(file, "    {%04x %s %s %s\\l}%s\\\n", mir->offset,
-                    mir->ssa_rep ? GetDalvikDisassembly(mir) :
-                    (opcode < kMirOpFirst) ?  Instruction::Name(mir->dalvikInsn.opcode) :
-                    extended_mir_op_names_[opcode - kMirOpFirst],
-                    (mir->optimization_flags & MIR_IGNORE_RANGE_CHECK) != 0 ? " no_rangecheck" : " ",
-                    (mir->optimization_flags & MIR_IGNORE_NULL_CHECK) != 0 ? " no_nullcheck" : " ",
-                    mir->next ? " | " : " ");
+            if (opcode > kMirOpSelect && opcode < kMirOpLast) {
+              if (opcode == kMirOpConstVector) {
+                fprintf(file, "    {%04x %s %d %d %d %d %d %d\\l}%s\\\n", mir->offset,
+                        extended_mir_op_names_[kMirOpConstVector - kMirOpFirst],
+                        mir->dalvikInsn.vA,
+                        mir->dalvikInsn.vB,
+                        mir->dalvikInsn.arg[0],
+                        mir->dalvikInsn.arg[1],
+                        mir->dalvikInsn.arg[2],
+                        mir->dalvikInsn.arg[3],
+                        mir->next ? " | " : " ");
+              } else {
+                fprintf(file, "    {%04x %s %d %d %d\\l}%s\\\n", mir->offset,
+                        extended_mir_op_names_[opcode - kMirOpFirst],
+                        mir->dalvikInsn.vA,
+                        mir->dalvikInsn.vB,
+                        mir->dalvikInsn.vC,
+                        mir->next ? " | " : " ");
+              }
+            } else {
+              fprintf(file, "    {%04x %s %s %s\\l}%s\\\n", mir->offset,
+                      mir->ssa_rep ? GetDalvikDisassembly(mir) :
+                      (opcode < kMirOpFirst) ?
+                        Instruction::Name(mir->dalvikInsn.opcode) :
+                        extended_mir_op_names_[opcode - kMirOpFirst],
+                      (mir->optimization_flags & MIR_IGNORE_RANGE_CHECK) != 0 ? " no_rangecheck" : " ",
+                      (mir->optimization_flags & MIR_IGNORE_NULL_CHECK) != 0 ? " no_nullcheck" : " ",
+                      mir->next ? " | " : " ");
+            }
         }
         fprintf(file, "  }\"];\n\n");
     } else if (bb->block_type == kExceptionHandling) {

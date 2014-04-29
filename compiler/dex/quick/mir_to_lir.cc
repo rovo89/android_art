@@ -975,7 +975,18 @@ void Mir2Lir::HandleExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
     case kMirOpSelect:
       GenSelect(bb, mir);
       break;
+    case kMirOpPhi:
+    case kMirOpNop:
+    case kMirOpNullCheck:
+    case kMirOpRangeCheck:
+    case kMirOpDivZeroCheck:
+    case kMirOpCheck:
+    case kMirOpCheckPart2:
+      // Ignore these known opcodes
+      break;
     default:
+      // Give the backends a chance to handle unknown extended MIR opcodes.
+      GenMachineSpecificExtendedMethodMIR(bb, mir);
       break;
   }
 }
