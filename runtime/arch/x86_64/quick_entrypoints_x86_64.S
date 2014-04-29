@@ -52,7 +52,6 @@ END_MACRO
      * Runtime::CreateCalleeSaveMethod(kRefsOnly)
      */
 MACRO0(SETUP_REF_ONLY_CALLEE_SAVE_FRAME)
-    UNTESTED
     // R10 := Runtime::Current()
     movq _ZN3art7Runtime9instance_E@GOTPCREL(%rip), %r10
     movq (%r10), %r10
@@ -78,7 +77,6 @@ MACRO0(SETUP_REF_ONLY_CALLEE_SAVE_FRAME)
 END_MACRO
 
 MACRO0(RESTORE_REF_ONLY_CALLEE_SAVE_FRAME)
-    UNTESTED
     addq MACRO_LITERAL(8), %rsp
     CFI_ADJUST_CFA_OFFSET(-8)
     // TODO: optimize by not restoring callee-saves restored by the ABI
@@ -506,7 +504,6 @@ END_MACRO
 
 MACRO3(TWO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
-    UNTESTED
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME   // save ref containing registers for GC
     // Outgoing argument set up
     movq %rsp, %rcx                    // pass SP
@@ -519,19 +516,17 @@ END_MACRO
 
 MACRO3(THREE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
-    UNTESTED
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME   // save ref containing registers for GC
     // Outgoing argument set up
     movq %rsp, %r8                     // pass SP
     movq %gs:THREAD_SELF_OFFSET, %rcx  // pass Thread::Current()
     call PLT_VAR(cxx_name, 1)          // cxx_name(arg0, arg1, arg2, Thread*, SP)
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
     CALL_MACRO(return_macro, 2)        // return or deliver exception
     END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
 MACRO0(RETURN_IF_RESULT_IS_NON_ZERO)
-    UNTESTED
     testq %rax, %rax               // rax == 0 ?
     jz  1f                         // if rax == 0 goto 1
     ret                            // return
@@ -540,7 +535,6 @@ MACRO0(RETURN_IF_RESULT_IS_NON_ZERO)
 END_MACRO
 
 MACRO0(RETURN_IF_EAX_ZERO)
-    UNTESTED
     testl %eax, %eax               // eax == 0 ?
     jnz  1f                        // if eax != 0 goto 1
     ret                            // return
