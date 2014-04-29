@@ -177,37 +177,40 @@ LIR* MipsMir2Lir::OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) {
   return res;
 }
 
-LIR* MipsMir2Lir::OpRegCopy(RegStorage r_dest, RegStorage r_src) {
-  LIR *res = OpRegCopyNoInsert(r_dest, r_src);
-  AppendLIR(res);
-  return res;
+void MipsMir2Lir::OpRegCopy(RegStorage r_dest, RegStorage r_src) {
+  if (r_dest != r_src) {
+    LIR *res = OpRegCopyNoInsert(r_dest, r_src);
+    AppendLIR(res);
+  }
 }
 
 void MipsMir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
-  bool dest_fp = MIPS_FPREG(r_dest.GetLowReg());
-  bool src_fp = MIPS_FPREG(r_src.GetLowReg());
-  if (dest_fp) {
-    if (src_fp) {
-      // FIXME: handle this here - reserve OpRegCopy for 32-bit copies.
-      OpRegCopy(RegStorage::Solo64(S2d(r_dest.GetLowReg(), r_dest.GetHighReg())),
-                RegStorage::Solo64(S2d(r_src.GetLowReg(), r_src.GetHighReg())));
+  if (r_dest != r_src) {
+    bool dest_fp = MIPS_FPREG(r_dest.GetLowReg());
+    bool src_fp = MIPS_FPREG(r_src.GetLowReg());
+    if (dest_fp) {
+      if (src_fp) {
+        // FIXME: handle this here - reserve OpRegCopy for 32-bit copies.
+        OpRegCopy(RegStorage::Solo64(S2d(r_dest.GetLowReg(), r_dest.GetHighReg())),
+                  RegStorage::Solo64(S2d(r_src.GetLowReg(), r_src.GetHighReg())));
+        } else {
+          /* note the operands are swapped for the mtc1 instr */
+          NewLIR2(kMipsMtc1, r_src.GetLowReg(), r_dest.GetLowReg());
+          NewLIR2(kMipsMtc1, r_src.GetHighReg(), r_dest.GetHighReg());
+      }
     } else {
-       /* note the operands are swapped for the mtc1 instr */
-      NewLIR2(kMipsMtc1, r_src.GetLowReg(), r_dest.GetLowReg());
-      NewLIR2(kMipsMtc1, r_src.GetHighReg(), r_dest.GetHighReg());
-    }
-  } else {
-    if (src_fp) {
-      NewLIR2(kMipsMfc1, r_dest.GetLowReg(), r_src.GetLowReg());
-      NewLIR2(kMipsMfc1, r_dest.GetHighReg(), r_src.GetHighReg());
-    } else {
-      // Handle overlap
-      if (r_src.GetHighReg() == r_dest.GetLowReg()) {
-        OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
-        OpRegCopy(r_dest.GetLow(), r_src.GetLow());
+      if (src_fp) {
+        NewLIR2(kMipsMfc1, r_dest.GetLowReg(), r_src.GetLowReg());
+        NewLIR2(kMipsMfc1, r_dest.GetHighReg(), r_src.GetHighReg());
       } else {
-        OpRegCopy(r_dest.GetLow(), r_src.GetLow());
-        OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
+        // Handle overlap
+        if (r_src.GetHighReg() == r_dest.GetLowReg()) {
+          OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
+          OpRegCopy(r_dest.GetLow(), r_src.GetLow());
+        } else {
+          OpRegCopy(r_dest.GetLow(), r_src.GetLow());
+          OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
+        }
       }
     }
   }

@@ -116,52 +116,55 @@ LIR* X86Mir2Lir::OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) {
   return res;
 }
 
-LIR* X86Mir2Lir::OpRegCopy(RegStorage r_dest, RegStorage r_src) {
-  LIR *res = OpRegCopyNoInsert(r_dest, r_src);
-  AppendLIR(res);
-  return res;
+void X86Mir2Lir::OpRegCopy(RegStorage r_dest, RegStorage r_src) {
+  if (r_dest != r_src) {
+    LIR *res = OpRegCopyNoInsert(r_dest, r_src);
+    AppendLIR(res);
+  }
 }
 
 void X86Mir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
-  // FIXME: handle k64BitSolo when we start using them.
-  DCHECK(r_dest.IsPair());
-  DCHECK(r_src.IsPair());
-  bool dest_fp = X86_FPREG(r_dest.GetLowReg());
-  bool src_fp = X86_FPREG(r_src.GetLowReg());
-  if (dest_fp) {
-    if (src_fp) {
-      // TODO: we ought to handle this case here - reserve OpRegCopy for 32-bit copies.
-      OpRegCopy(RegStorage::Solo64(S2d(r_dest.GetLowReg(), r_dest.GetHighReg())),
-                RegStorage::Solo64(S2d(r_src.GetLowReg(), r_src.GetHighReg())));
-    } else {
-      // TODO: Prevent this from happening in the code. The result is often
-      // unused or could have been loaded more easily from memory.
-      NewLIR2(kX86MovdxrRR, r_dest.GetLowReg(), r_src.GetLowReg());
-      RegStorage r_tmp = AllocTempDouble();
-      NewLIR2(kX86MovdxrRR, r_tmp.GetLowReg(), r_src.GetHighReg());
-      NewLIR2(kX86PunpckldqRR, r_dest.GetLowReg(), r_tmp.GetLowReg());
-      FreeTemp(r_tmp);
-    }
-  } else {
-    if (src_fp) {
-      NewLIR2(kX86MovdrxRR, r_dest.GetLowReg(), r_src.GetLowReg());
-      NewLIR2(kX86PsrlqRI, r_src.GetLowReg(), 32);
-      NewLIR2(kX86MovdrxRR, r_dest.GetHighReg(), r_src.GetLowReg());
-    } else {
-      // Handle overlap
-      if (r_src.GetHighReg() == r_dest.GetLowReg() && r_src.GetLowReg() == r_dest.GetHighReg()) {
-        // Deal with cycles.
-        RegStorage temp_reg = AllocTemp();
-        OpRegCopy(temp_reg, r_dest.GetHigh());
-        OpRegCopy(r_dest.GetHigh(), r_dest.GetLow());
-        OpRegCopy(r_dest.GetLow(), temp_reg);
-        FreeTemp(temp_reg);
-      } else if (r_src.GetHighReg() == r_dest.GetLowReg()) {
-        OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
-        OpRegCopy(r_dest.GetLow(), r_src.GetLow());
+  if (r_dest != r_src) {
+    // FIXME: handle k64BitSolo when we start using them.
+    DCHECK(r_dest.IsPair());
+    DCHECK(r_src.IsPair());
+    bool dest_fp = X86_FPREG(r_dest.GetLowReg());
+    bool src_fp = X86_FPREG(r_src.GetLowReg());
+    if (dest_fp) {
+      if (src_fp) {
+        // TODO: we ought to handle this case here - reserve OpRegCopy for 32-bit copies.
+        OpRegCopy(RegStorage::Solo64(S2d(r_dest.GetLowReg(), r_dest.GetHighReg())),
+                  RegStorage::Solo64(S2d(r_src.GetLowReg(), r_src.GetHighReg())));
       } else {
-        OpRegCopy(r_dest.GetLow(), r_src.GetLow());
-        OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
+        // TODO: Prevent this from happening in the code. The result is often
+        // unused or could have been loaded more easily from memory.
+        NewLIR2(kX86MovdxrRR, r_dest.GetLowReg(), r_src.GetLowReg());
+        RegStorage r_tmp = AllocTempDouble();
+        NewLIR2(kX86MovdxrRR, r_tmp.GetLowReg(), r_src.GetHighReg());
+        NewLIR2(kX86PunpckldqRR, r_dest.GetLowReg(), r_tmp.GetLowReg());
+        FreeTemp(r_tmp);
+      }
+    } else {
+      if (src_fp) {
+        NewLIR2(kX86MovdrxRR, r_dest.GetLowReg(), r_src.GetLowReg());
+        NewLIR2(kX86PsrlqRI, r_src.GetLowReg(), 32);
+        NewLIR2(kX86MovdrxRR, r_dest.GetHighReg(), r_src.GetLowReg());
+      } else {
+        // Handle overlap
+        if (r_src.GetHighReg() == r_dest.GetLowReg() && r_src.GetLowReg() == r_dest.GetHighReg()) {
+          // Deal with cycles.
+          RegStorage temp_reg = AllocTemp();
+          OpRegCopy(temp_reg, r_dest.GetHigh());
+          OpRegCopy(r_dest.GetHigh(), r_dest.GetLow());
+          OpRegCopy(r_dest.GetLow(), temp_reg);
+          FreeTemp(temp_reg);
+        } else if (r_src.GetHighReg() == r_dest.GetLowReg()) {
+          OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
+          OpRegCopy(r_dest.GetLow(), r_src.GetLow());
+        } else {
+          OpRegCopy(r_dest.GetLow(), r_src.GetLow());
+          OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
+        }
       }
     }
   }
