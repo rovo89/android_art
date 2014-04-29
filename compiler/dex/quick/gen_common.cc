@@ -72,7 +72,7 @@ void Mir2Lir::AddDivZeroCheckSlowPath(LIR* branch) {
     void Compile() OVERRIDE {
       m2l_->ResetRegPool();
       m2l_->ResetDefTracking();
-      GenerateTargetLabel();
+      GenerateTargetLabel(kPseudoThrowTarget);
       m2l_->CallRuntimeHelper(QUICK_ENTRYPOINT_OFFSET(4, pThrowDivZero), true);
     }
   };
@@ -91,7 +91,7 @@ void Mir2Lir::GenArrayBoundsCheck(RegStorage index, RegStorage length) {
     void Compile() OVERRIDE {
       m2l_->ResetRegPool();
       m2l_->ResetDefTracking();
-      GenerateTargetLabel();
+      GenerateTargetLabel(kPseudoThrowTarget);
       m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pThrowArrayBounds),
                                     index_, length_, true);
     }
@@ -116,7 +116,7 @@ void Mir2Lir::GenArrayBoundsCheck(int index, RegStorage length) {
     void Compile() OVERRIDE {
       m2l_->ResetRegPool();
       m2l_->ResetDefTracking();
-      GenerateTargetLabel();
+      GenerateTargetLabel(kPseudoThrowTarget);
 
       m2l_->OpRegCopy(m2l_->TargetReg(kArg1), length_);
       m2l_->LoadConstant(m2l_->TargetReg(kArg0), index_);
@@ -143,7 +143,7 @@ LIR* Mir2Lir::GenNullCheck(RegStorage reg) {
     void Compile() OVERRIDE {
       m2l_->ResetRegPool();
       m2l_->ResetDefTracking();
-      GenerateTargetLabel();
+      GenerateTargetLabel(kPseudoThrowTarget);
       m2l_->CallRuntimeHelper(QUICK_ENTRYPOINT_OFFSET(4, pThrowNullPointer), true);
     }
   };
@@ -691,22 +691,6 @@ void Mir2Lir::HandleSlowPaths() {
     slowpath->Compile();
   }
   slow_paths_.Reset();
-}
-
-void Mir2Lir::HandleSuspendLaunchPads() {
-  int num_elems = suspend_launchpads_.Size();
-  ThreadOffset<4> helper_offset = QUICK_ENTRYPOINT_OFFSET(4, pTestSuspend);
-  for (int i = 0; i < num_elems; i++) {
-    ResetRegPool();
-    ResetDefTracking();
-    LIR* lab = suspend_launchpads_.Get(i);
-    LIR* resume_lab = reinterpret_cast<LIR*>(UnwrapPointer(lab->operands[0]));
-    current_dalvik_offset_ = lab->operands[1];
-    AppendLIR(lab);
-    RegStorage r_tgt = CallHelperSetup(helper_offset);
-    CallHelper(r_tgt, helper_offset, true /* MarkSafepointPC */);
-    OpUnconditionalBranch(resume_lab);
-  }
 }
 
 void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
@@ -1997,6 +1981,23 @@ void Mir2Lir::GenConversionCall(ThreadOffset<4> func_offset,
   }
 }
 
+class SuspendCheckSlowPath : public Mir2Lir::LIRSlowPath {
+ public:
+  SuspendCheckSlowPath(Mir2Lir* m2l, LIR* branch, LIR* cont)
+      : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch, cont) {
+  }
+
+  void Compile() OVERRIDE {
+    m2l_->ResetRegPool();
+    m2l_->ResetDefTracking();
+    GenerateTargetLabel(kPseudoSuspendTarget);
+    m2l_->CallRuntimeHelper(QUICK_ENTRYPOINT_OFFSET(4, pTestSuspend), true);
+    if (cont_ != nullptr) {
+      m2l_->OpUnconditionalBranch(cont_);
+    }
+  }
+};
+
 /* Check if we need to check for pending suspend request */
 void Mir2Lir::GenSuspendTest(int opt_flags) {
   if (Runtime::Current()->ExplicitSuspendChecks()) {
@@ -2005,11 +2006,8 @@ void Mir2Lir::GenSuspendTest(int opt_flags) {
     }
     FlushAllRegs();
     LIR* branch = OpTestSuspend(NULL);
-    LIR* ret_lab = NewLIR0(kPseudoTargetLabel);
-    LIR* target = RawLIR(current_dalvik_offset_, kPseudoSuspendTarget, WrapPointer(ret_lab),
-                         current_dalvik_offset_);
-    branch->target = target;
-    suspend_launchpads_.Insert(target);
+    LIR* cont = NewLIR0(kPseudoTargetLabel);
+    AddSlowPath(new (arena_) SuspendCheckSlowPath(this, branch, cont));
   } else {
     if (NO_SUSPEND || (opt_flags & MIR_IGNORE_SUSPEND_CHECK)) {
       return;
@@ -2028,12 +2026,9 @@ void Mir2Lir::GenSuspendTestAndBranch(int opt_flags, LIR* target) {
       return;
     }
     OpTestSuspend(target);
-    LIR* launch_pad =
-        RawLIR(current_dalvik_offset_, kPseudoSuspendTarget, WrapPointer(target),
-               current_dalvik_offset_);
     FlushAllRegs();
-    OpUnconditionalBranch(launch_pad);
-    suspend_launchpads_.Insert(launch_pad);
+    LIR* branch = OpUnconditionalBranch(nullptr);
+    AddSlowPath(new (arena_) SuspendCheckSlowPath(this, branch, target));
   } else {
     // For the implicit suspend check, just perform the trigger
     // load and branch to the target.
