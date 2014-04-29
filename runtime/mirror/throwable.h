@@ -30,18 +30,12 @@ namespace mirror {
 // C++ mirror of java.lang.Throwable
 class MANAGED Throwable : public Object {
  public:
-  void SetDetailMessage(String* new_detail_message) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (Runtime::Current()->IsActiveTransaction()) {
-      SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), new_detail_message,
-                           false);
-    } else {
-      SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), new_detail_message,
-                            false);
-    }
-  }
+  void SetDetailMessage(String* new_detail_message) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   String* GetDetailMessage() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), false);
+    return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_));
   }
+
   std::string Dump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // This is a runtime version of initCause, you shouldn't use it if initCause may have been
@@ -62,7 +56,7 @@ class MANAGED Throwable : public Object {
 
  private:
   Object* GetStackState() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<Object>(OFFSET_OF_OBJECT_MEMBER(Throwable, stack_state_), true);
+    return GetFieldObjectVolatile<Object>(OFFSET_OF_OBJECT_MEMBER(Throwable, stack_state_));
   }
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".

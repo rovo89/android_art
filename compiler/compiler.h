@@ -74,7 +74,8 @@ class Compiler {
                                      uint32_t method_idx,
                                      const DexFile& dex_file) const = 0;
 
-  virtual uintptr_t GetEntryPointOf(mirror::ArtMethod* method) const = 0;
+  virtual uintptr_t GetEntryPointOf(mirror::ArtMethod* method) const
+     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
   virtual bool WriteElf(art::File* file,
                         OatWriter* oat_writer,

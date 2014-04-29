@@ -30,69 +30,89 @@ namespace art {
 namespace mirror {
 
 inline Class* ArtField::GetDeclaringClass() {
-  Class* result = GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(ArtField, declaring_class_), false);
+  Class* result = GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(ArtField, declaring_class_));
   DCHECK(result != NULL);
   DCHECK(result->IsLoaded() || result->IsErroneous());
   return result;
 }
 
 inline void ArtField::SetDeclaringClass(Class *new_declaring_class) {
-  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ArtField, declaring_class_),
-                        new_declaring_class, false);
+  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ArtField, declaring_class_), new_declaring_class);
 }
 
 inline uint32_t ArtField::GetAccessFlags() {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, access_flags_), false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, access_flags_));
 }
 
 inline MemberOffset ArtField::GetOffset() {
   DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous());
-  return MemberOffset(GetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, offset_), false));
+  return MemberOffset(GetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, offset_)));
 }
 
 inline MemberOffset ArtField::GetOffsetDuringLinking() {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  return MemberOffset(GetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, offset_), false));
+  return MemberOffset(GetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, offset_)));
 }
 
 inline uint32_t ArtField::Get32(Object* object) {
-  DCHECK(object != NULL) << PrettyField(this);
+  DCHECK(object != nullptr) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
-  return object->GetField32(GetOffset(), IsVolatile());
+  if (UNLIKELY(IsVolatile())) {
+    return object->GetField32Volatile(GetOffset());
+  }
+  return object->GetField32(GetOffset());
 }
 
 template<bool kTransactionActive>
 inline void ArtField::Set32(Object* object, uint32_t new_value) {
-  DCHECK(object != NULL) << PrettyField(this);
+  DCHECK(object != nullptr) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
-  object->SetField32<kTransactionActive>(GetOffset(), new_value, IsVolatile());
+  if (UNLIKELY(IsVolatile())) {
+    object->SetField32Volatile<kTransactionActive>(GetOffset(), new_value);
+  } else {
+    object->SetField32<kTransactionActive>(GetOffset(), new_value);
+  }
 }
 
 inline uint64_t ArtField::Get64(Object* object) {
   DCHECK(object != NULL) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
-  return object->GetField64(GetOffset(), IsVolatile());
+  if (UNLIKELY(IsVolatile())) {
+    return object->GetField64Volatile(GetOffset());
+  }
+  return object->GetField64(GetOffset());
 }
 
 template<bool kTransactionActive>
 inline void ArtField::Set64(Object* object, uint64_t new_value) {
   DCHECK(object != NULL) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
-  object->SetField64<kTransactionActive>(GetOffset(), new_value, IsVolatile());
+  if (UNLIKELY(IsVolatile())) {
+    object->SetField64Volatile<kTransactionActive>(GetOffset(), new_value);
+  } else {
+    object->SetField64<kTransactionActive>(GetOffset(), new_value);
+  }
 }
 
 inline Object* ArtField::GetObj(Object* object) {
   DCHECK(object != NULL) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
-  return object->GetFieldObject<Object>(GetOffset(), IsVolatile());
+  if (UNLIKELY(IsVolatile())) {
+    return object->GetFieldObjectVolatile<Object>(GetOffset());
+  }
+  return object->GetFieldObject<Object>(GetOffset());
 }
 
 template<bool kTransactionActive>
 inline void ArtField::SetObj(Object* object, Object* new_value) {
   DCHECK(object != NULL) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
-  object->SetFieldObject<kTransactionActive>(GetOffset(), new_value, IsVolatile());
+  if (UNLIKELY(IsVolatile())) {
+    object->SetFieldObjectVolatile<kTransactionActive>(GetOffset(), new_value);
+  } else {
+    object->SetFieldObject<kTransactionActive>(GetOffset(), new_value);
+  }
 }
 
 inline bool ArtField::GetBoolean(Object* object) {

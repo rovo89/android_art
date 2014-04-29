@@ -17,9 +17,11 @@
 #ifndef ART_RUNTIME_MIRROR_CLASS_H_
 #define ART_RUNTIME_MIRROR_CLASS_H_
 
+#include "gc/allocator_type.h"
 #include "invoke_type.h"
 #include "modifiers.h"
 #include "object.h"
+#include "object_callbacks.h"
 #include "primitive.h"
 
 /*
@@ -122,8 +124,7 @@ class MANAGED Class : public Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   Status GetStatus() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     COMPILE_ASSERT(sizeof(Status) == sizeof(uint32_t), size_of_status_not_uint32);
-    return static_cast<Status>(GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, status_),
-                                                       true));
+    return static_cast<Status>(GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, status_)));
   }
 
   void SetStatus(Status new_status, Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -185,7 +186,7 @@ class MANAGED Class : public Object {
 
   void SetAccessFlags(uint32_t new_access_flags) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Not called within a transaction.
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), new_access_flags, false);
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), new_access_flags);
   }
 
   // Returns true if the class is an interface.
@@ -208,7 +209,7 @@ class MANAGED Class : public Object {
   }
 
   void SetFinalizable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    uint32_t flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), false);
+    uint32_t flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
     SetAccessFlags(flags | kAccClassIsFinalizable);
   }
 
@@ -280,21 +281,16 @@ class MANAGED Class : public Object {
     // Read access flags without using getter as whether something is a proxy can be check in
     // any loaded state
     // TODO: switch to a check if the super class is java.lang.reflect.Proxy?
-    uint32_t access_flags = GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_),
-                                                     false);
+    uint32_t access_flags = GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
     return (access_flags & kAccClassIsProxy) != 0;
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  Primitive::Type GetPrimitiveType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK_EQ(sizeof(Primitive::Type), sizeof(int32_t));
-    return static_cast<Primitive::Type>(
-        GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_), false));
-  }
+  Primitive::Type GetPrimitiveType() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetPrimitiveType(Primitive::Type new_type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_EQ(sizeof(Primitive::Type), sizeof(int32_t));
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_), new_type, false);
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_), new_type);
   }
 
   // Returns true if the class is a primitive type.
@@ -387,14 +383,14 @@ class MANAGED Class : public Object {
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kDoReadBarrier = true>
   Class* GetComponentType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<Class, kVerifyFlags, kDoReadBarrier>(ComponentTypeOffset(), false);
+    return GetFieldObject<Class, kVerifyFlags, kDoReadBarrier>(ComponentTypeOffset());
   }
 
   void SetComponentType(Class* new_component_type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(GetComponentType() == NULL);
     DCHECK(new_component_type != NULL);
     // Component type is invariant: use non-transactional mode without check.
-    SetFieldObject<false, false>(ComponentTypeOffset(), new_component_type, false);
+    SetFieldObject<false, false>(ComponentTypeOffset(), new_component_type);
   }
 
   template<bool kDoReadBarrier = true>
@@ -433,12 +429,12 @@ class MANAGED Class : public Object {
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kDoReadBarrier = true>
   uint32_t SizeOf() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), false);
+    return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, class_size_));
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   uint32_t GetClassSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), false);
+    return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, class_size_));
   }
 
   void SetClassSize(uint32_t new_class_size)
@@ -449,7 +445,7 @@ class MANAGED Class : public Object {
   void SetObjectSize(uint32_t new_object_size) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(!IsVariableSize());
     // Not called within a transaction.
-    return SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, object_size_), new_object_size, false);
+    return SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, object_size_), new_object_size);
   }
 
   // Returns true if this class is in the same packages as that class.
@@ -538,11 +534,10 @@ class MANAGED Class : public Object {
 
   void SetSuperClass(Class *new_super_class) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Super class is assigned once, except during class linker initialization.
-    Class* old_super_class = GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(Class, super_class_),
-                                                   false);
+    Class* old_super_class = GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(Class, super_class_));
     DCHECK(old_super_class == nullptr || old_super_class == new_super_class);
     DCHECK(new_super_class != nullptr);
-    SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, super_class_), new_super_class, false);
+    SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, super_class_), new_super_class);
   }
 
   bool HasSuperClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -553,7 +548,7 @@ class MANAGED Class : public Object {
     return MemberOffset(OFFSETOF_MEMBER(Class, super_class_));
   }
 
-  ClassLoader* GetClassLoader() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ClassLoader* GetClassLoader() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetClassLoader(ClassLoader* new_cl) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -709,26 +704,21 @@ class MANAGED Class : public Object {
   // Returns the number of instance fields containing reference types.
   uint32_t NumReferenceInstanceFields() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(IsResolved() || IsErroneous());
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_));
   }
 
   uint32_t NumReferenceInstanceFieldsDuringLinking() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(IsLoaded() || IsErroneous());
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_));
   }
 
-  void SetNumReferenceInstanceFields(uint32_t new_num) {
+  void SetNumReferenceInstanceFields(uint32_t new_num) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Not called within a transaction.
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_), new_num,
-                      false);
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_), new_num);
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  uint32_t GetReferenceInstanceOffsets() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(IsResolved<kVerifyFlags>() || IsErroneous<kVerifyFlags>());
-    return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, reference_instance_offsets_),
-                                   false);
-  }
+  uint32_t GetReferenceInstanceOffsets() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetReferenceInstanceOffsets(uint32_t new_reference_offsets)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -741,17 +731,17 @@ class MANAGED Class : public Object {
   // Returns the number of static fields containing reference types.
   uint32_t NumReferenceStaticFields() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(IsResolved() || IsErroneous());
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_));
   }
 
   uint32_t NumReferenceStaticFieldsDuringLinking() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(IsLoaded() || IsErroneous());
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_));
   }
 
-  void SetNumReferenceStaticFields(uint32_t new_num) {
+  void SetNumReferenceStaticFields(uint32_t new_num) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Not called within a transaction.
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_), new_num, false);
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_), new_num);
   }
 
   // Gets the static fields of the class.
@@ -769,8 +759,7 @@ class MANAGED Class : public Object {
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   uint32_t GetReferenceStaticOffsets() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, reference_static_offsets_),
-                                   false);
+    return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, reference_static_offsets_));
   }
 
   void SetReferenceStaticOffsets(uint32_t new_reference_offsets)
@@ -812,40 +801,32 @@ class MANAGED Class : public Object {
 
   pid_t GetClinitThreadId() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(IsIdxLoaded() || IsErroneous());
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, clinit_thread_id_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, clinit_thread_id_));
   }
 
-  void SetClinitThreadId(pid_t new_clinit_thread_id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (Runtime::Current()->IsActiveTransaction()) {
-      SetField32<true>(OFFSET_OF_OBJECT_MEMBER(Class, clinit_thread_id_), new_clinit_thread_id,
-                       false);
-    } else {
-      SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, clinit_thread_id_), new_clinit_thread_id,
-                        false);
-    }
-  }
+  void SetClinitThreadId(pid_t new_clinit_thread_id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Class* GetVerifyErrorClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // DCHECK(IsErroneous());
-    return GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), false);
+    return GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_));
   }
 
   uint16_t GetDexClassDefIndex() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, dex_class_def_idx_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, dex_class_def_idx_));
   }
 
   void SetDexClassDefIndex(uint16_t class_def_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Not called within a transaction.
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, dex_class_def_idx_), class_def_idx, false);
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, dex_class_def_idx_), class_def_idx);
   }
 
   uint16_t GetDexTypeIndex() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, dex_type_idx_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, dex_type_idx_));
   }
 
   void SetDexTypeIndex(uint16_t type_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Not called within a transaction.
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, dex_type_idx_), type_idx, false);
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, dex_type_idx_), type_idx);
   }
 
   static Class* GetJavaLangClass() {

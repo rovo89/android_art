@@ -596,7 +596,7 @@ class MarkStackTask : public Task {
 
     void operator()(Object* obj, MemberOffset offset, bool /* static */) const ALWAYS_INLINE
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-      mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset, false);
+      mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset);
       if (ref != nullptr && mark_sweep_->MarkObjectParallel(ref)) {
         if (kUseFinger) {
           android_memory_barrier();
@@ -1190,7 +1190,7 @@ class MarkObjectVisitor {
       Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
       Locks::heap_bitmap_lock_->AssertExclusiveHeld(Thread::Current());
     }
-    mark_sweep_->MarkObject(obj->GetFieldObject<mirror::Object>(offset, false));
+    mark_sweep_->MarkObject(obj->GetFieldObject<mirror::Object>(offset));
   }
 
  private:

@@ -18,6 +18,7 @@
 #define ART_RUNTIME_MIRROR_STACK_TRACE_ELEMENT_H_
 
 #include "object.h"
+#include "object_callbacks.h"
 
 namespace art {
 
@@ -30,22 +31,19 @@ namespace mirror {
 class MANAGED StackTraceElement : public Object {
  public:
   String* GetDeclaringClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, declaring_class_),
-                                  false);
+    return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, declaring_class_));
   }
 
   String* GetMethodName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, method_name_),
-                                  false);
+    return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, method_name_));
   }
 
   String* GetFileName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, file_name_),
-                                  false);
+    return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, file_name_));
   }
 
   int32_t GetLineNumber() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, line_number_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, line_number_));
   }
 
   static StackTraceElement* Alloc(Thread* self,

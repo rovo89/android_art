@@ -60,7 +60,7 @@ void ArtField::SetOffset(MemberOffset num_bytes) {
     }
   }
   // Not called within a transaction.
-  SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtField, offset_), num_bytes.Uint32Value(), false);
+  SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtField, offset_), num_bytes.Uint32Value());
 }
 
 void ArtField::VisitRoots(RootCallback* callback, void* arg) {

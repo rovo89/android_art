@@ -18,7 +18,6 @@
 #define ART_RUNTIME_MIRROR_OBJECT_ARRAY_H_
 
 #include "array.h"
-#include "gc/heap.h"
 
 namespace art {
 namespace mirror {
@@ -33,7 +32,7 @@ class MANAGED ObjectArray : public Array {
   static ObjectArray<T>* Alloc(Thread* self, Class* object_array_class, int32_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  T* Get(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  T* Get(int32_t i) ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if the object can be stored into the array. If not, throws
   // an ArrayStoreException and returns false.
@@ -41,11 +40,11 @@ class MANAGED ObjectArray : public Array {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool CheckAssignable(T* object) NO_THREAD_SAFETY_ANALYSIS;
 
-  void Set(int32_t i, T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Set(int32_t i, T* object) ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // TODO fix thread safety analysis: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_).
   template<bool kTransactionActive, bool kCheckTransaction = true,
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  void Set(int32_t i, T* object) NO_THREAD_SAFETY_ANALYSIS;
+  void Set(int32_t i, T* object) ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS;
 
   // Set element without bound and element type checks, to be used in limited
   // circumstances, such as during boot image writing.
@@ -53,14 +52,15 @@ class MANAGED ObjectArray : public Array {
   // SHARED_LOCKS_REQUIRED(Locks::mutator_lock_).
   template<bool kTransactionActive, bool kCheckTransaction = true,
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  void SetWithoutChecks(int32_t i, T* object) NO_THREAD_SAFETY_ANALYSIS;
+  void SetWithoutChecks(int32_t i, T* object) ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS;
   // TODO fix thread safety analysis broken by the use of template. This should be
   // SHARED_LOCKS_REQUIRED(Locks::mutator_lock_).
   template<bool kTransactionActive, bool kCheckTransaction = true,
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  void SetWithoutChecksAndWriteBarrier(int32_t i, T* object) NO_THREAD_SAFETY_ANALYSIS;
+  void SetWithoutChecksAndWriteBarrier(int32_t i, T* object) ALWAYS_INLINE
+      NO_THREAD_SAFETY_ANALYSIS;
 
-  T* GetWithoutChecks(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  T* GetWithoutChecks(int32_t i) ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Copy src into this array (dealing with overlaps as memmove does) without assignability checks.
   void AssignableMemmove(int32_t dst_pos, ObjectArray<T>* src, int32_t src_pos,

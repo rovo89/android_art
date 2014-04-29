@@ -43,26 +43,26 @@ class MANAGED Reference : public Object {
   }
 
   Object* GetReferent() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<Object>(ReferentOffset(), true);
+    return GetFieldObjectVolatile<Object>(ReferentOffset());
   }
   template<bool kTransactionActive>
   void SetReferent(Object* referent) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    SetFieldObject<kTransactionActive>(ReferentOffset(), referent, true);
+    SetFieldObjectVolatile<kTransactionActive>(ReferentOffset(), referent);
   }
   template<bool kTransactionActive>
   void ClearReferent() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    SetFieldObject<kTransactionActive>(ReferentOffset(), nullptr, true);
+    SetFieldObjectVolatile<kTransactionActive>(ReferentOffset(), nullptr);
   }
 
   // Volatile read/write is not necessary since the java pending next is only accessed from
   // the java threads for cleared references. Once these cleared references have a null referent,
   // we never end up reading their pending next from the GC again.
   Reference* GetPendingNext() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<Reference>(PendingNextOffset(), false);
+    return GetFieldObject<Reference>(PendingNextOffset());
   }
   template<bool kTransactionActive>
   void SetPendingNext(Reference* pending_next) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    SetFieldObject<kTransactionActive>(PendingNextOffset(), pending_next, false);
+    SetFieldObject<kTransactionActive>(PendingNextOffset(), pending_next);
   }
 
   bool IsEnqueued() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -93,10 +93,10 @@ class MANAGED FinalizerReference : public Reference {
 
   template<bool kTransactionActive>
   void SetZombie(Object* zombie) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return SetFieldObject<kTransactionActive>(ZombieOffset(), zombie, true);
+    return SetFieldObjectVolatile<kTransactionActive>(ZombieOffset(), zombie);
   }
   Object* GetZombie() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<Object>(ZombieOffset(), true);
+    return GetFieldObjectVolatile<Object>(ZombieOffset());
   }
 
  private:

@@ -90,17 +90,17 @@ void ArtMethod::ResetClass() {
 
 void ArtMethod::SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings) {
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_strings_),
-                        new_dex_cache_strings, false);
+                        new_dex_cache_strings);
 }
 
 void ArtMethod::SetDexCacheResolvedMethods(ObjectArray<ArtMethod>* new_dex_cache_methods) {
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_methods_),
-                        new_dex_cache_methods, false);
+                        new_dex_cache_methods);
 }
 
 void ArtMethod::SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_classes) {
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_),
-                        new_dex_cache_classes, false);
+                        new_dex_cache_classes);
 }
 
 size_t ArtMethod::NumArgRegisters(const StringPiece& shorty) {
@@ -345,7 +345,7 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
 
 bool ArtMethod::IsRegistered() {
   void* native_method =
-      GetFieldPtr<void*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_jni_), false);
+      GetFieldPtr<void*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_jni_));
   CHECK(native_method != nullptr);
   void* jni_stub = GetJniDlsymLookupStub();
   return native_method != jni_stub;

@@ -228,17 +228,17 @@ static inline bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* ins
     instrumentation->FieldReadEvent(Thread::Current(), obj, shadow_frame.GetMethod(),
                                     shadow_frame.GetDexPC(), f);
   }
-  const bool is_volatile = false;  // iget-x-quick only on non volatile fields.
+  // Note: iget-x-quick instructions are only for non-volatile fields.
   const uint32_t vregA = inst->VRegA_22c(inst_data);
   switch (field_type) {
     case Primitive::kPrimInt:
-      shadow_frame.SetVReg(vregA, static_cast<int32_t>(obj->GetField32(field_offset, is_volatile)));
+      shadow_frame.SetVReg(vregA, static_cast<int32_t>(obj->GetField32(field_offset)));
       break;
     case Primitive::kPrimLong:
-      shadow_frame.SetVRegLong(vregA, static_cast<int64_t>(obj->GetField64(field_offset, is_volatile)));
+      shadow_frame.SetVRegLong(vregA, static_cast<int64_t>(obj->GetField64(field_offset)));
       break;
     case Primitive::kPrimNot:
-      shadow_frame.SetVRegReference(vregA, obj->GetFieldObject<mirror::Object>(field_offset, is_volatile));
+      shadow_frame.SetVRegReference(vregA, obj->GetFieldObject<mirror::Object>(field_offset));
       break;
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
@@ -382,18 +382,16 @@ static inline bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instructio
     instrumentation->FieldWriteEvent(Thread::Current(), obj, shadow_frame.GetMethod(),
                                      shadow_frame.GetDexPC(), f, field_value);
   }
-  const bool is_volatile = false;  // iput-x-quick only on non volatile fields.
+  // Note: iput-x-quick instructions are only for non-volatile fields.
   switch (field_type) {
     case Primitive::kPrimInt:
-      obj->SetField32<transaction_active>(field_offset, shadow_frame.GetVReg(vregA), is_volatile);
+      obj->SetField32<transaction_active>(field_offset, shadow_frame.GetVReg(vregA));
       break;
     case Primitive::kPrimLong:
-      obj->SetField64<transaction_active>(field_offset, shadow_frame.GetVRegLong(vregA),
-                                          is_volatile);
+      obj->SetField64<transaction_active>(field_offset, shadow_frame.GetVRegLong(vregA));
       break;
     case Primitive::kPrimNot:
-      obj->SetFieldObject<transaction_active>(field_offset, shadow_frame.GetVRegReference(vregA),
-                                              is_volatile);
+      obj->SetFieldObject<transaction_active>(field_offset, shadow_frame.GetVRegReference(vregA));
       break;
     default:
       LOG(FATAL) << "Unreachable: " << field_type;

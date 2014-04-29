@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "base/logging.h"
-#include "base/mutex.h"
+#include "base/mutex.h"  // For Locks::mutator_lock_.
 #include "globals.h"
 #include "invoke_type.h"
 #include "jni.h"
@@ -384,10 +384,6 @@ class DexFile {
   const Header& GetHeader() const {
     DCHECK(header_ != NULL) << GetLocation();
     return *header_;
-  }
-
-  Mutex& GetModificationLock() {
-    return modification_lock;
   }
 
   // Decode the dex magic version
@@ -876,11 +872,6 @@ class DexFile {
 
   // Manages the underlying memory allocation.
   UniquePtr<MemMap> mem_map_;
-
-  // The DEX-to-DEX compiler uses this lock to ensure thread safety when
-  // enabling write access to a read-only DEX file.
-  // TODO: move to Locks::dex_file_modification_lock.
-  Mutex modification_lock;
 
   // Points to the header section.
   const Header* const header_;

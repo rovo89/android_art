@@ -114,9 +114,9 @@ void Class::SetStatus(Status new_status, Thread* self) {
   }
   CHECK(sizeof(Status) == sizeof(uint32_t)) << PrettyClass(this);
   if (Runtime::Current()->IsActiveTransaction()) {
-    SetField32<true>(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status, false);
+    SetField32<true>(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status);
   } else {
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status, false);
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status);
   }
   // Classes that are being resolved or initialized need to notify waiters that the class status
   // changed. See ClassLinker::EnsureResolved and ClassLinker::WaitForInitializeClass.
@@ -127,7 +127,7 @@ void Class::SetStatus(Status new_status, Thread* self) {
 }
 
 void Class::SetDexCache(DexCache* new_dex_cache) {
-  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), new_dex_cache, false);
+  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), new_dex_cache);
 }
 
 void Class::SetClassSize(uint32_t new_class_size) {
@@ -136,7 +136,7 @@ void Class::SetClassSize(uint32_t new_class_size) {
     CHECK_GE(new_class_size, GetClassSize()) << " class=" << PrettyTypeOf(this);
   }
   // Not called within a transaction.
-  SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), new_class_size, false);
+  SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), new_class_size);
 }
 
 // Return the class' name. The exact format is bizarre, but it's the specified behavior for
@@ -261,7 +261,7 @@ void Class::SetReferenceInstanceOffsets(uint32_t new_reference_offsets) {
   }
   // Not called within a transaction.
   SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, reference_instance_offsets_),
-                    new_reference_offsets, false);
+                    new_reference_offsets);
 }
 
 void Class::SetReferenceStaticOffsets(uint32_t new_reference_offsets) {
@@ -273,7 +273,7 @@ void Class::SetReferenceStaticOffsets(uint32_t new_reference_offsets) {
   }
   // Not called within a transaction.
   SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, reference_static_offsets_),
-                    new_reference_offsets, false);
+                    new_reference_offsets);
 }
 
 bool Class::IsInSamePackage(const StringPiece& descriptor1, const StringPiece& descriptor2) {
@@ -330,9 +330,9 @@ bool Class::IsThrowableClass() {
 
 void Class::SetClassLoader(ClassLoader* new_class_loader) {
   if (Runtime::Current()->IsActiveTransaction()) {
-    SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), new_class_loader, false);
+    SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), new_class_loader);
   } else {
-    SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), new_class_loader, false);
+    SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), new_class_loader);
   }
 }
 

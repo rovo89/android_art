@@ -101,7 +101,7 @@ class ModUnionScanImageRootVisitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(root != NULL);
     ModUnionUpdateObjectReferencesVisitor ref_visitor(callback_, arg_);
-    root->VisitReferences<kMovingClasses>(ref_visitor);
+    root->VisitReferences<kMovingClasses>(ref_visitor, VoidFunctor());
   }
 
  private:
@@ -153,7 +153,7 @@ class ModUnionReferenceVisitor {
     // We don't have an early exit since we use the visitor pattern, an early
     // exit should significantly speed this up.
     AddToReferenceArrayVisitor visitor(mod_union_table_, references_);
-    obj->VisitReferences<kMovingClasses>(visitor);
+    obj->VisitReferences<kMovingClasses>(visitor, VoidFunctor());
   }
  private:
   ModUnionTableReferenceCache* const mod_union_table_;
@@ -171,7 +171,7 @@ class CheckReferenceVisitor {
   // Extra parameters are required since we use this same visitor signature for checking objects.
   void operator()(Object* obj, MemberOffset offset, bool /*is_static*/) const
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-    mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset, false);
+    mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset);
     if (ref != nullptr && mod_union_table_->ShouldAddReference(ref) &&
         references_.find(ref) == references_.end()) {
       Heap* heap = mod_union_table_->GetHeap();
@@ -205,7 +205,7 @@ class ModUnionCheckReferences {
   void operator()(Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
     Locks::heap_bitmap_lock_->AssertSharedHeld(Thread::Current());
     CheckReferenceVisitor visitor(mod_union_table_, references_);
-    obj->VisitReferences<kMovingClasses>(visitor);
+    obj->VisitReferences<kMovingClasses>(visitor, VoidFunctor());
   }
 
  private:

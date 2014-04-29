@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_MIRROR_PROXY_H_
 #define ART_RUNTIME_MIRROR_PROXY_H_
 
-#include "mirror/object.h"
+#include "object.h"
 
 namespace art {
 
@@ -31,14 +31,12 @@ class MANAGED SynthesizedProxyClass : public Class {
  public:
   ObjectArray<Class>* GetInterfaces() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetFieldObject<ObjectArray<Class> >(OFFSET_OF_OBJECT_MEMBER(SynthesizedProxyClass,
-                                                                       interfaces_),
-                                               false);
+                                                                       interfaces_));
   }
 
   ObjectArray<ObjectArray<Class> >* GetThrows()  SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetFieldObject<ObjectArray<ObjectArray<Class> > >(OFFSET_OF_OBJECT_MEMBER(SynthesizedProxyClass,
-                                                                                     throws_),
-                                               false);
+                                                                                     throws_));
   }
 
  private:

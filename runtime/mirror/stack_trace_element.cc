@@ -60,13 +60,13 @@ template<bool kTransactionActive>
 void StackTraceElement::Init(SirtRef<String>& declaring_class, SirtRef<String>& method_name,
                              SirtRef<String>& file_name, int32_t line_number) {
   SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, declaring_class_),
-                                     declaring_class.get(), false);
+                                     declaring_class.get());
   SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, method_name_),
-                                     method_name.get(), false);
+                                     method_name.get());
   SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, file_name_),
-                                     file_name.get(), false);
+                                     file_name.get());
   SetField32<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, line_number_),
-                                 line_number, false);
+                                 line_number);
 }
 
 void StackTraceElement::VisitRoots(RootCallback* callback, void* arg) {

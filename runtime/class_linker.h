@@ -251,7 +251,7 @@ class ClassLinker {
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsDexFileRegistered(const DexFile& dex_file) const
-      LOCKS_EXCLUDED(dex_lock_);
+      LOCKS_EXCLUDED(dex_lock_) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void FixupDexCaches(mirror::ArtMethod* resolution_method) const
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -462,7 +462,8 @@ class ClassLinker {
   void RegisterDexFileLocked(const DexFile& dex_file, const SirtRef<mirror::DexCache>& dex_cache)
       EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool IsDexFileRegisteredLocked(const DexFile& dex_file) const SHARED_LOCKS_REQUIRED(dex_lock_);
+  bool IsDexFileRegisteredLocked(const DexFile& dex_file) const
+      SHARED_LOCKS_REQUIRED(dex_lock_, Locks::mutator_lock_);
 
   bool InitializeClass(const SirtRef<mirror::Class>& klass, bool can_run_clinit,
                        bool can_init_parents)
