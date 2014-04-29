@@ -35,6 +35,16 @@ namespace collector {
 
 class GarbageCollector {
  public:
+  class SCOPED_LOCKABLE ScopedPause {
+   public:
+    explicit ScopedPause(GarbageCollector* collector) EXCLUSIVE_LOCK_FUNCTION(Locks::mutator_lock_);
+    ~ScopedPause() UNLOCK_FUNCTION();
+
+   private:
+    const uint64_t start_time_;
+    GarbageCollector* const collector_;
+  };
+
   GarbageCollector(Heap* heap, const std::string& name);
   virtual ~GarbageCollector() { }
 
@@ -125,20 +135,8 @@ class GarbageCollector {
   }
 
  protected:
-  // The initial phase. Done without mutators paused.
-  virtual void InitializePhase() = 0;
-
-  // Mark all reachable objects, done concurrently.
-  virtual void MarkingPhase() = 0;
-
-  // Phase of the GC which is run with mutator lock exclusively held.
-  virtual void PausePhase();
-
-  // Called with mutators running.
-  virtual void ReclaimPhase() = 0;
-
-  // Called after the GC is finished. Done without mutators paused.
-  virtual void FinishPhase() = 0;
+  // Run all of the GC phases.
+  virtual void RunPhases() = 0;
 
   // Revoke all the thread-local buffers.
   virtual void RevokeAllThreadLocalBuffers() = 0;

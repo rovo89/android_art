@@ -16,6 +16,9 @@
 
 #include "thread_list.h"
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+
+#include <cutils/trace.h>
 #include <dirent.h>
 #include <ScopedLocalRef.h>
 #include <ScopedUtfChars.h>
@@ -305,6 +308,8 @@ void ThreadList::SuspendAll() {
 
   VLOG(threads) << *self << " SuspendAll starting...";
 
+  ATRACE_BEGIN("Suspending mutator threads");
+
   Locks::mutator_lock_->AssertNotHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
   Locks::thread_suspend_count_lock_->AssertNotHeld(self);
@@ -341,6 +346,9 @@ void ThreadList::SuspendAll() {
     AssertThreadsAreSuspended(self, self);
   }
 
+  ATRACE_END();
+  ATRACE_BEGIN("Mutator threads suspended");
+
   VLOG(threads) << *self << " SuspendAll complete";
 }
 
@@ -348,6 +356,9 @@ void ThreadList::ResumeAll() {
   Thread* self = Thread::Current();
 
   VLOG(threads) << *self << " ResumeAll starting";
+
+  ATRACE_END();
+  ATRACE_BEGIN("Resuming mutator threads");
 
   if (kDebugLocking) {
     // Debug check that all threads are suspended.
@@ -373,6 +384,7 @@ void ThreadList::ResumeAll() {
     VLOG(threads) << *self << " ResumeAll waking others";
     Thread::resume_cond_->Broadcast(self);
   }
+  ATRACE_END();
   VLOG(threads) << *self << " ResumeAll complete";
 }
 

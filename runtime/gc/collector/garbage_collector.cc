@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-
 #include <stdio.h>
-#include <cutils/trace.h>
 
 #include "garbage_collector.h"
 
@@ -46,9 +43,6 @@ GarbageCollector::GarbageCollector(Heap* heap, const std::string& name)
   ResetCumulativeStatistics();
 }
 
-void GarbageCollector::PausePhase() {
-}
-
 void GarbageCollector::RegisterPause(uint64_t nano_length) {
   pause_times_.push_back(nano_length);
 }
@@ -62,7 +56,6 @@ void GarbageCollector::ResetCumulativeStatistics() {
 }
 
 void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
-  ThreadList* thread_list = Runtime::Current()->GetThreadList();
   Thread* self = Thread::Current();
   uint64_t start_time = NanoTime();
   timings_.Reset();
@@ -70,88 +63,12 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
   duration_ns_ = 0;
   clear_soft_references_ = clear_soft_references;
   gc_cause_ = gc_cause;
-
   // Reset stats.
   freed_bytes_ = 0;
   freed_large_object_bytes_ = 0;
   freed_objects_ = 0;
   freed_large_objects_ = 0;
-
-  CollectorType collector_type = GetCollectorType();
-  switch (collector_type) {
-    case kCollectorTypeMS:      // Fall through.
-    case kCollectorTypeSS:      // Fall through.
-    case kCollectorTypeGSS: {
-      InitializePhase();
-      // Pause is the entire length of the GC.
-      uint64_t pause_start = NanoTime();
-      ATRACE_BEGIN("Application threads suspended");
-      // Mutator lock may be already exclusively held when we do garbage collections for changing
-      // the current collector / allocator during process state updates.
-      if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
-        // PreGcRosAllocVerification() is called in Heap::TransitionCollector().
-        RevokeAllThreadLocalBuffers();
-        MarkingPhase();
-        PausePhase();
-        ReclaimPhase();
-        // PostGcRosAllocVerification() is called in Heap::TransitionCollector().
-      } else {
-        ATRACE_BEGIN("Suspending mutator threads");
-        thread_list->SuspendAll();
-        ATRACE_END();
-        GetHeap()->PreGcRosAllocVerification(&timings_);
-        RevokeAllThreadLocalBuffers();
-        MarkingPhase();
-        PausePhase();
-        ReclaimPhase();
-        GetHeap()->PostGcRosAllocVerification(&timings_);
-        ATRACE_BEGIN("Resuming mutator threads");
-        thread_list->ResumeAll();
-        ATRACE_END();
-      }
-      ATRACE_END();
-      RegisterPause(NanoTime() - pause_start);
-      FinishPhase();
-      break;
-    }
-    case kCollectorTypeCMS: {
-      InitializePhase();
-      CHECK(!Locks::mutator_lock_->IsExclusiveHeld(self));
-      {
-        ReaderMutexLock mu(self, *Locks::mutator_lock_);
-        MarkingPhase();
-      }
-      uint64_t pause_start = NanoTime();
-      ATRACE_BEGIN("Suspending mutator threads");
-      thread_list->SuspendAll();
-      ATRACE_END();
-      ATRACE_BEGIN("All mutator threads suspended");
-      GetHeap()->PreGcRosAllocVerification(&timings_);
-      PausePhase();
-      RevokeAllThreadLocalBuffers();
-      GetHeap()->PostGcRosAllocVerification(&timings_);
-      ATRACE_END();
-      uint64_t pause_end = NanoTime();
-      ATRACE_BEGIN("Resuming mutator threads");
-      thread_list->ResumeAll();
-      ATRACE_END();
-      RegisterPause(pause_end - pause_start);
-      {
-        ReaderMutexLock mu(self, *Locks::mutator_lock_);
-        ReclaimPhase();
-      }
-      FinishPhase();
-      break;
-    }
-    case kCollectorTypeCC: {
-      // To be implemented.
-      break;
-    }
-    default: {
-      LOG(FATAL) << "Unreachable collector type=" << static_cast<size_t>(collector_type);
-      break;
-    }
-  }
+  RunPhases();  // Run all the GC phases.
   // Add the current timings to the cumulative timings.
   cumulative_timings_.AddLogger(timings_);
   // Update cumulative statistics with how many bytes the GC iteration freed.
@@ -159,6 +76,12 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
   total_freed_bytes_ += GetFreedBytes() + GetFreedLargeObjectBytes();
   uint64_t end_time = NanoTime();
   duration_ns_ = end_time - start_time;
+  if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
+    // The entire GC was paused, clear the fake pauses which might be in the pause times and add
+    // the whole GC duration.
+    pause_times_.clear();
+    RegisterPause(duration_ns_);
+  }
   total_time_ns_ += GetDurationNs();
   for (uint64_t pause_time : pause_times_) {
     pause_histogram_.AddValue(pause_time / 1000);
@@ -211,6 +134,16 @@ void GarbageCollector::ResetMeasurements() {
   total_time_ns_ = 0;
   total_freed_objects_ = 0;
   total_freed_bytes_ = 0;
+}
+
+GarbageCollector::ScopedPause::ScopedPause(GarbageCollector* collector)
+    : start_time_(NanoTime()), collector_(collector) {
+  Runtime::Current()->GetThreadList()->SuspendAll();
+}
+
+GarbageCollector::ScopedPause::~ScopedPause() {
+  collector_->RegisterPause(NanoTime() - start_time_);
+  Runtime::Current()->GetThreadList()->ResumeAll();
 }
 
 }  // namespace collector

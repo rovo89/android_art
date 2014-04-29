@@ -94,9 +94,8 @@ void LargeObjectSpace::CopyLiveToMarked() {
   mark_bitmap_->CopyFrom(live_bitmap_.get());
 }
 
-// TODO: Use something cleaner than 0xFFFFFFFF.
 LargeObjectMapSpace::LargeObjectMapSpace(const std::string& name)
-    : LargeObjectSpace(name, reinterpret_cast<byte*>(0xFFFFFFFF), nullptr),
+    : LargeObjectSpace(name, nullptr, nullptr),
       lock_("large object map space lock", kAllocSpaceLock) {}
 
 LargeObjectMapSpace* LargeObjectMapSpace::Create(const std::string& name) {
@@ -123,7 +122,10 @@ mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
   size_t allocation_size = mem_map->Size();
   DCHECK(bytes_allocated != nullptr);
   begin_ = std::min(begin_, reinterpret_cast<byte*>(obj));
-  end_ = std::max(end_, reinterpret_cast<byte*>(obj) + allocation_size);
+  byte* obj_end = reinterpret_cast<byte*>(obj) + allocation_size;
+  if (end_ == nullptr || obj_end > end_) {
+    end_ = obj_end;
+  }
   *bytes_allocated = allocation_size;
   if (usable_size != nullptr) {
     *usable_size = allocation_size;
