@@ -70,7 +70,7 @@ inline bool SpaceBitmap<kAlignment>::Test(const mirror::Object* obj) const {
 template<size_t kAlignment> template<typename Visitor>
 inline void SpaceBitmap<kAlignment>::VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
                                                       const Visitor& visitor) const {
-  DCHECK_LT(visit_begin, visit_end);
+  DCHECK_LE(visit_begin, visit_end);
 #if 0
   for (uintptr_t i = visit_begin; i < visit_end; i += kAlignment) {
     mirror::Object* obj = reinterpret_cast<mirror::Object*>(i);

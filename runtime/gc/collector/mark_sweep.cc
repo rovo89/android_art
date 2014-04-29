@@ -130,9 +130,37 @@ void MarkSweep::InitializePhase() {
     // Always clear soft references if a non-sticky collection.
     clear_soft_references_ = GetGcType() != collector::kGcTypeSticky;
   }
-  // Do any pre GC verification.
-  timings_.NewSplit("PreGcVerification");
-  heap_->PreGcVerification(this);
+}
+
+void MarkSweep::RunPhases() {
+  Thread* self = Thread::Current();
+  InitializePhase();
+  Locks::mutator_lock_->AssertNotHeld(self);
+  if (IsConcurrent()) {
+    GetHeap()->PreGcVerification(this);
+    {
+      ReaderMutexLock mu(self, *Locks::mutator_lock_);
+      MarkingPhase();
+    }
+    ScopedPause pause(this);
+    GetHeap()->PrePauseRosAllocVerification(this);
+    PausePhase();
+    RevokeAllThreadLocalBuffers();
+  } else {
+    ScopedPause pause(this);
+    GetHeap()->PreGcVerificationPaused(this);
+    MarkingPhase();
+    GetHeap()->PrePauseRosAllocVerification(this);
+    PausePhase();
+    RevokeAllThreadLocalBuffers();
+  }
+  {
+    // Sweeping always done concurrently, even for non concurrent mark sweep.
+    ReaderMutexLock mu(self, *Locks::mutator_lock_);
+    ReclaimPhase();
+  }
+  GetHeap()->PostGcVerification(this);
+  FinishPhase();
 }
 
 void MarkSweep::ProcessReferences(Thread* self) {
@@ -166,7 +194,7 @@ void MarkSweep::PausePhase() {
   }
   ProcessReferences(self);
   {
-    timings_.NewSplit("SwapStacks");
+    TimingLogger::ScopedSplit split("SwapStacks", &timings_);
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     heap_->SwapStacks(self);
     live_stack_freeze_size_ = heap_->GetLiveStack()->Size();
@@ -177,13 +205,11 @@ void MarkSweep::PausePhase() {
   timings_.StartSplit("PreSweepingGcVerification");
   heap_->PreSweepingGcVerification(this);
   timings_.EndSplit();
-  if (IsConcurrent()) {
-    // Disallow new system weaks to prevent a race which occurs when someone adds a new system
-    // weak before we sweep them. Since this new system weak may not be marked, the GC may
-    // incorrectly sweep it. This also fixes a race where interning may attempt to return a strong
-    // reference to a string that is about to be swept.
-    Runtime::Current()->DisallowNewSystemWeaks();
-  }
+  // Disallow new system weaks to prevent a race which occurs when someone adds a new system
+  // weak before we sweep them. Since this new system weak may not be marked, the GC may
+  // incorrectly sweep it. This also fixes a race where interning may attempt to return a strong
+  // reference to a string that is about to be swept.
+  Runtime::Current()->DisallowNewSystemWeaks();
 }
 
 void MarkSweep::PreCleanCards() {
@@ -265,9 +291,7 @@ void MarkSweep::ReclaimPhase() {
   TimingLogger::ScopedSplit split("ReclaimPhase", &timings_);
   Thread* self = Thread::Current();
   SweepSystemWeaks(self);
-  if (IsConcurrent()) {
-    Runtime::Current()->AllowNewSystemWeaks();
-  }
+  Runtime::Current()->AllowNewSystemWeaks();
   {
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
 
@@ -1256,9 +1280,6 @@ inline bool MarkSweep::IsMarked(const Object* object) const
 
 void MarkSweep::FinishPhase() {
   TimingLogger::ScopedSplit split("FinishPhase", &timings_);
-  // Can't enqueue references if we hold the mutator lock.
-  timings_.NewSplit("PostGcVerification");
-  heap_->PostGcVerification(this);
   if (kCountScannedTypes) {
     VLOG(gc) << "MarkSweep scanned classes=" << class_count_ << " arrays=" << array_count_
              << " other=" << other_count_;

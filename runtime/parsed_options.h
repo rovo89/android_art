@@ -41,8 +41,10 @@ class ParsedOptions {
   bool is_explicit_gc_disabled_;
   bool use_tlab_;
   bool verify_pre_gc_heap_;
+  bool verify_pre_sweeping_heap_;
   bool verify_post_gc_heap_;
   bool verify_pre_gc_rosalloc_;
+  bool verify_pre_sweeping_rosalloc_;
   bool verify_post_gc_rosalloc_;
   unsigned int long_pause_log_threshold_;
   unsigned int long_gc_log_threshold_;
@@ -100,6 +102,7 @@ class ParsedOptions {
   void Abort();
 
   bool Parse(const Runtime::Options& options,  bool ignore_unrecognized);
+  bool ParseXGcOption(const std::string& option);
   bool ParseStringAfterChar(const std::string& option, char after_char, std::string* parsed_value);
   bool ParseInteger(const std::string& option, char after_char, int* parsed_value);
   bool ParseUnsignedInteger(const std::string& option, char after_char, unsigned int* parsed_value);

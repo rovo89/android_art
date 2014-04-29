@@ -61,12 +61,13 @@ class SemiSpace : public GarbageCollector {
 
   ~SemiSpace() {}
 
-  virtual void InitializePhase() OVERRIDE;
-  virtual void MarkingPhase() OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+  virtual void RunPhases() OVERRIDE NO_THREAD_SAFETY_ANALYSIS;
+  virtual void InitializePhase();
+  virtual void MarkingPhase() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
-  virtual void ReclaimPhase() OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+  virtual void ReclaimPhase() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
-  virtual void FinishPhase() OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void FinishPhase() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   void MarkReachableObjects()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
   virtual GcType GetGcType() const OVERRIDE {
@@ -81,6 +82,12 @@ class SemiSpace : public GarbageCollector {
 
   // Set the space where we copy objects from.
   void SetFromSpace(space::ContinuousMemMapAllocSpace* from_space);
+
+  // Set whether or not we swap the semi spaces in the heap. This needs to be done with mutators
+  // suspended.
+  void SetSwapSemiSpaces(bool swap_semi_spaces) {
+    swap_semi_spaces_ = swap_semi_spaces;
+  }
 
   // Initializes internal structures.
   void Init();
@@ -252,6 +259,9 @@ class SemiSpace : public GarbageCollector {
   // heap collection. If N, the whole heap collection occurs every N
   // collections.
   static constexpr int kDefaultWholeHeapCollectionInterval = 5;
+
+  // Whether or not we swap the semi spaces in the heap during the marking phase.
+  bool swap_semi_spaces_;
 
  private:
   friend class BitmapSetSlowPathVisitor;
