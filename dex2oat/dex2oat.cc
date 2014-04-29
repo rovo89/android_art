@@ -922,6 +922,20 @@ static int dex2oat(int argc, char** argv) {
     } else if (option.starts_with("--disable-passes=")) {
       std::string disable_passes = option.substr(strlen("--disable-passes=")).data();
       PassDriverME::CreateDefaultPassList(disable_passes);
+    } else if (option.starts_with("--print-passes=")) {
+      std::string print_passes = option.substr(strlen("--print-passes=")).data();
+      size_t len = print_passes.length() + 1;
+      char* duplicate = new char[len];
+      strncpy(duplicate, print_passes.c_str(), len);
+      PassDriverME::SetPrintPassList(duplicate);
+    } else if (option == "--print-all-passes") {
+      PassDriverME::SetPrintAllPasses();
+    } else if (option.starts_with("--dump-cfg-passes=")) {
+      std::string dump_passes = option.substr(strlen("--dump-cfg-passes=")).data();
+      size_t len = dump_passes.length() + 1;
+      char* duplicate = new char[len];
+      strncpy(duplicate, dump_passes.c_str(), len);
+      PassDriverME::SetDumpPassList(duplicate);
     } else {
       Usage("Unknown argument %s", option.data());
     }

@@ -88,6 +88,7 @@ struct CompilationUnit {
   std::unique_ptr<MIRGraph> mir_graph;   // MIR container.
   std::unique_ptr<Backend> cg;           // Target-specific codegen.
   TimingLogger timings;
+  bool print_pass;                 // Do we want to print a pass or not?
 };
 
 }  // namespace art
