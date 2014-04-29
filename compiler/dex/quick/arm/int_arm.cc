@@ -361,37 +361,40 @@ LIR* ArmMir2Lir::OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) {
   return res;
 }
 
-LIR* ArmMir2Lir::OpRegCopy(RegStorage r_dest, RegStorage r_src) {
-  LIR* res = OpRegCopyNoInsert(r_dest, r_src);
-  AppendLIR(res);
-  return res;
+void ArmMir2Lir::OpRegCopy(RegStorage r_dest, RegStorage r_src) {
+  if (r_dest != r_src) {
+    LIR* res = OpRegCopyNoInsert(r_dest, r_src);
+    AppendLIR(res);
+  }
 }
 
 void ArmMir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
-  bool dest_fp = ARM_FPREG(r_dest.GetLowReg());
-  bool src_fp = ARM_FPREG(r_src.GetLowReg());
-  if (dest_fp) {
-    if (src_fp) {
-      // FIXME: handle 64-bit solo's here.
-      OpRegCopy(RegStorage::Solo64(S2d(r_dest.GetLowReg(), r_dest.GetHighReg())),
-                RegStorage::Solo64(S2d(r_src.GetLowReg(), r_src.GetHighReg())));
-    } else {
-      NewLIR3(kThumb2Fmdrr, S2d(r_dest.GetLowReg(), r_dest.GetHighReg()),
-              r_src.GetLowReg(), r_src.GetHighReg());
-    }
-  } else {
-    if (src_fp) {
-      NewLIR3(kThumb2Fmrrd, r_dest.GetLowReg(), r_dest.GetHighReg(), S2d(r_src.GetLowReg(),
-              r_src.GetHighReg()));
-    } else {
-      // Handle overlap
-      if (r_src.GetHighReg() == r_dest.GetLowReg()) {
-        DCHECK_NE(r_src.GetLowReg(), r_dest.GetHighReg());
-        OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
-        OpRegCopy(r_dest.GetLow(), r_src.GetLow());
+  if (r_dest != r_src) {
+    bool dest_fp = ARM_FPREG(r_dest.GetLowReg());
+    bool src_fp = ARM_FPREG(r_src.GetLowReg());
+    if (dest_fp) {
+      if (src_fp) {
+        // FIXME: handle 64-bit solo's here.
+        OpRegCopy(RegStorage::Solo64(S2d(r_dest.GetLowReg(), r_dest.GetHighReg())),
+                  RegStorage::Solo64(S2d(r_src.GetLowReg(), r_src.GetHighReg())));
       } else {
-        OpRegCopy(r_dest.GetLow(), r_src.GetLow());
-        OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
+        NewLIR3(kThumb2Fmdrr, S2d(r_dest.GetLowReg(), r_dest.GetHighReg()),
+                r_src.GetLowReg(), r_src.GetHighReg());
+      }
+    } else {
+      if (src_fp) {
+        NewLIR3(kThumb2Fmrrd, r_dest.GetLowReg(), r_dest.GetHighReg(), S2d(r_src.GetLowReg(),
+                r_src.GetHighReg()));
+      } else {
+        // Handle overlap
+        if (r_src.GetHighReg() == r_dest.GetLowReg()) {
+          DCHECK_NE(r_src.GetLowReg(), r_dest.GetHighReg());
+          OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
+          OpRegCopy(r_dest.GetLow(), r_src.GetLow());
+        } else {
+          OpRegCopy(r_dest.GetLow(), r_src.GetLow());
+          OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
+        }
       }
     }
   }
