@@ -415,6 +415,7 @@ void MIRGraph::InitRegLocations() {
     loc[i] = fresh_loc;
     loc[i].s_reg_low = i;
     loc[i].is_const = is_constant_v_->IsBitSet(i);
+    loc[i].wide = false;
   }
 
   /* Patch up the locations for the compiler temps */
