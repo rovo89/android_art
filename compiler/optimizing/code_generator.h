@@ -62,6 +62,12 @@ class Location : public ValueObject {
     // bits are in a stack slot. The kQuickParameter kind is for
     // handling this special case.
     kQuickParameter = 4,
+
+    // Unallocated location represents a location that is not fixed and can be
+    // allocated by a register allocator.  Each unallocated location has
+    // a policy that specifies what kind of location is suitable. Payload
+    // contains register allocation policy.
+    kUnallocated = 5,
   };
 
   Location() : value_(kInvalid) {
@@ -166,8 +172,48 @@ class Location : public ValueObject {
       case kStackSlot: return "S";
       case kDoubleStackSlot: return "DS";
       case kQuickParameter: return "Q";
+      case kUnallocated: return "U";
     }
     return "?";
+  }
+
+  // Unallocated locations.
+  enum Policy {
+    kAny,
+    kRequiresRegister,
+    kSameAsFirstInput,
+  };
+
+  bool IsUnallocated() const {
+    return GetKind() == kUnallocated;
+  }
+
+  static Location UnallocatedLocation(Policy policy) {
+    return Location(kUnallocated, PolicyField::Encode(policy));
+  }
+
+  // Any free register is suitable to replace this unallocated location.
+  static Location Any() {
+    return UnallocatedLocation(kAny);
+  }
+
+  static Location RequiresRegister() {
+    return UnallocatedLocation(kRequiresRegister);
+  }
+
+  // The location of the first input to the instruction will be
+  // used to replace this unallocated location.
+  static Location SameAsFirstInput() {
+    return UnallocatedLocation(kSameAsFirstInput);
+  }
+
+  Policy GetPolicy() const {
+    DCHECK(IsUnallocated());
+    return PolicyField::Decode(GetPayload());
+  }
+
+  uword GetEncoding() const {
+    return GetPayload();
   }
 
  private:
@@ -186,6 +232,9 @@ class Location : public ValueObject {
 
   typedef BitField<Kind, 0, kBitsForKind> KindField;
   typedef BitField<uword, kBitsForKind, kBitsForPayload> PayloadField;
+
+  // Layout for kUnallocated locations payload.
+  typedef BitField<Policy, 0, 3> PolicyField;
 
   // Layout for stack slots.
   static const intptr_t kStackIndexBias =
@@ -208,40 +257,52 @@ class Location : public ValueObject {
 class LocationSummary : public ArenaObject {
  public:
   explicit LocationSummary(HInstruction* instruction)
-      : inputs(instruction->GetBlock()->GetGraph()->GetArena(), instruction->InputCount()),
-        temps(instruction->GetBlock()->GetGraph()->GetArena(), 0) {
-    inputs.SetSize(instruction->InputCount());
+      : inputs_(instruction->GetBlock()->GetGraph()->GetArena(), instruction->InputCount()),
+        temps_(instruction->GetBlock()->GetGraph()->GetArena(), 0) {
+    inputs_.SetSize(instruction->InputCount());
     for (size_t i = 0; i < instruction->InputCount(); i++) {
-      inputs.Put(i, Location());
+      inputs_.Put(i, Location());
     }
   }
 
   void SetInAt(uint32_t at, Location location) {
-    inputs.Put(at, location);
+    inputs_.Put(at, location);
   }
 
   Location InAt(uint32_t at) const {
-    return inputs.Get(at);
+    return inputs_.Get(at);
+  }
+
+  size_t GetInputCount() const {
+    return inputs_.Size();
   }
 
   void SetOut(Location location) {
-    output = Location(location);
+    output_ = Location(location);
   }
 
   void AddTemp(Location location) {
-    temps.Add(location);
+    temps_.Add(location);
   }
 
   Location GetTemp(uint32_t at) const {
-    return temps.Get(at);
+    return temps_.Get(at);
   }
 
-  Location Out() const { return output; }
+  void SetTempAt(uint32_t at, Location location) {
+    temps_.Put(at, location);
+  }
+
+  size_t GetTempCount() const {
+    return temps_.Size();
+  }
+
+  Location Out() const { return output_; }
 
  private:
-  GrowableArray<Location> inputs;
-  GrowableArray<Location> temps;
-  Location output;
+  GrowableArray<Location> inputs_;
+  GrowableArray<Location> temps_;
+  Location output_;
 
   DISALLOW_COPY_AND_ASSIGN(LocationSummary);
 };
@@ -286,14 +347,32 @@ class CodeGenerator : public ArenaObject {
       std::vector<uint8_t>* vector, const DexCompilationUnit& dex_compilation_unit) const;
 
  protected:
-  explicit CodeGenerator(HGraph* graph)
+  CodeGenerator(HGraph* graph, size_t number_of_registers)
       : frame_size_(0),
         graph_(graph),
         block_labels_(graph->GetArena(), 0),
-        pc_infos_(graph->GetArena(), 32) {
+        pc_infos_(graph->GetArena(), 32),
+        blocked_registers_(static_cast<bool*>(
+            graph->GetArena()->Alloc(number_of_registers * sizeof(bool), kArenaAllocData))) {
     block_labels_.SetSize(graph->GetBlocks()->Size());
   }
   ~CodeGenerator() { }
+
+  // Register allocation logic.
+  void AllocateRegistersLocally(HInstruction* instruction) const;
+
+  // Backend specific implementation for allocating a register.
+  virtual ManagedRegister AllocateFreeRegister(Primitive::Type type,
+                                               bool* blocked_registers) const = 0;
+
+  // Raw implementation of allocating a register: loops over blocked_registers to find
+  // the first available register.
+  size_t AllocateFreeRegisterInternal(bool* blocked_registers, size_t number_of_registers) const;
+
+  virtual void SetupBlockedRegisters(bool* blocked_registers) const = 0;
+  virtual size_t GetNumberOfRegisters() const = 0;
+
+  virtual Location GetStackLocation(HLoadLocal* load) const = 0;
 
   // Frame size required for this method.
   uint32_t frame_size_;
@@ -308,6 +387,9 @@ class CodeGenerator : public ArenaObject {
   // Labels for each block that will be compiled.
   GrowableArray<Label> block_labels_;
   GrowableArray<PcInfo> pc_infos_;
+
+  // Temporary data structure used when doing register allocation.
+  bool* const blocked_registers_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGenerator);
 };
