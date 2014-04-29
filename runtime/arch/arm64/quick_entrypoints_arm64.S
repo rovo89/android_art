@@ -970,7 +970,21 @@ ENTRY art_quick_do_long_jump
     br  xLR
 END art_quick_do_long_jump
 
-UNIMPLEMENTED art_quick_handle_fill_data
+    /*
+     * Entry from managed code that calls artHandleFillArrayDataFromCode and delivers exception on
+     * failure.
+     */
+    .extern artHandleFillArrayDataFromCode
+// TODO: xSELF -> x19.
+ENTRY art_quick_handle_fill_data
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // Save callee saves in case exception allocation triggers GC.
+    mov    x2, xSELF                       // Pass Thread::Current.
+    mov    x3, sp                          // Pass SP.
+    bl     artHandleFillArrayDataFromCode  // (Array*, const DexFile::Payload*, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_RESULT_IS_ZERO
+    DELIVER_PENDING_EXCEPTION
+END art_quick_handle_fill_data
 
 UNIMPLEMENTED art_quick_lock_object
 UNIMPLEMENTED art_quick_unlock_object
@@ -1026,9 +1040,116 @@ ENTRY art_quick_check_cast
     brk 0                             // We should not return here...
 END art_quick_check_cast
 
-UNIMPLEMENTED art_quick_aput_obj_with_null_and_bound_check
-UNIMPLEMENTED art_quick_aput_obj_with_bound_check
-UNIMPLEMENTED art_quick_aput_obj
+    /*
+     * Entry from managed code for array put operations of objects where the value being stored
+     * needs to be checked for compatibility.
+     * x0 = array, x1 = index, x2 = value
+     *
+     * Currently all values should fit into w0/w1/w2, and w1 always will as indices are 32b. We
+     * assume, though, that the upper 32b are zeroed out. At least for x1/w1 we can do better by
+     * using index-zero-extension in load/stores.
+     *
+     * Temporaries: x3, x4
+     * TODO: x4 OK? ip seems wrong here.
+     */
+ENTRY art_quick_aput_obj_with_null_and_bound_check
+    tst x0, x0
+    bne art_quick_aput_obj_with_bound_check
+    b art_quick_throw_null_pointer_exception
+END art_quick_aput_obj_with_null_and_bound_check
+
+ENTRY art_quick_aput_obj_with_bound_check
+    ldr w3, [x0, #ARRAY_LENGTH_OFFSET]
+    cmp w3, w1
+    bhi art_quick_aput_obj
+    mov x0, x1
+    mov x1, x3
+    b art_quick_throw_array_bounds
+END art_quick_aput_obj_with_bound_check
+
+ENTRY art_quick_aput_obj
+    cbz x2, .Ldo_aput_null
+    ldr w3, [x0, #CLASS_OFFSET]                          // Heap reference = 32b
+                                                         // This also zero-extends to x3
+    ldr w4, [x2, #CLASS_OFFSET]                          // Heap reference = 32b
+                                                         // This also zero-extends to x4
+    ldr w3, [x3, #CLASS_COMPONENT_TYPE_OFFSET]           // Heap reference = 32b
+                                                         // This also zero-extends to x3
+    cmp w3, w4  // value's type == array's component type - trivial assignability
+    bne .Lcheck_assignability
+.Ldo_aput:
+    add x3, x0, #OBJECT_ARRAY_DATA_OFFSET
+                                                         // "Compress" = do nothing
+    str w2, [x3, x1, lsl #2]                             // Heap reference = 32b
+    ldr x3, [xSELF, #THREAD_CARD_TABLE_OFFSET]
+    lsr x0, x0, #7
+    strb w3, [x3, x0]
+    ret
+.Ldo_aput_null:
+    add x3, x0, #OBJECT_ARRAY_DATA_OFFSET
+                                                         // "Compress" = do nothing
+    str w2, [x3, x1, lsl #2]                             // Heap reference = 32b
+    ret
+.Lcheck_assignability:
+    // Store arguments and link register
+    sub sp, sp, #48                     // Stack needs to be 16b aligned on calls
+    .cfi_adjust_cfa_offset 48
+    stp x0, x1, [sp]
+    .cfi_rel_offset x0, 0
+    .cfi_rel_offset x1, 8
+    stp x2, xSELF, [sp, #16]
+    .cfi_rel_offset x2, 16
+    .cfi_rel_offset x18, 24
+    str xLR, [sp, #32]
+    .cfi_rel_offset x30, 32
+
+    // Call runtime code
+    mov x0, x3              // Heap reference, 32b, "uncompress" = do nothing, already zero-extended
+    mov x1, x4              // Heap reference, 32b, "uncompress" = do nothing, already zero-extended
+    bl artIsAssignableFromCode
+
+    // Check for exception
+    cbz x0, .Lthrow_array_store_exception
+
+    // Restore
+    ldp x0, x1, [sp]
+    .cfi_restore x0
+    .cfi_restore x1
+    ldp x2, xSELF, [sp, #16]
+    .cfi_restore x2
+    .cfi_restore x18
+    ldr xLR, [sp, #32]
+    .cfi_restore x30
+    add sp, sp, #48
+    .cfi_adjust_cfa_offset -48
+
+    add x3, x0, #OBJECT_ARRAY_DATA_OFFSET
+                                                          // "Compress" = do nothing
+    str w2, [x3, x1, lsl #2]                              // Heap reference = 32b
+    ldr x3, [xSELF, #THREAD_CARD_TABLE_OFFSET]
+    lsr x0, x0, #7
+    strb w3, [x3, x0]
+    ret
+.Lthrow_array_store_exception:
+    ldp x0, x1, [sp]
+    .cfi_restore x0
+    .cfi_restore x1
+    ldp x2, xSELF, [sp, #16]
+    .cfi_restore x2
+    .cfi_restore x18
+    ldr xLR, [sp, #32]
+    .cfi_restore x30
+    add sp, sp, #48
+    .cfi_adjust_cfa_offset -48
+
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    mov x1, x2                    // Pass value.
+    mov x2, xSELF                 // Pass Thread::Current.
+    mov x3, sp                    // Pass SP.
+    b artThrowArrayStoreException // (Object*, Object*, Thread*, SP).
+    brk 0                         // Unreached.
+END art_quick_aput_obj
+
 UNIMPLEMENTED art_quick_initialize_static_storage
 UNIMPLEMENTED art_quick_initialize_type
 UNIMPLEMENTED art_quick_initialize_type_and_verify_access
