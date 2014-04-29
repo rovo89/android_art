@@ -66,10 +66,6 @@ class QuickExceptionHandler {
     clear_exception_ = clear_exception;
   }
 
-  void SetTopShadowFrame(ShadowFrame* top_shadow_frame) {
-    top_shadow_frame_ = top_shadow_frame;
-  }
-
   void SetHandlerFrameId(size_t frame_id) {
     handler_frame_id_ = frame_id;
   }
@@ -88,8 +84,6 @@ class QuickExceptionHandler {
   uint32_t handler_dex_pc_;
   // Should the exception be cleared as the catch block has no move-exception?
   bool clear_exception_;
-  // Deoptimization top shadow frame.
-  ShadowFrame* top_shadow_frame_;
   // Frame id of the catch handler or the upcall.
   size_t handler_frame_id_;
 
