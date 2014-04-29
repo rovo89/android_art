@@ -35,6 +35,72 @@ namespace x86 {
 static constexpr int kNumberOfPushedRegistersAtEntry = 1;
 static constexpr int kCurrentMethodStackOffset = 0;
 
+CodeGeneratorX86::CodeGeneratorX86(HGraph* graph)
+    : CodeGenerator(graph, kNumberOfRegIds),
+      location_builder_(graph, this),
+      instruction_visitor_(graph, this) {}
+
+static bool* GetBlockedRegisterPairs(bool* blocked_registers) {
+  return blocked_registers + kNumberOfAllocIds;
+}
+
+ManagedRegister CodeGeneratorX86::AllocateFreeRegister(Primitive::Type type,
+                                                       bool* blocked_registers) const {
+  switch (type) {
+    case Primitive::kPrimLong: {
+      size_t reg = AllocateFreeRegisterInternal(
+          GetBlockedRegisterPairs(blocked_registers), kNumberOfRegisterPairs);
+      X86ManagedRegister pair =
+          X86ManagedRegister::FromRegisterPair(static_cast<RegisterPair>(reg));
+      blocked_registers[pair.AsRegisterPairLow()] = true;
+      blocked_registers[pair.AsRegisterPairHigh()] = true;
+      return pair;
+    }
+
+    case Primitive::kPrimByte:
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot: {
+      size_t reg = AllocateFreeRegisterInternal(blocked_registers, kNumberOfCpuRegisters);
+      return X86ManagedRegister::FromCpuRegister(static_cast<Register>(reg));
+    }
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      LOG(FATAL) << "Unimplemented register type " << type;
+
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unreachable type " << type;
+  }
+
+  return ManagedRegister::NoRegister();
+}
+
+void CodeGeneratorX86::SetupBlockedRegisters(bool* blocked_registers) const {
+  bool* blocked_register_pairs = GetBlockedRegisterPairs(blocked_registers);
+
+  // Don't allocate the dalvik style register pair passing.
+  blocked_register_pairs[ECX_EDX] = true;
+
+  // Stack register is always reserved.
+  blocked_registers[ESP] = true;
+
+  // TODO: We currently don't use Quick's callee saved registers.
+  blocked_registers[EBP] = true;
+  blocked_registers[ESI] = true;
+  blocked_registers[EDI] = true;
+  blocked_register_pairs[EAX_EDI] = true;
+  blocked_register_pairs[EDX_EDI] = true;
+  blocked_register_pairs[ECX_EDI] = true;
+  blocked_register_pairs[EBX_EDI] = true;
+}
+
+size_t CodeGeneratorX86::GetNumberOfRegisters() const {
+  return kNumberOfRegIds;
+}
+
 static Location X86CpuLocation(Register reg) {
   return Location::RegisterLocation(X86ManagedRegister::FromCpuRegister(reg));
 }
@@ -88,6 +154,33 @@ int32_t CodeGeneratorX86::GetStackSlot(HLocal* local) const {
                           - (number_of_vregs * kVRegSize)
                           + (reg_number * kVRegSize);
   }
+}
+
+
+Location CodeGeneratorX86::GetStackLocation(HLoadLocal* load) const {
+  switch (load->GetType()) {
+    case Primitive::kPrimLong:
+      return Location::DoubleStackSlot(GetStackSlot(load->GetLocal()));
+      break;
+
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot:
+      return Location::StackSlot(GetStackSlot(load->GetLocal()));
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      LOG(FATAL) << "Unimplemented type " << load->GetType();
+
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unexpected type " << load->GetType();
+  }
+
+  LOG(FATAL) << "Unreachable";
+  return Location();
 }
 
 static constexpr Register kRuntimeParameterCoreRegisters[] = { EAX, ECX, EDX };
@@ -311,13 +404,18 @@ void InstructionCodeGeneratorX86::VisitExit(HExit* exit) {
 
 void LocationsBuilderX86::VisitIf(HIf* if_instr) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(if_instr);
-  locations->SetInAt(0, X86CpuLocation(EAX));
+  locations->SetInAt(0, Location::Any());
   if_instr->SetLocations(locations);
 }
 
 void InstructionCodeGeneratorX86::VisitIf(HIf* if_instr) {
   // TODO: Generate the input as a condition, instead of materializing in a register.
-  __ cmpl(if_instr->GetLocations()->InAt(0).AsX86().AsCpuRegister(), Immediate(0));
+  Location location = if_instr->GetLocations()->InAt(0);
+  if (location.IsRegister()) {
+    __ cmpl(location.AsX86().AsCpuRegister(), Immediate(0));
+  } else {
+    __ cmpl(Address(ESP, location.GetStackIndex()), Immediate(0));
+  }
   __ j(kEqual, codegen_->GetLabelOf(if_instr->IfFalseSuccessor()));
   if (!codegen_->GoesToNextBlock(if_instr->GetBlock(), if_instr->IfTrueSuccessor())) {
     __ jmp(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
@@ -367,16 +465,22 @@ void InstructionCodeGeneratorX86::VisitStoreLocal(HStoreLocal* store) {
 
 void LocationsBuilderX86::VisitEqual(HEqual* equal) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(equal);
-  locations->SetInAt(0, X86CpuLocation(EAX));
-  locations->SetInAt(1, X86CpuLocation(ECX));
-  locations->SetOut(X86CpuLocation(EAX));
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::Any());
+  locations->SetOut(Location::SameAsFirstInput());
   equal->SetLocations(locations);
 }
 
 void InstructionCodeGeneratorX86::VisitEqual(HEqual* equal) {
-  __ cmpl(equal->GetLocations()->InAt(0).AsX86().AsCpuRegister(),
-          equal->GetLocations()->InAt(1).AsX86().AsCpuRegister());
-  __ setb(kEqual, equal->GetLocations()->Out().AsX86().AsCpuRegister());
+  LocationSummary* locations = equal->GetLocations();
+  if (locations->InAt(1).IsRegister()) {
+    __ cmpl(locations->InAt(0).AsX86().AsCpuRegister(),
+            locations->InAt(1).AsX86().AsCpuRegister());
+  } else {
+    __ cmpl(locations->InAt(0).AsX86().AsCpuRegister(),
+            Address(ESP, locations->InAt(1).GetStackIndex()));
+  }
+  __ setb(kEqual, locations->Out().AsX86().AsCpuRegister());
 }
 
 void LocationsBuilderX86::VisitIntConstant(HIntConstant* constant) {
@@ -453,7 +557,7 @@ void InstructionCodeGeneratorX86::VisitReturn(HReturn* ret) {
 
 void LocationsBuilderX86::VisitInvokeStatic(HInvokeStatic* invoke) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(invoke);
-  locations->AddTemp(X86CpuLocation(EAX));
+  locations->AddTemp(Location::RequiresRegister());
 
   InvokeDexCallingConventionVisitor calling_convention_visitor;
   for (size_t i = 0; i < invoke->InputCount(); i++) {
@@ -514,18 +618,11 @@ void InstructionCodeGeneratorX86::VisitInvokeStatic(HInvokeStatic* invoke) {
 void LocationsBuilderX86::VisitAdd(HAdd* add) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(add);
   switch (add->GetResultType()) {
-    case Primitive::kPrimInt: {
-      locations->SetInAt(0, X86CpuLocation(EAX));
-      locations->SetInAt(1, X86CpuLocation(ECX));
-      locations->SetOut(X86CpuLocation(EAX));
-      break;
-    }
+    case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
-      locations->SetInAt(
-          0, Location::RegisterLocation(X86ManagedRegister::FromRegisterPair(EAX_EDX)));
-      locations->SetInAt(
-          1, Location::RegisterLocation(X86ManagedRegister::FromRegisterPair(ECX_EBX)));
-      locations->SetOut(Location::RegisterLocation(X86ManagedRegister::FromRegisterPair(EAX_EDX)));
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::Any());
+      locations->SetOut(Location::SameAsFirstInput());
       break;
     }
 
@@ -548,18 +645,30 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
     case Primitive::kPrimInt: {
       DCHECK_EQ(locations->InAt(0).AsX86().AsCpuRegister(),
                 locations->Out().AsX86().AsCpuRegister());
-      __ addl(locations->InAt(0).AsX86().AsCpuRegister(),
-              locations->InAt(1).AsX86().AsCpuRegister());
+      if (locations->InAt(1).IsRegister()) {
+        __ addl(locations->InAt(0).AsX86().AsCpuRegister(),
+                locations->InAt(1).AsX86().AsCpuRegister());
+      } else {
+        __ addl(locations->InAt(0).AsX86().AsCpuRegister(),
+                Address(ESP, locations->InAt(1).GetStackIndex()));
+      }
       break;
     }
 
     case Primitive::kPrimLong: {
       DCHECK_EQ(locations->InAt(0).AsX86().AsRegisterPair(),
                 locations->Out().AsX86().AsRegisterPair());
-      __ addl(locations->InAt(0).AsX86().AsRegisterPairLow(),
-              locations->InAt(1).AsX86().AsRegisterPairLow());
-      __ adcl(locations->InAt(0).AsX86().AsRegisterPairHigh(),
-              locations->InAt(1).AsX86().AsRegisterPairHigh());
+      if (locations->InAt(1).IsRegister()) {
+        __ addl(locations->InAt(0).AsX86().AsRegisterPairLow(),
+                locations->InAt(1).AsX86().AsRegisterPairLow());
+        __ adcl(locations->InAt(0).AsX86().AsRegisterPairHigh(),
+                locations->InAt(1).AsX86().AsRegisterPairHigh());
+      } else {
+        __ addl(locations->InAt(0).AsX86().AsRegisterPairLow(),
+                Address(ESP, locations->InAt(1).GetStackIndex()));
+        __ adcl(locations->InAt(0).AsX86().AsRegisterPairHigh(),
+                Address(ESP, locations->InAt(1).GetHighStackIndex(kX86WordSize)));
+      }
       break;
     }
 
@@ -578,19 +687,11 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
 void LocationsBuilderX86::VisitSub(HSub* sub) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(sub);
   switch (sub->GetResultType()) {
-    case Primitive::kPrimInt: {
-      locations->SetInAt(0, X86CpuLocation(EAX));
-      locations->SetInAt(1, X86CpuLocation(ECX));
-      locations->SetOut(X86CpuLocation(EAX));
-      break;
-    }
-
+    case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
-      locations->SetInAt(
-          0, Location::RegisterLocation(X86ManagedRegister::FromRegisterPair(EAX_EDX)));
-      locations->SetInAt(
-          1, Location::RegisterLocation(X86ManagedRegister::FromRegisterPair(ECX_EBX)));
-      locations->SetOut(Location::RegisterLocation(X86ManagedRegister::FromRegisterPair(EAX_EDX)));
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::Any());
+      locations->SetOut(Location::SameAsFirstInput());
       break;
     }
 
@@ -613,18 +714,30 @@ void InstructionCodeGeneratorX86::VisitSub(HSub* sub) {
     case Primitive::kPrimInt: {
       DCHECK_EQ(locations->InAt(0).AsX86().AsCpuRegister(),
                 locations->Out().AsX86().AsCpuRegister());
-      __ subl(locations->InAt(0).AsX86().AsCpuRegister(),
-              locations->InAt(1).AsX86().AsCpuRegister());
+      if (locations->InAt(1).IsRegister()) {
+        __ subl(locations->InAt(0).AsX86().AsCpuRegister(),
+                locations->InAt(1).AsX86().AsCpuRegister());
+      } else {
+        __ subl(locations->InAt(0).AsX86().AsCpuRegister(),
+                Address(ESP, locations->InAt(1).GetStackIndex()));
+      }
       break;
     }
 
     case Primitive::kPrimLong: {
       DCHECK_EQ(locations->InAt(0).AsX86().AsRegisterPair(),
                 locations->Out().AsX86().AsRegisterPair());
-      __ subl(locations->InAt(0).AsX86().AsRegisterPairLow(),
-              locations->InAt(1).AsX86().AsRegisterPairLow());
-      __ sbbl(locations->InAt(0).AsX86().AsRegisterPairHigh(),
-              locations->InAt(1).AsX86().AsRegisterPairHigh());
+      if (locations->InAt(1).IsRegister()) {
+        __ subl(locations->InAt(0).AsX86().AsRegisterPairLow(),
+                locations->InAt(1).AsX86().AsRegisterPairLow());
+        __ sbbl(locations->InAt(0).AsX86().AsRegisterPairHigh(),
+                locations->InAt(1).AsX86().AsRegisterPairHigh());
+      } else {
+        __ subl(locations->InAt(0).AsX86().AsRegisterPairLow(),
+                Address(ESP, locations->InAt(1).GetStackIndex()));
+        __ sbbl(locations->InAt(0).AsX86().AsRegisterPairHigh(),
+                Address(ESP, locations->InAt(1).GetHighStackIndex(kX86WordSize)));
+      }
       break;
     }
 
@@ -643,14 +756,16 @@ void InstructionCodeGeneratorX86::VisitSub(HSub* sub) {
 void LocationsBuilderX86::VisitNewInstance(HNewInstance* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
   locations->SetOut(X86CpuLocation(EAX));
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->AddTemp(X86CpuLocation(calling_convention.GetRegisterAt(0)));
+  locations->AddTemp(X86CpuLocation(calling_convention.GetRegisterAt(1)));
   instruction->SetLocations(locations);
 }
 
 void InstructionCodeGeneratorX86::VisitNewInstance(HNewInstance* instruction) {
   InvokeRuntimeCallingConvention calling_convention;
   LoadCurrentMethod(calling_convention.GetRegisterAt(1));
-  __ movl(calling_convention.GetRegisterAt(0),
-          Immediate(instruction->GetTypeIndex()));
+  __ movl(calling_convention.GetRegisterAt(0), Immediate(instruction->GetTypeIndex()));
 
   __ fs()->call(
       Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pAllocObjectWithAccessCheck)));
@@ -676,15 +791,16 @@ void InstructionCodeGeneratorX86::VisitParameterValue(HParameterValue* instructi
 
 void LocationsBuilderX86::VisitNot(HNot* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
-  locations->SetInAt(0, X86CpuLocation(EAX));
-  locations->SetOut(X86CpuLocation(EAX));
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::SameAsFirstInput());
   instruction->SetLocations(locations);
 }
 
 void InstructionCodeGeneratorX86::VisitNot(HNot* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  DCHECK_EQ(locations->InAt(0).AsX86().AsCpuRegister(), locations->Out().AsX86().AsCpuRegister());
-  __ xorl(locations->Out().AsX86().AsCpuRegister(), Immediate(1));
+  Location out = locations->Out();
+  DCHECK_EQ(locations->InAt(0).AsX86().AsCpuRegister(), out.AsX86().AsCpuRegister());
+  __ xorl(out.AsX86().AsCpuRegister(), Immediate(1));
 }
 
 void LocationsBuilderX86::VisitPhi(HPhi* instruction) {
