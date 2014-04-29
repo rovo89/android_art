@@ -162,6 +162,12 @@ void PassDriver::DispatchPass(CompilationUnit* c_unit, const Pass* curPass) {
     case kAllNodes:
       DoWalkBasicBlocks<AllNodesIterator>(c_unit, curPass);
       break;
+    case kTopologicalSortTraversal:
+      DoWalkBasicBlocks<TopologicalSortIterator>(c_unit, curPass);
+      break;
+    case kRepeatingTopologicalSortTraversal:
+      DoWalkBasicBlocks<RepeatingTopologicalSortIterator>(c_unit, curPass);
+      break;
     case kNoNodes:
       break;
     default:
