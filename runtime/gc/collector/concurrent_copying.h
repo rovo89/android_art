@@ -33,10 +33,7 @@ class ConcurrentCopying : public GarbageCollector {
 
   ~ConcurrentCopying() {}
 
-  virtual void InitializePhase() OVERRIDE {}
-  virtual void MarkingPhase() OVERRIDE {}
-  virtual void ReclaimPhase() OVERRIDE {}
-  virtual void FinishPhase() OVERRIDE {}
+  virtual void RunPhases() OVERRIDE {}
   virtual GcType GetGcType() const OVERRIDE {
     return kGcTypePartial;
   }

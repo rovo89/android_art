@@ -114,6 +114,50 @@ static gc::CollectorType ParseCollectorType(const std::string& option) {
   }
 }
 
+bool ParsedOptions::ParseXGcOption(const std::string& option) {
+  std::vector<std::string> gc_options;
+  Split(option.substr(strlen("-Xgc:")), ',', gc_options);
+  for (const std::string& gc_option : gc_options) {
+    gc::CollectorType collector_type = ParseCollectorType(gc_option);
+    if (collector_type != gc::kCollectorTypeNone) {
+      collector_type_ = collector_type;
+    } else if (gc_option == "preverify") {
+      verify_pre_gc_heap_ = true;
+    } else if (gc_option == "nopreverify") {
+      verify_pre_gc_heap_ = false;
+    }  else if (gc_option == "presweepingverify") {
+      verify_pre_sweeping_heap_ = true;
+    } else if (gc_option == "nopresweepingverify") {
+      verify_pre_sweeping_heap_ = false;
+    } else if (gc_option == "postverify") {
+      verify_post_gc_heap_ = true;
+    } else if (gc_option == "nopostverify") {
+      verify_post_gc_heap_ = false;
+    } else if (gc_option == "preverify_rosalloc") {
+      verify_pre_gc_rosalloc_ = true;
+    } else if (gc_option == "nopreverify_rosalloc") {
+      verify_pre_gc_rosalloc_ = false;
+    } else if (gc_option == "presweepingverify_rosalloc") {
+      verify_pre_sweeping_rosalloc_ = true;
+    } else if (gc_option == "nopresweepingverify_rosalloc") {
+      verify_pre_sweeping_rosalloc_ = false;
+    } else if (gc_option == "postverify_rosalloc") {
+      verify_post_gc_rosalloc_ = true;
+    } else if (gc_option == "nopostverify_rosalloc") {
+      verify_post_gc_rosalloc_ = false;
+    } else if ((gc_option == "precise") ||
+               (gc_option == "noprecise") ||
+               (gc_option == "verifycardtable") ||
+               (gc_option == "noverifycardtable")) {
+      // Ignored for backwards compatibility.
+    } else {
+      Usage("Unknown -Xgc option %s\n", gc_option.c_str());
+      return false;
+    }
+  }
+  return true;
+}
+
 bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecognized) {
   const char* boot_class_path_string = getenv("BOOTCLASSPATH");
   if (boot_class_path_string != NULL) {
@@ -147,8 +191,11 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
   low_memory_mode_ = false;
   use_tlab_ = false;
   verify_pre_gc_heap_ = false;
-  verify_post_gc_heap_ = kIsDebugBuild;
+  // Pre sweeping is the one that usually fails if the GC corrupted the heap.
+  verify_pre_sweeping_heap_ = kIsDebugBuild;
+  verify_post_gc_heap_ = false;
   verify_pre_gc_rosalloc_ = kIsDebugBuild;
+  verify_pre_sweeping_rosalloc_ = false;
   verify_post_gc_rosalloc_ = false;
 
   compiler_callbacks_ = nullptr;
@@ -370,37 +417,8 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
     } else if (option == "-Xint") {
       interpreter_only_ = true;
     } else if (StartsWith(option, "-Xgc:")) {
-      std::vector<std::string> gc_options;
-      Split(option.substr(strlen("-Xgc:")), ',', gc_options);
-      for (const std::string& gc_option : gc_options) {
-        gc::CollectorType collector_type = ParseCollectorType(gc_option);
-        if (collector_type != gc::kCollectorTypeNone) {
-          collector_type_ = collector_type;
-        } else if (gc_option == "preverify") {
-          verify_pre_gc_heap_ = true;
-        } else if (gc_option == "nopreverify") {
-          verify_pre_gc_heap_ = false;
-        }  else if (gc_option == "postverify") {
-          verify_post_gc_heap_ = true;
-        } else if (gc_option == "nopostverify") {
-          verify_post_gc_heap_ = false;
-        } else if (gc_option == "preverify_rosalloc") {
-          verify_pre_gc_rosalloc_ = true;
-        } else if (gc_option == "nopreverify_rosalloc") {
-          verify_pre_gc_rosalloc_ = false;
-        } else if (gc_option == "postverify_rosalloc") {
-          verify_post_gc_rosalloc_ = true;
-        } else if (gc_option == "nopostverify_rosalloc") {
-          verify_post_gc_rosalloc_ = false;
-        } else if ((gc_option == "precise") ||
-                   (gc_option == "noprecise") ||
-                   (gc_option == "verifycardtable") ||
-                   (gc_option == "noverifycardtable")) {
-          // Ignored for backwards compatibility.
-        } else {
-          Usage("Unknown -Xgc option %s\n", gc_option.c_str());
-          return false;
-        }
+      if (!ParseXGcOption(option)) {
+        return false;
       }
     } else if (StartsWith(option, "-XX:BackgroundGC=")) {
       std::string substring;
@@ -727,7 +745,9 @@ void ParsedOptions::Usage(const char* fmt, ...) {
 
   UsageMessage(stream, "The following unique to ART options are supported:\n");
   UsageMessage(stream, "  -Xgc:[no]preverify_rosalloc\n");
+  UsageMessage(stream, "  -Xgc:[no]postsweepingverify_rosalloc\n");
   UsageMessage(stream, "  -Xgc:[no]postverify_rosalloc\n");
+  UsageMessage(stream, "  -Xgc:[no]presweepingverify\n");
   UsageMessage(stream, "  -Ximage:filename\n");
   UsageMessage(stream, "  -XX:ParallelGCThreads=integervalue\n");
   UsageMessage(stream, "  -XX:ConcGCThreads=integervalue\n");

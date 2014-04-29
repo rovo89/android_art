@@ -577,8 +577,10 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
                        options->ignore_max_footprint_,
                        options->use_tlab_,
                        options->verify_pre_gc_heap_,
+                       options->verify_pre_sweeping_heap_,
                        options->verify_post_gc_heap_,
                        options->verify_pre_gc_rosalloc_,
+                       options->verify_pre_sweeping_rosalloc_,
                        options->verify_post_gc_rosalloc_);
 
   dump_gc_performance_on_shutdown_ = options->dump_gc_performance_on_shutdown_;

@@ -152,8 +152,9 @@ class Heap {
                 CollectorType foreground_collector_type, CollectorType background_collector_type,
                 size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
                 size_t long_pause_threshold, size_t long_gc_threshold,
-                bool ignore_max_footprint, bool use_tlab, bool verify_pre_gc_heap,
-                bool verify_post_gc_heap, bool verify_pre_gc_rosalloc,
+                bool ignore_max_footprint, bool use_tlab,
+                bool verify_pre_gc_heap, bool verify_pre_sweeping_heap, bool verify_post_gc_heap,
+                bool verify_pre_gc_rosalloc, bool verify_pre_sweeping_rosalloc,
                 bool verify_post_gc_rosalloc);
 
   ~Heap();
@@ -449,10 +450,7 @@ class Heap {
   void RevokeRosAllocThreadLocalBuffers(Thread* thread);
   void RevokeAllThreadLocalBuffers();
   void AssertAllBumpPointerSpaceThreadLocalBuffersAreRevoked();
-
-  void PreGcRosAllocVerification(TimingLogger* timings)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void PostGcRosAllocVerification(TimingLogger* timings)
+  void RosAllocVerification(TimingLogger* timings, const char* name)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   accounting::HeapBitmap* GetLiveBitmap() SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
@@ -666,11 +664,18 @@ class Heap {
                      Locks::heap_bitmap_lock_,
                      Locks::thread_suspend_count_lock_);
 
-  void PreGcVerification(collector::GarbageCollector* gc);
+  void PreGcVerification(collector::GarbageCollector* gc)
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
+  void PreGcVerificationPaused(collector::GarbageCollector* gc)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void PrePauseRosAllocVerification(collector::GarbageCollector* gc)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   void PreSweepingGcVerification(collector::GarbageCollector* gc)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   void PostGcVerification(collector::GarbageCollector* gc)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
+  void PostGcVerificationPaused(collector::GarbageCollector* gc)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Update the watermark for the native allocated bytes based on the current number of native
   // bytes allocated and the target utilization ratio.
@@ -857,28 +862,35 @@ class Heap {
   const bool verify_missing_card_marks_;
   const bool verify_system_weaks_;
   const bool verify_pre_gc_heap_;
+  const bool verify_pre_sweeping_heap_;
   const bool verify_post_gc_heap_;
   const bool verify_mod_union_table_;
   bool verify_pre_gc_rosalloc_;
+  bool verify_pre_sweeping_rosalloc_;
   bool verify_post_gc_rosalloc_;
 
   // RAII that temporarily disables the rosalloc verification during
   // the zygote fork.
   class ScopedDisableRosAllocVerification {
    private:
-    Heap* heap_;
-    bool orig_verify_pre_gc_;
-    bool orig_verify_post_gc_;
+    Heap* const heap_;
+    const bool orig_verify_pre_gc_;
+    const bool orig_verify_pre_sweeping_;
+    const bool orig_verify_post_gc_;
+
    public:
     explicit ScopedDisableRosAllocVerification(Heap* heap)
         : heap_(heap),
           orig_verify_pre_gc_(heap_->verify_pre_gc_rosalloc_),
+          orig_verify_pre_sweeping_(heap_->verify_pre_sweeping_rosalloc_),
           orig_verify_post_gc_(heap_->verify_post_gc_rosalloc_) {
       heap_->verify_pre_gc_rosalloc_ = false;
+      heap_->verify_pre_sweeping_rosalloc_ = false;
       heap_->verify_post_gc_rosalloc_ = false;
     }
     ~ScopedDisableRosAllocVerification() {
       heap_->verify_pre_gc_rosalloc_ = orig_verify_pre_gc_;
+      heap_->verify_pre_sweeping_rosalloc_ = orig_verify_pre_sweeping_;
       heap_->verify_post_gc_rosalloc_ = orig_verify_post_gc_;
     }
   };
@@ -955,6 +967,7 @@ class Heap {
   const bool running_on_valgrind_;
   const bool use_tlab_;
 
+  friend class collector::GarbageCollector;
   friend class collector::MarkSweep;
   friend class collector::SemiSpace;
   friend class ReferenceQueue;
