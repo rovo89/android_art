@@ -357,16 +357,16 @@ void Heap::CreateMainMallocSpace(MemMap* mem_map, size_t initial_size, size_t gr
     can_move_objects = !have_zygote_space_;
   }
   if (kUseRosAlloc) {
-    main_space_ = space::RosAllocSpace::CreateFromMemMap(mem_map, "main rosalloc space",
-                                                         kDefaultStartingSize, initial_size,
-                                                         growth_limit, capacity, low_memory_mode_,
-                                                         can_move_objects);
+    rosalloc_space_ = space::RosAllocSpace::CreateFromMemMap(
+        mem_map, "main rosalloc space", kDefaultStartingSize, initial_size, growth_limit, capacity,
+        low_memory_mode_, can_move_objects);
+    main_space_ = rosalloc_space_;
     CHECK(main_space_ != nullptr) << "Failed to create rosalloc space";
   } else {
-    main_space_ = space::DlMallocSpace::CreateFromMemMap(mem_map, "main dlmalloc space",
-                                                         kDefaultStartingSize, initial_size,
-                                                         growth_limit, capacity,
-                                                         can_move_objects);
+    dlmalloc_space_ = space::DlMallocSpace::CreateFromMemMap(
+        mem_map, "main dlmalloc space", kDefaultStartingSize, initial_size, growth_limit, capacity,
+        can_move_objects);
+    main_space_ = rosalloc_space_;
     CHECK(main_space_ != nullptr) << "Failed to create dlmalloc space";
   }
   main_space_->SetFootprintLimit(main_space_->Capacity());
@@ -579,7 +579,7 @@ void Heap::DeleteThreadPool() {
   thread_pool_.reset(nullptr);
 }
 
-void Heap::AddSpace(space::Space* space, bool set_as_default) {
+void Heap::AddSpace(space::Space* space) {
   DCHECK(space != nullptr);
   WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   if (space->IsContinuousSpace()) {
@@ -594,18 +594,6 @@ void Heap::AddSpace(space::Space* space, bool set_as_default) {
       mark_bitmap_->AddContinuousSpaceBitmap(mark_bitmap);
     }
     continuous_spaces_.push_back(continuous_space);
-    if (set_as_default) {
-      if (continuous_space->IsDlMallocSpace()) {
-        dlmalloc_space_ = continuous_space->AsDlMallocSpace();
-      } else if (continuous_space->IsRosAllocSpace()) {
-        // Revoke before if we already have a rosalloc_space_ so that we don't end up with non full
-        // runs from the previous one during the revoke after.
-        if (rosalloc_space_ != nullptr) {
-          rosalloc_space_->RevokeAllThreadLocalBuffers();
-        }
-        rosalloc_space_ = continuous_space->AsRosAllocSpace();
-      }
-    }
     // Ensure that spaces remain sorted in increasing order of start address.
     std::sort(continuous_spaces_.begin(), continuous_spaces_.end(),
               [](const space::ContinuousSpace* a, const space::ContinuousSpace* b) {
@@ -623,7 +611,16 @@ void Heap::AddSpace(space::Space* space, bool set_as_default) {
   }
 }
 
-void Heap::RemoveSpace(space::Space* space, bool unset_as_default) {
+void Heap::SetSpaceAsDefault(space::ContinuousSpace* continuous_space) {
+  WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
+  if (continuous_space->IsDlMallocSpace()) {
+    dlmalloc_space_ = continuous_space->AsDlMallocSpace();
+  } else if (continuous_space->IsRosAllocSpace()) {
+    rosalloc_space_ = continuous_space->AsRosAllocSpace();
+  }
+}
+
+void Heap::RemoveSpace(space::Space* space) {
   DCHECK(space != nullptr);
   WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   if (space->IsContinuousSpace()) {
@@ -640,20 +637,6 @@ void Heap::RemoveSpace(space::Space* space, bool unset_as_default) {
     auto it = std::find(continuous_spaces_.begin(), continuous_spaces_.end(), continuous_space);
     DCHECK(it != continuous_spaces_.end());
     continuous_spaces_.erase(it);
-    if (unset_as_default) {
-      if (continuous_space == dlmalloc_space_) {
-        dlmalloc_space_ = nullptr;
-      } else if (continuous_space == rosalloc_space_) {
-        rosalloc_space_ = nullptr;
-      }
-      if (continuous_space == main_space_) {
-        main_space_ = nullptr;
-      } else if (continuous_space == bump_pointer_space_) {
-        bump_pointer_space_ = nullptr;
-      } else if (continuous_space == temp_space_) {
-        temp_space_ = nullptr;
-      }
-    }
   } else {
     DCHECK(space->IsDiscontinuousSpace());
     space::DiscontinuousSpace* discontinuous_space = space->AsDiscontinuousSpace();
@@ -1469,7 +1452,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
         // Remove the main space so that we don't try to trim it, this doens't work for debug
         // builds since RosAlloc attempts to read the magic number from a protected page.
         // TODO: Clean this up by getting rid of the remove_as_default parameter.
-        RemoveSpace(main_space_, false);
+        RemoveSpace(main_space_);
       }
       break;
     }
@@ -1478,7 +1461,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
     case kCollectorTypeCMS: {
       if (IsMovingGc(collector_type_)) {
         // Compact to the main space from the bump pointer space, don't need to swap semispaces.
-        AddSpace(main_space_, false);
+        AddSpace(main_space_);
         main_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
         Compact(main_space_, bump_pointer_space_);
       }
@@ -1693,14 +1676,8 @@ void Heap::PreZygoteFork() {
       reset_main_space = true;
     }
     zygote_collector.SetToSpace(&target_space);
-
-    Runtime::Current()->GetThreadList()->SuspendAll();
+    zygote_collector.SetSwapSemiSpaces(false);
     zygote_collector.Run(kGcCauseCollectorTransition, false);
-    if (IsMovingGc(collector_type_)) {
-      SwapSemiSpaces();
-    }
-    Runtime::Current()->GetThreadList()->ResumeAll();
-
     if (reset_main_space) {
       main_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
       madvise(main_space_->Begin(), main_space_->Capacity(), MADV_DONTNEED);
@@ -1746,7 +1723,7 @@ void Heap::PreZygoteFork() {
                                                                         &non_moving_space_);
   delete old_alloc_space;
   CHECK(zygote_space != nullptr) << "Failed creating zygote space";
-  AddSpace(zygote_space, false);
+  AddSpace(zygote_space);
   non_moving_space_->SetFootprintLimit(non_moving_space_->Capacity());
   AddSpace(non_moving_space_);
   have_zygote_space_ = true;
