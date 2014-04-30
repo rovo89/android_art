@@ -743,18 +743,20 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
       if (pred_bb->block_type == kDalvikByteCode) {
         // Check to see if predecessor had an explicit null-check.
         MIR* last_insn = pred_bb->last_mir_insn;
-        Instruction::Code last_opcode = last_insn->dalvikInsn.opcode;
-        if (last_opcode == Instruction::IF_EQZ) {
-          if (pred_bb->fall_through == bb->id) {
-            // The fall-through of a block following a IF_EQZ, set the vA of the IF_EQZ to show that
-            // it can't be null.
-            ssa_regs_to_check->ClearBit(last_insn->ssa_rep->uses[0]);
-          }
-        } else if (last_opcode == Instruction::IF_NEZ) {
-          if (pred_bb->taken == bb->id) {
-            // The taken block following a IF_NEZ, set the vA of the IF_NEZ to show that it can't be
-            // null.
-            ssa_regs_to_check->ClearBit(last_insn->ssa_rep->uses[0]);
+        if (last_insn != nullptr) {
+          Instruction::Code last_opcode = last_insn->dalvikInsn.opcode;
+          if (last_opcode == Instruction::IF_EQZ) {
+            if (pred_bb->fall_through == bb->id) {
+              // The fall-through of a block following a IF_EQZ, set the vA of the IF_EQZ to show that
+              // it can't be null.
+              ssa_regs_to_check->ClearBit(last_insn->ssa_rep->uses[0]);
+            }
+          } else if (last_opcode == Instruction::IF_NEZ) {
+            if (pred_bb->taken == bb->id) {
+              // The taken block following a IF_NEZ, set the vA of the IF_NEZ to show that it can't be
+              // null.
+              ssa_regs_to_check->ClearBit(last_insn->ssa_rep->uses[0]);
+            }
           }
         }
       }
@@ -903,7 +905,7 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
           temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapNullCheck);
       nce_changed = ssa_regs_to_check->GetHighestBitSet() != -1;
       bb->data_flow_info->ending_check_v->Copy(ssa_regs_to_check);
-    } else if (!ssa_regs_to_check->Equal(bb->data_flow_info->ending_check_v)) {
+    } else if (!ssa_regs_to_check->SameBitsSet(bb->data_flow_info->ending_check_v)) {
       nce_changed = true;
       bb->data_flow_info->ending_check_v->Copy(ssa_regs_to_check);
     }
