@@ -131,7 +131,7 @@ enum ExtendedMIROpcode {
   kMirOpLast,
 };
 
-enum MIROptimizationFlagPositons {
+enum MIROptimizationFlagPositions {
   kMIRIgnoreNullCheck = 0,
   kMIRNullCheckOnly,
   kMIRIgnoreRangeCheck,
@@ -143,6 +143,7 @@ enum MIROptimizationFlagPositons {
   kMIRIgnoreSuspendCheck,
   kMIRDup,
   kMIRMark,                           // Temporary node mark.
+  kMIRLastMIRFlag,
 };
 
 // For successor_block_list.
