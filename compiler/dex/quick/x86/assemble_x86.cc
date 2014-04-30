@@ -25,7 +25,7 @@ namespace art {
 const X86EncodingMap X86Mir2Lir::EncodingMap[kX86Last] = {
   { kX8632BitData, kData,    IS_UNARY_OP,            { 0, 0, 0x00, 0, 0, 0, 0, 4 }, "data",  "0x!0d" },
   { kX86Bkpt,      kNullary, NO_OPERAND | IS_BRANCH, { 0, 0, 0xCC, 0, 0, 0, 0, 0 }, "int 3", "" },
-  { kX86Nop,       kNop,     IS_UNARY_OP,            { 0, 0, 0x90, 0, 0, 0, 0, 0 }, "nop",   "" },
+  { kX86Nop,       kNop,     NO_OPERAND,             { 0, 0, 0x90, 0, 0, 0, 0, 0 }, "nop",   "" },
 
 #define ENCODING_MAP(opname, mem_use, reg_def, uses_ccodes, \
                      rm8_r8, rm32_r32, \
@@ -175,11 +175,13 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86Mov32AI, kArrayImm,  IS_STORE | IS_QUIN_OP     | REG_USE01,      { 0,             0, 0xC7, 0, 0, 0, 0, 4 }, "Mov32AI", "[!0r+!1r<<!2d+!3d],!4d" },
   { kX86Mov32TI, kThreadImm, IS_STORE | IS_BINARY_OP,                    { THREAD_PREFIX, 0, 0xC7, 0, 0, 0, 0, 4 }, "Mov32TI", "fs:[!0d],!1d" },
 
-  { kX86Lea32RM, kRegMem, IS_TERTIARY_OP | IS_LOAD | REG_DEF0_USE1, { 0, 0, 0x8D, 0, 0, 0, 0, 0 }, "Lea32RM", "!0r,[!1r+!2d]" },
+  { kX86Lea32RM, kRegMem, IS_TERTIARY_OP | IS_LOAD | REG_DEF0_USE1,      { 0, 0, 0x8D, 0, 0, 0, 0, 0 }, "Lea32RM", "!0r,[!1r+!2d]" },
 
   { kX86Lea32RA, kRegArray, IS_QUIN_OP | REG_DEF0_USE12, { 0, 0, 0x8D, 0, 0, 0, 0, 0 }, "Lea32RA", "!0r,[!1r+!2r<<!3d+!4d]" },
 
   { kX86Cmov32RRC, kRegRegCond, IS_TERTIARY_OP | REG_DEF0_USE01 | USES_CCODES, {0, 0, 0x0F, 0x40, 0, 0, 0, 0}, "Cmovcc32RR", "!2c !0r,!1r" },
+
+  { kX86Cmov32RMC, kRegMemCond, IS_QUAD_OP | IS_LOAD | REG_DEF0_USE01 | USES_CCODES, {0, 0, 0x0F, 0x40, 0, 0, 0, 0}, "Cmovcc32RM", "!3c !0r,[!1r+!2d]" },
 
 #define SHIFT_ENCODING_MAP(opname, modrm_opcode) \
 { kX86 ## opname ## 8RI, kShiftRegImm,                        IS_BINARY_OP   | REG_DEF0_USE0 |            SETS_CCODES, { 0,    0, 0xC0, 0, 0, modrm_opcode, 0xD1, 1 }, #opname "8RI", "!0r,!1d" }, \
@@ -213,8 +215,10 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
 #undef SHIFT_ENCODING_MAP
 
   { kX86Cmc, kNullary, NO_OPERAND, { 0, 0, 0xF5, 0, 0, 0, 0, 0}, "Cmc", "" },
-  { kX86Shld32RRI,  kRegRegImmRev, IS_TERTIARY_OP | REG_DEF0_USE01  | SETS_CCODES, { 0,    0, 0x0F, 0xA4, 0, 0, 0, 1}, "Shld32", "!0r,!1r,!2d" },
-  { kX86Shrd32RRI,  kRegRegImmRev, IS_TERTIARY_OP | REG_DEF0_USE01  | SETS_CCODES, { 0,    0, 0x0F, 0xAC, 0, 0, 0, 1}, "Shrd32", "!0r,!1r,!2d" },
+  { kX86Shld32RRI,  kRegRegImmRev, IS_TERTIARY_OP | REG_DEF0_USE01  | SETS_CCODES, { 0,    0, 0x0F, 0xA4, 0, 0, 0, 1}, "Shld32RRI", "!0r,!1r,!2d" },
+  { kX86Shld32MRI,  kMemRegImm,    IS_QUAD_OP | REG_USE02 | IS_LOAD | IS_STORE | SETS_CCODES, { 0,    0, 0x0F, 0xA4, 0, 0, 0, 1}, "Shld32MRI", "[!0r+!1d],!2r,!3d" },
+  { kX86Shrd32RRI,  kRegRegImmRev, IS_TERTIARY_OP | REG_DEF0_USE01  | SETS_CCODES, { 0,    0, 0x0F, 0xAC, 0, 0, 0, 1}, "Shrd32RRI", "!0r,!1r,!2d" },
+  { kX86Shrd32MRI,  kMemRegImm,    IS_QUAD_OP | REG_USE02 | IS_LOAD | IS_STORE | SETS_CCODES, { 0,    0, 0x0F, 0xAC, 0, 0, 0, 1}, "Shrd32MRI", "[!0r+!1d],!2r,!3d" },
 
   { kX86Test8RI,  kRegImm,             IS_BINARY_OP   | REG_USE0  | SETS_CCODES, { 0,    0, 0xF6, 0, 0, 0, 0, 1}, "Test8RI", "!0r,!1d" },
   { kX86Test8MI,  kMemImm,   IS_LOAD | IS_TERTIARY_OP | REG_USE0  | SETS_CCODES, { 0,    0, 0xF6, 0, 0, 0, 0, 1}, "Test8MI", "[!0r+!1d],!2d" },
@@ -233,15 +237,15 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
                            arr, arr_kind, arr_flags, imm, \
                            b_flags, hw_flags, w_flags, \
                            b_format, hw_format, w_format) \
-{ kX86 ## opname ## 8 ## reg,  reg_kind,                      reg_flags | b_flags  | sets_ccodes, { 0,    0, 0xF6, 0, 0, modrm, 0, imm << 0}, #opname "8" #reg, #b_format "!0r" }, \
-{ kX86 ## opname ## 8 ## mem,  mem_kind, IS_LOAD | is_store | mem_flags | b_flags  | sets_ccodes, { 0,    0, 0xF6, 0, 0, modrm, 0, imm << 0}, #opname "8" #mem, #b_format "[!0r+!1d]" }, \
-{ kX86 ## opname ## 8 ## arr,  arr_kind, IS_LOAD | is_store | arr_flags | b_flags  | sets_ccodes, { 0,    0, 0xF6, 0, 0, modrm, 0, imm << 0}, #opname "8" #arr, #b_format "[!0r+!1r<<!2d+!3d]" }, \
-{ kX86 ## opname ## 16 ## reg, reg_kind,                      reg_flags | hw_flags | sets_ccodes, { 0x66, 0, 0xF7, 0, 0, modrm, 0, imm << 1}, #opname "16" #reg, #hw_format "!0r" }, \
-{ kX86 ## opname ## 16 ## mem, mem_kind, IS_LOAD | is_store | mem_flags | hw_flags | sets_ccodes, { 0x66, 0, 0xF7, 0, 0, modrm, 0, imm << 1}, #opname "16" #mem, #hw_format "[!0r+!1d]" }, \
-{ kX86 ## opname ## 16 ## arr, arr_kind, IS_LOAD | is_store | arr_flags | hw_flags | sets_ccodes, { 0x66, 0, 0xF7, 0, 0, modrm, 0, imm << 1}, #opname "16" #arr, #hw_format "[!0r+!1r<<!2d+!3d]" }, \
-{ kX86 ## opname ## 32 ## reg, reg_kind,                      reg_flags | w_flags  | sets_ccodes, { 0,    0, 0xF7, 0, 0, modrm, 0, imm << 2}, #opname "32" #reg, #w_format "!0r" }, \
-{ kX86 ## opname ## 32 ## mem, mem_kind, IS_LOAD | is_store | mem_flags | w_flags  | sets_ccodes, { 0,    0, 0xF7, 0, 0, modrm, 0, imm << 2}, #opname "32" #mem, #w_format "[!0r+!1d]" }, \
-{ kX86 ## opname ## 32 ## arr, arr_kind, IS_LOAD | is_store | arr_flags | w_flags  | sets_ccodes, { 0,    0, 0xF7, 0, 0, modrm, 0, imm << 2}, #opname "32" #arr, #w_format "[!0r+!1r<<!2d+!3d]" }
+{ kX86 ## opname ## 8 ## reg,  reg_kind,                      reg_flags | b_flags  | sets_ccodes, { 0,    0, 0xF6, 0, 0, modrm, 0, imm << 0}, #opname "8" #reg, b_format "!0r" }, \
+{ kX86 ## opname ## 8 ## mem,  mem_kind, IS_LOAD | is_store | mem_flags | b_flags  | sets_ccodes, { 0,    0, 0xF6, 0, 0, modrm, 0, imm << 0}, #opname "8" #mem, b_format "[!0r+!1d]" }, \
+{ kX86 ## opname ## 8 ## arr,  arr_kind, IS_LOAD | is_store | arr_flags | b_flags  | sets_ccodes, { 0,    0, 0xF6, 0, 0, modrm, 0, imm << 0}, #opname "8" #arr, b_format "[!0r+!1r<<!2d+!3d]" }, \
+{ kX86 ## opname ## 16 ## reg, reg_kind,                      reg_flags | hw_flags | sets_ccodes, { 0x66, 0, 0xF7, 0, 0, modrm, 0, imm << 1}, #opname "16" #reg, hw_format "!0r" }, \
+{ kX86 ## opname ## 16 ## mem, mem_kind, IS_LOAD | is_store | mem_flags | hw_flags | sets_ccodes, { 0x66, 0, 0xF7, 0, 0, modrm, 0, imm << 1}, #opname "16" #mem, hw_format "[!0r+!1d]" }, \
+{ kX86 ## opname ## 16 ## arr, arr_kind, IS_LOAD | is_store | arr_flags | hw_flags | sets_ccodes, { 0x66, 0, 0xF7, 0, 0, modrm, 0, imm << 1}, #opname "16" #arr, hw_format "[!0r+!1r<<!2d+!3d]" }, \
+{ kX86 ## opname ## 32 ## reg, reg_kind,                      reg_flags | w_flags  | sets_ccodes, { 0,    0, 0xF7, 0, 0, modrm, 0, imm << 2}, #opname "32" #reg, w_format "!0r" }, \
+{ kX86 ## opname ## 32 ## mem, mem_kind, IS_LOAD | is_store | mem_flags | w_flags  | sets_ccodes, { 0,    0, 0xF7, 0, 0, modrm, 0, imm << 2}, #opname "32" #mem, w_format "[!0r+!1d]" }, \
+{ kX86 ## opname ## 32 ## arr, arr_kind, IS_LOAD | is_store | arr_flags | w_flags  | sets_ccodes, { 0,    0, 0xF7, 0, 0, modrm, 0, imm << 2}, #opname "32" #arr, w_format "[!0r+!1r<<!2d+!3d]" }
 
   UNARY_ENCODING_MAP(Not, 0x2, IS_STORE, 0,           R, kReg, IS_UNARY_OP | REG_DEF0_USE0, M, kMem, IS_BINARY_OP | REG_USE0, A, kArray, IS_QUAD_OP | REG_USE01, 0, 0, 0, 0, "", "", ""),
   UNARY_ENCODING_MAP(Neg, 0x3, IS_STORE, SETS_CCODES, R, kReg, IS_UNARY_OP | REG_DEF0_USE0, M, kMem, IS_BINARY_OP | REG_USE0, A, kArray, IS_QUAD_OP | REG_USE01, 0, 0, 0, 0, "", "", ""),
@@ -258,9 +262,9 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86Pop32R,   kRegOpcode, IS_UNARY_OP | REG_DEF0 | REG_USE_SP | REG_DEF_SP | IS_LOAD,  { 0, 0, 0x58, 0,    0, 0, 0, 0 }, "Pop32R",   "!0r" },
 
 #define EXT_0F_ENCODING_MAP(opname, prefix, opcode, reg_def) \
-{ kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE01,  { prefix, 0, 0x0F, opcode, 0, 0, 0, 0 }, #opname "RR", "!0r,!1r" }, \
-{ kX86 ## opname ## RM, kRegMem,   IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE01,  { prefix, 0, 0x0F, opcode, 0, 0, 0, 0 }, #opname "RM", "!0r,[!1r+!2d]" }, \
-{ kX86 ## opname ## RA, kRegArray, IS_LOAD | IS_QUIN_OP     | reg_def | REG_USE012, { prefix, 0, 0x0F, opcode, 0, 0, 0, 0 }, #opname "RA", "!0r,[!1r+!2r<<!3d+!4d]" }
+{ kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE1,  { prefix, 0, 0x0F, opcode, 0, 0, 0, 0 }, #opname "RR", "!0r,!1r" }, \
+{ kX86 ## opname ## RM, kRegMem,   IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE1,  { prefix, 0, 0x0F, opcode, 0, 0, 0, 0 }, #opname "RM", "!0r,[!1r+!2d]" }, \
+{ kX86 ## opname ## RA, kRegArray, IS_LOAD | IS_QUIN_OP     | reg_def | REG_USE12, { prefix, 0, 0x0F, opcode, 0, 0, 0, 0 }, #opname "RA", "!0r,[!1r+!2r<<!3d+!4d]" }
 
   EXT_0F_ENCODING_MAP(Movsd, 0xF2, 0x10, REG_DEF0),
   { kX86MovsdMR, kMemReg,   IS_STORE | IS_TERTIARY_OP | REG_USE02,  { 0xF2, 0, 0x0F, 0x11, 0, 0, 0, 0 }, "MovsdMR", "[!0r+!1d],!2r" },
@@ -276,23 +280,23 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   EXT_0F_ENCODING_MAP(Cvttss2si, 0xF3, 0x2C, REG_DEF0),
   EXT_0F_ENCODING_MAP(Cvtsd2si,  0xF2, 0x2D, REG_DEF0),
   EXT_0F_ENCODING_MAP(Cvtss2si,  0xF3, 0x2D, REG_DEF0),
-  EXT_0F_ENCODING_MAP(Ucomisd,   0x66, 0x2E, SETS_CCODES),
-  EXT_0F_ENCODING_MAP(Ucomiss,   0x00, 0x2E, SETS_CCODES),
-  EXT_0F_ENCODING_MAP(Comisd,    0x66, 0x2F, SETS_CCODES),
-  EXT_0F_ENCODING_MAP(Comiss,    0x00, 0x2F, SETS_CCODES),
-  EXT_0F_ENCODING_MAP(Orps,      0x00, 0x56, REG_DEF0),
-  EXT_0F_ENCODING_MAP(Xorps,     0x00, 0x57, REG_DEF0),
-  EXT_0F_ENCODING_MAP(Addsd,     0xF2, 0x58, REG_DEF0),
-  EXT_0F_ENCODING_MAP(Addss,     0xF3, 0x58, REG_DEF0),
-  EXT_0F_ENCODING_MAP(Mulsd,     0xF2, 0x59, REG_DEF0),
-  EXT_0F_ENCODING_MAP(Mulss,     0xF3, 0x59, REG_DEF0),
+  EXT_0F_ENCODING_MAP(Ucomisd,   0x66, 0x2E, SETS_CCODES|REG_USE0),
+  EXT_0F_ENCODING_MAP(Ucomiss,   0x00, 0x2E, SETS_CCODES|REG_USE0),
+  EXT_0F_ENCODING_MAP(Comisd,    0x66, 0x2F, SETS_CCODES|REG_USE0),
+  EXT_0F_ENCODING_MAP(Comiss,    0x00, 0x2F, SETS_CCODES|REG_USE0),
+  EXT_0F_ENCODING_MAP(Orps,      0x00, 0x56, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Xorps,     0x00, 0x57, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Addsd,     0xF2, 0x58, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Addss,     0xF3, 0x58, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Mulsd,     0xF2, 0x59, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Mulss,     0xF3, 0x59, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Cvtsd2ss,  0xF2, 0x5A, REG_DEF0),
   EXT_0F_ENCODING_MAP(Cvtss2sd,  0xF3, 0x5A, REG_DEF0),
-  EXT_0F_ENCODING_MAP(Subsd,     0xF2, 0x5C, REG_DEF0),
-  EXT_0F_ENCODING_MAP(Subss,     0xF3, 0x5C, REG_DEF0),
-  EXT_0F_ENCODING_MAP(Divsd,     0xF2, 0x5E, REG_DEF0),
-  EXT_0F_ENCODING_MAP(Divss,     0xF3, 0x5E, REG_DEF0),
-  EXT_0F_ENCODING_MAP(Punpckldq, 0x66, 0x62, REG_DEF0),
+  EXT_0F_ENCODING_MAP(Subsd,     0xF2, 0x5C, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Subss,     0xF3, 0x5C, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Divsd,     0xF2, 0x5E, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Divss,     0xF3, 0x5E, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Punpckldq, 0x66, 0x62, REG_DEF0_USE0),
 
   { kX86PsrlqRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x73, 0, 2, 0, 1 }, "PsrlqRI", "!0r,!1d" },
   { kX86PsllqRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x73, 0, 6, 0, 1 }, "PsllqRI", "!0r,!1d" },
@@ -322,7 +326,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86MovhpsAR, kArrayReg,    IS_STORE | IS_QUIN_OP     | REG_USE014, { 0x0, 0, 0x0F, 0x17, 0, 0, 0, 0 }, "MovhpsAR", "[!0r+!1r<<!2d+!3d],!4r" },
 
   EXT_0F_ENCODING_MAP(Movdxr,    0x66, 0x6E, REG_DEF0),
-  { kX86MovdrxRR, kRegRegStore, IS_BINARY_OP | REG_DEF0   | REG_USE01,  { 0x66, 0, 0x0F, 0x7E, 0, 0, 0, 0 }, "MovdrxRR", "!0r,!1r" },
+  { kX86MovdrxRR, kRegRegStore, IS_BINARY_OP | REG_DEF0   | REG_USE1,   { 0x66, 0, 0x0F, 0x7E, 0, 0, 0, 0 }, "MovdrxRR", "!0r,!1r" },
   { kX86MovdrxMR, kMemReg,      IS_STORE | IS_TERTIARY_OP | REG_USE02,  { 0x66, 0, 0x0F, 0x7E, 0, 0, 0, 0 }, "MovdrxMR", "[!0r+!1d],!2r" },
   { kX86MovdrxAR, kArrayReg,    IS_STORE | IS_QUIN_OP     | REG_USE014, { 0x66, 0, 0x0F, 0x7E, 0, 0, 0, 0 }, "MovdrxAR", "[!0r+!1r<<!2d+!3d],!4r" },
 
@@ -334,8 +338,8 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   // Encode the modrm opcode as an extra opcode byte to avoid computation during assembly.
   { kX86Mfence, kReg,                 NO_OPERAND,     { 0, 0, 0x0F, 0xAE, 0, 6, 0, 0 }, "Mfence", "" },
 
-  EXT_0F_ENCODING_MAP(Imul16,  0x66, 0xAF, REG_DEF0 | SETS_CCODES),
-  EXT_0F_ENCODING_MAP(Imul32,  0x00, 0xAF, REG_DEF0 | SETS_CCODES),
+  EXT_0F_ENCODING_MAP(Imul16,  0x66, 0xAF, REG_USE0 | REG_DEF0 | SETS_CCODES),
+  EXT_0F_ENCODING_MAP(Imul32,  0x00, 0xAF, REG_USE0 | REG_DEF0 | SETS_CCODES),
 
   { kX86CmpxchgRR, kRegRegStore, IS_BINARY_OP | REG_DEF0 | REG_USE01 | REG_DEFA_USEA | SETS_CCODES, { 0, 0, 0x0F, 0xB1, 0, 0, 0, 0 }, "Cmpxchg", "!0r,!1r" },
   { kX86CmpxchgMR, kMemReg,   IS_STORE | IS_TERTIARY_OP | REG_USE02 | REG_DEFA_USEA | SETS_CCODES, { 0, 0, 0x0F, 0xB1, 0, 0, 0, 0 }, "Cmpxchg", "[!0r+!1d],!2r" },
@@ -369,7 +373,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86StartOfMethod, kMacro,  IS_UNARY_OP | SETS_CCODES,             { 0, 0, 0,    0, 0, 0, 0, 0 }, "StartOfMethod", "!0r" },
   { kX86PcRelLoadRA,   kPcRel,  IS_LOAD | IS_QUIN_OP | REG_DEF0_USE12, { 0, 0, 0x8B, 0, 0, 0, 0, 0 }, "PcRelLoadRA",   "!0r,[!1r+!2r<<!3d+!4p]" },
   { kX86PcRelAdr,      kPcRel,  IS_LOAD | IS_BINARY_OP | REG_DEF0,     { 0, 0, 0xB8, 0, 0, 0, 0, 4 }, "PcRelAdr",      "!0r,!1d" },
-  { kX86RepneScasw, kPrefix2Nullary, NO_OPERAND | SETS_CCODES,         { 0x66, 0xF2, 0xAF, 0, 0, 0, 0, 0 }, "RepNE ScasW", "" },
+  { kX86RepneScasw, kPrefix2Nullary, NO_OPERAND | REG_USEA | REG_USEC | SETS_CCODES, { 0x66, 0xF2, 0xAF, 0, 0, 0, 0, 0 }, "RepNE ScasW", "" },
 };
 
 static size_t ComputeSize(const X86EncodingMap* entry, int base, int displacement, bool has_sib) {
@@ -424,6 +428,8 @@ int X86Mir2Lir::GetInsnSize(LIR* lir) {
     case kArray:  // lir operands - 0: base, 1: index, 2: scale, 3: disp
       return ComputeSize(entry, lir->operands[0], lir->operands[3], true);
     case kMemReg:  // lir operands - 0: base, 1: disp, 2: reg
+      return ComputeSize(entry, lir->operands[0], lir->operands[1], false);
+    case kMemRegImm:  // lir operands - 0: base, 1: disp, 2: reg 3: immediate
       return ComputeSize(entry, lir->operands[0], lir->operands[1], false);
     case kArrayReg:  // lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: reg
       return ComputeSize(entry, lir->operands[0], lir->operands[3], true);
@@ -489,6 +495,8 @@ int X86Mir2Lir::GetInsnSize(LIR* lir) {
       return ComputeSize(entry, lir->operands[0], lir->operands[3], true);
     case kRegRegCond:  // lir operands - 0: reg, 1: reg, 2: cond
       return ComputeSize(entry, 0, 0, false);
+    case kRegMemCond:  // lir operands - 0: reg, 1: reg, 2: disp, 3:cond
+      return ComputeSize(entry, lir->operands[1], lir->operands[2], false);
     case kJcc:
       if (lir->opcode == kX86Jcc8) {
         return 2;  // opcode + rel8
@@ -729,6 +737,14 @@ void X86Mir2Lir::EmitArrayReg(const X86EncodingMap* entry, uint8_t base, uint8_t
   EmitRegArray(entry, reg, base, index, scale, disp);
 }
 
+void X86Mir2Lir::EmitArrayImm(const X86EncodingMap* entry, uint8_t base, uint8_t index, int scale,
+                              int disp, int32_t imm) {
+  EmitPrefixAndOpcode(entry);
+  EmitModrmSibDisp(entry->skeleton.modrm_opcode, base, index, scale, disp);
+  DCHECK_EQ(0, entry->skeleton.ax_opcode);
+  EmitImm(entry, static_cast<int16_t>(imm));
+}
+
 void X86Mir2Lir::EmitRegThread(const X86EncodingMap* entry, uint8_t reg, int disp) {
   DCHECK_NE(entry->skeleton.prefix1, 0);
   EmitPrefixAndOpcode(entry);
@@ -786,6 +802,11 @@ void X86Mir2Lir::EmitRegMemImm(const X86EncodingMap* entry,
   DCHECK_EQ(0, entry->skeleton.modrm_opcode);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   EmitImm(entry, imm);
+}
+
+void X86Mir2Lir::EmitMemRegImm(const X86EncodingMap* entry,
+                               uint8_t base, int disp, uint8_t reg, int32_t imm) {
+  EmitRegMemImm(entry, reg, base, disp, imm);
 }
 
 void X86Mir2Lir::EmitRegImm(const X86EncodingMap* entry, uint8_t reg, int imm) {
@@ -889,6 +910,26 @@ void X86Mir2Lir::EmitShiftMemCl(const X86EncodingMap* entry, uint8_t base,
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
+void X86Mir2Lir::EmitShiftMemImm(const X86EncodingMap* entry, uint8_t base,
+                                int displacement, int imm) {
+  EmitPrefix(entry);
+  if (imm != 1) {
+    code_buffer_.push_back(entry->skeleton.opcode);
+  } else {
+    // Shorter encoding for 1 bit shift
+    code_buffer_.push_back(entry->skeleton.ax_opcode);
+  }
+  DCHECK_NE(0x0F, entry->skeleton.opcode);
+  DCHECK_EQ(0, entry->skeleton.extra_opcode1);
+  DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+  EmitModrmDisp(entry->skeleton.modrm_opcode, base, displacement);
+  if (imm != 1) {
+    DCHECK_EQ(entry->skeleton.immediate_bytes, 1);
+    DCHECK(IS_SIMM8(imm));
+    code_buffer_.push_back(imm & 0xFF);
+  }
+}
+
 void X86Mir2Lir::EmitRegCond(const X86EncodingMap* entry, uint8_t reg, uint8_t condition) {
   if (entry->skeleton.prefix1 != 0) {
     code_buffer_.push_back(entry->skeleton.prefix1);
@@ -907,6 +948,25 @@ void X86Mir2Lir::EmitRegCond(const X86EncodingMap* entry, uint8_t reg, uint8_t c
   DCHECK_LT(RegStorage::RegNum(reg), 8);
   uint8_t modrm = (3 << 6) | (entry->skeleton.modrm_opcode << 3) | RegStorage::RegNum(reg);
   code_buffer_.push_back(modrm);
+  DCHECK_EQ(entry->skeleton.immediate_bytes, 0);
+}
+
+void X86Mir2Lir::EmitMemCond(const X86EncodingMap* entry, uint8_t base, int displacement, uint8_t condition) {
+  if (entry->skeleton.prefix1 != 0) {
+    code_buffer_.push_back(entry->skeleton.prefix1);
+    if (entry->skeleton.prefix2 != 0) {
+      code_buffer_.push_back(entry->skeleton.prefix2);
+    }
+  } else {
+    DCHECK_EQ(0, entry->skeleton.prefix2);
+  }
+  DCHECK_EQ(0, entry->skeleton.ax_opcode);
+  DCHECK_EQ(0x0F, entry->skeleton.opcode);
+  code_buffer_.push_back(0x0F);
+  DCHECK_EQ(0x90, entry->skeleton.extra_opcode1);
+  code_buffer_.push_back(0x90 | condition);
+  DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+  EmitModrmDisp(entry->skeleton.modrm_opcode, base, displacement);
   DCHECK_EQ(entry->skeleton.immediate_bytes, 0);
 }
 
@@ -933,6 +993,24 @@ void X86Mir2Lir::EmitRegRegCond(const X86EncodingMap* entry, uint8_t reg1, uint8
   // Encode the ModR/M byte now.
   const uint8_t modrm = mod | (RegStorage::RegNum(reg1) << 3) | RegStorage::RegNum(reg2);
   code_buffer_.push_back(modrm);
+}
+
+void X86Mir2Lir::EmitRegMemCond(const X86EncodingMap* entry, uint8_t reg1, uint8_t base, int displacement, uint8_t condition) {
+  // Generate prefix and opcode without the condition
+  EmitPrefixAndOpcode(entry);
+
+  // Now add the condition. The last byte of opcode is the one that receives it.
+  DCHECK_LE(condition, 0xF);
+  code_buffer_.back() += condition;
+
+  DCHECK_EQ(0, entry->skeleton.immediate_bytes);
+  DCHECK_EQ(0, entry->skeleton.modrm_opcode);
+
+  // Check that registers requested for encoding are sane.
+  DCHECK_LT(reg1, 8);
+  DCHECK_LT(base, 8);
+
+  EmitModrmDisp(reg1, base, displacement);
 }
 
 void X86Mir2Lir::EmitJmp(const X86EncodingMap* entry, int rel) {
@@ -1254,6 +1332,10 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
       case kMemImm:  // lir operands - 0: base, 1: disp, 2: immediate
         EmitMemImm(entry, lir->operands[0], lir->operands[1], lir->operands[2]);
         break;
+      case kArrayImm:  // lir operands - 0: base, 1: index, 2: disp, 3:scale, 4:immediate
+        EmitArrayImm(entry, lir->operands[0], lir->operands[1], lir->operands[2],
+                     lir->operands[3], lir->operands[4]);
+        break;
       case kArrayReg:  // lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: reg
         EmitArrayReg(entry, lir->operands[0], lir->operands[1], lir->operands[2],
                      lir->operands[3], lir->operands[4]);
@@ -1277,6 +1359,10 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
       case kRegRegImmRev:
         EmitRegRegImmRev(entry, lir->operands[0], lir->operands[1], lir->operands[2]);
         break;
+      case kMemRegImm:
+        EmitMemRegImm(entry, lir->operands[0], lir->operands[1], lir->operands[2],
+                      lir->operands[3]);
+        break;
       case kRegRegImm:
         EmitRegRegImm(entry, lir->operands[0], lir->operands[1], lir->operands[2]);
         break;
@@ -1296,6 +1382,9 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
       case kShiftRegImm:  // lir operands - 0: reg, 1: immediate
         EmitShiftRegImm(entry, lir->operands[0], lir->operands[1]);
         break;
+      case kShiftMemImm:  // lir operands - 0: base, 1: disp, 2:immediate
+        EmitShiftMemImm(entry, lir->operands[0], lir->operands[1], lir->operands[2]);
+        break;
       case kShiftRegCl:  // lir operands - 0: reg, 1: cl
         EmitShiftRegCl(entry, lir->operands[0], lir->operands[1]);
         break;
@@ -1305,8 +1394,14 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
       case kRegCond:  // lir operands - 0: reg, 1: condition
         EmitRegCond(entry, lir->operands[0], lir->operands[1]);
         break;
+      case kMemCond:  // lir operands - 0: base, 1: displacement, 2: condition
+        EmitMemCond(entry, lir->operands[0], lir->operands[1], lir->operands[2]);
+        break;
       case kRegRegCond:  // lir operands - 0: reg, 1: reg, 2: condition
         EmitRegRegCond(entry, lir->operands[0], lir->operands[1], lir->operands[2]);
+        break;
+      case kRegMemCond:  // lir operands - 0: reg, 1: reg, displacement, 3: condition
+        EmitRegMemCond(entry, lir->operands[0], lir->operands[1], lir->operands[2], lir->operands[3]);
         break;
       case kJmp:  // lir operands - 0: rel
         if (entry->opcode == kX86JmpT) {
