@@ -40,6 +40,16 @@ static inline void AssignRegister(ShadowFrame* new_shadow_frame, const ShadowFra
   }
 }
 
+void AbortTransaction(Thread* self, const char* fmt, ...) {
+  CHECK(Runtime::Current()->IsActiveTransaction());
+  // Throw an exception so we can abort the transaction and undo every change.
+  va_list args;
+  va_start(args, fmt);
+  self->ThrowNewExceptionV(self->GetCurrentLocationForThrow(), "Ljava/lang/InternalError;", fmt,
+                           args);
+  va_end(args);
+}
+
 template<bool is_range, bool do_assignability_check>
 bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
             const Instruction* inst, uint16_t inst_data, JValue* result) {
