@@ -925,49 +925,33 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
 
     // Might call out to helper, which will return resolved string in kRet0
     Load32Disp(TargetReg(kArg0), offset_of_string, TargetReg(kRet0));
-    if (cu_->instruction_set == kThumb2 ||
-        cu_->instruction_set == kMips) {
-      //  OpRegImm(kOpCmp, TargetReg(kRet0), 0);  // Is resolved?
-      LoadConstant(TargetReg(kArg1), string_idx);
-      LIR* fromfast = OpCmpImmBranch(kCondEq, TargetReg(kRet0), 0, NULL);
-      LIR* cont = NewLIR0(kPseudoTargetLabel);
-      GenBarrier();
+    LIR* fromfast = OpCmpImmBranch(kCondEq, TargetReg(kRet0), 0, NULL);
+    LIR* cont = NewLIR0(kPseudoTargetLabel);
 
+    {
       // Object to generate the slow path for string resolution.
       class SlowPath : public LIRSlowPath {
        public:
-        SlowPath(Mir2Lir* m2l, LIR* fromfast, LIR* cont, RegStorage r_method) :
-          LIRSlowPath(m2l, m2l->GetCurrentDexPc(), fromfast, cont), r_method_(r_method) {
+        SlowPath(Mir2Lir* m2l, LIR* fromfast, LIR* cont, RegStorage r_method, int32_t string_idx) :
+          LIRSlowPath(m2l, m2l->GetCurrentDexPc(), fromfast, cont),
+          r_method_(r_method), string_idx_(string_idx) {
         }
 
         void Compile() {
           GenerateTargetLabel();
-
-          RegStorage r_tgt = m2l_->CallHelperSetup(QUICK_ENTRYPOINT_OFFSET(4, pResolveString));
-
-          m2l_->OpRegCopy(m2l_->TargetReg(kArg0), r_method_);   // .eq
-          LIR* call_inst = m2l_->OpReg(kOpBlx, r_tgt);
-          m2l_->MarkSafepointPC(call_inst);
-          m2l_->FreeTemp(r_tgt);
-
+          m2l_->CallRuntimeHelperRegImm(QUICK_ENTRYPOINT_OFFSET(4, pResolveString),
+                                        r_method_, string_idx_, true);
           m2l_->OpUnconditionalBranch(cont_);
         }
 
        private:
-         RegStorage r_method_;
+         const RegStorage r_method_;
+         const int32_t string_idx_;
       };
 
-      // Add to list for future.
-      AddSlowPath(new (arena_) SlowPath(this, fromfast, cont, r_method));
-    } else {
-      DCHECK(cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64);
-      LIR* branch = OpCmpImmBranch(kCondNe, TargetReg(kRet0), 0, NULL);
-      LoadConstant(TargetReg(kArg1), string_idx);
-      CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pResolveString), r_method, TargetReg(kArg1),
-                              true);
-      LIR* target = NewLIR0(kPseudoTargetLabel);
-      branch->target = target;
+      AddSlowPath(new (arena_) SlowPath(this, fromfast, cont, r_method, string_idx));
     }
+
     GenBarrier();
     StoreValue(rl_dest, GetReturn(false));
   } else {
@@ -1317,7 +1301,7 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
     }
 
    private:
-    bool load_;
+    const bool load_;
   };
 
   if (type_known_abstract) {
