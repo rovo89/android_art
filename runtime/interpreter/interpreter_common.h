@@ -82,6 +82,9 @@ static inline void DoMonitorExit(Thread* self, Object* ref) NO_THREAD_SAFETY_ANA
   ref->MonitorExit(self);
 }
 
+void AbortTransaction(Thread* self, const char* fmt, ...)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
 void RecordArrayElementsInTransaction(mirror::Array* array, int32_t count)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
