@@ -23,11 +23,17 @@ namespace art {
 namespace gc {
 namespace allocator {
 
+template<bool kThreadSafe>
 inline ALWAYS_INLINE void* RosAlloc::Alloc(Thread* self, size_t size, size_t* bytes_allocated) {
   if (UNLIKELY(size > kLargeSizeThreshold)) {
     return AllocLargeObject(self, size, bytes_allocated);
   }
-  void* m = AllocFromRun(self, size, bytes_allocated);
+  void* m;
+  if (kThreadSafe) {
+    m = AllocFromRun(self, size, bytes_allocated);
+  } else {
+    m = AllocFromRunThreadUnsafe(self, size, bytes_allocated);
+  }
   // Check if the returned memory is really all zero.
   if (kCheckZeroMemory && m != nullptr) {
     byte* bytes = reinterpret_cast<byte*>(m);

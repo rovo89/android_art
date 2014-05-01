@@ -405,11 +405,6 @@ class RosAlloc {
   // at a page-granularity.
   static const size_t kLargeSizeThreshold = 2048;
 
-  // We use use thread-local runs for the size Brackets whose indexes
-  // are less than or equal to this index. We use shared (current)
-  // runs for the rest.
-  static const size_t kMaxThreadLocalSizeBracketIdx = 10;
-
   // If true, check that the returned memory is actually zero.
   static constexpr bool kCheckZeroMemory = kIsDebugBuild;
 
@@ -441,6 +436,10 @@ class RosAlloc {
 
   // The default value for page_release_size_threshold_.
   static constexpr size_t kDefaultPageReleaseSizeThreshold = 4 * MB;
+
+  // We use thread-local runs for the size Brackets whose indexes
+  // are less than this index. We use shared (current) runs for the rest.
+  static const size_t kNumThreadLocalSizeBrackets = 11;
 
  private:
   // The base address of the memory region that's managed by this allocator.
@@ -526,6 +525,12 @@ class RosAlloc {
   // Allocate/free a run slot.
   void* AllocFromRun(Thread* self, size_t size, size_t* bytes_allocated)
       LOCKS_EXCLUDED(lock_);
+  // Allocate/free a run slot without acquiring locks.
+  // TODO: EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+  void* AllocFromRunThreadUnsafe(Thread* self, size_t size, size_t* bytes_allocated)
+      LOCKS_EXCLUDED(lock_);
+  void* AllocFromCurrentRunUnlocked(Thread* self, size_t idx);
+
   // Returns the bracket size.
   size_t FreeFromRun(Thread* self, void* ptr, Run* run)
       LOCKS_EXCLUDED(lock_);
@@ -543,11 +548,20 @@ class RosAlloc {
   // Allocates large objects.
   void* AllocLargeObject(Thread* self, size_t size, size_t* bytes_allocated) LOCKS_EXCLUDED(lock_);
 
+  // Revoke a run by adding it to non_full_runs_ or freeing the pages.
+  void RevokeRun(Thread* self, size_t idx, Run* run);
+
+  // Revoke the current runs which share an index with the thread local runs.
+  void RevokeThreadUnsafeCurrentRuns();
+
  public:
   RosAlloc(void* base, size_t capacity, size_t max_capacity,
            PageReleaseMode page_release_mode,
            size_t page_release_size_threshold = kDefaultPageReleaseSizeThreshold);
   ~RosAlloc();
+  // If kThreadUnsafe is true then the allocator may avoid acquiring some locks as an optimization.
+  // If used, this may cause race conditions if multiple threads are allocating at the same time.
+  template<bool kThreadSafe = true>
   void* Alloc(Thread* self, size_t size, size_t* bytes_allocated)
       LOCKS_EXCLUDED(lock_);
   size_t Free(Thread* self, void* ptr)
