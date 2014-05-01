@@ -23,7 +23,13 @@ namespace art {
 /*
  * Code Layout pass implementation start.
  */
-bool CodeLayout::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
+bool CodeLayout::Worker(const PassDataHolder* data) const {
+  DCHECK(data != nullptr);
+  const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
+  CompilationUnit* cUnit = pass_me_data_holder->c_unit;
+  DCHECK(cUnit != nullptr);
+  BasicBlock* bb = pass_me_data_holder->bb;
+  DCHECK(bb != nullptr);
   cUnit->mir_graph->LayoutBlocks(bb);
   // No need of repeating, so just return false.
   return false;
@@ -32,13 +38,22 @@ bool CodeLayout::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
 /*
  * SSATransformation pass implementation start.
  */
-bool SSATransformation::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
+bool SSATransformation::Worker(const PassDataHolder* data) const {
+  DCHECK(data != nullptr);
+  const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
+  CompilationUnit* cUnit = pass_me_data_holder->c_unit;
+  DCHECK(cUnit != nullptr);
+  BasicBlock* bb = pass_me_data_holder->bb;
+  DCHECK(bb != nullptr);
   cUnit->mir_graph->InsertPhiNodeOperands(bb);
   // No need of repeating, so just return false.
   return false;
 }
 
-void SSATransformation::End(CompilationUnit* cUnit) const {
+void SSATransformation::End(const PassDataHolder* data) const {
+  DCHECK(data != nullptr);
+  CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+  DCHECK(cUnit != nullptr);
   // Verify the dataflow information after the pass.
   if (cUnit->enable_debug & (1 << kDebugVerifyDataflow)) {
     cUnit->mir_graph->VerifyDataflow();
@@ -48,7 +63,13 @@ void SSATransformation::End(CompilationUnit* cUnit) const {
 /*
  * ConstantPropagation pass implementation start
  */
-bool ConstantPropagation::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
+bool ConstantPropagation::Worker(const PassDataHolder* data) const {
+  DCHECK(data != nullptr);
+  const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
+  CompilationUnit* cUnit = pass_me_data_holder->c_unit;
+  DCHECK(cUnit != nullptr);
+  BasicBlock* bb = pass_me_data_holder->bb;
+  DCHECK(bb != nullptr);
   cUnit->mir_graph->DoConstantPropagation(bb);
   // No need of repeating, so just return false.
   return false;
@@ -57,7 +78,10 @@ bool ConstantPropagation::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb
 /*
  * MethodUseCount pass implementation start.
  */
-bool MethodUseCount::Gate(const CompilationUnit* cUnit) const {
+bool MethodUseCount::Gate(const PassDataHolder* data) const {
+  DCHECK(data != nullptr);
+  CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+  DCHECK(cUnit != nullptr);
   // First initialize the data.
   cUnit->mir_graph->InitializeMethodUses();
 
@@ -67,7 +91,13 @@ bool MethodUseCount::Gate(const CompilationUnit* cUnit) const {
   return res;
 }
 
-bool MethodUseCount::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
+bool MethodUseCount::Worker(const PassDataHolder* data) const {
+  DCHECK(data != nullptr);
+  const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
+  CompilationUnit* cUnit = pass_me_data_holder->c_unit;
+  DCHECK(cUnit != nullptr);
+  BasicBlock* bb = pass_me_data_holder->bb;
+  DCHECK(bb != nullptr);
   cUnit->mir_graph->CountUses(bb);
   // No need of repeating, so just return false.
   return false;
@@ -76,7 +106,13 @@ bool MethodUseCount::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) con
 /*
  * BasicBlock Combine pass implementation start.
  */
-bool BBCombine::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
+bool BBCombine::Worker(const PassDataHolder* data) const {
+  DCHECK(data != nullptr);
+  const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
+  CompilationUnit* cUnit = pass_me_data_holder->c_unit;
+  DCHECK(cUnit != nullptr);
+  BasicBlock* bb = pass_me_data_holder->bb;
+  DCHECK(bb != nullptr);
   cUnit->mir_graph->CombineBlocks(bb);
 
   // No need of repeating, so just return false.
@@ -86,7 +122,10 @@ bool BBCombine::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
 /*
  * BasicBlock Optimization pass implementation start.
  */
-void BBOptimizations::Start(CompilationUnit* cUnit) const {
+void BBOptimizations::Start(const PassDataHolder* data) const {
+  DCHECK(data != nullptr);
+  CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+  DCHECK(cUnit != nullptr);
   /*
    * This pass has a different ordering depEnding on the suppress exception,
    * so do the pass here for now:
