@@ -31,16 +31,21 @@ namespace x86_64 {
 
 class Immediate {
  public:
-  explicit Immediate(int32_t value) : value_(value) {}
+  explicit Immediate(int64_t value) : value_(value) {}
 
-  int32_t value() const { return value_; }
+  int64_t value() const { return value_; }
 
   bool is_int8() const { return IsInt(8, value_); }
   bool is_uint8() const { return IsUint(8, value_); }
   bool is_uint16() const { return IsUint(16, value_); }
+  bool is_int32() const {
+    // This does not work on 32b machines: return IsInt(32, value_);
+    int64_t limit = static_cast<int64_t>(1) << 31;
+    return (-limit <= value_) && (value_ < limit);
+  }
 
  private:
-  const int32_t value_;
+  const int64_t value_;
 
   DISALLOW_COPY_AND_ASSIGN(Immediate);
 };
@@ -368,9 +373,10 @@ class X86_64Assembler FINAL : public Assembler {
   void cmpl(CpuRegister reg, const Immediate& imm);
   void cmpl(CpuRegister reg0, CpuRegister reg1);
   void cmpl(CpuRegister reg, const Address& address);
-
   void cmpl(const Address& address, CpuRegister reg);
   void cmpl(const Address& address, const Immediate& imm);
+
+  void cmpq(CpuRegister reg0, CpuRegister reg1);
 
   void testl(CpuRegister reg1, CpuRegister reg2);
   void testl(CpuRegister reg, const Immediate& imm);
@@ -382,18 +388,23 @@ class X86_64Assembler FINAL : public Assembler {
   void orl(CpuRegister dst, CpuRegister src);
 
   void xorl(CpuRegister dst, CpuRegister src);
+  void xorq(CpuRegister dst, const Immediate& imm);
 
   void addl(CpuRegister dst, CpuRegister src);
-  void addq(CpuRegister reg, const Immediate& imm);
   void addl(CpuRegister reg, const Immediate& imm);
   void addl(CpuRegister reg, const Address& address);
-
   void addl(const Address& address, CpuRegister reg);
   void addl(const Address& address, const Immediate& imm);
+
+  void addq(CpuRegister reg, const Immediate& imm);
+  void addq(CpuRegister dst, CpuRegister src);
 
   void subl(CpuRegister dst, CpuRegister src);
   void subl(CpuRegister reg, const Immediate& imm);
   void subl(CpuRegister reg, const Address& address);
+
+  void subq(CpuRegister reg, const Immediate& imm);
+  void subq(CpuRegister dst, CpuRegister src);
 
   void cdq();
 
@@ -441,6 +452,8 @@ class X86_64Assembler FINAL : public Assembler {
   void mfence();
 
   X86_64Assembler* gs();
+
+  void setcc(Condition condition, CpuRegister dst);
 
   //
   // Macros for High-level operations.
@@ -586,6 +599,7 @@ class X86_64Assembler FINAL : public Assembler {
  private:
   void EmitUint8(uint8_t value);
   void EmitInt32(int32_t value);
+  void EmitInt64(int64_t value);
   void EmitRegisterOperand(uint8_t rm, uint8_t reg);
   void EmitXmmRegisterOperand(uint8_t rm, XmmRegister reg);
   void EmitFixup(AssemblerFixup* fixup);
@@ -632,6 +646,10 @@ inline void X86_64Assembler::EmitUint8(uint8_t value) {
 
 inline void X86_64Assembler::EmitInt32(int32_t value) {
   buffer_.Emit<int32_t>(value);
+}
+
+inline void X86_64Assembler::EmitInt64(int64_t value) {
+  buffer_.Emit<int64_t>(value);
 }
 
 inline void X86_64Assembler::EmitRegisterOperand(uint8_t rm, uint8_t reg) {
