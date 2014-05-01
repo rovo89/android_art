@@ -86,7 +86,7 @@
     // Symbols.
 #if !defined(__APPLE__)
     #define SYMBOL(name) name
-    #define PLT_SYMBOL(name) name ## @PLT
+    #define PLT_SYMBOL(name) name  // ## @PLT  // TODO: Disabled for old clang 3.3
 #else
     // Mac OS' symbols have an _ prefix.
     #define SYMBOL(name) _ ## name
