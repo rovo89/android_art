@@ -555,8 +555,8 @@ static int AssignLiteralOffsetCommon(LIR* lir, CodeOffset offset) {
   return offset;
 }
 
-static int AssignLiteralPointerOffsetCommon(LIR* lir, CodeOffset offset) {
-  unsigned int element_size = sizeof(void*);
+static int AssignLiteralPointerOffsetCommon(LIR* lir, CodeOffset offset,
+                                            unsigned int element_size) {
   // Align to natural pointer size.
   offset = (offset + (element_size - 1)) & ~(element_size - 1);
   for (; lir != NULL; lir = lir->next) {
@@ -726,9 +726,10 @@ void Mir2Lir::CreateNativeGcMap() {
 /* Determine the offset of each literal field */
 int Mir2Lir::AssignLiteralOffset(CodeOffset offset) {
   offset = AssignLiteralOffsetCommon(literal_list_, offset);
-  offset = AssignLiteralPointerOffsetCommon(code_literal_list_, offset);
-  offset = AssignLiteralPointerOffsetCommon(method_literal_list_, offset);
-  offset = AssignLiteralPointerOffsetCommon(class_literal_list_, offset);
+  unsigned int ptr_size = GetInstructionSetPointerSize(cu_->instruction_set);
+  offset = AssignLiteralPointerOffsetCommon(code_literal_list_, offset, ptr_size);
+  offset = AssignLiteralPointerOffsetCommon(method_literal_list_, offset, ptr_size);
+  offset = AssignLiteralPointerOffsetCommon(class_literal_list_, offset, ptr_size);
   return offset;
 }
 
