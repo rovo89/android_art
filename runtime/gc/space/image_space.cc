@@ -24,7 +24,6 @@
 #include "mirror/object-inl.h"
 #include "oat_file.h"
 #include "os.h"
-#include "runtime.h"
 #include "space-inl.h"
 #include "utils.h"
 
@@ -99,7 +98,8 @@ static bool GenerateImage(const std::string& image_file_name, std::string* error
   return Exec(arg_vector, error_msg);
 }
 
-ImageSpace* ImageSpace::Create(const char* original_image_file_name) {
+ImageSpace* ImageSpace::Create(const char* original_image_file_name,
+                               const InstructionSet image_isa) {
   if (OS::FileExists(original_image_file_name)) {
     // If the /system file exists, it should be up-to-date, don't try to generate
     std::string error_msg;
@@ -112,7 +112,9 @@ ImageSpace* ImageSpace::Create(const char* original_image_file_name) {
   // If the /system file didn't exist, we need to use one from the dalvik-cache.
   // If the cache file exists, try to open, but if it fails, regenerate.
   // If it does not exist, generate.
-  std::string image_file_name(GetDalvikCacheFilenameOrDie(original_image_file_name));
+  const std::string dalvik_cache = GetDalvikCacheOrDie(GetInstructionSetString(image_isa));
+  std::string image_file_name(GetDalvikCacheFilenameOrDie(original_image_file_name,
+                                                          dalvik_cache.c_str()));
   std::string error_msg;
   if (OS::FileExists(image_file_name.c_str())) {
     space::ImageSpace* image_space = ImageSpace::Init(image_file_name.c_str(), true, &error_msg);

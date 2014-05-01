@@ -1101,6 +1101,9 @@ static int dex2oat(int argc, char** argv) {
   DexFileToMethodInlinerMap method_inliner_map;
   CompilerCallbacksImpl callbacks(&verification_results, &method_inliner_map);
   runtime_options.push_back(std::make_pair("compilercallbacks", &callbacks));
+  runtime_options.push_back(
+      std::make_pair("imageinstructionset",
+                     reinterpret_cast<const void*>(GetInstructionSetString(instruction_set))));
 
   Dex2Oat* p_dex2oat;
   if (!Dex2Oat::Create(&p_dex2oat,
