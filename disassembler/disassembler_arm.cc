@@ -1360,7 +1360,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               } else if (Rn.r == 15) {
                 intptr_t lit_adr = reinterpret_cast<intptr_t>(instr_ptr);
                 lit_adr = RoundDown(lit_adr, 4) + 4 + imm12;
-                args << "  ; " << reinterpret_cast<void*>(*reinterpret_cast<int32_t*>(lit_adr));
+                args << StringPrintf("  ; 0x%08x", *reinterpret_cast<int32_t*>(lit_adr));
               }
             } else if (op3 == 3) {
               // LDRSH.W Rt, [Rn, #imm12]      - 111 11 00 11 011 nnnn tttt iiiiiiiiiiii
@@ -1373,7 +1373,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               } else if (Rn.r == 15) {
                 intptr_t lit_adr = reinterpret_cast<intptr_t>(instr_ptr);
                 lit_adr = RoundDown(lit_adr, 4) + 4 + imm12;
-                args << "  ; " << reinterpret_cast<void*>(*reinterpret_cast<int32_t*>(lit_adr));
+                args << StringPrintf("  ; 0x%08x", *reinterpret_cast<int32_t*>(lit_adr));
               }
             }
           }
@@ -1430,7 +1430,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             } else if (Rn.r == 15) {
               intptr_t lit_adr = reinterpret_cast<intptr_t>(instr_ptr);
               lit_adr = RoundDown(lit_adr, 4) + 4 + imm12;
-              args << "  ; " << reinterpret_cast<void*>(*reinterpret_cast<int32_t*>(lit_adr));
+              args << StringPrintf("  ; 0x%08x", *reinterpret_cast<int32_t*>(lit_adr));
             }
           } else if (op4 == 0) {
             // LDR.W Rt, [Rn, Rm{, LSL #imm2}] - 111 11 00 00 101 nnnn tttt 000000iimmmm
