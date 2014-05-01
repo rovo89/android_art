@@ -338,18 +338,16 @@ TEST_F(UtilsTest, EndsWith) {
   EXPECT_FALSE(EndsWith("oo", "foo"));
 }
 
-void CheckGetDalvikCacheFilenameOrDie(const char* in, const char* out) {
-  std::string expected(getenv("ANDROID_DATA"));
-  expected += "/dalvik-cache/";
-  expected += out;
-  EXPECT_STREQ(expected.c_str(), GetDalvikCacheFilenameOrDie(in).c_str());
-}
-
 TEST_F(UtilsTest, GetDalvikCacheFilenameOrDie) {
-  CheckGetDalvikCacheFilenameOrDie("/system/app/Foo.apk", "system@app@Foo.apk@classes.dex");
-  CheckGetDalvikCacheFilenameOrDie("/data/app/foo-1.apk", "data@app@foo-1.apk@classes.dex");
-  CheckGetDalvikCacheFilenameOrDie("/system/framework/core.jar", "system@framework@core.jar@classes.dex");
-  CheckGetDalvikCacheFilenameOrDie("/system/framework/boot.art", "system@framework@boot.art");
+  EXPECT_STREQ("/foo/system@app@Foo.apk@classes.dex",
+               GetDalvikCacheFilenameOrDie("/system/app/Foo.apk", "/foo").c_str());
+
+  EXPECT_STREQ("/foo/data@app@foo-1.apk@classes.dex",
+               GetDalvikCacheFilenameOrDie("/data/app/foo-1.apk", "/foo").c_str());
+  EXPECT_STREQ("/foo/system@framework@core.jar@classes.dex",
+               GetDalvikCacheFilenameOrDie("/system/framework/core.jar", "/foo").c_str());
+  EXPECT_STREQ("/foo/system@framework@boot.art",
+               GetDalvikCacheFilenameOrDie("/system/framework/boot.art", "/foo").c_str());
 }
 
 TEST_F(UtilsTest, ExecSuccess) {

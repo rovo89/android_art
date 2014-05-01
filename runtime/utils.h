@@ -394,11 +394,14 @@ const char* GetAndroidRoot();
 // Find $ANDROID_DATA, /data, or abort.
 const char* GetAndroidData();
 
-// Returns the dalvik-cache location, or dies trying.
-std::string GetDalvikCacheOrDie(const char* android_data);
+// Returns the dalvik-cache location, or dies trying. subdir will be
+// appended to the cache location.
+std::string GetDalvikCacheOrDie(const char* subdir, bool create_if_absent = true);
 
-// Returns the dalvik-cache location for a DexFile or OatFile, or dies trying.
-std::string GetDalvikCacheFilenameOrDie(const char* location);
+// Returns the absolute dalvik-cache path for a DexFile or OatFile, or
+// dies trying. The path returned will be rooted at cache_location.
+std::string GetDalvikCacheFilenameOrDie(const char* file_location,
+                                        const char* cache_location);
 
 // Check whether the given magic matches a known file type.
 bool IsZipMagic(uint32_t magic);

@@ -35,6 +35,9 @@ enum InstructionSet {
 };
 std::ostream& operator<<(std::ostream& os, const InstructionSet& rhs);
 
+const char* GetInstructionSetString(const InstructionSet isa);
+InstructionSet GetInstructionSetFromString(const char* instruction_set);
+
 size_t GetInstructionSetPointerSize(InstructionSet isa);
 size_t GetInstructionSetAlignment(InstructionSet isa);
 bool Is64BitInstructionSet(InstructionSet isa);

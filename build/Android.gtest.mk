@@ -49,6 +49,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
 	runtime/gtest_test.cc \
 	runtime/indenter_test.cc \
 	runtime/indirect_reference_table_test.cc \
+	runtime/instruction_set_test.cc \
 	runtime/intern_table_test.cc \
 	runtime/leb128_test.cc \
 	runtime/mem_map_test.cc \
