@@ -32,4 +32,7 @@
 #define FRAME_SIZE_REFS_ONLY_CALLEE_SAVE 32
 #define FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE 32
 
+// Expected size of a heap reference
+#define HEAP_REFERENCE_SIZE 4
+
 #endif  // ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_H_
