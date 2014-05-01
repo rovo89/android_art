@@ -1174,7 +1174,7 @@ std::string GetDalvikCacheOrDie(const char* subdir, const bool create_if_absent)
   if (create_if_absent && !OS::DirectoryExists(dalvik_cache.c_str())) {
     if (StartsWith(dalvik_cache_root, "/tmp/")) {
       int result = mkdir(dalvik_cache_root.c_str(), 0700);
-      if (result != 0) {
+      if (result != 0 && errno != EEXIST) {
         PLOG(FATAL) << "Failed to create dalvik-cache directory " << dalvik_cache_root;
         return "";
       }
