@@ -633,4 +633,79 @@ TEST_F(StubTest, AllocObjectArray) {
 #endif
 }
 
+
+#if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
+extern "C" void art_quick_string_compareto(void);
+#endif
+
+TEST_F(StubTest, StringCompareTo) {
+  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+
+#if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
+  // TODO: Check the "Unresolved" allocation stubs
+
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+  // garbage is created during ClassLinker::Init
+
+  // Create some strings
+  // Use array so we can index into it and use a matrix for expected results
+  constexpr size_t string_count = 7;
+  const char* c[string_count] = { "", "", "a", "aa", "ab", "aac", "aac" };
+
+  SirtRef<mirror::String>* s[string_count];
+
+  for (size_t i = 0; i < string_count; ++i) {
+    s[i] = new SirtRef<mirror::String>(soa.Self(), mirror::String::AllocFromModifiedUtf8(soa.Self(),
+                                                                                         c[i]));
+  }
+
+  // TODO: wide characters
+
+  // Matrix of expectations. First component is first parameter. Note we only check against the
+  // sign, not the value.
+  int32_t expected[string_count][string_count] = {
+      {  0,  0, -1, -1, -1, -1, -1 },  // ""
+      {  0,  0, -1, -1, -1, -1, -1 },  // ""
+      {  1,  1,  0, -1, -1, -1, -1 },  // "a"
+      {  1,  1,  1,  0, -1, -1, -1 },  // "aa"
+      {  1,  1,  1,  1,  0,  1,  1 },  // "ab"
+      {  1,  1,  1,  1, -1,  0,  0 },  // "aac"
+      {  1,  1,  1,  1, -1,  0,  0 }   // "aac"
+  //    ""  ""   a  aa  ab  aac aac
+  };
+
+  // Play with it...
+
+  for (size_t x = 0; x < string_count; ++x) {
+    for (size_t y = 0; y < string_count; ++y) {
+      // Test string_compareto x y
+      size_t result = Invoke3(reinterpret_cast<size_t>(s[x]->get()),
+                              reinterpret_cast<size_t>(s[y]->get()), 0U,
+                              reinterpret_cast<uintptr_t>(&art_quick_string_compareto), self);
+
+      EXPECT_FALSE(self->IsExceptionPending());
+
+      // The result is a 32b signed integer
+      union {
+        size_t r;
+        int32_t i;
+      } conv;
+      conv.r = result;
+      int32_t e = expected[x][y];
+      EXPECT_TRUE(e == 0 ? conv.i == 0 : true) << "x=" << c[x] << " y=" << c[y];
+      EXPECT_TRUE(e < 0 ? conv.i < 0 : true)   << "x=" << c[x] << " y="  << c[y];
+      EXPECT_TRUE(e > 0 ? conv.i > 0 : true)   << "x=" << c[x] << " y=" << c[y];
+    }
+  }
+
+  // Tests done.
+#else
+  LOG(INFO) << "Skipping string_compareto as I don't know how to do that on " << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping string_compareto as I don't know how to do that on " << kRuntimeISA <<
+      std::endl;
+#endif
+}
+
 }  // namespace art
