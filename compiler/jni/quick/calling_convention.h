@@ -287,6 +287,8 @@ class JniCallingConvention : public CallingConvention {
   FrameOffset ReturnValueSaveLocation() const;
   // Register that holds result if it is integer.
   virtual ManagedRegister IntReturnRegister() = 0;
+  // Whether the compiler needs to ensure zero-/sign-extension of a small result type
+  virtual bool RequiresSmallResultTypeExtension() const = 0;
 
   // Callee save registers to spill prior to native code (which may clobber)
   virtual const std::vector<ManagedRegister>& CalleeSaveRegisters() const = 0;
