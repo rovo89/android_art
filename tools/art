@@ -48,7 +48,7 @@ ANDROID_BUILD_TOP="$(cd "${PROG_DIR}/../../../../" ; pwd -P)/"
 ANDROID_HOST_OUT=$PROG_DIR/..
 ANDROID_DATA=$PWD/android-data$$
 
-mkdir -p $ANDROID_DATA/dalvik-cache
+mkdir -p $ANDROID_DATA/dalvik-cache/{x86,x86_64}
 ANDROID_DATA=$ANDROID_DATA \
   ANDROID_ROOT=$ANDROID_HOST_OUT \
   LD_LIBRARY_PATH=$ANDROID_HOST_OUT/lib \
