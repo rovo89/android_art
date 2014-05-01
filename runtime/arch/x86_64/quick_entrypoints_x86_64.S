@@ -174,7 +174,6 @@ END_MACRO
 
 MACRO2(NO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     DEFINE_FUNCTION VAR(c_name, 0)
-    UNTESTED
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
     // Outgoing argument set up
     movq %rsp, %rsi                    // pass SP
@@ -197,7 +196,6 @@ END_MACRO
 
 MACRO2(TWO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     DEFINE_FUNCTION VAR(c_name, 0)
-    UNTESTED
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
     // Outgoing argument set up
     movq %rsp, %rcx                    // pass SP
@@ -696,14 +694,112 @@ DEFINE_FUNCTION art_quick_check_cast
     int3                              // unreached
 END_FUNCTION art_quick_check_cast
 
+
     /*
      * Entry from managed code for array put operations of objects where the value being stored
      * needs to be checked for compatibility.
-     * eax = array, ecx = index, edx = value
+     *
+     * Currently all the parameters should fit into the 32b portions of the registers. Index always
+     * will. So we optimize for a tighter encoding. The 64b versions are in comments.
+     *
+     * rdi(edi) = array, rsi(esi) = index, rdx(edx) = value
      */
-UNIMPLEMENTED art_quick_aput_obj_with_null_and_bound_check
-UNIMPLEMENTED art_quick_aput_obj_with_bound_check
-UNIMPLEMENTED art_quick_aput_obj
+DEFINE_FUNCTION art_quick_aput_obj_with_null_and_bound_check
+    testl %edi, %edi
+//  testq %rdi, %rdi
+    jnz art_quick_aput_obj_with_bound_check_local
+    jmp art_quick_throw_null_pointer_exception_local
+END_FUNCTION art_quick_aput_obj_with_null_and_bound_check
+
+
+DEFINE_FUNCTION art_quick_aput_obj_with_bound_check
+    movl ARRAY_LENGTH_OFFSET(%edi), %ebx
+//  movl ARRAY_LENGTH_OFFSET(%rdi), %ebx      // This zero-extends, so value(%rbx)=value(%ebx)
+    cmpl %ebx, %esi
+    jb art_quick_aput_obj_local
+    mov %esi, %edi
+//  mov %rsi, %rdi
+    mov %ebx, %esi
+//  mov %rbx, %rsi
+    jmp art_quick_throw_array_bounds_local
+END_FUNCTION art_quick_aput_obj_with_bound_check
+
+
+DEFINE_FUNCTION art_quick_aput_obj
+    testl %edx, %edx                // store of null
+//  test %rdx, %rdx
+    jz .Ldo_aput_null
+    movl CLASS_OFFSET(%edi), %ebx
+//  movq CLASS_OFFSET(%rdi), %rbx
+    movl CLASS_COMPONENT_TYPE_OFFSET(%ebx), %ebx
+//  movq CLASS_COMPONENT_TYPE_OFFSET(%rbx), %rbx
+    cmpl CLASS_OFFSET(%edx), %ebx // value's type == array's component type - trivial assignability
+//  cmpq CLASS_OFFSET(%rdx), %rbx
+    jne .Lcheck_assignability
+.Ldo_aput:
+    movl %edx, OBJECT_ARRAY_DATA_OFFSET(%edi, %esi, 4)
+//  movq %rdx, OBJECT_ARRAY_DATA_OFFSET(%rdi, %rsi, 4)
+    movq %gs:THREAD_CARD_TABLE_OFFSET, %rdx
+    shrl LITERAL(7), %edi
+//  shrl LITERAL(7), %rdi
+    movb %dl, (%rdx, %rdi)                       // Note: this assumes that top 32b of %rdi are zero
+    ret
+.Ldo_aput_null:
+    movl %edx, OBJECT_ARRAY_DATA_OFFSET(%edi, %esi, 4)
+//  movq %rdx, OBJECT_ARRAY_DATA_OFFSET(%rdi, %rsi, 4)
+    ret
+.Lcheck_assignability:
+    // Save arguments.
+    PUSH rdi
+    PUSH rsi
+    PUSH rdx
+    subq LITERAL(8), %rsp        // Alignment padding.
+    CFI_ADJUST_CFA_OFFSET(8)
+
+                                  // "Uncompress" = do nothing, as already zero-extended on load.
+    movl CLASS_OFFSET(%edx), %esi // Pass arg2 = value's class.
+    movq %rbx, %rdi               // Pass arg1 = array's component type.
+
+    call PLT_SYMBOL(artIsAssignableFromCode)  // (Class* a, Class* b)
+
+    // Exception?
+    testq %rax, %rax
+    jz   .Lthrow_array_store_exception
+
+    // Restore arguments.
+    addq LITERAL(8), %rsp
+    CFI_ADJUST_CFA_OFFSET(-8)
+    POP  rdx
+    POP  rsi
+    POP  rdi
+
+    movl %edx, OBJECT_ARRAY_DATA_OFFSET(%edi, %esi, 4)
+//  movq %rdx, OBJECT_ARRAY_DATA_OFFSET(%rdi, %rsi, 4)
+    movq %gs:THREAD_CARD_TABLE_OFFSET, %rdx
+    shrl LITERAL(7), %edi
+//  shrl LITERAL(7), %rdi
+    movb %dl, (%rdx, %rdi)                       // Note: this assumes that top 32b of %rdi are zero
+//  movb %dl, (%rdx, %rdi)
+    ret
+.Lthrow_array_store_exception:
+    // Restore arguments.
+    addq LITERAL(8), %rsp
+    CFI_ADJUST_CFA_OFFSET(-8)
+    POP  rdx
+    POP  rsi
+    POP  rdi
+
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // Save all registers as basis for long jump context.
+
+    // Outgoing argument set up.
+    movq %rsp, %rcx                         // Pass arg 4 = SP.
+    movq %rdx, %rsi                         // Pass arg 2 = value.
+    movq %gs:THREAD_SELF_OFFSET, %rdx // Pass arg 3 = Thread::Current().
+                                            // Pass arg 1 = array.
+
+    call PLT_SYMBOL(artThrowArrayStoreException) // (array, value, Thread*, SP)
+    int3                          // unreached
+END_FUNCTION art_quick_aput_obj
 
 // TODO: This is quite silly on X86_64 now.
 DEFINE_FUNCTION art_quick_memcpy
