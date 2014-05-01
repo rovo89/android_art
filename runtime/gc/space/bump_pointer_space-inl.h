@@ -36,6 +36,26 @@ inline mirror::Object* BumpPointerSpace::Alloc(Thread*, size_t num_bytes, size_t
   return ret;
 }
 
+inline mirror::Object* BumpPointerSpace::AllocThreadUnsafe(Thread* self, size_t num_bytes,
+                                                           size_t* bytes_allocated,
+                                                           size_t* usable_size) {
+  Locks::mutator_lock_->AssertExclusiveHeld(self);
+  num_bytes = RoundUp(num_bytes, kAlignment);
+  if (end_ + num_bytes > growth_end_) {
+    return nullptr;
+  }
+  mirror::Object* obj = reinterpret_cast<mirror::Object*>(end_);
+  end_ += num_bytes;
+  *bytes_allocated = num_bytes;
+  // Use the CAS free versions as an optimization.
+  objects_allocated_ = objects_allocated_ + 1;
+  bytes_allocated_ = bytes_allocated_ + num_bytes;
+  if (UNLIKELY(usable_size != nullptr)) {
+    *usable_size = num_bytes;
+  }
+  return obj;
+}
+
 inline mirror::Object* BumpPointerSpace::AllocNonvirtualWithoutAccounting(size_t num_bytes) {
   DCHECK(IsAligned<kAlignment>(num_bytes));
   byte* old_end;
