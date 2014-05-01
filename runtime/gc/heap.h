@@ -283,11 +283,12 @@ class Heap {
   void RegisterGCAllocation(size_t bytes);
   void RegisterGCDeAllocation(size_t bytes);
 
-  // Public due to usage by tests.
-  void AddSpace(space::Space* space, bool set_as_default = true)
+  // Set the heap's private space pointers to be the same as the space based on it's type. Public
+  // due to usage by tests.
+  void SetSpaceAsDefault(space::ContinuousSpace* continuous_space)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
-  void RemoveSpace(space::Space* space, bool unset_as_default = true)
-      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+  void AddSpace(space::Space* space) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+  void RemoveSpace(space::Space* space) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   // Set target ideal heap utilization ratio, implements
   // dalvik.system.VMRuntime.setTargetHeapUtilization.

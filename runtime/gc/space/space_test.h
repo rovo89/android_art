@@ -38,9 +38,13 @@ class SpaceTest : public CommonRuntimeTest {
   SpaceTest() : byte_array_class_(nullptr) {
   }
 
-  void AddSpace(ContinuousSpace* space) {
-    // By passing true, AddSpace() does the revoke.
-    Runtime::Current()->GetHeap()->AddSpace(space, true);
+  void AddSpace(ContinuousSpace* space, bool revoke = true) {
+    Heap* heap = Runtime::Current()->GetHeap();
+    if (revoke) {
+      heap->RevokeAllThreadLocalBuffers();
+    }
+    heap->AddSpace(space);
+    heap->SetSpaceAsDefault(space);
   }
 
   mirror::Class* GetByteArrayClass(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -227,15 +231,16 @@ void SpaceTest::ZygoteSpaceTestBody(CreateSpaceFn create_space) {
   gc::Heap* heap = Runtime::Current()->GetHeap();
   space::Space* old_space = space;
   heap->RemoveSpace(old_space);
+  heap->RevokeAllThreadLocalBuffers();
   space::ZygoteSpace* zygote_space = space->CreateZygoteSpace("alloc space",
                                                               heap->IsLowMemoryMode(),
                                                               &space);
   delete old_space;
   // Add the zygote space.
-  AddSpace(zygote_space);
+  AddSpace(zygote_space, false);
 
   // Make space findable to the heap, will also delete space when runtime is cleaned up
-  AddSpace(space);
+  AddSpace(space, false);
 
   // Succeeds, fits without adjusting the footprint limit.
   ptr1.reset(Alloc(space, self, 1 * MB, &ptr1_bytes_allocated, &ptr1_usable_size));
