@@ -98,12 +98,10 @@ class SemiSpace : public GarbageCollector {
   // Returns the new address of the object.
   template<bool kPoisonReferences>
   void MarkObject(mirror::ObjectReference<kPoisonReferences, mirror::Object>* obj_ptr)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   void ScanObject(mirror::Object* obj)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   void VerifyNoFromSpaceReferences(mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
@@ -150,8 +148,7 @@ class SemiSpace : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   virtual mirror::Object* MarkNonForwardedObject(mirror::Object* obj)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Schedules an unmarked object for reference processing.
   void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference)
