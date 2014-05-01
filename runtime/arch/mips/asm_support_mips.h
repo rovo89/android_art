@@ -30,4 +30,7 @@
 #define FRAME_SIZE_REFS_ONLY_CALLEE_SAVE 64
 #define FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE 64
 
+// Expected size of a heap reference
+#define HEAP_REFERENCE_SIZE 4
+
 #endif  // ART_RUNTIME_ARCH_MIPS_ASM_SUPPORT_MIPS_H_
