@@ -1167,14 +1167,20 @@ const char* GetAndroidData() {
   return android_data;
 }
 
-std::string GetDalvikCacheOrDie(const char* android_data) {
-  std::string dalvik_cache(StringPrintf("%s/dalvik-cache", android_data));
-
-  if (!OS::DirectoryExists(dalvik_cache.c_str())) {
-    if (StartsWith(dalvik_cache, "/tmp/")) {
-      int result = mkdir(dalvik_cache.c_str(), 0700);
+std::string GetDalvikCacheOrDie(const char* subdir, const bool create_if_absent) {
+  CHECK(subdir != nullptr);
+  const std::string dalvik_cache_root(StringPrintf("%s/dalvik-cache/", GetAndroidData()));
+  const std::string dalvik_cache = dalvik_cache_root + subdir;
+  if (create_if_absent && !OS::DirectoryExists(dalvik_cache.c_str())) {
+    if (StartsWith(dalvik_cache_root, "/tmp/")) {
+      int result = mkdir(dalvik_cache_root.c_str(), 0700);
       if (result != 0) {
-        LOG(FATAL) << "Failed to create dalvik-cache directory " << dalvik_cache;
+        PLOG(FATAL) << "Failed to create dalvik-cache directory " << dalvik_cache_root;
+        return "";
+      }
+      result = mkdir(dalvik_cache.c_str(), 0700);
+      if (result != 0) {
+        PLOG(FATAL) << "Failed to create dalvik-cache directory " << dalvik_cache;
         return "";
       }
     } else {
@@ -1185,8 +1191,7 @@ std::string GetDalvikCacheOrDie(const char* android_data) {
   return dalvik_cache;
 }
 
-std::string GetDalvikCacheFilenameOrDie(const char* location) {
-  std::string dalvik_cache(GetDalvikCacheOrDie(GetAndroidData()));
+std::string GetDalvikCacheFilenameOrDie(const char* location, const char* cache_location) {
   if (location[0] != '/') {
     LOG(FATAL) << "Expected path in location to be absolute: "<< location;
   }
@@ -1196,7 +1201,7 @@ std::string GetDalvikCacheFilenameOrDie(const char* location) {
     cache_file += DexFile::kClassesDex;
   }
   std::replace(cache_file.begin(), cache_file.end(), '/', '@');
-  return dalvik_cache + "/" + cache_file;
+  return StringPrintf("%s/%s", cache_location, cache_file.c_str());
 }
 
 bool IsZipMagic(uint32_t magic) {

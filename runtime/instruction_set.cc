@@ -21,6 +21,48 @@
 
 namespace art {
 
+const char* GetInstructionSetString(const InstructionSet isa) {
+  switch (isa) {
+    case kArm:
+    case kThumb2:
+      return "arm";
+    case kArm64:
+      return "arm64";
+    case kX86:
+      return "x86";
+    case kX86_64:
+      return "x86_64";
+    case kMips:
+      return "mips";
+    case kNone:
+      return "none";
+    default:
+      LOG(FATAL) << "Unknown ISA " << isa;
+      return nullptr;
+  }
+}
+
+InstructionSet GetInstructionSetFromString(const char* isa_str) {
+  CHECK(isa_str != nullptr);
+
+  if (!strcmp("arm", isa_str)) {
+    return kArm;
+  } else if (!strcmp("arm64", isa_str)) {
+    return kArm64;
+  } else if (!strcmp("x86", isa_str)) {
+    return kX86;
+  } else if (!strcmp("x86_64", isa_str)) {
+    return kX86_64;
+  } else if (!strcmp("mips", isa_str)) {
+    return kMips;
+  } else if (!strcmp("none", isa_str)) {
+    return kNone;
+  }
+
+  LOG(FATAL) << "Unknown ISA " << isa_str;
+  return kNone;
+}
+
 size_t GetInstructionSetPointerSize(InstructionSet isa) {
   switch (isa) {
     case kArm:

@@ -919,7 +919,9 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const char* dex_
   }
 
   std::string cache_error_msg;
-  std::string cache_location(GetDalvikCacheFilenameOrDie(dex_location));
+  const std::string dalvik_cache(GetDalvikCacheOrDie(GetInstructionSetString(kRuntimeISA)));
+  std::string cache_location(GetDalvikCacheFilenameOrDie(dex_location,
+                                                         dalvik_cache.c_str()));
   dex_file = VerifyAndOpenDexFileFromOatFile(cache_location, dex_location, &cache_error_msg,
                                              &open_failed);
   if (dex_file != nullptr) {
