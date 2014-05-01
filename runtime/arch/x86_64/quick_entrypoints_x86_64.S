@@ -1169,5 +1169,47 @@ UNIMPLEMENTED art_quick_instrumentation_exit
 UNIMPLEMENTED art_quick_deoptimize
 
 UNIMPLEMENTED art_quick_indexof
-UNIMPLEMENTED art_quick_string_compareto
+
+    /*
+     * String's compareTo.
+     *
+     * On entry:
+     *    rdi:   this string object (known non-null)
+     *    rsi:   comp string object (known non-null)
+     */
+DEFINE_FUNCTION art_quick_string_compareto
+    movl STRING_COUNT_OFFSET(%edi), %r8d
+    movl STRING_COUNT_OFFSET(%esi), %r9d
+    movl STRING_VALUE_OFFSET(%edi), %r10d
+    movl STRING_VALUE_OFFSET(%esi), %r11d
+    movl STRING_OFFSET_OFFSET(%edi), %eax
+    movl STRING_OFFSET_OFFSET(%esi), %ecx
+    /* Build pointers to the start of string data */
+    leal STRING_DATA_OFFSET(%r10d, %eax, 2), %esi
+    leal STRING_DATA_OFFSET(%r11d, %ecx, 2), %edi
+    /* Calculate min length and count diff */
+    movl  %r8d, %ecx
+    movl  %r8d, %eax
+    subl  %r9d, %eax
+    cmovg %r9d, %ecx
+    /*
+     * At this point we have:
+     *   eax: value to return if first part of strings are equal
+     *   ecx: minimum among the lengths of the two strings
+     *   esi: pointer to this string data
+     *   edi: pointer to comp string data
+     */
+    jecxz .Lkeep_length
+    repe cmpsw                    // find nonmatching chars in [%esi] and [%edi], up to length %ecx
+    jne .Lnot_equal
+.Lkeep_length:
+    ret
+    .balign 16
+.Lnot_equal:
+    movzwl  -2(%esi), %eax        // get last compared char from this string
+    movzwl  -2(%edi), %ecx        // get last compared char from comp string
+    subl  %ecx, %eax              // return the difference
+    ret
+END_FUNCTION art_quick_string_compareto
+
 UNIMPLEMENTED art_quick_memcmp16
