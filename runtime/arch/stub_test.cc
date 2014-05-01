@@ -122,13 +122,13 @@ class StubTest : public CommonRuntimeTest {
         "pushq $0\n\t"                 // 16B alignment padding
         ".cfi_adjust_cfa_offset 16\n\t"
         "call *%%rax\n\t"              // Call the stub
-        "addq $16, %%rsp"              // Pop nullptr and padding
-        // ".cfi_adjust_cfa_offset -16\n\t"
+        "addq $16, %%rsp\n\t"              // Pop nullptr and padding
+        ".cfi_adjust_cfa_offset -16\n\t"
         : "=a" (result)
           // Use the result from rax
         : "D"(arg0), "S"(arg1), "d"(arg2), "a"(code)
           // This places arg0 into rdi, arg1 into rsi, arg2 into rdx, and code into rax
-        : "rcx", "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");  // clobber all
+        : "rbx", "rcx", "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");  // clobber all
     // TODO: Should we clobber the other registers?
 #else
     LOG(WARNING) << "Was asked to invoke for an architecture I do not understand.";
@@ -273,7 +273,7 @@ TEST_F(StubTest, CheckCast) {
 }
 
 
-#if defined(__i386__) || defined(__arm__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
 extern "C" void art_quick_aput_obj_with_null_and_bound_check(void);
 // Do not check non-checked ones, we'd need handlers and stuff...
 #endif
@@ -281,7 +281,7 @@ extern "C" void art_quick_aput_obj_with_null_and_bound_check(void);
 TEST_F(StubTest, APutObj) {
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
 
-#if defined(__i386__) || defined(__arm__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
   Thread* self = Thread::Current();
   // Create an object
   ScopedObjectAccess soa(self);
@@ -296,7 +296,7 @@ TEST_F(StubTest, APutObj) {
 
   // Build a string array of size 1
   SirtRef<mirror::ObjectArray<mirror::Object> > array(soa.Self(),
-            mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), ca.get(), 1));
+            mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), ca.get(), 10));
 
   // Build a string -> should be assignable
   SirtRef<mirror::Object> str_obj(soa.Self(),
@@ -308,7 +308,7 @@ TEST_F(StubTest, APutObj) {
   // Play with it...
 
   // 1) Success cases
-  // 1.1) Assign str_obj to array[0]
+  // 1.1) Assign str_obj to array[0..3]
 
   EXPECT_FALSE(self->IsExceptionPending());
 
@@ -316,13 +316,51 @@ TEST_F(StubTest, APutObj) {
           reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
 
   EXPECT_FALSE(self->IsExceptionPending());
+  EXPECT_EQ(str_obj.get(), array->Get(0));
 
-  // 1.2) Assign null to array[0]
+  Invoke3(reinterpret_cast<size_t>(array.get()), 1U, reinterpret_cast<size_t>(str_obj.get()),
+          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+
+  EXPECT_FALSE(self->IsExceptionPending());
+  EXPECT_EQ(str_obj.get(), array->Get(1));
+
+  Invoke3(reinterpret_cast<size_t>(array.get()), 2U, reinterpret_cast<size_t>(str_obj.get()),
+          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+
+  EXPECT_FALSE(self->IsExceptionPending());
+  EXPECT_EQ(str_obj.get(), array->Get(2));
+
+  Invoke3(reinterpret_cast<size_t>(array.get()), 3U, reinterpret_cast<size_t>(str_obj.get()),
+          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+
+  EXPECT_FALSE(self->IsExceptionPending());
+  EXPECT_EQ(str_obj.get(), array->Get(3));
+
+  // 1.2) Assign null to array[0..3]
 
   Invoke3(reinterpret_cast<size_t>(array.get()), 0U, reinterpret_cast<size_t>(nullptr),
           reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
 
   EXPECT_FALSE(self->IsExceptionPending());
+  EXPECT_EQ(nullptr, array->Get(0));
+
+  Invoke3(reinterpret_cast<size_t>(array.get()), 1U, reinterpret_cast<size_t>(nullptr),
+          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+
+  EXPECT_FALSE(self->IsExceptionPending());
+  EXPECT_EQ(nullptr, array->Get(1));
+
+  Invoke3(reinterpret_cast<size_t>(array.get()), 2U, reinterpret_cast<size_t>(nullptr),
+          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+
+  EXPECT_FALSE(self->IsExceptionPending());
+  EXPECT_EQ(nullptr, array->Get(2));
+
+  Invoke3(reinterpret_cast<size_t>(array.get()), 3U, reinterpret_cast<size_t>(nullptr),
+          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+
+  EXPECT_FALSE(self->IsExceptionPending());
+  EXPECT_EQ(nullptr, array->Get(3));
 
   // TODO: Check _which_ exception is thrown. Then make 3) check that it's the right check order.
 
@@ -347,7 +385,7 @@ TEST_F(StubTest, APutObj) {
 
   // 2.3) Index > 0
 
-  Invoke3(reinterpret_cast<size_t>(array.get()), 1U, reinterpret_cast<size_t>(str_obj.get()),
+  Invoke3(reinterpret_cast<size_t>(array.get()), 10U, reinterpret_cast<size_t>(str_obj.get()),
           reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
 
   EXPECT_TRUE(self->IsExceptionPending());
