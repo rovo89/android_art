@@ -325,49 +325,60 @@ void X86Mir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
   int32_t val_lo = Low32Bits(val);
   int32_t val_hi = High32Bits(val);
   LIR* taken = &block_label_list_[bb->taken];
-  LIR* not_taken = &block_label_list_[bb->fall_through];
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+  bool is_equality_test = ccode == kCondEq || ccode == kCondNe;
+  if (is_equality_test && val != 0) {
+    rl_src1 = ForceTempWide(rl_src1);
+  }
   RegStorage low_reg = rl_src1.reg.GetLow();
   RegStorage high_reg = rl_src1.reg.GetHigh();
 
-  if (val == 0 && (ccode == kCondEq || ccode == kCondNe)) {
-    RegStorage t_reg = AllocTemp();
-    OpRegRegReg(kOpOr, t_reg, low_reg, high_reg);
-    FreeTemp(t_reg);
-    OpCondBranch(ccode, taken);
-    return;
+  if (is_equality_test) {
+    // We can simpolify of comparing for ==, != to 0.
+    if (val == 0) {
+      if (IsTemp(low_reg)) {
+        OpRegReg(kOpOr, low_reg, high_reg);
+        // We have now changed it; ignore the old values.
+        Clobber(rl_src1.reg);
+      } else {
+        RegStorage t_reg = AllocTemp();
+        OpRegRegReg(kOpOr, t_reg, low_reg, high_reg);
+        FreeTemp(t_reg);
+      }
+      OpCondBranch(ccode, taken);
+      return;
+    }
+
+    // Need to compute the actual value for ==, !=.
+    OpRegImm(kOpSub, low_reg, val_lo);
+    NewLIR2(kX86Sbb32RI, high_reg.GetReg(), val_hi);
+    OpRegReg(kOpOr, high_reg, low_reg);
+    Clobber(rl_src1.reg);
+  } else if (ccode == kCondLe || ccode == kCondGt) {
+    // Swap operands and condition code to prevent use of zero flag.
+    RegStorage tmp = AllocTypedTempWide(false, kCoreReg);
+    LoadConstantWide(tmp, val);
+    OpRegReg(kOpSub, tmp.GetLow(), low_reg);
+    OpRegReg(kOpSbc, tmp.GetHigh(), high_reg);
+    ccode = (ccode == kCondLe) ? kCondGe : kCondLt;
+    FreeTemp(tmp);
+  } else {
+    // We can use a compare for the low word to set CF.
+    OpRegImm(kOpCmp, low_reg, val_lo);
+    if (IsTemp(high_reg)) {
+      NewLIR2(kX86Sbb32RI, high_reg.GetReg(), val_hi);
+      // We have now changed it; ignore the old values.
+      Clobber(rl_src1.reg);
+    } else {
+      // mov temp_reg, high_reg; sbb temp_reg, high_constant
+      RegStorage t_reg = AllocTemp();
+      OpRegCopy(t_reg, high_reg);
+      NewLIR2(kX86Sbb32RI, t_reg.GetReg(), val_hi);
+      FreeTemp(t_reg);
+    }
   }
 
-  OpRegImm(kOpCmp, high_reg, val_hi);
-  switch (ccode) {
-    case kCondEq:
-    case kCondNe:
-      OpCondBranch(kCondNe, (ccode == kCondEq) ? not_taken : taken);
-      break;
-    case kCondLt:
-      OpCondBranch(kCondLt, taken);
-      OpCondBranch(kCondGt, not_taken);
-      ccode = kCondUlt;
-      break;
-    case kCondLe:
-      OpCondBranch(kCondLt, taken);
-      OpCondBranch(kCondGt, not_taken);
-      ccode = kCondLs;
-      break;
-    case kCondGt:
-      OpCondBranch(kCondGt, taken);
-      OpCondBranch(kCondLt, not_taken);
-      ccode = kCondHi;
-      break;
-    case kCondGe:
-      OpCondBranch(kCondGt, taken);
-      OpCondBranch(kCondLt, not_taken);
-      ccode = kCondUge;
-      break;
-    default:
-      LOG(FATAL) << "Unexpected ccode: " << ccode;
-  }
-  OpCmpImmBranch(ccode, low_reg, val_lo, taken);
+  OpCondBranch(ccode, taken);
 }
 
 void X86Mir2Lir::CalculateMagicAndShift(int divisor, int& magic, int& shift) {
