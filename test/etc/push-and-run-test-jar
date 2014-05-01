@@ -140,7 +140,7 @@ if [ "$DEBUGGER" = "y" ]; then
 fi
 
 if [ "$GDB" = "y" ]; then
-    gdb="/data/gdbserver$TARGET_SUFFIX :5039"
+    gdb="gdbserver$TARGET_SUFFIX :5039"
     gdbargs="$exe"
 fi
 
@@ -150,7 +150,7 @@ fi
 
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
 
-cmdline="cd $DEX_LOCATION && mkdir dalvik-cache && export ANDROID_DATA=$DEX_LOCATION && export DEX_LOCATION=$DEX_LOCATION && \
+cmdline="cd $DEX_LOCATION && mkdir -p dalvik-cache/{arm,arm64,mips,x86,x86_64} && export ANDROID_DATA=$DEX_LOCATION && export DEX_LOCATION=$DEX_LOCATION && \
     $INVOKE_WITH $gdb /system/bin/dalvikvm$TARGET_SUFFIX $FLAGS $gdbargs -XXlib:$LIB $ZYGOTE $JNI_OPTS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar Main"
 if [ "$DEV_MODE" = "y" ]; then
   echo $cmdline "$@"
