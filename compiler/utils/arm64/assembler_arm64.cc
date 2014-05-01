@@ -467,12 +467,26 @@ void Arm64Assembler::MemoryBarrier(ManagedRegister m_scratch) {
 #endif
 }
 
-void Arm64Assembler::SignExtend(ManagedRegister /*mreg*/, size_t /*size*/) {
-  UNIMPLEMENTED(FATAL) << "no sign extension necessary for Arm64";
+void Arm64Assembler::SignExtend(ManagedRegister mreg, size_t size) {
+  Arm64ManagedRegister reg = mreg.AsArm64();
+  CHECK(size == 1 || size == 2) << size;
+  CHECK(reg.IsWRegister()) << reg;
+  if (size == 1) {
+    ___ sxtb(reg_w(reg.AsWRegister()), reg_w(reg.AsWRegister()));
+  } else {
+    ___ sxth(reg_w(reg.AsWRegister()), reg_w(reg.AsWRegister()));
+  }
 }
 
-void Arm64Assembler::ZeroExtend(ManagedRegister /*mreg*/, size_t /*size*/) {
-  UNIMPLEMENTED(FATAL) << "no zero extension necessary for Arm64";
+void Arm64Assembler::ZeroExtend(ManagedRegister mreg, size_t size) {
+  Arm64ManagedRegister reg = mreg.AsArm64();
+  CHECK(size == 1 || size == 2) << size;
+  CHECK(reg.IsWRegister()) << reg;
+  if (size == 1) {
+    ___ uxtb(reg_w(reg.AsWRegister()), reg_w(reg.AsWRegister()));
+  } else {
+    ___ uxth(reg_w(reg.AsWRegister()), reg_w(reg.AsWRegister()));
+  }
 }
 
 void Arm64Assembler::VerifyObject(ManagedRegister /*src*/, bool /*could_be_null*/) {
