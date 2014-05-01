@@ -159,7 +159,7 @@ mirror::Object* RosAllocSpace::AllocWithGrowth(Thread* self, size_t num_bytes,
   }
   // Note RosAlloc zeroes memory internally.
   // Return the new allocation or NULL.
-  CHECK(!kDebugSpaces || result == NULL || Contains(result));
+  CHECK(!kDebugSpaces || result == nullptr || Contains(result));
   return result;
 }
 
