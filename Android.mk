@@ -46,9 +46,6 @@ clean-oat-host:
 	rm -f $(ART_TEST_OUT)/*.odex
 	rm -f $(ART_TEST_OUT)/*.oat
 	rm -f $(ART_TEST_OUT)/*.art
-	rm -f $(DALVIK_CACHE_OUT)/*@classes.dex
-	rm -f $(DALVIK_CACHE_OUT)/*.oat
-	rm -f $(DALVIK_CACHE_OUT)/*.art
 	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.odex
 	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.oat
 	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.art
@@ -66,25 +63,31 @@ ifdef TARGET_2ND_ARCH
 	rm -f $(2ND_TARGET_OUT_INTERMEDIATES)/JAVA_LIBRARIES/*_intermediates/javalib.odex
 	rm -f $(2ND_TARGET_OUT_INTERMEDIATES)/APPS/*_intermediates/*.odex
 endif
-	rm -rf /tmp/test-*/dalvik-cache/*@classes.dex
-	rm -rf /tmp/android-data/dalvik-cache/*@classes.dex
+	rm -rf /tmp/test-*/dalvik-cache/*
+	rm -rf /tmp/android-data/dalvik-cache/*
 
 .PHONY: clean-oat-target
 clean-oat-target:
 	adb remount
-	adb shell rm $(ART_NATIVETEST_DIR)/*.odex
-	adb shell rm $(ART_NATIVETEST_DIR)/*.oat
-	adb shell rm $(ART_NATIVETEST_DIR)/*.art
-	adb shell rm $(ART_TEST_DIR)/*.odex
-	adb shell rm $(ART_TEST_DIR)/*.oat
-	adb shell rm $(ART_TEST_DIR)/*.art
-	adb shell rm $(ART_DALVIK_CACHE_DIR)/*.dex
-	adb shell rm $(ART_DALVIK_CACHE_DIR)/*.oat
-	adb shell rm $(ART_DALVIK_CACHE_DIR)/*.art
-	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.oat
-	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.art
-	adb shell rm system/app/*.odex
-	adb shell rm data/run-test/test-*/dalvik-cache/*@classes.dex
+	adb shell rm -f $(ART_NATIVETEST_DIR)/*.odex
+	adb shell rm -f $(ART_NATIVETEST_DIR)/*.oat
+	adb shell rm -f $(ART_NATIVETEST_DIR)/*.art
+	adb shell rm -f $(ART_TEST_DIR)/*.odex
+	adb shell rm -f $(ART_TEST_DIR)/*.oat
+	adb shell rm -f $(ART_TEST_DIR)/*.art
+ifdef TARGET_2ND_ARCH
+	adb shell rm -f $(2ND_ART_NATIVETEST_DIR)/*.odex
+	adb shell rm -f $(2ND_ART_NATIVETEST_DIR)/*.oat
+	adb shell rm -f $(2ND_ART_NATIVETEST_DIR)/*.art
+	adb shell rm -f $(2ND_ART_TEST_DIR)/*.odex
+	adb shell rm -f $(2ND_ART_TEST_DIR)/*.oat
+	adb shell rm -f $(2ND_ART_TEST_DIR)/*.art
+endif
+	adb shell rm -rf $(ART_DALVIK_CACHE_DIR)/*
+	adb shell rm -f $(DEXPREOPT_BOOT_JAR_DIR)/*.oat
+	adb shell rm -f $(DEXPREOPT_BOOT_JAR_DIR)/*.art
+	adb shell rm -f system/app/*.odex
+	adb shell rm -rf data/run-test/test-*/dalvik-cache/*
 
 ifneq ($(art_dont_bother),true)
 
