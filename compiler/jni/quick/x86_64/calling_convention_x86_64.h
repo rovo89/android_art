@@ -69,6 +69,11 @@ class X86_64JniCallingConvention FINAL : public JniCallingConvention {
   ManagedRegister CurrentParamRegister() OVERRIDE;
   FrameOffset CurrentParamStackOffset() OVERRIDE;
 
+  // x86-64 needs to extend small return types.
+  bool RequiresSmallResultTypeExtension() const OVERRIDE {
+    return true;
+  }
+
  protected:
   size_t NumberOfOutgoingStackArgs() OVERRIDE;
 

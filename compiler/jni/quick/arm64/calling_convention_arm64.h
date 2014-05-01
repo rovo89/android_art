@@ -68,6 +68,11 @@ class Arm64JniCallingConvention FINAL : public JniCallingConvention {
   ManagedRegister CurrentParamRegister() OVERRIDE;
   FrameOffset CurrentParamStackOffset() OVERRIDE;
 
+  // aarch64 calling convention leaves upper bits undefined.
+  bool RequiresSmallResultTypeExtension() const OVERRIDE {
+    return true;
+  }
+
  protected:
   size_t NumberOfOutgoingStackArgs() OVERRIDE;
 
