@@ -314,7 +314,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
           mr_conv->InterproceduralScratchRegister());
 
   // 10. Fix differences in result widths.
-  if (instruction_set == kX86 || instruction_set == kX86_64) {
+  if (main_jni_conv->RequiresSmallResultTypeExtension()) {
     if (main_jni_conv->GetReturnType() == Primitive::kPrimByte ||
         main_jni_conv->GetReturnType() == Primitive::kPrimShort) {
       __ SignExtend(main_jni_conv->ReturnRegister(),
