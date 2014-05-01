@@ -71,6 +71,11 @@ class MipsJniCallingConvention FINAL : public JniCallingConvention {
   ManagedRegister CurrentParamRegister() OVERRIDE;
   FrameOffset CurrentParamStackOffset() OVERRIDE;
 
+  // Mips does not need to extend small return types.
+  bool RequiresSmallResultTypeExtension() const OVERRIDE {
+    return false;
+  }
+
  protected:
   size_t NumberOfOutgoingStackArgs() OVERRIDE;
 

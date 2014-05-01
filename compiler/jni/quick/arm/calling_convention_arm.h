@@ -71,6 +71,11 @@ class ArmJniCallingConvention FINAL : public JniCallingConvention {
   ManagedRegister CurrentParamRegister() OVERRIDE;
   FrameOffset CurrentParamStackOffset() OVERRIDE;
 
+  // AAPCS mandates return values are extended.
+  bool RequiresSmallResultTypeExtension() const OVERRIDE {
+    return false;
+  }
+
  protected:
   size_t NumberOfOutgoingStackArgs() OVERRIDE;
 
