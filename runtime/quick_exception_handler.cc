@@ -19,6 +19,7 @@
 #include "catch_block_stack_visitor.h"
 #include "deoptimize_stack_visitor.h"
 #include "entrypoints/entrypoint_utils.h"
+#include "mirror/art_method-inl.h"
 #include "sirt_ref-inl.h"
 
 namespace art {
