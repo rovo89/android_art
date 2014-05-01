@@ -1010,8 +1010,8 @@ static int dex2oat(int argc, char** argv) {
   }
 
   if (compiler_filter_string == NULL) {
-    if (instruction_set == kX86_64 || instruction_set == kArm64) {
-      // TODO: currently x86-64 and arm64 are only interpreted.
+    if (instruction_set == kX86_64 || instruction_set == kArm64 || instruction_set == kMips) {
+      // TODO: implement/fix compilers for these architectures.
       compiler_filter_string = "interpret-only";
     } else if (image) {
       compiler_filter_string = "speed";
