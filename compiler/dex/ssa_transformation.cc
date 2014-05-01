@@ -173,8 +173,8 @@ void MIRGraph::ComputeDefBlockMatrix() {
 }
 
 void MIRGraph::ComputeDomPostOrderTraversal(BasicBlock* bb) {
-  if (dom_post_order_traversal_ == NULL) {
-    // First time - create the array.
+  if (dom_post_order_traversal_ == NULL || max_num_reachable_blocks_ < num_reachable_blocks_) {
+    // First time or too small - create the array.
     dom_post_order_traversal_ =
         new (arena_) GrowableArray<BasicBlockId>(arena_, num_reachable_blocks_,
                                         kGrowableArrayDomPostOrderTraversal);
@@ -380,8 +380,8 @@ void MIRGraph::ComputeDominators() {
     InitializeDominationInfo(bb);
   }
 
-  /* Initalize & Clear i_dom_list */
-  if (i_dom_list_ == NULL) {
+  /* Initialize & Clear i_dom_list */
+  if (max_num_reachable_blocks_ < num_reachable_blocks_) {
     i_dom_list_ = static_cast<int*>(arena_->Alloc(sizeof(int) * num_reachable_blocks,
                                                   kArenaAllocDFInfo));
   }
@@ -584,12 +584,8 @@ bool MIRGraph::InsertPhiNodeOperands(BasicBlock* bb) {
     /* Iterate through the predecessors */
     GrowableArray<BasicBlockId>::Iterator iter(bb->predecessors);
     size_t num_uses = bb->predecessors->Size();
-    mir->ssa_rep->num_uses = num_uses;
-    int* uses = static_cast<int*>(arena_->Alloc(sizeof(int) * num_uses,
-                                                kArenaAllocDFInfo));
-    mir->ssa_rep->uses = uses;
-    mir->ssa_rep->fp_use =
-        static_cast<bool*>(arena_->Alloc(sizeof(bool) * num_uses, kArenaAllocDFInfo));
+    AllocateSSAUseData(mir, num_uses);
+    int* uses = mir->ssa_rep->uses;
     BasicBlockId* incoming =
         static_cast<BasicBlockId*>(arena_->Alloc(sizeof(BasicBlockId) * num_uses,
                                                  kArenaAllocDFInfo));
@@ -598,9 +594,9 @@ bool MIRGraph::InsertPhiNodeOperands(BasicBlock* bb) {
     while (true) {
       BasicBlock* pred_bb = GetBasicBlock(iter.Next());
       if (!pred_bb) {
-        break;
+       break;
       }
-      int ssa_reg = pred_bb->data_flow_info->vreg_to_ssa_map[v_reg];
+      int ssa_reg = pred_bb->data_flow_info->vreg_to_ssa_map_exit[v_reg];
       uses[idx] = ssa_reg;
       incoming[idx] = pred_bb->id;
       idx++;

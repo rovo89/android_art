@@ -58,6 +58,7 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       use_counts_(arena, 256, kGrowableArrayMisc),
       raw_use_counts_(arena, 256, kGrowableArrayMisc),
       num_reachable_blocks_(0),
+      max_num_reachable_blocks_(0),
       dfs_order_(NULL),
       dfs_post_order_(NULL),
       dom_post_order_traversal_(NULL),
@@ -1237,6 +1238,9 @@ void MIRGraph::InitializeSSATransformation() {
   /* Rename register names by local defs and phi nodes */
   ClearAllVisitedFlags();
   DoDFSPreOrderSSARename(GetEntryBlock());
+
+  // Update the maximum number of reachable blocks.
+  max_num_reachable_blocks_ = num_reachable_blocks_;
 }
 
 }  // namespace art
