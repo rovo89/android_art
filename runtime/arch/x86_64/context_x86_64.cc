@@ -42,8 +42,8 @@ void X86_64Context::FillCalleeSaves(const StackVisitor& fr) {
   mirror::ArtMethod* method = fr.GetMethod();
   uint32_t core_spills = method->GetCoreSpillMask();
   uint32_t fp_core_spills = method->GetFpSpillMask();
-  size_t spill_count = __builtin_popcount(core_spills);
-  size_t fp_spill_count = __builtin_popcount(fp_core_spills);
+  size_t spill_count = POPCOUNT(core_spills);
+  size_t fp_spill_count = POPCOUNT(fp_core_spills);
   size_t frame_size = method->GetFrameSizeInBytes();
   if (spill_count > 0) {
     // Lowest number spill is farthest away, walk registers and fill into context.

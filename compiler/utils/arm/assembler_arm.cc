@@ -1107,7 +1107,7 @@ int32_t ArmAssembler::EncodeBranchOffset(int offset, int32_t inst) {
   // The offset is off by 8 due to the way the ARM CPUs read PC.
   offset -= 8;
   CHECK_ALIGNED(offset, 4);
-  CHECK(IsInt(CountOneBits(kBranchOffsetMask), offset)) << offset;
+  CHECK(IsInt(POPCOUNT(kBranchOffsetMask), offset)) << offset;
 
   // Properly preserve only the bits supported in the instruction.
   offset >>= 2;

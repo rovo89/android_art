@@ -257,7 +257,7 @@ void Class::SetReferenceInstanceOffsets(uint32_t new_reference_offsets) {
     for (Class* c = this; c != NULL; c = c->GetSuperClass()) {
       count += c->NumReferenceInstanceFieldsDuringLinking();
     }
-    CHECK_EQ((size_t)__builtin_popcount(new_reference_offsets), count);
+    CHECK_EQ((size_t)POPCOUNT(new_reference_offsets), count);
   }
   // Not called within a transaction.
   SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, reference_instance_offsets_),
@@ -268,7 +268,7 @@ void Class::SetReferenceStaticOffsets(uint32_t new_reference_offsets) {
   if (new_reference_offsets != CLASS_WALK_SUPER) {
     // Sanity check that the number of bits set in the reference offset bitmap
     // agrees with the number of references
-    CHECK_EQ((size_t)__builtin_popcount(new_reference_offsets),
+    CHECK_EQ((size_t)POPCOUNT(new_reference_offsets),
              NumReferenceStaticFieldsDuringLinking());
   }
   // Not called within a transaction.

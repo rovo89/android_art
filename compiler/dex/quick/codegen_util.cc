@@ -1018,8 +1018,8 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
       vmap_encoder.PushBackUnsigned(fp_vmap_table_[i] + VmapTable::kEntryAdjustment);
     }
   } else {
-    DCHECK_EQ(__builtin_popcount(core_spill_mask_), 0);
-    DCHECK_EQ(__builtin_popcount(fp_spill_mask_), 0);
+    DCHECK_EQ(POPCOUNT(core_spill_mask_), 0);
+    DCHECK_EQ(POPCOUNT(fp_spill_mask_), 0);
     DCHECK_EQ(core_vmap_table_.size(), 0u);
     DCHECK_EQ(fp_vmap_table_.size(), 0u);
     vmap_encoder.PushBackUnsigned(0u);  // Size is 0.
