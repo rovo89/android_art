@@ -66,6 +66,9 @@ inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx,
     SirtRef<mirror::DexCache> dex_cache(Thread::Current(), declaring_class->GetDexCache());
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_string = ResolveString(dex_file, string_idx, dex_cache);
+    if (resolved_string != nullptr) {
+      DCHECK_EQ(dex_cache->GetResolvedString(string_idx), resolved_string);
+    }
   }
   return resolved_string;
 }
@@ -80,6 +83,9 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx,
     SirtRef<mirror::ClassLoader> class_loader(self, declaring_class->GetClassLoader());
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
+    if (resolved_type != nullptr) {
+      DCHECK_EQ(dex_cache->GetResolvedType(type_idx), resolved_type);
+    }
   }
   return resolved_type;
 }
@@ -94,6 +100,9 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, mirror::ArtFie
     SirtRef<mirror::ClassLoader> class_loader(self, declaring_class->GetClassLoader());
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
+    if (resolved_type != nullptr) {
+      DCHECK_EQ(dex_cache->GetResolvedType(type_idx), resolved_type);
+    }
   }
   return resolved_type;
 }
@@ -110,6 +119,9 @@ inline mirror::ArtMethod* ClassLinker::ResolveMethod(uint32_t method_idx,
     SirtRef<mirror::ClassLoader> class_loader(self, declaring_class->GetClassLoader());
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_method = ResolveMethod(dex_file, method_idx, dex_cache, class_loader, referrer, type);
+    if (resolved_method != nullptr) {
+      DCHECK_EQ(dex_cache->GetResolvedMethod(method_idx), resolved_method);
+    }
   }
   return resolved_method;
 }
@@ -126,6 +138,9 @@ inline mirror::ArtField* ClassLinker::ResolveField(uint32_t field_idx,
     SirtRef<mirror::ClassLoader> class_loader(self, declaring_class->GetClassLoader());
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_field = ResolveField(dex_file, field_idx, dex_cache, class_loader, is_static);
+    if (resolved_field != nullptr) {
+      DCHECK_EQ(dex_cache->GetResolvedField(field_idx), resolved_field);
+    }
   }
   return resolved_field;
 }
