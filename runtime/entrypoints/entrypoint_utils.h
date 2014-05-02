@@ -132,8 +132,7 @@ ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCode(uint32_t type_id
     if (klass == nullptr) {
       return nullptr;
     }
-    gc::Heap* heap = Runtime::Current()->GetHeap();
-    return klass->Alloc<kInstrumented>(self, heap->GetCurrentAllocator());
+    return klass->Alloc<kInstrumented>(self, Runtime::Current()->GetHeap()->GetCurrentAllocator());
   }
   DCHECK(klass != nullptr);
   return klass->Alloc<kInstrumented>(self, allocator_type);
@@ -155,9 +154,11 @@ ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeResolved(mirror::
       return nullptr;
     }
     gc::Heap* heap = Runtime::Current()->GetHeap();
-    return klass->Alloc<kInstrumented>(self, heap->GetCurrentAllocator());
+    // Pass in false since the object can not be finalizable.
+    return klass->Alloc<kInstrumented, false>(self, heap->GetCurrentAllocator());
   }
-  return klass->Alloc<kInstrumented>(self, allocator_type);
+  // Pass in false since the object can not be finalizable.
+  return klass->Alloc<kInstrumented, false>(self, allocator_type);
 }
 
 // Given the context of a calling Method and an initialized class, create an instance.
@@ -169,7 +170,8 @@ ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeInitialized(mirro
                                                                            gc::AllocatorType allocator_type)
     NO_THREAD_SAFETY_ANALYSIS {
   DCHECK(klass != nullptr);
-  return klass->Alloc<kInstrumented>(self, allocator_type);
+  // Pass in false since the object can not be finalizable.
+  return klass->Alloc<kInstrumented, false>(self, allocator_type);
 }
 
 
