@@ -34,9 +34,9 @@
 namespace art {
 namespace mirror {
 
-template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline Class* Object::GetClass() {
-  return GetFieldObject<Class, kVerifyFlags, kDoReadBarrier>(
+  return GetFieldObject<Class, kVerifyFlags, kReadBarrierOption>(
       OFFSET_OF_OBJECT_MEMBER(Object, klass_));
 }
 
@@ -181,17 +181,17 @@ inline bool Object::InstanceOf(Class* klass) {
   return klass->IsAssignableFrom(GetClass<kVerifyFlags>());
 }
 
-template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Object::IsClass() {
-  Class* java_lang_Class =
-      GetClass<kVerifyFlags, kDoReadBarrier>()->template GetClass<kVerifyFlags, kDoReadBarrier>();
-  return GetClass<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis), kDoReadBarrier>() ==
-      java_lang_Class;
+  Class* java_lang_Class = GetClass<kVerifyFlags, kReadBarrierOption>()->
+      template GetClass<kVerifyFlags, kReadBarrierOption>();
+  return GetClass<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis),
+      kReadBarrierOption>() == java_lang_Class;
 }
 
-template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline Class* Object::AsClass() {
-  DCHECK((IsClass<kVerifyFlags, kDoReadBarrier>()));
+  DCHECK((IsClass<kVerifyFlags, kReadBarrierOption>()));
   return down_cast<Class*>(this);
 }
 
@@ -208,15 +208,16 @@ inline ObjectArray<T>* Object::AsObjectArray() {
   return down_cast<ObjectArray<T>*>(this);
 }
 
-template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Object::IsArrayInstance() {
-  return GetClass<kVerifyFlags, kDoReadBarrier>()->
-      template IsArrayClass<kVerifyFlags, kDoReadBarrier>();
+  return GetClass<kVerifyFlags, kReadBarrierOption>()->
+      template IsArrayClass<kVerifyFlags, kReadBarrierOption>();
 }
 
-template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Object::IsArtField() {
-  return GetClass<kVerifyFlags, kDoReadBarrier>()->template IsArtFieldClass<kDoReadBarrier>();
+  return GetClass<kVerifyFlags, kReadBarrierOption>()->
+      template IsArtFieldClass<kReadBarrierOption>();
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -225,9 +226,10 @@ inline ArtField* Object::AsArtField() {
   return down_cast<ArtField*>(this);
 }
 
-template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Object::IsArtMethod() {
-  return GetClass<kVerifyFlags, kDoReadBarrier>()->template IsArtMethodClass<kDoReadBarrier>();
+  return GetClass<kVerifyFlags, kReadBarrierOption>()->
+      template IsArtMethodClass<kReadBarrierOption>();
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -247,9 +249,9 @@ inline Reference* Object::AsReference() {
   return down_cast<Reference*>(this);
 }
 
-template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline Array* Object::AsArray() {
-  DCHECK((IsArrayInstance<kVerifyFlags, kDoReadBarrier>()));
+  DCHECK((IsArrayInstance<kVerifyFlags, kReadBarrierOption>()));
   return down_cast<Array*>(this);
 }
 
@@ -375,21 +377,23 @@ inline bool Object::IsPhantomReferenceInstance() {
   return GetClass<kVerifyFlags>()->IsPhantomReferenceClass();
 }
 
-template<VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline size_t Object::SizeOf() {
   size_t result;
   constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
-  if (IsArrayInstance<kVerifyFlags, kDoReadBarrier>()) {
-    result = AsArray<kNewFlags, kDoReadBarrier>()->template SizeOf<kNewFlags, kDoReadBarrier>();
-  } else if (IsClass<kNewFlags, kDoReadBarrier>()) {
-    result = AsClass<kNewFlags, kDoReadBarrier>()->template SizeOf<kNewFlags, kDoReadBarrier>();
+  if (IsArrayInstance<kVerifyFlags, kReadBarrierOption>()) {
+    result = AsArray<kNewFlags, kReadBarrierOption>()->
+        template SizeOf<kNewFlags, kReadBarrierOption>();
+  } else if (IsClass<kNewFlags, kReadBarrierOption>()) {
+    result = AsClass<kNewFlags, kReadBarrierOption>()->
+        template SizeOf<kNewFlags, kReadBarrierOption>();
   } else {
-    result = GetClass<kNewFlags, kDoReadBarrier>()->GetObjectSize();
+    result = GetClass<kNewFlags, kReadBarrierOption>()->GetObjectSize();
   }
   DCHECK_GE(result, sizeof(Object))
-      << " class=" << PrettyTypeOf(GetClass<kNewFlags, kDoReadBarrier>());
-  DCHECK(!(IsArtField<kNewFlags, kDoReadBarrier>())  || result == sizeof(ArtField));
-  DCHECK(!(IsArtMethod<kNewFlags, kDoReadBarrier>()) || result == sizeof(ArtMethod));
+      << " class=" << PrettyTypeOf(GetClass<kNewFlags, kReadBarrierOption>());
+  DCHECK(!(IsArtField<kNewFlags, kReadBarrierOption>())  || result == sizeof(ArtField));
+  DCHECK(!(IsArtMethod<kNewFlags, kReadBarrierOption>()) || result == sizeof(ArtMethod));
   return result;
 }
 
@@ -532,14 +536,15 @@ inline bool Object::CasField64(MemberOffset field_offset, int64_t old_value, int
   return QuasiAtomic::Cas64(old_value, new_value, addr);
 }
 
-template<class T, VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier, bool kIsVolatile>
+template<class T, VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption,
+         bool kIsVolatile>
 inline T* Object::GetFieldObject(MemberOffset field_offset) {
   if (kVerifyFlags & kVerifyThis) {
     VerifyObject(this);
   }
   byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
   HeapReference<T>* objref_addr = reinterpret_cast<HeapReference<T>*>(raw_addr);
-  T* result = ReadBarrier::Barrier<T, kDoReadBarrier>(this, field_offset, objref_addr);
+  T* result = ReadBarrier::Barrier<T, kReadBarrierOption>(this, field_offset, objref_addr);
   if (kIsVolatile) {
     QuasiAtomic::MembarLoadLoad();  // Ensure loads don't re-order.
   }
@@ -549,9 +554,9 @@ inline T* Object::GetFieldObject(MemberOffset field_offset) {
   return result;
 }
 
-template<class T, VerifyObjectFlags kVerifyFlags, bool kDoReadBarrier>
+template<class T, VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline T* Object::GetFieldObjectVolatile(MemberOffset field_offset) {
-  return GetFieldObject<T, kVerifyFlags, kDoReadBarrier, true>(field_offset);
+  return GetFieldObject<T, kVerifyFlags, kReadBarrierOption, true>(field_offset);
 }
 
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags,
