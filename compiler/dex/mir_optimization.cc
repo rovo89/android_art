@@ -49,7 +49,7 @@ void MIRGraph::DoConstantPropagation(BasicBlock* bb) {
 
     uint64_t df_attributes = GetDataFlowAttributes(mir);
 
-    DecodedInstruction *d_insn = &mir->dalvikInsn;
+    MIR::DecodedInstruction* d_insn = &mir->dalvikInsn;
 
     if (!(df_attributes & DF_HAS_DEFS)) continue;
 

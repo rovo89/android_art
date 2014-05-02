@@ -254,7 +254,15 @@ struct MIR {
    * additional fields on as-needed basis.  Question: how to support MIR Pseudo-ops; probably
    * need to carry aux data pointer.
    */
-  DecodedInstruction dalvikInsn;
+  struct DecodedInstruction {
+    uint32_t vA;
+    uint32_t vB;
+    uint64_t vB_wide;        /* for k51l */
+    uint32_t vC;
+    uint32_t arg[5];         /* vC/D/E/F/G in invoke or filled-new-array */
+    Instruction::Code opcode;
+  } dalvikInsn;
+
   uint16_t width;                 // Note: width can include switch table or fill array data.
   NarrowDexOffset offset;         // Offset of the instruction in code units.
   uint16_t optimization_flags;
@@ -884,7 +892,7 @@ class MIRGraph {
   void CompilerInitializeSSAConversion();
   bool DoSSAConversion(BasicBlock* bb);
   bool InvokeUsesMethodStar(MIR* mir);
-  int ParseInsn(const uint16_t* code_ptr, DecodedInstruction* decoded_instruction);
+  int ParseInsn(const uint16_t* code_ptr, MIR::DecodedInstruction* decoded_instruction);
   bool ContentIsInsn(const uint16_t* code_ptr);
   BasicBlock* SplitBlock(DexOffset code_offset, BasicBlock* orig_block,
                          BasicBlock** immed_pred_block_p);
