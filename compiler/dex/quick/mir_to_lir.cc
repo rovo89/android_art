@@ -42,7 +42,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, bool wide) {
   RegStorage reg_arg_high = wide ? GetArgMappingToPhysicalReg(in_position + 1) :
       RegStorage::InvalidReg();
 
-  int offset = StackVisitor::GetOutVROffset(in_position);
+  int offset = StackVisitor::GetOutVROffset(in_position, cu_->instruction_set);
   if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
     /*
      * When doing a call for x86, it moves the stack pointer in order to push return.
@@ -81,7 +81,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, bool wide) {
 }
 
 void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
-  int offset = StackVisitor::GetOutVROffset(in_position);
+  int offset = StackVisitor::GetOutVROffset(in_position, cu_->instruction_set);
   if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
     /*
      * When doing a call for x86, it moves the stack pointer in order to push return.
