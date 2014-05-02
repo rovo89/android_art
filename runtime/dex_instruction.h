@@ -151,8 +151,7 @@ class Instruction {
     kVerifyError           = 0x80000,
   };
 
-  // Decodes this instruction, populating its arguments.
-  void Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t &vC, uint32_t arg[]) const;
+  static constexpr uint32_t kMaxVarArgRegs = 5;
 
   // Returns the size (in 2 byte code units) of this instruction.
   size_t SizeInCodeUnits() const {
@@ -313,6 +312,9 @@ class Instruction {
   bool HasVRegB() const;
   int32_t VRegB() const;
 
+  bool HasWideVRegB() const;
+  uint64_t WideVRegB() const;
+
   int4_t VRegB_11n() const {
     return VRegB_11n(Fetch16(0));
   }
@@ -365,9 +367,10 @@ class Instruction {
   uint16_t VRegC_3rc() const;
 
   // Fills the given array with the 'arg' array of the instruction.
-  void GetArgs(uint32_t args[5], uint16_t inst_data) const;
-  void GetArgs(uint32_t args[5]) const {
-    return GetArgs(args, Fetch16(0));
+  bool HasVarArgs() const;
+  void GetVarArgs(uint32_t args[kMaxVarArgRegs], uint16_t inst_data) const;
+  void GetVarArgs(uint32_t args[kMaxVarArgRegs]) const {
+    return GetVarArgs(args, Fetch16(0));
   }
 
   // Returns the opcode field of the instruction. The given "inst_data" parameter must be the first
@@ -548,23 +551,6 @@ std::ostream& operator<<(std::ostream& os, const Instruction::Code& code);
 std::ostream& operator<<(std::ostream& os, const Instruction::Format& format);
 std::ostream& operator<<(std::ostream& os, const Instruction::Flags& flags);
 std::ostream& operator<<(std::ostream& os, const Instruction::VerifyFlag& vflags);
-
-/*
- * Holds the contents of a decoded instruction.
- */
-struct DecodedInstruction {
-  uint32_t vA;
-  uint32_t vB;
-  uint64_t vB_wide;        /* for k51l */
-  uint32_t vC;
-  uint32_t arg[5];         /* vC/D/E/F/G in invoke or filled-new-array */
-  Instruction::Code opcode;
-
-  explicit DecodedInstruction(const Instruction* inst) {
-    inst->Decode(vA, vB, vB_wide, vC, arg);
-    opcode = inst->Opcode();
-  }
-};
 
 }  // namespace art
 
