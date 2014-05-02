@@ -661,13 +661,61 @@ TWO_ARG_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeA
 TWO_ARG_DOWNCALL art_quick_handle_fill_data, artHandleFillArrayDataFromCode, RETURN_IF_EAX_ZERO
 
 DEFINE_FUNCTION art_quick_lock_object
-    int3
-    int3
+    testl %edi, %edi                      // Null check object/rdi.
+    jz   .Lslow_lock
+.Lretry_lock:
+    movl LOCK_WORD_OFFSET(%edi), %ecx     // ecx := lock word.
+    test LITERAL(0xC0000000), %ecx        // Test the 2 high bits.
+    jne  .Lslow_lock                      // Slow path if either of the two high bits are set.
+    movl %gs:THREAD_ID_OFFSET, %edx       // edx := thread id
+    test %ecx, %ecx
+    jnz  .Lalready_thin                   // Lock word contains a thin lock.
+    // unlocked case - %edx holds thread id with count of 0
+    xor  %eax, %eax                       // eax == 0 for comparison with lock word in cmpxchg
+    lock cmpxchg  %edx, LOCK_WORD_OFFSET(%edi)
+    jnz  .Lretry_lock                     // cmpxchg failed retry
+    ret
+.Lalready_thin:
+    cmpw %cx, %dx                         // do we hold the lock already?
+    jne  .Lslow_lock
+    addl LITERAL(65536), %ecx             // increment recursion count
+    test LITERAL(0xC0000000), %ecx        // overflowed if either of top two bits are set
+    jne  .Lslow_lock                      // count overflowed so go slow
+    movl %ecx, LOCK_WORD_OFFSET(%edi)     // update lockword, cmpxchg not necessary as we hold lock
+    ret
+.Lslow_lock:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+    movq %gs:THREAD_SELF_OFFSET, %rsi     // pass Thread::Current()
+    movq %rsp, %rdx                       // pass SP
+    call PLT_SYMBOL(artLockObjectFromCode)  // artLockObjectFromCode(object, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME    // restore frame up to return address
+    RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_lock_object
 
 DEFINE_FUNCTION art_quick_unlock_object
-    int3
-    int3
+    testl %edi, %edi                      // null check object/edi
+    jz   .Lslow_unlock
+    movl LOCK_WORD_OFFSET(%edi), %ecx     // ecx := lock word
+    movl %gs:THREAD_ID_OFFSET, %edx       // edx := thread id
+    test %ecx, %ecx
+    jb   .Lslow_unlock                    // lock word contains a monitor
+    cmpw %cx, %dx                         // does the thread id match?
+    jne  .Lslow_unlock
+    cmpl LITERAL(65536), %ecx
+    jae  .Lrecursive_thin_unlock
+    movl LITERAL(0), LOCK_WORD_OFFSET(%edi)
+    ret
+.Lrecursive_thin_unlock:
+    subl LITERAL(65536), %ecx
+    mov  %ecx, LOCK_WORD_OFFSET(%edi)
+    ret
+.Lslow_unlock:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+    movq %gs:THREAD_SELF_OFFSET, %rsi     // pass Thread::Current()
+    movq %rsp, %rdx                       // pass SP
+    call PLT_SYMBOL(artUnlockObjectFromCode)  // artUnlockObjectFromCode(object, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME    // restore frame up to return address
+    RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_unlock_object
 
 DEFINE_FUNCTION art_quick_is_assignable
