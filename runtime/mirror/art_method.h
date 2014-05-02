@@ -411,7 +411,7 @@ class MANAGED ArtMethod : public Object {
 
   static void SetClass(Class* java_lang_reflect_ArtMethod);
 
-  template <bool kDoReadBarrier = true>
+  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   static Class* GetJavaLangReflectArtMethod() {
     // This does not need a RB because it is a root.
     return java_lang_reflect_ArtMethod_;

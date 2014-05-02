@@ -67,7 +67,8 @@ class MANAGED LOCKABLE Object {
     return OFFSET_OF_OBJECT_MEMBER(Object, klass_);
   }
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kDoReadBarrier = true>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   Class* GetClass() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -86,7 +87,8 @@ class MANAGED LOCKABLE Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool InstanceOf(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kDoReadBarrier = true>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   size_t SizeOf() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Object* Clone(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -113,9 +115,11 @@ class MANAGED LOCKABLE Object {
   void Wait(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void Wait(Thread* self, int64_t timeout, int32_t nanos) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kDoReadBarrier = true>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kDoReadBarrier = true>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   Class* AsClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -123,9 +127,11 @@ class MANAGED LOCKABLE Object {
   template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ObjectArray<T>* AsObjectArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kDoReadBarrier = true>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsArrayInstance() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kDoReadBarrier = true>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   Array* AsArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -158,12 +164,14 @@ class MANAGED LOCKABLE Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   Throwable* AsThrowable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kDoReadBarrier = true>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsArtMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ArtMethod* AsArtMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kDoReadBarrier = true>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsArtField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ArtField* AsArtField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -185,12 +193,12 @@ class MANAGED LOCKABLE Object {
 
   // Accessor for Java type fields.
   template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
-      bool kDoReadBarrier = true, bool kIsVolatile = false>
+      ReadBarrierOption kReadBarrierOption = kWithReadBarrier, bool kIsVolatile = false>
   T* GetFieldObject(MemberOffset field_offset) ALWAYS_INLINE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
-      bool kDoReadBarrier = true>
+      ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   T* GetFieldObjectVolatile(MemberOffset field_offset) ALWAYS_INLINE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
