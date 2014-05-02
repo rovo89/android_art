@@ -19,7 +19,7 @@
 
 #include "assembler.h"
 
-#include "gtest/gtest.h"
+#include "common_runtime_test.h"  // For ScratchFile
 
 #include <cstdio>
 #include <cstdlib>
@@ -29,6 +29,10 @@
 #include <sys/stat.h>
 
 namespace art {
+
+// Use a glocal static variable to keep the same name for all test data. Else we'll just spam the
+// temp directory.
+static std::string tmpnam_;
 
 template<typename Ass, typename Reg, typename Imm>
 class AssemblerTest : public testing::Test {
@@ -202,6 +206,10 @@ class AssemblerTest : public testing::Test {
  protected:
   void SetUp() OVERRIDE {
     assembler_.reset(new Ass());
+
+    // Fake a runtime test for ScratchFile
+    std::string android_data;
+    CommonRuntimeTest::SetEnvironmentVariables(android_data);
 
     SetUpHelpers();
   }
@@ -667,7 +675,8 @@ class AssemblerTest : public testing::Test {
   // Use a consistent tmpnam, so store it.
   std::string GetTmpnam() {
     if (tmpnam_.length() == 0) {
-      tmpnam_ = std::string(tmpnam(nullptr));
+      ScratchFile tmp;
+      tmpnam_ = tmp.GetFilename() + "asm";
     }
     return tmpnam_;
   }
@@ -677,7 +686,6 @@ class AssemblerTest : public testing::Test {
   std::string resolved_assembler_cmd_;
   std::string resolved_objdump_cmd_;
   std::string resolved_disassemble_cmd_;
-  std::string tmpnam_;
 
   static constexpr size_t OBJDUMP_SECTION_LINE_MIN_TOKENS = 6;
 };
