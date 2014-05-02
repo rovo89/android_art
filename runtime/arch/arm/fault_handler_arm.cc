@@ -233,9 +233,9 @@ bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
 
   mirror::ArtMethod* method = reinterpret_cast<mirror::ArtMethod*>(sc->arm_r0);
   uint32_t spill_mask = method->GetCoreSpillMask();
-  uint32_t numcores = __builtin_popcount(spill_mask);
+  uint32_t numcores = POPCOUNT(spill_mask);
   uint32_t fp_spill_mask = method->GetFpSpillMask();
-  uint32_t numfps = __builtin_popcount(fp_spill_mask);
+  uint32_t numfps = POPCOUNT(fp_spill_mask);
   uint32_t spill_size = (numcores + numfps) * 4;
   LOG(DEBUG) << "spill size: " << spill_size;
   uint8_t* prevframe = prevsp + spill_size;

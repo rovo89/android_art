@@ -73,7 +73,7 @@ class GcAllocatorImpl : public std::allocator<T> {
 // GCAllocatorImpl<T> if kMeasureGCMemoryOverhead is true, std::allocator<T> otherwise.
 template <typename T>
 class GcAllocator : public TypeStaticIf<kMeasureGcMemoryOverhead, GcAllocatorImpl<T>,
-                                        std::allocator<T> >::value {
+                                        std::allocator<T> >::type {
 };
 
 }  // namespace accounting

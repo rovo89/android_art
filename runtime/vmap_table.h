@@ -99,7 +99,7 @@ class VmapTable {
       }
       matches++;
     }
-    CHECK_LT(vmap_offset - matches, static_cast<uint32_t>(__builtin_popcount(spill_mask)));
+    CHECK_LT(vmap_offset - matches, static_cast<uint32_t>(POPCOUNT(spill_mask)));
     uint32_t spill_shifts = 0;
     while (matches != (vmap_offset + 1)) {
       DCHECK_NE(spill_mask, 0u);

@@ -25,6 +25,7 @@
 #include "instruction_set.h"
 #include "mirror/object.h"
 #include "mirror/object_reference.h"
+#include "utils.h"
 #include "verify_object.h"
 
 #include <stdint.h>
@@ -638,8 +639,8 @@ class StackVisitor {
                            size_t frame_size, int reg, InstructionSet isa) {
     DCHECK_EQ(frame_size & (kStackAlignment - 1), 0U);
     DCHECK_NE(reg, static_cast<int>(kVRegInvalid));
-    int spill_size = __builtin_popcount(core_spills) * GetBytesPerGprSpillLocation(isa)
-        + __builtin_popcount(fp_spills) * GetBytesPerFprSpillLocation(isa)
+    int spill_size = POPCOUNT(core_spills) * GetBytesPerGprSpillLocation(isa)
+        + POPCOUNT(fp_spills) * GetBytesPerFprSpillLocation(isa)
         + sizeof(uint32_t);  // Filler.
     int num_ins = code_item->ins_size_;
     int num_regs = code_item->registers_size_ - num_ins;
