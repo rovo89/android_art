@@ -160,7 +160,7 @@ Runtime::~Runtime() {
   Trace::Shutdown();
 
   // Make sure to let the GC complete if it is running.
-  heap_->WaitForGcToComplete(self);
+  heap_->WaitForGcToComplete(gc::kGcCauseBackground, self);
   heap_->DeleteThreadPool();
 
   // Make sure our internal threads are dead before we start tearing down things they're using.
