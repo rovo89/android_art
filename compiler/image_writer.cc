@@ -587,7 +587,7 @@ class FixupVisitor {
 
   void operator()(Object* obj, MemberOffset offset, bool /*is_static*/) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
-    Object* ref = obj->GetFieldObject<Object, kVerifyNone, false>(offset);
+    Object* ref = obj->GetFieldObject<Object, kVerifyNone>(offset);
     // Use SetFieldObjectWithoutWriteBarrier to avoid card marking since we are writing to the
     // image.
     copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(

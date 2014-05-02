@@ -23,17 +23,18 @@
 
 namespace art {
 
-template <typename MirrorType, bool kDoReadBarrier>
+template <typename MirrorType, ReadBarrierOption kReadBarrierOption>
 inline MirrorType* ReadBarrier::Barrier(
     mirror::Object* obj, MemberOffset offset, mirror::HeapReference<MirrorType>* ref_addr) {
   // Unused for now.
   UNUSED(obj);
   UNUSED(offset);
   UNUSED(ref_addr);
-  if (kDoReadBarrier && kUseBakerReadBarrier) {
+  const bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
+  if (with_read_barrier && kUseBakerReadBarrier) {
     // To be implemented.
     return ref_addr->AsMirrorPtr();
-  } else if (kDoReadBarrier && kUseBrooksReadBarrier) {
+  } else if (with_read_barrier && kUseBrooksReadBarrier) {
     // To be implemented.
     return ref_addr->AsMirrorPtr();
   } else {
