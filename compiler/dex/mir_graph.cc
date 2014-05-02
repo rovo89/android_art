@@ -21,6 +21,7 @@
 #include "base/stl_util.h"
 #include "compiler_internals.h"
 #include "dex_file-inl.h"
+#include "dex_instruction-inl.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "leb128.h"
@@ -106,11 +107,17 @@ MIRGraph::~MIRGraph() {
 /*
  * Parse an instruction, return the length of the instruction
  */
-int MIRGraph::ParseInsn(const uint16_t* code_ptr, DecodedInstruction* decoded_instruction) {
-  const Instruction* instruction = Instruction::At(code_ptr);
-  *decoded_instruction = DecodedInstruction(instruction);
-
-  return instruction->SizeInCodeUnits();
+int MIRGraph::ParseInsn(const uint16_t* code_ptr, MIR::DecodedInstruction* decoded_instruction) {
+  const Instruction* inst = Instruction::At(code_ptr);
+  decoded_instruction->opcode = inst->Opcode();
+  decoded_instruction->vA = inst->HasVRegA() ? inst->VRegA() : 0;
+  decoded_instruction->vB = inst->HasVRegB() ? inst->VRegB() : 0;
+  decoded_instruction->vB_wide = inst->HasWideVRegB() ? inst->WideVRegB() : 0;
+  decoded_instruction->vC = inst->HasVRegC() ?  inst->VRegC() : 0;
+  if (inst->HasVarArgs()) {
+    inst->GetVarArgs(decoded_instruction->arg);
+  }
+  return inst->SizeInCodeUnits();
 }
 
 
@@ -935,7 +942,7 @@ MIR* BasicBlock::GetNextUnconditionalMir(MIRGraph* mir_graph, MIR* current) {
 }
 
 char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
-  DecodedInstruction insn = mir->dalvikInsn;
+  MIR::DecodedInstruction insn = mir->dalvikInsn;
   std::string str;
   int flags = 0;
   int opcode = insn.opcode;

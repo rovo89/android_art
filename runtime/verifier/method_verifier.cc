@@ -649,54 +649,53 @@ bool MethodVerifier::VerifyInstructions() {
 }
 
 bool MethodVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_offset) {
-  DecodedInstruction dec_insn(inst);
   bool result = true;
   switch (inst->GetVerifyTypeArgumentA()) {
     case Instruction::kVerifyRegA:
-      result = result && CheckRegisterIndex(dec_insn.vA);
+      result = result && CheckRegisterIndex(inst->VRegA());
       break;
     case Instruction::kVerifyRegAWide:
-      result = result && CheckWideRegisterIndex(dec_insn.vA);
+      result = result && CheckWideRegisterIndex(inst->VRegA());
       break;
   }
   switch (inst->GetVerifyTypeArgumentB()) {
     case Instruction::kVerifyRegB:
-      result = result && CheckRegisterIndex(dec_insn.vB);
+      result = result && CheckRegisterIndex(inst->VRegB());
       break;
     case Instruction::kVerifyRegBField:
-      result = result && CheckFieldIndex(dec_insn.vB);
+      result = result && CheckFieldIndex(inst->VRegB());
       break;
     case Instruction::kVerifyRegBMethod:
-      result = result && CheckMethodIndex(dec_insn.vB);
+      result = result && CheckMethodIndex(inst->VRegB());
       break;
     case Instruction::kVerifyRegBNewInstance:
-      result = result && CheckNewInstance(dec_insn.vB);
+      result = result && CheckNewInstance(inst->VRegB());
       break;
     case Instruction::kVerifyRegBString:
-      result = result && CheckStringIndex(dec_insn.vB);
+      result = result && CheckStringIndex(inst->VRegB());
       break;
     case Instruction::kVerifyRegBType:
-      result = result && CheckTypeIndex(dec_insn.vB);
+      result = result && CheckTypeIndex(inst->VRegB());
       break;
     case Instruction::kVerifyRegBWide:
-      result = result && CheckWideRegisterIndex(dec_insn.vB);
+      result = result && CheckWideRegisterIndex(inst->VRegB());
       break;
   }
   switch (inst->GetVerifyTypeArgumentC()) {
     case Instruction::kVerifyRegC:
-      result = result && CheckRegisterIndex(dec_insn.vC);
+      result = result && CheckRegisterIndex(inst->VRegC());
       break;
     case Instruction::kVerifyRegCField:
-      result = result && CheckFieldIndex(dec_insn.vC);
+      result = result && CheckFieldIndex(inst->VRegC());
       break;
     case Instruction::kVerifyRegCNewArray:
-      result = result && CheckNewArray(dec_insn.vC);
+      result = result && CheckNewArray(inst->VRegC());
       break;
     case Instruction::kVerifyRegCType:
-      result = result && CheckTypeIndex(dec_insn.vC);
+      result = result && CheckTypeIndex(inst->VRegC());
       break;
     case Instruction::kVerifyRegCWide:
-      result = result && CheckWideRegisterIndex(dec_insn.vC);
+      result = result && CheckWideRegisterIndex(inst->VRegC());
       break;
   }
   switch (inst->GetVerifyExtraFlags()) {
@@ -709,11 +708,14 @@ bool MethodVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_of
     case Instruction::kVerifySwitchTargets:
       result = result && CheckSwitchTargets(code_offset);
       break;
-    case Instruction::kVerifyVarArg:
-      result = result && CheckVarArgRegs(dec_insn.vA, dec_insn.arg);
+    case Instruction::kVerifyVarArg: {
+      uint32_t args[Instruction::kMaxVarArgRegs];
+      inst->GetVarArgs(args);
+      result = result && CheckVarArgRegs(inst->VRegA(), args);
       break;
+    }
     case Instruction::kVerifyVarArgRange:
-      result = result && CheckVarArgRangeRegs(dec_insn.vA, dec_insn.vC);
+      result = result && CheckVarArgRangeRegs(inst->VRegA(), inst->VRegC());
       break;
     case Instruction::kVerifyError:
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected opcode " << inst->Name();
@@ -1009,7 +1011,7 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
 }
 
 bool MethodVerifier::CheckVarArgRegs(uint32_t vA, uint32_t arg[]) {
-  if (vA > 5) {
+  if (vA > Instruction::kMaxVarArgRegs) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid arg count (" << vA << ") in non-range invoke)";
     return false;
   }
@@ -3075,7 +3077,7 @@ mirror::ArtMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* inst,
   size_t params_size = params == NULL ? 0 : params->Size();
   uint32_t arg[5];
   if (!is_range) {
-    inst->GetArgs(arg);
+    inst->GetVarArgs(arg);
   }
   for (size_t param_index = 0; param_index < params_size; param_index++) {
     if (actual_args >= expected_args) {
@@ -3189,7 +3191,7 @@ mirror::ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instructio
   size_t params_size = params == NULL ? 0 : params->Size();
   uint32_t arg[5];
   if (!is_range) {
-    inst->GetArgs(arg);
+    inst->GetVarArgs(arg);
   }
   size_t actual_args = 1;
   for (size_t param_index = 0; param_index < params_size; param_index++) {
@@ -3255,7 +3257,7 @@ void MethodVerifier::VerifyNewArray(const Instruction* inst, bool is_filled, boo
       uint32_t arg_count = (is_range) ? inst->VRegA_3rc() : inst->VRegA_35c();
       uint32_t arg[5];
       if (!is_range) {
-        inst->GetArgs(arg);
+        inst->GetVarArgs(arg);
       }
       for (size_t ui = 0; ui < arg_count; ui++) {
         uint32_t get_reg = is_range ? inst->VRegC_3rc() + ui : arg[ui];

@@ -85,7 +85,7 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
     if (is_range) {
       vregC = inst->VRegC_3rc();
     } else {
-      inst->GetArgs(arg, inst_data);
+      inst->GetVarArgs(arg, inst_data);
     }
 
     // Handle receiver apart since it's not part of the shorty.
@@ -224,7 +224,7 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
   if (is_range) {
     vregC = inst->VRegC_3rc();
   } else {
-    inst->GetArgs(arg);
+    inst->GetVarArgs(arg);
   }
   const bool is_primitive_int_component = componentClass->IsPrimitiveInt();
   for (int32_t i = 0; i < length; ++i) {

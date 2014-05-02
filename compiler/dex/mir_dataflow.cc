@@ -880,7 +880,7 @@ bool MIRGraph::FindLocalLiveIn(BasicBlock* bb) {
 
   for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     uint64_t df_attributes = GetDataFlowAttributes(mir);
-    DecodedInstruction *d_insn = &mir->dalvikInsn;
+    MIR::DecodedInstruction* d_insn = &mir->dalvikInsn;
 
     if (df_attributes & DF_HAS_USES) {
       if (df_attributes & DF_UA) {
@@ -949,7 +949,7 @@ void MIRGraph::HandleSSADef(int* defs, int dalvik_reg, int reg_index) {
 
 /* Look up new SSA names for format_35c instructions */
 void MIRGraph::DataFlowSSAFormat35C(MIR* mir) {
-  DecodedInstruction *d_insn = &mir->dalvikInsn;
+  MIR::DecodedInstruction* d_insn = &mir->dalvikInsn;
   int num_uses = d_insn->vA;
   int i;
 
@@ -967,7 +967,7 @@ void MIRGraph::DataFlowSSAFormat35C(MIR* mir) {
 
 /* Look up new SSA names for format_3rc instructions */
 void MIRGraph::DataFlowSSAFormat3RC(MIR* mir) {
-  DecodedInstruction *d_insn = &mir->dalvikInsn;
+  MIR::DecodedInstruction* d_insn = &mir->dalvikInsn;
   int num_uses = d_insn->vA;
   int i;
 
@@ -1064,7 +1064,7 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
                                                               kArenaAllocDFInfo));
     }
 
-    DecodedInstruction *d_insn = &mir->dalvikInsn;
+    MIR::DecodedInstruction* d_insn = &mir->dalvikInsn;
 
     if (df_attributes & DF_HAS_USES) {
       num_uses = 0;
