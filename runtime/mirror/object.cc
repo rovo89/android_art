@@ -92,9 +92,7 @@ static Object* CopyObject(Thread* self, mirror::Object* dest, mirror::Object* sr
     heap->WriteBarrierEveryFieldOf(dest);
   }
   if (c->IsFinalizable()) {
-    SirtRef<Object> sirt_dest(self, dest);
-    heap->AddFinalizerReference(self, dest);
-    return sirt_dest.get();
+    heap->AddFinalizerReference(self, &dest);
   }
   return dest;
 }

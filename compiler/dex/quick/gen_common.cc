@@ -330,9 +330,10 @@ void Mir2Lir::GenNewArray(uint32_t type_idx, RegLocation rl_dest,
     bool is_type_initialized;  // Ignored as an array does not have an initializer.
     bool use_direct_type_ptr;
     uintptr_t direct_type_ptr;
+    bool is_finalizable;
     if (kEmbedClassInCode &&
-        driver->CanEmbedTypeInCode(*dex_file, type_idx,
-                                   &is_type_initialized, &use_direct_type_ptr, &direct_type_ptr)) {
+        driver->CanEmbedTypeInCode(*dex_file, type_idx, &is_type_initialized, &use_direct_type_ptr,
+                                   &direct_type_ptr, &is_finalizable)) {
       // The fast path.
       if (!use_direct_type_ptr) {
         LoadClassType(type_idx, kArg0);
@@ -980,9 +981,11 @@ void Mir2Lir::GenNewInstance(uint32_t type_idx, RegLocation rl_dest) {
     bool is_type_initialized;
     bool use_direct_type_ptr;
     uintptr_t direct_type_ptr;
+    bool is_finalizable;
     if (kEmbedClassInCode &&
-        driver->CanEmbedTypeInCode(*dex_file, type_idx,
-                                   &is_type_initialized, &use_direct_type_ptr, &direct_type_ptr)) {
+        driver->CanEmbedTypeInCode(*dex_file, type_idx, &is_type_initialized, &use_direct_type_ptr,
+                                   &direct_type_ptr, &is_finalizable) &&
+                                   !is_finalizable) {
       // The fast path.
       if (!use_direct_type_ptr) {
         LoadClassType(type_idx, kArg0);
