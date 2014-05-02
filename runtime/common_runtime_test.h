@@ -57,6 +57,9 @@ namespace art {
 class ScratchFile {
  public:
   ScratchFile() {
+    // ANDROID_DATA needs to be set
+    CHECK_NE(static_cast<char*>(nullptr), getenv("ANDROID_DATA")) <<
+        "Are you subclassing RuntimeTest?";
     filename_ = getenv("ANDROID_DATA");
     filename_ += "/TmpFile-XXXXXX";
     int fd = mkstemp(&filename_[0]);
