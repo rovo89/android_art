@@ -33,7 +33,7 @@ namespace mirror {
 
 class ReadBarrier {
  public:
-  template <typename MirrorType, bool kDoReadBarrier = true>
+  template <typename MirrorType, ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE static MirrorType* Barrier(
       mirror::Object* obj, MemberOffset offset, mirror::HeapReference<MirrorType>* ref_addr)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
