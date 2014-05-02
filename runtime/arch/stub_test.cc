@@ -183,12 +183,12 @@ TEST_F(StubTest, Memcpy) {
 }
 
 
-#if defined(__i386__) || defined(__arm__)
+#if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
 extern "C" void art_quick_lock_object(void);
 #endif
 
 TEST_F(StubTest, LockObject) {
-#if defined(__i386__) || defined(__arm__)
+#if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
   Thread* self = Thread::Current();
   // Create an object
   ScopedObjectAccess soa(self);
