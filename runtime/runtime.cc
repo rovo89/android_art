@@ -1010,8 +1010,8 @@ mirror::ArtMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_se
                              (1 << art::arm::S27) | (1 << art::arm::S28) | (1 << art::arm::S29) |
                              (1 << art::arm::S30) | (1 << art::arm::S31);
     uint32_t fp_spills = type == kSaveAll ? fp_all_spills : 0;
-    size_t frame_size = RoundUp((__builtin_popcount(core_spills) /* gprs */ +
-                                 __builtin_popcount(fp_spills) /* fprs */ +
+    size_t frame_size = RoundUp((POPCOUNT(core_spills) /* gprs */ +
+                                 POPCOUNT(fp_spills) /* fprs */ +
                                  1 /* Method* */) * kArmPointerSize, kStackAlignment);
     method->SetFrameSizeInBytes(frame_size);
     method->SetCoreSpillMask(core_spills);
@@ -1024,7 +1024,7 @@ mirror::ArtMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_se
     uint32_t all_spills = (1 << art::mips::S0) | (1 << art::mips::S1);
     uint32_t core_spills = ref_spills | (type == kRefsAndArgs ? arg_spills : 0) |
                            (type == kSaveAll ? all_spills : 0) | (1 << art::mips::RA);
-    size_t frame_size = RoundUp((__builtin_popcount(core_spills) /* gprs */ +
+    size_t frame_size = RoundUp((POPCOUNT(core_spills) /* gprs */ +
                                 (type == kRefsAndArgs ? 0 : 3) + 1 /* Method* */) *
                                 kMipsPointerSize, kStackAlignment);
     method->SetFrameSizeInBytes(frame_size);
@@ -1035,7 +1035,7 @@ mirror::ArtMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_se
     uint32_t arg_spills = (1 << art::x86::ECX) | (1 << art::x86::EDX) | (1 << art::x86::EBX);
     uint32_t core_spills = ref_spills | (type == kRefsAndArgs ? arg_spills : 0) |
                          (1 << art::x86::kNumberOfCpuRegisters);  // fake return address callee save
-    size_t frame_size = RoundUp((__builtin_popcount(core_spills) /* gprs */ +
+    size_t frame_size = RoundUp((POPCOUNT(core_spills) /* gprs */ +
                                  1 /* Method* */) * kX86PointerSize, kStackAlignment);
     method->SetFrameSizeInBytes(frame_size);
     method->SetCoreSpillMask(core_spills);
@@ -1054,8 +1054,8 @@ mirror::ArtMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_se
         (1 << art::x86_64::XMM3) | (1 << art::x86_64::XMM4) | (1 << art::x86_64::XMM5) |
         (1 << art::x86_64::XMM6) | (1 << art::x86_64::XMM7);
     uint32_t fp_spills = (type == kRefsAndArgs ? fp_arg_spills : 0);
-    size_t frame_size = RoundUp((__builtin_popcount(core_spills) /* gprs */ +
-                                 __builtin_popcount(fp_spills) /* fprs */ +
+    size_t frame_size = RoundUp((POPCOUNT(core_spills) /* gprs */ +
+                                 POPCOUNT(fp_spills) /* fprs */ +
                                  1 /* Method* */) * kX86_64PointerSize, kStackAlignment);
     method->SetFrameSizeInBytes(frame_size);
     method->SetCoreSpillMask(core_spills);
@@ -1094,8 +1094,8 @@ mirror::ArtMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_se
                           (1 << art::arm64::D31);
       uint32_t fp_spills = fp_ref_spills | (type == kRefsAndArgs ? fp_arg_spills: 0)
                           | (type == kSaveAll ? fp_all_spills : 0);
-      size_t frame_size = RoundUp((__builtin_popcount(core_spills) /* gprs */ +
-                                   __builtin_popcount(fp_spills) /* fprs */ +
+      size_t frame_size = RoundUp((POPCOUNT(core_spills) /* gprs */ +
+                                   POPCOUNT(fp_spills) /* fprs */ +
                                    1 /* Method* */) * kArm64PointerSize, kStackAlignment);
       method->SetFrameSizeInBytes(frame_size);
       method->SetCoreSpillMask(core_spills);

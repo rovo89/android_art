@@ -38,7 +38,7 @@ void X86Context::Reset() {
 void X86Context::FillCalleeSaves(const StackVisitor& fr) {
   mirror::ArtMethod* method = fr.GetMethod();
   uint32_t core_spills = method->GetCoreSpillMask();
-  size_t spill_count = __builtin_popcount(core_spills);
+  size_t spill_count = POPCOUNT(core_spills);
   DCHECK_EQ(method->GetFpSpillMask(), 0u);
   size_t frame_size = method->GetFrameSizeInBytes();
   if (spill_count > 0) {

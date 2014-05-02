@@ -47,7 +47,7 @@ enum TimeUnit {
 };
 
 template<typename T>
-static inline bool IsPowerOfTwo(T x) {
+static constexpr bool IsPowerOfTwo(T x) {
   return (x & (x - 1)) == 0;
 }
 
@@ -115,39 +115,46 @@ static inline uint32_t High32Bits(uint64_t value) {
 }
 
 // A static if which determines whether to return type A or B based on the condition boolean.
-template <const bool condition, typename A, typename B>
+template <bool condition, typename A, typename B>
 struct TypeStaticIf {
-  typedef A value;
+  typedef A type;
 };
 
 // Specialization to handle the false case.
 template <typename A, typename B>
 struct TypeStaticIf<false, A,  B> {
-  typedef B value;
+  typedef B type;
+};
+
+// Type identity.
+template <typename T>
+struct TypeIdentity {
+  typedef T type;
 };
 
 // For rounding integers.
 template<typename T>
-static inline T RoundDown(T x, int n) {
-  DCHECK(IsPowerOfTwo(n));
-  return (x & -n);
+static constexpr T RoundDown(T x, typename TypeIdentity<T>::type n) {
+  return
+      // DCHECK(IsPowerOfTwo(n)) in a form acceptable in a constexpr function:
+      (kIsDebugBuild && !IsPowerOfTwo(n)) ? (LOG(FATAL) << n << " isn't a power of 2", T(0))
+      : (x & -n);
 }
 
 template<typename T>
-static inline T RoundUp(T x, int n) {
+static constexpr T RoundUp(T x, typename TypeIdentity<T>::type n) {
   return RoundDown(x + n - 1, n);
 }
 
 // For aligning pointers.
 template<typename T>
-static inline T* AlignDown(T* x, int n) {
-  CHECK(IsPowerOfTwo(n));
-  return reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(x) & -static_cast<uintptr_t>(n));
+static inline T* AlignDown(T* x, uintptr_t n) {
+  return reinterpret_cast<T*>(RoundDown(reinterpret_cast<uintptr_t>(x), n));
 }
 
 template<typename T>
-static inline T* AlignUp(T* x, int n) {
-  return AlignDown(reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(x) + static_cast<uintptr_t>(n - 1)), n);
+static inline T* AlignUp(T* x, uintptr_t n) {
+  return reinterpret_cast<T*>(RoundUp(reinterpret_cast<uintptr_t>(x), n));
 }
 
 // Implementation is from "Hacker's Delight" by Henry S. Warren, Jr.,
@@ -162,33 +169,25 @@ static inline uint32_t RoundUpToPowerOfTwo(uint32_t x) {
   return x + 1;
 }
 
-// Implementation is from "Hacker's Delight" by Henry S. Warren, Jr.,
-// figure 5-2, page 66, where the function is called pop.
-static inline int CountOneBits(uint32_t x) {
-  x = x - ((x >> 1) & 0x55555555);
-  x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
-  x = (x + (x >> 4)) & 0x0F0F0F0F;
-  x = x + (x >> 8);
-  x = x + (x >> 16);
-  return static_cast<int>(x & 0x0000003F);
+template<typename T>
+static constexpr int CLZ(T x) {
+  return (sizeof(T) == sizeof(uint32_t))
+      ? __builtin_clz(x)
+      : __builtin_clzll(x);
 }
 
 template<typename T>
-static inline int CLZ(T x) {
-  if (sizeof(T) == sizeof(uint32_t)) {
-    return __builtin_clz(x);
-  } else {
-    return __builtin_clzll(x);
-  }
+static constexpr int CTZ(T x) {
+  return (sizeof(T) == sizeof(uint32_t))
+      ? __builtin_ctz(x)
+      : __builtin_ctzll(x);
 }
 
 template<typename T>
-static inline int CTZ(T x) {
-  if (sizeof(T) == sizeof(uint32_t)) {
-    return __builtin_ctz(x);
-  } else {
-    return __builtin_ctzll(x);
-  }
+static constexpr int POPCOUNT(T x) {
+  return (sizeof(T) == sizeof(uint32_t))
+      ? __builtin_popcount(x)
+      : __builtin_popcountll(x);
 }
 
 static inline uint32_t PointerToLowMemUInt32(const void* p) {
