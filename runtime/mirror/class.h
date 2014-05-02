@@ -360,9 +360,10 @@ class MANAGED Class : public Object {
     return depth;
   }
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kDoReadBarrier = true>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsArrayClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetComponentType<kVerifyFlags, kDoReadBarrier>() != NULL;
+    return GetComponentType<kVerifyFlags, kReadBarrierOption>() != NULL;
   }
 
   bool IsClassClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -371,19 +372,20 @@ class MANAGED Class : public Object {
 
   bool IsThrowableClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  template<bool kDoReadBarrier = true>
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsArtFieldClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  template<bool kDoReadBarrier = true>
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsArtMethodClass();
 
   static MemberOffset ComponentTypeOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Class, component_type_);
   }
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kDoReadBarrier = true>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   Class* GetComponentType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<Class, kVerifyFlags, kDoReadBarrier>(ComponentTypeOffset());
+    return GetFieldObject<Class, kVerifyFlags, kReadBarrierOption>(ComponentTypeOffset());
   }
 
   void SetComponentType(Class* new_component_type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -393,10 +395,10 @@ class MANAGED Class : public Object {
     SetFieldObject<false, false>(ComponentTypeOffset(), new_component_type);
   }
 
-  template<bool kDoReadBarrier = true>
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   size_t GetComponentSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return Primitive::ComponentSize(
-        GetComponentType<kDefaultVerifyFlags, kDoReadBarrier>()->GetPrimitiveType());
+        GetComponentType<kDefaultVerifyFlags, kReadBarrierOption>()->GetPrimitiveType());
   }
 
   bool IsObjectClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -427,7 +429,8 @@ class MANAGED Class : public Object {
     return IsClassClass() || IsArrayClass();
   }
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kDoReadBarrier = true>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   uint32_t SizeOf() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, class_size_));
   }

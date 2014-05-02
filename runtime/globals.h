@@ -20,6 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "read_barrier_c.h"
+#include "read_barrier_option.h"
 
 namespace art {
 
