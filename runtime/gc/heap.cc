@@ -498,7 +498,7 @@ void Heap::IncrementDisableMovingGC(Thread* self) {
   MutexLock mu(self, *gc_complete_lock_);
   ++disable_moving_gc_count_;
   if (IsMovingGc(collector_type_running_)) {
-    WaitForGcToCompleteLocked(self);
+    WaitForGcToCompleteLocked(kGcCauseDisableMovingGc, self);
   }
 }
 
@@ -962,7 +962,7 @@ void Heap::Trim() {
     // trimming.
     MutexLock mu(self, *gc_complete_lock_);
     // Ensure there is only one GC at a time.
-    WaitForGcToCompleteLocked(self);
+    WaitForGcToCompleteLocked(kGcCauseTrim, self);
     collector_type_running_ = kCollectorTypeHeapTrim;
   }
   uint64_t start_ns = NanoTime();
@@ -1171,7 +1171,7 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
   SirtRef<mirror::Class> sirt_klass(self, *klass);
   // The allocation failed. If the GC is running, block until it completes, and then retry the
   // allocation.
-  collector::GcType last_gc = WaitForGcToComplete(self);
+  collector::GcType last_gc = WaitForGcToComplete(kGcCauseForAlloc, self);
   if (last_gc != collector::kGcTypeNone) {
     // If we were the default allocator but the allocator changed while we were suspended,
     // abort the allocation.
@@ -1418,7 +1418,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
       ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
       MutexLock mu(self, *gc_complete_lock_);
       // Ensure there is only one GC at a time.
-      WaitForGcToCompleteLocked(self);
+      WaitForGcToCompleteLocked(kGcCauseCollectorTransition, self);
       // If someone else beat us to it and changed the collector before we could, exit.
       // This is safe to do before the suspend all since we set the collector_type_running_ before
       // we exit the loop. If another thread attempts to do the heap transition before we exit,
@@ -1819,7 +1819,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
     ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
     MutexLock mu(self, *gc_complete_lock_);
     // Ensure there is only one GC at a time.
-    WaitForGcToCompleteLocked(self);
+    WaitForGcToCompleteLocked(gc_cause, self);
     compacting_gc = IsMovingGc(collector_type_);
     // GC can be disabled if someone has a used GetPrimitiveArrayCritical.
     if (compacting_gc && disable_moving_gc_count_ != 0) {
@@ -2448,13 +2448,13 @@ void Heap::RosAllocVerification(TimingLogger* timings, const char* name) {
   }
 }
 
-collector::GcType Heap::WaitForGcToComplete(Thread* self) {
+collector::GcType Heap::WaitForGcToComplete(GcCause cause, Thread* self) {
   ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
   MutexLock mu(self, *gc_complete_lock_);
-  return WaitForGcToCompleteLocked(self);
+  return WaitForGcToCompleteLocked(cause, self);
 }
 
-collector::GcType Heap::WaitForGcToCompleteLocked(Thread* self) {
+collector::GcType Heap::WaitForGcToCompleteLocked(GcCause cause, Thread* self) {
   collector::GcType last_gc_type = collector::kGcTypeNone;
   uint64_t wait_start = NanoTime();
   while (collector_type_running_ != kCollectorTypeNone) {
@@ -2467,7 +2467,8 @@ collector::GcType Heap::WaitForGcToCompleteLocked(Thread* self) {
   uint64_t wait_time = NanoTime() - wait_start;
   total_wait_time_ += wait_time;
   if (wait_time > long_pause_log_threshold_) {
-    LOG(INFO) << "WaitForGcToComplete blocked for " << PrettyDuration(wait_time);
+    LOG(INFO) << "WaitForGcToComplete blocked for " << PrettyDuration(wait_time)
+        << " for cause " << cause;
   }
   return last_gc_type;
 }
@@ -2659,7 +2660,7 @@ void Heap::ConcurrentGC(Thread* self) {
     return;
   }
   // Wait for any GCs currently running to finish.
-  if (WaitForGcToComplete(self) == collector::kGcTypeNone) {
+  if (WaitForGcToComplete(kGcCauseBackground, self) == collector::kGcTypeNone) {
     // If the we can't run the GC type we wanted to run, find the next appropriate one and try that
     // instead. E.g. can't do partial, so do full instead.
     if (CollectGarbageInternal(next_gc_type_, kGcCauseBackground, false) ==
@@ -2792,7 +2793,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
     // The second watermark is higher than the gc watermark. If you hit this it means you are
     // allocating native objects faster than the GC can keep up with.
     if (static_cast<size_t>(native_bytes_allocated_) > native_footprint_limit_) {
-      if (WaitForGcToComplete(self) != collector::kGcTypeNone) {
+      if (WaitForGcToComplete(kGcCauseForNativeAlloc, self) != collector::kGcTypeNone) {
         // Just finished a GC, attempt to run finalizers.
         RunFinalization(env);
         CHECK(!env->ExceptionCheck());
