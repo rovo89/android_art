@@ -21,6 +21,30 @@
 
 namespace art {
 
+inline size_t OatFile::OatMethod::GetFrameSizeInBytes() const {
+  const void* code = mirror::ArtMethod::EntryPointToCodePointer(GetQuickCode());
+  if (code == nullptr) {
+    return 0u;
+  }
+  return reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].frame_info_.FrameSizeInBytes();
+}
+
+inline uint32_t OatFile::OatMethod::GetCoreSpillMask() const {
+  const void* code = mirror::ArtMethod::EntryPointToCodePointer(GetQuickCode());
+  if (code == nullptr) {
+    return 0u;
+  }
+  return reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].frame_info_.CoreSpillMask();
+}
+
+inline uint32_t OatFile::OatMethod::GetFpSpillMask() const {
+  const void* code = mirror::ArtMethod::EntryPointToCodePointer(GetQuickCode());
+  if (code == nullptr) {
+    return 0u;
+  }
+  return reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].frame_info_.FpSpillMask();
+}
+
 inline uint32_t OatFile::OatMethod::GetMappingTableOffset() const {
   const uint8_t* mapping_table = GetMappingTable();
   return static_cast<uint32_t>(mapping_table != nullptr ? mapping_table - begin_ : 0u);
@@ -36,7 +60,7 @@ inline const uint8_t* OatFile::OatMethod::GetMappingTable() const {
   if (code == nullptr) {
     return nullptr;
   }
-  uint32_t offset = reinterpret_cast<const OatMethodHeader*>(code)[-1].mapping_table_offset_;
+  uint32_t offset = reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].mapping_table_offset_;
   if (UNLIKELY(offset == 0u)) {
     return nullptr;
   }
@@ -48,7 +72,7 @@ inline const uint8_t* OatFile::OatMethod::GetVmapTable() const {
   if (code == nullptr) {
     return nullptr;
   }
-  uint32_t offset = reinterpret_cast<const OatMethodHeader*>(code)[-1].vmap_table_offset_;
+  uint32_t offset = reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].vmap_table_offset_;
   if (UNLIKELY(offset == 0u)) {
     return nullptr;
   }

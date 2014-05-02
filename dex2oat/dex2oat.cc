@@ -444,10 +444,11 @@ class Dex2Oat {
       return false;
     }
     Runtime* runtime = Runtime::Current();
+    runtime->SetInstructionSet(instruction_set);
     for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
       Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
       if (!runtime->HasCalleeSaveMethod(type)) {
-        runtime->SetCalleeSaveMethod(runtime->CreateCalleeSaveMethod(instruction_set, type), type);
+        runtime->SetCalleeSaveMethod(runtime->CreateCalleeSaveMethod(type), type);
       }
     }
     runtime->GetClassLinker()->FixupDexCaches(runtime->GetResolutionMethod());

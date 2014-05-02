@@ -23,7 +23,8 @@
 #include "entrypoints/entrypoint_utils.h"
 #include "object_array.h"
 #include "oat.h"
-#include "runtime.h"
+#include "quick/quick_method_frame_info.h"
+#include "runtime-inl.h"
 
 namespace art {
 namespace mirror {
@@ -81,7 +82,7 @@ inline uint32_t ArtMethod::GetCodeSize() {
   if (code == nullptr) {
     return 0u;
   }
-  return reinterpret_cast<const OatMethodHeader*>(code)[-1].code_size_;
+  return reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].code_size_;
 }
 
 inline bool ArtMethod::CheckIncompatibleClassChange(InvokeType type) {
@@ -199,6 +200,40 @@ template<VerifyObjectFlags kVerifyFlags>
 inline void ArtMethod::SetNativeMethod(const void* native_method) {
   SetFieldPtr<false, true, kVerifyFlags>(
       OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_jni_), native_method);
+}
+
+inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
+  if (UNLIKELY(IsPortableCompiled())) {
+    // Portable compiled dex bytecode or jni stub.
+    return QuickMethodFrameInfo(kStackAlignment, 0u, 0u);
+  }
+  Runtime* runtime = Runtime::Current();
+  if (UNLIKELY(IsAbstract()) || UNLIKELY(IsProxyMethod())) {
+    return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
+  }
+  if (UNLIKELY(IsRuntimeMethod())) {
+    return runtime->GetRuntimeMethodFrameInfo(this);
+  }
+
+  const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(this);
+  // On failure, instead of nullptr we get the quick-generic-jni-trampoline for native method
+  // indicating the generic JNI, or the quick-to-interpreter-bridge (but not the trampoline)
+  // for non-native methods. And we really shouldn't see a failure for non-native methods here.
+  DCHECK(entry_point != GetQuickToInterpreterBridgeTrampoline(runtime->GetClassLinker()));
+  CHECK(entry_point != GetQuickToInterpreterBridge());
+
+  if (UNLIKELY(entry_point == GetQuickGenericJniTrampoline())) {
+    // Generic JNI frame.
+    DCHECK(IsNative());
+    uint32_t sirt_refs = MethodHelper(this).GetNumberOfReferenceArgsWithoutReceiver() + 1;
+    size_t sirt_size = StackIndirectReferenceTable::GetAlignedSirtSize(sirt_refs);
+    QuickMethodFrameInfo callee_info = runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
+    return QuickMethodFrameInfo(callee_info.FrameSizeInBytes() + sirt_size,
+                                callee_info.CoreSpillMask(), callee_info.FpSpillMask());
+  }
+
+  const void* code_pointer = EntryPointToCodePointer(entry_point);
+  return reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].frame_info_;
 }
 
 }  // namespace mirror

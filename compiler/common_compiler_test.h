@@ -134,9 +134,6 @@ class CommonCompilerTest : public CommonRuntimeTest {
  public:
   // Create an OatMethod based on pointers (for unit tests).
   OatFile::OatMethod CreateOatMethod(const void* code,
-                                     const size_t frame_size_in_bytes,
-                                     const uint32_t core_spill_mask,
-                                     const uint32_t fp_spill_mask,
                                      const uint8_t* gc_map) {
     CHECK(code != nullptr);
     const byte* base;
@@ -154,9 +151,6 @@ class CommonCompilerTest : public CommonRuntimeTest {
     }
     return OatFile::OatMethod(base,
                               code_offset,
-                              frame_size_in_bytes,
-                              core_spill_mask,
-                              fp_spill_mask,
                               gc_map_offset);
   }
 
@@ -179,11 +173,14 @@ class CommonCompilerTest : public CommonRuntimeTest {
         CHECK_NE(0u, code_size);
         const std::vector<uint8_t>& vmap_table = compiled_method->GetVmapTable();
         uint32_t vmap_table_offset = vmap_table.empty() ? 0u
-            : sizeof(OatMethodHeader) + vmap_table.size();
+            : sizeof(OatQuickMethodHeader) + vmap_table.size();
         const std::vector<uint8_t>& mapping_table = compiled_method->GetMappingTable();
         uint32_t mapping_table_offset = mapping_table.empty() ? 0u
-            : sizeof(OatMethodHeader) + vmap_table.size() + mapping_table.size();
-        OatMethodHeader method_header(vmap_table_offset, mapping_table_offset, code_size);
+            : sizeof(OatQuickMethodHeader) + vmap_table.size() + mapping_table.size();
+        OatQuickMethodHeader method_header(mapping_table_offset, vmap_table_offset,
+                                           compiled_method->GetFrameSizeInBytes(),
+                                           compiled_method->GetCoreSpillMask(),
+                                           compiled_method->GetFpSpillMask(), code_size);
 
         header_code_and_maps_chunks_.push_back(std::vector<uint8_t>());
         std::vector<uint8_t>* chunk = &header_code_and_maps_chunks_.back();
@@ -207,11 +204,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
       const void* method_code = CompiledMethod::CodePointer(code_ptr,
                                                             compiled_method->GetInstructionSet());
       LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
-      OatFile::OatMethod oat_method = CreateOatMethod(method_code,
-                                                      compiled_method->GetFrameSizeInBytes(),
-                                                      compiled_method->GetCoreSpillMask(),
-                                                      compiled_method->GetFpSpillMask(),
-                                                      nullptr);
+      OatFile::OatMethod oat_method = CreateOatMethod(method_code, nullptr);
       oat_method.LinkMethod(method);
       method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
     } else {
@@ -220,28 +213,13 @@ class CommonCompilerTest : public CommonRuntimeTest {
       if (!method->IsNative()) {
         const void* method_code = kUsePortableCompiler ? GetPortableToInterpreterBridge()
                                                        : GetQuickToInterpreterBridge();
-        OatFile::OatMethod oat_method = CreateOatMethod(method_code,
-                                                        kStackAlignment,
-                                                        0,
-                                                        0,
-                                                        nullptr);
+        OatFile::OatMethod oat_method = CreateOatMethod(method_code, nullptr);
         oat_method.LinkMethod(method);
         method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
       } else {
         const void* method_code = GetQuickGenericJniTrampoline();
-        mirror::ArtMethod* callee_save_method = runtime_->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
 
-        // Compute Sirt size, as Sirt goes into frame
-        MethodHelper mh(method);
-        uint32_t sirt_refs = mh.GetNumberOfReferenceArgsWithoutReceiver() + 1;
-        uint32_t sirt_size = StackIndirectReferenceTable::SizeOf(sirt_refs);
-
-        OatFile::OatMethod oat_method = CreateOatMethod(method_code,
-                                                        callee_save_method->GetFrameSizeInBytes() +
-                                                            sirt_size,
-                                                        callee_save_method->GetCoreSpillMask(),
-                                                        callee_save_method->GetFpSpillMask(),
-                                                        nullptr);
+        OatFile::OatMethod oat_method = CreateOatMethod(method_code, nullptr);
         oat_method.LinkMethod(method);
         method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
       }
@@ -323,11 +301,12 @@ class CommonCompilerTest : public CommonRuntimeTest {
       compiler_options_->SetCompilerFilter(CompilerOptions::kInterpretOnly);
 #endif
 
+      runtime_->SetInstructionSet(instruction_set);
       for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
         Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
         if (!runtime_->HasCalleeSaveMethod(type)) {
           runtime_->SetCalleeSaveMethod(
-              runtime_->CreateCalleeSaveMethod(instruction_set, type), type);
+              runtime_->CreateCalleeSaveMethod(type), type);
         }
       }
 

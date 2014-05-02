@@ -231,7 +231,7 @@ class OatWriter {
     // oat_method_offsets_offsets_from_oat_class_ should contain 0
     // values in this case).
     std::vector<OatMethodOffsets> method_offsets_;
-    std::vector<OatMethodHeader> method_headers_;
+    std::vector<OatQuickMethodHeader> method_headers_;
 
    private:
     DISALLOW_COPY_AND_ASSIGN(OatClass);
