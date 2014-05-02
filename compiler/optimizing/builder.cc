@@ -409,7 +409,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
       uint32_t method_idx = instruction.VRegB_35c();
       uint32_t number_of_vreg_arguments = instruction.VRegA_35c();
       uint32_t args[5];
-      instruction.GetArgs(args);
+      instruction.GetVarArgs(args);
       if (!BuildInvoke(instruction, dex_offset, method_idx, number_of_vreg_arguments, false, args, -1)) {
         return false;
       }

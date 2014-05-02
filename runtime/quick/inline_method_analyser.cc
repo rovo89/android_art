@@ -174,26 +174,24 @@ bool InlineMethodAnalyser::AnalyseConstMethod(const DexFile::CodeItem* code_item
     return false;
   }
 
-  uint32_t return_reg = return_instruction->VRegA_11x();
+  int32_t return_reg = return_instruction->VRegA_11x();
   DCHECK_LT(return_reg, code_item->registers_size_);
 
-  uint32_t vA, vB, dummy;
-  uint64_t dummy_wide;
-  instruction->Decode(vA, vB, dummy_wide, dummy, nullptr);
+  int32_t const_value = instruction->VRegB();
   if (instruction->Opcode() == Instruction::CONST_HIGH16) {
-    vB <<= 16;
+    const_value <<= 16;
   }
-  DCHECK_LT(vA, code_item->registers_size_);
-  if (vA != return_reg) {
+  DCHECK_LT(instruction->VRegA(), code_item->registers_size_);
+  if (instruction->VRegA() != return_reg) {
     return false;  // Not returning the value set by const?
   }
-  if (return_opcode == Instruction::RETURN_OBJECT && vB != 0) {
+  if (return_opcode == Instruction::RETURN_OBJECT && const_value != 0) {
     return false;  // Returning non-null reference constant?
   }
   if (result != nullptr) {
     result->opcode = kInlineOpNonWideConst;
     result->flags = kInlineSpecial;
-    result->d.data = static_cast<uint64_t>(vB);
+    result->d.data = static_cast<uint64_t>(const_value);
   }
   return true;
 }
