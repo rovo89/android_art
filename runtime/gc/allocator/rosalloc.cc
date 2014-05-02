@@ -584,7 +584,7 @@ RosAlloc::Run* RosAlloc::RefillRun(Thread* self, size_t idx) {
   return AllocRun(self, idx);
 }
 
-void* RosAlloc::AllocFromCurrentRunUnlocked(Thread* self, size_t idx) {
+inline void* RosAlloc::AllocFromCurrentRunUnlocked(Thread* self, size_t idx) {
   Run* current_run = current_runs_[idx];
   DCHECK(current_run != nullptr);
   void* slot_addr = current_run->AllocSlot();
