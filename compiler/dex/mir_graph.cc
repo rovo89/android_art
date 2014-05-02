@@ -621,7 +621,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     int flags = Instruction::FlagsOf(insn->dalvikInsn.opcode);
     int verify_flags = Instruction::VerifyFlagsOf(insn->dalvikInsn.opcode);
 
-    uint64_t df_flags = oat_data_flow_attributes_[insn->dalvikInsn.opcode];
+    uint64_t df_flags = GetDataFlowAttributes(insn);
     merged_df_flags |= df_flags;
 
     if (df_flags & DF_HAS_DEFS) {
@@ -741,6 +741,17 @@ void MIRGraph::ShowOpcodeStats() {
                 << " " << opcode_count_[i];
     }
   }
+}
+
+uint64_t MIRGraph::GetDataFlowAttributes(Instruction::Code opcode) {
+  DCHECK_LT((size_t) opcode, (sizeof(oat_data_flow_attributes_) / sizeof(oat_data_flow_attributes_[0])));
+  return oat_data_flow_attributes_[opcode];
+}
+
+uint64_t MIRGraph::GetDataFlowAttributes(MIR* mir) {
+  DCHECK(mir != nullptr);
+  Instruction::Code opcode = mir->dalvikInsn.opcode;
+  return GetDataFlowAttributes(opcode);
 }
 
 // TODO: use a configurable base prefix, and adjust callers to supply pass name.

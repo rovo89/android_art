@@ -851,6 +851,9 @@ class MIRGraph {
    */
   void CountUses(struct BasicBlock* bb);
 
+  static uint64_t GetDataFlowAttributes(Instruction::Code opcode);
+  static uint64_t GetDataFlowAttributes(MIR* mir);
+
   /**
    * @brief Combine BasicBlocks
    * @param the BasicBlock we are considering
@@ -868,7 +871,6 @@ class MIRGraph {
   RegLocation* reg_location_;                         // Map SSA names to location.
   SafeMap<unsigned int, unsigned int> block_id_map_;  // Block collapse lookup cache.
 
-  static const uint64_t oat_data_flow_attributes_[kMirOpLast];
   static const char* extended_mir_op_names_[kMirOpLast - kMirOpFirst];
   static const uint32_t analysis_attributes_[kMirOpLast];
 
@@ -985,6 +987,7 @@ class MIRGraph {
   GrowableArray<MirIFieldLoweringInfo> ifield_lowering_infos_;
   GrowableArray<MirSFieldLoweringInfo> sfield_lowering_infos_;
   GrowableArray<MirMethodLoweringInfo> method_lowering_infos_;
+  static const uint64_t oat_data_flow_attributes_[kMirOpLast];
 
   friend class ClassInitCheckEliminationTest;
   friend class LocalValueNumberingTest;
