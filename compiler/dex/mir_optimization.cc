@@ -43,11 +43,11 @@ void MIRGraph::DoConstantPropagation(BasicBlock* bb) {
 
   for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     // Skip pass if BB has MIR without SSA representation.
-    if (mir->ssa_rep == NULL) {
+    if (mir->ssa_rep == nullptr) {
        return;
     }
 
-    uint64_t df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
+    uint64_t df_attributes = GetDataFlowAttributes(mir);
 
     DecodedInstruction *d_insn = &mir->dalvikInsn;
 
@@ -559,7 +559,7 @@ void MIRGraph::CountChecks(struct BasicBlock* bb) {
       if (mir->ssa_rep == NULL) {
         continue;
       }
-      uint64_t df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
+      uint64_t df_attributes = GetDataFlowAttributes(mir);
       if (df_attributes & DF_HAS_NULL_CHKS) {
         checkstats_->null_checks++;
         if (mir->optimization_flags & MIR_IGNORE_NULL_CHECK) {
@@ -644,7 +644,7 @@ void MIRGraph::CombineBlocks(struct BasicBlock* bb) {
     MIR* mir = bb->last_mir_insn;
     // Grab the attributes from the paired opcode
     MIR* throw_insn = mir->meta.throw_insn;
-    uint64_t df_attributes = oat_data_flow_attributes_[throw_insn->dalvikInsn.opcode];
+    uint64_t df_attributes = GetDataFlowAttributes(throw_insn);
     bool can_combine = true;
     if (df_attributes & DF_HAS_NULL_CHKS) {
       can_combine &= ((throw_insn->optimization_flags & MIR_IGNORE_NULL_CHECK) != 0);
@@ -796,7 +796,7 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
       continue;
     }
 
-    uint64_t df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
+    uint64_t df_attributes = GetDataFlowAttributes(mir);
 
     // Might need a null check?
     if (df_attributes & DF_HAS_NULL_CHKS) {

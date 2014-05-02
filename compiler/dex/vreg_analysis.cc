@@ -124,7 +124,7 @@ bool MIRGraph::SetHigh(int index) {
 bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
   SSARepresentation *ssa_rep = mir->ssa_rep;
   if (ssa_rep) {
-    uint64_t attrs = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
+    uint64_t attrs = GetDataFlowAttributes(mir);
     const int* uses = ssa_rep->uses;
     const int* defs = ssa_rep->defs;
 
