@@ -300,7 +300,8 @@ class Heap {
 
   // Blocks the caller until the garbage collector becomes idle and returns the type of GC we
   // waited for.
-  collector::GcType WaitForGcToComplete(Thread* self) LOCKS_EXCLUDED(gc_complete_lock_);
+  collector::GcType WaitForGcToComplete(GcCause cause, Thread* self)
+      LOCKS_EXCLUDED(gc_complete_lock_);
 
   // Update the heap's process state to a new value, may cause compaction to occur.
   void UpdateProcessState(ProcessState process_state);
@@ -641,7 +642,7 @@ class Heap {
 
   // Blocks the caller until the garbage collector becomes idle and returns the type of GC we
   // waited for.
-  collector::GcType WaitForGcToCompleteLocked(Thread* self)
+  collector::GcType WaitForGcToCompleteLocked(GcCause cause, Thread* self)
       EXCLUSIVE_LOCKS_REQUIRED(gc_complete_lock_);
 
   void RequestCollectorTransition(CollectorType desired_collector_type, uint64_t delta_time)

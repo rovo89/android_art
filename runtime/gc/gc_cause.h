@@ -35,6 +35,10 @@ enum GcCause {
   kGcCauseForNativeAlloc,
   // GC triggered for a collector transition.
   kGcCauseCollectorTransition,
+  // Not a real GC cause, used when we disable moving GC (currently for GetPrimitiveArrayCritical).
+  kGcCauseDisableMovingGc,
+  // Not a real GC cause, used when we trim the heap.
+  kGcCauseTrim,
 };
 
 const char* PrettyCause(GcCause cause);
