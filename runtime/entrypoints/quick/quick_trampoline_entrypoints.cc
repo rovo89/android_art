@@ -34,12 +34,6 @@ namespace art {
 
 // Visits the arguments as saved to the stack by a Runtime::kRefAndArgs callee save frame.
 class QuickArgumentVisitor {
-  // Size of each spilled GPR.
-#ifdef __LP64__
-  static constexpr size_t kBytesPerGprSpillLocation = 8;
-#else
-  static constexpr size_t kBytesPerGprSpillLocation = 4;
-#endif
   // Number of bytes for each out register in the caller method's frame.
   static constexpr size_t kBytesStackArgLocation = 4;
 #if defined(__arm__)
@@ -61,13 +55,12 @@ class QuickArgumentVisitor {
   static constexpr bool kQuickSoftFloatAbi = true;  // This is a soft float ABI.
   static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 0;  // 0 arguments passed in FPRs.
-  static constexpr size_t kBytesPerFprSpillLocation = 4;  // FPR spill size is 4 bytes.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 8;  // Offset of first GPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 44;  // Offset of return address.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_FrameSize = 48;  // Frame size.
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
-    return gpr_index * kBytesPerGprSpillLocation;
+    return gpr_index * GetBytesPerGprSpillLocation(kRuntimeISA);
   }
 #elif defined(__aarch64__)
   // The callee save frame is pointed to by SP.
@@ -93,13 +86,12 @@ class QuickArgumentVisitor {
   static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr size_t kNumQuickGprArgs = 7;  // 7 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 8;  // 8 arguments passed in FPRs.
-  static constexpr size_t kBytesPerFprSpillLocation = 8;  // FPR spill size is 8 bytes.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset =16;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 144;  // Offset of first GPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 296;  // Offset of return address.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_FrameSize = 304;  // Frame size.
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
-    return gpr_index * kBytesPerGprSpillLocation;
+    return gpr_index * GetBytesPerGprSpillLocation(kRuntimeISA);
   }
 #elif defined(__mips__)
   // The callee save frame is pointed to by SP.
@@ -119,13 +111,12 @@ class QuickArgumentVisitor {
   static constexpr bool kQuickSoftFloatAbi = true;  // This is a soft float ABI.
   static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 0;  // 0 arguments passed in FPRs.
-  static constexpr size_t kBytesPerFprSpillLocation = 4;  // FPR spill size is 4 bytes.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 4;  // Offset of first GPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 60;  // Offset of return address.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_FrameSize = 64;  // Frame size.
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
-    return gpr_index * kBytesPerGprSpillLocation;
+    return gpr_index * GetBytesPerGprSpillLocation(kRuntimeISA);
   }
 #elif defined(__i386__)
   // The callee save frame is pointed to by SP.
@@ -145,13 +136,12 @@ class QuickArgumentVisitor {
   static constexpr bool kQuickSoftFloatAbi = true;  // This is a soft float ABI.
   static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 0;  // 0 arguments passed in FPRs.
-  static constexpr size_t kBytesPerFprSpillLocation = 8;  // FPR spill size is 8 bytes.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 4;  // Offset of first GPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 28;  // Offset of return address.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_FrameSize = 32;  // Frame size.
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
-    return gpr_index * kBytesPerGprSpillLocation;
+    return gpr_index * GetBytesPerGprSpillLocation(kRuntimeISA);
   }
 #elif defined(__x86_64__)
   // The callee save frame is pointed to by SP.
@@ -184,18 +174,17 @@ class QuickArgumentVisitor {
   static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr size_t kNumQuickGprArgs = 5;  // 3 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 8;  // 0 arguments passed in FPRs.
-  static constexpr size_t kBytesPerFprSpillLocation = 8;  // FPR spill size is 8 bytes.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 16;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 80;  // Offset of first GPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 168;  // Offset of return address.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_FrameSize = 176;  // Frame size.
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     switch (gpr_index) {
-      case 0: return (4 * kBytesPerGprSpillLocation);
-      case 1: return (1 * kBytesPerGprSpillLocation);
-      case 2: return (0 * kBytesPerGprSpillLocation);
-      case 3: return (5 * kBytesPerGprSpillLocation);
-      case 4: return (6 * kBytesPerGprSpillLocation);
+      case 0: return (4 * GetBytesPerGprSpillLocation(kRuntimeISA));
+      case 1: return (1 * GetBytesPerGprSpillLocation(kRuntimeISA));
+      case 2: return (0 * GetBytesPerGprSpillLocation(kRuntimeISA));
+      case 3: return (5 * GetBytesPerGprSpillLocation(kRuntimeISA));
+      case 4: return (6 * GetBytesPerGprSpillLocation(kRuntimeISA));
       default:
         LOG(FATAL) << "Unexpected GPR index: " << gpr_index;
         return 0;
@@ -248,7 +237,7 @@ class QuickArgumentVisitor {
       Primitive::Type type = GetParamPrimitiveType();
       if (UNLIKELY((type == Primitive::kPrimDouble) || (type == Primitive::kPrimFloat))) {
         if ((kNumQuickFprArgs != 0) && (fpr_index_ + 1 < kNumQuickFprArgs + 1)) {
-          return fpr_args_ + (fpr_index_ * kBytesPerFprSpillLocation);
+          return fpr_args_ + (fpr_index_ * GetBytesPerFprSpillLocation(kRuntimeISA));
         }
         return stack_args_ + (stack_index_ * kBytesStackArgLocation);
       }
@@ -260,7 +249,7 @@ class QuickArgumentVisitor {
   }
 
   bool IsSplitLongOrDouble() const {
-    if ((kBytesPerGprSpillLocation == 4) || (kBytesPerFprSpillLocation == 4)) {
+    if ((GetBytesPerGprSpillLocation(kRuntimeISA) == 4) || (GetBytesPerFprSpillLocation(kRuntimeISA) == 4)) {
       return is_split_long_or_double_;
     } else {
       return false;  // An optimization for when GPR and FPRs are 64bit.
@@ -341,7 +330,7 @@ class QuickArgumentVisitor {
         case Primitive::kPrimDouble:
         case Primitive::kPrimLong:
           if (kQuickSoftFloatAbi || (cur_type_ == Primitive::kPrimLong)) {
-            is_split_long_or_double_ = (kBytesPerGprSpillLocation == 4) &&
+            is_split_long_or_double_ = (GetBytesPerGprSpillLocation(kRuntimeISA) == 4) &&
                 ((gpr_index_ + 1) == kNumQuickGprArgs);
             Visit();
             if (!kQuickSoftFloatAbi || kNumQuickGprArgs == gpr_index_) {
@@ -354,7 +343,7 @@ class QuickArgumentVisitor {
             }
             if (gpr_index_ < kNumQuickGprArgs) {
               gpr_index_++;
-              if (kBytesPerGprSpillLocation == 4) {
+              if (GetBytesPerGprSpillLocation(kRuntimeISA) == 4) {
                 if (gpr_index_ < kNumQuickGprArgs) {
                   gpr_index_++;
                 } else if (kQuickSoftFloatAbi) {
@@ -363,12 +352,12 @@ class QuickArgumentVisitor {
               }
             }
           } else {
-            is_split_long_or_double_ = (kBytesPerFprSpillLocation == 4) &&
+            is_split_long_or_double_ = (GetBytesPerFprSpillLocation(kRuntimeISA) == 4) &&
                 ((fpr_index_ + 1) == kNumQuickFprArgs);
             Visit();
             if ((kNumQuickFprArgs != 0) && (fpr_index_ + 1 < kNumQuickFprArgs + 1)) {
               fpr_index_++;
-              if (kBytesPerFprSpillLocation == 4) {
+              if (GetBytesPerFprSpillLocation(kRuntimeISA) == 4) {
                 if ((kNumQuickFprArgs != 0) && (fpr_index_ + 1 < kNumQuickFprArgs + 1)) {
                   fpr_index_++;
                 }
@@ -393,12 +382,13 @@ class QuickArgumentVisitor {
                                              uint32_t shorty_len) {
     if (kQuickSoftFloatAbi) {
       CHECK_EQ(kNumQuickFprArgs, 0U);
-      return (kNumQuickGprArgs * kBytesPerGprSpillLocation) + kBytesPerGprSpillLocation /* ArtMethod* */;
+      return (kNumQuickGprArgs * GetBytesPerGprSpillLocation(kRuntimeISA))
+          + GetBytesPerGprSpillLocation(kRuntimeISA) /* ArtMethod* */;
     } else {
       // For now, there is no reg-spill area for the targets with
       // hard float ABI. So, the offset pointing to the first method's
       // parameter ('this' for non-static methods) should be returned.
-      return kBytesPerGprSpillLocation;  // Skip Method*.
+      return GetBytesPerGprSpillLocation(kRuntimeISA);  // Skip Method*.
     }
   }
 
