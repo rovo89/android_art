@@ -172,7 +172,7 @@ class ClassInitCheckEliminationTest : public testing::Test {
       mir->offset = 2 * i;  // All insns need to be at least 2 code units long.
       mir->width = 2u;
       mir->optimization_flags = 0u;
-      merged_df_flags |= MIRGraph::oat_data_flow_attributes_[def->opcode];
+      merged_df_flags |= MIRGraph::GetDataFlowAttributes(def->opcode);
     }
     cu_.mir_graph->merged_df_flags_ = merged_df_flags;
 

@@ -879,7 +879,7 @@ bool MIRGraph::FindLocalLiveIn(BasicBlock* bb) {
       new (arena_) ArenaBitVector(arena_, cu_->num_dalvik_registers, false, kBitMapLiveIn);
 
   for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
-    uint64_t df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
+    uint64_t df_attributes = GetDataFlowAttributes(mir);
     DecodedInstruction *d_insn = &mir->dalvikInsn;
 
     if (df_attributes & DF_HAS_USES) {
@@ -994,7 +994,7 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
         static_cast<struct SSARepresentation *>(arena_->Alloc(sizeof(SSARepresentation),
                                                               kArenaAllocDFInfo));
 
-    uint64_t df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
+    uint64_t df_attributes = GetDataFlowAttributes(mir);
 
       // If not a pseudo-op, note non-leaf or can throw
     if (static_cast<int>(mir->dalvikInsn.opcode) <
@@ -1252,7 +1252,7 @@ void MIRGraph::CountUses(struct BasicBlock* bb) {
       use_counts_.Put(s_reg, use_counts_.Get(s_reg) + weight);
     }
     if (!(cu_->disable_opt & (1 << kPromoteCompilerTemps))) {
-      uint64_t df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
+      uint64_t df_attributes = GetDataFlowAttributes(mir);
       // Implicit use of Method* ? */
       if (df_attributes & DF_UMS) {
         /*
