@@ -32,13 +32,13 @@ static void TestCode(const uint16_t* data, const int* blocks, size_t blocks_leng
   HGraph* graph = builder.BuildGraph(*item);
   ASSERT_NE(graph, nullptr);
   graph->BuildDominatorTree();
-  ASSERT_EQ(graph->GetBlocks()->Size(), blocks_length);
-  for (size_t i = 0; i < blocks_length; i++) {
+  ASSERT_EQ(graph->GetBlocks().Size(), blocks_length);
+  for (size_t i = 0, e = blocks_length; i < e; ++i) {
     if (blocks[i] == -1) {
-      ASSERT_EQ(nullptr, graph->GetBlocks()->Get(i)->GetDominator());
+      ASSERT_EQ(nullptr, graph->GetBlocks().Get(i)->GetDominator());
     } else {
-      ASSERT_NE(nullptr, graph->GetBlocks()->Get(i)->GetDominator());
-      ASSERT_EQ(blocks[i], graph->GetBlocks()->Get(i)->GetDominator()->GetBlockId());
+      ASSERT_NE(nullptr, graph->GetBlocks().Get(i)->GetDominator());
+      ASSERT_EQ(blocks[i], graph->GetBlocks().Get(i)->GetDominator()->GetBlockId());
     }
   }
 }

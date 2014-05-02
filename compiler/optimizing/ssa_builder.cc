@@ -20,11 +20,11 @@
 namespace art {
 
 void SsaBuilder::BuildSsa() {
-  // 1) Visit in dominator order. We need to have all predecessors of a block visited
+  // 1) Visit in reverse post order. We need to have all predecessors of a block visited
   // (with the exception of loops) in order to create the right environment for that
   // block. For loops, we create phis whose inputs will be set in 2).
-  for (size_t i = 0; i < GetGraph()->GetDominatorOrder()->Size(); i++) {
-    VisitBasicBlock(GetGraph()->GetDominatorOrder()->Get(i));
+  for (HReversePostOrderIterator it(*GetGraph()); !it.Done(); it.Advance()) {
+    VisitBasicBlock(it.Current());
   }
 
   // 2) Set inputs of loop phis.
@@ -59,7 +59,7 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
 
   if (block->IsLoopHeader()) {
     // If the block is a loop header, we know we only have visited the pre header
-    // because we are visiting in dominator order. We create phis for all initialized
+    // because we are visiting in reverse post order. We create phis for all initialized
     // locals from the pre header. Their inputs will be populated at the end of
     // the analysis.
     for (size_t local = 0; local < current_locals_->Size(); local++) {
@@ -76,7 +76,7 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
     // blocks need to be updated.
     loop_headers_.Add(block);
   } else if (block->GetPredecessors()->Size() > 0) {
-    // All predecessors have already been visited because we are visiting in dominator order.
+    // All predecessors have already been visited because we are visiting in reverse post order.
     // We merge the values of all locals, creating phis if those values differ.
     for (size_t local = 0; local < current_locals_->Size(); local++) {
       bool is_different = false;

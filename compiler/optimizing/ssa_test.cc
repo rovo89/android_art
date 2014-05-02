@@ -64,8 +64,8 @@ class StringPrettyPrinter : public HPrettyPrinter {
 
 static void ReNumberInstructions(HGraph* graph) {
   int id = 0;
-  for (size_t i = 0; i < graph->GetBlocks()->Size(); i++) {
-    HBasicBlock* block = graph->GetBlocks()->Get(i);
+  for (size_t i = 0, e = graph->GetBlocks().Size(); i < e; ++i) {
+    HBasicBlock* block = graph->GetBlocks().Get(i);
     for (HInstructionIterator it(*block->GetPhis()); !it.Done(); it.Advance()) {
       it.Current()->SetId(id++);
     }
@@ -147,7 +147,7 @@ TEST(SsaTest, CFG2) {
 
 TEST(SsaTest, CFG3) {
   // Test that we create a phi for the join block of an if control flow instruction
-  // when there both branches update a local.
+  // when both branches update a local.
   const char* expected =
     "BasicBlock 0, succ: 1\n"
     "  0: IntConstant 0 [4, 4]\n"

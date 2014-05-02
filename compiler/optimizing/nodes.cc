@@ -25,7 +25,7 @@ void HGraph::AddBlock(HBasicBlock* block) {
   blocks_.Add(block);
 }
 
-void HGraph::FindBackEdges(ArenaBitVector* visited) const {
+void HGraph::FindBackEdges(ArenaBitVector* visited) {
   ArenaBitVector visiting(arena_, blocks_.Size(), false);
   VisitBlockForBackEdges(entry_block_, visited, &visiting);
 }
@@ -49,7 +49,7 @@ void HGraph::RemoveDeadBlocks(const ArenaBitVector& visited) const {
 
 void HGraph::VisitBlockForBackEdges(HBasicBlock* block,
                                     ArenaBitVector* visited,
-                                    ArenaBitVector* visiting) const {
+                                    ArenaBitVector* visiting) {
   int id = block->GetBlockId();
   if (visited->IsBitSet(id)) return;
 
@@ -63,6 +63,7 @@ void HGraph::VisitBlockForBackEdges(HBasicBlock* block,
       VisitBlockForBackEdges(successor, visited, visiting);
     }
   }
+  post_order_.Add(block);
   visiting->ClearBit(id);
 }
 
@@ -82,7 +83,6 @@ void HGraph::BuildDominatorTree() {
   //     have been processed.
   GrowableArray<size_t> visits(arena_, blocks_.Size());
   visits.SetSize(blocks_.Size());
-  dominator_order_.Add(entry_block_);
   for (size_t i = 0; i < entry_block_->GetSuccessors()->Size(); i++) {
     VisitBlockForDominatorTree(entry_block_->GetSuccessors()->Get(i), entry_block_, &visits);
   }
@@ -120,7 +120,6 @@ void HGraph::VisitBlockForDominatorTree(HBasicBlock* block,
   // dominator of the block. We can then start visiting its successors.
   if (visits->Get(block->GetBlockId()) ==
       block->GetPredecessors()->Size() - block->NumberOfBackEdges()) {
-    dominator_order_.Add(block);
     for (size_t i = 0; i < block->GetSuccessors()->Size(); i++) {
       VisitBlockForDominatorTree(block->GetSuccessors()->Get(i), block, visits);
     }
@@ -128,15 +127,15 @@ void HGraph::VisitBlockForDominatorTree(HBasicBlock* block,
 }
 
 void HGraph::TransformToSSA() {
-  DCHECK(!dominator_order_.IsEmpty());
+  DCHECK(!post_order_.IsEmpty());
   SimplifyCFG();
   SsaBuilder ssa_builder(this);
   ssa_builder.BuildSsa();
 }
 
 void HGraph::SimplifyCFG() {
-  for (size_t i = 0; i < dominator_order_.Size(); i++) {
-    HBasicBlock* current = dominator_order_.Get(i);
+  for (size_t i = post_order_.Size(); i > 0; --i) {
+    HBasicBlock* current = post_order_.Get(i - 1);
     if (current->IsLoopHeader()) {
       // Make sure the loop has only one pre header. This simplifies SSA building by having
       // to just look at the pre header to know which locals are initialized at entry of the
@@ -149,10 +148,9 @@ void HGraph::SimplifyCFG() {
         pre_header->AddInstruction(new (arena_) HGoto());
         pre_header->SetDominator(current->GetDominator());
         current->SetDominator(pre_header);
-        dominator_order_.InsertAt(i, pre_header);
-        i++;
+        post_order_.InsertAt(i, pre_header);
 
-        ArenaBitVector back_edges(arena_, GetBlocks()->Size(), false);
+        ArenaBitVector back_edges(arena_, GetBlocks().Size(), false);
         for (size_t pred = 0; pred < info->GetBackEdges()->Size(); pred++) {
           back_edges.SetBit(info->GetBackEdges()->Get(pred)->GetBlockId());
         }
@@ -298,9 +296,9 @@ FOR_EACH_INSTRUCTION(DEFINE_ACCEPT)
 #undef DEFINE_ACCEPT
 
 void HGraphVisitor::VisitInsertionOrder() {
-  const GrowableArray<HBasicBlock*>* blocks = graph_->GetBlocks();
-  for (size_t i = 0 ; i < blocks->Size(); i++) {
-    VisitBasicBlock(blocks->Get(i));
+  const GrowableArray<HBasicBlock*>& blocks = graph_->GetBlocks();
+  for (size_t i = 0 ; i < blocks.Size(); i++) {
+    VisitBasicBlock(blocks.Get(i));
   }
 }
 

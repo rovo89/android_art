@@ -22,6 +22,7 @@
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
 #include "nodes.h"
+#include "ssa_liveness_analysis.h"
 #include "utils/arena_allocator.h"
 
 namespace art {
@@ -103,6 +104,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(CompilerDriver& driver,
   // Run these phases to get some test coverage.
   graph->BuildDominatorTree();
   graph->TransformToSSA();
+  SsaLivenessAnalysis(*graph).Analyze();
 
   return new CompiledMethod(driver,
                             instruction_set,
