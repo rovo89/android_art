@@ -722,7 +722,7 @@ bool MirConverter::ConvertMIRNode(MIR* mir, BasicBlock* bb,
   /* Prep Src and Dest locations */
   int next_sreg = 0;
   int next_loc = 0;
-  uint64_t attrs = mir_graph_->oat_data_flow_attributes_[opcode];
+  uint64_t attrs = MirGraph::GetDataFlowAttributes(opcode);
   rl_src[0] = rl_src[1] = rl_src[2] = mir_graph_->GetBadLoc();
   if (attrs & DF_UA) {
     if (attrs & DF_A_WIDE) {
