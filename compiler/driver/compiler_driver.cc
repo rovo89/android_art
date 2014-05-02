@@ -905,13 +905,14 @@ bool CompilerDriver::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_id
 
 bool CompilerDriver::CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_idx,
                                         bool* is_type_initialized, bool* use_direct_type_ptr,
-                                        uintptr_t* direct_type_ptr) {
+                                        uintptr_t* direct_type_ptr, bool* out_is_finalizable) {
   ScopedObjectAccess soa(Thread::Current());
   mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
   mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
   if (resolved_class == nullptr) {
     return false;
   }
+  *out_is_finalizable = resolved_class->IsFinalizable();
   const bool compiling_boot = Runtime::Current()->GetHeap()->IsCompilingBoot();
   if (compiling_boot) {
     // boot -> boot class pointers.
