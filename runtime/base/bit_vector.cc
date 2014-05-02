@@ -201,7 +201,7 @@ void BitVector::Subtract(const BitVector *src) {
 uint32_t BitVector::NumSetBits() const {
   uint32_t count = 0;
   for (uint32_t word = 0; word < storage_size_; word++) {
-    count += __builtin_popcount(storage_[word]);
+    count += POPCOUNT(storage_[word]);
   }
   return count;
 }
@@ -331,10 +331,10 @@ uint32_t BitVector::NumSetBits(const uint32_t* storage, uint32_t end) {
 
   uint32_t count = 0u;
   for (uint32_t word = 0u; word < word_end; word++) {
-    count += __builtin_popcount(storage[word]);
+    count += POPCOUNT(storage[word]);
   }
   if (partial_word_bits != 0u) {
-    count += __builtin_popcount(storage[word_end] & ~(0xffffffffu << partial_word_bits));
+    count += POPCOUNT(storage[word_end] & ~(0xffffffffu << partial_word_bits));
   }
   return count;
 }

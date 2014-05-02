@@ -123,7 +123,7 @@ void MipsAssembler::EmitJump(Label* label, bool link) {
 
 int32_t MipsAssembler::EncodeBranchOffset(int offset, int32_t inst, bool is_jump) {
   CHECK_ALIGNED(offset, 4);
-  CHECK(IsInt(CountOneBits(kBranchOffsetMask), offset)) << offset;
+  CHECK(IsInt(POPCOUNT(kBranchOffsetMask), offset)) << offset;
 
   // Properly preserve only the bits supported in the instruction.
   offset >>= 2;
