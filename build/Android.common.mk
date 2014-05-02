@@ -123,6 +123,11 @@ ifneq ($(WITHOUT_HOST_CLANG),true)
   ART_HOST_CLANG := true
 endif
 
+# enable ART_TARGET_CLANG for ARM64
+ifneq (,$(filter $(TARGET_ARCH),arm64))
+ART_TARGET_CLANG := true
+endif
+
 # directory used for dalvik-cache on device
 ART_DALVIK_CACHE_DIR := /data/dalvik-cache
 
@@ -193,10 +198,15 @@ art_cflags := \
 	-Wno-sign-promo \
 	-Wno-unused-parameter \
 	-Wstrict-aliasing \
-	-fstrict-aliasing \
+	-fstrict-aliasing
+
+# these are necessary for Clang ARM64 ART builds
+ifeq ($(ART_TARGET_CLANG), true)
+art_cflags += \
 	-Wno-implicit-exception-spec-mismatch \
 	-DNVALGRIND \
 	-Wno-unused-value
+endif
 
 ifeq ($(ART_SMALL_MODE),true)
   art_cflags += -DART_SMALL_MODE=1
