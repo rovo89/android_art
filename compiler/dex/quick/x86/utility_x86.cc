@@ -889,7 +889,7 @@ void X86Mir2Lir::AnalyzeMIR(int opcode, BasicBlock * bb, MIR *mir) {
 
 void X86Mir2Lir::AnalyzeFPInstruction(int opcode, BasicBlock * bb, MIR *mir) {
   // Look at all the uses, and see if they are double constants.
-  uint64_t attrs = mir_graph_->oat_data_flow_attributes_[opcode];
+  uint64_t attrs = MIRGraph::GetDataFlowAttributes(static_cast<Instruction::Code>(opcode));
   int next_sreg = 0;
   if (attrs & DF_UA) {
     if (attrs & DF_A_WIDE) {
