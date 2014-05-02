@@ -29,7 +29,9 @@ const char* PrettyCause(GcCause cause) {
     case kGcCauseBackground: return "Background";
     case kGcCauseExplicit: return "Explicit";
     case kGcCauseForNativeAlloc: return "NativeAlloc";
-    case kGcCauseCollectorTransition: return" CollectorTransition";
+    case kGcCauseCollectorTransition: return "CollectorTransition";
+    case kGcCauseDisableMovingGc: return "DisableMovingGc";
+    case kGcCauseTrim: return "HeapTrim";
     default:
       LOG(FATAL) << "Unreachable";
   }
