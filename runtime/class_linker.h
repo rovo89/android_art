@@ -288,6 +288,7 @@ class ClassLinker {
   static bool VerifyOatFileChecksums(const OatFile* oat_file,
                                      const char* dex_location,
                                      uint32_t dex_location_checksum,
+                                     const InstructionSet instruction_set,
                                      std::string* error_msg);
 
   // TODO: replace this with multiple methods that allocate the correct managed type.

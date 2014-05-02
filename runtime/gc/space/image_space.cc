@@ -33,15 +33,16 @@ namespace space {
 
 Atomic<uint32_t> ImageSpace::bitmap_index_(0);
 
-ImageSpace::ImageSpace(const std::string& name, MemMap* mem_map,
-                       accounting::ContinuousSpaceBitmap* live_bitmap)
-    : MemMapSpace(name, mem_map, mem_map->Begin(), mem_map->End(), mem_map->End(),
-                  kGcRetentionPolicyNeverCollect) {
+ImageSpace::ImageSpace(const std::string& image_filename, const char* image_location,
+                       MemMap* mem_map, accounting::ContinuousSpaceBitmap* live_bitmap)
+    : MemMapSpace(image_filename, mem_map, mem_map->Begin(), mem_map->End(), mem_map->End(),
+                  kGcRetentionPolicyNeverCollect),
+      image_location_(image_location) {
   DCHECK(live_bitmap != nullptr);
   live_bitmap_.reset(live_bitmap);
 }
 
-static bool GenerateImage(const std::string& image_file_name, std::string* error_msg) {
+static bool GenerateImage(const std::string& image_filename, std::string* error_msg) {
   const std::string boot_class_path_string(Runtime::Current()->GetBootClassPathString());
   std::vector<std::string> boot_class_path;
   Split(boot_class_path_string, ':', boot_class_path);
@@ -57,7 +58,7 @@ static bool GenerateImage(const std::string& image_file_name, std::string* error
   arg_vector.push_back(dex2oat);
 
   std::string image_option_string("--image=");
-  image_option_string += image_file_name;
+  image_option_string += image_filename;
   arg_vector.push_back(image_option_string);
 
   arg_vector.push_back("--runtime-arg");
@@ -72,7 +73,7 @@ static bool GenerateImage(const std::string& image_file_name, std::string* error
   }
 
   std::string oat_file_option_string("--oat-file=");
-  oat_file_option_string += image_file_name;
+  oat_file_option_string += image_filename;
   oat_file_option_string.erase(oat_file_option_string.size() - 3);
   oat_file_option_string += "oat";
   arg_vector.push_back(oat_file_option_string);
@@ -98,37 +99,72 @@ static bool GenerateImage(const std::string& image_file_name, std::string* error
   return Exec(arg_vector, error_msg);
 }
 
-ImageSpace* ImageSpace::Create(const char* original_image_file_name,
-                               const InstructionSet image_isa) {
-  if (OS::FileExists(original_image_file_name)) {
-    // If the /system file exists, it should be up-to-date, don't try to generate
-    std::string error_msg;
-    ImageSpace* space = ImageSpace::Init(original_image_file_name, false, &error_msg);
-    if (space == nullptr) {
-      LOG(FATAL) << "Failed to load image '" << original_image_file_name << "': " << error_msg;
-    }
-    return space;
+bool ImageSpace::FindImageFilename(const char* image_location,
+                                   const InstructionSet image_isa,
+                                   std::string* image_filename,
+                                   bool *is_system) {
+  if (OS::FileExists(image_location)) {
+    *image_filename = image_location;
+    *is_system = true;
+    return true;
   }
-  // If the /system file didn't exist, we need to use one from the dalvik-cache.
-  // If the cache file exists, try to open, but if it fails, regenerate.
-  // If it does not exist, generate.
+
   const std::string dalvik_cache = GetDalvikCacheOrDie(GetInstructionSetString(image_isa));
-  std::string image_file_name(GetDalvikCacheFilenameOrDie(original_image_file_name,
-                                                          dalvik_cache.c_str()));
+
+  // Always set output location even if it does not exist,
+  // so that the caller knows where to create the image.
+  *image_filename = GetDalvikCacheFilenameOrDie(image_location, dalvik_cache.c_str());
+  *is_system = false;
+  return OS::FileExists(image_filename->c_str());
+}
+
+ImageHeader* ImageSpace::ReadImageHeaderOrDie(const char* image_location,
+                                              const InstructionSet image_isa) {
+  std::string image_filename;
+  bool is_system = false;
+  if (FindImageFilename(image_location, image_isa, &image_filename, &is_system)) {
+    UniquePtr<File> image_file(OS::OpenFileForReading(image_filename.c_str()));
+    UniquePtr<ImageHeader> image_header(new ImageHeader);
+    const bool success = image_file->ReadFully(image_header.get(), sizeof(ImageHeader));
+    if (!success || !image_header->IsValid()) {
+      LOG(FATAL) << "Invalid Image header for: " << image_filename;
+      return nullptr;
+    }
+
+    return image_header.release();
+  }
+
+  LOG(FATAL) << "Unable to find image file for: " << image_location;
+  return nullptr;
+}
+
+ImageSpace* ImageSpace::Create(const char* image_location,
+                               const InstructionSet image_isa) {
+  std::string image_filename;
   std::string error_msg;
-  if (OS::FileExists(image_file_name.c_str())) {
-    space::ImageSpace* image_space = ImageSpace::Init(image_file_name.c_str(), true, &error_msg);
-    if (image_space != nullptr) {
-      return image_space;
+  bool is_system = false;
+  if (FindImageFilename(image_location, image_isa, &image_filename, &is_system)) {
+    ImageSpace* space = ImageSpace::Init(image_filename.c_str(), image_location,
+                                         !is_system, &error_msg);
+    if (space != nullptr) {
+      return space;
+    }
+
+    // If the /system file exists, it should be up-to-date, don't try to generate it.
+    // If it's not the /system file, log a warning and fall through to GenerateImage.
+    if (is_system) {
+      LOG(FATAL) << "Failed to load image '" << image_filename << "': " << error_msg;
+      return nullptr;
     } else {
       LOG(WARNING) << error_msg;
     }
   }
-  CHECK(GenerateImage(image_file_name, &error_msg))
-      << "Failed to generate image '" << image_file_name << "': " << error_msg;
-  ImageSpace* space = ImageSpace::Init(image_file_name.c_str(), true, &error_msg);
+
+  CHECK(GenerateImage(image_filename, &error_msg))
+      << "Failed to generate image '" << image_filename << "': " << error_msg;
+  ImageSpace* space = ImageSpace::Init(image_filename.c_str(), image_location, true, &error_msg);
   if (space == nullptr) {
-    LOG(FATAL) << "Failed to load image '" << original_image_file_name << "': " << error_msg;
+    LOG(FATAL) << "Failed to load image '" << image_filename << "': " << error_msg;
   }
   return space;
 }
@@ -147,25 +183,26 @@ void ImageSpace::VerifyImageAllocations() {
   }
 }
 
-ImageSpace* ImageSpace::Init(const char* image_file_name, bool validate_oat_file,
-                             std::string* error_msg) {
-  CHECK(image_file_name != nullptr);
+ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_location,
+                             bool validate_oat_file, std::string* error_msg) {
+  CHECK(image_filename != nullptr);
+  CHECK(image_location != nullptr);
 
   uint64_t start_time = 0;
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     start_time = NanoTime();
-    LOG(INFO) << "ImageSpace::Init entering image_file_name=" << image_file_name;
+    LOG(INFO) << "ImageSpace::Init entering image_filename=" << image_filename;
   }
 
-  UniquePtr<File> file(OS::OpenFileForReading(image_file_name));
+  UniquePtr<File> file(OS::OpenFileForReading(image_filename));
   if (file.get() == NULL) {
-    *error_msg = StringPrintf("Failed to open '%s'", image_file_name);
+    *error_msg = StringPrintf("Failed to open '%s'", image_filename);
     return nullptr;
   }
   ImageHeader image_header;
   bool success = file->ReadFully(&image_header, sizeof(image_header));
   if (!success || !image_header.IsValid()) {
-    *error_msg = StringPrintf("Invalid image header in '%s'", image_file_name);
+    *error_msg = StringPrintf("Invalid image header in '%s'", image_filename);
     return nullptr;
   }
 
@@ -177,7 +214,7 @@ ImageSpace* ImageSpace::Init(const char* image_file_name, bool validate_oat_file
                                                  file->Fd(),
                                                  0,
                                                  false,
-                                                 image_file_name,
+                                                 image_filename,
                                                  error_msg));
   if (map.get() == NULL) {
     DCHECK(!error_msg->empty());
@@ -190,14 +227,14 @@ ImageSpace* ImageSpace::Init(const char* image_file_name, bool validate_oat_file
                                                        PROT_READ, MAP_PRIVATE,
                                                        file->Fd(), image_header.GetBitmapOffset(),
                                                        false,
-                                                       image_file_name,
+                                                       image_filename,
                                                        error_msg));
   if (image_map.get() == nullptr) {
     *error_msg = StringPrintf("Failed to map image bitmap: %s", error_msg->c_str());
     return nullptr;
   }
   uint32_t bitmap_index = bitmap_index_.FetchAndAdd(1);
-  std::string bitmap_name(StringPrintf("imagespace %s live-bitmap %u", image_file_name,
+  std::string bitmap_name(StringPrintf("imagespace %s live-bitmap %u", image_filename,
                                        bitmap_index));
   UniquePtr<accounting::ContinuousSpaceBitmap> bitmap(
       accounting::ContinuousSpaceBitmap::CreateFromMemMap(bitmap_name, image_map.release(),
@@ -223,12 +260,13 @@ ImageSpace* ImageSpace::Init(const char* image_file_name, bool validate_oat_file
   callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsAndArgsSaveMethod);
   runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method), Runtime::kRefsAndArgs);
 
-  UniquePtr<ImageSpace> space(new ImageSpace(image_file_name, map.release(), bitmap.release()));
+  UniquePtr<ImageSpace> space(new ImageSpace(image_filename, image_location,
+                                             map.release(), bitmap.release()));
   if (kIsDebugBuild) {
     space->VerifyImageAllocations();
   }
 
-  space->oat_file_.reset(space->OpenOatFile(image_file_name, error_msg));
+  space->oat_file_.reset(space->OpenOatFile(image_filename, error_msg));
   if (space->oat_file_.get() == nullptr) {
     DCHECK(!error_msg->empty());
     return nullptr;
