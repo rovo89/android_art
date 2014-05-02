@@ -105,7 +105,8 @@ inline void Object::Wait(Thread* self, int64_t ms, int32_t ns) {
 inline Object* Object::GetReadBarrierPointer() {
 #ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
   DCHECK(kUseBakerOrBrooksReadBarrier);
-  return GetFieldObject<Object, kVerifyNone, false>(OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_), false);
+  return GetFieldObject<Object, kVerifyNone, kWithoutReadBarrier>(
+      OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_));
 #else
   LOG(FATAL) << "Unreachable";
   return nullptr;
@@ -118,7 +119,7 @@ inline void Object::SetReadBarrierPointer(Object* rb_ptr) {
   // We don't mark the card as this occurs as part of object allocation. Not all objects have
   // backing cards, such as large objects.
   SetFieldObjectWithoutWriteBarrier<false, false, kVerifyNone>(
-      OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_), rb_ptr, false);
+      OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_), rb_ptr);
 #else
   LOG(FATAL) << "Unreachable";
 #endif
