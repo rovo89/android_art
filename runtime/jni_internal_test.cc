@@ -322,11 +322,7 @@ TEST_F(JniInternalTest, FromReflectedMethod_ToReflectedMethod) {
   ASSERT_TRUE(mid2 != NULL);
   // Make sure we can actually use it.
   jstring s = env_->NewStringUTF("poop");
-  // TODO: this should return 4, but the runtime skips the method
-  // invoke because the runtime isn't started. In the future it would
-  // be nice to use interpretter for things like this. This still does
-  // validate that we have a sane jmethodID value.
-  ASSERT_EQ(0, env_->CallIntMethod(s, mid2));
+  ASSERT_EQ(4, env_->CallIntMethod(s, mid2));
 }
 
 void BogusMethod() {
