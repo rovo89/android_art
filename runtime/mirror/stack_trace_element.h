@@ -57,6 +57,10 @@ class MANAGED StackTraceElement : public Object {
   static void ResetClass();
   static void VisitRoots(RootCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static Class* GetStackTraceElement() {
+    DCHECK(java_lang_StackTraceElement_ != NULL);
+    return java_lang_StackTraceElement_;
+  }
 
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
@@ -69,11 +73,6 @@ class MANAGED StackTraceElement : public Object {
   void Init(SirtRef<String>& declaring_class, SirtRef<String>& method_name,
             SirtRef<String>& file_name, int32_t line_number)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  static Class* GetStackTraceElement() {
-    DCHECK(java_lang_StackTraceElement_ != NULL);
-    return java_lang_StackTraceElement_;
-  }
 
   static Class* java_lang_StackTraceElement_;
 
