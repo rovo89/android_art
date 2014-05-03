@@ -63,7 +63,7 @@ ifdef TARGET_2ND_ARCH
 	rm -f $(2ND_TARGET_OUT_INTERMEDIATES)/JAVA_LIBRARIES/*_intermediates/javalib.odex
 	rm -f $(2ND_TARGET_OUT_INTERMEDIATES)/APPS/*_intermediates/*.odex
 endif
-	rm -rf /tmp/test-*/dalvik-cache/*
+	rm -rf /tmp/$(USER)/test-*/dalvik-cache/*
 	rm -rf /tmp/android-data/dalvik-cache/*
 
 .PHONY: clean-oat-target
