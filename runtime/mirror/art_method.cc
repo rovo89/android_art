@@ -287,9 +287,11 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
   Runtime* runtime = Runtime::Current();
   // Call the invoke stub, passing everything as arguments.
   if (UNLIKELY(!runtime->IsStarted())) {
-    LOG(INFO) << "Not invoking " << PrettyMethod(this) << " for a runtime that isn't started";
-    if (result != NULL) {
-      result->SetJ(0);
+    if (IsStatic()) {
+      art::interpreter::EnterInterpreterFromInvoke(self, this, nullptr, args, result);
+    } else {
+      Object* receiver = reinterpret_cast<StackReference<Object>*>(&args[0])->AsMirrorPtr();
+      art::interpreter::EnterInterpreterFromInvoke(self, this, receiver, args + 1, result);
     }
   } else {
     const bool kLogInvocationStartAndReturn = false;

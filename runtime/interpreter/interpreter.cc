@@ -27,10 +27,6 @@ namespace interpreter {
 static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
                                 Object* receiver, uint32_t* args, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  DCHECK(Runtime::Current()->IsActiveTransaction()) << "Calling native method "
-                                                    << PrettyMethod(method)
-                                                    << " in unstarted runtime should only happen"
-                                                    << " in a transaction";
   std::string name(PrettyMethod(method));
   if (name == "java.lang.ClassLoader dalvik.system.VMStack.getCallingClassLoader()") {
     result->SetL(NULL);
@@ -71,7 +67,11 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
     result->SetL(Array::CreateMultiArray(self, sirt_class, sirt_dimensions));
   } else if (name == "java.lang.Object java.lang.Throwable.nativeFillInStackTrace()") {
     ScopedObjectAccessUnchecked soa(self);
-    result->SetL(soa.Decode<Object*>(self->CreateInternalStackTrace<true>(soa)));
+    if (Runtime::Current()->IsActiveTransaction()) {
+      result->SetL(soa.Decode<Object*>(self->CreateInternalStackTrace<true>(soa)));
+    } else {
+      result->SetL(soa.Decode<Object*>(self->CreateInternalStackTrace<false>(soa)));
+    }
   } else if (name == "int java.lang.System.identityHashCode(java.lang.Object)") {
     mirror::Object* obj = reinterpret_cast<Object*>(args[0]);
     result->SetI((obj != nullptr) ? obj->IdentityHashCode() : 0);
@@ -82,13 +82,22 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
     jlong offset = (static_cast<uint64_t>(args[2]) << 32) | args[1];
     jint expectedValue = args[3];
     jint newValue = args[4];
-    bool success = obj->CasField32<true>(MemberOffset(offset), expectedValue, newValue);
+    bool success;
+    if (Runtime::Current()->IsActiveTransaction()) {
+      success = obj->CasField32<true>(MemberOffset(offset), expectedValue, newValue);
+    } else {
+      success = obj->CasField32<false>(MemberOffset(offset), expectedValue, newValue);
+    }
     result->SetZ(success ? JNI_TRUE : JNI_FALSE);
   } else if (name == "void sun.misc.Unsafe.putObject(java.lang.Object, long, java.lang.Object)") {
     Object* obj = reinterpret_cast<Object*>(args[0]);
     jlong offset = (static_cast<uint64_t>(args[2]) << 32) | args[1];
     Object* newValue = reinterpret_cast<Object*>(args[3]);
-    obj->SetFieldObject<true>(MemberOffset(offset), newValue);
+    if (Runtime::Current()->IsActiveTransaction()) {
+      obj->SetFieldObject<true>(MemberOffset(offset), newValue);
+    } else {
+      obj->SetFieldObject<false>(MemberOffset(offset), newValue);
+    }
   } else if (name == "int sun.misc.Unsafe.getArrayBaseOffsetForComponentType(java.lang.Class)") {
     mirror::Class* component = reinterpret_cast<Object*>(args[0])->AsClass();
     Primitive::Type primitive_type = component->GetPrimitiveType();
@@ -97,9 +106,13 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
     mirror::Class* component = reinterpret_cast<Object*>(args[0])->AsClass();
     Primitive::Type primitive_type = component->GetPrimitiveType();
     result->SetI(Primitive::ComponentSize(primitive_type));
-  } else {
+  } else if (Runtime::Current()->IsActiveTransaction()) {
     AbortTransaction(self, "Attempt to invoke native method in non-started runtime: %s",
                      name.c_str());
+
+  } else {
+    LOG(FATAL) << "Calling native method " << PrettyMethod(method) << " in an unstarted "
+        "non-transactional runtime";
   }
 }
 

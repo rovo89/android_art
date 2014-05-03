@@ -3231,12 +3231,8 @@ bool ClassLinker::InitializeClass(const SirtRef<mirror::Class>& klass, bool can_
   mirror::ArtMethod* clinit = klass->FindClassInitializer();
   if (clinit != NULL) {
     CHECK(can_init_statics);
-    if (LIKELY(Runtime::Current()->IsStarted())) {
-      JValue result;
-      clinit->Invoke(self, NULL, 0, &result, "V");
-    } else {
-      art::interpreter::EnterInterpreterFromInvoke(self, clinit, NULL, NULL, NULL);
-    }
+    JValue result;
+    clinit->Invoke(self, NULL, 0, &result, "V");
   }
 
   uint64_t t1 = NanoTime();
