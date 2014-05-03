@@ -803,13 +803,29 @@ const DexFile* ClassLinker::FindOrCreateOatFileForDexLocation(const char* dex_lo
 bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
                                          const char* dex_location,
                                          uint32_t dex_location_checksum,
+                                         const InstructionSet instruction_set,
                                          std::string* error_msg) {
   Runtime* runtime = Runtime::Current();
-  const ImageHeader& image_header = runtime->GetHeap()->GetImageSpace()->GetImageHeader();
-  uint32_t image_oat_checksum = image_header.GetOatChecksum();
-  uintptr_t image_oat_data_begin = reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin());
-  bool image_check = ((oat_file->GetOatHeader().GetImageFileLocationOatChecksum() == image_oat_checksum)
-                      && (oat_file->GetOatHeader().GetImageFileLocationOatDataBegin() == image_oat_data_begin));
+  const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+
+  // If the requested instruction set is the same as the current runtime,
+  // we can use the checksums directly. If it isn't, we'll have to read the
+  // image header from the image for the right instruction set.
+  uint32_t image_oat_checksum = 0;
+  uintptr_t image_oat_data_begin = 0;
+  if (instruction_set == kRuntimeISA) {
+    const ImageHeader& image_header = image_space->GetImageHeader();
+    image_oat_checksum = image_header.GetOatChecksum();
+    image_oat_data_begin = reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin());
+  } else {
+    UniquePtr<ImageHeader> image_header(gc::space::ImageSpace::ReadImageHeaderOrDie(
+        image_space->GetImageLocation().c_str(), instruction_set));
+    image_oat_checksum = image_header->GetOatChecksum();
+    image_oat_data_begin = reinterpret_cast<uintptr_t>(image_header->GetOatDataBegin());
+  }
+  const OatHeader& oat_header = oat_file->GetOatHeader();
+  bool image_check = ((oat_header.GetImageFileLocationOatChecksum() == image_oat_checksum)
+                      && (oat_header.GetImageFileLocationOatDataBegin() == image_oat_data_begin));
 
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location, &dex_location_checksum);
   if (oat_dex_file == NULL) {
@@ -873,7 +889,7 @@ const DexFile* ClassLinker::VerifyAndOpenDexFileFromOatFile(const std::string& o
     dex_file = oat_dex_file->OpenDexFile(error_msg);
   } else {
     bool verified = VerifyOatFileChecksums(oat_file.get(), dex_location, dex_location_checksum,
-                                           error_msg);
+                                           kRuntimeISA, error_msg);
     if (!verified) {
       return nullptr;
     }
