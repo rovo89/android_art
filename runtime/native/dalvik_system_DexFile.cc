@@ -377,6 +377,8 @@ static jboolean IsDexOptNeededInternal(JNIEnv* env, const char* filename,
     }
   }
 
+  const InstructionSet target_instruction_set = GetInstructionSetFromString(instruction_set);
+
   // Check if we have an odex file next to the dex file.
   std::string odex_filename(OatFile::DexFilenameToOdexFilename(filename));
   std::string error_msg;
@@ -403,6 +405,7 @@ static jboolean IsDexOptNeededInternal(JNIEnv* env, const char* filename,
         return JNI_FALSE;
       }
       if (ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename, location_checksum,
+                                              target_instruction_set,
                                               &error_msg)) {
         if (kVerboseLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded precompiled file " << odex_filename
@@ -433,33 +436,6 @@ static jboolean IsDexOptNeededInternal(JNIEnv* env, const char* filename,
     return JNI_TRUE;
   }
 
-  for (const auto& space : runtime->GetHeap()->GetContinuousSpaces()) {
-    if (space->IsImageSpace()) {
-      // TODO: Ensure this works with multiple image spaces.
-      const ImageHeader& image_header = space->AsImageSpace()->GetImageHeader();
-      if (oat_file->GetOatHeader().GetImageFileLocationOatChecksum() !=
-          image_header.GetOatChecksum()) {
-        if (kReasonLogging) {
-          ScopedObjectAccess soa(env);
-          LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
-              << " has out-of-date oat checksum compared to "
-              << oat_file->GetLocation();
-        }
-        return JNI_TRUE;
-      }
-      if (oat_file->GetOatHeader().GetImageFileLocationOatDataBegin()
-          != reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin())) {
-        if (kReasonLogging) {
-          ScopedObjectAccess soa(env);
-          LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
-              << " has out-of-date oat begin compared to "
-              << oat_file->GetLocation();
-        }
-        return JNI_TRUE;
-      }
-    }
-  }
-
   uint32_t location_checksum;
   if (!DexFile::GetChecksum(filename, &location_checksum, &error_msg)) {
     if (kReasonLogging) {
@@ -470,7 +446,7 @@ static jboolean IsDexOptNeededInternal(JNIEnv* env, const char* filename,
   }
 
   if (!ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename, location_checksum,
-                                           &error_msg)) {
+                                           target_instruction_set, &error_msg)) {
     if (kReasonLogging) {
       LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
           << " has out-of-date checksum compared to " << filename
