@@ -46,6 +46,11 @@ class ImageSpace : public MemMapSpace {
   static ImageSpace* Create(const char* image, const InstructionSet image_isa)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Reads the image header from the specified image location for the
+  // instruction set image_isa.
+  static ImageHeader* ReadImageHeaderOrDie(const char* image_location,
+                                           const InstructionSet image_isa);
+
   // Releases the OatFile from the ImageSpace so it can be transfer to
   // the caller, presumably the ClassLinker.
   OatFile* ReleaseOatFile()
@@ -58,8 +63,16 @@ class ImageSpace : public MemMapSpace {
     return *reinterpret_cast<ImageHeader*>(Begin());
   }
 
+  // Actual filename where image was loaded from.
+  // For example: /data/dalvik-cache/arm/system@framework@boot.art
   const std::string GetImageFilename() const {
     return GetName();
+  }
+
+  // Symbolic location for image.
+  // For example: /system/framework/boot.art
+  const std::string GetImageLocation() const {
+    return image_location_;
   }
 
   accounting::ContinuousSpaceBitmap* GetLiveBitmap() const OVERRIDE {
@@ -90,8 +103,20 @@ class ImageSpace : public MemMapSpace {
   // image's OatFile is up-to-date relative to its DexFile
   // inputs. Otherwise (for /data), validate the inputs and generate
   // the OatFile in /data/dalvik-cache if necessary.
-  static ImageSpace* Init(const char* image, bool validate_oat_file, std::string* error_msg)
+  static ImageSpace* Init(const char* image_filename, const char* image_location,
+                          bool validate_oat_file, std::string* error_msg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Returns the filename of the image corresponding to
+  // requested image_location, or the filename where a new image
+  // should be written if one doesn't exist. Looks for a generated
+  // image in the specified location and then in the dalvik-cache.
+  //
+  // Returns true if an image was found, false otherwise.
+  static bool FindImageFilename(const char* image_location,
+                                const InstructionSet image_isa,
+                                std::string* location,
+                                bool* is_system);
 
   OatFile* OpenOatFile(const char* image, std::string* error_msg) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -105,13 +130,15 @@ class ImageSpace : public MemMapSpace {
 
   UniquePtr<accounting::ContinuousSpaceBitmap> live_bitmap_;
 
-  ImageSpace(const std::string& name, MemMap* mem_map,
-             accounting::ContinuousSpaceBitmap* live_bitmap);
+  ImageSpace(const std::string& name, const char* image_location,
+             MemMap* mem_map, accounting::ContinuousSpaceBitmap* live_bitmap);
 
   // The OatFile associated with the image during early startup to
   // reserve space contiguous to the image. It is later released to
   // the ClassLinker during it's initialization.
   UniquePtr<OatFile> oat_file_;
+
+  const std::string image_location_;
 
   DISALLOW_COPY_AND_ASSIGN(ImageSpace);
 };
