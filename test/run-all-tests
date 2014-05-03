@@ -35,6 +35,7 @@ prog="${progdir}"/`basename "${prog}"`
 
 run_args=""
 usage="no"
+sequental="no"
 
 while true; do
     if [ "x$1" = "x--host" ]; then
@@ -70,6 +71,12 @@ while true; do
     elif [ "x$1" = "x--help" ]; then
         usage="yes"
         shift
+    elif [ "x$1" = "x--seq" ]; then
+        sequental="yes"
+        shift
+    elif [ "x$1" = "x-O" ]; then
+        run_args="${run_args} -O"
+        shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
         usage="yes"
@@ -89,34 +96,55 @@ if [ "$usage" = "yes" ]; then
              "further documentation:"
         echo "    --debug --dev --host --interpreter --jvm --no-optimize"
         echo "    --no-verify -O --update --valgrind --zygote"
+        echo "  Specific Runtime Options:"
+        echo "    --seq                Run tests one-by-one, avoiding failures caused by busy CPU"
     ) 1>&2
     exit 1
 fi
 
-# start all the tests
-i=0
-for test_name in *; do
-  if [ -d "$test_name" -a -r "$test_name" -a -r "$test_name/info.txt" ]; then
-    ./run-test ${run_args} "$test_name" &
-    test_pids[i]=$!
-    test_names[test_pids[i]]="$test_name"
-    let i+=1
-  fi
-done
+if [ "$sequental" == "yes" ]; then
+  i=0
+  for test_name in *; do
+    if [ -d "$test_name" -a -r "$test_name" -a -r "$test_name/info.txt" ]; then
+      ./run-test ${run_args} "$test_name"
+      RES=$?
+      test_pids[i]=i
+      test_names[test_pids[i]]="$test_name"
+      if [ "$RES" != "0" ]; then
+        let failure_count+=1
+        failed_test_names="$failed_test_names ${test_names[i]}"
+      else
+        let succeeded_count+=1
+      fi
+      let i+=1
+    fi
+  done
+else
+  # start all the tests
+  i=0
+  for test_name in *; do
+    if [ -d "$test_name" -a -r "$test_name" -a -r "$test_name/info.txt" ]; then
+      ./run-test ${run_args} "$test_name" &
+      test_pids[i]=$!
+      test_names[test_pids[i]]="$test_name"
+      let i+=1
+    fi
+  done
 
-# wait for all the tests, collecting the failures
-failure_count=0
-succeeded_count=0
-failed_test_names=""
-for pid in ${test_pids[@]}; do
-  wait $pid
-  if [ "$?" != "0" ]; then
-    let failure_count+=1
-    failed_test_names="$failed_test_names ${test_names[$pid]}[pid=$pid]"
-  else
-    let succeeded_count+=1
-  fi
-done
+  # wait for all the tests, collecting the failures
+  failure_count=0
+  succeeded_count=0
+  failed_test_names=""
+  for pid in ${test_pids[@]}; do
+    wait $pid
+    if [ "$?" != "0" ]; then
+      let failure_count+=1
+      failed_test_names="$failed_test_names ${test_names[$pid]}[pid=$pid]"
+    else
+      let succeeded_count+=1
+    fi
+  done
+fi
 
 echo "succeeded tests: $succeeded_count"
 echo "failed tests: $failure_count"
