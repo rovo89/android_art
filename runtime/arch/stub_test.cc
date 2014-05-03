@@ -15,6 +15,7 @@
  */
 
 #include "common_runtime_test.h"
+#include "mirror/string-inl.h"
 
 #include <cstdio>
 
@@ -182,14 +183,14 @@ TEST_F(StubTest, Memcpy) {
 #endif
 }
 
-static constexpr size_t kThinLockLoops = 100;
-
 #if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
 extern "C" void art_quick_lock_object(void);
 #endif
 
 TEST_F(StubTest, LockObject) {
 #if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
+  static constexpr size_t kThinLockLoops = 100;
+
   Thread* self = Thread::Current();
   // Create an object
   ScopedObjectAccess soa(self);
@@ -250,6 +251,8 @@ extern "C" void art_quick_unlock_object(void);
 
 TEST_F(StubTest, UnlockObject) {
 #if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
+  static constexpr size_t kThinLockLoops = 100;
+
   Thread* self = Thread::Current();
   // Create an object
   ScopedObjectAccess soa(self);
@@ -797,30 +800,48 @@ TEST_F(StubTest, StringCompareTo) {
 
   // Create some strings
   // Use array so we can index into it and use a matrix for expected results
-  constexpr size_t string_count = 7;
-  const char* c[string_count] = { "", "", "a", "aa", "ab", "aac", "aac" };
+  // Setup: The first half is standard. The second half uses a non-zero offset.
+  // TODO: Shared backing arrays.
+  constexpr size_t base_string_count = 7;
+  const char* c[base_string_count] = { "", "", "a", "aa", "ab", "aac", "aac" , };
+
+  constexpr size_t string_count = 2 * base_string_count;
 
   SirtRef<mirror::String>* s[string_count];
 
-  for (size_t i = 0; i < string_count; ++i) {
+  for (size_t i = 0; i < base_string_count; ++i) {
     s[i] = new SirtRef<mirror::String>(soa.Self(), mirror::String::AllocFromModifiedUtf8(soa.Self(),
                                                                                          c[i]));
+  }
+
+  RandGen r(0x1234);
+
+  for (size_t i = base_string_count; i < string_count; ++i) {
+    s[i] = new SirtRef<mirror::String>(soa.Self(), mirror::String::AllocFromModifiedUtf8(soa.Self(),
+                                                                         c[i - base_string_count]));
+    int32_t length = s[i]->get()->GetLength();
+    if (length > 1) {
+      // Set a random offset and length.
+      int32_t new_offset = 1 + (r.next() % (length - 1));
+      int32_t rest = length - new_offset - 1;
+      int32_t new_length = 1 + (rest > 0 ? r.next() % rest : 0);
+
+      s[i]->get()->SetField32<false>(mirror::String::CountOffset(), new_length);
+      s[i]->get()->SetField32<false>(mirror::String::OffsetOffset(), new_offset);
+    }
   }
 
   // TODO: wide characters
 
   // Matrix of expectations. First component is first parameter. Note we only check against the
-  // sign, not the value.
-  int32_t expected[string_count][string_count] = {
-      {  0,  0, -1, -1, -1, -1, -1 },  // ""
-      {  0,  0, -1, -1, -1, -1, -1 },  // ""
-      {  1,  1,  0, -1, -1, -1, -1 },  // "a"
-      {  1,  1,  1,  0, -1, -1, -1 },  // "aa"
-      {  1,  1,  1,  1,  0,  1,  1 },  // "ab"
-      {  1,  1,  1,  1, -1,  0,  0 },  // "aac"
-      {  1,  1,  1,  1, -1,  0,  0 }   // "aac"
-  //    ""  ""   a  aa  ab  aac aac
-  };
+  // sign, not the value. As we are testing random offsets, we need to compute this and need to
+  // rely on String::CompareTo being correct.
+  int32_t expected[string_count][string_count];
+  for (size_t x = 0; x < string_count; ++x) {
+    for (size_t y = 0; y < string_count; ++y) {
+      expected[x][y] = s[x]->get()->CompareTo(s[y]->get());
+    }
+  }
 
   // Play with it...
 
@@ -840,9 +861,12 @@ TEST_F(StubTest, StringCompareTo) {
       } conv;
       conv.r = result;
       int32_t e = expected[x][y];
-      EXPECT_TRUE(e == 0 ? conv.i == 0 : true) << "x=" << c[x] << " y=" << c[y];
-      EXPECT_TRUE(e < 0 ? conv.i < 0 : true)   << "x=" << c[x] << " y="  << c[y];
-      EXPECT_TRUE(e > 0 ? conv.i > 0 : true)   << "x=" << c[x] << " y=" << c[y];
+      EXPECT_TRUE(e == 0 ? conv.i == 0 : true) << "x=" << c[x] << " y=" << c[y] << " res=" <<
+          conv.r;
+      EXPECT_TRUE(e < 0 ? conv.i < 0 : true)   << "x=" << c[x] << " y="  << c[y] << " res=" <<
+          conv.r;
+      EXPECT_TRUE(e > 0 ? conv.i > 0 : true)   << "x=" << c[x] << " y=" << c[y] << " res=" <<
+          conv.r;
     }
   }
 
