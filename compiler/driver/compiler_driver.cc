@@ -1700,44 +1700,34 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
               !StringPiece(descriptor).ends_with("$NoPreloadHolder;");
           if (can_init_static_fields) {
             VLOG(compiler) << "Initializing: " << descriptor;
-            if (strcmp("Ljava/lang/Void;", descriptor) == 0) {
-              // Hand initialize j.l.Void to avoid Dex file operations in un-started runtime.
-              ObjectLock<mirror::Class> lock(soa.Self(), &klass);
-              mirror::ObjectArray<mirror::ArtField>* fields = klass->GetSFields();
-              CHECK_EQ(fields->GetLength(), 1);
-              fields->Get(0)->SetObj<false>(klass.get(),
-                                                     manager->GetClassLinker()->FindPrimitiveClass('V'));
-              klass->SetStatus(mirror::Class::kStatusInitialized, soa.Self());
-            } else {
-              // TODO multithreading support. We should ensure the current compilation thread has
-              // exclusive access to the runtime and the transaction. To achieve this, we could use
-              // a ReaderWriterMutex but we're holding the mutator lock so we fail mutex sanity
-              // checks in Thread::AssertThreadSuspensionIsAllowable.
-              Runtime* const runtime = Runtime::Current();
-              Transaction transaction;
+            // TODO multithreading support. We should ensure the current compilation thread has
+            // exclusive access to the runtime and the transaction. To achieve this, we could use
+            // a ReaderWriterMutex but we're holding the mutator lock so we fail mutex sanity
+            // checks in Thread::AssertThreadSuspensionIsAllowable.
+            Runtime* const runtime = Runtime::Current();
+            Transaction transaction;
 
-              // Run the class initializer in transaction mode.
-              runtime->EnterTransactionMode(&transaction);
-              const mirror::Class::Status old_status = klass->GetStatus();
-              bool success = manager->GetClassLinker()->EnsureInitialized(klass, true, true);
-              // TODO we detach transaction from runtime to indicate we quit the transactional
-              // mode which prevents the GC from visiting objects modified during the transaction.
-              // Ensure GC is not run so don't access freed objects when aborting transaction.
-              const char* old_casue = soa.Self()->StartAssertNoThreadSuspension("Transaction end");
-              runtime->ExitTransactionMode();
+            // Run the class initializer in transaction mode.
+            runtime->EnterTransactionMode(&transaction);
+            const mirror::Class::Status old_status = klass->GetStatus();
+            bool success = manager->GetClassLinker()->EnsureInitialized(klass, true, true);
+            // TODO we detach transaction from runtime to indicate we quit the transactional
+            // mode which prevents the GC from visiting objects modified during the transaction.
+            // Ensure GC is not run so don't access freed objects when aborting transaction.
+            const char* old_casue = soa.Self()->StartAssertNoThreadSuspension("Transaction end");
+            runtime->ExitTransactionMode();
 
-              if (!success) {
-                CHECK(soa.Self()->IsExceptionPending());
-                ThrowLocation throw_location;
-                mirror::Throwable* exception = soa.Self()->GetException(&throw_location);
-                VLOG(compiler) << "Initialization of " << descriptor << " aborted because of "
-                               << exception->Dump();
-                soa.Self()->ClearException();
-                transaction.Abort();
-                CHECK_EQ(old_status, klass->GetStatus()) << "Previous class status not restored";
-              }
-              soa.Self()->EndAssertNoThreadSuspension(old_casue);
+            if (!success) {
+              CHECK(soa.Self()->IsExceptionPending());
+              ThrowLocation throw_location;
+              mirror::Throwable* exception = soa.Self()->GetException(&throw_location);
+              VLOG(compiler) << "Initialization of " << descriptor << " aborted because of "
+                  << exception->Dump();
+              soa.Self()->ClearException();
+              transaction.Abort();
+              CHECK_EQ(old_status, klass->GetStatus()) << "Previous class status not restored";
             }
+            soa.Self()->EndAssertNoThreadSuspension(old_casue);
           }
         }
         soa.Self()->AssertNoPendingException();

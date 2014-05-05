@@ -42,6 +42,7 @@ class MANAGED Throwable : public Object {
   // overridden. Also it asserts rather than throwing exceptions. Currently this is only used
   // in cases like the verifier where the checks cannot fail and initCause isn't overridden.
   void SetCause(Throwable* cause) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetStackState(Object* state) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsCheckedException() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Class* GetJavaLangThrowable() {
@@ -57,6 +58,9 @@ class MANAGED Throwable : public Object {
  private:
   Object* GetStackState() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetFieldObjectVolatile<Object>(OFFSET_OF_OBJECT_MEMBER(Throwable, stack_state_));
+  }
+  Object* GetStackTrace() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObjectVolatile<Object>(OFFSET_OF_OBJECT_MEMBER(Throwable, stack_trace_));
   }
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
