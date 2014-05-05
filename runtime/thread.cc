@@ -1639,6 +1639,13 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
     if (cause.get() != nullptr) {
       exception->SetCause(down_cast<mirror::Throwable*>(DecodeJObject(cause.get())));
     }
+    ScopedLocalRef<jobject> trace(GetJniEnv(),
+                                  Runtime::Current()->IsActiveTransaction()
+                                      ? CreateInternalStackTrace<true>(soa)
+                                      : CreateInternalStackTrace<false>(soa));
+    if (trace.get() != nullptr) {
+      exception->SetStackState(down_cast<mirror::Throwable*>(DecodeJObject(trace.get())));
+    }
     ThrowLocation gc_safe_throw_location(saved_throw_this.get(), saved_throw_method.get(),
                                          throw_location.GetDexPc());
     SetException(gc_safe_throw_location, exception.get());
