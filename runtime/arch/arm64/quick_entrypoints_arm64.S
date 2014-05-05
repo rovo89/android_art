@@ -1435,4 +1435,118 @@ UNIMPLEMENTED art_quick_shl_long
 UNIMPLEMENTED art_quick_shr_long
 UNIMPLEMENTED art_quick_ushr_long
 UNIMPLEMENTED art_quick_indexof
-UNIMPLEMENTED art_quick_string_compareto
+
+   /*
+     * String's compareTo.
+     *
+     * TODO: Not very optimized.
+     *
+     * On entry:
+     *    x0:   this object pointer
+     *    x1:   comp object pointer
+     *
+     */
+    .extern __memcmp16
+ENTRY art_quick_string_compareto
+    mov    x2, x0         // x0 is return, use x2 for first input.
+    sub    x0, x2, x1     // Same string object?
+    cbnz   x0,1f
+    ret
+1:                        // Different string objects.
+
+    ldr    w6, [x2, #STRING_OFFSET_OFFSET]
+    ldr    w5, [x1, #STRING_OFFSET_OFFSET]
+    ldr    w4, [x2, #STRING_COUNT_OFFSET]
+    ldr    w3, [x1, #STRING_COUNT_OFFSET]
+    ldr    w2, [x2, #STRING_VALUE_OFFSET]
+    ldr    w1, [x1, #STRING_VALUE_OFFSET]
+
+    /*
+     * Now:           CharArray*    Offset   Count
+     *    first arg      x2          w6        w4
+     *   second arg      x1          w5        w3
+     */
+
+    // x0 := str1.length(w4) - str2.length(w3). ldr zero-extended w3/w4 into x3/x4.
+    subs x0, x4, x3
+    // Min(count1, count2) into w3.
+    csel x3, x3, x4, ge
+
+    // Build pointer into string data.
+
+    // Add offset in array (substr etc.) (sign extend and << 1).
+    add x2, x2, w6, sxtw #1
+    add x1, x1, w5, sxtw #1
+
+    // Add offset in CharArray to array.
+    add x2, x2, #STRING_DATA_OFFSET
+    add x1, x1, #STRING_DATA_OFFSET
+
+    // Check for long string, do memcmp16 for them.
+    cmp w3, #28  // Constant from arm32.
+    bgt .Ldo_memcmp16
+
+    /*
+     * Now:
+     *   x2: *first string data
+     *   x1: *second string data
+     *   w3: iteration count
+     *   x0: return value if comparison equal
+     *   x4, x5, x6, x7: free
+     */
+
+    // Do a simple unrolled loop.
+.Lloop:
+    // At least two more elements?
+    subs w3, w3, #2
+    b.lt .Lremainder_or_done
+
+    ldrh w4, [x2], #2
+    ldrh w5, [x1], #2
+
+    ldrh w6, [x2], #2
+    ldrh w7, [x1], #2
+
+    subs w4, w4, w5
+    b.ne .Lw4_result
+
+    subs w6, w6, w7
+    b.ne .Lw6_result
+
+    b .Lloop
+
+.Lremainder_or_done:
+    adds w3, w3, #1
+    b.eq .Lremainder
+    ret
+
+.Lremainder:
+    ldrh w4, [x2], #2
+    ldrh w5, [x1], #2
+    subs w4, w4, w5
+    b.ne .Lw4_result
+    ret
+
+// Result is in w4
+.Lw4_result:
+    sxtw x0, w4
+    ret
+
+// Result is in w6
+.Lw6_result:
+    sxtw x0, w6
+    ret
+
+.Ldo_memcmp16:
+    str x0, [sp,#-16]!           // Save x0
+
+    mov x0, x2
+    uxtw x2, w3
+    bl __memcmp16
+
+    ldr x1, [sp], #16            // Restore old x0 = length diff
+
+    cmp x0, #0                   // Check the memcmp difference
+    csel x0, x0, x1, ne          // x0 := x0 != 0 ? x0 : x1
+    ret
+END art_quick_string_compareto

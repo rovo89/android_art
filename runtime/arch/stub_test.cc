@@ -784,14 +784,14 @@ TEST_F(StubTest, AllocObjectArray) {
 }
 
 
-#if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
 extern "C" void art_quick_string_compareto(void);
 #endif
 
 TEST_F(StubTest, StringCompareTo) {
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
 
-#if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
   // TODO: Check the "Unresolved" allocation stubs
 
   Thread* self = Thread::Current();
