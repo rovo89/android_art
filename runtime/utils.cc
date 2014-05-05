@@ -1171,14 +1171,22 @@ std::string GetDalvikCacheOrDie(const char* subdir, const bool create_if_absent)
   CHECK(subdir != nullptr);
   const std::string dalvik_cache_root(StringPrintf("%s/dalvik-cache/", GetAndroidData()));
   const std::string dalvik_cache = dalvik_cache_root + subdir;
-  if (create_if_absent && !OS::DirectoryExists(dalvik_cache.c_str())) {
+  if (!OS::DirectoryExists(dalvik_cache_root.c_str())) {
     if (StartsWith(dalvik_cache_root, "/tmp/")) {
       int result = mkdir(dalvik_cache_root.c_str(), 0700);
-      if (result != 0 && errno != EEXIST) {
+      if (result != 0) {
         PLOG(FATAL) << "Failed to create dalvik-cache directory " << dalvik_cache_root;
         return "";
       }
-      result = mkdir(dalvik_cache.c_str(), 0700);
+    } else {
+      LOG(FATAL) << "Failed to find dalvik-cache directory " << dalvik_cache;
+      return "";
+    }
+  }
+
+  if (!OS::DirectoryExists(dalvik_cache.c_str())) {
+    if (create_if_absent) {
+      int result = mkdir(dalvik_cache.c_str(), 0700);
       if (result != 0) {
         PLOG(FATAL) << "Failed to create dalvik-cache directory " << dalvik_cache;
         return "";
