@@ -767,11 +767,18 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
     if (virtual_or_interface) {
       // Refine called method based on receiver.
       CHECK(receiver != nullptr) << invoke_type;
+
+      mirror::ArtMethod* orig_called = called;
       if (invoke_type == kVirtual) {
         called = receiver->GetClass()->FindVirtualMethodForVirtual(called);
       } else {
         called = receiver->GetClass()->FindVirtualMethodForInterface(called);
       }
+
+      CHECK(called != nullptr) << PrettyMethod(orig_called) << " "
+                               << PrettyTypeOf(receiver) << " "
+                               << invoke_type << " " << orig_called->GetVtableIndex();
+
       // We came here because of sharpening. Ensure the dex cache is up-to-date on the method index
       // of the sharpened method.
       if (called->GetDexCacheResolvedMethods() == caller->GetDexCacheResolvedMethods()) {
