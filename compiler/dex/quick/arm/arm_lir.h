@@ -93,29 +93,8 @@ namespace art {
  * +========================+
  */
 
-// Offset to distingish FP regs.
-#define ARM_FP_REG_OFFSET 32
-// Offset to distinguish DP FP regs.
-#define ARM_FP_DOUBLE 64
 // First FP callee save.
 #define ARM_FP_CALLEE_SAVE_BASE 16
-// Reg types.
-#define ARM_REGTYPE(x) (x & (ARM_FP_REG_OFFSET | ARM_FP_DOUBLE))
-#define ARM_FPREG(x) ((x & ARM_FP_REG_OFFSET) == ARM_FP_REG_OFFSET)
-#define ARM_LOWREG(x) ((x & 0x7) == x)
-#define ARM_DOUBLEREG(x) ((x & ARM_FP_DOUBLE) == ARM_FP_DOUBLE)
-#define ARM_SINGLEREG(x) (ARM_FPREG(x) && !ARM_DOUBLEREG(x))
-
-/*
- * Note: the low register of a floating point pair is sufficient to
- * create the name of a double, but require both names to be passed to
- * allow for asserts to verify that the pair is consecutive if significant
- * rework is done in this area.  Also, it is a good reminder in the calling
- * code that reg locations always describe doubles as a pair of singles.
- */
-#define ARM_S2D(x, y) ((x) | ARM_FP_DOUBLE)
-// Mask to strip off fp flags.
-#define ARM_FP_REG_MASK (ARM_FP_REG_OFFSET-1)
 
 enum ArmResourceEncodingPos {
   kArmGPReg0   = 0,
@@ -134,135 +113,197 @@ enum ArmResourceEncodingPos {
 #define ENCODE_ARM_REG_FPCS_LIST(N) (static_cast<uint64_t>(N) << kArmFPReg16)
 
 enum ArmNativeRegisterPool {
-  r0   = 0,
-  r1   = 1,
-  r2   = 2,
-  r3   = 3,
-  rARM_SUSPEND = 4,
-  r5   = 5,
-  r6   = 6,
-  r7   = 7,
-  r8   = 8,
-  rARM_SELF  = 9,
-  r10  = 10,
-  r11  = 11,
-  r12  = 12,
-  r13sp  = 13,
-  rARM_SP  = 13,
-  r14lr  = 14,
-  rARM_LR  = 14,
-  r15pc  = 15,
-  rARM_PC  = 15,
-  fr0  =  0 + ARM_FP_REG_OFFSET,
-  fr1  =  1 + ARM_FP_REG_OFFSET,
-  fr2  =  2 + ARM_FP_REG_OFFSET,
-  fr3  =  3 + ARM_FP_REG_OFFSET,
-  fr4  =  4 + ARM_FP_REG_OFFSET,
-  fr5  =  5 + ARM_FP_REG_OFFSET,
-  fr6  =  6 + ARM_FP_REG_OFFSET,
-  fr7  =  7 + ARM_FP_REG_OFFSET,
-  fr8  =  8 + ARM_FP_REG_OFFSET,
-  fr9  =  9 + ARM_FP_REG_OFFSET,
-  fr10 = 10 + ARM_FP_REG_OFFSET,
-  fr11 = 11 + ARM_FP_REG_OFFSET,
-  fr12 = 12 + ARM_FP_REG_OFFSET,
-  fr13 = 13 + ARM_FP_REG_OFFSET,
-  fr14 = 14 + ARM_FP_REG_OFFSET,
-  fr15 = 15 + ARM_FP_REG_OFFSET,
-  fr16 = 16 + ARM_FP_REG_OFFSET,
-  fr17 = 17 + ARM_FP_REG_OFFSET,
-  fr18 = 18 + ARM_FP_REG_OFFSET,
-  fr19 = 19 + ARM_FP_REG_OFFSET,
-  fr20 = 20 + ARM_FP_REG_OFFSET,
-  fr21 = 21 + ARM_FP_REG_OFFSET,
-  fr22 = 22 + ARM_FP_REG_OFFSET,
-  fr23 = 23 + ARM_FP_REG_OFFSET,
-  fr24 = 24 + ARM_FP_REG_OFFSET,
-  fr25 = 25 + ARM_FP_REG_OFFSET,
-  fr26 = 26 + ARM_FP_REG_OFFSET,
-  fr27 = 27 + ARM_FP_REG_OFFSET,
-  fr28 = 28 + ARM_FP_REG_OFFSET,
-  fr29 = 29 + ARM_FP_REG_OFFSET,
-  fr30 = 30 + ARM_FP_REG_OFFSET,
-  fr31 = 31 + ARM_FP_REG_OFFSET,
-  dr0 = fr0 + ARM_FP_DOUBLE,
-  dr1 = fr2 + ARM_FP_DOUBLE,
-  dr2 = fr4 + ARM_FP_DOUBLE,
-  dr3 = fr6 + ARM_FP_DOUBLE,
-  dr4 = fr8 + ARM_FP_DOUBLE,
-  dr5 = fr10 + ARM_FP_DOUBLE,
-  dr6 = fr12 + ARM_FP_DOUBLE,
-  dr7 = fr14 + ARM_FP_DOUBLE,
-  dr8 = fr16 + ARM_FP_DOUBLE,
-  dr9 = fr18 + ARM_FP_DOUBLE,
-  dr10 = fr20 + ARM_FP_DOUBLE,
-  dr11 = fr22 + ARM_FP_DOUBLE,
-  dr12 = fr24 + ARM_FP_DOUBLE,
-  dr13 = fr26 + ARM_FP_DOUBLE,
-  dr14 = fr28 + ARM_FP_DOUBLE,
-  dr15 = fr30 + ARM_FP_DOUBLE,
+  r0           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  0,
+  r1           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  1,
+  r2           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  2,
+  r3           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  3,
+  rARM_SUSPEND = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  4,
+  r5           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  5,
+  r6           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  6,
+  r7           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  7,
+  r8           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  8,
+  rARM_SELF    = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  9,
+  r10          = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 10,
+  r11          = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 11,
+  r12          = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 12,
+  r13sp        = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 13,
+  rARM_SP      = r13sp,
+  r14lr        = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 14,
+  rARM_LR      = r14lr,
+  r15pc        = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 15,
+  rARM_PC      = r15pc,
+
+  fr0          = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  0,
+  fr1          = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  1,
+  fr2          = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  2,
+  fr3          = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  3,
+  fr4          = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  4,
+  fr5          = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  5,
+  fr6          = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  6,
+  fr7          = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  7,
+  fr8          = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  8,
+  fr9          = RegStorage::k32BitSolo | RegStorage::kFloatingPoint |  9,
+  fr10         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 10,
+  fr11         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 11,
+  fr12         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 12,
+  fr13         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 13,
+  fr14         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 14,
+  fr15         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 15,
+  fr16         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 16,
+  fr17         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 17,
+  fr18         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 18,
+  fr19         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 19,
+  fr20         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 20,
+  fr21         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 21,
+  fr22         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 22,
+  fr23         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 23,
+  fr24         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 24,
+  fr25         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 25,
+  fr26         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 26,
+  fr27         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 27,
+  fr28         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 28,
+  fr29         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 29,
+  fr30         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 30,
+  fr31         = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 31,
+
+  dr0          = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  0,
+  dr1          = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  1,
+  dr2          = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  2,
+  dr3          = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  3,
+  dr4          = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  4,
+  dr5          = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  5,
+  dr6          = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  6,
+  dr7          = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  7,
+  dr8          = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  8,
+  dr9          = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  9,
+  dr10         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 10,
+  dr11         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 11,
+  dr12         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 12,
+  dr13         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 13,
+  dr14         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 14,
+  dr15         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 15,
+#if 0
+  // Enable when def/use and runtime able to handle these.
+  dr16         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 16,
+  dr17         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 17,
+  dr18         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 18,
+  dr19         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 19,
+  dr20         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 20,
+  dr21         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 21,
+  dr22         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 22,
+  dr23         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 23,
+  dr24         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 24,
+  dr25         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 25,
+  dr26         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 26,
+  dr27         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 27,
+  dr28         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 28,
+  dr29         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 29,
+  dr30         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 30,
+  dr31         = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 31,
+#endif
 };
 
-// TODO: clean this up; reduce use of or eliminate macros
+constexpr RegStorage rs_r0(RegStorage::kValid | r0);
+constexpr RegStorage rs_r1(RegStorage::kValid | r1);
+constexpr RegStorage rs_r2(RegStorage::kValid | r2);
+constexpr RegStorage rs_r3(RegStorage::kValid | r3);
+constexpr RegStorage rs_rARM_SUSPEND(RegStorage::kValid | rARM_SUSPEND);
+constexpr RegStorage rs_r5(RegStorage::kValid | r5);
+constexpr RegStorage rs_r6(RegStorage::kValid | r6);
+constexpr RegStorage rs_r7(RegStorage::kValid | r7);
+constexpr RegStorage rs_r8(RegStorage::kValid | r8);
+constexpr RegStorage rs_rARM_SELF(RegStorage::kValid | rARM_SELF);
+constexpr RegStorage rs_r10(RegStorage::kValid | r10);
+constexpr RegStorage rs_r11(RegStorage::kValid | r11);
+constexpr RegStorage rs_r12(RegStorage::kValid | r12);
+constexpr RegStorage rs_r13sp(RegStorage::kValid | r13sp);
+constexpr RegStorage rs_rARM_SP(RegStorage::kValid | rARM_SP);
+constexpr RegStorage rs_r14lr(RegStorage::kValid | r14lr);
+constexpr RegStorage rs_rARM_LR(RegStorage::kValid | rARM_LR);
+constexpr RegStorage rs_r15pc(RegStorage::kValid | r15pc);
+constexpr RegStorage rs_rARM_PC(RegStorage::kValid | rARM_PC);
+constexpr RegStorage rs_invalid(RegStorage::kInvalid);
 
-const RegStorage rs_r0(RegStorage::k32BitSolo, r0);
-const RegStorage rs_r1(RegStorage::k32BitSolo, r1);
-const RegStorage rs_r2(RegStorage::k32BitSolo, r2);
-const RegStorage rs_r3(RegStorage::k32BitSolo, r3);
-const RegStorage rs_rARM_SUSPEND(RegStorage::k32BitSolo, rARM_SUSPEND);
-const RegStorage rs_r5(RegStorage::k32BitSolo, r5);
-const RegStorage rs_r6(RegStorage::k32BitSolo, r6);
-const RegStorage rs_r7(RegStorage::k32BitSolo, r7);
-const RegStorage rs_r8(RegStorage::k32BitSolo, r8);
-const RegStorage rs_rARM_SELF(RegStorage::k32BitSolo, rARM_SELF);
-const RegStorage rs_r10(RegStorage::k32BitSolo, r10);
-const RegStorage rs_r11(RegStorage::k32BitSolo, r11);
-const RegStorage rs_r12(RegStorage::k32BitSolo, r12);
-const RegStorage rs_r13sp(RegStorage::k32BitSolo, r13sp);
-const RegStorage rs_rARM_SP(RegStorage::k32BitSolo, rARM_SP);
-const RegStorage rs_r14lr(RegStorage::k32BitSolo, r14lr);
-const RegStorage rs_rARM_LR(RegStorage::k32BitSolo, rARM_LR);
-const RegStorage rs_r15pc(RegStorage::k32BitSolo, r15pc);
-const RegStorage rs_rARM_PC(RegStorage::k32BitSolo, rARM_PC);
-const RegStorage rs_invalid(RegStorage::kInvalid);
+constexpr RegStorage rs_fr0(RegStorage::kValid | fr0);
+constexpr RegStorage rs_fr1(RegStorage::kValid | fr1);
+constexpr RegStorage rs_fr2(RegStorage::kValid | fr2);
+constexpr RegStorage rs_fr3(RegStorage::kValid | fr3);
+constexpr RegStorage rs_fr4(RegStorage::kValid | fr4);
+constexpr RegStorage rs_fr5(RegStorage::kValid | fr5);
+constexpr RegStorage rs_fr6(RegStorage::kValid | fr6);
+constexpr RegStorage rs_fr7(RegStorage::kValid | fr7);
+constexpr RegStorage rs_fr8(RegStorage::kValid | fr8);
+constexpr RegStorage rs_fr9(RegStorage::kValid | fr9);
+constexpr RegStorage rs_fr10(RegStorage::kValid | fr10);
+constexpr RegStorage rs_fr11(RegStorage::kValid | fr11);
+constexpr RegStorage rs_fr12(RegStorage::kValid | fr12);
+constexpr RegStorage rs_fr13(RegStorage::kValid | fr13);
+constexpr RegStorage rs_fr14(RegStorage::kValid | fr14);
+constexpr RegStorage rs_fr15(RegStorage::kValid | fr15);
+constexpr RegStorage rs_fr16(RegStorage::kValid | fr16);
+constexpr RegStorage rs_fr17(RegStorage::kValid | fr17);
+constexpr RegStorage rs_fr18(RegStorage::kValid | fr18);
+constexpr RegStorage rs_fr19(RegStorage::kValid | fr19);
+constexpr RegStorage rs_fr20(RegStorage::kValid | fr20);
+constexpr RegStorage rs_fr21(RegStorage::kValid | fr21);
+constexpr RegStorage rs_fr22(RegStorage::kValid | fr22);
+constexpr RegStorage rs_fr23(RegStorage::kValid | fr23);
+constexpr RegStorage rs_fr24(RegStorage::kValid | fr24);
+constexpr RegStorage rs_fr25(RegStorage::kValid | fr25);
+constexpr RegStorage rs_fr26(RegStorage::kValid | fr26);
+constexpr RegStorage rs_fr27(RegStorage::kValid | fr27);
+constexpr RegStorage rs_fr28(RegStorage::kValid | fr28);
+constexpr RegStorage rs_fr29(RegStorage::kValid | fr29);
+constexpr RegStorage rs_fr30(RegStorage::kValid | fr30);
+constexpr RegStorage rs_fr31(RegStorage::kValid | fr31);
 
-// Target-independent aliases.
-#define rARM_ARG0 r0
-#define rs_rARM_ARG0 rs_r0
-#define rARM_ARG1 r1
-#define rs_rARM_ARG1 rs_r1
-#define rARM_ARG2 r2
-#define rs_rARM_ARG2 rs_r2
-#define rARM_ARG3 r3
-#define rs_rARM_ARG3 rs_r3
-#define rARM_FARG0 r0
-#define rs_ARM_FARG0 rs_r0
-#define rARM_FARG1 r1
-#define rs_rARM_FARG1 rs_r1
-#define rARM_FARG2 r2
-#define rs_rARM_FARG2 rs_r2
-#define rARM_FARG3 r3
-#define rs_rARM_FARG3 rs_r3
-#define rARM_RET0 r0
-#define rs_rARM_RET0 rs_r0
-#define rARM_RET1 r1
-#define rs_rARM_RET1 rs_r1
-#define rARM_INVOKE_TGT rARM_LR
-#define rs_rARM_INVOKE_TGT rs_rARM_LR
-#define rARM_COUNT RegStorage::kInvalidRegVal
+constexpr RegStorage rs_dr0(RegStorage::kValid | dr0);
+constexpr RegStorage rs_dr1(RegStorage::kValid | dr1);
+constexpr RegStorage rs_dr2(RegStorage::kValid | dr2);
+constexpr RegStorage rs_dr3(RegStorage::kValid | dr3);
+constexpr RegStorage rs_dr4(RegStorage::kValid | dr4);
+constexpr RegStorage rs_dr5(RegStorage::kValid | dr5);
+constexpr RegStorage rs_dr6(RegStorage::kValid | dr6);
+constexpr RegStorage rs_dr7(RegStorage::kValid | dr7);
+constexpr RegStorage rs_dr8(RegStorage::kValid | dr8);
+constexpr RegStorage rs_dr9(RegStorage::kValid | dr9);
+constexpr RegStorage rs_dr10(RegStorage::kValid | dr10);
+constexpr RegStorage rs_dr11(RegStorage::kValid | dr11);
+constexpr RegStorage rs_dr12(RegStorage::kValid | dr12);
+constexpr RegStorage rs_dr13(RegStorage::kValid | dr13);
+constexpr RegStorage rs_dr14(RegStorage::kValid | dr14);
+constexpr RegStorage rs_dr15(RegStorage::kValid | dr15);
+#if 0
+constexpr RegStorage rs_dr16(RegStorage::kValid | dr16);
+constexpr RegStorage rs_dr17(RegStorage::kValid | dr17);
+constexpr RegStorage rs_dr18(RegStorage::kValid | dr18);
+constexpr RegStorage rs_dr19(RegStorage::kValid | dr19);
+constexpr RegStorage rs_dr20(RegStorage::kValid | dr20);
+constexpr RegStorage rs_dr21(RegStorage::kValid | dr21);
+constexpr RegStorage rs_dr22(RegStorage::kValid | dr22);
+constexpr RegStorage rs_dr23(RegStorage::kValid | dr23);
+constexpr RegStorage rs_dr24(RegStorage::kValid | dr24);
+constexpr RegStorage rs_dr25(RegStorage::kValid | dr25);
+constexpr RegStorage rs_dr26(RegStorage::kValid | dr26);
+constexpr RegStorage rs_dr27(RegStorage::kValid | dr27);
+constexpr RegStorage rs_dr28(RegStorage::kValid | dr28);
+constexpr RegStorage rs_dr29(RegStorage::kValid | dr29);
+constexpr RegStorage rs_dr30(RegStorage::kValid | dr30);
+constexpr RegStorage rs_dr31(RegStorage::kValid | dr31);
+#endif
 
 // RegisterLocation templates return values (r0, or r0/r1).
 const RegLocation arm_loc_c_return
-    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1,
      RegStorage(RegStorage::k32BitSolo, r0), INVALID_SREG, INVALID_SREG};
 const RegLocation arm_loc_c_return_wide
-    {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+    {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1,
      RegStorage(RegStorage::k64BitPair, r0, r1), INVALID_SREG, INVALID_SREG};
 const RegLocation arm_loc_c_return_float
-    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1,
      RegStorage(RegStorage::k32BitSolo, r0), INVALID_SREG, INVALID_SREG};
 const RegLocation arm_loc_c_return_double
-    {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+    {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1,
      RegStorage(RegStorage::k64BitPair, r0, r1), INVALID_SREG, INVALID_SREG};
 
 enum ArmShiftEncodings {

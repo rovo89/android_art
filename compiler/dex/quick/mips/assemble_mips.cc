@@ -672,16 +672,17 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(CodeOffset start_addr) {
           bits |= (value << encoder->field_loc[i].end);
           break;
         case kFmtDfp: {
-          DCHECK(MIPS_DOUBLEREG(operand));
+          // TODO: do we need to adjust now that we're using 64BitSolo?
+          DCHECK(RegStorage::IsDouble(operand)) << ", Operand = 0x" << std::hex << operand;
           DCHECK_EQ((operand & 0x1), 0U);
-          value = ((operand & MIPS_FP_REG_MASK) << encoder->field_loc[i].start) &
+          value = (RegStorage::RegNum(operand) << encoder->field_loc[i].start) &
               ((1 << (encoder->field_loc[i].end + 1)) - 1);
           bits |= value;
           break;
         }
         case kFmtSfp:
-          DCHECK(MIPS_SINGLEREG(operand));
-          value = ((operand & MIPS_FP_REG_MASK) << encoder->field_loc[i].start) &
+          DCHECK(RegStorage::IsSingle(operand)) << ", Operand = 0x" << std::hex << operand;
+          value = (RegStorage::RegNum(operand) << encoder->field_loc[i].start) &
               ((1 << (encoder->field_loc[i].end + 1)) - 1);
           bits |= value;
           break;

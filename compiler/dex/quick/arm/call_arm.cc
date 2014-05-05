@@ -54,8 +54,7 @@ void ArmMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   uint32_t size = table[1];
-  tab_rec->targets = static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*),
-                                                     kArenaAllocLIR));
+  tab_rec->targets = static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*), kArenaAllocLIR));
   switch_tables_.Insert(tab_rec);
 
   // Get the switch value
@@ -78,7 +77,7 @@ void ArmMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
   // Establish loop branch target
   LIR* target = NewLIR0(kPseudoTargetLabel);
   // Load next key/disp
-  NewLIR2(kThumb2LdmiaWB, r_base.GetReg(), (1 << r_key.GetReg()) | (1 << r_disp.GetReg()));
+  NewLIR2(kThumb2LdmiaWB, r_base.GetReg(), (1 << r_key.GetRegNum()) | (1 << r_disp.GetRegNum()));
   OpRegReg(kOpCmp, r_key, rl_src.reg);
   // Go if match. NOTE: No instruction set switch here - must stay Thumb2
   LIR* it = OpIT(kCondEq, "");
@@ -168,7 +167,7 @@ void ArmMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
   LoadWordDisp(rs_rARM_SELF, QUICK_ENTRYPOINT_OFFSET(4, pHandleFillArrayData).Int32Value(),
                rs_rARM_LR);
   // Materialize a pointer to the fill data image
-  NewLIR3(kThumb2Adr, r1, 0, WrapPointer(tab_rec));
+  NewLIR3(kThumb2Adr, rs_r1.GetReg(), 0, WrapPointer(tab_rec));
   ClobberCallerSave();
   LIR* call_inst = OpReg(kOpBlx, rs_rARM_LR);
   MarkSafepointPC(call_inst);
@@ -195,10 +194,12 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
       }
     }
     Load32Disp(rs_rARM_SELF, Thread::ThinLockIdOffset<4>().Int32Value(), rs_r2);
-    NewLIR3(kThumb2Ldrex, r1, r0, mirror::Object::MonitorOffset().Int32Value() >> 2);
+    NewLIR3(kThumb2Ldrex, rs_r1.GetReg(), rs_r0.GetReg(),
+        mirror::Object::MonitorOffset().Int32Value() >> 2);
     MarkPossibleNullPointerException(opt_flags);
     LIR* not_unlocked_branch = OpCmpImmBranch(kCondNe, rs_r1, 0, NULL);
-    NewLIR4(kThumb2Strex, r1, r2, r0, mirror::Object::MonitorOffset().Int32Value() >> 2);
+    NewLIR4(kThumb2Strex, rs_r1.GetReg(), rs_r2.GetReg(), rs_r0.GetReg(),
+        mirror::Object::MonitorOffset().Int32Value() >> 2);
     LIR* lock_success_branch = OpCmpImmBranch(kCondEq, rs_r1, 0, NULL);
 
 
@@ -221,16 +222,19 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
     // Explicit null-check as slow-path is entered using an IT.
     GenNullCheck(rs_r0, opt_flags);
     Load32Disp(rs_rARM_SELF, Thread::ThinLockIdOffset<4>().Int32Value(), rs_r2);
-    NewLIR3(kThumb2Ldrex, r1, r0, mirror::Object::MonitorOffset().Int32Value() >> 2);
+    NewLIR3(kThumb2Ldrex, rs_r1.GetReg(), rs_r0.GetReg(),
+        mirror::Object::MonitorOffset().Int32Value() >> 2);
     MarkPossibleNullPointerException(opt_flags);
     OpRegImm(kOpCmp, rs_r1, 0);
     LIR* it = OpIT(kCondEq, "");
-    NewLIR4(kThumb2Strex/*eq*/, r1, r2, r0, mirror::Object::MonitorOffset().Int32Value() >> 2);
+    NewLIR4(kThumb2Strex/*eq*/, rs_r1.GetReg(), rs_r2.GetReg(), rs_r0.GetReg(),
+        mirror::Object::MonitorOffset().Int32Value() >> 2);
     OpEndIT(it);
     OpRegImm(kOpCmp, rs_r1, 0);
     it = OpIT(kCondNe, "T");
     // Go expensive route - artLockObjectFromCode(self, obj);
-    LoadWordDisp/*ne*/(rs_rARM_SELF, QUICK_ENTRYPOINT_OFFSET(4, pLockObject).Int32Value(), rs_rARM_LR);
+    LoadWordDisp/*ne*/(rs_rARM_SELF, QUICK_ENTRYPOINT_OFFSET(4, pLockObject).Int32Value(),
+                       rs_rARM_LR);
     ClobberCallerSave();
     LIR* call_inst = OpReg(kOpBlx/*ne*/, rs_rARM_LR);
     OpEndIT(it);
@@ -339,10 +343,10 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
    * expanding the frame or flushing.  This leaves the utility
    * code with a single temp: r12.  This should be enough.
    */
-  LockTemp(r0);
-  LockTemp(r1);
-  LockTemp(r2);
-  LockTemp(r3);
+  LockTemp(rs_r0);
+  LockTemp(rs_r1);
+  LockTemp(rs_r2);
+  LockTemp(rs_r3);
 
   /*
    * We can safely skip the stack overflow check if we're
@@ -433,10 +437,10 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
 
   FlushIns(ArgLocs, rl_method);
 
-  FreeTemp(r0);
-  FreeTemp(r1);
-  FreeTemp(r2);
-  FreeTemp(r3);
+  FreeTemp(rs_r0);
+  FreeTemp(rs_r1);
+  FreeTemp(rs_r2);
+  FreeTemp(rs_r3);
 }
 
 void ArmMir2Lir::GenExitSequence() {
@@ -445,8 +449,8 @@ void ArmMir2Lir::GenExitSequence() {
    * In the exit path, r0/r1 are live - make sure they aren't
    * allocated by the register utilities as temps.
    */
-  LockTemp(r0);
-  LockTemp(r1);
+  LockTemp(rs_r0);
+  LockTemp(rs_r1);
 
   NewLIR0(kPseudoMethodExit);
   OpRegImm(kOpAdd, rs_rARM_SP, frame_size_ - (spill_count * 4));
@@ -454,20 +458,20 @@ void ArmMir2Lir::GenExitSequence() {
   if (num_fp_spills_) {
     NewLIR1(kThumb2VPopCS, num_fp_spills_);
   }
-  if (core_spill_mask_ & (1 << rARM_LR)) {
+  if (core_spill_mask_ & (1 << rs_rARM_LR.GetRegNum())) {
     /* Unspill rARM_LR to rARM_PC */
-    core_spill_mask_ &= ~(1 << rARM_LR);
-    core_spill_mask_ |= (1 << rARM_PC);
+    core_spill_mask_ &= ~(1 << rs_rARM_LR.GetRegNum());
+    core_spill_mask_ |= (1 << rs_rARM_PC.GetRegNum());
   }
   NewLIR1(kThumb2Pop, core_spill_mask_);
-  if (!(core_spill_mask_ & (1 << rARM_PC))) {
+  if (!(core_spill_mask_ & (1 << rs_rARM_PC.GetRegNum()))) {
     /* We didn't pop to rARM_PC, so must do a bv rARM_LR */
-    NewLIR1(kThumbBx, rARM_LR);
+    NewLIR1(kThumbBx, rs_rARM_LR.GetReg());
   }
 }
 
 void ArmMir2Lir::GenSpecialExitSequence() {
-  NewLIR1(kThumbBx, rARM_LR);
+  NewLIR1(kThumbBx, rs_rARM_LR.GetReg());
 }
 
 }  // namespace art
