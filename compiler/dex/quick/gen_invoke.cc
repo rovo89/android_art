@@ -22,11 +22,15 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "invoke_type.h"
 #include "mirror/array.h"
+#include "mirror/object_array-inl.h"
 #include "mirror/string.h"
 #include "mir_to_lir-inl.h"
 #include "x86/codegen_x86.h"
 
 namespace art {
+
+// Shortcuts to repeatedly used long types.
+typedef mirror::ObjectArray<mirror::Object> ObjArray;
 
 /*
  * This source files contains "gen" codegen routines that should
@@ -494,8 +498,8 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
     case 2:  // Grab target method*
       CHECK_EQ(cu->dex_file, target_method.dex_file);
       cg->LoadRefDisp(cg->TargetReg(kArg0),
-                      mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
-                      (target_method.dex_method_index * 4), cg->TargetReg(kArg0));
+                      ObjArray::OffsetOfElement(target_method.dex_method_index).Int32Value(),
+                      cg->TargetReg(kArg0));
       break;
     case 3:  // Grab the code from the method*
       if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
@@ -548,8 +552,8 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
                       cg->TargetReg(kInvokeTgt));
       break;
     case 3:  // Get target method [use kInvokeTgt, set kArg0]
-      cg->LoadRefDisp(cg->TargetReg(kInvokeTgt), (method_idx * 4) +
-                      mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value(),
+      cg->LoadRefDisp(cg->TargetReg(kInvokeTgt),
+                      ObjArray::OffsetOfElement(method_idx).Int32Value(),
                       cg->TargetReg(kArg0));
       break;
     case 4:  // Get the compiled code address [uses kArg0, sets kInvokeTgt]
@@ -605,8 +609,8 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
       break;
     case 4:  // Get target method [use kInvokeTgt, set kArg0]
       // NOTE: native pointer.
-      cg->LoadWordDisp(cg->TargetReg(kInvokeTgt), ((method_idx % ClassLinker::kImtSize) * 4) +
-                       mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value(),
+      cg->LoadRefDisp(cg->TargetReg(kInvokeTgt),
+                       ObjArray::OffsetOfElement(method_idx % ClassLinker::kImtSize).Int32Value(),
                        cg->TargetReg(kArg0));
       break;
     case 5:  // Get the compiled code address [use kArg0, set kInvokeTgt]
