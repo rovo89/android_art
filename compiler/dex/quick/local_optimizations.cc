@@ -163,7 +163,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
           DCHECK(!(check_flags & IS_STORE));
           /* Same value && same register type */
           if (check_lir->flags.alias_info == this_lir->flags.alias_info &&
-              SameRegType(check_lir->operands[0], native_reg_id)) {
+              RegStorage::SameRegType(check_lir->operands[0], native_reg_id)) {
             /*
              * Different destination register - insert
              * a move
@@ -179,7 +179,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
           /* Must alias */
           if (check_lir->flags.alias_info == this_lir->flags.alias_info) {
             /* Only optimize compatible registers */
-            bool reg_compatible = SameRegType(check_lir->operands[0], native_reg_id);
+            bool reg_compatible = RegStorage::SameRegType(check_lir->operands[0], native_reg_id);
             if ((is_this_lir_load && is_check_lir_load) ||
                 (!is_this_lir_load && is_check_lir_load)) {
               /* RAR or RAW */

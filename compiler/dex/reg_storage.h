@@ -21,77 +21,105 @@
 namespace art {
 
 /*
- * Representation of the physical register, register pair or vector holding a Dalvik value.
- * The basic configuration of the storage (i.e. solo reg, pair, vector) is common across all
- * targets, but the encoding of the actual storage element is target independent.
+ * 16-bit representation of the physical register container holding a Dalvik value.
+ * The encoding allows up to 32 physical elements per storage class, and supports eight
+ * register container shapes.
  *
- * The two most-significant bits describe the basic shape of the storage, while meaning of the
- * lower 14 bits depends on the shape:
+ * [V] [D] [HHHHH] [SSS] [F] [LLLLL]
  *
- *  [PW]
- *       P: 0 -> pair, 1 -> solo (or vector)
- *       W: 1 -> 64 bits, 0 -> 32 bits
+ * [LLLLL]
+ *  Physical register number for the low or solo register.
+ *    0..31
  *
- *  [00] [xxxxxxxxxxxxxx]     Invalid (typically all zeros)
- *  [01] [HHHHHHH] [LLLLLLL]  64-bit storage, composed of 2 32-bit registers
- *  [10] [0] [xxxxxx] [RRRRRRR]  32-bit solo register
- *  [11] [0] [xxxxxx] [RRRRRRR]  64-bit solo register
- *  [10] [1] [xxxxxx] [VVVVVVV]  32-bit vector storage
- *  [11] [1] [xxxxxx] [VVVVVVV]  64-bit vector storage
+ * [F]
+ *  Describes type of the [LLLLL] register.
+ *    0: Core
+ *    1: Floating point
  *
- * x - don't care
- * L - low register number of a pair
- * H - high register number of a pair
- * R - register number of a solo reg
- * V - vector description
+ * [SSS]
+ *  Shape of the register container.
+ *    000: Invalid
+ *    001: 32-bit solo register
+ *    010: 64-bit solo register
+ *    011: 64-bit pair consisting of two 32-bit solo registers
+ *    100: 128-bit solo register
+ *    101: 256-bit solo register
+ *    110: 512-bit solo register
+ *    111: 1024-bit solo register
  *
- * Note that in all non-invalid cases, the low 7 bits must be sufficient to describe
- * whether the storage element is floating point (see IsFloatReg()).
+ * [HHHHH]
+ *  Physical register number of the high register (valid only for register pair).
+ *    0..31
  *
+ * [D]
+ *  Describes type of the [HHHHH] register (valid only for register pair).
+ *    0: Core
+ *    1: Floating point
+ *
+ * [V]
+ *    0 -> Invalid
+ *    1 -> Valid
+ *
+ * Note that in all non-invalid cases, we can determine if the storage is floating point
+ * by testing bit 6.  Though a mismatch appears to be permitted by the format, the [F][D] values
+ * from each half of a pair must match (this allows the high and low regs of a pair to be more
+ * easily individually manipulated).
+ *
+ * On some target architectures, the same underlying physical register container can be given
+ * different views.  For example, Arm's 32-bit single-precision floating point registers
+ * s2 and s3 map to the low and high halves of double-precision d1.  Similarly, X86's xmm3
+ * vector register can be viewed as 32-bit, 64-bit, 128-bit, etc.  In these cases the use of
+ * one view will affect the other views.  The RegStorage class does not concern itself
+ * with potential aliasing.  That will be done using the associated RegisterInfo struct.
+ * Distinct RegStorage elements should be created for each view of a physical register
+ * container.  The management of the aliased physical elements will be handled via RegisterInfo
+ * records.
  */
 
 class RegStorage {
  public:
   enum RegStorageKind {
-    kInvalid     = 0x0000,
-    k64BitPair   = 0x4000,
-    k32BitSolo   = 0x8000,
-    k64BitSolo   = 0xc000,
-    k32BitVector = 0xa000,
-    k64BitVector = 0xe000,
-    kPairMask    = 0x8000,
-    kPair        = 0x0000,
-    kSizeMask    = 0x4000,
-    k64Bit       = 0x4000,
-    k32Bit       = 0x0000,
-    kVectorMask  = 0xa000,
-    kVector      = 0xa000,
-    kSolo        = 0x8000,
-    kShapeMask   = 0xc000,
-    kKindMask    = 0xe000
+    kValidMask     = 0x8000,
+    kValid         = 0x8000,
+    kInvalid       = 0x0000,
+    kShapeMask     = 0x01c0,
+    k32BitSolo     = 0x0040,
+    k64BitSolo     = 0x0080,
+    k64BitPair     = 0x00c0,
+    k128BitSolo    = 0x0100,
+    k256BitSolo    = 0x0140,
+    k512BitSolo    = 0x0180,
+    k1024BitSolo   = 0x01c0,
+    k64BitMask     = 0x0180,
+    k64Bits        = 0x0080,
+    kShapeTypeMask = 0x01e0,
+    kFloatingPoint = 0x0020,
+    kCoreRegister  = 0x0000,
   };
 
-  static const uint16_t kRegValMask = 0x007f;
-  static const uint16_t kInvalidRegVal = 0x007f;
-  static const uint16_t kHighRegShift = 7;
-  static const uint16_t kHighRegMask = kRegValMask << kHighRegShift;
+  static const uint16_t kRegValMask  = 0x01ff;  // Num, type and shape.
+  static const uint16_t kRegTypeMask = 0x003f;  // Num and type.
+  static const uint16_t kRegNumMask  = 0x001f;  // Num only.
+  static const uint16_t kMaxRegs     = kRegValMask + 1;
+  // TODO: deprecate use of kInvalidRegVal and speed up GetReg().
+  static const uint16_t kInvalidRegVal = 0x01ff;
+  static const uint16_t kHighRegShift = 9;
+  static const uint16_t kShapeMaskShift = 6;
+  static const uint16_t kHighRegMask = (kRegTypeMask << kHighRegShift);
 
+  // Reg is [F][LLLLL], will override any existing shape and use rs_kind.
   RegStorage(RegStorageKind rs_kind, int reg) {
-    DCHECK_NE(rs_kind & kShapeMask, kInvalid);
-    DCHECK_NE(rs_kind & kShapeMask, k64BitPair);
-    DCHECK_EQ(rs_kind & ~kKindMask, 0);
-    DCHECK_EQ(reg & ~kRegValMask, 0);
-    reg_ = rs_kind | reg;
+    DCHECK_NE(rs_kind, k64BitPair);
+    DCHECK_EQ(rs_kind & ~kShapeMask, 0);
+    reg_ = kValid | rs_kind | (reg & kRegTypeMask);
   }
   RegStorage(RegStorageKind rs_kind, int low_reg, int high_reg) {
     DCHECK_EQ(rs_kind, k64BitPair);
-    DCHECK_EQ(low_reg & ~kRegValMask, 0);
-    DCHECK_EQ(high_reg & ~kRegValMask, 0);
-    reg_ = rs_kind | (high_reg << kHighRegShift) | low_reg;
+    DCHECK_EQ(low_reg & kFloatingPoint, high_reg & kFloatingPoint);
+    reg_ = kValid | rs_kind | ((high_reg & kRegTypeMask) << kHighRegShift) | (low_reg & kRegTypeMask);
   }
-  explicit RegStorage(uint16_t val) : reg_(val) {}
+  constexpr explicit RegStorage(uint16_t val) : reg_(val) {}
   RegStorage() : reg_(kInvalid) {}
-  ~RegStorage() {}
 
   bool operator==(const RegStorage rhs) const {
     return (reg_ == rhs.GetRawBits());
@@ -102,73 +130,127 @@ class RegStorage {
   }
 
   bool Valid() const {
-    return ((reg_ & kShapeMask) != kInvalid);
+    return ((reg_ & kValidMask) == kValid);
   }
 
   bool Is32Bit() const {
-    return ((reg_ & kSizeMask) == k32Bit);
+    return ((reg_ & kShapeMask) == k32BitSolo);
   }
 
   bool Is64Bit() const {
-    return ((reg_ & kSizeMask) == k64Bit);
+    return ((reg_ & k64BitMask) == k64Bits);
   }
 
   bool IsPair() const {
-    return ((reg_ & kPairMask) == kPair);
+    return ((reg_ & kShapeMask) == k64BitPair);
   }
 
-  bool IsSolo() const {
-    return ((reg_ & kVectorMask) == kSolo);
+  bool IsFloat() const {
+    DCHECK(Valid());
+    return ((reg_ & kFloatingPoint) == kFloatingPoint);
   }
 
-  bool IsVector() const {
-    return ((reg_ & kVectorMask) == kVector);
+  bool IsDouble() const {
+    DCHECK(Valid());
+    return (reg_ & (kFloatingPoint | k64BitMask)) == (kFloatingPoint | k64Bits);
+  }
+
+  bool IsSingle() const {
+    DCHECK(Valid());
+    return (reg_ & (kFloatingPoint | k64BitMask)) == kFloatingPoint;
+  }
+
+  static bool IsFloat(uint16_t reg) {
+    return ((reg & kFloatingPoint) == kFloatingPoint);
+  }
+
+  static bool IsDouble(uint16_t reg) {
+    return (reg & (kFloatingPoint | k64BitMask)) == (kFloatingPoint | k64Bits);
+  }
+
+  static bool IsSingle(uint16_t reg) {
+    return (reg & (kFloatingPoint | k64BitMask)) == kFloatingPoint;
   }
 
   // Used to retrieve either the low register of a pair, or the only register.
   int GetReg() const {
-    DCHECK(!IsPair());
+    DCHECK(!IsPair()) << "reg_ = 0x" << std::hex << reg_;
     return Valid() ? (reg_ & kRegValMask) : kInvalidRegVal;
   }
 
+  // Sets shape, type and num of solo.
   void SetReg(int reg) {
     DCHECK(Valid());
+    DCHECK(!IsPair());
     reg_ = (reg_ & ~kRegValMask) | reg;
   }
 
+  // Set the reg number and type only, target remain 64-bit pair.
   void SetLowReg(int reg) {
     DCHECK(IsPair());
-    reg_ = (reg_ & ~kRegValMask) | reg;
+    reg_ = (reg_ & ~kRegTypeMask) | (reg & kRegTypeMask);
   }
 
-  // Retrieve the least significant register of a pair.
+  // Retrieve the least significant register of a pair and return as 32-bit solo.
   int GetLowReg() const {
     DCHECK(IsPair());
-    return (reg_ & kRegValMask);
+    return ((reg_ & kRegTypeMask) | k32BitSolo);
   }
 
   // Create a stand-alone RegStorage from the low reg of a pair.
   RegStorage GetLow() const {
     DCHECK(IsPair());
-    return RegStorage(k32BitSolo, reg_ & kRegValMask);
+    return RegStorage(k32BitSolo, reg_ & kRegTypeMask);
   }
 
   // Retrieve the most significant register of a pair.
   int GetHighReg() const {
     DCHECK(IsPair());
-    return (reg_ & kHighRegMask) >> kHighRegShift;
+    return k32BitSolo | ((reg_ & kHighRegMask) >> kHighRegShift);
   }
 
   // Create a stand-alone RegStorage from the high reg of a pair.
   RegStorage GetHigh() const {
     DCHECK(IsPair());
-    return RegStorage(k32BitSolo, (reg_ & kHighRegMask) >> kHighRegShift);
+    return RegStorage(kValid | GetHighReg());
   }
 
   void SetHighReg(int reg) {
     DCHECK(IsPair());
-    reg_ = (reg_ & ~kHighRegMask) | (reg << kHighRegShift);
-    DCHECK_EQ(GetHighReg(), reg);
+    reg_ = (reg_ & ~kHighRegMask) | ((reg & kRegTypeMask) << kHighRegShift);
+  }
+
+  // Return the register number of low or solo.
+  int GetRegNum() const {
+    return reg_ & kRegNumMask;
+  }
+
+  // Aliased double to low single.
+  RegStorage DoubleToLowSingle() const {
+    DCHECK(IsDouble());
+    return FloatSolo32(GetRegNum() << 1);
+  }
+
+  // Aliased double to high single.
+  RegStorage DoubleToHighSingle() const {
+    DCHECK(IsDouble());
+    return FloatSolo32((GetRegNum() << 1) + 1);
+  }
+
+  // Single to aliased double.
+  RegStorage SingleToDouble() const {
+    DCHECK(IsSingle());
+    return FloatSolo64(GetRegNum() >> 1);
+  }
+
+  // Is register number in 0..7?
+  bool Low8() const {
+    return GetRegNum() < 8;
+  }
+
+  // Is register number in 0..3?
+  bool Low4() const {
+    return GetRegNum() < 4;
   }
 
   // Combine 2 32-bit solo regs into a pair.
@@ -180,22 +262,59 @@ class RegStorage {
     return RegStorage(k64BitPair, low.GetReg(), high.GetReg());
   }
 
+  static bool SameRegType(RegStorage reg1, RegStorage reg2) {
+    return (reg1.IsDouble() == reg2.IsDouble()) && (reg1.IsSingle() == reg2.IsSingle());
+  }
+
+  static bool SameRegType(int reg1, int reg2) {
+    return (IsDouble(reg1) == IsDouble(reg2)) && (IsSingle(reg1) == IsSingle(reg2));
+  }
+
   // Create a 32-bit solo.
   static RegStorage Solo32(int reg_num) {
-    return RegStorage(k32BitSolo, reg_num);
+    return RegStorage(k32BitSolo, reg_num & kRegTypeMask);
+  }
+
+  // Create a floating point 32-bit solo.
+  static RegStorage FloatSolo32(int reg_num) {
+    return RegStorage(k32BitSolo, (reg_num & kRegNumMask) | kFloatingPoint);
   }
 
   // Create a 64-bit solo.
   static RegStorage Solo64(int reg_num) {
-    return RegStorage(k64BitSolo, reg_num);
+    return RegStorage(k64BitSolo, reg_num & kRegTypeMask);
+  }
+
+  // Create a floating point 64-bit solo.
+  static RegStorage FloatSolo64(int reg_num) {
+    return RegStorage(k64BitSolo, (reg_num & kRegNumMask) | kFloatingPoint);
   }
 
   static RegStorage InvalidReg() {
     return RegStorage(kInvalid);
   }
 
+  static uint16_t RegNum(int raw_reg_bits) {
+    return raw_reg_bits & kRegNumMask;
+  }
+
   int GetRawBits() const {
     return reg_;
+  }
+
+  size_t StorageSize() {
+    switch (reg_ & kShapeMask) {
+      case kInvalid: return 0;
+      case k32BitSolo: return 4;
+      case k64BitSolo: return 8;
+      case k64BitPair: return 8;  // Is this useful?  Might want to disallow taking size of pair.
+      case k128BitSolo: return 16;
+      case k256BitSolo: return 32;
+      case k512BitSolo: return 64;
+      case k1024BitSolo: return 128;
+      default: LOG(FATAL) << "Unexpected shap";
+    }
+    return 0;
   }
 
  private:

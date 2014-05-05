@@ -254,7 +254,7 @@ void Mir2Lir::DumpPromotionMap() {
     PromotionMap v_reg_map = promotion_map_[i];
     std::string buf;
     if (v_reg_map.fp_location == kLocPhysReg) {
-      StringAppendF(&buf, " : s%d", v_reg_map.FpReg & FpRegMask());
+      StringAppendF(&buf, " : s%d", RegStorage::RegNum(v_reg_map.FpReg));
     }
 
     std::string buf3;
@@ -942,7 +942,7 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       switch_tables_(arena, 4, kGrowableArraySwitchTables),
       fill_array_data_(arena, 4, kGrowableArrayFillArrayData),
       tempreg_info_(arena, 20, kGrowableArrayMisc),
-      reginfo_map_(arena, 64, kGrowableArrayMisc),
+      reginfo_map_(arena, RegStorage::kMaxRegs, kGrowableArrayMisc),
       pointer_storage_(arena, 128, kGrowableArrayMisc),
       data_offset_(0),
       total_size_(0),
@@ -1185,8 +1185,19 @@ std::vector<uint8_t>* Mir2Lir::ReturnCallFrameInformation() {
 
 RegLocation Mir2Lir::NarrowRegLoc(RegLocation loc) {
   loc.wide = false;
-  if (loc.reg.IsPair()) {
-    loc.reg = loc.reg.GetLow();
+  if (loc.location == kLocPhysReg) {
+    if (loc.reg.IsPair()) {
+      loc.reg = loc.reg.GetLow();
+    } else {
+      // FIXME: temp workaround.
+      // Issue here: how do we narrow to a 32-bit value in 64-bit container?
+      // Probably the wrong thing to narrow the RegStorage container here.  That
+      // should be a target decision.  At the RegLocation level, we're only
+      // modifying the view of the Dalvik value - this is orthogonal to the storage
+      // container size.  Consider this a temp workaround.
+      DCHECK(loc.reg.IsDouble());
+      loc.reg = loc.reg.DoubleToLowSingle();
+    }
   }
   return loc;
 }

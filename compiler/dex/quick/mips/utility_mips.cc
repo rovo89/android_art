@@ -24,12 +24,12 @@ namespace art {
 LIR* MipsMir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
   int opcode;
   /* must be both DOUBLE or both not DOUBLE */
-  DCHECK_EQ(MIPS_DOUBLEREG(r_dest.GetReg()), MIPS_DOUBLEREG(r_src.GetReg()));
-  if (MIPS_DOUBLEREG(r_dest.GetReg())) {
+  DCHECK_EQ(r_dest.IsDouble(), r_src.IsDouble());
+  if (r_dest.IsDouble()) {
     opcode = kMipsFmovd;
   } else {
-    if (MIPS_SINGLEREG(r_dest.GetReg())) {
-      if (MIPS_SINGLEREG(r_src.GetReg())) {
+    if (r_dest.IsSingle()) {
+      if (r_src.IsSingle()) {
         opcode = kMipsFmovs;
       } else {
         /* note the operands are swapped for the mtc1 instr */
@@ -39,7 +39,7 @@ LIR* MipsMir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
         opcode = kMipsMtc1;
       }
     } else {
-      DCHECK(MIPS_SINGLEREG(r_src.GetReg()));
+      DCHECK(r_src.IsSingle());
       opcode = kMipsMfc1;
     }
   }
@@ -79,9 +79,9 @@ LIR* MipsMir2Lir::LoadConstantNoClobber(RegStorage r_dest, int value) {
   LIR *res;
 
   RegStorage r_dest_save = r_dest;
-  int is_fp_reg = MIPS_FPREG(r_dest.GetReg());
+  int is_fp_reg = r_dest.IsFloat();
   if (is_fp_reg) {
-    DCHECK(MIPS_SINGLEREG(r_dest.GetReg()));
+    DCHECK(r_dest.IsSingle());
     r_dest = AllocTemp();
   }
 
@@ -355,8 +355,8 @@ LIR* MipsMir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStor
   MipsOpCode opcode = kMipsNop;
   RegStorage t_reg = AllocTemp();
 
-  if (MIPS_FPREG(r_dest.GetReg())) {
-    DCHECK(MIPS_SINGLEREG(r_dest.GetReg()));
+  if (r_dest.IsFloat()) {
+    DCHECK(r_dest.IsSingle());
     DCHECK((size == k32) || (size == kSingle) || (size == kReference));
     size = kSingle;
   } else {
@@ -407,8 +407,8 @@ LIR* MipsMir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
   MipsOpCode opcode = kMipsNop;
   RegStorage t_reg = AllocTemp();
 
-  if (MIPS_FPREG(r_src.GetReg())) {
-    DCHECK(MIPS_SINGLEREG(r_src.GetReg()));
+  if (r_src.IsFloat()) {
+    DCHECK(r_src.IsSingle());
     DCHECK((size == k32) || (size == kSingle) || (size == kReference));
     size = kSingle;
   } else {
@@ -469,16 +469,16 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
     case kDouble:
       pair = true;
       opcode = kMipsLw;
-      if (MIPS_FPREG(r_dest.GetReg())) {
+      if (r_dest.IsFloat()) {
         opcode = kMipsFlwc1;
-        if (MIPS_DOUBLEREG(r_dest.GetReg())) {
-          // TODO: rework to use k64BitSolo
-          r_dest.SetReg(r_dest.GetReg() - MIPS_FP_DOUBLE);
+        if (r_dest.IsDouble()) {
+          int reg_num = (r_dest.GetRegNum() << 1) | RegStorage::kFloatingPoint;
+          r_dest = RegStorage(RegStorage::k64BitSolo, reg_num, reg_num + 1);
         } else {
-          DCHECK(MIPS_FPREG(r_dest_hi.GetReg()));
+          DCHECK(r_dest_hi.IsFloat());
           DCHECK_EQ(r_dest.GetReg(), r_dest_hi.GetReg() - 1);
+          r_dest_hi.SetReg(r_dest.GetReg() + 1);
         }
-        r_dest_hi.SetReg(r_dest.GetReg() + 1);
       }
       short_form = IS_SIMM16_2WORD(displacement);
       DCHECK_EQ((displacement & 0x3), 0);
@@ -487,9 +487,9 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
     case kSingle:
     case kReference:
       opcode = kMipsLw;
-      if (MIPS_FPREG(r_dest.GetReg())) {
+      if (r_dest.IsFloat()) {
         opcode = kMipsFlwc1;
-        DCHECK(MIPS_SINGLEREG(r_dest.GetReg()));
+        DCHECK(r_dest.IsSingle());
       }
       DCHECK_EQ((displacement & 0x3), 0);
       break;
@@ -567,22 +567,22 @@ LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement,
   LIR *store2 = NULL;
   MipsOpCode opcode = kMipsNop;
   bool short_form = IS_SIMM16(displacement);
-  bool pair = false;
+  bool pair = r_src.IsPair();
 
   switch (size) {
     case k64:
     case kDouble:
-      pair = true;
       opcode = kMipsSw;
-      if (MIPS_FPREG(r_src.GetReg())) {
+      if (r_src.IsFloat()) {
         opcode = kMipsFswc1;
-        if (MIPS_DOUBLEREG(r_src.GetReg())) {
-          r_src.SetReg(r_src.GetReg() - MIPS_FP_DOUBLE);
+        if (r_src.IsDouble()) {
+          int reg_num = (r_src.GetRegNum() << 1) | RegStorage::kFloatingPoint;
+          r_src = RegStorage(RegStorage::k64BitPair, reg_num, reg_num + 1);
         } else {
-          DCHECK(MIPS_FPREG(r_src_hi.GetReg()));
+          DCHECK(r_src_hi.IsFloat());
           DCHECK_EQ(r_src.GetReg(), (r_src_hi.GetReg() - 1));
+          r_src_hi.SetReg(r_src.GetReg() + 1);
         }
-        r_src_hi.SetReg(r_src.GetReg() + 1);
       }
       short_form = IS_SIMM16_2WORD(displacement);
       DCHECK_EQ((displacement & 0x3), 0);
@@ -591,9 +591,9 @@ LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement,
     case kSingle:
     case kReference:
       opcode = kMipsSw;
-      if (MIPS_FPREG(r_src.GetReg())) {
+      if (r_src.IsFloat()) {
         opcode = kMipsFswc1;
-        DCHECK(MIPS_SINGLEREG(r_src.GetReg()));
+        DCHECK(r_src.IsSingle());
       }
       DCHECK_EQ((displacement & 0x3), 0);
       break;
@@ -665,8 +665,7 @@ LIR* MipsMir2Lir::OpMem(OpKind op, RegStorage r_base, int disp) {
 }
 
 LIR* MipsMir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                       int displacement, RegStorage r_src, RegStorage r_src_hi,
-                                       OpSize size, int s_reg) {
+                                       int displacement, RegStorage r_src, OpSize size, int s_reg) {
   LOG(FATAL) << "Unexpected use of StoreBaseIndexedDisp for MIPS";
   return NULL;
 }
@@ -677,8 +676,7 @@ LIR* MipsMir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int 
 }
 
 LIR* MipsMir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                      int displacement, RegStorage r_dest, RegStorage r_dest_hi,
-                                      OpSize size, int s_reg) {
+                                      int displacement, RegStorage r_dest, OpSize size, int s_reg) {
   LOG(FATAL) << "Unexpected use of LoadBaseIndexedDisp for MIPS";
   return NULL;
 }

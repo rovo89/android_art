@@ -26,27 +26,53 @@
 
 namespace art {
 
-// FIXME: restore "static" when usage uncovered
-/*static*/ int core_regs[] = {
-  rAX, rCX, rDX, rBX, rX86_SP, rBP, rSI, rDI
+static const RegStorage core_regs_arr[] = {
+    rs_rAX, rs_rCX, rs_rDX, rs_rBX, rs_rX86_SP, rs_rBP, rs_rSI, rs_rDI
 #ifdef TARGET_REX_SUPPORT
-  r8, r9, r10, r11, r12, r13, r14, 15
+    rs_r8, rs_r9, rs_r10, rs_r11, rs_r12, rs_r13, rs_r14, rs_r15
 #endif
 };
-/*static*/ int ReservedRegs[] = {rX86_SP};
-/*static*/ int core_temps[] = {rAX, rCX, rDX, rBX};
-/*static*/ int FpRegs[] = {
-  fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7,
+static const RegStorage sp_regs_arr[] = {
+    rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
 #ifdef TARGET_REX_SUPPORT
-  fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15
+    rs_fr8, rs_fr9, rs_fr10, rs_fr11, rs_fr12, rs_fr13, rs_fr14, rs_fr15
 #endif
 };
-/*static*/ int fp_temps[] = {
-  fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7,
+static const RegStorage dp_regs_arr[] = {
+    rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
 #ifdef TARGET_REX_SUPPORT
-  fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15
+    rs_dr8, rs_dr9, rs_dr10, rs_dr11, rs_dr12, rs_dr13, rs_dr14, rs_dr15
 #endif
 };
+static const RegStorage reserved_regs_arr[] = {rs_rX86_SP};
+static const RegStorage core_temps_arr[] = {rs_rAX, rs_rCX, rs_rDX, rs_rBX};
+static const RegStorage sp_temps_arr[] = {
+    rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
+#ifdef TARGET_REX_SUPPORT
+    rs_fr8, rs_fr9, rs_fr10, rs_fr11, rs_fr12, rs_fr13, rs_fr14, rs_fr15
+#endif
+};
+static const RegStorage dp_temps_arr[] = {
+    rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
+#ifdef TARGET_REX_SUPPORT
+    rs_dr8, rs_dr9, rs_dr10, rs_dr11, rs_dr12, rs_dr13, rs_dr14, rs_dr15
+#endif
+};
+
+static const std::vector<RegStorage> core_regs(core_regs_arr,
+    core_regs_arr + sizeof(core_regs_arr) / sizeof(core_regs_arr[0]));
+static const std::vector<RegStorage> sp_regs(sp_regs_arr,
+    sp_regs_arr + sizeof(sp_regs_arr) / sizeof(sp_regs_arr[0]));
+static const std::vector<RegStorage> dp_regs(dp_regs_arr,
+    dp_regs_arr + sizeof(dp_regs_arr) / sizeof(dp_regs_arr[0]));
+static const std::vector<RegStorage> reserved_regs(reserved_regs_arr,
+    reserved_regs_arr + sizeof(reserved_regs_arr) / sizeof(reserved_regs_arr[0]));
+static const std::vector<RegStorage> core_temps(core_temps_arr,
+    core_temps_arr + sizeof(core_temps_arr) / sizeof(core_temps_arr[0]));
+static const std::vector<RegStorage> sp_temps(sp_temps_arr,
+    sp_temps_arr + sizeof(sp_temps_arr) / sizeof(sp_temps_arr[0]));
+static const std::vector<RegStorage> dp_temps(dp_temps_arr,
+    dp_temps_arr + sizeof(dp_temps_arr) / sizeof(dp_temps_arr[0]));
 
 RegLocation X86Mir2Lir::LocCReturn() {
   return x86_loc_c_return;
@@ -66,29 +92,29 @@ RegLocation X86Mir2Lir::LocCReturnDouble() {
 
 // Return a target-dependent special register.
 RegStorage X86Mir2Lir::TargetReg(SpecialTargetRegister reg) {
-  int res_reg = RegStorage::kInvalidRegVal;
+  RegStorage res_reg = RegStorage::InvalidReg();
   switch (reg) {
-    case kSelf: res_reg = rX86_SELF; break;
-    case kSuspend: res_reg =  rX86_SUSPEND; break;
-    case kLr: res_reg =  rX86_LR; break;
-    case kPc: res_reg =  rX86_PC; break;
-    case kSp: res_reg =  rX86_SP; break;
-    case kArg0: res_reg = rX86_ARG0; break;
-    case kArg1: res_reg = rX86_ARG1; break;
-    case kArg2: res_reg = rX86_ARG2; break;
-    case kArg3: res_reg = rX86_ARG3; break;
-    case kFArg0: res_reg = rX86_FARG0; break;
-    case kFArg1: res_reg = rX86_FARG1; break;
-    case kFArg2: res_reg = rX86_FARG2; break;
-    case kFArg3: res_reg = rX86_FARG3; break;
-    case kRet0: res_reg = rX86_RET0; break;
-    case kRet1: res_reg = rX86_RET1; break;
-    case kInvokeTgt: res_reg = rX86_INVOKE_TGT; break;
-    case kHiddenArg: res_reg = rAX; break;
-    case kHiddenFpArg: res_reg = fr0; break;
-    case kCount: res_reg = rX86_COUNT; break;
+    case kSelf: res_reg = RegStorage::InvalidReg(); break;
+    case kSuspend: res_reg =  RegStorage::InvalidReg(); break;
+    case kLr: res_reg =  RegStorage::InvalidReg(); break;
+    case kPc: res_reg =  RegStorage::InvalidReg(); break;
+    case kSp: res_reg =  rs_rX86_SP; break;
+    case kArg0: res_reg = rs_rX86_ARG0; break;
+    case kArg1: res_reg = rs_rX86_ARG1; break;
+    case kArg2: res_reg = rs_rX86_ARG2; break;
+    case kArg3: res_reg = rs_rX86_ARG3; break;
+    case kFArg0: res_reg = rs_rX86_FARG0; break;
+    case kFArg1: res_reg = rs_rX86_FARG1; break;
+    case kFArg2: res_reg = rs_rX86_FARG2; break;
+    case kFArg3: res_reg = rs_rX86_FARG3; break;
+    case kRet0: res_reg = rs_rX86_RET0; break;
+    case kRet1: res_reg = rs_rX86_RET1; break;
+    case kInvokeTgt: res_reg = rs_rX86_INVOKE_TGT; break;
+    case kHiddenArg: res_reg = rs_rAX; break;
+    case kHiddenFpArg: res_reg = rs_fr0; break;
+    case kCount: res_reg = rs_rX86_COUNT; break;
   }
-  return RegStorage::Solo32(res_reg);
+  return res_reg;
 }
 
 RegStorage X86Mir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
@@ -106,34 +132,19 @@ RegStorage X86Mir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
   }
 }
 
-// Create a double from a pair of singles.
-int X86Mir2Lir::S2d(int low_reg, int high_reg) {
-  return X86_S2D(low_reg, high_reg);
-}
-
-// Return mask to strip off fp reg flags and bias.
-uint32_t X86Mir2Lir::FpRegMask() {
-  return X86_FP_REG_MASK;
-}
-
-// True if both regs single, both core or both double.
-bool X86Mir2Lir::SameRegType(int reg1, int reg2) {
-  return (X86_REGTYPE(reg1) == X86_REGTYPE(reg2));
-}
-
 /*
  * Decode the register id.
  */
-uint64_t X86Mir2Lir::GetRegMaskCommon(int reg) {
+uint64_t X86Mir2Lir::GetRegMaskCommon(RegStorage reg) {
   uint64_t seed;
   int shift;
   int reg_id;
 
-  reg_id = reg & 0xf;
+  reg_id = reg.GetRegNum();
   /* Double registers in x86 are just a single FP register */
   seed = 1;
   /* FP register starts at bit position 16 */
-  shift = X86_FPREG(reg) ? kX86FPReg0 : 0;
+  shift = reg.IsFloat() ? kX86FPReg0 : 0;
   /* Expand the double register id into single offset */
   shift += reg_id;
   return (seed << shift);
@@ -162,34 +173,34 @@ void X86Mir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags) {
   }
 
   if (flags & REG_DEFA) {
-    SetupRegMask(&lir->u.m.def_mask, rAX);
+    SetupRegMask(&lir->u.m.def_mask, rs_rAX.GetReg());
   }
 
   if (flags & REG_DEFD) {
-    SetupRegMask(&lir->u.m.def_mask, rDX);
+    SetupRegMask(&lir->u.m.def_mask, rs_rDX.GetReg());
   }
   if (flags & REG_USEA) {
-    SetupRegMask(&lir->u.m.use_mask, rAX);
+    SetupRegMask(&lir->u.m.use_mask, rs_rAX.GetReg());
   }
 
   if (flags & REG_USEC) {
-    SetupRegMask(&lir->u.m.use_mask, rCX);
+    SetupRegMask(&lir->u.m.use_mask, rs_rCX.GetReg());
   }
 
   if (flags & REG_USED) {
-    SetupRegMask(&lir->u.m.use_mask, rDX);
+    SetupRegMask(&lir->u.m.use_mask, rs_rDX.GetReg());
   }
 
   if (flags & REG_USEB) {
-    SetupRegMask(&lir->u.m.use_mask, rBX);
+    SetupRegMask(&lir->u.m.use_mask, rs_rBX.GetReg());
   }
 
   // Fixup hard to describe instruction: Uses rAX, rCX, rDI; sets rDI.
   if (lir->opcode == kX86RepneScasw) {
-    SetupRegMask(&lir->u.m.use_mask, rAX);
-    SetupRegMask(&lir->u.m.use_mask, rCX);
-    SetupRegMask(&lir->u.m.use_mask, rDI);
-    SetupRegMask(&lir->u.m.def_mask, rDI);
+    SetupRegMask(&lir->u.m.use_mask, rs_rAX.GetReg());
+    SetupRegMask(&lir->u.m.use_mask, rs_rCX.GetReg());
+    SetupRegMask(&lir->u.m.use_mask, rs_rDI.GetReg());
+    SetupRegMask(&lir->u.m.def_mask, rs_rDI.GetReg());
   }
 
   if (flags & USE_FP_STACK) {
@@ -261,12 +272,13 @@ std::string X86Mir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned char
             break;
           }
           case 'r':
-            if (X86_FPREG(operand) || X86_DOUBLEREG(operand)) {
-              int fp_reg = operand & X86_FP_REG_MASK;
+            if (RegStorage::IsFloat(operand)) {
+              int fp_reg = RegStorage::RegNum(operand);
               buf += StringPrintf("xmm%d", fp_reg);
             } else {
-              DCHECK_LT(static_cast<size_t>(operand), sizeof(x86RegName));
-              buf += x86RegName[operand];
+              int reg_num = RegStorage::RegNum(operand);
+              DCHECK_LT(static_cast<size_t>(reg_num), sizeof(x86RegName));
+              buf += x86RegName[reg_num];
             }
             break;
           case 't':
@@ -329,7 +341,7 @@ void X86Mir2Lir::DumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix
 
 void X86Mir2Lir::AdjustSpillMask() {
   // Adjustment for LR spilling, x86 has no LR so nothing to do here
-  core_spill_mask_ |= (1 << rRET);
+  core_spill_mask_ |= (1 << rs_rRET.GetRegNum());
   num_core_spills_++;
 }
 
@@ -339,97 +351,56 @@ void X86Mir2Lir::AdjustSpillMask() {
  * include any holes in the mask.  Associate holes with
  * Dalvik register INVALID_VREG (0xFFFFU).
  */
-void X86Mir2Lir::MarkPreservedSingle(int v_reg, int reg) {
-  UNIMPLEMENTED(WARNING) << "MarkPreservedSingle";
-#if 0
-  LOG(FATAL) << "No support yet for promoted FP regs";
-#endif
+void X86Mir2Lir::MarkPreservedSingle(int v_reg, RegStorage reg) {
+  UNIMPLEMENTED(FATAL) << "MarkPreservedSingle";
 }
 
-void X86Mir2Lir::FlushRegWide(RegStorage reg) {
-  RegisterInfo* info1 = GetRegInfo(reg.GetLowReg());
-  RegisterInfo* info2 = GetRegInfo(reg.GetHighReg());
-  DCHECK(info1 && info2 && info1->pair && info2->pair &&
-         (info1->partner == info2->reg) &&
-         (info2->partner == info1->reg));
-  if ((info1->live && info1->dirty) || (info2->live && info2->dirty)) {
-    if (!(info1->is_temp && info2->is_temp)) {
-      /* Should not happen.  If it does, there's a problem in eval_loc */
-      LOG(FATAL) << "Long half-temp, half-promoted";
-    }
-
-    info1->dirty = false;
-    info2->dirty = false;
-    if (mir_graph_->SRegToVReg(info2->s_reg) < mir_graph_->SRegToVReg(info1->s_reg))
-      info1 = info2;
-    int v_reg = mir_graph_->SRegToVReg(info1->s_reg);
-    StoreBaseDispWide(rs_rX86_SP, VRegOffset(v_reg),
-                      RegStorage(RegStorage::k64BitPair, info1->reg, info1->partner));
-  }
-}
-
-void X86Mir2Lir::FlushReg(RegStorage reg) {
-  // FIXME: need to handle 32 bits in 64-bit register as well as wide values held in single reg.
-  DCHECK(!reg.IsPair());
-  RegisterInfo* info = GetRegInfo(reg.GetReg());
-  if (info->live && info->dirty) {
-    info->dirty = false;
-    int v_reg = mir_graph_->SRegToVReg(info->s_reg);
-    StoreBaseDisp(rs_rX86_SP, VRegOffset(v_reg), reg, k32);
-  }
-}
-
-/* Give access to the target-dependent FP register encoding to common code */
-bool X86Mir2Lir::IsFpReg(int reg) {
-  return X86_FPREG(reg);
-}
-
-bool X86Mir2Lir::IsFpReg(RegStorage reg) {
-  return IsFpReg(reg.IsPair() ? reg.GetLowReg() : reg.GetReg());
+void X86Mir2Lir::MarkPreservedDouble(int v_reg, RegStorage reg) {
+  UNIMPLEMENTED(FATAL) << "MarkPreservedDouble";
 }
 
 /* Clobber all regs that might be used by an external C call */
 void X86Mir2Lir::ClobberCallerSave() {
-  Clobber(rAX);
-  Clobber(rCX);
-  Clobber(rDX);
-  Clobber(rBX);
+  Clobber(rs_rAX);
+  Clobber(rs_rCX);
+  Clobber(rs_rDX);
+  Clobber(rs_rBX);
 }
 
 RegLocation X86Mir2Lir::GetReturnWideAlt() {
   RegLocation res = LocCReturnWide();
-  CHECK(res.reg.GetLowReg() == rAX);
-  CHECK(res.reg.GetHighReg() == rDX);
-  Clobber(rAX);
-  Clobber(rDX);
-  MarkInUse(rAX);
-  MarkInUse(rDX);
-  MarkPair(res.reg.GetLowReg(), res.reg.GetHighReg());
+  DCHECK(res.reg.GetLowReg() == rs_rAX.GetReg());
+  DCHECK(res.reg.GetHighReg() == rs_rDX.GetReg());
+  Clobber(rs_rAX);
+  Clobber(rs_rDX);
+  MarkInUse(rs_rAX);
+  MarkInUse(rs_rDX);
+  MarkWide(res.reg);
   return res;
 }
 
 RegLocation X86Mir2Lir::GetReturnAlt() {
   RegLocation res = LocCReturn();
-  res.reg.SetReg(rDX);
-  Clobber(rDX);
-  MarkInUse(rDX);
+  res.reg.SetReg(rs_rDX.GetReg());
+  Clobber(rs_rDX);
+  MarkInUse(rs_rDX);
   return res;
 }
 
 /* To be used when explicitly managing register use */
 void X86Mir2Lir::LockCallTemps() {
-  LockTemp(rX86_ARG0);
-  LockTemp(rX86_ARG1);
-  LockTemp(rX86_ARG2);
-  LockTemp(rX86_ARG3);
+  LockTemp(rs_rX86_ARG0);
+  LockTemp(rs_rX86_ARG1);
+  LockTemp(rs_rX86_ARG2);
+  LockTemp(rs_rX86_ARG3);
 }
 
 /* To be used when explicitly managing register use */
 void X86Mir2Lir::FreeCallTemps() {
-  FreeTemp(rX86_ARG0);
-  FreeTemp(rX86_ARG1);
-  FreeTemp(rX86_ARG2);
-  FreeTemp(rX86_ARG3);
+  FreeTemp(rs_rX86_ARG0);
+  FreeTemp(rs_rX86_ARG1);
+  FreeTemp(rs_rX86_ARG2);
+  FreeTemp(rs_rX86_ARG3);
 }
 
 bool X86Mir2Lir::ProvidesFullMemoryBarrier(X86OpCode opcode) {
@@ -495,40 +466,35 @@ RegStorage X86Mir2Lir::AllocTypedTempWide(bool fp_hint, int reg_class) {
 
 RegStorage X86Mir2Lir::AllocTypedTemp(bool fp_hint, int reg_class) {
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
-    return AllocTempFloat();
+    return AllocTempSingle();
   }
   return AllocTemp();
 }
 
 void X86Mir2Lir::CompilerInitializeRegAlloc() {
-  int num_regs = sizeof(core_regs)/sizeof(*core_regs);
-  int num_reserved = sizeof(ReservedRegs)/sizeof(*ReservedRegs);
-  int num_temps = sizeof(core_temps)/sizeof(*core_temps);
-  int num_fp_regs = sizeof(FpRegs)/sizeof(*FpRegs);
-  int num_fp_temps = sizeof(fp_temps)/sizeof(*fp_temps);
-  reg_pool_ = static_cast<RegisterPool*>(arena_->Alloc(sizeof(*reg_pool_),
-                                                       kArenaAllocRegAlloc));
-  reg_pool_->num_core_regs = num_regs;
-  reg_pool_->core_regs =
-      static_cast<RegisterInfo*>(arena_->Alloc(num_regs * sizeof(*reg_pool_->core_regs),
-                                               kArenaAllocRegAlloc));
-  reg_pool_->num_fp_regs = num_fp_regs;
-  reg_pool_->FPRegs =
-      static_cast<RegisterInfo *>(arena_->Alloc(num_fp_regs * sizeof(*reg_pool_->FPRegs),
-                                                kArenaAllocRegAlloc));
-  CompilerInitPool(reg_pool_->core_regs, core_regs, reg_pool_->num_core_regs);
-  CompilerInitPool(reg_pool_->FPRegs, FpRegs, reg_pool_->num_fp_regs);
-  // Keep special registers from being allocated
-  for (int i = 0; i < num_reserved; i++) {
-    MarkInUse(ReservedRegs[i]);
+  reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs, sp_regs, dp_regs, reserved_regs,
+                                        core_temps, sp_temps, dp_temps);
+
+  // Target-specific adjustments.
+
+  // Alias single precision xmm to double xmms.
+  // TODO: as needed, add larger vector sizes - alias all to the largest.
+  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->sp_regs_);
+  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+    int sp_reg_num = info->GetReg().GetRegNum();
+    RegStorage dp_reg = RegStorage::Solo64(RegStorage::kFloatingPoint | sp_reg_num);
+    RegisterInfo* dp_reg_info = GetRegInfo(dp_reg);
+    // 64-bit xmm vector register's master storage should refer to itself.
+    DCHECK_EQ(dp_reg_info, dp_reg_info->Master());
+    // Redirect 32-bit vector's master storage to 64-bit vector.
+    info->SetMaster(dp_reg_info);
   }
-  // Mark temp regs - all others not in use can be used for promotion
-  for (int i = 0; i < num_temps; i++) {
-    MarkTemp(core_temps[i]);
-  }
-  for (int i = 0; i < num_fp_temps; i++) {
-    MarkTemp(fp_temps[i]);
-  }
+
+  // Don't start allocating temps at r0/s0/d0 or you may clobber return regs in early-exit methods.
+  // TODO: adjust for x86/hard float calling convention.
+  reg_pool_->next_core_reg_ = 2;
+  reg_pool_->next_sp_reg_ = 2;
+  reg_pool_->next_dp_reg_ = 1;
 }
 
 void X86Mir2Lir::FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free) {
@@ -541,8 +507,7 @@ void X86Mir2Lir::FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free) {
   if ((free_low != keep_low) && (free_low != keep_high) &&
       (free_high != keep_low) && (free_high != keep_high)) {
     // No overlap, free both
-    FreeTemp(free_low);
-    FreeTemp(free_high);
+    FreeTemp(rl_free.reg);
   }
 }
 
@@ -551,7 +516,7 @@ void X86Mir2Lir::SpillCoreRegs() {
     return;
   }
   // Spill mask not including fake return address register
-  uint32_t mask = core_spill_mask_ & ~(1 << rRET);
+  uint32_t mask = core_spill_mask_ & ~(1 << rs_rRET.GetRegNum());
   int offset = frame_size_ - (4 * num_core_spills_);
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
@@ -566,7 +531,7 @@ void X86Mir2Lir::UnSpillCoreRegs() {
     return;
   }
   // Spill mask not including fake return address register
-  uint32_t mask = core_spill_mask_ & ~(1 << rRET);
+  uint32_t mask = core_spill_mask_ & ~(1 << rs_rRET.GetRegNum());
   int offset = frame_size_ - (4 * num_core_spills_);
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
@@ -629,215 +594,6 @@ const char* X86Mir2Lir::GetTargetInstFmt(int opcode) {
   return X86Mir2Lir::EncodingMap[opcode].fmt;
 }
 
-/*
- * Return an updated location record with current in-register status.
- * If the value lives in live temps, reflect that fact.  No code
- * is generated.  If the live value is part of an older pair,
- * clobber both low and high.
- */
-// TODO: Reunify with common code after 'pair mess' has been fixed
-RegLocation X86Mir2Lir::UpdateLocWide(RegLocation loc) {
-  DCHECK(loc.wide);
-  DCHECK(CheckCorePoolSanity());
-  if (loc.location != kLocPhysReg) {
-    DCHECK((loc.location == kLocDalvikFrame) ||
-         (loc.location == kLocCompilerTemp));
-    // Are the dalvik regs already live in physical registers?
-    RegisterInfo* info_lo = AllocLive(loc.s_reg_low, kAnyReg);
-
-    // Handle FP registers specially on x86.
-    if (info_lo && IsFpReg(info_lo->reg)) {
-      bool match = true;
-
-      // We can't match a FP register with a pair of Core registers.
-      match = match && (info_lo->pair == 0);
-
-      if (match) {
-        // We can reuse;update the register usage info.
-        loc.location = kLocPhysReg;
-        loc.vec_len = kVectorLength8;
-        // TODO: use k64BitVector
-        loc.reg = RegStorage(RegStorage::k64BitPair, info_lo->reg, info_lo->reg);
-        DCHECK(IsFpReg(loc.reg.GetLowReg()));
-        return loc;
-      }
-      // We can't easily reuse; clobber and free any overlaps.
-      if (info_lo) {
-        Clobber(info_lo->reg);
-        FreeTemp(info_lo->reg);
-        if (info_lo->pair)
-          Clobber(info_lo->partner);
-      }
-    } else {
-      RegisterInfo* info_hi = AllocLive(GetSRegHi(loc.s_reg_low), kAnyReg);
-      bool match = true;
-      match = match && (info_lo != NULL);
-      match = match && (info_hi != NULL);
-      // Are they both core or both FP?
-      match = match && (IsFpReg(info_lo->reg) == IsFpReg(info_hi->reg));
-      // If a pair of floating point singles, are they properly aligned?
-      if (match && IsFpReg(info_lo->reg)) {
-        match &= ((info_lo->reg & 0x1) == 0);
-        match &= ((info_hi->reg - info_lo->reg) == 1);
-      }
-      // If previously used as a pair, it is the same pair?
-      if (match && (info_lo->pair || info_hi->pair)) {
-        match = (info_lo->pair == info_hi->pair);
-        match &= ((info_lo->reg == info_hi->partner) &&
-              (info_hi->reg == info_lo->partner));
-      }
-      if (match) {
-        // Can reuse - update the register usage info
-        loc.reg = RegStorage(RegStorage::k64BitPair, info_lo->reg, info_hi->reg);
-        loc.location = kLocPhysReg;
-        MarkPair(loc.reg.GetLowReg(), loc.reg.GetHighReg());
-        DCHECK(!IsFpReg(loc.reg.GetLowReg()) || ((loc.reg.GetLowReg() & 0x1) == 0));
-        return loc;
-      }
-      // Can't easily reuse - clobber and free any overlaps
-      if (info_lo) {
-        Clobber(info_lo->reg);
-        FreeTemp(info_lo->reg);
-        if (info_lo->pair)
-          Clobber(info_lo->partner);
-      }
-      if (info_hi) {
-        Clobber(info_hi->reg);
-        FreeTemp(info_hi->reg);
-        if (info_hi->pair)
-          Clobber(info_hi->partner);
-      }
-    }
-  }
-  return loc;
-}
-
-// TODO: Reunify with common code after 'pair mess' has been fixed
-RegLocation X86Mir2Lir::EvalLocWide(RegLocation loc, int reg_class, bool update) {
-  DCHECK(loc.wide);
-
-  loc = UpdateLocWide(loc);
-
-  /* If it is already in a register, we can assume proper form.  Is it the right reg class? */
-  if (loc.location == kLocPhysReg) {
-    DCHECK_EQ(IsFpReg(loc.reg.GetLowReg()), loc.IsVectorScalar());
-    if (!RegClassMatches(reg_class, loc.reg)) {
-      /* It is the wrong register class.  Reallocate and copy. */
-      if (!IsFpReg(loc.reg.GetLowReg())) {
-        // We want this in a FP reg, and it is in core registers.
-        DCHECK(reg_class != kCoreReg);
-        // Allocate this into any FP reg, and mark it with the right size.
-        int32_t low_reg = AllocTypedTemp(true, reg_class).GetReg();
-        OpVectorRegCopyWide(low_reg, loc.reg.GetLowReg(), loc.reg.GetHighReg());
-        CopyRegInfo(low_reg, loc.reg.GetLowReg());
-        Clobber(loc.reg);
-        loc.reg.SetReg(low_reg);
-        loc.reg.SetHighReg(low_reg);  // Play nice with existing code.
-        loc.vec_len = kVectorLength8;
-      } else {
-        // The value is in a FP register, and we want it in a pair of core registers.
-        DCHECK_EQ(reg_class, kCoreReg);
-        DCHECK_EQ(loc.reg.GetLowReg(), loc.reg.GetHighReg());
-        RegStorage new_regs = AllocTypedTempWide(false, kCoreReg);  // Force to core registers.
-        OpRegCopyWide(new_regs, loc.reg);
-        CopyRegInfo(new_regs.GetLowReg(), loc.reg.GetLowReg());
-        CopyRegInfo(new_regs.GetHighReg(), loc.reg.GetHighReg());
-        Clobber(loc.reg);
-        loc.reg = new_regs;
-        MarkPair(loc.reg.GetLowReg(), loc.reg.GetHighReg());
-        DCHECK(!IsFpReg(loc.reg.GetLowReg()) || ((loc.reg.GetLowReg() & 0x1) == 0));
-      }
-    }
-    return loc;
-  }
-
-  DCHECK_NE(loc.s_reg_low, INVALID_SREG);
-  DCHECK_NE(GetSRegHi(loc.s_reg_low), INVALID_SREG);
-
-  loc.reg = AllocTypedTempWide(loc.fp, reg_class);
-
-  // FIXME: take advantage of RegStorage notation.
-  if (loc.reg.GetLowReg() == loc.reg.GetHighReg()) {
-    DCHECK(IsFpReg(loc.reg.GetLowReg()));
-    loc.vec_len = kVectorLength8;
-  } else {
-    MarkPair(loc.reg.GetLowReg(), loc.reg.GetHighReg());
-  }
-  if (update) {
-    loc.location = kLocPhysReg;
-    MarkLive(loc.reg.GetLow(), loc.s_reg_low);
-    if (loc.reg.GetLowReg() != loc.reg.GetHighReg()) {
-      MarkLive(loc.reg.GetHigh(), GetSRegHi(loc.s_reg_low));
-    }
-  }
-  return loc;
-}
-
-// TODO: Reunify with common code after 'pair mess' has been fixed
-RegLocation X86Mir2Lir::EvalLoc(RegLocation loc, int reg_class, bool update) {
-  if (loc.wide)
-    return EvalLocWide(loc, reg_class, update);
-
-  loc = UpdateLoc(loc);
-
-  if (loc.location == kLocPhysReg) {
-    if (!RegClassMatches(reg_class, loc.reg)) {
-      /* Wrong register class.  Realloc, copy and transfer ownership. */
-      RegStorage new_reg = AllocTypedTemp(loc.fp, reg_class);
-      OpRegCopy(new_reg, loc.reg);
-      CopyRegInfo(new_reg, loc.reg);
-      Clobber(loc.reg);
-      loc.reg = new_reg;
-      if (IsFpReg(loc.reg.GetReg()) && reg_class != kCoreReg)
-        loc.vec_len = kVectorLength4;
-    }
-    return loc;
-  }
-
-  DCHECK_NE(loc.s_reg_low, INVALID_SREG);
-
-  loc.reg = AllocTypedTemp(loc.fp, reg_class);
-  if (IsFpReg(loc.reg.GetReg()) && reg_class != kCoreReg)
-    loc.vec_len = kVectorLength4;
-
-  if (update) {
-    loc.location = kLocPhysReg;
-    MarkLive(loc.reg, loc.s_reg_low);
-  }
-  return loc;
-}
-
-RegStorage X86Mir2Lir::AllocTempDouble() {
-  // We really don't need a pair of registers.
-  // FIXME - update to double
-  int reg = AllocTempFloat().GetReg();
-  return RegStorage(RegStorage::k64BitPair, reg, reg);
-}
-
-// TODO: Reunify with common code after 'pair mess' has been fixed
-void X86Mir2Lir::ResetDefLocWide(RegLocation rl) {
-  DCHECK(rl.wide);
-  RegisterInfo* p_low = IsTemp(rl.reg.GetLowReg());
-  if (IsFpReg(rl.reg.GetLowReg())) {
-    // We are using only the low register.
-    if (p_low && !(cu_->disable_opt & (1 << kSuppressLoads))) {
-      NullifyRange(p_low->def_start, p_low->def_end, p_low->s_reg, rl.s_reg_low);
-    }
-    ResetDef(rl.reg.GetLowReg());
-  } else {
-    RegisterInfo* p_high = IsTemp(rl.reg.GetHighReg());
-    if (p_low && !(cu_->disable_opt & (1 << kSuppressLoads))) {
-      DCHECK(p_low->pair);
-      NullifyRange(p_low->def_start, p_low->def_end, p_low->s_reg, rl.s_reg_low);
-    }
-    if (p_high && !(cu_->disable_opt & (1 << kSuppressLoads))) {
-      DCHECK(p_high->pair);
-    }
-    ResetDef(rl.reg.GetLowReg());
-    ResetDef(rl.reg.GetHighReg());
-  }
-}
-
 void X86Mir2Lir::GenConstWide(RegLocation rl_dest, int64_t value) {
   // Can we do this directly to memory?
   rl_dest = UpdateLocWide(rl_dest);
@@ -872,7 +628,6 @@ void X86Mir2Lir::DumpRegLocation(RegLocation loc) {
              << (loc.ref ? " r" : "  ")
              << (loc.high_word ? " h" : "  ")
              << (loc.home ? " H" : "  ")
-             << " vec_len: " << loc.vec_len
              << ", low: " << static_cast<int>(loc.reg.GetLowReg())
              << ", high: " << static_cast<int>(loc.reg.GetHighReg())
              << ", s_reg: " << loc.s_reg_low
@@ -1059,7 +814,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
 
   // We need to preserve EDI, but have no spare registers, so push it on the stack.
   // We have to remember that all stack addresses after this are offset by sizeof(EDI).
-  NewLIR1(kX86Push32R, rDI);
+  NewLIR1(kX86Push32R, rs_rDI.GetReg());
 
   // Compute the number of words to search in to rCX.
   Load32Disp(rs_rDX, count_offset, rs_rCX);
@@ -1096,7 +851,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
         OpRegReg(kOpSub, rs_rCX, rl_start.reg);
         if (rl_start.reg == rs_rDI) {
           // The special case. We will use EDI further, so lets put start index to stack.
-          NewLIR1(kX86Push32R, rDI);
+          NewLIR1(kX86Push32R, rs_rDI.GetReg());
           is_index_on_stack = true;
         }
       } else {
@@ -1110,7 +865,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
         length_compare = OpCmpBranch(kCondLe, rs_rCX, rs_rBX, nullptr);
         OpRegReg(kOpSub, rs_rCX, rs_rBX);
         // Put the start index to stack.
-        NewLIR1(kX86Push32R, rBX);
+        NewLIR1(kX86Push32R, rs_rBX.GetReg());
         is_index_on_stack = true;
       }
     }
@@ -1130,12 +885,12 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
     if (start_value == 0) {
       OpRegCopy(rs_rDI, rs_rBX);
     } else {
-      NewLIR3(kX86Lea32RM, rDI, rBX, 2 * start_value);
+      NewLIR3(kX86Lea32RM, rs_rDI.GetReg(), rs_rBX.GetReg(), 2 * start_value);
     }
   } else {
     if (is_index_on_stack == true) {
       // Load the start index from stack.
-      NewLIR1(kX86Pop32R, rDX);
+      NewLIR1(kX86Pop32R, rs_rDX.GetReg());
       OpLea(rs_rDI, rs_rBX, rs_rDX, 1, 0);
     } else {
       OpLea(rs_rDI, rs_rBX, rl_start.reg, 1, 0);
@@ -1153,7 +908,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   // index = ((curr_ptr - orig_ptr) / 2) - 1.
   OpRegReg(kOpSub, rs_rDI, rs_rBX);
   OpRegImm(kOpAsr, rs_rDI, 1);
-  NewLIR3(kX86Lea32RM, rl_return.reg.GetReg(), rDI, -1);
+  NewLIR3(kX86Lea32RM, rl_return.reg.GetReg(), rs_rDI.GetReg(), -1);
   LIR *all_done = NewLIR1(kX86Jmp8, 0);
 
   // Failed to match; return -1.
@@ -1165,7 +920,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   // And join up at the end.
   all_done->target = NewLIR0(kPseudoTargetLabel);
   // Restore EDI from the stack.
-  NewLIR1(kX86Pop32R, rDI);
+  NewLIR1(kX86Pop32R, rs_rDI.GetReg());
 
   // Out of line code returns here.
   if (slowpath_branch != nullptr) {

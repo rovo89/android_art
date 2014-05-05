@@ -67,7 +67,7 @@ void X86Mir2Lir::GenArithOpFloat(Instruction::Code opcode,
   RegStorage r_src1 = rl_src1.reg;
   RegStorage r_src2 = rl_src2.reg;
   if (r_dest == r_src2) {
-    r_src2 = AllocTempFloat();
+    r_src2 = AllocTempSingle();
     OpRegCopy(r_src2, r_dest);
   }
   OpRegCopy(r_dest, r_src1);
@@ -77,6 +77,12 @@ void X86Mir2Lir::GenArithOpFloat(Instruction::Code opcode,
 
 void X86Mir2Lir::GenArithOpDouble(Instruction::Code opcode,
                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
+  DCHECK(rl_dest.wide);
+  DCHECK(rl_dest.fp);
+  DCHECK(rl_src1.wide);
+  DCHECK(rl_src1.fp);
+  DCHECK(rl_src2.wide);
+  DCHECK(rl_src2.fp);
   X86OpCode op = kX86Nop;
   RegLocation rl_result;
 
@@ -112,22 +118,14 @@ void X86Mir2Lir::GenArithOpDouble(Instruction::Code opcode,
       LOG(FATAL) << "Unexpected opcode: " << opcode;
   }
   rl_src1 = LoadValueWide(rl_src1, kFPReg);
-  DCHECK(rl_src1.wide);
   rl_src2 = LoadValueWide(rl_src2, kFPReg);
-  DCHECK(rl_src2.wide);
   rl_result = EvalLoc(rl_dest, kFPReg, true);
-  DCHECK(rl_dest.wide);
-  DCHECK(rl_result.wide);
-  // TODO: update with direct 64-bit reg.
-  int r_dest = S2d(rl_result.reg.GetLowReg(), rl_result.reg.GetHighReg());
-  int r_src1 = S2d(rl_src1.reg.GetLowReg(), rl_src1.reg.GetHighReg());
-  int r_src2 = S2d(rl_src2.reg.GetLowReg(), rl_src2.reg.GetHighReg());
-  if (r_dest == r_src2) {
-    r_src2 = AllocTempDouble().GetLowReg() | X86_FP_DOUBLE;
-    OpRegCopy(RegStorage::Solo64(r_src2), RegStorage::Solo64(r_dest));
+  if (rl_result.reg == rl_src2.reg) {
+    rl_src2.reg = AllocTempDouble();
+    OpRegCopy(rl_src2.reg, rl_result.reg);
   }
-  OpRegCopy(RegStorage::Solo64(r_dest), RegStorage::Solo64(r_src1));
-  NewLIR2(op, r_dest, r_src2);
+  OpRegCopy(rl_result.reg, rl_src1.reg);
+  NewLIR2(op, rl_result.reg.GetReg(), rl_src2.reg.GetReg());
   StoreValueWide(rl_dest, rl_result);
 }
 
@@ -141,16 +139,13 @@ void X86Mir2Lir::GenLongToFP(RegLocation rl_dest, RegLocation rl_src, bool is_do
 
   // If the source is in physical register, then put it in its location on stack.
   if (rl_src.location == kLocPhysReg) {
-    RegisterInfo* lo_info = GetRegInfo(rl_src.reg.GetLowReg());
+    RegisterInfo* reg_info = GetRegInfo(rl_src.reg);
 
-    if (lo_info != nullptr && lo_info->is_temp) {
+    if (reg_info != nullptr && reg_info->IsTemp()) {
       // Calling FlushSpecificReg because it will only write back VR if it is dirty.
-      FlushSpecificReg(lo_info);
-      // ResetDef for low/high to prevent NullifyRange from removing stores.
-      ResetDef(rl_src.reg.GetLowReg());
-      if (rl_src.reg.GetLowReg() != rl_src.reg.GetHighReg() && GetRegInfo(rl_src.reg.GetHighReg()) != nullptr) {
-        ResetDef(rl_src.reg.GetHighReg());
-      }
+      FlushSpecificReg(reg_info);
+      // ResetDef to prevent NullifyRange from removing stores.
+      ResetDef(rl_src.reg);
     } else {
       // It must have been register promoted if it is not a temp but is still in physical
       // register. Since we need it to be in memory to convert, we place it there now.
@@ -159,9 +154,10 @@ void X86Mir2Lir::GenLongToFP(RegLocation rl_dest, RegLocation rl_src, bool is_do
   }
 
   // Push the source virtual register onto the x87 stack.
-  LIR *fild64 = NewLIR2NoDest(kX86Fild64M, TargetReg(kSp).GetReg(), src_v_reg_offset + LOWORD_OFFSET);
+  LIR *fild64 = NewLIR2NoDest(kX86Fild64M, TargetReg(kSp).GetReg(),
+                              src_v_reg_offset + LOWORD_OFFSET);
   AnnotateDalvikRegAccess(fild64, (src_v_reg_offset + LOWORD_OFFSET) >> 2,
-      true /* is_load */, true /* is64bit */);
+                          true /* is_load */, true /* is64bit */);
 
   // Now pop off x87 stack and store it in the destination VR's stack location.
   int opcode = is_double ? kX86Fstp64M : kX86Fstp32M;
@@ -204,7 +200,6 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
                                RegLocation rl_src) {
   RegisterClass rcSrc = kFPReg;
   X86OpCode op = kX86Nop;
-  int src_reg;
   RegLocation rl_result;
   switch (opcode) {
     case Instruction::INT_TO_FLOAT:
@@ -225,18 +220,17 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
       break;
     case Instruction::FLOAT_TO_INT: {
       rl_src = LoadValue(rl_src, kFPReg);
-      src_reg = rl_src.reg.GetReg();
       // In case result vreg is also src vreg, break association to avoid useless copy by EvalLoc()
       ClobberSReg(rl_dest.s_reg_low);
       rl_result = EvalLoc(rl_dest, kCoreReg, true);
-      int temp_reg = AllocTempFloat().GetReg();
+      RegStorage temp_reg = AllocTempSingle();
 
       LoadConstant(rl_result.reg, 0x7fffffff);
-      NewLIR2(kX86Cvtsi2ssRR, temp_reg, rl_result.reg.GetReg());
-      NewLIR2(kX86ComissRR, src_reg, temp_reg);
+      NewLIR2(kX86Cvtsi2ssRR, temp_reg.GetReg(), rl_result.reg.GetReg());
+      NewLIR2(kX86ComissRR, rl_src.reg.GetReg(), temp_reg.GetReg());
       LIR* branch_pos_overflow = NewLIR2(kX86Jcc8, 0, kX86CondA);
       LIR* branch_na_n = NewLIR2(kX86Jcc8, 0, kX86CondP);
-      NewLIR2(kX86Cvttss2siRR, rl_result.reg.GetReg(), src_reg);
+      NewLIR2(kX86Cvttss2siRR, rl_result.reg.GetReg(), rl_src.reg.GetReg());
       LIR* branch_normal = NewLIR1(kX86Jmp8, 0);
       branch_na_n->target = NewLIR0(kPseudoTargetLabel);
       NewLIR2(kX86Xor32RR, rl_result.reg.GetReg(), rl_result.reg.GetReg());
@@ -247,18 +241,17 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
     }
     case Instruction::DOUBLE_TO_INT: {
       rl_src = LoadValueWide(rl_src, kFPReg);
-      src_reg = rl_src.reg.GetLowReg();
       // In case result vreg is also src vreg, break association to avoid useless copy by EvalLoc()
       ClobberSReg(rl_dest.s_reg_low);
       rl_result = EvalLoc(rl_dest, kCoreReg, true);
-      int temp_reg = AllocTempDouble().GetLowReg() | X86_FP_DOUBLE;
+      RegStorage temp_reg = AllocTempDouble();
 
       LoadConstant(rl_result.reg, 0x7fffffff);
-      NewLIR2(kX86Cvtsi2sdRR, temp_reg, rl_result.reg.GetReg());
-      NewLIR2(kX86ComisdRR, src_reg, temp_reg);
+      NewLIR2(kX86Cvtsi2sdRR, temp_reg.GetReg(), rl_result.reg.GetReg());
+      NewLIR2(kX86ComisdRR, rl_src.reg.GetReg(), temp_reg.GetReg());
       LIR* branch_pos_overflow = NewLIR2(kX86Jcc8, 0, kX86CondA);
       LIR* branch_na_n = NewLIR2(kX86Jcc8, 0, kX86CondP);
-      NewLIR2(kX86Cvttsd2siRR, rl_result.reg.GetReg(), src_reg);
+      NewLIR2(kX86Cvttsd2siRR, rl_result.reg.GetReg(), rl_src.reg.GetReg());
       LIR* branch_normal = NewLIR1(kX86Jmp8, 0);
       branch_na_n->target = NewLIR0(kPseudoTargetLabel);
       NewLIR2(kX86Xor32RR, rl_result.reg.GetReg(), rl_result.reg.GetReg());
@@ -282,20 +275,18 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
     default:
       LOG(INFO) << "Unexpected opcode: " << opcode;
   }
+  // At this point, target will be either float or double.
+  DCHECK(rl_dest.fp);
   if (rl_src.wide) {
     rl_src = LoadValueWide(rl_src, rcSrc);
-    src_reg = S2d(rl_src.reg.GetLowReg(), rl_src.reg.GetHighReg());
   } else {
     rl_src = LoadValue(rl_src, rcSrc);
-    src_reg = rl_src.reg.GetReg();
   }
+  rl_result = EvalLoc(rl_dest, kFPReg, true);
+  NewLIR2(op, rl_result.reg.GetReg(), rl_src.reg.GetReg());
   if (rl_dest.wide) {
-    rl_result = EvalLoc(rl_dest, kFPReg, true);
-    NewLIR2(op, S2d(rl_result.reg.GetLowReg(), rl_result.reg.GetHighReg()), src_reg);
     StoreValueWide(rl_dest, rl_result);
   } else {
-    rl_result = EvalLoc(rl_dest, kFPReg, true);
-    NewLIR2(op, rl_result.reg.GetReg(), src_reg);
     StoreValue(rl_dest, rl_result);
   }
 }
@@ -304,34 +295,28 @@ void X86Mir2Lir::GenCmpFP(Instruction::Code code, RegLocation rl_dest,
                           RegLocation rl_src1, RegLocation rl_src2) {
   bool single = (code == Instruction::CMPL_FLOAT) || (code == Instruction::CMPG_FLOAT);
   bool unordered_gt = (code == Instruction::CMPG_DOUBLE) || (code == Instruction::CMPG_FLOAT);
-  int src_reg1;
-  int src_reg2;
   if (single) {
     rl_src1 = LoadValue(rl_src1, kFPReg);
-    src_reg1 = rl_src1.reg.GetReg();
     rl_src2 = LoadValue(rl_src2, kFPReg);
-    src_reg2 = rl_src2.reg.GetReg();
   } else {
     rl_src1 = LoadValueWide(rl_src1, kFPReg);
-    src_reg1 = S2d(rl_src1.reg.GetLowReg(), rl_src1.reg.GetHighReg());
     rl_src2 = LoadValueWide(rl_src2, kFPReg);
-    src_reg2 = S2d(rl_src2.reg.GetLowReg(), rl_src2.reg.GetHighReg());
   }
   // In case result vreg is also src vreg, break association to avoid useless copy by EvalLoc()
   ClobberSReg(rl_dest.s_reg_low);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   LoadConstantNoClobber(rl_result.reg, unordered_gt ? 1 : 0);
   if (single) {
-    NewLIR2(kX86UcomissRR, src_reg1, src_reg2);
+    NewLIR2(kX86UcomissRR, rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
   } else {
-    NewLIR2(kX86UcomisdRR, src_reg1, src_reg2);
+    NewLIR2(kX86UcomisdRR, rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
   }
   LIR* branch = NULL;
   if (unordered_gt) {
     branch = NewLIR2(kX86Jcc8, 0, kX86CondPE);
   }
   // If the result reg can't be byte accessed, use a jump and move instead of a set.
-  if (rl_result.reg.GetReg() >= 4) {
+  if (rl_result.reg.GetReg() >= rs_rX86_SP.GetReg()) {
     LIR* branch2 = NULL;
     if (unordered_gt) {
       branch2 = NewLIR2(kX86Jcc8, 0, kX86CondA);
@@ -363,8 +348,7 @@ void X86Mir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
     rl_src2 = mir_graph_->GetSrcWide(mir, 2);
     rl_src1 = LoadValueWide(rl_src1, kFPReg);
     rl_src2 = LoadValueWide(rl_src2, kFPReg);
-    NewLIR2(kX86UcomisdRR, S2d(rl_src1.reg.GetLowReg(), rl_src1.reg.GetHighReg()),
-            S2d(rl_src2.reg.GetLowReg(), rl_src2.reg.GetHighReg()));
+    NewLIR2(kX86UcomisdRR, rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
   } else {
     rl_src1 = mir_graph_->GetSrc(mir, 0);
     rl_src2 = mir_graph_->GetSrc(mir, 1);
@@ -442,8 +426,7 @@ bool X86Mir2Lir::GenInlinedSqrt(CallInfo* info) {
   RegLocation rl_dest = InlineTargetWide(info);  // double place for result
   rl_src = LoadValueWide(rl_src, kFPReg);
   RegLocation rl_result = EvalLoc(rl_dest, kFPReg, true);
-  NewLIR2(kX86SqrtsdRR, S2d(rl_result.reg.GetLowReg(), rl_result.reg.GetHighReg()),
-          S2d(rl_src.reg.GetLowReg(), rl_src.reg.GetHighReg()));
+  NewLIR2(kX86SqrtsdRR, rl_result.reg.GetReg(), rl_src.reg.GetReg());
   StoreValueWide(rl_dest, rl_result);
   return true;
 }
