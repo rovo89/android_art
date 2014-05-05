@@ -143,7 +143,7 @@ RegLocation Mir2Lir::LoadValue(RegLocation rl_src, RegisterClass op_kind) {
   if (IsInexpensiveConstant(rl_src) || rl_src.location != kLocPhysReg) {
     LoadValueDirect(rl_src, rl_src.reg);
     rl_src.location = kLocPhysReg;
-    MarkLive(rl_src.reg, rl_src.s_reg_low);
+    MarkLive(rl_src);
   }
   return rl_src;
 }
@@ -184,12 +184,12 @@ void Mir2Lir::StoreValue(RegLocation rl_dest, RegLocation rl_src) {
   }
 
   // Dest is now live and dirty (until/if we flush it to home location)
-  MarkLive(rl_dest.reg, rl_dest.s_reg_low);
+  MarkLive(rl_dest);
   MarkDirty(rl_dest);
 
 
   ResetDefLoc(rl_dest);
-  if (IsDirty(rl_dest.reg) && oat_live_out(rl_dest.s_reg_low)) {
+  if (IsDirty(rl_dest.reg) && LiveOut(rl_dest.s_reg_low)) {
     def_start = last_lir_insn_;
     Store32Disp(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low), rl_dest.reg);
     MarkClean(rl_dest);
@@ -207,13 +207,7 @@ RegLocation Mir2Lir::LoadValueWide(RegLocation rl_src, RegisterClass op_kind) {
   if (IsInexpensiveConstant(rl_src) || rl_src.location != kLocPhysReg) {
     LoadValueDirectWide(rl_src, rl_src.reg);
     rl_src.location = kLocPhysReg;
-    MarkLive(rl_src.reg.GetLow(), rl_src.s_reg_low);
-    if (rl_src.reg.GetLowReg() != rl_src.reg.GetHighReg()) {
-      MarkLive(rl_src.reg.GetHigh(), GetSRegHi(rl_src.s_reg_low));
-    } else {
-      // This must be an x86 vector register value.
-      DCHECK(IsFpReg(rl_src.reg) && (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64));
-    }
+    MarkLive(rl_src);
   }
   return rl_src;
 }
@@ -254,24 +248,13 @@ void Mir2Lir::StoreValueWide(RegLocation rl_dest, RegLocation rl_src) {
   }
 
   // Dest is now live and dirty (until/if we flush it to home location)
-  MarkLive(rl_dest.reg.GetLow(), rl_dest.s_reg_low);
-
-  // Does this wide value live in two registers (or one vector one)?
-  // FIXME: wide reg update.
-  if (rl_dest.reg.GetLowReg() != rl_dest.reg.GetHighReg()) {
-    MarkLive(rl_dest.reg.GetHigh(), GetSRegHi(rl_dest.s_reg_low));
-    MarkDirty(rl_dest);
-    MarkPair(rl_dest.reg.GetLowReg(), rl_dest.reg.GetHighReg());
-  } else {
-    // This must be an x86 vector register value,
-    DCHECK(IsFpReg(rl_dest.reg) && (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64));
-    MarkDirty(rl_dest);
-  }
-
+  MarkLive(rl_dest);
+  MarkWide(rl_dest.reg);
+  MarkDirty(rl_dest);
 
   ResetDefLocWide(rl_dest);
-  if (IsDirty(rl_dest.reg) && (oat_live_out(rl_dest.s_reg_low) ||
-      oat_live_out(GetSRegHi(rl_dest.s_reg_low)))) {
+  if (IsDirty(rl_dest.reg) && (LiveOut(rl_dest.s_reg_low) ||
+      LiveOut(GetSRegHi(rl_dest.s_reg_low)))) {
     def_start = last_lir_insn_;
     DCHECK_EQ((mir_graph_->SRegToVReg(rl_dest.s_reg_low)+1),
               mir_graph_->SRegToVReg(GetSRegHi(rl_dest.s_reg_low)));
@@ -295,13 +278,12 @@ void Mir2Lir::StoreFinalValue(RegLocation rl_dest, RegLocation rl_src) {
   }
 
   // Dest is now live and dirty (until/if we flush it to home location)
-  MarkLive(rl_dest.reg, rl_dest.s_reg_low);
+  MarkLive(rl_dest);
   MarkDirty(rl_dest);
 
 
   ResetDefLoc(rl_dest);
-  if (IsDirty(rl_dest.reg) &&
-      oat_live_out(rl_dest.s_reg_low)) {
+  if (IsDirty(rl_dest.reg) && LiveOut(rl_dest.s_reg_low)) {
     LIR *def_start = last_lir_insn_;
     Store32Disp(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low), rl_dest.reg);
     MarkClean(rl_dest);
@@ -314,7 +296,6 @@ void Mir2Lir::StoreFinalValue(RegLocation rl_dest, RegLocation rl_src) {
 }
 
 void Mir2Lir::StoreFinalValueWide(RegLocation rl_dest, RegLocation rl_src) {
-  DCHECK_EQ(IsFpReg(rl_src.reg.GetLowReg()), IsFpReg(rl_src.reg.GetHighReg()));
   DCHECK(rl_dest.wide);
   DCHECK(rl_src.wide);
   DCHECK_EQ(rl_src.location, kLocPhysReg);
@@ -325,28 +306,17 @@ void Mir2Lir::StoreFinalValueWide(RegLocation rl_dest, RegLocation rl_src) {
     // Just re-assign the registers.  Dest gets Src's regs.
     rl_dest.location = kLocPhysReg;
     rl_dest.reg = rl_src.reg;
-    Clobber(rl_src.reg.GetLowReg());
-    Clobber(rl_src.reg.GetHighReg());
+    Clobber(rl_src.reg);
   }
 
   // Dest is now live and dirty (until/if we flush it to home location).
-  MarkLive(rl_dest.reg.GetLow(), rl_dest.s_reg_low);
-
-  // Does this wide value live in two registers (or one vector one)?
-  // FIXME: wide reg.
-  if (rl_dest.reg.GetLowReg() != rl_dest.reg.GetHighReg()) {
-    MarkLive(rl_dest.reg.GetHigh(), GetSRegHi(rl_dest.s_reg_low));
-    MarkDirty(rl_dest);
-    MarkPair(rl_dest.reg.GetLowReg(), rl_dest.reg.GetHighReg());
-  } else {
-    // This must be an x86 vector register value,
-    DCHECK(IsFpReg(rl_dest.reg) && (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64));
-    MarkDirty(rl_dest);
-  }
+  MarkLive(rl_dest);
+  MarkWide(rl_dest.reg);
+  MarkDirty(rl_dest);
 
   ResetDefLocWide(rl_dest);
-  if (IsDirty(rl_dest.reg) && (oat_live_out(rl_dest.s_reg_low) ||
-      oat_live_out(GetSRegHi(rl_dest.s_reg_low)))) {
+  if (IsDirty(rl_dest.reg) && (LiveOut(rl_dest.s_reg_low) ||
+      LiveOut(GetSRegHi(rl_dest.s_reg_low)))) {
     LIR *def_start = last_lir_insn_;
     DCHECK_EQ((mir_graph_->SRegToVReg(rl_dest.s_reg_low)+1),
               mir_graph_->SRegToVReg(GetSRegHi(rl_dest.s_reg_low)));
@@ -369,7 +339,7 @@ RegLocation Mir2Lir::LoadCurrMethod() {
 RegLocation Mir2Lir::ForceTemp(RegLocation loc) {
   DCHECK(!loc.wide);
   DCHECK(loc.location == kLocPhysReg);
-  DCHECK(!IsFpReg(loc.reg));
+  DCHECK(!loc.reg.IsFloat());
   if (IsTemp(loc.reg)) {
     Clobber(loc.reg);
   } else {
@@ -383,21 +353,20 @@ RegLocation Mir2Lir::ForceTemp(RegLocation loc) {
   return loc;
 }
 
-// FIXME: wide regs.
+// FIXME: will need an update for 64-bit core regs.
 RegLocation Mir2Lir::ForceTempWide(RegLocation loc) {
   DCHECK(loc.wide);
   DCHECK(loc.location == kLocPhysReg);
-  DCHECK(!IsFpReg(loc.reg.GetLowReg()));
-  DCHECK(!IsFpReg(loc.reg.GetHighReg()));
-  if (IsTemp(loc.reg.GetLowReg())) {
-    Clobber(loc.reg.GetLowReg());
+  DCHECK(!loc.reg.IsFloat());
+  if (IsTemp(loc.reg.GetLow())) {
+    Clobber(loc.reg.GetLow());
   } else {
     RegStorage temp_low = AllocTemp();
     OpRegCopy(temp_low, loc.reg.GetLow());
     loc.reg.SetLowReg(temp_low.GetReg());
   }
-  if (IsTemp(loc.reg.GetHighReg())) {
-    Clobber(loc.reg.GetHighReg());
+  if (IsTemp(loc.reg.GetHigh())) {
+    Clobber(loc.reg.GetHigh());
   } else {
     RegStorage temp_high = AllocTemp();
     OpRegCopy(temp_high, loc.reg.GetHigh());

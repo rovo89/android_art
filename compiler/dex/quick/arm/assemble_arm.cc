@@ -1137,24 +1137,25 @@ uint8_t* ArmMir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
                 bits |= value;
                 break;
               case kFmtDfp: {
-                DCHECK(ARM_DOUBLEREG(operand));
-                DCHECK_EQ((operand & 0x1), 0U);
-                uint32_t reg_name = (operand & ARM_FP_REG_MASK) >> 1;
+                DCHECK(RegStorage::IsDouble(operand)) << ", Operand = 0x" << std::hex << operand;
+                uint32_t reg_num = RegStorage::RegNum(operand);
                 /* Snag the 1-bit slice and position it */
-                value = ((reg_name & 0x10) >> 4) << encoder->field_loc[i].end;
+                value = ((reg_num & 0x10) >> 4) << encoder->field_loc[i].end;
                 /* Extract and position the 4-bit slice */
-                value |= (reg_name & 0x0f) << encoder->field_loc[i].start;
+                value |= (reg_num & 0x0f) << encoder->field_loc[i].start;
                 bits |= value;
                 break;
               }
-              case kFmtSfp:
-                DCHECK(ARM_SINGLEREG(operand));
+              case kFmtSfp: {
+                DCHECK(RegStorage::IsSingle(operand)) << ", Operand = 0x" << std::hex << operand;
+                uint32_t reg_num = RegStorage::RegNum(operand);
                 /* Snag the 1-bit slice and position it */
-                value = (operand & 0x1) << encoder->field_loc[i].end;
+                value = (reg_num & 0x1) << encoder->field_loc[i].end;
                 /* Extract and position the 4-bit slice */
-                value |= ((operand & 0x1e) >> 1) << encoder->field_loc[i].start;
+                value |= ((reg_num & 0x1e) >> 1) << encoder->field_loc[i].start;
                 bits |= value;
                 break;
+              }
               case kFmtImm12:
               case kFmtModImm:
                 value = ((operand & 0x800) >> 11) << 26;
@@ -1217,8 +1218,8 @@ void ArmMir2Lir::AssembleLIR() {
   AssignDataOffsets();
 
   /*
-   * Note: generation must be 1 on first pass (to distinguish from initialized state of 0 for non-visited nodes).
-   * Start at zero here, and bit will be flipped to 1 on entry to the loop.
+   * Note: generation must be 1 on first pass (to distinguish from initialized state of 0 for
+   * non-visited nodes).  Start at zero here, and bit will be flipped to 1 on entry to the loop.
    */
   int generation = 0;
   while (true) {
@@ -1244,7 +1245,7 @@ void ArmMir2Lir::AssembleLIR() {
         case kFixupNone:
           break;
         case kFixupVLoad:
-          if (lir->operands[1] != r15pc) {
+          if (lir->operands[1] != rs_r15pc.GetReg()) {
             break;
           }
           // NOTE: intentional fallthrough.
@@ -1285,7 +1286,8 @@ void ArmMir2Lir::AssembleLIR() {
              * happens.
              */
             int base_reg = ((lir->opcode == kThumb2LdrdPcRel8) ||
-                            (lir->opcode == kThumb2LdrPcRel12)) ?  lir->operands[0] : rARM_LR;
+                            (lir->opcode == kThumb2LdrPcRel12)) ?  lir->operands[0] :
+                            rs_rARM_LR.GetReg();
 
             // Add new Adr to generate the address.
             LIR* new_adr = RawLIR(lir->dalvik_offset, kThumb2Adr,
@@ -1500,7 +1502,8 @@ void ArmMir2Lir::AssembleLIR() {
           EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[2]));
           LIR* target = lir->target;
           int32_t target_disp = (tab_rec != NULL) ?  tab_rec->offset + offset_adjustment
-              : target->offset + ((target->flags.generation == lir->flags.generation) ? 0 : offset_adjustment);
+              : target->offset + ((target->flags.generation == lir->flags.generation) ? 0 :
+              offset_adjustment);
           int32_t disp = target_disp - ((lir->offset + 4) & ~3);
           if (disp < 4096) {
             lir->operands[1] = disp;
@@ -1533,12 +1536,12 @@ void ArmMir2Lir::AssembleLIR() {
             prev_lir = new_mov16H;  // Now we've got a new prev.
 
             offset_adjustment -= lir->flags.size;
-            if (ARM_LOWREG(lir->operands[0])) {
+            if (RegStorage::RegNum(lir->operands[0]) < 8) {
               lir->opcode = kThumbAddRRLH;
             } else {
               lir->opcode = kThumbAddRRHH;
             }
-            lir->operands[1] = rARM_PC;
+            lir->operands[1] = rs_rARM_PC.GetReg();
             lir->flags.size = EncodingMap[lir->opcode].size;
             offset_adjustment += lir->flags.size;
             // Must stay in fixup list and have offset updated; will be used by LST/HSP pair.

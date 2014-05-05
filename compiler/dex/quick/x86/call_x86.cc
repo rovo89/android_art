@@ -152,10 +152,10 @@ void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
     LoadValueDirect(rl_method, rs_rX86_ARG2);
     store_method_addr_used_ = true;
   } else {
-    NewLIR1(kX86StartOfMethod, rX86_ARG2);
+    NewLIR1(kX86StartOfMethod, rs_rX86_ARG2.GetReg());
   }
-  NewLIR2(kX86PcRelAdr, rX86_ARG1, WrapPointer(tab_rec));
-  NewLIR2(kX86Add32RR, rX86_ARG1, rX86_ARG2);
+  NewLIR2(kX86PcRelAdr, rs_rX86_ARG1.GetReg(), WrapPointer(tab_rec));
+  NewLIR2(kX86Add32RR, rs_rX86_ARG1.GetReg(), rs_rX86_ARG2.GetReg());
   CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pHandleFillArrayData), rs_rX86_ARG0,
                           rs_rX86_ARG1, true);
 }
@@ -191,9 +191,9 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
    * expanding the frame or flushing.  This leaves the utility
    * code with no spare temps.
    */
-  LockTemp(rX86_ARG0);
-  LockTemp(rX86_ARG1);
-  LockTemp(rX86_ARG2);
+  LockTemp(rs_rX86_ARG0);
+  LockTemp(rs_rX86_ARG1);
+  LockTemp(rs_rX86_ARG2);
 
   /* Build frame, return address already on stack */
   // TODO: 64 bit.
@@ -240,7 +240,7 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
     // in case a signal comes in that's not using an alternate signal stack and the large frame may
     // have moved us outside of the reserved area at the end of the stack.
     // cmp rX86_SP, fs:[stack_end_]; jcc throw_slowpath
-    OpRegThreadMem(kOpCmp, rX86_SP, Thread::StackEndOffset<4>());
+    OpRegThreadMem(kOpCmp, rs_rX86_SP, Thread::StackEndOffset<4>());
     LIR* branch = OpCondBranch(kCondUlt, nullptr);
     AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, frame_size_ - 4));
   }
@@ -249,15 +249,15 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
 
   if (base_of_code_ != nullptr) {
     // We have been asked to save the address of the method start for later use.
-    setup_method_address_[0] = NewLIR1(kX86StartOfMethod, rX86_ARG0);
+    setup_method_address_[0] = NewLIR1(kX86StartOfMethod, rs_rX86_ARG0.GetReg());
     int displacement = SRegOffset(base_of_code_->s_reg_low);
     // Native pointer - must be natural word size.
     setup_method_address_[1] = StoreWordDisp(rs_rX86_SP, displacement, rs_rX86_ARG0);
   }
 
-  FreeTemp(rX86_ARG0);
-  FreeTemp(rX86_ARG1);
-  FreeTemp(rX86_ARG2);
+  FreeTemp(rs_rX86_ARG0);
+  FreeTemp(rs_rX86_ARG1);
+  FreeTemp(rs_rX86_ARG2);
 }
 
 void X86Mir2Lir::GenExitSequence() {
@@ -265,8 +265,8 @@ void X86Mir2Lir::GenExitSequence() {
    * In the exit path, rX86_RET0/rX86_RET1 are live - make sure they aren't
    * allocated by the register utilities as temps.
    */
-  LockTemp(rX86_RET0);
-  LockTemp(rX86_RET1);
+  LockTemp(rs_rX86_RET0);
+  LockTemp(rs_rX86_RET1);
 
   NewLIR0(kPseudoMethodExit);
   UnSpillCoreRegs();

@@ -102,27 +102,6 @@ namespace art {
  * +========================+
  */
 
-// Offset to distingish FP regs.
-#define X86_FP_REG_OFFSET 32
-// Offset to distinguish DP FP regs.
-#define X86_FP_DOUBLE (X86_FP_REG_OFFSET + 16)
-// Reg types.
-#define X86_REGTYPE(x) (x & (X86_FP_REG_OFFSET | X86_FP_DOUBLE))
-#define X86_FPREG(x) ((x & X86_FP_REG_OFFSET) == X86_FP_REG_OFFSET)
-#define X86_DOUBLEREG(x) ((x & X86_FP_DOUBLE) == X86_FP_DOUBLE)
-#define X86_SINGLEREG(x) (X86_FPREG(x) && !X86_DOUBLEREG(x))
-
-/*
- * Note: the low register of a floating point pair is sufficient to
- * create the name of a double, but require both names to be passed to
- * allow for asserts to verify that the pair is consecutive if significant
- * rework is done in this area.  Also, it is a good reminder in the calling
- * code that reg locations always describe doubles as a pair of singles.
- */
-#define X86_S2D(x, y) ((x) | X86_FP_DOUBLE)
-/* Mask to strip off fp flags */
-#define X86_FP_REG_MASK 0xF
-
 enum X86ResourceEncodingPos {
   kX86GPReg0   = 0,
   kX86RegSP    = 4,
@@ -135,72 +114,119 @@ enum X86ResourceEncodingPos {
 #define ENCODE_X86_REG_SP           (1ULL << kX86RegSP)
 #define ENCODE_X86_FP_STACK         (1ULL << kX86FPStack)
 
+// FIXME: for 64-bit, perhaps add an X86_64NativeRegisterPool enum?
 enum X86NativeRegisterPool {
-  r0     = 0,
-  rAX    = r0,
-  r1     = 1,
-  rCX    = r1,
-  r2     = 2,
-  rDX    = r2,
-  r3     = 3,
-  rBX    = r3,
-  r4sp   = 4,
-  rX86_SP    = r4sp,
+  r0             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 0,
+  rAX            = r0,
+  r1             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 1,
+  rCX            = r1,
+  r2             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 2,
+  rDX            = r2,
+  r3             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 3,
+  rBX            = r3,
+  r4sp           = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 4,
+  rX86_SP        = r4sp,
   r4sib_no_index = r4sp,
-  r5     = 5,
-  rBP    = r5,
-  r5sib_no_base = r5,
-  r6     = 6,
-  rSI    = r6,
-  r7     = 7,
-  rDI    = r7,
+  r5             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 5,
+  rBP            = r5,
+  r5sib_no_base  = r5,
+  r6             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 6,
+  rSI            = r6,
+  r7             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 7,
+  rDI            = r7,
 #ifndef TARGET_REX_SUPPORT
-  rRET   = 8,  // fake return address register for core spill mask.
+  // fake return address register for core spill mask.
+  rRET           = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 8,
 #else
-  r8     = 8,
-  r9     = 9,
-  r10    = 10,
-  r11    = 11,
-  r12    = 12,
-  r13    = 13,
-  r14    = 14,
-  r15    = 15,
-  rRET   = 16,  // fake return address register for core spill mask.
+  r8             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 8,
+  r9             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 9,
+  r10            = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 10,
+  r11            = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 11,
+  r12            = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 12,
+  r13            = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 13,
+  r14            = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 14,
+  r15            = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 15,
+  // fake return address register for core spill mask.
+  rRET           = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 16,
 #endif
-  fr0  =  0 + X86_FP_REG_OFFSET,
-  fr1  =  1 + X86_FP_REG_OFFSET,
-  fr2  =  2 + X86_FP_REG_OFFSET,
-  fr3  =  3 + X86_FP_REG_OFFSET,
-  fr4  =  4 + X86_FP_REG_OFFSET,
-  fr5  =  5 + X86_FP_REG_OFFSET,
-  fr6  =  6 + X86_FP_REG_OFFSET,
-  fr7  =  7 + X86_FP_REG_OFFSET,
-  fr8  =  8 + X86_FP_REG_OFFSET,
-  fr9  =  9 + X86_FP_REG_OFFSET,
-  fr10 = 10 + X86_FP_REG_OFFSET,
-  fr11 = 11 + X86_FP_REG_OFFSET,
-  fr12 = 12 + X86_FP_REG_OFFSET,
-  fr13 = 13 + X86_FP_REG_OFFSET,
-  fr14 = 14 + X86_FP_REG_OFFSET,
-  fr15 = 15 + X86_FP_REG_OFFSET,
+
+  // xmm registers, single precision view
+  fr0  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 0,
+  fr1  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 1,
+  fr2  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 2,
+  fr3  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 3,
+  fr4  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 4,
+  fr5  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 5,
+  fr6  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 6,
+  fr7  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 7,
+
+  // xmm registers, double precision alises
+  dr0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 0,
+  dr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 1,
+  dr2  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 2,
+  dr3  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 3,
+  dr4  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 4,
+  dr5  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 5,
+  dr6  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 6,
+  dr7  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 7,
+
+  // xmm registers, quad precision alises
+  qr0  = RegStorage::k128BitSolo | RegStorage::kFloatingPoint | 0,
+  qr1  = RegStorage::k128BitSolo | RegStorage::kFloatingPoint | 1,
+  qr2  = RegStorage::k128BitSolo | RegStorage::kFloatingPoint | 2,
+  qr3  = RegStorage::k128BitSolo | RegStorage::kFloatingPoint | 3,
+  qr4  = RegStorage::k128BitSolo | RegStorage::kFloatingPoint | 4,
+  qr5  = RegStorage::k128BitSolo | RegStorage::kFloatingPoint | 5,
+  qr6  = RegStorage::k128BitSolo | RegStorage::kFloatingPoint | 6,
+  qr7  = RegStorage::k128BitSolo | RegStorage::kFloatingPoint | 7,
+
+  // TODO: as needed, add 256, 512 and 1024-bit xmm views.
 };
 
-const RegStorage rs_r0(RegStorage::k32BitSolo, r0);
-const RegStorage rs_rAX = rs_r0;
-const RegStorage rs_r1(RegStorage::k32BitSolo, r1);
-const RegStorage rs_rCX = rs_r1;
-const RegStorage rs_r2(RegStorage::k32BitSolo, r2);
-const RegStorage rs_rDX = rs_r2;
-const RegStorage rs_r3(RegStorage::k32BitSolo, r3);
-const RegStorage rs_rBX = rs_r3;
-const RegStorage rs_r4sp(RegStorage::k32BitSolo, r4sp);
-const RegStorage rs_rX86_SP = rs_r4sp;
-const RegStorage rs_r5(RegStorage::k32BitSolo, r5);
-const RegStorage rs_rBP = rs_r5;
-const RegStorage rs_r6(RegStorage::k32BitSolo, r6);
-const RegStorage rs_rSI = rs_r6;
-const RegStorage rs_r7(RegStorage::k32BitSolo, r7);
-const RegStorage rs_rDI = rs_r7;
+constexpr RegStorage rs_r0(RegStorage::kValid | r0);
+constexpr RegStorage rs_rAX = rs_r0;
+constexpr RegStorage rs_r1(RegStorage::kValid | r1);
+constexpr RegStorage rs_rCX = rs_r1;
+constexpr RegStorage rs_r2(RegStorage::kValid | r2);
+constexpr RegStorage rs_rDX = rs_r2;
+constexpr RegStorage rs_r3(RegStorage::kValid | r3);
+constexpr RegStorage rs_rBX = rs_r3;
+constexpr RegStorage rs_r4sp(RegStorage::kValid | r4sp);
+constexpr RegStorage rs_rX86_SP = rs_r4sp;
+constexpr RegStorage rs_r5(RegStorage::kValid | r5);
+constexpr RegStorage rs_rBP = rs_r5;
+constexpr RegStorage rs_r6(RegStorage::kValid | r6);
+constexpr RegStorage rs_rSI = rs_r6;
+constexpr RegStorage rs_r7(RegStorage::kValid | r7);
+constexpr RegStorage rs_rDI = rs_r7;
+constexpr RegStorage rs_rRET(RegStorage::kValid | rRET);
+
+constexpr RegStorage rs_fr0(RegStorage::kValid | fr0);
+constexpr RegStorage rs_fr1(RegStorage::kValid | fr1);
+constexpr RegStorage rs_fr2(RegStorage::kValid | fr2);
+constexpr RegStorage rs_fr3(RegStorage::kValid | fr3);
+constexpr RegStorage rs_fr4(RegStorage::kValid | fr4);
+constexpr RegStorage rs_fr5(RegStorage::kValid | fr5);
+constexpr RegStorage rs_fr6(RegStorage::kValid | fr6);
+constexpr RegStorage rs_fr7(RegStorage::kValid | fr7);
+
+constexpr RegStorage rs_dr0(RegStorage::kValid | dr0);
+constexpr RegStorage rs_dr1(RegStorage::kValid | dr1);
+constexpr RegStorage rs_dr2(RegStorage::kValid | dr2);
+constexpr RegStorage rs_dr3(RegStorage::kValid | dr3);
+constexpr RegStorage rs_dr4(RegStorage::kValid | dr4);
+constexpr RegStorage rs_dr5(RegStorage::kValid | dr5);
+constexpr RegStorage rs_dr6(RegStorage::kValid | dr6);
+constexpr RegStorage rs_dr7(RegStorage::kValid | dr7);
+
+constexpr RegStorage rs_qr0(RegStorage::kValid | qr0);
+constexpr RegStorage rs_qr1(RegStorage::kValid | qr1);
+constexpr RegStorage rs_qr2(RegStorage::kValid | qr2);
+constexpr RegStorage rs_qr3(RegStorage::kValid | qr3);
+constexpr RegStorage rs_qr4(RegStorage::kValid | qr4);
+constexpr RegStorage rs_qr5(RegStorage::kValid | qr5);
+constexpr RegStorage rs_qr6(RegStorage::kValid | qr6);
+constexpr RegStorage rs_qr7(RegStorage::kValid | qr7);
 
 // TODO: elminate these #defines?
 #define rX86_ARG0 rAX
@@ -234,19 +260,17 @@ const RegStorage rs_rDI = rs_r7;
 
 // RegisterLocation templates return values (r_V0, or r_V0/r_V1).
 const RegLocation x86_loc_c_return
-    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1,
      RegStorage(RegStorage::k32BitSolo, rAX), INVALID_SREG, INVALID_SREG};
 const RegLocation x86_loc_c_return_wide
-    {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+    {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1,
      RegStorage(RegStorage::k64BitPair, rAX, rDX), INVALID_SREG, INVALID_SREG};
-// TODO: update to use k32BitVector (must encode in 7 bits, including fp flag).
 const RegLocation x86_loc_c_return_float
-    {kLocPhysReg, 0, 0, 0, 1, 0, 0, 0, 1, kVectorLength4,
+    {kLocPhysReg, 0, 0, 0, 1, 0, 0, 0, 1,
      RegStorage(RegStorage::k32BitSolo, fr0), INVALID_SREG, INVALID_SREG};
-// TODO: update to use k64BitVector (must encode in 7 bits, including fp flag).
 const RegLocation x86_loc_c_return_double
-    {kLocPhysReg, 1, 0, 0, 1, 0, 0, 0, 1, kVectorLength8,
-     RegStorage(RegStorage::k64BitPair, fr0, fr0), INVALID_SREG, INVALID_SREG};
+    {kLocPhysReg, 1, 0, 0, 1, 0, 0, 0, 1,
+     RegStorage(RegStorage::k64BitSolo, dr0), INVALID_SREG, INVALID_SREG};
 
 /*
  * The following enum defines the list of supported X86 instructions by the

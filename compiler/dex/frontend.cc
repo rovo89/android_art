@@ -40,13 +40,13 @@ extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver& driver) {
 
 /* Default optimizer/debug setting for the compiler. */
 static uint32_t kCompilerOptimizerDisableFlags = 0 |  // Disable specific optimizations
-  (1 << kLoadStoreElimination) |
+  (1 << kLoadStoreElimination) |  // TODO: this pass has been broken for awhile - fix or delete.
   // (1 << kLoadHoisting) |
   // (1 << kSuppressLoads) |
   // (1 << kNullCheckElimination) |
   // (1 << kClassInitCheckElimination) |
   // (1 << kPromoteRegs) |
-  // (1 << kTrackLiveTemps) |
+  (1 << kTrackLiveTemps) |        // FIXME: disable until liveness issue fixed.
   // (1 << kSafeOptimizations) |
   // (1 << kBBOpt) |
   // (1 << kMatch) |
