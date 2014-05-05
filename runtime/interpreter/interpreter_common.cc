@@ -302,6 +302,8 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     CHECK(found != NULL) << "Class.forName failed in un-started runtime for class: "
         << PrettyDescriptor(descriptor);
     result->SetL(found);
+  } else if (name == "java.lang.Class java.lang.Void.lookupType()") {
+    result->SetL(Runtime::Current()->GetClassLinker()->FindPrimitiveClass('V'));
   } else if (name == "java.lang.Class java.lang.VMClassLoader.findLoadedClass(java.lang.ClassLoader, java.lang.String)") {
     SirtRef<ClassLoader> class_loader(self, down_cast<mirror::ClassLoader*>(shadow_frame->GetVRegReference(arg_offset)));
     std::string descriptor(DotToDescriptor(shadow_frame->GetVRegReference(arg_offset + 1)->AsString()->ToModifiedUtf8().c_str()));
@@ -355,6 +357,12 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     args[0] = StackReference<mirror::Object>::FromMirrorPtr(found).AsVRegValue();
     EnterInterpreterFromInvoke(self, c, field.get(), args, NULL);
     result->SetL(field.get());
+  } else if (name == "int java.lang.Object.hashCode()") {
+    Object* obj = shadow_frame->GetVRegReference(arg_offset);
+    result->SetI(obj->IdentityHashCode());
+  } else if (name == "java.lang.String java.lang.reflect.ArtMethod.getMethodName(java.lang.reflect.ArtMethod)") {
+    ArtMethod* method = shadow_frame->GetVRegReference(arg_offset)->AsArtMethod();
+    result->SetL(MethodHelper(method).GetNameAsString());
   } else if (name == "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)" ||
              name == "void java.lang.System.arraycopy(char[], int, char[], int, int)") {
     // Special case array copying without initializing System.
@@ -381,7 +389,18 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
         dst->Set(dstPos + i, src->Get(srcPos + i));
       }
     } else {
-      UNIMPLEMENTED(FATAL) << "System.arraycopy of unexpected type: " << PrettyDescriptor(ctype);
+      self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(), "Ljava/lang/InternalError;",
+                               "Unimplemented System.arraycopy for type '%s'",
+                               PrettyDescriptor(ctype).c_str());
+    }
+  } else  if (name == "java.lang.Object java.lang.ThreadLocal.get()") {
+    std::string caller(PrettyMethod(shadow_frame->GetLink()->GetMethod()));
+    if (caller == "java.lang.String java.lang.IntegralToString.convertInt(java.lang.AbstractStringBuilder, int)") {
+      // Allocate non-threadlocal buffer.
+      result->SetL(mirror::CharArray::Alloc(self, 11));
+    } else {
+      self->ThrowNewException(self->GetCurrentLocationForThrow(), "Ljava/lang/InternalError;",
+                              "Unimplemented ThreadLocal.get");
     }
   } else {
     // Not special, continue with regular interpreter execution.
