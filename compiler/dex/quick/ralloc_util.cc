@@ -30,7 +30,7 @@ namespace art {
 void Mir2Lir::ResetRegPool() {
   GrowableArray<RegisterInfo*>::Iterator iter(&tempreg_info_);
   for (RegisterInfo* info = iter.Next(); info != NULL; info = iter.Next()) {
-    info->in_use = false;
+    info->MarkFree();
   }
   // Reset temp tracking sanity check.
   if (kIsDebugBuild) {
@@ -38,66 +38,124 @@ void Mir2Lir::ResetRegPool() {
   }
 }
 
- /*
-  * Set up temp & preserved register pools specialized by target.
-  * Note: num_regs may be zero.
-  */
-void Mir2Lir::CompilerInitPool(RegisterInfo* regs, int* reg_nums, int num) {
-  for (int i = 0; i < num; i++) {
-    uint32_t reg_number = reg_nums[i];
-    regs[i].reg = reg_number;
-    regs[i].in_use = false;
-    regs[i].is_temp = false;
-    regs[i].pair = false;
-    regs[i].live = false;
-    regs[i].dirty = false;
-    regs[i].s_reg = INVALID_SREG;
-    size_t map_size = reginfo_map_.Size();
-    if (reg_number >= map_size) {
-      for (uint32_t i = 0; i < ((reg_number - map_size) + 1); i++) {
-        reginfo_map_.Insert(NULL);
-      }
-    }
-    reginfo_map_.Put(reg_number, &regs[i]);
+Mir2Lir::RegisterInfo::RegisterInfo(RegStorage r, uint64_t mask)
+  : reg_(r), is_temp_(false), wide_value_(false), live_(false),
+    dirty_(false), partner_(r), s_reg_(INVALID_SREG), def_use_mask_(mask), master_(this) {
+  switch (r.StorageSize()) {
+    case 0: storage_mask_ = 0xffffffff; break;
+    case 4: storage_mask_ = 0x00000001; break;
+    case 8: storage_mask_ = 0x00000003; break;
+    case 16: storage_mask_ = 0x0000000f; break;
+    case 32: storage_mask_ = 0x000000ff; break;
+    case 64: storage_mask_ = 0x0000ffff; break;
+    case 128: storage_mask_ = 0xffffffff; break;
   }
+  used_storage_ = r.Valid() ? ~storage_mask_ : storage_mask_;
 }
 
-void Mir2Lir::DumpRegPool(RegisterInfo* p, int num_regs) {
+Mir2Lir::RegisterPool::RegisterPool(Mir2Lir* m2l, ArenaAllocator* arena,
+                                    const std::vector<RegStorage>& core_regs,
+                                    const std::vector<RegStorage>& sp_regs,
+                                    const std::vector<RegStorage>& dp_regs,
+                                    const std::vector<RegStorage>& reserved_regs,
+                                    const std::vector<RegStorage>& core_temps,
+                                    const std::vector<RegStorage>& sp_temps,
+                                    const std::vector<RegStorage>& dp_temps) :
+    core_regs_(arena, core_regs.size()), next_core_reg_(0), sp_regs_(arena, sp_regs.size()),
+    next_sp_reg_(0), dp_regs_(arena, dp_regs.size()), next_dp_reg_(0), m2l_(m2l)  {
+  // Initialize the fast lookup map.
+  m2l_->reginfo_map_.Reset();
+  m2l_->reginfo_map_.Resize(RegStorage::kMaxRegs);
+  for (unsigned i = 0; i < RegStorage::kMaxRegs; i++) {
+    m2l_->reginfo_map_.Insert(nullptr);
+  }
+
+  // Construct the register pool.
+  for (RegStorage reg : core_regs) {
+    RegisterInfo* info = new (arena) RegisterInfo(reg, m2l_->GetRegMaskCommon(reg));
+    m2l_->reginfo_map_.Put(reg.GetReg(), info);
+    core_regs_.Insert(info);
+  }
+  for (RegStorage reg : sp_regs) {
+    RegisterInfo* info = new (arena) RegisterInfo(reg, m2l_->GetRegMaskCommon(reg));
+    m2l_->reginfo_map_.Put(reg.GetReg(), info);
+    sp_regs_.Insert(info);
+  }
+  for (RegStorage reg : dp_regs) {
+    RegisterInfo* info = new (arena) RegisterInfo(reg, m2l_->GetRegMaskCommon(reg));
+    m2l_->reginfo_map_.Put(reg.GetReg(), info);
+    dp_regs_.Insert(info);
+  }
+
+  // Keep special registers from being allocated.
+  for (RegStorage reg : reserved_regs) {
+    m2l_->MarkInUse(reg);
+  }
+
+  // Mark temp regs - all others not in use can be used for promotion
+  for (RegStorage reg : core_temps) {
+    m2l_->MarkTemp(reg);
+  }
+  for (RegStorage reg : sp_temps) {
+    m2l_->MarkTemp(reg);
+  }
+  for (RegStorage reg : dp_temps) {
+    m2l_->MarkTemp(reg);
+  }
+
+  // Add an entry for InvalidReg with zero'd mask.
+  RegisterInfo* invalid_reg = new (arena) RegisterInfo(RegStorage::InvalidReg(), 0);
+  m2l_->reginfo_map_.Put(RegStorage::InvalidReg().GetReg(), invalid_reg);
+}
+
+void Mir2Lir::DumpRegPool(GrowableArray<RegisterInfo*>* regs) {
   LOG(INFO) << "================================================";
-  for (int i = 0; i < num_regs; i++) {
+  GrowableArray<RegisterInfo*>::Iterator it(regs);
+  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
     LOG(INFO) << StringPrintf(
-        "R[%d]: T:%d, U:%d, P:%d, p:%d, LV:%d, D:%d, SR:%d",
-        p[i].reg, p[i].is_temp, p[i].in_use, p[i].pair, p[i].partner,
-        p[i].live, p[i].dirty, p[i].s_reg);
+        "R[%d:%d:%c]: T:%d, U:%d, W:%d, p:%d, LV:%d, D:%d, SR:%d, DEF:%d",
+        info->GetReg().GetReg(), info->GetReg().GetRegNum(), info->GetReg().IsFloat() ?  'f' : 'c',
+        info->IsTemp(), info->InUse(), info->IsWide(), info->Partner().GetReg(), info->IsLive(),
+        info->IsDirty(), info->SReg(), info->DefStart() != nullptr);
   }
   LOG(INFO) << "================================================";
 }
 
 void Mir2Lir::DumpCoreRegPool() {
-  DumpRegPool(reg_pool_->core_regs, reg_pool_->num_core_regs);
+  DumpRegPool(&reg_pool_->core_regs_);
 }
 
 void Mir2Lir::DumpFpRegPool() {
-  DumpRegPool(reg_pool_->FPRegs, reg_pool_->num_fp_regs);
+  DumpRegPool(&reg_pool_->sp_regs_);
+  DumpRegPool(&reg_pool_->dp_regs_);
+}
+
+void Mir2Lir::DumpRegPools() {
+  LOG(INFO) << "Core registers";
+  DumpCoreRegPool();
+  LOG(INFO) << "FP registers";
+  DumpFpRegPool();
 }
 
 void Mir2Lir::Clobber(RegStorage reg) {
   if (reg.IsPair()) {
-    ClobberBody(GetRegInfo(reg.GetLowReg()));
-    ClobberBody(GetRegInfo(reg.GetHighReg()));
+    ClobberBody(GetRegInfo(reg.GetLow()));
+    ClobberBody(GetRegInfo(reg.GetHigh()));
   } else {
-    ClobberBody(GetRegInfo(reg.GetReg()));
+    ClobberBody(GetRegInfo(reg));
   }
 }
 
-void Mir2Lir::ClobberSRegBody(RegisterInfo* p, int num_regs, int s_reg) {
-  for (int i = 0; i< num_regs; i++) {
-    if (p[i].s_reg == s_reg) {
-      if (p[i].is_temp) {
-        p[i].live = false;
+void Mir2Lir::ClobberSRegBody(GrowableArray<RegisterInfo*>* regs, int s_reg) {
+  GrowableArray<RegisterInfo*>::Iterator it(regs);
+  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+    if ((info->SReg() == s_reg)  ||
+        (info->IsWide() && (GetRegInfo(info->Partner())->SReg() == s_reg))) {
+      // NOTE: a single s_reg may appear multiple times, so we can't short-circuit.
+      if (info->IsTemp()) {
+        info->SetIsLive(false);
       }
-      p[i].def_start = NULL;
-      p[i].def_end = NULL;
+      info->ResetDefBody();
     }
   }
 }
@@ -114,14 +172,17 @@ void Mir2Lir::ClobberSRegBody(RegisterInfo* p, int num_regs, int s_reg) {
  * addressed.
  */
 void Mir2Lir::ClobberSReg(int s_reg) {
-  /* Reset live temp tracking sanity checker */
-  if (kIsDebugBuild) {
-    if (s_reg == live_sreg_) {
-      live_sreg_ = INVALID_SREG;
+  if (s_reg != INVALID_SREG) {
+    /* Reset live temp tracking sanity checker */
+    if (kIsDebugBuild) {
+      if (s_reg == live_sreg_) {
+        live_sreg_ = INVALID_SREG;
+      }
     }
+    ClobberSRegBody(&reg_pool_->core_regs_, s_reg);
+    ClobberSRegBody(&reg_pool_->sp_regs_, s_reg);
+    ClobberSRegBody(&reg_pool_->dp_regs_, s_reg);
   }
-  ClobberSRegBody(reg_pool_->core_regs, reg_pool_->num_core_regs, s_reg);
-  ClobberSRegBody(reg_pool_->FPRegs, reg_pool_->num_fp_regs, s_reg);
 }
 
 /*
@@ -153,11 +214,12 @@ int Mir2Lir::SRegToPMap(int s_reg) {
   }
 }
 
+// TODO: refactor following Alloc/Record routines - much commonality.
 void Mir2Lir::RecordCorePromotion(RegStorage reg, int s_reg) {
   int p_map_idx = SRegToPMap(s_reg);
   int v_reg = mir_graph_->SRegToVReg(s_reg);
-  int reg_num = reg.GetReg();
-  GetRegInfo(reg_num)->in_use = true;
+  int reg_num = reg.GetRegNum();
+  GetRegInfo(reg)->MarkInUse();
   core_spill_mask_ |= (1 << reg_num);
   // Include reg for later sort
   core_vmap_table_.push_back(reg_num << VREG_NUM_WIDTH | (v_reg & ((1 << VREG_NUM_WIDTH) - 1)));
@@ -166,13 +228,13 @@ void Mir2Lir::RecordCorePromotion(RegStorage reg, int s_reg) {
   promotion_map_[p_map_idx].core_reg = reg_num;
 }
 
-/* Reserve a callee-save register.  Return -1 if none available */
+/* Reserve a callee-save register.  Return InvalidReg if none available */
 RegStorage Mir2Lir::AllocPreservedCoreReg(int s_reg) {
   RegStorage res;
-  RegisterInfo* core_regs = reg_pool_->core_regs;
-  for (int i = 0; i < reg_pool_->num_core_regs; i++) {
-    if (!core_regs[i].is_temp && !core_regs[i].in_use) {
-      res = RegStorage::Solo32(core_regs[i].reg);
+  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->core_regs_);
+  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+    if (!info->IsTemp() && !info->InUse()) {
+      res = info->GetReg();
       RecordCorePromotion(res, s_reg);
       break;
     }
@@ -180,100 +242,66 @@ RegStorage Mir2Lir::AllocPreservedCoreReg(int s_reg) {
   return res;
 }
 
-void Mir2Lir::RecordFpPromotion(RegStorage reg, int s_reg) {
+void Mir2Lir::RecordSinglePromotion(RegStorage reg, int s_reg) {
   int p_map_idx = SRegToPMap(s_reg);
   int v_reg = mir_graph_->SRegToVReg(s_reg);
-  int reg_num = reg.GetReg();
-  GetRegInfo(reg_num)->in_use = true;
-  MarkPreservedSingle(v_reg, reg_num);
+  GetRegInfo(reg)->MarkInUse();
+  MarkPreservedSingle(v_reg, reg);
   promotion_map_[p_map_idx].fp_location = kLocPhysReg;
-  promotion_map_[p_map_idx].FpReg = reg_num;
+  promotion_map_[p_map_idx].FpReg = reg.GetReg();
 }
 
-// Reserve a callee-save fp single register.
+// Reserve a callee-save sp single register.
 RegStorage Mir2Lir::AllocPreservedSingle(int s_reg) {
   RegStorage res;
-  RegisterInfo* FPRegs = reg_pool_->FPRegs;
-  for (int i = 0; i < reg_pool_->num_fp_regs; i++) {
-    if (!FPRegs[i].is_temp && !FPRegs[i].in_use) {
-      res = RegStorage::Solo32(FPRegs[i].reg);
-      RecordFpPromotion(res, s_reg);
+  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->sp_regs_);
+  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+    if (!info->IsTemp() && !info->InUse()) {
+      res = info->GetReg();
+      RecordSinglePromotion(res, s_reg);
       break;
     }
   }
   return res;
 }
 
-/*
- * Somewhat messy code here.  We want to allocate a pair of contiguous
- * physical single-precision floating point registers starting with
- * an even numbered reg.  It is possible that the paired s_reg (s_reg+1)
- * has already been allocated - try to fit if possible.  Fail to
- * allocate if we can't meet the requirements for the pair of
- * s_reg<=sX[even] & (s_reg+1)<= sX+1.
- */
-// TODO: needs rewrite to support non-backed 64-bit float regs.
+void Mir2Lir::RecordDoublePromotion(RegStorage reg, int s_reg) {
+  int p_map_idx = SRegToPMap(s_reg);
+  int v_reg = mir_graph_->SRegToVReg(s_reg);
+  GetRegInfo(reg)->MarkInUse();
+  MarkPreservedDouble(v_reg, reg);
+  promotion_map_[p_map_idx].fp_location = kLocPhysReg;
+  promotion_map_[p_map_idx].FpReg = reg.GetReg();
+}
+
+// Reserve a callee-save dp solo register.
 RegStorage Mir2Lir::AllocPreservedDouble(int s_reg) {
   RegStorage res;
-  int v_reg = mir_graph_->SRegToVReg(s_reg);
-  int p_map_idx = SRegToPMap(s_reg);
-  if (promotion_map_[p_map_idx+1].fp_location == kLocPhysReg) {
-    // Upper reg is already allocated.  Can we fit?
-    int high_reg = promotion_map_[p_map_idx+1].FpReg;
-    if ((high_reg & 1) == 0) {
-      // High reg is even - fail.
-      return res;  // Invalid.
+  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->dp_regs_);
+  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+    if (!info->IsTemp() && !info->InUse()) {
+      res = info->GetReg();
+      RecordDoublePromotion(res, s_reg);
+      break;
     }
-    // Is the low reg of the pair free?
-    RegisterInfo* p = GetRegInfo(high_reg-1);
-    if (p->in_use || p->is_temp) {
-      // Already allocated or not preserved - fail.
-      return res;  // Invalid.
-    }
-    // OK - good to go.
-    res = RegStorage(RegStorage::k64BitPair, p->reg, p->reg + 1);
-    p->in_use = true;
-    DCHECK_EQ((res.GetReg() & 1), 0);
-    MarkPreservedSingle(v_reg, res.GetReg());
-  } else {
-    RegisterInfo* FPRegs = reg_pool_->FPRegs;
-    for (int i = 0; i < reg_pool_->num_fp_regs; i++) {
-      if (!FPRegs[i].is_temp && !FPRegs[i].in_use &&
-        ((FPRegs[i].reg & 0x1) == 0x0) &&
-        !FPRegs[i+1].is_temp && !FPRegs[i+1].in_use &&
-        ((FPRegs[i+1].reg & 0x1) == 0x1) &&
-        (FPRegs[i].reg + 1) == FPRegs[i+1].reg) {
-        res = RegStorage(RegStorage::k64BitPair, FPRegs[i].reg, FPRegs[i].reg+1);
-        FPRegs[i].in_use = true;
-        MarkPreservedSingle(v_reg, res.GetLowReg());
-        FPRegs[i+1].in_use = true;
-        DCHECK_EQ(res.GetLowReg() + 1, FPRegs[i+1].reg);
-        MarkPreservedSingle(v_reg+1, res.GetLowReg() + 1);
-        break;
-      }
-    }
-  }
-  if (res.Valid()) {
-    promotion_map_[p_map_idx].fp_location = kLocPhysReg;
-    promotion_map_[p_map_idx].FpReg = res.GetLowReg();
-    promotion_map_[p_map_idx+1].fp_location = kLocPhysReg;
-    promotion_map_[p_map_idx+1].FpReg = res.GetLowReg() + 1;
   }
   return res;
 }
 
-RegStorage Mir2Lir::AllocTempBody(RegisterInfo* p, int num_regs, int* next_temp,
-                                  bool required) {
+
+RegStorage Mir2Lir::AllocTempBody(GrowableArray<RegisterInfo*> &regs, int* next_temp, bool required) {
+  int num_regs = regs.Size();
   int next = *next_temp;
   for (int i = 0; i< num_regs; i++) {
     if (next >= num_regs)
       next = 0;
-    if (p[next].is_temp && !p[next].in_use && !p[next].live) {
-      Clobber(p[next].reg);
-      p[next].in_use = true;
-      p[next].pair = false;
+    RegisterInfo* info = regs.Get(next);
+    if (info->IsTemp() && !info->InUse() && !info->IsLive()) {
+      Clobber(info->GetReg());
+      info->MarkInUse();
+      info->SetIsWide(false);
       *next_temp = next + 1;
-      return RegStorage::Solo32(p[next].reg);
+      return info->GetReg();
     }
     next++;
   }
@@ -281,201 +309,166 @@ RegStorage Mir2Lir::AllocTempBody(RegisterInfo* p, int num_regs, int* next_temp,
   for (int i = 0; i< num_regs; i++) {
     if (next >= num_regs)
       next = 0;
-    if (p[next].is_temp && !p[next].in_use) {
-      Clobber(p[next].reg);
-      p[next].in_use = true;
-      p[next].pair = false;
+    RegisterInfo* info = regs.Get(next);
+    if (info->IsTemp() && !info->InUse()) {
+      Clobber(info->GetReg());
+      info->MarkInUse();
+      info->SetIsWide(false);
       *next_temp = next + 1;
-      return RegStorage::Solo32(p[next].reg);
+      return info->GetReg();
     }
     next++;
   }
   if (required) {
     CodegenDump();
-    DumpRegPool(reg_pool_->core_regs,
-          reg_pool_->num_core_regs);
+    DumpRegPools();
     LOG(FATAL) << "No free temp registers";
   }
   return RegStorage::InvalidReg();  // No register available
 }
 
-// REDO: too many assumptions.
-// Virtualize - this is target dependent.
-RegStorage Mir2Lir::AllocTempDouble() {
-  RegisterInfo* p = reg_pool_->FPRegs;
-  int num_regs = reg_pool_->num_fp_regs;
-  /* Start looking at an even reg */
-  int next = reg_pool_->next_fp_reg & ~0x1;
-
-  // First try to avoid allocating live registers
-  for (int i = 0; i < num_regs; i+=2) {
-    if (next >= num_regs)
-      next = 0;
-    if ((p[next].is_temp && !p[next].in_use && !p[next].live) &&
-      (p[next+1].is_temp && !p[next+1].in_use && !p[next+1].live)) {
-      Clobber(p[next].reg);
-      Clobber(p[next+1].reg);
-      p[next].in_use = true;
-      p[next+1].in_use = true;
-      DCHECK_EQ((p[next].reg+1), p[next+1].reg);
-      DCHECK_EQ((p[next].reg & 0x1), 0);
-      reg_pool_->next_fp_reg = next + 2;
-      if (reg_pool_->next_fp_reg >= num_regs) {
-        reg_pool_->next_fp_reg = 0;
-      }
-      // FIXME: should return k64BitSolo.
-      return RegStorage(RegStorage::k64BitPair, p[next].reg, p[next+1].reg);
-    }
-    next += 2;
-  }
-  next = reg_pool_->next_fp_reg & ~0x1;
-
-  // No choice - find a pair and kill it.
-  for (int i = 0; i < num_regs; i+=2) {
-    if (next >= num_regs)
-      next = 0;
-    if (p[next].is_temp && !p[next].in_use && p[next+1].is_temp &&
-      !p[next+1].in_use) {
-      Clobber(p[next].reg);
-      Clobber(p[next+1].reg);
-      p[next].in_use = true;
-      p[next+1].in_use = true;
-      DCHECK_EQ((p[next].reg+1), p[next+1].reg);
-      DCHECK_EQ((p[next].reg & 0x1), 0);
-      reg_pool_->next_fp_reg = next + 2;
-      if (reg_pool_->next_fp_reg >= num_regs) {
-        reg_pool_->next_fp_reg = 0;
-      }
-      return RegStorage(RegStorage::k64BitPair, p[next].reg, p[next+1].reg);
-    }
-    next += 2;
-  }
-  LOG(FATAL) << "No free temp registers (pair)";
-  return RegStorage::InvalidReg();
-}
-
 /* Return a temp if one is available, -1 otherwise */
 RegStorage Mir2Lir::AllocFreeTemp() {
-  return AllocTempBody(reg_pool_->core_regs,
-             reg_pool_->num_core_regs,
-             &reg_pool_->next_core_reg, false);
+  return AllocTempBody(reg_pool_->core_regs_, &reg_pool_->next_core_reg_, false);
 }
 
 RegStorage Mir2Lir::AllocTemp() {
-  return AllocTempBody(reg_pool_->core_regs,
-             reg_pool_->num_core_regs,
-             &reg_pool_->next_core_reg, true);
+  return AllocTempBody(reg_pool_->core_regs_, &reg_pool_->next_core_reg_, true);
 }
 
-RegStorage Mir2Lir::AllocTempFloat() {
-  return AllocTempBody(reg_pool_->FPRegs,
-             reg_pool_->num_fp_regs,
-             &reg_pool_->next_fp_reg, true);
+RegStorage Mir2Lir::AllocTempSingle() {
+  RegStorage res = AllocTempBody(reg_pool_->sp_regs_, &reg_pool_->next_sp_reg_, true);
+  DCHECK(res.IsSingle()) << "Reg: 0x" << std::hex << res.GetRawBits();
+  return res;
 }
 
-Mir2Lir::RegisterInfo* Mir2Lir::AllocLiveBody(RegisterInfo* p, int num_regs, int s_reg) {
-  if (s_reg == -1)
-    return NULL;
-  for (int i = 0; i < num_regs; i++) {
-    if ((p[i].s_reg == s_reg) && p[i].live) {
-      if (p[i].is_temp)
-        p[i].in_use = true;
-      return &p[i];
+RegStorage Mir2Lir::AllocTempDouble() {
+  RegStorage res = AllocTempBody(reg_pool_->dp_regs_, &reg_pool_->next_dp_reg_, true);
+  DCHECK(res.IsDouble()) << "Reg: 0x" << std::hex << res.GetRawBits();
+  return res;
+}
+
+RegStorage Mir2Lir::FindLiveReg(GrowableArray<RegisterInfo*> &regs, int s_reg) {
+  RegStorage res;
+  GrowableArray<RegisterInfo*>::Iterator it(&regs);
+  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+    if ((info->SReg() == s_reg) && info->IsLive()) {
+      res = info->GetReg();
+      break;
     }
-  }
-  return NULL;
-}
-
-Mir2Lir::RegisterInfo* Mir2Lir::AllocLive(int s_reg, int reg_class) {
-  RegisterInfo* res = NULL;
-  switch (reg_class) {
-    case kAnyReg:
-      res = AllocLiveBody(reg_pool_->FPRegs,
-                reg_pool_->num_fp_regs, s_reg);
-      if (res)
-        break;
-      /* Intentional fallthrough */
-    case kCoreReg:
-      res = AllocLiveBody(reg_pool_->core_regs,
-                reg_pool_->num_core_regs, s_reg);
-      break;
-    case kFPReg:
-      res = AllocLiveBody(reg_pool_->FPRegs,
-                reg_pool_->num_fp_regs, s_reg);
-      break;
-    default:
-      LOG(FATAL) << "Invalid register type";
   }
   return res;
 }
 
-void Mir2Lir::FreeTemp(int reg) {
-  RegisterInfo* p = GetRegInfo(reg);
-  if (p->is_temp) {
-    p->in_use = false;
+RegStorage Mir2Lir::AllocLiveReg(int s_reg, int reg_class, bool wide) {
+  RegStorage reg;
+  // TODO: might be worth a sanity check here to verify at most 1 live reg per s_reg.
+  if ((reg_class == kAnyReg) || (reg_class == kFPReg)) {
+    reg = FindLiveReg(wide ? reg_pool_->dp_regs_ : reg_pool_->sp_regs_, s_reg);
   }
-  p->pair = false;
+  if (!reg.Valid() && (reg_class != kFPReg)) {
+    reg = FindLiveReg(reg_pool_->core_regs_, s_reg);
+  }
+  if (reg.Valid()) {
+    if (wide && reg.Is32Bit() && !reg.IsFloat()) {
+      // Only allow reg pairs for Core.
+      RegStorage high_reg = FindLiveReg(reg_pool_->core_regs_, s_reg + 1);
+      if (high_reg.Valid()) {
+        RegisterInfo* info_lo = GetRegInfo(reg);
+        RegisterInfo* info_hi = GetRegInfo(high_reg);
+        if (info_lo->IsTemp()) {
+          info_lo->MarkInUse();
+        }
+        if (info_hi->IsTemp()) {
+          info_hi->MarkInUse();
+        }
+        reg = RegStorage::MakeRegPair(reg, high_reg);
+        MarkWide(reg);
+      } else {
+        // Only half available - clobber.
+        Clobber(reg);
+        reg = RegStorage::InvalidReg();
+      }
+    }
+    if (reg.Valid() && !reg.IsPair()) {
+      RegisterInfo* info = GetRegInfo(reg);
+      if (info->IsTemp()) {
+        info->MarkInUse();
+      }
+    }
+    if (reg.Valid() && (wide != GetRegInfo(reg)->IsWide())) {
+      // Width mismatch - don't try to reuse.
+      Clobber(reg);
+      reg = RegStorage::InvalidReg();
+    }
+  }
+  return reg;
 }
 
 void Mir2Lir::FreeTemp(RegStorage reg) {
   if (reg.IsPair()) {
-    FreeTemp(reg.GetLowReg());
-    FreeTemp(reg.GetHighReg());
+    FreeTemp(reg.GetLow());
+    FreeTemp(reg.GetHigh());
   } else {
-    FreeTemp(reg.GetReg());
+    RegisterInfo* p = GetRegInfo(reg);
+    if (p->IsTemp()) {
+      p->MarkFree();
+      p->SetIsWide(false);
+      p->SetPartner(reg);
+    }
   }
-}
-
-Mir2Lir::RegisterInfo* Mir2Lir::IsLive(int reg) {
-  RegisterInfo* p = GetRegInfo(reg);
-  return p->live ? p : NULL;
 }
 
 bool Mir2Lir::IsLive(RegStorage reg) {
+  bool res;
   if (reg.IsPair()) {
-    return IsLive(reg.GetLowReg()) || IsLive(reg.GetHighReg());
+    RegisterInfo* p_lo = GetRegInfo(reg.GetLow());
+    RegisterInfo* p_hi = GetRegInfo(reg.GetHigh());
+    res = p_lo->IsLive() || p_hi->IsLive();
   } else {
-    return IsLive(reg.GetReg());
+    RegisterInfo* p = GetRegInfo(reg);
+    res = p->IsLive();
   }
-}
-
-Mir2Lir::RegisterInfo* Mir2Lir::IsTemp(int reg) {
-  RegisterInfo* p = GetRegInfo(reg);
-  return (p->is_temp) ? p : NULL;
+  return res;
 }
 
 bool Mir2Lir::IsTemp(RegStorage reg) {
+  bool res;
   if (reg.IsPair()) {
-    return IsTemp(reg.GetLowReg()) || IsTemp(reg.GetHighReg());
+    RegisterInfo* p_lo = GetRegInfo(reg.GetLow());
+    RegisterInfo* p_hi = GetRegInfo(reg.GetHigh());
+    res = p_lo->IsTemp() || p_hi->IsTemp();
   } else {
-    return IsTemp(reg.GetReg());
+    RegisterInfo* p = GetRegInfo(reg);
+    res = p->IsTemp();
   }
-}
-
-Mir2Lir::RegisterInfo* Mir2Lir::IsPromoted(int reg) {
-  RegisterInfo* p = GetRegInfo(reg);
-  return (p->is_temp) ? NULL : p;
+  return res;
 }
 
 bool Mir2Lir::IsPromoted(RegStorage reg) {
+  bool res;
   if (reg.IsPair()) {
-    return IsPromoted(reg.GetLowReg()) || IsPromoted(reg.GetHighReg());
+    RegisterInfo* p_lo = GetRegInfo(reg.GetLow());
+    RegisterInfo* p_hi = GetRegInfo(reg.GetHigh());
+    res = !p_lo->IsTemp() || !p_hi->IsTemp();
   } else {
-    return IsPromoted(reg.GetReg());
+    RegisterInfo* p = GetRegInfo(reg);
+    res = !p->IsTemp();
   }
-}
-
-bool Mir2Lir::IsDirty(int reg) {
-  RegisterInfo* p = GetRegInfo(reg);
-  return p->dirty;
+  return res;
 }
 
 bool Mir2Lir::IsDirty(RegStorage reg) {
+  bool res;
   if (reg.IsPair()) {
-    return IsDirty(reg.GetLowReg()) || IsDirty(reg.GetHighReg());
+    RegisterInfo* p_lo = GetRegInfo(reg.GetLow());
+    RegisterInfo* p_hi = GetRegInfo(reg.GetHigh());
+    res = p_lo->IsDirty() || p_hi->IsDirty();
   } else {
-    return IsDirty(reg.GetReg());
+    RegisterInfo* p = GetRegInfo(reg);
+    res = p->IsDirty();
   }
+  return res;
 }
 
 /*
@@ -483,35 +476,44 @@ bool Mir2Lir::IsDirty(RegStorage reg) {
  * register.  No check is made to see if the register was previously
  * allocated.  Use with caution.
  */
-void Mir2Lir::LockTemp(int reg) {
-  RegisterInfo* p = GetRegInfo(reg);
-  DCHECK(p->is_temp);
-  p->in_use = true;
-  p->live = false;
-}
-
 void Mir2Lir::LockTemp(RegStorage reg) {
-  DCHECK(!reg.IsPair());
-  LockTemp(reg.GetReg());
-}
-
-void Mir2Lir::ResetDef(int reg) {
-  ResetDefBody(GetRegInfo(reg));
+  DCHECK(IsTemp(reg));
+  if (reg.IsPair()) {
+    RegisterInfo* p_lo = GetRegInfo(reg.GetLow());
+    RegisterInfo* p_hi = GetRegInfo(reg.GetHigh());
+    p_lo->MarkInUse();
+    p_lo->SetIsLive(false);
+    p_hi->MarkInUse();
+    p_hi->SetIsLive(false);
+  } else {
+    RegisterInfo* p = GetRegInfo(reg);
+    p->MarkInUse();
+    p->SetIsLive(false);
+  }
 }
 
 void Mir2Lir::ResetDef(RegStorage reg) {
-  DCHECK(!reg.IsPair());  // Is this done?  If so, do on both low and high.
-  ResetDef(reg.GetReg());
+  if (reg.IsPair()) {
+    GetRegInfo(reg.GetLow())->ResetDefBody();
+    GetRegInfo(reg.GetHigh())->ResetDefBody();
+  } else {
+    GetRegInfo(reg)->ResetDefBody();
+  }
 }
 
-void Mir2Lir::NullifyRange(LIR *start, LIR *finish, int s_reg1, int s_reg2) {
-  if (start && finish) {
-    LIR *p;
-    DCHECK_EQ(s_reg1, s_reg2);
-    for (p = start; ; p = p->next) {
+void Mir2Lir::NullifyRange(RegStorage reg, int s_reg) {
+  RegisterInfo* info = nullptr;
+  RegStorage rs = reg.IsPair() ? reg.GetLow() : reg;
+  if (IsTemp(rs)) {
+    info = GetRegInfo(reg);
+  }
+  if ((info != nullptr) && (info->DefStart() != nullptr) && (info->DefEnd() != nullptr)) {
+    DCHECK_EQ(info->SReg(), s_reg);  // Make sure we're on the same page.
+    for (LIR* p = info->DefStart();; p = p->next) {
       NopLIR(p);
-      if (p == finish)
+      if (p == info->DefEnd()) {
         break;
+      }
     }
   }
 }
@@ -525,9 +527,9 @@ void Mir2Lir::MarkDef(RegLocation rl, LIR *start, LIR *finish) {
   DCHECK(!rl.wide);
   DCHECK(start && start->next);
   DCHECK(finish);
-  RegisterInfo* p = GetRegInfo(rl.reg.GetReg());
-  p->def_start = start->next;
-  p->def_end = finish;
+  RegisterInfo* p = GetRegInfo(rl.reg);
+  p->SetDefStart(start->next);
+  p->SetDefEnd(finish);
 }
 
 /*
@@ -539,28 +541,33 @@ void Mir2Lir::MarkDefWide(RegLocation rl, LIR *start, LIR *finish) {
   DCHECK(rl.wide);
   DCHECK(start && start->next);
   DCHECK(finish);
-  RegisterInfo* p = GetRegInfo(rl.reg.GetLowReg());
-  ResetDef(rl.reg.GetHighReg());  // Only track low of pair
-  p->def_start = start->next;
-  p->def_end = finish;
+  RegisterInfo* p;
+  if (rl.reg.IsPair()) {
+    p = GetRegInfo(rl.reg.GetLow());
+    ResetDef(rl.reg.GetHigh());  // Only track low of pair
+  } else {
+    p = GetRegInfo(rl.reg);
+  }
+  p->SetDefStart(start->next);
+  p->SetDefEnd(finish);
 }
 
 RegLocation Mir2Lir::WideToNarrow(RegLocation rl) {
   DCHECK(rl.wide);
   if (rl.location == kLocPhysReg) {
-    RegisterInfo* info_lo = GetRegInfo(rl.reg.GetLowReg());
-    RegisterInfo* info_hi = GetRegInfo(rl.reg.GetHighReg());
-    if (info_lo->is_temp) {
-      info_lo->pair = false;
-      info_lo->def_start = NULL;
-      info_lo->def_end = NULL;
+    if (rl.reg.IsPair()) {
+      RegisterInfo* info_lo = GetRegInfo(rl.reg.GetLow());
+      RegisterInfo* info_hi = GetRegInfo(rl.reg.GetHigh());
+      if (info_lo->IsTemp()) {
+        info_lo->SetIsWide(false);
+        info_lo->ResetDefBody();
+      }
+      if (info_hi->IsTemp()) {
+        info_hi->SetIsWide(false);
+        info_hi->ResetDefBody();
+      }
+      rl.reg = rl.reg.GetLow();
     }
-    if (info_hi->is_temp) {
-      info_hi->pair = false;
-      info_hi->def_start = NULL;
-      info_hi->def_end = NULL;
-    }
-    rl.reg = RegStorage::Solo32(rl.reg.GetLowReg());
   }
   rl.wide = false;
   return rl;
@@ -568,220 +575,244 @@ RegLocation Mir2Lir::WideToNarrow(RegLocation rl) {
 
 void Mir2Lir::ResetDefLoc(RegLocation rl) {
   DCHECK(!rl.wide);
-  RegisterInfo* p = IsTemp(rl.reg.GetReg());
-  if (p && !(cu_->disable_opt & (1 << kSuppressLoads))) {
-    DCHECK(!p->pair);
-    NullifyRange(p->def_start, p->def_end, p->s_reg, rl.s_reg_low);
+  if (IsTemp(rl.reg) && !(cu_->disable_opt & (1 << kSuppressLoads))) {
+    NullifyRange(rl.reg, rl.s_reg_low);
   }
-  ResetDef(rl.reg.GetReg());
+  ResetDef(rl.reg);
 }
 
 void Mir2Lir::ResetDefLocWide(RegLocation rl) {
   DCHECK(rl.wide);
-  RegisterInfo* p_low = IsTemp(rl.reg.GetLowReg());
-  RegisterInfo* p_high = IsTemp(rl.reg.GetHighReg());
-  if (p_low && !(cu_->disable_opt & (1 << kSuppressLoads))) {
-    DCHECK(p_low->pair);
-    NullifyRange(p_low->def_start, p_low->def_end, p_low->s_reg, rl.s_reg_low);
+  // If pair, only track low reg of pair.
+  RegStorage rs = rl.reg.IsPair() ? rl.reg.GetLow() : rl.reg;
+  if (IsTemp(rs) && !(cu_->disable_opt & (1 << kSuppressLoads))) {
+    NullifyRange(rs, rl.s_reg_low);
   }
-  if (p_high && !(cu_->disable_opt & (1 << kSuppressLoads))) {
-    DCHECK(p_high->pair);
-  }
-  ResetDef(rl.reg.GetLowReg());
-  ResetDef(rl.reg.GetHighReg());
+  ResetDef(rs);
 }
 
 void Mir2Lir::ResetDefTracking() {
-  for (int i = 0; i< reg_pool_->num_core_regs; i++) {
-    ResetDefBody(&reg_pool_->core_regs[i]);
+  GrowableArray<RegisterInfo*>::Iterator core_it(&reg_pool_->core_regs_);
+  for (RegisterInfo* info = core_it.Next(); info != nullptr; info = core_it.Next()) {
+    info->ResetDefBody();
   }
-  for (int i = 0; i< reg_pool_->num_fp_regs; i++) {
-    ResetDefBody(&reg_pool_->FPRegs[i]);
+  GrowableArray<RegisterInfo*>::Iterator sp_it(&reg_pool_->core_regs_);
+  for (RegisterInfo* info = sp_it.Next(); info != nullptr; info = sp_it.Next()) {
+    info->ResetDefBody();
+  }
+  GrowableArray<RegisterInfo*>::Iterator dp_it(&reg_pool_->core_regs_);
+  for (RegisterInfo* info = dp_it.Next(); info != nullptr; info = dp_it.Next()) {
+    info->ResetDefBody();
   }
 }
 
 void Mir2Lir::ClobberAllRegs() {
   GrowableArray<RegisterInfo*>::Iterator iter(&tempreg_info_);
   for (RegisterInfo* info = iter.Next(); info != NULL; info = iter.Next()) {
-    info->live = false;
-    info->s_reg = INVALID_SREG;
-    info->def_start = NULL;
-    info->def_end = NULL;
-    info->pair = false;
+    info->SetIsLive(false);
+    info->SetSReg(INVALID_SREG);
+    info->ResetDefBody();
+    info->SetIsWide(false);
+  }
+}
+
+void Mir2Lir::FlushRegWide(RegStorage reg) {
+  if (reg.IsPair()) {
+    RegisterInfo* info1 = GetRegInfo(reg.GetLow());
+    RegisterInfo* info2 = GetRegInfo(reg.GetHigh());
+    DCHECK(info1 && info2 && info1->IsWide() && info2->IsWide() &&
+         (info1->Partner() == info2->GetReg()) && (info2->Partner() == info1->GetReg()));
+    if ((info1->IsLive() && info1->IsDirty()) || (info2->IsLive() && info2->IsDirty())) {
+      if (!(info1->IsTemp() && info2->IsTemp())) {
+        /* Should not happen.  If it does, there's a problem in eval_loc */
+        LOG(FATAL) << "Long half-temp, half-promoted";
+      }
+
+      info1->SetIsDirty(false);
+      info2->SetIsDirty(false);
+      if (mir_graph_->SRegToVReg(info2->SReg()) < mir_graph_->SRegToVReg(info1->SReg())) {
+        info1 = info2;
+      }
+      int v_reg = mir_graph_->SRegToVReg(info1->SReg());
+      StoreBaseDispWide(TargetReg(kSp), VRegOffset(v_reg), reg);
+    }
+  } else {
+    RegisterInfo* info = GetRegInfo(reg);
+    if (info->IsLive() && info->IsDirty()) {
+      info->SetIsDirty(false);
+      int v_reg = mir_graph_->SRegToVReg(info->SReg());
+      StoreBaseDispWide(TargetReg(kSp), VRegOffset(v_reg), reg);
+    }
+  }
+}
+
+void Mir2Lir::FlushReg(RegStorage reg) {
+  DCHECK(!reg.IsPair());
+  RegisterInfo* info = GetRegInfo(reg);
+  if (info->IsLive() && info->IsDirty()) {
+    info->SetIsDirty(false);
+    int v_reg = mir_graph_->SRegToVReg(info->SReg());
+    StoreBaseDisp(TargetReg(kSp), VRegOffset(v_reg), reg, kWord);
   }
 }
 
 void Mir2Lir::FlushSpecificReg(RegisterInfo* info) {
-  if (info->pair) {
-    FlushRegWide(RegStorage(RegStorage::k64BitPair, info->reg, info->partner));
+  if (info->IsWide()) {
+    FlushRegWide(info->GetReg());
   } else {
-    FlushReg(RegStorage::Solo32(info->reg));
-  }
-}
-
-// Make sure nothing is live and dirty
-void Mir2Lir::FlushAllRegsBody(RegisterInfo* info, int num_regs) {
-  for (int i = 0; i < num_regs; i++) {
-    if (info[i].live && info[i].dirty) {
-      FlushSpecificReg(&info[i]);
-    }
+    FlushReg(info->GetReg());
   }
 }
 
 void Mir2Lir::FlushAllRegs() {
-  FlushAllRegsBody(reg_pool_->core_regs,
-           reg_pool_->num_core_regs);
-  FlushAllRegsBody(reg_pool_->FPRegs,
-           reg_pool_->num_fp_regs);
-  ClobberAllRegs();
+  GrowableArray<RegisterInfo*>::Iterator it(&tempreg_info_);
+  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+    if (info->IsLive() && info->IsDirty()) {
+      FlushSpecificReg(info);
+    }
+    DCHECK(info->IsTemp());
+    info->SetIsLive(false);
+    info->SetSReg(INVALID_SREG);
+    info->ResetDefBody();
+    info->SetIsWide(false);
+  }
 }
 
 
-// TUNING: rewrite all of this reg stuff.  Probably use an attribute table
 bool Mir2Lir::RegClassMatches(int reg_class, RegStorage reg) {
-  int reg_num = reg.IsPair() ? reg.GetLowReg() : reg.GetReg();
   if (reg_class == kAnyReg) {
     return true;
   } else if (reg_class == kCoreReg) {
-    return !IsFpReg(reg_num);
+    return !reg.IsFloat();
   } else {
-    return IsFpReg(reg_num);
+    return reg.IsFloat();
   }
 }
 
-void Mir2Lir::MarkLive(RegStorage reg, int s_reg) {
-  DCHECK(!reg.IsPair());   // Could be done - but would that be meaningful?
-  RegisterInfo* info = GetRegInfo(reg.GetReg());
-  if ((info->s_reg == s_reg) && info->live) {
-    return;  /* already live */
-  } else if (s_reg != INVALID_SREG) {
+void Mir2Lir::MarkLiveReg(RegStorage reg, int s_reg) {
+  RegisterInfo* info = GetRegInfo(reg);
+  if ((info->SReg() == s_reg) && info->IsLive()) {
+    return;  // Already live.
+  }
+  if (s_reg != INVALID_SREG) {
     ClobberSReg(s_reg);
-    if (info->is_temp) {
-      info->live = true;
+    if (info->IsTemp()) {
+      info->SetIsLive(true);
     }
   } else {
-    /* Can't be live if no associated s_reg */
-    DCHECK(info->is_temp);
-    info->live = false;
+    // Can't be live if no associated s_reg.
+    DCHECK(info->IsTemp());
+    info->SetIsLive(false);
   }
-  info->s_reg = s_reg;
+  info->SetSReg(s_reg);
 }
 
-void Mir2Lir::MarkTemp(int reg) {
-  RegisterInfo* info = GetRegInfo(reg);
-  tempreg_info_.Insert(info);
-  info->is_temp = true;
+void Mir2Lir::MarkLive(RegLocation loc) {
+  RegStorage reg = loc.reg;
+  int s_reg = loc.s_reg_low;
+  if (reg.IsPair()) {
+    MarkLiveReg(reg.GetLow(), s_reg);
+    MarkLiveReg(reg.GetHigh(), s_reg+1);
+  } else {
+    if (loc.wide) {
+      ClobberSReg(s_reg + 1);
+    }
+    MarkLiveReg(reg, s_reg);
+  }
 }
 
 void Mir2Lir::MarkTemp(RegStorage reg) {
   DCHECK(!reg.IsPair());
-  MarkTemp(reg.GetReg());
-}
-
-void Mir2Lir::UnmarkTemp(int reg) {
   RegisterInfo* info = GetRegInfo(reg);
-  tempreg_info_.Delete(info);
-  info->is_temp = false;
+  tempreg_info_.Insert(info);
+  info->SetIsTemp(true);
 }
 
 void Mir2Lir::UnmarkTemp(RegStorage reg) {
   DCHECK(!reg.IsPair());
-  UnmarkTemp(reg.GetReg());
+  RegisterInfo* info = GetRegInfo(reg);
+  tempreg_info_.Delete(info);
+  info->SetIsTemp(false);
 }
 
-void Mir2Lir::MarkPair(int low_reg, int high_reg) {
-  DCHECK_NE(low_reg, high_reg);
-  RegisterInfo* info_lo = GetRegInfo(low_reg);
-  RegisterInfo* info_hi = GetRegInfo(high_reg);
-  info_lo->pair = info_hi->pair = true;
-  info_lo->partner = high_reg;
-  info_hi->partner = low_reg;
-}
-
-void Mir2Lir::MarkClean(RegLocation loc) {
-  if (loc.wide) {
-    RegisterInfo* info = GetRegInfo(loc.reg.GetLowReg());
-    info->dirty = false;
-    info = GetRegInfo(loc.reg.GetHighReg());
-    info->dirty = false;
+void Mir2Lir::MarkWide(RegStorage reg) {
+  if (reg.IsPair()) {
+    RegisterInfo* info_lo = GetRegInfo(reg.GetLow());
+    RegisterInfo* info_hi = GetRegInfo(reg.GetHigh());
+    info_lo->SetIsWide(true);
+    info_hi->SetIsWide(true);
+    info_lo->SetPartner(reg.GetHigh());
+    info_hi->SetPartner(reg.GetLow());
   } else {
-    RegisterInfo* info = GetRegInfo(loc.reg.GetReg());
-    info->dirty = false;
+    RegisterInfo* info = GetRegInfo(reg);
+    info->SetIsWide(true);
+    info->SetPartner(reg);
   }
 }
 
+void Mir2Lir::MarkClean(RegLocation loc) {
+  if (loc.reg.IsPair()) {
+    RegisterInfo* info = GetRegInfo(loc.reg.GetLow());
+    info->SetIsDirty(false);
+    info = GetRegInfo(loc.reg.GetHigh());
+    info->SetIsDirty(false);
+  } else {
+    RegisterInfo* info = GetRegInfo(loc.reg);
+    info->SetIsDirty(false);
+  }
+}
+
+// FIXME: need to verify rules/assumptions about how wide values are treated in 64BitSolos.
 void Mir2Lir::MarkDirty(RegLocation loc) {
   if (loc.home) {
     // If already home, can't be dirty
     return;
   }
-  if (loc.wide) {
-    RegisterInfo* info = GetRegInfo(loc.reg.GetLowReg());
-    info->dirty = true;
-    info = GetRegInfo(loc.reg.GetHighReg());
-    info->dirty = true;
+  if (loc.reg.IsPair()) {
+    RegisterInfo* info = GetRegInfo(loc.reg.GetLow());
+    info->SetIsDirty(true);
+    info = GetRegInfo(loc.reg.GetHigh());
+    info->SetIsDirty(true);
   } else {
-    RegisterInfo* info = GetRegInfo(loc.reg.GetReg());
-    info->dirty = true;
+    RegisterInfo* info = GetRegInfo(loc.reg);
+    info->SetIsDirty(true);
   }
-}
-
-void Mir2Lir::MarkInUse(int reg) {
-    RegisterInfo* info = GetRegInfo(reg);
-    info->in_use = true;
 }
 
 void Mir2Lir::MarkInUse(RegStorage reg) {
   if (reg.IsPair()) {
-    MarkInUse(reg.GetLowReg());
-    MarkInUse(reg.GetHighReg());
+    GetRegInfo(reg.GetLow())->MarkInUse();
+    GetRegInfo(reg.GetHigh())->MarkInUse();
   } else {
-    MarkInUse(reg.GetReg());
+    GetRegInfo(reg)->MarkInUse();
   }
 }
 
-void Mir2Lir::CopyRegInfo(int new_reg, int old_reg) {
-  RegisterInfo* new_info = GetRegInfo(new_reg);
-  RegisterInfo* old_info = GetRegInfo(old_reg);
-  // Target temp, live, dirty status must not change
-  bool is_temp = new_info->is_temp;
-  bool live = new_info->live;
-  bool dirty = new_info->dirty;
-  *new_info = *old_info;
-  // Restore target's temp, live, dirty status
-  new_info->is_temp = is_temp;
-  new_info->live = live;
-  new_info->dirty = dirty;
-  new_info->reg = new_reg;
-}
-
-void Mir2Lir::CopyRegInfo(RegStorage new_reg, RegStorage old_reg) {
-  DCHECK(!new_reg.IsPair());
-  DCHECK(!old_reg.IsPair());
-  CopyRegInfo(new_reg.GetReg(), old_reg.GetReg());
-}
-
 bool Mir2Lir::CheckCorePoolSanity() {
-  for (static int i = 0; i < reg_pool_->num_core_regs; i++) {
-    if (reg_pool_->core_regs[i].pair) {
-      static int my_reg = reg_pool_->core_regs[i].reg;
-      static int my_sreg = reg_pool_->core_regs[i].s_reg;
-      static int partner_reg = reg_pool_->core_regs[i].partner;
-      static RegisterInfo* partner = GetRegInfo(partner_reg);
+  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->core_regs_);
+  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+    RegStorage my_reg = info->GetReg();
+    if (info->IsWide() && my_reg.IsPair()) {
+      int my_sreg = info->SReg();
+      RegStorage partner_reg = info->Partner();
+      RegisterInfo* partner = GetRegInfo(partner_reg);
       DCHECK(partner != NULL);
-      DCHECK(partner->pair);
-      DCHECK_EQ(my_reg, partner->partner);
-      static int partner_sreg = partner->s_reg;
+      DCHECK(partner->IsWide());
+      DCHECK_EQ(my_reg.GetReg(), partner->Partner().GetReg());
+      int partner_sreg = partner->SReg();
       if (my_sreg == INVALID_SREG) {
         DCHECK_EQ(partner_sreg, INVALID_SREG);
       } else {
         int diff = my_sreg - partner_sreg;
-        DCHECK((diff == -1) || (diff == 1));
+        DCHECK((diff == 0) || (diff == -1) || (diff == 1));
       }
+    } else {
+      // TODO: add whatever sanity checks might be useful for 64BitSolo regs here.
+      // TODO: sanity checks for floating point pools?
     }
-    if (!reg_pool_->core_regs[i].live) {
-      DCHECK(reg_pool_->core_regs[i].def_start == NULL);
-      DCHECK(reg_pool_->core_regs[i].def_end == NULL);
+    if (!info->IsLive()) {
+      DCHECK(info->DefStart() == NULL);
+      DCHECK(info->DefEnd() == NULL);
     }
   }
   return true;
@@ -796,79 +827,63 @@ bool Mir2Lir::CheckCorePoolSanity() {
  * is a bit complex when dealing with FP regs.  Examine code to see
  * if it's worthwhile trying to be more clever here.
  */
-
 RegLocation Mir2Lir::UpdateLoc(RegLocation loc) {
   DCHECK(!loc.wide);
   DCHECK(CheckCorePoolSanity());
   if (loc.location != kLocPhysReg) {
     DCHECK((loc.location == kLocDalvikFrame) ||
          (loc.location == kLocCompilerTemp));
-    RegisterInfo* info_lo = AllocLive(loc.s_reg_low, kAnyReg);
-    if (info_lo) {
-      if (info_lo->pair) {
-        Clobber(info_lo->reg);
-        Clobber(info_lo->partner);
-        FreeTemp(info_lo->reg);
-      } else {
-        loc.reg = RegStorage::Solo32(info_lo->reg);
+    RegStorage reg = AllocLiveReg(loc.s_reg_low, kAnyReg, false);
+    if (reg.Valid()) {
+      bool match = true;
+      RegisterInfo* info = GetRegInfo(reg);
+      match &= !reg.IsPair();
+      match &= !info->IsWide();
+      if (match) {
         loc.location = kLocPhysReg;
+        loc.reg = reg;
+      } else {
+        Clobber(reg);
+        FreeTemp(reg);
       }
     }
   }
   return loc;
 }
 
-/* see comments for update_loc */
 RegLocation Mir2Lir::UpdateLocWide(RegLocation loc) {
   DCHECK(loc.wide);
   DCHECK(CheckCorePoolSanity());
   if (loc.location != kLocPhysReg) {
     DCHECK((loc.location == kLocDalvikFrame) ||
          (loc.location == kLocCompilerTemp));
-    // Are the dalvik regs already live in physical registers?
-    RegisterInfo* info_lo = AllocLive(loc.s_reg_low, kAnyReg);
-    RegisterInfo* info_hi = AllocLive(GetSRegHi(loc.s_reg_low), kAnyReg);
-    bool match = true;
-    match = match && (info_lo != NULL);
-    match = match && (info_hi != NULL);
-    // Are they both core or both FP?
-    match = match && (IsFpReg(info_lo->reg) == IsFpReg(info_hi->reg));
-    // If a pair of floating point singles, are they properly aligned?
-    if (match && IsFpReg(info_lo->reg)) {
-      match &= ((info_lo->reg & 0x1) == 0);
-      match &= ((info_hi->reg - info_lo->reg) == 1);
-    }
-    // If previously used as a pair, it is the same pair?
-    if (match && (info_lo->pair || info_hi->pair)) {
-      match = (info_lo->pair == info_hi->pair);
-      match &= ((info_lo->reg == info_hi->partner) &&
-            (info_hi->reg == info_lo->partner));
-    }
-    if (match) {
-      // Can reuse - update the register usage info
-      loc.location = kLocPhysReg;
-      loc.reg = RegStorage(RegStorage::k64BitPair, info_lo->reg, info_hi->reg);
-      MarkPair(loc.reg.GetLowReg(), loc.reg.GetHighReg());
-      DCHECK(!IsFpReg(loc.reg.GetLowReg()) || ((loc.reg.GetLowReg() & 0x1) == 0));
-      return loc;
-    }
-    // Can't easily reuse - clobber and free any overlaps
-    if (info_lo) {
-      Clobber(info_lo->reg);
-      FreeTemp(info_lo->reg);
-      if (info_lo->pair)
-        Clobber(info_lo->partner);
-    }
-    if (info_hi) {
-      Clobber(info_hi->reg);
-      FreeTemp(info_hi->reg);
-      if (info_hi->pair)
-        Clobber(info_hi->partner);
+    RegStorage reg = AllocLiveReg(loc.s_reg_low, kAnyReg, true);
+    if (reg.Valid()) {
+      bool match = true;
+      if (reg.IsPair()) {
+        // If we've got a register pair, make sure that it was last used as the same pair.
+        RegisterInfo* info_lo = GetRegInfo(reg.GetLow());
+        RegisterInfo* info_hi = GetRegInfo(reg.GetHigh());
+        match &= info_lo->IsWide();
+        match &= info_hi->IsWide();
+        match &= (info_lo->Partner() == info_hi->GetReg());
+        match &= (info_hi->Partner() == info_lo->GetReg());
+      } else {
+        RegisterInfo* info = GetRegInfo(reg);
+        match &= info->IsWide();
+        match &= (info->GetReg() == info->Partner());
+      }
+      if (match) {
+        loc.location = kLocPhysReg;
+        loc.reg = reg;
+      } else {
+        Clobber(reg);
+        FreeTemp(reg);
+      }
     }
   }
   return loc;
 }
-
 
 /* For use in cases we don't know (or care) width */
 RegLocation Mir2Lir::UpdateRawLoc(RegLocation loc) {
@@ -885,18 +900,15 @@ RegLocation Mir2Lir::EvalLocWide(RegLocation loc, int reg_class, bool update) {
 
   /* If already in registers, we can assume proper form.  Right reg class? */
   if (loc.location == kLocPhysReg) {
-    DCHECK_EQ(IsFpReg(loc.reg.GetLowReg()), IsFpReg(loc.reg.GetHighReg()));
-    DCHECK(!IsFpReg(loc.reg.GetLowReg()) || ((loc.reg.GetLowReg() & 0x1) == 0));
     if (!RegClassMatches(reg_class, loc.reg)) {
       /* Wrong register class.  Reallocate and copy */
       RegStorage new_regs = AllocTypedTempWide(loc.fp, reg_class);
       OpRegCopyWide(new_regs, loc.reg);
-      CopyRegInfo(new_regs.GetLowReg(), loc.reg.GetLowReg());
-      CopyRegInfo(new_regs.GetHighReg(), loc.reg.GetHighReg());
+      // Associate the old sreg with the new register and clobber the old register.
+      GetRegInfo(new_regs)->SetSReg(GetRegInfo(loc.reg)->SReg());
       Clobber(loc.reg);
       loc.reg = new_regs;
-      MarkPair(loc.reg.GetLowReg(), loc.reg.GetHighReg());
-      DCHECK(!IsFpReg(loc.reg.GetLowReg()) || ((loc.reg.GetLowReg() & 0x1) == 0));
+      MarkWide(loc.reg);
     }
     return loc;
   }
@@ -905,23 +917,19 @@ RegLocation Mir2Lir::EvalLocWide(RegLocation loc, int reg_class, bool update) {
   DCHECK_NE(GetSRegHi(loc.s_reg_low), INVALID_SREG);
 
   loc.reg = AllocTypedTempWide(loc.fp, reg_class);
+  MarkWide(loc.reg);
 
-  MarkPair(loc.reg.GetLowReg(), loc.reg.GetHighReg());
   if (update) {
     loc.location = kLocPhysReg;
-    MarkLive(loc.reg.GetLow(), loc.s_reg_low);
-    // Does this wide value live in two registers or one vector register?
-    if (loc.reg.GetLowReg() != loc.reg.GetHighReg()) {
-      MarkLive(loc.reg.GetHigh(), GetSRegHi(loc.s_reg_low));
-    }
+    MarkLive(loc);
   }
-  DCHECK(!IsFpReg(loc.reg.GetLowReg()) || ((loc.reg.GetLowReg() & 0x1) == 0));
   return loc;
 }
 
 RegLocation Mir2Lir::EvalLoc(RegLocation loc, int reg_class, bool update) {
-  if (loc.wide)
+  if (loc.wide) {
     return EvalLocWide(loc, reg_class, update);
+  }
 
   loc = UpdateLoc(loc);
 
@@ -930,7 +938,8 @@ RegLocation Mir2Lir::EvalLoc(RegLocation loc, int reg_class, bool update) {
       /* Wrong register class.  Realloc, copy and transfer ownership */
       RegStorage new_reg = AllocTypedTemp(loc.fp, reg_class);
       OpRegCopy(new_reg, loc.reg);
-      CopyRegInfo(new_reg, loc.reg);
+      // Associate the old sreg with the new register and clobber the old register.
+      GetRegInfo(new_reg)->SetSReg(GetRegInfo(loc.reg)->SReg());
       Clobber(loc.reg);
       loc.reg = new_reg;
     }
@@ -943,7 +952,7 @@ RegLocation Mir2Lir::EvalLoc(RegLocation loc, int reg_class, bool update) {
 
   if (update) {
     loc.location = kLocPhysReg;
-    MarkLive(loc.reg, loc.s_reg_low);
+    MarkLive(loc);
   }
   return loc;
 }
@@ -1115,9 +1124,14 @@ void Mir2Lir::DoPromotion() {
           int low_reg = promotion_map_[p_map_idx].FpReg;
           int high_reg = promotion_map_[p_map_idx+1].FpReg;
           // Doubles require pair of singles starting at even reg
+          // TODO: move target-specific restrictions out of here.
           if (((low_reg & 0x1) == 0) && ((low_reg + 1) == high_reg)) {
             curr->location = kLocPhysReg;
-            curr->reg = RegStorage(RegStorage::k64BitPair, low_reg, high_reg);
+            if (cu_->instruction_set == kThumb2) {
+              curr->reg = RegStorage::FloatSolo64(RegStorage::RegNum(low_reg) >> 1);
+            } else {
+              curr->reg = RegStorage(RegStorage::k64BitPair, low_reg, high_reg);
+            }
             curr->home = true;
           }
         }
@@ -1155,13 +1169,18 @@ RegLocation Mir2Lir::GetReturnWide(bool is_double) {
   RegLocation gpr_res = LocCReturnWide();
   RegLocation fpr_res = LocCReturnDouble();
   RegLocation res = is_double ? fpr_res : gpr_res;
-  Clobber(res.reg.GetLowReg());
-  Clobber(res.reg.GetHighReg());
-  LockTemp(res.reg.GetLowReg());
-  LockTemp(res.reg.GetHighReg());
-  // Does this wide value live in two registers or one vector register?
-  if (res.reg.GetLowReg() != res.reg.GetHighReg()) {
-    MarkPair(res.reg.GetLowReg(), res.reg.GetHighReg());
+  if (res.reg.IsPair()) {
+    Clobber(res.reg);
+    LockTemp(res.reg);
+    // Does this wide value live in two registers or one vector register?
+    if (res.reg.GetLowReg() != res.reg.GetHighReg()) {
+      // FIXME: I think we want to mark these as wide as well.
+      MarkWide(res.reg);
+    }
+  } else {
+    Clobber(res.reg);
+    LockTemp(res.reg);
+    MarkWide(res.reg);
   }
   return res;
 }
@@ -1170,11 +1189,11 @@ RegLocation Mir2Lir::GetReturn(bool is_float) {
   RegLocation gpr_res = LocCReturn();
   RegLocation fpr_res = LocCReturnFloat();
   RegLocation res = is_float ? fpr_res : gpr_res;
-  Clobber(res.reg.GetReg());
+  Clobber(res.reg);
   if (cu_->instruction_set == kMips) {
-    MarkInUse(res.reg.GetReg());
+    MarkInUse(res.reg);
   } else {
-    LockTemp(res.reg.GetReg());
+    LockTemp(res.reg);
   }
   return res;
 }
@@ -1204,14 +1223,9 @@ int Mir2Lir::GetSRegHi(int lowSreg) {
   return (lowSreg == INVALID_SREG) ? INVALID_SREG : lowSreg + 1;
 }
 
-bool Mir2Lir::oat_live_out(int s_reg) {
+bool Mir2Lir::LiveOut(int s_reg) {
   // For now.
   return true;
-}
-
-int Mir2Lir::oatSSASrc(MIR* mir, int num) {
-  DCHECK_GT(mir->ssa_rep->num_uses, num);
-  return mir->ssa_rep->uses[num];
 }
 
 }  // namespace art

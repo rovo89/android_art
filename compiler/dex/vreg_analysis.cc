@@ -403,7 +403,7 @@ void MIRGraph::DumpRegLocTable(RegLocation* table, int count) {
 }
 
 // FIXME - will likely need to revisit all uses of this.
-static const RegLocation fresh_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0, kVectorNotUsed,
+static const RegLocation fresh_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
                                       RegStorage(), INVALID_SREG, INVALID_SREG};
 
 void MIRGraph::InitRegLocations() {
