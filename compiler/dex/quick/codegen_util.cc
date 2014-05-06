@@ -558,7 +558,7 @@ static int AssignLiteralOffsetCommon(LIR* lir, CodeOffset offset) {
 static int AssignLiteralPointerOffsetCommon(LIR* lir, CodeOffset offset,
                                             unsigned int element_size) {
   // Align to natural pointer size.
-  offset = (offset + (element_size - 1)) & ~(element_size - 1);
+  offset = RoundUp(offset, element_size);
   for (; lir != NULL; lir = lir->next) {
     lir->offset = offset;
     offset += element_size;
@@ -758,7 +758,7 @@ int Mir2Lir::AssignFillArrayDataOffset(CodeOffset offset) {
     tab_rec->offset = offset;
     offset += tab_rec->size;
     // word align
-    offset = (offset + 3) & ~3;
+    offset = RoundUp(offset, 4);
     }
   return offset;
 }
@@ -1049,14 +1049,13 @@ size_t Mir2Lir::GetNumBytesForCompilerTempSpillRegion() {
 
 int Mir2Lir::ComputeFrameSize() {
   /* Figure out the frame size */
-  static const uint32_t kAlignMask = kStackAlignment - 1;
   uint32_t size = num_core_spills_ * GetBytesPerGprSpillLocation(cu_->instruction_set)
                   + num_fp_spills_ * GetBytesPerFprSpillLocation(cu_->instruction_set)
                   + sizeof(uint32_t)  // Filler.
                   + (cu_->num_regs + cu_->num_outs) * sizeof(uint32_t)
                   + GetNumBytesForCompilerTempSpillRegion();
   /* Align and set */
-  return (size + kAlignMask) & ~(kAlignMask);
+  return RoundUp(size, kStackAlignment);
 }
 
 /*
