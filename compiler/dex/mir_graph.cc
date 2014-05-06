@@ -1490,4 +1490,57 @@ uint32_t SSARepresentation::GetStartUseIndex(Instruction::Code opcode) {
   return res;
 }
 
+/**
+ * @brief Given a decoded instruction, it checks whether the instruction
+ * sets a constant and if it does, more information is provided about the
+ * constant being set.
+ * @param ptr_value pointer to a 64-bit holder for the constant.
+ * @param wide Updated by function whether a wide constant is being set by bytecode.
+ * @return Returns false if the decoded instruction does not represent a constant bytecode.
+ */
+bool MIR::DecodedInstruction::GetConstant(int64_t* ptr_value, bool* wide) const {
+  bool sets_const = true;
+  int64_t value = vB;
+
+  DCHECK(ptr_value != nullptr);
+  DCHECK(wide != nullptr);
+
+  switch (opcode) {
+    case Instruction::CONST_4:
+    case Instruction::CONST_16:
+    case Instruction::CONST:
+      *wide = false;
+      value <<= 32;      // In order to get the sign extend.
+      value >>= 32;
+      break;
+    case Instruction::CONST_HIGH16:
+      *wide = false;
+      value <<= 48;      // In order to get the sign extend.
+      value >>= 32;
+      break;
+    case Instruction::CONST_WIDE_16:
+    case Instruction::CONST_WIDE_32:
+      *wide = true;
+      value <<= 32;      // In order to get the sign extend.
+      value >>= 32;
+      break;
+    case Instruction::CONST_WIDE:
+      *wide = true;
+      value = vB_wide;
+      break;
+    case Instruction::CONST_WIDE_HIGH16:
+      *wide = true;
+      value <<= 48;      // In order to get the sign extend.
+      break;
+    default:
+      sets_const = false;
+      break;
+  }
+
+  if (sets_const) {
+    *ptr_value = value;
+  }
+
+  return sets_const;
+}
 }  // namespace art
