@@ -925,11 +925,17 @@ bool MIRGraph::FindLocalLiveIn(BasicBlock* bb) {
 int MIRGraph::AddNewSReg(int v_reg) {
   // Compiler temps always have a subscript of 0
   int subscript = (v_reg < 0) ? 0 : ++ssa_last_defs_[v_reg];
-  int ssa_reg = GetNumSSARegs();
+  uint32_t ssa_reg = GetNumSSARegs();
   SetNumSSARegs(ssa_reg + 1);
   ssa_base_vregs_->Insert(v_reg);
   ssa_subscripts_->Insert(subscript);
   DCHECK_EQ(ssa_base_vregs_->Size(), ssa_subscripts_->Size());
+  // If we are expanding very late, update use counts too.
+  if (ssa_reg > 0 && use_counts_.Size() == ssa_reg) {
+    // Need to expand the counts.
+    use_counts_.Insert(0);
+    raw_use_counts_.Insert(0);
+  }
   return ssa_reg;
 }
 
