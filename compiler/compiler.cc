@@ -27,8 +27,7 @@
 namespace art {
 
 #ifdef ART_SEA_IR_MODE
-extern "C" art::CompiledMethod* SeaIrCompileMethod(art::CompilerDriver& driver,
-                                                   const art::DexFile::CodeItem* code_item,
+extern "C" art::CompiledMethod* SeaIrCompileMethod(const art::DexFile::CodeItem* code_item,
                                                    uint32_t access_flags,
                                                    art::InvokeType invoke_type,
                                                    uint16_t class_def_idx,
@@ -38,8 +37,7 @@ extern "C" art::CompiledMethod* SeaIrCompileMethod(art::CompilerDriver& driver,
 #endif
 
 
-CompiledMethod* Compiler::TryCompileWithSeaIR(art::CompilerDriver& driver,
-                                              const art::DexFile::CodeItem* code_item,
+CompiledMethod* Compiler::TryCompileWithSeaIR(const art::DexFile::CodeItem* code_item,
                                               uint32_t access_flags,
                                               art::InvokeType invoke_type,
                                               uint16_t class_def_idx,
@@ -47,13 +45,10 @@ CompiledMethod* Compiler::TryCompileWithSeaIR(art::CompilerDriver& driver,
                                               jobject class_loader,
                                               const art::DexFile& dex_file) {
 #ifdef ART_SEA_IR_MODE
-    bool use_sea = Runtime::Current()->IsSeaIRMode();
-    use_sea = use_sea &&
-        (std::string::npos != PrettyMethod(method_idx, dex_file).find("fibonacci"));
+    bool use_sea = (std::string::npos != PrettyMethod(method_idx, dex_file).find("fibonacci"));
     if (use_sea) {
       LOG(INFO) << "Using SEA IR to compile..." << std::endl;
-      return SeaIrCompileMethod(compiler,
-                                code_item,
+      return SeaIrCompileMethod(code_item,
                                 access_flags,
                                 invoke_type,
                                 class_def_idx,
@@ -68,11 +63,11 @@ CompiledMethod* Compiler::TryCompileWithSeaIR(art::CompilerDriver& driver,
 
 #ifdef ART_USE_PORTABLE_COMPILER
 
-extern "C" void ArtInitCompilerContext(art::CompilerDriver& driver);
+extern "C" void ArtInitCompilerContext(art::CompilerDriver* driver);
 
-extern "C" void ArtUnInitCompilerContext(art::CompilerDriver& driver);
+extern "C" void ArtUnInitCompilerContext(art::CompilerDriver* driver);
 
-extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
+extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver* driver,
                                                  const art::DexFile::CodeItem* code_item,
                                                  uint32_t access_flags,
                                                  art::InvokeType invoke_type,
@@ -81,45 +76,45 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
                                                  jobject class_loader,
                                                  const art::DexFile& dex_file);
 
-extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver& driver,
+extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver* driver,
                                                         uint32_t access_flags, uint32_t method_idx,
                                                         const art::DexFile& dex_file);
 
-extern "C" void compilerLLVMSetBitcodeFileName(art::CompilerDriver& driver,
+extern "C" void compilerLLVMSetBitcodeFileName(art::CompilerDriver* driver,
                                                std::string const& filename);
 
 
-class LLVMCompiler : public Compiler {
+class LLVMCompiler FINAL : public Compiler {
  public:
-  LLVMCompiler() : Compiler(1000) {}
+  explicit LLVMCompiler(CompilerDriver* driver) : Compiler(driver, 1000) {}
 
-  void Init(CompilerDriver& driver) const {
-    ArtInitCompilerContext(driver);
+  void Init() const OVERRIDE {
+    ArtInitCompilerContext(GetCompilerDriver());
   }
 
-  void UnInit(CompilerDriver& driver) const {
-    ArtUnInitCompilerContext(driver);
+  void UnInit() const OVERRIDE {
+    ArtUnInitCompilerContext(GetCompilerDriver());
   }
 
-  CompiledMethod* Compile(CompilerDriver& driver,
-                          const DexFile::CodeItem* code_item,
+  CompiledMethod* Compile(const DexFile::CodeItem* code_item,
                           uint32_t access_flags,
                           InvokeType invoke_type,
                           uint16_t class_def_idx,
                           uint32_t method_idx,
                           jobject class_loader,
-                          const DexFile& dex_file) const {
-    CompiledMethod* method = TryCompileWithSeaIR(driver,
-                                                 code_item,
+                          const DexFile& dex_file) const OVERRIDE {
+    CompiledMethod* method = TryCompileWithSeaIR(code_item,
                                                  access_flags,
                                                  invoke_type,
                                                  class_def_idx,
                                                  method_idx,
                                                  class_loader,
                                                  dex_file);
-    if (method != nullptr) return method;
+    if (method != nullptr) {
+      return method;
+    }
 
-    return ArtCompileMethod(compiler,
+    return ArtCompileMethod(GetCompilerDriver(),
                             code_item,
                             access_flags,
                             invoke_type,
@@ -129,11 +124,10 @@ class LLVMCompiler : public Compiler {
                             dex_file);
   }
 
-  CompiledMethod* JniCompile(CompilerDriver& driver,
-                             uint32_t access_flags,
+  CompiledMethod* JniCompile(uint32_t access_flags,
                              uint32_t method_idx,
-                             const DexFile& dex_file) const {
-    return ArtLLVMJniCompileMethod(driver, access_flags, method_idx, dex_file);
+                             const DexFile& dex_file) const OVERRIDE {
+    return ArtLLVMJniCompileMethod(GetCompilerDriver(), access_flags, method_idx, dex_file);
   }
 
   uintptr_t GetEntryPointOf(mirror::ArtMethod* method) const {
@@ -182,17 +176,17 @@ class LLVMCompiler : public Compiler {
 };
 #endif
 
-Compiler* Compiler::Create(Compiler::Kind kind) {
+Compiler* Compiler::Create(CompilerDriver* driver, Compiler::Kind kind) {
   switch (kind) {
     case kQuick:
-      return new QuickCompiler();
+      return new QuickCompiler(driver);
       break;
     case kOptimizing:
-      return new OptimizingCompiler();
+      return new OptimizingCompiler(driver);
       break;
     case kPortable:
 #ifdef ART_USE_PORTABLE_COMPILER
-      return new LLVMCompiler();
+      return new LLVMCompiler(driver);
 #else
       LOG(FATAL) << "Portable compiler not compiled";
 #endif
