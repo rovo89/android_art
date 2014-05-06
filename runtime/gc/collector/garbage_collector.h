@@ -88,19 +88,19 @@ class GarbageCollector {
   // this is the allocation space, for full GC then we swap the zygote bitmaps too.
   void SwapBitmaps() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  size_t GetFreedBytes() const {
+  int64_t GetFreedBytes() const {
     return freed_bytes_;
   }
 
-  size_t GetFreedLargeObjectBytes() const {
+  int64_t GetFreedLargeObjectBytes() const {
     return freed_large_object_bytes_;
   }
 
-  size_t GetFreedObjects() const {
+  uint64_t GetFreedObjects() const {
     return freed_objects_;
   }
 
-  size_t GetFreedLargeObjects() const {
+  uint64_t GetFreedLargeObjects() const {
     return freed_large_objects_;
   }
 
@@ -108,7 +108,7 @@ class GarbageCollector {
     return pause_histogram_.Sum();
   }
 
-  uint64_t GetTotalFreedBytes() const {
+  int64_t GetTotalFreedBytes() const {
     return total_freed_bytes_;
   }
 
@@ -141,6 +141,11 @@ class GarbageCollector {
   // Revoke all the thread-local buffers.
   virtual void RevokeAllThreadLocalBuffers() = 0;
 
+  // Record that you have freed some objects or large objects, calls Heap::RecordFree.
+  // TODO: These are not thread safe, add a lock if we get have parallel sweeping.
+  void RecordFree(uint64_t freed_objects, int64_t freed_bytes);
+  void RecordFreeLargeObjects(uint64_t freed_objects, int64_t freed_bytes);
+
   static constexpr size_t kPauseBucketSize = 500;
   static constexpr size_t kPauseBucketCount = 32;
 
@@ -158,13 +163,14 @@ class GarbageCollector {
   Histogram<uint64_t> pause_histogram_;
   uint64_t total_time_ns_;
   uint64_t total_freed_objects_;
-  uint64_t total_freed_bytes_;
+  int64_t total_freed_bytes_;
 
-  // Single GC statitstics.
-  AtomicInteger freed_bytes_;
-  AtomicInteger freed_large_object_bytes_;
-  AtomicInteger freed_objects_;
-  AtomicInteger freed_large_objects_;
+  // Single GC statitstics, freed bytes are signed since the GC can free negative bytes if it
+  // promotes objects to a space which has a larger allocation size.
+  int64_t freed_bytes_;
+  int64_t freed_large_object_bytes_;
+  uint64_t freed_objects_;
+  uint64_t freed_large_objects_;
 
   CumulativeLogger cumulative_timings_;
 
