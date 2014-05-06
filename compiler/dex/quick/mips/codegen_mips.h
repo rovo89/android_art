@@ -35,7 +35,6 @@ class MipsMir2Lir FINAL : public Mir2Lir {
     LIR* LoadBaseDisp(int r_base, int displacement, int r_dest, OpSize size, int s_reg);
     LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
                       int s_reg);
-    LIR* LoadBaseDispWide(RegStorage r_base, int displacement, RegStorage r_dest, int s_reg);
     LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale,
                          OpSize size);
     LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
@@ -43,7 +42,6 @@ class MipsMir2Lir FINAL : public Mir2Lir {
     LIR* LoadConstantNoClobber(RegStorage r_dest, int value);
     LIR* LoadConstantWide(RegStorage r_dest, int64_t value);
     LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src, OpSize size);
-    LIR* StoreBaseDispWide(RegStorage r_base, int displacement, RegStorage r_src);
     LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
                           OpSize size);
     LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
