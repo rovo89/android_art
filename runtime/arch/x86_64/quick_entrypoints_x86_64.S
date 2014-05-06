@@ -870,18 +870,138 @@ UNIMPLEMENTED art_quick_lmul
 UNIMPLEMENTED art_quick_lshl
 UNIMPLEMENTED art_quick_lshr
 UNIMPLEMENTED art_quick_lushr
-UNIMPLEMENTED art_quick_set32_instance
-UNIMPLEMENTED art_quick_set64_instance
-UNIMPLEMENTED art_quick_set_obj_instance
-UNIMPLEMENTED art_quick_get32_instance
-UNIMPLEMENTED art_quick_get64_instance
-UNIMPLEMENTED art_quick_get_obj_instance
-UNIMPLEMENTED art_quick_set32_static
-UNIMPLEMENTED art_quick_set64_static
-UNIMPLEMENTED art_quick_set_obj_static
-UNIMPLEMENTED art_quick_get32_static
-UNIMPLEMENTED art_quick_get64_static
-UNIMPLEMENTED art_quick_get_obj_static
+
+DEFINE_FUNCTION art_quick_set32_instance
+    movq 8(%rsp), %rcx                 // pass referrer
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+                                       // field_idx, Object* and new_val are in rdi/rsi/rdx
+    movq %gs:THREAD_SELF_OFFSET, %r8   // pass Thread::Current()
+    movq %rsp, %r9                     // pass SP
+    call PLT_SYMBOL(artSet32InstanceFromCode)  // (field_idx, Object*, new_val, referrer, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RETURN_IF_EAX_ZERO                 // return or deliver exception
+END_FUNCTION art_quick_set32_instance
+
+DEFINE_FUNCTION art_quick_set64_instance
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+                                       // field_idx, Object* and new_val are in rdi/rsi/rdx
+    movq %gs:THREAD_SELF_OFFSET, %rcx  // pass Thread::Current()
+    movq %rsp, %r8                     // pass SP
+    call PLT_SYMBOL(artSet64InstanceFromCode)  // (field_idx, Object*, new_val, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RETURN_IF_EAX_ZERO                 // return or deliver exception
+END_FUNCTION art_quick_set64_instance
+
+DEFINE_FUNCTION art_quick_set_obj_instance
+    movq 8(%rsp), %rcx                 // pass referrer
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+                                       // field_idx, Object* and new_val are in rdi/rsi/rdx
+    movq %gs:THREAD_SELF_OFFSET, %r8   // pass Thread::Current()
+    movq %rsp, %r9                     // pass SP
+    call PLT_SYMBOL(artSetObjInstanceFromCode)  // (field_idx, Object*, new_val, referrer, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RETURN_IF_EAX_ZERO                 // return or deliver exception
+END_FUNCTION art_quick_set_obj_instance
+
+DEFINE_FUNCTION art_quick_get32_instance
+    movq 8(%rsp), %rdx                 // pass referrer
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+                                       // field_idx and Object* are in rdi/rsi
+    movq %gs:THREAD_SELF_OFFSET, %rcx  // pass Thread::Current()
+    movq %rsp, %r8                     // pass SP
+    call PLT_SYMBOL(artGet32InstanceFromCode)  // (field_idx, Object*, referrer, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RETURN_OR_DELIVER_PENDING_EXCEPTION  // return or deliver exception
+END_FUNCTION art_quick_get32_instance
+
+DEFINE_FUNCTION art_quick_get64_instance
+    movq 8(%rsp), %rdx                 // pass referrer
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+                                       // field_idx and Object* are in rdi/rsi
+    movq %gs:THREAD_SELF_OFFSET, %rcx  // pass Thread::Current()
+    movq %rsp, %r8                     // pass SP
+    call PLT_SYMBOL(artGet64InstanceFromCode)  // (field_idx, Object*, referrer, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RETURN_OR_DELIVER_PENDING_EXCEPTION  // return or deliver exception
+END_FUNCTION art_quick_get64_instance
+
+DEFINE_FUNCTION art_quick_get_obj_instance
+    movq 8(%rsp), %rdx                 // pass referrer
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+                                       // field_idx and Object* are in rdi/rsi
+    movq %gs:THREAD_SELF_OFFSET, %rcx  // pass Thread::Current()
+    movq %rsp, %r8                     // pass SP
+    call PLT_SYMBOL(artGetObjInstanceFromCode)  // (field_idx, Object*, referrer, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RETURN_OR_DELIVER_PENDING_EXCEPTION  // return or deliver exception
+END_FUNCTION art_quick_get_obj_instance
+
+DEFINE_FUNCTION art_quick_set32_static
+    movq 8(%rsp), %rdx                 // pass referrer
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+                                       // field_idx and new_val are in rdi/rsi
+    movq %gs:THREAD_SELF_OFFSET, %rcx  // pass Thread::Current()
+    movq %rsp, %r8                     // pass SP
+    call PLT_SYMBOL(artSet32StaticFromCode)  // (field_idx, new_val, referrer, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RETURN_IF_EAX_ZERO                 // return or deliver exception
+END_FUNCTION art_quick_set32_static
+
+DEFINE_FUNCTION art_quick_set64_static
+    movq %rsi, %rdx                    // pass new_val
+    movq 8(%rsp), %rsi                 // pass referrer
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+                                       // field_idx is in rdi
+    movq %gs:THREAD_SELF_OFFSET, %rcx  // pass Thread::Current()
+    movq %rsp, %r8                     // pass SP
+    call PLT_SYMBOL(artSet64StaticFromCode)  // (field_idx, referrer, new_val, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RETURN_IF_EAX_ZERO                 // return or deliver exception
+END_FUNCTION art_quick_set64_static
+
+DEFINE_FUNCTION art_quick_set_obj_static
+    movq 8(%rsp), %rdx                 // pass referrer
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+                                       // field_idx and new_val are in rdi/rsi
+    movq %gs:THREAD_SELF_OFFSET, %rcx  // pass Thread::Current()
+    movq %rsp, %r8                     // pass SP
+    call PLT_SYMBOL(artSetObjStaticFromCode)  // (field_idx, new_val, referrer, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RETURN_OR_DELIVER_PENDING_EXCEPTION
+END_FUNCTION art_quick_set_obj_static
+
+DEFINE_FUNCTION art_quick_get32_static
+    movq 8(%rsp), %rsi                 // pass referrer
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+                                       // field_idx is in rdi
+    movq %gs:THREAD_SELF_OFFSET, %rdx  // pass Thread::Current()
+    movq %rsp, %rcx                    // pass SP
+    call PLT_SYMBOL(artGet32StaticFromCode)  // (field_idx, referrer, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RETURN_OR_DELIVER_PENDING_EXCEPTION
+END_FUNCTION art_quick_get32_static
+
+DEFINE_FUNCTION art_quick_get64_static
+    movq 8(%rsp), %rsi                 // pass referrer
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+                                       // field_idx is in rdi
+    movq %gs:THREAD_SELF_OFFSET, %rdx  // pass Thread::Current()
+    movq %rsp, %rcx                    // pass SP
+    call PLT_SYMBOL(artGet64StaticFromCode)  // (field_idx, referrer, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RETURN_OR_DELIVER_PENDING_EXCEPTION
+END_FUNCTION art_quick_get64_static
+
+DEFINE_FUNCTION art_quick_get_obj_static
+    movq 8(%rsp), %rsi                 // pass referrer
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+                                       // field_idx is in rdi
+    movq %gs:THREAD_SELF_OFFSET, %rdx  // pass Thread::Current()
+    movq %rsp, %rcx                    // pass SP
+    call PLT_SYMBOL(artGetObjStaticFromCode)  // (field_idx, referrer, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RETURN_OR_DELIVER_PENDING_EXCEPTION
+END_FUNCTION art_quick_get_obj_static
 
 DEFINE_FUNCTION art_quick_proxy_invoke_handler
     // Save callee and GPR args, mixed together to agree with core spills bitmap of ref. and args
