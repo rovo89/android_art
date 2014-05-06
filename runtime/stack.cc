@@ -32,14 +32,6 @@
 
 namespace art {
 
-// Define a piece of memory, the address of which can be used as a marker
-// for the gap in the stack added during stack overflow handling.
-static uint32_t stack_overflow_object;
-
-// The stack overflow gap marker is simply a valid unique address.
-void* stack_overflow_gap_marker = &stack_overflow_object;
-
-
 mirror::Object* ShadowFrame::GetThisObject() const {
   mirror::ArtMethod* m = GetMethod();
   if (m->IsStatic()) {
@@ -305,56 +297,23 @@ void StackVisitor::WalkStack(bool include_transitions) {
   bool exit_stubs_installed = Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled();
   uint32_t instrumentation_stack_depth = 0;
 
-  bool kDebugStackWalk = false;
-  bool kDebugStackWalkVeryVerbose = false;            // The name says it all.
-
-  if (kDebugStackWalk) {
-    LOG(INFO) << "walking stack";
-  }
   for (const ManagedStack* current_fragment = thread_->GetManagedStack(); current_fragment != NULL;
        current_fragment = current_fragment->GetLink()) {
     cur_shadow_frame_ = current_fragment->GetTopShadowFrame();
     cur_quick_frame_ = current_fragment->GetTopQuickFrame();
     cur_quick_frame_pc_ = current_fragment->GetTopQuickFramePc();
-    if (kDebugStackWalkVeryVerbose) {
-      LOG(INFO) << "cur_quick_frame: " << cur_quick_frame_;
-      LOG(INFO) << "cur_quick_frame_pc: " << std::hex << cur_quick_frame_pc_;
-    }
 
     if (cur_quick_frame_ != NULL) {  // Handle quick stack frames.
       // Can't be both a shadow and a quick fragment.
       DCHECK(current_fragment->GetTopShadowFrame() == NULL);
       mirror::ArtMethod* method = *cur_quick_frame_;
       while (method != NULL) {
-        // Check for a stack overflow gap marker.
-        if (method == reinterpret_cast<mirror::ArtMethod*>(stack_overflow_gap_marker)) {
-          // Marker for a stack overflow.  This is followed by the offset from the
-          // current SP to the next frame.  There is a gap in the stack here.  Jump
-          // the gap silently.
-          // Caveat coder: the layout of the overflow marker depends on the architecture.
-          //   The first element is address sized (8 bytes on a 64 bit machine).  The second
-          //   element is 32 bits.  So be careful with those address calculations.
-
-          // Get the address of the offset, just beyond the marker pointer.
-          byte* gapsizeaddr = reinterpret_cast<byte*>(cur_quick_frame_) + sizeof(uintptr_t);
-          uint32_t gap = *reinterpret_cast<uint32_t*>(gapsizeaddr);
-          CHECK_GT(gap, Thread::kStackOverflowProtectedSize);
-          mirror::ArtMethod** next_frame = reinterpret_cast<mirror::ArtMethod**>(
-            reinterpret_cast<byte*>(gapsizeaddr) + gap);
-          if (kDebugStackWalk) {
-            LOG(INFO) << "stack overflow marker hit, gap: " << gap << ", next_frame: " <<
-                next_frame;
-          }
-          cur_quick_frame_ = next_frame;
-          method = *next_frame;
-          CHECK(method != nullptr);
-        } else {
-          SanityCheckFrame();
-          bool should_continue = VisitFrame();
-          if (UNLIKELY(!should_continue)) {
-            return;
-          }
+        SanityCheckFrame();
+        bool should_continue = VisitFrame();
+        if (UNLIKELY(!should_continue)) {
+          return;
         }
+
         if (context_ != NULL) {
           context_->FillCalleeSaves(*this);
         }
@@ -363,9 +322,6 @@ void StackVisitor::WalkStack(bool include_transitions) {
         size_t return_pc_offset = method->GetReturnPcOffsetInBytes();
         byte* return_pc_addr = reinterpret_cast<byte*>(cur_quick_frame_) + return_pc_offset;
         uintptr_t return_pc = *reinterpret_cast<uintptr_t*>(return_pc_addr);
-        if (kDebugStackWalkVeryVerbose) {
-          LOG(INFO) << "frame size: " << frame_size << ", return_pc: " << std::hex << return_pc;
-        }
         if (UNLIKELY(exit_stubs_installed)) {
           // While profiling, the return pc is restored from the side stack, except when walking
           // the stack for an exception where the side stack will be unwound in VisitFrame.
@@ -398,10 +354,6 @@ void StackVisitor::WalkStack(bool include_transitions) {
         cur_quick_frame_ = reinterpret_cast<mirror::ArtMethod**>(next_frame);
         cur_depth_++;
         method = *cur_quick_frame_;
-        if (kDebugStackWalkVeryVerbose) {
-          LOG(INFO) << "new cur_quick_frame_: " << cur_quick_frame_;
-          LOG(INFO) << "new cur_quick_frame_pc_: " << std::hex << cur_quick_frame_pc_;
-        }
       }
     } else if (cur_shadow_frame_ != NULL) {
       do {

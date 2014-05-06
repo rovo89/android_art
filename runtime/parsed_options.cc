@@ -232,6 +232,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
 //  gLogVerbosity.startup = true;  // TODO: don't check this in!
 //  gLogVerbosity.third_party_jni = true;  // TODO: don't check this in!
 //  gLogVerbosity.threads = true;  // TODO: don't check this in!
+//  gLogVerbosity.signals = true;  // TODO: don't check this in!
 
   method_trace_ = false;
   method_trace_file_ = "/data/method-trace-file.bin";
@@ -464,6 +465,8 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
           gLogVerbosity.third_party_jni = true;
         } else if (verbose_options[i] == "threads") {
           gLogVerbosity.threads = true;
+        } else if (verbose_options[i] == "signals") {
+           gLogVerbosity.signals = true;
         } else {
           Usage("Unknown -verbose option %s\n", verbose_options[i].c_str());
           return false;

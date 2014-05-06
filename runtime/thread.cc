@@ -243,10 +243,16 @@ void Thread::InstallImplicitProtection(bool is_main_stack) {
   pregion -= kStackOverflowProtectedSize;
 
   // Touch the pages in the region to map them in.  Otherwise mprotect fails.  Only
-  // need to do this on the main stack.
+  // need to do this on the main stack.  We only need to touch one byte per page.
   if (is_main_stack) {
-    memset(pregion, 0x55, kStackOverflowProtectedSize);
+    byte* start = pregion;
+    byte* end = pregion + kStackOverflowProtectedSize;
+    while (start < end) {
+      *start = static_cast<byte>(0);
+      start += kPageSize;
+    }
   }
+
   VLOG(threads) << "installing stack protected region at " << std::hex <<
       static_cast<void*>(pregion) << " to " <<
       static_cast<void*>(pregion + kStackOverflowProtectedSize - 1);
@@ -254,6 +260,11 @@ void Thread::InstallImplicitProtection(bool is_main_stack) {
   if (mprotect(pregion, kStackOverflowProtectedSize, PROT_NONE) == -1) {
     LOG(FATAL) << "Unable to create protected region in stack for implicit overflow check. Reason:"
         << strerror(errno);
+  }
+
+  // Tell the kernel that we won't be needing these pages any more.
+  if (is_main_stack) {
+    madvise(pregion, kStackOverflowProtectedSize, MADV_DONTNEED);
   }
 }
 
