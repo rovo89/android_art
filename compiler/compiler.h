@@ -41,18 +41,13 @@ class Compiler {
     kPortable
   };
 
-  explicit Compiler(uint64_t warning)
-      : maximum_compilation_time_before_warning_(warning) {
-  }
+  static Compiler* Create(CompilerDriver* driver, Kind kind);
 
-  static Compiler* Create(Kind kind);
+  virtual void Init() const = 0;
 
-  virtual void Init(CompilerDriver& driver) const = 0;
+  virtual void UnInit() const = 0;
 
-  virtual void UnInit(CompilerDriver& driver) const = 0;
-
-  virtual CompiledMethod* Compile(CompilerDriver& driver,
-                                  const DexFile::CodeItem* code_item,
+  virtual CompiledMethod* Compile(const DexFile::CodeItem* code_item,
                                   uint32_t access_flags,
                                   InvokeType invoke_type,
                                   uint16_t class_def_idx,
@@ -60,8 +55,7 @@ class Compiler {
                                   jobject class_loader,
                                   const DexFile& dex_file) const = 0;
 
-  static CompiledMethod* TryCompileWithSeaIR(art::CompilerDriver& driver,
-                                             const art::DexFile::CodeItem* code_item,
+  static CompiledMethod* TryCompileWithSeaIR(const art::DexFile::CodeItem* code_item,
                                              uint32_t access_flags,
                                              art::InvokeType invoke_type,
                                              uint16_t class_def_idx,
@@ -69,8 +63,7 @@ class Compiler {
                                              jobject class_loader,
                                              const art::DexFile& dex_file);
 
-  virtual CompiledMethod* JniCompile(CompilerDriver& driver,
-                                     uint32_t access_flags,
+  virtual CompiledMethod* JniCompile(uint32_t access_flags,
                                      uint32_t method_idx,
                                      const DexFile& dex_file) const = 0;
 
@@ -81,11 +74,10 @@ class Compiler {
                         OatWriter* oat_writer,
                         const std::vector<const art::DexFile*>& dex_files,
                         const std::string& android_root,
-                        bool is_host, const CompilerDriver& driver) const
+                        bool is_host) const
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
-  virtual Backend* GetCodeGenerator(CompilationUnit* cu,
-                                    void* compilation_unit) const = 0;
+  virtual Backend* GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const = 0;
 
   uint64_t GetMaximumCompilationTimeBeforeWarning() const {
     return maximum_compilation_time_before_warning_;
@@ -117,7 +109,17 @@ class Compiler {
     return nullptr;
   }
 
+ protected:
+  explicit Compiler(CompilerDriver* driver, uint64_t warning) :
+      driver_(driver), maximum_compilation_time_before_warning_(warning) {
+  }
+
+  CompilerDriver* GetCompilerDriver() const {
+    return driver_;
+  }
+
  private:
+  CompilerDriver* const driver_;
   const uint64_t maximum_compilation_time_before_warning_;
 
   DISALLOW_COPY_AND_ASSIGN(Compiler);

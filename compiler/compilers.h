@@ -23,14 +23,13 @@ namespace art {
 
 class QuickCompiler : public Compiler {
  public:
-  QuickCompiler() : Compiler(100) {}
+  explicit QuickCompiler(CompilerDriver* driver) : Compiler(driver, 100) {}
 
-  void Init(CompilerDriver& driver) const OVERRIDE;
+  void Init() const OVERRIDE;
 
-  void UnInit(CompilerDriver& driver) const OVERRIDE;
+  void UnInit() const OVERRIDE;
 
-  CompiledMethod* Compile(CompilerDriver& driver,
-                          const DexFile::CodeItem* code_item,
+  CompiledMethod* Compile(const DexFile::CodeItem* code_item,
                           uint32_t access_flags,
                           InvokeType invoke_type,
                           uint16_t class_def_idx,
@@ -38,8 +37,7 @@ class QuickCompiler : public Compiler {
                           jobject class_loader,
                           const DexFile& dex_file) const OVERRIDE;
 
-  CompiledMethod* JniCompile(CompilerDriver& driver,
-                             uint32_t access_flags,
+  CompiledMethod* JniCompile(uint32_t access_flags,
                              uint32_t method_idx,
                              const DexFile& dex_file) const OVERRIDE;
 
@@ -50,7 +48,7 @@ class QuickCompiler : public Compiler {
                 OatWriter* oat_writer,
                 const std::vector<const art::DexFile*>& dex_files,
                 const std::string& android_root,
-                bool is_host, const CompilerDriver& driver) const
+                bool is_host) const
     OVERRIDE
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -73,12 +71,11 @@ class QuickCompiler : public Compiler {
   DISALLOW_COPY_AND_ASSIGN(QuickCompiler);
 };
 
-class OptimizingCompiler : public QuickCompiler {
+class OptimizingCompiler FINAL : public QuickCompiler {
  public:
-  OptimizingCompiler() { }
+  explicit OptimizingCompiler(CompilerDriver* driver) : QuickCompiler(driver) { }
 
-  CompiledMethod* Compile(CompilerDriver& driver,
-                          const DexFile::CodeItem* code_item,
+  CompiledMethod* Compile(const DexFile::CodeItem* code_item,
                           uint32_t access_flags,
                           InvokeType invoke_type,
                           uint16_t class_def_idx,
@@ -86,8 +83,7 @@ class OptimizingCompiler : public QuickCompiler {
                           jobject class_loader,
                           const DexFile& dex_file) const OVERRIDE;
 
-  CompiledMethod* TryCompile(CompilerDriver& driver,
-                             const DexFile::CodeItem* code_item,
+  CompiledMethod* TryCompile(const DexFile::CodeItem* code_item,
                              uint32_t access_flags,
                              InvokeType invoke_type,
                              uint16_t class_def_idx,

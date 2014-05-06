@@ -138,7 +138,7 @@ void CompiledCode::AddOatdataOffsetToCompliledCodeOffset(uint32_t offset) {
   oatdata_offsets_to_compiled_code_offset_.push_back(offset);
 }
 
-CompiledMethod::CompiledMethod(CompilerDriver& driver,
+CompiledMethod::CompiledMethod(CompilerDriver* driver,
                                InstructionSet instruction_set,
                                const std::vector<uint8_t>& quick_code,
                                const size_t frame_size_in_bytes,
@@ -148,48 +148,48 @@ CompiledMethod::CompiledMethod(CompilerDriver& driver,
                                const std::vector<uint8_t>& vmap_table,
                                const std::vector<uint8_t>& native_gc_map,
                                const std::vector<uint8_t>* cfi_info)
-    : CompiledCode(&driver, instruction_set, quick_code), frame_size_in_bytes_(frame_size_in_bytes),
+    : CompiledCode(driver, instruction_set, quick_code), frame_size_in_bytes_(frame_size_in_bytes),
       core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask),
-  mapping_table_(driver.DeduplicateMappingTable(mapping_table)),
-  vmap_table_(driver.DeduplicateVMapTable(vmap_table)),
-  gc_map_(driver.DeduplicateGCMap(native_gc_map)),
-  cfi_info_(driver.DeduplicateCFIInfo(cfi_info)) {
+  mapping_table_(driver->DeduplicateMappingTable(mapping_table)),
+  vmap_table_(driver->DeduplicateVMapTable(vmap_table)),
+  gc_map_(driver->DeduplicateGCMap(native_gc_map)),
+  cfi_info_(driver->DeduplicateCFIInfo(cfi_info)) {
 }
 
-CompiledMethod::CompiledMethod(CompilerDriver& driver,
+CompiledMethod::CompiledMethod(CompilerDriver* driver,
                                InstructionSet instruction_set,
                                const std::vector<uint8_t>& code,
                                const size_t frame_size_in_bytes,
                                const uint32_t core_spill_mask,
                                const uint32_t fp_spill_mask)
-    : CompiledCode(&driver, instruction_set, code),
+    : CompiledCode(driver, instruction_set, code),
       frame_size_in_bytes_(frame_size_in_bytes),
       core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask),
-      mapping_table_(driver.DeduplicateMappingTable(std::vector<uint8_t>())),
-      vmap_table_(driver.DeduplicateVMapTable(std::vector<uint8_t>())),
-      gc_map_(driver.DeduplicateGCMap(std::vector<uint8_t>())),
+      mapping_table_(driver->DeduplicateMappingTable(std::vector<uint8_t>())),
+      vmap_table_(driver->DeduplicateVMapTable(std::vector<uint8_t>())),
+      gc_map_(driver->DeduplicateGCMap(std::vector<uint8_t>())),
       cfi_info_(nullptr) {
 }
 
 // Constructs a CompiledMethod for the Portable compiler.
-CompiledMethod::CompiledMethod(CompilerDriver& driver, InstructionSet instruction_set,
+CompiledMethod::CompiledMethod(CompilerDriver* driver, InstructionSet instruction_set,
                                const std::string& code, const std::vector<uint8_t>& gc_map,
                                const std::string& symbol)
-    : CompiledCode(&driver, instruction_set, code, symbol),
+    : CompiledCode(driver, instruction_set, code, symbol),
       frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),
-      fp_spill_mask_(0), gc_map_(driver.DeduplicateGCMap(gc_map)) {
-  mapping_table_ = driver.DeduplicateMappingTable(std::vector<uint8_t>());
-  vmap_table_ = driver.DeduplicateVMapTable(std::vector<uint8_t>());
+      fp_spill_mask_(0), gc_map_(driver->DeduplicateGCMap(gc_map)) {
+  mapping_table_ = driver->DeduplicateMappingTable(std::vector<uint8_t>());
+  vmap_table_ = driver->DeduplicateVMapTable(std::vector<uint8_t>());
 }
 
-CompiledMethod::CompiledMethod(CompilerDriver& driver, InstructionSet instruction_set,
+CompiledMethod::CompiledMethod(CompilerDriver* driver, InstructionSet instruction_set,
                                const std::string& code, const std::string& symbol)
-    : CompiledCode(&driver, instruction_set, code, symbol),
+    : CompiledCode(driver, instruction_set, code, symbol),
       frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),
       fp_spill_mask_(0) {
-  mapping_table_ = driver.DeduplicateMappingTable(std::vector<uint8_t>());
-  vmap_table_ = driver.DeduplicateVMapTable(std::vector<uint8_t>());
-  gc_map_ = driver.DeduplicateGCMap(std::vector<uint8_t>());
+  mapping_table_ = driver->DeduplicateMappingTable(std::vector<uint8_t>());
+  vmap_table_ = driver->DeduplicateVMapTable(std::vector<uint8_t>());
+  gc_map_ = driver->DeduplicateGCMap(std::vector<uint8_t>());
 }
 
 }  // namespace art

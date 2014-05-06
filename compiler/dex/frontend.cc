@@ -30,12 +30,12 @@
 
 namespace art {
 
-extern "C" void ArtInitQuickCompilerContext(art::CompilerDriver& driver) {
-  CHECK(driver.GetCompilerContext() == NULL);
+extern "C" void ArtInitQuickCompilerContext(art::CompilerDriver* driver) {
+  CHECK(driver->GetCompilerContext() == nullptr);
 }
 
-extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver& driver) {
-  CHECK(driver.GetCompilerContext() == NULL);
+extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver* driver) {
+  CHECK(driver->GetCompilerContext() == nullptr);
 }
 
 /* Default optimizer/debug setting for the compiler. */
