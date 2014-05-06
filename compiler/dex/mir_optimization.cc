@@ -286,10 +286,6 @@ CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) 
         reg_location_[ssa_reg_high].high_word = 1;
         reg_location_[ssa_reg_high].s_reg_low = ssa_reg_low;
         reg_location_[ssa_reg_high].wide = true;
-
-        // A new SSA needs new use counts.
-        use_counts_.Insert(0);
-        raw_use_counts_.Insert(0);
       }
 
       num_non_special_compiler_temps_++;
@@ -302,10 +298,6 @@ CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) 
     reg_location_[ssa_reg_low] = temp_loc;
     reg_location_[ssa_reg_low].s_reg_low = ssa_reg_low;
     reg_location_[ssa_reg_low].wide = wide;
-
-    // A new SSA needs new use counts.
-    use_counts_.Insert(0);
-    raw_use_counts_.Insert(0);
   }
 
   compiler_temps_.Insert(compiler_temp);
