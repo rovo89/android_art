@@ -331,19 +331,24 @@ class X86Mir2Lir FINAL : public Mir2Lir {
                       int scale, int disp);
     void EmitArrayReg(const X86EncodingMap* entry, uint8_t base, uint8_t index, int scale, int disp,
                       uint8_t reg);
+    void EmitArrayImm(const X86EncodingMap* entry, uint8_t base, uint8_t index, int scale, int disp,
+                      int32_t imm);
     void EmitRegThread(const X86EncodingMap* entry, uint8_t reg, int disp);
     void EmitRegReg(const X86EncodingMap* entry, uint8_t reg1, uint8_t reg2);
     void EmitRegRegImm(const X86EncodingMap* entry, uint8_t reg1, uint8_t reg2, int32_t imm);
     void EmitRegRegImmRev(const X86EncodingMap* entry, uint8_t reg1, uint8_t reg2, int32_t imm);
     void EmitRegMemImm(const X86EncodingMap* entry, uint8_t reg1, uint8_t base, int disp,
                        int32_t imm);
+    void EmitMemRegImm(const X86EncodingMap* entry, uint8_t base, int disp, uint8_t reg1, int32_t imm);
     void EmitRegImm(const X86EncodingMap* entry, uint8_t reg, int imm);
     void EmitThreadImm(const X86EncodingMap* entry, int disp, int imm);
     void EmitMovRegImm(const X86EncodingMap* entry, uint8_t reg, int imm);
     void EmitShiftRegImm(const X86EncodingMap* entry, uint8_t reg, int imm);
+    void EmitShiftMemImm(const X86EncodingMap* entry, uint8_t base, int disp, int imm);
     void EmitShiftMemCl(const X86EncodingMap* entry, uint8_t base, int displacement, uint8_t cl);
     void EmitShiftRegCl(const X86EncodingMap* entry, uint8_t reg, uint8_t cl);
     void EmitRegCond(const X86EncodingMap* entry, uint8_t reg, uint8_t condition);
+    void EmitMemCond(const X86EncodingMap* entry, uint8_t base, int displacement, uint8_t condition);
 
     /**
      * @brief Used for encoding conditional register to register operation.
@@ -353,6 +358,16 @@ class X86Mir2Lir FINAL : public Mir2Lir {
      * @param condition The condition code for operation.
      */
     void EmitRegRegCond(const X86EncodingMap* entry, uint8_t reg1, uint8_t reg2, uint8_t condition);
+
+    /**
+     * @brief Used for encoding conditional register to memory operation.
+     * @param entry The entry in the encoding map for the opcode.
+     * @param reg1 The first physical register.
+     * @param base The memory base register.
+     * @param displacement The memory displacement.
+     * @param condition The condition code for operation.
+     */
+    void EmitRegMemCond(const X86EncodingMap* entry, uint8_t reg1, uint8_t base, int displacement, uint8_t condition);
 
     void EmitJmp(const X86EncodingMap* entry, int rel);
     void EmitJcc(const X86EncodingMap* entry, int rel, uint8_t cc);
