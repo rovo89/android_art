@@ -56,6 +56,7 @@ class StubTest : public CommonRuntimeTest {
     return &self->tlsPtr_;
   }
 
+ public:
   size_t Invoke3(size_t arg0, size_t arg1, size_t arg2, uintptr_t code, Thread* self) {
     // Push a transition back into managed code onto the linked list in thread.
     ManagedStack fragment;
@@ -169,7 +170,6 @@ class StubTest : public CommonRuntimeTest {
     return result;
   }
 
- public:
   // TODO: Set up a frame according to referrer's specs.
   size_t Invoke3WithReferrer(size_t arg0, size_t arg1, size_t arg2, uintptr_t code, Thread* self,
                              mirror::ArtMethod* referrer) {
@@ -357,12 +357,12 @@ TEST_F(StubTest, Memcpy) {
 #endif
 }
 
-#if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
 extern "C" void art_quick_lock_object(void);
 #endif
 
 TEST_F(StubTest, LockObject) {
-#if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
   static constexpr size_t kThinLockLoops = 100;
 
   Thread* self = Thread::Current();
@@ -396,8 +396,21 @@ TEST_F(StubTest, LockObject) {
     EXPECT_EQ(l_inc.ThinLockCount(), i);
   }
 
-  // TODO: Improve this test. Somehow force it to go to fat locked. But that needs another thread.
+  // Force a fat lock by running identity hashcode to fill up lock word.
+  SirtRef<mirror::Object> obj2(soa.Self(), mirror::String::AllocFromModifiedUtf8(soa.Self(),
+                                                                                 "hello, world!"));
 
+  obj2->IdentityHashCode();
+
+  Invoke3(reinterpret_cast<size_t>(obj2.get()), 0U, 0U,
+          reinterpret_cast<uintptr_t>(&art_quick_lock_object), self);
+
+  LockWord lock_after2 = obj2->GetLockWord(false);
+  LockWord::LockState new_state2 = lock_after2.GetState();
+  EXPECT_EQ(LockWord::LockState::kFatLocked, new_state2);
+  EXPECT_NE(lock_after2.FatLockMonitor(), static_cast<Monitor*>(nullptr));
+
+  // Test done.
 #else
   LOG(INFO) << "Skipping lock_object as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
@@ -419,13 +432,14 @@ class RandGen {
 };
 
 
-#if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
 extern "C" void art_quick_lock_object(void);
 extern "C" void art_quick_unlock_object(void);
 #endif
 
-TEST_F(StubTest, UnlockObject) {
-#if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
+// NO_THREAD_SAFETY_ANALYSIS as we do not want to grab exclusive mutator lock for MonitorInfo.
+static void TestUnlockObject(StubTest* test) NO_THREAD_SAFETY_ANALYSIS {
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
   static constexpr size_t kThinLockLoops = 100;
 
   Thread* self = Thread::Current();
@@ -439,8 +453,8 @@ TEST_F(StubTest, UnlockObject) {
   LockWord::LockState old_state = lock.GetState();
   EXPECT_EQ(LockWord::LockState::kUnlocked, old_state);
 
-  Invoke3(reinterpret_cast<size_t>(obj.get()), 0U, 0U,
-          reinterpret_cast<uintptr_t>(&art_quick_unlock_object), self);
+  test->Invoke3(reinterpret_cast<size_t>(obj.get()), 0U, 0U,
+                reinterpret_cast<uintptr_t>(&art_quick_unlock_object), self);
 
   // This should be an illegal monitor state.
   EXPECT_TRUE(self->IsExceptionPending());
@@ -450,15 +464,15 @@ TEST_F(StubTest, UnlockObject) {
   LockWord::LockState new_state = lock_after.GetState();
   EXPECT_EQ(LockWord::LockState::kUnlocked, new_state);
 
-  Invoke3(reinterpret_cast<size_t>(obj.get()), 0U, 0U,
-          reinterpret_cast<uintptr_t>(&art_quick_lock_object), self);
+  test->Invoke3(reinterpret_cast<size_t>(obj.get()), 0U, 0U,
+                reinterpret_cast<uintptr_t>(&art_quick_lock_object), self);
 
   LockWord lock_after2 = obj->GetLockWord(false);
   LockWord::LockState new_state2 = lock_after2.GetState();
   EXPECT_EQ(LockWord::LockState::kThinLocked, new_state2);
 
-  Invoke3(reinterpret_cast<size_t>(obj.get()), 0U, 0U,
-          reinterpret_cast<uintptr_t>(&art_quick_unlock_object), self);
+  test->Invoke3(reinterpret_cast<size_t>(obj.get()), 0U, 0U,
+                reinterpret_cast<uintptr_t>(&art_quick_unlock_object), self);
 
   LockWord lock_after3 = obj->GetLockWord(false);
   LockWord::LockState new_state3 = lock_after3.GetState();
@@ -472,13 +486,16 @@ TEST_F(StubTest, UnlockObject) {
 
   constexpr size_t kNumberOfLocks = 10;  // Number of objects = lock
   constexpr size_t kIterations = 10000;  // Number of iterations
+  constexpr size_t kMoveToFat = 1000;     // Chance of 1:kMoveFat to make a lock fat.
 
   size_t counts[kNumberOfLocks];
+  bool fat[kNumberOfLocks];  // Whether a lock should be thin or fat.
   SirtRef<mirror::String>* objects[kNumberOfLocks];
 
   // Initialize = allocate.
   for (size_t i = 0; i < kNumberOfLocks; ++i) {
     counts[i] = 0;
+    fat[i] = false;
     objects[i] = new SirtRef<mirror::String>(soa.Self(),
                                              mirror::String::AllocFromModifiedUtf8(soa.Self(), ""));
   }
@@ -487,36 +504,57 @@ TEST_F(StubTest, UnlockObject) {
     // Select which lock to update.
     size_t index = r.next() % kNumberOfLocks;
 
-    bool lock;  // Whether to lock or unlock in this step.
-    if (counts[index] == 0) {
-      lock = true;
-    } else if (counts[index] == kThinLockLoops) {
-      lock = false;
-    } else {
-      // Randomly.
-      lock = r.next() % 2 == 0;
-    }
+    // Make lock fat?
+    if (!fat[index] && (r.next() % kMoveToFat == 0)) {
+      fat[index] = true;
+      objects[index]->get()->IdentityHashCode();
 
-    if (lock) {
-      Invoke3(reinterpret_cast<size_t>(objects[index]->get()), 0U, 0U,
-              reinterpret_cast<uintptr_t>(&art_quick_lock_object), self);
-      counts[index]++;
+      LockWord lock_iter = objects[index]->get()->GetLockWord(false);
+      LockWord::LockState iter_state = lock_iter.GetState();
+      if (counts[index] == 0) {
+        EXPECT_EQ(LockWord::LockState::kHashCode, iter_state);
+      } else {
+        EXPECT_EQ(LockWord::LockState::kFatLocked, iter_state);
+      }
     } else {
-      Invoke3(reinterpret_cast<size_t>(objects[index]->get()), 0U, 0U,
-              reinterpret_cast<uintptr_t>(&art_quick_unlock_object), self);
-      counts[index]--;
-    }
+      bool lock;  // Whether to lock or unlock in this step.
+      if (counts[index] == 0) {
+        lock = true;
+      } else if (counts[index] == kThinLockLoops) {
+        lock = false;
+      } else {
+        // Randomly.
+        lock = r.next() % 2 == 0;
+      }
 
-    EXPECT_FALSE(self->IsExceptionPending());
+      if (lock) {
+        test-> Invoke3(reinterpret_cast<size_t>(objects[index]->get()), 0U, 0U,
+                       reinterpret_cast<uintptr_t>(&art_quick_lock_object), self);
+        counts[index]++;
+      } else {
+        test->Invoke3(reinterpret_cast<size_t>(objects[index]->get()), 0U, 0U,
+                      reinterpret_cast<uintptr_t>(&art_quick_unlock_object), self);
+        counts[index]--;
+      }
 
-    // Check the new state.
-    LockWord lock_iter = objects[index]->get()->GetLockWord(false);
-    LockWord::LockState iter_state = lock_iter.GetState();
-    if (counts[index] > 0) {
-      EXPECT_EQ(LockWord::LockState::kThinLocked, iter_state);
-      EXPECT_EQ(counts[index] - 1, lock_iter.ThinLockCount());
-    } else {
-      EXPECT_EQ(LockWord::LockState::kUnlocked, iter_state);
+      EXPECT_FALSE(self->IsExceptionPending());
+
+      // Check the new state.
+      LockWord lock_iter = objects[index]->get()->GetLockWord(true);
+      LockWord::LockState iter_state = lock_iter.GetState();
+      if (fat[index]) {
+        // Abuse MonitorInfo.
+        EXPECT_EQ(LockWord::LockState::kFatLocked, iter_state) << index;
+        MonitorInfo info(objects[index]->get());
+        EXPECT_EQ(counts[index], info.entry_count_) << index;
+      } else {
+        if (counts[index] > 0) {
+          EXPECT_EQ(LockWord::LockState::kThinLocked, iter_state);
+          EXPECT_EQ(counts[index] - 1, lock_iter.ThinLockCount());
+        } else {
+          EXPECT_EQ(LockWord::LockState::kUnlocked, iter_state);
+        }
+      }
     }
   }
 
@@ -526,21 +564,21 @@ TEST_F(StubTest, UnlockObject) {
     size_t index = kNumberOfLocks - 1 - i;
     size_t count = counts[index];
     while (count > 0) {
-      Invoke3(reinterpret_cast<size_t>(objects[index]->get()), 0U, 0U,
-              reinterpret_cast<uintptr_t>(&art_quick_unlock_object), self);
+      test->Invoke3(reinterpret_cast<size_t>(objects[index]->get()), 0U, 0U,
+                    reinterpret_cast<uintptr_t>(&art_quick_unlock_object), self);
 
       count--;
     }
 
     LockWord lock_after4 = objects[index]->get()->GetLockWord(false);
     LockWord::LockState new_state4 = lock_after4.GetState();
-    EXPECT_EQ(LockWord::LockState::kUnlocked, new_state4);
+    EXPECT_TRUE(LockWord::LockState::kUnlocked == new_state4
+                || LockWord::LockState::kFatLocked == new_state4);
 
     delete objects[index];
   }
 
-  // TODO: Improve this test. Somehow force it to go to fat locked. But that needs another thread.
-
+  // Test done.
 #else
   LOG(INFO) << "Skipping unlock_object as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
@@ -548,6 +586,9 @@ TEST_F(StubTest, UnlockObject) {
 #endif
 }
 
+TEST_F(StubTest, UnlockObject) {
+  TestUnlockObject(this);
+}
 
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
 extern "C" void art_quick_check_cast(void);
