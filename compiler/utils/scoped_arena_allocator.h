@@ -67,7 +67,7 @@ class ArenaStack : private DebugStackRefCounter {
     if (UNLIKELY(running_on_valgrind_)) {
       return AllocValgrind(bytes, kind);
     }
-    size_t rounded_bytes = (bytes + 3) & ~3;
+    size_t rounded_bytes = RoundUp(bytes, 4);
     uint8_t* ptr = top_ptr_;
     if (UNLIKELY(static_cast<size_t>(top_end_ - ptr) < rounded_bytes)) {
       ptr = AllocateFromNextArena(rounded_bytes);
