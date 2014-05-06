@@ -1483,7 +1483,7 @@ void X86Mir2Lir::AssignOffsets() {
   int offset = AssignInsnOffsets();
 
   /* Const values have to be word aligned */
-  offset = (offset + 3) & ~3;
+  offset = RoundUp(offset, 4);
 
   /* Set up offsets for literals */
   data_offset_ = offset;
