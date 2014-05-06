@@ -1116,13 +1116,10 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
   timings_.EndSplit();
 
   timings_.StartSplit("RecordFree");
-  VLOG(heap) << "Freed " << freed_objects << "/" << count
-             << " objects with size " << PrettySize(freed_bytes);
-  heap_->RecordFree(freed_objects + freed_large_objects, freed_bytes + freed_large_object_bytes);
-  freed_objects_.FetchAndAdd(freed_objects);
-  freed_large_objects_.FetchAndAdd(freed_large_objects);
-  freed_bytes_.FetchAndAdd(freed_bytes);
-  freed_large_object_bytes_.FetchAndAdd(freed_large_object_bytes);
+  VLOG(heap) << "Freed " << freed_objects << "/" << count << " objects with size "
+             << PrettySize(freed_bytes);
+  RecordFree(freed_objects, freed_bytes);
+  RecordFreeLargeObjects(freed_large_objects, freed_large_object_bytes);
   timings_.EndSplit();
 
   timings_.StartSplit("ResetStack");
@@ -1150,9 +1147,7 @@ void MarkSweep::Sweep(bool swap_bitmaps) {
       size_t freed_objects = 0;
       size_t freed_bytes = 0;
       alloc_space->Sweep(swap_bitmaps, &freed_objects, &freed_bytes);
-      heap_->RecordFree(freed_objects, freed_bytes);
-      freed_objects_.FetchAndAdd(freed_objects);
-      freed_bytes_.FetchAndAdd(freed_bytes);
+      RecordFree(freed_objects, freed_bytes);
     }
   }
   SweepLargeObjects(swap_bitmaps);
@@ -1163,9 +1158,7 @@ void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
   size_t freed_objects = 0;
   size_t freed_bytes = 0;
   heap_->GetLargeObjectsSpace()->Sweep(swap_bitmaps, &freed_objects, &freed_bytes);
-  freed_large_objects_.FetchAndAdd(freed_objects);
-  freed_large_object_bytes_.FetchAndAdd(freed_bytes);
-  heap_->RecordFree(freed_objects, freed_bytes);
+  RecordFreeLargeObjects(freed_objects, freed_bytes);
 }
 
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been

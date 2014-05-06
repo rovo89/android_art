@@ -128,6 +128,18 @@ uint64_t GarbageCollector::GetEstimatedLastIterationThroughput() const {
   return (static_cast<uint64_t>(freed_bytes_) * 1000) / (NsToMs(GetDurationNs()) + 1);
 }
 
+void GarbageCollector::RecordFree(uint64_t freed_objects, int64_t freed_bytes) {
+  freed_objects_ += freed_objects;
+  freed_bytes_ += freed_bytes;
+  GetHeap()->RecordFree(freed_objects, freed_bytes);
+}
+
+void GarbageCollector::RecordFreeLargeObjects(uint64_t freed_objects, int64_t freed_bytes) {
+  freed_large_objects_ += freed_objects;
+  freed_large_object_bytes_ += freed_bytes;
+  GetHeap()->RecordFree(freed_objects, freed_bytes);
+}
+
 void GarbageCollector::ResetMeasurements() {
   cumulative_timings_.Reset();
   pause_histogram_.Reset();

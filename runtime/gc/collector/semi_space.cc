@@ -262,27 +262,18 @@ void SemiSpace::MarkingPhase() {
   // before they are properly counted.
   RevokeAllThreadLocalBuffers();
   // Record freed memory.
-  uint64_t from_bytes = from_space_->GetBytesAllocated();
-  uint64_t to_bytes = bytes_moved_;
-  uint64_t from_objects = from_space_->GetObjectsAllocated();
-  uint64_t to_objects = objects_moved_;
+  const int64_t from_bytes = from_space_->GetBytesAllocated();
+  const int64_t to_bytes = bytes_moved_;
+  const uint64_t from_objects = from_space_->GetObjectsAllocated();
+  const uint64_t to_objects = objects_moved_;
   CHECK_LE(to_objects, from_objects);
-  int64_t freed_bytes = from_bytes - to_bytes;
-  int64_t freed_objects = from_objects - to_objects;
-  freed_bytes_.FetchAndAdd(freed_bytes);
-  freed_objects_.FetchAndAdd(freed_objects);
   // Note: Freed bytes can be negative if we copy form a compacted space to a free-list backed
   // space.
-  heap_->RecordFree(freed_objects, freed_bytes);
-
+  RecordFree(from_objects - to_objects, from_bytes - to_bytes);
   // Clear and protect the from space.
   from_space_->Clear();
-  VLOG(heap) << "Protecting space " << *from_space_;
-  if (kProtectFromSpace) {
-    from_space_->GetMemMap()->Protect(PROT_NONE);
-  } else {
-    from_space_->GetMemMap()->Protect(PROT_READ);
-  }
+  VLOG(heap) << "Protecting from_space_: " << *from_space_;
+  from_space_->GetMemMap()->Protect(kProtectFromSpace ? PROT_NONE : PROT_READ);
   if (swap_semi_spaces_) {
     heap_->SwapSemiSpaces();
   }
@@ -687,9 +678,7 @@ void SemiSpace::Sweep(bool swap_bitmaps) {
       size_t freed_objects = 0;
       size_t freed_bytes = 0;
       alloc_space->Sweep(swap_bitmaps, &freed_objects, &freed_bytes);
-      heap_->RecordFree(freed_objects, freed_bytes);
-      freed_objects_.FetchAndAdd(freed_objects);
-      freed_bytes_.FetchAndAdd(freed_bytes);
+      RecordFree(freed_objects, freed_bytes);
     }
   }
   if (!is_large_object_space_immune_) {
@@ -703,9 +692,7 @@ void SemiSpace::SweepLargeObjects(bool swap_bitmaps) {
   size_t freed_objects = 0;
   size_t freed_bytes = 0;
   heap_->GetLargeObjectsSpace()->Sweep(swap_bitmaps, &freed_objects, &freed_bytes);
-  freed_large_objects_.FetchAndAdd(freed_objects);
-  freed_large_object_bytes_.FetchAndAdd(freed_bytes);
-  heap_->RecordFree(freed_objects, freed_bytes);
+  RecordFreeLargeObjects(freed_objects, freed_bytes);
 }
 
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
