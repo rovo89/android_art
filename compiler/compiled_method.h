@@ -102,7 +102,7 @@ class CompiledCode {
 class CompiledMethod : public CompiledCode {
  public:
   // Constructs a CompiledMethod for the non-LLVM compilers.
-  CompiledMethod(CompilerDriver& driver,
+  CompiledMethod(CompilerDriver* driver,
                  InstructionSet instruction_set,
                  const std::vector<uint8_t>& quick_code,
                  const size_t frame_size_in_bytes,
@@ -114,7 +114,7 @@ class CompiledMethod : public CompiledCode {
                  const std::vector<uint8_t>* cfi_info);
 
   // Constructs a CompiledMethod for the QuickJniCompiler.
-  CompiledMethod(CompilerDriver& driver,
+  CompiledMethod(CompilerDriver* driver,
                  InstructionSet instruction_set,
                  const std::vector<uint8_t>& quick_code,
                  const size_t frame_size_in_bytes,
@@ -122,11 +122,11 @@ class CompiledMethod : public CompiledCode {
                  const uint32_t fp_spill_mask);
 
   // Constructs a CompiledMethod for the Portable compiler.
-  CompiledMethod(CompilerDriver& driver, InstructionSet instruction_set, const std::string& code,
+  CompiledMethod(CompilerDriver* driver, InstructionSet instruction_set, const std::string& code,
                  const std::vector<uint8_t>& gc_map, const std::string& symbol);
 
   // Constructs a CompiledMethod for the Portable JniCompiler.
-  CompiledMethod(CompilerDriver& driver, InstructionSet instruction_set, const std::string& code,
+  CompiledMethod(CompilerDriver* driver, InstructionSet instruction_set, const std::string& code,
                  const std::string& symbol);
 
   ~CompiledMethod() {}

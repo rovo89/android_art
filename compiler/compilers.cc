@@ -22,9 +22,9 @@
 
 namespace art {
 
-extern "C" void ArtInitQuickCompilerContext(art::CompilerDriver& driver);
-extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver& driver);
-extern "C" art::CompiledMethod* ArtQuickCompileMethod(art::CompilerDriver& driver,
+extern "C" void ArtInitQuickCompilerContext(art::CompilerDriver* driver);
+extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver* driver);
+extern "C" art::CompiledMethod* ArtQuickCompileMethod(art::CompilerDriver* driver,
                                                       const art::DexFile::CodeItem* code_item,
                                                       uint32_t access_flags,
                                                       art::InvokeType invoke_type,
@@ -33,40 +33,40 @@ extern "C" art::CompiledMethod* ArtQuickCompileMethod(art::CompilerDriver& drive
                                                       jobject class_loader,
                                                       const art::DexFile& dex_file);
 
-extern "C" art::CompiledMethod* ArtQuickJniCompileMethod(art::CompilerDriver& driver,
+extern "C" art::CompiledMethod* ArtQuickJniCompileMethod(art::CompilerDriver* driver,
                                                          uint32_t access_flags, uint32_t method_idx,
                                                          const art::DexFile& dex_file);
 
 // Hack for CFI CIE initialization
 extern std::vector<uint8_t>* X86CFIInitialization();
 
-void QuickCompiler::Init(CompilerDriver& driver) const {
-  ArtInitQuickCompilerContext(driver);
+void QuickCompiler::Init() const {
+  ArtInitQuickCompilerContext(GetCompilerDriver());
 }
 
-void QuickCompiler::UnInit(CompilerDriver& driver) const {
-  ArtUnInitQuickCompilerContext(driver);
+void QuickCompiler::UnInit() const {
+  ArtUnInitQuickCompilerContext(GetCompilerDriver());
 }
 
-CompiledMethod* QuickCompiler::Compile(CompilerDriver& driver,
-                                      const DexFile::CodeItem* code_item,
-                                      uint32_t access_flags,
-                                      InvokeType invoke_type,
-                                      uint16_t class_def_idx,
-                                      uint32_t method_idx,
-                                      jobject class_loader,
-                                      const DexFile& dex_file) const {
-  CompiledMethod* method = TryCompileWithSeaIR(driver,
-                                               code_item,
+CompiledMethod* QuickCompiler::Compile(const DexFile::CodeItem* code_item,
+                                       uint32_t access_flags,
+                                       InvokeType invoke_type,
+                                       uint16_t class_def_idx,
+                                       uint32_t method_idx,
+                                       jobject class_loader,
+                                       const DexFile& dex_file) const {
+  CompiledMethod* method = TryCompileWithSeaIR(code_item,
                                                access_flags,
                                                invoke_type,
                                                class_def_idx,
                                                method_idx,
                                                class_loader,
                                                dex_file);
-  if (method != nullptr) return method;
+  if (method != nullptr) {
+    return method;
+  }
 
-  return ArtQuickCompileMethod(driver,
+  return ArtQuickCompileMethod(GetCompilerDriver(),
                                code_item,
                                access_flags,
                                invoke_type,
@@ -76,11 +76,10 @@ CompiledMethod* QuickCompiler::Compile(CompilerDriver& driver,
                                dex_file);
 }
 
-CompiledMethod* QuickCompiler::JniCompile(CompilerDriver& driver,
-                                          uint32_t access_flags,
+CompiledMethod* QuickCompiler::JniCompile(uint32_t access_flags,
                                           uint32_t method_idx,
                                           const DexFile& dex_file) const {
-  return ArtQuickJniCompileMethod(driver, access_flags, method_idx, dex_file);
+  return ArtQuickJniCompileMethod(GetCompilerDriver(), access_flags, method_idx, dex_file);
 }
 
 uintptr_t QuickCompiler::GetEntryPointOf(mirror::ArtMethod* method) const {
@@ -88,11 +87,12 @@ uintptr_t QuickCompiler::GetEntryPointOf(mirror::ArtMethod* method) const {
 }
 
 bool QuickCompiler::WriteElf(art::File* file,
-                            OatWriter* oat_writer,
-                            const std::vector<const art::DexFile*>& dex_files,
-                            const std::string& android_root,
-                            bool is_host, const CompilerDriver& driver) const {
-  return art::ElfWriterQuick::Create(file, oat_writer, dex_files, android_root, is_host, driver);
+                             OatWriter* oat_writer,
+                             const std::vector<const art::DexFile*>& dex_files,
+                             const std::string& android_root,
+                             bool is_host) const {
+  return art::ElfWriterQuick::Create(file, oat_writer, dex_files, android_root, is_host,
+                                     *GetCompilerDriver());
 }
 
 Backend* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const {
@@ -134,22 +134,21 @@ std::vector<uint8_t>* QuickCompiler::GetCallFrameInformationInitialization(
   return nullptr;
 }
 
-CompiledMethod* OptimizingCompiler::Compile(CompilerDriver& driver,
-                                            const DexFile::CodeItem* code_item,
+CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                                             uint32_t access_flags,
                                             InvokeType invoke_type,
                                             uint16_t class_def_idx,
                                             uint32_t method_idx,
                                             jobject class_loader,
                                             const DexFile& dex_file) const {
-  CompiledMethod* method = TryCompile(
-      driver, code_item, access_flags, invoke_type, class_def_idx, method_idx,
-      class_loader, dex_file);
-  if (method != nullptr) return method;
+  CompiledMethod* method = TryCompile(code_item, access_flags, invoke_type, class_def_idx,
+                                      method_idx, class_loader, dex_file);
+  if (method != nullptr) {
+    return method;
+  }
 
-  return QuickCompiler::Compile(
-      driver, code_item, access_flags, invoke_type, class_def_idx, method_idx,
-      class_loader, dex_file);
+  return QuickCompiler::Compile(code_item, access_flags, invoke_type, class_def_idx, method_idx,
+                                class_loader, dex_file);
 }
 
 }  // namespace art

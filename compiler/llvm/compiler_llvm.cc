@@ -175,8 +175,8 @@ CompileNativeMethod(DexCompilationUnit* dex_compilation_unit) {
 }  // namespace llvm
 }  // namespace art
 
-static art::llvm::CompilerLLVM* ContextOf(art::CompilerDriver& driver) {
-  void *compiler_context = driver.GetCompilerContext();
+static art::llvm::CompilerLLVM* ContextOf(art::CompilerDriver* driver) {
+  void *compiler_context = driver->GetCompilerContext();
   CHECK(compiler_context != NULL);
   return reinterpret_cast<art::llvm::CompilerLLVM*>(compiler_context);
 }
@@ -187,20 +187,20 @@ static art::llvm::CompilerLLVM* ContextOf(const art::CompilerDriver& driver) {
   return reinterpret_cast<art::llvm::CompilerLLVM*>(compiler_context);
 }
 
-extern "C" void ArtInitCompilerContext(art::CompilerDriver& driver) {
-  CHECK(driver.GetCompilerContext() == NULL);
+extern "C" void ArtInitCompilerContext(art::CompilerDriver* driver) {
+  CHECK(driver->GetCompilerContext() == nullptr);
 
-  art::llvm::CompilerLLVM* compiler_llvm = new art::llvm::CompilerLLVM(&driver,
-                                                                       driver.GetInstructionSet());
+  art::llvm::CompilerLLVM* compiler_llvm = new art::llvm::CompilerLLVM(driver,
+                                                                       driver->GetInstructionSet());
 
-  driver.SetCompilerContext(compiler_llvm);
+  driver->SetCompilerContext(compiler_llvm);
 }
 
-extern "C" void ArtUnInitCompilerContext(art::CompilerDriver& driver) {
+extern "C" void ArtUnInitCompilerContext(art::CompilerDriver* driver) {
   delete ContextOf(driver);
-  driver.SetCompilerContext(NULL);
+  driver->SetCompilerContext(nullptr);
 }
-extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
+extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver* driver,
                                                  const art::DexFile::CodeItem* code_item,
                                                  uint32_t access_flags,
                                                  art::InvokeType invoke_type,
@@ -213,13 +213,13 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
 
   art::DexCompilationUnit dex_compilation_unit(
     NULL, class_loader, class_linker, dex_file, code_item,
-    class_def_idx, method_idx, access_flags, driver.GetVerifiedMethod(&dex_file, method_idx));
+    class_def_idx, method_idx, access_flags, driver->GetVerifiedMethod(&dex_file, method_idx));
   art::llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);
   art::CompiledMethod* result = compiler_llvm->CompileDexMethod(&dex_compilation_unit, invoke_type);
   return result;
 }
 
-extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver& driver,
+extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver* driver,
                                                         uint32_t access_flags, uint32_t method_idx,
                                                         const art::DexFile& dex_file) {
   art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
