@@ -1169,10 +1169,12 @@ const char* GetAndroidData() {
 
 std::string GetDalvikCacheOrDie(const char* subdir, const bool create_if_absent) {
   CHECK(subdir != nullptr);
-  const std::string dalvik_cache_root(StringPrintf("%s/dalvik-cache/", GetAndroidData()));
+  const char* android_data = GetAndroidData();
+  const std::string dalvik_cache_root(StringPrintf("%s/dalvik-cache/", android_data));
   const std::string dalvik_cache = dalvik_cache_root + subdir;
   if (create_if_absent && !OS::DirectoryExists(dalvik_cache.c_str())) {
-    if (StartsWith(dalvik_cache_root, "/tmp/")) {
+    // Don't create the system's /data/dalvik-cache/... because it needs special permissions.
+    if (strcmp(android_data, "/data") != 0) {
       int result = mkdir(dalvik_cache_root.c_str(), 0700);
       if (result != 0 && errno != EEXIST) {
         PLOG(FATAL) << "Failed to create dalvik-cache directory " << dalvik_cache_root;
