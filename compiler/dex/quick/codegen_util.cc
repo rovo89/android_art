@@ -1050,10 +1050,11 @@ size_t Mir2Lir::GetNumBytesForCompilerTempSpillRegion() {
 int Mir2Lir::ComputeFrameSize() {
   /* Figure out the frame size */
   static const uint32_t kAlignMask = kStackAlignment - 1;
-  uint32_t size = ((num_core_spills_ + num_fp_spills_ +
-                   1 /* filler word */ + cu_->num_regs + cu_->num_outs)
-                   * sizeof(uint32_t)) +
-                   GetNumBytesForCompilerTempSpillRegion();
+  uint32_t size = num_core_spills_ * GetBytesPerGprSpillLocation(cu_->instruction_set)
+                  + num_fp_spills_ * GetBytesPerFprSpillLocation(cu_->instruction_set)
+                  + sizeof(uint32_t)  // Filler.
+                  + (cu_->num_regs + cu_->num_outs) * sizeof(uint32_t)
+                  + GetNumBytesForCompilerTempSpillRegion();
   /* Align and set */
   return (size + kAlignMask) & ~(kAlignMask);
 }
