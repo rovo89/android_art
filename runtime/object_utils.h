@@ -520,8 +520,7 @@ class MethodHelper {
     return GetParamPrimitiveType(param) == Primitive::kPrimNot;
   }
 
-  bool HasSameNameAndSignature(MethodHelper* other)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool HasSameNameAndSignature(MethodHelper* other) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     const DexFile::MethodId& mid = dex_file.GetMethodId(method_->GetDexMethodIndex());
     if (GetDexCache() == other->GetDexCache()) {
@@ -537,6 +536,33 @@ class MethodHelper {
       return false;  // Name mismatch.
     }
     return dex_file.GetMethodSignature(mid) == other_dex_file.GetMethodSignature(other_mid);
+  }
+
+  bool HasSameSignatureWithDifferentClassLoaders(MethodHelper* other)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (UNLIKELY(GetReturnType() != other->GetReturnType())) {
+      return false;
+    }
+    const DexFile::TypeList* types = GetParameterTypeList();
+    const DexFile::TypeList* other_types = other->GetParameterTypeList();
+    if (types == nullptr) {
+      return (other_types == nullptr) || (other_types->Size() == 0);
+    } else if (UNLIKELY(other_types == nullptr)) {
+      return types->Size() == 0;
+    }
+    uint32_t num_types = types->Size();
+    if (UNLIKELY(num_types != other_types->Size())) {
+      return false;
+    }
+    for (uint32_t i = 0; i < num_types; ++i) {
+      mirror::Class* param_type = GetClassFromTypeIdx(types->GetTypeItem(i).type_idx_);
+      mirror::Class* other_param_type =
+          other->GetClassFromTypeIdx(other_types->GetTypeItem(i).type_idx_);
+      if (UNLIKELY(param_type != other_param_type)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   const DexFile::CodeItem* GetCodeItem()
