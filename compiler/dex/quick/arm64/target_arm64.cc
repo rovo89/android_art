@@ -27,39 +27,40 @@ namespace art {
 
 // TODO: rework this when c++11 support allows.
 static const RegStorage core_regs_arr[] =
-    {rs_r0, rs_r1, rs_r2, rs_r3, rs_rARM_SUSPEND, rs_r5, rs_r6, rs_r7, rs_r8, rs_rARM_SELF,
-     rs_r10, rs_r11, rs_r12, rs_rARM_SP, rs_rARM_LR, rs_rARM_PC};
+    {rs_x0, rs_x1, rs_x2, rs_x3, rs_x4, rs_x5, rs_x6, rs_x7,
+     rs_x8, rs_x9, rs_x10, rs_x11, rs_x12, rs_x13, rs_x14, rs_x15,
+     rs_x16, rs_x17, rs_x18, rs_x19, rs_x20, rs_x21, rs_x22, rs_x23,
+     rs_x24, rs_x25, rs_x26, rs_x27, rs_x28, rs_x29, rs_x30, rs_x31};
 static const RegStorage sp_regs_arr[] =
-    {rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7, rs_fr8, rs_fr9, rs_fr10,
-     rs_fr11, rs_fr12, rs_fr13, rs_fr14, rs_fr15, rs_fr16, rs_fr17, rs_fr18, rs_fr19, rs_fr20,
-     rs_fr21, rs_fr22, rs_fr23, rs_fr24, rs_fr25, rs_fr26, rs_fr27, rs_fr28, rs_fr29, rs_fr30,
-     rs_fr31};
+    {rs_f0, rs_f1, rs_f2, rs_f3, rs_f4, rs_f5, rs_f6, rs_f7,
+     rs_f8, rs_f9, rs_f10, rs_f11, rs_f12, rs_f13, rs_f14, rs_f15,
+     rs_f16, rs_f17, rs_f18, rs_f19, rs_f20, rs_f21, rs_f22, rs_f23,
+     rs_f24, rs_f25, rs_f26, rs_f27, rs_f28, rs_f29, rs_f30, rs_f31};
 static const RegStorage dp_regs_arr[] =
-    {rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7, rs_dr8, rs_dr9, rs_dr10,
-     rs_dr11, rs_dr12, rs_dr13, rs_dr14, rs_dr15};
+    {rs_d0, rs_d1, rs_d2, rs_d3, rs_d4, rs_d5, rs_d6, rs_d7,
+     rs_d8, rs_d9, rs_d10, rs_d11, rs_d12, rs_d13, rs_d14, rs_d15};
 static const RegStorage reserved_regs_arr[] =
-    {rs_rARM_SUSPEND, rs_rARM_SELF, rs_rARM_SP, rs_rARM_LR, rs_rARM_PC};
-static const RegStorage core_temps_arr[] = {rs_r0, rs_r1, rs_r2, rs_r3, rs_r12};
+    {rs_rA64_SUSPEND, rs_rA64_SELF, rs_rA64_SP, rs_rA64_LR};
+static const RegStorage core_temps_arr[] =
+    {rs_x0, rs_x1, rs_x2, rs_x3, rs_x12};
 static const RegStorage sp_temps_arr[] =
-    {rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7, rs_fr8, rs_fr9, rs_fr10,
-     rs_fr11, rs_fr12, rs_fr13, rs_fr14, rs_fr15};
+    {rs_f0, rs_f1, rs_f2, rs_f3, rs_f4, rs_f5, rs_f6, rs_f7,
+     rs_f8, rs_f9, rs_f10, rs_f11, rs_f12, rs_f13, rs_f14, rs_f15};
 static const RegStorage dp_temps_arr[] =
-    {rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7};
+    {rs_d0, rs_d1, rs_d2, rs_d3, rs_d4, rs_d5, rs_d6, rs_d7};
 
 static const std::vector<RegStorage> core_regs(core_regs_arr,
-    core_regs_arr + sizeof(core_regs_arr) / sizeof(core_regs_arr[0]));
+    core_regs_arr + arraysize(core_regs_arr));
 static const std::vector<RegStorage> sp_regs(sp_regs_arr,
-    sp_regs_arr + sizeof(sp_regs_arr) / sizeof(sp_regs_arr[0]));
+    sp_regs_arr + arraysize(sp_regs_arr));
 static const std::vector<RegStorage> dp_regs(dp_regs_arr,
-    dp_regs_arr + sizeof(dp_regs_arr) / sizeof(dp_regs_arr[0]));
+    dp_regs_arr + arraysize(dp_regs_arr));
 static const std::vector<RegStorage> reserved_regs(reserved_regs_arr,
-    reserved_regs_arr + sizeof(reserved_regs_arr) / sizeof(reserved_regs_arr[0]));
+    reserved_regs_arr + arraysize(reserved_regs_arr));
 static const std::vector<RegStorage> core_temps(core_temps_arr,
-    core_temps_arr + sizeof(core_temps_arr) / sizeof(core_temps_arr[0]));
-static const std::vector<RegStorage> sp_temps(sp_temps_arr,
-    sp_temps_arr + sizeof(sp_temps_arr) / sizeof(sp_temps_arr[0]));
-static const std::vector<RegStorage> dp_temps(dp_temps_arr,
-    dp_temps_arr + sizeof(dp_temps_arr) / sizeof(dp_temps_arr[0]));
+    core_temps_arr + arraysize(core_temps_arr));
+static const std::vector<RegStorage> sp_temps(sp_temps_arr, sp_temps_arr + arraysize(sp_temps_arr));
+static const std::vector<RegStorage> dp_temps(dp_temps_arr, dp_temps_arr + arraysize(dp_temps_arr));
 
 RegLocation Arm64Mir2Lir::LocCReturn() {
   return arm_loc_c_return;
@@ -79,25 +80,26 @@ RegLocation Arm64Mir2Lir::LocCReturnDouble() {
 
 // Return a target-dependent special register.
 RegStorage Arm64Mir2Lir::TargetReg(SpecialTargetRegister reg) {
+  // TODO(Arm64): this function doesn't work for hard-float ABI.
   RegStorage res_reg = RegStorage::InvalidReg();
   switch (reg) {
-    case kSelf: res_reg = rs_rARM_SELF; break;
-    case kSuspend: res_reg =  rs_rARM_SUSPEND; break;
-    case kLr: res_reg =  rs_rARM_LR; break;
-    case kPc: res_reg =  rs_rARM_PC; break;
-    case kSp: res_reg =  rs_rARM_SP; break;
-    case kArg0: res_reg = rs_r0; break;
-    case kArg1: res_reg = rs_r1; break;
-    case kArg2: res_reg = rs_r2; break;
-    case kArg3: res_reg = rs_r3; break;
-    case kFArg0: res_reg = rs_r0; break;
-    case kFArg1: res_reg = rs_r1; break;
-    case kFArg2: res_reg = rs_r2; break;
-    case kFArg3: res_reg = rs_r3; break;
-    case kRet0: res_reg = rs_r0; break;
-    case kRet1: res_reg = rs_r1; break;
-    case kInvokeTgt: res_reg = rs_rARM_LR; break;
-    case kHiddenArg: res_reg = rs_r12; break;
+    case kSelf: res_reg = rs_rA64_SELF; break;
+    case kSuspend: res_reg = rs_rA64_SUSPEND; break;
+    case kLr: res_reg =  rs_rA64_LR; break;
+    case kPc: res_reg = RegStorage::InvalidReg(); break;
+    case kSp: res_reg =  rs_rA64_SP; break;
+    case kArg0: res_reg = rs_x0; break;
+    case kArg1: res_reg = rs_x1; break;
+    case kArg2: res_reg = rs_x2; break;
+    case kArg3: res_reg = rs_x3; break;
+    case kFArg0: res_reg = rs_f0; break;
+    case kFArg1: res_reg = rs_f1; break;
+    case kFArg2: res_reg = rs_f2; break;
+    case kFArg3: res_reg = rs_f3; break;
+    case kRet0: res_reg = rs_x0; break;
+    case kRet1: res_reg = rs_x0; break;
+    case kInvokeTgt: res_reg = rs_rA64_LR; break;
+    case kHiddenArg: res_reg = rs_x12; break;
     case kHiddenFpArg: res_reg = RegStorage::InvalidReg(); break;
     case kCount: res_reg = RegStorage::InvalidReg(); break;
   }
@@ -105,55 +107,37 @@ RegStorage Arm64Mir2Lir::TargetReg(SpecialTargetRegister reg) {
 }
 
 RegStorage Arm64Mir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
-  // For the 32-bit internal ABI, the first 3 arguments are passed in registers.
-  switch (arg_num) {
-    case 0:
-      return rs_r1;
-    case 1:
-      return rs_r2;
-    case 2:
-      return rs_r3;
-    default:
-      return RegStorage::InvalidReg();
-  }
+  return RegStorage::InvalidReg();
 }
 
 /*
- * Decode the register id.
+ * Decode the register id. This routine makes assumptions on the encoding made by RegStorage.
  */
 uint64_t Arm64Mir2Lir::GetRegMaskCommon(RegStorage reg) {
-  uint64_t seed;
-  int shift;
-  int reg_id = reg.GetRegNum();
-  /* Each double register is equal to a pair of single-precision FP registers */
-  if (reg.IsDouble()) {
-    seed = 0x3;
-    reg_id = reg_id << 1;
-  } else {
-    seed = 1;
+  // TODO(Arm64): this function depends too much on the internal RegStorage encoding. Refactor.
+
+  int reg_raw = reg.GetRawBits();
+  // Check if the shape mask is zero (i.e. invalid).
+  if (UNLIKELY(reg == rs_wzr || reg == rs_xzr)) {
+    // The zero register is not a true register. It is just an immediate zero.
+    return 0;
   }
-  /* FP register starts at bit position 16 */
-  shift = reg.IsFloat() ? kArmFPReg0 : 0;
-  /* Expand the double register id into single offset */
-  shift += reg_id;
-  return (seed << shift);
+
+  return UINT64_C(1) << (reg_raw & RegStorage::kRegTypeMask);
 }
 
 uint64_t Arm64Mir2Lir::GetPCUseDefEncoding() {
-  return ENCODE_ARM_REG_PC;
+  LOG(FATAL) << "Unexpected call to GetPCUseDefEncoding for Arm64";
+  return 0ULL;
 }
 
-// Thumb2 specific setup.  TODO: inline?:
+// Arm64 specific setup.  TODO: inline?:
 void Arm64Mir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags) {
-  DCHECK_EQ(cu_->instruction_set, kThumb2);
+  DCHECK_EQ(cu_->instruction_set, kArm64);
   DCHECK(!lir->flags.use_def_invalid);
 
-  int opcode = lir->opcode;
-
   // These flags are somewhat uncommon - bypass if we can.
-  if ((flags & (REG_DEF_SP | REG_USE_SP | REG_DEF_LIST0 | REG_DEF_LIST1 |
-                REG_DEF_FPCS_LIST0 | REG_DEF_FPCS_LIST2 | REG_USE_PC | IS_IT | REG_USE_LIST0 |
-                REG_USE_LIST1 | REG_USE_FPCS_LIST0 | REG_USE_FPCS_LIST2 | REG_DEF_LR)) != 0) {
+  if ((flags & (REG_DEF_SP | REG_USE_SP | REG_DEF_LR)) != 0) {
     if (flags & REG_DEF_SP) {
       lir->u.m.def_mask |= ENCODE_ARM_REG_SP;
     }
@@ -162,61 +146,6 @@ void Arm64Mir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags) {
       lir->u.m.use_mask |= ENCODE_ARM_REG_SP;
     }
 
-    if (flags & REG_DEF_LIST0) {
-      lir->u.m.def_mask |= ENCODE_ARM_REG_LIST(lir->operands[0]);
-    }
-
-    if (flags & REG_DEF_LIST1) {
-      lir->u.m.def_mask |= ENCODE_ARM_REG_LIST(lir->operands[1]);
-    }
-
-    if (flags & REG_DEF_FPCS_LIST0) {
-      lir->u.m.def_mask |= ENCODE_ARM_REG_FPCS_LIST(lir->operands[0]);
-    }
-
-    if (flags & REG_DEF_FPCS_LIST2) {
-      for (int i = 0; i < lir->operands[2]; i++) {
-        SetupRegMask(&lir->u.m.def_mask, lir->operands[1] + i);
-      }
-    }
-
-    if (flags & REG_USE_PC) {
-      lir->u.m.use_mask |= ENCODE_ARM_REG_PC;
-    }
-
-    /* Conservatively treat the IT block */
-    if (flags & IS_IT) {
-      lir->u.m.def_mask = ENCODE_ALL;
-    }
-
-    if (flags & REG_USE_LIST0) {
-      lir->u.m.use_mask |= ENCODE_ARM_REG_LIST(lir->operands[0]);
-    }
-
-    if (flags & REG_USE_LIST1) {
-      lir->u.m.use_mask |= ENCODE_ARM_REG_LIST(lir->operands[1]);
-    }
-
-    if (flags & REG_USE_FPCS_LIST0) {
-      lir->u.m.use_mask |= ENCODE_ARM_REG_FPCS_LIST(lir->operands[0]);
-    }
-
-    if (flags & REG_USE_FPCS_LIST2) {
-      for (int i = 0; i < lir->operands[2]; i++) {
-        SetupRegMask(&lir->u.m.use_mask, lir->operands[1] + i);
-      }
-    }
-    /* Fixup for kThumbPush/lr and kThumbPop/pc */
-    if (opcode == kThumbPush || opcode == kThumbPop) {
-      uint64_t r8Mask = GetRegMaskCommon(rs_r8);
-      if ((opcode == kThumbPush) && (lir->u.m.use_mask & r8Mask)) {
-        lir->u.m.use_mask &= ~r8Mask;
-        lir->u.m.use_mask |= ENCODE_ARM_REG_LR;
-      } else if ((opcode == kThumbPop) && (lir->u.m.def_mask & r8Mask)) {
-        lir->u.m.def_mask &= ~r8Mask;
-        lir->u.m.def_mask |= ENCODE_ARM_REG_PC;
-      }
-    }
     if (flags & REG_DEF_LR) {
       lir->u.m.def_mask |= ENCODE_ARM_REG_LR;
     }
@@ -251,92 +180,128 @@ ArmConditionCode Arm64Mir2Lir::ArmConditionEncoding(ConditionCode ccode) {
   return res;
 }
 
-static const char* core_reg_names[16] = {
-  "r0",
-  "r1",
-  "r2",
-  "r3",
-  "r4",
-  "r5",
-  "r6",
-  "r7",
-  "r8",
-  "rSELF",
-  "r10",
-  "r11",
-  "r12",
-  "sp",
-  "lr",
-  "pc",
-};
-
-
-static const char* shift_names[4] = {
+static const char *shift_names[4] = {
   "lsl",
   "lsr",
   "asr",
-  "ror"};
+  "ror"
+};
 
-/* Decode and print a ARM register name */
-static char* DecodeRegList(int opcode, int vector, char* buf, size_t buf_size) {
-  int i;
-  bool printed = false;
-  buf[0] = 0;
-  for (i = 0; i < 16; i++, vector >>= 1) {
-    if (vector & 0x1) {
-      int reg_id = i;
-      if (opcode == kThumbPush && i == 8) {
-        reg_id = rs_rARM_LR.GetRegNum();
-      } else if (opcode == kThumbPop && i == 8) {
-        reg_id = rs_rARM_PC.GetRegNum();
-      }
-      if (printed) {
-        snprintf(buf + strlen(buf), buf_size - strlen(buf), ", r%d", reg_id);
-      } else {
-        printed = true;
-        snprintf(buf, buf_size, "r%d", reg_id);
+static const char* extend_names[8] = {
+  "uxtb",
+  "uxth",
+  "uxtw",
+  "uxtx",
+  "sxtb",
+  "sxth",
+  "sxtw",
+  "sxtx",
+};
+
+/* Decode and print a register extension (e.g. ", uxtb #1") */
+static void DecodeRegExtendOrShift(int operand, char *buf, size_t buf_size) {
+  if ((operand & (1 << 6)) == 0) {
+    const char *shift_name = shift_names[(operand >> 7) & 0x3];
+    int amount = operand & 0x3f;
+    snprintf(buf, buf_size, ", %s #%d", shift_name, amount);
+  } else {
+    const char *extend_name = extend_names[(operand >> 3) & 0x7];
+    int amount = operand & 0x7;
+    if (amount == 0) {
+      snprintf(buf, buf_size, ", %s", extend_name);
+    } else {
+      snprintf(buf, buf_size, ", %s #%d", extend_name, amount);
+    }
+  }
+}
+
+#define BIT_MASK(w) ((UINT64_C(1) << (w)) - UINT64_C(1))
+
+static uint64_t RotateRight(uint64_t value, unsigned rotate, unsigned width) {
+  DCHECK_LE(width, 64U);
+  rotate &= 63;
+  value = value & BIT_MASK(width);
+  return ((value & BIT_MASK(rotate)) << (width - rotate)) | (value >> rotate);
+}
+
+static uint64_t RepeatBitsAcrossReg(bool is_wide, uint64_t value, unsigned width) {
+  unsigned i;
+  unsigned reg_size = (is_wide) ? 64 : 32;
+  uint64_t result = value & BIT_MASK(width);
+  DCHECK_NE(width, reg_size);
+  for (i = width; i < reg_size; i *= 2) {
+    result |= (result << i);
+  }
+  DCHECK_EQ(i, reg_size);
+  return result;
+}
+
+/**
+ * @brief Decode an immediate in the form required by logical instructions.
+ *
+ * @param is_wide Whether @p value encodes a 64-bit (as opposed to 32-bit) immediate.
+ * @param value The encoded logical immediates that is to be decoded.
+ * @return The decoded logical immediate.
+ * @note This is the inverse of Arm64Mir2Lir::EncodeLogicalImmediate().
+ */
+uint64_t Arm64Mir2Lir::DecodeLogicalImmediate(bool is_wide, int value) {
+  unsigned n     = (value >> 12) & 0x01;
+  unsigned imm_r = (value >>  6) & 0x3f;
+  unsigned imm_s = (value >>  0) & 0x3f;
+
+  // An integer is constructed from the n, imm_s and imm_r bits according to
+  // the following table:
+  //
+  // N   imms immr  size S             R
+  // 1 ssssss rrrrrr 64  UInt(ssssss) UInt(rrrrrr)
+  // 0 0sssss xrrrrr 32  UInt(sssss)  UInt(rrrrr)
+  // 0 10ssss xxrrrr 16  UInt(ssss)   UInt(rrrr)
+  // 0 110sss xxxrrr 8   UInt(sss)    UInt(rrr)
+  // 0 1110ss xxxxrr 4   UInt(ss)     UInt(rr)
+  // 0 11110s xxxxxr 2   UInt(s)      UInt(r)
+  // (s bits must not be all set)
+  //
+  // A pattern is constructed of size bits, where the least significant S+1
+  // bits are set. The pattern is rotated right by R, and repeated across a
+  // 32 or 64-bit value, depending on destination register width.
+
+  if (n == 1) {
+    DCHECK_NE(imm_s, 0x3fU);
+    uint64_t bits = BIT_MASK(imm_s + 1);
+    return RotateRight(bits, imm_r, 64);
+  } else {
+    DCHECK_NE((imm_s >> 1), 0x1fU);
+    for (unsigned width = 0x20; width >= 0x2; width >>= 1) {
+      if ((imm_s & width) == 0) {
+        unsigned mask = (unsigned)(width - 1);
+        DCHECK_NE((imm_s & mask), mask);
+        uint64_t bits = BIT_MASK((imm_s & mask) + 1);
+        return RepeatBitsAcrossReg(is_wide, RotateRight(bits, imm_r & mask, width), width);
       }
     }
   }
-  return buf;
+  return 0;
 }
 
-static char*  DecodeFPCSRegList(int count, int base, char* buf, size_t buf_size) {
-  snprintf(buf, buf_size, "s%d", base);
-  for (int i = 1; i < count; i++) {
-    snprintf(buf + strlen(buf), buf_size - strlen(buf), ", s%d", base + i);
-  }
-  return buf;
+/**
+ * @brief Decode an 8-bit single point number encoded with EncodeImmSingle().
+ */
+static float DecodeImmSingle(uint8_t small_float) {
+  int mantissa = (small_float & 0x0f) + 0x10;
+  int sign = ((small_float & 0x80) == 0) ? 1 : -1;
+  float signed_mantissa = static_cast<float>(sign*mantissa);
+  int exponent = (((small_float >> 4) & 0x7) + 4) & 0x7;
+  return signed_mantissa*static_cast<float>(1 << exponent)*0.0078125f;
 }
 
-static int32_t ExpandImmediate(int value) {
-  int32_t mode = (value & 0xf00) >> 8;
-  uint32_t bits = value & 0xff;
-  switch (mode) {
-    case 0:
-      return bits;
-     case 1:
-      return (bits << 16) | bits;
-     case 2:
-      return (bits << 24) | (bits << 8);
-     case 3:
-      return (bits << 24) | (bits << 16) | (bits << 8) | bits;
-    default:
-      break;
-  }
-  bits = (bits | 0x80) << 24;
-  return bits >> (((value & 0xf80) >> 7) - 8);
-}
-
-const char* cc_names[] = {"eq", "ne", "cs", "cc", "mi", "pl", "vs", "vc",
-                         "hi", "ls", "ge", "lt", "gt", "le", "al", "nv"};
+static const char* cc_names[] = {"eq", "ne", "cs", "cc", "mi", "pl", "vs", "vc",
+                                 "hi", "ls", "ge", "lt", "gt", "le", "al", "nv"};
 /*
  * Interpret a format string and build a string no longer than size
- * See format key in Assemble.c.
+ * See format key in assemble_arm64.cc.
  */
 std::string Arm64Mir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr) {
   std::string buf;
-  int i;
   const char* fmt_end = &fmt[strlen(fmt)];
   char tbuf[256];
   const char* name;
@@ -354,11 +319,24 @@ std::string Arm64Mir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned ch
          DCHECK_LT(static_cast<unsigned>(nc-'0'), 4U);
          operand = lir->operands[nc-'0'];
          switch (*fmt++) {
-           case 'H':
-             if (operand != 0) {
-               snprintf(tbuf, arraysize(tbuf), ", %s %d", shift_names[operand & 0x3], operand >> 2);
-             } else {
+           case 'e':  {
+               // Omit ", uxtw #0" in strings like "add w0, w1, w3, uxtw #0" and
+               // ", uxtx #0" in strings like "add x0, x1, x3, uxtx #0"
+               int omittable = ((IS_WIDE(lir->opcode)) ? EncodeExtend(kA64Uxtw, 0) :
+                                EncodeExtend(kA64Uxtw, 0));
+               if (LIKELY(operand == omittable)) {
+                 strcpy(tbuf, "");
+               } else {
+                 DecodeRegExtendOrShift(operand, tbuf, arraysize(tbuf));
+               }
+             }
+             break;
+           case 'o':
+             // Omit ", lsl #0"
+             if (LIKELY(operand == EncodeShift(kA64Lsl, 0))) {
                strcpy(tbuf, "");
+             } else {
+               DecodeRegExtendOrShift(operand, tbuf, arraysize(tbuf));
              }
              break;
            case 'B':
@@ -387,39 +365,60 @@ std::string Arm64Mir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned ch
              }
              strcpy(tbuf, name);
              break;
-           case 'b':
-             strcpy(tbuf, "0000");
-             for (i = 3; i >= 0; i--) {
-               tbuf[i] += operand & 1;
-               operand >>= 1;
-             }
-             break;
-           case 'n':
-             operand = ~ExpandImmediate(operand);
-             snprintf(tbuf, arraysize(tbuf), "%d [%#x]", operand, operand);
-             break;
-           case 'm':
-             operand = ExpandImmediate(operand);
-             snprintf(tbuf, arraysize(tbuf), "%d [%#x]", operand, operand);
-             break;
            case 's':
-             snprintf(tbuf, arraysize(tbuf), "s%d", RegStorage::RegNum(operand));
+             snprintf(tbuf, arraysize(tbuf), "s%d", operand & ARM_FP_REG_MASK);
              break;
            case 'S':
-             snprintf(tbuf, arraysize(tbuf), "d%d", RegStorage::RegNum(operand));
+             snprintf(tbuf, arraysize(tbuf), "d%d", operand & ARM_FP_REG_MASK);
              break;
-           case 'h':
-             snprintf(tbuf, arraysize(tbuf), "%04x", operand);
+           case 'f':
+             snprintf(tbuf, arraysize(tbuf), "%c%d", (IS_FWIDE(lir->opcode)) ? 'd' : 's',
+                      operand & ARM_FP_REG_MASK);
+             break;
+           case 'l': {
+               bool is_wide = IS_WIDE(lir->opcode);
+               uint64_t imm = DecodeLogicalImmediate(is_wide, operand);
+               snprintf(tbuf, arraysize(tbuf), "%" PRId64 " (%#" PRIx64 ")", imm, imm);
+             }
+             break;
+           case 'I':
+             snprintf(tbuf, arraysize(tbuf), "%f", DecodeImmSingle(operand));
              break;
            case 'M':
+             if (LIKELY(operand == 0))
+               strcpy(tbuf, "");
+             else
+               snprintf(tbuf, arraysize(tbuf), ", lsl #%d", 16*operand);
+             break;
            case 'd':
              snprintf(tbuf, arraysize(tbuf), "%d", operand);
              break;
-           case 'C':
-             operand = RegStorage::RegNum(operand);
-             DCHECK_LT(operand, static_cast<int>(
-                 sizeof(core_reg_names)/sizeof(core_reg_names[0])));
-             snprintf(tbuf, arraysize(tbuf), "%s", core_reg_names[operand]);
+           case 'w':
+             if (LIKELY(operand != rwzr))
+               snprintf(tbuf, arraysize(tbuf), "w%d", operand & RegStorage::kRegNumMask);
+             else
+               strcpy(tbuf, "wzr");
+             break;
+           case 'W':
+             if (LIKELY(operand != rwsp))
+               snprintf(tbuf, arraysize(tbuf), "w%d", operand & RegStorage::kRegNumMask);
+             else
+               strcpy(tbuf, "wsp");
+             break;
+           case 'x':
+             if (LIKELY(operand != rxzr))
+               snprintf(tbuf, arraysize(tbuf), "x%d", operand & RegStorage::kRegNumMask);
+             else
+               strcpy(tbuf, "xzr");
+             break;
+           case 'X':
+             if (LIKELY(operand != rsp))
+               snprintf(tbuf, arraysize(tbuf), "x%d", operand & RegStorage::kRegNumMask);
+             else
+               strcpy(tbuf, "sp");
+             break;
+           case 'D':
+             snprintf(tbuf, arraysize(tbuf), "%d", operand*((IS_WIDE(lir->opcode)) ? 8 : 4));
              break;
            case 'E':
              snprintf(tbuf, arraysize(tbuf), "%d", operand*4);
@@ -427,37 +426,51 @@ std::string Arm64Mir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned ch
            case 'F':
              snprintf(tbuf, arraysize(tbuf), "%d", operand*2);
              break;
+           case 'G':
+             if (LIKELY(operand == 0))
+               strcpy(tbuf, "");
+             else
+               strcpy(tbuf, (IS_WIDE(lir->opcode)) ? ", lsl #3" : ", lsl #2");
+             break;
            case 'c':
              strcpy(tbuf, cc_names[operand]);
              break;
            case 't':
              snprintf(tbuf, arraysize(tbuf), "0x%08" PRIxPTR " (L%p)",
-                 reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4 + (operand << 1),
+                 reinterpret_cast<uintptr_t>(base_addr) + lir->offset + (operand << 2),
                  lir->target);
              break;
-           case 'u': {
-             int offset_1 = lir->operands[0];
-             int offset_2 = NEXT_LIR(lir)->operands[0];
-             uintptr_t target =
-                 (((reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4) &
-                 ~3) + (offset_1 << 21 >> 9) + (offset_2 << 1)) &
-                 0xfffffffc;
-             snprintf(tbuf, arraysize(tbuf), "%p", reinterpret_cast<void *>(target));
+           case 'r': {
+               bool is_wide = IS_WIDE(lir->opcode);
+               if (LIKELY(operand != rwzr && operand != rxzr)) {
+                 snprintf(tbuf, arraysize(tbuf), "%c%d", (is_wide) ? 'x' : 'w',
+                          operand & RegStorage::kRegNumMask);
+               } else {
+                 strcpy(tbuf, (is_wide) ? "xzr" : "wzr");
+               }
+             }
              break;
-          }
-
-           /* Nothing to print for BLX_2 */
-           case 'v':
-             strcpy(tbuf, "see above");
+           case 'R': {
+               bool is_wide = IS_WIDE(lir->opcode);
+               if (LIKELY(operand != rwsp || operand != rsp)) {
+                 snprintf(tbuf, arraysize(tbuf), "%c%d", (is_wide) ? 'x' : 'w',
+                          operand & RegStorage::kRegNumMask);
+               } else {
+                 strcpy(tbuf, (is_wide) ? "sp" : "wsp");
+               }
+             }
              break;
-           case 'R':
-             DecodeRegList(lir->opcode, operand, tbuf, arraysize(tbuf));
+           case 'p':
+             snprintf(tbuf, arraysize(tbuf), ".+%d (addr %#" PRIxPTR ")", 4*operand,
+                      reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4*operand);
              break;
-           case 'P':
-             DecodeFPCSRegList(operand, 16, tbuf, arraysize(tbuf));
-             break;
-           case 'Q':
-             DecodeFPCSRegList(operand, 0, tbuf, arraysize(tbuf));
+           case 'T':
+             if (LIKELY(operand == 0))
+               strcpy(tbuf, "");
+             else if (operand == 1)
+               strcpy(tbuf, ", lsl #12");
+             else
+               strcpy(tbuf, ", DecodeError3");
              break;
            default:
              strcpy(tbuf, "DecodeError1");
@@ -519,14 +532,14 @@ void Arm64Mir2Lir::DumpResourceMask(LIR* arm_lir, uint64_t mask, const char* pre
 }
 
 bool Arm64Mir2Lir::IsUnconditionalBranch(LIR* lir) {
-  return ((lir->opcode == kThumbBUncond) || (lir->opcode == kThumb2BUncond));
+  return (lir->opcode == kA64B1t);
 }
 
 Arm64Mir2Lir::Arm64Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : Mir2Lir(cu, mir_graph, arena) {
   // Sanity check - make sure encoding map lines up.
-  for (int i = 0; i < kArmLast; i++) {
-    if (Arm64Mir2Lir::EncodingMap[i].opcode != i) {
+  for (int i = 0; i < kA64Last; i++) {
+    if (UNWIDE(Arm64Mir2Lir::EncodingMap[i].opcode) != i) {
       LOG(FATAL) << "Encoding order for " << Arm64Mir2Lir::EncodingMap[i].name
                  << " is wrong: expecting " << i << ", seeing "
                  << static_cast<int>(Arm64Mir2Lir::EncodingMap[i].opcode);
@@ -534,8 +547,8 @@ Arm64Mir2Lir::Arm64Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAlloca
   }
 }
 
-Mir2Lir* ArmCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
-                          ArenaAllocator* const arena) {
+Mir2Lir* Arm64CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
+                            ArenaAllocator* const arena) {
   return new Arm64Mir2Lir(cu, mir_graph, arena);
 }
 
@@ -584,7 +597,7 @@ void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
   // TODO: re-enable this when we can safely save r4 over the suspension code path.
   bool no_suspend = NO_SUSPEND;  // || !Runtime::Current()->ExplicitSuspendChecks();
   if (no_suspend) {
-    GetRegInfo(rs_rARM_SUSPEND)->MarkFree();
+    GetRegInfo(rs_rA64_SUSPEND)->MarkFree();
   }
 
   // Don't start allocating temps at r0/s0/d0 or you may clobber return regs in early-exit methods.
@@ -595,15 +608,7 @@ void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
 }
 
 void Arm64Mir2Lir::FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free) {
-  DCHECK(rl_keep.wide);
-  DCHECK(rl_free.wide);
-  if ((rl_free.reg.GetLowReg() != rl_keep.reg.GetLowReg()) &&
-      (rl_free.reg.GetLowReg() != rl_keep.reg.GetHighReg()) &&
-      (rl_free.reg.GetHighReg() != rl_keep.reg.GetLowReg()) &&
-      (rl_free.reg.GetHighReg() != rl_keep.reg.GetHighReg())) {
-    // No overlap, free.
-    FreeTemp(rl_free.reg);
-  }
+  LOG(FATAL) << "Unexpected call to FreeRegLocTemps for Arm64";
 }
 
 /*
@@ -613,7 +618,7 @@ void Arm64Mir2Lir::FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free) {
  */
 
 void Arm64Mir2Lir::AdjustSpillMask() {
-  core_spill_mask_ |= (1 << rs_rARM_LR.GetRegNum());
+  core_spill_mask_ |= (1 << rs_rA64_LR.GetRegNum());
   num_core_spills_++;
 }
 
@@ -649,100 +654,96 @@ void Arm64Mir2Lir::MarkPreservedDouble(int v_reg, RegStorage reg) {
 
 /* Clobber all regs that might be used by an external C call */
 void Arm64Mir2Lir::ClobberCallerSave() {
-  // TODO: rework this - it's gotten even more ugly.
-  Clobber(rs_r0);
-  Clobber(rs_r1);
-  Clobber(rs_r2);
-  Clobber(rs_r3);
-  Clobber(rs_r12);
-  Clobber(rs_r14lr);
-  Clobber(rs_fr0);
-  Clobber(rs_fr1);
-  Clobber(rs_fr2);
-  Clobber(rs_fr3);
-  Clobber(rs_fr4);
-  Clobber(rs_fr5);
-  Clobber(rs_fr6);
-  Clobber(rs_fr7);
-  Clobber(rs_fr8);
-  Clobber(rs_fr9);
-  Clobber(rs_fr10);
-  Clobber(rs_fr11);
-  Clobber(rs_fr12);
-  Clobber(rs_fr13);
-  Clobber(rs_fr14);
-  Clobber(rs_fr15);
-  Clobber(rs_dr0);
-  Clobber(rs_dr1);
-  Clobber(rs_dr2);
-  Clobber(rs_dr3);
-  Clobber(rs_dr4);
-  Clobber(rs_dr5);
-  Clobber(rs_dr6);
-  Clobber(rs_dr7);
+  // TODO(Arm64): implement this.
+  UNIMPLEMENTED(WARNING);
+
+  Clobber(rs_x0);
+  Clobber(rs_x1);
+  Clobber(rs_x2);
+  Clobber(rs_x3);
+  Clobber(rs_x12);
+  Clobber(rs_x30);
+  Clobber(rs_f0);
+  Clobber(rs_f1);
+  Clobber(rs_f2);
+  Clobber(rs_f3);
+  Clobber(rs_f4);
+  Clobber(rs_f5);
+  Clobber(rs_f6);
+  Clobber(rs_f7);
+  Clobber(rs_f8);
+  Clobber(rs_f9);
+  Clobber(rs_f10);
+  Clobber(rs_f11);
+  Clobber(rs_f12);
+  Clobber(rs_f13);
+  Clobber(rs_f14);
+  Clobber(rs_f15);
 }
 
 RegLocation Arm64Mir2Lir::GetReturnWideAlt() {
   RegLocation res = LocCReturnWide();
-  res.reg.SetLowReg(rs_r2.GetReg());
-  res.reg.SetHighReg(rs_r3.GetReg());
-  Clobber(rs_r2);
-  Clobber(rs_r3);
-  MarkInUse(rs_r2);
-  MarkInUse(rs_r3);
+  res.reg.SetReg(rx2);
+  res.reg.SetHighReg(rx3);
+  Clobber(rs_x2);
+  Clobber(rs_x3);
+  MarkInUse(rs_x2);
+  MarkInUse(rs_x3);
   MarkWide(res.reg);
   return res;
 }
 
 RegLocation Arm64Mir2Lir::GetReturnAlt() {
   RegLocation res = LocCReturn();
-  res.reg.SetReg(rs_r1.GetReg());
-  Clobber(rs_r1);
-  MarkInUse(rs_r1);
+  res.reg.SetReg(rx1);
+  Clobber(rs_x1);
+  MarkInUse(rs_x1);
   return res;
 }
 
 /* To be used when explicitly managing register use */
 void Arm64Mir2Lir::LockCallTemps() {
-  LockTemp(rs_r0);
-  LockTemp(rs_r1);
-  LockTemp(rs_r2);
-  LockTemp(rs_r3);
+  LockTemp(rs_x0);
+  LockTemp(rs_x1);
+  LockTemp(rs_x2);
+  LockTemp(rs_x3);
 }
 
 /* To be used when explicitly managing register use */
 void Arm64Mir2Lir::FreeCallTemps() {
-  FreeTemp(rs_r0);
-  FreeTemp(rs_r1);
-  FreeTemp(rs_r2);
-  FreeTemp(rs_r3);
+  FreeTemp(rs_x0);
+  FreeTemp(rs_x1);
+  FreeTemp(rs_x2);
+  FreeTemp(rs_x3);
 }
 
-RegStorage Arm64Mir2Lir::LoadHelper(ThreadOffset<4> offset) {
-  LoadWordDisp(rs_rARM_SELF, offset.Int32Value(), rs_rARM_LR);
-  return rs_rARM_LR;
+RegStorage Arm64Mir2Lir::LoadHelper(A64ThreadOffset offset) {
+  // TODO(Arm64): use LoadWordDisp instead.
+  //   e.g. LoadWordDisp(rs_rA64_SELF, offset.Int32Value(), rs_rA64_LR);
+  LoadBaseDisp(rs_rA64_SELF, offset.Int32Value(), rs_rA64_LR, k64);
+  return rs_rA64_LR;
 }
 
 LIR* Arm64Mir2Lir::CheckSuspendUsingLoad() {
-  RegStorage tmp = rs_r0;
-  Load32Disp(rs_rARM_SELF, Thread::ThreadSuspendTriggerOffset<4>().Int32Value(), tmp);
-  LIR* load2 = Load32Disp(tmp, 0, tmp);
+  RegStorage tmp = rs_x0;
+  LoadWordDisp(rs_rA64_SELF, A64_THREAD_SUSPEND_TRIGGER_OFFSET, tmp);
+  LIR* load2 = LoadWordDisp(tmp, 0, tmp);
   return load2;
 }
 
 uint64_t Arm64Mir2Lir::GetTargetInstFlags(int opcode) {
   DCHECK(!IsPseudoLirOp(opcode));
-  return Arm64Mir2Lir::EncodingMap[opcode].flags;
+  return Arm64Mir2Lir::EncodingMap[UNWIDE(opcode)].flags;
 }
 
 const char* Arm64Mir2Lir::GetTargetInstName(int opcode) {
   DCHECK(!IsPseudoLirOp(opcode));
-  return Arm64Mir2Lir::EncodingMap[opcode].name;
+  return Arm64Mir2Lir::EncodingMap[UNWIDE(opcode)].name;
 }
 
 const char* Arm64Mir2Lir::GetTargetInstFmt(int opcode) {
   DCHECK(!IsPseudoLirOp(opcode));
-  return Arm64Mir2Lir::EncodingMap[opcode].fmt;
+  return Arm64Mir2Lir::EncodingMap[UNWIDE(opcode)].fmt;
 }
 
 /*
@@ -798,6 +799,142 @@ RegStorage Arm64Mir2Lir::AllocPreservedDouble(int s_reg) {
     promotion_map_[p_map_idx+1].FpReg = res.DoubleToHighSingle().GetReg();
   }
   return res;
+}
+
+// TODO(Arm64): reuse info in QuickArgumentVisitor?
+static RegStorage GetArgPhysicalReg(RegLocation* loc, int* num_gpr_used, int* num_fpr_used,
+                                    OpSize* op_size) {
+  if (loc->fp) {
+    int n = *num_fpr_used;
+    if (n < 8) {
+      *num_fpr_used = n + 1;
+      RegStorage::RegStorageKind reg_kind;
+      if (loc->wide) {
+        *op_size = kDouble;
+        reg_kind = RegStorage::k64BitSolo;
+      } else {
+        *op_size = kSingle;
+        reg_kind = RegStorage::k32BitSolo;
+      }
+      return RegStorage(RegStorage::kValid | reg_kind | RegStorage::kFloatingPoint | n);
+    }
+  } else {
+    int n = *num_gpr_used;
+    if (n < 7) {
+      *num_gpr_used = n + 1;
+      if (loc->wide) {
+        *op_size = k64;
+        return RegStorage::Solo64(n);
+      } else {
+        *op_size = k32;
+        return RegStorage::Solo32(n);
+      }
+    }
+  }
+
+  return RegStorage::InvalidReg();
+}
+
+/*
+ * If there are any ins passed in registers that have not been promoted
+ * to a callee-save register, flush them to the frame.  Perform initial
+ * assignment of promoted arguments.
+ *
+ * ArgLocs is an array of location records describing the incoming arguments
+ * with one location record per word of argument.
+ */
+void Arm64Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
+  int num_gpr_used = 1;
+  int num_fpr_used = 0;
+
+  /*
+   * Dummy up a RegLocation for the incoming Method*
+   * It will attempt to keep kArg0 live (or copy it to home location
+   * if promoted).
+   */
+  RegLocation rl_src = rl_method;
+  rl_src.location = kLocPhysReg;
+  rl_src.reg = TargetReg(kArg0);
+  rl_src.home = false;
+  MarkLive(rl_src);
+
+  // TODO(Arm64): compress the Method pointer?
+  StoreValueWide(rl_method, rl_src);
+
+  // If Method* has been promoted, explicitly flush
+  if (rl_method.location == kLocPhysReg) {
+    StoreWordDisp(TargetReg(kSp), 0, TargetReg(kArg0));
+  }
+
+  if (cu_->num_ins == 0) {
+    return;
+  }
+
+  int start_vreg = cu_->num_dalvik_registers - cu_->num_ins;
+  for (int i = 0; i < cu_->num_ins; i++) {
+    PromotionMap* v_map = &promotion_map_[start_vreg + i];
+    RegLocation* t_loc = &ArgLocs[i];
+    OpSize op_size;
+    RegStorage reg = GetArgPhysicalReg(t_loc, &num_gpr_used, &num_fpr_used, &op_size);
+
+    if (reg.Valid()) {
+      if ((v_map->core_location == kLocPhysReg) && !t_loc->fp) {
+        OpRegCopy(RegStorage::Solo32(v_map->core_reg), reg);
+      } else if ((v_map->fp_location == kLocPhysReg) && t_loc->fp) {
+        OpRegCopy(RegStorage::Solo32(v_map->FpReg), reg);
+      } else {
+        StoreBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i), reg, op_size);
+        if (reg.Is64Bit()) {
+          if (SRegOffset(start_vreg + i) + 4 != SRegOffset(start_vreg + i + 1)) {
+            LOG(FATAL) << "64 bit value stored in non-consecutive 4 bytes slots";
+          }
+          i += 1;
+        }
+      }
+    } else {
+      // If arriving in frame & promoted
+      if (v_map->core_location == kLocPhysReg) {
+        LoadWordDisp(TargetReg(kSp), SRegOffset(start_vreg + i),
+                     RegStorage::Solo32(v_map->core_reg));
+      }
+      if (v_map->fp_location == kLocPhysReg) {
+        LoadWordDisp(TargetReg(kSp), SRegOffset(start_vreg + i), RegStorage::Solo32(v_map->FpReg));
+      }
+    }
+  }
+}
+
+int Arm64Mir2Lir::LoadArgRegs(CallInfo* info, int call_state,
+                              NextCallInsn next_call_insn,
+                              const MethodReference& target_method,
+                              uint32_t vtable_idx, uintptr_t direct_code,
+                              uintptr_t direct_method, InvokeType type, bool skip_this) {
+  int last_arg_reg = TargetReg(kArg3).GetReg();
+  int next_reg = TargetReg(kArg1).GetReg();
+  int next_arg = 0;
+  if (skip_this) {
+    next_reg++;
+    next_arg++;
+  }
+  for (; (next_reg <= last_arg_reg) && (next_arg < info->num_arg_words); next_reg++) {
+    RegLocation rl_arg = info->args[next_arg++];
+    rl_arg = UpdateRawLoc(rl_arg);
+    if (rl_arg.wide && (next_reg <= TargetReg(kArg2).GetReg())) {
+      RegStorage r_tmp(RegStorage::k64BitPair, next_reg, next_reg + 1);
+      LoadValueDirectWideFixed(rl_arg, r_tmp);
+      next_reg++;
+      next_arg++;
+    } else {
+      if (rl_arg.wide) {
+        rl_arg = NarrowRegLoc(rl_arg);
+        rl_arg.is_const = false;
+      }
+      LoadValueDirectFixed(rl_arg, RegStorage::Solo32(next_reg));
+    }
+    call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
+                                direct_code, direct_method, type);
+  }
+  return call_state;
 }
 
 }  // namespace art
