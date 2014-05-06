@@ -15,6 +15,7 @@
  */
 
 #include "common_runtime_test.h"
+#include "mirror/art_field-inl.h"
 #include "mirror/string-inl.h"
 
 #include <cstdio>
@@ -73,17 +74,28 @@ class StubTest : public CommonRuntimeTest {
     __asm__ __volatile__(
         "push {r1-r12, lr}\n\t"     // Save state, 13*4B = 52B
         ".cfi_adjust_cfa_offset 52\n\t"
-        "sub sp, sp, #8\n\t"        // +8B, so 16B aligned with nullptr
-        ".cfi_adjust_cfa_offset 8\n\t"
-        "mov r0, %[arg0]\n\t"       // Set arg0-arg2
-        "mov r1, %[arg1]\n\t"       // TODO: Any way to use constraints like on x86?
-        "mov r2, %[arg2]\n\t"
-        // Use r9 last as we don't know whether it was used for arg0-arg2
-        "mov r9, #0\n\t"            // Push nullptr to terminate stack
         "push {r9}\n\t"
         ".cfi_adjust_cfa_offset 4\n\t"
-        "mov r9, %[self]\n\t"       // Set the thread
-        "blx %[code]\n\t"           // Call the stub
+        "mov r9, #0\n\n"
+        "str r9, [sp, #-8]!\n\t"   // Push nullptr to terminate stack, +8B padding so 16B aligned
+        ".cfi_adjust_cfa_offset 8\n\t"
+        "ldr r9, [sp, #8]\n\t"
+
+        // Push everything on the stack, so we don't rely on the order. What a mess. :-(
+        "sub sp, sp, #20\n\t"
+        "str %[arg0], [sp]\n\t"
+        "str %[arg1], [sp, #4]\n\t"
+        "str %[arg2], [sp, #8]\n\t"
+        "str %[code], [sp, #12]\n\t"
+        "str %[self], [sp, #16]\n\t"
+        "ldr r0, [sp]\n\t"
+        "ldr r1, [sp, #4]\n\t"
+        "ldr r2, [sp, #8]\n\t"
+        "ldr r3, [sp, #12]\n\t"
+        "ldr r9, [sp, #16]\n\t"
+        "add sp, sp, #20\n\t"
+
+        "blx r3\n\t"                // Call the stub
         "add sp, sp, #12\n\t"       // Pop nullptr and padding
         ".cfi_adjust_cfa_offset -12\n\t"
         "pop {r1-r12, lr}\n\t"      // Restore state
@@ -91,30 +103,42 @@ class StubTest : public CommonRuntimeTest {
         "mov %[result], r0\n\t"     // Save the result
         : [result] "=r" (result)
           // Use the result from r0
-        : [arg0] "0"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self)
+        : [arg0] "r"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self)
         : );  // clobber.
 #elif defined(__aarch64__)
     __asm__ __volatile__(
         "sub sp, sp, #48\n\t"          // Reserve stack space, 16B aligned
         ".cfi_adjust_cfa_offset 48\n\t"
-        "stp xzr, x1, [sp]\n\t"        // nullptr(end of quick stack), x1
-        "stp x2, x18, [sp, #16]\n\t"   // Save x2, x18(xSELF)
-        "str x30, [sp, #32]\n\t"       // Save xLR
-        "mov x0, %[arg0]\n\t"          // Set arg0-arg2
-        "mov x1, %[arg1]\n\t"          // TODO: Any way to use constraints like on x86?
-        "mov x2, %[arg2]\n\t"
-        // Use r18 last as we don't know whether it was used for arg0-arg2
-        "mov x18, %[self]\n\t"         // Set the thread
-        "blr %[code]\n\t"              // Call the stub
+        "stp xzr, x1,  [sp]\n\t"        // nullptr(end of quick stack), x1
+        "stp x2, x3,   [sp, #16]\n\t"   // Save x2, x3
+        "stp x18, x30, [sp, #32]\n\t"   // Save x18(xSELF), xLR
+
+        // Push everything on the stack, so we don't rely on the order. What a mess. :-(
+        "sub sp, sp, #48\n\t"
+        "str %[arg0], [sp]\n\t"
+        "str %[arg1], [sp, #8]\n\t"
+        "str %[arg2], [sp, #16]\n\t"
+        "str %[code], [sp, #24]\n\t"
+        "str %[self], [sp, #32]\n\t"
+        "ldr x0, [sp]\n\t"
+        "ldr x1, [sp, #8]\n\t"
+        "ldr x2, [sp, #16]\n\t"
+        "ldr x3, [sp, #24]\n\t"
+        "ldr x18, [sp, #32]\n\t"
+        "add sp, sp, #48\n\t"
+
+        "blr x3\n\t"              // Call the stub
         "ldp x1, x2, [sp, #8]\n\t"     // Restore x1, x2
-        "ldp x18, x30, [sp, #24]\n\t"  // Restore xSELF, xLR
+        "ldp x3, x18, [sp, #24]\n\t"   // Restore x3, xSELF
+        "ldr x30, [sp, #40]\n\t"      // Restore xLR
         "add sp, sp, #48\n\t"          // Free stack space
         ".cfi_adjust_cfa_offset -48\n\t"
+
         "mov %[result], x0\n\t"        // Save the result
         : [result] "=r" (result)
           // Use the result from r0
         : [arg0] "0"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self)
-        : "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17");  // clobber.
+        : "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17");  // clobber.
 #elif defined(__x86_64__)
     // Note: Uses the native convention
     // TODO: Set the thread?
@@ -138,6 +162,151 @@ class StubTest : public CommonRuntimeTest {
     // Pop transition.
     self->PopManagedStackFragment(fragment);
     return result;
+  }
+
+ public:
+  // TODO: Set up a frame according to referrer's specs.
+  size_t Invoke3WithReferrer(size_t arg0, size_t arg1, size_t arg2, uintptr_t code, Thread* self,
+                             mirror::ArtMethod* referrer) {
+    // Push a transition back into managed code onto the linked list in thread.
+    ManagedStack fragment;
+    self->PushManagedStackFragment(&fragment);
+
+    size_t result;
+#if defined(__i386__)
+    // TODO: Set the thread?
+    __asm__ __volatile__(
+        "pushl %[referrer]\n\t"     // Store referrer
+        "call *%%edi\n\t"           // Call the stub
+        "addl $4, %%esp"            // Pop referrer
+        : "=a" (result)
+          // Use the result from eax
+          : "a"(arg0), "c"(arg1), "d"(arg2), "D"(code), [referrer]"r"(referrer)
+            // This places code into edi, arg0 into eax, arg1 into ecx, and arg2 into edx
+            : );  // clobber.
+    // TODO: Should we clobber the other registers? EBX gets clobbered by some of the stubs,
+    //       but compilation fails when declaring that.
+#elif defined(__arm__)
+    __asm__ __volatile__(
+        "push {r1-r12, lr}\n\t"     // Save state, 13*4B = 52B
+        ".cfi_adjust_cfa_offset 52\n\t"
+        "push {r9}\n\t"
+        ".cfi_adjust_cfa_offset 4\n\t"
+        "mov r9, %[referrer]\n\n"
+        "str r9, [sp, #-8]!\n\t"   // Push referrer, +8B padding so 16B aligned
+        ".cfi_adjust_cfa_offset 8\n\t"
+        "ldr r9, [sp, #8]\n\t"
+
+        // Push everything on the stack, so we don't rely on the order. What a mess. :-(
+        "sub sp, sp, #20\n\t"
+        "str %[arg0], [sp]\n\t"
+        "str %[arg1], [sp, #4]\n\t"
+        "str %[arg2], [sp, #8]\n\t"
+        "str %[code], [sp, #12]\n\t"
+        "str %[self], [sp, #16]\n\t"
+        "ldr r0, [sp]\n\t"
+        "ldr r1, [sp, #4]\n\t"
+        "ldr r2, [sp, #8]\n\t"
+        "ldr r3, [sp, #12]\n\t"
+        "ldr r9, [sp, #16]\n\t"
+        "add sp, sp, #20\n\t"
+
+        "blx r3\n\t"                // Call the stub
+        "add sp, sp, #12\n\t"       // Pop nullptr and padding
+        ".cfi_adjust_cfa_offset -12\n\t"
+        "pop {r1-r12, lr}\n\t"      // Restore state
+        ".cfi_adjust_cfa_offset -52\n\t"
+        "mov %[result], r0\n\t"     // Save the result
+        : [result] "=r" (result)
+          // Use the result from r0
+        : [arg0] "r"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self),
+          [referrer] "r"(referrer)
+        : );  // clobber.
+#elif defined(__aarch64__)
+    __asm__ __volatile__(
+        "sub sp, sp, #48\n\t"          // Reserve stack space, 16B aligned
+        ".cfi_adjust_cfa_offset 48\n\t"
+        "stp %[referrer], x1, [sp]\n\t"// referrer, x1
+        "stp x2, x3,   [sp, #16]\n\t"   // Save x2, x3
+        "stp x18, x30, [sp, #32]\n\t"   // Save x18(xSELF), xLR
+
+        // Push everything on the stack, so we don't rely on the order. What a mess. :-(
+        "sub sp, sp, #48\n\t"
+        "str %[arg0], [sp]\n\t"
+        "str %[arg1], [sp, #8]\n\t"
+        "str %[arg2], [sp, #16]\n\t"
+        "str %[code], [sp, #24]\n\t"
+        "str %[self], [sp, #32]\n\t"
+        "ldr x0, [sp]\n\t"
+        "ldr x1, [sp, #8]\n\t"
+        "ldr x2, [sp, #16]\n\t"
+        "ldr x3, [sp, #24]\n\t"
+        "ldr x18, [sp, #32]\n\t"
+        "add sp, sp, #48\n\t"
+
+        "blr x3\n\t"              // Call the stub
+        "ldp x1, x2, [sp, #8]\n\t"     // Restore x1, x2
+        "ldp x3, x18, [sp, #24]\n\t"   // Restore x3, xSELF
+        "ldr x30, [sp, #40]\n\t"      // Restore xLR
+        "add sp, sp, #48\n\t"          // Free stack space
+        ".cfi_adjust_cfa_offset -48\n\t"
+
+        "mov %[result], x0\n\t"        // Save the result
+        : [result] "=r" (result)
+          // Use the result from r0
+        : [arg0] "0"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self),
+          [referrer] "r"(referrer)
+        : "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17");  // clobber.
+#elif defined(__x86_64__)
+    // Note: Uses the native convention
+    // TODO: Set the thread?
+    __asm__ __volatile__(
+        "pushq %[referrer]\n\t"        // Push referrer
+        "pushq (%%rsp)\n\t"             // & 16B alignment padding
+        ".cfi_adjust_cfa_offset 16\n\t"
+        "call *%%rax\n\t"              // Call the stub
+        "addq $16, %%rsp\n\t"          // Pop nullptr and padding
+        ".cfi_adjust_cfa_offset -16\n\t"
+        : "=a" (result)
+          // Use the result from rax
+          : "D"(arg0), "S"(arg1), "d"(arg2), "a"(code), [referrer] "m"(referrer)
+            // This places arg0 into rdi, arg1 into rsi, arg2 into rdx, and code into rax
+            : "rbx", "rcx", "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");  // clobber all
+    // TODO: Should we clobber the other registers?
+#else
+    LOG(WARNING) << "Was asked to invoke for an architecture I do not understand.";
+    result = 0;
+#endif
+    // Pop transition.
+    self->PopManagedStackFragment(fragment);
+    return result;
+  }
+
+  // Method with 32b arg0, 64b arg1
+  size_t Invoke3UWithReferrer(size_t arg0, uint64_t arg1, uintptr_t code, Thread* self,
+                              mirror::ArtMethod* referrer) {
+#if defined(__x86_64__) || defined(__aarch64__)
+    // Just pass through.
+    return Invoke3WithReferrer(arg0, arg1, 0U, code, self, referrer);
+#else
+    // Need to split up arguments.
+    uint32_t lower = static_cast<uint32_t>(arg1 & 0xFFFFFFFF);
+    uint32_t upper = static_cast<uint32_t>((arg1 >> 32) & 0xFFFFFFFF);
+
+    return Invoke3WithReferrer(arg0, lower, upper, code, self, referrer);
+#endif
+  }
+
+  // Method with 32b arg0, 32b arg1, 64b arg2
+  size_t Invoke3UUWithReferrer(uint32_t arg0, uint32_t arg1, uint64_t arg2, uintptr_t code,
+                               Thread* self, mirror::ArtMethod* referrer) {
+#if defined(__x86_64__) || defined(__aarch64__)
+    // Just pass through.
+    return Invoke3WithReferrer(arg0, arg1, arg2, code, self, referrer);
+#else
+    // TODO: Needs 4-param invoke.
+    return 0;
+#endif
   }
 };
 
@@ -230,6 +399,7 @@ TEST_F(StubTest, LockObject) {
   std::cout << "Skipping lock_object as I don't know how to do that on " << kRuntimeISA << std::endl;
 #endif
 }
+
 
 class RandGen {
  public:
@@ -723,11 +893,11 @@ TEST_F(StubTest, AllocObjectArray) {
   // Play with it...
 
   EXPECT_FALSE(self->IsExceptionPending());
-/*
- * For some reason this does not work, as the type_idx is artificial and outside what the
- * resolved types of c_obj allow...
- *
-  {
+
+  // For some reason this does not work, as the type_idx is artificial and outside what the
+  // resolved types of c_obj allow...
+
+  if (false) {
     // Use an arbitrary method from c to use as referrer
     size_t result = Invoke3(static_cast<size_t>(c->GetDexTypeIndex()),    // type_idx
                             reinterpret_cast<size_t>(c_obj->GetVirtualMethod(0)),  // arbitrary
@@ -742,7 +912,7 @@ TEST_F(StubTest, AllocObjectArray) {
     VerifyObject(obj);
     EXPECT_EQ(obj->GetLength(), 10);
   }
-*/
+
   {
     // We can use nullptr in the second argument as we do not need a method here (not used in
     // resolved/initialized cases)
@@ -750,7 +920,7 @@ TEST_F(StubTest, AllocObjectArray) {
                             reinterpret_cast<uintptr_t>(&art_quick_alloc_array_resolved_rosalloc),
                             self);
 
-    EXPECT_FALSE(self->IsExceptionPending());
+    EXPECT_FALSE(self->IsExceptionPending()) << PrettyTypeOf(self->GetException(nullptr));
     EXPECT_NE(reinterpret_cast<size_t>(nullptr), result);
     mirror::Object* obj = reinterpret_cast<mirror::Object*>(result);
     EXPECT_TRUE(obj->IsArrayInstance());
@@ -879,6 +1049,385 @@ TEST_F(StubTest, StringCompareTo) {
   std::cout << "Skipping string_compareto as I don't know how to do that on " << kRuntimeISA <<
       std::endl;
 #endif
+}
+
+
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+extern "C" void art_quick_set32_static(void);
+extern "C" void art_quick_get32_static(void);
+#endif
+
+static void GetSet32Static(SirtRef<mirror::Object>* obj, SirtRef<mirror::ArtField>* f, Thread* self,
+                           mirror::ArtMethod* referrer, StubTest* test)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+  constexpr size_t num_values = 7;
+  uint32_t values[num_values] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF };
+
+  for (size_t i = 0; i < num_values; ++i) {
+    test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                              static_cast<size_t>(values[i]),
+                              0U,
+                              reinterpret_cast<uintptr_t>(&art_quick_set32_static),
+                              self,
+                              referrer);
+
+    size_t res = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                                           0U, 0U,
+                                           reinterpret_cast<uintptr_t>(&art_quick_get32_static),
+                                           self,
+                                           referrer);
+
+    EXPECT_EQ(res, values[i]) << "Iteration " << i;
+  }
+#else
+  LOG(INFO) << "Skipping set32static as I don't know how to do that on " << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping set32static as I don't know how to do that on " << kRuntimeISA << std::endl;
+#endif
+}
+
+
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+extern "C" void art_quick_set32_instance(void);
+extern "C" void art_quick_get32_instance(void);
+#endif
+
+static void GetSet32Instance(SirtRef<mirror::Object>* obj, SirtRef<mirror::ArtField>* f,
+                             Thread* self, mirror::ArtMethod* referrer, StubTest* test)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+  constexpr size_t num_values = 7;
+  uint32_t values[num_values] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF };
+
+  for (size_t i = 0; i < num_values; ++i) {
+    test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                              reinterpret_cast<size_t>(obj->get()),
+                              static_cast<size_t>(values[i]),
+                              reinterpret_cast<uintptr_t>(&art_quick_set32_instance),
+                              self,
+                              referrer);
+
+    int32_t res = f->get()->GetInt(obj->get());
+    EXPECT_EQ(res, static_cast<int32_t>(values[i])) << "Iteration " << i;
+
+    res++;
+    f->get()->SetInt<false>(obj->get(), res);
+
+    size_t res2 = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                                            reinterpret_cast<size_t>(obj->get()),
+                                            0U,
+                                            reinterpret_cast<uintptr_t>(&art_quick_get32_instance),
+                                            self,
+                                            referrer);
+    EXPECT_EQ(res, static_cast<int32_t>(res2));
+  }
+#else
+  LOG(INFO) << "Skipping set32instance as I don't know how to do that on " << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping set32instance as I don't know how to do that on " << kRuntimeISA << std::endl;
+#endif
+}
+
+
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+extern "C" void art_quick_set_obj_static(void);
+extern "C" void art_quick_get_obj_static(void);
+
+static void set_and_check_static(uint32_t f_idx, mirror::Object* val, Thread* self,
+                                 mirror::ArtMethod* referrer, StubTest* test)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  test->Invoke3WithReferrer(static_cast<size_t>(f_idx),
+                            reinterpret_cast<size_t>(val),
+                            0U,
+                            reinterpret_cast<uintptr_t>(&art_quick_set_obj_static),
+                            self,
+                            referrer);
+
+  size_t res = test->Invoke3WithReferrer(static_cast<size_t>(f_idx),
+                                         0U, 0U,
+                                         reinterpret_cast<uintptr_t>(&art_quick_get_obj_static),
+                                         self,
+                                         referrer);
+
+  EXPECT_EQ(res, reinterpret_cast<size_t>(val)) << "Value " << val;
+}
+#endif
+
+static void GetSetObjStatic(SirtRef<mirror::Object>* obj, SirtRef<mirror::ArtField>* f, Thread* self,
+                            mirror::ArtMethod* referrer, StubTest* test)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+  set_and_check_static((*f)->GetDexFieldIndex(), nullptr, self, referrer, test);
+
+  // Allocate a string object for simplicity.
+  mirror::String* str = mirror::String::AllocFromModifiedUtf8(self, "Test");
+  set_and_check_static((*f)->GetDexFieldIndex(), str, self, referrer, test);
+
+  set_and_check_static((*f)->GetDexFieldIndex(), nullptr, self, referrer, test);
+#else
+  LOG(INFO) << "Skipping setObjstatic as I don't know how to do that on " << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping setObjstatic as I don't know how to do that on " << kRuntimeISA << std::endl;
+#endif
+}
+
+
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+extern "C" void art_quick_set_obj_instance(void);
+extern "C" void art_quick_get_obj_instance(void);
+
+static void set_and_check_instance(SirtRef<mirror::ArtField>* f, mirror::Object* trg,
+                                   mirror::Object* val, Thread* self, mirror::ArtMethod* referrer,
+                                   StubTest* test)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                            reinterpret_cast<size_t>(trg),
+                            reinterpret_cast<size_t>(val),
+                            reinterpret_cast<uintptr_t>(&art_quick_set_obj_instance),
+                            self,
+                            referrer);
+
+  size_t res = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                                         reinterpret_cast<size_t>(trg),
+                                         0U,
+                                         reinterpret_cast<uintptr_t>(&art_quick_get_obj_instance),
+                                         self,
+                                         referrer);
+
+  EXPECT_EQ(res, reinterpret_cast<size_t>(val)) << "Value " << val;
+
+  EXPECT_EQ(val, f->get()->GetObj(trg));
+}
+#endif
+
+static void GetSetObjInstance(SirtRef<mirror::Object>* obj, SirtRef<mirror::ArtField>* f,
+                              Thread* self, mirror::ArtMethod* referrer, StubTest* test)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+  set_and_check_instance(f, obj->get(), nullptr, self, referrer, test);
+
+  // Allocate a string object for simplicity.
+  mirror::String* str = mirror::String::AllocFromModifiedUtf8(self, "Test");
+  set_and_check_instance(f, obj->get(), str, self, referrer, test);
+
+  set_and_check_instance(f, obj->get(), nullptr, self, referrer, test);
+#else
+  LOG(INFO) << "Skipping setObjinstance as I don't know how to do that on " << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping setObjinstance as I don't know how to do that on " << kRuntimeISA << std::endl;
+#endif
+}
+
+
+// TODO: Complete these tests for 32b architectures.
+
+#if defined(__x86_64__) || defined(__aarch64__)
+extern "C" void art_quick_set64_static(void);
+extern "C" void art_quick_get64_static(void);
+#endif
+
+static void GetSet64Static(SirtRef<mirror::Object>* obj, SirtRef<mirror::ArtField>* f, Thread* self,
+                           mirror::ArtMethod* referrer, StubTest* test)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if defined(__x86_64__) || defined(__aarch64__)
+  constexpr size_t num_values = 8;
+  uint64_t values[num_values] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF, 0xFFFFFFFFFFFF };
+
+  for (size_t i = 0; i < num_values; ++i) {
+    test->Invoke3UWithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                               values[i],
+                               reinterpret_cast<uintptr_t>(&art_quick_set64_static),
+                               self,
+                               referrer);
+
+    size_t res = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                                           0U, 0U,
+                                           reinterpret_cast<uintptr_t>(&art_quick_get64_static),
+                                           self,
+                                           referrer);
+
+    EXPECT_EQ(res, values[i]) << "Iteration " << i;
+  }
+#else
+  LOG(INFO) << "Skipping set64static as I don't know how to do that on " << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping set64static as I don't know how to do that on " << kRuntimeISA << std::endl;
+#endif
+}
+
+
+#if defined(__x86_64__) || defined(__aarch64__)
+extern "C" void art_quick_set64_instance(void);
+extern "C" void art_quick_get64_instance(void);
+#endif
+
+static void GetSet64Instance(SirtRef<mirror::Object>* obj, SirtRef<mirror::ArtField>* f,
+                             Thread* self, mirror::ArtMethod* referrer, StubTest* test)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if defined(__x86_64__) || defined(__aarch64__)
+  constexpr size_t num_values = 8;
+  uint64_t values[num_values] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF, 0xFFFFFFFFFFFF };
+
+  for (size_t i = 0; i < num_values; ++i) {
+    test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                              reinterpret_cast<size_t>(obj->get()),
+                              static_cast<size_t>(values[i]),
+                              reinterpret_cast<uintptr_t>(&art_quick_set64_instance),
+                              self,
+                              referrer);
+
+    int64_t res = f->get()->GetLong(obj->get());
+    EXPECT_EQ(res, static_cast<int64_t>(values[i])) << "Iteration " << i;
+
+    res++;
+    f->get()->SetLong<false>(obj->get(), res);
+
+    size_t res2 = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                                            reinterpret_cast<size_t>(obj->get()),
+                                            0U,
+                                            reinterpret_cast<uintptr_t>(&art_quick_get64_instance),
+                                            self,
+                                            referrer);
+    EXPECT_EQ(res, static_cast<int64_t>(res2));
+  }
+#else
+  LOG(INFO) << "Skipping set64instance as I don't know how to do that on " << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping set64instance as I don't know how to do that on " << kRuntimeISA << std::endl;
+#endif
+}
+
+static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) {
+  // garbage is created during ClassLinker::Init
+
+  JNIEnv* env = Thread::Current()->GetJniEnv();
+  jclass jc = env->FindClass("AllFields");
+  CHECK(jc != NULL);
+  jobject o = env->AllocObject(jc);
+  CHECK(o != NULL);
+
+  ScopedObjectAccess soa(self);
+  SirtRef<mirror::Object> obj(self, soa.Decode<mirror::Object*>(o));
+
+  SirtRef<mirror::Class> c(self, obj->GetClass());
+
+  // Need a method as a referrer
+  SirtRef<mirror::ArtMethod> m(self, c->GetDirectMethod(0));
+
+  // Play with it...
+
+  // Static fields.
+  {
+    SirtRef<mirror::ObjectArray<mirror::ArtField>> fields(self, c.get()->GetSFields());
+    int32_t num_fields = fields->GetLength();
+    for (int32_t i = 0; i < num_fields; ++i) {
+      SirtRef<mirror::ArtField> f(self, fields->Get(i));
+
+      FieldHelper fh(f.get());
+      Primitive::Type type = fh.GetTypeAsPrimitiveType();
+      switch (type) {
+        case Primitive::Type::kPrimInt:
+          if (test_type == type) {
+            GetSet32Static(&obj, &f, self, m.get(), test);
+          }
+          break;
+
+        case Primitive::Type::kPrimLong:
+          if (test_type == type) {
+            GetSet64Static(&obj, &f, self, m.get(), test);
+          }
+          break;
+
+        case Primitive::Type::kPrimNot:
+          // Don't try array.
+          if (test_type == type && fh.GetTypeDescriptor()[0] != '[') {
+            GetSetObjStatic(&obj, &f, self, m.get(), test);
+          }
+          break;
+
+        default:
+          break;  // Skip.
+      }
+    }
+  }
+
+  // Instance fields.
+  {
+    SirtRef<mirror::ObjectArray<mirror::ArtField>> fields(self, c.get()->GetIFields());
+    int32_t num_fields = fields->GetLength();
+    for (int32_t i = 0; i < num_fields; ++i) {
+      SirtRef<mirror::ArtField> f(self, fields->Get(i));
+
+      FieldHelper fh(f.get());
+      Primitive::Type type = fh.GetTypeAsPrimitiveType();
+      switch (type) {
+        case Primitive::Type::kPrimInt:
+          if (test_type == type) {
+            GetSet32Instance(&obj, &f, self, m.get(), test);
+          }
+          break;
+
+        case Primitive::Type::kPrimLong:
+          if (test_type == type) {
+            GetSet64Instance(&obj, &f, self, m.get(), test);
+          }
+          break;
+
+        case Primitive::Type::kPrimNot:
+          // Don't try array.
+          if (test_type == type && fh.GetTypeDescriptor()[0] != '[') {
+            GetSetObjInstance(&obj, &f, self, m.get(), test);
+          }
+          break;
+
+        default:
+          break;  // Skip.
+      }
+    }
+  }
+
+  // TODO: Deallocate things.
+}
+
+
+TEST_F(StubTest, Fields32) {
+  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+
+  Thread* self = Thread::Current();
+
+  self->TransitionFromSuspendedToRunnable();
+  LoadDex("AllFields");
+  bool started = runtime_->Start();
+  CHECK(started);
+
+  TestFields(self, this, Primitive::Type::kPrimInt);
+}
+
+TEST_F(StubTest, FieldsObj) {
+  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+
+  Thread* self = Thread::Current();
+
+  self->TransitionFromSuspendedToRunnable();
+  LoadDex("AllFields");
+  bool started = runtime_->Start();
+  CHECK(started);
+
+  TestFields(self, this, Primitive::Type::kPrimNot);
+}
+
+TEST_F(StubTest, Fields64) {
+  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+
+  Thread* self = Thread::Current();
+
+  self->TransitionFromSuspendedToRunnable();
+  LoadDex("AllFields");
+  bool started = runtime_->Start();
+  CHECK(started);
+
+  TestFields(self, this, Primitive::Type::kPrimLong);
 }
 
 }  // namespace art
