@@ -106,23 +106,23 @@ void FaultManager::RemoveHandler(FaultHandler* handler) {
 bool FaultManager::IsInGeneratedCode(void* context, bool check_dex_pc) {
   // We can only be running Java code in the current thread if it
   // is in Runnable state.
-  LOG(DEBUG) << "Checking for generated code";
+  VLOG(signals) << "Checking for generated code";
   Thread* thread = Thread::Current();
   if (thread == nullptr) {
-    LOG(DEBUG) << "no current thread";
+    VLOG(signals) << "no current thread";
     return false;
   }
 
   ThreadState state = thread->GetState();
   if (state != kRunnable) {
-    LOG(DEBUG) << "not runnable";
+    VLOG(signals) << "not runnable";
     return false;
   }
 
   // Current thread is runnable.
   // Make sure it has the mutator lock.
   if (!Locks::mutator_lock_->IsSharedHeld(thread)) {
-    LOG(DEBUG) << "no lock";
+    VLOG(signals) << "no lock";
     return false;
   }
 
@@ -135,9 +135,9 @@ bool FaultManager::IsInGeneratedCode(void* context, bool check_dex_pc) {
   GetMethodAndReturnPCAndSP(context, &method_obj, &return_pc, &sp);
 
   // If we don't have a potential method, we're outta here.
-  LOG(DEBUG) << "potential method: " << method_obj;
+  VLOG(signals) << "potential method: " << method_obj;
   if (method_obj == 0 || !IsAligned<kObjectAlignment>(method_obj)) {
-    LOG(DEBUG) << "no method";
+    VLOG(signals) << "no method";
     return false;
   }
 
@@ -147,36 +147,36 @@ bool FaultManager::IsInGeneratedCode(void* context, bool check_dex_pc) {
   // TODO: Method might be not a heap address, and GetClass could fault.
   mirror::Class* cls = method_obj->GetClass<kVerifyNone>();
   if (cls == nullptr) {
-    LOG(DEBUG) << "not a class";
+    VLOG(signals) << "not a class";
     return false;
   }
   if (!IsAligned<kObjectAlignment>(cls)) {
-    LOG(DEBUG) << "not aligned";
+    VLOG(signals) << "not aligned";
     return false;
   }
 
 
   if (!VerifyClassClass(cls)) {
-    LOG(DEBUG) << "not a class class";
+    VLOG(signals) << "not a class class";
     return false;
   }
 
   // Now make sure the class is a mirror::ArtMethod.
   if (!cls->IsArtMethodClass()) {
-    LOG(DEBUG) << "not a method";
+    VLOG(signals) << "not a method";
     return false;
   }
 
   // We can be certain that this is a method now.  Check if we have a GC map
   // at the return PC address.
   if (true || kIsDebugBuild) {
-    LOG(DEBUG) << "looking for dex pc for return pc " << std::hex << return_pc;
+    VLOG(signals) << "looking for dex pc for return pc " << std::hex << return_pc;
     const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(method_obj);
     uint32_t sought_offset = return_pc - reinterpret_cast<uintptr_t>(code);
-    LOG(DEBUG) << "pc offset: " << std::hex << sought_offset;
+    VLOG(signals) << "pc offset: " << std::hex << sought_offset;
   }
   uint32_t dexpc = method_obj->ToDexPc(return_pc, false);
-  LOG(DEBUG) << "dexpc: " << dexpc;
+  VLOG(signals) << "dexpc: " << dexpc;
   return !check_dex_pc || dexpc != DexFile::kDexNoIndex;
 }
 
