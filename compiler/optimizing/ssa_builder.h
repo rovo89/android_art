@@ -29,8 +29,8 @@ class SsaBuilder : public HGraphVisitor {
       : HGraphVisitor(graph),
         current_locals_(nullptr),
         loop_headers_(graph->GetArena(), kDefaultNumberOfLoops),
-        locals_for_(graph->GetArena(), graph->GetBlocks()->Size()) {
-    locals_for_.SetSize(graph->GetBlocks()->Size());
+        locals_for_(graph->GetArena(), graph->GetBlocks().Size()) {
+    locals_for_.SetSize(graph->GetBlocks().Size());
   }
 
   void BuildSsa();
