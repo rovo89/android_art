@@ -183,7 +183,7 @@ void X86Mir2Lir::GenLongToFP(RegLocation rl_dest, RegLocation rl_src, bool is_do
     if (is_double) {
       rl_result = EvalLocWide(rl_dest, kFPReg, true);
 
-      LoadBaseDisp(TargetReg(kSp), dest_v_reg_offset, rl_result.reg, k64, INVALID_SREG);
+      LoadBaseDisp(TargetReg(kSp), dest_v_reg_offset, rl_result.reg, k64);
 
       StoreFinalValueWide(rl_dest, rl_result);
     } else {
