@@ -1133,8 +1133,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
   if (cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64) {
     LoadBaseIndexed(reg_ptr, reg_off, rl_result.reg, 1, kUnsignedHalf);
   } else {
-    LoadBaseIndexedDisp(reg_ptr, reg_off, 1, data_offset, rl_result.reg, kUnsignedHalf,
-                        INVALID_SREG);
+    LoadBaseIndexedDisp(reg_ptr, reg_off, 1, data_offset, rl_result.reg, kUnsignedHalf);
   }
   FreeTemp(reg_off);
   FreeTemp(reg_ptr);
@@ -1429,11 +1428,11 @@ bool Mir2Lir::GenInlinedUnsafeGet(CallInfo* info,
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (is_long) {
     if (cu_->instruction_set == kX86) {
-      LoadBaseIndexedDisp(rl_object.reg, rl_offset.reg, 0, 0, rl_result.reg, k64, INVALID_SREG);
+      LoadBaseIndexedDisp(rl_object.reg, rl_offset.reg, 0, 0, rl_result.reg, k64);
     } else {
       RegStorage rl_temp_offset = AllocTemp();
       OpRegRegReg(kOpAdd, rl_temp_offset, rl_object.reg, rl_offset.reg);
-      LoadBaseDisp(rl_temp_offset, 0, rl_result.reg, k64, INVALID_SREG);
+      LoadBaseDisp(rl_temp_offset, 0, rl_result.reg, k64);
       FreeTemp(rl_temp_offset);
     }
   } else {
@@ -1476,7 +1475,7 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
   if (is_long) {
     rl_value = LoadValueWide(rl_src_value, kCoreReg);
     if (cu_->instruction_set == kX86) {
-      StoreBaseIndexedDisp(rl_object.reg, rl_offset.reg, 0, 0, rl_value.reg, k64, INVALID_SREG);
+      StoreBaseIndexedDisp(rl_object.reg, rl_offset.reg, 0, 0, rl_value.reg, k64);
     } else {
       RegStorage rl_temp_offset = AllocTemp();
       OpRegRegReg(kOpAdd, rl_temp_offset, rl_object.reg, rl_offset.reg);

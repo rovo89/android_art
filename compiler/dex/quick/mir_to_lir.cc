@@ -59,7 +59,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, bool wide) {
       RegStorage new_regs = AllocTypedTempWide(false, kAnyReg);
       reg_arg_low = new_regs.GetLow();
       reg_arg_high = new_regs.GetHigh();
-      LoadBaseDisp(TargetReg(kSp), offset, new_regs, k64, INVALID_SREG);
+      LoadBaseDisp(TargetReg(kSp), offset, new_regs, k64);
     } else {
       reg_arg_high = AllocTemp();
       int offset_high = offset + sizeof(uint32_t);
@@ -112,7 +112,7 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
       OpRegCopy(rl_dest.reg.GetHigh(), reg_arg_high);
       Load32Disp(TargetReg(kSp), offset, rl_dest.reg.GetLow());
     } else {
-      LoadBaseDisp(TargetReg(kSp), offset, rl_dest.reg, k64, INVALID_SREG);
+      LoadBaseDisp(TargetReg(kSp), offset, rl_dest.reg, k64);
     }
   }
 }
@@ -137,7 +137,7 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
   LockArg(data.object_arg);
   RegLocation rl_dest = wide ? GetReturnWide(double_or_float) : GetReturn(double_or_float);
   RegStorage reg_obj = LoadArg(data.object_arg);
-  LoadBaseDisp(reg_obj, data.field_offset, rl_dest.reg, size, INVALID_SREG);
+  LoadBaseDisp(reg_obj, data.field_offset, rl_dest.reg, size);
   if (data.is_volatile) {
     // Without context sensitive analysis, we must issue the most conservative barriers.
     // In this case, either a load or store may follow so we issue both barriers.

@@ -520,7 +520,7 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
         // 4 byte offset.  We will fix this up in the assembler later to have the right
         // value.
         res = LoadBaseDisp(rl_method.reg, 256 /* bogus */, RegStorage::Solo64(low_reg_val),
-                           kDouble, INVALID_SREG);
+                           kDouble);
         res->target = data_target;
         res->flags.fixup = kFixupLoad;
         SetMemRefType(res, true, kLiteral);
@@ -546,7 +546,7 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
 }
 
 LIR* X86Mir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                     int displacement, RegStorage r_dest, OpSize size, int s_reg) {
+                                     int displacement, RegStorage r_dest, OpSize size) {
   LIR *load = NULL;
   LIR *load2 = NULL;
   bool is_array = r_index.Valid();
@@ -663,21 +663,21 @@ LIR* X86Mir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int 
 /* Load value from base + scaled index. */
 LIR* X86Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest,
                                  int scale, OpSize size) {
-  return LoadBaseIndexedDisp(r_base, r_index, scale, 0, r_dest, size, INVALID_SREG);
+  return LoadBaseIndexedDisp(r_base, r_index, scale, 0, r_dest, size);
 }
 
 LIR* X86Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
-                              OpSize size, int s_reg) {
+                              OpSize size) {
   // TODO: base this on target.
   if (size == kWord) {
     size = k32;
   }
   return LoadBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_dest,
-                             size, s_reg);
+                             size);
 }
 
 LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                      int displacement, RegStorage r_src, OpSize size, int s_reg) {
+                                      int displacement, RegStorage r_src, OpSize size) {
   LIR *store = NULL;
   LIR *store2 = NULL;
   bool is_array = r_index.Valid();
@@ -752,7 +752,7 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
 /* store value base base + scaled index. */
 LIR* X86Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
                       int scale, OpSize size) {
-  return StoreBaseIndexedDisp(r_base, r_index, scale, 0, r_src, size, INVALID_SREG);
+  return StoreBaseIndexedDisp(r_base, r_index, scale, 0, r_src, size);
 }
 
 LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement,
@@ -761,8 +761,7 @@ LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement,
   if (size == kWord) {
     size = k32;
   }
-  return StoreBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_src, size,
-                              INVALID_SREG);
+  return StoreBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_src, size);
 }
 
 LIR* X86Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,

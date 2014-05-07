@@ -692,7 +692,7 @@ bool ArmMir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
   } else {
     DCHECK(size == kSignedByte || size == kSignedHalf || size == k32);
     // Unaligned load with LDR and LDRSH is allowed on ARMv7 with SCTLR.A set to 0.
-    LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size, INVALID_SREG);
+    LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size);
     StoreValue(rl_dest, rl_result);
   }
   return true;
@@ -1170,7 +1170,7 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       }
       FreeTemp(reg_len);
     }
-    LoadBaseDisp(reg_ptr, data_offset, rl_result.reg, size, INVALID_SREG);
+    LoadBaseDisp(reg_ptr, data_offset, rl_result.reg, size);
     MarkPossibleNullPointerException(opt_flags);
     if (!constant_index) {
       FreeTemp(reg_ptr);
