@@ -142,8 +142,10 @@ void X86Mir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
     } else {
       if (src_fp) {
         NewLIR2(kX86MovdrxRR, r_dest.GetLowReg(), r_src.GetReg());
-        NewLIR2(kX86PsrlqRI, r_src.GetReg(), 32);
-        NewLIR2(kX86MovdrxRR, r_dest.GetHighReg(), r_src.GetReg());
+        RegStorage temp_reg = AllocTempDouble();
+        NewLIR2(kX86MovsdRR, temp_reg.GetReg(), r_src.GetReg());
+        NewLIR2(kX86PsrlqRI, temp_reg.GetReg(), 32);
+        NewLIR2(kX86MovdrxRR, r_dest.GetHighReg(), temp_reg.GetReg());
       } else {
         DCHECK(r_dest.IsPair());
         DCHECK(r_src.IsPair());
