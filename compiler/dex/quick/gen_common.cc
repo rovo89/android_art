@@ -642,7 +642,7 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
     RegLocation rl_result = EvalLoc(rl_dest, result_reg_kind, true);
 
     OpSize size = LoadStoreOpSize(is_long_or_double, rl_result.ref);
-    LoadBaseDisp(r_base, field_info.FieldOffset().Int32Value(), rl_result.reg, size, INVALID_SREG);
+    LoadBaseDisp(r_base, field_info.FieldOffset().Int32Value(), rl_result.reg, size);
     FreeTemp(r_base);
 
     if (field_info.IsVolatile()) {
@@ -704,8 +704,7 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
           result_reg_kind = kFPReg;
         }
         rl_result = EvalLoc(rl_dest, result_reg_kind, true);
-        LoadBaseDisp(rl_obj.reg, field_info.FieldOffset().Int32Value(), rl_result.reg,
-                     size, rl_obj.s_reg_low);
+        LoadBaseDisp(rl_obj.reg, field_info.FieldOffset().Int32Value(), rl_result.reg, size);
         MarkPossibleNullPointerException(opt_flags);
         if (field_info.IsVolatile()) {
           // Without context sensitive analysis, we must issue the most conservative barriers.
@@ -717,7 +716,7 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
         RegStorage reg_ptr = AllocTemp();
         OpRegRegImm(kOpAdd, reg_ptr, rl_obj.reg, field_info.FieldOffset().Int32Value());
         rl_result = EvalLoc(rl_dest, reg_class, true);
-        LoadBaseDisp(reg_ptr, 0, rl_result.reg, size, INVALID_SREG);
+        LoadBaseDisp(reg_ptr, 0, rl_result.reg, size);
         MarkPossibleNullPointerException(opt_flags);
         if (field_info.IsVolatile()) {
           // Without context sensitive analysis, we must issue the most conservative barriers.
@@ -731,8 +730,7 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
     } else {
       rl_result = EvalLoc(rl_dest, reg_class, true);
       GenNullCheck(rl_obj.reg, opt_flags);
-      LoadBaseDisp(rl_obj.reg, field_info.FieldOffset().Int32Value(), rl_result.reg, k32,
-                   rl_obj.s_reg_low);
+      LoadBaseDisp(rl_obj.reg, field_info.FieldOffset().Int32Value(), rl_result.reg, k32);
       MarkPossibleNullPointerException(opt_flags);
       if (field_info.IsVolatile()) {
         // Without context sensitive analysis, we must issue the most conservative barriers.

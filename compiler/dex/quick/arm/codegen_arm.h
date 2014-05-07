@@ -32,19 +32,20 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) OVERRIDE;
     LIR* CheckSuspendUsingLoad() OVERRIDE;
     RegStorage LoadHelper(ThreadOffset<4> offset);
-    LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
-                      int s_reg);
+    LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
+                      OpSize size) OVERRIDE;
     LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale,
-                         OpSize size);
+                         OpSize size) OVERRIDE;
     LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
-                             RegStorage r_dest, OpSize size, int s_reg);
+                             RegStorage r_dest, OpSize size) OVERRIDE;
     LIR* LoadConstantNoClobber(RegStorage r_dest, int value);
     LIR* LoadConstantWide(RegStorage r_dest, int64_t value);
-    LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src, OpSize size);
+    LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
+                       OpSize size) OVERRIDE;
     LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
-                          OpSize size);
+                          OpSize size) OVERRIDE;
     LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
-                              RegStorage r_src, OpSize size, int s_reg);
+                              RegStorage r_src, OpSize size) OVERRIDE;
     void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg);
 
     // Required for target - register utilities.
@@ -171,8 +172,7 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     void OpRegCopyWide(RegStorage dest, RegStorage src);
     void OpTlsCmp(ThreadOffset<4> offset, int val);
 
-    LIR* LoadBaseDispBody(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
-                          int s_reg);
+    LIR* LoadBaseDispBody(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size);
     LIR* StoreBaseDispBody(RegStorage r_base, int displacement, RegStorage r_src, OpSize size);
     LIR* OpRegRegRegShift(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2,
                           int shift);
