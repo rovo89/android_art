@@ -843,15 +843,15 @@ class Mir2Lir : public Backend {
     LIR* LoadConstant(RegStorage r_dest, int value);
     // Natural word size.
     LIR* LoadWordDisp(RegStorage r_base, int displacement, RegStorage r_dest) {
-      return LoadBaseDisp(r_base, displacement, r_dest, kWord, INVALID_SREG);
+      return LoadBaseDisp(r_base, displacement, r_dest, kWord);
     }
     // Load 32 bits, regardless of target.
     LIR* Load32Disp(RegStorage r_base, int displacement, RegStorage r_dest)  {
-      return LoadBaseDisp(r_base, displacement, r_dest, k32, INVALID_SREG);
+      return LoadBaseDisp(r_base, displacement, r_dest, k32);
     }
     // Load a reference at base + displacement and decompress into register.
     LIR* LoadRefDisp(RegStorage r_base, int displacement, RegStorage r_dest) {
-      return LoadBaseDisp(r_base, displacement, r_dest, kReference, INVALID_SREG);
+      return LoadBaseDisp(r_base, displacement, r_dest, kReference);
     }
     // Load Dalvik value with 32-bit memory storage.  If compressed object reference, decompress.
     RegLocation LoadValue(RegLocation rl_src, RegisterClass op_kind);
@@ -975,13 +975,12 @@ class Mir2Lir : public Backend {
     virtual bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) = 0;
     virtual LIR* CheckSuspendUsingLoad() = 0;
     virtual RegStorage LoadHelper(ThreadOffset<4> offset) = 0;
-    virtual LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
-                              int s_reg) = 0;
+    virtual LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
+                              OpSize size) = 0;
     virtual LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest,
                                  int scale, OpSize size) = 0;
     virtual LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                     int displacement, RegStorage r_dest, OpSize size,
-                                     int s_reg) = 0;
+                                     int displacement, RegStorage r_dest, OpSize size) = 0;
     virtual LIR* LoadConstantNoClobber(RegStorage r_dest, int value) = 0;
     virtual LIR* LoadConstantWide(RegStorage r_dest, int64_t value) = 0;
     virtual LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
@@ -989,8 +988,7 @@ class Mir2Lir : public Backend {
     virtual LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
                                   int scale, OpSize size) = 0;
     virtual LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                      int displacement, RegStorage r_src, OpSize size,
-                                      int s_reg) = 0;
+                                      int displacement, RegStorage r_src, OpSize size) = 0;
     virtual void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) = 0;
 
     // Required for target - register utilities.

@@ -123,7 +123,7 @@ void Mir2Lir::LoadValueDirectWide(RegLocation rl_src, RegStorage r_dest) {
   } else {
     DCHECK((rl_src.location == kLocDalvikFrame) ||
            (rl_src.location == kLocCompilerTemp));
-    LoadBaseDisp(TargetReg(kSp), SRegOffset(rl_src.s_reg_low), r_dest, k64, INVALID_SREG);
+    LoadBaseDisp(TargetReg(kSp), SRegOffset(rl_src.s_reg_low), r_dest, k64);
   }
 }
 
