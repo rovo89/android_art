@@ -551,15 +551,15 @@ LIR* MipsMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r
   if (size == kWord) {
     size = k32;
   }
-  return LoadBaseDispBody(r_base, displacement, r_dest, RegStorage::InvalidReg(), size,
-                          s_reg);
+  if (size == k64 || size == kDouble) {
+    return LoadBaseDispBody(r_base, displacement, r_dest.GetLow(), r_dest.GetHigh(), k64, s_reg);
+  } else {
+    return LoadBaseDispBody(r_base, displacement, r_dest, RegStorage::InvalidReg(), size,
+                            s_reg);
+  }
 }
 
-LIR* MipsMir2Lir::LoadBaseDispWide(RegStorage r_base, int displacement, RegStorage r_dest,
-                                   int s_reg) {
-  return LoadBaseDispBody(r_base, displacement, r_dest.GetLow(), r_dest.GetHigh(), k64, s_reg);
-}
-
+// FIXME: don't split r_dest into 2 containers.
 LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement,
                                     RegStorage r_src, RegStorage r_src_hi, OpSize size) {
   LIR *res;
@@ -647,11 +647,11 @@ LIR* MipsMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage 
   if (size == kWord) {
     size = k32;
   }
-  return StoreBaseDispBody(r_base, displacement, r_src, RegStorage::InvalidReg(), size);
-}
-
-LIR* MipsMir2Lir::StoreBaseDispWide(RegStorage r_base, int displacement, RegStorage r_src) {
-  return StoreBaseDispBody(r_base, displacement, r_src.GetLow(), r_src.GetHigh(), k64);
+  if (size == k64 || size == kDouble) {
+    return StoreBaseDispBody(r_base, displacement, r_src.GetLow(), r_src.GetHigh(), size);
+  } else {
+    return StoreBaseDispBody(r_base, displacement, r_src, RegStorage::InvalidReg(), size);
+  }
 }
 
 LIR* MipsMir2Lir::OpThreadMem(OpKind op, ThreadOffset<4> thread_offset) {

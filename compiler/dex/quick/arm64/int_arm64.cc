@@ -1170,19 +1170,14 @@ void Arm64Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       }
       FreeTemp(reg_len);
     }
+    LoadBaseDisp(reg_ptr, data_offset, rl_result.reg, size, INVALID_SREG);
+    MarkPossibleNullPointerException(opt_flags);
+    if (!constant_index) {
+      FreeTemp(reg_ptr);
+    }
     if (rl_dest.wide) {
-      LoadBaseDispWide(reg_ptr, data_offset, rl_result.reg, INVALID_SREG);
-      MarkPossibleNullPointerException(opt_flags);
-      if (!constant_index) {
-        FreeTemp(reg_ptr);
-      }
       StoreValueWide(rl_dest, rl_result);
     } else {
-      LoadBaseDisp(reg_ptr, data_offset, rl_result.reg, size, INVALID_SREG);
-      MarkPossibleNullPointerException(opt_flags);
-      if (!constant_index) {
-        FreeTemp(reg_ptr);
-      }
       StoreValue(rl_dest, rl_result);
     }
   } else {
@@ -1275,11 +1270,7 @@ void Arm64Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
       FreeTemp(reg_len);
     }
 
-    if (rl_src.wide) {
-      StoreBaseDispWide(reg_ptr, data_offset, rl_src.reg);
-    } else {
-      StoreBaseDisp(reg_ptr, data_offset, rl_src.reg, size);
-    }
+    StoreBaseDisp(reg_ptr, data_offset, rl_src.reg, size);
     MarkPossibleNullPointerException(opt_flags);
   } else {
     /* reg_ptr -> array data */
