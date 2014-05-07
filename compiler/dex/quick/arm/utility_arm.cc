@@ -825,7 +825,7 @@ LIR* ArmMir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStor
  * performing null check, incoming MIR can be null.
  */
 LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorage r_dest,
-                                  OpSize size, int s_reg) {
+                                  OpSize size) {
   LIR* load = NULL;
   ArmOpcode opcode = kThumbBkpt;
   bool short_form = false;
@@ -833,30 +833,32 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
   bool all_low = r_dest.Is32Bit() && r_base.Low8() && r_dest.Low8();
   int encoded_disp = displacement;
   bool already_generated = false;
-  bool null_pointer_safepoint = false;
   switch (size) {
     case kDouble:
     // Intentional fall-though.
-    case k64:
+    case k64: {
+      DCHECK_EQ(displacement & 3, 0);
+      encoded_disp = (displacement & 1020) >> 2;  // Within range of kThumb2Vldrd/kThumb2LdrdI8.
+      RegStorage r_ptr = r_base;
+      if ((displacement & ~1020) != 0) {
+        // For core register load, use the r_dest.GetLow() for the temporary pointer.
+        r_ptr = r_dest.IsFloat() ? AllocTemp() : r_dest.GetLow();
+        // Add displacement & ~1020 to base, it's a single instruction for up to +-256KiB.
+        OpRegRegImm(kOpAdd, r_ptr, r_base, displacement & ~1020);
+      }
       if (r_dest.IsFloat()) {
         DCHECK(!r_dest.IsPair());
-        opcode = kThumb2Vldrd;
-        if (displacement <= 1020) {
-          short_form = true;
-          encoded_disp >>= 2;
-        }
+        load = NewLIR3(kThumb2Vldrd, r_dest.GetReg(), r_ptr.GetReg(), encoded_disp);
       } else {
-        if (displacement <= 1020) {
-          load = NewLIR4(kThumb2LdrdI8, r_dest.GetLowReg(), r_dest.GetHighReg(), r_base.GetReg(),
-                         displacement >> 2);
-        } else {
-          load = LoadBaseDispBody(r_base, displacement, r_dest.GetLow(), k32, s_reg);
-          null_pointer_safepoint = true;
-          LoadBaseDispBody(r_base, displacement + 4, r_dest.GetHigh(), k32, INVALID_SREG);
-        }
-        already_generated = true;
+        load = NewLIR4(kThumb2LdrdI8, r_dest.GetLowReg(), r_dest.GetHighReg(), r_base.GetReg(),
+                       encoded_disp);
       }
+      if ((displacement & ~1020) != 0 && !r_dest.IsFloat()) {
+        FreeTemp(r_ptr);
+      }
+      already_generated = true;
       break;
+    }
     case kSingle:
     // Intentional fall-though.
     case k32:
@@ -935,7 +937,7 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
       if (r_dest.IsFloat()) {
         // No index ops - must use a long sequence.  Turn the offset into a direct pointer.
         OpRegReg(kOpAdd, reg_offset, r_base);
-        load = LoadBaseDispBody(reg_offset, 0, r_dest, size, s_reg);
+        load = LoadBaseDispBody(reg_offset, 0, r_dest, size);
       } else {
         load = LoadBaseIndexed(r_base, reg_offset, r_dest, 0, size);
       }
@@ -946,22 +948,16 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
   // TODO: in future may need to differentiate Dalvik accesses w/ spills
   if (r_base == rs_rARM_SP) {
     AnnotateDalvikRegAccess(load, displacement >> 2, true /* is_load */, r_dest.Is64Bit());
-  } else {
-     // We might need to generate a safepoint if we have two store instructions (wide or double).
-     if (!Runtime::Current()->ExplicitNullChecks() && null_pointer_safepoint) {
-       MarkSafepointPC(load);
-     }
   }
   return load;
 }
 
-LIR* ArmMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
-                              int s_reg) {
+LIR* ArmMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size) {
   // TODO: base this on target.
   if (size == kWord) {
     size = k32;
   }
-  return LoadBaseDispBody(r_base, displacement, r_dest, size, s_reg);
+  return LoadBaseDispBody(r_base, displacement, r_dest, size);
 }
 
 
@@ -974,29 +970,31 @@ LIR* ArmMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStora
   bool all_low = r_src.Is32Bit() && r_base.Low8() && r_src.Low8();
   int encoded_disp = displacement;
   bool already_generated = false;
-  bool null_pointer_safepoint = false;
   switch (size) {
-    case k64:
     case kDouble:
-      if (!r_src.IsFloat()) {
-        if (displacement <= 1020) {
-          store = NewLIR4(kThumb2StrdI8, r_src.GetLowReg(), r_src.GetHighReg(), r_base.GetReg(),
-                          displacement >> 2);
-        } else {
-          store = StoreBaseDispBody(r_base, displacement, r_src.GetLow(), k32);
-          null_pointer_safepoint = true;
-          StoreBaseDispBody(r_base, displacement + 4, r_src.GetHigh(), k32);
-        }
-        already_generated = true;
-      } else {
-        DCHECK(!r_src.IsPair());
-        opcode = kThumb2Vstrd;
-        if (displacement <= 1020) {
-          short_form = true;
-          encoded_disp >>= 2;
-        }
+    // Intentional fall-though.
+    case k64: {
+      DCHECK_EQ(displacement & 3, 0);
+      encoded_disp = (displacement & 1020) >> 2;  // Within range of kThumb2Vstrd/kThumb2StrdI8.
+      RegStorage r_ptr = r_base;
+      if ((displacement & ~1020) != 0) {
+        r_ptr = AllocTemp();
+        // Add displacement & ~1020 to base, it's a single instruction for up to +-256KiB.
+        OpRegRegImm(kOpAdd, r_ptr, r_base, displacement & ~1020);
       }
+      if (r_src.IsFloat()) {
+        DCHECK(!r_src.IsPair());
+        store = NewLIR3(kThumb2Vstrd, r_src.GetReg(), r_ptr.GetReg(), encoded_disp);
+      } else {
+        store = NewLIR4(kThumb2StrdI8, r_src.GetLowReg(), r_src.GetHighReg(), r_ptr.GetReg(),
+                        encoded_disp);
+      }
+      if ((displacement & ~1020) != 0) {
+        FreeTemp(r_ptr);
+      }
+      already_generated = true;
       break;
+    }
     case kSingle:
     // Intentional fall-through.
     case k32:
@@ -1070,11 +1068,6 @@ LIR* ArmMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStora
   // TODO: In future, may need to differentiate Dalvik & spill accesses
   if (r_base == rs_rARM_SP) {
     AnnotateDalvikRegAccess(store, displacement >> 2, false /* is_load */, r_src.Is64Bit());
-  } else {
-    // We might need to generate a safepoint if we have two store instructions (wide or double).
-    if (!Runtime::Current()->ExplicitNullChecks() && null_pointer_safepoint) {
-      MarkSafepointPC(store);
-    }
   }
   return store;
 }
@@ -1119,7 +1112,7 @@ LIR* ArmMir2Lir::OpMem(OpKind op, RegStorage r_base, int disp) {
 }
 
 LIR* ArmMir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                      int displacement, RegStorage r_src, OpSize size, int s_reg) {
+                                      int displacement, RegStorage r_src, OpSize size) {
   LOG(FATAL) << "Unexpected use of StoreBaseIndexedDisp for Arm";
   return NULL;
 }
@@ -1130,7 +1123,7 @@ LIR* ArmMir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int o
 }
 
 LIR* ArmMir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                     int displacement, RegStorage r_dest, OpSize size, int s_reg) {
+                                     int displacement, RegStorage r_dest, OpSize size) {
   LOG(FATAL) << "Unexpected use of LoadBaseIndexedDisp for Arm";
   return NULL;
 }

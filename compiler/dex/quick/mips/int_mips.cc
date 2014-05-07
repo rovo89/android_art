@@ -290,7 +290,7 @@ bool MipsMir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
   RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   DCHECK(size == kSignedByte);
-  LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size, INVALID_SREG);
+  LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size);
   StoreValue(rl_dest, rl_result);
   return true;
 }
@@ -511,7 +511,7 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       GenArrayBoundsCheck(rl_index.reg, reg_len);
       FreeTemp(reg_len);
     }
-    LoadBaseDisp(reg_ptr, 0, rl_result.reg, size, INVALID_SREG);
+    LoadBaseDisp(reg_ptr, 0, rl_result.reg, size);
 
     FreeTemp(reg_ptr);
     StoreValueWide(rl_dest, rl_result);

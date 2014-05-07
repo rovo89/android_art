@@ -448,7 +448,7 @@ LIR* MipsMir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
 
 // FIXME: don't split r_dest into 2 containers.
 LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorage r_dest,
-                                   RegStorage r_dest_hi, OpSize size, int s_reg) {
+                                   RegStorage r_dest_hi, OpSize size) {
 /*
  * Load value from base + displacement.  Optionally perform null check
  * on base (which must have an associated s_reg and MIR).  If not
@@ -546,16 +546,15 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
 }
 
 LIR* MipsMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
-                               OpSize size, int s_reg) {
+                               OpSize size) {
   // TODO: base this on target.
   if (size == kWord) {
     size = k32;
   }
   if (size == k64 || size == kDouble) {
-    return LoadBaseDispBody(r_base, displacement, r_dest.GetLow(), r_dest.GetHigh(), k64, s_reg);
+    return LoadBaseDispBody(r_base, displacement, r_dest.GetLow(), r_dest.GetHigh(), size);
   } else {
-    return LoadBaseDispBody(r_base, displacement, r_dest, RegStorage::InvalidReg(), size,
-                            s_reg);
+    return LoadBaseDispBody(r_base, displacement, r_dest, RegStorage::InvalidReg(), size);
   }
 }
 
@@ -665,7 +664,7 @@ LIR* MipsMir2Lir::OpMem(OpKind op, RegStorage r_base, int disp) {
 }
 
 LIR* MipsMir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                       int displacement, RegStorage r_src, OpSize size, int s_reg) {
+                                       int displacement, RegStorage r_src, OpSize size) {
   LOG(FATAL) << "Unexpected use of StoreBaseIndexedDisp for MIPS";
   return NULL;
 }
@@ -676,7 +675,7 @@ LIR* MipsMir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int 
 }
 
 LIR* MipsMir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                      int displacement, RegStorage r_dest, OpSize size, int s_reg) {
+                                      int displacement, RegStorage r_dest, OpSize size) {
   LOG(FATAL) << "Unexpected use of LoadBaseIndexedDisp for MIPS";
   return NULL;
 }
