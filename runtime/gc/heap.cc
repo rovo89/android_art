@@ -367,7 +367,7 @@ void Heap::CreateMainMallocSpace(MemMap* mem_map, size_t initial_size, size_t gr
     dlmalloc_space_ = space::DlMallocSpace::CreateFromMemMap(
         mem_map, "main dlmalloc space", kDefaultStartingSize, initial_size, growth_limit, capacity,
         can_move_objects);
-    main_space_ = rosalloc_space_;
+    main_space_ = dlmalloc_space_;
     CHECK(main_space_ != nullptr) << "Failed to create dlmalloc space";
   }
   main_space_->SetFootprintLimit(main_space_->Capacity());
