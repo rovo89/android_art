@@ -1213,7 +1213,7 @@ void ArmMir2Lir::AssembleLIR() {
   cu_->NewTimingSplit("Assemble");
   int assembler_retries = 0;
   CodeOffset starting_offset = LinkFixupInsns(first_lir_insn_, last_lir_insn_, 0);
-  data_offset_ = (starting_offset + 0x3) & ~0x3;
+  data_offset_ = RoundUp(starting_offset, 4);
   int32_t offset_adjustment;
   AssignDataOffsets();
 
@@ -1596,7 +1596,7 @@ void ArmMir2Lir::AssembleLIR() {
         LOG(FATAL) << "Assembler error - too many retries";
       }
       starting_offset += offset_adjustment;
-      data_offset_ = (starting_offset + 0x3) & ~0x3;
+      data_offset_ = RoundUp(starting_offset, 4);
       AssignDataOffsets();
     }
   }
@@ -1609,7 +1609,7 @@ void ArmMir2Lir::AssembleLIR() {
   write_pos = EncodeLIRs(write_pos, first_lir_insn_);
   DCHECK_EQ(static_cast<CodeOffset>(write_pos - &code_buffer_[0]), starting_offset);
 
-  DCHECK_EQ(data_offset_, (code_buffer_.size() + 0x3) & ~0x3);
+  DCHECK_EQ(data_offset_, RoundUp(code_buffer_.size(), 4));
 
   // Install literals
   InstallLiteralPools();
