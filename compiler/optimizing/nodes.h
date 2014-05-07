@@ -49,6 +49,7 @@ class HInstructionList {
 
   friend class HBasicBlock;
   friend class HInstructionIterator;
+  friend class HBackwardInstructionIterator;
 
   DISALLOW_COPY_AND_ASSIGN(HInstructionList);
 };
@@ -59,14 +60,14 @@ class HGraph : public ArenaObject {
   explicit HGraph(ArenaAllocator* arena)
       : arena_(arena),
         blocks_(arena, kDefaultNumberOfBlocks),
-        dominator_order_(arena, kDefaultNumberOfBlocks),
+        post_order_(arena, kDefaultNumberOfBlocks),
         maximum_number_of_out_vregs_(0),
         number_of_vregs_(0),
         number_of_in_vregs_(0),
         current_instruction_id_(0) { }
 
   ArenaAllocator* GetArena() const { return arena_; }
-  const GrowableArray<HBasicBlock*>* GetBlocks() const { return &blocks_; }
+  const GrowableArray<HBasicBlock*>& GetBlocks() const { return blocks_; }
 
   HBasicBlock* GetEntryBlock() const { return entry_block_; }
   HBasicBlock* GetExitBlock() const { return exit_block_; }
@@ -108,8 +109,8 @@ class HGraph : public ArenaObject {
     return number_of_in_vregs_;
   }
 
-  GrowableArray<HBasicBlock*>* GetDominatorOrder() {
-    return &dominator_order_;
+  const GrowableArray<HBasicBlock*>& GetPostOrder() const {
+    return post_order_;
   }
 
  private:
@@ -117,10 +118,10 @@ class HGraph : public ArenaObject {
   void VisitBlockForDominatorTree(HBasicBlock* block,
                                   HBasicBlock* predecessor,
                                   GrowableArray<size_t>* visits);
-  void FindBackEdges(ArenaBitVector* visited) const;
+  void FindBackEdges(ArenaBitVector* visited);
   void VisitBlockForBackEdges(HBasicBlock* block,
                               ArenaBitVector* visited,
-                              ArenaBitVector* visiting) const;
+                              ArenaBitVector* visiting);
   void RemoveDeadBlocks(const ArenaBitVector& visited) const;
 
   ArenaAllocator* const arena_;
@@ -128,8 +129,8 @@ class HGraph : public ArenaObject {
   // List of blocks in insertion order.
   GrowableArray<HBasicBlock*> blocks_;
 
-  // List of blocks to perform a pre-order dominator tree traversal.
-  GrowableArray<HBasicBlock*> dominator_order_;
+  // List of blocks to perform a post order tree traversal.
+  GrowableArray<HBasicBlock*> post_order_;
 
   HBasicBlock* entry_block_;
   HBasicBlock* exit_block_;
@@ -322,6 +323,7 @@ class HInstruction : public ArenaObject {
         next_(nullptr),
         block_(nullptr),
         id_(-1),
+        ssa_index_(-1),
         uses_(nullptr),
         env_uses_(nullptr),
         environment_(nullptr),
@@ -360,11 +362,17 @@ class HInstruction : public ArenaObject {
   HUseListNode<HInstruction>* GetUses() const { return uses_; }
   HUseListNode<HEnvironment>* GetEnvUses() const { return env_uses_; }
 
-  bool HasUses() const { return uses_ != nullptr; }
+  bool HasUses() const { return uses_ != nullptr || env_uses_ != nullptr; }
 
   int GetId() const { return id_; }
   void SetId(int id) { id_ = id; }
 
+  int GetSsaIndex() const { return ssa_index_; }
+  void SetSsaIndex(int ssa_index) { ssa_index_ = ssa_index; }
+  bool HasSsaIndex() const { return ssa_index_ != -1; }
+
+  bool HasEnvironment() const { return environment_ != nullptr; }
+  HEnvironment* GetEnvironment() const { return environment_; }
   void SetEnvironment(HEnvironment* environment) { environment_ = environment; }
 
   LocationSummary* GetLocations() const { return locations_; }
@@ -387,6 +395,9 @@ class HInstruction : public ArenaObject {
   // It reflects creation order. A negative id means the instruction
   // has not beed added to the graph.
   int id_;
+
+  // When doing liveness analysis, instructions that have uses get an SSA index.
+  int ssa_index_;
 
   // List of instructions that have this instruction as input.
   HUseListNode<HInstruction>* uses_;
@@ -489,6 +500,25 @@ class HInstructionIterator : public ValueObject {
   void Advance() {
     instruction_ = next_;
     next_ = Done() ? nullptr : instruction_->GetNext();
+  }
+
+ private:
+  HInstruction* instruction_;
+  HInstruction* next_;
+};
+
+class HBackwardInstructionIterator : public ValueObject {
+ public:
+  explicit HBackwardInstructionIterator(const HInstructionList& instructions)
+      : instruction_(instructions.last_instruction_) {
+    next_ = Done() ? nullptr : instruction_->GetPrevious();
+  }
+
+  bool Done() const { return instruction_ == nullptr; }
+  HInstruction* Current() const { return instruction_; }
+  void Advance() {
+    instruction_ = next_;
+    next_ = Done() ? nullptr : instruction_->GetPrevious();
   }
 
  private:
@@ -964,6 +994,52 @@ class HGraphVisitor : public ValueObject {
   HGraph* graph_;
 
   DISALLOW_COPY_AND_ASSIGN(HGraphVisitor);
+};
+
+class HInsertionOrderIterator : public ValueObject {
+ public:
+  explicit HInsertionOrderIterator(const HGraph& graph) : graph_(graph), index_(0) {}
+
+  bool Done() const { return index_ == graph_.GetBlocks().Size(); }
+  HBasicBlock* Current() const { return graph_.GetBlocks().Get(index_); }
+  void Advance() { ++index_; }
+
+ private:
+  const HGraph& graph_;
+  size_t index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HInsertionOrderIterator);
+};
+
+class HPostOrderIterator : public ValueObject {
+ public:
+  explicit HPostOrderIterator(const HGraph& graph) : graph_(graph), index_(0) {}
+
+  bool Done() const { return index_ == graph_.GetPostOrder().Size(); }
+  HBasicBlock* Current() const { return graph_.GetPostOrder().Get(index_); }
+  void Advance() { ++index_; }
+
+ private:
+  const HGraph& graph_;
+  size_t index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HPostOrderIterator);
+};
+
+class HReversePostOrderIterator : public ValueObject {
+ public:
+  explicit HReversePostOrderIterator(const HGraph& graph)
+      : graph_(graph), index_(graph_.GetPostOrder().Size()) {}
+
+  bool Done() const { return index_ == 0; }
+  HBasicBlock* Current() const { return graph_.GetPostOrder().Get(index_ - 1); }
+  void Advance() { --index_; }
+
+ private:
+  const HGraph& graph_;
+  size_t index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HReversePostOrderIterator);
 };
 
 }  // namespace art
