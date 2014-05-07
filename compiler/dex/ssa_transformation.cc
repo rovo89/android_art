@@ -244,9 +244,9 @@ bool MIRGraph::ComputeDominanceFrontier(BasicBlock* bb) {
 
   /* Calculate DF_up */
   for (uint32_t dominated_idx : bb->i_dominated->Indexes()) {
-    BasicBlock *dominated_bb = GetBasicBlock(dominated_idx);
+    BasicBlock* dominated_bb = GetBasicBlock(dominated_idx);
     for (uint32_t df_up_block_idx : dominated_bb->dom_frontier->Indexes()) {
-      BasicBlock *df_up_block = GetBasicBlock(df_up_block_idx);
+      BasicBlock* df_up_block = GetBasicBlock(df_up_block_idx);
       CheckForDominanceFrontier(bb, df_up_block);
     }
   }
