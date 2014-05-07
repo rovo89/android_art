@@ -497,6 +497,7 @@ void Mir2Lir::InstallSwitchTables() {
       case kX86_64:
         bx_offset = 0;
         break;
+      case kArm64:
       case kMips:
         bx_offset = tab_rec->anchor->offset;
         break;

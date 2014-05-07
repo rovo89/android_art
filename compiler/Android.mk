@@ -27,6 +27,12 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/quick/arm/int_arm.cc \
 	dex/quick/arm/target_arm.cc \
 	dex/quick/arm/utility_arm.cc \
+	dex/quick/arm64/assemble_arm64.cc \
+	dex/quick/arm64/call_arm64.cc \
+	dex/quick/arm64/fp_arm64.cc \
+	dex/quick/arm64/int_arm64.cc \
+	dex/quick/arm64/target_arm64.cc \
+	dex/quick/arm64/utility_arm64.cc \
 	dex/quick/codegen_util.cc \
 	dex/quick/dex_file_method_inliner.cc \
 	dex/quick/dex_file_to_method_inliner_map.cc \
