@@ -354,7 +354,7 @@ class CodeGenerator : public ArenaObject {
         pc_infos_(graph->GetArena(), 32),
         blocked_registers_(static_cast<bool*>(
             graph->GetArena()->Alloc(number_of_registers * sizeof(bool), kArenaAllocData))) {
-    block_labels_.SetSize(graph->GetBlocks()->Size());
+    block_labels_.SetSize(graph->GetBlocks().Size());
   }
   ~CodeGenerator() { }
 

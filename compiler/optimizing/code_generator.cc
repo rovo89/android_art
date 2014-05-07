@@ -30,12 +30,12 @@
 namespace art {
 
 void CodeGenerator::Compile(CodeAllocator* allocator) {
-  const GrowableArray<HBasicBlock*>* blocks = GetGraph()->GetBlocks();
-  DCHECK(blocks->Get(0) == GetGraph()->GetEntryBlock());
-  DCHECK(GoesToNextBlock(GetGraph()->GetEntryBlock(), blocks->Get(1)));
+  const GrowableArray<HBasicBlock*>& blocks = GetGraph()->GetBlocks();
+  DCHECK(blocks.Get(0) == GetGraph()->GetEntryBlock());
+  DCHECK(GoesToNextBlock(GetGraph()->GetEntryBlock(), blocks.Get(1)));
   GenerateFrameEntry();
-  for (size_t i = 0; i < blocks->Size(); i++) {
-    CompileBlock(blocks->Get(i));
+  for (size_t i = 0, e = blocks.Size(); i < e; ++i) {
+    CompileBlock(blocks.Get(i));
   }
   size_t code_size = GetAssembler()->CodeSize();
   uint8_t* buffer = allocator->Allocate(code_size);
