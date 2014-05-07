@@ -336,7 +336,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
     : profile_ok_(false), compiler_options_(compiler_options),
       verification_results_(verification_results),
       method_inliner_map_(method_inliner_map),
-      compiler_(Compiler::Create(compiler_kind)),
+      compiler_(Compiler::Create(this, compiler_kind)),
       instruction_set_(instruction_set),
       instruction_set_features_(instruction_set_features),
       freezing_constructor_lock_("freezing constructor lock"),
@@ -374,7 +374,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
 
   dex_to_dex_compiler_ = reinterpret_cast<DexToDexCompilerFn>(ArtCompileDEX);
 
-  compiler_->Init(*this);
+  compiler_->Init();
 
   CHECK(!Runtime::Current()->IsStarted());
   if (!image_) {
@@ -433,7 +433,7 @@ CompilerDriver::~CompilerDriver() {
     STLDeleteElements(&classes_to_patch_);
   }
   CHECK_PTHREAD_CALL(pthread_key_delete, (tls_key_), "delete tls key");
-  compiler_->UnInit(*this);
+  compiler_->UnInit();
 }
 
 CompilerTls* CompilerDriver::GetTls() {
@@ -1874,7 +1874,7 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
         (instruction_set_ == kX86_64 || instruction_set_ == kArm64)) {
       // Leaving this empty will trigger the generic JNI version
     } else {
-      compiled_method = compiler_->JniCompile(*this, access_flags, method_idx, dex_file);
+      compiled_method = compiler_->JniCompile(access_flags, method_idx, dex_file);
       CHECK(compiled_method != NULL);
     }
   } else if ((access_flags & kAccAbstract) != 0) {
@@ -1883,9 +1883,8 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     bool compile = verification_results_->IsCandidateForCompilation(method_ref, access_flags);
     if (compile) {
       // NOTE: if compiler declines to compile this method, it will return NULL.
-      compiled_method = compiler_->Compile(
-          *this, code_item, access_flags, invoke_type, class_def_idx,
-          method_idx, class_loader, dex_file);
+      compiled_method = compiler_->Compile(code_item, access_flags, invoke_type, class_def_idx,
+                                           method_idx, class_loader, dex_file);
     }
     if (compiled_method == nullptr && dex_to_dex_compilation_level != kDontDexToDexCompile) {
       // TODO: add a command-line option to disable DEX-to-DEX compilation ?
@@ -1983,7 +1982,7 @@ bool CompilerDriver::WriteElf(const std::string& android_root,
                               OatWriter* oat_writer,
                               art::File* file)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return compiler_->WriteElf(file, oat_writer, dex_files, android_root, is_host, *this);
+  return compiler_->WriteElf(file, oat_writer, dex_files, android_root, is_host);
 }
 void CompilerDriver::InstructionSetToLLVMTarget(InstructionSet instruction_set,
                                                 std::string* target_triple,
