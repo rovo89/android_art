@@ -91,6 +91,7 @@ typedef uint32_t CodeOffset;         // Native code offset in bytes.
 
 // Common combo register usage patterns.
 #define REG_DEF01            (REG_DEF0 | REG_DEF1)
+#define REG_DEF012           (REG_DEF0 | REG_DEF1 | REG_DEF2)
 #define REG_DEF01_USE2       (REG_DEF0 | REG_DEF1 | REG_USE2)
 #define REG_DEF0_USE01       (REG_DEF0 | REG_USE01)
 #define REG_DEF0_USE0        (REG_DEF0 | REG_USE0)
@@ -167,6 +168,8 @@ struct LIR {
 // Target-specific initialization.
 Mir2Lir* ArmCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
                           ArenaAllocator* const arena);
+Mir2Lir* Arm64CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
+                            ArenaAllocator* const arena);
 Mir2Lir* MipsCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
                           ArenaAllocator* const arena);
 Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
@@ -783,7 +786,7 @@ class Mir2Lir : public Backend {
                                                             bool safepoint_pc);
     void GenInvoke(CallInfo* info);
     void GenInvokeNoInline(CallInfo* info);
-    void FlushIns(RegLocation* ArgLocs, RegLocation rl_method);
+    virtual void FlushIns(RegLocation* ArgLocs, RegLocation rl_method);
     int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
                              NextCallInsn next_call_insn,
                              const MethodReference& target_method,
@@ -830,7 +833,7 @@ class Mir2Lir : public Backend {
     bool GenInlinedUnsafeGet(CallInfo* info, bool is_long, bool is_volatile);
     bool GenInlinedUnsafePut(CallInfo* info, bool is_long, bool is_object,
                              bool is_volatile, bool is_ordered);
-    int LoadArgRegs(CallInfo* info, int call_state,
+    virtual int LoadArgRegs(CallInfo* info, int call_state,
                     NextCallInsn next_call_insn,
                     const MethodReference& target_method,
                     uint32_t vtable_idx,
