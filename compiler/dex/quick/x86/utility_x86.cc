@@ -676,11 +676,6 @@ LIR* X86Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_
                              size, s_reg);
 }
 
-LIR* X86Mir2Lir::LoadBaseDispWide(RegStorage r_base, int displacement, RegStorage r_dest,
-                                  int s_reg) {
-  return LoadBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_dest, k64, s_reg);
-}
-
 LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
                                       int displacement, RegStorage r_src, OpSize size, int s_reg) {
   LIR *store = NULL;
@@ -768,11 +763,6 @@ LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement,
   }
   return StoreBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_src, size,
                               INVALID_SREG);
-}
-
-LIR* X86Mir2Lir::StoreBaseDispWide(RegStorage r_base, int displacement, RegStorage r_src) {
-  return StoreBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement,
-                              r_src, k64, INVALID_SREG);
 }
 
 LIR* X86Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,

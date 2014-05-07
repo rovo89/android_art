@@ -977,8 +977,6 @@ class Mir2Lir : public Backend {
     virtual RegStorage LoadHelper(ThreadOffset<4> offset) = 0;
     virtual LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
                               int s_reg) = 0;
-    virtual LIR* LoadBaseDispWide(RegStorage r_base, int displacement, RegStorage r_dest,
-                                  int s_reg) = 0;
     virtual LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest,
                                  int scale, OpSize size) = 0;
     virtual LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
@@ -988,7 +986,6 @@ class Mir2Lir : public Backend {
     virtual LIR* LoadConstantWide(RegStorage r_dest, int64_t value) = 0;
     virtual LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
                                OpSize size) = 0;
-    virtual LIR* StoreBaseDispWide(RegStorage r_base, int displacement, RegStorage r_src) = 0;
     virtual LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
                                   int scale, OpSize size) = 0;
     virtual LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
@@ -1262,6 +1259,10 @@ class Mir2Lir : public Backend {
      * @returns update location
      */
     RegLocation ForceTempWide(RegLocation loc);
+
+    static constexpr OpSize LoadStoreOpSize(bool wide, bool ref) {
+      return wide ? k64 : ref ? kReference : k32;
+    }
 
     virtual void GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
                                     RegLocation rl_dest, RegLocation rl_src);

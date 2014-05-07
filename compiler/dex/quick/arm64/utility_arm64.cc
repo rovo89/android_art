@@ -957,17 +957,11 @@ LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStor
 
 LIR* Arm64Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
                               int s_reg) {
-  DCHECK(!((size == k64) || (size == kDouble)));
   // TODO: base this on target.
   if (size == kWord) {
     size = k32;
   }
   return LoadBaseDispBody(r_base, displacement, r_dest, size, s_reg);
-}
-
-LIR* Arm64Mir2Lir::LoadBaseDispWide(RegStorage r_base, int displacement, RegStorage r_dest,
-                                  int s_reg) {
-  return LoadBaseDispBody(r_base, displacement, r_dest, k64, s_reg);
 }
 
 
@@ -1091,12 +1085,7 @@ LIR* Arm64Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage
   if (size == kWord) {
     size = k32;
   }
-  DCHECK(!((size == k64) || (size == kDouble)));
   return StoreBaseDispBody(r_base, displacement, r_src, size);
-}
-
-LIR* Arm64Mir2Lir::StoreBaseDispWide(RegStorage r_base, int displacement, RegStorage r_src) {
-  return StoreBaseDispBody(r_base, displacement, r_src, k64);
 }
 
 LIR* Arm64Mir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {

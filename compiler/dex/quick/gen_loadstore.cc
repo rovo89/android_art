@@ -123,7 +123,7 @@ void Mir2Lir::LoadValueDirectWide(RegLocation rl_src, RegStorage r_dest) {
   } else {
     DCHECK((rl_src.location == kLocDalvikFrame) ||
            (rl_src.location == kLocCompilerTemp));
-    LoadBaseDispWide(TargetReg(kSp), SRegOffset(rl_src.s_reg_low), r_dest, INVALID_SREG);
+    LoadBaseDisp(TargetReg(kSp), SRegOffset(rl_src.s_reg_low), r_dest, k64, INVALID_SREG);
   }
 }
 
@@ -258,7 +258,7 @@ void Mir2Lir::StoreValueWide(RegLocation rl_dest, RegLocation rl_src) {
     def_start = last_lir_insn_;
     DCHECK_EQ((mir_graph_->SRegToVReg(rl_dest.s_reg_low)+1),
               mir_graph_->SRegToVReg(GetSRegHi(rl_dest.s_reg_low)));
-    StoreBaseDispWide(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low), rl_dest.reg);
+    StoreBaseDisp(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low), rl_dest.reg, k64);
     MarkClean(rl_dest);
     def_end = last_lir_insn_;
     MarkDefWide(rl_dest, def_start, def_end);
@@ -320,7 +320,7 @@ void Mir2Lir::StoreFinalValueWide(RegLocation rl_dest, RegLocation rl_src) {
     LIR *def_start = last_lir_insn_;
     DCHECK_EQ((mir_graph_->SRegToVReg(rl_dest.s_reg_low)+1),
               mir_graph_->SRegToVReg(GetSRegHi(rl_dest.s_reg_low)));
-    StoreBaseDispWide(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low), rl_dest.reg);
+    StoreBaseDisp(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low), rl_dest.reg, k64);
     MarkClean(rl_dest);
     LIR *def_end = last_lir_insn_;
     MarkDefWide(rl_dest, def_start, def_end);

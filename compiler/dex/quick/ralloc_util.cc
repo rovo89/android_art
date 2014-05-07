@@ -634,14 +634,14 @@ void Mir2Lir::FlushRegWide(RegStorage reg) {
         info1 = info2;
       }
       int v_reg = mir_graph_->SRegToVReg(info1->SReg());
-      StoreBaseDispWide(TargetReg(kSp), VRegOffset(v_reg), reg);
+      StoreBaseDisp(TargetReg(kSp), VRegOffset(v_reg), reg, k64);
     }
   } else {
     RegisterInfo* info = GetRegInfo(reg);
     if (info->IsLive() && info->IsDirty()) {
       info->SetIsDirty(false);
       int v_reg = mir_graph_->SRegToVReg(info->SReg());
-      StoreBaseDispWide(TargetReg(kSp), VRegOffset(v_reg), reg);
+      StoreBaseDisp(TargetReg(kSp), VRegOffset(v_reg), reg, k64);
     }
   }
 }

@@ -688,14 +688,12 @@ bool X86Mir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
   RegLocation rl_dest = size == k64 ? InlineTargetWide(info) : InlineTarget(info);
   RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  // Unaligned access is allowed on x86.
+  LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size, INVALID_SREG);
   if (size == k64) {
-    // Unaligned access is allowed on x86.
-    LoadBaseDispWide(rl_address.reg, 0, rl_result.reg, INVALID_SREG);
     StoreValueWide(rl_dest, rl_result);
   } else {
     DCHECK(size == kSignedByte || size == kSignedHalf || size == k32);
-    // Unaligned access is allowed on x86.
-    LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size, INVALID_SREG);
     StoreValue(rl_dest, rl_result);
   }
   return true;
@@ -709,7 +707,7 @@ bool X86Mir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
   if (size == k64) {
     // Unaligned access is allowed on x86.
     RegLocation rl_value = LoadValueWide(rl_src_value, kCoreReg);
-    StoreBaseDispWide(rl_address.reg, 0, rl_value.reg);
+    StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size);
   } else {
     DCHECK(size == kSignedByte || size == kSignedHalf || size == k32);
     // Unaligned access is allowed on x86.
