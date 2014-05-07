@@ -112,7 +112,7 @@ class JavaStackTraceHandler FINAL : public FaultHandler {
 };
 
 
-// Statically allocated so the the signal handler can get access to it.
+// Statically allocated so the the signal handler can Get access to it.
 extern FaultManager fault_manager;
 
 }       // namespace art

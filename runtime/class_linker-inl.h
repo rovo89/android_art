@@ -24,7 +24,7 @@
 #include "mirror/iftable.h"
 #include "mirror/object_array.h"
 #include "object_utils.h"
-#include "sirt_ref-inl.h"
+#include "handle_scope-inl.h"
 
 namespace art {
 
@@ -34,7 +34,8 @@ inline bool ClassLinker::IsInBootClassPath(const char* descriptor) {
 }
 
 inline mirror::Class* ClassLinker::FindSystemClass(Thread* self, const char* descriptor) {
-  SirtRef<mirror::ClassLoader> class_loader(self, nullptr);
+  StackHandleScope<1> hs(self);
+  auto class_loader = hs.NewHandle<mirror::ClassLoader>(nullptr);
   return FindClass(self, descriptor, class_loader);
 }
 
@@ -49,7 +50,8 @@ inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class* e
   DCHECK(!element_class->IsPrimitiveVoid());
   std::string descriptor("[");
   descriptor += ClassHelper(element_class).GetDescriptor();
-  SirtRef<mirror::ClassLoader> class_loader(self, element_class->GetClassLoader());
+  StackHandleScope<1> hs(Thread::Current());
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(element_class->GetClassLoader()));
   mirror::Class* array_class = FindClass(self, descriptor.c_str(), class_loader);
   // Benign races in storing array class and incrementing index.
   size_t victim_index = find_array_class_cache_next_victim_;
@@ -63,7 +65,8 @@ inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx,
   mirror::String* resolved_string = referrer->GetDexCacheStrings()->Get(string_idx);
   if (UNLIKELY(resolved_string == NULL)) {
     mirror::Class* declaring_class = referrer->GetDeclaringClass();
-    SirtRef<mirror::DexCache> dex_cache(Thread::Current(), declaring_class->GetDexCache());
+    StackHandleScope<1> hs(Thread::Current());
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_string = ResolveString(dex_file, string_idx, dex_cache);
     if (resolved_string != nullptr) {
@@ -76,11 +79,11 @@ inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx,
 inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx,
                                                mirror::ArtMethod* referrer) {
   mirror::Class* resolved_type = referrer->GetDexCacheResolvedTypes()->Get(type_idx);
-  if (UNLIKELY(resolved_type == NULL)) {
+  if (UNLIKELY(resolved_type == nullptr)) {
     mirror::Class* declaring_class = referrer->GetDeclaringClass();
-    Thread* self = Thread::Current();
-    SirtRef<mirror::DexCache> dex_cache(self, declaring_class->GetDexCache());
-    SirtRef<mirror::ClassLoader> class_loader(self, declaring_class->GetClassLoader());
+    StackHandleScope<2> hs(Thread::Current());
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
+    Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
     if (resolved_type != nullptr) {
@@ -95,9 +98,9 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, mirror::ArtFie
   mirror::DexCache* dex_cache_ptr = declaring_class->GetDexCache();
   mirror::Class* resolved_type = dex_cache_ptr->GetResolvedType(type_idx);
   if (UNLIKELY(resolved_type == NULL)) {
-    Thread* self = Thread::Current();
-    SirtRef<mirror::DexCache> dex_cache(self, dex_cache_ptr);
-    SirtRef<mirror::ClassLoader> class_loader(self, declaring_class->GetClassLoader());
+    StackHandleScope<2> hs(Thread::Current());
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(dex_cache_ptr));
+    Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
     if (resolved_type != nullptr) {
@@ -114,9 +117,9 @@ inline mirror::ArtMethod* ClassLinker::ResolveMethod(uint32_t method_idx,
       referrer->GetDexCacheResolvedMethods()->Get(method_idx);
   if (UNLIKELY(resolved_method == NULL || resolved_method->IsRuntimeMethod())) {
     mirror::Class* declaring_class = referrer->GetDeclaringClass();
-    Thread* self = Thread::Current();
-    SirtRef<mirror::DexCache> dex_cache(self, declaring_class->GetDexCache());
-    SirtRef<mirror::ClassLoader> class_loader(self, declaring_class->GetClassLoader());
+    StackHandleScope<2> hs(Thread::Current());
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
+    Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_method = ResolveMethod(dex_file, method_idx, dex_cache, class_loader, referrer, type);
     if (resolved_method != nullptr) {
@@ -133,9 +136,9 @@ inline mirror::ArtField* ClassLinker::ResolveField(uint32_t field_idx,
   mirror::ArtField* resolved_field =
       declaring_class->GetDexCache()->GetResolvedField(field_idx);
   if (UNLIKELY(resolved_field == NULL)) {
-    Thread* self = Thread::Current();
-    SirtRef<mirror::DexCache>  dex_cache(self, declaring_class->GetDexCache());
-    SirtRef<mirror::ClassLoader> class_loader(self, declaring_class->GetClassLoader());
+    StackHandleScope<2> hs(Thread::Current());
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
+    Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_field = ResolveField(dex_file, field_idx, dex_cache, class_loader, is_static);
     if (resolved_field != nullptr) {
@@ -174,9 +177,8 @@ inline mirror::IfTable* ClassLinker::AllocIfTable(Thread* self, size_t ifcount) 
 
 inline mirror::ObjectArray<mirror::ArtField>* ClassLinker::AllocArtFieldArray(Thread* self,
                                                                               size_t length) {
-  return mirror::ObjectArray<mirror::ArtField>::Alloc(self,
-                                                      GetClassRoot(kJavaLangReflectArtFieldArrayClass),
-                                                      length);
+  return mirror::ObjectArray<mirror::ArtField>::Alloc(
+      self, GetClassRoot(kJavaLangReflectArtFieldArrayClass), length);
 }
 
 inline mirror::Class* ClassLinker::GetClassRoot(ClassRoot class_root)

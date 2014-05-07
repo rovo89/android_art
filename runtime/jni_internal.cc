@@ -117,11 +117,12 @@ static mirror::Class* EnsureInitialized(Thread* self, mirror::Class* klass)
   if (LIKELY(klass->IsInitialized())) {
     return klass;
   }
-  SirtRef<mirror::Class> sirt_klass(self, klass);
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(sirt_klass, true, true)) {
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Class> h_klass(hs.NewHandle(klass));
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_klass, true, true)) {
     return nullptr;
   }
-  return sirt_klass.get();
+  return h_klass.Get();
 }
 
 static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
@@ -180,16 +181,17 @@ static mirror::ClassLoader* GetClassLoader(const ScopedObjectAccess& soa)
 static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, const char* name,
                             const char* sig, bool is_static)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  SirtRef<mirror::Class> c(soa.Self(), EnsureInitialized(soa.Self(),
-                                                         soa.Decode<mirror::Class*>(jni_class)));
-  if (c.get() == nullptr) {
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::Class> c(
+      hs.NewHandle(EnsureInitialized(soa.Self(), soa.Decode<mirror::Class*>(jni_class))));
+  if (c.Get() == nullptr) {
     return nullptr;
   }
   mirror::ArtField* field = nullptr;
   mirror::Class* field_type;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   if (sig[1] != '\0') {
-    SirtRef<mirror::ClassLoader> class_loader(soa.Self(), c->GetClassLoader());
+    Handle<mirror::ClassLoader> class_loader(hs.NewHandle(c->GetClassLoader()));
     field_type = class_linker->FindClass(soa.Self(), sig, class_loader);
   } else {
     field_type = class_linker->FindPrimitiveClass(*sig);
@@ -198,13 +200,14 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
     // Failed to find type from the signature of the field.
     DCHECK(soa.Self()->IsExceptionPending());
     ThrowLocation throw_location;
-    SirtRef<mirror::Throwable> cause(soa.Self(), soa.Self()->GetException(&throw_location));
+    StackHandleScope<1> hs(soa.Self());
+    Handle<mirror::Throwable> cause(hs.NewHandle(soa.Self()->GetException(&throw_location)));
     soa.Self()->ClearException();
     soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
                                    "no type \"%s\" found and so no field \"%s\" "
                                    "could be found in class \"%s\" or its superclasses", sig, name,
-                                   ClassHelper(c.get()).GetDescriptor());
-    soa.Self()->GetException(nullptr)->SetCause(cause.get());
+                                   ClassHelper(c.Get()).GetDescriptor());
+    soa.Self()->GetException(nullptr)->SetCause(cause.Get());
     return nullptr;
   }
   if (is_static) {
@@ -216,7 +219,7 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
     ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
     soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
                                    "no \"%s\" field \"%s\" in class \"%s\" or its superclasses",
-                                   sig, name, ClassHelper(c.get()).GetDescriptor());
+                                   sig, name, ClassHelper(c.Get()).GetDescriptor());
     return nullptr;
   }
   return soa.EncodeField(field);
@@ -546,7 +549,8 @@ class JNI {
     ScopedObjectAccess soa(env);
     mirror::Class* c = nullptr;
     if (runtime->IsStarted()) {
-      SirtRef<mirror::ClassLoader> class_loader(soa.Self(), GetClassLoader(soa));
+      StackHandleScope<1> hs(soa.Self());
+      Handle<mirror::ClassLoader> class_loader(hs.NewHandle(GetClassLoader(soa)));
       c = class_linker->FindClass(soa.Self(), descriptor.c_str(), class_loader);
     } else {
       c = class_linker->FindSystemClass(soa.Self(), descriptor.c_str());
@@ -658,26 +662,28 @@ class JNI {
   static void ExceptionDescribe(JNIEnv* env) {
     ScopedObjectAccess soa(env);
 
-    SirtRef<mirror::Object> old_throw_this_object(soa.Self(), nullptr);
-    SirtRef<mirror::ArtMethod> old_throw_method(soa.Self(), nullptr);
-    SirtRef<mirror::Throwable> old_exception(soa.Self(), nullptr);
+    StackHandleScope<3> hs(soa.Self());
+    // TODO: Use nullptr instead of null handles?
+    auto old_throw_this_object(hs.NewHandle<mirror::Object>(nullptr));
+    auto old_throw_method(hs.NewHandle<mirror::ArtMethod>(nullptr));
+    auto old_exception(hs.NewHandle<mirror::Throwable>(nullptr));
     uint32_t old_throw_dex_pc;
     {
       ThrowLocation old_throw_location;
       mirror::Throwable* old_exception_obj = soa.Self()->GetException(&old_throw_location);
-      old_throw_this_object.reset(old_throw_location.GetThis());
-      old_throw_method.reset(old_throw_location.GetMethod());
-      old_exception.reset(old_exception_obj);
+      old_throw_this_object.Assign(old_throw_location.GetThis());
+      old_throw_method.Assign(old_throw_location.GetMethod());
+      old_exception.Assign(old_exception_obj);
       old_throw_dex_pc = old_throw_location.GetDexPc();
       soa.Self()->ClearException();
     }
     ScopedLocalRef<jthrowable> exception(env,
-                                         soa.AddLocalReference<jthrowable>(old_exception.get()));
+                                         soa.AddLocalReference<jthrowable>(old_exception.Get()));
     ScopedLocalRef<jclass> exception_class(env, env->GetObjectClass(exception.get()));
     jmethodID mid = env->GetMethodID(exception_class.get(), "printStackTrace", "()V");
     if (mid == nullptr) {
       LOG(WARNING) << "JNI WARNING: no printStackTrace()V in "
-                   << PrettyTypeOf(old_exception.get());
+                   << PrettyTypeOf(old_exception.Get());
     } else {
       env->CallVoidMethod(exception.get(), mid);
       if (soa.Self()->IsExceptionPending()) {
@@ -686,10 +692,10 @@ class JNI {
         soa.Self()->ClearException();
       }
     }
-    ThrowLocation gc_safe_throw_location(old_throw_this_object.get(), old_throw_method.get(),
+    ThrowLocation gc_safe_throw_location(old_throw_this_object.Get(), old_throw_method.Get(),
                                          old_throw_dex_pc);
 
-    soa.Self()->SetException(gc_safe_throw_location, old_exception.get());
+    soa.Self()->SetException(gc_safe_throw_location, old_exception.Get());
   }
 
   static jthrowable ExceptionOccurred(JNIEnv* env) {
@@ -2443,9 +2449,9 @@ class JNI {
       return JNIGlobalRefType;
     case kWeakGlobal:
       return JNIWeakGlobalRefType;
-    case kSirtOrInvalid:
+    case kHandleScopeOrInvalid:
       // Is it in a stack IRT?
-      if (static_cast<JNIEnvExt*>(env)->self->SirtContains(java_object)) {
+      if (static_cast<JNIEnvExt*>(env)->self->HandleScopeContains(java_object)) {
         return JNILocalRefType;
       }
       return JNIInvalidRefType;
@@ -3090,7 +3096,7 @@ void JavaVMExt::DumpReferenceTables(std::ostream& os) {
 }
 
 bool JavaVMExt::LoadNativeLibrary(const std::string& path,
-                                  const SirtRef<mirror::ClassLoader>& class_loader,
+                                  const Handle<mirror::ClassLoader>& class_loader,
                                   std::string* detail) {
   detail->clear();
 
@@ -3106,18 +3112,18 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path,
     library = libraries->Get(path);
   }
   if (library != nullptr) {
-    if (library->GetClassLoader() != class_loader.get()) {
+    if (library->GetClassLoader() != class_loader.Get()) {
       // The library will be associated with class_loader. The JNI
       // spec says we can't load the same library into more than one
       // class loader.
       StringAppendF(detail, "Shared library \"%s\" already opened by "
           "ClassLoader %p; can't open in ClassLoader %p",
-          path.c_str(), library->GetClassLoader(), class_loader.get());
+          path.c_str(), library->GetClassLoader(), class_loader.Get());
       LOG(WARNING) << detail;
       return false;
     }
     VLOG(jni) << "[Shared library \"" << path << "\" already loaded in "
-              << "ClassLoader " << class_loader.get() << "]";
+              << "ClassLoader " << class_loader.Get() << "]";
     if (!library->CheckOnLoadResult()) {
       StringAppendF(detail, "JNI_OnLoad failed on a previous attempt "
           "to load \"%s\"", path.c_str());
@@ -3158,18 +3164,18 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path,
     MutexLock mu(self, libraries_lock);
     library = libraries->Get(path);
     if (library == nullptr) {  // We won race to get libraries_lock
-      library = new SharedLibrary(path, handle, class_loader.get());
+      library = new SharedLibrary(path, handle, class_loader.Get());
       libraries->Put(path, library);
       created_library = true;
     }
   }
   if (!created_library) {
     LOG(INFO) << "WOW: we lost a race to add shared library: "
-        << "\"" << path << "\" ClassLoader=" << class_loader.get();
+        << "\"" << path << "\" ClassLoader=" << class_loader.Get();
     return library->CheckOnLoadResult();
   }
 
-  VLOG(jni) << "[Added shared library \"" << path << "\" for ClassLoader " << class_loader.get()
+  VLOG(jni) << "[Added shared library \"" << path << "\" for ClassLoader " << class_loader.Get()
       << "]";
 
   bool was_successful = false;
@@ -3184,8 +3190,9 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path,
     // the comments in the JNI FindClass function.)
     typedef int (*JNI_OnLoadFn)(JavaVM*, void*);
     JNI_OnLoadFn jni_on_load = reinterpret_cast<JNI_OnLoadFn>(sym);
-    SirtRef<mirror::ClassLoader> old_class_loader(self, self->GetClassLoaderOverride());
-    self->SetClassLoaderOverride(class_loader.get());
+    StackHandleScope<1> hs(self);
+    Handle<mirror::ClassLoader> old_class_loader(hs.NewHandle(self->GetClassLoaderOverride()));
+    self->SetClassLoaderOverride(class_loader.Get());
 
     int version = 0;
     {
@@ -3194,7 +3201,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path,
       version = (*jni_on_load)(this, nullptr);
     }
 
-    self->SetClassLoaderOverride(old_class_loader.get());
+    self->SetClassLoaderOverride(old_class_loader.Get());
 
     if (version == JNI_ERR) {
       StringAppendF(detail, "JNI_ERR returned from JNI_OnLoad in \"%s\"", path.c_str());

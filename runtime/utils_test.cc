@@ -23,7 +23,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string.h"
 #include "scoped_thread_state_change.h"
-#include "sirt_ref.h"
+#include "handle_scope-inl.h"
 
 #include <valgrind.h>
 
@@ -95,11 +95,12 @@ TEST_F(UtilsTest, PrettyTypeOf) {
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ("null", PrettyTypeOf(NULL));
 
-  SirtRef<mirror::String> s(soa.Self(), mirror::String::AllocFromModifiedUtf8(soa.Self(), ""));
-  EXPECT_EQ("java.lang.String", PrettyTypeOf(s.get()));
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::String> s(hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), "")));
+  EXPECT_EQ("java.lang.String", PrettyTypeOf(s.Get()));
 
-  SirtRef<mirror::ShortArray> a(soa.Self(), mirror::ShortArray::Alloc(soa.Self(), 2));
-  EXPECT_EQ("short[]", PrettyTypeOf(a.get()));
+  Handle<mirror::ShortArray> a(hs.NewHandle(mirror::ShortArray::Alloc(soa.Self(), 2)));
+  EXPECT_EQ("short[]", PrettyTypeOf(a.Get()));
 
   mirror::Class* c = class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);

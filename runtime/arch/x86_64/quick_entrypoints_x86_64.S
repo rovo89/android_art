@@ -1053,12 +1053,12 @@ END_FUNCTION art_quick_resolution_trampoline
  * | Return            |
  * | Callee-Save Data  |
  * #-------------------#
- * | SIRT              |
+ * | handle scope              |
  * #-------------------#
  * | Method*           |    <--- (1)
  * #-------------------#
  * | local ref cookie  | // 4B
- * | SIRT size         | // 4B   TODO: roll into call stack alignment?
+ * | handle scope size         | // 4B   TODO: roll into call stack alignment?
  * #-------------------#
  * | JNI Call Stack    |
  * #-------------------#    <--- SP on native call
@@ -1111,8 +1111,8 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     //
     //      4    local state ref
     //      4    padding
-    //   4196    4k scratch space, enough for 2x 256 8-byte parameters (TODO: SIRT overhead?)
-    //     16    SIRT member fields ?
+    //   4196    4k scratch space, enough for 2x 256 8-byte parameters (TODO: handle scope overhead?)
+    //     16    handle scope member fields ?
     // +  112    14x 8-byte stack-2-register space
     // ------
     //   4332
@@ -1217,7 +1217,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %rbx, %rsp
     CFI_DEF_CFA_REGISTER(rsp)
 .Lexception_in_native:
-    // TODO: the SIRT contains the this pointer which is used by the debugger for exception
+    // TODO: the handle scope contains the this pointer which is used by the debugger for exception
     //       delivery.
     movq %xmm0, 16(%rsp)         // doesn't make sense!!!
     movq 24(%rsp), %xmm1            // neither does this!!!

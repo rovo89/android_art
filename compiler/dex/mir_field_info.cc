@@ -21,10 +21,10 @@
 #include "base/logging.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_driver-inl.h"
-#include "mirror/class_loader.h"  // Only to allow casts in SirtRef<ClassLoader>.
-#include "mirror/dex_cache.h"     // Only to allow casts in SirtRef<DexCache>.
+#include "mirror/class_loader.h"  // Only to allow casts in Handle<ClassLoader>.
+#include "mirror/dex_cache.h"     // Only to allow casts in Handle<DexCache>.
 #include "scoped_thread_state_change.h"
-#include "sirt_ref-inl.h"
+#include "handle_scope-inl.h"
 
 namespace art {
 
@@ -43,11 +43,12 @@ void MirIFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
   // We're going to resolve fields and check access in a tight loop. It's better to hold
   // the lock and needed references once than re-acquiring them again and again.
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<mirror::DexCache> dex_cache(soa.Self(), compiler_driver->GetDexCache(mUnit));
-  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
-      compiler_driver->GetClassLoader(soa, mUnit));
-  SirtRef<mirror::Class> referrer_class(soa.Self(),
-      compiler_driver->ResolveCompilingMethodsClass(soa, dex_cache, class_loader, mUnit));
+  StackHandleScope<3> hs(soa.Self());
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(compiler_driver->GetDexCache(mUnit)));
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(compiler_driver->GetClassLoader(soa, mUnit)));
+  Handle<mirror::Class> referrer_class(hs.NewHandle(
+      compiler_driver->ResolveCompilingMethodsClass(soa, dex_cache, class_loader, mUnit)));
   // Even if the referrer class is unresolved (i.e. we're compiling a method without class
   // definition) we still want to resolve fields and record all available info.
 
@@ -63,7 +64,7 @@ void MirIFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     bool is_volatile = compiler_driver->IsFieldVolatile(resolved_field);
 
     std::pair<bool, bool> fast_path = compiler_driver->IsFastInstanceField(
-        dex_cache.get(), referrer_class.get(), resolved_field, field_idx, &it->field_offset_);
+        dex_cache.Get(), referrer_class.Get(), resolved_field, field_idx, &it->field_offset_);
     it->flags_ = 0u |  // Without kFlagIsStatic.
         (is_volatile ? kFlagIsVolatile : 0u) |
         (fast_path.first ? kFlagFastGet : 0u) |
@@ -89,11 +90,12 @@ void MirSFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
   // We're going to resolve fields and check access in a tight loop. It's better to hold
   // the lock and needed references once than re-acquiring them again and again.
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<mirror::DexCache> dex_cache(soa.Self(), compiler_driver->GetDexCache(mUnit));
-  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
-      compiler_driver->GetClassLoader(soa, mUnit));
-  SirtRef<mirror::Class> referrer_class(soa.Self(),
-      compiler_driver->ResolveCompilingMethodsClass(soa, dex_cache, class_loader, mUnit));
+  StackHandleScope<3> hs(soa.Self());
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(compiler_driver->GetDexCache(mUnit)));
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(compiler_driver->GetClassLoader(soa, mUnit)));
+  Handle<mirror::Class> referrer_class(hs.NewHandle(
+      compiler_driver->ResolveCompilingMethodsClass(soa, dex_cache, class_loader, mUnit)));
   // Even if the referrer class is unresolved (i.e. we're compiling a method without class
   // definition) we still want to resolve fields and record all available info.
 
@@ -110,7 +112,7 @@ void MirSFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
 
     bool is_referrers_class, is_initialized;
     std::pair<bool, bool> fast_path = compiler_driver->IsFastStaticField(
-        dex_cache.get(), referrer_class.get(), resolved_field, field_idx, &it->field_offset_,
+        dex_cache.Get(), referrer_class.Get(), resolved_field, field_idx, &it->field_offset_,
         &it->storage_index_, &is_referrers_class, &is_initialized);
     it->flags_ = kFlagIsStatic |
         (is_volatile ? kFlagIsVolatile : 0u) |

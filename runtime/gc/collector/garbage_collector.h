@@ -142,7 +142,7 @@ class GarbageCollector {
   virtual void RevokeAllThreadLocalBuffers() = 0;
 
   // Record that you have freed some objects or large objects, calls Heap::RecordFree.
-  // TODO: These are not thread safe, add a lock if we get have parallel sweeping.
+  // TODO: These are not thread safe, add a lock if we get parallel sweeping.
   void RecordFree(uint64_t freed_objects, int64_t freed_bytes);
   void RecordFreeLargeObjects(uint64_t freed_objects, int64_t freed_bytes);
 

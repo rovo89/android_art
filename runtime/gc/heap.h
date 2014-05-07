@@ -412,7 +412,7 @@ class Heap {
     return GetTotalMemory() - num_bytes_allocated_;
   }
 
-  // Get the space that corresponds to an object's address. Current implementation searches all
+  // get the space that corresponds to an object's address. Current implementation searches all
   // spaces in turn. If fail_ok is false then failing to find a space will cause an abort.
   // TODO: consider using faster data structure like binary tree.
   space::ContinuousSpace* FindContinuousSpaceFromObject(const mirror::Object*, bool fail_ok) const;
@@ -582,6 +582,10 @@ class Heap {
                                        mirror::Object** obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  accounting::ObjectStack* GetMarkStack() {
+    return mark_stack_.get();
+  }
+
   // We don't force this to be inlined since it is a slow path.
   template <bool kInstrumented, typename PreFenceVisitor>
   mirror::Object* AllocLargeObject(Thread* self, mirror::Class* klass, size_t byte_count,
@@ -634,7 +638,10 @@ class Heap {
   void RequestCollectorTransition(CollectorType desired_collector_type, uint64_t delta_time)
       LOCKS_EXCLUDED(heap_trim_request_lock_);
   void RequestHeapTrim() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
-  void RequestConcurrentGC(Thread* self) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
+  void RequestConcurrentGCAndSaveObject(Thread* self, mirror::Object** obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void RequestConcurrentGC(Thread* self)
+      LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
   bool IsGCRequestPending() const;
 
   // Sometimes CollectGarbageInternal decides to run a different Gc than you requested. Returns

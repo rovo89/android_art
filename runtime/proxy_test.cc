@@ -107,8 +107,9 @@ class ProxyTest : public CommonCompilerTest {
 TEST_F(ProxyTest, ProxyClassHelper) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("Interfaces");
-  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
-                                            soa.Decode<mirror::ClassLoader*>(jclass_loader));
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
 
   mirror::Class* I = class_linker_->FindClass(soa.Self(), "LInterfaces$I;", class_loader);
   mirror::Class* J = class_linker_->FindClass(soa.Self(), "LInterfaces$J;", class_loader);
@@ -136,8 +137,9 @@ TEST_F(ProxyTest, ProxyClassHelper) {
 TEST_F(ProxyTest, ProxyFieldHelper) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("Interfaces");
-  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
-                                            soa.Decode<mirror::ClassLoader*>(jclass_loader));
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
 
   mirror::Class* I = class_linker_->FindClass(soa.Self(), "LInterfaces$I;", class_loader);
   mirror::Class* J = class_linker_->FindClass(soa.Self(), "LInterfaces$J;", class_loader);

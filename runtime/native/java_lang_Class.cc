@@ -62,12 +62,12 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
   }
 
   std::string descriptor(DotToDescriptor(name.c_str()));
-  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
-                                            soa.Decode<mirror::ClassLoader*>(javaLoader));
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(soa.Decode<mirror::ClassLoader*>(javaLoader)));
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  SirtRef<mirror::Class> c(soa.Self(), class_linker->FindClass(soa.Self(), descriptor.c_str(),
-                                                               class_loader));
-  if (c.get() == nullptr) {
+  Handle<mirror::Class> c(
+      hs.NewHandle(class_linker->FindClass(soa.Self(), descriptor.c_str(), class_loader)));
+  if (c.Get() == nullptr) {
     ScopedLocalRef<jthrowable> cause(env, env->ExceptionOccurred());
     env->ExceptionClear();
     jthrowable cnfe = reinterpret_cast<jthrowable>(env->NewObject(WellKnownClasses::java_lang_ClassNotFoundException,
@@ -79,7 +79,7 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
   if (initialize) {
     class_linker->EnsureInitialized(c, true, true);
   }
-  return soa.AddLocalReference<jclass>(c.get());
+  return soa.AddLocalReference<jclass>(c.Get());
 }
 
 static jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {

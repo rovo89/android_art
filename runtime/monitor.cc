@@ -632,18 +632,18 @@ void Monitor::Inflate(Thread* self, Thread* owner, mirror::Object* obj, int32_t 
   }
 }
 
-void Monitor::InflateThinLocked(Thread* self, SirtRef<mirror::Object>& obj, LockWord lock_word,
+void Monitor::InflateThinLocked(Thread* self, Handle<mirror::Object>& obj, LockWord lock_word,
                                 uint32_t hash_code) {
   DCHECK_EQ(lock_word.GetState(), LockWord::kThinLocked);
   uint32_t owner_thread_id = lock_word.ThinLockOwner();
   if (owner_thread_id == self->GetThreadId()) {
     // We own the monitor, we can easily inflate it.
-    Inflate(self, self, obj.get(), hash_code);
+    Inflate(self, self, obj.Get(), hash_code);
   } else {
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
     // Suspend the owner, inflate. First change to blocked and give up mutator_lock_.
     ScopedThreadStateChange tsc(self, kBlocked);
-    self->SetMonitorEnterObject(obj.get());
+    self->SetMonitorEnterObject(obj.Get());
     if (lock_word == obj->GetLockWord(true)) {  // If lock word hasn't changed.
       bool timed_out;
       Thread* owner = thread_list->SuspendThreadByThreadId(owner_thread_id, false, &timed_out);
@@ -653,7 +653,7 @@ void Monitor::InflateThinLocked(Thread* self, SirtRef<mirror::Object>& obj, Lock
         if (lock_word.GetState() == LockWord::kThinLocked &&
             lock_word.ThinLockOwner() == owner_thread_id) {
           // Go ahead and inflate the lock.
-          Inflate(self, owner, obj.get(), hash_code);
+          Inflate(self, owner, obj.Get(), hash_code);
         }
         thread_list->Resume(owner, false);
       }
@@ -680,15 +680,16 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
   obj = FakeLock(obj);
   uint32_t thread_id = self->GetThreadId();
   size_t contention_count = 0;
-  SirtRef<mirror::Object> sirt_obj(self, obj);
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Object> h_obj(hs.NewHandle(obj));
   while (true) {
-    LockWord lock_word = sirt_obj->GetLockWord(true);
+    LockWord lock_word = h_obj->GetLockWord(true);
     switch (lock_word.GetState()) {
       case LockWord::kUnlocked: {
         LockWord thin_locked(LockWord::FromThinLockId(thread_id, 0));
-        if (sirt_obj->CasLockWord(lock_word, thin_locked)) {
+        if (h_obj->CasLockWord(lock_word, thin_locked)) {
           QuasiAtomic::MembarLoadLoad();
-          return sirt_obj.get();  // Success!
+          return h_obj.Get();  // Success!
         }
         continue;  // Go again.
       }
@@ -699,11 +700,11 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
           uint32_t new_count = lock_word.ThinLockCount() + 1;
           if (LIKELY(new_count <= LockWord::kThinLockMaxCount)) {
             LockWord thin_locked(LockWord::FromThinLockId(thread_id, new_count));
-            sirt_obj->SetLockWord(thin_locked, true);
-            return sirt_obj.get();  // Success!
+            h_obj->SetLockWord(thin_locked, true);
+            return h_obj.Get();  // Success!
           } else {
             // We'd overflow the recursion count, so inflate the monitor.
-            InflateThinLocked(self, sirt_obj, lock_word, 0);
+            InflateThinLocked(self, h_obj, lock_word, 0);
           }
         } else {
           // Contention.
@@ -713,7 +714,7 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
             NanoSleep(1000);  // Sleep for 1us and re-attempt.
           } else {
             contention_count = 0;
-            InflateThinLocked(self, sirt_obj, lock_word, 0);
+            InflateThinLocked(self, h_obj, lock_word, 0);
           }
         }
         continue;  // Start from the beginning.
@@ -721,15 +722,15 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
       case LockWord::kFatLocked: {
         Monitor* mon = lock_word.FatLockMonitor();
         mon->Lock(self);
-        return sirt_obj.get();  // Success!
+        return h_obj.Get();  // Success!
       }
       case LockWord::kHashCode:
         // Inflate with the existing hashcode.
-        Inflate(self, nullptr, sirt_obj.get(), lock_word.GetHashCode());
+        Inflate(self, nullptr, h_obj.Get(), lock_word.GetHashCode());
         continue;  // Start from the beginning.
       default: {
         LOG(FATAL) << "Invalid monitor state " << lock_word.GetState();
-        return sirt_obj.get();
+        return h_obj.Get();
       }
     }
   }
@@ -740,12 +741,13 @@ bool Monitor::MonitorExit(Thread* self, mirror::Object* obj) {
   DCHECK(obj != NULL);
   obj = FakeUnlock(obj);
   LockWord lock_word = obj->GetLockWord(true);
-  SirtRef<mirror::Object> sirt_obj(self, obj);
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Object> h_obj(hs.NewHandle(obj));
   switch (lock_word.GetState()) {
     case LockWord::kHashCode:
       // Fall-through.
     case LockWord::kUnlocked:
-      FailedUnlock(sirt_obj.get(), self, nullptr, nullptr);
+      FailedUnlock(h_obj.Get(), self, nullptr, nullptr);
       return false;  // Failure.
     case LockWord::kThinLocked: {
       uint32_t thread_id = self->GetThreadId();
@@ -754,16 +756,16 @@ bool Monitor::MonitorExit(Thread* self, mirror::Object* obj) {
         // TODO: there's a race here with the owner dying while we unlock.
         Thread* owner =
             Runtime::Current()->GetThreadList()->FindThreadByThreadId(lock_word.ThinLockOwner());
-        FailedUnlock(sirt_obj.get(), self, owner, nullptr);
+        FailedUnlock(h_obj.Get(), self, owner, nullptr);
         return false;  // Failure.
       } else {
         // We own the lock, decrease the recursion count.
         if (lock_word.ThinLockCount() != 0) {
           uint32_t new_count = lock_word.ThinLockCount() - 1;
           LockWord thin_locked(LockWord::FromThinLockId(thread_id, new_count));
-          sirt_obj->SetLockWord(thin_locked, true);
+          h_obj->SetLockWord(thin_locked, true);
         } else {
-          sirt_obj->SetLockWord(LockWord(), true);
+          h_obj->SetLockWord(LockWord(), true);
         }
         return true;  // Success!
       }
@@ -946,7 +948,7 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
   // TODO: use the JNI implementation's table of explicit MonitorEnter calls and dump those too.
   if (m->IsNative()) {
     if (m->IsSynchronized()) {
-      mirror::Object* jni_this = stack_visitor->GetCurrentSirt()->GetReference(0);
+      mirror::Object* jni_this = stack_visitor->GetCurrentHandleScope()->GetReference(0);
       callback(jni_this, callback_context);
     }
     return;

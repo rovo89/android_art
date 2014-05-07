@@ -242,7 +242,7 @@ class SemiSpace : public GarbageCollector {
   // heap. When false, collect only the bump pointer spaces.
   bool whole_heap_collection_;
 
-  // How many objects and bytes we moved, used so that we don't need to get the size of the
+  // How many objects and bytes we moved, used so that we don't need to Get the size of the
   // to_space_ when calculating how many objects and bytes we freed.
   size_t bytes_moved_;
   size_t objects_moved_;

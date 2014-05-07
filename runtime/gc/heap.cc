@@ -62,7 +62,7 @@
 #include "runtime.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
-#include "sirt_ref.h"
+#include "handle_scope-inl.h"
 #include "thread_list.h"
 #include "UniquePtr.h"
 #include "well_known_classes.h"
@@ -1070,10 +1070,11 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
                                              size_t alloc_size, size_t* bytes_allocated,
                                              size_t* usable_size,
                                              mirror::Class** klass) {
-  mirror::Object* ptr = nullptr;
   bool was_default_allocator = allocator == GetCurrentAllocator();
   DCHECK(klass != nullptr);
-  SirtRef<mirror::Class> sirt_klass(self, *klass);
+  StackHandleScope<1> hs(self);
+  HandleWrapper<mirror::Class> h(hs.NewHandleWrapper(klass));
+  klass = nullptr;  // Invalidate for safety.
   // The allocation failed. If the GC is running, block until it completes, and then retry the
   // allocation.
   collector::GcType last_gc = WaitForGcToComplete(kGcCauseForAlloc, self);
@@ -1081,31 +1082,32 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
     // If we were the default allocator but the allocator changed while we were suspended,
     // abort the allocation.
     if (was_default_allocator && allocator != GetCurrentAllocator()) {
-      *klass = sirt_klass.get();
       return nullptr;
     }
     // A GC was in progress and we blocked, retry allocation now that memory has been freed.
-    ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated, usable_size);
+    mirror::Object* ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated,
+                                                     usable_size);
+    if (ptr != nullptr) {
+      return ptr;
+    }
   }
 
   collector::GcType tried_type = next_gc_type_;
-  if (ptr == nullptr) {
-    const bool gc_ran =
-        CollectGarbageInternal(tried_type, kGcCauseForAlloc, false) != collector::kGcTypeNone;
-    if (was_default_allocator && allocator != GetCurrentAllocator()) {
-      *klass = sirt_klass.get();
-      return nullptr;
-    }
-    if (gc_ran) {
-      ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated, usable_size);
+  const bool gc_ran =
+      CollectGarbageInternal(tried_type, kGcCauseForAlloc, false) != collector::kGcTypeNone;
+  if (was_default_allocator && allocator != GetCurrentAllocator()) {
+    return nullptr;
+  }
+  if (gc_ran) {
+    mirror::Object* ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated,
+                                                     usable_size);
+    if (ptr != nullptr) {
+      return ptr;
     }
   }
 
   // Loop through our different Gc types and try to Gc until we get enough free memory.
   for (collector::GcType gc_type : gc_plan_) {
-    if (ptr != nullptr) {
-      break;
-    }
     if (gc_type == tried_type) {
       continue;
     }
@@ -1113,40 +1115,41 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
     const bool gc_ran =
         CollectGarbageInternal(gc_type, kGcCauseForAlloc, false) != collector::kGcTypeNone;
     if (was_default_allocator && allocator != GetCurrentAllocator()) {
-      *klass = sirt_klass.get();
       return nullptr;
     }
     if (gc_ran) {
       // Did we free sufficient memory for the allocation to succeed?
-      ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated, usable_size);
+      mirror::Object* ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated,
+                                                       usable_size);
+      if (ptr != nullptr) {
+        return ptr;
+      }
     }
   }
   // Allocations have failed after GCs;  this is an exceptional state.
-  if (ptr == nullptr) {
-    // Try harder, growing the heap if necessary.
-    ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated, usable_size);
+  // Try harder, growing the heap if necessary.
+  mirror::Object* ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated,
+                                                  usable_size);
+  if (ptr != nullptr) {
+    return ptr;
   }
-  if (ptr == nullptr) {
-    // Most allocations should have succeeded by now, so the heap is really full, really fragmented,
-    // or the requested size is really big. Do another GC, collecting SoftReferences this time. The
-    // VM spec requires that all SoftReferences have been collected and cleared before throwing
-    // OOME.
-    VLOG(gc) << "Forcing collection of SoftReferences for " << PrettySize(alloc_size)
-             << " allocation";
-    // TODO: Run finalization, but this may cause more allocations to occur.
-    // We don't need a WaitForGcToComplete here either.
-    DCHECK(!gc_plan_.empty());
-    CollectGarbageInternal(gc_plan_.back(), kGcCauseForAlloc, true);
-    if (was_default_allocator && allocator != GetCurrentAllocator()) {
-      *klass = sirt_klass.get();
-      return nullptr;
-    }
-    ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated, usable_size);
-    if (ptr == nullptr) {
-      ThrowOutOfMemoryError(self, alloc_size, false);
-    }
+  // Most allocations should have succeeded by now, so the heap is really full, really fragmented,
+  // or the requested size is really big. Do another GC, collecting SoftReferences this time. The
+  // VM spec requires that all SoftReferences have been collected and cleared before throwing
+  // OOME.
+  VLOG(gc) << "Forcing collection of SoftReferences for " << PrettySize(alloc_size)
+           << " allocation";
+  // TODO: Run finalization, but this may cause more allocations to occur.
+  // We don't need a WaitForGcToComplete here either.
+  DCHECK(!gc_plan_.empty());
+  CollectGarbageInternal(gc_plan_.back(), kGcCauseForAlloc, true);
+  if (was_default_allocator && allocator != GetCurrentAllocator()) {
+    return nullptr;
   }
-  *klass = sirt_klass.get();
+  ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated, usable_size);
+  if (ptr == nullptr) {
+    ThrowOutOfMemoryError(self, alloc_size, false);
+  }
   return ptr;
 }
 
@@ -2534,6 +2537,12 @@ void Heap::AddFinalizerReference(Thread* self, mirror::Object** object) {
   InvokeWithJValues(soa, nullptr, WellKnownClasses::java_lang_ref_FinalizerReference_add, args);
   // Restore object in case it gets moved.
   *object = soa.Decode<mirror::Object*>(arg.get());
+}
+
+void Heap::RequestConcurrentGCAndSaveObject(Thread* self, mirror::Object** obj) {
+  StackHandleScope<1> hs(self);
+  HandleWrapper<mirror::Object> wrapper(hs.NewHandleWrapper(obj));
+  RequestConcurrentGC(self);
 }
 
 void Heap::RequestConcurrentGC(Thread* self) {

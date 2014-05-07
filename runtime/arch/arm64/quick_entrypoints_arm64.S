@@ -1444,7 +1444,7 @@ END art_quick_resolution_trampoline
  * | RDI/Method*       |  <- X0
  * #-------------------#
  * | local ref cookie  | // 4B
- * |   SIRT size       | // 4B
+ * |   handle scope size       | // 4B
  * #-------------------#
  * | JNI Call Stack    |
  * #-------------------#    <--- SP on native call
@@ -1471,7 +1471,7 @@ ENTRY art_quick_generic_jni_trampoline
     .cfi_def_cfa_register x28
 
     // This looks the same, but is different: this will be updated to point to the bottom
-    // of the frame when the SIRT is inserted.
+    // of the frame when the handle scope is inserted.
     mov xFP, sp
 
     mov x8, #5120
@@ -1486,7 +1486,7 @@ ENTRY art_quick_generic_jni_trampoline
     mov x1, xFP
     bl artQuickGenericJniTrampoline  // (Thread*, sp)
 
-    // Get the updated pointer. This is the bottom of the frame _with_ SIRT.
+    // Get the updated pointer. This is the bottom of the frame _with_ handle scope.
     ldr xFP, [sp]
     add x9, sp, #8
 

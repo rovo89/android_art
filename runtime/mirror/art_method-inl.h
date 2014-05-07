@@ -225,10 +225,10 @@ inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
   if (UNLIKELY(entry_point == GetQuickGenericJniTrampoline())) {
     // Generic JNI frame.
     DCHECK(IsNative());
-    uint32_t sirt_refs = MethodHelper(this).GetNumberOfReferenceArgsWithoutReceiver() + 1;
-    size_t sirt_size = StackIndirectReferenceTable::GetAlignedSirtSize(sirt_refs);
+    uint32_t handle_refs = MethodHelper(this).GetNumberOfReferenceArgsWithoutReceiver() + 1;
+    size_t scope_size = HandleScope::GetAlignedHandleScopeSize(handle_refs);
     QuickMethodFrameInfo callee_info = runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
-    return QuickMethodFrameInfo(callee_info.FrameSizeInBytes() + sirt_size,
+    return QuickMethodFrameInfo(callee_info.FrameSizeInBytes() + scope_size,
                                 callee_info.CoreSpillMask(), callee_info.FpSpillMask());
   }
 

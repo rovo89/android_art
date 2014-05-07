@@ -34,7 +34,7 @@
 #include "art_method-inl.h"
 #include "object-inl.h"
 #include "object_array-inl.h"
-#include "sirt_ref.h"
+#include "handle_scope-inl.h"
 #include "string-inl.h"
 #include "UniquePtr.h"
 
@@ -56,7 +56,9 @@ class ObjectTest : public CommonRuntimeTest {
     }
 
     Thread* self = Thread::Current();
-    SirtRef<String> string(self, String::AllocFromModifiedUtf8(self, expected_utf16_length, utf8_in));
+    StackHandleScope<1> hs(self);
+    Handle<String> string(
+        hs.NewHandle(String::AllocFromModifiedUtf8(self, expected_utf16_length, utf8_in)));
     ASSERT_EQ(expected_utf16_length, string->GetLength());
     ASSERT_TRUE(string->GetCharArray() != NULL);
     ASSERT_TRUE(string->GetCharArray()->GetData() != NULL);
@@ -102,8 +104,9 @@ TEST_F(ObjectTest, IsInSamePackage) {
 
 TEST_F(ObjectTest, Clone) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<ObjectArray<Object> > a1(soa.Self(),
-                                   class_linker_->AllocObjectArray<Object>(soa.Self(), 256));
+  StackHandleScope<1> hs(soa.Self());
+  Handle<ObjectArray<Object>> a1(
+      hs.NewHandle(class_linker_->AllocObjectArray<Object>(soa.Self(), 256)));
   size_t s1 = a1->SizeOf();
   Object* clone = a1->Clone(soa.Self());
   EXPECT_EQ(s1, clone->SizeOf());
@@ -112,17 +115,18 @@ TEST_F(ObjectTest, Clone) {
 
 TEST_F(ObjectTest, AllocObjectArray) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<ObjectArray<Object> > oa(soa.Self(),
-                                   class_linker_->AllocObjectArray<Object>(soa.Self(), 2));
+  StackHandleScope<1> hs(soa.Self());
+  Handle<ObjectArray<Object> > oa(
+      hs.NewHandle(class_linker_->AllocObjectArray<Object>(soa.Self(), 2)));
   EXPECT_EQ(2, oa->GetLength());
   EXPECT_TRUE(oa->Get(0) == NULL);
   EXPECT_TRUE(oa->Get(1) == NULL);
-  oa->Set<false>(0, oa.get());
-  EXPECT_TRUE(oa->Get(0) == oa.get());
+  oa->Set<false>(0, oa.Get());
+  EXPECT_TRUE(oa->Get(0) == oa.Get());
   EXPECT_TRUE(oa->Get(1) == NULL);
-  oa->Set<false>(1, oa.get());
-  EXPECT_TRUE(oa->Get(0) == oa.get());
-  EXPECT_TRUE(oa->Get(1) == oa.get());
+  oa->Set<false>(1, oa.Get());
+  EXPECT_TRUE(oa->Get(0) == oa.Get());
+  EXPECT_TRUE(oa->Get(1) == oa.Get());
 
   Class* aioobe = class_linker_->FindSystemClass(soa.Self(),
                                                  "Ljava/lang/ArrayIndexOutOfBoundsException;");
@@ -149,20 +153,22 @@ TEST_F(ObjectTest, AllocObjectArray) {
 TEST_F(ObjectTest, AllocArray) {
   ScopedObjectAccess soa(Thread::Current());
   Class* c = class_linker_->FindSystemClass(soa.Self(), "[I");
-  SirtRef<Array> a(soa.Self(), Array::Alloc<true>(soa.Self(), c, 1, c->GetComponentSize(),
-                                                  Runtime::Current()->GetHeap()->GetCurrentAllocator()));
+  StackHandleScope<1> hs(soa.Self());
+  Handle<Array> a(
+      hs.NewHandle(Array::Alloc<true>(soa.Self(), c, 1, c->GetComponentSize(),
+                                      Runtime::Current()->GetHeap()->GetCurrentAllocator())));
   EXPECT_TRUE(c == a->GetClass());
   EXPECT_EQ(1, a->GetLength());
 
   c = class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/Object;");
-  a.reset(Array::Alloc<true>(soa.Self(), c, 1, c->GetComponentSize(),
-                             Runtime::Current()->GetHeap()->GetCurrentAllocator()));
+  a.Assign(Array::Alloc<true>(soa.Self(), c, 1, c->GetComponentSize(),
+                              Runtime::Current()->GetHeap()->GetCurrentAllocator()));
   EXPECT_TRUE(c == a->GetClass());
   EXPECT_EQ(1, a->GetLength());
 
   c = class_linker_->FindSystemClass(soa.Self(), "[[Ljava/lang/Object;");
-  a.reset(Array::Alloc<true>(soa.Self(), c, 1, c->GetComponentSize(),
-                             Runtime::Current()->GetHeap()->GetCurrentAllocator()));
+  a.Assign(Array::Alloc<true>(soa.Self(), c, 1, c->GetComponentSize(),
+                              Runtime::Current()->GetHeap()->GetCurrentAllocator()));
   EXPECT_TRUE(c == a->GetClass());
   EXPECT_EQ(1, a->GetLength());
 }
@@ -170,28 +176,27 @@ TEST_F(ObjectTest, AllocArray) {
 TEST_F(ObjectTest, AllocArray_FillUsable) {
   ScopedObjectAccess soa(Thread::Current());
   Class* c = class_linker_->FindSystemClass(soa.Self(), "[B");
-  SirtRef<Array> a(soa.Self(), Array::Alloc<true>(soa.Self(), c, 1, c->GetComponentSize(),
-                                                  Runtime::Current()->GetHeap()->GetCurrentAllocator(),
-                                                  true));
+  StackHandleScope<1> hs(soa.Self());
+  Handle<Array> a(
+      hs.NewHandle(Array::Alloc<true>(soa.Self(), c, 1, c->GetComponentSize(),
+                                      Runtime::Current()->GetHeap()->GetCurrentAllocator(), true)));
   EXPECT_TRUE(c == a->GetClass());
   EXPECT_LE(1, a->GetLength());
 
   c = class_linker_->FindSystemClass(soa.Self(), "[I");
-  a.reset(Array::Alloc<true>(soa.Self(), c, 2, c->GetComponentSize(),
-                             Runtime::Current()->GetHeap()->GetCurrentAllocator(),
-                             true));
+  a.Assign(Array::Alloc<true>(soa.Self(), c, 2, c->GetComponentSize(),
+                              Runtime::Current()->GetHeap()->GetCurrentAllocator(), true));
   EXPECT_TRUE(c == a->GetClass());
   EXPECT_LE(2, a->GetLength());
 
   c = class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/Object;");
-  a.reset(Array::Alloc<true>(soa.Self(), c, 2, c->GetComponentSize(),
-                             Runtime::Current()->GetHeap()->GetCurrentAllocator(),
-                             true));
+  a.Assign(Array::Alloc<true>(soa.Self(), c, 2, c->GetComponentSize(),
+                              Runtime::Current()->GetHeap()->GetCurrentAllocator(), true));
   EXPECT_TRUE(c == a->GetClass());
   EXPECT_LE(2, a->GetLength());
 
   c = class_linker_->FindSystemClass(soa.Self(), "[[Ljava/lang/Object;");
-  a.reset(Array::Alloc<true>(soa.Self(), c, 2, c->GetComponentSize(),
+  a.Assign(Array::Alloc<true>(soa.Self(), c, 2, c->GetComponentSize(),
                              Runtime::Current()->GetHeap()->GetCurrentAllocator(), true));
   EXPECT_TRUE(c == a->GetClass());
   EXPECT_LE(2, a->GetLength());
@@ -273,8 +278,9 @@ TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
 TEST_F(ObjectTest, CreateMultiArray) {
   ScopedObjectAccess soa(Thread::Current());
 
-  SirtRef<Class> c(soa.Self(), class_linker_->FindSystemClass(soa.Self(), "I"));
-  SirtRef<IntArray> dims(soa.Self(), IntArray::Alloc(soa.Self(), 1));
+  StackHandleScope<2> hs(soa.Self());
+  Handle<Class> c(hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "I")));
+  Handle<IntArray> dims(hs.NewHandle(IntArray::Alloc(soa.Self(), 1)));
   dims->Set<false>(0, 1);
   Array* multi = Array::CreateMultiArray(soa.Self(), c, dims);
   EXPECT_TRUE(multi->GetClass() == class_linker_->FindSystemClass(soa.Self(), "[I"));
@@ -287,7 +293,7 @@ TEST_F(ObjectTest, CreateMultiArray) {
             "java.lang.NegativeArraySizeException");
   soa.Self()->ClearException();
 
-  dims.reset(IntArray::Alloc(soa.Self(), 2));
+  dims.Assign(IntArray::Alloc(soa.Self(), 2));
   for (int i = 1; i < 20; ++i) {
     for (int j = 0; j < 20; ++j) {
       dims->Set<false>(0, i);
@@ -311,7 +317,8 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   const DexFile* dex_file = Runtime::Current()->GetCompileTimeClassPath(class_loader)[0];
   CHECK(dex_file != NULL);
 
-  SirtRef<mirror::ClassLoader> loader(soa.Self(), soa.Decode<ClassLoader*>(class_loader));
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<ClassLoader*>(class_loader)));
   Class* klass = class_linker_->FindClass(soa.Self(), "LStaticsFromCode;", loader);
   ArtMethod* clinit = klass->FindClassInitializer();
   const DexFile::StringId* klass_string_id = dex_file->FindStringId("LStaticsFromCode;");
@@ -339,9 +346,9 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   Object* s0 = field->GetObj(klass);
   EXPECT_TRUE(s0 != NULL);
 
-  SirtRef<CharArray> char_array(soa.Self(), CharArray::Alloc(soa.Self(), 0));
-  field->SetObj<false>(field->GetDeclaringClass(), char_array.get());
-  EXPECT_EQ(char_array.get(), field->GetObj(klass));
+  Handle<CharArray> char_array(hs.NewHandle(CharArray::Alloc(soa.Self(), 0)));
+  field->SetObj<false>(field->GetDeclaringClass(), char_array.Get());
+  EXPECT_EQ(char_array.Get(), field->GetObj(klass));
 
   field->SetObj<false>(field->GetDeclaringClass(), NULL);
   EXPECT_EQ(NULL, field->GetObj(klass));
@@ -375,7 +382,8 @@ TEST_F(ObjectTest, String) {
 
 TEST_F(ObjectTest, StringEqualsUtf8) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<String> string(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "android"));
+  StackHandleScope<2> hs(soa.Self());
+  Handle<String> string(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "android")));
   EXPECT_TRUE(string->Equals("android"));
   EXPECT_FALSE(string->Equals("Android"));
   EXPECT_FALSE(string->Equals("ANDROID"));
@@ -383,46 +391,49 @@ TEST_F(ObjectTest, StringEqualsUtf8) {
   EXPECT_FALSE(string->Equals("and"));
   EXPECT_FALSE(string->Equals("androids"));
 
-  SirtRef<String> empty(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), ""));
+  Handle<String> empty(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "")));
   EXPECT_TRUE(empty->Equals(""));
   EXPECT_FALSE(empty->Equals("a"));
 }
 
 TEST_F(ObjectTest, StringEquals) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<String> string(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "android"));
-  SirtRef<String> string_2(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "android"));
-  EXPECT_TRUE(string->Equals(string_2.get()));
+  StackHandleScope<3> hs(soa.Self());
+  Handle<String> string(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "android")));
+  Handle<String> string_2(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "android")));
+  EXPECT_TRUE(string->Equals(string_2.Get()));
   EXPECT_FALSE(string->Equals("Android"));
   EXPECT_FALSE(string->Equals("ANDROID"));
   EXPECT_FALSE(string->Equals(""));
   EXPECT_FALSE(string->Equals("and"));
   EXPECT_FALSE(string->Equals("androids"));
 
-  SirtRef<String> empty(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), ""));
+  Handle<String> empty(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "")));
   EXPECT_TRUE(empty->Equals(""));
   EXPECT_FALSE(empty->Equals("a"));
 }
 
 TEST_F(ObjectTest, StringCompareTo) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<String> string(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "android"));
-  SirtRef<String> string_2(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "android"));
-  SirtRef<String> string_3(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "Android"));
-  SirtRef<String> string_4(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "and"));
-  SirtRef<String> string_5(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), ""));
-  EXPECT_EQ(0, string->CompareTo(string_2.get()));
-  EXPECT_LT(0, string->CompareTo(string_3.get()));
-  EXPECT_GT(0, string_3->CompareTo(string.get()));
-  EXPECT_LT(0, string->CompareTo(string_4.get()));
-  EXPECT_GT(0, string_4->CompareTo(string.get()));
-  EXPECT_LT(0, string->CompareTo(string_5.get()));
-  EXPECT_GT(0, string_5->CompareTo(string.get()));
+  StackHandleScope<5> hs(soa.Self());
+  Handle<String> string(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "android")));
+  Handle<String> string_2(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "android")));
+  Handle<String> string_3(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "Android")));
+  Handle<String> string_4(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "and")));
+  Handle<String> string_5(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "")));
+  EXPECT_EQ(0, string->CompareTo(string_2.Get()));
+  EXPECT_LT(0, string->CompareTo(string_3.Get()));
+  EXPECT_GT(0, string_3->CompareTo(string.Get()));
+  EXPECT_LT(0, string->CompareTo(string_4.Get()));
+  EXPECT_GT(0, string_4->CompareTo(string.Get()));
+  EXPECT_LT(0, string->CompareTo(string_5.Get()));
+  EXPECT_GT(0, string_5->CompareTo(string.Get()));
 }
 
 TEST_F(ObjectTest, StringLength) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<String> string(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "android"));
+  StackHandleScope<1> hs(soa.Self());
+  Handle<String> string(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "android")));
   EXPECT_EQ(string->GetLength(), 7);
   EXPECT_EQ(string->GetUtfLength(), 7);
 
@@ -440,8 +451,9 @@ TEST_F(ObjectTest, DescriptorCompare) {
 
   jobject jclass_loader_1 = LoadDex("ProtoCompare");
   jobject jclass_loader_2 = LoadDex("ProtoCompare2");
-  SirtRef<ClassLoader> class_loader_1(soa.Self(), soa.Decode<ClassLoader*>(jclass_loader_1));
-  SirtRef<ClassLoader> class_loader_2(soa.Self(), soa.Decode<ClassLoader*>(jclass_loader_2));
+  StackHandleScope<2> hs(soa.Self());
+  Handle<ClassLoader> class_loader_1(hs.NewHandle(soa.Decode<ClassLoader*>(jclass_loader_1)));
+  Handle<ClassLoader> class_loader_2(hs.NewHandle(soa.Decode<ClassLoader*>(jclass_loader_2)));
 
   Class* klass1 = linker->FindClass(soa.Self(), "LProtoCompare;", class_loader_1);
   ASSERT_TRUE(klass1 != NULL);
@@ -497,9 +509,10 @@ TEST_F(ObjectTest, DescriptorCompare) {
 
 TEST_F(ObjectTest, StringHashCode) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<String> empty(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), ""));
-  SirtRef<String> A(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "A"));
-  SirtRef<String> ABC(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "ABC"));
+  StackHandleScope<3> hs(soa.Self());
+  Handle<String> empty(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "")));
+  Handle<String> A(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "A")));
+  Handle<String> ABC(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "ABC")));
 
   EXPECT_EQ(0, empty->GetHashCode());
   EXPECT_EQ(65, A->GetHashCode());
@@ -509,17 +522,18 @@ TEST_F(ObjectTest, StringHashCode) {
 TEST_F(ObjectTest, InstanceOf) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("XandY");
-  SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(jclass_loader));
+  StackHandleScope<3> hs(soa.Self());
+  Handle<ClassLoader> class_loader(hs.NewHandle(soa.Decode<ClassLoader*>(jclass_loader)));
 
   Class* X = class_linker_->FindClass(soa.Self(), "LX;", class_loader);
   Class* Y = class_linker_->FindClass(soa.Self(), "LY;", class_loader);
   ASSERT_TRUE(X != NULL);
   ASSERT_TRUE(Y != NULL);
 
-  SirtRef<Object> x(soa.Self(), X->AllocObject(soa.Self()));
-  SirtRef<Object> y(soa.Self(), Y->AllocObject(soa.Self()));
-  ASSERT_TRUE(x.get() != NULL);
-  ASSERT_TRUE(y.get() != NULL);
+  Handle<Object> x(hs.NewHandle(X->AllocObject(soa.Self())));
+  Handle<Object> y(hs.NewHandle(Y->AllocObject(soa.Self())));
+  ASSERT_TRUE(x.Get() != NULL);
+  ASSERT_TRUE(y.Get() != NULL);
 
   EXPECT_TRUE(x->InstanceOf(X));
   EXPECT_FALSE(x->InstanceOf(Y));
@@ -543,7 +557,8 @@ TEST_F(ObjectTest, InstanceOf) {
 TEST_F(ObjectTest, IsAssignableFrom) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("XandY");
-  SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(jclass_loader));
+  StackHandleScope<1> hs(soa.Self());
+  Handle<ClassLoader> class_loader(hs.NewHandle(soa.Decode<ClassLoader*>(jclass_loader)));
   Class* X = class_linker_->FindClass(soa.Self(), "LX;", class_loader);
   Class* Y = class_linker_->FindClass(soa.Self(), "LY;", class_loader);
 
@@ -580,7 +595,8 @@ TEST_F(ObjectTest, IsAssignableFrom) {
 TEST_F(ObjectTest, IsAssignableFromArray) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("XandY");
-  SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(jclass_loader));
+  StackHandleScope<1> hs(soa.Self());
+  Handle<ClassLoader> class_loader(hs.NewHandle(soa.Decode<ClassLoader*>(jclass_loader)));
   Class* X = class_linker_->FindClass(soa.Self(), "LX;", class_loader);
   Class* Y = class_linker_->FindClass(soa.Self(), "LY;", class_loader);
   ASSERT_TRUE(X != NULL);
@@ -632,8 +648,9 @@ TEST_F(ObjectTest, IsAssignableFromArray) {
 
 TEST_F(ObjectTest, FindInstanceField) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<String> s(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "ABC"));
-  ASSERT_TRUE(s.get() != NULL);
+  StackHandleScope<1> hs(soa.Self());
+  Handle<String> s(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "ABC")));
+  ASSERT_TRUE(s.Get() != NULL);
   Class* c = s->GetClass();
   ASSERT_TRUE(c != NULL);
 
@@ -665,8 +682,9 @@ TEST_F(ObjectTest, FindInstanceField) {
 
 TEST_F(ObjectTest, FindStaticField) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<String> s(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "ABC"));
-  ASSERT_TRUE(s.get() != NULL);
+  StackHandleScope<1> hs(soa.Self());
+  Handle<String> s(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "ABC")));
+  ASSERT_TRUE(s.Get() != NULL);
   Class* c = s->GetClass();
   ASSERT_TRUE(c != NULL);
 

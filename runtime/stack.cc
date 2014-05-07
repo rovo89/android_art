@@ -111,11 +111,9 @@ mirror::Object* StackVisitor::GetThisObject() const {
     return NULL;
   } else if (m->IsNative()) {
     if (cur_quick_frame_ != NULL) {
-      StackIndirectReferenceTable* sirt =
-          reinterpret_cast<StackIndirectReferenceTable*>(
-              reinterpret_cast<char*>(cur_quick_frame_) +
-              m->GetSirtOffsetInBytes());
-      return sirt->GetReference(0);
+      HandleScope* hs = reinterpret_cast<HandleScope*>(
+          reinterpret_cast<char*>(cur_quick_frame_) + m->GetHandleScopeOffsetInBytes());
+      return hs->GetReference(0);
     } else {
       return cur_shadow_frame_->GetVRegReference(0);
     }
@@ -277,7 +275,7 @@ void StackVisitor::SanityCheckFrame() const {
       CHECK_NE(frame_size, 0u);
       // A rough guess at an upper size we expect to see for a frame.
       // 256 registers
-      // 2 words Sirt overhead
+      // 2 words HandleScope overhead
       // 3+3 register spills
       // TODO: this seems architecture specific for the case of JNI frames.
       // TODO: 083-compiler-regressions ManyFloatArgs shows this estimate is wrong.

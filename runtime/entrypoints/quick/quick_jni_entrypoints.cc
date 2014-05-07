@@ -65,7 +65,7 @@ static void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* self) {
   JNIEnvExt* env = self->GetJniEnv();
   env->locals.SetSegmentState(env->local_ref_cookie);
   env->local_ref_cookie = saved_local_ref_cookie;
-  self->PopSirt();
+  self->PopHandleScope();
 }
 
 extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self) {

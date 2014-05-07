@@ -25,7 +25,7 @@ namespace art {
 
 // Scoped change into and out of a particular state. Handles Runnable transitions that require
 // more complicated suspension checking. The subclasses ScopedObjectAccessUnchecked and
-// ScopedObjectAccess are used to handle the change into Runnable to get direct access to objects,
+// ScopedObjectAccess are used to handle the change into Runnable to Get direct access to objects,
 // the unchecked variant doesn't aid annotalysis.
 class ScopedThreadStateChange {
  public:

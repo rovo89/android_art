@@ -257,7 +257,8 @@ class CommonCompilerTest : public CommonRuntimeTest {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
     Thread* self = Thread::Current();
-    SirtRef<mirror::ClassLoader> loader(self, class_loader);
+    StackHandleScope<1> hs(self);
+    Handle<mirror::ClassLoader> loader(hs.NewHandle(class_loader));
     mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), loader);
     CHECK(klass != nullptr) << "Class not found " << class_name;
     for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
@@ -352,7 +353,8 @@ class CommonCompilerTest : public CommonRuntimeTest {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
     Thread* self = Thread::Current();
-    SirtRef<mirror::ClassLoader> loader(self, class_loader);
+    StackHandleScope<1> hs(self);
+    Handle<mirror::ClassLoader> loader(hs.NewHandle(class_loader));
     mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), loader);
     CHECK(klass != nullptr) << "Class not found " << class_name;
     for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
@@ -372,7 +374,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
     timings.EndSplit();
   }
 
-  void CompileDirectMethod(SirtRef<mirror::ClassLoader>& class_loader, const char* class_name,
+  void CompileDirectMethod(Handle<mirror::ClassLoader>& class_loader, const char* class_name,
                            const char* method_name, const char* signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
@@ -385,7 +387,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
     CompileMethod(method);
   }
 
-  void CompileVirtualMethod(SirtRef<mirror::ClassLoader>& class_loader, const char* class_name,
+  void CompileVirtualMethod(Handle<mirror::ClassLoader>& class_loader, const char* class_name,
                             const char* method_name, const char* signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));

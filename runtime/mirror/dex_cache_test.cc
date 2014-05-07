@@ -23,7 +23,7 @@
 #include "gc/heap.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
-#include "sirt_ref.h"
+#include "handle_scope-inl.h"
 
 namespace art {
 namespace mirror {
@@ -32,9 +32,10 @@ class DexCacheTest : public CommonRuntimeTest {};
 
 TEST_F(DexCacheTest, Open) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<DexCache> dex_cache(soa.Self(), class_linker_->AllocDexCache(soa.Self(),
-                                                                       *java_lang_dex_file_));
-  ASSERT_TRUE(dex_cache.get() != NULL);
+  StackHandleScope<1> hs(soa.Self());
+  Handle<DexCache> dex_cache(
+      hs.NewHandle(class_linker_->AllocDexCache(soa.Self(), *java_lang_dex_file_)));
+  ASSERT_TRUE(dex_cache.Get() != NULL);
 
   EXPECT_EQ(java_lang_dex_file_->NumStringIds(), dex_cache->NumStrings());
   EXPECT_EQ(java_lang_dex_file_->NumTypeIds(),   dex_cache->NumResolvedTypes());
