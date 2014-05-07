@@ -103,7 +103,11 @@ class BitVector {
 
     void Copy(const BitVector* src);
     void Intersect(const BitVector* src2);
-    void Union(const BitVector* src);
+    bool Union(const BitVector* src);
+
+    // Set bits of union_with that are not in not_in.
+    bool UnionIfNotIn(const BitVector* union_with, const BitVector* not_in);
+
     void Subtract(const BitVector* src);
     // Are we equal to another bit vector?  Note: expandability attributes must also match.
     bool Equal(const BitVector* src) {
@@ -155,6 +159,7 @@ class BitVector {
     const bool expandable_;         // expand bitmap if we run out?
     uint32_t   storage_size_;       // current size, in 32-bit words.
     uint32_t*  storage_;
+    uint32_t number_of_bits_;
 };
 
 
