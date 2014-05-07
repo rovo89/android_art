@@ -3309,93 +3309,42 @@ bool ClassLinker::ValidateSuperClassDescriptors(const SirtRef<mirror::Class>& kl
   if (klass->IsInterface()) {
     return true;
   }
-  Thread* self = Thread::Current();
-  // begin with the methods local to the superclass
+  // Begin with the methods local to the superclass.
+  MethodHelper mh;
+  MethodHelper super_mh;
   if (klass->HasSuperClass() &&
       klass->GetClassLoader() != klass->GetSuperClass()->GetClassLoader()) {
-    SirtRef<mirror::Class> super(self, klass->GetSuperClass());
-    for (int i = super->GetVTable()->GetLength() - 1; i >= 0; --i) {
-      mirror::ArtMethod* method = klass->GetVTable()->Get(i);
-      if (method != super->GetVTable()->Get(i) &&
-          !IsSameMethodSignatureInDifferentClassContexts(self, method, super.get(), klass.get())) {
+    for (int i = klass->GetSuperClass()->GetVTable()->GetLength() - 1; i >= 0; --i) {
+      mh.ChangeMethod(klass->GetVTable()->GetWithoutChecks(i));
+      super_mh.ChangeMethod(klass->GetSuperClass()->GetVTable()->GetWithoutChecks(i));
+      bool is_override = mh.GetMethod() != super_mh.GetMethod();
+      if (is_override && !mh.HasSameSignatureWithDifferentClassLoaders(&super_mh)) {
         ThrowLinkageError(klass.get(), "Class %s method %s resolves differently in superclass %s",
-                          PrettyDescriptor(klass.get()).c_str(), PrettyMethod(method).c_str(),
-                          PrettyDescriptor(super.get()).c_str());
+                          PrettyDescriptor(klass.get()).c_str(),
+                          PrettyMethod(mh.GetMethod()).c_str(),
+                          PrettyDescriptor(klass->GetSuperClass()).c_str());
         return false;
       }
     }
   }
   for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
-    SirtRef<mirror::Class> interface(self, klass->GetIfTable()->GetInterface(i));
-    if (klass->GetClassLoader() != interface->GetClassLoader()) {
-      for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
-        mirror::ArtMethod* method = klass->GetIfTable()->GetMethodArray(i)->Get(j);
-        if (!IsSameMethodSignatureInDifferentClassContexts(self, method, interface.get(),
-                                                           method->GetDeclaringClass())) {
+    if (klass->GetClassLoader() != klass->GetIfTable()->GetInterface(i)->GetClassLoader()) {
+      uint32_t num_methods = klass->GetIfTable()->GetInterface(i)->NumVirtualMethods();
+      for (uint32_t j = 0; j < num_methods; ++j) {
+        mh.ChangeMethod(klass->GetIfTable()->GetMethodArray(i)->GetWithoutChecks(j));
+        super_mh.ChangeMethod(klass->GetIfTable()->GetInterface(i)->GetVirtualMethod(j));
+        bool is_override = mh.GetMethod() != super_mh.GetMethod();
+        if (is_override && !mh.HasSameSignatureWithDifferentClassLoaders(&super_mh)) {
           ThrowLinkageError(klass.get(), "Class %s method %s resolves differently in interface %s",
-                            PrettyDescriptor(method->GetDeclaringClass()).c_str(),
-                            PrettyMethod(method).c_str(),
-                            PrettyDescriptor(interface.get()).c_str());
+                            PrettyDescriptor(klass.get()).c_str(),
+                            PrettyMethod(mh.GetMethod()).c_str(),
+                            PrettyDescriptor(klass->GetIfTable()->GetInterface(i)).c_str());
           return false;
         }
       }
     }
   }
   return true;
-}
-
-// Returns true if classes referenced by the signature of the method are the
-// same classes in klass1 as they are in klass2.
-bool ClassLinker::IsSameMethodSignatureInDifferentClassContexts(Thread* self,
-                                                                mirror::ArtMethod* method,
-                                                                mirror::Class* klass1,
-                                                                mirror::Class* klass2) {
-  if (klass1 == klass2) {
-    return true;
-  }
-  CHECK(klass1 != nullptr);
-  CHECK(klass2 != nullptr);
-  SirtRef<mirror::ClassLoader> loader1(self, klass1->GetClassLoader());
-  SirtRef<mirror::ClassLoader> loader2(self, klass2->GetClassLoader());
-  const DexFile& dex_file = *method->GetDeclaringClass()->GetDexCache()->GetDexFile();
-  const DexFile::ProtoId& proto_id =
-      dex_file.GetMethodPrototype(dex_file.GetMethodId(method->GetDexMethodIndex()));
-  for (DexFileParameterIterator it(dex_file, proto_id); it.HasNext(); it.Next()) {
-    const char* descriptor = it.GetDescriptor();
-    if (descriptor == nullptr) {
-      break;
-    }
-    if (descriptor[0] == 'L' || descriptor[0] == '[') {
-      // Found a non-primitive type.
-      if (!IsSameDescriptorInDifferentClassContexts(self, descriptor, loader1, loader2)) {
-        return false;
-      }
-    }
-  }
-  // Check the return type
-  const char* descriptor = dex_file.GetReturnTypeDescriptor(proto_id);
-  if (descriptor[0] == 'L' || descriptor[0] == '[') {
-    if (!IsSameDescriptorInDifferentClassContexts(self, descriptor, loader1, loader2)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// Returns true if the descriptor resolves to the same class in the context of loader1 and loader2.
-bool ClassLinker::IsSameDescriptorInDifferentClassContexts(Thread* self, const char* descriptor,
-                                                           SirtRef<mirror::ClassLoader>& loader1,
-                                                           SirtRef<mirror::ClassLoader>& loader2) {
-  CHECK(descriptor != nullptr);
-  SirtRef<mirror::Class> found1(self, FindClass(self, descriptor, loader1));
-  if (found1.get() == nullptr) {
-    self->ClearException();
-  }
-  mirror::Class* found2 = FindClass(self, descriptor, loader2);
-  if (found2 == nullptr) {
-    self->ClearException();
-  }
-  return found1.get() == found2;
 }
 
 bool ClassLinker::EnsureInitialized(const SirtRef<mirror::Class>& c, bool can_init_fields,
