@@ -50,8 +50,7 @@ class CodeVectorAllocator FINAL : public CodeAllocator {
 };
 
 
-CompiledMethod* OptimizingCompiler::TryCompile(CompilerDriver& driver,
-                                               const DexFile::CodeItem* code_item,
+CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_item,
                                                uint32_t access_flags,
                                                InvokeType invoke_type,
                                                uint16_t class_def_idx,
@@ -60,7 +59,8 @@ CompiledMethod* OptimizingCompiler::TryCompile(CompilerDriver& driver,
                                                const DexFile& dex_file) const {
   DexCompilationUnit dex_compilation_unit(
     nullptr, class_loader, art::Runtime::Current()->GetClassLinker(), dex_file, code_item,
-    class_def_idx, method_idx, access_flags, driver.GetVerifiedMethod(&dex_file, method_idx));
+    class_def_idx, method_idx, access_flags,
+    GetCompilerDriver()->GetVerifiedMethod(&dex_file, method_idx));
 
   // For testing purposes, we put a special marker on method names that should be compiled
   // with this compiler. This makes sure we're not regressing.
@@ -77,7 +77,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(CompilerDriver& driver,
     return nullptr;
   }
 
-  InstructionSet instruction_set = driver.GetInstructionSet();
+  InstructionSet instruction_set = GetCompilerDriver()->GetInstructionSet();
   // The optimizing compiler currently does not have a Thumb2 assembler.
   if (instruction_set == kThumb2) {
     instruction_set = kArm;
@@ -104,7 +104,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(CompilerDriver& driver,
   graph->BuildDominatorTree();
   graph->TransformToSSA();
 
-  return new CompiledMethod(driver,
+  return new CompiledMethod(GetCompilerDriver(),
                             instruction_set,
                             allocator.GetMemory(),
                             codegen->GetFrameSize(),

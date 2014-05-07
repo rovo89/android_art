@@ -1027,7 +1027,7 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
 
   UniquePtr<std::vector<uint8_t> > cfi_info(ReturnCallFrameInformation());
   CompiledMethod* result =
-      new CompiledMethod(*cu_->compiler_driver, cu_->instruction_set, code_buffer_, frame_size_,
+      new CompiledMethod(cu_->compiler_driver, cu_->instruction_set, code_buffer_, frame_size_,
                          core_spill_mask_, fp_spill_mask_, encoded_mapping_table_,
                          vmap_encoder.GetData(), native_gc_map_, cfi_info.get());
   return result;
