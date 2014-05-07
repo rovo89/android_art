@@ -28,7 +28,17 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
                                 Object* receiver, uint32_t* args, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::string name(PrettyMethod(method));
-  if (name == "java.lang.ClassLoader dalvik.system.VMStack.getCallingClassLoader()") {
+  if (name == "java.lang.Object dalvik.system.VMRuntime.newUnpaddedArray(java.lang.Class, int)") {
+    int32_t length = args[1];
+    DCHECK_GE(length, 0);
+    mirror::Class* element_class = reinterpret_cast<Object*>(args[0])->AsClass();
+    Runtime* runtime = Runtime::Current();
+    mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(self, element_class);
+    DCHECK(array_class != nullptr);
+    gc::AllocatorType allocator = runtime->GetHeap()->GetCurrentAllocator();
+    result->SetL(mirror::Array::Alloc<true>(self, array_class, length,
+                                            array_class->GetComponentSize(), allocator, true));
+  } else if (name == "java.lang.ClassLoader dalvik.system.VMStack.getCallingClassLoader()") {
     result->SetL(NULL);
   } else if (name == "java.lang.Class dalvik.system.VMStack.getStackClass2()") {
     NthCallerVisitor visitor(self, 3);
