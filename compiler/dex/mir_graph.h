@@ -341,6 +341,29 @@ struct SuccessorBlockInfo {
   int key;
 };
 
+/**
+ * @class ChildBlockIterator
+ * @brief Enable an easy iteration of the children.
+ */
+class ChildBlockIterator {
+ public:
+  /**
+   * @brief Constructs a child iterator.
+   * @param bb The basic whose children we need to iterate through.
+   * @param mir_graph The MIRGraph used to get the basic block during iteration.
+   */
+  ChildBlockIterator(BasicBlock* bb, MIRGraph* mir_graph);
+  BasicBlock* Next();
+
+ private:
+  BasicBlock* basic_block_;
+  MIRGraph* mir_graph_;
+  bool visited_fallthrough_;
+  bool visited_taken_;
+  bool have_successors_;
+  GrowableArray<SuccessorBlockInfo*>::Iterator successor_iter_;
+};
+
 /*
  * Whereas a SSA name describes a definition of a Dalvik vreg, the RegLocation describes
  * the type of an SSA name (and, can also be used by code generators to record where the
