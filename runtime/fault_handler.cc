@@ -35,6 +35,13 @@ namespace art {
 // Static fault manger object accessed by signal handler.
 FaultManager fault_manager;
 
+extern "C" {
+void art_sigsegv_fault() {
+  // Set a breakpoint here to be informed when a SIGSEGV is unhandled by ART.
+  LOG(ERROR)<< "Caught unknown SIGSEGV in ART fault handler";
+}
+}
+
 // Signal handler called on SIGSEGV.
 static void art_fault_handler(int sig, siginfo_t* info, void* context) {
   fault_manager.HandleFault(sig, info, context);
@@ -75,7 +82,10 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
       return;
     }
   }
-  LOG(ERROR)<< "Caught unknown SIGSEGV in ART fault handler";
+
+  // Allow the user to catch this problem with a simple breakpoint in art_sigsegv_fault.
+  art_sigsegv_fault();
+
   oldaction_.sa_sigaction(sig, info, context);
 }
 
