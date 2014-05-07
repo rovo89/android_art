@@ -64,8 +64,8 @@ namespace collector {
 
 static constexpr bool kProtectFromSpace = true;
 static constexpr bool kStoreStackTraces = false;
-static constexpr bool kUseBytesPromoted = true;
 static constexpr size_t kBytesPromotedThreshold = 4 * MB;
+static constexpr size_t kLargeObjectBytesAllocatedThreshold = 16 * MB;
 
 void SemiSpace::BindBitmaps() {
   timings_.StartSplit("BindBitmaps");
@@ -104,8 +104,8 @@ SemiSpace::SemiSpace(Heap* heap, bool generational, const std::string& name_pref
       last_gc_to_space_end_(nullptr),
       bytes_promoted_(0),
       bytes_promoted_since_last_whole_heap_collection_(0),
+      large_object_bytes_allocated_at_last_whole_heap_collection_(0),
       whole_heap_collection_(true),
-      whole_heap_collection_interval_counter_(0),
       collector_name_(name_),
       swap_semi_spaces_(true) {
 }
@@ -187,12 +187,8 @@ void SemiSpace::MarkingPhase() {
     if (gc_cause_ == kGcCauseExplicit || gc_cause_ == kGcCauseForNativeAlloc ||
         clear_soft_references_) {
       // If an explicit, native allocation-triggered, or last attempt
-      // collection, collect the whole heap (and reset the interval
-      // counter to be consistent.)
+      // collection, collect the whole heap.
       whole_heap_collection_ = true;
-      if (!kUseBytesPromoted) {
-        whole_heap_collection_interval_counter_ = 0;
-      }
     }
     if (whole_heap_collection_) {
       VLOG(heap) << "Whole heap collection";
@@ -798,32 +794,27 @@ void SemiSpace::FinishPhase() {
     // only space collection at the next collection by updating
     // whole_heap_collection.
     if (!whole_heap_collection_) {
-      if (!kUseBytesPromoted) {
-        // Enable whole_heap_collection once every
-        // kDefaultWholeHeapCollectionInterval collections.
-        --whole_heap_collection_interval_counter_;
-        DCHECK_GE(whole_heap_collection_interval_counter_, 0);
-        if (whole_heap_collection_interval_counter_ == 0) {
-          whole_heap_collection_ = true;
-        }
-      } else {
-        // Enable whole_heap_collection if the bytes promoted since
-        // the last whole heap collection exceeds a threshold.
-        bytes_promoted_since_last_whole_heap_collection_ += bytes_promoted_;
-        if (bytes_promoted_since_last_whole_heap_collection_ >= kBytesPromotedThreshold) {
-          whole_heap_collection_ = true;
-        }
+      // Enable whole_heap_collection if the bytes promoted since the
+      // last whole heap collection or the large object bytes
+      // allocated exceeds a threshold.
+      bytes_promoted_since_last_whole_heap_collection_ += bytes_promoted_;
+      bool bytes_promoted_threshold_exceeded =
+          bytes_promoted_since_last_whole_heap_collection_ >= kBytesPromotedThreshold;
+      uint64_t current_los_bytes_allocated = GetHeap()->GetLargeObjectsSpace()->GetBytesAllocated();
+      uint64_t last_los_bytes_allocated =
+          large_object_bytes_allocated_at_last_whole_heap_collection_;
+      bool large_object_bytes_threshold_exceeded =
+          current_los_bytes_allocated >=
+          last_los_bytes_allocated + kLargeObjectBytesAllocatedThreshold;
+      if (bytes_promoted_threshold_exceeded || large_object_bytes_threshold_exceeded) {
+        whole_heap_collection_ = true;
       }
     } else {
-      if (!kUseBytesPromoted) {
-        DCHECK_EQ(whole_heap_collection_interval_counter_, 0);
-        whole_heap_collection_interval_counter_ = kDefaultWholeHeapCollectionInterval;
-        whole_heap_collection_ = false;
-      } else {
-        // Reset it.
-        bytes_promoted_since_last_whole_heap_collection_ = bytes_promoted_;
-        whole_heap_collection_ = false;
-      }
+      // Reset the counters.
+      bytes_promoted_since_last_whole_heap_collection_ = bytes_promoted_;
+      large_object_bytes_allocated_at_last_whole_heap_collection_ =
+          GetHeap()->GetLargeObjectsSpace()->GetBytesAllocated();
+      whole_heap_collection_ = false;
     }
   }
   // Clear all of the spaces' mark bitmaps.

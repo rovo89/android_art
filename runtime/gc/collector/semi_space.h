@@ -234,13 +234,13 @@ class SemiSpace : public GarbageCollector {
   // the non-moving space, since the last whole heap collection.
   uint64_t bytes_promoted_since_last_whole_heap_collection_;
 
+  // Used for the generational mode. Keeps track of how many bytes of
+  // large objects were allocated at the last whole heap collection.
+  uint64_t large_object_bytes_allocated_at_last_whole_heap_collection_;
+
   // Used for the generational mode. When true, collect the whole
   // heap. When false, collect only the bump pointer spaces.
   bool whole_heap_collection_;
-
-  // Used for the generational mode. A counter used to enable
-  // whole_heap_collection_ once per interval.
-  int whole_heap_collection_interval_counter_;
 
   // How many objects and bytes we moved, used so that we don't need to get the size of the
   // to_space_ when calculating how many objects and bytes we freed.
