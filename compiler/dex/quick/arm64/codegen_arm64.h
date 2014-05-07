@@ -22,7 +22,7 @@
 
 namespace art {
 
-class Arm64Mir2Lir FINAL : public Mir2Lir {
+class Arm64Mir2Lir : public Mir2Lir {
   public:
     Arm64Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
@@ -31,7 +31,7 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
                             RegLocation rl_dest, int lit);
     bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) OVERRIDE;
     LIR* CheckSuspendUsingLoad() OVERRIDE;
-    RegStorage LoadHelper(ThreadOffset<4> offset);
+    RegStorage LoadHelper(A64ThreadOffset offset);
     LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
                       OpSize size) OVERRIDE;
     LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale,
@@ -75,7 +75,7 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
     uint32_t LinkFixupInsns(LIR* head_lir, LIR* tail_lir, CodeOffset offset);
     int AssignInsnOffsets();
     void AssignOffsets();
-    static uint8_t* EncodeLIRs(uint8_t* write_pos, LIR* lir);
+    uint8_t* EncodeLIRs(uint8_t* write_pos, LIR* lir);
     void DumpResourceMask(LIR* lir, uint64_t mask, const char* prefix);
     void SetupTargetResourceMasks(LIR* lir, uint64_t flags);
     const char* GetTargetInstFmt(int opcode);
@@ -95,6 +95,7 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
                      RegLocation rl_src, int scale, bool card_mark);
     void GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                            RegLocation rl_src1, RegLocation rl_shift);
+    void GenLongOp(OpKind op, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
     void GenMulLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                     RegLocation rl_src2);
     void GenAddLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
@@ -141,6 +142,11 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
     void GenNegFloat(RegLocation rl_dest, RegLocation rl_src);
     void GenPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
     void GenSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
+    bool GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& special);
+
+    uint32_t GenPairWise(uint32_t reg_mask, int* reg1, int* reg2);
+    void UnSpillCoreRegs(RegStorage base, int offset, uint32_t reg_mask);
+    void SpillCoreRegs(RegStorage base, int offset, uint32_t reg_mask);
 
     // Required for target - single operation generators.
     LIR* OpUnconditionalBranch(LIR* target);
@@ -156,6 +162,7 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
     LIR* OpReg(OpKind op, RegStorage r_dest_src);
     void OpRegCopy(RegStorage r_dest, RegStorage r_src);
     LIR* OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src);
+    LIR* OpRegImm64(OpKind op, RegStorage r_dest_src1, int64_t value, bool is_wide);
     LIR* OpRegImm(OpKind op, RegStorage r_dest_src1, int value);
     LIR* OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int offset);
     LIR* OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2);
@@ -165,44 +172,50 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
     LIR* OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, int value);
     LIR* OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2);
     LIR* OpTestSuspend(LIR* target);
-    LIR* OpThreadMem(OpKind op, ThreadOffset<4> thread_offset);
+    LIR* OpThreadMem(OpKind op, A64ThreadOffset thread_offset);
     LIR* OpVldm(RegStorage r_base, int count);
     LIR* OpVstm(RegStorage r_base, int count);
     void OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int scale, int offset);
     void OpRegCopyWide(RegStorage dest, RegStorage src);
-    void OpTlsCmp(ThreadOffset<4> offset, int val);
+    void OpTlsCmp(A64ThreadOffset offset, int val);
 
     LIR* LoadBaseDispBody(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size);
     LIR* StoreBaseDispBody(RegStorage r_base, int displacement, RegStorage r_src, OpSize size);
-    LIR* OpRegRegRegShift(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2,
-                          int shift);
-    LIR* OpRegRegShift(OpKind op, RegStorage r_dest_src1, RegStorage r_src2, int shift);
-    static const ArmEncodingMap EncodingMap[kArmLast];
+    LIR* OpRegRegRegShift(OpKind op, int r_dest, int r_src1, int r_src2, int shift,
+                          bool is_wide = false);
+    LIR* OpRegRegShift(OpKind op, int r_dest_src1, int r_src2, int shift, bool is_wide = false);
+    static const ArmEncodingMap EncodingMap[kA64Last];
     int EncodeShift(int code, int amount);
-    int ModifiedImmediate(uint32_t value);
+    int EncodeExtend(int extend_type, int amount);
+    bool IsExtendEncoding(int encoded_value);
+    int EncodeLogicalImmediate(bool is_wide, uint64_t value);
+    uint64_t DecodeLogicalImmediate(bool is_wide, int value);
+
     ArmConditionCode ArmConditionEncoding(ConditionCode code);
     bool InexpensiveConstantInt(int32_t value);
     bool InexpensiveConstantFloat(int32_t value);
     bool InexpensiveConstantLong(int64_t value);
     bool InexpensiveConstantDouble(int64_t value);
 
+    void FlushIns(RegLocation* ArgLocs, RegLocation rl_method);
+    int LoadArgRegs(CallInfo* info, int call_state,
+                    NextCallInsn next_call_insn,
+                    const MethodReference& target_method,
+                    uint32_t vtable_idx,
+                    uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
+                    bool skip_this);
+
   private:
     void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1, int64_t val,
                                   ConditionCode ccode);
-    LIR* LoadFPConstantValue(int r_dest, int value);
+    LIR* LoadFPConstantValue(int r_dest, int32_t value);
+    LIR* LoadFPConstantValueWide(int r_dest, int64_t value);
     void ReplaceFixup(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
     void InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
     void AssignDataOffsets();
     RegLocation GenDivRem(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
                           bool is_div, bool check_zero);
     RegLocation GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit, bool is_div);
-    typedef struct {
-      OpKind op;
-      uint32_t shift;
-    } EasyMultiplyOp;
-    bool GetEasyMultiplyOp(int lit, EasyMultiplyOp* op);
-    bool GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops);
-    void GenEasyMultiplyTwoOps(RegStorage r_dest, RegStorage r_src, EasyMultiplyOp* ops);
 };
 
 }  // namespace art
