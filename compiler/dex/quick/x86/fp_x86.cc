@@ -149,7 +149,7 @@ void X86Mir2Lir::GenLongToFP(RegLocation rl_dest, RegLocation rl_src, bool is_do
     } else {
       // It must have been register promoted if it is not a temp but is still in physical
       // register. Since we need it to be in memory to convert, we place it there now.
-      StoreBaseDispWide(TargetReg(kSp), src_v_reg_offset, rl_src.reg);
+      StoreBaseDisp(TargetReg(kSp), src_v_reg_offset, rl_src.reg, k64);
     }
   }
 
@@ -183,7 +183,7 @@ void X86Mir2Lir::GenLongToFP(RegLocation rl_dest, RegLocation rl_src, bool is_do
     if (is_double) {
       rl_result = EvalLocWide(rl_dest, kFPReg, true);
 
-      LoadBaseDispWide(TargetReg(kSp), dest_v_reg_offset, rl_result.reg, INVALID_SREG);
+      LoadBaseDisp(TargetReg(kSp), dest_v_reg_offset, rl_result.reg, k64, INVALID_SREG);
 
       StoreFinalValueWide(rl_dest, rl_result);
     } else {
