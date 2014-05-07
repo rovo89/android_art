@@ -23,6 +23,7 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "mem_map.h"
+#include "utils.h"
 
 namespace art {
 
@@ -155,7 +156,7 @@ class ArenaAllocator : private ArenaAllocatorStats {
     if (UNLIKELY(running_on_valgrind_)) {
       return AllocValgrind(bytes, kind);
     }
-    bytes = (bytes + 3) & ~3;
+    bytes = RoundUp(bytes, 4);
     if (UNLIKELY(ptr_ + bytes > end_)) {
       // Obtain a new block.
       ObtainNewArenaForAllocation(bytes);
