@@ -78,7 +78,7 @@ class GrowableArray {
 
       private:
         size_t idx_;
-        GrowableArray* const g_list_;
+        GrowableArray* g_list_;
     };
 
     GrowableArray(ArenaAllocator* arena, size_t init_length, OatListKind kind = kGrowableArrayMisc)
