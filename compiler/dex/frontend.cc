@@ -131,6 +131,370 @@ void CompilationUnit::EndTiming() {
   }
 }
 
+// TODO: Remove this when we are able to compile everything.
+int arm64_support_list[] = {
+    Instruction::NOP,
+    // Instruction::MOVE,
+    // Instruction::MOVE_FROM16,
+    // Instruction::MOVE_16,
+    // Instruction::MOVE_WIDE,
+    // Instruction::MOVE_WIDE_FROM16,
+    // Instruction::MOVE_WIDE_16,
+    // Instruction::MOVE_OBJECT,
+    // Instruction::MOVE_OBJECT_FROM16,
+    // Instruction::MOVE_OBJECT_16,
+    // Instruction::MOVE_RESULT,
+    // Instruction::MOVE_RESULT_WIDE,
+    // Instruction::MOVE_RESULT_OBJECT,
+    // Instruction::MOVE_EXCEPTION,
+    // Instruction::RETURN_VOID,
+    // Instruction::RETURN,
+    // Instruction::RETURN_WIDE,
+    // Instruction::RETURN_OBJECT,
+    // Instruction::CONST_4,
+    // Instruction::CONST_16,
+    // Instruction::CONST,
+    // Instruction::CONST_HIGH16,
+    // Instruction::CONST_WIDE_16,
+    // Instruction::CONST_WIDE_32,
+    // Instruction::CONST_WIDE,
+    // Instruction::CONST_WIDE_HIGH16,
+    // Instruction::CONST_STRING,
+    // Instruction::CONST_STRING_JUMBO,
+    // Instruction::CONST_CLASS,
+    // Instruction::MONITOR_ENTER,
+    // Instruction::MONITOR_EXIT,
+    // Instruction::CHECK_CAST,
+    // Instruction::INSTANCE_OF,
+    // Instruction::ARRAY_LENGTH,
+    // Instruction::NEW_INSTANCE,
+    // Instruction::NEW_ARRAY,
+    // Instruction::FILLED_NEW_ARRAY,
+    // Instruction::FILLED_NEW_ARRAY_RANGE,
+    // Instruction::FILL_ARRAY_DATA,
+    // Instruction::THROW,
+    // Instruction::GOTO,
+    // Instruction::GOTO_16,
+    // Instruction::GOTO_32,
+    // Instruction::PACKED_SWITCH,
+    // Instruction::SPARSE_SWITCH,
+    // Instruction::CMPL_FLOAT,
+    // Instruction::CMPG_FLOAT,
+    // Instruction::CMPL_DOUBLE,
+    // Instruction::CMPG_DOUBLE,
+    // Instruction::CMP_LONG,
+    // Instruction::IF_EQ,
+    // Instruction::IF_NE,
+    // Instruction::IF_LT,
+    // Instruction::IF_GE,
+    // Instruction::IF_GT,
+    // Instruction::IF_LE,
+    // Instruction::IF_EQZ,
+    // Instruction::IF_NEZ,
+    // Instruction::IF_LTZ,
+    // Instruction::IF_GEZ,
+    // Instruction::IF_GTZ,
+    // Instruction::IF_LEZ,
+    // Instruction::UNUSED_3E,
+    // Instruction::UNUSED_3F,
+    // Instruction::UNUSED_40,
+    // Instruction::UNUSED_41,
+    // Instruction::UNUSED_42,
+    // Instruction::UNUSED_43,
+    // Instruction::AGET,
+    // Instruction::AGET_WIDE,
+    // Instruction::AGET_OBJECT,
+    // Instruction::AGET_BOOLEAN,
+    // Instruction::AGET_BYTE,
+    // Instruction::AGET_CHAR,
+    // Instruction::AGET_SHORT,
+    // Instruction::APUT,
+    // Instruction::APUT_WIDE,
+    // Instruction::APUT_OBJECT,
+    // Instruction::APUT_BOOLEAN,
+    // Instruction::APUT_BYTE,
+    // Instruction::APUT_CHAR,
+    // Instruction::APUT_SHORT,
+    // Instruction::IGET,
+    // Instruction::IGET_WIDE,
+    // Instruction::IGET_OBJECT,
+    // Instruction::IGET_BOOLEAN,
+    // Instruction::IGET_BYTE,
+    // Instruction::IGET_CHAR,
+    // Instruction::IGET_SHORT,
+    // Instruction::IPUT,
+    // Instruction::IPUT_WIDE,
+    // Instruction::IPUT_OBJECT,
+    // Instruction::IPUT_BOOLEAN,
+    // Instruction::IPUT_BYTE,
+    // Instruction::IPUT_CHAR,
+    // Instruction::IPUT_SHORT,
+    // Instruction::SGET,
+    // Instruction::SGET_WIDE,
+    // Instruction::SGET_OBJECT,
+    // Instruction::SGET_BOOLEAN,
+    // Instruction::SGET_BYTE,
+    // Instruction::SGET_CHAR,
+    // Instruction::SGET_SHORT,
+    // Instruction::SPUT,
+    // Instruction::SPUT_WIDE,
+    // Instruction::SPUT_OBJECT,
+    // Instruction::SPUT_BOOLEAN,
+    // Instruction::SPUT_BYTE,
+    // Instruction::SPUT_CHAR,
+    // Instruction::SPUT_SHORT,
+    Instruction::INVOKE_VIRTUAL,
+    Instruction::INVOKE_SUPER,
+    Instruction::INVOKE_DIRECT,
+    Instruction::INVOKE_STATIC,
+    Instruction::INVOKE_INTERFACE,
+    // Instruction::RETURN_VOID_BARRIER,
+    // Instruction::INVOKE_VIRTUAL_RANGE,
+    // Instruction::INVOKE_SUPER_RANGE,
+    // Instruction::INVOKE_DIRECT_RANGE,
+    // Instruction::INVOKE_STATIC_RANGE,
+    // Instruction::INVOKE_INTERFACE_RANGE,
+    // Instruction::UNUSED_79,
+    // Instruction::UNUSED_7A,
+    // Instruction::NEG_INT,
+    // Instruction::NOT_INT,
+    // Instruction::NEG_LONG,
+    // Instruction::NOT_LONG,
+    // Instruction::NEG_FLOAT,
+    // Instruction::NEG_DOUBLE,
+    // Instruction::INT_TO_LONG,
+    // Instruction::INT_TO_FLOAT,
+    // Instruction::INT_TO_DOUBLE,
+    // Instruction::LONG_TO_INT,
+    // Instruction::LONG_TO_FLOAT,
+    // Instruction::LONG_TO_DOUBLE,
+    // Instruction::FLOAT_TO_INT,
+    // Instruction::FLOAT_TO_LONG,
+    // Instruction::FLOAT_TO_DOUBLE,
+    // Instruction::DOUBLE_TO_INT,
+    // Instruction::DOUBLE_TO_LONG,
+    // Instruction::DOUBLE_TO_FLOAT,
+    // Instruction::INT_TO_BYTE,
+    // Instruction::INT_TO_CHAR,
+    // Instruction::INT_TO_SHORT,
+    // Instruction::ADD_INT,
+    // Instruction::SUB_INT,
+    // Instruction::MUL_INT,
+    // Instruction::DIV_INT,
+    // Instruction::REM_INT,
+    // Instruction::AND_INT,
+    // Instruction::OR_INT,
+    // Instruction::XOR_INT,
+    // Instruction::SHL_INT,
+    // Instruction::SHR_INT,
+    // Instruction::USHR_INT,
+    // Instruction::ADD_LONG,
+    // Instruction::SUB_LONG,
+    // Instruction::MUL_LONG,
+    // Instruction::DIV_LONG,
+    // Instruction::REM_LONG,
+    // Instruction::AND_LONG,
+    // Instruction::OR_LONG,
+    // Instruction::XOR_LONG,
+    // Instruction::SHL_LONG,
+    // Instruction::SHR_LONG,
+    // Instruction::USHR_LONG,
+    // Instruction::ADD_FLOAT,
+    // Instruction::SUB_FLOAT,
+    // Instruction::MUL_FLOAT,
+    // Instruction::DIV_FLOAT,
+    // Instruction::REM_FLOAT,
+    // Instruction::ADD_DOUBLE,
+    // Instruction::SUB_DOUBLE,
+    // Instruction::MUL_DOUBLE,
+    // Instruction::DIV_DOUBLE,
+    // Instruction::REM_DOUBLE,
+    // Instruction::ADD_INT_2ADDR,
+    // Instruction::SUB_INT_2ADDR,
+    // Instruction::MUL_INT_2ADDR,
+    // Instruction::DIV_INT_2ADDR,
+    // Instruction::REM_INT_2ADDR,
+    // Instruction::AND_INT_2ADDR,
+    // Instruction::OR_INT_2ADDR,
+    // Instruction::XOR_INT_2ADDR,
+    // Instruction::SHL_INT_2ADDR,
+    // Instruction::SHR_INT_2ADDR,
+    // Instruction::USHR_INT_2ADDR,
+    // Instruction::ADD_LONG_2ADDR,
+    // Instruction::SUB_LONG_2ADDR,
+    // Instruction::MUL_LONG_2ADDR,
+    // Instruction::DIV_LONG_2ADDR,
+    // Instruction::REM_LONG_2ADDR,
+    // Instruction::AND_LONG_2ADDR,
+    // Instruction::OR_LONG_2ADDR,
+    // Instruction::XOR_LONG_2ADDR,
+    // Instruction::SHL_LONG_2ADDR,
+    // Instruction::SHR_LONG_2ADDR,
+    // Instruction::USHR_LONG_2ADDR,
+    // Instruction::ADD_FLOAT_2ADDR,
+    // Instruction::SUB_FLOAT_2ADDR,
+    // Instruction::MUL_FLOAT_2ADDR,
+    // Instruction::DIV_FLOAT_2ADDR,
+    // Instruction::REM_FLOAT_2ADDR,
+    // Instruction::ADD_DOUBLE_2ADDR,
+    // Instruction::SUB_DOUBLE_2ADDR,
+    // Instruction::MUL_DOUBLE_2ADDR,
+    // Instruction::DIV_DOUBLE_2ADDR,
+    // Instruction::REM_DOUBLE_2ADDR,
+    // Instruction::ADD_INT_LIT16,
+    // Instruction::RSUB_INT,
+    // Instruction::MUL_INT_LIT16,
+    // Instruction::DIV_INT_LIT16,
+    // Instruction::REM_INT_LIT16,
+    // Instruction::AND_INT_LIT16,
+    // Instruction::OR_INT_LIT16,
+    // Instruction::XOR_INT_LIT16,
+    // Instruction::ADD_INT_LIT8,
+    // Instruction::RSUB_INT_LIT8,
+    // Instruction::MUL_INT_LIT8,
+    // Instruction::DIV_INT_LIT8,
+    // Instruction::REM_INT_LIT8,
+    // Instruction::AND_INT_LIT8,
+    // Instruction::OR_INT_LIT8,
+    // Instruction::XOR_INT_LIT8,
+    // Instruction::SHL_INT_LIT8,
+    // Instruction::SHR_INT_LIT8,
+    // Instruction::USHR_INT_LIT8,
+    // Instruction::IGET_QUICK,
+    // Instruction::IGET_WIDE_QUICK,
+    // Instruction::IGET_OBJECT_QUICK,
+    // Instruction::IPUT_QUICK,
+    // Instruction::IPUT_WIDE_QUICK,
+    // Instruction::IPUT_OBJECT_QUICK,
+    // Instruction::INVOKE_VIRTUAL_QUICK,
+    // Instruction::INVOKE_VIRTUAL_RANGE_QUICK,
+    // Instruction::UNUSED_EB,
+    // Instruction::UNUSED_EC,
+    // Instruction::UNUSED_ED,
+    // Instruction::UNUSED_EE,
+    // Instruction::UNUSED_EF,
+    // Instruction::UNUSED_F0,
+    // Instruction::UNUSED_F1,
+    // Instruction::UNUSED_F2,
+    // Instruction::UNUSED_F3,
+    // Instruction::UNUSED_F4,
+    // Instruction::UNUSED_F5,
+    // Instruction::UNUSED_F6,
+    // Instruction::UNUSED_F7,
+    // Instruction::UNUSED_F8,
+    // Instruction::UNUSED_F9,
+    // Instruction::UNUSED_FA,
+    // Instruction::UNUSED_FB,
+    // Instruction::UNUSED_FC,
+    // Instruction::UNUSED_FD,
+    // Instruction::UNUSED_FE,
+    // Instruction::UNUSED_FF,
+
+    // ----- ExtendedMIROpcode -----
+    // kMirOpPhi,
+    // kMirOpCopy,
+    // kMirOpFusedCmplFloat,
+    // kMirOpFusedCmpgFloat,
+    // kMirOpFusedCmplDouble,
+    // kMirOpFusedCmpgDouble,
+    // kMirOpFusedCmpLong,
+    // kMirOpNop,
+    // kMirOpNullCheck,
+    // kMirOpRangeCheck,
+    // kMirOpDivZeroCheck,
+    // kMirOpCheck,
+    // kMirOpCheckPart2,
+    // kMirOpSelect,
+    // kMirOpLast,
+};
+
+// TODO: Remove this when we are able to compile everything.
+static bool CanCompileShorty(const char* shorty) {
+  uint32_t shorty_size = strlen(shorty);
+  CHECK_GE(shorty_size, 1u);
+  // Set a limitation on maximum number of parameters.
+  // Note : there is an implied "method*" parameter, and probably "this" as well.
+  // 1 is for the return type. Currently, we only accept 2 parameters at the most.
+  if (shorty_size > (1 + 2)) {
+    return false;
+  }
+  // Z : boolean
+  // B : byte
+  // S : short
+  // C : char
+  // I : int
+  // L : long
+  // F : float
+  // D : double
+  // L : reference(object, array)
+  // V : void
+  // Current calling conversion only support 32bit softfp
+  // which has problems with long, float, double
+  constexpr char supported_types[] = "ZBSCILV";
+  for (uint32_t i = 0; i < shorty_size; i++) {
+    if (strchr(supported_types, shorty[i]) == nullptr) {
+      return false;
+    }
+  }
+  return true;
+};
+
+// TODO: Remove this when we are able to compile everything.
+// Skip the method that we do not support currently.
+static bool CanCompileMethod(uint32_t method_idx, const DexFile& dex_file,
+                             CompilationUnit& cu) {
+  // There is some limitation with current ARM 64 backend.
+  if (cu.instruction_set == kArm64) {
+    // Check if we can compile the prototype.
+    const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
+    if (!CanCompileShorty(shorty)) {
+      VLOG(compiler) << "Unsupported shorty : " << shorty;
+      return false;
+    }
+
+    for (int idx = 0; idx < cu.mir_graph->GetNumBlocks(); idx++) {
+      BasicBlock *bb = cu.mir_graph->GetBasicBlock(idx);
+      if (bb == NULL) continue;
+      if (bb->block_type == kDead) continue;
+      for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
+        int opcode = mir->dalvikInsn.opcode;
+        // Check if we support the byte code.
+        if (std::find(arm64_support_list, arm64_support_list + arraysize(arm64_support_list),
+            opcode) == arm64_support_list + arraysize(arm64_support_list)) {
+          if (opcode < kMirOpFirst) {
+            VLOG(compiler) << "Unsupported dalvik byte code : "
+                           << mir->dalvikInsn.opcode;
+          } else {
+            VLOG(compiler) << "Unsupported extended MIR opcode : "
+                           << MIRGraph::extended_mir_op_names_[opcode - kMirOpFirst];
+          }
+          return false;
+        }
+        // Check if it invokes a prototype that we cannot support.
+        if (Instruction::INVOKE_VIRTUAL == opcode ||
+            Instruction::INVOKE_SUPER == opcode ||
+            Instruction::INVOKE_DIRECT == opcode ||
+            Instruction::INVOKE_STATIC == opcode ||
+            Instruction::INVOKE_INTERFACE == opcode) {
+          uint32_t invoke_method_idx = mir->dalvikInsn.vB;
+          const char* invoke_method_shorty = dex_file.GetMethodShorty(
+              dex_file.GetMethodId(invoke_method_idx));
+          if (!CanCompileShorty(invoke_method_shorty)) {
+            VLOG(compiler) << "Unsupported to invoke '"
+                           << PrettyMethod(invoke_method_idx, dex_file)
+                           << "' with shorty : " << invoke_method_shorty;
+            return false;
+          }
+        }
+      }
+    }
+
+    LOG(INFO) << "Using experimental instruction set A64 for "
+              << PrettyMethod(method_idx, dex_file);
+  }
+  return true;
+}
+
 static CompiledMethod* CompileMethod(CompilerDriver& driver,
                                      Compiler* compiler,
                                      const DexFile::CodeItem* code_item,
@@ -162,6 +526,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   cu.compiler = compiler;
   // TODO: x86_64 & arm64 are not yet implemented.
   CHECK((cu.instruction_set == kThumb2) ||
+        (cu.instruction_set == kArm64) ||
         (cu.instruction_set == kX86) ||
         (cu.instruction_set == kX86_64) ||
         (cu.instruction_set == kMips));
@@ -214,6 +579,11 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
         (1 << kPromoteCompilerTemps));
   }
 
+  if (cu.instruction_set == kArm64) {
+    // TODO(Arm64): enable optimizations once backend is mature enough.
+    cu.disable_opt = ~(uint32_t)0;
+  }
+
   cu.StartTimingSplit("BuildMIRGraph");
   cu.mir_graph.reset(new MIRGraph(&cu, &cu.arena));
 
@@ -240,6 +610,12 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   /* Build the raw MIR graph */
   cu.mir_graph->InlineMethod(code_item, access_flags, invoke_type, class_def_idx, method_idx,
                               class_loader, dex_file);
+
+  // TODO(Arm64): Remove this when we are able to compile everything.
+  if (!CanCompileMethod(method_idx, dex_file, cu)) {
+    VLOG(compiler) << "Cannot compile method : " << PrettyMethod(method_idx, dex_file);
+    return nullptr;
+  }
 
   cu.NewTimingSplit("MIROpt:CheckFilters");
   if (cu.mir_graph->SkipCompilation()) {
