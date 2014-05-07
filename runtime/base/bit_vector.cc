@@ -115,23 +115,24 @@ bool BitVector::SameBitsSet(const BitVector *src) {
 
   // If the highest bit set is different, we are different.
   if (our_highest != src_highest) {
-    return true;
+    return false;
   }
 
   // If the highest bit set is -1, both are cleared, we are the same.
   // If the highest bit set is 0, both have a unique bit set, we are the same.
-  if (our_highest >= 0) {
+  if (our_highest <= 0) {
     return true;
   }
 
-  // Get the highest bit set's cell's index.
-  int our_highest_index = (our_highest >> 5);
+  // Get the highest bit set's cell's index
+  // No need of highest + 1 here because it can't be 0 so BitsToWords will work here.
+  int our_highest_index = BitsToWords(our_highest);
 
   // This memcmp is enough: we know that the highest bit set is the same for both:
   //   - Therefore, min_size goes up to at least that, we are thus comparing at least what we need to, but not less.
   //      ie. we are comparing all storage cells that could have difference, if both vectors have cells above our_highest_index,
   //          they are automatically at 0.
-  return (memcmp(storage_, src->GetRawStorage(), our_highest_index * sizeof(*storage_)) != 0);
+  return (memcmp(storage_, src->GetRawStorage(), our_highest_index * sizeof(*storage_)) == 0);
 }
 
 // Intersect with another bit vector.
