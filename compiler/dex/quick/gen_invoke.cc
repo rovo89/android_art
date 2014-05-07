@@ -791,7 +791,7 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
       }
       int outs_offset = (next_use + 1) * 4;
       if (rl_arg.wide) {
-        StoreBaseDispWide(TargetReg(kSp), outs_offset, arg_reg);
+        StoreBaseDisp(TargetReg(kSp), outs_offset, arg_reg, k64);
         next_use += 2;
       } else {
         Store32Disp(TargetReg(kSp), outs_offset, arg_reg);
@@ -859,7 +859,7 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     if (loc.wide) {
       loc = UpdateLocWide(loc);
       if ((next_arg >= 2) && (loc.location == kLocPhysReg)) {
-        StoreBaseDispWide(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg);
+        StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k64);
       }
       next_arg += 2;
     } else {
@@ -1433,7 +1433,7 @@ bool Mir2Lir::GenInlinedUnsafeGet(CallInfo* info,
     } else {
       RegStorage rl_temp_offset = AllocTemp();
       OpRegRegReg(kOpAdd, rl_temp_offset, rl_object.reg, rl_offset.reg);
-      LoadBaseDispWide(rl_temp_offset, 0, rl_result.reg, INVALID_SREG);
+      LoadBaseDisp(rl_temp_offset, 0, rl_result.reg, k64, INVALID_SREG);
       FreeTemp(rl_temp_offset);
     }
   } else {
@@ -1480,7 +1480,7 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
     } else {
       RegStorage rl_temp_offset = AllocTemp();
       OpRegRegReg(kOpAdd, rl_temp_offset, rl_object.reg, rl_offset.reg);
-      StoreBaseDispWide(rl_temp_offset, 0, rl_value.reg);
+      StoreBaseDisp(rl_temp_offset, 0, rl_value.reg, k64);
       FreeTemp(rl_temp_offset);
     }
   } else {

@@ -511,7 +511,7 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       GenArrayBoundsCheck(rl_index.reg, reg_len);
       FreeTemp(reg_len);
     }
-    LoadBaseDispWide(reg_ptr, 0, rl_result.reg, INVALID_SREG);
+    LoadBaseDisp(reg_ptr, 0, rl_result.reg, size, INVALID_SREG);
 
     FreeTemp(reg_ptr);
     StoreValueWide(rl_dest, rl_result);
@@ -589,7 +589,7 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
       FreeTemp(reg_len);
     }
 
-    StoreBaseDispWide(reg_ptr, 0, rl_src.reg);
+    StoreBaseDisp(reg_ptr, 0, rl_src.reg, size);
   } else {
     rl_src = LoadValue(rl_src, reg_class);
     if (needs_range_check) {
