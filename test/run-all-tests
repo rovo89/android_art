@@ -77,6 +77,9 @@ while true; do
     elif [ "x$1" = "x-O" ]; then
         run_args="${run_args} -O"
         shift
+    elif [ "x$1" = "x--64" ]; then
+        run_args="${run_args} --64"
+        shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
         usage="yes"
@@ -95,7 +98,7 @@ if [ "$usage" = "yes" ]; then
         echo "  Options are all passed to run-test; refer to that for " \
              "further documentation:"
         echo "    --debug --dev --host --interpreter --jvm --no-optimize"
-        echo "    --no-verify -O --update --valgrind --zygote"
+        echo "    --no-verify -O --update --valgrind --zygote --64"
         echo "  Specific Runtime Options:"
         echo "    --seq                Run tests one-by-one, avoiding failures caused by busy CPU"
     ) 1>&2
