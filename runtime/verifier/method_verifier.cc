@@ -3125,11 +3125,19 @@ mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst
     VLOG(verifier) << "Failed to get mirror::Class* from '" << actual_arg_type << "'";
     return nullptr;
   }
-  mirror::ObjectArray<mirror::ArtMethod>* vtable = actual_arg_type.GetClass()->GetVTable();
-  CHECK(vtable != nullptr) << PrettyDescriptor(actual_arg_type.GetClass());
+  mirror::ObjectArray<mirror::ArtMethod>* vtable = nullptr;
+  mirror::Class* klass = actual_arg_type.GetClass();
+  if (klass->IsInterface()) {
+    // Derive Object.class from Class.class.getSuperclass().
+    mirror::Class* object_klass = klass->GetClass()->GetSuperClass();
+    CHECK(object_klass->IsObjectClass());
+    vtable = object_klass->GetVTable();
+  } else {
+    vtable = klass->GetVTable();
+  }
+  CHECK(vtable != nullptr) << PrettyDescriptor(klass);
   uint16_t vtable_index = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
-  CHECK_LT(static_cast<int32_t>(vtable_index), vtable->GetLength())
-      << PrettyDescriptor(actual_arg_type.GetClass());
+  CHECK_LT(static_cast<int32_t>(vtable_index), vtable->GetLength()) << PrettyDescriptor(klass);
   mirror::ArtMethod* res_method = vtable->Get(vtable_index);
   CHECK(!Thread::Current()->IsExceptionPending());
   return res_method;
