@@ -28,7 +28,7 @@ namespace gc {
 
 ReferenceProcessor::ReferenceProcessor()
     : process_references_args_(nullptr, nullptr, nullptr), slow_path_enabled_(false),
-      preserving_references_(false), lock_("reference processor lock"),
+      preserving_references_(false), lock_("reference processor lock", kReferenceProcessorLock),
       condition_("reference processor condition", lock_) {
 }
 
@@ -71,7 +71,7 @@ mirror::Object* ReferenceProcessor::GetReferent(Thread* self, mirror::Reference*
         return obj;
       }
     }
-    condition_.Wait(self);
+    condition_.WaitHoldingLocks(self);
   }
   return reference->GetReferent();
 }
