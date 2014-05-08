@@ -131,8 +131,8 @@ void ReferenceQueue::ClearWhiteReferences(ReferenceQueue& cleared_references,
 }
 
 void ReferenceQueue::EnqueueFinalizerReferences(ReferenceQueue& cleared_references,
-                                                IsMarkedCallback is_marked_callback,
-                                                MarkObjectCallback recursive_mark_callback,
+                                                IsMarkedCallback* is_marked_callback,
+                                                MarkObjectCallback* mark_object_callback,
                                                 void* arg) {
   while (!IsEmpty()) {
     mirror::FinalizerReference* ref = DequeuePendingReference()->AsFinalizerReference();
@@ -141,7 +141,7 @@ void ReferenceQueue::EnqueueFinalizerReferences(ReferenceQueue& cleared_referenc
       mirror::Object* forward_address = is_marked_callback(referent, arg);
       // If the referent isn't marked, mark it and update the
       if (forward_address == nullptr) {
-        forward_address = recursive_mark_callback(referent, arg);
+        forward_address = mark_object_callback(referent, arg);
         // If the referent is non-null the reference must queuable.
         DCHECK(ref->IsEnqueuable());
         // Move the updated referent to the zombie field.
@@ -160,7 +160,7 @@ void ReferenceQueue::EnqueueFinalizerReferences(ReferenceQueue& cleared_referenc
   }
 }
 
-void ReferenceQueue::PreserveSomeSoftReferences(IsMarkedCallback preserve_callback, void* arg) {
+void ReferenceQueue::PreserveSomeSoftReferences(IsMarkedCallback* preserve_callback, void* arg) {
   ReferenceQueue cleared;
   while (!IsEmpty()) {
     mirror::Reference* ref = DequeuePendingReference();

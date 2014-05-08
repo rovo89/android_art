@@ -61,6 +61,7 @@ LIBART_COMMON_SRC_FILES := \
 	gc/collector/sticky_mark_sweep.cc \
 	gc/gc_cause.cc \
 	gc/heap.cc \
+	gc/reference_processor.cc \
 	gc/reference_queue.cc \
 	gc/space/bump_pointer_space.cc \
 	gc/space/dlmalloc_space.cc \
@@ -114,6 +115,7 @@ LIBART_COMMON_SRC_FILES := \
 	native/java_lang_Thread.cc \
 	native/java_lang_Throwable.cc \
 	native/java_lang_VMClassLoader.cc \
+	native/java_lang_ref_Reference.cc \
 	native/java_lang_reflect_Array.cc \
 	native/java_lang_reflect_Constructor.cc \
 	native/java_lang_reflect_Field.cc \

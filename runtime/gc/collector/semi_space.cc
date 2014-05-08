@@ -30,6 +30,7 @@
 #include "gc/accounting/remembered_set.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
+#include "gc/reference_processor.h"
 #include "gc/space/bump_pointer_space.h"
 #include "gc/space/bump_pointer_space-inl.h"
 #include "gc/space/image_space.h"
@@ -162,8 +163,9 @@ void SemiSpace::InitializePhase() {
 void SemiSpace::ProcessReferences(Thread* self) {
   TimingLogger::ScopedSplit split("ProcessReferences", &timings_);
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  GetHeap()->ProcessReferences(timings_, clear_soft_references_, &MarkedForwardingAddressCallback,
-                               &MarkObjectCallback, &ProcessMarkStackCallback, this);
+  GetHeap()->GetReferenceProcessor()->ProcessReferences(
+      false, &timings_, clear_soft_references_, &MarkedForwardingAddressCallback,
+      &MarkObjectCallback, &ProcessMarkStackCallback, this);
 }
 
 void SemiSpace::MarkingPhase() {
@@ -694,7 +696,8 @@ void SemiSpace::SweepLargeObjects(bool swap_bitmaps) {
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
 // marked, put it on the appropriate list in the heap for later processing.
 void SemiSpace::DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference) {
-  heap_->DelayReferenceReferent(klass, reference, MarkedForwardingAddressCallback, this);
+  heap_->GetReferenceProcessor()->DelayReferenceReferent(klass, reference,
+                                                         MarkedForwardingAddressCallback, this);
 }
 
 class SemiSpaceMarkObjectVisitor {
