@@ -31,6 +31,7 @@
 #include "gc/accounting/mod_union_table.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
+#include "gc/reference_processor.h"
 #include "gc/space/image_space.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
@@ -166,18 +167,9 @@ void MarkSweep::RunPhases() {
 void MarkSweep::ProcessReferences(Thread* self) {
   TimingLogger::ScopedSplit split("ProcessReferences", &timings_);
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  GetHeap()->ProcessReferences(timings_, clear_soft_references_, &IsMarkedCallback,
-                               &MarkObjectCallback, &ProcessMarkStackPausedCallback, this);
-}
-
-void MarkSweep::PreProcessReferences() {
-  if (IsConcurrent()) {
-    // No reason to do this for non-concurrent GC since pre processing soft references only helps
-    // pauses.
-    timings_.NewSplit("PreProcessReferences");
-    GetHeap()->ProcessSoftReferences(timings_, clear_soft_references_, &IsMarkedCallback,
-                                     &MarkObjectCallback, &ProcessMarkStackPausedCallback, this);
-  }
+  GetHeap()->GetReferenceProcessor()->ProcessReferences(
+      true, &timings_, clear_soft_references_, &IsMarkedCallback, &MarkObjectCallback,
+      &ProcessMarkStackCallback, this);
 }
 
 void MarkSweep::PausePhase() {
@@ -192,7 +184,6 @@ void MarkSweep::PausePhase() {
     // Scan dirty objects, this is only required if we are not doing concurrent GC.
     RecursiveMarkDirtyObjects(true, accounting::CardTable::kCardDirty);
   }
-  ProcessReferences(self);
   {
     TimingLogger::ScopedSplit split("SwapStacks", &timings_);
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
@@ -210,6 +201,9 @@ void MarkSweep::PausePhase() {
   // incorrectly sweep it. This also fixes a race where interning may attempt to return a strong
   // reference to a string that is about to be swept.
   Runtime::Current()->DisallowNewSystemWeaks();
+  // Enable the reference processing slow path, needs to be done with mutators paused since there
+  // is no lock in the GetReferent fast path.
+  GetHeap()->GetReferenceProcessor()->EnableSlowPath();
 }
 
 void MarkSweep::PreCleanCards() {
@@ -265,7 +259,6 @@ void MarkSweep::MarkingPhase() {
   MarkReachableObjects();
   // Pre-clean dirtied cards to reduce pauses.
   PreCleanCards();
-  PreProcessReferences();
 }
 
 void MarkSweep::UpdateAndMarkModUnion() {
@@ -290,6 +283,8 @@ void MarkSweep::MarkReachableObjects() {
 void MarkSweep::ReclaimPhase() {
   TimingLogger::ScopedSplit split("ReclaimPhase", &timings_);
   Thread* self = Thread::Current();
+  // Process the references concurrently.
+  ProcessReferences(self);
   SweepSystemWeaks(self);
   Runtime::Current()->AllowNewSystemWeaks();
   {
@@ -1168,7 +1163,7 @@ void MarkSweep::DelayReferenceReferent(mirror::Class* klass, mirror::Reference* 
   if (kCountJavaLangRefs) {
     ++reference_count_;
   }
-  heap_->DelayReferenceReferent(klass, ref, IsMarkedCallback, this);
+  heap_->GetReferenceProcessor()->DelayReferenceReferent(klass, ref, IsMarkedCallback, this);
 }
 
 class MarkObjectVisitor {
@@ -1198,8 +1193,8 @@ void MarkSweep::ScanObject(Object* obj) {
   ScanObjectVisit(obj, mark_visitor, ref_visitor);
 }
 
-void MarkSweep::ProcessMarkStackPausedCallback(void* arg) {
-  reinterpret_cast<MarkSweep*>(arg)->ProcessMarkStack(true);
+void MarkSweep::ProcessMarkStackCallback(void* arg) {
+  reinterpret_cast<MarkSweep*>(arg)->ProcessMarkStack(false);
 }
 
 void MarkSweep::ProcessMarkStackParallel(size_t thread_count) {
