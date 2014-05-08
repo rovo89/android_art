@@ -123,10 +123,6 @@ class MarkSweep : public GarbageCollector {
   void ProcessReferences(Thread* self)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void PreProcessReferences()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Update and mark references from immune spaces.
   void UpdateAndMarkModUnion()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -191,8 +187,9 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  static void ProcessMarkStackPausedCallback(void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+  static void ProcessMarkStackCallback(void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void MarkRootParallelCallback(mirror::Object** root, void* arg, uint32_t thread_id,
                                        RootType root_type)
