@@ -175,7 +175,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     large_object_threshold_ = kDefaultLargeObjectThreshold;
     // Background compaction is currently not supported for command line runs.
     if (background_collector_type_ != foreground_collector_type_) {
-      LOG(WARNING) << "Disabling background compaction for non zygote";
+      VLOG(heap) << "Disabling background compaction for non zygote";
       background_collector_type_ = foreground_collector_type_;
     }
   }
