@@ -742,7 +742,7 @@ void X86Mir2Lir::EmitArrayImm(const X86EncodingMap* entry, uint8_t base, uint8_t
   EmitPrefixAndOpcode(entry);
   EmitModrmSibDisp(entry->skeleton.modrm_opcode, base, index, scale, disp);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
-  EmitImm(entry, static_cast<int16_t>(imm));
+  EmitImm(entry, imm);
 }
 
 void X86Mir2Lir::EmitRegThread(const X86EncodingMap* entry, uint8_t reg, int disp) {
