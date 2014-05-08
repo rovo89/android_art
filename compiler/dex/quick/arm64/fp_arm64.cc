@@ -21,8 +21,8 @@
 namespace art {
 
 void Arm64Mir2Lir::GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest,
-                                 RegLocation rl_src1, RegLocation rl_src2) {
-  int op = kThumbBkpt;
+                                   RegLocation rl_src1, RegLocation rl_src2) {
+  int op = kA64Brk1d;
   RegLocation rl_result;
 
   /*
@@ -32,24 +32,24 @@ void Arm64Mir2Lir::GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest
   switch (opcode) {
     case Instruction::ADD_FLOAT_2ADDR:
     case Instruction::ADD_FLOAT:
-      op = kThumb2Vadds;
+      op = kA64Fadd3fff;
       break;
     case Instruction::SUB_FLOAT_2ADDR:
     case Instruction::SUB_FLOAT:
-      op = kThumb2Vsubs;
+      op = kA64Fsub3fff;
       break;
     case Instruction::DIV_FLOAT_2ADDR:
     case Instruction::DIV_FLOAT:
-      op = kThumb2Vdivs;
+      op = kA64Fdiv3fff;
       break;
     case Instruction::MUL_FLOAT_2ADDR:
     case Instruction::MUL_FLOAT:
-      op = kThumb2Vmuls;
+      op = kA64Fmul3fff;
       break;
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmodf), rl_src1, rl_src2,
+      CallRuntimeHelperRegLocationRegLocation(A64_QUICK_ENTRYPOINT_OFFSET(pFmodf), rl_src1, rl_src2,
                                               false);
       rl_result = GetReturn(true);
       StoreValue(rl_dest, rl_result);
@@ -68,31 +68,31 @@ void Arm64Mir2Lir::GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest
 }
 
 void Arm64Mir2Lir::GenArithOpDouble(Instruction::Code opcode,
-                                  RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
-  int op = kThumbBkpt;
+                                    RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
+  int op = kA64Brk1d;
   RegLocation rl_result;
 
   switch (opcode) {
     case Instruction::ADD_DOUBLE_2ADDR:
     case Instruction::ADD_DOUBLE:
-      op = kThumb2Vaddd;
+      op = kA64Fadd3fff;
       break;
     case Instruction::SUB_DOUBLE_2ADDR:
     case Instruction::SUB_DOUBLE:
-      op = kThumb2Vsubd;
+      op = kA64Fsub3fff;
       break;
     case Instruction::DIV_DOUBLE_2ADDR:
     case Instruction::DIV_DOUBLE:
-      op = kThumb2Vdivd;
+      op = kA64Fdiv3fff;
       break;
     case Instruction::MUL_DOUBLE_2ADDR:
     case Instruction::MUL_DOUBLE:
-      op = kThumb2Vmuld;
+      op = kA64Fmul3fff;
       break;
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmod), rl_src1, rl_src2,
+      CallRuntimeHelperRegLocationRegLocation(A64_QUICK_ENTRYPOINT_OFFSET(pFmod), rl_src1, rl_src2,
                                               false);
       rl_result = GetReturnWide(true);
       StoreValueWide(rl_dest, rl_result);
@@ -111,98 +111,62 @@ void Arm64Mir2Lir::GenArithOpDouble(Instruction::Code opcode,
   rl_result = EvalLoc(rl_dest, kFPReg, true);
   DCHECK(rl_dest.wide);
   DCHECK(rl_result.wide);
-  NewLIR3(op, rl_result.reg.GetReg(), rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
+  NewLIR3(FWIDE(op), rl_result.reg.GetReg(), rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
   StoreValueWide(rl_dest, rl_result);
 }
 
-void Arm64Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src) {
-  int op = kThumbBkpt;
-  int src_reg;
+void Arm64Mir2Lir::GenConversion(Instruction::Code opcode,
+                                 RegLocation rl_dest, RegLocation rl_src) {
+  int op = kA64Brk1d;
   RegLocation rl_result;
 
   switch (opcode) {
     case Instruction::INT_TO_FLOAT:
-      op = kThumb2VcvtIF;
+      op = kA64Scvtf2fw;
       break;
     case Instruction::FLOAT_TO_INT:
-      op = kThumb2VcvtFI;
+      op = kA64Fcvtzs2wf;
       break;
     case Instruction::DOUBLE_TO_FLOAT:
-      op = kThumb2VcvtDF;
+      op = kA64Fcvt2sS;
       break;
     case Instruction::FLOAT_TO_DOUBLE:
-      op = kThumb2VcvtFd;
+      op = kA64Fcvt2Ss;
       break;
     case Instruction::INT_TO_DOUBLE:
-      op = kThumb2VcvtF64S32;
+      op = FWIDE(kA64Scvtf2fw);
       break;
     case Instruction::DOUBLE_TO_INT:
-      op = kThumb2VcvtDI;
+      op = FWIDE(kA64Fcvtzs2wf);
       break;
-    case Instruction::LONG_TO_DOUBLE: {
-      rl_src = LoadValueWide(rl_src, kFPReg);
-      RegStorage src_low = rl_src.reg.DoubleToLowSingle();
-      RegStorage src_high = rl_src.reg.DoubleToHighSingle();
-      rl_result = EvalLoc(rl_dest, kFPReg, true);
-      RegStorage tmp1 = AllocTempDouble();
-      RegStorage tmp2 = AllocTempDouble();
-
-      NewLIR2(kThumb2VcvtF64S32, tmp1.GetReg(), src_high.GetReg());
-      NewLIR2(kThumb2VcvtF64U32, rl_result.reg.GetReg(), src_low.GetReg());
-      LoadConstantWide(tmp2, 0x41f0000000000000LL);
-      NewLIR3(kThumb2VmlaF64, rl_result.reg.GetReg(), tmp1.GetReg(), tmp2.GetReg());
-      FreeTemp(tmp1);
-      FreeTemp(tmp2);
-      StoreValueWide(rl_dest, rl_result);
-      return;
-    }
+    case Instruction::LONG_TO_DOUBLE:
+      op = FWIDE(kA64Scvtf2fx);
+      break;
     case Instruction::FLOAT_TO_LONG:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pF2l), rl_dest, rl_src);
-      return;
-    case Instruction::LONG_TO_FLOAT: {
-      rl_src = LoadValueWide(rl_src, kFPReg);
-      RegStorage src_low = rl_src.reg.DoubleToLowSingle();
-      RegStorage src_high = rl_src.reg.DoubleToHighSingle();
-      rl_result = EvalLoc(rl_dest, kFPReg, true);
-      // Allocate temp registers.
-      RegStorage high_val = AllocTempDouble();
-      RegStorage low_val = AllocTempDouble();
-      RegStorage const_val = AllocTempDouble();
-      // Long to double.
-      NewLIR2(kThumb2VcvtF64S32, high_val.GetReg(), src_high.GetReg());
-      NewLIR2(kThumb2VcvtF64U32, low_val.GetReg(), src_low.GetReg());
-      LoadConstantWide(const_val, INT64_C(0x41f0000000000000));
-      NewLIR3(kThumb2VmlaF64, low_val.GetReg(), high_val.GetReg(), const_val.GetReg());
-      // Double to float.
-      NewLIR2(kThumb2VcvtDF, rl_result.reg.GetReg(), low_val.GetReg());
-      // Free temp registers.
-      FreeTemp(high_val);
-      FreeTemp(low_val);
-      FreeTemp(const_val);
-      // Store result.
-      StoreValue(rl_dest, rl_result);
-      return;
-    }
+      op = kA64Fcvtzs2xf;
+      break;
+    case Instruction::LONG_TO_FLOAT:
+      op = kA64Scvtf2fx;
+      break;
     case Instruction::DOUBLE_TO_LONG:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pD2l), rl_dest, rl_src);
-      return;
+      op = FWIDE(kA64Fcvtzs2xf);
+      break;
     default:
       LOG(FATAL) << "Unexpected opcode: " << opcode;
   }
+
   if (rl_src.wide) {
     rl_src = LoadValueWide(rl_src, kFPReg);
-    src_reg = rl_src.reg.GetReg();
   } else {
     rl_src = LoadValue(rl_src, kFPReg);
-    src_reg = rl_src.reg.GetReg();
   }
+
+  rl_result = EvalLoc(rl_dest, kFPReg, true);
+  NewLIR2(op, rl_result.reg.GetReg(), rl_src.reg.GetReg());
+
   if (rl_dest.wide) {
-    rl_result = EvalLoc(rl_dest, kFPReg, true);
-    NewLIR2(op, rl_result.reg.GetReg(), src_reg);
     StoreValueWide(rl_dest, rl_result);
   } else {
-    rl_result = EvalLoc(rl_dest, kFPReg, true);
-    NewLIR2(op, rl_result.reg.GetReg(), src_reg);
     StoreValue(rl_dest, rl_result);
   }
 }
@@ -217,15 +181,14 @@ void Arm64Mir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
     rl_src2 = mir_graph_->GetSrcWide(mir, 2);
     rl_src1 = LoadValueWide(rl_src1, kFPReg);
     rl_src2 = LoadValueWide(rl_src2, kFPReg);
-    NewLIR2(kThumb2Vcmpd, rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
+    NewLIR2(FWIDE(kA64Fcmp2ff), rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
   } else {
     rl_src1 = mir_graph_->GetSrc(mir, 0);
     rl_src2 = mir_graph_->GetSrc(mir, 1);
     rl_src1 = LoadValue(rl_src1, kFPReg);
     rl_src2 = LoadValue(rl_src2, kFPReg);
-    NewLIR2(kThumb2Vcmps, rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
+    NewLIR2(kA64Fcmp2ff, rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
   }
-  NewLIR0(kThumb2Fmstat);
   ConditionCode ccode = mir->meta.ccode;
   switch (ccode) {
     case kCondEq:
@@ -259,7 +222,7 @@ void Arm64Mir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
 
 
 void Arm64Mir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest,
-                          RegLocation rl_src1, RegLocation rl_src2) {
+                            RegLocation rl_src1, RegLocation rl_src2) {
   bool is_double = false;
   int default_result = -1;
   RegLocation rl_result;
@@ -291,7 +254,7 @@ void Arm64Mir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest,
     ClobberSReg(rl_dest.s_reg_low);
     rl_result = EvalLoc(rl_dest, kCoreReg, true);
     LoadConstant(rl_result.reg, default_result);
-    NewLIR2(kThumb2Vcmpd, rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
+    NewLIR2(FWIDE(kA64Fcmp2ff), rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
   } else {
     rl_src1 = LoadValue(rl_src1, kFPReg);
     rl_src2 = LoadValue(rl_src2, kFPReg);
@@ -299,20 +262,20 @@ void Arm64Mir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest,
     ClobberSReg(rl_dest.s_reg_low);
     rl_result = EvalLoc(rl_dest, kCoreReg, true);
     LoadConstant(rl_result.reg, default_result);
-    NewLIR2(kThumb2Vcmps, rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
+    NewLIR2(kA64Fcmp2ff, rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
   }
   DCHECK(!rl_result.reg.IsFloat());
-  NewLIR0(kThumb2Fmstat);
 
-  LIR* it = OpIT((default_result == -1) ? kCondGt : kCondMi, "");
-  NewLIR2(kThumb2MovI8M, rl_result.reg.GetReg(),
-          ModifiedImmediate(-default_result));  // Must not alter ccodes
-  OpEndIT(it);
+  // TODO(Arm64): should we rather do this?
+  // csinc wD, wzr, wzr, eq
+  // csneg wD, wD, wD, le
+  // (which requires 2 instructions rather than 3)
 
-  it = OpIT(kCondEq, "");
-  LoadConstant(rl_result.reg, 0);
-  OpEndIT(it);
-
+  // Rd = if cond then Rd else -Rd.
+  NewLIR4(kA64Csneg4rrrc, rl_result.reg.GetReg(), rl_result.reg.GetReg(),
+          rl_result.reg.GetReg(), (default_result == 1) ? kArmCondPl : kArmCondLe);
+  NewLIR4(kA64Csel4rrrc, rl_result.reg.GetReg(), rwzr, rl_result.reg.GetReg(),
+          kArmCondEq);
   StoreValue(rl_dest, rl_result);
 }
 
@@ -320,7 +283,7 @@ void Arm64Mir2Lir::GenNegFloat(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result;
   rl_src = LoadValue(rl_src, kFPReg);
   rl_result = EvalLoc(rl_dest, kFPReg, true);
-  NewLIR2(kThumb2Vnegs, rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  NewLIR2(kA64Fneg2ff, rl_result.reg.GetReg(), rl_src.reg.GetReg());
   StoreValue(rl_dest, rl_result);
 }
 
@@ -328,31 +291,32 @@ void Arm64Mir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result;
   rl_src = LoadValueWide(rl_src, kFPReg);
   rl_result = EvalLoc(rl_dest, kFPReg, true);
-  NewLIR2(kThumb2Vnegd, rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  NewLIR2(FWIDE(kA64Fneg2ff), rl_result.reg.GetReg(), rl_src.reg.GetReg());
   StoreValueWide(rl_dest, rl_result);
 }
 
 bool Arm64Mir2Lir::GenInlinedSqrt(CallInfo* info) {
-  DCHECK_EQ(cu_->instruction_set, kThumb2);
+  // TODO(Arm64): implement this.
+  UNIMPLEMENTED(FATAL) << "GenInlinedSqrt not implemented for Arm64";
+
+  DCHECK_EQ(cu_->instruction_set, kArm64);
   LIR *branch;
   RegLocation rl_src = info->args[0];
   RegLocation rl_dest = InlineTargetWide(info);  // double place for result
   rl_src = LoadValueWide(rl_src, kFPReg);
   RegLocation rl_result = EvalLoc(rl_dest, kFPReg, true);
-  NewLIR2(kThumb2Vsqrtd, rl_result.reg.GetReg(), rl_src.reg.GetReg());
-  NewLIR2(kThumb2Vcmpd, rl_result.reg.GetReg(), rl_result.reg.GetReg());
-  NewLIR0(kThumb2Fmstat);
-  branch = NewLIR2(kThumbBCond, 0, kArmCondEq);
+  NewLIR2(FWIDE(kA64Fsqrt2ff), rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  NewLIR2(FWIDE(kA64Fcmp2ff), rl_result.reg.GetReg(), rl_result.reg.GetReg());
+  branch = NewLIR2(kA64B2ct, kArmCondEq, 0);
   ClobberCallerSave();
   LockCallTemps();  // Using fixed registers
-  RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pSqrt));
-  NewLIR3(kThumb2Fmrrd, rs_r0.GetReg(), rs_r1.GetReg(), rl_src.reg.GetReg());
-  NewLIR1(kThumbBlxR, r_tgt.GetReg());
-  NewLIR3(kThumb2Fmdrr, rl_result.reg.GetReg(), rs_r0.GetReg(), rs_r1.GetReg());
+  RegStorage r_tgt = LoadHelper(A64_QUICK_ENTRYPOINT_OFFSET(pSqrt));
+  // NewLIR3(kThumb2Fmrrd, r0, r1, rl_src.reg.GetReg());
+  NewLIR1(kA64Blr1x, r_tgt.GetReg());
+  // NewLIR3(kThumb2Fmdrr, rl_result.reg.GetReg(), r0, r1);
   branch->target = NewLIR0(kPseudoTargetLabel);
   StoreValueWide(rl_dest, rl_result);
   return true;
 }
-
 
 }  // namespace art

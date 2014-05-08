@@ -346,7 +346,7 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocationRegLocation(ThreadOffset<4>
 
 /*
  * If there are any ins passed in registers that have not been promoted
- * to a callee-save register, flush them to the frame.  Perform intial
+ * to a callee-save register, flush them to the frame.  Perform initial
  * assignment of promoted arguments.
  *
  * ArgLocs is an array of location records describing the incoming arguments
