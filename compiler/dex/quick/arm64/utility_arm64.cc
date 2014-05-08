@@ -1056,7 +1056,12 @@ LIR* Arm64Mir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
   return NULL;
 }
 
-LIR* Arm64Mir2Lir::OpThreadMem(OpKind op, A64ThreadOffset thread_offset) {
+LIR* Arm64Mir2Lir::OpThreadMem(OpKind op, ThreadOffset<4> thread_offset) {
+  UNIMPLEMENTED(FATAL) << "Should not be used.";
+  return nullptr;
+}
+
+LIR* Arm64Mir2Lir::OpThreadMem(OpKind op, ThreadOffset<8> thread_offset) {
   LOG(FATAL) << "Unexpected use of OpThreadMem for Arm64";
   return NULL;
 }

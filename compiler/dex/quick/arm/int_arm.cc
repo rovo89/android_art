@@ -725,6 +725,10 @@ void ArmMir2Lir::OpTlsCmp(ThreadOffset<4> offset, int val) {
   LOG(FATAL) << "Unexpected use of OpTlsCmp for Arm";
 }
 
+void ArmMir2Lir::OpTlsCmp(ThreadOffset<8> offset, int val) {
+  UNIMPLEMENTED(FATAL) << "Should not be called.";
+}
+
 bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   DCHECK_EQ(cu_->instruction_set, kThumb2);
   // Unused - RegLocation rl_src_unsafe = info->args[0];
