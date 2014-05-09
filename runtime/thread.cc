@@ -44,6 +44,7 @@
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
 #include "gc/space/space.h"
+#include "indirect_reference_table-inl.h"
 #include "jni_internal.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
@@ -1265,10 +1266,8 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
       result = kInvalidIndirectRefObject;
     }
   } else if (kind == kGlobal) {
-    JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-    IndirectReferenceTable& globals = vm->globals;
-    ReaderMutexLock mu(const_cast<Thread*>(this), vm->globals_lock);
-    result = const_cast<mirror::Object*>(globals.Get(ref));
+    JavaVMExt* const vm = Runtime::Current()->GetJavaVM();
+    result = vm->globals.SynchronizedGet(const_cast<Thread*>(this), &vm->globals_lock, ref);
   } else {
     DCHECK_EQ(kind, kWeakGlobal);
     result = Runtime::Current()->GetJavaVM()->DecodeWeakGlobal(const_cast<Thread*>(this), ref);
