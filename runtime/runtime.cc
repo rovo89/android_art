@@ -1301,6 +1301,6 @@ void Runtime::AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::strin
 }
 
 void Runtime::UpdateProfilerState(int state) {
-  LOG(DEBUG) << "Profiler state updated to " << state;
+  VLOG(profiler) << "Profiler state updated to " << state;
 }
 }  // namespace art

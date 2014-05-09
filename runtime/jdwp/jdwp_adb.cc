@@ -362,7 +362,7 @@ bool JdwpAdbState::ProcessIncoming() {
       }
 
       if (wake_pipe_[0] >= 0 && FD_ISSET(wake_pipe_[0], &readfds)) {
-        LOG(DEBUG) << "Got wake-up signal, bailing out of select";
+        VLOG(jdwp) << "Got wake-up signal, bailing out of select";
         goto fail;
       }
       if (control_sock_ >= 0 && FD_ISSET(control_sock_, &readfds)) {
@@ -385,7 +385,7 @@ bool JdwpAdbState::ProcessIncoming() {
           if (errno != EINTR) {
             goto fail;
           }
-          LOG(DEBUG) << "+++ EINTR hit";
+          VLOG(jdwp) << "+++ EINTR hit";
           return true;
         } else if (readCount == 0) {
           /* EOF hit -- far end went away */
