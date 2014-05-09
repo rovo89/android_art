@@ -144,8 +144,8 @@ ImageSpace* ImageSpace::Create(const char* image_location,
   std::string error_msg;
   bool is_system = false;
   if (FindImageFilename(image_location, image_isa, &image_filename, &is_system)) {
-    ImageSpace* space = ImageSpace::Init(image_filename.c_str(), image_location,
-                                         !is_system, &error_msg);
+    ImageSpace* space = ImageSpace::Init(image_filename.c_str(), image_location, !is_system,
+                                         &error_msg);
     if (space != nullptr) {
       return space;
     }

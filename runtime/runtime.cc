@@ -1272,17 +1272,9 @@ void Runtime::AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::strin
   // Make the dex2oat instruction set match that of the launching runtime. If we have multiple
   // architecture support, dex2oat may be compiled as a different instruction-set than that
   // currently being executed.
-#if defined(__arm__)
-  argv->push_back("--instruction-set=arm");
-#elif defined(__aarch64__)
-  argv->push_back("--instruction-set=arm64");
-#elif defined(__i386__)
-  argv->push_back("--instruction-set=x86");
-#elif defined(__x86_64__)
-  argv->push_back("--instruction-set=x86_64");
-#elif defined(__mips__)
-  argv->push_back("--instruction-set=mips");
-#endif
+  std::string instruction_set("--instruction-set=");
+  instruction_set += GetInstructionSetString(kRuntimeISA);
+  argv->push_back(instruction_set);
 
   std::string features("--instruction-set-features=");
   features += GetDefaultInstructionSetFeatures();
