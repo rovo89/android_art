@@ -555,6 +555,18 @@ bool MipsMir2Lir::IsUnconditionalBranch(LIR* lir) {
   return (lir->opcode == kMipsB);
 }
 
+bool MipsMir2Lir::SupportsVolatileLoadStore(OpSize size) {
+  // No support for 64-bit atomic load/store on mips.
+  return size != k64 && size != kDouble;
+}
+
+RegisterClass MipsMir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatile) {
+  // No support for 64-bit atomic load/store on mips.
+  DCHECK(size != k64 && size != kDouble);
+  // TODO: Verify that both core and fp registers are suitable for smaller sizes.
+  return RegClassBySize(size);
+}
+
 MipsMir2Lir::MipsMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : Mir2Lir(cu, mir_graph, arena) {
   for (int i = 0; i < kMipsLast; i++) {

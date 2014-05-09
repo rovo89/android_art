@@ -545,6 +545,12 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
   return load;
 }
 
+LIR* MipsMir2Lir::LoadBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
+                                       OpSize size) {
+  DCHECK(size != k64 && size != kDouble);
+  return LoadBaseDisp(r_base, displacement, r_dest, size);
+}
+
 LIR* MipsMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
                                OpSize size) {
   // TODO: base this on target.
@@ -638,6 +644,12 @@ LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement,
   }
 
   return res;
+}
+
+LIR* MipsMir2Lir::StoreBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_src,
+                                        OpSize size) {
+  DCHECK(size != k64 && size != kDouble);
+  return StoreBaseDisp(r_base, displacement, r_src, size);
 }
 
 LIR* MipsMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,

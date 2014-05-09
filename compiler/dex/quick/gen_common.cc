@@ -500,7 +500,9 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, bool is_long_or_double,
                       bool is_object) {
   const MirSFieldLoweringInfo& field_info = mir_graph_->GetSFieldLoweringInfo(mir);
   cu_->compiler_driver->ProcessedStaticField(field_info.FastPut(), field_info.IsReferrersClass());
-  if (field_info.FastPut() && !SLOW_FIELD_PATH) {
+  OpSize store_size = LoadStoreOpSize(is_long_or_double, is_object);
+  if (!SLOW_FIELD_PATH && field_info.FastPut() &&
+      (!field_info.IsVolatile() || SupportsVolatileLoadStore(store_size))) {
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     RegStorage r_base;
     if (field_info.IsReferrersClass()) {
@@ -550,25 +552,20 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, bool is_long_or_double,
       FreeTemp(r_method);
     }
     // rBase now holds static storage base
+    RegisterClass reg_class = RegClassForFieldLoadStore(store_size, field_info.IsVolatile());
     if (is_long_or_double) {
-      RegisterClass register_kind = kAnyReg;
-      if (field_info.IsVolatile() && cu_->instruction_set == kX86) {
-        // Force long/double volatile stores into SSE registers to avoid tearing.
-        register_kind = kFPReg;
-      }
-      rl_src = LoadValueWide(rl_src, register_kind);
+      rl_src = LoadValueWide(rl_src, reg_class);
     } else {
-      rl_src = LoadValue(rl_src, kAnyReg);
+      rl_src = LoadValue(rl_src, reg_class);
     }
     if (field_info.IsVolatile()) {
       // There might have been a store before this volatile one so insert StoreStore barrier.
       GenMemBarrier(kStoreStore);
-    }
-    OpSize size = LoadStoreOpSize(is_long_or_double, rl_src.ref);
-    StoreBaseDisp(r_base, field_info.FieldOffset().Int32Value(), rl_src.reg, size);
-    if (field_info.IsVolatile()) {
+      StoreBaseDispVolatile(r_base, field_info.FieldOffset().Int32Value(), rl_src.reg, store_size);
       // A load might follow the volatile store so insert a StoreLoad barrier.
       GenMemBarrier(kStoreLoad);
+    } else {
+      StoreBaseDisp(r_base, field_info.FieldOffset().Int32Value(), rl_src.reg, store_size);
     }
     if (is_object && !mir_graph_->IsConstantNullRef(rl_src)) {
       MarkGCCard(rl_src.reg, r_base);
@@ -588,7 +585,9 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
                       bool is_long_or_double, bool is_object) {
   const MirSFieldLoweringInfo& field_info = mir_graph_->GetSFieldLoweringInfo(mir);
   cu_->compiler_driver->ProcessedStaticField(field_info.FastGet(), field_info.IsReferrersClass());
-  if (field_info.FastGet() && !SLOW_FIELD_PATH) {
+  OpSize load_size = LoadStoreOpSize(is_long_or_double, is_object);
+  if (!SLOW_FIELD_PATH && field_info.FastGet() &&
+      (!field_info.IsVolatile() || SupportsVolatileLoadStore(load_size))) {
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     RegStorage r_base;
     if (field_info.IsReferrersClass()) {
@@ -634,23 +633,20 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
       FreeTemp(r_method);
     }
     // r_base now holds static storage base
-    RegisterClass result_reg_kind = kAnyReg;
-    if (field_info.IsVolatile() && cu_->instruction_set == kX86) {
-      // Force long/double volatile loads into SSE registers to avoid tearing.
-      result_reg_kind = kFPReg;
-    }
-    RegLocation rl_result = EvalLoc(rl_dest, result_reg_kind, true);
+    RegisterClass reg_class = RegClassForFieldLoadStore(load_size, field_info.IsVolatile());
+    RegLocation rl_result = EvalLoc(rl_dest, reg_class, true);
 
-    OpSize size = LoadStoreOpSize(is_long_or_double, rl_result.ref);
-    LoadBaseDisp(r_base, field_info.FieldOffset().Int32Value(), rl_result.reg, size);
-    FreeTemp(r_base);
-
+    int field_offset = field_info.FieldOffset().Int32Value();
     if (field_info.IsVolatile()) {
+      LoadBaseDispVolatile(r_base, field_offset, rl_result.reg, load_size);
       // Without context sensitive analysis, we must issue the most conservative barriers.
       // In this case, either a load or store may follow so we issue both barriers.
       GenMemBarrier(kLoadLoad);
       GenMemBarrier(kLoadStore);
+    } else {
+      LoadBaseDisp(r_base, field_offset, rl_result.reg, load_size);
     }
+    FreeTemp(r_base);
 
     if (is_long_or_double) {
       StoreValueWide(rl_dest, rl_result);
@@ -689,55 +685,29 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
                       bool is_object) {
   const MirIFieldLoweringInfo& field_info = mir_graph_->GetIFieldLoweringInfo(mir);
   cu_->compiler_driver->ProcessedInstanceField(field_info.FastGet());
-  if (field_info.FastGet() && !SLOW_FIELD_PATH) {
-    RegLocation rl_result;
-    RegisterClass reg_class = RegClassBySize(size);
+  OpSize load_size = LoadStoreOpSize(is_long_or_double, is_object);
+  if (!SLOW_FIELD_PATH && field_info.FastGet() &&
+      (!field_info.IsVolatile() || SupportsVolatileLoadStore(load_size))) {
+    RegisterClass reg_class = RegClassForFieldLoadStore(load_size, field_info.IsVolatile());
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     rl_obj = LoadValue(rl_obj, kCoreReg);
+    GenNullCheck(rl_obj.reg, opt_flags);
+    RegLocation rl_result = EvalLoc(rl_dest, reg_class, true);
+    int field_offset = field_info.FieldOffset().Int32Value();
+    if (field_info.IsVolatile()) {
+      LoadBaseDispVolatile(rl_obj.reg, field_offset, rl_result.reg, load_size);
+      MarkPossibleNullPointerException(opt_flags);
+      // Without context sensitive analysis, we must issue the most conservative barriers.
+      // In this case, either a load or store may follow so we issue both barriers.
+      GenMemBarrier(kLoadLoad);
+      GenMemBarrier(kLoadStore);
+    } else {
+      LoadBaseDisp(rl_obj.reg, field_offset, rl_result.reg, load_size);
+      MarkPossibleNullPointerException(opt_flags);
+    }
     if (is_long_or_double) {
-      DCHECK(rl_dest.wide);
-      GenNullCheck(rl_obj.reg, opt_flags);
-      if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
-        RegisterClass result_reg_kind = kAnyReg;
-        if (field_info.IsVolatile() && cu_->instruction_set == kX86) {
-          // Force long/double volatile loads into SSE registers to avoid tearing.
-          result_reg_kind = kFPReg;
-        }
-        rl_result = EvalLoc(rl_dest, result_reg_kind, true);
-        LoadBaseDisp(rl_obj.reg, field_info.FieldOffset().Int32Value(), rl_result.reg, size);
-        MarkPossibleNullPointerException(opt_flags);
-        if (field_info.IsVolatile()) {
-          // Without context sensitive analysis, we must issue the most conservative barriers.
-          // In this case, either a load or store may follow so we issue both barriers.
-          GenMemBarrier(kLoadLoad);
-          GenMemBarrier(kLoadStore);
-        }
-      } else {
-        RegStorage reg_ptr = AllocTemp();
-        OpRegRegImm(kOpAdd, reg_ptr, rl_obj.reg, field_info.FieldOffset().Int32Value());
-        rl_result = EvalLoc(rl_dest, reg_class, true);
-        LoadBaseDisp(reg_ptr, 0, rl_result.reg, size);
-        MarkPossibleNullPointerException(opt_flags);
-        if (field_info.IsVolatile()) {
-          // Without context sensitive analysis, we must issue the most conservative barriers.
-          // In this case, either a load or store may follow so we issue both barriers.
-          GenMemBarrier(kLoadLoad);
-          GenMemBarrier(kLoadStore);
-        }
-        FreeTemp(reg_ptr);
-      }
       StoreValueWide(rl_dest, rl_result);
     } else {
-      rl_result = EvalLoc(rl_dest, reg_class, true);
-      GenNullCheck(rl_obj.reg, opt_flags);
-      LoadBaseDisp(rl_obj.reg, field_info.FieldOffset().Int32Value(), rl_result.reg, k32);
-      MarkPossibleNullPointerException(opt_flags);
-      if (field_info.IsVolatile()) {
-        // Without context sensitive analysis, we must issue the most conservative barriers.
-        // In this case, either a load or store may follow so we issue both barriers.
-        GenMemBarrier(kLoadLoad);
-        GenMemBarrier(kLoadStore);
-      }
       StoreValue(rl_dest, rl_result);
     }
   } else {
@@ -761,47 +731,32 @@ void Mir2Lir::GenIPut(MIR* mir, int opt_flags, OpSize size,
                       bool is_object) {
   const MirIFieldLoweringInfo& field_info = mir_graph_->GetIFieldLoweringInfo(mir);
   cu_->compiler_driver->ProcessedInstanceField(field_info.FastPut());
-  if (field_info.FastPut() && !SLOW_FIELD_PATH) {
-    RegisterClass reg_class = RegClassBySize(size);
+  OpSize store_size = LoadStoreOpSize(is_long_or_double, is_object);
+  if (!SLOW_FIELD_PATH && field_info.FastPut() &&
+      (!field_info.IsVolatile() || SupportsVolatileLoadStore(store_size))) {
+    RegisterClass reg_class = RegClassForFieldLoadStore(store_size, field_info.IsVolatile());
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     rl_obj = LoadValue(rl_obj, kCoreReg);
     if (is_long_or_double) {
-      RegisterClass src_reg_kind = kAnyReg;
-      if (field_info.IsVolatile() && cu_->instruction_set == kX86) {
-        // Force long/double volatile stores into SSE registers to avoid tearing.
-        src_reg_kind = kFPReg;
-      }
-      rl_src = LoadValueWide(rl_src, src_reg_kind);
-      GenNullCheck(rl_obj.reg, opt_flags);
-      RegStorage reg_ptr = AllocTemp();
-      OpRegRegImm(kOpAdd, reg_ptr, rl_obj.reg, field_info.FieldOffset().Int32Value());
-      if (field_info.IsVolatile()) {
-        // There might have been a store before this volatile one so insert StoreStore barrier.
-        GenMemBarrier(kStoreStore);
-      }
-      StoreBaseDisp(reg_ptr, 0, rl_src.reg, size);
-      MarkPossibleNullPointerException(opt_flags);
-      if (field_info.IsVolatile()) {
-        // A load might follow the volatile store so insert a StoreLoad barrier.
-        GenMemBarrier(kStoreLoad);
-      }
-      FreeTemp(reg_ptr);
+      rl_src = LoadValueWide(rl_src, reg_class);
     } else {
       rl_src = LoadValue(rl_src, reg_class);
-      GenNullCheck(rl_obj.reg, opt_flags);
-      if (field_info.IsVolatile()) {
-        // There might have been a store before this volatile one so insert StoreStore barrier.
-        GenMemBarrier(kStoreStore);
-      }
-      Store32Disp(rl_obj.reg, field_info.FieldOffset().Int32Value(), rl_src.reg);
+    }
+    GenNullCheck(rl_obj.reg, opt_flags);
+    int field_offset = field_info.FieldOffset().Int32Value();
+    if (field_info.IsVolatile()) {
+      // There might have been a store before this volatile one so insert StoreStore barrier.
+      GenMemBarrier(kStoreStore);
+      StoreBaseDispVolatile(rl_obj.reg, field_offset, rl_src.reg, store_size);
       MarkPossibleNullPointerException(opt_flags);
-      if (field_info.IsVolatile()) {
-        // A load might follow the volatile store so insert a StoreLoad barrier.
-        GenMemBarrier(kStoreLoad);
-      }
-      if (is_object && !mir_graph_->IsConstantNullRef(rl_src)) {
-        MarkGCCard(rl_src.reg, rl_obj.reg);
-      }
+      // A load might follow the volatile store so insert a StoreLoad barrier.
+      GenMemBarrier(kStoreLoad);
+    } else {
+      StoreBaseDisp(rl_obj.reg, field_offset, rl_src.reg, store_size);
+      MarkPossibleNullPointerException(opt_flags);
+    }
+    if (is_object && !mir_graph_->IsConstantNullRef(rl_src)) {
+      MarkGCCard(rl_src.reg, rl_obj.reg);
     }
   } else {
     ThreadOffset<4> setter_offset =
