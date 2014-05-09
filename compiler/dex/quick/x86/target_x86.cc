@@ -545,6 +545,21 @@ bool X86Mir2Lir::IsUnconditionalBranch(LIR* lir) {
   return (lir->opcode == kX86Jmp8 || lir->opcode == kX86Jmp32);
 }
 
+bool X86Mir2Lir::SupportsVolatileLoadStore(OpSize size) {
+  return true;
+}
+
+RegisterClass X86Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatile) {
+  if (UNLIKELY(is_volatile)) {
+    // On x86, atomic 64-bit load/store requires an fp register.
+    // Smaller aligned load/store is atomic for both core and fp registers.
+    if (size == k64 || size == kDouble) {
+      return kFPReg;
+    }
+  }
+  return RegClassBySize(size);
+}
+
 X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : Mir2Lir(cu, mir_graph, arena),
       base_of_code_(nullptr), store_method_addr_(false), store_method_addr_used_(false),

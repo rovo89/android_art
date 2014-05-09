@@ -687,6 +687,12 @@ static InstructionSetFeatures ParseFeatureList(std::string str) {
     } else if (feature == "nodiv") {
       // Turn off support for divide instruction.
       result.SetHasDivideInstruction(false);
+    } else if (feature == "lpae") {
+      // Supports Large Physical Address Extension.
+      result.SetHasLpae(true);
+    } else if (feature == "nolpae") {
+      // Turn off support for Large Physical Address Extension.
+      result.SetHasLpae(false);
     } else {
       Usage("Unknown instruction set feature: '%s'", feature.c_str());
     }

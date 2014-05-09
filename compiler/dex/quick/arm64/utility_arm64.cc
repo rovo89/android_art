@@ -930,6 +930,13 @@ LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStor
   return load;
 }
 
+LIR* Arm64Mir2Lir::LoadBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
+                                        OpSize size) {
+  // LoadBaseDisp() will emit correct insn for atomic load on arm64
+  // assuming r_dest is correctly prepared using RegClassForFieldLoadStore().
+  return LoadBaseDisp(r_base, displacement, r_dest, size);
+}
+
 LIR* Arm64Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
                                 OpSize size) {
   return LoadBaseDispBody(r_base, displacement, r_dest, size);
@@ -1032,8 +1039,15 @@ LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegSto
   return store;
 }
 
+LIR* Arm64Mir2Lir::StoreBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_src,
+                                         OpSize size) {
+  // StoreBaseDisp() will emit correct insn for atomic store on arm64
+  // assuming r_dest is correctly prepared using RegClassForFieldLoadStore().
+  return StoreBaseDisp(r_base, displacement, r_src, size);
+}
+
 LIR* Arm64Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
-                               OpSize size) {
+                                 OpSize size) {
   return StoreBaseDispBody(r_base, displacement, r_src, size);
 }
 
