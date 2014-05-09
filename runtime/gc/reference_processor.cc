@@ -39,9 +39,6 @@ void ReferenceProcessor::EnableSlowPath() {
 
 void ReferenceProcessor::DisableSlowPath(Thread* self) {
   slow_path_enabled_ = false;
-  // Set to null so that GetReferent knows to not attempt to use the callback for seeing if
-  // referents are marked.
-  process_references_args_.is_marked_callback_ = nullptr;
   condition_.Broadcast(self);
 }
 
@@ -57,13 +54,17 @@ mirror::Object* ReferenceProcessor::GetReferent(Thread* self, mirror::Reference*
   }
   MutexLock mu(self, lock_);
   while (slow_path_enabled_) {
+    mirror::Object* const referent = reference->GetReferent();
+    // If the referent became cleared, return it.
+    if (referent == nullptr) {
+      return nullptr;
+    }
     // Try to see if the referent is already marked by using the is_marked_callback. We can return
     // it to the mutator as long as the GC is not preserving references. If the GC is
     // preserving references, the mutator could take a white field and move it somewhere else
     // in the heap causing corruption since this field would get swept.
     IsMarkedCallback* const is_marked_callback = process_references_args_.is_marked_callback_;
     if (!preserving_references_ && is_marked_callback != nullptr) {
-      mirror::Object* const referent = reference->GetReferent();
       mirror::Object* const obj = is_marked_callback(referent, process_references_args_.arg_);
       // If it's null it means not marked, but it could become marked if the referent is reachable
       // by finalizer referents. So we can not return in this case and must block.
@@ -107,14 +108,9 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
     process_references_args_.is_marked_callback_ = is_marked_callback;
     process_references_args_.mark_callback_ = mark_object_callback;
     process_references_args_.arg_ = arg;
+    CHECK_EQ(slow_path_enabled_, concurrent) << "Slow path must be enabled iff concurrent";
   }
-  if (concurrent) {
-    MutexLock mu(self, lock_);
-    CHECK(slow_path_enabled_) << "Slow path must be enabled for concurrent reference processing";
-    timings->StartSplit("ProcessReferences");
-  } else {
-    timings->StartSplit("(Paused)ProcessReferences");
-  }
+  timings->StartSplit(concurrent ? "ProcessReferences" : "(Paused)ProcessReferences");
   // Unless required to clear soft references with white references, preserve some white referents.
   if (!clear_soft_references) {
     TimingLogger::ScopedSplit split(concurrent ? "PreserveSomeSoftReferences" :
@@ -125,7 +121,6 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
     // References with a marked referent are removed from the list.
     soft_reference_queue_.PreserveSomeSoftReferences(&PreserveSoftReferenceCallback,
                                                      &process_references_args_);
-
     process_mark_stack_callback(arg);
     if (concurrent) {
       StopPreservingReferences(self);
@@ -158,10 +153,17 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
   DCHECK(weak_reference_queue_.IsEmpty());
   DCHECK(finalizer_reference_queue_.IsEmpty());
   DCHECK(phantom_reference_queue_.IsEmpty());
-  if (concurrent) {
+  {
     MutexLock mu(self, lock_);
-    // Done processing, disable the slow path and broadcast to the waiters.
-    DisableSlowPath(self);
+    // Need to always do this since the next GC may be concurrent. Doing this for only concurrent
+    // could result in a stale is_marked_callback_ being called before the reference processing
+    // starts since there is a small window of time where slow_path_enabled_ is enabled but the
+    // callback isn't yet set.
+    process_references_args_.is_marked_callback_ = nullptr;
+    if (concurrent) {
+      // Done processing, disable the slow path and broadcast to the waiters.
+      DisableSlowPath(self);
+    }
   }
   timings->EndSplit();
 }
