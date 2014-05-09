@@ -24,6 +24,7 @@
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "driver/compiler_options.h"
 #include "UniquePtr.h"
+#include "utils/scoped_arena_containers.h"
 
 namespace art {
 
@@ -1205,17 +1206,16 @@ void MIRGraph::DoCacheMethodLoweringInfo() {
     MethodReferenceComparator devirt_cmp;
   };
 
-  // Map invoke key (see MapEntry) to lowering info index.
-  typedef std::set<MapEntry, MapEntryComparator, ScopedArenaAllocatorAdapter<MapEntry> > InvokeMap;
-
   ScopedArenaAllocator allocator(&cu_->arena_stack);
 
   // All INVOKE instructions take 3 code units and there must also be a RETURN.
   uint32_t max_refs = (current_code_item_->insns_size_in_code_units_ - 1u) / 3u;
 
+  // Map invoke key (see MapEntry) to lowering info index and vice versa.
   // The invoke_map and sequential entries are essentially equivalent to Boost.MultiIndex's
   // multi_index_container with one ordered index and one sequential index.
-  InvokeMap invoke_map(MapEntryComparator(), allocator.Adapter());
+  ScopedArenaSet<MapEntry, MapEntryComparator> invoke_map(MapEntryComparator(),
+                                                          allocator.Adapter());
   const MapEntry** sequential_entries = reinterpret_cast<const MapEntry**>(
       allocator.Alloc(max_refs * sizeof(sequential_entries[0]), kArenaAllocMisc));
 
