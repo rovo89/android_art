@@ -366,6 +366,8 @@ class MANAGED Class : public Object {
     return GetComponentType<kVerifyFlags, kReadBarrierOption>() != NULL;
   }
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsClassClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsStringClass() const;
@@ -423,10 +425,13 @@ class MANAGED Class : public Object {
   Object* AllocNonMovableObject(Thread* self)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsVariableSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Classes and arrays vary in size, and so the object_size_ field cannot
     // be used to get their instance size
-    return IsClassClass() || IsArrayClass();
+    return IsClassClass<kVerifyFlags, kReadBarrierOption>() ||
+        IsArrayClass<kVerifyFlags, kReadBarrierOption>();
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
@@ -443,6 +448,8 @@ class MANAGED Class : public Object {
   void SetClassSize(uint32_t new_class_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   uint32_t GetObjectSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetObjectSize(uint32_t new_object_size) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
