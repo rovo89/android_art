@@ -389,7 +389,8 @@ inline size_t Object::SizeOf() {
     result = AsClass<kNewFlags, kReadBarrierOption>()->
         template SizeOf<kNewFlags, kReadBarrierOption>();
   } else {
-    result = GetClass<kNewFlags, kReadBarrierOption>()->GetObjectSize();
+    result = GetClass<kNewFlags, kReadBarrierOption>()->
+        template GetObjectSize<kNewFlags, kReadBarrierOption>();
   }
   DCHECK_GE(result, sizeof(Object))
       << " class=" << PrettyTypeOf(GetClass<kNewFlags, kReadBarrierOption>());
