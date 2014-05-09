@@ -223,16 +223,17 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
 
 //  gLogVerbosity.class_linker = true;  // TODO: don't check this in!
 //  gLogVerbosity.compiler = true;  // TODO: don't check this in!
-//  gLogVerbosity.verifier = true;  // TODO: don't check this in!
-//  gLogVerbosity.heap = true;  // TODO: don't check this in!
 //  gLogVerbosity.gc = true;  // TODO: don't check this in!
+//  gLogVerbosity.heap = true;  // TODO: don't check this in!
 //  gLogVerbosity.jdwp = true;  // TODO: don't check this in!
 //  gLogVerbosity.jni = true;  // TODO: don't check this in!
 //  gLogVerbosity.monitor = true;  // TODO: don't check this in!
+//  gLogVerbosity.profiler = true;  // TODO: don't check this in!
+//  gLogVerbosity.signals = true;  // TODO: don't check this in!
 //  gLogVerbosity.startup = true;  // TODO: don't check this in!
 //  gLogVerbosity.third_party_jni = true;  // TODO: don't check this in!
 //  gLogVerbosity.threads = true;  // TODO: don't check this in!
-//  gLogVerbosity.signals = true;  // TODO: don't check this in!
+//  gLogVerbosity.verifier = true;  // TODO: don't check this in!
 
   method_trace_ = false;
   method_trace_file_ = "/data/method-trace-file.bin";
@@ -445,28 +446,30 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
       for (size_t i = 0; i < verbose_options.size(); ++i) {
         if (verbose_options[i] == "class") {
           gLogVerbosity.class_linker = true;
-        } else if (verbose_options[i] == "verifier") {
-          gLogVerbosity.verifier = true;
         } else if (verbose_options[i] == "compiler") {
           gLogVerbosity.compiler = true;
-        } else if (verbose_options[i] == "heap") {
-          gLogVerbosity.heap = true;
         } else if (verbose_options[i] == "gc") {
           gLogVerbosity.gc = true;
+        } else if (verbose_options[i] == "heap") {
+          gLogVerbosity.heap = true;
         } else if (verbose_options[i] == "jdwp") {
           gLogVerbosity.jdwp = true;
         } else if (verbose_options[i] == "jni") {
           gLogVerbosity.jni = true;
         } else if (verbose_options[i] == "monitor") {
           gLogVerbosity.monitor = true;
+        } else if (verbose_options[i] == "profiler") {
+          gLogVerbosity.profiler = true;
+        } else if (verbose_options[i] == "signals") {
+          gLogVerbosity.signals = true;
         } else if (verbose_options[i] == "startup") {
           gLogVerbosity.startup = true;
         } else if (verbose_options[i] == "third-party-jni") {
           gLogVerbosity.third_party_jni = true;
         } else if (verbose_options[i] == "threads") {
           gLogVerbosity.threads = true;
-        } else if (verbose_options[i] == "signals") {
-           gLogVerbosity.signals = true;
+        } else if (verbose_options[i] == "verifier") {
+          gLogVerbosity.verifier = true;
         } else {
           Usage("Unknown -verbose option %s\n", verbose_options[i].c_str());
           return false;

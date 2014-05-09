@@ -573,7 +573,7 @@ Thread* JdwpState::GetDebugThread() {
  */
 int64_t JdwpState::LastDebuggerActivity() {
   if (!Dbg::IsDebuggerActive()) {
-    LOG(DEBUG) << "no active debugger";
+    LOG(WARNING) << "no active debugger";
     return -1;
   }
 
