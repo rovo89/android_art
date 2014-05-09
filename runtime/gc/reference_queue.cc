@@ -109,7 +109,7 @@ void ReferenceQueue::ClearWhiteReferences(ReferenceQueue& cleared_references,
                                           void* arg) {
   while (!IsEmpty()) {
     mirror::Reference* ref = DequeuePendingReference();
-    mirror::Object* referent = ref->GetReferent();
+    mirror::Object* referent = ref->GetReferent<kWithoutReadBarrier>();
     if (referent != nullptr) {
       mirror::Object* forward_address = preserve_callback(referent, arg);
       if (forward_address == nullptr) {
@@ -136,7 +136,7 @@ void ReferenceQueue::EnqueueFinalizerReferences(ReferenceQueue& cleared_referenc
                                                 void* arg) {
   while (!IsEmpty()) {
     mirror::FinalizerReference* ref = DequeuePendingReference()->AsFinalizerReference();
-    mirror::Object* referent = ref->GetReferent();
+    mirror::Object* referent = ref->GetReferent<kWithoutReadBarrier>();
     if (referent != nullptr) {
       mirror::Object* forward_address = is_marked_callback(referent, arg);
       // If the referent isn't marked, mark it and update the
@@ -164,7 +164,7 @@ void ReferenceQueue::PreserveSomeSoftReferences(IsMarkedCallback* preserve_callb
   ReferenceQueue cleared;
   while (!IsEmpty()) {
     mirror::Reference* ref = DequeuePendingReference();
-    mirror::Object* referent = ref->GetReferent();
+    mirror::Object* referent = ref->GetReferent<kWithoutReadBarrier>();
     if (referent != nullptr) {
       mirror::Object* forward_address = preserve_callback(referent, arg);
       if (forward_address == nullptr) {
@@ -180,4 +180,3 @@ void ReferenceQueue::PreserveSomeSoftReferences(IsMarkedCallback* preserve_callb
 
 }  // namespace gc
 }  // namespace art
-
