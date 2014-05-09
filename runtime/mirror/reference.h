@@ -42,8 +42,10 @@ class MANAGED Reference : public Object {
     return OFFSET_OF_OBJECT_MEMBER(Reference, referent_);
   }
 
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   Object* GetReferent() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObjectVolatile<Object>(ReferentOffset());
+    return GetFieldObjectVolatile<Object, kDefaultVerifyFlags, kReadBarrierOption>(
+        ReferentOffset());
   }
   template<bool kTransactionActive>
   void SetReferent(Object* referent) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
