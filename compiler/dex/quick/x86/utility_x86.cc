@@ -890,4 +890,30 @@ void X86Mir2Lir::AnalyzeDoubleUse(RegLocation use) {
   }
 }
 
+RegLocation X86Mir2Lir::UpdateLocTyped(RegLocation loc, int reg_class) {
+  loc = UpdateLoc(loc);
+  if ((loc.location == kLocPhysReg) && (loc.fp != loc.reg.IsFloat())) {
+    if (GetRegInfo(loc.reg)->IsTemp()) {
+      Clobber(loc.reg);
+      FreeTemp(loc.reg);
+      loc.reg = RegStorage::InvalidReg();
+      loc.location = kLocDalvikFrame;
+    }
+  }
+  return loc;
+}
+
+RegLocation X86Mir2Lir::UpdateLocWideTyped(RegLocation loc, int reg_class) {
+  loc = UpdateLocWide(loc);
+  if ((loc.location == kLocPhysReg) && (loc.fp != loc.reg.IsFloat())) {
+    if (GetRegInfo(loc.reg)->IsTemp()) {
+      Clobber(loc.reg);
+      FreeTemp(loc.reg);
+      loc.reg = RegStorage::InvalidReg();
+      loc.location = kLocDalvikFrame;
+    }
+  }
+  return loc;
+}
+
 }  // namespace art

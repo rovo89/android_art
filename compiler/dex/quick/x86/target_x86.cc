@@ -839,7 +839,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
       }
     } else {
       // Runtime start index.
-      rl_start = UpdateLoc(rl_start);
+      rl_start = UpdateLocTyped(rl_start, kCoreReg);
       if (rl_start.location == kLocPhysReg) {
         // Handle "start index < 0" case.
         OpRegReg(kOpXor, rs_rBX, rs_rBX);

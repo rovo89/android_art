@@ -512,6 +512,19 @@ class X86Mir2Lir FINAL : public Mir2Lir {
     void Materialize();
 
     /*
+     * Mir2Lir's UpdateLoc() looks to see if the Dalvik value is currently live in any temp register
+     * without regard to data type.  In practice, this can result in UpdateLoc returning a
+     * location record for a Dalvik float value in a core register, and vis-versa.  For targets
+     * which can inexpensively move data between core and float registers, this can often be a win.
+     * However, for x86 this is generally not a win.  These variants of UpdateLoc()
+     * take a register class argument - and will return an in-register location record only if
+     * the value is live in a temp register of the correct class.  Additionally, if the value is in
+     * a temp register of the wrong register class, it will be clobbered.
+     */
+    RegLocation UpdateLocTyped(RegLocation loc, int reg_class);
+    RegLocation UpdateLocWideTyped(RegLocation loc, int reg_class);
+
+    /*
      * @brief Analyze MIR before generating code, to prepare for the code generation.
      */
     void AnalyzeMIR();
