@@ -416,7 +416,7 @@ bool JdwpSocketState::ProcessIncoming() {
         if (listenSock >= 0) {
           LOG(ERROR) << "Exit wake set, but not exiting?";
         } else {
-          LOG(DEBUG) << "Got wake-up signal, bailing out of select";
+          VLOG(jdwp) << "Got wake-up signal, bailing out of select";
         }
         goto fail;
       }
@@ -442,7 +442,7 @@ bool JdwpSocketState::ProcessIncoming() {
           if (errno != EINTR) {
             goto fail;
           }
-          LOG(DEBUG) << "+++ EINTR hit";
+          VLOG(jdwp) << "+++ EINTR hit";
           return true;
         } else if (readCount == 0) {
           /* EOF hit -- far end went away */
