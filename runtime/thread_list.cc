@@ -650,7 +650,7 @@ void ThreadList::SuspendSelfForDebugger() {
         // can happen if the debugger lets go while a SIGQUIT thread
         // dump event is pending (assuming SignalCatcher was resumed for
         // just long enough to try to grab the thread-suspend lock).
-        LOG(DEBUG) << *self << " still suspended after undo "
+        LOG(WARNING) << *self << " still suspended after undo "
                    << "(suspend count=" << self->GetSuspendCount() << ")";
       }
     }

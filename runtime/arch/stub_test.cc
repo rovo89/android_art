@@ -827,7 +827,7 @@ TEST_F(StubTest, AllocObject) {
         sirt_refs.push_back(ref);
       }
     }
-    LOG(DEBUG) << "Used " << sirt_refs.size() << " arrays to fill space.";
+    LOG(INFO) << "Used " << sirt_refs.size() << " arrays to fill space.";
 
     // Allocate simple objects till it fails.
     while (!self->IsExceptionPending()) {
