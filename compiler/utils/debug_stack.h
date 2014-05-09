@@ -118,7 +118,7 @@ class DebugStackIndirectTopRefImpl {
     CheckTop();
   }
   DebugStackIndirectTopRefImpl& operator=(const DebugStackIndirectTopRefImpl& other) {
-    CHECK(ref_ == other->ref_);
+    CHECK(ref_ == other.ref_);
     CheckTop();
     return *this;
   }
