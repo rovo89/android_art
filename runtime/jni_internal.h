@@ -116,7 +116,8 @@ class JavaVMExt : public JavaVM {
 
   // JNI global references.
   ReaderWriterMutex globals_lock DEFAULT_MUTEX_ACQUIRED_AFTER;
-  IndirectReferenceTable globals GUARDED_BY(globals_lock);
+  // Not guarded by globals_lock since we sometimes use SynchronizedGet in Thread::DecodeJObject.
+  IndirectReferenceTable globals;
 
   Mutex libraries_lock DEFAULT_MUTEX_ACQUIRED_AFTER;
   Libraries* libraries GUARDED_BY(libraries_lock);
