@@ -253,7 +253,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
 #ifdef HAVE_ANDROID_OS
   {
     char buf[PROP_VALUE_MAX];
-    property_get("dalvik.vm.implicit_checks", buf, "null,stack");
+    property_get("dalvik.vm.implicit_checks", buf, "none");
     std::string checks(buf);
     std::vector<std::string> checkvec;
     Split(checks, ',', checkvec);
