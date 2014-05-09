@@ -172,7 +172,7 @@ void ReferenceProcessor::DelayReferenceReferent(mirror::Class* klass, mirror::Re
                                                 IsMarkedCallback is_marked_callback, void* arg) {
   // klass can be the class of the old object if the visitor already updated the class of ref.
   DCHECK(klass->IsReferenceClass());
-  mirror::Object* referent = ref->GetReferent();
+  mirror::Object* referent = ref->GetReferent<kWithoutReadBarrier>();
   if (referent != nullptr) {
     mirror::Object* forward_address = is_marked_callback(referent, arg);
     // Null means that the object is not currently marked.
@@ -219,4 +219,3 @@ void ReferenceProcessor::EnqueueClearedReferences() {
 
 }  // namespace gc
 }  // namespace art
-
