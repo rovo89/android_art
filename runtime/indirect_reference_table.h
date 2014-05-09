@@ -24,6 +24,7 @@
 
 #include "base/logging.h"
 #include "base/mutex.h"
+#include "mem_map.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 
@@ -72,7 +73,7 @@ class Object;
  * To make everything fit nicely in 32-bit integers, the maximum size of
  * the table is capped at 64K.
  *
- * None of the table functions are synchronized.
+ * Only SynchronizedGet is synchronized.
  */
 
 /*
@@ -191,11 +192,6 @@ static const uint32_t IRT_FIRST_SEGMENT = 0;
  * and local refs to improve performance.  A large circular buffer might
  * reduce the amortized cost of adding global references.
  *
- * TODO: if we can guarantee that the underlying storage doesn't move,
- * e.g. by using oversized mmap regions to handle expanding tables, we may
- * be able to avoid having to synchronize lookups.  Might make sense to
- * add a "synchronized lookup" call that takes the mutex as an argument,
- * and either locks or doesn't lock based on internal details.
  */
 union IRTSegmentState {
   uint32_t          all;
@@ -234,7 +230,7 @@ class IrtIterator {
     }
   }
 
-  mirror::Object** table_;
+  mirror::Object** const table_;
   size_t i_;
   size_t capacity_;
 };
@@ -267,10 +263,15 @@ class IndirectReferenceTable {
    *
    * Returns kInvalidIndirectRefObject if iref is invalid.
    */
-  mirror::Object* Get(IndirectRef iref) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Object* Get(IndirectRef iref) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      ALWAYS_INLINE;
 
-  // TODO: remove when we remove work_around_app_jni_bugs support.
-  bool ContainsDirectPointer(mirror::Object* direct_pointer) const;
+  // Synchronized get which reads a reference, acquiring a lock if necessary.
+  mirror::Object* SynchronizedGet(Thread* /*self*/, ReaderWriterMutex* /*mutex*/,
+                                  IndirectRef iref) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return Get(iref);
+  }
 
   /*
    * Remove an existing entry.
@@ -351,6 +352,9 @@ class IndirectReferenceTable {
     }
   }
 
+  // Abort if check_jni is not enabled.
+  static void AbortIfNoCheckJNI();
+
   /* extra debugging checks */
   bool GetChecked(IndirectRef) const;
   bool CheckEntry(const char*, IndirectRef, int) const;
@@ -358,6 +362,10 @@ class IndirectReferenceTable {
   /* semi-public - read/write by jni down calls */
   IRTSegmentState segment_state_;
 
+  // Mem map where we store the indirect refs.
+  UniquePtr<MemMap> table_mem_map_;
+  // Mem map where we store the extended debugging info.
+  UniquePtr<MemMap> slot_mem_map_;
   /* bottom of the stack */
   mirror::Object** table_;
   /* bit mask, ORed into all irefs */

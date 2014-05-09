@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#include "indirect_reference_table.h"
+#include "indirect_reference_table-inl.h"
+
 #include "jni_internal.h"
 #include "reference_table.h"
 #include "runtime.h"
@@ -53,7 +54,7 @@ std::ostream& operator<<(std::ostream& os, const MutatorLockedDumpable<T>& rhs)
   return os;
 }
 
-static void AbortMaybe() {
+void IndirectReferenceTable::AbortIfNoCheckJNI() {
   // If -Xcheck:jni is on, it'll give a more detailed error before aborting.
   if (!Runtime::Current()->GetJavaVM()->check_jni) {
     // Otherwise, we want to abort rather than hand back a bad reference.
@@ -67,12 +68,23 @@ IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,
   CHECK_LE(initialCount, maxCount);
   CHECK_NE(desiredKind, kSirtOrInvalid);
 
-  table_ = reinterpret_cast<mirror::Object**>(malloc(initialCount * sizeof(const mirror::Object*)));
-  CHECK(table_ != NULL);
-  memset(table_, 0xd1, initialCount * sizeof(const mirror::Object*));
+  std::string error_str;
+  const size_t initial_bytes = initialCount * sizeof(const mirror::Object*);
+  const size_t table_bytes = maxCount * sizeof(const mirror::Object*);
+  table_mem_map_.reset(MemMap::MapAnonymous("indirect ref table", nullptr, table_bytes,
+                                            PROT_READ | PROT_WRITE, false, &error_str));
+  CHECK(table_mem_map_.get() != nullptr) << error_str;
 
-  slot_data_ = reinterpret_cast<IndirectRefSlot*>(calloc(initialCount, sizeof(IndirectRefSlot)));
-  CHECK(slot_data_ != NULL);
+  table_ = reinterpret_cast<mirror::Object**>(table_mem_map_->Begin());
+  CHECK(table_ != nullptr);
+  memset(table_, 0xd1, initial_bytes);
+
+  const size_t slot_bytes = maxCount * sizeof(IndirectRefSlot);
+  slot_mem_map_.reset(MemMap::MapAnonymous("indirect ref table slots", nullptr, slot_bytes,
+                                           PROT_READ | PROT_WRITE, false, &error_str));
+  CHECK(slot_mem_map_.get() != nullptr) << error_str;
+  slot_data_ = reinterpret_cast<IndirectRefSlot*>(slot_mem_map_->Begin());
+  CHECK(slot_data_ != nullptr);
 
   segment_state_.all = IRT_FIRST_SEGMENT;
   alloc_entries_ = initialCount;
@@ -81,25 +93,6 @@ IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,
 }
 
 IndirectReferenceTable::~IndirectReferenceTable() {
-  free(table_);
-  free(slot_data_);
-  table_ = NULL;
-  slot_data_ = NULL;
-  alloc_entries_ = max_entries_ = -1;
-}
-
-// Make sure that the entry at "idx" is correctly paired with "iref".
-bool IndirectReferenceTable::CheckEntry(const char* what, IndirectRef iref, int idx) const {
-  const mirror::Object* obj = table_[idx];
-  IndirectRef checkRef = ToIndirectRef(obj, idx);
-  if (UNLIKELY(checkRef != iref)) {
-    LOG(ERROR) << "JNI ERROR (app bug): attempt to " << what
-               << " stale " << kind_ << " " << iref
-               << " (should be " << checkRef << ")";
-    AbortMaybe();
-    return false;
-  }
-  return true;
 }
 
 IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {
@@ -126,20 +119,6 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {
       newSize = max_entries_;
     }
     DCHECK_GT(newSize, alloc_entries_);
-
-    table_ = reinterpret_cast<mirror::Object**>(realloc(table_, newSize * sizeof(mirror::Object*)));
-    slot_data_ = reinterpret_cast<IndirectRefSlot*>(realloc(slot_data_,
-                                                            newSize * sizeof(IndirectRefSlot)));
-    if (table_ == NULL || slot_data_ == NULL) {
-      LOG(FATAL) << "JNI ERROR (app bug): unable to expand "
-                 << kind_ << " table (from "
-                 << alloc_entries_ << " to " << newSize
-                 << ", max=" << max_entries_ << ")\n"
-                 << MutatorLockedDumpable<IndirectReferenceTable>(*this);
-    }
-
-    // Clear the newly-allocated slot_data_ elements.
-    memset(slot_data_ + alloc_entries_, 0, (newSize - alloc_entries_) * sizeof(IndirectRefSlot));
 
     alloc_entries_ = newSize;
   }
@@ -183,55 +162,6 @@ void IndirectReferenceTable::AssertEmpty() {
     LOG(FATAL) << "Internal Error: non-empty local reference table\n"
                << MutatorLockedDumpable<IndirectReferenceTable>(*this);
   }
-}
-
-// Verifies that the indirect table lookup is valid.
-// Returns "false" if something looks bad.
-bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
-  if (UNLIKELY(iref == NULL)) {
-    LOG(WARNING) << "Attempt to look up NULL " << kind_;
-    return false;
-  }
-  if (UNLIKELY(GetIndirectRefKind(iref) == kSirtOrInvalid)) {
-    LOG(ERROR) << "JNI ERROR (app bug): invalid " << kind_ << " " << iref;
-    AbortMaybe();
-    return false;
-  }
-
-  int topIndex = segment_state_.parts.topIndex;
-  int idx = ExtractIndex(iref);
-  if (UNLIKELY(idx >= topIndex)) {
-    LOG(ERROR) << "JNI ERROR (app bug): accessed stale " << kind_ << " "
-               << iref << " (index " << idx << " in a table of size " << topIndex << ")";
-    AbortMaybe();
-    return false;
-  }
-
-  if (UNLIKELY(table_[idx] == NULL)) {
-    LOG(ERROR) << "JNI ERROR (app bug): accessed deleted " << kind_ << " " << iref;
-    AbortMaybe();
-    return false;
-  }
-
-  if (UNLIKELY(!CheckEntry("use", iref, idx))) {
-    return false;
-  }
-
-  return true;
-}
-
-static int Find(mirror::Object* direct_pointer, int bottomIndex, int topIndex,
-                mirror::Object** table) {
-  for (int i = bottomIndex; i < topIndex; ++i) {
-    if (table[i] == direct_pointer) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-bool IndirectReferenceTable::ContainsDirectPointer(mirror::Object* direct_pointer) const {
-  return Find(direct_pointer, 0, segment_state_.parts.topIndex, table_) != -1;
 }
 
 // Removes an object. We extract the table offset bits from "iref"
@@ -344,17 +274,6 @@ void IndirectReferenceTable::Dump(std::ostream& os) const {
     }
   }
   ReferenceTable::Dump(os, entries);
-}
-
-mirror::Object* IndirectReferenceTable::Get(IndirectRef iref) const {
-  if (!GetChecked(iref)) {
-    return kInvalidIndirectRefObject;
-  }
-  mirror::Object* obj = table_[ExtractIndex(iref)];;
-  if (obj != kClearedJniWeakGlobal) {
-    VerifyObject(obj);
-  }
-  return obj;
 }
 
 }  // namespace art

@@ -987,9 +987,6 @@ TEST_F(JniInternalTest, PushLocalFrame_PopLocalFrame) {
     // Our local reference for the survivor is invalid because the survivor
     // gets a new local reference...
     EXPECT_EQ(JNIInvalidRefType, env_->GetObjectRefType(inner2));
-    // ...but the survivor should be in the local reference table.
-    JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(env_);
-    EXPECT_TRUE(env->locals.ContainsDirectPointer(inner2_direct_pointer));
 
     env_->PopLocalFrame(NULL);
   }
