@@ -33,8 +33,14 @@
 namespace art {
 namespace mirror {
 
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline uint32_t Class::GetObjectSize() {
-  DCHECK(!IsVariableSize()) << " class=" << PrettyTypeOf(this);
+  if (kIsDebugBuild) {
+    // Use a local variable as (D)CHECK can't handle the space between
+    // the two template params.
+    bool is_variable_size = IsVariableSize<kVerifyFlags, kReadBarrierOption>();
+    CHECK(!is_variable_size) << " class=" << PrettyTypeOf(this);
+  }
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, object_size_));
 }
 
@@ -512,6 +518,13 @@ bool Class::IsArtFieldClass() {
 template<ReadBarrierOption kReadBarrierOption>
 bool Class::IsArtMethodClass() {
   return this == ArtMethod::GetJavaLangReflectArtMethod<kReadBarrierOption>();
+}
+
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
+inline bool Class::IsClassClass() {
+  Class* java_lang_Class = GetClass<kVerifyFlags, kReadBarrierOption>()->
+      template GetClass<kVerifyFlags, kReadBarrierOption>();
+  return this == java_lang_Class;
 }
 
 }  // namespace mirror

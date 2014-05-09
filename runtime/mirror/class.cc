@@ -315,11 +315,6 @@ bool Class::IsInSamePackage(Class* that) {
                          ClassHelper(klass2).GetDescriptor());
 }
 
-bool Class::IsClassClass() {
-  Class* java_lang_Class = GetClass()->GetClass();
-  return this == java_lang_Class;
-}
-
 bool Class::IsStringClass() const {
   return this == String::GetJavaLangString();
 }
