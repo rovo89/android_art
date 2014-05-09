@@ -235,7 +235,23 @@ class ScopedArenaAllocatorAdapter : private DebugStackReference, private DebugSt
 
   template <typename U>
   friend class ScopedArenaAllocatorAdapter;
+
+  template <typename U>
+  friend bool operator==(const ScopedArenaAllocatorAdapter<U>& lhs,
+                         const ScopedArenaAllocatorAdapter<U>& rhs);
 };
+
+template <typename T>
+inline bool operator==(const ScopedArenaAllocatorAdapter<T>& lhs,
+                       const ScopedArenaAllocatorAdapter<T>& rhs) {
+  return lhs.arena_stack_ == rhs.arena_stack_;
+}
+
+template <typename T>
+inline bool operator!=(const ScopedArenaAllocatorAdapter<T>& lhs,
+                       const ScopedArenaAllocatorAdapter<T>& rhs) {
+  return !(lhs == rhs);
+}
 
 inline ScopedArenaAllocatorAdapter<void> ScopedArenaAllocator::Adapter() {
   return ScopedArenaAllocatorAdapter<void>(this);

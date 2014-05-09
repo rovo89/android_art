@@ -19,6 +19,7 @@
 #include "dataflow_iterator-inl.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
+#include "utils/scoped_arena_containers.h"
 
 namespace art {
 
@@ -964,11 +965,9 @@ bool MIRGraph::EliminateClassInitChecksGate() {
       }
     };
 
-    typedef std::set<MapEntry, MapEntryComparator, ScopedArenaAllocatorAdapter<MapEntry> >
-        ClassToIndexMap;
-
     ScopedArenaAllocator allocator(&cu_->arena_stack);
-    ClassToIndexMap class_to_index_map(MapEntryComparator(), allocator.Adapter());
+    ScopedArenaSet<MapEntry, MapEntryComparator> class_to_index_map(MapEntryComparator(),
+                                                                    allocator.Adapter());
 
     // First, find all SGET/SPUTs that may need class initialization checks, record INVOKE_STATICs.
     AllNodesIterator iter(this);
