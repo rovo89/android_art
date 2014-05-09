@@ -286,17 +286,18 @@ class ToStr {
 // and the "-verbose:" command line argument.
 struct LogVerbosity {
   bool class_linker;  // Enabled with "-verbose:class".
-  bool verifier;
   bool compiler;
-  bool heap;
   bool gc;
+  bool heap;
   bool jdwp;
   bool jni;
   bool monitor;
+  bool profiler;
+  bool signals;
   bool startup;
   bool third_party_jni;  // Enabled with "-verbose:third-party-jni".
   bool threads;
-  bool signals;
+  bool verifier;
 };
 
 extern LogVerbosity gLogVerbosity;

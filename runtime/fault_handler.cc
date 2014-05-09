@@ -67,11 +67,15 @@ void FaultManager::Init() {
 }
 
 void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
-  LOG(DEBUG) << "Handling fault";
+  // BE CAREFUL ALLOCATING HERE INCLUDING USING LOG(...)
+  //
+  // If malloc calls abort, it will be holding its lock.
+  // If the handler tries to call malloc, it will deadlock.
+  VLOG(signals) << "Handling fault";
   if (IsInGeneratedCode(context, true)) {
-    LOG(DEBUG) << "in generated code, looking for handler";
+    VLOG(signals) << "in generated code, looking for handler";
     for (const auto& handler : generated_code_handlers_) {
-      LOG(DEBUG) << "invoking Action on handler " << handler;
+      VLOG(signals) << "invoking Action on handler " << handler;
       if (handler->Action(sig, info, context)) {
         return;
       }

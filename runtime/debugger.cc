@@ -595,17 +595,17 @@ void Dbg::StopJdwp() {
 void Dbg::GcDidFinish() {
   if (gDdmHpifWhen != HPIF_WHEN_NEVER) {
     ScopedObjectAccess soa(Thread::Current());
-    LOG(DEBUG) << "Sending heap info to DDM";
+    VLOG(jdwp) << "Sending heap info to DDM";
     DdmSendHeapInfo(gDdmHpifWhen);
   }
   if (gDdmHpsgWhen != HPSG_WHEN_NEVER) {
     ScopedObjectAccess soa(Thread::Current());
-    LOG(DEBUG) << "Dumping heap to DDM";
+    VLOG(jdwp) << "Dumping heap to DDM";
     DdmSendHeapSegments(false);
   }
   if (gDdmNhsgWhen != HPSG_WHEN_NEVER) {
     ScopedObjectAccess soa(Thread::Current());
-    LOG(DEBUG) << "Dumping native heap to DDM";
+    VLOG(jdwp) << "Dumping native heap to DDM";
     DdmSendHeapSegments(true);
   }
 }

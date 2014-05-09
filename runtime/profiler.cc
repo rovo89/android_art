@@ -147,7 +147,7 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
 
       startup_delay = 0;
 
-      LOG(DEBUG) << "Delaying profile start for " << delay_secs << " secs";
+      VLOG(profiler) << "Delaying profile start for " << delay_secs << " secs";
       MutexLock mu(self, profiler->wait_lock_);
       profiler->period_condition_.TimedWait(self, delay_secs * 1000, 0);
 
@@ -167,7 +167,7 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
     uint64_t end_us = start_us + profiler->duration_s_ * UINT64_C(1000000);
     uint64_t now_us = start_us;
 
-    LOG(DEBUG) << "Starting profiling run now for " << PrettyDuration((end_us - start_us) * 1000);
+    VLOG(profiler) << "Starting profiling run now for " << PrettyDuration((end_us - start_us) * 1000);
 
 
     SampleCheckpoint check_point(profiler);
@@ -221,7 +221,7 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
       // After the profile has been taken, write it out.
       ScopedObjectAccess soa(self);   // Acquire the mutator lock.
       uint32_t size = profiler->WriteProfile();
-      LOG(DEBUG) << "Profile size: " << size;
+      VLOG(profiler) << "Profile size: " << size;
     }
   }
 
@@ -233,7 +233,7 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
 // Write out the profile file if we are generating a profile.
 uint32_t BackgroundMethodSamplingProfiler::WriteProfile() {
   std::string full_name = profile_file_name_;
-  LOG(DEBUG) << "Saving profile to " << full_name;
+  VLOG(profiler) << "Saving profile to " << full_name;
 
   int fd = open(full_name.c_str(), O_RDWR);
   if (fd < 0) {
@@ -469,7 +469,7 @@ uint32_t ProfileSampleResults::Write(std::ostream &os) {
   num_null_methods_ += previous_num_null_methods_;
   num_boot_methods_ += previous_num_boot_methods_;
 
-  LOG(DEBUG) << "Profile: " << num_samples_ << "/" << num_null_methods_ << "/" << num_boot_methods_;
+  VLOG(profiler) << "Profile: " << num_samples_ << "/" << num_null_methods_ << "/" << num_boot_methods_;
   os << num_samples_ << "/" << num_null_methods_ << "/" << num_boot_methods_ << "\n";
   uint32_t num_methods = 0;
   for (int i = 0 ; i < kHashSize; i++) {
