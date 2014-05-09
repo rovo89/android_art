@@ -666,6 +666,13 @@ LIR* X86Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStora
   return LoadBaseIndexedDisp(r_base, r_index, scale, 0, r_dest, size);
 }
 
+LIR* X86Mir2Lir::LoadBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
+                                      OpSize size) {
+  // LoadBaseDisp() will emit correct insn for atomic load on x86
+  // assuming r_dest is correctly prepared using RegClassForFieldLoadStore().
+  return LoadBaseDisp(r_base, displacement, r_dest, size);
+}
+
 LIR* X86Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
                               OpSize size) {
   // TODO: base this on target.
@@ -753,6 +760,13 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
 LIR* X86Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
                       int scale, OpSize size) {
   return StoreBaseIndexedDisp(r_base, r_index, scale, 0, r_src, size);
+}
+
+LIR* X86Mir2Lir::StoreBaseDispVolatile(RegStorage r_base, int displacement,
+                                       RegStorage r_src, OpSize size) {
+  // StoreBaseDisp() will emit correct insn for atomic store on x86
+  // assuming r_dest is correctly prepared using RegClassForFieldLoadStore().
+  return StoreBaseDisp(r_base, displacement, r_src, size);
 }
 
 LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement,

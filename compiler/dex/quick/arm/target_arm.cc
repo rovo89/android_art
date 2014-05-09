@@ -522,6 +522,21 @@ bool ArmMir2Lir::IsUnconditionalBranch(LIR* lir) {
   return ((lir->opcode == kThumbBUncond) || (lir->opcode == kThumb2BUncond));
 }
 
+bool ArmMir2Lir::SupportsVolatileLoadStore(OpSize size) {
+  return true;
+}
+
+RegisterClass ArmMir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatile) {
+  if (UNLIKELY(is_volatile)) {
+    // On arm, atomic 64-bit load/store requires a core register pair.
+    // Smaller aligned load/store is atomic for both core and fp registers.
+    if (size == k64 || size == kDouble) {
+      return kCoreReg;
+    }
+  }
+  return RegClassBySize(size);
+}
+
 ArmMir2Lir::ArmMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : Mir2Lir(cu, mir_graph, arena) {
   // Sanity check - make sure encoding map lines up.
