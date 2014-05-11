@@ -202,6 +202,8 @@ struct AbortState {
     Thread* self = Thread::Current();
     if (self == nullptr) {
       os << "(Aborting thread was not attached to runtime!)\n";
+      DumpKernelStack(os, GetTid(), "  kernel: ", false);
+      DumpNativeStack(os, GetTid(), "  native: ", nullptr);
     } else {
       os << "Aborting thread:\n";
       if (Locks::mutator_lock_->IsExclusiveHeld(self) || Locks::mutator_lock_->IsSharedHeld(self)) {
