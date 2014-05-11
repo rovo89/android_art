@@ -46,7 +46,7 @@ static uint32_t kCompilerOptimizerDisableFlags = 0 |  // Disable specific optimi
   // (1 << kNullCheckElimination) |
   // (1 << kClassInitCheckElimination) |
   // (1 << kPromoteRegs) |
-  (1 << kTrackLiveTemps) |        // FIXME: disable until liveness issue fixed.
+  // (1 << kTrackLiveTemps) |
   // (1 << kSafeOptimizations) |
   // (1 << kBBOpt) |
   // (1 << kMatch) |

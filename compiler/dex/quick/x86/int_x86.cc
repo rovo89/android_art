@@ -1054,7 +1054,7 @@ void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation 
     int32_t val_hi = High32Bits(val);
     FlushAllRegs();
     LockCallTemps();  // Prepare for explicit register usage.
-    rl_src1 = UpdateLocWide(rl_src1);
+    rl_src1 = UpdateLocWideTyped(rl_src1, kCoreReg);
     bool src1_in_reg = rl_src1.location == kLocPhysReg;
     int displacement = SRegOffset(rl_src1.s_reg_low);
 
@@ -1100,8 +1100,8 @@ void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation 
 
   FlushAllRegs();
   LockCallTemps();  // Prepare for explicit register usage.
-  rl_src1 = UpdateLocWide(rl_src1);
-  rl_src2 = UpdateLocWide(rl_src2);
+  rl_src1 = UpdateLocWideTyped(rl_src1, kCoreReg);
+  rl_src2 = UpdateLocWideTyped(rl_src2, kCoreReg);
 
   // At this point, the VRs are in their home locations.
   bool src1_in_reg = rl_src1.location == kLocPhysReg;
@@ -1227,12 +1227,12 @@ void X86Mir2Lir::GenLongRegOrMemOp(RegLocation rl_dest, RegLocation rl_src,
 }
 
 void X86Mir2Lir::GenLongArith(RegLocation rl_dest, RegLocation rl_src, Instruction::Code op) {
-  rl_dest = UpdateLocWide(rl_dest);
+  rl_dest = UpdateLocWideTyped(rl_dest, kCoreReg);
   if (rl_dest.location == kLocPhysReg) {
     // Ensure we are in a register pair
     RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
 
-    rl_src = UpdateLocWide(rl_src);
+    rl_src = UpdateLocWideTyped(rl_src, kCoreReg);
     GenLongRegOrMemOp(rl_result, rl_src, op);
     StoreFinalValueWide(rl_dest, rl_result);
     return;
@@ -1285,7 +1285,7 @@ void X86Mir2Lir::GenLongArith(RegLocation rl_dest, RegLocation rl_src1,
     rl_result = ForceTempWide(rl_result);
 
     // Perform the operation using the RHS.
-    rl_src2 = UpdateLocWide(rl_src2);
+    rl_src2 = UpdateLocWideTyped(rl_src2, kCoreReg);
     GenLongRegOrMemOp(rl_result, rl_src2, op);
 
     // And now record that the result is in the temp.
@@ -1296,8 +1296,8 @@ void X86Mir2Lir::GenLongArith(RegLocation rl_dest, RegLocation rl_src1,
   // It wasn't in registers, so it better be in memory.
   DCHECK((rl_dest.location == kLocDalvikFrame) ||
          (rl_dest.location == kLocCompilerTemp));
-  rl_src1 = UpdateLocWide(rl_src1);
-  rl_src2 = UpdateLocWide(rl_src2);
+  rl_src1 = UpdateLocWideTyped(rl_src1, kCoreReg);
+  rl_src2 = UpdateLocWideTyped(rl_src2, kCoreReg);
 
   // Get one of the source operands into temporary register.
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
@@ -1731,7 +1731,7 @@ void X86Mir2Lir::GenLongImm(RegLocation rl_dest, RegLocation rl_src, Instruction
   int64_t val = mir_graph_->ConstantValueWide(rl_src);
   int32_t val_lo = Low32Bits(val);
   int32_t val_hi = High32Bits(val);
-  rl_dest = UpdateLocWide(rl_dest);
+  rl_dest = UpdateLocWideTyped(rl_dest, kCoreReg);
 
   // Can we just do this into memory?
   if ((rl_dest.location == kLocDalvikFrame) ||
@@ -1779,8 +1779,8 @@ void X86Mir2Lir::GenLongLongImm(RegLocation rl_dest, RegLocation rl_src1,
   int64_t val = mir_graph_->ConstantValueWide(rl_src2);
   int32_t val_lo = Low32Bits(val);
   int32_t val_hi = High32Bits(val);
-  rl_dest = UpdateLocWide(rl_dest);
-  rl_src1 = UpdateLocWide(rl_src1);
+  rl_dest = UpdateLocWideTyped(rl_dest, kCoreReg);
+  rl_src1 = UpdateLocWideTyped(rl_src1, kCoreReg);
 
   // Can we do this directly into the destination registers?
   if (rl_dest.location == kLocPhysReg && rl_src1.location == kLocPhysReg &&
@@ -2070,7 +2070,7 @@ void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
 
   if (unary) {
     rl_lhs = LoadValue(rl_lhs, kCoreReg);
-    rl_result = UpdateLoc(rl_dest);
+    rl_result = UpdateLocTyped(rl_dest, kCoreReg);
     rl_result = EvalLoc(rl_dest, kCoreReg, true);
     OpRegReg(op, rl_result.reg, rl_lhs.reg);
   } else {
@@ -2080,7 +2080,7 @@ void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       LoadValueDirectFixed(rl_rhs, t_reg);
       if (is_two_addr) {
         // Can we do this directly into memory?
-        rl_result = UpdateLoc(rl_dest);
+        rl_result = UpdateLocTyped(rl_dest, kCoreReg);
         rl_rhs = LoadValue(rl_rhs, kCoreReg);
         if (rl_result.location != kLocPhysReg) {
           // Okay, we can do this into memory
@@ -2104,12 +2104,12 @@ void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       // Multiply is 3 operand only (sort of).
       if (is_two_addr && op != kOpMul) {
         // Can we do this directly into memory?
-        rl_result = UpdateLoc(rl_dest);
+        rl_result = UpdateLocTyped(rl_dest, kCoreReg);
         if (rl_result.location == kLocPhysReg) {
           // Ensure res is in a core reg
           rl_result = EvalLoc(rl_dest, kCoreReg, true);
           // Can we do this from memory directly?
-          rl_rhs = UpdateLoc(rl_rhs);
+          rl_rhs = UpdateLocTyped(rl_rhs, kCoreReg);
           if (rl_rhs.location != kLocPhysReg) {
             OpRegMem(op, rl_result.reg, rl_rhs);
             StoreFinalValue(rl_dest, rl_result);
@@ -2137,8 +2137,8 @@ void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
         }
       } else {
         // Try to use reg/memory instructions.
-        rl_lhs = UpdateLoc(rl_lhs);
-        rl_rhs = UpdateLoc(rl_rhs);
+        rl_lhs = UpdateLocTyped(rl_lhs, kCoreReg);
+        rl_rhs = UpdateLocTyped(rl_rhs, kCoreReg);
         // We can't optimize with FP registers.
         if (!IsOperationSafeWithoutTemps(rl_lhs, rl_rhs)) {
           // Something is difficult, so fall back to the standard case.

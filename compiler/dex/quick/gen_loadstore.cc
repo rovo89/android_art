@@ -233,7 +233,11 @@ void Mir2Lir::StoreValueWide(RegLocation rl_dest, RegLocation rl_src) {
     if (IsLive(rl_src.reg) ||
         IsPromoted(rl_src.reg) ||
         (rl_dest.location == kLocPhysReg)) {
-      // Src is live or promoted or Dest has assigned reg.
+      /*
+       * If src reg[s] are tied to the original Dalvik vreg via liveness or promotion, we
+       * can't repurpose them.  Similarly, if the dest reg[s] are tied to Dalvik vregs via
+       * promotion, we can't just re-assign.  In these cases, we have to copy.
+       */
       rl_dest = EvalLoc(rl_dest, kAnyReg, false);
       OpRegCopyWide(rl_dest.reg, rl_src.reg);
     } else {
