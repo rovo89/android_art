@@ -27,8 +27,7 @@ namespace art {
 inline void Mir2Lir::ClobberBody(RegisterInfo* p) {
   if (p->IsTemp()) {
     DCHECK(!(p->IsLive() && p->IsDirty()))  << "Live & dirty temp in clobber";
-    p->SetIsLive(false);
-    p->SetSReg(INVALID_SREG);
+    p->MarkDead();
     p->ResetDefBody();
     if (p->IsWide()) {
       p->SetIsWide(false);
@@ -36,8 +35,7 @@ inline void Mir2Lir::ClobberBody(RegisterInfo* p) {
         // Register pair - deal with the other half.
         p = GetRegInfo(p->Partner());
         p->SetIsWide(false);
-        p->SetIsLive(false);
-        p->SetSReg(INVALID_SREG);
+        p->MarkDead();
         p->ResetDefBody();
       }
     }

@@ -291,6 +291,20 @@ class Mir2Lir : public Backend {
      *    0x0000ffff for 512-bit view of ymm1   // future expansion, if needed
      *    0xffffffff for 1024-bit view of ymm1  // future expansion, if needed
      *
+     * The "liveness" of a register is handled in a similar way.  The liveness_ storage is
+     * held in the widest member of an aliased set.  Note, though, that for a temp register to
+     * reused as live, it must both be marked live and the associated SReg() must match the
+     * desired s_reg.  This gets a little complicated when dealing with aliased registers.  All
+     * members of an aliased set will share the same liveness flags, but each will individually
+     * maintain s_reg_.  In this way we can know that at least one member of an
+     * aliased set is live, but will only fully match on the appropriate alias view.  For example,
+     * if Arm d1 is live as a double and has s_reg_ set to Dalvik v8 (which also implies v9
+     * because it is wide), its aliases s2 and s3 will show as live, but will have
+     * s_reg_ == INVALID_SREG.  An attempt to later AllocLiveReg() of v9 with a single-precision
+     * view will fail because although s3's liveness bit is set, its s_reg_ will not match v9.
+     * This will cause all members of the aliased set to be clobbered and AllocLiveReg() will
+     * report that v9 is currently not live as a single (which is what we want).
+     *
      * NOTE: the x86 usage is still somewhat in flux.  There are competing notions of how
      * to treat xmm registers:
      *     1. Treat them all as 128-bits wide, but denote how much data used via bytes field.
@@ -319,14 +333,18 @@ class Mir2Lir : public Backend {
       bool InUse() { return (storage_mask_ & master_->used_storage_) != 0; }
       void MarkInUse() { master_->used_storage_ |= storage_mask_; }
       void MarkFree() { master_->used_storage_ &= ~storage_mask_; }
+      bool IsLive() { return (master_->liveness_ & storage_mask_) == storage_mask_; }
+      void MarkLive() { master_->liveness_ |= storage_mask_; }
+      void MarkDead() {
+        master_->liveness_ &= ~storage_mask_;
+        SetSReg(INVALID_SREG);
+      }
       RegStorage GetReg() { return reg_; }
       void SetReg(RegStorage reg) { reg_ = reg; }
       bool IsTemp() { return is_temp_; }
       void SetIsTemp(bool val) { is_temp_ = val; }
       bool IsWide() { return wide_value_; }
       void SetIsWide(bool val) { wide_value_ = val; }
-      bool IsLive() { return live_; }
-      void SetIsLive(bool val) { live_ = val; }
       bool IsDirty() { return dirty_; }
       void SetIsDirty(bool val) { dirty_ = val; }
       RegStorage Partner() { return partner_; }
@@ -336,7 +354,13 @@ class Mir2Lir : public Backend {
       uint64_t DefUseMask() { return def_use_mask_; }
       void SetDefUseMask(uint64_t def_use_mask) { def_use_mask_ = def_use_mask; }
       RegisterInfo* Master() { return master_; }
-      void SetMaster(RegisterInfo* master) { master_ = master; }
+      void SetMaster(RegisterInfo* master) {
+        master_ = master;
+        if (master != this) {
+          master_->aliased_ = true;
+        }
+      }
+      bool IsAliased() { return aliased_; }
       uint32_t StorageMask() { return storage_mask_; }
       void SetStorageMask(uint32_t storage_mask) { storage_mask_ = storage_mask; }
       LIR* DefStart() { return def_start_; }
@@ -350,12 +374,13 @@ class Mir2Lir : public Backend {
       RegStorage reg_;
       bool is_temp_;               // Can allocate as temp?
       bool wide_value_;            // Holds a Dalvik wide value (either itself, or part of a pair).
-      bool live_;                  // Is there an associated SSA name?
       bool dirty_;                 // If live, is it dirty?
+      bool aliased_;               // Is this the master for other aliased RegisterInfo's?
       RegStorage partner_;         // If wide_value, other reg of pair or self if 64-bit register.
       int s_reg_;                  // Name of live value.
       uint64_t def_use_mask_;      // Resources for this element.
       uint32_t used_storage_;      // 1 bit per 4 bytes of storage. Unused by aliases.
+      uint32_t liveness_;          // 1 bit per 4 bytes of storage. Unused by aliases.
       RegisterInfo* master_;       // Pointer to controlling storage mask.
       uint32_t storage_mask_;      // Track allocation of sub-units.
       LIR *def_start_;             // Starting inst in last def sequence.
@@ -598,8 +623,8 @@ class Mir2Lir : public Backend {
     void DumpRegPools();
     /* Mark a temp register as dead.  Does not affect allocation state. */
     void Clobber(RegStorage reg);
-    void ClobberSRegBody(GrowableArray<RegisterInfo*>* regs, int s_reg);
     void ClobberSReg(int s_reg);
+    void ClobberAliases(RegisterInfo* info);
     int SRegToPMap(int s_reg);
     void RecordCorePromotion(RegStorage reg, int s_reg);
     RegStorage AllocPreservedCoreReg(int s_reg);

@@ -39,8 +39,8 @@ void Mir2Lir::ResetRegPool() {
 }
 
 Mir2Lir::RegisterInfo::RegisterInfo(RegStorage r, uint64_t mask)
-  : reg_(r), is_temp_(false), wide_value_(false), live_(false),
-    dirty_(false), partner_(r), s_reg_(INVALID_SREG), def_use_mask_(mask), master_(this) {
+  : reg_(r), is_temp_(false), wide_value_(false), dirty_(false), aliased_(false), partner_(r),
+    s_reg_(INVALID_SREG), def_use_mask_(mask), master_(this) {
   switch (r.StorageSize()) {
     case 0: storage_mask_ = 0xffffffff; break;
     case 4: storage_mask_ = 0x00000001; break;
@@ -51,6 +51,7 @@ Mir2Lir::RegisterInfo::RegisterInfo(RegStorage r, uint64_t mask)
     case 128: storage_mask_ = 0xffffffff; break;
   }
   used_storage_ = r.Valid() ? ~storage_mask_ : storage_mask_;
+  liveness_ = used_storage_;
 }
 
 Mir2Lir::RegisterPool::RegisterPool(Mir2Lir* m2l, ArenaAllocator* arena,
@@ -139,23 +140,28 @@ void Mir2Lir::DumpRegPools() {
 
 void Mir2Lir::Clobber(RegStorage reg) {
   if (reg.IsPair()) {
+    DCHECK(!GetRegInfo(reg.GetLow())->IsAliased());
     ClobberBody(GetRegInfo(reg.GetLow()));
+    DCHECK(!GetRegInfo(reg.GetHigh())->IsAliased());
     ClobberBody(GetRegInfo(reg.GetHigh()));
   } else {
-    ClobberBody(GetRegInfo(reg));
+    RegisterInfo* info = GetRegInfo(reg);
+    if (info->IsAliased()) {
+      ClobberAliases(info);
+    } else if (info != info->Master() && info->Master()->SReg() != INVALID_SREG) {
+      ClobberBody(info->Master());
+    }
+    ClobberBody(info);
   }
 }
 
-void Mir2Lir::ClobberSRegBody(GrowableArray<RegisterInfo*>* regs, int s_reg) {
-  GrowableArray<RegisterInfo*>::Iterator it(regs);
-  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
-    if ((info->SReg() == s_reg)  ||
-        (info->IsWide() && (GetRegInfo(info->Partner())->SReg() == s_reg))) {
-      // NOTE: a single s_reg may appear multiple times, so we can't short-circuit.
-      if (info->IsTemp()) {
-        info->SetIsLive(false);
-      }
-      info->ResetDefBody();
+void Mir2Lir::ClobberAliases(RegisterInfo* info) {
+  DCHECK(info->IsAliased());
+  GrowableArray<RegisterInfo*>::Iterator iter(&tempreg_info_);
+  for (RegisterInfo* tmpreg_info = iter.Next(); tmpreg_info != NULL; tmpreg_info = iter.Next()) {
+    if (tmpreg_info->Master() == info) {
+      // tmpreg_info is an alias of info.
+      ClobberBody(tmpreg_info);
     }
   }
 }
@@ -173,15 +179,19 @@ void Mir2Lir::ClobberSRegBody(GrowableArray<RegisterInfo*>* regs, int s_reg) {
  */
 void Mir2Lir::ClobberSReg(int s_reg) {
   if (s_reg != INVALID_SREG) {
-    /* Reset live temp tracking sanity checker */
-    if (kIsDebugBuild) {
-      if (s_reg == live_sreg_) {
-        live_sreg_ = INVALID_SREG;
+    if (kIsDebugBuild && s_reg == live_sreg_) {
+      live_sreg_ = INVALID_SREG;
+    }
+    GrowableArray<RegisterInfo*>::Iterator iter(&tempreg_info_);
+    for (RegisterInfo* info = iter.Next(); info != NULL; info = iter.Next()) {
+      if (info->SReg() == s_reg) {
+        if (info->IsAliased()) {
+          // TUNING: if this gets hot, we could add links to follow - aliasing is static.
+          ClobberAliases(info);
+        }
+        ClobberBody(info);
       }
     }
-    ClobberSRegBody(&reg_pool_->core_regs_, s_reg);
-    ClobberSRegBody(&reg_pool_->sp_regs_, s_reg);
-    ClobberSRegBody(&reg_pool_->dp_regs_, s_reg);
   }
 }
 
@@ -296,9 +306,14 @@ RegStorage Mir2Lir::AllocTempBody(GrowableArray<RegisterInfo*> &regs, int* next_
     if (next >= num_regs)
       next = 0;
     RegisterInfo* info = regs.Get(next);
+    // Try to allocate a register that doesn't hold a live value.
     if (info->IsTemp() && !info->InUse() && !info->IsLive()) {
       Clobber(info->GetReg());
       info->MarkInUse();
+      /*
+       * NOTE: "wideness" is an attribute of how the container is used, not its physical size.
+       * The caller will set wideness as appropriate.
+       */
       info->SetIsWide(false);
       *next_temp = next + 1;
       return info->GetReg();
@@ -306,11 +321,14 @@ RegStorage Mir2Lir::AllocTempBody(GrowableArray<RegisterInfo*> &regs, int* next_
     next++;
   }
   next = *next_temp;
+  // No free non-live regs.  Anything we can kill?
   for (int i = 0; i< num_regs; i++) {
     if (next >= num_regs)
       next = 0;
     RegisterInfo* info = regs.Get(next);
     if (info->IsTemp() && !info->InUse()) {
+      // Got one.  Kill it.
+      ClobberSReg(info->SReg());
       Clobber(info->GetReg());
       info->MarkInUse();
       info->SetIsWide(false);
@@ -367,39 +385,47 @@ RegStorage Mir2Lir::AllocLiveReg(int s_reg, int reg_class, bool wide) {
     reg = FindLiveReg(wide ? reg_pool_->dp_regs_ : reg_pool_->sp_regs_, s_reg);
   }
   if (!reg.Valid() && (reg_class != kFPReg)) {
+    // TODO: add 64-bit core pool similar to above.
     reg = FindLiveReg(reg_pool_->core_regs_, s_reg);
   }
   if (reg.Valid()) {
-    if (wide && reg.Is32Bit() && !reg.IsFloat()) {
-      // Only allow reg pairs for Core.
+    if (wide && !reg.IsFloat() && !Is64BitInstructionSet(cu_->instruction_set)) {
+      // Only allow reg pairs for core regs on 32-bit targets.
       RegStorage high_reg = FindLiveReg(reg_pool_->core_regs_, s_reg + 1);
       if (high_reg.Valid()) {
-        RegisterInfo* info_lo = GetRegInfo(reg);
-        RegisterInfo* info_hi = GetRegInfo(high_reg);
-        if (info_lo->IsTemp()) {
-          info_lo->MarkInUse();
-        }
-        if (info_hi->IsTemp()) {
-          info_hi->MarkInUse();
-        }
         reg = RegStorage::MakeRegPair(reg, high_reg);
         MarkWide(reg);
       } else {
-        // Only half available - clobber.
-        Clobber(reg);
+        // Only half available.
         reg = RegStorage::InvalidReg();
       }
     }
-    if (reg.Valid() && !reg.IsPair()) {
+    if (reg.Valid() && (wide != GetRegInfo(reg)->IsWide())) {
+      // Width mismatch - don't try to reuse.
+      reg = RegStorage::InvalidReg();
+    }
+  }
+  if (reg.Valid()) {
+    if (reg.IsPair()) {
+      RegisterInfo* info_low = GetRegInfo(reg.GetLow());
+      RegisterInfo* info_high = GetRegInfo(reg.GetHigh());
+      if (info_low->IsTemp()) {
+        info_low->MarkInUse();
+      }
+      if (info_high->IsTemp()) {
+        info_high->MarkInUse();
+      }
+    } else {
       RegisterInfo* info = GetRegInfo(reg);
       if (info->IsTemp()) {
         info->MarkInUse();
       }
     }
-    if (reg.Valid() && (wide != GetRegInfo(reg)->IsWide())) {
-      // Width mismatch - don't try to reuse.
-      Clobber(reg);
-      reg = RegStorage::InvalidReg();
+  } else {
+    // Either not found, or something didn't match up. Clobber to prevent any stale instances.
+    ClobberSReg(s_reg);
+    if (wide) {
+      ClobberSReg(s_reg + 1);
     }
   }
   return reg;
@@ -424,6 +450,7 @@ bool Mir2Lir::IsLive(RegStorage reg) {
   if (reg.IsPair()) {
     RegisterInfo* p_lo = GetRegInfo(reg.GetLow());
     RegisterInfo* p_hi = GetRegInfo(reg.GetHigh());
+    DCHECK_EQ(p_lo->IsLive(), p_hi->IsLive());
     res = p_lo->IsLive() || p_hi->IsLive();
   } else {
     RegisterInfo* p = GetRegInfo(reg);
@@ -482,13 +509,13 @@ void Mir2Lir::LockTemp(RegStorage reg) {
     RegisterInfo* p_lo = GetRegInfo(reg.GetLow());
     RegisterInfo* p_hi = GetRegInfo(reg.GetHigh());
     p_lo->MarkInUse();
-    p_lo->SetIsLive(false);
+    p_lo->MarkDead();
     p_hi->MarkInUse();
-    p_hi->SetIsLive(false);
+    p_hi->MarkDead();
   } else {
     RegisterInfo* p = GetRegInfo(reg);
     p->MarkInUse();
-    p->SetIsLive(false);
+    p->MarkDead();
   }
 }
 
@@ -567,6 +594,18 @@ RegLocation Mir2Lir::WideToNarrow(RegLocation rl) {
         info_hi->ResetDefBody();
       }
       rl.reg = rl.reg.GetLow();
+    } else {
+      /*
+       * TODO: If not a pair, we can't just drop the high register.  On some targets, we may be
+       * able to re-cast the 64-bit register as 32 bits, so it might be worthwhile to revisit
+       * this code.  Will probably want to make this a virtual function.
+       */
+      // Can't narrow 64-bit register.  Clobber.
+      if (GetRegInfo(rl.reg)->IsTemp()) {
+        Clobber(rl.reg);
+        FreeTemp(rl.reg);
+      }
+      rl.location = kLocDalvikFrame;
     }
   }
   rl.wide = false;
@@ -609,10 +648,7 @@ void Mir2Lir::ResetDefTracking() {
 void Mir2Lir::ClobberAllRegs() {
   GrowableArray<RegisterInfo*>::Iterator iter(&tempreg_info_);
   for (RegisterInfo* info = iter.Next(); info != NULL; info = iter.Next()) {
-    info->SetIsLive(false);
-    info->SetSReg(INVALID_SREG);
-    info->ResetDefBody();
-    info->SetIsWide(false);
+    ClobberBody(info);
   }
 }
 
@@ -671,7 +707,7 @@ void Mir2Lir::FlushAllRegs() {
       FlushSpecificReg(info);
     }
     DCHECK(info->IsTemp());
-    info->SetIsLive(false);
+    info->MarkDead();
     info->SetSReg(INVALID_SREG);
     info->ResetDefBody();
     info->SetIsWide(false);
@@ -697,12 +733,12 @@ void Mir2Lir::MarkLiveReg(RegStorage reg, int s_reg) {
   if (s_reg != INVALID_SREG) {
     ClobberSReg(s_reg);
     if (info->IsTemp()) {
-      info->SetIsLive(true);
+      info->MarkLive();
     }
   } else {
     // Can't be live if no associated s_reg.
     DCHECK(info->IsTemp());
-    info->SetIsLive(false);
+    info->MarkDead();
   }
   info->SetSReg(s_reg);
 }
