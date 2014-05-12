@@ -85,6 +85,7 @@ class Arm64Assembler FINAL : public Assembler {
   vixl_masm_(new vixl::MacroAssembler(vixl_buf_, kBufferSizeArm64)) {}
 
   virtual ~Arm64Assembler() {
+    delete vixl_masm_;
     delete[] vixl_buf_;
   }
 
@@ -237,8 +238,8 @@ class Arm64Assembler FINAL : public Assembler {
   // Vixl buffer.
   byte* vixl_buf_;
 
-  // Unique ptr - vixl assembler.
-  UniquePtr<vixl::MacroAssembler> vixl_masm_;
+  // Vixl assembler.
+  vixl::MacroAssembler* vixl_masm_;
 
   // List of exception blocks to generate at the end of the code cache.
   std::vector<Arm64Exception*> exception_blocks_;
