@@ -929,8 +929,8 @@ void Runtime::VisitNonConcurrentRoots(RootCallback* callback, void* arg) {
 }
 
 void Runtime::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
-  VisitConcurrentRoots(callback, arg, flags);
   VisitNonConcurrentRoots(callback, arg);
+  VisitConcurrentRoots(callback, arg, flags);
 }
 
 mirror::ObjectArray<mirror::ArtMethod>* Runtime::CreateDefaultImt(ClassLinker* cl) {

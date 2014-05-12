@@ -51,6 +51,11 @@ class StubTest : public CommonRuntimeTest {
     }
   }
 
+  // Helper function needed since TEST_F makes a new class.
+  Thread::tls_ptr_sized_values* GetTlsPtr(Thread* self) {
+    return &self->tlsPtr_;
+  }
+
   size_t Invoke3(size_t arg0, size_t arg1, size_t arg2, uintptr_t code, Thread* self) {
     // Push a transition back into managed code onto the linked list in thread.
     ManagedStack fragment;
@@ -727,13 +732,6 @@ TEST_F(StubTest, APutObj) {
 #endif
 }
 
-
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
-extern "C" void art_quick_alloc_object_rosalloc(void);
-extern "C" void art_quick_alloc_object_resolved_rosalloc(void);
-extern "C" void art_quick_alloc_object_initialized_rosalloc(void);
-#endif
-
 TEST_F(StubTest, AllocObject) {
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
 
@@ -751,13 +749,12 @@ TEST_F(StubTest, AllocObject) {
   // Play with it...
 
   EXPECT_FALSE(self->IsExceptionPending());
-
   {
     // Use an arbitrary method from c to use as referrer
     size_t result = Invoke3(static_cast<size_t>(c->GetDexTypeIndex()),    // type_idx
                             reinterpret_cast<size_t>(c->GetVirtualMethod(0)),  // arbitrary
                             0U,
-                            reinterpret_cast<uintptr_t>(&art_quick_alloc_object_rosalloc),
+                            reinterpret_cast<uintptr_t>(GetTlsPtr(self)->quick_entrypoints.pAllocObject),
                             self);
 
     EXPECT_FALSE(self->IsExceptionPending());
@@ -771,7 +768,7 @@ TEST_F(StubTest, AllocObject) {
     // We can use nullptr in the second argument as we do not need a method here (not used in
     // resolved/initialized cases)
     size_t result = Invoke3(reinterpret_cast<size_t>(c.get()), reinterpret_cast<size_t>(nullptr), 0U,
-                            reinterpret_cast<uintptr_t>(&art_quick_alloc_object_resolved_rosalloc),
+                            reinterpret_cast<uintptr_t>(GetTlsPtr(self)->quick_entrypoints.pAllocObjectResolved),
                             self);
 
     EXPECT_FALSE(self->IsExceptionPending());
@@ -785,7 +782,7 @@ TEST_F(StubTest, AllocObject) {
     // We can use nullptr in the second argument as we do not need a method here (not used in
     // resolved/initialized cases)
     size_t result = Invoke3(reinterpret_cast<size_t>(c.get()), reinterpret_cast<size_t>(nullptr), 0U,
-                            reinterpret_cast<uintptr_t>(&art_quick_alloc_object_initialized_rosalloc),
+                            reinterpret_cast<uintptr_t>(GetTlsPtr(self)->quick_entrypoints.pAllocObjectInitialized),
                             self);
 
     EXPECT_FALSE(self->IsExceptionPending());
@@ -842,7 +839,7 @@ TEST_F(StubTest, AllocObject) {
     self->ClearException();
 
     size_t result = Invoke3(reinterpret_cast<size_t>(c.get()), reinterpret_cast<size_t>(nullptr), 0U,
-                            reinterpret_cast<uintptr_t>(&art_quick_alloc_object_initialized_rosalloc),
+                            reinterpret_cast<uintptr_t>(GetTlsPtr(self)->quick_entrypoints.pAllocObjectInitialized),
                             self);
 
     EXPECT_TRUE(self->IsExceptionPending());
@@ -865,12 +862,6 @@ TEST_F(StubTest, AllocObject) {
   std::cout << "Skipping alloc_object as I don't know how to do that on " << kRuntimeISA << std::endl;
 #endif
 }
-
-
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
-extern "C" void art_quick_alloc_array_rosalloc(void);
-extern "C" void art_quick_alloc_array_resolved_rosalloc(void);
-#endif
 
 TEST_F(StubTest, AllocObjectArray) {
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
@@ -902,7 +893,7 @@ TEST_F(StubTest, AllocObjectArray) {
     size_t result = Invoke3(static_cast<size_t>(c->GetDexTypeIndex()),    // type_idx
                             reinterpret_cast<size_t>(c_obj->GetVirtualMethod(0)),  // arbitrary
                             10U,
-                            reinterpret_cast<uintptr_t>(&art_quick_alloc_array_rosalloc),
+                            reinterpret_cast<uintptr_t>(GetTlsPtr(self)->quick_entrypoints.pAllocArray),
                             self);
 
     EXPECT_FALSE(self->IsExceptionPending());
@@ -917,7 +908,7 @@ TEST_F(StubTest, AllocObjectArray) {
     // We can use nullptr in the second argument as we do not need a method here (not used in
     // resolved/initialized cases)
     size_t result = Invoke3(reinterpret_cast<size_t>(c.get()), reinterpret_cast<size_t>(nullptr), 10U,
-                            reinterpret_cast<uintptr_t>(&art_quick_alloc_array_resolved_rosalloc),
+                            reinterpret_cast<uintptr_t>(GetTlsPtr(self)->quick_entrypoints.pAllocArrayResolved),
                             self);
 
     EXPECT_FALSE(self->IsExceptionPending()) << PrettyTypeOf(self->GetException(nullptr));
@@ -937,7 +928,7 @@ TEST_F(StubTest, AllocObjectArray) {
   {
     size_t result = Invoke3(reinterpret_cast<size_t>(c.get()), reinterpret_cast<size_t>(nullptr),
                             GB,  // that should fail...
-                            reinterpret_cast<uintptr_t>(&art_quick_alloc_array_resolved_rosalloc),
+                            reinterpret_cast<uintptr_t>(GetTlsPtr(self)->quick_entrypoints.pAllocArrayResolved),
                             self);
 
     EXPECT_TRUE(self->IsExceptionPending());
