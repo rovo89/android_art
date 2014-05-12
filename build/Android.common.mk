@@ -110,6 +110,12 @@ DEX2OAT_FLAGS := --compiler-backend=Optimizing
 DALVIKVM_FLAGS := -Xcompiler-option --compiler-backend=Optimizing
 endif
 
+#
+# Used to change the default GC. Valid values are CMS, SS, GSS. The default is CMS.
+#
+ART_DEFAULT_GC_TYPE ?= CMS
+ART_DEFAULT_GC_TYPE_CFLAGS := -DART_DEFAULT_GC_TYPE_IS_$(ART_DEFAULT_GC_TYPE)
+
 LLVM_ROOT_PATH := external/llvm
 # Don't fail a dalvik minimal host build.
 -include $(LLVM_ROOT_PATH)/llvm.mk
@@ -237,6 +243,7 @@ art_debug_cflags := \
 
 ART_HOST_CFLAGS := $(art_cflags) -DANDROID_SMP=1 -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRESS)
 ART_HOST_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=default
+ART_HOST_CFLAGS += $(ART_DEFAULT_GC_TYPE_CFLAGS)
 
 ART_TARGET_CFLAGS := $(art_cflags) -DART_TARGET -DART_BASE_ADDRESS=$(LIBART_IMG_TARGET_BASE_ADDRESS)
 ifeq ($(TARGET_CPU_SMP),true)
@@ -244,6 +251,7 @@ ifeq ($(TARGET_CPU_SMP),true)
 else
   ART_TARGET_CFLAGS += -DANDROID_SMP=0
 endif
+ART_TARGET_CFLAGS += $(ART_DEFAULT_GC_TYPE_CFLAGS)
 
 # DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES is set in ../build/core/dex_preopt.mk based on
 # the TARGET_CPU_VARIANT
