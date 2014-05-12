@@ -270,7 +270,7 @@ instrumentation::InstrumentationStackFrame& StackVisitor::GetInstrumentationStac
 void StackVisitor::SanityCheckFrame() const {
   if (kIsDebugBuild) {
     mirror::ArtMethod* method = GetMethod();
-    CHECK(method->GetClass() == mirror::ArtMethod::GetJavaLangReflectArtMethod());
+    CHECK_EQ(method->GetClass(), mirror::ArtMethod::GetJavaLangReflectArtMethod());
     if (cur_quick_frame_ != nullptr) {
       method->AssertPcIsWithinQuickCode(cur_quick_frame_pc_);
       // Frame sanity.
