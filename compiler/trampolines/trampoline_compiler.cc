@@ -62,18 +62,15 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
 
   switch (abi) {
     case kInterpreterAbi:  // Thread* is first argument (X0) in interpreter ABI.
-      // FIXME IPx used by VIXL - this is unsafe.
       __ JumpTo(Arm64ManagedRegister::FromCoreRegister(X0), Offset(offset.Int32Value()),
           Arm64ManagedRegister::FromCoreRegister(IP1));
 
       break;
     case kJniAbi:  // Load via Thread* held in JNIEnv* in first argument (X0).
-
       __ LoadRawPtr(Arm64ManagedRegister::FromCoreRegister(IP1),
                       Arm64ManagedRegister::FromCoreRegister(X0),
                       Offset(JNIEnvExt::SelfOffset().Int32Value()));
 
-      // FIXME IPx used by VIXL - this is unsafe.
       __ JumpTo(Arm64ManagedRegister::FromCoreRegister(IP1), Offset(offset.Int32Value()),
                 Arm64ManagedRegister::FromCoreRegister(IP0));
 

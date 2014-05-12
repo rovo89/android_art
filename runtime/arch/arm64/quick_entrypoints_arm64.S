@@ -443,35 +443,32 @@
     DELIVER_PENDING_EXCEPTION
 .endm
 
-// FIXME: Temporary fix for TR(XSELF).
 .macro NO_ARG_RUNTIME_EXCEPTION c_name, cxx_name
     .extern \cxx_name
 ENTRY \c_name
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
-    mov x0, x19                        // pass Thread::Current
+    mov x0, xSELF                        // pass Thread::Current
     mov x1, sp                        // pass SP
     b   \cxx_name                     // \cxx_name(Thread*, SP)
 END \c_name
 .endm
 
-// FIXME: Temporary fix for TR(XSELF).
 .macro ONE_ARG_RUNTIME_EXCEPTION c_name, cxx_name
     .extern \cxx_name
 ENTRY \c_name
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context.
-    mov x1, x19                       // pass Thread::Current.
+    mov x1, xSELF                       // pass Thread::Current.
     mov x2, sp                        // pass SP.
     b   \cxx_name                     // \cxx_name(arg, Thread*, SP).
     brk 0
 END \c_name
 .endm
 
-// FIXME: Temporary fix for TR(XSELF).
 .macro TWO_ARG_RUNTIME_EXCEPTION c_name, cxx_name
     .extern \cxx_name
 ENTRY \c_name
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
-    mov x2, x19                       // pass Thread::Current
+    mov x2, xSELF                       // pass Thread::Current
     mov x3, sp                        // pass SP
     b   \cxx_name                     // \cxx_name(arg1, arg2, Thread*, SP)
     brk 0
@@ -991,7 +988,6 @@ END art_quick_do_long_jump
      * failure.
      */
     .extern artHandleFillArrayDataFromCode
-// TODO: xSELF -> x19.
 ENTRY art_quick_handle_fill_data
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // Save callee saves in case exception allocation triggers GC.
     mov    x2, xSELF                       // Pass Thread::Current.
@@ -1167,7 +1163,6 @@ ENTRY art_quick_aput_obj
 END art_quick_aput_obj
 
 // Macro to facilitate adding new allocation entrypoints.
-// TODO: xSELF -> x19. Temporarily rely on xSELF being saved in REF_ONLY
 .macro TWO_ARG_DOWNCALL name, entrypoint, return
     .extern \entrypoint
 ENTRY \name
@@ -1182,7 +1177,6 @@ END \name
 .endm
 
 // Macro to facilitate adding new array allocation entrypoints.
-// TODO: xSELF -> x19. Temporarily rely on xSELF being saved in REF_ONLY
 .macro THREE_ARG_DOWNCALL name, entrypoint, return
     .extern \entrypoint
 ENTRY \name
@@ -1304,7 +1298,7 @@ ENTRY art_quick_proxy_invoke_handler
     mov     x2, xSELF                   // pass Thread::Current
     mov     x3, sp                      // pass SP
     bl      artQuickProxyInvokeHandler  // (Method* proxy method, receiver, Thread*, SP)
-    ldr  xSELF, [sp, #200]              // Restore self pointer.
+    ldr     xSELF, [sp, #200]           // Restore self pointer.
     ldr     x2, [xSELF, THREAD_EXCEPTION_OFFSET]
     cbnz    x2, .Lexception_in_proxy    // success if no exception is pending
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME_NO_D0 // keep d0
