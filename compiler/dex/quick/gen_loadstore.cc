@@ -139,12 +139,25 @@ void Mir2Lir::LoadValueDirectWideFixed(RegLocation rl_src, RegStorage r_dest) {
 }
 
 RegLocation Mir2Lir::LoadValue(RegLocation rl_src, RegisterClass op_kind) {
-  rl_src = EvalLoc(rl_src, op_kind, false);
-  if (IsInexpensiveConstant(rl_src) || rl_src.location != kLocPhysReg) {
-    LoadValueDirect(rl_src, rl_src.reg);
-    rl_src.location = kLocPhysReg;
-    MarkLive(rl_src);
+  rl_src = UpdateLoc(rl_src);
+  if (rl_src.location == kLocPhysReg) {
+    if (!RegClassMatches(op_kind, rl_src.reg)) {
+      // Wrong register class, realloc, copy and transfer ownership.
+      RegStorage new_reg = AllocTypedTemp(rl_src.fp, op_kind);
+      OpRegCopy(new_reg, rl_src.reg);
+      // Associate the old sreg with the new register and clobber the old register.
+      GetRegInfo(new_reg)->SetSReg(GetRegInfo(rl_src.reg)->SReg());
+      Clobber(rl_src.reg);
+      rl_src.reg = new_reg;
+    }
+    return rl_src;
   }
+
+  DCHECK_NE(rl_src.s_reg_low, INVALID_SREG);
+  rl_src.reg = AllocTypedTemp(rl_src.fp, op_kind);
+  LoadValueDirect(rl_src, rl_src.reg);
+  rl_src.location = kLocPhysReg;
+  MarkLive(rl_src);
   return rl_src;
 }
 
@@ -203,12 +216,26 @@ void Mir2Lir::StoreValue(RegLocation rl_dest, RegLocation rl_src) {
 
 RegLocation Mir2Lir::LoadValueWide(RegLocation rl_src, RegisterClass op_kind) {
   DCHECK(rl_src.wide);
-  rl_src = EvalLoc(rl_src, op_kind, false);
-  if (IsInexpensiveConstant(rl_src) || rl_src.location != kLocPhysReg) {
-    LoadValueDirectWide(rl_src, rl_src.reg);
-    rl_src.location = kLocPhysReg;
-    MarkLive(rl_src);
+  rl_src = UpdateLocWide(rl_src);
+  if (rl_src.location == kLocPhysReg) {
+    if (!RegClassMatches(op_kind, rl_src.reg)) {
+      // Wrong register class, realloc, copy and transfer ownership.
+      RegStorage new_regs = AllocTypedTempWide(rl_src.fp, op_kind);
+      OpRegCopyWide(new_regs, rl_src.reg);
+      // Associate the old sreg with the new register and clobber the old register.
+      GetRegInfo(new_regs)->SetSReg(GetRegInfo(rl_src.reg)->SReg());
+      Clobber(rl_src.reg);
+      rl_src.reg = new_regs;
+    }
+    return rl_src;
   }
+
+  DCHECK_NE(rl_src.s_reg_low, INVALID_SREG);
+  DCHECK_NE(GetSRegHi(rl_src.s_reg_low), INVALID_SREG);
+  rl_src.reg = AllocTypedTempWide(rl_src.fp, op_kind);
+  LoadValueDirectWide(rl_src, rl_src.reg);
+  rl_src.location = kLocPhysReg;
+  MarkLive(rl_src);
   return rl_src;
 }
 
