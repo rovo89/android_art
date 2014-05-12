@@ -181,8 +181,16 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
   parallel_gc_threads_ = sysconf(_SC_NPROCESSORS_CONF) - 1;
   // Only the main GC thread, no workers.
   conc_gc_threads_ = 0;
-  // Default is CMS which is Sticky + Partial + Full CMS GC.
+  // The default GC type is set in makefiles.
+#if ART_DEFAULT_GC_TYPE_IS_CMS
   collector_type_ = gc::kCollectorTypeCMS;
+#elif ART_DEFAULT_GC_TYPE_IS_SS
+  collector_type_ = gc::kCollectorTypeSS;
+#elif ART_DEFAULT_GC_TYPE_IS_GSS
+  collector_type_ = gc::kCollectorTypeGSS;
+#else
+#error "ART default GC type must be set"
+#endif
   // If background_collector_type_ is kCollectorTypeNone, it defaults to the collector_type_ after
   // parsing options.
   background_collector_type_ = gc::kCollectorTypeNone;
