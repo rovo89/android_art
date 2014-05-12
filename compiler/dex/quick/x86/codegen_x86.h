@@ -24,7 +24,7 @@ namespace art {
 
 class X86Mir2Lir FINAL : public Mir2Lir {
   public:
-    X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
+    X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena, bool gen64bit);
 
     // Required for target - codegen helpers.
     bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div, RegLocation rl_src,
@@ -325,10 +325,12 @@ class X86Mir2Lir FINAL : public Mir2Lir {
     std::vector<uint8_t>* ReturnCallFrameInformation();
 
   private:
+    size_t ComputeSize(const X86EncodingMap* entry, int base, int displacement, bool has_sib);
     void EmitPrefix(const X86EncodingMap* entry);
     void EmitOpcode(const X86EncodingMap* entry);
     void EmitPrefixAndOpcode(const X86EncodingMap* entry);
     void EmitDisp(uint8_t base, int disp);
+    void EmitModrmThread(uint8_t reg_or_opcode);
     void EmitModrmDisp(uint8_t reg_or_opcode, uint8_t base, int disp);
     void EmitModrmSibDisp(uint8_t reg_or_opcode, uint8_t base, uint8_t index, int scale, int disp);
     void EmitImm(const X86EncodingMap* entry, int imm);
@@ -578,6 +580,8 @@ class X86Mir2Lir FINAL : public Mir2Lir {
      */
     void AnalyzeDoubleUse(RegLocation rl_use);
 
+    bool Gen64Bit() const  { return gen64bit_; }
+
     // Information derived from analysis of MIR
 
     // The compiler temporary for the code address of the method.
@@ -606,6 +610,9 @@ class X86Mir2Lir FINAL : public Mir2Lir {
 
     // Epilogue increment of stack pointer.
     LIR* stack_increment_;
+
+    // 64-bit mode
+    bool gen64bit_;
 };
 
 }  // namespace art
