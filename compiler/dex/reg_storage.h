@@ -22,14 +22,14 @@ namespace art {
 
 /*
  * 16-bit representation of the physical register container holding a Dalvik value.
- * The encoding allows up to 32 physical elements per storage class, and supports eight
+ * The encoding allows up to 64 physical elements per storage class, and supports eight
  * register container shapes.
  *
- * [V] [D] [HHHHH] [SSS] [F] [LLLLL]
+ * [V] [HHHHH] [SSS] [F] [LLLLLL]
  *
- * [LLLLL]
+ * [LLLLLL]
  *  Physical register number for the low or solo register.
- *    0..31
+ *    0..63
  *
  * [F]
  *  Describes type of the [LLLLL] register.
@@ -51,19 +51,13 @@ namespace art {
  *  Physical register number of the high register (valid only for register pair).
  *    0..31
  *
- * [D]
- *  Describes type of the [HHHHH] register (valid only for register pair).
- *    0: Core
- *    1: Floating point
- *
  * [V]
  *    0 -> Invalid
  *    1 -> Valid
  *
  * Note that in all non-invalid cases, we can determine if the storage is floating point
- * by testing bit 6.  Though a mismatch appears to be permitted by the format, the [F][D] values
- * from each half of a pair must match (this allows the high and low regs of a pair to be more
- * easily individually manipulated).
+ * by testing bit 7.  Note also that a register pair is effectively limited to a pair of
+ * physical register numbers in the 0..31 range.
  *
  * On some target architectures, the same underlying physical register container can be given
  * different views.  For example, Arm's 32-bit single-precision floating point registers
@@ -82,30 +76,30 @@ class RegStorage {
     kValidMask     = 0x8000,
     kValid         = 0x8000,
     kInvalid       = 0x0000,
-    kShapeMask     = 0x01c0,
-    k32BitSolo     = 0x0040,
-    k64BitSolo     = 0x0080,
-    k64BitPair     = 0x00c0,
-    k128BitSolo    = 0x0100,
-    k256BitSolo    = 0x0140,
-    k512BitSolo    = 0x0180,
-    k1024BitSolo   = 0x01c0,
-    k64BitMask     = 0x0180,
-    k64Bits        = 0x0080,
-    kShapeTypeMask = 0x01e0,
-    kFloatingPoint = 0x0020,
+    kShapeMask     = 0x0380,
+    k32BitSolo     = 0x0080,
+    k64BitSolo     = 0x0100,
+    k64BitPair     = 0x0180,
+    k128BitSolo    = 0x0200,
+    k256BitSolo    = 0x0280,
+    k512BitSolo    = 0x0300,
+    k1024BitSolo   = 0x0380,
+    k64BitMask     = 0x0300,
+    k64Bits        = 0x0100,
+    kShapeTypeMask = 0x03c0,
+    kFloatingPoint = 0x0040,
     kCoreRegister  = 0x0000,
   };
 
-  static const uint16_t kRegValMask  = 0x01ff;  // Num, type and shape.
-  static const uint16_t kRegTypeMask = 0x003f;  // Num and type.
-  static const uint16_t kRegNumMask  = 0x001f;  // Num only.
+  static const uint16_t kRegValMask  = 0x03ff;     // Num, type and shape.
+  static const uint16_t kRegTypeMask = 0x007f;     // Num and type.
+  static const uint16_t kRegNumMask  = 0x003f;     // Num only.
+  static const uint16_t kHighRegNumMask = 0x001f;  // 0..31 for high reg
   static const uint16_t kMaxRegs     = kRegValMask + 1;
-  // TODO: deprecate use of kInvalidRegVal and speed up GetReg().
-  static const uint16_t kInvalidRegVal = 0x01ff;
-  static const uint16_t kHighRegShift = 9;
-  static const uint16_t kShapeMaskShift = 6;
-  static const uint16_t kHighRegMask = (kRegTypeMask << kHighRegShift);
+  // TODO: deprecate use of kInvalidRegVal and speed up GetReg().  Rely on valid bit instead.
+  static const uint16_t kInvalidRegVal = 0x03ff;
+  static const uint16_t kHighRegShift = 10;
+  static const uint16_t kHighRegMask = (kHighRegNumMask << kHighRegShift);
 
   // Reg is [F][LLLLL], will override any existing shape and use rs_kind.
   RegStorage(RegStorageKind rs_kind, int reg) {
@@ -116,7 +110,9 @@ class RegStorage {
   RegStorage(RegStorageKind rs_kind, int low_reg, int high_reg) {
     DCHECK_EQ(rs_kind, k64BitPair);
     DCHECK_EQ(low_reg & kFloatingPoint, high_reg & kFloatingPoint);
-    reg_ = kValid | rs_kind | ((high_reg & kRegTypeMask) << kHighRegShift) | (low_reg & kRegTypeMask);
+    DCHECK_LE(high_reg & kRegNumMask, kHighRegNumMask) << "High reg must be in 0..31";
+    reg_ = kValid | rs_kind | ((high_reg & kHighRegNumMask) << kHighRegShift) |
+        (low_reg & kRegTypeMask);
   }
   constexpr explicit RegStorage(uint16_t val) : reg_(val) {}
   RegStorage() : reg_(kInvalid) {}
@@ -206,7 +202,7 @@ class RegStorage {
   // Retrieve the most significant register of a pair.
   int GetHighReg() const {
     DCHECK(IsPair());
-    return k32BitSolo | ((reg_ & kHighRegMask) >> kHighRegShift);
+    return k32BitSolo | ((reg_ & kHighRegMask) >> kHighRegShift) | (reg_ & kFloatingPoint);
   }
 
   // Create a stand-alone RegStorage from the high reg of a pair.
@@ -217,7 +213,7 @@ class RegStorage {
 
   void SetHighReg(int reg) {
     DCHECK(IsPair());
-    reg_ = (reg_ & ~kHighRegMask) | ((reg & kRegTypeMask) << kHighRegShift);
+    reg_ = (reg_ & ~kHighRegMask) | ((reg & kHighRegNumMask) << kHighRegShift);
   }
 
   // Return the register number of low or solo.
