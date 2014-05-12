@@ -333,6 +333,9 @@ class Mir2Lir : public Backend {
       bool InUse() { return (storage_mask_ & master_->used_storage_) != 0; }
       void MarkInUse() { master_->used_storage_ |= storage_mask_; }
       void MarkFree() { master_->used_storage_ &= ~storage_mask_; }
+      // No part of the containing storage is live in this view.
+      bool IsDead() { return (master_->liveness_ & storage_mask_) == 0; }
+      // Liveness of this view matches.  Note: not equivalent to !IsDead().
       bool IsLive() { return (master_->liveness_ & storage_mask_) == storage_mask_; }
       void MarkLive() { master_->liveness_ |= storage_mask_; }
       void MarkDead() {
@@ -358,9 +361,13 @@ class Mir2Lir : public Backend {
         master_ = master;
         if (master != this) {
           master_->aliased_ = true;
+          DCHECK(alias_chain_ == nullptr);
+          alias_chain_ = master_->alias_chain_;
+          master_->alias_chain_ = this;
         }
       }
       bool IsAliased() { return aliased_; }
+      RegisterInfo* GetAliasChain() { return alias_chain_; }
       uint32_t StorageMask() { return storage_mask_; }
       void SetStorageMask(uint32_t storage_mask) { storage_mask_ = storage_mask; }
       LIR* DefStart() { return def_start_; }
@@ -385,6 +392,7 @@ class Mir2Lir : public Backend {
       uint32_t storage_mask_;      // Track allocation of sub-units.
       LIR *def_start_;             // Starting inst in last def sequence.
       LIR *def_end_;               // Ending inst in last def sequence.
+      RegisterInfo* alias_chain_;  // Chain of aliased registers.
     };
 
     class RegisterPool {
@@ -655,7 +663,7 @@ class Mir2Lir : public Backend {
     void ResetDefLoc(RegLocation rl);
     void ResetDefLocWide(RegLocation rl);
     void ResetDefTracking();
-    void ClobberAllRegs();
+    void ClobberAllTemps();
     void FlushSpecificReg(RegisterInfo* info);
     void FlushAllRegs();
     bool RegClassMatches(int reg_class, RegStorage reg);
