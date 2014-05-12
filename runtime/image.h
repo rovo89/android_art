@@ -91,7 +91,7 @@ class PACKED(4) ImageHeader {
   static std::string GetOatLocationFromImageLocation(const std::string& image) {
     std::string oat_filename = image;
     if (oat_filename.length() <= 3) {
-      return oat_filename + ".oat";
+      oat_filename += ".oat";
     } else {
       oat_filename.replace(oat_filename.length() - 3, 3, "oat");
     }
