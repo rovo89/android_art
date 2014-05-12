@@ -1548,7 +1548,7 @@ static int oatdump(int argc, char** argv) {
   }
   UniquePtr<Runtime> runtime(Runtime::Current());
   // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
-  // give it away now and then switch to a more managable ScopedObjectAccess.
+  // give it away now and then switch to a more manageable ScopedObjectAccess.
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
   ScopedObjectAccess soa(Thread::Current());
   gc::Heap* heap = Runtime::Current()->GetHeap();

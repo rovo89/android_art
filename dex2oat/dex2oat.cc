@@ -764,7 +764,7 @@ static int dex2oat(int argc, char** argv) {
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
-    bool log_options = false;
+    const bool log_options = false;
     if (log_options) {
       LOG(INFO) << "dex2oat: option[" << i << "]=" << argv[i];
     }
@@ -957,7 +957,9 @@ static int dex2oat(int argc, char** argv) {
   bool image = (!image_filename.empty());
   if (!image && boot_image_filename.empty()) {
     boot_image_filename += GetAndroidRoot();
-    boot_image_filename += "/framework/boot.art";
+    boot_image_filename += "/framework/boot-";
+    boot_image_filename += GetInstructionSetString(instruction_set);
+    boot_image_filename += ".art";
   }
   std::string boot_image_option;
   if (!boot_image_filename.empty()) {
