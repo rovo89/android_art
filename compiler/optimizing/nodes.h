@@ -60,7 +60,7 @@ class HGraph : public ArenaObject {
   explicit HGraph(ArenaAllocator* arena)
       : arena_(arena),
         blocks_(arena, kDefaultNumberOfBlocks),
-        post_order_(arena, kDefaultNumberOfBlocks),
+        reverse_post_order_(arena, kDefaultNumberOfBlocks),
         maximum_number_of_out_vregs_(0),
         number_of_vregs_(0),
         number_of_in_vregs_(0),
@@ -80,6 +80,14 @@ class HGraph : public ArenaObject {
   void BuildDominatorTree();
   void TransformToSSA();
   void SimplifyCFG();
+
+  // Find all natural loops in this graph. Aborts computation and returns false
+  // if one loop is not natural, that is the header does not dominated the back
+  // edge.
+  bool FindNaturalLoops() const;
+
+  void SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor);
+  void SimplifyLoop(HBasicBlock* header);
 
   int GetNextInstructionId() {
     return current_instruction_id_++;
@@ -109,8 +117,8 @@ class HGraph : public ArenaObject {
     return number_of_in_vregs_;
   }
 
-  const GrowableArray<HBasicBlock*>& GetPostOrder() const {
-    return post_order_;
+  const GrowableArray<HBasicBlock*>& GetReversePostOrder() const {
+    return reverse_post_order_;
   }
 
  private:
@@ -129,8 +137,8 @@ class HGraph : public ArenaObject {
   // List of blocks in insertion order.
   GrowableArray<HBasicBlock*> blocks_;
 
-  // List of blocks to perform a post order tree traversal.
-  GrowableArray<HBasicBlock*> post_order_;
+  // List of blocks to perform a reverse post order tree traversal.
+  GrowableArray<HBasicBlock*> reverse_post_order_;
 
   HBasicBlock* entry_block_;
   HBasicBlock* exit_block_;
@@ -154,30 +162,63 @@ class HLoopInformation : public ArenaObject {
  public:
   HLoopInformation(HBasicBlock* header, HGraph* graph)
       : header_(header),
-        back_edges_(graph->GetArena(), kDefaultNumberOfBackEdges) { }
+        back_edges_(graph->GetArena(), kDefaultNumberOfBackEdges),
+        blocks_(graph->GetArena(), graph->GetBlocks().Size(), false) {}
+
+  HBasicBlock* GetHeader() const {
+    return header_;
+  }
 
   void AddBackEdge(HBasicBlock* back_edge) {
     back_edges_.Add(back_edge);
+  }
+
+  void RemoveBackEdge(HBasicBlock* back_edge) {
+    back_edges_.Delete(back_edge);
+  }
+
+  bool IsBackEdge(HBasicBlock* block) {
+    for (size_t i = 0, e = back_edges_.Size(); i < e; ++i) {
+      if (back_edges_.Get(i) == block) return true;
+    }
+    return false;
   }
 
   int NumberOfBackEdges() const {
     return back_edges_.Size();
   }
 
-  void SetPreHeader(HBasicBlock* block);
+  HBasicBlock* GetPreHeader() const;
 
-  HBasicBlock* GetPreHeader() const {
-    return pre_header_;
+  const GrowableArray<HBasicBlock*>& GetBackEdges() const {
+    return back_edges_;
   }
 
-  const GrowableArray<HBasicBlock*>* GetBackEdges() const {
-    return &back_edges_;
+  void ClearBackEdges() {
+    back_edges_.Reset();
   }
+
+  // Find blocks that are part of this loop. Returns whether the loop is a natural loop,
+  // that is the header dominates the back edge.
+  bool Populate();
+
+  // Returns whether this loop information contains `block`.
+  // Note that this loop information *must* be populated before entering this function.
+  bool Contains(const HBasicBlock& block) const;
+
+  // Returns whether this loop information is an inner loop of `other`.
+  // Note that `other` *must* be populated before entering this function.
+  bool IsIn(const HLoopInformation& other) const;
+
+  const ArenaBitVector& GetBlocks() const { return blocks_; }
 
  private:
-  HBasicBlock* pre_header_;
+  // Internal recursive implementation of `Populate`.
+  void PopulateRecursive(HBasicBlock* block);
+
   HBasicBlock* header_;
   GrowableArray<HBasicBlock*> back_edges_;
+  ArenaBitVector blocks_;
 
   DISALLOW_COPY_AND_ASSIGN(HLoopInformation);
 };
@@ -195,18 +236,19 @@ class HBasicBlock : public ArenaObject {
         dominator_(nullptr),
         block_id_(-1) { }
 
-  const GrowableArray<HBasicBlock*>* GetPredecessors() const {
-    return &predecessors_;
+  const GrowableArray<HBasicBlock*>& GetPredecessors() const {
+    return predecessors_;
   }
 
-  const GrowableArray<HBasicBlock*>* GetSuccessors() const {
-    return &successors_;
+  const GrowableArray<HBasicBlock*>& GetSuccessors() const {
+    return successors_;
   }
 
   void AddBackEdge(HBasicBlock* back_edge) {
     if (loop_information_ == nullptr) {
       loop_information_ = new (graph_->GetArena()) HLoopInformation(this, graph_);
     }
+    DCHECK_EQ(loop_information_->GetHeader(), this);
     loop_information_->AddBackEdge(back_edge);
   }
 
@@ -241,18 +283,56 @@ class HBasicBlock : public ArenaObject {
     }
   }
 
+  void RemoveSuccessor(HBasicBlock* block, bool remove_in_predecessor = true) {
+    successors_.Delete(block);
+    if (remove_in_predecessor) {
+      block->predecessors_.Delete(this);
+    }
+  }
+
+  void ClearAllPredecessors() {
+    predecessors_.Reset();
+  }
+
+  void AddPredecessor(HBasicBlock* block) {
+    predecessors_.Add(block);
+    block->successors_.Add(this);
+  }
+
   void AddInstruction(HInstruction* instruction);
   void RemoveInstruction(HInstruction* instruction);
   void AddPhi(HPhi* phi);
   void RemovePhi(HPhi* phi);
 
   bool IsLoopHeader() const {
-    return loop_information_ != nullptr;
+    return (loop_information_ != nullptr) && (loop_information_->GetHeader() == this);
   }
 
   HLoopInformation* GetLoopInformation() const {
     return loop_information_;
   }
+
+  // Set the loop_information_ on this block. This method overrides the current
+  // loop_information if it is an outer loop of the passed loop information.
+  void SetInLoop(HLoopInformation* info) {
+    if (IsLoopHeader()) {
+      // Nothing to do. This just means `info` is an outer loop.
+    } else if (loop_information_ == nullptr) {
+      loop_information_ = info;
+    } else if (loop_information_->Contains(*info->GetHeader())) {
+      // Block is currently part of an outer loop. Make it part of this inner loop.
+      // Note that a non loop header having a loop information means this loop information
+      // has already been populated
+      loop_information_ = info;
+    } else {
+      // Block is part of an inner loop. Do not update the loop information.
+      // Note that we cannot do the check `info->Contains(loop_information_)->GetHeader()`
+      // at this point, because this method is being called while populating `info`.
+    }
+  }
+
+  // Returns wheter this block dominates the blocked passed as parameter.
+  bool Dominates(HBasicBlock* block) const;
 
  private:
   HGraph* const graph_;
@@ -638,7 +718,7 @@ class HGoto : public HTemplateInstruction<0> {
   HGoto() { }
 
   HBasicBlock* GetSuccessor() const {
-    return GetBlock()->GetSuccessors()->Get(0);
+    return GetBlock()->GetSuccessors().Get(0);
   }
 
   DECLARE_INSTRUCTION(Goto)
@@ -656,11 +736,11 @@ class HIf : public HTemplateInstruction<1> {
   }
 
   HBasicBlock* IfTrueSuccessor() const {
-    return GetBlock()->GetSuccessors()->Get(0);
+    return GetBlock()->GetSuccessors().Get(0);
   }
 
   HBasicBlock* IfFalseSuccessor() const {
-    return GetBlock()->GetSuccessors()->Get(1);
+    return GetBlock()->GetSuccessors().Get(1);
   }
 
   DECLARE_INSTRUCTION(If)
@@ -1011,35 +1091,35 @@ class HInsertionOrderIterator : public ValueObject {
   DISALLOW_COPY_AND_ASSIGN(HInsertionOrderIterator);
 };
 
-class HPostOrderIterator : public ValueObject {
+class HReversePostOrderIterator : public ValueObject {
  public:
-  explicit HPostOrderIterator(const HGraph& graph) : graph_(graph), index_(0) {}
+  explicit HReversePostOrderIterator(const HGraph& graph) : graph_(graph), index_(0) {}
 
-  bool Done() const { return index_ == graph_.GetPostOrder().Size(); }
-  HBasicBlock* Current() const { return graph_.GetPostOrder().Get(index_); }
+  bool Done() const { return index_ == graph_.GetReversePostOrder().Size(); }
+  HBasicBlock* Current() const { return graph_.GetReversePostOrder().Get(index_); }
   void Advance() { ++index_; }
 
  private:
   const HGraph& graph_;
   size_t index_;
 
-  DISALLOW_COPY_AND_ASSIGN(HPostOrderIterator);
+  DISALLOW_COPY_AND_ASSIGN(HReversePostOrderIterator);
 };
 
-class HReversePostOrderIterator : public ValueObject {
+class HPostOrderIterator : public ValueObject {
  public:
-  explicit HReversePostOrderIterator(const HGraph& graph)
-      : graph_(graph), index_(graph_.GetPostOrder().Size()) {}
+  explicit HPostOrderIterator(const HGraph& graph)
+      : graph_(graph), index_(graph_.GetReversePostOrder().Size()) {}
 
   bool Done() const { return index_ == 0; }
-  HBasicBlock* Current() const { return graph_.GetPostOrder().Get(index_ - 1); }
+  HBasicBlock* Current() const { return graph_.GetReversePostOrder().Get(index_ - 1); }
   void Advance() { --index_; }
 
  private:
   const HGraph& graph_;
   size_t index_;
 
-  DISALLOW_COPY_AND_ASSIGN(HReversePostOrderIterator);
+  DISALLOW_COPY_AND_ASSIGN(HPostOrderIterator);
 };
 
 }  // namespace art

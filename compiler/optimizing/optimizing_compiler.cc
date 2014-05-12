@@ -104,6 +104,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   // Run these phases to get some test coverage.
   graph->BuildDominatorTree();
   graph->TransformToSSA();
+  graph->FindNaturalLoops();
   SsaLivenessAnalysis(*graph).Analyze();
 
   return new CompiledMethod(GetCompilerDriver(),

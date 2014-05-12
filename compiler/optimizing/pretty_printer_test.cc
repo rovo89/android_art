@@ -57,7 +57,7 @@ class StringPrettyPrinter : public HPrettyPrinter {
     PrintString("  ");
     PrintInt(gota->GetId());
     PrintString(": Goto ");
-    PrintInt(current_block_->GetSuccessors()->Get(0)->GetBlockId());
+    PrintInt(current_block_->GetSuccessors().Get(0)->GetBlockId());
     PrintNewLine();
   }
 
