@@ -1082,6 +1082,7 @@ class Thread {
   friend class Runtime;  // For CreatePeer.
   friend class ScopedThreadStateChange;
   friend class SignalCatcher;  // For SetStateUnsafe.
+  friend class StubTest;  // For accessing entrypoints.
   friend class ThreadList;  // For ~Thread and Destroy.
 
   DISALLOW_COPY_AND_ASSIGN(Thread);
