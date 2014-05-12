@@ -389,10 +389,49 @@ struct BasicBlock {
   GrowableArray<SuccessorBlockInfo*>* successor_blocks;
 
   void AppendMIR(MIR* mir);
+  void AppendMIRList(MIR* first_list_mir, MIR* last_list_mir);
+  void AppendMIRList(const std::vector<MIR*>& insns);
   void PrependMIR(MIR* mir);
+  void PrependMIRList(MIR* first_list_mir, MIR* last_list_mir);
+  void PrependMIRList(const std::vector<MIR*>& to_add);
   void InsertMIRAfter(MIR* current_mir, MIR* new_mir);
-  void InsertMIRBefore(MIR* current_mir, MIR* new_mir);
+  void InsertMIRListAfter(MIR* insert_after, MIR* first_list_mir, MIR* last_list_mir);
   MIR* FindPreviousMIR(MIR* mir);
+  void InsertMIRBefore(MIR* insert_before, MIR* list);
+  void InsertMIRListBefore(MIR* insert_before, MIR* first_list_mir, MIR* last_list_mir);
+  bool RemoveMIR(MIR* mir);
+  bool RemoveMIRList(MIR* first_list_mir, MIR* last_list_mir);
+
+  BasicBlock* Copy(CompilationUnit* c_unit);
+  BasicBlock* Copy(MIRGraph* mir_graph);
+
+  /**
+   * @brief Reset the optimization_flags field of each MIR.
+   */
+  void ResetOptimizationFlags(uint16_t reset_flags);
+
+  /**
+   * @brief Hide the BasicBlock.
+   * @details Set it to kDalvikByteCode, set hidden to true, remove all MIRs,
+   *          remove itself from any predecessor edges, remove itself from any
+   *          child's predecessor growable array.
+   */
+  void Hide(CompilationUnit* c_unit);
+
+  /**
+   * @brief Is ssa_reg the last SSA definition of that VR in the block?
+   */
+  bool IsSSALiveOut(const CompilationUnit* c_unit, int ssa_reg);
+
+  /**
+   * @brief Replace the edge going to old_bb to now go towards new_bb.
+   */
+  bool ReplaceChild(BasicBlockId old_bb, BasicBlockId new_bb);
+
+  /**
+   * @brief Update the predecessor growable array from old_pred to new_pred.
+   */
+  void UpdatePredecessor(BasicBlockId old_pred, BasicBlockId new_pred);
 
   /**
    * @brief Used to obtain the next MIR that follows unconditionally.
@@ -403,8 +442,12 @@ struct BasicBlock {
    * @return Returns the following MIR if one can be found.
    */
   MIR* GetNextUnconditionalMir(MIRGraph* mir_graph, MIR* current);
-  bool RemoveMIR(MIR* mir);
   bool IsExceptionBlock() const;
+
+  static void* operator new(size_t size, ArenaAllocator* arena) {
+    return arena->Alloc(sizeof(BasicBlock), kArenaAllocBB);
+  }
+  static void operator delete(void* p) {}  // Nop.
 };
 
 /*
@@ -921,6 +964,7 @@ class MIRGraph {
   BasicBlock* NextDominatedBlock(BasicBlock* bb);
   bool LayoutBlocks(BasicBlock* bb);
   void ComputeTopologicalSortOrder();
+  BasicBlock* CreateNewBB(BBType block_type);
 
   bool InlineCallsGate();
   void InlineCallsStart();
