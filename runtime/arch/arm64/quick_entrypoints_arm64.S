@@ -1166,10 +1166,6 @@ ENTRY art_quick_aput_obj
     brk 0                         // Unreached.
 END art_quick_aput_obj
 
-UNIMPLEMENTED art_quick_initialize_static_storage
-UNIMPLEMENTED art_quick_initialize_type
-UNIMPLEMENTED art_quick_initialize_type_and_verify_access
-
 // Macro to facilitate adding new allocation entrypoints.
 // TODO: xSELF -> x19. Temporarily rely on xSELF being saved in REF_ONLY
 .macro TWO_ARG_DOWNCALL name, entrypoint, return
@@ -1244,6 +1240,16 @@ ENTRY \name
 END \name
 .endm
 
+    /*
+     * Entry from managed code when uninitialized static storage, this stub will run the class
+     * initializer and deliver the exception on error. On success the static storage base is
+     * returned.
+     */
+TWO_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO
+
+UNIMPLEMENTED art_quick_initialize_type
+UNIMPLEMENTED art_quick_initialize_type_and_verify_access
+
 ONE_ARG_REF_DOWNCALL art_quick_get32_static, artGet32StaticFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
 ONE_ARG_REF_DOWNCALL art_quick_get64_static, artGet64StaticFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
 ONE_ARG_REF_DOWNCALL art_quick_get_obj_static, artGetObjStaticFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
@@ -1273,8 +1279,13 @@ ENTRY art_quick_set64_static
     RETURN_IF_W0_IS_ZERO_OR_DELIVER
 END art_quick_set64_static
 
-
-UNIMPLEMENTED art_quick_resolve_string
+    /*
+     * Entry from managed code to resolve a string, this stub will allocate a String and deliver an
+     * exception on error. On success the String is returned. x0 holds the referring method,
+     * w1 holds the string index. The fast path check for hit in strings cache has already been
+     * performed.
+     */
+TWO_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_RESULT_IS_NON_ZERO
 
 // Generate the allocation entrypoints for each allocator.
 GENERATE_ALL_ALLOC_ENTRYPOINTS
@@ -1308,14 +1319,13 @@ UNIMPLEMENTED art_quick_imt_conflict_trampoline
 
 ENTRY art_quick_resolution_trampoline
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    mov x19, x0           // save the called method
     mov x2, xSELF
     mov x3, sp
     bl artQuickResolutionTrampoline  // (called, receiver, Thread*, SP)
-    mov x9, x0            // Remember returned code pointer in x9.
-    mov x0, x19           // Restore the method, before x19 is restored to on-call value
+    cbz x0, 1f
+    mov x9, x0              // Remember returned code pointer in x9.
+    ldr x0, [sp, #0]        // artQuickResolutionTrampoline puts called method in *SP.
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    cbz x9, 1f
     br x9
 1:
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
