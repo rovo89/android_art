@@ -673,9 +673,9 @@ class Mir2Lir : public Backend {
     RegLocation UpdateRawLoc(RegLocation loc);
 
     /**
-     * @brief Used to load register location into a typed temporary or pair of temporaries.
+     * @brief Used to prepare a register location to receive a wide value.
      * @see EvalLoc
-     * @param loc The register location to load from.
+     * @param loc the location where the value will be stored.
      * @param reg_class Type of register needed.
      * @param update Whether the liveness information should be updated.
      * @return Returns the properly typed temporary in physical register pairs.
@@ -683,8 +683,8 @@ class Mir2Lir : public Backend {
     RegLocation EvalLocWide(RegLocation loc, int reg_class, bool update);
 
     /**
-     * @brief Used to load register location into a typed temporary.
-     * @param loc The register location to load from.
+     * @brief Used to prepare a register location to receive a value.
+     * @param loc the location where the value will be stored.
      * @param reg_class Type of register needed.
      * @param update Whether the liveness information should be updated.
      * @return Returns the properly typed temporary in physical register.

@@ -937,9 +937,8 @@ RegLocation Mir2Lir::EvalLocWide(RegLocation loc, int reg_class, bool update) {
   /* If already in registers, we can assume proper form.  Right reg class? */
   if (loc.location == kLocPhysReg) {
     if (!RegClassMatches(reg_class, loc.reg)) {
-      /* Wrong register class.  Reallocate and copy */
+      // Wrong register class.  Reallocate and transfer ownership.
       RegStorage new_regs = AllocTypedTempWide(loc.fp, reg_class);
-      OpRegCopyWide(new_regs, loc.reg);
       // Associate the old sreg with the new register and clobber the old register.
       GetRegInfo(new_regs)->SetSReg(GetRegInfo(loc.reg)->SReg());
       Clobber(loc.reg);
@@ -971,9 +970,8 @@ RegLocation Mir2Lir::EvalLoc(RegLocation loc, int reg_class, bool update) {
 
   if (loc.location == kLocPhysReg) {
     if (!RegClassMatches(reg_class, loc.reg)) {
-      /* Wrong register class.  Realloc, copy and transfer ownership */
+      // Wrong register class.  Reallocate and transfer ownership.
       RegStorage new_reg = AllocTypedTemp(loc.fp, reg_class);
-      OpRegCopy(new_reg, loc.reg);
       // Associate the old sreg with the new register and clobber the old register.
       GetRegInfo(new_reg)->SetSReg(GetRegInfo(loc.reg)->SReg());
       Clobber(loc.reg);
