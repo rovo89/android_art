@@ -674,10 +674,17 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
   // the art specific version. This can happen with on device
   // boot.art/boot.oat generation by GenerateImage which relies on the
   // value of BOOTCLASSPATH.
+#if defined(ART_TARGET)
   std::string core_jar("/core.jar");
+  std::string core_libart_jar("/core-libart.jar");
+#else
+  // The host uses hostdex files.
+  std::string core_jar("/core-hostdex.jar");
+  std::string core_libart_jar("/core-libart-hostdex.jar");
+#endif
   size_t core_jar_pos = boot_class_path_string_.find(core_jar);
   if (core_jar_pos != std::string::npos) {
-    boot_class_path_string_.replace(core_jar_pos, core_jar.size(), "/core-libart.jar");
+    boot_class_path_string_.replace(core_jar_pos, core_jar.size(), core_libart_jar);
   }
 
   if (compiler_callbacks_ == nullptr && image_.empty()) {
