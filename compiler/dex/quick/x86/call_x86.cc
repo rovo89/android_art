@@ -161,7 +161,9 @@ void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
 }
 
 void X86Mir2Lir::GenMoveException(RegLocation rl_dest) {
-  int ex_offset = Thread::ExceptionOffset<4>().Int32Value();
+  int ex_offset = Is64BitInstructionSet(cu_->instruction_set) ?
+      Thread::ExceptionOffset<8>().Int32Value() :
+      Thread::ExceptionOffset<4>().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   NewLIR2(kX86Mov32RT, rl_result.reg.GetReg(), ex_offset);
   NewLIR2(kX86Mov32TI, ex_offset, 0);
@@ -175,7 +177,10 @@ void X86Mir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
   RegStorage reg_card_base = AllocTemp();
   RegStorage reg_card_no = AllocTemp();
   LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
-  NewLIR2(kX86Mov32RT, reg_card_base.GetReg(), Thread::CardTableOffset<4>().Int32Value());
+  int ct_offset = Is64BitInstructionSet(cu_->instruction_set) ?
+      Thread::CardTableOffset<8>().Int32Value() :
+      Thread::CardTableOffset<4>().Int32Value();
+  NewLIR2(kX86Mov32RT, reg_card_base.GetReg(), ct_offset);
   OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, gc::accounting::CardTable::kCardShift);
   StoreBaseIndexed(reg_card_base, reg_card_no, reg_card_base, 0, kUnsignedByte);
   LIR* target = NewLIR0(kPseudoTargetLabel);
@@ -222,10 +227,14 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
         GenerateTargetLabel(kPseudoThrowTarget);
         m2l_->OpRegImm(kOpAdd, rs_rX86_SP, sp_displace_);
         m2l_->ClobberCallerSave();
-        ThreadOffset<4> func_offset = QUICK_ENTRYPOINT_OFFSET(4, pThrowStackOverflow);
         // Assumes codegen and target are in thumb2 mode.
-        m2l_->CallHelper(RegStorage::InvalidReg(), func_offset, false /* MarkSafepointPC */,
-                         false /* UseLink */);
+        if (Is64BitInstructionSet(cu_->instruction_set)) {
+          m2l_->CallHelper(RegStorage::InvalidReg(), QUICK_ENTRYPOINT_OFFSET(8, pThrowStackOverflow),
+                           false /* MarkSafepointPC */, false /* UseLink */);
+        } else {
+          m2l_->CallHelper(RegStorage::InvalidReg(), QUICK_ENTRYPOINT_OFFSET(4, pThrowStackOverflow),
+                                     false /* MarkSafepointPC */, false /* UseLink */);
+        }
       }
 
      private:
@@ -240,9 +249,15 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
     // in case a signal comes in that's not using an alternate signal stack and the large frame may
     // have moved us outside of the reserved area at the end of the stack.
     // cmp rX86_SP, fs:[stack_end_]; jcc throw_slowpath
-    OpRegThreadMem(kOpCmp, rs_rX86_SP, Thread::StackEndOffset<4>());
+    if (Is64BitInstructionSet(cu_->instruction_set)) {
+      OpRegThreadMem(kOpCmp, rs_rX86_SP, Thread::StackEndOffset<8>());
+    } else {
+      OpRegThreadMem(kOpCmp, rs_rX86_SP, Thread::StackEndOffset<4>());
+    }
     LIR* branch = OpCondBranch(kCondUlt, nullptr);
-    AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, frame_size_ - 4));
+    AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch,
+                                                 frame_size_ -
+                                                 GetInstructionSetPointerSize(cu_->instruction_set)));
   }
 
   FlushIns(ArgLocs, rl_method);

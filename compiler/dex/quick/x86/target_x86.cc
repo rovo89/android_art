@@ -589,6 +589,12 @@ RegStorage X86Mir2Lir::LoadHelper(ThreadOffset<4> offset) {
   return RegStorage::InvalidReg();
 }
 
+// Not used in x86
+RegStorage X86Mir2Lir::LoadHelper(ThreadOffset<8> offset) {
+  LOG(FATAL) << "Unexpected use of LoadHelper in x86";
+  return RegStorage::InvalidReg();
+}
+
 LIR* X86Mir2Lir::CheckSuspendUsingLoad() {
   LOG(FATAL) << "Unexpected use of CheckSuspendUsingLoad in x86";
   return nullptr;

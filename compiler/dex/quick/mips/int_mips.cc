@@ -269,6 +269,10 @@ void MipsMir2Lir::OpTlsCmp(ThreadOffset<4> offset, int val) {
   LOG(FATAL) << "Unexpected use of OpTlsCmp for Arm";
 }
 
+void MipsMir2Lir::OpTlsCmp(ThreadOffset<8> offset, int val) {
+  UNIMPLEMENTED(FATAL) << "Should not be called.";
+}
+
 bool MipsMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   DCHECK_NE(cu_->instruction_set, kThumb2);
   return false;

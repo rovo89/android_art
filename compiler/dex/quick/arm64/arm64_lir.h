@@ -95,25 +95,6 @@ namespace art {
  * +========================+
  */
 
-#if 1
-#define A64_PTR_SIZE 4
-#define A64_GET_INT_OFFS(offs) ((offs).Int32Value())
-#else
-// Not yet ready for this.
-#define A64_PTR_SIZE 8
-#define A64_GET_INT_OFFS(offs) ((offs).Int32Value())
-#endif
-
-#define A64_QUICK_ENTRYPOINT_OFFSET(name) QUICK_ENTRYPOINT_OFFSET(A64_PTR_SIZE, name)
-#define A64_QUICK_ENTRYPOINT_INT_OFFS(name) A64_GET_INT_OFFS(A64_QUICK_ENTRYPOINT_OFFSET(name))
-#define A64_THREAD_THIN_LOCK_ID_OFFSET A64_GET_INT_OFFS(Thread::ThinLockIdOffset<A64_PTR_SIZE>())
-#define A64_THREAD_EXCEPTION_INT_OFFS A64_GET_INT_OFFS(Thread::ExceptionOffset<A64_PTR_SIZE>())
-#define A64_THREAD_CARD_TABLE_INT_OFFS A64_GET_INT_OFFS(Thread::CardTableOffset<A64_PTR_SIZE>())
-#define A64_THREAD_STACK_END_INT_OFFS A64_GET_INT_OFFS(Thread::StackEndOffset<A64_PTR_SIZE>())
-#define A64_THREAD_SUSPEND_TRIGGER_OFFSET \
-  A64_GET_INT_OFFS(Thread::ThreadSuspendTriggerOffset<A64_PTR_SIZE>())
-typedef ThreadOffset<A64_PTR_SIZE> A64ThreadOffset;
-
 // Offset to distinguish FP regs.
 #define ARM_FP_REG_OFFSET 32
 // First FP callee save.
