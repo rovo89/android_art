@@ -155,14 +155,19 @@ class MANAGED PrimitiveArray : public Array {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void SetArrayClass(Class* array_class) {
-    CHECK(array_class_ == NULL);
-    CHECK(array_class != NULL);
+    CHECK(array_class_ == nullptr);
+    CHECK(array_class != nullptr);
     array_class_ = array_class;
   }
 
+  static Class* GetArrayClass() {
+    DCHECK(array_class_ != nullptr);
+    return array_class_;
+  }
+
   static void ResetArrayClass() {
-    CHECK(array_class_ != NULL);
-    array_class_ = NULL;
+    CHECK(array_class_ != nullptr);
+    array_class_ = nullptr;
   }
 
   static void VisitRoots(RootCallback* callback, void* arg)

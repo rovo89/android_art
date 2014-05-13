@@ -66,10 +66,6 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
     ThrowNullPointerException(NULL, "element class == null");
     return nullptr;
   }
-  if (UNLIKELY(element_class->IsPrimitiveVoid())) {
-    ThrowIllegalArgumentException(NULL, "Can't allocate an array of void");
-    return nullptr;
-  }
   Runtime* runtime = Runtime::Current();
   mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(soa.Self(), element_class);
   if (UNLIKELY(array_class == nullptr)) {
@@ -91,10 +87,6 @@ static jobject VMRuntime_newUnpaddedArray(JNIEnv* env, jobject, jclass javaEleme
   mirror::Class* element_class = soa.Decode<mirror::Class*>(javaElementClass);
   if (UNLIKELY(element_class == nullptr)) {
     ThrowNullPointerException(NULL, "element class == null");
-    return nullptr;
-  }
-  if (UNLIKELY(element_class->IsPrimitiveVoid())) {
-    ThrowIllegalArgumentException(NULL, "Can't allocate an array of void");
     return nullptr;
   }
   Runtime* runtime = Runtime::Current();

@@ -2195,7 +2195,10 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
     DCHECK(self->IsExceptionPending());
     return nullptr;
   }
-
+  if (UNLIKELY(component_type->IsPrimitiveVoid())) {
+    ThrowNoClassDefFoundError("Attempt to create array of void primitive type");
+    return nullptr;
+  }
   // See if the component type is already loaded.  Array classes are
   // always associated with the class loader of their underlying
   // element type -- an array of Strings goes with the loader for

@@ -179,7 +179,7 @@ class ScopedCheck {
   // times, so using "java.lang.Thread" instead of "java/lang/Thread" might work in some
   // circumstances, but this is incorrect.
   void CheckClassName(const char* class_name) {
-    if (!IsValidJniClassName(class_name)) {
+    if ((class_name == nullptr) || !IsValidJniClassName(class_name)) {
       JniAbortF(function_name_,
                 "illegal class name '%s'\n"
                 "    (should be of the form 'package/Class', [Lpackage/Class;' or '[[B')",
