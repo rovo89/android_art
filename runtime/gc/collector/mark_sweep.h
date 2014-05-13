@@ -264,7 +264,7 @@ class MarkSweep : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Used to get around thread safety annotations. The call is from MarkingPhase and is guarded by
+  // Used to Get around thread safety annotations. The call is from MarkingPhase and is guarded by
   // IsExclusiveHeld.
   void RevokeAllThreadLocalAllocationStacks(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
 

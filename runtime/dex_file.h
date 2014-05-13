@@ -42,8 +42,7 @@ namespace mirror {
 }  // namespace mirror
 class ClassLinker;
 class Signature;
-template <typename T>
-class SirtRef;
+template<class T> class Handle;
 class StringPiece;
 class ZipArchive;
 
@@ -1127,8 +1126,8 @@ class ClassDataItemIterator {
 
 class EncodedStaticFieldValueIterator {
  public:
-  EncodedStaticFieldValueIterator(const DexFile& dex_file, SirtRef<mirror::DexCache>* dex_cache,
-                                  SirtRef<mirror::ClassLoader>* class_loader,
+  EncodedStaticFieldValueIterator(const DexFile& dex_file, Handle<mirror::DexCache>* dex_cache,
+                                  Handle<mirror::ClassLoader>* class_loader,
                                   ClassLinker* linker, const DexFile::ClassDef& class_def)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -1163,8 +1162,8 @@ class EncodedStaticFieldValueIterator {
   static const byte kEncodedValueArgShift = 5;
 
   const DexFile& dex_file_;
-  SirtRef<mirror::DexCache>* const dex_cache_;  // Dex cache to resolve literal objects.
-  SirtRef<mirror::ClassLoader>* const class_loader_;  // ClassLoader to resolve types.
+  Handle<mirror::DexCache>* const dex_cache_;  // Dex cache to resolve literal objects.
+  Handle<mirror::ClassLoader>* const class_loader_;  // ClassLoader to resolve types.
   ClassLinker* linker_;  // Linker to resolve literal objects.
   size_t array_size_;  // Size of array.
   size_t pos_;  // Current position.

@@ -1727,8 +1727,8 @@ void X86Assembler::MemoryBarrier(ManagedRegister) {
 #endif
 }
 
-void X86Assembler::CreateSirtEntry(ManagedRegister mout_reg,
-                                   FrameOffset sirt_offset,
+void X86Assembler::CreateHandleScopeEntry(ManagedRegister mout_reg,
+                                   FrameOffset handle_scope_offset,
                                    ManagedRegister min_reg, bool null_allowed) {
   X86ManagedRegister out_reg = mout_reg.AsX86();
   X86ManagedRegister in_reg = min_reg.AsX86();
@@ -1742,34 +1742,34 @@ void X86Assembler::CreateSirtEntry(ManagedRegister mout_reg,
     }
     testl(in_reg.AsCpuRegister(), in_reg.AsCpuRegister());
     j(kZero, &null_arg);
-    leal(out_reg.AsCpuRegister(), Address(ESP, sirt_offset));
+    leal(out_reg.AsCpuRegister(), Address(ESP, handle_scope_offset));
     Bind(&null_arg);
   } else {
-    leal(out_reg.AsCpuRegister(), Address(ESP, sirt_offset));
+    leal(out_reg.AsCpuRegister(), Address(ESP, handle_scope_offset));
   }
 }
 
-void X86Assembler::CreateSirtEntry(FrameOffset out_off,
-                                   FrameOffset sirt_offset,
+void X86Assembler::CreateHandleScopeEntry(FrameOffset out_off,
+                                   FrameOffset handle_scope_offset,
                                    ManagedRegister mscratch,
                                    bool null_allowed) {
   X86ManagedRegister scratch = mscratch.AsX86();
   CHECK(scratch.IsCpuRegister());
   if (null_allowed) {
     Label null_arg;
-    movl(scratch.AsCpuRegister(), Address(ESP, sirt_offset));
+    movl(scratch.AsCpuRegister(), Address(ESP, handle_scope_offset));
     testl(scratch.AsCpuRegister(), scratch.AsCpuRegister());
     j(kZero, &null_arg);
-    leal(scratch.AsCpuRegister(), Address(ESP, sirt_offset));
+    leal(scratch.AsCpuRegister(), Address(ESP, handle_scope_offset));
     Bind(&null_arg);
   } else {
-    leal(scratch.AsCpuRegister(), Address(ESP, sirt_offset));
+    leal(scratch.AsCpuRegister(), Address(ESP, handle_scope_offset));
   }
   Store(out_off, scratch, 4);
 }
 
-// Given a SIRT entry, load the associated reference.
-void X86Assembler::LoadReferenceFromSirt(ManagedRegister mout_reg,
+// Given a handle scope entry, load the associated reference.
+void X86Assembler::LoadReferenceFromHandleScope(ManagedRegister mout_reg,
                                          ManagedRegister min_reg) {
   X86ManagedRegister out_reg = mout_reg.AsX86();
   X86ManagedRegister in_reg = min_reg.AsX86();

@@ -214,8 +214,9 @@ extern "C" uint64_t artPortableToInterpreterBridge(mirror::ArtMethod* method, Th
 
     if (method->IsStatic() && !method->GetDeclaringClass()->IsInitializing()) {
       // Ensure static method's class is initialized.
-      SirtRef<mirror::Class> sirt_c(self, method->GetDeclaringClass());
-      if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(sirt_c, true, true)) {
+      StackHandleScope<1> hs(self);
+      Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
+      if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_class, true, true)) {
         DCHECK(Thread::Current()->IsExceptionPending());
         self->PopManagedStackFragment(fragment);
         return 0;
@@ -396,7 +397,8 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::ArtMethod* called
   const void* code = nullptr;
   if (LIKELY(!thread->IsExceptionPending())) {
     // Ensure that the called method's class is initialized.
-    SirtRef<mirror::Class> called_class(thread, called->GetDeclaringClass());
+    StackHandleScope<1> hs(Thread::Current());
+    Handle<mirror::Class> called_class(hs.NewHandle(called->GetDeclaringClass()));
     linker->EnsureInitialized(called_class, true, true);
     if (LIKELY(called_class->IsInitialized())) {
       code = called->GetEntryPointFromPortableCompiledCode();

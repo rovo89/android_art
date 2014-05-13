@@ -19,7 +19,7 @@
 
 #include "mirror/object-inl.h"
 #include "stack.h"
-#include "sirt_ref-inl.h"
+#include "handle_scope-inl.h"
 
 namespace art {
 
@@ -34,10 +34,10 @@ class ThrowLocation;
 // Finds catch handler or prepares deoptimization.
 class CatchBlockStackVisitor FINAL : public StackVisitor {
  public:
-  CatchBlockStackVisitor(Thread* self, Context* context, SirtRef<mirror::Throwable>& exception,
+  CatchBlockStackVisitor(Thread* self, Context* context, Handle<mirror::Throwable>* exception,
                          QuickExceptionHandler* exception_handler)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(self, context), self_(self), to_find_(self, exception->GetClass()),
+      : StackVisitor(self, context), self_(self), exception_(exception),
         exception_handler_(exception_handler) {
   }
 
@@ -48,7 +48,7 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
 
   Thread* const self_;
   // The type of the exception catch block to find.
-  SirtRef<mirror::Class> to_find_;
+  Handle<mirror::Throwable>* exception_;
   QuickExceptionHandler* const exception_handler_;
 
   DISALLOW_COPY_AND_ASSIGN(CatchBlockStackVisitor);

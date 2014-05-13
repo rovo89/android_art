@@ -410,8 +410,9 @@ static inline String* ResolveString(Thread* self, MethodHelper& mh, uint32_t str
   Class* java_lang_string_class = String::GetJavaLangString();
   if (UNLIKELY(!java_lang_string_class->IsInitialized())) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    SirtRef<mirror::Class> sirt_class(self, java_lang_string_class);
-    if (UNLIKELY(!class_linker->EnsureInitialized(sirt_class, true, true))) {
+    StackHandleScope<1> hs(self);
+    Handle<mirror::Class> h_class(hs.NewHandle(java_lang_string_class));
+    if (UNLIKELY(!class_linker->EnsureInitialized(h_class, true, true))) {
       DCHECK(self->IsExceptionPending());
       return nullptr;
     }
@@ -571,7 +572,8 @@ static inline uint32_t FindNextInstructionFollowingException(Thread* self,
   ThrowLocation throw_location;
   mirror::Throwable* exception = self->GetException(&throw_location);
   bool clear_exception = false;
-  SirtRef<mirror::Class> exception_class(self, exception->GetClass());
+  StackHandleScope<3> hs(self);
+  Handle<mirror::Class> exception_class(hs.NewHandle(exception->GetClass()));
   uint32_t found_dex_pc = shadow_frame.GetMethod()->FindCatchBlock(exception_class, dex_pc,
                                                                    &clear_exception);
   if (found_dex_pc == DexFile::kDexNoIndex) {

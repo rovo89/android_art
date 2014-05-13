@@ -296,7 +296,9 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     // other variants that take more arguments should also be added.
     std::string descriptor(DotToDescriptor(shadow_frame->GetVRegReference(arg_offset)->AsString()->ToModifiedUtf8().c_str()));
 
-    SirtRef<ClassLoader> class_loader(self, nullptr);  // shadow_frame.GetMethod()->GetDeclaringClass()->GetClassLoader();
+    StackHandleScope<1> hs(self);
+    // shadow_frame.GetMethod()->GetDeclaringClass()->GetClassLoader();
+    auto class_loader = hs.NewHandle<ClassLoader>(nullptr);
     Class* found = Runtime::Current()->GetClassLinker()->FindClass(self, descriptor.c_str(),
                                                                    class_loader);
     CHECK(found != NULL) << "Class.forName failed in un-started runtime for class: "
@@ -305,7 +307,9 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
   } else if (name == "java.lang.Class java.lang.Void.lookupType()") {
     result->SetL(Runtime::Current()->GetClassLinker()->FindPrimitiveClass('V'));
   } else if (name == "java.lang.Class java.lang.VMClassLoader.findLoadedClass(java.lang.ClassLoader, java.lang.String)") {
-    SirtRef<ClassLoader> class_loader(self, down_cast<mirror::ClassLoader*>(shadow_frame->GetVRegReference(arg_offset)));
+    StackHandleScope<1> hs(self);
+    Handle<ClassLoader> class_loader(
+        hs.NewHandle(down_cast<mirror::ClassLoader*>(shadow_frame->GetVRegReference(arg_offset))));
     std::string descriptor(DotToDescriptor(shadow_frame->GetVRegReference(arg_offset + 1)->AsString()->ToModifiedUtf8().c_str()));
 
     Class* found = Runtime::Current()->GetClassLinker()->FindClass(self, descriptor.c_str(),
@@ -315,10 +319,11 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
     ArtMethod* c = klass->FindDeclaredDirectMethod("<init>", "()V");
     CHECK(c != NULL);
-    SirtRef<Object> obj(self, klass->AllocObject(self));
-    CHECK(obj.get() != NULL);
-    EnterInterpreterFromInvoke(self, c, obj.get(), NULL, NULL);
-    result->SetL(obj.get());
+    StackHandleScope<1> hs(self);
+    Handle<Object> obj(hs.NewHandle(klass->AllocObject(self)));
+    CHECK(obj.Get() != NULL);
+    EnterInterpreterFromInvoke(self, c, obj.Get(), NULL, NULL);
+    result->SetL(obj.Get());
   } else if (name == "java.lang.reflect.Field java.lang.Class.getDeclaredField(java.lang.String)") {
     // Special managed code cut-out to allow field lookup in a un-started runtime that'd fail
     // going the reflective Dex way.
@@ -350,13 +355,14 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     // TODO: getDeclaredField calls GetType once the field is found to ensure a
     //       NoClassDefFoundError is thrown if the field's type cannot be resolved.
     Class* jlr_Field = self->DecodeJObject(WellKnownClasses::java_lang_reflect_Field)->AsClass();
-    SirtRef<Object> field(self, jlr_Field->AllocNonMovableObject(self));
-    CHECK(field.get() != NULL);
+    StackHandleScope<1> hs(self);
+    Handle<Object> field(hs.NewHandle(jlr_Field->AllocNonMovableObject(self)));
+    CHECK(field.Get() != NULL);
     ArtMethod* c = jlr_Field->FindDeclaredDirectMethod("<init>", "(Ljava/lang/reflect/ArtField;)V");
     uint32_t args[1];
     args[0] = StackReference<mirror::Object>::FromMirrorPtr(found).AsVRegValue();
-    EnterInterpreterFromInvoke(self, c, field.get(), args, NULL);
-    result->SetL(field.get());
+    EnterInterpreterFromInvoke(self, c, field.Get(), args, NULL);
+    result->SetL(field.Get());
   } else if (name == "int java.lang.Object.hashCode()") {
     Object* obj = shadow_frame->GetVRegReference(arg_offset);
     result->SetI(obj->IdentityHashCode());

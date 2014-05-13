@@ -46,7 +46,7 @@ union JValue;
 class Libraries;
 class ParsedOptions;
 class ScopedObjectAccess;
-template<class T> class SirtRef;
+template<class T> class Handle;
 class Thread;
 
 void JniAbortF(const char* jni_function_name, const char* fmt, ...)
@@ -67,7 +67,7 @@ class JavaVMExt : public JavaVM {
    * Returns 'true' on success. On failure, sets 'detail' to a
    * human-readable description of the error.
    */
-  bool LoadNativeLibrary(const std::string& path, const SirtRef<mirror::ClassLoader>& class_loader,
+  bool LoadNativeLibrary(const std::string& path, const Handle<mirror::ClassLoader>& class_loader,
                          std::string* detail)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

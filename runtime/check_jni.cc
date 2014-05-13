@@ -86,9 +86,9 @@ void JniAbortF(const char* jni_function_name, const char* fmt, ...) {
  * ===========================================================================
  */
 
-static bool IsSirtLocalRef(JNIEnv* env, jobject localRef) {
-  return GetIndirectRefKind(localRef) == kSirtOrInvalid &&
-      reinterpret_cast<JNIEnvExt*>(env)->self->SirtContains(localRef);
+static bool IsHandleScopeLocalRef(JNIEnv* env, jobject localRef) {
+  return GetIndirectRefKind(localRef) == kHandleScopeOrInvalid &&
+      reinterpret_cast<JNIEnvExt*>(env)->self->HandleScopeContains(localRef);
 }
 
 // Flags passed into ScopedCheck.
@@ -1243,7 +1243,7 @@ class CheckJNI {
 
   static void DeleteLocalRef(JNIEnv* env, jobject localRef) {
     CHECK_JNI_ENTRY(kFlag_Default | kFlag_ExcepOkay, "EL", env, localRef);
-    if (localRef != nullptr && GetIndirectRefKind(localRef) != kLocal && !IsSirtLocalRef(env, localRef)) {
+    if (localRef != nullptr && GetIndirectRefKind(localRef) != kLocal && !IsHandleScopeLocalRef(env, localRef)) {
       JniAbortF(__FUNCTION__, "DeleteLocalRef on %s: %p",
                 ToStr<IndirectRefKind>(GetIndirectRefKind(localRef)).c_str(), localRef);
     } else {

@@ -197,10 +197,10 @@ ManagedRegister Arm64JniCallingConvention::ReturnScratchRegister() const {
 size_t Arm64JniCallingConvention::FrameSize() {
   // Method*, callee save area size, local reference segment state
   size_t frame_data_size = ((1 + CalleeSaveRegisters().size()) * kFramePointerSize) + sizeof(uint32_t);
-  // References plus 2 words for SIRT header
-  size_t sirt_size = StackIndirectReferenceTable::GetAlignedSirtSizeTarget(kFramePointerSize, ReferenceCount());
+  // References plus 2 words for HandleScope header
+  size_t handle_scope_size = HandleScope::GetAlignedHandleScopeSizeTarget(kFramePointerSize, ReferenceCount());
   // Plus return value spill area size
-  return RoundUp(frame_data_size + sirt_size + SizeOfReturnValue(), kStackAlignment);
+  return RoundUp(frame_data_size + handle_scope_size + SizeOfReturnValue(), kStackAlignment);
 }
 
 size_t Arm64JniCallingConvention::OutArgSize() {

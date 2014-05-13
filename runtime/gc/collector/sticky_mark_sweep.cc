@@ -49,7 +49,7 @@ void StickyMarkSweep::BindBitmaps() {
 
 void StickyMarkSweep::MarkReachableObjects() {
   // All reachable objects must be referenced by a root or a dirty card, so we can clear the mark
-  // stack here since all objects in the mark stack will get scanned by the card scanning anyways.
+  // stack here since all objects in the mark stack will Get scanned by the card scanning anyways.
   // TODO: Not put these objects in the mark stack in the first place.
   mark_stack_->Reset();
   RecursiveMarkDirtyObjects(false, accounting::CardTable::kCardDirty - 1);

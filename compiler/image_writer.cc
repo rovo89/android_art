@@ -51,7 +51,7 @@
 #include "object_utils.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
-#include "sirt_ref-inl.h"
+#include "handle_scope-inl.h"
 #include "UniquePtr.h"
 #include "utils.h"
 
@@ -382,16 +382,14 @@ void ImageWriter::CalculateObjectOffsets(Object* obj) {
       DCHECK_EQ(obj, obj->AsString()->Intern());
       return;
     }
-    Thread* self = Thread::Current();
-    SirtRef<Object> sirt_obj(self, obj);
-    mirror::String* interned = obj->AsString()->Intern();
-    if (sirt_obj.get() != interned) {
+    mirror::String* const interned = obj->AsString()->Intern();
+    if (obj != interned) {
       if (!IsImageOffsetAssigned(interned)) {
         // interned obj is after us, allocate its location early
         AssignImageOffset(interned);
       }
       // point those looking for this object to the interned version.
-      SetImageOffset(sirt_obj.get(), GetImageOffset(interned));
+      SetImageOffset(obj, GetImageOffset(interned));
       return;
     }
     // else (obj == interned), nothing to do but fall through to the normal case
@@ -404,20 +402,22 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
   Thread* self = Thread::Current();
-  SirtRef<Class> object_array_class(self, class_linker->FindSystemClass(self,
-                                                                        "[Ljava/lang/Object;"));
+  StackHandleScope<3> hs(self);
+  Handle<Class> object_array_class(hs.NewHandle(
+      class_linker->FindSystemClass(self, "[Ljava/lang/Object;")));
 
   // build an Object[] of all the DexCaches used in the source_space_
-  ObjectArray<Object>* dex_caches = ObjectArray<Object>::Alloc(self, object_array_class.get(),
-                                                               class_linker->GetDexCaches().size());
+  Handle<ObjectArray<Object>> dex_caches(
+      hs.NewHandle(ObjectArray<Object>::Alloc(self, object_array_class.Get(),
+                                              class_linker->GetDexCaches().size())));
   int i = 0;
   for (DexCache* dex_cache : class_linker->GetDexCaches()) {
     dex_caches->Set<false>(i++, dex_cache);
   }
 
   // build an Object[] of the roots needed to restore the runtime
-  SirtRef<ObjectArray<Object> > image_roots(
-      self, ObjectArray<Object>::Alloc(self, object_array_class.get(), ImageHeader::kImageRootsMax));
+  Handle<ObjectArray<Object> > image_roots(hs.NewHandle(
+      ObjectArray<Object>::Alloc(self, object_array_class.Get(), ImageHeader::kImageRootsMax)));
   image_roots->Set<false>(ImageHeader::kResolutionMethod, runtime->GetResolutionMethod());
   image_roots->Set<false>(ImageHeader::kImtConflictMethod, runtime->GetImtConflictMethod());
   image_roots->Set<false>(ImageHeader::kDefaultImt, runtime->GetDefaultImt());
@@ -427,27 +427,28 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
                           runtime->GetCalleeSaveMethod(Runtime::kRefsOnly));
   image_roots->Set<false>(ImageHeader::kRefsAndArgsSaveMethod,
                           runtime->GetCalleeSaveMethod(Runtime::kRefsAndArgs));
-  image_roots->Set<false>(ImageHeader::kDexCaches, dex_caches);
+  image_roots->Set<false>(ImageHeader::kDexCaches, dex_caches.Get());
   image_roots->Set<false>(ImageHeader::kClassRoots, class_linker->GetClassRoots());
   for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {
     CHECK(image_roots->Get(i) != NULL);
   }
-  return image_roots.get();
+  return image_roots.Get();
 }
 
 // Walk instance fields of the given Class. Separate function to allow recursion on the super
 // class.
 void ImageWriter::WalkInstanceFields(mirror::Object* obj, mirror::Class* klass) {
   // Visit fields of parent classes first.
-  SirtRef<mirror::Class> sirt_class(Thread::Current(), klass);
-  mirror::Class* super = sirt_class->GetSuperClass();
+  StackHandleScope<1> hs(Thread::Current());
+  Handle<mirror::Class> h_class(hs.NewHandle(klass));
+  mirror::Class* super = h_class->GetSuperClass();
   if (super != nullptr) {
     WalkInstanceFields(obj, super);
   }
   //
-  size_t num_reference_fields = sirt_class->NumReferenceInstanceFields();
+  size_t num_reference_fields = h_class->NumReferenceInstanceFields();
   for (size_t i = 0; i < num_reference_fields; ++i) {
-    mirror::ArtField* field = sirt_class->GetInstanceField(i);
+    mirror::ArtField* field = h_class->GetInstanceField(i);
     MemberOffset field_offset = field->GetOffset();
     mirror::Object* value = obj->GetFieldObject<mirror::Object>(field_offset);
     if (value != nullptr) {
@@ -460,28 +461,28 @@ void ImageWriter::WalkInstanceFields(mirror::Object* obj, mirror::Class* klass) 
 void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
   if (!IsImageOffsetAssigned(obj)) {
     // Walk instance fields of all objects
-    Thread* self = Thread::Current();
-    SirtRef<mirror::Object> sirt_obj(self, obj);
-    SirtRef<mirror::Class> klass(self, obj->GetClass());
+    StackHandleScope<2> hs(Thread::Current());
+    Handle<mirror::Object> h_obj(hs.NewHandle(obj));
+    Handle<mirror::Class> klass(hs.NewHandle(obj->GetClass()));
     // visit the object itself.
-    CalculateObjectOffsets(sirt_obj.get());
-    WalkInstanceFields(sirt_obj.get(), klass.get());
+    CalculateObjectOffsets(h_obj.Get());
+    WalkInstanceFields(h_obj.Get(), klass.Get());
     // Walk static fields of a Class.
-    if (sirt_obj->IsClass()) {
+    if (h_obj->IsClass()) {
       size_t num_static_fields = klass->NumReferenceStaticFields();
       for (size_t i = 0; i < num_static_fields; ++i) {
         mirror::ArtField* field = klass->GetStaticField(i);
         MemberOffset field_offset = field->GetOffset();
-        mirror::Object* value = sirt_obj->GetFieldObject<mirror::Object>(field_offset);
+        mirror::Object* value = h_obj->GetFieldObject<mirror::Object>(field_offset);
         if (value != nullptr) {
           WalkFieldsInOrder(value);
         }
       }
-    } else if (sirt_obj->IsObjectArray()) {
+    } else if (h_obj->IsObjectArray()) {
       // Walk elements of an object array.
-      int32_t length = sirt_obj->AsObjectArray<mirror::Object>()->GetLength();
+      int32_t length = h_obj->AsObjectArray<mirror::Object>()->GetLength();
       for (int32_t i = 0; i < length; i++) {
-        mirror::ObjectArray<mirror::Object>* obj_array = sirt_obj->AsObjectArray<mirror::Object>();
+        mirror::ObjectArray<mirror::Object>* obj_array = h_obj->AsObjectArray<mirror::Object>();
         mirror::Object* value = obj_array->Get(i);
         if (value != nullptr) {
           WalkFieldsInOrder(value);
@@ -500,7 +501,8 @@ void ImageWriter::WalkFieldsCallback(mirror::Object* obj, void* arg) {
 void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_data_offset) {
   CHECK_NE(0U, oat_loaded_size);
   Thread* self = Thread::Current();
-  SirtRef<ObjectArray<Object> > image_roots(self, CreateImageRoots());
+  StackHandleScope<1> hs(self);
+  Handle<ObjectArray<Object>> image_roots(hs.NewHandle(CreateImageRoots()));
 
   gc::Heap* heap = Runtime::Current()->GetHeap();
   DCHECK_EQ(0U, image_end_);
@@ -533,7 +535,7 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
                            static_cast<uint32_t>(image_end_),
                            RoundUp(image_end_, kPageSize),
                            RoundUp(bitmap_bytes, kPageSize),
-                           PointerToLowMemUInt32(GetImageAddress(image_roots.get())),
+                           PointerToLowMemUInt32(GetImageAddress(image_roots.Get())),
                            oat_file_->GetOatHeader().GetChecksum(),
                            PointerToLowMemUInt32(oat_file_begin),
                            PointerToLowMemUInt32(oat_data_begin_),
@@ -691,9 +693,10 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
 static ArtMethod* GetTargetMethod(const CompilerDriver::CallPatchInformation* patch)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Thread* self = Thread::Current();
-  SirtRef<mirror::DexCache> dex_cache(self, class_linker->FindDexCache(*patch->GetTargetDexFile()));
-  SirtRef<mirror::ClassLoader> class_loader(self, nullptr);
+  StackHandleScope<2> hs(Thread::Current());
+  Handle<mirror::DexCache> dex_cache(
+      hs.NewHandle(class_linker->FindDexCache(*patch->GetTargetDexFile())));
+  auto class_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
   ArtMethod* method = class_linker->ResolveMethod(*patch->GetTargetDexFile(),
                                                   patch->GetTargetMethodIdx(),
                                                   dex_cache,
@@ -714,9 +717,9 @@ static ArtMethod* GetTargetMethod(const CompilerDriver::CallPatchInformation* pa
 static Class* GetTargetType(const CompilerDriver::TypePatchInformation* patch)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Thread* self = Thread::Current();
-  SirtRef<mirror::DexCache> dex_cache(self, class_linker->FindDexCache(patch->GetDexFile()));
-  SirtRef<mirror::ClassLoader> class_loader(self, nullptr);
+  StackHandleScope<2> hs(Thread::Current());
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(patch->GetDexFile())));
+  auto class_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
   Class* klass = class_linker->ResolveType(patch->GetDexFile(),
                                            patch->GetTargetTypeIdx(),
                                            dex_cache,

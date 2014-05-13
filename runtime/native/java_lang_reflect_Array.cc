@@ -22,21 +22,22 @@
 #include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "scoped_fast_native_object_access.h"
-#include "sirt_ref.h"
+#include "handle_scope-inl.h"
 
 namespace art {
 
 static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementClass, jobject javaDimArray) {
   ScopedFastNativeObjectAccess soa(env);
   DCHECK(javaElementClass != NULL);
-  SirtRef<mirror::Class> element_class(soa.Self(), soa.Decode<mirror::Class*>(javaElementClass));
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::Class> element_class(hs.NewHandle(soa.Decode<mirror::Class*>(javaElementClass)));
   DCHECK(element_class->IsClass());
   DCHECK(javaDimArray != NULL);
   mirror::Object* dimensions_obj = soa.Decode<mirror::Object*>(javaDimArray);
   DCHECK(dimensions_obj->IsArrayInstance());
   DCHECK_STREQ(ClassHelper(dimensions_obj->GetClass()).GetDescriptor(), "[I");
-  SirtRef<mirror::IntArray> dimensions_array(soa.Self(),
-                                             down_cast<mirror::IntArray*>(dimensions_obj));
+  Handle<mirror::IntArray> dimensions_array(
+      hs.NewHandle(down_cast<mirror::IntArray*>(dimensions_obj)));
   mirror::Array* new_array = mirror::Array::CreateMultiArray(soa.Self(), element_class,
                                                              dimensions_array);
   return soa.AddLocalReference<jobject>(new_array);

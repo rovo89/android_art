@@ -37,7 +37,7 @@
 #include "os.h"
 #include "safe_map.h"
 #include "ScopedFd.h"
-#include "sirt_ref.h"
+#include "handle_scope-inl.h"
 #include "thread.h"
 #include "UniquePtr.h"
 #include "utf-inl.h"
@@ -1005,8 +1005,8 @@ static uint64_t ReadUnsignedLong(const byte* ptr, int zwidth, bool fill_on_right
 }
 
 EncodedStaticFieldValueIterator::EncodedStaticFieldValueIterator(const DexFile& dex_file,
-                                                                 SirtRef<mirror::DexCache>* dex_cache,
-                                                                 SirtRef<mirror::ClassLoader>* class_loader,
+                                                                 Handle<mirror::DexCache>* dex_cache,
+                                                                 Handle<mirror::ClassLoader>* class_loader,
                                                                  ClassLinker* linker,
                                                                  const DexFile::ClassDef& class_def)
     : dex_file_(dex_file), dex_cache_(dex_cache), class_loader_(class_loader), linker_(linker),
