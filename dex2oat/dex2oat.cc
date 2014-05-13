@@ -236,7 +236,7 @@ class Dex2Oat {
                                            method_inliner_map,
                                            thread_count));
     if (!dex2oat->CreateRuntime(runtime_options, instruction_set)) {
-      *p_dex2oat = NULL;
+      *p_dex2oat = nullptr;
       return false;
     }
     *p_dex2oat = dex2oat.release();
@@ -258,9 +258,9 @@ class Dex2Oat {
   CompilerDriver::DescriptorSet* ReadImageClassesFromFile(const char* image_classes_filename) {
     UniquePtr<std::ifstream> image_classes_file(new std::ifstream(image_classes_filename,
                                                                   std::ifstream::in));
-    if (image_classes_file.get() == NULL) {
+    if (image_classes_file.get() == nullptr) {
       LOG(ERROR) << "Failed to open image classes file " << image_classes_filename;
-      return NULL;
+      return nullptr;
     }
     UniquePtr<CompilerDriver::DescriptorSet> result(ReadImageClasses(*image_classes_file.get()));
     image_classes_file->close();
@@ -286,21 +286,21 @@ class Dex2Oat {
                                                          const char* image_classes_filename,
                                                          std::string* error_msg) {
     UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(zip_filename, error_msg));
-    if (zip_archive.get() == NULL) {
-      return NULL;
+    if (zip_archive.get() == nullptr) {
+      return nullptr;
     }
     UniquePtr<ZipEntry> zip_entry(zip_archive->Find(image_classes_filename, error_msg));
-    if (zip_entry.get() == NULL) {
+    if (zip_entry.get() == nullptr) {
       *error_msg = StringPrintf("Failed to find '%s' within '%s': %s", image_classes_filename,
                                 zip_filename, error_msg->c_str());
-      return NULL;
+      return nullptr;
     }
     UniquePtr<MemMap> image_classes_file(zip_entry->ExtractToMemMap(image_classes_filename,
                                                                     error_msg));
-    if (image_classes_file.get() == NULL) {
+    if (image_classes_file.get() == nullptr) {
       *error_msg = StringPrintf("Failed to extract '%s' from '%s': %s", image_classes_filename,
                                 zip_filename, error_msg->c_str());
-      return NULL;
+      return nullptr;
     }
     const std::string image_classes_string(reinterpret_cast<char*>(image_classes_file->Begin()),
                                            image_classes_file->Size());
@@ -322,7 +322,7 @@ class Dex2Oat {
                                       CumulativeLogger& compiler_phases_timings,
                                       std::string profile_file) {
     // Handle and ClassLoader creation needs to come after Runtime::Create
-    jobject class_loader = NULL;
+    jobject class_loader = nullptr;
     Thread* self = Thread::Current();
     if (!boot_image_option.empty()) {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -380,7 +380,7 @@ class Dex2Oat {
     TimingLogger::ScopedSplit split("Writing ELF", &timings);
     if (!driver->WriteElf(android_root, is_host, dex_files, &oat_writer, oat_file)) {
       LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
-      return NULL;
+      return nullptr;
     }
 
     return driver.release();
@@ -404,7 +404,7 @@ class Dex2Oat {
     }
 
     UniquePtr<File> oat_file(OS::OpenFileReadWrite(oat_filename.c_str()));
-    if (oat_file.get() == NULL) {
+    if (oat_file.get() == nullptr) {
       PLOG(ERROR) << "Failed to open ELF file: " << oat_filename;
       return false;
     }
@@ -470,7 +470,7 @@ class Dex2Oat {
       }
       std::string error_msg;
       const DexFile* dex_file = DexFile::Open(parsed[i].c_str(), parsed[i].c_str(), &error_msg);
-      if (dex_file == NULL) {
+      if (dex_file == nullptr) {
         LOG(WARNING) << "Failed to open dex file '" << parsed[i] << "': " << error_msg;
       } else {
         dex_files.push_back(dex_file);
@@ -528,7 +528,7 @@ static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
       continue;
     }
     const DexFile* dex_file = DexFile::Open(dex_filename, dex_location, &error_msg);
-    if (dex_file == NULL) {
+    if (dex_file == nullptr) {
       LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "': " << error_msg;
       ++failure_count;
     } else {
@@ -565,8 +565,8 @@ class WatchDog {
     }
     shutting_down_ = false;
     const char* reason = "dex2oat watch dog thread startup";
-    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_init, (&mutex_, NULL), reason);
-    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_cond_init, (&cond_, NULL), reason);
+    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_init, (&mutex_, nullptr), reason);
+    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_cond_init, (&cond_, nullptr), reason);
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_attr_init, (&attr_), reason);
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_create, (&pthread_, &attr_, &CallBack, this), reason);
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_attr_destroy, (&attr_), reason);
@@ -581,7 +581,7 @@ class WatchDog {
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_cond_signal, (&cond_), reason);
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_unlock, (&mutex_), reason);
 
-    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_join, (pthread_, NULL), reason);
+    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_join, (pthread_, nullptr), reason);
 
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_cond_destroy, (&cond_), reason);
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_destroy, (&mutex_), reason);
@@ -592,7 +592,7 @@ class WatchDog {
     WatchDog* self = reinterpret_cast<WatchDog*>(arg);
     ::art::SetThreadName("dex2oat watch dog");
     self->Wait();
-    return NULL;
+    return nullptr;
   }
 
   static void Message(char severity, const std::string& message) {
@@ -728,8 +728,8 @@ static int dex2oat(int argc, char** argv) {
   std::string oat_location;
   int oat_fd = -1;
   std::string bitcode_filename;
-  const char* image_classes_zip_filename = NULL;
-  const char* image_classes_filename = NULL;
+  const char* image_classes_zip_filename = nullptr;
+  const char* image_classes_filename = nullptr;
   std::string image_filename;
   std::string boot_image_filename;
   uintptr_t image_base = 0;
@@ -739,7 +739,7 @@ static int dex2oat(int argc, char** argv) {
   Compiler::Kind compiler_kind = kUsePortableCompiler
       ? Compiler::kPortable
       : Compiler::kQuick;
-  const char* compiler_filter_string = NULL;
+  const char* compiler_filter_string = nullptr;
   int huge_method_threshold = CompilerOptions::kDefaultHugeMethodThreshold;
   int large_method_threshold = CompilerOptions::kDefaultLargeMethodThreshold;
   int small_method_threshold = CompilerOptions::kDefaultSmallMethodThreshold;
@@ -949,7 +949,7 @@ static int dex2oat(int argc, char** argv) {
 
   if (android_root.empty()) {
     const char* android_root_env_var = getenv("ANDROID_ROOT");
-    if (android_root_env_var == NULL) {
+    if (android_root_env_var == nullptr) {
       Usage("--android-root unspecified and ANDROID_ROOT not set");
     }
     android_root += android_root_env_var;
@@ -968,15 +968,15 @@ static int dex2oat(int argc, char** argv) {
     boot_image_option += boot_image_filename;
   }
 
-  if (image_classes_filename != NULL && !image) {
+  if (image_classes_filename != nullptr && !image) {
     Usage("--image-classes should only be used with --image");
   }
 
-  if (image_classes_filename != NULL && !boot_image_option.empty()) {
+  if (image_classes_filename != nullptr && !boot_image_option.empty()) {
     Usage("--image-classes should not be used with --boot-image");
   }
 
-  if (image_classes_zip_filename != NULL && image_classes_filename == NULL) {
+  if (image_classes_zip_filename != nullptr && image_classes_filename == nullptr) {
     Usage("--image-classes-zip should be used with --image-classes");
   }
 
@@ -1018,7 +1018,7 @@ static int dex2oat(int argc, char** argv) {
     oat_unstripped += oat_filename;
   }
 
-  if (compiler_filter_string == NULL) {
+  if (compiler_filter_string == nullptr) {
     if (instruction_set == kX86_64 || instruction_set == kMips) {
       // TODO: implement/fix compilers for these architectures.
       compiler_filter_string = "interpret-only";
@@ -1077,7 +1077,7 @@ static int dex2oat(int argc, char** argv) {
     oat_file.reset(new File(oat_fd, oat_location));
     oat_file->DisableAutoClose();
   }
-  if (oat_file.get() == NULL) {
+  if (oat_file.get() == nullptr) {
     PLOG(ERROR) << "Failed to create oat file: " << oat_location;
     return EXIT_FAILURE;
   }
@@ -1099,11 +1099,10 @@ static int dex2oat(int argc, char** argv) {
     }
     runtime_options.push_back(std::make_pair("bootclasspath", &boot_class_path));
   } else {
-    runtime_options.push_back(std::make_pair(boot_image_option.c_str(),
-                                             reinterpret_cast<void*>(NULL)));
+    runtime_options.push_back(std::make_pair(boot_image_option.c_str(), nullptr));
   }
   for (size_t i = 0; i < runtime_args.size(); i++) {
-    runtime_options.push_back(std::make_pair(runtime_args[i], reinterpret_cast<void*>(NULL)));
+    runtime_options.push_back(std::make_pair(runtime_args[i], nullptr));
   }
 
   VerificationResults verification_results(&compiler_options);
@@ -1167,13 +1166,13 @@ static int dex2oat(int argc, char** argv) {
       std::string error_msg;
       UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(zip_fd, zip_location.c_str(),
                                                                &error_msg));
-      if (zip_archive.get() == NULL) {
+      if (zip_archive.get() == nullptr) {
         LOG(ERROR) << "Failed to open zip from file descriptor for '" << zip_location << "': "
             << error_msg;
         return EXIT_FAILURE;
       }
       const DexFile* dex_file = DexFile::Open(*zip_archive.get(), zip_location, &error_msg);
-      if (dex_file == NULL) {
+      if (dex_file == nullptr) {
         LOG(ERROR) << "Failed to open dex from file descriptor for zip file '" << zip_location
             << "': " << error_msg;
         return EXIT_FAILURE;
@@ -1219,7 +1218,7 @@ static int dex2oat(int argc, char** argv) {
     size_t num_methods = 0;
     for (size_t i = 0; i != dex_files.size(); ++i) {
       const DexFile* dex_file = dex_files[i];
-      CHECK(dex_file != NULL);
+      CHECK(dex_file != nullptr);
       num_methods += dex_file->NumMethodIds();
     }
     if (num_methods <= compiler_options.GetNumDexMethodsThreshold()) {
@@ -1242,7 +1241,7 @@ static int dex2oat(int argc, char** argv) {
                                                                   compiler_phases_timings,
                                                                   profile_file));
 
-  if (compiler.get() == NULL) {
+  if (compiler.get() == nullptr) {
     LOG(ERROR) << "Failed to create oat file: " << oat_location;
     return EXIT_FAILURE;
   }
