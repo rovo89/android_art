@@ -23,6 +23,7 @@
 #include "modifiers.h"
 #include "object.h"
 #include "object_callbacks.h"
+#include "quick/quick_method_frame_info.h"
 
 namespace art {
 
@@ -318,19 +319,14 @@ class MANAGED ArtMethod : public Object {
 
   template <bool kCheckFrameSize = true>
   uint32_t GetFrameSizeInBytes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    uint32_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_frame_size_in_bytes_));
+    uint32_t result = GetQuickFrameInfo().FrameSizeInBytes();
     if (kCheckFrameSize) {
       DCHECK_LE(static_cast<size_t>(kStackAlignment), result);
     }
     return result;
   }
 
-  void SetFrameSizeInBytes(size_t new_frame_size_in_bytes)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Not called within a transaction.
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_frame_size_in_bytes_),
-                      new_frame_size_in_bytes);
-  }
+  QuickMethodFrameInfo GetQuickFrameInfo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   size_t GetReturnPcOffsetInBytes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetFrameSizeInBytes() - kPointerSize;
@@ -360,26 +356,6 @@ class MANAGED ArtMethod : public Object {
 
   static MemberOffset GetMethodIndexOffset() {
     return OFFSET_OF_OBJECT_MEMBER(ArtMethod, method_index_);
-  }
-
-  uint32_t GetCoreSpillMask() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_core_spill_mask_));
-  }
-
-  void SetCoreSpillMask(uint32_t core_spill_mask) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Computed during compilation.
-    // Not called within a transaction.
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_core_spill_mask_), core_spill_mask);
-  }
-
-  uint32_t GetFpSpillMask() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_fp_spill_mask_));
-  }
-
-  void SetFpSpillMask(uint32_t fp_spill_mask) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Computed during compilation.
-    // Not called within a transaction.
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_fp_spill_mask_), fp_spill_mask);
   }
 
   // Is this a CalleSaveMethod or ResolutionMethod and therefore doesn't adhere to normal
@@ -473,20 +449,6 @@ class MANAGED ArtMethod : public Object {
   // the declaringClass.directMethods, for virtual methods the vtable and for interface methods the
   // ifTable.
   uint32_t method_index_;
-
-  // --- Quick compiler meta-data. ---
-  // TODO: merge and place in native heap, such as done with the code size.
-
-  // Bit map of spilled machine registers.
-  uint32_t quick_core_spill_mask_;
-
-  // Bit map of spilled floating point machine registers.
-  uint32_t quick_fp_spill_mask_;
-
-  // Fixed frame size for this method when executed.
-  uint32_t quick_frame_size_in_bytes_;
-
-  // --- End of quick compiler meta-data. ---
 
   static Class* java_lang_reflect_ArtMethod_;
 

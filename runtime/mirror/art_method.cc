@@ -389,7 +389,7 @@ const uint8_t* ArtMethod::GetMappingTable() {
   if (code == nullptr) {
     return nullptr;
   }
-  uint32_t offset = reinterpret_cast<const OatMethodHeader*>(code)[-1].mapping_table_offset_;
+  uint32_t offset = reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].mapping_table_offset_;
   if (UNLIKELY(offset == 0u)) {
     return nullptr;
   }
@@ -401,7 +401,7 @@ const uint8_t* ArtMethod::GetVmapTable() {
   if (code == nullptr) {
     return nullptr;
   }
-  uint32_t offset = reinterpret_cast<const OatMethodHeader*>(code)[-1].vmap_table_offset_;
+  uint32_t offset = reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].vmap_table_offset_;
   if (UNLIKELY(offset == 0u)) {
     return nullptr;
   }

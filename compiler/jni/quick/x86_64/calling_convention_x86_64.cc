@@ -133,7 +133,7 @@ X86_64JniCallingConvention::X86_64JniCallingConvention(bool is_static, bool is_s
 }
 
 uint32_t X86_64JniCallingConvention::CoreSpillMask() const {
-  return 1 << RBX | 1 << RBP | 1 << R12 | 1 << R13 | 1 << R14 | 1 << R15 | 1 << R13 |
+  return 1 << RBX | 1 << RBP | 1 << R12 | 1 << R13 | 1 << R14 | 1 << R15 |
       1 << kNumberOfCpuRegisters;
 }
 
