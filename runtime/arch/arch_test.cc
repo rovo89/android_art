@@ -17,7 +17,7 @@
 #include <stdint.h>
 
 #include "common_runtime_test.h"
-#include "mirror/art_method.h"
+#include "mirror/art_method-inl.h"
 #include "quick/quick_method_frame_info.h"
 
 namespace art {
