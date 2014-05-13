@@ -37,7 +37,7 @@ void Mir2Lir::LockArg(int in_position, bool wide) {
 }
 
 // TODO: needs revisit for 64-bit.
-RegStorage Mir2Lir::LoadArg(int in_position, bool wide) {
+RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide) {
   RegStorage reg_arg_low = GetArgMappingToPhysicalReg(in_position);
   RegStorage reg_arg_high = wide ? GetArgMappingToPhysicalReg(in_position + 1) :
       RegStorage::InvalidReg();
@@ -56,28 +56,45 @@ RegStorage Mir2Lir::LoadArg(int in_position, bool wide) {
   if (wide && !reg_arg_high.Valid()) {
     // If the low part is not in a reg, we allocate a pair. Otherwise, we just load to high reg.
     if (!reg_arg_low.Valid()) {
-      RegStorage new_regs = AllocTypedTempWide(false, kAnyReg);
-      reg_arg_low = new_regs.GetLow();
-      reg_arg_high = new_regs.GetHigh();
+      RegStorage new_regs = AllocTypedTempWide(false, reg_class);
       LoadBaseDisp(TargetReg(kSp), offset, new_regs, k64);
+      return new_regs;  // The reg_class is OK, we can return.
     } else {
+      // Assume that no ABI allows splitting a wide fp reg between a narrow fp reg and memory,
+      // i.e. the low part is in a core reg. Load the second part in a core reg as well for now.
+      DCHECK(!reg_arg_low.IsFloat());
       reg_arg_high = AllocTemp();
       int offset_high = offset + sizeof(uint32_t);
       Load32Disp(TargetReg(kSp), offset_high, reg_arg_high);
+      // Continue below to check the reg_class.
     }
   }
 
   // If the low part is not in a register yet, we need to load it.
   if (!reg_arg_low.Valid()) {
-    reg_arg_low = AllocTemp();
+    // Assume that if the low part of a wide arg is passed in memory, so is the high part,
+    // thus we don't get here for wide args as it's handled above. Big-endian ABIs could
+    // conceivably break this assumption but Android supports only little-endian architectures.
+    DCHECK(!wide);
+    reg_arg_low = AllocTypedTemp(false, reg_class);
     Load32Disp(TargetReg(kSp), offset, reg_arg_low);
+    return reg_arg_low;  // The reg_class is OK, we can return.
   }
 
-  if (wide) {
-    return RegStorage::MakeRegPair(reg_arg_low, reg_arg_high);
-  } else {
-    return reg_arg_low;
+  RegStorage reg_arg = wide ? RegStorage::MakeRegPair(reg_arg_low, reg_arg_high) : reg_arg_low;
+  // Check if we need to copy the arg to a different reg_class.
+  if (!RegClassMatches(reg_class, reg_arg)) {
+    if (wide) {
+      RegStorage new_regs = AllocTypedTempWide(false, reg_class);
+      OpRegCopyWide(new_regs, reg_arg);
+      reg_arg = new_regs;
+    } else {
+      RegStorage new_reg = AllocTypedTemp(false, reg_class);
+      OpRegCopy(new_reg, reg_arg);
+      reg_arg = new_reg;
+    }
   }
+  return reg_arg;
 }
 
 void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
@@ -138,16 +155,29 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
   // Point of no return - no aborts after this
   GenPrintLabel(mir);
   LockArg(data.object_arg);
+  RegStorage reg_obj = LoadArg(data.object_arg, kCoreReg);
   RegLocation rl_dest = wide ? GetReturnWide(double_or_float) : GetReturn(double_or_float);
-  RegStorage reg_obj = LoadArg(data.object_arg);
+  RegisterClass reg_class = RegClassForFieldLoadStore(size, data.is_volatile);
+  RegStorage r_result = rl_dest.reg;
+  if (!RegClassMatches(reg_class, r_result)) {
+    r_result = wide ? AllocTypedTempWide(rl_dest.fp, reg_class)
+                    : AllocTypedTemp(rl_dest.fp, reg_class);
+  }
   if (data.is_volatile) {
-    LoadBaseDispVolatile(reg_obj, data.field_offset, rl_dest.reg, size);
+    LoadBaseDispVolatile(reg_obj, data.field_offset, r_result, size);
     // Without context sensitive analysis, we must issue the most conservative barriers.
     // In this case, either a load or store may follow so we issue both barriers.
     GenMemBarrier(kLoadLoad);
     GenMemBarrier(kLoadStore);
   } else {
-    LoadBaseDisp(reg_obj, data.field_offset, rl_dest.reg, size);
+    LoadBaseDisp(reg_obj, data.field_offset, r_result, size);
+  }
+  if (r_result != rl_dest.reg) {
+    if (wide) {
+      OpRegCopyWide(rl_dest.reg, r_result);
+    } else {
+      OpRegCopy(rl_dest.reg, r_result);
+    }
   }
   return true;
 }
@@ -175,8 +205,9 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
   GenPrintLabel(mir);
   LockArg(data.object_arg);
   LockArg(data.src_arg, wide);
-  RegStorage reg_obj = LoadArg(data.object_arg);
-  RegStorage reg_src = LoadArg(data.src_arg, wide);
+  RegStorage reg_obj = LoadArg(data.object_arg, kCoreReg);
+  RegisterClass reg_class = RegClassForFieldLoadStore(size, data.is_volatile);
+  RegStorage reg_src = LoadArg(data.src_arg, reg_class, wide);
   if (data.is_volatile) {
     // There might have been a store before this volatile one so insert StoreStore barrier.
     GenMemBarrier(kStoreStore);

@@ -1397,7 +1397,7 @@ class Mir2Lir : public Backend {
      * @param wide Whether the argument is 64-bit or not.
      * @return Returns the register (or register pair) for the loaded argument.
      */
-    RegStorage LoadArg(int in_position, bool wide = false);
+    RegStorage LoadArg(int in_position, RegisterClass reg_class, bool wide = false);
 
     /**
      * @brief Used to load a VR argument directly to a specified register location.
