@@ -1759,7 +1759,7 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
       if (Is64BitInstructionSet(cu_->instruction_set)) {
         call_inst = GenInvokeNoInlineCall<8>(this, info->type);
       } else {
-        call_inst = GenInvokeNoInlineCall<8>(this, info->type);
+        call_inst = GenInvokeNoInlineCall<4>(this, info->type);
       }
     }
   }
