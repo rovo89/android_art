@@ -25,7 +25,10 @@ namespace art {
 
 bool Arm64Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
                                   const InlineMethod& special) {
-  return Mir2Lir::GenSpecialCase(bb, mir, special);
+  // TODO(Arm64): re-enable this, once hard-float ABI is implemented.
+  //   (this currently does not work, as GetArgMappingToPhysicalReg returns InvalidReg()).
+  // return Mir2Lir::GenSpecialCase(bb, mir, special);
+  return false;
 }
 
 /*
@@ -348,18 +351,16 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
     OpRegImm64(kOpSub, rs_rA64_SP, frame_size_, /*is_wide*/true);
   }
 
-  /* Spill core callee saves */
-  if (core_spill_mask_) {
-    SpillCoreRegs(rs_rA64_SP, frame_size_, core_spill_mask_);
-  }
   /* Need to spill any FP regs? */
-  if (num_fp_spills_) {
-    /*
-     * NOTE: fp spills are a little different from core spills in that
-     * they are pushed as a contiguous block.  When promoting from
-     * the fp set, we must allocate all singles from s16..highest-promoted
-     */
-    // TODO(Arm64): SpillFPRegs(rA64_SP, frame_size_, core_spill_mask_);
+  if (fp_spill_mask_) {
+    int spill_offset = frame_size_ - kArm64PointerSize*(num_fp_spills_ + num_core_spills_);
+    SpillFPRegs(rs_rA64_SP, spill_offset, fp_spill_mask_);
+  }
+
+  /* Spill core callee saves. */
+  if (core_spill_mask_) {
+    int spill_offset = frame_size_ - kArm64PointerSize*num_core_spills_;
+    SpillCoreRegs(rs_rA64_SP, spill_offset, core_spill_mask_);
   }
 
   FlushIns(ArgLocs, rl_method);
@@ -379,12 +380,15 @@ void Arm64Mir2Lir::GenExitSequence() {
   LockTemp(rs_x1);
 
   NewLIR0(kPseudoMethodExit);
+
   /* Need to restore any FP callee saves? */
-  if (num_fp_spills_) {
-    // TODO(Arm64): UnspillFPRegs(num_fp_spills_);
+  if (fp_spill_mask_) {
+    int spill_offset = frame_size_ - kArm64PointerSize*(num_fp_spills_ + num_core_spills_);
+    UnSpillFPRegs(rs_rA64_SP, spill_offset, fp_spill_mask_);
   }
   if (core_spill_mask_) {
-    UnSpillCoreRegs(rs_rA64_SP, frame_size_, core_spill_mask_);
+    int spill_offset = frame_size_ - kArm64PointerSize*num_core_spills_;
+    UnSpillCoreRegs(rs_rA64_SP, spill_offset, core_spill_mask_);
   }
 
   OpRegImm64(kOpAdd, rs_rA64_SP, frame_size_, /*is_wide*/true);

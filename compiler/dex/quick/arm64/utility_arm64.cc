@@ -360,18 +360,17 @@ LIR* Arm64Mir2Lir::OpReg(OpKind op, RegStorage r_dest_src) {
   return NewLIR1(opcode, r_dest_src.GetReg());
 }
 
-LIR* Arm64Mir2Lir::OpRegRegShift(OpKind op, int r_dest_src1, int r_src2,
-                                 int shift, bool is_wide) {
-  ArmOpcode wide = (is_wide) ? WIDE(0) : UNWIDE(0);
+LIR* Arm64Mir2Lir::OpRegRegShift(OpKind op, RegStorage r_dest_src1, RegStorage r_src2, int shift) {
+  ArmOpcode wide = (r_dest_src1.Is64Bit()) ? WIDE(0) : UNWIDE(0);
+  CHECK_EQ(r_dest_src1.Is64Bit(), r_src2.Is64Bit());
   ArmOpcode opcode = kA64Brk1d;
 
-  switch (OP_KIND_UNWIDE(op)) {
+  switch (op) {
     case kOpCmn:
-      opcode = kA64Cmn3Rro;
+      opcode = kA64Cmn3rro;
       break;
     case kOpCmp:
-      // TODO(Arm64): check the instruction above: "cmp w0, w1" is rendered as "cmp w0, w1, uxtb".
-      opcode = kA64Cmp3Rro;
+      opcode = kA64Cmp3rro;
       break;
     case kOpMov:
       opcode = kA64Mov2rr;
@@ -388,39 +387,38 @@ LIR* Arm64Mir2Lir::OpRegRegShift(OpKind op, int r_dest_src1, int r_src2,
     case kOpRev:
       DCHECK_EQ(shift, 0);
       // Binary, but rm is encoded twice.
-      return NewLIR3(kA64Rev2rr | wide, r_dest_src1, r_src2, r_src2);
+      return NewLIR3(kA64Rev2rr | wide, r_dest_src1.GetReg(), r_src2.GetReg(), r_src2.GetReg());
       break;
     case kOpRevsh:
       // Binary, but rm is encoded twice.
-      return NewLIR3(kA64Rev162rr | wide, r_dest_src1, r_src2, r_src2);
+      return NewLIR3(kA64Rev162rr | wide, r_dest_src1.GetReg(), r_src2.GetReg(), r_src2.GetReg());
       break;
     case kOp2Byte:
       DCHECK_EQ(shift, ENCODE_NO_SHIFT);
       // "sbfx r1, r2, #imm1, #imm2" is "sbfm r1, r2, #imm1, #(imm1 + imm2 - 1)".
       // For now we use sbfm directly.
-      return NewLIR4(kA64Sbfm4rrdd | wide, r_dest_src1, r_src2, 0, 7);
+      return NewLIR4(kA64Sbfm4rrdd | wide, r_dest_src1.GetReg(), r_src2.GetReg(), 0, 7);
     case kOp2Short:
       DCHECK_EQ(shift, ENCODE_NO_SHIFT);
       // For now we use sbfm rather than its alias, sbfx.
-      return NewLIR4(kA64Sbfm4rrdd | wide, r_dest_src1, r_src2, 0, 15);
+      return NewLIR4(kA64Sbfm4rrdd | wide, r_dest_src1.GetReg(), r_src2.GetReg(), 0, 15);
     case kOp2Char:
       // "ubfx r1, r2, #imm1, #imm2" is "ubfm r1, r2, #imm1, #(imm1 + imm2 - 1)".
       // For now we use ubfm directly.
       DCHECK_EQ(shift, ENCODE_NO_SHIFT);
-      return NewLIR4(kA64Ubfm4rrdd | wide, r_dest_src1, r_src2, 0, 15);
+      return NewLIR4(kA64Ubfm4rrdd | wide, r_dest_src1.GetReg(), r_src2.GetReg(), 0, 15);
     default:
-      return OpRegRegRegShift(op, r_dest_src1, r_dest_src1, r_src2, shift);
+      return OpRegRegRegShift(op, r_dest_src1.GetReg(), r_dest_src1.GetReg(), r_src2.GetReg(), shift);
   }
 
   DCHECK(!IsPseudoLirOp(opcode));
   if (EncodingMap[opcode].flags & IS_BINARY_OP) {
     DCHECK_EQ(shift, ENCODE_NO_SHIFT);
-    return NewLIR2(opcode | wide, r_dest_src1, r_src2);
+    return NewLIR2(opcode | wide, r_dest_src1.GetReg(), r_src2.GetReg());
   } else if (EncodingMap[opcode].flags & IS_TERTIARY_OP) {
     ArmEncodingKind kind = EncodingMap[opcode].field_loc[2].kind;
-    if (kind == kFmtExtend || kind == kFmtShift) {
-      DCHECK_EQ(kind == kFmtExtend, IsExtendEncoding(shift));
-      return NewLIR3(opcode | wide, r_dest_src1, r_src2, shift);
+    if (kind == kFmtShift) {
+      return NewLIR3(opcode | wide, r_dest_src1.GetReg(), r_src2.GetReg(), shift);
     }
   }
 
@@ -429,8 +427,7 @@ LIR* Arm64Mir2Lir::OpRegRegShift(OpKind op, int r_dest_src1, int r_src2,
 }
 
 LIR* Arm64Mir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2) {
-  return OpRegRegShift(op, r_dest_src1.GetReg(), r_src2.GetReg(), ENCODE_NO_SHIFT,
-                       r_dest_src1.Is64Bit());
+  return OpRegRegShift(op, r_dest_src1, r_src2, ENCODE_NO_SHIFT);
 }
 
 LIR* Arm64Mir2Lir::OpMovRegMem(RegStorage r_dest, RegStorage r_base, int offset, MoveType move_type) {
@@ -452,7 +449,7 @@ LIR* Arm64Mir2Lir::OpRegRegRegShift(OpKind op, int r_dest, int r_src1,
                                     int r_src2, int shift, bool is_wide) {
   ArmOpcode opcode = kA64Brk1d;
 
-  switch (OP_KIND_UNWIDE(op)) {
+  switch (op) {
     case kOpAdd:
       opcode = kA64Add4rrro;
       break;
@@ -525,10 +522,10 @@ LIR* Arm64Mir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, 
   ArmOpcode opcode = kA64Brk1d;
   ArmOpcode alt_opcode = kA64Brk1d;
   int32_t log_imm = -1;
-  bool is_wide = OP_KIND_IS_WIDE(op);
+  bool is_wide = r_dest.Is64Bit();
   ArmOpcode wide = (is_wide) ? WIDE(0) : UNWIDE(0);
 
-  switch (OP_KIND_UNWIDE(op)) {
+  switch (op) {
     case kOpLsl: {
       // "lsl w1, w2, #imm" is an alias of "ubfm w1, w2, #(-imm MOD 32), #(31-imm)"
       // and "lsl x1, x2, #imm" of "ubfm x1, x2, #(-imm MOD 32), #(31-imm)".
@@ -639,7 +636,7 @@ LIR* Arm64Mir2Lir::OpRegImm64(OpKind op, RegStorage r_dest_src1, int64_t value, 
     return res;
   }
 
-  switch (OP_KIND_UNWIDE(op)) {
+  switch (op) {
     case kOpAdd:
       neg_opcode = kA64Sub4RRdT;
       opcode = kA64Add4RRdT;
@@ -828,99 +825,66 @@ LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStor
                                     OpSize size) {
   LIR* load = NULL;
   ArmOpcode opcode = kA64Brk1d;
-  bool short_form = false;
-  int encoded_disp = displacement;
+  ArmOpcode alt_opcode = kA64Brk1d;
+  int scale = 0;
+
   switch (size) {
     case kDouble:     // Intentional fall-through.
     case kWord:       // Intentional fall-through.
     case k64:
-      DCHECK_EQ(encoded_disp & 0x3, 0);
+      scale = 3;
       if (r_dest.IsFloat()) {
-        // Currently double values may be misaligned.
-        if ((displacement & 0x7) == 0 && displacement >= 0 && displacement <= 32760) {
-          // Can use scaled load.
-          opcode = FWIDE(kA64Ldr3fXD);
-          encoded_disp >>= 3;
-          short_form = true;
-        } else if (IS_SIGNED_IMM9(displacement)) {
-          // Can use unscaled load.
-          opcode = FWIDE(kA64Ldur3fXd);
-          short_form = true;
-        } else {
-          short_form = false;
-        }
+        DCHECK(r_dest.IsDouble());
+        opcode = FWIDE(kA64Ldr3fXD);
+        alt_opcode = FWIDE(kA64Ldur3fXd);
       } else {
-        // Currently long values may be misaligned.
-        if ((displacement & 0x7) == 0 && displacement >= 0 && displacement <= 32760) {
-          // Can use scaled store.
-          opcode = FWIDE(kA64Ldr3rXD);
-          encoded_disp >>= 3;
-          short_form = true;
-        } else if (IS_SIGNED_IMM9(displacement)) {
-          // Can use unscaled store.
-          opcode = FWIDE(kA64Ldur3rXd);
-          short_form = true;
-        }  // else: use long sequence (short_form = false).
+        opcode = FWIDE(kA64Ldr3rXD);
+        alt_opcode = FWIDE(kA64Ldur3rXd);
       }
       break;
     case kSingle:     // Intentional fall-through.
     case k32:         // Intentional fall-trough.
     case kReference:
+      scale = 2;
       if (r_dest.IsFloat()) {
+        DCHECK(r_dest.IsSingle());
         opcode = kA64Ldr3fXD;
-        if (displacement <= 1020) {
-          short_form = true;
-          encoded_disp >>= 2;
-        }
-        break;
-      }
-      if (displacement <= 16380 && displacement >= 0) {
-        DCHECK_EQ((displacement & 0x3), 0);
-        short_form = true;
-        encoded_disp >>= 2;
+      } else {
         opcode = kA64Ldr3rXD;
       }
       break;
     case kUnsignedHalf:
-      if (displacement < 64 && displacement >= 0) {
-        DCHECK_EQ((displacement & 0x1), 0);
-        short_form = true;
-        encoded_disp >>= 1;
-        opcode = kA64Ldrh3wXF;
-      } else if (displacement < 4092 && displacement >= 0) {
-        short_form = true;
-        opcode = kA64Ldrh3wXF;
-      }
+      scale = 1;
+      opcode = kA64Ldrh3wXF;
       break;
     case kSignedHalf:
-      short_form = true;
+      scale = 1;
       opcode = kA64Ldrsh3rXF;
       break;
     case kUnsignedByte:
-      short_form = true;
       opcode = kA64Ldrb3wXd;
       break;
     case kSignedByte:
-      short_form = true;
       opcode = kA64Ldrsb3rXd;
       break;
     default:
       LOG(FATAL) << "Bad size: " << size;
   }
 
-  if (short_form) {
-    load = NewLIR3(opcode, r_dest.GetReg(), r_base.GetReg(), encoded_disp);
+  bool displacement_is_aligned = (displacement & ((1 << scale) - 1)) == 0;
+  int scaled_disp = displacement >> scale;
+  if (displacement_is_aligned && scaled_disp >= 0 && scaled_disp < 4096) {
+    // Can use scaled load.
+    load = NewLIR3(opcode, r_dest.GetReg(), r_base.GetReg(), scaled_disp);
+  } else if (alt_opcode != kA64Brk1d && IS_SIGNED_IMM9(displacement)) {
+    // Can use unscaled load.
+    load = NewLIR3(alt_opcode, r_dest.GetReg(), r_base.GetReg(), displacement);
   } else {
-    RegStorage reg_offset = AllocTemp();
-    LoadConstant(reg_offset, encoded_disp);
-    if (r_dest.IsFloat()) {
-      // No index ops - must use a long sequence.  Turn the offset into a direct pointer.
-      OpRegReg(kOpAdd, reg_offset, r_base);
-      load = LoadBaseDispBody(reg_offset, 0, r_dest, size);
-    } else {
-      load = LoadBaseIndexed(r_base, reg_offset, r_dest, 0, size);
-    }
-    FreeTemp(reg_offset);
+    // Use long sequence.
+    RegStorage r_scratch = AllocTemp();
+    LoadConstant(r_scratch, displacement);
+    load = LoadBaseIndexed(r_base, r_scratch, r_dest, 0, size);
+    FreeTemp(r_scratch);
   }
 
   // TODO: in future may need to differentiate Dalvik accesses w/ spills
@@ -947,92 +911,64 @@ LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegSto
                                      OpSize size) {
   LIR* store = NULL;
   ArmOpcode opcode = kA64Brk1d;
-  bool short_form = false;
-  int encoded_disp = displacement;
+  ArmOpcode alt_opcode = kA64Brk1d;
+  int scale = 0;
+
   switch (size) {
     case kDouble:     // Intentional fall-through.
     case kWord:       // Intentional fall-through.
     case k64:
-      DCHECK_EQ(encoded_disp & 0x3, 0);
+      scale = 3;
       if (r_src.IsFloat()) {
-        // Currently double values may be misaligned.
-        if ((displacement & 0x7) == 0 && displacement >= 0 && displacement <= 32760) {
-          // Can use scaled store.
-          opcode = FWIDE(kA64Str3fXD);
-          encoded_disp >>= 3;
-          short_form = true;
-        } else if (IS_SIGNED_IMM9(displacement)) {
-          // Can use unscaled store.
-          opcode = FWIDE(kA64Stur3fXd);
-          short_form = true;
-        }  // else: use long sequence (short_form = false).
+        DCHECK(r_src.IsDouble());
+        opcode = FWIDE(kA64Str3fXD);
+        alt_opcode = FWIDE(kA64Stur3fXd);
       } else {
-        // Currently long values may be misaligned.
-        if ((displacement & 0x7) == 0 && displacement >= 0 && displacement <= 32760) {
-          // Can use scaled store.
-          opcode = FWIDE(kA64Str3rXD);
-          encoded_disp >>= 3;
-          short_form = true;
-        } else if (IS_SIGNED_IMM9(displacement)) {
-          // Can use unscaled store.
-          opcode = FWIDE(kA64Stur3rXd);
-          short_form = true;
-        }  // else: use long sequence (short_form = false).
+        opcode = FWIDE(kA64Str3rXD);
+        alt_opcode = FWIDE(kA64Stur3rXd);
       }
       break;
     case kSingle:     // Intentional fall-through.
     case k32:         // Intentional fall-trough.
     case kReference:
+      scale = 2;
       if (r_src.IsFloat()) {
         DCHECK(r_src.IsSingle());
-        DCHECK_EQ(encoded_disp & 0x3, 0);
         opcode = kA64Str3fXD;
-        if (displacement <= 1020) {
-          short_form = true;
-          encoded_disp >>= 2;
-        }
-        break;
-      }
-
-      if (displacement <= 16380 && displacement >= 0) {
-        DCHECK_EQ((displacement & 0x3), 0);
-        short_form = true;
-        encoded_disp >>= 2;
+      } else {
         opcode = kA64Str3rXD;
       }
       break;
     case kUnsignedHalf:
     case kSignedHalf:
-      DCHECK_EQ((displacement & 0x1), 0);
-      short_form = true;
-      encoded_disp >>= 1;
+      scale = 1;
       opcode = kA64Strh3wXF;
       break;
     case kUnsignedByte:
     case kSignedByte:
-      short_form = true;
       opcode = kA64Strb3wXd;
       break;
     default:
       LOG(FATAL) << "Bad size: " << size;
   }
 
-  if (short_form) {
-    store = NewLIR3(opcode, r_src.GetReg(), r_base.GetReg(), encoded_disp);
+  bool displacement_is_aligned = (displacement & ((1 << scale) - 1)) == 0;
+  int scaled_disp = displacement >> scale;
+  if (displacement_is_aligned && scaled_disp >= 0 && scaled_disp < 4096) {
+    // Can use scaled store.
+    store = NewLIR3(opcode, r_src.GetReg(), r_base.GetReg(), scaled_disp);
+  } else if (alt_opcode != kA64Brk1d && IS_SIGNED_IMM9(displacement)) {
+    // Can use unscaled store.
+    store = NewLIR3(alt_opcode, r_src.GetReg(), r_base.GetReg(), displacement);
   } else {
+    // Use long sequence.
     RegStorage r_scratch = AllocTemp();
-    LoadConstant(r_scratch, encoded_disp);
-    if (r_src.IsFloat()) {
-      // No index ops - must use a long sequence.  Turn the offset into a direct pointer.
-      OpRegReg(kOpAdd, r_scratch, r_base);
-      store = StoreBaseDispBody(r_scratch, 0, r_src, size);
-    } else {
-      store = StoreBaseIndexed(r_base, r_scratch, r_src, 0, size);
-    }
+    LoadConstant(r_scratch, displacement);
+    store = StoreBaseIndexed(r_base, r_scratch, r_src, 0, size);
     FreeTemp(r_scratch);
   }
 
-  // TODO: In future, may need to differentiate Dalvik & spill accesses
+  // TODO: In future, may need to differentiate Dalvik & spill accesses.
   if (r_base == rs_rA64_SP) {
     AnnotateDalvikRegAccess(store, displacement >> 2, false /* is_load */, r_src.Is64Bit());
   }
