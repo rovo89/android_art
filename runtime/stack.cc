@@ -23,6 +23,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
+#include "quick/quick_method_frame_info.h"
 #include "runtime.h"
 #include "thread.h"
 #include "thread_list.h"
@@ -142,18 +143,17 @@ uint32_t StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kin
     DCHECK(m == GetMethod());
     const VmapTable vmap_table(m->GetVmapTable());
     uint32_t vmap_offset;
+    QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo();
     // TODO: IsInContext stops before spotting floating point registers.
     if (vmap_table.IsInContext(vreg, kind, &vmap_offset)) {
       bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
-      uint32_t spill_mask = is_float ? m->GetFpSpillMask()
-                                     : m->GetCoreSpillMask();
+      uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
       return GetGPR(vmap_table.ComputeRegister(spill_mask, vmap_offset, kind));
     } else {
       const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
       DCHECK(code_item != NULL) << PrettyMethod(m);  // Can't be NULL or how would we compile its instructions?
-      size_t frame_size = m->GetFrameSizeInBytes();
-      return *GetVRegAddr(cur_quick_frame_, code_item, m->GetCoreSpillMask(), m->GetFpSpillMask(),
-                          frame_size, vreg);
+      return *GetVRegAddr(cur_quick_frame_, code_item, frame_info.CoreSpillMask(),
+                          frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), vreg);
     }
   } else {
     return cur_shadow_frame_->GetVReg(vreg);
@@ -167,19 +167,18 @@ void StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_val
     DCHECK(m == GetMethod());
     const VmapTable vmap_table(m->GetVmapTable());
     uint32_t vmap_offset;
+    QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo();
     // TODO: IsInContext stops before spotting floating point registers.
     if (vmap_table.IsInContext(vreg, kind, &vmap_offset)) {
       bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
-      uint32_t spill_mask = is_float ? m->GetFpSpillMask() : m->GetCoreSpillMask();
+      uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
       const uint32_t reg = vmap_table.ComputeRegister(spill_mask, vmap_offset, kReferenceVReg);
       SetGPR(reg, new_value);
     } else {
       const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
       DCHECK(code_item != NULL) << PrettyMethod(m);  // Can't be NULL or how would we compile its instructions?
-      uint32_t core_spills = m->GetCoreSpillMask();
-      uint32_t fp_spills = m->GetFpSpillMask();
-      size_t frame_size = m->GetFrameSizeInBytes();
-      int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg, kRuntimeISA);
+      int offset = GetVRegOffset(code_item, frame_info.CoreSpillMask(), frame_info.FpSpillMask(),
+                                 frame_info.FrameSizeInBytes(), vreg, kRuntimeISA);
       byte* vreg_addr = reinterpret_cast<byte*>(GetCurrentQuickFrame()) + offset;
       *reinterpret_cast<uint32_t*>(vreg_addr) = new_value;
     }
