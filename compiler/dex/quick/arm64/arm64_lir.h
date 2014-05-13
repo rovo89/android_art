@@ -129,27 +129,32 @@ enum ArmResourceEncodingPos {
   R(24) R(25) R(26) R(27) R(28) R(29) R(30) R(31)
 
 // Registers (integer) values.
-// TODO(Arm64): for now we define rx##nr identically to rw##nr. We should rather define rx##nr as
-// a k64BitSolo. We should do this once the register allocator is ready.
 enum A64NativeRegisterPool {
 #  define A64_DEFINE_REGISTERS(nr) \
     rw##nr = RegStorage::k32BitSolo | RegStorage::kCoreRegister | nr, \
-    rx##nr = RegStorage::k32BitSolo | RegStorage::kCoreRegister | nr, \
+    rx##nr = RegStorage::k64BitSolo | RegStorage::kCoreRegister | nr, \
     rf##nr = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | nr, \
     rd##nr = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | nr,
   A64_REGISTER_CODE_LIST(A64_DEFINE_REGISTERS)
 #undef A64_DEFINE_REGISTERS
 
-  // TODO(Arm64): can we change the lines below such that rwzr != rwsp && rxzr != rsp?
-  //   This would be desirable to allow detecting usage-errors in the assembler.
   rwzr = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 0x3f,
-  rxzr = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 0x3f,
+  rxzr = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 0x3f,
   rwsp = rw31,
   rsp = rx31,
   rA64_SUSPEND = rx19,
   rA64_SELF = rx18,
   rA64_SP = rx31,
-  rA64_LR = rx30
+  rA64_LR = rx30,
+  /*
+   * FIXME: It's a bit awkward to define both 32 and 64-bit views of these - we'll only ever use
+   * the 64-bit view. However, for now we'll define a 32-bit view to keep these from being
+   * allocated as 32-bit temp registers.
+   */
+  rA32_SUSPEND = rw19,
+  rA32_SELF = rw18,
+  rA32_SP = rw31,
+  rA32_LR = rw30
 };
 
 #define A64_DEFINE_REGSTORAGES(nr) \
@@ -166,6 +171,11 @@ constexpr RegStorage rs_rA64_SUSPEND(RegStorage::kValid | rA64_SUSPEND);
 constexpr RegStorage rs_rA64_SELF(RegStorage::kValid | rA64_SELF);
 constexpr RegStorage rs_rA64_SP(RegStorage::kValid | rA64_SP);
 constexpr RegStorage rs_rA64_LR(RegStorage::kValid | rA64_LR);
+// TODO: eliminate the need for these.
+constexpr RegStorage rs_rA32_SUSPEND(RegStorage::kValid | rA32_SUSPEND);
+constexpr RegStorage rs_rA32_SELF(RegStorage::kValid | rA32_SELF);
+constexpr RegStorage rs_rA32_SP(RegStorage::kValid | rA32_SP);
+constexpr RegStorage rs_rA32_LR(RegStorage::kValid | rA32_LR);
 
 // RegisterLocation templates return values (following the hard-float calling convention).
 const RegLocation arm_loc_c_return =

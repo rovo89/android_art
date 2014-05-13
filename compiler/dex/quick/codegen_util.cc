@@ -991,7 +991,7 @@ void Mir2Lir::Materialize() {
     /* Convert LIR into machine code. */
     AssembleLIR();
 
-    if (cu_->verbose) {
+    if ((cu_->enable_debug & (1 << kDebugCodegenDump)) != 0) {
       CodegenDump();
     }
   }

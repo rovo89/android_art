@@ -54,8 +54,6 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg);
 
     // Required for target - register utilities.
-    RegStorage AllocTypedTemp(bool fp_hint, int reg_class);
-    RegStorage AllocTypedTempWide(bool fp_hint, int reg_class);
     RegStorage TargetReg(SpecialTargetRegister reg);
     RegStorage GetArgMappingToPhysicalReg(int arg_num);
     RegLocation GetReturnAlt();

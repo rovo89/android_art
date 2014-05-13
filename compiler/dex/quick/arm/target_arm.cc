@@ -46,6 +46,7 @@ static const RegStorage sp_temps_arr[] =
 static const RegStorage dp_temps_arr[] =
     {rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7};
 
+static const std::vector<RegStorage> empty_pool;
 static const std::vector<RegStorage> core_regs(core_regs_arr,
     core_regs_arr + sizeof(core_regs_arr) / sizeof(core_regs_arr[0]));
 static const std::vector<RegStorage> sp_regs(sp_regs_arr,
@@ -554,26 +555,11 @@ Mir2Lir* ArmCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
   return new ArmMir2Lir(cu, mir_graph, arena);
 }
 
-// Alloc a pair of core registers, or a double.
-RegStorage ArmMir2Lir::AllocTypedTempWide(bool fp_hint, int reg_class) {
-  if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
-    return AllocTempDouble();
-  } else {
-    RegStorage low_reg = AllocTemp();
-    RegStorage high_reg = AllocTemp();
-    return RegStorage::MakeRegPair(low_reg, high_reg);
-  }
-}
-
-RegStorage ArmMir2Lir::AllocTypedTemp(bool fp_hint, int reg_class) {
-  if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg))
-    return AllocTempSingle();
-  return AllocTemp();
-}
-
 void ArmMir2Lir::CompilerInitializeRegAlloc() {
-  reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs, sp_regs, dp_regs, reserved_regs,
-                                        core_temps, sp_temps, dp_temps);
+  reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs, empty_pool /* core64 */, sp_regs,
+                                        dp_regs, reserved_regs, empty_pool /* reserved64 */,
+                                        core_temps, empty_pool /* core64_temps */, sp_temps,
+                                        dp_temps);
 
   // Target-specific adjustments.
 
