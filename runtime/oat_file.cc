@@ -464,7 +464,7 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
   // NOTE: We don't keep the number of methods and cannot do a bounds check for method_index.
   if (methods_pointer_ == NULL) {
     CHECK_EQ(kOatClassNoneCompiled, type_);
-    return OatMethod(NULL, 0, 0, 0, 0, 0);
+    return OatMethod(NULL, 0, 0);
   }
   size_t methods_pointer_index;
   if (bitmap_ == NULL) {
@@ -473,7 +473,7 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
   } else {
     CHECK_EQ(kOatClassSomeCompiled, type_);
     if (!BitVector::IsBitSet(bitmap_, method_index)) {
-      return OatMethod(NULL, 0, 0, 0, 0, 0);
+      return OatMethod(NULL, 0, 0);
     }
     size_t num_set_bits = BitVector::NumSetBits(bitmap_, method_index);
     methods_pointer_index = num_set_bits;
@@ -482,23 +482,14 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
   return OatMethod(
       oat_file_->Begin(),
       oat_method_offsets.code_offset_,
-      oat_method_offsets.frame_size_in_bytes_,
-      oat_method_offsets.core_spill_mask_,
-      oat_method_offsets.fp_spill_mask_,
       oat_method_offsets.gc_map_offset_);
 }
 
 OatFile::OatMethod::OatMethod(const byte* base,
                               const uint32_t code_offset,
-                              const size_t frame_size_in_bytes,
-                              const uint32_t core_spill_mask,
-                              const uint32_t fp_spill_mask,
                               const uint32_t gc_map_offset)
   : begin_(base),
     code_offset_(code_offset),
-    frame_size_in_bytes_(frame_size_in_bytes),
-    core_spill_mask_(core_spill_mask),
-    fp_spill_mask_(fp_spill_mask),
     native_gc_map_offset_(gc_map_offset) {
 }
 
@@ -519,9 +510,6 @@ void OatFile::OatMethod::LinkMethod(mirror::ArtMethod* method) const {
   CHECK(method != NULL);
   method->SetEntryPointFromPortableCompiledCode(GetPortableCode());
   method->SetEntryPointFromQuickCompiledCode(GetQuickCode());
-  method->SetFrameSizeInBytes(frame_size_in_bytes_);
-  method->SetCoreSpillMask(core_spill_mask_);
-  method->SetFpSpillMask(fp_spill_mask_);
   method->SetNativeGcMap(GetNativeGcMap());  // Used by native methods in work around JNI mode.
 }
 

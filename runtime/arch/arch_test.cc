@@ -18,6 +18,7 @@
 
 #include "common_runtime_test.h"
 #include "mirror/art_method.h"
+#include "quick/quick_method_frame_info.h"
 
 namespace art {
 
@@ -30,10 +31,13 @@ class ArchTest : public CommonRuntimeTest {
     Thread* t = Thread::Current();
     t->TransitionFromSuspendedToRunnable();  // So we can create callee-save methods.
 
-    mirror::ArtMethod* save_method = r->CreateCalleeSaveMethod(isa, type);
-    EXPECT_EQ(save_method->GetFrameSizeInBytes(), save_size) << "Expected and real size differs for "
-        << type << " core spills=" << std::hex << save_method->GetCoreSpillMask() << " fp spills="
-        << save_method->GetFpSpillMask() << std::dec;
+    r->SetInstructionSet(isa);
+    mirror::ArtMethod* save_method = r->CreateCalleeSaveMethod(type);
+    r->SetCalleeSaveMethod(save_method, type);
+    QuickMethodFrameInfo frame_info = save_method->GetQuickFrameInfo();
+    EXPECT_EQ(frame_info.FrameSizeInBytes(), save_size) << "Expected and real size differs for "
+        << type << " core spills=" << std::hex << frame_info.CoreSpillMask() << " fp spills="
+        << frame_info.FpSpillMask() << std::dec;
 
     t->TransitionFromRunnableToSuspended(ThreadState::kNative);  // So we can shut down.
   }

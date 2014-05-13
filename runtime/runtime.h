@@ -34,6 +34,7 @@
 #include "instrumentation.h"
 #include "jobject_comparator.h"
 #include "object_callbacks.h"
+#include "quick/quick_method_frame_info.h"
 #include "runtime_stats.h"
 #include "safe_map.h"
 #include "fault_handler.h"
@@ -325,20 +326,25 @@ class Runtime {
     return callee_save_methods_[type];
   }
 
+  QuickMethodFrameInfo GetCalleeSaveMethodFrameInfo(CalleeSaveType type) const {
+    return callee_save_method_frame_infos_[type];
+  }
+
+  QuickMethodFrameInfo GetRuntimeMethodFrameInfo(mirror::ArtMethod* method) const;
+
   static size_t GetCalleeSaveMethodOffset(CalleeSaveType type) {
     return OFFSETOF_MEMBER(Runtime, callee_save_methods_[type]);
   }
 
+  InstructionSet GetInstructionSet() const {
+    return instruction_set_;
+  }
+
+  void SetInstructionSet(InstructionSet instruction_set);
+
   void SetCalleeSaveMethod(mirror::ArtMethod* method, CalleeSaveType type);
 
-  mirror::ArtMethod* CreateCalleeSaveMethod(InstructionSet instruction_set,
-                                                 CalleeSaveType type)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  mirror::ArtMethod* CreateRefOnlyCalleeSaveMethod(InstructionSet instruction_set)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  mirror::ArtMethod* CreateRefAndArgsCalleeSaveMethod(InstructionSet instruction_set)
+  mirror::ArtMethod* CreateCalleeSaveMethod(CalleeSaveType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t GetStat(int kind);
@@ -467,6 +473,9 @@ class Runtime {
   mirror::ArtMethod* resolution_method_;
   mirror::ArtMethod* imt_conflict_method_;
   mirror::ObjectArray<mirror::ArtMethod>* default_imt_;
+
+  InstructionSet instruction_set_;
+  QuickMethodFrameInfo callee_save_method_frame_infos_[kLastCalleeSaveType];
 
   CompilerCallbacks* compiler_callbacks_;
   bool is_zygote_;

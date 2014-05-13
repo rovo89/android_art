@@ -245,21 +245,6 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
     return nullptr;
   }
 
-  Runtime* runtime = Runtime::Current();
-  mirror::Object* resolution_method = image_header.GetImageRoot(ImageHeader::kResolutionMethod);
-  runtime->SetResolutionMethod(down_cast<mirror::ArtMethod*>(resolution_method));
-  mirror::Object* imt_conflict_method = image_header.GetImageRoot(ImageHeader::kImtConflictMethod);
-  runtime->SetImtConflictMethod(down_cast<mirror::ArtMethod*>(imt_conflict_method));
-  mirror::Object* default_imt = image_header.GetImageRoot(ImageHeader::kDefaultImt);
-  runtime->SetDefaultImt(down_cast<mirror::ObjectArray<mirror::ArtMethod>*>(default_imt));
-
-  mirror::Object* callee_save_method = image_header.GetImageRoot(ImageHeader::kCalleeSaveMethod);
-  runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method), Runtime::kSaveAll);
-  callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsOnlySaveMethod);
-  runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method), Runtime::kRefsOnly);
-  callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsAndArgsSaveMethod);
-  runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method), Runtime::kRefsAndArgs);
-
   UniquePtr<ImageSpace> space(new ImageSpace(image_filename, image_location,
                                              map.release(), bitmap.release()));
   if (kIsDebugBuild) {
@@ -276,6 +261,23 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
     DCHECK(!error_msg->empty());
     return nullptr;
   }
+
+  Runtime* runtime = Runtime::Current();
+  runtime->SetInstructionSet(space->oat_file_->GetOatHeader().GetInstructionSet());
+
+  mirror::Object* resolution_method = image_header.GetImageRoot(ImageHeader::kResolutionMethod);
+  runtime->SetResolutionMethod(down_cast<mirror::ArtMethod*>(resolution_method));
+  mirror::Object* imt_conflict_method = image_header.GetImageRoot(ImageHeader::kImtConflictMethod);
+  runtime->SetImtConflictMethod(down_cast<mirror::ArtMethod*>(imt_conflict_method));
+  mirror::Object* default_imt = image_header.GetImageRoot(ImageHeader::kDefaultImt);
+  runtime->SetDefaultImt(down_cast<mirror::ObjectArray<mirror::ArtMethod>*>(default_imt));
+
+  mirror::Object* callee_save_method = image_header.GetImageRoot(ImageHeader::kCalleeSaveMethod);
+  runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method), Runtime::kSaveAll);
+  callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsOnlySaveMethod);
+  runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method), Runtime::kRefsOnly);
+  callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsAndArgsSaveMethod);
+  runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method), Runtime::kRefsAndArgs);
 
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "ImageSpace::Init exiting (" << PrettyDuration(NanoTime() - start_time)

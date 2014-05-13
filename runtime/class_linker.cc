@@ -1828,27 +1828,6 @@ static void LinkCode(const SirtRef<mirror::ArtMethod>& method, const OatFile::Oa
       DCHECK(method->GetEntryPointFromQuickCompiledCode() ==
           GetQuickResolutionTrampoline(runtime->GetClassLinker())
           || method->GetEntryPointFromQuickCompiledCode() == GetQuickGenericJniTrampoline());
-
-      DCHECK_EQ(method->GetFrameSizeInBytes<false>(), 0U);
-
-      // Fix up method metadata if necessary.
-      uint32_t s_len;
-      const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(dex_method_index), &s_len);
-      uint32_t refs = 1;    // Native method always has "this" or class.
-      for (uint32_t i = 1; i < s_len; ++i) {
-        if (shorty[i] == 'L') {
-          refs++;
-        }
-      }
-      size_t sirt_size = StackIndirectReferenceTable::GetAlignedSirtSize(refs);
-
-      // Get the generic spill masks and base frame size.
-      mirror::ArtMethod* callee_save_method =
-          Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
-
-      method->SetFrameSizeInBytes(callee_save_method->GetFrameSizeInBytes() + sirt_size);
-      method->SetCoreSpillMask(callee_save_method->GetCoreSpillMask());
-      method->SetFpSpillMask(callee_save_method->GetFpSpillMask());
     }
   }
 
@@ -3027,11 +3006,6 @@ mirror::ArtMethod* ClassLinker::CreateProxyMethod(Thread* self,
 
   // At runtime the method looks like a reference and argument saving method, clone the code
   // related parameters from this method.
-  mirror::ArtMethod* refs_and_args =
-      Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
-  method->SetCoreSpillMask(refs_and_args->GetCoreSpillMask());
-  method->SetFpSpillMask(refs_and_args->GetFpSpillMask());
-  method->SetFrameSizeInBytes(refs_and_args->GetFrameSizeInBytes());
   method->SetEntryPointFromQuickCompiledCode(GetQuickProxyInvokeHandler());
   method->SetEntryPointFromPortableCompiledCode(GetPortableProxyInvokeHandler());
   method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);

@@ -16,8 +16,9 @@
 
 #include "context_x86.h"
 
-#include "mirror/art_method.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
+#include "quick/quick_method_frame_info.h"
 #include "stack.h"
 
 namespace art {
@@ -37,16 +38,15 @@ void X86Context::Reset() {
 
 void X86Context::FillCalleeSaves(const StackVisitor& fr) {
   mirror::ArtMethod* method = fr.GetMethod();
-  uint32_t core_spills = method->GetCoreSpillMask();
-  size_t spill_count = POPCOUNT(core_spills);
-  DCHECK_EQ(method->GetFpSpillMask(), 0u);
-  size_t frame_size = method->GetFrameSizeInBytes();
+  const QuickMethodFrameInfo frame_info = method->GetQuickFrameInfo();
+  size_t spill_count = POPCOUNT(frame_info.CoreSpillMask());
+  DCHECK_EQ(frame_info.FpSpillMask(), 0u);
   if (spill_count > 0) {
     // Lowest number spill is farthest away, walk registers and fill into context.
     int j = 2;  // Offset j to skip return address spill.
     for (int i = 0; i < kNumberOfCpuRegisters; i++) {
-      if (((core_spills >> i) & 1) != 0) {
-        gprs_[i] = fr.CalleeSaveAddress(spill_count - j, frame_size);
+      if (((frame_info.CoreSpillMask() >> i) & 1) != 0) {
+        gprs_[i] = fr.CalleeSaveAddress(spill_count - j, frame_info.FrameSizeInBytes());
         j++;
       }
     }

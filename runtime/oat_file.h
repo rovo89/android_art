@@ -78,15 +78,6 @@ class OatFile {
     uint32_t GetCodeOffset() const {
       return code_offset_;
     }
-    size_t GetFrameSizeInBytes() const {
-      return frame_size_in_bytes_;
-    }
-    uint32_t GetCoreSpillMask() const {
-      return core_spill_mask_;
-    }
-    uint32_t GetFpSpillMask() const {
-      return fp_spill_mask_;
-    }
     uint32_t GetNativeGcMapOffset() const {
       return native_gc_map_offset_;
     }
@@ -120,6 +111,9 @@ class OatFile {
       return GetOatPointer<const uint8_t*>(native_gc_map_offset_);
     }
 
+    size_t GetFrameSizeInBytes() const;
+    uint32_t GetCoreSpillMask() const;
+    uint32_t GetFpSpillMask() const;
     uint32_t GetMappingTableOffset() const;
     uint32_t GetVmapTableOffset() const;
     const uint8_t* GetMappingTable() const;
@@ -130,9 +124,6 @@ class OatFile {
     // Create an OatMethod with offsets relative to the given base address
     OatMethod(const byte* base,
               const uint32_t code_offset,
-              const size_t frame_size_in_bytes,
-              const uint32_t core_spill_mask,
-              const uint32_t fp_spill_mask,
               const uint32_t gc_map_offset);
 
    private:
@@ -147,9 +138,6 @@ class OatFile {
     const byte* begin_;
 
     uint32_t code_offset_;
-    size_t frame_size_in_bytes_;
-    uint32_t core_spill_mask_;
-    uint32_t fp_spill_mask_;
     uint32_t native_gc_map_offset_;
 
     friend class OatClass;

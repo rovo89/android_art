@@ -491,9 +491,6 @@ struct ArtMethodOffsets : public CheckOffsets<mirror::ArtMethod> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_code_item_offset_),           "dexCodeItemOffset"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_method_index_),               "dexMethodIndex"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, method_index_),                   "methodIndex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, quick_core_spill_mask_),          "quickCoreSpillMask"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, quick_fp_spill_mask_),            "quickFpSpillMask"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, quick_frame_size_in_bytes_),      "quickFrameSizeInBytes"));
   };
 };
 

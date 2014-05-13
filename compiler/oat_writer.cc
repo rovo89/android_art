@@ -331,9 +331,6 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
     if (compiled_method != nullptr) {
       // Derived from CompiledMethod.
       uint32_t quick_code_offset = 0;
-      uint32_t frame_size_in_bytes = kStackAlignment;
-      uint32_t core_spill_mask = 0;
-      uint32_t fp_spill_mask = 0;
 
       const std::vector<uint8_t>* portable_code = compiled_method->GetPortableCode();
       const std::vector<uint8_t>* quick_code = compiled_method->GetQuickCode();
@@ -351,7 +348,7 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
         uint32_t code_size = quick_code->size() * sizeof(uint8_t);
         CHECK_NE(code_size, 0U);
         uint32_t thumb_offset = compiled_method->CodeDelta();
-        quick_code_offset = offset_ + sizeof(OatMethodHeader) + thumb_offset;
+        quick_code_offset = offset_ + sizeof(OatQuickMethodHeader) + thumb_offset;
 
         std::vector<uint8_t>* cfi_info = writer_->compiler_driver_->GetCallFrameInformation();
         if (cfi_info != nullptr) {
@@ -374,27 +371,45 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
           }
         }
 
-        DCHECK_LT(method_offsets_index_, oat_class->method_headers_.size());
-        OatMethodHeader* method_header = &oat_class->method_headers_[method_offsets_index_];
-        method_header->code_size_ = code_size;
-
         // Deduplicate code arrays.
         auto code_iter = dedupe_map_.find(compiled_method);
         if (code_iter != dedupe_map_.end()) {
           quick_code_offset = code_iter->second;
-          FixupMethodHeader(method_header, quick_code_offset - thumb_offset);
         } else {
           dedupe_map_.Put(compiled_method, quick_code_offset);
-          FixupMethodHeader(method_header, quick_code_offset - thumb_offset);
+        }
+
+        // Update quick method header.
+        DCHECK_LT(method_offsets_index_, oat_class->method_headers_.size());
+        OatQuickMethodHeader* method_header = &oat_class->method_headers_[method_offsets_index_];
+        uint32_t mapping_table_offset = method_header->mapping_table_offset_;
+        uint32_t vmap_table_offset = method_header->vmap_table_offset_;
+        // The code offset was 0 when the mapping/vmap table offset was set, so it's set
+        // to 0-offset and we need to adjust it by code_offset.
+        uint32_t code_offset = quick_code_offset - thumb_offset;
+        if (mapping_table_offset != 0u) {
+          mapping_table_offset += code_offset;
+          DCHECK_LT(mapping_table_offset, code_offset);
+        }
+        if (vmap_table_offset != 0u) {
+          vmap_table_offset += code_offset;
+          DCHECK_LT(vmap_table_offset, code_offset);
+        }
+        uint32_t frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
+        uint32_t core_spill_mask = compiled_method->GetCoreSpillMask();
+        uint32_t fp_spill_mask = compiled_method->GetFpSpillMask();
+        *method_header = OatQuickMethodHeader(mapping_table_offset, vmap_table_offset,
+                                              frame_size_in_bytes, core_spill_mask, fp_spill_mask,
+                                              code_size);
+
+        // Update checksum if this wasn't a duplicate.
+        if (code_iter == dedupe_map_.end()) {
           writer_->oat_header_->UpdateChecksum(method_header, sizeof(*method_header));
           offset_ += sizeof(*method_header);  // Method header is prepended before code.
           writer_->oat_header_->UpdateChecksum(&(*quick_code)[0], code_size);
           offset_ += code_size;
         }
       }
-      frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
-      core_spill_mask = compiled_method->GetCoreSpillMask();
-      fp_spill_mask = compiled_method->GetFpSpillMask();
 
       if (kIsDebugBuild) {
         // We expect GC maps except when the class hasn't been verified or the method is native.
@@ -421,9 +436,6 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
       DCHECK_LT(method_offsets_index_, oat_class->method_offsets_.size());
       OatMethodOffsets* offsets = &oat_class->method_offsets_[method_offsets_index_];
       offsets->code_offset_ = quick_code_offset;
-      offsets->frame_size_in_bytes_ = frame_size_in_bytes;
-      offsets->core_spill_mask_ = core_spill_mask;
-      offsets->fp_spill_mask_ = fp_spill_mask;
       ++method_offsets_index_;
     }
 
@@ -431,19 +443,6 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
  private:
-  static void FixupMethodHeader(OatMethodHeader* method_header, uint32_t code_offset) {
-    // The code offset was 0 when the mapping/vmap table offset was set, so it's set
-    // to 0-offset and we need to adjust it by code_offset.
-    if (method_header->mapping_table_offset_ != 0u) {
-      method_header->mapping_table_offset_ += code_offset;
-      DCHECK_LT(method_header->mapping_table_offset_, code_offset);
-    }
-    if (method_header->vmap_table_offset_ != 0u) {
-      method_header->vmap_table_offset_ += code_offset;
-      DCHECK_LT(method_header->vmap_table_offset_, code_offset);
-    }
-  }
-
   // Deduplication is already done on a pointer basis by the compiler driver,
   // so we can simply compare the pointers to find out if things are duplicated.
   SafeMap<const CompiledMethod*, uint32_t, CodeOffsetsKeyComparator> dedupe_map_;
@@ -501,41 +500,11 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
     OatClass* oat_class = writer_->oat_classes_[oat_class_index_];
     CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
-    OatMethodOffsets offsets(0u, kStackAlignment, 0u, 0u, 0u);
+    OatMethodOffsets offsets(0u, 0u);
     if (compiled_method != nullptr) {
       DCHECK_LT(method_offsets_index_, oat_class->method_offsets_.size());
       offsets = oat_class->method_offsets_[method_offsets_index_];
       ++method_offsets_index_;
-    }
-
-    // Derive frame size and spill masks for native methods without code:
-    // These are generic JNI methods...
-    uint32_t method_idx = it.GetMemberIndex();
-    bool is_native = (it.GetMemberAccessFlags() & kAccNative) != 0;
-    if (is_native && compiled_method == nullptr) {
-      // Compute Sirt size as putting _every_ reference into it, even null ones.
-      uint32_t s_len;
-      const char* shorty = dex_file_->GetMethodShorty(dex_file_->GetMethodId(method_idx),
-                                                      &s_len);
-      DCHECK(shorty != nullptr);
-      uint32_t refs = 1;    // Native method always has "this" or class.
-      for (uint32_t i = 1; i < s_len; ++i) {
-        if (shorty[i] == 'L') {
-          refs++;
-        }
-      }
-      size_t pointer_size = GetInstructionSetPointerSize(
-          writer_->compiler_driver_->GetInstructionSet());
-      size_t sirt_size = StackIndirectReferenceTable::GetAlignedSirtSizeTarget(pointer_size, refs);
-
-      // Get the generic spill masks and base frame size.
-      mirror::ArtMethod* callee_save_method =
-          Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
-
-      offsets.frame_size_in_bytes_ = callee_save_method->GetFrameSizeInBytes() + sirt_size;
-      offsets.core_spill_mask_ = callee_save_method->GetCoreSpillMask();
-      offsets.fp_spill_mask_ = callee_save_method->GetFpSpillMask();
-      DCHECK_EQ(offsets.gc_map_offset_, 0u);
     }
 
     ClassLinker* linker = Runtime::Current()->GetClassLinker();
@@ -544,12 +513,9 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
     ScopedObjectAccessUnchecked soa(Thread::Current());
     SirtRef<mirror::DexCache> dex_cache(soa.Self(), linker->FindDexCache(*dex_file_));
     SirtRef<mirror::ClassLoader> class_loader(soa.Self(), nullptr);
-    mirror::ArtMethod* method = linker->ResolveMethod(*dex_file_, method_idx, dex_cache,
+    mirror::ArtMethod* method = linker->ResolveMethod(*dex_file_, it.GetMemberIndex(), dex_cache,
                                                       class_loader, nullptr, invoke_type);
     CHECK(method != NULL);
-    method->SetFrameSizeInBytes(offsets.frame_size_in_bytes_);
-    method->SetCoreSpillMask(offsets.core_spill_mask_);
-    method->SetFpSpillMask(offsets.fp_spill_mask_);
     // Portable code offsets are set by ElfWriterMclinker::FixupCompiledCodeOffset after linking.
     method->SetQuickOatCodeOffset(offsets.code_offset_);
     method->SetOatNativeGcMapOffset(offsets.gc_map_offset_);
@@ -601,10 +567,10 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
         // Deduplicate code arrays.
         const OatMethodOffsets& method_offsets = oat_class->method_offsets_[method_offsets_index_];
         DCHECK(method_offsets.code_offset_ < offset_ || method_offsets.code_offset_ ==
-                   offset_ + sizeof(OatMethodHeader) + compiled_method->CodeDelta())
+                   offset_ + sizeof(OatQuickMethodHeader) + compiled_method->CodeDelta())
             << PrettyMethod(it.GetMemberIndex(), *dex_file_);
         if (method_offsets.code_offset_ >= offset_) {
-          const OatMethodHeader& method_header = oat_class->method_headers_[method_offsets_index_];
+          const OatQuickMethodHeader& method_header = oat_class->method_headers_[method_offsets_index_];
           if (!out->WriteFully(&method_header, sizeof(method_header))) {
             ReportWriteFailure("method header", it);
             return false;
