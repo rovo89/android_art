@@ -399,13 +399,13 @@ uint32_t BitVector::NumSetBits(const uint32_t* storage, uint32_t end) {
   return count;
 }
 
-void BitVector::Dump(std::ostream& os, const char *prefix) {
+void BitVector::Dump(std::ostream& os, const char *prefix) const {
   std::ostringstream buffer;
   DumpHelper(buffer, prefix);
   os << buffer.str() << std::endl;
 }
 
-void BitVector::DumpDot(FILE* file, const char* prefix, bool last_entry) {
+void BitVector::DumpDot(FILE* file, const char* prefix, bool last_entry) const {
   std::ostringstream buffer;
   Dump(buffer, prefix);
 
@@ -421,7 +421,7 @@ void BitVector::DumpDot(FILE* file, const char* prefix, bool last_entry) {
   fprintf(file, "\\\n");
 }
 
-void BitVector::DumpHelper(std::ostringstream& buffer, const char* prefix) {
+void BitVector::DumpHelper(std::ostringstream& buffer, const char* prefix) const {
   // Initialize it.
   if (prefix != nullptr) {
     buffer << prefix;

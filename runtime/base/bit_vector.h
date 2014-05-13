@@ -148,11 +148,11 @@ class BitVector {
 
     bool EnsureSizeAndClear(unsigned int num);
 
-    void Dump(std::ostream& os, const char* prefix);
-    void DumpDot(FILE* file, const char* prefix, bool last_entry = false);
+    void Dump(std::ostream& os, const char* prefix) const;
+    void DumpDot(FILE* file, const char* prefix, bool last_entry = false) const;
 
   protected:
-    void DumpHelper(std::ostringstream& buffer, const char* prefix);
+    void DumpHelper(std::ostringstream& buffer, const char* prefix) const;
 
   private:
     Allocator* const allocator_;
