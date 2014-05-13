@@ -150,9 +150,22 @@ test-art-run-test: test-art-host-run-test test-art-target-run-test
 ########################################################################
 # host test targets
 
+.PHONY: test-art-host-vixl
+ifneq ($(BUILD_HOST_64bit),)
+test-art-host-vixl: $(ANDROID_HOST_OUT)/bin/cctest_vixl
+	$(ANDROID_HOST_OUT)/bin/cctest_vixl --run_all
+	@echo vixl PASSED
+
+else
+# vixl test needs 64b host.
+test-art-host-vixl:
+	@echo vixl test only runnable with 64b host build.
+
+endif
+
 # "mm test-art-host" to build and run all host tests
 .PHONY: test-art-host
-test-art-host: test-art-host-gtest test-art-host-oat test-art-host-run-test
+test-art-host: test-art-host-gtest test-art-host-oat test-art-host-run-test test-art-host-vixl
 	@echo test-art-host PASSED
 
 .PHONY: test-art-host-interpreter
