@@ -442,8 +442,8 @@ ENTRY art_quick_unlock_object
     cmp    r1, #65536
     bpl    .Lrecursive_thin_unlock
     @ transition to unlocked, r3 holds 0
-    str    r3, [r0, #LOCK_WORD_OFFSET]
     dmb    ish                        @ full (StoreLoad) memory barrier
+    str    r3, [r0, #LOCK_WORD_OFFSET]
     bx     lr
 .Lrecursive_thin_unlock:
     sub    r1, r1, #65536
