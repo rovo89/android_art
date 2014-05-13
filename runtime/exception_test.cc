@@ -72,9 +72,10 @@ class ExceptionTest : public CommonRuntimeTest {
 
     const std::vector<uint8_t>& fake_vmap_table_data = fake_vmap_table_data_.GetData();
     const std::vector<uint8_t>& fake_mapping_data = fake_mapping_data_.GetData();
-    uint32_t vmap_table_offset = sizeof(OatMethodHeader) + fake_vmap_table_data.size();
+    uint32_t vmap_table_offset = sizeof(OatQuickMethodHeader) + fake_vmap_table_data.size();
     uint32_t mapping_table_offset = vmap_table_offset + fake_mapping_data.size();
-    OatMethodHeader method_header(vmap_table_offset, mapping_table_offset, code_size);
+    OatQuickMethodHeader method_header(mapping_table_offset, vmap_table_offset,
+                                       4 * kPointerSize, 0u, 0u, code_size);
     fake_header_code_and_maps_.resize(sizeof(method_header));
     memcpy(&fake_header_code_and_maps_[0], &method_header, sizeof(method_header));
     fake_header_code_and_maps_.insert(fake_header_code_and_maps_.begin(),
@@ -91,13 +92,11 @@ class ExceptionTest : public CommonRuntimeTest {
 
     method_f_ = my_klass_->FindVirtualMethod("f", "()I");
     ASSERT_TRUE(method_f_ != NULL);
-    method_f_->SetFrameSizeInBytes(4 * kPointerSize);
     method_f_->SetEntryPointFromQuickCompiledCode(code_ptr);
     method_f_->SetNativeGcMap(&fake_gc_map_[0]);
 
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
     ASSERT_TRUE(method_g_ != NULL);
-    method_g_->SetFrameSizeInBytes(4 * kPointerSize);
     method_g_->SetEntryPointFromQuickCompiledCode(code_ptr);
     method_g_->SetNativeGcMap(&fake_gc_map_[0]);
   }
