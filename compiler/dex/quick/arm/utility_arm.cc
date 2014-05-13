@@ -1161,6 +1161,11 @@ LIR* ArmMir2Lir::OpThreadMem(OpKind op, ThreadOffset<4> thread_offset) {
   return NULL;
 }
 
+LIR* ArmMir2Lir::OpThreadMem(OpKind op, ThreadOffset<8> thread_offset) {
+  UNIMPLEMENTED(FATAL) << "Should not be called.";
+  return nullptr;
+}
+
 LIR* ArmMir2Lir::OpMem(OpKind op, RegStorage r_base, int disp) {
   LOG(FATAL) << "Unexpected use of OpMem for Arm";
   return NULL;

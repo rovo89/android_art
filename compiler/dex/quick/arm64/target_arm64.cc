@@ -731,7 +731,12 @@ void Arm64Mir2Lir::FreeCallTemps() {
   FreeTemp(rs_x3);
 }
 
-RegStorage Arm64Mir2Lir::LoadHelper(A64ThreadOffset offset) {
+RegStorage Arm64Mir2Lir::LoadHelper(ThreadOffset<4> offset) {
+  UNIMPLEMENTED(FATAL) << "Should not be called.";
+  return RegStorage::InvalidReg();
+}
+
+RegStorage Arm64Mir2Lir::LoadHelper(ThreadOffset<8> offset) {
   // TODO(Arm64): use LoadWordDisp instead.
   //   e.g. LoadWordDisp(rs_rA64_SELF, offset.Int32Value(), rs_rA64_LR);
   LoadBaseDisp(rs_rA64_SELF, offset.Int32Value(), rs_rA64_LR, k64);
@@ -740,7 +745,7 @@ RegStorage Arm64Mir2Lir::LoadHelper(A64ThreadOffset offset) {
 
 LIR* Arm64Mir2Lir::CheckSuspendUsingLoad() {
   RegStorage tmp = rs_x0;
-  LoadWordDisp(rs_rA64_SELF, A64_THREAD_SUSPEND_TRIGGER_OFFSET, tmp);
+  LoadWordDisp(rs_rA64_SELF, Thread::ThreadSuspendTriggerOffset<8>().Int32Value(), tmp);
   LIR* load2 = LoadWordDisp(tmp, 0, tmp);
   return load2;
 }

@@ -738,6 +738,11 @@ RegStorage ArmMir2Lir::LoadHelper(ThreadOffset<4> offset) {
   return rs_rARM_LR;
 }
 
+RegStorage ArmMir2Lir::LoadHelper(ThreadOffset<8> offset) {
+  UNIMPLEMENTED(FATAL) << "Should not be called.";
+  return RegStorage::InvalidReg();
+}
+
 LIR* ArmMir2Lir::CheckSuspendUsingLoad() {
   RegStorage tmp = rs_r0;
   Load32Disp(rs_rARM_SELF, Thread::ThreadSuspendTriggerOffset<4>().Int32Value(), tmp);

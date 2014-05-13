@@ -501,7 +501,11 @@ void Arm64Mir2Lir::OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, in
   LOG(FATAL) << "Unexpected use of OpLea for Arm64";
 }
 
-void Arm64Mir2Lir::OpTlsCmp(A64ThreadOffset offset, int val) {
+void Arm64Mir2Lir::OpTlsCmp(ThreadOffset<4> offset, int val) {
+  UNIMPLEMENTED(FATAL) << "Should not be used.";
+}
+
+void Arm64Mir2Lir::OpTlsCmp(ThreadOffset<8> offset, int val) {
   LOG(FATAL) << "Unexpected use of OpTlsCmp for Arm64";
 }
 
