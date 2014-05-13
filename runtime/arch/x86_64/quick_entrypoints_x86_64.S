@@ -476,7 +476,6 @@ END_FUNCTION art_quick_invoke_static_stub
 
 MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
-    UNTESTED
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     // Outgoing argument set up
     movq %rsp, %rsi                   // pass SP
@@ -489,7 +488,6 @@ END_MACRO
 
 MACRO3(ONE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
-    UNTESTED
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME   // save ref containing registers for GC
     // Outgoing argument set up
     movq %rsp, %rdx                    // pass SP
@@ -995,7 +993,6 @@ DEFINE_FUNCTION art_quick_resolution_trampoline
     jz 1f
     jmp *%r10                     // Tail call into method.
 1:
-    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     DELIVER_PENDING_EXCEPTION
 END_FUNCTION art_quick_resolution_trampoline
 
