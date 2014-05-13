@@ -110,7 +110,7 @@ void SsaLivenessAnalysis::ComputeInitialSets() {
       for (size_t i = 0, e = current->InputCount(); i < e; ++i) {
         HInstruction* input = current->InputAt(i);
 
-        HBasicBlock* predecessor = block->GetPredecessors()->Get(i);
+        HBasicBlock* predecessor = block->GetPredecessors().Get(i);
         size_t ssa_index = input->GetSsaIndex();
         BitVector* predecessor_kill = GetKillSet(*predecessor);
         BitVector* predecessor_live_in = GetLiveInSet(*predecessor);
@@ -147,8 +147,8 @@ bool SsaLivenessAnalysis::UpdateLiveOut(const HBasicBlock& block) {
   BitVector* live_out = GetLiveOutSet(block);
   bool changed = false;
   // The live_out set of a block is the union of live_in sets of its successors.
-  for (size_t i = 0, e = block.GetSuccessors()->Size(); i < e; ++i) {
-    HBasicBlock* successor = block.GetSuccessors()->Get(i);
+  for (size_t i = 0, e = block.GetSuccessors().Size(); i < e; ++i) {
+    HBasicBlock* successor = block.GetSuccessors().Get(i);
     if (live_out->Union(GetLiveInSet(*successor))) {
       changed = true;
     }
