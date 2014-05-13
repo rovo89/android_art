@@ -1139,21 +1139,23 @@ static int dex2oat(int argc, char** argv) {
   WellKnownClasses::Init(self->GetJniEnv());
 
   // If --image-classes was specified, calculate the full list of classes to include in the image
-  UniquePtr<CompilerDriver::DescriptorSet> image_classes(NULL);
-  if (image_classes_filename != NULL) {
+  UniquePtr<CompilerDriver::DescriptorSet> image_classes(nullptr);
+  if (image_classes_filename != nullptr) {
     std::string error_msg;
-    if (image_classes_zip_filename != NULL) {
+    if (image_classes_zip_filename != nullptr) {
       image_classes.reset(dex2oat->ReadImageClassesFromZip(image_classes_zip_filename,
                                                            image_classes_filename,
                                                            &error_msg));
     } else {
       image_classes.reset(dex2oat->ReadImageClassesFromFile(image_classes_filename));
     }
-    if (image_classes.get() == NULL) {
+    if (image_classes.get() == nullptr) {
       LOG(ERROR) << "Failed to create list of image classes from '" << image_classes_filename <<
           "': " << error_msg;
       return EXIT_FAILURE;
     }
+  } else if (image) {
+    image_classes.reset(new CompilerDriver::DescriptorSet);
   }
 
   std::vector<const DexFile*> dex_files;

@@ -377,8 +377,10 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
   compiler_->Init();
 
   CHECK(!Runtime::Current()->IsStarted());
-  if (!image_) {
-    CHECK(image_classes_.get() == NULL);
+  if (image_) {
+    CHECK(image_classes_.get() != nullptr);
+  } else {
+    CHECK(image_classes_.get() == nullptr);
   }
 
   // Are we generating CFI information?
@@ -591,7 +593,7 @@ void CompilerDriver::Resolve(jobject class_loader, const std::vector<const DexFi
                              ThreadPool* thread_pool, TimingLogger* timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
-    CHECK(dex_file != NULL);
+    CHECK(dex_file != nullptr);
     ResolveDexFile(class_loader, *dex_file, thread_pool, timings);
   }
 }
@@ -689,6 +691,7 @@ static bool RecordImageClassesVisitor(mirror::Class* klass, void* arg)
 // Make a list of descriptors for classes to include in the image
 void CompilerDriver::LoadImageClasses(TimingLogger* timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_) {
+  CHECK(timings != nullptr);
   if (!IsImage()) {
     return;
   }
@@ -698,6 +701,7 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings)
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  CHECK(image_classes_.get() != nullptr);
   for (auto it = image_classes_->begin(), end = image_classes_->end(); it != end;) {
     const std::string& descriptor(*it);
     SirtRef<mirror::Class> klass(self, class_linker->FindSystemClass(self, descriptor.c_str()));
