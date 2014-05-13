@@ -29,7 +29,7 @@
 namespace art {
 namespace mirror {
 
-// TODO: get global references for these
+// TODO: Get global references for these
 Class* ArtField::java_lang_reflect_ArtField_ = NULL;
 
 ArtField* ArtField::FromReflectedField(const ScopedObjectAccess& soa, jobject jlr_field) {

@@ -106,7 +106,7 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_pre
 
 void MarkSweep::InitializePhase() {
   TimingLogger::ScopedSplit split("InitializePhase", &timings_);
-  mark_stack_ = heap_->mark_stack_.get();
+  mark_stack_ = heap_->GetMarkStack();
   DCHECK(mark_stack_ != nullptr);
   immune_region_.Reset();
   class_count_ = 0;
@@ -123,7 +123,7 @@ void MarkSweep::InitializePhase() {
   mark_fastpath_count_ = 0;
   mark_slowpath_count_ = 0;
   {
-    // TODO: I don't think we should need heap bitmap lock to get the mark bitmap.
+    // TODO: I don't think we should need heap bitmap lock to Get the mark bitmap.
     ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
     mark_bitmap_ = heap_->GetMarkBitmap();
   }

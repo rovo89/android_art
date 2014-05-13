@@ -827,8 +827,8 @@ void MipsAssembler::MemoryBarrier(ManagedRegister) {
   UNIMPLEMENTED(FATAL) << "no mips implementation";
 }
 
-void MipsAssembler::CreateSirtEntry(ManagedRegister mout_reg,
-                                    FrameOffset sirt_offset,
+void MipsAssembler::CreateHandleScopeEntry(ManagedRegister mout_reg,
+                                    FrameOffset handle_scope_offset,
                                     ManagedRegister min_reg, bool null_allowed) {
   MipsManagedRegister out_reg = mout_reg.AsMips();
   MipsManagedRegister in_reg = min_reg.AsMips();
@@ -836,27 +836,27 @@ void MipsAssembler::CreateSirtEntry(ManagedRegister mout_reg,
   CHECK(out_reg.IsCoreRegister()) << out_reg;
   if (null_allowed) {
     Label null_arg;
-    // Null values get a SIRT entry value of 0.  Otherwise, the SIRT entry is
-    // the address in the SIRT holding the reference.
+    // Null values get a handle scope entry value of 0.  Otherwise, the handle scope entry is
+    // the address in the handle scope holding the reference.
     // e.g. out_reg = (handle == 0) ? 0 : (SP+handle_offset)
     if (in_reg.IsNoRegister()) {
       LoadFromOffset(kLoadWord, out_reg.AsCoreRegister(),
-                     SP, sirt_offset.Int32Value());
+                     SP, handle_scope_offset.Int32Value());
       in_reg = out_reg;
     }
     if (!out_reg.Equals(in_reg)) {
       LoadImmediate(out_reg.AsCoreRegister(), 0);
     }
     EmitBranch(in_reg.AsCoreRegister(), ZERO, &null_arg, true);
-    AddConstant(out_reg.AsCoreRegister(), SP, sirt_offset.Int32Value());
+    AddConstant(out_reg.AsCoreRegister(), SP, handle_scope_offset.Int32Value());
     Bind(&null_arg, false);
   } else {
-    AddConstant(out_reg.AsCoreRegister(), SP, sirt_offset.Int32Value());
+    AddConstant(out_reg.AsCoreRegister(), SP, handle_scope_offset.Int32Value());
   }
 }
 
-void MipsAssembler::CreateSirtEntry(FrameOffset out_off,
-                                    FrameOffset sirt_offset,
+void MipsAssembler::CreateHandleScopeEntry(FrameOffset out_off,
+                                    FrameOffset handle_scope_offset,
                                     ManagedRegister mscratch,
                                     bool null_allowed) {
   MipsManagedRegister scratch = mscratch.AsMips();
@@ -864,21 +864,21 @@ void MipsAssembler::CreateSirtEntry(FrameOffset out_off,
   if (null_allowed) {
     Label null_arg;
     LoadFromOffset(kLoadWord, scratch.AsCoreRegister(), SP,
-                   sirt_offset.Int32Value());
-    // Null values get a SIRT entry value of 0.  Otherwise, the sirt entry is
-    // the address in the SIRT holding the reference.
-    // e.g. scratch = (scratch == 0) ? 0 : (SP+sirt_offset)
+                   handle_scope_offset.Int32Value());
+    // Null values get a handle scope entry value of 0.  Otherwise, the handle scope entry is
+    // the address in the handle scope holding the reference.
+    // e.g. scratch = (scratch == 0) ? 0 : (SP+handle_scope_offset)
     EmitBranch(scratch.AsCoreRegister(), ZERO, &null_arg, true);
-    AddConstant(scratch.AsCoreRegister(), SP, sirt_offset.Int32Value());
+    AddConstant(scratch.AsCoreRegister(), SP, handle_scope_offset.Int32Value());
     Bind(&null_arg, false);
   } else {
-    AddConstant(scratch.AsCoreRegister(), SP, sirt_offset.Int32Value());
+    AddConstant(scratch.AsCoreRegister(), SP, handle_scope_offset.Int32Value());
   }
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, out_off.Int32Value());
 }
 
-// Given a SIRT entry, load the associated reference.
-void MipsAssembler::LoadReferenceFromSirt(ManagedRegister mout_reg,
+// Given a handle scope entry, load the associated reference.
+void MipsAssembler::LoadReferenceFromHandleScope(ManagedRegister mout_reg,
                                           ManagedRegister min_reg) {
   MipsManagedRegister out_reg = mout_reg.AsMips();
   MipsManagedRegister in_reg = min_reg.AsMips();

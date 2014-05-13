@@ -49,7 +49,7 @@
 #include "mirror/throwable.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
-#include "sirt_ref-inl.h"
+#include "handle_scope-inl.h"
 #include "thread.h"
 #include "thread_pool.h"
 #include "trampolines/trampoline_compiler.h"
@@ -509,7 +509,7 @@ void CompilerDriver::CompileAll(jobject class_loader,
 }
 
 static DexToDexCompilationLevel GetDexToDexCompilationlevel(
-    Thread* self, SirtRef<mirror::ClassLoader>& class_loader, const DexFile& dex_file,
+    Thread* self, Handle<mirror::ClassLoader>& class_loader, const DexFile& dex_file,
     const DexFile::ClassDef& class_def) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const char* descriptor = dex_file.GetClassDescriptor(class_def);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -524,7 +524,7 @@ static DexToDexCompilationLevel GetDexToDexCompilationlevel(
   // function). Since image classes can be verified again while compiling an application,
   // we must prevent the DEX-to-DEX compiler from introducing them.
   // TODO: find a way to enable "quick" instructions for image classes and remove this check.
-  bool compiling_image_classes = class_loader.get() == nullptr;
+  bool compiling_image_classes = class_loader.Get() == nullptr;
   if (compiling_image_classes) {
     return kRequired;
   } else if (klass->IsVerified()) {
@@ -574,8 +574,9 @@ void CompilerDriver::CompileOne(mirror::ArtMethod* method, TimingLogger* timings
   {
     ScopedObjectAccess soa(Thread::Current());
     const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_idx);
-    SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
-                                              soa.Decode<mirror::ClassLoader*>(jclass_loader));
+    StackHandleScope<1> hs(soa.Self());
+    Handle<mirror::ClassLoader> class_loader(
+        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
     dex_to_dex_compilation_level = GetDexToDexCompilationlevel(self, class_loader, *dex_file,
                                                                class_def);
   }
@@ -700,8 +701,10 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings)
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   for (auto it = image_classes_->begin(), end = image_classes_->end(); it != end;) {
     const std::string& descriptor(*it);
-    SirtRef<mirror::Class> klass(self, class_linker->FindSystemClass(self, descriptor.c_str()));
-    if (klass.get() == NULL) {
+    StackHandleScope<1> hs(self);
+    Handle<mirror::Class> klass(
+        hs.NewHandle(class_linker->FindSystemClass(self, descriptor.c_str())));
+    if (klass.Get() == NULL) {
       VLOG(compiler) << "Failed to find class " << descriptor;
       image_classes_->erase(it++);
       self->ClearException();
@@ -714,8 +717,9 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings)
   // exceptions are resolved by the verifier when there is a catch block in an interested method.
   // Do this here so that exception classes appear to have been specified image classes.
   std::set<std::pair<uint16_t, const DexFile*> > unresolved_exception_types;
-  SirtRef<mirror::Class> java_lang_Throwable(self,
-                                     class_linker->FindSystemClass(self, "Ljava/lang/Throwable;"));
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Class> java_lang_Throwable(
+      hs.NewHandle(class_linker->FindSystemClass(self, "Ljava/lang/Throwable;")));
   do {
     unresolved_exception_types.clear();
     class_linker->VisitClasses(ResolveCatchBlockExceptionsClassVisitor,
@@ -723,16 +727,17 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings)
     for (const std::pair<uint16_t, const DexFile*>& exception_type : unresolved_exception_types) {
       uint16_t exception_type_idx = exception_type.first;
       const DexFile* dex_file = exception_type.second;
-      SirtRef<mirror::DexCache> dex_cache(self, class_linker->FindDexCache(*dex_file));
-      SirtRef<mirror::ClassLoader> class_loader(self, nullptr);
-      SirtRef<mirror::Class> klass(self, class_linker->ResolveType(*dex_file, exception_type_idx,
-                                                                   dex_cache, class_loader));
-      if (klass.get() == NULL) {
+      StackHandleScope<3> hs(self);
+      Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(*dex_file)));
+      auto class_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
+      Handle<mirror::Class> klass(hs.NewHandle(
+          class_linker->ResolveType(*dex_file, exception_type_idx, dex_cache, class_loader)));
+      if (klass.Get() == NULL) {
         const DexFile::TypeId& type_id = dex_file->GetTypeId(exception_type_idx);
         const char* descriptor = dex_file->GetTypeDescriptor(type_id);
         LOG(FATAL) << "Failed to resolve class " << descriptor;
       }
-      DCHECK(java_lang_Throwable->IsAssignableFrom(klass.get()));
+      DCHECK(java_lang_Throwable->IsAssignableFrom(klass.Get()));
     }
     // Resolving exceptions may load classes that reference more exceptions, iterate until no
     // more are found
@@ -816,7 +821,9 @@ bool CompilerDriver::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
   if (IsImage()) {
     // We resolve all const-string strings when building for the image.
     ScopedObjectAccess soa(Thread::Current());
-    SirtRef<mirror::DexCache> dex_cache(soa.Self(), Runtime::Current()->GetClassLinker()->FindDexCache(dex_file));
+    StackHandleScope<1> hs(soa.Self());
+    Handle<mirror::DexCache> dex_cache(
+        hs.NewHandle(Runtime::Current()->GetClassLinker()->FindDexCache(dex_file)));
     Runtime::Current()->GetClassLinker()->ResolveString(dex_file, string_idx, dex_cache);
     result = true;
   }
@@ -980,16 +987,17 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
   mirror::Class* referrer_class;
   mirror::DexCache* dex_cache;
   {
-    SirtRef<mirror::DexCache> dex_cache_sirt(soa.Self(),
-        mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
-    SirtRef<mirror::ClassLoader> class_loader_sirt(soa.Self(),
-        soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
-    SirtRef<mirror::ArtField> resolved_field_sirt(soa.Self(),
-        ResolveField(soa, dex_cache_sirt, class_loader_sirt, mUnit, field_idx, false));
-    referrer_class = (resolved_field_sirt.get() != nullptr)
-        ? ResolveCompilingMethodsClass(soa, dex_cache_sirt, class_loader_sirt, mUnit) : nullptr;
-    resolved_field = resolved_field_sirt.get();
-    dex_cache = dex_cache_sirt.get();
+    StackHandleScope<3> hs(soa.Self());
+    Handle<mirror::DexCache> dex_cache_handle(
+        hs.NewHandle(mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile())));
+    Handle<mirror::ClassLoader> class_loader_handle(
+        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader())));
+    Handle<mirror::ArtField> resolved_field_handle(hs.NewHandle(
+        ResolveField(soa, dex_cache_handle, class_loader_handle, mUnit, field_idx, false)));
+    referrer_class = (resolved_field_handle.Get() != nullptr)
+        ? ResolveCompilingMethodsClass(soa, dex_cache_handle, class_loader_handle, mUnit) : nullptr;
+    resolved_field = resolved_field_handle.Get();
+    dex_cache = dex_cache_handle.Get();
   }
   bool result = false;
   if (resolved_field != nullptr && referrer_class != nullptr) {
@@ -1017,16 +1025,17 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
   mirror::Class* referrer_class;
   mirror::DexCache* dex_cache;
   {
-    SirtRef<mirror::DexCache> dex_cache_sirt(soa.Self(),
-        mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
-    SirtRef<mirror::ClassLoader> class_loader_sirt(soa.Self(),
-        soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
-    SirtRef<mirror::ArtField> resolved_field_sirt(soa.Self(),
-        ResolveField(soa, dex_cache_sirt, class_loader_sirt, mUnit, field_idx, true));
-    referrer_class = (resolved_field_sirt.get() != nullptr)
-        ? ResolveCompilingMethodsClass(soa, dex_cache_sirt, class_loader_sirt, mUnit) : nullptr;
-    resolved_field = resolved_field_sirt.get();
-    dex_cache = dex_cache_sirt.get();
+    StackHandleScope<3> hs(soa.Self());
+    Handle<mirror::DexCache> dex_cache_handle(
+        hs.NewHandle(mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile())));
+    Handle<mirror::ClassLoader> class_loader_handle(
+        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader())));
+    Handle<mirror::ArtField> resolved_field_handle(hs.NewHandle(
+        ResolveField(soa, dex_cache_handle, class_loader_handle, mUnit, field_idx, true)));
+    referrer_class = (resolved_field_handle.Get() != nullptr)
+        ? ResolveCompilingMethodsClass(soa, dex_cache_handle, class_loader_handle, mUnit) : nullptr;
+    resolved_field = resolved_field_handle.Get();
+    dex_cache = dex_cache_handle.Get();
   }
   bool result = false;
   if (resolved_field != nullptr && referrer_class != nullptr) {
@@ -1168,17 +1177,18 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
   // Try to resolve the method and compiling method's class.
   mirror::ArtMethod* resolved_method;
   mirror::Class* referrer_class;
-  SirtRef<mirror::DexCache> dex_cache(soa.Self(),
-      mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
-  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
-      soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
+  StackHandleScope<3> hs(soa.Self());
+  Handle<mirror::DexCache> dex_cache(
+      hs.NewHandle(mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile())));
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
+      soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader())));
   {
     uint32_t method_idx = target_method->dex_method_index;
-    SirtRef<mirror::ArtMethod> resolved_method_sirt(soa.Self(),
-        ResolveMethod(soa, dex_cache, class_loader, mUnit, method_idx, orig_invoke_type));
-    referrer_class = (resolved_method_sirt.get() != nullptr)
+    Handle<mirror::ArtMethod> resolved_method_handle(hs.NewHandle(
+        ResolveMethod(soa, dex_cache, class_loader, mUnit, method_idx, orig_invoke_type)));
+    referrer_class = (resolved_method_handle.Get() != nullptr)
         ? ResolveCompilingMethodsClass(soa, dex_cache, class_loader, mUnit) : nullptr;
-    resolved_method = resolved_method_sirt.get();
+    resolved_method = resolved_method_handle.Get();
   }
   bool result = false;
   if (resolved_method != nullptr) {
@@ -1196,7 +1206,7 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
       // Devirtualization not enabled. Inline IsFastInvoke(), dropping the devirtualization parts.
       if (UNLIKELY(referrer_class == nullptr) ||
           UNLIKELY(!referrer_class->CanAccessResolvedMethod(resolved_method->GetDeclaringClass(),
-                                                            resolved_method, dex_cache.get(),
+                                                            resolved_method, dex_cache.Get(),
                                                             target_method->dex_method_index)) ||
           *invoke_type == kSuper) {
         // Slow path. (Without devirtualization, all super calls go slow path as well.)
@@ -1469,8 +1479,10 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
   if (!SkipClass(class_linker, jclass_loader, dex_file, class_def)) {
     ScopedObjectAccess soa(self);
-    SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(jclass_loader));
-    SirtRef<mirror::DexCache> dex_cache(soa.Self(), class_linker->FindDexCache(dex_file));
+    StackHandleScope<2> hs(soa.Self());
+    Handle<mirror::ClassLoader> class_loader(
+        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(dex_file)));
     // Resolve the class.
     mirror::Class* klass = class_linker->ResolveType(dex_file, class_def.class_idx_, dex_cache,
                                                      class_loader);
@@ -1556,9 +1568,10 @@ static void ResolveType(const ParallelCompilationManager* manager, size_t type_i
   ScopedObjectAccess soa(Thread::Current());
   ClassLinker* class_linker = manager->GetClassLinker();
   const DexFile& dex_file = *manager->GetDexFile();
-  SirtRef<mirror::DexCache> dex_cache(soa.Self(), class_linker->FindDexCache(dex_file));
-  SirtRef<mirror::ClassLoader> class_loader(
-      soa.Self(), soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader()));
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(dex_file)));
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader())));
   mirror::Class* klass = class_linker->ResolveType(dex_file, type_idx, dex_cache, class_loader);
 
   if (klass == NULL) {
@@ -1611,11 +1624,12 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
   const char* descriptor = dex_file.GetClassDescriptor(class_def);
   ClassLinker* class_linker = manager->GetClassLinker();
   jobject jclass_loader = manager->GetClassLoader();
-  SirtRef<mirror::ClassLoader> class_loader(
-      soa.Self(), soa.Decode<mirror::ClassLoader*>(jclass_loader));
-  SirtRef<mirror::Class> klass(soa.Self(), class_linker->FindClass(soa.Self(), descriptor,
-                                                                   class_loader));
-  if (klass.get() == nullptr) {
+  StackHandleScope<3> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+  Handle<mirror::Class> klass(
+      hs.NewHandle(class_linker->FindClass(soa.Self(), descriptor, class_loader)));
+  if (klass.Get() == nullptr) {
     CHECK(soa.Self()->IsExceptionPending());
     soa.Self()->ClearException();
 
@@ -1624,7 +1638,7 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
      * This is to ensure the class is structurally sound for compilation. An unsound class
      * will be rejected by the verifier and later skipped during compilation in the compiler.
      */
-    SirtRef<mirror::DexCache> dex_cache(soa.Self(), class_linker->FindDexCache(dex_file));
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(dex_file)));
     std::string error_msg;
     if (verifier::MethodVerifier::VerifyClass(&dex_file, dex_cache, class_loader, &class_def, true,
                                               &error_msg) ==
@@ -1632,8 +1646,8 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
       LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(descriptor)
                  << " because: " << error_msg;
     }
-  } else if (!SkipClass(jclass_loader, dex_file, klass.get())) {
-    CHECK(klass->IsResolved()) << PrettyClass(klass.get());
+  } else if (!SkipClass(jclass_loader, dex_file, klass.Get())) {
+    CHECK(klass->IsResolved()) << PrettyClass(klass.Get());
     class_linker->VerifyClass(klass);
 
     if (klass->IsErroneous()) {
@@ -1643,7 +1657,7 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
     }
 
     CHECK(klass->IsCompileTimeVerified() || klass->IsErroneous())
-        << PrettyDescriptor(klass.get()) << ": state=" << klass->GetStatus();
+        << PrettyDescriptor(klass.Get()) << ": state=" << klass->GetStatus();
   }
   soa.Self()->AssertNoPendingException();
 }
@@ -1666,13 +1680,13 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
   const char* descriptor = dex_file.StringDataByIdx(class_type_id.descriptor_idx_);
 
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
-                                            soa.Decode<mirror::ClassLoader*>(jclass_loader));
-  SirtRef<mirror::Class> klass(soa.Self(),
-                               manager->GetClassLinker()->FindClass(soa.Self(), descriptor,
-                                                                    class_loader));
+  StackHandleScope<3> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+  Handle<mirror::Class> klass(
+      hs.NewHandle(manager->GetClassLinker()->FindClass(soa.Self(), descriptor, class_loader)));
 
-  if (klass.get() != nullptr && !SkipClass(jclass_loader, dex_file, klass.get())) {
+  if (klass.Get() != nullptr && !SkipClass(jclass_loader, dex_file, klass.Get())) {
     // Only try to initialize classes that were successfully verified.
     if (klass->IsVerified()) {
       // Attempt to initialize the class but bail if we either need to initialize the super-class
@@ -1687,8 +1701,8 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
         // parent-to-child and a child-to-parent lock ordering and consequent potential deadlock.
         // We need to use an ObjectLock due to potential suspension in the interpreting code. Rather
         // than use a special Object for the purpose we use the Class of java.lang.Class.
-        SirtRef<mirror::Class> sirt_klass(soa.Self(), klass->GetClass());
-        ObjectLock<mirror::Class> lock(soa.Self(), &sirt_klass);
+        Handle<mirror::Class> h_klass(hs.NewHandle(klass->GetClass()));
+        ObjectLock<mirror::Class> lock(soa.Self(), &h_klass);
         // Attempt to initialize allowing initialization of parent classes but still not static
         // fields.
         manager->GetClassLinker()->EnsureInitialized(klass, false, true);
@@ -1803,8 +1817,9 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
   DexToDexCompilationLevel dex_to_dex_compilation_level = kDontDexToDexCompile;
   {
     ScopedObjectAccess soa(Thread::Current());
-    SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
-                                              soa.Decode<mirror::ClassLoader*>(jclass_loader));
+    StackHandleScope<1> hs(soa.Self());
+    Handle<mirror::ClassLoader> class_loader(
+        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
     dex_to_dex_compilation_level = GetDexToDexCompilationlevel(soa.Self(), class_loader, dex_file,
                                                                class_def);
   }

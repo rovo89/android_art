@@ -489,8 +489,9 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
 
     if (method->IsStatic() && !method->GetDeclaringClass()->IsInitializing()) {
       // Ensure static method's class is initialized.
-      SirtRef<mirror::Class> sirt_c(self, method->GetDeclaringClass());
-      if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(sirt_c, true, true)) {
+      StackHandleScope<1> hs(self);
+      Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
+      if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_class, true, true)) {
         DCHECK(Thread::Current()->IsExceptionPending()) << PrettyMethod(method);
         self->PopManagedStackFragment(fragment);
         return 0;
@@ -755,9 +756,10 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
   bool virtual_or_interface = invoke_type == kVirtual || invoke_type == kInterface;
   // Resolve method filling in dex cache.
   if (called->IsRuntimeMethod()) {
-    SirtRef<mirror::Object> sirt_receiver(soa.Self(), virtual_or_interface ? receiver : nullptr);
+    StackHandleScope<1> hs(self);
+    Handle<mirror::Object> handle_scope_receiver(hs.NewHandle(virtual_or_interface ? receiver : nullptr));
     called = linker->ResolveMethod(dex_method_idx, caller, invoke_type);
-    receiver = sirt_receiver.get();
+    receiver = handle_scope_receiver.Get();
   }
   const void* code = NULL;
   if (LIKELY(!self->IsExceptionPending())) {
@@ -796,7 +798,8 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
       }
     }
     // Ensure that the called method's class is initialized.
-    SirtRef<mirror::Class> called_class(soa.Self(), called->GetDeclaringClass());
+    StackHandleScope<1> hs(soa.Self());
+    Handle<mirror::Class> called_class(hs.NewHandle(called->GetDeclaringClass()));
     linker->EnsureInitialized(called_class, true, true);
     if (LIKELY(called_class->IsInitialized())) {
       code = called->GetEntryPointFromQuickCompiledCode();
@@ -857,10 +860,10 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
  *
  * void PushStack(uintptr_t): Push a value to the stack.
  *
- * uintptr_t PushSirt(mirror::Object* ref): Add a reference to the Sirt. This _will_ have nullptr,
+ * uintptr_t PushHandleScope(mirror::Object* ref): Add a reference to the HandleScope. This _will_ have nullptr,
  *                                          as this might be important for null initialization.
  *                                          Must return the jobject, that is, the reference to the
- *                                          entry in the Sirt (nullptr if necessary).
+ *                                          entry in the HandleScope (nullptr if necessary).
  *
  */
 template <class T> class BuildGenericJniFrameStateMachine {
@@ -956,18 +959,18 @@ template <class T> class BuildGenericJniFrameStateMachine {
   }
 
 
-  bool HaveSirtGpr() {
+  bool HaveHandleScopeGpr() {
     return gpr_index_ > 0;
   }
 
-  void AdvanceSirt(mirror::Object* ptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    uintptr_t sirtRef = PushSirt(ptr);
-    if (HaveSirtGpr()) {
+  void AdvanceHandleScope(mirror::Object* ptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    uintptr_t handle = PushHandle(ptr);
+    if (HaveHandleScopeGpr()) {
       gpr_index_--;
-      PushGpr(sirtRef);
+      PushGpr(handle);
     } else {
       stack_entries_++;
-      PushStack(sirtRef);
+      PushStack(handle);
       gpr_index_ = 0;
     }
   }
@@ -1147,8 +1150,8 @@ template <class T> class BuildGenericJniFrameStateMachine {
   void PushStack(uintptr_t val) {
     delegate_->PushStack(val);
   }
-  uintptr_t PushSirt(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return delegate_->PushSirt(ref);
+  uintptr_t PushHandle(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return delegate_->PushHandle(ref);
   }
 
   uint32_t gpr_index_;      // Number of free GPRs
@@ -1160,7 +1163,7 @@ template <class T> class BuildGenericJniFrameStateMachine {
 
 class ComputeGenericJniFrameSize FINAL {
  public:
-  ComputeGenericJniFrameSize() : num_sirt_references_(0), num_stack_entries_(0) {}
+  ComputeGenericJniFrameSize() : num_handle_scope_references_(0), num_stack_entries_(0) {}
 
   uint32_t GetStackSize() {
     return num_stack_entries_ * sizeof(uintptr_t);
@@ -1168,7 +1171,7 @@ class ComputeGenericJniFrameSize FINAL {
 
   // WARNING: After this, *sp won't be pointing to the method anymore!
   void ComputeLayout(mirror::ArtMethod*** m, bool is_static, const char* shorty, uint32_t shorty_len,
-                     void* sp, StackIndirectReferenceTable** table, uint32_t* sirt_entries,
+                     void* sp, HandleScope** table, uint32_t* handle_scope_entries,
                      uintptr_t** start_stack, uintptr_t** start_gpr, uint32_t** start_fpr,
                      void** code_return, size_t* overall_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -1179,17 +1182,17 @@ class ComputeGenericJniFrameSize FINAL {
     uint8_t* sp8 = reinterpret_cast<uint8_t*>(sp);
 
     // First, fix up the layout of the callee-save frame.
-    // We have to squeeze in the Sirt, and relocate the method pointer.
+    // We have to squeeze in the HandleScope, and relocate the method pointer.
 
     // "Free" the slot for the method.
     sp8 += kPointerSize;
 
-    // Add the Sirt.
-    *sirt_entries = num_sirt_references_;
-    size_t sirt_size = StackIndirectReferenceTable::GetAlignedSirtSize(num_sirt_references_);
-    sp8 -= sirt_size;
-    *table = reinterpret_cast<StackIndirectReferenceTable*>(sp8);
-    (*table)->SetNumberOfReferences(num_sirt_references_);
+    // Add the HandleScope.
+    *handle_scope_entries = num_handle_scope_references_;
+    size_t handle_scope_size = HandleScope::GetAlignedHandleScopeSize(num_handle_scope_references_);
+    sp8 -= handle_scope_size;
+    *table = reinterpret_cast<HandleScope*>(sp8);
+    (*table)->SetNumberOfReferences(num_handle_scope_references_);
 
     // Add a slot for the method pointer, and fill it. Fix the pointer-pointer given to us.
     sp8 -= kPointerSize;
@@ -1199,8 +1202,8 @@ class ComputeGenericJniFrameSize FINAL {
 
     // Reference cookie and padding
     sp8 -= 8;
-    // Store Sirt size
-    *reinterpret_cast<uint32_t*>(sp8) = static_cast<uint32_t>(sirt_size & 0xFFFFFFFF);
+    // Store HandleScope size
+    *reinterpret_cast<uint32_t*>(sp8) = static_cast<uint32_t>(handle_scope_size & 0xFFFFFFFF);
 
     // Next comes the native call stack.
     sp8 -= GetStackSize();
@@ -1229,7 +1232,7 @@ class ComputeGenericJniFrameSize FINAL {
     *(reinterpret_cast<uint8_t**>(sp8)) = method_pointer;
   }
 
-  void ComputeSirtOffset() { }  // nothing to do, static right now
+  void ComputeHandleScopeOffset() { }  // nothing to do, static right now
 
   void ComputeAll(bool is_static, const char* shorty, uint32_t shorty_len)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -1239,13 +1242,13 @@ class ComputeGenericJniFrameSize FINAL {
     sm.AdvancePointer(nullptr);
 
     // Class object or this as first argument
-    sm.AdvanceSirt(reinterpret_cast<mirror::Object*>(0x12345678));
+    sm.AdvanceHandleScope(reinterpret_cast<mirror::Object*>(0x12345678));
 
     for (uint32_t i = 1; i < shorty_len; ++i) {
       Primitive::Type cur_type_ = Primitive::GetType(shorty[i]);
       switch (cur_type_) {
         case Primitive::kPrimNot:
-          sm.AdvanceSirt(reinterpret_cast<mirror::Object*>(0x12345678));
+          sm.AdvanceHandleScope(reinterpret_cast<mirror::Object*>(0x12345678));
           break;
 
         case Primitive::kPrimBoolean:
@@ -1288,13 +1291,13 @@ class ComputeGenericJniFrameSize FINAL {
     // counting is already done in the superclass
   }
 
-  uintptr_t PushSirt(mirror::Object* /* ptr */) {
-    num_sirt_references_++;
+  uintptr_t PushHandle(mirror::Object* /* ptr */) {
+    num_handle_scope_references_++;
     return reinterpret_cast<uintptr_t>(nullptr);
   }
 
  private:
-  uint32_t num_sirt_references_;
+  uint32_t num_handle_scope_references_;
   uint32_t num_stack_entries_;
 };
 
@@ -1306,26 +1309,26 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
                               uint32_t shorty_len, Thread* self) :
       QuickArgumentVisitor(*sp, is_static, shorty, shorty_len), sm_(this) {
     ComputeGenericJniFrameSize fsc;
-    fsc.ComputeLayout(sp, is_static, shorty, shorty_len, *sp, &sirt_, &sirt_expected_refs_,
+    fsc.ComputeLayout(sp, is_static, shorty, shorty_len, *sp, &handle_scope_, &handle_scope_expected_refs_,
                       &cur_stack_arg_, &cur_gpr_reg_, &cur_fpr_reg_, &code_return_,
                       &alloca_used_size_);
-    sirt_number_of_references_ = 0;
-    cur_sirt_entry_ = reinterpret_cast<StackReference<mirror::Object>*>(GetFirstSirtEntry());
+    handle_scope_number_of_references_ = 0;
+    cur_hs_entry_ = reinterpret_cast<StackReference<mirror::Object>*>(GetFirstHandleScopeEntry());
 
     // jni environment is always first argument
     sm_.AdvancePointer(self->GetJniEnv());
 
     if (is_static) {
-      sm_.AdvanceSirt((**sp)->GetDeclaringClass());
+      sm_.AdvanceHandleScope((**sp)->GetDeclaringClass());
     }
   }
 
   void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
 
-  void FinalizeSirt(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void FinalizeHandleScope(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  jobject GetFirstSirtEntry() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return reinterpret_cast<jobject>(sirt_->GetStackReference(0));
+  jobject GetFirstHandleScopeEntry() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return handle_scope_->GetHandle(0).ToJObject();
   }
 
   void PushGpr(uintptr_t val) {
@@ -1349,17 +1352,17 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
     cur_stack_arg_++;
   }
 
-  uintptr_t PushSirt(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  uintptr_t PushHandle(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uintptr_t tmp;
     if (ref == nullptr) {
-      *cur_sirt_entry_ = StackReference<mirror::Object>();
+      *cur_hs_entry_ = StackReference<mirror::Object>();
       tmp = reinterpret_cast<uintptr_t>(nullptr);
     } else {
-      *cur_sirt_entry_ = StackReference<mirror::Object>::FromMirrorPtr(ref);
-      tmp = reinterpret_cast<uintptr_t>(cur_sirt_entry_);
+      *cur_hs_entry_ = StackReference<mirror::Object>::FromMirrorPtr(ref);
+      tmp = reinterpret_cast<uintptr_t>(cur_hs_entry_);
     }
-    cur_sirt_entry_++;
-    sirt_number_of_references_++;
+    cur_hs_entry_++;
+    handle_scope_number_of_references_++;
     return tmp;
   }
 
@@ -1373,14 +1376,14 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
   }
 
  private:
-  uint32_t sirt_number_of_references_;
-  StackReference<mirror::Object>* cur_sirt_entry_;
-  StackIndirectReferenceTable* sirt_;
-  uint32_t sirt_expected_refs_;
+  uint32_t handle_scope_number_of_references_;
+  StackReference<mirror::Object>* cur_hs_entry_;
+  HandleScope* handle_scope_;
+  uint32_t handle_scope_expected_refs_;
   uintptr_t* cur_gpr_reg_;
   uint32_t* cur_fpr_reg_;
   uintptr_t* cur_stack_arg_;
-  // StackReference<mirror::Object>* top_of_sirt_;
+  // StackReference<mirror::Object>* top_of_handle_scope_;
   void* code_return_;
   size_t alloca_used_size_;
 
@@ -1416,7 +1419,7 @@ void BuildGenericJniFrameVisitor::Visit() {
     case Primitive::kPrimNot: {
       StackReference<mirror::Object>* stack_ref =
           reinterpret_cast<StackReference<mirror::Object>*>(GetParamAddress());
-      sm_.AdvanceSirt(stack_ref->AsMirrorPtr());
+      sm_.AdvanceHandleScope(stack_ref->AsMirrorPtr());
       break;
     }
     case Primitive::kPrimFloat:
@@ -1435,17 +1438,17 @@ void BuildGenericJniFrameVisitor::Visit() {
   }
 }
 
-void BuildGenericJniFrameVisitor::FinalizeSirt(Thread* self) {
+void BuildGenericJniFrameVisitor::FinalizeHandleScope(Thread* self) {
   // Initialize padding entries.
-  while (sirt_number_of_references_ < sirt_expected_refs_) {
-    *cur_sirt_entry_ = StackReference<mirror::Object>();
-    cur_sirt_entry_++;
-    sirt_number_of_references_++;
+  while (handle_scope_number_of_references_ < handle_scope_expected_refs_) {
+    *cur_hs_entry_ = StackReference<mirror::Object>();
+    cur_hs_entry_++;
+    handle_scope_number_of_references_++;
   }
-  sirt_->SetNumberOfReferences(sirt_expected_refs_);
-  DCHECK_NE(sirt_expected_refs_, 0U);
-  // Install Sirt.
-  self->PushSirt(sirt_);
+  handle_scope_->SetNumberOfReferences(handle_scope_expected_refs_);
+  DCHECK_NE(handle_scope_expected_refs_, 0U);
+  // Install HandleScope.
+  self->PushHandleScope(handle_scope_);
 }
 
 extern "C" void* artFindNativeMethod();
@@ -1468,11 +1471,11 @@ void artQuickGenericJniEndJNINonRef(Thread* self, uint32_t cookie, jobject lock)
 
 /*
  * Initializes an alloca region assumed to be directly below sp for a native call:
- * Create a Sirt and call stack and fill a mini stack with values to be pushed to registers.
+ * Create a HandleScope and call stack and fill a mini stack with values to be pushed to registers.
  * The final element on the stack is a pointer to the native code.
  *
  * On entry, the stack has a standard callee-save frame above sp, and an alloca below it.
- * We need to fix this, as the Sirt needs to go into the callee-save frame.
+ * We need to fix this, as the handle scope needs to go into the callee-save frame.
  *
  * The return of this function denotes:
  * 1) How many bytes of the alloca can be released, if the value is non-negative.
@@ -1489,7 +1492,7 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod*
   BuildGenericJniFrameVisitor visitor(&sp, called->IsStatic(), mh.GetShorty(), mh.GetShortyLength(),
                                       self);
   visitor.VisitArguments();
-  visitor.FinalizeSirt(self);
+  visitor.FinalizeHandleScope(self);
 
   // fix up managed-stack things in Thread
   self->SetTopOfStack(sp, 0);
@@ -1499,9 +1502,9 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod*
   // Start JNI, save the cookie.
   uint32_t cookie;
   if (called->IsSynchronized()) {
-    cookie = JniMethodStartSynchronized(visitor.GetFirstSirtEntry(), self);
+    cookie = JniMethodStartSynchronized(visitor.GetFirstHandleScopeEntry(), self);
     if (self->IsExceptionPending()) {
-      self->PopSirt();
+      self->PopHandleScope();
       // A negative value denotes an error.
       return -1;
     }
@@ -1527,7 +1530,7 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod*
       DCHECK(self->IsExceptionPending());    // There should be an exception pending now.
 
       // End JNI, as the assembly will move to deliver the exception.
-      jobject lock = called->IsSynchronized() ? visitor.GetFirstSirtEntry() : nullptr;
+      jobject lock = called->IsSynchronized() ? visitor.GetFirstHandleScopeEntry() : nullptr;
       if (mh.GetShorty()[0] == 'L') {
         artQuickGenericJniEndJNIRef(self, cookie, nullptr, lock);
       } else {
@@ -1549,7 +1552,7 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod*
 }
 
 /*
- * Is called after the native JNI code. Responsible for cleanup (SIRT, saved state) and
+ * Is called after the native JNI code. Responsible for cleanup (handle scope, saved state) and
  * unlocking.
  */
 extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, mirror::ArtMethod** sp,
@@ -1561,10 +1564,9 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, mirror::ArtMet
 
   jobject lock = nullptr;
   if (called->IsSynchronized()) {
-    StackIndirectReferenceTable* table =
-        reinterpret_cast<StackIndirectReferenceTable*>(
-            reinterpret_cast<uint8_t*>(sp) + kPointerSize);
-    lock = reinterpret_cast<jobject>(table->GetStackReference(0));
+    HandleScope* table = reinterpret_cast<HandleScope*>(
+        reinterpret_cast<uint8_t*>(sp) + kPointerSize);
+    lock = table->GetHandle(0).ToJObject();
   }
 
   MethodHelper mh(called);

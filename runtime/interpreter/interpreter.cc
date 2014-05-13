@@ -71,10 +71,10 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
   } else if (name == "int java.lang.String.fastIndexOf(int, int)") {
     result->SetI(receiver->AsString()->FastIndexOf(args[0], args[1]));
   } else if (name == "java.lang.Object java.lang.reflect.Array.createMultiArray(java.lang.Class, int[])") {
-    SirtRef<mirror::Class> sirt_class(self, reinterpret_cast<Object*>(args[0])->AsClass());
-    SirtRef<mirror::IntArray> sirt_dimensions(self,
-                                              reinterpret_cast<Object*>(args[1])->AsIntArray());
-    result->SetL(Array::CreateMultiArray(self, sirt_class, sirt_dimensions));
+    StackHandleScope<2> hs(self);
+    auto h_class(hs.NewHandle(reinterpret_cast<mirror::Class*>(args[0])->AsClass()));
+    auto h_dimensions(hs.NewHandle(reinterpret_cast<mirror::IntArray*>(args[1])->AsIntArray()));
+    result->SetL(Array::CreateMultiArray(self, h_class, h_dimensions));
   } else if (name == "java.lang.Object java.lang.Throwable.nativeFillInStackTrace()") {
     ScopedObjectAccessUnchecked soa(self);
     if (Runtime::Current()->IsActiveTransaction()) {
@@ -455,8 +455,9 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
   // Do this after populating the shadow frame in case EnsureInitialized causes a GC.
   if (method->IsStatic() && UNLIKELY(!method->GetDeclaringClass()->IsInitializing())) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    SirtRef<mirror::Class> sirt_c(self, method->GetDeclaringClass());
-    if (UNLIKELY(!class_linker->EnsureInitialized(sirt_c, true, true))) {
+    StackHandleScope<1> hs(self);
+    Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
+    if (UNLIKELY(!class_linker->EnsureInitialized(h_class, true, true))) {
       CHECK(self->IsExceptionPending());
       self->PopShadowFrame();
       return;
@@ -522,7 +523,8 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
   ArtMethod* method = shadow_frame->GetMethod();
   // Ensure static methods are initialized.
   if (method->IsStatic()) {
-    SirtRef<Class> declaringClass(self, method->GetDeclaringClass());
+    StackHandleScope<1> hs(self);
+    Handle<Class> declaringClass(hs.NewHandle(method->GetDeclaringClass()));
     if (UNLIKELY(!declaringClass->IsInitializing())) {
       if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaringClass, true,
                                                                             true))) {

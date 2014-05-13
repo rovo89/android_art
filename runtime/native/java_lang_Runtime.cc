@@ -19,12 +19,13 @@
 #include <unistd.h>
 
 #include "gc/heap.h"
+#include "handle_scope-inl.h"
 #include "jni_internal.h"
 #include "mirror/class_loader.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedUtfChars.h"
-#include "sirt_ref-inl.h"
+#include "verify_object-inl.h"
 
 namespace art {
 
@@ -65,8 +66,9 @@ static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, job
   std::string detail;
   {
     ScopedObjectAccess soa(env);
-    SirtRef<mirror::ClassLoader> classLoader(soa.Self(),
-                                             soa.Decode<mirror::ClassLoader*>(javaLoader));
+    StackHandleScope<1> hs(soa.Self());
+    Handle<mirror::ClassLoader> classLoader(
+        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(javaLoader)));
     JavaVMExt* vm = Runtime::Current()->GetJavaVM();
     bool success = vm->LoadNativeLibrary(filename.c_str(), classLoader, &detail);
     if (success) {

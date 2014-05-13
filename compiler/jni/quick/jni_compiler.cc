@@ -103,54 +103,54 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   const std::vector<ManagedRegister>& callee_save_regs = main_jni_conv->CalleeSaveRegisters();
   __ BuildFrame(frame_size, mr_conv->MethodRegister(), callee_save_regs, mr_conv->EntrySpills());
 
-  // 2. Set up the StackIndirectReferenceTable
+  // 2. Set up the HandleScope
   mr_conv->ResetIterator(FrameOffset(frame_size));
   main_jni_conv->ResetIterator(FrameOffset(0));
-  __ StoreImmediateToFrame(main_jni_conv->SirtNumRefsOffset(),
+  __ StoreImmediateToFrame(main_jni_conv->HandleScopeNumRefsOffset(),
                            main_jni_conv->ReferenceCount(),
                            mr_conv->InterproceduralScratchRegister());
 
   if (is_64_bit_target) {
-    __ CopyRawPtrFromThread64(main_jni_conv->SirtLinkOffset(),
-                            Thread::TopSirtOffset<8>(),
+    __ CopyRawPtrFromThread64(main_jni_conv->HandleScopeLinkOffset(),
+                            Thread::TopHandleScopeOffset<8>(),
                             mr_conv->InterproceduralScratchRegister());
-    __ StoreStackOffsetToThread64(Thread::TopSirtOffset<8>(),
-                                main_jni_conv->SirtOffset(),
+    __ StoreStackOffsetToThread64(Thread::TopHandleScopeOffset<8>(),
+                                main_jni_conv->HandleScopeOffset(),
                                 mr_conv->InterproceduralScratchRegister());
   } else {
-    __ CopyRawPtrFromThread32(main_jni_conv->SirtLinkOffset(),
-                            Thread::TopSirtOffset<4>(),
+    __ CopyRawPtrFromThread32(main_jni_conv->HandleScopeLinkOffset(),
+                            Thread::TopHandleScopeOffset<4>(),
                             mr_conv->InterproceduralScratchRegister());
-    __ StoreStackOffsetToThread32(Thread::TopSirtOffset<4>(),
-                                main_jni_conv->SirtOffset(),
+    __ StoreStackOffsetToThread32(Thread::TopHandleScopeOffset<4>(),
+                                main_jni_conv->HandleScopeOffset(),
                                 mr_conv->InterproceduralScratchRegister());
   }
 
-  // 3. Place incoming reference arguments into SIRT
+  // 3. Place incoming reference arguments into handle scope
   main_jni_conv->Next();  // Skip JNIEnv*
   // 3.5. Create Class argument for static methods out of passed method
   if (is_static) {
-    FrameOffset sirt_offset = main_jni_conv->CurrentParamSirtEntryOffset();
-    // Check sirt offset is within frame
-    CHECK_LT(sirt_offset.Uint32Value(), frame_size);
+    FrameOffset handle_scope_offset = main_jni_conv->CurrentParamHandleScopeEntryOffset();
+    // Check handle scope offset is within frame
+    CHECK_LT(handle_scope_offset.Uint32Value(), frame_size);
     __ LoadRef(main_jni_conv->InterproceduralScratchRegister(),
                mr_conv->MethodRegister(), mirror::ArtMethod::DeclaringClassOffset());
     __ VerifyObject(main_jni_conv->InterproceduralScratchRegister(), false);
-    __ StoreRef(sirt_offset, main_jni_conv->InterproceduralScratchRegister());
-    main_jni_conv->Next();  // in SIRT so move to next argument
+    __ StoreRef(handle_scope_offset, main_jni_conv->InterproceduralScratchRegister());
+    main_jni_conv->Next();  // in handle scope so move to next argument
   }
   while (mr_conv->HasNext()) {
     CHECK(main_jni_conv->HasNext());
     bool ref_param = main_jni_conv->IsCurrentParamAReference();
     CHECK(!ref_param || mr_conv->IsCurrentParamAReference());
-    // References need placing in SIRT and the entry value passing
+    // References need placing in handle scope and the entry value passing
     if (ref_param) {
-      // Compute SIRT entry, note null is placed in the SIRT but its boxed value
+      // Compute handle scope entry, note null is placed in the handle scope but its boxed value
       // must be NULL
-      FrameOffset sirt_offset = main_jni_conv->CurrentParamSirtEntryOffset();
-      // Check SIRT offset is within frame and doesn't run into the saved segment state
-      CHECK_LT(sirt_offset.Uint32Value(), frame_size);
-      CHECK_NE(sirt_offset.Uint32Value(),
+      FrameOffset handle_scope_offset = main_jni_conv->CurrentParamHandleScopeEntryOffset();
+      // Check handle scope offset is within frame and doesn't run into the saved segment state
+      CHECK_LT(handle_scope_offset.Uint32Value(), frame_size);
+      CHECK_NE(handle_scope_offset.Uint32Value(),
                main_jni_conv->SavedLocalReferenceCookieOffset().Uint32Value());
       bool input_in_reg = mr_conv->IsCurrentParamInRegister();
       bool input_on_stack = mr_conv->IsCurrentParamOnStack();
@@ -159,11 +159,11 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
       if (input_in_reg) {
         ManagedRegister in_reg  =  mr_conv->CurrentParamRegister();
         __ VerifyObject(in_reg, mr_conv->IsCurrentArgPossiblyNull());
-        __ StoreRef(sirt_offset, in_reg);
+        __ StoreRef(handle_scope_offset, in_reg);
       } else if (input_on_stack) {
         FrameOffset in_off  = mr_conv->CurrentParamStackOffset();
         __ VerifyObject(in_off, mr_conv->IsCurrentArgPossiblyNull());
-        __ CopyRef(sirt_offset, in_off,
+        __ CopyRef(handle_scope_offset, in_off,
                    mr_conv->InterproceduralScratchRegister());
       }
     }
@@ -197,20 +197,20 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   ThreadOffset<8> jni_start64 = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(8, pJniMethodStartSynchronized)
                                                 : QUICK_ENTRYPOINT_OFFSET(8, pJniMethodStart);
   main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
-  FrameOffset locked_object_sirt_offset(0);
+  FrameOffset locked_object_handle_scope_offset(0);
   if (is_synchronized) {
     // Pass object for locking.
     main_jni_conv->Next();  // Skip JNIEnv.
-    locked_object_sirt_offset = main_jni_conv->CurrentParamSirtEntryOffset();
+    locked_object_handle_scope_offset = main_jni_conv->CurrentParamHandleScopeEntryOffset();
     main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
     if (main_jni_conv->IsCurrentParamOnStack()) {
       FrameOffset out_off = main_jni_conv->CurrentParamStackOffset();
-      __ CreateSirtEntry(out_off, locked_object_sirt_offset,
+      __ CreateHandleScopeEntry(out_off, locked_object_handle_scope_offset,
                          mr_conv->InterproceduralScratchRegister(),
                          false);
     } else {
       ManagedRegister out_reg = main_jni_conv->CurrentParamRegister();
-      __ CreateSirtEntry(out_reg, locked_object_sirt_offset,
+      __ CreateHandleScopeEntry(out_reg, locked_object_handle_scope_offset,
                          ManagedRegister::NoRegister(), false);
     }
     main_jni_conv->Next();
@@ -274,15 +274,15 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
     mr_conv->ResetIterator(FrameOffset(frame_size+main_out_arg_size));
     main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
     main_jni_conv->Next();  // Skip JNIEnv*
-    FrameOffset sirt_offset = main_jni_conv->CurrentParamSirtEntryOffset();
+    FrameOffset handle_scope_offset = main_jni_conv->CurrentParamHandleScopeEntryOffset();
     if (main_jni_conv->IsCurrentParamOnStack()) {
       FrameOffset out_off = main_jni_conv->CurrentParamStackOffset();
-      __ CreateSirtEntry(out_off, sirt_offset,
+      __ CreateHandleScopeEntry(out_off, handle_scope_offset,
                          mr_conv->InterproceduralScratchRegister(),
                          false);
     } else {
       ManagedRegister out_reg = main_jni_conv->CurrentParamRegister();
-      __ CreateSirtEntry(out_reg, sirt_offset,
+      __ CreateHandleScopeEntry(out_reg, handle_scope_offset,
                          ManagedRegister::NoRegister(), false);
     }
   }
@@ -369,12 +369,12 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
     // Pass object for unlocking.
     if (end_jni_conv->IsCurrentParamOnStack()) {
       FrameOffset out_off = end_jni_conv->CurrentParamStackOffset();
-      __ CreateSirtEntry(out_off, locked_object_sirt_offset,
+      __ CreateHandleScopeEntry(out_off, locked_object_handle_scope_offset,
                          end_jni_conv->InterproceduralScratchRegister(),
                          false);
     } else {
       ManagedRegister out_reg = end_jni_conv->CurrentParamRegister();
-      __ CreateSirtEntry(out_reg, locked_object_sirt_offset,
+      __ CreateHandleScopeEntry(out_reg, locked_object_handle_scope_offset,
                          ManagedRegister::NoRegister(), false);
     }
     end_jni_conv->Next();
@@ -438,7 +438,7 @@ static void CopyParameter(Assembler* jni_asm,
                           size_t frame_size, size_t out_arg_size) {
   bool input_in_reg = mr_conv->IsCurrentParamInRegister();
   bool output_in_reg = jni_conv->IsCurrentParamInRegister();
-  FrameOffset sirt_offset(0);
+  FrameOffset handle_scope_offset(0);
   bool null_allowed = false;
   bool ref_param = jni_conv->IsCurrentParamAReference();
   CHECK(!ref_param || mr_conv->IsCurrentParamAReference());
@@ -449,21 +449,21 @@ static void CopyParameter(Assembler* jni_asm,
   } else {
     CHECK(jni_conv->IsCurrentParamOnStack());
   }
-  // References need placing in SIRT and the entry address passing
+  // References need placing in handle scope and the entry address passing
   if (ref_param) {
     null_allowed = mr_conv->IsCurrentArgPossiblyNull();
-    // Compute SIRT offset. Note null is placed in the SIRT but the jobject
-    // passed to the native code must be null (not a pointer into the SIRT
+    // Compute handle scope offset. Note null is placed in the handle scope but the jobject
+    // passed to the native code must be null (not a pointer into the handle scope
     // as with regular references).
-    sirt_offset = jni_conv->CurrentParamSirtEntryOffset();
-    // Check SIRT offset is within frame.
-    CHECK_LT(sirt_offset.Uint32Value(), (frame_size + out_arg_size));
+    handle_scope_offset = jni_conv->CurrentParamHandleScopeEntryOffset();
+    // Check handle scope offset is within frame.
+    CHECK_LT(handle_scope_offset.Uint32Value(), (frame_size + out_arg_size));
   }
   if (input_in_reg && output_in_reg) {
     ManagedRegister in_reg = mr_conv->CurrentParamRegister();
     ManagedRegister out_reg = jni_conv->CurrentParamRegister();
     if (ref_param) {
-      __ CreateSirtEntry(out_reg, sirt_offset, in_reg, null_allowed);
+      __ CreateHandleScopeEntry(out_reg, handle_scope_offset, in_reg, null_allowed);
     } else {
       if (!mr_conv->IsCurrentParamOnStack()) {
         // regular non-straddling move
@@ -475,7 +475,7 @@ static void CopyParameter(Assembler* jni_asm,
   } else if (!input_in_reg && !output_in_reg) {
     FrameOffset out_off = jni_conv->CurrentParamStackOffset();
     if (ref_param) {
-      __ CreateSirtEntry(out_off, sirt_offset, mr_conv->InterproceduralScratchRegister(),
+      __ CreateHandleScopeEntry(out_off, handle_scope_offset, mr_conv->InterproceduralScratchRegister(),
                          null_allowed);
     } else {
       FrameOffset in_off = mr_conv->CurrentParamStackOffset();
@@ -489,7 +489,7 @@ static void CopyParameter(Assembler* jni_asm,
     // Check that incoming stack arguments are above the current stack frame.
     CHECK_GT(in_off.Uint32Value(), frame_size);
     if (ref_param) {
-      __ CreateSirtEntry(out_reg, sirt_offset, ManagedRegister::NoRegister(), null_allowed);
+      __ CreateHandleScopeEntry(out_reg, handle_scope_offset, ManagedRegister::NoRegister(), null_allowed);
     } else {
       size_t param_size = mr_conv->CurrentParamSize();
       CHECK_EQ(param_size, jni_conv->CurrentParamSize());
@@ -502,8 +502,8 @@ static void CopyParameter(Assembler* jni_asm,
     // Check outgoing argument is within frame
     CHECK_LT(out_off.Uint32Value(), frame_size);
     if (ref_param) {
-      // TODO: recycle value in in_reg rather than reload from SIRT
-      __ CreateSirtEntry(out_off, sirt_offset, mr_conv->InterproceduralScratchRegister(),
+      // TODO: recycle value in in_reg rather than reload from handle scope
+      __ CreateHandleScopeEntry(out_off, handle_scope_offset, mr_conv->InterproceduralScratchRegister(),
                          null_allowed);
     } else {
       size_t param_size = mr_conv->CurrentParamSize();

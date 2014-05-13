@@ -87,10 +87,10 @@ class ReflectionTest : public CommonCompilerTest {
     const char* class_name = is_static ? "StaticLeafMethods" : "NonStaticLeafMethods";
     jobject jclass_loader(LoadDex(class_name));
     Thread* self = Thread::Current();
-    SirtRef<mirror::ClassLoader> null_class_loader(self, nullptr);
-    SirtRef<mirror::ClassLoader>
-        class_loader(self,
-                     ScopedObjectAccessUnchecked(self).Decode<mirror::ClassLoader*>(jclass_loader));
+    StackHandleScope<2> hs(self);
+    Handle<mirror::ClassLoader> class_loader(
+        hs.NewHandle(
+            ScopedObjectAccessUnchecked(self).Decode<mirror::ClassLoader*>(jclass_loader)));
     if (is_static) {
       MakeExecutable(ScopedObjectAccessUnchecked(self).Decode<mirror::ClassLoader*>(jclass_loader),
                      class_name);
@@ -485,8 +485,9 @@ TEST_F(ReflectionTest, StaticMainMethod) {
   TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("Main");
-  SirtRef<mirror::ClassLoader>
-      class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(jclass_loader));
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
   CompileDirectMethod(class_loader, "Main", "main", "([Ljava/lang/String;)V");
 
   mirror::Class* klass = class_linker_->FindClass(soa.Self(), "LMain;", class_loader);

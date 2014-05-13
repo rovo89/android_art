@@ -153,7 +153,7 @@ class OatFile {
       return type_;
     }
 
-    // get the OatMethod entry based on its index into the class
+    // Get the OatMethod entry based on its index into the class
     // defintion. direct methods come first, followed by virtual
     // methods. note that runtime created methods such as miranda
     // methods are not included.

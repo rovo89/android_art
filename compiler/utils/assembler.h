@@ -453,20 +453,20 @@ class Assembler {
   virtual void GetCurrentThread(FrameOffset dest_offset,
                                 ManagedRegister scratch) = 0;
 
-  // Set up out_reg to hold a Object** into the SIRT, or to be NULL if the
+  // Set up out_reg to hold a Object** into the handle scope, or to be NULL if the
   // value is null and null_allowed. in_reg holds a possibly stale reference
-  // that can be used to avoid loading the SIRT entry to see if the value is
+  // that can be used to avoid loading the handle scope entry to see if the value is
   // NULL.
-  virtual void CreateSirtEntry(ManagedRegister out_reg, FrameOffset sirt_offset,
+  virtual void CreateHandleScopeEntry(ManagedRegister out_reg, FrameOffset handlescope_offset,
                                ManagedRegister in_reg, bool null_allowed) = 0;
 
-  // Set up out_off to hold a Object** into the SIRT, or to be NULL if the
+  // Set up out_off to hold a Object** into the handle scope, or to be NULL if the
   // value is null and null_allowed.
-  virtual void CreateSirtEntry(FrameOffset out_off, FrameOffset sirt_offset,
+  virtual void CreateHandleScopeEntry(FrameOffset out_off, FrameOffset handlescope_offset,
                                ManagedRegister scratch, bool null_allowed) = 0;
 
-  // src holds a SIRT entry (Object**) load this into dst
-  virtual void LoadReferenceFromSirt(ManagedRegister dst,
+  // src holds a handle scope entry (Object**) load this into dst
+  virtual void LoadReferenceFromHandleScope(ManagedRegister dst,
                                      ManagedRegister src) = 0;
 
   // Heap::VerifyObject on src. In some cases (such as a reference to this) we

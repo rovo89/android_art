@@ -29,7 +29,7 @@
 #include "mirror/string.h"
 
 #include "runtime.h"
-#include "sirt_ref-inl.h"
+#include "handle_scope-inl.h"
 
 #include <string>
 
@@ -38,33 +38,33 @@ namespace art {
 template <typename T>
 class ObjectLock {
  public:
-  explicit ObjectLock(Thread* self, const SirtRef<T>* object)
+  explicit ObjectLock(Thread* self, const Handle<T>* object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : self_(self), obj_(object) {
     CHECK(object != nullptr);
-    CHECK(object->get() != nullptr);
-    obj_->get()->MonitorEnter(self_);
+    CHECK(object->Get() != nullptr);
+    obj_->Get()->MonitorEnter(self_);
   }
 
   ~ObjectLock() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    obj_->get()->MonitorExit(self_);
+    obj_->Get()->MonitorExit(self_);
   }
 
   void WaitIgnoringInterrupts() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Monitor::Wait(self_, obj_->get(), 0, 0, false, kWaiting);
+    Monitor::Wait(self_, obj_->Get(), 0, 0, false, kWaiting);
   }
 
   void Notify() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    obj_->get()->Notify(self_);
+    obj_->Get()->Notify(self_);
   }
 
   void NotifyAll() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    obj_->get()->NotifyAll(self_);
+    obj_->Get()->NotifyAll(self_);
   }
 
  private:
   Thread* const self_;
-  const SirtRef<T>* const obj_;
+  const Handle<T>* const obj_;
   DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
 
@@ -378,7 +378,8 @@ class MethodHelper {
     const DexFile& dex_file = GetDexFile();
     uint32_t dex_method_idx = method_->GetDexMethodIndex();
     const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
-    SirtRef<mirror::DexCache> dex_cache(Thread::Current(), GetDexCache());
+    StackHandleScope<1> hs(Thread::Current());
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(GetDexCache()));
     return GetClassLinker()->ResolveString(dex_file, method_id.name_idx_, dex_cache);
   }
 
@@ -607,7 +608,8 @@ class MethodHelper {
   mirror::String* ResolveString(uint32_t string_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::String* s = method_->GetDexCacheStrings()->Get(string_idx);
     if (UNLIKELY(s == nullptr)) {
-      SirtRef<mirror::DexCache> dex_cache(Thread::Current(), GetDexCache());
+      StackHandleScope<1> hs(Thread::Current());
+      Handle<mirror::DexCache> dex_cache(hs.NewHandle(GetDexCache()));
       s = GetClassLinker()->ResolveString(GetDexFile(), string_idx, dex_cache);
     }
     return s;

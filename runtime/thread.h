@@ -31,12 +31,12 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "gc/allocator/rosalloc.h"
 #include "globals.h"
+#include "handle_scope.h"
 #include "jvalue.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "runtime_stats.h"
 #include "stack.h"
-#include "stack_indirect_reference_table.h"
 #include "thread_state.h"
 #include "throw_location.h"
 #include "UniquePtr.h"
@@ -648,35 +648,40 @@ class Thread {
     return tlsPtr_.managed_stack.NumJniShadowFrameReferences();
   }
 
-  // Number of references in SIRTs on this thread.
-  size_t NumSirtReferences();
+  // Number of references in handle scope on this thread.
+  size_t NumHandleReferences();
 
-  // Number of references allocated in SIRTs & JNI shadow frames on this thread.
+  // Number of references allocated in handle scopes & JNI shadow frames on this thread.
   size_t NumStackReferences() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return NumSirtReferences() + NumJniShadowFrameReferences();
+    return NumHandleReferences() + NumJniShadowFrameReferences();
   };
 
   // Is the given obj in this thread's stack indirect reference table?
-  bool SirtContains(jobject obj) const;
+  bool HandleScopeContains(jobject obj) const;
 
-  void SirtVisitRoots(RootCallback* visitor, void* arg, uint32_t thread_id)
+  void HandleScopeVisitRoots(RootCallback* visitor, void* arg, uint32_t thread_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void PushSirt(StackIndirectReferenceTable* sirt) {
-    sirt->SetLink(tlsPtr_.top_sirt);
-    tlsPtr_.top_sirt = sirt;
+  HandleScope* GetTopHandleScope() {
+    return tlsPtr_.top_handle_scope;
   }
 
-  StackIndirectReferenceTable* PopSirt() {
-    StackIndirectReferenceTable* sirt = tlsPtr_.top_sirt;
-    DCHECK(sirt != NULL);
-    tlsPtr_.top_sirt = tlsPtr_.top_sirt->GetLink();
-    return sirt;
+  void PushHandleScope(HandleScope* handle_scope) {
+    handle_scope->SetLink(tlsPtr_.top_handle_scope);
+    tlsPtr_.top_handle_scope = handle_scope;
+  }
+
+  HandleScope* PopHandleScope() {
+    HandleScope* handle_scope = tlsPtr_.top_handle_scope;
+    DCHECK(handle_scope != nullptr);
+    tlsPtr_.top_handle_scope = tlsPtr_.top_handle_scope->GetLink();
+    return handle_scope;
   }
 
   template<size_t pointer_size>
-  static ThreadOffset<pointer_size> TopSirtOffset() {
-    return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values, top_sirt));
+  static ThreadOffset<pointer_size> TopHandleScopeOffset() {
+    return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values,
+                                                                top_handle_scope));
   }
 
   DebugInvokeReq* GetInvokeReq() const {
@@ -950,7 +955,7 @@ class Thread {
       managed_stack(), suspend_trigger(nullptr), jni_env(nullptr), self(nullptr), opeer(nullptr),
       jpeer(nullptr), stack_begin(nullptr), stack_size(0), throw_location(),
       stack_trace_sample(nullptr), wait_next(nullptr), monitor_enter_object(nullptr),
-      top_sirt(nullptr), class_loader_override(nullptr), long_jump_context(nullptr),
+      top_handle_scope(nullptr), class_loader_override(nullptr), long_jump_context(nullptr),
       instrumentation_stack(nullptr), debug_invoke_req(nullptr), single_step_control(nullptr),
       deoptimization_shadow_frame(nullptr), name(nullptr), pthread_self(0),
       last_no_thread_suspension_cause(nullptr), thread_local_start(nullptr),
@@ -1006,8 +1011,8 @@ class Thread {
     // If we're blocked in MonitorEnter, this is the object we're trying to lock.
     mirror::Object* monitor_enter_object;
 
-    // Top of linked list of stack indirect reference tables or NULL for none.
-    StackIndirectReferenceTable* top_sirt;
+    // Top of linked list of handle scopes or nullptr for none.
+    HandleScope* top_handle_scope;
 
     // Needed to get the right ClassLoader in JNI_OnLoad, but also
     // useful for testing.
