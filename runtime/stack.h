@@ -40,7 +40,7 @@ namespace mirror {
 
 class Context;
 class ShadowFrame;
-class StackIndirectReferenceTable;
+class HandleScope;
 class ScopedObjectAccess;
 class Thread;
 
@@ -677,10 +677,10 @@ class StackVisitor {
     return cur_shadow_frame_;
   }
 
-  StackIndirectReferenceTable* GetCurrentSirt() const {
+  HandleScope* GetCurrentHandleScope() const {
     mirror::ArtMethod** sp = GetCurrentQuickFrame();
-    ++sp;  // Skip Method*; SIRT comes next;
-    return reinterpret_cast<StackIndirectReferenceTable*>(sp);
+    ++sp;  // Skip Method*; handle scope comes next;
+    return reinterpret_cast<HandleScope*>(sp);
   }
 
   std::string DescribeLocation() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

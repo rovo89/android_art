@@ -539,52 +539,52 @@ void Arm64Assembler::CallFromThread64(ThreadOffset<8> /*offset*/, ManagedRegiste
   UNIMPLEMENTED(FATAL) << "Unimplemented Call() variant";
 }
 
-void Arm64Assembler::CreateSirtEntry(ManagedRegister m_out_reg, FrameOffset sirt_offs,
+void Arm64Assembler::CreateHandleScopeEntry(ManagedRegister m_out_reg, FrameOffset handle_scope_offs,
                                      ManagedRegister m_in_reg, bool null_allowed) {
   Arm64ManagedRegister out_reg = m_out_reg.AsArm64();
   Arm64ManagedRegister in_reg = m_in_reg.AsArm64();
-  // For now we only hold stale sirt entries in x registers.
+  // For now we only hold stale handle scope entries in x registers.
   CHECK(in_reg.IsNoRegister() || in_reg.IsCoreRegister()) << in_reg;
   CHECK(out_reg.IsCoreRegister()) << out_reg;
   if (null_allowed) {
-    // Null values get a SIRT entry value of 0.  Otherwise, the SIRT entry is
-    // the address in the SIRT holding the reference.
+    // Null values get a handle scope entry value of 0.  Otherwise, the handle scope entry is
+    // the address in the handle scope holding the reference.
     // e.g. out_reg = (handle == 0) ? 0 : (SP+handle_offset)
     if (in_reg.IsNoRegister()) {
       LoadWFromOffset(kLoadWord, out_reg.AsOverlappingCoreRegisterLow(), SP,
-                      sirt_offs.Int32Value());
+                      handle_scope_offs.Int32Value());
       in_reg = out_reg;
     }
     ___ Cmp(reg_w(in_reg.AsOverlappingCoreRegisterLow()), 0);
     if (!out_reg.Equals(in_reg)) {
       LoadImmediate(out_reg.AsCoreRegister(), 0, EQ);
     }
-    AddConstant(out_reg.AsCoreRegister(), SP, sirt_offs.Int32Value(), NE);
+    AddConstant(out_reg.AsCoreRegister(), SP, handle_scope_offs.Int32Value(), NE);
   } else {
-    AddConstant(out_reg.AsCoreRegister(), SP, sirt_offs.Int32Value(), AL);
+    AddConstant(out_reg.AsCoreRegister(), SP, handle_scope_offs.Int32Value(), AL);
   }
 }
 
-void Arm64Assembler::CreateSirtEntry(FrameOffset out_off, FrameOffset sirt_offset,
+void Arm64Assembler::CreateHandleScopeEntry(FrameOffset out_off, FrameOffset handle_scope_offset,
                                      ManagedRegister m_scratch, bool null_allowed) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   CHECK(scratch.IsCoreRegister()) << scratch;
   if (null_allowed) {
     LoadWFromOffset(kLoadWord, scratch.AsOverlappingCoreRegisterLow(), SP,
-                    sirt_offset.Int32Value());
-    // Null values get a SIRT entry value of 0.  Otherwise, the sirt entry is
-    // the address in the SIRT holding the reference.
-    // e.g. scratch = (scratch == 0) ? 0 : (SP+sirt_offset)
+                    handle_scope_offset.Int32Value());
+    // Null values get a handle scope entry value of 0.  Otherwise, the handle scope entry is
+    // the address in the handle scope holding the reference.
+    // e.g. scratch = (scratch == 0) ? 0 : (SP+handle_scope_offset)
     ___ Cmp(reg_w(scratch.AsOverlappingCoreRegisterLow()), 0);
     // Move this logic in add constants with flags.
-    AddConstant(scratch.AsCoreRegister(), SP, sirt_offset.Int32Value(), NE);
+    AddConstant(scratch.AsCoreRegister(), SP, handle_scope_offset.Int32Value(), NE);
   } else {
-    AddConstant(scratch.AsCoreRegister(), SP, sirt_offset.Int32Value(), AL);
+    AddConstant(scratch.AsCoreRegister(), SP, handle_scope_offset.Int32Value(), AL);
   }
   StoreToOffset(scratch.AsCoreRegister(), SP, out_off.Int32Value());
 }
 
-void Arm64Assembler::LoadReferenceFromSirt(ManagedRegister m_out_reg,
+void Arm64Assembler::LoadReferenceFromHandleScope(ManagedRegister m_out_reg,
                                            ManagedRegister m_in_reg) {
   Arm64ManagedRegister out_reg = m_out_reg.AsArm64();
   Arm64ManagedRegister in_reg = m_in_reg.AsArm64();

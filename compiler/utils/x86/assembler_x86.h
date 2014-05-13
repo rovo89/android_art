@@ -541,20 +541,20 @@ class X86Assembler FINAL : public Assembler {
   void GetCurrentThread(ManagedRegister tr) OVERRIDE;
   void GetCurrentThread(FrameOffset dest_offset, ManagedRegister scratch) OVERRIDE;
 
-  // Set up out_reg to hold a Object** into the SIRT, or to be NULL if the
+  // Set up out_reg to hold a Object** into the handle scope, or to be NULL if the
   // value is null and null_allowed. in_reg holds a possibly stale reference
-  // that can be used to avoid loading the SIRT entry to see if the value is
+  // that can be used to avoid loading the handle scope entry to see if the value is
   // NULL.
-  void CreateSirtEntry(ManagedRegister out_reg, FrameOffset sirt_offset, ManagedRegister in_reg,
+  void CreateHandleScopeEntry(ManagedRegister out_reg, FrameOffset handlescope_offset, ManagedRegister in_reg,
                        bool null_allowed) OVERRIDE;
 
-  // Set up out_off to hold a Object** into the SIRT, or to be NULL if the
+  // Set up out_off to hold a Object** into the handle scope, or to be NULL if the
   // value is null and null_allowed.
-  void CreateSirtEntry(FrameOffset out_off, FrameOffset sirt_offset, ManagedRegister scratch,
+  void CreateHandleScopeEntry(FrameOffset out_off, FrameOffset handlescope_offset, ManagedRegister scratch,
                        bool null_allowed) OVERRIDE;
 
-  // src holds a SIRT entry (Object**) load this into dst
-  void LoadReferenceFromSirt(ManagedRegister dst, ManagedRegister src) OVERRIDE;
+  // src holds a handle scope entry (Object**) load this into dst
+  void LoadReferenceFromHandleScope(ManagedRegister dst, ManagedRegister src) OVERRIDE;
 
   // Heap::VerifyObject on src. In some cases (such as a reference to this) we
   // know that src may not be null.

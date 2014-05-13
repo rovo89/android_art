@@ -27,7 +27,7 @@
 #include "gc/space/large_object_space.h"
 #include "gc/space/rosalloc_space-inl.h"
 #include "runtime.h"
-#include "sirt_ref-inl.h"
+#include "handle_scope-inl.h"
 #include "thread.h"
 #include "thread-inl.h"
 #include "verify_object-inl.h"
@@ -144,10 +144,10 @@ inline void Heap::PushOnAllocationStack(Thread* self, mirror::Object** obj) {
       mirror::Object** end_address;
       while (!allocation_stack_->AtomicBumpBack(kThreadLocalAllocationStackSize,
                                                 &start_address, &end_address)) {
-        // Disable verify object in SirtRef as obj isn't on the alloc stack yet.
-        SirtRefNoVerify<mirror::Object> ref(self, *obj);
+        // TODO: Add handle VerifyObject.
+        StackHandleScope<1> hs(self);
+        HandleWrapper<mirror::Object> wrapper(hs.NewHandleWrapper(obj));
         CollectGarbageInternal(collector::kGcTypeSticky, kGcCauseForAlloc, false);
-        *obj = ref.get();
       }
       self->SetThreadLocalAllocationStack(start_address, end_address);
       // Retry on the new thread-local allocation stack.
@@ -159,10 +159,10 @@ inline void Heap::PushOnAllocationStack(Thread* self, mirror::Object** obj) {
     // This is safe to do since the GC will never free objects which are neither in the allocation
     // stack or the live bitmap.
     while (!allocation_stack_->AtomicPushBack(*obj)) {
-      // Disable verify object in SirtRef as obj isn't on the alloc stack yet.
-      SirtRefNoVerify<mirror::Object> ref(self, *obj);
+      // TODO: Add handle VerifyObject.
+      StackHandleScope<1> hs(self);
+      HandleWrapper<mirror::Object> wrapper(hs.NewHandleWrapper(obj));
       CollectGarbageInternal(collector::kGcTypeSticky, kGcCauseForAlloc, false);
-      *obj = ref.get();
     }
   }
 }
@@ -300,11 +300,7 @@ inline bool Heap::IsOutOfMemoryOnAllocation(AllocatorType allocator_type, size_t
 inline void Heap::CheckConcurrentGC(Thread* self, size_t new_num_bytes_allocated,
                                     mirror::Object** obj) {
   if (UNLIKELY(new_num_bytes_allocated >= concurrent_start_bytes_)) {
-    // The SirtRef is necessary since the calls in RequestConcurrentGC are a safepoint.
-    SirtRef<mirror::Object> ref(self, *obj);
-    RequestConcurrentGC(self);
-    // Restore obj in case it moved.
-    *obj = ref.get();
+    RequestConcurrentGCAndSaveObject(self, obj);
   }
 }
 

@@ -96,7 +96,7 @@ class ThreadPool {
   void SetMaxActiveWorkers(size_t threads);
 
  protected:
-  // Get a task to run, blocks if there are no tasks left
+  // get a task to run, blocks if there are no tasks left
   virtual Task* GetTask(Thread* self);
 
   // Try to get a task, returning NULL if there is none available.

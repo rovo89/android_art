@@ -28,6 +28,7 @@
 #include "gc/accounting/card_table-inl.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
+#include "handle_scope.h"
 #include "jdwp/object_registry.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
@@ -45,8 +46,7 @@
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
-#include "sirt_ref.h"
-#include "stack_indirect_reference_table.h"
+#include "handle_scope-inl.h"
 #include "thread_list.h"
 #include "throw_location.h"
 #include "utf.h"
@@ -2809,8 +2809,9 @@ static bool IsMethodPossiblyInlined(Thread* self, mirror::ArtMethod* m)
     // should never be null. We could just check we never encounter this case.
     return false;
   }
-  SirtRef<mirror::DexCache> dex_cache(self, mh.GetDexCache());
-  SirtRef<mirror::ClassLoader> class_loader(self, mh.GetClassLoader());
+  StackHandleScope<2> hs(self);
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(mh.GetDexCache()));
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(mh.GetClassLoader()));
   verifier::MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader,
                                     &mh.GetClassDef(), code_item, m->GetDexMethodIndex(), m,
                                     m->GetAccessFlags(), false, true);
@@ -3341,43 +3342,44 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
 
   // We can be called while an exception is pending. We need
   // to preserve that across the method invocation.
-  SirtRef<mirror::Object> old_throw_this_object(soa.Self(), NULL);
-  SirtRef<mirror::ArtMethod> old_throw_method(soa.Self(), NULL);
-  SirtRef<mirror::Throwable> old_exception(soa.Self(), NULL);
+  StackHandleScope<4> hs(soa.Self());
+  auto old_throw_this_object = hs.NewHandle<mirror::Object>(nullptr);
+  auto old_throw_method = hs.NewHandle<mirror::ArtMethod>(nullptr);
+  auto old_exception = hs.NewHandle<mirror::Throwable>(nullptr);
   uint32_t old_throw_dex_pc;
   {
     ThrowLocation old_throw_location;
     mirror::Throwable* old_exception_obj = soa.Self()->GetException(&old_throw_location);
-    old_throw_this_object.reset(old_throw_location.GetThis());
-    old_throw_method.reset(old_throw_location.GetMethod());
-    old_exception.reset(old_exception_obj);
+    old_throw_this_object.Assign(old_throw_location.GetThis());
+    old_throw_method.Assign(old_throw_location.GetMethod());
+    old_exception.Assign(old_exception_obj);
     old_throw_dex_pc = old_throw_location.GetDexPc();
     soa.Self()->ClearException();
   }
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
-  SirtRef<mirror::ArtMethod> m(soa.Self(), pReq->method);
+  Handle<mirror::ArtMethod> m(hs.NewHandle(pReq->method));
   if ((pReq->options & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver != NULL) {
-    mirror::ArtMethod* actual_method = pReq->klass->FindVirtualMethodForVirtualOrInterface(m.get());
-    if (actual_method != m.get()) {
-      VLOG(jdwp) << "ExecuteMethod translated " << PrettyMethod(m.get()) << " to " << PrettyMethod(actual_method);
-      m.reset(actual_method);
+    mirror::ArtMethod* actual_method = pReq->klass->FindVirtualMethodForVirtualOrInterface(m.Get());
+    if (actual_method != m.Get()) {
+      VLOG(jdwp) << "ExecuteMethod translated " << PrettyMethod(m.Get()) << " to " << PrettyMethod(actual_method);
+      m.Assign(actual_method);
     }
   }
-  VLOG(jdwp) << "ExecuteMethod " << PrettyMethod(m.get())
+  VLOG(jdwp) << "ExecuteMethod " << PrettyMethod(m.Get())
              << " receiver=" << pReq->receiver
              << " arg_count=" << pReq->arg_count;
-  CHECK(m.get() != nullptr);
+  CHECK(m.Get() != nullptr);
 
   CHECK_EQ(sizeof(jvalue), sizeof(uint64_t));
 
-  pReq->result_value = InvokeWithJValues(soa, pReq->receiver, soa.EncodeMethod(m.get()),
+  pReq->result_value = InvokeWithJValues(soa, pReq->receiver, soa.EncodeMethod(m.Get()),
                                          reinterpret_cast<jvalue*>(pReq->arg_values));
 
   mirror::Throwable* exception = soa.Self()->GetException(NULL);
   soa.Self()->ClearException();
   pReq->exception = gRegistry->Add(exception);
-  pReq->result_tag = BasicTagFromDescriptor(MethodHelper(m.get()).GetShorty());
+  pReq->result_tag = BasicTagFromDescriptor(MethodHelper(m.Get()).GetShorty());
   if (pReq->exception != 0) {
     VLOG(jdwp) << "  JDWP invocation returning with exception=" << exception
         << " " << exception->Dump();
@@ -3402,10 +3404,10 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
     gRegistry->Add(pReq->result_value.GetL());
   }
 
-  if (old_exception.get() != NULL) {
-    ThrowLocation gc_safe_throw_location(old_throw_this_object.get(), old_throw_method.get(),
+  if (old_exception.Get() != NULL) {
+    ThrowLocation gc_safe_throw_location(old_throw_this_object.Get(), old_throw_method.Get(),
                                          old_throw_dex_pc);
-    soa.Self()->SetException(gc_safe_throw_location, old_exception.get());
+    soa.Self()->SetException(gc_safe_throw_location, old_exception.Get());
   }
 }
 
@@ -3547,9 +3549,10 @@ void Dbg::DdmSendThreadNotification(Thread* t, uint32_t type) {
   } else {
     CHECK(type == CHUNK_TYPE("THCR") || type == CHUNK_TYPE("THNM")) << type;
     ScopedObjectAccessUnchecked soa(Thread::Current());
-    SirtRef<mirror::String> name(soa.Self(), t->GetThreadName(soa));
-    size_t char_count = (name.get() != NULL) ? name->GetLength() : 0;
-    const jchar* chars = (name.get() != NULL) ? name->GetCharArray()->GetData() : NULL;
+    StackHandleScope<1> hs(soa.Self());
+    Handle<mirror::String> name(hs.NewHandle(t->GetThreadName(soa)));
+    size_t char_count = (name.Get() != NULL) ? name->GetLength() : 0;
+    const jchar* chars = (name.Get() != NULL) ? name->GetCharArray()->GetData() : NULL;
 
     std::vector<uint8_t> bytes;
     JDWP::Append4BE(bytes, t->GetThreadId());

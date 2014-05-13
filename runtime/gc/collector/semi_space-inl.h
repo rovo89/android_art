@@ -50,7 +50,7 @@ inline mirror::Object* SemiSpace::GetForwardingAddressInFromSpace(mirror::Object
   return reinterpret_cast<mirror::Object*>(lock_word.ForwardingAddress());
 }
 
-// Used to mark and copy objects. Any newly-marked objects who are in the from space get moved to
+// Used to mark and copy objects. Any newly-marked objects who are in the from space Get moved to
 // the to-space and have their forward address updated. Objects which have been newly marked are
 // pushed on the mark stack.
 template<bool kPoisonReferences>
@@ -72,7 +72,7 @@ inline void SemiSpace::MarkObject(
         forward_address = MarkNonForwardedObject(obj);
         DCHECK(forward_address != nullptr);
         // Make sure to only update the forwarding address AFTER you copy the object so that the
-        // monitor word doesn't get stomped over.
+        // monitor word doesn't Get stomped over.
         obj->SetLockWord(
             LockWord::FromForwardingAddress(reinterpret_cast<size_t>(forward_address)), false);
         // Push the object onto the mark stack for later processing.

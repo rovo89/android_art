@@ -33,7 +33,7 @@ inline bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
     LOG(WARNING) << "Attempt to look up NULL " << kind_;
     return false;
   }
-  if (UNLIKELY(GetIndirectRefKind(iref) == kSirtOrInvalid)) {
+  if (UNLIKELY(GetIndirectRefKind(iref) == kHandleScopeOrInvalid)) {
     LOG(ERROR) << "JNI ERROR (app bug): invalid " << kind_ << " " << iref;
     AbortIfNoCheckJNI();
     return false;

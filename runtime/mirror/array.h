@@ -23,7 +23,7 @@
 
 namespace art {
 
-template<class T> class SirtRef;
+template<class T> class Handle;
 
 namespace mirror {
 
@@ -38,8 +38,8 @@ class MANAGED Array : public Object {
                       bool fill_usable = false)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static Array* CreateMultiArray(Thread* self, const SirtRef<Class>& element_class,
-                                 const SirtRef<IntArray>& dimensions)
+  static Array* CreateMultiArray(Thread* self, const Handle<Class>& element_class,
+                                 const Handle<IntArray>& dimensions)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,

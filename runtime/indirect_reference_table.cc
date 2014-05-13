@@ -66,7 +66,7 @@ IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,
                                                size_t maxCount, IndirectRefKind desiredKind) {
   CHECK_GT(initialCount, 0U);
   CHECK_LE(initialCount, maxCount);
-  CHECK_NE(desiredKind, kSirtOrInvalid);
+  CHECK_NE(desiredKind, kHandleScopeOrInvalid);
 
   std::string error_str;
   const size_t initial_bytes = initialCount * sizeof(const mirror::Object*);
@@ -184,9 +184,9 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
 
   int idx = ExtractIndex(iref);
 
-  if (GetIndirectRefKind(iref) == kSirtOrInvalid &&
-      Thread::Current()->SirtContains(reinterpret_cast<jobject>(iref))) {
-    LOG(WARNING) << "Attempt to remove local SIRT entry from IRT, ignoring";
+  if (GetIndirectRefKind(iref) == kHandleScopeOrInvalid &&
+      Thread::Current()->HandleScopeContains(reinterpret_cast<jobject>(iref))) {
+    LOG(WARNING) << "Attempt to remove local handle scope entry from IRT, ignoring";
     return true;
   }
 

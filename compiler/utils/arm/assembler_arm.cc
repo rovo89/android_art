@@ -1752,53 +1752,53 @@ void ArmAssembler::MemoryBarrier(ManagedRegister mscratch) {
 #endif
 }
 
-void ArmAssembler::CreateSirtEntry(ManagedRegister mout_reg,
-                                   FrameOffset sirt_offset,
+void ArmAssembler::CreateHandleScopeEntry(ManagedRegister mout_reg,
+                                   FrameOffset handle_scope_offset,
                                    ManagedRegister min_reg, bool null_allowed) {
   ArmManagedRegister out_reg = mout_reg.AsArm();
   ArmManagedRegister in_reg = min_reg.AsArm();
   CHECK(in_reg.IsNoRegister() || in_reg.IsCoreRegister()) << in_reg;
   CHECK(out_reg.IsCoreRegister()) << out_reg;
   if (null_allowed) {
-    // Null values get a SIRT entry value of 0.  Otherwise, the SIRT entry is
-    // the address in the SIRT holding the reference.
+    // Null values get a handle scope entry value of 0.  Otherwise, the handle scope entry is
+    // the address in the handle scope holding the reference.
     // e.g. out_reg = (handle == 0) ? 0 : (SP+handle_offset)
     if (in_reg.IsNoRegister()) {
       LoadFromOffset(kLoadWord, out_reg.AsCoreRegister(),
-                     SP, sirt_offset.Int32Value());
+                     SP, handle_scope_offset.Int32Value());
       in_reg = out_reg;
     }
     cmp(in_reg.AsCoreRegister(), ShifterOperand(0));
     if (!out_reg.Equals(in_reg)) {
       LoadImmediate(out_reg.AsCoreRegister(), 0, EQ);
     }
-    AddConstant(out_reg.AsCoreRegister(), SP, sirt_offset.Int32Value(), NE);
+    AddConstant(out_reg.AsCoreRegister(), SP, handle_scope_offset.Int32Value(), NE);
   } else {
-    AddConstant(out_reg.AsCoreRegister(), SP, sirt_offset.Int32Value(), AL);
+    AddConstant(out_reg.AsCoreRegister(), SP, handle_scope_offset.Int32Value(), AL);
   }
 }
 
-void ArmAssembler::CreateSirtEntry(FrameOffset out_off,
-                                   FrameOffset sirt_offset,
+void ArmAssembler::CreateHandleScopeEntry(FrameOffset out_off,
+                                   FrameOffset handle_scope_offset,
                                    ManagedRegister mscratch,
                                    bool null_allowed) {
   ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister()) << scratch;
   if (null_allowed) {
     LoadFromOffset(kLoadWord, scratch.AsCoreRegister(), SP,
-                   sirt_offset.Int32Value());
-    // Null values get a SIRT entry value of 0.  Otherwise, the sirt entry is
-    // the address in the SIRT holding the reference.
-    // e.g. scratch = (scratch == 0) ? 0 : (SP+sirt_offset)
+                   handle_scope_offset.Int32Value());
+    // Null values get a handle scope entry value of 0.  Otherwise, the handle scope entry is
+    // the address in the handle scope holding the reference.
+    // e.g. scratch = (scratch == 0) ? 0 : (SP+handle_scope_offset)
     cmp(scratch.AsCoreRegister(), ShifterOperand(0));
-    AddConstant(scratch.AsCoreRegister(), SP, sirt_offset.Int32Value(), NE);
+    AddConstant(scratch.AsCoreRegister(), SP, handle_scope_offset.Int32Value(), NE);
   } else {
-    AddConstant(scratch.AsCoreRegister(), SP, sirt_offset.Int32Value(), AL);
+    AddConstant(scratch.AsCoreRegister(), SP, handle_scope_offset.Int32Value(), AL);
   }
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, out_off.Int32Value());
 }
 
-void ArmAssembler::LoadReferenceFromSirt(ManagedRegister mout_reg,
+void ArmAssembler::LoadReferenceFromHandleScope(ManagedRegister mout_reg,
                                          ManagedRegister min_reg) {
   ArmManagedRegister out_reg = mout_reg.AsArm();
   ArmManagedRegister in_reg = min_reg.AsArm();

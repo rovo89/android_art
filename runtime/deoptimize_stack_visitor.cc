@@ -19,7 +19,7 @@
 #include "mirror/art_method-inl.h"
 #include "object_utils.h"
 #include "quick_exception_handler.h"
-#include "sirt_ref-inl.h"
+#include "handle_scope-inl.h"
 #include "verifier/method_verifier.h"
 
 namespace art {
@@ -50,8 +50,9 @@ bool DeoptimizeStackVisitor::HandleDeoptimization(mirror::ArtMethod* m) {
   const Instruction* inst = Instruction::At(code_item->insns_ + dex_pc);
   uint32_t new_dex_pc = dex_pc + inst->SizeInCodeUnits();
   ShadowFrame* new_frame = ShadowFrame::Create(num_regs, nullptr, m, new_dex_pc);
-  SirtRef<mirror::DexCache> dex_cache(self_, mh.GetDexCache());
-  SirtRef<mirror::ClassLoader> class_loader(self_, mh.GetClassLoader());
+  StackHandleScope<2> hs(self_);
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(mh.GetDexCache()));
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(mh.GetClassLoader()));
   verifier::MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader,
                                     &mh.GetClassDef(), code_item, m->GetDexMethodIndex(), m,
                                     m->GetAccessFlags(), false, true);

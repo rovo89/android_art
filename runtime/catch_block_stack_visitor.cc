@@ -19,7 +19,7 @@
 #include "dex_instruction.h"
 #include "mirror/art_method-inl.h"
 #include "quick_exception_handler.h"
-#include "sirt_ref.h"
+#include "handle_scope-inl.h"
 #include "verifier/method_verifier.h"
 
 namespace art {
@@ -50,7 +50,9 @@ bool CatchBlockStackVisitor::HandleTryItems(mirror::ArtMethod* method) {
   }
   if (dex_pc != DexFile::kDexNoIndex) {
     bool clear_exception = false;
-    uint32_t found_dex_pc = method->FindCatchBlock(to_find_, dex_pc, &clear_exception);
+    StackHandleScope<1> hs(Thread::Current());
+    Handle<mirror::Class> to_find(hs.NewHandle((*exception_)->GetClass()));
+    uint32_t found_dex_pc = method->FindCatchBlock(to_find, dex_pc, &clear_exception);
     exception_handler_->SetClearException(clear_exception);
     if (found_dex_pc != DexFile::kDexNoIndex) {
       exception_handler_->SetHandlerDexPc(found_dex_pc);

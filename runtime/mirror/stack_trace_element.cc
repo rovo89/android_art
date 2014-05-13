@@ -20,7 +20,7 @@
 #include "class-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "object-inl.h"
-#include "sirt_ref-inl.h"
+#include "handle_scope-inl.h"
 #include "string.h"
 
 namespace art {
@@ -40,9 +40,9 @@ void StackTraceElement::ResetClass() {
 }
 
 StackTraceElement* StackTraceElement::Alloc(Thread* self,
-                                            SirtRef<String>& declaring_class,
-                                            SirtRef<String>& method_name,
-                                            SirtRef<String>& file_name,
+                                            Handle<String>& declaring_class,
+                                            Handle<String>& method_name,
+                                            Handle<String>& file_name,
                                             int32_t line_number) {
   StackTraceElement* trace =
       down_cast<StackTraceElement*>(GetStackTraceElement()->AllocObject(self));
@@ -57,14 +57,14 @@ StackTraceElement* StackTraceElement::Alloc(Thread* self,
 }
 
 template<bool kTransactionActive>
-void StackTraceElement::Init(SirtRef<String>& declaring_class, SirtRef<String>& method_name,
-                             SirtRef<String>& file_name, int32_t line_number) {
+void StackTraceElement::Init(Handle<String>& declaring_class, Handle<String>& method_name,
+                             Handle<String>& file_name, int32_t line_number) {
   SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, declaring_class_),
-                                     declaring_class.get());
+                                     declaring_class.Get());
   SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, method_name_),
-                                     method_name.get());
+                                     method_name.Get());
   SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, file_name_),
-                                     file_name.get());
+                                     file_name.Get());
   SetField32<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, line_number_),
                                  line_number);
 }

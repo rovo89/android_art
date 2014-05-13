@@ -111,7 +111,7 @@ static mirror::Object* const kClearedJniWeakGlobal = reinterpret_cast<mirror::Ob
  * For convenience these match up with enum jobjectRefType from jni.h.
  */
 enum IndirectRefKind {
-  kSirtOrInvalid = 0,  // <<stack indirect reference table or invalid reference>>
+  kHandleScopeOrInvalid = 0,  // <<stack indirect reference table or invalid reference>>
   kLocal         = 1,  // <<local reference>>
   kGlobal        = 2,  // <<global reference>>
   kWeakGlobal    = 3   // <<weak global reference>>

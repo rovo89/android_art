@@ -98,7 +98,7 @@ CompiledMethod* JniCompiler::Compile() {
   arg_begin = arg_iter;
 
   // Count the number of Object* arguments
-  uint32_t sirt_size = 1;
+  uint32_t handle_scope_size = 1;
   // "this" object pointer for non-static
   // "class" object pointer for static
   for (unsigned i = 0; arg_iter != arg_end; ++i, ++arg_iter) {
@@ -106,12 +106,12 @@ CompiledMethod* JniCompiler::Compile() {
     arg_iter->setName(StringPrintf("a%u", i));
 #endif
     if (arg_iter->getType() == irb_.getJObjectTy()) {
-      ++sirt_size;
+      ++handle_scope_size;
     }
   }
 
   // Shadow stack
-  ::llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size);
+  ::llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(handle_scope_size);
   ::llvm::AllocaInst* shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
 
   // Store the dex pc
@@ -123,7 +123,7 @@ CompiledMethod* JniCompiler::Compile() {
   // Push the shadow frame
   ::llvm::Value* shadow_frame_upcast = irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
   ::llvm::Value* old_shadow_frame =
-      irb_.Runtime().EmitPushShadowFrame(shadow_frame_upcast, method_object_addr, sirt_size);
+      irb_.Runtime().EmitPushShadowFrame(shadow_frame_upcast, method_object_addr, handle_scope_size);
 
   // Get JNIEnv
   ::llvm::Value* jni_env_object_addr =
@@ -148,35 +148,35 @@ CompiledMethod* JniCompiler::Compile() {
   // Variables for GetElementPtr
   ::llvm::Value* gep_index[] = {
     irb_.getInt32(0),  // No displacement for shadow frame pointer
-    irb_.getInt32(1),  // SIRT
+    irb_.getInt32(1),  // handle scope
     NULL,
   };
 
-  size_t sirt_member_index = 0;
+  size_t handle_scope_member_index = 0;
 
-  // Store the "this object or class object" to SIRT
-  gep_index[2] = irb_.getInt32(sirt_member_index++);
-  ::llvm::Value* sirt_field_addr = irb_.CreateBitCast(irb_.CreateGEP(shadow_frame_, gep_index),
+  // Store the "this object or class object" to handle scope
+  gep_index[2] = irb_.getInt32(handle_scope_member_index++);
+  ::llvm::Value* handle_scope_field_addr = irb_.CreateBitCast(irb_.CreateGEP(shadow_frame_, gep_index),
                                                     irb_.getJObjectTy()->getPointerTo());
-  irb_.CreateStore(this_object_or_class_object, sirt_field_addr, kTBAAShadowFrame);
+  irb_.CreateStore(this_object_or_class_object, handle_scope_field_addr, kTBAAShadowFrame);
   // Push the "this object or class object" to out args
-  this_object_or_class_object = irb_.CreateBitCast(sirt_field_addr, irb_.getJObjectTy());
+  this_object_or_class_object = irb_.CreateBitCast(handle_scope_field_addr, irb_.getJObjectTy());
   args.push_back(this_object_or_class_object);
-  // Store arguments to SIRT, and push back to args
+  // Store arguments to handle scope, and push back to args
   for (arg_iter = arg_begin; arg_iter != arg_end; ++arg_iter) {
     if (arg_iter->getType() == irb_.getJObjectTy()) {
-      // Store the reference type arguments to SIRT
-      gep_index[2] = irb_.getInt32(sirt_member_index++);
-      ::llvm::Value* sirt_field_addr = irb_.CreateBitCast(irb_.CreateGEP(shadow_frame_, gep_index),
+      // Store the reference type arguments to handle scope
+      gep_index[2] = irb_.getInt32(handle_scope_member_index++);
+      ::llvm::Value* handle_scope_field_addr = irb_.CreateBitCast(irb_.CreateGEP(shadow_frame_, gep_index),
                                                         irb_.getJObjectTy()->getPointerTo());
-      irb_.CreateStore(arg_iter, sirt_field_addr, kTBAAShadowFrame);
-      // Note null is placed in the SIRT but the jobject passed to the native code must be null
-      // (not a pointer into the SIRT as with regular references).
+      irb_.CreateStore(arg_iter, handle_scope_field_addr, kTBAAShadowFrame);
+      // Note null is placed in the handle scope but the jobject passed to the native code must be null
+      // (not a pointer into the handle scope as with regular references).
       ::llvm::Value* equal_null = irb_.CreateICmpEQ(arg_iter, irb_.getJNull());
       ::llvm::Value* arg =
           irb_.CreateSelect(equal_null,
                             irb_.getJNull(),
-                            irb_.CreateBitCast(sirt_field_addr, irb_.getJObjectTy()));
+                            irb_.CreateBitCast(handle_scope_field_addr, irb_.getJObjectTy()));
       args.push_back(arg);
     } else {
       args.push_back(arg_iter);

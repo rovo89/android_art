@@ -33,7 +33,7 @@
 #include "output_stream.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
-#include "sirt_ref-inl.h"
+#include "handle_scope-inl.h"
 #include "verifier/method_verifier.h"
 
 namespace art {
@@ -511,8 +511,9 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
     InvokeType invoke_type = it.GetMethodInvokeType(dex_file_->GetClassDef(class_def_index_));
     // Unchecked as we hold mutator_lock_ on entry.
     ScopedObjectAccessUnchecked soa(Thread::Current());
-    SirtRef<mirror::DexCache> dex_cache(soa.Self(), linker->FindDexCache(*dex_file_));
-    SirtRef<mirror::ClassLoader> class_loader(soa.Self(), nullptr);
+    StackHandleScope<2> hs(soa.Self());
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->FindDexCache(*dex_file_)));
+    auto class_loader = hs.NewHandle<mirror::ClassLoader>(nullptr);
     mirror::ArtMethod* method = linker->ResolveMethod(*dex_file_, it.GetMemberIndex(), dex_cache,
                                                       class_loader, nullptr, invoke_type);
     CHECK(method != NULL);

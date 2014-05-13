@@ -66,7 +66,7 @@
 #include "scoped_thread_state_change.h"
 #include "signal_catcher.h"
 #include "signal_set.h"
-#include "sirt_ref.h"
+#include "handle_scope-inl.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "trace.h"
@@ -331,8 +331,9 @@ jobject CreateSystemClassLoader() {
   ScopedObjectAccess soa(Thread::Current());
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
 
-  SirtRef<mirror::Class> class_loader_class(
-      soa.Self(), soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ClassLoader));
+  StackHandleScope<3> hs(soa.Self());
+  Handle<mirror::Class> class_loader_class(
+      hs.NewHandle(soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ClassLoader)));
   CHECK(cl->EnsureInitialized(class_loader_class, true, true));
 
   mirror::ArtMethod* getSystemClassLoader =
@@ -340,19 +341,18 @@ jobject CreateSystemClassLoader() {
   CHECK(getSystemClassLoader != NULL);
 
   JValue result = InvokeWithJValues(soa, nullptr, soa.EncodeMethod(getSystemClassLoader), nullptr);
-  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
-                                            down_cast<mirror::ClassLoader*>(result.GetL()));
-  CHECK(class_loader.get() != nullptr);
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(down_cast<mirror::ClassLoader*>(result.GetL())));
+  CHECK(class_loader.Get() != nullptr);
   JNIEnv* env = soa.Self()->GetJniEnv();
   ScopedLocalRef<jobject> system_class_loader(env,
-                                              soa.AddLocalReference<jobject>(class_loader.get()));
+                                              soa.AddLocalReference<jobject>(class_loader.Get()));
   CHECK(system_class_loader.get() != nullptr);
 
-  soa.Self()->SetClassLoaderOverride(class_loader.get());
+  soa.Self()->SetClassLoaderOverride(class_loader.Get());
 
-  SirtRef<mirror::Class> thread_class(
-      soa.Self(),
-      soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread));
+  Handle<mirror::Class> thread_class(
+      hs.NewHandle(soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread)));
   CHECK(cl->EnsureInitialized(thread_class, true, true));
 
   mirror::ArtField* contextClassLoader =
@@ -360,7 +360,7 @@ jobject CreateSystemClassLoader() {
   CHECK(contextClassLoader != NULL);
 
   // We can't run in a transaction yet.
-  contextClassLoader->SetObject<false>(soa.Self()->GetPeer(), class_loader.get());
+  contextClassLoader->SetObject<false>(soa.Self()->GetPeer(), class_loader.Get());
 
   return env->NewGlobalRef(system_class_loader.get());
 }
@@ -682,7 +682,8 @@ void Runtime::InitNativeMethods() {
     std::string mapped_name(StringPrintf(OS_SHARED_LIB_FORMAT_STR, "javacore"));
     std::string reason;
     self->TransitionFromSuspendedToRunnable();
-    SirtRef<mirror::ClassLoader> class_loader(self, nullptr);
+    StackHandleScope<1> hs(self);
+    auto class_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
     if (!instance_->java_vm_->LoadNativeLibrary(mapped_name, class_loader, &reason)) {
       LOG(FATAL) << "LoadNativeLibrary failed for \"" << mapped_name << "\": " << reason;
     }
@@ -944,19 +945,22 @@ void Runtime::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags
 
 mirror::ObjectArray<mirror::ArtMethod>* Runtime::CreateDefaultImt(ClassLinker* cl) {
   Thread* self = Thread::Current();
-  SirtRef<mirror::ObjectArray<mirror::ArtMethod> > imtable(self, cl->AllocArtMethodArray(self, 64));
+  StackHandleScope<1> hs(self);
+  Handle<mirror::ObjectArray<mirror::ArtMethod>> imtable(
+      hs.NewHandle(cl->AllocArtMethodArray(self, 64)));
   mirror::ArtMethod* imt_conflict_method = Runtime::Current()->GetImtConflictMethod();
   for (size_t i = 0; i < static_cast<size_t>(imtable->GetLength()); i++) {
     imtable->Set<false>(i, imt_conflict_method);
   }
-  return imtable.get();
+  return imtable.Get();
 }
 
 mirror::ArtMethod* Runtime::CreateImtConflictMethod() {
   Thread* self = Thread::Current();
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
-  SirtRef<mirror::ArtMethod> method(self, class_linker->AllocArtMethod(self));
+  StackHandleScope<1> hs(self);
+  Handle<mirror::ArtMethod> method(hs.NewHandle(class_linker->AllocArtMethod(self)));
   method->SetDeclaringClass(mirror::ArtMethod::GetJavaLangReflectArtMethod());
   // TODO: use a special method for imt conflict method saves.
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
@@ -968,14 +972,15 @@ mirror::ArtMethod* Runtime::CreateImtConflictMethod() {
     method->SetEntryPointFromPortableCompiledCode(GetPortableImtConflictTrampoline(class_linker));
     method->SetEntryPointFromQuickCompiledCode(GetQuickImtConflictTrampoline(class_linker));
   }
-  return method.get();
+  return method.Get();
 }
 
 mirror::ArtMethod* Runtime::CreateResolutionMethod() {
   Thread* self = Thread::Current();
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
-  SirtRef<mirror::ArtMethod> method(self, class_linker->AllocArtMethod(self));
+  StackHandleScope<1> hs(self);
+  Handle<mirror::ArtMethod> method(hs.NewHandle(class_linker->AllocArtMethod(self)));
   method->SetDeclaringClass(mirror::ArtMethod::GetJavaLangReflectArtMethod());
   // TODO: use a special method for resolution method saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
@@ -987,21 +992,22 @@ mirror::ArtMethod* Runtime::CreateResolutionMethod() {
     method->SetEntryPointFromPortableCompiledCode(GetPortableResolutionTrampoline(class_linker));
     method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionTrampoline(class_linker));
   }
-  return method.get();
+  return method.Get();
 }
 
 mirror::ArtMethod* Runtime::CreateCalleeSaveMethod(CalleeSaveType type) {
   Thread* self = Thread::Current();
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
-  SirtRef<mirror::ArtMethod> method(self, class_linker->AllocArtMethod(self));
+  StackHandleScope<1> hs(self);
+  Handle<mirror::ArtMethod> method(hs.NewHandle(class_linker->AllocArtMethod(self)));
   method->SetDeclaringClass(mirror::ArtMethod::GetJavaLangReflectArtMethod());
   // TODO: use a special method for callee saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   method->SetEntryPointFromPortableCompiledCode(nullptr);
   method->SetEntryPointFromQuickCompiledCode(nullptr);
   DCHECK_NE(instruction_set_, kNone);
-  return method.get();
+  return method.Get();
 }
 
 void Runtime::DisallowNewSystemWeaks() {

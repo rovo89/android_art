@@ -18,7 +18,7 @@
 #define ART_COMPILER_JNI_QUICK_CALLING_CONVENTION_H_
 
 #include <vector>
-#include "stack_indirect_reference_table.h"
+#include "handle_scope.h"
 #include "thread.h"
 #include "utils/managed_register.h"
 
@@ -73,7 +73,7 @@ class CallingConvention {
       : itr_slots_(0), itr_refs_(0), itr_args_(0), itr_longs_and_doubles_(0),
         itr_float_and_doubles_(0), displacement_(0),
         frame_pointer_size_(frame_pointer_size),
-        sirt_pointer_size_(sizeof(StackReference<mirror::Object>)),
+        handle_scope_pointer_size_(sizeof(StackReference<mirror::Object>)),
         is_static_(is_static), is_synchronized_(is_synchronized),
         shorty_(shorty) {
     num_args_ = (is_static ? 0 : 1) + strlen(shorty) - 1;
@@ -197,8 +197,8 @@ class CallingConvention {
   FrameOffset displacement_;
   // The size of a reference.
   const size_t frame_pointer_size_;
-  // The size of a reference entry within the SIRT.
-  const size_t sirt_pointer_size_;
+  // The size of a reference entry within the handle scope.
+  const size_t handle_scope_pointer_size_;
 
  private:
   const bool is_static_;
@@ -315,26 +315,25 @@ class JniCallingConvention : public CallingConvention {
   virtual FrameOffset CurrentParamStackOffset() = 0;
 
   // Iterator interface extension for JNI
-  FrameOffset CurrentParamSirtEntryOffset();
+  FrameOffset CurrentParamHandleScopeEntryOffset();
 
-  // Position of SIRT and interior fields
-  FrameOffset SirtOffset() const {
+  // Position of handle scope and interior fields
+  FrameOffset HandleScopeOffset() const {
     return FrameOffset(this->displacement_.Int32Value() + frame_pointer_size_);  // above Method*
   }
 
-  FrameOffset SirtLinkOffset() const {
-    return FrameOffset(SirtOffset().Int32Value() +
-                       StackIndirectReferenceTable::LinkOffset(frame_pointer_size_));
+  FrameOffset HandleScopeLinkOffset() const {
+    return FrameOffset(HandleScopeOffset().Int32Value() + HandleScope::LinkOffset(frame_pointer_size_));
   }
 
-  FrameOffset SirtNumRefsOffset() const {
-    return FrameOffset(SirtOffset().Int32Value() +
-                       StackIndirectReferenceTable::NumberOfReferencesOffset(frame_pointer_size_));
+  FrameOffset HandleScopeNumRefsOffset() const {
+    return FrameOffset(HandleScopeOffset().Int32Value() +
+                       HandleScope::NumberOfReferencesOffset(frame_pointer_size_));
   }
 
-  FrameOffset SirtReferencesOffset() const {
-    return FrameOffset(SirtOffset().Int32Value() +
-                       StackIndirectReferenceTable::ReferencesOffset(frame_pointer_size_));
+  FrameOffset HandleerencesOffset() const {
+    return FrameOffset(HandleScopeOffset().Int32Value() +
+                       HandleScope::ReferencesOffset(frame_pointer_size_));
   }
 
   virtual ~JniCallingConvention() {}
@@ -350,7 +349,7 @@ class JniCallingConvention : public CallingConvention {
                                 size_t frame_pointer_size)
       : CallingConvention(is_static, is_synchronized, shorty, frame_pointer_size) {}
 
-  // Number of stack slots for outgoing arguments, above which the SIRT is
+  // Number of stack slots for outgoing arguments, above which the handle scope is
   // located
   virtual size_t NumberOfOutgoingStackArgs() = 0;
 
