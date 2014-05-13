@@ -512,6 +512,11 @@ RegStorage MipsMir2Lir::LoadHelper(ThreadOffset<4> offset) {
   return rs_rT9;
 }
 
+RegStorage MipsMir2Lir::LoadHelper(ThreadOffset<8> offset) {
+  UNIMPLEMENTED(FATAL) << "Should not be called.";
+  return RegStorage::InvalidReg();
+}
+
 LIR* MipsMir2Lir::CheckSuspendUsingLoad() {
   RegStorage tmp = AllocTemp();
   // NOTE: native pointer.

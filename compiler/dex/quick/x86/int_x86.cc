@@ -724,6 +724,12 @@ void X86Mir2Lir::OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int 
 }
 
 void X86Mir2Lir::OpTlsCmp(ThreadOffset<4> offset, int val) {
+  DCHECK_EQ(kX86, cu_->instruction_set);
+  NewLIR2(kX86Cmp16TI8, offset.Int32Value(), val);
+}
+
+void X86Mir2Lir::OpTlsCmp(ThreadOffset<8> offset, int val) {
+  DCHECK_EQ(kX86_64, cu_->instruction_set);
   NewLIR2(kX86Cmp16TI8, offset.Int32Value(), val);
 }
 
@@ -956,7 +962,11 @@ void X86Mir2Lir::GenArrayBoundsCheck(int32_t index,
 
 // Test suspend flag, return target of taken suspend branch
 LIR* X86Mir2Lir::OpTestSuspend(LIR* target) {
-  OpTlsCmp(Thread::ThreadFlagsOffset<4>(), 0);
+  if (Is64BitInstructionSet(cu_->instruction_set)) {
+    OpTlsCmp(Thread::ThreadFlagsOffset<8>(), 0);
+  } else {
+    OpTlsCmp(Thread::ThreadFlagsOffset<4>(), 0);
+  }
   return OpCondBranch((target == NULL) ? kCondNe : kCondEq, target);
 }
 
@@ -1365,6 +1375,20 @@ void X86Mir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
 }
 
 void X86Mir2Lir::OpRegThreadMem(OpKind op, RegStorage r_dest, ThreadOffset<4> thread_offset) {
+  DCHECK_EQ(kX86, cu_->instruction_set);
+  X86OpCode opcode = kX86Bkpt;
+  switch (op) {
+  case kOpCmp: opcode = kX86Cmp32RT;  break;
+  case kOpMov: opcode = kX86Mov32RT;  break;
+  default:
+    LOG(FATAL) << "Bad opcode: " << op;
+    break;
+  }
+  NewLIR2(opcode, r_dest.GetReg(), thread_offset.Int32Value());
+}
+
+void X86Mir2Lir::OpRegThreadMem(OpKind op, RegStorage r_dest, ThreadOffset<8> thread_offset) {
+  DCHECK_EQ(kX86_64, cu_->instruction_set);
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
   case kOpCmp: opcode = kX86Cmp32RT;  break;

@@ -31,7 +31,8 @@ class X86Mir2Lir FINAL : public Mir2Lir {
                             RegLocation rl_dest, int lit);
     bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) OVERRIDE;
     LIR* CheckSuspendUsingLoad() OVERRIDE;
-    RegStorage LoadHelper(ThreadOffset<4> offset);
+    RegStorage LoadHelper(ThreadOffset<4> offset) OVERRIDE;
+    RegStorage LoadHelper(ThreadOffset<8> offset) OVERRIDE;
     LIR* LoadBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
                               OpSize size) OVERRIDE;
     LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
@@ -245,14 +246,17 @@ class X86Mir2Lir FINAL : public Mir2Lir {
     LIR* OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, int value);
     LIR* OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2);
     LIR* OpTestSuspend(LIR* target);
-    LIR* OpThreadMem(OpKind op, ThreadOffset<4> thread_offset);
+    LIR* OpThreadMem(OpKind op, ThreadOffset<4> thread_offset) OVERRIDE;
+    LIR* OpThreadMem(OpKind op, ThreadOffset<8> thread_offset) OVERRIDE;
     LIR* OpVldm(RegStorage r_base, int count);
     LIR* OpVstm(RegStorage r_base, int count);
     void OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int scale, int offset);
     void OpRegCopyWide(RegStorage dest, RegStorage src);
-    void OpTlsCmp(ThreadOffset<4> offset, int val);
+    void OpTlsCmp(ThreadOffset<4> offset, int val) OVERRIDE;
+    void OpTlsCmp(ThreadOffset<8> offset, int val) OVERRIDE;
 
     void OpRegThreadMem(OpKind op, RegStorage r_dest, ThreadOffset<4> thread_offset);
+    void OpRegThreadMem(OpKind op, RegStorage r_dest, ThreadOffset<8> thread_offset);
     void SpillCoreRegs();
     void UnSpillCoreRegs();
     static const X86EncodingMap EncodingMap[kX86Last];
