@@ -167,7 +167,8 @@ TEST(OptimizerTest, CFG6) {
     0,
     1,
     1,
-    3
+    3,
+    1,  // Synthesized block to avoid critical edge.
   };
 
   TestCode(data, dominators, sizeof(dominators) / sizeof(int));
@@ -185,7 +186,9 @@ TEST(OptimizerTest, CFG7) {
     0,
     1,
     1,
-    -1  // exit block is not dominated by any block due to the spin loop.
+    -1,  // exit block is not dominated by any block due to the spin loop.
+    1,   // block to avoid critical edge.
+    1    // block to avoid critical edge.
   };
 
   TestCode(data, dominators, sizeof(dominators) / sizeof(int));
@@ -205,7 +208,8 @@ TEST(OptimizerTest, CFG8) {
     1,
     1,
     1,
-    -1  // exit block is not dominated by any block due to the spin loop.
+    -1,  // exit block is not dominated by any block due to the spin loop.
+    1    // block to avoid critical edge.
   };
 
   TestCode(data, dominators, sizeof(dominators) / sizeof(int));
@@ -225,7 +229,8 @@ TEST(OptimizerTest, CFG9) {
     1,
     1,
     1,
-    -1  // exit block is not dominated by any block due to the spin loop.
+    -1,  // exit block is not dominated by any block due to the spin loop.
+    1    // block to avoid critical edge.
   };
 
   TestCode(data, dominators, sizeof(dominators) / sizeof(int));
@@ -247,7 +252,9 @@ TEST(OptimizerTest, CFG10) {
     2,
     2,
     1,
-    5  // Block number 5 dominates exit block
+    5,    // Block number 5 dominates exit block
+    1,    // block to avoid critical edge.
+    2     // block to avoid critical edge.
   };
 
   TestCode(data, dominators, sizeof(dominators) / sizeof(int));
