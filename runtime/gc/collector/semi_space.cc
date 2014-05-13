@@ -142,7 +142,7 @@ void SemiSpace::RunPhases() {
 
 void SemiSpace::InitializePhase() {
   TimingLogger::ScopedSplit split("InitializePhase", &timings_);
-  mark_stack_ = heap_->mark_stack_.get();
+  mark_stack_ = heap_->GetMarkStack();
   DCHECK(mark_stack_ != nullptr);
   immune_region_.Reset();
   is_large_object_space_immune_ = false;
@@ -154,7 +154,7 @@ void SemiSpace::InitializePhase() {
   // Set the initial bitmap.
   to_space_live_bitmap_ = to_space_->GetLiveBitmap();
   {
-    // TODO: I don't think we should need heap bitmap lock to get the mark bitmap.
+    // TODO: I don't think we should need heap bitmap lock to Get the mark bitmap.
     ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
     mark_bitmap_ = heap_->GetMarkBitmap();
   }
@@ -172,7 +172,7 @@ void SemiSpace::MarkingPhase() {
   CHECK(Locks::mutator_lock_->IsExclusiveHeld(self_));
   if (kStoreStackTraces) {
     Locks::mutator_lock_->AssertExclusiveHeld(self_);
-    // Store the stack traces into the runtime fault string in case we get a heap corruption
+    // Store the stack traces into the runtime fault string in case we Get a heap corruption
     // related crash later.
     ThreadState old_state = self_->SetStateUnsafe(kRunnable);
     std::ostringstream oss;
@@ -231,7 +231,7 @@ void SemiSpace::MarkingPhase() {
   BindBitmaps();
   // Process dirty cards and add dirty cards to mod-union tables.
   heap_->ProcessCards(timings_, kUseRememberedSet && generational_);
-  // Clear the whole card table since we can not get any additional dirty cards during the
+  // Clear the whole card table since we can not Get any additional dirty cards during the
   // paused GC. This saves memory but only works for pause the world collectors.
   timings_.NewSplit("ClearCardTable");
   heap_->GetCardTable()->ClearCardTable();

@@ -1989,8 +1989,8 @@ void X86_64Assembler::MemoryBarrier(ManagedRegister) {
 #endif
 }
 
-void X86_64Assembler::CreateSirtEntry(ManagedRegister mout_reg,
-                                   FrameOffset sirt_offset,
+void X86_64Assembler::CreateHandleScopeEntry(ManagedRegister mout_reg,
+                                   FrameOffset handle_scope_offset,
                                    ManagedRegister min_reg, bool null_allowed) {
   X86_64ManagedRegister out_reg = mout_reg.AsX86_64();
   X86_64ManagedRegister in_reg = min_reg.AsX86_64();
@@ -1998,7 +1998,7 @@ void X86_64Assembler::CreateSirtEntry(ManagedRegister mout_reg,
     // Use out_reg as indicator of NULL
     in_reg = out_reg;
     // TODO: movzwl
-    movl(in_reg.AsCpuRegister(), Address(CpuRegister(RSP), sirt_offset));
+    movl(in_reg.AsCpuRegister(), Address(CpuRegister(RSP), handle_scope_offset));
   }
   CHECK(in_reg.IsCpuRegister());
   CHECK(out_reg.IsCpuRegister());
@@ -2010,34 +2010,34 @@ void X86_64Assembler::CreateSirtEntry(ManagedRegister mout_reg,
     }
     testl(in_reg.AsCpuRegister(), in_reg.AsCpuRegister());
     j(kZero, &null_arg);
-    leaq(out_reg.AsCpuRegister(), Address(CpuRegister(RSP), sirt_offset));
+    leaq(out_reg.AsCpuRegister(), Address(CpuRegister(RSP), handle_scope_offset));
     Bind(&null_arg);
   } else {
-    leaq(out_reg.AsCpuRegister(), Address(CpuRegister(RSP), sirt_offset));
+    leaq(out_reg.AsCpuRegister(), Address(CpuRegister(RSP), handle_scope_offset));
   }
 }
 
-void X86_64Assembler::CreateSirtEntry(FrameOffset out_off,
-                                   FrameOffset sirt_offset,
+void X86_64Assembler::CreateHandleScopeEntry(FrameOffset out_off,
+                                   FrameOffset handle_scope_offset,
                                    ManagedRegister mscratch,
                                    bool null_allowed) {
   X86_64ManagedRegister scratch = mscratch.AsX86_64();
   CHECK(scratch.IsCpuRegister());
   if (null_allowed) {
     Label null_arg;
-    movl(scratch.AsCpuRegister(), Address(CpuRegister(RSP), sirt_offset));
+    movl(scratch.AsCpuRegister(), Address(CpuRegister(RSP), handle_scope_offset));
     testl(scratch.AsCpuRegister(), scratch.AsCpuRegister());
     j(kZero, &null_arg);
-    leaq(scratch.AsCpuRegister(), Address(CpuRegister(RSP), sirt_offset));
+    leaq(scratch.AsCpuRegister(), Address(CpuRegister(RSP), handle_scope_offset));
     Bind(&null_arg);
   } else {
-    leaq(scratch.AsCpuRegister(), Address(CpuRegister(RSP), sirt_offset));
+    leaq(scratch.AsCpuRegister(), Address(CpuRegister(RSP), handle_scope_offset));
   }
   Store(out_off, scratch, 8);
 }
 
-// Given a SIRT entry, load the associated reference.
-void X86_64Assembler::LoadReferenceFromSirt(ManagedRegister mout_reg,
+// Given a handle scope entry, load the associated reference.
+void X86_64Assembler::LoadReferenceFromHandleScope(ManagedRegister mout_reg,
                                          ManagedRegister min_reg) {
   X86_64ManagedRegister out_reg = mout_reg.AsX86_64();
   X86_64ManagedRegister in_reg = min_reg.AsX86_64();

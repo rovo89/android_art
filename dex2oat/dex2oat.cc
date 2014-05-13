@@ -321,7 +321,7 @@ class Dex2Oat {
                                       TimingLogger& timings,
                                       CumulativeLogger& compiler_phases_timings,
                                       std::string profile_file) {
-    // SirtRef and ClassLoader creation needs to come after Runtime::Create
+    // Handle and ClassLoader creation needs to come after Runtime::Create
     jobject class_loader = NULL;
     Thread* self = Thread::Current();
     if (!boot_image_option.empty()) {

@@ -21,7 +21,7 @@
 #include "method_verifier.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
-#include "sirt_ref-inl.h"
+#include "handle_scope-inl.h"
 
 namespace art {
 namespace verifier {
@@ -39,11 +39,11 @@ inline const InstructionFlags& MethodVerifier::GetInstructionFlags(size_t index)
 }
 
 inline mirror::ClassLoader* MethodVerifier::GetClassLoader() {
-  return class_loader_->get();
+  return class_loader_->Get();
 }
 
 inline mirror::DexCache* MethodVerifier::GetDexCache() {
-  return dex_cache_->get();
+  return dex_cache_->Get();
 }
 
 inline MethodReference MethodVerifier::GetMethodReference() const {

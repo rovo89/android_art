@@ -94,7 +94,7 @@ const RegType& RegisterLine::GetInvocationThis(const Instruction* inst, bool is_
     verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invoke lacks 'this'";
     return verifier_->GetRegTypeCache()->Conflict();
   }
-  /* get the element type of the array held in vsrc */
+  /* Get the element type of the array held in vsrc */
   const uint32_t this_reg = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
   const RegType& this_type = GetRegisterType(this_reg);
   if (!this_type.IsReferenceTypes()) {

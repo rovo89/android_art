@@ -142,15 +142,16 @@ mirror::Class* RegTypeCache::ResolveClass(const char* descriptor, mirror::ClassL
   // Try resolving class
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Thread* self = Thread::Current();
-  SirtRef<mirror::ClassLoader> class_loader(self, loader);
+  StackHandleScope<1> hs(self);
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(loader));
   mirror::Class* klass = NULL;
   if (can_load_classes_) {
     klass = class_linker->FindClass(self, descriptor, class_loader);
   } else {
     klass = class_linker->LookupClass(descriptor, loader);
-    if (klass != NULL && !klass->IsLoaded()) {
+    if (klass != nullptr && !klass->IsLoaded()) {
       // We found the class but without it being loaded its not safe for use.
-      klass = NULL;
+      klass = nullptr;
     }
   }
   return klass;

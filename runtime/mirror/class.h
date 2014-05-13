@@ -429,7 +429,7 @@ class MANAGED Class : public Object {
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsVariableSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Classes and arrays vary in size, and so the object_size_ field cannot
-    // be used to get their instance size
+    // be used to Get their instance size
     return IsClassClass<kVerifyFlags, kReadBarrierOption>() ||
         IsArrayClass<kVerifyFlags, kReadBarrierOption>();
   }

@@ -32,7 +32,7 @@
 #include "object_array-inl.h"
 #include "object_utils.h"
 #include "runtime.h"
-#include "sirt_ref.h"
+#include "handle_scope-inl.h"
 #include "throwable.h"
 #include "well_known_classes.h"
 
@@ -100,19 +100,19 @@ static Object* CopyObject(Thread* self, mirror::Object* dest, mirror::Object* sr
 // An allocation pre-fence visitor that copies the object.
 class CopyObjectVisitor {
  public:
-  explicit CopyObjectVisitor(Thread* self, SirtRef<Object>* orig, size_t num_bytes)
+  explicit CopyObjectVisitor(Thread* self, Handle<Object>* orig, size_t num_bytes)
       : self_(self), orig_(orig), num_bytes_(num_bytes) {
   }
 
   void operator()(Object* obj, size_t usable_size) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     UNUSED(usable_size);
-    CopyObject(self_, obj, orig_->get(), num_bytes_);
+    CopyObject(self_, obj, orig_->Get(), num_bytes_);
   }
 
  private:
   Thread* const self_;
-  SirtRef<Object>* const orig_;
+  Handle<Object>* const orig_;
   const size_t num_bytes_;
   DISALLOW_COPY_AND_ASSIGN(CopyObjectVisitor);
 };
@@ -123,7 +123,8 @@ Object* Object::Clone(Thread* self) {
   // be wrong.
   gc::Heap* heap = Runtime::Current()->GetHeap();
   size_t num_bytes = SizeOf();
-  SirtRef<Object> this_object(self, this);
+  StackHandleScope<1> hs(self);
+  Handle<Object> this_object(hs.NewHandle(this));
   Object* copy;
   CopyObjectVisitor visitor(self, &this_object, num_bytes);
   if (heap->IsMovableObject(this)) {
@@ -163,10 +164,11 @@ int32_t Object::IdentityHashCode() const {
       case LockWord::kThinLocked: {
         // Inflate the thin lock to a monitor and stick the hash code inside of the monitor.
         Thread* self = Thread::Current();
-        SirtRef<mirror::Object> sirt_this(self, current_this);
-        Monitor::InflateThinLocked(self, sirt_this, lw, GenerateIdentityHashCode());
+        StackHandleScope<1> hs(self);
+        Handle<mirror::Object> h_this(hs.NewHandle(current_this));
+        Monitor::InflateThinLocked(self, h_this, lw, GenerateIdentityHashCode());
         // A GC may have occurred when we switched to kBlocked.
-        current_this = sirt_this.get();
+        current_this = h_this.Get();
         break;
       }
       case LockWord::kFatLocked: {

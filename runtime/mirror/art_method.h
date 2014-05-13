@@ -332,7 +332,7 @@ class MANAGED ArtMethod : public Object {
     return GetFrameSizeInBytes() - kPointerSize;
   }
 
-  size_t GetSirtOffsetInBytes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  size_t GetHandleScopeOffsetInBytes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return kPointerSize;
   }
 
@@ -381,7 +381,7 @@ class MANAGED ArtMethod : public Object {
   // Find the catch block for the given exception type and dex_pc. When a catch block is found,
   // indicates whether the found catch block is responsible for clearing the exception or whether
   // a move-exception instruction is present.
-  uint32_t FindCatchBlock(SirtRef<Class>& exception_type, uint32_t dex_pc,
+  uint32_t FindCatchBlock(Handle<Class>& exception_type, uint32_t dex_pc,
                           bool* has_no_move_exception)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

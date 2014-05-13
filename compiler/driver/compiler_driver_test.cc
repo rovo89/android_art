@@ -30,7 +30,7 @@
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
-#include "sirt_ref-inl.h"
+#include "handle_scope-inl.h"
 
 namespace art {
 
@@ -80,7 +80,9 @@ class CompilerDriverTest : public CommonCompilerTest {
       const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
       const char* descriptor = dex_file.GetClassDescriptor(class_def);
       ScopedObjectAccess soa(Thread::Current());
-      SirtRef<mirror::ClassLoader> loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(class_loader));
+      StackHandleScope<1> hs(soa.Self());
+      Handle<mirror::ClassLoader> loader(
+          hs.NewHandle(soa.Decode<mirror::ClassLoader*>(class_loader)));
       mirror::Class* c = class_linker->FindClass(soa.Self(), descriptor, loader);
       CHECK(c != NULL);
       for (size_t i = 0; i < c->NumDirectMethods(); i++) {
@@ -150,7 +152,8 @@ TEST_F(CompilerDriverTest, AbstractMethodErrorStub) {
   jobject class_loader;
   {
     ScopedObjectAccess soa(Thread::Current());
-    SirtRef<mirror::ClassLoader> null_loader(soa.Self(), nullptr);
+    StackHandleScope<1> hs(soa.Self());
+    auto null_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
     CompileVirtualMethod(null_loader, "java.lang.Class", "isFinalizable", "()Z");
     CompileDirectMethod(null_loader, "java.lang.Object", "<init>", "()V");
     class_loader = LoadDex("AbstractMethod");

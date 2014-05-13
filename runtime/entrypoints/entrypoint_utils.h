@@ -30,7 +30,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/throwable.h"
 #include "object_utils.h"
-#include "sirt_ref-inl.h"
+#include "handle_scope-inl.h"
 #include "thread.h"
 
 namespace art {
@@ -72,7 +72,8 @@ ALWAYS_INLINE static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
     }
   }
   if (UNLIKELY(!klass->IsInitialized())) {
-    SirtRef<mirror::Class> sirt_klass(self, klass);
+    StackHandleScope<1> hs(self);
+    Handle<mirror::Class> h_klass(hs.NewHandle(klass));
     // EnsureInitialized (the class initializer) might cause a GC.
     // may cause us to suspend meaning that another thread may try to
     // change the allocator while we are stuck in the entrypoints of
@@ -82,11 +83,11 @@ ALWAYS_INLINE static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
     // has changed and to null-check the return value in case the
     // initialization fails.
     *slow_path = true;
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(sirt_klass, true, true)) {
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_klass, true, true)) {
       DCHECK(self->IsExceptionPending());
       return nullptr;  // Failure
     }
-    return sirt_klass.get();
+    return h_klass.Get();
   }
   return klass;
 }
@@ -96,7 +97,8 @@ ALWAYS_INLINE static inline mirror::Class* CheckClassInitializedForObjectAlloc(m
                                                                                Thread* self, bool* slow_path)
     NO_THREAD_SAFETY_ANALYSIS {
   if (UNLIKELY(!klass->IsInitialized())) {
-    SirtRef<mirror::Class> sirt_class(self, klass);
+    StackHandleScope<1> hs(self);
+    Handle<mirror::Class> h_class(hs.NewHandle(klass));
     // EnsureInitialized (the class initializer) might cause a GC.
     // may cause us to suspend meaning that another thread may try to
     // change the allocator while we are stuck in the entrypoints of
@@ -106,11 +108,11 @@ ALWAYS_INLINE static inline mirror::Class* CheckClassInitializedForObjectAlloc(m
     // has changed and to null-check the return value in case the
     // initialization fails.
     *slow_path = true;
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(sirt_class, true, true)) {
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_class, true, true)) {
       DCHECK(self->IsExceptionPending());
       return nullptr;  // Failure
     }
-    return sirt_class.get();
+    return h_class.Get();
   }
   return klass;
 }
@@ -346,14 +348,14 @@ static inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, mirror::Ar
     if (LIKELY(fields_class->IsInitialized())) {
       return resolved_field;
     } else {
-      SirtRef<mirror::Class> sirt_class(self, fields_class);
-      if (LIKELY(class_linker->EnsureInitialized(sirt_class, true, true))) {
+      StackHandleScope<1> hs(self);
+      Handle<mirror::Class> h_class(hs.NewHandle(fields_class));
+      if (LIKELY(class_linker->EnsureInitialized(h_class, true, true))) {
         // Otherwise let's ensure the class is initialized before resolving the field.
         return resolved_field;
-      } else {
-        DCHECK(self->IsExceptionPending());  // Throw exception and unwind
-        return nullptr;  // Failure.
       }
+      DCHECK(self->IsExceptionPending());  // Throw exception and unwind
+      return nullptr;  // Failure.
     }
   }
 }
@@ -386,12 +388,13 @@ static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx,
                                                     mirror::Object* this_object,
                                                     mirror::ArtMethod* referrer, Thread* self) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  SirtRef<mirror::Object> sirt_this(self, type == kStatic ? nullptr : this_object);
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Object> handle_scope_this(hs.NewHandle(type == kStatic ? nullptr : this_object));
   mirror::ArtMethod* resolved_method = class_linker->ResolveMethod(method_idx, referrer, type);
   if (UNLIKELY(resolved_method == nullptr)) {
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
     return nullptr;  // Failure.
-  } else if (UNLIKELY(sirt_this.get() == nullptr && type != kStatic)) {
+  } else if (UNLIKELY(handle_scope_this.Get() == nullptr && type != kStatic)) {
     // Maintain interpreter-like semantics where NullPointerException is thrown
     // after potential NoSuchMethodError from class linker.
     ThrowLocation throw_location = self->GetCurrentLocationForThrow();
@@ -420,7 +423,7 @@ static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx,
     case kDirect:
       return resolved_method;
     case kVirtual: {
-      mirror::ObjectArray<mirror::ArtMethod>* vtable = sirt_this->GetClass()->GetVTable();
+      mirror::ObjectArray<mirror::ArtMethod>* vtable = handle_scope_this->GetClass()->GetVTable();
       uint16_t vtable_index = resolved_method->GetMethodIndex();
       if (access_check &&
           (vtable == nullptr || vtable_index >= static_cast<uint32_t>(vtable->GetLength()))) {
@@ -457,16 +460,16 @@ static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx,
     }
     case kInterface: {
       uint32_t imt_index = resolved_method->GetDexMethodIndex() % ClassLinker::kImtSize;
-      mirror::ObjectArray<mirror::ArtMethod>* imt_table = sirt_this->GetClass()->GetImTable();
+      mirror::ObjectArray<mirror::ArtMethod>* imt_table = handle_scope_this->GetClass()->GetImTable();
       mirror::ArtMethod* imt_method = imt_table->Get(imt_index);
       if (!imt_method->IsImtConflictMethod()) {
         return imt_method;
       } else {
         mirror::ArtMethod* interface_method =
-            sirt_this->GetClass()->FindVirtualMethodForInterface(resolved_method);
+            handle_scope_this->GetClass()->FindVirtualMethodForInterface(resolved_method);
         if (UNLIKELY(interface_method == nullptr)) {
           ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(resolved_method,
-                                                                     sirt_this.get(), referrer);
+                                                                     handle_scope_this.Get(), referrer);
           return nullptr;  // Failure.
         } else {
           return interface_method;
@@ -625,12 +628,13 @@ static inline mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx,
   if (klass == referring_class && referrer->IsConstructor() && referrer->IsStatic()) {
     return klass;
   }
-  SirtRef<mirror::Class> sirt_class(self, klass);
-  if (!class_linker->EnsureInitialized(sirt_class, true, true)) {
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Class> h_class(hs.NewHandle(klass));
+  if (!class_linker->EnsureInitialized(h_class, true, true)) {
     CHECK(self->IsExceptionPending());
     return nullptr;  // Failure - Indicate to caller to deliver exception
   }
-  return sirt_class.get();
+  return h_class.Get();
 }
 
 extern void ThrowStackOverflowError(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
