@@ -998,8 +998,81 @@ ENTRY art_quick_handle_fill_data
     DELIVER_PENDING_EXCEPTION
 END art_quick_handle_fill_data
 
-UNIMPLEMENTED art_quick_lock_object
-UNIMPLEMENTED art_quick_unlock_object
+    /*
+     * Entry from managed code that calls artLockObjectFromCode, may block for GC. x0 holds the
+     * possibly null object to lock.
+     *
+     * Derived from arm32 code.
+     */
+    .extern artLockObjectFromCode
+ENTRY art_quick_lock_object
+    cbz    w0, .Lslow_lock
+    add    x4, x0, #LOCK_WORD_OFFSET  // exclusive load/store had no immediate anymore
+.Lretry_lock:
+    ldr    w2, [xSELF, #THREAD_ID_OFFSET] // TODO: Can the thread ID really change during the loop?
+    ldxr   w1, [x4]
+    cbnz   w1, .Lnot_unlocked         // already thin locked
+    stxr   w3, w2, [x4]
+    cbnz   w3, .Lstrex_fail           // store failed, retry
+    dmb    ishld                      // full (LoadLoad) memory barrier, TODO: acquire-release
+    ret
+.Lstrex_fail:
+    b .Lretry_lock                    // unlikely forward branch, need to reload and recheck r1/r2
+.Lnot_unlocked:
+    lsr    w3, w1, 30
+    cbnz   w3, .Lslow_lock            // if either of the top two bits are set, go slow path
+    eor    w2, w1, w2                 // lock_word.ThreadId() ^ self->ThreadId()
+    uxth   w2, w2                     // zero top 16 bits
+    cbnz   w2, .Lslow_lock            // lock word and self thread id's match -> recursive lock
+                                      // else contention, go to slow path
+    add    w2, w1, #65536             // increment count in lock word placing in w2 for storing
+    lsr    w1, w2, 30                 // if either of the top two bits are set, we overflowed.
+    cbnz   w1, .Lslow_lock            // if we overflow the count go slow path
+    str    w2, [x0, #LOCK_WORD_OFFSET]// no need for stxr as we hold the lock
+    ret
+.Lslow_lock:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case we block
+    mov    x1, xSELF                  // pass Thread::Current
+    mov    x2, sp                     // pass SP
+    bl     artLockObjectFromCode      // (Object* obj, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_W0_IS_ZERO_OR_DELIVER
+END art_quick_lock_object
+
+    /*
+     * Entry from managed code that calls artUnlockObjectFromCode and delivers exception on failure.
+     * x0 holds the possibly null object to lock.
+     *
+     * Derived from arm32 code.
+     */
+    .extern artUnlockObjectFromCode
+ENTRY art_quick_unlock_object
+    cbz    x0, .Lslow_unlock
+    ldr    w1, [x0, #LOCK_WORD_OFFSET]
+    lsr    w2, w1, 30
+    cbnz   w2, .Lslow_unlock          // if either of the top two bits are set, go slow path
+    ldr    w2, [xSELF, #THREAD_ID_OFFSET]
+    eor    w3, w1, w2                 // lock_word.ThreadId() ^ self->ThreadId()
+    uxth   w3, w3                     // zero top 16 bits
+    cbnz   w3, .Lslow_unlock          // do lock word and self thread id's match?
+    cmp    w1, #65536
+    bpl    .Lrecursive_thin_unlock
+    // transition to unlocked, w3 holds 0
+    dmb    ish                        // full (StoreLoad) memory barrier
+    str    w3, [x0, #LOCK_WORD_OFFSET]
+    ret
+.Lrecursive_thin_unlock:
+    sub    w1, w1, #65536
+    str    w1, [x0, #LOCK_WORD_OFFSET]
+    ret
+.Lslow_unlock:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case exception allocation triggers GC
+    mov    x1, xSELF                  // pass Thread::Current
+    mov    x2, sp                     // pass SP
+    bl     artUnlockObjectFromCode    // (Object* obj, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_W0_IS_ZERO_OR_DELIVER
+END art_quick_unlock_object
 
     /*
      * Entry from managed code that calls artIsAssignableFromCode and on failure calls
