@@ -689,9 +689,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
 
   if (compiler_callbacks_ == nullptr && image_.empty()) {
     image_ += GetAndroidRoot();
-    image_ += "/framework/boot-";
-    image_ += GetInstructionSetString(image_isa_);
-    image_ += ".art";
+    image_ += "/framework/boot.art";
   }
   if (heap_growth_limit_ == 0) {
     heap_growth_limit_ = heap_maximum_size_;
