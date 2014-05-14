@@ -399,7 +399,7 @@ ENTRY art_quick_lock_object
     @ unlocked case - r2 holds thread id with count of 0
     strex  r3, r2, [r0, #LOCK_WORD_OFFSET]
     cbnz   r3, .Lstrex_fail           @ store failed, retry
-    dmb    ish                        @ full (LoadLoad) memory barrier
+    dmb    ish                        @ full (LoadLoad|LoadStore) memory barrier
     bx lr
 .Lstrex_fail:
     b .Lretry_lock                    @ unlikely forward branch, need to reload and recheck r1/r2
@@ -442,7 +442,7 @@ ENTRY art_quick_unlock_object
     cmp    r1, #65536
     bpl    .Lrecursive_thin_unlock
     @ transition to unlocked, r3 holds 0
-    dmb    ish                        @ full (StoreLoad) memory barrier
+    dmb    ish                        @ full (LoadStore|StoreStore) memory barrier
     str    r3, [r0, #LOCK_WORD_OFFSET]
     bx     lr
 .Lrecursive_thin_unlock:
