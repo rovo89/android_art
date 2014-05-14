@@ -37,10 +37,10 @@ void HGraph::RemoveDeadBlocks(const ArenaBitVector& visited) const {
       for (size_t j = 0; j < block->GetSuccessors().Size(); ++j) {
         block->GetSuccessors().Get(j)->RemovePredecessor(block, false);
       }
-      for (HInstructionIterator it(*block->GetPhis()); !it.Done(); it.Advance()) {
+      for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
         block->RemovePhi(it.Current()->AsPhi());
       }
-      for (HInstructionIterator it(*block->GetInstructions()); !it.Done(); it.Advance()) {
+      for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
         block->RemoveInstruction(it.Current());
       }
     }
@@ -420,10 +420,10 @@ void HGraphVisitor::VisitInsertionOrder() {
 }
 
 void HGraphVisitor::VisitBasicBlock(HBasicBlock* block) {
-  for (HInstructionIterator it(*block->GetPhis()); !it.Done(); it.Advance()) {
+  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
     it.Current()->Accept(this);
   }
-  for (HInstructionIterator it(*block->GetInstructions()); !it.Done(); it.Advance()) {
+  for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
     it.Current()->Accept(this);
   }
 }
