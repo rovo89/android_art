@@ -242,9 +242,11 @@ extern "C" int artSet32InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
 extern "C" int artSet64InstanceFromCode(uint32_t field_idx, mirror::Object* obj, uint64_t new_value,
                                         Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::ArtMethod* callee_save = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsOnly);
-  mirror::ArtMethod* referrer =
-      sp[callee_save->GetFrameSizeInBytes() / sizeof(mirror::ArtMethod*)];
+  Runtime* runtime = Runtime::Current();
+  mirror::ArtMethod* callee_save = runtime->GetCalleeSaveMethod(Runtime::kRefsOnly);
+  uint32_t frame_size =
+      runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsOnly).FrameSizeInBytes();
+  mirror::ArtMethod* referrer = sp[frame_size / sizeof(mirror::ArtMethod*)];
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite,
                                           sizeof(int64_t));
   if (LIKELY(field != NULL  && obj != NULL)) {
