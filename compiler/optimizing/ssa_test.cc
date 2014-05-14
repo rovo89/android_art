@@ -66,10 +66,10 @@ static void ReNumberInstructions(HGraph* graph) {
   int id = 0;
   for (size_t i = 0, e = graph->GetBlocks().Size(); i < e; ++i) {
     HBasicBlock* block = graph->GetBlocks().Get(i);
-    for (HInstructionIterator it(*block->GetPhis()); !it.Done(); it.Advance()) {
+    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       it.Current()->SetId(id++);
     }
-    for (HInstructionIterator it(*block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       it.Current()->SetId(id++);
     }
   }

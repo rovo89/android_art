@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <fstream>
 #include <stdint.h>
 
 #include "builder.h"
@@ -21,6 +22,7 @@
 #include "compilers.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
+#include "graph_visualizer.h"
 #include "nodes.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/arena_allocator.h"
@@ -50,6 +52,22 @@ class CodeVectorAllocator FINAL : public CodeAllocator {
   DISALLOW_COPY_AND_ASSIGN(CodeVectorAllocator);
 };
 
+/**
+ * If set to true, generates a file suitable for the c1visualizer tool and IRHydra.
+ */
+static bool kIsVisualizerEnabled = false;
+
+/**
+ * Filter to apply to the visualizer. Methods whose name contain that filter will
+ * be in the file.
+ */
+static const char* kStringFilter = "";
+
+OptimizingCompiler::OptimizingCompiler(CompilerDriver* driver) : QuickCompiler(driver) {
+  if (kIsVisualizerEnabled) {
+    visualizer_output_.reset(new std::ofstream("art.cfg"));
+  }
+}
 
 CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_item,
                                                uint32_t access_flags,
@@ -70,6 +88,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   ArenaPool pool;
   ArenaAllocator arena(&pool);
   HGraphBuilder builder(&arena, &dex_compilation_unit, &dex_file);
+
   HGraph* graph = builder.BuildGraph(*code_item);
   if (graph == nullptr) {
     if (shouldCompile) {
@@ -77,6 +96,8 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     }
     return nullptr;
   }
+  HGraphVisualizer visualizer(visualizer_output_.get(), graph, kStringFilter, dex_compilation_unit);
+  visualizer.DumpGraph("builder");
 
   InstructionSet instruction_set = GetCompilerDriver()->GetInstructionSet();
   // The optimizing compiler currently does not have a Thumb2 assembler.
@@ -104,6 +125,8 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   // Run these phases to get some test coverage.
   graph->BuildDominatorTree();
   graph->TransformToSSA();
+  visualizer.DumpGraph("ssa");
+
   graph->FindNaturalLoops();
   SsaLivenessAnalysis(*graph).Analyze();
 

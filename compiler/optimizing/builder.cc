@@ -311,6 +311,10 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
     }
   }
 
+  if (return_type == Primitive::kPrimDouble || return_type == Primitive::kPrimFloat) {
+    return false;
+  }
+
   DCHECK_EQ(argument_index, number_of_arguments);
   current_block_->AddInstruction(invoke);
   return true;

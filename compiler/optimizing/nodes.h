@@ -82,7 +82,7 @@ class HGraph : public ArenaObject {
   void SimplifyCFG();
 
   // Find all natural loops in this graph. Aborts computation and returns false
-  // if one loop is not natural, that is the header does not dominated the back
+  // if one loop is not natural, that is the header does not dominate the back
   // edge.
   bool FindNaturalLoops() const;
 
@@ -268,8 +268,8 @@ class HBasicBlock : public ArenaObject {
 
   HInstruction* GetFirstInstruction() const { return instructions_.first_instruction_; }
   HInstruction* GetLastInstruction() const { return instructions_.last_instruction_; }
-  HInstructionList const* GetInstructions() const { return &instructions_; }
-  HInstructionList const* GetPhis() const { return &phis_; }
+  const HInstructionList& GetInstructions() const { return instructions_; }
+  const HInstructionList& GetPhis() const { return phis_; }
 
   void AddSuccessor(HBasicBlock* block) {
     successors_.Add(block);
@@ -443,6 +443,17 @@ class HInstruction : public ArenaObject {
   HUseListNode<HEnvironment>* GetEnvUses() const { return env_uses_; }
 
   bool HasUses() const { return uses_ != nullptr || env_uses_ != nullptr; }
+
+  size_t NumberOfUses() const {
+    // TODO: Optimize this method if it is used outside of the HGraphTracer.
+    size_t result = 0;
+    HUseListNode<HInstruction>* current = uses_;
+    while (current != nullptr) {
+      current = current->GetTail();
+      ++result;
+    }
+    return result;
+  }
 
   int GetId() const { return id_; }
   void SetId(int id) { id_ = id; }
