@@ -73,7 +73,7 @@ class QuickCompiler : public Compiler {
 
 class OptimizingCompiler FINAL : public QuickCompiler {
  public:
-  explicit OptimizingCompiler(CompilerDriver* driver) : QuickCompiler(driver) { }
+  explicit OptimizingCompiler(CompilerDriver* driver);
 
   CompiledMethod* Compile(const DexFile::CodeItem* code_item,
                           uint32_t access_flags,
@@ -92,6 +92,8 @@ class OptimizingCompiler FINAL : public QuickCompiler {
                              const DexFile& dex_file) const;
 
  private:
+  UniquePtr<std::ostream> visualizer_output_;
+
   DISALLOW_COPY_AND_ASSIGN(OptimizingCompiler);
 };
 

@@ -30,7 +30,7 @@ void SsaBuilder::BuildSsa() {
   // 2) Set inputs of loop phis.
   for (size_t i = 0; i < loop_headers_.Size(); i++) {
     HBasicBlock* block = loop_headers_.Get(i);
-    for (HInstructionIterator it(*block->GetPhis()); !it.Done(); it.Advance()) {
+    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       HPhi* phi = it.Current()->AsPhi();
       for (size_t pred = 0; pred < block->GetPredecessors().Size(); pred++) {
         phi->AddInput(ValueOfLocal(block->GetPredecessors().Get(pred), phi->GetRegNumber()));
@@ -40,7 +40,7 @@ void SsaBuilder::BuildSsa() {
 
   // 3) Clear locals.
   // TODO: Move this to a dead code eliminator phase.
-  for (HInstructionIterator it(*GetGraph()->GetEntryBlock()->GetInstructions());
+  for (HInstructionIterator it(GetGraph()->GetEntryBlock()->GetInstructions());
        !it.Done();
        it.Advance()) {
     HInstruction* current = it.Current();
@@ -106,7 +106,7 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
   // - HStoreLocal: update current value of the local and remove the instruction.
   // - Instructions that require an environment: populate their environment
   //   with the current values of the locals.
-  for (HInstructionIterator it(*block->GetInstructions()); !it.Done(); it.Advance()) {
+  for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
     it.Current()->Accept(this);
   }
 }

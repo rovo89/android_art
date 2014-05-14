@@ -29,14 +29,14 @@ void SsaLivenessAnalysis::NumberInstructions() {
   for (HReversePostOrderIterator it(graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
 
-    for (HInstructionIterator it(*block->GetPhis()); !it.Done(); it.Advance()) {
+    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       if (current->HasUses()) {
         current->SetSsaIndex(ssa_index++);
       }
     }
 
-    for (HInstructionIterator it(*block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       if (current->HasUses()) {
         current->SetSsaIndex(ssa_index++);
@@ -73,7 +73,7 @@ void SsaLivenessAnalysis::ComputeInitialSets() {
     BitVector* kill = GetKillSet(*block);
     BitVector* live_in = GetLiveInSet(*block);
 
-    for (HBackwardInstructionIterator it(*block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HBackwardInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       if (current->HasSsaIndex()) {
         kill->SetBit(current->GetSsaIndex());
@@ -99,7 +99,7 @@ void SsaLivenessAnalysis::ComputeInitialSets() {
       }
     }
 
-    for (HInstructionIterator it(*block->GetPhis()); !it.Done(); it.Advance()) {
+    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       if (current->HasSsaIndex()) {
         kill->SetBit(current->GetSsaIndex());
