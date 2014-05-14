@@ -47,7 +47,7 @@ void CodeGenerator::CompileBlock(HBasicBlock* block) {
   Bind(GetLabelOf(block));
   HGraphVisitor* location_builder = GetLocationBuilder();
   HGraphVisitor* instruction_visitor = GetInstructionVisitor();
-  for (HInstructionIterator it(*block->GetInstructions()); !it.Done(); it.Advance()) {
+  for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
     HInstruction* current = it.Current();
     current->Accept(location_builder);
     InitLocations(current);
