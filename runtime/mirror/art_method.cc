@@ -231,7 +231,7 @@ uintptr_t ArtMethod::ToNativePc(const uint32_t dex_pc) {
 }
 
 uint32_t ArtMethod::FindCatchBlock(Handle<Class>& exception_type, uint32_t dex_pc,
-                                   bool* has_no_move_exception) {
+                                   bool* has_no_move_exception, bool* exc_changed) {
   MethodHelper mh(this);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
   // Set aside the exception while we resolve its type.
@@ -252,10 +252,17 @@ uint32_t ArtMethod::FindCatchBlock(Handle<Class>& exception_type, uint32_t dex_p
     }
     // Does this catch exception type apply?
     Class* iter_exception_type = mh.GetClassFromTypeIdx(iter_type_idx);
-    if (exception_type.Get() == nullptr) {
-      self->ClearException();
+    if (iter_exception_type == nullptr) {
+      // Now have a NoClassDefFoundError as exception.
+      // Note: this is not RI behavior. RI would have failed when loading the class.
+      *exc_changed = true;
+
+      // TODO: Add old exception as suppressed.
       LOG(WARNING) << "Unresolved exception class when finding catch block: "
         << mh.GetTypeDescriptorFromTypeIdx(iter_type_idx);
+
+      // Return immediately.
+      return DexFile::kDexNoIndex;
     } else if (iter_exception_type->IsAssignableFrom(exception_type.Get())) {
       found_dex_pc = it.GetHandlerAddress();
       break;
