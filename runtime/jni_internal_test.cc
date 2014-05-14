@@ -1497,7 +1497,7 @@ TEST_F(JniInternalTest, NewDirectBuffer_GetDirectBufferAddress_GetDirectBufferCa
   ASSERT_NE(buffer, nullptr);
   ASSERT_TRUE(env_->IsInstanceOf(buffer, buffer_class));
   ASSERT_EQ(env_->GetDirectBufferAddress(buffer), bytes);
-  ASSERT_EQ(env_->GetDirectBufferCapacity(buffer), sizeof(bytes));
+  ASSERT_EQ(env_->GetDirectBufferCapacity(buffer), static_cast<jlong>(sizeof(bytes)));
 }
 
 TEST_F(JniInternalTest, MonitorEnterExit) {
