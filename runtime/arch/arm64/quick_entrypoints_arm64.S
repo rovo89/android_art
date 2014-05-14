@@ -1444,7 +1444,7 @@ END art_quick_resolution_trampoline
  * | RDI/Method*       |  <- X0
  * #-------------------#
  * | local ref cookie  | // 4B
- * |   handle scope size       | // 4B
+ * | handle scope size | // 4B
  * #-------------------#
  * | JNI Call Stack    |
  * #-------------------#    <--- SP on native call
