@@ -25,7 +25,7 @@
 namespace art {
 
 template<size_t kNumReferences>
-StackHandleScope<kNumReferences>::StackHandleScope(Thread* self)
+inline StackHandleScope<kNumReferences>::StackHandleScope(Thread* self)
     : HandleScope(kNumReferences), self_(self), pos_(0) {
   // TODO: Figure out how to use a compile assert.
   DCHECK_EQ(OFFSETOF_MEMBER(HandleScope, references_),
@@ -37,7 +37,7 @@ StackHandleScope<kNumReferences>::StackHandleScope(Thread* self)
 }
 
 template<size_t kNumReferences>
-StackHandleScope<kNumReferences>::~StackHandleScope() {
+inline StackHandleScope<kNumReferences>::~StackHandleScope() {
   HandleScope* top_handle_scope = self_->PopHandleScope();
   DCHECK_EQ(top_handle_scope, this);
 }
