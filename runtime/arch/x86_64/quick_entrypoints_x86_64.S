@@ -1050,12 +1050,12 @@ END_FUNCTION art_quick_resolution_trampoline
  * | Return            |
  * | Callee-Save Data  |
  * #-------------------#
- * | handle scope              |
+ * | handle scope      |
  * #-------------------#
  * | Method*           |    <--- (1)
  * #-------------------#
  * | local ref cookie  | // 4B
- * | handle scope size         | // 4B   TODO: roll into call stack alignment?
+ * | handle scope size | // 4B   TODO: roll into call stack alignment?
  * #-------------------#
  * | JNI Call Stack    |
  * #-------------------#    <--- SP on native call
