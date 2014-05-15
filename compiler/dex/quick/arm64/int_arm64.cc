@@ -712,7 +712,7 @@ LIR* Arm64Mir2Lir::OpDecAndBranch(ConditionCode c_code, RegStorage reg, LIR* tar
   return OpCondBranch(c_code, target);
 }
 
-void Arm64Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
+bool Arm64Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 #if ANDROID_SMP != 0
   // Start off with using the last LIR as the barrier. If it is not enough, then we will generate one.
   LIR* barrier = last_lir_insn_;
@@ -730,15 +730,21 @@ void Arm64Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
       break;
   }
 
+  bool ret = false;
+
   // If the same barrier already exists, don't generate another.
   if (barrier == nullptr
       || (barrier->opcode != kA64Dmb1B || barrier->operands[0] != dmb_flavor)) {
     barrier = NewLIR1(kA64Dmb1B, dmb_flavor);
+    ret = true;
   }
 
   // At this point we must have a memory barrier. Mark it as a scheduling barrier as well.
   DCHECK(!barrier->flags.use_def_invalid);
   barrier->u.m.def_mask = ENCODE_ALL;
+  return ret;
+#else
+  return false;
 #endif
 }
 
