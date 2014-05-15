@@ -37,6 +37,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
 	runtime/dex_instruction_visitor_test.cc \
 	runtime/dex_method_iterator_test.cc \
 	runtime/entrypoints/math_entrypoints_test.cc \
+	runtime/entrypoints/quick/quick_trampoline_entrypoints_test.cc \
 	runtime/entrypoints_order_test.cc \
 	runtime/exception_test.cc \
 	runtime/gc/accounting/space_bitmap_test.cc \

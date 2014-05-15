@@ -45,4 +45,8 @@ TEST_F(InstructionSetTest, TestRoundTrip) {
   EXPECT_EQ(kRuntimeISA, GetInstructionSetFromString(GetInstructionSetString(kRuntimeISA)));
 }
 
+TEST_F(InstructionSetTest, PointerSize) {
+  EXPECT_EQ(kPointerSize, GetInstructionSetPointerSize(kRuntimeISA));
+}
+
 }  // namespace art

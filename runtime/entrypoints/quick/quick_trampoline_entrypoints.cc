@@ -36,6 +36,9 @@ namespace art {
 class QuickArgumentVisitor {
   // Number of bytes for each out register in the caller method's frame.
   static constexpr size_t kBytesStackArgLocation = 4;
+  // Frame size in bytes of a callee-save frame for RefsAndArgs.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_FrameSize =
+      GetCalleeSaveFrameSize(kRuntimeISA, Runtime::kRefsAndArgs);
 #if defined(__arm__)
   // The callee save frame is pointed to by SP.
   // | argN       |  |
@@ -58,7 +61,6 @@ class QuickArgumentVisitor {
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 8;  // Offset of first GPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 44;  // Offset of return address.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_FrameSize = 48;  // Frame size.
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     return gpr_index * GetBytesPerGprSpillLocation(kRuntimeISA);
   }
@@ -86,10 +88,9 @@ class QuickArgumentVisitor {
   static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr size_t kNumQuickGprArgs = 7;  // 7 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 8;  // 8 arguments passed in FPRs.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset =16;  // Offset of first FPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 16;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 144;  // Offset of first GPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 296;  // Offset of return address.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_FrameSize = 304;  // Frame size.
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     return gpr_index * GetBytesPerGprSpillLocation(kRuntimeISA);
   }
@@ -114,7 +115,6 @@ class QuickArgumentVisitor {
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 4;  // Offset of first GPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 60;  // Offset of return address.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_FrameSize = 64;  // Frame size.
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     return gpr_index * GetBytesPerGprSpillLocation(kRuntimeISA);
   }
@@ -139,7 +139,6 @@ class QuickArgumentVisitor {
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 4;  // Offset of first GPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 28;  // Offset of return address.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_FrameSize = 32;  // Frame size.
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     return gpr_index * GetBytesPerGprSpillLocation(kRuntimeISA);
   }
@@ -177,7 +176,6 @@ class QuickArgumentVisitor {
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 16;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 80;  // Offset of first GPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 168;  // Offset of return address.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_FrameSize = 176;  // Frame size.
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     switch (gpr_index) {
       case 0: return (4 * GetBytesPerGprSpillLocation(kRuntimeISA));
@@ -219,10 +217,7 @@ class QuickArgumentVisitor {
       stack_args_(reinterpret_cast<byte*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize
                   + StackArgumentStartFromShorty(is_static, shorty, shorty_len)),
       gpr_index_(0), fpr_index_(0), stack_index_(0), cur_type_(Primitive::kPrimVoid),
-      is_split_long_or_double_(false) {
-    DCHECK_EQ(kQuickCalleeSaveFrame_RefAndArgs_FrameSize,
-              Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
-  }
+      is_split_long_or_double_(false) { }
 
   virtual ~QuickArgumentVisitor() {}
 
@@ -1802,66 +1797,12 @@ extern "C" MethodAndCode artInvokeInterfaceTrampoline(mirror::ArtMethod* interfa
   } else {
     FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
     DCHECK(interface_method == Runtime::Current()->GetResolutionMethod());
-    // Determine method index from calling dex instruction.
-#if defined(__arm__)
-    // On entry the stack pointed by sp is:
-    // | argN       |  |
-    // | ...        |  |
-    // | arg4       |  |
-    // | arg3 spill |  |  Caller's frame
-    // | arg2 spill |  |
-    // | arg1 spill |  |
-    // | Method*    | ---
-    // | LR         |
-    // | ...        |    callee saves
-    // | R3         |    arg3
-    // | R2         |    arg2
-    // | R1         |    arg1
-    // | R0         |
-    // | Method*    |  <- sp
-    DCHECK_EQ(48U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
-    uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) + kPointerSize);
-    uintptr_t caller_pc = regs[10];
-#elif defined(__i386__)
-    // On entry the stack pointed by sp is:
-    // | argN        |  |
-    // | ...         |  |
-    // | arg4        |  |
-    // | arg3 spill  |  |  Caller's frame
-    // | arg2 spill  |  |
-    // | arg1 spill  |  |
-    // | Method*     | ---
-    // | Return      |
-    // | EBP,ESI,EDI |    callee saves
-    // | EBX         |    arg3
-    // | EDX         |    arg2
-    // | ECX         |    arg1
-    // | EAX/Method* |  <- sp
-    DCHECK_EQ(32U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
-    uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp));
-    uintptr_t caller_pc = regs[7];
-#elif defined(__mips__)
-    // On entry the stack pointed by sp is:
-    // | argN       |  |
-    // | ...        |  |
-    // | arg4       |  |
-    // | arg3 spill |  |  Caller's frame
-    // | arg2 spill |  |
-    // | arg1 spill |  |
-    // | Method*    | ---
-    // | RA         |
-    // | ...        |    callee saves
-    // | A3         |    arg3
-    // | A2         |    arg2
-    // | A1         |    arg1
-    // | A0/Method* |  <- sp
-    DCHECK_EQ(64U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
-    uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp));
-    uintptr_t caller_pc = regs[15];
-#else
-    UNIMPLEMENTED(FATAL);
-    uintptr_t caller_pc = 0;
-#endif
+
+    // Find the caller PC.
+    constexpr size_t pc_offset = GetCalleeSavePCOffset(kRuntimeISA, Runtime::kRefsAndArgs);
+    uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) + pc_offset);
+
+    // Map the caller PC to a dex PC.
     uint32_t dex_pc = caller_method->ToDexPc(caller_pc);
     const DexFile::CodeItem* code = MethodHelper(caller_method).GetCodeItem();
     CHECK_LT(dex_pc, code->insns_size_in_code_units_);
