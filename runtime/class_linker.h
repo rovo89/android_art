@@ -280,6 +280,7 @@ class ClassLinker {
   // does not match the OatFile.
   const DexFile* FindDexFileInOatFileFromDexLocation(const char* location,
                                                      const uint32_t* const location_checksum,
+                                                     InstructionSet isa,
                                                      std::vector<std::string>* error_msgs)
       LOCKS_EXCLUDED(dex_lock_, Locks::mutator_lock_);
 

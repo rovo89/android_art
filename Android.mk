@@ -241,10 +241,9 @@ test-art-target$(1): test-art-target-gtest$(1) test-art-target-oat$(1) test-art-
 endef
 $(eval $(call call-art-multi-target-rule,declare-test-art-target,test-art-target))
 
-
 define declare-test-art-target-dependencies
 .PHONY: test-art-target-dependencies$(1)
-test-art-target-dependencies$(1): $(ART_TARGET_TEST_DEPENDENCIES$(1)) $(ART_TEST_OUT)/libarttest.so
+test-art-target-dependencies$(1): $(ART_TARGET_TEST_DEPENDENCIES$(1)) $(ART_TARGET_LIBARTTEST_$(1))
 endef
 $(eval $(call call-art-multi-target-rule,declare-test-art-target-dependencies,test-art-target-dependencies))
 
@@ -404,7 +403,7 @@ dump-oat-core: dump-oat-core-host dump-oat-core-target
 .PHONY: dump-oat-core-host
 ifeq ($(ART_BUILD_HOST),true)
 dump-oat-core-host: $(HOST_CORE_IMG_OUT) $(OATDUMP)
-	$(OATDUMP) --image=$(HOST_CORE_IMG_OUT) --output=$(ART_DUMP_OAT_PATH)/core.host.oatdump.txt
+	$(OATDUMP) --image=$(HOST_CORE_IMG_LOCATION) --output=$(ART_DUMP_OAT_PATH)/core.host.oatdump.txt
 	@echo Output in $(ART_DUMP_OAT_PATH)/core.host.oatdump.txt
 endif
 

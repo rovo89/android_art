@@ -129,12 +129,12 @@ endif
 # (1) Prefix for variables
 define build-art-test-make-target
 .PHONY: $$(art_gtest_target)$($(1)ART_PHONY_TEST_TARGET_SUFFIX)
-$$(art_gtest_target)$($(1)ART_PHONY_TEST_TARGET_SUFFIX): $($(1)ART_NATIVETEST_OUT)/$$(LOCAL_MODULE) test-art-target-sync
-	adb shell touch $($(1)ART_TEST_DIR)/$$@
-	adb shell rm $($(1)ART_TEST_DIR)/$$@
-	adb shell chmod 755 $($(1)ART_NATIVETEST_DIR)/$$(notdir $$<)
-	adb shell sh -c "$($(1)ART_NATIVETEST_DIR)/$$(notdir $$<) && touch $($(1)ART_TEST_DIR)/$$@"
-	$(hide) (adb pull $($(1)ART_TEST_DIR)/$$@ /tmp/ && echo $$@ PASSED) || (echo $$@ FAILED && exit 1)
+$$(art_gtest_target)$($(1)ART_PHONY_TEST_TARGET_SUFFIX): $(ART_NATIVETEST_OUT)/$(TARGET_$(1)ARCH)/$$(LOCAL_MODULE) test-art-target-sync
+	adb shell touch $(ART_TEST_DIR)/$(TARGET_$(1)ARCH)/$$@
+	adb shell rm $(ART_TEST_DIR)/$(TARGET_$(1)ARCH)/$$@
+	adb shell chmod 755 $(ART_NATIVETEST_DIR)/$(TARGET_$(1)ARCH)/$$(notdir $$<)
+	adb shell sh -c "$(ART_NATIVETEST_DIR)/$(TARGET_$(1)ARCH)/$$(notdir $$<) && touch $(ART_TEST_DIR)/$(TARGET_$(1)ARCH)/$$@"
+	$(hide) (adb pull $(ART_TEST_DIR)/$(TARGET_$(1)ARCH)/$$@ /tmp/ && echo $$@ PASSED) || (echo $$@ FAILED && exit 1)
 	$(hide) rm /tmp/$$@
 
   ART_TARGET_GTEST_TARGETS$($(1)ART_PHONY_TEST_TARGET_SUFFIX) += $$(art_gtest_target)$($(1)ART_PHONY_TEST_TARGET_SUFFIX)
@@ -187,19 +187,19 @@ define build-art-test
     LOCAL_CFLAGS_x86 := $(ART_TARGET_CFLAGS_x86)
     LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libz libcutils libvixl
     LOCAL_STATIC_LIBRARIES += libgtest
-    LOCAL_MODULE_PATH_32 := $(ART_BASE_NATIVETEST_OUT)
-    LOCAL_MODULE_PATH_64 := $(ART_BASE_NATIVETEST_OUT)64
+    LOCAL_MODULE_PATH_32 := $(ART_NATIVETEST_OUT)/$(ART_TARGET_ARCH_32)
+    LOCAL_MODULE_PATH_64 := $(ART_NATIVETEST_OUT)/$(ART_TARGET_ARCH_64)
     LOCAL_MULTILIB := both
     include art/build/Android.libcxx.mk
     include $(BUILD_EXECUTABLE)
     
-    ART_TARGET_GTEST_EXECUTABLES$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_NATIVETEST_OUT)/$$(LOCAL_MODULE)
+    ART_TARGET_GTEST_EXECUTABLES$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_NATIVETEST_OUT)/$(TARGET_ARCH)/$$(LOCAL_MODULE)
     art_gtest_target := test-art-$$(art_target_or_host)-gtest-$$(art_gtest_name)
 
     ifdef TARGET_2ND_ARCH
       $(call build-art-test-make-target,2ND_)
 
-      ART_TARGET_GTEST_EXECUTABLES$(2ND_ART_PHONY_TEST_TARGET_SUFFIX) += $(2ND_ART_NATIVETEST_OUT)/$$(LOCAL_MODULE)
+      ART_TARGET_GTEST_EXECUTABLES$(2ND_ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_NATIVETEST_OUT)/$(TARGET_2ND_ARCH)/$$(LOCAL_MODULE)
 
       # Bind the primary to the non-suffix rule
       ifneq ($(ART_PHONY_TEST_TARGET_SUFFIX),)

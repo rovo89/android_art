@@ -50,12 +50,9 @@ TEST_F(ElfWriterTest, dlsym) {
     CHECK(host_dir != NULL);
     elf_filename = StringPrintf("%s/framework/core.oat", host_dir);
   } else {
-#ifdef __LP64__
-    elf_filename = "/data/art-test64/core.oat";
-#else
     elf_filename = "/data/art-test/core.oat";
-#endif
   }
+  elf_filename = GetSystemImageFilename(elf_filename.c_str(), kRuntimeISA);
   LOG(INFO) << "elf_filename=" << elf_filename;
 
   UnreserveImageSpace();
