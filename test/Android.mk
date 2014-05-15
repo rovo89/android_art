@@ -110,6 +110,7 @@ $(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-dex,oat-test
 
 # Used outside the art project to get a list of the current tests
 ART_TEST_DEX_MAKE_TARGETS := $(addprefix art-test-dex-, $(TEST_DEX_DIRECTORIES))
+ART_TEST_OAT_MAKE_TARGETS := $(addprefix oat-test-dex-, $(TEST_OAT_DIRECTORIES))
 
 # Rules to explicitly create 2nd-arch test directories, as we use a "cp" for them
 # instead of BUILD_JAVA_LIBRARY
