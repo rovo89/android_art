@@ -54,6 +54,7 @@ struct WellKnownClasses {
   static jclass java_lang_reflect_Proxy;
   static jclass java_lang_RuntimeException;
   static jclass java_lang_StackOverflowError;
+  static jclass java_lang_String;
   static jclass java_lang_System;
   static jclass java_lang_Thread;
   static jclass java_lang_ThreadGroup;
