@@ -421,11 +421,12 @@ bool X86Mir2Lir::ProvidesFullMemoryBarrier(X86OpCode opcode) {
     return false;
 }
 
-void X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
+bool X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 #if ANDROID_SMP != 0
   // Start off with using the last LIR as the barrier. If it is not enough, then we will update it.
   LIR* mem_barrier = last_lir_insn_;
 
+  bool ret = false;
   /*
    * According to the JSR-133 Cookbook, for x86 only StoreLoad barriers need memory fence. All other barriers
    * (LoadLoad, LoadStore, StoreStore) are nops due to the x86 memory model. For those cases, all we need
@@ -435,11 +436,13 @@ void X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
     // If no LIR exists already that can be used a barrier, then generate an mfence.
     if (mem_barrier == nullptr) {
       mem_barrier = NewLIR0(kX86Mfence);
+      ret = true;
     }
 
     // If last instruction does not provide full barrier, then insert an mfence.
     if (ProvidesFullMemoryBarrier(static_cast<X86OpCode>(mem_barrier->opcode)) == false) {
       mem_barrier = NewLIR0(kX86Mfence);
+      ret = true;
     }
   }
 
@@ -451,6 +454,9 @@ void X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
     DCHECK(!mem_barrier->flags.use_def_invalid);
     mem_barrier->u.m.def_mask = ENCODE_ALL;
   }
+  return ret;
+#else
+  return false;
 #endif
 }
 

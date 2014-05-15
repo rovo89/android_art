@@ -1192,8 +1192,9 @@ class Mir2Lir : public Backend {
      * barrier, then it will be used as such. Otherwise, a new LIR will be generated
      * that can keep the semantics.
      * @param barrier_kind The kind of memory barrier to generate.
+     * @return whether a new instruction was generated.
      */
-    virtual void GenMemBarrier(MemBarrierKind barrier_kind) = 0;
+    virtual bool GenMemBarrier(MemBarrierKind barrier_kind) = 0;
 
     virtual void GenMoveException(RegLocation rl_dest) = 0;
     virtual void GenMultiplyByTwoBitMultiplier(RegLocation rl_src, RegLocation rl_result, int lit,
