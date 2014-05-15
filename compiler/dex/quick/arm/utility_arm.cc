@@ -850,7 +850,7 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
         DCHECK(!r_dest.IsPair());
         load = NewLIR3(kThumb2Vldrd, r_dest.GetReg(), r_ptr.GetReg(), encoded_disp);
       } else {
-        load = NewLIR4(kThumb2LdrdI8, r_dest.GetLowReg(), r_dest.GetHighReg(), r_base.GetReg(),
+        load = NewLIR4(kThumb2LdrdI8, r_dest.GetLowReg(), r_dest.GetHighReg(), r_ptr.GetReg(),
                        encoded_disp);
       }
       if ((displacement & ~1020) != 0 && !r_dest.IsFloat()) {
