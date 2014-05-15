@@ -381,8 +381,11 @@ class MANAGED ArtMethod : public Object {
   // Find the catch block for the given exception type and dex_pc. When a catch block is found,
   // indicates whether the found catch block is responsible for clearing the exception or whether
   // a move-exception instruction is present.
+  // In the process of finding a catch block we might trigger resolution errors. This is flagged
+  // by exc_changed, which indicates that a different exception is now stored in the thread and
+  // should be reloaded.
   uint32_t FindCatchBlock(Handle<Class>& exception_type, uint32_t dex_pc,
-                          bool* has_no_move_exception)
+                          bool* has_no_move_exception, bool* exc_changed)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void SetClass(Class* java_lang_reflect_ArtMethod);

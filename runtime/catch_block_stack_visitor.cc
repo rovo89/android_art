@@ -50,9 +50,17 @@ bool CatchBlockStackVisitor::HandleTryItems(mirror::ArtMethod* method) {
   }
   if (dex_pc != DexFile::kDexNoIndex) {
     bool clear_exception = false;
+    bool exc_changed = false;
     StackHandleScope<1> hs(Thread::Current());
     Handle<mirror::Class> to_find(hs.NewHandle((*exception_)->GetClass()));
-    uint32_t found_dex_pc = method->FindCatchBlock(to_find, dex_pc, &clear_exception);
+    uint32_t found_dex_pc = method->FindCatchBlock(to_find, dex_pc, &clear_exception,
+                                                   &exc_changed);
+    if (UNLIKELY(exc_changed)) {
+      DCHECK_EQ(DexFile::kDexNoIndex, found_dex_pc);
+      exception_->Assign(self_->GetException(nullptr));  // TODO: Throw location?
+      // There is a new context installed, delete it.
+      delete self_->GetLongJumpContext();
+    }
     exception_handler_->SetClearException(clear_exception);
     if (found_dex_pc != DexFile::kDexNoIndex) {
       exception_handler_->SetHandlerDexPc(found_dex_pc);
