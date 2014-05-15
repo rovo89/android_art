@@ -15,8 +15,8 @@
  */
 
 #include <algorithm>
-#include <fcntl.h>
 #include <set>
+#include <fcntl.h>
 #include <unistd.h>
 
 #include "base/logging.h"
@@ -37,7 +37,7 @@
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
-#include "toStringArray.h"
+#include "well_known_classes.h"
 #include "zip_archive.h"
 
 #ifdef HAVE_ANDROID_OS
@@ -196,19 +196,24 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
 }
 
 static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jlong cookie) {
-  const DexFile* dex_file;
-  dex_file = toDexFile(cookie, env);
+  jobjectArray result = nullptr;
+  const DexFile* dex_file = toDexFile(cookie, env);
   if (dex_file == nullptr) {
-    return nullptr;
+    result = env->NewObjectArray(dex_file->NumClassDefs(), WellKnownClasses::java_lang_String,
+                                 nullptr);
+    if (result != nullptr) {
+      for (size_t i = 0; i < dex_file->NumClassDefs(); ++i) {
+        const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
+        const char* descriptor = dex_file->GetClassDescriptor(class_def);
+        ScopedLocalRef<jstring> jdescriptor(env, env->NewStringUTF(descriptor));
+        if (jdescriptor.get() == nullptr) {
+          return nullptr;
+        }
+        env->SetObjectArrayElement(result, i, jdescriptor.get());
+      }
+    }
   }
-
-  std::vector<std::string> class_names;
-  for (size_t i = 0; i < dex_file->NumClassDefs(); ++i) {
-    const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
-    const char* descriptor = dex_file->GetClassDescriptor(class_def);
-    class_names.push_back(DescriptorToDot(descriptor));
-  }
-  return toStringArray(env, class_names);
+  return result;
 }
 
 // Copy a profile file
