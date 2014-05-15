@@ -163,4 +163,57 @@ TEST_F(MemMapTest, RemapAtEnd32bit) {
 }
 #endif
 
+TEST_F(MemMapTest, MapAnonymousExactAddr32bitHighAddr) {
+  std::string error_msg;
+  UniquePtr<MemMap> map(MemMap::MapAnonymous("MapAnonymousExactAddr32bitHighAddr",
+                                             reinterpret_cast<byte*>(0x71000000),
+                                             0x21000000,
+                                             PROT_READ | PROT_WRITE,
+                                             true,
+                                             &error_msg));
+  ASSERT_TRUE(map.get() != nullptr) << error_msg;
+  ASSERT_TRUE(error_msg.empty());
+  ASSERT_EQ(reinterpret_cast<uintptr_t>(BaseBegin(map.get())), 0x71000000U);
+}
+
+TEST_F(MemMapTest, MapAnonymousOverflow) {
+  std::string error_msg;
+  uintptr_t ptr = 0;
+  ptr -= kPageSize;  // Now it's close to the top.
+  UniquePtr<MemMap> map(MemMap::MapAnonymous("MapAnonymousOverflow",
+                                             reinterpret_cast<byte*>(ptr),
+                                             2 * kPageSize,  // brings it over the top.
+                                             PROT_READ | PROT_WRITE,
+                                             false,
+                                             &error_msg));
+  ASSERT_EQ(nullptr, map.get());
+  ASSERT_FALSE(error_msg.empty());
+}
+
+#ifdef __LP64__
+TEST_F(MemMapTest, MapAnonymousLow4GBExpectedTooHigh) {
+  std::string error_msg;
+  UniquePtr<MemMap> map(MemMap::MapAnonymous("MapAnonymousLow4GBExpectedTooHigh",
+                                             reinterpret_cast<byte*>(UINT64_C(0x100000000)),
+                                             kPageSize,
+                                             PROT_READ | PROT_WRITE,
+                                             true,
+                                             &error_msg));
+  ASSERT_EQ(nullptr, map.get());
+  ASSERT_FALSE(error_msg.empty());
+}
+
+TEST_F(MemMapTest, MapAnonymousLow4GBRangeTooHigh) {
+  std::string error_msg;
+  UniquePtr<MemMap> map(MemMap::MapAnonymous("MapAnonymousLow4GBRangeTooHigh",
+                                             reinterpret_cast<byte*>(0xF0000000),
+                                             0x20000000,
+                                             PROT_READ | PROT_WRITE,
+                                             true,
+                                             &error_msg));
+  ASSERT_EQ(nullptr, map.get());
+  ASSERT_FALSE(error_msg.empty());
+}
+#endif
+
 }  // namespace art
