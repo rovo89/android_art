@@ -31,29 +31,18 @@
 #include "UniquePtr.h"
 #include "utils.h"
 
-// A boilerplate to use hash_map/hash_set both on host and device.
-#ifdef HAVE_ANDROID_OS
-#include <hash_map>
+// Ensure we have an unordered_set until we have worked out C++ library issues.
+#ifdef ART_WITH_STLPORT
 #include <hash_set>
-using std::hash_map;
-using std::hash_set;
-#else  // HAVE_ANDROID_OS
-#ifdef __DEPRECATED
-#define ROSALLOC_OLD__DEPRECATED __DEPRECATED
-#undef __DEPRECATED
-#endif
-#include <ext/hash_map>
-#include <ext/hash_set>
-#ifdef ROSALLOC_OLD__DEPRECATED
-#define __DEPRECATED ROSALLOC_OLD__DEPRECATED
-#undef ROSALLOC_OLD__DEPRECATED
-#endif
-using __gnu_cxx::hash_map;
-using __gnu_cxx::hash_set;
-#endif  // HAVE_ANDROID_OS
+template <class V, class H, class P>
+class unordered_set : public std::hash_set<V, H, P> {};
+#else  // ART_WITH_STLPORT
+// TODO: avoid the use of using in a header file.
+#include <unordered_set>
+using std::unordered_set;
+#endif  // ART_WITH_STLPORT
 
 namespace art {
-
 namespace gc {
 namespace allocator {
 
@@ -462,7 +451,7 @@ class RosAlloc {
   std::set<Run*> non_full_runs_[kNumOfSizeBrackets];
   // The run sets that hold the runs whose slots are all full. This is
   // debug only. full_runs_[i] is guarded by size_bracket_locks_[i].
-  hash_set<Run*, hash_run, eq_run> full_runs_[kNumOfSizeBrackets];
+  unordered_set<Run*, hash_run, eq_run> full_runs_[kNumOfSizeBrackets];
   // The set of free pages.
   std::set<FreePageRun*> free_page_runs_ GUARDED_BY(lock_);
   // The dedicated full run, it is always full and shared by all threads when revoking happens.

@@ -793,7 +793,7 @@ size_t RosAlloc::FreeFromRun(Thread* self, void* ptr, Run* run) {
     // already in the non-full run set (i.e., it was full) insert it
     // into the non-full run set.
     if (run != current_runs_[idx]) {
-      hash_set<Run*, hash_run, eq_run>* full_runs =
+      unordered_set<Run*, hash_run, eq_run>* full_runs =
           kIsDebugBuild ? &full_runs_[idx] : NULL;
       std::set<Run*>::iterator pos = non_full_runs->find(run);
       if (pos == non_full_runs->end()) {
@@ -1156,11 +1156,11 @@ size_t RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
   WriterMutexLock wmu(self, bulk_free_lock_);
 
   // First mark slots to free in the bulk free bit map without locking the
-  // size bracket locks. On host, hash_set is faster than vector + flag.
+  // size bracket locks. On host, unordered_set is faster than vector + flag.
 #ifdef HAVE_ANDROID_OS
   std::vector<Run*> runs;
 #else
-  hash_set<Run*, hash_run, eq_run> runs;
+  unordered_set<Run*, hash_run, eq_run> runs;
 #endif
   for (size_t i = 0; i < num_ptrs; i++) {
     void* ptr = ptrs[i];
@@ -1267,7 +1267,7 @@ size_t RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
       // Check if the run should be moved to non_full_runs_ or
       // free_page_runs_.
       std::set<Run*>* non_full_runs = &non_full_runs_[idx];
-      hash_set<Run*, hash_run, eq_run>* full_runs =
+      unordered_set<Run*, hash_run, eq_run>* full_runs =
           kIsDebugBuild ? &full_runs_[idx] : NULL;
       if (run->IsAllFree()) {
         // It has just become completely free. Free the pages of the
@@ -1281,7 +1281,7 @@ size_t RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
           // If it was full, remove it from the full run set (debug
           // only.)
           if (kIsDebugBuild) {
-            hash_set<Run*, hash_run, eq_run>::iterator pos = full_runs->find(run);
+            unordered_set<Run*, hash_run, eq_run>::iterator pos = full_runs->find(run);
             DCHECK(pos != full_runs->end());
             full_runs->erase(pos);
             if (kTraceRosAlloc) {
@@ -2054,7 +2054,7 @@ void RosAlloc::Run::Verify(Thread* self, RosAlloc* rosalloc) {
       } else {
         // If it's full, it must in the full run set (debug build only.)
         if (kIsDebugBuild) {
-          hash_set<Run*, hash_run, eq_run>& full_runs = rosalloc->full_runs_[idx];
+          unordered_set<Run*, hash_run, eq_run>& full_runs = rosalloc->full_runs_[idx];
           CHECK(full_runs.find(this) != full_runs.end())
               << " A full run isn't in the full run set " << Dump();
         }
