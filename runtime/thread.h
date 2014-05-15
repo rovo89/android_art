@@ -103,6 +103,11 @@ class Thread {
   // Worst-case, we would need about 2.6x the amount of x86_64 for many more registers.
   // But this one works rather well.
   static constexpr size_t kStackOverflowReservedBytes = 32 * KB;
+#elif defined(__i386__)
+  // TODO: Bumped to workaround regression (http://b/14982147) Specifically to fix:
+  // test-art-host-run-test-interpreter-018-stack-overflow
+  // test-art-host-run-test-interpreter-107-int-math2
+  static constexpr size_t kStackOverflowReservedBytes = 24 * KB;
 #else
   static constexpr size_t kStackOverflowReservedBytes = 16 * KB;
 #endif
