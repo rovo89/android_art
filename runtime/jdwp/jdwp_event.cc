@@ -136,6 +136,28 @@ static bool NeedsFullDeoptimization(JdwpEventKind eventKind) {
     }
 }
 
+uint32_t GetInstrumentationEventFor(JdwpEventKind eventKind) {
+  switch (eventKind) {
+    case EK_BREAKPOINT:
+    case EK_SINGLE_STEP:
+      return instrumentation::Instrumentation::kDexPcMoved;
+    case EK_EXCEPTION:
+    case EK_EXCEPTION_CATCH:
+      return instrumentation::Instrumentation::kExceptionCaught;
+    case EK_METHOD_ENTRY:
+      return instrumentation::Instrumentation::kMethodEntered;
+    case EK_METHOD_EXIT:
+    case EK_METHOD_EXIT_WITH_RETURN_VALUE:
+      return instrumentation::Instrumentation::kMethodExited;
+    case EK_FIELD_ACCESS:
+      return instrumentation::Instrumentation::kFieldRead;
+    case EK_FIELD_MODIFICATION:
+      return instrumentation::Instrumentation::kFieldWritten;
+    default:
+      return 0;
+  }
+}
+
 /*
  * Add an event to the list.  Ordering is not important.
  *
@@ -148,30 +170,40 @@ JdwpError JdwpState::RegisterEvent(JdwpEvent* pEvent) {
   CHECK(pEvent->prev == NULL);
   CHECK(pEvent->next == NULL);
 
-  /*
-   * If one or more "break"-type mods are used, register them with
-   * the interpreter.
-   */
-  DeoptimizationRequest req;
-  for (int i = 0; i < pEvent->modCount; i++) {
-    const JdwpEventMod* pMod = &pEvent->mods[i];
-    if (pMod->modKind == MK_LOCATION_ONLY) {
-      /* should only be for Breakpoint, Step, and Exception */
-      Dbg::WatchLocation(&pMod->locationOnly.loc, &req);
-    } else if (pMod->modKind == MK_STEP) {
-      /* should only be for EK_SINGLE_STEP; should only be one */
-      JdwpStepSize size = static_cast<JdwpStepSize>(pMod->step.size);
-      JdwpStepDepth depth = static_cast<JdwpStepDepth>(pMod->step.depth);
-      JdwpError status = Dbg::ConfigureStep(pMod->step.threadId, size, depth);
-      if (status != ERR_NONE) {
-        return status;
+  {
+    /*
+     * If one or more "break"-type mods are used, register them with
+     * the interpreter.
+     */
+    DeoptimizationRequest req;
+    for (int i = 0; i < pEvent->modCount; i++) {
+      const JdwpEventMod* pMod = &pEvent->mods[i];
+      if (pMod->modKind == MK_LOCATION_ONLY) {
+        /* should only be for Breakpoint, Step, and Exception */
+        Dbg::WatchLocation(&pMod->locationOnly.loc, &req);
+      } else if (pMod->modKind == MK_STEP) {
+        /* should only be for EK_SINGLE_STEP; should only be one */
+        JdwpStepSize size = static_cast<JdwpStepSize>(pMod->step.size);
+        JdwpStepDepth depth = static_cast<JdwpStepDepth>(pMod->step.depth);
+        JdwpError status = Dbg::ConfigureStep(pMod->step.threadId, size, depth);
+        if (status != ERR_NONE) {
+          return status;
+        }
       }
     }
+    if (NeedsFullDeoptimization(pEvent->eventKind)) {
+      CHECK_EQ(req.kind, DeoptimizationRequest::kNothing);
+      CHECK(req.method == nullptr);
+      req.kind = DeoptimizationRequest::kFullDeoptimization;
+    }
+    Dbg::RequestDeoptimization(req);
   }
-  if (NeedsFullDeoptimization(pEvent->eventKind)) {
-    CHECK_EQ(req.kind, DeoptimizationRequest::kNothing);
-    CHECK(req.method == nullptr);
-    req.kind = DeoptimizationRequest::kFullDeoptimization;
+  uint32_t instrumentation_event = GetInstrumentationEventFor(pEvent->eventKind);
+  if (instrumentation_event != 0) {
+    DeoptimizationRequest req;
+    req.kind = DeoptimizationRequest::kRegisterForEvent;
+    req.instrumentation_event = instrumentation_event;
+    Dbg::RequestDeoptimization(req);
   }
 
   {
@@ -187,9 +219,6 @@ JdwpError JdwpState::RegisterEvent(JdwpEvent* pEvent) {
     ++event_list_size_;
   }
 
-  // TODO we can do better job here since we should process only one request: the one we just
-  // created.
-  Dbg::RequestDeoptimization(req);
   Dbg::ManageDeoptimization();
 
   return ERR_NONE;
@@ -219,40 +248,48 @@ void JdwpState::UnregisterEvent(JdwpEvent* pEvent) {
   }
   pEvent->prev = NULL;
 
-  /*
-   * Unhook us from the interpreter, if necessary.
-   */
-  DeoptimizationRequest req;
-  for (int i = 0; i < pEvent->modCount; i++) {
-    JdwpEventMod* pMod = &pEvent->mods[i];
-    if (pMod->modKind == MK_LOCATION_ONLY) {
-      /* should only be for Breakpoint, Step, and Exception */
-      Dbg::UnwatchLocation(&pMod->locationOnly.loc, &req);
+  {
+    /*
+     * Unhook us from the interpreter, if necessary.
+     */
+    DeoptimizationRequest req;
+    for (int i = 0; i < pEvent->modCount; i++) {
+      JdwpEventMod* pMod = &pEvent->mods[i];
+      if (pMod->modKind == MK_LOCATION_ONLY) {
+        /* should only be for Breakpoint, Step, and Exception */
+        Dbg::UnwatchLocation(&pMod->locationOnly.loc, &req);
+      }
+      if (pMod->modKind == MK_STEP) {
+        /* should only be for EK_SINGLE_STEP; should only be one */
+        Dbg::UnconfigureStep(pMod->step.threadId);
+      }
     }
-    if (pMod->modKind == MK_STEP) {
-      /* should only be for EK_SINGLE_STEP; should only be one */
-      Dbg::UnconfigureStep(pMod->step.threadId);
+    if (pEvent->eventKind == EK_SINGLE_STEP) {
+      // Special case for single-steps where we want to avoid the slow pattern deoptimize/undeoptimize
+      // loop between each single-step. In a IDE, this would happens each time the user click on the
+      // "single-step" button. Here we delay the full undeoptimization to the next resume
+      // (VM.Resume or ThreadReference.Resume) or the end of the debugging session (VM.Dispose or
+      // runtime shutdown).
+      // Therefore, in a singles-stepping sequence, only the first single-step will trigger a full
+      // deoptimization and only the last single-step will trigger a full undeoptimization.
+      Dbg::DelayFullUndeoptimization();
+    } else if (NeedsFullDeoptimization(pEvent->eventKind)) {
+      CHECK_EQ(req.kind, DeoptimizationRequest::kNothing);
+      CHECK(req.method == nullptr);
+      req.kind = DeoptimizationRequest::kFullUndeoptimization;
     }
+    Dbg::RequestDeoptimization(req);
   }
-  if (pEvent->eventKind == EK_SINGLE_STEP) {
-    // Special case for single-steps where we want to avoid the slow pattern deoptimize/undeoptimize
-    // loop between each single-step. In a IDE, this would happens each time the user click on the
-    // "single-step" button. Here we delay the full undeoptimization to the next resume
-    // (VM.Resume or ThreadReference.Resume) or the end of the debugging session (VM.Dispose or
-    // runtime shutdown).
-    // Therefore, in a singles-stepping sequence, only the first single-step will trigger a full
-    // deoptimization and only the last single-step will trigger a full undeoptimization.
-    Dbg::DelayFullUndeoptimization();
-  } else if (NeedsFullDeoptimization(pEvent->eventKind)) {
-    CHECK_EQ(req.kind, DeoptimizationRequest::kNothing);
-    CHECK(req.method == nullptr);
-    req.kind = DeoptimizationRequest::kFullUndeoptimization;
+  uint32_t instrumentation_event = GetInstrumentationEventFor(pEvent->eventKind);
+  if (instrumentation_event != 0) {
+    DeoptimizationRequest req;
+    req.kind = DeoptimizationRequest::kUnregisterForEvent;
+    req.instrumentation_event = instrumentation_event;
+    Dbg::RequestDeoptimization(req);
   }
 
   --event_list_size_;
   CHECK(event_list_size_ != 0 || event_list_ == NULL);
-
-  Dbg::RequestDeoptimization(req);
 }
 
 /*
