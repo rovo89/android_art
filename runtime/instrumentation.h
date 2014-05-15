@@ -238,6 +238,7 @@ class Instrumentation {
 
   bool IsActive() const {
     return have_dex_pc_listeners_ || have_method_entry_listeners_ || have_method_exit_listeners_ ||
+        have_field_read_listeners_ || have_field_write_listeners_ ||
         have_exception_caught_listeners_ || have_method_unwind_listeners_;
   }
 
