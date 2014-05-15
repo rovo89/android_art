@@ -270,8 +270,7 @@ LIBART_HOST_SRC_FILES := \
 	runtime_linux.cc \
 	thread_linux.cc
 
-ifeq ($(HOST_ARCH),x86)
-ifneq ($(BUILD_HOST_64bit),)
+ifeq ($(HOST_ARCH),x86_64)
 LIBART_HOST_SRC_FILES += \
 	arch/x86_64/context_x86_64.cc \
 	arch/x86_64/entrypoints_init_x86_64.cc \
@@ -282,6 +281,7 @@ LIBART_HOST_SRC_FILES += \
 	arch/x86_64/fault_handler_x86_64.cc \
 	monitor_pool.cc
 else
+  ifeq ($(HOST_ARCH),x86)
 LIBART_HOST_SRC_FILES += \
 	arch/x86/context_x86.cc \
 	arch/x86/entrypoints_init_x86.cc \
@@ -290,10 +290,10 @@ LIBART_HOST_SRC_FILES += \
 	arch/x86/quick_entrypoints_x86.S \
 	arch/x86/fault_handler_x86.cc \
 	arch/x86/thread_x86.cc
-endif
-else # HOST_ARCH != x86
+  else # HOST_ARCH != x86 && HOST_ARCH != x86_64
 $(error unsupported HOST_ARCH=$(HOST_ARCH))
-endif # HOST_ARCH != x86
+  endif
+endif
 
 
 LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \

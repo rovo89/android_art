@@ -139,7 +139,7 @@ class MipsMir2Lir FINAL : public Mir2Lir {
     void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double);
     void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir);
     void GenSelect(BasicBlock* bb, MIR* mir);
-    void GenMemBarrier(MemBarrierKind barrier_kind);
+    bool GenMemBarrier(MemBarrierKind barrier_kind);
     void GenMoveException(RegLocation rl_dest);
     void GenMultiplyByTwoBitMultiplier(RegLocation rl_src, RegLocation rl_result, int lit,
                                        int first_bit, int second_bit);

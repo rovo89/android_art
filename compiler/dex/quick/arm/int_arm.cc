@@ -67,6 +67,34 @@ LIR* ArmMir2Lir::OpIT(ConditionCode ccode, const char* guide) {
   return NewLIR2(kThumb2It, code, mask);
 }
 
+void ArmMir2Lir::UpdateIT(LIR* it, const char* new_guide) {
+  int mask;
+  int mask3 = 0;
+  int mask2 = 0;
+  int mask1 = 0;
+  ArmConditionCode code = static_cast<ArmConditionCode>(it->operands[0]);
+  int cond_bit = code & 1;
+  int alt_bit = cond_bit ^ 1;
+
+  // Note: case fallthroughs intentional
+  switch (strlen(new_guide)) {
+    case 3:
+      mask1 = (new_guide[2] == 'T') ? cond_bit : alt_bit;
+    case 2:
+      mask2 = (new_guide[1] == 'T') ? cond_bit : alt_bit;
+    case 1:
+      mask3 = (new_guide[0] == 'T') ? cond_bit : alt_bit;
+      break;
+    case 0:
+      break;
+    default:
+      LOG(FATAL) << "OAT: bad case in UpdateIT";
+  }
+  mask = (mask3 << 3) | (mask2 << 2) | (mask1 << 1) |
+      (1 << (3 - strlen(new_guide)));
+  it->operands[1] = mask;
+}
+
 void ArmMir2Lir::OpEndIT(LIR* it) {
   // TODO: use the 'it' pointer to do some checks with the LIR, for example
   //       we could check that the number of instructions matches the mask
@@ -934,7 +962,7 @@ LIR* ArmMir2Lir::OpDecAndBranch(ConditionCode c_code, RegStorage reg, LIR* targe
   return OpCondBranch(c_code, target);
 }
 
-void ArmMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
+bool ArmMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 #if ANDROID_SMP != 0
   // Start off with using the last LIR as the barrier. If it is not enough, then we will generate one.
   LIR* barrier = last_lir_insn_;
@@ -952,15 +980,21 @@ void ArmMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
       break;
   }
 
+  bool ret = false;
+
   // If the same barrier already exists, don't generate another.
   if (barrier == nullptr
       || (barrier != nullptr && (barrier->opcode != kThumb2Dmb || barrier->operands[0] != dmb_flavor))) {
     barrier = NewLIR1(kThumb2Dmb, dmb_flavor);
+    ret = true;
   }
 
   // At this point we must have a memory barrier. Mark it as a scheduling barrier as well.
   DCHECK(!barrier->flags.use_def_invalid);
   barrier->u.m.def_mask = ENCODE_ALL;
+  return ret;
+#else
+  return false;
 #endif
 }
 

@@ -295,8 +295,11 @@ void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
     LoadConstantNoClobber(rs_r3, 0);
     // Is lock unheld on lock or held by us (==thread_id) on unlock?
     OpRegReg(kOpCmp, rs_r1, rs_r2);
-    LIR* it = OpIT(kCondEq, "TEE");
-    GenMemBarrier(kStoreLoad);
+
+    LIR* it = OpIT(kCondEq, "EE");
+    if (GenMemBarrier(kStoreLoad)) {
+      UpdateIT(it, "TEE");
+    }
     Store32Disp/*eq*/(rs_r0, mirror::Object::MonitorOffset().Int32Value(), rs_r3);
     // Go expensive route - UnlockObjectFromCode(obj);
     LoadWordDisp/*ne*/(rs_rARM_SELF, QUICK_ENTRYPOINT_OFFSET(4, pUnlockObject).Int32Value(),
