@@ -48,11 +48,20 @@ namespace interpreter {
   } while (false)
 
 // Code to run before each dex instruction.
-#define PREAMBLE()
+#define PREAMBLE()                                                                              \
+  do {                                                                                          \
+    DCHECK(!inst->IsReturn());                                                                  \
+    if (UNLIKELY(notified_method_entry_event)) {                                                \
+      notified_method_entry_event = false;                                                      \
+    } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {                                \
+      instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),  \
+                                       shadow_frame.GetMethod(), dex_pc);                       \
+    }                                                                                           \
+  } while (false)
 
 template<bool do_access_check, bool transaction_active>
 JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
-                                ShadowFrame& shadow_frame, JValue result_register) {
+                         ShadowFrame& shadow_frame, JValue result_register) {
   bool do_assignability_check = do_access_check;
   if (UNLIKELY(!shadow_frame.HasReferenceArray())) {
     LOG(FATAL) << "Invalid shadow frame for interpreter use";
@@ -61,11 +70,13 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
   self->VerifyStack();
 
   uint32_t dex_pc = shadow_frame.GetDexPC();
+  bool notified_method_entry_event = false;
   const instrumentation::Instrumentation* const instrumentation = Runtime::Current()->GetInstrumentation();
   if (LIKELY(dex_pc == 0)) {  // We are entering the method as opposed to deoptimizing..
     if (UNLIKELY(instrumentation->HasMethodEntryListeners())) {
       instrumentation->MethodEnterEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                         shadow_frame.GetMethod(), 0);
+      notified_method_entry_event = true;
     }
   }
   const uint16_t* const insns = code_item->insns_;
@@ -74,10 +85,6 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
   while (true) {
     dex_pc = inst->GetDexPc(insns);
     shadow_frame.SetDexPC(dex_pc);
-    if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-      instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
-                                       shadow_frame.GetMethod(), dex_pc);
-    }
     TraceExecution(shadow_frame, inst, dex_pc, mh);
     inst_data = inst->Fetch16(0);
     switch (inst->Opcode(inst_data)) {
@@ -163,7 +170,6 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         break;
       }
       case Instruction::RETURN_VOID: {
-        PREAMBLE();
         JValue result;
         if (do_access_check) {
           // If access checks are required then the dex-to-dex compiler and analysis of
@@ -182,7 +188,6 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         return result;
       }
       case Instruction::RETURN_VOID_BARRIER: {
-        PREAMBLE();
         QuasiAtomic::MembarStoreLoad();
         JValue result;
         if (UNLIKELY(self->TestAllFlags())) {
@@ -196,7 +201,6 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         return result;
       }
       case Instruction::RETURN: {
-        PREAMBLE();
         JValue result;
         result.SetJ(0);
         result.SetI(shadow_frame.GetVReg(inst->VRegA_11x(inst_data)));
@@ -211,7 +215,6 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         return result;
       }
       case Instruction::RETURN_WIDE: {
-        PREAMBLE();
         JValue result;
         result.SetJ(shadow_frame.GetVRegLong(inst->VRegA_11x(inst_data)));
         if (UNLIKELY(self->TestAllFlags())) {
@@ -225,7 +228,6 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         return result;
       }
       case Instruction::RETURN_OBJECT: {
-        PREAMBLE();
         JValue result;
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
