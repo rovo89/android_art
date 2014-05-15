@@ -257,6 +257,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                        shadow_frame.GetMethod(), dex_pc,
                                        result);
+    } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
+      instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
+                                       shadow_frame.GetMethod(), dex_pc);
     }
     return result;
   }
@@ -273,6 +276,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                        shadow_frame.GetMethod(), dex_pc,
                                        result);
+    } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
+      instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
+                                       shadow_frame.GetMethod(), dex_pc);
     }
     return result;
   }
@@ -290,6 +296,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                        shadow_frame.GetMethod(), dex_pc,
                                        result);
+    } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
+      instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
+                                       shadow_frame.GetMethod(), dex_pc);
     }
     return result;
   }
@@ -306,6 +315,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                        shadow_frame.GetMethod(), dex_pc,
                                        result);
+    } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
+      instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
+                                       shadow_frame.GetMethod(), dex_pc);
     }
     return result;
   }
@@ -340,6 +352,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                        shadow_frame.GetMethod(), dex_pc,
                                        result);
+    } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
+      instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
+                                       shadow_frame.GetMethod(), dex_pc);
     }
     return result;
   }
@@ -2389,6 +2404,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
 // Create alternative instruction handlers dedicated to instrumentation.
 // Return instructions must not call Instrumentation::DexPcMovedEvent since they already call
 // Instrumentation::MethodExited. This is to avoid posting debugger events twice for this location.
+// Note: we do not use the kReturn instruction flag here (to test the instruction is a return). The
+// compiler seems to not evaluate "(Instruction::FlagsOf(Instruction::code) & kReturn) != 0" to
+// a constant condition that would remove the "if" statement so the test is free.
 #define INSTRUMENTATION_INSTRUCTION_HANDLER(o, code, n, f, r, i, a, v)                            \
   alt_op_##code: {                                                                                \
     if (Instruction::code != Instruction::RETURN_VOID &&                                          \
