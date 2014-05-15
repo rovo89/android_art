@@ -359,10 +359,14 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
                             (static_cast<size_t>(frame_size_) <
                             Thread::kStackOverflowReservedBytes));
   NewLIR0(kPseudoMethodEntry);
+  bool large_frame = (static_cast<size_t>(frame_size_) > Thread::kStackOverflowReservedUsableBytes);
   if (!skip_overflow_check) {
     if (Runtime::Current()->ExplicitStackOverflowChecks()) {
-      /* Load stack limit */
-      Load32Disp(rs_rARM_SELF, Thread::StackEndOffset<4>().Int32Value(), rs_r12);
+      if (!large_frame) {
+        /* Load stack limit */
+        LockTemp(rs_r12);
+        Load32Disp(rs_rARM_SELF, Thread::StackEndOffset<4>().Int32Value(), rs_r12);
+      }
     } else {
       // Implicit stack overflow check.
       // Generate a load from [sp, #-overflowsize].  If this is in the stack
@@ -423,16 +427,26 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
         const bool restore_lr_;
         const size_t sp_displace_;
       };
-      if (static_cast<size_t>(frame_size_) > Thread::kStackOverflowReservedUsableBytes) {
+      if (large_frame) {
+        // Note: may need a temp reg, and we only have r12 free at this point.
         OpRegRegImm(kOpSub, rs_rARM_LR, rs_rARM_SP, frame_size_without_spills);
+        Load32Disp(rs_rARM_SELF, Thread::StackEndOffset<4>().Int32Value(), rs_r12);
         LIR* branch = OpCmpBranch(kCondUlt, rs_rARM_LR, rs_r12, nullptr);
         // Need to restore LR since we used it as a temp.
         AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, true, spill_size));
         OpRegCopy(rs_rARM_SP, rs_rARM_LR);     // Establish stack
       } else {
-        // If the frame is small enough we are guaranteed to have enough space that remains to
-        // handle signals on the user stack.
+        /*
+         * If the frame is small enough we are guaranteed to have enough space that remains to
+         * handle signals on the user stack.  However, we may not have any free temp
+         * registers at this point, so we'll temporarily add LR to the temp pool.
+         */
+        DCHECK(!GetRegInfo(rs_rARM_LR)->IsTemp());
+        MarkTemp(rs_rARM_LR);
+        FreeTemp(rs_rARM_LR);
         OpRegRegImm(kOpSub, rs_rARM_SP, rs_rARM_SP, frame_size_without_spills);
+        Clobber(rs_rARM_LR);
+        UnmarkTemp(rs_rARM_LR);
         LIR* branch = OpCmpBranch(kCondUlt, rs_rARM_SP, rs_r12, nullptr);
         AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, false, frame_size_));
       }
@@ -451,6 +465,7 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   FreeTemp(rs_r1);
   FreeTemp(rs_r2);
   FreeTemp(rs_r3);
+  FreeTemp(rs_r12);
 }
 
 void ArmMir2Lir::GenExitSequence() {
