@@ -116,9 +116,11 @@ endif
 ART_DEFAULT_GC_TYPE ?= CMS
 ART_DEFAULT_GC_TYPE_CFLAGS := -DART_DEFAULT_GC_TYPE_IS_$(ART_DEFAULT_GC_TYPE)
 
-LLVM_ROOT_PATH := external/llvm
-# Don't fail a dalvik minimal host build.
--include $(LLVM_ROOT_PATH)/llvm.mk
+ifeq ($(ART_USE_PORTABLE_COMPILER),true)
+  LLVM_ROOT_PATH := external/llvm
+  # Don't fail a dalvik minimal host build.
+  -include $(LLVM_ROOT_PATH)/llvm.mk
+endif
 
 # Clang build support.
 # Target builds use GCC by default.
