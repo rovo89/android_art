@@ -142,15 +142,15 @@ class MethodVerifier {
   /* Verify a class. Returns "kNoFailure" on success. */
   static FailureKind VerifyClass(mirror::Class* klass, bool allow_soft_failures, std::string* error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static FailureKind VerifyClass(const DexFile* dex_file, Handle<mirror::DexCache>& dex_cache,
-                                 Handle<mirror::ClassLoader>& class_loader,
+  static FailureKind VerifyClass(const DexFile* dex_file, Handle<mirror::DexCache> dex_cache,
+                                 Handle<mirror::ClassLoader> class_loader,
                                  const DexFile::ClassDef* class_def,
                                  bool allow_soft_failures, std::string* error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void VerifyMethodAndDump(std::ostream& os, uint32_t method_idx, const DexFile* dex_file,
-                                  Handle<mirror::DexCache>& dex_cache,
-                                  Handle<mirror::ClassLoader>& class_loader,
+                                  Handle<mirror::DexCache> dex_cache,
+                                  Handle<mirror::ClassLoader> class_loader,
                                   const DexFile::ClassDef* class_def,
                                   const DexFile::CodeItem* code_item,
                                   mirror::ArtMethod* method, uint32_t method_access_flags)
@@ -255,8 +255,8 @@ class MethodVerifier {
    *      for code flow problems.
    */
   static FailureKind VerifyMethod(uint32_t method_idx, const DexFile* dex_file,
-                                  Handle<mirror::DexCache>& dex_cache,
-                                  Handle<mirror::ClassLoader>& class_loader,
+                                  Handle<mirror::DexCache> dex_cache,
+                                  Handle<mirror::ClassLoader> class_loader,
                                   const DexFile::ClassDef* class_def_idx,
                                   const DexFile::CodeItem* code_item,
                                   mirror::ArtMethod* method, uint32_t method_access_flags,
