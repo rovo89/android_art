@@ -20,7 +20,7 @@
 #include "base/logging.h"
 #include "base/mutex-inl.h"
 #include "base/stl_util.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "image.h"
 #include "os.h"
 #include "space-inl.h"

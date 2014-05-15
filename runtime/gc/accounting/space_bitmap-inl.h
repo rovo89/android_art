@@ -28,7 +28,7 @@
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "space_bitmap-inl.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "utils.h"
 
 namespace art {

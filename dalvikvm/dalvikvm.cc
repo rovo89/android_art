@@ -24,7 +24,7 @@
 #include "JniInvocation.h"
 #include "ScopedLocalRef.h"
 #include "toStringArray.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 namespace art {
 

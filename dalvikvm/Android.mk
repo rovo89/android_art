@@ -16,7 +16,7 @@
 
 LOCAL_PATH := $(call my-dir)
 
-dalvikvm_cflags := -Wall -Werror -Wextra
+dalvikvm_cflags := -Wall -Werror -Wextra -std=gnu++11
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := dalvikvm
@@ -24,6 +24,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_CPP_EXTENSION := cc
 LOCAL_SRC_FILES := dalvikvm.cc
 LOCAL_CFLAGS := $(dalvikvm_cflags)
+LOCAL_C_INCLUDES := art/runtime
 LOCAL_SHARED_LIBRARIES := libdl libnativehelper
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 LOCAL_MULTILIB := both
@@ -37,9 +38,11 @@ ifeq ($(WITH_HOST_DALVIK),true)
 include $(CLEAR_VARS)
 LOCAL_MODULE := dalvikvm
 LOCAL_MODULE_TAGS := optional
+LOCAL_CLANG := true
 LOCAL_CPP_EXTENSION := cc
 LOCAL_SRC_FILES := dalvikvm.cc
 LOCAL_CFLAGS := $(dalvikvm_cflags)
+LOCAL_C_INCLUDES := art/runtime
 LOCAL_SHARED_LIBRARIES := libnativehelper
 LOCAL_LDFLAGS := -ldl -lpthread
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk

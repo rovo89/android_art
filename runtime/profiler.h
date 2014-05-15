@@ -29,7 +29,7 @@
 #include "instrumentation.h"
 #include "os.h"
 #include "safe_map.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 namespace art {
 

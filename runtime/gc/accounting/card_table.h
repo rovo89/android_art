@@ -20,7 +20,7 @@
 #include "base/mutex.h"
 #include "globals.h"
 #include "mem_map.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 namespace art {
 
