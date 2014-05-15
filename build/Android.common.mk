@@ -254,7 +254,9 @@ else
   ifeq ($(TARGET_CPU_SMP),false)
     ART_TARGET_CFLAGS += -DANDROID_SMP=0
   else
-    $(error TARGET_CPU_SMP must be (true|false), found $(TARGET_CPU_SMP))
+    $(warning TARGET_CPU_SMP should be (true|false), found $(TARGET_CPU_SMP))
+    # Make sure we emit barriers for the worst case.
+    ART_TARGET_CFLAGS += -DANDROID_SMP=1
   endif
 endif
 ART_TARGET_CFLAGS += $(ART_DEFAULT_GC_TYPE_CFLAGS)
