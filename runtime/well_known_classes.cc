@@ -40,6 +40,7 @@ jclass WellKnownClasses::java_lang_reflect_Method;
 jclass WellKnownClasses::java_lang_reflect_Proxy;
 jclass WellKnownClasses::java_lang_RuntimeException;
 jclass WellKnownClasses::java_lang_StackOverflowError;
+jclass WellKnownClasses::java_lang_String;
 jclass WellKnownClasses::java_lang_System;
 jclass WellKnownClasses::java_lang_Thread;
 jclass WellKnownClasses::java_lang_Thread$UncaughtExceptionHandler;
@@ -142,6 +143,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_reflect_Proxy = CacheClass(env, "java/lang/reflect/Proxy");
   java_lang_RuntimeException = CacheClass(env, "java/lang/RuntimeException");
   java_lang_StackOverflowError = CacheClass(env, "java/lang/StackOverflowError");
+  java_lang_String = CacheClass(env, "java/lang/String");
   java_lang_System = CacheClass(env, "java/lang/System");
   java_lang_Thread = CacheClass(env, "java/lang/Thread");
   java_lang_Thread$UncaughtExceptionHandler = CacheClass(env, "java/lang/Thread$UncaughtExceptionHandler");
