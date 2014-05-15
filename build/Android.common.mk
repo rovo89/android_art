@@ -249,7 +249,11 @@ ART_TARGET_CFLAGS := $(art_cflags) -DART_TARGET -DART_BASE_ADDRESS=$(LIBART_IMG_
 ifeq ($(TARGET_CPU_SMP),true)
   ART_TARGET_CFLAGS += -DANDROID_SMP=1
 else
-  ART_TARGET_CFLAGS += -DANDROID_SMP=0
+  ifeq ($(TARGET_CPU_SMP),false)
+    ART_TARGET_CFLAGS += -DANDROID_SMP=0
+  else
+    $(error TARGET_CPU_SMP must be (true|false), found $(TARGET_CPU_SMP))
+  endif
 endif
 ART_TARGET_CFLAGS += $(ART_DEFAULT_GC_TYPE_CFLAGS)
 

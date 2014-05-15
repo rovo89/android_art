@@ -278,6 +278,7 @@ void Arm64Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
     MarkPossibleNullPointerException(opt_flags);
     LoadConstantNoClobber(rs_x3, 0);
     LIR* slow_unlock_branch = OpCmpBranch(kCondNe, rs_x1, rs_x2, NULL);
+    GenMemBarrier(kStoreLoad);
     Store32Disp(rs_x0, mirror::Object::MonitorOffset().Int32Value(), rs_x3);
     LIR* unlock_success_branch = OpUnconditionalBranch(NULL);
 
@@ -295,7 +296,6 @@ void Arm64Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
 
     LIR* success_target = NewLIR0(kPseudoTargetLabel);
     unlock_success_branch->target = success_target;
-    GenMemBarrier(kStoreLoad);
   } else {
     // Explicit null-check as slow-path is entered using an IT.
     GenNullCheck(rs_x0, opt_flags);

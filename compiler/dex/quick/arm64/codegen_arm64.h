@@ -142,7 +142,7 @@ class Arm64Mir2Lir : public Mir2Lir {
     void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double);
     void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir);
     void GenSelect(BasicBlock* bb, MIR* mir);
-    void GenMemBarrier(MemBarrierKind barrier_kind);
+    bool GenMemBarrier(MemBarrierKind barrier_kind);
     void GenMonitorEnter(int opt_flags, RegLocation rl_src);
     void GenMonitorExit(int opt_flags, RegLocation rl_src);
     void GenMoveException(RegLocation rl_dest);
