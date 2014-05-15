@@ -141,7 +141,7 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double);
     void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir);
     void GenSelect(BasicBlock* bb, MIR* mir);
-    void GenMemBarrier(MemBarrierKind barrier_kind);
+    bool GenMemBarrier(MemBarrierKind barrier_kind);
     void GenMonitorEnter(int opt_flags, RegLocation rl_src);
     void GenMonitorExit(int opt_flags, RegLocation rl_src);
     void GenMoveException(RegLocation rl_dest);
@@ -160,6 +160,7 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     LIR* OpDecAndBranch(ConditionCode c_code, RegStorage reg, LIR* target);
     LIR* OpFpRegCopy(RegStorage r_dest, RegStorage r_src);
     LIR* OpIT(ConditionCode cond, const char* guide);
+    void UpdateIT(LIR* it, const char* new_guide);
     void OpEndIT(LIR* it);
     LIR* OpMem(OpKind op, RegStorage r_base, int disp);
     LIR* OpPcRelLoad(RegStorage reg, LIR* target);
