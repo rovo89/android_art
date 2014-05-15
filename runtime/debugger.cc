@@ -2777,7 +2777,7 @@ void Dbg::RequestDeoptimizationLocked(const DeoptimizationRequest& req) {
       CHECK(counter != nullptr) << StringPrintf("No counter for instrumentation event 0x%x",
                                                 req.instrumentation_event);
       if (*counter == 0) {
-        VLOG(jdwp) << StringPrintf("Queue request #%d to start listening to instrumentation event 0x%x",
+        VLOG(jdwp) << StringPrintf("Queue request #%zd to start listening to instrumentation event 0x%x",
                                    deoptimization_requests_.size(), req.instrumentation_event);
         deoptimization_requests_.push_back(req);
       }
@@ -2791,7 +2791,7 @@ void Dbg::RequestDeoptimizationLocked(const DeoptimizationRequest& req) {
                                                 req.instrumentation_event);
       *counter = *counter - 1;
       if (*counter == 0) {
-        VLOG(jdwp) << StringPrintf("Queue request #%d to stop listening to instrumentation event 0x%x",
+        VLOG(jdwp) << StringPrintf("Queue request #%zd to stop listening to instrumentation event 0x%x",
                                    deoptimization_requests_.size(), req.instrumentation_event);
         deoptimization_requests_.push_back(req);
       }
