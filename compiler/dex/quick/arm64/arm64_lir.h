@@ -151,6 +151,9 @@ enum A64NativeRegisterPool {
   rxzr = rx31,
   rwsp = rw31,
   rsp = rx31,
+  // TODO: rx4 is an argument register in C ABI which is not a good idea,
+  // But we need to decide to use caller save register in C ABI or callee save register.
+  // Because it will result to different implementation in the trampoline.
   rA64_SUSPEND = rx4,
   rA64_SELF = rx18,
   rA64_SP = rx31,
