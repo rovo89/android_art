@@ -28,21 +28,35 @@
 #include "hprof/hprof.h"
 #include "jni_internal.h"
 #include "mirror/class.h"
+#include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 #include "scoped_fast_native_object_access.h"
-#include "toStringArray.h"
 #include "trace.h"
+#include "well_known_classes.h"
 
 namespace art {
 
 static jobjectArray VMDebug_getVmFeatureList(JNIEnv* env, jclass) {
-  std::vector<std::string> features;
-  features.push_back("method-trace-profiling");
-  features.push_back("method-trace-profiling-streaming");
-  features.push_back("method-sample-profiling");
-  features.push_back("hprof-heap-dump");
-  features.push_back("hprof-heap-dump-streaming");
-  return toStringArray(env, features);
+  static const char* features[] = {
+    "method-trace-profiling",
+    "method-trace-profiling-streaming",
+    "method-sample-profiling",
+    "hprof-heap-dump",
+    "hprof-heap-dump-streaming",
+  };
+  jobjectArray result = env->NewObjectArray(arraysize(features),
+                                            WellKnownClasses::java_lang_String,
+                                            nullptr);
+  if (result != nullptr) {
+    for (size_t i = 0; i < arraysize(features); ++i) {
+      ScopedLocalRef<jstring> jfeature(env, env->NewStringUTF(features[i]));
+      if (jfeature.get() == nullptr) {
+        return nullptr;
+      }
+      env->SetObjectArrayElement(result, i, jfeature.get());
+    }
+  }
+  return result;
 }
 
 static void VMDebug_startAllocCounting(JNIEnv*, jclass) {
