@@ -22,7 +22,7 @@
 #include "dex_file-inl.h"
 #include "leb128.h"
 #include "safe_map.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "utf-inl.h"
 #include "utils.h"
 

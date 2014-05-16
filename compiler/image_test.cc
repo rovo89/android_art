@@ -27,7 +27,7 @@
 #include "lock_word.h"
 #include "mirror/object-inl.h"
 #include "signal_catcher.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "utils.h"
 #include "vector_output_stream.h"
 

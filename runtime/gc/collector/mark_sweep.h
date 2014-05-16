@@ -26,7 +26,7 @@
 #include "immune_region.h"
 #include "object_callbacks.h"
 #include "offsets.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 namespace art {
 

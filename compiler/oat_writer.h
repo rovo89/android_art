@@ -26,7 +26,7 @@
 #include "oat.h"
 #include "mirror/class.h"
 #include "safe_map.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 namespace art {
 

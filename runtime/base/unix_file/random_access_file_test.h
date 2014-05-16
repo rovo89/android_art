@@ -22,7 +22,7 @@
 #include <string>
 
 #include "common_runtime_test.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 namespace unix_file {
 

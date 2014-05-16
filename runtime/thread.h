@@ -39,7 +39,7 @@
 #include "stack.h"
 #include "thread_state.h"
 #include "throw_location.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 namespace art {
 

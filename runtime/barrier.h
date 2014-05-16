@@ -18,7 +18,7 @@
 #define ART_RUNTIME_BARRIER_H_
 
 #include "base/mutex.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 namespace art {
 
