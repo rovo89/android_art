@@ -53,17 +53,17 @@ static void TestCode(const uint16_t* data, const int* expected_order, size_t num
 }
 
 TEST(LinearizeTest, CFG1) {
-  // Structure of this graph (* are back edges)
+  // Structure of this graph (+ are back edges)
   //            Block0
   //              |
   //            Block1
   //              |
-  //            Block2 ******
-  //            /   \       *
-  //       Block5   Block7  *
-  //         |        |     *
-  //       Block6   Block3  *
-  //               * /   \  *
+  //            Block2 ++++++
+  //            /   \       +
+  //       Block5   Block7  +
+  //         |        |     +
+  //       Block6   Block3  +
+  //               + /   \  +
   //           Block4   Block8
 
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
@@ -78,17 +78,17 @@ TEST(LinearizeTest, CFG1) {
 }
 
 TEST(LinearizeTest, CFG2) {
-  // Structure of this graph (* are back edges)
+  // Structure of this graph (+ are back edges)
   //            Block0
   //              |
   //            Block1
   //              |
-  //            Block2 ******
-  //            /   \       *
-  //       Block3   Block7  *
-  //         |        |     *
-  //       Block6   Block4  *
-  //               * /   \  *
+  //            Block2 ++++++
+  //            /   \       +
+  //       Block3   Block7  +
+  //         |        |     +
+  //       Block6   Block4  +
+  //               + /   \  +
   //           Block5   Block8
 
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
@@ -103,20 +103,20 @@ TEST(LinearizeTest, CFG2) {
 }
 
 TEST(LinearizeTest, CFG3) {
-  // Structure of this graph (* are back edges)
+  // Structure of this graph (+ are back edges)
   //            Block0
   //              |
   //            Block1
   //              |
-  //            Block2 ******
-  //            /   \       *
-  //       Block3   Block8  *
-  //         |        |     *
-  //       Block7   Block5  *
-  //                 / *  \ *
-  //           Block6  * Block9
-  //             |     *
-  //           Block4 **
+  //            Block2 ++++++
+  //            /   \       +
+  //       Block3   Block8  +
+  //         |        |     +
+  //       Block7   Block5  +
+  //                 / +  \ +
+  //           Block6  + Block9
+  //             |     +
+  //           Block4 ++
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::IF_EQ, 4,
@@ -130,22 +130,23 @@ TEST(LinearizeTest, CFG3) {
 }
 
 TEST(LinearizeTest, CFG4) {
-  // Structure of this graph (* are back edges)
+  /* Structure of this graph (+ are back edges)
   //            Block0
   //              |
   //            Block1
   //              |
   //            Block2
-  //            / *  \
-  //       Block6 * Block8
-  //         |    *   |
-  //       Block7 * Block3 *******
-  //              *  /  \        *
-  //           Block9   Block10  *
-  //                      |      *
-  //                    Block4   *
-  //                   */    \   *
+  //            / +  \
+  //       Block6 + Block8
+  //         |    +   |
+  //       Block7 + Block3 +++++++
+  //              +  /  \        +
+  //           Block9   Block10  +
+  //                      |      +
+  //                    Block4   +
+  //                  + /    \   +
   //                Block5  Block11
+  */
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::IF_EQ, 7,
@@ -159,22 +160,23 @@ TEST(LinearizeTest, CFG4) {
 }
 
 TEST(LinearizeTest, CFG5) {
-  // Structure of this graph (* are back edges)
+  /* Structure of this graph (+ are back edges)
   //            Block0
   //              |
   //            Block1
   //              |
   //            Block2
-  //            / *  \
-  //       Block3 * Block8
-  //         |    *   |
-  //       Block7 * Block4 *******
-  //              *  /  \        *
-  //           Block9   Block10  *
-  //                      |      *
-  //                    Block5   *
-  //                   */    \   *
+  //            / +  \
+  //       Block3 + Block8
+  //         |    +   |
+  //       Block7 + Block4 +++++++
+  //              +  /  \        +
+  //           Block9   Block10  +
+  //                      |      +
+  //                    Block5   +
+  //                   +/    \   +
   //                Block6  Block11
+  */
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::IF_EQ, 3,
