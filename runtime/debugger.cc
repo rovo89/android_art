@@ -2809,6 +2809,7 @@ void Dbg::RequestDeoptimizationLocked(const DeoptimizationRequest& req) {
     }
     case DeoptimizationRequest::kFullUndeoptimization: {
       DCHECK(req.method == nullptr);
+      DCHECK_GT(full_deoptimization_event_count_, 0U);
       --full_deoptimization_event_count_;
       if (full_deoptimization_event_count_ == 0) {
         VLOG(jdwp) << "Queue request #" << deoptimization_requests_.size()
