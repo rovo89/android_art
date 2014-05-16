@@ -126,6 +126,104 @@ enum ExtendedMIROpcode {
   kMirOpCheck,
   kMirOpCheckPart2,
   kMirOpSelect,
+
+  // Vector opcodes:
+  // TypeSize is an encoded field giving the element type and the vector size.
+  // It is encoded as OpSize << 16 | (number of bits in vector)
+  //
+  // Destination and source are integers that will be interpreted by the
+  // backend that supports Vector operations.  Backends are permitted to support only
+  // certain vector register sizes.
+  //
+  // At this point, only two operand instructions are supported.  Three operand instructions
+  // could be supported by using a bit in TypeSize and arg[0] where needed.
+
+  // @brief MIR to move constant data to a vector register
+  // vA: number of bits in register
+  // vB: destination
+  // args[0]~args[3]: up to 128 bits of data for initialization
+  kMirOpConstVector,
+
+  // @brief MIR to move a vectorized register to another
+  // vA: TypeSize
+  // vB: destination
+  // vC: source
+  kMirOpMoveVector,
+
+  // @brief Packed multiply of units in two vector registers: vB = vB .* vC using vA to know the type of the vector.
+  // vA: TypeSize
+  // vB: destination and source
+  // vC: source
+  kMirOpPackedMultiply,
+
+  // @brief Packed addition of units in two vector registers: vB = vB .+ vC using vA to know the type of the vector.
+  // vA: TypeSize
+  // vB: destination and source
+  // vC: source
+  kMirOpPackedAddition,
+
+  // @brief Packed subtraction of units in two vector registers: vB = vB .- vC using vA to know the type of the vector.
+  // vA: TypeSize
+  // vB: destination and source
+  // vC: source
+  kMirOpPackedSubtract,
+
+  // @brief Packed shift left of units in two vector registers: vB = vB .<< vC using vA to know the type of the vector.
+  // vA: TypeSize
+  // vB: destination and source
+  // vC: immediate
+  kMirOpPackedShiftLeft,
+
+  // @brief Packed signed shift right of units in two vector registers: vB = vB .>> vC using vA to know the type of the vector.
+  // vA: TypeSize
+  // vB: destination and source
+  // vC: immediate
+  kMirOpPackedSignedShiftRight,
+
+  // @brief Packed unsigned shift right of units in two vector registers: vB = vB .>>> vC using vA to know the type of the vector.
+  // vA: TypeSize
+  // vB: destination and source
+  // vC: immediate
+  kMirOpPackedUnsignedShiftRight,
+
+  // @brief Packed bitwise and of units in two vector registers: vB = vB .& vC using vA to know the type of the vector.
+  // vA: TypeSize
+  // vB: destination and source
+  // vC: source
+  kMirOpPackedAnd,
+
+  // @brief Packed bitwise or of units in two vector registers: vB = vB .| vC using vA to know the type of the vector.
+  // vA: TypeSize
+  // vB: destination and source
+  // vC: source
+  kMirOpPackedOr,
+
+  // @brief Packed bitwise xor of units in two vector registers: vB = vB .^ vC using vA to know the type of the vector.
+  // vA: TypeSize
+  // vB: destination and source
+  // vC: source
+  kMirOpPackedXor,
+
+  // @brief Reduce a 128-bit packed element into a single VR by taking lower bits
+  // @details Instruction does a horizontal addition of the packed elements and then adds it to VR
+  // vA: TypeSize
+  // vB: destination and source VR (not vector register)
+  // vC: source (vector register)
+  kMirOpPackedAddReduce,
+
+  // @brief Extract a packed element into a single VR.
+  // vA: TypeSize
+  // vB: destination VR (not vector register)
+  // vC: source (vector register)
+  // arg[0]: The index to use for extraction from vector register (which packed element)
+  kMirOpPackedReduce,
+
+  // @brief Create a vector value, with all TypeSize values equal to vC
+  // vA: TypeSize
+  // vB: destination vector register
+  // vC: source VR (not vector register)
+  kMirOpPackedSet,
+
   kMirOpLast,
 };
 
