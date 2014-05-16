@@ -866,6 +866,9 @@ void X86Mir2Lir::AnalyzeExtendedMIR(int opcode, BasicBlock * bb, MIR *mir) {
     case kMirOpFusedCmpgDouble:
       AnalyzeFPInstruction(opcode, bb, mir);
       break;
+    case kMirOpConstVector:
+      store_method_addr_ = true;
+      break;
     default:
       // Ignore the rest.
       break;

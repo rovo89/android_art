@@ -425,6 +425,8 @@ enum X86OpCode {
   kX86Fild64M,                  // push 64-bit integer on x87 stack
   kX86Fstp32M,                  // pop top x87 fp stack and do 32-bit store
   kX86Fstp64M,                  // pop top x87 fp stack and do 64-bit store
+  Binary0fOpCode(kX86Mova128),  // move 128 bits aligned
+  kX86Mova128MR, kX86Mova128AR,  // store 128 bit aligned from xmm1 to m128
   Binary0fOpCode(kX86Movups),   // load unaligned packed single FP values from xmm2/m128 to xmm1
   kX86MovupsMR, kX86MovupsAR,   // store unaligned packed single FP values from xmm1 to m128
   Binary0fOpCode(kX86Movaps),   // load aligned packed single FP values from xmm2/m128 to xmm1

@@ -320,6 +320,11 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86Fstp32M, kMem, IS_STORE | IS_UNARY_OP | REG_USE0 | USE_FP_STACK, { 0x0, 0, 0xD9, 0x00, 0, 3, 0, 0 }, "FstpsM", "[!0r,!1d]" },
   { kX86Fstp64M, kMem, IS_STORE | IS_UNARY_OP | REG_USE0 | USE_FP_STACK, { 0x0, 0, 0xDD, 0x00, 0, 3, 0, 0 }, "FstpdM", "[!0r,!1d]" },
 
+  EXT_0F_ENCODING_MAP(Mova128,    0x66, 0x6F, REG_DEF0),
+  { kX86Mova128MR, kMemReg,   IS_STORE | IS_TERTIARY_OP | REG_USE02,  { 0x66, 0, 0x0F, 0x6F, 0, 0, 0, 0 }, "Mova128MR", "[!0r+!1d],!2r" },
+  { kX86Mova128AR, kArrayReg, IS_STORE | IS_QUIN_OP     | REG_USE014, { 0x66, 0, 0x0F, 0x6F, 0, 0, 0, 0 }, "Mova128AR", "[!0r+!1r<<!2d+!3d],!4r" },
+
+
   EXT_0F_ENCODING_MAP(Movups,    0x0, 0x10, REG_DEF0),
   { kX86MovupsMR, kMemReg,      IS_STORE | IS_TERTIARY_OP | REG_USE02,  { 0x0, 0, 0x0F, 0x11, 0, 0, 0, 0 }, "MovupsMR", "[!0r+!1d],!2r" },
   { kX86MovupsAR, kArrayReg,    IS_STORE | IS_QUIN_OP     | REG_USE014, { 0x0, 0, 0x0F, 0x11, 0, 0, 0, 0 }, "MovupsAR", "[!0r+!1r<<!2d+!3d],!4r" },
@@ -1507,6 +1512,26 @@ int X86Mir2Lir::AssignInsnOffsets() {
  */
 void X86Mir2Lir::AssignOffsets() {
   int offset = AssignInsnOffsets();
+
+  if (const_vectors_ != nullptr) {
+    /* assign offsets to vector literals */
+
+    // First, get offset to 12 mod 16 to align to 16 byte boundary.
+    // This will ensure that the vector is 16 byte aligned, as the procedure is
+    // always aligned at at 4 mod 16.
+    int align_size = (16-4) - (offset & 0xF);
+    if (align_size < 0) {
+      align_size += 16;
+    }
+
+    offset += align_size;
+
+    // Now assign each literal the right offset.
+    for (LIR *p = const_vectors_; p != nullptr; p = p->next) {
+      p->offset = offset;
+      offset += 16;
+    }
+  }
 
   /* Const values have to be word aligned */
   offset = RoundUp(offset, 4);
