@@ -1203,4 +1203,8 @@ RegLocation Mir2Lir::NarrowRegLoc(RegLocation loc) {
   return loc;
 }
 
+void Mir2Lir::GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
+  LOG(FATAL) << "Unknown MIR opcode not supported on this architecture";
+}
+
 }  // namespace art
