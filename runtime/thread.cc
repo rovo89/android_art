@@ -1105,7 +1105,7 @@ void Thread::Destroy() {
     if (lock != nullptr) {
       StackHandleScope<1> hs(self);
       Handle<mirror::Object> h_obj(hs.NewHandle(lock));
-      ObjectLock<mirror::Object> locker(self, &h_obj);
+      ObjectLock<mirror::Object> locker(self, h_obj);
       locker.NotifyAll();
     }
   }
