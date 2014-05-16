@@ -49,8 +49,13 @@ void X86Mir2Lir::GenArithOpFloat(Instruction::Code opcode,
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmodf), rl_src1, rl_src2,
-                                              false);
+      if (Is64BitInstructionSet(cu_->instruction_set)) {
+        CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(8, pFmodf), rl_src1, rl_src2,
+                                                false);
+      } else {
+        CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmodf), rl_src1, rl_src2,
+                                                false);
+      }
       rl_result = GetReturn(true);
       StoreValue(rl_dest, rl_result);
       return;
@@ -106,8 +111,13 @@ void X86Mir2Lir::GenArithOpDouble(Instruction::Code opcode,
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmod), rl_src1, rl_src2,
-                                              false);
+      if (Is64BitInstructionSet(cu_->instruction_set)) {
+        CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(8, pFmod), rl_src1, rl_src2,
+                                                false);
+      } else {
+        CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmod), rl_src1, rl_src2,
+                                                false);
+      }
       rl_result = GetReturnWide(true);
       StoreValueWide(rl_dest, rl_result);
       return;
@@ -268,10 +278,18 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
       GenLongToFP(rl_dest, rl_src, false /* is_double */);
       return;
     case Instruction::FLOAT_TO_LONG:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pF2l), rl_dest, rl_src);
+      if (Is64BitInstructionSet(cu_->instruction_set)) {
+        GenConversionCall(QUICK_ENTRYPOINT_OFFSET(8, pF2l), rl_dest, rl_src);
+      } else {
+        GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pF2l), rl_dest, rl_src);
+      }
       return;
     case Instruction::DOUBLE_TO_LONG:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pD2l), rl_dest, rl_src);
+      if (Is64BitInstructionSet(cu_->instruction_set)) {
+        GenConversionCall(QUICK_ENTRYPOINT_OFFSET(8, pD2l), rl_dest, rl_src);
+      } else {
+        GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pD2l), rl_dest, rl_src);
+      }
       return;
     default:
       LOG(INFO) << "Unexpected opcode: " << opcode;
