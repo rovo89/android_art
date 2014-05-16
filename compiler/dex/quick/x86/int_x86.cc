@@ -909,8 +909,13 @@ void X86Mir2Lir::GenArrayBoundsCheck(RegStorage index,
       }
       // Load array length to kArg1.
       m2l_->OpRegMem(kOpMov, m2l_->TargetReg(kArg1), array_base_, len_offset_);
-      m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pThrowArrayBounds),
-                                    new_index, m2l_->TargetReg(kArg1), true);
+      if (Is64BitInstructionSet(cu_->instruction_set)) {
+        m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pThrowArrayBounds),
+                                      new_index, m2l_->TargetReg(kArg1), true);
+      } else {
+        m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pThrowArrayBounds),
+                                      new_index, m2l_->TargetReg(kArg1), true);
+      }
     }
 
    private:
@@ -944,8 +949,13 @@ void X86Mir2Lir::GenArrayBoundsCheck(int32_t index,
       // Load array length to kArg1.
       m2l_->OpRegMem(kOpMov, m2l_->TargetReg(kArg1), array_base_, len_offset_);
       m2l_->LoadConstant(m2l_->TargetReg(kArg0), index_);
-      m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pThrowArrayBounds),
-                                    m2l_->TargetReg(kArg0), m2l_->TargetReg(kArg1), true);
+      if (Is64BitInstructionSet(cu_->instruction_set)) {
+        m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pThrowArrayBounds),
+                                      m2l_->TargetReg(kArg0), m2l_->TargetReg(kArg1), true);
+      } else {
+        m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pThrowArrayBounds),
+                                      m2l_->TargetReg(kArg0), m2l_->TargetReg(kArg1), true);
+      }
     }
 
    private:
@@ -1390,12 +1400,22 @@ void X86Mir2Lir::OpRegThreadMem(OpKind op, RegStorage r_dest, ThreadOffset<4> th
 void X86Mir2Lir::OpRegThreadMem(OpKind op, RegStorage r_dest, ThreadOffset<8> thread_offset) {
   DCHECK_EQ(kX86_64, cu_->instruction_set);
   X86OpCode opcode = kX86Bkpt;
-  switch (op) {
-  case kOpCmp: opcode = kX86Cmp32RT;  break;
-  case kOpMov: opcode = kX86Mov32RT;  break;
-  default:
-    LOG(FATAL) << "Bad opcode: " << op;
-    break;
+  if (Gen64Bit() && r_dest.Is64BitSolo()) {
+    switch (op) {
+    case kOpCmp: opcode = kX86Cmp64RT;  break;
+    case kOpMov: opcode = kX86Mov64RT;  break;
+    default:
+      LOG(FATAL) << "Bad opcode(OpRegThreadMem 64): " << op;
+      break;
+    }
+  } else {
+    switch (op) {
+    case kOpCmp: opcode = kX86Cmp32RT;  break;
+    case kOpMov: opcode = kX86Mov32RT;  break;
+    default:
+      LOG(FATAL) << "Bad opcode: " << op;
+      break;
+    }
   }
   NewLIR2(opcode, r_dest.GetReg(), thread_offset.Int32Value());
 }
@@ -1862,8 +1882,8 @@ void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
 
   // If Method* is already in a register, we can save a copy.
   RegLocation rl_method = mir_graph_->GetMethodLoc();
-  int32_t offset_of_type = mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() +
-    (sizeof(mirror::Class*) * type_idx);
+  int32_t offset_of_type = mirror::Array::DataOffset(sizeof(mirror::HeapReference<mirror::Class*>)).Int32Value() +
+    (sizeof(mirror::HeapReference<mirror::Class*>) * type_idx);
 
   if (rl_method.location == kLocPhysReg) {
     if (use_declaring_class) {
@@ -1917,8 +1937,13 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
   if (needs_access_check) {
     // Check we have access to type_idx and if not throw IllegalAccessError,
     // Caller function returns Class* in kArg0.
-    CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(4, pInitializeTypeAndVerifyAccess),
-                         type_idx, true);
+    if (Is64BitInstructionSet(cu_->instruction_set)) {
+      CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(8, pInitializeTypeAndVerifyAccess),
+                           type_idx, true);
+    } else {
+      CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(4, pInitializeTypeAndVerifyAccess),
+                           type_idx, true);
+    }
     OpRegCopy(class_reg, TargetReg(kRet0));
     LoadValueDirectFixed(rl_src, TargetReg(kArg0));
   } else if (use_declaring_class) {
@@ -1931,14 +1956,18 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
     LoadRefDisp(TargetReg(kArg1), mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
                  class_reg);
     int32_t offset_of_type =
-        mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() + (sizeof(mirror::Class*)
+        mirror::Array::DataOffset(sizeof(mirror::HeapReference<mirror::Class*>)).Int32Value() + (sizeof(mirror::HeapReference<mirror::Class*>)
         * type_idx);
     LoadRefDisp(class_reg, offset_of_type, class_reg);
     if (!can_assume_type_is_in_dex_cache) {
       // Need to test presence of type in dex cache at runtime.
       LIR* hop_branch = OpCmpImmBranch(kCondNe, class_reg, 0, NULL);
       // Type is not resolved. Call out to helper, which will return resolved type in kRet0/kArg0.
-      CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(4, pInitializeType), type_idx, true);
+      if (Is64BitInstructionSet(cu_->instruction_set)) {
+        CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(8, pInitializeType), type_idx, true);
+      } else {
+        CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(4, pInitializeType), type_idx, true);
+      }
       OpRegCopy(TargetReg(kArg2), TargetReg(kRet0));  // Align usage with fast path.
       LoadValueDirectFixed(rl_src, TargetReg(kArg0));  /* Reload Ref. */
       // Rejoin code paths
@@ -1972,7 +2001,11 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
       branchover = OpCmpBranch(kCondEq, TargetReg(kArg1), TargetReg(kArg2), NULL);
     }
     OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));
-    OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(4, pInstanceofNonTrivial));
+    if (Is64BitInstructionSet(cu_->instruction_set)) {
+      OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(8, pInstanceofNonTrivial));
+    } else {
+      OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(4, pInstanceofNonTrivial));
+    }
   }
   // TODO: only clobber when type isn't final?
   ClobberCallerSave();
