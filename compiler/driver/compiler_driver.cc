@@ -1706,7 +1706,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
         // We need to use an ObjectLock due to potential suspension in the interpreting code. Rather
         // than use a special Object for the purpose we use the Class of java.lang.Class.
         Handle<mirror::Class> h_klass(hs.NewHandle(klass->GetClass()));
-        ObjectLock<mirror::Class> lock(soa.Self(), &h_klass);
+        ObjectLock<mirror::Class> lock(soa.Self(), h_klass);
         // Attempt to initialize allowing initialization of parent classes but still not static
         // fields.
         manager->GetClassLinker()->EnsureInitialized(klass, false, true);

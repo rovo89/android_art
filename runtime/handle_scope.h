@@ -144,19 +144,18 @@ class HandleScope {
 // A wrapper which wraps around Object** and restores the pointer in the destructor.
 // TODO: Add more functionality.
 template<class T>
-class HandleWrapper {
+class HandleWrapper : public Handle<T> {
  public:
   HandleWrapper(T** obj, const Handle<T>& handle)
-     : obj_(obj), handle_(handle) {
+     : Handle<T>(handle), obj_(obj) {
   }
 
   ~HandleWrapper() {
-    *obj_ = handle_.Get();
+    *obj_ = Handle<T>::Get();
   }
 
  private:
   T** obj_;
-  Handle<T> handle_;
 };
 
 // Scoped handle storage of a fixed size that is usually stack allocated.

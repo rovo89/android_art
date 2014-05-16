@@ -1325,8 +1325,8 @@ static mirror::Class* EnsureResolved(Thread* self, mirror::Class* klass)
   // Wait for the class if it has not already been linked.
   if (!klass->IsResolved() && !klass->IsErroneous()) {
     StackHandleScope<1> hs(self);
-    Handle<mirror::Class> h_class(hs.NewHandle(klass));
-    ObjectLock<mirror::Class> lock(self, &h_class);
+    HandleWrapper<mirror::Class> h_class(hs.NewHandleWrapper(&klass));
+    ObjectLock<mirror::Class> lock(self, h_class);
     // Check for circular dependencies between classes.
     if (!h_class->IsResolved() && h_class->GetClinitThreadId() == self->GetTid()) {
       ThrowClassCircularityError(h_class.Get());
@@ -1337,7 +1337,6 @@ static mirror::Class* EnsureResolved(Thread* self, mirror::Class* klass)
     while (!h_class->IsResolved() && !h_class->IsErroneous()) {
       lock.WaitIgnoringInterrupts();
     }
-    klass = h_class.Get();
   }
   if (klass->IsErroneous()) {
     ThrowEarlierClassFailure(klass);
@@ -1471,7 +1470,7 @@ mirror::Class* ClassLinker::DefineClass(const char* descriptor,
     klass->SetStatus(mirror::Class::kStatusError, self);
     return NULL;
   }
-  ObjectLock<mirror::Class> lock(self, &klass);
+  ObjectLock<mirror::Class> lock(self, klass);
   klass->SetClinitThreadId(self->GetTid());
   // Add the newly loaded class to the loaded classes table.
   mirror::Class* existing = InsertClass(descriptor, klass.Get(), Hash(descriptor));
@@ -2182,7 +2181,7 @@ mirror::Class* ClassLinker::InitializePrimitiveClass(mirror::Class* primitive_cl
   Thread* self = Thread::Current();
   StackHandleScope<1> hs(self);
   Handle<mirror::Class> h_class(hs.NewHandle(primitive_class));
-  ObjectLock<mirror::Class> lock(self, &h_class);
+  ObjectLock<mirror::Class> lock(self, h_class);
   primitive_class->SetAccessFlags(kAccPublic | kAccFinal | kAccAbstract);
   primitive_class->SetPrimitiveType(type);
   primitive_class->SetStatus(mirror::Class::kStatusInitialized, self);
@@ -2279,7 +2278,7 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
     }
     new_class->SetComponentType(component_type.Get());
   }
-  ObjectLock<mirror::Class> lock(self, &new_class);  // Must hold lock on object when initializing.
+  ObjectLock<mirror::Class> lock(self, new_class);  // Must hold lock on object when initializing.
   DCHECK(new_class->GetComponentType() != NULL);
   mirror::Class* java_lang_Object = GetClassRoot(kJavaLangObject);
   new_class->SetSuperClass(java_lang_Object);
@@ -2554,7 +2553,7 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<mirror::Clas
 void ClassLinker::VerifyClass(const Handle<mirror::Class>& klass) {
   // TODO: assert that the monitor on the Class is held
   Thread* self = Thread::Current();
-  ObjectLock<mirror::Class> lock(self, &klass);
+  ObjectLock<mirror::Class> lock(self, klass);
 
   // Don't attempt to re-verify if already sufficiently verified.
   if (klass->IsVerified() ||
@@ -2589,7 +2588,7 @@ void ClassLinker::VerifyClass(const Handle<mirror::Class>& klass) {
   Handle<mirror::Class> super(hs.NewHandle(klass->GetSuperClass()));
   if (super.Get() != NULL) {
     // Acquire lock to prevent races on verifying the super class.
-    ObjectLock<mirror::Class> lock(self, &super);
+    ObjectLock<mirror::Class> lock(self, super);
 
     if (!super->IsVerified() && !super->IsErroneous()) {
       VerifyClass(super);
@@ -2903,7 +2902,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccess& soa, jstring na
   self->AssertNoPendingException();
 
   {
-    ObjectLock<mirror::Class> lock(self, &klass);  // Must hold lock on object when resolved.
+    ObjectLock<mirror::Class> lock(self, klass);  // Must hold lock on object when resolved.
     // Link the fields and virtual methods, creating vtable and iftables
     Handle<mirror::ObjectArray<mirror::Class> > h_interfaces(
         hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces)));
@@ -3121,7 +3120,7 @@ bool ClassLinker::InitializeClass(const Handle<mirror::Class>& klass, bool can_i
   Thread* self = Thread::Current();
   uint64_t t0;
   {
-    ObjectLock<mirror::Class> lock(self, &klass);
+    ObjectLock<mirror::Class> lock(self, klass);
 
     // Re-check under the lock in case another thread initialized ahead of us.
     if (klass->IsInitialized()) {
@@ -3198,7 +3197,7 @@ bool ClassLinker::InitializeClass(const Handle<mirror::Class>& klass, bool can_i
             << " that has unexpected status " << handle_scope_super->GetStatus()
             << "\nPending exception:\n"
             << (self->GetException(NULL) != NULL ? self->GetException(NULL)->Dump() : "");
-        ObjectLock<mirror::Class> lock(self, &klass);
+        ObjectLock<mirror::Class> lock(self, klass);
         // Initialization failed because the super-class is erroneous.
         klass->SetStatus(mirror::Class::kStatusError, self);
         return false;
@@ -3242,7 +3241,7 @@ bool ClassLinker::InitializeClass(const Handle<mirror::Class>& klass, bool can_i
 
   bool success = true;
   {
-    ObjectLock<mirror::Class> lock(self, &klass);
+    ObjectLock<mirror::Class> lock(self, klass);
 
     if (self->IsExceptionPending()) {
       WrapExceptionInInitializer();
