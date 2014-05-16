@@ -151,7 +151,7 @@ test-art-run-test: test-art-host-run-test test-art-target-run-test
 # host test targets
 
 .PHONY: test-art-host-vixl
-ifneq ($(BUILD_HOST_64bit),)
+ifneq ($(HOST_IS_64_BIT),)
 test-art-host-vixl: $(ANDROID_HOST_OUT)/bin/cctest_vixl
 	$(ANDROID_HOST_OUT)/bin/cctest_vixl --run_all
 	@echo vixl PASSED
