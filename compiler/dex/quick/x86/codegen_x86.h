@@ -408,6 +408,22 @@ class X86Mir2Lir FINAL : public Mir2Lir {
     bool GenInlinedIndexOf(CallInfo* info, bool zero_based);
 
     /*
+     * @brief Load 128 bit constant into vector register.
+     * @param bb The basic block in which the MIR is from.
+     * @param mir The MIR whose opcode is kMirConstVector
+     * @note vA is the TypeSize for the register.
+     * @note vB is the destination XMM register. arg[0..3] are 32 bit constant values.
+     */
+    void GenConst128(BasicBlock* bb, MIR* mir);
+
+    /*
+     * @brief Generate code for a vector opcode.
+     * @param bb The basic block in which the MIR is from.
+     * @param mir The MIR whose opcode is a non-standard opcode.
+     */
+    void GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir);
+
+    /*
      * @brief Return the correct x86 opcode for the Dex operation
      * @param op Dex opcode for the operation
      * @param loc Register location of the operand
@@ -613,6 +629,22 @@ class X86Mir2Lir FINAL : public Mir2Lir {
 
     // 64-bit mode
     bool gen64bit_;
+
+    // The list of const vector literals.
+    LIR *const_vectors_;
+
+    /*
+     * @brief Search for a matching vector literal
+     * @param mir A kMirOpConst128b MIR instruction to match.
+     * @returns pointer to matching LIR constant, or nullptr if not found.
+     */
+    LIR *ScanVectorLiteral(MIR *mir);
+
+    /*
+     * @brief Add a constant vector literal
+     * @param mir A kMirOpConst128b MIR instruction to match.
+     */
+    LIR *AddVectorLiteral(MIR *mir);
 };
 
 }  // namespace art

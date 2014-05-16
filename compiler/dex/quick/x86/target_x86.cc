@@ -641,13 +641,15 @@ X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator*
       method_address_insns_(arena, 100, kGrowableArrayMisc),
       class_type_address_insns_(arena, 100, kGrowableArrayMisc),
       call_method_insns_(arena, 100, kGrowableArrayMisc),
-      stack_decrement_(nullptr), stack_increment_(nullptr), gen64bit_(gen64bit) {
+      stack_decrement_(nullptr), stack_increment_(nullptr), gen64bit_(gen64bit),
+      const_vectors_(nullptr) {
+  store_method_addr_used_ = false;
   if (kIsDebugBuild) {
     for (int i = 0; i < kX86Last; i++) {
       if (X86Mir2Lir::EncodingMap[i].opcode != i) {
         LOG(FATAL) << "Encoding order for " << X86Mir2Lir::EncodingMap[i].name
-            << " is wrong: expecting " << i << ", seeing "
-            << static_cast<int>(X86Mir2Lir::EncodingMap[i].opcode);
+                   << " is wrong: expecting " << i << ", seeing "
+                   << static_cast<int>(X86Mir2Lir::EncodingMap[i].opcode);
       }
     }
   }
@@ -838,11 +840,45 @@ LIR *X86Mir2Lir::CallWithLinkerFixup(const MethodReference& target_method, Invok
   return call;
 }
 
+/*
+ * @brief Enter a 32 bit quantity into a buffer
+ * @param buf buffer.
+ * @param data Data value.
+ */
+
+static void PushWord(std::vector<uint8_t>&buf, int32_t data) {
+  buf.push_back(data & 0xff);
+  buf.push_back((data >> 8) & 0xff);
+  buf.push_back((data >> 16) & 0xff);
+  buf.push_back((data >> 24) & 0xff);
+}
+
 void X86Mir2Lir::InstallLiteralPools() {
   // These are handled differently for x86.
   DCHECK(code_literal_list_ == nullptr);
   DCHECK(method_literal_list_ == nullptr);
   DCHECK(class_literal_list_ == nullptr);
+
+  // Align to 16 byte boundary.  We have implicit knowledge that the start of the method is
+  // on a 4 byte boundary.   How can I check this if it changes (other than aligned loads
+  // will fail at runtime)?
+  if (const_vectors_ != nullptr) {
+    int align_size = (16-4) - (code_buffer_.size() & 0xF);
+    if (align_size < 0) {
+      align_size += 16;
+    }
+
+    while (align_size > 0) {
+      code_buffer_.push_back(0);
+      align_size--;
+    }
+    for (LIR *p = const_vectors_; p != nullptr; p = p->next) {
+      PushWord(code_buffer_, p->operands[0]);
+      PushWord(code_buffer_, p->operands[1]);
+      PushWord(code_buffer_, p->operands[2]);
+      PushWord(code_buffer_, p->operands[3]);
+    }
+  }
 
   // Handle the fixups for methods.
   for (uint32_t i = 0; i < method_address_insns_.Size(); i++) {
@@ -1074,18 +1110,6 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
 }
 
 /*
- * @brief Enter a 32 bit quantity into the FDE buffer
- * @param buf FDE buffer.
- * @param data Data value.
- */
-static void PushWord(std::vector<uint8_t>&buf, int data) {
-  buf.push_back(data & 0xff);
-  buf.push_back((data >> 8) & 0xff);
-  buf.push_back((data >> 16) & 0xff);
-  buf.push_back((data >> 24) & 0xff);
-}
-
-/*
  * @brief Enter an 'advance LOC' into the FDE buffer
  * @param buf FDE buffer.
  * @param increment Amount by which to increase the current location.
@@ -1233,6 +1257,75 @@ std::vector<uint8_t>* X86Mir2Lir::ReturnCallFrameInformation() {
   (*cfi_info)[2] = length >> 16;
   (*cfi_info)[3] = length >> 24;
   return cfi_info;
+}
+
+void X86Mir2Lir::GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
+  switch (static_cast<ExtendedMIROpcode>(mir->dalvikInsn.opcode)) {
+    case kMirOpConstVector:
+      GenConst128(bb, mir);
+      break;
+    default:
+      break;
+  }
+}
+
+void X86Mir2Lir::GenConst128(BasicBlock* bb, MIR* mir) {
+  int type_size = mir->dalvikInsn.vA;
+  // We support 128 bit vectors.
+  DCHECK_EQ(type_size & 0xFFFF, 128);
+  int reg = mir->dalvikInsn.vB;
+  DCHECK_LT(reg, 8);
+  uint32_t *args = mir->dalvikInsn.arg;
+  // Check for all 0 case.
+  if (args[0] == 0 && args[1] == 0 && args[2] == 0 && args[3] == 0) {
+    NewLIR2(kX86XorpsRR, reg, reg);
+    return;
+  }
+  // Okay, load it from the constant vector area.
+  LIR *data_target = ScanVectorLiteral(mir);
+  if (data_target == nullptr) {
+    data_target = AddVectorLiteral(mir);
+  }
+
+  // Address the start of the method.
+  RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
+  rl_method = LoadValue(rl_method, kCoreReg);
+
+  // Load the proper value from the literal area.
+  // We don't know the proper offset for the value, so pick one that will force
+  // 4 byte offset.  We will fix this up in the assembler later to have the right
+  // value.
+  LIR *load = NewLIR3(kX86Mova128RM, reg, rl_method.reg.GetReg(),  256 /* bogus */);
+  load->flags.fixup = kFixupLoad;
+  load->target = data_target;
+  SetMemRefType(load, true, kLiteral);
+}
+
+LIR *X86Mir2Lir::ScanVectorLiteral(MIR *mir) {
+  int *args = reinterpret_cast<int*>(mir->dalvikInsn.arg);
+  for (LIR *p = const_vectors_; p != nullptr; p = p->next) {
+    if (args[0] == p->operands[0] && args[1] == p->operands[1] &&
+        args[2] == p->operands[2] && args[3] == p->operands[3]) {
+      return p;
+    }
+  }
+  return nullptr;
+}
+
+LIR *X86Mir2Lir::AddVectorLiteral(MIR *mir) {
+  LIR* new_value = static_cast<LIR*>(arena_->Alloc(sizeof(LIR), kArenaAllocData));
+  int *args = reinterpret_cast<int*>(mir->dalvikInsn.arg);
+  new_value->operands[0] = args[0];
+  new_value->operands[1] = args[1];
+  new_value->operands[2] = args[2];
+  new_value->operands[3] = args[3];
+  new_value->next = const_vectors_;
+  if (const_vectors_ == nullptr) {
+    estimated_native_code_size_ += 12;  // Amount needed to align to 16 byte boundary.
+  }
+  estimated_native_code_size_ += 16;  // Space for one vector.
+  const_vectors_ = new_value;
+  return new_value;
 }
 
 }  // namespace art

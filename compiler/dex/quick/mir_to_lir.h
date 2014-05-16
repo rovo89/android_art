@@ -1180,6 +1180,14 @@ class Mir2Lir : public Backend {
     virtual void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double) = 0;
     virtual void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) = 0;
 
+    /*
+     * @brief Handle Machine Specific MIR Extended opcodes.
+     * @param bb The basic block in which the MIR is from.
+     * @param mir The MIR whose opcode is not standard extended MIR.
+     * @note Base class implementation will abort for unknown opcodes.
+     */
+    virtual void GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir);
+
     /**
      * @brief Lowers the kMirOpSelect MIR into LIR.
      * @param bb The basic block in which the MIR is from.
