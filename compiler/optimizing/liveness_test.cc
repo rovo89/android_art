@@ -35,6 +35,7 @@ static void TestCode(const uint16_t* data, const char* expected) {
   ASSERT_NE(graph, nullptr);
   graph->BuildDominatorTree();
   graph->TransformToSSA();
+  graph->FindNaturalLoops();
   SsaLivenessAnalysis liveness(*graph);
   liveness.Analyze();
 

@@ -188,6 +188,23 @@ HGraphVisualizer::HGraphVisualizer(std::ostream* output,
   printer.EndTag("compilation");
 }
 
+HGraphVisualizer::HGraphVisualizer(std::ostream* output,
+                                   HGraph* graph,
+                                   const char* name)
+    : output_(output), graph_(graph), is_enabled_(false) {
+  if (output == nullptr) {
+    return;
+  }
+
+  is_enabled_ = true;
+  HGraphVisualizerPrinter printer(graph, *output_);
+  printer.StartTag("compilation");
+  printer.PrintProperty("name", name);
+  printer.PrintProperty("method", name);
+  printer.PrintTime("date");
+  printer.EndTag("compilation");
+}
+
 void HGraphVisualizer::DumpGraph(const char* pass_name) {
   if (!is_enabled_) {
     return;

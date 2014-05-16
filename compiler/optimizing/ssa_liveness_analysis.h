@@ -48,6 +48,7 @@ class SsaLivenessAnalysis : public ValueObject {
  public:
   explicit SsaLivenessAnalysis(const HGraph& graph)
       : graph_(graph),
+        linear_post_order_(graph.GetArena(), graph.GetBlocks().Size()),
         block_infos_(graph.GetArena(), graph.GetBlocks().Size()),
         number_of_ssa_values_(0) {
     block_infos_.SetSize(graph.GetBlocks().Size());
@@ -67,7 +68,17 @@ class SsaLivenessAnalysis : public ValueObject {
     return &block_infos_.Get(block.GetBlockId())->kill_;
   }
 
+  const GrowableArray<HBasicBlock*>& GetLinearPostOrder() const {
+    return linear_post_order_;
+  }
+
  private:
+  // Linearize the graph so that:
+  // (1): a block is always after its dominator,
+  // (2): blocks of loops are contiguous.
+  // This creates a natural and efficient ordering when visualizing live ranges.
+  void LinearizeGraph();
+
   // Give an SSA number to each instruction that defines a value used by another instruction.
   void NumberInstructions();
 
@@ -90,6 +101,7 @@ class SsaLivenessAnalysis : public ValueObject {
   bool UpdateLiveOut(const HBasicBlock& block);
 
   const HGraph& graph_;
+  GrowableArray<HBasicBlock*> linear_post_order_;
   GrowableArray<BlockInfo*> block_infos_;
   size_t number_of_ssa_values_;
 

@@ -28,9 +28,9 @@
 
 namespace art {
 
-class StringPrettyPrinter : public HPrettyPrinter {
+class SsaPrettyPrinter : public HPrettyPrinter {
  public:
-  explicit StringPrettyPrinter(HGraph* graph) : HPrettyPrinter(graph), str_("") {}
+  explicit SsaPrettyPrinter(HGraph* graph) : HPrettyPrinter(graph), str_("") {}
 
   virtual void PrintInt(int value) {
     str_ += StringPrintf("%d", value);
@@ -59,7 +59,7 @@ class StringPrettyPrinter : public HPrettyPrinter {
  private:
   std::string str_;
 
-  DISALLOW_COPY_AND_ASSIGN(StringPrettyPrinter);
+  DISALLOW_COPY_AND_ASSIGN(SsaPrettyPrinter);
 };
 
 static void ReNumberInstructions(HGraph* graph) {
@@ -82,11 +82,12 @@ static void TestCode(const uint16_t* data, const char* expected) {
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   HGraph* graph = builder.BuildGraph(*item);
   ASSERT_NE(graph, nullptr);
+
   graph->BuildDominatorTree();
   graph->TransformToSSA();
   ReNumberInstructions(graph);
 
-  StringPrettyPrinter printer(graph);
+  SsaPrettyPrinter printer(graph);
   printer.VisitInsertionOrder();
 
   ASSERT_STREQ(expected, printer.str().c_str());

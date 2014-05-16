@@ -79,6 +79,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
 	compiler/optimizing/codegen_test.cc \
 	compiler/optimizing/dominator_test.cc \
 	compiler/optimizing/find_loops_test.cc \
+	compiler/optimizing/linearize_test.cc \
 	compiler/optimizing/liveness_test.cc \
 	compiler/optimizing/pretty_printer_test.cc \
 	compiler/optimizing/ssa_test.cc \
