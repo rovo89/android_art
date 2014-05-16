@@ -124,9 +124,10 @@ enum X86NativeRegisterPool {
   rDX            = r2,
   r3             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 3,
   rBX            = r3,
-  r4sp           = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 4,
-  rX86_SP        = r4sp,
-  r4sib_no_index = r4sp,
+  r4sp_32        = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 4,
+  rX86_SP_32     = r4sp_32,
+  r4sp_64        = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 4,
+  rX86_SP_64     = r4sp_64,
   r5             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 5,
   rBP            = r5,
   r5sib_no_base  = r5,
@@ -191,8 +192,9 @@ constexpr RegStorage rs_r2(RegStorage::kValid | r2);
 constexpr RegStorage rs_rDX = rs_r2;
 constexpr RegStorage rs_r3(RegStorage::kValid | r3);
 constexpr RegStorage rs_rBX = rs_r3;
-constexpr RegStorage rs_r4sp(RegStorage::kValid | r4sp);
-constexpr RegStorage rs_rX86_SP = rs_r4sp;
+constexpr RegStorage rs_rX86_SP_64(RegStorage::kValid | r4sp_64);
+constexpr RegStorage rs_rX86_SP_32(RegStorage::kValid | r4sp_32);
+extern RegStorage rs_rX86_SP;
 constexpr RegStorage rs_r5(RegStorage::kValid | r5);
 constexpr RegStorage rs_rBP = rs_r5;
 constexpr RegStorage rs_r6(RegStorage::kValid | r6);
@@ -228,35 +230,31 @@ constexpr RegStorage rs_qr5(RegStorage::kValid | qr5);
 constexpr RegStorage rs_qr6(RegStorage::kValid | qr6);
 constexpr RegStorage rs_qr7(RegStorage::kValid | qr7);
 
-// TODO: elminate these #defines?
-#define rX86_ARG0 rAX
-#define rs_rX86_ARG0 rs_rAX
-#define rX86_ARG1 rCX
-#define rs_rX86_ARG1 rs_rCX
-#define rX86_ARG2 rDX
-#define rs_rX86_ARG2 rs_rDX
-#define rX86_ARG3 rBX
-#define rs_rX86_ARG3 rs_rBX
-#define rX86_FARG0 rAX
-#define rs_rX86_FARG0 rs_rAX
-#define rX86_FARG1 rCX
-#define rs_rX86_FARG1 rs_rCX
-#define rX86_FARG2 rDX
-#define rs_rX86_FARG2 rs_rDX
-#define rX86_FARG3 rBX
-#define rs_rX86_FARG3 rs_rBX
-#define rX86_RET0 rAX
-#define rs_rX86_RET0 rs_rAX
-#define rX86_RET1 rDX
-#define rs_rX86_RET1 rs_rDX
-#define rX86_INVOKE_TGT rAX
-#define rs_rX86_INVOKE_TGT rs_rAX
-#define rX86_LR RegStorage::kInvalidRegVal
-#define rX86_SUSPEND RegStorage::kInvalidRegVal
-#define rX86_SELF RegStorage::kInvalidRegVal
-#define rX86_COUNT rCX
-#define rs_rX86_COUNT rs_rCX
-#define rX86_PC RegStorage::kInvalidRegVal
+extern X86NativeRegisterPool rX86_ARG0;
+extern X86NativeRegisterPool rX86_ARG1;
+extern X86NativeRegisterPool rX86_ARG2;
+extern X86NativeRegisterPool rX86_ARG3;
+extern X86NativeRegisterPool rX86_FARG0;
+extern X86NativeRegisterPool rX86_FARG1;
+extern X86NativeRegisterPool rX86_FARG2;
+extern X86NativeRegisterPool rX86_FARG3;
+extern X86NativeRegisterPool rX86_RET0;
+extern X86NativeRegisterPool rX86_RET1;
+extern X86NativeRegisterPool rX86_INVOKE_TGT;
+extern X86NativeRegisterPool rX86_COUNT;
+
+extern RegStorage rs_rX86_ARG0;
+extern RegStorage rs_rX86_ARG1;
+extern RegStorage rs_rX86_ARG2;
+extern RegStorage rs_rX86_ARG3;
+extern RegStorage rs_rX86_FARG0;
+extern RegStorage rs_rX86_FARG1;
+extern RegStorage rs_rX86_FARG2;
+extern RegStorage rs_rX86_FARG3;
+extern RegStorage rs_rX86_RET0;
+extern RegStorage rs_rX86_RET1;
+extern RegStorage rs_rX86_INVOKE_TGT;
+extern RegStorage rs_rX86_COUNT;
 
 // RegisterLocation templates return values (r_V0, or r_V0/r_V1).
 const RegLocation x86_loc_c_return
@@ -313,10 +311,10 @@ enum X86OpCode {
   opcode ## 16RR, opcode ## 16RM, opcode ## 16RA, opcode ## 16RT, \
   opcode ## 16RI, opcode ## 16MI, opcode ## 16AI, opcode ## 16TI, \
   opcode ## 16RI8, opcode ## 16MI8, opcode ## 16AI8, opcode ## 16TI8, \
-  opcode ## 32MR, opcode ## 32AR, opcode ## 32TR,  \
-  opcode ## 32RR, opcode ## 32RM, opcode ## 32RA, opcode ## 32RT, \
-  opcode ## 32RI, opcode ## 32MI, opcode ## 32AI, opcode ## 32TI, \
-  opcode ## 32RI8, opcode ## 32MI8, opcode ## 32AI8, opcode ## 32TI8
+  opcode ## 32MR, opcode ## 64MR, opcode ## 32AR, opcode ## 64AR, opcode ## 32TR,  \
+  opcode ## 32RR, opcode ## 32RM, opcode ## 64RM, opcode ## 32RA, opcode ## 64RA, opcode ## 32RT, opcode ## 64RT, \
+  opcode ## 32RI, opcode ## 64RI, opcode ## 32MI, opcode ## 32AI, opcode ## 32TI, \
+  opcode ## 32RI8, opcode ## 64RI8, opcode ## 32MI8, opcode ## 32AI8, opcode ## 32TI8
   BinaryOpCode(kX86Add),
   BinaryOpCode(kX86Or),
   BinaryOpCode(kX86Adc),
@@ -335,9 +333,9 @@ enum X86OpCode {
   kX86Mov16MR, kX86Mov16AR, kX86Mov16TR,
   kX86Mov16RR, kX86Mov16RM, kX86Mov16RA, kX86Mov16RT,
   kX86Mov16RI, kX86Mov16MI, kX86Mov16AI, kX86Mov16TI,
-  kX86Mov32MR, kX86Mov32AR, kX86Mov32TR,
-  kX86Mov32RR, kX86Mov32RM, kX86Mov32RA, kX86Mov32RT,
-  kX86Mov32RI, kX86Mov32MI, kX86Mov32AI, kX86Mov32TI,
+  kX86Mov32MR, kX86Mov64MR, kX86Mov32AR, kX86Mov64AR, kX86Mov32TR,
+  kX86Mov32RR, kX86Mov32RM, kX86Mov64RM, kX86Mov32RA, kX86Mov64RA, kX86Mov32RT, kX86Mov64RT,
+  kX86Mov32RI, kX86Mov32MI, kX86Mov32AI, kX86Mov32TI, kX86Mov64TI,
   kX86Lea32RM,
   kX86Lea32RA,
   // RRC - Register Register ConditionCode - cond_opcode reg1, reg2
@@ -479,11 +477,11 @@ enum X86EncodingKind {
   kNullary,                                // Opcode that takes no arguments.
   kPrefix2Nullary,                         // Opcode that takes no arguments, but 2 prefixes.
   kRegOpcode,                              // Shorter form of R instruction kind (opcode+rd)
-  kReg, kMem, kArray,                      // R, M and A instruction kinds.
-  kMemReg, kArrayReg, kThreadReg,          // MR, AR and TR instruction kinds.
-  kRegReg, kRegMem, kRegArray, kRegThread,  // RR, RM, RA and RT instruction kinds.
+  kReg, kReg64, kMem, kArray,              // R, M and A instruction kinds.
+  kMemReg, kMemReg64, kArrayReg, kArrayReg64, kThreadReg,          // MR, AR and TR instruction kinds.
+  kRegReg, kRegMem, kRegArray, kRegThread, kReg64Thread,  // RR, RM, RA and RT instruction kinds.
   kRegRegStore,                            // RR following the store modrm reg-reg encoding rather than the load.
-  kRegImm, kMemImm, kArrayImm, kThreadImm,  // RI, MI, AI and TI instruction kinds.
+  kRegImm, kReg64Imm, kMemImm, kArrayImm, kThreadImm,  // RI, MI, AI and TI instruction kinds.
   kRegRegImm, kRegMemImm, kRegArrayImm,    // RRI, RMI and RAI instruction kinds.
   kMovRegImm,                              // Shorter form move RI.
   kRegRegImmRev,                           // RRI with first reg in r/m
@@ -532,6 +530,11 @@ struct X86EncodingMap {
 
 // Segment override instruction prefix used for quick TLS access to Thread::Current().
 #define THREAD_PREFIX 0x64
+#define THREAD_PREFIX_GS 0x65
+
+// 64 Bit Operand Size
+#define REX_W 0x48
+// Extension of the ModR/M reg field
 
 #define IS_SIMM8(v) ((-128 <= (v)) && ((v) <= 127))
 #define IS_SIMM16(v) ((-32768 <= (v)) && ((v) <= 32767))

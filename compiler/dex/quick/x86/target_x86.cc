@@ -26,53 +26,117 @@
 
 namespace art {
 
-static const RegStorage core_regs_arr[] = {
-    rs_rAX, rs_rCX, rs_rDX, rs_rBX, rs_rX86_SP, rs_rBP, rs_rSI, rs_rDI
+static const RegStorage core_regs_arr_32[] = {
+    rs_rAX, rs_rCX, rs_rDX, rs_rBX, rs_rX86_SP_32, rs_rBP, rs_rSI, rs_rDI,
+};
+static const RegStorage core_regs_arr_64[] = {
+    rs_rAX, rs_rCX, rs_rDX, rs_rBX, rs_rX86_SP_64, rs_rBP, rs_rSI, rs_rDI,
 #ifdef TARGET_REX_SUPPORT
     rs_r8, rs_r9, rs_r10, rs_r11, rs_r12, rs_r13, rs_r14, rs_r15
 #endif
 };
-static const RegStorage sp_regs_arr[] = {
+static const RegStorage sp_regs_arr_32[] = {
+    rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
+};
+static const RegStorage sp_regs_arr_64[] = {
     rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
 #ifdef TARGET_REX_SUPPORT
     rs_fr8, rs_fr9, rs_fr10, rs_fr11, rs_fr12, rs_fr13, rs_fr14, rs_fr15
 #endif
 };
-static const RegStorage dp_regs_arr[] = {
+static const RegStorage dp_regs_arr_32[] = {
+    rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
+};
+static const RegStorage dp_regs_arr_64[] = {
     rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
 #ifdef TARGET_REX_SUPPORT
     rs_dr8, rs_dr9, rs_dr10, rs_dr11, rs_dr12, rs_dr13, rs_dr14, rs_dr15
 #endif
 };
-static const RegStorage reserved_regs_arr[] = {rs_rX86_SP};
-static const RegStorage core_temps_arr[] = {rs_rAX, rs_rCX, rs_rDX, rs_rBX};
-static const RegStorage sp_temps_arr[] = {
+static const RegStorage reserved_regs_arr_32[] = {rs_rX86_SP_32};
+static const RegStorage reserved_regs_arr_64[] = {rs_rX86_SP_64};
+static const RegStorage core_temps_arr_32[] = {rs_rAX, rs_rCX, rs_rDX, rs_rBX};
+static const RegStorage core_temps_arr_64[] = {
+    rs_rAX, rs_rCX, rs_rDX, rs_rSI, rs_rDI,
+#ifdef TARGET_REX_SUPPORT
+    rs_r8, rs_r9, rs_r10, rs_r11
+#endif
+};
+static const RegStorage sp_temps_arr_32[] = {
+    rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
+};
+static const RegStorage sp_temps_arr_64[] = {
     rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
 #ifdef TARGET_REX_SUPPORT
     rs_fr8, rs_fr9, rs_fr10, rs_fr11, rs_fr12, rs_fr13, rs_fr14, rs_fr15
 #endif
 };
-static const RegStorage dp_temps_arr[] = {
+static const RegStorage dp_temps_arr_32[] = {
+    rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
+};
+static const RegStorage dp_temps_arr_64[] = {
     rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
 #ifdef TARGET_REX_SUPPORT
     rs_dr8, rs_dr9, rs_dr10, rs_dr11, rs_dr12, rs_dr13, rs_dr14, rs_dr15
 #endif
 };
 
-static const std::vector<RegStorage> core_regs(core_regs_arr,
-    core_regs_arr + sizeof(core_regs_arr) / sizeof(core_regs_arr[0]));
-static const std::vector<RegStorage> sp_regs(sp_regs_arr,
-    sp_regs_arr + sizeof(sp_regs_arr) / sizeof(sp_regs_arr[0]));
-static const std::vector<RegStorage> dp_regs(dp_regs_arr,
-    dp_regs_arr + sizeof(dp_regs_arr) / sizeof(dp_regs_arr[0]));
-static const std::vector<RegStorage> reserved_regs(reserved_regs_arr,
-    reserved_regs_arr + sizeof(reserved_regs_arr) / sizeof(reserved_regs_arr[0]));
-static const std::vector<RegStorage> core_temps(core_temps_arr,
-    core_temps_arr + sizeof(core_temps_arr) / sizeof(core_temps_arr[0]));
-static const std::vector<RegStorage> sp_temps(sp_temps_arr,
-    sp_temps_arr + sizeof(sp_temps_arr) / sizeof(sp_temps_arr[0]));
-static const std::vector<RegStorage> dp_temps(dp_temps_arr,
-    dp_temps_arr + sizeof(dp_temps_arr) / sizeof(dp_temps_arr[0]));
+static const std::vector<RegStorage> core_regs_32(core_regs_arr_32,
+    core_regs_arr_32 + sizeof(core_regs_arr_32) / sizeof(core_regs_arr_32[0]));
+static const std::vector<RegStorage> core_regs_64(core_regs_arr_64,
+    core_regs_arr_64 + sizeof(core_regs_arr_64) / sizeof(core_regs_arr_64[0]));
+static const std::vector<RegStorage> sp_regs_32(sp_regs_arr_32,
+    sp_regs_arr_32 + sizeof(sp_regs_arr_32) / sizeof(sp_regs_arr_32[0]));
+static const std::vector<RegStorage> sp_regs_64(sp_regs_arr_64,
+    sp_regs_arr_64 + sizeof(sp_regs_arr_64) / sizeof(sp_regs_arr_64[0]));
+static const std::vector<RegStorage> dp_regs_32(dp_regs_arr_32,
+    dp_regs_arr_32 + sizeof(dp_regs_arr_32) / sizeof(dp_regs_arr_32[0]));
+static const std::vector<RegStorage> dp_regs_64(dp_regs_arr_64,
+    dp_regs_arr_64 + sizeof(dp_regs_arr_64) / sizeof(dp_regs_arr_64[0]));
+static const std::vector<RegStorage> reserved_regs_32(reserved_regs_arr_32,
+    reserved_regs_arr_32 + sizeof(reserved_regs_arr_32) / sizeof(reserved_regs_arr_32[0]));
+static const std::vector<RegStorage> reserved_regs_64(reserved_regs_arr_64,
+    reserved_regs_arr_64 + sizeof(reserved_regs_arr_64) / sizeof(reserved_regs_arr_64[0]));
+static const std::vector<RegStorage> core_temps_32(core_temps_arr_32,
+    core_temps_arr_32 + sizeof(core_temps_arr_32) / sizeof(core_temps_arr_32[0]));
+static const std::vector<RegStorage> core_temps_64(core_temps_arr_64,
+    core_temps_arr_64 + sizeof(core_temps_arr_64) / sizeof(core_temps_arr_64[0]));
+static const std::vector<RegStorage> sp_temps_32(sp_temps_arr_32,
+    sp_temps_arr_32 + sizeof(sp_temps_arr_32) / sizeof(sp_temps_arr_32[0]));
+static const std::vector<RegStorage> sp_temps_64(sp_temps_arr_64,
+    sp_temps_arr_64 + sizeof(sp_temps_arr_64) / sizeof(sp_temps_arr_64[0]));
+static const std::vector<RegStorage> dp_temps_32(dp_temps_arr_32,
+    dp_temps_arr_32 + sizeof(dp_temps_arr_32) / sizeof(dp_temps_arr_32[0]));
+static const std::vector<RegStorage> dp_temps_64(dp_temps_arr_64,
+    dp_temps_arr_64 + sizeof(dp_temps_arr_64) / sizeof(dp_temps_arr_64[0]));
+
+RegStorage rs_rX86_SP;
+
+X86NativeRegisterPool rX86_ARG0;
+X86NativeRegisterPool rX86_ARG1;
+X86NativeRegisterPool rX86_ARG2;
+X86NativeRegisterPool rX86_ARG3;
+X86NativeRegisterPool rX86_FARG0;
+X86NativeRegisterPool rX86_FARG1;
+X86NativeRegisterPool rX86_FARG2;
+X86NativeRegisterPool rX86_FARG3;
+X86NativeRegisterPool rX86_RET0;
+X86NativeRegisterPool rX86_RET1;
+X86NativeRegisterPool rX86_INVOKE_TGT;
+X86NativeRegisterPool rX86_COUNT;
+
+RegStorage rs_rX86_ARG0;
+RegStorage rs_rX86_ARG1;
+RegStorage rs_rX86_ARG2;
+RegStorage rs_rX86_ARG3;
+RegStorage rs_rX86_FARG0;
+RegStorage rs_rX86_FARG1;
+RegStorage rs_rX86_FARG2;
+RegStorage rs_rX86_FARG3;
+RegStorage rs_rX86_RET0;
+RegStorage rs_rX86_RET1;
+RegStorage rs_rX86_INVOKE_TGT;
+RegStorage rs_rX86_COUNT;
 
 RegLocation X86Mir2Lir::LocCReturn() {
   return x86_loc_c_return;
@@ -478,8 +542,13 @@ RegStorage X86Mir2Lir::AllocTypedTemp(bool fp_hint, int reg_class) {
 }
 
 void X86Mir2Lir::CompilerInitializeRegAlloc() {
-  reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs, sp_regs, dp_regs, reserved_regs,
-                                        core_temps, sp_temps, dp_temps);
+  if (Gen64Bit()) {
+    reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs_64, sp_regs_64, dp_regs_64, reserved_regs_64,
+                                        core_temps_64, sp_temps_64, dp_temps_64);
+  } else {
+    reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs_32, sp_regs_32, dp_regs_32, reserved_regs_32,
+                                        core_temps_32, sp_temps_32, dp_temps_32);
+  }
 
   // Target-specific adjustments.
 
@@ -523,11 +592,11 @@ void X86Mir2Lir::SpillCoreRegs() {
   }
   // Spill mask not including fake return address register
   uint32_t mask = core_spill_mask_ & ~(1 << rs_rRET.GetRegNum());
-  int offset = frame_size_ - (4 * num_core_spills_);
+  int offset = frame_size_ - (GetInstructionSetPointerSize(cu_->instruction_set) * num_core_spills_);
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
       StoreWordDisp(rs_rX86_SP, offset, RegStorage::Solo32(reg));
-      offset += 4;
+      offset += GetInstructionSetPointerSize(cu_->instruction_set);
     }
   }
 }
@@ -538,11 +607,11 @@ void X86Mir2Lir::UnSpillCoreRegs() {
   }
   // Spill mask not including fake return address register
   uint32_t mask = core_spill_mask_ & ~(1 << rs_rRET.GetRegNum());
-  int offset = frame_size_ - (4 * num_core_spills_);
+  int offset = frame_size_ - (GetInstructionSetPointerSize(cu_->instruction_set) * num_core_spills_);
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
       LoadWordDisp(rs_rX86_SP, offset, RegStorage::Solo32(reg));
-      offset += 4;
+      offset += GetInstructionSetPointerSize(cu_->instruction_set);
     }
   }
 }
@@ -566,13 +635,13 @@ RegisterClass X86Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatil
   return RegClassBySize(size);
 }
 
-X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
+X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena, bool gen64bit)
     : Mir2Lir(cu, mir_graph, arena),
       base_of_code_(nullptr), store_method_addr_(false), store_method_addr_used_(false),
       method_address_insns_(arena, 100, kGrowableArrayMisc),
       class_type_address_insns_(arena, 100, kGrowableArrayMisc),
       call_method_insns_(arena, 100, kGrowableArrayMisc),
-      stack_decrement_(nullptr), stack_increment_(nullptr) {
+      stack_decrement_(nullptr), stack_increment_(nullptr), gen64bit_(gen64bit) {
   if (kIsDebugBuild) {
     for (int i = 0; i < kX86Last; i++) {
       if (X86Mir2Lir::EncodingMap[i].opcode != i) {
@@ -582,11 +651,56 @@ X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator*
       }
     }
   }
+  if (Gen64Bit()) {
+    rs_rX86_SP = rs_rX86_SP_64;
+
+    rs_rX86_ARG0 = rs_rDI;
+    rs_rX86_ARG1 = rs_rSI;
+    rs_rX86_ARG2 = rs_rDX;
+    rs_rX86_ARG3 = rs_rCX;
+    rX86_ARG0 = rDI;
+    rX86_ARG1 = rSI;
+    rX86_ARG2 = rDX;
+    rX86_ARG3 = rCX;
+    // TODO: ARG4(r8), ARG5(r9), floating point args.
+  } else {
+    rs_rX86_SP = rs_rX86_SP_32;
+
+    rs_rX86_ARG0 = rs_rAX;
+    rs_rX86_ARG1 = rs_rCX;
+    rs_rX86_ARG2 = rs_rDX;
+    rs_rX86_ARG3 = rs_rBX;
+    rX86_ARG0 = rAX;
+    rX86_ARG1 = rCX;
+    rX86_ARG2 = rDX;
+    rX86_ARG3 = rBX;
+  }
+  rs_rX86_FARG0 = rs_rAX;
+  rs_rX86_FARG1 = rs_rCX;
+  rs_rX86_FARG2 = rs_rDX;
+  rs_rX86_FARG3 = rs_rBX;
+  rs_rX86_RET0 = rs_rAX;
+  rs_rX86_RET1 = rs_rDX;
+  rs_rX86_INVOKE_TGT = rs_rAX;
+  rs_rX86_COUNT = rs_rCX;
+  rX86_FARG0 = rAX;
+  rX86_FARG1 = rCX;
+  rX86_FARG2 = rDX;
+  rX86_FARG3 = rBX;
+  rX86_RET0 = rAX;
+  rX86_RET1 = rDX;
+  rX86_INVOKE_TGT = rAX;
+  rX86_COUNT = rCX;
 }
 
 Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
                           ArenaAllocator* const arena) {
-  return new X86Mir2Lir(cu, mir_graph, arena);
+  return new X86Mir2Lir(cu, mir_graph, arena, false);
+}
+
+Mir2Lir* X86_64CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
+                          ArenaAllocator* const arena) {
+  return new X86Mir2Lir(cu, mir_graph, arena, true);
 }
 
 // Not used in x86
