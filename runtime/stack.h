@@ -306,6 +306,11 @@ class ShadowFrame {
     return method_;
   }
 
+  mirror::ArtMethod** GetMethodAddress() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(method_ != nullptr);
+    return &method_;
+  }
+
   mirror::Object* GetThisObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::Object* GetThisObject(uint16_t num_ins) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -389,12 +394,7 @@ class ShadowFrame {
 #endif
   // Link to previous shadow frame or NULL.
   ShadowFrame* link_;
-#if defined(ART_USE_PORTABLE_COMPILER)
-  // TODO: make const in the portable case.
   mirror::ArtMethod* method_;
-#else
-  mirror::ArtMethod* const method_;
-#endif
   uint32_t dex_pc_;
   uint32_t vregs_[0];
 
@@ -513,6 +513,16 @@ class StackVisitor {
       return cur_shadow_frame_->GetMethod();
     } else if (cur_quick_frame_ != nullptr) {
       return *cur_quick_frame_;
+    } else {
+      return nullptr;
+    }
+  }
+
+  mirror::ArtMethod** GetMethodAddress() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (cur_shadow_frame_ != nullptr) {
+      return cur_shadow_frame_->GetMethodAddress();
+    } else if (cur_quick_frame_ != nullptr) {
+      return cur_quick_frame_;
     } else {
       return nullptr;
     }
