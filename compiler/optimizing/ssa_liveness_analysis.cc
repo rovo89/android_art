@@ -20,13 +20,92 @@
 namespace art {
 
 void SsaLivenessAnalysis::Analyze() {
+  LinearizeGraph();
   NumberInstructions();
   ComputeSets();
 }
 
+static bool IsLoopExit(HLoopInformation* current, HLoopInformation* to) {
+  // `to` is either not part of a loop, or `current` is an inner loop of `to`.
+  return to == nullptr || (current != to && current->IsIn(*to));
+}
+
+static bool IsLoop(HLoopInformation* info) {
+  return info != nullptr;
+}
+
+static bool InSameLoop(HLoopInformation* first_loop, HLoopInformation* second_loop) {
+  return first_loop == second_loop;
+}
+
+static bool IsInnerLoop(HLoopInformation* outer, HLoopInformation* inner) {
+  return (inner != outer)
+      && (inner != nullptr)
+      && (outer != nullptr)
+      && inner->IsIn(*outer);
+}
+
+static void VisitBlockForLinearization(HBasicBlock* block,
+                                       GrowableArray<HBasicBlock*>* order,
+                                       ArenaBitVector* visited) {
+  if (visited->IsBitSet(block->GetBlockId())) {
+    return;
+  }
+  visited->SetBit(block->GetBlockId());
+  size_t number_of_successors = block->GetSuccessors().Size();
+  if (number_of_successors == 0) {
+    // Nothing to do.
+  } else if (number_of_successors == 1) {
+    VisitBlockForLinearization(block->GetSuccessors().Get(0), order, visited);
+  } else {
+    DCHECK_EQ(number_of_successors, 2u);
+    HBasicBlock* first_successor = block->GetSuccessors().Get(0);
+    HBasicBlock* second_successor = block->GetSuccessors().Get(1);
+    HLoopInformation* my_loop = block->GetLoopInformation();
+    HLoopInformation* first_loop = first_successor->GetLoopInformation();
+    HLoopInformation* second_loop = second_successor->GetLoopInformation();
+
+    if (!IsLoop(my_loop)) {
+      // Nothing to do. Current order is fine.
+    } else if (IsLoopExit(my_loop, second_loop) && InSameLoop(my_loop, first_loop)) {
+      // Visit the loop exit first in post order.
+      std::swap(first_successor, second_successor);
+    } else if (IsInnerLoop(my_loop, first_loop) && !IsInnerLoop(my_loop, second_loop)) {
+      // Visit the inner loop last in post order.
+      std::swap(first_successor, second_successor);
+    }
+    VisitBlockForLinearization(first_successor, order, visited);
+    VisitBlockForLinearization(second_successor, order, visited);
+  }
+  order->Add(block);
+}
+
+class HLinearOrderIterator : public ValueObject {
+ public:
+  explicit HLinearOrderIterator(const GrowableArray<HBasicBlock*>& post_order)
+      : post_order_(post_order), index_(post_order.Size()) {}
+
+  bool Done() const { return index_ == 0; }
+  HBasicBlock* Current() const { return post_order_.Get(index_ -1); }
+  void Advance() { --index_; DCHECK_GE(index_, 0U); }
+
+ private:
+  const GrowableArray<HBasicBlock*>& post_order_;
+  size_t index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HLinearOrderIterator);
+};
+
+void SsaLivenessAnalysis::LinearizeGraph() {
+  // For simplicity of the implementation, we create post linear order. The order for
+  // computing live ranges is the reverse of that order.
+  ArenaBitVector visited(graph_.GetArena(), graph_.GetBlocks().Size(), false);
+  VisitBlockForLinearization(graph_.GetEntryBlock(), &linear_post_order_, &visited);
+}
+
 void SsaLivenessAnalysis::NumberInstructions() {
   int ssa_index = 0;
-  for (HReversePostOrderIterator it(graph_); !it.Done(); it.Advance()) {
+  for (HLinearOrderIterator it(linear_post_order_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
 
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
@@ -47,7 +126,7 @@ void SsaLivenessAnalysis::NumberInstructions() {
 }
 
 void SsaLivenessAnalysis::ComputeSets() {
-  for (HReversePostOrderIterator it(graph_); !it.Done(); it.Advance()) {
+  for (HLinearOrderIterator it(linear_post_order_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     block_infos_.Put(
         block->GetBlockId(),
