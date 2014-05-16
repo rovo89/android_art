@@ -176,7 +176,7 @@ const ArmEncodingMap Arm64Mir2Lir::EncodingMap[kA64Last] = {
                  kFmtRegROrSp, 9, 5, kFmtBitBlt, 21, 10, kFmtBitBlt, 23, 22,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_USE0 | SETS_CCODES,
                  "cmn", "!0R, #!1d!2T", kFixupNone),
-    ENCODING_MAP(WIDE(kA64Cmp3Rro), SF_VARIANTS(0x6b20001f),
+    ENCODING_MAP(WIDE(kA64Cmp3Rro), SF_VARIANTS(0x6b00001f),
                  kFmtRegROrSp, 9, 5, kFmtRegR, 20, 16, kFmtShift, -1, -1,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_USE01 | SETS_CCODES,
                  "cmp", "!0R, !1r!2o", kFixupNone),
@@ -637,7 +637,7 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
               }
 
               // Now check that the requirements are satisfied.
-              RegStorage reg(operand);
+              RegStorage reg(operand | RegStorage::kValid);
               const char *expected = nullptr;
               if (want_float) {
                 if (!reg.IsFloat()) {
