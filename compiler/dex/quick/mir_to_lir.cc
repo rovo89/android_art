@@ -68,19 +68,50 @@ void Mir2Lir::LockArg(int in_position, bool wide) {
 
 // TODO: needs revisit for 64-bit.
 RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide) {
-  RegStorage reg_arg_low = GetArgMappingToPhysicalReg(in_position);
-  RegStorage reg_arg_high = wide ? GetArgMappingToPhysicalReg(in_position + 1) :
-      RegStorage::InvalidReg();
-
   int offset = StackVisitor::GetOutVROffset(in_position, cu_->instruction_set);
-  if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
+
+  if (cu_->instruction_set == kX86) {
     /*
      * When doing a call for x86, it moves the stack pointer in order to push return.
      * Thus, we add another 4 bytes to figure out the out of caller (in of callee).
-     * TODO: This needs revisited for 64-bit.
      */
     offset += sizeof(uint32_t);
   }
+
+  if (cu_->instruction_set == kX86_64) {
+    /*
+     * When doing a call for x86, it moves the stack pointer in order to push return.
+     * Thus, we add another 8 bytes to figure out the out of caller (in of callee).
+     */
+    offset += sizeof(uint64_t);
+  }
+
+  if (cu_->instruction_set == kX86_64) {
+    RegStorage reg_arg = GetArgMappingToPhysicalReg(in_position);
+    if (!reg_arg.Valid()) {
+      RegStorage new_reg = wide ? AllocTypedTempWide(false, reg_class) : AllocTypedTemp(false, reg_class);
+      LoadBaseDisp(TargetReg(kSp), offset, new_reg, wide ? k64 : k32);
+      return new_reg;
+    } else {
+      // Check if we need to copy the arg to a different reg_class.
+      if (!RegClassMatches(reg_class, reg_arg)) {
+        if (wide) {
+          RegStorage new_reg = AllocTypedTempWide(false, reg_class);
+          OpRegCopyWide(new_reg, reg_arg);
+          reg_arg = new_reg;
+        } else {
+          RegStorage new_reg = AllocTypedTemp(false, reg_class);
+          OpRegCopy(new_reg, reg_arg);
+          reg_arg = new_reg;
+        }
+      }
+    }
+    return reg_arg;
+  }
+
+  RegStorage reg_arg_low = GetArgMappingToPhysicalReg(in_position);
+  RegStorage reg_arg_high = wide ? GetArgMappingToPhysicalReg(in_position + 1) :
+      RegStorage::InvalidReg();
 
   // If the VR is wide and there is no register for high part, we need to load it.
   if (wide && !reg_arg_high.Valid()) {
@@ -129,13 +160,20 @@ RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide)
 
 void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
   int offset = StackVisitor::GetOutVROffset(in_position, cu_->instruction_set);
-  if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
+  if (cu_->instruction_set == kX86) {
     /*
      * When doing a call for x86, it moves the stack pointer in order to push return.
      * Thus, we add another 4 bytes to figure out the out of caller (in of callee).
-     * TODO: This needs revisited for 64-bit.
      */
     offset += sizeof(uint32_t);
+  }
+
+  if (cu_->instruction_set == kX86_64) {
+    /*
+     * When doing a call for x86, it moves the stack pointer in order to push return.
+     * Thus, we add another 8 bytes to figure out the out of caller (in of callee).
+     */
+    offset += sizeof(uint64_t);
   }
 
   if (!rl_dest.wide) {
@@ -146,6 +184,16 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
       Load32Disp(TargetReg(kSp), offset, rl_dest.reg);
     }
   } else {
+    if (cu_->instruction_set == kX86_64) {
+      RegStorage reg = GetArgMappingToPhysicalReg(in_position);
+      if (reg.Valid()) {
+        OpRegCopy(rl_dest.reg, reg);
+      } else {
+        LoadBaseDisp(TargetReg(kSp), offset, rl_dest.reg, k64);
+      }
+      return;
+    }
+
     RegStorage reg_arg_low = GetArgMappingToPhysicalReg(in_position);
     RegStorage reg_arg_high = GetArgMappingToPhysicalReg(in_position + 1);
 

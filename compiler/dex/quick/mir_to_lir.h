@@ -910,13 +910,13 @@ class Mir2Lir : public Backend {
     void GenInvoke(CallInfo* info);
     void GenInvokeNoInline(CallInfo* info);
     virtual void FlushIns(RegLocation* ArgLocs, RegLocation rl_method);
-    int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
+    virtual int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
                              NextCallInsn next_call_insn,
                              const MethodReference& target_method,
                              uint32_t vtable_idx,
                              uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
                              bool skip_this);
-    int GenDalvikArgsRange(CallInfo* info, int call_state, LIR** pcrLabel,
+    virtual int GenDalvikArgsRange(CallInfo* info, int call_state, LIR** pcrLabel,
                            NextCallInsn next_call_insn,
                            const MethodReference& target_method,
                            uint32_t vtable_idx,
