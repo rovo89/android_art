@@ -31,7 +31,7 @@
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 extern "C" JNIEXPORT jint JNICALL Java_MyClassNatives_bar(JNIEnv*, jobject, jint count) {
   return count + 1;

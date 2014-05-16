@@ -22,7 +22,7 @@
 #include "globals.h"
 #include "mem_map.h"
 #include "object_callbacks.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 #include <limits.h>
 #include <set>

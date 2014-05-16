@@ -25,7 +25,7 @@
 
 #include <unistd.h>
 
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "dex_file-inl.h"

@@ -16,7 +16,7 @@
 
 #include "mem_map.h"
 
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "gtest/gtest.h"
 
 namespace art {

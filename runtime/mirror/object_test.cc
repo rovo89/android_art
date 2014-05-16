@@ -36,7 +36,7 @@
 #include "object_array-inl.h"
 #include "handle_scope-inl.h"
 #include "string-inl.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 namespace art {
 namespace mirror {

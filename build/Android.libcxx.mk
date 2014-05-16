@@ -14,7 +14,10 @@
 # limitations under the License.
 #
 
+LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.libcxx.mk
+
 ifneq ($(LOCAL_IS_HOST_MODULE),true)
   include external/stlport/libstlport.mk
+  LOCAL_CFLAGS += -DART_WITH_STLPORT=1
   # include external/libcxx/libcxx.mk
 endif

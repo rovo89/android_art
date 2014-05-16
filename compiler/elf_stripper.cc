@@ -20,7 +20,7 @@
 #include <sys/types.h>
 #include <vector>
 
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "base/logging.h"
 #include "elf_file.h"
 #include "elf_utils.h"

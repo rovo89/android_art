@@ -22,7 +22,7 @@
 #include "dex_instruction.h"
 #include "reg_type.h"
 #include "safe_map.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 namespace art {
 namespace verifier {

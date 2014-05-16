@@ -28,7 +28,7 @@
 #include "base/logging.h"
 #include "globals.h"
 #include "mem_map.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "utils.h"
 
 // Ensure we have an unordered_set until we have worked out C++ library issues.

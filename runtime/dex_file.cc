@@ -39,7 +39,7 @@
 #include "ScopedFd.h"
 #include "handle_scope-inl.h"
 #include "thread.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "utf-inl.h"
 #include "utils.h"
 #include "well_known_classes.h"

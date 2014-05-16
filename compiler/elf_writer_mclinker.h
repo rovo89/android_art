@@ -19,7 +19,7 @@
 
 #include "elf_writer.h"
 
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "safe_map.h"
 
 namespace mcld {

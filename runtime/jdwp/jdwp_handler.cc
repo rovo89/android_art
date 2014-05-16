@@ -32,7 +32,7 @@
 #include "jdwp/jdwp_priv.h"
 #include "runtime.h"
 #include "thread-inl.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 namespace art {
 

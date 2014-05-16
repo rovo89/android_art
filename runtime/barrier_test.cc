@@ -22,7 +22,7 @@
 #include "common_runtime_test.h"
 #include "mirror/object_array-inl.h"
 #include "thread_pool.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 namespace art {
 class CheckWaitTask : public Task {

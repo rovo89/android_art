@@ -19,7 +19,7 @@
 
 #include <string>
 
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "gc/accounting/space_bitmap.h"

@@ -33,7 +33,7 @@
 #include "utils/mips/managed_register_mips.h"
 #include "utils/x86/managed_register_x86.h"
 #include "thread.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 #define __ jni_asm->
 

@@ -26,7 +26,7 @@
 
 #include "base/stringprintf.h"
 #include "base/unix_file/fd_file.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 namespace art {
 

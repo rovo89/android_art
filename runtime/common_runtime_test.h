@@ -47,7 +47,7 @@
 #include "ScopedLocalRef.h"
 #include "thread.h"
 #include "utils.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
 #include "well_known_classes.h"

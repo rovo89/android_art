@@ -26,7 +26,7 @@
 #include "utils/assembler.h"
 #include "offsets.h"
 #include "utils.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "a64/macro-assembler-a64.h"
 #include "a64/disasm-a64.h"
 

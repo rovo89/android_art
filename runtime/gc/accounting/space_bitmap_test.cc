@@ -21,7 +21,7 @@
 #include "common_runtime_test.h"
 #include "globals.h"
 #include "space_bitmap-inl.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 namespace art {
 namespace gc {

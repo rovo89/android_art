@@ -16,7 +16,7 @@
 
 #include <stdio.h>
 
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "class_linker.h"
 #include "dex_file-inl.h"
 #include "gc_map.h"
