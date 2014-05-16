@@ -445,7 +445,7 @@ class HInstruction : public ArenaObject {
   bool HasUses() const { return uses_ != nullptr || env_uses_ != nullptr; }
 
   size_t NumberOfUses() const {
-    // TODO: Optimize this method if it is used outside of the HGraphTracer.
+    // TODO: Optimize this method if it is used outside of the HGraphVisualizer.
     size_t result = 0;
     HUseListNode<HInstruction>* current = uses_;
     while (current != nullptr) {

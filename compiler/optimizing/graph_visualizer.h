@@ -42,6 +42,12 @@ class HGraphVisualizer : public ValueObject {
                    const DexCompilationUnit& cu);
 
   /**
+   * Version of `HGraphVisualizer` for unit testing, that is when a
+   * `DexCompilationUnit` is not available.
+   */
+  HGraphVisualizer(std::ostream* output, HGraph* graph, const char* name);
+
+  /**
    * If this visualizer is enabled, emit the compilation information
    * in `output_`.
    */

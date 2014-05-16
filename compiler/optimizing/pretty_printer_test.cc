@@ -27,47 +27,6 @@
 
 namespace art {
 
-class StringPrettyPrinter : public HPrettyPrinter {
- public:
-  explicit StringPrettyPrinter(HGraph* graph)
-      : HPrettyPrinter(graph), str_(""), current_block_(nullptr) { }
-
-  virtual void PrintInt(int value) {
-    str_ += StringPrintf("%d", value);
-  }
-
-  virtual void PrintString(const char* value) {
-    str_ += value;
-  }
-
-  virtual void PrintNewLine() {
-    str_ += '\n';
-  }
-
-  void Clear() { str_.clear(); }
-
-  std::string str() const { return str_; }
-
-  virtual void VisitBasicBlock(HBasicBlock* block) {
-    current_block_ = block;
-    HPrettyPrinter::VisitBasicBlock(block);
-  }
-
-  virtual void VisitGoto(HGoto* gota) {
-    PrintString("  ");
-    PrintInt(gota->GetId());
-    PrintString(": Goto ");
-    PrintInt(current_block_->GetSuccessors().Get(0)->GetBlockId());
-    PrintNewLine();
-  }
-
- private:
-  std::string str_;
-  HBasicBlock* current_block_;
-
-  DISALLOW_COPY_AND_ASSIGN(StringPrettyPrinter);
-};
-
 static void TestCode(const uint16_t* data, const char* expected) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
