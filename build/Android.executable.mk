@@ -56,7 +56,7 @@ define build-art-executable
   LOCAL_MODULE_TAGS := optional
   LOCAL_SRC_FILES := $$(art_source)
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime $$(art_c_includes)
-  LOCAL_SHARED_LIBRARIES += $$(art_shared_libraries) # libnativehelper
+  LOCAL_SHARED_LIBRARIES += $$(art_shared_libraries)
 
   ifeq ($$(art_ndebug_or_debug),ndebug)
     LOCAL_MODULE := $$(art_executable)

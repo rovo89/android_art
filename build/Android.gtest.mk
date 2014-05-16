@@ -187,7 +187,7 @@ define build-art-test
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
     LOCAL_CFLAGS_x86 := $(ART_TARGET_CFLAGS_x86)
     LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libz libcutils libvixl
-    LOCAL_STATIC_LIBRARIES += libgtest
+    LOCAL_STATIC_LIBRARIES += libgtest_libc++
     LOCAL_MODULE_PATH_32 := $(ART_NATIVETEST_OUT)/$(ART_TARGET_ARCH_32)
     LOCAL_MODULE_PATH_64 := $(ART_NATIVETEST_OUT)/$(ART_TARGET_ARCH_64)
     LOCAL_MULTILIB := both
