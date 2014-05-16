@@ -27,6 +27,12 @@ namespace mirror {
 
 // C++ mirror of java.lang.ClassLoader
 class MANAGED ClassLoader : public Object {
+ public:
+  // Size of an instance of java.lang.ClassLoader.
+  static constexpr uint32_t InstanceSize() {
+    return sizeof(ClassLoader);
+  }
+
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   HeapReference<Object> packages_;

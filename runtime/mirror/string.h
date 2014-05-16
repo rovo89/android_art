@@ -19,22 +19,28 @@
 
 #include <gtest/gtest.h>
 
-#include "class.h"
 #include "object_callbacks.h"
 #include "read_barrier.h"
 
 namespace art {
 
 template<class T> class Handle;
-struct StringClassOffsets;
 struct StringOffsets;
 class StringPiece;
 
 namespace mirror {
 
 // C++ mirror of java.lang.String
-class MANAGED String : public Object {
+class MANAGED String FINAL : public Object {
  public:
+  // Size of java.lang.String.class.
+  static uint32_t ClassSize();
+
+  // Size of an instance of java.lang.String not including its value array.
+  static constexpr uint32_t InstanceSize() {
+    return sizeof(String);
+  }
+
   static MemberOffset CountOffset() {
     return OFFSET_OF_OBJECT_MEMBER(String, count_);
   }
@@ -158,16 +164,6 @@ class MANAGED String : public Object {
   friend struct art::StringOffsets;  // for verifying offset information
   FRIEND_TEST(ObjectTest, StringLength);  // for SetOffset and SetCount
   DISALLOW_IMPLICIT_CONSTRUCTORS(String);
-};
-
-class MANAGED StringClass : public Class {
- private:
-  HeapReference<CharArray> ASCII_;
-  HeapReference<Object> CASE_INSENSITIVE_ORDER_;
-  uint32_t REPLACEMENT_CHAR_;
-  int64_t serialVersionUID_;
-  friend struct art::StringClassOffsets;  // for verifying offset information
-  DISALLOW_IMPLICIT_CONSTRUCTORS(StringClass);
 };
 
 }  // namespace mirror

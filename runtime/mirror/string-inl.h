@@ -18,6 +18,7 @@
 #define ART_RUNTIME_MIRROR_STRING_INL_H_
 
 #include "array.h"
+#include "class.h"
 #include "intern_table.h"
 #include "runtime.h"
 #include "string.h"
@@ -25,6 +26,11 @@
 
 namespace art {
 namespace mirror {
+
+inline uint32_t String::ClassSize() {
+  uint32_t vtable_entries = Object::kVTableLength + 51;
+  return Class::ComputeClassSize(true, vtable_entries, 1, 1, 2);
+}
 
 inline CharArray* String::GetCharArray() {
   return GetFieldObject<CharArray>(ValueOffset());

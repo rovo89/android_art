@@ -22,6 +22,7 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "invoke_type.h"
 #include "mirror/array.h"
+#include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string.h"
 #include "mir_to_lir-inl.h"
@@ -666,25 +667,23 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
     }
     case 1:  // Is "this" null? [use kArg1]
       cg->GenNullCheck(cg->TargetRefReg(kArg1), info->opt_flags);
-      // get this->klass_ [use kArg1, set kInvokeTgt]
+      // get this->klass_ [use kArg1, set kArg0]
       cg->LoadRefDisp(cg->TargetRefReg(kArg1), mirror::Object::ClassOffset().Int32Value(),
-                      cg->TargetPtrReg(kInvokeTgt),
+                      cg->TargetRefReg(kArg0),
                       kNotVolatile);
       cg->MarkPossibleNullPointerException(info->opt_flags);
       break;
-    case 2:  // Get this->klass_->vtable [usr kInvokeTgt, set kInvokeTgt]
-      cg->LoadRefDisp(cg->TargetPtrReg(kInvokeTgt), mirror::Class::VTableOffset().Int32Value(),
-                      cg->TargetPtrReg(kInvokeTgt),
-                      kNotVolatile);
+    case 2: {
+      // Get this->klass_.embedded_vtable[method_idx] [usr kArg0, set kArg0]
+      int32_t offset = mirror::Class::EmbeddedVTableOffset().Uint32Value() +
+          method_idx * sizeof(mirror::Class::VTableEntry);
+      // Load target method from embedded vtable to kArg0 [use kArg0, set kArg0]
+      cg->LoadRefDisp(cg->TargetRefReg(kArg0), offset, cg->TargetRefReg(kArg0), kNotVolatile);
       break;
-    case 3:  // Get target method [use kInvokeTgt, set kArg0]
-      cg->LoadRefDisp(cg->TargetPtrReg(kInvokeTgt),
-                      ObjArray::OffsetOfElement(method_idx).Int32Value(),
-                      cg->TargetRefReg(kArg0),
-                      kNotVolatile);
-      break;
-    case 4:  // Get the compiled code address [uses kArg0, sets kInvokeTgt]
+    }
+    case 3:
       if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
+        // Get the compiled code address [use kArg0, set kInvokeTgt]
         cg->LoadWordDisp(cg->TargetRefReg(kArg0),
                          mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value(),
                          cg->TargetPtrReg(kInvokeTgt));
@@ -724,27 +723,24 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
     }
     case 2:  // Is "this" null? [use kArg1]
       cg->GenNullCheck(cg->TargetRefReg(kArg1), info->opt_flags);
-      // Get this->klass_ [use kArg1, set kInvokeTgt]
+      // Get this->klass_ [use kArg1, set kArg0]
       cg->LoadRefDisp(cg->TargetRefReg(kArg1), mirror::Object::ClassOffset().Int32Value(),
-                      cg->TargetPtrReg(kInvokeTgt),
+                      cg->TargetRefReg(kArg0),
                       kNotVolatile);
       cg->MarkPossibleNullPointerException(info->opt_flags);
       break;
-    case 3:  // Get this->klass_->imtable [use kInvokeTgt, set kInvokeTgt]
-      // NOTE: native pointer.
-      cg->LoadRefDisp(cg->TargetPtrReg(kInvokeTgt), mirror::Class::ImTableOffset().Int32Value(),
-                      cg->TargetPtrReg(kInvokeTgt),
+    case 3: {  // Get target method [use kInvokeTgt, set kArg0]
+      int32_t offset = mirror::Class::EmbeddedImTableOffset().Uint32Value() +
+          (method_idx % mirror::Class::kImtSize) * sizeof(mirror::Class::ImTableEntry);
+      // Load target method from embedded imtable to kArg0 [use kArg0, set kArg0]
+      cg->LoadRefDisp(cg->TargetRefReg(kArg0), offset,
+                      cg->TargetRefReg(kArg0),
                       kNotVolatile);
       break;
-    case 4:  // Get target method [use kInvokeTgt, set kArg0]
-      // NOTE: native pointer.
-      cg->LoadRefDisp(cg->TargetPtrReg(kInvokeTgt),
-                       ObjArray::OffsetOfElement(method_idx % ClassLinker::kImtSize).Int32Value(),
-                       cg->TargetRefReg(kArg0),
-                       kNotVolatile);
-      break;
-    case 5:  // Get the compiled code address [use kArg0, set kInvokeTgt]
+    }
+    case 4:
       if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
+        // Get the compiled code address [use kArg0, set kInvokeTgt]
         cg->LoadWordDisp(cg->TargetRefReg(kArg0),
                          mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value(),
                          cg->TargetPtrReg(kInvokeTgt));

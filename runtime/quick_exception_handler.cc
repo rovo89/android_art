@@ -20,6 +20,9 @@
 #include "entrypoints/entrypoint_utils.h"
 #include "handle_scope-inl.h"
 #include "mirror/art_method-inl.h"
+#include "mirror/class-inl.h"
+#include "mirror/class_loader.h"
+#include "mirror/throwable.h"
 #include "verifier/method_verifier.h"
 
 namespace art {

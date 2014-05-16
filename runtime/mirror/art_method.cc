@@ -355,14 +355,6 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
   self->PopManagedStackFragment(fragment);
 }
 
-bool ArtMethod::IsRegistered() {
-  void* native_method =
-      GetFieldPtr<void*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_jni_));
-  CHECK(native_method != nullptr);
-  void* jni_stub = GetJniDlsymLookupStub();
-  return native_method != jni_stub;
-}
-
 void ArtMethod::RegisterNative(Thread* self, const void* native_method, bool is_fast) {
   DCHECK(Thread::Current() == self);
   CHECK(IsNative()) << PrettyMethod(this);

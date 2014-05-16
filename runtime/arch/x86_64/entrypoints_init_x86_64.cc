@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "entrypoints/interpreter/interpreter_entrypoints.h"
+#include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/portable/portable_entrypoints.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"
@@ -27,8 +29,8 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
                                                   const DexFile::CodeItem* code_item,
                                                   ShadowFrame* shadow_frame, JValue* result);
 extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
-                                           const DexFile::CodeItem* code_item,
-                                           ShadowFrame* shadow_frame, JValue* result);
+                                                   const DexFile::CodeItem* code_item,
+                                                   ShadowFrame* shadow_frame, JValue* result);
 
 // Portable entrypoints.
 extern "C" void art_portable_resolution_trampoline(mirror::ArtMethod*);

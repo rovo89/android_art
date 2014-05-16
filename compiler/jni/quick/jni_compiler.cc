@@ -28,6 +28,7 @@
 #include "driver/compiler_driver.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "jni_internal.h"
+#include "mirror/art_method.h"
 #include "utils/assembler.h"
 #include "utils/managed_register.h"
 #include "utils/arm/managed_register_arm.h"

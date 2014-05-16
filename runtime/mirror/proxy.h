@@ -25,28 +25,8 @@ struct ProxyOffsets;
 
 namespace mirror {
 
-// All proxy objects have a class which is a synthesized proxy class. The synthesized proxy class
-// has the static fields used to implement reflection on proxy objects.
-class MANAGED SynthesizedProxyClass : public Class {
- public:
-  ObjectArray<Class>* GetInterfaces() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<ObjectArray<Class>>(OFFSET_OF_OBJECT_MEMBER(SynthesizedProxyClass,
-                                                                       interfaces_));
-  }
-
-  ObjectArray<ObjectArray<Class>>* GetThrows()  SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<ObjectArray<ObjectArray<Class>>>(OFFSET_OF_OBJECT_MEMBER(SynthesizedProxyClass,
-                                                                                     throws_));
-  }
-
- private:
-  HeapReference<ObjectArray<Class>> interfaces_;
-  HeapReference<ObjectArray<ObjectArray<Class>>> throws_;
-  DISALLOW_IMPLICIT_CONSTRUCTORS(SynthesizedProxyClass);
-};
-
 // C++ mirror of java.lang.reflect.Proxy.
-class MANAGED Proxy : public Object {
+class MANAGED Proxy FINAL : public Object {
  private:
   HeapReference<Object> h_;
 

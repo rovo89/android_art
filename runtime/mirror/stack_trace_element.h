@@ -29,7 +29,7 @@ struct StackTraceElementOffsets;
 namespace mirror {
 
 // C++ mirror of java.lang.StackTraceElement
-class MANAGED StackTraceElement : public Object {
+class MANAGED StackTraceElement FINAL : public Object {
  public:
   String* GetDeclaringClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, declaring_class_));

@@ -24,7 +24,6 @@
 #include "base/mutex.h"
 #include "base/timing_logger.h"
 #include "class_reference.h"
-#include "compiled_class.h"
 #include "compiled_method.h"
 #include "compiler.h"
 #include "dex_file.h"
@@ -32,6 +31,7 @@
 #include "instruction_set.h"
 #include "invoke_type.h"
 #include "method_reference.h"
+#include "mirror/class.h"  // For mirror::Class::Status.
 #include "os.h"
 #include "profiler.h"
 #include "runtime.h"
@@ -46,6 +46,7 @@ namespace verifier {
 class MethodVerifier;
 }  // namespace verifier
 
+class CompiledClass;
 class CompilerOptions;
 class DexCompilationUnit;
 class DexFileToMethodInlinerMap;

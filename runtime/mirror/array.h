@@ -30,6 +30,9 @@ namespace mirror {
 
 class MANAGED Array : public Object {
  public:
+  // The size of a java.lang.Class representing an array.
+  static uint32_t ClassSize();
+
   // Allocates an array with the given properties, if fill_usable is true the array will be of at
   // least component_count size, however, if there's usable space at the end of the allocation the
   // array will fill it.

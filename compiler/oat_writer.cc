@@ -22,6 +22,7 @@
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
+#include "compiled_class.h"
 #include "dex_file-inl.h"
 #include "dex/verification_results.h"
 #include "gc/space/space.h"

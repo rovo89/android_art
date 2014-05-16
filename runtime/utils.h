@@ -167,11 +167,19 @@ struct TypeIdentity {
 
 // For rounding integers.
 template<typename T>
+static constexpr T RoundDown(T x, typename TypeIdentity<T>::type n)
+    __attribute__((warn_unused_result));
+
+template<typename T>
 static constexpr T RoundDown(T x, typename TypeIdentity<T>::type n) {
   return
       DCHECK_CONSTEXPR(IsPowerOfTwo(n), , T(0))
       (x & -n);
 }
+
+template<typename T>
+static constexpr T RoundUp(T x, typename TypeIdentity<T>::type n)
+    __attribute__((warn_unused_result));
 
 template<typename T>
 static constexpr T RoundUp(T x, typename TypeIdentity<T>::type n) {
@@ -180,9 +188,15 @@ static constexpr T RoundUp(T x, typename TypeIdentity<T>::type n) {
 
 // For aligning pointers.
 template<typename T>
+static inline T* AlignDown(T* x, uintptr_t n) __attribute__((warn_unused_result));
+
+template<typename T>
 static inline T* AlignDown(T* x, uintptr_t n) {
   return reinterpret_cast<T*>(RoundDown(reinterpret_cast<uintptr_t>(x), n));
 }
+
+template<typename T>
+static inline T* AlignUp(T* x, uintptr_t n) __attribute__((warn_unused_result));
 
 template<typename T>
 static inline T* AlignUp(T* x, uintptr_t n) {
