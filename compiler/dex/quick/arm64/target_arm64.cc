@@ -38,16 +38,27 @@ static const RegStorage sp_regs_arr[] =
      rs_f24, rs_f25, rs_f26, rs_f27, rs_f28, rs_f29, rs_f30, rs_f31};
 static const RegStorage dp_regs_arr[] =
     {rs_d0, rs_d1, rs_d2, rs_d3, rs_d4, rs_d5, rs_d6, rs_d7,
-     rs_d8, rs_d9, rs_d10, rs_d11, rs_d12, rs_d13, rs_d14, rs_d15};
+     rs_d8, rs_d9, rs_d10, rs_d11, rs_d12, rs_d13, rs_d14, rs_d15,
+     rs_d16, rs_d17, rs_d18, rs_d19, rs_d20, rs_d21, rs_d22, rs_d23,
+     rs_d24, rs_d25, rs_d26, rs_d27, rs_d28, rs_d29, rs_d30, rs_d31};
 static const RegStorage reserved_regs_arr[] =
     {rs_rA64_SUSPEND, rs_rA64_SELF, rs_rA64_SP, rs_rA64_LR};
+// TUING: Are there too many temp registers and too less promote target?
+// This definition need to be matched with runtime.cc, quick entry assembly and JNI compiler
+// Note: we are not able to call to C function directly if it un-match C ABI.
+// Currently, rs_rA64_SELF is not a callee save register which does not match C ABI.
 static const RegStorage core_temps_arr[] =
-    {rs_x0, rs_x1, rs_x2, rs_x3, rs_x12};
+    {rs_x0, rs_x1, rs_x2, rs_x3, rs_x4, rs_x5, rs_x6, rs_x7,
+     rs_x8, rs_x9, rs_x10, rs_x11, rs_x12, rs_x13, rs_x14, rs_x15, rs_x16,
+     rs_x17};
 static const RegStorage sp_temps_arr[] =
     {rs_f0, rs_f1, rs_f2, rs_f3, rs_f4, rs_f5, rs_f6, rs_f7,
-     rs_f8, rs_f9, rs_f10, rs_f11, rs_f12, rs_f13, rs_f14, rs_f15};
+     rs_f16, rs_f17, rs_f18, rs_f19, rs_f20, rs_f21, rs_f22, rs_f23,
+     rs_f24, rs_f25, rs_f26, rs_f27, rs_f28, rs_f29, rs_f30, rs_f31};
 static const RegStorage dp_temps_arr[] =
-    {rs_d0, rs_d1, rs_d2, rs_d3, rs_d4, rs_d5, rs_d6, rs_d7};
+    {rs_d0, rs_d1, rs_d2, rs_d3, rs_d4, rs_d5, rs_d6, rs_d7,
+     rs_d16, rs_d17, rs_d18, rs_d19, rs_d20, rs_d21, rs_d22, rs_d23,
+     rs_d24, rs_d25, rs_d26, rs_d27, rs_d28, rs_d29, rs_d30, rs_d31};
 
 static const std::vector<RegStorage> core_regs(core_regs_arr,
     core_regs_arr + arraysize(core_regs_arr));
@@ -877,12 +888,13 @@ void Arm64Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
   rl_src.home = false;
   MarkLive(rl_src);
 
-  // TODO(Arm64): compress the Method pointer?
-  StoreValueWide(rl_method, rl_src);
+  // rl_method might be 32-bit, but ArtMethod* on stack is 64-bit, so always flush it.
+  StoreWordDisp(TargetReg(kSp), 0, TargetReg(kArg0));
 
-  // If Method* has been promoted, explicitly flush
+  // If Method* has been promoted, load it,
+  // otherwise, rl_method is the 32-bit value on [sp], and has already been loaded.
   if (rl_method.location == kLocPhysReg) {
-    StoreWordDisp(TargetReg(kSp), 0, TargetReg(kArg0));
+    StoreValue(rl_method, rl_src);
   }
 
   if (cu_->num_ins == 0) {
