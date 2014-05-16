@@ -38,33 +38,31 @@ namespace art {
 template <typename T>
 class ObjectLock {
  public:
-  explicit ObjectLock(Thread* self, const Handle<T>* object)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+  ObjectLock(Thread* self, Handle<T> object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : self_(self), obj_(object) {
-    CHECK(object != nullptr);
-    CHECK(object->Get() != nullptr);
-    obj_->Get()->MonitorEnter(self_);
+    CHECK(object.Get() != nullptr);
+    obj_->MonitorEnter(self_);
   }
 
   ~ObjectLock() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    obj_->Get()->MonitorExit(self_);
+    obj_->MonitorExit(self_);
   }
 
   void WaitIgnoringInterrupts() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Monitor::Wait(self_, obj_->Get(), 0, 0, false, kWaiting);
+    Monitor::Wait(self_, obj_.Get(), 0, 0, false, kWaiting);
   }
 
   void Notify() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    obj_->Get()->Notify(self_);
+    obj_->Notify(self_);
   }
 
   void NotifyAll() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    obj_->Get()->NotifyAll(self_);
+    obj_->NotifyAll(self_);
   }
 
  private:
   Thread* const self_;
-  const Handle<T>* const obj_;
+  Handle<T> const obj_;
   DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
 
