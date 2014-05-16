@@ -22,7 +22,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/string.h"
 #include "thread.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "utf.h"
 
 namespace art {

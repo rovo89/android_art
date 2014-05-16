@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "bit_vector.h"
 #include "gtest/gtest.h"
 

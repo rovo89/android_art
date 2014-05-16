@@ -22,7 +22,7 @@
 
 #include "instruction_set.h"
 #include "utils.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 namespace llvm {
   class Function;

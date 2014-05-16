@@ -34,7 +34,7 @@
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object.h"
 #include "mirror/object-inl.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"

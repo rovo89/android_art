@@ -23,7 +23,7 @@
 
 #include "common_runtime_test.h"
 #include "globals.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "mirror/array-inl.h"
 #include "mirror/object-inl.h"
 

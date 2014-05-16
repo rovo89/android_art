@@ -18,7 +18,7 @@
 #define ART_COMPILER_DEX_LOCAL_VALUE_NUMBERING_H_
 
 #include "compiler_internals.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "utils/scoped_arena_allocator.h"
 #include "utils/scoped_arena_containers.h"
 

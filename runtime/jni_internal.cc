@@ -49,7 +49,7 @@
 #include "ScopedLocalRef.h"
 #include "thread.h"
 #include "utf.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "well_known_classes.h"
 
 namespace art {

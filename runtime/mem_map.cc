@@ -19,7 +19,7 @@
 #include <inttypes.h>
 #include <backtrace/BacktraceMap.h>
 
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "base/stringprintf.h"
 #include "ScopedFd.h"
 #include "utils.h"

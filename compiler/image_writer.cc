@@ -52,7 +52,7 @@
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "handle_scope-inl.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "utils.h"
 
 using ::art::mirror::ArtField;
