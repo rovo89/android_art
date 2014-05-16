@@ -18,7 +18,7 @@
 
 #include <stdio.h>
 
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "class_linker.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"

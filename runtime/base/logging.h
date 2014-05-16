@@ -25,7 +25,7 @@
 #include <vector>
 #include "base/macros.h"
 #include "log_severity.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 #define CHECK(x) \
   if (UNLIKELY(!(x))) \

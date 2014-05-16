@@ -16,7 +16,7 @@
 
 #include "gtest/gtest.h"
 #include "histogram-inl.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 
 #include <sstream>
 

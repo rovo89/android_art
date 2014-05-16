@@ -23,7 +23,7 @@
 #include "atomic.h"
 #include "base/logging.h"
 #include "base/macros.h"
-#include "UniquePtr.h"
+#include "UniquePtrCompat.h"
 #include "mem_map.h"
 #include "utils.h"
 
