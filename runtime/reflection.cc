@@ -242,22 +242,21 @@ class ArgArray {
       }
 
 #define DO_FIRST_ARG(match_descriptor, get_fn, append) { \
-          const StringPiece src_descriptor(arg != nullptr \
-              ? ClassHelper(arg->GetClass<>()).GetDescriptor() \
-              : "null"); \
-          if (LIKELY(src_descriptor == match_descriptor)) { \
+          if (LIKELY(arg != nullptr && arg->GetClass<>()->DescriptorEquals(match_descriptor))) { \
             mirror::ArtField* primitive_field = arg->GetClass()->GetIFields()->Get(0); \
             append(primitive_field-> get_fn(arg));
 
 #define DO_ARG(match_descriptor, get_fn, append) \
-          } else if (LIKELY(src_descriptor == match_descriptor)) { \
+          } else if (LIKELY(arg != nullptr && \
+                            arg->GetClass<>()->DescriptorEquals(match_descriptor))) { \
             mirror::ArtField* primitive_field = arg->GetClass()->GetIFields()->Get(0); \
             append(primitive_field-> get_fn(arg));
 
 #define DO_FAIL(expected) \
           } else { \
             if (arg->GetClass<>()->IsPrimitive()) { \
-              ThrowIllegalPrimitiveArgumentException(expected, src_descriptor); \
+              ThrowIllegalPrimitiveArgumentException(expected, \
+                                                     arg->GetClass<>()->GetDescriptor().c_str()); \
             } else { \
               ThrowIllegalArgumentException(nullptr, \
                   StringPrintf("method %s argument %zd has type %s, got %s", \
@@ -742,32 +741,32 @@ static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* 
   }
 
   JValue boxed_value;
-  const StringPiece src_descriptor(ClassHelper(o->GetClass()).GetDescriptor());
+  mirror::Class* klass = o->GetClass();
   mirror::Class* src_class = nullptr;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   mirror::ArtField* primitive_field = o->GetClass()->GetIFields()->Get(0);
-  if (src_descriptor == "Ljava/lang/Boolean;") {
+  if (klass->DescriptorEquals("Ljava/lang/Boolean;")) {
     src_class = class_linker->FindPrimitiveClass('Z');
     boxed_value.SetZ(primitive_field->GetBoolean(o));
-  } else if (src_descriptor == "Ljava/lang/Byte;") {
+  } else if (klass->DescriptorEquals("Ljava/lang/Byte;")) {
     src_class = class_linker->FindPrimitiveClass('B');
     boxed_value.SetB(primitive_field->GetByte(o));
-  } else if (src_descriptor == "Ljava/lang/Character;") {
+  } else if (klass->DescriptorEquals("Ljava/lang/Character;")) {
     src_class = class_linker->FindPrimitiveClass('C');
     boxed_value.SetC(primitive_field->GetChar(o));
-  } else if (src_descriptor == "Ljava/lang/Float;") {
+  } else if (klass->DescriptorEquals("Ljava/lang/Float;")) {
     src_class = class_linker->FindPrimitiveClass('F');
     boxed_value.SetF(primitive_field->GetFloat(o));
-  } else if (src_descriptor == "Ljava/lang/Double;") {
+  } else if (klass->DescriptorEquals("Ljava/lang/Double;")) {
     src_class = class_linker->FindPrimitiveClass('D');
     boxed_value.SetD(primitive_field->GetDouble(o));
-  } else if (src_descriptor == "Ljava/lang/Integer;") {
+  } else if (klass->DescriptorEquals("Ljava/lang/Integer;")) {
     src_class = class_linker->FindPrimitiveClass('I');
     boxed_value.SetI(primitive_field->GetInt(o));
-  } else if (src_descriptor == "Ljava/lang/Long;") {
+  } else if (klass->DescriptorEquals("Ljava/lang/Long;")) {
     src_class = class_linker->FindPrimitiveClass('J');
     boxed_value.SetJ(primitive_field->GetLong(o));
-  } else if (src_descriptor == "Ljava/lang/Short;") {
+  } else if (klass->DescriptorEquals("Ljava/lang/Short;")) {
     src_class = class_linker->FindPrimitiveClass('S');
     boxed_value.SetS(primitive_field->GetShort(o));
   } else {
@@ -775,7 +774,7 @@ static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* 
                                   StringPrintf("%s has type %s, got %s",
                                                UnboxingFailureKind(f).c_str(),
                                                PrettyDescriptor(dst_class).c_str(),
-                                               PrettyDescriptor(src_descriptor.data()).c_str()).c_str());
+                                               PrettyDescriptor(o->GetClass()->GetDescriptor()).c_str()).c_str());
     return false;
   }
 

@@ -262,12 +262,14 @@ static void PreloadDexCachesResolveField(Handle<mirror::DexCache>& dex_cache,
   }
   const DexFile* dex_file = dex_cache->GetDexFile();
   const DexFile::FieldId& field_id = dex_file->GetFieldId(field_idx);
-  mirror::Class* klass = dex_cache->GetResolvedType(field_id.class_idx_);
-  if (klass == NULL) {
+  Thread* const self = Thread::Current();
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Class> klass(hs.NewHandle(dex_cache->GetResolvedType(field_id.class_idx_)));
+  if (klass.Get() == NULL) {
     return;
   }
   if (is_static) {
-    field = klass->FindStaticField(dex_cache.Get(), field_idx);
+    field = mirror::Class::FindStaticField(self, klass, dex_cache.Get(), field_idx);
   } else {
     field = klass->FindInstanceField(dex_cache.Get(), field_idx);
   }

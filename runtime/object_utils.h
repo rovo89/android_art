@@ -66,171 +66,6 @@ class ObjectLock {
   DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
 
-class ClassHelper {
- public:
-  explicit ClassHelper(mirror::Class* c )
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : interface_type_list_(nullptr), klass_(nullptr) {
-    if (c != nullptr) {
-      ChangeClass(c);
-    }
-  }
-
-  void ChangeClass(mirror::Class* new_c)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CHECK(new_c != nullptr) << "klass_=" << klass_;  // Log what we were changing from if any
-    if (!new_c->IsClass()) {
-      LOG(FATAL) << "new_c=" << new_c << " cc " << new_c->GetClass() << " ccc "
-          << ((new_c->GetClass() != nullptr) ? new_c->GetClass()->GetClass() : nullptr);
-    }
-    klass_ = new_c;
-    interface_type_list_ = nullptr;
-  }
-
-  // The returned const char* is only guaranteed to be valid for the lifetime of the ClassHelper.
-  // If you need it longer, copy it into a std::string.
-  const char* GetDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CHECK(klass_ != nullptr);
-    if (UNLIKELY(klass_->IsArrayClass())) {
-      return GetArrayDescriptor();
-    } else if (UNLIKELY(klass_->IsPrimitive())) {
-      return Primitive::Descriptor(klass_->GetPrimitiveType());
-    } else if (UNLIKELY(klass_->IsProxyClass())) {
-      descriptor_ = GetClassLinker()->GetDescriptorForProxy(klass_);
-      return descriptor_.c_str();
-    } else {
-      const DexFile& dex_file = GetDexFile();
-      const DexFile::TypeId& type_id = dex_file.GetTypeId(GetClassDef()->class_idx_);
-      return dex_file.GetTypeDescriptor(type_id);
-    }
-  }
-
-  const char* GetArrayDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    std::string result("[");
-    mirror::Class* saved_klass = klass_;
-    CHECK(saved_klass != nullptr);
-    ChangeClass(klass_->GetComponentType());
-    result += GetDescriptor();
-    ChangeClass(saved_klass);
-    descriptor_ = result;
-    return descriptor_.c_str();
-  }
-
-  const DexFile::ClassDef* GetClassDef() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(klass_ != nullptr);
-    uint16_t class_def_idx = klass_->GetDexClassDefIndex();
-    if (class_def_idx == DexFile::kDexNoIndex16) {
-      return nullptr;
-    }
-    return &GetDexFile().GetClassDef(class_def_idx);
-  }
-
-  uint32_t NumDirectInterfaces() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(klass_ != nullptr);
-    if (klass_->IsPrimitive()) {
-      return 0;
-    } else if (klass_->IsArrayClass()) {
-      return 2;
-    } else if (klass_->IsProxyClass()) {
-      mirror::SynthesizedProxyClass* proxyClass = reinterpret_cast<mirror::SynthesizedProxyClass*>(klass_);
-      mirror::ObjectArray<mirror::Class>* interfaces = proxyClass->GetInterfaces();
-      return interfaces != nullptr ? interfaces->GetLength() : 0;
-    } else {
-      const DexFile::TypeList* interfaces = GetInterfaceTypeList();
-      if (interfaces == nullptr) {
-        return 0;
-      } else {
-        return interfaces->Size();
-      }
-    }
-  }
-
-  uint16_t GetDirectInterfaceTypeIdx(uint32_t idx)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(klass_ != nullptr);
-    DCHECK(!klass_->IsPrimitive());
-    DCHECK(!klass_->IsArrayClass());
-    return GetInterfaceTypeList()->GetTypeItem(idx).type_idx_;
-  }
-
-  mirror::Class* GetDirectInterface(uint32_t idx)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(klass_ != nullptr);
-    DCHECK(!klass_->IsPrimitive());
-    if (klass_->IsArrayClass()) {
-      if (idx == 0) {
-        return GetClassLinker()->FindSystemClass(Thread::Current(), "Ljava/lang/Cloneable;");
-      } else {
-        DCHECK_EQ(1U, idx);
-        return GetClassLinker()->FindSystemClass(Thread::Current(), "Ljava/io/Serializable;");
-      }
-    } else if (klass_->IsProxyClass()) {
-      mirror::SynthesizedProxyClass* proxyClass = reinterpret_cast<mirror::SynthesizedProxyClass*>(klass_);
-      mirror::ObjectArray<mirror::Class>* interfaces = proxyClass->GetInterfaces();
-      DCHECK(interfaces != nullptr);
-      return interfaces->Get(idx);
-    } else {
-      uint16_t type_idx = GetDirectInterfaceTypeIdx(idx);
-      mirror::Class* interface = GetDexCache()->GetResolvedType(type_idx);
-      if (interface == nullptr) {
-        interface = GetClassLinker()->ResolveType(GetDexFile(), type_idx, klass_);
-        CHECK(interface != nullptr || Thread::Current()->IsExceptionPending());
-      }
-      return interface;
-    }
-  }
-
-  const char* GetSourceFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    std::string descriptor(GetDescriptor());
-    const DexFile& dex_file = GetDexFile();
-    const DexFile::ClassDef* dex_class_def = GetClassDef();
-    CHECK(dex_class_def != nullptr) << "No class def for class " << PrettyClass(klass_);
-    return dex_file.GetSourceFile(*dex_class_def);
-  }
-
-  std::string GetLocation() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::DexCache* dex_cache = GetDexCache();
-    if (dex_cache != nullptr && !klass_->IsProxyClass()) {
-      return dex_cache->GetLocation()->ToModifiedUtf8();
-    } else {
-      // Arrays and proxies are generated and have no corresponding dex file location.
-      return "generated class";
-    }
-  }
-
-  const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return *GetDexCache()->GetDexFile();
-  }
-
-  mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return klass_->GetDexCache();
-  }
-
- private:
-  const DexFile::TypeList* GetInterfaceTypeList()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile::TypeList* result = interface_type_list_;
-    if (result == nullptr) {
-      const DexFile::ClassDef* class_def = GetClassDef();
-      if (class_def != nullptr) {
-        result =  GetDexFile().GetInterfacesList(*class_def);
-        interface_type_list_ = result;
-      }
-    }
-    return result;
-  }
-
-  ClassLinker* GetClassLinker() ALWAYS_INLINE {
-    return Runtime::Current()->GetClassLinker();
-  }
-
-  const DexFile::TypeList* interface_type_list_;
-  mirror::Class* klass_;
-  std::string descriptor_;
-
-  DISALLOW_COPY_AND_ASSIGN(ClassHelper);
-};
-
 class FieldHelper {
  public:
   FieldHelper() : field_(nullptr) {}
@@ -304,8 +139,7 @@ class FieldHelper {
       DCHECK(field_->IsStatic());
       DCHECK_LT(field_index, 2U);
       // 0 == Class[] interfaces; 1 == Class[][] throws;
-      ClassHelper kh(field_->GetDeclaringClass());
-      declaring_class_descriptor_ = kh.GetDescriptor();
+      declaring_class_descriptor_ = field_->GetDeclaringClass()->GetDescriptor();
       return declaring_class_descriptor_.c_str();
     }
     const DexFile& dex_file = GetDexFile();
@@ -468,7 +302,7 @@ class MethodHelper {
   }
 
   const char* GetDeclaringClassSourceFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return ClassHelper(method_->GetDeclaringClass()).GetSourceFile();
+    return method_->GetDeclaringClass()->GetSourceFile();
   }
 
   uint16_t GetClassDefIndex() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

@@ -84,8 +84,9 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
 
 static jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Class* c = DecodeClass(soa, javaThis);
-  return soa.AddLocalReference<jstring>(c->ComputeName());
+  StackHandleScope<1> hs(soa.Self());
+  mirror::Class* const c = DecodeClass(soa, javaThis);
+  return soa.AddLocalReference<jstring>(mirror::Class::ComputeName(hs.NewHandle(c)));
 }
 
 static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
