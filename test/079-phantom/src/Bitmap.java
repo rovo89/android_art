@@ -29,6 +29,7 @@ public class Bitmap {
             new ReferenceQueue<PhantomWrapper>();
     private static BitmapWatcher sWatcher = new BitmapWatcher(sPhantomQueue);
     static {
+        sWatcher.setDaemon(true);
         sWatcher.start();
     };
 
