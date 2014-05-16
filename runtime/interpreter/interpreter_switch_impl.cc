@@ -184,6 +184,9 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
+        } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
+          instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
+                                           shadow_frame.GetMethod(), dex_pc);
         }
         return result;
       }
@@ -197,6 +200,9 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
+        } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
+          instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
+                                           shadow_frame.GetMethod(), dex_pc);
         }
         return result;
       }
@@ -211,6 +217,9 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
+        } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
+          instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
+                                           shadow_frame.GetMethod(), dex_pc);
         }
         return result;
       }
@@ -224,6 +233,9 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
+        } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
+          instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
+                                           shadow_frame.GetMethod(), dex_pc);
         }
         return result;
       }
@@ -255,6 +267,9 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
+        } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
+          instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
+                                           shadow_frame.GetMethod(), dex_pc);
         }
         return result;
       }
