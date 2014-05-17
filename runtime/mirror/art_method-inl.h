@@ -222,7 +222,7 @@ inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
   DCHECK(entry_point != GetQuickToInterpreterBridgeTrampoline(runtime->GetClassLinker()));
   CHECK(entry_point != GetQuickToInterpreterBridge());
 
-  if (UNLIKELY(entry_point == GetQuickGenericJniTrampoline())) {
+  if (UNLIKELY(entry_point == runtime->GetClassLinker()->GetQuickGenericJniTrampoline())) {
     // Generic JNI frame.
     DCHECK(IsNative());
     uint32_t handle_refs = MethodHelper(this).GetNumberOfReferenceArgsWithoutReceiver() + 1;

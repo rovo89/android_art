@@ -191,6 +191,9 @@ ClassLinker::ClassLinker(InternTable* intern_table)
   memset(find_array_class_cache_, 0, kFindArrayCacheSize * sizeof(mirror::Class*));
 }
 
+// To set a value for generic JNI. May be necessary in compiler tests.
+extern "C" void art_quick_generic_jni_trampoline(mirror::ArtMethod*);
+
 void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class_path) {
   VLOG(startup) << "ClassLinker::Init";
   CHECK(Runtime::Current()->IsCompiler());
@@ -342,6 +345,10 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   runtime->SetResolutionMethod(runtime->CreateResolutionMethod());
   runtime->SetImtConflictMethod(runtime->CreateImtConflictMethod());
   runtime->SetDefaultImt(runtime->CreateDefaultImt(this));
+
+  // Set up GenericJNI entrypoint. That is mainly a hack for common_compiler_test.h so that
+  // we do not need friend classes or a publicly exposed setter.
+  quick_generic_jni_trampoline_ = reinterpret_cast<void*>(art_quick_generic_jni_trampoline);
 
   // Object, String and DexCache need to be rerun through FindSystemClass to finish init
   java_lang_Object->SetStatus(mirror::Class::kStatusNotReady, self);
@@ -1776,9 +1783,10 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
   // Ignore virtual methods on the iterator.
 }
 
-static void LinkCode(const Handle<mirror::ArtMethod>& method, const OatFile::OatClass* oat_class,
-                     const DexFile& dex_file, uint32_t dex_method_index, uint32_t method_index)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+void ClassLinker::LinkCode(const Handle<mirror::ArtMethod>& method,
+                           const OatFile::OatClass* oat_class,
+                           const DexFile& dex_file, uint32_t dex_method_index,
+                           uint32_t method_index) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Method shouldn't have already been linked.
   DCHECK(method->GetEntryPointFromQuickCompiledCode() == nullptr);
   DCHECK(method->GetEntryPointFromPortableCompiledCode() == nullptr);
@@ -1809,8 +1817,8 @@ static void LinkCode(const Handle<mirror::ArtMethod>& method, const OatFile::Oat
     // For static methods excluding the class initializer, install the trampoline.
     // It will be replaced by the proper entry point by ClassLinker::FixupStaticTrampolines
     // after initializing class (see ClassLinker::InitializeClass method).
-    method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionTrampoline(runtime->GetClassLinker()));
-    method->SetEntryPointFromPortableCompiledCode(GetPortableResolutionTrampoline(runtime->GetClassLinker()));
+    method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionTrampoline());
+    method->SetEntryPointFromPortableCompiledCode(GetPortableResolutionTrampoline());
   } else if (enter_interpreter) {
     if (!method->IsNative()) {
       // Set entry point from compiled code if there's no code or in interpreter only mode.
@@ -1836,8 +1844,7 @@ static void LinkCode(const Handle<mirror::ArtMethod>& method, const OatFile::Oat
     if (enter_interpreter) {
       // We have a native method here without code. Then it should have either the GenericJni
       // trampoline as entrypoint (non-static), or the Resolution trampoline (static).
-      DCHECK(method->GetEntryPointFromQuickCompiledCode() ==
-          GetQuickResolutionTrampoline(runtime->GetClassLinker())
+      DCHECK(method->GetEntryPointFromQuickCompiledCode() == GetQuickResolutionTrampoline()
           || method->GetEntryPointFromQuickCompiledCode() == GetQuickGenericJniTrampoline());
     }
   }
