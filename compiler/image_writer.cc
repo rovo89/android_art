@@ -757,7 +757,8 @@ void ImageWriter::PatchOatCodeAndMethods() {
       uintptr_t value = quick_code - patch_location + patch->RelativeOffset();
       SetPatchLocation(patch, value);
     } else {
-      if (quick_code == reinterpret_cast<uintptr_t>(GetQuickToInterpreterBridge())) {
+      if (quick_code == reinterpret_cast<uintptr_t>(GetQuickToInterpreterBridge()) ||
+          quick_code == reinterpret_cast<uintptr_t>(class_linker->GetQuickGenericJniTrampoline())) {
         if (target->IsNative()) {
           // generic JNI, not interpreter bridge from GetQuickOatCodeFor().
           code_offset = quick_generic_jni_trampoline_offset_;
