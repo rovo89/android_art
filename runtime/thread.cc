@@ -1962,7 +1962,10 @@ class ReferenceMapVisitor : public StackVisitor {
   }
 
   void VisitShadowFrame(ShadowFrame* shadow_frame) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* m = shadow_frame->GetMethod();
+    mirror::ArtMethod** method_addr = shadow_frame->GetMethodAddress();
+    visitor_(reinterpret_cast<mirror::Object**>(method_addr), 0 /*ignored*/, this);
+    mirror::ArtMethod* m = *method_addr;
+    DCHECK(m != nullptr);
     size_t num_regs = shadow_frame->NumberOfVRegs();
     if (m->IsNative() || shadow_frame->HasReferenceArray()) {
       // handle scope for JNI or References for interpreter.
@@ -2003,7 +2006,9 @@ class ReferenceMapVisitor : public StackVisitor {
 
  private:
   void VisitQuickFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* m = GetMethod();
+    mirror::ArtMethod** method_addr = GetMethodAddress();
+    visitor_(reinterpret_cast<mirror::Object**>(method_addr), 0 /*ignored*/, this);
+    mirror::ArtMethod* m = *method_addr;
     // Process register map (which native and runtime methods don't have)
     if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
       const uint8_t* native_gc_map = m->GetNativeGcMap();
