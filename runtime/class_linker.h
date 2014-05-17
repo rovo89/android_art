@@ -355,8 +355,8 @@ class ClassLinker {
   }
 
   const void* GetQuickGenericJniTrampoline() const {
-      return quick_generic_jni_trampoline_;
-    }
+    return quick_generic_jni_trampoline_;
+  }
 
   const void* GetQuickResolutionTrampoline() const {
     return quick_resolution_trampoline_;
@@ -510,6 +510,9 @@ class ClassLinker {
   bool LinkInstanceFields(const Handle<mirror::Class>& klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool LinkFields(const Handle<mirror::Class>& klass, bool is_static)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void LinkCode(const Handle<mirror::ArtMethod>& method, const OatFile::OatClass* oat_class,
+                const DexFile& dex_file, uint32_t dex_method_index, uint32_t method_index)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 

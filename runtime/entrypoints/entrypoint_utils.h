@@ -737,11 +737,6 @@ static inline const void* GetQuickToInterpreterBridge() {
   return reinterpret_cast<void*>(art_quick_to_interpreter_bridge);
 }
 
-extern "C" void art_quick_generic_jni_trampoline(mirror::ArtMethod*);
-static inline const void* GetQuickGenericJniTrampoline() {
-  return reinterpret_cast<void*>(art_quick_generic_jni_trampoline);
-}
-
 static inline const void* GetQuickToPortableBridge() {
   // TODO: quick to portable bridge. Bug: 8196384
   return GetQuickToInterpreterBridge();
@@ -761,10 +756,6 @@ static inline const void* GetPortableImtConflictTrampoline(ClassLinker* class_li
 
 static inline const void* GetQuickImtConflictTrampoline(ClassLinker* class_linker) {
   return class_linker->GetQuickImtConflictTrampoline();
-}
-
-static inline const void* GetQuickGenericJniTrampoline(ClassLinker* class_linker) {
-  return class_linker->GetQuickGenericJniTrampoline();
 }
 
 static inline const void* GetQuickToInterpreterBridgeTrampoline(ClassLinker* class_linker) {

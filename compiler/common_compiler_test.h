@@ -130,6 +130,9 @@ static inline InstructionSetFeatures ParseFeatureList(std::string str) {
   return result;
 }
 
+// Normally the ClassLinker supplies this.
+extern "C" void art_quick_generic_jni_trampoline(mirror::ArtMethod*);
+
 class CommonCompilerTest : public CommonRuntimeTest {
  public:
   // Create an OatMethod based on pointers (for unit tests).
@@ -217,7 +220,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
         oat_method.LinkMethod(method);
         method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
       } else {
-        const void* method_code = GetQuickGenericJniTrampoline();
+        const void* method_code = reinterpret_cast<void*>(art_quick_generic_jni_trampoline);
 
         OatFile::OatMethod oat_method = CreateOatMethod(method_code, nullptr);
         oat_method.LinkMethod(method);
