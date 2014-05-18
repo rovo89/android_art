@@ -318,6 +318,8 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
   int opt_flags = mir->optimization_flags;
   uint32_t vB = mir->dalvikInsn.vB;
   uint32_t vC = mir->dalvikInsn.vC;
+  DCHECK(CheckCorePoolSanity()) << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " @ 0x:"
+                                << std::hex << current_dalvik_offset_;
 
   // Prep Src and Dest locations.
   int next_sreg = 0;
@@ -946,6 +948,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     default:
       LOG(FATAL) << "Unexpected opcode: " << opcode;
   }
+  DCHECK(CheckCorePoolSanity());
 }  // NOLINT(readability/fn_size)
 
 // Process extended MIR instructions

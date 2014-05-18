@@ -68,7 +68,6 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     void AdjustSpillMask();
     void ClobberCallerSave();
     void FreeCallTemps();
-    void FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free);
     void LockCallTemps();
     void MarkPreservedSingle(int v_reg, RegStorage reg);
     void MarkPreservedDouble(int v_reg, RegStorage reg);
