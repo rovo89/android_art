@@ -230,7 +230,7 @@ std::string PrettyDescriptor(mirror::Class* klass) {
   if (klass == NULL) {
     return "null";
   }
-  return PrettyDescriptor(ClassHelper(klass).GetDescriptor());
+  return PrettyDescriptor(klass->GetDescriptor());
 }
 
 std::string PrettyDescriptor(const std::string& descriptor) {
@@ -412,11 +412,9 @@ std::string PrettyTypeOf(mirror::Object* obj) {
   if (obj->GetClass() == NULL) {
     return "(raw)";
   }
-  ClassHelper kh(obj->GetClass());
-  std::string result(PrettyDescriptor(kh.GetDescriptor()));
+  std::string result(PrettyDescriptor(obj->GetClass()->GetDescriptor()));
   if (obj->IsClass()) {
-    kh.ChangeClass(obj->AsClass());
-    result += "<" + PrettyDescriptor(kh.GetDescriptor()) + ">";
+    result += "<" + PrettyDescriptor(obj->AsClass()->GetDescriptor()) + ">";
   }
   return result;
 }

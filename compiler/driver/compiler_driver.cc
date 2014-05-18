@@ -685,7 +685,7 @@ static bool RecordImageClassesVisitor(mirror::Class* klass, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CompilerDriver::DescriptorSet* image_classes =
       reinterpret_cast<CompilerDriver::DescriptorSet*>(arg);
-  image_classes->insert(ClassHelper(klass).GetDescriptor());
+  image_classes->insert(klass->GetDescriptor());
   return true;
 }
 
@@ -755,11 +755,15 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings)
   CHECK_NE(image_classes_->size(), 0U);
 }
 
-static void MaybeAddToImageClasses(mirror::Class* klass, CompilerDriver::DescriptorSet* image_classes)
+static void MaybeAddToImageClasses(Handle<mirror::Class> c,
+                                   CompilerDriver::DescriptorSet* image_classes)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Thread* self = Thread::Current();
+  StackHandleScope<1> hs(self);
+  // Make a copy of the handle so that we don't clobber it doing Assign.
+  Handle<mirror::Class> klass(hs.NewHandle(c.Get()));
   while (!klass->IsObjectClass()) {
-    ClassHelper kh(klass);
-    const char* descriptor = kh.GetDescriptor();
+    std::string descriptor(klass->GetDescriptor());
     std::pair<CompilerDriver::DescriptorSet::iterator, bool> result =
         image_classes->insert(descriptor);
     if (result.second) {
@@ -767,13 +771,16 @@ static void MaybeAddToImageClasses(mirror::Class* klass, CompilerDriver::Descrip
     } else {
       return;
     }
-    for (size_t i = 0; i < kh.NumDirectInterfaces(); ++i) {
-      MaybeAddToImageClasses(kh.GetDirectInterface(i), image_classes);
+    for (size_t i = 0; i < klass->NumDirectInterfaces(); ++i) {
+      StackHandleScope<1> hs(self);
+      MaybeAddToImageClasses(hs.NewHandle(mirror::Class::GetDirectInterface(self, klass, i)),
+                             image_classes);
     }
     if (klass->IsArrayClass()) {
-      MaybeAddToImageClasses(klass->GetComponentType(), image_classes);
+      StackHandleScope<1> hs(self);
+      MaybeAddToImageClasses(hs.NewHandle(klass->GetComponentType()), image_classes);
     }
-    klass = klass->GetSuperClass();
+    klass.Assign(klass->GetSuperClass());
   }
 }
 
@@ -781,7 +788,8 @@ void CompilerDriver::FindClinitImageClassesCallback(mirror::Object* object, void
   DCHECK(object != NULL);
   DCHECK(arg != NULL);
   CompilerDriver* compiler_driver = reinterpret_cast<CompilerDriver*>(arg);
-  MaybeAddToImageClasses(object->GetClass(), compiler_driver->image_classes_.get());
+  StackHandleScope<1> hs(Thread::Current());
+  MaybeAddToImageClasses(hs.NewHandle(object->GetClass()), compiler_driver->image_classes_.get());
 }
 
 void CompilerDriver::UpdateImageClasses(TimingLogger* timings) {
@@ -1582,8 +1590,7 @@ static void ResolveType(const ParallelCompilationManager* manager, size_t type_i
     CHECK(soa.Self()->IsExceptionPending());
     mirror::Throwable* exception = soa.Self()->GetException(NULL);
     VLOG(compiler) << "Exception during type resolution: " << exception->Dump();
-    if (strcmp("Ljava/lang/OutOfMemoryError;",
-               ClassHelper(exception->GetClass()).GetDescriptor()) == 0) {
+    if (exception->GetClass()->DescriptorEquals("Ljava/lang/OutOfMemoryError;")) {
       // There's little point continuing compilation if the heap is exhausted.
       LOG(FATAL) << "Out of memory during type resolution for compilation";
     }
