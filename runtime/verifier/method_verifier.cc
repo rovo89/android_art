@@ -93,11 +93,10 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(mirror::Class* klass,
   }
   bool early_failure = false;
   std::string failure_message;
-  ClassHelper kh(klass);
-  const DexFile& dex_file = kh.GetDexFile();
-  const DexFile::ClassDef* class_def = kh.GetClassDef();
+  const DexFile& dex_file = klass->GetDexFile();
+  const DexFile::ClassDef* class_def = klass->GetClassDef();
   mirror::Class* super = klass->GetSuperClass();
-  if (super == NULL && strcmp("Ljava/lang/Object;", kh.GetDescriptor()) != 0) {
+  if (super == NULL && "Ljava/lang/Object;" != klass->GetDescriptor()) {
     early_failure = true;
     failure_message = " that has no super class";
   } else if (super != NULL && super->IsFinal()) {
@@ -116,7 +115,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(mirror::Class* klass,
     return kHardFailure;
   }
   StackHandleScope<2> hs(Thread::Current());
-  Handle<mirror::DexCache> dex_cache(hs.NewHandle(kh.GetDexCache()));
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(klass->GetDexCache()));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(klass->GetClassLoader()));
   return VerifyClass(&dex_file, dex_cache, class_loader, class_def, allow_soft_failures, error);
 }
@@ -3057,7 +3056,7 @@ mirror::ArtMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* inst,
     if (method_type != METHOD_INTERFACE && !actual_arg_type.IsZero()) {
       mirror::Class* klass = res_method->GetDeclaringClass();
       const RegType& res_method_class =
-          reg_types_.FromClass(ClassHelper(klass).GetDescriptor(), klass,
+          reg_types_.FromClass(klass->GetDescriptor().c_str(), klass,
                                klass->CannotBeAssignedFromOtherTypes());
       if (!res_method_class.IsAssignableFrom(actual_arg_type)) {
         Fail(actual_arg_type.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS:
@@ -3182,7 +3181,7 @@ mirror::ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instructio
   if (!actual_arg_type.IsZero()) {
     mirror::Class* klass = res_method->GetDeclaringClass();
     const RegType& res_method_class =
-        reg_types_.FromClass(ClassHelper(klass).GetDescriptor(), klass,
+        reg_types_.FromClass(klass->GetDescriptor().c_str(), klass,
                              klass->CannotBeAssignedFromOtherTypes());
     if (!res_method_class.IsAssignableFrom(actual_arg_type)) {
       Fail(actual_arg_type.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS :

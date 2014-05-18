@@ -621,7 +621,7 @@ const RegType& RegType::GetSuperClass(RegTypeCache* cache) const {
     if (super_klass != NULL) {
       // A super class of a precise type isn't precise as a precise type indicates the register
       // holds exactly that type.
-      return cache->FromClass(ClassHelper(super_klass).GetDescriptor(), super_klass, false);
+      return cache->FromClass(super_klass->GetDescriptor().c_str(), super_klass, false);
     } else {
       return cache->Zero();
     }
@@ -899,7 +899,7 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
       } else if (c2 == join_class && !incoming_type.IsPreciseReference()) {
         return incoming_type;
       } else {
-        return reg_types->FromClass(ClassHelper(join_class).GetDescriptor(), join_class, false);
+        return reg_types->FromClass(join_class->GetDescriptor().c_str(), join_class, false);
       }
     }
   } else {

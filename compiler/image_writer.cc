@@ -251,7 +251,9 @@ void ImageWriter::ComputeLazyFieldsForImageClasses() {
 }
 
 bool ImageWriter::ComputeLazyFieldsForClassesVisitor(Class* c, void* /*arg*/) {
-  c->ComputeName();
+  Thread* self = Thread::Current();
+  StackHandleScope<1> hs(self);
+  mirror::Class::ComputeName(hs.NewHandle(c));
   return true;
 }
 
@@ -285,7 +287,7 @@ void ImageWriter::ComputeEagerResolvedStrings() SHARED_LOCKS_REQUIRED(Locks::mut
 }
 
 bool ImageWriter::IsImageClass(Class* klass) {
-  return compiler_driver_.IsImageClass(ClassHelper(klass).GetDescriptor());
+  return compiler_driver_.IsImageClass(klass->GetDescriptor().c_str());
 }
 
 struct NonImageClasses {
@@ -339,7 +341,7 @@ void ImageWriter::PruneNonImageClasses() {
 bool ImageWriter::NonImageClassesVisitor(Class* klass, void* arg) {
   NonImageClasses* context = reinterpret_cast<NonImageClasses*>(arg);
   if (!context->image_writer->IsImageClass(klass)) {
-    context->non_image_classes->insert(ClassHelper(klass).GetDescriptor());
+    context->non_image_classes->insert(klass->GetDescriptor());
   }
   return true;
 }
@@ -359,7 +361,7 @@ void ImageWriter::CheckNonImageClassesRemovedCallback(Object* obj, void* arg) {
     Class* klass = obj->AsClass();
     if (!image_writer->IsImageClass(klass)) {
       image_writer->DumpImageClasses();
-      CHECK(image_writer->IsImageClass(klass)) << ClassHelper(klass).GetDescriptor()
+      CHECK(image_writer->IsImageClass(klass)) << klass->GetDescriptor()
                                                << " " << PrettyDescriptor(klass);
     }
   }

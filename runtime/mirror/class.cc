@@ -136,15 +136,13 @@ void Class::SetClassSize(uint32_t new_class_size) {
 // Class.getName: keywords for primitive types, regular "[I" form for primitive arrays (so "int"
 // but "[I"), and arrays of reference types written between "L" and ";" but with dots rather than
 // slashes (so "java.lang.String" but "[Ljava.lang.String;"). Madness.
-String* Class::ComputeName() {
-  String* name = GetName();
+String* Class::ComputeName(Handle<Class> h_this) {
+  String* name = h_this->GetName();
   if (name != nullptr) {
     return name;
   }
+  std::string descriptor(h_this->GetDescriptor());
   Thread* self = Thread::Current();
-  StackHandleScope<1> hs(self);
-  Handle<mirror::Class> handle_c(hs.NewHandle(this));
-  std::string descriptor(ClassHelper(this).GetDescriptor());
   if ((descriptor[0] != 'L') && (descriptor[0] != '[')) {
     // The descriptor indicates that this is the class for
     // a primitive type; special-case the return value.
@@ -173,7 +171,7 @@ String* Class::ComputeName() {
     std::replace(descriptor.begin(), descriptor.end(), '/', '.');
     name = String::AllocFromModifiedUtf8(self, descriptor.c_str());
   }
-  handle_c->SetName(name);
+  h_this->SetName(name);
   return name;
 }
 
@@ -190,52 +188,59 @@ void Class::DumpClass(std::ostream& os, int flags) {
     return;
   }
 
-  Class* super = GetSuperClass();
-  ClassHelper kh(this);
+  Thread* self = Thread::Current();
+  StackHandleScope<2> hs(self);
+  Handle<mirror::Class> h_this(hs.NewHandle(this));
+  Handle<mirror::Class> h_super(hs.NewHandle(GetSuperClass()));
+
   os << "----- " << (IsInterface() ? "interface" : "class") << " "
-     << "'" << kh.GetDescriptor() << "' cl=" << GetClassLoader() << " -----\n",
+     << "'" << GetDescriptor() << "' cl=" << GetClassLoader() << " -----\n",
   os << "  objectSize=" << SizeOf() << " "
-     << "(" << (super != NULL ? super->SizeOf() : -1) << " from super)\n",
+     << "(" << (h_super.Get() != NULL ? h_super->SizeOf() : -1) << " from super)\n",
   os << StringPrintf("  access=0x%04x.%04x\n",
       GetAccessFlags() >> 16, GetAccessFlags() & kAccJavaFlagsMask);
-  if (super != NULL) {
-    os << "  super='" << PrettyClass(super) << "' (cl=" << super->GetClassLoader() << ")\n";
+  if (h_super.Get() != NULL) {
+    os << "  super='" << PrettyClass(h_super.Get()) << "' (cl=" << h_super->GetClassLoader()
+       << ")\n";
   }
   if (IsArrayClass()) {
     os << "  componentType=" << PrettyClass(GetComponentType()) << "\n";
   }
-  if (kh.NumDirectInterfaces() > 0) {
-    os << "  interfaces (" << kh.NumDirectInterfaces() << "):\n";
-    for (size_t i = 0; i < kh.NumDirectInterfaces(); ++i) {
-      Class* interface = kh.GetDirectInterface(i);
+  const size_t num_direct_interfaces = NumDirectInterfaces();
+  if (num_direct_interfaces > 0) {
+    os << "  interfaces (" << num_direct_interfaces << "):\n";
+    for (size_t i = 0; i < num_direct_interfaces; ++i) {
+      Class* interface = GetDirectInterface(self, h_this, i);
       const ClassLoader* cl = interface->GetClassLoader();
       os << StringPrintf("    %2zd: %s (cl=%p)\n", i, PrettyClass(interface).c_str(), cl);
     }
   }
-  os << "  vtable (" << NumVirtualMethods() << " entries, "
-     << (super != NULL ? super->NumVirtualMethods() : 0) << " in super):\n";
+  // After this point, this may have moved due to GetDirectInterface.
+  os << "  vtable (" << h_this->NumVirtualMethods() << " entries, "
+     << (h_super.Get() != NULL ? h_super->NumVirtualMethods() : 0) << " in super):\n";
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
-    os << StringPrintf("    %2zd: %s\n", i, PrettyMethod(GetVirtualMethodDuringLinking(i)).c_str());
+    os << StringPrintf("    %2zd: %s\n", i,
+                       PrettyMethod(h_this->GetVirtualMethodDuringLinking(i)).c_str());
   }
-  os << "  direct methods (" << NumDirectMethods() << " entries):\n";
-  for (size_t i = 0; i < NumDirectMethods(); ++i) {
-    os << StringPrintf("    %2zd: %s\n", i, PrettyMethod(GetDirectMethod(i)).c_str());
+  os << "  direct methods (" << h_this->NumDirectMethods() << " entries):\n";
+  for (size_t i = 0; i < h_this->NumDirectMethods(); ++i) {
+    os << StringPrintf("    %2zd: %s\n", i, PrettyMethod(h_this->GetDirectMethod(i)).c_str());
   }
-  if (NumStaticFields() > 0) {
-    os << "  static fields (" << NumStaticFields() << " entries):\n";
-    if (IsResolved() || IsErroneous()) {
-      for (size_t i = 0; i < NumStaticFields(); ++i) {
-        os << StringPrintf("    %2zd: %s\n", i, PrettyField(GetStaticField(i)).c_str());
+  if (h_this->NumStaticFields() > 0) {
+    os << "  static fields (" << h_this->NumStaticFields() << " entries):\n";
+    if (h_this->IsResolved() || h_this->IsErroneous()) {
+      for (size_t i = 0; i < h_this->NumStaticFields(); ++i) {
+        os << StringPrintf("    %2zd: %s\n", i, PrettyField(h_this->GetStaticField(i)).c_str());
       }
     } else {
       os << "    <not yet available>";
     }
   }
-  if (NumInstanceFields() > 0) {
-    os << "  instance fields (" << NumInstanceFields() << " entries):\n";
-    if (IsResolved() || IsErroneous()) {
-      for (size_t i = 0; i < NumInstanceFields(); ++i) {
-        os << StringPrintf("    %2zd: %s\n", i, PrettyField(GetInstanceField(i)).c_str());
+  if (h_this->NumInstanceFields() > 0) {
+    os << "  instance fields (" << h_this->NumInstanceFields() << " entries):\n";
+    if (h_this->IsResolved() || h_this->IsErroneous()) {
+      for (size_t i = 0; i < h_this->NumInstanceFields(); ++i) {
+        os << StringPrintf("    %2zd: %s\n", i, PrettyField(h_this->GetInstanceField(i)).c_str());
       }
     } else {
       os << "    <not yet available>";
@@ -305,8 +310,7 @@ bool Class::IsInSamePackage(Class* that) {
     return true;
   }
   // Compare the package part of the descriptor string.
-  return IsInSamePackage(ClassHelper(klass1).GetDescriptor(),
-                         ClassHelper(klass2).GetDescriptor());
+  return IsInSamePackage(klass1->GetDescriptor().c_str(), klass2->GetDescriptor().c_str());
 }
 
 bool Class::IsStringClass() const {
@@ -585,71 +589,82 @@ ArtField* Class::FindDeclaredStaticField(const DexCache* dex_cache, uint32_t dex
   return NULL;
 }
 
-ArtField* Class::FindStaticField(const StringPiece& name, const StringPiece& type) {
+ArtField* Class::FindStaticField(Thread* self, Handle<Class> klass, const StringPiece& name,
+                                 const StringPiece& type) {
   // Is the field in this class (or its interfaces), or any of its
   // superclasses (or their interfaces)?
-  for (Class* k = this; k != NULL; k = k->GetSuperClass()) {
+  for (Class* k = klass.Get(); k != nullptr; k = k->GetSuperClass()) {
     // Is the field in this class?
     ArtField* f = k->FindDeclaredStaticField(name, type);
-    if (f != NULL) {
+    if (f != nullptr) {
       return f;
     }
+    // Wrap k incase it moves during GetDirectInterface.
+    StackHandleScope<1> hs(self);
+    HandleWrapper<mirror::Class> h_k(hs.NewHandleWrapper(&k));
     // Is this field in any of this class' interfaces?
-    ClassHelper kh(k);
-    for (uint32_t i = 0; i < kh.NumDirectInterfaces(); ++i) {
-      Class* interface = kh.GetDirectInterface(i);
-      f = interface->FindStaticField(name, type);
-      if (f != NULL) {
+    for (uint32_t i = 0; i < h_k->NumDirectInterfaces(); ++i) {
+      StackHandleScope<1> hs(self);
+      Handle<mirror::Class> interface(hs.NewHandle(GetDirectInterface(self, h_k, i)));
+      f = FindStaticField(self, interface, name, type);
+      if (f != nullptr) {
         return f;
       }
     }
   }
-  return NULL;
+  return nullptr;
 }
 
-ArtField* Class::FindStaticField(const DexCache* dex_cache, uint32_t dex_field_idx) {
-  for (Class* k = this; k != NULL; k = k->GetSuperClass()) {
+ArtField* Class::FindStaticField(Thread* self, Handle<Class> klass, const DexCache* dex_cache,
+                                 uint32_t dex_field_idx) {
+  for (Class* k = klass.Get(); k != nullptr; k = k->GetSuperClass()) {
     // Is the field in this class?
     ArtField* f = k->FindDeclaredStaticField(dex_cache, dex_field_idx);
     if (f != NULL) {
       return f;
     }
+    // Wrap k incase it moves during GetDirectInterface.
+    StackHandleScope<1> hs(self);
+    HandleWrapper<mirror::Class> h_k(hs.NewHandleWrapper(&k));
     // Is this field in any of this class' interfaces?
-    ClassHelper kh(k);
-    for (uint32_t i = 0; i < kh.NumDirectInterfaces(); ++i) {
-      Class* interface = kh.GetDirectInterface(i);
-      f = interface->FindStaticField(dex_cache, dex_field_idx);
-      if (f != NULL) {
+    for (uint32_t i = 0; i < h_k->NumDirectInterfaces(); ++i) {
+      StackHandleScope<1> hs(self);
+      Handle<mirror::Class> interface(hs.NewHandle(GetDirectInterface(self, h_k, i)));
+      f = FindStaticField(self, interface, dex_cache, dex_field_idx);
+      if (f != nullptr) {
         return f;
       }
     }
   }
-  return NULL;
+  return nullptr;
 }
 
-ArtField* Class::FindField(const StringPiece& name, const StringPiece& type) {
+ArtField* Class::FindField(Thread* self, Handle<Class> klass, const StringPiece& name,
+                           const StringPiece& type) {
   // Find a field using the JLS field resolution order
-  for (Class* k = this; k != NULL; k = k->GetSuperClass()) {
+  for (Class* k = klass.Get(); k != NULL; k = k->GetSuperClass()) {
     // Is the field in this class?
     ArtField* f = k->FindDeclaredInstanceField(name, type);
-    if (f != NULL) {
+    if (f != nullptr) {
       return f;
     }
     f = k->FindDeclaredStaticField(name, type);
-    if (f != NULL) {
+    if (f != nullptr) {
       return f;
     }
     // Is this field in any of this class' interfaces?
-    ClassHelper kh(k);
-    for (uint32_t i = 0; i < kh.NumDirectInterfaces(); ++i) {
-      Class* interface = kh.GetDirectInterface(i);
-      f = interface->FindStaticField(name, type);
-      if (f != NULL) {
+    StackHandleScope<1> hs(self);
+    HandleWrapper<mirror::Class> h_k(hs.NewHandleWrapper(&k));
+    for (uint32_t i = 0; i < h_k->NumDirectInterfaces(); ++i) {
+      StackHandleScope<1> hs(self);
+      Handle<mirror::Class> interface(hs.NewHandle(GetDirectInterface(self, h_k, i)));
+      f = interface->FindStaticField(self, interface, name, type);
+      if (f != nullptr) {
         return f;
       }
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 static void SetPreverifiedFlagOnMethods(mirror::ObjectArray<mirror::ArtMethod>* methods)
@@ -669,6 +684,112 @@ void Class::SetPreverifiedFlagOnAllMethods() {
   DCHECK(IsVerified());
   SetPreverifiedFlagOnMethods(GetDirectMethods());
   SetPreverifiedFlagOnMethods(GetVirtualMethods());
+}
+
+std::string Class::GetDescriptor() {
+  if (UNLIKELY(IsArrayClass())) {
+    return GetArrayDescriptor();
+  } else if (UNLIKELY(IsPrimitive())) {
+    return Primitive::Descriptor(GetPrimitiveType());
+  } else if (UNLIKELY(IsProxyClass())) {
+    return Runtime::Current()->GetClassLinker()->GetDescriptorForProxy(this);
+  } else {
+    const DexFile& dex_file = GetDexFile();
+    const DexFile::TypeId& type_id = dex_file.GetTypeId(GetClassDef()->class_idx_);
+    return dex_file.GetTypeDescriptor(type_id);
+  }
+}
+
+std::string Class::GetArrayDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return "[" + GetComponentType()->GetDescriptor();
+}
+
+const DexFile::ClassDef* Class::GetClassDef() {
+  uint16_t class_def_idx = GetDexClassDefIndex();
+  if (class_def_idx == DexFile::kDexNoIndex16) {
+    return nullptr;
+  }
+  return &GetDexFile().GetClassDef(class_def_idx);
+}
+
+uint32_t Class::NumDirectInterfaces() {
+  if (IsPrimitive()) {
+    return 0;
+  } else if (IsArrayClass()) {
+    return 2;
+  } else if (IsProxyClass()) {
+    mirror::SynthesizedProxyClass* proxy_class=
+        reinterpret_cast<mirror::SynthesizedProxyClass*>(this);
+    mirror::ObjectArray<mirror::Class>* interfaces = proxy_class->GetInterfaces();
+    return interfaces != nullptr ? interfaces->GetLength() : 0;
+  } else {
+    const DexFile::TypeList* interfaces = GetInterfaceTypeList();
+    if (interfaces == nullptr) {
+      return 0;
+    } else {
+      return interfaces->Size();
+    }
+  }
+}
+
+uint16_t Class::GetDirectInterfaceTypeIdx(uint32_t idx) {
+  DCHECK(!IsPrimitive());
+  DCHECK(!IsArrayClass());
+  return GetInterfaceTypeList()->GetTypeItem(idx).type_idx_;
+}
+
+mirror::Class* Class::GetDirectInterface(Thread* self, Handle<mirror::Class> klass, uint32_t idx) {
+  DCHECK(klass.Get() != nullptr);
+  DCHECK(!klass->IsPrimitive());
+  if (klass->IsArrayClass()) {
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    if (idx == 0) {
+      return class_linker->FindSystemClass(self, "Ljava/lang/Cloneable;");
+    } else {
+      DCHECK_EQ(1U, idx);
+      return class_linker->FindSystemClass(self, "Ljava/io/Serializable;");
+    }
+  } else if (klass->IsProxyClass()) {
+    mirror::SynthesizedProxyClass* proxy_class =
+        reinterpret_cast<mirror::SynthesizedProxyClass*>(klass.Get());
+    mirror::ObjectArray<mirror::Class>* interfaces = proxy_class->GetInterfaces();
+    DCHECK(interfaces != nullptr);
+    return interfaces->Get(idx);
+  } else {
+    uint16_t type_idx = klass->GetDirectInterfaceTypeIdx(idx);
+    mirror::Class* interface = klass->GetDexCache()->GetResolvedType(type_idx);
+    if (interface == nullptr) {
+      interface = Runtime::Current()->GetClassLinker()->ResolveType(klass->GetDexFile(), type_idx,
+                                                                    klass.Get());
+      CHECK(interface != nullptr || self->IsExceptionPending());
+    }
+    return interface;
+  }
+}
+
+const char* Class::GetSourceFile() {
+  std::string descriptor(GetDescriptor());
+  const DexFile& dex_file = GetDexFile();
+  const DexFile::ClassDef* dex_class_def = GetClassDef();
+  CHECK(dex_class_def != nullptr) << "No class def for class " << PrettyClass(this);
+  return dex_file.GetSourceFile(*dex_class_def);
+}
+
+std::string Class::GetLocation() {
+  mirror::DexCache* dex_cache = GetDexCache();
+  if (dex_cache != nullptr && !IsProxyClass()) {
+    return dex_cache->GetLocation()->ToModifiedUtf8();
+  }
+  // Arrays and proxies are generated and have no corresponding dex file location.
+  return "generated class";
+}
+
+const DexFile::TypeList* Class::GetInterfaceTypeList() {
+  const DexFile::ClassDef* class_def = GetClassDef();
+  if (class_def == nullptr) {
+    return nullptr;
+  }
+  return GetDexFile().GetInterfacesList(*class_def);
 }
 
 }  // namespace mirror

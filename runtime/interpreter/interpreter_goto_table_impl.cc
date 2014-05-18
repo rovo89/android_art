@@ -342,8 +342,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
         self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
                                  "Ljava/lang/VirtualMachineError;",
                                  "Returning '%s' that is not instance of return type '%s'",
-                                 ClassHelper(obj_result->GetClass()).GetDescriptor(),
-                                 ClassHelper(return_type).GetDescriptor());
+                                 obj_result->GetClass()->GetDescriptor().c_str(),
+                                 return_type->GetDescriptor().c_str());
         HANDLE_PENDING_EXCEPTION();
       }
     }
@@ -614,7 +614,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
                                "Ljava/lang/VirtualMachineError;",
                                "Throwing '%s' that is not instance of Throwable",
-                               ClassHelper(exception->GetClass()).GetDescriptor());
+                               exception->GetClass()->GetDescriptor().c_str());
     } else {
       self->SetException(shadow_frame.GetCurrentLocationForThrow(), exception->AsThrowable());
     }

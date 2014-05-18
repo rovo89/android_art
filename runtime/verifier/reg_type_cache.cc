@@ -567,7 +567,7 @@ const RegType& RegTypeCache::GetComponentType(const RegType& array, mirror::Clas
     return FromDescriptor(loader, component.c_str(), false);
   } else {
     mirror::Class* klass = array.GetClass()->GetComponentType();
-    return FromClass(ClassHelper(klass).GetDescriptor(), klass,
+    return FromClass(klass->GetDescriptor().c_str(), klass,
                      klass->CannotBeAssignedFromOtherTypes());
   }
 }
