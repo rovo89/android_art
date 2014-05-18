@@ -1542,7 +1542,6 @@ RegLocation X86Mir2Lir::GenShiftImmOpLong(Instruction::Code opcode, RegLocation 
         LoadConstant(rl_result.reg.GetLow(), 0);
       } else if (shift_amount > 31) {
         OpRegCopy(rl_result.reg.GetHigh(), rl_src.reg.GetLow());
-        FreeTemp(rl_src.reg.GetHigh());
         NewLIR2(kX86Sal32RI, rl_result.reg.GetHighReg(), shift_amount - 32);
         LoadConstant(rl_result.reg.GetLow(), 0);
       } else {

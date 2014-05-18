@@ -152,6 +152,9 @@ void Mir2Lir::Clobber(RegStorage reg) {
   } else {
     RegisterInfo* info = GetRegInfo(reg);
     if (info->IsTemp() && !info->IsDead()) {
+      if (info->GetReg() != info->Partner()) {
+        ClobberBody(GetRegInfo(info->Partner()));
+      }
       ClobberBody(info);
       if (info->IsAliased()) {
         ClobberAliases(info);
@@ -169,19 +172,7 @@ void Mir2Lir::ClobberAliases(RegisterInfo* info) {
   for (RegisterInfo* alias = info->GetAliasChain(); alias != nullptr;
        alias = alias->GetAliasChain()) {
     DCHECK(!alias->IsAliased());  // Only the master should be marked as alised.
-    if (alias->SReg() != INVALID_SREG) {
-      alias->SetSReg(INVALID_SREG);
-      alias->ResetDefBody();
-      if (alias->IsWide()) {
-        alias->SetIsWide(false);
-        if (alias->GetReg() != alias->Partner()) {
-          RegisterInfo* p = GetRegInfo(alias->Partner());
-          p->SetIsWide(false);
-          p->MarkDead();
-          p->ResetDefBody();
-        }
-      }
-    }
+    ClobberBody(alias);
   }
 }
 
@@ -204,6 +195,11 @@ void Mir2Lir::ClobberSReg(int s_reg) {
     GrowableArray<RegisterInfo*>::Iterator iter(&tempreg_info_);
     for (RegisterInfo* info = iter.Next(); info != NULL; info = iter.Next()) {
       if (info->SReg() == s_reg) {
+        if (info->GetReg() != info->Partner()) {
+          // Dealing with a pair - clobber the other half.
+          DCHECK(!info->IsAliased());
+          ClobberBody(GetRegInfo(info->Partner()));
+        }
         ClobberBody(info);
         if (info->IsAliased()) {
           ClobberAliases(info);
@@ -325,7 +321,7 @@ RegStorage Mir2Lir::AllocTempBody(GrowableArray<RegisterInfo*> &regs, int* next_
       next = 0;
     RegisterInfo* info = regs.Get(next);
     // Try to allocate a register that doesn't hold a live value.
-    if (info->IsTemp() && !info->InUse() && !info->IsLive()) {
+    if (info->IsTemp() && !info->InUse() && info->IsDead()) {
       Clobber(info->GetReg());
       info->MarkInUse();
       /*
@@ -349,7 +345,13 @@ RegStorage Mir2Lir::AllocTempBody(GrowableArray<RegisterInfo*> &regs, int* next_
       ClobberSReg(info->SReg());
       Clobber(info->GetReg());
       info->MarkInUse();
-      info->SetIsWide(false);
+      if (info->IsWide()) {
+        RegisterInfo* partner = GetRegInfo(info->Partner());
+        DCHECK_EQ(info->GetReg().GetRegNum(), partner->Partner().GetRegNum());
+        DCHECK(partner->IsWide());
+        info->SetIsWide(false);
+        partner->SetIsWide(false);
+      }
       *next_temp = next + 1;
       return info->GetReg();
     }
@@ -460,6 +462,20 @@ void Mir2Lir::FreeTemp(RegStorage reg) {
       p->SetIsWide(false);
       p->SetPartner(reg);
     }
+  }
+}
+
+void Mir2Lir::FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free) {
+  DCHECK(rl_keep.wide);
+  DCHECK(rl_free.wide);
+  int free_low = rl_free.reg.GetLowReg();
+  int free_high = rl_free.reg.GetHighReg();
+  int keep_low = rl_keep.reg.GetLowReg();
+  int keep_high = rl_keep.reg.GetHighReg();
+  if ((free_low != keep_low) && (free_low != keep_high) &&
+      (free_high != keep_low) && (free_high != keep_high)) {
+    // No overlap, free both
+    FreeTemp(rl_free.reg);
   }
 }
 
@@ -725,8 +741,6 @@ void Mir2Lir::FlushAllRegs() {
       FlushSpecificReg(info);
     }
     info->MarkDead();
-    info->SetSReg(INVALID_SREG);
-    info->ResetDefBody();
     info->SetIsWide(false);
   }
 }
@@ -742,35 +756,48 @@ bool Mir2Lir::RegClassMatches(int reg_class, RegStorage reg) {
   }
 }
 
-void Mir2Lir::MarkLiveReg(RegStorage reg, int s_reg) {
-  RegisterInfo* info = GetRegInfo(reg);
-  if ((info->SReg() == s_reg) && info->IsLive()) {
-    return;  // Already live.
-  }
-  if (s_reg != INVALID_SREG) {
-    ClobberSReg(s_reg);
-    if (info->IsTemp()) {
-      info->MarkLive();
-    }
-  } else {
-    // Can't be live if no associated s_reg.
-    DCHECK(info->IsTemp());
-    info->MarkDead();
-  }
-  info->SetSReg(s_reg);
-}
-
 void Mir2Lir::MarkLive(RegLocation loc) {
   RegStorage reg = loc.reg;
+  if (!IsTemp(reg)) {
+    return;
+  }
   int s_reg = loc.s_reg_low;
-  if (reg.IsPair()) {
-    MarkLiveReg(reg.GetLow(), s_reg);
-    MarkLiveReg(reg.GetHigh(), s_reg+1);
-  } else {
-    if (loc.wide) {
-      ClobberSReg(s_reg + 1);
+  if (s_reg == INVALID_SREG) {
+    // Can't be live if no associated sreg.
+    if (reg.IsPair()) {
+      GetRegInfo(reg.GetLow())->MarkDead();
+      GetRegInfo(reg.GetHigh())->MarkDead();
+    } else {
+      GetRegInfo(reg)->MarkDead();
     }
-    MarkLiveReg(reg, s_reg);
+  } else {
+    if (reg.IsPair()) {
+      RegisterInfo* info_lo = GetRegInfo(reg.GetLow());
+      RegisterInfo* info_hi = GetRegInfo(reg.GetHigh());
+      if (info_lo->IsLive() && (info_lo->SReg() == s_reg) && info_hi->IsLive() &&
+          (info_hi->SReg() == s_reg)) {
+        return;  // Already live.
+      }
+      ClobberSReg(s_reg);
+      ClobberSReg(s_reg + 1);
+      info_lo->MarkLive(s_reg);
+      info_hi->MarkLive(s_reg + 1);
+    } else {
+      RegisterInfo* info = GetRegInfo(reg);
+      if (info->IsLive() && (info->SReg() == s_reg)) {
+        return;  // Already live.
+      }
+      ClobberSReg(s_reg);
+      if (loc.wide) {
+        ClobberSReg(s_reg + 1);
+      }
+      info->MarkLive(s_reg);
+    }
+    if (loc.wide) {
+      MarkWide(reg);
+    } else {
+      MarkNarrow(reg);
+    }
   }
 }
 
@@ -792,6 +819,13 @@ void Mir2Lir::MarkWide(RegStorage reg) {
   if (reg.IsPair()) {
     RegisterInfo* info_lo = GetRegInfo(reg.GetLow());
     RegisterInfo* info_hi = GetRegInfo(reg.GetHigh());
+    // Unpair any old partners.
+    if (info_lo->IsWide() && info_lo->Partner() != info_hi->GetReg()) {
+      GetRegInfo(info_lo->Partner())->SetIsWide(false);
+    }
+    if (info_hi->IsWide() && info_hi->Partner() != info_lo->GetReg()) {
+      GetRegInfo(info_hi->Partner())->SetIsWide(false);
+    }
     info_lo->SetIsWide(true);
     info_hi->SetIsWide(true);
     info_lo->SetPartner(reg.GetHigh());
@@ -801,6 +835,13 @@ void Mir2Lir::MarkWide(RegStorage reg) {
     info->SetIsWide(true);
     info->SetPartner(reg);
   }
+}
+
+void Mir2Lir::MarkNarrow(RegStorage reg) {
+  DCHECK(!reg.IsPair());
+  RegisterInfo* info = GetRegInfo(reg);
+  info->SetIsWide(false);
+  info->SetPartner(reg);
 }
 
 void Mir2Lir::MarkClean(RegLocation loc) {
@@ -842,16 +883,17 @@ void Mir2Lir::MarkInUse(RegStorage reg) {
 }
 
 bool Mir2Lir::CheckCorePoolSanity() {
-  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->core_regs_);
+  GrowableArray<RegisterInfo*>::Iterator it(&tempreg_info_);
   for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
-    RegStorage my_reg = info->GetReg();
-    if (info->IsWide() && my_reg.IsPair()) {
+    if (info->IsTemp() && info->IsLive() && info->IsWide()) {
+      RegStorage my_reg = info->GetReg();
       int my_sreg = info->SReg();
       RegStorage partner_reg = info->Partner();
       RegisterInfo* partner = GetRegInfo(partner_reg);
       DCHECK(partner != NULL);
       DCHECK(partner->IsWide());
       DCHECK_EQ(my_reg.GetReg(), partner->Partner().GetReg());
+      DCHECK(partner->IsLive());
       int partner_sreg = partner->SReg();
       if (my_sreg == INVALID_SREG) {
         DCHECK_EQ(partner_sreg, INVALID_SREG);
@@ -859,13 +901,41 @@ bool Mir2Lir::CheckCorePoolSanity() {
         int diff = my_sreg - partner_sreg;
         DCHECK((diff == 0) || (diff == -1) || (diff == 1));
       }
-    } else {
-      // TODO: add whatever sanity checks might be useful for 64BitSolo regs here.
-      // TODO: sanity checks for floating point pools?
     }
-    if (!info->IsLive()) {
-      DCHECK(info->DefStart() == NULL);
-      DCHECK(info->DefEnd() == NULL);
+    if (info->Master() != info) {
+      // Aliased.
+      if (info->IsLive() && (info->SReg() != INVALID_SREG)) {
+        // If I'm live, master should not be live, but should show liveness in alias set.
+        DCHECK_EQ(info->Master()->SReg(), INVALID_SREG);
+        DCHECK(!info->Master()->IsDead());
+      } else if (!info->IsDead()) {
+        // If I'm not live, but there is liveness in the set master must be live.
+        DCHECK_EQ(info->SReg(), INVALID_SREG);
+        DCHECK(info->Master()->IsLive());
+      }
+    }
+    if (info->IsAliased()) {
+      // Has child aliases.
+      DCHECK_EQ(info->Master(), info);
+      if (info->IsLive() && (info->SReg() != INVALID_SREG)) {
+        // Master live, no child should be dead - all should show liveness in set.
+        for (RegisterInfo* p = info->GetAliasChain(); p != nullptr; p = p->GetAliasChain()) {
+          DCHECK(!p->IsDead());
+          DCHECK_EQ(p->SReg(), INVALID_SREG);
+        }
+      } else if (!info->IsDead()) {
+        // Master not live, one or more aliases must be.
+        bool live_alias = false;
+        for (RegisterInfo* p = info->GetAliasChain(); p != nullptr; p = p->GetAliasChain()) {
+          live_alias |= p->IsLive();
+        }
+        DCHECK(live_alias);
+      }
+    }
+    if (info->IsLive() && (info->SReg() == INVALID_SREG)) {
+      // If not fully live, should have INVALID_SREG and def's should be null.
+      DCHECK(info->DefStart() == nullptr);
+      DCHECK(info->DefEnd() == nullptr);
     }
   }
   return true;
@@ -956,11 +1026,12 @@ RegLocation Mir2Lir::EvalLocWide(RegLocation loc, int reg_class, bool update) {
     if (!RegClassMatches(reg_class, loc.reg)) {
       // Wrong register class.  Reallocate and transfer ownership.
       RegStorage new_regs = AllocTypedTempWide(loc.fp, reg_class);
-      // Associate the old sreg with the new register and clobber the old register.
-      GetRegInfo(new_regs)->SetSReg(GetRegInfo(loc.reg)->SReg());
+      // Clobber the old regs.
       Clobber(loc.reg);
+      // ...and mark the new ones live.
       loc.reg = new_regs;
       MarkWide(loc.reg);
+      MarkLive(loc);
     }
     return loc;
   }
@@ -989,10 +1060,11 @@ RegLocation Mir2Lir::EvalLoc(RegLocation loc, int reg_class, bool update) {
     if (!RegClassMatches(reg_class, loc.reg)) {
       // Wrong register class.  Reallocate and transfer ownership.
       RegStorage new_reg = AllocTypedTemp(loc.fp, reg_class);
-      // Associate the old sreg with the new register and clobber the old register.
-      GetRegInfo(new_reg)->SetSReg(GetRegInfo(loc.reg)->SReg());
+      // Clobber the old reg.
       Clobber(loc.reg);
+      // ...and mark the new one live.
       loc.reg = new_reg;
+      MarkLive(loc);
     }
     return loc;
   }
@@ -1220,19 +1292,9 @@ RegLocation Mir2Lir::GetReturnWide(bool is_double) {
   RegLocation gpr_res = LocCReturnWide();
   RegLocation fpr_res = LocCReturnDouble();
   RegLocation res = is_double ? fpr_res : gpr_res;
-  if (res.reg.IsPair()) {
-    Clobber(res.reg);
-    LockTemp(res.reg);
-    // Does this wide value live in two registers or one vector register?
-    if (res.reg.GetLowReg() != res.reg.GetHighReg()) {
-      // FIXME: I think we want to mark these as wide as well.
-      MarkWide(res.reg);
-    }
-  } else {
-    Clobber(res.reg);
-    LockTemp(res.reg);
-    MarkWide(res.reg);
-  }
+  Clobber(res.reg);
+  LockTemp(res.reg);
+  MarkWide(res.reg);
   return res;
 }
 

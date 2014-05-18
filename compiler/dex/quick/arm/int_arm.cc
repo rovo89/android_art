@@ -284,10 +284,10 @@ void ArmMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
     ccode = FlipComparisonOrder(ccode);
   }
   if (rl_src2.is_const) {
-    RegLocation rl_temp = UpdateLocWide(rl_src2);
+    rl_src2 = UpdateLocWide(rl_src2);
     // Do special compare/branch against simple const operand if not already in registers.
     int64_t val = mir_graph_->ConstantValueWide(rl_src2);
-    if ((rl_temp.location != kLocPhysReg) &&
+    if ((rl_src2.location != kLocPhysReg) &&
         ((ModifiedImmediate(Low32Bits(val)) >= 0) && (ModifiedImmediate(High32Bits(val)) >= 0))) {
       GenFusedLongCmpImmBranch(bb, rl_src1, val, ccode);
       return;
@@ -1092,6 +1092,8 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
         DCHECK(!res_hi.Valid());
         DCHECK_NE(rl_src1.reg.GetLowReg(), rl_src2.reg.GetLowReg());
         DCHECK_NE(rl_src1.reg.GetHighReg(), rl_src2.reg.GetHighReg());
+        // Will force free src1_hi, so must clobber.
+        Clobber(rl_src1.reg);
         FreeTemp(rl_src1.reg.GetHigh());
         res_hi = AllocTemp();
       }
@@ -1103,9 +1105,7 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
               tmp1.GetReg());
       NewLIR4(kThumb2AddRRR, res_hi.GetReg(), tmp1.GetReg(), res_hi.GetReg(), 0);
       if (reg_status == 2) {
-        // Clobber rl_src1 since it was corrupted.
-        FreeTemp(rl_src1.reg);
-        Clobber(rl_src1.reg);
+        FreeTemp(rl_src1.reg.GetLow());
       }
     }
 
