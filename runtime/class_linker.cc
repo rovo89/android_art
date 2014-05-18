@@ -96,8 +96,8 @@ static void ThrowEarlierClassFailure(mirror::Class* c)
   ThrowLocation throw_location = self->GetCurrentLocationForThrow();
   if (c->GetVerifyErrorClass() != NULL) {
     // TODO: change the verifier to store an _instance_, with a useful detail message?
-    ClassHelper ve_ch(c->GetVerifyErrorClass());
-    self->ThrowNewException(throw_location, ve_ch.GetDescriptor(), PrettyDescriptor(c).c_str());
+    self->ThrowNewException(throw_location, c->GetVerifyErrorClass()->GetDescriptor().c_str(),
+                            PrettyDescriptor(c).c_str());
   } else {
     self->ThrowNewException(throw_location, "Ljava/lang/NoClassDefFoundError;",
                             PrettyDescriptor(c).c_str());
@@ -407,12 +407,10 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   array_iftable_->SetInterface(1, java_io_Serializable);
 
   // Sanity check Class[] and Object[]'s interfaces.
-  ClassHelper kh(class_array_class.Get());
-  CHECK_EQ(java_lang_Cloneable, kh.GetDirectInterface(0));
-  CHECK_EQ(java_io_Serializable, kh.GetDirectInterface(1));
-  kh.ChangeClass(object_array_class.Get());
-  CHECK_EQ(java_lang_Cloneable, kh.GetDirectInterface(0));
-  CHECK_EQ(java_io_Serializable, kh.GetDirectInterface(1));
+  CHECK_EQ(java_lang_Cloneable, mirror::Class::GetDirectInterface(self, class_array_class, 0));
+  CHECK_EQ(java_io_Serializable, mirror::Class::GetDirectInterface(self, class_array_class, 1));
+  CHECK_EQ(java_lang_Cloneable, mirror::Class::GetDirectInterface(self, object_array_class, 0));
+  CHECK_EQ(java_io_Serializable, mirror::Class::GetDirectInterface(self, object_array_class, 1));
   // Run Class, ArtField, and ArtMethod through FindSystemClass. This initializes their
   // dex_cache_ fields and register them in class_table_.
   mirror::Class* Class_class = FindSystemClass(self, "Ljava/lang/Class;");
@@ -1730,9 +1728,8 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
   if (!runtime->IsStarted() || runtime->UseCompileTimeClassPath()) {
     return;  // OAT file unavailable.
   }
-  ClassHelper kh(klass);
-  const DexFile& dex_file = kh.GetDexFile();
-  const DexFile::ClassDef* dex_class_def = kh.GetClassDef();
+  const DexFile& dex_file = klass->GetDexFile();
+  const DexFile::ClassDef* dex_class_def = klass->GetClassDef();
   CHECK(dex_class_def != nullptr);
   const byte* class_data = dex_file.GetClassData(*dex_class_def);
   // There should always be class data if there were direct methods.
@@ -2034,15 +2031,14 @@ mirror::ArtMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file
       if (klass->GetClassLoader() != NULL) {  // All non-boot finalizer methods are flagged
         klass->SetFinalizable();
       } else {
-        ClassHelper kh(klass.Get());
-        const char* klass_descriptor = kh.GetDescriptor();
+        std::string klass_descriptor = klass->GetDescriptor();
         // The Enum class declares a "final" finalize() method to prevent subclasses from
         // introducing a finalizer. We don't want to set the finalizable flag for Enum or its
         // subclasses, so we exclude it here.
         // We also want to avoid setting the flag on Object, where we know that finalize() is
         // empty.
-        if ((strcmp("Ljava/lang/Object;", klass_descriptor) != 0) &&
-            (strcmp("Ljava/lang/Enum;", klass_descriptor) != 0)) {
+        if (klass_descriptor.compare("Ljava/lang/Object;") != 0 &&
+            klass_descriptor.compare("Ljava/lang/Enum;") != 0) {
           klass->SetFinalizable();
         }
       }
@@ -2403,9 +2399,7 @@ bool ClassLinker::RemoveClass(const char* descriptor, const mirror::ClassLoader*
   for (auto it = class_table_.lower_bound(hash), end = class_table_.end(); it != end && it->first == hash;
        ++it) {
     mirror::Class* klass = it->second;
-    ClassHelper kh(klass);
-    if ((klass->GetClassLoader() == class_loader) &&
-        (strcmp(descriptor, kh.GetDescriptor()) == 0)) {
+    if (klass->GetClassLoader() == class_loader && descriptor == klass->GetDescriptor()) {
       class_table_.erase(it);
       return true;
     }
@@ -2449,16 +2443,13 @@ mirror::Class* ClassLinker::LookupClassFromTableLocked(const char* descriptor,
   auto end = class_table_.end();
   for (auto it = class_table_.lower_bound(hash); it != end && it->first == hash; ++it) {
     mirror::Class* klass = it->second;
-    ClassHelper kh(klass);
-    if ((klass->GetClassLoader() == class_loader) &&
-        (strcmp(descriptor, kh.GetDescriptor()) == 0)) {
+    if (klass->GetClassLoader() == class_loader && descriptor == klass->GetDescriptor()) {
       if (kIsDebugBuild) {
         // Check for duplicates in the table.
         for (++it; it != end && it->first == hash; ++it) {
           mirror::Class* klass2 = it->second;
-          ClassHelper kh(klass2);
           CHECK(!((klass2->GetClassLoader() == class_loader) &&
-                  (strcmp(descriptor, kh.GetDescriptor()) == 0)))
+              descriptor == klass2->GetDescriptor()))
               << PrettyClass(klass) << " " << klass << " " << klass->GetClassLoader() << " "
               << PrettyClass(klass2) << " " << klass2 << " " << klass2->GetClassLoader();
         }
@@ -2492,11 +2483,10 @@ void ClassLinker::MoveImageClassesToClassTable() {
     for (int32_t j = 0; j < types->GetLength(); j++) {
       mirror::Class* klass = types->Get(j);
       if (klass != NULL) {
-        ClassHelper kh(klass);
         DCHECK(klass->GetClassLoader() == NULL);
-        const char* descriptor = kh.GetDescriptor();
-        size_t hash = Hash(descriptor);
-        mirror::Class* existing = LookupClassFromTableLocked(descriptor, NULL, hash);
+        std::string descriptor = klass->GetDescriptor();
+        size_t hash = Hash(descriptor.c_str());
+        mirror::Class* existing = LookupClassFromTableLocked(descriptor.c_str(), NULL, hash);
         if (existing != NULL) {
           CHECK(existing == klass) << PrettyClassAndClassLoader(existing) << " != "
               << PrettyClassAndClassLoader(klass);
@@ -2550,8 +2540,7 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<mirror::Clas
   for (auto it = class_table_.lower_bound(hash), end = class_table_.end();
       it != end && it->first == hash; ++it) {
     mirror::Class* klass = it->second;
-    ClassHelper kh(klass);
-    if (strcmp(descriptor, kh.GetDescriptor()) == 0) {
+    if (descriptor == klass->GetDescriptor()) {
       result.push_back(klass);
     }
   }
@@ -2763,7 +2752,7 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class
   }
   LOG(FATAL) << "Unexpected class status: " << oat_file_class_status
              << " " << dex_file.GetLocation() << " " << PrettyClass(klass) << " "
-             << ClassHelper(klass).GetDescriptor();
+             << klass->GetDescriptor();
 
   return false;
 }
@@ -3083,8 +3072,7 @@ static bool CanWeInitializeClass(mirror::Class* klass, bool can_init_statics,
     }
     // Check if there are encoded static values needing initialization.
     if (klass->NumStaticFields() != 0) {
-      ClassHelper kh(klass);
-      const DexFile::ClassDef* dex_class_def = kh.GetClassDef();
+      const DexFile::ClassDef* dex_class_def = klass->GetClassDef();
       DCHECK(dex_class_def != NULL);
       if (dex_class_def->static_values_off_ != 0) {
         return false;
@@ -3213,13 +3201,12 @@ bool ClassLinker::InitializeClass(const Handle<mirror::Class>& klass, bool can_i
   }
 
   if (klass->NumStaticFields() > 0) {
-    ClassHelper kh(klass.Get());
-    const DexFile::ClassDef* dex_class_def = kh.GetClassDef();
+    const DexFile::ClassDef* dex_class_def = klass->GetClassDef();
     CHECK(dex_class_def != NULL);
-    const DexFile& dex_file = kh.GetDexFile();
+    const DexFile& dex_file = klass->GetDexFile();
     StackHandleScope<2> hs(self);
     Handle<mirror::ClassLoader> class_loader(hs.NewHandle(klass->GetClassLoader()));
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(kh.GetDexCache()));
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(klass->GetDexCache()));
     EncodedStaticFieldValueIterator it(dex_file, &dex_cache, &class_loader,
                                        this, *dex_class_def);
     if (it.HasNext()) {
@@ -3264,8 +3251,8 @@ bool ClassLinker::InitializeClass(const Handle<mirror::Class>& klass, bool can_i
       // Set the class as initialized except if failed to initialize static fields.
       klass->SetStatus(mirror::Class::kStatusInitialized, self);
       if (VLOG_IS_ON(class_linker)) {
-        ClassHelper kh(klass.Get());
-        LOG(INFO) << "Initialized class " << kh.GetDescriptor() << " from " << kh.GetLocation();
+        LOG(INFO) << "Initialized class " << klass->GetDescriptor() << " from " <<
+            klass->GetLocation();
       }
       // Opportunistically set static method trampolines to their destination.
       FixupStaticTrampolines(klass.Get());
@@ -3619,6 +3606,7 @@ bool ClassLinker::LinkVirtualMethods(const Handle<mirror::Class>& klass) {
 
 bool ClassLinker::LinkInterfaceMethods(const Handle<mirror::Class>& klass,
                                        const Handle<mirror::ObjectArray<mirror::Class> >& interfaces) {
+  Thread* const self = Thread::Current();
   // Set the imt table to be all conflicts by default.
   klass->SetImTable(Runtime::Current()->GetDefaultImt());
   size_t super_ifcount;
@@ -3627,18 +3615,14 @@ bool ClassLinker::LinkInterfaceMethods(const Handle<mirror::Class>& klass,
   } else {
     super_ifcount = 0;
   }
-  size_t ifcount = super_ifcount;
-  uint32_t num_interfaces;
-  {
-    ClassHelper kh(klass.Get());
-    num_interfaces =
-        interfaces.Get() == nullptr ? kh.NumDirectInterfaces() : interfaces->GetLength();
-    ifcount += num_interfaces;
-    for (size_t i = 0; i < num_interfaces; i++) {
-      mirror::Class* interface =
-          interfaces.Get() == nullptr ? kh.GetDirectInterface(i) : interfaces->Get(i);
-      ifcount += interface->GetIfTableCount();
-    }
+  uint32_t num_interfaces =
+      interfaces.Get() == nullptr ? klass->NumDirectInterfaces() : interfaces->GetLength();
+  size_t ifcount = super_ifcount + num_interfaces;
+  for (size_t i = 0; i < num_interfaces; i++) {
+    mirror::Class* interface =
+        interfaces.Get() == nullptr ? mirror::Class::GetDirectInterface(self, klass, i) :
+            interfaces->Get(i);
+    ifcount += interface->GetIfTableCount();
   }
   if (ifcount == 0) {
     // Class implements no interfaces.
@@ -3662,7 +3646,6 @@ bool ClassLinker::LinkInterfaceMethods(const Handle<mirror::Class>& klass,
       return true;
     }
   }
-  Thread* self = Thread::Current();
   StackHandleScope<2> hs(self);
   Handle<mirror::IfTable> iftable(hs.NewHandle(AllocIfTable(self, ifcount)));
   if (UNLIKELY(iftable.Get() == NULL)) {
@@ -3679,15 +3662,14 @@ bool ClassLinker::LinkInterfaceMethods(const Handle<mirror::Class>& klass,
   // Flatten the interface inheritance hierarchy.
   size_t idx = super_ifcount;
   for (size_t i = 0; i < num_interfaces; i++) {
-    ClassHelper kh(klass.Get());
     mirror::Class* interface =
-        interfaces.Get() == nullptr ? kh.GetDirectInterface(i) : interfaces->Get(i);
+        interfaces.Get() == nullptr ? mirror::Class::GetDirectInterface(self, klass, i) :
+            interfaces->Get(i);
     DCHECK(interface != NULL);
     if (!interface->IsInterface()) {
-      ClassHelper ih(interface);
       ThrowIncompatibleClassChangeError(klass.Get(), "Class %s implements non-interface class %s",
                                         PrettyDescriptor(klass.Get()).c_str(),
-                                        PrettyDescriptor(ih.GetDescriptor()).c_str());
+                                        PrettyDescriptor(interface->GetDescriptor()).c_str());
       return false;
     }
     // Check if interface is already in iftable
@@ -4013,8 +3995,7 @@ bool ClassLinker::LinkFields(const Handle<mirror::Class>& klass, bool is_static)
   }
 
   // We lie to the GC about the java.lang.ref.Reference.referent field, so it doesn't scan it.
-  if (!is_static &&
-      (strcmp("Ljava/lang/ref/Reference;", ClassHelper(klass.Get()).GetDescriptor()) == 0)) {
+  if (!is_static && "Ljava/lang/ref/Reference;" == klass->GetDescriptor()) {
     // We know there are no non-reference fields in the Reference classes, and we know
     // that 'referent' is alphabetically last, so this is easy...
     CHECK_EQ(num_reference_fields, num_fields);
@@ -4039,8 +4020,8 @@ bool ClassLinker::LinkFields(const Handle<mirror::Class>& klass, bool is_static)
       FieldHelper fh(field);
       Primitive::Type type = fh.GetTypeAsPrimitiveType();
       bool is_primitive = type != Primitive::kPrimNot;
-      if ((strcmp("Ljava/lang/ref/Reference;", ClassHelper(klass.Get()).GetDescriptor()) == 0)
-          && (strcmp("referent", fh.GetName()) == 0)) {
+      if ("Ljava/lang/ref/Reference;" == klass->GetDescriptor() &&
+          strcmp("referent", fh.GetName()) == 0) {
         is_primitive = true;  // We lied above, so we have to expect a lie here.
       }
       if (is_primitive) {
@@ -4064,7 +4045,7 @@ bool ClassLinker::LinkFields(const Handle<mirror::Class>& klass, bool is_static)
   } else {
     klass->SetNumReferenceInstanceFields(num_reference_fields);
     if (!klass->IsVariableSize()) {
-      DCHECK_GE(size, sizeof(mirror::Object)) << ClassHelper(klass.Get()).GetDescriptor();
+      DCHECK_GE(size, sizeof(mirror::Object)) << klass->GetDescriptor();
       size_t previous_size = klass->GetObjectSize();
       if (previous_size != 0) {
         // Make sure that we didn't originally have an incorrect size.
@@ -4340,14 +4321,17 @@ mirror::ArtField* ClassLinker::ResolveField(const DexFile& dex_file, uint32_t fi
     return resolved;
   }
   const DexFile::FieldId& field_id = dex_file.GetFieldId(field_idx);
-  mirror::Class* klass = ResolveType(dex_file, field_id.class_idx_, dex_cache, class_loader);
-  if (klass == NULL) {
+  Thread* const self = Thread::Current();
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Class> klass(
+      hs.NewHandle(ResolveType(dex_file, field_id.class_idx_, dex_cache, class_loader)));
+  if (klass.Get() == NULL) {
     DCHECK(Thread::Current()->IsExceptionPending());
     return NULL;
   }
 
   if (is_static) {
-    resolved = klass->FindStaticField(dex_cache.Get(), field_idx);
+    resolved = mirror::Class::FindStaticField(self, klass, dex_cache.Get(), field_idx);
   } else {
     resolved = klass->FindInstanceField(dex_cache.Get(), field_idx);
   }
@@ -4356,12 +4340,12 @@ mirror::ArtField* ClassLinker::ResolveField(const DexFile& dex_file, uint32_t fi
     const char* name = dex_file.GetFieldName(field_id);
     const char* type = dex_file.GetFieldTypeDescriptor(field_id);
     if (is_static) {
-      resolved = klass->FindStaticField(name, type);
+      resolved = mirror::Class::FindStaticField(self, klass, name, type);
     } else {
       resolved = klass->FindInstanceField(name, type);
     }
     if (resolved == NULL) {
-      ThrowNoSuchFieldError(is_static ? "static " : "instance ", klass, type, name);
+      ThrowNoSuchFieldError(is_static ? "static " : "instance ", klass.Get(), type, name);
       return NULL;
     }
   }
@@ -4379,8 +4363,11 @@ mirror::ArtField* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
     return resolved;
   }
   const DexFile::FieldId& field_id = dex_file.GetFieldId(field_idx);
-  mirror::Class* klass = ResolveType(dex_file, field_id.class_idx_, dex_cache, class_loader);
-  if (klass == NULL) {
+  Thread* self = Thread::Current();
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Class> klass(
+      hs.NewHandle(ResolveType(dex_file, field_id.class_idx_, dex_cache, class_loader)));
+  if (klass.Get() == NULL) {
     DCHECK(Thread::Current()->IsExceptionPending());
     return NULL;
   }
@@ -4388,11 +4375,11 @@ mirror::ArtField* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
   StringPiece name(dex_file.StringDataByIdx(field_id.name_idx_));
   StringPiece type(dex_file.StringDataByIdx(
       dex_file.GetTypeId(field_id.type_idx_).descriptor_idx_));
-  resolved = klass->FindField(name, type);
+  resolved = mirror::Class::FindField(self, klass, name, type);
   if (resolved != NULL) {
     dex_cache->SetResolvedField(field_idx, resolved);
   } else {
-    ThrowNoSuchFieldError("", klass, type, name);
+    ThrowNoSuchFieldError("", klass.Get(), type, name);
   }
   return resolved;
 }

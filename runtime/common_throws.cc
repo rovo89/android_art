@@ -36,8 +36,7 @@ namespace art {
 static void AddReferrerLocation(std::ostream& os, mirror::Class* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (referrer != NULL) {
-    ClassHelper kh(referrer);
-    std::string location(kh.GetLocation());
+    std::string location(referrer->GetLocation());
     if (!location.empty()) {
       os << " (declaration of '" << PrettyDescriptor(referrer)
             << "' appears in " << location << ")";
@@ -297,10 +296,9 @@ void ThrowNegativeArraySizeException(const char* msg) {
 void ThrowNoSuchFieldError(const StringPiece& scope, mirror::Class* c,
                            const StringPiece& type, const StringPiece& name)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ClassHelper kh(c);
   std::ostringstream msg;
   msg << "No " << scope << "field " << name << " of type " << type
-      << " in class " << kh.GetDescriptor() << " or its superclasses";
+      << " in class " << c->GetDescriptor() << " or its superclasses";
   ThrowException(NULL, "Ljava/lang/NoSuchFieldError;", c, msg.str().c_str());
 }
 
@@ -309,9 +307,8 @@ void ThrowNoSuchFieldError(const StringPiece& scope, mirror::Class* c,
 void ThrowNoSuchMethodError(InvokeType type, mirror::Class* c, const StringPiece& name,
                             const Signature& signature) {
   std::ostringstream msg;
-  ClassHelper kh(c);
   msg << "No " << type << " method " << name << signature
-      << " in class " << kh.GetDescriptor() << " or its super classes";
+      << " in class " << c->GetDescriptor() << " or its super classes";
   ThrowException(NULL, "Ljava/lang/NoSuchMethodError;", c, msg.str().c_str());
 }
 

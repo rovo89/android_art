@@ -117,8 +117,8 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
                                        "Ljava/lang/VirtualMachineError;",
                                        "Invoking %s with bad arg %d, type '%s' not instance of '%s'",
                                        mh.GetName(), shorty_pos,
-                                       ClassHelper(o->GetClass()).GetDescriptor(),
-                                       ClassHelper(arg_type).GetDescriptor());
+                                       o->GetClass()->GetDescriptor().c_str(),
+                                       arg_type->GetDescriptor().c_str());
               return false;
             }
           }

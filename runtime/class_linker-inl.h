@@ -49,7 +49,7 @@ inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class* e
   }
   DCHECK(!element_class->IsPrimitiveVoid());
   std::string descriptor("[");
-  descriptor += ClassHelper(element_class).GetDescriptor();
+  descriptor += element_class->GetDescriptor();
   StackHandleScope<1> hs(Thread::Current());
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(element_class->GetClassLoader()));
   mirror::Class* array_class = FindClass(self, descriptor.c_str(), class_loader);

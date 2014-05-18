@@ -109,7 +109,7 @@ static void ThrowNoSuchMethodError(ScopedObjectAccess& soa, mirror::Class* c,
   ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
   soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchMethodError;",
                                  "no %s method \"%s.%s%s\"",
-                                 kind, ClassHelper(c).GetDescriptor(), name, sig);
+                                 kind, c->GetDescriptor().c_str(), name, sig);
 }
 
 static mirror::Class* EnsureInitialized(Thread* self, mirror::Class* klass)
@@ -206,20 +206,21 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
     soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
                                    "no type \"%s\" found and so no field \"%s\" "
                                    "could be found in class \"%s\" or its superclasses", sig, name,
-                                   ClassHelper(c.Get()).GetDescriptor());
+                                   c->GetDescriptor().c_str());
     soa.Self()->GetException(nullptr)->SetCause(cause.Get());
     return nullptr;
   }
   if (is_static) {
-    field = c->FindStaticField(name, ClassHelper(field_type).GetDescriptor());
+    field = mirror::Class::FindStaticField(soa.Self(), c, name,
+                                           field_type->GetDescriptor().c_str());
   } else {
-    field = c->FindInstanceField(name, ClassHelper(field_type).GetDescriptor());
+    field = c->FindInstanceField(name, field_type->GetDescriptor().c_str());
   }
   if (field == nullptr) {
     ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
     soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
                                    "no \"%s\" field \"%s\" in class \"%s\" or its superclasses",
-                                   sig, name, ClassHelper(c.Get()).GetDescriptor());
+                                   sig, name, c->GetDescriptor().c_str());
     return nullptr;
   }
   return soa.EncodeField(field);

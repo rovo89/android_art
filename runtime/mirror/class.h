@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_MIRROR_CLASS_H_
 #define ART_RUNTIME_MIRROR_CLASS_H_
 
+#include "dex_file.h"
 #include "gc/allocator_type.h"
 #include "invoke_type.h"
 #include "modifiers.h"
@@ -274,7 +275,7 @@ class MANAGED Class : public Object {
   String* GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);  // Returns the cached name.
   void SetName(String* name) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);  // Sets the cached name.
   // Computes the name, then sets the cached value.
-  String* ComputeName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static String* ComputeName(Handle<Class> h_this) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsProxyClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -776,7 +777,8 @@ class MANAGED Class : public Object {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Find a static or instance field using the JLS resolution order
-  ArtField* FindField(const StringPiece& name, const StringPiece& type)
+  static ArtField* FindField(Thread* self, Handle<Class> klass, const StringPiece& name,
+                             const StringPiece& type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the given instance field in this class or a superclass.
@@ -795,12 +797,14 @@ class MANAGED Class : public Object {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the given static field in this class or a superclass.
-  ArtField* FindStaticField(const StringPiece& name, const StringPiece& type)
+  static ArtField* FindStaticField(Thread* self, Handle<Class> klass, const StringPiece& name,
+                                   const StringPiece& type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the given static field in this class or superclass, only searches classes that
   // have the same dex cache.
-  ArtField* FindStaticField(const DexCache* dex_cache, uint32_t dex_field_idx)
+  static ArtField* FindStaticField(Thread* self, Handle<Class> klass, const DexCache* dex_cache,
+                                   uint32_t dex_field_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ArtField* FindDeclaredStaticField(const StringPiece& name, const StringPiece& type)
@@ -856,6 +860,19 @@ class MANAGED Class : public Object {
   template <bool kVisitClass, typename Visitor>
   void VisitReferences(mirror::Class* klass, const Visitor& visitor)
       NO_THREAD_SAFETY_ANALYSIS;
+
+  std::string GetDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool DescriptorEquals(const char* match) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  std::string GetArrayDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const DexFile::ClassDef* GetClassDef() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uint32_t NumDirectInterfaces() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uint16_t GetDirectInterfaceTypeIdx(uint32_t idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static mirror::Class* GetDirectInterface(Thread* self, Handle<mirror::Class> klass, uint32_t idx)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const char* GetSourceFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  std::string GetLocation() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const DexFile::TypeList* GetInterfaceTypeList() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   void SetVerifyErrorClass(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
