@@ -21,9 +21,11 @@
 
 #include "art_field.h"
 #include "art_method.h"
+#include "class_linker-inl.h"
 #include "class_loader.h"
 #include "common_throws.h"
 #include "dex_cache.h"
+#include "dex_file.h"
 #include "gc/heap-inl.h"
 #include "iftable.h"
 #include "object_array-inl.h"
@@ -508,7 +510,7 @@ inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor)
 }
 
 template<ReadBarrierOption kReadBarrierOption>
-bool Class::IsArtFieldClass() {
+inline bool Class::IsArtFieldClass() {
   Class* java_lang_Class = GetClass<kVerifyNone, kReadBarrierOption>();
   Class* java_lang_reflect_ArtField =
       java_lang_Class->GetInstanceField(0)->GetClass<kVerifyNone, kReadBarrierOption>();
@@ -516,7 +518,7 @@ bool Class::IsArtFieldClass() {
 }
 
 template<ReadBarrierOption kReadBarrierOption>
-bool Class::IsArtMethodClass() {
+inline bool Class::IsArtMethodClass() {
   return this == ArtMethod::GetJavaLangReflectArtMethod<kReadBarrierOption>();
 }
 
@@ -525,6 +527,24 @@ inline bool Class::IsClassClass() {
   Class* java_lang_Class = GetClass<kVerifyFlags, kReadBarrierOption>()->
       template GetClass<kVerifyFlags, kReadBarrierOption>();
   return this == java_lang_Class;
+}
+
+inline const DexFile& Class::GetDexFile() {
+  return *GetDexCache()->GetDexFile();
+}
+
+inline bool Class::DescriptorEquals(const char* match) {
+  if (UNLIKELY(IsArrayClass())) {
+    return match[0] == '[' && GetComponentType()->DescriptorEquals(match + 1);
+  } else if (UNLIKELY(IsPrimitive())) {
+    return strcmp(Primitive::Descriptor(GetPrimitiveType()), match) == 0;
+  } else if (UNLIKELY(IsProxyClass())) {
+    return Runtime::Current()->GetClassLinker()->GetDescriptorForProxy(this) == match;
+  } else {
+    const DexFile& dex_file = GetDexFile();
+    const DexFile::TypeId& type_id = dex_file.GetTypeId(GetClassDef()->class_idx_);
+    return strcmp(dex_file.GetTypeDescriptor(type_id), match) == 0;
+  }
 }
 
 }  // namespace mirror

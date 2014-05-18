@@ -345,9 +345,9 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
           self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
                                    "Ljava/lang/VirtualMachineError;",
                                    "Put '%s' that is not instance of field '%s' in '%s'",
-                                   ClassHelper(reg->GetClass()).GetDescriptor(),
-                                   ClassHelper(field_class).GetDescriptor(),
-                                   ClassHelper(f->GetDeclaringClass()).GetDescriptor());
+                                   reg->GetClass()->GetDescriptor().c_str(),
+                                   field_class->GetDescriptor().c_str(),
+                                   f->GetDeclaringClass()->GetDescriptor().c_str());
           return false;
         }
       }

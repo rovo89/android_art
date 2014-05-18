@@ -49,7 +49,8 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
     value.SetJ((static_cast<uint64_t>(args[1]) << 32) | args[0]);
     result->SetD(log(value.GetD()));
   } else if (name == "java.lang.String java.lang.Class.getNameNative()") {
-    result->SetL(receiver->AsClass()->ComputeName());
+    StackHandleScope<1> hs(self);
+    result->SetL(mirror::Class::ComputeName(hs.NewHandle(receiver->AsClass())));
   } else if (name == "int java.lang.Float.floatToRawIntBits(float)") {
     result->SetI(args[0]);
   } else if (name == "float java.lang.Float.intBitsToFloat(int)") {

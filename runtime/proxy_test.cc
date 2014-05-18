@@ -107,30 +107,33 @@ class ProxyTest : public CommonCompilerTest {
 TEST_F(ProxyTest, ProxyClassHelper) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("Interfaces");
-  StackHandleScope<1> hs(soa.Self());
+  StackHandleScope<4> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
       hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
 
-  mirror::Class* I = class_linker_->FindClass(soa.Self(), "LInterfaces$I;", class_loader);
-  mirror::Class* J = class_linker_->FindClass(soa.Self(), "LInterfaces$J;", class_loader);
-  ASSERT_TRUE(I != nullptr);
-  ASSERT_TRUE(J != nullptr);
-  std::vector<mirror::Class*> interfaces;
-  interfaces.push_back(I);
-  interfaces.push_back(J);
+  Handle<mirror::Class> I(hs.NewHandle(
+      class_linker_->FindClass(soa.Self(), "LInterfaces$I;", class_loader)));
+  Handle<mirror::Class> J(hs.NewHandle(
+      class_linker_->FindClass(soa.Self(), "LInterfaces$J;", class_loader)));
+  ASSERT_TRUE(I.Get() != nullptr);
+  ASSERT_TRUE(J.Get() != nullptr);
 
-  mirror::Class* proxyClass = GenerateProxyClass(soa, jclass_loader, "$Proxy1234", interfaces);
-  ASSERT_TRUE(proxyClass != nullptr);
-  ASSERT_TRUE(proxyClass->IsProxyClass());
-  ASSERT_TRUE(proxyClass->IsInitialized());
+  std::vector<mirror::Class*> interfaces;
+  interfaces.push_back(I.Get());
+  interfaces.push_back(J.Get());
+  Handle<mirror::Class> proxy_class(hs.NewHandle(
+      GenerateProxyClass(soa, jclass_loader, "$Proxy1234", interfaces)));
+  interfaces.clear();  // Don't least possibly stale objects in the array as good practice.
+  ASSERT_TRUE(proxy_class.Get() != nullptr);
+  ASSERT_TRUE(proxy_class->IsProxyClass());
+  ASSERT_TRUE(proxy_class->IsInitialized());
 
   // Check ClassHelper for proxy.
-  ClassHelper kh(proxyClass);
-  EXPECT_EQ(kh.NumDirectInterfaces(), 2U);  // Interfaces$I and Interfaces$J.
-  EXPECT_EQ(I, kh.GetDirectInterface(0));
-  EXPECT_EQ(J, kh.GetDirectInterface(1));
-  std::string proxyClassDescriptor(kh.GetDescriptor());
-  EXPECT_EQ("L$Proxy1234;", proxyClassDescriptor);
+  EXPECT_EQ(proxy_class->NumDirectInterfaces(), 2U);  // Interfaces$I and Interfaces$J.
+  EXPECT_EQ(I.Get(), mirror::Class::GetDirectInterface(soa.Self(), proxy_class, 0));
+  EXPECT_EQ(J.Get(), mirror::Class::GetDirectInterface(soa.Self(), proxy_class, 1));
+  std::string proxy_class_descriptor(proxy_class->GetDescriptor());
+  EXPECT_STREQ("L$Proxy1234;", proxy_class_descriptor.c_str());
 }
 
 // Creates a proxy class and check FieldHelper works correctly.
