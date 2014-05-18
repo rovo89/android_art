@@ -151,17 +151,16 @@ test-art-run-test: test-art-host-run-test test-art-target-run-test
 # host test targets
 
 .PHONY: test-art-host-vixl
+VIXL_TEST_DEPENDENCY :=
+# We can only run the vixl tests on 64-bit hosts (vixl testing issue) when its a
+# top-level build (to declare the vixl test rule).
 ifneq ($(HOST_IS_64_BIT),)
-test-art-host-vixl: $(ANDROID_HOST_OUT)/bin/cctest_vixl
-	$(ANDROID_HOST_OUT)/bin/cctest_vixl --run_all
-	@echo vixl PASSED
-
-else
-# vixl test needs 64b host.
-test-art-host-vixl:
-	@echo vixl test only runnable with 64b host build.
-
+ifeq ($(ONE_SHOT_MAKEFILE),)
+VIXL_TEST_DEPENDENCY := run-vixl-tests
 endif
+endif
+
+test-art-host-vixl: $(VIXL_TEST_DEPENDENCY)
 
 # "mm test-art-host" to build and run all host tests
 .PHONY: test-art-host
