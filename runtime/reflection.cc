@@ -100,7 +100,8 @@ class ArgArray {
     AppendWide(jv.j);
   }
 
-  void BuildArgArrayFromVarArgs(const ScopedObjectAccess& soa, mirror::Object* receiver, va_list ap)
+  void BuildArgArrayFromVarArgs(const ScopedObjectAccessAlreadyRunnable& soa,
+                                mirror::Object* receiver, va_list ap)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Set receiver if non-null (method is not static)
     if (receiver != nullptr) {
@@ -135,8 +136,8 @@ class ArgArray {
     }
   }
 
-  void BuildArgArrayFromJValues(const ScopedObjectAccessUnchecked& soa, mirror::Object* receiver,
-                                jvalue* args)
+  void BuildArgArrayFromJValues(const ScopedObjectAccessAlreadyRunnable& soa,
+                                mirror::Object* receiver, jvalue* args)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Set receiver if non-null (method is not static)
     if (receiver != nullptr) {
@@ -217,7 +218,8 @@ class ArgArray {
                      PrettyDescriptor(found_descriptor.as_string()).c_str()).c_str());
   }
 
-  bool BuildArgArrayFromObjectArray(const ScopedObjectAccess& soa, mirror::Object* receiver,
+  bool BuildArgArrayFromObjectArray(const ScopedObjectAccessAlreadyRunnable& soa,
+                                    mirror::Object* receiver,
                                     mirror::ObjectArray<mirror::Object>* args, MethodHelper& mh)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile::TypeList* classes = mh.GetParameterTypeList();
@@ -396,8 +398,9 @@ static mirror::ArtMethod* FindVirtualMethod(mirror::Object* receiver,
 }
 
 
-static void InvokeWithArgArray(const ScopedObjectAccessUnchecked& soa, mirror::ArtMethod* method,
-                               ArgArray* arg_array, JValue* result, const char* shorty)
+static void InvokeWithArgArray(const ScopedObjectAccessAlreadyRunnable& soa,
+                               mirror::ArtMethod* method, ArgArray* arg_array, JValue* result,
+                               const char* shorty)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint32_t* args = arg_array->GetArray();
   if (UNLIKELY(soa.Env()->check_jni)) {
@@ -406,7 +409,8 @@ static void InvokeWithArgArray(const ScopedObjectAccessUnchecked& soa, mirror::A
   method->Invoke(soa.Self(), args, arg_array->GetNumBytes(), result, shorty);
 }
 
-JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj, jmethodID mid, va_list args)
+JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject obj, jmethodID mid,
+                         va_list args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtMethod* method = soa.DecodeMethod(mid);
   mirror::Object* receiver = method->IsStatic() ? nullptr : soa.Decode<mirror::Object*>(obj);
@@ -418,7 +422,7 @@ JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj, jmethodID m
   return result;
 }
 
-JValue InvokeWithJValues(const ScopedObjectAccessUnchecked& soa, mirror::Object* receiver,
+JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, mirror::Object* receiver,
                          jmethodID mid, jvalue* args) {
   mirror::ArtMethod* method = soa.DecodeMethod(mid);
   MethodHelper mh(method);
@@ -429,7 +433,7 @@ JValue InvokeWithJValues(const ScopedObjectAccessUnchecked& soa, mirror::Object*
   return result;
 }
 
-JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccess& soa,
+JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccessAlreadyRunnable& soa,
                                            mirror::Object* receiver, jmethodID mid, jvalue* args) {
   mirror::ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   MethodHelper mh(method);
@@ -440,7 +444,7 @@ JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccess& soa,
   return result;
 }
 
-JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccess& soa,
+JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa,
                                            jobject obj, jmethodID mid, va_list args) {
   mirror::Object* receiver = soa.Decode<mirror::Object*>(obj);
   mirror::ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
@@ -460,7 +464,7 @@ void InvokeWithShadowFrame(Thread* self, ShadowFrame* shadow_frame, uint16_t arg
                                     mh.GetShorty());
 }
 
-jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod,
+jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaMethod,
                      jobject javaReceiver, jobject javaArgs, bool accessible) {
   mirror::ArtMethod* m = mirror::ArtMethod::FromReflectedMethod(soa, javaMethod);
 

@@ -32,7 +32,7 @@ struct ConstructorMethodOffsets;
 union JValue;
 struct MethodClassOffsets;
 class MethodHelper;
-class ScopedObjectAccess;
+class ScopedObjectAccessAlreadyRunnable;
 class StringPiece;
 class ShadowFrame;
 
@@ -46,7 +46,8 @@ typedef void (EntryPointFromInterpreter)(Thread* self, MethodHelper& mh,
 // C++ mirror of java.lang.reflect.Method and java.lang.reflect.Constructor
 class MANAGED ArtMethod : public Object {
  public:
-  static ArtMethod* FromReflectedMethod(const ScopedObjectAccess& soa, jobject jlr_method)
+  static ArtMethod* FromReflectedMethod(const ScopedObjectAccessAlreadyRunnable& soa,
+                                        jobject jlr_method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Class* GetDeclaringClass() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
