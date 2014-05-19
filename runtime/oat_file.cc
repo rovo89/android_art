@@ -33,17 +33,6 @@
 
 namespace art {
 
-std::string OatFile::DexFilenameToOdexFilename(const std::string& location) {
-  CHECK_GE(location.size(), 4U) << location;  // must be at least .123
-  size_t dot_index = location.size() - 3 - 1;  // 3=dex or zip or apk
-  CHECK_EQ('.', location[dot_index]) << location;
-  std::string odex_location(location);
-  odex_location.resize(dot_index + 1);
-  CHECK_EQ('.', odex_location[odex_location.size()-1]) << location << " " << odex_location;
-  odex_location += "odex";
-  return odex_location;
-}
-
 void OatFile::CheckLocation(const std::string& location) {
   CHECK(!location.empty());
 }

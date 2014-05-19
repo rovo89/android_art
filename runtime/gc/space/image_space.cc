@@ -103,8 +103,11 @@ bool ImageSpace::FindImageFilename(const char* image_location,
                                    const InstructionSet image_isa,
                                    std::string* image_filename,
                                    bool *is_system) {
-  if (OS::FileExists(image_location)) {
-    *image_filename = image_location;
+  // image_location = /system/framework/boot.art
+  // system_image_location = /system/framework/<image_isa>/boot.art
+  std::string system_image_filename(GetSystemImageFilename(image_location, image_isa));
+  if (OS::FileExists(system_image_filename.c_str())) {
+    *image_filename = system_image_filename;
     *is_system = true;
     return true;
   }
@@ -113,6 +116,9 @@ bool ImageSpace::FindImageFilename(const char* image_location,
 
   // Always set output location even if it does not exist,
   // so that the caller knows where to create the image.
+  //
+  // image_location = /system/framework/boot.art
+  // *image_filename = /data/dalvik-cache/<image_isa>/boot.art
   *image_filename = GetDalvikCacheFilenameOrDie(image_location, dalvik_cache.c_str());
   *is_system = false;
   return OS::FileExists(image_filename->c_str());
