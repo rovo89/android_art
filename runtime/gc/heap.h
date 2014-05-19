@@ -144,7 +144,7 @@ class Heap {
                 size_t max_free, double target_utilization,
                 double foreground_heap_growth_multiplier, size_t capacity,
                 const std::string& original_image_file_name,
-                const InstructionSet image_instruction_set,
+                InstructionSet image_instruction_set,
                 CollectorType foreground_collector_type, CollectorType background_collector_type,
                 size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
                 size_t long_pause_threshold, size_t long_gc_threshold,

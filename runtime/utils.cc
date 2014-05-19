@@ -1204,7 +1204,7 @@ std::string GetDalvikCacheFilenameOrDie(const char* location, const char* cache_
   return StringPrintf("%s/%s", cache_location, cache_file.c_str());
 }
 
-static void InsertIsaDirectory(std::string* filename, const InstructionSet isa) {
+static void InsertIsaDirectory(const InstructionSet isa, std::string* filename) {
   // in = /foo/bar/baz
   // out = /foo/bar/<isa>/baz
   size_t pos = filename->rfind('/');
@@ -1217,7 +1217,7 @@ std::string GetSystemImageFilename(const char* location, const InstructionSet is
   // location = /system/framework/boot.art
   // filename = /system/framework/<isa>/boot.art
   std::string filename(location);
-  InsertIsaDirectory(&filename, isa);
+  InsertIsaDirectory(isa, &filename);
   return filename;
 }
 
@@ -1226,7 +1226,7 @@ std::string DexFilenameToOdexFilename(const std::string& location, const Instruc
   // odex_location = /foo/bar/<isa>/baz.odex
   CHECK_GE(location.size(), 4U) << location;  // must be at least .123
   std::string odex_location(location);
-  InsertIsaDirectory(&odex_location, isa);
+  InsertIsaDirectory(isa, &odex_location);
   size_t dot_index = odex_location.size() - 3 - 1;  // 3=dex or zip or apk
   CHECK_EQ('.', odex_location[dot_index]) << location;
   odex_location.resize(dot_index + 1);
