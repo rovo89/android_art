@@ -73,7 +73,7 @@ define build-art-test-dex
     LOCAL_JAVA_LIBRARIES := $(TARGET_CORE_JARS)
     LOCAL_NO_STANDARD_LIBRARIES := true
     LOCAL_MODULE_PATH := $(3)
-    LOCAL_DEX_PREOPT_IMAGE := $(TARGET_CORE_IMG_OUT)
+    LOCAL_DEX_PREOPT_IMAGE_LOCATION := $(TARGET_CORE_IMG_OUT)
     LOCAL_DEX_PREOPT := false
     LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
     LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
@@ -81,14 +81,6 @@ define build-art-test-dex
 
     ART_TEST_TARGET_DEX_FILES += $$(LOCAL_INSTALLED_MODULE)
     ART_TEST_TARGET_DEX_FILES$(ART_PHONY_TEST_TARGET_SUFFIX) += $$(LOCAL_INSTALLED_MODULE)
-
-    ifdef TARGET_2ND_ARCH
-	    ART_TEST_TARGET_DEX_FILES$(2ND_ART_PHONY_TEST_TARGET_SUFFIX) += $(4)/$(1)-$(2).jar
-
-      # TODO: make this a simple copy
-$(4)/$(1)-$(2).jar: $(3)/$(1)-$(2).jar $(4)
-	cp $$< $(4)/
-    endif
   endif
 
   ifeq ($(ART_BUILD_HOST),true)
@@ -97,7 +89,7 @@ $(4)/$(1)-$(2).jar: $(3)/$(1)-$(2).jar $(4)
     LOCAL_SRC_FILES := $(call all-java-files-under, $(2))
     LOCAL_JAVA_LIBRARIES := $(HOST_CORE_JARS)
     LOCAL_NO_STANDARD_LIBRARIES := true
-    LOCAL_DEX_PREOPT_IMAGE := $(HOST_CORE_IMG_OUT)
+    LOCAL_DEX_PREOPT_IMAGE := $(HOST_CORE_IMG_LOCATION)
     LOCAL_DEX_PREOPT := false
     LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
     LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
@@ -105,24 +97,12 @@ $(4)/$(1)-$(2).jar: $(3)/$(1)-$(2).jar $(4)
     ART_TEST_HOST_DEX_FILES += $$(LOCAL_INSTALLED_MODULE)
   endif
 endef
-$(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,art-test-dex,$(dir),$(ART_NATIVETEST_OUT),$(2ND_ART_NATIVETEST_OUT))))
-$(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-dex,oat-test-dex,$(dir),$(ART_TEST_OUT),$(2ND_ART_TEST_OUT))))
+$(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,art-test-dex,$(dir),$(ART_NATIVETEST_OUT))))
+$(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-dex,oat-test-dex,$(dir),$(ART_TEST_OUT))))
 
 # Used outside the art project to get a list of the current tests
 ART_TEST_DEX_MAKE_TARGETS := $(addprefix art-test-dex-, $(TEST_DEX_DIRECTORIES))
 ART_TEST_OAT_MAKE_TARGETS := $(addprefix oat-test-dex-, $(TEST_OAT_DIRECTORIES))
-
-# Rules to explicitly create 2nd-arch test directories, as we use a "cp" for them
-# instead of BUILD_JAVA_LIBRARY
-ifneq ($(2ND_ART_NATIVETEST_OUT),)
-$(2ND_ART_NATIVETEST_OUT):
-	$(hide) mkdir -p $@
-endif
-
-ifneq ($(2ND_ART_TEST_OUT),)
-$(2ND_ART_TEST_OUT):
-	$(hide) mkdir -p $@
-endif
 
 ########################################################################
 
@@ -133,12 +113,12 @@ ART_TEST_HOST_OAT_INTERPRETER_TARGETS :=
 
 define declare-test-art-oat-targets-impl
 .PHONY: test-art-target-oat-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX)
-test-art-target-oat-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX): $($(2)ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-target-sync
-	adb shell touch $($(2)ART_TEST_DIR)/test-art-target-oat-$(1)
-	adb shell rm $($(2)ART_TEST_DIR)/test-art-target-oat-$(1)
-	adb shell sh -c "/system/bin/dalvikvm$($(2)ART_TARGET_BINARY_SUFFIX) $(DALVIKVM_FLAGS) -XXlib:libartd.so -Ximage:$($(2)ART_TEST_DIR)/core.art -classpath $($(2)ART_TEST_DIR)/oat-test-dex-$(1).jar -Djava.library.path=$($(2)ART_TEST_DIR) $(1) && touch $($(2)ART_TEST_DIR)/test-art-target-oat-$(1)"
-	$(hide) (adb pull $($(2)ART_TEST_DIR)/test-art-target-oat-$(1) /tmp/ && echo test-art-target-oat-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX) PASSED) || (echo test-art-target-oat-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX) FAILED && exit 1)
-	$(hide) rm /tmp/test-art-target-oat-$(1)
+test-art-target-oat-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-target-sync
+	adb shell touch $(ART_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@
+	adb shell rm $(ART_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@
+	adb shell sh -c "/system/bin/dalvikvm$($(2)ART_TARGET_BINARY_SUFFIX) $(DALVIKVM_FLAGS) -XXlib:libartd.so -Ximage:$(ART_TEST_DIR)/core.art -classpath $(ART_TEST_DIR)/oat-test-dex-$(1).jar -Djava.library.path=$(ART_TEST_DIR)/$(TARGET_$(2)ARCH) $(1) && touch $(ART_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@"
+	$(hide) (adb pull $(ART_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@ /tmp/ && echo $$@ PASSED) || (echo $$@ FAILED && exit 1)
+	$(hide) rm /tmp/$$@
 endef
 
 # $(1): directory
@@ -155,7 +135,7 @@ test-art-target-oat-$(1): test-art-target-oat-$(1)$(ART_PHONY_TEST_TARGET_SUFFIX
   $(call declare-test-art-oat-targets-impl,$(1),)
 
 $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).odex: $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar $(HOST_CORE_IMG_OUT) | $(DEX2OATD)
-	$(DEX2OATD) $(DEX2OAT_FLAGS) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_OUT) --dex-file=$$(realpath $$<) --oat-file=$$(realpath $(HOST_OUT_JAVA_LIBRARIES))/oat-test-dex-$(1).odex --instruction-set=$(ART_HOST_ARCH) --host --android-root=$(HOST_OUT)
+	$(DEX2OATD) $(DEX2OAT_FLAGS) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_LOCATION) --dex-file=$$(realpath $$<) --oat-file=$$(realpath $(HOST_OUT_JAVA_LIBRARIES))/oat-test-dex-$(1).odex --instruction-set=$(ART_HOST_ARCH) --host --android-root=$(HOST_OUT)
 
 .PHONY: test-art-host-oat-default-$(1)
 test-art-host-oat-default-$(1): $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).odex test-art-host-dependencies
@@ -163,7 +143,7 @@ test-art-host-oat-default-$(1): $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).ode
 	ANDROID_DATA=/tmp/android-data/test-art-host-oat-default-$(1) \
 	  ANDROID_ROOT=$(HOST_OUT) \
 	  LD_LIBRARY_PATH=$(HOST_OUT_SHARED_LIBRARIES) \
-	  $(HOST_OUT_EXECUTABLES)/dalvikvm $(DALVIKVM_FLAGS) -XXlib:libartd.so -Ximage:$$(realpath $(HOST_CORE_IMG_OUT)) -classpath $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar -Djava.library.path=$(HOST_OUT_SHARED_LIBRARIES) $(1) $(2) \
+	  $(HOST_OUT_EXECUTABLES)/dalvikvm $(DALVIKVM_FLAGS) -XXlib:libartd.so -Ximage:$(HOST_CORE_IMG_LOCATION) -classpath $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar -Djava.library.path=$(HOST_OUT_SHARED_LIBRARIES) $(1) $(2) \
           && echo test-art-host-oat-default-$(1) PASSED || (echo test-art-host-oat-default-$(1) FAILED && exit 1)
 	$(hide) rm -r /tmp/android-data/test-art-host-oat-default-$(1)
 
@@ -173,7 +153,7 @@ test-art-host-oat-interpreter-$(1): $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1)
 	ANDROID_DATA=/tmp/android-data/test-art-host-oat-interpreter-$(1) \
 	  ANDROID_ROOT=$(HOST_OUT) \
 	  LD_LIBRARY_PATH=$(HOST_OUT_SHARED_LIBRARIES) \
-	  $(HOST_OUT_EXECUTABLES)/dalvikvm -XXlib:libartd.so -Ximage:$$(realpath $(HOST_CORE_IMG_OUT)) -Xint -classpath $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar -Djava.library.path=$(HOST_OUT_SHARED_LIBRARIES) $(1) $(2) \
+	  $(HOST_OUT_EXECUTABLES)/dalvikvm -XXlib:libartd.so -Ximage:$(HOST_CORE_IMG_LOCATION) -Xint -classpath $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar -Djava.library.path=$(HOST_OUT_SHARED_LIBRARIES) $(1) $(2) \
           && echo test-art-host-oat-interpreter-$(1) PASSED || (echo test-art-host-oat-interpreter-$(1) FAILED && exit 1)
 	$(hide) rm -r /tmp/android-data/test-art-host-oat-interpreter-$(1)
 
