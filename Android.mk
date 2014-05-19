@@ -40,20 +40,18 @@ clean-oat: clean-oat-host clean-oat-target
 
 .PHONY: clean-oat-host
 clean-oat-host:
-	rm -f $(ART_NATIVETEST_OUT)/*.odex
-	rm -f $(ART_NATIVETEST_OUT)/*.oat
-	rm -f $(ART_NATIVETEST_OUT)/*.art
-	rm -f $(ART_TEST_OUT)/*.odex
-	rm -f $(ART_TEST_OUT)/*.oat
-	rm -f $(ART_TEST_OUT)/*.art
-	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.odex
-	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.oat
-	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.art
-	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.odex
-	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.oat
-	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.art
-	rm -f $(DEXPREOPT_PRODUCT_DIR_FULL_PATH)/$(DEXPREOPT_BOOT_JAR_DIR)/*.oat
-	rm -f $(DEXPREOPT_PRODUCT_DIR_FULL_PATH)/$(DEXPREOPT_BOOT_JAR_DIR)/*.art
+	rm -rf $(ART_NATIVETEST_OUT)
+	rm -rf $(ART_TEST_OUT)
+	rm -f $(HOST_CORE_IMG_OUT)
+	rm -f $(HOST_CORE_OAT_OUT)
+	rm -f $(HOST_OUT_JAVA_LIBRARIES)/$(ART_HOST_ARCH)/*.odex
+	rm -f $(TARGET_CORE_IMG_OUT)
+	rm -f $(TARGET_CORE_OAT_OUT)
+ifdef TARGET_2ND_ARCH
+	rm -f $(2ND_TARGET_CORE_IMG_OUT)
+	rm -f $(2ND_TARGET_CORE_OAT_OUT)
+endif
+	rm -rf $(DEXPREOPT_PRODUCT_DIR_FULL_PATH)
 	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*.odex
 	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*.oat
 	rm -f $(TARGET_OUT_APPS)/*.odex
@@ -69,24 +67,19 @@ endif
 .PHONY: clean-oat-target
 clean-oat-target:
 	adb remount
-	adb shell rm -f $(ART_NATIVETEST_DIR)/*.odex
-	adb shell rm -f $(ART_NATIVETEST_DIR)/*.oat
-	adb shell rm -f $(ART_NATIVETEST_DIR)/*.art
-	adb shell rm -f $(ART_TEST_DIR)/*.odex
-	adb shell rm -f $(ART_TEST_DIR)/*.oat
-	adb shell rm -f $(ART_TEST_DIR)/*.art
+	adb shell rm -rf $(ART_NATIVETEST_DIR)
+	adb shell rm -rf $(ART_TEST_DIR)
 ifdef TARGET_2ND_ARCH
-	adb shell rm -f $(2ND_ART_NATIVETEST_DIR)/*.odex
-	adb shell rm -f $(2ND_ART_NATIVETEST_DIR)/*.oat
-	adb shell rm -f $(2ND_ART_NATIVETEST_DIR)/*.art
-	adb shell rm -f $(2ND_ART_TEST_DIR)/*.odex
-	adb shell rm -f $(2ND_ART_TEST_DIR)/*.oat
-	adb shell rm -f $(2ND_ART_TEST_DIR)/*.art
+	adb shell rm -rf $(2ND_ART_NATIVETEST_DIR)
+	adb shell rm -rf $(2ND_ART_TEST_DIR)
 endif
 	adb shell rm -rf $(ART_DALVIK_CACHE_DIR)/*
-	adb shell rm -f $(DEXPREOPT_BOOT_JAR_DIR)/*.oat
-	adb shell rm -f $(DEXPREOPT_BOOT_JAR_DIR)/*.art
-	adb shell rm -f system/app/*.odex
+	adb shell rm -rf $(DEXPREOPT_BOOT_JAR_DIR)/$(DEX2OAT_TARGET_ARCH)
+	adb shell rm -rf system/app/$(DEX2OAT_TARGET_ARCH)
+ifdef TARGET_2ND_ARCH
+	adb shell rm -rf $(DEXPREOPT_BOOT_JAR_DIR)/$($(TARGET_2ND_ARCH_VAR_PREFIX)DEX2OAT_TARGET_ARCH)
+	adb shell rm -rf system/app/$($(TARGET_2ND_ARCH_VAR_PREFIX)DEX2OAT_TARGET_ARCH)
+endif
 	adb shell rm -rf data/run-test/test-*/dalvik-cache/*
 
 ifneq ($(art_dont_bother),true)
