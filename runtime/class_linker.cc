@@ -557,7 +557,7 @@ bool ClassLinker::GenerateOatFile(const char* dex_filename,
 
   gc::Heap* heap = Runtime::Current()->GetHeap();
   std::string boot_image_option("--boot-image=");
-  boot_image_option += heap->GetImageSpace()->GetImageFilename();
+  boot_image_option += heap->GetImageSpace()->GetImageLocation();
 
   std::string dex_file_option("--dex-file=");
   dex_file_option += dex_filename;
@@ -915,6 +915,7 @@ const DexFile* ClassLinker::VerifyAndOpenDexFileFromOatFile(const std::string& o
 
 const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const char* dex_location,
                                                                 const uint32_t* const dex_location_checksum,
+                                                                InstructionSet isa,
                                                                 std::vector<std::string>* error_msgs) {
   const OatFile* open_oat_file = FindOpenedOatFileFromDexLocation(dex_location,
                                                                   dex_location_checksum);
@@ -930,8 +931,8 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const char* dex_
   }
 
   // Look for an existing file next to dex. for example, for
-  // /foo/bar/baz.jar, look for /foo/bar/baz.odex.
-  std::string odex_filename(OatFile::DexFilenameToOdexFilename(dex_location));
+  // /foo/bar/baz.jar, look for /foo/bar/<isa>/baz.odex.
+  std::string odex_filename(DexFilenameToOdexFilename(dex_location, isa));
   bool open_failed;
   std::string error_msg;
   const DexFile* dex_file = VerifyAndOpenDexFileFromOatFile(odex_filename, dex_location,

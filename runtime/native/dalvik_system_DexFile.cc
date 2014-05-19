@@ -115,7 +115,9 @@ static jlong DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNa
   if (outputName.c_str() == nullptr) {
     // FindOrCreateOatFileForDexLocation can tolerate a missing dex_location_checksum
     dex_file = linker->FindDexFileInOatFileFromDexLocation(sourceName.c_str(),
-                                                           dex_location_checksum_pointer, &error_msgs);
+                                                           dex_location_checksum_pointer,
+                                                           kRuntimeISA,
+                                                           &error_msgs);
   } else {
     // FindOrCreateOatFileForDexLocation requires the dex_location_checksum
     if (dex_location_checksum_pointer == NULL) {
@@ -387,7 +389,7 @@ static jboolean IsDexOptNeededInternal(JNIEnv* env, const char* filename,
   const InstructionSet target_instruction_set = GetInstructionSetFromString(instruction_set);
 
   // Check if we have an odex file next to the dex file.
-  std::string odex_filename(OatFile::DexFilenameToOdexFilename(filename));
+  std::string odex_filename(DexFilenameToOdexFilename(filename, kRuntimeISA));
   std::string error_msg;
   UniquePtr<const OatFile> oat_file(OatFile::Open(odex_filename, odex_filename, NULL, false,
                                                   &error_msg));

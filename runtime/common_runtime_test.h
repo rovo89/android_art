@@ -75,9 +75,14 @@ class ScratchFile {
     file_.reset(new File(fd, GetFilename()));
   }
 
+  explicit ScratchFile(File* file) {
+    CHECK(file != NULL);
+    filename_ = file->GetPath();
+    file_.reset(file);
+  }
+
   ~ScratchFile() {
-    int unlink_result = unlink(filename_.c_str());
-    CHECK_EQ(0, unlink_result);
+    Unlink();
   }
 
   const std::string& GetFilename() const {
@@ -90,6 +95,14 @@ class ScratchFile {
 
   int GetFd() const {
     return file_->Fd();
+  }
+
+  void Unlink() {
+    if (!OS::FileExists(filename_.c_str())) {
+      return;
+    }
+    int unlink_result = unlink(filename_.c_str());
+    CHECK_EQ(0, unlink_result);
   }
 
  private:
@@ -258,11 +271,7 @@ class CommonRuntimeTest : public testing::Test {
       filename += getenv("ANDROID_HOST_OUT");
       filename += "/framework/";
     } else {
-#ifdef __LP64__
-      filename += "/data/nativetest/art64/";
-#else
       filename += "/data/nativetest/art/";
-#endif
     }
     filename += "art-test-dex-";
     filename += name;

@@ -190,7 +190,7 @@ elif [ "$runtime" = "art" ]; then
         fi
         run_args="${run_args} --boot -Ximage:${ANDROID_HOST_OUT}/framework/core.art"
     else
-        run_args="${run_args} --boot -Ximage:/data/art-test${suffix64}/core.art"
+        run_args="${run_args} --boot -Ximage:/data/art-test/core.art"
     fi
 fi
 

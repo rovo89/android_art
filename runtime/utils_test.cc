@@ -351,6 +351,16 @@ TEST_F(UtilsTest, GetDalvikCacheFilenameOrDie) {
                GetDalvikCacheFilenameOrDie("/system/framework/boot.art", "/foo").c_str());
 }
 
+TEST_F(UtilsTest, GetSystemImageFilename) {
+  EXPECT_STREQ("/system/framework/arm/boot.art",
+               GetSystemImageFilename("/system/framework/boot.art", kArm).c_str());
+}
+
+TEST_F(UtilsTest, DexFilenameToOdexFilename) {
+  EXPECT_STREQ("/foo/bar/arm/baz.odex",
+               DexFilenameToOdexFilename("/foo/bar/baz.jar", kArm).c_str());
+}
+
 TEST_F(UtilsTest, ExecSuccess) {
   std::vector<std::string> command;
   if (kIsTargetBuild) {
