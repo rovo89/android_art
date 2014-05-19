@@ -754,7 +754,7 @@ void ThreadList::Register(Thread* self) {
   if (VLOG_IS_ON(threads)) {
     std::ostringstream oss;
     self->ShortDump(oss);  // We don't hold the mutator_lock_ yet and so cannot call Dump.
-    LOG(INFO) << "ThreadList::Register() " << *self  << "\n" << oss;
+    LOG(INFO) << "ThreadList::Register() " << *self  << "\n" << oss.str();
   }
 
   // Atomically add self to the thread list and make its thread_suspend_count_ reflect ongoing
