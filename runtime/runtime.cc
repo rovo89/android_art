@@ -395,7 +395,10 @@ bool Runtime::Start() {
 
   system_class_loader_ = CreateSystemClassLoader();
 
-  self->GetJniEnv()->locals.AssertEmpty();
+  {
+    ScopedObjectAccess soa(self);
+    self->GetJniEnv()->locals.AssertEmpty();
+  }
 
   VLOG(startup) << "Runtime::Start exiting";
 

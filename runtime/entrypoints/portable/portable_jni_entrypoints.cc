@@ -37,7 +37,8 @@ extern "C" uint32_t art_portable_jni_method_start_synchronized(jobject to_lock, 
   return art_portable_jni_method_start(self);
 }
 
-static void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* self) {
+static void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* self)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   JNIEnvExt* env = self->GetJniEnv();
   env->locals.SetSegmentState(env->local_ref_cookie);
   env->local_ref_cookie = saved_local_ref_cookie;
