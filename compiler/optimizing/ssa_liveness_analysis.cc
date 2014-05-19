@@ -22,7 +22,7 @@ namespace art {
 void SsaLivenessAnalysis::Analyze() {
   LinearizeGraph();
   NumberInstructions();
-  ComputeSets();
+  ComputeLiveness();
 }
 
 static bool IsLoopExit(HLoopInformation* current, HLoopInformation* to) {
@@ -96,6 +96,22 @@ class HLinearOrderIterator : public ValueObject {
   DISALLOW_COPY_AND_ASSIGN(HLinearOrderIterator);
 };
 
+class HLinearPostOrderIterator : public ValueObject {
+ public:
+  explicit HLinearPostOrderIterator(const GrowableArray<HBasicBlock*>& post_order)
+      : post_order_(post_order), index_(0) {}
+
+  bool Done() const { return index_ == post_order_.Size(); }
+  HBasicBlock* Current() const { return post_order_.Get(index_); }
+  void Advance() { ++index_; }
+
+ private:
+  const GrowableArray<HBasicBlock*>& post_order_;
+  size_t index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HLinearPostOrderIterator);
+};
+
 void SsaLivenessAnalysis::LinearizeGraph() {
   // For simplicity of the implementation, we create post linear order. The order for
   // computing live ranges is the reverse of that order.
@@ -105,27 +121,41 @@ void SsaLivenessAnalysis::LinearizeGraph() {
 
 void SsaLivenessAnalysis::NumberInstructions() {
   int ssa_index = 0;
+  size_t lifetime_position = 0;
+  // Each instruction gets an individual lifetime position, and a block gets a lifetime
+  // start and end position. Non-phi instructions have a distinct lifetime position than
+  // the block they are in. Phi instructions have the lifetime start of their block as
+  // lifetime position
   for (HLinearOrderIterator it(linear_post_order_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
+    block->SetLifetimeStart(++lifetime_position);
 
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       if (current->HasUses()) {
+        instructions_from_ssa_index_.Add(current);
         current->SetSsaIndex(ssa_index++);
+        current->SetLiveInterval(new (graph_.GetArena()) LiveInterval(graph_.GetArena()));
       }
+      current->SetLifetimePosition(lifetime_position);
     }
 
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       if (current->HasUses()) {
+        instructions_from_ssa_index_.Add(current);
         current->SetSsaIndex(ssa_index++);
+        current->SetLiveInterval(new (graph_.GetArena()) LiveInterval(graph_.GetArena()));
       }
+      current->SetLifetimePosition(++lifetime_position);
     }
+
+    block->SetLifetimeEnd(++lifetime_position);
   }
   number_of_ssa_values_ = ssa_index;
 }
 
-void SsaLivenessAnalysis::ComputeSets() {
+void SsaLivenessAnalysis::ComputeLiveness() {
   for (HLinearOrderIterator it(linear_post_order_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     block_infos_.Put(
@@ -133,9 +163,10 @@ void SsaLivenessAnalysis::ComputeSets() {
         new (graph_.GetArena()) BlockInfo(graph_.GetArena(), *block, number_of_ssa_values_));
   }
 
-  // Compute the initial live_in, live_out, and kill sets. This method does not handle
-  // backward branches, therefore live_in and live_out sets are not yet correct.
-  ComputeInitialSets();
+  // Compute the live ranges, as well as the initial live_in, live_out, and kill sets.
+  // This method does not handle backward branches for the sets, therefore live_in
+  // and live_out sets are not yet correct.
+  ComputeLiveRanges();
 
   // Do a fixed point calculation to take into account backward branches,
   // that will update live_in of loop headers, and therefore live_out and live_in
@@ -143,26 +174,71 @@ void SsaLivenessAnalysis::ComputeSets() {
   ComputeLiveInAndLiveOutSets();
 }
 
-void SsaLivenessAnalysis::ComputeInitialSets() {
-  // Do a post orderr visit, adding inputs of instructions live in the block where
+class InstructionBitVectorIterator : public ValueObject {
+ public:
+  InstructionBitVectorIterator(const BitVector& vector,
+                               const GrowableArray<HInstruction*>& instructions)
+        : instructions_(instructions),
+          iterator_(BitVector::Iterator(&vector)),
+          current_bit_index_(iterator_.Next()) {}
+
+  bool Done() const { return current_bit_index_ == -1; }
+  HInstruction* Current() const { return instructions_.Get(current_bit_index_); }
+  void Advance() {
+    current_bit_index_ = iterator_.Next();
+  }
+
+ private:
+  const GrowableArray<HInstruction*> instructions_;
+  BitVector::Iterator iterator_;
+  int32_t current_bit_index_;
+
+  DISALLOW_COPY_AND_ASSIGN(InstructionBitVectorIterator);
+};
+
+void SsaLivenessAnalysis::ComputeLiveRanges() {
+  // Do a post order visit, adding inputs of instructions live in the block where
   // that instruction is defined, and killing instructions that are being visited.
-  for (HPostOrderIterator it(graph_); !it.Done(); it.Advance()) {
+  for (HLinearPostOrderIterator it(linear_post_order_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
 
     BitVector* kill = GetKillSet(*block);
     BitVector* live_in = GetLiveInSet(*block);
 
+    // Set phi inputs of successors of this block corresponding to this block
+    // as live_in.
+    for (size_t i = 0, e = block->GetSuccessors().Size(); i < e; ++i) {
+      HBasicBlock* successor = block->GetSuccessors().Get(i);
+      live_in->Union(GetLiveInSet(*successor));
+      size_t phi_input_index = successor->GetPredecessorIndexOf(block);
+      for (HInstructionIterator it(successor->GetPhis()); !it.Done(); it.Advance()) {
+        HInstruction* input = it.Current()->InputAt(phi_input_index);
+        live_in->SetBit(input->GetSsaIndex());
+      }
+    }
+
+    // Add a range that covers this block to all instructions live_in because of successors.
+    for (InstructionBitVectorIterator it(*live_in, instructions_from_ssa_index_);
+         !it.Done();
+         it.Advance()) {
+      it.Current()->GetLiveInterval()->AddRange(block->GetLifetimeStart(), block->GetLifetimeEnd());
+    }
+
     for (HBackwardInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       if (current->HasSsaIndex()) {
+        // Kill the instruction and shorten its interval.
         kill->SetBit(current->GetSsaIndex());
         live_in->ClearBit(current->GetSsaIndex());
+        current->GetLiveInterval()->SetFrom(current->GetLifetimePosition());
       }
 
       // All inputs of an instruction must be live.
       for (size_t i = 0, e = current->InputCount(); i < e; ++i) {
-        DCHECK(current->InputAt(i)->HasSsaIndex());
-        live_in->SetBit(current->InputAt(i)->GetSsaIndex());
+        HInstruction* input = current->InputAt(i);
+        DCHECK(input->HasSsaIndex());
+        live_in->SetBit(input->GetSsaIndex());
+        input->GetLiveInterval()->AddUse(current);
       }
 
       if (current->HasEnvironment()) {
@@ -173,32 +249,30 @@ void SsaLivenessAnalysis::ComputeInitialSets() {
           if (instruction != nullptr) {
             DCHECK(instruction->HasSsaIndex());
             live_in->SetBit(instruction->GetSsaIndex());
+            instruction->GetLiveInterval()->AddUse(current);
           }
         }
       }
     }
 
+    // Kill phis defined in this block.
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       if (current->HasSsaIndex()) {
         kill->SetBit(current->GetSsaIndex());
         live_in->ClearBit(current->GetSsaIndex());
       }
+    }
 
-      // Mark a phi input live_in for its corresponding predecessor.
-      for (size_t i = 0, e = current->InputCount(); i < e; ++i) {
-        HInstruction* input = current->InputAt(i);
-
-        HBasicBlock* predecessor = block->GetPredecessors().Get(i);
-        size_t ssa_index = input->GetSsaIndex();
-        BitVector* predecessor_kill = GetKillSet(*predecessor);
-        BitVector* predecessor_live_in = GetLiveInSet(*predecessor);
-
-        // Phi inputs from a back edge have already been visited. If the back edge
-        // block defines that input, we should not add it to its live_in.
-        if (!predecessor_kill->IsBitSet(ssa_index)) {
-          predecessor_live_in->SetBit(ssa_index);
-        }
+    if (block->IsLoopHeader()) {
+      HBasicBlock* back_edge = block->GetLoopInformation()->GetBackEdges().Get(0);
+      // For all live_in instructions at the loop header, we need to create a range
+      // that covers the full loop.
+      for (InstructionBitVectorIterator it(*live_in, instructions_from_ssa_index_);
+           !it.Done();
+           it.Advance()) {
+        it.Current()->GetLiveInterval()->AddLoopRange(block->GetLifetimeStart(),
+                                                      back_edge->GetLifetimeEnd());
       }
     }
   }
