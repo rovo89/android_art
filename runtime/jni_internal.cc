@@ -19,6 +19,7 @@
 #include <dlfcn.h>
 
 #include <cstdarg>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -49,7 +50,6 @@
 #include "ScopedLocalRef.h"
 #include "thread.h"
 #include "utf.h"
-#include "UniquePtrCompat.h"
 #include "well_known_classes.h"
 
 namespace art {

@@ -16,6 +16,7 @@
 
 #include "image.h"
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -27,7 +28,6 @@
 #include "lock_word.h"
 #include "mirror/object-inl.h"
 #include "signal_catcher.h"
-#include "UniquePtrCompat.h"
 #include "utils.h"
 #include "vector_output_stream.h"
 
@@ -88,7 +88,7 @@ TEST_F(ImageTest, WriteRead) {
     }
   }
   // Workound bug that mcld::Linker::emit closes oat_file by reopening as dup_oat.
-  UniquePtr<File> dup_oat(OS::OpenFileReadWrite(oat_file.GetFilename().c_str()));
+  std::unique_ptr<File> dup_oat(OS::OpenFileReadWrite(oat_file.GetFilename().c_str()));
   ASSERT_TRUE(dup_oat.get() != NULL);
 
   const uintptr_t requested_image_base = ART_BASE_ADDRESS;
@@ -102,7 +102,7 @@ TEST_F(ImageTest, WriteRead) {
   }
 
   {
-    UniquePtr<File> file(OS::OpenFileForReading(image_file.GetFilename().c_str()));
+    std::unique_ptr<File> file(OS::OpenFileForReading(image_file.GetFilename().c_str()));
     ASSERT_TRUE(file.get() != NULL);
     ImageHeader image_header;
     file->ReadFully(&image_header, sizeof(image_header));
@@ -130,7 +130,7 @@ TEST_F(ImageTest, WriteRead) {
   java_lang_dex_file_ = NULL;
 
   std::string error_msg;
-  UniquePtr<const DexFile> dex(DexFile::Open(GetLibCoreDexFileName().c_str(),
+  std::unique_ptr<const DexFile> dex(DexFile::Open(GetLibCoreDexFileName().c_str(),
                                              GetLibCoreDexFileName().c_str(),
                                              &error_msg));
   ASSERT_TRUE(dex.get() != nullptr) << error_msg;

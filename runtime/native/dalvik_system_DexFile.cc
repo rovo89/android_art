@@ -391,7 +391,7 @@ static jboolean IsDexOptNeededInternal(JNIEnv* env, const char* filename,
   // Check if we have an odex file next to the dex file.
   std::string odex_filename(DexFilenameToOdexFilename(filename, kRuntimeISA));
   std::string error_msg;
-  UniquePtr<const OatFile> oat_file(OatFile::Open(odex_filename, odex_filename, NULL, false,
+  std::unique_ptr<const OatFile> oat_file(OatFile::Open(odex_filename, odex_filename, NULL, false,
                                                   &error_msg));
   if (oat_file.get() == nullptr) {
     if (kVerboseLogging) {

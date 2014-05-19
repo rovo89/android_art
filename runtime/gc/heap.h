@@ -733,7 +733,7 @@ class Heap {
   space::LargeObjectSpace* large_object_space_;
 
   // The card table, dirtied by the write barrier.
-  UniquePtr<accounting::CardTable> card_table_;
+  std::unique_ptr<accounting::CardTable> card_table_;
 
   // A mod-union table remembers all of the references from the it's space to other spaces.
   SafeMap<space::Space*, accounting::ModUnionTable*> mod_union_tables_;
@@ -788,7 +788,7 @@ class Heap {
   // Guards access to the state of GC, associated conditional variable is used to signal when a GC
   // completes.
   Mutex* gc_complete_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  UniquePtr<ConditionVariable> gc_complete_cond_ GUARDED_BY(gc_complete_lock_);
+  std::unique_ptr<ConditionVariable> gc_complete_cond_ GUARDED_BY(gc_complete_lock_);
 
   // Reference processor;
   ReferenceProcessor reference_processor_;
@@ -880,7 +880,7 @@ class Heap {
   };
 
   // Parallel GC data structures.
-  UniquePtr<ThreadPool> thread_pool_;
+  std::unique_ptr<ThreadPool> thread_pool_;
 
   // The nanosecond time at which the last GC ended.
   uint64_t last_gc_time_ns_;
@@ -893,19 +893,19 @@ class Heap {
   uint64_t allocation_rate_;
 
   // For a GC cycle, a bitmap that is set corresponding to the
-  UniquePtr<accounting::HeapBitmap> live_bitmap_ GUARDED_BY(Locks::heap_bitmap_lock_);
-  UniquePtr<accounting::HeapBitmap> mark_bitmap_ GUARDED_BY(Locks::heap_bitmap_lock_);
+  std::unique_ptr<accounting::HeapBitmap> live_bitmap_ GUARDED_BY(Locks::heap_bitmap_lock_);
+  std::unique_ptr<accounting::HeapBitmap> mark_bitmap_ GUARDED_BY(Locks::heap_bitmap_lock_);
 
   // Mark stack that we reuse to avoid re-allocating the mark stack.
-  UniquePtr<accounting::ObjectStack> mark_stack_;
+  std::unique_ptr<accounting::ObjectStack> mark_stack_;
 
   // Allocation stack, new allocations go here so that we can do sticky mark bits. This enables us
   // to use the live bitmap as the old mark bitmap.
   const size_t max_allocation_stack_size_;
-  UniquePtr<accounting::ObjectStack> allocation_stack_;
+  std::unique_ptr<accounting::ObjectStack> allocation_stack_;
 
   // Second allocation stack so that we can process allocation with the heap unlocked.
-  UniquePtr<accounting::ObjectStack> live_stack_;
+  std::unique_ptr<accounting::ObjectStack> live_stack_;
 
   // Allocator type.
   AllocatorType current_allocator_;

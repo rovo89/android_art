@@ -17,8 +17,9 @@
 #ifndef ART_COMPILER_DEX_LOCAL_VALUE_NUMBERING_H_
 #define ART_COMPILER_DEX_LOCAL_VALUE_NUMBERING_H_
 
+#include <memory>
+
 #include "compiler_internals.h"
-#include "UniquePtrCompat.h"
 #include "utils/scoped_arena_allocator.h"
 #include "utils/scoped_arena_containers.h"
 
@@ -89,7 +90,7 @@ class LocalValueNumbering {
 
  public:
   static LocalValueNumbering* Create(CompilationUnit* cu) {
-    UniquePtr<ScopedArenaAllocator> allocator(ScopedArenaAllocator::Create(&cu->arena_stack));
+    std::unique_ptr<ScopedArenaAllocator> allocator(ScopedArenaAllocator::Create(&cu->arena_stack));
     void* addr = allocator->Alloc(sizeof(LocalValueNumbering), kArenaAllocMisc);
     return new(addr) LocalValueNumbering(cu, allocator.release());
   }
@@ -195,7 +196,7 @@ class LocalValueNumbering {
   void HandlePutObject(MIR* mir);
 
   CompilationUnit* const cu_;
-  UniquePtr<ScopedArenaAllocator> allocator_;
+  std::unique_ptr<ScopedArenaAllocator> allocator_;
   SregValueMap sreg_value_map_;
   SregValueMap sreg_wide_value_map_;
   ValueMap value_map_;

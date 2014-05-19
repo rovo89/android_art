@@ -51,7 +51,7 @@ SpaceBitmap<kAlignment>* SpaceBitmap<kAlignment>::Create(
   // Round up since heap_capacity is not necessarily a multiple of kAlignment * kBitsPerWord.
   const size_t bitmap_size = ComputeBitmapSize(heap_capacity);
   std::string error_msg;
-  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(name.c_str(), nullptr, bitmap_size,
+  std::unique_ptr<MemMap> mem_map(MemMap::MapAnonymous(name.c_str(), nullptr, bitmap_size,
                                                  PROT_READ | PROT_WRITE, false, &error_msg));
   if (UNLIKELY(mem_map.get() == nullptr)) {
     LOG(ERROR) << "Failed to allocate bitmap " << name << ": " << error_msg;
@@ -226,7 +226,7 @@ void SpaceBitmap<kAlignment>::WalkFieldsInOrder(SpaceBitmap<kAlignment>* visited
 
 template<size_t kAlignment>
 void SpaceBitmap<kAlignment>::InOrderWalk(ObjectCallback* callback, void* arg) {
-  UniquePtr<SpaceBitmap<kAlignment>> visited(
+  std::unique_ptr<SpaceBitmap<kAlignment>> visited(
       Create("bitmap for in-order walk", reinterpret_cast<byte*>(heap_begin_),
              IndexToOffset(bitmap_size_ / kWordSize)));
   CHECK(bitmap_begin_ != nullptr);

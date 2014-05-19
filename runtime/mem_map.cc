@@ -18,8 +18,8 @@
 
 #include <inttypes.h>
 #include <backtrace/BacktraceMap.h>
+#include <memory>
 
-#include "UniquePtrCompat.h"
 #include "base/stringprintf.h"
 #include "ScopedFd.h"
 #include "utils.h"
@@ -76,7 +76,7 @@ static bool CheckMapRequest(byte* expected_ptr, void* actual_ptr, size_t byte_co
   uintptr_t expected = reinterpret_cast<uintptr_t>(expected_ptr);
   uintptr_t limit = expected + byte_count;
 
-  UniquePtr<BacktraceMap> map(BacktraceMap::Create(getpid()));
+  std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(getpid()));
   if (!map->Build()) {
     *error_msg << StringPrintf("Failed to build process map to determine why mmap returned "
                                "0x%08" PRIxPTR " instead of 0x%08" PRIxPTR, actual, expected);

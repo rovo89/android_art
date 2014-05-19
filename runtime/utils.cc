@@ -22,10 +22,9 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-
 #include <unistd.h>
+#include <memory>
 
-#include "UniquePtrCompat.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "dex_file-inl.h"
@@ -105,7 +104,7 @@ void GetThreadStack(pthread_t thread, void** stack_base, size_t* stack_size) {
 }
 
 bool ReadFileToString(const std::string& file_name, std::string* result) {
-  UniquePtr<File> file(new File);
+  std::unique_ptr<File> file(new File);
   if (!file->Open(file_name, O_RDONLY)) {
     return false;
   }
@@ -1045,7 +1044,7 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
   if (current_method != nullptr) {
     Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
   }
-  UniquePtr<Backtrace> backtrace(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, tid));
+  std::unique_ptr<Backtrace> backtrace(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, tid));
   if (!backtrace->Unwind(0)) {
     os << prefix << "(backtrace::Unwind failed for thread " << tid << ")\n";
     return;

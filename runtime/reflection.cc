@@ -342,7 +342,7 @@ class ArgArray {
   uint32_t num_bytes_;
   uint32_t* arg_array_;
   uint32_t small_arg_array_[kSmallArgArraySize];
-  UniquePtr<uint32_t[]> large_arg_array_;
+  std::unique_ptr<uint32_t[]> large_arg_array_;
 };
 
 static void CheckMethodArguments(mirror::ArtMethod* m, uint32_t* args)

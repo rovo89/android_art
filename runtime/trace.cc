@@ -119,7 +119,7 @@ ProfilerClockSource Trace::default_clock_source_ = kDefaultProfilerClockSource;
 
 Trace* volatile Trace::the_trace_ = NULL;
 pthread_t Trace::sampling_pthread_ = 0U;
-UniquePtr<std::vector<mirror::ArtMethod*> > Trace::temp_stack_trace_;
+std::unique_ptr<std::vector<mirror::ArtMethod*>> Trace::temp_stack_trace_;
 
 static mirror::ArtMethod* DecodeTraceMethodId(uint32_t tmid) {
   return reinterpret_cast<mirror::ArtMethod*>(tmid & ~kTraceMethodActionMask);
@@ -339,7 +339,7 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
   runtime->GetThreadList()->SuspendAll();
 
   // Open trace file if not going directly to ddms.
-  UniquePtr<File> trace_file;
+  std::unique_ptr<File> trace_file;
   if (!direct_to_ddms) {
     if (trace_fd < 0) {
       trace_file.reset(OS::CreateEmptyFile(trace_filename));

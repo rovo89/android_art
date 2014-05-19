@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include <cstddef>
+#include <memory>
 #include <set>
 #include <string>
 
@@ -30,7 +31,6 @@
 #include "os.h"
 #include "safe_map.h"
 #include "gc/space/space.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 
@@ -161,7 +161,7 @@ class ImageWriter {
   OatFile* oat_file_;
 
   // Memory mapped for generating the image.
-  UniquePtr<MemMap> image_;
+  std::unique_ptr<MemMap> image_;
 
   // Offset to the free space in image_.
   size_t image_end_;
@@ -170,13 +170,13 @@ class ImageWriter {
   byte* image_begin_;
 
   // Saved hashes (objects are inside of the image so that they don't move).
-  std::vector<std::pair<mirror::Object*, uint32_t> > saved_hashes_;
+  std::vector<std::pair<mirror::Object*, uint32_t>> saved_hashes_;
 
   // Beginning target oat address for the pointers from the output image to its oat file.
   const byte* oat_data_begin_;
 
   // Image bitmap which lets us know where the objects inside of the image reside.
-  UniquePtr<gc::accounting::ContinuousSpaceBitmap> image_bitmap_;
+  std::unique_ptr<gc::accounting::ContinuousSpaceBitmap> image_bitmap_;
 
   // Offset from oat_data_begin_ to the stubs.
   uint32_t interpreter_to_interpreter_bridge_offset_;

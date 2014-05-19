@@ -688,7 +688,7 @@ class CompilerDriver {
   VerificationResults* const verification_results_;
   DexFileToMethodInlinerMap* const method_inliner_map_;
 
-  UniquePtr<Compiler> compiler_;
+  std::unique_ptr<Compiler> compiler_;
 
   const InstructionSet instruction_set_;
   const InstructionSetFeatures instruction_set_features_;
@@ -712,13 +712,13 @@ class CompilerDriver {
   // If image_ is true, specifies the classes that will be included in
   // the image. Note if image_classes_ is NULL, all classes are
   // included in the image.
-  UniquePtr<DescriptorSet> image_classes_;
+  std::unique_ptr<DescriptorSet> image_classes_;
 
   size_t thread_count_;
   uint64_t start_ns_;
 
   class AOTCompilationStats;
-  UniquePtr<AOTCompilationStats> stats_;
+  std::unique_ptr<AOTCompilationStats> stats_;
 
   bool dump_stats_;
   const bool dump_passes_;
@@ -755,7 +755,7 @@ class CompilerDriver {
   bool support_boot_image_fixup_;
 
   // Call Frame Information, which might be generated to help stack tracebacks.
-  UniquePtr<std::vector<uint8_t> > cfi_info_;
+  std::unique_ptr<std::vector<uint8_t>> cfi_info_;
 
   // DeDuplication data structures, these own the corresponding byte arrays.
   class DedupeHashFunc {

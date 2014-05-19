@@ -932,7 +932,7 @@ static bool ShouldShowNativeStack(const Thread* thread)
 }
 
 void Thread::DumpJavaStack(std::ostream& os) const {
-  UniquePtr<Context> context(Context::Create());
+  std::unique_ptr<Context> context(Context::Create());
   StackDumpVisitor dumper(os, const_cast<Thread*>(this), context.get(),
                           !tls32_.throwing_OutOfMemoryError);
   dumper.WalkStack();
@@ -2144,7 +2144,7 @@ static void VerifyRoot(mirror::Object** root, void* /*arg*/, uint32_t /*thread_i
 }
 
 void Thread::VerifyStackImpl() {
-  UniquePtr<Context> context(Context::Create());
+  std::unique_ptr<Context> context(Context::Create());
   RootCallbackVisitor visitorToCallback(VerifyRoot, Runtime::Current()->GetHeap(), GetThreadId());
   ReferenceMapVisitor<RootCallbackVisitor> mapper(this, context.get(), visitorToCallback);
   mapper.WalkStack();

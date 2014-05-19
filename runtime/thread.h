@@ -21,6 +21,7 @@
 #include <deque>
 #include <iosfwd>
 #include <list>
+#include <memory>
 #include <string>
 
 #include "base/macros.h"
@@ -39,7 +40,6 @@
 #include "stack.h"
 #include "thread_state.h"
 #include "throw_location.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 

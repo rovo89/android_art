@@ -17,17 +17,16 @@
 #ifndef ART_COMPILER_LLVM_COMPILER_LLVM_H_
 #define ART_COMPILER_LLVM_COMPILER_LLVM_H_
 
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "base/macros.h"
 #include "dex_file.h"
 #include "driver/compiler_driver.h"
 #include "instruction_set.h"
 #include "mirror/object.h"
-
-#include <UniquePtr.h>
-
-#include <string>
-#include <utility>
-#include <vector>
 
 namespace art {
   class CompiledMethod;

@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
+#include <memory>
+#include <sstream>
+
 #include "gtest/gtest.h"
 #include "histogram-inl.h"
-#include "UniquePtrCompat.h"
-
-#include <sstream>
 
 namespace art {
 
@@ -34,7 +34,7 @@ namespace art {
 //   PerValue = hist->PercentileVal(0.50); finds the 50th percentile(median).
 
 TEST(Histtest, MeanTest) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("MeanTest", 5));
+  std::unique_ptr<Histogram<uint64_t>> hist(new Histogram<uint64_t>("MeanTest", 5));
 
   double mean;
   for (size_t Idx = 0; Idx < 90; Idx++) {
@@ -52,7 +52,7 @@ TEST(Histtest, MeanTest) {
 }
 
 TEST(Histtest, VarianceTest) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("VarianceTest", 5));
+  std::unique_ptr<Histogram<uint64_t>> hist(new Histogram<uint64_t>("VarianceTest", 5));
 
   double variance;
   hist->AddValue(9);
@@ -64,7 +64,7 @@ TEST(Histtest, VarianceTest) {
 }
 
 TEST(Histtest, Percentile) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("Percentile", 5));
+  std::unique_ptr<Histogram<uint64_t>> hist(new Histogram<uint64_t>("Percentile", 5));
   Histogram<uint64_t>::CumulativeData data;
 
   double PerValue;
@@ -91,7 +91,7 @@ TEST(Histtest, Percentile) {
 }
 
 TEST(Histtest, UpdateRange) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("UpdateRange", 5));
+  std::unique_ptr<Histogram<uint64_t>> hist(new Histogram<uint64_t>("UpdateRange", 5));
   Histogram<uint64_t>::CumulativeData data;
 
   double PerValue;
@@ -131,7 +131,7 @@ TEST(Histtest, UpdateRange) {
 }
 
 TEST(Histtest, Reset) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("Reset", 5));
+  std::unique_ptr<Histogram<uint64_t>> hist(new Histogram<uint64_t>("Reset", 5));
 
   double PerValue;
   hist->AddValue(0);
@@ -174,7 +174,7 @@ TEST(Histtest, Reset) {
 }
 
 TEST(Histtest, MultipleCreateHist) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("MultipleCreateHist", 5));
+  std::unique_ptr<Histogram<uint64_t>> hist(new Histogram<uint64_t>("MultipleCreateHist", 5));
   Histogram<uint64_t>::CumulativeData data;
 
   double PerValue;
@@ -213,7 +213,7 @@ TEST(Histtest, MultipleCreateHist) {
 }
 
 TEST(Histtest, SingleValue) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("SingleValue", 5));
+  std::unique_ptr<Histogram<uint64_t>> hist(new Histogram<uint64_t>("SingleValue", 5));
   Histogram<uint64_t>::CumulativeData data;
 
   hist->AddValue(1);
@@ -225,7 +225,7 @@ TEST(Histtest, SingleValue) {
 }
 
 TEST(Histtest, CappingPercentiles) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("CappingPercentiles", 5));
+  std::unique_ptr<Histogram<uint64_t>> hist(new Histogram<uint64_t>("CappingPercentiles", 5));
   Histogram<uint64_t>::CumulativeData data;
 
   double per_995;
@@ -251,7 +251,7 @@ TEST(Histtest, CappingPercentiles) {
 }
 
 TEST(Histtest, SpikyValues) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("SpikyValues", 5, 4096));
+  std::unique_ptr<Histogram<uint64_t>> hist(new Histogram<uint64_t>("SpikyValues", 5, 4096));
   Histogram<uint64_t>::CumulativeData data;
 
   for (uint64_t idx = 0ull; idx < 30ull; idx++) {

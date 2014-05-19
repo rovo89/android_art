@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_GC_COLLECTOR_MARK_SWEEP_H_
 #define ART_RUNTIME_GC_COLLECTOR_MARK_SWEEP_H_
 
+#include <memory>
+
 #include "atomic.h"
 #include "barrier.h"
 #include "base/macros.h"
@@ -26,7 +28,6 @@
 #include "immune_region.h"
 #include "object_callbacks.h"
 #include "offsets.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 
@@ -307,7 +308,7 @@ class MarkSweep : public GarbageCollector {
   // Verification.
   size_t live_stack_freeze_size_;
 
-  UniquePtr<Barrier> gc_barrier_;
+  std::unique_ptr<Barrier> gc_barrier_;
   Mutex mark_stack_lock_ ACQUIRED_AFTER(Locks::classlinker_classes_lock_);
 
   const bool is_concurrent_;

@@ -25,7 +25,7 @@
 namespace art {
 
 ParsedOptions* ParsedOptions::Create(const Runtime::Options& options, bool ignore_unrecognized) {
-  UniquePtr<ParsedOptions> parsed(new ParsedOptions());
+  std::unique_ptr<ParsedOptions> parsed(new ParsedOptions());
   if (parsed->Parse(options, ignore_unrecognized)) {
     return parsed.release();
   }

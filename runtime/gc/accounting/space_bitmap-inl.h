@@ -19,6 +19,8 @@
 
 #include "space_bitmap.h"
 
+#include <memory>
+
 #include "base/logging.h"
 #include "dex_file-inl.h"
 #include "heap_bitmap.h"
@@ -28,7 +30,6 @@
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "space_bitmap-inl.h"
-#include "UniquePtrCompat.h"
 #include "utils.h"
 
 namespace art {

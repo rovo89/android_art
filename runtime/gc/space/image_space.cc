@@ -129,8 +129,8 @@ ImageHeader* ImageSpace::ReadImageHeaderOrDie(const char* image_location,
   std::string image_filename;
   bool is_system = false;
   if (FindImageFilename(image_location, image_isa, &image_filename, &is_system)) {
-    UniquePtr<File> image_file(OS::OpenFileForReading(image_filename.c_str()));
-    UniquePtr<ImageHeader> image_header(new ImageHeader);
+    std::unique_ptr<File> image_file(OS::OpenFileForReading(image_filename.c_str()));
+    std::unique_ptr<ImageHeader> image_header(new ImageHeader);
     const bool success = image_file->ReadFully(image_header.get(), sizeof(ImageHeader));
     if (!success || !image_header->IsValid()) {
       LOG(FATAL) << "Invalid Image header for: " << image_filename;
@@ -200,7 +200,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
     LOG(INFO) << "ImageSpace::Init entering image_filename=" << image_filename;
   }
 
-  UniquePtr<File> file(OS::OpenFileForReading(image_filename));
+  std::unique_ptr<File> file(OS::OpenFileForReading(image_filename));
   if (file.get() == NULL) {
     *error_msg = StringPrintf("Failed to open '%s'", image_filename);
     return nullptr;
@@ -213,7 +213,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
   }
 
   // Note: The image header is part of the image due to mmap page alignment required of offset.
-  UniquePtr<MemMap> map(MemMap::MapFileAtAddress(image_header.GetImageBegin(),
+  std::unique_ptr<MemMap> map(MemMap::MapFileAtAddress(image_header.GetImageBegin(),
                                                  image_header.GetImageSize(),
                                                  PROT_READ | PROT_WRITE,
                                                  MAP_PRIVATE,
@@ -229,7 +229,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
   CHECK_EQ(image_header.GetImageBegin(), map->Begin());
   DCHECK_EQ(0, memcmp(&image_header, map->Begin(), sizeof(ImageHeader)));
 
-  UniquePtr<MemMap> image_map(MemMap::MapFileAtAddress(nullptr, image_header.GetImageBitmapSize(),
+  std::unique_ptr<MemMap> image_map(MemMap::MapFileAtAddress(nullptr, image_header.GetImageBitmapSize(),
                                                        PROT_READ, MAP_PRIVATE,
                                                        file->Fd(), image_header.GetBitmapOffset(),
                                                        false,
@@ -242,7 +242,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
   uint32_t bitmap_index = bitmap_index_.FetchAndAdd(1);
   std::string bitmap_name(StringPrintf("imagespace %s live-bitmap %u", image_filename,
                                        bitmap_index));
-  UniquePtr<accounting::ContinuousSpaceBitmap> bitmap(
+  std::unique_ptr<accounting::ContinuousSpaceBitmap> bitmap(
       accounting::ContinuousSpaceBitmap::CreateFromMemMap(bitmap_name, image_map.release(),
                                                           reinterpret_cast<byte*>(map->Begin()),
                                                           map->Size()));
@@ -251,7 +251,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
     return nullptr;
   }
 
-  UniquePtr<ImageSpace> space(new ImageSpace(image_filename, image_location,
+  std::unique_ptr<ImageSpace> space(new ImageSpace(image_filename, image_location,
                                              map.release(), bitmap.release()));
   if (kIsDebugBuild) {
     space->VerifyImageAllocations();

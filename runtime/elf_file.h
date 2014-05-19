@@ -18,6 +18,7 @@
 #define ART_RUNTIME_ELF_FILE_H_
 
 #include <map>
+#include <memory>
 #include <vector>
 
 #include "base/unix_file/fd_file.h"
@@ -25,7 +26,6 @@
 #include "elf_utils.h"
 #include "mem_map.h"
 #include "os.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 
@@ -154,7 +154,7 @@ class ElfFile {
 
   // ELF header mapping. If program_header_only_ is false, will
   // actually point to the entire elf file.
-  UniquePtr<MemMap> map_;
+  std::unique_ptr<MemMap> map_;
   Elf32_Ehdr* header_;
   std::vector<MemMap*> segments_;
 

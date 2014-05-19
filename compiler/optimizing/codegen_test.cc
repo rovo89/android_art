@@ -42,7 +42,7 @@ class InternalCodeAllocator : public CodeAllocator {
 
  private:
   size_t size_;
-  UniquePtr<uint8_t[]> memory_;
+  std::unique_ptr<uint8_t[]> memory_;
 
   DISALLOW_COPY_AND_ASSIGN(InternalCodeAllocator);
 };

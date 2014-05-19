@@ -407,13 +407,13 @@ class MANAGED ArtMethod : public Object {
   HeapReference<Class> declaring_class_;
 
   // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
-  HeapReference<ObjectArray<ArtMethod> > dex_cache_resolved_methods_;
+  HeapReference<ObjectArray<ArtMethod>> dex_cache_resolved_methods_;
 
   // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
-  HeapReference<ObjectArray<Class> > dex_cache_resolved_types_;
+  HeapReference<ObjectArray<Class>> dex_cache_resolved_types_;
 
   // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
-  HeapReference<ObjectArray<String> > dex_cache_strings_;
+  HeapReference<ObjectArray<String>> dex_cache_strings_;
 
   // Method dispatch from the interpreter invokes this pointer which may cause a bridge into
   // compiled code.

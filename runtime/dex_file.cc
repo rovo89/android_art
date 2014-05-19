@@ -23,6 +23,7 @@
 #include <string.h>
 #include <sys/file.h>
 #include <sys/stat.h>
+#include <memory>
 
 #include "base/logging.h"
 #include "base/stringprintf.h"
@@ -39,7 +40,6 @@
 #include "ScopedFd.h"
 #include "handle_scope-inl.h"
 #include "thread.h"
-#include "UniquePtrCompat.h"
 #include "utf-inl.h"
 #include "utils.h"
 #include "well_known_classes.h"
@@ -93,12 +93,12 @@ bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string*
     return false;
   }
   if (IsZipMagic(magic)) {
-    UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd.release(), filename, error_msg));
+    std::unique_ptr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd.release(), filename, error_msg));
     if (zip_archive.get() == NULL) {
       *error_msg = StringPrintf("Failed to open zip archive '%s'", filename);
       return false;
     }
-    UniquePtr<ZipEntry> zip_entry(zip_archive->Find(kClassesDex, error_msg));
+    std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find(kClassesDex, error_msg));
     if (zip_entry.get() == NULL) {
       *error_msg = StringPrintf("Zip archive '%s' doesn't contain %s (error msg: %s)", filename,
                                 kClassesDex, error_msg->c_str());
@@ -108,7 +108,7 @@ bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string*
     return true;
   }
   if (IsDexMagic(magic)) {
-    UniquePtr<const DexFile> dex_file(DexFile::OpenFile(fd.release(), filename, false, error_msg));
+    std::unique_ptr<const DexFile> dex_file(DexFile::OpenFile(fd.release(), filename, false, error_msg));
     if (dex_file.get() == NULL) {
       return false;
     }
@@ -171,7 +171,7 @@ bool DexFile::DisableWrite() const {
 const DexFile* DexFile::OpenFile(int fd, const char* location, bool verify,
                                  std::string* error_msg) {
   CHECK(location != nullptr);
-  UniquePtr<MemMap> map;
+  std::unique_ptr<MemMap> map;
   {
     ScopedFd delayed_close(fd);
     struct stat sbuf;
@@ -218,7 +218,7 @@ const DexFile* DexFile::OpenFile(int fd, const char* location, bool verify,
 const char* DexFile::kClassesDex = "classes.dex";
 
 const DexFile* DexFile::OpenZip(int fd, const std::string& location, std::string* error_msg) {
-  UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd, location.c_str(), error_msg));
+  std::unique_ptr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd, location.c_str(), error_msg));
   if (zip_archive.get() == nullptr) {
     DCHECK(!error_msg->empty());
     return nullptr;
@@ -241,17 +241,17 @@ const DexFile* DexFile::OpenMemory(const std::string& location,
 const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& location,
                              std::string* error_msg) {
   CHECK(!location.empty());
-  UniquePtr<ZipEntry> zip_entry(zip_archive.Find(kClassesDex, error_msg));
+  std::unique_ptr<ZipEntry> zip_entry(zip_archive.Find(kClassesDex, error_msg));
   if (zip_entry.get() == NULL) {
     return nullptr;
   }
-  UniquePtr<MemMap> map(zip_entry->ExtractToMemMap(kClassesDex, error_msg));
+  std::unique_ptr<MemMap> map(zip_entry->ExtractToMemMap(kClassesDex, error_msg));
   if (map.get() == NULL) {
     *error_msg = StringPrintf("Failed to extract '%s' from '%s': %s", kClassesDex, location.c_str(),
                               error_msg->c_str());
     return nullptr;
   }
-  UniquePtr<const DexFile> dex_file(OpenMemory(location, zip_entry->GetCrc32(), map.release(),
+  std::unique_ptr<const DexFile> dex_file(OpenMemory(location, zip_entry->GetCrc32(), map.release(),
                                                error_msg));
   if (dex_file.get() == nullptr) {
     *error_msg = StringPrintf("Failed to open dex file '%s' from memory: %s", location.c_str(),
@@ -276,7 +276,7 @@ const DexFile* DexFile::OpenMemory(const byte* base,
                                    uint32_t location_checksum,
                                    MemMap* mem_map, std::string* error_msg) {
   CHECK_ALIGNED(base, 4);  // various dex file structures must be word aligned
-  UniquePtr<DexFile> dex_file(new DexFile(base, size, location, location_checksum, mem_map));
+  std::unique_ptr<DexFile> dex_file(new DexFile(base, size, location, location_checksum, mem_map));
   if (!dex_file->Init(error_msg)) {
     return nullptr;
   } else {
@@ -838,7 +838,7 @@ void DexFile::DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_
                               void* context) const {
   DCHECK(code_item != nullptr);
   const byte* stream = GetDebugInfoStream(code_item);
-  UniquePtr<LocalInfo[]> local_in_reg(local_cb != NULL ?
+  std::unique_ptr<LocalInfo[]> local_in_reg(local_cb != NULL ?
                                       new LocalInfo[code_item->registers_size_] :
                                       NULL);
   if (stream != NULL) {

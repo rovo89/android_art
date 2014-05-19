@@ -289,7 +289,7 @@ void SeaGraph::RenameAsSSA() {
 void SeaGraph::ConvertToSSA() {
   // Pass: find global names.
   // The map @block maps registers to the blocks in which they are defined.
-  std::map<int, std::set<Region*> > blocks;
+  std::map<int, std::set<Region*>> blocks;
   // The set @globals records registers whose use
   // is in a different block than the corresponding definition.
   std::set<int> globals;
@@ -311,7 +311,7 @@ void SeaGraph::ConvertToSSA() {
         var_kill.insert(reg_def);
       }
 
-      blocks.insert(std::pair<int, std::set<Region*> >(reg_def, std::set<Region*>()));
+      blocks.insert(std::pair<int, std::set<Region*>>(reg_def, std::set<Region*>()));
       std::set<Region*>* reg_def_blocks = &(blocks.find(reg_def)->second);
       reg_def_blocks->insert(*region_it);
     }

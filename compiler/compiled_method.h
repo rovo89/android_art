@@ -17,12 +17,12 @@
 #ifndef ART_COMPILER_COMPILED_METHOD_H_
 #define ART_COMPILER_COMPILED_METHOD_H_
 
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "instruction_set.h"
 #include "utils.h"
-#include "UniquePtrCompat.h"
 
 namespace llvm {
   class Function;

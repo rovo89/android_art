@@ -15,6 +15,7 @@
  */
 
 #include <algorithm>
+#include <memory>
 #include <vector>
 
 #include "base/logging.h"
@@ -33,7 +34,6 @@
 #include "utils/mips/managed_register_mips.h"
 #include "utils/x86/managed_register_x86.h"
 #include "thread.h"
-#include "UniquePtrCompat.h"
 
 #define __ jni_asm->
 
@@ -66,11 +66,11 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   }
   const bool is_64_bit_target = Is64BitInstructionSet(instruction_set);
   // Calling conventions used to iterate over parameters to method
-  UniquePtr<JniCallingConvention> main_jni_conv(
+  std::unique_ptr<JniCallingConvention> main_jni_conv(
       JniCallingConvention::Create(is_static, is_synchronized, shorty, instruction_set));
   bool reference_return = main_jni_conv->IsReturnAReference();
 
-  UniquePtr<ManagedRuntimeCallingConvention> mr_conv(
+  std::unique_ptr<ManagedRuntimeCallingConvention> mr_conv(
       ManagedRuntimeCallingConvention::Create(is_static, is_synchronized, shorty, instruction_set));
 
   // Calling conventions to call into JNI method "end" possibly passing a returned reference, the
@@ -86,11 +86,11 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
     jni_end_shorty = "V";
   }
 
-  UniquePtr<JniCallingConvention> end_jni_conv(
+  std::unique_ptr<JniCallingConvention> end_jni_conv(
       JniCallingConvention::Create(is_static, is_synchronized, jni_end_shorty, instruction_set));
 
   // Assembler that holds generated instructions
-  UniquePtr<Assembler> jni_asm(Assembler::Create(instruction_set));
+  std::unique_ptr<Assembler> jni_asm(Assembler::Create(instruction_set));
 
   // Offsets into data structures
   // TODO: if cross compiling these offsets are for the host not the target

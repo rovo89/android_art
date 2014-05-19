@@ -17,6 +17,7 @@
 #include "verified_method.h"
 
 #include <algorithm>
+#include <memory>
 #include <vector>
 
 #include "base/logging.h"
@@ -34,7 +35,6 @@
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object.h"
 #include "mirror/object-inl.h"
-#include "UniquePtrCompat.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
@@ -45,7 +45,7 @@ namespace art {
 
 const VerifiedMethod* VerifiedMethod::Create(verifier::MethodVerifier* method_verifier,
                                              bool compile) {
-  UniquePtr<VerifiedMethod> verified_method(new VerifiedMethod);
+  std::unique_ptr<VerifiedMethod> verified_method(new VerifiedMethod);
   if (compile) {
     /* Generate a register map. */
     if (!verified_method->GenerateGcMap(method_verifier)) {

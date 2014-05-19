@@ -207,7 +207,7 @@ class OatDumper {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
       CHECK(oat_dex_file != nullptr);
       std::string error_msg;
-      UniquePtr<const DexFile> dex_file(oat_dex_file->OpenDexFile(&error_msg));
+      std::unique_ptr<const DexFile> dex_file(oat_dex_file->OpenDexFile(&error_msg));
       if (dex_file.get() == nullptr) {
         LOG(WARNING) << "Failed to open dex file '" << oat_dex_file->GetDexFileLocation()
             << "': " << error_msg;
@@ -235,7 +235,7 @@ class OatDumper {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
       CHECK(oat_dex_file != NULL);
       std::string error_msg;
-      UniquePtr<const DexFile> dex_file(oat_dex_file->OpenDexFile(&error_msg));
+      std::unique_ptr<const DexFile> dex_file(oat_dex_file->OpenDexFile(&error_msg));
       if (dex_file.get() == nullptr) {
         LOG(WARNING) << "Failed to open dex file '" << oat_dex_file->GetDexFileLocation()
             << "': " << error_msg;
@@ -289,7 +289,7 @@ class OatDumper {
     // Create the verifier early.
 
     std::string error_msg;
-    UniquePtr<const DexFile> dex_file(oat_dex_file.OpenDexFile(&error_msg));
+    std::unique_ptr<const DexFile> dex_file(oat_dex_file.OpenDexFile(&error_msg));
     if (dex_file.get() == NULL) {
       os << "NOT FOUND: " << error_msg << "\n\n";
       return;
@@ -732,7 +732,7 @@ class OatDumper {
   bool dump_raw_mapping_table_;
   bool dump_raw_gc_map_;
   std::set<uintptr_t> offsets_;
-  UniquePtr<Disassembler> disassembler_;
+  std::unique_ptr<Disassembler> disassembler_;
 };
 
 class ImageDumper {
@@ -871,7 +871,7 @@ class ImageDumper {
       os_ = saved_os;
     }
     os << "STATS:\n" << std::flush;
-    UniquePtr<File> file(OS::OpenFileForReading(image_filename.c_str()));
+    std::unique_ptr<File> file(OS::OpenFileForReading(image_filename.c_str()));
     if (file.get() == NULL) {
       LOG(WARNING) << "Failed to find image in " << image_filename;
     }
@@ -1190,7 +1190,7 @@ class ImageDumper {
     std::vector<mirror::ArtMethod*> method_outlier;
     std::vector<size_t> method_outlier_size;
     std::vector<double> method_outlier_expansion;
-    std::vector<std::pair<std::string, size_t> > oat_dex_file_sizes;
+    std::vector<std::pair<std::string, size_t>> oat_dex_file_sizes;
 
     explicit Stats()
         : oat_file_bytes(0),
@@ -1438,7 +1438,7 @@ class ImageDumper {
     // threshold, we assume 2 bytes per instruction and 2 instructions per block.
     kLargeMethodDexBytes = 16000
   };
-  UniquePtr<OatDumper> oat_dumper_;
+  std::unique_ptr<OatDumper> oat_dumper_;
   std::ostream* os_;
   gc::space::ImageSpace& image_space_;
   const ImageHeader& image_header_;
@@ -1465,7 +1465,7 @@ static int oatdump(int argc, char** argv) {
   const char* boot_image_filename = NULL;
   std::string elf_filename_prefix;
   std::ostream* os = &std::cout;
-  UniquePtr<std::ofstream> out;
+  std::unique_ptr<std::ofstream> out;
   bool dump_raw_mapping_table = false;
   bool dump_raw_gc_map = false;
 
@@ -1548,7 +1548,7 @@ static int oatdump(int argc, char** argv) {
     fprintf(stderr, "Failed to create runtime\n");
     return EXIT_FAILURE;
   }
-  UniquePtr<Runtime> runtime(Runtime::Current());
+  std::unique_ptr<Runtime> runtime(Runtime::Current());
   // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
   // give it away now and then switch to a more manageable ScopedObjectAccess.
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);

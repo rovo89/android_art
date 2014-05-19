@@ -843,7 +843,7 @@ TEST_F(StubTest, AllocObject) {
 
     // Use arbitrary large amount for now.
     static const size_t kMaxHandles = 1000000;
-    UniquePtr<StackHandleScope<kMaxHandles> > hsp(new StackHandleScope<kMaxHandles>(self));
+    std::unique_ptr<StackHandleScope<kMaxHandles>> hsp(new StackHandleScope<kMaxHandles>(self));
 
     std::vector<Handle<mirror::Object>> handles;
     // Start allocating with 128K
