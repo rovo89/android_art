@@ -89,7 +89,11 @@ LIR* X86Mir2Lir::LoadConstantNoClobber(RegStorage r_dest, int value) {
     res = NewLIR2(kX86Xor32RR, r_dest.GetReg(), r_dest.GetReg());
   } else {
     // Note, there is no byte immediate form of a 32 bit immediate move.
-    res = NewLIR2(kX86Mov32RI, r_dest.GetReg(), value);
+    if (r_dest.Is64Bit()) {
+      res = NewLIR2(kX86Mov64RI, r_dest.GetReg(), value);
+    } else {
+      res = NewLIR2(kX86Mov32RI, r_dest.GetReg(), value);
+    }
   }
 
   if (r_dest_save.IsFloat()) {
@@ -181,7 +185,6 @@ LIR* X86Mir2Lir::OpRegImm(OpKind op, RegStorage r_dest_src1, int value) {
         LOG(FATAL) << "Bad case in OpRegImm " << op;
     }
   }
-  CHECK(!r_dest_src1.Is64Bit() || X86Mir2Lir::EncodingMap[opcode].kind == kReg64Imm) << "OpRegImm(" << op << ")";
   return NewLIR2(opcode, r_dest_src1.GetReg(), value);
 }
 
