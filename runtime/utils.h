@@ -25,6 +25,7 @@
 #include "base/logging.h"
 #include "base/stringprintf.h"
 #include "globals.h"
+#include "instruction_set.h"
 #include "primitive.h"
 
 namespace art {
@@ -401,6 +402,13 @@ std::string GetDalvikCacheOrDie(const char* subdir, bool create_if_absent = true
 // dies trying. The path returned will be rooted at cache_location.
 std::string GetDalvikCacheFilenameOrDie(const char* file_location,
                                         const char* cache_location);
+
+// Returns the system location for an image
+std::string GetSystemImageFilename(const char* location, const InstructionSet isa);
+
+// Returns an .odex file name next adjacent to the dex location.
+// For example, for "/foo/bar/baz.jar", return "/foo/bar/<isa>/baz.odex".
+std::string DexFilenameToOdexFilename(const std::string& location, const InstructionSet isa);
 
 // Check whether the given magic matches a known file type.
 bool IsZipMagic(uint32_t magic);

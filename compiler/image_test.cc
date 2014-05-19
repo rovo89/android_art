@@ -42,9 +42,23 @@ class ImageTest : public CommonCompilerTest {
 };
 
 TEST_F(ImageTest, WriteRead) {
-  // Create a root tmp file, to be the base of the .art and .oat temporary files.
-  ScratchFile tmp;
-  ScratchFile tmp_elf(tmp, "oat");
+  // Create a generic location tmp file, to be the base of the .art and .oat temporary files.
+  ScratchFile location;
+  ScratchFile image_location(location, ".art");
+
+  std::string image_filename(GetSystemImageFilename(image_location.GetFilename().c_str(),
+                                                    kRuntimeISA));
+  size_t pos = image_filename.rfind('/');
+  CHECK_NE(pos, std::string::npos) << image_filename;
+  std::string image_dir(image_filename, 0, pos);
+  int mkdir_result = mkdir(image_dir.c_str(), 0700);
+  CHECK_EQ(0, mkdir_result) << image_dir;
+  ScratchFile image_file(OS::CreateEmptyFile(image_filename.c_str()));
+
+  std::string oat_filename(image_filename, 0, image_filename.size() - 3);
+  oat_filename += "oat";
+  ScratchFile oat_file(OS::CreateEmptyFile(oat_filename.c_str()));
+
   {
     {
       jobject class_loader = NULL;
@@ -68,28 +82,27 @@ TEST_F(ImageTest, WriteRead) {
                                                 !kIsTargetBuild,
                                                 class_linker->GetBootClassPath(),
                                                 &oat_writer,
-                                                tmp_elf.GetFile());
+                                                oat_file.GetFile());
       ASSERT_TRUE(success);
       timings.EndSplit();
     }
   }
-  // Workound bug that mcld::Linker::emit closes tmp_elf by reopening as tmp_oat.
-  UniquePtr<File> tmp_oat(OS::OpenFileReadWrite(tmp_elf.GetFilename().c_str()));
-  ASSERT_TRUE(tmp_oat.get() != NULL);
+  // Workound bug that mcld::Linker::emit closes oat_file by reopening as dup_oat.
+  UniquePtr<File> dup_oat(OS::OpenFileReadWrite(oat_file.GetFilename().c_str()));
+  ASSERT_TRUE(dup_oat.get() != NULL);
 
-  ScratchFile tmp_image(tmp, "art");
   const uintptr_t requested_image_base = ART_BASE_ADDRESS;
   {
     ImageWriter writer(*compiler_driver_.get());
-    bool success_image = writer.Write(tmp_image.GetFilename(), requested_image_base,
-                                      tmp_oat->GetPath(), tmp_oat->GetPath());
+    bool success_image = writer.Write(image_file.GetFilename(), requested_image_base,
+                                      dup_oat->GetPath(), dup_oat->GetPath());
     ASSERT_TRUE(success_image);
-    bool success_fixup = ElfFixup::Fixup(tmp_oat.get(), writer.GetOatDataBegin());
+    bool success_fixup = ElfFixup::Fixup(dup_oat.get(), writer.GetOatDataBegin());
     ASSERT_TRUE(success_fixup);
   }
 
   {
-    UniquePtr<File> file(OS::OpenFileForReading(tmp_image.GetFilename().c_str()));
+    UniquePtr<File> file(OS::OpenFileForReading(image_file.GetFilename().c_str()));
     ASSERT_TRUE(file.get() != NULL);
     ImageHeader image_header;
     file->ReadFully(&image_header, sizeof(image_header));
@@ -127,7 +140,7 @@ TEST_F(ImageTest, WriteRead) {
 
   Runtime::Options options;
   std::string image("-Ximage:");
-  image.append(tmp_image.GetFilename());
+  image.append(image_location.GetFilename());
   options.push_back(std::make_pair(image.c_str(), reinterpret_cast<void*>(NULL)));
 
   if (!Runtime::Create(options, false)) {
@@ -166,6 +179,11 @@ TEST_F(ImageTest, WriteRead) {
     }
     EXPECT_TRUE(Monitor::IsValidLockWord(klass->GetLockWord(false)));
   }
+
+  image_file.Unlink();
+  oat_file.Unlink();
+  int rmdir_result = rmdir(image_dir.c_str());
+  CHECK_EQ(0, rmdir_result);
 }
 
 TEST_F(ImageTest, ImageHeaderIsValid) {

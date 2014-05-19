@@ -20,6 +20,11 @@ LIBARTTEST_COMMON_SRC_FILES := \
 	test/StackWalk/stack_walk_jni.cc \
 	test/UnsafeTest/unsafe_test.cc
 
+ART_TARGET_LIBARTTEST_$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TEST_OUT)/$(TARGET_ARCH)/libarttest.so
+ifdef TARGET_2ND_ARCH
+  ART_TARGET_LIBARTTEST_$(2ND_ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TEST_OUT)/$(TARGET_2ND_ARCH)/libarttest.so
+endif
+
 # $(1): target or host
 define build-libarttest
   ifneq ($(1),target)
@@ -48,8 +53,8 @@ define build-libarttest
     LOCAL_SHARED_LIBRARIES += libdl libcutils
     LOCAL_STATIC_LIBRARIES := libgtest
     LOCAL_MULTILIB := both
-    LOCAL_MODULE_PATH_32 := $(ART_BASE_TEST_OUT)
-    LOCAL_MODULE_PATH_64 := $(ART_BASE_TEST_OUT)64
+    LOCAL_MODULE_PATH_32 := $(ART_TEST_OUT)/$(ART_TARGET_ARCH_32)
+    LOCAL_MODULE_PATH_64 := $(ART_TEST_OUT)/$(ART_TARGET_ARCH_64)
     LOCAL_MODULE_TARGET_ARCH := $(ART_SUPPORTED_ARCH)
     include art/build/Android.libcxx.mk
     include $(BUILD_SHARED_LIBRARY)
