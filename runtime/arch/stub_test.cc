@@ -59,116 +59,7 @@ class StubTest : public CommonRuntimeTest {
 
  public:
   size_t Invoke3(size_t arg0, size_t arg1, size_t arg2, uintptr_t code, Thread* self) {
-    // Push a transition back into managed code onto the linked list in thread.
-    ManagedStack fragment;
-    self->PushManagedStackFragment(&fragment);
-
-    size_t result;
-#if defined(__i386__)
-    // TODO: Set the thread?
-    __asm__ __volatile__(
-        "pushl $0\n\t"               // Push nullptr to terminate quick stack
-        "call *%%edi\n\t"           // Call the stub
-        "addl $4, %%esp"               // Pop nullptr
-        : "=a" (result)
-          // Use the result from eax
-        : "a"(arg0), "c"(arg1), "d"(arg2), "D"(code)
-          // This places code into edi, arg0 into eax, arg1 into ecx, and arg2 into edx
-        : );  // clobber.
-    // TODO: Should we clobber the other registers? EBX gets clobbered by some of the stubs,
-    //       but compilation fails when declaring that.
-#elif defined(__arm__)
-    __asm__ __volatile__(
-        "push {r1-r12, lr}\n\t"     // Save state, 13*4B = 52B
-        ".cfi_adjust_cfa_offset 52\n\t"
-        "push {r9}\n\t"
-        ".cfi_adjust_cfa_offset 4\n\t"
-        "mov r9, #0\n\n"
-        "str r9, [sp, #-8]!\n\t"   // Push nullptr to terminate stack, +8B padding so 16B aligned
-        ".cfi_adjust_cfa_offset 8\n\t"
-        "ldr r9, [sp, #8]\n\t"
-
-        // Push everything on the stack, so we don't rely on the order. What a mess. :-(
-        "sub sp, sp, #20\n\t"
-        "str %[arg0], [sp]\n\t"
-        "str %[arg1], [sp, #4]\n\t"
-        "str %[arg2], [sp, #8]\n\t"
-        "str %[code], [sp, #12]\n\t"
-        "str %[self], [sp, #16]\n\t"
-        "ldr r0, [sp]\n\t"
-        "ldr r1, [sp, #4]\n\t"
-        "ldr r2, [sp, #8]\n\t"
-        "ldr r3, [sp, #12]\n\t"
-        "ldr r9, [sp, #16]\n\t"
-        "add sp, sp, #20\n\t"
-
-        "blx r3\n\t"                // Call the stub
-        "add sp, sp, #12\n\t"       // Pop nullptr and padding
-        ".cfi_adjust_cfa_offset -12\n\t"
-        "pop {r1-r12, lr}\n\t"      // Restore state
-        ".cfi_adjust_cfa_offset -52\n\t"
-        "mov %[result], r0\n\t"     // Save the result
-        : [result] "=r" (result)
-          // Use the result from r0
-        : [arg0] "r"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self)
-        : );  // clobber.
-#elif defined(__aarch64__)
-    __asm__ __volatile__(
-        "sub sp, sp, #48\n\t"          // Reserve stack space, 16B aligned
-        ".cfi_adjust_cfa_offset 48\n\t"
-        "stp xzr, x1,  [sp]\n\t"        // nullptr(end of quick stack), x1
-        "stp x2, x3,   [sp, #16]\n\t"   // Save x2, x3
-        "stp x18, x30, [sp, #32]\n\t"   // Save x18(xSELF), xLR
-
-        // Push everything on the stack, so we don't rely on the order. What a mess. :-(
-        "sub sp, sp, #48\n\t"
-        "str %[arg0], [sp]\n\t"
-        "str %[arg1], [sp, #8]\n\t"
-        "str %[arg2], [sp, #16]\n\t"
-        "str %[code], [sp, #24]\n\t"
-        "str %[self], [sp, #32]\n\t"
-        "ldr x0, [sp]\n\t"
-        "ldr x1, [sp, #8]\n\t"
-        "ldr x2, [sp, #16]\n\t"
-        "ldr x3, [sp, #24]\n\t"
-        "ldr x18, [sp, #32]\n\t"
-        "add sp, sp, #48\n\t"
-
-        "blr x3\n\t"              // Call the stub
-        "ldp x1, x2, [sp, #8]\n\t"     // Restore x1, x2
-        "ldp x3, x18, [sp, #24]\n\t"   // Restore x3, xSELF
-        "ldr x30, [sp, #40]\n\t"      // Restore xLR
-        "add sp, sp, #48\n\t"          // Free stack space
-        ".cfi_adjust_cfa_offset -48\n\t"
-
-        "mov %[result], x0\n\t"        // Save the result
-        : [result] "=r" (result)
-          // Use the result from r0
-        : [arg0] "0"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self)
-        : "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17");  // clobber.
-#elif defined(__x86_64__)
-    // Note: Uses the native convention
-    // TODO: Set the thread?
-    __asm__ __volatile__(
-        "pushq $0\n\t"                 // Push nullptr to terminate quick stack
-        "pushq $0\n\t"                 // 16B alignment padding
-        ".cfi_adjust_cfa_offset 16\n\t"
-        "call *%%rax\n\t"              // Call the stub
-        "addq $16, %%rsp\n\t"              // Pop nullptr and padding
-        ".cfi_adjust_cfa_offset -16\n\t"
-        : "=a" (result)
-          // Use the result from rax
-        : "D"(arg0), "S"(arg1), "d"(arg2), "a"(code)
-          // This places arg0 into rdi, arg1 into rsi, arg2 into rdx, and code into rax
-        : "rbx", "rcx", "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");  // clobber all
-    // TODO: Should we clobber the other registers?
-#else
-    LOG(WARNING) << "Was asked to invoke for an architecture I do not understand.";
-    result = 0;
-#endif
-    // Pop transition.
-    self->PopManagedStackFragment(fragment);
-    return result;
+    return Invoke3WithReferrer(arg0, arg1, arg2, code, self, nullptr);
   }
 
   // TODO: Set up a frame according to referrer's specs.
@@ -179,6 +70,7 @@ class StubTest : public CommonRuntimeTest {
     self->PushManagedStackFragment(&fragment);
 
     size_t result;
+    size_t fpr_result = 0;
 #if defined(__i386__)
     // TODO: Set the thread?
     __asm__ __volatile__(
@@ -230,6 +122,14 @@ class StubTest : public CommonRuntimeTest {
         : );  // clobber.
 #elif defined(__aarch64__)
     __asm__ __volatile__(
+        // Spill space for d8 - d15
+        "sub sp, sp, #64\n\t"
+        ".cfi_adjust_cfa_offset 64\n\t"
+        "stp d8, d9,   [sp]\n\t"
+        "stp d10, d11, [sp, #16]\n\t"
+        "stp d12, d13, [sp, #32]\n\t"
+        "stp d14, d15, [sp, #48]\n\t"
+
         "sub sp, sp, #48\n\t"          // Reserve stack space, 16B aligned
         ".cfi_adjust_cfa_offset 48\n\t"
         "stp %[referrer], x1, [sp]\n\t"// referrer, x1
@@ -238,27 +138,118 @@ class StubTest : public CommonRuntimeTest {
 
         // Push everything on the stack, so we don't rely on the order. What a mess. :-(
         "sub sp, sp, #48\n\t"
+        ".cfi_adjust_cfa_offset 48\n\t"
         "str %[arg0], [sp]\n\t"
         "str %[arg1], [sp, #8]\n\t"
         "str %[arg2], [sp, #16]\n\t"
         "str %[code], [sp, #24]\n\t"
         "str %[self], [sp, #32]\n\t"
+
+        // Now we definitely have x0-x3 free, use it to garble d8 - d15
+        "movk x0, #0xfad0\n\t"
+        "movk x0, #0xebad, lsl #16\n\t"
+        "movk x0, #0xfad0, lsl #32\n\t"
+        "movk x0, #0xebad, lsl #48\n\t"
+        "fmov d8, x0\n\t"
+        "add x0, x0, 1\n\t"
+        "fmov d9, x0\n\t"
+        "add x0, x0, 1\n\t"
+        "fmov d10, x0\n\t"
+        "add x0, x0, 1\n\t"
+        "fmov d11, x0\n\t"
+        "add x0, x0, 1\n\t"
+        "fmov d12, x0\n\t"
+        "add x0, x0, 1\n\t"
+        "fmov d13, x0\n\t"
+        "add x0, x0, 1\n\t"
+        "fmov d14, x0\n\t"
+        "add x0, x0, 1\n\t"
+        "fmov d15, x0\n\t"
+
+        // Load call params
         "ldr x0, [sp]\n\t"
         "ldr x1, [sp, #8]\n\t"
         "ldr x2, [sp, #16]\n\t"
         "ldr x3, [sp, #24]\n\t"
         "ldr x18, [sp, #32]\n\t"
         "add sp, sp, #48\n\t"
-
-        "blr x3\n\t"              // Call the stub
-        "ldp x1, x2, [sp, #8]\n\t"     // Restore x1, x2
-        "ldp x3, x18, [sp, #24]\n\t"   // Restore x3, xSELF
-        "ldr x30, [sp, #40]\n\t"      // Restore xLR
-        "add sp, sp, #48\n\t"          // Free stack space
         ".cfi_adjust_cfa_offset -48\n\t"
 
+
+        "blr x3\n\t"              // Call the stub
+
+        // Test d8 - d15. We can use x1 and x2.
+        "movk x1, #0xfad0\n\t"
+        "movk x1, #0xebad, lsl #16\n\t"
+        "movk x1, #0xfad0, lsl #32\n\t"
+        "movk x1, #0xebad, lsl #48\n\t"
+        "fmov x2, d8\n\t"
+        "cmp x1, x2\n\t"
+        "b.ne 1f\n\t"
+        "add x1, x1, 1\n\t"
+
+        "fmov x2, d9\n\t"
+        "cmp x1, x2\n\t"
+        "b.ne 1f\n\t"
+        "add x1, x1, 1\n\t"
+
+        "fmov x2, d10\n\t"
+        "cmp x1, x2\n\t"
+        "b.ne 1f\n\t"
+        "add x1, x1, 1\n\t"
+
+        "fmov x2, d11\n\t"
+        "cmp x1, x2\n\t"
+        "b.ne 1f\n\t"
+        "add x1, x1, 1\n\t"
+
+        "fmov x2, d12\n\t"
+        "cmp x1, x2\n\t"
+        "b.ne 1f\n\t"
+        "add x1, x1, 1\n\t"
+
+        "fmov x2, d13\n\t"
+        "cmp x1, x2\n\t"
+        "b.ne 1f\n\t"
+        "add x1, x1, 1\n\t"
+
+        "fmov x2, d14\n\t"
+        "cmp x1, x2\n\t"
+        "b.ne 1f\n\t"
+        "add x1, x1, 1\n\t"
+
+        "fmov x2, d15\n\t"
+        "cmp x1, x2\n\t"
+        "b.ne 1f\n\t"
+
+        "mov %[fpr_result], #0\n\t"
+
+        // Finish up.
+        "2:\n\t"
+        "ldp x1, x2, [sp, #8]\n\t"     // Restore x1, x2
+        "ldp x3, x18, [sp, #24]\n\t"   // Restore x3, xSELF
+        "ldr x30, [sp, #40]\n\t"       // Restore xLR
+        "add sp, sp, #48\n\t"          // Free stack space
+        ".cfi_adjust_cfa_offset -48\n\t"
         "mov %[result], x0\n\t"        // Save the result
-        : [result] "=r" (result)
+
+        "ldp d8, d9,   [sp]\n\t"       // Restore d8 - d15
+        "ldp d10, d11, [sp, #16]\n\t"
+        "ldp d12, d13, [sp, #32]\n\t"
+        "ldp d14, d15, [sp, #48]\n\t"
+        "add sp, sp, #64\n\t"
+        ".cfi_adjust_cfa_offset -64\n\t"
+
+        "b 3f\n\t"                     // Goto end
+
+        // Failed fpr verification.
+        "1:\n\t"
+        "mov %[fpr_result], #1\n\t"
+        "b 2b\n\t"                     // Goto finish-up
+
+        // End
+        "3:\n\t"
+        : [result] "=r" (result), [fpr_result] "=r" (fpr_result)
           // Use the result from r0
         : [arg0] "0"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self),
           [referrer] "r"(referrer)
@@ -285,6 +276,10 @@ class StubTest : public CommonRuntimeTest {
 #endif
     // Pop transition.
     self->PopManagedStackFragment(fragment);
+
+    fp_result = fpr_result;
+    EXPECT_EQ(0U, fp_result);
+
     return result;
   }
 
@@ -314,6 +309,9 @@ class StubTest : public CommonRuntimeTest {
     return 0;
 #endif
   }
+
+ protected:
+  size_t fp_result;
 };
 
 
