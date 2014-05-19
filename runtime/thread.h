@@ -98,7 +98,7 @@ class Thread {
   // Space to throw a StackOverflowError in.
   // TODO: shrink reserved space, in particular for 64bit.
 #if defined(__x86_64__)
-  static constexpr size_t kStackOverflowReservedBytes = 24 * KB;
+  static constexpr size_t kStackOverflowReservedBytes = 32 * KB;
 #elif defined(__aarch64__)
   // Worst-case, we would need about 2.6x the amount of x86_64 for many more registers.
   // But this one works rather well.
