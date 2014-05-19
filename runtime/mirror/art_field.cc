@@ -32,7 +32,8 @@ namespace mirror {
 // TODO: Get global references for these
 Class* ArtField::java_lang_reflect_ArtField_ = NULL;
 
-ArtField* ArtField::FromReflectedField(const ScopedObjectAccess& soa, jobject jlr_field) {
+ArtField* ArtField::FromReflectedField(const ScopedObjectAccessAlreadyRunnable& soa,
+                                       jobject jlr_field) {
   mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_reflect_Field_artField);
   mirror::ArtField* field = f->GetObject(soa.Decode<mirror::Object*>(jlr_field))->AsArtField();
   DCHECK(field != nullptr);

@@ -2802,7 +2802,7 @@ static void CheckProxyConstructor(mirror::ArtMethod* constructor);
 static void CheckProxyMethod(mirror::ArtMethod* method,
                              Handle<mirror::ArtMethod>& prototype);
 
-mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccess& soa, jstring name,
+mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& soa, jstring name,
                                              jobjectArray interfaces, jobject loader,
                                              jobjectArray methods, jobjectArray throws) {
   Thread* self = soa.Self();

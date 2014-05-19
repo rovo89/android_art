@@ -139,7 +139,7 @@ void ThrowStackOverflowError(Thread* self) {
   self->ResetDefaultStackEnd(!explicit_overflow_check);  // Return to default stack size.
 }
 
-JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char* shorty,
+JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, const char* shorty,
                                     jobject rcvr_jobj, jobject interface_method_jobj,
                                     std::vector<jvalue>& args) {
   DCHECK(soa.Env()->IsInstanceOf(rcvr_jobj, WellKnownClasses::java_lang_reflect_Proxy));
