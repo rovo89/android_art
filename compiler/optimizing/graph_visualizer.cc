@@ -18,6 +18,7 @@
 
 #include "driver/dex_compilation_unit.h"
 #include "nodes.h"
+#include "ssa_liveness_analysis.h"
 
 namespace art {
 
@@ -102,6 +103,24 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       }
       output_ << "]";
     }
+    if (instruction->GetLifetimePosition() != kNoLifetime) {
+      output_ << " (liveness: " << instruction->GetLifetimePosition();
+      if (instruction->HasLiveInterval()) {
+        output_ << " ";
+        const GrowableArray<LiveRange>& ranges = instruction->GetLiveInterval()->GetRanges();
+        size_t i = ranges.Size() - 1;
+        do {
+          output_ << "[" << ranges.Get(i).GetStart() << "," << ranges.Get(i).GetEnd() << "[";
+          if (i == 0) {
+            break;
+          } else {
+            --i;
+            output_ << ",";
+          }
+        } while (true);
+      }
+      output_ << ")";
+    }
   }
 
   void PrintInstructions(const HInstructionList& list) {
@@ -126,8 +145,14 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
   void VisitBasicBlock(HBasicBlock* block) {
     StartTag("block");
     PrintProperty("name", "B", block->GetBlockId());
-    PrintInt("from_bci", -1);
-    PrintInt("to_bci", -1);
+    if (block->GetLifetimeStart() != kNoLifetime) {
+      // Piggy back on these fields to show the lifetime of the block.
+      PrintInt("from_bci", block->GetLifetimeStart());
+      PrintInt("to_bci", block->GetLifetimeEnd());
+    } else {
+      PrintInt("from_bci", -1);
+      PrintInt("to_bci", -1);
+    }
     PrintPredecessors(block);
     PrintSuccessors(block);
     PrintEmptyProperty("xhandlers");
