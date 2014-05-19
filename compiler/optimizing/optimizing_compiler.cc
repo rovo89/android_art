@@ -129,6 +129,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
 
   graph->FindNaturalLoops();
   SsaLivenessAnalysis(*graph).Analyze();
+  visualizer.DumpGraph("liveness");
 
   return new CompiledMethod(GetCompilerDriver(),
                             instruction_set,
