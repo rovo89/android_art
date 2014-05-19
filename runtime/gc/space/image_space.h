@@ -43,13 +43,13 @@ class ImageSpace : public MemMapSpace {
   // creation of the alloc space. The ReleaseOatFile will later be
   // used to transfer ownership of the OatFile to the ClassLinker when
   // it is initialized.
-  static ImageSpace* Create(const char* image, const InstructionSet image_isa)
+  static ImageSpace* Create(const char* image, InstructionSet image_isa)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Reads the image header from the specified image location for the
   // instruction set image_isa.
   static ImageHeader* ReadImageHeaderOrDie(const char* image_location,
-                                           const InstructionSet image_isa);
+                                           InstructionSet image_isa);
 
   // Releases the OatFile from the ImageSpace so it can be transfer to
   // the caller, presumably the ClassLinker.
@@ -114,7 +114,7 @@ class ImageSpace : public MemMapSpace {
   //
   // Returns true if an image was found, false otherwise.
   static bool FindImageFilename(const char* image_location,
-                                const InstructionSet image_isa,
+                                InstructionSet image_isa,
                                 std::string* location,
                                 bool* is_system);
 
