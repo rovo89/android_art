@@ -499,6 +499,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
       break;
     }
 
+    case Instruction::MOVE_RESULT:
     case Instruction::MOVE_RESULT_WIDE: {
       UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
       break;

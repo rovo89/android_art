@@ -29,6 +29,7 @@ class HInstruction;
 class HIntConstant;
 class HGraphVisitor;
 class HPhi;
+class LiveInterval;
 class LocationSummary;
 
 static const int kDefaultNumberOfBlocks = 8;
@@ -223,6 +224,8 @@ class HLoopInformation : public ArenaObject {
   DISALLOW_COPY_AND_ASSIGN(HLoopInformation);
 };
 
+static constexpr size_t kNoLifetime = -1;
+
 // A block in a method. Contains the list of instructions represented
 // as a double linked list. Each block knows its predecessors and
 // successors.
@@ -234,7 +237,9 @@ class HBasicBlock : public ArenaObject {
         successors_(graph->GetArena(), kDefaultNumberOfSuccessors),
         loop_information_(nullptr),
         dominator_(nullptr),
-        block_id_(-1) { }
+        block_id_(-1),
+        lifetime_start_(kNoLifetime),
+        lifetime_end_(kNoLifetime) {}
 
   const GrowableArray<HBasicBlock*>& GetPredecessors() const {
     return predecessors_;
@@ -299,6 +304,15 @@ class HBasicBlock : public ArenaObject {
     block->successors_.Add(this);
   }
 
+  size_t GetPredecessorIndexOf(HBasicBlock* predecessor) {
+    for (size_t i = 0, e = predecessors_.Size(); i < e; ++i) {
+      if (predecessors_.Get(i) == predecessor) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
   void AddInstruction(HInstruction* instruction);
   void RemoveInstruction(HInstruction* instruction);
   void AddPhi(HPhi* phi);
@@ -334,6 +348,12 @@ class HBasicBlock : public ArenaObject {
   // Returns wheter this block dominates the blocked passed as parameter.
   bool Dominates(HBasicBlock* block) const;
 
+  size_t GetLifetimeStart() const { return lifetime_start_; }
+  size_t GetLifetimeEnd() const { return lifetime_end_; }
+
+  void SetLifetimeStart(size_t start) { lifetime_start_ = start; }
+  void SetLifetimeEnd(size_t end) { lifetime_end_ = end; }
+
  private:
   HGraph* const graph_;
   GrowableArray<HBasicBlock*> predecessors_;
@@ -343,6 +363,8 @@ class HBasicBlock : public ArenaObject {
   HLoopInformation* loop_information_;
   HBasicBlock* dominator_;
   int block_id_;
+  size_t lifetime_start_;
+  size_t lifetime_end_;
 
   DISALLOW_COPY_AND_ASSIGN(HBasicBlock);
 };
@@ -407,7 +429,9 @@ class HInstruction : public ArenaObject {
         uses_(nullptr),
         env_uses_(nullptr),
         environment_(nullptr),
-        locations_(nullptr) { }
+        locations_(nullptr),
+        live_interval_(nullptr),
+        lifetime_position_(kNoLifetime) {}
 
   virtual ~HInstruction() { }
 
@@ -477,6 +501,12 @@ class HInstruction : public ArenaObject {
   FOR_EACH_INSTRUCTION(INSTRUCTION_TYPE_CHECK)
 #undef INSTRUCTION_TYPE_CHECK
 
+  size_t GetLifetimePosition() const { return lifetime_position_; }
+  void SetLifetimePosition(size_t position) { lifetime_position_ = position; }
+  LiveInterval* GetLiveInterval() const { return live_interval_; }
+  void SetLiveInterval(LiveInterval* interval) { live_interval_ = interval; }
+  bool HasLiveInterval() const { return live_interval_ != nullptr; }
+
  private:
   HInstruction* previous_;
   HInstruction* next_;
@@ -500,6 +530,13 @@ class HInstruction : public ArenaObject {
 
   // Set by the code generator.
   LocationSummary* locations_;
+
+  // Set by the liveness analysis.
+  LiveInterval* live_interval_;
+
+  // Set by the liveness analysis, this is the position in a linear
+  // order of blocks where this instruction's live interval start.
+  size_t lifetime_position_;
 
   friend class HBasicBlock;
   friend class HInstructionList;
@@ -596,6 +633,8 @@ class HInstructionIterator : public ValueObject {
  private:
   HInstruction* instruction_;
   HInstruction* next_;
+
+  DISALLOW_COPY_AND_ASSIGN(HInstructionIterator);
 };
 
 class HBackwardInstructionIterator : public ValueObject {
@@ -615,6 +654,8 @@ class HBackwardInstructionIterator : public ValueObject {
  private:
   HInstruction* instruction_;
   HInstruction* next_;
+
+  DISALLOW_COPY_AND_ASSIGN(HBackwardInstructionIterator);
 };
 
 // An embedded container with N elements of type T.  Used (with partial
