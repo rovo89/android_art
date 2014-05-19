@@ -42,7 +42,7 @@
 #endif
 
     // FP args
-    stp d1, d2,   [sp, #8]
+    stp d0, d1, [sp, #8]
     stp d2, d3, [sp, #24]
     stp d4, d5, [sp, #40]
     stp d6, d7, [sp, #56]
