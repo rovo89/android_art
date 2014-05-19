@@ -590,6 +590,7 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
     // If it's allocated after the last GC (younger), copy it to the to-space.
     forward_address = to_space_->AllocThreadUnsafe(self_, object_size, &bytes_allocated, nullptr);
   }
+  CHECK(forward_address != nullptr) << "Out of memory in the to-space.";
   ++objects_moved_;
   bytes_moved_ += bytes_allocated;
   // Copy over the object and add it to the mark stack since we still need to update its
