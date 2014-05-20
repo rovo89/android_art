@@ -69,10 +69,6 @@ clean-oat-target:
 	adb remount
 	adb shell rm -rf $(ART_NATIVETEST_DIR)
 	adb shell rm -rf $(ART_TEST_DIR)
-ifdef TARGET_2ND_ARCH
-	adb shell rm -rf $(2ND_ART_NATIVETEST_DIR)
-	adb shell rm -rf $(2ND_ART_TEST_DIR)
-endif
 	adb shell rm -rf $(ART_DALVIK_CACHE_DIR)/*
 	adb shell rm -rf $(DEXPREOPT_BOOT_JAR_DIR)/$(DEX2OAT_TARGET_ARCH)
 	adb shell rm -rf system/app/$(DEX2OAT_TARGET_ARCH)
