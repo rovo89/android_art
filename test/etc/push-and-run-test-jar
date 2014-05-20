@@ -38,6 +38,11 @@ while true; do
         option="$1"
         FLAGS="${FLAGS} -Xcompiler-option $option"
         shift
+    elif [ "x$1" = "x--runtime-option" ]; then
+        shift
+        option="$1"
+        FLAGS="${FLAGS} $option"
+        shift
     elif [ "x$1" = "x--boot" ]; then
         shift
         BOOT_OPT="$1"
