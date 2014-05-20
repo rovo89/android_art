@@ -1030,9 +1030,9 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
         bytes_to_move = sizeof(uint32_t) * 4;
 
         // Allocate a free xmm temp. Since we are working through the calling sequence,
-        // we expect to have an xmm temporary available.
+        // we expect to have an xmm temporary available.  AllocTempDouble will abort if
+        // there are no free registers.
         RegStorage temp = AllocTempDouble();
-        DCHECK(temp.Valid());
 
         LIR* ld1 = nullptr;
         LIR* ld2 = nullptr;
@@ -1702,6 +1702,7 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
 
   const MirMethodLoweringInfo& method_info = mir_graph_->GetMethodLoweringInfo(info->mir);
   cu_->compiler_driver->ProcessedInvoke(method_info.GetInvokeType(), method_info.StatsFlags());
+  BeginInvoke(info);
   InvokeType original_type = static_cast<InvokeType>(method_info.GetInvokeType());
   info->type = static_cast<InvokeType>(method_info.GetSharpType());
   bool fast_path = method_info.FastPath();
@@ -1766,6 +1767,7 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
       }
     }
   }
+  EndInvoke(info);
   MarkSafepointPC(call_inst);
 
   ClobberCallerSave();

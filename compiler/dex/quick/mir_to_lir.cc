@@ -425,21 +425,11 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::CONST:
     case Instruction::CONST_4:
     case Instruction::CONST_16:
-      rl_result = EvalLoc(rl_dest, kAnyReg, true);
-      LoadConstantNoClobber(rl_result.reg, vB);
-      StoreValue(rl_dest, rl_result);
-      if (vB == 0) {
-        Workaround7250540(rl_dest, rl_result.reg);
-      }
+      GenConst(rl_dest, vB);
       break;
 
     case Instruction::CONST_HIGH16:
-      rl_result = EvalLoc(rl_dest, kAnyReg, true);
-      LoadConstantNoClobber(rl_result.reg, vB << 16);
-      StoreValue(rl_dest, rl_result);
-      if (vB == 0) {
-        Workaround7250540(rl_dest, rl_result.reg);
-      }
+      GenConst(rl_dest, vB << 16);
       break;
 
     case Instruction::CONST_WIDE_16:

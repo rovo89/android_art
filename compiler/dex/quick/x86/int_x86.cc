@@ -1292,8 +1292,12 @@ void X86Mir2Lir::GenLongArith(RegLocation rl_dest, RegLocation rl_src1,
     case Instruction::AND_LONG_2ADDR:
     case Instruction::OR_LONG_2ADDR:
     case Instruction::XOR_LONG_2ADDR:
-      GenLongArith(rl_dest, rl_src2, op);
-      return;
+      if (GenerateTwoOperandInstructions()) {
+        GenLongArith(rl_dest, rl_src2, op);
+        return;
+      }
+      break;
+
     default:
       break;
   }
@@ -1532,7 +1536,7 @@ void X86Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
 
 RegLocation X86Mir2Lir::GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                                           RegLocation rl_src, int shift_amount) {
-  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
   switch (opcode) {
     case Instruction::SHL_LONG:
     case Instruction::SHL_LONG_2ADDR:
@@ -1641,7 +1645,11 @@ void X86Mir2Lir::GenArithImmOpLong(Instruction::Code opcode,
     case Instruction::XOR_LONG_2ADDR:
     case Instruction::AND_LONG_2ADDR:
       if (rl_src2.is_const) {
-        GenLongImm(rl_dest, rl_src2, opcode);
+        if (GenerateTwoOperandInstructions()) {
+          GenLongImm(rl_dest, rl_src2, opcode);
+        } else {
+          GenLongLongImm(rl_dest, rl_src1, rl_src2, opcode);
+        }
       } else {
         DCHECK(rl_src1.is_const);
         GenLongLongImm(rl_dest, rl_src2, rl_src1, opcode);
@@ -1869,7 +1877,7 @@ void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
 
   // SETcc only works with EAX..EDX.
   if (result_reg == object.reg || result_reg.GetRegNum() >= rs_rX86_SP.GetRegNum()) {
-    result_reg = AllocTypedTemp(false, kCoreReg);
+    result_reg = AllocateByteRegister();
     DCHECK_LT(result_reg.GetRegNum(), rs_rX86_SP.GetRegNum());
   }
 
@@ -2110,12 +2118,16 @@ void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       LOG(FATAL) << "Invalid word arith op: " << opcode;
   }
 
-    // Can we convert to a two address instruction?
+  // Can we convert to a two address instruction?
   if (!is_two_addr &&
         (mir_graph_->SRegToVReg(rl_dest.s_reg_low) ==
          mir_graph_->SRegToVReg(rl_lhs.s_reg_low))) {
-      is_two_addr = true;
-    }
+    is_two_addr = true;
+  }
+
+  if (!GenerateTwoOperandInstructions()) {
+    is_two_addr = false;
+  }
 
   // Get the div/rem stuff out of the way.
   if (is_div_rem) {
@@ -2212,6 +2224,8 @@ void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
             if (mir_graph_->SRegToVReg(rl_dest.s_reg_low) == mir_graph_->SRegToVReg(rl_lhs.s_reg_low)) {
               rl_lhs = LoadValue(rl_lhs, kCoreReg);
               rl_result = EvalLoc(rl_dest, kCoreReg, true);
+              // No-op if these are the same.
+              OpRegCopy(rl_result.reg, rl_lhs.reg);
             } else {
               rl_result = EvalLoc(rl_dest, kCoreReg, true);
               LoadValueDirect(rl_lhs, rl_result.reg);

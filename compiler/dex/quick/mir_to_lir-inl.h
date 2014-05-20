@@ -149,7 +149,7 @@ inline void Mir2Lir::SetupRegMask(uint64_t* mask, int reg) {
 /*
  * Set up the proper fields in the resource mask
  */
-inline void Mir2Lir::SetupResourceMasks(LIR* lir) {
+inline void Mir2Lir::SetupResourceMasks(LIR* lir, bool leave_mem_ref) {
   int opcode = lir->opcode;
 
   if (IsPseudoLirOp(opcode)) {
@@ -170,7 +170,7 @@ inline void Mir2Lir::SetupResourceMasks(LIR* lir) {
   lir->flags.size = GetInsnSize(lir);
   estimated_native_code_size_ += lir->flags.size;
   /* Set up the mask for resources that are updated */
-  if (flags & (IS_LOAD | IS_STORE)) {
+  if (!leave_mem_ref && (flags & (IS_LOAD | IS_STORE))) {
     /* Default to heap - will catch specialized classes later */
     SetMemRefType(lir, flags & IS_LOAD, kHeapRef);
   }

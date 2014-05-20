@@ -485,12 +485,21 @@ class Mir2Lir : public Backend {
       LIRSlowPath(Mir2Lir* m2l, const DexOffset dexpc, LIR* fromfast,
                   LIR* cont = nullptr) :
         m2l_(m2l), cu_(m2l->cu_), current_dex_pc_(dexpc), fromfast_(fromfast), cont_(cont) {
+          m2l->StartSlowPath(cont);
       }
       virtual ~LIRSlowPath() {}
       virtual void Compile() = 0;
 
       static void* operator new(size_t size, ArenaAllocator* arena) {
         return arena->Alloc(size, kArenaAllocData);
+      }
+
+      LIR *GetContinuationLabel() {
+        return cont_;
+      }
+
+      LIR *GetFromFast() {
+        return fromfast_;
       }
 
      protected:
@@ -583,7 +592,7 @@ class Mir2Lir : public Backend {
     virtual void Materialize();
     virtual CompiledMethod* GetCompiledMethod();
     void MarkSafepointPC(LIR* inst);
-    void SetupResourceMasks(LIR* lir);
+    void SetupResourceMasks(LIR* lir, bool leave_mem_ref = false);
     void SetMemRefType(LIR* lir, bool is_load, int mem_type);
     void AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load, bool is64bit);
     void SetupRegMask(uint64_t* mask, int reg);
@@ -625,6 +634,12 @@ class Mir2Lir : public Backend {
     LIR* InsertCaseLabel(DexOffset vaddr, int keyVal);
     void MarkPackedCaseLabels(Mir2Lir::SwitchTable* tab_rec);
     void MarkSparseCaseLabels(Mir2Lir::SwitchTable* tab_rec);
+
+    virtual void StartSlowPath(LIR *label) {}
+    virtual void BeginInvoke(CallInfo* info) {}
+    virtual void EndInvoke(CallInfo* info) {}
+
+
     // Handle bookkeeping to convert a wide RegLocation to a narow RegLocation.  No code generated.
     RegLocation NarrowRegLoc(RegLocation loc);
 
@@ -632,7 +647,7 @@ class Mir2Lir : public Backend {
     void ConvertMemOpIntoMove(LIR* orig_lir, RegStorage dest, RegStorage src);
     void ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir);
     void ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir);
-    void ApplyLocalOptimizations(LIR* head_lir, LIR* tail_lir);
+    virtual void ApplyLocalOptimizations(LIR* head_lir, LIR* tail_lir);
 
     // Shared by all targets - implemented in ralloc_util.cc
     int GetSRegHi(int lowSreg);
@@ -656,18 +671,18 @@ class Mir2Lir : public Backend {
     RegStorage AllocPreservedSingle(int s_reg);
     virtual RegStorage AllocPreservedDouble(int s_reg);
     RegStorage AllocTempBody(GrowableArray<RegisterInfo*> &regs, int* next_temp, bool required);
-    RegStorage AllocFreeTemp();
-    RegStorage AllocTemp();
-    RegStorage AllocTempSingle();
-    RegStorage AllocTempDouble();
+    virtual RegStorage AllocFreeTemp();
+    virtual RegStorage AllocTemp();
+    virtual RegStorage AllocTempSingle();
+    virtual RegStorage AllocTempDouble();
     void FlushReg(RegStorage reg);
     void FlushRegWide(RegStorage reg);
     RegStorage AllocLiveReg(int s_reg, int reg_class, bool wide);
     RegStorage FindLiveReg(GrowableArray<RegisterInfo*> &regs, int s_reg);
-    void FreeTemp(RegStorage reg);
-    void FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free);
-    bool IsLive(RegStorage reg);
-    bool IsTemp(RegStorage reg);
+    virtual void FreeTemp(RegStorage reg);
+    virtual void FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free);
+    virtual bool IsLive(RegStorage reg);
+    virtual bool IsTemp(RegStorage reg);
     bool IsPromoted(RegStorage reg);
     bool IsDirty(RegStorage reg);
     void LockTemp(RegStorage reg);
@@ -675,7 +690,7 @@ class Mir2Lir : public Backend {
     void NullifyRange(RegStorage reg, int s_reg);
     void MarkDef(RegLocation rl, LIR *start, LIR *finish);
     void MarkDefWide(RegLocation rl, LIR *start, LIR *finish);
-    RegLocation WideToNarrow(RegLocation rl);
+    virtual RegLocation WideToNarrow(RegLocation rl);
     void ResetDefLoc(RegLocation rl);
     void ResetDefLocWide(RegLocation rl);
     void ResetDefTracking();
@@ -692,8 +707,8 @@ class Mir2Lir : public Backend {
     void MarkDirty(RegLocation loc);
     void MarkInUse(RegStorage reg);
     bool CheckCorePoolSanity();
-    RegLocation UpdateLoc(RegLocation loc);
-    RegLocation UpdateLocWide(RegLocation loc);
+    virtual RegLocation UpdateLoc(RegLocation loc);
+    virtual RegLocation UpdateLocWide(RegLocation loc);
     RegLocation UpdateRawLoc(RegLocation loc);
 
     /**
@@ -704,7 +719,7 @@ class Mir2Lir : public Backend {
      * @param update Whether the liveness information should be updated.
      * @return Returns the properly typed temporary in physical register pairs.
      */
-    RegLocation EvalLocWide(RegLocation loc, int reg_class, bool update);
+    virtual RegLocation EvalLocWide(RegLocation loc, int reg_class, bool update);
 
     /**
      * @brief Used to prepare a register location to receive a value.
@@ -713,7 +728,7 @@ class Mir2Lir : public Backend {
      * @param update Whether the liveness information should be updated.
      * @return Returns the properly typed temporary in physical register.
      */
-    RegLocation EvalLoc(RegLocation loc, int reg_class, bool update);
+    virtual RegLocation EvalLoc(RegLocation loc, int reg_class, bool update);
 
     void CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num_regs);
     void DumpCounts(const RefCounts* arr, int size, const char* msg);
@@ -729,7 +744,7 @@ class Mir2Lir : public Backend {
     bool HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
                           RegLocation rl_src, RegLocation rl_dest, int lit);
     bool HandleEasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit);
-    void HandleSlowPaths();
+    virtual void HandleSlowPaths();
     void GenBarrier();
     void GenDivZeroException();
     // c_code holds condition code that's generated from testing divisor against 0.
@@ -783,8 +798,8 @@ class Mir2Lir : public Backend {
     template <size_t pointer_size>
     void GenConversionCall(ThreadOffset<pointer_size> func_offset, RegLocation rl_dest,
                            RegLocation rl_src);
-    void GenSuspendTest(int opt_flags);
-    void GenSuspendTestAndBranch(int opt_flags, LIR* target);
+    virtual void GenSuspendTest(int opt_flags);
+    virtual void GenSuspendTestAndBranch(int opt_flags, LIR* target);
 
     // This will be overridden by x86 implementation.
     virtual void GenConstWide(RegLocation rl_dest, int64_t value);
@@ -914,41 +929,41 @@ class Mir2Lir : public Backend {
     // Shared by all targets - implemented in gen_loadstore.cc.
     RegLocation LoadCurrMethod();
     void LoadCurrMethodDirect(RegStorage r_tgt);
-    LIR* LoadConstant(RegStorage r_dest, int value);
+    virtual LIR* LoadConstant(RegStorage r_dest, int value);
     // Natural word size.
-    LIR* LoadWordDisp(RegStorage r_base, int displacement, RegStorage r_dest) {
+    virtual LIR* LoadWordDisp(RegStorage r_base, int displacement, RegStorage r_dest) {
       return LoadBaseDisp(r_base, displacement, r_dest, kWord);
     }
     // Load 32 bits, regardless of target.
-    LIR* Load32Disp(RegStorage r_base, int displacement, RegStorage r_dest)  {
+    virtual LIR* Load32Disp(RegStorage r_base, int displacement, RegStorage r_dest)  {
       return LoadBaseDisp(r_base, displacement, r_dest, k32);
     }
     // Load a reference at base + displacement and decompress into register.
-    LIR* LoadRefDisp(RegStorage r_base, int displacement, RegStorage r_dest) {
+    virtual LIR* LoadRefDisp(RegStorage r_base, int displacement, RegStorage r_dest) {
       return LoadBaseDisp(r_base, displacement, r_dest, kReference);
     }
     // Load Dalvik value with 32-bit memory storage.  If compressed object reference, decompress.
-    RegLocation LoadValue(RegLocation rl_src, RegisterClass op_kind);
+    virtual RegLocation LoadValue(RegLocation rl_src, RegisterClass op_kind);
     // Load Dalvik value with 64-bit memory storage.
-    RegLocation LoadValueWide(RegLocation rl_src, RegisterClass op_kind);
+    virtual RegLocation LoadValueWide(RegLocation rl_src, RegisterClass op_kind);
     // Load Dalvik value with 32-bit memory storage.  If compressed object reference, decompress.
-    void LoadValueDirect(RegLocation rl_src, RegStorage r_dest);
+    virtual void LoadValueDirect(RegLocation rl_src, RegStorage r_dest);
     // Load Dalvik value with 32-bit memory storage.  If compressed object reference, decompress.
-    void LoadValueDirectFixed(RegLocation rl_src, RegStorage r_dest);
+    virtual void LoadValueDirectFixed(RegLocation rl_src, RegStorage r_dest);
     // Load Dalvik value with 64-bit memory storage.
-    void LoadValueDirectWide(RegLocation rl_src, RegStorage r_dest);
+    virtual void LoadValueDirectWide(RegLocation rl_src, RegStorage r_dest);
     // Load Dalvik value with 64-bit memory storage.
-    void LoadValueDirectWideFixed(RegLocation rl_src, RegStorage r_dest);
+    virtual void LoadValueDirectWideFixed(RegLocation rl_src, RegStorage r_dest);
     // Store an item of natural word size.
-    LIR* StoreWordDisp(RegStorage r_base, int displacement, RegStorage r_src) {
+    virtual LIR* StoreWordDisp(RegStorage r_base, int displacement, RegStorage r_src) {
       return StoreBaseDisp(r_base, displacement, r_src, kWord);
     }
     // Store an uncompressed reference into a compressed 32-bit container.
-    LIR* StoreRefDisp(RegStorage r_base, int displacement, RegStorage r_src) {
+    virtual LIR* StoreRefDisp(RegStorage r_base, int displacement, RegStorage r_src) {
       return StoreBaseDisp(r_base, displacement, r_src, kReference);
     }
     // Store 32 bits, regardless of target.
-    LIR* Store32Disp(RegStorage r_base, int displacement, RegStorage r_src) {
+    virtual LIR* Store32Disp(RegStorage r_base, int displacement, RegStorage r_src) {
       return StoreBaseDisp(r_base, displacement, r_src, k32);
     }
 
@@ -957,7 +972,7 @@ class Mir2Lir : public Backend {
      * @param rl_dest The destination dalvik register location.
      * @param rl_src The source register location. Can be either physical register or dalvik register.
      */
-    void StoreValue(RegLocation rl_dest, RegLocation rl_src);
+    virtual void StoreValue(RegLocation rl_dest, RegLocation rl_src);
 
     /**
      * @brief Used to do the final store in a wide destination as per bytecode semantics.
@@ -966,7 +981,7 @@ class Mir2Lir : public Backend {
      * @param rl_src The source register location. Can be either physical register or dalvik
      *  register.
      */
-    void StoreValueWide(RegLocation rl_dest, RegLocation rl_src);
+    virtual void StoreValueWide(RegLocation rl_dest, RegLocation rl_src);
 
     /**
      * @brief Used to do the final store to a destination as per bytecode semantics.
@@ -978,7 +993,7 @@ class Mir2Lir : public Backend {
      * register value that now needs to be properly registered.  This is used to avoid an
      * extra register copy that would result if StoreValue was called.
      */
-    void StoreFinalValue(RegLocation rl_dest, RegLocation rl_src);
+    virtual void StoreFinalValue(RegLocation rl_dest, RegLocation rl_src);
 
     /**
      * @brief Used to do the final store in a wide destination as per bytecode semantics.
@@ -990,14 +1005,14 @@ class Mir2Lir : public Backend {
      * register values that now need to be properly registered.  This is used to avoid an
      * extra pair of register copies that would result if StoreValueWide was called.
      */
-    void StoreFinalValueWide(RegLocation rl_dest, RegLocation rl_src);
+    virtual void StoreFinalValueWide(RegLocation rl_dest, RegLocation rl_src);
 
     // Shared by all targets - implemented in mir_to_lir.cc.
     void CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list);
-    void HandleExtendedMethodMIR(BasicBlock* bb, MIR* mir);
+    virtual void HandleExtendedMethodMIR(BasicBlock* bb, MIR* mir);
     bool MethodBlockCodeGen(BasicBlock* bb);
     bool SpecialMIR2LIR(const InlineMethod& special);
-    void MethodMIR2LIR();
+    virtual void MethodMIR2LIR();
     // Update LIR for verbose listings.
     void UpdateLIROffsets();
 
@@ -1345,14 +1360,14 @@ class Mir2Lir : public Backend {
      * @param loc location of result
      * @returns update location
      */
-    RegLocation ForceTemp(RegLocation loc);
+    virtual RegLocation ForceTemp(RegLocation loc);
 
     /*
      * @brief Force a wide location (in registers) into temporary registers
      * @param loc location of result
      * @returns update location
      */
-    RegLocation ForceTempWide(RegLocation loc);
+    virtual RegLocation ForceTempWide(RegLocation loc);
 
     static constexpr OpSize LoadStoreOpSize(bool wide, bool ref) {
       return wide ? k64 : ref ? kReference : k32;
@@ -1398,7 +1413,7 @@ class Mir2Lir : public Backend {
      */
     virtual bool GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& special);
 
-  private:
+  protected:
     void ClobberBody(RegisterInfo* p);
     void SetCurrentDexPc(DexOffset dexpc) {
       current_dalvik_offset_ = dexpc;
@@ -1457,7 +1472,14 @@ class Mir2Lir : public Backend {
 
     // Copy arg0 and arg1 to kArg0 and kArg1 safely, possibly using
     // kArg2 as temp.
-    void CopyToArgumentRegs(RegStorage arg0, RegStorage arg1);
+    virtual void CopyToArgumentRegs(RegStorage arg0, RegStorage arg1);
+
+    /**
+     * @brief Load Constant into RegLocation
+     * @param rl_dest Destination RegLocation
+     * @param value Constant value
+     */
+    virtual void GenConst(RegLocation rl_dest, int value);
 
   public:
     // TODO: add accessors for these.
