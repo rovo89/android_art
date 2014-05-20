@@ -134,11 +134,11 @@ test-art-target-oat-$(1): test-art-target-oat-$(1)$(ART_PHONY_TEST_TARGET_SUFFIX
   endif
   $(call declare-test-art-oat-targets-impl,$(1),)
 
-$(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).odex: $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar $(HOST_CORE_IMG_OUT) | $(DEX2OATD)
-	$(DEX2OATD) $(DEX2OAT_FLAGS) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_LOCATION) --dex-file=$$(realpath $$<) --oat-file=$$(realpath $(HOST_OUT_JAVA_LIBRARIES))/oat-test-dex-$(1).odex --instruction-set=$(ART_HOST_ARCH) --host --android-root=$(HOST_OUT)
+$(HOST_OUT_JAVA_LIBRARIES)/$(ART_HOST_ARCH)/oat-test-dex-$(1).odex: $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar $(HOST_CORE_IMG_OUT) | $(DEX2OATD)
+	$(DEX2OATD) $(DEX2OAT_FLAGS) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_LOCATION) --dex-file=$$(realpath $$<) --oat-file=$$@ --instruction-set=$(ART_HOST_ARCH) --host --android-root=$(HOST_OUT)
 
 .PHONY: test-art-host-oat-default-$(1)
-test-art-host-oat-default-$(1): $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).odex test-art-host-dependencies
+test-art-host-oat-default-$(1): $(HOST_OUT_JAVA_LIBRARIES)/$(ART_HOST_ARCH)/oat-test-dex-$(1).odex test-art-host-dependencies
 	mkdir -p /tmp/android-data/test-art-host-oat-default-$(1)
 	ANDROID_DATA=/tmp/android-data/test-art-host-oat-default-$(1) \
 	  ANDROID_ROOT=$(HOST_OUT) \
@@ -148,7 +148,7 @@ test-art-host-oat-default-$(1): $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).ode
 	$(hide) rm -r /tmp/android-data/test-art-host-oat-default-$(1)
 
 .PHONY: test-art-host-oat-interpreter-$(1)
-test-art-host-oat-interpreter-$(1): $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).odex test-art-host-dependencies
+test-art-host-oat-interpreter-$(1): $(HOST_OUT_JAVA_LIBRARIES)/$(ART_HOST_ARCH)/oat-test-dex-$(1).odex test-art-host-dependencies
 	mkdir -p /tmp/android-data/test-art-host-oat-interpreter-$(1)
 	ANDROID_DATA=/tmp/android-data/test-art-host-oat-interpreter-$(1) \
 	  ANDROID_ROOT=$(HOST_OUT) \
