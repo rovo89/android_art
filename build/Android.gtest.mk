@@ -191,7 +191,7 @@ define build-art-test
     LOCAL_MODULE_PATH_32 := $(ART_NATIVETEST_OUT)/$(ART_TARGET_ARCH_32)
     LOCAL_MODULE_PATH_64 := $(ART_NATIVETEST_OUT)/$(ART_TARGET_ARCH_64)
     LOCAL_MULTILIB := both
-    include art/build/Android.libcxx.mk
+    include external/libcxx/libcxx.mk
     include $(BUILD_EXECUTABLE)
     
     ART_TARGET_GTEST_EXECUTABLES$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_NATIVETEST_OUT)/$(TARGET_ARCH)/$$(LOCAL_MODULE)
@@ -220,7 +220,6 @@ $$(art_gtest_target): $$(art_gtest_target)$(ART_PHONY_TEST_TARGET_SUFFIX)
     endif
     LOCAL_LDLIBS += -lpthread -ldl
     LOCAL_IS_HOST_MODULE := true
-    include art/build/Android.libcxx.mk
     include $(BUILD_HOST_EXECUTABLE)
     art_gtest_exe := $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
     ART_HOST_GTEST_EXECUTABLES += $$(art_gtest_exe)

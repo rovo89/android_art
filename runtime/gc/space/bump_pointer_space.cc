@@ -28,7 +28,7 @@ BumpPointerSpace* BumpPointerSpace::Create(const std::string& name, size_t capac
                                            byte* requested_begin) {
   capacity = RoundUp(capacity, kPageSize);
   std::string error_msg;
-  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(name.c_str(), requested_begin, capacity,
+  std::unique_ptr<MemMap> mem_map(MemMap::MapAnonymous(name.c_str(), requested_begin, capacity,
                                                  PROT_READ | PROT_WRITE, true, &error_msg));
   if (mem_map.get() == nullptr) {
     LOG(ERROR) << "Failed to allocate pages for alloc space (" << name << ") of size "

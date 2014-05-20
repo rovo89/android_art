@@ -123,22 +123,22 @@ class MANAGED DexCache : public Object {
   }
 
   ObjectArray<String>* GetStrings() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject< ObjectArray<String> >(StringsOffset());
+    return GetFieldObject< ObjectArray<String>>(StringsOffset());
   }
 
   ObjectArray<Class>* GetResolvedTypes() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<ObjectArray<Class> >(
+    return GetFieldObject<ObjectArray<Class>>(
         OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_types_));
   }
 
   ObjectArray<ArtMethod>* GetResolvedMethods() ALWAYS_INLINE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject< ObjectArray<ArtMethod> >(ResolvedMethodsOffset());
+    return GetFieldObject< ObjectArray<ArtMethod>>(ResolvedMethodsOffset());
   }
 
   ObjectArray<ArtField>* GetResolvedFields() ALWAYS_INLINE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<ObjectArray<ArtField> >(ResolvedFieldsOffset());
+    return GetFieldObject<ObjectArray<ArtField>>(ResolvedFieldsOffset());
   }
 
   const DexFile* GetDexFile() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -153,10 +153,10 @@ class MANAGED DexCache : public Object {
  private:
   HeapReference<Object> dex_;
   HeapReference<String> location_;
-  HeapReference<ObjectArray<ArtField> > resolved_fields_;
-  HeapReference<ObjectArray<ArtMethod> > resolved_methods_;
-  HeapReference<ObjectArray<Class> > resolved_types_;
-  HeapReference<ObjectArray<String> > strings_;
+  HeapReference<ObjectArray<ArtField>> resolved_fields_;
+  HeapReference<ObjectArray<ArtMethod>> resolved_methods_;
+  HeapReference<ObjectArray<Class>> resolved_types_;
+  HeapReference<ObjectArray<String>> strings_;
   uint64_t dex_file_;
 
   friend struct art::DexCacheOffsets;  // for verifying offset information

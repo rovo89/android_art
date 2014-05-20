@@ -19,8 +19,8 @@
 #include <fcntl.h>
 #include <sys/file.h>
 #include <sys/stat.h>
-
 #include <deque>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -62,7 +62,6 @@
 #include "scoped_thread_state_change.h"
 #include "handle_scope-inl.h"
 #include "thread.h"
-#include "UniquePtrCompat.h"
 #include "utils.h"
 #include "verifier/method_verifier.h"
 #include "well_known_classes.h"
@@ -647,7 +646,7 @@ const DexFile* ClassLinker::FindDexFileInOatLocation(const char* dex_location,
                                                      uint32_t dex_location_checksum,
                                                      const char* oat_location,
                                                      std::string* error_msg) {
-  UniquePtr<OatFile> oat_file(OatFile::Open(oat_location, oat_location, NULL,
+  std::unique_ptr<OatFile> oat_file(OatFile::Open(oat_location, oat_location, NULL,
                                             !Runtime::Current()->IsCompiler(),
                                             error_msg));
   if (oat_file.get() == nullptr) {
@@ -745,7 +744,7 @@ class ScopedFlock {
   }
 
  private:
-  UniquePtr<File> file_;
+  std::unique_ptr<File> file_;
 
   DISALLOW_COPY_AND_ASSIGN(ScopedFlock);
 };
@@ -784,7 +783,7 @@ const DexFile* ClassLinker::FindOrCreateOatFileForDexLocation(const char* dex_lo
     error_msgs->push_back(error_msg);
     return nullptr;
   }
-  UniquePtr<OatFile> oat_file(OatFile::Open(oat_location, oat_location, NULL,
+  std::unique_ptr<OatFile> oat_file(OatFile::Open(oat_location, oat_location, NULL,
                                             !Runtime::Current()->IsCompiler(),
                                             &error_msg));
   if (oat_file.get() == nullptr) {
@@ -829,7 +828,7 @@ bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
     image_oat_checksum = image_header.GetOatChecksum();
     image_oat_data_begin = reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin());
   } else {
-    UniquePtr<ImageHeader> image_header(gc::space::ImageSpace::ReadImageHeaderOrDie(
+    std::unique_ptr<ImageHeader> image_header(gc::space::ImageSpace::ReadImageHeaderOrDie(
         image_space->GetImageLocation().c_str(), instruction_set));
     image_oat_checksum = image_header->GetOatChecksum();
     image_oat_data_begin = reinterpret_cast<uintptr_t>(image_header->GetOatDataBegin());
@@ -878,7 +877,7 @@ const DexFile* ClassLinker::VerifyAndOpenDexFileFromOatFile(const std::string& o
                                                             const char* dex_location,
                                                             std::string* error_msg,
                                                             bool* open_failed) {
-  UniquePtr<const OatFile> oat_file(FindOatFileFromOatLocation(oat_file_location, error_msg));
+  std::unique_ptr<const OatFile> oat_file(FindOatFileFromOatLocation(oat_file_location, error_msg));
   if (oat_file.get() == nullptr) {
     *open_failed = true;
     return nullptr;
@@ -1240,22 +1239,22 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self, const DexFile& dex_fi
   if (location.Get() == NULL) {
     return NULL;
   }
-  Handle<mirror::ObjectArray<mirror::String> >
+  Handle<mirror::ObjectArray<mirror::String>>
       strings(hs.NewHandle(AllocStringArray(self, dex_file.NumStringIds())));
   if (strings.Get() == NULL) {
     return NULL;
   }
-  Handle<mirror::ObjectArray<mirror::Class> >
+  Handle<mirror::ObjectArray<mirror::Class>>
       types(hs.NewHandle(AllocClassArray(self, dex_file.NumTypeIds())));
   if (types.Get() == NULL) {
     return NULL;
   }
-  Handle<mirror::ObjectArray<mirror::ArtMethod> >
+  Handle<mirror::ObjectArray<mirror::ArtMethod>>
       methods(hs.NewHandle(AllocArtMethodArray(self, dex_file.NumMethodIds())));
   if (methods.Get() == NULL) {
     return NULL;
   }
-  Handle<mirror::ObjectArray<mirror::ArtField> >
+  Handle<mirror::ObjectArray<mirror::ArtField>>
       fields(hs.NewHandle(AllocArtFieldArray(self, dex_file.NumFieldIds())));
   if (fields.Get() == NULL) {
     return NULL;
@@ -2901,7 +2900,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   {
     ObjectLock<mirror::Class> lock(self, klass);  // Must hold lock on object when resolved.
     // Link the fields and virtual methods, creating vtable and iftables
-    Handle<mirror::ObjectArray<mirror::Class> > h_interfaces(
+    Handle<mirror::ObjectArray<mirror::Class>> h_interfaces(
         hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces)));
     if (!LinkClass(self, klass, h_interfaces)) {
       klass->SetStatus(mirror::Class::kStatusError, self);
@@ -2909,7 +2908,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     }
 
     interfaces_sfield->SetObject<false>(klass.Get(), soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces));
-    throws_sfield->SetObject<false>(klass.Get(), soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class> >*>(throws));
+    throws_sfield->SetObject<false>(klass.Get(), soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>*>(throws));
     klass->SetStatus(mirror::Class::kStatusInitialized, self);
   }
 
@@ -2937,7 +2936,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     mirror::SynthesizedProxyClass* synth_proxy_class =
         down_cast<mirror::SynthesizedProxyClass*>(klass.Get());
     CHECK_EQ(synth_proxy_class->GetInterfaces(), soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces));
-    CHECK_EQ(synth_proxy_class->GetThrows(), soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class> >*>(throws));
+    CHECK_EQ(synth_proxy_class->GetThrows(), soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>*>(throws));
   }
   std::string descriptor(GetDescriptorForProxy(klass.Get()));
   mirror::Class* existing = InsertClass(descriptor.c_str(), klass.Get(), Hash(descriptor.c_str()));
@@ -3375,7 +3374,7 @@ void ClassLinker::ConstructFieldMap(const DexFile& dex_file, const DexFile::Clas
 }
 
 bool ClassLinker::LinkClass(Thread* self, const Handle<mirror::Class>& klass,
-                            const Handle<mirror::ObjectArray<mirror::Class> >& interfaces) {
+                            const Handle<mirror::ObjectArray<mirror::Class>>& interfaces) {
   CHECK_EQ(mirror::Class::kStatusLoaded, klass->GetStatus());
   if (!LinkSuperClass(klass)) {
     return false;
@@ -3500,7 +3499,7 @@ bool ClassLinker::LinkSuperClass(const Handle<mirror::Class>& klass) {
 
 // Populate the class vtable and itable. Compute return type indices.
 bool ClassLinker::LinkMethods(const Handle<mirror::Class>& klass,
-                              const Handle<mirror::ObjectArray<mirror::Class> >& interfaces) {
+                              const Handle<mirror::ObjectArray<mirror::Class>>& interfaces) {
   if (klass->IsInterface()) {
     // No vtable.
     size_t count = klass->NumVirtualMethods();
@@ -3589,7 +3588,7 @@ bool ClassLinker::LinkVirtualMethods(const Handle<mirror::Class>& klass) {
       return false;
     }
     StackHandleScope<1> hs(self);
-    Handle<mirror::ObjectArray<mirror::ArtMethod> >
+    Handle<mirror::ObjectArray<mirror::ArtMethod>>
         vtable(hs.NewHandle(AllocArtMethodArray(self, num_virtual_methods)));
     if (UNLIKELY(vtable.Get() == NULL)) {
       CHECK(self->IsExceptionPending());  // OOME.
@@ -3606,7 +3605,7 @@ bool ClassLinker::LinkVirtualMethods(const Handle<mirror::Class>& klass) {
 }
 
 bool ClassLinker::LinkInterfaceMethods(const Handle<mirror::Class>& klass,
-                                       const Handle<mirror::ObjectArray<mirror::Class> >& interfaces) {
+                                       const Handle<mirror::ObjectArray<mirror::Class>>& interfaces) {
   Thread* const self = Thread::Current();
   // Set the imt table to be all conflicts by default.
   klass->SetImTable(Runtime::Current()->GetDefaultImt());
@@ -3721,7 +3720,7 @@ bool ClassLinker::LinkInterfaceMethods(const Handle<mirror::Class>& klass,
   }
   // Allocate imtable
   bool imtable_changed = false;
-  Handle<mirror::ObjectArray<mirror::ArtMethod> > imtable(
+  Handle<mirror::ObjectArray<mirror::ArtMethod>> imtable(
       hs.NewHandle(AllocArtMethodArray(self, kImtSize)));
   if (UNLIKELY(imtable.Get() == NULL)) {
     CHECK(self->IsExceptionPending());  // OOME.
@@ -3732,14 +3731,14 @@ bool ClassLinker::LinkInterfaceMethods(const Handle<mirror::Class>& klass,
     size_t num_methods = iftable->GetInterface(i)->NumVirtualMethods();
     if (num_methods > 0) {
       StackHandleScope<2> hs(self);
-      Handle<mirror::ObjectArray<mirror::ArtMethod> >
+      Handle<mirror::ObjectArray<mirror::ArtMethod>>
           method_array(hs.NewHandle(AllocArtMethodArray(self, num_methods)));
       if (UNLIKELY(method_array.Get() == nullptr)) {
         CHECK(self->IsExceptionPending());  // OOME.
         return false;
       }
       iftable->SetMethodArray(i, method_array.Get());
-      Handle<mirror::ObjectArray<mirror::ArtMethod> > vtable(
+      Handle<mirror::ObjectArray<mirror::ArtMethod>> vtable(
           hs.NewHandle(klass->GetVTableDuringLinking()));
       for (size_t j = 0; j < num_methods; ++j) {
         mirror::ArtMethod* interface_method = iftable->GetInterface(i)->GetVirtualMethod(j);
@@ -3828,7 +3827,7 @@ bool ClassLinker::LinkInterfaceMethods(const Handle<mirror::Class>& klass,
     klass->SetVirtualMethods(virtuals);
 
     StackHandleScope<1> hs(self);
-    Handle<mirror::ObjectArray<mirror::ArtMethod> > vtable(
+    Handle<mirror::ObjectArray<mirror::ArtMethod>> vtable(
         hs.NewHandle(klass->GetVTableDuringLinking()));
     CHECK(vtable.Get() != NULL);
     int old_vtable_count = vtable->GetLength();

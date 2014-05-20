@@ -16,7 +16,8 @@
 
 #include "dex_file.h"
 
-#include "UniquePtrCompat.h"
+#include <memory>
+
 #include "common_runtime_test.h"
 
 namespace art {
@@ -90,7 +91,7 @@ static inline byte* DecodeBase64(const char* src, size_t* dst_size) {
     *dst_size = 0;
     return nullptr;
   }
-  UniquePtr<byte[]> dst(new byte[tmp.size()]);
+  std::unique_ptr<byte[]> dst(new byte[tmp.size()]);
   if (dst_size != nullptr) {
     *dst_size = tmp.size();
   } else {
@@ -131,11 +132,11 @@ static const DexFile* OpenDexFileBase64(const char* base64,
   // decode base64
   CHECK(base64 != NULL);
   size_t length;
-  UniquePtr<byte[]> dex_bytes(DecodeBase64(base64, &length));
+  std::unique_ptr<byte[]> dex_bytes(DecodeBase64(base64, &length));
   CHECK(dex_bytes.get() != NULL);
 
   // write to provided file
-  UniquePtr<File> file(OS::CreateEmptyFile(location));
+  std::unique_ptr<File> file(OS::CreateEmptyFile(location));
   CHECK(file.get() != NULL);
   if (!file->WriteFully(dex_bytes.get(), length)) {
     PLOG(FATAL) << "Failed to write base64 as dex file";
@@ -154,7 +155,7 @@ static const DexFile* OpenDexFileBase64(const char* base64,
 
 TEST_F(DexFileTest, Header) {
   ScratchFile tmp;
-  UniquePtr<const DexFile> raw(OpenDexFileBase64(kRawDex, tmp.GetFilename().c_str()));
+  std::unique_ptr<const DexFile> raw(OpenDexFileBase64(kRawDex, tmp.GetFilename().c_str()));
   ASSERT_TRUE(raw.get() != NULL);
 
   const DexFile::Header& header = raw->GetHeader();

@@ -30,7 +30,7 @@ LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 LOCAL_MULTILIB := both
 LOCAL_MODULE_STEM_32 := dalvikvm32
 LOCAL_MODULE_STEM_64 := dalvikvm64
-include art/build/Android.libcxx.mk
+include external/libcxx/libcxx.mk
 include $(BUILD_EXECUTABLE)
 
 # create symlink for the primary version target.
@@ -51,7 +51,6 @@ LOCAL_SHARED_LIBRARIES := libnativehelper
 LOCAL_LDFLAGS := -ldl -lpthread
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 LOCAL_IS_HOST_MODULE := true
-include art/build/Android.libcxx.mk
 include $(BUILD_HOST_EXECUTABLE)
 ART_HOST_EXECUTABLES += $(HOST_OUT_EXECUTABLES)/$(LOCAL_MODULE)
 endif

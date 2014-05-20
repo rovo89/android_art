@@ -105,7 +105,7 @@ class InternTable {
   bool allow_new_interns_ GUARDED_BY(Locks::intern_table_lock_);
   ConditionVariable new_intern_condition_ GUARDED_BY(Locks::intern_table_lock_);
   Table strong_interns_ GUARDED_BY(Locks::intern_table_lock_);
-  std::vector<std::pair<int32_t, mirror::String*> > new_strong_intern_roots_
+  std::vector<std::pair<int32_t, mirror::String*>> new_strong_intern_roots_
       GUARDED_BY(Locks::intern_table_lock_);
   Table weak_interns_ GUARDED_BY(Locks::intern_table_lock_);
 };

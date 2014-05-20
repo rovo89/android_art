@@ -136,7 +136,7 @@ LlvmCompilationUnit* CompilerLLVM::AllocateCompilationUnit() {
 
 CompiledMethod* CompilerLLVM::
 CompileDexMethod(DexCompilationUnit* dex_compilation_unit, InvokeType invoke_type) {
-  UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
+  std::unique_ptr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
   cunit->SetDexCompilationUnit(dex_compilation_unit);
   cunit->SetCompilerDriver(compiler_driver_);
@@ -163,9 +163,9 @@ CompileDexMethod(DexCompilationUnit* dex_compilation_unit, InvokeType invoke_typ
 
 CompiledMethod* CompilerLLVM::
 CompileNativeMethod(DexCompilationUnit* dex_compilation_unit) {
-  UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
+  std::unique_ptr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
-  UniquePtr<JniCompiler> jni_compiler(
+  std::unique_ptr<JniCompiler> jni_compiler(
       new JniCompiler(cunit.get(), compiler_driver_, dex_compilation_unit));
 
   return jni_compiler->Compile();

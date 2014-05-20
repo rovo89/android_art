@@ -17,11 +17,11 @@
 #include "space_bitmap.h"
 
 #include <stdint.h>
+#include <memory>
 
 #include "common_runtime_test.h"
 #include "globals.h"
 #include "space_bitmap-inl.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 namespace gc {
@@ -32,7 +32,7 @@ class SpaceBitmapTest : public CommonRuntimeTest {};
 TEST_F(SpaceBitmapTest, Init) {
   byte* heap_begin = reinterpret_cast<byte*>(0x10000000);
   size_t heap_capacity = 16 * MB;
-  UniquePtr<ContinuousSpaceBitmap> space_bitmap(
+  std::unique_ptr<ContinuousSpaceBitmap> space_bitmap(
       ContinuousSpaceBitmap::Create("test bitmap", heap_begin, heap_capacity));
   EXPECT_TRUE(space_bitmap.get() != NULL);
 }
@@ -60,7 +60,7 @@ TEST_F(SpaceBitmapTest, ScanRange) {
   byte* heap_begin = reinterpret_cast<byte*>(0x10000000);
   size_t heap_capacity = 16 * MB;
 
-  UniquePtr<ContinuousSpaceBitmap> space_bitmap(
+  std::unique_ptr<ContinuousSpaceBitmap> space_bitmap(
       ContinuousSpaceBitmap::Create("test bitmap", heap_begin, heap_capacity));
   EXPECT_TRUE(space_bitmap.get() != NULL);
 
@@ -120,7 +120,7 @@ void RunTest() NO_THREAD_SAFETY_ANALYSIS {
 
 
   for (int i = 0; i < 5 ; ++i) {
-    UniquePtr<ContinuousSpaceBitmap> space_bitmap(
+    std::unique_ptr<ContinuousSpaceBitmap> space_bitmap(
         ContinuousSpaceBitmap::Create("test bitmap", heap_begin, heap_capacity));
 
     for (int j = 0; j < 10000; ++j) {

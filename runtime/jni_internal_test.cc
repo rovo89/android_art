@@ -539,8 +539,8 @@ TEST_F(JniInternalTest, RegisterAndUnregisterNatives) {
   ExpectException(aioobe_); \
   \
   /* Prepare a couple of buffers. */ \
-  UniquePtr<scalar_type[]> src_buf(new scalar_type[size]); \
-  UniquePtr<scalar_type[]> dst_buf(new scalar_type[size]); \
+  std::unique_ptr<scalar_type[]> src_buf(new scalar_type[size]); \
+  std::unique_ptr<scalar_type[]> dst_buf(new scalar_type[size]); \
   for (jsize i = 0; i < size; ++i) { src_buf[i] = scalar_type(i); } \
   for (jsize i = 0; i < size; ++i) { dst_buf[i] = scalar_type(-1); } \
   \

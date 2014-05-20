@@ -24,6 +24,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fstream>
+#include <memory>
 
 #include "../../external/icu4c/common/unicode/uvernum.h"
 #include "base/macros.h"
@@ -47,7 +48,6 @@
 #include "ScopedLocalRef.h"
 #include "thread.h"
 #include "utils.h"
-#include "UniquePtrCompat.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
 #include "well_known_classes.h"
@@ -107,7 +107,7 @@ class ScratchFile {
 
  private:
   std::string filename_;
-  UniquePtr<File> file_;
+  std::unique_ptr<File> file_;
 };
 
 class CommonRuntimeTest : public testing::Test {
@@ -304,7 +304,7 @@ class CommonRuntimeTest : public testing::Test {
   std::string dalvik_cache_;
   const DexFile* java_lang_dex_file_;  // owned by runtime_
   std::vector<const DexFile*> boot_class_path_;
-  UniquePtr<Runtime> runtime_;
+  std::unique_ptr<Runtime> runtime_;
   // Owned by the runtime
   ClassLinker* class_linker_;
 

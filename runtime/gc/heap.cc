@@ -20,6 +20,7 @@
 #include <cutils/trace.h>
 
 #include <limits>
+#include <memory>
 #include <vector>
 
 #include "base/histogram-inl.h"
@@ -64,7 +65,6 @@
 #include "scoped_thread_state_change.h"
 #include "handle_scope-inl.h"
 #include "thread_list.h"
-#include "UniquePtrCompat.h"
 #include "well_known_classes.h"
 
 namespace art {

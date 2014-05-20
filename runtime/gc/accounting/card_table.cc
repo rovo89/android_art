@@ -55,7 +55,7 @@ CardTable* CardTable::Create(const byte* heap_begin, size_t heap_capacity) {
   size_t capacity = heap_capacity / kCardSize;
   /* Allocate an extra 256 bytes to allow fixed low-byte of base */
   std::string error_msg;
-  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous("card table", NULL,
+  std::unique_ptr<MemMap> mem_map(MemMap::MapAnonymous("card table", NULL,
                                                  capacity + 256, PROT_READ | PROT_WRITE,
                                                  false, &error_msg));
   CHECK(mem_map.get() != NULL) << "couldn't allocate card table: " << error_msg;

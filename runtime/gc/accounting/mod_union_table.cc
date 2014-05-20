@@ -16,6 +16,8 @@
 
 #include "mod_union_table.h"
 
+#include <memory>
+
 #include "base/stl_util.h"
 #include "card_table-inl.h"
 #include "heap_bitmap.h"
@@ -30,7 +32,6 @@
 #include "mirror/object_array-inl.h"
 #include "space_bitmap-inl.h"
 #include "thread.h"
-#include "UniquePtrCompat.h"
 
 using ::art::mirror::Object;
 

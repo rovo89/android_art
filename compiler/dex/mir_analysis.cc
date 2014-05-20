@@ -15,6 +15,8 @@
  */
 
 #include <algorithm>
+#include <memory>
+
 #include "compiler_internals.h"
 #include "dataflow_iterator-inl.h"
 #include "dex_instruction.h"
@@ -23,7 +25,6 @@
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "driver/compiler_options.h"
-#include "UniquePtrCompat.h"
 #include "utils/scoped_arena_containers.h"
 
 namespace art {

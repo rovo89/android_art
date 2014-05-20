@@ -262,10 +262,10 @@ class OatFile {
   const byte* end_;
 
   // Backing memory map for oat file during when opened by ElfWriter during initial compilation.
-  UniquePtr<MemMap> mem_map_;
+  std::unique_ptr<MemMap> mem_map_;
 
   // Backing memory map for oat file during cross compilation.
-  UniquePtr<ElfFile> elf_file_;
+  std::unique_ptr<ElfFile> elf_file_;
 
   // dlopen handle during runtime.
   void* dlopen_handle_;

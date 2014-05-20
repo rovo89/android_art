@@ -20,12 +20,13 @@
 #include <cerrno>
 #include <cstring>
 #include <iostream>  // NOLINT
+#include <memory>
 #include <sstream>
 #include <signal.h>
 #include <vector>
+
 #include "base/macros.h"
 #include "log_severity.h"
-#include "UniquePtrCompat.h"
 
 #define CHECK(x) \
   if (UNLIKELY(!(x))) \
@@ -202,7 +203,7 @@ class LogMessage {
  private:
   static void LogLine(const LogMessageData& data, const char*);
 
-  const UniquePtr<LogMessageData> data_;
+  const std::unique_ptr<LogMessageData> data_;
 
   friend void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context);
   friend class Mutex;

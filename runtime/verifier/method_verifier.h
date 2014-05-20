@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_VERIFIER_METHOD_VERIFIER_H_
 #define ART_RUNTIME_VERIFIER_METHOD_VERIFIER_H_
 
+#include <memory>
 #include <set>
 #include <vector>
 
@@ -33,7 +34,6 @@
 #include "reg_type_cache-inl.h"
 #include "register_line.h"
 #include "safe_map.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 
@@ -126,7 +126,7 @@ class PcToRegisterLineTable {
   }
 
  private:
-  UniquePtr<RegisterLine*[]> register_lines_;
+  std::unique_ptr<RegisterLine*[]> register_lines_;
   size_t size_;
 };
 
@@ -617,14 +617,14 @@ class MethodVerifier {
   PcToRegisterLineTable reg_table_;
 
   // Storage for the register status we're currently working on.
-  UniquePtr<RegisterLine> work_line_;
+  std::unique_ptr<RegisterLine> work_line_;
 
   // The address of the instruction we're currently working on, note that this is in 2 byte
   // quantities
   uint32_t work_insn_idx_;
 
   // Storage for the register status we're saving for later.
-  UniquePtr<RegisterLine> saved_line_;
+  std::unique_ptr<RegisterLine> saved_line_;
 
   const uint32_t dex_method_idx_;  // The method we're working on.
   // Its object representation if known.
@@ -640,7 +640,7 @@ class MethodVerifier {
   const DexFile::CodeItem* const code_item_;  // The code item containing the code for the method.
   const RegType* declaring_class_;  // Lazily computed reg type of the method's declaring class.
   // Instruction widths and flags, one entry per code unit.
-  UniquePtr<InstructionFlags[]> insn_flags_;
+  std::unique_ptr<InstructionFlags[]> insn_flags_;
   // The dex PC of a FindLocksAtDexPc request, -1 otherwise.
   uint32_t interesting_dex_pc_;
   // The container into which FindLocksAtDexPc should write the registers containing held locks,

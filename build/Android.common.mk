@@ -246,9 +246,6 @@ else
 endif
 ART_TARGET_CFLAGS += $(ART_DEFAULT_GC_TYPE_CFLAGS)
 
-# TODO: remove when target no longer implies stlport.
-# ART_TARGET_CFLAGS += -DART_WITH_STLPORT=1
-
 # DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES is set in ../build/core/dex_preopt.mk based on
 # the TARGET_CPU_VARIANT
 ifeq ($(DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES),)

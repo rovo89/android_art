@@ -43,7 +43,7 @@ namespace accounting {
 // from the free list spaces to the bump pointer spaces.
 class RememberedSet {
  public:
-  typedef std::set<byte*, std::less<byte*>, GcAllocator<byte*> > CardSet;
+  typedef std::set<byte*, std::less<byte*>, GcAllocator<byte*>> CardSet;
 
   explicit RememberedSet(const std::string& name, Heap* heap, space::ContinuousSpace* space)
       : name_(name), heap_(heap), space_(space) {}

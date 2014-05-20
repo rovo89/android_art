@@ -82,7 +82,7 @@ enum VisitRootFlags : uint8_t {
 
 class Runtime {
  public:
-  typedef std::vector<std::pair<std::string, const void*> > Options;
+  typedef std::vector<std::pair<std::string, const void*>> Options;
 
   // Creates and initializes a new runtime.
   static bool Create(const Options& options, bool ignore_unrecognized)
@@ -523,7 +523,7 @@ class Runtime {
   size_t threads_being_born_ GUARDED_BY(Locks::runtime_shutdown_lock_);
 
   // Waited upon until no threads are being born.
-  UniquePtr<ConditionVariable> shutdown_cond_ GUARDED_BY(Locks::runtime_shutdown_lock_);
+  std::unique_ptr<ConditionVariable> shutdown_cond_ GUARDED_BY(Locks::runtime_shutdown_lock_);
 
   // Set when runtime shutdown is past the point that new threads may attach.
   bool shutting_down_ GUARDED_BY(Locks::runtime_shutdown_lock_);

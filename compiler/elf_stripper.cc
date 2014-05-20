@@ -18,9 +18,9 @@
 
 #include <unistd.h>
 #include <sys/types.h>
+#include <memory>
 #include <vector>
 
-#include "UniquePtrCompat.h"
 #include "base/logging.h"
 #include "elf_file.h"
 #include "elf_utils.h"
@@ -29,7 +29,7 @@
 namespace art {
 
 bool ElfStripper::Strip(File* file, std::string* error_msg) {
-  UniquePtr<ElfFile> elf_file(ElfFile::Open(file, true, false, error_msg));
+  std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file, true, false, error_msg));
   if (elf_file.get() == nullptr) {
     return false;
   }

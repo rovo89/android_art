@@ -487,7 +487,7 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkClass(Thread* self, const Handle<mirror::Class>& klass,
-                 const Handle<mirror::ObjectArray<mirror::Class> >& interfaces)
+                 const Handle<mirror::ObjectArray<mirror::Class>>& interfaces)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkSuperClass(const Handle<mirror::Class>& klass)
@@ -497,14 +497,14 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkMethods(const Handle<mirror::Class>& klass,
-                   const Handle<mirror::ObjectArray<mirror::Class> >& interfaces)
+                   const Handle<mirror::ObjectArray<mirror::Class>>& interfaces)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkVirtualMethods(const Handle<mirror::Class>& klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkInterfaceMethods(const Handle<mirror::Class>& klass,
-                            const Handle<mirror::ObjectArray<mirror::Class> >& interfaces)
+                            const Handle<mirror::ObjectArray<mirror::Class>>& interfaces)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkStaticFields(const Handle<mirror::Class>& klass)
@@ -571,7 +571,7 @@ class ClassLinker {
   // Class::descriptor_ and Class::class_loader_.
   typedef std::multimap<size_t, mirror::Class*> Table;
   Table class_table_ GUARDED_BY(Locks::classlinker_classes_lock_);
-  std::vector<std::pair<size_t, mirror::Class*> > new_class_roots_;
+  std::vector<std::pair<size_t, mirror::Class*>> new_class_roots_;
 
   // Do we need to search dex caches to find image classes?
   bool dex_cache_image_class_lookup_required_;
