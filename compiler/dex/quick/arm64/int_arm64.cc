@@ -697,11 +697,19 @@ void Arm64Mir2Lir::GenDivZeroCheckWide(RegStorage reg) {
   GenDivZeroCheck(kCondEq);
 }
 
-// TODO(Arm64): the function below should go.
 // Test suspend flag, return target of taken suspend branch
 LIR* Arm64Mir2Lir::OpTestSuspend(LIR* target) {
+  // TODO(Arm64): re-enable suspend checks, once art_quick_test_suspend is implemented and
+  //   the suspend register is properly handled in the trampolines.
+#if 0
   NewLIR3(kA64Subs3rRd, rA64_SUSPEND, rA64_SUSPEND, 1);
   return OpCondBranch((target == NULL) ? kCondEq : kCondNe, target);
+#else
+  // TODO(Arm64): Fake suspend check. Will always fail to branch. Remove this.
+  LIR* branch = NewLIR2((target == NULL) ? kA64Cbnz2rt : kA64Cbz2rt, rwzr, 0);
+  branch->target = target;
+  return branch;
+#endif
 }
 
 // Decrement register and branch on condition
@@ -1199,34 +1207,61 @@ uint32_t Arm64Mir2Lir::GenPairWise(uint32_t reg_mask, int* reg1, int* reg2) {
 
 void Arm64Mir2Lir::UnSpillCoreRegs(RegStorage base, int offset, uint32_t reg_mask) {
   int reg1 = -1, reg2 = -1;
-  const int pop_log2_size = 3;
+  const int reg_log2_size = 3;
 
-  for (offset = (offset >> pop_log2_size) - 1; reg_mask; offset--) {
+  for (offset = (offset >> reg_log2_size); reg_mask; offset += 2) {
      reg_mask = GenPairWise(reg_mask, & reg1, & reg2);
     if (UNLIKELY(reg2 < 0)) {
-      // TODO(Arm64): replace Solo32 with Solo64, once rxN are defined properly.
-      NewLIR3(WIDE(kA64Ldr3rXD), RegStorage::Solo32(reg1).GetReg(), base.GetReg(), offset);
+      NewLIR3(WIDE(kA64Ldr3rXD), RegStorage::Solo64(reg1).GetReg(), base.GetReg(), offset);
     } else {
-      // TODO(Arm64): replace Solo32 with Solo64 (twice below), once rxN are defined properly.
-      NewLIR4(WIDE(kA64Ldp4rrXD), RegStorage::Solo32(reg1).GetReg(),
-              RegStorage::Solo32(reg2).GetReg(), base.GetReg(), offset);
+      NewLIR4(WIDE(kA64Ldp4rrXD), RegStorage::Solo64(reg2).GetReg(),
+              RegStorage::Solo64(reg1).GetReg(), base.GetReg(), offset);
     }
   }
 }
 
 void Arm64Mir2Lir::SpillCoreRegs(RegStorage base, int offset, uint32_t reg_mask) {
   int reg1 = -1, reg2 = -1;
-  const int pop_log2_size = 3;
+  const int reg_log2_size = 3;
 
-  for (offset = (offset >> pop_log2_size) - 1; reg_mask; offset--) {
+  for (offset = (offset >> reg_log2_size); reg_mask; offset += 2) {
     reg_mask = GenPairWise(reg_mask, & reg1, & reg2);
     if (UNLIKELY(reg2 < 0)) {
-      // TODO(Arm64): replace Solo32 with Solo64, once rxN are defined properly.
-      NewLIR3(WIDE(kA64Str3rXD), RegStorage::Solo32(reg1).GetReg(), base.GetReg(), offset);
+      NewLIR3(WIDE(kA64Str3rXD), RegStorage::Solo64(reg1).GetReg(), base.GetReg(), offset);
     } else {
-      // TODO(Arm64): replace Solo32 with Solo64 (twice below), once rxN are defined properly.
-      NewLIR4(WIDE(kA64Stp4rrXD), RegStorage::Solo32(reg1).GetReg(),
-              RegStorage::Solo32(reg2).GetReg(), base.GetReg(), offset);
+      NewLIR4(WIDE(kA64Stp4rrXD), RegStorage::Solo64(reg2).GetReg(),
+              RegStorage::Solo64(reg1).GetReg(), base.GetReg(), offset);
+    }
+  }
+}
+
+void Arm64Mir2Lir::UnSpillFPRegs(RegStorage base, int offset, uint32_t reg_mask) {
+  int reg1 = -1, reg2 = -1;
+  const int reg_log2_size = 3;
+
+  for (offset = (offset >> reg_log2_size); reg_mask; offset += 2) {
+     reg_mask = GenPairWise(reg_mask, & reg1, & reg2);
+    if (UNLIKELY(reg2 < 0)) {
+      NewLIR3(FWIDE(kA64Ldr3fXD), RegStorage::FloatSolo64(reg1).GetReg(), base.GetReg(), offset);
+    } else {
+      NewLIR4(WIDE(kA64Ldp4ffXD), RegStorage::FloatSolo64(reg2).GetReg(),
+              RegStorage::FloatSolo64(reg1).GetReg(), base.GetReg(), offset);
+    }
+  }
+}
+
+// TODO(Arm64): consider using ld1 and st1?
+void Arm64Mir2Lir::SpillFPRegs(RegStorage base, int offset, uint32_t reg_mask) {
+  int reg1 = -1, reg2 = -1;
+  const int reg_log2_size = 3;
+
+  for (offset = (offset >> reg_log2_size); reg_mask; offset += 2) {
+    reg_mask = GenPairWise(reg_mask, & reg1, & reg2);
+    if (UNLIKELY(reg2 < 0)) {
+      NewLIR3(FWIDE(kA64Str3fXD), RegStorage::FloatSolo64(reg1).GetReg(), base.GetReg(), offset);
+    } else {
+      NewLIR4(WIDE(kA64Stp4ffXD), RegStorage::FloatSolo64(reg2).GetReg(),
+              RegStorage::FloatSolo64(reg1).GetReg(), base.GetReg(), offset);
     }
   }
 }

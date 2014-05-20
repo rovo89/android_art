@@ -95,13 +95,8 @@ namespace art {
  * +========================+
  */
 
-// Offset to distinguish FP regs.
-#define ARM_FP_REG_OFFSET 32
 // First FP callee save.
-#define ARM_FP_CALLEE_SAVE_BASE 16
-
-// Mask to strip off fp flags.
-#define ARM_FP_REG_MASK (ARM_FP_REG_OFFSET - 1)
+#define A64_FP_CALLEE_SAVE_BASE 16
 
 // Temporary macros, used to mark code which wants to distinguish betweek zr/sp.
 #define A64_REG_IS_SP(reg_num) ((reg_num) == rwsp || (reg_num) == rsp)
@@ -147,14 +142,11 @@ enum A64NativeRegisterPool {
 
   // TODO(Arm64): can we change the lines below such that rwzr != rwsp && rxzr != rsp?
   //   This would be desirable to allow detecting usage-errors in the assembler.
-  rwzr = rw31,
-  rxzr = rx31,
+  rwzr = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 0x3f,
+  rxzr = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 0x3f,
   rwsp = rw31,
   rsp = rx31,
-  // TODO: rx4 is an argument register in C ABI which is not a good idea,
-  // But we need to decide to use caller save register in C ABI or callee save register.
-  // Because it will result to different implementation in the trampoline.
-  rA64_SUSPEND = rx4,
+  rA64_SUSPEND = rx19,
   rA64_SELF = rx18,
   rA64_SP = rx31,
   rA64_LR = rx30
@@ -233,9 +225,11 @@ enum ArmOpcode {
   kA64B1t,           // b   [00010100] offset_26[25-0].
   kA64Cbnz2rt,       // cbnz[00110101] imm_19[23-5] rt[4-0].
   kA64Cbz2rt,        // cbz [00110100] imm_19[23-5] rt[4-0].
-  kA64Cmn3Rro,       // cmn [s0101011001] rm[20-16] option[15-13] imm_3[12-10] rn[9-5] [11111].
+  kA64Cmn3rro,       // cmn [s0101011] shift[23-22] [0] rm[20-16] imm_6[15-10] rn[9-5] [11111].
+  kA64Cmn3Rre,       // cmn [s0101011001] rm[20-16] option[15-13] imm_3[12-10] rn[9-5] [11111].
   kA64Cmn3RdT,       // cmn [00110001] shift[23-22] imm_12[21-10] rn[9-5] [11111].
-  kA64Cmp3Rro,       // cmp [s1101011001] rm[20-16] option[15-13] imm_3[12-10] rn[9-5] [11111].
+  kA64Cmp3rro,       // cmp [s1101011] shift[23-22] [0] rm[20-16] imm_6[15-10] rn[9-5] [11111].
+  kA64Cmp3Rre,       // cmp [s1101011001] rm[20-16] option[15-13] imm_3[12-10] rn[9-5] [11111].
   kA64Cmp3RdT,       // cmp [01110001] shift[23-22] imm_12[21-10] rn[9-5] [11111].
   kA64Csel4rrrc,     // csel[s0011010100] rm[20-16] cond[15-12] [00] rn[9-5] rd[4-0].
   kA64Csinc4rrrc,    // csinc [s0011010100] rm[20-16] cond[15-12] [01] rn[9-5] rd[4-0].
@@ -279,6 +273,7 @@ enum ArmOpcode {
   kA64Ldr4fXxG,      // ldr [1s111100011] rm[20-16] [011] S[12] [10] rn[9-5] rt[4-0].
   kA64Ldr4rXxG,      // ldr [1s111000011] rm[20-16] [011] S[12] [10] rn[9-5] rt[4-0].
   kA64LdrPost3rXd,   // ldr [1s111000010] imm_9[20-12] [01] rn[9-5] rt[4-0].
+  kA64Ldp4ffXD,      // ldp [0s10110101] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64Ldp4rrXD,      // ldp [s010100101] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64LdpPost4rrXD,  // ldp [s010100011] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64Ldur3fXd,      // ldur[1s111100010] imm_9[20-12] [00] rn[9-5] rt[4-0].
@@ -306,7 +301,8 @@ enum ArmOpcode {
   kA64Scvtf2fx,      // scvtf  [100111100s100010000000] rn[9-5] rd[4-0].
   kA64Sdiv3rrr,      // sdiv[s0011010110] rm[20-16] [000011] rn[9-5] rd[4-0].
   kA64Smaddl4xwwx,   // smaddl [10011011001] rm[20-16] [0] ra[14-10] rn[9-5] rd[4-0].
-  kA64Stp4rrXD,      // stp [s010100101] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
+  kA64Stp4ffXD,      // stp [0s10110100] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
+  kA64Stp4rrXD,      // stp [s010100100] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64StpPost4rrXD,  // stp [s010100010] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64StpPre4rrXD,   // stp [s010100110] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64Str3fXD,       // str [1s11110100] imm_12[21-10] rn[9-5] rt[4-0].
@@ -355,9 +351,6 @@ enum ArmOpcode {
 #define FUNWIDE UNWIDE
 #define IS_FWIDE IS_WIDE
 
-#define OP_KIND_UNWIDE(opcode) (opcode)
-#define OP_KIND_IS_WIDE(opcode) (false)
-
 enum ArmOpDmbOptions {
   kSY = 0xf,
   kST = 0xe,
@@ -389,6 +382,9 @@ enum ArmEncodingKind {
   kFmtExtend,    // Register extend, 9-bit at [23..21, 15..10].
   kFmtSkip,      // Unused field, but continue to next.
 };
+
+// TODO(Arm64): should we get rid of kFmtExtend?
+//   Note: the only instructions that use it (cmp, cmn) are not used themselves.
 
 // Struct used to define the snippet positions for each A64 opcode.
 struct ArmEncodingMap {
