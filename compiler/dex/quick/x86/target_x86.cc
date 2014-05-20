@@ -423,6 +423,10 @@ void X86Mir2Lir::MarkPreservedDouble(int v_reg, RegStorage reg) {
   UNIMPLEMENTED(FATAL) << "MarkPreservedDouble";
 }
 
+RegStorage X86Mir2Lir::AllocateByteRegister() {
+  return AllocTypedTemp(false, kCoreReg);
+}
+
 /* Clobber all regs that might be used by an external C call */
 void X86Mir2Lir::ClobberCallerSave() {
   Clobber(rs_rAX);
