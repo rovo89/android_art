@@ -99,6 +99,11 @@ while true; do
         option="$1"
         run_args="${run_args} -Xcompiler-option $option"
         shift
+    elif [ "x$1" = "x--runtime-option" ]; then
+        shift
+        option="$1"
+        run_args="${run_args} --runtime-option $option"
+        shift
     elif [ "x$1" = "x--debug" ]; then
         run_args="${run_args} --debug"
         shift
@@ -234,6 +239,7 @@ if [ "$usage" = "yes" ]; then
         echo "  Runtime Options:"
         echo "    -O                   Run non-debug rather than debug build (off by default)."
         echo "    -Xcompiler-option    Pass an option to the compiler."
+        echo "    -runtime-option      Pass an option to the runtime."
         echo "    --debug              Wait for a debugger to attach."
         echo "    --gdb                Run under gdb; incompatible with some tests."
         echo "    --build-only         Build test files only (off by default)."
