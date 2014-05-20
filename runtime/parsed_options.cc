@@ -883,11 +883,19 @@ bool ParsedOptions::ParseDouble(const std::string& option, char after_char,
   if (!ParseStringAfterChar(option, after_char, &substring)) {
     return false;
   }
-  std::istringstream iss(substring);
+  bool sane_val = true;
   double value;
-  iss >> value;
-  // Ensure that we have a value, there was no cruft after it and it satisfies a sensible range.
-  const bool sane_val = iss.eof() && (value >= min) && (value <= max);
+  if (false) {
+    // TODO: this doesn't seem to work on the emulator.  b/15114595
+    std::stringstream iss(substring);
+    iss >> value;
+    // Ensure that we have a value, there was no cruft after it and it satisfies a sensible range.
+    sane_val = iss.eof() && (value >= min) && (value <= max);
+  } else {
+    char* end = nullptr;
+    value = strtod(substring.c_str(), &end);
+    sane_val = *end == '\0' && value >= min && value <= max;
+  }
   if (!sane_val) {
     Usage("Invalid double value %s for option %s\n", substring.c_str(), option.c_str());
     return false;
