@@ -475,7 +475,7 @@ class Hprof {
         }
       }
 
-      UniquePtr<File> file(new File(out_fd, filename_));
+      std::unique_ptr<File> file(new File(out_fd, filename_));
       okay = file->WriteFully(header_data_ptr_, header_data_size_) &&
           file->WriteFully(body_data_ptr_, body_data_size_);
       if (!okay) {

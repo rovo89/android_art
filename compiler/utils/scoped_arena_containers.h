@@ -26,14 +26,14 @@
 namespace art {
 
 template <typename T>
-using ScopedArenaVector = std::vector<T, ScopedArenaAllocatorAdapter<T> >;
+using ScopedArenaVector = std::vector<T, ScopedArenaAllocatorAdapter<T>>;
 
-template <typename T, typename Comparator = std::less<T> >
-using ScopedArenaSet = std::set<T, Comparator, ScopedArenaAllocatorAdapter<T> >;
+template <typename T, typename Comparator = std::less<T>>
+using ScopedArenaSet = std::set<T, Comparator, ScopedArenaAllocatorAdapter<T>>;
 
-template <typename K, typename V, typename Comparator = std::less<K> >
+template <typename K, typename V, typename Comparator = std::less<K>>
 using ScopedArenaSafeMap =
-    SafeMap<K, V, Comparator, ScopedArenaAllocatorAdapter<std::pair<const K, V> > >;
+    SafeMap<K, V, Comparator, ScopedArenaAllocatorAdapter<std::pair<const K, V>>>;
 
 }  // namespace art
 

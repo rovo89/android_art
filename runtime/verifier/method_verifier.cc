@@ -1433,8 +1433,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   // We need to ensure the work line is consistent while performing validation. When we spot a
   // peephole pattern we compute a new line for either the fallthrough instruction or the
   // branch target.
-  UniquePtr<RegisterLine> branch_line;
-  UniquePtr<RegisterLine> fallthrough_line;
+  std::unique_ptr<RegisterLine> branch_line;
+  std::unique_ptr<RegisterLine> fallthrough_line;
 
   // We need precise constant types only for deoptimization which happens at runtime.
   const bool need_precise_constant = !Runtime::Current()->IsCompiler();
@@ -3794,7 +3794,7 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* mer
       }
     }
   } else {
-    UniquePtr<RegisterLine> copy(gDebugVerify ?
+    std::unique_ptr<RegisterLine> copy(gDebugVerify ?
                                  RegisterLine::Create(target_line->NumRegs(), this) :
                                  NULL);
     if (gDebugVerify) {

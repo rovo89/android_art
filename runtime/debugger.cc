@@ -884,7 +884,7 @@ JDWP::JdwpError Dbg::GetOwnedMonitors(JDWP::ObjectId thread_id,
     std::vector<mirror::Object*> monitors;
     std::vector<uint32_t> stack_depths;
   };
-  UniquePtr<Context> context(Context::Create());
+  std::unique_ptr<Context> context(Context::Create());
   OwnedMonitorVisitor visitor(thread, context.get());
   visitor.WalkStack();
 
@@ -2247,7 +2247,7 @@ JDWP::JdwpError Dbg::GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame
       return JDWP::ERR_THREAD_NOT_SUSPENDED;
     }
   }
-  UniquePtr<Context> context(Context::Create());
+  std::unique_ptr<Context> context(Context::Create());
   GetThisVisitor visitor(thread, context.get(), frame_id);
   visitor.WalkStack();
   *result = gRegistry->Add(visitor.this_object);
@@ -2395,7 +2395,7 @@ JDWP::JdwpError Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame
     return error;
   }
   // TODO check thread is suspended by the debugger ?
-  UniquePtr<Context> context(Context::Create());
+  std::unique_ptr<Context> context(Context::Create());
   GetLocalVisitor visitor(soa, thread, context.get(), frame_id, slot, tag, buf, width);
   visitor.WalkStack();
   return visitor.error_;
@@ -2492,7 +2492,7 @@ JDWP::JdwpError Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame
     return error;
   }
   // TODO check thread is suspended by the debugger ?
-  UniquePtr<Context> context(Context::Create());
+  std::unique_ptr<Context> context(Context::Create());
   SetLocalVisitor visitor(thread, context.get(), frame_id, slot, tag, value, width);
   visitor.WalkStack();
   return visitor.error_;
@@ -4275,7 +4275,7 @@ class StringTable {
     for (const std::string& str : table_) {
       const char* s = str.c_str();
       size_t s_len = CountModifiedUtf8Chars(s);
-      UniquePtr<uint16_t> s_utf16(new uint16_t[s_len]);
+      std::unique_ptr<uint16_t> s_utf16(new uint16_t[s_len]);
       ConvertModifiedUtf8ToUtf16(s_utf16.get(), s);
       JDWP::AppendUtf16BE(bytes, s_utf16.get(), s_len);
     }

@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#include "UniquePtrCompat.h"
+#include <memory>
+
 #include "bit_vector.h"
 #include "gtest/gtest.h"
 
@@ -40,7 +41,7 @@ TEST(BitVector, Test) {
   BitVector::Iterator empty_iterator(&bv);
   EXPECT_EQ(-1, empty_iterator.Next());
 
-  UniquePtr<BitVector::Iterator> empty_iterator_on_heap(bv.GetIterator());
+  std::unique_ptr<BitVector::Iterator> empty_iterator_on_heap(bv.GetIterator());
   EXPECT_EQ(-1, empty_iterator_on_heap->Next());
 
   bv.SetBit(0);

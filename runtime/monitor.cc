@@ -623,7 +623,7 @@ void Monitor::Inflate(Thread* self, Thread* owner, mirror::Object* obj, int32_t 
   DCHECK(self != NULL);
   DCHECK(obj != NULL);
   // Allocate and acquire a new monitor.
-  UniquePtr<Monitor> m(new Monitor(self, owner, obj, hash_code));
+  std::unique_ptr<Monitor> m(new Monitor(self, owner, obj, hash_code));
   if (m->Install(self)) {
     if (owner != nullptr) {
       VLOG(monitor) << "monitor: thread" << owner->GetThreadId()

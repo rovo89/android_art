@@ -17,30 +17,20 @@
 #ifndef ART_RUNTIME_GC_ALLOCATOR_ROSALLOC_H_
 #define ART_RUNTIME_GC_ALLOCATOR_ROSALLOC_H_
 
-#include <set>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string>
 #include <sys/mman.h>
+#include <memory>
+#include <set>
+#include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "base/mutex.h"
 #include "base/logging.h"
 #include "globals.h"
 #include "mem_map.h"
-#include "UniquePtrCompat.h"
 #include "utils.h"
-
-// Ensure we have an unordered_set until we have worked out C++ library issues.
-#ifdef ART_WITH_STLPORT
-#include <hash_set>
-template <class V, class H, class P>
-class unordered_set : public std::hash_set<V, H, P> {};
-#else  // ART_WITH_STLPORT
-// TODO: avoid the use of using in a header file.
-#include <unordered_set>
-using std::unordered_set;
-#endif  // ART_WITH_STLPORT
 
 namespace art {
 namespace gc {
@@ -451,7 +441,7 @@ class RosAlloc {
   std::set<Run*> non_full_runs_[kNumOfSizeBrackets];
   // The run sets that hold the runs whose slots are all full. This is
   // debug only. full_runs_[i] is guarded by size_bracket_locks_[i].
-  unordered_set<Run*, hash_run, eq_run> full_runs_[kNumOfSizeBrackets];
+  std::unordered_set<Run*, hash_run, eq_run> full_runs_[kNumOfSizeBrackets];
   // The set of free pages.
   std::set<FreePageRun*> free_page_runs_ GUARDED_BY(lock_);
   // The dedicated full run, it is always full and shared by all threads when revoking happens.
@@ -479,7 +469,7 @@ class RosAlloc {
   byte* page_map_;  // No GUARDED_BY(lock_) for kReadPageMapEntryWithoutLockInBulkFree.
   size_t page_map_size_;
   size_t max_page_map_size_;
-  UniquePtr<MemMap> page_map_mem_map_;
+  std::unique_ptr<MemMap> page_map_mem_map_;
 
   // The table that indicates the size of free page runs. These sizes
   // are stored here to avoid storing in the free page header and

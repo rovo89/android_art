@@ -64,7 +64,7 @@ TEST_F(OutputStreamTest, File) {
   FileOutputStream output_stream(tmp.GetFile());
   SetOutputStream(output_stream);
   GenerateTestOutput();
-  UniquePtr<File> in(OS::OpenFileForReading(tmp.GetFilename().c_str()));
+  std::unique_ptr<File> in(OS::OpenFileForReading(tmp.GetFilename().c_str()));
   EXPECT_TRUE(in.get() != NULL);
   std::vector<uint8_t> actual(in->GetLength());
   bool readSuccess = in->ReadFully(&actual[0], actual.size());
@@ -74,12 +74,12 @@ TEST_F(OutputStreamTest, File) {
 
 TEST_F(OutputStreamTest, Buffered) {
   ScratchFile tmp;
-  UniquePtr<FileOutputStream> file_output_stream(new FileOutputStream(tmp.GetFile()));
+  std::unique_ptr<FileOutputStream> file_output_stream(new FileOutputStream(tmp.GetFile()));
   CHECK(file_output_stream.get() != NULL);
   BufferedOutputStream buffered_output_stream(file_output_stream.release());
   SetOutputStream(buffered_output_stream);
   GenerateTestOutput();
-  UniquePtr<File> in(OS::OpenFileForReading(tmp.GetFilename().c_str()));
+  std::unique_ptr<File> in(OS::OpenFileForReading(tmp.GetFilename().c_str()));
   EXPECT_TRUE(in.get() != NULL);
   std::vector<uint8_t> actual(in->GetLength());
   bool readSuccess = in->ReadFully(&actual[0], actual.size());

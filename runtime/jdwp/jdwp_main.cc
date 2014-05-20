@@ -235,7 +235,7 @@ JdwpState::JdwpState(const JdwpOptions* options)
 JdwpState* JdwpState::Create(const JdwpOptions* options) {
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertNotHeld(self);
-  UniquePtr<JdwpState> state(new JdwpState(options));
+  std::unique_ptr<JdwpState> state(new JdwpState(options));
   switch (options->transport) {
     case kJdwpTransportSocket:
       InitSocketTransport(state.get(), options);

@@ -523,7 +523,7 @@ class BuildQuickArgumentVisitor FINAL : public QuickArgumentVisitor {
   ScopedObjectAccessUnchecked* const soa_;
   std::vector<jvalue>* const args_;
   // References which we must update when exiting in case the GC moved the objects.
-  std::vector<std::pair<jobject, StackReference<mirror::Object>*> > references_;
+  std::vector<std::pair<jobject, StackReference<mirror::Object>*>> references_;
 
   DISALLOW_COPY_AND_ASSIGN(BuildQuickArgumentVisitor);
 };
@@ -640,7 +640,7 @@ class RememberForGcArgumentVisitor FINAL : public QuickArgumentVisitor {
  private:
   ScopedObjectAccessUnchecked* const soa_;
   // References which we must update when exiting in case the GC moved the objects.
-  std::vector<std::pair<jobject, StackReference<mirror::Object>*> > references_;
+  std::vector<std::pair<jobject, StackReference<mirror::Object>*>> references_;
   DISALLOW_COPY_AND_ASSIGN(RememberForGcArgumentVisitor);
 };
 

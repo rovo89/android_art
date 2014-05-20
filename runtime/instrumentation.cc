@@ -252,7 +252,7 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
   }
 
   Instrumentation* instrumentation = reinterpret_cast<Instrumentation*>(arg);
-  UniquePtr<Context> context(Context::Create());
+  std::unique_ptr<Context> context(Context::Create());
   uintptr_t instrumentation_exit_pc = GetQuickInstrumentationExitPc();
   InstallStackVisitor visitor(thread, context.get(), instrumentation_exit_pc);
   visitor.WalkStack(true);

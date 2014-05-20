@@ -133,9 +133,9 @@ class LargeObjectMapSpace : public LargeObjectSpace {
   // Used to ensure mutual exclusion when the allocation spaces data structures are being modified.
   mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::vector<mirror::Object*,
-      accounting::GcAllocator<mirror::Object*> > large_objects_ GUARDED_BY(lock_);
+      accounting::GcAllocator<mirror::Object*>> large_objects_ GUARDED_BY(lock_);
   typedef SafeMap<mirror::Object*, MemMap*, std::less<mirror::Object*>,
-      accounting::GcAllocator<std::pair<mirror::Object*, MemMap*> > > MemMaps;
+      accounting::GcAllocator<std::pair<mirror::Object*, MemMap*>>> MemMaps;
   MemMaps mem_maps_ GUARDED_BY(lock_);
 };
 
@@ -256,11 +256,11 @@ class FreeListSpace FINAL : public LargeObjectSpace {
   AllocationHeader* GetAllocationHeader(const mirror::Object* obj);
 
   typedef std::set<AllocationHeader*, AllocationHeader::SortByPrevFree,
-                   accounting::GcAllocator<AllocationHeader*> > FreeBlocks;
+                   accounting::GcAllocator<AllocationHeader*>> FreeBlocks;
 
   // There is not footer for any allocations at the end of the space, so we keep track of how much
   // free space there is at the end manually.
-  UniquePtr<MemMap> mem_map_;
+  std::unique_ptr<MemMap> mem_map_;
   Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   size_t free_end_ GUARDED_BY(lock_);
   FreeBlocks free_blocks_ GUARDED_BY(lock_);

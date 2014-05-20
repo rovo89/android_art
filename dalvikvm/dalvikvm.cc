@@ -18,14 +18,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include <algorithm>
+#include <memory>
 
 #include "jni.h"
 #include "JniInvocation.h"
 #include "ScopedLocalRef.h"
 #include "toStringArray.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 
@@ -118,7 +117,7 @@ static int dalvikvm(int argc, char** argv) {
   // We're over-allocating, because this includes the options to the runtime
   // plus the options to the program.
   int option_count = argc;
-  UniquePtr<JavaVMOption[]> options(new JavaVMOption[option_count]());
+  std::unique_ptr<JavaVMOption[]> options(new JavaVMOption[option_count]());
 
   // Copy options over.  Everything up to the name of the class starts
   // with a '-' (the function hook stuff is strictly internal).

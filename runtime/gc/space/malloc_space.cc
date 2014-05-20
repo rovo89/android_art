@@ -188,7 +188,7 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   VLOG(heap) << "Capacity " << PrettySize(capacity);
   // Remap the tail.
   std::string error_msg;
-  UniquePtr<MemMap> mem_map(GetMemMap()->RemapAtEnd(end_, alloc_space_name,
+  std::unique_ptr<MemMap> mem_map(GetMemMap()->RemapAtEnd(end_, alloc_space_name,
                                                     PROT_READ | PROT_WRITE, &error_msg));
   CHECK(mem_map.get() != nullptr) << error_msg;
   void* allocator = CreateAllocator(end_, starting_size_, initial_size_, capacity, low_memory_mode);

@@ -100,12 +100,11 @@ define build-art-executable
   endif
 
   ifeq ($$(art_target_or_host),target)
-    include art/build/Android.libcxx.mk
+    include external/libcxx/libcxx.mk
     include $(BUILD_EXECUTABLE)
     ART_TARGET_EXECUTABLES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
   else # host
     LOCAL_IS_HOST_MODULE := true
-    include art/build/Android.libcxx.mk
     include $(BUILD_HOST_EXECUTABLE)
     ART_HOST_EXECUTABLES := $(ART_HOST_EXECUTABLES) $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
   endif

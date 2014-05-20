@@ -30,7 +30,7 @@ namespace art {
 namespace arm {
 static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention abi,
                                                     ThreadOffset<4> offset) {
-  UniquePtr<ArmAssembler> assembler(static_cast<ArmAssembler*>(Assembler::Create(kArm)));
+  std::unique_ptr<ArmAssembler> assembler(static_cast<ArmAssembler*>(Assembler::Create(kArm)));
 
   switch (abi) {
     case kInterpreterAbi:  // Thread* is first argument (R0) in interpreter ABI.
@@ -47,7 +47,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
   __ bkpt(0);
 
   size_t cs = assembler->CodeSize();
-  UniquePtr<std::vector<uint8_t> > entry_stub(new std::vector<uint8_t>(cs));
+  std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(cs));
   MemoryRegion code(&(*entry_stub)[0], entry_stub->size());
   assembler->FinalizeInstructions(code);
 
@@ -58,7 +58,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
 namespace arm64 {
 static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention abi,
                                                     ThreadOffset<8> offset) {
-  UniquePtr<Arm64Assembler> assembler(static_cast<Arm64Assembler*>(Assembler::Create(kArm64)));
+  std::unique_ptr<Arm64Assembler> assembler(static_cast<Arm64Assembler*>(Assembler::Create(kArm64)));
 
   switch (abi) {
     case kInterpreterAbi:  // Thread* is first argument (X0) in interpreter ABI.
@@ -84,7 +84,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
   }
 
   size_t cs = assembler->CodeSize();
-  UniquePtr<std::vector<uint8_t> > entry_stub(new std::vector<uint8_t>(cs));
+  std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(cs));
   MemoryRegion code(&(*entry_stub)[0], entry_stub->size());
   assembler->FinalizeInstructions(code);
 
@@ -95,7 +95,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
 namespace mips {
 static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention abi,
                                                     ThreadOffset<4> offset) {
-  UniquePtr<MipsAssembler> assembler(static_cast<MipsAssembler*>(Assembler::Create(kMips)));
+  std::unique_ptr<MipsAssembler> assembler(static_cast<MipsAssembler*>(Assembler::Create(kMips)));
 
   switch (abi) {
     case kInterpreterAbi:  // Thread* is first argument (A0) in interpreter ABI.
@@ -114,7 +114,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
   __ Break();
 
   size_t cs = assembler->CodeSize();
-  UniquePtr<std::vector<uint8_t> > entry_stub(new std::vector<uint8_t>(cs));
+  std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(cs));
   MemoryRegion code(&(*entry_stub)[0], entry_stub->size());
   assembler->FinalizeInstructions(code);
 
@@ -124,14 +124,14 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
 
 namespace x86 {
 static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset<4> offset) {
-  UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
+  std::unique_ptr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
   // All x86 trampolines call via the Thread* held in fs.
   __ fs()->jmp(Address::Absolute(offset));
   __ int3();
 
   size_t cs = assembler->CodeSize();
-  UniquePtr<std::vector<uint8_t> > entry_stub(new std::vector<uint8_t>(cs));
+  std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(cs));
   MemoryRegion code(&(*entry_stub)[0], entry_stub->size());
   assembler->FinalizeInstructions(code);
 
@@ -141,7 +141,7 @@ static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset<4> offset) {
 
 namespace x86_64 {
 static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset<8> offset) {
-  UniquePtr<x86_64::X86_64Assembler>
+  std::unique_ptr<x86_64::X86_64Assembler>
       assembler(static_cast<x86_64::X86_64Assembler*>(Assembler::Create(kX86_64)));
 
   // All x86 trampolines call via the Thread* held in gs.
@@ -149,7 +149,7 @@ static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset<8> offset) {
   __ int3();
 
   size_t cs = assembler->CodeSize();
-  UniquePtr<std::vector<uint8_t> > entry_stub(new std::vector<uint8_t>(cs));
+  std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(cs));
   MemoryRegion code(&(*entry_stub)[0], entry_stub->size());
   assembler->FinalizeInstructions(code);
 

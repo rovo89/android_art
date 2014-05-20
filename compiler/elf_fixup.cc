@@ -17,12 +17,12 @@
 #include "elf_fixup.h"
 
 #include <inttypes.h>
+#include <memory>
 
 #include "base/logging.h"
 #include "base/stringprintf.h"
 #include "elf_file.h"
 #include "elf_writer.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 
@@ -30,7 +30,7 @@ static const bool DEBUG_FIXUP = false;
 
 bool ElfFixup::Fixup(File* file, uintptr_t oat_data_begin) {
   std::string error_msg;
-  UniquePtr<ElfFile> elf_file(ElfFile::Open(file, true, false, &error_msg));
+  std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file, true, false, &error_msg));
   CHECK(elf_file.get() != nullptr) << error_msg;
 
   // Lookup "oatdata" symbol address.

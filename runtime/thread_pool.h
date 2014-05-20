@@ -53,7 +53,7 @@ class ThreadPoolWorker {
 
   ThreadPool* const thread_pool_;
   const std::string name_;
-  UniquePtr<MemMap> stack_;
+  std::unique_ptr<MemMap> stack_;
   pthread_t pthread_;
 
  private:

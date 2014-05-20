@@ -181,7 +181,7 @@ class LocalValueNumberingTest : public testing::Test {
   MIR* mirs_;
   std::vector<SSARepresentation> ssa_reps_;
   std::vector<uint16_t> value_names_;
-  UniquePtr<LocalValueNumbering> lvn_;
+  std::unique_ptr<LocalValueNumbering> lvn_;
 };
 
 TEST_F(LocalValueNumberingTest, TestIGetIGetInvokeIGet) {

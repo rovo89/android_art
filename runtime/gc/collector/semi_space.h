@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_GC_COLLECTOR_SEMI_SPACE_H_
 #define ART_RUNTIME_GC_COLLECTOR_SEMI_SPACE_H_
 
+#include <memory>
+
 #include "atomic.h"
 #include "base/macros.h"
 #include "base/mutex.h"
@@ -25,7 +27,6 @@
 #include "immune_region.h"
 #include "object_callbacks.h"
 #include "offsets.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 

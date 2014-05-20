@@ -904,7 +904,7 @@ class MANAGED Class : public Object {
   HeapReference<DexCache> dex_cache_;
 
   // static, private, and <init> methods
-  HeapReference<ObjectArray<ArtMethod> > direct_methods_;
+  HeapReference<ObjectArray<ArtMethod>> direct_methods_;
 
   // instance fields
   //
@@ -916,7 +916,7 @@ class MANAGED Class : public Object {
   // All instance fields that refer to objects are guaranteed to be at
   // the beginning of the field list.  num_reference_instance_fields_
   // specifies the number of reference fields.
-  HeapReference<ObjectArray<ArtField> > ifields_;
+  HeapReference<ObjectArray<ArtField>> ifields_;
 
   // The interface table (iftable_) contains pairs of a interface class and an array of the
   // interface methods. There is one pair per interface supported by this class.  That means one
@@ -932,7 +932,7 @@ class MANAGED Class : public Object {
   HeapReference<IfTable> iftable_;
 
   // Interface method table (imt), for quick "invoke-interface".
-  HeapReference<ObjectArray<ArtMethod> > imtable_;
+  HeapReference<ObjectArray<ArtMethod>> imtable_;
 
   // Descriptor for the class such as "java.lang.Class" or "[C". Lazily initialized by ComputeName
   HeapReference<String> name_;
@@ -947,13 +947,13 @@ class MANAGED Class : public Object {
   HeapReference<Class> verify_error_class_;
 
   // Virtual methods defined in this class; invoked through vtable.
-  HeapReference<ObjectArray<ArtMethod> > virtual_methods_;
+  HeapReference<ObjectArray<ArtMethod>> virtual_methods_;
 
   // Virtual method table (vtable), for use by "invoke-virtual".  The vtable from the superclass is
   // copied in, and virtual methods from our class either replace those from the super or are
   // appended. For abstract classes, methods may be created in the vtable that aren't in
   // virtual_ methods_ for miranda methods.
-  HeapReference<ObjectArray<ArtMethod> > vtable_;
+  HeapReference<ObjectArray<ArtMethod>> vtable_;
 
   // Access flags; low 16 bits are defined by VM spec.
   uint32_t access_flags_;

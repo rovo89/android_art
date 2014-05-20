@@ -363,9 +363,9 @@ class IndirectReferenceTable {
   IRTSegmentState segment_state_;
 
   // Mem map where we store the indirect refs.
-  UniquePtr<MemMap> table_mem_map_;
+  std::unique_ptr<MemMap> table_mem_map_;
   // Mem map where we store the extended debugging info.
-  UniquePtr<MemMap> slot_mem_map_;
+  std::unique_ptr<MemMap> slot_mem_map_;
   /* bottom of the stack */
   mirror::Object** table_;
   /* bit mask, ORed into all irefs */

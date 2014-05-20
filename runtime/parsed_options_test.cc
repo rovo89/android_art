@@ -16,7 +16,8 @@
 
 #include "parsed_options.h"
 
-#include "UniquePtrCompat.h"
+#include <memory>
+
 #include "common_runtime_test.h"
 
 namespace art {
@@ -53,7 +54,7 @@ TEST_F(ParsedOptionsTest, ParsedOptions) {
   options.push_back(std::make_pair("vfprintf", test_vfprintf));
   options.push_back(std::make_pair("abort", test_abort));
   options.push_back(std::make_pair("exit", test_exit));
-  UniquePtr<ParsedOptions> parsed(ParsedOptions::Create(options, false));
+  std::unique_ptr<ParsedOptions> parsed(ParsedOptions::Create(options, false));
   ASSERT_TRUE(parsed.get() != NULL);
 
   EXPECT_EQ(lib_core, parsed->boot_class_path_string_);

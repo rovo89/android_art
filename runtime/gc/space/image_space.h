@@ -128,7 +128,7 @@ class ImageSpace : public MemMapSpace {
 
   static Atomic<uint32_t> bitmap_index_;
 
-  UniquePtr<accounting::ContinuousSpaceBitmap> live_bitmap_;
+  std::unique_ptr<accounting::ContinuousSpaceBitmap> live_bitmap_;
 
   ImageSpace(const std::string& name, const char* image_location,
              MemMap* mem_map, accounting::ContinuousSpaceBitmap* live_bitmap);
@@ -136,7 +136,7 @@ class ImageSpace : public MemMapSpace {
   // The OatFile associated with the image during early startup to
   // reserve space contiguous to the image. It is later released to
   // the ClassLinker during it's initialization.
-  UniquePtr<OatFile> oat_file_;
+  std::unique_ptr<OatFile> oat_file_;
 
   const std::string image_location_;
 
