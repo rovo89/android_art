@@ -28,6 +28,12 @@
 namespace art {
 
 // Used to keep track of mmap segments.
+//
+// On 64b systems not supporting MAP_32BIT, the implementation of MemMap will do a linear scan
+// for free pages. For security, the start of this scan should be randomized. This requires a
+// dynamic initializer.
+// For this to work, it is paramount that there are no other static initializers that access MemMap.
+// Otherwise, calls might see uninitialized values.
 class MemMap {
  public:
   // Request an anonymous region of length 'byte_count' and a requested base address.
