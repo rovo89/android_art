@@ -572,20 +572,6 @@ void X86Mir2Lir::CompilerInitializeRegAlloc() {
   reg_pool_->next_dp_reg_ = 1;
 }
 
-void X86Mir2Lir::FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free) {
-  DCHECK(rl_keep.wide);
-  DCHECK(rl_free.wide);
-  int free_low = rl_free.reg.GetLowReg();
-  int free_high = rl_free.reg.GetHighReg();
-  int keep_low = rl_keep.reg.GetLowReg();
-  int keep_high = rl_keep.reg.GetHighReg();
-  if ((free_low != keep_low) && (free_low != keep_high) &&
-      (free_high != keep_low) && (free_high != keep_high)) {
-    // No overlap, free both
-    FreeTemp(rl_free.reg);
-  }
-}
-
 void X86Mir2Lir::SpillCoreRegs() {
   if (num_core_spills_ == 0) {
     return;

@@ -632,10 +632,6 @@ void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
   reg_pool_->next_dp_reg_ = 0;
 }
 
-void Arm64Mir2Lir::FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free) {
-  LOG(FATAL) << "Unexpected call to FreeRegLocTemps for Arm64";
-}
-
 /*
  * TUNING: is true leaf?  Can't just use METHOD_IS_LEAF to determine as some
  * instructions might call out to C/assembly helper functions.  Until
