@@ -84,7 +84,40 @@ class MemMapTest : public testing::Test {
     }
     delete m1;
   }
+
+#if defined(__LP64__) && !defined(__x86_64__)
+  static uintptr_t GetLinearScanPos() {
+    return MemMap::next_mem_pos_;
+  }
+#endif
 };
+
+#if defined(__LP64__) && !defined(__x86_64__)
+
+#ifdef __BIONIC__
+extern uintptr_t CreateStartPos(uint64_t input);
+#endif
+
+TEST_F(MemMapTest, Start) {
+  uintptr_t start = GetLinearScanPos();
+  EXPECT_LE(64 * KB, start);
+  EXPECT_LT(start, static_cast<uintptr_t>(ART_BASE_ADDRESS));
+
+#ifdef __BIONIC__
+  // Test a couple of values. Make sure they are different.
+  uintptr_t last = 0;
+  for (size_t i = 0; i < 100; ++i) {
+    uintptr_t random_start = CreateStartPos(i * kPageSize);
+    EXPECT_NE(last, random_start);
+    last = random_start;
+  }
+
+  // Even on max, should be below ART_BASE_ADDRESS.
+  EXPECT_LT(CreateStartPos(~0), static_cast<uintptr_t>(ART_BASE_ADDRESS));
+#endif
+  // End of test.
+}
+#endif
 
 TEST_F(MemMapTest, MapAnonymousEmpty) {
   std::string error_msg;

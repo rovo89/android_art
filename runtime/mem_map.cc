@@ -20,6 +20,11 @@
 #include <backtrace/BacktraceMap.h>
 #include <memory>
 
+// See CreateStartPos below.
+#ifdef __BIONIC__
+#include <sys/auxv.h>
+#endif
+
 #include "base/stringprintf.h"
 #include "ScopedFd.h"
 #include "utils.h"
@@ -47,10 +52,61 @@ static std::ostream& operator<<(
 }
 
 #if defined(__LP64__) && !defined(__x86_64__)
-// Where to start with low memory allocation. The first 64KB is protected by SELinux.
+// Handling mem_map in 32b address range for 64b architectures that do not support MAP_32BIT.
+
+// The regular start of memory allocations. The first 64KB is protected by SELinux.
 static constexpr uintptr_t LOW_MEM_START = 64 * KB;
 
-uintptr_t MemMap::next_mem_pos_ = LOW_MEM_START;   // first page to check for low-mem extent
+// Generate random starting position.
+// To not interfere with image position, take the image's address and only place it below. Current
+// formula (sketch):
+//
+// ART_BASE_ADDR      = 0001XXXXXXXXXXXXXXX
+// ----------------------------------------
+//                    = 0000111111111111111
+// & ~(kPageSize - 1) =~0000000000000001111
+// ----------------------------------------
+// mask               = 0000111111111110000
+// & random data      = YYYYYYYYYYYYYYYYYYY
+// -----------------------------------
+// tmp                = 0000YYYYYYYYYYY0000
+// + LOW_MEM_START    = 0000000000001000000
+// --------------------------------------
+// start
+//
+// getauxval as an entropy source is exposed in Bionic, but not in glibc before 2.16. When we
+// do not have Bionic, simply start with LOW_MEM_START.
+
+// Function is standalone so it can be tested somewhat in mem_map_test.cc.
+#ifdef __BIONIC__
+uintptr_t CreateStartPos(uint64_t input) {
+  CHECK_NE(0, ART_BASE_ADDRESS);
+
+  // Start with all bits below highest bit in ART_BASE_ADDRESS.
+  constexpr size_t leading_zeros = CLZ(static_cast<uint32_t>(ART_BASE_ADDRESS));
+  constexpr uintptr_t mask_ones = (1 << (31 - leading_zeros)) - 1;
+
+  // Lowest (usually 12) bits are not used, as aligned by page size.
+  constexpr uintptr_t mask = mask_ones & ~(kPageSize - 1);
+
+  // Mask input data.
+  return (input & mask) + LOW_MEM_START;
+}
+#endif
+
+static uintptr_t GenerateNextMemPos() {
+#ifdef __BIONIC__
+  uint8_t* random_data = reinterpret_cast<uint8_t*>(getauxval(AT_RANDOM));
+  // The lower 8B are taken for the stack guard. Use the upper 8B (with mask).
+  return CreateStartPos(*reinterpret_cast<uintptr_t*>(random_data + 8));
+#else
+  // No auxv on host, see above.
+  return LOW_MEM_START;
+#endif
+}
+
+// Initialize linear scan to random position.
+uintptr_t MemMap::next_mem_pos_ = GenerateNextMemPos();
 #endif
 
 static bool CheckMapRequest(byte* expected_ptr, void* actual_ptr, size_t byte_count,
