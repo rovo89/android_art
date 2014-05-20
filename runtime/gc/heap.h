@@ -109,8 +109,6 @@ enum ProcessState {
 };
 std::ostream& operator<<(std::ostream& os, const ProcessState& process_state);
 
-std::ostream& operator<<(std::ostream& os, const RootType& root_type);
-
 class Heap {
  public:
   // If true, measure the total allocation time.
@@ -218,7 +216,8 @@ class Heap {
 
   // Check sanity of all live references.
   void VerifyHeap() LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
-  bool VerifyHeapReferences(bool verify_referents = true)
+  // Returns how many failures occured.
+  size_t VerifyHeapReferences(bool verify_referents = true)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
   bool VerifyMissingCardMarks()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
