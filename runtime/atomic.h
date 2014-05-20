@@ -196,7 +196,7 @@ class QuasiAtomic {
 
   // Does the architecture provide reasonable atomic long operations or do we fall back on mutexes?
   static bool LongAtomicsUseMutexes() {
-    return !kNeedSwapMutexes;
+    return kNeedSwapMutexes;
   }
 
   static void MembarLoadStore() {
