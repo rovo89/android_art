@@ -367,7 +367,7 @@ build-art-target: $(ART_TARGET_EXECUTABLES) $(ART_TARGET_GTEST_EXECUTABLES) $(TA
 ########################################################################
 # "m art-host" for just building the files needed to run the art script
 .PHONY: art-host
-art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_OUT_JAVA_LIBRARIES)/core.art $(HOST_OUT)/lib/libjavacore.so
+art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_CORE_IMG_OUT) $(HOST_OUT)/lib/libjavacore.so
 
 .PHONY: art-host-debug
 art-host-debug:   art-host $(HOST_OUT)/lib/libartd.so $(HOST_OUT)/bin/dex2oatd
