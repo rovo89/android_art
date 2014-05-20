@@ -161,6 +161,22 @@ LIR* X86Mir2Lir::OpRegImm(OpKind op, RegStorage r_dest_src1, int value) {
       case kOpMul:
         opcode = byte_imm ? kX86Imul32RRI8 : kX86Imul32RRI;
         return NewLIR3(opcode, r_dest_src1.GetReg(), r_dest_src1.GetReg(), value);
+      case kOp2Byte:
+        opcode = kX86Mov32RI;
+        value = static_cast<int8_t>(value);
+        break;
+      case kOp2Short:
+        opcode = kX86Mov32RI;
+        value = static_cast<int16_t>(value);
+        break;
+      case kOp2Char:
+        opcode = kX86Mov32RI;
+        value = static_cast<uint16_t>(value);
+        break;
+      case kOpNeg:
+        opcode = kX86Mov32RI;
+        value = -value;
+        break;
       default:
         LOG(FATAL) << "Bad case in OpRegImm " << op;
     }
@@ -523,7 +539,7 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
     int32_t val_hi = High32Bits(value);
     int32_t low_reg_val = r_dest.IsPair() ? r_dest.GetLowReg() : r_dest.GetReg();
     LIR *res;
-    bool is_fp = RegStorage::IsFloat(low_reg_val);
+    bool is_fp = r_dest.IsFloat();
     // TODO: clean this up once we fully recognize 64-bit storage containers.
     if (is_fp) {
       if (value == 0) {

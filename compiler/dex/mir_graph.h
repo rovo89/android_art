@@ -902,7 +902,11 @@ class MIRGraph {
   static const char* extended_mir_op_names_[kMirOpLast - kMirOpFirst];
   static const uint32_t analysis_attributes_[kMirOpLast];
 
- private:
+  void HandleSSADef(int* defs, int dalvik_reg, int reg_index);
+  bool InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed);
+  void ComputeDFSOrders();
+
+ protected:
   int FindCommonParent(int block1, int block2);
   void ComputeSuccLineIn(ArenaBitVector* dest, const ArenaBitVector* src1,
                          const ArenaBitVector* src2);
@@ -928,17 +932,14 @@ class MIRGraph {
                               const uint16_t* code_end);
   int AddNewSReg(int v_reg);
   void HandleSSAUse(int* uses, int dalvik_reg, int reg_index);
-  void HandleSSADef(int* defs, int dalvik_reg, int reg_index);
   void DataFlowSSAFormat35C(MIR* mir);
   void DataFlowSSAFormat3RC(MIR* mir);
   bool FindLocalLiveIn(BasicBlock* bb);
-  bool InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed);
   bool VerifyPredInfo(BasicBlock* bb);
   BasicBlock* NeedsVisit(BasicBlock* bb);
   BasicBlock* NextUnvisitedSuccessor(BasicBlock* bb);
   void MarkPreOrder(BasicBlock* bb);
   void RecordDFSOrders(BasicBlock* bb);
-  void ComputeDFSOrders();
   void ComputeDefBlockMatrix();
   void ComputeDomPostOrderTraversal(BasicBlock* bb);
   void ComputeDominators();
