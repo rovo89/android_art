@@ -48,10 +48,13 @@ extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self, mirror::A
   //       stack.
   // Be aware the store below may well stomp on an incoming argument.
   Locks::mutator_lock_->AssertSharedHeld(self);
-  mirror::ArtMethod* callee_save = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsOnly);
+  Runtime* runtime = Runtime::Current();
+  mirror::ArtMethod* callee_save = runtime->GetCalleeSaveMethod(Runtime::kRefsOnly);
   *sp = callee_save;
+  uint32_t return_pc_offset = callee_save->GetReturnPcOffsetInBytes(
+      runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsOnly).FrameSizeInBytes());
   uintptr_t* return_pc = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) +
-                                                      callee_save->GetReturnPcOffsetInBytes());
+                                                      return_pc_offset);
   CHECK_EQ(*return_pc, 0U);
   self->SetTopOfStack(sp, 0);
   self->VerifyStack();

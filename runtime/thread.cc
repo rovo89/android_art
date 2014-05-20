@@ -2024,10 +2024,14 @@ class ReferenceMapVisitor : public StackVisitor {
       size_t num_regs = std::min(map.RegWidth() * 8,
                                  static_cast<size_t>(code_item->registers_size_));
       if (num_regs > 0) {
-        const uint8_t* reg_bitmap = map.FindBitMap(GetNativePcOffset());
+        Runtime* runtime = Runtime::Current();
+        const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(m);
+        uintptr_t native_pc_offset = m->NativePcOffset(GetCurrentQuickFramePc(), entry_point);
+        const uint8_t* reg_bitmap = map.FindBitMap(native_pc_offset);
         DCHECK(reg_bitmap != nullptr);
-        const VmapTable vmap_table(m->GetVmapTable());
-        QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo();
+        const void* code_pointer = mirror::ArtMethod::EntryPointToCodePointer(entry_point);
+        const VmapTable vmap_table(m->GetVmapTable(code_pointer));
+        QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
         // For all dex registers in the bitmap
         mirror::ArtMethod** cur_quick_frame = GetCurrentQuickFrame();
         DCHECK(cur_quick_frame != nullptr);
