@@ -24,12 +24,12 @@ namespace art {
 
 // Variant of ScopedObjectAccess that does no runnable transitions. Should only be used by "fast"
 // JNI methods.
-class ScopedFastNativeObjectAccess : public ScopedObjectAccess {
+class ScopedFastNativeObjectAccess : public ScopedObjectAccessAlreadyRunnable {
  public:
   explicit ScopedFastNativeObjectAccess(JNIEnv* env)
     LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
     SHARED_LOCK_FUNCTION(Locks::mutator_lock_) ALWAYS_INLINE
-     : ScopedObjectAccess(env) {
+     : ScopedObjectAccessAlreadyRunnable(env) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK((*Self()->GetManagedStack()->GetTopQuickFrame())->IsFastNative());
     // Don't work with raw objects in non-runnable states.

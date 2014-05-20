@@ -48,7 +48,8 @@ extern "C" void art_quick_invoke_static_stub(ArtMethod*, uint32_t*, uint32_t, Th
 // TODO: get global references for these
 Class* ArtMethod::java_lang_reflect_ArtMethod_ = NULL;
 
-ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccess& soa, jobject jlr_method) {
+ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnable& soa,
+                                          jobject jlr_method) {
   mirror::ArtField* f =
       soa.DecodeField(WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod);
   mirror::ArtMethod* method = f->GetObject(soa.Decode<mirror::Object*>(jlr_method))->AsArtMethod();
