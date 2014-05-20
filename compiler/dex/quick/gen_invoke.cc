@@ -1368,6 +1368,7 @@ bool Mir2Lir::GenInlinedAbsLong(CallInfo* info) {
   OpRegRegReg(kOpAdc, rl_result.reg.GetHigh(), rl_src.reg.GetHigh(), sign_reg);
   OpRegReg(kOpXor, rl_result.reg.GetLow(), sign_reg);
   OpRegReg(kOpXor, rl_result.reg.GetHigh(), sign_reg);
+  FreeTemp(sign_reg);
   StoreValueWide(rl_dest, rl_result);
   return true;
 }

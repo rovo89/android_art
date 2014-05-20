@@ -609,18 +609,6 @@ void ArmMir2Lir::CompilerInitializeRegAlloc() {
   reg_pool_->next_dp_reg_ = 0;
 }
 
-void ArmMir2Lir::FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free) {
-  DCHECK(rl_keep.wide);
-  DCHECK(rl_free.wide);
-  if ((rl_free.reg.GetLowReg() != rl_keep.reg.GetLowReg()) &&
-      (rl_free.reg.GetLowReg() != rl_keep.reg.GetHighReg()) &&
-      (rl_free.reg.GetHighReg() != rl_keep.reg.GetLowReg()) &&
-      (rl_free.reg.GetHighReg() != rl_keep.reg.GetHighReg())) {
-    // No overlap, free.
-    FreeTemp(rl_free.reg);
-  }
-}
-
 /*
  * TUNING: is true leaf?  Can't just use METHOD_IS_LEAF to determine as some
  * instructions might call out to C/assembly helper functions.  Until
