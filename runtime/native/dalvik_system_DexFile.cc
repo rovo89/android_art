@@ -200,7 +200,7 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
 static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jlong cookie) {
   jobjectArray result = nullptr;
   const DexFile* dex_file = toDexFile(cookie, env);
-  if (dex_file == nullptr) {
+  if (dex_file != nullptr) {
     result = env->NewObjectArray(dex_file->NumClassDefs(), WellKnownClasses::java_lang_String,
                                  nullptr);
     if (result != nullptr) {
