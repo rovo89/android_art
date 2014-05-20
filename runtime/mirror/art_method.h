@@ -297,14 +297,20 @@ class MANAGED ArtMethod : public Object {
     return reinterpret_cast<const void*>(code);
   }
 
+  // Actual entry point pointer to compiled oat code or nullptr.
+  const void* GetQuickOatEntryPoint() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Actual pointer to compiled oat code or nullptr.
-  const void* GetOatCodePointer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const void* GetQuickOatCodePointer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Callers should wrap the uint8_t* in a MappingTable instance for convenient access.
   const uint8_t* GetMappingTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const uint8_t* GetMappingTable(const void* code_pointer)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Callers should wrap the uint8_t* in a VmapTable instance for convenient access.
   const uint8_t* GetVmapTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const uint8_t* GetVmapTable(const void* code_pointer)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const uint8_t* GetNativeGcMap() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetFieldPtr<uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, gc_map_));
@@ -328,9 +334,17 @@ class MANAGED ArtMethod : public Object {
   }
 
   QuickMethodFrameInfo GetQuickFrameInfo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  QuickMethodFrameInfo GetQuickFrameInfo(const void* code_pointer)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   size_t GetReturnPcOffsetInBytes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFrameSizeInBytes() - kPointerSize;
+    return GetReturnPcOffsetInBytes(GetFrameSizeInBytes());
+  }
+
+  size_t GetReturnPcOffsetInBytes(uint32_t frame_size_in_bytes)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK_EQ(frame_size_in_bytes, GetFrameSizeInBytes());
+    return frame_size_in_bytes - kPointerSize;
   }
 
   size_t GetHandleScopeOffsetInBytes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -371,6 +385,8 @@ class MANAGED ArtMethod : public Object {
   bool IsImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uintptr_t NativePcOffset(const uintptr_t pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uintptr_t NativePcOffset(const uintptr_t pc, const void* quick_entry_point)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Converts a native PC to a dex PC.
   uint32_t ToDexPc(const uintptr_t pc, bool abort_on_failure = true)

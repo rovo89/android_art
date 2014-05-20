@@ -165,23 +165,21 @@ ArtMethod* ArtMethod::FindOverriddenMethod() {
   return result;
 }
 
-uintptr_t ArtMethod::NativePcOffset(const uintptr_t pc) {
-  const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
-  return pc - reinterpret_cast<uintptr_t>(code);
-}
-
 uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
   if (IsPortableCompiled()) {
     // Portable doesn't use the machine pc, we just use dex pc instead.
     return static_cast<uint32_t>(pc);
   }
-  MappingTable table(GetMappingTable());
+  const void* entry_point = GetQuickOatEntryPoint();
+  MappingTable table(
+      entry_point != nullptr ? GetMappingTable(EntryPointToCodePointer(entry_point)) : nullptr);
   if (table.TotalSize() == 0) {
+    // NOTE: Special methods (see Mir2Lir::GenSpecialCase()) have an empty mapping
+    // but they have no suspend checks and, consequently, we never call ToDexPc() for them.
     DCHECK(IsNative() || IsCalleeSaveMethod() || IsProxyMethod()) << PrettyMethod(this);
     return DexFile::kDexNoIndex;   // Special no mapping case
   }
-  const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
-  uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(code);
+  uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(entry_point);
   // Assume the caller wants a pc-to-dex mapping so check here first.
   typedef MappingTable::PcToDexIterator It;
   for (It cur = table.PcToDexBegin(), end = table.PcToDexEnd(); cur != end; ++cur) {
@@ -198,14 +196,16 @@ uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
   }
   if (abort_on_failure) {
       LOG(FATAL) << "Failed to find Dex offset for PC offset " << reinterpret_cast<void*>(sought_offset)
-             << "(PC " << reinterpret_cast<void*>(pc) << ", code=" << code
+             << "(PC " << reinterpret_cast<void*>(pc) << ", entry_point=" << entry_point
              << ") in " << PrettyMethod(this);
   }
   return DexFile::kDexNoIndex;
 }
 
 uintptr_t ArtMethod::ToNativePc(const uint32_t dex_pc) {
-  MappingTable table(GetMappingTable());
+  const void* entry_point = GetQuickOatEntryPoint();
+  MappingTable table(
+      entry_point != nullptr ? GetMappingTable(EntryPointToCodePointer(entry_point)) : nullptr);
   if (table.TotalSize() == 0) {
     DCHECK_EQ(dex_pc, 0U);
     return 0;   // Special no mapping/pc == 0 case
@@ -214,16 +214,14 @@ uintptr_t ArtMethod::ToNativePc(const uint32_t dex_pc) {
   typedef MappingTable::DexToPcIterator It;
   for (It cur = table.DexToPcBegin(), end = table.DexToPcEnd(); cur != end; ++cur) {
     if (cur.DexPc() == dex_pc) {
-      const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
-      return reinterpret_cast<uintptr_t>(code) + cur.NativePcOffset();
+      return reinterpret_cast<uintptr_t>(entry_point) + cur.NativePcOffset();
     }
   }
   // Now check pc-to-dex mappings.
   typedef MappingTable::PcToDexIterator It2;
   for (It2 cur = table.PcToDexBegin(), end = table.PcToDexEnd(); cur != end; ++cur) {
     if (cur.DexPc() == dex_pc) {
-      const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
-      return reinterpret_cast<uintptr_t>(code) + cur.NativePcOffset();
+      return reinterpret_cast<uintptr_t>(entry_point) + cur.NativePcOffset();
     }
   }
   LOG(FATAL) << "Failed to find native offset for dex pc 0x" << std::hex << dex_pc
@@ -377,44 +375,6 @@ void ArtMethod::UnregisterNative(Thread* self) {
   CHECK(IsNative() && !IsFastNative()) << PrettyMethod(this);
   // restore stub to lookup native pointer via dlsym
   RegisterNative(self, GetJniDlsymLookupStub(), false);
-}
-
-const void* ArtMethod::GetOatCodePointer() {
-  if (IsPortableCompiled() || IsNative() || IsAbstract() || IsRuntimeMethod() || IsProxyMethod()) {
-    return nullptr;
-  }
-  Runtime* runtime = Runtime::Current();
-  const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(this);
-  // On failure, instead of nullptr we get the quick-to-interpreter-bridge (but not the trampoline).
-  DCHECK(entry_point != GetQuickToInterpreterBridgeTrampoline(runtime->GetClassLinker()));
-  if (entry_point == GetQuickToInterpreterBridge()) {
-    return nullptr;
-  }
-  return EntryPointToCodePointer(entry_point);
-}
-
-const uint8_t* ArtMethod::GetMappingTable() {
-  const void* code = GetOatCodePointer();
-  if (code == nullptr) {
-    return nullptr;
-  }
-  uint32_t offset = reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].mapping_table_offset_;
-  if (UNLIKELY(offset == 0u)) {
-    return nullptr;
-  }
-  return reinterpret_cast<const uint8_t*>(code) - offset;
-}
-
-const uint8_t* ArtMethod::GetVmapTable() {
-  const void* code = GetOatCodePointer();
-  if (code == nullptr) {
-    return nullptr;
-  }
-  uint32_t offset = reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].vmap_table_offset_;
-  if (UNLIKELY(offset == 0u)) {
-    return nullptr;
-  }
-  return reinterpret_cast<const uint8_t*>(code) - offset;
 }
 
 }  // namespace mirror
