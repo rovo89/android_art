@@ -72,7 +72,6 @@ class Arm64Mir2Lir : public Mir2Lir {
     void MarkPreservedSingle(int v_reg, RegStorage reg);
     void MarkPreservedDouble(int v_reg, RegStorage reg);
     void CompilerInitializeRegAlloc();
-    RegStorage AllocPreservedDouble(int s_reg);
 
     // Required for target - miscellaneous.
     void AssembleLIR();
@@ -156,6 +155,8 @@ class Arm64Mir2Lir : public Mir2Lir {
     uint32_t GenPairWise(uint32_t reg_mask, int* reg1, int* reg2);
     void UnSpillCoreRegs(RegStorage base, int offset, uint32_t reg_mask);
     void SpillCoreRegs(RegStorage base, int offset, uint32_t reg_mask);
+    void UnSpillFPRegs(RegStorage base, int offset, uint32_t reg_mask);
+    void SpillFPRegs(RegStorage base, int offset, uint32_t reg_mask);
 
     // Required for target - single operation generators.
     LIR* OpUnconditionalBranch(LIR* target);
@@ -194,7 +195,7 @@ class Arm64Mir2Lir : public Mir2Lir {
     LIR* StoreBaseDispBody(RegStorage r_base, int displacement, RegStorage r_src, OpSize size);
     LIR* OpRegRegRegShift(OpKind op, int r_dest, int r_src1, int r_src2, int shift,
                           bool is_wide = false);
-    LIR* OpRegRegShift(OpKind op, int r_dest_src1, int r_src2, int shift, bool is_wide = false);
+    LIR* OpRegRegShift(OpKind op, RegStorage r_dest_src1, RegStorage r_src2, int shift);
     static const ArmEncodingMap EncodingMap[kA64Last];
     int EncodeShift(int code, int amount);
     int EncodeExtend(int extend_type, int amount);
