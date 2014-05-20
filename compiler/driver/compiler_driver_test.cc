@@ -18,8 +18,8 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <memory>
 
-#include "UniquePtrCompat.h"
 #include "class_linker.h"
 #include "common_compiler_test.h"
 #include "dex_file.h"

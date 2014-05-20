@@ -127,7 +127,7 @@ ElfFile::ElfFile(File* file, bool writable, bool program_header_only)
 
 ElfFile* ElfFile::Open(File* file, bool writable, bool program_header_only,
                        std::string* error_msg) {
-  UniquePtr<ElfFile> elf_file(new ElfFile(file, writable, program_header_only));
+  std::unique_ptr<ElfFile> elf_file(new ElfFile(file, writable, program_header_only));
   if (!elf_file->Setup(error_msg)) {
     return nullptr;
   }
@@ -844,7 +844,7 @@ bool ElfFile::Load(bool executable, std::string* error_msg) {
     if (program_header.p_vaddr == 0) {
       std::string reservation_name("ElfFile reservation for ");
       reservation_name += file_->GetPath();
-      UniquePtr<MemMap> reserve(MemMap::MapAnonymous(reservation_name.c_str(),
+      std::unique_ptr<MemMap> reserve(MemMap::MapAnonymous(reservation_name.c_str(),
                                                      NULL, GetLoadedSize(), PROT_NONE, false,
                                                      error_msg));
       if (reserve.get() == nullptr) {
@@ -884,7 +884,7 @@ bool ElfFile::Load(bool executable, std::string* error_msg) {
                                 file_->GetPath().c_str());
       return false;
     }
-    UniquePtr<MemMap> segment(MemMap::MapFileAtAddress(p_vaddr,
+    std::unique_ptr<MemMap> segment(MemMap::MapFileAtAddress(p_vaddr,
                                                        program_header.p_memsz,
                                                        prot, flags, file_->Fd(),
                                                        program_header.p_offset,
@@ -999,7 +999,7 @@ void ElfFile::GdbJITSupport() {
 
   // Well, we need the whole file to do this.
   std::string error_msg;
-  UniquePtr<ElfFile> ptr(Open(const_cast<File*>(file_), false, false, &error_msg));
+  std::unique_ptr<ElfFile> ptr(Open(const_cast<File*>(file_), false, false, &error_msg));
   ElfFile& all = *ptr;
 
   // Do we have interesting sections?

@@ -17,10 +17,11 @@
 #ifndef ART_RUNTIME_GC_ACCOUNTING_CARD_TABLE_H_
 #define ART_RUNTIME_GC_ACCOUNTING_CARD_TABLE_H_
 
+#include <memory>
+
 #include "base/mutex.h"
 #include "globals.h"
 #include "mem_map.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 
@@ -141,7 +142,7 @@ class CardTable {
   void VerifyCardTable();
 
   // Mmapped pages for the card table
-  UniquePtr<MemMap> mem_map_;
+  std::unique_ptr<MemMap> mem_map_;
   // Value used to compute card table addresses from object addresses, see GetBiasedBegin
   byte* const biased_begin_;
   // Card table doesn't begin at the beginning of the mem_map_, instead it is displaced by offset

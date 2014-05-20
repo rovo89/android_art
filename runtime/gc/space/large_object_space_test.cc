@@ -39,7 +39,7 @@ void LargeObjectSpaceTest::LargeObjectTest() {
 
     static const size_t num_allocations = 64;
     static const size_t max_allocation_size = 0x100000;
-    std::vector<std::pair<mirror::Object*, size_t> > requests;
+    std::vector<std::pair<mirror::Object*, size_t>> requests;
 
     for (size_t phase = 0; phase < 2; ++phase) {
       while (requests.size() < num_allocations) {

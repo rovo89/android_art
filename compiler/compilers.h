@@ -92,7 +92,7 @@ class OptimizingCompiler FINAL : public QuickCompiler {
                              const DexFile& dex_file) const;
 
  private:
-  UniquePtr<std::ostream> visualizer_output_;
+  std::unique_ptr<std::ostream> visualizer_output_;
 
   DISALLOW_COPY_AND_ASSIGN(OptimizingCompiler);
 };

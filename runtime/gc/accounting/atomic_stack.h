@@ -18,12 +18,12 @@
 #define ART_RUNTIME_GC_ACCOUNTING_ATOMIC_STACK_H_
 
 #include <algorithm>
+#include <memory>
 #include <string>
 
 #include "atomic.h"
 #include "base/logging.h"
 #include "base/macros.h"
-#include "UniquePtrCompat.h"
 #include "mem_map.h"
 #include "utils.h"
 
@@ -36,7 +36,7 @@ class AtomicStack {
  public:
   // Capacity is how many elements we can store in the stack.
   static AtomicStack* Create(const std::string& name, size_t capacity) {
-    UniquePtr<AtomicStack> mark_stack(new AtomicStack(name, capacity));
+    std::unique_ptr<AtomicStack> mark_stack(new AtomicStack(name, capacity));
     mark_stack->Init();
     return mark_stack.release();
   }
@@ -215,7 +215,7 @@ class AtomicStack {
   std::string name_;
 
   // Memory mapping of the atomic stack.
-  UniquePtr<MemMap> mem_map_;
+  std::unique_ptr<MemMap> mem_map_;
 
   // Back index (index after the last element pushed).
   AtomicInteger back_index_;

@@ -17,8 +17,8 @@
 #include "method_verifier.h"
 
 #include <stdio.h>
+#include <memory>
 
-#include "UniquePtrCompat.h"
 #include "class_linker.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"

@@ -17,12 +17,12 @@
 #include "dex_file_verifier.h"
 
 #include <zlib.h>
+#include <memory>
 
 #include "base/stringprintf.h"
 #include "dex_file-inl.h"
 #include "leb128.h"
 #include "safe_map.h"
-#include "UniquePtrCompat.h"
 #include "utf-inl.h"
 #include "utils.h"
 
@@ -68,7 +68,7 @@ static bool IsDataSectionType(uint32_t map_type) {
 
 bool DexFileVerifier::Verify(const DexFile* dex_file, const byte* begin, size_t size,
                              const char* location, std::string* error_msg) {
-  UniquePtr<DexFileVerifier> verifier(new DexFileVerifier(dex_file, begin, size, location));
+  std::unique_ptr<DexFileVerifier> verifier(new DexFileVerifier(dex_file, begin, size, location));
   if (!verifier->Verify()) {
     *error_msg = verifier->FailureReason();
     return false;
@@ -652,7 +652,7 @@ bool DexFileVerifier::CheckIntraCodeItem() {
     return false;
   }
 
-  UniquePtr<uint32_t[]> handler_offsets(new uint32_t[handlers_size]);
+  std::unique_ptr<uint32_t[]> handler_offsets(new uint32_t[handlers_size]);
   if (!CheckAndGetHandlerOffsets(code_item, &handler_offsets[0], handlers_size)) {
     return false;
   }

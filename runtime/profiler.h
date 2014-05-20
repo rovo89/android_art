@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_PROFILER_H_
 #define ART_RUNTIME_PROFILER_H_
 
+#include <memory>
 #include <ostream>
 #include <set>
 #include <string>
@@ -29,7 +30,6 @@
 #include "instrumentation.h"
 #include "os.h"
 #include "safe_map.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 
@@ -177,7 +177,7 @@ class BackgroundMethodSamplingProfiler {
 
   ProfileSampleResults profile_table_;
 
-  UniquePtr<Barrier> profiler_barrier_;
+  std::unique_ptr<Barrier> profiler_barrier_;
 
   // Set of methods to be filtered out.  This will probably be rare because
   // most of the methods we want to be filtered reside in the boot path and

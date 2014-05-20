@@ -16,11 +16,12 @@
 
 #include "large_object_space.h"
 
+#include <memory>
+
 #include "gc/accounting/space_bitmap-inl.h"
 #include "base/logging.h"
 #include "base/mutex-inl.h"
 #include "base/stl_util.h"
-#include "UniquePtrCompat.h"
 #include "image.h"
 #include "os.h"
 #include "space-inl.h"

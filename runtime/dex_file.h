@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_DEX_FILE_H_
 #define ART_RUNTIME_DEX_FILE_H_
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -28,7 +29,6 @@
 #include "mem_map.h"
 #include "modifiers.h"
 #include "safe_map.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 
@@ -870,7 +870,7 @@ class DexFile {
   const uint32_t location_checksum_;
 
   // Manages the underlying memory allocation.
-  UniquePtr<MemMap> mem_map_;
+  std::unique_ptr<MemMap> mem_map_;
 
   // Points to the header section.
   const Header* const header_;

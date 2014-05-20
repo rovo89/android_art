@@ -228,7 +228,7 @@ class Dex2Oat {
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
     CHECK(verification_results != nullptr);
     CHECK(method_inliner_map != nullptr);
-    UniquePtr<Dex2Oat> dex2oat(new Dex2Oat(&compiler_options,
+    std::unique_ptr<Dex2Oat> dex2oat(new Dex2Oat(&compiler_options,
                                            compiler_kind,
                                            instruction_set,
                                            instruction_set_features,
@@ -256,19 +256,19 @@ class Dex2Oat {
 
   // Reads the class names (java.lang.Object) and returns a set of descriptors (Ljava/lang/Object;)
   CompilerDriver::DescriptorSet* ReadImageClassesFromFile(const char* image_classes_filename) {
-    UniquePtr<std::ifstream> image_classes_file(new std::ifstream(image_classes_filename,
+    std::unique_ptr<std::ifstream> image_classes_file(new std::ifstream(image_classes_filename,
                                                                   std::ifstream::in));
     if (image_classes_file.get() == nullptr) {
       LOG(ERROR) << "Failed to open image classes file " << image_classes_filename;
       return nullptr;
     }
-    UniquePtr<CompilerDriver::DescriptorSet> result(ReadImageClasses(*image_classes_file.get()));
+    std::unique_ptr<CompilerDriver::DescriptorSet> result(ReadImageClasses(*image_classes_file.get()));
     image_classes_file->close();
     return result.release();
   }
 
   CompilerDriver::DescriptorSet* ReadImageClasses(std::istream& image_classes_stream) {
-    UniquePtr<CompilerDriver::DescriptorSet> image_classes(new CompilerDriver::DescriptorSet);
+    std::unique_ptr<CompilerDriver::DescriptorSet> image_classes(new CompilerDriver::DescriptorSet);
     while (image_classes_stream.good()) {
       std::string dot;
       std::getline(image_classes_stream, dot);
@@ -285,17 +285,17 @@ class Dex2Oat {
   CompilerDriver::DescriptorSet* ReadImageClassesFromZip(const char* zip_filename,
                                                          const char* image_classes_filename,
                                                          std::string* error_msg) {
-    UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(zip_filename, error_msg));
+    std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(zip_filename, error_msg));
     if (zip_archive.get() == nullptr) {
       return nullptr;
     }
-    UniquePtr<ZipEntry> zip_entry(zip_archive->Find(image_classes_filename, error_msg));
+    std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find(image_classes_filename, error_msg));
     if (zip_entry.get() == nullptr) {
       *error_msg = StringPrintf("Failed to find '%s' within '%s': %s", image_classes_filename,
                                 zip_filename, error_msg->c_str());
       return nullptr;
     }
-    UniquePtr<MemMap> image_classes_file(zip_entry->ExtractToMemMap(image_classes_filename,
+    std::unique_ptr<MemMap> image_classes_file(zip_entry->ExtractToMemMap(image_classes_filename,
                                                                     error_msg));
     if (image_classes_file.get() == nullptr) {
       *error_msg = StringPrintf("Failed to extract '%s' from '%s': %s", image_classes_filename,
@@ -315,7 +315,7 @@ class Dex2Oat {
                                       File* oat_file,
                                       const std::string& bitcode_filename,
                                       bool image,
-                                      UniquePtr<CompilerDriver::DescriptorSet>& image_classes,
+                                      std::unique_ptr<CompilerDriver::DescriptorSet>& image_classes,
                                       bool dump_stats,
                                       bool dump_passes,
                                       TimingLogger& timings,
@@ -339,7 +339,7 @@ class Dex2Oat {
       Runtime::Current()->SetCompileTimeClassPath(class_loader, class_path_files);
     }
 
-    UniquePtr<CompilerDriver> driver(new CompilerDriver(compiler_options_,
+    std::unique_ptr<CompilerDriver> driver(new CompilerDriver(compiler_options_,
                                                         verification_results_,
                                                         method_inliner_map_,
                                                         compiler_kind_,
@@ -403,7 +403,7 @@ class Dex2Oat {
       oat_data_begin = image_writer.GetOatDataBegin();
     }
 
-    UniquePtr<File> oat_file(OS::OpenFileReadWrite(oat_filename.c_str()));
+    std::unique_ptr<File> oat_file(OS::OpenFileReadWrite(oat_filename.c_str()));
     if (oat_file.get() == nullptr) {
       PLOG(ERROR) << "Failed to open ELF file: " << oat_filename;
       return false;
@@ -1064,7 +1064,7 @@ static int dex2oat(int argc, char** argv) {
   WatchDog watch_dog(watch_dog_enabled);
 
   // Check early that the result of compilation can be written
-  UniquePtr<File> oat_file;
+  std::unique_ptr<File> oat_file;
   bool create_file = !oat_unstripped.empty();  // as opposed to using open file descriptor
   if (create_file) {
     oat_file.reset(OS::CreateEmptyFile(oat_unstripped.c_str()));
@@ -1124,7 +1124,7 @@ static int dex2oat(int argc, char** argv) {
     LOG(ERROR) << "Failed to create dex2oat";
     return EXIT_FAILURE;
   }
-  UniquePtr<Dex2Oat> dex2oat(p_dex2oat);
+  std::unique_ptr<Dex2Oat> dex2oat(p_dex2oat);
   // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
   // give it away now so that we don't starve GC.
   Thread* self = Thread::Current();
@@ -1136,7 +1136,7 @@ static int dex2oat(int argc, char** argv) {
   WellKnownClasses::Init(self->GetJniEnv());
 
   // If --image-classes was specified, calculate the full list of classes to include in the image
-  UniquePtr<CompilerDriver::DescriptorSet> image_classes(nullptr);
+  std::unique_ptr<CompilerDriver::DescriptorSet> image_classes(nullptr);
   if (image_classes_filename != nullptr) {
     std::string error_msg;
     if (image_classes_zip_filename != nullptr) {
@@ -1162,7 +1162,7 @@ static int dex2oat(int argc, char** argv) {
     if (dex_filenames.empty()) {
       ATRACE_BEGIN("Opening zip archive from file descriptor");
       std::string error_msg;
-      UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(zip_fd, zip_location.c_str(),
+      std::unique_ptr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(zip_fd, zip_location.c_str(),
                                                                &error_msg));
       if (zip_archive.get() == nullptr) {
         LOG(ERROR) << "Failed to open zip from file descriptor for '" << zip_location << "': "
@@ -1190,7 +1190,7 @@ static int dex2oat(int argc, char** argv) {
       for (size_t i = 0; i < dex_files.size(); ++i) {
         const DexFile* dex_file = dex_files[i];
         std::string tmp_file_name(StringPrintf("/data/local/tmp/dex2oat.%d.%zd.dex", getpid(), i));
-        UniquePtr<File> tmp_file(OS::CreateEmptyFile(tmp_file_name.c_str()));
+        std::unique_ptr<File> tmp_file(OS::CreateEmptyFile(tmp_file_name.c_str()));
         if (tmp_file.get() == nullptr) {
             PLOG(ERROR) << "Failed to open file " << tmp_file_name
                         << ". Try: adb shell chmod 777 /data/local/tmp";
@@ -1225,7 +1225,7 @@ static int dex2oat(int argc, char** argv) {
     }
   }
 
-  UniquePtr<const CompilerDriver> compiler(dex2oat->CreateOatFile(boot_image_option,
+  std::unique_ptr<const CompilerDriver> compiler(dex2oat->CreateOatFile(boot_image_option,
                                                                   android_root,
                                                                   is_host,
                                                                   dex_files,
@@ -1324,10 +1324,10 @@ static int dex2oat(int argc, char** argv) {
   if (oat_unstripped != oat_stripped) {
     timings.NewSplit("dex2oat OatFile copy");
     oat_file.reset();
-     UniquePtr<File> in(OS::OpenFileForReading(oat_unstripped.c_str()));
-    UniquePtr<File> out(OS::CreateEmptyFile(oat_stripped.c_str()));
+     std::unique_ptr<File> in(OS::OpenFileForReading(oat_unstripped.c_str()));
+    std::unique_ptr<File> out(OS::CreateEmptyFile(oat_stripped.c_str()));
     size_t buffer_size = 8192;
-    UniquePtr<uint8_t> buffer(new uint8_t[buffer_size]);
+    std::unique_ptr<uint8_t> buffer(new uint8_t[buffer_size]);
     while (true) {
       int bytes_read = TEMP_FAILURE_RETRY(read(in->Fd(), buffer.get(), buffer_size));
       if (bytes_read <= 0) {

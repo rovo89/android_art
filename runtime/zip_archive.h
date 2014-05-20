@@ -18,8 +18,9 @@
 #define ART_RUNTIME_ZIP_ARCHIVE_H_
 
 #include <stdint.h>
-#include <string>
 #include <ziparchive/zip_archive.h>
+#include <memory>
+#include <string>
 
 #include "base/logging.h"
 #include "base/unix_file/random_access_file.h"
@@ -27,7 +28,6 @@
 #include "mem_map.h"
 #include "os.h"
 #include "safe_map.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 

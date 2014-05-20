@@ -106,7 +106,7 @@ void SignalCatcher::Output(const std::string& s) {
     PLOG(ERROR) << "Unable to open stack trace file '" << stack_trace_file_ << "'";
     return;
   }
-  UniquePtr<File> file(new File(fd, stack_trace_file_));
+  std::unique_ptr<File> file(new File(fd, stack_trace_file_));
   if (!file->WriteFully(s.data(), s.size())) {
     PLOG(ERROR) << "Failed to write stack traces to '" << stack_trace_file_ << "'";
   } else {

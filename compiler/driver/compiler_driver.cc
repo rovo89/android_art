@@ -502,7 +502,7 @@ void CompilerDriver::CompileAll(jobject class_loader,
                                 const std::vector<const DexFile*>& dex_files,
                                 TimingLogger* timings) {
   DCHECK(!Runtime::Current()->IsStarted());
-  UniquePtr<ThreadPool> thread_pool(new ThreadPool("Compiler driver thread pool", thread_count_ - 1));
+  std::unique_ptr<ThreadPool> thread_pool(new ThreadPool("Compiler driver thread pool", thread_count_ - 1));
   PreCompile(class_loader, dex_files, thread_pool.get(), timings);
   Compile(class_loader, dex_files, thread_pool.get(), timings);
   if (dump_stats_) {
@@ -568,7 +568,7 @@ void CompilerDriver::CompileOne(mirror::ArtMethod* method, TimingLogger* timings
   std::vector<const DexFile*> dex_files;
   dex_files.push_back(dex_file);
 
-  UniquePtr<ThreadPool> thread_pool(new ThreadPool("Compiler driver thread pool", 0U));
+  std::unique_ptr<ThreadPool> thread_pool(new ThreadPool("Compiler driver thread pool", 0U));
   PreCompile(jclass_loader, dex_files, thread_pool.get(), timings);
 
   // Can we run DEX-to-DEX compiler on this class ?
@@ -626,7 +626,7 @@ bool CompilerDriver::IsImageClass(const char* descriptor) const {
 }
 
 static void ResolveExceptionsForMethod(MethodHelper* mh,
-    std::set<std::pair<uint16_t, const DexFile*> >& exceptions_to_resolve)
+    std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const DexFile::CodeItem* code_item = mh->GetCodeItem();
   if (code_item == NULL) {
@@ -665,8 +665,8 @@ static void ResolveExceptionsForMethod(MethodHelper* mh,
 
 static bool ResolveCatchBlockExceptionsClassVisitor(mirror::Class* c, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  std::set<std::pair<uint16_t, const DexFile*> >* exceptions_to_resolve =
-      reinterpret_cast<std::set<std::pair<uint16_t, const DexFile*> >*>(arg);
+  std::set<std::pair<uint16_t, const DexFile*>>* exceptions_to_resolve =
+      reinterpret_cast<std::set<std::pair<uint16_t, const DexFile*>>*>(arg);
   MethodHelper mh;
   for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
     mirror::ArtMethod* m = c->GetVirtualMethod(i);
@@ -720,7 +720,7 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings)
   // Resolve exception classes referenced by the loaded classes. The catch logic assumes
   // exceptions are resolved by the verifier when there is a catch block in an interested method.
   // Do this here so that exception classes appear to have been specified image classes.
-  std::set<std::pair<uint16_t, const DexFile*> > unresolved_exception_types;
+  std::set<std::pair<uint16_t, const DexFile*>> unresolved_exception_types;
   StackHandleScope<1> hs(self);
   Handle<mirror::Class> java_lang_Throwable(
       hs.NewHandle(class_linker->FindSystemClass(self, "Ljava/lang/Throwable;")));

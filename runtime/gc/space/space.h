@@ -17,9 +17,9 @@
 #ifndef ART_RUNTIME_GC_SPACE_SPACE_H_
 #define ART_RUNTIME_GC_SPACE_SPACE_H_
 
+#include <memory>
 #include <string>
 
-#include "UniquePtrCompat.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "gc/accounting/space_bitmap.h"
@@ -339,8 +339,8 @@ class DiscontinuousSpace : public Space {
  protected:
   DiscontinuousSpace(const std::string& name, GcRetentionPolicy gc_retention_policy);
 
-  UniquePtr<accounting::LargeObjectBitmap> live_bitmap_;
-  UniquePtr<accounting::LargeObjectBitmap> mark_bitmap_;
+  std::unique_ptr<accounting::LargeObjectBitmap> live_bitmap_;
+  std::unique_ptr<accounting::LargeObjectBitmap> mark_bitmap_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(DiscontinuousSpace);
@@ -374,7 +374,7 @@ class MemMapSpace : public ContinuousSpace {
   }
 
   // Underlying storage of the space
-  UniquePtr<MemMap> mem_map_;
+  std::unique_ptr<MemMap> mem_map_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(MemMapSpace);
@@ -419,9 +419,9 @@ class ContinuousMemMapAllocSpace : public MemMapSpace, public AllocSpace {
   virtual accounting::ContinuousSpaceBitmap::SweepCallback* GetSweepCallback() = 0;
 
  protected:
-  UniquePtr<accounting::ContinuousSpaceBitmap> live_bitmap_;
-  UniquePtr<accounting::ContinuousSpaceBitmap> mark_bitmap_;
-  UniquePtr<accounting::ContinuousSpaceBitmap> temp_bitmap_;
+  std::unique_ptr<accounting::ContinuousSpaceBitmap> live_bitmap_;
+  std::unique_ptr<accounting::ContinuousSpaceBitmap> mark_bitmap_;
+  std::unique_ptr<accounting::ContinuousSpaceBitmap> temp_bitmap_;
 
   ContinuousMemMapAllocSpace(const std::string& name, MemMap* mem_map, byte* begin,
                              byte* end, byte* limit, GcRetentionPolicy gc_retention_policy)

@@ -420,18 +420,18 @@ class CommonCompilerTest : public CommonRuntimeTest {
     image_reservation_.reset();
   }
 
-  UniquePtr<CompilerOptions> compiler_options_;
-  UniquePtr<VerificationResults> verification_results_;
-  UniquePtr<DexFileToMethodInlinerMap> method_inliner_map_;
-  UniquePtr<CompilerCallbacksImpl> callbacks_;
-  UniquePtr<CompilerDriver> compiler_driver_;
-  UniquePtr<CumulativeLogger> timer_;
+  std::unique_ptr<CompilerOptions> compiler_options_;
+  std::unique_ptr<VerificationResults> verification_results_;
+  std::unique_ptr<DexFileToMethodInlinerMap> method_inliner_map_;
+  std::unique_ptr<CompilerCallbacksImpl> callbacks_;
+  std::unique_ptr<CompilerDriver> compiler_driver_;
+  std::unique_ptr<CumulativeLogger> timer_;
 
  private:
-  UniquePtr<MemMap> image_reservation_;
+  std::unique_ptr<MemMap> image_reservation_;
 
   // Chunks must not move their storage after being created - use the node-based std::list.
-  std::list<std::vector<uint8_t> > header_code_and_maps_chunks_;
+  std::list<std::vector<uint8_t>> header_code_and_maps_chunks_;
 };
 
 }  // namespace art
