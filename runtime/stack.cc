@@ -139,9 +139,11 @@ uint32_t StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kin
   if (cur_quick_frame_ != NULL) {
     DCHECK(context_ != NULL);  // You can't reliably read registers without a context.
     DCHECK(m == GetMethod());
-    const VmapTable vmap_table(m->GetVmapTable());
+    const void* code_pointer = m->GetQuickOatCodePointer();
+    DCHECK(code_pointer != nullptr);
+    const VmapTable vmap_table(m->GetVmapTable(code_pointer));
+    QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
     uint32_t vmap_offset;
-    QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo();
     // TODO: IsInContext stops before spotting floating point registers.
     if (vmap_table.IsInContext(vreg, kind, &vmap_offset)) {
       bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
@@ -163,9 +165,11 @@ void StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_val
   if (cur_quick_frame_ != NULL) {
     DCHECK(context_ != NULL);  // You can't reliably write registers without a context.
     DCHECK(m == GetMethod());
-    const VmapTable vmap_table(m->GetVmapTable());
+    const void* code_pointer = m->GetQuickOatCodePointer();
+    DCHECK(code_pointer != nullptr);
+    const VmapTable vmap_table(m->GetVmapTable(code_pointer));
+    QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
     uint32_t vmap_offset;
-    QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo();
     // TODO: IsInContext stops before spotting floating point registers.
     if (vmap_table.IsInContext(vreg, kind, &vmap_offset)) {
       bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
@@ -316,7 +320,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
         }
         size_t frame_size = method->GetFrameSizeInBytes();
         // Compute PC for next stack frame from return PC.
-        size_t return_pc_offset = method->GetReturnPcOffsetInBytes();
+        size_t return_pc_offset = method->GetReturnPcOffsetInBytes(frame_size);
         byte* return_pc_addr = reinterpret_cast<byte*>(cur_quick_frame_) + return_pc_offset;
         uintptr_t return_pc = *reinterpret_cast<uintptr_t*>(return_pc_addr);
         if (UNLIKELY(exit_stubs_installed)) {
