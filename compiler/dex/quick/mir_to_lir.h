@@ -339,23 +339,35 @@ class Mir2Lir : public Backend {
       bool IsDead() { return (master_->liveness_ & storage_mask_) == 0; }
       // Liveness of this view matches.  Note: not equivalent to !IsDead().
       bool IsLive() { return (master_->liveness_ & storage_mask_) == storage_mask_; }
-      void MarkLive() { master_->liveness_ |= storage_mask_; }
+      void MarkLive(int s_reg) {
+        // TODO: Anything useful to assert here?
+        s_reg_ = s_reg;
+        master_->liveness_ |= storage_mask_;
+      }
       void MarkDead() {
-        master_->liveness_ &= ~storage_mask_;
-        SetSReg(INVALID_SREG);
+        if (SReg() != INVALID_SREG) {
+          s_reg_ = INVALID_SREG;
+          master_->liveness_ &= ~storage_mask_;
+          ResetDefBody();
+        }
       }
       RegStorage GetReg() { return reg_; }
       void SetReg(RegStorage reg) { reg_ = reg; }
       bool IsTemp() { return is_temp_; }
       void SetIsTemp(bool val) { is_temp_ = val; }
       bool IsWide() { return wide_value_; }
-      void SetIsWide(bool val) { wide_value_ = val; }
+      void SetIsWide(bool val) {
+        wide_value_ = val;
+        if (!val) {
+          // If not wide, reset partner to self.
+          SetPartner(GetReg());
+        }
+      }
       bool IsDirty() { return dirty_; }
       void SetIsDirty(bool val) { dirty_ = val; }
       RegStorage Partner() { return partner_; }
       void SetPartner(RegStorage partner) { partner_ = partner; }
-      int SReg() { return s_reg_; }
-      void SetSReg(int s_reg) { s_reg_ = s_reg; }
+      int SReg() { return (!IsTemp() || IsLive()) ? s_reg_ : INVALID_SREG; }
       uint64_t DefUseMask() { return def_use_mask_; }
       void SetDefUseMask(uint64_t def_use_mask) { def_use_mask_ = def_use_mask; }
       RegisterInfo* Master() { return master_; }
@@ -653,6 +665,7 @@ class Mir2Lir : public Backend {
     RegStorage AllocLiveReg(int s_reg, int reg_class, bool wide);
     RegStorage FindLiveReg(GrowableArray<RegisterInfo*> &regs, int s_reg);
     void FreeTemp(RegStorage reg);
+    void FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free);
     bool IsLive(RegStorage reg);
     bool IsTemp(RegStorage reg);
     bool IsPromoted(RegStorage reg);
@@ -671,10 +684,10 @@ class Mir2Lir : public Backend {
     void FlushAllRegs();
     bool RegClassMatches(int reg_class, RegStorage reg);
     void MarkLive(RegLocation loc);
-    void MarkLiveReg(RegStorage reg, int s_reg);
     void MarkTemp(RegStorage reg);
     void UnmarkTemp(RegStorage reg);
     void MarkWide(RegStorage reg);
+    void MarkNarrow(RegStorage reg);
     void MarkClean(RegLocation loc);
     void MarkDirty(RegLocation loc);
     void MarkInUse(RegStorage reg);
@@ -1074,7 +1087,6 @@ class Mir2Lir : public Backend {
     virtual void AdjustSpillMask() = 0;
     virtual void ClobberCallerSave() = 0;
     virtual void FreeCallTemps() = 0;
-    virtual void FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free) = 0;
     virtual void LockCallTemps() = 0;
     virtual void MarkPreservedSingle(int v_reg, RegStorage reg) = 0;
     virtual void MarkPreservedDouble(int v_reg, RegStorage reg) = 0;
