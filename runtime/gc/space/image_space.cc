@@ -239,7 +239,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
     *error_msg = StringPrintf("Failed to map image bitmap: %s", error_msg->c_str());
     return nullptr;
   }
-  uint32_t bitmap_index = bitmap_index_.FetchAndAdd(1);
+  uint32_t bitmap_index = bitmap_index_.FetchAndAddSequentiallyConsistent(1);
   std::string bitmap_name(StringPrintf("imagespace %s live-bitmap %u", image_filename,
                                        bitmap_index));
   std::unique_ptr<accounting::ContinuousSpaceBitmap> bitmap(

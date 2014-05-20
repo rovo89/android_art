@@ -48,8 +48,8 @@ inline mirror::Object* BumpPointerSpace::AllocThreadUnsafe(Thread* self, size_t 
   end_ += num_bytes;
   *bytes_allocated = num_bytes;
   // Use the CAS free versions as an optimization.
-  objects_allocated_ = objects_allocated_ + 1;
-  bytes_allocated_ = bytes_allocated_ + num_bytes;
+  objects_allocated_.StoreRelaxed(objects_allocated_.LoadRelaxed() + 1);
+  bytes_allocated_.StoreRelaxed(bytes_allocated_.LoadRelaxed() + num_bytes);
   if (UNLIKELY(usable_size != nullptr)) {
     *usable_size = num_bytes;
   }
@@ -76,8 +76,8 @@ inline mirror::Object* BumpPointerSpace::AllocNonvirtualWithoutAccounting(size_t
 inline mirror::Object* BumpPointerSpace::AllocNonvirtual(size_t num_bytes) {
   mirror::Object* ret = AllocNonvirtualWithoutAccounting(num_bytes);
   if (ret != nullptr) {
-    objects_allocated_.FetchAndAdd(1);
-    bytes_allocated_.FetchAndAdd(num_bytes);
+    objects_allocated_.FetchAndAddSequentiallyConsistent(1);
+    bytes_allocated_.FetchAndAddSequentiallyConsistent(num_bytes);
   }
   return ret;
 }

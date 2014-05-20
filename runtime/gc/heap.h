@@ -373,7 +373,7 @@ class Heap {
 
   // Returns the number of bytes currently allocated.
   size_t GetBytesAllocated() const {
-    return num_bytes_allocated_;
+    return num_bytes_allocated_.LoadSequentiallyConsistent();
   }
 
   // Returns the number of objects currently allocated.
@@ -409,7 +409,7 @@ class Heap {
 
   // Implements java.lang.Runtime.freeMemory.
   size_t GetFreeMemory() const {
-    return GetTotalMemory() - num_bytes_allocated_;
+    return GetTotalMemory() - num_bytes_allocated_.LoadSequentiallyConsistent();
   }
 
   // get the space that corresponds to an object's address. Current implementation searches all
