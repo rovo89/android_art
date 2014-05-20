@@ -99,14 +99,33 @@ void Arm64Context::SmashCallerSaves() {
   gprs_[X14] = NULL;
   gprs_[X15] = NULL;
 
-  fprs_[D8] = NULL;
-  fprs_[D9] = NULL;
-  fprs_[D10] = NULL;
-  fprs_[D11] = NULL;
-  fprs_[D12] = NULL;
-  fprs_[D13] = NULL;
-  fprs_[D14] = NULL;
-  fprs_[D15] = NULL;
+  // d0-d7, d16-d31 are caller-saved; d8-d15 are callee-saved.
+
+  fprs_[D0] = NULL;
+  fprs_[D1] = NULL;
+  fprs_[D2] = NULL;
+  fprs_[D3] = NULL;
+  fprs_[D4] = NULL;
+  fprs_[D5] = NULL;
+  fprs_[D6] = NULL;
+  fprs_[D7] = NULL;
+
+  fprs_[D16] = NULL;
+  fprs_[D17] = NULL;
+  fprs_[D18] = NULL;
+  fprs_[D19] = NULL;
+  fprs_[D20] = NULL;
+  fprs_[D21] = NULL;
+  fprs_[D22] = NULL;
+  fprs_[D23] = NULL;
+  fprs_[D24] = NULL;
+  fprs_[D25] = NULL;
+  fprs_[D26] = NULL;
+  fprs_[D27] = NULL;
+  fprs_[D28] = NULL;
+  fprs_[D29] = NULL;
+  fprs_[D30] = NULL;
+  fprs_[D31] = NULL;
 }
 
 extern "C" void art_quick_do_long_jump(uint64_t*, uint64_t*);
