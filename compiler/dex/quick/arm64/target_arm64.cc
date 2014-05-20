@@ -30,7 +30,8 @@ static const RegStorage core_regs_arr[] =
     {rs_x0, rs_x1, rs_x2, rs_x3, rs_x4, rs_x5, rs_x6, rs_x7,
      rs_x8, rs_x9, rs_x10, rs_x11, rs_x12, rs_x13, rs_x14, rs_x15,
      rs_x16, rs_x17, rs_x18, rs_x19, rs_x20, rs_x21, rs_x22, rs_x23,
-     rs_x24, rs_x25, rs_x26, rs_x27, rs_x28, rs_x29, rs_x30, rs_x31};
+     rs_x24, rs_x25, rs_x26, rs_x27, rs_x28, rs_x29, rs_x30, rs_x31,
+     rs_xzr};
 static const RegStorage sp_regs_arr[] =
     {rs_f0, rs_f1, rs_f2, rs_f3, rs_f4, rs_f5, rs_f6, rs_f7,
      rs_f8, rs_f9, rs_f10, rs_f11, rs_f12, rs_f13, rs_f14, rs_f15,
@@ -42,8 +43,8 @@ static const RegStorage dp_regs_arr[] =
      rs_d16, rs_d17, rs_d18, rs_d19, rs_d20, rs_d21, rs_d22, rs_d23,
      rs_d24, rs_d25, rs_d26, rs_d27, rs_d28, rs_d29, rs_d30, rs_d31};
 static const RegStorage reserved_regs_arr[] =
-    {rs_rA64_SUSPEND, rs_rA64_SELF, rs_rA64_SP, rs_rA64_LR};
-// TUING: Are there too many temp registers and too less promote target?
+    {rs_rA64_SUSPEND, rs_rA64_SELF, rs_rA64_SP, rs_rA64_LR, rs_xzr};
+// TUNING: Are there too many temp registers and too less promote target?
 // This definition need to be matched with runtime.cc, quick entry assembly and JNI compiler
 // Note: we are not able to call to C function directly if it un-match C ABI.
 // Currently, rs_rA64_SELF is not a callee save register which does not match C ABI.
@@ -377,14 +378,14 @@ std::string Arm64Mir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned ch
              strcpy(tbuf, name);
              break;
            case 's':
-             snprintf(tbuf, arraysize(tbuf), "s%d", operand & ARM_FP_REG_MASK);
+             snprintf(tbuf, arraysize(tbuf), "s%d", operand & RegStorage::kRegNumMask);
              break;
            case 'S':
-             snprintf(tbuf, arraysize(tbuf), "d%d", operand & ARM_FP_REG_MASK);
+             snprintf(tbuf, arraysize(tbuf), "d%d", operand & RegStorage::kRegNumMask);
              break;
            case 'f':
              snprintf(tbuf, arraysize(tbuf), "%c%d", (IS_FWIDE(lir->opcode)) ? 'd' : 's',
-                      operand & ARM_FP_REG_MASK);
+                      operand & RegStorage::kRegNumMask);
              break;
            case 'l': {
                bool is_wide = IS_WIDE(lir->opcode);
@@ -463,7 +464,7 @@ std::string Arm64Mir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned ch
              break;
            case 'R': {
                bool is_wide = IS_WIDE(lir->opcode);
-               if (LIKELY(operand != rwsp || operand != rsp)) {
+               if (LIKELY(operand != rwsp && operand != rsp)) {
                  snprintf(tbuf, arraysize(tbuf), "%c%d", (is_wide) ? 'x' : 'w',
                           operand & RegStorage::kRegNumMask);
                } else {
@@ -599,13 +600,11 @@ void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
                                         core_temps, sp_temps, dp_temps);
 
   // Target-specific adjustments.
-
-  // Alias single precision floats to appropriate half of overlapping double.
-  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->sp_regs_);
-  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
-    int sp_reg_num = info->GetReg().GetRegNum();
-    int dp_reg_num = sp_reg_num >> 1;
-    RegStorage dp_reg = RegStorage::Solo64(RegStorage::kFloatingPoint | dp_reg_num);
+  // Alias single precision float registers to corresponding double registers.
+  GrowableArray<RegisterInfo*>::Iterator fp_it(&reg_pool_->sp_regs_);
+  for (RegisterInfo* info = fp_it.Next(); info != nullptr; info = fp_it.Next()) {
+    int fp_reg_num = info->GetReg().GetRegNum();
+    RegStorage dp_reg = RegStorage::Solo64(RegStorage::kFloatingPoint | fp_reg_num);
     RegisterInfo* dp_reg_info = GetRegInfo(dp_reg);
     // Double precision register's master storage should refer to itself.
     DCHECK_EQ(dp_reg_info, dp_reg_info->Master());
@@ -613,10 +612,6 @@ void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
     info->SetMaster(dp_reg_info);
     // Singles should show a single 32-bit mask bit, at first referring to the low half.
     DCHECK_EQ(info->StorageMask(), 0x1U);
-    if (sp_reg_num & 1) {
-      // For odd singles, change to user the high word of the backing double.
-      info->SetStorageMask(0x2);
-    }
   }
 
   // TODO: re-enable this when we can safely save r4 over the suspension code path.
@@ -644,14 +639,11 @@ void Arm64Mir2Lir::AdjustSpillMask() {
 }
 
 /*
- * Mark a callee-save fp register as promoted.  Note that
- * vpush/vpop uses contiguous register lists so we must
- * include any holes in the mask.  Associate holes with
- * Dalvik register INVALID_VREG (0xFFFFU).
+ * Mark a callee-save fp register as promoted.
  */
 void Arm64Mir2Lir::MarkPreservedSingle(int v_reg, RegStorage reg) {
-  DCHECK_GE(reg.GetRegNum(), ARM_FP_CALLEE_SAVE_BASE);
-  int adjusted_reg_num = reg.GetRegNum() - ARM_FP_CALLEE_SAVE_BASE;
+  DCHECK(reg.IsFloat());
+  int adjusted_reg_num = reg.GetRegNum() - A64_FP_CALLEE_SAVE_BASE;
   // Ensure fp_vmap_table is large enough
   int table_size = fp_vmap_table_.size();
   for (int i = table_size; i < (adjusted_reg_num + 1); i++) {
@@ -661,29 +653,36 @@ void Arm64Mir2Lir::MarkPreservedSingle(int v_reg, RegStorage reg) {
   fp_vmap_table_[adjusted_reg_num] = v_reg;
   // Size of fp_vmap_table is high-water mark, use to set mask
   num_fp_spills_ = fp_vmap_table_.size();
-  fp_spill_mask_ = ((1 << num_fp_spills_) - 1) << ARM_FP_CALLEE_SAVE_BASE;
+  fp_spill_mask_ = ((1 << num_fp_spills_) - 1) << A64_FP_CALLEE_SAVE_BASE;
 }
 
 void Arm64Mir2Lir::MarkPreservedDouble(int v_reg, RegStorage reg) {
-  // TEMP: perform as 2 singles.
-  int reg_num = reg.GetRegNum() << 1;
-  RegStorage lo = RegStorage::Solo32(RegStorage::kFloatingPoint | reg_num);
-  RegStorage hi = RegStorage::Solo32(RegStorage::kFloatingPoint | reg_num | 1);
-  MarkPreservedSingle(v_reg, lo);
-  MarkPreservedSingle(v_reg + 1, hi);
+  DCHECK(reg.IsDouble());
+  MarkPreservedSingle(v_reg, reg);
 }
 
 /* Clobber all regs that might be used by an external C call */
 void Arm64Mir2Lir::ClobberCallerSave() {
-  // TODO(Arm64): implement this.
-  UNIMPLEMENTED(WARNING);
-
   Clobber(rs_x0);
   Clobber(rs_x1);
   Clobber(rs_x2);
   Clobber(rs_x3);
+  Clobber(rs_x4);
+  Clobber(rs_x5);
+  Clobber(rs_x6);
+  Clobber(rs_x7);
+  Clobber(rs_x8);
+  Clobber(rs_x9);
+  Clobber(rs_x10);
+  Clobber(rs_x11);
   Clobber(rs_x12);
+  Clobber(rs_x13);
+  Clobber(rs_x14);
+  Clobber(rs_x15);
+  Clobber(rs_x16);
+  Clobber(rs_x17);
   Clobber(rs_x30);
+
   Clobber(rs_f0);
   Clobber(rs_f1);
   Clobber(rs_f2);
@@ -692,14 +691,22 @@ void Arm64Mir2Lir::ClobberCallerSave() {
   Clobber(rs_f5);
   Clobber(rs_f6);
   Clobber(rs_f7);
-  Clobber(rs_f8);
-  Clobber(rs_f9);
-  Clobber(rs_f10);
-  Clobber(rs_f11);
-  Clobber(rs_f12);
-  Clobber(rs_f13);
-  Clobber(rs_f14);
-  Clobber(rs_f15);
+  Clobber(rs_f16);
+  Clobber(rs_f17);
+  Clobber(rs_f18);
+  Clobber(rs_f19);
+  Clobber(rs_f20);
+  Clobber(rs_f21);
+  Clobber(rs_f22);
+  Clobber(rs_f23);
+  Clobber(rs_f24);
+  Clobber(rs_f25);
+  Clobber(rs_f26);
+  Clobber(rs_f27);
+  Clobber(rs_f28);
+  Clobber(rs_f29);
+  Clobber(rs_f30);
+  Clobber(rs_f31);
 }
 
 RegLocation Arm64Mir2Lir::GetReturnWideAlt() {
@@ -770,61 +777,6 @@ const char* Arm64Mir2Lir::GetTargetInstName(int opcode) {
 const char* Arm64Mir2Lir::GetTargetInstFmt(int opcode) {
   DCHECK(!IsPseudoLirOp(opcode));
   return Arm64Mir2Lir::EncodingMap[UNWIDE(opcode)].fmt;
-}
-
-/*
- * Somewhat messy code here.  We want to allocate a pair of contiguous
- * physical single-precision floating point registers starting with
- * an even numbered reg.  It is possible that the paired s_reg (s_reg+1)
- * has already been allocated - try to fit if possible.  Fail to
- * allocate if we can't meet the requirements for the pair of
- * s_reg<=sX[even] & (s_reg+1)<= sX+1.
- */
-// TODO: needs rewrite to support non-backed 64-bit float regs.
-RegStorage Arm64Mir2Lir::AllocPreservedDouble(int s_reg) {
-  RegStorage res;
-  int v_reg = mir_graph_->SRegToVReg(s_reg);
-  int p_map_idx = SRegToPMap(s_reg);
-  if (promotion_map_[p_map_idx+1].fp_location == kLocPhysReg) {
-    // Upper reg is already allocated.  Can we fit?
-    int high_reg = promotion_map_[p_map_idx+1].FpReg;
-    if ((high_reg & 1) == 0) {
-      // High reg is even - fail.
-      return res;  // Invalid.
-    }
-    // Is the low reg of the pair free?
-    // FIXME: rework.
-    RegisterInfo* p = GetRegInfo(RegStorage::FloatSolo32(high_reg - 1));
-    if (p->InUse() || p->IsTemp()) {
-      // Already allocated or not preserved - fail.
-      return res;  // Invalid.
-    }
-    // OK - good to go.
-    res = RegStorage::FloatSolo64(p->GetReg().GetRegNum() >> 1);
-    p->MarkInUse();
-    MarkPreservedSingle(v_reg, p->GetReg());
-  } else {
-    /*
-     * TODO: until runtime support is in, make sure we avoid promoting the same vreg to
-     * different underlying physical registers.
-     */
-    GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->dp_regs_);
-    for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
-      if (!info->IsTemp() && !info->InUse()) {
-        res = info->GetReg();
-        info->MarkInUse();
-        MarkPreservedDouble(v_reg, info->GetReg());
-        break;
-      }
-    }
-  }
-  if (res.Valid()) {
-    promotion_map_[p_map_idx].fp_location = kLocPhysReg;
-    promotion_map_[p_map_idx].FpReg = res.DoubleToLowSingle().GetReg();
-    promotion_map_[p_map_idx+1].fp_location = kLocPhysReg;
-    promotion_map_[p_map_idx+1].FpReg = res.DoubleToHighSingle().GetReg();
-  }
-  return res;
 }
 
 // TODO(Arm64): reuse info in QuickArgumentVisitor?
