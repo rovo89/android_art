@@ -96,7 +96,7 @@ namespace art {
  */
 
 // First FP callee save.
-#define A64_FP_CALLEE_SAVE_BASE 16
+#define A64_FP_CALLEE_SAVE_BASE 8
 
 // Temporary macros, used to mark code which wants to distinguish betweek zr/sp.
 #define A64_REG_IS_SP(reg_num) ((reg_num) == rwsp || (reg_num) == rsp)
