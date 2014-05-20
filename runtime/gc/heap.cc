@@ -1861,39 +1861,54 @@ class ScanVisitor {
 // Verify a reference from an object.
 class VerifyReferenceVisitor {
  public:
-  explicit VerifyReferenceVisitor(Heap* heap, bool verify_referent)
+  explicit VerifyReferenceVisitor(Heap* heap, Atomic<size_t>* fail_count, bool verify_referent)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_)
-      : heap_(heap), failed_(false), verify_referent_(verify_referent) {}
+      : heap_(heap), fail_count_(fail_count), verify_referent_(verify_referent) {}
 
-  bool Failed() const {
-    return failed_;
+  size_t GetFailureCount() const {
+    return fail_count_->Load();
   }
 
   void operator()(mirror::Class* klass, mirror::Reference* ref) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (verify_referent_) {
-      this->operator()(ref, mirror::Reference::ReferentOffset(), false);
+      VerifyReference(ref, ref->GetReferent(), mirror::Reference::ReferentOffset());
     }
   }
 
   void operator()(mirror::Object* obj, MemberOffset offset, bool /*is_static*/) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    this->operator()(obj, obj->GetFieldObject<mirror::Object>(offset), offset);
+    VerifyReference(obj, obj->GetFieldObject<mirror::Object>(offset), offset);
   }
 
+  bool IsLive(mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
+    return heap_->IsLiveObjectLocked(obj, true, false, true);
+  }
+
+  static void VerifyRootCallback(mirror::Object** root, void* arg, uint32_t thread_id,
+                                 RootType root_type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    VerifyReferenceVisitor* visitor = reinterpret_cast<VerifyReferenceVisitor*>(arg);
+    if (!visitor->VerifyReference(nullptr, *root, MemberOffset(0))) {
+      LOG(ERROR) << "Root " << *root << " is dead with type " << PrettyTypeOf(*root)
+          << " thread_id= " << thread_id << " root_type= " << root_type;
+    }
+  }
+
+ private:
   // TODO: Fix the no thread safety analysis.
-  void operator()(mirror::Object* obj, mirror::Object* ref, MemberOffset offset) const
+  // Returns false on failure.
+  bool VerifyReference(mirror::Object* obj, mirror::Object* ref, MemberOffset offset) const
       NO_THREAD_SAFETY_ANALYSIS {
     if (ref == nullptr || IsLive(ref)) {
       // Verify that the reference is live.
-      return;
+      return true;
     }
-    if (!failed_) {
+    if (fail_count_->FetchAndAdd(1) == 0) {
       // Print message on only on first failure to prevent spam.
       LOG(ERROR) << "!!!!!!!!!!!!!!Heap corruption detected!!!!!!!!!!!!!!!!!!!";
-      failed_ = true;
     }
     if (obj != nullptr) {
+      // Only do this part for non roots.
       accounting::CardTable* card_table = heap_->GetCardTable();
       accounting::ObjectStack* alloc_stack = heap_->allocation_stack_.get();
       accounting::ObjectStack* live_stack = heap_->live_stack_.get();
@@ -1972,42 +1987,29 @@ class VerifyReferenceVisitor {
       // Search to see if any of the roots reference our reference.
       arg = const_cast<void*>(reinterpret_cast<const void*>(ref));
       Runtime::Current()->VisitRoots(&RootMatchesObjectVisitor, arg);
-    } else {
-      LOG(ERROR) << "Root " << ref << " is dead with type " << PrettyTypeOf(ref);
     }
+    return false;
   }
 
-  bool IsLive(mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
-    return heap_->IsLiveObjectLocked(obj, true, false, true);
-  }
-
-  static void VerifyRoots(mirror::Object** root, void* arg, uint32_t /*thread_id*/,
-                          RootType /*root_type*/) {
-    VerifyReferenceVisitor* visitor = reinterpret_cast<VerifyReferenceVisitor*>(arg);
-    (*visitor)(nullptr, *root, MemberOffset(0));
-  }
-
- private:
   Heap* const heap_;
-  mutable bool failed_;
-  bool verify_referent_;
+  Atomic<size_t>* const fail_count_;
+  const bool verify_referent_;
 };
 
 // Verify all references within an object, for use with HeapBitmap::Visit.
 class VerifyObjectVisitor {
  public:
-  explicit VerifyObjectVisitor(Heap* heap, bool verify_referent)
-      : heap_(heap), failed_(false), verify_referent_(verify_referent) {
+  explicit VerifyObjectVisitor(Heap* heap, Atomic<size_t>* fail_count, bool verify_referent)
+      : heap_(heap), fail_count_(fail_count), verify_referent_(verify_referent) {
   }
 
   void operator()(mirror::Object* obj) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     // Note: we are verifying the references in obj but not obj itself, this is because obj must
     // be live or else how did we find it in the live bitmap?
-    VerifyReferenceVisitor visitor(heap_, verify_referent_);
+    VerifyReferenceVisitor visitor(heap_, fail_count_, verify_referent_);
     // The class doesn't count as a reference but we should verify it anyways.
     obj->VisitReferences<true>(visitor, visitor);
-    failed_ = failed_ || visitor.Failed();
   }
 
   static void VisitCallback(mirror::Object* obj, void* arg)
@@ -2016,18 +2018,18 @@ class VerifyObjectVisitor {
     visitor->operator()(obj);
   }
 
-  bool Failed() const {
-    return failed_;
+  size_t GetFailureCount() const {
+    return fail_count_->Load();
   }
 
  private:
   Heap* const heap_;
-  mutable bool failed_;
+  Atomic<size_t>* const fail_count_;
   const bool verify_referent_;
 };
 
 // Must do this with mutators suspended since we are directly accessing the allocation stacks.
-bool Heap::VerifyHeapReferences(bool verify_referents) {
+size_t Heap::VerifyHeapReferences(bool verify_referents) {
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertExclusiveHeld(self);
   // Lets sort our allocation stacks so that we can efficiently binary search them.
@@ -2036,7 +2038,8 @@ bool Heap::VerifyHeapReferences(bool verify_referents) {
   // Since we sorted the allocation stack content, need to revoke all
   // thread-local allocation stacks.
   RevokeAllThreadLocalAllocationStacks(self);
-  VerifyObjectVisitor visitor(this, verify_referents);
+  Atomic<size_t> fail_count_(0);
+  VerifyObjectVisitor visitor(this, &fail_count_, verify_referents);
   // Verify objects in the allocation stack since these will be objects which were:
   // 1. Allocated prior to the GC (pre GC verification).
   // 2. Allocated during the GC (pre sweep GC verification).
@@ -2044,8 +2047,8 @@ bool Heap::VerifyHeapReferences(bool verify_referents) {
   // pointing to dead objects if they are not reachable.
   VisitObjects(VerifyObjectVisitor::VisitCallback, &visitor);
   // Verify the roots:
-  Runtime::Current()->VisitRoots(VerifyReferenceVisitor::VerifyRoots, &visitor);
-  if (visitor.Failed()) {
+  Runtime::Current()->VisitRoots(VerifyReferenceVisitor::VerifyRootCallback, &visitor);
+  if (visitor.GetFailureCount() > 0) {
     // Dump mod-union tables.
     for (const auto& table_pair : mod_union_tables_) {
       accounting::ModUnionTable* mod_union_table = table_pair.second;
@@ -2057,9 +2060,8 @@ bool Heap::VerifyHeapReferences(bool verify_referents) {
       remembered_set->Dump(LOG(ERROR) << remembered_set->GetName() << ": ");
     }
     DumpSpaces();
-    return false;
   }
-  return true;
+  return visitor.GetFailureCount();
 }
 
 class VerifyReferenceCardVisitor {
@@ -2262,8 +2264,10 @@ void Heap::PreGcVerificationPaused(collector::GarbageCollector* gc) {
   if (verify_pre_gc_heap_) {
     TimingLogger::ScopedSplit split("PreGcVerifyHeapReferences", timings);
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    if (!VerifyHeapReferences()) {
-      LOG(FATAL) << "Pre " << gc->GetName() << " heap verification failed";
+    size_t failures = VerifyHeapReferences();
+    if (failures > 0) {
+      LOG(FATAL) << "Pre " << gc->GetName() << " heap verification failed with " << failures
+          << " failures";
     }
   }
   // Check that all objects which reference things in the live stack are on dirty cards.
@@ -2316,8 +2320,10 @@ void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
     SwapSemiSpaces();
     // Pass in false since concurrent reference processing can mean that the reference referents
     // may point to dead objects at the point which PreSweepingGcVerification is called.
-    if (!VerifyHeapReferences(false)) {
-      LOG(FATAL) << "Pre sweeping " << gc->GetName() << " GC verification failed";
+    size_t failures = VerifyHeapReferences(false);
+    if (failures > 0) {
+      LOG(FATAL) << "Pre sweeping " << gc->GetName() << " GC verification failed with " << failures
+          << " failures";
     }
     SwapSemiSpaces();
     gc->SwapBitmaps();
@@ -2342,8 +2348,10 @@ void Heap::PostGcVerificationPaused(collector::GarbageCollector* gc) {
   if (verify_post_gc_heap_) {
     TimingLogger::ScopedSplit split("PostGcVerifyHeapReferences", timings);
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    if (!VerifyHeapReferences()) {
-      LOG(FATAL) << "Pre " << gc->GetName() << " heap verification failed";
+    size_t failures = VerifyHeapReferences();
+    if (failures > 0) {
+      LOG(FATAL) << "Pre " << gc->GetName() << " heap verification failed with " << failures
+          << " failures";
     }
   }
 }
