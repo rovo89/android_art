@@ -455,6 +455,16 @@ use-art-full:
 	adb shell setprop persist.sys.dalvik.vm.lib.1 libart.so
 	adb shell start
 
+.PHONY: use-artd-full
+use-artd-full:
+	adb root && sleep 3
+	adb shell stop
+	adb shell rm -rf $(ART_DALVIK_CACHE_DIR)/*
+	adb shell setprop dalvik.vm.dex2oat-flags ""
+	adb shell setprop dalvik.vm.image-dex2oat-flags ""
+	adb shell setprop persist.sys.dalvik.vm.lib.1 libartd.so
+	adb shell start
+
 .PHONY: use-art-smart
 use-art-smart:
 	adb root && sleep 3
