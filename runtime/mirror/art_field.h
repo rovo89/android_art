@@ -27,14 +27,15 @@
 namespace art {
 
 struct ArtFieldOffsets;
-class ScopedObjectAccess;
+class ScopedObjectAccessAlreadyRunnable;
 
 namespace mirror {
 
 // C++ mirror of java.lang.reflect.ArtField
 class MANAGED ArtField : public Object {
  public:
-  static ArtField* FromReflectedField(const ScopedObjectAccess& soa, jobject jlr_field)
+  static ArtField* FromReflectedField(const ScopedObjectAccessAlreadyRunnable& soa,
+                                      jobject jlr_field)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Class* GetDeclaringClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

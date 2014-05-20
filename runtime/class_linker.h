@@ -46,7 +46,7 @@ namespace mirror {
 
 class InternTable;
 template<class T> class ObjectLock;
-class ScopedObjectAccess;
+class ScopedObjectAccessAlreadyRunnable;
 template<class T> class Handle;
 
 typedef bool (ClassVisitor)(mirror::Class* c, void* arg);
@@ -326,8 +326,9 @@ class ClassLinker {
   void ResolveMethodExceptionHandlerTypes(const DexFile& dex_file, mirror::ArtMethod* klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::Class* CreateProxyClass(ScopedObjectAccess& soa, jstring name, jobjectArray interfaces,
-                                  jobject loader, jobjectArray methods, jobjectArray throws)
+  mirror::Class* CreateProxyClass(ScopedObjectAccessAlreadyRunnable& soa, jstring name,
+                                  jobjectArray interfaces, jobject loader, jobjectArray methods,
+                                  jobjectArray throws)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   std::string GetDescriptorForProxy(mirror::Class* proxy_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

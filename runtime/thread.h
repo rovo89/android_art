@@ -72,8 +72,7 @@ class JavaVMExt;
 struct JNIEnvExt;
 class Monitor;
 class Runtime;
-class ScopedObjectAccess;
-class ScopedObjectAccessUnchecked;
+class ScopedObjectAccessAlreadyRunnable;
 class ShadowFrame;
 struct SingleStepControl;
 class Thread;
@@ -140,12 +139,12 @@ class Thread {
 
   static Thread* Current();
 
-  static Thread* FromManagedThread(const ScopedObjectAccessUnchecked& ts,
+  static Thread* FromManagedThread(const ScopedObjectAccessAlreadyRunnable& ts,
                                    mirror::Object* thread_peer)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static Thread* FromManagedThread(const ScopedObjectAccessUnchecked& ts, jobject thread)
+  static Thread* FromManagedThread(const ScopedObjectAccessAlreadyRunnable& ts, jobject thread)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -276,7 +275,7 @@ class Thread {
   }
 
   // Returns the java.lang.Thread's name, or NULL if this Thread* doesn't have a peer.
-  mirror::String* GetThreadName(const ScopedObjectAccessUnchecked& ts) const
+  mirror::String* GetThreadName(const ScopedObjectAccessAlreadyRunnable& ts) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Sets 'name' to the java.lang.Thread's name. This requires no transition to managed code,
@@ -458,15 +457,16 @@ class Thread {
   // Create the internal representation of a stack trace, that is more time
   // and space efficient to compute than the StackTraceElement[].
   template<bool kTransactionActive>
-  jobject CreateInternalStackTrace(const ScopedObjectAccessUnchecked& soa) const
+  jobject CreateInternalStackTrace(const ScopedObjectAccessAlreadyRunnable& soa) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Convert an internal stack trace representation (returned by CreateInternalStackTrace) to a
   // StackTraceElement[]. If output_array is NULL, a new array is created, otherwise as many
   // frames as will fit are written into the given array. If stack_depth is non-NULL, it's updated
   // with the number of valid frames in the returned array.
-  static jobjectArray InternalStackTraceToStackTraceElementArray(const ScopedObjectAccess& soa,
-      jobject internal, jobjectArray output_array = nullptr, int* stack_depth = nullptr)
+  static jobjectArray InternalStackTraceToStackTraceElementArray(
+      const ScopedObjectAccessAlreadyRunnable& soa, jobject internal,
+      jobjectArray output_array = nullptr, int* stack_depth = nullptr)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void VisitRoots(RootCallback* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

@@ -699,7 +699,7 @@ static inline void CheckSuspend(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mut
   }
 }
 
-JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char* shorty,
+JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, const char* shorty,
                                     jobject rcvr_jobj, jobject interface_art_method_jobj,
                                     std::vector<jvalue>& args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
