@@ -722,7 +722,9 @@ class JNI {
   }
 
   static jint PushLocalFrame(JNIEnv* env, jint capacity) {
-    if (EnsureLocalCapacity(env, capacity, "PushLocalFrame") != JNI_OK) {
+    // TODO: SOA may not be necessary but I do it to please lock annotations.
+    ScopedObjectAccess soa(env);
+    if (EnsureLocalCapacity(soa, capacity, "PushLocalFrame") != JNI_OK) {
       return JNI_ERR;
     }
     static_cast<JNIEnvExt*>(env)->PushFrame(capacity);
@@ -737,7 +739,9 @@ class JNI {
   }
 
   static jint EnsureLocalCapacity(JNIEnv* env, jint desired_capacity) {
-    return EnsureLocalCapacity(env, desired_capacity, "EnsureLocalCapacity");
+    // TODO: SOA may not be necessary but I do it to please lock annotations.
+    ScopedObjectAccess soa(env);
+    return EnsureLocalCapacity(soa, desired_capacity, "EnsureLocalCapacity");
   }
 
   static jobject NewGlobalRef(JNIEnv* env, jobject obj) {
@@ -795,6 +799,7 @@ class JNI {
     if (obj == nullptr) {
       return;
     }
+    ScopedObjectAccess soa(env);
     IndirectReferenceTable& locals = reinterpret_cast<JNIEnvExt*>(env)->locals;
 
     uint32_t cookie = reinterpret_cast<JNIEnvExt*>(env)->local_ref_cookie;
@@ -2457,18 +2462,17 @@ class JNI {
   }
 
  private:
-  static jint EnsureLocalCapacity(JNIEnv* env, jint desired_capacity,
-                                  const char* caller) {
+  static jint EnsureLocalCapacity(ScopedObjectAccess& soa, jint desired_capacity,
+                                  const char* caller) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // TODO: we should try to expand the table if necessary.
     if (desired_capacity < 0 || desired_capacity > static_cast<jint>(kLocalsMax)) {
       LOG(ERROR) << "Invalid capacity given to " << caller << ": " << desired_capacity;
       return JNI_ERR;
     }
     // TODO: this isn't quite right, since "capacity" includes holes.
-    size_t capacity = static_cast<JNIEnvExt*>(env)->locals.Capacity();
+    const size_t capacity = soa.Env()->locals.Capacity();
     bool okay = (static_cast<jint>(kLocalsMax - capacity) >= desired_capacity);
     if (!okay) {
-      ScopedObjectAccess soa(env);
       soa.Self()->ThrowOutOfMemoryError(caller);
     }
     return okay ? JNI_OK : JNI_ERR;
@@ -2892,13 +2896,14 @@ void JNIEnvExt::DumpReferenceTables(std::ostream& os) {
   monitors.Dump(os);
 }
 
-void JNIEnvExt::PushFrame(int /*capacity*/) {
+void JNIEnvExt::PushFrame(int capacity) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  UNUSED(capacity);  // cpplint gets confused with (int) and thinks its a cast.
   // TODO: take 'capacity' into account.
   stacked_local_ref_cookies.push_back(local_ref_cookie);
   local_ref_cookie = locals.GetSegmentState();
 }
 
-void JNIEnvExt::PopFrame() {
+void JNIEnvExt::PopFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   locals.SetSegmentState(local_ref_cookie);
   local_ref_cookie = stacked_local_ref_cookies.back();
   stacked_local_ref_cookies.pop_back();
