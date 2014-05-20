@@ -21,7 +21,7 @@ namespace interpreter {
 
 #define HANDLE_PENDING_EXCEPTION()                                                              \
   do {                                                                                          \
-    CHECK(self->IsExceptionPending());                                                          \
+    DCHECK(self->IsExceptionPending());                                                         \
     if (UNLIKELY(self->TestAllFlags())) {                                                       \
       CheckSuspend(self);                                                                       \
     }                                                                                           \
