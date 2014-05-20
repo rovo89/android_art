@@ -253,8 +253,8 @@ TEST(Leb128Test, SignedStream) {
 }
 
 TEST(Leb128Test, Speed) {
-  UniquePtr<Histogram<uint64_t> > enc_hist(new Histogram<uint64_t>("Leb128EncodeSpeedTest", 5));
-  UniquePtr<Histogram<uint64_t> > dec_hist(new Histogram<uint64_t>("Leb128DecodeSpeedTest", 5));
+  std::unique_ptr<Histogram<uint64_t>> enc_hist(new Histogram<uint64_t>("Leb128EncodeSpeedTest", 5));
+  std::unique_ptr<Histogram<uint64_t>> dec_hist(new Histogram<uint64_t>("Leb128DecodeSpeedTest", 5));
   Leb128EncodingVector builder;
   // Push back 1024 chunks of 1024 values measuring encoding speed.
   uint64_t last_time = NanoTime();

@@ -20,8 +20,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <zlib.h>
+#include <memory>
 
-#include "UniquePtrCompat.h"
 #include "common_runtime_test.h"
 #include "os.h"
 
@@ -31,16 +31,16 @@ class ZipArchiveTest : public CommonRuntimeTest {};
 
 TEST_F(ZipArchiveTest, FindAndExtract) {
   std::string error_msg;
-  UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(GetLibCoreDexFileName().c_str(), &error_msg));
+  std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(GetLibCoreDexFileName().c_str(), &error_msg));
   ASSERT_TRUE(zip_archive.get() != nullptr) << error_msg;
   ASSERT_TRUE(error_msg.empty());
-  UniquePtr<ZipEntry> zip_entry(zip_archive->Find("classes.dex", &error_msg));
+  std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find("classes.dex", &error_msg));
   ASSERT_TRUE(zip_entry.get() != nullptr);
   ASSERT_TRUE(error_msg.empty());
 
   ScratchFile tmp;
   ASSERT_NE(-1, tmp.GetFd());
-  UniquePtr<File> file(new File(tmp.GetFd(), tmp.GetFilename()));
+  std::unique_ptr<File> file(new File(tmp.GetFd(), tmp.GetFilename()));
   ASSERT_TRUE(file.get() != NULL);
   bool success = zip_entry->ExtractToFile(*file, &error_msg);
   ASSERT_TRUE(success) << error_msg;

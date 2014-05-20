@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_TRACE_H_
 #define ART_RUNTIME_TRACE_H_
 
+#include <memory>
 #include <ostream>
 #include <set>
 #include <string>
@@ -27,7 +28,6 @@
 #include "instrumentation.h"
 #include "os.h"
 #include "safe_map.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 
@@ -140,13 +140,13 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   static pthread_t sampling_pthread_;
 
   // Used to remember an unused stack trace to avoid re-allocation during sampling.
-  static UniquePtr<std::vector<mirror::ArtMethod*> > temp_stack_trace_;
+  static std::unique_ptr<std::vector<mirror::ArtMethod*>> temp_stack_trace_;
 
   // File to write trace data out to, NULL if direct to ddms.
-  UniquePtr<File> trace_file_;
+  std::unique_ptr<File> trace_file_;
 
   // Buffer to store trace data.
-  UniquePtr<uint8_t> buf_;
+  std::unique_ptr<uint8_t> buf_;
 
   // Flags enabling extra tracing of things such as alloc counts.
   const int flags_;

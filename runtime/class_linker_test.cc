@@ -16,9 +16,9 @@
 
 #include "class_linker.h"
 
+#include <memory>
 #include <string>
 
-#include "UniquePtrCompat.h"
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"

@@ -17,12 +17,12 @@
 #ifndef ART_RUNTIME_VERIFIER_REGISTER_LINE_H_
 #define ART_RUNTIME_VERIFIER_REGISTER_LINE_H_
 
+#include <memory>
 #include <vector>
 
 #include "dex_instruction.h"
 #include "reg_type.h"
 #include "safe_map.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 namespace verifier {

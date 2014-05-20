@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <memory>
+
 #include "class_linker.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"
@@ -27,7 +29,6 @@
 #include "scoped_thread_state_change.h"
 #include "handle_scope-inl.h"
 #include "thread.h"
-#include "UniquePtrCompat.h"
 #include "vmap_table.h"
 
 namespace art {

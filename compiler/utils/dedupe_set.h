@@ -77,7 +77,7 @@ class DedupeSet {
 
  private:
   std::string lock_name_[kShard];
-  UniquePtr<Mutex> lock_[kShard];
+  std::unique_ptr<Mutex> lock_[kShard];
   std::set<HashedKey, Comparator> keys_[kShard];
 
   DISALLOW_COPY_AND_ASSIGN(DedupeSet);

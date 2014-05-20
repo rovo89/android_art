@@ -56,7 +56,7 @@ define build-libarttest
     LOCAL_MODULE_PATH_32 := $(ART_TEST_OUT)/$(ART_TARGET_ARCH_32)
     LOCAL_MODULE_PATH_64 := $(ART_TEST_OUT)/$(ART_TARGET_ARCH_64)
     LOCAL_MODULE_TARGET_ARCH := $(ART_SUPPORTED_ARCH)
-    include art/build/Android.libcxx.mk
+    include external/libcxx/libcxx.mk
     include $(BUILD_SHARED_LIBRARY)
   else # host
     LOCAL_CLANG := $(ART_HOST_CLANG)
@@ -67,7 +67,6 @@ define build-libarttest
       LOCAL_LDLIBS += -lrt
     endif
     LOCAL_IS_HOST_MODULE := true
-    include art/build/Android.libcxx.mk
     include $(BUILD_HOST_SHARED_LIBRARY)
   endif
 endef

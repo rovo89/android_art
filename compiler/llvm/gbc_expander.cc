@@ -141,7 +141,7 @@ class GBCExpanderPass : public llvm::FunctionPass {
 
   std::vector<llvm::BasicBlock*> basic_block_landing_pads_;
   llvm::BasicBlock* current_bb_;
-  std::map<llvm::BasicBlock*, std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*> > >
+  std::map<llvm::BasicBlock*, std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>>>
       landing_pad_phi_mapping_;
   llvm::BasicBlock* basic_block_unwind_;
 
@@ -545,7 +545,7 @@ void GBCExpanderPass::RewriteFunction() {
     }
 
     llvm::TerminatorInst* term_inst = lbb->getTerminator();
-    std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*> >& rewrite_pair
+    std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>>& rewrite_pair
         = landing_pad_phi_mapping_[lbb];
     irb_.SetInsertPoint(lbb->begin());
 

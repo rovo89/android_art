@@ -16,14 +16,14 @@
 
 #include "os.h"
 
-#include <cstddef>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <cstddef>
+#include <memory>
 
 #include "base/logging.h"
 #include "base/unix_file/fd_file.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 
@@ -41,7 +41,7 @@ File* OS::CreateEmptyFile(const char* name) {
 
 File* OS::OpenFileWithFlags(const char* name, int flags) {
   CHECK(name != NULL);
-  UniquePtr<File> file(new File);
+  std::unique_ptr<File> file(new File);
   if (!file->Open(name, flags, 0666)) {
     return NULL;
   }

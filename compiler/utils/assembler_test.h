@@ -347,7 +347,7 @@ class AssemblerTest : public testing::Test {
     }
 
     size_t cs = assembler_->CodeSize();
-    UniquePtr<std::vector<uint8_t> > data(new std::vector<uint8_t>(cs));
+    std::unique_ptr<std::vector<uint8_t>> data(new std::vector<uint8_t>(cs));
     MemoryRegion code(&(*data)[0], data->size());
     assembler_->FinalizeInstructions(code);
 
@@ -375,7 +375,7 @@ class AssemblerTest : public testing::Test {
     bool ok;
     std::string error_msg;
     std::string base_name;
-    UniquePtr<std::vector<uint8_t>> code;
+    std::unique_ptr<std::vector<uint8_t>> code;
     uintptr_t length;
   };
 
@@ -681,7 +681,7 @@ class AssemblerTest : public testing::Test {
     return tmpnam_;
   }
 
-  UniquePtr<Ass> assembler_;
+  std::unique_ptr<Ass> assembler_;
 
   std::string resolved_assembler_cmd_;
   std::string resolved_objdump_cmd_;

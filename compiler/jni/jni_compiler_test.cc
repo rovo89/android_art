@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <memory>
+
 #include "class_linker.h"
 #include "common_compiler_test.h"
 #include "dex_file.h"
@@ -31,7 +33,6 @@
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
-#include "UniquePtrCompat.h"
 
 extern "C" JNIEXPORT jint JNICALL Java_MyClassNatives_bar(JNIEnv*, jobject, jint count) {
   return count + 1;

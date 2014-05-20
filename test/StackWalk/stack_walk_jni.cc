@@ -15,8 +15,8 @@
  */
 
 #include <stdio.h>
+#include <memory>
 
-#include "UniquePtrCompat.h"
 #include "class_linker.h"
 #include "gc_map.h"
 #include "mirror/art_method.h"

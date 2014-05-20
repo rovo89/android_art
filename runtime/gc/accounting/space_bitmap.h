@@ -17,17 +17,17 @@
 #ifndef ART_RUNTIME_GC_ACCOUNTING_SPACE_BITMAP_H_
 #define ART_RUNTIME_GC_ACCOUNTING_SPACE_BITMAP_H_
 
+#include <limits.h>
+#include <stdint.h>
+#include <memory>
+#include <set>
+#include <vector>
+
 #include "base/mutex.h"
 #include "gc_allocator.h"
 #include "globals.h"
 #include "mem_map.h"
 #include "object_callbacks.h"
-#include "UniquePtrCompat.h"
-
-#include <limits.h>
-#include <set>
-#include <stdint.h>
-#include <vector>
 
 namespace art {
 
@@ -217,7 +217,7 @@ class SpaceBitmap {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Backing storage for bitmap.
-  UniquePtr<MemMap> mem_map_;
+  std::unique_ptr<MemMap> mem_map_;
 
   // This bitmap itself, word sized for efficiency in scanning.
   uword* const bitmap_begin_;

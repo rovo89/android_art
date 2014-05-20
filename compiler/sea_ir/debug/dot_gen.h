@@ -104,7 +104,7 @@ class DotConversion {
     LOG(INFO) << "Starting to write SEA string to file " << filename << std::endl;
     DotGenerationVisitor dgv = DotGenerationVisitor(&options_, types);
     graph->Accept(&dgv);
-    // TODO: UniquePtr to close file properly. Switch to BufferedOutputStream.
+    // TODO: std::unique_ptr to close file properly. Switch to BufferedOutputStream.
     art::File* file = art::OS::CreateEmptyFile(filename.c_str());
     art::FileOutputStream fos(file);
     std::string graph_as_string = dgv.GetResult();

@@ -18,15 +18,14 @@
 #define ART_COMPILER_OAT_WRITER_H_
 
 #include <stdint.h>
-
 #include <cstddef>
+#include <memory>
 
 #include "driver/compiler_driver.h"
 #include "mem_map.h"
 #include "oat.h"
 #include "mirror/class.h"
 #include "safe_map.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 
@@ -256,16 +255,16 @@ class OatWriter {
   OatHeader* oat_header_;
   std::vector<OatDexFile*> oat_dex_files_;
   std::vector<OatClass*> oat_classes_;
-  UniquePtr<const std::vector<uint8_t> > interpreter_to_interpreter_bridge_;
-  UniquePtr<const std::vector<uint8_t> > interpreter_to_compiled_code_bridge_;
-  UniquePtr<const std::vector<uint8_t> > jni_dlsym_lookup_;
-  UniquePtr<const std::vector<uint8_t> > portable_imt_conflict_trampoline_;
-  UniquePtr<const std::vector<uint8_t> > portable_resolution_trampoline_;
-  UniquePtr<const std::vector<uint8_t> > portable_to_interpreter_bridge_;
-  UniquePtr<const std::vector<uint8_t> > quick_generic_jni_trampoline_;
-  UniquePtr<const std::vector<uint8_t> > quick_imt_conflict_trampoline_;
-  UniquePtr<const std::vector<uint8_t> > quick_resolution_trampoline_;
-  UniquePtr<const std::vector<uint8_t> > quick_to_interpreter_bridge_;
+  std::unique_ptr<const std::vector<uint8_t>> interpreter_to_interpreter_bridge_;
+  std::unique_ptr<const std::vector<uint8_t>> interpreter_to_compiled_code_bridge_;
+  std::unique_ptr<const std::vector<uint8_t>> jni_dlsym_lookup_;
+  std::unique_ptr<const std::vector<uint8_t>> portable_imt_conflict_trampoline_;
+  std::unique_ptr<const std::vector<uint8_t>> portable_resolution_trampoline_;
+  std::unique_ptr<const std::vector<uint8_t>> portable_to_interpreter_bridge_;
+  std::unique_ptr<const std::vector<uint8_t>> quick_generic_jni_trampoline_;
+  std::unique_ptr<const std::vector<uint8_t>> quick_imt_conflict_trampoline_;
+  std::unique_ptr<const std::vector<uint8_t>> quick_resolution_trampoline_;
+  std::unique_ptr<const std::vector<uint8_t>> quick_to_interpreter_bridge_;
 
   // output stats
   uint32_t size_dex_file_alignment_;

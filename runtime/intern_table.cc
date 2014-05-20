@@ -16,13 +16,14 @@
 
 #include "intern_table.h"
 
+#include <memory>
+
 #include "gc/space/image_space.h"
 #include "mirror/dex_cache.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/string.h"
 #include "thread.h"
-#include "UniquePtrCompat.h"
 #include "utf.h"
 
 namespace art {

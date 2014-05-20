@@ -245,7 +245,7 @@ inline ObjectArray<T>* ObjectArray<T>::CopyOf(Thread* self, int32_t new_length) 
   DCHECK_GE(new_length, 0);
   // We may get copied by a compacting GC.
   StackHandleScope<1> hs(self);
-  Handle<ObjectArray<T> > h_this(hs.NewHandle(this));
+  Handle<ObjectArray<T>> h_this(hs.NewHandle(this));
   gc::Heap* heap = Runtime::Current()->GetHeap();
   gc::AllocatorType allocator_type = heap->IsMovableObject(this) ? heap->GetCurrentAllocator() :
       heap->GetCurrentNonMovingAllocator();

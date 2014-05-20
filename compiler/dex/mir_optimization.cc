@@ -311,7 +311,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
     return true;
   }
   bool use_lvn = bb->use_lvn;
-  UniquePtr<LocalValueNumbering> local_valnum;
+  std::unique_ptr<LocalValueNumbering> local_valnum;
   if (use_lvn) {
     local_valnum.reset(LocalValueNumbering::Create(cu_));
   }

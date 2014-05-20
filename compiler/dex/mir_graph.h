@@ -979,7 +979,7 @@ class MIRGraph {
   int* i_dom_list_;
   ArenaBitVector** def_block_matrix_;    // num_dalvik_register x num_blocks.
   ArenaBitVector* temp_dalvik_register_v_;
-  UniquePtr<ScopedArenaAllocator> temp_scoped_alloc_;
+  std::unique_ptr<ScopedArenaAllocator> temp_scoped_alloc_;
   uint16_t* temp_insn_data_;
   uint32_t temp_bit_vector_size_;
   ArenaBitVector* temp_bit_vector_;

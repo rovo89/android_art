@@ -17,7 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
+#include <memory>
 #include <string>
 
 #include "atomic.h"
@@ -32,7 +32,6 @@
 #include "jdwp/jdwp_priv.h"
 #include "runtime.h"
 #include "thread-inl.h"
-#include "UniquePtrCompat.h"
 
 namespace art {
 
@@ -107,8 +106,8 @@ static JdwpError FinishInvoke(JdwpState*, Request& request, ExpandBuf* pReply,
                              Dbg::GetMethodName(method_id).c_str());
   VLOG(jdwp) << StringPrintf("        %d args:", arg_count);
 
-  UniquePtr<JdwpTag[]> argTypes(arg_count > 0 ? new JdwpTag[arg_count] : NULL);
-  UniquePtr<uint64_t[]> argValues(arg_count > 0 ? new uint64_t[arg_count] : NULL);
+  std::unique_ptr<JdwpTag[]> argTypes(arg_count > 0 ? new JdwpTag[arg_count] : NULL);
+  std::unique_ptr<uint64_t[]> argValues(arg_count > 0 ? new uint64_t[arg_count] : NULL);
   for (int32_t i = 0; i < arg_count; ++i) {
     argTypes[i] = request.ReadTag();
     size_t width = Dbg::GetTagWidth(argTypes[i]);

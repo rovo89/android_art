@@ -62,17 +62,17 @@ inline uint32_t ArtMethod::GetDexMethodIndex() {
 }
 
 inline ObjectArray<String>* ArtMethod::GetDexCacheStrings() {
-  return GetFieldObject<ObjectArray<String> >(
+  return GetFieldObject<ObjectArray<String>>(
       OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_strings_));
 }
 
 inline ObjectArray<ArtMethod>* ArtMethod::GetDexCacheResolvedMethods() {
-  return GetFieldObject<ObjectArray<ArtMethod> >(
+  return GetFieldObject<ObjectArray<ArtMethod>>(
       OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_methods_));
 }
 
 inline ObjectArray<Class>* ArtMethod::GetDexCacheResolvedTypes() {
-  return GetFieldObject<ObjectArray<Class> >(
+  return GetFieldObject<ObjectArray<Class>>(
       OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_));
 }
 

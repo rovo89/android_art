@@ -46,7 +46,6 @@ define build-libart-disassembler
   ifeq ($$(art_target_or_host),host)
      LOCAL_IS_HOST_MODULE := true
   endif
-  include art/build/Android.libcxx.mk
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
   ifeq ($$(art_ndebug_or_debug),ndebug)
     LOCAL_MODULE := libart-disassembler
@@ -89,6 +88,7 @@ define build-libart-disassembler
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
   ifeq ($$(art_target_or_host),target)
+    include external/libcxx/libcxx.mk
     LOCAL_SHARED_LIBRARIES += libcutils libvixl
     include $(BUILD_SHARED_LIBRARY)
   else # host
