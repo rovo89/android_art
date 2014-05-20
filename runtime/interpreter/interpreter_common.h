@@ -59,6 +59,15 @@ using ::art::mirror::ShortArray;
 using ::art::mirror::String;
 using ::art::mirror::Throwable;
 
+// b/14882674 Workaround stack overflow issue with clang
+#if defined(__clang__) && defined(__aarch64__)
+#define SOMETIMES_INLINE __attribute__((noinline))
+#define SOMETIMES_INLINE_KEYWORD
+#else
+#define SOMETIMES_INLINE ALWAYS_INLINE
+#define SOMETIMES_INLINE_KEYWORD inline
+#endif
+
 namespace art {
 namespace interpreter {
 
@@ -152,8 +161,8 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
 // Handles iget-XXX and sget-XXX instructions.
 // Returns true on success, otherwise throws an exception and returns false.
 template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
-static inline bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
-                              const Instruction* inst, uint16_t inst_data) {
+static SOMETIMES_INLINE_KEYWORD bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
+                                                const Instruction* inst, uint16_t inst_data) {
   const bool is_static = (find_type == StaticObjectRead) || (find_type == StaticPrimitiveRead);
   const uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
   ArtField* f = FindFieldFromCode<find_type, do_access_check>(field_idx, shadow_frame.GetMethod(), self,
@@ -211,7 +220,7 @@ static inline bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
 // Handles iget-quick, iget-wide-quick and iget-object-quick instructions.
 // Returns true on success, otherwise throws an exception and returns false.
 template<Primitive::Type field_type>
-static inline bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data) {
+static SOMETIMES_INLINE_KEYWORD bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data) {
   Object* obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
   if (UNLIKELY(obj == nullptr)) {
     // We lost the reference to the field index so we cannot get a more
@@ -285,8 +294,8 @@ static inline JValue GetFieldValue(const ShadowFrame& shadow_frame, uint32_t vre
 // Handles iput-XXX and sput-XXX instructions.
 // Returns true on success, otherwise throws an exception and returns false.
 template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check, bool transaction_active>
-static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
-                              const Instruction* inst, uint16_t inst_data) {
+static SOMETIMES_INLINE_KEYWORD bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
+                                                const Instruction* inst, uint16_t inst_data) {
   bool do_assignability_check = do_access_check;
   bool is_static = (find_type == StaticObjectWrite) || (find_type == StaticPrimitiveWrite);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
@@ -363,7 +372,7 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
 // Handles iput-quick, iput-wide-quick and iput-object-quick instructions.
 // Returns true on success, otherwise throws an exception and returns false.
 template<Primitive::Type field_type, bool transaction_active>
-static inline bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data) {
+static SOMETIMES_INLINE_KEYWORD bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data) {
   Object* obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
   if (UNLIKELY(obj == nullptr)) {
     // We lost the reference to the field index so we cannot get a more
@@ -560,14 +569,13 @@ static inline uint32_t FindNextInstructionFollowingException(Thread* self,
                                                              uint32_t dex_pc,
                                                              mirror::Object* this_object,
                                                              const instrumentation::Instrumentation* instrumentation)
-    ALWAYS_INLINE;
+SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) SOMETIMES_INLINE;
 
 static inline uint32_t FindNextInstructionFollowingException(Thread* self,
                                                              ShadowFrame& shadow_frame,
                                                              uint32_t dex_pc,
                                                              mirror::Object* this_object,
-                                                             const instrumentation::Instrumentation* instrumentation)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+                                                             const instrumentation::Instrumentation* instrumentation) {
   self->VerifyStack();
   ThrowLocation throw_location;
   mirror::Throwable* exception = self->GetException(&throw_location);
@@ -639,7 +647,7 @@ static inline bool IsBackwardBranch(int32_t branch_offset) {
 
 // Explicitly instantiate all DoInvoke functions.
 #define EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, _is_range, _do_check)                      \
-  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                       \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) SOMETIMES_INLINE                    \
   bool DoInvoke<_type, _is_range, _do_check>(Thread* self, ShadowFrame& shadow_frame,      \
                                              const Instruction* inst, uint16_t inst_data,  \
                                              JValue* result)
@@ -660,7 +668,7 @@ EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kInterface);   // invoke-interface/range.
 
 // Explicitly instantiate all DoFieldGet functions.
 #define EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL(_find_type, _field_type, _do_check)                \
-  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                           \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) SOMETIMES_INLINE                        \
   bool DoFieldGet<_find_type, _field_type, _do_check>(Thread* self, ShadowFrame& shadow_frame, \
                                                       const Instruction* inst, uint16_t inst_data)
 
@@ -691,7 +699,7 @@ EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticObjectRead, Primitive::kPrimNot);
 
 // Explicitly instantiate all DoFieldPut functions.
 #define EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL(_find_type, _field_type, _do_check, _transaction_active)                      \
-  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                                 \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) SOMETIMES_INLINE                                                   \
   bool DoFieldPut<_find_type, _field_type, _do_check, _transaction_active>(Thread* self, const ShadowFrame& shadow_frame, \
                                                                            const Instruction* inst, uint16_t inst_data)
 
@@ -724,7 +732,7 @@ EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticObjectWrite, Primitive::kPrimNot);
 
 // Explicitly instantiate all DoInvokeVirtualQuick functions.
 #define EXPLICIT_DO_INVOKE_VIRTUAL_QUICK_TEMPLATE_DECL(_is_range)                    \
-  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                 \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) SOMETIMES_INLINE              \
   bool DoInvokeVirtualQuick<_is_range>(Thread* self, ShadowFrame& shadow_frame,      \
                                        const Instruction* inst, uint16_t inst_data,  \
                                        JValue* result)
@@ -735,7 +743,7 @@ EXPLICIT_DO_INVOKE_VIRTUAL_QUICK_TEMPLATE_DECL(true);   // invoke-virtual-quick-
 
 // Explicitly instantiate all DoIGetQuick functions.
 #define EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(_field_type)                            \
-  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                 \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) SOMETIMES_INLINE              \
   bool DoIGetQuick<_field_type>(ShadowFrame& shadow_frame, const Instruction* inst,  \
                                 uint16_t inst_data)
 
@@ -746,7 +754,7 @@ EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimNot);    // iget-object-qui
 
 // Explicitly instantiate all DoIPutQuick functions.
 #define EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL(_field_type, _transaction_active)        \
-  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                  \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) SOMETIMES_INLINE               \
   bool DoIPutQuick<_field_type, _transaction_active>(const ShadowFrame& shadow_frame, \
                                                      const Instruction* inst,         \
                                                      uint16_t inst_data)
