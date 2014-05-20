@@ -853,7 +853,7 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
         load = NewLIR4(kThumb2LdrdI8, r_dest.GetLowReg(), r_dest.GetHighReg(), r_ptr.GetReg(),
                        encoded_disp);
       }
-      if ((displacement & ~1020) != 0 && !r_dest.IsFloat()) {
+      if ((displacement & ~1020) != 0 && r_dest.IsFloat()) {
         FreeTemp(r_ptr);
       }
       already_generated = true;
