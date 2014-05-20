@@ -170,7 +170,7 @@ struct JNIEnvExt : public JNIEnv {
   uint32_t local_ref_cookie;
 
   // JNI local references.
-  IndirectReferenceTable locals;
+  IndirectReferenceTable locals GUARDED_BY(Locks::mutator_lock_);
 
   // Stack of cookies corresponding to PushLocalFrame/PopLocalFrame calls.
   // TODO: to avoid leaks (and bugs), we need to clear this vector on entry (or return)
