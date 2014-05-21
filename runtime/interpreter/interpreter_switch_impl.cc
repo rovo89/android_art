@@ -163,9 +163,9 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         break;
       case Instruction::MOVE_EXCEPTION: {
         PREAMBLE();
-        Throwable* exception = self->GetException(NULL);
-        self->ClearException();
+        Throwable* exception = self->GetException(nullptr);
         shadow_frame.SetVRegReference(inst->VRegA_11x(inst_data), exception);
+        self->ClearException();
         inst = inst->Next_1xx();
         break;
       }

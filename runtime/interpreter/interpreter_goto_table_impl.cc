@@ -234,9 +234,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(MOVE_EXCEPTION) {
-    Throwable* exception = self->GetException(NULL);
-    self->ClearException();
+    Throwable* exception = self->GetException(nullptr);
     shadow_frame.SetVRegReference(inst->VRegA_11x(inst_data), exception);
+    self->ClearException();
     ADVANCE(1);
   }
   HANDLE_INSTRUCTION_END();
