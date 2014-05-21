@@ -75,6 +75,7 @@ static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
   // (1 << kDebugShowSummaryMemoryUsage) |
   // (1 << kDebugShowFilterStats) |
   // (1 << kDebugTimings) |
+  // (1 << kDebugCodegenDump) |
   0;
 
 CompilationUnit::CompilationUnit(ArenaPool* pool)
@@ -852,6 +853,10 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
     }
   }
 
+  if (cu.verbose) {
+    cu.enable_debug |= (1 << kDebugCodegenDump);
+  }
+
   /*
    * TODO: rework handling of optimization and debug flags.  Should we split out
    * MIR and backend flags?  Need command-line setting as well.
@@ -877,6 +882,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   if (cu.instruction_set == kArm64) {
     // TODO(Arm64): enable optimizations once backend is mature enough.
     cu.disable_opt = ~(uint32_t)0;
+    cu.enable_debug |= (1 << kDebugCodegenDump);
   }
 
   cu.StartTimingSplit("BuildMIRGraph");
