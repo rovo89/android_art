@@ -116,6 +116,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       long_pause_log_threshold_(long_pause_log_threshold),
       long_gc_log_threshold_(long_gc_log_threshold),
       ignore_max_footprint_(ignore_max_footprint),
+      zygote_creation_lock_("zygote creation lock", kZygoteCreationLock),
       have_zygote_space_(false),
       large_object_threshold_(std::numeric_limits<size_t>::max()),  // Starts out disabled.
       collector_type_running_(kCollectorTypeNone),
@@ -1551,7 +1552,6 @@ void Heap::UnBindBitmaps() {
 
 void Heap::PreZygoteFork() {
   CollectGarbageInternal(collector::kGcTypeFull, kGcCauseBackground, false);
-  static Mutex zygote_creation_lock_("zygote creation lock", kZygoteCreationLock);
   Thread* self = Thread::Current();
   MutexLock mu(self, zygote_creation_lock_);
   // Try to see if we have any Zygote spaces.
@@ -2781,9 +2781,9 @@ void Heap::AddRememberedSet(accounting::RememberedSet* remembered_set) {
   CHECK(remembered_set != nullptr);
   space::Space* space = remembered_set->GetSpace();
   CHECK(space != nullptr);
-  CHECK(remembered_sets_.find(space) == remembered_sets_.end());
+  CHECK(remembered_sets_.find(space) == remembered_sets_.end()) << space;
   remembered_sets_.Put(space, remembered_set);
-  CHECK(remembered_sets_.find(space) != remembered_sets_.end());
+  CHECK(remembered_sets_.find(space) != remembered_sets_.end()) << space;
 }
 
 void Heap::RemoveRememberedSet(space::Space* space) {
