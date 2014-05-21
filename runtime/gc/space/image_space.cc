@@ -253,9 +253,12 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
 
   std::unique_ptr<ImageSpace> space(new ImageSpace(image_filename, image_location,
                                              map.release(), bitmap.release()));
-  if (kIsDebugBuild) {
-    space->VerifyImageAllocations();
-  }
+
+  // VerifyImageAllocations() will be called later in Runtime::Init()
+  // as some class roots like ArtMethod::java_lang_reflect_ArtMethod_
+  // and ArtField::java_lang_reflect_ArtField_, which are used from
+  // Object::SizeOf() which VerifyImageAllocations() calls, are not
+  // set yet at this point.
 
   space->oat_file_.reset(space->OpenOatFile(image_filename, error_msg));
   if (space->oat_file_.get() == nullptr) {
