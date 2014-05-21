@@ -305,13 +305,13 @@ class MarkSweep : public GarbageCollector {
   AtomicInteger mark_fastpath_count_;
   AtomicInteger mark_slowpath_count_;
 
-  // Verification.
-  size_t live_stack_freeze_size_;
-
   std::unique_ptr<Barrier> gc_barrier_;
   Mutex mark_stack_lock_ ACQUIRED_AFTER(Locks::classlinker_classes_lock_);
 
   const bool is_concurrent_;
+
+  // Verification.
+  size_t live_stack_freeze_size_;
 
  private:
   friend class AddIfReachesAllocSpaceVisitor;  // Used by mod-union table.

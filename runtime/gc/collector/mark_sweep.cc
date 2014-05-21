@@ -99,9 +99,10 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_pre
     : GarbageCollector(heap,
                        name_prefix +
                        (is_concurrent ? "concurrent mark sweep": "mark sweep")),
+      current_space_bitmap_(nullptr), mark_bitmap_(nullptr), mark_stack_(nullptr),
       gc_barrier_(new Barrier(0)),
       mark_stack_lock_("mark sweep mark stack lock", kMarkSweepMarkStackLock),
-      is_concurrent_(is_concurrent) {
+      is_concurrent_(is_concurrent), live_stack_freeze_size_(0) {
 }
 
 void MarkSweep::InitializePhase() {
@@ -109,19 +110,19 @@ void MarkSweep::InitializePhase() {
   mark_stack_ = heap_->GetMarkStack();
   DCHECK(mark_stack_ != nullptr);
   immune_region_.Reset();
-  class_count_ = 0;
-  array_count_ = 0;
-  other_count_ = 0;
-  large_object_test_ = 0;
-  large_object_mark_ = 0;
-  overhead_time_ = 0;
-  work_chunks_created_ = 0;
-  work_chunks_deleted_ = 0;
-  reference_count_ = 0;
-  mark_null_count_ = 0;
-  mark_immune_count_ = 0;
-  mark_fastpath_count_ = 0;
-  mark_slowpath_count_ = 0;
+  class_count_.StoreRelaxed(0);
+  array_count_.StoreRelaxed(0);
+  other_count_.StoreRelaxed(0);
+  large_object_test_.StoreRelaxed(0);
+  large_object_mark_.StoreRelaxed(0);
+  overhead_time_ .StoreRelaxed(0);
+  work_chunks_created_.StoreRelaxed(0);
+  work_chunks_deleted_.StoreRelaxed(0);
+  reference_count_.StoreRelaxed(0);
+  mark_null_count_.StoreRelaxed(0);
+  mark_immune_count_.StoreRelaxed(0);
+  mark_fastpath_count_.StoreRelaxed(0);
+  mark_slowpath_count_.StoreRelaxed(0);
   {
     // TODO: I don't think we should need heap bitmap lock to Get the mark bitmap.
     ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
@@ -596,7 +597,7 @@ class MarkStackTask : public Task {
         if (kUseFinger) {
           android_memory_barrier();
           if (reinterpret_cast<uintptr_t>(ref) >=
-              static_cast<uintptr_t>(mark_sweep_->atomic_finger_)) {
+              static_cast<uintptr_t>(mark_sweep_->atomic_finger_.LoadRelaxed())) {
             return;
           }
         }
@@ -881,7 +882,7 @@ void MarkSweep::RecursiveMark() {
           // This function does not handle heap end increasing, so we must use the space end.
           uintptr_t begin = reinterpret_cast<uintptr_t>(space->Begin());
           uintptr_t end = reinterpret_cast<uintptr_t>(space->End());
-          atomic_finger_ = static_cast<int32_t>(0xFFFFFFFF);
+          atomic_finger_.StoreRelaxed(AtomicInteger::MaxValue());
 
           // Create a few worker tasks.
           const size_t n = thread_count * 2;
@@ -1214,7 +1215,9 @@ void MarkSweep::ProcessMarkStackParallel(size_t thread_count) {
   thread_pool->Wait(self, true, true);
   thread_pool->StopWorkers(self);
   mark_stack_->Reset();
-  CHECK_EQ(work_chunks_created_, work_chunks_deleted_) << " some of the work chunks were leaked";
+  CHECK_EQ(work_chunks_created_.LoadSequentiallyConsistent(),
+           work_chunks_deleted_.LoadSequentiallyConsistent())
+      << " some of the work chunks were leaked";
 }
 
 // Scan anything that's on the mark stack.
@@ -1269,24 +1272,27 @@ inline bool MarkSweep::IsMarked(const Object* object) const
 void MarkSweep::FinishPhase() {
   TimingLogger::ScopedSplit split("FinishPhase", &timings_);
   if (kCountScannedTypes) {
-    VLOG(gc) << "MarkSweep scanned classes=" << class_count_ << " arrays=" << array_count_
-             << " other=" << other_count_;
+    VLOG(gc) << "MarkSweep scanned classes=" << class_count_.LoadRelaxed()
+        << " arrays=" << array_count_.LoadRelaxed() << " other=" << other_count_.LoadRelaxed();
   }
   if (kCountTasks) {
-    VLOG(gc) << "Total number of work chunks allocated: " << work_chunks_created_;
+    VLOG(gc) << "Total number of work chunks allocated: " << work_chunks_created_.LoadRelaxed();
   }
   if (kMeasureOverhead) {
-    VLOG(gc) << "Overhead time " << PrettyDuration(overhead_time_);
+    VLOG(gc) << "Overhead time " << PrettyDuration(overhead_time_.LoadRelaxed());
   }
   if (kProfileLargeObjects) {
-    VLOG(gc) << "Large objects tested " << large_object_test_ << " marked " << large_object_mark_;
+    VLOG(gc) << "Large objects tested " << large_object_test_.LoadRelaxed()
+        << " marked " << large_object_mark_.LoadRelaxed();
   }
   if (kCountJavaLangRefs) {
-    VLOG(gc) << "References scanned " << reference_count_;
+    VLOG(gc) << "References scanned " << reference_count_.LoadRelaxed();
   }
   if (kCountMarkedObjects) {
-    VLOG(gc) << "Marked: null=" << mark_null_count_ << " immune=" <<  mark_immune_count_
-        << " fastpath=" << mark_fastpath_count_ << " slowpath=" << mark_slowpath_count_;
+    VLOG(gc) << "Marked: null=" << mark_null_count_.LoadRelaxed()
+        << " immune=" <<  mark_immune_count_.LoadRelaxed()
+        << " fastpath=" << mark_fastpath_count_.LoadRelaxed()
+        << " slowpath=" << mark_slowpath_count_.LoadRelaxed();
   }
   CHECK(mark_stack_->IsEmpty());  // Ensure that the mark stack is empty.
   mark_stack_->Reset();
