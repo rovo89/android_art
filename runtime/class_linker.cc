@@ -206,7 +206,8 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   heap->IncrementDisableMovingGC(self);
   StackHandleScope<64> hs(self);  // 64 is picked arbitrarily.
   Handle<mirror::Class> java_lang_Class(hs.NewHandle(down_cast<mirror::Class*>(
-      heap->AllocNonMovableObject<true>(self, nullptr, sizeof(mirror::ClassClass), VoidFunctor()))));
+      heap->AllocNonMovableObject<true>(self, nullptr, sizeof(mirror::ClassClass),
+                                        VoidFunctor()))));
   CHECK(java_lang_Class.Get() != NULL);
   mirror::Class::SetClassClass(java_lang_Class.Get());
   java_lang_Class->SetClass(java_lang_Class.Get());
@@ -236,15 +237,18 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   object_array_class->SetComponentType(java_lang_Object.Get());
 
   // Setup the char class to be used for char[].
-  Handle<mirror::Class> char_class(hs.NewHandle(AllocClass(self, java_lang_Class.Get(), sizeof(mirror::Class))));
+  Handle<mirror::Class> char_class(hs.NewHandle(AllocClass(self, java_lang_Class.Get(),
+                                                           sizeof(mirror::Class))));
 
   // Setup the char[] class to be used for String.
-  Handle<mirror::Class> char_array_class(hs.NewHandle(AllocClass(self, java_lang_Class.Get(), sizeof(mirror::Class))));
+  Handle<mirror::Class> char_array_class(hs.NewHandle(AllocClass(self, java_lang_Class.Get(),
+                                                                 sizeof(mirror::Class))));
   char_array_class->SetComponentType(char_class.Get());
   mirror::CharArray::SetArrayClass(char_array_class.Get());
 
   // Setup String.
-  Handle<mirror::Class> java_lang_String(hs.NewHandle(AllocClass(self, java_lang_Class.Get(), sizeof(mirror::StringClass))));
+  Handle<mirror::Class> java_lang_String(hs.NewHandle(AllocClass(self, java_lang_Class.Get(),
+                                                                 sizeof(mirror::StringClass))));
   mirror::String::SetClass(java_lang_String.Get());
   java_lang_String->SetObjectSize(sizeof(mirror::String));
   java_lang_String->SetStatus(mirror::Class::kStatusResolved, self);
@@ -289,7 +293,8 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   java_lang_DexCache->SetObjectSize(sizeof(mirror::DexCache));
   java_lang_DexCache->SetStatus(mirror::Class::kStatusResolved, self);
 
-  // Constructor, Field, Method, and AbstractMethod are necessary so that FindClass can link members.
+  // Constructor, Field, Method, and AbstractMethod are necessary so
+  // that FindClass can link members.
   Handle<mirror::Class> java_lang_reflect_ArtField(
       hs.NewHandle(AllocClass(self, java_lang_Class.Get(), sizeof(mirror::ArtFieldClass))));
   CHECK(java_lang_reflect_ArtField.Get() != NULL);
@@ -423,7 +428,8 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   mirror::Class* Art_field_class = FindSystemClass(self, "Ljava/lang/reflect/ArtField;");
   CHECK_EQ(java_lang_reflect_ArtField.Get(), Art_field_class);
 
-  mirror::Class* String_array_class = FindSystemClass(self, class_roots_descriptors_[kJavaLangStringArrayClass]);
+  mirror::Class* String_array_class =
+      FindSystemClass(self, class_roots_descriptors_[kJavaLangStringArrayClass]);
   CHECK_EQ(object_array_string.Get(), String_array_class);
 
   mirror::Class* Art_method_array_class =
@@ -443,18 +449,22 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   // java.lang.ref classes need to be specially flagged, but otherwise are normal classes
   mirror::Class* java_lang_ref_Reference = FindSystemClass(self, "Ljava/lang/ref/Reference;");
   SetClassRoot(kJavaLangRefReference, java_lang_ref_Reference);
-  mirror::Class* java_lang_ref_FinalizerReference = FindSystemClass(self, "Ljava/lang/ref/FinalizerReference;");
+  mirror::Class* java_lang_ref_FinalizerReference =
+      FindSystemClass(self, "Ljava/lang/ref/FinalizerReference;");
   java_lang_ref_FinalizerReference->SetAccessFlags(
       java_lang_ref_FinalizerReference->GetAccessFlags() |
           kAccClassIsReference | kAccClassIsFinalizerReference);
-  mirror::Class* java_lang_ref_PhantomReference = FindSystemClass(self, "Ljava/lang/ref/PhantomReference;");
+  mirror::Class* java_lang_ref_PhantomReference =
+      FindSystemClass(self, "Ljava/lang/ref/PhantomReference;");
   java_lang_ref_PhantomReference->SetAccessFlags(
       java_lang_ref_PhantomReference->GetAccessFlags() |
           kAccClassIsReference | kAccClassIsPhantomReference);
-  mirror::Class* java_lang_ref_SoftReference = FindSystemClass(self, "Ljava/lang/ref/SoftReference;");
+  mirror::Class* java_lang_ref_SoftReference =
+      FindSystemClass(self, "Ljava/lang/ref/SoftReference;");
   java_lang_ref_SoftReference->SetAccessFlags(
       java_lang_ref_SoftReference->GetAccessFlags() | kAccClassIsReference);
-  mirror::Class* java_lang_ref_WeakReference = FindSystemClass(self, "Ljava/lang/ref/WeakReference;");
+  mirror::Class* java_lang_ref_WeakReference =
+      FindSystemClass(self, "Ljava/lang/ref/WeakReference;");
   java_lang_ref_WeakReference->SetAccessFlags(
       java_lang_ref_WeakReference->GetAccessFlags() |
           kAccClassIsReference | kAccClassIsWeakReference);
@@ -468,9 +478,11 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   // java.lang.StackTraceElement as a convenience.
   SetClassRoot(kJavaLangThrowable, FindSystemClass(self, "Ljava/lang/Throwable;"));
   mirror::Throwable::SetClass(GetClassRoot(kJavaLangThrowable));
-  SetClassRoot(kJavaLangClassNotFoundException, FindSystemClass(self, "Ljava/lang/ClassNotFoundException;"));
+  SetClassRoot(kJavaLangClassNotFoundException,
+               FindSystemClass(self, "Ljava/lang/ClassNotFoundException;"));
   SetClassRoot(kJavaLangStackTraceElement, FindSystemClass(self, "Ljava/lang/StackTraceElement;"));
-  SetClassRoot(kJavaLangStackTraceElementArrayClass, FindSystemClass(self, "[Ljava/lang/StackTraceElement;"));
+  SetClassRoot(kJavaLangStackTraceElementArrayClass,
+               FindSystemClass(self, "[Ljava/lang/StackTraceElement;"));
   mirror::StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
 
   FinishInit(self);
@@ -626,8 +638,8 @@ const OatFile* ClassLinker::FindOpenedOatFileForDexFile(const DexFile& dex_file)
   return FindOpenedOatFileFromDexLocation(dex_location, &dex_location_checksum);
 }
 
-const OatFile* ClassLinker::FindOpenedOatFileFromDexLocation(const char* dex_location,
-                                                             const uint32_t* const dex_location_checksum) {
+const OatFile* ClassLinker::FindOpenedOatFileFromDexLocation(
+    const char* dex_location, const uint32_t* const dex_location_checksum) {
   ReaderMutexLock mu(Thread::Current(), dex_lock_);
   for (size_t i = 0; i < oat_files_.size(); i++) {
     const OatFile* oat_file = oat_files_[i];
@@ -749,10 +761,11 @@ class ScopedFlock {
   DISALLOW_COPY_AND_ASSIGN(ScopedFlock);
 };
 
-const DexFile* ClassLinker::FindOrCreateOatFileForDexLocation(const char* dex_location,
-                                                              uint32_t dex_location_checksum,
-                                                              const char* oat_location,
-                                                              std::vector<std::string>* error_msgs) {
+const DexFile* ClassLinker::FindOrCreateOatFileForDexLocation(
+    const char* dex_location,
+    uint32_t dex_location_checksum,
+    const char* oat_location,
+    std::vector<std::string>* error_msgs) {
   // We play a locking game here so that if two different processes
   // race to generate (or worse, one tries to open a partial generated
   // file) we will be okay. This is actually common with apps that use
@@ -837,7 +850,8 @@ bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
   bool image_check = ((oat_header.GetImageFileLocationOatChecksum() == image_oat_checksum)
                       && (oat_header.GetImageFileLocationOatDataBegin() == image_oat_data_begin));
 
-  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location, &dex_location_checksum);
+  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location,
+                                                                    &dex_location_checksum);
   if (oat_dex_file == NULL) {
     *error_msg = StringPrintf("oat file '%s' does not contain contents for '%s' with checksum 0x%x",
                               oat_file->GetLocation().c_str(), dex_location, dex_location_checksum);
@@ -912,10 +926,11 @@ const DexFile* ClassLinker::VerifyAndOpenDexFileFromOatFile(const std::string& o
   return dex_file;
 }
 
-const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const char* dex_location,
-                                                                const uint32_t* const dex_location_checksum,
-                                                                InstructionSet isa,
-                                                                std::vector<std::string>* error_msgs) {
+const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(
+    const char* dex_location,
+    const uint32_t* const dex_location_checksum,
+    InstructionSet isa,
+    std::vector<std::string>* error_msgs) {
   const OatFile* open_oat_file = FindOpenedOatFileFromDexLocation(dex_location,
                                                                   dex_location_checksum);
   if (open_oat_file != nullptr) {
@@ -1294,9 +1309,9 @@ mirror::Class* ClassLinker::AllocClass(Thread* self, mirror::Class* java_lang_Cl
   DCHECK_GE(class_size, sizeof(mirror::Class));
   gc::Heap* heap = Runtime::Current()->GetHeap();
   InitializeClassVisitor visitor(class_size);
-  mirror::Object* k =
-      kMovingClasses ? heap->AllocObject<true>(self, java_lang_Class, class_size, visitor)
-                     : heap->AllocNonMovableObject<true>(self, java_lang_Class, class_size, visitor);
+  mirror::Object* k = (kMovingClasses) ?
+      heap->AllocObject<true>(self, java_lang_Class, class_size, visitor) :
+      heap->AllocNonMovableObject<true>(self, java_lang_Class, class_size, visitor);
   if (UNLIKELY(k == nullptr)) {
     CHECK(self->IsExceptionPending());  // OOME.
     return nullptr;
@@ -1698,8 +1713,9 @@ const void* ClassLinker::GetPortableOatCodeFor(const DexFile& dex_file, uint16_t
 }
 
 // Returns true if the method must run with interpreter, false otherwise.
-static bool NeedsInterpreter(mirror::ArtMethod* method, const void* quick_code,
-                             const void* portable_code) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static bool NeedsInterpreter(
+    mirror::ArtMethod* method, const void* quick_code, const void* portable_code)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if ((quick_code == nullptr) && (portable_code == nullptr)) {
     // No code: need interpreter.
     // May return true for native code, in the case of generic JNI
@@ -2396,7 +2412,8 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, mirror::Class* k
 bool ClassLinker::RemoveClass(const char* descriptor, const mirror::ClassLoader* class_loader) {
   size_t hash = Hash(descriptor);
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  for (auto it = class_table_.lower_bound(hash), end = class_table_.end(); it != end && it->first == hash;
+  for (auto it = class_table_.lower_bound(hash), end = class_table_.end();
+       it != end && it->first == hash;
        ++it) {
     mirror::Class* klass = it->second;
     if (klass->GetClassLoader() == class_loader && descriptor == klass->GetDescriptor()) {
@@ -2590,9 +2607,10 @@ void ClassLinker::VerifyClass(const Handle<mirror::Class>& klass) {
       VerifyClass(super);
     }
     if (!super->IsCompileTimeVerified()) {
-      std::string error_msg(StringPrintf("Rejecting class %s that attempts to sub-class erroneous class %s",
-                                         PrettyDescriptor(klass.Get()).c_str(),
-                                         PrettyDescriptor(super.Get()).c_str()));
+      std::string error_msg(
+          StringPrintf("Rejecting class %s that attempts to sub-class erroneous class %s",
+                       PrettyDescriptor(klass.Get()).c_str(),
+                       PrettyDescriptor(super.Get()).c_str()));
       LOG(ERROR) << error_msg  << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
       Handle<mirror::Throwable> cause(hs.NewHandle(self->GetException(nullptr)));
       if (cause.Get() != nullptr) {
@@ -2873,7 +2891,8 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   size_t num_virtual_methods =
       soa.Decode<mirror::ObjectArray<mirror::ArtMethod>*>(methods)->GetLength();
   {
-    mirror::ObjectArray<mirror::ArtMethod>* virtuals = AllocArtMethodArray(self, num_virtual_methods);
+    mirror::ObjectArray<mirror::ArtMethod>* virtuals = AllocArtMethodArray(self,
+                                                                           num_virtual_methods);
     if (UNLIKELY(virtuals == NULL)) {
       CHECK(self->IsExceptionPending());  // OOME.
       return NULL;
@@ -2894,7 +2913,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   }
 
   klass->SetSuperClass(proxy_class);  // The super class is java.lang.reflect.Proxy
-  klass->SetStatus(mirror::Class::kStatusLoaded, self);  // Class is now effectively in the loaded state
+  klass->SetStatus(mirror::Class::kStatusLoaded, self);  // Now effectively in the loaded state.
   self->AssertNoPendingException();
 
   {
@@ -2907,8 +2926,10 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
       return nullptr;
     }
 
-    interfaces_sfield->SetObject<false>(klass.Get(), soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces));
-    throws_sfield->SetObject<false>(klass.Get(), soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>*>(throws));
+    interfaces_sfield->SetObject<false>(
+        klass.Get(), soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces));
+    throws_sfield->SetObject<false>(
+        klass.Get(), soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>*>(throws));
     klass->SetStatus(mirror::Class::kStatusInitialized, self);
   }
 
@@ -2935,8 +2956,10 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
 
     mirror::SynthesizedProxyClass* synth_proxy_class =
         down_cast<mirror::SynthesizedProxyClass*>(klass.Get());
-    CHECK_EQ(synth_proxy_class->GetInterfaces(), soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces));
-    CHECK_EQ(synth_proxy_class->GetThrows(), soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>*>(throws));
+    CHECK_EQ(synth_proxy_class->GetInterfaces(),
+             soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces));
+    CHECK_EQ(synth_proxy_class->GetThrows(),
+             soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>*>(throws));
   }
   std::string descriptor(GetDescriptorForProxy(klass.Get()));
   mirror::Class* existing = InsertClass(descriptor.c_str(), klass.Get(), Hash(descriptor.c_str()));
@@ -3188,7 +3211,8 @@ bool ClassLinker::InitializeClass(const Handle<mirror::Class>& klass, bool can_i
         // The super class was verified ahead of entering initializing, we should only be here if
         // the super class became erroneous due to initialization.
         CHECK(handle_scope_super->IsErroneous() && self->IsExceptionPending())
-            << "Super class initialization failed for " << PrettyDescriptor(handle_scope_super.Get())
+            << "Super class initialization failed for "
+            << PrettyDescriptor(handle_scope_super.Get())
             << " that has unexpected status " << handle_scope_super->GetStatus()
             << "\nPending exception:\n"
             << (self->GetException(NULL) != NULL ? self->GetException(NULL)->Dump() : "");
@@ -3211,7 +3235,8 @@ bool ClassLinker::InitializeClass(const Handle<mirror::Class>& klass, bool can_i
                                        this, *dex_class_def);
     if (it.HasNext()) {
       CHECK(can_init_statics);
-      // We reordered the fields, so we need to be able to map the field indexes to the right fields.
+      // We reordered the fields, so we need to be able to map the
+      // field indexes to the right fields.
       SafeMap<uint32_t, mirror::ArtField*> field_map;
       ConstructFieldMap(dex_file, *dex_class_def, klass.Get(), field_map);
       for (size_t i = 0; it.HasNext(); i++, it.Next()) {
@@ -3469,7 +3494,8 @@ bool ClassLinker::LinkSuperClass(const Handle<mirror::Class>& klass) {
     return false;
   }
 
-  // Inherit kAccClassIsFinalizable from the superclass in case this class doesn't override finalize.
+  // Inherit kAccClassIsFinalizable from the superclass in case this
+  // class doesn't override finalize.
   if (super->IsFinalizable()) {
     klass->SetFinalizable();
   }
@@ -3522,7 +3548,8 @@ bool ClassLinker::LinkMethods(const Handle<mirror::Class>& klass,
 bool ClassLinker::LinkVirtualMethods(const Handle<mirror::Class>& klass) {
   Thread* self = Thread::Current();
   if (klass->HasSuperClass()) {
-    uint32_t max_count = klass->NumVirtualMethods() + klass->GetSuperClass()->GetVTable()->GetLength();
+    uint32_t max_count = (klass->NumVirtualMethods() +
+                          klass->GetSuperClass()->GetVTable()->GetLength());
     size_t actual_count = klass->GetSuperClass()->GetVTable()->GetLength();
     CHECK_LE(actual_count, max_count);
     // TODO: do not assign to the vtable field until it is fully constructed.
@@ -3542,7 +3569,8 @@ bool ClassLinker::LinkVirtualMethods(const Handle<mirror::Class>& klass) {
         mirror::ArtMethod* super_method = vtable->Get(j);
         MethodHelper super_mh(super_method);
         if (local_mh.HasSameNameAndSignature(&super_mh)) {
-          if (klass->CanAccessMember(super_method->GetDeclaringClass(), super_method->GetAccessFlags())) {
+          if (klass->CanAccessMember(super_method->GetDeclaringClass(),
+                                     super_method->GetAccessFlags())) {
             if (super_method->IsFinal()) {
               ThrowLinkageError(klass.Get(), "Method %s overrides final method in class %s",
                                 PrettyMethod(local_method).c_str(),
@@ -3604,8 +3632,9 @@ bool ClassLinker::LinkVirtualMethods(const Handle<mirror::Class>& klass) {
   return true;
 }
 
-bool ClassLinker::LinkInterfaceMethods(const Handle<mirror::Class>& klass,
-                                       const Handle<mirror::ObjectArray<mirror::Class>>& interfaces) {
+bool ClassLinker::LinkInterfaceMethods(
+    const Handle<mirror::Class>& klass,
+    const Handle<mirror::ObjectArray<mirror::Class>>& interfaces) {
   Thread* const self = Thread::Current();
   // Set the imt table to be all conflicts by default.
   klass->SetImTable(Runtime::Current()->GetDefaultImt());
@@ -3757,10 +3786,11 @@ bool ClassLinker::LinkInterfaceMethods(const Handle<mirror::Class>& klass,
           MethodHelper vtable_mh(vtable_method);
           if (interface_mh.HasSameNameAndSignature(&vtable_mh)) {
             if (!vtable_method->IsAbstract() && !vtable_method->IsPublic()) {
-              ThrowIllegalAccessError(klass.Get(),
-                                      "Method '%s' implementing interface method '%s' is not public",
-                                      PrettyMethod(vtable_method).c_str(),
-                                      PrettyMethod(interface_method).c_str());
+              ThrowIllegalAccessError(
+                  klass.Get(),
+                  "Method '%s' implementing interface method '%s' is not public",
+                  PrettyMethod(vtable_method).c_str(),
+                  PrettyMethod(interface_method).c_str());
               return false;
             }
             method_array->Set<false>(j, vtable_method);
@@ -3886,8 +3916,10 @@ struct LinkFieldsComparator {
     if (type1 != type2) {
       bool is_primitive1 = type1 != Primitive::kPrimNot;
       bool is_primitive2 = type2 != Primitive::kPrimNot;
-      bool is64bit1 = is_primitive1 && (type1 == Primitive::kPrimLong || type1 == Primitive::kPrimDouble);
-      bool is64bit2 = is_primitive2 && (type2 == Primitive::kPrimLong || type2 == Primitive::kPrimDouble);
+      bool is64bit1 = is_primitive1 && (type1 == Primitive::kPrimLong ||
+                                        type1 == Primitive::kPrimDouble);
+      bool is64bit2 = is_primitive2 && (type2 == Primitive::kPrimLong ||
+                                        type2 == Primitive::kPrimDouble);
       int order1 = !is_primitive1 ? 0 : (is64bit1 ? 1 : 2);
       int order2 = !is_primitive2 ? 0 : (is64bit2 ? 1 : 2);
       if (order1 != order2) {
@@ -3917,20 +3949,21 @@ bool ClassLinker::LinkFields(const Handle<mirror::Class>& klass, bool is_static)
   } else {
     mirror::Class* super_class = klass->GetSuperClass();
     if (super_class != NULL) {
-      CHECK(super_class->IsResolved());
+      CHECK(super_class->IsResolved())
+          << PrettyClass(klass.Get()) << " " << PrettyClass(super_class);
       field_offset = MemberOffset(super_class->GetObjectSize());
     }
     size = field_offset.Uint32Value();
   }
 
-  CHECK_EQ(num_fields == 0, fields == NULL);
+  CHECK_EQ(num_fields == 0, fields == NULL) << PrettyClass(klass.Get());
 
   // we want a relatively stable order so that adding new fields
   // minimizes disruption of C++ version such as Class and Method.
   std::deque<mirror::ArtField*> grouped_and_sorted_fields;
   for (size_t i = 0; i < num_fields; i++) {
     mirror::ArtField* f = fields->Get(i);
-    CHECK(f != NULL);
+    CHECK(f != NULL) << PrettyClass(klass.Get());
     grouped_and_sorted_fields.push_back(f);
   }
   std::sort(grouped_and_sorted_fields.begin(), grouped_and_sorted_fields.end(),
@@ -3962,7 +3995,7 @@ bool ClassLinker::LinkFields(const Handle<mirror::Class>& klass, bool is_static)
       mirror::ArtField* field = grouped_and_sorted_fields[i];
       FieldHelper fh(field);
       Primitive::Type type = fh.GetTypeAsPrimitiveType();
-      CHECK(type != Primitive::kPrimNot);  // should only be working on primitive types
+      CHECK(type != Primitive::kPrimNot) << PrettyField(field);  // should be primitive types
       if (type == Primitive::kPrimLong || type == Primitive::kPrimDouble) {
         continue;
       }
@@ -3978,13 +4011,14 @@ bool ClassLinker::LinkFields(const Handle<mirror::Class>& klass, bool is_static)
 
   // Alignment is good, shuffle any double-wide fields forward, and
   // finish assigning field offsets to all fields.
-  DCHECK(current_field == num_fields || IsAligned<8>(field_offset.Uint32Value()));
+  DCHECK(current_field == num_fields || IsAligned<8>(field_offset.Uint32Value()))
+      << PrettyClass(klass.Get());
   while (!grouped_and_sorted_fields.empty()) {
     mirror::ArtField* field = grouped_and_sorted_fields.front();
     grouped_and_sorted_fields.pop_front();
     FieldHelper fh(field);
     Primitive::Type type = fh.GetTypeAsPrimitiveType();
-    CHECK(type != Primitive::kPrimNot);  // should only be working on primitive types
+    CHECK(type != Primitive::kPrimNot) << PrettyField(field);  // should be primitive types
     fields->Set<false>(current_field, field);
     field->SetOffset(field_offset);
     field_offset = MemberOffset(field_offset.Uint32Value() +
@@ -3998,9 +4032,9 @@ bool ClassLinker::LinkFields(const Handle<mirror::Class>& klass, bool is_static)
   if (!is_static && "Ljava/lang/ref/Reference;" == klass->GetDescriptor()) {
     // We know there are no non-reference fields in the Reference classes, and we know
     // that 'referent' is alphabetically last, so this is easy...
-    CHECK_EQ(num_reference_fields, num_fields);
+    CHECK_EQ(num_reference_fields, num_fields) << PrettyClass(klass.Get());
     FieldHelper fh(fields->Get(num_fields - 1));
-    CHECK_STREQ(fh.GetName(), "referent");
+    CHECK_STREQ(fh.GetName(), "referent") << PrettyClass(klass.Get());
     --num_reference_fields;
   }
 
@@ -4027,14 +4061,14 @@ bool ClassLinker::LinkFields(const Handle<mirror::Class>& klass, bool is_static)
       if (is_primitive) {
         if (!seen_non_ref) {
           seen_non_ref = true;
-          DCHECK_EQ(num_reference_fields, i);
+          DCHECK_EQ(num_reference_fields, i) << PrettyField(field);
         }
       } else {
-        DCHECK(!seen_non_ref);
+        DCHECK(!seen_non_ref) << PrettyField(field);
       }
     }
     if (!seen_non_ref) {
-      DCHECK_EQ(num_fields, num_reference_fields);
+      DCHECK_EQ(num_fields, num_reference_fields) << PrettyClass(klass.Get());
     }
   }
   size = field_offset.Uint32Value();
@@ -4049,7 +4083,7 @@ bool ClassLinker::LinkFields(const Handle<mirror::Class>& klass, bool is_static)
       size_t previous_size = klass->GetObjectSize();
       if (previous_size != 0) {
         // Make sure that we didn't originally have an incorrect size.
-        CHECK_EQ(previous_size, size);
+        CHECK_EQ(previous_size, size) << klass->GetDescriptor();
       }
       klass->SetObjectSize(size);
     }
