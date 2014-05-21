@@ -99,8 +99,8 @@ define build-art-executable
     LOCAL_MULTILIB := $$(art_multilib)
   endif
 
+  include external/libcxx/libcxx.mk
   ifeq ($$(art_target_or_host),target)
-    include external/libcxx/libcxx.mk
     include $(BUILD_EXECUTABLE)
     ART_TARGET_EXECUTABLES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
   else # host
