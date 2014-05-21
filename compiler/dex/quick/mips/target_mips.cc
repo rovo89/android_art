@@ -46,6 +46,7 @@ static RegStorage sp_temps_arr[] =
 static RegStorage dp_temps_arr[] =
     {rs_rD0, rs_rD1, rs_rD2, rs_rD3, rs_rD4, rs_rD5, rs_rD6, rs_rD7};
 
+static const std::vector<RegStorage> empty_pool;
 static const std::vector<RegStorage> core_regs(core_regs_arr,
     core_regs_arr + sizeof(core_regs_arr) / sizeof(core_regs_arr[0]));
 static const std::vector<RegStorage> sp_regs(sp_regs_arr,
@@ -442,27 +443,11 @@ bool MipsMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 #endif
 }
 
-// Alloc a pair of core registers, or a double.
-RegStorage MipsMir2Lir::AllocTypedTempWide(bool fp_hint, int reg_class) {
-  if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
-    return AllocTempDouble();
-  }
-
-  RegStorage low_reg = AllocTemp();
-  RegStorage high_reg = AllocTemp();
-  return RegStorage::MakeRegPair(low_reg, high_reg);
-}
-
-RegStorage MipsMir2Lir::AllocTypedTemp(bool fp_hint, int reg_class) {
-  if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
-    return AllocTempSingle();
-  }
-  return AllocTemp();
-}
-
 void MipsMir2Lir::CompilerInitializeRegAlloc() {
-  reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs, sp_regs, dp_regs, reserved_regs,
-                                        core_temps, sp_temps, dp_temps);
+  reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs, empty_pool /* core64 */, sp_regs,
+                                        dp_regs, reserved_regs, empty_pool /* reserved64 */,
+                                        core_temps, empty_pool /* core64_temps */, sp_temps,
+                                        dp_temps);
 
   // Target-specific adjustments.
 
