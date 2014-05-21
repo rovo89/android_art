@@ -666,7 +666,7 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
                   expected = "core register";
                 } else if (want_size_match && (reg.Is64Bit() != want_64_bit)) {
                   expected = (want_64_bit) ? "x-register" : "w-register";
-                } else if (reg.GetRegNum() == 31 && is_zero == want_zero) {
+                } else if (reg.GetRegNum() == 31 && is_zero != want_zero) {
                   expected = (want_zero) ? "zero-register" : "sp-register";
                 }
               }

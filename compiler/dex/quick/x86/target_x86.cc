@@ -81,6 +81,7 @@ static const RegStorage dp_temps_arr_64[] = {
 #endif
 };
 
+static const std::vector<RegStorage> empty_pool;
 static const std::vector<RegStorage> core_regs_32(core_regs_arr_32,
     core_regs_arr_32 + sizeof(core_regs_arr_32) / sizeof(core_regs_arr_32[0]));
 static const std::vector<RegStorage> core_regs_64(core_regs_arr_64,
@@ -528,30 +529,15 @@ bool X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 #endif
 }
 
-// Alloc a pair of core registers, or a double.
-RegStorage X86Mir2Lir::AllocTypedTempWide(bool fp_hint, int reg_class) {
-  if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
-    return AllocTempDouble();
-  }
-  RegStorage low_reg = AllocTemp();
-  RegStorage high_reg = AllocTemp();
-  return RegStorage::MakeRegPair(low_reg, high_reg);
-}
-
-RegStorage X86Mir2Lir::AllocTypedTemp(bool fp_hint, int reg_class) {
-  if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
-    return AllocTempSingle();
-  }
-  return AllocTemp();
-}
-
 void X86Mir2Lir::CompilerInitializeRegAlloc() {
   if (Gen64Bit()) {
-    reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs_64, sp_regs_64, dp_regs_64, reserved_regs_64,
-                                        core_temps_64, sp_temps_64, dp_temps_64);
+    reg_pool_ = new (arena_) RegisterPool(this, arena_, empty_pool, core_regs_64, sp_regs_64,
+                                          dp_regs_64, empty_pool, reserved_regs_64,
+                                          empty_pool, core_temps_64, sp_temps_64, dp_temps_64);
   } else {
-    reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs_32, sp_regs_32, dp_regs_32, reserved_regs_32,
-                                        core_temps_32, sp_temps_32, dp_temps_32);
+    reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs_32, empty_pool, sp_regs_32,
+                                          dp_regs_32, reserved_regs_32, empty_pool,
+                                          core_temps_32, empty_pool, sp_temps_32, dp_temps_32);
   }
 
   // Target-specific adjustments.

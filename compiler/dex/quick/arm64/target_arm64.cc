@@ -27,6 +27,12 @@ namespace art {
 
 // TODO: rework this when c++11 support allows.
 static const RegStorage core_regs_arr[] =
+    {rs_w0, rs_w1, rs_w2, rs_w3, rs_w4, rs_w5, rs_w6, rs_w7,
+     rs_w8, rs_w9, rs_w10, rs_w11, rs_w12, rs_w13, rs_w14, rs_w15,
+     rs_w16, rs_w17, rs_w18, rs_w19, rs_w20, rs_w21, rs_w22, rs_w23,
+     rs_w24, rs_w25, rs_w26, rs_w27, rs_w28, rs_w29, rs_w30, rs_w31,
+     rs_wzr};
+static const RegStorage core64_regs_arr[] =
     {rs_x0, rs_x1, rs_x2, rs_x3, rs_x4, rs_x5, rs_x6, rs_x7,
      rs_x8, rs_x9, rs_x10, rs_x11, rs_x12, rs_x13, rs_x14, rs_x15,
      rs_x16, rs_x17, rs_x18, rs_x19, rs_x20, rs_x21, rs_x22, rs_x23,
@@ -43,12 +49,18 @@ static const RegStorage dp_regs_arr[] =
      rs_d16, rs_d17, rs_d18, rs_d19, rs_d20, rs_d21, rs_d22, rs_d23,
      rs_d24, rs_d25, rs_d26, rs_d27, rs_d28, rs_d29, rs_d30, rs_d31};
 static const RegStorage reserved_regs_arr[] =
+    {rs_rA32_SUSPEND, rs_rA32_SELF, rs_rA32_SP, rs_rA32_LR, rs_wzr};
+static const RegStorage reserved64_regs_arr[] =
     {rs_rA64_SUSPEND, rs_rA64_SELF, rs_rA64_SP, rs_rA64_LR, rs_xzr};
 // TUNING: Are there too many temp registers and too less promote target?
 // This definition need to be matched with runtime.cc, quick entry assembly and JNI compiler
 // Note: we are not able to call to C function directly if it un-match C ABI.
 // Currently, rs_rA64_SELF is not a callee save register which does not match C ABI.
 static const RegStorage core_temps_arr[] =
+    {rs_w0, rs_w1, rs_w2, rs_w3, rs_w4, rs_w5, rs_w6, rs_w7,
+     rs_w8, rs_w9, rs_w10, rs_w11, rs_w12, rs_w13, rs_w14, rs_w15, rs_w16,
+     rs_w17};
+static const RegStorage core64_temps_arr[] =
     {rs_x0, rs_x1, rs_x2, rs_x3, rs_x4, rs_x5, rs_x6, rs_x7,
      rs_x8, rs_x9, rs_x10, rs_x11, rs_x12, rs_x13, rs_x14, rs_x15, rs_x16,
      rs_x17};
@@ -63,14 +75,20 @@ static const RegStorage dp_temps_arr[] =
 
 static const std::vector<RegStorage> core_regs(core_regs_arr,
     core_regs_arr + arraysize(core_regs_arr));
+static const std::vector<RegStorage> core64_regs(core64_regs_arr,
+    core64_regs_arr + arraysize(core64_regs_arr));
 static const std::vector<RegStorage> sp_regs(sp_regs_arr,
     sp_regs_arr + arraysize(sp_regs_arr));
 static const std::vector<RegStorage> dp_regs(dp_regs_arr,
     dp_regs_arr + arraysize(dp_regs_arr));
 static const std::vector<RegStorage> reserved_regs(reserved_regs_arr,
     reserved_regs_arr + arraysize(reserved_regs_arr));
+static const std::vector<RegStorage> reserved64_regs(reserved64_regs_arr,
+    reserved64_regs_arr + arraysize(reserved64_regs_arr));
 static const std::vector<RegStorage> core_temps(core_temps_arr,
     core_temps_arr + arraysize(core_temps_arr));
+static const std::vector<RegStorage> core64_temps(core64_temps_arr,
+    core64_temps_arr + arraysize(core64_temps_arr));
 static const std::vector<RegStorage> sp_temps(sp_temps_arr, sp_temps_arr + arraysize(sp_temps_arr));
 static const std::vector<RegStorage> dp_temps(dp_temps_arr, dp_temps_arr + arraysize(dp_temps_arr));
 
@@ -578,26 +596,10 @@ Mir2Lir* Arm64CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph
   return new Arm64Mir2Lir(cu, mir_graph, arena);
 }
 
-// Alloc a pair of core registers, or a double.
-RegStorage Arm64Mir2Lir::AllocTypedTempWide(bool fp_hint, int reg_class) {
-  if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
-    return AllocTempDouble();
-  } else {
-    RegStorage low_reg = AllocTemp();
-    RegStorage high_reg = AllocTemp();
-    return RegStorage::MakeRegPair(low_reg, high_reg);
-  }
-}
-
-RegStorage Arm64Mir2Lir::AllocTypedTemp(bool fp_hint, int reg_class) {
-  if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg))
-    return AllocTempSingle();
-  return AllocTemp();
-}
-
 void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
-  reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs, sp_regs, dp_regs, reserved_regs,
-                                        core_temps, sp_temps, dp_temps);
+  reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs, core64_regs, sp_regs, dp_regs,
+                                        reserved_regs, reserved64_regs, core_temps, core64_temps,
+                                        sp_temps, dp_temps);
 
   // Target-specific adjustments.
   // Alias single precision float registers to corresponding double registers.
