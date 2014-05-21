@@ -304,7 +304,7 @@ class StubTest : public CommonRuntimeTest {
         "addl $4, %%esp"            // Pop referrer
         : "=a" (result)
           // Use the result from eax
-          : "a"(arg0), "c"(arg1), "d"(arg2), "D"(code), [referrer]"r"(referrer), [hidden]"r"(hidden)
+          : "a"(arg0), "c"(arg1), "d"(arg2), "D"(code), [referrer]"m"(referrer), [hidden]"r"(hidden)
             // This places code into edi, arg0 into eax, arg1 into ecx, and arg2 into edx
             : );  // clobber.
     // TODO: Should we clobber the other registers? EBX gets clobbered by some of the stubs,
