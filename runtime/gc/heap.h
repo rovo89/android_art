@@ -778,6 +778,9 @@ class Heap {
   // useful for benchmarking since it reduces time spent in GC to a low %.
   const bool ignore_max_footprint_;
 
+  // Lock which guards zygote space creation.
+  Mutex zygote_creation_lock_;
+
   // If we have a zygote space.
   bool have_zygote_space_;
 
