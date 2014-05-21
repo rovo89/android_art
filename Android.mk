@@ -97,6 +97,9 @@ include $(art_build_path)/Android.oat.mk
 ART_HOST_DEPENDENCIES := $(ART_HOST_EXECUTABLES) $(HOST_OUT_JAVA_LIBRARIES)/core-libart-hostdex.jar
 ART_HOST_DEPENDENCIES += $(HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
 ART_TARGET_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_JAVA_LIBRARIES)/core-libart.jar $(TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
+ifdef TARGET_2ND_ARCH
+ART_TARGET_DEPENDENCIES += $(2ND_TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
+endif
 
 ########################################################################
 # test targets
