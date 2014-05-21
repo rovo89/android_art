@@ -19,7 +19,7 @@
 
 #include "asm_support_x86.h"
 
-#if defined(__clang__) && (__clang_major__ < 4) && (__clang_minor__ < 5)
+#if defined(__APPLE__) || (defined(__clang__) && (__clang_major__ < 4) && (__clang_minor__ < 5))
     // Clang's as(1) doesn't let you name macro parameters prior to 3.5.
     #define MACRO0(macro_name) .macro macro_name
     #define MACRO1(macro_name, macro_arg1) .macro macro_name
@@ -32,8 +32,6 @@
     #define PLT_VAR(name, index) SYMBOL($index)
     #define REG_VAR(name,index) %$index
     #define CALL_MACRO(name,index) $index
-    #define FUNCTION_TYPE(name,index) .type $index, @function
-    #define SIZE(name,index) .size $index, .-$index
 
     //  The use of $x for arguments mean that literals need to be represented with $$x in macros.
     #define LITERAL(value) $value
@@ -56,11 +54,20 @@
     #define PLT_VAR(name, index) name&@PLT
     #define REG_VAR(name,index) %name
     #define CALL_MACRO(name,index) name&
-    #define FUNCTION_TYPE(name,index) .type name&, @function
-    #define SIZE(name,index) .size name, .-name
 
     #define LITERAL(value) $value
     #define MACRO_LITERAL(value) $value
+#endif
+
+#if defined(__APPLE__)
+    #define FUNCTION_TYPE(name,index)
+    #define SIZE(name,index)
+#elif defined(__clang__) && (__clang_major__ < 4) && (__clang_minor__ < 5)
+    #define FUNCTION_TYPE(name,index) .type $index, @function
+    #define SIZE(name,index) .size $index, .-$index
+#else
+    #define FUNCTION_TYPE(name,index) .type name&, @function
+    #define SIZE(name,index) .size name, .-name
 #endif
 
     // CFI support.
