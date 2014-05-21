@@ -160,12 +160,12 @@ class BaseMutex {
     void AddToWaitTime(uint64_t value);
     ContentionLogData() : wait_time(0) {}
   };
-  ContentionLogData contetion_log_data_[kContentionLogDataSize];
+  ContentionLogData contention_log_data_[kContentionLogDataSize];
 
  public:
   bool HasEverContended() const {
     if (kLogLockContentions) {
-      return contetion_log_data_->contention_count > 0;
+      return contention_log_data_->contention_count.LoadSequentiallyConsistent() > 0;
     }
     return false;
   }

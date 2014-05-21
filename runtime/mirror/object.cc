@@ -139,10 +139,10 @@ int32_t Object::GenerateIdentityHashCode() {
   static AtomicInteger seed(987654321 + std::time(nullptr));
   int32_t expected_value, new_value;
   do {
-    expected_value = static_cast<uint32_t>(seed.Load());
+    expected_value = static_cast<uint32_t>(seed.LoadRelaxed());
     new_value = expected_value * 1103515245 + 12345;
   } while ((expected_value & LockWord::kHashMask) == 0 ||
-      !seed.CompareAndSwap(expected_value, new_value));
+      !seed.CompareExchangeWeakRelaxed(expected_value, new_value));
   return expected_value & LockWord::kHashMask;
 }
 

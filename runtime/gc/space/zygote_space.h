@@ -65,7 +65,7 @@ class ZygoteSpace FINAL : public ContinuousMemMapAllocSpace {
   }
 
   uint64_t GetObjectsAllocated() {
-    return objects_allocated_;
+    return objects_allocated_.LoadSequentiallyConsistent();
   }
 
   void Clear() OVERRIDE;

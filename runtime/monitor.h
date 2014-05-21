@@ -107,7 +107,7 @@ class Monitor {
   bool IsLocked() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasHashCode() const {
-    return hash_code_.Load() != 0;
+    return hash_code_.LoadRelaxed() != 0;
   }
 
   MonitorId GetMonitorId() const {

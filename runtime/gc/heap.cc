@@ -293,7 +293,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   }
 
   // TODO: Count objects in the image space here.
-  num_bytes_allocated_ = 0;
+  num_bytes_allocated_.StoreRelaxed(0);
 
   // Default mark stack size in bytes.
   static const size_t default_mark_stack_size = 64 * KB;
@@ -659,13 +659,13 @@ void Heap::RemoveSpace(space::Space* space) {
 
 void Heap::RegisterGCAllocation(size_t bytes) {
   if (this != nullptr) {
-    gc_memory_overhead_.FetchAndAdd(bytes);
+    gc_memory_overhead_.FetchAndAddSequentiallyConsistent(bytes);
   }
 }
 
 void Heap::RegisterGCDeAllocation(size_t bytes) {
   if (this != nullptr) {
-    gc_memory_overhead_.FetchAndSub(bytes);
+    gc_memory_overhead_.FetchAndSubSequentiallyConsistent(bytes);
   }
 }
 
@@ -700,7 +700,8 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
     }
     collector->ResetMeasurements();
   }
-  uint64_t allocation_time = static_cast<uint64_t>(total_allocation_time_) * kTimeAdjust;
+  uint64_t allocation_time =
+      static_cast<uint64_t>(total_allocation_time_.LoadRelaxed()) * kTimeAdjust;
   if (total_duration != 0) {
     const double total_seconds = static_cast<double>(total_duration / 1000) / 1000000.0;
     os << "Total time spent in GC: " << PrettyDuration(total_duration) << "\n";
@@ -720,7 +721,7 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   }
   os << "Total mutator paused time: " << PrettyDuration(total_paused_time) << "\n";
   os << "Total time waiting for GC to complete: " << PrettyDuration(total_wait_time_) << "\n";
-  os << "Approximate GC data structures memory overhead: " << gc_memory_overhead_;
+  os << "Approximate GC data structures memory overhead: " << gc_memory_overhead_.LoadRelaxed();
   BaseMutex::DumpAll(os);
 }
 
@@ -1022,7 +1023,7 @@ void Heap::VerifyObjectBody(mirror::Object* obj) {
     return;
   }
   // Ignore early dawn of the universe verifications.
-  if (UNLIKELY(static_cast<size_t>(num_bytes_allocated_.Load()) < 10 * KB)) {
+  if (UNLIKELY(static_cast<size_t>(num_bytes_allocated_.LoadRelaxed()) < 10 * KB)) {
     return;
   }
   CHECK(IsAligned<kObjectAlignment>(obj)) << "Object isn't aligned: " << obj;
@@ -1053,9 +1054,9 @@ void Heap::RecordFree(uint64_t freed_objects, int64_t freed_bytes) {
   // Use signed comparison since freed bytes can be negative when background compaction foreground
   // transitions occurs. This is caused by the moving objects from a bump pointer space to a
   // free list backed space typically increasing memory footprint due to padding and binning.
-  DCHECK_LE(freed_bytes, static_cast<int64_t>(num_bytes_allocated_.Load()));
+  DCHECK_LE(freed_bytes, static_cast<int64_t>(num_bytes_allocated_.LoadRelaxed()));
   // Note: This relies on 2s complement for handling negative freed_bytes.
-  num_bytes_allocated_.FetchAndSub(static_cast<ssize_t>(freed_bytes));
+  num_bytes_allocated_.FetchAndSubSequentiallyConsistent(static_cast<ssize_t>(freed_bytes));
   if (Runtime::Current()->HasStatsEnabled()) {
     RuntimeStats* thread_stats = Thread::Current()->GetStats();
     thread_stats->freed_objects += freed_objects;
@@ -1313,7 +1314,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   VLOG(heap) << "TransitionCollector: " << static_cast<int>(collector_type_)
              << " -> " << static_cast<int>(collector_type);
   uint64_t start_time = NanoTime();
-  uint32_t before_allocated = num_bytes_allocated_.Load();
+  uint32_t before_allocated = num_bytes_allocated_.LoadSequentiallyConsistent();
   ThreadList* tl = Runtime::Current()->GetThreadList();
   Thread* self = Thread::Current();
   ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
@@ -1391,7 +1392,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   uint64_t duration = NanoTime() - start_time;
   GrowForUtilization(semi_space_collector_);
   FinishGC(self, collector::kGcTypeFull);
-  int32_t after_allocated = num_bytes_allocated_.Load();
+  int32_t after_allocated = num_bytes_allocated_.LoadSequentiallyConsistent();
   int32_t delta_allocated = before_allocated - after_allocated;
   LOG(INFO) << "Heap transition to " << process_state_ << " took "
       << PrettyDuration(duration) << " saved at least " << PrettySize(delta_allocated);
@@ -2429,7 +2430,7 @@ bool Heap::IsMovableObject(const mirror::Object* obj) const {
 }
 
 void Heap::UpdateMaxNativeFootprint() {
-  size_t native_size = native_bytes_allocated_;
+  size_t native_size = native_bytes_allocated_.LoadRelaxed();
   // TODO: Tune the native heap utilization to be a value other than the java heap utilization.
   size_t target_size = native_size / GetTargetHeapUtilization();
   if (target_size > native_size + max_free_) {
@@ -2701,21 +2702,22 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
     native_need_to_run_finalization_ = false;
   }
   // Total number of native bytes allocated.
-  native_bytes_allocated_.FetchAndAdd(bytes);
-  if (static_cast<size_t>(native_bytes_allocated_) > native_footprint_gc_watermark_) {
+  size_t new_native_bytes_allocated = native_bytes_allocated_.FetchAndAddSequentiallyConsistent(bytes);
+  new_native_bytes_allocated += bytes;
+  if (new_native_bytes_allocated > native_footprint_gc_watermark_) {
     collector::GcType gc_type = have_zygote_space_ ? collector::kGcTypePartial :
         collector::kGcTypeFull;
 
     // The second watermark is higher than the gc watermark. If you hit this it means you are
     // allocating native objects faster than the GC can keep up with.
-    if (static_cast<size_t>(native_bytes_allocated_) > native_footprint_limit_) {
+    if (new_native_bytes_allocated > native_footprint_limit_) {
       if (WaitForGcToComplete(kGcCauseForNativeAlloc, self) != collector::kGcTypeNone) {
         // Just finished a GC, attempt to run finalizers.
         RunFinalization(env);
         CHECK(!env->ExceptionCheck());
       }
       // If we still are over the watermark, attempt a GC for alloc and run finalizers.
-      if (static_cast<size_t>(native_bytes_allocated_) > native_footprint_limit_) {
+      if (new_native_bytes_allocated > native_footprint_limit_) {
         CollectGarbageInternal(gc_type, kGcCauseForNativeAlloc, false);
         RunFinalization(env);
         native_need_to_run_finalization_ = false;
@@ -2737,7 +2739,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
 void Heap::RegisterNativeFree(JNIEnv* env, int bytes) {
   int expected_size, new_size;
   do {
-    expected_size = native_bytes_allocated_.Load();
+    expected_size = native_bytes_allocated_.LoadRelaxed();
     new_size = expected_size - bytes;
     if (UNLIKELY(new_size < 0)) {
       ScopedObjectAccess soa(env);
@@ -2746,7 +2748,7 @@ void Heap::RegisterNativeFree(JNIEnv* env, int bytes) {
                                  "registered as allocated", bytes, expected_size).c_str());
       break;
     }
-  } while (!native_bytes_allocated_.CompareAndSwap(expected_size, new_size));
+  } while (!native_bytes_allocated_.CompareExchangeWeakRelaxed(expected_size, new_size));
 }
 
 size_t Heap::GetTotalMemory() const {

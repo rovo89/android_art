@@ -99,12 +99,12 @@ Monitor::Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_
 
 int32_t Monitor::GetHashCode() {
   while (!HasHashCode()) {
-    if (hash_code_.CompareAndSwap(0, mirror::Object::GenerateIdentityHashCode())) {
+    if (hash_code_.CompareExchangeWeakRelaxed(0, mirror::Object::GenerateIdentityHashCode())) {
       break;
     }
   }
   DCHECK(HasHashCode());
-  return hash_code_.Load();
+  return hash_code_.LoadRelaxed();
 }
 
 bool Monitor::Install(Thread* self) {
@@ -119,7 +119,7 @@ bool Monitor::Install(Thread* self) {
       break;
     }
     case LockWord::kHashCode: {
-      CHECK_EQ(hash_code_, static_cast<int32_t>(lw.GetHashCode()));
+      CHECK_EQ(hash_code_.LoadRelaxed(), static_cast<int32_t>(lw.GetHashCode()));
       break;
     }
     case LockWord::kFatLocked: {
