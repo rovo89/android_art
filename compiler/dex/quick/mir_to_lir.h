@@ -610,6 +610,7 @@ class Mir2Lir : public Backend {
     LIR* NewLIR5(int opcode, int dest, int src1, int src2, int info1, int info2);
     LIR* ScanLiteralPool(LIR* data_target, int value, unsigned int delta);
     LIR* ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi);
+    LIR* ScanLiteralPoolMethod(LIR* data_target, const MethodReference& method);
     LIR* AddWordData(LIR* *constant_list_p, int value);
     LIR* AddWideData(LIR* *constant_list_p, int val_lo, int val_hi);
     void ProcessSwitchTables();
