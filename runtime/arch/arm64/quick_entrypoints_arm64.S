@@ -508,26 +508,42 @@ NO_ARG_RUNTIME_EXCEPTION art_quick_throw_stack_overflow, artThrowStackOverflowFr
 ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_no_such_method, artThrowNoSuchMethodFromCode
 
     /*
-     * TODO arm64 specifics need to be fleshed out.
      * All generated callsites for interface invokes and invocation slow paths will load arguments
-     * as usual - except instead of loading x0 with the target Method*, x0 will contain
-     * the method_idx.  This wrapper will save x1-x3, load the caller's Method*, align the
+     * as usual - except instead of loading arg0/x0 with the target Method*, arg0/x0 will contain
+     * the method_idx.  This wrapper will save arg1-arg3, load the caller's Method*, align the
      * stack and call the appropriate C helper.
-     * NOTE: "this" is first visible argument of the target, and so can be found in x1.
+     * NOTE: "this" is first visible argument of the target, and so can be found in arg1/x1.
      *
-     * The helper will attempt to locate the target and return a result in x0 consisting
+     * The helper will attempt to locate the target and return a 128-bit result in x0/x1 consisting
      * of the target Method* in x0 and method->code_ in x1.
      *
-     * If unsuccessful, the helper will return NULL/NULL. There will be a pending exception in the
+     * If unsuccessful, the helper will return NULL/????. There will be a pending exception in the
      * thread and we branch to another stub to deliver it.
      *
      * On success this wrapper will restore arguments and *jump* to the target, leaving the lr
      * pointing back to the original caller.
+     *
+     * Adapted from ARM32 code.
+     *
+     * Clobbers x12.
      */
 .macro INVOKE_TRAMPOLINE c_name, cxx_name
     .extern \cxx_name
 ENTRY \c_name
-    brk 0
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  // save callee saves in case allocation triggers GC
+    // Helper signature is always
+    // (method_idx, *this_object, *caller_method, *self, sp)
+
+    ldr    x2, [sp, #FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE]  // pass caller Method*
+    mov    x3, xSELF                      // pass Thread::Current
+    mov    x4, sp
+    bl     \cxx_name                      // (method_idx, this, caller, Thread*, SP)
+    mov    x12, x1                         // save Method*->code_
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    cbz    x0, 1f                         // did we find the target? if not go to exception delivery
+    br     x12                             // tail call to target
+1:
+    DELIVER_PENDING_EXCEPTION
 END \c_name
 .endm
 
@@ -1381,8 +1397,17 @@ ENTRY art_quick_proxy_invoke_handler
     DELIVER_PENDING_EXCEPTION
 END art_quick_proxy_invoke_handler
 
-UNIMPLEMENTED art_quick_imt_conflict_trampoline
-
+    /*
+     * Called to resolve an imt conflict. x12 is a hidden argument that holds the target method's
+     * dex method index.
+     */
+ENTRY art_quick_imt_conflict_trampoline
+    ldr    x0, [sp, #0]                                // load caller Method*
+    ldr    w0, [x0, #METHOD_DEX_CACHE_METHODS_OFFSET]  // load dex_cache_resolved_methods
+    add    x0, x0, #OBJECT_ARRAY_DATA_OFFSET           // get starting address of data
+    ldr    w0, [x0, x12, lsl 2]                        // load the target method
+    b art_quick_invoke_interface_trampoline
+END art_quick_imt_conflict_trampoline
 
 ENTRY art_quick_resolution_trampoline
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME

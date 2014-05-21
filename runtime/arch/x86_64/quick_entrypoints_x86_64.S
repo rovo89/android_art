@@ -239,24 +239,45 @@ TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_array_bounds, artThrowArrayBoundsFromC
 
     /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
-     * as usual - except instead of loading arg0/r0 with the target Method*, arg0/r0 will contain
+     * as usual - except instead of loading arg0/rdi with the target Method*, arg0/rdi will contain
      * the method_idx.  This wrapper will save arg1-arg3, load the caller's Method*, align the
      * stack and call the appropriate C helper.
-     * NOTE: "this" is first visible argument of the target, and so can be found in arg1/r1.
+     * NOTE: "this" is first visible argument of the target, and so can be found in arg1/rsi.
      *
-     * The helper will attempt to locate the target and return a 64-bit result in r0/r1 consisting
-     * of the target Method* in r0 and method->code_ in r1.
+     * The helper will attempt to locate the target and return a 128-bit result in rax/rdx consisting
+     * of the target Method* in rax and method->code_ in rdx.
      *
-     * If unsuccessful, the helper will return NULL/NULL. There will bea pending exception in the
+     * If unsuccessful, the helper will return NULL/????. There will be a pending exception in the
      * thread and we branch to another stub to deliver it.
      *
-     * On success this wrapper will restore arguments and *jump* to the target, leaving the lr
-     * pointing back to the original caller.
+     * On success this wrapper will restore arguments and *jump* to the target, leaving the return
+     * location on the stack.
+     *
+     * Adapted from x86 code.
      */
 MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
     DEFINE_FUNCTION VAR(c_name, 0)
-    int3
-    int3
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  // save callee saves in case allocation triggers GC
+    // Helper signature is always
+    // (method_idx, *this_object, *caller_method, *self, sp)
+
+    movq FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE(%rsp), %rdx  // pass caller Method*
+    movq %gs:THREAD_SELF_OFFSET, %rcx                      // pass Thread
+    movq %rsp, %r8                                         // pass SP
+
+    call PLT_VAR(cxx_name, 1)                   // cxx_name(arg1, arg2, caller method*, Thread*, SP)
+                                                           // save the code pointer
+    movq %rax, %rdi
+    movq %rdx, %rax
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+
+    testq %rdi, %rdi
+    jz 1f
+
+    // Tail call to intended method.
+    jmp *%rax
+1:
+    DELIVER_PENDING_EXCEPTION
     END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
@@ -977,9 +998,18 @@ DEFINE_FUNCTION art_quick_proxy_invoke_handler
 END_FUNCTION art_quick_proxy_invoke_handler
 
     /*
-     * Called to resolve an imt conflict.
+     * Called to resolve an imt conflict. Clobbers %rax (which will be clobbered later anyways).
+     *
+     * xmm0 is a hidden argument that holds the target method's dex method index.
+     * TODO: With proper hard-float support, this needs to be kept in sync with the quick compiler.
      */
-UNIMPLEMENTED art_quick_imt_conflict_trampoline
+DEFINE_FUNCTION art_quick_imt_conflict_trampoline
+    movq 16(%rsp), %rdi            // load caller Method*
+    movl METHOD_DEX_CACHE_METHODS_OFFSET(%rdi), %edi  // load dex_cache_resolved_methods
+    movd %xmm0, %rax               // get target method index stored in xmm0
+    movl OBJECT_ARRAY_DATA_OFFSET(%rdi, %rax, 4), %edi  // load the target method
+    jmp art_quick_invoke_interface_trampoline_local
+END_FUNCTION art_quick_imt_conflict_trampoline
 
 DEFINE_FUNCTION art_quick_resolution_trampoline
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
