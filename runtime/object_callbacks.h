@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_OBJECT_CALLBACKS_H_
 #define ART_RUNTIME_OBJECT_CALLBACKS_H_
 
+// For ostream.
+#include <ostream>
 // For uint32_t.
 #include <stdint.h>
 // For size_t.
@@ -46,6 +48,7 @@ enum RootType {
   kRootVMInternal,
   kRootJNIMonitor,
 };
+std::ostream& operator<<(std::ostream& os, const RootType& root_type);
 
 // Returns the new address of the object, returns root if it has not moved. tid and root_type are
 // only used by hprof.
