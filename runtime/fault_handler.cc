@@ -79,7 +79,7 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
       return;
     }
   }
-  LOG(ERROR)<< "Caught unknown SIGSEGV in ART fault handler";
+  VLOG(signals)<< "Caught unknown SIGSEGV in ART fault handler";
   oldaction_.sa_sigaction(sig, info, context);
 }
 
