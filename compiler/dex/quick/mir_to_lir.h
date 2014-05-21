@@ -411,10 +411,15 @@ class Mir2Lir : public Backend {
 
     class RegisterPool {
      public:
-      RegisterPool(Mir2Lir* m2l, ArenaAllocator* arena, const std::vector<RegStorage>& core_regs,
-                   const std::vector<RegStorage>& sp_regs, const std::vector<RegStorage>& dp_regs,
+      RegisterPool(Mir2Lir* m2l, ArenaAllocator* arena,
+                   const std::vector<RegStorage>& core_regs,
+                   const std::vector<RegStorage>& core64_regs,
+                   const std::vector<RegStorage>& sp_regs,
+                   const std::vector<RegStorage>& dp_regs,
                    const std::vector<RegStorage>& reserved_regs,
+                   const std::vector<RegStorage>& reserved64_regs,
                    const std::vector<RegStorage>& core_temps,
+                   const std::vector<RegStorage>& core64_temps,
                    const std::vector<RegStorage>& sp_temps,
                    const std::vector<RegStorage>& dp_temps);
       ~RegisterPool() {}
@@ -428,6 +433,8 @@ class Mir2Lir : public Backend {
       }
       GrowableArray<RegisterInfo*> core_regs_;
       int next_core_reg_;
+      GrowableArray<RegisterInfo*> core64_regs_;
+      int next_core64_reg_;
       GrowableArray<RegisterInfo*> sp_regs_;    // Single precision float.
       int next_sp_reg_;
       GrowableArray<RegisterInfo*> dp_regs_;    // Double precision float.
@@ -673,8 +680,11 @@ class Mir2Lir : public Backend {
     RegStorage AllocTempBody(GrowableArray<RegisterInfo*> &regs, int* next_temp, bool required);
     virtual RegStorage AllocFreeTemp();
     virtual RegStorage AllocTemp();
+    virtual RegStorage AllocTempWide();
     virtual RegStorage AllocTempSingle();
     virtual RegStorage AllocTempDouble();
+    virtual RegStorage AllocTypedTemp(bool fp_hint, int reg_class);
+    virtual RegStorage AllocTypedTempWide(bool fp_hint, int reg_class);
     void FlushReg(RegStorage reg);
     void FlushRegWide(RegStorage reg);
     RegStorage AllocLiveReg(int s_reg, int reg_class, bool wide);
@@ -1088,8 +1098,6 @@ class Mir2Lir : public Backend {
     virtual void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) = 0;
 
     // Required for target - register utilities.
-    virtual RegStorage AllocTypedTemp(bool fp_hint, int reg_class) = 0;
-    virtual RegStorage AllocTypedTempWide(bool fp_hint, int reg_class) = 0;
     virtual RegStorage TargetReg(SpecialTargetRegister reg) = 0;
     virtual RegStorage GetArgMappingToPhysicalReg(int arg_num) = 0;
     virtual RegLocation GetReturnAlt() = 0;
