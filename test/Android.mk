@@ -116,7 +116,7 @@ define declare-test-art-oat-targets-impl
 test-art-target-oat-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-target-sync
 	adb shell touch $(ART_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@
 	adb shell rm $(ART_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@
-	adb shell sh -c "/system/bin/dalvikvm$($(2)ART_TARGET_BINARY_SUFFIX) $(DALVIKVM_FLAGS) -XXlib:libartd.so -Ximage:$(ART_TEST_DIR)/core.art -classpath $(ART_TEST_DIR)/oat-test-dex-$(1).jar -Djava.library.path=$(ART_TEST_DIR)/$(TARGET_$(2)ARCH) $(1) && touch $(ART_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@"
+	adb shell sh -c "/system/bin/dalvikvm$($(2)ART_PHONY_TEST_TARGET_SUFFIX) $(DALVIKVM_FLAGS) -XXlib:libartd.so -Ximage:$(ART_TEST_DIR)/core.art -classpath $(ART_TEST_DIR)/oat-test-dex-$(1).jar -Djava.library.path=$(ART_TEST_DIR)/$(TARGET_$(2)ARCH) $(1) && touch $(ART_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@"
 	$(hide) (adb pull $(ART_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@ /tmp/ && echo $$@ PASSED) || (echo $$@ FAILED && exit 1)
 	$(hide) rm /tmp/$$@
 endef
