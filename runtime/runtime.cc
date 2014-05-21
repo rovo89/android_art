@@ -622,6 +622,9 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   class_linker_ = new ClassLinker(intern_table_);
   if (GetHeap()->HasImageSpace()) {
     class_linker_->InitFromImage();
+    if (kIsDebugBuild) {
+      GetHeap()->GetImageSpace()->VerifyImageAllocations();
+    }
   } else {
     CHECK(options->boot_class_path_ != NULL);
     CHECK_NE(options->boot_class_path_->size(), 0U);

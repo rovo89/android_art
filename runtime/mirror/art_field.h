@@ -122,7 +122,7 @@ class MANAGED ArtField : public Object {
   void SetObj(Object* object, Object* new_value) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Class* GetJavaLangReflectArtField() {
-    DCHECK(java_lang_reflect_ArtField_ != NULL);
+    DCHECK(java_lang_reflect_ArtField_ != nullptr);
     return java_lang_reflect_ArtField_;
   }
 
