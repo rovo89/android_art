@@ -43,6 +43,21 @@ inline MirrorType* ReadBarrier::Barrier(
   }
 }
 
+template <typename MirrorType, ReadBarrierOption kReadBarrierOption>
+inline MirrorType* ReadBarrier::BarrierForWeakRoot(MirrorType* ref) {
+  UNUSED(ref);
+  const bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
+  if (with_read_barrier && kUseBakerReadBarrier) {
+    // To be implemented.
+    return ref;
+  } else if (with_read_barrier && kUseBrooksReadBarrier) {
+    // To be implemented.
+    return ref;
+  } else {
+    return ref;
+  }
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_READ_BARRIER_INL_H_
