@@ -103,6 +103,13 @@ class MANAGED LOCKABLE Object {
   // avoids the barriers.
   LockWord GetLockWord(bool as_volatile) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetLockWord(LockWord new_val, bool as_volatile) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // All Cas operations defined here have C++11 memory_order_seq_cst ordering
+  // semantics: Preceding memory operations become visible to other threads
+  // before the CAS, and subsequent operations become visible after the CAS.
+  // The Cas operations defined here do not fail spuriously, i.e. they
+  // have C++11 "strong" semantics.
+  // TODO: In most, possibly all, cases, these assumptions are too strong.
+  // Confirm and weaken the implementation.
   bool CasLockWord(LockWord old_val, LockWord new_val) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   uint32_t GetLockOwnerThreadId();
 

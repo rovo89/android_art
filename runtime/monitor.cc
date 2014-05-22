@@ -694,7 +694,7 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
       case LockWord::kUnlocked: {
         LockWord thin_locked(LockWord::FromThinLockId(thread_id, 0));
         if (h_obj->CasLockWord(lock_word, thin_locked)) {
-          QuasiAtomic::MembarLoadLoad();
+          // CasLockWord enforces more than the acquire ordering we need here.
           return h_obj.Get();  // Success!
         }
         continue;  // Go again.

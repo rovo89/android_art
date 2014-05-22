@@ -405,11 +405,9 @@ inline int32_t Object::GetField32(MemberOffset field_offset) {
   const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
   const int32_t* word_addr = reinterpret_cast<const int32_t*>(raw_addr);
   if (UNLIKELY(kIsVolatile)) {
-    int32_t result = *(reinterpret_cast<volatile int32_t*>(const_cast<int32_t*>(word_addr)));
-    QuasiAtomic::MembarLoadLoad();  // Ensure volatile loads don't re-order.
-    return result;
+    return reinterpret_cast<const Atomic<int32_t>*>(word_addr)->LoadSequentiallyConsistent();
   } else {
-    return *word_addr;
+    return reinterpret_cast<const Atomic<int32_t>*>(word_addr)->LoadJavaData();
   }
 }
 
@@ -435,11 +433,9 @@ inline void Object::SetField32(MemberOffset field_offset, int32_t new_value) {
   byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
   int32_t* word_addr = reinterpret_cast<int32_t*>(raw_addr);
   if (kIsVolatile) {
-    QuasiAtomic::MembarStoreStore();  // Ensure this store occurs after others in the queue.
-    *word_addr = new_value;
-    QuasiAtomic::MembarStoreLoad();  // Ensure this store occurs before any volatile loads.
+    reinterpret_cast<Atomic<int32_t>*>(word_addr)->StoreSequentiallyConsistent(new_value);
   } else {
-    *word_addr = new_value;
+    reinterpret_cast<Atomic<int32_t>*>(word_addr)->StoreJavaData(new_value);
   }
 }
 
@@ -461,6 +457,7 @@ inline bool Object::CasField32(MemberOffset field_offset, int32_t old_value, int
   }
   byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
   volatile int32_t* addr = reinterpret_cast<volatile int32_t*>(raw_addr);
+
   return __sync_bool_compare_and_swap(addr, old_value, new_value);
 }
 
@@ -472,11 +469,9 @@ inline int64_t Object::GetField64(MemberOffset field_offset) {
   const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
   const int64_t* addr = reinterpret_cast<const int64_t*>(raw_addr);
   if (kIsVolatile) {
-    int64_t result = QuasiAtomic::Read64(addr);
-    QuasiAtomic::MembarLoadLoad();  // Ensure volatile loads don't re-order.
-    return result;
+    return reinterpret_cast<const Atomic<int64_t>*>(addr)->LoadSequentiallyConsistent();
   } else {
-    return *addr;
+    return reinterpret_cast<const Atomic<int64_t>*>(addr)->LoadJavaData();
   }
 }
 
@@ -502,15 +497,9 @@ inline void Object::SetField64(MemberOffset field_offset, int64_t new_value) {
   byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
   int64_t* addr = reinterpret_cast<int64_t*>(raw_addr);
   if (kIsVolatile) {
-    QuasiAtomic::MembarStoreStore();  // Ensure this store occurs after others in the queue.
-    QuasiAtomic::Write64(addr, new_value);
-    if (!QuasiAtomic::LongAtomicsUseMutexes()) {
-      QuasiAtomic::MembarStoreLoad();  // Ensure this store occurs before any volatile loads.
-    } else {
-      // Fence from from mutex is enough.
-    }
+    reinterpret_cast<Atomic<int64_t>*>(addr)->StoreSequentiallyConsistent(new_value);
   } else {
-    *addr = new_value;
+    reinterpret_cast<Atomic<int64_t>*>(addr)->StoreJavaData(new_value);
   }
 }
 
@@ -546,7 +535,8 @@ inline T* Object::GetFieldObject(MemberOffset field_offset) {
   HeapReference<T>* objref_addr = reinterpret_cast<HeapReference<T>*>(raw_addr);
   T* result = ReadBarrier::Barrier<T, kReadBarrierOption>(this, field_offset, objref_addr);
   if (kIsVolatile) {
-    QuasiAtomic::MembarLoadLoad();  // Ensure loads don't re-order.
+    // TODO: Refactor to use a SequentiallyConsistent load instead.
+    QuasiAtomic::ThreadFenceAcquire();  // Ensure visibility of operations preceding store.
   }
   if (kVerifyFlags & kVerifyReads) {
     VerifyObject(result);
@@ -584,9 +574,11 @@ inline void Object::SetFieldObjectWithoutWriteBarrier(MemberOffset field_offset,
   byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
   HeapReference<Object>* objref_addr = reinterpret_cast<HeapReference<Object>*>(raw_addr);
   if (kIsVolatile) {
-    QuasiAtomic::MembarStoreStore();  // Ensure this store occurs after others in the queue.
+    // TODO: Refactor to use a SequentiallyConsistent store instead.
+    QuasiAtomic::ThreadFenceRelease();  // Ensure that prior accesses are visible before store.
     objref_addr->Assign(new_value);
-    QuasiAtomic::MembarStoreLoad();  // Ensure this store occurs before any loads.
+    QuasiAtomic::ThreadFenceSequentiallyConsistent();
+                                // Ensure this store occurs before any volatile loads.
   } else {
     objref_addr->Assign(new_value);
   }
