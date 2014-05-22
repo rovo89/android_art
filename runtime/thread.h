@@ -1045,9 +1045,6 @@ class Thread {
     // A cached pthread_t for the pthread underlying this Thread*.
     pthread_t pthread_self;
 
-    // Support for Mutex lock hierarchy bug detection.
-    BaseMutex* held_mutexes[kLockLevelCount];
-
     // If no_thread_suspension_ is > 0, what is causing that assertion.
     const char* last_no_thread_suspension_cause;
 
@@ -1074,6 +1071,9 @@ class Thread {
     // Thread-local allocation stack data/routines.
     mirror::Object** thread_local_alloc_stack_top;
     mirror::Object** thread_local_alloc_stack_end;
+
+    // Support for Mutex lock hierarchy bug detection.
+    BaseMutex* held_mutexes[kLockLevelCount];
   } tlsPtr_;
 
   // Guards the 'interrupted_' and 'wait_monitor_' members.

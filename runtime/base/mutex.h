@@ -74,6 +74,8 @@ enum LockLevel {
   kPinTableLock,
   kLoadLibraryLock,
   kJdwpObjectRegistryLock,
+  kModifyLdtLock,
+  kAllocatedThreadIdsLock,
   kClassLinkerClassesLock,
   kBreakpointLock,
   kMonitorLock,
@@ -532,28 +534,34 @@ class Locks {
   // Guards shutdown of the runtime.
   static Mutex* runtime_shutdown_lock_ ACQUIRED_AFTER(heap_bitmap_lock_);
 
+  // Guards background profiler global state.
+  static Mutex* profiler_lock_ ACQUIRED_AFTER(runtime_shutdown_lock_);
+
+  // Guards trace (ie traceview) requests.
+  static Mutex* trace_lock_ ACQUIRED_AFTER(profiler_lock_);
+
   // The thread_list_lock_ guards ThreadList::list_. It is also commonly held to stop threads
   // attaching and detaching.
-  static Mutex* thread_list_lock_ ACQUIRED_AFTER(runtime_shutdown_lock_);
+  static Mutex* thread_list_lock_ ACQUIRED_AFTER(trace_lock_);
 
   // Guards breakpoints.
   static Mutex* breakpoint_lock_ ACQUIRED_AFTER(thread_list_lock_);
 
-  // Guards trace requests.
-  static Mutex* trace_lock_ ACQUIRED_AFTER(breakpoint_lock_);
-
-  // Guards profile objects.
-  static Mutex* profiler_lock_ ACQUIRED_AFTER(trace_lock_);
-
   // Guards lists of classes within the class linker.
-  static ReaderWriterMutex* classlinker_classes_lock_ ACQUIRED_AFTER(profiler_lock_);
+  static ReaderWriterMutex* classlinker_classes_lock_ ACQUIRED_AFTER(breakpoint_lock_);
 
   // When declaring any Mutex add DEFAULT_MUTEX_ACQUIRED_AFTER to use annotalysis to check the code
   // doesn't try to hold a higher level Mutex.
   #define DEFAULT_MUTEX_ACQUIRED_AFTER ACQUIRED_AFTER(Locks::classlinker_classes_lock_)
 
+  // Guard the allocation/deallocation of thread ids.
+  static Mutex* allocated_thread_ids_lock_ ACQUIRED_AFTER(classlinker_classes_lock_);
+
+  // Guards modification of the LDT on x86.
+  static Mutex* modify_ldt_lock_ ACQUIRED_AFTER(allocated_thread_ids_lock_);
+
   // Guards intern table.
-  static Mutex* intern_table_lock_ ACQUIRED_AFTER(classlinker_classes_lock_);
+  static Mutex* intern_table_lock_ ACQUIRED_AFTER(modify_ldt_lock_);
 
   // Have an exclusive aborting thread.
   static Mutex* abort_lock_ ACQUIRED_AFTER(classlinker_classes_lock_);
