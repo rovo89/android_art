@@ -451,7 +451,7 @@ TEST_F(ObjectTest, DescriptorCompare) {
 
   jobject jclass_loader_1 = LoadDex("ProtoCompare");
   jobject jclass_loader_2 = LoadDex("ProtoCompare2");
-  StackHandleScope<2> hs(soa.Self());
+  StackHandleScope<4> hs(soa.Self());
   Handle<ClassLoader> class_loader_1(hs.NewHandle(soa.Decode<ClassLoader*>(jclass_loader_1)));
   Handle<ClassLoader> class_loader_2(hs.NewHandle(soa.Decode<ClassLoader*>(jclass_loader_2)));
 
@@ -461,33 +461,25 @@ TEST_F(ObjectTest, DescriptorCompare) {
   ASSERT_TRUE(klass2 != NULL);
 
   ArtMethod* m1_1 = klass1->GetVirtualMethod(0);
-  MethodHelper mh(m1_1);
-  EXPECT_STREQ(mh.GetName(), "m1");
+  EXPECT_STREQ(m1_1->GetName(), "m1");
   ArtMethod* m2_1 = klass1->GetVirtualMethod(1);
-  mh.ChangeMethod(m2_1);
-  EXPECT_STREQ(mh.GetName(), "m2");
+  EXPECT_STREQ(m2_1->GetName(), "m2");
   ArtMethod* m3_1 = klass1->GetVirtualMethod(2);
-  mh.ChangeMethod(m3_1);
-  EXPECT_STREQ(mh.GetName(), "m3");
+  EXPECT_STREQ(m3_1->GetName(), "m3");
   ArtMethod* m4_1 = klass1->GetVirtualMethod(3);
-  mh.ChangeMethod(m4_1);
-  EXPECT_STREQ(mh.GetName(), "m4");
+  EXPECT_STREQ(m4_1->GetName(), "m4");
 
   ArtMethod* m1_2 = klass2->GetVirtualMethod(0);
-  mh.ChangeMethod(m1_2);
-  EXPECT_STREQ(mh.GetName(), "m1");
+  EXPECT_STREQ(m1_2->GetName(), "m1");
   ArtMethod* m2_2 = klass2->GetVirtualMethod(1);
-  mh.ChangeMethod(m2_2);
-  EXPECT_STREQ(mh.GetName(), "m2");
+  EXPECT_STREQ(m2_2->GetName(), "m2");
   ArtMethod* m3_2 = klass2->GetVirtualMethod(2);
-  mh.ChangeMethod(m3_2);
-  EXPECT_STREQ(mh.GetName(), "m3");
+  EXPECT_STREQ(m3_2->GetName(), "m3");
   ArtMethod* m4_2 = klass2->GetVirtualMethod(3);
-  mh.ChangeMethod(m4_2);
-  EXPECT_STREQ(mh.GetName(), "m4");
+  EXPECT_STREQ(m4_2->GetName(), "m4");
 
-  mh.ChangeMethod(m1_1);
-  MethodHelper mh2(m1_2);
+  MethodHelper mh(hs.NewHandle(m1_1));
+  MethodHelper mh2(hs.NewHandle(m1_2));
   EXPECT_TRUE(mh.HasSameNameAndSignature(&mh2));
   EXPECT_TRUE(mh2.HasSameNameAndSignature(&mh));
 

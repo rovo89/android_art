@@ -328,11 +328,13 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (UNLIKELY(self->TestAllFlags())) {
       CheckSuspend(self);
     }
-    Object* obj_result = shadow_frame.GetVRegReference(inst->VRegA_11x(inst_data));
-    result.SetJ(0);
-    result.SetL(obj_result);
+    const uint8_t vreg_index = inst->VRegA_11x(inst_data);
+    Object* obj_result = shadow_frame.GetVRegReference(vreg_index);
     if (do_assignability_check && obj_result != NULL) {
-      Class* return_type = MethodHelper(shadow_frame.GetMethod()).GetReturnType();
+      StackHandleScope<1> hs(self);
+      MethodHelper mh(hs.NewHandle(shadow_frame.GetMethod()));
+      Class* return_type = mh.GetReturnType();
+      obj_result = shadow_frame.GetVRegReference(vreg_index);
       if (return_type == NULL) {
         // Return the pending exception.
         HANDLE_PENDING_EXCEPTION();
@@ -347,6 +349,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
         HANDLE_PENDING_EXCEPTION();
       }
     }
+    result.SetL(obj_result);
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),

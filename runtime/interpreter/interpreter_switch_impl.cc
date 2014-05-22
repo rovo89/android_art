@@ -244,11 +244,14 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
         }
-        Object* obj_result = shadow_frame.GetVRegReference(inst->VRegA_11x(inst_data));
-        result.SetJ(0);
-        result.SetL(obj_result);
+        const size_t ref_idx = inst->VRegA_11x(inst_data);
+        Object* obj_result = shadow_frame.GetVRegReference(ref_idx);
         if (do_assignability_check && obj_result != NULL) {
-          Class* return_type = MethodHelper(shadow_frame.GetMethod()).GetReturnType();
+          StackHandleScope<1> hs(self);
+          MethodHelper mhs(hs.NewHandle(shadow_frame.GetMethod()));
+          Class* return_type = mhs.GetReturnType();
+          // Re-load since it might have moved.
+          obj_result = shadow_frame.GetVRegReference(ref_idx);
           if (return_type == NULL) {
             // Return the pending exception.
             HANDLE_PENDING_EXCEPTION();
@@ -263,6 +266,7 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
             HANDLE_PENDING_EXCEPTION();
           }
         }
+        result.SetL(obj_result);
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),

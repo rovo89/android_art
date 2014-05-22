@@ -40,7 +40,7 @@ mirror::Object* ShadowFrame::GetThisObject() const {
   } else if (m->IsNative()) {
     return GetVRegReference(0);
   } else {
-    const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+    const DexFile::CodeItem* code_item = m->GetCodeItem();
     CHECK(code_item != NULL) << PrettyMethod(m);
     uint16_t reg = code_item->registers_size_ - code_item->ins_size_;
     return GetVRegReference(reg);
@@ -125,7 +125,7 @@ mirror::Object* StackVisitor::GetThisObject() const {
       return cur_shadow_frame_->GetVRegReference(0);
     }
   } else {
-    const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+    const DexFile::CodeItem* code_item = m->GetCodeItem();
     if (code_item == NULL) {
       UNIMPLEMENTED(ERROR) << "Failed to determine this object of abstract or proxy method: "
           << PrettyMethod(m);
@@ -157,7 +157,7 @@ uint32_t StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kin
       uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
       return GetGPR(vmap_table.ComputeRegister(spill_mask, vmap_offset, kind));
     } else {
-      const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+      const DexFile::CodeItem* code_item = m->GetCodeItem();
       DCHECK(code_item != NULL) << PrettyMethod(m);  // Can't be NULL or how would we compile its instructions?
       return *GetVRegAddr(cur_quick_frame_, code_item, frame_info.CoreSpillMask(),
                           frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), vreg);
@@ -184,7 +184,7 @@ void StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_val
       const uint32_t reg = vmap_table.ComputeRegister(spill_mask, vmap_offset, kReferenceVReg);
       SetGPR(reg, new_value);
     } else {
-      const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+      const DexFile::CodeItem* code_item = m->GetCodeItem();
       DCHECK(code_item != NULL) << PrettyMethod(m);  // Can't be NULL or how would we compile its instructions?
       int offset = GetVRegOffset(code_item, frame_info.CoreSpillMask(), frame_info.FpSpillMask(),
                                  frame_info.FrameSizeInBytes(), vreg, kRuntimeISA);

@@ -209,7 +209,6 @@ class OatDumper {
   }
 
   const void* GetQuickOatCode(mirror::ArtMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    MethodHelper mh(m);
     for (size_t i = 0; i < oat_dex_files_.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
       CHECK(oat_dex_file != nullptr);
@@ -220,7 +219,7 @@ class OatDumper {
             << "': " << error_msg;
       } else {
         const DexFile::ClassDef* class_def =
-            dex_file->FindClassDef(mh.GetDeclaringClassDescriptor());
+            dex_file->FindClassDef(m->GetDeclaringClassDescriptor());
         if (class_def != NULL) {
           uint16_t class_def_index = dex_file->GetIndexForClassDef(*class_def);
           const OatFile::OatClass oat_class = oat_dex_file->GetOatClass(class_def_index);
@@ -1094,11 +1093,11 @@ class ImageDumper {
         }
       } else if (method->IsAbstract() || method->IsCalleeSaveMethod() ||
           method->IsResolutionMethod() || method->IsImtConflictMethod() ||
-          MethodHelper(method).IsClassInitializer()) {
+          method->IsClassInitializer()) {
         DCHECK(method->GetNativeGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else {
-        const DexFile::CodeItem* code_item = MethodHelper(method).GetCodeItem();
+        const DexFile::CodeItem* code_item = method->GetCodeItem();
         size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;
         state->stats_.dex_instruction_bytes += dex_instruction_bytes;
 

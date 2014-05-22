@@ -71,11 +71,13 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
       DCHECK(method->IsCalleeSaveMethod());
       return true;
     }
-    return HandleTryItems(method);
+    StackHandleScope<1> hs(self_);
+    return HandleTryItems(hs.NewHandle(method));
   }
 
  private:
-  bool HandleTryItems(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool HandleTryItems(Handle<mirror::ArtMethod> method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t dex_pc = DexFile::kDexNoIndex;
     if (!method->IsNative()) {
       dex_pc = GetDexPc();
@@ -84,10 +86,11 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
       bool clear_exception = false;
       StackHandleScope<1> hs(Thread::Current());
       Handle<mirror::Class> to_find(hs.NewHandle((*exception_)->GetClass()));
-      uint32_t found_dex_pc = method->FindCatchBlock(to_find, dex_pc, &clear_exception);
+      uint32_t found_dex_pc = mirror::ArtMethod::FindCatchBlock(method, to_find, dex_pc,
+                                                                &clear_exception);
       exception_handler_->SetClearException(clear_exception);
       if (found_dex_pc != DexFile::kDexNoIndex) {
-        exception_handler_->SetHandlerMethod(method);
+        exception_handler_->SetHandlerMethod(method.Get());
         exception_handler_->SetHandlerDexPc(found_dex_pc);
         exception_handler_->SetHandlerQuickFramePc(method->ToNativePc(found_dex_pc));
         exception_handler_->SetHandlerQuickFrame(GetCurrentQuickFrame());
@@ -175,8 +178,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
 
  private:
   bool HandleDeoptimization(mirror::ArtMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    MethodHelper mh(m);
-    const DexFile::CodeItem* code_item = mh.GetCodeItem();
+    const DexFile::CodeItem* code_item = m->GetCodeItem();
     CHECK(code_item != nullptr);
     uint16_t num_regs = code_item->registers_size_;
     uint32_t dex_pc = GetDexPc();
@@ -184,10 +186,11 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     uint32_t new_dex_pc = dex_pc + inst->SizeInCodeUnits();
     ShadowFrame* new_frame = ShadowFrame::Create(num_regs, nullptr, m, new_dex_pc);
     StackHandleScope<2> hs(self_);
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(mh.GetDexCache()));
-    Handle<mirror::ClassLoader> class_loader(hs.NewHandle(mh.GetClassLoader()));
-    verifier::MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader,
-                                      &mh.GetClassDef(), code_item, m->GetDexMethodIndex(), m,
+    mirror::Class* declaring_class = m->GetDeclaringClass();
+    Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
+    Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
+    verifier::MethodVerifier verifier(h_dex_cache->GetDexFile(), &h_dex_cache, &h_class_loader,
+                                      &m->GetClassDef(), code_item, m->GetDexMethodIndex(), m,
                                       m->GetAccessFlags(), false, true, true);
     verifier.Verify();
     std::vector<int32_t> kinds = verifier.DescribeVRegs(dex_pc);

@@ -366,11 +366,9 @@ ArtMethod* Class::FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_me
 }
 
 ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) {
-  MethodHelper mh;
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
     ArtMethod* method = GetDirectMethod(i);
-    mh.ChangeMethod(method);
-    if (name == mh.GetName() && mh.GetSignature() == signature) {
+    if (name == method->GetName() && method->GetSignature() == signature) {
       return method;
     }
   }
@@ -378,11 +376,9 @@ ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const String
 }
 
 ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const Signature& signature) {
-  MethodHelper mh;
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
     ArtMethod* method = GetDirectMethod(i);
-    mh.ChangeMethod(method);
-    if (name == mh.GetName() && signature == mh.GetSignature()) {
+    if (name == method->GetName() && signature == method->GetSignature()) {
       return method;
     }
   }
@@ -432,24 +428,19 @@ ArtMethod* Class::FindDirectMethod(const DexCache* dex_cache, uint32_t dex_metho
 }
 
 ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature) {
-  MethodHelper mh;
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
     ArtMethod* method = GetVirtualMethod(i);
-    mh.ChangeMethod(method);
-    if (name == mh.GetName() && mh.GetSignature() == signature) {
+    if (name == method->GetName() && method->GetSignature() == signature) {
       return method;
     }
   }
   return NULL;
 }
 
-ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name,
-                                            const Signature& signature) {
-  MethodHelper mh;
+ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name, const Signature& signature) {
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
     ArtMethod* method = GetVirtualMethod(i);
-    mh.ChangeMethod(method);
-    if (name == mh.GetName() && signature == mh.GetSignature()) {
+    if (name == method->GetName() && signature == method->GetSignature()) {
       return method;
     }
   }
@@ -501,13 +492,9 @@ ArtMethod* Class::FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_meth
 ArtMethod* Class::FindClassInitializer() {
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
     ArtMethod* method = GetDirectMethod(i);
-    if (method->IsConstructor() && method->IsStatic()) {
-      if (kIsDebugBuild) {
-        MethodHelper mh(method);
-        CHECK(mh.IsClassInitializer());
-        CHECK_STREQ(mh.GetName(), "<clinit>");
-        CHECK_STREQ(mh.GetSignature().ToString().c_str(), "()V");
-      }
+    if (method->IsClassInitializer()) {
+      DCHECK_STREQ(method->GetName(), "<clinit>");
+      DCHECK_STREQ(method->GetSignature().ToString().c_str(), "()V");
       return method;
     }
   }

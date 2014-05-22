@@ -967,14 +967,13 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
   }
 
   // <clinit> is another special case. The runtime holds the class lock while calling <clinit>.
-  MethodHelper mh(m);
-  if (mh.IsClassInitializer()) {
+  if (m->IsClassInitializer()) {
     callback(m->GetDeclaringClass(), callback_context);
     // Fall through because there might be synchronization in the user code too.
   }
 
   // Is there any reason to believe there's any synchronization in this method?
-  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  const DexFile::CodeItem* code_item = m->GetCodeItem();
   CHECK(code_item != NULL) << PrettyMethod(m);
   if (code_item->tries_size_ == 0) {
     return;  // No "tries" implies no synchronization, so no held locks to report.
@@ -1048,12 +1047,11 @@ void Monitor::TranslateLocation(mirror::ArtMethod* method, uint32_t dex_pc,
     *line_number = 0;
     return;
   }
-  MethodHelper mh(method);
-  *source_file = mh.GetDeclaringClassSourceFile();
+  *source_file = method->GetDeclaringClassSourceFile();
   if (*source_file == NULL) {
     *source_file = "";
   }
-  *line_number = mh.GetLineNumFromDexPC(dex_pc);
+  *line_number = method->GetLineNumFromDexPC(dex_pc);
 }
 
 uint32_t Monitor::GetOwnerThreadId() {

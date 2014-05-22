@@ -26,18 +26,20 @@ namespace art {
 
 class Thread;
 
+template<class T> class Handle;
+
 template<class T>
-class Handle {
+class ConstHandle {
  public:
-  Handle() : reference_(nullptr) {
+  ConstHandle() : reference_(nullptr) {
   }
-  Handle(const Handle<T>& handle) ALWAYS_INLINE : reference_(handle.reference_) {
+  ConstHandle(const ConstHandle<T>& handle) ALWAYS_INLINE : reference_(handle.reference_) {
   }
-  Handle<T>& operator=(const Handle<T>& handle) ALWAYS_INLINE {
+  ConstHandle<T>& operator=(const ConstHandle<T>& handle) ALWAYS_INLINE {
     reference_ = handle.reference_;
     return *this;
   }
-  explicit Handle(StackReference<T>* reference) ALWAYS_INLINE : reference_(reference) {
+  explicit ConstHandle(StackReference<T>* reference) ALWAYS_INLINE : reference_(reference) {
   }
   T& operator*() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
     return *Get();
@@ -47,11 +49,6 @@ class Handle {
   }
   T* Get() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
     return reference_->AsMirrorPtr();
-  }
-  T* Assign(T* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
-    T* old = reference_->AsMirrorPtr();
-    reference_->Assign(reference);
-    return old;
   }
   jobject ToJObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
     if (UNLIKELY(reference_->AsMirrorPtr() == nullptr)) {
@@ -65,16 +62,61 @@ class Handle {
   StackReference<T>* reference_;
 
   template<typename S>
-  explicit Handle(StackReference<S>* reference)
+  explicit ConstHandle(StackReference<S>* reference)
       : reference_(reinterpret_cast<StackReference<T>*>(reference)) {
   }
   template<typename S>
-  explicit Handle(const Handle<S>& handle)
+  explicit ConstHandle(const ConstHandle<S>& handle)
       : reference_(reinterpret_cast<StackReference<T>*>(handle.reference_)) {
   }
 
   StackReference<T>* GetReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
     return reference_;
+  }
+  const StackReference<T>* GetReference() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      ALWAYS_INLINE {
+    return reference_;
+  }
+
+ private:
+  friend class BuildGenericJniFrameVisitor;
+  template<class S> friend class ConstHandle;
+  friend class HandleScope;
+  template<class S> friend class HandleWrapper;
+  template<size_t kNumReferences> friend class StackHandleScope;
+};
+
+template<class T>
+class Handle : public ConstHandle<T> {
+ public:
+  Handle() {
+  }
+  Handle(const Handle<T>& handle) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE
+      : ConstHandle<T>(handle.reference_) {
+  }
+  Handle<T>& operator=(const Handle<T>& handle) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      ALWAYS_INLINE {
+    ConstHandle<T>::operator=(handle);
+    return *this;
+  }
+  explicit Handle(StackReference<T>* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      ALWAYS_INLINE : ConstHandle<T>(reference) {
+  }
+  T* Assign(T* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
+    StackReference<T>* ref = ConstHandle<T>::GetReference();
+    T* const old = ref->AsMirrorPtr();
+    ref->Assign(reference);
+    return old;
+  }
+
+ protected:
+  template<typename S>
+  explicit Handle(StackReference<S>* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : ConstHandle<T>(reference) {
+  }
+  template<typename S>
+  explicit Handle(const Handle<S>& handle) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : ConstHandle<T>(handle) {
   }
 
  private:

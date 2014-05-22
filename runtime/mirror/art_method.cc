@@ -142,16 +142,16 @@ ArtMethod* ArtMethod::FindOverriddenMethod() {
       CHECK_EQ(result,
                Runtime::Current()->GetClassLinker()->FindMethodForProxy(GetDeclaringClass(), this));
     } else {
-      MethodHelper mh(this);
-      MethodHelper interface_mh;
+      StackHandleScope<2> hs(Thread::Current());
+      MethodHelper mh(hs.NewHandle(this));
+      MethodHelper interface_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
       IfTable* iftable = GetDeclaringClass()->GetIfTable();
       for (size_t i = 0; i < iftable->Count() && result == NULL; i++) {
         Class* interface = iftable->GetInterface(i);
         for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
-          ArtMethod* interface_method = interface->GetVirtualMethod(j);
-          interface_mh.ChangeMethod(interface_method);
+          interface_mh.ChangeMethod(interface->GetVirtualMethod(j));
           if (mh.HasSameNameAndSignature(&interface_mh)) {
-            result = interface_method;
+            result = interface_mh.GetMethod();
             break;
           }
         }
@@ -159,8 +159,10 @@ ArtMethod* ArtMethod::FindOverriddenMethod() {
     }
   }
 #ifndef NDEBUG
-  MethodHelper result_mh(result);
-  DCHECK(result == NULL || MethodHelper(this).HasSameNameAndSignature(&result_mh));
+  StackHandleScope<2> hs(Thread::Current());
+  MethodHelper result_mh(hs.NewHandle(result));
+  MethodHelper this_mh(hs.NewHandle(this));
+  DCHECK(result == NULL || this_mh.HasSameNameAndSignature(&result_mh));
 #endif
   return result;
 }
@@ -229,10 +231,10 @@ uintptr_t ArtMethod::ToNativePc(const uint32_t dex_pc) {
   return 0;
 }
 
-uint32_t ArtMethod::FindCatchBlock(Handle<Class> exception_type, uint32_t dex_pc,
-                                   bool* has_no_move_exception) {
-  MethodHelper mh(this);
-  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+uint32_t ArtMethod::FindCatchBlock(Handle<ArtMethod> h_this, Handle<Class> exception_type,
+                                   uint32_t dex_pc, bool* has_no_move_exception) {
+  MethodHelper mh(h_this);
+  const DexFile::CodeItem* code_item = h_this->GetCodeItem();
   // Set aside the exception while we resolve its type.
   Thread* self = Thread::Current();
   ThrowLocation throw_location;
@@ -260,7 +262,7 @@ uint32_t ArtMethod::FindCatchBlock(Handle<Class> exception_type, uint32_t dex_pc
       // release its in use context at the end.
       delete self->GetLongJumpContext();
       LOG(WARNING) << "Unresolved exception class when finding catch block: "
-        << DescriptorToDot(mh.GetTypeDescriptorFromTypeIdx(iter_type_idx));
+        << DescriptorToDot(h_this->GetTypeDescriptorFromTypeIdx(iter_type_idx));
     } else if (iter_exception_type->IsAssignableFrom(exception_type.Get())) {
       found_dex_pc = it.GetHandlerAddress();
       break;
@@ -283,7 +285,7 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
   if (kIsDebugBuild) {
     self->AssertThreadSuspensionIsAllowable();
     CHECK_EQ(kRunnable, self->GetState());
-    CHECK_STREQ(MethodHelper(this).GetShorty(), shorty);
+    CHECK_STREQ(GetShorty(), shorty);
   }
 
   // Push a transition back into managed code onto the linked list in thread.
