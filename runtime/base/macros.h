@@ -169,7 +169,7 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 // bionic and glibc both have TEMP_FAILURE_RETRY, but Mac OS' libc doesn't.
 #ifndef TEMP_FAILURE_RETRY
 #define TEMP_FAILURE_RETRY(exp) ({ \
-  typeof(exp) _rc; \
+  decltype(exp) _rc; \
   do { \
     _rc = (exp); \
   } while (_rc == -1 && errno == EINTR); \
