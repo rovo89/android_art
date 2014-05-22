@@ -447,8 +447,11 @@ RegStorage Mir2Lir::AllocLiveReg(int s_reg, int reg_class, bool wide) {
     reg = FindLiveReg(wide ? reg_pool_->dp_regs_ : reg_pool_->sp_regs_, s_reg);
   }
   if (!reg.Valid() && (reg_class != kFPReg)) {
-    // TODO: add 64-bit core pool similar to above.
-    reg = FindLiveReg(reg_pool_->core_regs_, s_reg);
+    if (Is64BitInstructionSet(cu_->instruction_set)) {
+      reg = FindLiveReg(wide ? reg_pool_->core64_regs_ : reg_pool_->core_regs_, s_reg);
+    } else {
+      reg = FindLiveReg(reg_pool_->core_regs_, s_reg);
+    }
   }
   if (reg.Valid()) {
     if (wide && !reg.IsFloat() && !Is64BitInstructionSet(cu_->instruction_set)) {

@@ -1611,10 +1611,6 @@ END art_quick_to_interpreter_bridge
 UNIMPLEMENTED art_quick_instrumentation_entry
 UNIMPLEMENTED art_quick_instrumentation_exit
 UNIMPLEMENTED art_quick_deoptimize
-UNIMPLEMENTED art_quick_mul_long
-UNIMPLEMENTED art_quick_shl_long
-UNIMPLEMENTED art_quick_shr_long
-UNIMPLEMENTED art_quick_ushr_long
 UNIMPLEMENTED art_quick_indexof
 
    /*
