@@ -19,49 +19,21 @@
 
 #include <string>
 
+#include "base/macros.h"
 namespace art {
 
-// Forward declarations.
-struct BasicBlock;
-struct CompilationUnit;
-class Pass;
-
-/**
- * @brief OptimizationFlag is an enumeration to perform certain tasks for a given pass.
- * @details Each enum should be a power of 2 to be correctly used.
- */
-enum OptimizationFlag {
-};
-
-enum DataFlowAnalysisMode {
-  kAllNodes = 0,                           /**< @brief All nodes. */
-  kPreOrderDFSTraversal,                   /**< @brief Depth-First-Search / Pre-Order. */
-  kRepeatingPreOrderDFSTraversal,          /**< @brief Depth-First-Search / Repeating Pre-Order. */
-  kReversePostOrderDFSTraversal,           /**< @brief Depth-First-Search / Reverse Post-Order. */
-  kRepeatingPostOrderDFSTraversal,         /**< @brief Depth-First-Search / Repeating Post-Order. */
-  kRepeatingReversePostOrderDFSTraversal,  /**< @brief Depth-First-Search / Repeating Reverse Post-Order. */
-  kPostOrderDOMTraversal,                  /**< @brief Dominator tree / Post-Order. */
-  kNoNodes,                                /**< @brief Skip BasicBlock traversal. */
+// Empty Pass Data Class, can be extended by any pass extending the base Pass class.
+class PassDataHolder {
 };
 
 /**
  * @class Pass
- * @brief Pass is the Pass structure for the optimizations.
- * @details The following structure has the different optimization passes that we are going to do.
+ * @brief Base Pass class, can be extended to perform a more defined way of doing the work call.
  */
 class Pass {
  public:
-  explicit Pass(const char* name, DataFlowAnalysisMode type = kAllNodes,
-                unsigned int flags = 0u, const char* dump = "")
-    : pass_name_(name), traversal_type_(type), flags_(flags), dump_cfg_folder_(dump) {
-  }
-
-  Pass(const char* name, DataFlowAnalysisMode type, const char* dump)
-    : pass_name_(name), traversal_type_(type), flags_(0), dump_cfg_folder_(dump) {
-  }
-
-  Pass(const char* name, const char* dump)
-    : pass_name_(name), traversal_type_(kAllNodes), flags_(0), dump_cfg_folder_(dump) {
+  explicit Pass(const char* name)
+    : pass_name_(name) {
   }
 
   virtual ~Pass() {
@@ -71,59 +43,42 @@ class Pass {
     return pass_name_;
   }
 
-  virtual DataFlowAnalysisMode GetTraversal() const {
-    return traversal_type_;
-  }
-
-  virtual bool GetFlag(OptimizationFlag flag) const {
-    return (flags_ & flag);
-  }
-
-  const char* GetDumpCFGFolder() const {
-    return dump_cfg_folder_;
-  }
-
   /**
    * @brief Gate for the pass: determines whether to execute the pass or not considering a CompilationUnit
-   * @param c_unit the CompilationUnit.
-   * @return whether or not to execute the pass
+   * @param data the PassDataHolder.
+   * @return whether or not to execute the pass.
    */
-  virtual bool Gate(const CompilationUnit* c_unit) const {
+  virtual bool Gate(const PassDataHolder* data) const {
     // Unused parameter.
-    UNUSED(c_unit);
+    UNUSED(data);
 
     // Base class says yes.
     return true;
   }
 
   /**
-   * @brief Start of the pass: called before the WalkBasicBlocks function
-   * @param c_unit the considered CompilationUnit.
+   * @brief Start of the pass: called before the Worker function.
    */
-  virtual void Start(CompilationUnit* c_unit) const {
+  virtual void Start(const PassDataHolder* data) const {
     // Unused parameter.
-    UNUSED(c_unit);
+    UNUSED(data);
   }
 
   /**
-   * @brief End of the pass: called after the WalkBasicBlocks function
-   * @param c_unit the considered CompilationUnit.
+   * @brief End of the pass: called after the WalkBasicBlocks function.
    */
-  virtual void End(CompilationUnit* c_unit) const {
+  virtual void End(const PassDataHolder* data) const {
     // Unused parameter.
-    UNUSED(c_unit);
+    UNUSED(data);
   }
 
   /**
-   * @brief Actually walk the BasicBlocks following a particular traversal type.
-   * @param c_unit the CompilationUnit.
-   * @param bb the BasicBlock.
+   * @param data the object containing data necessary for the pass.
    * @return whether or not there is a change when walking the BasicBlock
    */
-  virtual bool WalkBasicBlocks(CompilationUnit* c_unit, BasicBlock* bb) const {
-    // Unused parameters.
-    UNUSED(c_unit);
-    UNUSED(bb);
+  virtual bool Worker(const PassDataHolder* data) const {
+    // Unused parameter.
+    UNUSED(data);
 
     // BasicBlock did not change.
     return false;
@@ -132,15 +87,6 @@ class Pass {
  protected:
   /** @brief The pass name: used for searching for a pass when running a particular pass or debugging. */
   const char* const pass_name_;
-
-  /** @brief Type of traversal: determines the order to execute the pass on the BasicBlocks. */
-  const DataFlowAnalysisMode traversal_type_;
-
-  /** @brief Flags for additional directives: used to determine if a particular clean-up is necessary post pass. */
-  const unsigned int flags_;
-
-  /** @brief CFG Dump Folder: what sub-folder to use for dumping the CFGs post pass. */
-  const char* const dump_cfg_folder_;
 
  private:
   // In order to make the all passes not copy-friendly.
