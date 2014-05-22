@@ -84,7 +84,8 @@ void InternTable::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags f
 
 mirror::String* InternTable::Lookup(Table& table, mirror::String* s, int32_t hash_code) {
   Locks::intern_table_lock_->AssertHeld(Thread::Current());
-  for (auto it = table.find(hash_code), end = table.end(); it != end; ++it) {
+  for (auto it = table.lower_bound(hash_code), end = table.end();
+       it != end && it->first == hash_code; ++it) {
     mirror::String* existing_string = it->second;
     if (existing_string->Equals(s)) {
       return existing_string;
@@ -123,7 +124,8 @@ void InternTable::RemoveWeak(mirror::String* s, int32_t hash_code) {
 }
 
 void InternTable::Remove(Table& table, mirror::String* s, int32_t hash_code) {
-  for (auto it = table.find(hash_code), end = table.end(); it != end; ++it) {
+  for (auto it = table.lower_bound(hash_code), end = table.end();
+       it != end && it->first == hash_code; ++it) {
     if (it->second == s) {
       table.erase(it);
       return;
