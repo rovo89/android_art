@@ -361,10 +361,11 @@ void ElfWriterMclinker::FixupOatMethodOffsets(const std::vector<const DexFile*>&
       ClassLinker* linker = Runtime::Current()->GetClassLinker();
       // Unchecked as we hold mutator_lock_ on entry.
       ScopedObjectAccessUnchecked soa(Thread::Current());
-      StackHandleScope<2> hs(soa.Self());
+      StackHandleScope<1> hs(soa.Self());
       Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->FindDexCache(dex_file)));
-      auto class_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
-      method = linker->ResolveMethod(dex_file, method_idx, dex_cache, class_loader, NULL, invoke_type);
+      method = linker->ResolveMethod(dex_file, method_idx, dex_cache,
+                                     NullHandle<mirror::ClassLoader>(),
+                                     NullHandle<mirror::ArtMethod>(), invoke_type);
       CHECK(method != NULL);
     }
     const CompiledMethod* compiled_method =

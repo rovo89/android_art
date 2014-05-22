@@ -116,7 +116,7 @@ class Monitor {
     return monitor_id_;
   }
 
-  static void InflateThinLocked(Thread* self, Handle<mirror::Object>& obj, LockWord lock_word,
+  static void InflateThinLocked(Thread* self, Handle<mirror::Object> obj, LockWord lock_word,
                                 uint32_t hash_code) NO_THREAD_SAFETY_ANALYSIS;
 
   static bool Deflate(Thread* self, mirror::Object* obj)

@@ -131,7 +131,7 @@ String* String::Alloc(Thread* self, int32_t utf16_length) {
   return Alloc(self, array);
 }
 
-String* String::Alloc(Thread* self, const Handle<CharArray>& array) {
+String* String::Alloc(Thread* self, Handle<CharArray> array) {
   // Hold reference in case AllocObject causes GC.
   String* string = down_cast<String*>(GetJavaLangString()->AllocObject(self));
   if (LIKELY(string != nullptr)) {

@@ -695,15 +695,14 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
 static ArtMethod* GetTargetMethod(const CompilerDriver::CallPatchInformation* patch)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  StackHandleScope<2> hs(Thread::Current());
+  StackHandleScope<1> hs(Thread::Current());
   Handle<mirror::DexCache> dex_cache(
       hs.NewHandle(class_linker->FindDexCache(*patch->GetTargetDexFile())));
-  auto class_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
   ArtMethod* method = class_linker->ResolveMethod(*patch->GetTargetDexFile(),
                                                   patch->GetTargetMethodIdx(),
                                                   dex_cache,
-                                                  class_loader,
-                                                  NULL,
+                                                  NullHandle<mirror::ClassLoader>(),
+                                                  NullHandle<mirror::ArtMethod>(),
                                                   patch->GetTargetInvokeType());
   CHECK(method != NULL)
     << patch->GetTargetDexFile()->GetLocation() << " " << patch->GetTargetMethodIdx();
@@ -721,11 +720,8 @@ static Class* GetTargetType(const CompilerDriver::TypePatchInformation* patch)
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   StackHandleScope<2> hs(Thread::Current());
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(patch->GetDexFile())));
-  auto class_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
-  Class* klass = class_linker->ResolveType(patch->GetDexFile(),
-                                           patch->GetTargetTypeIdx(),
-                                           dex_cache,
-                                           class_loader);
+  Class* klass = class_linker->ResolveType(patch->GetDexFile(), patch->GetTargetTypeIdx(),
+                                           dex_cache, NullHandle<mirror::ClassLoader>());
   CHECK(klass != NULL)
     << patch->GetDexFile().GetLocation() << " " << patch->GetTargetTypeIdx();
   CHECK(dex_cache->GetResolvedTypes()->Get(patch->GetTargetTypeIdx()) == klass)

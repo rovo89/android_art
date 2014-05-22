@@ -25,6 +25,7 @@
 
 namespace art {
 
+// TODO: Make the MethodHelper here be compaction safe.
 extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
                                                    const DexFile::CodeItem* code_item,
                                                    ShadowFrame* shadow_frame, JValue* result) {
@@ -43,6 +44,8 @@ extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& m
       }
       self->PopShadowFrame();
       CHECK(h_class->IsInitializing());
+      // Reload from shadow frame in case the method moved, this is faster than adding a handle.
+      method = shadow_frame->GetMethod();
     }
   }
   uint16_t arg_offset = (code_item == NULL) ? 0 : code_item->registers_size_ - code_item->ins_size_;

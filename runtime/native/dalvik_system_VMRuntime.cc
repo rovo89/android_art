@@ -221,7 +221,7 @@ static void PreloadDexCachesStringsCallback(mirror::Object** root, void* arg,
 }
 
 // Based on ClassLinker::ResolveString.
-static void PreloadDexCachesResolveString(Handle<mirror::DexCache>& dex_cache, uint32_t string_idx,
+static void PreloadDexCachesResolveString(Handle<mirror::DexCache> dex_cache, uint32_t string_idx,
                                           StringTable& strings)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::String* string = dex_cache->GetResolvedString(string_idx);
@@ -267,8 +267,7 @@ static void PreloadDexCachesResolveType(mirror::DexCache* dex_cache, uint32_t ty
 }
 
 // Based on ClassLinker::ResolveField.
-static void PreloadDexCachesResolveField(Handle<mirror::DexCache>& dex_cache,
-                                         uint32_t field_idx,
+static void PreloadDexCachesResolveField(Handle<mirror::DexCache> dex_cache, uint32_t field_idx,
                                          bool is_static)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* field = dex_cache->GetResolvedField(field_idx);
@@ -296,8 +295,7 @@ static void PreloadDexCachesResolveField(Handle<mirror::DexCache>& dex_cache,
 }
 
 // Based on ClassLinker::ResolveMethod.
-static void PreloadDexCachesResolveMethod(Handle<mirror::DexCache>& dex_cache,
-                                          uint32_t method_idx,
+static void PreloadDexCachesResolveMethod(Handle<mirror::DexCache> dex_cache, uint32_t method_idx,
                                           InvokeType invoke_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtMethod* method = dex_cache->GetResolvedMethod(method_idx);
