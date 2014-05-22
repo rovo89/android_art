@@ -46,10 +46,8 @@ class MANAGED StackTraceElement : public Object {
     return GetField32(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, line_number_));
   }
 
-  static StackTraceElement* Alloc(Thread* self,
-                                  Handle<String>& declaring_class,
-                                  Handle<String>& method_name,
-                                  Handle<String>& file_name,
+  static StackTraceElement* Alloc(Thread* self, Handle<String> declaring_class,
+                                  Handle<String> method_name, Handle<String> file_name,
                                   int32_t line_number)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -70,8 +68,8 @@ class MANAGED StackTraceElement : public Object {
   int32_t line_number_;
 
   template<bool kTransactionActive>
-  void Init(Handle<String>& declaring_class, Handle<String>& method_name,
-            Handle<String>& file_name, int32_t line_number)
+  void Init(Handle<String> declaring_class, Handle<String> method_name, Handle<String> file_name,
+            int32_t line_number)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Class* java_lang_StackTraceElement_;

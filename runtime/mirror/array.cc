@@ -42,8 +42,8 @@ namespace mirror {
 // Recursively create an array with multiple dimensions.  Elements may be
 // Objects or primitive types.
 static Array* RecursiveCreateMultiArray(Thread* self,
-                                        const Handle<Class>& array_class, int current_dimension,
-                                        const Handle<mirror::IntArray>& dimensions)
+                                        Handle<Class> array_class, int current_dimension,
+                                        Handle<mirror::IntArray> dimensions)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   int32_t array_length = dimensions->Get(current_dimension);
   StackHandleScope<1> hs(self);
@@ -73,8 +73,8 @@ static Array* RecursiveCreateMultiArray(Thread* self,
   return new_array.Get();
 }
 
-Array* Array::CreateMultiArray(Thread* self, const Handle<Class>& element_class,
-                               const Handle<IntArray>& dimensions) {
+Array* Array::CreateMultiArray(Thread* self, Handle<Class> element_class,
+                               Handle<IntArray> dimensions) {
   // Verify dimensions.
   //
   // The caller is responsible for verifying that "dimArray" is non-null

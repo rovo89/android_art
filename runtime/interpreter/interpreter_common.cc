@@ -296,11 +296,9 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     // other variants that take more arguments should also be added.
     std::string descriptor(DotToDescriptor(shadow_frame->GetVRegReference(arg_offset)->AsString()->ToModifiedUtf8().c_str()));
 
-    StackHandleScope<1> hs(self);
     // shadow_frame.GetMethod()->GetDeclaringClass()->GetClassLoader();
-    auto class_loader = hs.NewHandle<ClassLoader>(nullptr);
-    Class* found = Runtime::Current()->GetClassLinker()->FindClass(self, descriptor.c_str(),
-                                                                   class_loader);
+    Class* found = Runtime::Current()->GetClassLinker()->FindClass(
+        self, descriptor.c_str(), NullHandle<mirror::ClassLoader>());
     CHECK(found != NULL) << "Class.forName failed in un-started runtime for class: "
         << PrettyDescriptor(descriptor);
     result->SetL(found);
