@@ -49,6 +49,8 @@ enum DataFlowAnalysisMode {
   kRepeatingPostOrderDFSTraversal,         /**< @brief Depth-First-Search / Repeating Post-Order. */
   kRepeatingReversePostOrderDFSTraversal,  /**< @brief Depth-First-Search / Repeating Reverse Post-Order. */
   kPostOrderDOMTraversal,                  /**< @brief Dominator tree / Post-Order. */
+  kTopologicalSortTraversal,               /**< @brief Topological Order traversal. */
+  kRepeatingTopologicalSortTraversal,      /**< @brief Repeating Topological Order traversal. */
   kNoNodes,                                /**< @brief Skip BasicBlock traversal. */
 };
 
