@@ -417,10 +417,10 @@ class OatDumper {
       Runtime* runtime = Runtime::Current();
       if (runtime != nullptr) {
         ScopedObjectAccess soa(Thread::Current());
-        StackHandleScope<2> hs(soa.Self());
+        StackHandleScope<1> hs(soa.Self());
         Handle<mirror::DexCache> dex_cache(
             hs.NewHandle(runtime->GetClassLinker()->FindDexCache(dex_file)));
-        auto class_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
+        NullHandle<mirror::ClassLoader> class_loader;
         verifier::MethodVerifier verifier(&dex_file, &dex_cache, &class_loader, &class_def,
                                           code_item, dex_method_idx, nullptr, method_access_flags,
                                           true, true);
