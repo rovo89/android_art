@@ -76,6 +76,13 @@ static void usage() {
           "      Example: --boot-image=/system/framework/boot.art\n"
           "\n");
   fprintf(stderr,
+          "  --instruction-set=(arm|arm64|mips|x86|x86_64): for locating the image file based on the image location\n"
+          "      set.\n"
+          "      Example: --instruction-set=x86\n"
+          "      Default: %s\n"
+          "\n",
+          GetInstructionSetString(kRuntimeISA));
+  fprintf(stderr,
           "  --output=<file> may be used to send the output to a file.\n"
           "      Example: --output=/tmp/oatdump.txt\n"
           "\n");
@@ -1461,8 +1468,9 @@ static int oatdump(int argc, char** argv) {
   }
 
   const char* oat_filename = NULL;
-  const char* image_filename = NULL;
-  const char* boot_image_filename = NULL;
+  const char* image_location = NULL;
+  const char* boot_image_location = NULL;
+  InstructionSet instruction_set = kRuntimeISA;
   std::string elf_filename_prefix;
   std::ostream* os = &std::cout;
   std::unique_ptr<std::ofstream> out;
@@ -1474,9 +1482,22 @@ static int oatdump(int argc, char** argv) {
     if (option.starts_with("--oat-file=")) {
       oat_filename = option.substr(strlen("--oat-file=")).data();
     } else if (option.starts_with("--image=")) {
-      image_filename = option.substr(strlen("--image=")).data();
+      image_location = option.substr(strlen("--image=")).data();
     } else if (option.starts_with("--boot-image=")) {
-      boot_image_filename = option.substr(strlen("--boot-image=")).data();
+      boot_image_location = option.substr(strlen("--boot-image=")).data();
+    } else if (option.starts_with("--instruction-set=")) {
+      StringPiece instruction_set_str = option.substr(strlen("--instruction-set=")).data();
+      if (instruction_set_str == "arm") {
+        instruction_set = kThumb2;
+      } else if (instruction_set_str == "arm64") {
+        instruction_set = kArm64;
+      } else if (instruction_set_str == "mips") {
+        instruction_set = kMips;
+      } else if (instruction_set_str == "x86") {
+        instruction_set = kX86;
+      } else if (instruction_set_str == "x86_64") {
+        instruction_set = kX86_64;
+      }
     } else if (option.starts_with("--dump:")) {
         if (option == "--dump:raw_mapping_table") {
           dump_raw_mapping_table = true;
@@ -1500,12 +1521,12 @@ static int oatdump(int argc, char** argv) {
     }
   }
 
-  if (image_filename == NULL && oat_filename == NULL) {
+  if (image_location == NULL && oat_filename == NULL) {
     fprintf(stderr, "Either --image or --oat must be specified\n");
     return EXIT_FAILURE;
   }
 
-  if (image_filename != NULL && oat_filename != NULL) {
+  if (image_location != NULL && oat_filename != NULL) {
     fprintf(stderr, "Either --image or --oat must be specified but not both\n");
     return EXIT_FAILURE;
   }
@@ -1533,16 +1554,19 @@ static int oatdump(int argc, char** argv) {
   NoopCompilerCallbacks callbacks;
   options.push_back(std::make_pair("compilercallbacks", &callbacks));
 
-  if (boot_image_filename != NULL) {
+  if (boot_image_location != NULL) {
     boot_image_option += "-Ximage:";
-    boot_image_option += boot_image_filename;
+    boot_image_option += boot_image_location;
     options.push_back(std::make_pair(boot_image_option.c_str(), reinterpret_cast<void*>(NULL)));
   }
-  if (image_filename != NULL) {
+  if (image_location != NULL) {
     image_option += "-Ximage:";
-    image_option += image_filename;
+    image_option += image_location;
     options.push_back(std::make_pair(image_option.c_str(), reinterpret_cast<void*>(NULL)));
   }
+  options.push_back(
+      std::make_pair("imageinstructionset",
+                     reinterpret_cast<const void*>(GetInstructionSetString(instruction_set))));
 
   if (!Runtime::Create(options, false)) {
     fprintf(stderr, "Failed to create runtime\n");
@@ -1558,7 +1582,7 @@ static int oatdump(int argc, char** argv) {
   CHECK(image_space != NULL);
   const ImageHeader& image_header = image_space->GetImageHeader();
   if (!image_header.IsValid()) {
-    fprintf(stderr, "Invalid image header %s\n", image_filename);
+    fprintf(stderr, "Invalid image header %s\n", image_location);
     return EXIT_FAILURE;
   }
   ImageDumper image_dumper(os, *image_space, image_header,
