@@ -397,12 +397,8 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   endif
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES += liblog libnativehelper
-  ifeq ($$(art_target_or_host),target)
-    include external/libcxx/libcxx.mk
-    LOCAL_SHARED_LIBRARIES += libbacktrace_libc++
-  else
-    LOCAL_SHARED_LIBRARIES += libbacktrace
-  endif
+  include external/libcxx/libcxx.mk
+  LOCAL_SHARED_LIBRARIES += libbacktrace_libc++
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libcutils libdl libselinux libutils
     LOCAL_STATIC_LIBRARIES := libziparchive libz
