@@ -396,11 +396,11 @@ class Thread {
   // Convert a jobject into a Object*
   mirror::Object* DecodeJObject(jobject obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::Object* GetMonitorEnterObject() const {
+  mirror::Object* GetMonitorEnterObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return tlsPtr_.monitor_enter_object;
   }
 
-  void SetMonitorEnterObject(mirror::Object* obj) {
+  void SetMonitorEnterObject(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     tlsPtr_.monitor_enter_object = obj;
   }
 
