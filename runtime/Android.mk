@@ -308,6 +308,12 @@ ifeq ($(ART_USE_PORTABLE_COMPILER),true)
   LIBART_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
 
+ifeq ($(MALLOC_IMPL),jemalloc)
+  LIBART_CFLAGS += -DUSE_JEMALLOC
+else
+  LIBART_CFLAGS += -DUSE_DLMALLOC
+endif
+
 # $(1): target or host
 # $(2): ndebug or debug
 # $(3): true or false for LOCAL_CLANG
