@@ -27,6 +27,7 @@
 #include "atomic.h"
 #include "base/mutex.h"
 #include "object_callbacks.h"
+#include "read_barrier.h"
 #include "thread_state.h"
 
 namespace art {
@@ -92,8 +93,9 @@ class Monitor {
 
   static bool IsValidLockWord(LockWord lock_word);
 
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   mirror::Object* GetObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return obj_;
+    return ReadBarrier::BarrierForWeakRoot<mirror::Object, kReadBarrierOption>(obj_);
   }
 
   void SetObject(mirror::Object* object);
@@ -190,7 +192,9 @@ class Monitor {
   // Owner's recursive lock depth.
   int lock_count_ GUARDED_BY(monitor_lock_);
 
-  // What object are we part of.
+  // What object are we part of. This is a weak root. Do not access
+  // this directly, use GetObject() to read it so it will be guarded
+  // by a read barrier.
   mirror::Object* obj_;
 
   // Threads currently waiting on this monitor.
