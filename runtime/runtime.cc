@@ -370,6 +370,15 @@ jobject CreateSystemClassLoader() {
   return env->NewGlobalRef(system_class_loader.get());
 }
 
+std::string Runtime::GetCompilerExecutable() const {
+  if (!compiler_executable_.empty()) {
+    return compiler_executable_;
+  }
+  std::string compiler_executable(GetAndroidRoot());
+  compiler_executable += (kIsDebugBuild ? "/bin/dex2oatd" : "/bin/dex2oat");
+  return compiler_executable;
+}
+
 bool Runtime::Start() {
   VLOG(startup) << "Runtime::Start entering";
 
@@ -536,6 +545,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   default_stack_size_ = options->stack_size_;
   stack_trace_file_ = options->stack_trace_file_;
 
+  compiler_executable_ = options->compiler_executable_;
   compiler_options_ = options->compiler_options_;
   image_compiler_options_ = options->image_compiler_options_;
 
