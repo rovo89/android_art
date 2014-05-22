@@ -37,6 +37,10 @@ class ReadBarrier {
   ALWAYS_INLINE static MirrorType* Barrier(
       mirror::Object* obj, MemberOffset offset, mirror::HeapReference<MirrorType>* ref_addr)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template <typename MirrorType, ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  ALWAYS_INLINE static MirrorType* BarrierForWeakRoot(MirrorType* ref)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 };
 
 }  // namespace art
