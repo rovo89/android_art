@@ -755,11 +755,12 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
   self->EndAssertNoThreadSuspension(old_cause);
   bool virtual_or_interface = invoke_type == kVirtual || invoke_type == kInterface;
   // Resolve method filling in dex cache.
-  if (called->IsRuntimeMethod()) {
+  if (UNLIKELY(called->IsRuntimeMethod())) {
     StackHandleScope<1> hs(self);
-    Handle<mirror::Object> handle_scope_receiver(hs.NewHandle(virtual_or_interface ? receiver : nullptr));
-    called = linker->ResolveMethod(dex_method_idx, caller, invoke_type);
-    receiver = handle_scope_receiver.Get();
+    mirror::Object* dummy = nullptr;
+    HandleWrapper<mirror::Object> h_receiver(
+        hs.NewHandleWrapper(virtual_or_interface ? &receiver : &dummy));
+    called = linker->ResolveMethod(self, dex_method_idx, &caller, invoke_type);
   }
   const void* code = NULL;
   if (LIKELY(!self->IsExceptionPending())) {
@@ -1681,7 +1682,8 @@ static MethodAndCode artInvokeCommon(uint32_t method_idx, mirror::Object* this_o
       ScopedObjectAccessUnchecked soa(self->GetJniEnv());
       RememberForGcArgumentVisitor visitor(sp, type == kStatic, shorty, shorty_len, &soa);
       visitor.VisitArguments();
-      method = FindMethodFromCode<type, access_check>(method_idx, this_object, caller_method, self);
+      method = FindMethodFromCode<type, access_check>(method_idx, &this_object, &caller_method,
+                                                      self);
       visitor.FixupReferences();
     }
 
@@ -1871,7 +1873,7 @@ extern "C" MethodAndCode artInvokeInterfaceTrampoline(mirror::ArtMethod* interfa
       ScopedObjectAccessUnchecked soa(self->GetJniEnv());
       RememberForGcArgumentVisitor visitor(sp, false, shorty, shorty_len, &soa);
       visitor.VisitArguments();
-      method = FindMethodFromCode<kInterface, false>(dex_method_idx, this_object, caller_method,
+      method = FindMethodFromCode<kInterface, false>(dex_method_idx, &this_object, &caller_method,
                                                      self);
       visitor.FixupReferences();
     }

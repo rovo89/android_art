@@ -23,17 +23,20 @@ namespace art {
 
 template<InvokeType type, bool access_check>
 mirror::ArtMethod* FindMethodHelper(uint32_t method_idx, mirror::Object* this_object,
-                                    mirror::ArtMethod* caller_method, Thread* thread) {
+                                    mirror::ArtMethod* caller_method, Thread* self) {
   mirror::ArtMethod* method = FindMethodFast(method_idx, this_object, caller_method,
                                              access_check, type);
   if (UNLIKELY(method == NULL)) {
-    method = FindMethodFromCode<type, access_check>(method_idx, this_object, caller_method, thread);
+    // Note: This can cause thread suspension.
+    self->AssertThreadSuspensionIsAllowable();
+    method = FindMethodFromCode<type, access_check>(method_idx, &this_object, &caller_method,
+                                                    self);
     if (UNLIKELY(method == NULL)) {
-      CHECK(thread->IsExceptionPending());
+      CHECK(self->IsExceptionPending());
       return 0;  // failure
     }
   }
-  DCHECK(!thread->IsExceptionPending());
+  DCHECK(!self->IsExceptionPending());
   const void* code = method->GetEntryPointFromPortableCompiledCode();
 
   // When we return, the caller will branch to this address, so it had better not be 0!

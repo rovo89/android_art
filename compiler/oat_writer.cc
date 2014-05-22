@@ -513,9 +513,10 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
     ScopedObjectAccessUnchecked soa(Thread::Current());
     StackHandleScope<2> hs(soa.Self());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->FindDexCache(*dex_file_)));
-    auto class_loader = hs.NewHandle<mirror::ClassLoader>(nullptr);
     mirror::ArtMethod* method = linker->ResolveMethod(*dex_file_, it.GetMemberIndex(), dex_cache,
-                                                      class_loader, nullptr, invoke_type);
+                                                      NullHandle<mirror::ClassLoader>(),
+                                                      NullHandle<mirror::ArtMethod>(),
+                                                      invoke_type);
     CHECK(method != NULL);
     // Portable code offsets are set by ElfWriterMclinker::FixupCompiledCodeOffset after linking.
     method->SetQuickOatCodeOffset(offsets.code_offset_);
