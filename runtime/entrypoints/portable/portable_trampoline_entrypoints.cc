@@ -317,11 +317,11 @@ extern "C" uint64_t artPortableProxyInvokeHandler(mirror::ArtMethod* proxy_metho
 // Lazily resolve a method for portable. Called by stub code.
 extern "C" const void* artPortableResolutionTrampoline(mirror::ArtMethod* called,
                                                        mirror::Object* receiver,
-                                                       Thread* thread,
+                                                       Thread* self,
                                                        mirror::ArtMethod** called_addr)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint32_t dex_pc;
-  mirror::ArtMethod* caller = thread->GetCurrentMethod(&dex_pc);
+  mirror::ArtMethod* caller = self->GetCurrentMethod(&dex_pc);
 
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   InvokeType invoke_type;
@@ -379,7 +379,7 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::ArtMethod* called
         is_range = true;
     }
     uint32_t dex_method_idx = (is_range) ? instr->VRegB_3rc() : instr->VRegB_35c();
-    called = linker->ResolveMethod(dex_method_idx, caller, invoke_type);
+    called = linker->ResolveMethod(Thread::Current(), dex_method_idx, &caller, invoke_type);
     // Incompatible class change should have been handled in resolve method.
     CHECK(!called->CheckIncompatibleClassChange(invoke_type));
     // Refine called method based on receiver.
@@ -395,9 +395,9 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::ArtMethod* called
     CHECK(!called->CheckIncompatibleClassChange(invoke_type));
   }
   const void* code = nullptr;
-  if (LIKELY(!thread->IsExceptionPending())) {
+  if (LIKELY(!self->IsExceptionPending())) {
     // Ensure that the called method's class is initialized.
-    StackHandleScope<1> hs(Thread::Current());
+    StackHandleScope<1> hs(self);
     Handle<mirror::Class> called_class(hs.NewHandle(called->GetDeclaringClass()));
     linker->EnsureInitialized(called_class, true, true);
     if (LIKELY(called_class->IsInitialized())) {

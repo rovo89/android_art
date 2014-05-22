@@ -221,15 +221,15 @@ class CompilerDriver {
 
   // Resolve compiling method's class. Returns nullptr on failure.
   mirror::Class* ResolveCompilingMethodsClass(
-      ScopedObjectAccess& soa, const Handle<mirror::DexCache>& dex_cache,
-      const Handle<mirror::ClassLoader>& class_loader, const DexCompilationUnit* mUnit)
+      ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+      Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a field. Returns nullptr on failure, including incompatible class change.
   // NOTE: Unlike ClassLinker's ResolveField(), this method enforces is_static.
   mirror::ArtField* ResolveField(
-      ScopedObjectAccess& soa, const Handle<mirror::DexCache>& dex_cache,
-      const Handle<mirror::ClassLoader>& class_loader, const DexCompilationUnit* mUnit,
+      ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+      Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
       uint32_t field_idx, bool is_static)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -258,8 +258,8 @@ class CompilerDriver {
 
   // Resolve a method. Returns nullptr on failure, including incompatible class change.
   mirror::ArtMethod* ResolveMethod(
-      ScopedObjectAccess& soa, const Handle<mirror::DexCache>& dex_cache,
-      const Handle<mirror::ClassLoader>& class_loader, const DexCompilationUnit* mUnit,
+      ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+      Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
       uint32_t method_idx, InvokeType invoke_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -277,8 +277,8 @@ class CompilerDriver {
   // Can we fast-path an INVOKE? If no, returns 0. If yes, returns a non-zero opaque flags value
   // for ProcessedInvoke() and computes the necessary lowering info.
   int IsFastInvoke(
-      ScopedObjectAccess& soa, const Handle<mirror::DexCache>& dex_cache,
-      const Handle<mirror::ClassLoader>& class_loader, const DexCompilationUnit* mUnit,
+      ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+      Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
       mirror::Class* referrer_class, mirror::ArtMethod* resolved_method, InvokeType* invoke_type,
       MethodReference* target_method, const MethodReference* devirt_target,
       uintptr_t* direct_code, uintptr_t* direct_method)

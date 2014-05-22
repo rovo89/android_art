@@ -637,7 +637,7 @@ void Monitor::Inflate(Thread* self, Thread* owner, mirror::Object* obj, int32_t 
   }
 }
 
-void Monitor::InflateThinLocked(Thread* self, Handle<mirror::Object>& obj, LockWord lock_word,
+void Monitor::InflateThinLocked(Thread* self, Handle<mirror::Object> obj, LockWord lock_word,
                                 uint32_t hash_code) {
   DCHECK_EQ(lock_word.GetState(), LockWord::kThinLocked);
   uint32_t owner_thread_id = lock_word.ThinLockOwner();
