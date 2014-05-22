@@ -96,7 +96,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
     CHECK_LE(obj->SizeOf(), usable_size);
   }
   const size_t new_num_bytes_allocated =
-      static_cast<size_t>(num_bytes_allocated_.FetchAndAdd(bytes_allocated)) + bytes_allocated;
+      static_cast<size_t>(num_bytes_allocated_.FetchAndAddSequentiallyConsistent(bytes_allocated)) + bytes_allocated;
   // TODO: Deprecate.
   if (kInstrumented) {
     if (Runtime::Current()->HasStatsEnabled()) {
@@ -264,7 +264,7 @@ inline Heap::AllocationTimer::~AllocationTimer() {
     // Only if the allocation succeeded, record the time.
     if (allocated_obj != nullptr) {
       uint64_t allocation_end_time = NanoTime() / kTimeAdjust;
-      heap_->total_allocation_time_.FetchAndAdd(allocation_end_time - allocation_start_time_);
+      heap_->total_allocation_time_.FetchAndAddSequentiallyConsistent(allocation_end_time - allocation_start_time_);
     }
   }
 };
@@ -279,7 +279,7 @@ inline bool Heap::ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) co
 
 template <bool kGrow>
 inline bool Heap::IsOutOfMemoryOnAllocation(AllocatorType allocator_type, size_t alloc_size) {
-  size_t new_footprint = num_bytes_allocated_ + alloc_size;
+  size_t new_footprint = num_bytes_allocated_.LoadSequentiallyConsistent() + alloc_size;
   if (UNLIKELY(new_footprint > max_allowed_footprint_)) {
     if (UNLIKELY(new_footprint > growth_limit_)) {
       return true;
