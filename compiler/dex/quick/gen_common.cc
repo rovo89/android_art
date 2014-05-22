@@ -1595,7 +1595,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       rl_result = EvalLoc(rl_dest, kCoreReg, true);
       OpRegReg(op, rl_result.reg, rl_src1.reg);
     } else {
-      if (shift_op) {
+      if ((shift_op) && (cu_->instruction_set != kArm64)) {
         rl_src2 = LoadValue(rl_src2, kCoreReg);
         RegStorage t_reg = AllocTemp();
         OpRegRegImm(kOpAnd, t_reg, rl_src2.reg, 31);
@@ -1613,7 +1613,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
     StoreValue(rl_dest, rl_result);
   } else {
     bool done = false;      // Set to true if we happen to find a way to use a real instruction.
-    if (cu_->instruction_set == kMips) {
+    if (cu_->instruction_set == kMips || cu_->instruction_set == kArm64) {
       rl_src1 = LoadValue(rl_src1, kCoreReg);
       rl_src2 = LoadValue(rl_src2, kCoreReg);
       if (check_zero) {
@@ -1889,7 +1889,7 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
       }
 
       bool done = false;
-      if (cu_->instruction_set == kMips) {
+      if (cu_->instruction_set == kMips || cu_->instruction_set == kArm64) {
         rl_src = LoadValue(rl_src, kCoreReg);
         rl_result = GenDivRemLit(rl_dest, rl_src.reg, lit, is_div);
         done = true;
@@ -1952,6 +1952,10 @@ static void GenArithOpLongImpl(Mir2Lir* mir_to_lir, CompilationUnit* cu, Instruc
 
   switch (opcode) {
     case Instruction::NOT_LONG:
+      if (cu->instruction_set == kArm64) {
+        mir_to_lir->GenNotLong(rl_dest, rl_src2);
+        return;
+      }
       rl_src2 = mir_to_lir->LoadValueWide(rl_src2, kCoreReg);
       rl_result = mir_to_lir->EvalLoc(rl_dest, kCoreReg, true);
       // Check for destructive overlap
@@ -1998,6 +2002,10 @@ static void GenArithOpLongImpl(Mir2Lir* mir_to_lir, CompilationUnit* cu, Instruc
       break;
     case Instruction::DIV_LONG:
     case Instruction::DIV_LONG_2ADDR:
+      if (cu->instruction_set == kArm64) {
+        mir_to_lir->GenDivRemLong(opcode, rl_dest, rl_src1, rl_src2, /*is_div*/ true);
+        return;
+      }
       call_out = true;
       check_zero = true;
       ret_reg = mir_to_lir->TargetReg(kRet0).GetReg();
@@ -2005,6 +2013,10 @@ static void GenArithOpLongImpl(Mir2Lir* mir_to_lir, CompilationUnit* cu, Instruc
       break;
     case Instruction::REM_LONG:
     case Instruction::REM_LONG_2ADDR:
+      if (cu->instruction_set == kArm64) {
+        mir_to_lir->GenDivRemLong(opcode, rl_dest, rl_src1, rl_src2, /*is_div*/ false);
+        return;
+      }
       call_out = true;
       check_zero = true;
       func_offset = QUICK_ENTRYPOINT_OFFSET(pointer_size, pLmod);
@@ -2014,7 +2026,8 @@ static void GenArithOpLongImpl(Mir2Lir* mir_to_lir, CompilationUnit* cu, Instruc
       break;
     case Instruction::AND_LONG_2ADDR:
     case Instruction::AND_LONG:
-      if (cu->instruction_set == kX86 || cu->instruction_set == kX86_64) {
+      if (cu->instruction_set == kX86 || cu->instruction_set == kX86_64 ||
+          cu->instruction_set == kArm64) {
         return mir_to_lir->GenAndLong(opcode, rl_dest, rl_src1, rl_src2);
       }
       first_op = kOpAnd;
@@ -2022,7 +2035,8 @@ static void GenArithOpLongImpl(Mir2Lir* mir_to_lir, CompilationUnit* cu, Instruc
       break;
     case Instruction::OR_LONG:
     case Instruction::OR_LONG_2ADDR:
-      if (cu->instruction_set == kX86 || cu->instruction_set == kX86_64) {
+      if (cu->instruction_set == kX86 || cu->instruction_set == kX86_64 ||
+          cu->instruction_set == kArm64) {
         mir_to_lir->GenOrLong(opcode, rl_dest, rl_src1, rl_src2);
         return;
       }
@@ -2031,7 +2045,8 @@ static void GenArithOpLongImpl(Mir2Lir* mir_to_lir, CompilationUnit* cu, Instruc
       break;
     case Instruction::XOR_LONG:
     case Instruction::XOR_LONG_2ADDR:
-      if (cu->instruction_set == kX86 || cu->instruction_set == kX86_64) {
+      if (cu->instruction_set == kX86 || cu->instruction_set == kX86_64 ||
+          cu->instruction_set == kArm64) {
         mir_to_lir->GenXorLong(opcode, rl_dest, rl_src1, rl_src2);
         return;
       }

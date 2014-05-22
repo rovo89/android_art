@@ -94,8 +94,7 @@ void Arm64Mir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
   tab_rec->anchor = switch_label;
 
   // Add displacement to base branch address and go!
-  OpRegRegRegShift(kOpAdd, r_base.GetReg(), r_base.GetReg(), r_disp.GetReg(),
-                   ENCODE_NO_SHIFT, true);
+  OpRegRegRegShift(kOpAdd, r_base, r_base, r_disp, ENCODE_NO_SHIFT);
   NewLIR1(kA64Br1x, r_base.GetReg());
 
   // Loop exit label.
@@ -148,8 +147,7 @@ void Arm64Mir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
   tab_rec->anchor = switch_label;
 
   // Add displacement to base branch address and go!
-  OpRegRegRegShift(kOpAdd, branch_reg.GetReg(), branch_reg.GetReg(), disp_reg.GetReg(),
-                   ENCODE_NO_SHIFT, true);
+  OpRegRegRegShift(kOpAdd, branch_reg, branch_reg, disp_reg, ENCODE_NO_SHIFT);
   NewLIR1(kA64Br1x, branch_reg.GetReg());
 
   // branch_over target here
@@ -334,7 +332,7 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
 
   if (!skip_overflow_check) {
     LoadWordDisp(rs_rA64_SELF, Thread::StackEndOffset<8>().Int32Value(), rs_x12);
-    OpRegImm64(kOpSub, rs_rA64_SP, frame_size_, /*is_wide*/true);
+    OpRegImm64(kOpSub, rs_rA64_SP, frame_size_);
     if (Runtime::Current()->ExplicitStackOverflowChecks()) {
       /* Load stack limit */
       // TODO(Arm64): fix the line below:
@@ -348,7 +346,7 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
       MarkPossibleStackOverflowException();
     }
   } else if (frame_size_ > 0) {
-    OpRegImm64(kOpSub, rs_rA64_SP, frame_size_, /*is_wide*/true);
+    OpRegImm64(kOpSub, rs_rA64_SP, frame_size_);
   }
 
   /* Need to spill any FP regs? */
@@ -391,7 +389,7 @@ void Arm64Mir2Lir::GenExitSequence() {
     UnSpillCoreRegs(rs_rA64_SP, spill_offset, core_spill_mask_);
   }
 
-  OpRegImm64(kOpAdd, rs_rA64_SP, frame_size_, /*is_wide*/true);
+  OpRegImm64(kOpAdd, rs_rA64_SP, frame_size_);
   NewLIR0(kA64Ret);
 }
 

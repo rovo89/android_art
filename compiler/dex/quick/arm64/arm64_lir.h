@@ -298,6 +298,7 @@ enum ArmOpcode {
   kA64Mov2rr,        // mov [00101010000] rm[20-16] [000000] [11111] rd[4-0].
   kA64Mvn2rr,        // mov [00101010001] rm[20-16] [000000] [11111] rd[4-0].
   kA64Mul3rrr,       // mul [00011011000] rm[20-16] [011111] rn[9-5] rd[4-0].
+  kA64Msub4rrrr,     // msub[s0011011000] rm[20-16] [1] ra[14-10] rn[9-5] rd[4-0].
   kA64Neg3rro,       // neg alias of "sub arg0, rzr, arg1, arg2".
   kA64Orr3Rrl,       // orr [s01100100] N[22] imm_r[21-16] imm_s[15-10] rn[9-5] rd[4-0].
   kA64Orr4rrro,      // orr [s0101010] shift[23-22] [0] rm[20-16] imm_6[15-10] rn[9-5] rd[4-0].
