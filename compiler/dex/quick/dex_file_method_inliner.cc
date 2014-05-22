@@ -38,12 +38,7 @@ MIR* AllocReplacementMIR(MIRGraph* mir_graph, MIR* invoke, MIR* move_return) {
   ArenaAllocator* arena = mir_graph->GetArena();
   MIR* insn = static_cast<MIR*>(arena->Alloc(sizeof(MIR), kArenaAllocMIR));
   insn->offset = invoke->offset;
-  insn->width = invoke->width;
   insn->optimization_flags = MIR_CALLEE;
-  if (move_return != nullptr) {
-    DCHECK_EQ(move_return->offset, invoke->offset + invoke->width);
-    insn->width += move_return->width;
-  }
   return insn;
 }
 
@@ -660,7 +655,6 @@ bool DexFileMethodInliner::GenInlineIGet(MIRGraph* mir_graph, BasicBlock* bb, MI
   }
 
   MIR* insn = AllocReplacementMIR(mir_graph, invoke, move_result);
-  insn->width += insn->offset - invoke->offset;
   insn->offset = invoke->offset;
   insn->dalvikInsn.opcode = opcode;
   insn->dalvikInsn.vA = move_result->dalvikInsn.vA;
@@ -737,9 +731,7 @@ bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MI
 
   if (move_result != nullptr) {
     MIR* move = AllocReplacementMIR(mir_graph, invoke, move_result);
-    insn->width = invoke->width;
     move->offset = move_result->offset;
-    move->width = move_result->width;
     if (move_result->dalvikInsn.opcode == Instruction::MOVE_RESULT) {
       move->dalvikInsn.opcode = Instruction::MOVE_FROM16;
     } else if (move_result->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {
