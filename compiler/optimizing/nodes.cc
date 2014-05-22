@@ -291,6 +291,17 @@ bool HBasicBlock::Dominates(HBasicBlock* other) const {
   return false;
 }
 
+void HBasicBlock::InsertInstructionBefore(HInstruction* instruction, HInstruction* cursor) {
+  DCHECK(cursor->AsPhi() == nullptr);
+  DCHECK(instruction->AsPhi() == nullptr);
+  instruction->next_ = cursor;
+  instruction->previous_ = cursor->previous_;
+  cursor->previous_ = instruction;
+  if (GetFirstInstruction() == cursor) {
+    instructions_.first_instruction_ = instruction;
+  }
+}
+
 static void Add(HInstructionList* instruction_list,
                 HBasicBlock* block,
                 HInstruction* instruction) {
