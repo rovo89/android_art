@@ -242,6 +242,8 @@ struct SSARepresentation {
   bool* fp_use;
   int32_t* defs;
   bool* fp_def;
+
+  static uint32_t GetStartUseIndex(Instruction::Code opcode);
 };
 
 /*
@@ -261,13 +263,15 @@ struct MIR {
     uint32_t vC;
     uint32_t arg[5];         /* vC/D/E/F/G in invoke or filled-new-array */
     Instruction::Code opcode;
+
+    explicit DecodedInstruction():vA(0), vB(0), vB_wide(0), vC(0), opcode(Instruction::NOP) {
+    }
   } dalvikInsn;
 
-  // TODO: Add id of parent basic block.
-  // BasicBlockId parent_bb;      // ID of parent basic block.
   NarrowDexOffset offset;         // Offset of the instruction in code units.
   uint16_t optimization_flags;
   int16_t m_unit_index;           // From which method was this MIR included
+  BasicBlockId bb;
   MIR* next;
   SSARepresentation* ssa_rep;
   union {
@@ -286,6 +290,23 @@ struct MIR {
     // INVOKE data index, points to MIRGraph::method_lowering_infos_.
     uint32_t method_lowering_info;
   } meta;
+
+  explicit MIR():offset(0), optimization_flags(0), m_unit_index(0), bb(NullBasicBlockId),
+                 next(nullptr), ssa_rep(nullptr) {
+    memset(&meta, 0, sizeof(meta));
+  }
+
+  uint32_t GetStartUseIndex() const {
+    return SSARepresentation::GetStartUseIndex(dalvikInsn.opcode);
+  }
+
+  MIR* Copy(CompilationUnit *c_unit);
+  MIR* Copy(MIRGraph* mir_Graph);
+
+  static void* operator new(size_t size, ArenaAllocator* arena) {
+    return arena->Alloc(sizeof(MIR), kArenaAllocMIR);
+  }
+  static void operator delete(void* p) {}  // Nop.
 };
 
 struct SuccessorBlockInfo;
@@ -320,6 +341,8 @@ struct BasicBlock {
   void AppendMIR(MIR* mir);
   void PrependMIR(MIR* mir);
   void InsertMIRAfter(MIR* current_mir, MIR* new_mir);
+  void InsertMIRBefore(MIR* current_mir, MIR* new_mir);
+  MIR* FindPreviousMIR(MIR* mir);
 
   /**
    * @brief Used to obtain the next MIR that follows unconditionally.
@@ -330,6 +353,7 @@ struct BasicBlock {
    * @return Returns the following MIR if one can be found.
    */
   MIR* GetNextUnconditionalMir(MIRGraph* mir_graph, MIR* current);
+  bool RemoveMIR(MIR* mir);
 };
 
 /*
@@ -837,6 +861,7 @@ class MIRGraph {
   void DumpMIRGraph();
   CallInfo* NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type, bool is_range);
   BasicBlock* NewMemBB(BBType block_type, int block_id);
+  MIR* NewMIR();
   MIR* AdvanceMIR(BasicBlock** p_bb, MIR* mir);
   BasicBlock* NextDominatedBlock(BasicBlock* bb);
   bool LayoutBlocks(BasicBlock* bb);
