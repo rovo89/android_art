@@ -149,10 +149,37 @@ class BitVector {
     bool EnsureSizeAndClear(unsigned int num);
 
     void Dump(std::ostream& os, const char* prefix) const;
+
+    /**
+     * @brief last_entry is this the last entry for the dot dumping
+     * @details if not, a "|" is appended to the dump.
+     */
     void DumpDot(FILE* file, const char* prefix, bool last_entry = false) const;
 
+    /**
+     * @brief last_entry is this the last entry for the dot dumping
+     * @details if not, a "|" is appended to the dump.
+     */
+    void DumpIndicesDot(FILE* file, const char* prefix, bool last_entry = false) const;
+
   protected:
-    void DumpHelper(std::ostringstream& buffer, const char* prefix) const;
+    /**
+     * @brief Dump the bitvector into buffer in a 00101..01 format.
+     * @param buffer the ostringstream used to dump the bitvector into.
+     */
+    void DumpHelper(const char* prefix, std::ostringstream& buffer) const;
+
+    /**
+     * @brief Dump the bitvector in a 1 2 5 8 format, where the numbers are the bit set.
+     * @param buffer the ostringstream used to dump the bitvector into.
+     */
+    void DumpIndicesHelper(const char* prefix, std::ostringstream& buffer) const;
+
+    /**
+     * @brief Wrapper to perform the bitvector dumping with the .dot format.
+     * @param buffer the ostringstream used to dump the bitvector into.
+     */
+    void DumpDotHelper(bool last_entry, FILE* file, std::ostringstream& buffer) const;
 
   private:
     Allocator* const allocator_;
