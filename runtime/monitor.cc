@@ -226,9 +226,9 @@ void Monitor::Lock(Thread* self) {
     // Do this before releasing the lock so that we don't get deflated.
     ++num_waiters_;
     monitor_lock_.Unlock(self);  // Let go of locks in order.
+    self->SetMonitorEnterObject(GetObject());
     {
       ScopedThreadStateChange tsc(self, kBlocked);  // Change to blocked and give up mutator_lock_.
-      self->SetMonitorEnterObject(GetObject());
       MutexLock mu2(self, monitor_lock_);  // Reacquire monitor_lock_ without mutator_lock_ for Wait.
       if (owner_ != NULL) {  // Did the owner_ give the lock up?
         monitor_contenders_.Wait(self);  // Still contended so wait.
@@ -249,8 +249,8 @@ void Monitor::Lock(Thread* self) {
           }
         }
       }
-      self->SetMonitorEnterObject(nullptr);
     }
+    self->SetMonitorEnterObject(nullptr);
     monitor_lock_.Lock(self);  // Reacquire locks in order.
     --num_waiters_;
   }
