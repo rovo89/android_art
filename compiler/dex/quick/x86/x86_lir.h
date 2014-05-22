@@ -151,7 +151,7 @@ enum X86NativeRegisterPool {
   rRET           = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 16,
 #endif
 
-  // xmm registers, single precision view
+  // xmm registers, single precision view.
   fr0  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 0,
   fr1  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 1,
   fr2  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 2,
@@ -161,7 +161,7 @@ enum X86NativeRegisterPool {
   fr6  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 6,
   fr7  = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 7,
 
-  // xmm registers, double precision alises
+  // xmm registers, double precision aliases.
   dr0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 0,
   dr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 1,
   dr2  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 2,
@@ -171,15 +171,15 @@ enum X86NativeRegisterPool {
   dr6  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 6,
   dr7  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 7,
 
-  // xmm registers, quad precision alises
-  qr0  = RegStorage::k128BitSolo | RegStorage::kFloatingPoint | 0,
-  qr1  = RegStorage::k128BitSolo | RegStorage::kFloatingPoint | 1,
-  qr2  = RegStorage::k128BitSolo | RegStorage::kFloatingPoint | 2,
-  qr3  = RegStorage::k128BitSolo | RegStorage::kFloatingPoint | 3,
-  qr4  = RegStorage::k128BitSolo | RegStorage::kFloatingPoint | 4,
-  qr5  = RegStorage::k128BitSolo | RegStorage::kFloatingPoint | 5,
-  qr6  = RegStorage::k128BitSolo | RegStorage::kFloatingPoint | 6,
-  qr7  = RegStorage::k128BitSolo | RegStorage::kFloatingPoint | 7,
+  // xmm registers aliases.
+  xr0  = RegStorage::k128BitSolo | 0,
+  xr1  = RegStorage::k128BitSolo | 1,
+  xr2  = RegStorage::k128BitSolo | 2,
+  xr3  = RegStorage::k128BitSolo | 3,
+  xr4  = RegStorage::k128BitSolo | 4,
+  xr5  = RegStorage::k128BitSolo | 5,
+  xr6  = RegStorage::k128BitSolo | 6,
+  xr7  = RegStorage::k128BitSolo | 7,
 
   // TODO: as needed, add 256, 512 and 1024-bit xmm views.
 };
@@ -221,14 +221,14 @@ constexpr RegStorage rs_dr5(RegStorage::kValid | dr5);
 constexpr RegStorage rs_dr6(RegStorage::kValid | dr6);
 constexpr RegStorage rs_dr7(RegStorage::kValid | dr7);
 
-constexpr RegStorage rs_qr0(RegStorage::kValid | qr0);
-constexpr RegStorage rs_qr1(RegStorage::kValid | qr1);
-constexpr RegStorage rs_qr2(RegStorage::kValid | qr2);
-constexpr RegStorage rs_qr3(RegStorage::kValid | qr3);
-constexpr RegStorage rs_qr4(RegStorage::kValid | qr4);
-constexpr RegStorage rs_qr5(RegStorage::kValid | qr5);
-constexpr RegStorage rs_qr6(RegStorage::kValid | qr6);
-constexpr RegStorage rs_qr7(RegStorage::kValid | qr7);
+constexpr RegStorage rs_xr0(RegStorage::kValid | xr0);
+constexpr RegStorage rs_xr1(RegStorage::kValid | xr1);
+constexpr RegStorage rs_xr2(RegStorage::kValid | xr2);
+constexpr RegStorage rs_xr3(RegStorage::kValid | xr3);
+constexpr RegStorage rs_xr4(RegStorage::kValid | xr4);
+constexpr RegStorage rs_xr5(RegStorage::kValid | xr5);
+constexpr RegStorage rs_xr6(RegStorage::kValid | xr6);
+constexpr RegStorage rs_xr7(RegStorage::kValid | xr7);
 
 extern X86NativeRegisterPool rX86_ARG0;
 extern X86NativeRegisterPool rX86_ARG1;
@@ -418,9 +418,39 @@ enum X86OpCode {
   Binary0fOpCode(kX86Divsd),    // double divide
   Binary0fOpCode(kX86Divss),    // float divide
   Binary0fOpCode(kX86Punpckldq),  // Interleave low-order double words
-  kX86PsrlqRI,                  // right shift of floating point registers
-  kX86PsllqRI,                  // left shift of floating point registers
-  kX86SqrtsdRR,                 // sqrt of floating point register
+  Binary0fOpCode(kX86Sqrtsd),   // square root
+  Binary0fOpCode(kX86Pmulld),   // parallel integer multiply 32 bits x 4
+  Binary0fOpCode(kX86Pmullw),   // parallel integer multiply 16 bits x 8
+  Binary0fOpCode(kX86Mulps),    // parallel FP multiply 32 bits x 4
+  Binary0fOpCode(kX86Mulpd),    // parallel FP multiply 64 bits x 2
+  Binary0fOpCode(kX86Paddb),    // parallel integer addition 8 bits x 16
+  Binary0fOpCode(kX86Paddw),    // parallel integer addition 16 bits x 8
+  Binary0fOpCode(kX86Paddd),    // parallel integer addition 32 bits x 4
+  Binary0fOpCode(kX86Addps),    // parallel FP addition 32 bits x 4
+  Binary0fOpCode(kX86Addpd),    // parallel FP addition 64 bits x 2
+  Binary0fOpCode(kX86Psubb),    // parallel integer subtraction 8 bits x 16
+  Binary0fOpCode(kX86Psubw),    // parallel integer subtraction 16 bits x 8
+  Binary0fOpCode(kX86Psubd),    // parallel integer subtraction 32 bits x 4
+  Binary0fOpCode(kX86Subps),    // parallel FP subtraction 32 bits x 4
+  Binary0fOpCode(kX86Subpd),    // parallel FP subtraction 64 bits x 2
+  Binary0fOpCode(kX86Pand),     // parallel AND 128 bits x 1
+  Binary0fOpCode(kX86Por),      // parallel OR 128 bits x 1
+  Binary0fOpCode(kX86Pxor),     // parallel XOR 128 bits x 1
+  Binary0fOpCode(kX86Phaddw),   // parallel horizontal addition 16 bits x 8
+  Binary0fOpCode(kX86Phaddd),   // parallel horizontal addition 32 bits x 4
+  kX86PextrbRRI,                // Extract 8 bits from XMM into GPR
+  kX86PextrwRRI,                // Extract 16 bits from XMM into GPR
+  kX86PextrdRRI,                // Extract 32 bits from XMM into GPR
+  kX86PshuflwRRI,               // Shuffle 16 bits in lower 64 bits of XMM.
+  kX86PshufdRRI,                // Shuffle 32 bits in XMM.
+  kX86PsrawRI,                  // signed right shift of floating point registers 16 bits x 8
+  kX86PsradRI,                  // signed right shift of floating point registers 32 bits x 4
+  kX86PsrlwRI,                  // logical right shift of floating point registers 16 bits x 8
+  kX86PsrldRI,                  // logical right shift of floating point registers 32 bits x 4
+  kX86PsrlqRI,                  // logical right shift of floating point registers 64 bits x 2
+  kX86PsllwRI,                  // left shift of floating point registers 16 bits x 8
+  kX86PslldRI,                  // left shift of floating point registers 32 bits x 4
+  kX86PsllqRI,                  // left shift of floating point registers 64 bits x 2
   kX86Fild32M,                  // push 32-bit integer on x87 stack
   kX86Fild64M,                  // push 64-bit integer on x87 stack
   kX86Fstp32M,                  // pop top x87 fp stack and do 32-bit store
