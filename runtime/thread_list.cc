@@ -40,8 +40,7 @@
 namespace art {
 
 ThreadList::ThreadList()
-    : allocated_ids_lock_("allocated thread ids lock"),
-      suspend_all_count_(0), debug_suspend_all_count_(0),
+    : suspend_all_count_(0), debug_suspend_all_count_(0),
       thread_exit_cond_("thread exit condition variable", *Locks::thread_list_lock_) {
   CHECK(Monitor::IsValidLockWord(LockWord::FromThinLockId(kMaxThreadId, 1)));
 }
@@ -849,7 +848,7 @@ void ThreadList::VerifyRoots(VerifyRootCallback* callback, void* arg) const {
 }
 
 uint32_t ThreadList::AllocThreadId(Thread* self) {
-  MutexLock mu(self, allocated_ids_lock_);
+  MutexLock mu(self, *Locks::allocated_thread_ids_lock_);
   for (size_t i = 0; i < allocated_ids_.size(); ++i) {
     if (!allocated_ids_[i]) {
       allocated_ids_.set(i);
@@ -861,7 +860,7 @@ uint32_t ThreadList::AllocThreadId(Thread* self) {
 }
 
 void ThreadList::ReleaseThreadId(Thread* self, uint32_t id) {
-  MutexLock mu(self, allocated_ids_lock_);
+  MutexLock mu(self, *Locks::allocated_thread_ids_lock_);
   --id;  // Zero is reserved to mean "invalid".
   DCHECK(allocated_ids_[id]) << id;
   allocated_ids_.reset(id);

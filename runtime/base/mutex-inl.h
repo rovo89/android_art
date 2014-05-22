@@ -132,9 +132,21 @@ static inline void CheckUnattachedThread(LockLevel level) NO_THREAD_SAFETY_ANALY
   // TODO: tighten this check.
   if (kDebugLocking) {
     Runtime* runtime = Runtime::Current();
-    CHECK(runtime == NULL || !runtime->IsStarted() || runtime->IsShuttingDownLocked() ||
-          level == kDefaultMutexLevel  || level == kRuntimeShutdownLock ||
-          level == kThreadListLock || level == kLoggingLock || level == kAbortLock);
+    CHECK(runtime == nullptr || !runtime->IsStarted() || runtime->IsShuttingDownLocked() ||
+          // Used during thread creation to avoid races with runtime shutdown. Thread::Current not
+          // yet established.
+          level == kRuntimeShutdownLock ||
+          // Thread Ids are allocated/released before threads are established.
+          level == kAllocatedThreadIdsLock ||
+          // Thread LDT's are initialized without Thread::Current established.
+          level == kModifyLdtLock ||
+          // Threads are unregistered while holding the thread list lock, during this process they
+          // no longer exist and so we expect an unlock with no self.
+          level == kThreadListLock ||
+          // Ignore logging which may or may not have set up thread data structures.
+          level == kLoggingLock ||
+          // Avoid recursive death.
+          level == kAbortLock);
   }
 }
 
