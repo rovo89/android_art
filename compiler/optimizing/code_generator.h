@@ -74,6 +74,13 @@ class CodeGenerator : public ArenaObject {
   void SetFrameSize(uint32_t size) { frame_size_ = size; }
   uint32_t GetCoreSpillMask() const { return core_spill_mask_; }
 
+  virtual size_t GetNumberOfCoreRegisters() const = 0;
+  virtual size_t GetNumberOfFloatingPointRegisters() const = 0;
+  virtual size_t GetNumberOfRegisters() const = 0;
+  virtual void SetupBlockedRegisters(bool* blocked_registers) const = 0;
+  virtual void DumpCoreRegister(std::ostream& stream, int reg) const = 0;
+  virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const = 0;
+
   void RecordPcInfo(uint32_t dex_pc) {
     struct PcInfo pc_info;
     pc_info.dex_pc = dex_pc;
@@ -92,8 +99,7 @@ class CodeGenerator : public ArenaObject {
         graph_(graph),
         block_labels_(graph->GetArena(), 0),
         pc_infos_(graph->GetArena(), 32),
-        blocked_registers_(static_cast<bool*>(
-            graph->GetArena()->Alloc(number_of_registers * sizeof(bool), kArenaAllocData))) {
+        blocked_registers_(graph->GetArena()->AllocArray<bool>(number_of_registers)) {
     block_labels_.SetSize(graph->GetBlocks().Size());
   }
   ~CodeGenerator() { }
@@ -108,9 +114,6 @@ class CodeGenerator : public ArenaObject {
   // Raw implementation of allocating a register: loops over blocked_registers to find
   // the first available register.
   size_t AllocateFreeRegisterInternal(bool* blocked_registers, size_t number_of_registers) const;
-
-  virtual void SetupBlockedRegisters(bool* blocked_registers) const = 0;
-  virtual size_t GetNumberOfRegisters() const = 0;
 
   virtual Location GetStackLocation(HLoadLocal* load) const = 0;
 

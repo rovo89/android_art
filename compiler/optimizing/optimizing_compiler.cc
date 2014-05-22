@@ -24,6 +24,7 @@
 #include "driver/dex_compilation_unit.h"
 #include "graph_visualizer.h"
 #include "nodes.h"
+#include "register_allocator.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/arena_allocator.h"
 
@@ -96,8 +97,6 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     }
     return nullptr;
   }
-  HGraphVisualizer visualizer(visualizer_output_.get(), graph, kStringFilter, dex_compilation_unit);
-  visualizer.DumpGraph("builder");
 
   InstructionSet instruction_set = GetCompilerDriver()->GetInstructionSet();
   // The optimizing compiler currently does not have a Thumb2 assembler.
@@ -111,6 +110,10 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     }
     return nullptr;
   }
+
+  HGraphVisualizer visualizer(
+      visualizer_output_.get(), graph, kStringFilter, *codegen, dex_compilation_unit);
+  visualizer.DumpGraph("builder");
 
   CodeVectorAllocator allocator;
   codegen->Compile(&allocator);
@@ -128,8 +131,12 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   visualizer.DumpGraph("ssa");
 
   graph->FindNaturalLoops();
-  SsaLivenessAnalysis(*graph).Analyze();
+  SsaLivenessAnalysis liveness(*graph);
+  liveness.Analyze();
   visualizer.DumpGraph("liveness");
+
+  RegisterAllocator(graph->GetArena(), *codegen).AllocateRegisters(liveness);
+  visualizer.DumpGraph("register");
 
   return new CompiledMethod(GetCompilerDriver(),
                             instruction_set,

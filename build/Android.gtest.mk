@@ -81,9 +81,11 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
 	compiler/optimizing/find_loops_test.cc \
 	compiler/optimizing/linearize_test.cc \
 	compiler/optimizing/liveness_test.cc \
+	compiler/optimizing/live_interval_test.cc \
 	compiler/optimizing/live_ranges_test.cc \
 	compiler/optimizing/parallel_move_test.cc \
 	compiler/optimizing/pretty_printer_test.cc \
+	compiler/optimizing/register_allocator_test.cc \
 	compiler/optimizing/ssa_test.cc \
 	compiler/output_stream_test.cc \
 	compiler/utils/arena_allocator_test.cc \

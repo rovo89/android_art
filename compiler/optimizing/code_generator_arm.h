@@ -133,6 +133,17 @@ class CodeGeneratorARM : public CodeGenerator {
   int32_t GetStackSlot(HLocal* local) const;
   virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
 
+  virtual size_t GetNumberOfCoreRegisters() const OVERRIDE {
+    return kNumberOfCoreRegisters;
+  }
+
+  virtual size_t GetNumberOfFloatingPointRegisters() const OVERRIDE {
+    return kNumberOfDRegisters;
+  }
+
+  virtual void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
+  virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
+
  private:
   // Helper method to move a 32bits value between two locations.
   void Move32(Location destination, Location source);
