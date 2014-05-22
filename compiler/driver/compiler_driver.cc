@@ -1369,7 +1369,7 @@ class ParallelCompilationManager {
     self->AssertNoPendingException();
     CHECK_GT(work_units, 0U);
 
-    index_ = begin;
+    index_.StoreRelaxed(begin);
     for (size_t i = 0; i < work_units; ++i) {
       thread_pool_->AddTask(self, new ForAllClosure(this, end, callback));
     }
@@ -1384,7 +1384,7 @@ class ParallelCompilationManager {
   }
 
   size_t NextIndex() {
-    return index_.FetchAndAdd(1);
+    return index_.FetchAndAddSequentiallyConsistent(1);
   }
 
  private:

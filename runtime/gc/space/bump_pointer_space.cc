@@ -68,8 +68,8 @@ void BumpPointerSpace::Clear() {
   // Reset the end of the space back to the beginning, we move the end forward as we allocate
   // objects.
   SetEnd(Begin());
-  objects_allocated_ = 0;
-  bytes_allocated_ = 0;
+  objects_allocated_.StoreRelaxed(0);
+  bytes_allocated_.StoreRelaxed(0);
   growth_end_ = Limit();
   {
     MutexLock mu(Thread::Current(), block_lock_);
@@ -204,7 +204,7 @@ accounting::ContinuousSpaceBitmap::SweepCallback* BumpPointerSpace::GetSweepCall
 
 uint64_t BumpPointerSpace::GetBytesAllocated() {
   // Start out pre-determined amount (blocks which are not being allocated into).
-  uint64_t total = static_cast<uint64_t>(bytes_allocated_.Load());
+  uint64_t total = static_cast<uint64_t>(bytes_allocated_.LoadRelaxed());
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::runtime_shutdown_lock_);
   MutexLock mu2(self, *Locks::thread_list_lock_);
@@ -222,7 +222,7 @@ uint64_t BumpPointerSpace::GetBytesAllocated() {
 
 uint64_t BumpPointerSpace::GetObjectsAllocated() {
   // Start out pre-determined amount (blocks which are not being allocated into).
-  uint64_t total = static_cast<uint64_t>(objects_allocated_.Load());
+  uint64_t total = static_cast<uint64_t>(objects_allocated_.LoadRelaxed());
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::runtime_shutdown_lock_);
   MutexLock mu2(self, *Locks::thread_list_lock_);
@@ -239,8 +239,8 @@ uint64_t BumpPointerSpace::GetObjectsAllocated() {
 }
 
 void BumpPointerSpace::RevokeThreadLocalBuffersLocked(Thread* thread) {
-  objects_allocated_.FetchAndAdd(thread->GetThreadLocalObjectsAllocated());
-  bytes_allocated_.FetchAndAdd(thread->GetThreadLocalBytesAllocated());
+  objects_allocated_.FetchAndAddSequentiallyConsistent(thread->GetThreadLocalObjectsAllocated());
+  bytes_allocated_.FetchAndAddSequentiallyConsistent(thread->GetThreadLocalBytesAllocated());
   thread->SetTlab(nullptr, nullptr);
 }
 

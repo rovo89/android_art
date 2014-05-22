@@ -46,8 +46,8 @@ class AtomicStack {
   void Reset() {
     DCHECK(mem_map_.get() != NULL);
     DCHECK(begin_ != NULL);
-    front_index_ = 0;
-    back_index_ = 0;
+    front_index_.StoreRelaxed(0);
+    back_index_.StoreRelaxed(0);
     debug_is_sorted_ = true;
     int result = madvise(begin_, sizeof(T) * capacity_, MADV_DONTNEED);
     if (result == -1) {
@@ -64,12 +64,12 @@ class AtomicStack {
     }
     int32_t index;
     do {
-      index = back_index_;
+      index = back_index_.LoadRelaxed();
       if (UNLIKELY(static_cast<size_t>(index) >= capacity_)) {
         // Stack overflow.
         return false;
       }
-    } while (!back_index_.CompareAndSwap(index, index + 1));
+    } while (!back_index_.CompareExchangeWeakRelaxed(index, index + 1));
     begin_[index] = value;
     return true;
   }
@@ -83,13 +83,13 @@ class AtomicStack {
     int32_t index;
     int32_t new_index;
     do {
-      index = back_index_;
+      index = back_index_.LoadRelaxed();
       new_index = index + num_slots;
       if (UNLIKELY(static_cast<size_t>(new_index) >= capacity_)) {
         // Stack overflow.
         return false;
       }
-    } while (!back_index_.CompareAndSwap(index, new_index));
+    } while (!back_index_.CompareExchangeWeakRelaxed(index, new_index));
     *start_address = &begin_[index];
     *end_address = &begin_[new_index];
     if (kIsDebugBuild) {
@@ -114,31 +114,31 @@ class AtomicStack {
     if (kIsDebugBuild) {
       debug_is_sorted_ = false;
     }
-    int32_t index = back_index_;
+    int32_t index = back_index_.LoadRelaxed();
     DCHECK_LT(static_cast<size_t>(index), capacity_);
-    back_index_ = index + 1;
+    back_index_.StoreRelaxed(index + 1);
     begin_[index] = value;
   }
 
   T PopBack() {
-    DCHECK_GT(back_index_, front_index_);
+    DCHECK_GT(back_index_.LoadRelaxed(), front_index_.LoadRelaxed());
     // Decrement the back index non atomically.
-    back_index_ = back_index_ - 1;
-    return begin_[back_index_];
+    back_index_.StoreRelaxed(back_index_.LoadRelaxed() - 1);
+    return begin_[back_index_.LoadRelaxed()];
   }
 
   // Take an item from the front of the stack.
   T PopFront() {
-    int32_t index = front_index_;
-    DCHECK_LT(index, back_index_.Load());
-    front_index_ = front_index_ + 1;
+    int32_t index = front_index_.LoadRelaxed();
+    DCHECK_LT(index, back_index_.LoadRelaxed());
+    front_index_.StoreRelaxed(index + 1);
     return begin_[index];
   }
 
   // Pop a number of elements.
   void PopBackCount(int32_t n) {
     DCHECK_GE(Size(), static_cast<size_t>(n));
-    back_index_.FetchAndSub(n);
+    back_index_.FetchAndSubSequentiallyConsistent(n);
   }
 
   bool IsEmpty() const {
@@ -146,16 +146,16 @@ class AtomicStack {
   }
 
   size_t Size() const {
-    DCHECK_LE(front_index_, back_index_);
-    return back_index_ - front_index_;
+    DCHECK_LE(front_index_.LoadRelaxed(), back_index_.LoadRelaxed());
+    return back_index_.LoadRelaxed() - front_index_.LoadRelaxed();
   }
 
   T* Begin() const {
-    return const_cast<T*>(begin_ + front_index_);
+    return const_cast<T*>(begin_ + front_index_.LoadRelaxed());
   }
 
   T* End() const {
-    return const_cast<T*>(begin_ + back_index_);
+    return const_cast<T*>(begin_ + back_index_.LoadRelaxed());
   }
 
   size_t Capacity() const {
@@ -169,11 +169,11 @@ class AtomicStack {
   }
 
   void Sort() {
-    int32_t start_back_index = back_index_.Load();
-    int32_t start_front_index = front_index_.Load();
+    int32_t start_back_index = back_index_.LoadRelaxed();
+    int32_t start_front_index = front_index_.LoadRelaxed();
     std::sort(Begin(), End());
-    CHECK_EQ(start_back_index, back_index_.Load());
-    CHECK_EQ(start_front_index, front_index_.Load());
+    CHECK_EQ(start_back_index, back_index_.LoadRelaxed());
+    CHECK_EQ(start_front_index, front_index_.LoadRelaxed());
     if (kIsDebugBuild) {
       debug_is_sorted_ = true;
     }
