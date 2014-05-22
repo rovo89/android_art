@@ -63,6 +63,10 @@ File* ScopedFlock::GetFile() {
   return file_.get();
 }
 
+bool ScopedFlock::HasFile() {
+  return file_.get() != nullptr;
+}
+
 ScopedFlock::ScopedFlock() { }
 
 ScopedFlock::~ScopedFlock() {

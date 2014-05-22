@@ -63,6 +63,13 @@ class DexFile {
   // The value of an invalid index.
   static const uint16_t kDexNoIndex16 = 0xFFFF;
 
+  // The separator charactor in MultiDex locations.
+  static constexpr char kMultiDexSeparator = ':';
+
+  // A string version of the previous. This is a define so that we can merge string literals in the
+  // preprocessor.
+  #define kMultiDexSeparatorString ":"
+
   // Raw header_item.
   struct Header {
     uint8_t magic_[8];
@@ -352,8 +359,9 @@ class DexFile {
   // Return true if the checksum could be found, false otherwise.
   static bool GetChecksum(const char* filename, uint32_t* checksum, std::string* error_msg);
 
-  // Opens .dex file, guessing the container format based on file extension
-  static const DexFile* Open(const char* filename, const char* location, std::string* error_msg);
+  // Opens .dex files found in the container, guessing the container format based on file extension.
+  static bool Open(const char* filename, const char* location, std::string* error_msg,
+                   std::vector<const DexFile*>* dex_files);
 
   // Opens .dex file, backed by existing memory
   static const DexFile* Open(const uint8_t* base, size_t size,
@@ -363,9 +371,9 @@ class DexFile {
     return OpenMemory(base, size, location, location_checksum, NULL, error_msg);
   }
 
-  // Opens .dex file from the classes.dex in a zip archive
-  static const DexFile* Open(const ZipArchive& zip_archive, const std::string& location,
-                             std::string* error_msg);
+  // Open all classesXXX.dex files from a zip archive.
+  static bool OpenFromZip(const ZipArchive& zip_archive, const std::string& location,
+                          std::string* error_msg, std::vector<const DexFile*>* dex_files);
 
   // Closes a .dex file.
   virtual ~DexFile();
@@ -823,8 +831,24 @@ class DexFile {
   // Opens a .dex file
   static const DexFile* OpenFile(int fd, const char* location, bool verify, std::string* error_msg);
 
-  // Opens a dex file from within a .jar, .zip, or .apk file
-  static const DexFile* OpenZip(int fd, const std::string& location, std::string* error_msg);
+  // Opens dex files from within a .jar, .zip, or .apk file
+  static bool OpenZip(int fd, const std::string& location, std::string* error_msg,
+                      std::vector<const DexFile*>* dex_files);
+
+  enum class ZipOpenErrorCode {  // private
+    kNoError,
+    kEntryNotFound,
+    kExtractToMemoryError,
+    kDexFileError,
+    kMakeReadOnlyError,
+    kVerifyError
+  };
+
+  // Opens .dex file from the entry_name in a zip archive. error_code is undefined when non-nullptr
+  // return.
+  static const DexFile* Open(const ZipArchive& zip_archive, const char* entry_name,
+                             const std::string& location, std::string* error_msg,
+                             ZipOpenErrorCode* error_code);
 
   // Opens a .dex file at the given address backed by a MemMap
   static const DexFile* OpenMemory(const std::string& location,
@@ -854,6 +878,18 @@ class DexFile {
   void DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32_t method_idx,
       DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
       void* context, const byte* stream, LocalInfo* local_in_reg) const;
+
+  // Check whether a location denotes a multidex dex file. This is a very simple check: returns
+  // whether the string contains the separator character.
+  static bool IsMultiDexLocation(const char* location);
+
+  // Splits a multidex location at the last separator character. The second component is a pointer
+  // to the character after the separator. The first is a copy of the substring up to the separator.
+  //
+  // Note: It's the caller's job to free the first component of the returned pair.
+  // Bug 15313523: gcc/libc++ don't allow a unique_ptr for the first component
+  static std::pair<const char*, const char*> SplitMultiDexLocation(const char* location);
+
 
   // The base address of the memory mapping.
   const byte* const begin_;
