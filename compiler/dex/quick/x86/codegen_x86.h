@@ -118,6 +118,7 @@ class X86Mir2Lir : public Mir2Lir {
     bool GenInlinedSqrt(CallInfo* info);
     bool GenInlinedPeek(CallInfo* info, OpSize size);
     bool GenInlinedPoke(CallInfo* info, OpSize size);
+    void GenNotLong(RegLocation rl_dest, RegLocation rl_src);
     void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
     void GenOrLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                    RegLocation rl_src2);
@@ -125,6 +126,8 @@ class X86Mir2Lir : public Mir2Lir {
                     RegLocation rl_src2);
     void GenXorLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                     RegLocation rl_src2);
+    void GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
+                       RegLocation rl_src2, bool is_div);
     // TODO: collapse reg_lo, reg_hi
     RegLocation GenDivRem(RegLocation rl_dest, RegStorage reg_lo, RegStorage reg_hi, bool is_div);
     RegLocation GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int lit, bool is_div);

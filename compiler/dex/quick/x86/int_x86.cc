@@ -1372,6 +1372,15 @@ void X86Mir2Lir::GenXorLong(Instruction::Code opcode, RegLocation rl_dest,
   GenLongArith(rl_dest, rl_src1, rl_src2, opcode, true);
 }
 
+void X86Mir2Lir::GenNotLong(RegLocation rl_dest, RegLocation rl_src) {
+  LOG(FATAL) << "Unexpected use GenNotLong()";
+}
+
+void X86Mir2Lir::GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
+                           RegLocation rl_src2, bool is_div) {
+  LOG(FATAL) << "Unexpected use GenDivRemLong()";
+}
+
 void X86Mir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   rl_src = LoadValueWide(rl_src, kCoreReg);
   RegLocation rl_result = ForceTempWide(rl_src);
