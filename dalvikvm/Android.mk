@@ -51,6 +51,7 @@ LOCAL_SHARED_LIBRARIES := libnativehelper
 LOCAL_LDFLAGS := -ldl -lpthread
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 LOCAL_IS_HOST_MODULE := true
+include external/libcxx/libcxx.mk
 include $(BUILD_HOST_EXECUTABLE)
 ART_HOST_EXECUTABLES += $(HOST_OUT_EXECUTABLES)/$(LOCAL_MODULE)
 endif

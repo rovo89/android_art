@@ -194,8 +194,8 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_GENERATED_SOURCES += $$(ENUM_OPERATOR_OUT_GEN)
 
   LOCAL_CFLAGS := $$(LIBART_COMPILER_CFLAGS)
+  include external/libcxx/libcxx.mk
   ifeq ($$(art_target_or_host),target)
-    include external/libcxx/libcxx.mk
     LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
   else # host
@@ -247,7 +247,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
 
   ifeq ($$(art_target_or_host),host)
-    LOCAL_LDLIBS := -ldl -lpthread
+    LOCAL_LDLIBS += -ldl -lpthread
   endif
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
