@@ -121,8 +121,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(mirror::Class* klass,
 }
 
 MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
-                                                        Handle<mirror::DexCache> dex_cache,
-                                                        Handle<mirror::ClassLoader> class_loader,
+                                                        Handle<mirror::DexCache>& dex_cache,
+                                                        Handle<mirror::ClassLoader>& class_loader,
                                                         const DexFile::ClassDef* class_def,
                                                         bool allow_soft_failures,
                                                         std::string* error) {
@@ -151,8 +151,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
     previous_direct_method_idx = method_idx;
     InvokeType type = it.GetMethodInvokeType(*class_def);
     mirror::ArtMethod* method =
-        linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader,
-                              NullHandle<mirror::ArtMethod>(), type);
+        linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, NULL, type);
     if (method == NULL) {
       DCHECK(Thread::Current()->IsExceptionPending());
       // We couldn't resolve the method, but continue regardless.
@@ -194,8 +193,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
     previous_virtual_method_idx = method_idx;
     InvokeType type = it.GetMethodInvokeType(*class_def);
     mirror::ArtMethod* method =
-        linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader,
-                              NullHandle<mirror::ArtMethod>(), type);
+        linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, NULL, type);
     if (method == NULL) {
       DCHECK(Thread::Current()->IsExceptionPending());
       // We couldn't resolve the method, but continue regardless.
@@ -234,8 +232,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
 
 MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx,
                                                          const DexFile* dex_file,
-                                                         Handle<mirror::DexCache> dex_cache,
-                                                         Handle<mirror::ClassLoader> class_loader,
+                                                         Handle<mirror::DexCache>& dex_cache,
+                                                         Handle<mirror::ClassLoader>& class_loader,
                                                          const DexFile::ClassDef* class_def,
                                                          const DexFile::CodeItem* code_item,
                                                          mirror::ArtMethod* method,
@@ -279,8 +277,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx,
 
 void MethodVerifier::VerifyMethodAndDump(std::ostream& os, uint32_t dex_method_idx,
                                          const DexFile* dex_file,
-                                         Handle<mirror::DexCache> dex_cache,
-                                         Handle<mirror::ClassLoader> class_loader,
+                                         Handle<mirror::DexCache>& dex_cache,
+                                         Handle<mirror::ClassLoader>& class_loader,
                                          const DexFile::ClassDef* class_def,
                                          const DexFile::CodeItem* code_item,
                                          mirror::ArtMethod* method,

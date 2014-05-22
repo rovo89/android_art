@@ -39,8 +39,10 @@ void StackTraceElement::ResetClass() {
   java_lang_StackTraceElement_ = NULL;
 }
 
-StackTraceElement* StackTraceElement::Alloc(Thread* self, Handle<String> declaring_class,
-                                            Handle<String> method_name, Handle<String> file_name,
+StackTraceElement* StackTraceElement::Alloc(Thread* self,
+                                            Handle<String>& declaring_class,
+                                            Handle<String>& method_name,
+                                            Handle<String>& file_name,
                                             int32_t line_number) {
   StackTraceElement* trace =
       down_cast<StackTraceElement*>(GetStackTraceElement()->AllocObject(self));
@@ -55,8 +57,8 @@ StackTraceElement* StackTraceElement::Alloc(Thread* self, Handle<String> declari
 }
 
 template<bool kTransactionActive>
-void StackTraceElement::Init(Handle<String> declaring_class, Handle<String> method_name,
-                             Handle<String> file_name, int32_t line_number) {
+void StackTraceElement::Init(Handle<String>& declaring_class, Handle<String>& method_name,
+                             Handle<String>& file_name, int32_t line_number) {
   SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, declaring_class_),
                                      declaring_class.Get());
   SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, method_name_),
