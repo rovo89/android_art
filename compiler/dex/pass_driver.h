@@ -22,77 +22,169 @@
 #include "safe_map.h"
 
 // Forward Declarations.
-class CompilationUnit;
 class Pass;
-
+class PassDriver;
 namespace art {
+/**
+ * @brief Helper function to create a single instance of a given Pass and can be shared across
+ * the threads.
+ */
+template <typename PassType>
+const Pass* GetPassInstance() {
+  static const PassType pass;
+  return &pass;
+}
+
+// Empty holder for the constructor.
+class PassDriverDataHolder {
+};
 
 /**
  * @class PassDriver
- * @brief PassDriver is the wrapper around all Pass instances in order to execute them from the Middle-End
+ * @brief PassDriver is the wrapper around all Pass instances in order to execute them
  */
+template <typename PassDriverType>
 class PassDriver {
  public:
-  explicit PassDriver(CompilationUnit* cu, bool create_default_passes = true);
+  explicit PassDriver() {
+    InitializePasses();
+  }
 
-  ~PassDriver();
+  virtual ~PassDriver() {
+  }
 
   /**
    * @brief Insert a Pass: can warn if multiple passes have the same name.
-   * @param new_pass the new Pass to insert in the map and list.
-   * @param warn_override warn if the name of the Pass is already used.
    */
-  void InsertPass(const Pass* new_pass);
+  void InsertPass(const Pass* new_pass) {
+    DCHECK(new_pass != nullptr);
+    DCHECK(new_pass->GetName() != nullptr && new_pass->GetName()[0] != 0);
+
+    // It is an error to override an existing pass.
+    DCHECK(GetPass(new_pass->GetName()) == nullptr)
+        << "Pass name " << new_pass->GetName() << " already used.";
+
+    // Now add to the list.
+    pass_list_.push_back(new_pass);
+  }
 
   /**
    * @brief Run a pass using the name as key.
-   * @param c_unit the considered CompilationUnit.
-   * @param pass_name the Pass name.
    * @return whether the pass was applied.
    */
-  bool RunPass(CompilationUnit* c_unit, const char* pass_name);
+  virtual bool RunPass(const char* pass_name) {
+    // Paranoid: c_unit cannot be nullptr and we need a pass name.
+    DCHECK(pass_name != nullptr && pass_name[0] != 0);
+
+    const Pass* cur_pass = GetPass(pass_name);
+
+    if (cur_pass != nullptr) {
+      return RunPass(cur_pass);
+    }
+
+    // Return false, we did not find the pass.
+    return false;
+  }
+
+  /**
+   * @brief Runs all the passes with the pass_list_.
+   */
+  void Launch() {
+    for (const Pass* cur_pass : pass_list_) {
+      RunPass(cur_pass);
+    }
+  }
+
+  /**
+   * @brief Searches for a particular pass.
+   * @param the name of the pass to be searched for.
+   */
+  const Pass* GetPass(const char* name) const {
+    for (const Pass* cur_pass : pass_list_) {
+      if (strcmp(name, cur_pass->GetName()) == 0) {
+        return cur_pass;
+      }
+    }
+    return nullptr;
+  }
+
+  static void CreateDefaultPassList(const std::string& disable_passes) {
+    // Insert each pass from g_passes into g_default_pass_list.
+    PassDriverType::g_default_pass_list.clear();
+    PassDriverType::g_default_pass_list.reserve(PassDriver<PassDriverType>::g_passes_size);
+    for (uint16_t i = 0; i < PassDriver<PassDriverType>::g_passes_size; ++i) {
+      const Pass* pass = PassDriver<PassDriverType>::g_passes[i];
+      // Check if we should disable this pass.
+      if (disable_passes.find(pass->GetName()) != std::string::npos) {
+        LOG(INFO) << "Skipping " << pass->GetName();
+      } else {
+        PassDriver<PassDriverType>::g_default_pass_list.push_back(pass);
+      }
+    }
+  }
 
   /**
    * @brief Run a pass using the Pass itself.
    * @param time_split do we want a time split request(default: false)?
    * @return whether the pass was applied.
    */
-  bool RunPass(CompilationUnit* c_unit, const Pass* pass, bool time_split = false);
+  virtual bool RunPass(const Pass* pass, bool time_split = false) = 0;
 
-  void Launch();
+  /**
+   * @brief Print the pass names of all the passes available.
+   */
+  static void PrintPassNames() {
+    LOG(INFO) << "Loop Passes are:";
 
-  void HandlePassFlag(CompilationUnit* c_unit, const Pass* pass);
+    for (const Pass* cur_pass : PassDriver<PassDriverType>::g_default_pass_list) {
+      LOG(INFO) << "\t-" << cur_pass->GetName();
+    }
+  }
+
+ protected:
+  /**
+   * @brief Gets the list of passes currently schedule to execute.
+   * @return pass_list_
+   */
+  std::vector<const Pass*>& GetPasses() {
+    return pass_list_;
+  }
+
+  virtual void InitializePasses() {
+    SetDefaultPasses();
+  }
+
+  void SetDefaultPasses() {
+    pass_list_ = PassDriver<PassDriverType>::g_default_pass_list;
+  }
 
   /**
    * @brief Apply a patch: perform start/work/end functions.
    */
-  void ApplyPass(CompilationUnit* c_unit, const Pass* pass);
-
-  /**
-   * @brief Dispatch a patch: walk the BasicBlocks depending on the traversal mode
-   */
-  void DispatchPass(CompilationUnit* c_unit, const Pass* pass);
-
-  static void PrintPassNames();
-  static void CreateDefaultPassList(const std::string& disable_passes);
-
-  const Pass* GetPass(const char* name) const;
-
-  const char* GetDumpCFGFolder() const {
-    return dump_cfg_folder_;
+  virtual void ApplyPass(PassDataHolder* data, const Pass* pass) {
+    pass->Start(data);
+    DispatchPass(pass);
+    pass->End(data);
   }
-
- protected:
-  void CreatePasses();
+  /**
+   * @brief Dispatch a patch.
+   * Gives the ability to add logic when running the patch.
+   */
+  virtual void DispatchPass(const Pass* pass) {
+    UNUSED(pass);
+  }
 
   /** @brief List of passes: provides the order to execute the passes. */
   std::vector<const Pass*> pass_list_;
 
-  /** @brief The CompilationUnit on which to execute the passes on. */
-  CompilationUnit* const cu_;
+  /** @brief The number of passes within g_passes.  */
+  static const uint16_t g_passes_size;
 
-  /** @brief Dump CFG base folder: where is the base folder for dumping CFGs. */
-  const char* dump_cfg_folder_;
+  /** @brief The number of passes within g_passes.  */
+  static const Pass* const g_passes[];
+
+  /** @brief The default pass list is used to initialize pass_list_. */
+  static std::vector<const Pass*> g_default_pass_list;
 };
 
 }  // namespace art
