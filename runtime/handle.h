@@ -53,41 +53,27 @@ class Handle {
     reference_->Assign(reference);
     return old;
   }
-  jobject ToJObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
-    if (UNLIKELY(reference_->AsMirrorPtr() == nullptr)) {
-      // Special case so that we work with NullHandles.
-      return nullptr;
-    }
+  jobject ToJObject() const ALWAYS_INLINE {
     return reinterpret_cast<jobject>(reference_);
   }
 
- protected:
+ private:
   StackReference<T>* reference_;
 
   template<typename S>
   explicit Handle(StackReference<S>* reference)
       : reference_(reinterpret_cast<StackReference<T>*>(reference)) {
   }
+
   template<typename S>
   explicit Handle(const Handle<S>& handle)
       : reference_(reinterpret_cast<StackReference<T>*>(handle.reference_)) {
   }
 
- private:
   template<class S> friend class Handle;
   friend class HandleScope;
   template<class S> friend class HandleWrapper;
   template<size_t kNumReferences> friend class StackHandleScope;
-};
-
-template<class T>
-class NullHandle : public Handle<T> {
- public:
-  NullHandle() : Handle<T>(&null_ref_) {
-  }
-
- private:
-  StackReference<T> null_ref_;
 };
 
 }  // namespace art

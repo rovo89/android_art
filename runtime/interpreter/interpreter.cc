@@ -524,17 +524,16 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
   ArtMethod* method = shadow_frame->GetMethod();
   // Ensure static methods are initialized.
   if (method->IsStatic()) {
-    mirror::Class* declaring_class = method->GetDeclaringClass();
-    if (UNLIKELY(!declaring_class->IsInitializing())) {
-      StackHandleScope<1> hs(self);
-      HandleWrapper<Class> h_declaring_class(hs.NewHandleWrapper(&declaring_class));
-      if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(
-          h_declaring_class, true, true))) {
-        DCHECK(self->IsExceptionPending());
+    StackHandleScope<1> hs(self);
+    Handle<Class> declaringClass(hs.NewHandle(method->GetDeclaringClass()));
+    if (UNLIKELY(!declaringClass->IsInitializing())) {
+      if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaringClass, true,
+                                                                            true))) {
+        DCHECK(Thread::Current()->IsExceptionPending());
         self->PopShadowFrame();
         return;
       }
-      CHECK(h_declaring_class->IsInitializing());
+      CHECK(declaringClass->IsInitializing());
     }
   }
 
