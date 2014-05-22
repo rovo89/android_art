@@ -263,7 +263,8 @@ struct MIR {
     Instruction::Code opcode;
   } dalvikInsn;
 
-  uint16_t width;                 // Note: width can include switch table or fill array data.
+  // TODO: Add id of parent basic block.
+  // BasicBlockId parent_bb;      // ID of parent basic block.
   NarrowDexOffset offset;         // Offset of the instruction in code units.
   uint16_t optimization_flags;
   int16_t m_unit_index;           // From which method was this MIR included

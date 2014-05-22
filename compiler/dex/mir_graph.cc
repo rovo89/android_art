@@ -633,7 +633,6 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     insn->offset = current_offset_;
     insn->m_unit_index = current_method_;
     int width = ParseInsn(code_ptr, &insn->dalvikInsn);
-    insn->width = width;
     Instruction::Code opcode = insn->dalvikInsn.opcode;
     if (opcode_count_ != NULL) {
       opcode_count_[static_cast<int>(opcode)]++;

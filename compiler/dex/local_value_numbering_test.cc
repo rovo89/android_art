@@ -144,7 +144,6 @@ class LocalValueNumberingTest : public testing::Test {
       mir->ssa_rep->fp_def = nullptr;  // Not used by LVN.
       mir->dalvikInsn.opcode = def->opcode;
       mir->offset = i;  // LVN uses offset only for debug output
-      mir->width = 1u;  // Not used by LVN.
       mir->optimization_flags = 0u;
 
       if (i != 0u) {
