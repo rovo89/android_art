@@ -557,8 +557,7 @@ void MIRGraph::InsertPhiNodes() {
       if (!phi_bb->data_flow_info->live_in_v->IsBitSet(dalvik_reg)) {
         continue;
       }
-      MIR *phi =
-          static_cast<MIR*>(arena_->Alloc(sizeof(MIR), kArenaAllocDFInfo));
+      MIR *phi = NewMIR();
       phi->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpPhi);
       phi->dalvikInsn.vA = dalvik_reg;
       phi->offset = phi_bb->start_offset;
