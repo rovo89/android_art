@@ -18,8 +18,8 @@
 #define ART_COMPILER_OUTPUT_STREAM_H_
 
 #include <stdint.h>
-
 #include <string>
+#include <sys/types.h>
 
 #include "base/macros.h"
 

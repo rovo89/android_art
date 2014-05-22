@@ -182,6 +182,7 @@ define build-art-test
   endif
 
   LOCAL_CFLAGS := $(ART_TEST_CFLAGS)
+  include external/libcxx/libcxx.mk
   ifeq ($$(art_target_or_host),target)
     LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
@@ -191,7 +192,6 @@ define build-art-test
     LOCAL_MODULE_PATH_32 := $(ART_NATIVETEST_OUT)/$(ART_TARGET_ARCH_32)
     LOCAL_MODULE_PATH_64 := $(ART_NATIVETEST_OUT)/$(ART_TARGET_ARCH_64)
     LOCAL_MULTILIB := both
-    include external/libcxx/libcxx.mk
     include $(BUILD_EXECUTABLE)
     
     ART_TARGET_GTEST_EXECUTABLES$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_NATIVETEST_OUT)/$(TARGET_ARCH)/$$(LOCAL_MODULE)
@@ -216,7 +216,7 @@ $$(art_gtest_target): $$(art_gtest_target)$(ART_PHONY_TEST_TARGET_SUFFIX)
     LOCAL_STATIC_LIBRARIES += libcutils libvixl
     ifneq ($(WITHOUT_HOST_CLANG),true)
         # GCC host compiled tests fail with this linked, presumably due to destructors that run.
-        LOCAL_STATIC_LIBRARIES += libgtest_host
+        LOCAL_STATIC_LIBRARIES += libgtest_libc++_host
     endif
     LOCAL_LDLIBS += -lpthread -ldl
     LOCAL_IS_HOST_MODULE := true
