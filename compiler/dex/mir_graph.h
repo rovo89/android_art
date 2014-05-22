@@ -354,11 +354,12 @@ struct BasicBlock {
    */
   MIR* GetNextUnconditionalMir(MIRGraph* mir_graph, MIR* current);
   bool RemoveMIR(MIR* mir);
+  bool IsExceptionBlock() const;
 };
 
 /*
  * The "blocks" field in "successor_block_list" points to an array of elements with the type
- * "SuccessorBlockInfo".  For catch blocks, key is type index for the exception.  For swtich
+ * "SuccessorBlockInfo".  For catch blocks, key is type index for the exception.  For switch
  * blocks, key is the case value.
  */
 struct SuccessorBlockInfo {
@@ -597,6 +598,10 @@ class MIRGraph {
   void DumpRegLocTable(RegLocation* table, int count);
 
   void BasicBlockOptimization();
+
+  GrowableArray<BasicBlockId>* GetTopologicalSortOrder() {
+    return topological_order_;
+  }
 
   bool IsConst(int32_t s_reg) const {
     return is_constant_v_->IsBitSet(s_reg);
@@ -865,6 +870,7 @@ class MIRGraph {
   MIR* AdvanceMIR(BasicBlock** p_bb, MIR* mir);
   BasicBlock* NextDominatedBlock(BasicBlock* bb);
   bool LayoutBlocks(BasicBlock* bb);
+  void ComputeTopologicalSortOrder();
 
   bool InlineCallsGate();
   void InlineCallsStart();
@@ -1003,6 +1009,7 @@ class MIRGraph {
   GrowableArray<BasicBlockId>* dfs_order_;
   GrowableArray<BasicBlockId>* dfs_post_order_;
   GrowableArray<BasicBlockId>* dom_post_order_traversal_;
+  GrowableArray<BasicBlockId>* topological_order_;
   int* i_dom_list_;
   ArenaBitVector** def_block_matrix_;    // num_dalvik_register x num_blocks.
   ArenaBitVector* temp_dalvik_register_v_;
