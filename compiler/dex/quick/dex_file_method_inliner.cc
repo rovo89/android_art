@@ -35,8 +35,7 @@ namespace art {
 namespace {  // anonymous namespace
 
 MIR* AllocReplacementMIR(MIRGraph* mir_graph, MIR* invoke, MIR* move_return) {
-  ArenaAllocator* arena = mir_graph->GetArena();
-  MIR* insn = static_cast<MIR*>(arena->Alloc(sizeof(MIR), kArenaAllocMIR));
+  MIR* insn = mir_graph->NewMIR();
   insn->offset = invoke->offset;
   insn->optimization_flags = MIR_CALLEE;
   return insn;

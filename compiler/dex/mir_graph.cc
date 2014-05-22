@@ -196,7 +196,7 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
   }
 
   orig_block->last_mir_insn = prev;
-  prev->next = NULL;
+  prev->next = nullptr;
 
   /*
    * Update the immediate predecessor block pointer so that outgoing edges
@@ -220,6 +220,7 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
   while (p != bottom_block->last_mir_insn) {
     p = p->next;
     DCHECK(p != nullptr);
+    p->bb = bottom_block->id;
     int opcode = p->dalvikInsn.opcode;
     /*
      * Some messiness here to ensure that we only enter real opcodes and only the
@@ -543,7 +544,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
   new_block->start_offset = insn->offset;
   cur_block->fall_through = new_block->id;
   new_block->predecessors->Insert(cur_block->id);
-  MIR* new_insn = static_cast<MIR*>(arena_->Alloc(sizeof(MIR), kArenaAllocMIR));
+  MIR* new_insn = NewMIR();
   *new_insn = *insn;
   insn->dalvikInsn.opcode =
       static_cast<Instruction::Code>(kMirOpCheck);
@@ -629,7 +630,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
 
   /* Parse all instructions and put them into containing basic blocks */
   while (code_ptr < code_end) {
-    MIR *insn = static_cast<MIR *>(arena_->Alloc(sizeof(MIR), kArenaAllocMIR));
+    MIR *insn = NewMIR();
     insn->offset = current_offset_;
     insn->m_unit_index = current_method_;
     int width = ParseInsn(code_ptr, &insn->dalvikInsn);
@@ -923,7 +924,7 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
   fclose(file);
 }
 
-/* Insert an MIR instruction to the end of a basic block */
+/* Insert an MIR instruction to the end of a basic block. */
 void BasicBlock::AppendMIR(MIR* mir) {
   if (first_mir_insn == nullptr) {
     DCHECK(last_mir_insn == nullptr);
@@ -934,9 +935,11 @@ void BasicBlock::AppendMIR(MIR* mir) {
     mir->next = nullptr;
     last_mir_insn = mir;
   }
+
+  mir->bb = id;
 }
 
-/* Insert an MIR instruction to the head of a basic block */
+/* Insert an MIR instruction to the head of a basic block. */
 void BasicBlock::PrependMIR(MIR* mir) {
   if (first_mir_insn == nullptr) {
     DCHECK(last_mir_insn == nullptr);
@@ -946,16 +949,52 @@ void BasicBlock::PrependMIR(MIR* mir) {
     mir->next = first_mir_insn;
     first_mir_insn = mir;
   }
+
+  mir->bb = id;
 }
 
-/* Insert a MIR instruction after the specified MIR */
+/* Insert a MIR instruction after the specified MIR. */
 void BasicBlock::InsertMIRAfter(MIR* current_mir, MIR* new_mir) {
   new_mir->next = current_mir->next;
   current_mir->next = new_mir;
 
   if (last_mir_insn == current_mir) {
-    /* Is the last MIR in the block */
+    /* Is the last MIR in the block? */
     last_mir_insn = new_mir;
+  }
+
+  new_mir->bb = id;
+}
+
+MIR* BasicBlock::FindPreviousMIR(MIR* mir) {
+  MIR* current = first_mir_insn;
+
+  while (current != nullptr) {
+    MIR* next = current->next;
+
+    if (next == mir) {
+      return current;
+    }
+
+    current = next;
+  }
+
+  return nullptr;
+}
+
+void BasicBlock::InsertMIRBefore(MIR* current_mir, MIR* new_mir) {
+  if (first_mir_insn == current_mir) {
+    /* Is the first MIR in the block? */
+    first_mir_insn = new_mir;
+    new_mir->bb = id;
+  }
+
+  MIR* prev = FindPreviousMIR(current_mir);
+
+  if (prev != nullptr) {
+    prev->next = new_mir;
+    new_mir->next = current_mir;
+    new_mir->bb = id;
   }
 }
 
@@ -1239,6 +1278,12 @@ CallInfo* MIRGraph::NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type,
   return info;
 }
 
+// Allocate a new MIR.
+MIR* MIRGraph::NewMIR() {
+  MIR* mir = new (arena_) MIR();
+  return mir;
+}
+
 // Allocate a new basic block.
 BasicBlock* MIRGraph::NewMemBB(BBType block_type, int block_id) {
   BasicBlock* bb = static_cast<BasicBlock*>(arena_->Alloc(sizeof(BasicBlock),
@@ -1341,6 +1386,108 @@ BasicBlock* ChildBlockIterator::Next() {
 
   // We do not have anything.
   return nullptr;
+}
+
+bool BasicBlock::RemoveMIR(MIR* mir) {
+  if (mir == nullptr) {
+    return false;
+  }
+
+  // Find the MIR, and the one before it if they exist.
+  MIR* current = nullptr;
+  MIR* prev = nullptr;
+
+  // Find the mir we are looking for.
+  for (current = first_mir_insn; current != nullptr; prev = current, current = current->next) {
+    if (current == mir) {
+      break;
+    }
+  }
+
+  // Did we find it?
+  if (current != nullptr) {
+    MIR* next = current->next;
+
+    // Just update the links of prev and next and current is almost gone.
+    if (prev != nullptr) {
+      prev->next = next;
+    }
+
+    // Exceptions are if first or last mirs are invoke.
+    if (first_mir_insn == current) {
+      first_mir_insn = next;
+    }
+
+    if (last_mir_insn == current) {
+      last_mir_insn = prev;
+    }
+
+    // Found it and removed it.
+    return true;
+  }
+
+  // We did not find it.
+  return false;
+}
+
+MIR* MIR::Copy(MIRGraph* mir_graph) {
+  MIR* res = mir_graph->NewMIR();
+  *res = *this;
+
+  // Remove links
+  res->next = nullptr;
+  res->bb = NullBasicBlockId;
+  res->ssa_rep = nullptr;
+
+  return res;
+}
+
+MIR* MIR::Copy(CompilationUnit* c_unit) {
+  return Copy(c_unit->mir_graph.get());
+}
+
+uint32_t SSARepresentation::GetStartUseIndex(Instruction::Code opcode) {
+  // Default result.
+  int res = 0;
+
+  // We are basically setting the iputs to their igets counterparts.
+  switch (opcode) {
+    case Instruction::IPUT:
+    case Instruction::IPUT_OBJECT:
+    case Instruction::IPUT_BOOLEAN:
+    case Instruction::IPUT_BYTE:
+    case Instruction::IPUT_CHAR:
+    case Instruction::IPUT_SHORT:
+    case Instruction::IPUT_QUICK:
+    case Instruction::IPUT_OBJECT_QUICK:
+    case Instruction::APUT:
+    case Instruction::APUT_OBJECT:
+    case Instruction::APUT_BOOLEAN:
+    case Instruction::APUT_BYTE:
+    case Instruction::APUT_CHAR:
+    case Instruction::APUT_SHORT:
+    case Instruction::SPUT:
+    case Instruction::SPUT_OBJECT:
+    case Instruction::SPUT_BOOLEAN:
+    case Instruction::SPUT_BYTE:
+    case Instruction::SPUT_CHAR:
+    case Instruction::SPUT_SHORT:
+      // Skip the VR containing what to store.
+      res = 1;
+      break;
+    case Instruction::IPUT_WIDE:
+    case Instruction::IPUT_WIDE_QUICK:
+    case Instruction::APUT_WIDE:
+    case Instruction::SPUT_WIDE:
+      // Skip the two VRs containing what to store.
+      res = 2;
+      break;
+    default:
+      // Do nothing in the general case.
+      break;
+  }
+
+  return res;
 }
 
 }  // namespace art
