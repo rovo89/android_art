@@ -533,7 +533,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
       Trace::SetDefaultClockSource(kProfilerClockSourceWall);
     } else if (option == "-Xprofile:dualclock") {
       Trace::SetDefaultClockSource(kProfilerClockSourceDual);
-    } else if (StartsWith(option, "-Xprofile:")) {
+    } else if (StartsWith(option, "-Xprofile-filename:")) {
       if (!ParseStringAfterChar(option, ':', &profile_output_filename_)) {
         return false;
       }
@@ -786,7 +786,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xmethod-trace\n");
   UsageMessage(stream, "  -Xmethod-trace-file:filename");
   UsageMessage(stream, "  -Xmethod-trace-file-size:integervalue\n");
-  UsageMessage(stream, "  -Xprofile=filename\n");
+  UsageMessage(stream, "  -Xprofile-filename:filename\n");
   UsageMessage(stream, "  -Xprofile-period:integervalue\n");
   UsageMessage(stream, "  -Xprofile-duration:integervalue\n");
   UsageMessage(stream, "  -Xprofile-interval:integervalue\n");
