@@ -1867,7 +1867,7 @@ class VerifyReferenceVisitor {
       : heap_(heap), fail_count_(fail_count), verify_referent_(verify_referent) {}
 
   size_t GetFailureCount() const {
-    return fail_count_->Load();
+    return fail_count_->LoadSequentiallyConsistent();
   }
 
   void operator()(mirror::Class* klass, mirror::Reference* ref) const
@@ -1904,7 +1904,7 @@ class VerifyReferenceVisitor {
       // Verify that the reference is live.
       return true;
     }
-    if (fail_count_->FetchAndAdd(1) == 0) {
+    if (fail_count_->FetchAndAddSequentiallyConsistent(1) == 0) {
       // Print message on only on first failure to prevent spam.
       LOG(ERROR) << "!!!!!!!!!!!!!!Heap corruption detected!!!!!!!!!!!!!!!!!!!";
     }
@@ -2020,7 +2020,7 @@ class VerifyObjectVisitor {
   }
 
   size_t GetFailureCount() const {
-    return fail_count_->Load();
+    return fail_count_->LoadSequentiallyConsistent();
   }
 
  private:
