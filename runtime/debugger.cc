@@ -2881,7 +2881,7 @@ static bool IsMethodPossiblyInlined(Thread* self, mirror::ArtMethod* m)
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(mh.GetClassLoader()));
   verifier::MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader,
                                     &mh.GetClassDef(), code_item, m->GetDexMethodIndex(), m,
-                                    m->GetAccessFlags(), false, true);
+                                    m->GetAccessFlags(), false, true, false);
   // Note: we don't need to verify the method.
   return InlineMethodAnalyser::AnalyseMethodCode(&verifier, nullptr);
 }
