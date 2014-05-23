@@ -33,6 +33,7 @@ class MoveOperands;
 class ParallelMoveResolver : public ValueObject {
  public:
   explicit ParallelMoveResolver(ArenaAllocator* allocator) : moves_(allocator, 32) {}
+  virtual ~ParallelMoveResolver() {}
 
   // Resolve a set of parallel moves, emitting assembler instructions.
   void EmitNativeCode(HParallelMove* parallel_move);
