@@ -58,7 +58,7 @@ class BitVector {
           return !(*this == other);
         }
 
-        int operator*() const{
+        int operator*() const {
           DCHECK_LT(bit_index_, BitSize());
           return bit_index_;
         }
