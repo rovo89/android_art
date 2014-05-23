@@ -55,7 +55,7 @@ bool DeoptimizeStackVisitor::HandleDeoptimization(mirror::ArtMethod* m) {
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(mh.GetClassLoader()));
   verifier::MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader,
                                     &mh.GetClassDef(), code_item, m->GetDexMethodIndex(), m,
-                                    m->GetAccessFlags(), false, true);
+                                    m->GetAccessFlags(), false, true, true);
   verifier.Verify();
   std::vector<int32_t> kinds = verifier.DescribeVRegs(dex_pc);
   for (uint16_t reg = 0; reg < num_regs; ++reg) {
