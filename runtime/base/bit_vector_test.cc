@@ -38,11 +38,8 @@ TEST(BitVector, Test) {
   EXPECT_EQ(0U, bv.GetRawStorageWord(0));
   EXPECT_EQ(0U, *bv.GetRawStorage());
 
-  BitVector::Iterator empty_iterator(&bv);
-  EXPECT_EQ(-1, empty_iterator.Next());
-
-  std::unique_ptr<BitVector::Iterator> empty_iterator_on_heap(bv.GetIterator());
-  EXPECT_EQ(-1, empty_iterator_on_heap->Next());
+  EXPECT_TRUE(bv.Indexes().begin().Done());
+  EXPECT_TRUE(bv.Indexes().begin() == bv.Indexes().end());
 
   bv.SetBit(0);
   bv.SetBit(kBits - 1);
@@ -57,10 +54,14 @@ TEST(BitVector, Test) {
   EXPECT_EQ(0x80000001U, bv.GetRawStorageWord(0));
   EXPECT_EQ(0x80000001U, *bv.GetRawStorage());
 
-  BitVector::Iterator iterator(&bv);
-  EXPECT_EQ(0, iterator.Next());
-  EXPECT_EQ(static_cast<int>(kBits - 1), iterator.Next());
-  EXPECT_EQ(-1, iterator.Next());
+  BitVector::IndexIterator iterator = bv.Indexes().begin();
+  EXPECT_TRUE(iterator != bv.Indexes().end());
+  EXPECT_EQ(0, *iterator);
+  ++iterator;
+  EXPECT_TRUE(iterator != bv.Indexes().end());
+  EXPECT_EQ(static_cast<int>(kBits - 1), *iterator);
+  ++iterator;
+  EXPECT_TRUE(iterator == bv.Indexes().end());
 }
 
 TEST(BitVector, NoopAllocator) {

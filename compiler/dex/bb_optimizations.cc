@@ -38,6 +38,13 @@ bool CodeLayout::Worker(const PassDataHolder* data) const {
 /*
  * SSATransformation pass implementation start.
  */
+void SSATransformation::Start(const PassDataHolder* data) const {
+  DCHECK(data != nullptr);
+  CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+  DCHECK(cUnit != nullptr);
+  cUnit->mir_graph->SSATransformationStart();
+}
+
 bool SSATransformation::Worker(const PassDataHolder* data) const {
   DCHECK(data != nullptr);
   const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
@@ -54,10 +61,7 @@ void SSATransformation::End(const PassDataHolder* data) const {
   DCHECK(data != nullptr);
   CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
   DCHECK(cUnit != nullptr);
-  // Verify the dataflow information after the pass.
-  if (cUnit->enable_debug & (1 << kDebugVerifyDataflow)) {
-    cUnit->mir_graph->VerifyDataflow();
-  }
+  cUnit->mir_graph->SSATransformationEnd();
 }
 
 /*
