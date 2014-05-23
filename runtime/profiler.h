@@ -188,52 +188,50 @@ class BackgroundMethodSamplingProfiler {
   DISALLOW_COPY_AND_ASSIGN(BackgroundMethodSamplingProfiler);
 };
 
-// TODO: incorporate in ProfileSampleResults
-
-// Profile data.  This is generated from previous runs of the program and stored
+// Contains profile data generated from previous runs of the program and stored
 // in a file.  It is used to determine whether to compile a particular method or not.
-class ProfileData {
+class ProfileFile {
  public:
-  ProfileData() : count_(0), method_size_(0), usedPercent_(0) {}
-  ProfileData(const std::string& method_name, uint32_t count, uint32_t method_size,
-    double usedPercent, double topKUsedPercentage) :
-    method_name_(method_name), count_(count), method_size_(method_size),
-    usedPercent_(usedPercent), topKUsedPercentage_(topKUsedPercentage) {
-    // TODO: currently method_size_ and count_ are unused.
-    UNUSED(method_size_);
-    UNUSED(count_);
-  }
+  class ProfileData {
+   public:
+    ProfileData() : count_(0), method_size_(0), used_percent_(0) {}
+    ProfileData(const std::string& method_name, uint32_t count, uint32_t method_size,
+      double used_percent, double top_k_used_percentage) :
+      method_name_(method_name), count_(count), method_size_(method_size),
+      used_percent_(used_percent), top_k_used_percentage_(top_k_used_percentage) {
+      // TODO: currently method_size_ is unused
+      UNUSED(method_size_);
+    }
 
-  bool IsAbove(double v) const { return usedPercent_ >= v; }
-  double GetUsedPercent() const { return usedPercent_; }
-  uint32_t GetCount() const { return count_; }
-  double GetTopKUsedPercentage() const { return topKUsedPercentage_; }
+    double GetUsedPercent() const { return used_percent_; }
+    uint32_t GetCount() const { return count_; }
+    double GetTopKUsedPercentage() const { return top_k_used_percentage_; }
 
- private:
-  std::string method_name_;    // Method name.
-  uint32_t count_;             // Number of times it has been called.
-  uint32_t method_size_;       // Size of the method on dex instructions.
-  double usedPercent_;         // Percentage of how many times this method was called.
-  double topKUsedPercentage_;  // The percentage of the group that comprise K% of the total used
-                               // methods this methods belongs to.
-};
-
-// Profile data is stored in a map, indexed by the full method name.
-typedef std::map<std::string, ProfileData> ProfileMap;
-
-class ProfileHelper {
- private:
-  ProfileHelper();
+   private:
+    std::string method_name_;       // Method name.
+    uint32_t count_;                // Number of times it has been called.
+    uint32_t method_size_;          // Size of the method on dex instructions.
+    double used_percent_;           // Percentage of how many times this method was called.
+    double top_k_used_percentage_;  // The percentage of the group that comprise K% of the total used
+                                    // methods this methods belongs to.
+  };
 
  public:
-  // Read the profile data from the given file.  Calculates the percentage for each method.
-  // Returns false if there was no profile file or it was malformed.
-  static bool LoadProfileMap(ProfileMap& profileMap, const std::string& fileName);
+  // Loads profile data from the given file. The data are merged with any existing data.
+  // Returns true if the file was loaded successfully and false otherwise.
+  bool LoadFile(const std::string& filename);
 
-  // Read the profile data from the given file and computes the group that comprise
-  // topKPercentage of the total used methods.
-  static bool LoadTopKSamples(std::set<std::string>& topKMethods, const std::string& fileName,
-                              double topKPercentage);
+  // Computes the group that comprise top_k_percentage of the total used methods.
+  bool GetTopKSamples(std::set<std::string>& top_k_methods, double top_k_percentage);
+
+  // If the given method has an entry in the profile table it updates the data
+  // and returns true. Otherwise returns false and leaves the data unchanged.
+  bool GetProfileData(ProfileData* data, const std::string& method_name);
+
+ private:
+  // Profile data is stored in a map, indexed by the full method name.
+  typedef std::map<std::string, ProfileData> ProfileMap;
+  ProfileMap profile_map_;
 };
 
 }  // namespace art

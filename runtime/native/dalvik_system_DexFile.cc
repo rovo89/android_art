@@ -37,12 +37,9 @@
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
+#include "utils.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"
-
-#ifdef HAVE_ANDROID_OS
-#include "cutils/properties.h"
-#endif
 
 namespace art {
 
@@ -250,25 +247,6 @@ static void CopyProfileFile(const char* oldfile, const char* newfile) {
   close(fd2);
 }
 
-static double GetDoubleProperty(const char* property, double minValue, double maxValue, double defaultValue) {
-#ifndef HAVE_ANDROID_OS
-  return defaultValue;
-#else
-  char buf[PROP_VALUE_MAX];
-  char* endptr;
-
-  property_get(property, buf, "");
-  double value = strtod(buf, &endptr);
-
-  if (value == 0 && endptr == buf) {
-    value = defaultValue;
-  } else if (value < minValue || value > maxValue) {
-    value = defaultValue;
-  }
-  return value;
-#endif
-}
-
 static jboolean IsDexOptNeededInternal(JNIEnv* env, const char* filename,
     const char* pkgname, const char* instruction_set, const jboolean defer) {
   const bool kVerboseLogging = false;  // Spammy logging.
@@ -379,42 +357,46 @@ static jboolean IsDexOptNeededInternal(JNIEnv* env, const char* filename,
       // There is a previous profile file.  Check if the profile has changed significantly.
       // A change in profile is considered significant if X% (change_thr property) of the top K%
       // (compile_thr property) samples has changed.
-
-      double topKThreshold = GetDoubleProperty("dalvik.vm.profiler.dex2oat.compile_thr", 10.0, 90.0, 90.0);
-      double changeThreshold = GetDoubleProperty("dalvik.vm.profiler.dex2oat.change_thr", 1.0, 90.0, 10.0);
-      double changePercent = 0.0;
-      std::set<std::string> newTopK, oldTopK;
-      bool newOk = ProfileHelper::LoadTopKSamples(newTopK, profile_file, topKThreshold);
-      bool oldOk = ProfileHelper::LoadTopKSamples(oldTopK, prev_profile_file, topKThreshold);
-      if (!newOk || !oldOk) {
+      double top_k_threshold = GetDoubleProperty("dalvik.vm.profiler.dex2oat.compile_thr", 10.0, 90.0, 90.0);
+      double change_threshold = GetDoubleProperty("dalvik.vm.profiler.dex2oat.change_thr", 1.0, 90.0, 10.0);
+      double change_percent = 0.0;
+      ProfileFile new_profile, old_profile;
+      bool new_ok = new_profile.LoadFile(profile_file);
+      bool old_ok = old_profile.LoadFile(prev_profile_file);
+      if (!new_ok || !old_ok) {
         if (kVerboseLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded Ignoring invalid profiles: "
-                    << (newOk ?  "" : profile_file) << " " << (oldOk ? "" : prev_profile_file);
+                    << (new_ok ?  "" : profile_file) << " " << (old_ok ? "" : prev_profile_file);
         }
-      } else if (newTopK.empty()) {
-        if (kVerboseLogging) {
-          LOG(INFO) << "DexFile_isDexOptNeeded empty profile: " << profile_file;
-        }
-        // If the new topK is empty we shouldn't optimize so we leave the changePercent at 0.0.
       } else {
-        std::set<std::string> diff;
-        std::set_difference(newTopK.begin(), newTopK.end(), oldTopK.begin(), oldTopK.end(),
-          std::inserter(diff, diff.end()));
-        // TODO: consider using the usedPercentage instead of the plain diff count.
-        changePercent = 100.0 * static_cast<double>(diff.size()) / static_cast<double>(newTopK.size());
-        if (kVerboseLogging) {
-          std::set<std::string>::iterator end = diff.end();
-          for (std::set<std::string>::iterator it = diff.begin(); it != end; it++) {
-            LOG(INFO) << "DexFile_isDexOptNeeded new in topK: " << *it;
+        std::set<std::string> new_top_k, old_top_k;
+        new_profile.GetTopKSamples(new_top_k, top_k_threshold);
+        old_profile.GetTopKSamples(old_top_k, top_k_threshold);
+        if (new_top_k.empty()) {
+          if (kVerboseLogging) {
+            LOG(INFO) << "DexFile_isDexOptNeeded empty profile: " << profile_file;
+          }
+          // If the new topK is empty we shouldn't optimize so we leave the change_percent at 0.0.
+        } else {
+          std::set<std::string> diff;
+          std::set_difference(new_top_k.begin(), new_top_k.end(), old_top_k.begin(), old_top_k.end(),
+            std::inserter(diff, diff.end()));
+          // TODO: consider using the usedPercentage instead of the plain diff count.
+          change_percent = 100.0 * static_cast<double>(diff.size()) / static_cast<double>(new_top_k.size());
+          if (kVerboseLogging) {
+            std::set<std::string>::iterator end = diff.end();
+            for (std::set<std::string>::iterator it = diff.begin(); it != end; it++) {
+              LOG(INFO) << "DexFile_isDexOptNeeded new in topK: " << *it;
+            }
           }
         }
       }
 
-      if (changePercent > changeThreshold) {
+      if (change_percent > change_threshold) {
         if (kReasonLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded size of new profile file " << profile_file <<
           " is significantly different from old profile file " << prev_profile_file << " (top "
-          << topKThreshold << "% samples changed in proportion of " << changePercent << "%)";
+          << top_k_threshold << "% samples changed in proportion of " << change_percent << "%)";
         }
         if (!defer) {
           CopyProfileFile(profile_file.c_str(), prev_profile_file.c_str());
