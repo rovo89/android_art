@@ -793,5 +793,13 @@ void InstructionCodeGeneratorARM::VisitPhi(HPhi* instruction) {
   LOG(FATAL) << "Unimplemented";
 }
 
+void LocationsBuilderARM::VisitParallelMove(HParallelMove* instruction) {
+  LOG(FATAL) << "Unimplemented";
+}
+
+void InstructionCodeGeneratorARM::VisitParallelMove(HParallelMove* instruction) {
+  LOG(FATAL) << "Unimplemented";
+}
+
 }  // namespace arm
 }  // namespace art

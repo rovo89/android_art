@@ -813,5 +813,13 @@ void InstructionCodeGeneratorX86::VisitPhi(HPhi* instruction) {
   LOG(FATAL) << "Unimplemented";
 }
 
+void LocationsBuilderX86::VisitParallelMove(HParallelMove* instruction) {
+  LOG(FATAL) << "Unimplemented";
+}
+
+void InstructionCodeGeneratorX86::VisitParallelMove(HParallelMove* instruction) {
+  LOG(FATAL) << "Unimplemented";
+}
+
 }  // namespace x86
 }  // namespace art
