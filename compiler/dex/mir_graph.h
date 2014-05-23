@@ -266,6 +266,56 @@ struct MIR {
 
     explicit DecodedInstruction():vA(0), vB(0), vB_wide(0), vC(0), opcode(Instruction::NOP) {
     }
+
+    /*
+     * Given a decoded instruction representing a const bytecode, it updates
+     * the out arguments with proper values as dictated by the constant bytecode.
+     */
+    bool GetConstant(int64_t* ptr_value, bool* wide) const;
+
+    bool IsStore() const {
+      return ((Instruction::FlagsOf(opcode) & Instruction::kStore) == Instruction::kStore);
+    }
+
+    bool IsLoad() const {
+      return ((Instruction::FlagsOf(opcode) & Instruction::kLoad) == Instruction::kLoad);
+    }
+
+    bool IsConditionalBranch() const {
+      return (Instruction::FlagsOf(opcode) == (Instruction::kContinue | Instruction::kBranch));
+    }
+
+    /**
+     * @brief Is the register C component of the decoded instruction a constant?
+     */
+    bool IsCFieldOrConstant() const {
+      return ((Instruction::FlagsOf(opcode) & Instruction::kRegCFieldOrConstant) == Instruction::kRegCFieldOrConstant);
+    }
+
+    /**
+     * @brief Is the register C component of the decoded instruction a constant?
+     */
+    bool IsBFieldOrConstant() const {
+      return ((Instruction::FlagsOf(opcode) & Instruction::kRegBFieldOrConstant) == Instruction::kRegBFieldOrConstant);
+    }
+
+    bool IsCast() const {
+      return ((Instruction::FlagsOf(opcode) & Instruction::kCast) == Instruction::kCast);
+    }
+
+    /**
+     * @brief Does the instruction clobber memory?
+     * @details Clobber means that the instruction changes the memory not in a punctual way.
+     *          Therefore any supposition on memory aliasing or memory contents should be disregarded
+     *            when crossing such an instruction.
+     */
+    bool Clobbers() const {
+      return ((Instruction::FlagsOf(opcode) & Instruction::kClobber) == Instruction::kClobber);
+    }
+
+    bool IsLinear() const {
+      return (Instruction::FlagsOf(opcode) & (Instruction::kAdd | Instruction::kSubtract)) != 0;
+    }
   } dalvikInsn;
 
   NarrowDexOffset offset;         // Offset of the instruction in code units.
