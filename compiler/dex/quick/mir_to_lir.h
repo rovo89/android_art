@@ -775,7 +775,7 @@ class Mir2Lir : public Backend {
                              RegLocation rl_src2, LIR* taken, LIR* fall_through);
     void GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_src,
                                  LIR* taken, LIR* fall_through);
-    void GenIntToLong(RegLocation rl_dest, RegLocation rl_src);
+    virtual void GenIntToLong(RegLocation rl_dest, RegLocation rl_src);
     void GenIntNarrowing(Instruction::Code opcode, RegLocation rl_dest,
                          RegLocation rl_src);
     void GenNewArray(uint32_t type_idx, RegLocation rl_dest,
@@ -800,7 +800,7 @@ class Mir2Lir : public Backend {
     void GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_src);
     void GenLong3Addr(OpKind first_op, OpKind second_op, RegLocation rl_dest,
                       RegLocation rl_src1, RegLocation rl_src2);
-    void GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
+    virtual void GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
                         RegLocation rl_src1, RegLocation rl_shift);
     void GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest,
                           RegLocation rl_src, int lit);
@@ -1170,6 +1170,7 @@ class Mir2Lir : public Backend {
     virtual bool GenInlinedSqrt(CallInfo* info) = 0;
     virtual bool GenInlinedPeek(CallInfo* info, OpSize size) = 0;
     virtual bool GenInlinedPoke(CallInfo* info, OpSize size) = 0;
+    virtual void GenNotLong(RegLocation rl_dest, RegLocation rl_src) = 0;
     virtual void GenNegLong(RegLocation rl_dest, RegLocation rl_src) = 0;
     virtual void GenOrLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
                            RegLocation rl_src2) = 0;
@@ -1177,6 +1178,8 @@ class Mir2Lir : public Backend {
                             RegLocation rl_src2) = 0;
     virtual void GenXorLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) = 0;
+    virtual void GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
+                            RegLocation rl_src2, bool is_div) = 0;
     virtual RegLocation GenDivRem(RegLocation rl_dest, RegStorage reg_lo, RegStorage reg_hi,
                                   bool is_div) = 0;
     virtual RegLocation GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int lit,

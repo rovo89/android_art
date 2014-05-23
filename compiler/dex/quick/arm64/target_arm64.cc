@@ -606,13 +606,27 @@ void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
   GrowableArray<RegisterInfo*>::Iterator fp_it(&reg_pool_->sp_regs_);
   for (RegisterInfo* info = fp_it.Next(); info != nullptr; info = fp_it.Next()) {
     int fp_reg_num = info->GetReg().GetRegNum();
-    RegStorage dp_reg = RegStorage::Solo64(RegStorage::kFloatingPoint | fp_reg_num);
+    RegStorage dp_reg = RegStorage::FloatSolo64(fp_reg_num);
     RegisterInfo* dp_reg_info = GetRegInfo(dp_reg);
     // Double precision register's master storage should refer to itself.
     DCHECK_EQ(dp_reg_info, dp_reg_info->Master());
     // Redirect single precision's master storage to master.
     info->SetMaster(dp_reg_info);
     // Singles should show a single 32-bit mask bit, at first referring to the low half.
+    DCHECK_EQ(info->StorageMask(), 0x1U);
+  }
+
+  // Alias 32bit W registers to corresponding 64bit X registers.
+  GrowableArray<RegisterInfo*>::Iterator w_it(&reg_pool_->core_regs_);
+  for (RegisterInfo* info = w_it.Next(); info != nullptr; info = w_it.Next()) {
+    int x_reg_num = info->GetReg().GetRegNum();
+    RegStorage x_reg = RegStorage::Solo64(x_reg_num);
+    RegisterInfo* x_reg_info = GetRegInfo(x_reg);
+    // 64bit X register's master storage should refer to itself.
+    DCHECK_EQ(x_reg_info, x_reg_info->Master());
+    // Redirect 32bit W master storage to 64bit X.
+    info->SetMaster(x_reg_info);
+    // 32bit W should show a single 32-bit mask bit, at first referring to the low half.
     DCHECK_EQ(info->StorageMask(), 0x1U);
   }
 

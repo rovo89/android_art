@@ -84,12 +84,6 @@ extern "C" float fmodf(float a, float b);          // REM_FLOAT[_2ADDR]
 // Double-precision FP arithmetics.
 extern "C" double fmod(double a, double b);         // REM_DOUBLE[_2ADDR]
 
-// Long long arithmetics - REM_LONG[_2ADDR] and DIV_LONG[_2ADDR]
-extern "C" int64_t art_quick_mul_long(int64_t, int64_t);
-extern "C" uint64_t art_quick_shl_long(uint64_t, uint32_t);
-extern "C" uint64_t art_quick_shr_long(uint64_t, uint32_t);
-extern "C" uint64_t art_quick_ushr_long(uint64_t, uint32_t);
-
 // Intrinsic entrypoints.
 extern "C" int32_t __memcmp16(void*, void*, int32_t);
 extern "C" int32_t art_quick_indexof(void*, uint32_t, uint32_t, uint32_t);
@@ -199,10 +193,10 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pF2l = NULL;
   qpoints->pLdiv = NULL;
   qpoints->pLmod = NULL;
-  qpoints->pLmul = art_quick_mul_long;
-  qpoints->pShlLong = art_quick_shl_long;
-  qpoints->pShrLong = art_quick_shr_long;
-  qpoints->pUshrLong = art_quick_ushr_long;
+  qpoints->pLmul = NULL;
+  qpoints->pShlLong = NULL;
+  qpoints->pShrLong = NULL;
+  qpoints->pUshrLong = NULL;
 
   // Intrinsics
   qpoints->pIndexOf = art_quick_indexof;

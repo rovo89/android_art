@@ -312,7 +312,7 @@ class RegStorage {
       case k256BitSolo: return 32;
       case k512BitSolo: return 64;
       case k1024BitSolo: return 128;
-      default: LOG(FATAL) << "Unexpected shap";
+      default: LOG(FATAL) << "Unexpected shape";
     }
     return 0;
   }
