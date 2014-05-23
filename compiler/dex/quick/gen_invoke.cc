@@ -1659,9 +1659,13 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
     return;
   }
   DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
-  if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file)
-      ->GenIntrinsic(this, info)) {
-    return;
+  // TODO: Enable instrinsics for x86_64
+  // Temporary disable intrinsics for x86_64. We will enable them later step by step.
+  if (cu_->instruction_set != kX86_64) {
+    if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file)
+        ->GenIntrinsic(this, info)) {
+      return;
+    }
   }
   GenInvokeNoInline(info);
 }
