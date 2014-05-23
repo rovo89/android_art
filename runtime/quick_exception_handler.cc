@@ -110,7 +110,8 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
 };
 
 void QuickExceptionHandler::FindCatch(const ThrowLocation& throw_location,
-                                      mirror::Throwable* exception) {
+                                      mirror::Throwable* exception,
+                                      bool is_exception_reported) {
   DCHECK(!is_deoptimization_);
   if (kDebugExceptionDelivery) {
     mirror::String* msg = exception->GetDetailMessage();
@@ -141,12 +142,24 @@ void QuickExceptionHandler::FindCatch(const ThrowLocation& throw_location,
   } else {
     // Put exception back in root set with clear throw location.
     self_->SetException(ThrowLocation(), exception_ref.Get());
+    self_->SetExceptionReportedToInstrumentation(is_exception_reported);
   }
   // The debugger may suspend this thread and walk its stack. Let's do this before popping
   // instrumentation frames.
-  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
-  instrumentation->ExceptionCaughtEvent(self_, throw_location, handler_method_, handler_dex_pc_,
-                                        exception_ref.Get());
+  if (!is_exception_reported) {
+    instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+    instrumentation->ExceptionCaughtEvent(self_, throw_location, handler_method_, handler_dex_pc_,
+                                          exception_ref.Get());
+      // We're not catching this exception but let's remind we already reported the exception above
+      // to avoid reporting it twice.
+      self_->SetExceptionReportedToInstrumentation(true);
+  }
+  bool caught_exception = (handler_method_ != nullptr && handler_dex_pc_ != DexFile::kDexNoIndex);
+  if (caught_exception) {
+    // We're catching this exception so we finish reporting it. We do it here to avoid doing it
+    // in the compiled code.
+    self_->SetExceptionReportedToInstrumentation(false);
+  }
 }
 
 // Prepares deoptimization.

@@ -25,10 +25,8 @@ namespace interpreter {
     if (UNLIKELY(self->TestAllFlags())) {                                                       \
       CheckSuspend(self);                                                                       \
     }                                                                                           \
-    Object* this_object = shadow_frame.GetThisObject(code_item->ins_size_);                     \
     uint32_t found_dex_pc = FindNextInstructionFollowingException(self, shadow_frame,           \
                                                                   inst->GetDexPc(insns),        \
-                                                                  this_object,                  \
                                                                   instrumentation);             \
     if (found_dex_pc == DexFile::kDexNoIndex) {                                                 \
       return JValue(); /* Handled in caller. */                                                 \

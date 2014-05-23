@@ -334,8 +334,7 @@ static inline int32_t DoSparseSwitch(const Instruction* inst, const ShadowFrame&
 }
 
 uint32_t FindNextInstructionFollowingException(Thread* self, ShadowFrame& shadow_frame,
-    uint32_t dex_pc, mirror::Object* this_object,
-    const instrumentation::Instrumentation* instrumentation)
+    uint32_t dex_pc, const instrumentation::Instrumentation* instrumentation)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh)

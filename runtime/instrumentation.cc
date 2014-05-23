@@ -780,24 +780,20 @@ void Instrumentation::DexPcMovedEventImpl(Thread* thread, mirror::Object* this_o
 void Instrumentation::FieldReadEventImpl(Thread* thread, mirror::Object* this_object,
                                          mirror::ArtMethod* method, uint32_t dex_pc,
                                          mirror::ArtField* field) const {
-  if (have_field_read_listeners_) {
-    // TODO: same comment than DexPcMovedEventImpl.
-    std::list<InstrumentationListener*> copy(field_read_listeners_);
-    for (InstrumentationListener* listener : copy) {
-      listener->FieldRead(thread, this_object, method, dex_pc, field);
-    }
+  // TODO: same comment than DexPcMovedEventImpl.
+  std::list<InstrumentationListener*> copy(field_read_listeners_);
+  for (InstrumentationListener* listener : copy) {
+    listener->FieldRead(thread, this_object, method, dex_pc, field);
   }
 }
 
 void Instrumentation::FieldWriteEventImpl(Thread* thread, mirror::Object* this_object,
                                          mirror::ArtMethod* method, uint32_t dex_pc,
                                          mirror::ArtField* field, const JValue& field_value) const {
-  if (have_field_write_listeners_) {
-    // TODO: same comment than DexPcMovedEventImpl.
-    std::list<InstrumentationListener*> copy(field_write_listeners_);
-    for (InstrumentationListener* listener : copy) {
-      listener->FieldWritten(thread, this_object, method, dex_pc, field, field_value);
-    }
+  // TODO: same comment than DexPcMovedEventImpl.
+  std::list<InstrumentationListener*> copy(field_write_listeners_);
+  for (InstrumentationListener* listener : copy) {
+    listener->FieldWritten(thread, this_object, method, dex_pc, field, field_value);
   }
 }
 
@@ -805,8 +801,9 @@ void Instrumentation::ExceptionCaughtEvent(Thread* thread, const ThrowLocation& 
                                            mirror::ArtMethod* catch_method,
                                            uint32_t catch_dex_pc,
                                            mirror::Throwable* exception_object) const {
-  if (have_exception_caught_listeners_) {
-    DCHECK_EQ(thread->GetException(NULL), exception_object);
+  if (HasExceptionCaughtListeners()) {
+    DCHECK_EQ(thread->GetException(nullptr), exception_object);
+    bool is_exception_reported = thread->IsExceptionReportedToInstrumentation();
     thread->ClearException();
     // TODO: The copy below is due to the debug listener having an action where it can remove
     // itself as a listener and break the iterator. The copy only works around the problem.
@@ -815,6 +812,7 @@ void Instrumentation::ExceptionCaughtEvent(Thread* thread, const ThrowLocation& 
       listener->ExceptionCaught(thread, throw_location, catch_method, catch_dex_pc, exception_object);
     }
     thread->SetException(throw_location, exception_object);
+    thread->SetExceptionReportedToInstrumentation(is_exception_reported);
   }
 }
 

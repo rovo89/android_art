@@ -84,7 +84,7 @@ void Class::SetStatus(Status new_status, Thread* self) {
     Handle<mirror::Object> old_throw_this_object(hs.NewHandle(old_throw_location.GetThis()));
     Handle<mirror::ArtMethod> old_throw_method(hs.NewHandle(old_throw_location.GetMethod()));
     uint32_t old_throw_dex_pc = old_throw_location.GetDexPc();
-
+    bool is_exception_reported = self->IsExceptionReportedToInstrumentation();
     // clear exception to call FindSystemClass
     self->ClearException();
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -102,8 +102,8 @@ void Class::SetStatus(Status new_status, Thread* self) {
     // Restore exception.
     ThrowLocation gc_safe_throw_location(old_throw_this_object.Get(), old_throw_method.Get(),
                                          old_throw_dex_pc);
-
     self->SetException(gc_safe_throw_location, old_exception.Get());
+    self->SetExceptionReportedToInstrumentation(is_exception_reported);
   }
   COMPILE_ASSERT(sizeof(Status) == sizeof(uint32_t), size_of_status_not_uint32);
   if (Runtime::Current()->IsActiveTransaction()) {
