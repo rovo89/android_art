@@ -430,7 +430,7 @@ class OatDumper {
         auto class_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
         verifier::MethodVerifier verifier(&dex_file, &dex_cache, &class_loader, &class_def,
                                           code_item, dex_method_idx, nullptr, method_access_flags,
-                                          true, true);
+                                          true, true, true);
         verifier.Verify();
         DumpCode(indent2_os, &verifier, oat_method, code_item);
       } else {
