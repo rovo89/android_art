@@ -137,33 +137,11 @@ static constexpr size_t kThreadLocalAllocationStackSize = 128;
 
 inline void Heap::PushOnAllocationStack(Thread* self, mirror::Object** obj) {
   if (kUseThreadLocalAllocationStack) {
-    bool success = self->PushOnThreadLocalAllocationStack(*obj);
-    if (UNLIKELY(!success)) {
-      // Slow path. Allocate a new thread-local allocation stack.
-      mirror::Object** start_address;
-      mirror::Object** end_address;
-      while (!allocation_stack_->AtomicBumpBack(kThreadLocalAllocationStackSize,
-                                                &start_address, &end_address)) {
-        // TODO: Add handle VerifyObject.
-        StackHandleScope<1> hs(self);
-        HandleWrapper<mirror::Object> wrapper(hs.NewHandleWrapper(obj));
-        CollectGarbageInternal(collector::kGcTypeSticky, kGcCauseForAlloc, false);
-      }
-      self->SetThreadLocalAllocationStack(start_address, end_address);
-      // Retry on the new thread-local allocation stack.
-      success = self->PushOnThreadLocalAllocationStack(*obj);
-      // Must succeed.
-      CHECK(success);
+    if (UNLIKELY(!self->PushOnThreadLocalAllocationStack(*obj))) {
+      PushOnThreadLocalAllocationStackWithInternalGC(self, obj);
     }
-  } else {
-    // This is safe to do since the GC will never free objects which are neither in the allocation
-    // stack or the live bitmap.
-    while (!allocation_stack_->AtomicPushBack(*obj)) {
-      // TODO: Add handle VerifyObject.
-      StackHandleScope<1> hs(self);
-      HandleWrapper<mirror::Object> wrapper(hs.NewHandleWrapper(obj));
-      CollectGarbageInternal(collector::kGcTypeSticky, kGcCauseForAlloc, false);
-    }
+  } else if (UNLIKELY(!allocation_stack_->AtomicPushBack(*obj))) {
+    PushOnAllocationStackWithInternalGC(self, obj);
   }
 }
 

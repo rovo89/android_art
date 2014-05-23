@@ -35,8 +35,8 @@ template <typename T>
 class AtomicStack {
  public:
   // Capacity is how many elements we can store in the stack.
-  static AtomicStack* Create(const std::string& name, size_t capacity) {
-    std::unique_ptr<AtomicStack> mark_stack(new AtomicStack(name, capacity));
+  static AtomicStack* Create(const std::string& name, size_t growth_limit, size_t capacity) {
+    std::unique_ptr<AtomicStack> mark_stack(new AtomicStack(name, growth_limit, capacity));
     mark_stack->Init();
     return mark_stack.release();
   }
@@ -44,7 +44,7 @@ class AtomicStack {
   ~AtomicStack() {}
 
   void Reset() {
-    DCHECK(mem_map_.get() != NULL);
+    DCHECK(mem_map_.get() != nullptr);
     DCHECK(begin_ != NULL);
     front_index_.StoreRelaxed(0);
     back_index_.StoreRelaxed(0);
@@ -58,20 +58,13 @@ class AtomicStack {
   // Beware: Mixing atomic pushes and atomic pops will cause ABA problem.
 
   // Returns false if we overflowed the stack.
+  bool AtomicPushBackIgnoreGrowthLimit(const T& value) {
+    return AtomicPushBackInternal(value, capacity_);
+  }
+
+  // Returns false if we overflowed the stack.
   bool AtomicPushBack(const T& value) {
-    if (kIsDebugBuild) {
-      debug_is_sorted_ = false;
-    }
-    int32_t index;
-    do {
-      index = back_index_.LoadRelaxed();
-      if (UNLIKELY(static_cast<size_t>(index) >= capacity_)) {
-        // Stack overflow.
-        return false;
-      }
-    } while (!back_index_.CompareExchangeWeakRelaxed(index, index + 1));
-    begin_[index] = value;
-    return true;
+    return AtomicPushBackInternal(value, growth_limit_);
   }
 
   // Atomically bump the back index by the given number of
@@ -85,7 +78,7 @@ class AtomicStack {
     do {
       index = back_index_.LoadRelaxed();
       new_index = index + num_slots;
-      if (UNLIKELY(static_cast<size_t>(new_index) >= capacity_)) {
+      if (UNLIKELY(static_cast<size_t>(new_index) >= growth_limit_)) {
         // Stack overflow.
         return false;
       }
@@ -115,7 +108,7 @@ class AtomicStack {
       debug_is_sorted_ = false;
     }
     int32_t index = back_index_.LoadRelaxed();
-    DCHECK_LT(static_cast<size_t>(index), capacity_);
+    DCHECK_LT(static_cast<size_t>(index), growth_limit_);
     back_index_.StoreRelaxed(index + 1);
     begin_[index] = value;
   }
@@ -165,6 +158,7 @@ class AtomicStack {
   // Will clear the stack.
   void Resize(size_t new_capacity) {
     capacity_ = new_capacity;
+    growth_limit_ = new_capacity;
     Init();
   }
 
@@ -189,13 +183,31 @@ class AtomicStack {
   }
 
  private:
-  AtomicStack(const std::string& name, const size_t capacity)
+  AtomicStack(const std::string& name, size_t growth_limit, size_t capacity)
       : name_(name),
         back_index_(0),
         front_index_(0),
-        begin_(NULL),
+        begin_(nullptr),
+        growth_limit_(growth_limit),
         capacity_(capacity),
         debug_is_sorted_(true) {
+  }
+
+  // Returns false if we overflowed the stack.
+  bool AtomicPushBackInternal(const T& value, size_t limit) ALWAYS_INLINE {
+    if (kIsDebugBuild) {
+      debug_is_sorted_ = false;
+    }
+    int32_t index;
+    do {
+      index = back_index_.LoadRelaxed();
+      if (UNLIKELY(static_cast<size_t>(index) >= limit)) {
+        // Stack overflow.
+        return false;
+      }
+    } while (!back_index_.CompareExchangeWeakRelaxed(index, index + 1));
+    begin_[index] = value;
+    return true;
   }
 
   // Size in number of elements.
@@ -213,22 +225,18 @@ class AtomicStack {
 
   // Name of the mark stack.
   std::string name_;
-
   // Memory mapping of the atomic stack.
   std::unique_ptr<MemMap> mem_map_;
-
   // Back index (index after the last element pushed).
   AtomicInteger back_index_;
-
   // Front index, used for implementing PopFront.
   AtomicInteger front_index_;
-
   // Base of the atomic stack.
   T* begin_;
-
+  // Current maximum which we can push back to, must be <= capacity_.
+  size_t growth_limit_;
   // Maximum number of elements.
   size_t capacity_;
-
   // Whether or not the stack is sorted, only updated in debug mode to avoid performance overhead.
   bool debug_is_sorted_;
 
