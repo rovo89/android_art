@@ -385,31 +385,36 @@ EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL(StaticPrimitiveWrite);
 
 template<InvokeType type, bool access_check>
 static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx,
-                                                    mirror::Object* this_object,
-                                                    mirror::ArtMethod* referrer, Thread* self) {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  StackHandleScope<1> hs(self);
-  Handle<mirror::Object> handle_scope_this(hs.NewHandle(type == kStatic ? nullptr : this_object));
-  mirror::ArtMethod* resolved_method = class_linker->ResolveMethod(method_idx, referrer, type);
+                                                    mirror::Object** this_object,
+                                                    mirror::ArtMethod** referrer, Thread* self) {
+  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
+  mirror::ArtMethod* resolved_method = class_linker->GetResolvedMethod(method_idx, *referrer, type);
+  if (resolved_method == nullptr) {
+    StackHandleScope<1> hs(self);
+    mirror::Object* null_this = nullptr;
+    HandleWrapper<mirror::Object> h_this(
+        hs.NewHandleWrapper(type == kStatic ? &null_this : this_object));
+    resolved_method = class_linker->ResolveMethod(self, method_idx, referrer, type);
+  }
   if (UNLIKELY(resolved_method == nullptr)) {
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
     return nullptr;  // Failure.
-  } else if (UNLIKELY(handle_scope_this.Get() == nullptr && type != kStatic)) {
+  } else if (UNLIKELY(*this_object == nullptr && type != kStatic)) {
     // Maintain interpreter-like semantics where NullPointerException is thrown
     // after potential NoSuchMethodError from class linker.
     ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-    DCHECK(referrer == throw_location.GetMethod());
+    DCHECK_EQ(*referrer, throw_location.GetMethod());
     ThrowNullPointerExceptionForMethodAccess(throw_location, method_idx, type);
     return nullptr;  // Failure.
   } else if (access_check) {
     // Incompatible class change should have been handled in resolve method.
     if (UNLIKELY(resolved_method->CheckIncompatibleClassChange(type))) {
       ThrowIncompatibleClassChangeError(type, resolved_method->GetInvokeType(), resolved_method,
-                                        referrer);
+                                        *referrer);
       return nullptr;  // Failure.
     }
     mirror::Class* methods_class = resolved_method->GetDeclaringClass();
-    mirror::Class* referring_class = referrer->GetDeclaringClass();
+    mirror::Class* referring_class = (*referrer)->GetDeclaringClass();
     bool can_access_resolved_method =
         referring_class->CheckResolvedMethodAccess<type>(methods_class, resolved_method,
                                                          method_idx);
@@ -423,7 +428,7 @@ static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx,
     case kDirect:
       return resolved_method;
     case kVirtual: {
-      mirror::ObjectArray<mirror::ArtMethod>* vtable = handle_scope_this->GetClass()->GetVTable();
+      mirror::ObjectArray<mirror::ArtMethod>* vtable = (*this_object)->GetClass()->GetVTable();
       uint16_t vtable_index = resolved_method->GetMethodIndex();
       if (access_check &&
           (vtable == nullptr || vtable_index >= static_cast<uint32_t>(vtable->GetLength()))) {
@@ -437,7 +442,7 @@ static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx,
       return vtable->GetWithoutChecks(vtable_index);
     }
     case kSuper: {
-      mirror::Class* super_class = referrer->GetDeclaringClass()->GetSuperClass();
+      mirror::Class* super_class = (*referrer)->GetDeclaringClass()->GetSuperClass();
       uint16_t vtable_index = resolved_method->GetMethodIndex();
       mirror::ObjectArray<mirror::ArtMethod>* vtable;
       if (access_check) {
@@ -460,20 +465,19 @@ static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx,
     }
     case kInterface: {
       uint32_t imt_index = resolved_method->GetDexMethodIndex() % ClassLinker::kImtSize;
-      mirror::ObjectArray<mirror::ArtMethod>* imt_table = handle_scope_this->GetClass()->GetImTable();
+      mirror::ObjectArray<mirror::ArtMethod>* imt_table = (*this_object)->GetClass()->GetImTable();
       mirror::ArtMethod* imt_method = imt_table->Get(imt_index);
       if (!imt_method->IsImtConflictMethod()) {
         return imt_method;
       } else {
         mirror::ArtMethod* interface_method =
-            handle_scope_this->GetClass()->FindVirtualMethodForInterface(resolved_method);
+            (*this_object)->GetClass()->FindVirtualMethodForInterface(resolved_method);
         if (UNLIKELY(interface_method == nullptr)) {
           ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(resolved_method,
-                                                                     handle_scope_this.Get(), referrer);
+                                                                     *this_object, *referrer);
           return nullptr;  // Failure.
-        } else {
-          return interface_method;
         }
+        return interface_method;
       }
     }
     default:
@@ -486,8 +490,8 @@ static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx,
 #define EXPLICIT_FIND_METHOD_FROM_CODE_TEMPLATE_DECL(_type, _access_check)                 \
   template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                       \
   mirror::ArtMethod* FindMethodFromCode<_type, _access_check>(uint32_t method_idx,         \
-                                                              mirror::Object* this_object, \
-                                                              mirror::ArtMethod* referrer, \
+                                                              mirror::Object** this_object, \
+                                                              mirror::ArtMethod** referrer, \
                                                               Thread* self)
 #define EXPLICIT_FIND_METHOD_FROM_CODE_TYPED_TEMPLATE_DECL(_type) \
     EXPLICIT_FIND_METHOD_FROM_CODE_TEMPLATE_DECL(_type, false);   \

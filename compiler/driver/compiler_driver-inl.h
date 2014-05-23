@@ -42,8 +42,8 @@ inline mirror::ClassLoader* CompilerDriver::GetClassLoader(ScopedObjectAccess& s
 }
 
 inline mirror::Class* CompilerDriver::ResolveCompilingMethodsClass(
-    ScopedObjectAccess& soa, const Handle<mirror::DexCache>& dex_cache,
-    const Handle<mirror::ClassLoader>& class_loader, const DexCompilationUnit* mUnit) {
+    ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+    Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit) {
   DCHECK_EQ(dex_cache->GetDexFile(), mUnit->GetDexFile());
   DCHECK_EQ(class_loader.Get(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
   const DexFile::MethodId& referrer_method_id =
@@ -59,8 +59,8 @@ inline mirror::Class* CompilerDriver::ResolveCompilingMethodsClass(
 }
 
 inline mirror::ArtField* CompilerDriver::ResolveField(
-    ScopedObjectAccess& soa, const Handle<mirror::DexCache>& dex_cache,
-    const Handle<mirror::ClassLoader>& class_loader, const DexCompilationUnit* mUnit,
+    ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+    Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
     uint32_t field_idx, bool is_static) {
   DCHECK_EQ(dex_cache->GetDexFile(), mUnit->GetDexFile());
   DCHECK_EQ(class_loader.Get(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
@@ -165,13 +165,14 @@ inline std::pair<bool, bool> CompilerDriver::IsFastStaticField(
 }
 
 inline mirror::ArtMethod* CompilerDriver::ResolveMethod(
-    ScopedObjectAccess& soa, const Handle<mirror::DexCache>& dex_cache,
-    const Handle<mirror::ClassLoader>& class_loader, const DexCompilationUnit* mUnit,
+    ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+    Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
     uint32_t method_idx, InvokeType invoke_type) {
-  DCHECK(dex_cache->GetDexFile() == mUnit->GetDexFile());
-  DCHECK(class_loader.Get() == soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
+  DCHECK_EQ(dex_cache->GetDexFile(), mUnit->GetDexFile());
+  DCHECK_EQ(class_loader.Get(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
   mirror::ArtMethod* resolved_method = mUnit->GetClassLinker()->ResolveMethod(
-      *mUnit->GetDexFile(), method_idx, dex_cache, class_loader, nullptr, invoke_type);
+      *mUnit->GetDexFile(), method_idx, dex_cache, class_loader, NullHandle<mirror::ArtMethod>(),
+      invoke_type);
   DCHECK_EQ(resolved_method == nullptr, soa.Self()->IsExceptionPending());
   if (UNLIKELY(resolved_method == nullptr)) {
     // Clean up any exception left by type resolution.
@@ -206,8 +207,8 @@ inline uint16_t CompilerDriver::GetResolvedMethodVTableIndex(
 }
 
 inline int CompilerDriver::IsFastInvoke(
-    ScopedObjectAccess& soa, const Handle<mirror::DexCache>& dex_cache,
-    const Handle<mirror::ClassLoader>& class_loader, const DexCompilationUnit* mUnit,
+    ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+    Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
     mirror::Class* referrer_class, mirror::ArtMethod* resolved_method, InvokeType* invoke_type,
     MethodReference* target_method, const MethodReference* devirt_target,
     uintptr_t* direct_code, uintptr_t* direct_method) {
@@ -256,15 +257,17 @@ inline int CompilerDriver::IsFastInvoke(
     ClassLinker* class_linker = mUnit->GetClassLinker();
     if (LIKELY(devirt_target->dex_file == mUnit->GetDexFile())) {
       called_method = class_linker->ResolveMethod(*devirt_target->dex_file,
-                                                  devirt_target->dex_method_index,
-                                                  dex_cache, class_loader, NULL, kVirtual);
+                                                  devirt_target->dex_method_index, dex_cache,
+                                                  class_loader, NullHandle<mirror::ArtMethod>(),
+                                                  kVirtual);
     } else {
       StackHandleScope<1> hs(soa.Self());
       Handle<mirror::DexCache> target_dex_cache(
           hs.NewHandle(class_linker->FindDexCache(*devirt_target->dex_file)));
       called_method = class_linker->ResolveMethod(*devirt_target->dex_file,
                                                   devirt_target->dex_method_index,
-                                                  target_dex_cache, class_loader, NULL, kVirtual);
+                                                  target_dex_cache, class_loader,
+                                                  NullHandle<mirror::ArtMethod>(), kVirtual);
     }
     CHECK(called_method != NULL);
     CHECK(!called_method->IsAbstract());
