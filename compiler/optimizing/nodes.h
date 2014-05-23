@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_NODES_H_
 #define ART_COMPILER_OPTIMIZING_NODES_H_
 
+#include "locations.h"
 #include "utils/allocation.h"
 #include "utils/arena_bit_vector.h"
 #include "utils/growable_array.h"
@@ -315,6 +316,7 @@ class HBasicBlock : public ArenaObject {
 
   void AddInstruction(HInstruction* instruction);
   void RemoveInstruction(HInstruction* instruction);
+  void InsertInstructionBefore(HInstruction* instruction, HInstruction* cursor);
   void AddPhi(HPhi* phi);
   void RemovePhi(HPhi* phi);
 
@@ -383,6 +385,7 @@ class HBasicBlock : public ArenaObject {
   M(NewInstance)                                           \
   M(Not)                                                   \
   M(ParameterValue)                                        \
+  M(ParallelMove)                                          \
   M(Phi)                                                   \
   M(Return)                                                \
   M(ReturnVoid)                                            \
@@ -1100,6 +1103,88 @@ class HPhi : public HInstruction {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HPhi);
+};
+
+class MoveOperands : public ArenaObject {
+ public:
+  MoveOperands(Location source, Location destination)
+      : source_(source), destination_(destination) {}
+
+  Location GetSource() const { return source_; }
+  Location GetDestination() const { return destination_; }
+
+  void SetSource(Location value) { source_ = value; }
+  void SetDestination(Location value) { destination_ = value; }
+
+  // The parallel move resolver marks moves as "in-progress" by clearing the
+  // destination (but not the source).
+  Location MarkPending() {
+    DCHECK(!IsPending());
+    Location dest = destination_;
+    destination_ = Location::NoLocation();
+    return dest;
+  }
+
+  void ClearPending(Location dest) {
+    DCHECK(IsPending());
+    destination_ = dest;
+  }
+
+  bool IsPending() const {
+    DCHECK(!source_.IsInvalid() || destination_.IsInvalid());
+    return destination_.IsInvalid() && !source_.IsInvalid();
+  }
+
+  // True if this blocks a move from the given location.
+  bool Blocks(Location loc) const {
+    return !IsEliminated() && source_.Equals(loc);
+  }
+
+  // A move is redundant if it's been eliminated, if its source and
+  // destination are the same, or if its destination is unneeded.
+  bool IsRedundant() const {
+    return IsEliminated() || destination_.IsInvalid() || source_.Equals(destination_);
+  }
+
+  // We clear both operands to indicate move that's been eliminated.
+  void Eliminate() {
+    source_ = destination_ = Location::NoLocation();
+  }
+
+  bool IsEliminated() const {
+    DCHECK(!source_.IsInvalid() || destination_.IsInvalid());
+    return source_.IsInvalid();
+  }
+
+ private:
+  Location source_;
+  Location destination_;
+
+  DISALLOW_COPY_AND_ASSIGN(MoveOperands);
+};
+
+static constexpr size_t kDefaultNumberOfMoves = 4;
+
+class HParallelMove : public HTemplateInstruction<0> {
+ public:
+  explicit HParallelMove(ArenaAllocator* arena) : moves_(arena, kDefaultNumberOfMoves) {}
+
+  void AddMove(MoveOperands* move) {
+    moves_.Add(move);
+  }
+
+  MoveOperands* MoveOperandsAt(size_t index) const {
+    return moves_.Get(index);
+  }
+
+  size_t NumMoves() const { return moves_.Size(); }
+
+  DECLARE_INSTRUCTION(ParallelMove)
+
+ private:
+  GrowableArray<MoveOperands*> moves_;
+
+  DISALLOW_COPY_AND_ASSIGN(HParallelMove);
 };
 
 class HGraphVisitor : public ValueObject {
