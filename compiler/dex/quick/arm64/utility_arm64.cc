@@ -504,7 +504,7 @@ LIR* Arm64Mir2Lir::OpRegRegRegShift(OpKind op, RegStorage r_dest, RegStorage r_s
   CHECK_EQ(r_dest.Is64Bit(), r_src1.Is64Bit());
   CHECK_EQ(r_dest.Is64Bit(), r_src2.Is64Bit());
   if (EncodingMap[opcode].flags & IS_QUAD_OP) {
-    DCHECK_EQ(shift, ENCODE_NO_SHIFT);
+    DCHECK(!IsExtendEncoding(shift));
     return NewLIR4(widened_opcode, r_dest.GetReg(), r_src1.GetReg(), r_src2.GetReg(), shift);
   } else {
     DCHECK(EncodingMap[opcode].flags & IS_TERTIARY_OP);
@@ -706,40 +706,46 @@ bool Arm64Mir2Lir::IsExtendEncoding(int encoded_value) {
 LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest,
                                    int scale, OpSize size) {
   LIR* load;
+  int expected_scale = 0;
   ArmOpcode opcode = kA64Brk1d;
-  ArmOpcode wide = kA64NotWide;
-
-  DCHECK(scale == 0 || scale == 1);
 
   if (r_dest.IsFloat()) {
-    bool is_double = r_dest.IsDouble();
-    bool is_single = !is_double;
-    DCHECK_EQ(is_single, r_dest.IsSingle());
+    if (r_dest.IsDouble()) {
+      DCHECK(size == k64 || size == kDouble);
+      expected_scale = 3;
+      opcode = FWIDE(kA64Ldr4fXxG);
+    } else {
+      DCHECK(r_dest.IsSingle());
+      DCHECK(size == k32 || size == kSingle);
+      expected_scale = 2;
+      opcode = kA64Ldr4fXxG;
+    }
 
-    // If r_dest is a single, then size must be either k32 or kSingle.
-    // If r_dest is a double, then size must be either k64 or kDouble.
-    DCHECK(!is_single || size == k32 || size == kSingle);
-    DCHECK(!is_double || size == k64 || size == kDouble);
-    return NewLIR4((is_double) ? FWIDE(kA64Ldr4fXxG) : kA64Ldr4fXxG,
-                   r_dest.GetReg(), r_base.GetReg(), r_index.GetReg(), scale);
+    DCHECK(scale == 0 || scale == expected_scale);
+    return NewLIR4(opcode, r_dest.GetReg(), r_base.GetReg(), r_index.GetReg(),
+                   (scale != 0) ? 1 : 0);
   }
 
   switch (size) {
     case kDouble:
     case kWord:
     case k64:
-      wide = kA64Wide;
-      // Intentional fall-trough.
+      opcode = WIDE(kA64Ldr4rXxG);
+      expected_scale = 3;
+      break;
     case kSingle:
     case k32:
     case kReference:
       opcode = kA64Ldr4rXxG;
+      expected_scale = 2;
       break;
     case kUnsignedHalf:
       opcode = kA64Ldrh4wXxd;
+      expected_scale = 1;
       break;
     case kSignedHalf:
       opcode = kA64Ldrsh4rXxd;
+      expected_scale = 1;
       break;
     case kUnsignedByte:
       opcode = kA64Ldrb3wXx;
@@ -751,13 +757,14 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
       LOG(FATAL) << "Bad size: " << size;
   }
 
-  if (UNLIKELY((EncodingMap[opcode].flags & IS_TERTIARY_OP) != 0)) {
-    // Tertiary ops (e.g. ldrb, ldrsb) do not support scale.
+  if (UNLIKELY(expected_scale == 0)) {
+    // This is a tertiary op (e.g. ldrb, ldrsb), it does not not support scale.
+    DCHECK_NE(EncodingMap[UNWIDE(opcode)].flags & IS_TERTIARY_OP, 0U);
     DCHECK_EQ(scale, 0);
-    load = NewLIR3(opcode | wide, r_dest.GetReg(), r_base.GetReg(), r_index.GetReg());
+    load = NewLIR3(opcode, r_dest.GetReg(), r_base.GetReg(), r_index.GetReg());
   } else {
-    DCHECK(scale == 0 || scale == ((wide == kA64Wide) ? 3 : 2));
-    load = NewLIR4(opcode | wide, r_dest.GetReg(), r_base.GetReg(), r_index.GetReg(),
+    DCHECK(scale == 0 || scale == expected_scale);
+    load = NewLIR4(opcode, r_dest.GetReg(), r_base.GetReg(), r_index.GetReg(),
                    (scale != 0) ? 1 : 0);
   }
 
@@ -767,39 +774,43 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
 LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
                                     int scale, OpSize size) {
   LIR* store;
+  int expected_scale = 0;
   ArmOpcode opcode = kA64Brk1d;
-  ArmOpcode wide = kA64NotWide;
-
-  DCHECK(scale == 0 || scale == 1);
 
   if (r_src.IsFloat()) {
-    bool is_double = r_src.IsDouble();
-    bool is_single = !is_double;
-    DCHECK_EQ(is_single, r_src.IsSingle());
+    if (r_src.IsDouble()) {
+      DCHECK(size == k64 || size == kDouble);
+      expected_scale = 3;
+      opcode = FWIDE(kA64Str4fXxG);
+    } else {
+      DCHECK(r_src.IsSingle());
+      DCHECK(size == k32 || size == kSingle);
+      expected_scale = 2;
+      opcode = kA64Str4fXxG;
+    }
 
-    // If r_src is a single, then size must be either k32 or kSingle.
-    // If r_src is a double, then size must be either k64 or kDouble.
-    DCHECK(!is_single || size == k32 || size == kSingle);
-    DCHECK(!is_double || size == k64 || size == kDouble);
-    return NewLIR4((is_double) ? FWIDE(kA64Str4fXxG) : kA64Str4fXxG,
-                   r_src.GetReg(), r_base.GetReg(), r_index.GetReg(), scale);
+    DCHECK(scale == 0 || scale == expected_scale);
+    return NewLIR4(opcode, r_src.GetReg(), r_base.GetReg(), r_index.GetReg(),
+                   (scale != 0) ? 1 : 0);
   }
 
   switch (size) {
     case kDouble:     // Intentional fall-trough.
     case kWord:       // Intentional fall-trough.
     case k64:
-      opcode = kA64Str4rXxG;
-      wide = kA64Wide;
+      opcode = WIDE(kA64Str4rXxG);
+      expected_scale = 3;
       break;
     case kSingle:     // Intentional fall-trough.
     case k32:         // Intentional fall-trough.
     case kReference:
       opcode = kA64Str4rXxG;
+      expected_scale = 2;
       break;
     case kUnsignedHalf:
     case kSignedHalf:
       opcode = kA64Strh4wXxd;
+      expected_scale = 1;
       break;
     case kUnsignedByte:
     case kSignedByte:
@@ -809,12 +820,14 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
       LOG(FATAL) << "Bad size: " << size;
   }
 
-  if (UNLIKELY((EncodingMap[opcode].flags & IS_TERTIARY_OP) != 0)) {
-    // Tertiary ops (e.g. strb) do not support scale.
+  if (UNLIKELY(expected_scale == 0)) {
+    // This is a tertiary op (e.g. strb), it does not not support scale.
+    DCHECK_NE(EncodingMap[UNWIDE(opcode)].flags & IS_TERTIARY_OP, 0U);
     DCHECK_EQ(scale, 0);
-    store = NewLIR3(opcode | wide, r_src.GetReg(), r_base.GetReg(), r_index.GetReg());
+    store = NewLIR3(opcode, r_src.GetReg(), r_base.GetReg(), r_index.GetReg());
   } else {
-    store = NewLIR4(opcode, r_src.GetReg(), r_base.GetReg(), r_index.GetReg(), scale);
+    store = NewLIR4(opcode, r_src.GetReg(), r_base.GetReg(), r_index.GetReg(),
+                    (scale != 0) ? 1 : 0);
   }
 
   return store;
@@ -842,8 +855,8 @@ LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStor
         opcode = FWIDE(kA64Ldr3fXD);
         alt_opcode = FWIDE(kA64Ldur3fXd);
       } else {
-        opcode = FWIDE(kA64Ldr3rXD);
-        alt_opcode = FWIDE(kA64Ldur3rXd);
+        opcode = WIDE(kA64Ldr3rXD);
+        alt_opcode = WIDE(kA64Ldur3rXd);
       }
       break;
     case kSingle:     // Intentional fall-through.
