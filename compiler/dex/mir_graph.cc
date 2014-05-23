@@ -80,7 +80,6 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       topological_order_(nullptr),
       i_dom_list_(NULL),
       def_block_matrix_(NULL),
-      temp_dalvik_register_v_(NULL),
       temp_scoped_alloc_(),
       temp_insn_data_(nullptr),
       temp_bit_vector_size_(0u),
@@ -1318,7 +1317,13 @@ void MIRGraph::InitializeMethodUses() {
   }
 }
 
-void MIRGraph::InitializeSSATransformation() {
+void MIRGraph::SSATransformationStart() {
+  DCHECK(temp_scoped_alloc_.get() == nullptr);
+  temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
+  temp_bit_vector_size_ = cu_->num_dalvik_registers;
+  temp_bit_vector_ = new (temp_scoped_alloc_.get()) ArenaBitVector(
+      temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapRegisterV);
+
   /* Compute the DFS order */
   ComputeDFSOrders();
 
@@ -1337,6 +1342,18 @@ void MIRGraph::InitializeSSATransformation() {
   /* Rename register names by local defs and phi nodes */
   ClearAllVisitedFlags();
   DoDFSPreOrderSSARename(GetEntryBlock());
+}
+
+void MIRGraph::SSATransformationEnd() {
+  // Verify the dataflow information after the pass.
+  if (cu_->enable_debug & (1 << kDebugVerifyDataflow)) {
+    VerifyDataflow();
+  }
+
+  temp_bit_vector_size_ = 0u;
+  temp_bit_vector_ = nullptr;
+  DCHECK(temp_scoped_alloc_.get() != nullptr);
+  temp_scoped_alloc_.reset();
 }
 
 void MIRGraph::ComputeTopologicalSortOrder() {
