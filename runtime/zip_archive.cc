@@ -50,13 +50,14 @@ bool ZipEntry::ExtractToFile(File& file, std::string* error_msg) {
   return true;
 }
 
-MemMap* ZipEntry::ExtractToMemMap(const char* entry_filename, std::string* error_msg) {
+MemMap* ZipEntry::ExtractToMemMap(const char* zip_filename, const char* entry_filename,
+                                  std::string* error_msg) {
   std::string name(entry_filename);
   name += " extracted in memory from ";
-  name += entry_filename;
+  name += zip_filename;
   std::unique_ptr<MemMap> map(MemMap::MapAnonymous(name.c_str(),
-                                             NULL, GetUncompressedLength(),
-                                             PROT_READ | PROT_WRITE, false, error_msg));
+                                                   NULL, GetUncompressedLength(),
+                                                   PROT_READ | PROT_WRITE, false, error_msg));
   if (map.get() == nullptr) {
     DCHECK(!error_msg->empty());
     return nullptr;

@@ -245,7 +245,7 @@ const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& l
   if (zip_entry.get() == NULL) {
     return nullptr;
   }
-  std::unique_ptr<MemMap> map(zip_entry->ExtractToMemMap(kClassesDex, error_msg));
+  std::unique_ptr<MemMap> map(zip_entry->ExtractToMemMap(location.c_str(), kClassesDex, error_msg));
   if (map.get() == NULL) {
     *error_msg = StringPrintf("Failed to extract '%s' from '%s': %s", kClassesDex, location.c_str(),
                               error_msg->c_str());
