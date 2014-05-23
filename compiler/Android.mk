@@ -83,8 +83,10 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/code_generator_arm.cc \
 	optimizing/code_generator_x86.cc \
 	optimizing/graph_visualizer.cc \
+	optimizing/locations.cc \
 	optimizing/nodes.cc \
 	optimizing/optimizing_compiler.cc \
+	optimizing/parallel_move_resolver.cc \
 	optimizing/ssa_builder.cc \
 	optimizing/ssa_liveness_analysis.cc \
 	trampolines/trampoline_compiler.cc \
