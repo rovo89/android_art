@@ -18,6 +18,7 @@
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/entrypoint_utils.h"
+#include "entrypoints/math_entrypoints.h"
 
 namespace art {
 
@@ -34,8 +35,8 @@ extern "C" void art_portable_resolution_trampoline(mirror::ArtMethod*);
 extern "C" void art_portable_to_interpreter_bridge(mirror::ArtMethod*);
 
 // Cast entrypoints.
-extern "C" uint32_t art_quick_is_assignable(const mirror::Class* klass,
-                                                const mirror::Class* ref_class);
+extern "C" uint32_t artIsAssignableFromCode(const mirror::Class* klass,
+                                            const mirror::Class* ref_class);
 extern "C" void art_quick_check_cast(void*, void*);
 
 // DexCache entrypoints.
@@ -69,13 +70,8 @@ extern "C" void art_quick_lock_object(void*);
 extern "C" void art_quick_unlock_object(void*);
 
 // Math entrypoints.
-extern "C" double art_quick_fmod(double, double);
-extern "C" float art_quick_fmodf(float, float);
-extern "C" double art_quick_l2d(int64_t);
-extern "C" float art_quick_l2f(int64_t);
 extern "C" int64_t art_quick_d2l(double);
 extern "C" int64_t art_quick_f2l(float);
-extern "C" int32_t art_quick_idivmod(int32_t, int32_t);
 extern "C" int64_t art_quick_ldiv(int64_t, int64_t);
 extern "C" int64_t art_quick_lmod(int64_t, int64_t);
 extern "C" int64_t art_quick_lmul(int64_t, int64_t);
@@ -85,7 +81,6 @@ extern "C" uint64_t art_quick_lushr(uint64_t, uint32_t);
 
 // Intrinsic entrypoints.
 extern "C" int32_t art_quick_memcmp16(void*, void*, int32_t);
-extern "C" int32_t art_quick_indexof(void*, uint32_t, uint32_t, uint32_t);
 extern "C" int32_t art_quick_string_compareto(void*, void*);
 extern "C" void* art_quick_memcpy(void*, const void*, size_t);
 
@@ -133,7 +128,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   ResetQuickAllocEntryPoints(qpoints);
 
   // Cast
-  qpoints->pInstanceofNonTrivial = art_quick_is_assignable;
+  qpoints->pInstanceofNonTrivial = artIsAssignableFromCode;
   qpoints->pCheckCast = art_quick_check_cast;
 
   // DexCache
@@ -180,16 +175,16 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   // points->pCmpgFloat = NULL;  // Not needed on x86.
   // points->pCmplDouble = NULL;  // Not needed on x86.
   // points->pCmplFloat = NULL;  // Not needed on x86.
-  qpoints->pFmod = art_quick_fmod;
+  qpoints->pFmod = fmod;
   // qpoints->pSqrt = NULL;  // Not needed on x86.
-  qpoints->pL2d = art_quick_l2d;
-  qpoints->pFmodf = art_quick_fmodf;
-  qpoints->pL2f = art_quick_l2f;
+  // qpoints->pL2d = NULL;  // Not needed on x86.
+  qpoints->pFmodf = fmodf;
+  // qpoints->pL2f = NULL;  // Not needed on x86.
   // points->pD2iz = NULL;  // Not needed on x86.
   // points->pF2iz = NULL;  // Not needed on x86.
-  qpoints->pIdivmod = art_quick_idivmod;
-  qpoints->pD2l = art_quick_d2l;
-  qpoints->pF2l = art_quick_f2l;
+  // qpoints->pIdivmod = NULL;  // Not needed on x86.
+  qpoints->pD2l = art_d2l;
+  qpoints->pF2l = art_f2l;
   qpoints->pLdiv = art_quick_ldiv;
   qpoints->pLmod = art_quick_lmod;
   qpoints->pLmul = art_quick_lmul;
@@ -198,7 +193,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pUshrLong = art_quick_lushr;
 
   // Intrinsics
-  qpoints->pIndexOf = art_quick_indexof;
+  // qpoints->pIndexOf = NULL;  // Not needed on x86.
   qpoints->pMemcmp16 = art_quick_memcmp16;
   qpoints->pStringCompareTo = art_quick_string_compareto;
   qpoints->pMemcpy = art_quick_memcpy;

@@ -737,11 +737,6 @@ DEFINE_FUNCTION art_quick_unlock_object
     RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_unlock_object
 
-DEFINE_FUNCTION art_quick_is_assignable
-    int3
-    int3
-END_FUNCTION art_quick_is_assignable
-
 DEFINE_FUNCTION art_quick_check_cast
     PUSH rdi                          // Save args for exc
     PUSH rsi
@@ -876,13 +871,6 @@ END_FUNCTION art_quick_memcpy
 
 NO_ARG_DOWNCALL art_quick_test_suspend, artTestSuspendFromCode, ret
 
-UNIMPLEMENTED art_quick_fmod
-UNIMPLEMENTED art_quick_fmodf
-UNIMPLEMENTED art_quick_l2d
-UNIMPLEMENTED art_quick_l2f
-UNIMPLEMENTED art_quick_d2l
-UNIMPLEMENTED art_quick_f2l
-UNIMPLEMENTED art_quick_idivmod
 UNIMPLEMENTED art_quick_ldiv
 UNIMPLEMENTED art_quick_lmod
 UNIMPLEMENTED art_quick_lmul
@@ -1300,8 +1288,6 @@ UNIMPLEMENTED art_quick_instrumentation_exit
      * will long jump to the upcall with a special exception of -1.
      */
 UNIMPLEMENTED art_quick_deoptimize
-
-UNIMPLEMENTED art_quick_indexof
 
     /*
      * String's compareTo.
