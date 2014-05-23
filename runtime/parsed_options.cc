@@ -790,7 +790,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xprofile-period:integervalue\n");
   UsageMessage(stream, "  -Xprofile-duration:integervalue\n");
   UsageMessage(stream, "  -Xprofile-interval:integervalue\n");
-  UsageMessage(stream, "  -Xprofile-backoff:integervalue\n");
+  UsageMessage(stream, "  -Xprofile-backoff:doublevalue\n");
   UsageMessage(stream, "  -Xcompiler-option dex2oat-option\n");
   UsageMessage(stream, "  -Ximage-compiler-option dex2oat-option\n");
   UsageMessage(stream, "\n");
