@@ -143,12 +143,7 @@ class SSATransformation : public PassME {
 
   bool Worker(const PassDataHolder* data) const;
 
-  void Start(const PassDataHolder* data) const {
-    DCHECK(data != nullptr);
-    CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
-    DCHECK(cUnit != nullptr);
-    cUnit->mir_graph->InitializeSSATransformation();
-  }
+  void Start(const PassDataHolder* data) const;
 
   void End(const PassDataHolder* data) const;
 };
