@@ -223,8 +223,7 @@ struct BasicBlockDataFlow {
   ArenaBitVector* def_v;
   ArenaBitVector* live_in_v;
   ArenaBitVector* phi_v;
-  int32_t* vreg_to_ssa_map_exit;
-  int32_t* vreg_to_ssa_map_entrance;
+  int32_t* vreg_to_ssa_map;
   ArenaBitVector* ending_check_v;  // For null check and class init check elimination.
 };
 
@@ -237,8 +236,6 @@ struct BasicBlockDataFlow {
  * we may want to revisit in the future.
  */
 struct SSARepresentation {
-  int16_t num_uses_allocated;
-  int16_t num_defs_allocated;
   int16_t num_uses;
   int16_t num_defs;
   int32_t* uses;
@@ -861,10 +858,6 @@ class MIRGraph {
   void CombineBlocks(BasicBlock* bb);
 
   void ClearAllVisitedFlags();
-
-  void AllocateSSAUseData(MIR *mir, int num_uses);
-  void AllocateSSADefData(MIR *mir, int num_defs);
-
   /*
    * IsDebugBuild sanity check: keep track of the Dex PCs for catch entries so that later on
    * we can verify that all catch entries have native PC entries.
@@ -950,7 +943,6 @@ class MIRGraph {
   GrowableArray<uint32_t> use_counts_;      // Weighted by nesting depth
   GrowableArray<uint32_t> raw_use_counts_;  // Not weighted
   unsigned int num_reachable_blocks_;
-  unsigned int max_num_reachable_blocks_;
   GrowableArray<BasicBlockId>* dfs_order_;
   GrowableArray<BasicBlockId>* dfs_post_order_;
   GrowableArray<BasicBlockId>* dom_post_order_traversal_;
