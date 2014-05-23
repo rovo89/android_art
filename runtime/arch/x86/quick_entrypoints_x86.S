@@ -763,28 +763,6 @@ DEFINE_FUNCTION art_quick_fmodf
     ret
 END_FUNCTION art_quick_fmodf
 
-DEFINE_FUNCTION art_quick_l2d
-    PUSH ecx                      // push arg2 a.hi
-    PUSH eax                      // push arg1 a.lo
-    fildll (%esp)                 // load as integer and push into st0
-    fstpl (%esp)                  // pop value off fp stack as double
-    movsd (%esp), %xmm0           // place into %xmm0
-    addl LITERAL(8), %esp         // pop arguments
-    CFI_ADJUST_CFA_OFFSET(-8)
-    ret
-END_FUNCTION art_quick_l2d
-
-DEFINE_FUNCTION art_quick_l2f
-    PUSH ecx                      // push arg2 a.hi
-    PUSH eax                      // push arg1 a.lo
-    fildll (%esp)                 // load as integer and push into st0
-    fstps (%esp)                  // pop value off fp stack as a single
-    movss (%esp), %xmm0           // place into %xmm0
-    addl LITERAL(8), %esp         // pop argument
-    CFI_ADJUST_CFA_OFFSET(-8)
-    ret
-END_FUNCTION art_quick_l2f
-
 DEFINE_FUNCTION art_quick_d2l
     PUSH eax                      // alignment padding
     PUSH ecx                      // pass arg2 a.hi
@@ -806,20 +784,6 @@ DEFINE_FUNCTION art_quick_f2l
     CFI_ADJUST_CFA_OFFSET(-12)
     ret
 END_FUNCTION art_quick_f2l
-
-DEFINE_FUNCTION art_quick_idivmod
-    cmpl LITERAL(0x80000000), %eax
-    je .Lcheck_arg2  // special case
-.Largs_ok:
-    cdq         // edx:eax = sign extend eax
-    idiv %ecx   // (edx,eax) = (edx:eax % ecx, edx:eax / ecx)
-    ret
-.Lcheck_arg2:
-    cmpl LITERAL(-1), %ecx
-    jne .Largs_ok
-    xorl %edx, %edx
-    ret         // eax already holds min int
-END_FUNCTION art_quick_idivmod
 
 DEFINE_FUNCTION art_quick_ldiv
     subl LITERAL(12), %esp       // alignment padding
