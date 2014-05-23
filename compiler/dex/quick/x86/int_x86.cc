@@ -2198,6 +2198,10 @@ void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
           }
         }
         rl_rhs = LoadValue(rl_rhs, kCoreReg);
+        // It might happen rl_rhs and rl_dest are the same VR
+        // in this case rl_dest is in reg after LoadValue while
+        // rl_result is not updated yet, so do this
+        rl_result = UpdateLocTyped(rl_dest, kCoreReg);
         if (rl_result.location != kLocPhysReg) {
           // Okay, we can do this into memory.
           OpMemReg(op, rl_result, rl_rhs.reg.GetReg());
