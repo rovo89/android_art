@@ -38,8 +38,8 @@ class MANAGED Array : public Object {
                       bool fill_usable = false)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static Array* CreateMultiArray(Thread* self, const Handle<Class>& element_class,
-                                 const Handle<IntArray>& dimensions)
+  static Array* CreateMultiArray(Thread* self, Handle<Class> element_class,
+                                 Handle<IntArray> dimensions)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
