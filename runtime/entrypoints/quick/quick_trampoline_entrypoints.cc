@@ -755,11 +755,12 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
   self->EndAssertNoThreadSuspension(old_cause);
   bool virtual_or_interface = invoke_type == kVirtual || invoke_type == kInterface;
   // Resolve method filling in dex cache.
-  if (called->IsRuntimeMethod()) {
+  if (UNLIKELY(called->IsRuntimeMethod())) {
     StackHandleScope<1> hs(self);
-    Handle<mirror::Object> handle_scope_receiver(hs.NewHandle(virtual_or_interface ? receiver : nullptr));
-    called = linker->ResolveMethod(dex_method_idx, caller, invoke_type);
-    receiver = handle_scope_receiver.Get();
+    mirror::Object* dummy = nullptr;
+    HandleWrapper<mirror::Object> h_receiver(
+        hs.NewHandleWrapper(virtual_or_interface ? &receiver : &dummy));
+    called = linker->ResolveMethod(self, dex_method_idx, &caller, invoke_type);
   }
   const void* code = NULL;
   if (LIKELY(!self->IsExceptionPending())) {
@@ -1313,7 +1314,7 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
                       &cur_stack_arg_, &cur_gpr_reg_, &cur_fpr_reg_, &code_return_,
                       &alloca_used_size_);
     handle_scope_number_of_references_ = 0;
-    cur_hs_entry_ = reinterpret_cast<StackReference<mirror::Object>*>(GetFirstHandleScopeEntry());
+    cur_hs_entry_ = GetFirstHandleScopeEntry();
 
     // jni environment is always first argument
     sm_.AdvancePointer(self->GetJniEnv());
@@ -1327,7 +1328,13 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
 
   void FinalizeHandleScope(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  jobject GetFirstHandleScopeEntry() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  StackReference<mirror::Object>* GetFirstHandleScopeEntry()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return handle_scope_->GetHandle(0).GetReference();
+  }
+
+  jobject GetFirstHandleScopeJObject()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return handle_scope_->GetHandle(0).ToJObject();
   }
 
@@ -1502,7 +1509,7 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod*
   // Start JNI, save the cookie.
   uint32_t cookie;
   if (called->IsSynchronized()) {
-    cookie = JniMethodStartSynchronized(visitor.GetFirstHandleScopeEntry(), self);
+    cookie = JniMethodStartSynchronized(visitor.GetFirstHandleScopeJObject(), self);
     if (self->IsExceptionPending()) {
       self->PopHandleScope();
       // A negative value denotes an error.
@@ -1530,7 +1537,7 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod*
       DCHECK(self->IsExceptionPending());    // There should be an exception pending now.
 
       // End JNI, as the assembly will move to deliver the exception.
-      jobject lock = called->IsSynchronized() ? visitor.GetFirstHandleScopeEntry() : nullptr;
+      jobject lock = called->IsSynchronized() ? visitor.GetFirstHandleScopeJObject() : nullptr;
       if (mh.GetShorty()[0] == 'L') {
         artQuickGenericJniEndJNIRef(self, cookie, nullptr, lock);
       } else {
@@ -1681,7 +1688,8 @@ static MethodAndCode artInvokeCommon(uint32_t method_idx, mirror::Object* this_o
       ScopedObjectAccessUnchecked soa(self->GetJniEnv());
       RememberForGcArgumentVisitor visitor(sp, type == kStatic, shorty, shorty_len, &soa);
       visitor.VisitArguments();
-      method = FindMethodFromCode<type, access_check>(method_idx, this_object, caller_method, self);
+      method = FindMethodFromCode<type, access_check>(method_idx, &this_object, &caller_method,
+                                                      self);
       visitor.FixupReferences();
     }
 
@@ -1871,7 +1879,7 @@ extern "C" MethodAndCode artInvokeInterfaceTrampoline(mirror::ArtMethod* interfa
       ScopedObjectAccessUnchecked soa(self->GetJniEnv());
       RememberForGcArgumentVisitor visitor(sp, false, shorty, shorty_len, &soa);
       visitor.VisitArguments();
-      method = FindMethodFromCode<kInterface, false>(dex_method_idx, this_object, caller_method,
+      method = FindMethodFromCode<kInterface, false>(dex_method_idx, &this_object, &caller_method,
                                                      self);
       visitor.FixupReferences();
     }

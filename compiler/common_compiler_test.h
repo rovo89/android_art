@@ -377,7 +377,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
     timings.EndSplit();
   }
 
-  void CompileDirectMethod(Handle<mirror::ClassLoader>& class_loader, const char* class_name,
+  void CompileDirectMethod(Handle<mirror::ClassLoader> class_loader, const char* class_name,
                            const char* method_name, const char* signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
@@ -390,7 +390,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
     CompileMethod(method);
   }
 
-  void CompileVirtualMethod(Handle<mirror::ClassLoader>& class_loader, const char* class_name,
+  void CompileVirtualMethod(Handle<mirror::ClassLoader> class_loader, const char* class_name,
                             const char* method_name, const char* signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));

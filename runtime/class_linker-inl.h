@@ -34,9 +34,7 @@ inline bool ClassLinker::IsInBootClassPath(const char* descriptor) {
 }
 
 inline mirror::Class* ClassLinker::FindSystemClass(Thread* self, const char* descriptor) {
-  StackHandleScope<1> hs(self);
-  auto class_loader = hs.NewHandle<mirror::ClassLoader>(nullptr);
-  return FindClass(self, descriptor, class_loader);
+  return FindClass(self, descriptor, NullHandle<mirror::ClassLoader>());
 }
 
 inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class* element_class) {
@@ -110,31 +108,47 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, mirror::ArtFie
   return resolved_type;
 }
 
-inline mirror::ArtMethod* ClassLinker::ResolveMethod(uint32_t method_idx,
-                                                     mirror::ArtMethod* referrer,
-                                                     InvokeType type) {
+inline mirror::ArtMethod* ClassLinker::GetResolvedMethod(uint32_t method_idx,
+                                                         mirror::ArtMethod* referrer,
+                                                         InvokeType type) {
   mirror::ArtMethod* resolved_method =
       referrer->GetDexCacheResolvedMethods()->Get(method_idx);
-  if (UNLIKELY(resolved_method == NULL || resolved_method->IsRuntimeMethod())) {
-    mirror::Class* declaring_class = referrer->GetDeclaringClass();
-    StackHandleScope<2> hs(Thread::Current());
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
-    Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
-    const DexFile& dex_file = *dex_cache->GetDexFile();
-    resolved_method = ResolveMethod(dex_file, method_idx, dex_cache, class_loader, referrer, type);
-    if (resolved_method != nullptr) {
-      DCHECK_EQ(dex_cache->GetResolvedMethod(method_idx), resolved_method);
-    }
+  if (resolved_method == nullptr || resolved_method->IsRuntimeMethod()) {
+    return nullptr;
   }
   return resolved_method;
 }
 
-inline mirror::ArtField* ClassLinker::ResolveField(uint32_t field_idx,
-                                                   mirror::ArtMethod* referrer,
+inline mirror::ArtMethod* ClassLinker::ResolveMethod(Thread* self, uint32_t method_idx,
+                                                     mirror::ArtMethod** referrer,
+                                                     InvokeType type) {
+  mirror::ArtMethod* resolved_method = GetResolvedMethod(method_idx, *referrer, type);
+  if (LIKELY(resolved_method != nullptr)) {
+    return resolved_method;
+  }
+  mirror::Class* declaring_class = (*referrer)->GetDeclaringClass();
+  StackHandleScope<3> hs(self);
+  Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
+  Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
+  HandleWrapper<mirror::ArtMethod> h_referrer(hs.NewHandleWrapper(referrer));
+  const DexFile* dex_file = h_dex_cache->GetDexFile();
+  resolved_method = ResolveMethod(*dex_file, method_idx, h_dex_cache, h_class_loader, h_referrer,
+                                  type);
+  if (resolved_method != nullptr) {
+    DCHECK_EQ(h_dex_cache->GetResolvedMethod(method_idx), resolved_method);
+  }
+  return resolved_method;
+}
+
+inline mirror::ArtField* ClassLinker::GetResolvedField(uint32_t field_idx,
+                                                       mirror::Class* field_declaring_class) {
+  return field_declaring_class->GetDexCache()->GetResolvedField(field_idx);
+}
+
+inline mirror::ArtField* ClassLinker::ResolveField(uint32_t field_idx, mirror::ArtMethod* referrer,
                                                    bool is_static) {
   mirror::Class* declaring_class = referrer->GetDeclaringClass();
-  mirror::ArtField* resolved_field =
-      declaring_class->GetDexCache()->GetResolvedField(field_idx);
+  mirror::ArtField* resolved_field = GetResolvedField(field_idx, declaring_class);
   if (UNLIKELY(resolved_field == NULL)) {
     StackHandleScope<2> hs(Thread::Current());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));

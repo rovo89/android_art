@@ -229,7 +229,7 @@ uintptr_t ArtMethod::ToNativePc(const uint32_t dex_pc) {
   return 0;
 }
 
-uint32_t ArtMethod::FindCatchBlock(Handle<Class>& exception_type, uint32_t dex_pc,
+uint32_t ArtMethod::FindCatchBlock(Handle<Class> exception_type, uint32_t dex_pc,
                                    bool* has_no_move_exception, bool* exc_changed) {
   MethodHelper mh(this);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
