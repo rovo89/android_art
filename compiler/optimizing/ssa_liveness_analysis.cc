@@ -174,28 +174,6 @@ void SsaLivenessAnalysis::ComputeLiveness() {
   ComputeLiveInAndLiveOutSets();
 }
 
-class InstructionBitVectorIterator : public ValueObject {
- public:
-  InstructionBitVectorIterator(const BitVector& vector,
-                               const GrowableArray<HInstruction*>& instructions)
-        : instructions_(instructions),
-          iterator_(BitVector::Iterator(&vector)),
-          current_bit_index_(iterator_.Next()) {}
-
-  bool Done() const { return current_bit_index_ == -1; }
-  HInstruction* Current() const { return instructions_.Get(current_bit_index_); }
-  void Advance() {
-    current_bit_index_ = iterator_.Next();
-  }
-
- private:
-  const GrowableArray<HInstruction*> instructions_;
-  BitVector::Iterator iterator_;
-  int32_t current_bit_index_;
-
-  DISALLOW_COPY_AND_ASSIGN(InstructionBitVectorIterator);
-};
-
 void SsaLivenessAnalysis::ComputeLiveRanges() {
   // Do a post order visit, adding inputs of instructions live in the block where
   // that instruction is defined, and killing instructions that are being visited.
@@ -218,10 +196,9 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
     }
 
     // Add a range that covers this block to all instructions live_in because of successors.
-    for (InstructionBitVectorIterator it(*live_in, instructions_from_ssa_index_);
-         !it.Done();
-         it.Advance()) {
-      it.Current()->GetLiveInterval()->AddRange(block->GetLifetimeStart(), block->GetLifetimeEnd());
+    for (uint32_t idx : live_in->Indexes()) {
+      HInstruction* current = instructions_from_ssa_index_.Get(idx);
+      current->GetLiveInterval()->AddRange(block->GetLifetimeStart(), block->GetLifetimeEnd());
     }
 
     for (HBackwardInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
@@ -268,11 +245,10 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
       HBasicBlock* back_edge = block->GetLoopInformation()->GetBackEdges().Get(0);
       // For all live_in instructions at the loop header, we need to create a range
       // that covers the full loop.
-      for (InstructionBitVectorIterator it(*live_in, instructions_from_ssa_index_);
-           !it.Done();
-           it.Advance()) {
-        it.Current()->GetLiveInterval()->AddLoopRange(block->GetLifetimeStart(),
-                                                      back_edge->GetLifetimeEnd());
+      for (uint32_t idx : live_in->Indexes()) {
+        HInstruction* current = instructions_from_ssa_index_.Get(idx);
+        current->GetLiveInterval()->AddLoopRange(block->GetLifetimeStart(),
+                                                 back_edge->GetLifetimeEnd());
       }
     }
   }

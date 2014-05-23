@@ -890,7 +890,7 @@ class MIRGraph {
   /**
    * @brief Perform the initial preparation for the SSA Transformation.
    */
-  void InitializeSSATransformation();
+  void SSATransformationStart();
 
   /**
    * @brief Insert a the operands for the Phi nodes.
@@ -898,6 +898,11 @@ class MIRGraph {
    * @return true
    */
   bool InsertPhiNodeOperands(BasicBlock* bb);
+
+  /**
+   * @brief Perform the cleanup after the SSA Transformation.
+   */
+  void SSATransformationEnd();
 
   /**
    * @brief Perform constant propagation on a BasicBlock.
@@ -1012,7 +1017,6 @@ class MIRGraph {
   GrowableArray<BasicBlockId>* topological_order_;
   int* i_dom_list_;
   ArenaBitVector** def_block_matrix_;    // num_dalvik_register x num_blocks.
-  ArenaBitVector* temp_dalvik_register_v_;
   std::unique_ptr<ScopedArenaAllocator> temp_scoped_alloc_;
   uint16_t* temp_insn_data_;
   uint32_t temp_bit_vector_size_;
