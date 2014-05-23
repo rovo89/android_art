@@ -698,6 +698,10 @@ class Heap {
   // Push an object onto the allocation stack.
   void PushOnAllocationStack(Thread* self, mirror::Object** obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void PushOnAllocationStackWithInternalGC(Thread* self, mirror::Object** obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void PushOnThreadLocalAllocationStackWithInternalGC(Thread* thread, mirror::Object** obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // What kind of concurrency behavior is the runtime after? Currently true for concurrent mark
   // sweep GC, false for other GC types.
