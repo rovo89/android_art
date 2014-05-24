@@ -117,36 +117,51 @@ enum X86ResourceEncodingPos {
 // FIXME: for 64-bit, perhaps add an X86_64NativeRegisterPool enum?
 enum X86NativeRegisterPool {
   r0             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 0,
+  r0q            = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 0,
   rAX            = r0,
   r1             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 1,
+  r1q            = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 1,
   rCX            = r1,
   r2             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 2,
+  r2q            = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 2,
   rDX            = r2,
   r3             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 3,
+  r3q            = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 3,
   rBX            = r3,
   r4sp_32        = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 4,
   rX86_SP_32     = r4sp_32,
   r4sp_64        = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 4,
   rX86_SP_64     = r4sp_64,
   r5             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 5,
+  r5q            = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 5,
   rBP            = r5,
   r5sib_no_base  = r5,
   r6             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 6,
+  r6q            = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 6,
   rSI            = r6,
   r7             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 7,
+  r7q            = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 7,
   rDI            = r7,
 #ifndef TARGET_REX_SUPPORT
   // fake return address register for core spill mask.
   rRET           = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 8,
 #else
   r8             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 8,
+  r8q            = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 8,
   r9             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 9,
+  r9q            = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 9,
   r10            = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 10,
+  r10q           = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 10,
   r11            = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 11,
+  r11q           = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 11,
   r12            = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 12,
+  r12q           = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 12,
   r13            = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 13,
+  r13q           = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 13,
   r14            = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 14,
+  r14q           = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 14,
   r15            = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 15,
+  r15q           = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 15,
   // fake return address register for core spill mask.
   rRET           = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 16,
 #endif
@@ -185,23 +200,48 @@ enum X86NativeRegisterPool {
 };
 
 constexpr RegStorage rs_r0(RegStorage::kValid | r0);
+constexpr RegStorage rs_r0q(RegStorage::kValid | r0q);
 constexpr RegStorage rs_rAX = rs_r0;
 constexpr RegStorage rs_r1(RegStorage::kValid | r1);
+constexpr RegStorage rs_r1q(RegStorage::kValid | r1q);
 constexpr RegStorage rs_rCX = rs_r1;
 constexpr RegStorage rs_r2(RegStorage::kValid | r2);
+constexpr RegStorage rs_r2q(RegStorage::kValid | r2q);
 constexpr RegStorage rs_rDX = rs_r2;
 constexpr RegStorage rs_r3(RegStorage::kValid | r3);
+constexpr RegStorage rs_r3q(RegStorage::kValid | r3q);
 constexpr RegStorage rs_rBX = rs_r3;
 constexpr RegStorage rs_rX86_SP_64(RegStorage::kValid | r4sp_64);
 constexpr RegStorage rs_rX86_SP_32(RegStorage::kValid | r4sp_32);
 extern RegStorage rs_rX86_SP;
 constexpr RegStorage rs_r5(RegStorage::kValid | r5);
+constexpr RegStorage rs_r5q(RegStorage::kValid | r5q);
 constexpr RegStorage rs_rBP = rs_r5;
 constexpr RegStorage rs_r6(RegStorage::kValid | r6);
+constexpr RegStorage rs_r6q(RegStorage::kValid | r6q);
 constexpr RegStorage rs_rSI = rs_r6;
 constexpr RegStorage rs_r7(RegStorage::kValid | r7);
+constexpr RegStorage rs_r7q(RegStorage::kValid | r7q);
 constexpr RegStorage rs_rDI = rs_r7;
 constexpr RegStorage rs_rRET(RegStorage::kValid | rRET);
+#ifdef TARGET_REX_SUPPORT
+constexpr RegStorage rs_r8(RegStorage::kValid | r8);
+constexpr RegStorage rs_r8q(RegStorage::kValid | r8q);
+constexpr RegStorage rs_r9(RegStorage::kValid | r9);
+constexpr RegStorage rs_r9q(RegStorage::kValid | r9q);
+constexpr RegStorage rs_r10(RegStorage::kValid | r10);
+constexpr RegStorage rs_r10q(RegStorage::kValid | r10q);
+constexpr RegStorage rs_r11(RegStorage::kValid | r11);
+constexpr RegStorage rs_r11q(RegStorage::kValid | r11q);
+constexpr RegStorage rs_r12(RegStorage::kValid | r12);
+constexpr RegStorage rs_r12q(RegStorage::kValid | r12q);
+constexpr RegStorage rs_r13(RegStorage::kValid | r13);
+constexpr RegStorage rs_r13q(RegStorage::kValid | r13q);
+constexpr RegStorage rs_r14(RegStorage::kValid | r14);
+constexpr RegStorage rs_r14q(RegStorage::kValid | r14q);
+constexpr RegStorage rs_r15(RegStorage::kValid | r15);
+constexpr RegStorage rs_r15q(RegStorage::kValid | r15q);
+#endif
 
 constexpr RegStorage rs_fr0(RegStorage::kValid | fr0);
 constexpr RegStorage rs_fr1(RegStorage::kValid | fr1);
