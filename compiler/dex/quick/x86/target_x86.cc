@@ -35,6 +35,12 @@ static const RegStorage core_regs_arr_64[] = {
     rs_r8, rs_r9, rs_r10, rs_r11, rs_r12, rs_r13, rs_r14, rs_r15
 #endif
 };
+static const RegStorage core_regs_arr_64q[] = {
+    rs_r0q, rs_r1q, rs_r2q, rs_r3q, rs_rX86_SP_64, rs_r5q, rs_r6q, rs_r7q,
+#ifdef TARGET_REX_SUPPORT
+    rs_r8, rs_r9, rs_r10, rs_r11, rs_r12, rs_r13, rs_r14, rs_r15
+#endif
+};
 static const RegStorage sp_regs_arr_32[] = {
     rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
 };
@@ -55,11 +61,18 @@ static const RegStorage dp_regs_arr_64[] = {
 };
 static const RegStorage reserved_regs_arr_32[] = {rs_rX86_SP_32};
 static const RegStorage reserved_regs_arr_64[] = {rs_rX86_SP_64};
+static const RegStorage reserved_regs_arr_64q[] = {rs_rX86_SP_64};
 static const RegStorage core_temps_arr_32[] = {rs_rAX, rs_rCX, rs_rDX, rs_rBX};
 static const RegStorage core_temps_arr_64[] = {
     rs_rAX, rs_rCX, rs_rDX, rs_rSI, rs_rDI,
 #ifdef TARGET_REX_SUPPORT
     rs_r8, rs_r9, rs_r10, rs_r11
+#endif
+};
+static const RegStorage core_temps_arr_64q[] = {
+    rs_r0q, rs_r1q, rs_r2q, rs_r6q, rs_r7q,
+#ifdef TARGET_REX_SUPPORT
+    rs_r8q, rs_r9q, rs_r10q, rs_r11q
 #endif
 };
 static const RegStorage sp_temps_arr_32[] = {
@@ -96,6 +109,8 @@ static const std::vector<RegStorage> core_regs_32(core_regs_arr_32,
     core_regs_arr_32 + sizeof(core_regs_arr_32) / sizeof(core_regs_arr_32[0]));
 static const std::vector<RegStorage> core_regs_64(core_regs_arr_64,
     core_regs_arr_64 + sizeof(core_regs_arr_64) / sizeof(core_regs_arr_64[0]));
+static const std::vector<RegStorage> core_regs_64q(core_regs_arr_64q,
+    core_regs_arr_64q + sizeof(core_regs_arr_64q) / sizeof(core_regs_arr_64q[0]));
 static const std::vector<RegStorage> sp_regs_32(sp_regs_arr_32,
     sp_regs_arr_32 + sizeof(sp_regs_arr_32) / sizeof(sp_regs_arr_32[0]));
 static const std::vector<RegStorage> sp_regs_64(sp_regs_arr_64,
@@ -108,10 +123,14 @@ static const std::vector<RegStorage> reserved_regs_32(reserved_regs_arr_32,
     reserved_regs_arr_32 + sizeof(reserved_regs_arr_32) / sizeof(reserved_regs_arr_32[0]));
 static const std::vector<RegStorage> reserved_regs_64(reserved_regs_arr_64,
     reserved_regs_arr_64 + sizeof(reserved_regs_arr_64) / sizeof(reserved_regs_arr_64[0]));
+static const std::vector<RegStorage> reserved_regs_64q(reserved_regs_arr_64q,
+    reserved_regs_arr_64q + sizeof(reserved_regs_arr_64q) / sizeof(reserved_regs_arr_64q[0]));
 static const std::vector<RegStorage> core_temps_32(core_temps_arr_32,
     core_temps_arr_32 + sizeof(core_temps_arr_32) / sizeof(core_temps_arr_32[0]));
 static const std::vector<RegStorage> core_temps_64(core_temps_arr_64,
     core_temps_arr_64 + sizeof(core_temps_arr_64) / sizeof(core_temps_arr_64[0]));
+static const std::vector<RegStorage> core_temps_64q(core_temps_arr_64q,
+    core_temps_arr_64q + sizeof(core_temps_arr_64q) / sizeof(core_temps_arr_64q[0]));
 static const std::vector<RegStorage> sp_temps_32(sp_temps_arr_32,
     sp_temps_arr_32 + sizeof(sp_temps_arr_32) / sizeof(sp_temps_arr_32[0]));
 static const std::vector<RegStorage> sp_temps_64(sp_temps_arr_64,
@@ -546,9 +565,9 @@ bool X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 
 void X86Mir2Lir::CompilerInitializeRegAlloc() {
   if (Gen64Bit()) {
-    reg_pool_ = new (arena_) RegisterPool(this, arena_, empty_pool, core_regs_64, sp_regs_64,
-                                          dp_regs_64, empty_pool, reserved_regs_64,
-                                          empty_pool, core_temps_64, sp_temps_64, dp_temps_64);
+    reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs_64, empty_pool/*core_regs_64q*/, sp_regs_64,
+                                          dp_regs_64, reserved_regs_64, empty_pool/*reserved_regs_64q*/,
+                                          core_temps_64, empty_pool/*core_temps_64q*/, sp_temps_64, dp_temps_64);
   } else {
     reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs_32, empty_pool, sp_regs_32,
                                           dp_regs_32, reserved_regs_32, empty_pool,
