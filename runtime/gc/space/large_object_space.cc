@@ -141,8 +141,10 @@ mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
 size_t LargeObjectMapSpace::Free(Thread* self, mirror::Object* ptr) {
   MutexLock mu(self, lock_);
   MemMaps::iterator found = mem_maps_.find(ptr);
-  CHECK(found != mem_maps_.end()) << "Attempted to free large object" << ptr
-      << "which was not live";
+  if (UNLIKELY(found == mem_maps_.end())) {
+    Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
+    LOG(FATAL) << "Attempted to free large object " << ptr << " which was not live";
+  }
   DCHECK_GE(num_bytes_allocated_, found->second->Size());
   size_t allocation_size = found->second->Size();
   num_bytes_allocated_ -= allocation_size;
