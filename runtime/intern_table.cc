@@ -82,11 +82,25 @@ void InternTable::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags f
   // Note: we deliberately don't visit the weak_interns_ table and the immutable image roots.
 }
 
-mirror::String* InternTable::Lookup(Table& table, mirror::String* s, int32_t hash_code) {
+mirror::String* InternTable::LookupStrong(mirror::String* s, int32_t hash_code) {
+  return Lookup<kWithoutReadBarrier>(&strong_interns_, s, hash_code);
+}
+
+mirror::String* InternTable::LookupWeak(mirror::String* s, int32_t hash_code) {
+  // Weak interns need a read barrier because they are weak roots.
+  return Lookup<kWithReadBarrier>(&weak_interns_, s, hash_code);
+}
+
+template<ReadBarrierOption kReadBarrierOption>
+mirror::String* InternTable::Lookup(Table* table, mirror::String* s, int32_t hash_code) {
+  CHECK_EQ(table == &weak_interns_, kReadBarrierOption == kWithReadBarrier)
+      << "Only weak_interns_ needs a read barrier.";
   Locks::intern_table_lock_->AssertHeld(Thread::Current());
-  for (auto it = table.lower_bound(hash_code), end = table.end();
+  for (auto it = table->lower_bound(hash_code), end = table->end();
        it != end && it->first == hash_code; ++it) {
-    mirror::String* existing_string = it->second;
+    mirror::String** weak_root = &it->second;
+    mirror::String* existing_string =
+        ReadBarrier::BarrierForWeakRoot<mirror::String, kReadBarrierOption>(weak_root);
     if (existing_string->Equals(s)) {
       return existing_string;
     }
@@ -115,19 +129,29 @@ mirror::String* InternTable::InsertWeak(mirror::String* s, int32_t hash_code) {
   return s;
 }
 
+void InternTable::RemoveStrong(mirror::String* s, int32_t hash_code) {
+  Remove<kWithoutReadBarrier>(&strong_interns_, s, hash_code);
+}
+
 void InternTable::RemoveWeak(mirror::String* s, int32_t hash_code) {
   Runtime* runtime = Runtime::Current();
   if (runtime->IsActiveTransaction()) {
     runtime->RecordWeakStringRemoval(s, hash_code);
   }
-  Remove(weak_interns_, s, hash_code);
+  Remove<kWithReadBarrier>(&weak_interns_, s, hash_code);
 }
 
-void InternTable::Remove(Table& table, mirror::String* s, int32_t hash_code) {
-  for (auto it = table.lower_bound(hash_code), end = table.end();
+template<ReadBarrierOption kReadBarrierOption>
+void InternTable::Remove(Table* table, mirror::String* s, int32_t hash_code) {
+  CHECK_EQ(table == &weak_interns_, kReadBarrierOption == kWithReadBarrier)
+      << "Only weak_interns_ needs a read barrier.";
+  for (auto it = table->lower_bound(hash_code), end = table->end();
        it != end && it->first == hash_code; ++it) {
-    if (it->second == s) {
-      table.erase(it);
+    mirror::String** weak_root = &it->second;
+    mirror::String* existing_string =
+        ReadBarrier::BarrierForWeakRoot<mirror::String, kReadBarrierOption>(weak_root);
+    if (existing_string == s) {
+      table->erase(it);
       return;
     }
   }
@@ -144,11 +168,11 @@ mirror::String* InternTable::InsertWeakFromTransaction(mirror::String* s, int32_
 }
 void InternTable::RemoveStrongFromTransaction(mirror::String* s, int32_t hash_code) {
   DCHECK(!Runtime::Current()->IsActiveTransaction());
-  Remove(strong_interns_, s, hash_code);
+  RemoveStrong(s, hash_code);
 }
 void InternTable::RemoveWeakFromTransaction(mirror::String* s, int32_t hash_code) {
   DCHECK(!Runtime::Current()->IsActiveTransaction());
-  Remove(weak_interns_, s, hash_code);
+  RemoveWeak(s, hash_code);
 }
 
 static mirror::String* LookupStringFromImage(mirror::String* s)
@@ -202,7 +226,7 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {
 
   if (is_strong) {
     // Check the strong table for a match.
-    mirror::String* strong = Lookup(strong_interns_, s, hash_code);
+    mirror::String* strong = LookupStrong(s, hash_code);
     if (strong != NULL) {
       return strong;
     }
@@ -214,7 +238,7 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {
     }
 
     // There is no match in the strong table, check the weak table.
-    mirror::String* weak = Lookup(weak_interns_, s, hash_code);
+    mirror::String* weak = LookupWeak(s, hash_code);
     if (weak != NULL) {
       // A match was found in the weak table. Promote to the strong table.
       RemoveWeak(weak, hash_code);
@@ -227,7 +251,7 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {
   }
 
   // Check the strong table for a match.
-  mirror::String* strong = Lookup(strong_interns_, s, hash_code);
+  mirror::String* strong = LookupStrong(s, hash_code);
   if (strong != NULL) {
     return strong;
   }
@@ -237,7 +261,7 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {
     return InsertWeak(image, hash_code);
   }
   // Check the weak table for a match.
-  mirror::String* weak = Lookup(weak_interns_, s, hash_code);
+  mirror::String* weak = LookupWeak(s, hash_code);
   if (weak != NULL) {
     return weak;
   }
@@ -272,13 +296,14 @@ mirror::String* InternTable::InternWeak(mirror::String* s) {
 
 bool InternTable::ContainsWeak(mirror::String* s) {
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
-  const mirror::String* found = Lookup(weak_interns_, s, s->GetHashCode());
+  const mirror::String* found = LookupWeak(s, s->GetHashCode());
   return found == s;
 }
 
 void InternTable::SweepInternTableWeaks(IsMarkedCallback* callback, void* arg) {
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
   for (auto it = weak_interns_.begin(), end = weak_interns_.end(); it != end;) {
+    // This does not need a read barrier because this is called by GC.
     mirror::Object* object = it->second;
     mirror::Object* new_object = callback(object, arg);
     if (new_object == nullptr) {

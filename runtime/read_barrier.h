@@ -39,7 +39,7 @@ class ReadBarrier {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template <typename MirrorType, ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  ALWAYS_INLINE static MirrorType* BarrierForWeakRoot(MirrorType* ref)
+  ALWAYS_INLINE static MirrorType* BarrierForWeakRoot(MirrorType** weak_root)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 };
 

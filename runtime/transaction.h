@@ -147,7 +147,9 @@ class Transaction {
       DCHECK(s != nullptr);
     }
 
-    void Undo(InternTable* intern_table) EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+    void Undo(InternTable* intern_table)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
     void VisitRoots(RootCallback* callback, void* arg);
 
    private:
@@ -169,7 +171,8 @@ class Transaction {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void UndoInternStringTableModifications()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(log_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(log_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void VisitObjectLogs(RootCallback* callback, void* arg)
       EXCLUSIVE_LOCKS_REQUIRED(log_lock_)
