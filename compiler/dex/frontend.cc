@@ -853,6 +853,11 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
     }
   }
 
+  if (PrettyMethod(method_idx, dex_file).find("android.hardware") != std::string::npos) {
+    LOG(WARNING) << "b/15162069 b/15162575 Workaround inlining issue with " << PrettyMethod(method_idx, dex_file);
+    return nullptr;
+  }
+
   if (cu.verbose) {
     cu.enable_debug |= (1 << kDebugCodegenDump);
   }
