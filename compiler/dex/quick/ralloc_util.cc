@@ -173,22 +173,26 @@ void Mir2Lir::Clobber(RegStorage reg) {
       }
       ClobberBody(info);
       if (info->IsAliased()) {
-        ClobberAliases(info);
+        ClobberAliases(info, info->StorageMask());
       } else {
         RegisterInfo* master = info->Master();
         if (info != master) {
           ClobberBody(info->Master());
+          ClobberAliases(info->Master(), info->StorageMask());
         }
       }
     }
   }
 }
 
-void Mir2Lir::ClobberAliases(RegisterInfo* info) {
+void Mir2Lir::ClobberAliases(RegisterInfo* info, uint32_t clobber_mask) {
   for (RegisterInfo* alias = info->GetAliasChain(); alias != nullptr;
        alias = alias->GetAliasChain()) {
     DCHECK(!alias->IsAliased());  // Only the master should be marked as alised.
-    ClobberBody(alias);
+    // Only clobber if we have overlap.
+    if ((alias->StorageMask() & clobber_mask) != 0) {
+      ClobberBody(alias);
+    }
   }
 }
 
@@ -218,7 +222,7 @@ void Mir2Lir::ClobberSReg(int s_reg) {
         }
         ClobberBody(info);
         if (info->IsAliased()) {
-          ClobberAliases(info);
+          ClobberAliases(info, info->StorageMask());
         }
       }
     }
@@ -953,11 +957,8 @@ bool Mir2Lir::CheckCorePoolSanity() {
         // If I'm live, master should not be live, but should show liveness in alias set.
         DCHECK_EQ(info->Master()->SReg(), INVALID_SREG);
         DCHECK(!info->Master()->IsDead());
-      } else if (!info->IsDead()) {
-        // If I'm not live, but there is liveness in the set master must be live.
-        DCHECK_EQ(info->SReg(), INVALID_SREG);
-        DCHECK(info->Master()->IsLive());
       }
+// TODO: Add checks in !info->IsDead() case to ensure every live bit is owned by exactly 1 reg.
     }
     if (info->IsAliased()) {
       // Has child aliases.
