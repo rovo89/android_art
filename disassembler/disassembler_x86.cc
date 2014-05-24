@@ -363,10 +363,49 @@ DISASSEMBLER_ENTRY(cmp,
         src_reg_file = dst_reg_file = SSE;
         break;
       case 0x38:  // 3 byte extended opcode
-        opcode << StringPrintf("unknown opcode '0F 38 %02X'", *instr);
+        instr++;
+        if (prefix[2] == 0x66) {
+          switch (*instr) {
+            case 0x40:
+              opcode << "pmulld";
+              prefix[2] = 0;
+              has_modrm = true;
+              load = true;
+              src_reg_file = dst_reg_file = SSE;
+              break;
+            default:
+              opcode << StringPrintf("unknown opcode '0F 38 %02X'", *instr);
+          }
+        } else {
+          opcode << StringPrintf("unknown opcode '0F 38 %02X'", *instr);
+        }
         break;
       case 0x3A:  // 3 byte extended opcode
-        opcode << StringPrintf("unknown opcode '0F 3A %02X'", *instr);
+        instr++;
+        if (prefix[2] == 0x66) {
+          switch (*instr) {
+            case 0x14:
+              opcode << "pextrb";
+              prefix[2] = 0;
+              has_modrm = true;
+              store = true;
+              dst_reg_file = SSE;
+              immediate_bytes = 1;
+              break;
+            case 0x16:
+              opcode << "pextrd";
+              prefix[2] = 0;
+              has_modrm = true;
+              store = true;
+              dst_reg_file = SSE;
+              immediate_bytes = 1;
+              break;
+            default:
+              opcode << StringPrintf("unknown opcode '0F 3A %02X'", *instr);
+          }
+        } else {
+          opcode << StringPrintf("unknown opcode '0F 3A %02X'", *instr);
+        }
         break;
       case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: case 0x46: case 0x47:
       case 0x48: case 0x49: case 0x4A: case 0x4B: case 0x4C: case 0x4D: case 0x4E: case 0x4F:
@@ -467,11 +506,11 @@ DISASSEMBLER_ENTRY(cmp,
         break;
       case 0x6F:
         if (prefix[2] == 0x66) {
-          dst_reg_file = SSE;
+          src_reg_file = dst_reg_file = SSE;
           opcode << "movdqa";
           prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else if (prefix[0] == 0xF3) {
-          dst_reg_file = SSE;
+          src_reg_file = dst_reg_file = SSE;
           opcode << "movdqu";
           prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else {
@@ -480,6 +519,25 @@ DISASSEMBLER_ENTRY(cmp,
         }
         load = true;
         has_modrm = true;
+        break;
+      case 0x70:
+        if (prefix[2] == 0x66) {
+          opcode << "pshufd";
+          prefix[2] = 0;
+          has_modrm = true;
+          store = true;
+          src_reg_file = dst_reg_file = SSE;
+          immediate_bytes = 1;
+        } else if (prefix[0] == 0xF2) {
+          opcode << "pshuflw";
+          prefix[0] = 0;
+          has_modrm = true;
+          store = true;
+          src_reg_file = dst_reg_file = SSE;
+          immediate_bytes = 1;
+        } else {
+          opcode << StringPrintf("unknown opcode '0F %02X'", *instr);
+        }
         break;
       case 0x71:
         if (prefix[2] == 0x66) {
@@ -603,6 +661,18 @@ DISASSEMBLER_ENTRY(cmp,
       case 0xB7: opcode << "movzxw"; has_modrm = true; load = true; break;
       case 0xBE: opcode << "movsxb"; has_modrm = true; load = true; break;
       case 0xBF: opcode << "movsxw"; has_modrm = true; load = true; break;
+      case 0xC5:
+        if (prefix[2] == 0x66) {
+          opcode << "pextrw";
+          prefix[2] = 0;
+          has_modrm = true;
+          store = true;
+          src_reg_file = dst_reg_file = SSE;
+          immediate_bytes = 1;
+        } else {
+          opcode << StringPrintf("unknown opcode '0F %02X'", *instr);
+        }
+        break;
       case 0xC7:
         static const char* x0FxC7_opcodes[] = { "unknown-0f-c7", "cmpxchg8b", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7" };
         modrm_opcodes = x0FxC7_opcodes;
@@ -613,6 +683,125 @@ DISASSEMBLER_ENTRY(cmp,
       case 0xC8: case 0xC9: case 0xCA: case 0xCB: case 0xCC: case 0xCD: case 0xCE: case 0xCF:
         opcode << "bswap";
         reg_in_opcode = true;
+        break;
+      case 0xDB:
+        if (prefix[2] == 0x66) {
+          src_reg_file = dst_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          src_reg_file = dst_reg_file = MMX;
+        }
+        opcode << "pand";
+        prefix[2] = 0;
+        has_modrm = true;
+        load = true;
+        break;
+      case 0xD5:
+        if (prefix[2] == 0x66) {
+          opcode << "pmullw";
+          prefix[2] = 0;
+          has_modrm = true;
+          load = true;
+          src_reg_file = dst_reg_file = SSE;
+        } else {
+          opcode << StringPrintf("unknown opcode '0F %02X'", *instr);
+        }
+        break;
+      case 0xEB:
+        if (prefix[2] == 0x66) {
+          src_reg_file = dst_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          src_reg_file = dst_reg_file = MMX;
+        }
+        opcode << "por";
+        prefix[2] = 0;
+        has_modrm = true;
+        load = true;
+        break;
+      case 0xEF:
+        if (prefix[2] == 0x66) {
+          src_reg_file = dst_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          src_reg_file = dst_reg_file = MMX;
+        }
+        opcode << "pxor";
+        prefix[2] = 0;
+        has_modrm = true;
+        load = true;
+        break;
+      case 0xF8:
+        if (prefix[2] == 0x66) {
+          src_reg_file = dst_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          src_reg_file = dst_reg_file = MMX;
+        }
+        opcode << "psubb";
+        prefix[2] = 0;
+        has_modrm = true;
+        load = true;
+        break;
+      case 0xF9:
+        if (prefix[2] == 0x66) {
+          src_reg_file = dst_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          src_reg_file = dst_reg_file = MMX;
+        }
+        opcode << "psubw";
+        prefix[2] = 0;
+        has_modrm = true;
+        load = true;
+        break;
+      case 0xFA:
+        if (prefix[2] == 0x66) {
+          src_reg_file = dst_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          src_reg_file = dst_reg_file = MMX;
+        }
+        opcode << "psubd";
+        prefix[2] = 0;
+        has_modrm = true;
+        load = true;
+        break;
+      case 0xFC:
+        if (prefix[2] == 0x66) {
+          src_reg_file = dst_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          src_reg_file = dst_reg_file = MMX;
+        }
+        opcode << "paddb";
+        prefix[2] = 0;
+        has_modrm = true;
+        load = true;
+        break;
+      case 0xFD:
+        if (prefix[2] == 0x66) {
+          src_reg_file = dst_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          src_reg_file = dst_reg_file = MMX;
+        }
+        opcode << "paddw";
+        prefix[2] = 0;
+        has_modrm = true;
+        load = true;
+        break;
+      case 0xFE:
+        if (prefix[2] == 0x66) {
+          src_reg_file = dst_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          src_reg_file = dst_reg_file = MMX;
+        }
+        opcode << "paddd";
+        prefix[2] = 0;
+        has_modrm = true;
+        load = true;
         break;
       default:
         opcode << StringPrintf("unknown opcode '0F %02X'", *instr);

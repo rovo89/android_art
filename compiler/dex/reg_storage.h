@@ -280,6 +280,11 @@ class RegStorage {
     return RegStorage(k32BitSolo, (reg_num & kRegNumMask) | kFloatingPoint);
   }
 
+  // Create a 128-bit solo.
+  static RegStorage Solo128(int reg_num) {
+    return RegStorage(k128BitSolo, reg_num & kRegTypeMask);
+  }
+
   // Create a 64-bit solo.
   static RegStorage Solo64(int reg_num) {
     return RegStorage(k64BitSolo, reg_num & kRegTypeMask);

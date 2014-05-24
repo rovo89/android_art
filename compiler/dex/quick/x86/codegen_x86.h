@@ -429,6 +429,136 @@ class X86Mir2Lir : public Mir2Lir {
     void GenConst128(BasicBlock* bb, MIR* mir);
 
     /*
+     * @brief MIR to move a vectorized register to another.
+     * @param bb The basic block in which the MIR is from.
+     * @param mir The MIR whose opcode is kMirConstVector.
+     * @note vA: TypeSize
+     * @note vB: destination
+     * @note vC: source
+     */
+    void GenMoveVector(BasicBlock *bb, MIR *mir);
+
+    /*
+     * @brief Packed multiply of units in two vector registers: vB = vB .* @note vC using vA to know the type of the vector.
+     * @param bb The basic block in which the MIR is from.
+     * @param mir The MIR whose opcode is kMirConstVector.
+     * @note vA: TypeSize
+     * @note vB: destination and source
+     * @note vC: source
+     */
+    void GenMultiplyVector(BasicBlock *bb, MIR *mir);
+
+    /*
+     * @brief Packed addition of units in two vector registers: vB = vB .+ vC using vA to know the type of the vector.
+     * @param bb The basic block in which the MIR is from.
+     * @param mir The MIR whose opcode is kMirConstVector.
+     * @note vA: TypeSize
+     * @note vB: destination and source
+     * @note vC: source
+     */
+    void GenAddVector(BasicBlock *bb, MIR *mir);
+
+    /*
+     * @brief Packed subtraction of units in two vector registers: vB = vB .- vC using vA to know the type of the vector.
+     * @param bb The basic block in which the MIR is from.
+     * @param mir The MIR whose opcode is kMirConstVector.
+     * @note vA: TypeSize
+     * @note vB: destination and source
+     * @note vC: source
+     */
+    void GenSubtractVector(BasicBlock *bb, MIR *mir);
+
+    /*
+     * @brief Packed shift left of units in two vector registers: vB = vB .<< vC using vA to know the type of the vector.
+     * @param bb The basic block in which the MIR is from.
+     * @param mir The MIR whose opcode is kMirConstVector.
+     * @note vA: TypeSize
+     * @note vB: destination and source
+     * @note vC: immediate
+     */
+    void GenShiftLeftVector(BasicBlock *bb, MIR *mir);
+
+    /*
+     * @brief Packed signed shift right of units in two vector registers: vB = vB .>> vC using vA to know the type of the vector.
+     * @param bb The basic block in which the MIR is from.
+     * @param mir The MIR whose opcode is kMirConstVector.
+     * @note vA: TypeSize
+     * @note vB: destination and source
+     * @note vC: immediate
+     */
+    void GenSignedShiftRightVector(BasicBlock *bb, MIR *mir);
+
+    /*
+     * @brief Packed unsigned shift right of units in two vector registers: vB = vB .>>> vC using vA to know the type of the vector.
+     * @param bb The basic block in which the MIR is from..
+     * @param mir The MIR whose opcode is kMirConstVector.
+     * @note vA: TypeSize
+     * @note vB: destination and source
+     * @note vC: immediate
+     */
+    void GenUnsignedShiftRightVector(BasicBlock *bb, MIR *mir);
+
+    /*
+     * @brief Packed bitwise and of units in two vector registers: vB = vB .& vC using vA to know the type of the vector.
+     * @note vA: TypeSize
+     * @note vB: destination and source
+     * @note vC: source
+     */
+    void GenAndVector(BasicBlock *bb, MIR *mir);
+
+    /*
+     * @brief Packed bitwise or of units in two vector registers: vB = vB .| vC using vA to know the type of the vector.
+     * @param bb The basic block in which the MIR is from.
+     * @param mir The MIR whose opcode is kMirConstVector.
+     * @note vA: TypeSize
+     * @note vB: destination and source
+     * @note vC: source
+     */
+    void GenOrVector(BasicBlock *bb, MIR *mir);
+
+    /*
+     * @brief Packed bitwise xor of units in two vector registers: vB = vB .^ vC using vA to know the type of the vector.
+     * @param bb The basic block in which the MIR is from.
+     * @param mir The MIR whose opcode is kMirConstVector.
+     * @note vA: TypeSize
+     * @note vB: destination and source
+     * @note vC: source
+     */
+    void GenXorVector(BasicBlock *bb, MIR *mir);
+
+    /*
+     * @brief Reduce a 128-bit packed element into a single VR by taking lower bits
+     * @param bb The basic block in which the MIR is from.
+     * @param mir The MIR whose opcode is kMirConstVector.
+     * @details Instruction does a horizontal addition of the packed elements and then adds it to VR.
+     * @note vA: TypeSize
+     * @note vB: destination and source VR (not vector register)
+     * @note vC: source (vector register)
+     */
+    void GenAddReduceVector(BasicBlock *bb, MIR *mir);
+
+    /*
+     * @brief Extract a packed element into a single VR.
+     * @param bb The basic block in which the MIR is from.
+     * @param mir The MIR whose opcode is kMirConstVector.
+     * @note vA: TypeSize
+     * @note vB: destination VR (not vector register)
+     * @note vC: source (vector register)
+     * @note arg[0]: The index to use for extraction from vector register (which packed element).
+     */
+    void GenReduceVector(BasicBlock *bb, MIR *mir);
+
+    /*
+     * @brief Create a vector value, with all TypeSize values equal to vC
+     * @param bb The basic block in which the MIR is from.
+     * @param mir The MIR whose opcode is kMirConstVector.
+     * @note vA: TypeSize.
+     * @note vB: destination vector register.
+     * @note vC: source VR (not vector register).
+     */
+    void GenSetVector(BasicBlock *bb, MIR *mir);
+
+    /*
      * @brief Generate code for a vector opcode.
      * @param bb The basic block in which the MIR is from.
      * @param mir The MIR whose opcode is a non-standard opcode.
