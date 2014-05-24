@@ -670,7 +670,7 @@ class Mir2Lir : public Backend {
     /* Mark a temp register as dead.  Does not affect allocation state. */
     void Clobber(RegStorage reg);
     void ClobberSReg(int s_reg);
-    void ClobberAliases(RegisterInfo* info);
+    void ClobberAliases(RegisterInfo* info, uint32_t clobber_mask);
     int SRegToPMap(int s_reg);
     void RecordCorePromotion(RegStorage reg, int s_reg);
     RegStorage AllocPreservedCoreReg(int s_reg);
