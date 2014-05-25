@@ -405,11 +405,23 @@ dump-oat-core-target: $(TARGET_CORE_IMG_OUT) $(OATDUMP)
 	@echo Output in $(ART_DUMP_OAT_PATH)/core.target.oatdump.txt
 endif
 
-.PHONY: dump-oat-boot
+.PHONY: dump-oat-boot-$(TARGET_ARCH)
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-dump-oat-boot: $(DEFAULT_DEX_PREOPT_BUILT_IMAGE_FILENAME) $(OATDUMP)
-	$(OATDUMP) --image=$(DEFAULT_DEX_PREOPT_BUILT_IMAGE_LOCATION) --output=$(ART_DUMP_OAT_PATH)/boot.oatdump.txt --instruction-set=$(TARGET_ARCH)
-	@echo Output in $(ART_DUMP_OAT_PATH)/boot.oatdump.txt
+dump-oat-boot-$(TARGET_ARCH): $(DEFAULT_DEX_PREOPT_BUILT_IMAGE_FILENAME) $(OATDUMP)
+	$(OATDUMP) --image=$(DEFAULT_DEX_PREOPT_BUILT_IMAGE_LOCATION) --output=$(ART_DUMP_OAT_PATH)/boot.$(TARGET_ARCH).oatdump.txt --instruction-set=$(TARGET_ARCH)
+	@echo Output in $(ART_DUMP_OAT_PATH)/boot.$(TARGET_ARCH).oatdump.txt
+endif
+
+ifdef TARGET_2ND_ARCH
+dump-oat-boot-$(TARGET_2ND_ARCH): $(2ND_DEFAULT_DEX_PREOPT_BUILT_IMAGE_FILENAME) $(OATDUMP)
+	$(OATDUMP) --image=$(2ND_DEFAULT_DEX_PREOPT_BUILT_IMAGE_LOCATION) --output=$(ART_DUMP_OAT_PATH)/boot.$(TARGET_2ND_ARCH).oatdump.txt --instruction-set=$(TARGET_2ND_ARCH)
+	@echo Output in $(ART_DUMP_OAT_PATH)/boot.$(TARGET_2ND_ARCH).oatdump.txt
+endif
+
+.PHONY: dump-oat-boot
+dump-oat-boot: dump-oat-boot-$(TARGET_ARCH)
+ifdef TARGET_2ND_ARCH
+dump-oat-boot: dump-oat-boot-$(TARGET_2ND_ARCH)
 endif
 
 .PHONY: dump-oat-Calculator
