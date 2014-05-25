@@ -225,24 +225,6 @@ class RegStorage {
     return reg_ & kRegNumMask;
   }
 
-  // Aliased double to low single.
-  RegStorage DoubleToLowSingle() const {
-    DCHECK(IsDouble());
-    return FloatSolo32(GetRegNum() << 1);
-  }
-
-  // Aliased double to high single.
-  RegStorage DoubleToHighSingle() const {
-    DCHECK(IsDouble());
-    return FloatSolo32((GetRegNum() << 1) + 1);
-  }
-
-  // Single to aliased double.
-  RegStorage SingleToDouble() const {
-    DCHECK(IsSingle());
-    return FloatSolo64(GetRegNum() >> 1);
-  }
-
   // Is register number in 0..7?
   bool Low8() const {
     return GetRegNum() < 8;
