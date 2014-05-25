@@ -295,8 +295,9 @@ class Dex2Oat {
                                 zip_filename, error_msg->c_str());
       return nullptr;
     }
-    std::unique_ptr<MemMap> image_classes_file(zip_entry->ExtractToMemMap(image_classes_filename,
-                                                                    error_msg));
+    std::unique_ptr<MemMap> image_classes_file(zip_entry->ExtractToMemMap(zip_filename,
+                                                                          image_classes_filename,
+                                                                          error_msg));
     if (image_classes_file.get() == nullptr) {
       *error_msg = StringPrintf("Failed to extract '%s' from '%s': %s", image_classes_filename,
                                 zip_filename, error_msg->c_str());
