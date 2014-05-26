@@ -17,6 +17,10 @@
 #ifndef ART_COMPILER_OPTIMIZING_OPTIMIZING_UNIT_TEST_H_
 #define ART_COMPILER_OPTIMIZING_OPTIMIZING_UNIT_TEST_H_
 
+#include "ssa_liveness_analysis.h"
+
+namespace art {
+
 #define NUM_INSTRUCTIONS(...)  \
   (sizeof((uint16_t[]) {__VA_ARGS__}) /sizeof(uint16_t))
 
@@ -28,5 +32,22 @@
 
 #define TWO_REGISTERS_CODE_ITEM(...)                                       \
     { 2, 0, 0, 0, 0, 0, NUM_INSTRUCTIONS(__VA_ARGS__), 0, __VA_ARGS__ }
+
+#define THREE_REGISTERS_CODE_ITEM(...)                                     \
+    { 3, 0, 0, 0, 0, 0, NUM_INSTRUCTIONS(__VA_ARGS__), 0, __VA_ARGS__ }
+
+LiveInterval* BuildInterval(const size_t ranges[][2],
+                            size_t number_of_ranges,
+                            ArenaAllocator* allocator,
+                            int reg = -1) {
+  LiveInterval* interval = new (allocator) LiveInterval(allocator, Primitive::kPrimInt);
+  for (size_t i = number_of_ranges; i > 0; --i) {
+    interval->AddRange(ranges[i - 1][0], ranges[i - 1][1]);
+  }
+  interval->SetRegister(reg);
+  return interval;
+}
+
+}  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_OPTIMIZING_UNIT_TEST_H_

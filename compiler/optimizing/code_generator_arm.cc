@@ -37,6 +37,14 @@ namespace arm {
 static constexpr int kNumberOfPushedRegistersAtEntry = 1;
 static constexpr int kCurrentMethodStackOffset = 0;
 
+void CodeGeneratorARM::DumpCoreRegister(std::ostream& stream, int reg) const {
+  stream << ArmManagedRegister::FromCoreRegister(Register(reg));
+}
+
+void CodeGeneratorARM::DumpFloatingPointRegister(std::ostream& stream, int reg) const {
+  stream << ArmManagedRegister::FromDRegister(DRegister(reg));
+}
+
 CodeGeneratorARM::CodeGeneratorARM(HGraph* graph)
     : CodeGenerator(graph, kNumberOfRegIds),
       location_builder_(graph, this),
