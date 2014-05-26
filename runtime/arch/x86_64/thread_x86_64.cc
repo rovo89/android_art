@@ -31,8 +31,7 @@ static void arch_prctl(int code, void* val) {
   syscall(__NR_arch_prctl, code, val);
 }
 void Thread::InitCpu() {
-  static Mutex modify_ldt_lock("modify_ldt lock");
-  MutexLock mu(Thread::Current(), modify_ldt_lock);
+  MutexLock mu(nullptr, *Locks::modify_ldt_lock_);
   arch_prctl(ARCH_SET_GS, this);
 
   // Allow easy indirection back to Thread*.

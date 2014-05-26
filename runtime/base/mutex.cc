@@ -816,7 +816,7 @@ void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
 void Locks::Init() {
   if (logging_lock_ != nullptr) {
     // Already initialized.
-    if (kRuntimeISA == kX86) {
+    if (kRuntimeISA == kX86 || kRuntimeISA == kX86_64) {
       DCHECK(modify_ldt_lock_ != nullptr);
     } else {
       DCHECK(modify_ldt_lock_ == nullptr);
@@ -877,7 +877,7 @@ void Locks::Init() {
     DCHECK(allocated_thread_ids_lock_ == nullptr);
     allocated_thread_ids_lock_ =  new Mutex("allocated thread ids lock", current_lock_level);
 
-    if (kRuntimeISA == kX86) {
+    if (kRuntimeISA == kX86 || kRuntimeISA == kX86_64) {
       UPDATE_CURRENT_LOCK_LEVEL(kModifyLdtLock);
       DCHECK(modify_ldt_lock_ == nullptr);
       modify_ldt_lock_ = new Mutex("modify_ldt lock", current_lock_level);
