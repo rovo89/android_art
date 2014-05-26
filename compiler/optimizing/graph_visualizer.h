@@ -21,6 +21,7 @@
 
 namespace art {
 
+class CodeGenerator;
 class DexCompilationUnit;
 class HGraph;
 
@@ -39,13 +40,17 @@ class HGraphVisualizer : public ValueObject {
   HGraphVisualizer(std::ostream* output,
                    HGraph* graph,
                    const char* string_filter,
+                   const CodeGenerator& codegen,
                    const DexCompilationUnit& cu);
 
   /**
    * Version of `HGraphVisualizer` for unit testing, that is when a
    * `DexCompilationUnit` is not available.
    */
-  HGraphVisualizer(std::ostream* output, HGraph* graph, const char* name);
+  HGraphVisualizer(std::ostream* output,
+                   HGraph* graph,
+                   const CodeGenerator& codegen,
+                   const char* name);
 
   /**
    * If this visualizer is enabled, emit the compilation information
@@ -56,6 +61,7 @@ class HGraphVisualizer : public ValueObject {
  private:
   std::ostream* const output_;
   HGraph* const graph_;
+  const CodeGenerator& codegen_;
 
   // Is true when `output_` is not null, and the compiled method's name
   // contains the string_filter given in the constructor.

@@ -86,6 +86,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/nodes.cc \
 	optimizing/optimizing_compiler.cc \
 	optimizing/parallel_move_resolver.cc \
+	optimizing/register_allocator.cc \
 	optimizing/ssa_builder.cc \
 	optimizing/ssa_liveness_analysis.cc \
 	trampolines/trampoline_compiler.cc \

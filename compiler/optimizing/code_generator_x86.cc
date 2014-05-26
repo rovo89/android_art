@@ -37,6 +37,14 @@ namespace x86 {
 static constexpr int kNumberOfPushedRegistersAtEntry = 1;
 static constexpr int kCurrentMethodStackOffset = 0;
 
+void CodeGeneratorX86::DumpCoreRegister(std::ostream& stream, int reg) const {
+  stream << X86ManagedRegister::FromCpuRegister(Register(reg));
+}
+
+void CodeGeneratorX86::DumpFloatingPointRegister(std::ostream& stream, int reg) const {
+  stream << X86ManagedRegister::FromXmmRegister(XmmRegister(reg));
+}
+
 CodeGeneratorX86::CodeGeneratorX86(HGraph* graph)
     : CodeGenerator(graph, kNumberOfRegIds),
       location_builder_(graph, this),
