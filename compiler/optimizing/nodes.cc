@@ -388,6 +388,7 @@ void HInstructionList::RemoveInstruction(HInstruction* instruction) {
 }
 
 void HInstruction::ReplaceWith(HInstruction* other) {
+  DCHECK(other != nullptr);
   for (HUseIterator<HInstruction> it(GetUses()); !it.Done(); it.Advance()) {
     HUseListNode<HInstruction>* current = it.Current();
     HInstruction* user = current->GetUser();
