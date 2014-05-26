@@ -189,6 +189,13 @@ test-art-host-oat-interpreter: $(ART_TEST_HOST_OAT_INTERPRETER_TARGETS)
 test-art-host-oat: test-art-host-oat-default test-art-host-oat-interpreter
 	@echo test-art-host-oat PASSED
 
+FAILING_OPTIMIZING_MESSAGE := failed with the optimizing compiler. If the test passes \
+  with Quick and interpreter, it is probably just a bug in the optimizing compiler. Please \
+  add the test name to the FAILING_OPTIMIZING_TESTS Makefile variable in art/Android.mk, \
+  and file a bug.
+
+# Placeholder for failing tests on the optimizing compiler.
+
 define declare-test-art-host-run-test
 .PHONY: test-art-host-run-test-default-$(1)
 test-art-host-run-test-default-$(1): test-art-host-dependencies $(DX) $(HOST_OUT_EXECUTABLES)/jasmin
@@ -196,6 +203,14 @@ test-art-host-run-test-default-$(1): test-art-host-dependencies $(DX) $(HOST_OUT
 	@echo test-art-host-run-test-default-$(1) PASSED
 
 TEST_ART_HOST_RUN_TEST_DEFAULT_TARGETS += test-art-host-run-test-default-$(1)
+
+.PHONY: test-art-host-run-test-optimizing-$(1)
+test-art-host-run-test-optimizing-$(1): test-art-host-dependencies $(DX) $(HOST_OUT_EXECUTABLES)/jasmin
+	DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) art/test/run-test -Xcompiler-option --compiler-backend=Optimizing $(addprefix --runtime-option ,$(DALVIKVM_FLAGS)) --host $(1) \
+	|| echo -e "\x1b[31;01mTest $(1) $(FAILING_OPTIMIZING_MESSAGE)\x1b[0m" && exit 1
+	@echo test-art-host-run-test-optimizing-$(1) PASSED
+
+TEST_ART_HOST_RUN_TEST_OPTIMIZING_TARGETS += test-art-host-run-test-optimizing-$(1)
 
 .PHONY: test-art-host-run-test-interpreter-$(1)
 test-art-host-run-test-interpreter-$(1): test-art-host-dependencies $(DX) $(HOST_OUT_EXECUTABLES)/jasmin
@@ -205,7 +220,7 @@ test-art-host-run-test-interpreter-$(1): test-art-host-dependencies $(DX) $(HOST
 TEST_ART_HOST_RUN_TEST_INTERPRETER_TARGETS += test-art-host-run-test-interpreter-$(1)
 
 .PHONY: test-art-host-run-test-$(1)
-test-art-host-run-test-$(1): test-art-host-run-test-default-$(1) test-art-host-run-test-interpreter-$(1)
+test-art-host-run-test-$(1): test-art-host-run-test-default-$(1) test-art-host-run-test-interpreter-$(1) test-art-host-run-test-optimizing-$(1)
 
 endef
 
@@ -215,12 +230,21 @@ $(foreach test, $(TEST_ART_RUN_TESTS), $(eval $(call declare-test-art-host-run-t
 test-art-host-run-test-default: $(TEST_ART_HOST_RUN_TEST_DEFAULT_TARGETS)
 	@echo test-art-host-run-test-default PASSED
 
+FAILING_OPTIMIZING_TESTS :=
+$(foreach test, $(FAILING_OPTIMIZING_TESTS), \
+	$(eval TEST_ART_HOST_RUN_TEST_OPTIMIZING_TARGETS := $(filter-out test-art-host-run-test-optimizing-$(test), $(TEST_ART_HOST_RUN_TEST_OPTIMIZING_TARGETS))))
+
+.PHONY: test-art-host-run-test-optimizing
+test-art-host-run-test-optimizing: $(TEST_ART_HOST_RUN_TEST_OPTIMIZING_TARGETS)
+	$(foreach test, $(FAILING_OPTIMIZING_TESTS), $(info Optimizing compiler has skipped $(test)))
+	@echo test-art-host-run-test-optimizing PASSED
+
 .PHONY: test-art-host-run-test-interpreter
 test-art-host-run-test-interpreter: $(TEST_ART_HOST_RUN_TEST_INTERPRETER_TARGETS)
 	@echo test-art-host-run-test-interpreter PASSED
 
 .PHONY: test-art-host-run-test
-test-art-host-run-test: test-art-host-run-test-default test-art-host-run-test-interpreter
+test-art-host-run-test: test-art-host-run-test-default test-art-host-run-test-interpreter test-art-host-run-test-optimizing
 	@echo test-art-host-run-test PASSED
 
 ########################################################################
