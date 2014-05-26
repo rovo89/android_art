@@ -170,6 +170,10 @@ class ArenaAllocator : private ArenaAllocatorStats {
     return ret;
   }
 
+  template <typename T> T* AllocArray(size_t length) {
+    return static_cast<T*>(Alloc(length * sizeof(T), kArenaAllocMisc));
+  }
+
   void* AllocValgrind(size_t bytes, ArenaAllocKind kind);
   void ObtainNewArenaForAllocation(size_t allocation_size);
   size_t BytesAllocated() const;

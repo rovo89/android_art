@@ -169,6 +169,13 @@ class GrowableArray {
       num_used_--;
     };
 
+    void DeleteAt(size_t index) {
+      for (size_t i = index; i < num_used_ - 1; i++) {
+        elem_list_[i] = elem_list_[i + 1];
+      }
+      num_used_--;
+    };
+
     size_t GetNumAllocated() const { return num_allocated_; }
 
     size_t Size() const { return num_used_; }

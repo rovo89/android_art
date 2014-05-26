@@ -16,6 +16,7 @@
 
 #include "graph_visualizer.h"
 
+#include "code_generator.h"
 #include "driver/dex_compilation_unit.h"
 #include "nodes.h"
 #include "ssa_liveness_analysis.h"
@@ -27,8 +28,8 @@ namespace art {
  */
 class HGraphVisualizerPrinter : public HGraphVisitor {
  public:
-  HGraphVisualizerPrinter(HGraph* graph, std::ostream& output)
-      : HGraphVisitor(graph), output_(output), indent_(0) {}
+  HGraphVisualizerPrinter(HGraph* graph, std::ostream& output, const CodeGenerator& codegen)
+      : HGraphVisitor(graph), output_(output), codegen_(codegen), indent_(0) {}
 
   void StartTag(const char* name) {
     AddIndent();
@@ -107,17 +108,18 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       output_ << " (liveness: " << instruction->GetLifetimePosition();
       if (instruction->HasLiveInterval()) {
         output_ << " ";
-        const GrowableArray<LiveRange>& ranges = instruction->GetLiveInterval()->GetRanges();
-        size_t i = ranges.Size() - 1;
-        do {
-          output_ << "[" << ranges.Get(i).GetStart() << "," << ranges.Get(i).GetEnd() << "[";
-          if (i == 0) {
-            break;
+        const LiveInterval& interval = *instruction->GetLiveInterval();
+        interval.Dump(output_);
+        if (interval.HasRegister()) {
+          int reg = interval.GetRegister();
+          output_ << " ";
+          if (instruction->GetType() == Primitive::kPrimFloat
+              || instruction->GetType() == Primitive::kPrimDouble) {
+            codegen_.DumpFloatingPointRegister(output_, reg);
           } else {
-            --i;
-            output_ << ",";
+            codegen_.DumpCoreRegister(output_, reg);
           }
-        } while (true);
+        }
       }
       output_ << ")";
     }
@@ -186,6 +188,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
 
  private:
   std::ostream& output_;
+  const CodeGenerator& codegen_;
   size_t indent_;
 
   DISALLOW_COPY_AND_ASSIGN(HGraphVisualizerPrinter);
@@ -194,8 +197,9 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
 HGraphVisualizer::HGraphVisualizer(std::ostream* output,
                                    HGraph* graph,
                                    const char* string_filter,
+                                   const CodeGenerator& codegen,
                                    const DexCompilationUnit& cu)
-    : output_(output), graph_(graph), is_enabled_(false) {
+    : output_(output), graph_(graph), codegen_(codegen), is_enabled_(false) {
   if (output == nullptr) {
     return;
   }
@@ -205,7 +209,7 @@ HGraphVisualizer::HGraphVisualizer(std::ostream* output,
   }
 
   is_enabled_ = true;
-  HGraphVisualizerPrinter printer(graph, *output_);
+  HGraphVisualizerPrinter printer(graph, *output_, codegen_);
   printer.StartTag("compilation");
   printer.PrintProperty("name", pretty_name.c_str());
   printer.PrintProperty("method", pretty_name.c_str());
@@ -215,14 +219,15 @@ HGraphVisualizer::HGraphVisualizer(std::ostream* output,
 
 HGraphVisualizer::HGraphVisualizer(std::ostream* output,
                                    HGraph* graph,
+                                   const CodeGenerator& codegen,
                                    const char* name)
-    : output_(output), graph_(graph), is_enabled_(false) {
+    : output_(output), graph_(graph), codegen_(codegen), is_enabled_(false) {
   if (output == nullptr) {
     return;
   }
 
   is_enabled_ = true;
-  HGraphVisualizerPrinter printer(graph, *output_);
+  HGraphVisualizerPrinter printer(graph, *output_, codegen_);
   printer.StartTag("compilation");
   printer.PrintProperty("name", name);
   printer.PrintProperty("method", name);
@@ -234,7 +239,7 @@ void HGraphVisualizer::DumpGraph(const char* pass_name) {
   if (!is_enabled_) {
     return;
   }
-  HGraphVisualizerPrinter printer(graph_, *output_);
+  HGraphVisualizerPrinter printer(graph_, *output_, codegen_);
   printer.Run(pass_name);
 }
 

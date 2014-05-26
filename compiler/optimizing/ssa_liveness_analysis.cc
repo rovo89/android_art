@@ -122,20 +122,27 @@ void SsaLivenessAnalysis::LinearizeGraph() {
 void SsaLivenessAnalysis::NumberInstructions() {
   int ssa_index = 0;
   size_t lifetime_position = 0;
-  // Each instruction gets an individual lifetime position, and a block gets a lifetime
+  // Each instruction gets a lifetime position, and a block gets a lifetime
   // start and end position. Non-phi instructions have a distinct lifetime position than
   // the block they are in. Phi instructions have the lifetime start of their block as
-  // lifetime position
+  // lifetime position.
+  //
+  // Because the register allocator will insert moves in the graph, we need
+  // to differentiate between the start and end of an instruction. Adding 2 to
+  // the lifetime position for each instruction ensures the start of an
+  // instruction is different than the end of the previous instruction.
   for (HLinearOrderIterator it(linear_post_order_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
-    block->SetLifetimeStart(++lifetime_position);
+    block->SetLifetimeStart(lifetime_position);
+    lifetime_position += 2;
 
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       if (current->HasUses()) {
         instructions_from_ssa_index_.Add(current);
         current->SetSsaIndex(ssa_index++);
-        current->SetLiveInterval(new (graph_.GetArena()) LiveInterval(graph_.GetArena()));
+        current->SetLiveInterval(
+            new (graph_.GetArena()) LiveInterval(graph_.GetArena(), current->GetType()));
       }
       current->SetLifetimePosition(lifetime_position);
     }
@@ -145,12 +152,14 @@ void SsaLivenessAnalysis::NumberInstructions() {
       if (current->HasUses()) {
         instructions_from_ssa_index_.Add(current);
         current->SetSsaIndex(ssa_index++);
-        current->SetLiveInterval(new (graph_.GetArena()) LiveInterval(graph_.GetArena()));
+        current->SetLiveInterval(
+            new (graph_.GetArena()) LiveInterval(graph_.GetArena(), current->GetType()));
       }
-      current->SetLifetimePosition(++lifetime_position);
+      current->SetLifetimePosition(lifetime_position);
+      lifetime_position += 2;
     }
 
-    block->SetLifetimeEnd(++lifetime_position);
+    block->SetLifetimeEnd(lifetime_position);
   }
   number_of_ssa_values_ = ssa_index;
 }
@@ -190,7 +199,11 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
       live_in->Union(GetLiveInSet(*successor));
       size_t phi_input_index = successor->GetPredecessorIndexOf(block);
       for (HInstructionIterator it(successor->GetPhis()); !it.Done(); it.Advance()) {
-        HInstruction* input = it.Current()->InputAt(phi_input_index);
+        HInstruction* phi = it.Current();
+        HInstruction* input = phi->InputAt(phi_input_index);
+        input->GetLiveInterval()->AddPhiUse(phi, block);
+        // A phi input whose last user is the phi dies at the end of the predecessor block,
+        // and not at the phi's lifetime position.
         live_in->SetBit(input->GetSsaIndex());
       }
     }
