@@ -197,7 +197,8 @@
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
-    brk 0
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    ret
 .endm
 
 
@@ -561,32 +562,33 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
 SAVE_SIZE=5*8   // x4, x5, SP, LR & FP saved.
 SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
 
-    mov x9, sp                          // Save stack pointer.
+    mov x9, sp                             // Save stack pointer.
     .cfi_register sp,x9
 
-    add x10, x2, # SAVE_SIZE_AND_METHOD // calculate size of frame.
-    sub x10, sp, x10                    // Calculate SP position - saves + ArtMethod* +  args
-    and x10, x10, # ~0xf                // Enforce 16 byte stack alignment.
-    mov sp, x10                         // Set new SP.
+    add x10, x2, # SAVE_SIZE_AND_METHOD    // calculate size of frame.
+    sub x10, sp, x10                       // Calculate SP position - saves + ArtMethod* +  args
+    and x10, x10, # ~0xf                   // Enforce 16 byte stack alignment.
+    mov sp, x10                            // Set new SP.
 
-    sub x10, x9, #SAVE_SIZE             // Calculate new FP (later). Done here as we must move SP
-    .cfi_def_cfa_register x10           // before this.
+    sub x10, x9, #SAVE_SIZE                // Calculate new FP (later). Done here as we must move SP
+    .cfi_def_cfa_register x10              // before this.
     .cfi_adjust_cfa_offset SAVE_SIZE
 
-    str x9, [x10, #32]                  // Save old stack pointer.
+    str x9, [x10, #32]                     // Save old stack pointer.
     .cfi_rel_offset sp, 32
 
-    stp x4, x5, [x10, #16]              // Save result and shorty addresses.
+    stp x4, x5, [x10, #16]                 // Save result and shorty addresses.
     .cfi_rel_offset x4, 16
     .cfi_rel_offset x5, 24
 
-    stp xFP, xLR, [x10]                 // Store LR & FP.
+    stp xFP, xLR, [x10]                    // Store LR & FP.
     .cfi_rel_offset x29, 0
     .cfi_rel_offset x30, 8
 
-    mov xFP, x10                        // Use xFP now, as it's callee-saved.
+    mov xFP, x10                           // Use xFP now, as it's callee-saved.
     .cfi_def_cfa_register x29
-    mov xSELF, x3                       // Move thread pointer into SELF register.
+    mov xSELF, x3                          // Move thread pointer into SELF register.
+    mov wSUSPEND, #SUSPEND_CHECK_INTERVAL  // reset wSUSPEND to suspend check interval
 
     // Copy arguments into stack frame.
     // Use simple copy routine for now.
@@ -595,7 +597,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
     // W2 - args length
     // X9 - destination address.
     // W10 - temporary
-    add x9, sp, #8     // Destination address is bottom of stack + NULL.
+    add x9, sp, #8                         // Destination address is bottom of stack + NULL.
 
     // Use \@ to differentiate between macro invocations.
 .LcopyParams\@:
@@ -693,6 +695,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
  *  x1-x7 - integer parameters.
  *  d0-d7 - Floating point parameters.
  *  xSELF = self
+ *  wSUSPEND = suspend count
  *  SP = & of ArtMethod*
  *  x1 = "this" pointer.
  *
@@ -1373,7 +1376,22 @@ TWO_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_R
 // Generate the allocation entrypoints for each allocator.
 GENERATE_ALL_ALLOC_ENTRYPOINTS
 
-UNIMPLEMENTED art_quick_test_suspend
+    /*
+     * Called by managed code when the value in wSUSPEND has been decremented to 0.
+     */
+    .extern artTestSuspendFromCode
+ENTRY art_quick_test_suspend
+    ldrh   w0, [xSELF, #THREAD_FLAGS_OFFSET]  // get xSELF->state_and_flags.as_struct.flags
+    mov    wSUSPEND, #SUSPEND_CHECK_INTERVAL  // reset wSUSPEND to SUSPEND_CHECK_INTERVAL
+    cbnz   w0, .Lneed_suspend                 // check flags == 0
+    ret                                       // return if flags == 0
+.Lneed_suspend:
+    mov    x0, xSELF
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME          // save callee saves for stack crawl
+    mov    x1, sp
+    bl     artTestSuspendFromCode             // (Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+END art_quick_test_suspend
 
      /*
      * Called by managed code that is attempting to call a method on a proxy class. On entry
