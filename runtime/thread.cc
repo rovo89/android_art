@@ -1816,7 +1816,6 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
   QUICK_ENTRY_POINT_INFO(pCmplDouble)
   QUICK_ENTRY_POINT_INFO(pCmplFloat)
   QUICK_ENTRY_POINT_INFO(pFmod)
-  QUICK_ENTRY_POINT_INFO(pSqrt)
   QUICK_ENTRY_POINT_INFO(pL2d)
   QUICK_ENTRY_POINT_INFO(pFmodf)
   QUICK_ENTRY_POINT_INFO(pL2f)
