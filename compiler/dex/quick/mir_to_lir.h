@@ -332,6 +332,15 @@ class Mir2Lir : public Backend {
         return arena->Alloc(size, kArenaAllocRegAlloc);
       }
 
+      static const uint32_t k32SoloStorageMask     = 0x00000001;
+      static const uint32_t kLowSingleStorageMask  = 0x00000001;
+      static const uint32_t kHighSingleStorageMask = 0x00000002;
+      static const uint32_t k64SoloStorageMask     = 0x00000003;
+      static const uint32_t k128SoloStorageMask    = 0x0000000f;
+      static const uint32_t k256SoloStorageMask    = 0x000000ff;
+      static const uint32_t k512SoloStorageMask    = 0x0000ffff;
+      static const uint32_t k1024SoloStorageMask   = 0xffffffff;
+
       bool InUse() { return (storage_mask_ & master_->used_storage_) != 0; }
       void MarkInUse() { master_->used_storage_ |= storage_mask_; }
       void MarkFree() { master_->used_storage_ &= ~storage_mask_; }
@@ -389,7 +398,15 @@ class Mir2Lir : public Backend {
       LIR* DefEnd() { return def_end_; }
       void SetDefEnd(LIR* def_end) { def_end_ = def_end; }
       void ResetDefBody() { def_start_ = def_end_ = nullptr; }
-
+      // Find member of aliased set matching storage_used; return nullptr if none.
+      RegisterInfo* FindMatchingView(uint32_t storage_used) {
+        RegisterInfo* res = Master();
+        for (; res != nullptr; res = res->GetAliasChain()) {
+          if (res->StorageMask() == storage_used)
+            break;
+        }
+        return res;
+      }
 
      private:
       RegStorage reg_;
@@ -648,7 +665,7 @@ class Mir2Lir : public Backend {
     virtual void EndInvoke(CallInfo* info) {}
 
 
-    // Handle bookkeeping to convert a wide RegLocation to a narow RegLocation.  No code generated.
+    // Handle bookkeeping to convert a wide RegLocation to a narrow RegLocation.  No code generated.
     RegLocation NarrowRegLoc(RegLocation loc);
 
     // Shared by all targets - implemented in local_optimizations.cc
