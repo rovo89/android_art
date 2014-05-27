@@ -692,7 +692,7 @@ int x86_64_support_list[] = {
 // S : short
 // C : char
 // I : int
-// L : long
+// J : long
 // F : float
 // D : double
 // L : reference(object, array)

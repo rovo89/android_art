@@ -725,17 +725,10 @@ void Arm64Mir2Lir::GenDivZeroCheckWide(RegStorage reg) {
 
 // Test suspend flag, return target of taken suspend branch
 LIR* Arm64Mir2Lir::OpTestSuspend(LIR* target) {
-  // TODO(Arm64): re-enable suspend checks, once art_quick_test_suspend is implemented and
-  //   the suspend register is properly handled in the trampolines.
-#if 0
+  // FIXME: Define rA64_SUSPEND as w19, when we do not need two copies of reserved register.
+  // Note: The opcode is not set as wide, so actually we are using the 32-bit version register.
   NewLIR3(kA64Subs3rRd, rA64_SUSPEND, rA64_SUSPEND, 1);
   return OpCondBranch((target == NULL) ? kCondEq : kCondNe, target);
-#else
-  // TODO(Arm64): Fake suspend check. Will always fail to branch. Remove this.
-  LIR* branch = NewLIR2((target == NULL) ? kA64Cbnz2rt : kA64Cbz2rt, rwzr, 0);
-  branch->target = target;
-  return branch;
-#endif
 }
 
 // Decrement register and branch on condition
