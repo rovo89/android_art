@@ -559,7 +559,7 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
         // We don't know the proper offset for the value, so pick one that will force
         // 4 byte offset.  We will fix this up in the assembler later to have the right
         // value.
-        res = LoadBaseDisp(rl_method.reg, 256 /* bogus */, RegStorage::Solo64(low_reg_val),
+        res = LoadBaseDisp(rl_method.reg, 256 /* bogus */, RegStorage::FloatSolo64(low_reg_val),
                            kDouble);
         res->target = data_target;
         res->flags.fixup = kFixupLoad;
