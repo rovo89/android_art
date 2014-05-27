@@ -193,7 +193,7 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
 
       valid_samples += barrier_count;
 
-      ThreadState old_state = self->SetState(kWaitingForCheckPointsToRun);
+      ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
 
       // Wait for the barrier to be crossed by all runnable threads.  This wait
       // is done with a timeout so that we can detect problems with the checkpoint
@@ -211,13 +211,11 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
       // code.  Crash the process in this case.
       CHECK_LT(waitdiff_us, kWaitTimeoutUs);
 
-      self->SetState(old_state);
-
       // Update the current time.
       now_us = MicroTime();
     }
 
-    if (valid_samples > 0 && !ShuttingDown(self)) {
+    if (valid_samples > 0) {
       // After the profile has been taken, write it out.
       ScopedObjectAccess soa(self);   // Acquire the mutator lock.
       uint32_t size = profiler->WriteProfile();
@@ -335,6 +333,7 @@ void BackgroundMethodSamplingProfiler::Stop() {
   pthread_t profiler_pthread = 0U;
   {
     MutexLock trace_mu(Thread::Current(), *Locks::profiler_lock_);
+    CHECK(!shutting_down_);
     profiler = profiler_;
     shutting_down_ = true;
     profiler_pthread = profiler_pthread_;
