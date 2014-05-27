@@ -22,6 +22,7 @@
 namespace art {
 
 enum RegisterClass {
+  kInvalidRegClass,
   kCoreReg,
   kFPReg,
   kAnyReg,
