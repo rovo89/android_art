@@ -141,8 +141,11 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest, Re
       break;
     case Instruction::LONG_TO_DOUBLE: {
       rl_src = LoadValueWide(rl_src, kFPReg);
-      RegStorage src_low = rl_src.reg.DoubleToLowSingle();
-      RegStorage src_high = rl_src.reg.DoubleToHighSingle();
+      RegisterInfo* info = GetRegInfo(rl_src.reg);
+      RegStorage src_low = info->FindMatchingView(RegisterInfo::kLowSingleStorageMask)->GetReg();
+      DCHECK(src_low.Valid());
+      RegStorage src_high = info->FindMatchingView(RegisterInfo::kHighSingleStorageMask)->GetReg();
+      DCHECK(src_high.Valid());
       rl_result = EvalLoc(rl_dest, kFPReg, true);
       RegStorage tmp1 = AllocTempDouble();
       RegStorage tmp2 = AllocTempDouble();
@@ -161,8 +164,11 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest, Re
       return;
     case Instruction::LONG_TO_FLOAT: {
       rl_src = LoadValueWide(rl_src, kFPReg);
-      RegStorage src_low = rl_src.reg.DoubleToLowSingle();
-      RegStorage src_high = rl_src.reg.DoubleToHighSingle();
+      RegisterInfo* info = GetRegInfo(rl_src.reg);
+      RegStorage src_low = info->FindMatchingView(RegisterInfo::kLowSingleStorageMask)->GetReg();
+      DCHECK(src_low.Valid());
+      RegStorage src_high = info->FindMatchingView(RegisterInfo::kHighSingleStorageMask)->GetReg();
+      DCHECK(src_high.Valid());
       rl_result = EvalLoc(rl_dest, kFPReg, true);
       // Allocate temp registers.
       RegStorage high_val = AllocTempDouble();

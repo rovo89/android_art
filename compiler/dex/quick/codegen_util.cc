@@ -1201,21 +1201,27 @@ std::vector<uint8_t>* Mir2Lir::ReturnCallFrameInformation() {
 }
 
 RegLocation Mir2Lir::NarrowRegLoc(RegLocation loc) {
-  loc.wide = false;
   if (loc.location == kLocPhysReg) {
+    DCHECK(!loc.reg.Is32Bit());
     if (loc.reg.IsPair()) {
-      loc.reg = loc.reg.GetLow();
+      RegisterInfo* info_lo = GetRegInfo(loc.reg.GetLow());
+      RegisterInfo* info_hi = GetRegInfo(loc.reg.GetHigh());
+      info_lo->SetIsWide(false);
+      info_hi->SetIsWide(false);
+      loc.reg = info_lo->GetReg();
     } else {
-      // FIXME: temp workaround.
-      // Issue here: how do we narrow to a 32-bit value in 64-bit container?
-      // Probably the wrong thing to narrow the RegStorage container here.  That
-      // should be a target decision.  At the RegLocation level, we're only
-      // modifying the view of the Dalvik value - this is orthogonal to the storage
-      // container size.  Consider this a temp workaround.
-      DCHECK(loc.reg.IsDouble());
-      loc.reg = loc.reg.DoubleToLowSingle();
+      RegisterInfo* info = GetRegInfo(loc.reg);
+      RegisterInfo* info_new = info->FindMatchingView(RegisterInfo::k32SoloStorageMask);
+      DCHECK(info_new != nullptr);
+      if (info->IsLive() && (info->SReg() == loc.s_reg_low)) {
+        info->MarkDead();
+        info_new->MarkLive(loc.s_reg_low);
+      }
+      loc.reg = info_new->GetReg();
     }
+    DCHECK(loc.reg.Valid());
   }
+  loc.wide = false;
   return loc;
 }
 
