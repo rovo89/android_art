@@ -1135,7 +1135,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       if (dex_method_idx != DexFile::kDexNoIndex) {
         target_method->dex_method_index = dex_method_idx;
       } else {
-        if (compiling_boot) {
+        if (compiling_boot && !use_dex_cache) {
           target_method->dex_method_index = method->GetDexMethodIndex();
           target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
         }
