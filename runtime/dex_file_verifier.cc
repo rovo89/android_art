@@ -698,6 +698,7 @@ bool DexFileVerifier::CheckIntraStringDataItem() {
   const byte* file_end = begin_ + size_;
 
   for (uint32_t i = 0; i < size; i++) {
+    CHECK_LT(i, size);  // b/15014252 Prevents hitting the impossible case below
     if (UNLIKELY(ptr_ >= file_end)) {
       ErrorStringPrintf("String data would go beyond end-of-file");
       return false;
@@ -710,6 +711,7 @@ bool DexFileVerifier::CheckIntraStringDataItem() {
       case 0x00:
         // Special case of bit pattern 0xxx.
         if (UNLIKELY(byte == 0)) {
+          CHECK_LT(i, size);  // b/15014252 Actually hit this impossible case with clang
           ErrorStringPrintf("String data shorter than indicated utf16_size %x", size);
           return false;
         }
