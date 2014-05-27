@@ -196,7 +196,6 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pCmplDouble = CmplDouble;
   qpoints->pCmplFloat = CmplFloat;
   qpoints->pFmod = fmod;
-  qpoints->pSqrt = sqrt;
   qpoints->pL2d = __aeabi_l2d;
   qpoints->pFmodf = fmodf;
   qpoints->pL2f = __aeabi_l2f;
