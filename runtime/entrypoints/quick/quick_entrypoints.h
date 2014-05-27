@@ -98,7 +98,6 @@ struct PACKED(4) QuickEntryPoints {
   int32_t (*pCmplDouble)(double, double);
   int32_t (*pCmplFloat)(float, float);
   double (*pFmod)(double, double);
-  double (*pSqrt)(double);
   double (*pL2d)(int64_t);
   float (*pFmodf)(float, float);
   float (*pL2f)(int64_t);
