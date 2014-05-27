@@ -630,12 +630,6 @@ void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
     DCHECK_EQ(info->StorageMask(), 0x1U);
   }
 
-  // TODO: re-enable this when we can safely save r4 over the suspension code path.
-  bool no_suspend = NO_SUSPEND;  // || !Runtime::Current()->ExplicitSuspendChecks();
-  if (no_suspend) {
-    GetRegInfo(rs_rA64_SUSPEND)->MarkFree();
-  }
-
   // Don't start allocating temps at r0/s0/d0 or you may clobber return regs in early-exit methods.
   // TODO: adjust when we roll to hard float calling convention.
   reg_pool_->next_core_reg_ = 2;
