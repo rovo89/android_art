@@ -864,8 +864,17 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
       // Wide spans, we need the 2nd half of uses[2].
       rl_arg = UpdateLocWide(rl_use2);
       if (rl_arg.location == kLocPhysReg) {
-        // NOTE: not correct for 64-bit core regs, but this needs rewriting for hard-float.
-        reg = rl_arg.reg.IsPair() ? rl_arg.reg.GetHigh() : rl_arg.reg.DoubleToHighSingle();
+        if (rl_arg.reg.IsPair()) {
+          reg = rl_arg.reg.GetHigh();
+        } else {
+          RegisterInfo* info = GetRegInfo(rl_arg.reg);
+          info = info->FindMatchingView(RegisterInfo::kHighSingleStorageMask);
+          if (info == nullptr) {
+            // NOTE: For hard float convention we won't split arguments across reg/mem.
+            UNIMPLEMENTED(FATAL) << "Needs hard float api.";
+          }
+          reg = info->GetReg();
+        }
       } else {
         // kArg2 & rArg3 can safely be used here
         reg = TargetReg(kArg3);
