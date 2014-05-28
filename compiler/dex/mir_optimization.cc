@@ -417,7 +417,8 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
       // TODO: flesh out support for Mips.  NOTE: llvm's select op doesn't quite work here.
       // TUNING: expand to support IF_xx compare & branches
       if (!cu_->compiler->IsPortable() &&
-          (cu_->instruction_set == kThumb2 || cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) &&
+          (cu_->instruction_set == kArm64 || cu_->instruction_set == kThumb2 ||
+           cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) &&
           IsInstructionIfCcZ(mir->dalvikInsn.opcode)) {
         BasicBlock* ft = GetBasicBlock(bb->fall_through);
         DCHECK(ft != NULL);
@@ -443,6 +444,8 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
           if (SelectKind(tk->last_mir_insn) == kSelectGoto) {
               tk->last_mir_insn->optimization_flags |= (MIR_IGNORE_SUSPEND_CHECK);
           }
+
+          // TODO: Add logic for LONG.
           // Are the block bodies something we can handle?
           if ((ft->first_mir_insn == ft->last_mir_insn) &&
               (tk->first_mir_insn != tk->last_mir_insn) &&

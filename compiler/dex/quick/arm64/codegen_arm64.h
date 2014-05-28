@@ -222,8 +222,6 @@ class Arm64Mir2Lir : public Mir2Lir {
                     bool skip_this);
 
   private:
-    void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1, int64_t val,
-                                  ConditionCode ccode);
     LIR* LoadFPConstantValue(int r_dest, int32_t value);
     LIR* LoadFPConstantValueWide(int r_dest, int64_t value);
     void ReplaceFixup(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
