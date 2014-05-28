@@ -17,6 +17,8 @@
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.util.Enumeration;
 
 /**
  * DexFile tests (Dalvik-specific).
@@ -24,47 +26,37 @@ import java.lang.reflect.Constructor;
 public class Main {
     private static final String CLASS_PATH = System.getenv("DEX_LOCATION") + "/071-dexfile-ex.jar";
     private static final String ODEX_DIR = System.getenv("DEX_LOCATION");
-    //private static final String ODEX_DIR = ".";
     private static final String ODEX_ALT = "/tmp";
     private static final String LIB_DIR = "/nowhere/nothing/";
+
+    private static final String getOdexDir() {
+        return new File(ODEX_DIR).isDirectory() ? ODEX_DIR : ODEX_ALT;
+    }
 
     /**
      * Prep the environment then run the test.
      */
-    public static void main(String[] args) {
-        Process p;
-        try {
-            /*
-             * Create a sub-process to see if the ProcessManager wait
-             * interferes with the dexopt invocation wait.
-             *
-             * /dev/random never hits EOF, so we're sure that we'll still
-             * be waiting for the process to complete.  On the device it
-             * stops pretty quickly (which means the child won't be
-             * spinning).
-             */
-            ProcessBuilder pb = new ProcessBuilder("cat", "/dev/random");
-            p = pb.start();
-        } catch (IOException ioe) {
-            System.err.println("cmd failed: " + ioe.getMessage());
-            p = null;
-        }
+    public static void main(String[] args) throws Exception {
+        /*
+         * Create a sub-process to see if the ProcessManager wait
+         * interferes with the dexopt invocation wait.
+         *
+         * /dev/random never hits EOF, so we're sure that we'll still
+         * be waiting for the process to complete.  On the device it
+         * stops pretty quickly (which means the child won't be
+         * spinning).
+         */
+        ProcessBuilder pb = new ProcessBuilder("cat", "/dev/random");
+        Process p = pb.start();
 
-        try {
-            testDexClassLoader();
-        } finally {
-            // shouldn't be necessary, but it's good to be tidy
-            if (p != null) {
-                p.destroy();
-            }
+        testDexClassLoader();
+        testDexFile();
 
-            // let the ProcessManager's daemon thread finish before we shut down
-            // (avoids the occasional segmentation fault)
-            try {
-                Thread.sleep(500);
-            } catch (Exception ex) {}
-        }
-
+        // shouldn't be necessary, but it's good to be tidy
+        p.destroy();
+        // let the ProcessManager's daemon thread finish before we shut down
+        // (avoids the occasional segmentation fault)
+        Thread.sleep(500);
         System.out.println("done");
     }
 
@@ -72,25 +64,10 @@ public class Main {
      * Create a class loader, explicitly specifying the source DEX and
      * the location for the optimized DEX.
      */
-    private static void testDexClassLoader() {
+    private static void testDexClassLoader() throws Exception {
         ClassLoader dexClassLoader = getDexClassLoader();
-
-        Class anotherClass;
-        try {
-            anotherClass = dexClassLoader.loadClass("Another");
-        } catch (ClassNotFoundException cnfe) {
-            throw new RuntimeException("Another?", cnfe);
-        }
-
-        Object another;
-        try {
-            another = anotherClass.newInstance();
-        } catch (IllegalAccessException ie) {
-            throw new RuntimeException("new another", ie);
-        } catch (InstantiationException ie) {
-            throw new RuntimeException("new another", ie);
-        }
-
+        Class Another = dexClassLoader.loadClass("Another");
+        Object another = Another.newInstance();
         // not expected to work; just exercises the call
         dexClassLoader.getResource("nonexistent");
     }
@@ -100,51 +77,30 @@ public class Main {
      * have visibility into dalvik.system.*, so we do this through
      * reflection.
      */
-    private static ClassLoader getDexClassLoader() {
-        String odexDir;
-
-        if (false) {
-            String androidData = System.getenv("ANDROID_DATA");
-            if (androidData == null) {
-                androidData = "";
-            }
-            odexDir = androidData + "/" + ODEX_DIR;
-        }
-
-        File test = new File(ODEX_DIR);
-        if (test.isDirectory()) {
-            odexDir = ODEX_DIR;
-        } else {
-            odexDir = ODEX_ALT;
-        }
-        if (false) {
-            System.out.println("Output dir is " + odexDir);
-        }
-
-        ClassLoader myLoader = Main.class.getClassLoader();
-        Class dclClass;
-        try {
-            dclClass = myLoader.loadClass("dalvik.system.DexClassLoader");
-        } catch (ClassNotFoundException cnfe) {
-            throw new RuntimeException("dalvik.system.DexClassLoader not found", cnfe);
-        }
-
-        Constructor ctor;
-        try {
-            ctor = dclClass.getConstructor(String.class, String.class,
-                String.class, ClassLoader.class);
-        } catch (NoSuchMethodException nsme) {
-            throw new RuntimeException("DCL ctor", nsme);
-        }
-
+    private static ClassLoader getDexClassLoader() throws Exception {
+        ClassLoader classLoader = Main.class.getClassLoader();
+        Class DexClassLoader = classLoader.loadClass("dalvik.system.DexClassLoader");
+        Constructor DexClassLoader_init = DexClassLoader.getConstructor(String.class,
+                                                                        String.class,
+                                                                        String.class,
+                                                                        ClassLoader.class);
         // create an instance, using the path we found
-        Object dclObj;
-        try {
-            dclObj = ctor.newInstance(CLASS_PATH, odexDir, LIB_DIR, myLoader);
-        } catch (Exception ex) {
-            throw new RuntimeException("DCL newInstance", ex);
-        }
+        return (ClassLoader) DexClassLoader_init.newInstance(CLASS_PATH, getOdexDir(), LIB_DIR, classLoader);
+    }
 
-        return (ClassLoader) dclObj;
+    private static void testDexFile() throws Exception {
+        ClassLoader classLoader = Main.class.getClassLoader();
+        Class DexFile = classLoader.loadClass("dalvik.system.DexFile");
+        Method DexFile_loadDex = DexFile.getMethod("loadDex",
+                                                   String.class,
+                                                   String.class,
+                                                   Integer.TYPE);
+        Method DexFile_entries = DexFile.getMethod("entries");
+        Object dexFile = DexFile_loadDex.invoke(null, CLASS_PATH, null, 0);
+        Enumeration<String> e = (Enumeration<String>) DexFile_entries.invoke(dexFile);
+        while (e.hasMoreElements()) {
+            String className = e.nextElement();
+            System.out.println(className);
+        }
     }
 }
