@@ -89,11 +89,6 @@ done
 
 msg "------------------------------"
 
-mkdir $DEX_LOCATION/dalvik-cache
-if [ $? -ne 0 ]; then
-    exit
-fi
-
 export ANDROID_PRINTF_LOG=brief
 if [ "$DEV_MODE" = "y" ]; then
     export ANDROID_LOG_TAGS='*:d'
