@@ -153,12 +153,12 @@ class PassDriver {
     default_print_passes_ = true;
   }
 
-  static void SetDumpPassList(const char* list) {
-    dump_pass_list_.reset(list);
+  static void SetDumpPassList(const std::string& list) {
+    dump_pass_list_ = list;
   }
 
-  static void SetPrintPassList(const char* list) {
-    print_pass_list_.reset(list);
+  static void SetPrintPassList(const std::string& list) {
+    print_pass_list_ = list;
   }
 
   void SetDefaultPasses() {
@@ -202,10 +202,10 @@ class PassDriver {
   static bool default_print_passes_;
 
   /** @brief What are the passes we want to be printing the log messages? */
-  static std::unique_ptr<const char> print_pass_list_;
+  static std::string print_pass_list_;
 
   /** @brief What are the passes we want to be dumping the CFG? */
-  static std::unique_ptr<const char> dump_pass_list_;
+  static std::string dump_pass_list_;
 };
 
 }  // namespace art
