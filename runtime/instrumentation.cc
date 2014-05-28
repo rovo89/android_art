@@ -180,13 +180,6 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
 
     virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       mirror::ArtMethod* m = GetMethod();
-      if (GetCurrentQuickFrame() == NULL) {
-        if (kVerboseInstrumentation) {
-          LOG(INFO) << "  Ignoring a shadow frame. Frame " << GetFrameId()
-                    << " Method=" << PrettyMethod(m);
-        }
-        return true;  // Ignore shadow frames.
-      }
       if (m == NULL) {
         if (kVerboseInstrumentation) {
           LOG(INFO) << "  Skipping upcall. Frame " << GetFrameId();
@@ -203,6 +196,14 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
       }
       if (kVerboseInstrumentation) {
         LOG(INFO) << "  Installing exit stub in " << DescribeLocation();
+      }
+      if (GetCurrentQuickFrame() == NULL) {
+        InstrumentationStackFrame instrumentation_frame(GetThisObject(), m, 0, GetFrameId(), false);
+        if (kVerboseInstrumentation) {
+          LOG(INFO) << "Pushing shadow frame " << instrumentation_frame.Dump();
+        }
+        shadow_stack_.push_back(instrumentation_frame);
+        return true;  // Continue.
       }
       uintptr_t return_pc = GetReturnPc();
       if (return_pc == instrumentation_exit_pc_) {
@@ -238,6 +239,7 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
       return true;  // Continue.
     }
     std::deque<InstrumentationStackFrame>* const instrumentation_stack_;
+    std::vector<InstrumentationStackFrame> shadow_stack_;
     const size_t existing_instrumentation_frames_count_;
     std::vector<uint32_t> dex_pcs_;
     const uintptr_t instrumentation_exit_pc_;
@@ -261,14 +263,16 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
   if (instrumentation->ShouldNotifyMethodEnterExitEvents()) {
     // Create method enter events for all methods currently on the thread's stack. We only do this
     // if no debugger is attached to prevent from posting events twice.
-    typedef std::deque<InstrumentationStackFrame>::const_reverse_iterator It;
-    for (It it = thread->GetInstrumentationStack()->rbegin(),
-        end = thread->GetInstrumentationStack()->rend(); it != end; ++it) {
-      mirror::Object* this_object = (*it).this_object_;
-      mirror::ArtMethod* method = (*it).method_;
+    auto ssi = visitor.shadow_stack_.rbegin();
+    for (auto isi = thread->GetInstrumentationStack()->rbegin(),
+        end = thread->GetInstrumentationStack()->rend(); isi != end; ++isi) {
+      while (ssi != visitor.shadow_stack_.rend() && (*ssi).frame_id_ < (*isi).frame_id_) {
+        instrumentation->MethodEnterEvent(thread, (*ssi).this_object_, (*ssi).method_, 0);
+        ++ssi;
+      }
       uint32_t dex_pc = visitor.dex_pcs_.back();
       visitor.dex_pcs_.pop_back();
-      instrumentation->MethodEnterEvent(thread, this_object, method, dex_pc);
+      instrumentation->MethodEnterEvent(thread, (*isi).this_object_, (*isi).method_, dex_pc);
     }
   }
   thread->VerifyStack();
