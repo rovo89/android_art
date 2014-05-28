@@ -79,15 +79,26 @@ class InternTable {
       LOCKS_EXCLUDED(Locks::intern_table_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::String* Lookup(Table& table, mirror::String* s, int32_t hash_code)
+  mirror::String* LookupStrong(mirror::String* s, int32_t hash_code)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::String* LookupWeak(mirror::String* s, int32_t hash_code)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  mirror::String* Lookup(Table* table, mirror::String* s, int32_t hash_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::String* InsertStrong(mirror::String* s, int32_t hash_code)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
   mirror::String* InsertWeak(mirror::String* s, int32_t hash_code)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void RemoveWeak(mirror::String* s, int32_t hash_code)
+  void RemoveStrong(mirror::String* s, int32_t hash_code)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void Remove(Table& table, mirror::String* s, int32_t hash_code)
+  void RemoveWeak(mirror::String* s, int32_t hash_code)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  void Remove(Table* table, mirror::String* s, int32_t hash_code)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
 
   // Transaction rollback access.
@@ -96,8 +107,10 @@ class InternTable {
   mirror::String* InsertWeakFromTransaction(mirror::String* s, int32_t hash_code)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
   void RemoveStrongFromTransaction(mirror::String* s, int32_t hash_code)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
   void RemoveWeakFromTransaction(mirror::String* s, int32_t hash_code)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
   friend class Transaction;
 
@@ -107,6 +120,9 @@ class InternTable {
   Table strong_interns_ GUARDED_BY(Locks::intern_table_lock_);
   std::vector<std::pair<int32_t, mirror::String*>> new_strong_intern_roots_
       GUARDED_BY(Locks::intern_table_lock_);
+  // Since weak_interns_ contain weak roots, they need a read
+  // barrier. Do not directly access the strings in it. Use functions
+  // that contain read barriers.
   Table weak_interns_ GUARDED_BY(Locks::intern_table_lock_);
 };
 
