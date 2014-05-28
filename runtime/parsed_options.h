@@ -74,6 +74,7 @@ class ParsedOptions {
   void (*hook_exit_)(jint status);
   void (*hook_abort_)();
   std::vector<std::string> properties_;
+  std::string compiler_executable_;
   std::vector<std::string> compiler_options_;
   std::vector<std::string> image_compiler_options_;
   bool profile_;
