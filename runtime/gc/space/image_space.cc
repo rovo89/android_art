@@ -53,8 +53,7 @@ static bool GenerateImage(const std::string& image_filename, std::string* error_
 
   std::vector<std::string> arg_vector;
 
-  std::string dex2oat(GetAndroidRoot());
-  dex2oat += (kIsDebugBuild ? "/bin/dex2oatd" : "/bin/dex2oat");
+  std::string dex2oat(Runtime::Current()->GetCompilerExecutable());
   arg_vector.push_back(dex2oat);
 
   std::string image_option_string("--image=");
