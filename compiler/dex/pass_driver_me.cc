@@ -77,6 +77,19 @@ uint16_t const PassDriver<PassDriverME>::g_passes_size = arraysize(PassDriver<Pa
 template<>
 std::vector<const Pass*> PassDriver<PassDriverME>::g_default_pass_list(PassDriver<PassDriverME>::g_passes, PassDriver<PassDriverME>::g_passes + PassDriver<PassDriverME>::g_passes_size);
 
+// By default, do not have a dump pass list.
+template<>
+std::unique_ptr<const char> PassDriver<PassDriverME>::dump_pass_list_(nullptr);
+
+// By default, do not have a print pass list.
+template<>
+std::unique_ptr<const char> PassDriver<PassDriverME>::print_pass_list_(nullptr);
+
+// By default, we do not print the pass' information.
+template<>
+bool PassDriver<PassDriverME>::default_print_passes_ = false;
+
+
 PassDriverME::PassDriverME(CompilationUnit* cu)
     : PassDriver(), pass_me_data_holder_(), dump_cfg_folder_("/sdcard/") {
   pass_me_data_holder_.bb = nullptr;
@@ -136,26 +149,51 @@ bool PassDriverME::RunPass(const Pass* pass, bool time_split) {
 
   // Check the pass gate first.
   bool should_apply_pass = pass->Gate(&pass_me_data_holder_);
+
   if (should_apply_pass) {
+    bool old_print_pass = c_unit->print_pass;
+
+    c_unit->print_pass = default_print_passes_;
+
+    const char* print_pass_list = print_pass_list_.get();
+
+    if (print_pass_list != nullptr && strstr(print_pass_list, pass->GetName()) != nullptr) {
+      c_unit->print_pass = true;
+    }
+
     // Applying the pass: first start, doWork, and end calls.
     ApplyPass(&pass_me_data_holder_, pass);
 
     // Do we want to log it?
-    if ((c_unit->enable_debug&  (1 << kDebugDumpCFG)) != 0) {
-      // Do we have a pass folder?
-      const PassME* me_pass = (down_cast<const PassME*>(pass));
-      const char* passFolder = me_pass->GetDumpCFGFolder();
-      DCHECK(passFolder != nullptr);
+    bool should_dump = ((c_unit->enable_debug & (1 << kDebugDumpCFG)) != 0);
 
-      if (passFolder[0] != 0) {
-        // Create directory prefix.
-        std::string prefix = GetDumpCFGFolder();
-        prefix += passFolder;
-        prefix += "/";
+    const char* dump_pass_list = dump_pass_list_.get();
 
-        c_unit->mir_graph->DumpCFG(prefix.c_str(), false);
+    if (dump_pass_list != nullptr) {
+      bool found = strstr(dump_pass_list, pass->GetName());
+      should_dump = (should_dump || found);
+    }
+
+    if (should_dump) {
+      // Do we want to log it?
+      if ((c_unit->enable_debug&  (1 << kDebugDumpCFG)) != 0) {
+        // Do we have a pass folder?
+        const PassME* me_pass = (down_cast<const PassME*>(pass));
+        const char* passFolder = me_pass->GetDumpCFGFolder();
+        DCHECK(passFolder != nullptr);
+
+        if (passFolder[0] != 0) {
+          // Create directory prefix.
+          std::string prefix = GetDumpCFGFolder();
+          prefix += passFolder;
+          prefix += "/";
+
+          c_unit->mir_graph->DumpCFG(prefix.c_str(), false);
+        }
       }
     }
+
+    c_unit->print_pass = old_print_pass;
   }
 
   // If the pass gate passed, we can declare success.

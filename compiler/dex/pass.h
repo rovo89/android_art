@@ -89,6 +89,21 @@ class Pass {
     return false;
   }
 
+  static void BasePrintMessage(CompilationUnit* c_unit, const char* pass_name, const char* message, ...) {
+    // Check if we want to log something or not.
+    if (c_unit->print_pass) {
+      // Stringify the message.
+      va_list args;
+      va_start(args, message);
+      std::string stringified_message;
+      StringAppendV(&stringified_message, message, args);
+      va_end(args);
+
+      // Log the message and ensure to include pass name.
+      LOG(INFO) << pass_name << ": " << stringified_message;
+    }
+  }
+
  protected:
   /** @brief The pass name: used for searching for a pass when running a particular pass or debugging. */
   const char* const pass_name_;
