@@ -104,6 +104,8 @@ class Runtime {
     return is_explicit_gc_disabled_;
   }
 
+  std::string GetCompilerExecutable() const;
+
   const std::vector<std::string>& GetCompilerOptions() const {
     return compiler_options_;
   }
@@ -482,6 +484,7 @@ class Runtime {
   bool is_concurrent_gc_enabled_;
   bool is_explicit_gc_disabled_;
 
+  std::string compiler_executable_;
   std::vector<std::string> compiler_options_;
   std::vector<std::string> image_compiler_options_;
 

@@ -563,8 +563,7 @@ bool ClassLinker::GenerateOatFile(const char* dex_filename,
                                   const char* oat_cache_filename,
                                   std::string* error_msg) {
   Locks::mutator_lock_->AssertNotHeld(Thread::Current());  // Avoid starving GC.
-  std::string dex2oat(GetAndroidRoot());
-  dex2oat += (kIsDebugBuild ? "/bin/dex2oatd" : "/bin/dex2oat");
+  std::string dex2oat(Runtime::Current()->GetCompilerExecutable());
 
   gc::Heap* heap = Runtime::Current()->GetHeap();
   std::string boot_image_option("--boot-image=");
