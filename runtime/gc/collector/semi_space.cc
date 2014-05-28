@@ -272,12 +272,12 @@ void SemiSpace::MarkingPhase() {
   from_space_->Clear();
   VLOG(heap) << "Protecting from_space_: " << *from_space_;
   from_space_->GetMemMap()->Protect(kProtectFromSpace ? PROT_NONE : PROT_READ);
-  if (swap_semi_spaces_) {
-    heap_->SwapSemiSpaces();
-  }
   timings_.StartSplit("PreSweepingGcVerification");
   heap_->PreSweepingGcVerification(this);
   timings_.EndSplit();
+  if (swap_semi_spaces_) {
+    heap_->SwapSemiSpaces();
+  }
 }
 
 void SemiSpace::UpdateAndMarkModUnion() {

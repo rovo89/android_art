@@ -234,10 +234,10 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   // create the bump pointer space if we are not a moving foreground collector but have a moving
   // background collector since the heap transition code will create the temp space by recycling
   // the bitmap from the main space.
-  if (kMovingCollector) {
+  if (kMovingCollector &&
+      (IsMovingGc(foreground_collector_type_) || IsMovingGc(background_collector_type_))) {
     // TODO: Place bump-pointer spaces somewhere to minimize size of card table.
-    // TODO: Not create all the bump pointer spaces if not necessary (currently only GSS needs all
-    // 2 of bump pointer spaces + main space) b/14059466. Divide by 2 for a temporary fix.
+    // Divide by 2 for a temporary fix for reducing virtual memory usage.
     const size_t bump_pointer_space_capacity = capacity / 2;
     bump_pointer_space_ = space::BumpPointerSpace::Create("Bump pointer space",
                                                           bump_pointer_space_capacity, nullptr);
@@ -2366,7 +2366,6 @@ void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     // Swapping bound bitmaps does nothing.
     gc->SwapBitmaps();
-    SwapSemiSpaces();
     // Pass in false since concurrent reference processing can mean that the reference referents
     // may point to dead objects at the point which PreSweepingGcVerification is called.
     size_t failures = VerifyHeapReferences(false);
@@ -2374,7 +2373,6 @@ void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
       LOG(FATAL) << "Pre sweeping " << gc->GetName() << " GC verification failed with " << failures
           << " failures";
     }
-    SwapSemiSpaces();
     gc->SwapBitmaps();
   }
   if (verify_pre_sweeping_rosalloc_) {
