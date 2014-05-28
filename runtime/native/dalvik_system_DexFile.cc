@@ -206,8 +206,8 @@ static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jlong cookie) 
     if (result != nullptr) {
       for (size_t i = 0; i < dex_file->NumClassDefs(); ++i) {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
-        const char* descriptor = dex_file->GetClassDescriptor(class_def);
-        ScopedLocalRef<jstring> jdescriptor(env, env->NewStringUTF(descriptor));
+        std::string descriptor(DescriptorToDot(dex_file->GetClassDescriptor(class_def)));
+        ScopedLocalRef<jstring> jdescriptor(env, env->NewStringUTF(descriptor.c_str()));
         if (jdescriptor.get() == nullptr) {
           return nullptr;
         }
