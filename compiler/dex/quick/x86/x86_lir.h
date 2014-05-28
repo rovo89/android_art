@@ -351,10 +351,14 @@ enum X86OpCode {
   opcode ## 16RR, opcode ## 16RM, opcode ## 16RA, opcode ## 16RT, \
   opcode ## 16RI, opcode ## 16MI, opcode ## 16AI, opcode ## 16TI, \
   opcode ## 16RI8, opcode ## 16MI8, opcode ## 16AI8, opcode ## 16TI8, \
-  opcode ## 32MR, opcode ## 64MR, opcode ## 32AR, opcode ## 64AR, opcode ## 32TR,  \
-  opcode ## 32RR, opcode ## 32RM, opcode ## 64RM, opcode ## 32RA, opcode ## 64RA, opcode ## 32RT, opcode ## 64RT, \
-  opcode ## 32RI, opcode ## 64RI, opcode ## 32MI, opcode ## 32AI, opcode ## 32TI, \
-  opcode ## 32RI8, opcode ## 64RI8, opcode ## 32MI8, opcode ## 32AI8, opcode ## 32TI8
+  opcode ## 32MR, opcode ## 32AR, opcode ## 32TR,  \
+  opcode ## 32RR, opcode ## 32RM, opcode ## 32RA, opcode ## 32RT, \
+  opcode ## 32RI, opcode ## 32MI, opcode ## 32AI, opcode ## 32TI, \
+  opcode ## 32RI8, opcode ## 32MI8, opcode ## 32AI8, opcode ## 32TI8, \
+  opcode ## 64MR, opcode ## 64AR, opcode ## 64TR,  \
+  opcode ## 64RR, opcode ## 64RM, opcode ## 64RA, opcode ## 64RT, \
+  opcode ## 64RI, opcode ## 64MI, opcode ## 64AI, opcode ## 64TI, \
+  opcode ## 64RI8, opcode ## 64MI8, opcode ## 64AI8, opcode ## 64TI8
   BinaryOpCode(kX86Add),
   BinaryOpCode(kX86Or),
   BinaryOpCode(kX86Adc),
@@ -367,23 +371,32 @@ enum X86OpCode {
   kX86Imul16RRI, kX86Imul16RMI, kX86Imul16RAI,
   kX86Imul32RRI, kX86Imul32RMI, kX86Imul32RAI,
   kX86Imul32RRI8, kX86Imul32RMI8, kX86Imul32RAI8,
+  kX86Imul64RRI, kX86Imul64RMI, kX86Imul64RAI,
+  kX86Imul64RRI8, kX86Imul64RMI8, kX86Imul64RAI8,
   kX86Mov8MR, kX86Mov8AR, kX86Mov8TR,
   kX86Mov8RR, kX86Mov8RM, kX86Mov8RA, kX86Mov8RT,
   kX86Mov8RI, kX86Mov8MI, kX86Mov8AI, kX86Mov8TI,
   kX86Mov16MR, kX86Mov16AR, kX86Mov16TR,
   kX86Mov16RR, kX86Mov16RM, kX86Mov16RA, kX86Mov16RT,
   kX86Mov16RI, kX86Mov16MI, kX86Mov16AI, kX86Mov16TI,
-  kX86Mov32MR, kX86Mov64MR, kX86Mov32AR, kX86Mov64AR, kX86Mov32TR,
-  kX86Mov32RR, kX86Mov32RM, kX86Mov64RM, kX86Mov32RA, kX86Mov64RA, kX86Mov32RT, kX86Mov64RT,
-  kX86Mov32RI, kX86Mov32MI, kX86Mov32AI, kX86Mov32TI, kX86Mov64TI,
+  kX86Mov32MR, kX86Mov32AR, kX86Mov32TR,
+  kX86Mov32RR, kX86Mov32RM, kX86Mov32RA, kX86Mov32RT,
+  kX86Mov32RI, kX86Mov32MI, kX86Mov32AI, kX86Mov32TI,
   kX86Lea32RM,
   kX86Lea32RA,
+  kX86Mov64MR, kX86Mov64AR, kX86Mov64TR,
+  kX86Mov64RR, kX86Mov64RM, kX86Mov64RA, kX86Mov64RT,
+  kX86Mov64RI, kX86Mov64MI, kX86Mov64AI, kX86Mov64TI,
+  kX86Lea64RM,
+  kX86Lea64RA,
   // RRC - Register Register ConditionCode - cond_opcode reg1, reg2
   //             - lir operands - 0: reg1, 1: reg2, 2: CC
   kX86Cmov32RRC,
+  kX86Cmov64RRC,
   // RMC - Register Memory ConditionCode - cond_opcode reg1, [base + disp]
   //             - lir operands - 0: reg1, 1: base, 2: disp 3: CC
   kX86Cmov32RMC,
+  kX86Cmov64RMC,
 
   // RC - Register CL - opcode reg, CL
   //          - lir operands - 0: reg, 1: CL
@@ -397,7 +410,9 @@ enum X86OpCode {
   opcode ## 16RI, opcode ## 16MI, opcode ## 16AI, \
   opcode ## 16RC, opcode ## 16MC, opcode ## 16AC, \
   opcode ## 32RI, opcode ## 32MI, opcode ## 32AI, \
-  opcode ## 32RC, opcode ## 32MC, opcode ## 32AC
+  opcode ## 32RC, opcode ## 32MC, opcode ## 32AC, \
+  opcode ## 64RI, opcode ## 64MI, opcode ## 64AI, \
+  opcode ## 64RC, opcode ## 64MC, opcode ## 64AC
   BinaryShiftOpCode(kX86Rol),
   BinaryShiftOpCode(kX86Ror),
   BinaryShiftOpCode(kX86Rcl),
@@ -411,12 +426,18 @@ enum X86OpCode {
   kX86Shld32MRI,
   kX86Shrd32RRI,
   kX86Shrd32MRI,
+  kX86Shld64RRI,
+  kX86Shld64MRI,
+  kX86Shrd64RRI,
+  kX86Shrd64MRI,
 #define UnaryOpcode(opcode, reg, mem, array) \
   opcode ## 8 ## reg, opcode ## 8 ## mem, opcode ## 8 ## array, \
   opcode ## 16 ## reg, opcode ## 16 ## mem, opcode ## 16 ## array, \
-  opcode ## 32 ## reg, opcode ## 32 ## mem, opcode ## 32 ## array
+  opcode ## 32 ## reg, opcode ## 32 ## mem, opcode ## 32 ## array, \
+  opcode ## 64 ## reg, opcode ## 64 ## mem, opcode ## 64 ## array
   UnaryOpcode(kX86Test, RI, MI, AI),
   kX86Test32RR,
+  kX86Test64RR,
   UnaryOpcode(kX86Not, R, M, A),
   UnaryOpcode(kX86Neg, R, M, A),
   UnaryOpcode(kX86Mul,  DaR, DaM, DaA),
@@ -544,20 +565,20 @@ enum X86OpCode {
 
 /* Instruction assembly field_loc kind */
 enum X86EncodingKind {
-  kData,                                   // Special case for raw data.
-  kNop,                                    // Special case for variable length nop.
-  kNullary,                                // Opcode that takes no arguments.
-  kPrefix2Nullary,                         // Opcode that takes no arguments, but 2 prefixes.
-  kRegOpcode,                              // Shorter form of R instruction kind (opcode+rd)
-  kReg, kReg64, kMem, kArray,              // R, M and A instruction kinds.
-  kMemReg, kMemReg64, kArrayReg, kArrayReg64, kThreadReg,          // MR, AR and TR instruction kinds.
-  kRegReg, kRegMem, kRegArray, kRegThread, kReg64Thread,  // RR, RM, RA and RT instruction kinds.
-  kRegRegStore,                            // RR following the store modrm reg-reg encoding rather than the load.
-  kRegImm, kReg64Imm, kMemImm, kArrayImm, kThreadImm,  // RI, MI, AI and TI instruction kinds.
-  kRegRegImm, kRegMemImm, kRegArrayImm,    // RRI, RMI and RAI instruction kinds.
-  kMovRegImm,                              // Shorter form move RI.
-  kRegRegImmRev,                           // RRI with first reg in r/m
-  kMemRegImm,                              // MRI instruction kinds.
+  kData,                                    // Special case for raw data.
+  kNop,                                     // Special case for variable length nop.
+  kNullary,                                 // Opcode that takes no arguments.
+  kPrefix2Nullary,                          // Opcode that takes no arguments, but 2 prefixes.
+  kRegOpcode,                               // Shorter form of R instruction kind (opcode+rd)
+  kReg, kMem, kArray,                       // R, M and A instruction kinds.
+  kMemReg, kArrayReg, kThreadReg,           // MR, AR and TR instruction kinds.
+  kRegReg, kRegMem, kRegArray, kRegThread,  // RR, RM, RA and RT instruction kinds.
+  kRegRegStore,                             // RR following the store modrm reg-reg encoding rather than the load.
+  kRegImm, kMemImm, kArrayImm, kThreadImm,  // RI, MI, AI and TI instruction kinds.
+  kRegRegImm, kRegMemImm, kRegArrayImm,     // RRI, RMI and RAI instruction kinds.
+  kMovRegImm,                               // Shorter form move RI.
+  kRegRegImmRev,                            // RRI with first reg in r/m
+  kMemRegImm,                               // MRI instruction kinds.
   kShiftRegImm, kShiftMemImm, kShiftArrayImm,  // Shift opcode with immediate.
   kShiftRegCl, kShiftMemCl, kShiftArrayCl,     // Shift opcode with register CL.
   kRegRegReg, kRegRegMem, kRegRegArray,    // RRR, RRM, RRA instruction kinds.
