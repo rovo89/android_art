@@ -94,8 +94,8 @@ class Monitor {
   static bool IsValidLockWord(LockWord lock_word);
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  mirror::Object* GetObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return ReadBarrier::BarrierForWeakRoot<mirror::Object, kReadBarrierOption>(obj_);
+  mirror::Object* GetObject() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return ReadBarrier::BarrierForWeakRoot<mirror::Object, kReadBarrierOption>(&obj_);
   }
 
   void SetObject(mirror::Object* object);
