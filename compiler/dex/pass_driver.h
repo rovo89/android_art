@@ -141,7 +141,6 @@ class PassDriver {
     }
   }
 
- protected:
   /**
    * @brief Gets the list of passes currently schedule to execute.
    * @return pass_list_
@@ -150,12 +149,25 @@ class PassDriver {
     return pass_list_;
   }
 
-  virtual void InitializePasses() {
-    SetDefaultPasses();
+  static void SetPrintAllPasses() {
+    default_print_passes_ = true;
+  }
+
+  static void SetDumpPassList(const char* list) {
+    dump_pass_list_.reset(list);
+  }
+
+  static void SetPrintPassList(const char* list) {
+    print_pass_list_.reset(list);
   }
 
   void SetDefaultPasses() {
     pass_list_ = PassDriver<PassDriverType>::g_default_pass_list;
+  }
+
+ protected:
+  virtual void InitializePasses() {
+    SetDefaultPasses();
   }
 
   /**
@@ -185,6 +197,15 @@ class PassDriver {
 
   /** @brief The default pass list is used to initialize pass_list_. */
   static std::vector<const Pass*> g_default_pass_list;
+
+  /** @brief Do we, by default, want to be printing the log messages? */
+  static bool default_print_passes_;
+
+  /** @brief What are the passes we want to be printing the log messages? */
+  static std::unique_ptr<const char> print_pass_list_;
+
+  /** @brief What are the passes we want to be dumping the CFG? */
+  static std::unique_ptr<const char> dump_pass_list_;
 };
 
 }  // namespace art
