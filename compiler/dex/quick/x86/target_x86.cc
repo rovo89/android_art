@@ -38,7 +38,7 @@ static const RegStorage core_regs_arr_64[] = {
 static const RegStorage core_regs_arr_64q[] = {
     rs_r0q, rs_r1q, rs_r2q, rs_r3q, rs_rX86_SP_64, rs_r5q, rs_r6q, rs_r7q,
 #ifdef TARGET_REX_SUPPORT
-    rs_r8, rs_r9, rs_r10, rs_r11, rs_r12, rs_r13, rs_r14, rs_r15
+    rs_r8q, rs_r9q, rs_r10q, rs_r11q, rs_r12q, rs_r13q, rs_r14q, rs_r15q
 #endif
 };
 static const RegStorage sp_regs_arr_32[] = {
