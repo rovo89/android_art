@@ -44,8 +44,8 @@ inline MirrorType* ReadBarrier::Barrier(
 }
 
 template <typename MirrorType, ReadBarrierOption kReadBarrierOption>
-inline MirrorType* ReadBarrier::BarrierForWeakRoot(MirrorType* ref) {
-  UNUSED(ref);
+inline MirrorType* ReadBarrier::BarrierForWeakRoot(MirrorType** weak_root) {
+  MirrorType* ref = *weak_root;
   const bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
   if (with_read_barrier && kUseBakerReadBarrier) {
     // To be implemented.
