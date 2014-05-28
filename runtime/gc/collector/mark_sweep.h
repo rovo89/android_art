@@ -313,6 +313,8 @@ class MarkSweep : public GarbageCollector {
   // Verification.
   size_t live_stack_freeze_size_;
 
+  std::unique_ptr<MemMap> sweep_array_free_buffer_mem_map_;
+
  private:
   friend class AddIfReachesAllocSpaceVisitor;  // Used by mod-union table.
   friend class CardScanTask;
