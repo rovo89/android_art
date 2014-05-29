@@ -320,9 +320,11 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
     return true;
   }
   bool use_lvn = bb->use_lvn;
+  std::unique_ptr<ScopedArenaAllocator> allocator;
   std::unique_ptr<LocalValueNumbering> local_valnum;
   if (use_lvn) {
-    local_valnum.reset(LocalValueNumbering::Create(cu_));
+    allocator.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
+    local_valnum.reset(new (allocator.get()) LocalValueNumbering(cu_, allocator.get()));
   }
   while (bb != NULL) {
     for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
@@ -549,6 +551,9 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
       }
     }
     bb = ((cu_->disable_opt & (1 << kSuppressExceptionEdges)) != 0) ? NextDominatedBlock(bb) : NULL;
+  }
+  if (use_lvn && UNLIKELY(!local_valnum->Good())) {
+    LOG(WARNING) << "LVN overflow in " << PrettyMethod(cu_->method_idx, *cu_->dex_file);
   }
 
   return true;
