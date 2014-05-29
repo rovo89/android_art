@@ -748,12 +748,12 @@ void ImageWriter::PatchOatCodeAndMethods() {
     bool is_quick_offset = false;
     if (quick_code == reinterpret_cast<uintptr_t>(GetQuickToInterpreterBridge())) {
       is_quick_offset = true;
-      code_offset = PointerToLowMemUInt32(GetOatAddress(quick_to_interpreter_bridge_offset_));
+      code_offset = quick_to_interpreter_bridge_offset_;
     } else if (quick_code ==
         reinterpret_cast<uintptr_t>(class_linker->GetQuickGenericJniTrampoline())) {
       CHECK(target->IsNative());
       is_quick_offset = true;
-      code_offset = PointerToLowMemUInt32(GetOatAddress(quick_generic_jni_trampoline_offset_));
+      code_offset = quick_generic_jni_trampoline_offset_;
     }
     uintptr_t value;
     if (patch->IsRelative()) {
@@ -763,10 +763,10 @@ void ImageWriter::PatchOatCodeAndMethods() {
                                          patch->GetReferrerClassDefIdx(),
                                          patch->GetReferrerMethodIdx());
       if (is_quick_offset) {
-        quick_code = code_offset;
         // If its a quick offset it means that we are doing a relative patch from the class linker
         // oat_file to the image writer oat_file so we need to adjust the quick oat code to be the
         // one in the image writer oat_file.
+        quick_code = PointerToLowMemUInt32(GetOatAddress(code_offset));
         quick_oat_code =
             reinterpret_cast<const void*>(reinterpret_cast<uintptr_t>(quick_oat_code) +
                 reinterpret_cast<uintptr_t>(oat_data_begin_) - code_base);
@@ -775,7 +775,7 @@ void ImageWriter::PatchOatCodeAndMethods() {
       uintptr_t patch_location = base + patch->GetLiteralOffset();
       value = quick_code - patch_location + patch->RelativeOffset();
     } else {
-      value = code_offset;
+      value = PointerToLowMemUInt32(GetOatAddress(code_offset));
     }
     SetPatchLocation(patch, value);
   }
