@@ -147,7 +147,8 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_STREQ(direct_interface0->GetDescriptor().c_str(), "Ljava/lang/Cloneable;");
     mirror::Class* direct_interface1 = mirror::Class::GetDirectInterface(self, array, 1);
     EXPECT_STREQ(direct_interface1->GetDescriptor().c_str(), "Ljava/io/Serializable;");
-    EXPECT_EQ(class_linker_->FindArrayClass(self, array->GetComponentType()), array.Get());
+    mirror::Class* array_ptr = array->GetComponentType();
+    EXPECT_EQ(class_linker_->FindArrayClass(self, &array_ptr), array.Get());
   }
 
   void AssertMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

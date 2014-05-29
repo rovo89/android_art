@@ -33,7 +33,7 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
     DCHECK_GE(length, 0);
     mirror::Class* element_class = reinterpret_cast<Object*>(args[0])->AsClass();
     Runtime* runtime = Runtime::Current();
-    mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(self, element_class);
+    mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(self, &element_class);
     DCHECK(array_class != nullptr);
     gc::AllocatorType allocator = runtime->GetHeap()->GetCurrentAllocator();
     result->SetL(mirror::Array::Alloc<true>(self, array_class, length,

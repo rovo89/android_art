@@ -46,14 +46,14 @@ static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementCla
 static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementClass, jint length) {
   ScopedFastNativeObjectAccess soa(env);
   DCHECK(javaElementClass != NULL);
-  mirror::Class* element_class = soa.Decode<mirror::Class*>(javaElementClass);
   if (UNLIKELY(length < 0)) {
     ThrowNegativeArraySizeException(length);
     return NULL;
   }
+  mirror::Class* element_class = soa.Decode<mirror::Class*>(javaElementClass);
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
-  mirror::Class* array_class = class_linker->FindArrayClass(soa.Self(), element_class);
+  mirror::Class* array_class = class_linker->FindArrayClass(soa.Self(), &element_class);
   if (UNLIKELY(array_class == NULL)) {
     CHECK(soa.Self()->IsExceptionPending());
     return NULL;

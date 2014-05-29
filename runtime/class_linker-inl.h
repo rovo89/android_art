@@ -37,19 +37,19 @@ inline mirror::Class* ClassLinker::FindSystemClass(Thread* self, const char* des
   return FindClass(self, descriptor, NullHandle<mirror::ClassLoader>());
 }
 
-inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class* element_class) {
+inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class** element_class) {
   for (size_t i = 0; i < kFindArrayCacheSize; ++i) {
     // Read the cached array class once to avoid races with other threads setting it.
     mirror::Class* array_class = find_array_class_cache_[i];
-    if (array_class != nullptr && array_class->GetComponentType() == element_class) {
+    if (array_class != nullptr && array_class->GetComponentType() == *element_class) {
       return array_class;
     }
   }
-  DCHECK(!element_class->IsPrimitiveVoid());
-  std::string descriptor("[");
-  descriptor += element_class->GetDescriptor();
-  StackHandleScope<1> hs(Thread::Current());
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(element_class->GetClassLoader()));
+  DCHECK(!(*element_class)->IsPrimitiveVoid());
+  std::string descriptor = "[" + (*element_class)->GetDescriptor();
+  StackHandleScope<2> hs(Thread::Current());
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle((*element_class)->GetClassLoader()));
+  HandleWrapper<mirror::Class> h_element_class(hs.NewHandleWrapper(element_class));
   mirror::Class* array_class = FindClass(self, descriptor.c_str(), class_loader);
   // Benign races in storing array class and incrementing index.
   size_t victim_index = find_array_class_cache_next_victim_;
