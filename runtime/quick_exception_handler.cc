@@ -42,7 +42,7 @@ void QuickExceptionHandler::FindCatch(const ThrowLocation& throw_location,
   CatchBlockStackVisitor visitor(self_, context_, &exception_ref, this);
   visitor.WalkStack(true);
 
-  mirror::ArtMethod* catch_method = *handler_quick_frame_;
+  mirror::ArtMethod* catch_method = handler_quick_frame_->AsMirrorPtr();
   if (kDebugExceptionDelivery) {
     if (catch_method == nullptr) {
       LOG(INFO) << "Handler is upcall";

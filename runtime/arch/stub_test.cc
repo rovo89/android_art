@@ -225,7 +225,8 @@ class StubTest : public CommonRuntimeTest {
         "cmp x1, x2\n\t"
         "b.ne 1f\n\t"
 
-        "mov %[fpr_result], #0\n\t"
+        "mov x2, #0\n\t"
+        "str x2, %[fpr_result]\n\t"
 
         // Finish up.
         "2:\n\t"
@@ -247,15 +248,16 @@ class StubTest : public CommonRuntimeTest {
 
         // Failed fpr verification.
         "1:\n\t"
-        "mov %[fpr_result], #1\n\t"
+        "mov x2, #1\n\t"
+        "str x2, %[fpr_result]\n\t"
         "b 2b\n\t"                     // Goto finish-up
 
         // End
         "3:\n\t"
-        : [result] "=r" (result), [fpr_result] "=r" (fpr_result)
+        : [result] "=r" (result)
           // Use the result from r0
         : [arg0] "0"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self),
-          [referrer] "r"(referrer)
+          [referrer] "r"(referrer), [fpr_result] "m" (fpr_result)
         : "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17");  // clobber.
 #elif defined(__x86_64__)
     // Note: Uses the native convention

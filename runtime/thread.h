@@ -345,7 +345,7 @@ class Thread {
 
   ThrowLocation GetCurrentLocationForThrow() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetTopOfStack(mirror::ArtMethod** top_method, uintptr_t pc) {
+  void SetTopOfStack(StackReference<mirror::ArtMethod>* top_method, uintptr_t pc) {
     tlsPtr_.managed_stack.SetTopQuickFrame(top_method);
     tlsPtr_.managed_stack.SetTopQuickFramePc(pc);
   }

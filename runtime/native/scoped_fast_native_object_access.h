@@ -31,7 +31,7 @@ class ScopedFastNativeObjectAccess : public ScopedObjectAccessAlreadyRunnable {
     SHARED_LOCK_FUNCTION(Locks::mutator_lock_) ALWAYS_INLINE
      : ScopedObjectAccessAlreadyRunnable(env) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
-    DCHECK((*Self()->GetManagedStack()->GetTopQuickFrame())->IsFastNative());
+    DCHECK(Self()->GetManagedStack()->GetTopQuickFrame()->AsMirrorPtr()->IsFastNative());
     // Don't work with raw objects in non-runnable states.
     DCHECK_EQ(Self()->GetState(), kRunnable);
   }

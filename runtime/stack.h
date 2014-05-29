@@ -429,11 +429,11 @@ class PACKED(4) ManagedStack {
     return link_;
   }
 
-  mirror::ArtMethod** GetTopQuickFrame() const {
+  StackReference<mirror::ArtMethod>* GetTopQuickFrame() const {
     return top_quick_frame_;
   }
 
-  void SetTopQuickFrame(mirror::ArtMethod** top) {
+  void SetTopQuickFrame(StackReference<mirror::ArtMethod>* top) {
     DCHECK(top_shadow_frame_ == NULL);
     top_quick_frame_ = top;
   }
@@ -491,7 +491,7 @@ class PACKED(4) ManagedStack {
  private:
   ManagedStack* link_;
   ShadowFrame* top_shadow_frame_;
-  mirror::ArtMethod** top_quick_frame_;
+  StackReference<mirror::ArtMethod>* top_quick_frame_;
   uintptr_t top_quick_frame_pc_;
 };
 
@@ -512,17 +512,7 @@ class StackVisitor {
     if (cur_shadow_frame_ != nullptr) {
       return cur_shadow_frame_->GetMethod();
     } else if (cur_quick_frame_ != nullptr) {
-      return *cur_quick_frame_;
-    } else {
-      return nullptr;
-    }
-  }
-
-  mirror::ArtMethod** GetMethodAddress() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (cur_shadow_frame_ != nullptr) {
-      return cur_shadow_frame_->GetMethodAddress();
-    } else if (cur_quick_frame_ != nullptr) {
-      return cur_quick_frame_;
+      return cur_quick_frame_->AsMirrorPtr();
     } else {
       return nullptr;
     }
@@ -578,7 +568,8 @@ class StackVisitor {
   void SetGPR(uint32_t reg, uintptr_t value);
 
   // This is a fast-path for getting/setting values in a quick frame.
-  uint32_t* GetVRegAddr(mirror::ArtMethod** cur_quick_frame, const DexFile::CodeItem* code_item,
+  uint32_t* GetVRegAddr(StackReference<mirror::ArtMethod>* cur_quick_frame,
+                        const DexFile::CodeItem* code_item,
                         uint32_t core_spills, uint32_t fp_spills, size_t frame_size,
                         uint16_t vreg) const {
     int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg, kRuntimeISA);
@@ -679,7 +670,7 @@ class StackVisitor {
     return cur_quick_frame_pc_;
   }
 
-  mirror::ArtMethod** GetCurrentQuickFrame() const {
+  StackReference<mirror::ArtMethod>* GetCurrentQuickFrame() const {
     return cur_quick_frame_;
   }
 
@@ -688,7 +679,7 @@ class StackVisitor {
   }
 
   HandleScope* GetCurrentHandleScope() const {
-    mirror::ArtMethod** sp = GetCurrentQuickFrame();
+    StackReference<mirror::ArtMethod>* sp = GetCurrentQuickFrame();
     ++sp;  // Skip Method*; handle scope comes next;
     return reinterpret_cast<HandleScope*>(sp);
   }
@@ -706,7 +697,7 @@ class StackVisitor {
 
   Thread* const thread_;
   ShadowFrame* cur_shadow_frame_;
-  mirror::ArtMethod** cur_quick_frame_;
+  StackReference<mirror::ArtMethod>* cur_quick_frame_;
   uintptr_t cur_quick_frame_pc_;
   // Lazily computed, number of frames in the stack.
   size_t num_frames_;
