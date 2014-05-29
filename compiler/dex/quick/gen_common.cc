@@ -562,8 +562,8 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, bool is_long_or_double,
     RegStorage r_base;
     if (field_info.IsReferrersClass()) {
       // Fast path, static storage base is this method's class
-      RegLocation rl_method  = LoadCurrMethod();
-      r_base = AllocTemp();
+      RegLocation rl_method = LoadCurrMethod();
+      r_base = AllocTempWord();
       LoadRefDisp(rl_method.reg, mirror::ArtMethod::DeclaringClassOffset().Int32Value(), r_base);
       if (IsTemp(rl_method.reg)) {
         FreeTemp(rl_method.reg);
@@ -658,7 +658,7 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
     if (field_info.IsReferrersClass()) {
       // Fast path, static storage base is this method's class
       RegLocation rl_method  = LoadCurrMethod();
-      r_base = AllocTemp();
+      r_base = AllocTempWord();
       LoadRefDisp(rl_method.reg, mirror::ArtMethod::DeclaringClassOffset().Int32Value(), r_base);
     } else {
       // Medium path, static storage base in a different class which requires checks that the other

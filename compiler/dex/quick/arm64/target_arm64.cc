@@ -258,7 +258,6 @@ static uint64_t RepeatBitsAcrossReg(bool is_wide, uint64_t value, unsigned width
   unsigned i;
   unsigned reg_size = (is_wide) ? 64 : 32;
   uint64_t result = value & BIT_MASK(width);
-  DCHECK_NE(width, reg_size);
   for (i = width; i < reg_size; i *= 2) {
     result |= (result << i);
   }

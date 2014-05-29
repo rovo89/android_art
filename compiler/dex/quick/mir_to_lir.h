@@ -699,6 +699,7 @@ class Mir2Lir : public Backend {
     virtual RegStorage AllocFreeTemp();
     virtual RegStorage AllocTemp();
     virtual RegStorage AllocTempWide();
+    virtual RegStorage AllocTempWord();
     virtual RegStorage AllocTempSingle();
     virtual RegStorage AllocTempDouble();
     virtual RegStorage AllocTypedTemp(bool fp_hint, int reg_class);
