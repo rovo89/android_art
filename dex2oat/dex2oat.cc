@@ -738,6 +738,7 @@ void CheckExplicitCheckOptions(InstructionSet isa, bool* explicit_null_checks,
   switch (isa) {
     case kArm:
     case kThumb2:
+    case kX86:
       break;  // All checks implemented, leave as is.
 
     default:  // No checks implemented, reset all to explicit checks.

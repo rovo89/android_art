@@ -985,16 +985,30 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
       *pcrLabel = GenExplicitNullCheck(TargetRefReg(kArg1), info->opt_flags);
     } else {
       *pcrLabel = nullptr;
+      if (!(cu_->disable_opt & (1 << kNullCheckElimination)) &&
+          (info->opt_flags & MIR_IGNORE_NULL_CHECK)) {
+        return call_state;
+      }
       // In lieu of generating a check for kArg1 being null, we need to
       // perform a load when doing implicit checks.
-      RegStorage tmp = AllocTemp();
-      Load32Disp(TargetRefReg(kArg1), 0, tmp);
-      MarkPossibleNullPointerException(info->opt_flags);
-      FreeTemp(tmp);
+      GenImplicitNullCheck(TargetReg(kArg1, false), info->opt_flags);
     }
   }
   return call_state;
 }
+
+// Default implementation of implicit null pointer check.
+// Overridden by arch specific as necessary.
+void Mir2Lir::GenImplicitNullCheck(RegStorage reg, int opt_flags) {
+  if (!(cu_->disable_opt & (1 << kNullCheckElimination)) && (opt_flags & MIR_IGNORE_NULL_CHECK)) {
+    return;
+  }
+  RegStorage tmp = AllocTemp();
+  Load32Disp(reg, 0, tmp);
+  MarkPossibleNullPointerException(opt_flags);
+  FreeTemp(tmp);
+}
+
 
 /*
  * May have 0+ arguments (also used for jumbo).  Note that
@@ -1212,12 +1226,13 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
       *pcrLabel = GenExplicitNullCheck(TargetRefReg(kArg1), info->opt_flags);
     } else {
       *pcrLabel = nullptr;
+      if (!(cu_->disable_opt & (1 << kNullCheckElimination)) &&
+          (info->opt_flags & MIR_IGNORE_NULL_CHECK)) {
+        return call_state;
+      }
       // In lieu of generating a check for kArg1 being null, we need to
       // perform a load when doing implicit checks.
-      RegStorage tmp = AllocTemp();
-      Load32Disp(TargetRefReg(kArg1), 0, tmp);
-      MarkPossibleNullPointerException(info->opt_flags);
-      FreeTemp(tmp);
+      GenImplicitNullCheck(TargetReg(kArg1, false), info->opt_flags);
     }
   }
   return call_state;
@@ -1293,11 +1308,14 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
       // On x86, we can compare to memory directly
       // Set up a launch pad to allow retry in case of bounds violation */
       if (rl_idx.is_const) {
+        LIR* comparison;
         range_check_branch = OpCmpMemImmBranch(
             kCondUlt, RegStorage::InvalidReg(), rl_obj.reg, count_offset,
-            mir_graph_->ConstantValue(rl_idx.orig_sreg), nullptr);
-      } else {
+            mir_graph_->ConstantValue(rl_idx.orig_sreg), nullptr, &comparison);
+        MarkPossibleNullPointerExceptionAfter(0, comparison);
+     } else {
         OpRegMem(kOpCmp, rl_idx.reg, rl_obj.reg, count_offset);
+        MarkPossibleNullPointerException(0);
         range_check_branch = OpCondBranch(kCondUge, nullptr);
       }
     }

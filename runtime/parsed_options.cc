@@ -286,8 +286,8 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
     }
   }
 #else
-  explicit_checks_ = kExplicitNullCheck | kExplicitSuspendCheck |
-    kExplicitStackOverflowCheck;
+  // Host.  Only suspend check is explicit by default.
+  explicit_checks_ = kExplicitSuspendCheck;
 #endif
 
   for (size_t i = 0; i < options.size(); ++i) {
@@ -305,6 +305,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
       Exit(0);
     } else if (StartsWith(option, "-Xbootclasspath:")) {
       boot_class_path_string_ = option.substr(strlen("-Xbootclasspath:")).data();
+      LOG(INFO) << "setting boot class path to " << boot_class_path_string_;
     } else if (option == "-classpath" || option == "-cp") {
       // TODO: support -Djava.class.path
       i++;

@@ -825,8 +825,10 @@ RegStorage X86Mir2Lir::LoadHelper(ThreadOffset<8> offset) {
 }
 
 LIR* X86Mir2Lir::CheckSuspendUsingLoad() {
-  LOG(FATAL) << "Unexpected use of CheckSuspendUsingLoad in x86";
-  return nullptr;
+  // First load the pointer in fs:[suspend-trigger] into eax
+  // Then use a test instruction to indirect via that address.
+  NewLIR2(kX86Mov32RT, rs_rAX.GetReg(),  Thread::ThreadSuspendTriggerOffset<4>().Int32Value());
+  return NewLIR3(kX86Test32RM, rs_rAX.GetReg(), rs_rAX.GetReg(), 0);
 }
 
 uint64_t X86Mir2Lir::GetTargetInstFlags(int opcode) {
@@ -1189,6 +1191,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   // Is the string non-NULL?
   LoadValueDirectFixed(rl_obj, rs_rDX);
   GenNullCheck(rs_rDX, info->opt_flags);
+  // uint32_t opt_flags = info->opt_flags;
   info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've null checked.
 
   // Does the character fit in 16 bits?
@@ -1215,12 +1218,20 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   // Character is in EAX.
   // Object pointer is in EDX.
 
+  // Compute the number of words to search in to rCX.
+  Load32Disp(rs_rDX, count_offset, rs_rCX);
+
+  // Possible signal here due to null pointer dereference.
+  // Note that the signal handler will expect the top word of
+  // the stack to be the ArtMethod*.  If the PUSH edi instruction
+  // below is ahead of the load above then this will not be true
+  // and the signal handler will not work.
+  MarkPossibleNullPointerException(0);
+
   // We need to preserve EDI, but have no spare registers, so push it on the stack.
   // We have to remember that all stack addresses after this are offset by sizeof(EDI).
   NewLIR1(kX86Push32R, rs_rDI.GetReg());
 
-  // Compute the number of words to search in to rCX.
-  Load32Disp(rs_rDX, count_offset, rs_rCX);
   LIR *length_compare = nullptr;
   int start_value = 0;
   bool is_index_on_stack = false;

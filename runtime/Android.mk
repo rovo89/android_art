@@ -412,6 +412,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     LOCAL_STATIC_LIBRARIES := libziparchive libz
   else # host
     LOCAL_STATIC_LIBRARIES += libcutils libziparchive-host libz libutils
+    LOCAL_SHARED_LIBRARIES += libsigchain
     LOCAL_LDLIBS += -ldl -lpthread
     ifeq ($$(HOST_OS),linux)
       LOCAL_LDLIBS += -lrt

@@ -29,7 +29,8 @@
 
 namespace art {
 
-void FaultManager::GetMethodAndReturnPCAndSP(void* context, mirror::ArtMethod** out_method,
+void FaultManager::GetMethodAndReturnPCAndSP(siginfo_t* siginfo, void* context,
+                                             mirror::ArtMethod** out_method,
                                              uintptr_t* out_return_pc, uintptr_t* out_sp) {
 }
 
