@@ -21,8 +21,48 @@
 
 namespace art {
 
-uint16_t LocalValueNumbering::GetFieldId(const DexFile* dex_file, uint16_t field_idx) {
-  FieldReference key = { dex_file, field_idx };
+namespace {  // anonymous namespace
+
+// Operations used for value map keys instead of actual opcode.
+static constexpr uint16_t kInvokeMemoryVersionBumpOp = Instruction::INVOKE_DIRECT;
+static constexpr uint16_t kUnresolvedSFieldOp = Instruction::SPUT;
+static constexpr uint16_t kResolvedSFieldOp = Instruction::SGET;
+static constexpr uint16_t kUnresolvedIFieldOp = Instruction::IPUT;
+static constexpr uint16_t kNonAliasingIFieldOp = Instruction::IGET;
+static constexpr uint16_t kAliasingIFieldOp = Instruction::IGET_WIDE;
+static constexpr uint16_t kAliasingIFieldStartVersionOp = Instruction::IGET_WIDE;
+static constexpr uint16_t kAliasingIFieldBumpVersionOp = Instruction::IGET_OBJECT;
+static constexpr uint16_t kArrayAccessLocOp = Instruction::APUT;
+static constexpr uint16_t kNonAliasingArrayOp = Instruction::AGET;
+static constexpr uint16_t kNonAliasingArrayStartVersionOp = Instruction::AGET_WIDE;
+static constexpr uint16_t kAliasingArrayOp = Instruction::AGET_OBJECT;
+static constexpr uint16_t kAliasingArrayMemoryVersionOp = Instruction::AGET_BOOLEAN;
+static constexpr uint16_t kAliasingArrayBumpVersionOp = Instruction::AGET_BYTE;
+
+}  // anonymous namespace
+
+LocalValueNumbering::LocalValueNumbering(CompilationUnit* cu, ScopedArenaAllocator* allocator)
+    : cu_(cu),
+      last_value_(0u),
+      sreg_value_map_(std::less<uint16_t>(), allocator->Adapter()),
+      sreg_wide_value_map_(std::less<uint16_t>(), allocator->Adapter()),
+      value_map_(std::less<uint64_t>(), allocator->Adapter()),
+      global_memory_version_(0u),
+      aliasing_ifield_version_map_(std::less<uint16_t>(), allocator->Adapter()),
+      non_aliasing_array_version_map_(std::less<uint16_t>(), allocator->Adapter()),
+      field_index_map_(FieldReferenceComparator(), allocator->Adapter()),
+      non_aliasing_refs_(std::less<uint16_t>(), allocator->Adapter()),
+      non_aliasing_ifields_(NonAliasingIFieldKeyComparator(), allocator->Adapter()),
+      escaped_array_refs_(EscapedArrayKeyComparator(), allocator->Adapter()),
+      range_checked_(RangeCheckKeyComparator() , allocator->Adapter()),
+      null_checked_(std::less<uint16_t>(), allocator->Adapter()) {
+  std::fill_n(unresolved_sfield_version_, kFieldTypeCount, 0u);
+  std::fill_n(unresolved_ifield_version_, kFieldTypeCount, 0u);
+  std::fill_n(aliasing_array_version_, kFieldTypeCount, 0u);
+}
+
+uint16_t LocalValueNumbering::GetFieldId(const MirFieldInfo& field_info) {
+  FieldReference key = { field_info.DeclaringDexFile(), field_info.DeclaringFieldIndex() };
   auto it = field_index_map_.find(key);
   if (it != field_index_map_.end()) {
     return it->second;
@@ -31,62 +71,6 @@ uint16_t LocalValueNumbering::GetFieldId(const DexFile* dex_file, uint16_t field
   field_index_map_.Put(key, id);
   return id;
 }
-
-void LocalValueNumbering::AdvanceGlobalMemory() {
-  // See AdvanceMemoryVersion() for explanation.
-  global_memory_version_ = next_memory_version_;
-  ++next_memory_version_;
-}
-
-uint16_t LocalValueNumbering::GetMemoryVersion(uint16_t base, uint16_t field, uint16_t type) {
-  // See AdvanceMemoryVersion() for explanation.
-  MemoryVersionKey key = { base, field, type };
-  MemoryVersionMap::iterator it = memory_version_map_.find(key);
-  uint16_t memory_version = (it != memory_version_map_.end()) ? it->second : 0u;
-  if (base != NO_VALUE && non_aliasing_refs_.find(base) == non_aliasing_refs_.end()) {
-    // Check modifications by potentially aliased access.
-    MemoryVersionKey aliased_access_key = { NO_VALUE, field, type };
-    auto aa_it = memory_version_map_.find(aliased_access_key);
-    if (aa_it != memory_version_map_.end() && aa_it->second > memory_version) {
-      memory_version = aa_it->second;
-    }
-    memory_version = std::max(memory_version, global_memory_version_);
-  } else if (base != NO_VALUE) {
-    // Ignore global_memory_version_ for access via unique references.
-  } else {
-    memory_version = std::max(memory_version, global_memory_version_);
-  }
-  return memory_version;
-};
-
-uint16_t LocalValueNumbering::AdvanceMemoryVersion(uint16_t base, uint16_t field, uint16_t type) {
-  // When we read the same value from memory, we want to assign the same value name to it.
-  // However, we need to be careful not to assign the same value name if the memory location
-  // may have been written to between the reads. To avoid that we do "memory versioning".
-  //
-  // For each write to a memory location (instance field, static field, array element) we assign
-  // a new memory version number to the location identified by the value name of the base register,
-  // the field id and type, or "{ base, field, type }". For static fields the "base" is NO_VALUE
-  // since they are not accessed via a reference. For arrays the "field" is NO_VALUE since they
-  // don't have a field id.
-  //
-  // To account for the possibility of aliased access to the same memory location via different
-  // "base", we also store the memory version number with the key "{ NO_VALUE, field, type }"
-  // if "base" is an aliasing reference and check it in GetMemoryVersion() on reads via
-  // aliasing references. A global memory version is set for method calls as a method can
-  // potentially write to any memory location accessed via an aliasing reference.
-
-  uint16_t result = next_memory_version_;
-  ++next_memory_version_;
-  MemoryVersionKey key = { base, field, type };
-  memory_version_map_.Overwrite(key, result);
-  if (base != NO_VALUE && non_aliasing_refs_.find(base) == non_aliasing_refs_.end()) {
-    // Advance memory version for aliased access.
-    MemoryVersionKey aliased_access_key = { NO_VALUE, field, type };
-    memory_version_map_.Overwrite(aliased_access_key, result);
-  }
-  return result;
-};
 
 uint16_t LocalValueNumbering::MarkNonAliasingNonNull(MIR* mir) {
   uint16_t res = GetOperandValue(mir->ssa_rep->defs[0]);
@@ -97,43 +81,332 @@ uint16_t LocalValueNumbering::MarkNonAliasingNonNull(MIR* mir) {
   return res;
 }
 
-void LocalValueNumbering::MakeArgsAliasing(MIR* mir) {
-  for (size_t i = 0u, count = mir->ssa_rep->num_uses; i != count; ++i) {
-    uint16_t reg = GetOperandValue(mir->ssa_rep->uses[i]);
-    non_aliasing_refs_.erase(reg);
-  }
+bool LocalValueNumbering::IsNonAliasing(uint16_t reg) {
+  return non_aliasing_refs_.find(reg) != non_aliasing_refs_.end();
 }
 
+bool LocalValueNumbering::IsNonAliasingIField(uint16_t reg, uint16_t field_id, uint16_t type) {
+  if (IsNonAliasing(reg)) {
+    return true;
+  }
+  NonAliasingIFieldKey key = { reg, field_id, type };
+  return non_aliasing_ifields_.count(key) != 0u;
+}
+
+bool LocalValueNumbering::IsNonAliasingArray(uint16_t reg, uint16_t type) {
+  if (IsNonAliasing(reg)) {
+    return true;
+  }
+  EscapedArrayKey key = { reg, type };
+  return escaped_array_refs_.count(key) != 0u;
+}
+
+
 void LocalValueNumbering::HandleNullCheck(MIR* mir, uint16_t reg) {
-  if (null_checked_.find(reg) != null_checked_.end()) {
-    if (cu_->verbose) {
-      LOG(INFO) << "Removing null check for 0x" << std::hex << mir->offset;
+  auto lb = null_checked_.lower_bound(reg);
+  if (lb != null_checked_.end() && *lb == reg) {
+    if (LIKELY(Good())) {
+      if (cu_->verbose) {
+        LOG(INFO) << "Removing null check for 0x" << std::hex << mir->offset;
+      }
+      mir->optimization_flags |= MIR_IGNORE_NULL_CHECK;
     }
-    mir->optimization_flags |= MIR_IGNORE_NULL_CHECK;
   } else {
-    null_checked_.insert(reg);
+    null_checked_.insert(lb, reg);
   }
 }
 
 void LocalValueNumbering::HandleRangeCheck(MIR* mir, uint16_t array, uint16_t index) {
-  if (ValueExists(ARRAY_REF, array, index, NO_VALUE)) {
-    if (cu_->verbose) {
-      LOG(INFO) << "Removing range check for 0x" << std::hex << mir->offset;
+  RangeCheckKey key = { array, index };
+  auto lb = range_checked_.lower_bound(key);
+  if (lb != range_checked_.end() && !RangeCheckKeyComparator()(key, *lb)) {
+    if (LIKELY(Good())) {
+      if (cu_->verbose) {
+        LOG(INFO) << "Removing range check for 0x" << std::hex << mir->offset;
+      }
+      mir->optimization_flags |= MIR_IGNORE_RANGE_CHECK;
     }
-    mir->optimization_flags |= MIR_IGNORE_RANGE_CHECK;
+  } else {
+    // Mark range check completed.
+    range_checked_.insert(lb, key);
   }
-  // Use side effect to note range check completed.
-  (void)LookupValue(ARRAY_REF, array, index, NO_VALUE);
 }
 
 void LocalValueNumbering::HandlePutObject(MIR* mir) {
   // If we're storing a non-aliasing reference, stop tracking it as non-aliasing now.
   uint16_t base = GetOperandValue(mir->ssa_rep->uses[0]);
-  non_aliasing_refs_.erase(base);
+  HandleEscapingRef(base);
+}
+
+void LocalValueNumbering::HandleEscapingRef(uint16_t base) {
+  auto it = non_aliasing_refs_.find(base);
+  if (it != non_aliasing_refs_.end()) {
+    uint64_t iget_key = BuildKey(Instruction::IGET, base, 0u, 0u);
+    for (auto iget_it = value_map_.lower_bound(iget_key), iget_end = value_map_.end();
+        iget_it != iget_end && EqualOpAndOperand1(iget_it->first, iget_key); ++iget_it) {
+      uint16_t field_id = ExtractOperand2(iget_it->first);
+      uint16_t type = ExtractModifier(iget_it->first);
+      NonAliasingIFieldKey key = { base, field_id, type };
+      non_aliasing_ifields_.insert(key);
+    }
+    uint64_t aget_key = BuildKey(kNonAliasingArrayStartVersionOp, base, 0u, 0u);
+    auto aget_it = value_map_.lower_bound(aget_key);
+    if (aget_it != value_map_.end() && EqualOpAndOperand1(aget_key, aget_it->first)) {
+      DCHECK_EQ(ExtractOperand2(aget_it->first), kNoValue);
+      uint16_t type = ExtractModifier(aget_it->first);
+      EscapedArrayKey key = { base, type };
+      escaped_array_refs_.insert(key);
+    }
+    non_aliasing_refs_.erase(it);
+  }
+}
+
+uint16_t LocalValueNumbering::HandleAGet(MIR* mir, uint16_t opcode) {
+  // uint16_t type = opcode - Instruction::AGET;
+  uint16_t array = GetOperandValue(mir->ssa_rep->uses[0]);
+  HandleNullCheck(mir, array);
+  uint16_t index = GetOperandValue(mir->ssa_rep->uses[1]);
+  HandleRangeCheck(mir, array, index);
+  uint16_t type = opcode - Instruction::AGET;
+  // Establish value number for loaded register.
+  uint16_t res;
+  if (IsNonAliasingArray(array, type)) {
+    // Get the start version that accounts for aliasing within the array (different index names).
+    uint16_t start_version = LookupValue(kNonAliasingArrayStartVersionOp, array, kNoValue, type);
+    // Find the current version from the non_aliasing_array_version_map_.
+    uint16_t memory_version = start_version;
+    auto it = non_aliasing_array_version_map_.find(start_version);
+    if (it != non_aliasing_array_version_map_.end()) {
+      memory_version = it->second;
+    } else {
+      // Just use the start_version.
+    }
+    res = LookupValue(kNonAliasingArrayOp, array, index, memory_version);
+  } else {
+    // Get the memory version of aliased array accesses of this type.
+    uint16_t memory_version = LookupValue(kAliasingArrayMemoryVersionOp, global_memory_version_,
+                                          aliasing_array_version_[type], kNoValue);
+    res = LookupValue(kAliasingArrayOp, array, index, memory_version);
+  }
+  if (opcode == Instruction::AGET_WIDE) {
+    SetOperandValueWide(mir->ssa_rep->defs[0], res);
+  } else {
+    SetOperandValue(mir->ssa_rep->defs[0], res);
+  }
+  return res;
+}
+
+void LocalValueNumbering::HandleAPut(MIR* mir, uint16_t opcode) {
+  int array_idx = (opcode == Instruction::APUT_WIDE) ? 2 : 1;
+  int index_idx = array_idx + 1;
+  uint16_t array = GetOperandValue(mir->ssa_rep->uses[array_idx]);
+  HandleNullCheck(mir, array);
+  uint16_t index = GetOperandValue(mir->ssa_rep->uses[index_idx]);
+  HandleRangeCheck(mir, array, index);
+
+  uint16_t type = opcode - Instruction::APUT;
+  uint16_t value = (opcode == Instruction::APUT_WIDE)
+                   ? GetOperandValueWide(mir->ssa_rep->uses[0])
+                   : GetOperandValue(mir->ssa_rep->uses[0]);
+  if (IsNonAliasing(array)) {
+    // Get the start version that accounts for aliasing within the array (different index values).
+    uint16_t start_version = LookupValue(kNonAliasingArrayStartVersionOp, array, kNoValue, type);
+    auto it = non_aliasing_array_version_map_.find(start_version);
+    uint16_t memory_version = start_version;
+    if (it != non_aliasing_array_version_map_.end()) {
+      memory_version = it->second;
+    }
+    // We need to take 4 values (array, index, memory_version, value) into account for bumping
+    // the memory version but the key can take only 3. Merge array and index into a location.
+    uint16_t array_access_location = LookupValue(kArrayAccessLocOp, array, index, kNoValue);
+    // Bump the version, adding to the chain.
+    memory_version = LookupValue(kAliasingArrayBumpVersionOp, memory_version,
+                                 array_access_location, value);
+    non_aliasing_array_version_map_.Overwrite(start_version, memory_version);
+    StoreValue(kNonAliasingArrayOp, array, index, memory_version, value);
+  } else {
+    // Get the memory version based on global_memory_version_ and aliasing_array_version_[type].
+    uint16_t memory_version = LookupValue(kAliasingArrayMemoryVersionOp, global_memory_version_,
+                                          aliasing_array_version_[type], kNoValue);
+    if (HasValue(kAliasingArrayOp, array, index, memory_version, value)) {
+      // This APUT can be eliminated, it stores the same value that's already in the field.
+      // TODO: Eliminate the APUT.
+      return;
+    }
+    // We need to take 4 values (array, index, memory_version, value) into account for bumping
+    // the memory version but the key can take only 3. Merge array and index into a location.
+    uint16_t array_access_location = LookupValue(kArrayAccessLocOp, array, index, kNoValue);
+    // Bump the version, adding to the chain.
+    uint16_t bumped_version = LookupValue(kAliasingArrayBumpVersionOp, memory_version,
+                                          array_access_location, value);
+    aliasing_array_version_[type] = bumped_version;
+    memory_version = LookupValue(kAliasingArrayMemoryVersionOp, global_memory_version_,
+                                 bumped_version, kNoValue);
+    StoreValue(kAliasingArrayOp, array, index, memory_version, value);
+
+    // Clear escaped array refs for this type.
+    EscapedArrayKey array_key = { type, 0u };
+    auto it = escaped_array_refs_.lower_bound(array_key), end = escaped_array_refs_.end();
+    while (it != end && it->type == type) {
+      it = escaped_array_refs_.erase(it);
+    }
+  }
+}
+
+uint16_t LocalValueNumbering::HandleIGet(MIR* mir, uint16_t opcode) {
+  uint16_t base = GetOperandValue(mir->ssa_rep->uses[0]);
+  HandleNullCheck(mir, base);
+  const MirFieldInfo& field_info = cu_->mir_graph->GetIFieldLoweringInfo(mir);
+  uint16_t res;
+  if (!field_info.IsResolved() || field_info.IsVolatile()) {
+    // Volatile fields always get a new memory version; field id is irrelevant.
+    // Unresolved fields may be volatile, so handle them as such to be safe.
+    // Use result s_reg - will be unique.
+    res = LookupValue(kNoValue, mir->ssa_rep->defs[0], kNoValue, kNoValue);
+  } else {
+    uint16_t type = opcode - Instruction::IGET;
+    uint16_t field_id = GetFieldId(field_info);
+    if (IsNonAliasingIField(base, field_id, type)) {
+      res = LookupValue(kNonAliasingIFieldOp, base, field_id, type);
+    } else {
+      // Get the start version that accounts for aliasing with unresolved fields of the same type
+      // and make it unique for the field by including the field_id.
+      uint16_t start_version = LookupValue(kAliasingIFieldStartVersionOp, global_memory_version_,
+                                           unresolved_ifield_version_[type], field_id);
+      // Find the current version from the aliasing_ifield_version_map_.
+      uint16_t memory_version = start_version;
+      auto version_it = aliasing_ifield_version_map_.find(start_version);
+      if (version_it != aliasing_ifield_version_map_.end()) {
+        memory_version = version_it->second;
+      } else {
+        // Just use the start_version.
+      }
+      res = LookupValue(kAliasingIFieldOp, base, field_id, memory_version);
+    }
+  }
+  if (opcode == Instruction::IGET_WIDE) {
+    SetOperandValueWide(mir->ssa_rep->defs[0], res);
+  } else {
+    SetOperandValue(mir->ssa_rep->defs[0], res);
+  }
+  return res;
+}
+
+void LocalValueNumbering::HandleIPut(MIR* mir, uint16_t opcode) {
+  uint16_t type = opcode - Instruction::IPUT;
+  int base_reg = (opcode == Instruction::IPUT_WIDE) ? 2 : 1;
+  uint16_t base = GetOperandValue(mir->ssa_rep->uses[base_reg]);
+  HandleNullCheck(mir, base);
+  const MirFieldInfo& field_info = cu_->mir_graph->GetIFieldLoweringInfo(mir);
+  if (!field_info.IsResolved()) {
+    // Unresolved fields always alias with everything of the same type.
+    // Use mir->offset as modifier; without elaborate inlining, it will be unique.
+    unresolved_ifield_version_[type] =
+        LookupValue(kUnresolvedIFieldOp, kNoValue, kNoValue, mir->offset);
+
+    // Treat fields of escaped references of the same type as potentially modified.
+    NonAliasingIFieldKey key = { type, 0u, 0u };  // lowest possible key of this type.
+    auto it = non_aliasing_ifields_.lower_bound(key), end = non_aliasing_ifields_.end();
+    while (it != end && it->type == type) {
+      it = non_aliasing_ifields_.erase(it);
+    }
+  } else if (field_info.IsVolatile()) {
+    // Nothing to do, resolved volatile fields always get a new memory version anyway and
+    // can't alias with resolved non-volatile fields.
+  } else {
+    uint16_t field_id = GetFieldId(field_info);
+    uint16_t value = (opcode == Instruction::IPUT_WIDE)
+                     ? GetOperandValueWide(mir->ssa_rep->uses[0])
+                     : GetOperandValue(mir->ssa_rep->uses[0]);
+    if (IsNonAliasing(base)) {
+      StoreValue(kNonAliasingIFieldOp, base, field_id, type, value);
+    } else {
+      // Get the start version that accounts for aliasing with unresolved fields of the same type
+      // and make it unique for the field by including the field_id.
+      uint16_t start_version = LookupValue(kAliasingIFieldStartVersionOp, global_memory_version_,
+                                           unresolved_ifield_version_[type], field_id);
+      // Find the old version from the aliasing_ifield_version_map_.
+      uint16_t old_version = start_version;
+      auto version_it = aliasing_ifield_version_map_.find(start_version);
+      if (version_it != aliasing_ifield_version_map_.end()) {
+        old_version = version_it->second;
+      }
+      // Check if the field currently contains the value, making this a NOP.
+      if (HasValue(kAliasingIFieldOp, base, field_id, old_version, value)) {
+        // This IPUT can be eliminated, it stores the same value that's already in the field.
+        // TODO: Eliminate the IPUT.
+        return;
+      }
+      // Bump the version, adding to the chain started by start_version.
+      uint16_t memory_version = LookupValue(kAliasingIFieldBumpVersionOp, old_version, base, value);
+      // Update the aliasing_ifield_version_map_ so that HandleIGet() can get the memory_version
+      // without knowing the values used to build the chain.
+      aliasing_ifield_version_map_.Overwrite(start_version, memory_version);
+      StoreValue(kAliasingIFieldOp, base, field_id, memory_version, value);
+
+      // Clear non-aliasing fields for this field_id.
+      NonAliasingIFieldKey field_key = { type, field_id, 0u };
+      auto it = non_aliasing_ifields_.lower_bound(field_key), end = non_aliasing_ifields_.end();
+      while (it != end && it->field_id == field_id) {
+        DCHECK_EQ(type, it->type);
+        it = non_aliasing_ifields_.erase(it);
+      }
+    }
+  }
+}
+
+uint16_t LocalValueNumbering::HandleSGet(MIR* mir, uint16_t opcode) {
+  const MirFieldInfo& field_info = cu_->mir_graph->GetSFieldLoweringInfo(mir);
+  uint16_t res;
+  if (!field_info.IsResolved() || field_info.IsVolatile()) {
+    // Volatile fields always get a new memory version; field id is irrelevant.
+    // Unresolved fields may be volatile, so handle them as such to be safe.
+    // Use result s_reg - will be unique.
+    res = LookupValue(kNoValue, mir->ssa_rep->defs[0], kNoValue, kNoValue);
+  } else {
+    uint16_t field_id = GetFieldId(field_info);
+    // Resolved non-volatile static fields can alias with non-resolved fields of the same type,
+    // so we need to use unresolved_sfield_version_[type] in addition to global_memory_version_
+    // to determine the version of the field.
+    uint16_t type = opcode - Instruction::SGET;
+    res = LookupValue(kResolvedSFieldOp, field_id,
+                      unresolved_sfield_version_[type], global_memory_version_);
+  }
+  if (opcode == Instruction::SGET_WIDE) {
+    SetOperandValueWide(mir->ssa_rep->defs[0], res);
+  } else {
+    SetOperandValue(mir->ssa_rep->defs[0], res);
+  }
+  return res;
+}
+
+void LocalValueNumbering::HandleSPut(MIR* mir, uint16_t opcode) {
+  uint16_t type = opcode - Instruction::SPUT;
+  const MirFieldInfo& field_info = cu_->mir_graph->GetSFieldLoweringInfo(mir);
+  if (!field_info.IsResolved()) {
+    // Unresolved fields always alias with everything of the same type.
+    // Use mir->offset as modifier; without elaborate inlining, it will be unique.
+    unresolved_sfield_version_[type] =
+        LookupValue(kUnresolvedSFieldOp, kNoValue, kNoValue, mir->offset);
+  } else if (field_info.IsVolatile()) {
+    // Nothing to do, resolved volatile fields always get a new memory version anyway and
+    // can't alias with resolved non-volatile fields.
+  } else {
+    uint16_t field_id = GetFieldId(field_info);
+    uint16_t value = (opcode == Instruction::SPUT_WIDE)
+                     ? GetOperandValueWide(mir->ssa_rep->uses[0])
+                     : GetOperandValue(mir->ssa_rep->uses[0]);
+    // Resolved non-volatile static fields can alias with non-resolved fields of the same type,
+    // so we need to use unresolved_sfield_version_[type] in addition to global_memory_version_
+    // to determine the version of the field.
+    uint16_t type = opcode - Instruction::SGET;
+    StoreValue(kResolvedSFieldOp, field_id,
+               unresolved_sfield_version_[type], global_memory_version_, value);
+  }
 }
 
 uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
-  uint16_t res = NO_VALUE;
+  uint16_t res = kNoValue;
   uint16_t opcode = mir->dalvikInsn.opcode;
   switch (opcode) {
     case Instruction::NOP:
@@ -176,9 +449,14 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
       // Nothing defined but the result will be unique and non-null.
       if (mir->next != nullptr && mir->next->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {
         MarkNonAliasingNonNull(mir->next);
+        // TUNING: We could track value names stored in the array.
         // The MOVE_RESULT_OBJECT will be processed next and we'll return the value name then.
       }
-      MakeArgsAliasing(mir);
+      // All args escaped (if references).
+      for (size_t i = 0u, count = mir->ssa_rep->num_uses; i != count; ++i) {
+        uint16_t reg = GetOperandValue(mir->ssa_rep->uses[i]);
+        HandleEscapingRef(reg);
+      }
       break;
 
     case Instruction::INVOKE_DIRECT:
@@ -197,8 +475,17 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::INVOKE_STATIC:
     case Instruction::INVOKE_STATIC_RANGE:
       if ((mir->optimization_flags & MIR_INLINED) == 0) {
-        AdvanceGlobalMemory();
-        MakeArgsAliasing(mir);
+        // Use mir->offset as modifier; without elaborate inlining, it will be unique.
+        global_memory_version_ = LookupValue(kInvokeMemoryVersionBumpOp, 0u, 0u, mir->offset);
+        // Make ref args aliasing.
+        for (size_t i = 0u, count = mir->ssa_rep->num_uses; i != count; ++i) {
+          uint16_t reg = GetOperandValue(mir->ssa_rep->uses[i]);
+          non_aliasing_refs_.erase(reg);
+        }
+        // All fields of escaped references need to be treated as potentially modified.
+        non_aliasing_ifields_.clear();
+        // Array elements may also have been modified via escaped array refs.
+        escaped_array_refs_.clear();
       }
       break;
 
@@ -211,12 +498,23 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
       break;
     case Instruction::MOVE_EXCEPTION:
     case Instruction::NEW_INSTANCE:
-    case Instruction::CONST_STRING:
-    case Instruction::CONST_STRING_JUMBO:
     case Instruction::CONST_CLASS:
     case Instruction::NEW_ARRAY:
       // 1 result, treat as unique each time, use result s_reg - will be unique.
       res = MarkNonAliasingNonNull(mir);
+      break;
+    case Instruction::CONST_STRING:
+    case Instruction::CONST_STRING_JUMBO:
+      // These strings are internalized, so assign value based on the string pool index.
+      res = LookupValue(Instruction::CONST_STRING, Low16Bits(mir->dalvikInsn.vB),
+                        High16Bits(mir->dalvikInsn.vB), 0);
+      SetOperandValue(mir->ssa_rep->defs[0], res);
+      null_checked_.insert(res);  // May already be there.
+      // NOTE: Hacking the contents of an internalized string via reflection is possible
+      // but the behavior is undefined. Therefore, we consider the string constant and
+      // the reference non-aliasing.
+      // TUNING: We could keep this property even if the reference "escapes".
+      non_aliasing_refs_.insert(res);  // May already be there.
       break;
     case Instruction::MOVE_RESULT_WIDE:
       // 1 wide result, treat as unique each time, use result s_reg - will be unique.
@@ -255,7 +553,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::CONST_4:
     case Instruction::CONST_16:
       res = LookupValue(Instruction::CONST, Low16Bits(mir->dalvikInsn.vB),
-                        High16Bits(mir->dalvikInsn.vB >> 16), 0);
+                        High16Bits(mir->dalvikInsn.vB), 0);
       SetOperandValue(mir->ssa_rep->defs[0], res);
       break;
 
@@ -310,7 +608,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::FLOAT_TO_INT: {
         // res = op + 1 operand
         uint16_t operand1 = GetOperandValue(mir->ssa_rep->uses[0]);
-        res = LookupValue(opcode, operand1, NO_VALUE, NO_VALUE);
+        res = LookupValue(opcode, operand1, kNoValue, kNoValue);
         SetOperandValue(mir->ssa_rep->defs[0], res);
       }
       break;
@@ -320,8 +618,8 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::DOUBLE_TO_FLOAT:
     case Instruction::DOUBLE_TO_INT: {
         // res = op + 1 wide operand
-        uint16_t operand1 = GetOperandValue(mir->ssa_rep->uses[0]);
-        res = LookupValue(opcode, operand1, NO_VALUE, NO_VALUE);
+        uint16_t operand1 = GetOperandValueWide(mir->ssa_rep->uses[0]);
+        res = LookupValue(opcode, operand1, kNoValue, kNoValue);
         SetOperandValue(mir->ssa_rep->defs[0], res);
       }
       break;
@@ -334,7 +632,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::NEG_DOUBLE: {
         // wide res = op + 1 wide operand
         uint16_t operand1 = GetOperandValueWide(mir->ssa_rep->uses[0]);
-        res = LookupValue(opcode, operand1, NO_VALUE, NO_VALUE);
+        res = LookupValue(opcode, operand1, kNoValue, kNoValue);
         SetOperandValueWide(mir->ssa_rep->defs[0], res);
       }
       break;
@@ -344,8 +642,8 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::INT_TO_DOUBLE:
     case Instruction::INT_TO_LONG: {
         // wide res = op + 1 operand
-        uint16_t operand1 = GetOperandValueWide(mir->ssa_rep->uses[0]);
-        res = LookupValue(opcode, operand1, NO_VALUE, NO_VALUE);
+        uint16_t operand1 = GetOperandValue(mir->ssa_rep->uses[0]);
+        res = LookupValue(opcode, operand1, kNoValue, kNoValue);
         SetOperandValueWide(mir->ssa_rep->defs[0], res);
       }
       break;
@@ -356,7 +654,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
         // res = op + 2 wide operands
         uint16_t operand1 = GetOperandValueWide(mir->ssa_rep->uses[0]);
         uint16_t operand2 = GetOperandValueWide(mir->ssa_rep->uses[2]);
-        res = LookupValue(opcode, operand1, operand2, NO_VALUE);
+        res = LookupValue(opcode, operand1, operand2, kNoValue);
         SetOperandValue(mir->ssa_rep->defs[0], res);
       }
       break;
@@ -388,7 +686,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
         // res = op + 2 operands
         uint16_t operand1 = GetOperandValue(mir->ssa_rep->uses[0]);
         uint16_t operand2 = GetOperandValue(mir->ssa_rep->uses[1]);
-        res = LookupValue(opcode, operand1, operand2, NO_VALUE);
+        res = LookupValue(opcode, operand1, operand2, kNoValue);
         SetOperandValue(mir->ssa_rep->defs[0], res);
       }
       break;
@@ -422,7 +720,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
         // wide res = op + 2 wide operands
         uint16_t operand1 = GetOperandValueWide(mir->ssa_rep->uses[0]);
         uint16_t operand2 = GetOperandValueWide(mir->ssa_rep->uses[2]);
-        res = LookupValue(opcode, operand1, operand2, NO_VALUE);
+        res = LookupValue(opcode, operand1, operand2, kNoValue);
         SetOperandValueWide(mir->ssa_rep->defs[0], res);
       }
       break;
@@ -435,8 +733,8 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::USHR_LONG_2ADDR: {
         // wide res = op + 1 wide operand + 1 operand
         uint16_t operand1 = GetOperandValueWide(mir->ssa_rep->uses[0]);
-        uint16_t operand2 = GetOperandValueWide(mir->ssa_rep->uses[2]);
-        res = LookupValue(opcode, operand1, operand2, NO_VALUE);
+        uint16_t operand2 = GetOperandValue(mir->ssa_rep->uses[2]);
+        res = LookupValue(opcode, operand1, operand2, kNoValue);
         SetOperandValueWide(mir->ssa_rep->defs[0], res);
       }
       break;
@@ -454,7 +752,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
         // res = op + 2 operands
         uint16_t operand1 = GetOperandValue(mir->ssa_rep->uses[0]);
         uint16_t operand2 = GetOperandValue(mir->ssa_rep->uses[1]);
-        res = LookupValue(opcode, operand1, operand2, NO_VALUE);
+        res = LookupValue(opcode, operand1, operand2, kNoValue);
         SetOperandValue(mir->ssa_rep->defs[0], res);
       }
       break;
@@ -481,7 +779,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
         // Same as res = op + 2 operands, except use vC as operand 2
         uint16_t operand1 = GetOperandValue(mir->ssa_rep->uses[0]);
         uint16_t operand2 = LookupValue(Instruction::CONST, mir->dalvikInsn.vC, 0, 0);
-        res = LookupValue(opcode, operand1, operand2, NO_VALUE);
+        res = LookupValue(opcode, operand1, operand2, kNoValue);
         SetOperandValue(mir->ssa_rep->defs[0], res);
       }
       break;
@@ -492,21 +790,8 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::AGET_BOOLEAN:
     case Instruction::AGET_BYTE:
     case Instruction::AGET_CHAR:
-    case Instruction::AGET_SHORT: {
-        uint16_t type = opcode - Instruction::AGET;
-        uint16_t array = GetOperandValue(mir->ssa_rep->uses[0]);
-        HandleNullCheck(mir, array);
-        uint16_t index = GetOperandValue(mir->ssa_rep->uses[1]);
-        HandleRangeCheck(mir, array, index);
-        // Establish value number for loaded register. Note use of memory version.
-        uint16_t memory_version = GetMemoryVersion(array, NO_VALUE, type);
-        uint16_t res = LookupValue(ARRAY_REF, array, index, memory_version);
-        if (opcode == Instruction::AGET_WIDE) {
-          SetOperandValueWide(mir->ssa_rep->defs[0], res);
-        } else {
-          SetOperandValue(mir->ssa_rep->defs[0], res);
-        }
-      }
+    case Instruction::AGET_SHORT:
+      res = HandleAGet(mir, opcode);
       break;
 
     case Instruction::APUT_OBJECT:
@@ -517,17 +802,8 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::APUT_BYTE:
     case Instruction::APUT_BOOLEAN:
     case Instruction::APUT_SHORT:
-    case Instruction::APUT_CHAR: {
-        uint16_t type = opcode - Instruction::APUT;
-        int array_idx = (opcode == Instruction::APUT_WIDE) ? 2 : 1;
-        int index_idx = array_idx + 1;
-        uint16_t array = GetOperandValue(mir->ssa_rep->uses[array_idx]);
-        HandleNullCheck(mir, array);
-        uint16_t index = GetOperandValue(mir->ssa_rep->uses[index_idx]);
-        HandleRangeCheck(mir, array, index);
-        // Rev the memory version
-        AdvanceMemoryVersion(array, NO_VALUE, type);
-      }
+    case Instruction::APUT_CHAR:
+      HandleAPut(mir, opcode);
       break;
 
     case Instruction::IGET_OBJECT:
@@ -536,33 +812,8 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::IGET_BOOLEAN:
     case Instruction::IGET_BYTE:
     case Instruction::IGET_CHAR:
-    case Instruction::IGET_SHORT: {
-        uint16_t type = opcode - Instruction::IGET;
-        uint16_t base = GetOperandValue(mir->ssa_rep->uses[0]);
-        HandleNullCheck(mir, base);
-        const MirFieldInfo& field_info = cu_->mir_graph->GetIFieldLoweringInfo(mir);
-        uint16_t memory_version;
-        uint16_t field_id;
-        if (!field_info.IsResolved() || field_info.IsVolatile()) {
-          // Volatile fields always get a new memory version; field id is irrelevant.
-          // Unresolved fields may be volatile, so handle them as such to be safe.
-          field_id = 0u;
-          memory_version = next_memory_version_;
-          ++next_memory_version_;
-        } else {
-          DCHECK(field_info.IsResolved());
-          field_id = GetFieldId(field_info.DeclaringDexFile(), field_info.DeclaringFieldIndex());
-          memory_version = std::max(unresolved_ifield_version_[type],
-                                    GetMemoryVersion(base, field_id, type));
-        }
-        if (opcode == Instruction::IGET_WIDE) {
-          res = LookupValue(Instruction::IGET_WIDE, base, field_id, memory_version);
-          SetOperandValueWide(mir->ssa_rep->defs[0], res);
-        } else {
-          res = LookupValue(Instruction::IGET, base, field_id, memory_version);
-          SetOperandValue(mir->ssa_rep->defs[0], res);
-        }
-      }
+    case Instruction::IGET_SHORT:
+      res = HandleIGet(mir, opcode);
       break;
 
     case Instruction::IPUT_OBJECT:
@@ -573,24 +824,8 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::IPUT_BOOLEAN:
     case Instruction::IPUT_BYTE:
     case Instruction::IPUT_CHAR:
-    case Instruction::IPUT_SHORT: {
-        uint16_t type = opcode - Instruction::IPUT;
-        int base_reg = (opcode == Instruction::IPUT_WIDE) ? 2 : 1;
-        uint16_t base = GetOperandValue(mir->ssa_rep->uses[base_reg]);
-        HandleNullCheck(mir, base);
-        const MirFieldInfo& field_info = cu_->mir_graph->GetIFieldLoweringInfo(mir);
-        if (!field_info.IsResolved()) {
-          // Unresolved fields always alias with everything of the same type.
-          unresolved_ifield_version_[type] = next_memory_version_;
-          ++next_memory_version_;
-        } else if (field_info.IsVolatile()) {
-          // Nothing to do, resolved volatile fields always get a new memory version anyway and
-          // can't alias with resolved non-volatile fields.
-        } else {
-          AdvanceMemoryVersion(base, GetFieldId(field_info.DeclaringDexFile(),
-                                                field_info.DeclaringFieldIndex()), type);
-        }
-      }
+    case Instruction::IPUT_SHORT:
+      HandleIPut(mir, opcode);
       break;
 
     case Instruction::SGET_OBJECT:
@@ -599,31 +834,8 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::SGET_BOOLEAN:
     case Instruction::SGET_BYTE:
     case Instruction::SGET_CHAR:
-    case Instruction::SGET_SHORT: {
-        uint16_t type = opcode - Instruction::SGET;
-        const MirFieldInfo& field_info = cu_->mir_graph->GetSFieldLoweringInfo(mir);
-        uint16_t memory_version;
-        uint16_t field_id;
-        if (!field_info.IsResolved() || field_info.IsVolatile()) {
-          // Volatile fields always get a new memory version; field id is irrelevant.
-          // Unresolved fields may be volatile, so handle them as such to be safe.
-          field_id = 0u;
-          memory_version = next_memory_version_;
-          ++next_memory_version_;
-        } else {
-          DCHECK(field_info.IsResolved());
-          field_id = GetFieldId(field_info.DeclaringDexFile(), field_info.DeclaringFieldIndex());
-          memory_version = std::max(unresolved_sfield_version_[type],
-                                    GetMemoryVersion(NO_VALUE, field_id, type));
-        }
-        if (opcode == Instruction::SGET_WIDE) {
-          res = LookupValue(Instruction::SGET_WIDE, NO_VALUE, field_id, memory_version);
-          SetOperandValueWide(mir->ssa_rep->defs[0], res);
-        } else {
-          res = LookupValue(Instruction::SGET, NO_VALUE, field_id, memory_version);
-          SetOperandValue(mir->ssa_rep->defs[0], res);
-        }
-      }
+    case Instruction::SGET_SHORT:
+      res = HandleSGet(mir, opcode);
       break;
 
     case Instruction::SPUT_OBJECT:
@@ -634,21 +846,8 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::SPUT_BOOLEAN:
     case Instruction::SPUT_BYTE:
     case Instruction::SPUT_CHAR:
-    case Instruction::SPUT_SHORT: {
-        uint16_t type = opcode - Instruction::SPUT;
-        const MirFieldInfo& field_info = cu_->mir_graph->GetSFieldLoweringInfo(mir);
-        if (!field_info.IsResolved()) {
-          // Unresolved fields always alias with everything of the same type.
-          unresolved_sfield_version_[type] = next_memory_version_;
-          ++next_memory_version_;
-        } else if (field_info.IsVolatile()) {
-          // Nothing to do, resolved volatile fields always get a new memory version anyway and
-          // can't alias with resolved non-volatile fields.
-        } else {
-          AdvanceMemoryVersion(NO_VALUE, GetFieldId(field_info.DeclaringDexFile(),
-                                                    field_info.DeclaringFieldIndex()), type);
-        }
-      }
+    case Instruction::SPUT_SHORT:
+      HandleSPut(mir, opcode);
       break;
   }
   return res;
