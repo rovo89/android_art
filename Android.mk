@@ -90,6 +90,8 @@ include $(art_path)/oatdump/Android.mk
 include $(art_path)/dalvikvm/Android.mk
 include $(art_path)/tools/Android.mk
 include $(art_build_path)/Android.oat.mk
+include $(art_path)/sigchainlib/Android.mk
+
 
 
 
