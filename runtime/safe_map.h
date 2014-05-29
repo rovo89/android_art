@@ -65,6 +65,9 @@ class SafeMap {
   iterator find(const K& k) { return map_.find(k); }
   const_iterator find(const K& k) const { return map_.find(k); }
 
+  iterator lower_bound(const K& k) { return map_.lower_bound(k); }
+  const_iterator lower_bound(const K& k) const { return map_.lower_bound(k); }
+
   size_type count(const K& k) const { return map_.count(k); }
 
   // Note that unlike std::map's operator[], this doesn't return a reference to the value.
