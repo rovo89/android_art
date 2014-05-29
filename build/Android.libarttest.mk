@@ -49,9 +49,8 @@ define build-libarttest
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/build/Android.libarttest.mk
   include external/libcxx/libcxx.mk
   ifeq ($$(art_target_or_host),target)
-    LOCAL_CLANG := $(ART_TARGET_CLANG)
-    LOCAL_CFLAGS := $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
-    LOCAL_CFLAGS_x86 := $(ART_TARGET_CFLAGS_x86)
+  	$(call set-target-local-clang-vars)
+  	$(call set-target-local-cflags-vars,debug)
     LOCAL_SHARED_LIBRARIES += libdl libcutils
     LOCAL_STATIC_LIBRARIES := libgtest
     LOCAL_MULTILIB := both
