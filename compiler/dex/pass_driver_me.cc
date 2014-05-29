@@ -79,11 +79,11 @@ std::vector<const Pass*> PassDriver<PassDriverME>::g_default_pass_list(PassDrive
 
 // By default, do not have a dump pass list.
 template<>
-std::unique_ptr<const char> PassDriver<PassDriverME>::dump_pass_list_(nullptr);
+std::string PassDriver<PassDriverME>::dump_pass_list_ = std::string();
 
 // By default, do not have a print pass list.
 template<>
-std::unique_ptr<const char> PassDriver<PassDriverME>::print_pass_list_(nullptr);
+std::string PassDriver<PassDriverME>::print_pass_list_ = std::string();
 
 // By default, we do not print the pass' information.
 template<>
@@ -155,7 +155,7 @@ bool PassDriverME::RunPass(const Pass* pass, bool time_split) {
 
     c_unit->print_pass = default_print_passes_;
 
-    const char* print_pass_list = print_pass_list_.get();
+    const char* print_pass_list = print_pass_list_.c_str();
 
     if (print_pass_list != nullptr && strstr(print_pass_list, pass->GetName()) != nullptr) {
       c_unit->print_pass = true;
@@ -167,7 +167,7 @@ bool PassDriverME::RunPass(const Pass* pass, bool time_split) {
     // Do we want to log it?
     bool should_dump = ((c_unit->enable_debug & (1 << kDebugDumpCFG)) != 0);
 
-    const char* dump_pass_list = dump_pass_list_.get();
+    const char* dump_pass_list = dump_pass_list_.c_str();
 
     if (dump_pass_list != nullptr) {
       bool found = strstr(dump_pass_list, pass->GetName());
