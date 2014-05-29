@@ -791,14 +791,14 @@ END_FUNCTION art_quick_aput_obj_with_null_and_bound_check
 
 
 DEFINE_FUNCTION art_quick_aput_obj_with_bound_check
-    movl ARRAY_LENGTH_OFFSET(%edi), %ebx
-//  movl ARRAY_LENGTH_OFFSET(%rdi), %ebx      // This zero-extends, so value(%rbx)=value(%ebx)
-    cmpl %ebx, %esi
+    movl ARRAY_LENGTH_OFFSET(%edi), %ecx
+//  movl ARRAY_LENGTH_OFFSET(%rdi), %ecx      // This zero-extends, so value(%rcx)=value(%ecx)
+    cmpl %ecx, %esi
     jb art_quick_aput_obj_local
     mov %esi, %edi
 //  mov %rsi, %rdi
-    mov %ebx, %esi
-//  mov %rbx, %rsi
+    mov %ecx, %esi
+//  mov %rcx, %rsi
     jmp art_quick_throw_array_bounds_local
 END_FUNCTION art_quick_aput_obj_with_bound_check
 
@@ -807,12 +807,12 @@ DEFINE_FUNCTION art_quick_aput_obj
     testl %edx, %edx                // store of null
 //  test %rdx, %rdx
     jz .Ldo_aput_null
-    movl CLASS_OFFSET(%edi), %ebx
-//  movq CLASS_OFFSET(%rdi), %rbx
-    movl CLASS_COMPONENT_TYPE_OFFSET(%ebx), %ebx
-//  movq CLASS_COMPONENT_TYPE_OFFSET(%rbx), %rbx
-    cmpl CLASS_OFFSET(%edx), %ebx // value's type == array's component type - trivial assignability
-//  cmpq CLASS_OFFSET(%rdx), %rbx
+    movl CLASS_OFFSET(%edi), %ecx
+//  movq CLASS_OFFSET(%rdi), %rcx
+    movl CLASS_COMPONENT_TYPE_OFFSET(%ecx), %ecx
+//  movq CLASS_COMPONENT_TYPE_OFFSET(%rcx), %rcx
+    cmpl CLASS_OFFSET(%edx), %ecx // value's type == array's component type - trivial assignability
+//  cmpq CLASS_OFFSET(%rdx), %rcx
     jne .Lcheck_assignability
 .Ldo_aput:
     movl %edx, OBJECT_ARRAY_DATA_OFFSET(%edi, %esi, 4)
@@ -836,7 +836,7 @@ DEFINE_FUNCTION art_quick_aput_obj
 
                                   // "Uncompress" = do nothing, as already zero-extended on load.
     movl CLASS_OFFSET(%edx), %esi // Pass arg2 = value's class.
-    movq %rbx, %rdi               // Pass arg1 = array's component type.
+    movq %rcx, %rdi               // Pass arg1 = array's component type.
 
     call PLT_SYMBOL(artIsAssignableFromCode)  // (Class* a, Class* b)
 
