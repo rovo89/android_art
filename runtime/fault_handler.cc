@@ -29,11 +29,21 @@
 #include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
+#ifdef HAVE_ANDROID_OS
+#include "sigchain.h"
+#endif
 #include "verify_object-inl.h"
 
 namespace art {
 // Static fault manger object accessed by signal handler.
 FaultManager fault_manager;
+
+extern "C" {
+void art_sigsegv_fault() {
+  // Set a breakpoint here to be informed when a SIGSEGV is unhandled by ART.
+  VLOG(signals)<< "Caught unknown SIGSEGV in ART fault handler - chaining to next handler.";
+}
+}
 
 // Signal handler called on SIGSEGV.
 static void art_fault_handler(int sig, siginfo_t* info, void* context) {
@@ -45,8 +55,12 @@ FaultManager::FaultManager() {
 }
 
 FaultManager::~FaultManager() {
+#ifdef HAVE_ANDROID_OS
+  UnclaimSignalChain(SIGSEGV);
+#endif
   sigaction(SIGSEGV, &oldaction_, nullptr);   // Restore old handler.
 }
+
 
 void FaultManager::Init() {
   struct sigaction action;
@@ -56,7 +70,13 @@ void FaultManager::Init() {
 #if !defined(__mips__)
   action.sa_restorer = nullptr;
 #endif
+
+  // Set our signal handler now.
   sigaction(SIGSEGV, &action, &oldaction_);
+#ifdef HAVE_ANDROID_OS
+  // Make sure our signal handler is called before any user handlers.
+  ClaimSignalChain(SIGSEGV, &oldaction_);
+#endif
 }
 
 void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
@@ -79,8 +99,13 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
       return;
     }
   }
-  VLOG(signals)<< "Caught unknown SIGSEGV in ART fault handler";
+  art_sigsegv_fault();
+
+#ifdef HAVE_ANDROID_OS
+  InvokeUserSignalHandler(sig, info, context);
+#else
   oldaction_.sa_sigaction(sig, info, context);
+#endif
 }
 
 void FaultManager::AddHandler(FaultHandler* handler, bool generated_code) {

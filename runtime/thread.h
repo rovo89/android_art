@@ -121,7 +121,7 @@ class Thread {
   // of the stack (lowest memory).  The higher portion of the memory
   // is protected against reads and the lower is available for use while
   // throwing the StackOverflow exception.
-  static constexpr size_t kStackOverflowProtectedSize = 32 * KB;
+  static constexpr size_t kStackOverflowProtectedSize = 16 * KB;
   static constexpr size_t kStackOverflowImplicitCheckSize = kStackOverflowProtectedSize +
     kStackOverflowReservedBytes;
 
