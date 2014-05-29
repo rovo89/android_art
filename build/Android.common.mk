@@ -119,18 +119,29 @@ ifeq ($(ART_USE_PORTABLE_COMPILER),true)
 endif
 
 # Clang build support.
-# Target builds use GCC by default.
-ART_TARGET_CLANG := false
+
+# Host.
 ART_HOST_CLANG := false
 ifneq ($(WITHOUT_HOST_CLANG),true)
   # By default, host builds use clang for better warnings.
   ART_HOST_CLANG := true
 endif
 
-# enable ART_TARGET_CLANG for ARM64
-ifneq (,$(filter $(TARGET_ARCH),arm64))
-ART_TARGET_CLANG := true
-endif
+# Clang on the target: only enabled for ARM64. Target builds use GCC by default.
+ART_TARGET_CLANG :=
+ART_TARGET_CLANG_arm :=
+ART_TARGET_CLANG_arm64 := true
+ART_TARGET_CLANG_mips :=
+ART_TARGET_CLANG_x86 :=
+ART_TARGET_CLANG_x86_64 :=
+
+define set-target-local-clang-vars
+    LOCAL_CLANG := $(ART_TARGET_CLANG)
+    $(foreach arch,$(ART_SUPPORTED_ARCH),
+    	ifneq ($$(ART_TARGET_CLANG_$(arch)),)
+        LOCAL_CLANG_$(arch) := $$(ART_TARGET_CLANG_$(arch))
+      endif)
+endef
 
 # directory used for dalvik-cache on device
 ART_DALVIK_CACHE_DIR := /data/dalvik-cache
@@ -190,13 +201,18 @@ art_cflags := \
 	-Wstrict-aliasing \
 	-fstrict-aliasing
 
+ART_TARGET_CLANG_CFLAGS :=
+ART_TARGET_CLANG_CFLAGS_arm :=
+ART_TARGET_CLANG_CFLAGS_arm64 :=
+ART_TARGET_CLANG_CFLAGS_mips :=
+ART_TARGET_CLANG_CFLAGS_x86 :=
+ART_TARGET_CLANG_CFLAGS_x86_64 :=
+
 # these are necessary for Clang ARM64 ART builds
-ifeq ($(ART_TARGET_CLANG), true)
-art_cflags += \
+ART_TARGET_CLANG_CFLAGS_arm64  += \
 	-Wno-implicit-exception-spec-mismatch \
 	-DNVALGRIND \
 	-Wno-unused-value
-endif
 
 ifeq ($(ART_SMALL_MODE),true)
   art_cflags += -DART_SMALL_MODE=1
@@ -215,10 +231,8 @@ art_non_debug_cflags := \
 	-O3
 
 # FIXME: upstream LLVM has a vectorizer bug that needs to be fixed
-ifeq ($(ART_TARGET_CLANG),true)
-art_non_debug_cflags += \
-        -fno-vectorize
-endif
+ART_TARGET_CLANG_CFLAGS_arm64 += \
+	-fno-vectorize
 
 art_debug_cflags := \
 	-O1 \
@@ -295,6 +309,24 @@ ifneq ($(HOST_OS),linux)
 endif
 
 ART_TARGET_DEBUG_CFLAGS := $(art_debug_cflags)
+
+# $(1): ndebug_or_debug
+define set-target-local-cflags-vars
+    LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
+    LOCAL_CFLAGS_x86 += $(ART_TARGET_CFLAGS_x86)
+    art_target_cflags_ndebug_or_debug := $(1)
+    ifeq ($$(art_target_cflags_ndebug_or_debug),debug)
+      LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)
+    else
+      LOCAL_CFLAGS += $(ART_TARGET_NON_DEBUG_CFLAGS)
+    endif
+
+    # TODO: Also set when ART_TARGET_CLANG_$(arch)!=false and ART_TARGET_CLANG==true
+    $(foreach arch,$(ART_SUPPORTED_ARCH),
+    	ifeq ($$(ART_TARGET_CLANG_$(arch)),true)
+        LOCAL_CFLAGS_$(arch) += $$(ART_TARGET_CLANG_CFLAGS_$(arch))
+      endif)
+endef
 
 ART_BUILD_TARGET := false
 ART_BUILD_HOST := false
