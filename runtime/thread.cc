@@ -1253,7 +1253,8 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
   // The "kinds" below are sorted by the frequency we expect to encounter them.
   if (kind == kLocal) {
     IndirectReferenceTable& locals = tlsPtr_.jni_env->locals;
-    result = locals.Get(ref);
+    // Local references do not need a read barrier.
+    result = locals.Get<kWithoutReadBarrier>(ref);
   } else if (kind == kHandleScopeOrInvalid) {
     // TODO: make stack indirect reference table lookup more efficient.
     // Check if this is a local reference in the handle scope.
@@ -1266,7 +1267,9 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
     }
   } else if (kind == kGlobal) {
     JavaVMExt* const vm = Runtime::Current()->GetJavaVM();
-    result = vm->globals.SynchronizedGet(const_cast<Thread*>(this), &vm->globals_lock, ref);
+    // Strong global references do not need a read barrier.
+    result = vm->globals.SynchronizedGet<kWithoutReadBarrier>(
+        const_cast<Thread*>(this), &vm->globals_lock, ref);
   } else {
     DCHECK_EQ(kind, kWeakGlobal);
     result = Runtime::Current()->GetJavaVM()->DecodeWeakGlobal(const_cast<Thread*>(this), ref);

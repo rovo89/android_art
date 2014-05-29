@@ -129,6 +129,9 @@ class JavaVMExt : public JavaVM {
   // TODO: Make the other members of this class also private.
   // JNI weak global references.
   Mutex weak_globals_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  // Since weak_globals_ contain weak roots, be careful not to
+  // directly access the object references in it. Use Get() with the
+  // read barrier enabled.
   IndirectReferenceTable weak_globals_ GUARDED_BY(weak_globals_lock_);
   bool allow_new_weak_globals_ GUARDED_BY(weak_globals_lock_);
   ConditionVariable weak_globals_add_condition_ GUARDED_BY(weak_globals_lock_);
