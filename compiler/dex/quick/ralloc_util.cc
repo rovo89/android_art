@@ -406,6 +406,10 @@ RegStorage Mir2Lir::AllocTempWide() {
   return res;
 }
 
+RegStorage Mir2Lir::AllocTempWord() {
+  return (Is64BitInstructionSet(cu_->instruction_set)) ? AllocTempWide() : AllocTemp();
+}
+
 RegStorage Mir2Lir::AllocTempSingle() {
   RegStorage res = AllocTempBody(reg_pool_->sp_regs_, &reg_pool_->next_sp_reg_, true);
   DCHECK(res.IsSingle()) << "Reg: 0x" << std::hex << res.GetRawBits();
