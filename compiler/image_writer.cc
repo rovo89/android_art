@@ -742,30 +742,42 @@ void ImageWriter::PatchOatCodeAndMethods() {
     const CompilerDriver::CallPatchInformation* patch = code_to_patch[i];
     ArtMethod* target = GetTargetMethod(patch);
     uintptr_t quick_code = reinterpret_cast<uintptr_t>(class_linker->GetQuickOatCodeFor(target));
+    DCHECK_NE(quick_code, 0U) << PrettyMethod(target);
     uintptr_t code_base = reinterpret_cast<uintptr_t>(&oat_file_->GetOatHeader());
     uintptr_t code_offset = quick_code - code_base;
+    bool is_quick_offset = false;
+    if (quick_code == reinterpret_cast<uintptr_t>(GetQuickToInterpreterBridge())) {
+      is_quick_offset = true;
+      code_offset = PointerToLowMemUInt32(GetOatAddress(quick_to_interpreter_bridge_offset_));
+    } else if (quick_code ==
+        reinterpret_cast<uintptr_t>(class_linker->GetQuickGenericJniTrampoline())) {
+      CHECK(target->IsNative());
+      is_quick_offset = true;
+      code_offset = PointerToLowMemUInt32(GetOatAddress(quick_generic_jni_trampoline_offset_));
+    }
+    uintptr_t value;
     if (patch->IsRelative()) {
       // value to patch is relative to the location being patched
       const void* quick_oat_code =
         class_linker->GetQuickOatCodeFor(patch->GetDexFile(),
                                          patch->GetReferrerClassDefIdx(),
                                          patch->GetReferrerMethodIdx());
+      if (is_quick_offset) {
+        quick_code = code_offset;
+        // If its a quick offset it means that we are doing a relative patch from the class linker
+        // oat_file to the image writer oat_file so we need to adjust the quick oat code to be the
+        // one in the image writer oat_file.
+        quick_oat_code =
+            reinterpret_cast<const void*>(reinterpret_cast<uintptr_t>(quick_oat_code) +
+                reinterpret_cast<uintptr_t>(oat_data_begin_) - code_base);
+      }
       uintptr_t base = reinterpret_cast<uintptr_t>(quick_oat_code);
       uintptr_t patch_location = base + patch->GetLiteralOffset();
-      uintptr_t value = quick_code - patch_location + patch->RelativeOffset();
-      SetPatchLocation(patch, value);
+      value = quick_code - patch_location + patch->RelativeOffset();
     } else {
-      if (quick_code == reinterpret_cast<uintptr_t>(GetQuickToInterpreterBridge()) ||
-          quick_code == reinterpret_cast<uintptr_t>(class_linker->GetQuickGenericJniTrampoline())) {
-        if (target->IsNative()) {
-          // generic JNI, not interpreter bridge from GetQuickOatCodeFor().
-          code_offset = quick_generic_jni_trampoline_offset_;
-        } else {
-          code_offset = quick_to_interpreter_bridge_offset_;
-        }
-      }
-      SetPatchLocation(patch, PointerToLowMemUInt32(GetOatAddress(code_offset)));
+      value = code_offset;
     }
+    SetPatchLocation(patch, value);
   }
 
   const CallPatches& methods_to_patch = compiler_driver_.GetMethodsToPatch();
