@@ -84,6 +84,17 @@ extern JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh,
                               const DexFile::CodeItem* code_item,
                               ShadowFrame& shadow_frame, JValue result_register);
 
+// Workaround for b/14882674 where clang allocates stack for each ThrowLocation created by calls to
+// ShadowFrame::GetCurrentLocationForThrow(). Moving the call here prevents from doing such
+// allocation in the interpreter itself.
+static inline void ThrowNullPointerExceptionFromInterpreter(const ShadowFrame& shadow_frame)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) SOMETIMES_INLINE;
+
+static inline void ThrowNullPointerExceptionFromInterpreter(
+    const ShadowFrame& shadow_frame) {
+  ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
+}
+
 static inline void DoMonitorEnter(Thread* self, Object* ref) NO_THREAD_SAFETY_ANALYSIS {
   ref->MonitorEnter(self);
 }
