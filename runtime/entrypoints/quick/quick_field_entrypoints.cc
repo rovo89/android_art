@@ -27,7 +27,7 @@ namespace art {
 
 extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx,
                                            mirror::ArtMethod* referrer,
-                                           Thread* self, mirror::ArtMethod** sp)
+                                           Thread* self, StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead,
                                           sizeof(int32_t));
@@ -44,7 +44,7 @@ extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx,
 
 extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx,
                                            mirror::ArtMethod* referrer,
-                                           Thread* self, mirror::ArtMethod** sp)
+                                           Thread* self, StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead,
                                           sizeof(int64_t));
@@ -61,7 +61,8 @@ extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx,
 
 extern "C" mirror::Object* artGetObjStaticFromCode(uint32_t field_idx,
                                                    mirror::ArtMethod* referrer,
-                                                   Thread* self, mirror::ArtMethod** sp)
+                                                   Thread* self,
+                                                   StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticObjectRead,
                                           sizeof(mirror::HeapReference<mirror::Object>));
@@ -79,7 +80,7 @@ extern "C" mirror::Object* artGetObjStaticFromCode(uint32_t field_idx,
 
 extern "C" uint32_t artGet32InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
                                              mirror::ArtMethod* referrer, Thread* self,
-                                             mirror::ArtMethod** sp)
+                                             StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead,
                                           sizeof(int32_t));
@@ -102,7 +103,7 @@ extern "C" uint32_t artGet32InstanceFromCode(uint32_t field_idx, mirror::Object*
 
 extern "C" uint64_t artGet64InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
                                              mirror::ArtMethod* referrer, Thread* self,
-                                             mirror::ArtMethod** sp)
+                                             StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead,
                                           sizeof(int64_t));
@@ -126,7 +127,7 @@ extern "C" uint64_t artGet64InstanceFromCode(uint32_t field_idx, mirror::Object*
 extern "C" mirror::Object* artGetObjInstanceFromCode(uint32_t field_idx, mirror::Object* obj,
                                                      mirror::ArtMethod* referrer,
                                                      Thread* self,
-                                                     mirror::ArtMethod** sp)
+                                                     StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstanceObjectRead,
                                           sizeof(mirror::HeapReference<mirror::Object>));
@@ -149,7 +150,7 @@ extern "C" mirror::Object* artGetObjInstanceFromCode(uint32_t field_idx, mirror:
 
 extern "C" int artSet32StaticFromCode(uint32_t field_idx, uint32_t new_value,
                                       mirror::ArtMethod* referrer, Thread* self,
-                                      mirror::ArtMethod** sp)
+                                      StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite,
                                           sizeof(int32_t));
@@ -169,7 +170,8 @@ extern "C" int artSet32StaticFromCode(uint32_t field_idx, uint32_t new_value,
 }
 
 extern "C" int artSet64StaticFromCode(uint32_t field_idx, mirror::ArtMethod* referrer,
-                                      uint64_t new_value, Thread* self, mirror::ArtMethod** sp)
+                                      uint64_t new_value, Thread* self,
+                                      StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite,
                                           sizeof(int64_t));
@@ -190,7 +192,7 @@ extern "C" int artSet64StaticFromCode(uint32_t field_idx, mirror::ArtMethod* ref
 
 extern "C" int artSetObjStaticFromCode(uint32_t field_idx, mirror::Object* new_value,
                                        mirror::ArtMethod* referrer, Thread* self,
-                                       mirror::ArtMethod** sp)
+                                       StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticObjectWrite,
                                           sizeof(mirror::HeapReference<mirror::Object>));
@@ -214,7 +216,7 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, mirror::Object* new_v
 
 extern "C" int artSet32InstanceFromCode(uint32_t field_idx, mirror::Object* obj, uint32_t new_value,
                                         mirror::ArtMethod* referrer, Thread* self,
-                                        mirror::ArtMethod** sp)
+                                        StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite,
                                           sizeof(int32_t));
@@ -240,13 +242,15 @@ extern "C" int artSet32InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
 }
 
 extern "C" int artSet64InstanceFromCode(uint32_t field_idx, mirror::Object* obj, uint64_t new_value,
-                                        Thread* self, mirror::ArtMethod** sp)
+                                        Thread* self, StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Runtime* runtime = Runtime::Current();
   mirror::ArtMethod* callee_save = runtime->GetCalleeSaveMethod(Runtime::kRefsOnly);
   uint32_t frame_size =
       runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsOnly).FrameSizeInBytes();
-  mirror::ArtMethod* referrer = sp[frame_size / sizeof(mirror::ArtMethod*)];
+  mirror::ArtMethod* referrer =
+      reinterpret_cast<StackReference<mirror::ArtMethod>*>(
+          reinterpret_cast<uint8_t*>(sp) + frame_size)->AsMirrorPtr();
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite,
                                           sizeof(int64_t));
   if (LIKELY(field != NULL  && obj != NULL)) {
@@ -254,7 +258,7 @@ extern "C" int artSet64InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
     field->Set64<false>(obj, new_value);
     return 0;  // success
   }
-  *sp = callee_save;
+  sp->Assign(callee_save);
   self->SetTopOfStack(sp, 0);
   field = FindFieldFromCode<InstancePrimitiveWrite, true>(field_idx, referrer, self,
                                                           sizeof(int64_t));
@@ -274,7 +278,7 @@ extern "C" int artSet64InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
 extern "C" int artSetObjInstanceFromCode(uint32_t field_idx, mirror::Object* obj,
                                          mirror::Object* new_value,
                                          mirror::ArtMethod* referrer, Thread* self,
-                                         mirror::ArtMethod** sp)
+                                         StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstanceObjectWrite,
                                           sizeof(mirror::HeapReference<mirror::Object>));

@@ -60,7 +60,7 @@ class JniCompilerTest : public CommonCompilerTest {
     } else {
       method = c->FindVirtualMethod(method_name, method_sig);
     }
-    ASSERT_TRUE(method != NULL) << method_name << " " << method_sig;
+    ASSERT_TRUE(method != nullptr) << method_name << " " << method_sig;
     if (method->GetEntryPointFromQuickCompiledCode() == nullptr) {
       ASSERT_TRUE(method->GetEntryPointFromPortableCompiledCode() == nullptr);
       CompileMethod(method);
@@ -88,16 +88,16 @@ class JniCompilerTest : public CommonCompilerTest {
     // JNI operations after runtime start.
     env_ = Thread::Current()->GetJniEnv();
     jklass_ = env_->FindClass("MyClassNatives");
-    ASSERT_TRUE(jklass_ != NULL) << method_name << " " << method_sig;
+    ASSERT_TRUE(jklass_ != nullptr) << method_name << " " << method_sig;
 
     if (direct) {
       jmethod_ = env_->GetStaticMethodID(jklass_, method_name, method_sig);
     } else {
       jmethod_ = env_->GetMethodID(jklass_, method_name, method_sig);
     }
-    ASSERT_TRUE(jmethod_ != NULL) << method_name << " " << method_sig;
+    ASSERT_TRUE(jmethod_ != nullptr) << method_name << " " << method_sig;
 
-    if (native_fnptr != NULL) {
+    if (native_fnptr != nullptr) {
       JNINativeMethod methods[] = { { method_name, method_sig, native_fnptr } };
       ASSERT_EQ(JNI_OK, env_->RegisterNatives(jklass_, methods, 1))
               << method_name << " " << method_sig;
@@ -107,7 +107,7 @@ class JniCompilerTest : public CommonCompilerTest {
 
     jmethodID constructor = env_->GetMethodID(jklass_, "<init>", "()V");
     jobj_ = env_->NewObject(jklass_, constructor);
-    ASSERT_TRUE(jobj_ != NULL) << method_name << " " << method_sig;
+    ASSERT_TRUE(jobj_ != nullptr) << method_name << " " << method_sig;
   }
 
  public:
@@ -125,13 +125,14 @@ jclass JniCompilerTest::jklass_;
 jobject JniCompilerTest::jobj_;
 jobject JniCompilerTest::class_loader_;
 
+
 int gJava_MyClassNatives_foo_calls = 0;
 void Java_MyClassNatives_foo(JNIEnv* env, jobject thisObj) {
   // 1 = thisObj
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   Locks::mutator_lock_->AssertNotHeld(Thread::Current());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
-  EXPECT_TRUE(thisObj != NULL);
+  EXPECT_TRUE(thisObj != nullptr);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClassNatives_foo_calls++;
   ScopedObjectAccess soa(Thread::Current());
@@ -151,8 +152,8 @@ TEST_F(JniCompilerTest, CompileAndRunNoArgMethod) {
 
 TEST_F(JniCompilerTest, CompileAndRunIntMethodThroughStub) {
   TEST_DISABLED_FOR_PORTABLE();
-  SetUpForTest(false, "bar", "(I)I",
-               NULL /* calling through stub will link with &Java_MyClassNatives_bar */);
+  SetUpForTest(false, "bar", "(I)I", nullptr);
+  // calling through stub will link with &Java_MyClassNatives_bar
 
   ScopedObjectAccess soa(Thread::Current());
   std::string reason;
@@ -168,8 +169,8 @@ TEST_F(JniCompilerTest, CompileAndRunIntMethodThroughStub) {
 
 TEST_F(JniCompilerTest, CompileAndRunStaticIntMethodThroughStub) {
   TEST_DISABLED_FOR_PORTABLE();
-  SetUpForTest(true, "sbar", "(I)I",
-               NULL /* calling through stub will link with &Java_MyClassNatives_sbar */);
+  SetUpForTest(true, "sbar", "(I)I", nullptr);
+  // calling through stub will link with &Java_MyClassNatives_sbar
 
   ScopedObjectAccess soa(Thread::Current());
   std::string reason;
@@ -188,7 +189,7 @@ jint Java_MyClassNatives_fooI(JNIEnv* env, jobject thisObj, jint x) {
   // 1 = thisObj
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
-  EXPECT_TRUE(thisObj != NULL);
+  EXPECT_TRUE(thisObj != nullptr);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClassNatives_fooI_calls++;
   ScopedObjectAccess soa(Thread::Current());
@@ -215,7 +216,7 @@ jint Java_MyClassNatives_fooII(JNIEnv* env, jobject thisObj, jint x, jint y) {
   // 1 = thisObj
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
-  EXPECT_TRUE(thisObj != NULL);
+  EXPECT_TRUE(thisObj != nullptr);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClassNatives_fooII_calls++;
   ScopedObjectAccess soa(Thread::Current());
@@ -243,7 +244,7 @@ jlong Java_MyClassNatives_fooJJ(JNIEnv* env, jobject thisObj, jlong x, jlong y) 
   // 1 = thisObj
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
-  EXPECT_TRUE(thisObj != NULL);
+  EXPECT_TRUE(thisObj != nullptr);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClassNatives_fooJJ_calls++;
   ScopedObjectAccess soa(Thread::Current());
@@ -272,7 +273,7 @@ jdouble Java_MyClassNatives_fooDD(JNIEnv* env, jobject thisObj, jdouble x, jdoub
   // 1 = thisObj
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
-  EXPECT_TRUE(thisObj != NULL);
+  EXPECT_TRUE(thisObj != nullptr);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClassNatives_fooDD_calls++;
   ScopedObjectAccess soa(Thread::Current());
@@ -302,7 +303,7 @@ jlong Java_MyClassNatives_fooJJ_synchronized(JNIEnv* env, jobject thisObj, jlong
   // 1 = thisObj
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
-  EXPECT_TRUE(thisObj != NULL);
+  EXPECT_TRUE(thisObj != nullptr);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClassNatives_fooJJ_synchronized_calls++;
   ScopedObjectAccess soa(Thread::Current());
@@ -329,7 +330,7 @@ jobject Java_MyClassNatives_fooIOO(JNIEnv* env, jobject thisObj, jint x, jobject
   // 3 = this + y + z
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
-  EXPECT_TRUE(thisObj != NULL);
+  EXPECT_TRUE(thisObj != nullptr);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClassNatives_fooIOO_calls++;
   ScopedObjectAccess soa(Thread::Current());
@@ -353,28 +354,28 @@ TEST_F(JniCompilerTest, CompileAndRunIntObjectObjectMethod) {
                reinterpret_cast<void*>(&Java_MyClassNatives_fooIOO));
 
   EXPECT_EQ(0, gJava_MyClassNatives_fooIOO_calls);
-  jobject result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, 0, NULL, NULL);
+  jobject result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, 0, nullptr, nullptr);
   EXPECT_TRUE(env_->IsSameObject(jobj_, result));
   EXPECT_EQ(1, gJava_MyClassNatives_fooIOO_calls);
 
-  result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, 0, NULL, jklass_);
+  result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, 0, nullptr, jklass_);
   EXPECT_TRUE(env_->IsSameObject(jobj_, result));
   EXPECT_EQ(2, gJava_MyClassNatives_fooIOO_calls);
-  result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, 1, NULL, jklass_);
-  EXPECT_TRUE(env_->IsSameObject(NULL, result));
+  result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, 1, nullptr, jklass_);
+  EXPECT_TRUE(env_->IsSameObject(nullptr, result));
   EXPECT_EQ(3, gJava_MyClassNatives_fooIOO_calls);
-  result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, 2, NULL, jklass_);
+  result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, 2, nullptr, jklass_);
   EXPECT_TRUE(env_->IsSameObject(jklass_, result));
   EXPECT_EQ(4, gJava_MyClassNatives_fooIOO_calls);
 
-  result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, 0, jklass_, NULL);
+  result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, 0, jklass_, nullptr);
   EXPECT_TRUE(env_->IsSameObject(jobj_, result));
   EXPECT_EQ(5, gJava_MyClassNatives_fooIOO_calls);
-  result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, 1, jklass_, NULL);
+  result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, 1, jklass_, nullptr);
   EXPECT_TRUE(env_->IsSameObject(jklass_, result));
   EXPECT_EQ(6, gJava_MyClassNatives_fooIOO_calls);
-  result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, 2, jklass_, NULL);
-  EXPECT_TRUE(env_->IsSameObject(NULL, result));
+  result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, 2, jklass_, nullptr);
+  EXPECT_TRUE(env_->IsSameObject(nullptr, result));
   EXPECT_EQ(7, gJava_MyClassNatives_fooIOO_calls);
 }
 
@@ -383,7 +384,7 @@ jint Java_MyClassNatives_fooSII(JNIEnv* env, jclass klass, jint x, jint y) {
   // 1 = klass
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
-  EXPECT_TRUE(klass != NULL);
+  EXPECT_TRUE(klass != nullptr);
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
   gJava_MyClassNatives_fooSII_calls++;
   ScopedObjectAccess soa(Thread::Current());
@@ -407,7 +408,7 @@ jdouble Java_MyClassNatives_fooSDD(JNIEnv* env, jclass klass, jdouble x, jdouble
   // 1 = klass
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
-  EXPECT_TRUE(klass != NULL);
+  EXPECT_TRUE(klass != nullptr);
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
   gJava_MyClassNatives_fooSDD_calls++;
   ScopedObjectAccess soa(Thread::Current());
@@ -437,7 +438,7 @@ jobject Java_MyClassNatives_fooSIOO(JNIEnv* env, jclass klass, jint x, jobject y
   // 3 = klass + y + z
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
-  EXPECT_TRUE(klass != NULL);
+  EXPECT_TRUE(klass != nullptr);
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
   gJava_MyClassNatives_fooSIOO_calls++;
   ScopedObjectAccess soa(Thread::Current());
@@ -462,28 +463,28 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntObjectObjectMethod) {
                reinterpret_cast<void*>(&Java_MyClassNatives_fooSIOO));
 
   EXPECT_EQ(0, gJava_MyClassNatives_fooSIOO_calls);
-  jobject result = env_->CallStaticObjectMethod(jklass_, jmethod_, 0, NULL, NULL);
+  jobject result = env_->CallStaticObjectMethod(jklass_, jmethod_, 0, nullptr, nullptr);
   EXPECT_TRUE(env_->IsSameObject(jklass_, result));
   EXPECT_EQ(1, gJava_MyClassNatives_fooSIOO_calls);
 
-  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 0, NULL, jobj_);
+  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 0, nullptr, jobj_);
   EXPECT_TRUE(env_->IsSameObject(jklass_, result));
   EXPECT_EQ(2, gJava_MyClassNatives_fooSIOO_calls);
-  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 1, NULL, jobj_);
-  EXPECT_TRUE(env_->IsSameObject(NULL, result));
+  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 1, nullptr, jobj_);
+  EXPECT_TRUE(env_->IsSameObject(nullptr, result));
   EXPECT_EQ(3, gJava_MyClassNatives_fooSIOO_calls);
-  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 2, NULL, jobj_);
+  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 2, nullptr, jobj_);
   EXPECT_TRUE(env_->IsSameObject(jobj_, result));
   EXPECT_EQ(4, gJava_MyClassNatives_fooSIOO_calls);
 
-  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 0, jobj_, NULL);
+  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 0, jobj_, nullptr);
   EXPECT_TRUE(env_->IsSameObject(jklass_, result));
   EXPECT_EQ(5, gJava_MyClassNatives_fooSIOO_calls);
-  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 1, jobj_, NULL);
+  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 1, jobj_, nullptr);
   EXPECT_TRUE(env_->IsSameObject(jobj_, result));
   EXPECT_EQ(6, gJava_MyClassNatives_fooSIOO_calls);
-  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 2, jobj_, NULL);
-  EXPECT_TRUE(env_->IsSameObject(NULL, result));
+  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 2, jobj_, nullptr);
+  EXPECT_TRUE(env_->IsSameObject(nullptr, result));
   EXPECT_EQ(7, gJava_MyClassNatives_fooSIOO_calls);
 }
 
@@ -492,7 +493,7 @@ jobject Java_MyClassNatives_fooSSIOO(JNIEnv* env, jclass klass, jint x, jobject 
   // 3 = klass + y + z
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
-  EXPECT_TRUE(klass != NULL);
+  EXPECT_TRUE(klass != nullptr);
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
   gJava_MyClassNatives_fooSSIOO_calls++;
   ScopedObjectAccess soa(Thread::Current());
@@ -516,28 +517,28 @@ TEST_F(JniCompilerTest, CompileAndRunStaticSynchronizedIntObjectObjectMethod) {
                reinterpret_cast<void*>(&Java_MyClassNatives_fooSSIOO));
 
   EXPECT_EQ(0, gJava_MyClassNatives_fooSSIOO_calls);
-  jobject result = env_->CallStaticObjectMethod(jklass_, jmethod_, 0, NULL, NULL);
+  jobject result = env_->CallStaticObjectMethod(jklass_, jmethod_, 0, nullptr, nullptr);
   EXPECT_TRUE(env_->IsSameObject(jklass_, result));
   EXPECT_EQ(1, gJava_MyClassNatives_fooSSIOO_calls);
 
-  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 0, NULL, jobj_);
+  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 0, nullptr, jobj_);
   EXPECT_TRUE(env_->IsSameObject(jklass_, result));
   EXPECT_EQ(2, gJava_MyClassNatives_fooSSIOO_calls);
-  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 1, NULL, jobj_);
-  EXPECT_TRUE(env_->IsSameObject(NULL, result));
+  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 1, nullptr, jobj_);
+  EXPECT_TRUE(env_->IsSameObject(nullptr, result));
   EXPECT_EQ(3, gJava_MyClassNatives_fooSSIOO_calls);
-  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 2, NULL, jobj_);
+  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 2, nullptr, jobj_);
   EXPECT_TRUE(env_->IsSameObject(jobj_, result));
   EXPECT_EQ(4, gJava_MyClassNatives_fooSSIOO_calls);
 
-  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 0, jobj_, NULL);
+  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 0, jobj_, nullptr);
   EXPECT_TRUE(env_->IsSameObject(jklass_, result));
   EXPECT_EQ(5, gJava_MyClassNatives_fooSSIOO_calls);
-  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 1, jobj_, NULL);
+  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 1, jobj_, nullptr);
   EXPECT_TRUE(env_->IsSameObject(jobj_, result));
   EXPECT_EQ(6, gJava_MyClassNatives_fooSSIOO_calls);
-  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 2, jobj_, NULL);
-  EXPECT_TRUE(env_->IsSameObject(NULL, result));
+  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 2, jobj_, nullptr);
+  EXPECT_TRUE(env_->IsSameObject(nullptr, result));
   EXPECT_EQ(7, gJava_MyClassNatives_fooSSIOO_calls);
 }
 
@@ -591,7 +592,7 @@ TEST_F(JniCompilerTest, ExceptionHandling) {
 
 jint Java_MyClassNatives_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
   if (i <= 0) {
-    // We want to check raw Object*/Array* below
+    // We want to check raw Object* / Array* below
     ScopedObjectAccess soa(env);
 
     // Build stack trace
@@ -599,7 +600,7 @@ jint Java_MyClassNatives_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
     jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(soa, internal);
     mirror::ObjectArray<mirror::StackTraceElement>* trace_array =
         soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(ste_array);
-    EXPECT_TRUE(trace_array != NULL);
+    EXPECT_TRUE(trace_array != nullptr);
     EXPECT_EQ(11, trace_array->GetLength());
 
     // Check stack trace entries have expected values
@@ -615,9 +616,9 @@ jint Java_MyClassNatives_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
     return 0;
   } else {
     jclass jklass = env->FindClass("MyClassNatives");
-    EXPECT_TRUE(jklass != NULL);
+    EXPECT_TRUE(jklass != nullptr);
     jmethodID jmethod = env->GetMethodID(jklass, "fooI", "(I)I");
-    EXPECT_TRUE(jmethod != NULL);
+    EXPECT_TRUE(jmethod != nullptr);
 
     // Recurse with i - 1
     jint result = env->CallNonvirtualIntMethod(thisObj, jklass, jmethod, i - 1);
@@ -721,7 +722,7 @@ TEST_F(JniCompilerTest, GetText) {
 
 TEST_F(JniCompilerTest, GetSinkPropertiesNative) {
   TEST_DISABLED_FOR_PORTABLE();
-  SetUpForTest(false, "getSinkPropertiesNative", "(Ljava/lang/String;)[Ljava/lang/Object;", NULL);
+  SetUpForTest(false, "getSinkPropertiesNative", "(Ljava/lang/String;)[Ljava/lang/Object;", nullptr);
   // This space intentionally left blank. Just testing compilation succeeds.
 }
 
@@ -804,7 +805,7 @@ TEST_F(JniCompilerTest, UpcallArgumentTypeChecking_Static) {
 jfloat Java_MyClassNatives_checkFloats(JNIEnv* env, jobject thisObj, jfloat f1, jfloat f2) {
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
-  EXPECT_TRUE(thisObj != NULL);
+  EXPECT_TRUE(thisObj != nullptr);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
@@ -826,12 +827,12 @@ TEST_F(JniCompilerTest, CompileAndRunFloatFloatMethod) {
 }
 
 void Java_MyClassNatives_checkParameterAlign(JNIEnv* env, jobject thisObj, jint i1, jlong l1) {
-  /*EXPECT_EQ(kNative, Thread::Current()->GetState());
-  EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
-  EXPECT_TRUE(thisObj != NULL);
-  EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
-  ScopedObjectAccess soa(Thread::Current());
-  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());*/
+//  EXPECT_EQ(kNative, Thread::Current()->GetState());
+//  EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
+//  EXPECT_TRUE(thisObj != nullptr);
+//  EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
+//  ScopedObjectAccess soa(Thread::Current());
+//  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(i1, 1234);
   EXPECT_EQ(l1, INT64_C(0x12345678ABCDEF0));
 }
@@ -879,7 +880,7 @@ void Java_MyClassNatives_maxParamNumber(JNIEnv* env, jobject thisObj,
     jobject o248, jobject o249, jobject o250, jobject o251, jobject o252, jobject o253) {
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
-  EXPECT_TRUE(thisObj != NULL);
+  EXPECT_TRUE(thisObj != nullptr);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_GE(255U, Thread::Current()->NumStackReferences());

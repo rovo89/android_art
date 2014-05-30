@@ -34,7 +34,7 @@ extern uint32_t JniMethodStart(Thread* self) {
   DCHECK(env != nullptr);
   uint32_t saved_local_ref_cookie = env->local_ref_cookie;
   env->local_ref_cookie = env->locals.GetSegmentState();
-  mirror::ArtMethod* native_method = *self->GetManagedStack()->GetTopQuickFrame();
+  mirror::ArtMethod* native_method = self->GetManagedStack()->GetTopQuickFrame()->AsMirrorPtr();
   if (!native_method->IsFastNative()) {
     // When not fast JNI we transition out of runnable.
     self->TransitionFromRunnableToSuspended(kNative);
@@ -49,7 +49,7 @@ extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self) {
 
 // TODO: NO_THREAD_SAFETY_ANALYSIS due to different control paths depending on fast JNI.
 static void GoToRunnable(Thread* self) NO_THREAD_SAFETY_ANALYSIS {
-  mirror::ArtMethod* native_method = *self->GetManagedStack()->GetTopQuickFrame();
+  mirror::ArtMethod* native_method = self->GetManagedStack()->GetTopQuickFrame()->AsMirrorPtr();
   bool is_fast = native_method->IsFastNative();
   if (!is_fast) {
     self->TransitionFromSuspendedToRunnable();

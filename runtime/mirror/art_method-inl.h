@@ -296,10 +296,16 @@ inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
     // Generic JNI frame.
     DCHECK(IsNative());
     uint32_t handle_refs = MethodHelper(this).GetNumberOfReferenceArgsWithoutReceiver() + 1;
-    size_t scope_size = HandleScope::GetAlignedHandleScopeSize(handle_refs);
+    size_t scope_size = HandleScope::SizeOf(handle_refs);
     QuickMethodFrameInfo callee_info = runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
-    return QuickMethodFrameInfo(callee_info.FrameSizeInBytes() + scope_size,
-                                callee_info.CoreSpillMask(), callee_info.FpSpillMask());
+
+    // Callee saves + handle scope + method ref + alignment
+    size_t frame_size = RoundUp(callee_info.FrameSizeInBytes() + scope_size
+                                - kPointerSize  // callee-save frame stores a whole method pointer
+                                + sizeof(StackReference<mirror::ArtMethod>),
+                                kStackAlignment);
+
+    return QuickMethodFrameInfo(frame_size, callee_info.CoreSpillMask(), callee_info.FpSpillMask());
   }
 
   const void* code_pointer = EntryPointToCodePointer(entry_point);

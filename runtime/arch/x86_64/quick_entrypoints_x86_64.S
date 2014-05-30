@@ -384,16 +384,24 @@ DEFINE_FUNCTION art_quick_invoke_stub
     PUSH r9                       // Save r9/shorty*.
     movq %rsp, %rbp               // Copy value of stack pointer into base pointer.
     CFI_DEF_CFA_REGISTER(rbp)
+
     movl %edx, %r10d
-    addl LITERAL(64), %edx        // Reserve space for return addr, method*, rbp, r8 and r9 in frame.
+    addl LITERAL(60), %edx        // Reserve space for return addr, StackReference<method>, rbp,
+                                  // r8 and r9 in frame.
     andl LITERAL(0xFFFFFFF0), %edx    // Align frame size to 16 bytes.
     subl LITERAL(32), %edx        // Remove space for return address, rbp, r8 and r9.
     subq %rdx, %rsp               // Reserve stack space for argument array.
-    movq LITERAL(0), (%rsp)       // Store NULL for method*
+
+#if (STACK_REFERENCE_SIZE != 4)
+#error "STACK_REFERENCE_SIZE(X86_64) size not as expected."
+#endif
+    movl LITERAL(0), (%rsp)       // Store NULL for method*
+
     movl %r10d, %ecx              // Place size of args in rcx.
     movq %rdi, %rax               // RAX := method to be called
     movq %rsi, %r11               // R11 := arg_array
-    leaq 8(%rsp), %rdi            // Rdi is pointing just above the method* in the stack arguments.
+    leaq 4(%rsp), %rdi            // Rdi is pointing just above the StackReference<method> in the
+                                  // stack arguments.
     // Copy arg array into stack.
     rep movsb                     // while (rcx--) { *rdi++ = *rsi++ }
     leaq 1(%r9), %r10             // R10 := shorty + 1  ; ie skip return arg character
@@ -455,16 +463,24 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
     PUSH r9                       // Save r9/shorty*.
     movq %rsp, %rbp               // Copy value of stack pointer into base pointer.
     CFI_DEF_CFA_REGISTER(rbp)
+
     movl %edx, %r10d
-    addl LITERAL(64), %edx        // Reserve space for return addr, method*, rbp, r8 and r9 in frame.
+    addl LITERAL(60), %edx        // Reserve space for return addr, StackReference<method>, rbp,
+                                  // r8 and r9 in frame.
     andl LITERAL(0xFFFFFFF0), %edx    // Align frame size to 16 bytes.
     subl LITERAL(32), %edx        // Remove space for return address, rbp, r8 and r9.
     subq %rdx, %rsp               // Reserve stack space for argument array.
-    movq LITERAL(0), (%rsp)       // Store NULL for method*
+
+#if (STACK_REFERENCE_SIZE != 4)
+#error "STACK_REFERENCE_SIZE(X86_64) size not as expected."
+#endif
+    movl LITERAL(0), (%rsp)       // Store NULL for method*
+
     movl %r10d, %ecx              // Place size of args in rcx.
     movq %rdi, %rax               // RAX := method to be called
     movq %rsi, %r11               // R11 := arg_array
-    leaq 8(%rsp), %rdi            // Rdi is pointing just above the method* in the stack arguments.
+    leaq 4(%rsp), %rdi            // Rdi is pointing just above the StackReference<method> in the
+                                  // stack arguments.
     // Copy arg array into stack.
     rep movsb                     // while (rcx--) { *rdi++ = *rsi++ }
     leaq 1(%r9), %r10             // R10 := shorty + 1  ; ie skip return arg character

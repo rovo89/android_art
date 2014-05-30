@@ -20,7 +20,8 @@
 
 namespace art {
 
-extern "C" int artLockObjectFromCode(mirror::Object* obj, Thread* self, mirror::ArtMethod** sp)
+extern "C" int artLockObjectFromCode(mirror::Object* obj, Thread* self,
+                                     StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
     NO_THREAD_SAFETY_ANALYSIS /* EXCLUSIVE_LOCK_FUNCTION(Monitor::monitor_lock_) */ {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
@@ -42,7 +43,8 @@ extern "C" int artLockObjectFromCode(mirror::Object* obj, Thread* self, mirror::
   }
 }
 
-extern "C" int artUnlockObjectFromCode(mirror::Object* obj, Thread* self, mirror::ArtMethod** sp)
+extern "C" int artUnlockObjectFromCode(mirror::Object* obj, Thread* self,
+                                       StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
     NO_THREAD_SAFETY_ANALYSIS /* UNLOCK_FUNCTION(Monitor::monitor_lock_) */ {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);

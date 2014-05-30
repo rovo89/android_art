@@ -250,7 +250,8 @@ bool JavaStackTraceHandler::Action(int sig, siginfo_t* siginfo, void* context) {
     manager_->GetMethodAndReturnPCAndSP(context, &method, &return_pc, &sp);
     Thread* self = Thread::Current();
     // Inside of generated code, sp[0] is the method, so sp is the frame.
-    mirror::ArtMethod** frame = reinterpret_cast<mirror::ArtMethod**>(sp);
+    StackReference<mirror::ArtMethod>* frame =
+        reinterpret_cast<StackReference<mirror::ArtMethod>*>(sp);
     self->SetTopOfStack(frame, 0);  // Since we don't necessarily have a dex pc, pass in 0.
     self->DumpJavaStack(LOG(ERROR));
   }
