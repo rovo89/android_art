@@ -24,6 +24,10 @@ namespace space {
 class LargeObjectSpaceTest : public SpaceTest {
  public:
   void LargeObjectTest();
+
+  static constexpr size_t kNumThreads = 10;
+  static constexpr size_t kNumIterations = 1000;
+  void RaceTest();
 };
 
 
@@ -89,9 +93,62 @@ void LargeObjectSpaceTest::LargeObjectTest() {
   }
 }
 
+class AllocRaceTask : public Task {
+ public:
+  AllocRaceTask(size_t id, size_t iterations, size_t size, LargeObjectSpace* los) :
+    id_(id), iterations_(iterations), size_(size), los_(los) {}
+
+  void Run(Thread* self) {
+    for (size_t i = 0; i < iterations_ ; ++i) {
+      size_t alloc_size;
+      mirror::Object* ptr = los_->Alloc(self, size_, &alloc_size, nullptr);
+
+      NanoSleep((id_ + 3) * 1000);  // (3+id) mu s
+
+      los_->Free(self, ptr);
+    }
+  }
+
+  virtual void Finalize() {
+    delete this;
+  }
+
+ private:
+  size_t id_;
+  size_t iterations_;
+  size_t size_;
+  LargeObjectSpace* los_;
+};
+
+void LargeObjectSpaceTest::RaceTest() {
+  for (size_t los_type = 0; los_type < 2; ++los_type) {
+    LargeObjectSpace* los = nullptr;
+    if (los_type == 0) {
+      los = space::LargeObjectMapSpace::Create("large object space");
+    } else {
+      los = space::FreeListSpace::Create("large object space", nullptr, 128 * MB);
+    }
+
+    Thread* self = Thread::Current();
+    ThreadPool thread_pool("Large object space test thread pool", kNumThreads);
+    for (size_t i = 0; i < kNumThreads; ++i) {
+      thread_pool.AddTask(self, new AllocRaceTask(i, kNumIterations, 16 * KB, los));
+    }
+
+    thread_pool.StartWorkers(self);
+
+    thread_pool.Wait(self, true, false);
+
+    delete los;
+  }
+}
 
 TEST_F(LargeObjectSpaceTest, LargeObjectTest) {
   LargeObjectTest();
+}
+
+TEST_F(LargeObjectSpaceTest, RaceTest) {
+  RaceTest();
 }
 
 }  // namespace space
