@@ -29,7 +29,6 @@ LIR* Arm64Mir2Lir::OpCmpBranch(ConditionCode cond, RegStorage src1, RegStorage s
   return OpCondBranch(cond, target);
 }
 
-// TODO(Arm64): remove this.
 LIR* Arm64Mir2Lir::OpIT(ConditionCode ccode, const char* guide) {
   LOG(FATAL) << "Unexpected use of OpIT for Arm64";
   return NULL;
@@ -85,154 +84,58 @@ void Arm64Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
   StoreValueWide(rl_dest, rl_result);
 }
 
-void Arm64Mir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
-                                            int64_t val, ConditionCode ccode) {
-  LIR* taken = &block_label_list_[bb->taken];
-  rl_src1 = LoadValueWide(rl_src1, kCoreReg);
-
-  if (val == 0 && (ccode == kCondEq || ccode == kCondNe)) {
-    ArmOpcode opcode = (ccode == kCondEq) ? kA64Cbz2rt : kA64Cbnz2rt;
-    LIR* branch = NewLIR2(WIDE(opcode), rl_src1.reg.GetLowReg(), 0);
-    branch->target = taken;
-  } else {
-    OpRegImm64(kOpCmp, rl_src1.reg, val);
-    OpCondBranch(ccode, taken);
-  }
-}
-
 void Arm64Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
-  // TODO(Arm64): implement this.
-  UNIMPLEMENTED(FATAL);
-
   RegLocation rl_result;
   RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
   RegLocation rl_dest = mir_graph_->GetDest(mir);
   rl_src = LoadValue(rl_src, kCoreReg);
-  ConditionCode ccode = mir->meta.ccode;
-  if (mir->ssa_rep->num_uses == 1) {
-    // CONST case
-    int true_val = mir->dalvikInsn.vB;
-    int false_val = mir->dalvikInsn.vC;
-    rl_result = EvalLoc(rl_dest, kCoreReg, true);
-    // Change kCondNe to kCondEq for the special cases below.
-    if (ccode == kCondNe) {
-      ccode = kCondEq;
-      std::swap(true_val, false_val);
-    }
-    bool cheap_false_val = InexpensiveConstantInt(false_val);
-    if (cheap_false_val && ccode == kCondEq && (true_val == 0 || true_val == -1)) {
-      OpRegRegImm(kOpSub, rl_result.reg, rl_src.reg, -true_val);
-      DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
-      OpIT(true_val == 0 ? kCondNe : kCondUge, "");
-      LoadConstant(rl_result.reg, false_val);
-      GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
-    } else if (cheap_false_val && ccode == kCondEq && true_val == 1) {
-      OpRegRegImm(kOpRsub, rl_result.reg, rl_src.reg, 1);
-      DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
-      OpIT(kCondLs, "");
-      LoadConstant(rl_result.reg, false_val);
-      GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
-    } else if (cheap_false_val && InexpensiveConstantInt(true_val)) {
-      OpRegImm(kOpCmp, rl_src.reg, 0);
-      OpIT(ccode, "E");
-      LoadConstant(rl_result.reg, true_val);
-      LoadConstant(rl_result.reg, false_val);
-      GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
-    } else {
-      // Unlikely case - could be tuned.
-      RegStorage t_reg1 = AllocTemp();
-      RegStorage t_reg2 = AllocTemp();
-      LoadConstant(t_reg1, true_val);
-      LoadConstant(t_reg2, false_val);
-      OpRegImm(kOpCmp, rl_src.reg, 0);
-      OpIT(ccode, "E");
-      OpRegCopy(rl_result.reg, t_reg1);
-      OpRegCopy(rl_result.reg, t_reg2);
-      GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
-    }
-  } else {
-    // MOVE case
-    RegLocation rl_true = mir_graph_->reg_location_[mir->ssa_rep->uses[1]];
-    RegLocation rl_false = mir_graph_->reg_location_[mir->ssa_rep->uses[2]];
-    rl_true = LoadValue(rl_true, kCoreReg);
-    rl_false = LoadValue(rl_false, kCoreReg);
-    rl_result = EvalLoc(rl_dest, kCoreReg, true);
-    OpRegImm(kOpCmp, rl_src.reg, 0);
-    if (rl_result.reg.GetReg() == rl_true.reg.GetReg()) {  // Is the "true" case already in place?
-      OpIT(NegateComparison(ccode), "");
-      OpRegCopy(rl_result.reg, rl_false.reg);
-    } else if (rl_result.reg.GetReg() == rl_false.reg.GetReg()) {  // False case in place?
-      OpIT(ccode, "");
-      OpRegCopy(rl_result.reg, rl_true.reg);
-    } else {  // Normal - select between the two.
-      OpIT(ccode, "E");
-      OpRegCopy(rl_result.reg, rl_true.reg);
-      OpRegCopy(rl_result.reg, rl_false.reg);
-    }
-    GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
-  }
+  ArmConditionCode code = ArmConditionEncoding(mir->meta.ccode);
+
+  RegLocation rl_true = mir_graph_->reg_location_[mir->ssa_rep->uses[1]];
+  RegLocation rl_false = mir_graph_->reg_location_[mir->ssa_rep->uses[2]];
+  rl_true = LoadValue(rl_true, kCoreReg);
+  rl_false = LoadValue(rl_false, kCoreReg);
+  rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  OpRegImm(kOpCmp, rl_src.reg, 0);
+  NewLIR4(kA64Csel4rrrc, rl_result.reg.GetReg(), rl_true.reg.GetReg(),
+          rl_false.reg.GetReg(), code);
   StoreValue(rl_dest, rl_result);
 }
 
 void Arm64Mir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
-  // TODO(Arm64): implement this.
-  UNIMPLEMENTED(FATAL);
-
   RegLocation rl_src1 = mir_graph_->GetSrcWide(mir, 0);
   RegLocation rl_src2 = mir_graph_->GetSrcWide(mir, 2);
+  LIR* taken = &block_label_list_[bb->taken];
+  LIR* not_taken = &block_label_list_[bb->fall_through];
+  rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   // Normalize such that if either operand is constant, src2 will be constant.
   ConditionCode ccode = mir->meta.ccode;
   if (rl_src1.is_const) {
     std::swap(rl_src1, rl_src2);
     ccode = FlipComparisonOrder(ccode);
   }
+
   if (rl_src2.is_const) {
-    RegLocation rl_temp = UpdateLocWide(rl_src2);
-    // Do special compare/branch against simple const operand if not already in registers.
+    rl_src2 = UpdateLocWide(rl_src2);
     int64_t val = mir_graph_->ConstantValueWide(rl_src2);
-    if ((rl_temp.location != kLocPhysReg)
-     /*&& ((ModifiedImmediate(Low32Bits(val)) >= 0) && (ModifiedImmediate(High32Bits(val)) >= 0))*/) {
-      GenFusedLongCmpImmBranch(bb, rl_src1, val, ccode);
+    // Special handling using cbz & cbnz.
+    if (val == 0 && (ccode == kCondEq || ccode == kCondNe)) {
+      OpCmpImmBranch(ccode, rl_src1.reg, 0, taken);
+      OpCmpImmBranch(NegateComparison(ccode), rl_src1.reg, 0, not_taken);
+      return;
+    // Only handle Imm if src2 is not already in a register.
+    } else if (rl_src2.location != kLocPhysReg) {
+      OpRegImm64(kOpCmp, rl_src1.reg, val);
+      OpCondBranch(ccode, taken);
+      OpCondBranch(NegateComparison(ccode), not_taken);
       return;
     }
   }
-  LIR* taken = &block_label_list_[bb->taken];
-  LIR* not_taken = &block_label_list_[bb->fall_through];
-  rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
-  OpRegReg(kOpCmp, rl_src1.reg.GetHigh(), rl_src2.reg.GetHigh());
-  switch (ccode) {
-    case kCondEq:
-      OpCondBranch(kCondNe, not_taken);
-      break;
-    case kCondNe:
-      OpCondBranch(kCondNe, taken);
-      break;
-    case kCondLt:
-      OpCondBranch(kCondLt, taken);
-      OpCondBranch(kCondGt, not_taken);
-      ccode = kCondUlt;
-      break;
-    case kCondLe:
-      OpCondBranch(kCondLt, taken);
-      OpCondBranch(kCondGt, not_taken);
-      ccode = kCondLs;
-      break;
-    case kCondGt:
-      OpCondBranch(kCondGt, taken);
-      OpCondBranch(kCondLt, not_taken);
-      ccode = kCondHi;
-      break;
-    case kCondGe:
-      OpCondBranch(kCondGt, taken);
-      OpCondBranch(kCondLt, not_taken);
-      ccode = kCondUge;
-      break;
-    default:
-      LOG(FATAL) << "Unexpected ccode: " << ccode;
-  }
-  OpRegReg(kOpCmp, rl_src1.reg.GetLow(), rl_src2.reg.GetLow());
+  OpRegReg(kOpCmp, rl_src1.reg, rl_src2.reg);
   OpCondBranch(ccode, taken);
+  OpCondBranch(NegateComparison(ccode), not_taken);
 }
 
 /*
@@ -468,7 +371,7 @@ bool Arm64Mir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   OpRegReg(kOpCmp, rl_src1.reg, rl_src2.reg);
-  OpIT((is_min) ? kCondGt : kCondLt, "E");
+  // OpIT((is_min) ? kCondGt : kCondLt, "E");
   OpRegReg(kOpMov, rl_result.reg, rl_src2.reg);
   OpRegReg(kOpMov, rl_result.reg, rl_src1.reg);
   GenBarrier();
@@ -668,7 +571,7 @@ bool Arm64Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
     NewLIR3(kA64Ldxr2rX, r_tmp.GetReg(), r_ptr.GetReg(), 0);
     OpRegReg(kOpSub, r_tmp, rl_expected.reg);
     DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
-    OpIT(kCondEq, "T");
+    // OpIT(kCondEq, "T");
     NewLIR4(kA64Stxr3wrX /* eq */, r_tmp.GetReg(), rl_new_value.reg.GetReg(), r_ptr.GetReg(), 0);
   }
 
@@ -684,7 +587,7 @@ bool Arm64Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   OpRegRegImm(kOpRsub, rl_result.reg, r_tmp, 1);
   DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
-  OpIT(kCondUlt, "");
+  // OpIT(kCondUlt, "");
   LoadConstant(rl_result.reg, 0); /* cc */
   FreeTemp(r_tmp);  // Now unneeded.
 
