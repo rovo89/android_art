@@ -1411,10 +1411,12 @@ void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   }
   // return address then method on stack
   addl(ESP, Immediate(-frame_size + (spill_regs.size() * kFramePointerSize) +
-                      kFramePointerSize /*method*/ + kFramePointerSize /*return address*/));
+                      sizeof(StackReference<mirror::ArtMethod>) /*method*/ +
+                      kFramePointerSize /*return address*/));
   pushl(method_reg.AsX86().AsCpuRegister());
   for (size_t i = 0; i < entry_spills.size(); ++i) {
-    movl(Address(ESP, frame_size + kFramePointerSize + (i * kFramePointerSize)),
+    movl(Address(ESP, frame_size + sizeof(StackReference<mirror::ArtMethod>) +
+                 (i * kFramePointerSize)),
          entry_spills.at(i).AsX86().AsCpuRegister());
   }
 }
@@ -1422,7 +1424,8 @@ void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 void X86Assembler::RemoveFrame(size_t frame_size,
                             const std::vector<ManagedRegister>& spill_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
-  addl(ESP, Immediate(frame_size - (spill_regs.size() * kFramePointerSize) - kFramePointerSize));
+  addl(ESP, Immediate(frame_size - (spill_regs.size() * kFramePointerSize) -
+                      sizeof(StackReference<mirror::ArtMethod>)));
   for (size_t i = 0; i < spill_regs.size(); ++i) {
     popl(spill_regs.at(i).AsX86().AsCpuRegister());
   }

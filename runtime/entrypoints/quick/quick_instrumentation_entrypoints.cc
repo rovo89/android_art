@@ -26,7 +26,7 @@ namespace art {
 extern "C" const void* artInstrumentationMethodEntryFromCode(mirror::ArtMethod* method,
                                                              mirror::Object* this_object,
                                                              Thread* self,
-                                                             mirror::ArtMethod** sp,
+                                                             StackReference<mirror::ArtMethod>* sp,
                                                              uintptr_t lr)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
@@ -40,7 +40,8 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(mirror::ArtMethod* 
   return result;
 }
 
-extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self, mirror::ArtMethod** sp,
+extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self,
+                                                         StackReference<mirror::ArtMethod>* sp,
                                                          uint64_t gpr_result, uint64_t fpr_result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // TODO: use FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly) not the hand inlined below.
@@ -50,7 +51,7 @@ extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self, mirror::A
   Locks::mutator_lock_->AssertSharedHeld(self);
   Runtime* runtime = Runtime::Current();
   mirror::ArtMethod* callee_save = runtime->GetCalleeSaveMethod(Runtime::kRefsOnly);
-  *sp = callee_save;
+  sp->Assign(callee_save);
   uint32_t return_pc_offset = callee_save->GetReturnPcOffsetInBytes(
       runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsOnly).FrameSizeInBytes());
   uintptr_t* return_pc = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) +

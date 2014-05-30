@@ -51,20 +51,12 @@ class HandleScope {
     return header_size + data_size;
   }
 
-  // Get the size of the handle scope for the number of entries, with padding added for potential alignment.
-  static size_t GetAlignedHandleScopeSize(uint32_t num_references) {
-    size_t handle_scope_size = SizeOf(num_references);
-    return RoundUp(handle_scope_size, 8);
-  }
-
-  // Get the size of the handle scope for the number of entries, with padding added for potential alignment.
-  static size_t GetAlignedHandleScopeSizeTarget(size_t pointer_size, uint32_t num_references) {
+  // Returns the size of a HandleScope containing num_references handles.
+  static size_t SizeOf(size_t pointer_size, uint32_t num_references) {
     // Assume that the layout is packed.
     size_t header_size = pointer_size + sizeof(number_of_references_);
-    // This assumes there is no layout change between 32 and 64b.
     size_t data_size = sizeof(StackReference<mirror::Object>) * num_references;
-    size_t handle_scope_size = header_size + data_size;
-    return RoundUp(handle_scope_size, 8);
+    return header_size + data_size;
   }
 
   // Link to previous HandleScope or null.

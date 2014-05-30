@@ -41,5 +41,7 @@
 
 // Expected size of a heap reference
 #define HEAP_REFERENCE_SIZE 4
+// Expected size of a stack reference
+#define STACK_REFERENCE_SIZE 4
 
 #endif  // ART_RUNTIME_ARCH_X86_64_ASM_SUPPORT_X86_64_H_
