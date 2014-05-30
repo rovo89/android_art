@@ -36,9 +36,21 @@ void DisassemblerX86::Dump(std::ostream& os, const uint8_t* begin, const uint8_t
   }
 }
 
-static const char* gReg8Names[]  = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" };
-static const char* gReg16Names[] = { "ax", "cx", "dx", "bx", "sp", "bp", "si", "di" };
-static const char* gReg32Names[] = { "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi" };
+static const char* gReg8Names[]  = {
+  "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"
+};
+static const char* gExtReg8Names[] = {
+  "al", "cl", "dl", "bl", "spl", "bpl", "sil", "dil",
+  "r8l", "r9l", "r10l", "r11l", "r12l", "r13l", "r14l", "r15l"
+};
+static const char* gReg16Names[] = {
+  "ax", "cx", "dx", "bx", "sp", "bp", "si", "di",
+  "r8w", "r9w", "r10w", "r11w", "r12w", "r13w", "r14w", "r15w"
+};
+static const char* gReg32Names[] = {
+  "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi",
+  "r8d", "r9d", "r10d", "r11d", "r12d", "r13d", "r14d", "r15d"
+};
 static const char* gReg64Names[] = {
   "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",
   "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
@@ -48,40 +60,67 @@ static void DumpReg0(std::ostream& os, uint8_t rex, size_t reg,
                      bool byte_operand, uint8_t size_override) {
   DCHECK_LT(reg, (rex == 0) ? 8u : 16u);
   bool rex_w = (rex & 0b1000) != 0;
-  size_t size = byte_operand ? 1 : (size_override == 0x66 ? 2 : (rex_w ? 8 :4));
-  switch (size) {
-    case 1: os << gReg8Names[reg]; break;
-    case 2: os << gReg16Names[reg]; break;
-    case 4: os << gReg32Names[reg]; break;
-    case 8: os << gReg64Names[reg]; break;
-    default: LOG(FATAL) << "unexpected size " << size;
+  if (byte_operand) {
+    os << ((rex == 0) ? gReg8Names[reg] : gExtReg8Names[reg]);
+  } else if (rex_w) {
+    os << gReg64Names[reg];
+  } else if (size_override == 0x66) {
+    os << gReg16Names[reg];
+  } else {
+    os << gReg32Names[reg];
   }
 }
 
 enum RegFile { GPR, MMX, SSE };
 
+static void DumpAnyReg(std::ostream& os, uint8_t rex, uint8_t reg,
+                       bool byte_operand, uint8_t size_override, RegFile reg_file) {
+  if (reg_file == GPR) {
+    DumpReg0(os, rex, reg, byte_operand, size_override);
+  } else if (reg_file == SSE) {
+    os << "xmm" << reg;
+  } else {
+    os << "mm" << reg;
+  }
+}
+
 static void DumpReg(std::ostream& os, uint8_t rex, uint8_t reg,
                     bool byte_operand, uint8_t size_override, RegFile reg_file) {
   bool rex_r = (rex & 0b0100) != 0;
   size_t reg_num = rex_r ? (reg + 8) : reg;
-  if (reg_file == GPR) {
-    DumpReg0(os, rex, reg_num, byte_operand, size_override);
-  } else if (reg_file == SSE) {
-    os << "xmm" << reg_num;
+  DumpAnyReg(os, rex, reg_num, byte_operand, size_override, reg_file);
+}
+
+static void DumpRmReg(std::ostream& os, uint8_t rex, uint8_t reg,
+                      bool byte_operand, uint8_t size_override, RegFile reg_file) {
+  bool rex_b = (rex & 0b0001) != 0;
+  size_t reg_num = rex_b ? (reg + 8) : reg;
+  DumpAnyReg(os, rex, reg_num, byte_operand, size_override, reg_file);
+}
+
+static void DumpAddrReg(std::ostream& os, uint8_t rex, uint8_t reg) {
+  if (rex != 0) {
+    os << gReg64Names[reg];
   } else {
-    os << "mm" << reg_num;
+    os << gReg32Names[reg];
   }
 }
 
 static void DumpBaseReg(std::ostream& os, uint8_t rex, uint8_t reg) {
   bool rex_b = (rex & 0b0001) != 0;
   size_t reg_num = rex_b ? (reg + 8) : reg;
-  DumpReg0(os, rex, reg_num, false, 0);
+  DumpAddrReg(os, rex, reg_num);
 }
 
 static void DumpIndexReg(std::ostream& os, uint8_t rex, uint8_t reg) {
   bool rex_x = (rex & 0b0010) != 0;
   uint8_t reg_num = rex_x ? (reg + 8) : reg;
+  DumpAddrReg(os, rex, reg_num);
+}
+
+static void DumpOpcodeReg(std::ostream& os, uint8_t rex, uint8_t reg) {
+  bool rex_b = (rex & 0b0001) != 0;
+  size_t reg_num = rex_b ? (reg + 8) : reg;
   DumpReg0(os, rex, reg_num, false, 0);
 }
 
@@ -156,6 +195,7 @@ size_t DisassemblerX86::DumpInstruction(std::ostream& os, const uint8_t* instr) 
   bool store = false;  // stores to memory (ie rm is on the left)
   bool load = false;  // loads from memory (ie rm is on the right)
   bool byte_operand = false;
+  bool target_specific = false;  // register name depends on target (64 vs 32 bits).
   bool ax = false;  // implicit use of ax
   bool cx = false;  // implicit use of cx
   bool reg_in_opcode = false;  // low 3-bits of opcode encode register parameter
@@ -211,10 +251,12 @@ DISASSEMBLER_ENTRY(cmp,
   case 0x50: case 0x51: case 0x52: case 0x53: case 0x54: case 0x55: case 0x56: case 0x57:
     opcode << "push";
     reg_in_opcode = true;
+    target_specific = true;
     break;
   case 0x58: case 0x59: case 0x5A: case 0x5B: case 0x5C: case 0x5D: case 0x5E: case 0x5F:
     opcode << "pop";
     reg_in_opcode = true;
+    target_specific = true;
     break;
   case 0x68: opcode << "push"; immediate_bytes = 4; break;
   case 0x69: opcode << "imul"; load = true; has_modrm = true; immediate_bytes = 4; break;
@@ -925,9 +967,14 @@ DISASSEMBLER_ENTRY(cmp,
     break;
   }
   std::ostringstream args;
+  // We force the REX prefix to be available for 64-bit target
+  // in order to dump addr (base/index) registers correctly.
+  uint8_t rex64 = supports_rex_ ? (rex | 0x40) : rex;
   if (reg_in_opcode) {
     DCHECK(!has_modrm);
-    DumpBaseReg(args, rex, *instr & 0x7);
+    // REX.W should be forced for 64-target and target-specific instructions (i.e., push or pop).
+    uint8_t rex_w = (supports_rex_ && target_specific) ? (rex | 0x48) : rex;
+    DumpOpcodeReg(args, rex_w, *instr & 0x7);
   }
   instr++;
   uint32_t address_bits = 0;
@@ -954,13 +1001,13 @@ DISASSEMBLER_ENTRY(cmp,
       uint8_t base = sib & 7;
       address << "[";
       if (base != 5 || mod != 0) {
-        DumpBaseReg(address, rex, base);
+        DumpBaseReg(address, rex64, base);
         if (index != 4) {
           address << " + ";
         }
       }
       if (index != 4) {
-        DumpIndexReg(address, rex, index);
+        DumpIndexReg(address, rex64, index);
         if (scale != 0) {
           address << StringPrintf(" * %d", 1 << scale);
         }
@@ -987,11 +1034,11 @@ DISASSEMBLER_ENTRY(cmp,
     } else {
       if (mod == 3) {
         if (!no_ops) {
-          DumpReg(address, rex, rm, byte_operand, prefix[2], load ? src_reg_file : dst_reg_file);
+          DumpRmReg(address, rex, rm, byte_operand, prefix[2], load ? src_reg_file : dst_reg_file);
         }
       } else {
         address << "[";
-        DumpBaseReg(address, rex, rm);
+        DumpBaseReg(address, rex64, rm);
         if (mod == 1) {
           address << StringPrintf(" + %d", *reinterpret_cast<const int8_t*>(instr));
           instr++;
