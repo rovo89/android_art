@@ -703,6 +703,38 @@ static InstructionSetFeatures ParseFeatureList(std::string str) {
   return result;
 }
 
+void ParseStringAfterChar(const std::string& s, char c, std::string* parsed_value) {
+  std::string::size_type colon = s.find(c);
+  if (colon == std::string::npos) {
+    Usage("Missing char %c in option %s\n", c, s.c_str());
+  }
+  // Add one to remove the char we were trimming until.
+  *parsed_value = s.substr(colon + 1);
+}
+
+void ParseDouble(const std::string& option, char after_char,
+                 double min, double max, double* parsed_value) {
+  std::string substring;
+  ParseStringAfterChar(option, after_char, &substring);
+  bool sane_val = true;
+  double value;
+  if (false) {
+    // TODO: this doesn't seem to work on the emulator.  b/15114595
+    std::stringstream iss(substring);
+    iss >> value;
+    // Ensure that we have a value, there was no cruft after it and it satisfies a sensible range.
+    sane_val = iss.eof() && (value >= min) && (value <= max);
+  } else {
+    char* end = nullptr;
+    value = strtod(substring.c_str(), &end);
+    sane_val = *end == '\0' && value >= min && value <= max;
+  }
+  if (!sane_val) {
+    Usage("Invalid double value %s for option %s\n", substring.c_str(), option.c_str());
+  }
+  *parsed_value = value;
+}
+
 static int dex2oat(int argc, char** argv) {
   original_argc = argc;
   original_argv = argv;
@@ -755,6 +787,7 @@ static int dex2oat(int argc, char** argv) {
 
   // Profile file to use
   std::string profile_file;
+  double top_k_profile_threshold = CompilerOptions::kDefaultTopKProfileThreshold;
 
   bool is_host = false;
   bool dump_stats = false;
@@ -918,6 +951,8 @@ static int dex2oat(int argc, char** argv) {
       VLOG(compiler) << "dex2oat: profile file is " << profile_file;
     } else if (option == "--no-profile-file") {
       // No profile
+    } else if (option.starts_with("--top-k-profile-threshold=")) {
+      ParseDouble(option.data(), '=', 10.0, 90.0, &top_k_profile_threshold);
     } else if (option == "--print-pass-names") {
       PassDriverMEOpts::PrintPassNames();
     } else if (option.starts_with("--disable-passes=")) {
@@ -1063,7 +1098,8 @@ static int dex2oat(int argc, char** argv) {
                                    small_method_threshold,
                                    tiny_method_threshold,
                                    num_dex_methods_threshold,
-                                   generate_gdb_information
+                                   generate_gdb_information,
+                                   top_k_profile_threshold
 #ifdef ART_SEA_IR_MODE
                                    , compiler_options.sea_ir_ = true;
 #endif

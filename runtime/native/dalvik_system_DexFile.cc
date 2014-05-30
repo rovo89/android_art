@@ -328,7 +328,7 @@ static jboolean IsDexOptNeededInternal(JNIEnv* env, const char* filename,
   // If the 'defer' argument is true then this will be retried later.  In this case we
   // need to make sure that the profile file copy is not made so that we will get the
   // same result second time.
-  if (pkgname != nullptr) {
+  if (Runtime::Current()->GetProfilerOptions().IsEnabled() && (pkgname != nullptr)) {
     const std::string profile_file = GetDalvikCacheOrDie("profiles", false /* create_if_absent */)
         + std::string("/") + pkgname;
     const std::string profile_cache_dir = GetDalvikCacheOrDie("profile-cache",
@@ -357,8 +357,8 @@ static jboolean IsDexOptNeededInternal(JNIEnv* env, const char* filename,
       // There is a previous profile file.  Check if the profile has changed significantly.
       // A change in profile is considered significant if X% (change_thr property) of the top K%
       // (compile_thr property) samples has changed.
-      double top_k_threshold = GetDoubleProperty("dalvik.vm.profiler.dex2oat.compile_thr", 10.0, 90.0, 90.0);
-      double change_threshold = GetDoubleProperty("dalvik.vm.profiler.dex2oat.change_thr", 1.0, 90.0, 10.0);
+      double top_k_threshold = Runtime::Current()->GetProfilerOptions().GetTopKThreshold();
+      double change_threshold = Runtime::Current()->GetProfilerOptions().GetTopKChangeThreshold();
       double change_percent = 0.0;
       ProfileFile new_profile, old_profile;
       bool new_ok = new_profile.LoadFile(profile_file);

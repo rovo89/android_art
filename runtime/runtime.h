@@ -34,6 +34,7 @@
 #include "instrumentation.h"
 #include "jobject_comparator.h"
 #include "object_callbacks.h"
+#include "profiler_options.h"
 #include "quick/quick_method_frame_info.h"
 #include "runtime_stats.h"
 #include "safe_map.h"
@@ -112,6 +113,10 @@ class Runtime {
 
   const std::vector<std::string>& GetImageCompilerOptions() const {
     return image_compiler_options_;
+  }
+
+  const ProfilerOptions& GetProfilerOptions() const {
+    return profiler_options_;
   }
 
   // Starts a runtime, which may cause threads to be started and code to run.
@@ -386,7 +391,7 @@ class Runtime {
   const std::vector<const DexFile*>& GetCompileTimeClassPath(jobject class_loader);
   void SetCompileTimeClassPath(jobject class_loader, std::vector<const DexFile*>& class_path);
 
-  void StartProfiler(const char* appDir, const char* procName);
+  void StartProfiler(const char* profile_output_filename);
   void UpdateProfilerState(int state);
 
   // Transaction support.
@@ -551,15 +556,9 @@ class Runtime {
 
   const bool running_on_valgrind_;
 
-  // Runtime profile support.
-  bool profile_;
   std::string profile_output_filename_;
-  uint32_t profile_period_s_;           // Generate profile every n seconds.
-  uint32_t profile_duration_s_;         // Run profile for n seconds.
-  uint32_t profile_interval_us_;        // Microseconds between samples.
-  double profile_backoff_coefficient_;  // Coefficient to exponential backoff.
-  bool profile_start_immediately_;      // Whether the profile should start upon app
-                                        // startup or be delayed by some random offset.
+  ProfilerOptions profiler_options_;
+  bool profiler_started_;
 
   bool method_trace_;
   std::string method_trace_file_;

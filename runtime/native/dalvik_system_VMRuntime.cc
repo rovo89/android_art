@@ -510,15 +510,13 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
  * process name.  We use this information to start up the sampling profiler for
  * for ART.
  */
-static void VMRuntime_registerAppInfo(JNIEnv* env, jclass, jstring pkgName, jstring appDir, jstring procName) {
+static void VMRuntime_registerAppInfo(JNIEnv* env, jclass, jstring pkgName,
+                                      jstring appDir, jstring procName) {
   const char *pkgNameChars = env->GetStringUTFChars(pkgName, NULL);
-  const char *appDirChars = env->GetStringUTFChars(appDir, NULL);
-  const char *procNameChars = env->GetStringUTFChars(procName, NULL);
-
   std::string profileFile = StringPrintf("/data/dalvik-cache/profiles/%s", pkgNameChars);
-  Runtime::Current()->StartProfiler(profileFile.c_str(), procNameChars);
-  env->ReleaseStringUTFChars(appDir, appDirChars);
-  env->ReleaseStringUTFChars(procName, procNameChars);
+
+  Runtime::Current()->StartProfiler(profileFile.c_str());
+
   env->ReleaseStringUTFChars(pkgName, pkgNameChars);
 }
 

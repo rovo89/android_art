@@ -903,7 +903,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
     cu.mir_graph->EnableOpcodeCounting();
   }
 
-  // Check early if we should skip this compilation if using the profiled filter.
+  // Check early if we should skip this compilation if the profiler is enabled.
   if (cu.compiler_driver->ProfilePresent()) {
     std::string methodname = PrettyMethod(method_idx, dex_file);
     if (cu.mir_graph->SkipCompilation(methodname)) {

@@ -1015,7 +1015,7 @@ bool MIRGraph::SkipCompilation() {
     return true;
   }
 
-  if (!compiler_options.IsCompilationEnabled() || compiler_filter == CompilerOptions::kProfiled) {
+  if (!compiler_options.IsCompilationEnabled()) {
     return true;
   }
 
