@@ -1090,6 +1090,7 @@ class Thread {
   friend class Dbg;  // For SetStateUnsafe.
   friend class gc::collector::SemiSpace;  // For getting stack traces.
   friend class Runtime;  // For CreatePeer.
+  friend class QuickExceptionHandler;  // For dumping the stack.
   friend class ScopedThreadStateChange;
   friend class SignalCatcher;  // For SetStateUnsafe.
   friend class StubTest;  // For accessing entrypoints.

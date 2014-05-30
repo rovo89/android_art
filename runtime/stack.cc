@@ -95,6 +95,13 @@ StackVisitor::StackVisitor(Thread* thread, Context* context)
   DCHECK(thread == Thread::Current() || thread->IsSuspended()) << *thread;
 }
 
+StackVisitor::StackVisitor(Thread* thread, Context* context, size_t num_frames)
+    : thread_(thread), cur_shadow_frame_(NULL),
+      cur_quick_frame_(NULL), cur_quick_frame_pc_(0), num_frames_(num_frames), cur_depth_(0),
+      context_(context) {
+  DCHECK(thread == Thread::Current() || thread->IsSuspended()) << *thread;
+}
+
 uint32_t StackVisitor::GetDexPc(bool abort_on_failure) const {
   if (cur_shadow_frame_ != NULL) {
     return cur_shadow_frame_->GetDexPC();
@@ -223,7 +230,7 @@ size_t StackVisitor::ComputeNumFrames(Thread* thread) {
     explicit NumFramesVisitor(Thread* thread)
         : StackVisitor(thread, NULL), frames(0) {}
 
-    virtual bool VisitFrame() {
+    bool VisitFrame() OVERRIDE {
       frames++;
       return true;
     }
@@ -235,12 +242,47 @@ size_t StackVisitor::ComputeNumFrames(Thread* thread) {
   return visitor.frames;
 }
 
+bool StackVisitor::GetNextMethodAndDexPc(mirror::ArtMethod** next_method, uint32_t* next_dex_pc) {
+  struct HasMoreFramesVisitor : public StackVisitor {
+    explicit HasMoreFramesVisitor(Thread* thread, size_t num_frames, size_t frame_height)
+        : StackVisitor(thread, nullptr, num_frames), frame_height_(frame_height),
+          found_frame_(false), has_more_frames_(false), next_method_(nullptr), next_dex_pc_(0) {
+    }
+
+    bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      if (found_frame_) {
+        mirror::ArtMethod* method = GetMethod();
+        if (method != nullptr && !method->IsRuntimeMethod()) {
+          has_more_frames_ = true;
+          next_method_ = method;
+          next_dex_pc_ = GetDexPc();
+          return false;  // End stack walk once next method is found.
+        }
+      } else if (GetFrameHeight() == frame_height_) {
+        found_frame_ = true;
+      }
+      return true;
+    }
+
+    size_t frame_height_;
+    bool found_frame_;
+    bool has_more_frames_;
+    mirror::ArtMethod* next_method_;
+    uint32_t next_dex_pc_;
+  };
+  HasMoreFramesVisitor visitor(thread_, GetNumFrames(), GetFrameHeight());
+  visitor.WalkStack(true);
+  *next_method = visitor.next_method_;
+  *next_dex_pc = visitor.next_dex_pc_;
+  return visitor.has_more_frames_;
+}
+
 void StackVisitor::DescribeStack(Thread* thread) {
   struct DescribeStackVisitor : public StackVisitor {
     explicit DescribeStackVisitor(Thread* thread)
         : StackVisitor(thread, NULL) {}
 
-    virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       LOG(INFO) << "Frame Id=" << GetFrameId() << " " << DescribeLocation();
       return true;
     }
