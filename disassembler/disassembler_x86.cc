@@ -1040,8 +1040,13 @@ DISASSEMBLER_ENTRY(cmp,
       instr++;
     } else {
       CHECK_EQ(immediate_bytes, 4u);
-      args << StringPrintf("%d", *reinterpret_cast<const int32_t*>(instr));
-      instr += 4;
+      if (prefix[2] == 0x66) {  // Operand size override from 32-bit to 16-bit.
+        args << StringPrintf("%d", *reinterpret_cast<const int16_t*>(instr));
+        instr += 2;
+      } else {
+        args << StringPrintf("%d", *reinterpret_cast<const int32_t*>(instr));
+        instr += 4;
+      }
     }
   } else if (branch_bytes > 0) {
     DCHECK(!has_modrm);
