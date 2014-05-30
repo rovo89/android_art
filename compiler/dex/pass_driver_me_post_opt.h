@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DEX_PASS_DRIVER_ME_CLEANUP_H_
-#define ART_COMPILER_DEX_PASS_DRIVER_ME_CLEANUP_H_
+#ifndef ART_COMPILER_DEX_PASS_DRIVER_ME_POST_OPT_H_
+#define ART_COMPILER_DEX_PASS_DRIVER_ME_POST_OPT_H_
 
 #include "pass_driver_me.h"
 
@@ -36,4 +36,4 @@ class PassDriverMEPostOpt : public PassDriverME<PassDriverMEPostOpt> {
 };
 
 }  // namespace art
-#endif  // ART_COMPILER_DEX_PASS_DRIVER_ME_CLEANUP_H_
+#endif  // ART_COMPILER_DEX_PASS_DRIVER_ME_POST_OPT_H_
