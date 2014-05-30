@@ -407,7 +407,16 @@ RegStorage Mir2Lir::AllocTempWide() {
 }
 
 RegStorage Mir2Lir::AllocTempWord() {
-  return (Is64BitInstructionSet(cu_->instruction_set)) ? AllocTempWide() : AllocTemp();
+  // FIXME: temporary workaround.  For bring-up purposes, x86_64 needs the ability
+  // to allocate wide values as a pair of core registers.  However, we can't hold
+  // a reference in a register pair.  This workaround will be removed when the
+  // reference handling code is reworked, or x86_64 backend starts using wide core
+  // registers - whichever happens first.
+  if (cu_->instruction_set == kX86_64) {
+    return AllocTemp();
+  } else {
+    return (Is64BitInstructionSet(cu_->instruction_set)) ? AllocTempWide() : AllocTemp();
+  }
 }
 
 RegStorage Mir2Lir::AllocTempSingle() {
