@@ -1282,7 +1282,7 @@ bool MIRGraph::VerifyPredInfo(BasicBlock* bb) {
   GrowableArray<BasicBlockId>::Iterator iter(bb->predecessors);
 
   while (true) {
-    BasicBlock *pred_bb = GetBasicBlock(iter.Next());
+    BasicBlock* pred_bb = GetBasicBlock(iter.Next());
     if (!pred_bb) break;
     bool found = false;
     if (pred_bb->taken == bb->id) {

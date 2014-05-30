@@ -119,7 +119,7 @@ class CallInlining : public PassME {
  */
 class CodeLayout : public PassME {
  public:
-  CodeLayout() : PassME("CodeLayout", "2_post_layout_cfg") {
+  CodeLayout() : PassME("CodeLayout", kAllNodes, kOptimizationBasicBlockChange, "2_post_layout_cfg") {
   }
 
   void Start(const PassDataHolder* data) const {
@@ -130,72 +130,6 @@ class CodeLayout : public PassME {
   }
 
   bool Worker(const PassDataHolder* data) const;
-};
-
-/**
- * @class SSATransformation
- * @brief Perform an SSA representation pass on the CompilationUnit.
- */
-class SSATransformation : public PassME {
- public:
-  SSATransformation() : PassME("SSATransformation", kPreOrderDFSTraversal, "3_post_ssa_cfg") {
-  }
-
-  bool Worker(const PassDataHolder* data) const;
-
-  void Start(const PassDataHolder* data) const;
-
-  void End(const PassDataHolder* data) const;
-};
-
-/**
- * @class ConstantPropagation
- * @brief Perform a constant propagation pass.
- */
-class ConstantPropagation : public PassME {
- public:
-  ConstantPropagation() : PassME("ConstantPropagation") {
-  }
-
-  bool Worker(const PassDataHolder* data) const;
-
-  void Start(const PassDataHolder* data) const {
-    DCHECK(data != nullptr);
-    CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
-    DCHECK(cUnit != nullptr);
-    cUnit->mir_graph->InitializeConstantPropagation();
-  }
-};
-
-/**
- * @class InitRegLocations
- * @brief Initialize Register Locations.
- */
-class InitRegLocations : public PassME {
- public:
-  InitRegLocations() : PassME("InitRegLocation", kNoNodes) {
-  }
-
-  void Start(const PassDataHolder* data) const {
-    DCHECK(data != nullptr);
-    CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
-    DCHECK(cUnit != nullptr);
-    cUnit->mir_graph->InitRegLocations();
-  }
-};
-
-/**
- * @class MethodUseCount
- * @brief Count the register uses of the method
- */
-class MethodUseCount : public PassME {
- public:
-  MethodUseCount() : PassME("UseCount") {
-  }
-
-  bool Worker(const PassDataHolder* data) const;
-
-  bool Gate(const PassDataHolder* data) const;
 };
 
 /**
