@@ -443,14 +443,10 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
   rl_src.reg = TargetReg(kArg0);
   rl_src.home = false;
   MarkLive(rl_src);
-  if (rl_method.wide) {
-    StoreValueWide(rl_method, rl_src);
-  } else {
-    StoreValue(rl_method, rl_src);
-  }
+  StoreValue(rl_method, rl_src);
   // If Method* has been promoted, explicitly flush
   if (rl_method.location == kLocPhysReg) {
-    StoreWordDisp(TargetReg(kSp), 0, TargetReg(kArg0));
+    StoreRefDisp(TargetReg(kSp), 0, TargetReg(kArg0));
   }
 
   if (cu_->num_ins == 0) {

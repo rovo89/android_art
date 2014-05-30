@@ -425,6 +425,9 @@ void MIRGraph::InitRegLocations() {
     loc[ct->s_reg_low].defined = true;
   }
 
+  /* Treat Method* as a normal reference */
+  loc[GetMethodSReg()].ref = true;
+
   reg_location_ = loc;
 
   int num_regs = cu_->num_dalvik_registers;
