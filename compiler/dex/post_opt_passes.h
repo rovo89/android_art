@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DEX_CLEAN_UP_PASSES_H_
-#define ART_COMPILER_DEX_CLEAN_UP_PASSES_H_
+#ifndef ART_COMPILER_DEX_POST_OPT_PASSES_H_
+#define ART_COMPILER_DEX_POST_OPT_PASSES_H_
 
 #include "compiler_internals.h"
 #include "pass_me.h"
@@ -281,4 +281,4 @@ class FreeData : public PassME {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_DEX_CLEAN_UP_PASSES_H_
+#endif  // ART_COMPILER_DEX_POST_OPT_PASSES_H_
