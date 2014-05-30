@@ -739,8 +739,8 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
                 << " for " << elf_file_->GetPath();
     return false;
   }
-  BufferedOutputStream output_stream(new FileOutputStream(elf_file_));
-  if (!oat_writer->Write(&output_stream)) {
+  std::unique_ptr<BufferedOutputStream> output_stream(new BufferedOutputStream(new FileOutputStream(elf_file_)));
+  if (!oat_writer->Write(output_stream.get())) {
     PLOG(ERROR) << "Failed to write .rodata and .text for " << elf_file_->GetPath();
     return false;
   }
