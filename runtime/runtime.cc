@@ -141,7 +141,8 @@ Runtime::Runtime()
       null_pointer_handler_(nullptr),
       suspend_handler_(nullptr),
       stack_overflow_handler_(nullptr),
-      verify_(false) {
+      verify_(false),
+      target_sdk_version_(0) {
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     callee_save_methods_[i] = nullptr;
   }
