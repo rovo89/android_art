@@ -408,7 +408,7 @@ class Heap {
 
   // Implements java.lang.Runtime.freeMemory.
   size_t GetFreeMemory() const {
-    return GetTotalMemory() - num_bytes_allocated_.LoadSequentiallyConsistent();
+    return GetMaxMemory() - num_bytes_allocated_.LoadSequentiallyConsistent();
   }
 
   // get the space that corresponds to an object's address. Current implementation searches all
