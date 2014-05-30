@@ -84,7 +84,7 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the array class given for the element class.
-  mirror::Class* FindArrayClass(Thread* self, mirror::Class* element_class)
+  mirror::Class* FindArrayClass(Thread* self, mirror::Class** element_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Reutrns true if the class linker is initialized.
