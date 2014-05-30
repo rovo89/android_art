@@ -67,7 +67,8 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
     return nullptr;
   }
   Runtime* runtime = Runtime::Current();
-  mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(soa.Self(), element_class);
+  mirror::Class* array_class =
+      runtime->GetClassLinker()->FindArrayClass(soa.Self(), &element_class);
   if (UNLIKELY(array_class == nullptr)) {
     return nullptr;
   }
@@ -90,7 +91,7 @@ static jobject VMRuntime_newUnpaddedArray(JNIEnv* env, jobject, jclass javaEleme
     return nullptr;
   }
   Runtime* runtime = Runtime::Current();
-  mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(soa.Self(), element_class);
+  mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(soa.Self(), &element_class);
   if (UNLIKELY(array_class == nullptr)) {
     return nullptr;
   }
