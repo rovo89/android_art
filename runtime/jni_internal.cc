@@ -2058,7 +2058,7 @@ class JNI {
         return nullptr;
       }
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-      array_class = class_linker->FindArrayClass(soa.Self(), element_class);
+      array_class = class_linker->FindArrayClass(soa.Self(), &element_class);
       if (UNLIKELY(array_class == nullptr)) {
         return nullptr;
       }
