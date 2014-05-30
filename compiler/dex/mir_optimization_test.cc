@@ -193,7 +193,7 @@ class ClassInitCheckEliminationTest : public testing::Test {
     ASSERT_TRUE(gate_result);
     RepeatingPreOrderDfsIterator iterator(cu_.mir_graph.get());
     bool change = false;
-    for (BasicBlock *bb = iterator.Next(change); bb != 0; bb = iterator.Next(change)) {
+    for (BasicBlock* bb = iterator.Next(change); bb != nullptr; bb = iterator.Next(change)) {
       change = cu_.mir_graph->EliminateClassInitChecks(bb);
     }
     cu_.mir_graph->EliminateClassInitChecksEnd();

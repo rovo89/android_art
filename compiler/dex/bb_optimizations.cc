@@ -26,83 +26,11 @@ namespace art {
 bool CodeLayout::Worker(const PassDataHolder* data) const {
   DCHECK(data != nullptr);
   const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
-  CompilationUnit* cUnit = pass_me_data_holder->c_unit;
-  DCHECK(cUnit != nullptr);
+  CompilationUnit* c_unit = pass_me_data_holder->c_unit;
+  DCHECK(c_unit != nullptr);
   BasicBlock* bb = pass_me_data_holder->bb;
   DCHECK(bb != nullptr);
-  cUnit->mir_graph->LayoutBlocks(bb);
-  // No need of repeating, so just return false.
-  return false;
-}
-
-/*
- * SSATransformation pass implementation start.
- */
-void SSATransformation::Start(const PassDataHolder* data) const {
-  DCHECK(data != nullptr);
-  CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
-  DCHECK(cUnit != nullptr);
-  cUnit->mir_graph->SSATransformationStart();
-}
-
-bool SSATransformation::Worker(const PassDataHolder* data) const {
-  DCHECK(data != nullptr);
-  const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
-  CompilationUnit* cUnit = pass_me_data_holder->c_unit;
-  DCHECK(cUnit != nullptr);
-  BasicBlock* bb = pass_me_data_holder->bb;
-  DCHECK(bb != nullptr);
-  cUnit->mir_graph->InsertPhiNodeOperands(bb);
-  // No need of repeating, so just return false.
-  return false;
-}
-
-void SSATransformation::End(const PassDataHolder* data) const {
-  DCHECK(data != nullptr);
-  CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
-  DCHECK(cUnit != nullptr);
-  cUnit->mir_graph->SSATransformationEnd();
-}
-
-/*
- * ConstantPropagation pass implementation start
- */
-bool ConstantPropagation::Worker(const PassDataHolder* data) const {
-  DCHECK(data != nullptr);
-  const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
-  CompilationUnit* cUnit = pass_me_data_holder->c_unit;
-  DCHECK(cUnit != nullptr);
-  BasicBlock* bb = pass_me_data_holder->bb;
-  DCHECK(bb != nullptr);
-  cUnit->mir_graph->DoConstantPropagation(bb);
-  // No need of repeating, so just return false.
-  return false;
-}
-
-/*
- * MethodUseCount pass implementation start.
- */
-bool MethodUseCount::Gate(const PassDataHolder* data) const {
-  DCHECK(data != nullptr);
-  CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
-  DCHECK(cUnit != nullptr);
-  // First initialize the data.
-  cUnit->mir_graph->InitializeMethodUses();
-
-  // Now check if the pass is to be ignored.
-  bool res = ((cUnit->disable_opt & (1 << kPromoteRegs)) == 0);
-
-  return res;
-}
-
-bool MethodUseCount::Worker(const PassDataHolder* data) const {
-  DCHECK(data != nullptr);
-  const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
-  CompilationUnit* cUnit = pass_me_data_holder->c_unit;
-  DCHECK(cUnit != nullptr);
-  BasicBlock* bb = pass_me_data_holder->bb;
-  DCHECK(bb != nullptr);
-  cUnit->mir_graph->CountUses(bb);
+  c_unit->mir_graph->LayoutBlocks(bb);
   // No need of repeating, so just return false.
   return false;
 }
@@ -113,11 +41,11 @@ bool MethodUseCount::Worker(const PassDataHolder* data) const {
 bool BBCombine::Worker(const PassDataHolder* data) const {
   DCHECK(data != nullptr);
   const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
-  CompilationUnit* cUnit = pass_me_data_holder->c_unit;
-  DCHECK(cUnit != nullptr);
+  CompilationUnit* c_unit = pass_me_data_holder->c_unit;
+  DCHECK(c_unit != nullptr);
   BasicBlock* bb = pass_me_data_holder->bb;
   DCHECK(bb != nullptr);
-  cUnit->mir_graph->CombineBlocks(bb);
+  c_unit->mir_graph->CombineBlocks(bb);
 
   // No need of repeating, so just return false.
   return false;
@@ -128,15 +56,15 @@ bool BBCombine::Worker(const PassDataHolder* data) const {
  */
 void BBOptimizations::Start(const PassDataHolder* data) const {
   DCHECK(data != nullptr);
-  CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
-  DCHECK(cUnit != nullptr);
+  CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+  DCHECK(c_unit != nullptr);
   /*
    * This pass has a different ordering depEnding on the suppress exception,
    * so do the pass here for now:
    *   - Later, the Start should just change the ordering and we can move the extended
    *     creation into the pass driver's main job with a new iterator
    */
-  cUnit->mir_graph->BasicBlockOptimization();
+  c_unit->mir_graph->BasicBlockOptimization();
 }
 
 }  // namespace art
