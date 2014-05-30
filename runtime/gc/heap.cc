@@ -1161,7 +1161,7 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
   }
   ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated, usable_size);
   if (ptr == nullptr) {
-    ThrowOutOfMemoryError(self, alloc_size, false);
+    ThrowOutOfMemoryError(self, alloc_size, allocator == kAllocatorTypeLOS);
   }
   return ptr;
 }
