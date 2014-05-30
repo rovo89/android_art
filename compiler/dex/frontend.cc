@@ -21,7 +21,7 @@
 #include "dataflow_iterator-inl.h"
 #include "leb128.h"
 #include "mirror/object.h"
-#include "pass_driver_me.h"
+#include "pass_driver_me_opts.h"
 #include "runtime.h"
 #include "base/logging.h"
 #include "base/timing_logger.h"
@@ -750,7 +750,7 @@ static bool CanCompileMethod(uint32_t method_idx, const DexFile& dex_file,
     }
 
     for (int idx = 0; idx < cu.mir_graph->GetNumBlocks(); idx++) {
-      BasicBlock *bb = cu.mir_graph->GetBasicBlock(idx);
+      BasicBlock* bb = cu.mir_graph->GetBasicBlock(idx);
       if (bb == NULL) continue;
       if (bb->block_type == kDead) continue;
       for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
@@ -926,7 +926,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   }
 
   /* Create the pass driver and launch it */
-  PassDriverME pass_driver(&cu);
+  PassDriverMEOpts pass_driver(&cu);
   pass_driver.Launch();
 
   if (cu.enable_debug & (1 << kDebugDumpCheckStats)) {

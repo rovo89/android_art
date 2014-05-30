@@ -32,6 +32,9 @@ class Pass;
  * @details Each enum should be a power of 2 to be correctly used.
  */
 enum OptimizationFlag {
+  kOptimizationBasicBlockChange = 1,  /**< @brief Has there been a change to a BasicBlock? */
+  kOptimizationDefUsesChange = 2,     /**< @brief Has there been a change to a def-use? */
+  kLoopStructureChange = 4,           /**< @brief Has there been a loop structural change? */
 };
 
 // Data holder class.
@@ -93,7 +96,7 @@ class PassME: public Pass {
   /** @brief Type of traversal: determines the order to execute the pass on the BasicBlocks. */
   const DataFlowAnalysisMode traversal_type_;
 
-  /** @brief Flags for additional directives: used to determine if a particular clean-up is necessary post pass. */
+  /** @brief Flags for additional directives: used to determine if a particular post-optimization pass is necessary. */
   const unsigned int flags_;
 
   /** @brief CFG Dump Folder: what sub-folder to use for dumping the CFGs post pass. */

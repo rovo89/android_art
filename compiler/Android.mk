@@ -60,7 +60,9 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/mir_method_info.cc \
 	dex/mir_optimization.cc \
 	dex/bb_optimizations.cc \
-	dex/pass_driver_me.cc \
+	dex/post_opt_passes.cc \
+	dex/pass_driver_me_opts.cc \
+	dex/pass_driver_me_post_opt.cc \
 	dex/frontend.cc \
 	dex/mir_graph.cc \
 	dex/mir_analysis.cc \
