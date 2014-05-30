@@ -205,16 +205,16 @@ void StackVisitor::SetGPR(uint32_t reg, uintptr_t value) {
 }
 
 uintptr_t StackVisitor::GetReturnPc() const {
-  mirror::ArtMethod** sp = GetCurrentQuickFrame();
+  byte* sp = reinterpret_cast<byte*>(GetCurrentQuickFrame());
   DCHECK(sp != NULL);
-  byte* pc_addr = reinterpret_cast<byte*>(sp) + GetMethod()->GetReturnPcOffsetInBytes();
+  byte* pc_addr = sp + GetMethod()->GetReturnPcOffsetInBytes();
   return *reinterpret_cast<uintptr_t*>(pc_addr);
 }
 
 void StackVisitor::SetReturnPc(uintptr_t new_ret_pc) {
-  mirror::ArtMethod** sp = GetCurrentQuickFrame();
+  byte* sp = reinterpret_cast<byte*>(GetCurrentQuickFrame());
   CHECK(sp != NULL);
-  byte* pc_addr = reinterpret_cast<byte*>(sp) + GetMethod()->GetReturnPcOffsetInBytes();
+  byte* pc_addr = sp + GetMethod()->GetReturnPcOffsetInBytes();
   *reinterpret_cast<uintptr_t*>(pc_addr) = new_ret_pc;
 }
 
@@ -307,7 +307,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
     if (cur_quick_frame_ != NULL) {  // Handle quick stack frames.
       // Can't be both a shadow and a quick fragment.
       DCHECK(current_fragment->GetTopShadowFrame() == NULL);
-      mirror::ArtMethod* method = *cur_quick_frame_;
+      mirror::ArtMethod* method = cur_quick_frame_->AsMirrorPtr();
       while (method != NULL) {
         SanityCheckFrame();
         bool should_continue = VisitFrame();
@@ -352,9 +352,9 @@ void StackVisitor::WalkStack(bool include_transitions) {
         }
         cur_quick_frame_pc_ = return_pc;
         byte* next_frame = reinterpret_cast<byte*>(cur_quick_frame_) + frame_size;
-        cur_quick_frame_ = reinterpret_cast<mirror::ArtMethod**>(next_frame);
+        cur_quick_frame_ = reinterpret_cast<StackReference<mirror::ArtMethod>*>(next_frame);
         cur_depth_++;
-        method = *cur_quick_frame_;
+        method = cur_quick_frame_->AsMirrorPtr();
       }
     } else if (cur_shadow_frame_ != NULL) {
       do {

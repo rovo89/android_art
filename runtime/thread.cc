@@ -2012,9 +2012,14 @@ class ReferenceMapVisitor : public StackVisitor {
 
  private:
   void VisitQuickFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod** method_addr = GetMethodAddress();
-    visitor_(reinterpret_cast<mirror::Object**>(method_addr), 0 /*ignored*/, this);
-    mirror::ArtMethod* m = *method_addr;
+    StackReference<mirror::ArtMethod>* cur_quick_frame = GetCurrentQuickFrame();
+    mirror::ArtMethod* m = cur_quick_frame->AsMirrorPtr();
+    mirror::ArtMethod* old_method = m;
+    visitor_(reinterpret_cast<mirror::Object**>(&m), 0 /*ignored*/, this);
+    if (m != old_method) {
+      cur_quick_frame->Assign(m);
+    }
+
     // Process register map (which native and runtime methods don't have)
     if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
       const uint8_t* native_gc_map = m->GetNativeGcMap();
@@ -2035,7 +2040,7 @@ class ReferenceMapVisitor : public StackVisitor {
         const VmapTable vmap_table(m->GetVmapTable(code_pointer));
         QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
         // For all dex registers in the bitmap
-        mirror::ArtMethod** cur_quick_frame = GetCurrentQuickFrame();
+        StackReference<mirror::ArtMethod>* cur_quick_frame = GetCurrentQuickFrame();
         DCHECK(cur_quick_frame != nullptr);
         for (size_t reg = 0; reg < num_regs; ++reg) {
           // Does this register hold a reference?

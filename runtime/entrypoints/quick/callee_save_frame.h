@@ -26,12 +26,12 @@ class ArtMethod;
 }  // namespace mirror
 
 // Place a special frame at the TOS that will save the callee saves for the given type.
-static inline void FinishCalleeSaveFrameSetup(Thread* self, mirror::ArtMethod** sp,
+static inline void FinishCalleeSaveFrameSetup(Thread* self, StackReference<mirror::ArtMethod>* sp,
                                               Runtime::CalleeSaveType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Be aware the store below may well stomp on an incoming argument.
   Locks::mutator_lock_->AssertSharedHeld(self);
-  *sp = Runtime::Current()->GetCalleeSaveMethod(type);
+  sp->Assign(Runtime::Current()->GetCalleeSaveMethod(type));
   self->SetTopOfStack(sp, 0);
   self->VerifyStack();
 }
