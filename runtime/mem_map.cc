@@ -206,8 +206,6 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* expected, size_t byte_count
   // MAP_32BIT only available on x86_64.
   void* actual = MAP_FAILED;
   if (low_4gb && expected == nullptr) {
-    flags |= MAP_FIXED;
-
     bool first_run = true;
 
     for (uintptr_t ptr = next_mem_pos_; ptr < 4 * GB; ptr += kPageSize) {
@@ -243,7 +241,14 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* expected, size_t byte_count
         actual = mmap(reinterpret_cast<void*>(ptr), page_aligned_byte_count, prot, flags, fd.get(),
                       0);
         if (actual != MAP_FAILED) {
-          break;
+          // Since we didn't use MAP_FIXED the kernel may have mapped it somewhere not in the low
+          // 4GB. If this is the case, unmap and retry.
+          if (reinterpret_cast<uintptr_t>(actual) + page_aligned_byte_count < 4 * GB) {
+            break;
+          } else {
+            munmap(actual, page_aligned_byte_count);
+            actual = MAP_FAILED;
+          }
         }
       } else {
         // Skip over last page.
