@@ -32,6 +32,8 @@
 
 namespace art {
 
+class GlobalValueNumbering;
+
 enum InstructionAnalysisAttributePos {
   kUninterestingOp = 0,
   kArithmeticOp,
@@ -899,6 +901,9 @@ class MIRGraph {
   bool EliminateClassInitChecksGate();
   bool EliminateClassInitChecks(BasicBlock* bb);
   void EliminateClassInitChecksEnd();
+  bool ApplyGlobalValueNumberingGate();
+  bool ApplyGlobalValueNumbering(BasicBlock* bb);
+  void ApplyGlobalValueNumberingEnd();
   /*
    * Type inference handling helpers.  Because Dalvik's bytecode is not fully typed,
    * we have to do some work to figure out the sreg type.  For some operations it is
@@ -1123,6 +1128,7 @@ class MIRGraph {
   uint16_t* temp_insn_data_;
   uint32_t temp_bit_vector_size_;
   ArenaBitVector* temp_bit_vector_;
+  std::unique_ptr<GlobalValueNumbering> temp_gvn_;
   static const int kInvalidEntry = -1;
   GrowableArray<BasicBlock*> block_list_;
   ArenaBitVector* try_block_addr_;
@@ -1159,6 +1165,7 @@ class MIRGraph {
   GrowableArray<BasicBlock*> gen_suspend_test_list_;  // List of blocks containing suspend tests
 
   friend class ClassInitCheckEliminationTest;
+  friend class GlobalValueNumberingTest;
   friend class LocalValueNumberingTest;
 };
 

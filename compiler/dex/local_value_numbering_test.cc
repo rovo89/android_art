@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-#include <vector>
-
-#include "local_value_numbering.h"
 #include "compiler_internals.h"
+#include "global_value_numbering.h"
+#include "local_value_numbering.h"
 #include "gtest/gtest.h"
 
 namespace art {
@@ -181,7 +180,7 @@ class LocalValueNumberingTest : public testing::Test {
     for (size_t i = 0; i != mir_count_; ++i) {
       value_names_[i] =  lvn_->GetValueNumber(&mirs_[i]);
     }
-    EXPECT_TRUE(lvn_->Good());
+    EXPECT_TRUE(gvn_->Good());
   }
 
   LocalValueNumberingTest()
@@ -189,11 +188,16 @@ class LocalValueNumberingTest : public testing::Test {
         cu_(&pool_),
         mir_count_(0u),
         mirs_(nullptr),
+        ssa_reps_(),
         allocator_(),
-        lvn_() {
+        gvn_(),
+        lvn_(),
+        value_names_() {
     cu_.mir_graph.reset(new MIRGraph(&cu_, &cu_.arena));
     allocator_.reset(ScopedArenaAllocator::Create(&cu_.arena_stack));
-    lvn_.reset(new (allocator_.get()) LocalValueNumbering(&cu_, allocator_.get()));
+    gvn_.reset(new (allocator_.get()) GlobalValueNumbering(&cu_, allocator_.get()));
+    lvn_.reset(new (allocator_.get()) LocalValueNumbering(gvn_.get(), 0u));
+    gvn_->AllowModifications();
   }
 
   ArenaPool pool_;
@@ -201,9 +205,10 @@ class LocalValueNumberingTest : public testing::Test {
   size_t mir_count_;
   MIR* mirs_;
   std::vector<SSARepresentation> ssa_reps_;
-  std::vector<uint16_t> value_names_;
   std::unique_ptr<ScopedArenaAllocator> allocator_;
+  std::unique_ptr<GlobalValueNumbering> gvn_;
   std::unique_ptr<LocalValueNumbering> lvn_;
+  std::vector<uint16_t> value_names_;
 };
 
 TEST_F(LocalValueNumberingTest, IGetIGetInvokeIGet) {
@@ -248,11 +253,10 @@ TEST_F(LocalValueNumberingTest, IGetIPutIGetIGetIGet) {
   ASSERT_EQ(value_names_.size(), 5u);
   EXPECT_NE(value_names_[0], value_names_[2]);
   EXPECT_NE(value_names_[3], value_names_[4]);
-  EXPECT_EQ(mirs_[0].optimization_flags, 0u);
-  EXPECT_EQ(mirs_[1].optimization_flags, 0u);
-  EXPECT_EQ(mirs_[2].optimization_flags, MIR_IGNORE_NULL_CHECK);
-  EXPECT_EQ(mirs_[3].optimization_flags, 0u);
-  EXPECT_EQ(mirs_[4].optimization_flags, 0u);
+  for (size_t i = 0; i != arraysize(mirs); ++i) {
+    EXPECT_EQ((i == 2u) ? MIR_IGNORE_NULL_CHECK : 0,
+              mirs_[i].optimization_flags) << i;
+  }
 }
 
 TEST_F(LocalValueNumberingTest, UniquePreserve1) {
@@ -271,9 +275,10 @@ TEST_F(LocalValueNumberingTest, UniquePreserve1) {
   PerformLVN();
   ASSERT_EQ(value_names_.size(), 4u);
   EXPECT_EQ(value_names_[1], value_names_[3]);
-  EXPECT_EQ(mirs_[1].optimization_flags, MIR_IGNORE_NULL_CHECK);
-  EXPECT_EQ(mirs_[2].optimization_flags, 0u);
-  EXPECT_EQ(mirs_[3].optimization_flags, MIR_IGNORE_NULL_CHECK);
+  for (size_t i = 0; i != arraysize(mirs); ++i) {
+    EXPECT_EQ((i == 1u || i == 3u) ? MIR_IGNORE_NULL_CHECK : 0,
+              mirs_[i].optimization_flags) << i;
+  }
 }
 
 TEST_F(LocalValueNumberingTest, UniquePreserve2) {
@@ -292,9 +297,10 @@ TEST_F(LocalValueNumberingTest, UniquePreserve2) {
   PerformLVN();
   ASSERT_EQ(value_names_.size(), 4u);
   EXPECT_EQ(value_names_[1], value_names_[3]);
-  EXPECT_EQ(mirs_[1].optimization_flags, 0u);
-  EXPECT_EQ(mirs_[2].optimization_flags, MIR_IGNORE_NULL_CHECK);
-  EXPECT_EQ(mirs_[3].optimization_flags, MIR_IGNORE_NULL_CHECK);
+  for (size_t i = 0; i != arraysize(mirs); ++i) {
+    EXPECT_EQ((i == 2u || i == 3u) ? MIR_IGNORE_NULL_CHECK : 0,
+              mirs_[i].optimization_flags) << i;
+  }
 }
 
 TEST_F(LocalValueNumberingTest, UniquePreserveAndEscape) {
@@ -316,9 +322,10 @@ TEST_F(LocalValueNumberingTest, UniquePreserveAndEscape) {
   ASSERT_EQ(value_names_.size(), 6u);
   EXPECT_EQ(value_names_[1], value_names_[3]);
   EXPECT_NE(value_names_[1], value_names_[5]);
-  EXPECT_EQ(mirs_[1].optimization_flags, MIR_IGNORE_NULL_CHECK);
-  EXPECT_EQ(mirs_[3].optimization_flags, MIR_IGNORE_NULL_CHECK);
-  EXPECT_EQ(mirs_[5].optimization_flags, MIR_IGNORE_NULL_CHECK);
+  for (size_t i = 0; i != arraysize(mirs); ++i) {
+    EXPECT_EQ((i == 1u || i == 3u || i == 4u || i == 5u) ? MIR_IGNORE_NULL_CHECK : 0,
+              mirs_[i].optimization_flags) << i;
+  }
 }
 
 TEST_F(LocalValueNumberingTest, Volatile) {
@@ -339,10 +346,10 @@ TEST_F(LocalValueNumberingTest, Volatile) {
   ASSERT_EQ(value_names_.size(), 4u);
   EXPECT_NE(value_names_[0], value_names_[2]);  // Volatile has always different value name.
   EXPECT_NE(value_names_[1], value_names_[3]);  // Used different base because of volatile.
-  EXPECT_EQ(mirs_[0].optimization_flags, 0u);
-  EXPECT_EQ(mirs_[1].optimization_flags, 0u);
-  EXPECT_EQ(mirs_[2].optimization_flags, MIR_IGNORE_NULL_CHECK);
-  EXPECT_EQ(mirs_[3].optimization_flags, 0u);
+  for (size_t i = 0; i != arraysize(mirs); ++i) {
+    EXPECT_EQ((i == 2u) ? MIR_IGNORE_NULL_CHECK : 0,
+              mirs_[i].optimization_flags) << i;
+  }
 }
 
 TEST_F(LocalValueNumberingTest, UnresolvedIField) {
@@ -360,29 +367,36 @@ TEST_F(LocalValueNumberingTest, UnresolvedIField) {
       DEF_IGET(Instruction::IGET, 5u, 20u, 0u),             // Resolved field #1, unique object.
       DEF_IGET(Instruction::IGET, 6u, 21u, 0u),             // Resolved field #1.
       DEF_IGET_WIDE(Instruction::IGET_WIDE, 7u, 21u, 1u),   // Resolved field #2.
-      DEF_IPUT(Instruction::IPUT, 8u, 22u, 2u),             // IPUT clobbers field #1 (#2 if wide).
+      DEF_IPUT(Instruction::IPUT, 8u, 22u, 2u),             // IPUT clobbers field #1 (#2 is wide).
       DEF_IGET(Instruction::IGET, 9u, 20u, 0u),             // Resolved field #1, unique object.
       DEF_IGET(Instruction::IGET, 10u, 21u, 0u),            // Resolved field #1, new value name.
       DEF_IGET_WIDE(Instruction::IGET_WIDE, 11u, 21u, 1u),  // Resolved field #2.
+      DEF_IGET_WIDE(Instruction::IGET_WIDE, 12u, 20u, 1u),  // Resolved field #2, unique object.
+      DEF_IPUT(Instruction::IPUT, 13u, 20u, 2u),            // IPUT clobbers field #1 (#2 is wide).
+      DEF_IGET(Instruction::IGET, 14u, 20u, 0u),            // Resolved field #1, unique object.
+      DEF_IGET_WIDE(Instruction::IGET_WIDE, 15u, 20u, 1u),  // Resolved field #2, unique object.
   };
 
   PrepareIFields(ifields);
   PrepareMIRs(mirs);
   PerformLVN();
-  ASSERT_EQ(value_names_.size(), 12u);
+  ASSERT_EQ(value_names_.size(), 16u);
   EXPECT_EQ(value_names_[1], value_names_[5]);
   EXPECT_EQ(value_names_[2], value_names_[6]);
   EXPECT_EQ(value_names_[3], value_names_[7]);
   EXPECT_EQ(value_names_[1], value_names_[9]);
   EXPECT_NE(value_names_[2], value_names_[10]);  // This aliased with unresolved IPUT.
   EXPECT_EQ(value_names_[3], value_names_[11]);
+  EXPECT_EQ(value_names_[12], value_names_[15]);
+  EXPECT_NE(value_names_[1], value_names_[14]);  // This aliased with unresolved IPUT.
   EXPECT_EQ(mirs_[0].optimization_flags, 0u);
   EXPECT_EQ(mirs_[1].optimization_flags, MIR_IGNORE_NULL_CHECK);
   EXPECT_EQ(mirs_[2].optimization_flags, 0u);
   EXPECT_EQ(mirs_[3].optimization_flags, MIR_IGNORE_NULL_CHECK);
   EXPECT_EQ(mirs_[4].optimization_flags, 0u);
   for (size_t i = 5u; i != mir_count_; ++i) {
-    EXPECT_EQ(mirs_[i].optimization_flags, MIR_IGNORE_NULL_CHECK);
+    EXPECT_EQ((i == 1u || i == 3u || i >=5u) ? MIR_IGNORE_NULL_CHECK : 0,
+              mirs_[i].optimization_flags) << i;
   }
 }
 
@@ -412,8 +426,38 @@ TEST_F(LocalValueNumberingTest, UnresolvedSField) {
   EXPECT_NE(value_names_[0], value_names_[6]);  // This aliased with unresolved IPUT.
   EXPECT_EQ(value_names_[1], value_names_[7]);
   for (size_t i = 0u; i != mir_count_; ++i) {
-    EXPECT_EQ(mirs_[i].optimization_flags, 0u) << i;
+    EXPECT_EQ(0, mirs_[i].optimization_flags) << i;
   }
+}
+
+TEST_F(LocalValueNumberingTest, UninitializedSField) {
+  static const IFieldDef ifields[] = {
+      { 1u, 1u, 1u, false },  // Resolved field #1.
+  };
+  static const SFieldDef sfields[] = {
+      { 1u, 1u, 1u, false },  // Resolved field #1.
+      { 2u, 1u, 2u, false },  // Resolved field #2; uninitialized.
+  };
+  static const MIRDef mirs[] = {
+      DEF_UNIQUE_REF(Instruction::NEW_INSTANCE, 200u),
+      DEF_IGET(Instruction::IGET, 1u, 100u, 0u),
+      DEF_IGET(Instruction::IGET, 2u, 200u, 0u),
+      DEF_SGET(Instruction::SGET, 3u, 0u),
+      DEF_SGET(Instruction::SGET, 4u, 1u),            // Can call <clinit>().
+      DEF_IGET(Instruction::IGET, 5u, 100u, 0u),      // Differs from 1u.
+      DEF_IGET(Instruction::IGET, 6u, 200u, 0u),      // Same as 2u.
+      DEF_SGET(Instruction::SGET, 7u, 0u),            // Differs from 3u.
+  };
+
+  PrepareIFields(ifields);
+  PrepareSFields(sfields);
+  MakeSFieldUninitialized(1u);
+  PrepareMIRs(mirs);
+  PerformLVN();
+  ASSERT_EQ(value_names_.size(), 8u);
+  EXPECT_NE(value_names_[1], value_names_[5]);
+  EXPECT_EQ(value_names_[2], value_names_[6]);
+  EXPECT_NE(value_names_[3], value_names_[7]);
 }
 
 TEST_F(LocalValueNumberingTest, ConstString) {
@@ -444,33 +488,39 @@ TEST_F(LocalValueNumberingTest, SameValueInDifferentMemoryLocations) {
       { 3u, 1u, 3u, false },
   };
   static const MIRDef mirs[] = {
-      DEF_IGET(Instruction::IGET, 0u, 10u, 0u),
-      DEF_IPUT(Instruction::IPUT, 0u, 10u, 1u),
+      DEF_UNIQUE_REF(Instruction::NEW_ARRAY, 201u),
+      DEF_IGET(Instruction::IGET, 0u, 100u, 0u),
+      DEF_IPUT(Instruction::IPUT, 0u, 100u, 1u),
+      DEF_IPUT(Instruction::IPUT, 0u, 101u, 1u),
+      DEF_APUT(Instruction::APUT, 0u, 200u, 300u),
+      DEF_APUT(Instruction::APUT, 0u, 200u, 301u),
+      DEF_APUT(Instruction::APUT, 0u, 201u, 300u),
+      DEF_APUT(Instruction::APUT, 0u, 201u, 301u),
       DEF_SPUT(Instruction::SPUT, 0u, 0u),
-      DEF_APUT(Instruction::APUT, 0u, 11u, 12u),
-      DEF_IGET(Instruction::IGET, 1u, 10u, 0u),
-      DEF_IGET(Instruction::IGET, 2u, 10u, 1u),
-      DEF_AGET(Instruction::AGET, 3u, 11u, 12u),
-      DEF_SGET(Instruction::SGET, 4u, 0u),
+      DEF_IGET(Instruction::IGET, 9u, 100u, 0u),
+      DEF_IGET(Instruction::IGET, 10u, 100u, 1u),
+      DEF_IGET(Instruction::IGET, 11u, 101u, 1u),
+      DEF_AGET(Instruction::AGET, 12u, 200u, 300u),
+      DEF_AGET(Instruction::AGET, 13u, 200u, 301u),
+      DEF_AGET(Instruction::AGET, 14u, 201u, 300u),
+      DEF_AGET(Instruction::AGET, 15u, 201u, 301u),
+      DEF_SGET(Instruction::SGET, 16u, 0u),
   };
 
   PrepareIFields(ifields);
   PrepareSFields(sfields);
   PrepareMIRs(mirs);
   PerformLVN();
-  ASSERT_EQ(value_names_.size(), 8u);
-  EXPECT_EQ(value_names_[4], value_names_[0]);
-  EXPECT_EQ(value_names_[5], value_names_[0]);
-  EXPECT_EQ(value_names_[6], value_names_[0]);
-  EXPECT_EQ(value_names_[7], value_names_[0]);
-  EXPECT_EQ(mirs_[0].optimization_flags, 0u);
-  EXPECT_EQ(mirs_[1].optimization_flags, MIR_IGNORE_NULL_CHECK);
-  EXPECT_EQ(mirs_[2].optimization_flags, 0u);
-  EXPECT_EQ(mirs_[3].optimization_flags, 0u);
-  EXPECT_EQ(mirs_[4].optimization_flags, MIR_IGNORE_NULL_CHECK);
-  EXPECT_EQ(mirs_[5].optimization_flags, MIR_IGNORE_NULL_CHECK);
-  EXPECT_EQ(mirs_[6].optimization_flags, MIR_IGNORE_NULL_CHECK | MIR_IGNORE_RANGE_CHECK);
-  EXPECT_EQ(mirs_[7].optimization_flags, 0u);
+  ASSERT_EQ(value_names_.size(), 17u);
+  for (size_t i = 9; i != arraysize(mirs); ++i) {
+    EXPECT_EQ(value_names_[1], value_names_[i]) << i;
+  }
+  for (size_t i = 0; i != arraysize(mirs); ++i) {
+    int expected_flags =
+        ((i == 2u || (i >= 5u && i <= 7u) || (i >= 9u && i <= 15u)) ? MIR_IGNORE_NULL_CHECK : 0) |
+        ((i >= 12u && i <= 15u) ? MIR_IGNORE_RANGE_CHECK : 0);
+    EXPECT_EQ(expected_flags, mirs_[i].optimization_flags) << i;
+  }
 }
 
 TEST_F(LocalValueNumberingTest, UniqueArrayAliasing) {
@@ -485,10 +535,12 @@ TEST_F(LocalValueNumberingTest, UniqueArrayAliasing) {
   PerformLVN();
   ASSERT_EQ(value_names_.size(), 4u);
   EXPECT_NE(value_names_[1], value_names_[3]);
-  EXPECT_EQ(mirs_[0].optimization_flags, 0u);
-  EXPECT_EQ(mirs_[1].optimization_flags, MIR_IGNORE_NULL_CHECK);
-  EXPECT_EQ(mirs_[2].optimization_flags, MIR_IGNORE_NULL_CHECK);
-  EXPECT_EQ(mirs_[3].optimization_flags, MIR_IGNORE_NULL_CHECK | MIR_IGNORE_RANGE_CHECK);
+  for (size_t i = 0; i != arraysize(mirs); ++i) {
+    int expected_flags =
+        ((i >= 1u) ? MIR_IGNORE_NULL_CHECK : 0) |
+        ((i == 3u) ? MIR_IGNORE_RANGE_CHECK : 0);
+    EXPECT_EQ(expected_flags, mirs_[i].optimization_flags) << i;
+  }
 }
 
 TEST_F(LocalValueNumberingTest, EscapingRefs) {
@@ -536,7 +588,7 @@ TEST_F(LocalValueNumberingTest, EscapingRefs) {
   EXPECT_NE(value_names_[13], value_names_[16]);  // New value.
   EXPECT_NE(value_names_[14], value_names_[17]);  // New value.
   for (size_t i = 0u; i != mir_count_; ++i) {
-    int expected = (i != 0u && i != 3u && i != 6u) ? MIR_IGNORE_NULL_CHECK : 0u;
+    int expected = (i != 0u && i != 3u && i != 6u) ? MIR_IGNORE_NULL_CHECK : 0;
     EXPECT_EQ(expected, mirs_[i].optimization_flags) << i;
   }
 }
@@ -577,30 +629,81 @@ TEST_F(LocalValueNumberingTest, EscapingArrayRefs) {
 TEST_F(LocalValueNumberingTest, StoringSameValueKeepsMemoryVersion) {
   static const IFieldDef ifields[] = {
       { 1u, 1u, 1u, false },
+      { 2u, 1u, 2u, false },
+  };
+  static const SFieldDef sfields[] = {
+      { 2u, 1u, 2u, false },
   };
   static const MIRDef mirs[] = {
-      DEF_IGET(Instruction::IGET, 0u, 10u, 0u),
-      DEF_IGET(Instruction::IGET, 1u, 11u, 0u),
-      DEF_IPUT(Instruction::IPUT, 1u, 11u, 0u),   // Store the same value.
-      DEF_IGET(Instruction::IGET, 3u, 10u, 0u),
-      DEF_AGET(Instruction::AGET, 4u, 12u, 40u),
-      DEF_AGET(Instruction::AGET, 5u, 13u, 40u),
-      DEF_APUT(Instruction::APUT, 5u, 13u, 40u),  // Store the same value.
-      DEF_AGET(Instruction::AGET, 7u, 12u, 40u),
+      DEF_IGET(Instruction::IGET, 0u, 30u, 0u),
+      DEF_IGET(Instruction::IGET, 1u, 31u, 0u),
+      DEF_IPUT(Instruction::IPUT, 1u, 31u, 0u),            // Store the same value.
+      DEF_IGET(Instruction::IGET, 3u, 30u, 0u),
+      DEF_AGET(Instruction::AGET, 4u, 32u, 40u),
+      DEF_AGET(Instruction::AGET, 5u, 33u, 40u),
+      DEF_APUT(Instruction::APUT, 5u, 33u, 40u),           // Store the same value.
+      DEF_AGET(Instruction::AGET, 7u, 32u, 40u),
+      DEF_SGET(Instruction::SGET, 8u, 0u),
+      DEF_SPUT(Instruction::SPUT, 8u, 0u),                 // Store the same value.
+      DEF_SGET(Instruction::SGET, 10u, 0u),
+      DEF_UNIQUE_REF(Instruction::NEW_INSTANCE, 50u),      // Test with unique references.
+      { Instruction::FILLED_NEW_ARRAY, 0, 0u, 2, { 12u, 13u }, 0, { } },
+      DEF_UNIQUE_REF(Instruction::MOVE_RESULT_OBJECT, 51u),
+      DEF_IGET(Instruction::IGET, 14u, 50u, 0u),
+      DEF_IGET(Instruction::IGET, 15u, 50u, 1u),
+      DEF_IPUT(Instruction::IPUT, 15u, 50u, 1u),           // Store the same value.
+      DEF_IGET(Instruction::IGET, 17u, 50u, 0u),
+      DEF_AGET(Instruction::AGET, 18u, 51u, 40u),
+      DEF_AGET(Instruction::AGET, 19u, 51u, 41u),
+      DEF_APUT(Instruction::APUT, 19u, 51u, 41u),          // Store the same value.
+      DEF_AGET(Instruction::AGET, 21u, 51u, 40u),
   };
 
   PrepareIFields(ifields);
+  PrepareSFields(sfields);
   PrepareMIRs(mirs);
   PerformLVN();
-  ASSERT_EQ(value_names_.size(), 8u);
+  ASSERT_EQ(value_names_.size(), 22u);
   EXPECT_NE(value_names_[0], value_names_[1]);
   EXPECT_EQ(value_names_[0], value_names_[3]);
   EXPECT_NE(value_names_[4], value_names_[5]);
   EXPECT_EQ(value_names_[4], value_names_[7]);
+  EXPECT_EQ(value_names_[8], value_names_[10]);
+  EXPECT_NE(value_names_[14], value_names_[15]);
+  EXPECT_EQ(value_names_[14], value_names_[17]);
+  EXPECT_NE(value_names_[18], value_names_[19]);
+  EXPECT_EQ(value_names_[18], value_names_[21]);
   for (size_t i = 0u; i != mir_count_; ++i) {
     int expected =
-        ((i == 2u || i == 3u || i == 6u || i == 7u) ? MIR_IGNORE_NULL_CHECK : 0u) |
-        ((i == 6u || i == 7u) ? MIR_IGNORE_RANGE_CHECK : 0u);
+        ((i == 2u || i == 3u || i == 6u || i == 7u || (i >= 14u)) ? MIR_IGNORE_NULL_CHECK : 0u) |
+        ((i == 6u || i == 7u || i >= 20u) ? MIR_IGNORE_RANGE_CHECK : 0u);
+    EXPECT_EQ(expected, mirs_[i].optimization_flags) << i;
+  }
+}
+
+TEST_F(LocalValueNumberingTest, FilledNewArrayTracking) {
+  if (!kLocalValueNumberingEnableFilledNewArrayTracking) {
+    // Feature disabled.
+    return;
+  }
+  static const MIRDef mirs[] = {
+      DEF_CONST(Instruction::CONST, 0u, 100),
+      DEF_CONST(Instruction::CONST, 1u, 200),
+      { Instruction::FILLED_NEW_ARRAY, 0, 0u, 2, { 0u, 1u }, 0, { } },
+      DEF_UNIQUE_REF(Instruction::MOVE_RESULT_OBJECT, 10u),
+      DEF_CONST(Instruction::CONST, 20u, 0),
+      DEF_CONST(Instruction::CONST, 21u, 1),
+      DEF_AGET(Instruction::AGET, 6u, 10u, 20u),
+      DEF_AGET(Instruction::AGET, 7u, 10u, 21u),
+  };
+
+  PrepareMIRs(mirs);
+  PerformLVN();
+  ASSERT_EQ(value_names_.size(), 8u);
+  EXPECT_EQ(value_names_[0], value_names_[6]);
+  EXPECT_EQ(value_names_[1], value_names_[7]);
+  for (size_t i = 0u; i != mir_count_; ++i) {
+    int expected = (i == 6u || i == 7u) ? (MIR_IGNORE_NULL_CHECK | MIR_IGNORE_RANGE_CHECK) : 0u;
     EXPECT_EQ(expected, mirs_[i].optimization_flags) << i;
   }
 }
