@@ -19,6 +19,7 @@
 
 #include "base/logging.h"
 #include "base/mutex.h"
+#include "stack.h"  // StackReference
 
 namespace art {
 
@@ -50,7 +51,7 @@ class QuickExceptionHandler {
   void UpdateInstrumentationStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DoLongJump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetHandlerQuickFrame(mirror::ArtMethod** handler_quick_frame) {
+  void SetHandlerQuickFrame(StackReference<mirror::ArtMethod>* handler_quick_frame) {
     handler_quick_frame_ = handler_quick_frame;
   }
 
@@ -77,7 +78,7 @@ class QuickExceptionHandler {
   // Is method tracing active?
   const bool method_tracing_active_;
   // Quick frame with found handler or last frame if no handler found.
-  mirror::ArtMethod** handler_quick_frame_;
+  StackReference<mirror::ArtMethod>* handler_quick_frame_;
   // PC to branch to for the handler.
   uintptr_t handler_quick_frame_pc_;
   // Associated dex PC.

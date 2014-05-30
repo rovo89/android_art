@@ -337,30 +337,22 @@ TEST_F(ArchTest, X86_64) {
 // The following tests are all for the running architecture. So we get away
 // with just including it and not undefining it every time.
 
-
 #if defined(__arm__)
 #include "arch/arm/asm_support_arm.h"
-#undef ART_RUNTIME_ARCH_ARM_ASM_SUPPORT_ARM_H_
 #elif defined(__aarch64__)
 #include "arch/arm64/asm_support_arm64.h"
-#undef ART_RUNTIME_ARCH_ARM64_ASM_SUPPORT_ARM64_H_
 #elif defined(__mips__)
 #include "arch/mips/asm_support_mips.h"
-#undef ART_RUNTIME_ARCH_MIPS_ASM_SUPPORT_MIPS_H_
 #elif defined(__i386__)
 #include "arch/x86/asm_support_x86.h"
-#undef ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_H_
 #elif defined(__x86_64__)
 #include "arch/x86_64/asm_support_x86_64.h"
-#undef ART_RUNTIME_ARCH_X86_64_ASM_SUPPORT_X86_64_H_
 #else
   // This happens for the host test.
 #ifdef __LP64__
 #include "arch/x86_64/asm_support_x86_64.h"
-#undef ART_RUNTIME_ARCH_X86_64_ASM_SUPPORT_X86_64_H_
 #else
 #include "arch/x86/asm_support_x86.h"
-#undef ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_H_
 #endif
 #endif
 
@@ -433,6 +425,15 @@ TEST_F(ArchTest, HeapReferenceSize) {
             static_cast<size_t>(HEAP_REFERENCE_SIZE));
 #else
   LOG(INFO) << "No expected HeapReference Size found.";
+#endif
+}
+
+TEST_F(ArchTest, StackReferenceSize) {
+#if defined(STACK_REFERENCE_SIZE)
+  EXPECT_EQ(sizeof(StackReference<mirror::Object>),
+            static_cast<size_t>(STACK_REFERENCE_SIZE));
+#else
+  LOG(INFO) << "No expected StackReference Size #define found.";
 #endif
 }
 

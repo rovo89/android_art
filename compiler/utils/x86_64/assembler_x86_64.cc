@@ -59,7 +59,6 @@ void X86_64Assembler::call(Label* label) {
   EmitLabel(label, kSize);
 }
 
-
 void X86_64Assembler::pushq(CpuRegister reg) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(reg);
@@ -1652,8 +1651,12 @@ void X86_64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   }
   // return address then method on stack
   addq(CpuRegister(RSP), Immediate(-frame_size + (spill_regs.size() * kFramePointerSize) +
-                                   kFramePointerSize /*method*/ + kFramePointerSize /*return address*/));
-  pushq(method_reg.AsX86_64().AsCpuRegister());
+                                   sizeof(StackReference<mirror::ArtMethod>) /*method*/ +
+                                   kFramePointerSize /*return address*/));
+
+  DCHECK_EQ(4U, sizeof(StackReference<mirror::ArtMethod>));
+  subq(CpuRegister(RSP), Immediate(4));
+  movl(Address(CpuRegister(RSP), 0), method_reg.AsX86_64().AsCpuRegister());
 
   for (size_t i = 0; i < entry_spills.size(); ++i) {
     ManagedRegisterSpill spill = entry_spills.at(i);
@@ -1732,7 +1735,7 @@ void X86_64Assembler::Store(FrameOffset offs, ManagedRegister msrc, size_t size)
 void X86_64Assembler::StoreRef(FrameOffset dest, ManagedRegister msrc) {
   X86_64ManagedRegister src = msrc.AsX86_64();
   CHECK(src.IsCpuRegister());
-  movq(Address(CpuRegister(RSP), dest), src.AsCpuRegister());
+  movl(Address(CpuRegister(RSP), dest), src.AsCpuRegister());
 }
 
 void X86_64Assembler::StoreRawPtr(FrameOffset dest, ManagedRegister msrc) {
@@ -2070,7 +2073,7 @@ void X86_64Assembler::Call(ManagedRegister mbase, Offset offset, ManagedRegister
 
 void X86_64Assembler::Call(FrameOffset base, Offset offset, ManagedRegister mscratch) {
   CpuRegister scratch = mscratch.AsX86_64().AsCpuRegister();
-  movq(scratch, Address(CpuRegister(RSP), base));
+  movl(scratch, Address(CpuRegister(RSP), base));
   call(Address(scratch, offset));
 }
 
