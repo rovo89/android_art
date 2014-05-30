@@ -26,6 +26,7 @@
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "leb128.h"
+#include "pass_driver_me_post_opt.h"
 
 namespace art {
 
@@ -353,7 +354,7 @@ BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, DexOffs
 
   /* Always terminate the current block for conditional branches */
   if (flags & Instruction::kContinue) {
-    BasicBlock *fallthrough_block = FindBlock(cur_offset +  width,
+    BasicBlock* fallthrough_block = FindBlock(cur_offset +  width,
                                              /*
                                               * If the method is processed
                                               * in sequential order from the
@@ -541,7 +542,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
    * Note also that the dex_pc_to_block_map_ entry for the potentially
    * throwing instruction will refer to the original basic block.
    */
-  BasicBlock *new_block = NewMemBB(kDalvikByteCode, num_blocks_++);
+  BasicBlock* new_block = NewMemBB(kDalvikByteCode, num_blocks_++);
   block_list_.Insert(new_block);
   new_block->start_offset = insn->offset;
   cur_block->fall_through = new_block->id;
@@ -724,7 +725,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
       }
     }
     current_offset_ += width;
-    BasicBlock *next_block = FindBlock(current_offset_, /* split */ false, /* create */
+    BasicBlock* next_block = FindBlock(current_offset_, /* split */ false, /* create */
                                       false, /* immed_pred_block_p */ NULL);
     if (next_block) {
       /*
@@ -1418,25 +1419,6 @@ void MIRGraph::SSATransformationStart() {
   temp_bit_vector_ = new (temp_scoped_alloc_.get()) ArenaBitVector(
       temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapRegisterV);
 
-  /* Compute the DFS order */
-  ComputeDFSOrders();
-
-  /* Compute the dominator info */
-  ComputeDominators();
-
-  /* Allocate data structures in preparation for SSA conversion */
-  CompilerInitializeSSAConversion();
-
-  /* Find out the "Dalvik reg def x block" relation */
-  ComputeDefBlockMatrix();
-
-  /* Insert phi nodes to dominance frontiers for all variables */
-  InsertPhiNodes();
-
-  /* Rename register names by local defs and phi nodes */
-  ClearAllVisitedFlags();
-  DoDFSPreOrderSSARename(GetEntryBlock());
-
   // Update the maximum number of reachable blocks.
   max_num_reachable_blocks_ = num_reachable_blocks_;
 }
@@ -1454,7 +1436,7 @@ void MIRGraph::SSATransformationEnd() {
 }
 
 void MIRGraph::ComputeTopologicalSortOrder() {
-  std::queue<BasicBlock *> q;
+  std::queue<BasicBlock*> q;
   std::map<int, int> visited_cnt_values;
 
   // Clear the nodes.
@@ -1510,7 +1492,7 @@ void MIRGraph::ComputeTopologicalSortOrder() {
 
   while (q.size() > 0) {
     // Get top.
-    BasicBlock *bb = q.front();
+    BasicBlock* bb = q.front();
     q.pop();
 
     DCHECK_EQ(bb->hidden, false);
@@ -1528,7 +1510,7 @@ void MIRGraph::ComputeTopologicalSortOrder() {
 
       // Reduce visitedCnt for all the successors and add into the queue ones with visitedCnt equals to zero.
       ChildBlockIterator succIter(bb, this);
-      BasicBlock *successor = succIter.Next();
+      BasicBlock* successor = succIter.Next();
       while (successor != nullptr) {
         // one more predecessor was visited.
         visited_cnt_values[successor->id]--;
@@ -1912,6 +1894,15 @@ BasicBlock* MIRGraph::CreateNewBB(BBType block_type) {
   BasicBlock* res = NewMemBB(block_type, num_blocks_++);
   block_list_.Insert(res);
   return res;
+}
+
+void MIRGraph::CalculateBasicBlockInformation() {
+  PassDriverMEPostOpt driver(cu_);
+  driver.Launch();
+}
+
+void MIRGraph::InitializeBasicBlockData() {
+  num_blocks_ = block_list_.Size();
 }
 
 }  // namespace art
