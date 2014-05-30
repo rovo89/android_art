@@ -1867,16 +1867,6 @@ void Thread::QuickDeliverException() {
   // resolution.
   ClearException();
   bool is_deoptimization = (exception == GetDeoptimizationException());
-  if (kDebugExceptionDelivery) {
-    if (!is_deoptimization) {
-      mirror::String* msg = exception->GetDetailMessage();
-      std::string str_msg(msg != nullptr ? msg->ToModifiedUtf8() : "");
-      DumpStack(LOG(INFO) << "Delivering exception: " << PrettyTypeOf(exception)
-                << ": " << str_msg << "\n");
-    } else {
-      DumpStack(LOG(INFO) << "Deoptimizing: ");
-    }
-  }
   QuickExceptionHandler exception_handler(this, is_deoptimization);
   if (is_deoptimization) {
     exception_handler.DeoptimizeStack();
