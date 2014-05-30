@@ -557,6 +557,10 @@ class StackVisitor {
     return num_frames_;
   }
 
+  // Get the method and dex pc immediately after the one that's currently being visited.
+  bool GetNextMethodAndDexPc(mirror::ArtMethod** next_method, uint32_t* next_dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   uint32_t GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -691,6 +695,10 @@ class StackVisitor {
   static void DescribeStack(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
+  // Private constructor known in the case that num_frames_ has already been computed.
+  StackVisitor(Thread* thread, Context* context, size_t num_frames)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   instrumentation::InstrumentationStackFrame& GetInstrumentationStackFrame(uint32_t depth) const;
 
   void SanityCheckFrame() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
