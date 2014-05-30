@@ -32,7 +32,7 @@ public class Main {
         throw new RuntimeException();  // Trigger exception handling.
       } catch (TestException e) {      // This handler will have an unresolvable class.
       } catch (Exception e) {          // General-purpose handler
-        System.out.println("Should not get here!");
+        System.out.println("Got expected exception.");
       }
     }
 
