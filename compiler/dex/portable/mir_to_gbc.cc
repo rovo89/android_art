@@ -712,7 +712,7 @@ bool MirConverter::ConvertMIRNode(MIR* mir, BasicBlock* bb,
   int opt_flags = mir->optimization_flags;
 
   if (cu_->verbose) {
-    if (op_val < kMirOpFirst) {
+    if (!IsPseudoMirOp(op_val)) {
       LOG(INFO) << ".. " << Instruction::Name(opcode) << " 0x" << std::hex << op_val;
     } else {
       LOG(INFO) << mir_graph_->extended_mir_op_names_[op_val - kMirOpFirst] << " 0x" << std::hex << op_val;
@@ -1550,7 +1550,7 @@ void MirConverter::HandlePhiNodes(BasicBlock* bb, ::llvm::BasicBlock* llvm_bb) {
   SetDexOffset(bb->start_offset);
   for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     int opcode = mir->dalvikInsn.opcode;
-    if (opcode < kMirOpFirst) {
+    if (!IsPseudoMirOp(opcode)) {
       // Stop after first non-pseudo MIR op.
       continue;
     }
@@ -1759,7 +1759,7 @@ bool MirConverter::BlockBitcodeConversion(BasicBlock* bb) {
       }
     }
 
-    if (opcode >= kMirOpFirst) {
+    if (IsPseudoMirOp(opcode)) {
       ConvertExtendedMIR(bb, mir, llvm_bb);
       continue;
     }
