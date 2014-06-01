@@ -128,6 +128,15 @@ Mir2Lir::RegisterPool::RegisterPool(Mir2Lir* m2l, ArenaAllocator* arena,
   // Add an entry for InvalidReg with zero'd mask.
   RegisterInfo* invalid_reg = new (arena) RegisterInfo(RegStorage::InvalidReg(), 0);
   m2l_->reginfo_map_.Put(RegStorage::InvalidReg().GetReg(), invalid_reg);
+
+  // Existence of core64 registers implies wide references.
+  if (core64_regs_.Size() != 0) {
+    ref_regs_ = &core64_regs_;
+    next_ref_reg_ = &next_core64_reg_;
+  } else {
+    ref_regs_ = &core_regs_;
+    next_ref_reg_ = &next_core_reg_;
+  }
 }
 
 void Mir2Lir::DumpRegPool(GrowableArray<RegisterInfo*>* regs) {
@@ -145,6 +154,7 @@ void Mir2Lir::DumpRegPool(GrowableArray<RegisterInfo*>* regs) {
 
 void Mir2Lir::DumpCoreRegPool() {
   DumpRegPool(&reg_pool_->core_regs_);
+  DumpRegPool(&reg_pool_->core64_regs_);
 }
 
 void Mir2Lir::DumpFpRegPool() {
@@ -274,6 +284,7 @@ void Mir2Lir::RecordCorePromotion(RegStorage reg, int s_reg) {
 
 /* Reserve a callee-save register.  Return InvalidReg if none available */
 RegStorage Mir2Lir::AllocPreservedCoreReg(int s_reg) {
+  // TODO: 64-bit and refreg update
   RegStorage res;
   GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->core_regs_);
   for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
@@ -406,17 +417,10 @@ RegStorage Mir2Lir::AllocTempWide() {
   return res;
 }
 
-RegStorage Mir2Lir::AllocTempWord() {
-  // FIXME: temporary workaround.  For bring-up purposes, x86_64 needs the ability
-  // to allocate wide values as a pair of core registers.  However, we can't hold
-  // a reference in a register pair.  This workaround will be removed when the
-  // reference handling code is reworked, or x86_64 backend starts using wide core
-  // registers - whichever happens first.
-  if (cu_->instruction_set == kX86_64) {
-    return AllocTemp();
-  } else {
-    return (Is64BitInstructionSet(cu_->instruction_set)) ? AllocTempWide() : AllocTemp();
-  }
+RegStorage Mir2Lir::AllocTempRef() {
+  RegStorage res = AllocTempBody(*reg_pool_->ref_regs_, reg_pool_->next_ref_reg_, true);
+  DCHECK(!res.IsPair());
+  return res;
 }
 
 RegStorage Mir2Lir::AllocTempSingle() {
@@ -432,6 +436,7 @@ RegStorage Mir2Lir::AllocTempDouble() {
 }
 
 RegStorage Mir2Lir::AllocTypedTempWide(bool fp_hint, int reg_class) {
+  DCHECK_NE(reg_class, kRefReg);  // NOTE: the Dalvik width of a reference is always 32 bits.
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
     return AllocTempDouble();
   }
@@ -441,6 +446,8 @@ RegStorage Mir2Lir::AllocTypedTempWide(bool fp_hint, int reg_class) {
 RegStorage Mir2Lir::AllocTypedTemp(bool fp_hint, int reg_class) {
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
     return AllocTempSingle();
+  } else if (reg_class == kRefReg) {
+    return AllocTempRef();
   }
   return AllocTemp();
 }
@@ -459,8 +466,10 @@ RegStorage Mir2Lir::FindLiveReg(GrowableArray<RegisterInfo*> &regs, int s_reg) {
 
 RegStorage Mir2Lir::AllocLiveReg(int s_reg, int reg_class, bool wide) {
   RegStorage reg;
-  // TODO: might be worth a sanity check here to verify at most 1 live reg per s_reg.
-  if ((reg_class == kAnyReg) || (reg_class == kFPReg)) {
+  if (reg_class == kRefReg) {
+    reg = FindLiveReg(*reg_pool_->ref_regs_, s_reg);
+  }
+  if (!reg.Valid() && ((reg_class == kAnyReg) || (reg_class == kFPReg))) {
     reg = FindLiveReg(wide ? reg_pool_->dp_regs_ : reg_pool_->sp_regs_, s_reg);
   }
   if (!reg.Valid() && (reg_class != kFPReg)) {
@@ -675,39 +684,6 @@ void Mir2Lir::MarkDefWide(RegLocation rl, LIR *start, LIR *finish) {
   p->SetDefEnd(finish);
 }
 
-RegLocation Mir2Lir::WideToNarrow(RegLocation rl) {
-  DCHECK(rl.wide);
-  if (rl.location == kLocPhysReg) {
-    if (rl.reg.IsPair()) {
-      RegisterInfo* info_lo = GetRegInfo(rl.reg.GetLow());
-      RegisterInfo* info_hi = GetRegInfo(rl.reg.GetHigh());
-      if (info_lo->IsTemp()) {
-        info_lo->SetIsWide(false);
-        info_lo->ResetDefBody();
-      }
-      if (info_hi->IsTemp()) {
-        info_hi->SetIsWide(false);
-        info_hi->ResetDefBody();
-      }
-      rl.reg = rl.reg.GetLow();
-    } else {
-      /*
-       * TODO: If not a pair, we can't just drop the high register.  On some targets, we may be
-       * able to re-cast the 64-bit register as 32 bits, so it might be worthwhile to revisit
-       * this code.  Will probably want to make this a virtual function.
-       */
-      // Can't narrow 64-bit register.  Clobber.
-      if (GetRegInfo(rl.reg)->IsTemp()) {
-        Clobber(rl.reg);
-        FreeTemp(rl.reg);
-      }
-      rl.location = kLocDalvikFrame;
-    }
-  }
-  rl.wide = false;
-  return rl;
-}
-
 void Mir2Lir::ResetDefLoc(RegLocation rl) {
   DCHECK(!rl.wide);
   if (IsTemp(rl.reg) && !(cu_->disable_opt & (1 << kSuppressLoads))) {
@@ -727,16 +703,8 @@ void Mir2Lir::ResetDefLocWide(RegLocation rl) {
 }
 
 void Mir2Lir::ResetDefTracking() {
-  GrowableArray<RegisterInfo*>::Iterator core_it(&reg_pool_->core_regs_);
-  for (RegisterInfo* info = core_it.Next(); info != nullptr; info = core_it.Next()) {
-    info->ResetDefBody();
-  }
-  GrowableArray<RegisterInfo*>::Iterator sp_it(&reg_pool_->core_regs_);
-  for (RegisterInfo* info = sp_it.Next(); info != nullptr; info = sp_it.Next()) {
-    info->ResetDefBody();
-  }
-  GrowableArray<RegisterInfo*>::Iterator dp_it(&reg_pool_->core_regs_);
-  for (RegisterInfo* info = dp_it.Next(); info != nullptr; info = dp_it.Next()) {
+  GrowableArray<RegisterInfo*>::Iterator iter(&tempreg_info_);
+  for (RegisterInfo* info = iter.Next(); info != NULL; info = iter.Next()) {
     info->ResetDefBody();
   }
 }
@@ -811,7 +779,11 @@ void Mir2Lir::FlushAllRegs() {
 bool Mir2Lir::RegClassMatches(int reg_class, RegStorage reg) {
   if (reg_class == kAnyReg) {
     return true;
-  } else if (reg_class == kCoreReg) {
+  } else if ((reg_class == kCoreReg) || (reg_class == kRefReg)) {
+    /*
+     * For this purpose, consider Core and Ref to be the same class. We aren't dealing
+     * with width here - that should be checked at a higher level (if needed).
+     */
     return !reg.IsFloat();
   } else {
     return reg.IsFloat();
@@ -1347,20 +1319,26 @@ int Mir2Lir::SRegOffset(int s_reg) {
 }
 
 /* Mark register usage state and return long retloc */
-RegLocation Mir2Lir::GetReturnWide(bool is_double) {
-  RegLocation gpr_res = LocCReturnWide();
-  RegLocation fpr_res = LocCReturnDouble();
-  RegLocation res = is_double ? fpr_res : gpr_res;
+RegLocation Mir2Lir::GetReturnWide(RegisterClass reg_class) {
+  RegLocation res;
+  switch (reg_class) {
+    case kRefReg: LOG(FATAL); break;
+    case kFPReg: res = LocCReturnDouble(); break;
+    default: res = LocCReturnWide(); break;
+  }
   Clobber(res.reg);
   LockTemp(res.reg);
   MarkWide(res.reg);
   return res;
 }
 
-RegLocation Mir2Lir::GetReturn(bool is_float) {
-  RegLocation gpr_res = LocCReturn();
-  RegLocation fpr_res = LocCReturnFloat();
-  RegLocation res = is_float ? fpr_res : gpr_res;
+RegLocation Mir2Lir::GetReturn(RegisterClass reg_class) {
+  RegLocation res;
+  switch (reg_class) {
+    case kRefReg: res = LocCReturnRef(); break;
+    case kFPReg: res = LocCReturnFloat(); break;
+    default: res = LocCReturn(); break;
+  }
   Clobber(res.reg);
   if (cu_->instruction_set == kMips) {
     MarkInUse(res.reg);

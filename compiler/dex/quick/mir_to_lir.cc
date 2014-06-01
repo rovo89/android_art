@@ -23,6 +23,36 @@
 
 namespace art {
 
+RegisterClass Mir2Lir::ShortyToRegClass(char shorty_type) {
+  RegisterClass res;
+  switch (shorty_type) {
+    case 'L':
+      res = kRefReg;
+      break;
+    case 'F':
+      // Expected fallthrough.
+    case 'D':
+      res = kFPReg;
+      break;
+    default:
+      res = kCoreReg;
+  }
+  return res;
+}
+
+RegisterClass Mir2Lir::LocToRegClass(RegLocation loc) {
+  RegisterClass res;
+  if (loc.fp) {
+    DCHECK(!loc.ref) << "At most, one of ref/fp may be set";
+    res = kFPReg;
+  } else if (loc.ref) {
+    res = kRefReg;
+  } else {
+    res = kCoreReg;
+  }
+  return res;
+}
+
 void Mir2Lir::LockArg(int in_position, bool wide) {
   RegStorage reg_arg_low = GetArgMappingToPhysicalReg(in_position);
   RegStorage reg_arg_high = wide ? GetArgMappingToPhysicalReg(in_position + 1) :
@@ -149,15 +179,13 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
     return false;
   }
 
-  // The inliner doesn't distinguish kDouble or kFloat, use shorty.
-  bool double_or_float = cu_->shorty[0] == 'F' || cu_->shorty[0] == 'D';
-
   // Point of no return - no aborts after this
   GenPrintLabel(mir);
   LockArg(data.object_arg);
-  RegStorage reg_obj = LoadArg(data.object_arg, kCoreReg);
-  RegLocation rl_dest = wide ? GetReturnWide(double_or_float) : GetReturn(double_or_float);
+  RegStorage reg_obj = LoadArg(data.object_arg, kRefReg);
   RegisterClass reg_class = RegClassForFieldLoadStore(size, data.is_volatile);
+  RegisterClass ret_reg_class = ShortyToRegClass(cu_->shorty[0]);
+  RegLocation rl_dest = wide ? GetReturnWide(ret_reg_class) : GetReturn(ret_reg_class);
   RegStorage r_result = rl_dest.reg;
   if (!RegClassMatches(reg_class, r_result)) {
     r_result = wide ? AllocTypedTempWide(rl_dest.fp, reg_class)
@@ -205,7 +233,7 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
   GenPrintLabel(mir);
   LockArg(data.object_arg);
   LockArg(data.src_arg, wide);
-  RegStorage reg_obj = LoadArg(data.object_arg, kCoreReg);
+  RegStorage reg_obj = LoadArg(data.object_arg, kRefReg);
   RegisterClass reg_class = RegClassForFieldLoadStore(size, data.is_volatile);
   RegStorage reg_src = LoadArg(data.src_arg, reg_class, wide);
   if (data.is_volatile) {
@@ -226,13 +254,12 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
 bool Mir2Lir::GenSpecialIdentity(MIR* mir, const InlineMethod& special) {
   const InlineReturnArgData& data = special.d.return_data;
   bool wide = (data.is_wide != 0u);
-  // The inliner doesn't distinguish kDouble or kFloat, use shorty.
-  bool double_or_float = cu_->shorty[0] == 'F' || cu_->shorty[0] == 'D';
 
   // Point of no return - no aborts after this
   GenPrintLabel(mir);
   LockArg(data.arg, wide);
-  RegLocation rl_dest = wide ? GetReturnWide(double_or_float) : GetReturn(double_or_float);
+  RegisterClass reg_class = ShortyToRegClass(cu_->shorty[0]);
+  RegLocation rl_dest = wide ? GetReturnWide(reg_class) : GetReturn(reg_class);
   LoadArgDirect(data.arg, rl_dest);
   return true;
 }
@@ -254,7 +281,7 @@ bool Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& speci
       break;
     case kInlineOpNonWideConst: {
       successful = true;
-      RegLocation rl_dest = GetReturn(cu_->shorty[0] == 'F');
+      RegLocation rl_dest = GetReturn(ShortyToRegClass(cu_->shorty[0]));
       GenPrintLabel(mir);
       LoadConstant(rl_dest.reg, static_cast<int>(special.d.data));
       return_mir = bb->GetNextUnconditionalMir(mir_graph_, mir);
@@ -377,26 +404,30 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       }
       break;
 
-    case Instruction::RETURN:
     case Instruction::RETURN_OBJECT:
+      DCHECK(rl_src[0].ref);
+      // Intentional fallthrough.
+    case Instruction::RETURN:
       if (!mir_graph_->MethodIsLeaf()) {
         GenSuspendTest(opt_flags);
       }
-      StoreValue(GetReturn(cu_->shorty[0] == 'F'), rl_src[0]);
+      DCHECK_EQ(LocToRegClass(rl_src[0]), ShortyToRegClass(cu_->shorty[0]));
+      StoreValue(GetReturn(LocToRegClass(rl_src[0])), rl_src[0]);
       break;
 
     case Instruction::RETURN_WIDE:
       if (!mir_graph_->MethodIsLeaf()) {
         GenSuspendTest(opt_flags);
       }
-      StoreValueWide(GetReturnWide(cu_->shorty[0] == 'D'), rl_src[0]);
+      DCHECK_EQ(LocToRegClass(rl_src[0]), ShortyToRegClass(cu_->shorty[0]));
+      StoreValueWide(GetReturnWide(LocToRegClass(rl_src[0])), rl_src[0]);
       break;
 
     case Instruction::MOVE_RESULT_WIDE:
       if ((opt_flags & MIR_INLINED) != 0) {
         break;  // Nop - combined w/ previous invoke.
       }
-      StoreValueWide(rl_dest, GetReturnWide(rl_dest.fp));
+      StoreValueWide(rl_dest, GetReturnWide(LocToRegClass(rl_dest)));
       break;
 
     case Instruction::MOVE_RESULT:
@@ -404,7 +435,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       if ((opt_flags & MIR_INLINED) != 0) {
         break;  // Nop - combined w/ previous invoke.
       }
-      StoreValue(rl_dest, GetReturn(rl_dest.fp));
+      StoreValue(rl_dest, GetReturn(LocToRegClass(rl_dest)));
       break;
 
     case Instruction::MOVE:
@@ -474,7 +505,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::ARRAY_LENGTH:
       int len_offset;
       len_offset = mirror::Array::LengthOffset().Int32Value();
-      rl_src[0] = LoadValue(rl_src[0], kCoreReg);
+      rl_src[0] = LoadValue(rl_src[0], kRefReg);
       GenNullCheck(rl_src[0].reg, opt_flags);
       rl_result = EvalLoc(rl_dest, kCoreReg, true);
       Load32Disp(rl_src[0].reg, len_offset, rl_result.reg);
@@ -782,7 +813,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
 
     case Instruction::LONG_TO_INT:
       rl_src[0] = UpdateLocWide(rl_src[0]);
-      rl_src[0] = WideToNarrow(rl_src[0]);
+      rl_src[0] = NarrowRegLoc(rl_src[0]);
       StoreValue(rl_dest, rl_src[0]);
       break;
 

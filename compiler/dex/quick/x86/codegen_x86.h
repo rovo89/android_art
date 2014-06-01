@@ -59,6 +59,7 @@ class X86Mir2Lir : public Mir2Lir {
     RegLocation GetReturnAlt();
     RegLocation GetReturnWideAlt();
     RegLocation LocCReturn();
+    RegLocation LocCReturnRef();
     RegLocation LocCReturnDouble();
     RegLocation LocCReturnFloat();
     RegLocation LocCReturnWide();

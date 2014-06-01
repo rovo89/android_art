@@ -25,6 +25,7 @@ enum RegisterClass {
   kInvalidRegClass,
   kCoreReg,
   kFPReg,
+  kRefReg,
   kAnyReg,
 };
 
