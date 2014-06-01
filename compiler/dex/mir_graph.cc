@@ -549,8 +549,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
   new_block->predecessors->Insert(cur_block->id);
   MIR* new_insn = NewMIR();
   *new_insn = *insn;
-  insn->dalvikInsn.opcode =
-      static_cast<Instruction::Code>(kMirOpCheck);
+  insn->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpCheck);
   // Associate the two halves.
   insn->meta.throw_insn = new_insn;
   new_block->AppendMIR(new_insn);
@@ -837,8 +836,7 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
             } else {
               fprintf(file, "    {%04x %s %s %s\\l}%s\\\n", mir->offset,
                       mir->ssa_rep ? GetDalvikDisassembly(mir) :
-                      (opcode < kMirOpFirst) ?
-                        Instruction::Name(mir->dalvikInsn.opcode) :
+                      !IsPseudoMirOp(opcode) ? Instruction::Name(mir->dalvikInsn.opcode) :
                         extended_mir_op_names_[opcode - kMirOpFirst],
                       (mir->optimization_flags & MIR_IGNORE_RANGE_CHECK) != 0 ? " no_rangecheck" : " ",
                       (mir->optimization_flags & MIR_IGNORE_NULL_CHECK) != 0 ? " no_nullcheck" : " ",
@@ -1141,7 +1139,7 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
     nop = true;
   }
 
-  if (opcode >= kMirOpFirst) {
+  if (IsPseudoMirOp(opcode)) {
     str.append(extended_mir_op_names_[opcode - kMirOpFirst]);
   } else {
     dalvik_format = Instruction::FormatOf(insn.opcode);

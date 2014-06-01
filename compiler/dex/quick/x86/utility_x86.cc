@@ -869,7 +869,7 @@ void X86Mir2Lir::AnalyzeBB(BasicBlock * bb) {
 
   for (MIR *mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     int opcode = mir->dalvikInsn.opcode;
-    if (opcode >= kMirOpFirst) {
+    if (MIRGraph::IsPseudoMirOp(opcode)) {
       AnalyzeExtendedMIR(opcode, bb, mir);
     } else {
       AnalyzeMIR(opcode, bb, mir);

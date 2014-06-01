@@ -1015,8 +1015,7 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
     uint64_t df_attributes = GetDataFlowAttributes(mir);
 
       // If not a pseudo-op, note non-leaf or can throw
-    if (static_cast<int>(mir->dalvikInsn.opcode) <
-        static_cast<int>(kNumPackedOpcodes)) {
+    if (!IsPseudoMirOp(mir->dalvikInsn.opcode)) {
       int flags = Instruction::FlagsOf(mir->dalvikInsn.opcode);
 
       if ((flags & Instruction::kInvoke) != 0 && (mir->optimization_flags & MIR_INLINED) == 0) {
