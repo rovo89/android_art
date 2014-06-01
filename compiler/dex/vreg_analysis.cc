@@ -233,8 +233,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
 
     // Special-case handling for format 35c/3rc invokes
     Instruction::Code opcode = mir->dalvikInsn.opcode;
-    int flags = (static_cast<int>(opcode) >= kNumPackedOpcodes)
-        ? 0 : Instruction::FlagsOf(mir->dalvikInsn.opcode);
+    int flags = IsPseudoMirOp(opcode) ? 0 : Instruction::FlagsOf(mir->dalvikInsn.opcode);
     if ((flags & Instruction::kInvoke) &&
         (attrs & (DF_FORMAT_35C | DF_FORMAT_3RC))) {
       DCHECK_EQ(next, 0);
@@ -317,8 +316,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
        * The Phi set will include all low words or all high
        * words, so we have to treat them specially.
        */
-      bool is_phi = (static_cast<int>(mir->dalvikInsn.opcode) ==
-                    kMirOpPhi);
+      bool is_phi = (static_cast<int>(mir->dalvikInsn.opcode) == kMirOpPhi);
       RegLocation rl_temp = reg_location_[defs[0]];
       bool defined_fp = rl_temp.defined && rl_temp.fp;
       bool defined_core = rl_temp.defined && rl_temp.core;
