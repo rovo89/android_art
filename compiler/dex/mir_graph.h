@@ -905,11 +905,11 @@ class MIRGraph {
     return backward_branches_ + forward_branches_;
   }
 
-  bool IsPseudoMirOp(Instruction::Code opcode) {
+  static bool IsPseudoMirOp(Instruction::Code opcode) {
     return static_cast<int>(opcode) >= static_cast<int>(kMirOpFirst);
   }
 
-  bool IsPseudoMirOp(int opcode) {
+  static bool IsPseudoMirOp(int opcode) {
     return opcode >= static_cast<int>(kMirOpFirst);
   }
 

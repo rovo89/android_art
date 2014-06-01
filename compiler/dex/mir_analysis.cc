@@ -902,7 +902,7 @@ void MIRGraph::AnalyzeBlock(BasicBlock* bb, MethodStats* stats) {
   while (!done) {
     tbb->visited = true;
     for (MIR* mir = tbb->first_mir_insn; mir != NULL; mir = mir->next) {
-      if (static_cast<uint32_t>(mir->dalvikInsn.opcode) >= kMirOpFirst) {
+      if (IsPseudoMirOp(mir->dalvikInsn.opcode)) {
         // Skip any MIR pseudo-op.
         continue;
       }
