@@ -441,6 +441,14 @@ class Runtime {
     return running_on_valgrind_;
   }
 
+  void SetTargetSdkVersion(int32_t version) {
+    target_sdk_version_ = version;
+  }
+
+  int32_t GetTargetSdkVersion() const {
+    return target_sdk_version_;
+  }
+
   static const char* GetDefaultInstructionSetFeatures() {
     return kDefaultInstructionSetFeatures;
   }
@@ -587,6 +595,9 @@ class Runtime {
 
   // If false, verification is disabled. True by default.
   bool verify_;
+
+  // Specifies target SDK version to allow workarounds for certain API levels.
+  int32_t target_sdk_version_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
