@@ -171,13 +171,12 @@ static jboolean VMRuntime_isCheckJniEnabled(JNIEnv* env, jobject) {
   return Runtime::Current()->GetJavaVM()->check_jni ? JNI_TRUE : JNI_FALSE;
 }
 
-static void VMRuntime_setTargetSdkVersionNative(JNIEnv* env, jobject, jint targetSdkVersion) {
+static void VMRuntime_setTargetSdkVersionNative(JNIEnv*, jobject, jint target_sdk_version) {
   // This is the target SDK version of the app we're about to run. It is intended that this a place
   // where workarounds can be enabled.
   // Note that targetSdkVersion may be CUR_DEVELOPMENT (10000).
   // Note that targetSdkVersion may be 0, meaning "current".
-  UNUSED(env);
-  UNUSED(targetSdkVersion);
+  Runtime::Current()->SetTargetSdkVersion(target_sdk_version);
 }
 
 static void VMRuntime_registerNativeAllocation(JNIEnv* env, jobject, jint bytes) {
