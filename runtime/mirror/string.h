@@ -137,7 +137,7 @@ class MANAGED String : public Object {
   static String* Alloc(Thread* self, int32_t utf16_length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static String* Alloc(Thread* self, const Handle<CharArray>& array)
+  static String* Alloc(Thread* self, Handle<CharArray> array)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetArray(CharArray* new_array) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

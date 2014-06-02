@@ -245,7 +245,7 @@ const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& l
   if (zip_entry.get() == NULL) {
     return nullptr;
   }
-  std::unique_ptr<MemMap> map(zip_entry->ExtractToMemMap(kClassesDex, error_msg));
+  std::unique_ptr<MemMap> map(zip_entry->ExtractToMemMap(location.c_str(), kClassesDex, error_msg));
   if (map.get() == NULL) {
     *error_msg = StringPrintf("Failed to extract '%s' from '%s': %s", kClassesDex, location.c_str(),
                               error_msg->c_str());
@@ -258,15 +258,15 @@ const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& l
                               error_msg->c_str());
     return nullptr;
   }
-  if (!DexFileVerifier::Verify(dex_file.get(), dex_file->Begin(), dex_file->Size(),
-                               location.c_str(), error_msg)) {
-    return nullptr;
-  }
   if (!dex_file->DisableWrite()) {
     *error_msg = StringPrintf("Failed to make dex file '%s' read only", location.c_str());
     return nullptr;
   }
   CHECK(dex_file->IsReadOnly()) << location;
+  if (!DexFileVerifier::Verify(dex_file.get(), dex_file->Begin(), dex_file->Size(),
+                               location.c_str(), error_msg)) {
+    return nullptr;
+  }
   return dex_file.release();
 }
 

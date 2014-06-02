@@ -59,9 +59,10 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/mir_field_info.cc \
 	dex/mir_method_info.cc \
 	dex/mir_optimization.cc \
-	dex/pass_driver.cc \
 	dex/bb_optimizations.cc \
-	dex/bit_vector_block_iterator.cc \
+	dex/post_opt_passes.cc \
+	dex/pass_driver_me_opts.cc \
+	dex/pass_driver_me_post_opt.cc \
 	dex/frontend.cc \
 	dex/mir_graph.cc \
 	dex/mir_analysis.cc \
@@ -83,8 +84,11 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/code_generator_arm.cc \
 	optimizing/code_generator_x86.cc \
 	optimizing/graph_visualizer.cc \
+	optimizing/locations.cc \
 	optimizing/nodes.cc \
 	optimizing/optimizing_compiler.cc \
+	optimizing/parallel_move_resolver.cc \
+	optimizing/register_allocator.cc \
 	optimizing/ssa_builder.cc \
 	optimizing/ssa_liveness_analysis.cc \
 	trampolines/trampoline_compiler.cc \
@@ -194,8 +198,8 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_GENERATED_SOURCES += $$(ENUM_OPERATOR_OUT_GEN)
 
   LOCAL_CFLAGS := $$(LIBART_COMPILER_CFLAGS)
+  include external/libcxx/libcxx.mk
   ifeq ($$(art_target_or_host),target)
-    include external/libcxx/libcxx.mk
     LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
   else # host
@@ -247,7 +251,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
 
   ifeq ($$(art_target_or_host),host)
-    LOCAL_LDLIBS := -ldl -lpthread
+    LOCAL_LDLIBS += -ldl -lpthread
   endif
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk

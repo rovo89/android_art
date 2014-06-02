@@ -19,6 +19,7 @@
 
 #include "base/logging.h"
 #include "base/mutex.h"
+#include "stack.h"  // StackReference
 
 namespace art {
 
@@ -30,9 +31,6 @@ class Context;
 class Thread;
 class ThrowLocation;
 class ShadowFrame;
-
-static constexpr bool kDebugExceptionDelivery = false;
-static constexpr size_t kInvalidFrameId = 0xffffffff;
 
 // Manages exception delivery for Quick backend. Not used by Portable backend.
 class QuickExceptionHandler {
@@ -50,12 +48,24 @@ class QuickExceptionHandler {
   void UpdateInstrumentationStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DoLongJump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetHandlerQuickFrame(mirror::ArtMethod** handler_quick_frame) {
+  void SetHandlerQuickFrame(StackReference<mirror::ArtMethod>* handler_quick_frame) {
     handler_quick_frame_ = handler_quick_frame;
   }
 
   void SetHandlerQuickFramePc(uintptr_t handler_quick_frame_pc) {
     handler_quick_frame_pc_ = handler_quick_frame_pc;
+  }
+
+  mirror::ArtMethod* GetHandlerMethod() const {
+    return handler_method_;
+  }
+
+  void SetHandlerMethod(mirror::ArtMethod* handler_quick_method) {
+    handler_method_ = handler_quick_method;
+  }
+
+  uint32_t GetHandlerDexPc() const {
+    return handler_dex_pc_;
   }
 
   void SetHandlerDexPc(uint32_t dex_pc) {
@@ -77,10 +87,12 @@ class QuickExceptionHandler {
   // Is method tracing active?
   const bool method_tracing_active_;
   // Quick frame with found handler or last frame if no handler found.
-  mirror::ArtMethod** handler_quick_frame_;
+  StackReference<mirror::ArtMethod>* handler_quick_frame_;
   // PC to branch to for the handler.
   uintptr_t handler_quick_frame_pc_;
-  // Associated dex PC.
+  // The handler method to report to the debugger.
+  mirror::ArtMethod* handler_method_;
+  // The handler's dex PC, zero implies an uncaught exception.
   uint32_t handler_dex_pc_;
   // Should the exception be cleared as the catch block has no move-exception?
   bool clear_exception_;

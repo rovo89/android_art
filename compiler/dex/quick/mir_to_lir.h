@@ -332,6 +332,15 @@ class Mir2Lir : public Backend {
         return arena->Alloc(size, kArenaAllocRegAlloc);
       }
 
+      static const uint32_t k32SoloStorageMask     = 0x00000001;
+      static const uint32_t kLowSingleStorageMask  = 0x00000001;
+      static const uint32_t kHighSingleStorageMask = 0x00000002;
+      static const uint32_t k64SoloStorageMask     = 0x00000003;
+      static const uint32_t k128SoloStorageMask    = 0x0000000f;
+      static const uint32_t k256SoloStorageMask    = 0x000000ff;
+      static const uint32_t k512SoloStorageMask    = 0x0000ffff;
+      static const uint32_t k1024SoloStorageMask   = 0xffffffff;
+
       bool InUse() { return (storage_mask_ & master_->used_storage_) != 0; }
       void MarkInUse() { master_->used_storage_ |= storage_mask_; }
       void MarkFree() { master_->used_storage_ &= ~storage_mask_; }
@@ -389,7 +398,15 @@ class Mir2Lir : public Backend {
       LIR* DefEnd() { return def_end_; }
       void SetDefEnd(LIR* def_end) { def_end_ = def_end; }
       void ResetDefBody() { def_start_ = def_end_ = nullptr; }
-
+      // Find member of aliased set matching storage_used; return nullptr if none.
+      RegisterInfo* FindMatchingView(uint32_t storage_used) {
+        RegisterInfo* res = Master();
+        for (; res != nullptr; res = res->GetAliasChain()) {
+          if (res->StorageMask() == storage_used)
+            break;
+        }
+        return res;
+      }
 
      private:
       RegStorage reg_;
@@ -617,6 +634,7 @@ class Mir2Lir : public Backend {
     LIR* NewLIR5(int opcode, int dest, int src1, int src2, int info1, int info2);
     LIR* ScanLiteralPool(LIR* data_target, int value, unsigned int delta);
     LIR* ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi);
+    LIR* ScanLiteralPoolMethod(LIR* data_target, const MethodReference& method);
     LIR* AddWordData(LIR* *constant_list_p, int value);
     LIR* AddWideData(LIR* *constant_list_p, int val_lo, int val_hi);
     void ProcessSwitchTables();
@@ -647,7 +665,7 @@ class Mir2Lir : public Backend {
     virtual void EndInvoke(CallInfo* info) {}
 
 
-    // Handle bookkeeping to convert a wide RegLocation to a narow RegLocation.  No code generated.
+    // Handle bookkeeping to convert a wide RegLocation to a narrow RegLocation.  No code generated.
     RegLocation NarrowRegLoc(RegLocation loc);
 
     // Shared by all targets - implemented in local_optimizations.cc
@@ -669,7 +687,7 @@ class Mir2Lir : public Backend {
     /* Mark a temp register as dead.  Does not affect allocation state. */
     void Clobber(RegStorage reg);
     void ClobberSReg(int s_reg);
-    void ClobberAliases(RegisterInfo* info);
+    void ClobberAliases(RegisterInfo* info, uint32_t clobber_mask);
     int SRegToPMap(int s_reg);
     void RecordCorePromotion(RegStorage reg, int s_reg);
     RegStorage AllocPreservedCoreReg(int s_reg);
@@ -681,6 +699,7 @@ class Mir2Lir : public Backend {
     virtual RegStorage AllocFreeTemp();
     virtual RegStorage AllocTemp();
     virtual RegStorage AllocTempWide();
+    virtual RegStorage AllocTempWord();
     virtual RegStorage AllocTempSingle();
     virtual RegStorage AllocTempDouble();
     virtual RegStorage AllocTypedTemp(bool fp_hint, int reg_class);
@@ -774,7 +793,7 @@ class Mir2Lir : public Backend {
                              RegLocation rl_src2, LIR* taken, LIR* fall_through);
     void GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_src,
                                  LIR* taken, LIR* fall_through);
-    void GenIntToLong(RegLocation rl_dest, RegLocation rl_src);
+    virtual void GenIntToLong(RegLocation rl_dest, RegLocation rl_src);
     void GenIntNarrowing(Instruction::Code opcode, RegLocation rl_dest,
                          RegLocation rl_src);
     void GenNewArray(uint32_t type_idx, RegLocation rl_dest,
@@ -799,7 +818,7 @@ class Mir2Lir : public Backend {
     void GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_src);
     void GenLong3Addr(OpKind first_op, OpKind second_op, RegLocation rl_dest,
                       RegLocation rl_src1, RegLocation rl_src2);
-    void GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
+    virtual void GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
                         RegLocation rl_src1, RegLocation rl_shift);
     void GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest,
                           RegLocation rl_src, int lit);
@@ -1169,6 +1188,7 @@ class Mir2Lir : public Backend {
     virtual bool GenInlinedSqrt(CallInfo* info) = 0;
     virtual bool GenInlinedPeek(CallInfo* info, OpSize size) = 0;
     virtual bool GenInlinedPoke(CallInfo* info, OpSize size) = 0;
+    virtual void GenNotLong(RegLocation rl_dest, RegLocation rl_src) = 0;
     virtual void GenNegLong(RegLocation rl_dest, RegLocation rl_src) = 0;
     virtual void GenOrLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
                            RegLocation rl_src2) = 0;
@@ -1176,6 +1196,8 @@ class Mir2Lir : public Backend {
                             RegLocation rl_src2) = 0;
     virtual void GenXorLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) = 0;
+    virtual void GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
+                            RegLocation rl_src2, bool is_div) = 0;
     virtual RegLocation GenDivRem(RegLocation rl_dest, RegStorage reg_lo, RegStorage reg_hi,
                                   bool is_div) = 0;
     virtual RegLocation GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int lit,

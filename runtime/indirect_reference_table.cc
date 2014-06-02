@@ -266,11 +266,22 @@ void IndirectReferenceTable::VisitRoots(RootCallback* callback, void* arg, uint3
 
 void IndirectReferenceTable::Dump(std::ostream& os) const {
   os << kind_ << " table dump:\n";
-  ReferenceTable::Table entries(table_, table_ + Capacity());
-  // Remove NULLs.
-  for (int i = entries.size() - 1; i >= 0; --i) {
-    if (entries[i] == NULL) {
-      entries.erase(entries.begin() + i);
+  ReferenceTable::Table entries;
+  for (size_t i = 0; i < Capacity(); ++i) {
+    mirror::Object** root = &table_[i];
+    mirror::Object* obj = *root;
+    if (UNLIKELY(obj == nullptr)) {
+      // Remove NULLs.
+    } else if (UNLIKELY(obj == kClearedJniWeakGlobal)) {
+      // ReferenceTable::Dump() will handle kClearedJniWeakGlobal
+      // while the read barrier won't.
+      entries.push_back(obj);
+    } else {
+      // We need a read barrier if weak globals. Since this is for
+      // debugging where performance isn't top priority, we
+      // unconditionally enable the read barrier, which is conservative.
+      obj = ReadBarrier::BarrierForWeakRoot<mirror::Object, kWithReadBarrier>(root);
+      entries.push_back(obj);
     }
   }
   ReferenceTable::Dump(os, entries);

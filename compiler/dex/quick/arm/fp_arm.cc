@@ -141,8 +141,11 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest, Re
       break;
     case Instruction::LONG_TO_DOUBLE: {
       rl_src = LoadValueWide(rl_src, kFPReg);
-      RegStorage src_low = rl_src.reg.DoubleToLowSingle();
-      RegStorage src_high = rl_src.reg.DoubleToHighSingle();
+      RegisterInfo* info = GetRegInfo(rl_src.reg);
+      RegStorage src_low = info->FindMatchingView(RegisterInfo::kLowSingleStorageMask)->GetReg();
+      DCHECK(src_low.Valid());
+      RegStorage src_high = info->FindMatchingView(RegisterInfo::kHighSingleStorageMask)->GetReg();
+      DCHECK(src_high.Valid());
       rl_result = EvalLoc(rl_dest, kFPReg, true);
       RegStorage tmp1 = AllocTempDouble();
       RegStorage tmp2 = AllocTempDouble();
@@ -161,8 +164,11 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest, Re
       return;
     case Instruction::LONG_TO_FLOAT: {
       rl_src = LoadValueWide(rl_src, kFPReg);
-      RegStorage src_low = rl_src.reg.DoubleToLowSingle();
-      RegStorage src_high = rl_src.reg.DoubleToHighSingle();
+      RegisterInfo* info = GetRegInfo(rl_src.reg);
+      RegStorage src_low = info->FindMatchingView(RegisterInfo::kLowSingleStorageMask)->GetReg();
+      DCHECK(src_low.Valid());
+      RegStorage src_high = info->FindMatchingView(RegisterInfo::kHighSingleStorageMask)->GetReg();
+      DCHECK(src_high.Valid());
       rl_result = EvalLoc(rl_dest, kFPReg, true);
       // Allocate temp registers.
       RegStorage high_val = AllocTempDouble();
@@ -334,22 +340,11 @@ void ArmMir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
 
 bool ArmMir2Lir::GenInlinedSqrt(CallInfo* info) {
   DCHECK_EQ(cu_->instruction_set, kThumb2);
-  LIR *branch;
   RegLocation rl_src = info->args[0];
   RegLocation rl_dest = InlineTargetWide(info);  // double place for result
   rl_src = LoadValueWide(rl_src, kFPReg);
   RegLocation rl_result = EvalLoc(rl_dest, kFPReg, true);
   NewLIR2(kThumb2Vsqrtd, rl_result.reg.GetReg(), rl_src.reg.GetReg());
-  NewLIR2(kThumb2Vcmpd, rl_result.reg.GetReg(), rl_result.reg.GetReg());
-  NewLIR0(kThumb2Fmstat);
-  branch = NewLIR2(kThumbBCond, 0, kArmCondEq);
-  ClobberCallerSave();
-  LockCallTemps();  // Using fixed registers
-  RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pSqrt));
-  NewLIR3(kThumb2Fmrrd, rs_r0.GetReg(), rs_r1.GetReg(), rl_src.reg.GetReg());
-  NewLIR1(kThumbBlxR, r_tgt.GetReg());
-  NewLIR3(kThumb2Fmdrr, rl_result.reg.GetReg(), rs_r0.GetReg(), rs_r1.GetReg());
-  branch->target = NewLIR0(kPseudoTargetLabel);
   StoreValueWide(rl_dest, rl_result);
   return true;
 }

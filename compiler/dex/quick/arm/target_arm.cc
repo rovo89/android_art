@@ -575,10 +575,10 @@ void ArmMir2Lir::CompilerInitializeRegAlloc() {
     // Redirect single precision's master storage to master.
     info->SetMaster(dp_reg_info);
     // Singles should show a single 32-bit mask bit, at first referring to the low half.
-    DCHECK_EQ(info->StorageMask(), 0x1U);
+    DCHECK_EQ(info->StorageMask(), RegisterInfo::kLowSingleStorageMask);
     if (sp_reg_num & 1) {
-      // For odd singles, change to user the high word of the backing double.
-      info->SetStorageMask(0x2);
+      // For odd singles, change to use the high word of the backing double.
+      info->SetStorageMask(RegisterInfo::kHighSingleStorageMask);
     }
   }
 
@@ -786,10 +786,13 @@ RegStorage ArmMir2Lir::AllocPreservedDouble(int s_reg) {
     }
   }
   if (res.Valid()) {
+    RegisterInfo* info = GetRegInfo(res);
     promotion_map_[p_map_idx].fp_location = kLocPhysReg;
-    promotion_map_[p_map_idx].FpReg = res.DoubleToLowSingle().GetReg();
+    promotion_map_[p_map_idx].FpReg =
+        info->FindMatchingView(RegisterInfo::kLowSingleStorageMask)->GetReg().GetReg();
     promotion_map_[p_map_idx+1].fp_location = kLocPhysReg;
-    promotion_map_[p_map_idx+1].FpReg = res.DoubleToHighSingle().GetReg();
+    promotion_map_[p_map_idx+1].FpReg =
+        info->FindMatchingView(RegisterInfo::kHighSingleStorageMask)->GetReg().GetReg();
   }
   return res;
 }

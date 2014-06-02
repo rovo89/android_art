@@ -111,7 +111,7 @@ bool Monitor::Install(Thread* self) {
   MutexLock mu(self, monitor_lock_);  // Uncontended mutex acquisition as monitor isn't yet public.
   CHECK(owner_ == nullptr || owner_ == self || owner_->IsSuspended());
   // Propagate the lock state.
-  LockWord lw(obj_->GetLockWord(false));
+  LockWord lw(GetObject()->GetLockWord(false));
   switch (lw.GetState()) {
     case LockWord::kThinLocked: {
       CHECK_EQ(owner_->GetThreadId(), lw.ThinLockOwner());
@@ -137,7 +137,7 @@ bool Monitor::Install(Thread* self) {
   }
   LockWord fat(this);
   // Publish the updated lock word, which may race with other threads.
-  bool success = obj_->CasLockWord(lw, fat);
+  bool success = GetObject()->CasLockWord(lw, fat);
   // Lock profiling.
   if (success && owner_ != nullptr && lock_profiling_threshold_ != 0) {
     locking_method_ = owner_->GetCurrentMethod(&locking_dex_pc_);
@@ -226,9 +226,9 @@ void Monitor::Lock(Thread* self) {
     // Do this before releasing the lock so that we don't get deflated.
     ++num_waiters_;
     monitor_lock_.Unlock(self);  // Let go of locks in order.
+    self->SetMonitorEnterObject(GetObject());
     {
       ScopedThreadStateChange tsc(self, kBlocked);  // Change to blocked and give up mutator_lock_.
-      self->SetMonitorEnterObject(obj_);
       MutexLock mu2(self, monitor_lock_);  // Reacquire monitor_lock_ without mutator_lock_ for Wait.
       if (owner_ != NULL) {  // Did the owner_ give the lock up?
         monitor_contenders_.Wait(self);  // Still contended so wait.
@@ -249,8 +249,8 @@ void Monitor::Lock(Thread* self) {
           }
         }
       }
-      self->SetMonitorEnterObject(nullptr);
     }
+    self->SetMonitorEnterObject(nullptr);
     monitor_lock_.Lock(self);  // Reacquire locks in order.
     --num_waiters_;
   }
@@ -363,7 +363,7 @@ bool Monitor::Unlock(Thread* self) {
     // We don't own this, so we're not allowed to unlock it.
     // The JNI spec says that we should throw IllegalMonitorStateException
     // in this case.
-    FailedUnlock(obj_, self, owner, this);
+    FailedUnlock(GetObject(), self, owner, this);
     return false;
   }
   return true;
@@ -637,7 +637,7 @@ void Monitor::Inflate(Thread* self, Thread* owner, mirror::Object* obj, int32_t 
   }
 }
 
-void Monitor::InflateThinLocked(Thread* self, Handle<mirror::Object>& obj, LockWord lock_word,
+void Monitor::InflateThinLocked(Thread* self, Handle<mirror::Object> obj, LockWord lock_word,
                                 uint32_t hash_code) {
   DCHECK_EQ(lock_word.GetState(), LockWord::kThinLocked);
   uint32_t owner_thread_id = lock_word.ThinLockOwner();
@@ -895,7 +895,7 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
     MutexLock mu(self, *thread->GetWaitMutex());
     Monitor* monitor = thread->GetWaitMonitor();
     if (monitor != nullptr) {
-      pretty_object = monitor->obj_;
+      pretty_object = monitor->GetObject();
     }
   } else if (state == kBlocked) {
     wait_message = "  - waiting to lock ";
@@ -983,7 +983,7 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
   // Ask the verifier for the dex pcs of all the monitor-enter instructions corresponding to
   // the locks held in this stack frame.
   std::vector<uint32_t> monitor_enter_dex_pcs;
-  verifier::MethodVerifier::FindLocksAtDexPc(m, stack_visitor->GetDexPc(), monitor_enter_dex_pcs);
+  verifier::MethodVerifier::FindLocksAtDexPc(m, stack_visitor->GetDexPc(), &monitor_enter_dex_pcs);
   if (monitor_enter_dex_pcs.empty()) {
     return;
   }
@@ -1101,12 +1101,13 @@ void MonitorList::SweepMonitorList(IsMarkedCallback* callback, void* arg) {
   MutexLock mu(Thread::Current(), monitor_list_lock_);
   for (auto it = list_.begin(); it != list_.end(); ) {
     Monitor* m = *it;
-    mirror::Object* obj = m->GetObject();
+    // Disable the read barrier in GetObject() as this is called by GC.
+    mirror::Object* obj = m->GetObject<kWithoutReadBarrier>();
     // The object of a monitor can be null if we have deflated it.
     mirror::Object* new_obj = obj != nullptr ? callback(obj, arg) : nullptr;
     if (new_obj == nullptr) {
       VLOG(monitor) << "freeing monitor " << m << " belonging to unmarked object "
-                    << m->GetObject();
+                    << obj;
       delete m;
       it = list_.erase(it);
     } else {

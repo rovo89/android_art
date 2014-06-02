@@ -14,19 +14,31 @@
  * limitations under the License.
  */
 
-#include "bit_vector_block_iterator.h"
-#include "mir_graph.h"
+#ifndef ART_COMPILER_DEX_PASS_DRIVER_ME_OPTS_H_
+#define ART_COMPILER_DEX_PASS_DRIVER_ME_OPTS_H_
+
+#include "pass_driver_me.h"
 
 namespace art {
 
-BasicBlock* BitVectorBlockIterator::Next() {
-  int idx = internal_iterator_.Next();
+// Forward Declarations.
+struct CompilationUnit;
+class Pass;
+class PassDataHolder;
 
-  if (idx == -1) {
-    return nullptr;
+class PassDriverMEOpts : public PassDriverME<PassDriverMEOpts> {
+ public:
+  explicit PassDriverMEOpts(CompilationUnit* cu):PassDriverME<PassDriverMEOpts>(cu) {
   }
 
-  return mir_graph_->GetBasicBlock(idx);
-}
+  ~PassDriverMEOpts() {
+  }
+
+  /**
+   * @brief Apply a patch: perform start/work/end functions.
+   */
+  virtual void ApplyPass(PassDataHolder* data, const Pass* pass);
+};
 
 }  // namespace art
+#endif  // ART_COMPILER_DEX_PASS_DRIVER_ME_OPTS_H_

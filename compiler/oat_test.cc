@@ -154,8 +154,8 @@ TEST_F(OatTest, WriteRead) {
     }
     const char* descriptor = dex_file->GetClassDescriptor(class_def);
     StackHandleScope<1> hs(soa.Self());
-    auto loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
-    mirror::Class* klass = class_linker->FindClass(soa.Self(), descriptor, loader);
+    mirror::Class* klass = class_linker->FindClass(soa.Self(), descriptor,
+                                                   NullHandle<mirror::ClassLoader>());
 
     const OatFile::OatClass oat_class = oat_dex_file->GetOatClass(i);
     CHECK_EQ(mirror::Class::Status::kStatusNotReady, oat_class.GetStatus()) << descriptor;
@@ -180,7 +180,7 @@ TEST_F(OatTest, OatHeaderSizeCheck) {
   EXPECT_EQ(80U, sizeof(OatHeader));
   EXPECT_EQ(8U, sizeof(OatMethodOffsets));
   EXPECT_EQ(24U, sizeof(OatQuickMethodHeader));
-  EXPECT_EQ(80 * GetInstructionSetPointerSize(kRuntimeISA), sizeof(QuickEntryPoints));
+  EXPECT_EQ(79 * GetInstructionSetPointerSize(kRuntimeISA), sizeof(QuickEntryPoints));
 }
 
 TEST_F(OatTest, OatHeaderIsValid) {

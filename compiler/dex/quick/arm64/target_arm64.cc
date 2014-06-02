@@ -258,7 +258,6 @@ static uint64_t RepeatBitsAcrossReg(bool is_wide, uint64_t value, unsigned width
   unsigned i;
   unsigned reg_size = (is_wide) ? 64 : 32;
   uint64_t result = value & BIT_MASK(width);
-  DCHECK_NE(width, reg_size);
   for (i = width; i < reg_size; i *= 2) {
     result |= (result << i);
   }
@@ -606,7 +605,7 @@ void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
   GrowableArray<RegisterInfo*>::Iterator fp_it(&reg_pool_->sp_regs_);
   for (RegisterInfo* info = fp_it.Next(); info != nullptr; info = fp_it.Next()) {
     int fp_reg_num = info->GetReg().GetRegNum();
-    RegStorage dp_reg = RegStorage::Solo64(RegStorage::kFloatingPoint | fp_reg_num);
+    RegStorage dp_reg = RegStorage::FloatSolo64(fp_reg_num);
     RegisterInfo* dp_reg_info = GetRegInfo(dp_reg);
     // Double precision register's master storage should refer to itself.
     DCHECK_EQ(dp_reg_info, dp_reg_info->Master());
@@ -616,10 +615,18 @@ void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
     DCHECK_EQ(info->StorageMask(), 0x1U);
   }
 
-  // TODO: re-enable this when we can safely save r4 over the suspension code path.
-  bool no_suspend = NO_SUSPEND;  // || !Runtime::Current()->ExplicitSuspendChecks();
-  if (no_suspend) {
-    GetRegInfo(rs_rA64_SUSPEND)->MarkFree();
+  // Alias 32bit W registers to corresponding 64bit X registers.
+  GrowableArray<RegisterInfo*>::Iterator w_it(&reg_pool_->core_regs_);
+  for (RegisterInfo* info = w_it.Next(); info != nullptr; info = w_it.Next()) {
+    int x_reg_num = info->GetReg().GetRegNum();
+    RegStorage x_reg = RegStorage::Solo64(x_reg_num);
+    RegisterInfo* x_reg_info = GetRegInfo(x_reg);
+    // 64bit X register's master storage should refer to itself.
+    DCHECK_EQ(x_reg_info, x_reg_info->Master());
+    // Redirect 32bit W master storage to 64bit X.
+    info->SetMaster(x_reg_info);
+    // 32bit W should show a single 32-bit mask bit, at first referring to the low half.
+    DCHECK_EQ(info->StorageMask(), 0x1U);
   }
 
   // Don't start allocating temps at r0/s0/d0 or you may clobber return regs in early-exit methods.

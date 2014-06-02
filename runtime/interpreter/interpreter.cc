@@ -33,7 +33,7 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
     DCHECK_GE(length, 0);
     mirror::Class* element_class = reinterpret_cast<Object*>(args[0])->AsClass();
     Runtime* runtime = Runtime::Current();
-    mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(self, element_class);
+    mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(self, &element_class);
     DCHECK(array_class != nullptr);
     gc::AllocatorType allocator = runtime->GetHeap()->GetCurrentAllocator();
     result->SetL(mirror::Array::Alloc<true>(self, array_class, length,
@@ -524,16 +524,17 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
   ArtMethod* method = shadow_frame->GetMethod();
   // Ensure static methods are initialized.
   if (method->IsStatic()) {
-    StackHandleScope<1> hs(self);
-    Handle<Class> declaringClass(hs.NewHandle(method->GetDeclaringClass()));
-    if (UNLIKELY(!declaringClass->IsInitializing())) {
-      if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaringClass, true,
-                                                                            true))) {
-        DCHECK(Thread::Current()->IsExceptionPending());
+    mirror::Class* declaring_class = method->GetDeclaringClass();
+    if (UNLIKELY(!declaring_class->IsInitializing())) {
+      StackHandleScope<1> hs(self);
+      HandleWrapper<Class> h_declaring_class(hs.NewHandleWrapper(&declaring_class));
+      if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(
+          h_declaring_class, true, true))) {
+        DCHECK(self->IsExceptionPending());
         self->PopShadowFrame();
         return;
       }
-      CHECK(declaringClass->IsInitializing());
+      CHECK(h_declaring_class->IsInitializing());
     }
   }
 

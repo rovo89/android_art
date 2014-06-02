@@ -364,6 +364,18 @@ LIR* Mir2Lir::ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi) {
   return NULL;
 }
 
+/* Search the existing constants in the literal pool for an exact method match */
+LIR* Mir2Lir::ScanLiteralPoolMethod(LIR* data_target, const MethodReference& method) {
+  while (data_target) {
+    if (static_cast<uint32_t>(data_target->operands[0]) == method.dex_method_index &&
+        UnwrapPointer(data_target->operands[1]) == method.dex_file) {
+      return data_target;
+    }
+    data_target = data_target->next;
+  }
+  return nullptr;
+}
+
 /*
  * The following are building blocks to insert constants into the pool or
  * instruction streams.
@@ -1143,11 +1155,13 @@ void Mir2Lir::AddSlowPath(LIRSlowPath* slowpath) {
 
 void Mir2Lir::LoadCodeAddress(const MethodReference& target_method, InvokeType type,
                               SpecialTargetRegister symbolic_reg) {
-  int target_method_idx = target_method.dex_method_index;
-  LIR* data_target = ScanLiteralPool(code_literal_list_, target_method_idx, 0);
+  LIR* data_target = ScanLiteralPoolMethod(code_literal_list_, target_method);
   if (data_target == NULL) {
-    data_target = AddWordData(&code_literal_list_, target_method_idx);
+    data_target = AddWordData(&code_literal_list_, target_method.dex_method_index);
     data_target->operands[1] = WrapPointer(const_cast<DexFile*>(target_method.dex_file));
+    // NOTE: The invoke type doesn't contribute to the literal identity. In fact, we can have
+    // the same method invoked with kVirtual, kSuper and kInterface but the class linker will
+    // resolve these invokes to the same method, so we don't care which one we record here.
     data_target->operands[2] = type;
   }
   LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg), data_target);
@@ -1157,11 +1171,13 @@ void Mir2Lir::LoadCodeAddress(const MethodReference& target_method, InvokeType t
 
 void Mir2Lir::LoadMethodAddress(const MethodReference& target_method, InvokeType type,
                                 SpecialTargetRegister symbolic_reg) {
-  int target_method_idx = target_method.dex_method_index;
-  LIR* data_target = ScanLiteralPool(method_literal_list_, target_method_idx, 0);
+  LIR* data_target = ScanLiteralPoolMethod(method_literal_list_, target_method);
   if (data_target == NULL) {
-    data_target = AddWordData(&method_literal_list_, target_method_idx);
+    data_target = AddWordData(&method_literal_list_, target_method.dex_method_index);
     data_target->operands[1] = WrapPointer(const_cast<DexFile*>(target_method.dex_file));
+    // NOTE: The invoke type doesn't contribute to the literal identity. In fact, we can have
+    // the same method invoked with kVirtual, kSuper and kInterface but the class linker will
+    // resolve these invokes to the same method, so we don't care which one we record here.
     data_target->operands[2] = type;
   }
   LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg), data_target);
@@ -1185,21 +1201,27 @@ std::vector<uint8_t>* Mir2Lir::ReturnCallFrameInformation() {
 }
 
 RegLocation Mir2Lir::NarrowRegLoc(RegLocation loc) {
-  loc.wide = false;
   if (loc.location == kLocPhysReg) {
+    DCHECK(!loc.reg.Is32Bit());
     if (loc.reg.IsPair()) {
-      loc.reg = loc.reg.GetLow();
+      RegisterInfo* info_lo = GetRegInfo(loc.reg.GetLow());
+      RegisterInfo* info_hi = GetRegInfo(loc.reg.GetHigh());
+      info_lo->SetIsWide(false);
+      info_hi->SetIsWide(false);
+      loc.reg = info_lo->GetReg();
     } else {
-      // FIXME: temp workaround.
-      // Issue here: how do we narrow to a 32-bit value in 64-bit container?
-      // Probably the wrong thing to narrow the RegStorage container here.  That
-      // should be a target decision.  At the RegLocation level, we're only
-      // modifying the view of the Dalvik value - this is orthogonal to the storage
-      // container size.  Consider this a temp workaround.
-      DCHECK(loc.reg.IsDouble());
-      loc.reg = loc.reg.DoubleToLowSingle();
+      RegisterInfo* info = GetRegInfo(loc.reg);
+      RegisterInfo* info_new = info->FindMatchingView(RegisterInfo::k32SoloStorageMask);
+      DCHECK(info_new != nullptr);
+      if (info->IsLive() && (info->SReg() == loc.s_reg_low)) {
+        info->MarkDead();
+        info_new->MarkLive(loc.s_reg_low);
+      }
+      loc.reg = info_new->GetReg();
     }
+    DCHECK(loc.reg.Valid());
   }
+  loc.wide = false;
   return loc;
 }
 

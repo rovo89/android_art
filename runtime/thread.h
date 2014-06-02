@@ -121,7 +121,7 @@ class Thread {
   // of the stack (lowest memory).  The higher portion of the memory
   // is protected against reads and the lower is available for use while
   // throwing the StackOverflow exception.
-  static constexpr size_t kStackOverflowProtectedSize = 32 * KB;
+  static constexpr size_t kStackOverflowProtectedSize = 16 * KB;
   static constexpr size_t kStackOverflowImplicitCheckSize = kStackOverflowProtectedSize +
     kStackOverflowReservedBytes;
 
@@ -326,7 +326,7 @@ class Thread {
     tlsPtr_.throw_location = throw_location;
   }
 
-  void ClearException() {
+  void ClearException() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     tlsPtr_.exception = nullptr;
     tlsPtr_.throw_location.Clear();
   }
@@ -345,7 +345,7 @@ class Thread {
 
   ThrowLocation GetCurrentLocationForThrow() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetTopOfStack(mirror::ArtMethod** top_method, uintptr_t pc) {
+  void SetTopOfStack(StackReference<mirror::ArtMethod>* top_method, uintptr_t pc) {
     tlsPtr_.managed_stack.SetTopQuickFrame(top_method);
     tlsPtr_.managed_stack.SetTopQuickFramePc(pc);
   }
@@ -396,11 +396,11 @@ class Thread {
   // Convert a jobject into a Object*
   mirror::Object* DecodeJObject(jobject obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::Object* GetMonitorEnterObject() const {
+  mirror::Object* GetMonitorEnterObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return tlsPtr_.monitor_enter_object;
   }
 
-  void SetMonitorEnterObject(mirror::Object* obj) {
+  void SetMonitorEnterObject(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     tlsPtr_.monitor_enter_object = obj;
   }
 
@@ -1045,9 +1045,6 @@ class Thread {
     // A cached pthread_t for the pthread underlying this Thread*.
     pthread_t pthread_self;
 
-    // Support for Mutex lock hierarchy bug detection.
-    BaseMutex* held_mutexes[kLockLevelCount];
-
     // If no_thread_suspension_ is > 0, what is causing that assertion.
     const char* last_no_thread_suspension_cause;
 
@@ -1074,6 +1071,9 @@ class Thread {
     // Thread-local allocation stack data/routines.
     mirror::Object** thread_local_alloc_stack_top;
     mirror::Object** thread_local_alloc_stack_end;
+
+    // Support for Mutex lock hierarchy bug detection.
+    BaseMutex* held_mutexes[kLockLevelCount];
   } tlsPtr_;
 
   // Guards the 'interrupted_' and 'wait_monitor_' members.
@@ -1090,6 +1090,7 @@ class Thread {
   friend class Dbg;  // For SetStateUnsafe.
   friend class gc::collector::SemiSpace;  // For getting stack traces.
   friend class Runtime;  // For CreatePeer.
+  friend class QuickExceptionHandler;  // For dumping the stack.
   friend class ScopedThreadStateChange;
   friend class SignalCatcher;  // For SetStateUnsafe.
   friend class StubTest;  // For accessing entrypoints.

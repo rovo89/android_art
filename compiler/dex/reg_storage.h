@@ -225,24 +225,6 @@ class RegStorage {
     return reg_ & kRegNumMask;
   }
 
-  // Aliased double to low single.
-  RegStorage DoubleToLowSingle() const {
-    DCHECK(IsDouble());
-    return FloatSolo32(GetRegNum() << 1);
-  }
-
-  // Aliased double to high single.
-  RegStorage DoubleToHighSingle() const {
-    DCHECK(IsDouble());
-    return FloatSolo32((GetRegNum() << 1) + 1);
-  }
-
-  // Single to aliased double.
-  RegStorage SingleToDouble() const {
-    DCHECK(IsSingle());
-    return FloatSolo64(GetRegNum() >> 1);
-  }
-
   // Is register number in 0..7?
   bool Low8() const {
     return GetRegNum() < 8;
@@ -280,6 +262,11 @@ class RegStorage {
     return RegStorage(k32BitSolo, (reg_num & kRegNumMask) | kFloatingPoint);
   }
 
+  // Create a 128-bit solo.
+  static RegStorage Solo128(int reg_num) {
+    return RegStorage(k128BitSolo, reg_num & kRegTypeMask);
+  }
+
   // Create a 64-bit solo.
   static RegStorage Solo64(int reg_num) {
     return RegStorage(k64BitSolo, reg_num & kRegTypeMask);
@@ -312,7 +299,7 @@ class RegStorage {
       case k256BitSolo: return 32;
       case k512BitSolo: return 64;
       case k1024BitSolo: return 128;
-      default: LOG(FATAL) << "Unexpected shap";
+      default: LOG(FATAL) << "Unexpected shape";
     }
     return 0;
   }

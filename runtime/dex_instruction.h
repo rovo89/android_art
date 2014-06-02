@@ -118,13 +118,30 @@ class Instruction {
   };
 
   enum Flags {
-    kBranch   = 0x01,  // conditional or unconditional branch
-    kContinue = 0x02,  // flow can continue to next statement
-    kSwitch   = 0x04,  // switch statement
-    kThrow    = 0x08,  // could cause an exception to be thrown
-    kReturn   = 0x10,  // returns, no additional statements
-    kInvoke   = 0x20,  // a flavor of invoke
-    kUnconditional = 0x40,  // unconditional branch
+    kBranch              = 0x000001,  // conditional or unconditional branch
+    kContinue            = 0x000002,  // flow can continue to next statement
+    kSwitch              = 0x000004,  // switch statement
+    kThrow               = 0x000008,  // could cause an exception to be thrown
+    kReturn              = 0x000010,  // returns, no additional statements
+    kInvoke              = 0x000020,  // a flavor of invoke
+    kUnconditional       = 0x000040,  // unconditional branch
+    kAdd                 = 0x000080,  // addition
+    kSubtract            = 0x000100,  // subtract
+    kMultiply            = 0x000200,  // multiply
+    kDivide              = 0x000400,  // division
+    kRemainder           = 0x000800,  // remainder
+    kAnd                 = 0x001000,  // and
+    kOr                  = 0x002000,  // or
+    kXor                 = 0x004000,  // xor
+    kShl                 = 0x008000,  // shl
+    kShr                 = 0x010000,  // shr
+    kUshr                = 0x020000,  // ushr
+    kCast                = 0x040000,  // cast
+    kStore               = 0x080000,  // store opcode
+    kLoad                = 0x100000,  // load opcode
+    kClobber             = 0x200000,  // clobbers memory in a big way (not just a write)
+    kRegCFieldOrConstant = 0x400000,  // is the third virtual register a field or literal constant (vC)
+    kRegBFieldOrConstant = 0x800000,  // is the second virtual register a field or literal constant (vB)
   };
 
   enum VerifyFlag {

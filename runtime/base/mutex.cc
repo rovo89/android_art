@@ -30,10 +30,12 @@
 namespace art {
 
 Mutex* Locks::abort_lock_ = nullptr;
+Mutex* Locks::allocated_thread_ids_lock_ = nullptr;
 Mutex* Locks::breakpoint_lock_ = nullptr;
 ReaderWriterMutex* Locks::classlinker_classes_lock_ = nullptr;
 ReaderWriterMutex* Locks::heap_bitmap_lock_ = nullptr;
 Mutex* Locks::logging_lock_ = nullptr;
+Mutex* Locks::modify_ldt_lock_ = nullptr;
 ReaderWriterMutex* Locks::mutator_lock_ = nullptr;
 Mutex* Locks::runtime_shutdown_lock_ = nullptr;
 Mutex* Locks::thread_list_lock_ = nullptr;
@@ -814,7 +816,13 @@ void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
 void Locks::Init() {
   if (logging_lock_ != nullptr) {
     // Already initialized.
+    if (kRuntimeISA == kX86 || kRuntimeISA == kX86_64) {
+      DCHECK(modify_ldt_lock_ != nullptr);
+    } else {
+      DCHECK(modify_ldt_lock_ == nullptr);
+    }
     DCHECK(abort_lock_ != nullptr);
+    DCHECK(allocated_thread_ids_lock_ != nullptr);
     DCHECK(breakpoint_lock_ != nullptr);
     DCHECK(classlinker_classes_lock_ != nullptr);
     DCHECK(heap_bitmap_lock_ != nullptr);
@@ -827,32 +835,76 @@ void Locks::Init() {
     DCHECK(unexpected_signal_lock_ != nullptr);
     DCHECK(intern_table_lock_ != nullptr);
   } else {
-    logging_lock_ = new Mutex("logging lock", kLoggingLock, true);
-    abort_lock_ = new Mutex("abort lock", kAbortLock, true);
+    // Create global locks in level order from highest lock level to lowest.
+    LockLevel current_lock_level = kMutatorLock;
+    DCHECK(mutator_lock_ == nullptr);
+    mutator_lock_ = new ReaderWriterMutex("mutator lock", current_lock_level);
 
+    #define UPDATE_CURRENT_LOCK_LEVEL(new_level) \
+        DCHECK_LT(new_level, current_lock_level); \
+        current_lock_level = new_level;
+
+    UPDATE_CURRENT_LOCK_LEVEL(kHeapBitmapLock);
+    DCHECK(heap_bitmap_lock_ == nullptr);
+    heap_bitmap_lock_ = new ReaderWriterMutex("heap bitmap lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kRuntimeShutdownLock);
+    DCHECK(runtime_shutdown_lock_ == nullptr);
+    runtime_shutdown_lock_ = new Mutex("runtime shutdown lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kProfilerLock);
+    DCHECK(profiler_lock_ == nullptr);
+    profiler_lock_ = new Mutex("profiler lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kTraceLock);
+    DCHECK(trace_lock_ == nullptr);
+    trace_lock_ = new Mutex("trace lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kThreadListLock);
+    DCHECK(thread_list_lock_ == nullptr);
+    thread_list_lock_ = new Mutex("thread list lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kBreakpointLock);
     DCHECK(breakpoint_lock_ == nullptr);
-    breakpoint_lock_ = new Mutex("breakpoint lock", kBreakpointLock);
+    breakpoint_lock_ = new Mutex("breakpoint lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kClassLinkerClassesLock);
     DCHECK(classlinker_classes_lock_ == nullptr);
     classlinker_classes_lock_ = new ReaderWriterMutex("ClassLinker classes lock",
-                                                      kClassLinkerClassesLock);
-    DCHECK(heap_bitmap_lock_ == nullptr);
-    heap_bitmap_lock_ = new ReaderWriterMutex("heap bitmap lock", kHeapBitmapLock);
-    DCHECK(mutator_lock_ == nullptr);
-    mutator_lock_ = new ReaderWriterMutex("mutator lock", kMutatorLock);
-    DCHECK(runtime_shutdown_lock_ == nullptr);
-    runtime_shutdown_lock_ = new Mutex("runtime shutdown lock", kRuntimeShutdownLock);
-    DCHECK(thread_list_lock_ == nullptr);
-    thread_list_lock_ = new Mutex("thread list lock", kThreadListLock);
-    DCHECK(thread_suspend_count_lock_ == nullptr);
-    thread_suspend_count_lock_ = new Mutex("thread suspend count lock", kThreadSuspendCountLock);
-    DCHECK(trace_lock_ == nullptr);
-    trace_lock_ = new Mutex("trace lock", kTraceLock);
-    DCHECK(profiler_lock_ == nullptr);
-    profiler_lock_ = new Mutex("profiler lock", kProfilerLock);
-    DCHECK(unexpected_signal_lock_ == nullptr);
-    unexpected_signal_lock_ = new Mutex("unexpected signal lock", kUnexpectedSignalLock, true);
+                                                      current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kAllocatedThreadIdsLock);
+    DCHECK(allocated_thread_ids_lock_ == nullptr);
+    allocated_thread_ids_lock_ =  new Mutex("allocated thread ids lock", current_lock_level);
+
+    if (kRuntimeISA == kX86 || kRuntimeISA == kX86_64) {
+      UPDATE_CURRENT_LOCK_LEVEL(kModifyLdtLock);
+      DCHECK(modify_ldt_lock_ == nullptr);
+      modify_ldt_lock_ = new Mutex("modify_ldt lock", current_lock_level);
+    }
+
+    UPDATE_CURRENT_LOCK_LEVEL(kInternTableLock);
     DCHECK(intern_table_lock_ == nullptr);
-    intern_table_lock_ = new Mutex("InternTable lock", kInternTableLock);
+    intern_table_lock_ = new Mutex("InternTable lock", current_lock_level);
+
+
+    UPDATE_CURRENT_LOCK_LEVEL(kAbortLock);
+    DCHECK(abort_lock_ == nullptr);
+    abort_lock_ = new Mutex("abort lock", current_lock_level, true);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kThreadSuspendCountLock);
+    DCHECK(thread_suspend_count_lock_ == nullptr);
+    thread_suspend_count_lock_ = new Mutex("thread suspend count lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kUnexpectedSignalLock);
+    DCHECK(unexpected_signal_lock_ == nullptr);
+    unexpected_signal_lock_ = new Mutex("unexpected signal lock", current_lock_level, true);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kLoggingLock);
+    DCHECK(logging_lock_ == nullptr);
+    logging_lock_ = new Mutex("logging lock", current_lock_level, true);
+
+    #undef UPDATE_CURRENT_LOCK_LEVEL
   }
 }
 

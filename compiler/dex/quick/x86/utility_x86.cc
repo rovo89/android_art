@@ -89,7 +89,11 @@ LIR* X86Mir2Lir::LoadConstantNoClobber(RegStorage r_dest, int value) {
     res = NewLIR2(kX86Xor32RR, r_dest.GetReg(), r_dest.GetReg());
   } else {
     // Note, there is no byte immediate form of a 32 bit immediate move.
-    res = NewLIR2(kX86Mov32RI, r_dest.GetReg(), value);
+    if (r_dest.Is64Bit()) {
+      res = NewLIR2(kX86Mov64RI, r_dest.GetReg(), value);
+    } else {
+      res = NewLIR2(kX86Mov32RI, r_dest.GetReg(), value);
+    }
   }
 
   if (r_dest_save.IsFloat()) {
@@ -181,7 +185,6 @@ LIR* X86Mir2Lir::OpRegImm(OpKind op, RegStorage r_dest_src1, int value) {
         LOG(FATAL) << "Bad case in OpRegImm " << op;
     }
   }
-  CHECK(!r_dest_src1.Is64Bit() || X86Mir2Lir::EncodingMap[opcode].kind == kReg64Imm) << "OpRegImm(" << op << ")";
   return NewLIR2(opcode, r_dest_src1.GetReg(), value);
 }
 
@@ -559,7 +562,7 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
         // We don't know the proper offset for the value, so pick one that will force
         // 4 byte offset.  We will fix this up in the assembler later to have the right
         // value.
-        res = LoadBaseDisp(rl_method.reg, 256 /* bogus */, RegStorage::Solo64(low_reg_val),
+        res = LoadBaseDisp(rl_method.reg, 256 /* bogus */, RegStorage::FloatSolo64(low_reg_val),
                            kDouble);
         res->target = data_target;
         res->flags.fixup = kFixupLoad;
@@ -866,7 +869,7 @@ void X86Mir2Lir::AnalyzeBB(BasicBlock * bb) {
 
   for (MIR *mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     int opcode = mir->dalvikInsn.opcode;
-    if (opcode >= kMirOpFirst) {
+    if (MIRGraph::IsPseudoMirOp(opcode)) {
       AnalyzeExtendedMIR(opcode, bb, mir);
     } else {
       AnalyzeMIR(opcode, bb, mir);

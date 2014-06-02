@@ -129,17 +129,16 @@ MIR* MIRGraph::FindMoveResult(BasicBlock* bb, MIR* mir) {
   BasicBlock* tbb = bb;
   mir = AdvanceMIR(&tbb, mir);
   while (mir != NULL) {
-    int opcode = mir->dalvikInsn.opcode;
     if ((mir->dalvikInsn.opcode == Instruction::MOVE_RESULT) ||
         (mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) ||
         (mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_WIDE)) {
       break;
     }
     // Keep going if pseudo op, otherwise terminate
-    if (opcode < kNumPackedOpcodes) {
-      mir = NULL;
-    } else {
+    if (IsPseudoMirOp(mir->dalvikInsn.opcode)) {
       mir = AdvanceMIR(&tbb, mir);
+    } else {
+      mir = NULL;
     }
   }
   return mir;
@@ -268,13 +267,22 @@ CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) 
     DCHECK_EQ(ct_type, kCompilerTempVR);
 
     // The new non-special compiler temp must receive a unique v_reg with a negative value.
-    compiler_temp->v_reg = static_cast<int>(kVRegNonSpecialTempBaseReg) - num_non_special_compiler_temps_;
+    compiler_temp->v_reg = static_cast<int>(kVRegNonSpecialTempBaseReg) -
+        num_non_special_compiler_temps_;
     compiler_temp->s_reg_low = AddNewSReg(compiler_temp->v_reg);
     num_non_special_compiler_temps_++;
 
     if (wide) {
-      // Ensure that the two registers are consecutive. Since the virtual registers used for temps grow in a
-      // negative fashion, we need the smaller to refer to the low part. Thus, we redefine the v_reg and s_reg_low.
+      // Create a new CompilerTemp for the high part.
+      CompilerTemp *compiler_temp_high =
+          static_cast<CompilerTemp *>(arena_->Alloc(sizeof(CompilerTemp), kArenaAllocRegAlloc));
+      compiler_temp_high->v_reg = compiler_temp->v_reg;
+      compiler_temp_high->s_reg_low = compiler_temp->s_reg_low;
+      compiler_temps_.Insert(compiler_temp_high);
+
+      // Ensure that the two registers are consecutive. Since the virtual registers used for temps
+      // grow in a negative fashion, we need the smaller to refer to the low part. Thus, we
+      // redefine the v_reg and s_reg_low.
       compiler_temp->v_reg--;
       int ssa_reg_high = compiler_temp->s_reg_low;
       compiler_temp->s_reg_low = AddNewSReg(compiler_temp->v_reg);
@@ -311,9 +319,11 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
     return true;
   }
   bool use_lvn = bb->use_lvn;
+  std::unique_ptr<ScopedArenaAllocator> allocator;
   std::unique_ptr<LocalValueNumbering> local_valnum;
   if (use_lvn) {
-    local_valnum.reset(LocalValueNumbering::Create(cu_));
+    allocator.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
+    local_valnum.reset(new (allocator.get()) LocalValueNumbering(cu_, allocator.get()));
   }
   while (bb != NULL) {
     for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
@@ -406,7 +416,8 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
       // TODO: flesh out support for Mips.  NOTE: llvm's select op doesn't quite work here.
       // TUNING: expand to support IF_xx compare & branches
       if (!cu_->compiler->IsPortable() &&
-          (cu_->instruction_set == kThumb2 || cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) &&
+          (cu_->instruction_set == kArm64 || cu_->instruction_set == kThumb2 ||
+           cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) &&
           IsInstructionIfCcZ(mir->dalvikInsn.opcode)) {
         BasicBlock* ft = GetBasicBlock(bb->fall_through);
         DCHECK(ft != NULL);
@@ -432,6 +443,8 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
           if (SelectKind(tk->last_mir_insn) == kSelectGoto) {
               tk->last_mir_insn->optimization_flags |= (MIR_IGNORE_SUSPEND_CHECK);
           }
+
+          // TODO: Add logic for LONG.
           // Are the block bodies something we can handle?
           if ((ft->first_mir_insn == ft->last_mir_insn) &&
               (tk->first_mir_insn != tk->last_mir_insn) &&
@@ -540,6 +553,9 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
       }
     }
     bb = ((cu_->disable_opt & (1 << kSuppressExceptionEdges)) != 0) ? NextDominatedBlock(bb) : NULL;
+  }
+  if (use_lvn && UNLIKELY(!local_valnum->Good())) {
+    LOG(WARNING) << "LVN overflow in " << PrettyMethod(cu_->method_idx, *cu_->dex_file);
   }
 
   return true;
@@ -852,7 +868,7 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
           struct BasicBlock* next_bb = GetBasicBlock(bb->fall_through);
           for (MIR* tmir = next_bb->first_mir_insn; tmir != NULL;
             tmir =tmir->next) {
-            if (static_cast<int>(tmir->dalvikInsn.opcode) >= static_cast<int>(kMirOpFirst)) {
+            if (IsPseudoMirOp(tmir->dalvikInsn.opcode)) {
               continue;
             }
             // First non-pseudo should be MOVE_RESULT_OBJECT
@@ -1169,6 +1185,9 @@ void MIRGraph::InlineCalls(BasicBlock* bb) {
     return;
   }
   for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
+    if (IsPseudoMirOp(mir->dalvikInsn.opcode)) {
+      continue;
+    }
     if (!(Instruction::FlagsOf(mir->dalvikInsn.opcode) & Instruction::kInvoke)) {
       continue;
     }

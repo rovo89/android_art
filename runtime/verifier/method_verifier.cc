@@ -121,8 +121,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(mirror::Class* klass,
 }
 
 MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
-                                                        Handle<mirror::DexCache>& dex_cache,
-                                                        Handle<mirror::ClassLoader>& class_loader,
+                                                        Handle<mirror::DexCache> dex_cache,
+                                                        Handle<mirror::ClassLoader> class_loader,
                                                         const DexFile::ClassDef* class_def,
                                                         bool allow_soft_failures,
                                                         std::string* error) {
@@ -151,7 +151,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
     previous_direct_method_idx = method_idx;
     InvokeType type = it.GetMethodInvokeType(*class_def);
     mirror::ArtMethod* method =
-        linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, NULL, type);
+        linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader,
+                              NullHandle<mirror::ArtMethod>(), type);
     if (method == NULL) {
       DCHECK(Thread::Current()->IsExceptionPending());
       // We couldn't resolve the method, but continue regardless.
@@ -165,7 +166,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
                                                       it.GetMethodCodeItem(),
                                                       method,
                                                       it.GetMemberAccessFlags(),
-                                                      allow_soft_failures);
+                                                      allow_soft_failures,
+                                                      false);
     if (result != kNoFailure) {
       if (result == kHardFailure) {
         hard_fail = true;
@@ -193,7 +195,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
     previous_virtual_method_idx = method_idx;
     InvokeType type = it.GetMethodInvokeType(*class_def);
     mirror::ArtMethod* method =
-        linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, NULL, type);
+        linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader,
+                              NullHandle<mirror::ArtMethod>(), type);
     if (method == NULL) {
       DCHECK(Thread::Current()->IsExceptionPending());
       // We couldn't resolve the method, but continue regardless.
@@ -207,7 +210,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
                                                       it.GetMethodCodeItem(),
                                                       method,
                                                       it.GetMemberAccessFlags(),
-                                                      allow_soft_failures);
+                                                      allow_soft_failures,
+                                                      false);
     if (result != kNoFailure) {
       if (result == kHardFailure) {
         hard_fail = true;
@@ -232,38 +236,40 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
 
 MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx,
                                                          const DexFile* dex_file,
-                                                         Handle<mirror::DexCache>& dex_cache,
-                                                         Handle<mirror::ClassLoader>& class_loader,
+                                                         Handle<mirror::DexCache> dex_cache,
+                                                         Handle<mirror::ClassLoader> class_loader,
                                                          const DexFile::ClassDef* class_def,
                                                          const DexFile::CodeItem* code_item,
                                                          mirror::ArtMethod* method,
                                                          uint32_t method_access_flags,
-                                                         bool allow_soft_failures) {
+                                                         bool allow_soft_failures,
+                                                         bool need_precise_constants) {
   MethodVerifier::FailureKind result = kNoFailure;
   uint64_t start_ns = NanoTime();
 
-  MethodVerifier verifier_(dex_file, &dex_cache, &class_loader, class_def, code_item,
-                           method_idx, method, method_access_flags, true, allow_soft_failures);
-  if (verifier_.Verify()) {
+  MethodVerifier verifier(dex_file, &dex_cache, &class_loader, class_def, code_item,
+                           method_idx, method, method_access_flags, true, allow_soft_failures,
+                           need_precise_constants);
+  if (verifier.Verify()) {
     // Verification completed, however failures may be pending that didn't cause the verification
     // to hard fail.
-    CHECK(!verifier_.have_pending_hard_failure_);
-    if (verifier_.failures_.size() != 0) {
+    CHECK(!verifier.have_pending_hard_failure_);
+    if (verifier.failures_.size() != 0) {
       if (VLOG_IS_ON(verifier)) {
-          verifier_.DumpFailures(VLOG_STREAM(verifier) << "Soft verification failures in "
+          verifier.DumpFailures(VLOG_STREAM(verifier) << "Soft verification failures in "
                                 << PrettyMethod(method_idx, *dex_file) << "\n");
       }
       result = kSoftFailure;
     }
   } else {
     // Bad method data.
-    CHECK_NE(verifier_.failures_.size(), 0U);
-    CHECK(verifier_.have_pending_hard_failure_);
-    verifier_.DumpFailures(LOG(INFO) << "Verification error in "
+    CHECK_NE(verifier.failures_.size(), 0U);
+    CHECK(verifier.have_pending_hard_failure_);
+    verifier.DumpFailures(LOG(INFO) << "Verification error in "
                                     << PrettyMethod(method_idx, *dex_file) << "\n");
     if (gDebugVerify) {
-      std::cout << "\n" << verifier_.info_messages_.str();
-      verifier_.Dump(std::cout);
+      std::cout << "\n" << verifier.info_messages_.str();
+      verifier.Dump(std::cout);
     }
     result = kHardFailure;
   }
@@ -277,14 +283,14 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx,
 
 void MethodVerifier::VerifyMethodAndDump(std::ostream& os, uint32_t dex_method_idx,
                                          const DexFile* dex_file,
-                                         Handle<mirror::DexCache>& dex_cache,
-                                         Handle<mirror::ClassLoader>& class_loader,
+                                         Handle<mirror::DexCache> dex_cache,
+                                         Handle<mirror::ClassLoader> class_loader,
                                          const DexFile::ClassDef* class_def,
                                          const DexFile::CodeItem* code_item,
                                          mirror::ArtMethod* method,
                                          uint32_t method_access_flags) {
   MethodVerifier verifier(dex_file, &dex_cache, &class_loader, class_def, code_item,
-                          dex_method_idx, method, method_access_flags, true, true);
+                          dex_method_idx, method, method_access_flags, true, true, true);
   verifier.Verify();
   verifier.DumpFailures(os);
   os << verifier.info_messages_.str();
@@ -296,7 +302,8 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, Handle<mirror::DexCache>
                                const DexFile::ClassDef* class_def,
                                const DexFile::CodeItem* code_item, uint32_t dex_method_idx,
                                mirror::ArtMethod* method, uint32_t method_access_flags,
-                               bool can_load_classes, bool allow_soft_failures)
+                               bool can_load_classes, bool allow_soft_failures,
+                               bool need_precise_constants)
     : reg_types_(can_load_classes),
       work_insn_idx_(-1),
       dex_method_idx_(dex_method_idx),
@@ -317,6 +324,7 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, Handle<mirror::DexCache>
       monitor_enter_count_(0),
       can_load_classes_(can_load_classes),
       allow_soft_failures_(allow_soft_failures),
+      need_precise_constants_(need_precise_constants),
       has_check_casts_(false),
       has_virtual_or_interface_invokes_(false) {
   Runtime::Current()->AddMethodVerifier(this);
@@ -329,16 +337,16 @@ MethodVerifier::~MethodVerifier() {
 }
 
 void MethodVerifier::FindLocksAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc,
-                                      std::vector<uint32_t>& monitor_enter_dex_pcs) {
+                                      std::vector<uint32_t>* monitor_enter_dex_pcs) {
   MethodHelper mh(m);
   StackHandleScope<2> hs(Thread::Current());
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(mh.GetDexCache()));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(mh.GetClassLoader()));
   MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader, &mh.GetClassDef(),
                           mh.GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(), false,
-                          true);
+                          true, false);
   verifier.interesting_dex_pc_ = dex_pc;
-  verifier.monitor_enter_dex_pcs_ = &monitor_enter_dex_pcs;
+  verifier.monitor_enter_dex_pcs_ = monitor_enter_dex_pcs;
   verifier.FindLocksAtDexPc();
 }
 
@@ -354,14 +362,14 @@ void MethodVerifier::FindLocksAtDexPc() {
 }
 
 mirror::ArtField* MethodVerifier::FindAccessedFieldAtDexPc(mirror::ArtMethod* m,
-                                                        uint32_t dex_pc) {
+                                                           uint32_t dex_pc) {
   MethodHelper mh(m);
   StackHandleScope<2> hs(Thread::Current());
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(mh.GetDexCache()));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(mh.GetClassLoader()));
   MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader, &mh.GetClassDef(),
                           mh.GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(), true,
-                          true);
+                          true, false);
   return verifier.FindAccessedFieldAtDexPc(dex_pc);
 }
 
@@ -392,7 +400,7 @@ mirror::ArtMethod* MethodVerifier::FindInvokedMethodAtDexPc(mirror::ArtMethod* m
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(mh.GetClassLoader()));
   MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader, &mh.GetClassDef(),
                           mh.GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(), true,
-                          true);
+                          true, false);
   return verifier.FindInvokedMethodAtDexPc(dex_pc);
 }
 
@@ -1436,9 +1444,6 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   std::unique_ptr<RegisterLine> branch_line;
   std::unique_ptr<RegisterLine> fallthrough_line;
 
-  // We need precise constant types only for deoptimization which happens at runtime.
-  const bool need_precise_constant = !Runtime::Current()->IsCompiler();
-
   switch (inst->Opcode()) {
     case Instruction::NOP:
       /*
@@ -1590,25 +1595,25 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::CONST_4: {
       int32_t val = static_cast<int32_t>(inst->VRegB_11n() << 28) >> 28;
       work_line_->SetRegisterType(inst->VRegA_11n(),
-                                  DetermineCat1Constant(val, need_precise_constant));
+                                  DetermineCat1Constant(val, need_precise_constants_));
       break;
     }
     case Instruction::CONST_16: {
       int16_t val = static_cast<int16_t>(inst->VRegB_21s());
       work_line_->SetRegisterType(inst->VRegA_21s(),
-                                  DetermineCat1Constant(val, need_precise_constant));
+                                  DetermineCat1Constant(val, need_precise_constants_));
       break;
     }
     case Instruction::CONST: {
       int32_t val = inst->VRegB_31i();
       work_line_->SetRegisterType(inst->VRegA_31i(),
-                                  DetermineCat1Constant(val, need_precise_constant));
+                                  DetermineCat1Constant(val, need_precise_constants_));
       break;
     }
     case Instruction::CONST_HIGH16: {
       int32_t val = static_cast<int32_t>(inst->VRegB_21h() << 16);
       work_line_->SetRegisterType(inst->VRegA_21h(),
-                                  DetermineCat1Constant(val, need_precise_constant));
+                                  DetermineCat1Constant(val, need_precise_constants_));
       break;
     }
       /* could be long or double; resolved upon use */

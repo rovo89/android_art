@@ -142,15 +142,15 @@ class MethodVerifier {
   /* Verify a class. Returns "kNoFailure" on success. */
   static FailureKind VerifyClass(mirror::Class* klass, bool allow_soft_failures, std::string* error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static FailureKind VerifyClass(const DexFile* dex_file, Handle<mirror::DexCache>& dex_cache,
-                                 Handle<mirror::ClassLoader>& class_loader,
+  static FailureKind VerifyClass(const DexFile* dex_file, Handle<mirror::DexCache> dex_cache,
+                                 Handle<mirror::ClassLoader> class_loader,
                                  const DexFile::ClassDef* class_def,
                                  bool allow_soft_failures, std::string* error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void VerifyMethodAndDump(std::ostream& os, uint32_t method_idx, const DexFile* dex_file,
-                                  Handle<mirror::DexCache>& dex_cache,
-                                  Handle<mirror::ClassLoader>& class_loader,
+                                  Handle<mirror::DexCache> dex_cache,
+                                  Handle<mirror::ClassLoader> class_loader,
                                   const DexFile::ClassDef* class_def,
                                   const DexFile::CodeItem* code_item,
                                   mirror::ArtMethod* method, uint32_t method_access_flags)
@@ -185,7 +185,7 @@ class MethodVerifier {
   // Fills 'monitor_enter_dex_pcs' with the dex pcs of the monitor-enter instructions corresponding
   // to the locks held at 'dex_pc' in method 'm'.
   static void FindLocksAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc,
-                               std::vector<uint32_t>& monitor_enter_dex_pcs)
+                               std::vector<uint32_t>* monitor_enter_dex_pcs)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns the accessed field corresponding to the quick instruction's field
@@ -208,7 +208,8 @@ class MethodVerifier {
   MethodVerifier(const DexFile* dex_file, Handle<mirror::DexCache>* dex_cache,
                  Handle<mirror::ClassLoader>* class_loader, const DexFile::ClassDef* class_def,
                  const DexFile::CodeItem* code_item, uint32_t method_idx, mirror::ArtMethod* method,
-                 uint32_t access_flags, bool can_load_classes, bool allow_soft_failures)
+                 uint32_t access_flags, bool can_load_classes, bool allow_soft_failures,
+                 bool need_precise_constants)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ~MethodVerifier();
@@ -255,12 +256,12 @@ class MethodVerifier {
    *      for code flow problems.
    */
   static FailureKind VerifyMethod(uint32_t method_idx, const DexFile* dex_file,
-                                  Handle<mirror::DexCache>& dex_cache,
-                                  Handle<mirror::ClassLoader>& class_loader,
+                                  Handle<mirror::DexCache> dex_cache,
+                                  Handle<mirror::ClassLoader> class_loader,
                                   const DexFile::ClassDef* class_def_idx,
                                   const DexFile::CodeItem* code_item,
                                   mirror::ArtMethod* method, uint32_t method_access_flags,
-                                  bool allow_soft_failures)
+                                  bool allow_soft_failures, bool need_precise_constants)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void FindLocksAtDexPc() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -671,6 +672,12 @@ class MethodVerifier {
   // Converts soft failures to hard failures when false. Only false when the compiler isn't
   // running and the verifier is called from the class linker.
   const bool allow_soft_failures_;
+
+  // An optimization where instead of generating unique RegTypes for constants we use imprecise
+  // constants that cover a range of constants. This isn't good enough for deoptimization that
+  // avoids loading from registers in the case of a constant as the dex instruction set lost the
+  // notion of whether a value should be in a floating point or general purpose register file.
+  const bool need_precise_constants_;
 
   // Indicates the method being verified contains at least one check-cast or aput-object
   // instruction. Aput-object operations implicitly check for array-store exceptions, similar to

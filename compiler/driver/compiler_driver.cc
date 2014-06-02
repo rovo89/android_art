@@ -511,7 +511,7 @@ void CompilerDriver::CompileAll(jobject class_loader,
 }
 
 static DexToDexCompilationLevel GetDexToDexCompilationlevel(
-    Thread* self, Handle<mirror::ClassLoader>& class_loader, const DexFile& dex_file,
+    Thread* self, Handle<mirror::ClassLoader> class_loader, const DexFile& dex_file,
     const DexFile::ClassDef& class_def) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const char* descriptor = dex_file.GetClassDescriptor(class_def);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -731,11 +731,11 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings)
     for (const std::pair<uint16_t, const DexFile*>& exception_type : unresolved_exception_types) {
       uint16_t exception_type_idx = exception_type.first;
       const DexFile* dex_file = exception_type.second;
-      StackHandleScope<3> hs(self);
+      StackHandleScope<2> hs(self);
       Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(*dex_file)));
-      auto class_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
       Handle<mirror::Class> klass(hs.NewHandle(
-          class_linker->ResolveType(*dex_file, exception_type_idx, dex_cache, class_loader)));
+          class_linker->ResolveType(*dex_file, exception_type_idx, dex_cache,
+                                    NullHandle<mirror::ClassLoader>())));
       if (klass.Get() == NULL) {
         const DexFile::TypeId& type_id = dex_file->GetTypeId(exception_type_idx);
         const char* descriptor = dex_file->GetTypeDescriptor(type_id);
@@ -1152,28 +1152,22 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       *type = sharp_type;
     }
   } else {
-    if (compiling_boot) {
+    bool method_in_image = compiling_boot ||
+        Runtime::Current()->GetHeap()->FindSpaceFromObject(method, false)->IsImageSpace();
+    if (method_in_image) {
+      CHECK(!method->IsAbstract());
       *type = sharp_type;
-      *direct_method = -1;
-      *direct_code = -1;
+      *direct_method = compiling_boot ? -1 : reinterpret_cast<uintptr_t>(method);
+      *direct_code = compiling_boot ? -1 : compiler_->GetEntryPointOf(method);
+      target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
+      target_method->dex_method_index = method->GetDexMethodIndex();
+    } else if (!must_use_direct_pointers) {
+      // Set the code and rely on the dex cache for the method.
+      *type = sharp_type;
+      *direct_code = compiler_->GetEntryPointOf(method);
     } else {
-      bool method_in_image =
-          Runtime::Current()->GetHeap()->FindSpaceFromObject(method, false)->IsImageSpace();
-      if (method_in_image) {
-        CHECK(!method->IsAbstract());
-        *type = sharp_type;
-        *direct_method = reinterpret_cast<uintptr_t>(method);
-        *direct_code = compiler_->GetEntryPointOf(method);
-        target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
-        target_method->dex_method_index = method->GetDexMethodIndex();
-      } else if (!must_use_direct_pointers) {
-        // Set the code and rely on the dex cache for the method.
-        *type = sharp_type;
-        *direct_code = compiler_->GetEntryPointOf(method);
-      } else {
-        // Direct pointers were required but none were available.
-        VLOG(compiler) << "Dex cache devirtualization failed for: " << PrettyMethod(method);
-      }
+      // Direct pointers were required but none were available.
+      VLOG(compiler) << "Dex cache devirtualization failed for: " << PrettyMethod(method);
     }
   }
 }
@@ -1547,7 +1541,8 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
       if (resolve_fields_and_methods) {
         while (it.HasNextDirectMethod()) {
           mirror::ArtMethod* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(),
-                                                                  dex_cache, class_loader, NULL,
+                                                                  dex_cache, class_loader,
+                                                                  NullHandle<mirror::ArtMethod>(),
                                                                   it.GetMethodInvokeType(class_def));
           if (method == NULL) {
             CHECK(soa.Self()->IsExceptionPending());
@@ -1557,7 +1552,8 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
         }
         while (it.HasNextVirtualMethod()) {
           mirror::ArtMethod* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(),
-                                                                  dex_cache, class_loader, NULL,
+                                                                  dex_cache, class_loader,
+                                                                  NullHandle<mirror::ArtMethod>(),
                                                                   it.GetMethodInvokeType(class_def));
           if (method == NULL) {
             CHECK(soa.Self()->IsExceptionPending());

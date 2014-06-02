@@ -95,7 +95,7 @@ FrameOffset Arm64ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
   CHECK(IsCurrentParamOnStack());
   FrameOffset result =
       FrameOffset(displacement_.Int32Value() +   // displacement
-                  kFramePointerSize +                 // Method*
+                  sizeof(StackReference<mirror::ArtMethod>) +  // Method ref
                   (itr_slots_ * sizeof(uint32_t)));  // offset into in args
   return result;
 }
@@ -196,9 +196,10 @@ ManagedRegister Arm64JniCallingConvention::ReturnScratchRegister() const {
 
 size_t Arm64JniCallingConvention::FrameSize() {
   // Method*, callee save area size, local reference segment state
-  size_t frame_data_size = ((1 + CalleeSaveRegisters().size()) * kFramePointerSize) + sizeof(uint32_t);
+  size_t frame_data_size = sizeof(StackReference<mirror::ArtMethod>) +
+      CalleeSaveRegisters().size() * kFramePointerSize + sizeof(uint32_t);
   // References plus 2 words for HandleScope header
-  size_t handle_scope_size = HandleScope::GetAlignedHandleScopeSizeTarget(kFramePointerSize, ReferenceCount());
+  size_t handle_scope_size = HandleScope::SizeOf(kFramePointerSize, ReferenceCount());
   // Plus return value spill area size
   return RoundUp(frame_data_size + handle_scope_size + SizeOfReturnValue(), kStackAlignment);
 }

@@ -669,7 +669,8 @@ class JNI {
   }
 
   static void ExceptionClear(JNIEnv* env) {
-    static_cast<JNIEnvExt*>(env)->self->ClearException();
+    ScopedObjectAccess soa(env);
+    soa.Self()->ClearException();
   }
 
   static void ExceptionDescribe(JNIEnv* env) {
@@ -2058,7 +2059,7 @@ class JNI {
         return nullptr;
       }
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-      array_class = class_linker->FindArrayClass(soa.Self(), element_class);
+      array_class = class_linker->FindArrayClass(soa.Self(), &element_class);
       if (UNLIKELY(array_class == nullptr)) {
         return nullptr;
       }
@@ -2441,7 +2442,9 @@ class JNI {
     switch (kind) {
     case kLocal: {
       ScopedObjectAccess soa(env);
-      if (static_cast<JNIEnvExt*>(env)->locals.Get(ref) != kInvalidIndirectRefObject) {
+      // The local refs don't need a read barrier.
+      if (static_cast<JNIEnvExt*>(env)->locals.Get<kWithoutReadBarrier>(ref) !=
+          kInvalidIndirectRefObject) {
         return JNILocalRefType;
       }
       return JNIInvalidRefType;
@@ -3118,7 +3121,9 @@ mirror::Object* JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref) {
   while (UNLIKELY(!allow_new_weak_globals_)) {
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
-  return weak_globals_.Get(ref);
+  // The weak globals do need a read barrier as they are weak roots.
+  mirror::Object* obj = weak_globals_.Get<kWithReadBarrier>(ref);
+  return obj;
 }
 
 void JavaVMExt::DumpReferenceTables(std::ostream& os) {
@@ -3138,7 +3143,7 @@ void JavaVMExt::DumpReferenceTables(std::ostream& os) {
 }
 
 bool JavaVMExt::LoadNativeLibrary(const std::string& path,
-                                  const Handle<mirror::ClassLoader>& class_loader,
+                                  Handle<mirror::ClassLoader> class_loader,
                                   std::string* detail) {
   detail->clear();
 
@@ -3298,6 +3303,7 @@ void* JavaVMExt::FindCodeForNativeMethod(mirror::ArtMethod* m) {
 void JavaVMExt::SweepJniWeakGlobals(IsMarkedCallback* callback, void* arg) {
   MutexLock mu(Thread::Current(), weak_globals_lock_);
   for (mirror::Object** entry : weak_globals_) {
+    // Since this is called by the GC, we don't need a read barrier.
     mirror::Object* obj = *entry;
     mirror::Object* new_obj = callback(obj, arg);
     if (new_obj == nullptr) {

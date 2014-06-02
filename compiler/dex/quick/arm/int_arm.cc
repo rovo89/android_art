@@ -998,6 +998,15 @@ bool ArmMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 #endif
 }
 
+void ArmMir2Lir::GenNotLong(RegLocation rl_dest, RegLocation rl_src) {
+  LOG(FATAL) << "Unexpected use GenNotLong()";
+}
+
+void ArmMir2Lir::GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
+                           RegLocation rl_src2, bool is_div) {
+  LOG(FATAL) << "Unexpected use GenDivRemLong()";
+}
+
 void ArmMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   rl_src = LoadValueWide(rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);

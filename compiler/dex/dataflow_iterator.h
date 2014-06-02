@@ -326,6 +326,81 @@ namespace art {
       GrowableArray<BasicBlock*>::Iterator all_nodes_iterator_;    /**< @brief The list of all the nodes */
   };
 
+  /**
+   * @class TopologicalSortIterator
+   * @brief Used to perform a Topological Sort Iteration of a MIRGraph.
+   */
+  class TopologicalSortIterator : public DataflowIterator {
+    public:
+      /**
+       * @brief The constructor, using all of the reachable blocks of the MIRGraph.
+       * @param mir_graph The MIRGraph considered.
+       */
+      explicit TopologicalSortIterator(MIRGraph* mir_graph)
+          : DataflowIterator(mir_graph, 0, mir_graph->GetTopologicalSortOrder() != nullptr ?
+            mir_graph->GetTopologicalSortOrder()->Size() : 0) {
+        // Extra setup for TopologicalSortIterator.
+        idx_ = start_idx_;
+        block_id_list_ = mir_graph->GetTopologicalSortOrder();
+
+        if (mir_graph->GetTopologicalSortOrder() == nullptr) {
+          /* Compute the topological order */
+          mir_graph->ComputeTopologicalSortOrder();
+        }
+      }
+
+      /**
+       * @brief Get the next BasicBlock depending on iteration order.
+       * @param had_change did the user of the iteration change the previous BasicBlock.
+       * @return the next BasicBlock following the iteration order, 0 if finished.
+       */
+      virtual BasicBlock* Next(bool had_change = false) {
+        // Update changed: if had_changed is true, we remember it for the whole iteration.
+        changed_ |= had_change;
+
+        return ForwardSingleNext();
+      }
+  };
+
+  /**
+   * @class RepeatingTopologicalSortIterator
+   * @brief Used to perform a Topological Sort Iteration of a MIRGraph.
+   * @details If there is a change during an iteration, the iteration starts over at the end of the
+   *          iteration.
+   */
+  class RepeatingTopologicalSortIterator : public DataflowIterator {
+    public:
+     /**
+      * @brief The constructor, using all of the reachable blocks of the MIRGraph.
+      * @param mir_graph The MIRGraph considered.
+      */
+     explicit RepeatingTopologicalSortIterator(MIRGraph* mir_graph)
+         : DataflowIterator(mir_graph, 0, mir_graph->GetTopologicalSortOrder() != nullptr ?
+           mir_graph->GetTopologicalSortOrder()->Size() : 0) {
+       // Extra setup for RepeatingTopologicalSortIterator.
+       idx_ = start_idx_;
+       block_id_list_ = mir_graph->GetTopologicalSortOrder();
+
+       if (mir_graph->GetTopologicalSortOrder() == nullptr) {
+         /* Compute the topological order */
+         mir_graph->ComputeTopologicalSortOrder();
+       }
+     }
+
+     /**
+      * @brief Get the next BasicBlock depending on iteration order.
+      * @param had_change did the user of the iteration change the previous BasicBlock.
+      * @return the next BasicBlock following the iteration order, 0 if finished.
+      */
+     virtual BasicBlock* Next(bool had_change = false) {
+       // Update changed: if had_changed is true, we remember it for the whole iteration.
+       changed_ |= had_change;
+
+       return ForwardRepeatNext();
+     }
+  };
+
+
 }  // namespace art
 
 #endif  // ART_COMPILER_DEX_DATAFLOW_ITERATOR_H_

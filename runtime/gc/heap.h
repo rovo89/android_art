@@ -408,7 +408,7 @@ class Heap {
 
   // Implements java.lang.Runtime.freeMemory.
   size_t GetFreeMemory() const {
-    return GetTotalMemory() - num_bytes_allocated_.LoadSequentiallyConsistent();
+    return GetMaxMemory() - num_bytes_allocated_.LoadSequentiallyConsistent();
   }
 
   // get the space that corresponds to an object's address. Current implementation searches all
@@ -697,6 +697,10 @@ class Heap {
 
   // Push an object onto the allocation stack.
   void PushOnAllocationStack(Thread* self, mirror::Object** obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void PushOnAllocationStackWithInternalGC(Thread* self, mirror::Object** obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void PushOnThreadLocalAllocationStackWithInternalGC(Thread* thread, mirror::Object** obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // What kind of concurrency behavior is the runtime after? Currently true for concurrent mark

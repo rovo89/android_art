@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_NODES_H_
 #define ART_COMPILER_OPTIMIZING_NODES_H_
 
+#include "locations.h"
 #include "utils/allocation.h"
 #include "utils/arena_bit_vector.h"
 #include "utils/growable_array.h"
@@ -275,6 +276,7 @@ class HBasicBlock : public ArenaObject {
   HInstruction* GetLastInstruction() const { return instructions_.last_instruction_; }
   const HInstructionList& GetInstructions() const { return instructions_; }
   const HInstructionList& GetPhis() const { return phis_; }
+  HInstruction* GetFirstPhi() const { return phis_.first_instruction_; }
 
   void AddSuccessor(HBasicBlock* block) {
     successors_.Add(block);
@@ -315,6 +317,7 @@ class HBasicBlock : public ArenaObject {
 
   void AddInstruction(HInstruction* instruction);
   void RemoveInstruction(HInstruction* instruction);
+  void InsertInstructionBefore(HInstruction* instruction, HInstruction* cursor);
   void AddPhi(HPhi* phi);
   void RemovePhi(HPhi* phi);
 
@@ -383,6 +386,7 @@ class HBasicBlock : public ArenaObject {
   M(NewInstance)                                           \
   M(Not)                                                   \
   M(ParameterValue)                                        \
+  M(ParallelMove)                                          \
   M(Phi)                                                   \
   M(Return)                                                \
   M(ReturnVoid)                                            \
@@ -394,9 +398,9 @@ FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
 #undef FORWARD_DECLARATION
 
 #define DECLARE_INSTRUCTION(type)                          \
-  virtual void Accept(HGraphVisitor* visitor);             \
   virtual const char* DebugName() const { return #type; }  \
   virtual H##type* As##type() { return this; }             \
+  virtual void Accept(HGraphVisitor* visitor)              \
 
 template <typename T>
 class HUseListNode : public ArenaObject {
@@ -731,7 +735,7 @@ class HReturnVoid : public HTemplateInstruction<0> {
  public:
   HReturnVoid() { }
 
-  DECLARE_INSTRUCTION(ReturnVoid)
+  DECLARE_INSTRUCTION(ReturnVoid);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HReturnVoid);
@@ -745,7 +749,7 @@ class HReturn : public HTemplateInstruction<1> {
     SetRawInputAt(0, value);
   }
 
-  DECLARE_INSTRUCTION(Return)
+  DECLARE_INSTRUCTION(Return);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HReturn);
@@ -758,7 +762,7 @@ class HExit : public HTemplateInstruction<0> {
  public:
   HExit() { }
 
-  DECLARE_INSTRUCTION(Exit)
+  DECLARE_INSTRUCTION(Exit);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HExit);
@@ -773,7 +777,7 @@ class HGoto : public HTemplateInstruction<0> {
     return GetBlock()->GetSuccessors().Get(0);
   }
 
-  DECLARE_INSTRUCTION(Goto)
+  DECLARE_INSTRUCTION(Goto);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HGoto);
@@ -795,7 +799,7 @@ class HIf : public HTemplateInstruction<1> {
     return GetBlock()->GetSuccessors().Get(1);
   }
 
-  DECLARE_INSTRUCTION(If)
+  DECLARE_INSTRUCTION(If);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HIf);
@@ -834,7 +838,7 @@ class HEqual : public HBinaryOperation {
 
   virtual Primitive::Type GetType() const { return Primitive::kPrimBoolean; }
 
-  DECLARE_INSTRUCTION(Equal)
+  DECLARE_INSTRUCTION(Equal);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HEqual);
@@ -845,7 +849,7 @@ class HLocal : public HTemplateInstruction<0> {
  public:
   explicit HLocal(uint16_t reg_number) : reg_number_(reg_number) { }
 
-  DECLARE_INSTRUCTION(Local)
+  DECLARE_INSTRUCTION(Local);
 
   uint16_t GetRegNumber() const { return reg_number_; }
 
@@ -867,7 +871,7 @@ class HLoadLocal : public HTemplateInstruction<1> {
 
   HLocal* GetLocal() const { return reinterpret_cast<HLocal*>(InputAt(0)); }
 
-  DECLARE_INSTRUCTION(LoadLocal)
+  DECLARE_INSTRUCTION(LoadLocal);
 
  private:
   const Primitive::Type type_;
@@ -886,7 +890,7 @@ class HStoreLocal : public HTemplateInstruction<2> {
 
   HLocal* GetLocal() const { return reinterpret_cast<HLocal*>(InputAt(0)); }
 
-  DECLARE_INSTRUCTION(StoreLocal)
+  DECLARE_INSTRUCTION(StoreLocal);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HStoreLocal);
@@ -901,7 +905,7 @@ class HIntConstant : public HTemplateInstruction<0> {
   int32_t GetValue() const { return value_; }
   virtual Primitive::Type GetType() const { return Primitive::kPrimInt; }
 
-  DECLARE_INSTRUCTION(IntConstant)
+  DECLARE_INSTRUCTION(IntConstant);
 
  private:
   const int32_t value_;
@@ -917,7 +921,7 @@ class HLongConstant : public HTemplateInstruction<0> {
 
   virtual Primitive::Type GetType() const { return Primitive::kPrimLong; }
 
-  DECLARE_INSTRUCTION(LongConstant)
+  DECLARE_INSTRUCTION(LongConstant);
 
  private:
   const int64_t value_;
@@ -977,7 +981,7 @@ class HInvokeStatic : public HInvoke {
 
   uint32_t GetIndexInDexCache() const { return index_in_dex_cache_; }
 
-  DECLARE_INSTRUCTION(InvokeStatic)
+  DECLARE_INSTRUCTION(InvokeStatic);
 
  private:
   const uint32_t index_in_dex_cache_;
@@ -997,7 +1001,7 @@ class HNewInstance : public HTemplateInstruction<0> {
   // Calls runtime so needs an environment.
   virtual bool NeedsEnvironment() const { return true; }
 
-  DECLARE_INSTRUCTION(NewInstance)
+  DECLARE_INSTRUCTION(NewInstance);
 
  private:
   const uint32_t dex_pc_;
@@ -1088,18 +1092,101 @@ class HPhi : public HInstruction {
   void AddInput(HInstruction* input);
 
   virtual Primitive::Type GetType() const { return type_; }
+  void SetType(Primitive::Type type) { type_ = type; }
 
   uint32_t GetRegNumber() const { return reg_number_; }
 
-  DECLARE_INSTRUCTION(Phi)
+  DECLARE_INSTRUCTION(Phi);
 
  protected:
   GrowableArray<HInstruction*> inputs_;
   const uint32_t reg_number_;
-  const Primitive::Type type_;
+  Primitive::Type type_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HPhi);
+};
+
+class MoveOperands : public ArenaObject {
+ public:
+  MoveOperands(Location source, Location destination)
+      : source_(source), destination_(destination) {}
+
+  Location GetSource() const { return source_; }
+  Location GetDestination() const { return destination_; }
+
+  void SetSource(Location value) { source_ = value; }
+  void SetDestination(Location value) { destination_ = value; }
+
+  // The parallel move resolver marks moves as "in-progress" by clearing the
+  // destination (but not the source).
+  Location MarkPending() {
+    DCHECK(!IsPending());
+    Location dest = destination_;
+    destination_ = Location::NoLocation();
+    return dest;
+  }
+
+  void ClearPending(Location dest) {
+    DCHECK(IsPending());
+    destination_ = dest;
+  }
+
+  bool IsPending() const {
+    DCHECK(!source_.IsInvalid() || destination_.IsInvalid());
+    return destination_.IsInvalid() && !source_.IsInvalid();
+  }
+
+  // True if this blocks a move from the given location.
+  bool Blocks(Location loc) const {
+    return !IsEliminated() && source_.Equals(loc);
+  }
+
+  // A move is redundant if it's been eliminated, if its source and
+  // destination are the same, or if its destination is unneeded.
+  bool IsRedundant() const {
+    return IsEliminated() || destination_.IsInvalid() || source_.Equals(destination_);
+  }
+
+  // We clear both operands to indicate move that's been eliminated.
+  void Eliminate() {
+    source_ = destination_ = Location::NoLocation();
+  }
+
+  bool IsEliminated() const {
+    DCHECK(!source_.IsInvalid() || destination_.IsInvalid());
+    return source_.IsInvalid();
+  }
+
+ private:
+  Location source_;
+  Location destination_;
+
+  DISALLOW_COPY_AND_ASSIGN(MoveOperands);
+};
+
+static constexpr size_t kDefaultNumberOfMoves = 4;
+
+class HParallelMove : public HTemplateInstruction<0> {
+ public:
+  explicit HParallelMove(ArenaAllocator* arena) : moves_(arena, kDefaultNumberOfMoves) {}
+
+  void AddMove(MoveOperands* move) {
+    moves_.Add(move);
+  }
+
+  MoveOperands* MoveOperandsAt(size_t index) const {
+    return moves_.Get(index);
+  }
+
+  size_t NumMoves() const { return moves_.Size(); }
+
+  DECLARE_INSTRUCTION(ParallelMove);
+
+ private:
+  GrowableArray<MoveOperands*> moves_;
+
+  DISALLOW_COPY_AND_ASSIGN(HParallelMove);
 };
 
 class HGraphVisitor : public ValueObject {

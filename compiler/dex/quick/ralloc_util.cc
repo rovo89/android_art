@@ -173,22 +173,26 @@ void Mir2Lir::Clobber(RegStorage reg) {
       }
       ClobberBody(info);
       if (info->IsAliased()) {
-        ClobberAliases(info);
+        ClobberAliases(info, info->StorageMask());
       } else {
         RegisterInfo* master = info->Master();
         if (info != master) {
           ClobberBody(info->Master());
+          ClobberAliases(info->Master(), info->StorageMask());
         }
       }
     }
   }
 }
 
-void Mir2Lir::ClobberAliases(RegisterInfo* info) {
+void Mir2Lir::ClobberAliases(RegisterInfo* info, uint32_t clobber_mask) {
   for (RegisterInfo* alias = info->GetAliasChain(); alias != nullptr;
        alias = alias->GetAliasChain()) {
     DCHECK(!alias->IsAliased());  // Only the master should be marked as alised.
-    ClobberBody(alias);
+    // Only clobber if we have overlap.
+    if ((alias->StorageMask() & clobber_mask) != 0) {
+      ClobberBody(alias);
+    }
   }
 }
 
@@ -218,7 +222,7 @@ void Mir2Lir::ClobberSReg(int s_reg) {
         }
         ClobberBody(info);
         if (info->IsAliased()) {
-          ClobberAliases(info);
+          ClobberAliases(info, info->StorageMask());
         }
       }
     }
@@ -402,6 +406,19 @@ RegStorage Mir2Lir::AllocTempWide() {
   return res;
 }
 
+RegStorage Mir2Lir::AllocTempWord() {
+  // FIXME: temporary workaround.  For bring-up purposes, x86_64 needs the ability
+  // to allocate wide values as a pair of core registers.  However, we can't hold
+  // a reference in a register pair.  This workaround will be removed when the
+  // reference handling code is reworked, or x86_64 backend starts using wide core
+  // registers - whichever happens first.
+  if (cu_->instruction_set == kX86_64) {
+    return AllocTemp();
+  } else {
+    return (Is64BitInstructionSet(cu_->instruction_set)) ? AllocTempWide() : AllocTemp();
+  }
+}
+
 RegStorage Mir2Lir::AllocTempSingle() {
   RegStorage res = AllocTempBody(reg_pool_->sp_regs_, &reg_pool_->next_sp_reg_, true);
   DCHECK(res.IsSingle()) << "Reg: 0x" << std::hex << res.GetRawBits();
@@ -447,8 +464,11 @@ RegStorage Mir2Lir::AllocLiveReg(int s_reg, int reg_class, bool wide) {
     reg = FindLiveReg(wide ? reg_pool_->dp_regs_ : reg_pool_->sp_regs_, s_reg);
   }
   if (!reg.Valid() && (reg_class != kFPReg)) {
-    // TODO: add 64-bit core pool similar to above.
-    reg = FindLiveReg(reg_pool_->core_regs_, s_reg);
+    if (Is64BitInstructionSet(cu_->instruction_set)) {
+      reg = FindLiveReg(wide ? reg_pool_->core64_regs_ : reg_pool_->core_regs_, s_reg);
+    } else {
+      reg = FindLiveReg(reg_pool_->core_regs_, s_reg);
+    }
   }
   if (reg.Valid()) {
     if (wide && !reg.IsFloat() && !Is64BitInstructionSet(cu_->instruction_set)) {
@@ -950,11 +970,8 @@ bool Mir2Lir::CheckCorePoolSanity() {
         // If I'm live, master should not be live, but should show liveness in alias set.
         DCHECK_EQ(info->Master()->SReg(), INVALID_SREG);
         DCHECK(!info->Master()->IsDead());
-      } else if (!info->IsDead()) {
-        // If I'm not live, but there is liveness in the set master must be live.
-        DCHECK_EQ(info->SReg(), INVALID_SREG);
-        DCHECK(info->Master()->IsLive());
       }
+// TODO: Add checks in !info->IsDead() case to ensure every live bit is owned by exactly 1 reg.
     }
     if (info->IsAliased()) {
       // Has child aliases.

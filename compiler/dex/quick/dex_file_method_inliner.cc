@@ -35,20 +35,15 @@ namespace art {
 namespace {  // anonymous namespace
 
 MIR* AllocReplacementMIR(MIRGraph* mir_graph, MIR* invoke, MIR* move_return) {
-  ArenaAllocator* arena = mir_graph->GetArena();
-  MIR* insn = static_cast<MIR*>(arena->Alloc(sizeof(MIR), kArenaAllocMIR));
+  MIR* insn = mir_graph->NewMIR();
   insn->offset = invoke->offset;
-  insn->width = invoke->width;
   insn->optimization_flags = MIR_CALLEE;
-  if (move_return != nullptr) {
-    DCHECK_EQ(move_return->offset, invoke->offset + invoke->width);
-    insn->width += move_return->width;
-  }
   return insn;
 }
 
 uint32_t GetInvokeReg(MIR* invoke, uint32_t arg) {
   DCHECK_LT(arg, invoke->dalvikInsn.vA);
+  DCHECK(!MIRGraph::IsPseudoMirOp(invoke->dalvikInsn.opcode));
   if (Instruction::FormatOf(invoke->dalvikInsn.opcode) == Instruction::k3rc) {
     return invoke->dalvikInsn.vC + arg;  // Non-range invoke.
   } else {
@@ -59,6 +54,7 @@ uint32_t GetInvokeReg(MIR* invoke, uint32_t arg) {
 
 bool WideArgIsInConsecutiveDalvikRegs(MIR* invoke, uint32_t arg) {
   DCHECK_LT(arg + 1, invoke->dalvikInsn.vA);
+  DCHECK(!MIRGraph::IsPseudoMirOp(invoke->dalvikInsn.opcode));
   return Instruction::FormatOf(invoke->dalvikInsn.opcode) == Instruction::k3rc ||
       invoke->dalvikInsn.arg[arg + 1u] == invoke->dalvikInsn.arg[arg] + 1u;
 }
@@ -660,7 +656,6 @@ bool DexFileMethodInliner::GenInlineIGet(MIRGraph* mir_graph, BasicBlock* bb, MI
   }
 
   MIR* insn = AllocReplacementMIR(mir_graph, invoke, move_result);
-  insn->width += insn->offset - invoke->offset;
   insn->offset = invoke->offset;
   insn->dalvikInsn.opcode = opcode;
   insn->dalvikInsn.vA = move_result->dalvikInsn.vA;
@@ -737,9 +732,7 @@ bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MI
 
   if (move_result != nullptr) {
     MIR* move = AllocReplacementMIR(mir_graph, invoke, move_result);
-    insn->width = invoke->width;
     move->offset = move_result->offset;
-    move->width = move_result->width;
     if (move_result->dalvikInsn.opcode == Instruction::MOVE_RESULT) {
       move->dalvikInsn.opcode = Instruction::MOVE_FROM16;
     } else if (move_result->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {

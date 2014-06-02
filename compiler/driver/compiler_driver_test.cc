@@ -152,10 +152,9 @@ TEST_F(CompilerDriverTest, AbstractMethodErrorStub) {
   jobject class_loader;
   {
     ScopedObjectAccess soa(Thread::Current());
-    StackHandleScope<1> hs(soa.Self());
-    auto null_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
-    CompileVirtualMethod(null_loader, "java.lang.Class", "isFinalizable", "()Z");
-    CompileDirectMethod(null_loader, "java.lang.Object", "<init>", "()V");
+    CompileVirtualMethod(NullHandle<mirror::ClassLoader>(), "java.lang.Class", "isFinalizable",
+                         "()Z");
+    CompileDirectMethod(NullHandle<mirror::ClassLoader>(), "java.lang.Object", "<init>", "()V");
     class_loader = LoadDex("AbstractMethod");
   }
   ASSERT_TRUE(class_loader != NULL);
@@ -174,7 +173,10 @@ TEST_F(CompilerDriverTest, AbstractMethodErrorStub) {
   env_->ExceptionClear();
   jclass jlame = env_->FindClass("java/lang/AbstractMethodError");
   EXPECT_TRUE(env_->IsInstanceOf(exception, jlame));
-  Thread::Current()->ClearException();
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    Thread::Current()->ClearException();
+  }
 }
 
 // TODO: need check-cast test (when stub complete & we can throw/catch

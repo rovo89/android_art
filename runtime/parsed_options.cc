@@ -15,6 +15,7 @@
  */
 
 #include "parsed_options.h"
+#include "utils.h"
 #ifdef HAVE_ANDROID_OS
 #include "cutils/properties.h"
 #endif
@@ -263,7 +264,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
 #ifdef HAVE_ANDROID_OS
   {
     char buf[PROP_VALUE_MAX];
-    property_get("dalvik.vm.implicit_checks", buf, "none");
+    property_get("dalvik.vm.implicit_checks", buf, "null,stack");
     std::string checks(buf);
     std::vector<std::string> checkvec;
     Split(checks, ',', checkvec);
@@ -533,7 +534,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
       Trace::SetDefaultClockSource(kProfilerClockSourceWall);
     } else if (option == "-Xprofile:dualclock") {
       Trace::SetDefaultClockSource(kProfilerClockSourceDual);
-    } else if (StartsWith(option, "-Xprofile:")) {
+    } else if (StartsWith(option, "-Xprofile-filename:")) {
       if (!ParseStringAfterChar(option, ':', &profile_output_filename_)) {
         return false;
       }
@@ -603,6 +604,10 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
         } else {
           return false;
         }
+      }
+    } else if (StartsWith(option, "-Xcompiler:")) {
+      if (!ParseStringAfterChar(option, ':', &compiler_executable_)) {
+        return false;
       }
     } else if (option == "-Xcompiler-option") {
       i++;
@@ -786,11 +791,12 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xmethod-trace\n");
   UsageMessage(stream, "  -Xmethod-trace-file:filename");
   UsageMessage(stream, "  -Xmethod-trace-file-size:integervalue\n");
-  UsageMessage(stream, "  -Xprofile=filename\n");
+  UsageMessage(stream, "  -Xprofile-filename:filename\n");
   UsageMessage(stream, "  -Xprofile-period:integervalue\n");
   UsageMessage(stream, "  -Xprofile-duration:integervalue\n");
   UsageMessage(stream, "  -Xprofile-interval:integervalue\n");
-  UsageMessage(stream, "  -Xprofile-backoff:integervalue\n");
+  UsageMessage(stream, "  -Xprofile-backoff:doublevalue\n");
+  UsageMessage(stream, "  -Xcompiler:filename\n");
   UsageMessage(stream, "  -Xcompiler-option dex2oat-option\n");
   UsageMessage(stream, "  -Ximage-compiler-option dex2oat-option\n");
   UsageMessage(stream, "\n");

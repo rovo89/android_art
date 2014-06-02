@@ -84,9 +84,14 @@ static constexpr size_t kMaxConcurrentRemainingBytes = 512 * KB;
 static constexpr double kStickyGcThroughputAdjustment = 1.0;
 // Whether or not we use the free list large object space.
 static constexpr bool kUseFreeListSpaceForLOS = false;
-// Whtehr or not we compact the zygote in PreZygoteFork.
+// Whether or not we compact the zygote in PreZygoteFork.
 static constexpr bool kCompactZygote = kMovingCollector;
 static constexpr size_t kNonMovingSpaceCapacity = 64 * MB;
+// How many reserve entries are at the end of the allocation stack, these are only needed if the
+// allocation stack overflows.
+static constexpr size_t kAllocationStackReserveSize = 1024;
+// Default mark stack size in bytes.
+static const size_t kDefaultMarkStackSize = 64 * KB;
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
            double target_utilization, double foreground_heap_growth_multiplier, size_t capacity,
@@ -229,10 +234,10 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   // create the bump pointer space if we are not a moving foreground collector but have a moving
   // background collector since the heap transition code will create the temp space by recycling
   // the bitmap from the main space.
-  if (kMovingCollector) {
+  if (kMovingCollector &&
+      (IsMovingGc(foreground_collector_type_) || IsMovingGc(background_collector_type_))) {
     // TODO: Place bump-pointer spaces somewhere to minimize size of card table.
-    // TODO: Not create all the bump pointer spaces if not necessary (currently only GSS needs all
-    // 2 of bump pointer spaces + main space) b/14059466. Divide by 2 for a temporary fix.
+    // Divide by 2 for a temporary fix for reducing virtual memory usage.
     const size_t bump_pointer_space_capacity = capacity / 2;
     bump_pointer_space_ = space::BumpPointerSpace::Create("Bump pointer space",
                                                           bump_pointer_space_capacity, nullptr);
@@ -295,13 +300,13 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   // TODO: Count objects in the image space here.
   num_bytes_allocated_.StoreRelaxed(0);
 
-  // Default mark stack size in bytes.
-  static const size_t default_mark_stack_size = 64 * KB;
-  mark_stack_.reset(accounting::ObjectStack::Create("mark stack", default_mark_stack_size));
-  allocation_stack_.reset(accounting::ObjectStack::Create("allocation stack",
-                                                          max_allocation_stack_size_));
-  live_stack_.reset(accounting::ObjectStack::Create("live stack",
-                                                    max_allocation_stack_size_));
+  mark_stack_.reset(accounting::ObjectStack::Create("mark stack", kDefaultMarkStackSize,
+                                                    kDefaultMarkStackSize));
+  const size_t alloc_stack_capacity = max_allocation_stack_size_ + kAllocationStackReserveSize;
+  allocation_stack_.reset(accounting::ObjectStack::Create(
+      "allocation stack", max_allocation_stack_size_, alloc_stack_capacity));
+  live_stack_.reset(accounting::ObjectStack::Create(
+      "live stack", max_allocation_stack_size_, alloc_stack_capacity));
 
   // It's still too early to take a lock because there are no threads yet, but we can create locks
   // now. We don't create it earlier to make it clear that you can't use locks during heap
@@ -893,10 +898,16 @@ void Heap::Trim() {
   uint64_t gc_heap_end_ns = NanoTime();
   // We never move things in the native heap, so we can finish the GC at this point.
   FinishGC(self, collector::kGcTypeNone);
+  size_t native_reclaimed = 0;
+#if defined(USE_DLMALLOC)
   // Trim the native heap.
   dlmalloc_trim(0);
-  size_t native_reclaimed = 0;
   dlmalloc_inspect_all(DlmallocMadviseCallback, &native_reclaimed);
+#elif defined(USE_JEMALLOC)
+  // Jemalloc does it's own internal trimming.
+#else
+  UNIMPLEMENTED(WARNING) << "Add trimming support";
+#endif
   uint64_t end_ns = NanoTime();
   VLOG(heap) << "Heap trim of managed (duration=" << PrettyDuration(gc_heap_end_ns - start_ns)
       << ", advised=" << PrettySize(managed_reclaimed) << ") and native (duration="
@@ -1150,7 +1161,7 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
   }
   ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated, usable_size);
   if (ptr == nullptr) {
-    ThrowOutOfMemoryError(self, alloc_size, false);
+    ThrowOutOfMemoryError(self, alloc_size, allocator == kAllocatorTypeLOS);
   }
   return ptr;
 }
@@ -2029,6 +2040,43 @@ class VerifyObjectVisitor {
   const bool verify_referent_;
 };
 
+void Heap::PushOnAllocationStackWithInternalGC(Thread* self, mirror::Object** obj) {
+  // Slow path, the allocation stack push back must have already failed.
+  DCHECK(!allocation_stack_->AtomicPushBack(*obj));
+  do {
+    // TODO: Add handle VerifyObject.
+    StackHandleScope<1> hs(self);
+    HandleWrapper<mirror::Object> wrapper(hs.NewHandleWrapper(obj));
+    // Push our object into the reserve region of the allocaiton stack. This is only required due
+    // to heap verification requiring that roots are live (either in the live bitmap or in the
+    // allocation stack).
+    CHECK(allocation_stack_->AtomicPushBackIgnoreGrowthLimit(*obj));
+    CollectGarbageInternal(collector::kGcTypeSticky, kGcCauseForAlloc, false);
+  } while (!allocation_stack_->AtomicPushBack(*obj));
+}
+
+void Heap::PushOnThreadLocalAllocationStackWithInternalGC(Thread* self, mirror::Object** obj) {
+  // Slow path, the allocation stack push back must have already failed.
+  DCHECK(!self->PushOnThreadLocalAllocationStack(*obj));
+  mirror::Object** start_address;
+  mirror::Object** end_address;
+  while (!allocation_stack_->AtomicBumpBack(kThreadLocalAllocationStackSize, &start_address,
+                                            &end_address)) {
+    // TODO: Add handle VerifyObject.
+    StackHandleScope<1> hs(self);
+    HandleWrapper<mirror::Object> wrapper(hs.NewHandleWrapper(obj));
+    // Push our object into the reserve region of the allocaiton stack. This is only required due
+    // to heap verification requiring that roots are live (either in the live bitmap or in the
+    // allocation stack).
+    CHECK(allocation_stack_->AtomicPushBackIgnoreGrowthLimit(*obj));
+    // Push into the reserve allocation stack.
+    CollectGarbageInternal(collector::kGcTypeSticky, kGcCauseForAlloc, false);
+  }
+  self->SetThreadLocalAllocationStack(start_address, end_address);
+  // Retry on the new thread-local allocation stack.
+  CHECK(self->PushOnThreadLocalAllocationStack(*obj));  // Must succeed.
+}
+
 // Must do this with mutators suspended since we are directly accessing the allocation stacks.
 size_t Heap::VerifyHeapReferences(bool verify_referents) {
   Thread* self = Thread::Current();
@@ -2318,7 +2366,6 @@ void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     // Swapping bound bitmaps does nothing.
     gc->SwapBitmaps();
-    SwapSemiSpaces();
     // Pass in false since concurrent reference processing can mean that the reference referents
     // may point to dead objects at the point which PreSweepingGcVerification is called.
     size_t failures = VerifyHeapReferences(false);
@@ -2326,7 +2373,6 @@ void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
       LOG(FATAL) << "Pre sweeping " << gc->GetName() << " GC verification failed with " << failures
           << " failures";
     }
-    SwapSemiSpaces();
     gc->SwapBitmaps();
   }
   if (verify_pre_sweeping_rosalloc_) {

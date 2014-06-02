@@ -32,59 +32,115 @@ namespace art {
  */
 class BitVector {
   public:
-    class Iterator {
+    class IndexContainer;
+
+    /**
+     * @brief Convenient iterator across the indexes of the BitVector's set bits.
+     *
+     * @details IndexIterator is a Forward iterator (C++11: 24.2.5) from the lowest
+     * to the highest index of the BitVector's set bits. Instances can be retrieved
+     * only through BitVector::Indexes() which returns an IndexContainer wrapper
+     * object with begin() and end() suitable for range-based loops:
+     *   for (uint32_t idx : bit_vector.Indexes()) {
+     *     // Use idx.
+     *   }
+     */
+    class IndexIterator
+        : std::iterator<std::forward_iterator_tag, uint32_t, ptrdiff_t, void, uint32_t> {
       public:
-        explicit Iterator(const BitVector* bit_vector)
-          : p_bits_(bit_vector),
-            bit_storage_(bit_vector->GetRawStorage()),
-            bit_index_(0),
-            bit_size_(p_bits_->storage_size_ * sizeof(uint32_t) * 8) {}
-
-        // Return the position of the next set bit.  -1 means end-of-element reached.
-        int32_t Next() {
-          // Did anything obviously change since we started?
-          DCHECK_EQ(bit_size_, p_bits_->GetStorageSize() * sizeof(uint32_t) * 8);
-          DCHECK_EQ(bit_storage_, p_bits_->GetRawStorage());
-
-          if (UNLIKELY(bit_index_ >= bit_size_)) {
-            return -1;
-          }
-
-          uint32_t word_index = bit_index_ / 32;
-          uint32_t word = bit_storage_[word_index];
-          // Mask out any bits in the first word we've already considered.
-          word >>= bit_index_ & 0x1f;
-          if (word == 0) {
-            bit_index_ &= ~0x1f;
-            do {
-              word_index++;
-              if (UNLIKELY((word_index * 32) >= bit_size_)) {
-                bit_index_ = bit_size_;
-                return -1;
-              }
-              word = bit_storage_[word_index];
-              bit_index_ += 32;
-            } while (word == 0);
-          }
-          bit_index_ += CTZ(word) + 1;
-          return bit_index_ - 1;
+        bool operator==(const IndexIterator& other) const {
+          DCHECK(bit_storage_ == other.bit_storage_);
+          DCHECK_EQ(storage_size_, other.storage_size_);
+          return bit_index_ == other.bit_index_;
         }
 
-        static void* operator new(size_t size, Allocator* allocator) {
-          return allocator->Alloc(sizeof(BitVector::Iterator));
-        };
-        static void operator delete(void* p) {
-          Iterator* it = reinterpret_cast<Iterator*>(p);
-          it->p_bits_->allocator_->Free(p);
+        bool operator!=(const IndexIterator& other) const {
+          return !(*this == other);
+        }
+
+        int operator*() const {
+          DCHECK_LT(bit_index_, BitSize());
+          return bit_index_;
+        }
+
+        IndexIterator& operator++() {
+          DCHECK_LT(bit_index_, BitSize());
+          bit_index_ = FindIndex(bit_index_ + 1u);
+          return *this;
+        }
+
+        IndexIterator operator++(int) {
+          IndexIterator result(*this);
+          ++*this;
+          return result;
+        }
+
+        // Helper function to check for end without comparing with bit_vector.Indexes().end().
+        bool Done() const {
+          return bit_index_ == BitSize();
         }
 
       private:
-        const BitVector* const p_bits_;
-        const uint32_t* const bit_storage_;
-        uint32_t bit_index_;           // Current index (size in bits).
-        const uint32_t bit_size_;      // Size of vector in bits.
+        struct begin_tag { };
+        struct end_tag { };
 
-        friend class BitVector;
+        IndexIterator(const BitVector* bit_vector, begin_tag)
+          : bit_storage_(bit_vector->GetRawStorage()),
+            storage_size_(bit_vector->storage_size_),
+            bit_index_(FindIndex(0u)) { }
+
+        IndexIterator(const BitVector* bit_vector, end_tag)
+          : bit_storage_(bit_vector->GetRawStorage()),
+            storage_size_(bit_vector->storage_size_),
+            bit_index_(BitSize()) { }
+
+        uint32_t BitSize() const {
+          return storage_size_ * kWordBits;
+        }
+
+        uint32_t FindIndex(uint32_t start_index) const {
+          DCHECK_LE(start_index, BitSize());
+          uint32_t word_index = start_index / kWordBits;
+          if (UNLIKELY(word_index == storage_size_)) {
+            return start_index;
+          }
+          uint32_t word = bit_storage_[word_index];
+          // Mask out any bits in the first word we've already considered.
+          word &= static_cast<uint32_t>(-1) << (start_index & 0x1f);
+          while (word == 0u) {
+            ++word_index;
+            if (UNLIKELY(word_index == storage_size_)) {
+              return BitSize();
+            }
+            word = bit_storage_[word_index];
+          }
+          return word_index * 32u + CTZ(word);
+        }
+
+        const uint32_t* const bit_storage_;
+        const uint32_t storage_size_;  // Size of vector in words.
+        uint32_t bit_index_;           // Current index (size in bits).
+
+        friend class BitVector::IndexContainer;
+    };
+
+    /**
+     * @brief BitVector wrapper class for iteration across indexes of set bits.
+     */
+    class IndexContainer {
+     public:
+      explicit IndexContainer(const BitVector* bit_vector) : bit_vector_(bit_vector) { }
+
+      IndexIterator begin() const {
+        return IndexIterator(bit_vector_, IndexIterator::begin_tag());
+      }
+
+      IndexIterator end() const {
+        return IndexIterator(bit_vector_, IndexIterator::end_tag());
+      }
+
+     private:
+      const BitVector* const bit_vector_;
     };
 
     BitVector(uint32_t start_bits,
@@ -127,14 +183,16 @@ class BitVector {
     // Number of bits set in range [0, end).
     uint32_t NumSetBits(uint32_t end) const;
 
-    Iterator* GetIterator() const;
+    IndexContainer Indexes() const {
+      return IndexContainer(this);
+    }
 
     uint32_t GetStorageSize() const { return storage_size_; }
     bool IsExpandable() const { return expandable_; }
     uint32_t GetRawStorageWord(size_t idx) const { return storage_[idx]; }
     uint32_t* GetRawStorage() { return storage_; }
     const uint32_t* GetRawStorage() const { return storage_; }
-    size_t GetSizeOf() const { return storage_size_ * sizeof(uint32_t); }
+    size_t GetSizeOf() const { return storage_size_ * kWordBytes; }
 
     /**
      * @return the highest bit set, -1 if none are set
@@ -149,12 +207,42 @@ class BitVector {
     bool EnsureSizeAndClear(unsigned int num);
 
     void Dump(std::ostream& os, const char* prefix) const;
+
+    /**
+     * @brief last_entry is this the last entry for the dot dumping
+     * @details if not, a "|" is appended to the dump.
+     */
     void DumpDot(FILE* file, const char* prefix, bool last_entry = false) const;
 
+    /**
+     * @brief last_entry is this the last entry for the dot dumping
+     * @details if not, a "|" is appended to the dump.
+     */
+    void DumpIndicesDot(FILE* file, const char* prefix, bool last_entry = false) const;
+
   protected:
-    void DumpHelper(std::ostringstream& buffer, const char* prefix) const;
+    /**
+     * @brief Dump the bitvector into buffer in a 00101..01 format.
+     * @param buffer the ostringstream used to dump the bitvector into.
+     */
+    void DumpHelper(const char* prefix, std::ostringstream& buffer) const;
+
+    /**
+     * @brief Dump the bitvector in a 1 2 5 8 format, where the numbers are the bit set.
+     * @param buffer the ostringstream used to dump the bitvector into.
+     */
+    void DumpIndicesHelper(const char* prefix, std::ostringstream& buffer) const;
+
+    /**
+     * @brief Wrapper to perform the bitvector dumping with the .dot format.
+     * @param buffer the ostringstream used to dump the bitvector into.
+     */
+    void DumpDotHelper(bool last_entry, FILE* file, std::ostringstream& buffer) const;
 
   private:
+    static constexpr uint32_t kWordBytes = sizeof(uint32_t);
+    static constexpr uint32_t kWordBits = kWordBytes * 8;
+
     Allocator* const allocator_;
     const bool expandable_;         // expand bitmap if we run out?
     uint32_t   storage_size_;       // current size, in 32-bit words.

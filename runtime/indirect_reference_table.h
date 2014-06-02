@@ -263,14 +263,16 @@ class IndirectReferenceTable {
    *
    * Returns kInvalidIndirectRefObject if iref is invalid.
    */
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   mirror::Object* Get(IndirectRef iref) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       ALWAYS_INLINE;
 
   // Synchronized get which reads a reference, acquiring a lock if necessary.
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   mirror::Object* SynchronizedGet(Thread* /*self*/, ReaderWriterMutex* /*mutex*/,
                                   IndirectRef iref) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return Get(iref);
+    return Get<kReadBarrierOption>(iref);
   }
 
   /*
@@ -366,7 +368,9 @@ class IndirectReferenceTable {
   std::unique_ptr<MemMap> table_mem_map_;
   // Mem map where we store the extended debugging info.
   std::unique_ptr<MemMap> slot_mem_map_;
-  /* bottom of the stack */
+  // bottom of the stack. If a JNI weak global table, do not directly
+  // access the object references in this as they are weak roots. Use
+  // Get() that has a read barrier.
   mirror::Object** table_;
   /* bit mask, ORed into all irefs */
   IndirectRefKind kind_;

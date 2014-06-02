@@ -29,6 +29,7 @@
 #include "dex_instruction.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "gc/accounting/card_table-inl.h"
+#include "handle_scope-inl.h"
 #include "nth_caller_visitor.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method.h"
@@ -83,6 +84,17 @@ extern JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh,
                               const DexFile::CodeItem* code_item,
                               ShadowFrame& shadow_frame, JValue result_register);
 
+// Workaround for b/14882674 where clang allocates stack for each ThrowLocation created by calls to
+// ShadowFrame::GetCurrentLocationForThrow(). Moving the call here prevents from doing such
+// allocation in the interpreter itself.
+static inline void ThrowNullPointerExceptionFromInterpreter(const ShadowFrame& shadow_frame)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) SOMETIMES_INLINE;
+
+static inline void ThrowNullPointerExceptionFromInterpreter(
+    const ShadowFrame& shadow_frame) {
+  ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
+}
+
 static inline void DoMonitorEnter(Thread* self, Object* ref) NO_THREAD_SAFETY_ANALYSIS {
   ref->MonitorEnter(self);
 }
@@ -112,9 +124,10 @@ static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instr
   const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
   const uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
   Object* receiver = (type == kStatic) ? nullptr : shadow_frame.GetVRegReference(vregC);
-  ArtMethod* const method = FindMethodFromCode<type, do_access_check>(method_idx, receiver,
-                                                                      shadow_frame.GetMethod(),
-                                                                      self);
+  mirror::ArtMethod* sf_method = shadow_frame.GetMethod();
+  ArtMethod* const method = FindMethodFromCode<type, do_access_check>(
+      method_idx, &receiver, &sf_method, self);
+  // The shadow frame should already be pushed, so we don't need to update it.
   if (UNLIKELY(method == nullptr)) {
     CHECK(self->IsExceptionPending());
     result->SetJ(0);
@@ -348,6 +361,10 @@ static SOMETIMES_INLINE_KEYWORD bool DoFieldPut(Thread* self, const ShadowFrame&
     case Primitive::kPrimNot: {
       Object* reg = shadow_frame.GetVRegReference(vregA);
       if (do_assignability_check && reg != nullptr) {
+        // FieldHelper::GetType can resolve classes, use a handle wrapper which will restore the
+        // object in the destructor.
+        StackHandleScope<1> hs(self);
+        HandleWrapper<mirror::Object> wrapper(hs.NewHandleWrapper(&obj));
         Class* field_class = FieldHelper(f).GetType();
         if (!reg->VerifierInstanceOf(field_class)) {
           // This should never happen.
@@ -372,7 +389,8 @@ static SOMETIMES_INLINE_KEYWORD bool DoFieldPut(Thread* self, const ShadowFrame&
 // Handles iput-quick, iput-wide-quick and iput-object-quick instructions.
 // Returns true on success, otherwise throws an exception and returns false.
 template<Primitive::Type field_type, bool transaction_active>
-static SOMETIMES_INLINE_KEYWORD bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data) {
+static SOMETIMES_INLINE_KEYWORD bool DoIPutQuick(const ShadowFrame& shadow_frame,
+                                                 const Instruction* inst, uint16_t inst_data) {
   Object* obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
   if (UNLIKELY(obj == nullptr)) {
     // We lost the reference to the field index so we cannot get a more
@@ -580,16 +598,10 @@ static inline uint32_t FindNextInstructionFollowingException(Thread* self,
   ThrowLocation throw_location;
   mirror::Throwable* exception = self->GetException(&throw_location);
   bool clear_exception = false;
-  bool new_exception = false;
   StackHandleScope<3> hs(self);
   Handle<mirror::Class> exception_class(hs.NewHandle(exception->GetClass()));
   uint32_t found_dex_pc = shadow_frame.GetMethod()->FindCatchBlock(exception_class, dex_pc,
-                                                                   &clear_exception,
-                                                                   &new_exception);
-  if (UNLIKELY(new_exception)) {
-    // Update the exception.
-    exception = self->GetException(&throw_location);
-  }
+                                                                   &clear_exception);
   if (found_dex_pc == DexFile::kDexNoIndex) {
     instrumentation->MethodUnwindEvent(self, this_object,
                                        shadow_frame.GetMethod(), dex_pc);

@@ -93,6 +93,8 @@ class Arm64Mir2Lir : public Mir2Lir {
     RegisterClass RegClassForFieldLoadStore(OpSize size, bool is_volatile) OVERRIDE;
 
     // Required for target - Dalvik-level generators.
+    void GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                        RegLocation lr_shift);
     void GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                            RegLocation rl_src1, RegLocation rl_src2);
     void GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
@@ -120,6 +122,8 @@ class Arm64Mir2Lir : public Mir2Lir {
     bool GenInlinedSqrt(CallInfo* info);
     bool GenInlinedPeek(CallInfo* info, OpSize size);
     bool GenInlinedPoke(CallInfo* info, OpSize size);
+    void GenIntToLong(RegLocation rl_dest, RegLocation rl_src);
+    void GenNotLong(RegLocation rl_dest, RegLocation rl_src);
     void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
     void GenOrLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                    RegLocation rl_src2);
@@ -127,6 +131,8 @@ class Arm64Mir2Lir : public Mir2Lir {
                     RegLocation rl_src2);
     void GenXorLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                     RegLocation rl_src2);
+    void GenDivRemLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                       RegLocation rl_src2, bool is_div);
     RegLocation GenDivRem(RegLocation rl_dest, RegStorage reg_lo, RegStorage reg_hi, bool is_div);
     RegLocation GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int lit, bool is_div);
     void GenCmpLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
@@ -170,7 +176,7 @@ class Arm64Mir2Lir : public Mir2Lir {
     LIR* OpReg(OpKind op, RegStorage r_dest_src);
     void OpRegCopy(RegStorage r_dest, RegStorage r_src);
     LIR* OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src);
-    LIR* OpRegImm64(OpKind op, RegStorage r_dest_src1, int64_t value, bool is_wide);
+    LIR* OpRegImm64(OpKind op, RegStorage r_dest_src1, int64_t value);
     LIR* OpRegImm(OpKind op, RegStorage r_dest_src1, int value);
     LIR* OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int offset);
     LIR* OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2);
@@ -191,8 +197,8 @@ class Arm64Mir2Lir : public Mir2Lir {
 
     LIR* LoadBaseDispBody(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size);
     LIR* StoreBaseDispBody(RegStorage r_base, int displacement, RegStorage r_src, OpSize size);
-    LIR* OpRegRegRegShift(OpKind op, int r_dest, int r_src1, int r_src2, int shift,
-                          bool is_wide = false);
+    LIR* OpRegRegRegShift(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2,
+                          int shift);
     LIR* OpRegRegShift(OpKind op, RegStorage r_dest_src1, RegStorage r_src2, int shift);
     static const ArmEncodingMap EncodingMap[kA64Last];
     int EncodeShift(int code, int amount);
@@ -216,8 +222,6 @@ class Arm64Mir2Lir : public Mir2Lir {
                     bool skip_this);
 
   private:
-    void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1, int64_t val,
-                                  ConditionCode ccode);
     LIR* LoadFPConstantValue(int r_dest, int32_t value);
     LIR* LoadFPConstantValueWide(int r_dest, int64_t value);
     void ReplaceFixup(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);

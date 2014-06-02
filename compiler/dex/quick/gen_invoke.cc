@@ -443,14 +443,10 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
   rl_src.reg = TargetReg(kArg0);
   rl_src.home = false;
   MarkLive(rl_src);
-  if (rl_method.wide) {
-    StoreValueWide(rl_method, rl_src);
-  } else {
-    StoreValue(rl_method, rl_src);
-  }
+  StoreValue(rl_method, rl_src);
   // If Method* has been promoted, explicitly flush
   if (rl_method.location == kLocPhysReg) {
-    StoreWordDisp(TargetReg(kSp), 0, TargetReg(kArg0));
+    StoreRefDisp(TargetReg(kSp), 0, TargetReg(kArg0));
   }
 
   if (cu_->num_ins == 0) {
@@ -864,8 +860,17 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
       // Wide spans, we need the 2nd half of uses[2].
       rl_arg = UpdateLocWide(rl_use2);
       if (rl_arg.location == kLocPhysReg) {
-        // NOTE: not correct for 64-bit core regs, but this needs rewriting for hard-float.
-        reg = rl_arg.reg.IsPair() ? rl_arg.reg.GetHigh() : rl_arg.reg.DoubleToHighSingle();
+        if (rl_arg.reg.IsPair()) {
+          reg = rl_arg.reg.GetHigh();
+        } else {
+          RegisterInfo* info = GetRegInfo(rl_arg.reg);
+          info = info->FindMatchingView(RegisterInfo::kHighSingleStorageMask);
+          if (info == nullptr) {
+            // NOTE: For hard float convention we won't split arguments across reg/mem.
+            UNIMPLEMENTED(FATAL) << "Needs hard float api.";
+          }
+          reg = info->GetReg();
+        }
       } else {
         // kArg2 & rArg3 can safely be used here
         reg = TargetReg(kArg3);
@@ -1659,9 +1664,13 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
     return;
   }
   DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
-  if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file)
-      ->GenIntrinsic(this, info)) {
-    return;
+  // TODO: Enable instrinsics for x86_64
+  // Temporary disable intrinsics for x86_64. We will enable them later step by step.
+  if (cu_->instruction_set != kX86_64) {
+    if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file)
+        ->GenIntrinsic(this, info)) {
+      return;
+    }
   }
   GenInvokeNoInline(info);
 }

@@ -18,6 +18,7 @@
 #define ART_COMPILER_OUTPUT_STREAM_H_
 
 #include <stdint.h>
+#include <sys/types.h>
 
 #include <string>
 

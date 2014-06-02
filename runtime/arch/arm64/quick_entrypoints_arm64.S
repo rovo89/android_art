@@ -197,7 +197,8 @@
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
-    brk 0
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    ret
 .endm
 
 
@@ -558,35 +559,38 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
 
 .macro INVOKE_STUB_CREATE_FRAME
 
-SAVE_SIZE=5*8   // x4, x5, SP, LR & FP saved.
-SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
+SAVE_SIZE=6*8   // x4, x5, x19(wSUSPEND), SP, LR & FP saved.
+SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
 
-    mov x9, sp                          // Save stack pointer.
+
+    mov x9, sp                             // Save stack pointer.
     .cfi_register sp,x9
 
-    add x10, x2, # SAVE_SIZE_AND_METHOD // calculate size of frame.
-    sub x10, sp, x10                    // Calculate SP position - saves + ArtMethod* +  args
-    and x10, x10, # ~0xf                // Enforce 16 byte stack alignment.
-    mov sp, x10                         // Set new SP.
+    add x10, x2, # SAVE_SIZE_AND_METHOD    // calculate size of frame.
+    sub x10, sp, x10                       // Calculate SP position - saves + ArtMethod* +  args
+    and x10, x10, # ~0xf                   // Enforce 16 byte stack alignment.
+    mov sp, x10                            // Set new SP.
 
-    sub x10, x9, #SAVE_SIZE             // Calculate new FP (later). Done here as we must move SP
-    .cfi_def_cfa_register x10           // before this.
+    sub x10, x9, #SAVE_SIZE                // Calculate new FP (later). Done here as we must move SP
+    .cfi_def_cfa_register x10              // before this.
     .cfi_adjust_cfa_offset SAVE_SIZE
 
-    str x9, [x10, #32]                  // Save old stack pointer.
+    stp x9, x19, [x10, #32]                // Save old stack pointer and x19(wSUSPEND)
     .cfi_rel_offset sp, 32
+    .cfi_rel_offset x19, 40
 
-    stp x4, x5, [x10, #16]              // Save result and shorty addresses.
+    stp x4, x5, [x10, #16]                 // Save result and shorty addresses.
     .cfi_rel_offset x4, 16
     .cfi_rel_offset x5, 24
 
-    stp xFP, xLR, [x10]                 // Store LR & FP.
+    stp xFP, xLR, [x10]                    // Store LR & FP.
     .cfi_rel_offset x29, 0
     .cfi_rel_offset x30, 8
 
-    mov xFP, x10                        // Use xFP now, as it's callee-saved.
+    mov xFP, x10                           // Use xFP now, as it's callee-saved.
     .cfi_def_cfa_register x29
-    mov xSELF, x3                       // Move thread pointer into SELF register.
+    mov xSELF, x3                          // Move thread pointer into SELF register.
+    mov wSUSPEND, #SUSPEND_CHECK_INTERVAL  // reset wSUSPEND to suspend check interval
 
     // Copy arguments into stack frame.
     // Use simple copy routine for now.
@@ -595,7 +599,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
     // W2 - args length
     // X9 - destination address.
     // W10 - temporary
-    add x9, sp, #8     // Destination address is bottom of stack + NULL.
+    add x9, sp, #4                         // Destination address is bottom of stack + NULL.
 
     // Use \@ to differentiate between macro invocations.
 .LcopyParams\@:
@@ -609,9 +613,12 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
 
 .LendCopyParams\@:
 
-    // Store NULL into Method* at bottom of frame.
-    str xzr, [sp]
+    // Store NULL into StackReference<Method>* at bottom of frame.
+    str wzr, [sp]
 
+#if (STACK_REFERENCE_SIZE != 4)
+#error "STACK_REFERENCE_SIZE(ARM64) size not as expected."
+#endif
 .endm
 
 .macro INVOKE_STUB_CALL_AND_RETURN
@@ -649,7 +656,8 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
     str x0, [x4]
 
 .Lexit_art_quick_invoke_stub\@:
-    ldr x2, [x29, #32]   // Restore stack pointer.
+    ldp x2, x19, [x29, #32]   // Restore stack pointer and x19.
+    .cfi_restore x19
     mov sp, x2
     .cfi_restore sp
 
@@ -685,7 +693,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
  *  | uint32_t out[n-1]    |
  *  |    :      :          |        Outs
  *  | uint32_t out[0]      |
- *  | ArtMethod* NULL      | <- SP
+ *  | StackRef<ArtMethod>  | <- SP  value=null
  *  +----------------------+
  *
  * Outgoing registers:
@@ -693,6 +701,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
  *  x1-x7 - integer parameters.
  *  d0-d7 - Floating point parameters.
  *  xSELF = self
+ *  wSUSPEND = suspend count
  *  SP = & of ArtMethod*
  *  x1 = "this" pointer.
  *
@@ -1286,7 +1295,7 @@ END \name
     .extern \entrypoint
 ENTRY \name
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case of GC
-    ldr    x1, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
+    ldr    w1, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
     mov    x2, xSELF                  // pass Thread::Current
     mov    x3, sp                     // pass SP
     bl     \entrypoint                // (uint32_t type_idx, Method* method, Thread*, SP)
@@ -1300,7 +1309,7 @@ END \name
     .extern \entrypoint
 ENTRY \name
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case of GC
-    ldr    x2, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
+    ldr    w2, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
     mov    x3, xSELF                  // pass Thread::Current
     mov    x4, sp                     // pass SP
     bl     \entrypoint
@@ -1314,7 +1323,7 @@ END \name
     .extern \entrypoint
 ENTRY \name
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case of GC
-    ldr    x3, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
+    ldr    w3, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
     mov    x4, xSELF                  // pass Thread::Current
     mov    x5, sp                     // pass SP
     bl     \entrypoint
@@ -1353,7 +1362,7 @@ THREE_ARG_REF_DOWNCALL art_quick_set_obj_instance, artSetObjInstanceFromCode, RE
 ENTRY art_quick_set64_static
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case of GC
     mov    x3, x1                     // Store value
-    ldr    x1, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
+    ldr    w1, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
     mov    x2, x3                     // Put value param
     mov    x3, xSELF                  // pass Thread::Current
     mov    x4, sp                     // pass SP
@@ -1373,7 +1382,22 @@ TWO_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_R
 // Generate the allocation entrypoints for each allocator.
 GENERATE_ALL_ALLOC_ENTRYPOINTS
 
-UNIMPLEMENTED art_quick_test_suspend
+    /*
+     * Called by managed code when the value in wSUSPEND has been decremented to 0.
+     */
+    .extern artTestSuspendFromCode
+ENTRY art_quick_test_suspend
+    ldrh   w0, [xSELF, #THREAD_FLAGS_OFFSET]  // get xSELF->state_and_flags.as_struct.flags
+    mov    wSUSPEND, #SUSPEND_CHECK_INTERVAL  // reset wSUSPEND to SUSPEND_CHECK_INTERVAL
+    cbnz   w0, .Lneed_suspend                 // check flags == 0
+    ret                                       // return if flags == 0
+.Lneed_suspend:
+    mov    x0, xSELF
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME          // save callee saves for stack crawl
+    mov    x1, sp
+    bl     artTestSuspendFromCode             // (Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+END art_quick_test_suspend
 
      /*
      * Called by managed code that is attempting to call a method on a proxy class. On entry
@@ -1402,7 +1426,7 @@ END art_quick_proxy_invoke_handler
      * dex method index.
      */
 ENTRY art_quick_imt_conflict_trampoline
-    ldr    x0, [sp, #0]                                // load caller Method*
+    ldr    w0, [sp, #0]                                // load caller Method*
     ldr    w0, [x0, #METHOD_DEX_CACHE_METHODS_OFFSET]  // load dex_cache_resolved_methods
     add    x0, x0, #OBJECT_ARRAY_DATA_OFFSET           // get starting address of data
     ldr    w0, [x0, x12, lsl 2]                        // load the target method
@@ -1416,7 +1440,7 @@ ENTRY art_quick_resolution_trampoline
     bl artQuickResolutionTrampoline  // (called, receiver, Thread*, SP)
     cbz x0, 1f
     mov x9, x0              // Remember returned code pointer in x9.
-    ldr x0, [sp, #0]        // artQuickResolutionTrampoline puts called method in *SP.
+    ldr w0, [sp, #0]        // artQuickResolutionTrampoline puts called method in *SP.
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     br x9
 1:
@@ -1466,7 +1490,7 @@ END art_quick_resolution_trampoline
  * | D2                |    float arg 3
  * | D1                |    float arg 2
  * | D0                |    float arg 1
- * | RDI/Method*       |  <- X0
+ * | Method*           | <- X0
  * #-------------------#
  * | local ref cookie  | // 4B
  * | handle scope size | // 4B
@@ -1611,10 +1635,6 @@ END art_quick_to_interpreter_bridge
 UNIMPLEMENTED art_quick_instrumentation_entry
 UNIMPLEMENTED art_quick_instrumentation_exit
 UNIMPLEMENTED art_quick_deoptimize
-UNIMPLEMENTED art_quick_mul_long
-UNIMPLEMENTED art_quick_shl_long
-UNIMPLEMENTED art_quick_shr_long
-UNIMPLEMENTED art_quick_ushr_long
 UNIMPLEMENTED art_quick_indexof
 
    /*

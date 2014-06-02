@@ -2881,7 +2881,7 @@ static bool IsMethodPossiblyInlined(Thread* self, mirror::ArtMethod* m)
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(mh.GetClassLoader()));
   verifier::MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader,
                                     &mh.GetClassDef(), code_item, m->GetDexMethodIndex(), m,
-                                    m->GetAccessFlags(), false, true);
+                                    m->GetAccessFlags(), false, true, false);
   // Note: we don't need to verify the method.
   return InlineMethodAnalyser::AnalyseMethodCode(&verifier, nullptr);
 }
@@ -4039,7 +4039,11 @@ void Dbg::DdmSendHeapSegments(bool native) {
   // Send a series of heap segment chunks.
   HeapChunkContext context((what == HPSG_WHAT_MERGED_OBJECTS), native);
   if (native) {
+#ifdef USE_DLMALLOC
     dlmalloc_inspect_all(HeapChunkContext::HeapChunkCallback, &context);
+#else
+    UNIMPLEMENTED(WARNING) << "Native heap inspection is only supported with dlmalloc";
+#endif
   } else {
     gc::Heap* heap = Runtime::Current()->GetHeap();
     const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();

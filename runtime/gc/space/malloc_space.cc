@@ -50,12 +50,12 @@ MallocSpace::MallocSpace(const std::string& name, MemMap* mem_map,
     CHECK(IsAligned<kGcCardSize>(reinterpret_cast<uintptr_t>(mem_map->End())));
     live_bitmap_.reset(accounting::ContinuousSpaceBitmap::Create(
         StringPrintf("allocspace %s live-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
-        Begin(), Capacity()));
+        Begin(), NonGrowthLimitCapacity()));
     DCHECK(live_bitmap_.get() != nullptr) << "could not create allocspace live bitmap #"
         << bitmap_index;
     mark_bitmap_.reset(accounting::ContinuousSpaceBitmap::Create(
         StringPrintf("allocspace %s mark-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
-        Begin(), Capacity()));
+        Begin(), NonGrowthLimitCapacity()));
     DCHECK(live_bitmap_.get() != nullptr) << "could not create allocspace mark bitmap #"
         << bitmap_index;
   }
@@ -218,10 +218,12 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
 
 void MallocSpace::Dump(std::ostream& os) const {
   os << GetType()
-      << " begin=" << reinterpret_cast<void*>(Begin())
-      << ",end=" << reinterpret_cast<void*>(End())
-      << ",size=" << PrettySize(Size()) << ",capacity=" << PrettySize(Capacity())
-      << ",name=\"" << GetName() << "\"]";
+     << " begin=" << reinterpret_cast<void*>(Begin())
+     << ",end=" << reinterpret_cast<void*>(End())
+     << ",limit=" << reinterpret_cast<void*>(Limit())
+     << ",size=" << PrettySize(Size()) << ",capacity=" << PrettySize(Capacity())
+     << ",non_growth_limit_capacity=" << PrettySize(NonGrowthLimitCapacity())
+     << ",name=\"" << GetName() << "\"]";
 }
 
 void MallocSpace::SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg) {

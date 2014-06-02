@@ -165,6 +165,11 @@ Runtime::~Runtime() {
     }
     shutting_down_ = true;
   }
+  // Shut down background profiler before the runtime exits.
+  if (profile_) {
+    BackgroundMethodSamplingProfiler::Shutdown();
+  }
+
   Trace::Shutdown();
 
   // Make sure to let the GC complete if it is running.
@@ -366,6 +371,15 @@ jobject CreateSystemClassLoader() {
   return env->NewGlobalRef(system_class_loader.get());
 }
 
+std::string Runtime::GetCompilerExecutable() const {
+  if (!compiler_executable_.empty()) {
+    return compiler_executable_;
+  }
+  std::string compiler_executable(GetAndroidRoot());
+  compiler_executable += (kIsDebugBuild ? "/bin/dex2oatd" : "/bin/dex2oat");
+  return compiler_executable;
+}
+
 bool Runtime::Start() {
   VLOG(startup) << "Runtime::Start entering";
 
@@ -532,6 +546,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   default_stack_size_ = options->stack_size_;
   stack_trace_file_ = options->stack_trace_file_;
 
+  compiler_executable_ = options->compiler_executable_;
   compiler_options_ = options->compiler_options_;
   image_compiler_options_ = options->image_compiler_options_;
 
@@ -548,9 +563,20 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
     GetInstrumentation()->ForceInterpretOnly();
   }
 
-  if (options->explicit_checks_ != (ParsedOptions::kExplicitSuspendCheck |
-        ParsedOptions::kExplicitNullCheck |
-        ParsedOptions::kExplicitStackOverflowCheck) || kEnableJavaStackTraceHandler) {
+  bool implicit_checks_supported = false;
+  switch (kRuntimeISA) {
+    case kArm:
+    case kThumb2:
+      implicit_checks_supported = true;
+      break;
+    default:
+      break;
+  }
+
+  if (implicit_checks_supported &&
+      (options->explicit_checks_ != (ParsedOptions::kExplicitSuspendCheck |
+          ParsedOptions::kExplicitNullCheck |
+          ParsedOptions::kExplicitStackOverflowCheck) || kEnableJavaStackTraceHandler)) {
     fault_manager.Init();
 
     // These need to be in a specific order.  The null point check handler must be

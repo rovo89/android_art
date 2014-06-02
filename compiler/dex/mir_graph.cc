@@ -17,6 +17,7 @@
 #include "mir_graph.h"
 
 #include <inttypes.h>
+#include <queue>
 
 #include "base/stl_util.h"
 #include "compiler_internals.h"
@@ -25,6 +26,7 @@
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "leb128.h"
+#include "pass_driver_me_post_opt.h"
 
 namespace art {
 
@@ -73,12 +75,13 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       use_counts_(arena, 256, kGrowableArrayMisc),
       raw_use_counts_(arena, 256, kGrowableArrayMisc),
       num_reachable_blocks_(0),
+      max_num_reachable_blocks_(0),
       dfs_order_(NULL),
       dfs_post_order_(NULL),
       dom_post_order_traversal_(NULL),
+      topological_order_(nullptr),
       i_dom_list_(NULL),
       def_block_matrix_(NULL),
-      temp_dalvik_register_v_(NULL),
       temp_scoped_alloc_(),
       temp_insn_data_(nullptr),
       temp_bit_vector_size_(0u),
@@ -149,7 +152,7 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
   if (insn == NULL) {
     LOG(FATAL) << "Break split failed";
   }
-  BasicBlock *bottom_block = NewMemBB(kDalvikByteCode, num_blocks_++);
+  BasicBlock* bottom_block = NewMemBB(kDalvikByteCode, num_blocks_++);
   block_list_.Insert(bottom_block);
 
   bottom_block->start_offset = code_offset;
@@ -187,16 +190,16 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
     orig_block->successor_blocks = NULL;
     GrowableArray<SuccessorBlockInfo*>::Iterator iterator(bottom_block->successor_blocks);
     while (true) {
-      SuccessorBlockInfo *successor_block_info = iterator.Next();
+      SuccessorBlockInfo* successor_block_info = iterator.Next();
       if (successor_block_info == NULL) break;
-      BasicBlock *bb = GetBasicBlock(successor_block_info->block);
+      BasicBlock* bb = GetBasicBlock(successor_block_info->block);
       bb->predecessors->Delete(orig_block->id);
       bb->predecessors->Insert(bottom_block->id);
     }
   }
 
   orig_block->last_mir_insn = prev;
-  prev->next = NULL;
+  prev->next = nullptr;
 
   /*
    * Update the immediate predecessor block pointer so that outgoing edges
@@ -220,6 +223,7 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
   while (p != bottom_block->last_mir_insn) {
     p = p->next;
     DCHECK(p != nullptr);
+    p->bb = bottom_block->id;
     int opcode = p->dalvikInsn.opcode;
     /*
      * Some messiness here to ensure that we only enter real opcodes and only the
@@ -296,7 +300,7 @@ void MIRGraph::ProcessTryCatchBlocks() {
     }
   }
 
-  // Iterate over each of the handlers to enqueue the empty Catch blocks
+  // Iterate over each of the handlers to enqueue the empty Catch blocks.
   const byte* handlers_ptr = DexFile::GetCatchHandlerData(*current_code_item_, 0);
   uint32_t handlers_size = DecodeUnsignedLeb128(&handlers_ptr);
   for (uint32_t idx = 0; idx < handlers_size; idx++) {
@@ -343,14 +347,14 @@ BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, DexOffs
       LOG(FATAL) << "Unexpected opcode(" << insn->dalvikInsn.opcode << ") with kBranch set";
   }
   CountBranch(target);
-  BasicBlock *taken_block = FindBlock(target, /* split */ true, /* create */ true,
+  BasicBlock* taken_block = FindBlock(target, /* split */ true, /* create */ true,
                                       /* immed_pred_block_p */ &cur_block);
   cur_block->taken = taken_block->id;
   taken_block->predecessors->Insert(cur_block->id);
 
   /* Always terminate the current block for conditional branches */
   if (flags & Instruction::kContinue) {
-    BasicBlock *fallthrough_block = FindBlock(cur_offset +  width,
+    BasicBlock* fallthrough_block = FindBlock(cur_offset +  width,
                                              /*
                                               * If the method is processed
                                               * in sequential order from the
@@ -403,7 +407,7 @@ BasicBlock* MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffs
     size = switch_data[1];
     first_key = switch_data[2] | (switch_data[3] << 16);
     target_table = reinterpret_cast<const int*>(&switch_data[4]);
-    keyTable = NULL;        // Make the compiler happy
+    keyTable = NULL;        // Make the compiler happy.
   /*
    * Sparse switch data format:
    *  ushort ident = 0x0200   magic value
@@ -419,7 +423,7 @@ BasicBlock* MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffs
     size = switch_data[1];
     keyTable = reinterpret_cast<const int*>(&switch_data[2]);
     target_table = reinterpret_cast<const int*>(&switch_data[2 + size*2]);
-    first_key = 0;   // To make the compiler happy
+    first_key = 0;   // To make the compiler happy.
   }
 
   if (cur_block->successor_block_list_type != kNotUsed) {
@@ -432,9 +436,9 @@ BasicBlock* MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffs
       new (arena_) GrowableArray<SuccessorBlockInfo*>(arena_, size, kGrowableArraySuccessorBlocks);
 
   for (i = 0; i < size; i++) {
-    BasicBlock *case_block = FindBlock(cur_offset + target_table[i], /* split */ true,
+    BasicBlock* case_block = FindBlock(cur_offset + target_table[i], /* split */ true,
                                       /* create */ true, /* immed_pred_block_p */ &cur_block);
-    SuccessorBlockInfo *successor_block_info =
+    SuccessorBlockInfo* successor_block_info =
         static_cast<SuccessorBlockInfo*>(arena_->Alloc(sizeof(SuccessorBlockInfo),
                                                        kArenaAllocSuccessor));
     successor_block_info->block = case_block->id;
@@ -477,13 +481,13 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
         new (arena_) GrowableArray<SuccessorBlockInfo*>(arena_, 2, kGrowableArraySuccessorBlocks);
 
     for (; iterator.HasNext(); iterator.Next()) {
-      BasicBlock *catch_block = FindBlock(iterator.GetHandlerAddress(), false /* split*/,
+      BasicBlock* catch_block = FindBlock(iterator.GetHandlerAddress(), false /* split*/,
                                          false /* creat */, NULL  /* immed_pred_block_p */);
       catch_block->catch_entry = true;
       if (kIsDebugBuild) {
         catches_.insert(catch_block->start_offset);
       }
-      SuccessorBlockInfo *successor_block_info = reinterpret_cast<SuccessorBlockInfo*>
+      SuccessorBlockInfo* successor_block_info = reinterpret_cast<SuccessorBlockInfo*>
           (arena_->Alloc(sizeof(SuccessorBlockInfo), kArenaAllocSuccessor));
       successor_block_info->block = catch_block->id;
       successor_block_info->key = iterator.GetHandlerTypeIndex();
@@ -491,7 +495,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
       catch_block->predecessors->Insert(cur_block->id);
     }
   } else if (build_all_edges) {
-    BasicBlock *eh_block = NewMemBB(kExceptionHandling, num_blocks_++);
+    BasicBlock* eh_block = NewMemBB(kExceptionHandling, num_blocks_++);
     cur_block->taken = eh_block->id;
     block_list_.Insert(eh_block);
     eh_block->start_offset = cur_offset;
@@ -501,7 +505,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
   if (is_throw) {
     cur_block->explicit_throw = true;
     if (code_ptr < code_end) {
-      // Force creation of new block following THROW via side-effect
+      // Force creation of new block following THROW via side-effect.
       FindBlock(cur_offset + width, /* split */ false, /* create */ true,
                 /* immed_pred_block_p */ NULL);
     }
@@ -538,16 +542,15 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
    * Note also that the dex_pc_to_block_map_ entry for the potentially
    * throwing instruction will refer to the original basic block.
    */
-  BasicBlock *new_block = NewMemBB(kDalvikByteCode, num_blocks_++);
+  BasicBlock* new_block = NewMemBB(kDalvikByteCode, num_blocks_++);
   block_list_.Insert(new_block);
   new_block->start_offset = insn->offset;
   cur_block->fall_through = new_block->id;
   new_block->predecessors->Insert(cur_block->id);
-  MIR* new_insn = static_cast<MIR*>(arena_->Alloc(sizeof(MIR), kArenaAllocMIR));
+  MIR* new_insn = NewMIR();
   *new_insn = *insn;
-  insn->dalvikInsn.opcode =
-      static_cast<Instruction::Code>(kMirOpCheck);
-  // Associate the two halves
+  insn->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpCheck);
+  // Associate the two halves.
   insn->meta.throw_insn = new_insn;
   new_block->AppendMIR(new_insn);
   return new_block;
@@ -614,7 +617,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
   }
 
   /* Current block to record parsed instructions */
-  BasicBlock *cur_block = NewMemBB(kDalvikByteCode, num_blocks_++);
+  BasicBlock* cur_block = NewMemBB(kDalvikByteCode, num_blocks_++);
   DCHECK_EQ(current_offset_, 0U);
   cur_block->start_offset = current_offset_;
   block_list_.Insert(cur_block);
@@ -629,11 +632,10 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
 
   /* Parse all instructions and put them into containing basic blocks */
   while (code_ptr < code_end) {
-    MIR *insn = static_cast<MIR *>(arena_->Alloc(sizeof(MIR), kArenaAllocMIR));
+    MIR *insn = NewMIR();
     insn->offset = current_offset_;
     insn->m_unit_index = current_method_;
     int width = ParseInsn(code_ptr, &insn->dalvikInsn);
-    insn->width = width;
     Instruction::Code opcode = insn->dalvikInsn.opcode;
     if (opcode_count_ != NULL) {
       opcode_count_[static_cast<int>(opcode)]++;
@@ -653,7 +655,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
       cur_block->use_lvn = true;  // Run local value numbering on this basic block.
     }
 
-    // Check for inline data block signatures
+    // Check for inline data block signatures.
     if (opcode == Instruction::NOP) {
       // A simple NOP will have a width of 1 at this point, embedded data NOP > 1.
       if ((width == 1) && ((current_offset_ & 0x1) == 0x1) && ((code_end - code_ptr) > 1)) {
@@ -722,7 +724,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
       }
     }
     current_offset_ += width;
-    BasicBlock *next_block = FindBlock(current_offset_, /* split */ false, /* create */
+    BasicBlock* next_block = FindBlock(current_offset_, /* split */ false, /* create */
                                       false, /* immed_pred_block_p */ NULL);
     if (next_block) {
       /*
@@ -797,7 +799,7 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
 
   for (idx = 0; idx < num_blocks; idx++) {
     int block_idx = all_blocks ? idx : dfs_order_->Get(idx);
-    BasicBlock *bb = GetBasicBlock(block_idx);
+    BasicBlock* bb = GetBasicBlock(block_idx);
     if (bb == NULL) continue;
     if (bb->block_type == kDead) continue;
     if (bb->block_type == kEntryBlock) {
@@ -807,7 +809,7 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
     } else if (bb->block_type == kDalvikByteCode) {
       fprintf(file, "  block%04x_%d [shape=record,label = \"{ \\\n",
               bb->start_offset, bb->id);
-      const MIR *mir;
+      const MIR* mir;
         fprintf(file, "    {block id %d\\l}%s\\\n", bb->id,
                 bb->first_mir_insn ? " | " : " ");
         for (mir = bb->first_mir_insn; mir; mir = mir->next) {
@@ -834,8 +836,7 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
             } else {
               fprintf(file, "    {%04x %s %s %s\\l}%s\\\n", mir->offset,
                       mir->ssa_rep ? GetDalvikDisassembly(mir) :
-                      (opcode < kMirOpFirst) ?
-                        Instruction::Name(mir->dalvikInsn.opcode) :
+                      !IsPseudoMirOp(opcode) ? Instruction::Name(mir->dalvikInsn.opcode) :
                         extended_mir_op_names_[opcode - kMirOpFirst],
                       (mir->optimization_flags & MIR_IGNORE_RANGE_CHECK) != 0 ? " no_rangecheck" : " ",
                       (mir->optimization_flags & MIR_IGNORE_NULL_CHECK) != 0 ? " no_nullcheck" : " ",
@@ -869,13 +870,13 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
               bb->start_offset, bb->id,
               (bb->successor_block_list_type == kCatch) ?  "Mrecord" : "record");
       GrowableArray<SuccessorBlockInfo*>::Iterator iterator(bb->successor_blocks);
-      SuccessorBlockInfo *successor_block_info = iterator.Next();
+      SuccessorBlockInfo* successor_block_info = iterator.Next();
 
       int succ_id = 0;
       while (true) {
         if (successor_block_info == NULL) break;
 
-        BasicBlock *dest_block = GetBasicBlock(successor_block_info->block);
+        BasicBlock* dest_block = GetBasicBlock(successor_block_info->block);
         SuccessorBlockInfo *next_successor_block_info = iterator.Next();
 
         fprintf(file, "    {<f%d> %04x: %04x\\l}%s\\\n",
@@ -897,7 +898,7 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
 
       succ_id = 0;
       while (true) {
-        SuccessorBlockInfo *successor_block_info = iter.Next();
+        SuccessorBlockInfo* successor_block_info = iter.Next();
         if (successor_block_info == NULL) break;
 
         BasicBlock* dest_block = GetBasicBlock(successor_block_info->block);
@@ -924,40 +925,173 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
   fclose(file);
 }
 
-/* Insert an MIR instruction to the end of a basic block */
+/* Insert an MIR instruction to the end of a basic block. */
 void BasicBlock::AppendMIR(MIR* mir) {
-  if (first_mir_insn == nullptr) {
-    DCHECK(last_mir_insn == nullptr);
-    last_mir_insn = first_mir_insn = mir;
-    mir->next = nullptr;
-  } else {
-    last_mir_insn->next = mir;
-    mir->next = nullptr;
-    last_mir_insn = mir;
+  // Insert it after the last MIR.
+  InsertMIRListAfter(last_mir_insn, mir, mir);
+}
+
+void BasicBlock::AppendMIRList(MIR* first_list_mir, MIR* last_list_mir) {
+  // Insert it after the last MIR.
+  InsertMIRListAfter(last_mir_insn, first_list_mir, last_list_mir);
+}
+
+void BasicBlock::AppendMIRList(const std::vector<MIR*>& insns) {
+  for (std::vector<MIR*>::const_iterator it = insns.begin(); it != insns.end(); it++) {
+    MIR* new_mir = *it;
+
+    // Add a copy of each MIR.
+    InsertMIRListAfter(last_mir_insn, new_mir, new_mir);
   }
 }
 
-/* Insert an MIR instruction to the head of a basic block */
-void BasicBlock::PrependMIR(MIR* mir) {
-  if (first_mir_insn == nullptr) {
-    DCHECK(last_mir_insn == nullptr);
-    last_mir_insn = first_mir_insn = mir;
-    mir->next = nullptr;
-  } else {
-    mir->next = first_mir_insn;
-    first_mir_insn = mir;
-  }
-}
-
-/* Insert a MIR instruction after the specified MIR */
+/* Insert a MIR instruction after the specified MIR. */
 void BasicBlock::InsertMIRAfter(MIR* current_mir, MIR* new_mir) {
-  new_mir->next = current_mir->next;
-  current_mir->next = new_mir;
+  InsertMIRListAfter(current_mir, new_mir, new_mir);
+}
 
-  if (last_mir_insn == current_mir) {
-    /* Is the last MIR in the block */
-    last_mir_insn = new_mir;
+void BasicBlock::InsertMIRListAfter(MIR* insert_after, MIR* first_list_mir, MIR* last_list_mir) {
+  // If no MIR, we are done.
+  if (first_list_mir == nullptr || last_list_mir == nullptr) {
+    return;
   }
+
+  // If insert_after is null, assume BB is empty.
+  if (insert_after == nullptr) {
+    first_mir_insn = first_list_mir;
+    last_mir_insn = last_list_mir;
+    last_list_mir->next = nullptr;
+  } else {
+    MIR* after_list = insert_after->next;
+    insert_after->next = first_list_mir;
+    last_list_mir->next = after_list;
+    if (after_list == nullptr) {
+      last_mir_insn = last_list_mir;
+    }
+  }
+
+  // Set this BB to be the basic block of the MIRs.
+  MIR* last = last_list_mir->next;
+  for (MIR* mir = first_list_mir; mir != last; mir = mir->next) {
+    mir->bb = id;
+  }
+}
+
+/* Insert an MIR instruction to the head of a basic block. */
+void BasicBlock::PrependMIR(MIR* mir) {
+  InsertMIRListBefore(first_mir_insn, mir, mir);
+}
+
+void BasicBlock::PrependMIRList(MIR* first_list_mir, MIR* last_list_mir) {
+  // Insert it before the first MIR.
+  InsertMIRListBefore(first_mir_insn, first_list_mir, last_list_mir);
+}
+
+void BasicBlock::PrependMIRList(const std::vector<MIR*>& to_add) {
+  for (std::vector<MIR*>::const_iterator it = to_add.begin(); it != to_add.end(); it++) {
+    MIR* mir = *it;
+
+    InsertMIRListBefore(first_mir_insn, mir, mir);
+  }
+}
+
+/* Insert a MIR instruction before the specified MIR. */
+void BasicBlock::InsertMIRBefore(MIR* current_mir, MIR* new_mir) {
+  // Insert as a single element list.
+  return InsertMIRListBefore(current_mir, new_mir, new_mir);
+}
+
+MIR* BasicBlock::FindPreviousMIR(MIR* mir) {
+  MIR* current = first_mir_insn;
+
+  while (current != nullptr) {
+    MIR* next = current->next;
+
+    if (next == mir) {
+      return current;
+    }
+
+    current = next;
+  }
+
+  return nullptr;
+}
+
+void BasicBlock::InsertMIRListBefore(MIR* insert_before, MIR* first_list_mir, MIR* last_list_mir) {
+  // If no MIR, we are done.
+  if (first_list_mir == nullptr || last_list_mir == nullptr) {
+    return;
+  }
+
+  // If insert_before is null, assume BB is empty.
+  if (insert_before == nullptr) {
+    first_mir_insn = first_list_mir;
+    last_mir_insn = last_list_mir;
+    last_list_mir->next = nullptr;
+  } else {
+    if (first_mir_insn == insert_before) {
+      last_list_mir->next = first_mir_insn;
+      first_mir_insn = first_list_mir;
+    } else {
+      // Find the preceding MIR.
+      MIR* before_list = FindPreviousMIR(insert_before);
+      DCHECK(before_list != nullptr);
+      before_list->next = first_list_mir;
+      last_list_mir->next = insert_before;
+    }
+  }
+
+  // Set this BB to be the basic block of the MIRs.
+  for (MIR* mir = first_list_mir; mir != last_list_mir->next; mir = mir->next) {
+    mir->bb = id;
+  }
+}
+
+bool BasicBlock::RemoveMIR(MIR* mir) {
+  // Remove as a single element list.
+  return RemoveMIRList(mir, mir);
+}
+
+bool BasicBlock::RemoveMIRList(MIR* first_list_mir, MIR* last_list_mir) {
+  if (first_list_mir == nullptr) {
+    return false;
+  }
+
+  // Try to find the MIR.
+  MIR* before_list = nullptr;
+  MIR* after_list = nullptr;
+
+  // If we are removing from the beginning of the MIR list.
+  if (first_mir_insn == first_list_mir) {
+    before_list = nullptr;
+  } else {
+    before_list = FindPreviousMIR(first_list_mir);
+    if (before_list == nullptr) {
+      // We did not find the mir.
+      return false;
+    }
+  }
+
+  // Remove the BB information and also find the after_list.
+  for (MIR* mir = first_list_mir; mir != last_list_mir; mir = mir->next) {
+    mir->bb = NullBasicBlockId;
+  }
+
+  after_list = last_list_mir->next;
+
+  // If there is nothing before the list, after_list is the first_mir.
+  if (before_list == nullptr) {
+    first_mir_insn = after_list;
+  } else {
+    before_list->next = after_list;
+  }
+
+  // If there is nothing after the list, before_list is last_mir.
+  if (after_list == nullptr) {
+    last_mir_insn = before_list;
+  }
+
+  return true;
 }
 
 MIR* BasicBlock::GetNextUnconditionalMir(MIRGraph* mir_graph, MIR* current) {
@@ -985,7 +1119,7 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
   char* ret;
   bool nop = false;
   SSARepresentation* ssa_rep = mir->ssa_rep;
-  Instruction::Format dalvik_format = Instruction::k10x;  // Default to no-operand format
+  Instruction::Format dalvik_format = Instruction::k10x;  // Default to no-operand format.
   int defs = (ssa_rep != NULL) ? ssa_rep->num_defs : 0;
   int uses = (ssa_rep != NULL) ? ssa_rep->num_uses : 0;
 
@@ -993,7 +1127,7 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
   if ((opcode == kMirOpCheck) || (opcode == kMirOpCheckPart2)) {
     str.append(extended_mir_op_names_[opcode - kMirOpFirst]);
     str.append(": ");
-    // Recover the original Dex instruction
+    // Recover the original Dex instruction.
     insn = mir->meta.throw_insn->dalvikInsn;
     ssa_rep = mir->meta.throw_insn->ssa_rep;
     defs = ssa_rep->num_defs;
@@ -1007,7 +1141,7 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
     nop = true;
   }
 
-  if (opcode >= kMirOpFirst) {
+  if (IsPseudoMirOp(opcode)) {
     str.append(extended_mir_op_names_[opcode - kMirOpFirst]);
   } else {
     dalvik_format = Instruction::FormatOf(insn.opcode);
@@ -1052,7 +1186,7 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
     str.append(StringPrintf(" 0x%x (%c%x)", mir->offset + offset,
                             offset > 0 ? '+' : '-', offset > 0 ? offset : -offset));
   } else {
-    // For invokes-style formats, treat wide regs as a pair of singles
+    // For invokes-style formats, treat wide regs as a pair of singles.
     bool show_singles = ((dalvik_format == Instruction::k35c) ||
                          (dalvik_format == Instruction::k3rc));
     if (defs != 0) {
@@ -1073,28 +1207,28 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
       }
     }
     switch (dalvik_format) {
-      case Instruction::k11n:  // Add one immediate from vB
+      case Instruction::k11n:  // Add one immediate from vB.
       case Instruction::k21s:
       case Instruction::k31i:
       case Instruction::k21h:
         str.append(StringPrintf(", #%d", insn.vB));
         break;
-      case Instruction::k51l:  // Add one wide immediate
+      case Instruction::k51l:  // Add one wide immediate.
         str.append(StringPrintf(", #%" PRId64, insn.vB_wide));
         break;
-      case Instruction::k21c:  // One register, one string/type/method index
+      case Instruction::k21c:  // One register, one string/type/method index.
       case Instruction::k31c:
         str.append(StringPrintf(", index #%d", insn.vB));
         break;
-      case Instruction::k22c:  // Two registers, one string/type/method index
+      case Instruction::k22c:  // Two registers, one string/type/method index.
         str.append(StringPrintf(", index #%d", insn.vC));
         break;
-      case Instruction::k22s:  // Add one immediate from vC
+      case Instruction::k22s:  // Add one immediate from vC.
       case Instruction::k22b:
         str.append(StringPrintf(", #%d", insn.vC));
         break;
       default: {
-        // Nothing left to print
+        // Nothing left to print.
       }
     }
   }
@@ -1128,7 +1262,7 @@ std::string MIRGraph::GetSSAName(int ssa_reg) {
 // Similar to GetSSAName, but if ssa name represents an immediate show that as well.
 std::string MIRGraph::GetSSANameWithConst(int ssa_reg, bool singles_only) {
   if (reg_location_ == NULL) {
-    // Pre-SSA - just use the standard name
+    // Pre-SSA - just use the standard name.
     return GetSSAName(ssa_reg);
   }
   if (IsConst(reg_location_[ssa_reg])) {
@@ -1240,10 +1374,16 @@ CallInfo* MIRGraph::NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type,
   return info;
 }
 
+// Allocate a new MIR.
+MIR* MIRGraph::NewMIR() {
+  MIR* mir = new (arena_) MIR();
+  return mir;
+}
+
 // Allocate a new basic block.
 BasicBlock* MIRGraph::NewMemBB(BBType block_type, int block_id) {
-  BasicBlock* bb = static_cast<BasicBlock*>(arena_->Alloc(sizeof(BasicBlock),
-                                                          kArenaAllocBB));
+  BasicBlock* bb = new (arena_) BasicBlock();
+
   bb->block_type = block_type;
   bb->id = block_id;
   // TUNING: better estimate of the exit block predecessors?
@@ -1261,36 +1401,136 @@ void MIRGraph::InitializeConstantPropagation() {
 }
 
 void MIRGraph::InitializeMethodUses() {
-  // The gate starts by initializing the use counts
+  // The gate starts by initializing the use counts.
   int num_ssa_regs = GetNumSSARegs();
   use_counts_.Resize(num_ssa_regs + 32);
   raw_use_counts_.Resize(num_ssa_regs + 32);
-  // Initialize list
+  // Initialize list.
   for (int i = 0; i < num_ssa_regs; i++) {
     use_counts_.Insert(0);
     raw_use_counts_.Insert(0);
   }
 }
 
-void MIRGraph::InitializeSSATransformation() {
-  /* Compute the DFS order */
-  ComputeDFSOrders();
+void MIRGraph::SSATransformationStart() {
+  DCHECK(temp_scoped_alloc_.get() == nullptr);
+  temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
+  temp_bit_vector_size_ = cu_->num_dalvik_registers;
+  temp_bit_vector_ = new (temp_scoped_alloc_.get()) ArenaBitVector(
+      temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapRegisterV);
 
-  /* Compute the dominator info */
-  ComputeDominators();
+  // Update the maximum number of reachable blocks.
+  max_num_reachable_blocks_ = num_reachable_blocks_;
+}
 
-  /* Allocate data structures in preparation for SSA conversion */
-  CompilerInitializeSSAConversion();
+void MIRGraph::SSATransformationEnd() {
+  // Verify the dataflow information after the pass.
+  if (cu_->enable_debug & (1 << kDebugVerifyDataflow)) {
+    VerifyDataflow();
+  }
 
-  /* Find out the "Dalvik reg def x block" relation */
-  ComputeDefBlockMatrix();
+  temp_bit_vector_size_ = 0u;
+  temp_bit_vector_ = nullptr;
+  DCHECK(temp_scoped_alloc_.get() != nullptr);
+  temp_scoped_alloc_.reset();
+}
 
-  /* Insert phi nodes to dominance frontiers for all variables */
-  InsertPhiNodes();
+void MIRGraph::ComputeTopologicalSortOrder() {
+  std::queue<BasicBlock*> q;
+  std::map<int, int> visited_cnt_values;
 
-  /* Rename register names by local defs and phi nodes */
+  // Clear the nodes.
   ClearAllVisitedFlags();
-  DoDFSPreOrderSSARename(GetEntryBlock());
+
+  // Create the topological order if need be.
+  if (topological_order_ != nullptr) {
+    topological_order_ = new (arena_) GrowableArray<BasicBlockId>(arena_, 0);
+  }
+  topological_order_->Reset();
+
+  // Set up visitedCntValues map for all BB. The default value for this counters in the map is zero.
+  // also fill initial queue.
+  GrowableArray<BasicBlock*>::Iterator iterator(&block_list_);
+
+  while (true) {
+    BasicBlock* bb = iterator.Next();
+
+    if (bb == nullptr) {
+      break;
+    }
+
+    if (bb->hidden == true) {
+      continue;
+    }
+
+    visited_cnt_values[bb->id] = bb->predecessors->Size();
+
+    GrowableArray<BasicBlockId>::Iterator pred_iterator(bb->predecessors);
+    // To process loops we should not wait for dominators.
+    while (true) {
+      BasicBlock* pred_bb = GetBasicBlock(pred_iterator.Next());
+
+      if (pred_bb == nullptr) {
+        break;
+      }
+
+      if (pred_bb->dominators == nullptr || pred_bb->hidden == true) {
+        continue;
+      }
+
+      // Skip the backward branch.
+      if (pred_bb->dominators->IsBitSet(bb->id) != 0) {
+        visited_cnt_values[bb->id]--;
+      }
+    }
+
+    // Add entry block to queue.
+    if (visited_cnt_values[bb->id] == 0) {
+      q.push(bb);
+    }
+  }
+
+  while (q.size() > 0) {
+    // Get top.
+    BasicBlock* bb = q.front();
+    q.pop();
+
+    DCHECK_EQ(bb->hidden, false);
+
+    if (bb->IsExceptionBlock() == true) {
+      continue;
+    }
+
+    // We've visited all the predecessors. So, we can visit bb.
+    if (bb->visited == false) {
+      bb->visited = true;
+
+      // Now add the basic block.
+      topological_order_->Insert(bb->id);
+
+      // Reduce visitedCnt for all the successors and add into the queue ones with visitedCnt equals to zero.
+      ChildBlockIterator succIter(bb, this);
+      BasicBlock* successor = succIter.Next();
+      while (successor != nullptr) {
+        // one more predecessor was visited.
+        visited_cnt_values[successor->id]--;
+
+        if (visited_cnt_values[successor->id] <= 0 && successor->visited == false && successor->hidden == false) {
+          q.push(successor);
+        }
+
+        // Take next successor.
+        successor = succIter.Next();
+      }
+    }
+  }
+}
+
+bool BasicBlock::IsExceptionBlock() const {
+  if (block_type == kExceptionHandling) {
+    return true;
+  }
+  return false;
 }
 
 ChildBlockIterator::ChildBlockIterator(BasicBlock* bb, MIRGraph* mir_graph)
@@ -1342,6 +1582,327 @@ BasicBlock* ChildBlockIterator::Next() {
 
   // We do not have anything.
   return nullptr;
+}
+
+BasicBlock* BasicBlock::Copy(CompilationUnit* c_unit) {
+  MIRGraph* mir_graph = c_unit->mir_graph.get();
+  return Copy(mir_graph);
+}
+
+BasicBlock* BasicBlock::Copy(MIRGraph* mir_graph) {
+  BasicBlock* result_bb = mir_graph->CreateNewBB(block_type);
+
+  // We don't do a memcpy style copy here because it would lead to a lot of things
+  // to clean up. Let us do it by hand instead.
+  // Copy in taken and fallthrough.
+  result_bb->fall_through = fall_through;
+  result_bb->taken = taken;
+
+  // Copy successor links if needed.
+  ArenaAllocator* arena = mir_graph->GetArena();
+
+  result_bb->successor_block_list_type = successor_block_list_type;
+  if (result_bb->successor_block_list_type != kNotUsed) {
+    size_t size = successor_blocks->Size();
+    result_bb->successor_blocks = new (arena) GrowableArray<SuccessorBlockInfo*>(arena, size, kGrowableArraySuccessorBlocks);
+    GrowableArray<SuccessorBlockInfo*>::Iterator iterator(successor_blocks);
+    while (true) {
+      SuccessorBlockInfo* sbi_old = iterator.Next();
+      if (sbi_old == nullptr) {
+        break;
+      }
+      SuccessorBlockInfo* sbi_new = static_cast<SuccessorBlockInfo*>(arena->Alloc(sizeof(SuccessorBlockInfo), kArenaAllocSuccessor));
+      memcpy(sbi_new, sbi_old, sizeof(SuccessorBlockInfo));
+      result_bb->successor_blocks->Insert(sbi_new);
+    }
+  }
+
+  // Copy offset, method.
+  result_bb->start_offset = start_offset;
+
+  // Now copy instructions.
+  for (MIR* mir = first_mir_insn; mir != 0; mir = mir->next) {
+    // Get a copy first.
+    MIR* copy = mir->Copy(mir_graph);
+
+    // Append it.
+    result_bb->AppendMIR(copy);
+  }
+
+  return result_bb;
+}
+
+MIR* MIR::Copy(MIRGraph* mir_graph) {
+  MIR* res = mir_graph->NewMIR();
+  *res = *this;
+
+  // Remove links
+  res->next = nullptr;
+  res->bb = NullBasicBlockId;
+  res->ssa_rep = nullptr;
+
+  return res;
+}
+
+MIR* MIR::Copy(CompilationUnit* c_unit) {
+  return Copy(c_unit->mir_graph.get());
+}
+
+uint32_t SSARepresentation::GetStartUseIndex(Instruction::Code opcode) {
+  // Default result.
+  int res = 0;
+
+  // We are basically setting the iputs to their igets counterparts.
+  switch (opcode) {
+    case Instruction::IPUT:
+    case Instruction::IPUT_OBJECT:
+    case Instruction::IPUT_BOOLEAN:
+    case Instruction::IPUT_BYTE:
+    case Instruction::IPUT_CHAR:
+    case Instruction::IPUT_SHORT:
+    case Instruction::IPUT_QUICK:
+    case Instruction::IPUT_OBJECT_QUICK:
+    case Instruction::APUT:
+    case Instruction::APUT_OBJECT:
+    case Instruction::APUT_BOOLEAN:
+    case Instruction::APUT_BYTE:
+    case Instruction::APUT_CHAR:
+    case Instruction::APUT_SHORT:
+    case Instruction::SPUT:
+    case Instruction::SPUT_OBJECT:
+    case Instruction::SPUT_BOOLEAN:
+    case Instruction::SPUT_BYTE:
+    case Instruction::SPUT_CHAR:
+    case Instruction::SPUT_SHORT:
+      // Skip the VR containing what to store.
+      res = 1;
+      break;
+    case Instruction::IPUT_WIDE:
+    case Instruction::IPUT_WIDE_QUICK:
+    case Instruction::APUT_WIDE:
+    case Instruction::SPUT_WIDE:
+      // Skip the two VRs containing what to store.
+      res = 2;
+      break;
+    default:
+      // Do nothing in the general case.
+      break;
+  }
+
+  return res;
+}
+
+/**
+ * @brief Given a decoded instruction, it checks whether the instruction
+ * sets a constant and if it does, more information is provided about the
+ * constant being set.
+ * @param ptr_value pointer to a 64-bit holder for the constant.
+ * @param wide Updated by function whether a wide constant is being set by bytecode.
+ * @return Returns false if the decoded instruction does not represent a constant bytecode.
+ */
+bool MIR::DecodedInstruction::GetConstant(int64_t* ptr_value, bool* wide) const {
+  bool sets_const = true;
+  int64_t value = vB;
+
+  DCHECK(ptr_value != nullptr);
+  DCHECK(wide != nullptr);
+
+  switch (opcode) {
+    case Instruction::CONST_4:
+    case Instruction::CONST_16:
+    case Instruction::CONST:
+      *wide = false;
+      value <<= 32;      // In order to get the sign extend.
+      value >>= 32;
+      break;
+    case Instruction::CONST_HIGH16:
+      *wide = false;
+      value <<= 48;      // In order to get the sign extend.
+      value >>= 32;
+      break;
+    case Instruction::CONST_WIDE_16:
+    case Instruction::CONST_WIDE_32:
+      *wide = true;
+      value <<= 32;      // In order to get the sign extend.
+      value >>= 32;
+      break;
+    case Instruction::CONST_WIDE:
+      *wide = true;
+      value = vB_wide;
+      break;
+    case Instruction::CONST_WIDE_HIGH16:
+      *wide = true;
+      value <<= 48;      // In order to get the sign extend.
+      break;
+    default:
+      sets_const = false;
+      break;
+  }
+
+  if (sets_const) {
+    *ptr_value = value;
+  }
+
+  return sets_const;
+}
+
+void BasicBlock::ResetOptimizationFlags(uint16_t reset_flags) {
+  // Reset flags for all MIRs in bb.
+  for (MIR* mir = first_mir_insn; mir != NULL; mir = mir->next) {
+    mir->optimization_flags &= (~reset_flags);
+  }
+}
+
+void BasicBlock::Hide(CompilationUnit* c_unit) {
+  // First lets make it a dalvik bytecode block so it doesn't have any special meaning.
+  block_type = kDalvikByteCode;
+
+  // Mark it as hidden.
+  hidden = true;
+
+  // Detach it from its MIRs so we don't generate code for them. Also detached MIRs
+  // are updated to know that they no longer have a parent.
+  for (MIR* mir = first_mir_insn; mir != nullptr; mir = mir->next) {
+    mir->bb = NullBasicBlockId;
+  }
+  first_mir_insn = nullptr;
+  last_mir_insn = nullptr;
+
+  GrowableArray<BasicBlockId>::Iterator iterator(predecessors);
+
+  MIRGraph* mir_graph = c_unit->mir_graph.get();
+  while (true) {
+    BasicBlock* pred_bb = mir_graph->GetBasicBlock(iterator.Next());
+    if (pred_bb == nullptr) {
+      break;
+    }
+
+    // Sadly we have to go through the children by hand here.
+    pred_bb->ReplaceChild(id, NullBasicBlockId);
+  }
+
+  // Iterate through children of bb we are hiding.
+  ChildBlockIterator successorChildIter(this, mir_graph);
+
+  for (BasicBlock* childPtr = successorChildIter.Next(); childPtr != 0; childPtr = successorChildIter.Next()) {
+    // Replace child with null child.
+    childPtr->predecessors->Delete(id);
+  }
+}
+
+bool BasicBlock::IsSSALiveOut(const CompilationUnit* c_unit, int ssa_reg) {
+  // In order to determine if the ssa reg is live out, we scan all the MIRs. We remember
+  // the last SSA number of the same dalvik register. At the end, if it is different than ssa_reg,
+  // then it is not live out of this BB.
+  int dalvik_reg = c_unit->mir_graph->SRegToVReg(ssa_reg);
+
+  int last_ssa_reg = -1;
+
+  // Walk through the MIRs backwards.
+  for (MIR* mir = first_mir_insn; mir != nullptr; mir = mir->next) {
+    // Get ssa rep.
+    SSARepresentation *ssa_rep = mir->ssa_rep;
+
+    // Go through the defines for this MIR.
+    for (int i = 0; i < ssa_rep->num_defs; i++) {
+      DCHECK(ssa_rep->defs != nullptr);
+
+      // Get the ssa reg.
+      int def_ssa_reg = ssa_rep->defs[i];
+
+      // Get dalvik reg.
+      int def_dalvik_reg = c_unit->mir_graph->SRegToVReg(def_ssa_reg);
+
+      // Compare dalvik regs.
+      if (dalvik_reg == def_dalvik_reg) {
+        // We found a def of the register that we are being asked about.
+        // Remember it.
+        last_ssa_reg = def_ssa_reg;
+      }
+    }
+  }
+
+  if (last_ssa_reg == -1) {
+    // If we get to this point we couldn't find a define of register user asked about.
+    // Let's assume the user knows what he's doing so we can be safe and say that if we
+    // couldn't find a def, it is live out.
+    return true;
+  }
+
+  // If it is not -1, we found a match, is it ssa_reg?
+  return (ssa_reg == last_ssa_reg);
+}
+
+bool BasicBlock::ReplaceChild(BasicBlockId old_bb, BasicBlockId new_bb) {
+  // We need to check taken, fall_through, and successor_blocks to replace.
+  bool found = false;
+  if (taken == old_bb) {
+    taken = new_bb;
+    found = true;
+  }
+
+  if (fall_through == old_bb) {
+    fall_through = new_bb;
+    found = true;
+  }
+
+  if (successor_block_list_type != kNotUsed) {
+    GrowableArray<SuccessorBlockInfo*>::Iterator iterator(successor_blocks);
+    while (true) {
+      SuccessorBlockInfo* successor_block_info = iterator.Next();
+      if (successor_block_info == nullptr) {
+        break;
+      }
+      if (successor_block_info->block == old_bb) {
+        successor_block_info->block = new_bb;
+        found = true;
+      }
+    }
+  }
+
+  return found;
+}
+
+void BasicBlock::UpdatePredecessor(BasicBlockId old_parent, BasicBlockId new_parent) {
+  GrowableArray<BasicBlockId>::Iterator iterator(predecessors);
+  bool found = false;
+
+  while (true) {
+    BasicBlockId pred_bb_id = iterator.Next();
+
+    if (pred_bb_id == NullBasicBlockId) {
+      break;
+    }
+
+    if (pred_bb_id == old_parent) {
+      size_t idx = iterator.GetIndex() - 1;
+      predecessors->Put(idx, new_parent);
+      found = true;
+      break;
+    }
+  }
+
+  // If not found, add it.
+  if (found == false) {
+    predecessors->Insert(new_parent);
+  }
+}
+
+// Create a new basic block with block_id as num_blocks_ that is
+// post-incremented.
+BasicBlock* MIRGraph::CreateNewBB(BBType block_type) {
+  BasicBlock* res = NewMemBB(block_type, num_blocks_++);
+  block_list_.Insert(res);
+  return res;
+}
+
+void MIRGraph::CalculateBasicBlockInformation() {
+  PassDriverMEPostOpt driver(cu_);
+  driver.Launch();
+}
+
+void MIRGraph::InitializeBasicBlockData() {
+  num_blocks_ = block_list_.Size();
 }
 
 }  // namespace art

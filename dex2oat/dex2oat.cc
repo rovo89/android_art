@@ -33,7 +33,7 @@
 #include "compiler.h"
 #include "compiler_callbacks.h"
 #include "dex_file-inl.h"
-#include "dex/pass_driver.h"
+#include "dex/pass_driver_me_opts.h"
 #include "dex/verification_results.h"
 #include "driver/compiler_callbacks_impl.h"
 #include "driver/compiler_driver.h"
@@ -295,8 +295,9 @@ class Dex2Oat {
                                 zip_filename, error_msg->c_str());
       return nullptr;
     }
-    std::unique_ptr<MemMap> image_classes_file(zip_entry->ExtractToMemMap(image_classes_filename,
-                                                                    error_msg));
+    std::unique_ptr<MemMap> image_classes_file(zip_entry->ExtractToMemMap(zip_filename,
+                                                                          image_classes_filename,
+                                                                          error_msg));
     if (image_classes_file.get() == nullptr) {
       *error_msg = StringPrintf("Failed to extract '%s' from '%s': %s", image_classes_filename,
                                 zip_filename, error_msg->c_str());
@@ -918,10 +919,18 @@ static int dex2oat(int argc, char** argv) {
     } else if (option == "--no-profile-file") {
       // No profile
     } else if (option == "--print-pass-names") {
-      PassDriver::PrintPassNames();
+      PassDriverMEOpts::PrintPassNames();
     } else if (option.starts_with("--disable-passes=")) {
       std::string disable_passes = option.substr(strlen("--disable-passes=")).data();
-      PassDriver::CreateDefaultPassList(disable_passes);
+      PassDriverMEOpts::CreateDefaultPassList(disable_passes);
+    } else if (option.starts_with("--print-passes=")) {
+      std::string print_passes = option.substr(strlen("--print-passes=")).data();
+      PassDriverMEOpts::SetPrintPassList(print_passes);
+    } else if (option == "--print-all-passes") {
+      PassDriverMEOpts::SetPrintAllPasses();
+    } else if (option.starts_with("--dump-cfg-passes=")) {
+      std::string dump_passes = option.substr(strlen("--dump-cfg-passes=")).data();
+      PassDriverMEOpts::SetDumpPassList(dump_passes);
     } else {
       Usage("Unknown argument %s", option.data());
     }

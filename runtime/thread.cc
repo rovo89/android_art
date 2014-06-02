@@ -1253,7 +1253,8 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
   // The "kinds" below are sorted by the frequency we expect to encounter them.
   if (kind == kLocal) {
     IndirectReferenceTable& locals = tlsPtr_.jni_env->locals;
-    result = locals.Get(ref);
+    // Local references do not need a read barrier.
+    result = locals.Get<kWithoutReadBarrier>(ref);
   } else if (kind == kHandleScopeOrInvalid) {
     // TODO: make stack indirect reference table lookup more efficient.
     // Check if this is a local reference in the handle scope.
@@ -1266,7 +1267,9 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
     }
   } else if (kind == kGlobal) {
     JavaVMExt* const vm = Runtime::Current()->GetJavaVM();
-    result = vm->globals.SynchronizedGet(const_cast<Thread*>(this), &vm->globals_lock, ref);
+    // Strong global references do not need a read barrier.
+    result = vm->globals.SynchronizedGet<kWithoutReadBarrier>(
+        const_cast<Thread*>(this), &vm->globals_lock, ref);
   } else {
     DCHECK_EQ(kind, kWeakGlobal);
     result = Runtime::Current()->GetJavaVM()->DecodeWeakGlobal(const_cast<Thread*>(this), ref);
@@ -1816,7 +1819,6 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
   QUICK_ENTRY_POINT_INFO(pCmplDouble)
   QUICK_ENTRY_POINT_INFO(pCmplFloat)
   QUICK_ENTRY_POINT_INFO(pFmod)
-  QUICK_ENTRY_POINT_INFO(pSqrt)
   QUICK_ENTRY_POINT_INFO(pL2d)
   QUICK_ENTRY_POINT_INFO(pFmodf)
   QUICK_ENTRY_POINT_INFO(pL2f)
@@ -1865,16 +1867,6 @@ void Thread::QuickDeliverException() {
   // resolution.
   ClearException();
   bool is_deoptimization = (exception == GetDeoptimizationException());
-  if (kDebugExceptionDelivery) {
-    if (!is_deoptimization) {
-      mirror::String* msg = exception->GetDetailMessage();
-      std::string str_msg(msg != nullptr ? msg->ToModifiedUtf8() : "");
-      DumpStack(LOG(INFO) << "Delivering exception: " << PrettyTypeOf(exception)
-                << ": " << str_msg << "\n");
-    } else {
-      DumpStack(LOG(INFO) << "Deoptimizing: ");
-    }
-  }
   QuickExceptionHandler exception_handler(this, is_deoptimization);
   if (is_deoptimization) {
     exception_handler.DeoptimizeStack();
@@ -2010,9 +2002,14 @@ class ReferenceMapVisitor : public StackVisitor {
 
  private:
   void VisitQuickFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod** method_addr = GetMethodAddress();
-    visitor_(reinterpret_cast<mirror::Object**>(method_addr), 0 /*ignored*/, this);
-    mirror::ArtMethod* m = *method_addr;
+    StackReference<mirror::ArtMethod>* cur_quick_frame = GetCurrentQuickFrame();
+    mirror::ArtMethod* m = cur_quick_frame->AsMirrorPtr();
+    mirror::ArtMethod* old_method = m;
+    visitor_(reinterpret_cast<mirror::Object**>(&m), 0 /*ignored*/, this);
+    if (m != old_method) {
+      cur_quick_frame->Assign(m);
+    }
+
     // Process register map (which native and runtime methods don't have)
     if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
       const uint8_t* native_gc_map = m->GetNativeGcMap();
@@ -2033,7 +2030,7 @@ class ReferenceMapVisitor : public StackVisitor {
         const VmapTable vmap_table(m->GetVmapTable(code_pointer));
         QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
         // For all dex registers in the bitmap
-        mirror::ArtMethod** cur_quick_frame = GetCurrentQuickFrame();
+        StackReference<mirror::ArtMethod>* cur_quick_frame = GetCurrentQuickFrame();
         DCHECK(cur_quick_frame != nullptr);
         for (size_t reg = 0; reg < num_regs; ++reg) {
           // Does this register hold a reference?

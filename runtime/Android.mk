@@ -35,11 +35,9 @@ LIBART_COMMON_SRC_FILES := \
 	base/unix_file/random_access_file_utils.cc \
 	base/unix_file/string_file.cc \
 	check_jni.cc \
-	catch_block_stack_visitor.cc \
 	class_linker.cc \
 	common_throws.cc \
 	debugger.cc \
-	deoptimize_stack_visitor.cc \
 	dex_file.cc \
 	dex_file_verifier.cc \
 	dex_instruction.cc \
@@ -308,6 +306,12 @@ ifeq ($(ART_USE_PORTABLE_COMPILER),true)
   LIBART_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
 
+ifeq ($(MALLOC_IMPL),jemalloc)
+  LIBART_CFLAGS += -DUSE_JEMALLOC
+else
+  LIBART_CFLAGS += -DUSE_DLMALLOC
+endif
+
 # $(1): target or host
 # $(2): ndebug or debug
 # $(3): true or false for LOCAL_CLANG
@@ -396,15 +400,13 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     endif
   endif
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
+  LOCAL_C_INCLUDES += art/sigchainlib
+
   LOCAL_SHARED_LIBRARIES += liblog libnativehelper
+  include external/libcxx/libcxx.mk
+  LOCAL_SHARED_LIBRARIES += libbacktrace_libc++
   ifeq ($$(art_target_or_host),target)
-    include external/libcxx/libcxx.mk
-    LOCAL_SHARED_LIBRARIES += libbacktrace_libc++
-  else
-    LOCAL_SHARED_LIBRARIES += libbacktrace
-  endif
-  ifeq ($$(art_target_or_host),target)
-    LOCAL_SHARED_LIBRARIES += libcutils libdl libselinux libutils
+    LOCAL_SHARED_LIBRARIES += libcutils libdl libselinux libutils libsigchain
     LOCAL_STATIC_LIBRARIES := libziparchive libz
   else # host
     LOCAL_STATIC_LIBRARIES += libcutils libziparchive-host libz libutils
@@ -457,3 +459,4 @@ endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
   $(eval $(call build-libart,target,debug,$(ART_TARGET_CLANG)))
 endif
+
