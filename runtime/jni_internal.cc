@@ -669,7 +669,8 @@ class JNI {
   }
 
   static void ExceptionClear(JNIEnv* env) {
-    static_cast<JNIEnvExt*>(env)->self->ClearException();
+    ScopedObjectAccess soa(env);
+    soa.Self()->ClearException();
   }
 
   static void ExceptionDescribe(JNIEnv* env) {
