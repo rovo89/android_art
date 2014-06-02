@@ -326,7 +326,7 @@ class Thread {
     tlsPtr_.throw_location = throw_location;
   }
 
-  void ClearException() {
+  void ClearException() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     tlsPtr_.exception = nullptr;
     tlsPtr_.throw_location.Clear();
   }

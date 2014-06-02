@@ -173,7 +173,10 @@ TEST_F(CompilerDriverTest, AbstractMethodErrorStub) {
   env_->ExceptionClear();
   jclass jlame = env_->FindClass("java/lang/AbstractMethodError");
   EXPECT_TRUE(env_->IsInstanceOf(exception, jlame));
-  Thread::Current()->ClearException();
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    Thread::Current()->ClearException();
+  }
 }
 
 // TODO: need check-cast test (when stub complete & we can throw/catch
