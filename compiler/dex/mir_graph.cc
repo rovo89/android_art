@@ -1072,19 +1072,21 @@ bool BasicBlock::RemoveMIRList(MIR* first_list_mir, MIR* last_list_mir) {
     }
   }
 
-  // Remove the BB information and also find the after_list
+  // Remove the BB information and also find the after_list.
   for (MIR* mir = first_list_mir; mir != last_list_mir; mir = mir->next) {
     mir->bb = NullBasicBlockId;
   }
 
   after_list = last_list_mir->next;
 
-  // If there is nothing before the list, after_list is the first_mir
+  // If there is nothing before the list, after_list is the first_mir.
   if (before_list == nullptr) {
     first_mir_insn = after_list;
+  } else {
+    before_list->next = after_list;
   }
 
-  // If there is nothing after the list, before_list is last_mir
+  // If there is nothing after the list, before_list is last_mir.
   if (after_list == nullptr) {
     last_mir_insn = before_list;
   }
