@@ -1185,7 +1185,7 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
       work_half->meta.throw_insn = mir;
     }
 
-    if (MIRGraph::IsPseudoMirOp(opcode)) {
+    if (MIR::DecodedInstruction::IsPseudoMirOp(opcode)) {
       HandleExtendedMethodMIR(bb, mir);
       continue;
     }
