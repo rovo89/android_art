@@ -74,7 +74,13 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
   // Initialize new shadow frame.
   const size_t first_dest_reg = num_regs - num_ins;
   if (do_assignability_check) {
-    // Slow path: we need to do runtime check on reference assignment. We need to load the shorty
+    // Slow path.
+    // We might need to do class loading, which incurs a thread state change to kNative. So
+    // register the shadow frame as under construction and allow suspension again.
+    self->SetShadowFrameUnderConstruction(new_shadow_frame);
+    self->EndAssertNoThreadSuspension(old_cause);
+
+    // We need to do runtime check on reference assignment. We need to load the shorty
     // to get the exact type of each reference argument.
     const DexFile::TypeList* params = mh.GetParameterTypeList();
     const char* shorty = mh.GetShorty();
@@ -107,11 +113,9 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
             Class* arg_type = mh.GetClassFromTypeIdx(params->GetTypeItem(shorty_pos).type_idx_);
             if (arg_type == NULL) {
               CHECK(self->IsExceptionPending());
-              self->EndAssertNoThreadSuspension(old_cause);
               return false;
             }
             if (!o->VerifierInstanceOf(arg_type)) {
-              self->EndAssertNoThreadSuspension(old_cause);
               // This should never happen.
               self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
                                        "Ljava/lang/VirtualMachineError;",
@@ -138,6 +142,8 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
           break;
       }
     }
+    // We're done with the construction.
+    self->ClearShadowFrameUnderConstruction();
   } else {
     // Fast path: no extra checks.
     if (is_range) {
@@ -158,8 +164,8 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
         AssignRegister(new_shadow_frame, shadow_frame, first_dest_reg + arg_index, regList & 0x0f);
       }
     }
+    self->EndAssertNoThreadSuspension(old_cause);
   }
-  self->EndAssertNoThreadSuspension(old_cause);
 
   // Do the call now.
   if (LIKELY(Runtime::Current()->IsStarted())) {
