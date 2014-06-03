@@ -18,6 +18,7 @@
 
 #include "common_compiler_test.h"
 #include "mirror/art_method-inl.h"
+#include "mirror/string-inl.h"
 #include "ScopedLocalRef.h"
 
 namespace art {
@@ -1071,6 +1072,8 @@ TEST_F(JniInternalTest, GetStringUTFChars_ReleaseStringUTFChars) {
 
 TEST_F(JniInternalTest, GetStringChars_ReleaseStringChars) {
   jstring s = env_->NewStringUTF("hello");
+  ScopedObjectAccess soa(env_);
+  mirror::String* s_m = soa.Decode<mirror::String*>(s);
   ASSERT_TRUE(s != nullptr);
 
   jchar expected[] = { 'h', 'e', 'l', 'l', 'o' };
@@ -1084,7 +1087,11 @@ TEST_F(JniInternalTest, GetStringChars_ReleaseStringChars) {
 
   jboolean is_copy = JNI_FALSE;
   chars = env_->GetStringChars(s, &is_copy);
-  EXPECT_EQ(JNI_TRUE, is_copy);
+  if (Runtime::Current()->GetHeap()->IsMovableObject(s_m->GetCharArray())) {
+    EXPECT_EQ(JNI_TRUE, is_copy);
+  } else {
+    EXPECT_EQ(JNI_FALSE, is_copy);
+  }
   EXPECT_EQ(expected[0], chars[0]);
   EXPECT_EQ(expected[1], chars[1]);
   EXPECT_EQ(expected[2], chars[2]);
@@ -1106,10 +1113,9 @@ TEST_F(JniInternalTest, GetStringCritical_ReleaseStringCritical) {
   EXPECT_EQ(expected[4], chars[4]);
   env_->ReleaseStringCritical(s, chars);
 
-  jboolean is_copy = JNI_FALSE;
+  jboolean is_copy = JNI_TRUE;
   chars = env_->GetStringCritical(s, &is_copy);
-  // TODO: Fix GetStringCritical to use the same mechanism as GetPrimitiveArrayElementsCritical.
-  EXPECT_EQ(JNI_TRUE, is_copy);
+  EXPECT_EQ(JNI_FALSE, is_copy);
   EXPECT_EQ(expected[0], chars[0]);
   EXPECT_EQ(expected[1], chars[1]);
   EXPECT_EQ(expected[2], chars[2]);

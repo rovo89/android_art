@@ -1933,32 +1933,66 @@ class JNI {
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
     mirror::CharArray* chars = s->GetCharArray();
     PinPrimitiveArray(soa, chars);
-    if (is_copy != nullptr) {
-      *is_copy = JNI_TRUE;
+    gc::Heap* heap = Runtime::Current()->GetHeap();
+    if (heap->IsMovableObject(chars)) {
+      if (is_copy != nullptr) {
+        *is_copy = JNI_TRUE;
+      }
+      int32_t char_count = s->GetLength();
+      int32_t offset = s->GetOffset();
+      jchar* bytes = new jchar[char_count];
+      for (int32_t i = 0; i < char_count; i++) {
+        bytes[i] = chars->Get(i + offset);
+      }
+      return bytes;
+    } else {
+      if (is_copy != nullptr) {
+        *is_copy = JNI_FALSE;
+      }
+      return static_cast<jchar*>(chars->GetData() + s->GetOffset());
     }
-    int32_t char_count = s->GetLength();
-    int32_t offset = s->GetOffset();
-    jchar* bytes = new jchar[char_count + 1];
-    for (int32_t i = 0; i < char_count; i++) {
-      bytes[i] = chars->Get(i + offset);
-    }
-    bytes[char_count] = '\0';
-    return bytes;
   }
 
   static void ReleaseStringChars(JNIEnv* env, jstring java_string, const jchar* chars) {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_string);
-    delete[] chars;
     ScopedObjectAccess soa(env);
-    UnpinPrimitiveArray(soa, soa.Decode<mirror::String*>(java_string)->GetCharArray());
+    mirror::String* s = soa.Decode<mirror::String*>(java_string);
+    mirror::CharArray* s_chars = s->GetCharArray();
+    if (chars != (s_chars->GetData() + s->GetOffset())) {
+      delete[] chars;
+    }
+    UnpinPrimitiveArray(soa, s->GetCharArray());
   }
 
   static const jchar* GetStringCritical(JNIEnv* env, jstring java_string, jboolean* is_copy) {
-    return GetStringChars(env, java_string, is_copy);
+    CHECK_NON_NULL_ARGUMENT(java_string);
+    ScopedObjectAccess soa(env);
+    mirror::String* s = soa.Decode<mirror::String*>(java_string);
+    mirror::CharArray* chars = s->GetCharArray();
+    int32_t offset = s->GetOffset();
+    PinPrimitiveArray(soa, chars);
+    gc::Heap* heap = Runtime::Current()->GetHeap();
+    if (heap->IsMovableObject(chars)) {
+      StackHandleScope<1> hs(soa.Self());
+      HandleWrapper<mirror::CharArray> h(hs.NewHandleWrapper(&chars));
+      heap->IncrementDisableMovingGC(soa.Self());
+    }
+    if (is_copy != nullptr) {
+      *is_copy = JNI_FALSE;
+    }
+    return static_cast<jchar*>(chars->GetData() + offset);
   }
 
   static void ReleaseStringCritical(JNIEnv* env, jstring java_string, const jchar* chars) {
-    return ReleaseStringChars(env, java_string, chars);
+    CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_string);
+    ScopedObjectAccess soa(env);
+    UnpinPrimitiveArray(soa, soa.Decode<mirror::String*>(java_string)->GetCharArray());
+    gc::Heap* heap = Runtime::Current()->GetHeap();
+    mirror::String* s = soa.Decode<mirror::String*>(java_string);
+    mirror::CharArray* s_chars = s->GetCharArray();
+    if (heap->IsMovableObject(s_chars)) {
+      heap->DecrementDisableMovingGC(soa.Self());
+    }
   }
 
   static const char* GetStringUTFChars(JNIEnv* env, jstring java_string, jboolean* is_copy) {
