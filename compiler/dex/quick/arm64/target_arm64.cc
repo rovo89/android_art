@@ -839,7 +839,7 @@ void Arm64Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
   int num_fpr_used = 0;
 
   /*
-   * Dummy up a RegLocation for the incoming Method*
+   * Dummy up a RegLocation for the incoming StackReference<mirror::ArtMethod>
    * It will attempt to keep kArg0 live (or copy it to home location
    * if promoted).
    */
@@ -848,14 +848,10 @@ void Arm64Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
   rl_src.reg = TargetReg(kArg0);
   rl_src.home = false;
   MarkLive(rl_src);
-
-  // rl_method might be 32-bit, but ArtMethod* on stack is 64-bit, so always flush it.
-  StoreWordDisp(TargetReg(kSp), 0, TargetReg(kArg0));
-
-  // If Method* has been promoted, load it,
-  // otherwise, rl_method is the 32-bit value on [sp], and has already been loaded.
+  StoreValue(rl_method, rl_src);
+  // If Method* has been promoted, explicitly flush
   if (rl_method.location == kLocPhysReg) {
-    StoreValue(rl_method, rl_src);
+    StoreRefDisp(TargetReg(kSp), 0, TargetReg(kArg0));
   }
 
   if (cu_->num_ins == 0) {
@@ -912,9 +908,7 @@ int Arm64Mir2Lir::LoadArgRegs(CallInfo* info, int call_state,
     RegLocation rl_arg = info->args[next_arg++];
     rl_arg = UpdateRawLoc(rl_arg);
     if (rl_arg.wide && (next_reg <= TargetReg(kArg2).GetReg())) {
-      RegStorage r_tmp(RegStorage::k64BitPair, next_reg, next_reg + 1);
-      LoadValueDirectWideFixed(rl_arg, r_tmp);
-      next_reg++;
+      LoadValueDirectWideFixed(rl_arg, RegStorage::Solo64(next_reg));
       next_arg++;
     } else {
       if (rl_arg.wide) {
