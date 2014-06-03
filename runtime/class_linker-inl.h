@@ -20,7 +20,7 @@
 #include "class_linker.h"
 #include "mirror/art_field.h"
 #include "mirror/class_loader.h"
-#include "mirror/dex_cache.h"
+#include "mirror/dex_cache-inl.h"
 #include "mirror/iftable.h"
 #include "mirror/object_array.h"
 #include "object_utils.h"
