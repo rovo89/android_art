@@ -247,7 +247,6 @@ class BitVector {
     const bool expandable_;         // expand bitmap if we run out?
     uint32_t   storage_size_;       // current size, in 32-bit words.
     uint32_t*  storage_;
-    uint32_t number_of_bits_;
 };
 
 

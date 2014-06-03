@@ -43,8 +43,7 @@ BitVector::BitVector(uint32_t start_bits,
   : allocator_(allocator),
     expandable_(expandable),
     storage_size_(storage_size),
-    storage_(storage),
-    number_of_bits_(start_bits) {
+    storage_(storage) {
   COMPILE_ASSERT(sizeof(*storage_) == kWordBytes, check_word_bytes);
   COMPILE_ASSERT(sizeof(*storage_) * 8u == kWordBits, check_word_bits);
   if (storage_ == nullptr) {
@@ -95,7 +94,6 @@ void BitVector::SetBit(uint32_t num) {
     // TOTO: collect stats on space wasted because of resize.
     storage_ = new_storage;
     storage_size_ = new_size;
-    number_of_bits_ = num;
   }
 
   storage_[num >> 5] |= check_masks[num & 0x1f];
@@ -434,7 +432,7 @@ void BitVector::DumpIndicesHelper(const char* prefix, std::ostringstream& buffer
     buffer << prefix;
   }
 
-  for (size_t i = 0; i < number_of_bits_; i++) {
+  for (size_t i = 0; i < storage_size_ * kWordBits; i++) {
     if (IsBitSet(i)) {
       buffer << i << " ";
     }
@@ -448,7 +446,7 @@ void BitVector::DumpHelper(const char* prefix, std::ostringstream& buffer) const
   }
 
   buffer << '(';
-  for (size_t i = 0; i < number_of_bits_; i++) {
+  for (size_t i = 0; i < storage_size_ * kWordBits; i++) {
     buffer << IsBitSet(i);
   }
   buffer << ')';
