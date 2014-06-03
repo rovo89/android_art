@@ -650,34 +650,55 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
       copy->SetEntryPointFromInterpreter<kVerifyNone>(reinterpret_cast<EntryPointFromInterpreter*>
           (const_cast<byte*>(GetOatAddress(interpreter_to_interpreter_bridge_offset_))));
     } else {
-      copy->SetEntryPointFromInterpreter<kVerifyNone>(reinterpret_cast<EntryPointFromInterpreter*>
-          (const_cast<byte*>(GetOatAddress(interpreter_to_compiled_code_bridge_offset_))));
       // Use original code if it exists. Otherwise, set the code pointer to the resolution
       // trampoline.
+
+      // Quick entrypoint:
       const byte* quick_code = GetOatAddress(orig->GetQuickOatCodeOffset());
+      bool quick_is_interpreted = false;
       if (quick_code != nullptr &&
           (!orig->IsStatic() || orig->IsConstructor() || orig->GetDeclaringClass()->IsInitialized())) {
         // We have code for a non-static or initialized method, just use the code.
-        copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(quick_code);
       } else if (quick_code == nullptr && orig->IsNative() &&
           (!orig->IsStatic() || orig->GetDeclaringClass()->IsInitialized())) {
         // Non-static or initialized native method missing compiled code, use generic JNI version.
-        copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_generic_jni_trampoline_offset_));
+        quick_code = GetOatAddress(quick_generic_jni_trampoline_offset_);
       } else if (quick_code == nullptr && !orig->IsNative()) {
         // We don't have code at all for a non-native method, use the interpreter.
-        copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_to_interpreter_bridge_offset_));
+        quick_code = GetOatAddress(quick_to_interpreter_bridge_offset_);
+        quick_is_interpreted = true;
       } else {
         CHECK(!orig->GetDeclaringClass()->IsInitialized());
         // We have code for a static method, but need to go through the resolution stub for class
         // initialization.
-        copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_resolution_trampoline_offset_));
+        quick_code = GetOatAddress(quick_resolution_trampoline_offset_);
       }
+      copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(quick_code);
+
+      // Portable entrypoint:
       const byte* portable_code = GetOatAddress(orig->GetPortableOatCodeOffset());
-      if (portable_code != nullptr) {
-        copy->SetEntryPointFromPortableCompiledCode<kVerifyNone>(portable_code);
+      bool portable_is_interpreted = false;
+      if (portable_code != nullptr &&
+          (!orig->IsStatic() || orig->IsConstructor() || orig->GetDeclaringClass()->IsInitialized())) {
+        // We have code for a non-static or initialized method, just use the code.
+      } else if (portable_code == nullptr && orig->IsNative() &&
+          (!orig->IsStatic() || orig->GetDeclaringClass()->IsInitialized())) {
+        // Non-static or initialized native method missing compiled code, use generic JNI version.
+        // TODO: generic JNI support for LLVM.
+        portable_code = GetOatAddress(portable_resolution_trampoline_offset_);
+      } else if (portable_code == nullptr && !orig->IsNative()) {
+        // We don't have code at all for a non-native method, use the interpreter.
+        portable_code = GetOatAddress(portable_to_interpreter_bridge_offset_);
+        portable_is_interpreted = true;
       } else {
-        copy->SetEntryPointFromPortableCompiledCode<kVerifyNone>(GetOatAddress(portable_resolution_trampoline_offset_));
+        CHECK(!orig->GetDeclaringClass()->IsInitialized());
+        // We have code for a static method, but need to go through the resolution stub for class
+        // initialization.
+        portable_code = GetOatAddress(portable_resolution_trampoline_offset_);
       }
+      copy->SetEntryPointFromPortableCompiledCode<kVerifyNone>(portable_code);
+
+      // JNI entrypoint:
       if (orig->IsNative()) {
         // The native method's pointer is set to a stub to lookup via dlsym.
         // Note this is not the code_ pointer, that is handled above.
@@ -688,6 +709,15 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
         const byte* native_gc_map = GetOatAddress(native_gc_map_offset);
         copy->SetNativeGcMap<kVerifyNone>(reinterpret_cast<const uint8_t*>(native_gc_map));
       }
+
+      // Interpreter entrypoint:
+      // Set the interpreter entrypoint depending on whether there is compiled code or not.
+      uint32_t interpreter_code = (quick_is_interpreted && portable_is_interpreted)
+          ? interpreter_to_interpreter_bridge_offset_
+          : interpreter_to_compiled_code_bridge_offset_;
+      copy->SetEntryPointFromInterpreter<kVerifyNone>(
+          reinterpret_cast<EntryPointFromInterpreter*>(
+              const_cast<byte*>(GetOatAddress(interpreter_code))));
     }
   }
 }
