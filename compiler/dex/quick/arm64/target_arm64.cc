@@ -96,6 +96,10 @@ RegLocation Arm64Mir2Lir::LocCReturn() {
   return arm_loc_c_return;
 }
 
+RegLocation Arm64Mir2Lir::LocCReturnRef() {
+  return arm_loc_c_return;
+}
+
 RegLocation Arm64Mir2Lir::LocCReturnWide() {
   return arm_loc_c_return_wide;
 }
@@ -572,7 +576,7 @@ RegisterClass Arm64Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volat
   if (UNLIKELY(is_volatile)) {
     // On arm64, fp register load/store is atomic only for single bytes.
     if (size != kSignedByte && size != kUnsignedByte) {
-      return kCoreReg;
+      return (size == kReference) ? kRefReg : kCoreReg;
     }
   }
   return RegClassBySize(size);

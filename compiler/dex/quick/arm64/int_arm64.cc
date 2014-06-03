@@ -88,14 +88,16 @@ void Arm64Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   RegLocation rl_result;
   RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
   RegLocation rl_dest = mir_graph_->GetDest(mir);
-  rl_src = LoadValue(rl_src, kCoreReg);
+  RegisterClass src_reg_class = rl_src.ref ? kRefReg : kCoreReg;
+  RegisterClass result_reg_class = rl_dest.ref ? kRefReg : kCoreReg;
+  rl_src = LoadValue(rl_src, src_reg_class);
   ArmConditionCode code = ArmConditionEncoding(mir->meta.ccode);
 
   RegLocation rl_true = mir_graph_->reg_location_[mir->ssa_rep->uses[1]];
   RegLocation rl_false = mir_graph_->reg_location_[mir->ssa_rep->uses[2]];
-  rl_true = LoadValue(rl_true, kCoreReg);
-  rl_false = LoadValue(rl_false, kCoreReg);
-  rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  rl_true = LoadValue(rl_true, result_reg_class);
+  rl_false = LoadValue(rl_false, result_reg_class);
+  rl_result = EvalLoc(rl_dest, result_reg_class, true);
   OpRegImm(kOpCmp, rl_src.reg, 0);
   NewLIR4(kA64Csel4rrrc, rl_result.reg.GetReg(), rl_true.reg.GetReg(),
           rl_false.reg.GetReg(), code);
@@ -501,10 +503,10 @@ bool Arm64Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   // Release store semantics, get the barrier out of the way.  TODO: revisit
   GenMemBarrier(kStoreLoad);
 
-  RegLocation rl_object = LoadValue(rl_src_obj, kCoreReg);
+  RegLocation rl_object = LoadValue(rl_src_obj, kRefReg);
   RegLocation rl_new_value;
   if (!is_long) {
-    rl_new_value = LoadValue(rl_src_new_value, kCoreReg);
+    rl_new_value = LoadValue(rl_src_new_value);
   } else if (load_early) {
     rl_new_value = LoadValueWide(rl_src_new_value, kCoreReg);
   }
@@ -527,7 +529,7 @@ bool Arm64Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
 
   RegLocation rl_expected;
   if (!is_long) {
-    rl_expected = LoadValue(rl_src_expected, kCoreReg);
+    rl_expected = LoadValue(rl_src_expected);
   } else if (load_early) {
     rl_expected = LoadValueWide(rl_src_expected, kCoreReg);
   } else {
@@ -769,7 +771,7 @@ void Arm64Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
   int data_offset;
   RegLocation rl_result;
   bool constant_index = rl_index.is_const;
-  rl_array = LoadValue(rl_array, kCoreReg);
+  rl_array = LoadValue(rl_array, kRefReg);
   if (!constant_index) {
     rl_index = LoadValue(rl_index, kCoreReg);
   }
@@ -804,7 +806,7 @@ void Arm64Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       reg_ptr = rl_array.reg;  // NOTE: must not alter reg_ptr in constant case.
     } else {
       // No special indexed operation, lea + load w/ displacement
-      reg_ptr = AllocTemp();
+      reg_ptr = AllocTempRef();
       OpRegRegRegShift(kOpAdd, reg_ptr, rl_array.reg, rl_index.reg, EncodeShift(kA64Lsl, scale));
       FreeTemp(rl_index.reg);
     }
@@ -830,7 +832,7 @@ void Arm64Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
     }
   } else {
     // Offset base, then use indexed load
-    RegStorage reg_ptr = AllocTemp();
+    RegStorage reg_ptr = AllocTempRef();
     OpRegRegImm(kOpAdd, reg_ptr, rl_array.reg, data_offset);
     FreeTemp(rl_array.reg);
     rl_result = EvalLoc(rl_dest, reg_class, true);
@@ -871,7 +873,7 @@ void Arm64Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     data_offset += mir_graph_->ConstantValue(rl_index) << scale;
   }
 
-  rl_array = LoadValue(rl_array, kCoreReg);
+  rl_array = LoadValue(rl_array, kRefReg);
   if (!constant_index) {
     rl_index = LoadValue(rl_index, kCoreReg);
   }
@@ -885,7 +887,7 @@ void Arm64Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     reg_ptr = rl_array.reg;
   } else {
     allocated_reg_ptr_temp = true;
-    reg_ptr = AllocTemp();
+    reg_ptr = AllocTempRef();
   }
 
   /* null object? */

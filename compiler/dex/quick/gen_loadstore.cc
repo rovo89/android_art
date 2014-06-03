@@ -139,6 +139,7 @@ void Mir2Lir::LoadValueDirectWideFixed(RegLocation rl_src, RegStorage r_dest) {
 }
 
 RegLocation Mir2Lir::LoadValue(RegLocation rl_src, RegisterClass op_kind) {
+  DCHECK(!rl_src.ref || op_kind == kRefReg);
   rl_src = UpdateLoc(rl_src);
   if (rl_src.location == kLocPhysReg) {
     if (!RegClassMatches(op_kind, rl_src.reg)) {
@@ -160,6 +161,10 @@ RegLocation Mir2Lir::LoadValue(RegLocation rl_src, RegisterClass op_kind) {
   rl_src.location = kLocPhysReg;
   MarkLive(rl_src);
   return rl_src;
+}
+
+RegLocation Mir2Lir::LoadValue(RegLocation rl_src) {
+  return LoadValue(rl_src, LocToRegClass(rl_src));
 }
 
 void Mir2Lir::StoreValue(RegLocation rl_dest, RegLocation rl_src) {
@@ -366,7 +371,7 @@ void Mir2Lir::LoadCurrMethodDirect(RegStorage r_tgt) {
 }
 
 RegLocation Mir2Lir::LoadCurrMethod() {
-  return LoadValue(mir_graph_->GetMethodLoc(), kCoreReg);
+  return LoadValue(mir_graph_->GetMethodLoc(), kRefReg);
 }
 
 RegLocation Mir2Lir::ForceTemp(RegLocation loc) {

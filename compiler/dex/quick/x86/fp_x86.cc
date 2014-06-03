@@ -56,7 +56,7 @@ void X86Mir2Lir::GenArithOpFloat(Instruction::Code opcode,
         CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmodf), rl_src1, rl_src2,
                                                 false);
       }
-      rl_result = GetReturn(true);
+      rl_result = GetReturn(kFPReg);
       StoreValue(rl_dest, rl_result);
       return;
     case Instruction::NEG_FLOAT:
@@ -118,7 +118,7 @@ void X86Mir2Lir::GenArithOpDouble(Instruction::Code opcode,
         CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmod), rl_src1, rl_src2,
                                                 false);
       }
-      rl_result = GetReturnWide(true);
+      rl_result = GetReturnWide(kFPReg);
       StoreValueWide(rl_dest, rl_result);
       return;
     case Instruction::NEG_DOUBLE:

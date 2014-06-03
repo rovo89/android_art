@@ -169,7 +169,7 @@ void X86Mir2Lir::GenMoveException(RegLocation rl_dest) {
   int ex_offset = Is64BitInstructionSet(cu_->instruction_set) ?
       Thread::ExceptionOffset<8>().Int32Value() :
       Thread::ExceptionOffset<4>().Int32Value();
-  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
   NewLIR2(kX86Mov32RT, rl_result.reg.GetReg(), ex_offset);
   NewLIR2(kX86Mov32TI, ex_offset, 0);
   StoreValue(rl_dest, rl_result);

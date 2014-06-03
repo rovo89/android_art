@@ -66,6 +66,10 @@ RegLocation ArmMir2Lir::LocCReturn() {
   return arm_loc_c_return;
 }
 
+RegLocation ArmMir2Lir::LocCReturnRef() {
+  return arm_loc_c_return;
+}
+
 RegLocation ArmMir2Lir::LocCReturnWide() {
   return arm_loc_c_return_wide;
 }
