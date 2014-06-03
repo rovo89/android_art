@@ -173,7 +173,10 @@ void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   RegLocation rl_result;
   RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
   RegLocation rl_dest = mir_graph_->GetDest(mir);
-  rl_src = LoadValue(rl_src, kCoreReg);
+  // Avoid using float regs here.
+  RegisterClass src_reg_class = rl_src.ref ? kRefReg : kCoreReg;
+  RegisterClass result_reg_class = rl_dest.ref ? kRefReg : kCoreReg;
+  rl_src = LoadValue(rl_src, src_reg_class);
   ConditionCode ccode = mir->meta.ccode;
 
   // The kMirOpSelect has two variants, one for constants and one for moves.
@@ -182,7 +185,7 @@ void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   if (is_constant_case) {
     int true_val = mir->dalvikInsn.vB;
     int false_val = mir->dalvikInsn.vC;
-    rl_result = EvalLoc(rl_dest, kCoreReg, true);
+    rl_result = EvalLoc(rl_dest, result_reg_class, true);
 
     /*
      * For ccode == kCondEq:
@@ -203,6 +206,8 @@ void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
      *     mov t1, $true_case
      *     cmovz result_reg, t1
      */
+    // FIXME: depending on how you use registers you could get a false != mismatch when dealing
+    // with different views of the same underlying physical resource (i.e. solo32 vs. solo64).
     const bool result_reg_same_as_src =
         (rl_src.location == kLocPhysReg && rl_src.reg.GetReg() == rl_result.reg.GetReg());
     const bool true_zero_case = (true_val == 0 && false_val != 0 && !result_reg_same_as_src);
@@ -224,7 +229,7 @@ void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
     if (true_zero_case || false_zero_case || catch_all_case) {
       ConditionCode cc = true_zero_case ? NegateComparison(ccode) : ccode;
       int immediateForTemp = true_zero_case ? false_val : true_val;
-      RegStorage temp1_reg = AllocTemp();
+      RegStorage temp1_reg = AllocTypedTemp(false, result_reg_class);
       OpRegImm(kOpMov, temp1_reg, immediateForTemp);
 
       OpCondRegReg(kOpCmov, cc, rl_result.reg, temp1_reg);
@@ -234,9 +239,9 @@ void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   } else {
     RegLocation rl_true = mir_graph_->GetSrc(mir, 1);
     RegLocation rl_false = mir_graph_->GetSrc(mir, 2);
-    rl_true = LoadValue(rl_true, kCoreReg);
-    rl_false = LoadValue(rl_false, kCoreReg);
-    rl_result = EvalLoc(rl_dest, kCoreReg, true);
+    rl_true = LoadValue(rl_true, result_reg_class);
+    rl_false = LoadValue(rl_false, result_reg_class);
+    rl_result = EvalLoc(rl_dest, result_reg_class, true);
 
     /*
      * For ccode == kCondEq:
@@ -792,8 +797,8 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
     Clobber(rs_r0);
     LockTemp(rs_r0);
 
-    RegLocation rl_object = LoadValue(rl_src_obj, kCoreReg);
-    RegLocation rl_new_value = LoadValue(rl_src_new_value, kCoreReg);
+    RegLocation rl_object = LoadValue(rl_src_obj, kRefReg);
+    RegLocation rl_new_value = LoadValue(rl_src_new_value);
 
     if (is_object && !mir_graph_->IsConstantNullRef(rl_new_value)) {
       // Mark card for object assuming new value is stored.
@@ -1441,7 +1446,7 @@ void X86Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
   RegisterClass reg_class = RegClassBySize(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   RegLocation rl_result;
-  rl_array = LoadValue(rl_array, kCoreReg);
+  rl_array = LoadValue(rl_array, kRefReg);
 
   int data_offset;
   if (size == k64 || size == kDouble) {
@@ -1497,7 +1502,7 @@ void X86Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Int32Value();
   }
 
-  rl_array = LoadValue(rl_array, kCoreReg);
+  rl_array = LoadValue(rl_array, kRefReg);
   bool constant_index = rl_index.is_const;
   int32_t constant_index_value = 0;
   if (!constant_index) {
@@ -1880,7 +1885,7 @@ void X86Mir2Lir::GenLongLongImm(RegLocation rl_dest, RegLocation rl_src1,
 // question with simple comparisons. Use compares to memory and SETEQ to optimize for x86.
 void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
                                     RegLocation rl_dest, RegLocation rl_src) {
-  RegLocation object = LoadValue(rl_src, kCoreReg);
+  RegLocation object = LoadValue(rl_src, kRefReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   RegStorage result_reg = rl_result.reg;
 
@@ -1894,7 +1899,7 @@ void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
   LoadConstant(result_reg, 0);
   LIR* null_branchover = OpCmpImmBranch(kCondEq, object.reg, 0, NULL);
 
-  RegStorage check_class = AllocTypedTemp(false, kCoreReg);
+  RegStorage check_class = AllocTypedTemp(false, kRefReg);
 
   // If Method* is already in a register, we can save a copy.
   RegLocation rl_method = mir_graph_->GetMethodLoc();
@@ -1972,8 +1977,8 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
     LoadRefDisp(TargetReg(kArg1), mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
                  class_reg);
     int32_t offset_of_type =
-        mirror::Array::DataOffset(sizeof(mirror::HeapReference<mirror::Class*>)).Int32Value() + (sizeof(mirror::HeapReference<mirror::Class*>)
-        * type_idx);
+        mirror::Array::DataOffset(sizeof(mirror::HeapReference<mirror::Class*>)).Int32Value() +
+        (sizeof(mirror::HeapReference<mirror::Class*>) * type_idx);
     LoadRefDisp(class_reg, offset_of_type, class_reg);
     if (!can_assume_type_is_in_dex_cache) {
       // Need to test presence of type in dex cache at runtime.
@@ -1992,7 +1997,7 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
     }
   }
   /* kArg0 is ref, kArg2 is class. If ref==null, use directly as bool result. */
-  RegLocation rl_result = GetReturn(false);
+  RegLocation rl_result = GetReturn(kRefReg);
 
   // SETcc only works with EAX..EDX.
   DCHECK_LT(rl_result.reg.GetRegNum(), 4);

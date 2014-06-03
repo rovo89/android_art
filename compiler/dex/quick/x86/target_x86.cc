@@ -177,6 +177,11 @@ RegLocation X86Mir2Lir::LocCReturn() {
   return x86_loc_c_return;
 }
 
+RegLocation X86Mir2Lir::LocCReturnRef() {
+  // FIXME: return x86_loc_c_return_wide for x86_64 when wide refs supported.
+  return x86_loc_c_return;
+}
+
 RegLocation X86Mir2Lir::LocCReturnWide() {
   return x86_loc_c_return_wide;
 }
@@ -981,7 +986,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   }
 
   // Okay, we are commited to inlining this.
-  RegLocation rl_return = GetReturn(false);
+  RegLocation rl_return = GetReturn(kCoreReg);
   RegLocation rl_dest = InlineTarget(info);
 
   // Is the string non-NULL?

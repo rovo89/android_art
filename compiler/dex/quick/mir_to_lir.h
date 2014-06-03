@@ -456,6 +456,8 @@ class Mir2Lir : public Backend {
       int next_sp_reg_;
       GrowableArray<RegisterInfo*> dp_regs_;    // Double precision float.
       int next_dp_reg_;
+      GrowableArray<RegisterInfo*>* ref_regs_;  // Points to core_regs_ or core64_regs_
+      int* next_ref_reg_;
 
      private:
       Mir2Lir* const m2l_;
@@ -550,8 +552,12 @@ class Mir2Lir : public Backend {
      * just use our knowledge of type to select the most appropriate register class?
      */
     RegisterClass RegClassBySize(OpSize size) {
-      return (size == kUnsignedHalf || size == kSignedHalf || size == kUnsignedByte ||
-              size == kSignedByte) ? kCoreReg : kAnyReg;
+      if (size == kReference) {
+        return kRefReg;
+      } else {
+        return (size == kUnsignedHalf || size == kSignedHalf || size == kUnsignedByte ||
+                size == kSignedByte) ? kCoreReg : kAnyReg;
+      }
     }
 
     size_t CodeBufferSizeInBytes() {
@@ -612,6 +618,8 @@ class Mir2Lir : public Backend {
       return current_dalvik_offset_;
     }
 
+    RegisterClass ShortyToRegClass(char shorty_type);
+    RegisterClass LocToRegClass(RegLocation loc);
     int ComputeFrameSize();
     virtual void Materialize();
     virtual CompiledMethod* GetCompiledMethod();
@@ -699,7 +707,7 @@ class Mir2Lir : public Backend {
     virtual RegStorage AllocFreeTemp();
     virtual RegStorage AllocTemp();
     virtual RegStorage AllocTempWide();
-    virtual RegStorage AllocTempWord();
+    virtual RegStorage AllocTempRef();
     virtual RegStorage AllocTempSingle();
     virtual RegStorage AllocTempDouble();
     virtual RegStorage AllocTypedTemp(bool fp_hint, int reg_class);
@@ -719,7 +727,6 @@ class Mir2Lir : public Backend {
     void NullifyRange(RegStorage reg, int s_reg);
     void MarkDef(RegLocation rl, LIR *start, LIR *finish);
     void MarkDefWide(RegLocation rl, LIR *start, LIR *finish);
-    virtual RegLocation WideToNarrow(RegLocation rl);
     void ResetDefLoc(RegLocation rl);
     void ResetDefLocWide(RegLocation rl);
     void ResetDefTracking();
@@ -764,8 +771,8 @@ class Mir2Lir : public Backend {
     void DoPromotion();
     int VRegOffset(int v_reg);
     int SRegOffset(int s_reg);
-    RegLocation GetReturnWide(bool is_double);
-    RegLocation GetReturn(bool is_float);
+    RegLocation GetReturnWide(RegisterClass reg_class);
+    RegLocation GetReturn(RegisterClass reg_class);
     RegisterInfo* GetRegInfo(RegStorage reg);
 
     // Shared by all targets - implemented in gen_common.cc.
@@ -973,6 +980,8 @@ class Mir2Lir : public Backend {
     }
     // Load Dalvik value with 32-bit memory storage.  If compressed object reference, decompress.
     virtual RegLocation LoadValue(RegLocation rl_src, RegisterClass op_kind);
+    // Same as above, but derive the target register class from the location record.
+    virtual RegLocation LoadValue(RegLocation rl_src);
     // Load Dalvik value with 64-bit memory storage.
     virtual RegLocation LoadValueWide(RegLocation rl_src, RegisterClass op_kind);
     // Load Dalvik value with 32-bit memory storage.  If compressed object reference, decompress.
@@ -1122,6 +1131,7 @@ class Mir2Lir : public Backend {
     virtual RegLocation GetReturnAlt() = 0;
     virtual RegLocation GetReturnWideAlt() = 0;
     virtual RegLocation LocCReturn() = 0;
+    virtual RegLocation LocCReturnRef() = 0;
     virtual RegLocation LocCReturnDouble() = 0;
     virtual RegLocation LocCReturnFloat() = 0;
     virtual RegLocation LocCReturnWide() = 0;

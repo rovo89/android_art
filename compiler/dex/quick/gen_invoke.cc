@@ -1156,7 +1156,7 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
 RegLocation Mir2Lir::InlineTarget(CallInfo* info) {
   RegLocation res;
   if (info->result.location == kLocInvalid) {
-    res = GetReturn(false);
+    res = GetReturn(LocToRegClass(info->result));
   } else {
     res = info->result;
   }
@@ -1166,7 +1166,7 @@ RegLocation Mir2Lir::InlineTarget(CallInfo* info) {
 RegLocation Mir2Lir::InlineTargetWide(CallInfo* info) {
   RegLocation res;
   if (info->result.location == kLocInvalid) {
-    res = GetReturnWide(false);
+    res = GetReturnWide(kCoreReg);
   } else {
     res = info->result;
   }
@@ -1189,7 +1189,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
 
   RegLocation rl_obj = info->args[0];
   RegLocation rl_idx = info->args[1];
-  rl_obj = LoadValue(rl_obj, kCoreReg);
+  rl_obj = LoadValue(rl_obj, kRefReg);
   // X86 wants to avoid putting a constant index into a register.
   if (!((cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64)&& rl_idx.is_const)) {
     rl_idx = LoadValue(rl_idx, kCoreReg);
@@ -1202,7 +1202,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
   RegStorage reg_ptr;
   if (cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64) {
     reg_off = AllocTemp();
-    reg_ptr = AllocTemp();
+    reg_ptr = AllocTempRef();
     if (range_check) {
       reg_max = AllocTemp();
       Load32Disp(rl_obj.reg, count_offset, reg_max);
@@ -1232,9 +1232,9 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
       }
     }
     reg_off = AllocTemp();
-    reg_ptr = AllocTemp();
+    reg_ptr = AllocTempRef();
     Load32Disp(rl_obj.reg, offset_offset, reg_off);
-    Load32Disp(rl_obj.reg, value_offset, reg_ptr);
+    LoadRefDisp(rl_obj.reg, value_offset, reg_ptr);
   }
   if (rl_idx.is_const) {
     OpRegImm(kOpAdd, reg_off, mir_graph_->ConstantValue(rl_idx.orig_sreg));
@@ -1271,7 +1271,7 @@ bool Mir2Lir::GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty) {
   }
   // dst = src.length();
   RegLocation rl_obj = info->args[0];
-  rl_obj = LoadValue(rl_obj, kCoreReg);
+  rl_obj = LoadValue(rl_obj, kRefReg);
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   GenNullCheck(rl_obj.reg, info->opt_flags);
@@ -1477,7 +1477,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
     DCHECK_EQ(mir_graph_->ConstantValue(rl_char) & ~0xFFFF, 0);
     DCHECK(high_code_point_branch == nullptr);
   }
-  RegLocation rl_return = GetReturn(false);
+  RegLocation rl_return = GetReturn(kCoreReg);
   RegLocation rl_dest = InlineTarget(info);
   StoreValue(rl_dest, rl_return);
   return true;
@@ -1523,7 +1523,7 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
       OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(4, pStringCompareTo));
     }
   }
-  RegLocation rl_return = GetReturn(false);
+  RegLocation rl_return = GetReturn(kCoreReg);
   RegLocation rl_dest = InlineTarget(info);
   StoreValue(rl_dest, rl_return);
   return true;
@@ -1575,7 +1575,7 @@ bool Mir2Lir::GenInlinedUnsafeGet(CallInfo* info,
   rl_src_offset = NarrowRegLoc(rl_src_offset);  // ignore high half in info->args[3]
   RegLocation rl_dest = is_long ? InlineTargetWide(info) : InlineTarget(info);  // result reg
 
-  RegLocation rl_object = LoadValue(rl_src_obj, kCoreReg);
+  RegLocation rl_object = LoadValue(rl_src_obj, kRefReg);
   RegLocation rl_offset = LoadValue(rl_src_offset, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (is_long) {
@@ -1621,7 +1621,7 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
     // There might have been a store before this volatile one so insert StoreStore barrier.
     GenMemBarrier(kStoreStore);
   }
-  RegLocation rl_object = LoadValue(rl_src_obj, kCoreReg);
+  RegLocation rl_object = LoadValue(rl_src_obj, kRefReg);
   RegLocation rl_offset = LoadValue(rl_src_offset, kCoreReg);
   RegLocation rl_value;
   if (is_long) {
@@ -1635,7 +1635,7 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
       FreeTemp(rl_temp_offset);
     }
   } else {
-    rl_value = LoadValue(rl_src_value, kCoreReg);
+    rl_value = LoadValue(rl_src_value);
     StoreBaseIndexed(rl_object.reg, rl_offset.reg, rl_value.reg, 0, k32);
   }
 
@@ -1658,7 +1658,7 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
     if (info->type != kStatic &&
         ((cu_->disable_opt & (1 << kNullCheckElimination)) != 0 ||
          (info->opt_flags & MIR_IGNORE_NULL_CHECK) == 0))  {
-      RegLocation rl_obj = LoadValue(info->args[0], kCoreReg);
+      RegLocation rl_obj = LoadValue(info->args[0], kRefReg);
       GenNullCheck(rl_obj.reg);
     }
     return;
@@ -1783,10 +1783,10 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
   if (info->result.location != kLocInvalid) {
     // We have a following MOVE_RESULT - do it now.
     if (info->result.wide) {
-      RegLocation ret_loc = GetReturnWide(info->result.fp);
+      RegLocation ret_loc = GetReturnWide(LocToRegClass(info->result));
       StoreValueWide(info->result, ret_loc);
     } else {
-      RegLocation ret_loc = GetReturn(info->result.fp);
+      RegLocation ret_loc = GetReturn(LocToRegClass(info->result));
       StoreValue(info->result, ret_loc);
     }
   }
