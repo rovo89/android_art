@@ -603,6 +603,8 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, bool is_long_or_double,
                                                      field_info.StorageIndex(), r_base));
 
         FreeTemp(r_tmp);
+        // Ensure load of status and load of value don't re-order.
+        GenMemBarrier(kLoadLoad);
       }
       FreeTemp(r_method);
     }
@@ -694,6 +696,8 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
                                                      field_info.StorageIndex(), r_base));
 
         FreeTemp(r_tmp);
+        // Ensure load of status and load of value don't re-order.
+        GenMemBarrier(kLoadLoad);
       }
       FreeTemp(r_method);
     }
