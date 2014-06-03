@@ -572,7 +572,7 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
         if (val_lo == 0) {
           res = NewLIR2(kX86XorpsRR, low_reg_val, low_reg_val);
         } else {
-          res = LoadConstantNoClobber(RegStorage::Solo32(low_reg_val), val_lo);
+          res = LoadConstantNoClobber(RegStorage::FloatSolo32(low_reg_val), val_lo);
         }
         if (val_hi != 0) {
           RegStorage r_dest_hi = AllocTempDouble();
