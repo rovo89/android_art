@@ -66,6 +66,10 @@ RegLocation MipsMir2Lir::LocCReturn() {
   return mips_loc_c_return;
 }
 
+RegLocation MipsMir2Lir::LocCReturnRef() {
+  return mips_loc_c_return;
+}
+
 RegLocation MipsMir2Lir::LocCReturnWide() {
   return mips_loc_c_return_wide;
 }

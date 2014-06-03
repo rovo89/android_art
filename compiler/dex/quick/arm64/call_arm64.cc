@@ -287,9 +287,9 @@ void Arm64Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
 
 void Arm64Mir2Lir::GenMoveException(RegLocation rl_dest) {
   int ex_offset = Thread::ExceptionOffset<8>().Int32Value();
-  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  Load32Disp(rs_rA64_SELF, ex_offset, rl_result.reg);
-  Store32Disp(rs_rA64_SELF, ex_offset, rs_xzr);
+  RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
+  LoadRefDisp(rs_rA64_SELF, ex_offset, rl_result.reg);
+  StoreRefDisp(rs_rA64_SELF, ex_offset, rs_xzr);
   StoreValue(rl_dest, rl_result);
 }
 
