@@ -1868,6 +1868,10 @@ llvm::Value* GBCExpanderPass::EmitLoadStaticStorage(uint32_t dex_pc,
 
   phi->addIncoming(storage_object_addr, block_check_init);
   phi->addIncoming(loaded_storage_object_addr, block_after_load_static);
+
+  // Ensure load of status and load of value don't re-order.
+  irb_.CreateMemoryBarrier(art::kLoadLoad);
+
   return phi;
 }
 
