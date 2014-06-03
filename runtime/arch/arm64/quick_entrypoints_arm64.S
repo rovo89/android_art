@@ -338,62 +338,6 @@
     .cfi_adjust_cfa_offset -304
 .endm
 
-.macro RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME_NO_D0
-
-    ldr d1,   [sp, #24]
-    ldp d2, d3,   [sp, #32]
-    ldp d4, d5,   [sp, #48]
-    ldp d6, d7,   [sp, #64]
-    ldp d8, d9,   [sp, #80]
-    ldp d10, d11, [sp, #96]
-    ldp d12, d13, [sp, #112]
-    ldp d14, d15, [sp, #128]
-
-    // args.
-    ldp x1,  x2, [sp, #144]
-    .cfi_restore x1
-    .cfi_restore x2
-
-    ldp x3,  x4, [sp, #160]
-    .cfi_restore x3
-    .cfi_restore x4
-
-    ldp x5,  x6, [sp, #176]
-    .cfi_restore x5
-    .cfi_restore x6
-
-    ldp x7,  xSELF, [sp, #192]
-    .cfi_restore x7
-    .cfi_restore x18
-
-    ldp x19, x20, [sp, #208]
-    .cfi_restore x19
-    .cfi_restore x20
-
-    ldp x21, x22, [sp, #224]
-    .cfi_restore x21
-    .cfi_restore x22
-
-    ldp x23, x24, [sp, #240]
-    .cfi_restore x23
-    .cfi_restore x24
-
-    ldp x25, x26, [sp, #256]
-    .cfi_restore x25
-    .cfi_restore x26
-
-    ldp x27, x28, [sp, #272]
-    .cfi_restore x27
-    .cfi_restore x28
-
-    ldp xFP, xLR, [sp, #288]
-    .cfi_restore x29
-    .cfi_restore x30
-
-    add sp, sp, #304
-    .cfi_adjust_cfa_offset -304
-.endm
-
 .macro RETURN_IF_RESULT_IS_ZERO
     cbnz x0, 1f                // result non-zero branch over
     ret                        // return
@@ -1414,7 +1358,8 @@ ENTRY art_quick_proxy_invoke_handler
     ldr     xSELF, [sp, #200]           // Restore self pointer.
     ldr     x2, [xSELF, THREAD_EXCEPTION_OFFSET]
     cbnz    x2, .Lexception_in_proxy    // success if no exception is pending
-    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME_NO_D0 // keep d0
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME // Restore frame
+    fmov    d0, x0                      // Store result in d0 in case it was float or double
     ret                                 // return on success
 .Lexception_in_proxy:
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
