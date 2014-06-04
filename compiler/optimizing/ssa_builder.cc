@@ -95,14 +95,26 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
     // All predecessors have already been visited because we are visiting in reverse post order.
     // We merge the values of all locals, creating phis if those values differ.
     for (size_t local = 0; local < current_locals_->Size(); local++) {
+      bool one_predecessor_has_no_value = false;
       bool is_different = false;
       HInstruction* value = ValueOfLocal(block->GetPredecessors().Get(0), local);
-      for (size_t i = 1; i < block->GetPredecessors().Size(); i++) {
-        if (ValueOfLocal(block->GetPredecessors().Get(i), local) != value) {
+
+      for (size_t i = 0, e = block->GetPredecessors().Size(); i < e; ++i) {
+        HInstruction* current = ValueOfLocal(block->GetPredecessors().Get(i), local);
+        if (current == nullptr) {
+//          one_predecessor_has_no_value = true;
+//          break;
+        } else if (current != value) {
           is_different = true;
-          break;
         }
       }
+
+      if (one_predecessor_has_no_value) {
+        // If one predecessor has no value for this local, we trust the verifier has
+        // successfully checked that there is a store dominating any read after this block.
+        continue;
+      }
+
       if (is_different) {
         HPhi* phi = new (GetGraph()->GetArena()) HPhi(
             GetGraph()->GetArena(), local, block->GetPredecessors().Size(), Primitive::kPrimVoid);
