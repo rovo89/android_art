@@ -333,6 +333,7 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         inst = inst->Next_51l();
         break;
       case Instruction::CONST_WIDE_HIGH16:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_21h(inst_data),
                                  static_cast<uint64_t>(inst->VRegB_21h()) << 48);
         inst = inst->Next_2xx();
