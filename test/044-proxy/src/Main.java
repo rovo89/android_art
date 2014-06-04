@@ -27,5 +27,6 @@ public class Main {
         Clash4.main(null);
         WrappedThrow.main(null);
         NarrowingTest.main(null);
+        FloatSelect.main(null);
     }
 }
