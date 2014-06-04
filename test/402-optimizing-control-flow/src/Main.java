@@ -40,6 +40,9 @@ public class Main {
 
     result = $opt$testForLoop(42);
     expectEquals(44, result);
+
+    result = $opt$testIfWithLocal(5);
+    expectEquals(7, result);
   }
 
   static int $opt$testIfEq1(int a) {
@@ -71,6 +74,16 @@ public class Main {
 
   static int $opt$testForLoop(int a) {
     for (; a != 44; a++) {}
+    return a;
+  }
+
+  static int $opt$testIfWithLocal(int a) {
+    if (a == 5) {
+      int f = 2;
+      a += f;
+    }
+    // The SSA builder should not create a phi for f.
+
     return a;
   }
 }
