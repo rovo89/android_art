@@ -43,9 +43,9 @@ static bool Check(const uint16_t* data) {
   CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, kX86);
   SsaLivenessAnalysis liveness(*graph, codegen);
   liveness.Analyze();
-  RegisterAllocator register_allocator(&allocator, *codegen);
-  register_allocator.AllocateRegisters(liveness);
-  return register_allocator.Validate(liveness, false);
+  RegisterAllocator register_allocator(&allocator, codegen, liveness);
+  register_allocator.AllocateRegisters();
+  return register_allocator.Validate(false);
 }
 
 /**
@@ -300,9 +300,9 @@ TEST(RegisterAllocatorTest, Loop3) {
   CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, kX86);
   SsaLivenessAnalysis liveness(*graph, codegen);
   liveness.Analyze();
-  RegisterAllocator register_allocator(&allocator, *codegen);
-  register_allocator.AllocateRegisters(liveness);
-  ASSERT_TRUE(register_allocator.Validate(liveness, false));
+  RegisterAllocator register_allocator(&allocator, codegen, liveness);
+  register_allocator.AllocateRegisters();
+  ASSERT_TRUE(register_allocator.Validate(false));
 
   HBasicBlock* loop_header = graph->GetBlocks().Get(2);
   HPhi* phi = loop_header->GetFirstPhi()->AsPhi();
@@ -314,7 +314,7 @@ TEST(RegisterAllocatorTest, Loop3) {
   ASSERT_NE(phi_interval->GetRegister(), loop_update->GetRegister());
 
   HBasicBlock* return_block = graph->GetBlocks().Get(3);
-  HReturn* ret = return_block->GetFirstInstruction()->AsReturn();
+  HReturn* ret = return_block->GetLastInstruction()->AsReturn();
   ASSERT_EQ(phi_interval->GetRegister(), ret->InputAt(0)->GetLiveInterval()->GetRegister());
 }
 

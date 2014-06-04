@@ -56,7 +56,7 @@ static void TestCode(const uint16_t* data, bool has_result = false, int32_t expe
   ASSERT_NE(graph, nullptr);
   InternalCodeAllocator allocator;
   CodeGenerator* codegen = CodeGenerator::Create(&arena, graph, kX86);
-  codegen->Compile(&allocator);
+  codegen->CompileBaseline(&allocator);
   typedef int32_t (*fptr)();
 #if defined(__i386__)
   CommonCompilerTest::MakeExecutable(allocator.GetMemory(), allocator.GetSize());
@@ -66,7 +66,7 @@ static void TestCode(const uint16_t* data, bool has_result = false, int32_t expe
   }
 #endif
   codegen = CodeGenerator::Create(&arena, graph, kArm);
-  codegen->Compile(&allocator);
+  codegen->CompileBaseline(&allocator);
 #if defined(__arm__)
   CommonCompilerTest::MakeExecutable(allocator.GetMemory(), allocator.GetSize());
   int32_t result = reinterpret_cast<fptr>(allocator.GetMemory())();

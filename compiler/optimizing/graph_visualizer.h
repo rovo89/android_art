@@ -25,6 +25,9 @@ class CodeGenerator;
 class DexCompilationUnit;
 class HGraph;
 
+static const char* kLivenessPassName = "liveness";
+static const char* kRegisterAllocatorPassName = "register";
+
 /**
  * If enabled, emits compilation information suitable for the c1visualizer tool
  * and IRHydra.

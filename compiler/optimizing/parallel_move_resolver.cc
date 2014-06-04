@@ -147,4 +147,64 @@ void ParallelMoveResolver::PerformMove(size_t index) {
   }
 }
 
+bool ParallelMoveResolver::IsScratchLocation(Location loc) {
+  for (size_t i = 0; i < moves_.Size(); ++i) {
+    if (moves_.Get(i)->Blocks(loc)) {
+      return false;
+    }
+  }
+
+  for (size_t i = 0; i < moves_.Size(); ++i) {
+    if (moves_.Get(i)->GetDestination().Equals(loc)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+int ParallelMoveResolver::AllocateScratchRegister(int blocked, int register_count, bool* spilled) {
+  int scratch = -1;
+  for (int reg = 0; reg < register_count; ++reg) {
+    if ((blocked != reg) &&
+        IsScratchLocation(Location::RegisterLocation(ManagedRegister(reg)))) {
+      scratch = reg;
+      break;
+    }
+  }
+
+  if (scratch == -1) {
+    *spilled = true;
+    for (int reg = 0; reg < register_count; ++reg) {
+      if (blocked != reg) {
+        scratch = reg;
+      }
+    }
+  } else {
+    *spilled = false;
+  }
+
+  return scratch;
+}
+
+
+ParallelMoveResolver::ScratchRegisterScope::ScratchRegisterScope(
+    ParallelMoveResolver* resolver, int blocked, int number_of_registers)
+    : resolver_(resolver),
+      reg_(kNoRegister),
+      spilled_(false) {
+  reg_ = resolver_->AllocateScratchRegister(blocked, number_of_registers, &spilled_);
+
+  if (spilled_) {
+    resolver->SpillScratch(reg_);
+  }
+}
+
+
+ParallelMoveResolver::ScratchRegisterScope::~ScratchRegisterScope() {
+  if (spilled_) {
+    resolver_->RestoreScratch(reg_);
+  }
+}
+
 }  // namespace art
