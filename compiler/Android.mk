@@ -177,8 +177,10 @@ define build-libart-compiler
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
   ifeq ($$(art_ndebug_or_debug),ndebug)
     LOCAL_MODULE := libart-compiler
+    LOCAL_SHARED_LIBRARIES += libart
   else # debug
     LOCAL_MODULE := libartd-compiler
+    LOCAL_SHARED_LIBRARIES += libartd
   endif
 
   LOCAL_MODULE_TAGS := optional
@@ -200,32 +202,21 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_CFLAGS := $$(LIBART_COMPILER_CFLAGS)
   include external/libcxx/libcxx.mk
   ifeq ($$(art_target_or_host),target)
-    LOCAL_CLANG := $(ART_TARGET_CLANG)
-    LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
+    $(call set-target-local-clang-vars)
+    $(call set-target-local-cflags-vars,$(2))
   else # host
     LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
+    ifeq ($$(art_ndebug_or_debug),debug)
+      LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
+    else
+      LOCAL_CFLAGS += $(ART_HOST_NON_DEBUG_CFLAGS)
+    endif
   endif
 
   # TODO: clean up the compilers and remove this.
   LOCAL_CFLAGS += -Wno-unused-parameter
 
-  LOCAL_SHARED_LIBRARIES += liblog
-  ifeq ($$(art_ndebug_or_debug),debug)
-    ifeq ($$(art_target_or_host),target)
-      LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)
-    else # host
-      LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
-    endif
-    LOCAL_SHARED_LIBRARIES += libartd
-  else
-    ifeq ($$(art_target_or_host),target)
-      LOCAL_CFLAGS += $(ART_TARGET_NON_DEBUG_CFLAGS)
-    else # host
-      LOCAL_CFLAGS += $(ART_HOST_NON_DEBUG_CFLAGS)
-    endif
-    LOCAL_SHARED_LIBRARIES += libart
-  endif
   ifeq ($(ART_USE_PORTABLE_COMPILER),true)
     LOCAL_SHARED_LIBRARIES += libLLVM
     LOCAL_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
