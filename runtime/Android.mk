@@ -314,7 +314,6 @@ endif
 
 # $(1): target or host
 # $(2): ndebug or debug
-# $(3): true or false for LOCAL_CLANG
 define build-libart
   ifneq ($(1),target)
     ifneq ($(1),host)
@@ -326,15 +325,9 @@ define build-libart
       $$(error expected ndebug or debug for argument 2, received $(2))
     endif
   endif
-  ifneq ($(3),true)
-    ifneq ($(3),false)
-      $$(error expected true or false for argument 3, received $(3))
-    endif
-  endif
 
   art_target_or_host := $(1)
   art_ndebug_or_debug := $(2)
-  art_clang := $(3)
 
   include $(CLEAR_VARS)
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
@@ -374,31 +367,32 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   $(foreach arch,$(ART_SUPPORTED_ARCH),
     LOCAL_LDFLAGS_$(arch) := $$(LIBART_TARGET_LDFLAGS_$(arch)))
 
-  ifeq ($$(art_clang),false)
-    LOCAL_SRC_FILES += $(LIBART_GCC_ONLY_SRC_FILES)
-  else
-    LOCAL_CLANG := true
-  endif
+  # Clang usage
   ifeq ($$(art_target_or_host),target)
-    LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
+    $(call set-target-local-clang-vars)
+    $(call set-target-local-cflags-vars,$(2))
+    # TODO: Loop with ifeq, ART_TARGET_CLANG
+    ifneq ($$(ART_TARGET_CLANG_$(TARGET_ARCH)),true)
+      LOCAL_SRC_FILES_$(TARGET_ARCH) += $(LIBART_GCC_ONLY_SRC_FILES)
+    endif
+    ifneq ($$(ART_TARGET_CLANG_$(TARGET_2ND_ARCH)),true)
+      LOCAL_SRC_FILES_$(TARGET_2ND_ARCH) += $(LIBART_GCC_ONLY_SRC_FILES)
+    endif
   else # host
+    LOCAL_CLANG := $(ART_HOST_CLANG)
+    ifeq ($(ART_HOST_CLANG),false)
+      LOCAL_SRC_FILES += $(LIBART_GCC_ONLY_SRC_FILES)
+    endif
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
-  endif
-  ifeq ($$(art_ndebug_or_debug),debug)
-    ifeq ($$(art_target_or_host),target)
-      LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)
-    else # host
+    ifeq ($$(art_ndebug_or_debug),debug)
       LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
       LOCAL_LDLIBS += $(ART_HOST_DEBUG_LDLIBS)
       LOCAL_STATIC_LIBRARIES := libgtest_host
-    endif
-  else
-    ifeq ($$(art_target_or_host),target)
-      LOCAL_CFLAGS += $(ART_TARGET_NON_DEBUG_CFLAGS)
-    else # host
+    else
       LOCAL_CFLAGS += $(ART_HOST_NON_DEBUG_CFLAGS)
     endif
   endif
+
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_C_INCLUDES += art/sigchainlib
 
@@ -446,17 +440,17 @@ endef
 # they are used to cross compile for the target.
 ifeq ($(WITH_HOST_DALVIK),true)
   ifeq ($(ART_BUILD_NDEBUG),true)
-    $(eval $(call build-libart,host,ndebug,$(ART_HOST_CLANG)))
+    $(eval $(call build-libart,host,ndebug))
   endif
   ifeq ($(ART_BUILD_DEBUG),true)
-    $(eval $(call build-libart,host,debug,$(ART_HOST_CLANG)))
+    $(eval $(call build-libart,host,debug))
   endif
 endif
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-  $(eval $(call build-libart,target,ndebug,$(ART_TARGET_CLANG)))
+  $(eval $(call build-libart,target,ndebug))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-libart,target,debug,$(ART_TARGET_CLANG)))
+  $(eval $(call build-libart,target,debug))
 endif
 

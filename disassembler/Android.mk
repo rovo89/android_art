@@ -59,27 +59,22 @@ define build-libart-disassembler
   LOCAL_SRC_FILES := $$(LIBART_DISASSEMBLER_SRC_FILES)
 
   ifeq ($$(art_target_or_host),target)
-    LOCAL_CLANG := $(ART_TARGET_CLANG)
-    LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
+  	$(call set-target-local-clang-vars)
+  	$(call set-target-local-cflags-vars,$(2))
   else # host
     LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
+    ifeq ($$(art_ndebug_or_debug),debug)
+      LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
+    else
+      LOCAL_CFLAGS += $(ART_HOST_NON_DEBUG_CFLAGS)
+    endif
   endif
 
   LOCAL_SHARED_LIBRARIES += liblog
   ifeq ($$(art_ndebug_or_debug),debug)
-    ifeq ($$(art_target_or_host),target)
-      LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)
-    else # host
-      LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
-    endif
     LOCAL_SHARED_LIBRARIES += libartd
   else
-    ifeq ($$(art_target_or_host),target)
-      LOCAL_CFLAGS += $(ART_TARGET_NON_DEBUG_CFLAGS)
-    else # host
-      LOCAL_CFLAGS += $(ART_HOST_NON_DEBUG_CFLAGS)
-    endif
     LOCAL_SHARED_LIBRARIES += libart
   endif
 
