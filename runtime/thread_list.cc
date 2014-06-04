@@ -158,8 +158,6 @@ static void UnsafeLogFatalForThreadSuspendAllTimeout(Thread* self) {
   Runtime* runtime = Runtime::Current();
   std::ostringstream ss;
   ss << "Thread suspend timeout\n";
-  runtime->DumpLockHolders(ss);
-  ss << "\n";
   runtime->GetThreadList()->DumpLocked(ss);
   LOG(FATAL) << ss.str();
   exit(0);
