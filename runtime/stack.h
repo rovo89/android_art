@@ -599,37 +599,37 @@ class StackVisitor {
    * on location in frame as long as code generator itself knows how
    * to access them.
    *
-   *     +------------------------+
-   *     | IN[ins-1]              |  {Note: resides in caller's frame}
-   *     |       .                |
-   *     | IN[0]                  |
-   *     | caller's Method*       |
-   *     +========================+  {Note: start of callee's frame}
-   *     | core callee-save spill |  {variable sized}
-   *     +------------------------+
-   *     | fp callee-save spill   |
-   *     +------------------------+
-   *     | filler word            |  {For compatibility, if V[locals-1] used as wide
-   *     +------------------------+
-   *     | V[locals-1]            |
-   *     | V[locals-2]            |
-   *     |      .                 |
-   *     |      .                 |  ... (reg == 2)
-   *     | V[1]                   |  ... (reg == 1)
-   *     | V[0]                   |  ... (reg == 0) <---- "locals_start"
-   *     +------------------------+
-   *     | Compiler temp region   |  ... (reg <= -3)
-   *     |                        |
-   *     |                        |
-   *     +------------------------+
-   *     | stack alignment padding|  {0 to (kStackAlignWords-1) of padding}
-   *     +------------------------+
-   *     | OUT[outs-1]            |
-   *     | OUT[outs-2]            |
-   *     |       .                |
-   *     | OUT[0]                 |
-   *     | curMethod*             |  ... (reg == -2) <<== sp, 16-byte aligned
-   *     +========================+
+   *     +---------------------------+
+   *     | IN[ins-1]                 |  {Note: resides in caller's frame}
+   *     |       .                   |
+   *     | IN[0]                     |
+   *     | caller's ArtMethod        |  ... StackReference<ArtMethod>
+   *     +===========================+  {Note: start of callee's frame}
+   *     | core callee-save spill    |  {variable sized}
+   *     +---------------------------+
+   *     | fp callee-save spill      |
+   *     +---------------------------+
+   *     | filler word               |  {For compatibility, if V[locals-1] used as wide
+   *     +---------------------------+
+   *     | V[locals-1]               |
+   *     | V[locals-2]               |
+   *     |      .                    |
+   *     |      .                    |  ... (reg == 2)
+   *     | V[1]                      |  ... (reg == 1)
+   *     | V[0]                      |  ... (reg == 0) <---- "locals_start"
+   *     +---------------------------+
+   *     | Compiler temp region      |  ... (reg <= -3)
+   *     |                           |
+   *     |                           |
+   *     +---------------------------+
+   *     | stack alignment padding   |  {0 to (kStackAlignWords-1) of padding}
+   *     +---------------------------+
+   *     | OUT[outs-1]               |
+   *     | OUT[outs-2]               |
+   *     |       .                   |
+   *     | OUT[0]                    |
+   *     | StackReference<ArtMethod> |  ... (reg == -2) <<== sp, 16-byte aligned
+   *     +===========================+
    */
   static int GetVRegOffset(const DexFile::CodeItem* code_item,
                            uint32_t core_spills, uint32_t fp_spills,
@@ -661,7 +661,7 @@ class StackVisitor {
       return locals_start + (reg * sizeof(uint32_t));
     } else {
       // Handle ins.
-      return frame_size + ((reg - num_regs) * sizeof(uint32_t)) + GetBytesPerGprSpillLocation(isa);
+      return frame_size + ((reg - num_regs) * sizeof(uint32_t)) + sizeof(StackReference<mirror::ArtMethod>);
     }
   }
 
