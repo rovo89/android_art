@@ -19,6 +19,8 @@
 
 #include "dex_cache.h"
 
+#include "runtime.h"
+
 namespace art {
 namespace mirror {
 
