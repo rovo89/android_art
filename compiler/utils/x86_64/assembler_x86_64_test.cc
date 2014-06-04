@@ -200,4 +200,122 @@ TEST_F(AssemblerX86_64Test, SetCC) {
   DriverFn(&setcc_test_fn, "setcc");
 }
 
+static x86_64::X86_64ManagedRegister ManagedFromCpu(x86_64::Register r) {
+  return x86_64::X86_64ManagedRegister::FromCpuRegister(r);
+}
+
+static x86_64::X86_64ManagedRegister ManagedFromFpu(x86_64::FloatRegister r) {
+  return x86_64::X86_64ManagedRegister::FromXmmRegister(r);
+}
+
+std::string buildframe_test_fn(x86_64::X86_64Assembler* assembler) {
+  // TODO: more interesting spill registers / entry spills.
+
+  // Two random spill regs.
+  std::vector<ManagedRegister> spill_regs;
+  spill_regs.push_back(ManagedFromCpu(x86_64::R10));
+  spill_regs.push_back(ManagedFromCpu(x86_64::RSI));
+
+  // Three random entry spills.
+  ManagedRegisterEntrySpills entry_spills;
+  ManagedRegisterSpill spill(ManagedFromCpu(x86_64::RAX), 8, 0);
+  entry_spills.push_back(spill);
+  ManagedRegisterSpill spill2(ManagedFromCpu(x86_64::RBX), 8, 8);
+  entry_spills.push_back(spill2);
+  ManagedRegisterSpill spill3(ManagedFromFpu(x86_64::XMM1), 8, 16);
+  entry_spills.push_back(spill3);
+
+  x86_64::X86_64ManagedRegister method_reg = ManagedFromCpu(x86_64::RDI);
+
+  size_t frame_size = 10 * kStackAlignment;
+  assembler->BuildFrame(10 * kStackAlignment, method_reg, spill_regs, entry_spills);
+
+  // Construct assembly text counterpart.
+  std::ostringstream str;
+  // 1) Push the spill_regs.
+  str << "pushq %rsi\n";
+  str << "pushq %r10\n";
+  // 2) Move down the stack pointer.
+  ssize_t displacement = -static_cast<ssize_t>(frame_size) + spill_regs.size() * 8 +
+      sizeof(StackReference<mirror::ArtMethod>) + 8;
+  str << "addq $" << displacement << ", %rsp\n";
+  // 3) Make space for method reference, and store it.
+  str << "subq $4, %rsp\n";
+  str << "movl %edi, (%rsp)\n";
+  // 4) Entry spills.
+  str << "movq %rax, " << frame_size + 0 << "(%rsp)\n";
+  str << "movq %rbx, " << frame_size + 8 << "(%rsp)\n";
+  str << "movsd %xmm1, " << frame_size + 16 << "(%rsp)\n";
+
+  return str.str();
+}
+
+TEST_F(AssemblerX86_64Test, BuildFrame) {
+  DriverFn(&buildframe_test_fn, "BuildFrame");
+}
+
+std::string removeframe_test_fn(x86_64::X86_64Assembler* assembler) {
+  // TODO: more interesting spill registers / entry spills.
+
+  // Two random spill regs.
+  std::vector<ManagedRegister> spill_regs;
+  spill_regs.push_back(ManagedFromCpu(x86_64::R10));
+  spill_regs.push_back(ManagedFromCpu(x86_64::RSI));
+
+  size_t frame_size = 10 * kStackAlignment;
+  assembler->RemoveFrame(10 * kStackAlignment, spill_regs);
+
+  // Construct assembly text counterpart.
+  std::ostringstream str;
+  // 1) Move up the stack pointer.
+  ssize_t displacement = static_cast<ssize_t>(frame_size) - spill_regs.size() * 8 - 8;
+  str << "addq $" << displacement << ", %rsp\n";
+  // 2) Pop spill regs.
+  str << "popq %r10\n";
+  str << "popq %rsi\n";
+  str << "ret\n";
+
+  return str.str();
+}
+
+TEST_F(AssemblerX86_64Test, RemoveFrame) {
+  DriverFn(&removeframe_test_fn, "RemoveFrame");
+}
+
+std::string increaseframe_test_fn(x86_64::X86_64Assembler* assembler) {
+  assembler->IncreaseFrameSize(0U);
+  assembler->IncreaseFrameSize(kStackAlignment);
+  assembler->IncreaseFrameSize(10 * kStackAlignment);
+
+  // Construct assembly text counterpart.
+  std::ostringstream str;
+  str << "addq $0, %rsp\n";
+  str << "addq $-" << kStackAlignment << ", %rsp\n";
+  str << "addq $-" << 10 * kStackAlignment << ", %rsp\n";
+
+  return str.str();
+}
+
+TEST_F(AssemblerX86_64Test, IncreaseFrame) {
+  DriverFn(&increaseframe_test_fn, "IncreaseFrame");
+}
+
+std::string decreaseframe_test_fn(x86_64::X86_64Assembler* assembler) {
+  assembler->DecreaseFrameSize(0U);
+  assembler->DecreaseFrameSize(kStackAlignment);
+  assembler->DecreaseFrameSize(10 * kStackAlignment);
+
+  // Construct assembly text counterpart.
+  std::ostringstream str;
+  str << "addq $0, %rsp\n";
+  str << "addq $" << kStackAlignment << ", %rsp\n";
+  str << "addq $" << 10 * kStackAlignment << ", %rsp\n";
+
+  return str.str();
+}
+
+TEST_F(AssemblerX86_64Test, DecreaseFrame) {
+  DriverFn(&decreaseframe_test_fn, "DecreaseFrame");
+}
+
 }  // namespace art
