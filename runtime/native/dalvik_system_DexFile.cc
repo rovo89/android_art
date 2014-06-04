@@ -17,6 +17,8 @@
 #include <algorithm>
 #include <set>
 #include <fcntl.h>
+#include <sys/sendfile.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "base/logging.h"
@@ -219,33 +221,32 @@ static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jlong cookie) 
   return result;
 }
 
-// Copy a profile file
 static void CopyProfileFile(const char* oldfile, const char* newfile) {
-  ScopedFd fd(open(oldfile, O_RDONLY));
-  if (fd.get() == -1) {
-    // If we can't open the file show the uid:gid of the this process to allow
-    // diagnosis of the problem.
-    LOG(ERROR) << "Failed to open profile file " << oldfile<< ".  My uid:gid is "
-      << getuid() << ":" << getgid();
+  ScopedFd src(open(oldfile, O_RDONLY));
+  if (src.get() == -1) {
+    PLOG(ERROR) << "Failed to open profile file " << oldfile
+      << ". My uid:gid is " << getuid() << ":" << getgid();
+    return;
+  }
+
+  struct stat stat_src;
+  if (fstat(src.get(), &stat_src) == -1) {
+    PLOG(ERROR) << "Failed to get stats for profile file  " << oldfile
+      << ". My uid:gid is " << getuid() << ":" << getgid();
     return;
   }
 
   // Create the copy with rw------- (only accessible by system)
-  ScopedFd fd2(open(newfile, O_WRONLY|O_CREAT|O_TRUNC, 0600));
-  if (fd2.get()  == -1) {
-    // If we can't open the file show the uid:gid of the this process to allow
-    // diagnosis of the problem.
-    LOG(ERROR) << "Failed to create/write prev profile file " << newfile << ".  My uid:gid is "
-      << getuid() << ":" << getgid();
+  ScopedFd dst(open(newfile, O_WRONLY|O_CREAT|O_TRUNC, 0600));
+  if (dst.get()  == -1) {
+    PLOG(ERROR) << "Failed to create/write prev profile file " << newfile
+      << ".  My uid:gid is " << getuid() << ":" << getgid();
     return;
   }
-  char buf[4096];
-  while (true) {
-    int n = read(fd.get(), buf, sizeof(buf));
-    if (n <= 0) {
-      break;
-    }
-    write(fd2.get(), buf, n);
+
+  if (sendfile(dst.get(), src.get(), nullptr, stat_src.st_size) == -1) {
+    PLOG(ERROR) << "Failed to copy profile file " << oldfile << " to " << newfile
+      << ". My uid:gid is " << getuid() << ":" << getgid();
   }
 }
 
