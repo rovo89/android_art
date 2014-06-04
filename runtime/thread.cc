@@ -824,6 +824,26 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
     os << "  | stack=" << reinterpret_cast<void*>(thread->tlsPtr_.stack_begin) << "-"
         << reinterpret_cast<void*>(thread->tlsPtr_.stack_end) << " stackSize="
         << PrettySize(thread->tlsPtr_.stack_size) << "\n";
+    // Dump the held mutexes.
+    os << "  | held mutexes=";
+    for (size_t i = 0; i < kLockLevelCount; ++i) {
+      if (i != kMonitorLock) {
+        BaseMutex* mutex = thread->GetHeldMutex(static_cast<LockLevel>(i));
+        if (mutex != nullptr) {
+          os << " \"" << mutex->GetName() << "\"";
+          if (mutex->IsReaderWriterMutex()) {
+            ReaderWriterMutex* rw_mutex = down_cast<ReaderWriterMutex*>(mutex);
+            if (rw_mutex->IsExclusiveHeld(thread)) {
+              os << "(exclusive held)";
+            } else {
+              CHECK(rw_mutex->IsSharedHeld(thread));
+              os << "(shared held)";
+            }
+          }
+        }
+      }
+    }
+    os << "\n";
   }
 }
 
