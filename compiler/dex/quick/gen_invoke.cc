@@ -434,7 +434,7 @@ INSTANTIATE(void Mir2Lir::CallRuntimeHelperRegLocationRegLocationRegLocation, Re
  */
 void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
   /*
-   * Dummy up a RegLocation for the incoming Method*
+   * Dummy up a RegLocation for the incoming StackReference<mirror::ArtMethod>
    * It will attempt to keep kArg0 live (or copy it to home location
    * if promoted).
    */

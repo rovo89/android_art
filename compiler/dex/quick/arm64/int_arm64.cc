@@ -41,8 +41,8 @@ void Arm64Mir2Lir::OpEndIT(LIR* it) {
 /*
  * 64-bit 3way compare function.
  *     cmp   xA, xB
- *     csinc wC, wzr, wzr, eq
- *     csneg wC, wC, wC, le
+ *     csinc wC, wzr, wzr, eq  // wC = (xA == xB) ? 0 : 1
+ *     csneg wC, wC, wC, ge    // wC = (xA >= xB) ? wC : -wC
  */
 void Arm64Mir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
                               RegLocation rl_src2) {
@@ -52,10 +52,10 @@ void Arm64Mir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
   rl_result = EvalLoc(rl_dest, kCoreReg, true);
 
   OpRegReg(kOpCmp, rl_src1.reg, rl_src2.reg);
-  NewLIR4(WIDE(kA64Csinc4rrrc), rl_result.reg.GetReg(), rxzr, rxzr, kArmCondEq);
-  NewLIR4(WIDE(kA64Csneg4rrrc), rl_result.reg.GetReg(), rl_result.reg.GetReg(),
-          rl_result.reg.GetReg(), kArmCondLe);
-  StoreValueWide(rl_dest, rl_result);
+  NewLIR4(kA64Csinc4rrrc, rl_result.reg.GetReg(), rwzr, rwzr, kArmCondEq);
+  NewLIR4(kA64Csneg4rrrc, rl_result.reg.GetReg(), rl_result.reg.GetReg(),
+          rl_result.reg.GetReg(), kArmCondGe);
+  StoreValue(rl_dest, rl_result);
 }
 
 void Arm64Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
