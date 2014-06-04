@@ -222,13 +222,13 @@ ifeq ($(ART_SEA_IR_MODE),true)
   art_cflags += -DART_SEA_IR_MODE=1
 endif
 
-ifeq ($(HOST_OS),linux)
-  art_non_debug_cflags := \
-	-Wframe-larger-than=1728
-endif
-
 art_non_debug_cflags := \
 	-O3
+
+ifeq ($(HOST_OS),linux)
+  art_non_debug_cflags += \
+	-Wframe-larger-than=1728
+endif
 
 # FIXME: upstream LLVM has a vectorizer bug that needs to be fixed
 ART_TARGET_CLANG_CFLAGS_arm64 += \
