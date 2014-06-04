@@ -459,4 +459,34 @@ TEST(SsaTest, DeadLocal) {
   TestCode(data, expected);
 }
 
+TEST(SsaTest, LocalInIf) {
+  // Test that we do not create a phi in the join block when one predecessor
+  // does not update the local.
+  const char* expected =
+    "BasicBlock 0, succ: 1\n"
+    "  0: IntConstant 0 [3, 3]\n"
+    "  1: IntConstant 4\n"
+    "  2: Goto\n"
+    "BasicBlock 1, pred: 0, succ: 2, 5\n"
+    "  3: Equal(0, 0) [4]\n"
+    "  4: If(3)\n"
+    "BasicBlock 2, pred: 1, succ: 3\n"
+    "  5: Goto\n"
+    "BasicBlock 3, pred: 2, 5, succ: 4\n"
+    "  6: ReturnVoid\n"
+    "BasicBlock 4, pred: 3\n"
+    "  7: Exit\n"
+    // Synthesized block to avoid critical edge.
+    "BasicBlock 5, pred: 1, succ: 3\n"
+    "  8: Goto\n";
+
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::IF_EQ, 3,
+    Instruction::CONST_4 | 4 << 12 | 1 << 8,
+    Instruction::RETURN_VOID);
+
+  TestCode(data, expected);
+}
+
 }  // namespace art
