@@ -2015,10 +2015,18 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
   if (descriptor[0] == '[') {
     return CreateArrayClass(self, descriptor, class_loader);
   } else if (class_loader.Get() == nullptr) {
+    // The boot class loader, search the boot class path.
     ClassPathEntry pair = FindInClassPath(descriptor, boot_class_path_);
     if (pair.second != nullptr) {
       StackHandleScope<1> hs(self);
       return DefineClass(descriptor, NullHandle<mirror::ClassLoader>(), *pair.first, *pair.second);
+    } else {
+      // The boot class loader is searched ahead of the application class loader, failures are
+      // expected and will be wrapped in a ClassNotFoundException. Use the pre-allocated error to
+      // trigger the chaining with a proper stack trace.
+      mirror::Throwable* pre_allocated = Runtime::Current()->GetPreAllocatedNoClassDefFoundError();
+      self->SetException(ThrowLocation(), pre_allocated);
+      return nullptr;
     }
   } else if (Runtime::Current()->UseCompileTimeClassPath()) {
     // First try with the bootstrap class loader.
@@ -2028,7 +2036,8 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
         return EnsureResolved(self, descriptor, klass);
       }
     }
-    // If the lookup failed search the boot class path. We don't perform a recursive call to avoid a NoClassDefFoundError being allocated.
+    // If the lookup failed search the boot class path. We don't perform a recursive call to avoid
+    // a NoClassDefFoundError being allocated.
     ClassPathEntry pair = FindInClassPath(descriptor, boot_class_path_);
     if (pair.second != nullptr) {
       StackHandleScope<1> hs(self);
@@ -2057,6 +2066,7 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
       ScopedLocalRef<jobject> class_name_object(soa.Env(),
                                                 soa.Env()->NewStringUTF(class_name_string.c_str()));
       if (class_name_object.get() == nullptr) {
+        DCHECK(self->IsExceptionPending());  // OOME.
         return nullptr;
       }
       CHECK(class_loader_object.get() != nullptr);
@@ -2070,7 +2080,7 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
     } else if (result.get() == nullptr) {
       // broken loader - throw NPE to be compatible with Dalvik
       ThrowNullPointerException(nullptr, StringPrintf("ClassLoader.loadClass returned null for %s",
-                                                   class_name_string.c_str()).c_str());
+                                                      class_name_string.c_str()).c_str());
       return nullptr;
     } else {
       // success, return mirror::Class*
