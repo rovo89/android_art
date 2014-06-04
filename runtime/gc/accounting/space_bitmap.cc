@@ -127,9 +127,17 @@ void SpaceBitmap<kAlignment>::SweepWalk(const SpaceBitmap<kAlignment>& live_bitm
   }
 
   // TODO: rewrite the callbacks to accept a std::vector<mirror::Object*> rather than a mirror::Object**?
-  const size_t buffer_size = kWordSize * kBitsPerWord;
+  constexpr size_t buffer_size = kWordSize * kBitsPerWord;
+#ifdef __LP64__
+  // Heap-allocate for smaller stack frame.
+  std::unique_ptr<mirror::Object*[]> pointer_buf_ptr(new mirror::Object*[buffer_size]);
+  mirror::Object** pointer_buf = pointer_buf_ptr.get();
+#else
+  // Stack-allocate buffer as it's small enough.
   mirror::Object* pointer_buf[buffer_size];
+#endif
   mirror::Object** pb = &pointer_buf[0];
+
   size_t start = OffsetToIndex(sweep_begin - live_bitmap.heap_begin_);
   size_t end = OffsetToIndex(sweep_end - live_bitmap.heap_begin_ - 1);
   CHECK_LT(end, live_bitmap.Size() / kWordSize);
