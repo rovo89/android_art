@@ -661,13 +661,14 @@ class StackVisitor {
       return locals_start + (reg * sizeof(uint32_t));
     } else {
       // Handle ins.
-      return frame_size + ((reg - num_regs) * sizeof(uint32_t)) + sizeof(StackReference<mirror::ArtMethod>);
+      return frame_size + ((reg - num_regs) * sizeof(uint32_t)) +
+          sizeof(StackReference<mirror::ArtMethod>);
     }
   }
 
   static int GetOutVROffset(uint16_t out_num, InstructionSet isa) {
-    // According to stack model, the first out is above the Method ptr.
-    return GetBytesPerGprSpillLocation(isa) + (out_num * sizeof(uint32_t));
+    // According to stack model, the first out is above the Method referernce.
+    return sizeof(StackReference<mirror::ArtMethod>) + (out_num * sizeof(uint32_t));
   }
 
   uintptr_t GetCurrentQuickFramePc() const {
