@@ -35,8 +35,6 @@
 #define xIP1 x17
 
 
-.cfi_sections   .debug_frame
-
 .macro ENTRY name
     .type \name, #function
     .global \name
