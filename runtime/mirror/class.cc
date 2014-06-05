@@ -771,7 +771,10 @@ const char* Class::GetSourceFile() {
   std::string descriptor(GetDescriptor());
   const DexFile& dex_file = GetDexFile();
   const DexFile::ClassDef* dex_class_def = GetClassDef();
-  CHECK(dex_class_def != nullptr) << "No class def for class " << PrettyClass(this);
+  if (dex_class_def == nullptr) {
+    // Generated classes have no class def.
+    return nullptr;
+  }
   return dex_file.GetSourceFile(*dex_class_def);
 }
 
