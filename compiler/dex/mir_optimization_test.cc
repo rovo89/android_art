@@ -188,7 +188,9 @@ class ClassInitCheckEliminationTest : public testing::Test {
   }
 
   void PerformClassInitCheckElimination() {
+    cu_.mir_graph->SSATransformationStart();
     cu_.mir_graph->ComputeDFSOrders();
+    cu_.mir_graph->SSATransformationEnd();
     bool gate_result = cu_.mir_graph->EliminateClassInitChecksGate();
     ASSERT_TRUE(gate_result);
     RepeatingPreOrderDfsIterator iterator(cu_.mir_graph.get());
