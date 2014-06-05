@@ -17,7 +17,10 @@
 #ifndef ART_RUNTIME_MEM_MAP_H_
 #define ART_RUNTIME_MEM_MAP_H_
 
+#include "base/mutex.h"
+
 #include <string>
+#include <map>
 
 #include <stddef.h>
 #include <sys/mman.h>  // For the PROT_* and MAP_* constants.
@@ -66,7 +69,7 @@ class MemMap {
                                   std::string* error_msg);
 
   // Releases the memory mapping
-  ~MemMap();
+  ~MemMap() LOCKS_EXCLUDED(Locks::mem_maps_lock_);
 
   const std::string& GetName() const {
     return name_;
@@ -110,9 +113,23 @@ class MemMap {
   MemMap* RemapAtEnd(byte* new_end, const char* tail_name, int tail_prot,
                      std::string* error_msg);
 
+  static bool CheckNoGaps(MemMap* begin_map, MemMap* end_map)
+      LOCKS_EXCLUDED(Locks::mem_maps_lock_);
+  static void DumpMaps(std::ostream& os)
+      LOCKS_EXCLUDED(Locks::mem_maps_lock_);
+
  private:
   MemMap(const std::string& name, byte* begin, size_t size, void* base_begin, size_t base_size,
-         int prot);
+         int prot) LOCKS_EXCLUDED(Locks::mem_maps_lock_);
+
+  static void DumpMaps(std::ostream& os, const std::multimap<void*, MemMap*>& mem_maps)
+      LOCKS_EXCLUDED(Locks::mem_maps_lock_);
+  static void DumpMapsLocked(std::ostream& os, const std::multimap<void*, MemMap*>& mem_maps)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mem_maps_lock_);
+  static bool HasMemMap(MemMap* map)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mem_maps_lock_);
+  static MemMap* GetLargestMemMapAt(void* address)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mem_maps_lock_);
 
   std::string name_;
   byte* const begin_;  // Start of data.
@@ -125,6 +142,9 @@ class MemMap {
 #if defined(__LP64__) && !defined(__x86_64__)
   static uintptr_t next_mem_pos_;   // next memory location to check for low_4g extent
 #endif
+
+  // All the non-empty MemMaps. Use a multimap as we do a reserve-and-divide (eg ElfMap::Load()).
+  static std::multimap<void*, MemMap*> maps_ GUARDED_BY(Locks::mem_maps_lock_);
 
   friend class MemMapTest;  // To allow access to base_begin_ and base_size_.
 };

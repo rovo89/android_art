@@ -15,6 +15,7 @@
  */
 
 #include "mem_map.h"
+#include "thread-inl.h"
 
 #include <inttypes.h>
 #include <backtrace/BacktraceMap.h>
@@ -50,6 +51,19 @@ static std::ostream& operator<<(
   }
   return os;
 }
+
+std::ostream& operator<<(std::ostream& os, const std::multimap<void*, MemMap*>& mem_maps) {
+  os << "MemMap:" << std::endl;
+  for (auto it = mem_maps.begin(); it != mem_maps.end(); ++it) {
+    void* base = it->first;
+    MemMap* map = it->second;
+    CHECK_EQ(base, map->BaseBegin());
+    os << *map << std::endl;
+  }
+  return os;
+}
+
+std::multimap<void*, MemMap*> MemMap::maps_;
 
 #if defined(__LP64__) && !defined(__x86_64__)
 // Handling mem_map in 32b address range for 64b architectures that do not support MAP_32BIT.
@@ -356,6 +370,19 @@ MemMap::~MemMap() {
   if (result == -1) {
     PLOG(FATAL) << "munmap failed";
   }
+
+  // Remove it from maps_.
+  MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
+  bool found = false;
+  for (auto it = maps_.lower_bound(base_begin_), end = maps_.end();
+       it != end && it->first == base_begin_; ++it) {
+    if (it->second == this) {
+      found = true;
+      maps_.erase(it);
+      break;
+    }
+  }
+  CHECK(found) << "MemMap not found";
 }
 
 MemMap::MemMap(const std::string& name, byte* begin, size_t size, void* base_begin,
@@ -370,6 +397,10 @@ MemMap::MemMap(const std::string& name, byte* begin, size_t size, void* base_beg
     CHECK(begin_ != nullptr);
     CHECK(base_begin_ != nullptr);
     CHECK_NE(base_size_, 0U);
+
+    // Add it to maps_.
+    MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
+    maps_.insert(std::pair<void*, MemMap*>(base_begin_, this));
   }
 };
 
@@ -458,10 +489,68 @@ bool MemMap::Protect(int prot) {
   return false;
 }
 
+bool MemMap::CheckNoGaps(MemMap* begin_map, MemMap* end_map) {
+  MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
+  CHECK(begin_map != nullptr);
+  CHECK(end_map != nullptr);
+  CHECK(HasMemMap(begin_map));
+  CHECK(HasMemMap(end_map));
+  CHECK_LE(begin_map->BaseBegin(), end_map->BaseBegin());
+  MemMap* map = begin_map;
+  while (map->BaseBegin() != end_map->BaseBegin()) {
+    MemMap* next_map = GetLargestMemMapAt(map->BaseEnd());
+    if (next_map == nullptr) {
+      // Found a gap.
+      return false;
+    }
+    map = next_map;
+  }
+  return true;
+}
+
+void MemMap::DumpMaps(std::ostream& os) {
+  DumpMaps(os, maps_);
+}
+
+void MemMap::DumpMaps(std::ostream& os, const std::multimap<void*, MemMap*>& mem_maps) {
+  MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
+  DumpMapsLocked(os, mem_maps);
+}
+
+void MemMap::DumpMapsLocked(std::ostream& os, const std::multimap<void*, MemMap*>& mem_maps) {
+  os << mem_maps;
+}
+
+bool MemMap::HasMemMap(MemMap* map) {
+  void* base_begin = map->BaseBegin();
+  for (auto it = maps_.lower_bound(base_begin), end = maps_.end();
+       it != end && it->first == base_begin; ++it) {
+    if (it->second == map) {
+      return true;
+    }
+  }
+  return false;
+}
+
+MemMap* MemMap::GetLargestMemMapAt(void* address) {
+  size_t largest_size = 0;
+  MemMap* largest_map = nullptr;
+  for (auto it = maps_.lower_bound(address), end = maps_.end();
+       it != end && it->first == address; ++it) {
+    MemMap* map = it->second;
+    CHECK(map != nullptr);
+    if (largest_size < map->BaseSize()) {
+      largest_size = map->BaseSize();
+      largest_map = map;
+    }
+  }
+  return largest_map;
+}
+
 std::ostream& operator<<(std::ostream& os, const MemMap& mem_map) {
-  os << StringPrintf("[MemMap: %s prot=0x%x %p-%p]",
-                     mem_map.GetName().c_str(), mem_map.GetProtect(),
-                     mem_map.BaseBegin(), mem_map.BaseEnd());
+  os << StringPrintf("[MemMap: %p-%p prot=0x%x %s]",
+                     mem_map.BaseBegin(), mem_map.BaseEnd(), mem_map.GetProtect(),
+                     mem_map.GetName().c_str());
   return os;
 }
 
