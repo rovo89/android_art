@@ -26,6 +26,7 @@
 #include "driver/compiler_driver.h"
 #include "leb128.h"
 #include "safe_map.h"
+#include "utils/array_ref.h"
 #include "utils/arena_allocator.h"
 #include "utils/growable_array.h"
 
@@ -429,16 +430,16 @@ class Mir2Lir : public Backend {
     class RegisterPool {
      public:
       RegisterPool(Mir2Lir* m2l, ArenaAllocator* arena,
-                   const std::vector<RegStorage>& core_regs,
-                   const std::vector<RegStorage>& core64_regs,
-                   const std::vector<RegStorage>& sp_regs,
-                   const std::vector<RegStorage>& dp_regs,
-                   const std::vector<RegStorage>& reserved_regs,
-                   const std::vector<RegStorage>& reserved64_regs,
-                   const std::vector<RegStorage>& core_temps,
-                   const std::vector<RegStorage>& core64_temps,
-                   const std::vector<RegStorage>& sp_temps,
-                   const std::vector<RegStorage>& dp_temps);
+                   const ArrayRef<const RegStorage>& core_regs,
+                   const ArrayRef<const RegStorage>& core64_regs,
+                   const ArrayRef<const RegStorage>& sp_regs,
+                   const ArrayRef<const RegStorage>& dp_regs,
+                   const ArrayRef<const RegStorage>& reserved_regs,
+                   const ArrayRef<const RegStorage>& reserved64_regs,
+                   const ArrayRef<const RegStorage>& core_temps,
+                   const ArrayRef<const RegStorage>& core64_temps,
+                   const ArrayRef<const RegStorage>& sp_temps,
+                   const ArrayRef<const RegStorage>& dp_temps);
       ~RegisterPool() {}
       static void* operator new(size_t size, ArenaAllocator* arena) {
         return arena->Alloc(size, kArenaAllocRegAlloc);

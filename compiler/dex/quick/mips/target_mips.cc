@@ -26,41 +26,34 @@
 
 namespace art {
 
-static const RegStorage core_regs_arr[] =
+static constexpr RegStorage core_regs_arr[] =
     {rs_rZERO, rs_rAT, rs_rV0, rs_rV1, rs_rA0, rs_rA1, rs_rA2, rs_rA3, rs_rT0, rs_rT1, rs_rT2,
      rs_rT3, rs_rT4, rs_rT5, rs_rT6, rs_rT7, rs_rS0, rs_rS1, rs_rS2, rs_rS3, rs_rS4, rs_rS5,
      rs_rS6, rs_rS7, rs_rT8, rs_rT9, rs_rK0, rs_rK1, rs_rGP, rs_rSP, rs_rFP, rs_rRA};
-static RegStorage sp_regs_arr[] =
+static constexpr RegStorage sp_regs_arr[] =
     {rs_rF0, rs_rF1, rs_rF2, rs_rF3, rs_rF4, rs_rF5, rs_rF6, rs_rF7, rs_rF8, rs_rF9, rs_rF10,
      rs_rF11, rs_rF12, rs_rF13, rs_rF14, rs_rF15};
-static RegStorage dp_regs_arr[] =
+static constexpr RegStorage dp_regs_arr[] =
     {rs_rD0, rs_rD1, rs_rD2, rs_rD3, rs_rD4, rs_rD5, rs_rD6, rs_rD7};
-static const RegStorage reserved_regs_arr[] =
+static constexpr RegStorage reserved_regs_arr[] =
     {rs_rZERO, rs_rAT, rs_rS0, rs_rS1, rs_rK0, rs_rK1, rs_rGP, rs_rSP, rs_rRA};
-static RegStorage core_temps_arr[] =
+static constexpr RegStorage core_temps_arr[] =
     {rs_rV0, rs_rV1, rs_rA0, rs_rA1, rs_rA2, rs_rA3, rs_rT0, rs_rT1, rs_rT2, rs_rT3, rs_rT4,
      rs_rT5, rs_rT6, rs_rT7, rs_rT8};
-static RegStorage sp_temps_arr[] =
+static constexpr RegStorage sp_temps_arr[] =
     {rs_rF0, rs_rF1, rs_rF2, rs_rF3, rs_rF4, rs_rF5, rs_rF6, rs_rF7, rs_rF8, rs_rF9, rs_rF10,
      rs_rF11, rs_rF12, rs_rF13, rs_rF14, rs_rF15};
-static RegStorage dp_temps_arr[] =
+static constexpr RegStorage dp_temps_arr[] =
     {rs_rD0, rs_rD1, rs_rD2, rs_rD3, rs_rD4, rs_rD5, rs_rD6, rs_rD7};
 
-static const std::vector<RegStorage> empty_pool;
-static const std::vector<RegStorage> core_regs(core_regs_arr,
-    core_regs_arr + sizeof(core_regs_arr) / sizeof(core_regs_arr[0]));
-static const std::vector<RegStorage> sp_regs(sp_regs_arr,
-    sp_regs_arr + sizeof(sp_regs_arr) / sizeof(sp_regs_arr[0]));
-static const std::vector<RegStorage> dp_regs(dp_regs_arr,
-    dp_regs_arr + sizeof(dp_regs_arr) / sizeof(dp_regs_arr[0]));
-static const std::vector<RegStorage> reserved_regs(reserved_regs_arr,
-    reserved_regs_arr + sizeof(reserved_regs_arr) / sizeof(reserved_regs_arr[0]));
-static const std::vector<RegStorage> core_temps(core_temps_arr,
-    core_temps_arr + sizeof(core_temps_arr) / sizeof(core_temps_arr[0]));
-static const std::vector<RegStorage> sp_temps(sp_temps_arr,
-    sp_temps_arr + sizeof(sp_temps_arr) / sizeof(sp_temps_arr[0]));
-static const std::vector<RegStorage> dp_temps(dp_temps_arr,
-    dp_temps_arr + sizeof(dp_temps_arr) / sizeof(dp_temps_arr[0]));
+static constexpr ArrayRef<const RegStorage> empty_pool;
+static constexpr ArrayRef<const RegStorage> core_regs(core_regs_arr);
+static constexpr ArrayRef<const RegStorage> sp_regs(sp_regs_arr);
+static constexpr ArrayRef<const RegStorage> dp_regs(dp_regs_arr);
+static constexpr ArrayRef<const RegStorage> reserved_regs(reserved_regs_arr);
+static constexpr ArrayRef<const RegStorage> core_temps(core_temps_arr);
+static constexpr ArrayRef<const RegStorage> sp_temps(sp_temps_arr);
+static constexpr ArrayRef<const RegStorage> dp_temps(dp_temps_arr);
 
 RegLocation MipsMir2Lir::LocCReturn() {
   return mips_loc_c_return;

@@ -56,16 +56,16 @@ Mir2Lir::RegisterInfo::RegisterInfo(RegStorage r, uint64_t mask)
 }
 
 Mir2Lir::RegisterPool::RegisterPool(Mir2Lir* m2l, ArenaAllocator* arena,
-                                    const std::vector<RegStorage>& core_regs,
-                                    const std::vector<RegStorage>& core64_regs,
-                                    const std::vector<RegStorage>& sp_regs,
-                                    const std::vector<RegStorage>& dp_regs,
-                                    const std::vector<RegStorage>& reserved_regs,
-                                    const std::vector<RegStorage>& reserved64_regs,
-                                    const std::vector<RegStorage>& core_temps,
-                                    const std::vector<RegStorage>& core64_temps,
-                                    const std::vector<RegStorage>& sp_temps,
-                                    const std::vector<RegStorage>& dp_temps) :
+                                    const ArrayRef<const RegStorage>& core_regs,
+                                    const ArrayRef<const RegStorage>& core64_regs,
+                                    const ArrayRef<const RegStorage>& sp_regs,
+                                    const ArrayRef<const RegStorage>& dp_regs,
+                                    const ArrayRef<const RegStorage>& reserved_regs,
+                                    const ArrayRef<const RegStorage>& reserved64_regs,
+                                    const ArrayRef<const RegStorage>& core_temps,
+                                    const ArrayRef<const RegStorage>& core64_temps,
+                                    const ArrayRef<const RegStorage>& sp_temps,
+                                    const ArrayRef<const RegStorage>& dp_temps) :
     core_regs_(arena, core_regs.size()), next_core_reg_(0),
     core64_regs_(arena, core64_regs.size()), next_core64_reg_(0),
     sp_regs_(arena, sp_regs.size()), next_sp_reg_(0),
