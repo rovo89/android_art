@@ -223,6 +223,40 @@ class Arm64Mir2Lir : public Mir2Lir {
                     bool skip_this);
 
   private:
+    /**
+     * @brief Given register xNN (dNN), returns register wNN (sNN).
+     * @param reg #RegStorage containing a Solo64 input register (e.g. @c x1 or @c d2).
+     * @return A Solo32 with the same register number as the @p reg (e.g. @c w1 or @c s2).
+     * @see As64BitReg
+     */
+    RegStorage As32BitReg(RegStorage reg) {
+      DCHECK(reg.Is64Bit());
+      DCHECK(!reg.IsPair());
+      RegStorage ret_val = RegStorage(RegStorage::k32BitSolo,
+                                      reg.GetRawBits() & RegStorage::kRegTypeMask);
+      DCHECK_EQ(GetRegInfo(reg)->FindMatchingView(RegisterInfo::k32SoloStorageMask)
+                               ->GetReg().GetReg(),
+                ret_val.GetReg());
+      return ret_val;
+    }
+
+    /**
+     * @brief Given register wNN (sNN), returns register xNN (dNN).
+     * @param reg #RegStorage containing a Solo32 input register (e.g. @c w1 or @c s2).
+     * @return A Solo64 with the same register number as the @p reg (e.g. @c x1 or @c d2).
+     * @see As32BitReg
+     */
+    RegStorage As64BitReg(RegStorage reg) {
+      DCHECK(reg.Is32Bit());
+      DCHECK(!reg.IsPair());
+      RegStorage ret_val = RegStorage(RegStorage::k64BitSolo,
+                                      reg.GetRawBits() & RegStorage::kRegTypeMask);
+      DCHECK_EQ(GetRegInfo(reg)->FindMatchingView(RegisterInfo::k64SoloStorageMask)
+                               ->GetReg().GetReg(),
+                ret_val.GetReg());
+      return ret_val;
+    }
+
     LIR* LoadFPConstantValue(int r_dest, int32_t value);
     LIR* LoadFPConstantValueWide(int r_dest, int64_t value);
     void ReplaceFixup(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
