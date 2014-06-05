@@ -155,7 +155,8 @@ enum Shift {
   LSR = 1,  // Logical shift right
   ASR = 2,  // Arithmetic shift right
   ROR = 3,  // Rotate right
-  kMaxShift = 4
+  RRX = 4,  // Rotate right with extend.
+  kMaxShift
 };
 
 
@@ -209,7 +210,6 @@ enum InstructionFields {
 
   kBranchOffsetMask = 0x00ffffff
 };
-
 
 // Size (in bytes) of registers.
 const int kRegisterSize = 4;
