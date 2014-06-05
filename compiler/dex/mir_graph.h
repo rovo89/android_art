@@ -192,6 +192,7 @@ enum OatMethodAttributes {
 
 typedef uint16_t BasicBlockId;
 static const BasicBlockId NullBasicBlockId = 0;
+static constexpr bool kLeafOptimization = false;
 
 /*
  * In general, vreg/sreg describe Dalvik registers that originated with dx.  However,
@@ -1055,6 +1056,20 @@ class MIRGraph {
   void HandleSSADef(int* defs, int dalvik_reg, int reg_index);
   bool InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed);
 
+  // Used for removing redudant suspend tests
+  void AppendGenSuspendTestList(BasicBlock* bb) {
+    if (gen_suspend_test_list_.Size() == 0 ||
+        gen_suspend_test_list_.Get(gen_suspend_test_list_.Size() - 1) != bb) {
+      gen_suspend_test_list_.Insert(bb);
+    }
+  }
+
+  /* This is used to check if there is already a method call dominating the
+   * source basic block of a backedge and being dominated by the target basic
+   * block of the backedge.
+   */
+  bool HasSuspendTestBetween(BasicBlock* source, BasicBlockId target_id);
+
  protected:
   int FindCommonParent(int block1, int block2);
   void ComputeSuccLineIn(ArenaBitVector* dest, const ArenaBitVector* src1,
@@ -1162,6 +1177,7 @@ class MIRGraph {
   GrowableArray<MirSFieldLoweringInfo> sfield_lowering_infos_;
   GrowableArray<MirMethodLoweringInfo> method_lowering_infos_;
   static const uint64_t oat_data_flow_attributes_[kMirOpLast];
+  GrowableArray<BasicBlock*> gen_suspend_test_list_;  // List of blocks containing suspend tests
 
   friend class ClassInitCheckEliminationTest;
   friend class LocalValueNumberingTest;

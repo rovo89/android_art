@@ -953,8 +953,18 @@ void ArmMir2Lir::GenDivZeroCheckWide(RegStorage reg) {
 
 // Test suspend flag, return target of taken suspend branch
 LIR* ArmMir2Lir::OpTestSuspend(LIR* target) {
+#ifdef ARM_R4_SUSPEND_FLAG
   NewLIR2(kThumbSubRI8, rs_rARM_SUSPEND.GetReg(), 1);
   return OpCondBranch((target == NULL) ? kCondEq : kCondNe, target);
+#else
+  RegStorage t_reg = AllocTemp();
+  LoadBaseDisp(rs_rARM_SELF, Thread::ThreadFlagsOffset<4>().Int32Value(),
+    t_reg, kUnsignedHalf);
+  LIR* cmp_branch = OpCmpImmBranch((target == NULL) ? kCondNe : kCondEq, t_reg,
+    0, target);
+  FreeTemp(t_reg);
+  return cmp_branch;
+#endif
 }
 
 // Decrement register and branch on condition
