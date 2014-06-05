@@ -26,7 +26,6 @@
 // Register holding Thread::Current().
 #define rSELF r9
 
-.cfi_sections   .debug_frame
 .syntax unified
 .arch armv7-a
 .thumb
