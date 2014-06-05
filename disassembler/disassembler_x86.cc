@@ -73,7 +73,7 @@ static void DumpReg0(std::ostream& os, uint8_t rex, size_t reg,
 
 enum RegFile { GPR, MMX, SSE };
 
-static void DumpAnyReg(std::ostream& os, uint8_t rex, uint8_t reg,
+static void DumpAnyReg(std::ostream& os, uint8_t rex, size_t reg,
                        bool byte_operand, uint8_t size_override, RegFile reg_file) {
   if (reg_file == GPR) {
     DumpReg0(os, rex, reg, byte_operand, size_override);
