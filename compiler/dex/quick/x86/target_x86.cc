@@ -30,7 +30,7 @@ static constexpr RegStorage core_regs_arr_32[] = {
     rs_rAX, rs_rCX, rs_rDX, rs_rBX, rs_rX86_SP_32, rs_rBP, rs_rSI, rs_rDI,
 };
 static constexpr RegStorage core_regs_arr_64[] = {
-    rs_rAX, rs_rCX, rs_rDX, rs_rBX, rs_rX86_SP_64, rs_rBP, rs_rSI, rs_rDI,
+    rs_rAX, rs_rCX, rs_rDX, rs_rBX, rs_rX86_SP_32, rs_rBP, rs_rSI, rs_rDI,
 #ifdef TARGET_REX_SUPPORT
     rs_r8, rs_r9, rs_r10, rs_r11, rs_r12, rs_r13, rs_r14, rs_r15
 #endif
@@ -60,7 +60,7 @@ static constexpr RegStorage dp_regs_arr_64[] = {
 #endif
 };
 static constexpr RegStorage reserved_regs_arr_32[] = {rs_rX86_SP_32};
-static constexpr RegStorage reserved_regs_arr_64[] = {rs_rX86_SP_64};
+static constexpr RegStorage reserved_regs_arr_64[] = {rs_rX86_SP_32};
 static constexpr RegStorage reserved_regs_arr_64q[] = {rs_rX86_SP_64};
 static constexpr RegStorage core_temps_arr_32[] = {rs_rAX, rs_rCX, rs_rDX, rs_rBX};
 static constexpr RegStorage core_temps_arr_64[] = {
@@ -551,9 +551,9 @@ bool X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 
 void X86Mir2Lir::CompilerInitializeRegAlloc() {
   if (Gen64Bit()) {
-    reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs_64, empty_pool/*core_regs_64q*/, sp_regs_64,
-                                          dp_regs_64, reserved_regs_64, empty_pool/*reserved_regs_64q*/,
-                                          core_temps_64, empty_pool/*core_temps_64q*/, sp_temps_64, dp_temps_64);
+    reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs_64, core_regs_64q, sp_regs_64,
+                                          dp_regs_64, reserved_regs_64, reserved_regs_64q,
+                                          core_temps_64, core_temps_64q, sp_temps_64, dp_temps_64);
   } else {
     reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs_32, empty_pool, sp_regs_32,
                                           dp_regs_32, reserved_regs_32, empty_pool,
@@ -583,10 +583,28 @@ void X86Mir2Lir::CompilerInitializeRegAlloc() {
     // Redirect 32-bit vector's master storage to 128-bit vector.
     info->SetMaster(xp_reg_info);
 
-    RegStorage dp_reg = RegStorage::Solo64(RegStorage::kFloatingPoint | sp_reg_num);
+    RegStorage dp_reg = RegStorage::FloatSolo64(sp_reg_num);
     RegisterInfo* dp_reg_info = GetRegInfo(dp_reg);
     // Redirect 64-bit vector's master storage to 128-bit vector.
     dp_reg_info->SetMaster(xp_reg_info);
+    // Singles should show a single 32-bit mask bit, at first referring to the low half.
+    DCHECK_EQ(info->StorageMask(), 0x1U);
+  }
+
+  if (Gen64Bit()) {
+    // Alias 32bit W registers to corresponding 64bit X registers.
+    GrowableArray<RegisterInfo*>::Iterator w_it(&reg_pool_->core_regs_);
+    for (RegisterInfo* info = w_it.Next(); info != nullptr; info = w_it.Next()) {
+      int x_reg_num = info->GetReg().GetRegNum();
+      RegStorage x_reg = RegStorage::Solo64(x_reg_num);
+      RegisterInfo* x_reg_info = GetRegInfo(x_reg);
+      // 64bit X register's master storage should refer to itself.
+      DCHECK_EQ(x_reg_info, x_reg_info->Master());
+      // Redirect 32bit W master storage to 64bit X.
+      info->SetMaster(x_reg_info);
+      // 32bit W should show a single 32-bit mask bit, at first referring to the low half.
+      DCHECK_EQ(info->StorageMask(), 0x1U);
+    }
   }
 
   // Don't start allocating temps at r0/s0/d0 or you may clobber return regs in early-exit methods.
