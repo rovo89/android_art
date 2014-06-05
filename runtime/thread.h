@@ -1106,6 +1106,8 @@ class Thread {
   friend class StubTest;  // For accessing entrypoints.
   friend class ThreadList;  // For ~Thread and Destroy.
 
+  friend class EntrypointsOrderTest;  // To test the order of tls entries.
+
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };
 
