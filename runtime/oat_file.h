@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "base/stringpiece.h"
 #include "dex_file.h"
 #include "invoke_type.h"
 #include "mem_map.h"
@@ -206,11 +207,11 @@ class OatFile {
                const byte* dex_file_pointer,
                const uint32_t* oat_class_offsets_pointer);
 
-    const OatFile* oat_file_;
-    std::string dex_file_location_;
-    uint32_t dex_file_location_checksum_;
-    const byte* dex_file_pointer_;
-    const uint32_t* oat_class_offsets_pointer_;
+    const OatFile* const oat_file_;
+    const std::string dex_file_location_;
+    const uint32_t dex_file_location_checksum_;
+    const byte* const dex_file_pointer_;
+    const uint32_t* const oat_class_offsets_pointer_;
 
     friend class OatFile;
     DISALLOW_COPY_AND_ASSIGN(OatDexFile);
@@ -270,7 +271,9 @@ class OatFile {
   // dlopen handle during runtime.
   void* dlopen_handle_;
 
-  typedef SafeMap<std::string, const OatDexFile*> Table;
+  // NOTE: We use a StringPiece as the key type to avoid a memory allocation on every lookup
+  // with a const char* key.
+  typedef SafeMap<StringPiece, const OatDexFile*> Table;
   Table oat_dex_files_;
 
   friend class OatClass;
