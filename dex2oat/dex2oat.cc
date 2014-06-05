@@ -25,6 +25,11 @@
 #include <string>
 #include <vector>
 
+#if defined(__linux__) && defined(__arm__)
+#include <sys/personality.h>
+#include <sys/utsname.h>
+#endif
+
 #include "base/stl_util.h"
 #include "base/stringpiece.h"
 #include "base/timing_logger.h"
@@ -704,6 +709,24 @@ static InstructionSetFeatures ParseFeatureList(std::string str) {
 }
 
 static int dex2oat(int argc, char** argv) {
+#if defined(__linux__) && defined(__arm__)
+  int major, minor;
+  struct utsname uts;
+  if (uname(&uts) != -1 &&
+      sscanf(uts.release, "%d.%d", &major, &minor) == 2 &&
+      ((major < 3) || ((major == 3) && (minor < 4)))) {
+    // Kernels before 3.4 don't handle the ASLR well and we can run out of address
+    // space (http://b/13564922). Work around the issue by inhibiting further mmap() randomization.
+    int old_personality = personality(0xffffffff);
+    if ((old_personality & ADDR_NO_RANDOMIZE) == 0) {
+      int new_personality = personality(old_personality | ADDR_NO_RANDOMIZE);
+      if (new_personality == -1) {
+        LOG(WARNING) << "personality(. | ADDR_NO_RANDOMIZE) failed.";
+      }
+    }
+  }
+#endif
+
   original_argc = argc;
   original_argv = argv;
 
