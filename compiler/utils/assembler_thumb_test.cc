@@ -27,7 +27,9 @@ namespace arm {
 // Include results file (generated manually)
 #include "assembler_thumb_test_expected.cc.inc"
 
+#ifndef HAVE_ANDROID_OS
 static constexpr bool kPrintResults = false;
+#endif
 
 void SetAndroidData() {
   const char* data = getenv("ANDROID_DATA");
