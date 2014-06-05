@@ -29,7 +29,8 @@ namespace art {
  *        pointer in r0 as a hidden arg0. Otherwise used as codegen scratch
  *        registers.
  * r0-r1: As in C/C++ r0 is 32-bit return register and r0/r1 is 64-bit
- * r4   : (rARM_SUSPEND) is reserved (suspend check/debugger assist)
+ * r4   : If ARM_R4_SUSPEND_FLAG is set then reserved as a suspend check/debugger
+ *        assist flag, otherwise a callee save promotion target.
  * r5   : Callee save (promotion target)
  * r6   : Callee save (promotion target)
  * r7   : Callee save (promotion target)
@@ -95,6 +96,8 @@ namespace art {
 
 // First FP callee save.
 #define ARM_FP_CALLEE_SAVE_BASE 16
+// Flag for using R4 to do suspend check
+#define ARM_R4_SUSPEND_FLAG
 
 enum ArmResourceEncodingPos {
   kArmGPReg0   = 0,
@@ -117,7 +120,11 @@ enum ArmNativeRegisterPool {
   r1           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  1,
   r2           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  2,
   r3           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  3,
+#ifdef ARM_R4_SUSPEND_FLAG
   rARM_SUSPEND = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  4,
+#else
+  r4           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  4,
+#endif
   r5           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  5,
   r6           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  6,
   r7           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  7,
@@ -207,7 +214,11 @@ constexpr RegStorage rs_r0(RegStorage::kValid | r0);
 constexpr RegStorage rs_r1(RegStorage::kValid | r1);
 constexpr RegStorage rs_r2(RegStorage::kValid | r2);
 constexpr RegStorage rs_r3(RegStorage::kValid | r3);
+#ifdef ARM_R4_SUSPEND_FLAG
 constexpr RegStorage rs_rARM_SUSPEND(RegStorage::kValid | rARM_SUSPEND);
+#else
+constexpr RegStorage rs_r4(RegStorage::kValid | r4);
+#endif
 constexpr RegStorage rs_r5(RegStorage::kValid | r5);
 constexpr RegStorage rs_r6(RegStorage::kValid | r6);
 constexpr RegStorage rs_r7(RegStorage::kValid | r7);

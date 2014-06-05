@@ -34,5 +34,7 @@
 
 // Expected size of a heap reference
 #define HEAP_REFERENCE_SIZE 4
+// Flag for enabling R4 optimization in arm runtime
+#define ARM_R4_SUSPEND_FLAG
 
 #endif  // ART_RUNTIME_ARCH_ARM_ASM_SUPPORT_ARM_H_
