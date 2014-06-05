@@ -250,4 +250,65 @@ TEST_F(MemMapTest, MapAnonymousLow4GBRangeTooHigh) {
 }
 #endif
 
+TEST_F(MemMapTest, CheckNoGaps) {
+  std::string error_msg;
+  constexpr size_t kNumPages = 3;
+  // Map a 3-page mem map.
+  std::unique_ptr<MemMap> map(MemMap::MapAnonymous("MapAnonymous0",
+                                                   nullptr,
+                                                   kPageSize * kNumPages,
+                                                   PROT_READ | PROT_WRITE,
+                                                   false,
+                                                   &error_msg));
+  ASSERT_TRUE(map.get() != nullptr) << error_msg;
+  ASSERT_TRUE(error_msg.empty());
+  // Record the base address.
+  byte* map_base = reinterpret_cast<byte*>(map->BaseBegin());
+  // Unmap it.
+  map.reset();
+
+  // Map at the same address, but in page-sized separate mem maps,
+  // assuming the space at the address is still available.
+  std::unique_ptr<MemMap> map0(MemMap::MapAnonymous("MapAnonymous0",
+                                                    map_base,
+                                                    kPageSize,
+                                                    PROT_READ | PROT_WRITE,
+                                                    false,
+                                                    &error_msg));
+  ASSERT_TRUE(map0.get() != nullptr) << error_msg;
+  ASSERT_TRUE(error_msg.empty());
+  std::unique_ptr<MemMap> map1(MemMap::MapAnonymous("MapAnonymous1",
+                                                    map_base + kPageSize,
+                                                    kPageSize,
+                                                    PROT_READ | PROT_WRITE,
+                                                    false,
+                                                    &error_msg));
+  ASSERT_TRUE(map1.get() != nullptr) << error_msg;
+  ASSERT_TRUE(error_msg.empty());
+  std::unique_ptr<MemMap> map2(MemMap::MapAnonymous("MapAnonymous2",
+                                                    map_base + kPageSize * 2,
+                                                    kPageSize,
+                                                    PROT_READ | PROT_WRITE,
+                                                    false,
+                                                    &error_msg));
+  ASSERT_TRUE(map2.get() != nullptr) << error_msg;
+  ASSERT_TRUE(error_msg.empty());
+
+  // One-map cases.
+  ASSERT_TRUE(MemMap::CheckNoGaps(map0.get(), map0.get()));
+  ASSERT_TRUE(MemMap::CheckNoGaps(map1.get(), map1.get()));
+  ASSERT_TRUE(MemMap::CheckNoGaps(map2.get(), map2.get()));
+
+  // Two or three-map cases.
+  ASSERT_TRUE(MemMap::CheckNoGaps(map0.get(), map1.get()));
+  ASSERT_TRUE(MemMap::CheckNoGaps(map1.get(), map2.get()));
+  ASSERT_TRUE(MemMap::CheckNoGaps(map0.get(), map2.get()));
+
+  // Unmap the middle one.
+  map1.reset();
+
+  // Should return false now that there's a gap in the middle.
+  ASSERT_FALSE(MemMap::CheckNoGaps(map0.get(), map2.get()));
+}
+
 }  // namespace art

@@ -341,6 +341,17 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     garbage_collectors_.push_back(concurrent_copying_collector_);
   }
 
+  if (GetImageSpace() != nullptr && main_space_ != nullptr) {
+    // Check that there's no gap between the image space and the main
+    // space so that the immune region won't break (eg. due to a large
+    // object allocated in the gap).
+    bool no_gap = MemMap::CheckNoGaps(GetImageSpace()->GetMemMap(), main_space_->GetMemMap());
+    if (!no_gap) {
+      MemMap::DumpMaps(LOG(ERROR));
+      LOG(FATAL) << "There's a gap between the image space and the main space";
+    }
+  }
+
   if (running_on_valgrind_) {
     Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints();
   }
