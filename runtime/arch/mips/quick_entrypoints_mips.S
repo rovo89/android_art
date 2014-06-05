@@ -496,8 +496,8 @@ ENTRY art_quick_invoke_stub
     move  $s1, $a3              # move managed thread pointer into s1
     addiu $s0, $zero, SUSPEND_CHECK_INTERVAL  # reset s0 to suspend check interval
     addiu $t0, $a2, 16          # create space for method pointer in frame
-    srl   $t0, $t0, 3           # shift the frame size right 3
-    sll   $t0, $t0, 3           # shift the frame size left 3 to align to 16 bytes
+    srl   $t0, $t0, 4           # shift the frame size right 4
+    sll   $t0, $t0, 4           # shift the frame size left 4 to align to 16 bytes
     subu  $sp, $sp, $t0         # reserve stack space for argument array
     addiu $a0, $sp, 4           # pass stack pointer + method ptr as dest for memcpy
     jal   memcpy                # (dest, src, bytes)
@@ -987,9 +987,9 @@ ENTRY art_quick_proxy_invoke_handler
     lw      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     bnez    $t0, 1f
-    nop
+    mtc1    $v0, $f0               # place return value to FP return value
     jr      $ra
-    nop
+    mtc1    $v1, $f1               # place return value to FP return value
 1:
     DELIVER_PENDING_EXCEPTION
 END art_quick_proxy_invoke_handler
@@ -1039,9 +1039,9 @@ ENTRY art_quick_to_interpreter_bridge
     lw      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     bnez    $t0, 1f
-    nop
+    mtc1    $v0, $f0               # place return value to FP return value
     jr      $ra
-    nop
+    mtc1    $v1, $f1               # place return value to FP return value
 1:
     DELIVER_PENDING_EXCEPTION
 END art_quick_to_interpreter_bridge
