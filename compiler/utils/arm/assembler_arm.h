@@ -29,88 +29,118 @@
 namespace art {
 namespace arm {
 
-// Encodes Addressing Mode 1 - Data-processing operands defined in Section 5.1.
 class ShifterOperand {
  public:
-  // Data-processing operands - Uninitialized
-  ShifterOperand() {
-    type_ = -1;
-    encoding_ = 0;
+  ShifterOperand() : type_(kUnknown), rm_(kNoRegister), rs_(kNoRegister),
+      is_rotate_(false), is_shift_(false), shift_(kNoShift), rotate_(0), immed_(0) {
   }
 
-  // Data-processing operands - Immediate
-  explicit ShifterOperand(uint32_t immediate) {
-    CHECK(immediate < (1 << kImmed8Bits));
-    type_ = 1;
-    encoding_ = immediate;
-  }
-
-  // Data-processing operands - Rotated immediate
-  ShifterOperand(uint32_t rotate, uint32_t immed8) {
-    CHECK((rotate < (1 << kRotateBits)) && (immed8 < (1 << kImmed8Bits)));
-    type_ = 1;
-    encoding_ = (rotate << kRotateShift) | (immed8 << kImmed8Shift);
+  explicit ShifterOperand(uint32_t immed) : type_(kImmediate), rm_(kNoRegister), rs_(kNoRegister),
+      is_rotate_(false), is_shift_(false), shift_(kNoShift), rotate_(0), immed_(immed) {
   }
 
   // Data-processing operands - Register
-  explicit ShifterOperand(Register rm) {
-    type_ = 0;
-    encoding_ = static_cast<uint32_t>(rm);
+  explicit ShifterOperand(Register rm) : type_(kRegister), rm_(rm), rs_(kNoRegister),
+      is_rotate_(false), is_shift_(false), shift_(kNoShift), rotate_(0), immed_(0) {
   }
 
-  // Data-processing operands - Logical shift/rotate by immediate
-  ShifterOperand(Register rm, Shift shift, uint32_t shift_imm) {
-    CHECK(shift_imm < (1 << kShiftImmBits));
-    type_ = 0;
-    encoding_ = shift_imm << kShiftImmShift |
-                static_cast<uint32_t>(shift) << kShiftShift |
-                static_cast<uint32_t>(rm);
+  ShifterOperand(uint32_t rotate, uint32_t immed8) : type_(kImmediate), rm_(kNoRegister),
+      rs_(kNoRegister),
+      is_rotate_(true), is_shift_(false), shift_(kNoShift), rotate_(rotate), immed_(immed8) {
+  }
+
+  ShifterOperand(Register rm, Shift shift, uint32_t shift_imm = 0) : type_(kRegister), rm_(rm),
+      rs_(kNoRegister),
+      is_rotate_(false), is_shift_(true), shift_(shift), rotate_(0), immed_(shift_imm) {
   }
 
   // Data-processing operands - Logical shift/rotate by register
-  ShifterOperand(Register rm, Shift shift, Register rs) {
-    type_ = 0;
-    encoding_ = static_cast<uint32_t>(rs) << kShiftRegisterShift |
-                static_cast<uint32_t>(shift) << kShiftShift | (1 << 4) |
-                static_cast<uint32_t>(rm);
+  ShifterOperand(Register rm, Shift shift, Register rs)  : type_(kRegister), rm_(rm),
+      rs_(rs),
+      is_rotate_(false), is_shift_(true), shift_(shift), rotate_(0), immed_(0) {
   }
 
-  static bool CanHold(uint32_t immediate, ShifterOperand* shifter_op) {
-    // Avoid the more expensive test for frequent small immediate values.
-    if (immediate < (1 << kImmed8Bits)) {
-      shifter_op->type_ = 1;
-      shifter_op->encoding_ = (0 << kRotateShift) | (immediate << kImmed8Shift);
-      return true;
-    }
-    // Note that immediate must be unsigned for the test to work correctly.
-    for (int rot = 0; rot < 16; rot++) {
-      uint32_t imm8 = (immediate << 2*rot) | (immediate >> (32 - 2*rot));
-      if (imm8 < (1 << kImmed8Bits)) {
-        shifter_op->type_ = 1;
-        shifter_op->encoding_ = (rot << kRotateShift) | (imm8 << kImmed8Shift);
-        return true;
-      }
-    }
-    return false;
-  }
-
- private:
-  bool is_valid() const { return (type_ == 0) || (type_ == 1); }
+  bool is_valid() const { return (type_ == kImmediate) || (type_ == kRegister); }
 
   uint32_t type() const {
     CHECK(is_valid());
     return type_;
   }
 
-  uint32_t encoding() const {
-    CHECK(is_valid());
-    return encoding_;
+  uint32_t encodingArm() const;
+  uint32_t encodingThumb(int version) const;
+
+  bool IsEmpty() const {
+    return type_ == kUnknown;
   }
 
-  uint32_t type_;  // Encodes the type field (bits 27-25) in the instruction.
-  uint32_t encoding_;
+  bool IsImmediate() const {
+    return type_ == kImmediate;
+  }
 
-  friend class ArmAssembler;
+  bool IsRegister() const {
+    return type_ == kRegister;
+  }
+
+  bool IsShift() const {
+    return is_shift_;
+  }
+
+  uint32_t GetImmediate() const {
+    return immed_;
+  }
+
+  Shift GetShift() const {
+    return shift_;
+  }
+
+  Register GetRegister() const {
+    return rm_;
+  }
+
+  enum Type {
+    kUnknown = -1,
+    kRegister,
+    kImmediate
+  };
+
+  static bool CanHoldArm(uint32_t immediate, ShifterOperand* shifter_op) {
+    // Avoid the more expensive test for frequent small immediate values.
+    if (immediate < (1 << kImmed8Bits)) {
+      shifter_op->type_ = kImmediate;
+      shifter_op->is_rotate_ = true;
+      shifter_op->rotate_ = 0;
+      shifter_op->immed_ = immediate;
+      return true;
+    }
+    // Note that immediate must be unsigned for the test to work correctly.
+    for (int rot = 0; rot < 16; rot++) {
+      uint32_t imm8 = (immediate << 2*rot) | (immediate >> (32 - 2*rot));
+      if (imm8 < (1 << kImmed8Bits)) {
+        shifter_op->type_ = kImmediate;
+        shifter_op->is_rotate_ = true;
+        shifter_op->rotate_ = rot;
+        shifter_op->immed_ = imm8;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool CanHoldThumb(Register rd, Register rn, Opcode opcode,
+                           uint32_t immediate, ShifterOperand* shifter_op);
+
+
+ private:
+  Type type_;
+  Register rm_;
+  Register rs_;
+  bool is_rotate_;
+  bool is_shift_;
+  Shift shift_;
+  uint32_t rotate_;
+  uint32_t immed_;
+
 #ifdef SOURCE_ASSEMBLER_SUPPORT
   friend class BinaryAssembler;
 #endif
@@ -152,10 +182,10 @@ enum BlockAddressMode {
   IB_W         = (8|4|1) << 21   // increment before with writeback to base
 };
 
-
 class Address {
  public:
-  // Memory operand addressing mode
+  // Memory operand addressing mode (in ARM encoding form.  For others we need
+  // to adjust)
   enum Mode {
     // bit encoding P U W
     Offset       = (8|4|0) << 21,  // offset (w/o writeback to base)
@@ -166,273 +196,366 @@ class Address {
     NegPostIndex = (0|0|0) << 21   // negative post-indexed with writeback
   };
 
-  explicit Address(Register rn, int32_t offset = 0, Mode am = Offset) {
-    CHECK(IsAbsoluteUint(12, offset));
-    if (offset < 0) {
-      encoding_ = (am ^ (1 << kUShift)) | -offset;  // Flip U to adjust sign.
-    } else {
-      encoding_ = am | offset;
-    }
-    encoding_ |= static_cast<uint32_t>(rn) << kRnShift;
+  explicit Address(Register rn, int32_t offset = 0, Mode am = Offset) : rn_(rn), offset_(offset),
+      am_(am) {
   }
 
-  static bool CanHoldLoadOffset(LoadOperandType type, int offset);
-  static bool CanHoldStoreOffset(StoreOperandType type, int offset);
+  static bool CanHoldLoadOffsetArm(LoadOperandType type, int offset);
+  static bool CanHoldStoreOffsetArm(StoreOperandType type, int offset);
+
+  static bool CanHoldLoadOffsetThumb(LoadOperandType type, int offset);
+  static bool CanHoldStoreOffsetThumb(StoreOperandType type, int offset);
+
+  uint32_t encodingArm() const;
+  uint32_t encodingThumb(int version) const;
+
+  uint32_t encoding3() const;
+  uint32_t vencoding() const;
+
+  uint32_t encodingThumbLdrdStrd() const;
+
+  Register GetRegister() const {
+    return rn_;
+  }
+
+  int32_t GetOffset() const {
+    return offset_;
+  }
+
+  Mode GetMode() const {
+    return am_;
+  }
 
  private:
-  uint32_t encoding() const { return encoding_; }
-
-  // Encoding for addressing mode 3.
-  uint32_t encoding3() const {
-    const uint32_t offset_mask = (1 << 12) - 1;
-    uint32_t offset = encoding_ & offset_mask;
-    CHECK_LT(offset, 256u);
-    return (encoding_ & ~offset_mask) | ((offset & 0xf0) << 4) | (offset & 0xf);
-  }
-
-  // Encoding for vfp load/store addressing.
-  uint32_t vencoding() const {
-    const uint32_t offset_mask = (1 << 12) - 1;
-    uint32_t offset = encoding_ & offset_mask;
-    CHECK(IsAbsoluteUint(10, offset));  // In the range -1020 to +1020.
-    CHECK_ALIGNED(offset, 2);  // Multiple of 4.
-    int mode = encoding_ & ((8|4|1) << 21);
-    CHECK((mode == Offset) || (mode == NegOffset));
-    uint32_t vencoding = (encoding_ & (0xf << kRnShift)) | (offset >> 2);
-    if (mode == Offset) {
-      vencoding |= 1 << 23;
-    }
-    return vencoding;
-  }
-
-  uint32_t encoding_;
-
-  friend class ArmAssembler;
+  Register rn_;
+  int32_t offset_;
+  Mode am_;
 };
 
+// Instruction encoding bits.
+enum {
+  H   = 1 << 5,   // halfword (or byte)
+  L   = 1 << 20,  // load (or store)
+  S   = 1 << 20,  // set condition code (or leave unchanged)
+  W   = 1 << 21,  // writeback base register (or leave unchanged)
+  A   = 1 << 21,  // accumulate in multiply instruction (or not)
+  B   = 1 << 22,  // unsigned byte (or word)
+  N   = 1 << 22,  // long (or short)
+  U   = 1 << 23,  // positive (or negative) offset/index
+  P   = 1 << 24,  // offset/pre-indexed addressing (or post-indexed addressing)
+  I   = 1 << 25,  // immediate shifter operand (or not)
 
-class ArmAssembler FINAL : public Assembler {
+  B0 = 1,
+  B1 = 1 << 1,
+  B2 = 1 << 2,
+  B3 = 1 << 3,
+  B4 = 1 << 4,
+  B5 = 1 << 5,
+  B6 = 1 << 6,
+  B7 = 1 << 7,
+  B8 = 1 << 8,
+  B9 = 1 << 9,
+  B10 = 1 << 10,
+  B11 = 1 << 11,
+  B12 = 1 << 12,
+  B13 = 1 << 13,
+  B14 = 1 << 14,
+  B15 = 1 << 15,
+  B16 = 1 << 16,
+  B17 = 1 << 17,
+  B18 = 1 << 18,
+  B19 = 1 << 19,
+  B20 = 1 << 20,
+  B21 = 1 << 21,
+  B22 = 1 << 22,
+  B23 = 1 << 23,
+  B24 = 1 << 24,
+  B25 = 1 << 25,
+  B26 = 1 << 26,
+  B27 = 1 << 27,
+  B28 = 1 << 28,
+  B29 = 1 << 29,
+  B30 = 1 << 30,
+  B31 = 1 << 31,
+
+  // Instruction bit masks.
+  RdMask = 15 << 12,  // in str instruction
+  CondMask = 15 << 28,
+  CoprocessorMask = 15 << 8,
+  OpCodeMask = 15 << 21,  // in data-processing instructions
+  Imm24Mask = (1 << 24) - 1,
+  Off12Mask = (1 << 12) - 1,
+
+  // ldrex/strex register field encodings.
+  kLdExRnShift = 16,
+  kLdExRtShift = 12,
+  kStrExRnShift = 16,
+  kStrExRdShift = 12,
+  kStrExRtShift = 0,
+};
+
+// IfThen state for IT instructions.
+enum ItState {
+  kItOmitted,
+  kItThen,
+  kItT = kItThen,
+  kItElse,
+  kItE = kItElse
+};
+
+constexpr uint32_t kNoItCondition = 3;
+constexpr uint32_t kInvalidModifiedImmediate = -1;
+
+extern const char* kRegisterNames[];
+extern const char* kConditionNames[];
+extern std::ostream& operator<<(std::ostream& os, const Register& rhs);
+extern std::ostream& operator<<(std::ostream& os, const SRegister& rhs);
+extern std::ostream& operator<<(std::ostream& os, const DRegister& rhs);
+extern std::ostream& operator<<(std::ostream& os, const Condition& rhs);
+
+// This is an abstract ARM assembler.  Subclasses provide assemblers for the individual
+// instruction sets (ARM32, Thumb2, etc.)
+//
+class ArmAssembler : public Assembler {
  public:
-  ArmAssembler() {}
   virtual ~ArmAssembler() {}
 
+  // Is this assembler for the thumb instruction set?
+  virtual bool IsThumb() const = 0;
+
   // Data-processing instructions.
-  void and_(Register rd, Register rn, ShifterOperand so, Condition cond = AL);
+  virtual void and_(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  void eor(Register rd, Register rn, ShifterOperand so, Condition cond = AL);
+  virtual void eor(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  void sub(Register rd, Register rn, ShifterOperand so, Condition cond = AL);
-  void subs(Register rd, Register rn, ShifterOperand so, Condition cond = AL);
+  virtual void sub(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void subs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  void rsb(Register rd, Register rn, ShifterOperand so, Condition cond = AL);
-  void rsbs(Register rd, Register rn, ShifterOperand so, Condition cond = AL);
+  virtual void rsb(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void rsbs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  void add(Register rd, Register rn, ShifterOperand so, Condition cond = AL);
+  virtual void add(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  void adds(Register rd, Register rn, ShifterOperand so, Condition cond = AL);
+  virtual void adds(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  void adc(Register rd, Register rn, ShifterOperand so, Condition cond = AL);
+  virtual void adc(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  void sbc(Register rd, Register rn, ShifterOperand so, Condition cond = AL);
+  virtual void sbc(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  void rsc(Register rd, Register rn, ShifterOperand so, Condition cond = AL);
+  virtual void rsc(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  void tst(Register rn, ShifterOperand so, Condition cond = AL);
+  virtual void tst(Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  void teq(Register rn, ShifterOperand so, Condition cond = AL);
+  virtual void teq(Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  void cmp(Register rn, ShifterOperand so, Condition cond = AL);
+  virtual void cmp(Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  void cmn(Register rn, ShifterOperand so, Condition cond = AL);
+  virtual void cmn(Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  void orr(Register rd, Register rn, ShifterOperand so, Condition cond = AL);
-  void orrs(Register rd, Register rn, ShifterOperand so, Condition cond = AL);
+  virtual void orr(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void orrs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  void mov(Register rd, ShifterOperand so, Condition cond = AL);
-  void movs(Register rd, ShifterOperand so, Condition cond = AL);
+  virtual void mov(Register rd, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void movs(Register rd, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  void bic(Register rd, Register rn, ShifterOperand so, Condition cond = AL);
+  virtual void bic(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  void mvn(Register rd, ShifterOperand so, Condition cond = AL);
-  void mvns(Register rd, ShifterOperand so, Condition cond = AL);
+  virtual void mvn(Register rd, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void mvns(Register rd, const ShifterOperand& so, Condition cond = AL) = 0;
 
   // Miscellaneous data-processing instructions.
-  void clz(Register rd, Register rm, Condition cond = AL);
-  void movw(Register rd, uint16_t imm16, Condition cond = AL);
-  void movt(Register rd, uint16_t imm16, Condition cond = AL);
+  virtual void clz(Register rd, Register rm, Condition cond = AL) = 0;
+  virtual void movw(Register rd, uint16_t imm16, Condition cond = AL) = 0;
+  virtual void movt(Register rd, uint16_t imm16, Condition cond = AL) = 0;
 
   // Multiply instructions.
-  void mul(Register rd, Register rn, Register rm, Condition cond = AL);
-  void mla(Register rd, Register rn, Register rm, Register ra,
-           Condition cond = AL);
-  void mls(Register rd, Register rn, Register rm, Register ra,
-           Condition cond = AL);
-  void umull(Register rd_lo, Register rd_hi, Register rn, Register rm,
-             Condition cond = AL);
+  virtual void mul(Register rd, Register rn, Register rm, Condition cond = AL) = 0;
+  virtual void mla(Register rd, Register rn, Register rm, Register ra,
+                   Condition cond = AL) = 0;
+  virtual void mls(Register rd, Register rn, Register rm, Register ra,
+                   Condition cond = AL) = 0;
+  virtual void umull(Register rd_lo, Register rd_hi, Register rn, Register rm,
+                     Condition cond = AL) = 0;
+
+  virtual void sdiv(Register rd, Register rn, Register rm, Condition cond = AL) = 0;
+  virtual void udiv(Register rd, Register rn, Register rm, Condition cond = AL) = 0;
 
   // Load/store instructions.
-  void ldr(Register rd, Address ad, Condition cond = AL);
-  void str(Register rd, Address ad, Condition cond = AL);
+  virtual void ldr(Register rd, const Address& ad, Condition cond = AL) = 0;
+  virtual void str(Register rd, const Address& ad, Condition cond = AL) = 0;
 
-  void ldrb(Register rd, Address ad, Condition cond = AL);
-  void strb(Register rd, Address ad, Condition cond = AL);
+  virtual void ldrb(Register rd, const Address& ad, Condition cond = AL) = 0;
+  virtual void strb(Register rd, const Address& ad, Condition cond = AL) = 0;
 
-  void ldrh(Register rd, Address ad, Condition cond = AL);
-  void strh(Register rd, Address ad, Condition cond = AL);
+  virtual void ldrh(Register rd, const Address& ad, Condition cond = AL) = 0;
+  virtual void strh(Register rd, const Address& ad, Condition cond = AL) = 0;
 
-  void ldrsb(Register rd, Address ad, Condition cond = AL);
-  void ldrsh(Register rd, Address ad, Condition cond = AL);
+  virtual void ldrsb(Register rd, const Address& ad, Condition cond = AL) = 0;
+  virtual void ldrsh(Register rd, const Address& ad, Condition cond = AL) = 0;
 
-  void ldrd(Register rd, Address ad, Condition cond = AL);
-  void strd(Register rd, Address ad, Condition cond = AL);
+  virtual void ldrd(Register rd, const Address& ad, Condition cond = AL) = 0;
+  virtual void strd(Register rd, const Address& ad, Condition cond = AL) = 0;
 
-  void ldm(BlockAddressMode am, Register base,
-           RegList regs, Condition cond = AL);
-  void stm(BlockAddressMode am, Register base,
-           RegList regs, Condition cond = AL);
+  virtual void ldm(BlockAddressMode am, Register base,
+                   RegList regs, Condition cond = AL) = 0;
+  virtual void stm(BlockAddressMode am, Register base,
+                   RegList regs, Condition cond = AL) = 0;
 
-  void ldrex(Register rd, Register rn, Condition cond = AL);
-  void strex(Register rd, Register rt, Register rn, Condition cond = AL);
+  virtual void ldrex(Register rd, Register rn, Condition cond = AL) = 0;
+  virtual void strex(Register rd, Register rt, Register rn, Condition cond = AL) = 0;
 
   // Miscellaneous instructions.
-  void clrex();
-  void nop(Condition cond = AL);
+  virtual void clrex(Condition cond = AL) = 0;
+  virtual void nop(Condition cond = AL) = 0;
 
   // Note that gdb sets breakpoints using the undefined instruction 0xe7f001f0.
-  void bkpt(uint16_t imm16);
-  void svc(uint32_t imm24);
+  virtual void bkpt(uint16_t imm16) = 0;
+  virtual void svc(uint32_t imm24) = 0;
+
+  virtual void it(Condition firstcond, ItState i1 = kItOmitted,
+                  ItState i2 = kItOmitted, ItState i3 = kItOmitted) {
+    // Ignored if not supported.
+  }
+
+  virtual void cbz(Register rn, Label* target) = 0;
+  virtual void cbnz(Register rn, Label* target) = 0;
 
   // Floating point instructions (VFPv3-D16 and VFPv3-D32 profiles).
-  void vmovsr(SRegister sn, Register rt, Condition cond = AL);
-  void vmovrs(Register rt, SRegister sn, Condition cond = AL);
-  void vmovsrr(SRegister sm, Register rt, Register rt2, Condition cond = AL);
-  void vmovrrs(Register rt, Register rt2, SRegister sm, Condition cond = AL);
-  void vmovdrr(DRegister dm, Register rt, Register rt2, Condition cond = AL);
-  void vmovrrd(Register rt, Register rt2, DRegister dm, Condition cond = AL);
-  void vmovs(SRegister sd, SRegister sm, Condition cond = AL);
-  void vmovd(DRegister dd, DRegister dm, Condition cond = AL);
+  virtual void vmovsr(SRegister sn, Register rt, Condition cond = AL) = 0;
+  virtual void vmovrs(Register rt, SRegister sn, Condition cond = AL) = 0;
+  virtual void vmovsrr(SRegister sm, Register rt, Register rt2, Condition cond = AL) = 0;
+  virtual void vmovrrs(Register rt, Register rt2, SRegister sm, Condition cond = AL) = 0;
+  virtual void vmovdrr(DRegister dm, Register rt, Register rt2, Condition cond = AL) = 0;
+  virtual void vmovrrd(Register rt, Register rt2, DRegister dm, Condition cond = AL) = 0;
+  virtual void vmovs(SRegister sd, SRegister sm, Condition cond = AL) = 0;
+  virtual void vmovd(DRegister dd, DRegister dm, Condition cond = AL) = 0;
 
   // Returns false if the immediate cannot be encoded.
-  bool vmovs(SRegister sd, float s_imm, Condition cond = AL);
-  bool vmovd(DRegister dd, double d_imm, Condition cond = AL);
+  virtual bool vmovs(SRegister sd, float s_imm, Condition cond = AL) = 0;
+  virtual bool vmovd(DRegister dd, double d_imm, Condition cond = AL) = 0;
 
-  void vldrs(SRegister sd, Address ad, Condition cond = AL);
-  void vstrs(SRegister sd, Address ad, Condition cond = AL);
-  void vldrd(DRegister dd, Address ad, Condition cond = AL);
-  void vstrd(DRegister dd, Address ad, Condition cond = AL);
+  virtual void vldrs(SRegister sd, const Address& ad, Condition cond = AL) = 0;
+  virtual void vstrs(SRegister sd, const Address& ad, Condition cond = AL) = 0;
+  virtual void vldrd(DRegister dd, const Address& ad, Condition cond = AL) = 0;
+  virtual void vstrd(DRegister dd, const Address& ad, Condition cond = AL) = 0;
 
-  void vadds(SRegister sd, SRegister sn, SRegister sm, Condition cond = AL);
-  void vaddd(DRegister dd, DRegister dn, DRegister dm, Condition cond = AL);
-  void vsubs(SRegister sd, SRegister sn, SRegister sm, Condition cond = AL);
-  void vsubd(DRegister dd, DRegister dn, DRegister dm, Condition cond = AL);
-  void vmuls(SRegister sd, SRegister sn, SRegister sm, Condition cond = AL);
-  void vmuld(DRegister dd, DRegister dn, DRegister dm, Condition cond = AL);
-  void vmlas(SRegister sd, SRegister sn, SRegister sm, Condition cond = AL);
-  void vmlad(DRegister dd, DRegister dn, DRegister dm, Condition cond = AL);
-  void vmlss(SRegister sd, SRegister sn, SRegister sm, Condition cond = AL);
-  void vmlsd(DRegister dd, DRegister dn, DRegister dm, Condition cond = AL);
-  void vdivs(SRegister sd, SRegister sn, SRegister sm, Condition cond = AL);
-  void vdivd(DRegister dd, DRegister dn, DRegister dm, Condition cond = AL);
+  virtual void vadds(SRegister sd, SRegister sn, SRegister sm, Condition cond = AL) = 0;
+  virtual void vaddd(DRegister dd, DRegister dn, DRegister dm, Condition cond = AL) = 0;
+  virtual void vsubs(SRegister sd, SRegister sn, SRegister sm, Condition cond = AL) = 0;
+  virtual void vsubd(DRegister dd, DRegister dn, DRegister dm, Condition cond = AL) = 0;
+  virtual void vmuls(SRegister sd, SRegister sn, SRegister sm, Condition cond = AL) = 0;
+  virtual void vmuld(DRegister dd, DRegister dn, DRegister dm, Condition cond = AL) = 0;
+  virtual void vmlas(SRegister sd, SRegister sn, SRegister sm, Condition cond = AL) = 0;
+  virtual void vmlad(DRegister dd, DRegister dn, DRegister dm, Condition cond = AL) = 0;
+  virtual void vmlss(SRegister sd, SRegister sn, SRegister sm, Condition cond = AL) = 0;
+  virtual void vmlsd(DRegister dd, DRegister dn, DRegister dm, Condition cond = AL) = 0;
+  virtual void vdivs(SRegister sd, SRegister sn, SRegister sm, Condition cond = AL) = 0;
+  virtual void vdivd(DRegister dd, DRegister dn, DRegister dm, Condition cond = AL) = 0;
 
-  void vabss(SRegister sd, SRegister sm, Condition cond = AL);
-  void vabsd(DRegister dd, DRegister dm, Condition cond = AL);
-  void vnegs(SRegister sd, SRegister sm, Condition cond = AL);
-  void vnegd(DRegister dd, DRegister dm, Condition cond = AL);
-  void vsqrts(SRegister sd, SRegister sm, Condition cond = AL);
-  void vsqrtd(DRegister dd, DRegister dm, Condition cond = AL);
+  virtual void vabss(SRegister sd, SRegister sm, Condition cond = AL) = 0;
+  virtual void vabsd(DRegister dd, DRegister dm, Condition cond = AL) = 0;
+  virtual void vnegs(SRegister sd, SRegister sm, Condition cond = AL) = 0;
+  virtual void vnegd(DRegister dd, DRegister dm, Condition cond = AL) = 0;
+  virtual void vsqrts(SRegister sd, SRegister sm, Condition cond = AL) = 0;
+  virtual void vsqrtd(DRegister dd, DRegister dm, Condition cond = AL) = 0;
 
-  void vcvtsd(SRegister sd, DRegister dm, Condition cond = AL);
-  void vcvtds(DRegister dd, SRegister sm, Condition cond = AL);
-  void vcvtis(SRegister sd, SRegister sm, Condition cond = AL);
-  void vcvtid(SRegister sd, DRegister dm, Condition cond = AL);
-  void vcvtsi(SRegister sd, SRegister sm, Condition cond = AL);
-  void vcvtdi(DRegister dd, SRegister sm, Condition cond = AL);
-  void vcvtus(SRegister sd, SRegister sm, Condition cond = AL);
-  void vcvtud(SRegister sd, DRegister dm, Condition cond = AL);
-  void vcvtsu(SRegister sd, SRegister sm, Condition cond = AL);
-  void vcvtdu(DRegister dd, SRegister sm, Condition cond = AL);
+  virtual void vcvtsd(SRegister sd, DRegister dm, Condition cond = AL) = 0;
+  virtual void vcvtds(DRegister dd, SRegister sm, Condition cond = AL) = 0;
+  virtual void vcvtis(SRegister sd, SRegister sm, Condition cond = AL) = 0;
+  virtual void vcvtid(SRegister sd, DRegister dm, Condition cond = AL) = 0;
+  virtual void vcvtsi(SRegister sd, SRegister sm, Condition cond = AL) = 0;
+  virtual void vcvtdi(DRegister dd, SRegister sm, Condition cond = AL) = 0;
+  virtual void vcvtus(SRegister sd, SRegister sm, Condition cond = AL) = 0;
+  virtual void vcvtud(SRegister sd, DRegister dm, Condition cond = AL) = 0;
+  virtual void vcvtsu(SRegister sd, SRegister sm, Condition cond = AL) = 0;
+  virtual void vcvtdu(DRegister dd, SRegister sm, Condition cond = AL) = 0;
 
-  void vcmps(SRegister sd, SRegister sm, Condition cond = AL);
-  void vcmpd(DRegister dd, DRegister dm, Condition cond = AL);
-  void vcmpsz(SRegister sd, Condition cond = AL);
-  void vcmpdz(DRegister dd, Condition cond = AL);
-  void vmstat(Condition cond = AL);  // VMRS APSR_nzcv, FPSCR
+  virtual void vcmps(SRegister sd, SRegister sm, Condition cond = AL) = 0;
+  virtual void vcmpd(DRegister dd, DRegister dm, Condition cond = AL) = 0;
+  virtual void vcmpsz(SRegister sd, Condition cond = AL) = 0;
+  virtual void vcmpdz(DRegister dd, Condition cond = AL) = 0;
+  virtual void vmstat(Condition cond = AL) = 0;  // VMRS APSR_nzcv, FPSCR
+
+  virtual void vpushs(SRegister reg, int nregs, Condition cond = AL) = 0;
+  virtual void vpushd(DRegister reg, int nregs, Condition cond = AL) = 0;
+  virtual void vpops(SRegister reg, int nregs, Condition cond = AL) = 0;
+  virtual void vpopd(DRegister reg, int nregs, Condition cond = AL) = 0;
 
   // Branch instructions.
-  void b(Label* label, Condition cond = AL);
-  void bl(Label* label, Condition cond = AL);
-  void blx(Register rm, Condition cond = AL);
-  void bx(Register rm, Condition cond = AL);
+  virtual void b(Label* label, Condition cond = AL) = 0;
+  virtual void bl(Label* label, Condition cond = AL) = 0;
+  virtual void blx(Register rm, Condition cond = AL) = 0;
+  virtual void bx(Register rm, Condition cond = AL) = 0;
+
+  void Pad(uint32_t bytes);
 
   // Macros.
+  // Most of these are pure virtual as they need to be implemented per instruction set.
+
   // Add signed constant value to rd. May clobber IP.
-  void AddConstant(Register rd, int32_t value, Condition cond = AL);
-  void AddConstant(Register rd, Register rn, int32_t value,
-                   Condition cond = AL);
-  void AddConstantSetFlags(Register rd, Register rn, int32_t value,
-                           Condition cond = AL);
-  void AddConstantWithCarry(Register rd, Register rn, int32_t value,
-                            Condition cond = AL);
+  virtual void AddConstant(Register rd, int32_t value, Condition cond = AL) = 0;
+  virtual void AddConstant(Register rd, Register rn, int32_t value,
+                           Condition cond = AL) = 0;
+  virtual void AddConstantSetFlags(Register rd, Register rn, int32_t value,
+                                   Condition cond = AL) = 0;
+  virtual void AddConstantWithCarry(Register rd, Register rn, int32_t value,
+                                    Condition cond = AL) = 0;
 
   // Load and Store. May clobber IP.
-  void LoadImmediate(Register rd, int32_t value, Condition cond = AL);
-  void LoadSImmediate(SRegister sd, float value, Condition cond = AL);
-  void LoadDImmediate(DRegister dd, double value,
-                      Register scratch, Condition cond = AL);
-  void MarkExceptionHandler(Label* label);
-  void LoadFromOffset(LoadOperandType type,
-                      Register reg,
-                      Register base,
-                      int32_t offset,
-                      Condition cond = AL);
-  void StoreToOffset(StoreOperandType type,
-                     Register reg,
-                     Register base,
-                     int32_t offset,
-                     Condition cond = AL);
-  void LoadSFromOffset(SRegister reg,
-                       Register base,
-                       int32_t offset,
-                       Condition cond = AL);
-  void StoreSToOffset(SRegister reg,
-                      Register base,
-                      int32_t offset,
-                      Condition cond = AL);
-  void LoadDFromOffset(DRegister reg,
-                       Register base,
-                       int32_t offset,
-                       Condition cond = AL);
-  void StoreDToOffset(DRegister reg,
-                      Register base,
-                      int32_t offset,
-                      Condition cond = AL);
+  virtual void LoadImmediate(Register rd, int32_t value, Condition cond = AL) = 0;
+  virtual void LoadSImmediate(SRegister sd, float value, Condition cond = AL) = 0;
+  virtual void LoadDImmediate(DRegister dd, double value,
+                              Register scratch, Condition cond = AL) = 0;
+  virtual void MarkExceptionHandler(Label* label) = 0;
+  virtual void LoadFromOffset(LoadOperandType type,
+                              Register reg,
+                              Register base,
+                              int32_t offset,
+                              Condition cond = AL) = 0;
+  virtual void StoreToOffset(StoreOperandType type,
+                             Register reg,
+                             Register base,
+                             int32_t offset,
+                             Condition cond = AL) = 0;
+  virtual void LoadSFromOffset(SRegister reg,
+                               Register base,
+                               int32_t offset,
+                               Condition cond = AL) = 0;
+  virtual void StoreSToOffset(SRegister reg,
+                              Register base,
+                              int32_t offset,
+                              Condition cond = AL) = 0;
+  virtual void LoadDFromOffset(DRegister reg,
+                               Register base,
+                               int32_t offset,
+                               Condition cond = AL) = 0;
+  virtual void StoreDToOffset(DRegister reg,
+                              Register base,
+                              int32_t offset,
+                              Condition cond = AL) = 0;
 
-  void Push(Register rd, Condition cond = AL);
-  void Pop(Register rd, Condition cond = AL);
+  virtual void Push(Register rd, Condition cond = AL) = 0;
+  virtual void Pop(Register rd, Condition cond = AL) = 0;
 
-  void PushList(RegList regs, Condition cond = AL);
-  void PopList(RegList regs, Condition cond = AL);
+  virtual void PushList(RegList regs, Condition cond = AL) = 0;
+  virtual void PopList(RegList regs, Condition cond = AL) = 0;
 
-  void Mov(Register rd, Register rm, Condition cond = AL);
+  virtual void Mov(Register rd, Register rm, Condition cond = AL) = 0;
 
   // Convenience shift instructions. Use mov instruction with shifter operand
   // for variants setting the status flags or using a register shift count.
-  void Lsl(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL);
-  void Lsr(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL);
-  void Asr(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL);
-  void Ror(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL);
-  void Rrx(Register rd, Register rm, Condition cond = AL);
+  virtual void Lsl(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL) = 0;
+  virtual void Lsr(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL) = 0;
+  virtual void Asr(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL) = 0;
+  virtual void Ror(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL) = 0;
+  virtual void Rrx(Register rd, Register rm, Condition cond = AL) = 0;
 
-  // Encode a signed constant in tst instructions, only affecting the flags.
-  void EncodeUint32InTstInstructions(uint32_t data);
-  // ... and decode from a pc pointing to the start of encoding instructions.
-  static uint32_t DecodeUint32FromTstInstructions(uword pc);
   static bool IsInstructionForExceptionHandling(uword pc);
 
-  // Emit data (e.g. encoded instruction or immediate) to the
-  // instruction stream.
-  void Emit(int32_t value);
-  void Bind(Label* label);
+  virtual void Bind(Label* label) = 0;
+
+  virtual void CompareAndBranchIfZero(Register r, Label* label) = 0;
+  virtual void CompareAndBranchIfNonZero(Register r, Label* label) = 0;
 
   //
   // Overridden common assembler high-level functionality
@@ -445,7 +568,7 @@ class ArmAssembler FINAL : public Assembler {
 
   // Emit code that will remove an activation from the stack
   void RemoveFrame(size_t frame_size, const std::vector<ManagedRegister>& callee_save_regs)
-      OVERRIDE;
+    OVERRIDE;
 
   void IncreaseFrameSize(size_t adjust) OVERRIDE;
   void DecreaseFrameSize(size_t adjust) OVERRIDE;
@@ -509,8 +632,6 @@ class ArmAssembler FINAL : public Assembler {
   void Copy(FrameOffset dest, Offset dest_offset, FrameOffset src, Offset src_offset,
             ManagedRegister scratch, size_t size) OVERRIDE;
 
-  void MemoryBarrier(ManagedRegister scratch) OVERRIDE;
-
   // Sign extension
   void SignExtend(ManagedRegister mreg, size_t size) OVERRIDE;
 
@@ -550,81 +671,9 @@ class ArmAssembler FINAL : public Assembler {
   // and branch to a ExceptionSlowPath if it is.
   void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust) OVERRIDE;
 
- private:
-  void EmitType01(Condition cond,
-                  int type,
-                  Opcode opcode,
-                  int set_cc,
-                  Register rn,
-                  Register rd,
-                  ShifterOperand so);
+  static uint32_t ModifiedImmediate(uint32_t value);
 
-  void EmitType5(Condition cond, int offset, bool link);
-
-  void EmitMemOp(Condition cond,
-                 bool load,
-                 bool byte,
-                 Register rd,
-                 Address ad);
-
-  void EmitMemOpAddressMode3(Condition cond,
-                             int32_t mode,
-                             Register rd,
-                             Address ad);
-
-  void EmitMultiMemOp(Condition cond,
-                      BlockAddressMode am,
-                      bool load,
-                      Register base,
-                      RegList regs);
-
-  void EmitShiftImmediate(Condition cond,
-                          Shift opcode,
-                          Register rd,
-                          Register rm,
-                          ShifterOperand so);
-
-  void EmitShiftRegister(Condition cond,
-                         Shift opcode,
-                         Register rd,
-                         Register rm,
-                         ShifterOperand so);
-
-  void EmitMulOp(Condition cond,
-                 int32_t opcode,
-                 Register rd,
-                 Register rn,
-                 Register rm,
-                 Register rs);
-
-  void EmitVFPsss(Condition cond,
-                  int32_t opcode,
-                  SRegister sd,
-                  SRegister sn,
-                  SRegister sm);
-
-  void EmitVFPddd(Condition cond,
-                  int32_t opcode,
-                  DRegister dd,
-                  DRegister dn,
-                  DRegister dm);
-
-  void EmitVFPsd(Condition cond,
-                 int32_t opcode,
-                 SRegister sd,
-                 DRegister dm);
-
-  void EmitVFPds(Condition cond,
-                 int32_t opcode,
-                 DRegister dd,
-                 SRegister sm);
-
-  void EmitBranch(Condition cond, Label* label, bool link);
-  static int32_t EncodeBranchOffset(int offset, int32_t inst);
-  static int DecodeBranchOffset(int32_t inst);
-  int32_t EncodeTstOffset(int offset, int32_t inst);
-  int DecodeTstOffset(int32_t inst);
-
+ protected:
   // Returns whether or not the given register is used for passing parameters.
   static int RegisterCompare(const Register* reg1, const Register* reg2) {
     return *reg1 - *reg2;

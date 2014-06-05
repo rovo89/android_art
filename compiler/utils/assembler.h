@@ -38,6 +38,8 @@ class AssemblerFixup;
 
 namespace arm {
   class ArmAssembler;
+  class Arm32Assembler;
+  class Thumb2Assembler;
 }
 namespace arm64 {
   class Arm64Assembler;
@@ -87,7 +89,7 @@ class Label {
 
   int LinkPosition() const {
     CHECK(IsLinked());
-    return position_ - kWordSize;
+    return position_ - kPointerSize;
   }
 
   bool IsBound() const { return position_ < 0; }
@@ -114,6 +116,8 @@ class Label {
   }
 
   friend class arm::ArmAssembler;
+  friend class arm::Arm32Assembler;
+  friend class arm::Thumb2Assembler;
   friend class mips::MipsAssembler;
   friend class x86::X86Assembler;
   friend class x86_64::X86_64Assembler;
@@ -187,6 +191,15 @@ class AssemblerBuffer {
   template<typename T> void Store(size_t position, T value) {
     CHECK_LE(position, Size() - static_cast<int>(sizeof(T)));
     *reinterpret_cast<T*>(contents_ + position) = value;
+  }
+
+  void Move(size_t newposition, size_t oldposition) {
+    CHECK(HasEnsuredCapacity());
+    // Move the contents of the buffer from oldposition to
+    // newposition by nbytes.
+    size_t nbytes = Size() - oldposition;
+    memmove(contents_ + newposition, contents_ + oldposition, nbytes);
+    cursor_ += newposition - oldposition;
   }
 
   // Emit a fixup at the current location.
