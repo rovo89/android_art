@@ -111,7 +111,8 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       merged_df_flags_(0u),
       ifield_lowering_infos_(arena, 0u),
       sfield_lowering_infos_(arena, 0u),
-      method_lowering_infos_(arena, 0u) {
+      method_lowering_infos_(arena, 0u),
+      gen_suspend_test_list_(arena, 0u) {
   try_block_addr_ = new (arena_) ArenaBitVector(arena_, 0, true /* expandable */);
   max_available_special_compiler_temps_ = std::abs(static_cast<int>(kVRegNonSpecialTempBaseReg))
       - std::abs(static_cast<int>(kVRegTempBaseReg));
@@ -1530,6 +1531,24 @@ bool BasicBlock::IsExceptionBlock() const {
   if (block_type == kExceptionHandling) {
     return true;
   }
+  return false;
+}
+
+bool MIRGraph::HasSuspendTestBetween(BasicBlock* source, BasicBlockId target_id) {
+  BasicBlock* target = GetBasicBlock(target_id);
+
+  if (source == nullptr || target == nullptr)
+    return false;
+
+  int idx;
+  for (idx = gen_suspend_test_list_.Size() - 1; idx >= 0; idx--) {
+    BasicBlock* bb = gen_suspend_test_list_.Get(idx);
+    if (bb == source)
+      return true;  // The block has been inserted by a suspend check before.
+    if (source->dominators->IsBitSet(bb->id) && bb->dominators->IsBitSet(target_id))
+      return true;
+  }
+
   return false;
 }
 

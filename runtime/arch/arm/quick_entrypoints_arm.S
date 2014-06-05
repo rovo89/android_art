@@ -330,7 +330,9 @@ ENTRY art_quick_invoke_stub
     mov    r11, sp                         @ save the stack pointer
     .cfi_def_cfa_register r11
     mov    r9, r3                          @ move managed thread pointer into r9
+#ifdef ARM_R4_SUSPEND_FLAG
     mov    r4, #SUSPEND_CHECK_INTERVAL     @ reset r4 to suspend check interval
+#endif
     add    r5, r2, #16                     @ create space for method pointer in frame
     and    r5, #0xFFFFFFF0                 @ align frame size to 16 bytes
     sub    sp, r5                          @ reserve stack space for argument array
@@ -932,11 +934,13 @@ GENERATE_ALL_ALLOC_ENTRYPOINTS
      */
     .extern artTestSuspendFromCode
 ENTRY art_quick_test_suspend
+#ifdef ARM_R4_SUSPEND_FLAG
     ldrh    r0, [rSELF, #THREAD_FLAGS_OFFSET]
     mov    rSUSPEND, #SUSPEND_CHECK_INTERVAL  @ reset rSUSPEND to SUSPEND_CHECK_INTERVAL
     cbnz   r0, 1f                             @ check Thread::Current()->suspend_count_ == 0
     bx     lr                                 @ return if suspend_count_ == 0
 1:
+#endif
     mov    r0, rSELF
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME          @ save callee saves for stack crawl
     mov    r1, sp
