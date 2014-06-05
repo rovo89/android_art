@@ -19,7 +19,8 @@
 #include <algorithm>
 #include <vector>
 
-#include "arm/assembler_arm.h"
+#include "arm/assembler_arm32.h"
+#include "arm/assembler_thumb2.h"
 #include "arm64/assembler_arm64.h"
 #include "mips/assembler_mips.h"
 #include "x86/assembler_x86.h"
@@ -106,8 +107,9 @@ void AssemblerBuffer::ExtendCapacity() {
 Assembler* Assembler::Create(InstructionSet instruction_set) {
   switch (instruction_set) {
     case kArm:
+      return new arm::Arm32Assembler();
     case kThumb2:
-      return new arm::ArmAssembler();
+      return new arm::Thumb2Assembler();
     case kArm64:
       return new arm64::Arm64Assembler();
     case kMips:
