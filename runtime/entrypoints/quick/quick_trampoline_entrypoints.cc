@@ -20,6 +20,7 @@
 #include "dex_instruction-inl.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "gc/accounting/card_table-inl.h"
+#include "instruction_set.h"
 #include "interpreter/interpreter.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
@@ -1623,70 +1624,19 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self,
   }
 }
 
-// The following definitions create return types for two word-sized entities that will be passed
-// in registers so that memory operations for the interface trampolines can be avoided. The entities
-// are the resolved method and the pointer to the code to be invoked.
+// We use TwoWordReturn to optimize scalar returns. We use the hi value for code, and the lo value
+// for the method pointer.
 //
-// On x86, ARM32 and MIPS, this is given for a *scalar* 64bit value. The definition thus *must* be
-// uint64_t or long long int. We use the upper 32b for code, and the lower 32b for the method.
-//
-// On x86_64 and ARM64, structs are decomposed for allocation, so we can create a structs of two
-// size_t-sized values.
-//
-// We need two operations:
-//
-// 1) A flag value that signals failure. The assembly stubs expect the method part to be "0".
-//    GetFailureValue() will return a value that has method == 0.
-//
-// 2) A value that combines a code pointer and a method pointer.
-//    GetSuccessValue() constructs this.
-
-#if defined(__i386__) || defined(__arm__) || defined(__mips__)
-typedef uint64_t MethodAndCode;
-
-// Encodes method_ptr==nullptr and code_ptr==nullptr
-static constexpr MethodAndCode GetFailureValue() {
-  return 0;
-}
-
-// Use the lower 32b for the method pointer and the upper 32b for the code pointer.
-static MethodAndCode GetSuccessValue(const void* code, mirror::ArtMethod* method) {
-  uint32_t method_uint = reinterpret_cast<uint32_t>(method);
-  uint64_t code_uint = reinterpret_cast<uint32_t>(code);
-  return ((code_uint << 32) | method_uint);
-}
-
-#elif defined(__x86_64__) || defined(__aarch64__)
-struct MethodAndCode {
-  uintptr_t method;
-  uintptr_t code;
-};
-
-// Encodes method_ptr==nullptr. Leaves random value in code pointer.
-static MethodAndCode GetFailureValue() {
-  MethodAndCode ret;
-  ret.method = 0;
-  return ret;
-}
-
-// Write values into their respective members.
-static MethodAndCode GetSuccessValue(const void* code, mirror::ArtMethod* method) {
-  MethodAndCode ret;
-  ret.method = reinterpret_cast<uintptr_t>(method);
-  ret.code = reinterpret_cast<uintptr_t>(code);
-  return ret;
-}
-#else
-#error "Unsupported architecture"
-#endif
+// It is valid to use this, as at the usage points here (returns from C functions) we are assuming
+// to hold the mutator lock (see SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) annotations).
 
 template<InvokeType type, bool access_check>
-static MethodAndCode artInvokeCommon(uint32_t method_idx, mirror::Object* this_object,
+static TwoWordReturn artInvokeCommon(uint32_t method_idx, mirror::Object* this_object,
                                      mirror::ArtMethod* caller_method,
                                      Thread* self, StackReference<mirror::ArtMethod>* sp);
 
 template<InvokeType type, bool access_check>
-static MethodAndCode artInvokeCommon(uint32_t method_idx, mirror::Object* this_object,
+static TwoWordReturn artInvokeCommon(uint32_t method_idx, mirror::Object* this_object,
                                      mirror::ArtMethod* caller_method,
                                      Thread* self, StackReference<mirror::ArtMethod>* sp) {
   mirror::ArtMethod* method = FindMethodFast(method_idx, this_object, caller_method, access_check,
@@ -1709,7 +1659,7 @@ static MethodAndCode artInvokeCommon(uint32_t method_idx, mirror::Object* this_o
 
     if (UNLIKELY(method == NULL)) {
       CHECK(self->IsExceptionPending());
-      return GetFailureValue();  // Failure.
+      return GetTwoWordFailureValue();  // Failure.
     }
   }
   DCHECK(!self->IsExceptionPending());
@@ -1719,13 +1669,14 @@ static MethodAndCode artInvokeCommon(uint32_t method_idx, mirror::Object* this_o
   DCHECK(code != nullptr) << "Code was NULL in method: " << PrettyMethod(method) << " location: "
       << MethodHelper(method).GetDexFile().GetLocation();
 
-  return GetSuccessValue(code, method);
+  return GetTwoWordSuccessValue(reinterpret_cast<uintptr_t>(code),
+                                reinterpret_cast<uintptr_t>(method));
 }
 
 // Explicit artInvokeCommon template function declarations to please analysis tool.
 #define EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(type, access_check)                                \
   template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                          \
-  MethodAndCode artInvokeCommon<type, access_check>(uint32_t method_idx,                        \
+  TwoWordReturn artInvokeCommon<type, access_check>(uint32_t method_idx,                        \
                                                     mirror::Object* this_object,                \
                                                     mirror::ArtMethod* caller_method,           \
                                                     Thread* self,                               \
@@ -1745,7 +1696,7 @@ EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kSuper, true);
 
 
 // See comments in runtime_support_asm.S
-extern "C" MethodAndCode artInvokeInterfaceTrampolineWithAccessCheck(uint32_t method_idx,
+extern "C" TwoWordReturn artInvokeInterfaceTrampolineWithAccessCheck(uint32_t method_idx,
     mirror::Object* this_object,
     mirror::ArtMethod* caller_method,
     Thread* self,
@@ -1754,7 +1705,7 @@ extern "C" MethodAndCode artInvokeInterfaceTrampolineWithAccessCheck(uint32_t me
 }
 
 
-extern "C" MethodAndCode artInvokeDirectTrampolineWithAccessCheck(uint32_t method_idx,
+extern "C" TwoWordReturn artInvokeDirectTrampolineWithAccessCheck(uint32_t method_idx,
     mirror::Object* this_object,
     mirror::ArtMethod* caller_method,
     Thread* self,
@@ -1762,7 +1713,7 @@ extern "C" MethodAndCode artInvokeDirectTrampolineWithAccessCheck(uint32_t metho
   return artInvokeCommon<kDirect, true>(method_idx, this_object, caller_method, self, sp);
 }
 
-extern "C" MethodAndCode artInvokeStaticTrampolineWithAccessCheck(uint32_t method_idx,
+extern "C" TwoWordReturn artInvokeStaticTrampolineWithAccessCheck(uint32_t method_idx,
     mirror::Object* this_object,
     mirror::ArtMethod* caller_method,
     Thread* self,
@@ -1770,7 +1721,7 @@ extern "C" MethodAndCode artInvokeStaticTrampolineWithAccessCheck(uint32_t metho
   return artInvokeCommon<kStatic, true>(method_idx, this_object, caller_method, self, sp);
 }
 
-extern "C" MethodAndCode artInvokeSuperTrampolineWithAccessCheck(uint32_t method_idx,
+extern "C" TwoWordReturn artInvokeSuperTrampolineWithAccessCheck(uint32_t method_idx,
     mirror::Object* this_object,
     mirror::ArtMethod* caller_method,
     Thread* self,
@@ -1778,7 +1729,7 @@ extern "C" MethodAndCode artInvokeSuperTrampolineWithAccessCheck(uint32_t method
   return artInvokeCommon<kSuper, true>(method_idx, this_object, caller_method, self, sp);
 }
 
-extern "C" MethodAndCode artInvokeVirtualTrampolineWithAccessCheck(uint32_t method_idx,
+extern "C" TwoWordReturn artInvokeVirtualTrampolineWithAccessCheck(uint32_t method_idx,
     mirror::Object* this_object,
     mirror::ArtMethod* caller_method,
     Thread* self,
@@ -1787,7 +1738,7 @@ extern "C" MethodAndCode artInvokeVirtualTrampolineWithAccessCheck(uint32_t meth
 }
 
 // Determine target of interface dispatch. This object is known non-null.
-extern "C" MethodAndCode artInvokeInterfaceTrampoline(mirror::ArtMethod* interface_method,
+extern "C" TwoWordReturn artInvokeInterfaceTrampoline(mirror::ArtMethod* interface_method,
                                                       mirror::Object* this_object,
                                                       mirror::ArtMethod* caller_method,
                                                       Thread* self,
@@ -1800,7 +1751,7 @@ extern "C" MethodAndCode artInvokeInterfaceTrampoline(mirror::ArtMethod* interfa
       FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
       ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(interface_method, this_object,
                                                                  caller_method);
-      return GetFailureValue();  // Failure.
+      return GetTwoWordFailureValue();  // Failure.
     }
   } else {
     FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
@@ -1897,7 +1848,7 @@ extern "C" MethodAndCode artInvokeInterfaceTrampoline(mirror::ArtMethod* interfa
 
     if (UNLIKELY(method == nullptr)) {
       CHECK(self->IsExceptionPending());
-      return GetFailureValue();  // Failure.
+      return GetTwoWordFailureValue();  // Failure.
     }
   }
   const void* code = method->GetEntryPointFromQuickCompiledCode();
@@ -1906,7 +1857,8 @@ extern "C" MethodAndCode artInvokeInterfaceTrampoline(mirror::ArtMethod* interfa
   DCHECK(code != nullptr) << "Code was NULL in method: " << PrettyMethod(method) << " location: "
       << MethodHelper(method).GetDexFile().GetLocation();
 
-  return GetSuccessValue(code, method);
+  return GetTwoWordSuccessValue(reinterpret_cast<uintptr_t>(code),
+                                reinterpret_cast<uintptr_t>(method));
 }
 
 }  // namespace art

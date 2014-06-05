@@ -15,6 +15,7 @@
  */
 
 #include "callee_save_frame.h"
+#include "instruction_set.h"
 #include "instrumentation.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
@@ -40,9 +41,10 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(mirror::ArtMethod* 
   return result;
 }
 
-extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self,
-                                                         StackReference<mirror::ArtMethod>* sp,
-                                                         uint64_t gpr_result, uint64_t fpr_result)
+extern "C" TwoWordReturn artInstrumentationMethodExitFromCode(Thread* self,
+                                                              StackReference<mirror::ArtMethod>* sp,
+                                                              uint64_t gpr_result,
+                                                              uint64_t fpr_result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // TODO: use FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly) not the hand inlined below.
   //       We use the hand inline version to ensure the return_pc is assigned before verifying the
@@ -60,9 +62,8 @@ extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self,
   self->SetTopOfStack(sp, 0);
   self->VerifyStack();
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
-  uint64_t return_or_deoptimize_pc = instrumentation->PopInstrumentationStackFrame(self, return_pc,
-                                                                                   gpr_result,
-                                                                                   fpr_result);
+  TwoWordReturn return_or_deoptimize_pc = instrumentation->PopInstrumentationStackFrame(
+      self, return_pc, gpr_result, fpr_result);
   self->VerifyStack();
   return return_or_deoptimize_pc;
 }

@@ -22,6 +22,7 @@
 #include <list>
 
 #include "atomic.h"
+#include "instruction_set.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "object_callbacks.h"
@@ -311,8 +312,8 @@ class Instrumentation {
 
   // Called when an instrumented method is exited. Removes the pushed instrumentation frame
   // returning the intended link register. Generates method exit events.
-  uint64_t PopInstrumentationStackFrame(Thread* self, uintptr_t* return_pc, uint64_t gpr_result,
-                                        uint64_t fpr_result)
+  TwoWordReturn PopInstrumentationStackFrame(Thread* self, uintptr_t* return_pc,
+                                             uint64_t gpr_result, uint64_t fpr_result)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Pops an instrumentation frame from the current thread and generate an unwind event.

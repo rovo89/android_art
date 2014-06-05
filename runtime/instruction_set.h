@@ -107,6 +107,68 @@ class PACKED(4) InstructionSetFeatures {
   uint32_t mask_;
 };
 
+// The following definitions create return types for two word-sized entities that will be passed
+// in registers so that memory operations for the interface trampolines can be avoided. The entities
+// are the resolved method and the pointer to the code to be invoked.
+//
+// On x86, ARM32 and MIPS, this is given for a *scalar* 64bit value. The definition thus *must* be
+// uint64_t or long long int.
+//
+// On x86_64 and ARM64, structs are decomposed for allocation, so we can create a structs of two
+// size_t-sized values.
+//
+// We need two operations:
+//
+// 1) A flag value that signals failure. The assembly stubs expect the lower part to be "0".
+//    GetTwoWordFailureValue() will return a value that has lower part == 0.
+//
+// 2) A value that combines two word-sized values.
+//    GetTwoWordSuccessValue() constructs this.
+//
+// IMPORTANT: If you use this to transfer object pointers, it is your responsibility to ensure
+//            that the object does not move or the value is updated. Simple use of this is NOT SAFE
+//            when the garbage collector can move objects concurrently. Ensure that required locks
+//            are held when using!
+
+#if defined(__i386__) || defined(__arm__) || defined(__mips__)
+typedef uint64_t TwoWordReturn;
+
+// Encodes method_ptr==nullptr and code_ptr==nullptr
+static inline constexpr TwoWordReturn GetTwoWordFailureValue() {
+  return 0;
+}
+
+// Use the lower 32b for the method pointer and the upper 32b for the code pointer.
+static inline TwoWordReturn GetTwoWordSuccessValue(uintptr_t hi, uintptr_t lo) {
+  uint32_t lo32 = static_cast<uint32_t>(lo);
+  uint64_t hi64 = static_cast<uint64_t>(hi);
+  return ((hi64 << 32) | lo32);
+}
+
+#elif defined(__x86_64__) || defined(__aarch64__)
+struct TwoWordReturn {
+  uintptr_t lo;
+  uintptr_t hi;
+};
+
+// Encodes method_ptr==nullptr. Leaves random value in code pointer.
+static inline TwoWordReturn GetTwoWordFailureValue() {
+  TwoWordReturn ret;
+  ret.lo = 0;
+  return ret;
+}
+
+// Write values into their respective members.
+static inline TwoWordReturn GetTwoWordSuccessValue(uintptr_t hi, uintptr_t lo) {
+  TwoWordReturn ret;
+  ret.lo = lo;
+  ret.hi = hi;
+  return ret;
+}
+#else
+#error "Unsupported architecture"
+#endif
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_INSTRUCTION_SET_H_
