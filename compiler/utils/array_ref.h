@@ -24,8 +24,6 @@
 
 namespace art {
 
-template <typename T, bool ok> struct ArrayRefHelper;
-
 /**
  * @brief A container that references an array.
  *
@@ -41,6 +39,9 @@ template <typename T, bool ok> struct ArrayRefHelper;
  */
 template <typename T>
 class ArrayRef {
+ private:
+  struct tag { };
+
  public:
   typedef T value_type;
   typedef T& reference;
@@ -67,7 +68,7 @@ class ArrayRef {
 
   template <typename U, size_t size>
   constexpr ArrayRef(U (&array)[size],
-                     typename ArrayRefHelper<T, std::is_same<T, const U>::value>::tag t = tag())
+                     typename std::enable_if<std::is_same<T, const U>::value, tag>::type t = tag())
     : array_(array), size_(size) {
   }
 
@@ -77,7 +78,7 @@ class ArrayRef {
 
   template <typename U>
   constexpr ArrayRef(U* array, size_t size,
-                     typename ArrayRefHelper<T, std::is_same<T, const U>::value>::tag t = tag())
+                     typename std::enable_if<std::is_same<T, const U>::value, tag>::type t = tag())
       : array_(array), size_(size) {
   }
 
@@ -87,7 +88,7 @@ class ArrayRef {
 
   template <typename U>
   ArrayRef(const std::vector<U>& v,
-           typename ArrayRefHelper<T, std::is_same<T, const U>::value>::tag t = tag())
+           typename std::enable_if<std::is_same<T, const U>::value, tag>::tag t = tag())
       : array_(v.data()), size_(v.size()) {
   }
 
@@ -100,7 +101,7 @@ class ArrayRef {
   }
 
   template <typename U>
-  typename ArrayRefHelper<T, std::is_same<T, const U>::value>::type&
+  typename std::enable_if<std::is_same<T, const U>::value, ArrayRef>::type&
   operator=(const ArrayRef<U>& other) {
     return *this = ArrayRef(other);
   }
@@ -162,20 +163,8 @@ class ArrayRef {
   const value_type* data() const { return array_; }
 
  private:
-  struct tag { };
-  friend struct ArrayRefHelper<T, true>;
-
   T* array_;
   size_t size_;
-};
-
-template <typename T> struct ArrayRefHelper<T, true> {
-  typedef typename ArrayRef<T>::tag tag;
-  typedef ArrayRef<T> type;
-};
-
-template <typename T> struct ArrayRefHelper<T, false> {
-  // SFINAE: No "tag" or "type" typedef.
 };
 
 }  // namespace art
