@@ -26,124 +26,105 @@
 
 namespace art {
 
-static const RegStorage core_regs_arr_32[] = {
+static constexpr RegStorage core_regs_arr_32[] = {
     rs_rAX, rs_rCX, rs_rDX, rs_rBX, rs_rX86_SP_32, rs_rBP, rs_rSI, rs_rDI,
 };
-static const RegStorage core_regs_arr_64[] = {
+static constexpr RegStorage core_regs_arr_64[] = {
     rs_rAX, rs_rCX, rs_rDX, rs_rBX, rs_rX86_SP_64, rs_rBP, rs_rSI, rs_rDI,
 #ifdef TARGET_REX_SUPPORT
     rs_r8, rs_r9, rs_r10, rs_r11, rs_r12, rs_r13, rs_r14, rs_r15
 #endif
 };
-static const RegStorage core_regs_arr_64q[] = {
+static constexpr RegStorage core_regs_arr_64q[] = {
     rs_r0q, rs_r1q, rs_r2q, rs_r3q, rs_rX86_SP_64, rs_r5q, rs_r6q, rs_r7q,
 #ifdef TARGET_REX_SUPPORT
     rs_r8q, rs_r9q, rs_r10q, rs_r11q, rs_r12q, rs_r13q, rs_r14q, rs_r15q
 #endif
 };
-static const RegStorage sp_regs_arr_32[] = {
+static constexpr RegStorage sp_regs_arr_32[] = {
     rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
 };
-static const RegStorage sp_regs_arr_64[] = {
+static constexpr RegStorage sp_regs_arr_64[] = {
     rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
 #ifdef TARGET_REX_SUPPORT
     rs_fr8, rs_fr9, rs_fr10, rs_fr11, rs_fr12, rs_fr13, rs_fr14, rs_fr15
 #endif
 };
-static const RegStorage dp_regs_arr_32[] = {
+static constexpr RegStorage dp_regs_arr_32[] = {
     rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
 };
-static const RegStorage dp_regs_arr_64[] = {
+static constexpr RegStorage dp_regs_arr_64[] = {
     rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
 #ifdef TARGET_REX_SUPPORT
     rs_dr8, rs_dr9, rs_dr10, rs_dr11, rs_dr12, rs_dr13, rs_dr14, rs_dr15
 #endif
 };
-static const RegStorage reserved_regs_arr_32[] = {rs_rX86_SP_32};
-static const RegStorage reserved_regs_arr_64[] = {rs_rX86_SP_64};
-static const RegStorage reserved_regs_arr_64q[] = {rs_rX86_SP_64};
-static const RegStorage core_temps_arr_32[] = {rs_rAX, rs_rCX, rs_rDX, rs_rBX};
-static const RegStorage core_temps_arr_64[] = {
+static constexpr RegStorage reserved_regs_arr_32[] = {rs_rX86_SP_32};
+static constexpr RegStorage reserved_regs_arr_64[] = {rs_rX86_SP_64};
+static constexpr RegStorage reserved_regs_arr_64q[] = {rs_rX86_SP_64};
+static constexpr RegStorage core_temps_arr_32[] = {rs_rAX, rs_rCX, rs_rDX, rs_rBX};
+static constexpr RegStorage core_temps_arr_64[] = {
     rs_rAX, rs_rCX, rs_rDX, rs_rSI, rs_rDI,
 #ifdef TARGET_REX_SUPPORT
     rs_r8, rs_r9, rs_r10, rs_r11
 #endif
 };
-static const RegStorage core_temps_arr_64q[] = {
+static constexpr RegStorage core_temps_arr_64q[] = {
     rs_r0q, rs_r1q, rs_r2q, rs_r6q, rs_r7q,
 #ifdef TARGET_REX_SUPPORT
     rs_r8q, rs_r9q, rs_r10q, rs_r11q
 #endif
 };
-static const RegStorage sp_temps_arr_32[] = {
+static constexpr RegStorage sp_temps_arr_32[] = {
     rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
 };
-static const RegStorage sp_temps_arr_64[] = {
+static constexpr RegStorage sp_temps_arr_64[] = {
     rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
 #ifdef TARGET_REX_SUPPORT
     rs_fr8, rs_fr9, rs_fr10, rs_fr11, rs_fr12, rs_fr13, rs_fr14, rs_fr15
 #endif
 };
-static const RegStorage dp_temps_arr_32[] = {
+static constexpr RegStorage dp_temps_arr_32[] = {
     rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
 };
-static const RegStorage dp_temps_arr_64[] = {
+static constexpr RegStorage dp_temps_arr_64[] = {
     rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
 #ifdef TARGET_REX_SUPPORT
     rs_dr8, rs_dr9, rs_dr10, rs_dr11, rs_dr12, rs_dr13, rs_dr14, rs_dr15
 #endif
 };
 
-static const RegStorage xp_temps_arr_32[] = {
+static constexpr RegStorage xp_temps_arr_32[] = {
     rs_xr0, rs_xr1, rs_xr2, rs_xr3, rs_xr4, rs_xr5, rs_xr6, rs_xr7,
 };
-static const RegStorage xp_temps_arr_64[] = {
+static constexpr RegStorage xp_temps_arr_64[] = {
     rs_xr0, rs_xr1, rs_xr2, rs_xr3, rs_xr4, rs_xr5, rs_xr6, rs_xr7,
 #ifdef TARGET_REX_SUPPORT
     rs_xr8, rs_xr9, rs_xr10, rs_xr11, rs_xr12, rs_xr13, rs_xr14, rs_xr15
 #endif
 };
 
-static const std::vector<RegStorage> empty_pool;
-static const std::vector<RegStorage> core_regs_32(core_regs_arr_32,
-    core_regs_arr_32 + sizeof(core_regs_arr_32) / sizeof(core_regs_arr_32[0]));
-static const std::vector<RegStorage> core_regs_64(core_regs_arr_64,
-    core_regs_arr_64 + sizeof(core_regs_arr_64) / sizeof(core_regs_arr_64[0]));
-static const std::vector<RegStorage> core_regs_64q(core_regs_arr_64q,
-    core_regs_arr_64q + sizeof(core_regs_arr_64q) / sizeof(core_regs_arr_64q[0]));
-static const std::vector<RegStorage> sp_regs_32(sp_regs_arr_32,
-    sp_regs_arr_32 + sizeof(sp_regs_arr_32) / sizeof(sp_regs_arr_32[0]));
-static const std::vector<RegStorage> sp_regs_64(sp_regs_arr_64,
-    sp_regs_arr_64 + sizeof(sp_regs_arr_64) / sizeof(sp_regs_arr_64[0]));
-static const std::vector<RegStorage> dp_regs_32(dp_regs_arr_32,
-    dp_regs_arr_32 + sizeof(dp_regs_arr_32) / sizeof(dp_regs_arr_32[0]));
-static const std::vector<RegStorage> dp_regs_64(dp_regs_arr_64,
-    dp_regs_arr_64 + sizeof(dp_regs_arr_64) / sizeof(dp_regs_arr_64[0]));
-static const std::vector<RegStorage> reserved_regs_32(reserved_regs_arr_32,
-    reserved_regs_arr_32 + sizeof(reserved_regs_arr_32) / sizeof(reserved_regs_arr_32[0]));
-static const std::vector<RegStorage> reserved_regs_64(reserved_regs_arr_64,
-    reserved_regs_arr_64 + sizeof(reserved_regs_arr_64) / sizeof(reserved_regs_arr_64[0]));
-static const std::vector<RegStorage> reserved_regs_64q(reserved_regs_arr_64q,
-    reserved_regs_arr_64q + sizeof(reserved_regs_arr_64q) / sizeof(reserved_regs_arr_64q[0]));
-static const std::vector<RegStorage> core_temps_32(core_temps_arr_32,
-    core_temps_arr_32 + sizeof(core_temps_arr_32) / sizeof(core_temps_arr_32[0]));
-static const std::vector<RegStorage> core_temps_64(core_temps_arr_64,
-    core_temps_arr_64 + sizeof(core_temps_arr_64) / sizeof(core_temps_arr_64[0]));
-static const std::vector<RegStorage> core_temps_64q(core_temps_arr_64q,
-    core_temps_arr_64q + sizeof(core_temps_arr_64q) / sizeof(core_temps_arr_64q[0]));
-static const std::vector<RegStorage> sp_temps_32(sp_temps_arr_32,
-    sp_temps_arr_32 + sizeof(sp_temps_arr_32) / sizeof(sp_temps_arr_32[0]));
-static const std::vector<RegStorage> sp_temps_64(sp_temps_arr_64,
-    sp_temps_arr_64 + sizeof(sp_temps_arr_64) / sizeof(sp_temps_arr_64[0]));
-static const std::vector<RegStorage> dp_temps_32(dp_temps_arr_32,
-    dp_temps_arr_32 + sizeof(dp_temps_arr_32) / sizeof(dp_temps_arr_32[0]));
-static const std::vector<RegStorage> dp_temps_64(dp_temps_arr_64,
-    dp_temps_arr_64 + sizeof(dp_temps_arr_64) / sizeof(dp_temps_arr_64[0]));
+static constexpr ArrayRef<const RegStorage> empty_pool;
+static constexpr ArrayRef<const RegStorage> core_regs_32(core_regs_arr_32);
+static constexpr ArrayRef<const RegStorage> core_regs_64(core_regs_arr_64);
+static constexpr ArrayRef<const RegStorage> core_regs_64q(core_regs_arr_64q);
+static constexpr ArrayRef<const RegStorage> sp_regs_32(sp_regs_arr_32);
+static constexpr ArrayRef<const RegStorage> sp_regs_64(sp_regs_arr_64);
+static constexpr ArrayRef<const RegStorage> dp_regs_32(dp_regs_arr_32);
+static constexpr ArrayRef<const RegStorage> dp_regs_64(dp_regs_arr_64);
+static constexpr ArrayRef<const RegStorage> reserved_regs_32(reserved_regs_arr_32);
+static constexpr ArrayRef<const RegStorage> reserved_regs_64(reserved_regs_arr_64);
+static constexpr ArrayRef<const RegStorage> reserved_regs_64q(reserved_regs_arr_64q);
+static constexpr ArrayRef<const RegStorage> core_temps_32(core_temps_arr_32);
+static constexpr ArrayRef<const RegStorage> core_temps_64(core_temps_arr_64);
+static constexpr ArrayRef<const RegStorage> core_temps_64q(core_temps_arr_64q);
+static constexpr ArrayRef<const RegStorage> sp_temps_32(sp_temps_arr_32);
+static constexpr ArrayRef<const RegStorage> sp_temps_64(sp_temps_arr_64);
+static constexpr ArrayRef<const RegStorage> dp_temps_32(dp_temps_arr_32);
+static constexpr ArrayRef<const RegStorage> dp_temps_64(dp_temps_arr_64);
 
-static const std::vector<RegStorage> xp_temps_32(xp_temps_arr_32,
-    xp_temps_arr_32 + sizeof(xp_temps_arr_32) / sizeof(xp_temps_arr_32[0]));
-static const std::vector<RegStorage> xp_temps_64(xp_temps_arr_64,
-    xp_temps_arr_64 + sizeof(xp_temps_arr_64) / sizeof(xp_temps_arr_64[0]));
+static constexpr ArrayRef<const RegStorage> xp_temps_32(xp_temps_arr_32);
+static constexpr ArrayRef<const RegStorage> xp_temps_64(xp_temps_arr_64);
 
 RegStorage rs_rX86_SP;
 
@@ -582,7 +563,7 @@ void X86Mir2Lir::CompilerInitializeRegAlloc() {
   // Target-specific adjustments.
 
   // Add in XMM registers.
-  const std::vector<RegStorage> *xp_temps = Gen64Bit() ? &xp_temps_64 : &xp_temps_32;
+  const ArrayRef<const RegStorage> *xp_temps = Gen64Bit() ? &xp_temps_64 : &xp_temps_32;
   for (RegStorage reg : *xp_temps) {
     RegisterInfo* info = new (arena_) RegisterInfo(reg, GetRegMaskCommon(reg));
     reginfo_map_.Put(reg.GetReg(), info);
