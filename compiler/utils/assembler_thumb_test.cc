@@ -69,12 +69,12 @@ std::string GetAndroidToolsDir() {
   }
   bool statok = stat(toolsdir.c_str(), &st) == 0;
   if (!statok) {
-    LOG(FATAL) << "Cannot find ARM tools directory";
+    return "";      // Use path.
   }
 
   DIR* dir = opendir(toolsdir.c_str());
   if (dir == nullptr) {
-    LOG(FATAL) << "Unable to open ARM tools directory";
+    return "";      // Use path.
   }
 
   struct dirent* entry;
@@ -98,10 +98,10 @@ std::string GetAndroidToolsDir() {
   closedir(dir);
   bool found = founddir != "";
   if (!found) {
-    LOG(FATAL) << "Cannot find arm-eabi tools";
+    return "";      // Use path.
   }
 
-  return founddir + "/bin";
+  return founddir + "/bin/";
 }
 
 void dump(std::vector<uint8_t>& code, const char* testname) {
@@ -145,18 +145,18 @@ void dump(std::vector<uint8_t>& code, const char* testname) {
   char cmd[256];
 
   // Assemble the .S
-  snprintf(cmd, sizeof(cmd), "%s/arm-eabi-as %s -o %s.o", toolsdir.c_str(), filename, filename);
+  snprintf(cmd, sizeof(cmd), "%sarm-eabi-as %s -o %s.o", toolsdir.c_str(), filename, filename);
   system(cmd);
 
   // Remove the $d symbols to prevent the disassembler dumping the instructions
   // as .word
-  snprintf(cmd, sizeof(cmd), "%s/arm-eabi-objcopy -N '$d' %s.o %s.oo", toolsdir.c_str(),
+  snprintf(cmd, sizeof(cmd), "%sarm-eabi-objcopy -N '$d' %s.o %s.oo", toolsdir.c_str(),
     filename, filename);
   system(cmd);
 
   // Disassemble.
 
-  snprintf(cmd, sizeof(cmd), "%s/arm-eabi-objdump -d %s.oo | grep '^  *[0-9a-f][0-9a-f]*:'",
+  snprintf(cmd, sizeof(cmd), "%sarm-eabi-objdump -d %s.oo | grep '^  *[0-9a-f][0-9a-f]*:'",
     toolsdir.c_str(), filename);
   if (kPrintResults) {
     // Print the results only, don't check. This is used to generate new output for inserting
