@@ -87,7 +87,7 @@ void ArmMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
   tab_rec->anchor = switch_branch;
   // Needs to use setflags encoding here
   OpRegRegImm(kOpSub, r_idx, r_idx, 1);  // For value == 1, this should set flags.
-  DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
+  DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
   OpCondBranch(kCondNe, target);
 }
 

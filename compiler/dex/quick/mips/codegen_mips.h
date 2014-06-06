@@ -63,7 +63,7 @@ class MipsMir2Lir FINAL : public Mir2Lir {
     RegLocation LocCReturnDouble();
     RegLocation LocCReturnFloat();
     RegLocation LocCReturnWide();
-    uint64_t GetRegMaskCommon(RegStorage reg);
+    ResourceMask GetRegMaskCommon(const RegStorage& reg) const OVERRIDE;
     void AdjustSpillMask();
     void ClobberCallerSave();
     void FreeCallTemps();
@@ -77,12 +77,13 @@ class MipsMir2Lir FINAL : public Mir2Lir {
     int AssignInsnOffsets();
     void AssignOffsets();
     AssemblerStatus AssembleInstructions(CodeOffset start_addr);
-    void DumpResourceMask(LIR* lir, uint64_t mask, const char* prefix);
-    void SetupTargetResourceMasks(LIR* lir, uint64_t flags);
+    void DumpResourceMask(LIR* lir, const ResourceMask& mask, const char* prefix) OVERRIDE;
+    void SetupTargetResourceMasks(LIR* lir, uint64_t flags,
+                                  ResourceMask* use_mask, ResourceMask* def_mask) OVERRIDE;
     const char* GetTargetInstFmt(int opcode);
     const char* GetTargetInstName(int opcode);
     std::string BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr);
-    uint64_t GetPCUseDefEncoding();
+    ResourceMask GetPCUseDefEncoding() const OVERRIDE;
     uint64_t GetTargetInstFlags(int opcode);
     int GetInsnSize(LIR* lir);
     bool IsUnconditionalBranch(LIR* lir);

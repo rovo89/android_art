@@ -102,9 +102,9 @@ LIR* Arm64Mir2Lir::LoadFPConstantValue(int r_dest, int32_t value) {
     data_target = AddWordData(&literal_list_, value);
   }
 
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
   LIR* load_pc_rel = RawLIR(current_dalvik_offset_, kA64Ldr2fp,
                             r_dest, 0, 0, 0, 0, data_target);
-  SetMemRefType(load_pc_rel, true, kLiteral);
   AppendLIR(load_pc_rel);
   return load_pc_rel;
 }
@@ -129,9 +129,9 @@ LIR* Arm64Mir2Lir::LoadFPConstantValueWide(int r_dest, int64_t value) {
   }
 
   DCHECK(RegStorage::IsFloat(r_dest));
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
   LIR* load_pc_rel = RawLIR(current_dalvik_offset_, FWIDE(kA64Ldr2fp),
                             r_dest, 0, 0, 0, 0, data_target);
-  SetMemRefType(load_pc_rel, true, kLiteral);
   AppendLIR(load_pc_rel);
   return load_pc_rel;
 }
@@ -683,9 +683,9 @@ LIR* Arm64Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
       data_target = AddWideData(&literal_list_, val_lo, val_hi);
     }
 
+    ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
     LIR* res = RawLIR(current_dalvik_offset_, WIDE(kA64Ldr2rp),
                       r_dest.GetReg(), 0, 0, 0, 0, data_target);
-    SetMemRefType(res, true, kLiteral);
     AppendLIR(res);
     return res;
   }
@@ -905,7 +905,8 @@ LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStor
   }
 
   // TODO: in future may need to differentiate Dalvik accesses w/ spills
-  if (r_base == rs_rA64_SP) {
+  if (mem_ref_type_ == ResourceMask::kDalvikReg) {
+    DCHECK(r_base == rs_rA64_SP);
     AnnotateDalvikRegAccess(load, displacement >> 2, true /* is_load */, r_dest.Is64Bit());
   }
   return load;
@@ -986,7 +987,8 @@ LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegSto
   }
 
   // TODO: In future, may need to differentiate Dalvik & spill accesses.
-  if (r_base == rs_rA64_SP) {
+  if (mem_ref_type_ == ResourceMask::kDalvikReg) {
+    DCHECK(r_base == rs_rA64_SP);
     AnnotateDalvikRegAccess(store, displacement >> 2, false /* is_load */, r_src.Is64Bit());
   }
   return store;

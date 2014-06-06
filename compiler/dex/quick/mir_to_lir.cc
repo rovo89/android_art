@@ -68,6 +68,7 @@ void Mir2Lir::LockArg(int in_position, bool wide) {
 
 // TODO: needs revisit for 64-bit.
 RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide) {
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
   int offset = StackVisitor::GetOutVROffset(in_position, cu_->instruction_set);
 
   if (cu_->instruction_set == kX86) {
@@ -159,6 +160,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide)
 }
 
 void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
   int offset = StackVisitor::GetOutVROffset(in_position, cu_->instruction_set);
   if (cu_->instruction_set == kX86) {
     /*
@@ -1171,7 +1173,7 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
       head_lir = &block_label_list_[bb->id];
       // Set the first label as a scheduling barrier.
       DCHECK(!head_lir->flags.use_def_invalid);
-      head_lir->u.m.def_mask = ENCODE_ALL;
+      head_lir->u.m.def_mask = &kEncodeAll;
     }
 
     if (opcode == kMirOpCheck) {

@@ -87,9 +87,9 @@ LIR* ArmMir2Lir::LoadFPConstantValue(int r_dest, int value) {
   if (data_target == NULL) {
     data_target = AddWordData(&literal_list_, value);
   }
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
   LIR* load_pc_rel = RawLIR(current_dalvik_offset_, kThumb2Vldrs,
                           r_dest, rs_r15pc.GetReg(), 0, 0, 0, data_target);
-  SetMemRefType(load_pc_rel, true, kLiteral);
   AppendLIR(load_pc_rel);
   return load_pc_rel;
 }
@@ -670,6 +670,7 @@ LIR* ArmMir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
     if (data_target == NULL) {
       data_target = AddWideData(&literal_list_, val_lo, val_hi);
     }
+    ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
     if (r_dest.IsFloat()) {
       res = RawLIR(current_dalvik_offset_, kThumb2Vldrd,
                    r_dest.GetReg(), rs_r15pc.GetReg(), 0, 0, 0, data_target);
@@ -678,7 +679,6 @@ LIR* ArmMir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
       res = RawLIR(current_dalvik_offset_, kThumb2LdrdPcRel8,
                    r_dest.GetLowReg(), r_dest.GetHighReg(), rs_r15pc.GetReg(), 0, 0, data_target);
     }
-    SetMemRefType(res, true, kLiteral);
     AppendLIR(res);
   }
   return res;
@@ -946,7 +946,8 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
   }
 
   // TODO: in future may need to differentiate Dalvik accesses w/ spills
-  if (r_base == rs_rARM_SP) {
+  if (mem_ref_type_ == ResourceMask::kDalvikReg) {
+    DCHECK(r_base == rs_rARM_SP);
     AnnotateDalvikRegAccess(load, displacement >> 2, true /* is_load */, r_dest.Is64Bit());
   }
   return load;
@@ -1085,7 +1086,8 @@ LIR* ArmMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStora
   }
 
   // TODO: In future, may need to differentiate Dalvik & spill accesses
-  if (r_base == rs_rARM_SP) {
+  if (mem_ref_type_ == ResourceMask::kDalvikReg) {
+    DCHECK(r_base == rs_rARM_SP);
     AnnotateDalvikRegAccess(store, displacement >> 2, false /* is_load */, r_src.Is64Bit());
   }
   return store;

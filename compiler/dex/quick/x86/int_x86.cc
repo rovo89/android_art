@@ -794,34 +794,61 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
     RegStorage r_tmp2 = RegStorage::MakeRegPair(rs_rBX, rs_rCX);
     LoadValueDirectWideFixed(rl_src_expected, r_tmp1);
     LoadValueDirectWideFixed(rl_src_new_value, r_tmp2);
-    NewLIR1(kX86Push32R, rs_rDI.GetReg());
-    MarkTemp(rs_rDI);
-    LockTemp(rs_rDI);
-    NewLIR1(kX86Push32R, rs_rSI.GetReg());
-    MarkTemp(rs_rSI);
-    LockTemp(rs_rSI);
-    const int push_offset = 4 /* push edi */ + 4 /* push esi */;
-    int srcObjSp = IsInReg(this, rl_src_obj, rs_rSI) ? 0
-                : (IsInReg(this, rl_src_obj, rs_rDI) ? 4
-                : (SRegOffset(rl_src_obj.s_reg_low) + push_offset));
     // FIXME: needs 64-bit update.
-    LoadWordDisp(TargetReg(kSp), srcObjSp, rs_rDI);
-    int srcOffsetSp = IsInReg(this, rl_src_offset, rs_rSI) ? 0
-                   : (IsInReg(this, rl_src_offset, rs_rDI) ? 4
-                   : (SRegOffset(rl_src_offset.s_reg_low) + push_offset));
-    LoadWordDisp(TargetReg(kSp), srcOffsetSp, rs_rSI);
-    NewLIR4(kX86LockCmpxchg64A, rs_rDI.GetReg(), rs_rSI.GetReg(), 0, 0);
+    const bool obj_in_di = IsInReg(this, rl_src_obj, rs_rDI);
+    const bool obj_in_si = IsInReg(this, rl_src_obj, rs_rSI);
+    DCHECK(!obj_in_si || !obj_in_di);
+    const bool off_in_di = IsInReg(this, rl_src_offset, rs_rDI);
+    const bool off_in_si = IsInReg(this, rl_src_offset, rs_rSI);
+    DCHECK(!off_in_si || !off_in_di);
+    // If obj/offset is in a reg, use that reg. Otherwise, use the empty reg.
+    RegStorage rs_obj = obj_in_di ? rs_rDI : obj_in_si ? rs_rSI : !off_in_di ? rs_rDI : rs_rSI;
+    RegStorage rs_off = off_in_si ? rs_rSI : off_in_di ? rs_rDI : !obj_in_si ? rs_rSI : rs_rDI;
+    bool push_di = (!obj_in_di && !off_in_di) && (rs_obj == rs_rDI || rs_off == rs_rDI);
+    bool push_si = (!obj_in_si && !off_in_si) && (rs_obj == rs_rSI || rs_off == rs_rSI);
+    if (push_di) {
+      NewLIR1(kX86Push32R, rs_rDI.GetReg());
+      MarkTemp(rs_rDI);
+      LockTemp(rs_rDI);
+    }
+    if (push_si) {
+      NewLIR1(kX86Push32R, rs_rSI.GetReg());
+      MarkTemp(rs_rSI);
+      LockTemp(rs_rSI);
+    }
+    ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+    const size_t push_offset = (push_si ? 4u : 0u) + (push_di ? 4u : 0u);
+    if (!obj_in_si && !obj_in_di) {
+      LoadWordDisp(TargetReg(kSp), SRegOffset(rl_src_obj.s_reg_low) + push_offset, rs_obj);
+      // Dalvik register annotation in LoadBaseIndexedDisp() used wrong offset. Fix it.
+      DCHECK(!DECODE_ALIAS_INFO_WIDE(last_lir_insn_->flags.alias_info));
+      int reg_id = DECODE_ALIAS_INFO_REG(last_lir_insn_->flags.alias_info) - push_offset / 4u;
+      AnnotateDalvikRegAccess(last_lir_insn_, reg_id, true, false);
+    }
+    if (!off_in_si && !off_in_di) {
+      LoadWordDisp(TargetReg(kSp), SRegOffset(rl_src_offset.s_reg_low) + push_offset, rs_off);
+      // Dalvik register annotation in LoadBaseIndexedDisp() used wrong offset. Fix it.
+      DCHECK(!DECODE_ALIAS_INFO_WIDE(last_lir_insn_->flags.alias_info));
+      int reg_id = DECODE_ALIAS_INFO_REG(last_lir_insn_->flags.alias_info) - push_offset / 4u;
+      AnnotateDalvikRegAccess(last_lir_insn_, reg_id, true, false);
+    }
+    NewLIR4(kX86LockCmpxchg64A, rs_obj.GetReg(), rs_off.GetReg(), 0, 0);
 
     // After a store we need to insert barrier in case of potential load. Since the
     // locked cmpxchg has full barrier semantics, only a scheduling barrier will be generated.
     GenMemBarrier(kStoreLoad);
 
-    FreeTemp(rs_rSI);
-    UnmarkTemp(rs_rSI);
-    NewLIR1(kX86Pop32R, rs_rSI.GetReg());
-    FreeTemp(rs_rDI);
-    UnmarkTemp(rs_rDI);
-    NewLIR1(kX86Pop32R, rs_rDI.GetReg());
+
+    if (push_si) {
+      FreeTemp(rs_rSI);
+      UnmarkTemp(rs_rSI);
+      NewLIR1(kX86Pop32R, rs_rSI.GetReg());
+    }
+    if (push_di) {
+      FreeTemp(rs_rDI);
+      UnmarkTemp(rs_rDI);
+      NewLIR1(kX86Pop32R, rs_rDI.GetReg());
+    }
     FreeCallTemps();
   } else {
     // EAX must hold expected for CMPXCHG. Neither rl_new_value, nor r_ptr may be in EAX.
@@ -885,11 +912,11 @@ LIR* X86Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
   // We don't know the proper offset for the value, so pick one that will force
   // 4 byte offset.  We will fix this up in the assembler later to have the right
   // value.
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
   LIR *res = RawLIR(current_dalvik_offset_, kX86Mov32RM, reg.GetReg(), reg.GetReg(), 256,
                     0, 0, target);
   res->target = target;
   res->flags.fixup = kFixupLoad;
-  SetMemRefType(res, true, kLiteral);
   store_method_addr_used_ = true;
   return res;
 }
@@ -1077,6 +1104,9 @@ void X86Mir2Lir::GenImulRegImm(RegStorage dest, RegStorage src, int val) {
 }
 
 void X86Mir2Lir::GenImulMemImm(RegStorage dest, int sreg, int displacement, int val) {
+  // All memory accesses below reference dalvik regs.
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+
   LIR *m;
   switch (val) {
     case 0:
@@ -1095,6 +1125,9 @@ void X86Mir2Lir::GenImulMemImm(RegStorage dest, int sreg, int displacement, int 
 
 void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) {
+  // All memory accesses below reference dalvik regs.
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+
   if (Gen64Bit()) {
     if (rl_src1.is_const) {
       std::swap(rl_src1, rl_src2);
@@ -1346,6 +1379,7 @@ void X86Mir2Lir::GenLongRegOrMemOp(RegLocation rl_dest, RegLocation rl_src,
   int r_base = TargetReg(kSp).GetReg();
   int displacement = SRegOffset(rl_src.s_reg_low);
 
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
   LIR *lir = NewLIR3(x86op, Gen64Bit() ? rl_dest.reg.GetReg() : rl_dest.reg.GetLowReg(), r_base, displacement + LOWORD_OFFSET);
   AnnotateDalvikRegAccess(lir, (displacement + LOWORD_OFFSET) >> 2,
                           true /* is_load */, true /* is64bit */);
@@ -1379,6 +1413,7 @@ void X86Mir2Lir::GenLongArith(RegLocation rl_dest, RegLocation rl_src, Instructi
   int r_base = TargetReg(kSp).GetReg();
   int displacement = SRegOffset(rl_dest.s_reg_low);
 
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
   LIR *lir = NewLIR3(x86op, r_base, displacement + LOWORD_OFFSET,
                      Gen64Bit() ? rl_src.reg.GetReg() : rl_src.reg.GetLowReg());
   AnnotateDalvikRegAccess(lir, (displacement + LOWORD_OFFSET) >> 2,
@@ -2061,6 +2096,7 @@ bool X86Mir2Lir::GenLongImm(RegLocation rl_dest, RegLocation rl_src, Instruction
       int r_base = TargetReg(kSp).GetReg();
       int displacement = SRegOffset(rl_dest.s_reg_low);
 
+      ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
       X86OpCode x86op = GetOpcode(op, rl_dest, false, val);
       LIR *lir = NewLIR3(x86op, r_base, displacement + LOWORD_OFFSET, val);
       AnnotateDalvikRegAccess(lir, (displacement + LOWORD_OFFSET) >> 2,
@@ -2091,6 +2127,7 @@ bool X86Mir2Lir::GenLongImm(RegLocation rl_dest, RegLocation rl_src, Instruction
     int r_base = TargetReg(kSp).GetReg();
     int displacement = SRegOffset(rl_dest.s_reg_low);
 
+    ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
     if (!IsNoOp(op, val_lo)) {
       X86OpCode x86op = GetOpcode(op, rl_dest, false, val_lo);
       LIR *lir = NewLIR3(x86op, r_base, displacement + LOWORD_OFFSET, val_lo);
@@ -2469,6 +2506,9 @@ void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
     return;
   }
 
+  // If we generate any memory access below, it will reference a dalvik reg.
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+
   if (unary) {
     rl_lhs = LoadValue(rl_lhs, kCoreReg);
     rl_result = UpdateLocTyped(rl_dest, kCoreReg);
@@ -2620,6 +2660,7 @@ void X86Mir2Lir::GenIntToLong(RegLocation rl_dest, RegLocation rl_src) {
     NewLIR2(kX86MovsxdRR, rl_result.reg.GetReg(), rl_src.reg.GetReg());
   } else {
     int displacement = SRegOffset(rl_src.s_reg_low);
+    ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
     LIR *m = NewLIR3(kX86MovsxdRM, rl_result.reg.GetReg(), rs_rX86_SP.GetReg(),
                      displacement + LOWORD_OFFSET);
     AnnotateDalvikRegAccess(m, (displacement + LOWORD_OFFSET) >> 2,
@@ -2670,6 +2711,7 @@ void X86Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
     rl_result = UpdateLocWideTyped(rl_dest, kCoreReg);
     if (rl_result.location != kLocPhysReg) {
       // Okay, we can do this into memory
+      ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
       OpMemReg(op, rl_result, t_reg.GetReg());
     } else if (!rl_result.reg.IsFloat()) {
       // Can do this directly into the result register

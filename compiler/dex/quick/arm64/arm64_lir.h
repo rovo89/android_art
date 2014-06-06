@@ -102,16 +102,13 @@ namespace art {
 #define A64_REG_IS_SP(reg_num) ((reg_num) == rwsp || (reg_num) == rsp)
 #define A64_REG_IS_ZR(reg_num) ((reg_num) == rwzr || (reg_num) == rxzr)
 
-enum ArmResourceEncodingPos {
-  kArmGPReg0   = 0,
-  kArmRegLR    = 30,
-  kArmRegSP    = 31,
-  kArmFPReg0   = 32,
-  kArmRegEnd   = 64,
+enum Arm64ResourceEncodingPos {
+  kArm64GPReg0   = 0,
+  kArm64RegLR    = 30,
+  kArm64RegSP    = 31,
+  kArm64FPReg0   = 32,
+  kArm64RegEnd   = 64,
 };
-
-#define ENCODE_ARM_REG_SP           (1ULL << kArmRegSP)
-#define ENCODE_ARM_REG_LR           (1ULL << kArmRegLR)
 
 #define IS_SIGNED_IMM(size, value) \
   ((value) >= -(1 << ((size) - 1)) && (value) < (1 << ((size) - 1)))
