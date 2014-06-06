@@ -139,6 +139,14 @@ class MANAGED ArtField : public Object {
   static ArtField* FindInstanceFieldWithOffset(mirror::Class* klass, uint32_t field_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  const char* GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const char* GetTypeDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Primitive::Type GetTypeAsPrimitiveType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsPrimitiveType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  size_t FieldSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const DexFile* GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // The class we are a part of

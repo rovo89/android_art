@@ -1567,8 +1567,7 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
       StackHandleScope<1> hs(self);
       Handle<mirror::ArtField> f(hs.NewHandle(fields->Get(i)));
 
-      FieldHelper fh(f.Get());
-      Primitive::Type type = fh.GetTypeAsPrimitiveType();
+      Primitive::Type type = f->GetTypeAsPrimitiveType();
       switch (type) {
         case Primitive::Type::kPrimInt:
           if (test_type == type) {
@@ -1584,7 +1583,7 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
 
         case Primitive::Type::kPrimNot:
           // Don't try array.
-          if (test_type == type && fh.GetTypeDescriptor()[0] != '[') {
+          if (test_type == type && f->GetTypeDescriptor()[0] != '[') {
             GetSetObjStatic(&obj, &f, self, m.Get(), test);
           }
           break;
@@ -1603,8 +1602,7 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
       StackHandleScope<1> hs(self);
       Handle<mirror::ArtField> f(hs.NewHandle(fields->Get(i)));
 
-      FieldHelper fh(f.Get());
-      Primitive::Type type = fh.GetTypeAsPrimitiveType();
+      Primitive::Type type = f->GetTypeAsPrimitiveType();
       switch (type) {
         case Primitive::Type::kPrimInt:
           if (test_type == type) {
@@ -1620,7 +1618,7 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
 
         case Primitive::Type::kPrimNot:
           // Don't try array.
-          if (test_type == type && fh.GetTypeDescriptor()[0] != '[') {
+          if (test_type == type && f->GetTypeDescriptor()[0] != '[') {
             GetSetObjInstance(&obj, &f, self, m.Get(), test);
           }
           break;

@@ -363,9 +363,15 @@ static SOMETIMES_INLINE_KEYWORD bool DoFieldPut(Thread* self, const ShadowFrame&
       if (do_assignability_check && reg != nullptr) {
         // FieldHelper::GetType can resolve classes, use a handle wrapper which will restore the
         // object in the destructor.
-        StackHandleScope<1> hs(self);
-        HandleWrapper<mirror::Object> wrapper(hs.NewHandleWrapper(&obj));
-        Class* field_class = FieldHelper(f).GetType();
+        Class* field_class;
+        {
+          StackHandleScope<3> hs(self);
+          HandleWrapper<mirror::ArtField> h_f(hs.NewHandleWrapper(&f));
+          HandleWrapper<mirror::Object> h_reg(hs.NewHandleWrapper(&reg));
+          HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(&obj));
+          FieldHelper fh(h_f);
+          field_class = fh.GetType();
+        }
         if (!reg->VerifierInstanceOf(field_class)) {
           // This should never happen.
           self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
