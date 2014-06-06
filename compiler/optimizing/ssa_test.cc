@@ -99,7 +99,7 @@ TEST(SsaTest, CFG1) {
     "BasicBlock 0, succ: 1\n"
     "  0: IntConstant 0 [2, 2]\n"
     "  1: Goto\n"
-    "BasicBlock 1, pred: 0, succ: 2, 5\n"
+    "BasicBlock 1, pred: 0, succ: 5, 2\n"
     "  2: Equal(0, 0) [3]\n"
     "  3: If(2)\n"
     "BasicBlock 2, pred: 1, succ: 3\n"
@@ -129,7 +129,7 @@ TEST(SsaTest, CFG2) {
     "  0: IntConstant 0 [6, 3, 3]\n"
     "  1: IntConstant 4 [6]\n"
     "  2: Goto\n"
-    "BasicBlock 1, pred: 0, succ: 2, 5\n"
+    "BasicBlock 1, pred: 0, succ: 5, 2\n"
     "  3: Equal(0, 0) [4]\n"
     "  4: If(3)\n"
     "BasicBlock 2, pred: 1, succ: 3\n"
@@ -409,7 +409,7 @@ TEST(SsaTest, Loop7) {
     "  3: Goto\n"
     "BasicBlock 1, pred: 0, succ: 2\n"
     "  4: Goto\n"
-    "BasicBlock 2, pred: 1, 5, succ: 3, 8\n"
+    "BasicBlock 2, pred: 1, 5, succ: 8, 3\n"
     "  5: Phi(0, 1) [12, 6, 6]\n"
     "  6: Equal(5, 5) [7]\n"
     "  7: If(6)\n"
@@ -467,7 +467,7 @@ TEST(SsaTest, LocalInIf) {
     "  0: IntConstant 0 [3, 3]\n"
     "  1: IntConstant 4\n"
     "  2: Goto\n"
-    "BasicBlock 1, pred: 0, succ: 2, 5\n"
+    "BasicBlock 1, pred: 0, succ: 5, 2\n"
     "  3: Equal(0, 0) [4]\n"
     "  4: If(3)\n"
     "BasicBlock 2, pred: 1, succ: 3\n"
@@ -484,6 +484,45 @@ TEST(SsaTest, LocalInIf) {
     Instruction::CONST_4 | 0 | 0,
     Instruction::IF_EQ, 3,
     Instruction::CONST_4 | 4 << 12 | 1 << 8,
+    Instruction::RETURN_VOID);
+
+  TestCode(data, expected);
+}
+
+TEST(SsaTest, MultiplePredecessors) {
+  // Test that we do not create a phi when one predecessor
+  // does not update the local.
+  const char* expected =
+    "BasicBlock 0, succ: 1\n"
+    "  0: IntConstant 0 [4, 8, 6, 6, 2, 2, 8, 4]\n"
+    "  1: Goto\n"
+    "BasicBlock 1, pred: 0, succ: 3, 2\n"
+    "  2: Equal(0, 0) [3]\n"
+    "  3: If(2)\n"
+    "BasicBlock 2, pred: 1, succ: 5\n"
+    "  4: Add(0, 0)\n"
+    "  5: Goto\n"
+    "BasicBlock 3, pred: 1, succ: 7, 4\n"
+    "  6: Equal(0, 0) [7]\n"
+    "  7: If(6)\n"
+    "BasicBlock 4, pred: 3, succ: 5\n"
+    "  8: Add(0, 0)\n"
+    "  9: Goto\n"
+    // This block should not get a phi for local 1.
+    "BasicBlock 5, pred: 2, 4, 7, succ: 6\n"
+    "  10: ReturnVoid\n"
+    "BasicBlock 6, pred: 5\n"
+    "  11: Exit\n"
+    "BasicBlock 7, pred: 3, succ: 5\n"
+    "  12: Goto\n";
+
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::IF_EQ, 5,
+    Instruction::ADD_INT_LIT8 | 1 << 8, 0 << 8,
+    Instruction::GOTO | 0x0500,
+    Instruction::IF_EQ, 4,
+    Instruction::ADD_INT_LIT8 | 1 << 8, 0 << 8,
     Instruction::RETURN_VOID);
 
   TestCode(data, expected);

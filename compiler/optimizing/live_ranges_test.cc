@@ -152,22 +152,22 @@ TEST(LiveRangesTest, CFG3) {
   SsaLivenessAnalysis liveness(*graph);
   liveness.Analyze();
 
-  // Test for the 0 constant.
-  LiveInterval* interval = liveness.GetInstructionFromSsaIndex(0)->GetLiveInterval();
+  // Test for the 4 constant.
+  LiveInterval* interval = liveness.GetInstructionFromSsaIndex(1)->GetLiveInterval();
   LiveRange* range = interval->GetFirstRange();
-  ASSERT_EQ(2u, range->GetStart());
+  ASSERT_EQ(4u, range->GetStart());
   // Last use is the phi at the return block so instruction is live until
   // the end of the then block.
   ASSERT_EQ(18u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
-  // Test for the 4 constant.
-  interval = liveness.GetInstructionFromSsaIndex(1)->GetLiveInterval();
+  // Test for the 0 constant.
+  interval = liveness.GetInstructionFromSsaIndex(0)->GetLiveInterval();
   // The then branch is a hole for this constant, therefore its interval has 2 ranges.
   // First range starts from the definition and ends at the if block.
   range = interval->GetFirstRange();
-  ASSERT_EQ(4u, range->GetStart());
-  // 9 is the end of the if block.
+  ASSERT_EQ(2u, range->GetStart());
+  // 14 is the end of the if block.
   ASSERT_EQ(14u, range->GetEnd());
   // Second range is the else block.
   range = range->GetNext();
@@ -179,6 +179,7 @@ TEST(LiveRangesTest, CFG3) {
   // Test for the phi.
   interval = liveness.GetInstructionFromSsaIndex(3)->GetLiveInterval();
   range = interval->GetFirstRange();
+  ASSERT_EQ(22u, liveness.GetInstructionFromSsaIndex(3)->GetLifetimePosition());
   ASSERT_EQ(22u, range->GetStart());
   ASSERT_EQ(24u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
