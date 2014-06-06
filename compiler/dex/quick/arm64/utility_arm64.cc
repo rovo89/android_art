@@ -526,7 +526,6 @@ LIR* Arm64Mir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, 
   ArmOpcode alt_opcode = kA64Brk1d;
   int32_t log_imm = -1;
   bool is_wide = r_dest.Is64Bit();
-  CHECK_EQ(r_dest.Is64Bit(), r_src1.Is64Bit());
   ArmOpcode wide = (is_wide) ? WIDE(0) : UNWIDE(0);
 
   switch (op) {
