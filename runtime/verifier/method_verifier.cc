@@ -3513,13 +3513,17 @@ void MethodVerifier::VerifyISGet(const Instruction* inst, const RegType& insn_ty
   }
   const RegType* field_type = nullptr;
   if (field != NULL) {
-    FieldHelper fh(field);
-    mirror::Class* field_type_class = fh.GetType(can_load_classes_);
+    Thread* self = Thread::Current();
+    mirror::Class* field_type_class;
+    {
+      StackHandleScope<1> hs(self);
+      HandleWrapper<mirror::ArtField> h_field(hs.NewHandleWrapper(&field));
+      field_type_class = FieldHelper(h_field).GetType(can_load_classes_);
+    }
     if (field_type_class != nullptr) {
-      field_type = &reg_types_.FromClass(fh.GetTypeDescriptor(), field_type_class,
+      field_type = &reg_types_.FromClass(field->GetTypeDescriptor(), field_type_class,
                                          field_type_class->CannotBeAssignedFromOtherTypes());
     } else {
-      Thread* self = Thread::Current();
       DCHECK(!can_load_classes_ || self->IsExceptionPending());
       self->ClearException();
     }
@@ -3580,10 +3584,15 @@ void MethodVerifier::VerifyISPut(const Instruction* inst, const RegType& insn_ty
                                       << " from other class " << GetDeclaringClass();
       return;
     }
-    FieldHelper fh(field);
-    mirror::Class* field_type_class = fh.GetType(can_load_classes_);
+    mirror::Class* field_type_class;
+    {
+      StackHandleScope<1> hs(Thread::Current());
+      HandleWrapper<mirror::ArtField> h_field(hs.NewHandleWrapper(&field));
+      FieldHelper fh(h_field);
+      field_type_class = fh.GetType(can_load_classes_);
+    }
     if (field_type_class != nullptr) {
-      field_type = &reg_types_.FromClass(fh.GetTypeDescriptor(), field_type_class,
+      field_type = &reg_types_.FromClass(field->GetTypeDescriptor(), field_type_class,
                                          field_type_class->CannotBeAssignedFromOtherTypes());
     } else {
       Thread* self = Thread::Current();
@@ -3643,18 +3652,23 @@ void MethodVerifier::VerifyIGetQuick(const Instruction* inst, const RegType& ins
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot infer field from " << inst->Name();
     return;
   }
-  FieldHelper fh(field);
-  mirror::Class* field_type_class = fh.GetType(can_load_classes_);
+  mirror::Class* field_type_class;
+  {
+    StackHandleScope<1> hs(Thread::Current());
+    HandleWrapper<mirror::ArtField> h_field(hs.NewHandleWrapper(&field));
+    FieldHelper fh(h_field);
+    field_type_class = fh.GetType(can_load_classes_);
+  }
   const RegType* field_type;
   if (field_type_class != nullptr) {
-    field_type = &reg_types_.FromClass(fh.GetTypeDescriptor(), field_type_class,
+    field_type = &reg_types_.FromClass(field->GetTypeDescriptor(), field_type_class,
                                        field_type_class->CannotBeAssignedFromOtherTypes());
   } else {
     Thread* self = Thread::Current();
     DCHECK(!can_load_classes_ || self->IsExceptionPending());
     self->ClearException();
     field_type = &reg_types_.FromDescriptor(field->GetDeclaringClass()->GetClassLoader(),
-                                            fh.GetTypeDescriptor(), false);
+                                            field->GetTypeDescriptor(), false);
   }
   DCHECK(field_type != nullptr);
   const uint32_t vregA = inst->VRegA_22c();
@@ -3698,7 +3712,7 @@ void MethodVerifier::VerifyIPutQuick(const Instruction* inst, const RegType& ins
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot infer field from " << inst->Name();
     return;
   }
-  const char* descriptor = FieldHelper(field).GetTypeDescriptor();
+  const char* descriptor = field->GetTypeDescriptor();
   mirror::ClassLoader* loader = field->GetDeclaringClass()->GetClassLoader();
   const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor, false);
   if (field != NULL) {

@@ -1377,8 +1377,7 @@ std::string Dbg::GetMethodName(JDWP::MethodId method_id)
 
 std::string Dbg::GetFieldName(JDWP::FieldId field_id)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::ArtField* f = FromFieldId(field_id);
-  return FieldHelper(f).GetName();
+  return FromFieldId(field_id)->GetName();
 }
 
 /*
@@ -1453,10 +1452,9 @@ JDWP::JdwpError Dbg::OutputDeclaredFields(JDWP::RefTypeId class_id, bool with_ge
 
   for (size_t i = 0; i < instance_field_count + static_field_count; ++i) {
     mirror::ArtField* f = (i < instance_field_count) ? c->GetInstanceField(i) : c->GetStaticField(i - instance_field_count);
-    FieldHelper fh(f);
     expandBufAddFieldId(pReply, ToFieldId(f));
-    expandBufAddUtf8String(pReply, fh.GetName());
-    expandBufAddUtf8String(pReply, fh.GetTypeDescriptor());
+    expandBufAddUtf8String(pReply, f->GetName());
+    expandBufAddUtf8String(pReply, f->GetTypeDescriptor());
     if (with_generic) {
       static const char genericSignature[1] = "";
       expandBufAddUtf8String(pReply, genericSignature);
@@ -1622,7 +1620,7 @@ void Dbg::OutputMethodReturnValue(JDWP::MethodId method_id, const JValue* return
 void Dbg::OutputFieldValue(JDWP::FieldId field_id, const JValue* field_value,
                            JDWP::ExpandBuf* pReply) {
   mirror::ArtField* f = FromFieldId(field_id);
-  JDWP::JdwpTag tag = BasicTagFromDescriptor(FieldHelper(f).GetTypeDescriptor());
+  JDWP::JdwpTag tag = BasicTagFromDescriptor(f->GetTypeDescriptor());
   OutputJValue(tag, field_value, pReply);
 }
 
@@ -1645,11 +1643,11 @@ JDWP::JdwpError Dbg::GetBytecodes(JDWP::RefTypeId, JDWP::MethodId method_id,
 }
 
 JDWP::JdwpTag Dbg::GetFieldBasicTag(JDWP::FieldId field_id) {
-  return BasicTagFromDescriptor(FieldHelper(FromFieldId(field_id)).GetTypeDescriptor());
+  return BasicTagFromDescriptor(FromFieldId(field_id)->GetTypeDescriptor());
 }
 
 JDWP::JdwpTag Dbg::GetStaticFieldBasicTag(JDWP::FieldId field_id) {
-  return BasicTagFromDescriptor(FieldHelper(FromFieldId(field_id)).GetTypeDescriptor());
+  return BasicTagFromDescriptor(FromFieldId(field_id)->GetTypeDescriptor());
 }
 
 static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId ref_type_id, JDWP::ObjectId object_id,
@@ -1693,7 +1691,7 @@ static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId ref_type_id, JDWP::Obje
     o = f->GetDeclaringClass();
   }
 
-  JDWP::JdwpTag tag = BasicTagFromDescriptor(FieldHelper(f).GetTypeDescriptor());
+  JDWP::JdwpTag tag = BasicTagFromDescriptor(f->GetTypeDescriptor());
   JValue field_value;
   if (tag == JDWP::JT_VOID) {
     LOG(FATAL) << "Unknown tag: " << tag;
@@ -1742,7 +1740,7 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId object_id, JDWP::FieldId
     o = f->GetDeclaringClass();
   }
 
-  JDWP::JdwpTag tag = BasicTagFromDescriptor(FieldHelper(f).GetTypeDescriptor());
+  JDWP::JdwpTag tag = BasicTagFromDescriptor(f->GetTypeDescriptor());
 
   if (IsPrimitiveTag(tag)) {
     if (tag == JDWP::JT_DOUBLE || tag == JDWP::JT_LONG) {
@@ -1760,7 +1758,14 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId object_id, JDWP::FieldId
       return JDWP::ERR_INVALID_OBJECT;
     }
     if (v != NULL) {
-      mirror::Class* field_type = FieldHelper(f).GetType();
+      mirror::Class* field_type;
+      {
+        StackHandleScope<3> hs(Thread::Current());
+        HandleWrapper<mirror::Object> h_v(hs.NewHandleWrapper(&v));
+        HandleWrapper<mirror::ArtField> h_f(hs.NewHandleWrapper(&f));
+        HandleWrapper<mirror::Object> h_o(hs.NewHandleWrapper(&o));
+        field_type = FieldHelper(h_f).GetType();
+      }
       if (!field_type->IsAssignableFrom(v->GetClass())) {
         return JDWP::ERR_INVALID_OBJECT;
       }

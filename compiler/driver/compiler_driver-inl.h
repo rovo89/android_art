@@ -135,8 +135,10 @@ inline std::pair<bool, bool> CompilerDriver::IsFastStaticField(
       } else {
         // Search dex file for localized ssb index, may fail if field's class is a parent
         // of the class mentioned in the dex file and there is no dex cache entry.
+        StackHandleScope<1> hs(Thread::Current());
         const DexFile::StringId* string_id =
-            dex_file->FindStringId(FieldHelper(resolved_field).GetDeclaringClassDescriptor());
+            dex_file->FindStringId(
+                FieldHelper(hs.NewHandle(resolved_field)).GetDeclaringClassDescriptor());
         if (string_id != nullptr) {
           const DexFile::TypeId* type_id =
              dex_file->FindTypeId(dex_file->GetIndexForStringId(*string_id));

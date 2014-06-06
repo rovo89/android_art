@@ -204,7 +204,8 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_val
       for (size_t i = 0; i < num_ref_ifields; ++i) {
         ArtField* field = fields->Get(i);
         if (field->GetOffset().Int32Value() == field_offset.Int32Value()) {
-          FieldHelper fh(field);
+          StackHandleScope<1> hs(Thread::Current());
+          FieldHelper fh(hs.NewHandle(field));
           CHECK(fh.GetType()->IsAssignableFrom(new_value->GetClass()));
           return;
         }
@@ -222,7 +223,8 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_val
       for (size_t i = 0; i < num_ref_sfields; ++i) {
         ArtField* field = fields->Get(i);
         if (field->GetOffset().Int32Value() == field_offset.Int32Value()) {
-          FieldHelper fh(field);
+          StackHandleScope<1> hs(Thread::Current());
+          FieldHelper fh(hs.NewHandle(field));
           CHECK(fh.GetType()->IsAssignableFrom(new_value->GetClass()));
           return;
         }

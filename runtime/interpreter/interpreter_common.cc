@@ -334,12 +334,10 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
     String* name = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
     ArtField* found = NULL;
-    FieldHelper fh;
     ObjectArray<ArtField>* fields = klass->GetIFields();
     for (int32_t i = 0; i < fields->GetLength() && found == NULL; ++i) {
       ArtField* f = fields->Get(i);
-      fh.ChangeField(f);
-      if (name->Equals(fh.GetName())) {
+      if (name->Equals(f->GetName())) {
         found = f;
       }
     }
@@ -347,8 +345,7 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
       fields = klass->GetSFields();
       for (int32_t i = 0; i < fields->GetLength() && found == NULL; ++i) {
         ArtField* f = fields->Get(i);
-        fh.ChangeField(f);
-        if (name->Equals(fh.GetName())) {
+        if (name->Equals(f->GetName())) {
           found = f;
         }
       }

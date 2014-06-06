@@ -55,7 +55,7 @@ void ArtField::SetOffset(MemberOffset num_bytes) {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   if (kIsDebugBuild && Runtime::Current()->IsCompiler() &&
       !Runtime::Current()->UseCompileTimeClassPath()) {
-    Primitive::Type type = FieldHelper(this).GetTypeAsPrimitiveType();
+    Primitive::Type type = GetTypeAsPrimitiveType();
     if (type == Primitive::kPrimDouble || type == Primitive::kPrimLong) {
       DCHECK_ALIGNED(num_bytes.Uint32Value(), 8);
     }

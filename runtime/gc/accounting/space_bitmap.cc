@@ -180,11 +180,10 @@ void SpaceBitmap<kAlignment>::WalkInstanceFields(SpaceBitmap<kAlignment>* visite
   if (fields != NULL) {
     for (int32_t i = 0; i < fields->GetLength(); i++) {
       mirror::ArtField* field = fields->Get(i);
-      FieldHelper fh(field);
-      if (!fh.IsPrimitiveType()) {
+      if (!field->IsPrimitiveType()) {
         mirror::Object* value = field->GetObj(obj);
         if (value != NULL) {
-          WalkFieldsInOrder(visited, callback, value,  arg);
+          WalkFieldsInOrder(visited, callback, value, arg);
         }
       }
     }
@@ -210,8 +209,7 @@ void SpaceBitmap<kAlignment>::WalkFieldsInOrder(SpaceBitmap<kAlignment>* visited
     if (fields != NULL) {
       for (int32_t i = 0; i < fields->GetLength(); i++) {
         mirror::ArtField* field = fields->Get(i);
-        FieldHelper fh(field);
-        if (!fh.IsPrimitiveType()) {
+        if (!field->IsPrimitiveType()) {
           mirror::Object* value = field->GetObj(NULL);
           if (value != NULL) {
             WalkFieldsInOrder(visited, callback, value, arg);
