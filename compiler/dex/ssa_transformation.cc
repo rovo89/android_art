@@ -16,6 +16,7 @@
 
 #include "compiler_internals.h"
 #include "dataflow_iterator-inl.h"
+#include "utils/scoped_arena_containers.h"
 
 #define NOTVISITED (-1)
 
@@ -69,7 +70,8 @@ void MIRGraph::MarkPreOrder(BasicBlock* block) {
 }
 
 void MIRGraph::RecordDFSOrders(BasicBlock* block) {
-  std::vector<BasicBlock*> succ;
+  DCHECK(temp_scoped_alloc_.get() != nullptr);
+  ScopedArenaVector<BasicBlock*> succ(temp_scoped_alloc_->Adapter());
   MarkPreOrder(block);
   succ.push_back(block);
   while (!succ.empty()) {
@@ -176,7 +178,9 @@ void MIRGraph::ComputeDomPostOrderTraversal(BasicBlock* bb) {
     dom_post_order_traversal_->Reset();
   }
   ClearAllVisitedFlags();
-  std::vector<std::pair<BasicBlock*, ArenaBitVector::IndexIterator>> work_stack;
+  DCHECK(temp_scoped_alloc_.get() != nullptr);
+  ScopedArenaVector<std::pair<BasicBlock*, ArenaBitVector::IndexIterator>> work_stack(
+      temp_scoped_alloc_->Adapter());
   bb->visited = true;
   work_stack.push_back(std::make_pair(bb, bb->i_dominated->Indexes().begin()));
   while (!work_stack.empty()) {
