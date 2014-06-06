@@ -25,26 +25,21 @@
 #include <utility>
 #include <vector>
 
-#include "base/macros.h"
-#include "base/stringpiece.h"
-#include "gc/collector_type.h"
-#include "gc/heap.h"
-#include "globals.h"
-#include "instruction_set.h"
 #include "instrumentation.h"
+#include "instruction_set.h"
 #include "jobject_comparator.h"
 #include "object_callbacks.h"
+#include "offsets.h"
 #include "profiler_options.h"
 #include "quick/quick_method_frame_info.h"
 #include "runtime_stats.h"
 #include "safe_map.h"
-#include "fault_handler.h"
 
 namespace art {
 
 namespace gc {
   class Heap;
-}
+}  // namespace gc
 namespace mirror {
   class ArtMethod;
   class ClassLoader;
@@ -65,7 +60,10 @@ class InternTable;
 class JavaVMExt;
 class MonitorList;
 class MonitorPool;
+class NullPointerHandler;
 class SignalCatcher;
+class StackOverflowHandler;
+class SuspensionHandler;
 class ThreadList;
 class Trace;
 class Transaction;

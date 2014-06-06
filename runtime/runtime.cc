@@ -44,6 +44,7 @@
 #include "atomic.h"
 #include "class_linker.h"
 #include "debugger.h"
+#include "fault_handler.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
 #include "gc/space/space.h"

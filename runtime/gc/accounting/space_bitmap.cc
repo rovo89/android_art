@@ -72,6 +72,12 @@ void SpaceBitmap<kAlignment>::SetHeapLimit(uintptr_t new_end) {
 }
 
 template<size_t kAlignment>
+std::string SpaceBitmap<kAlignment>::Dump() const {
+  return StringPrintf("%s: %p-%p", name_.c_str(), reinterpret_cast<void*>(HeapBegin()),
+                      reinterpret_cast<void*>(HeapLimit()));
+}
+
+template<size_t kAlignment>
 void SpaceBitmap<kAlignment>::Clear() {
   if (bitmap_begin_ != NULL) {
     // This returns the memory to the system.  Successive page faults will return zeroed memory.

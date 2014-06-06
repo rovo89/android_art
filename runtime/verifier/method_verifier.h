@@ -29,9 +29,8 @@
 #include "dex_instruction.h"
 #include "instruction_flags.h"
 #include "method_reference.h"
-#include "mirror/object.h"
 #include "reg_type.h"
-#include "reg_type_cache-inl.h"
+#include "reg_type_cache.h"
 #include "register_line.h"
 #include "safe_map.h"
 
@@ -170,10 +169,7 @@ class MethodVerifier {
   std::ostream& Fail(VerifyError error);
 
   // Log for verification information.
-  std::ostream& LogVerifyInfo() {
-    return info_messages_ << "VFY: " << PrettyMethod(dex_method_idx_, *dex_file_)
-                          << '[' << reinterpret_cast<void*>(work_insn_idx_) << "] : ";
-  }
+  std::ostream& LogVerifyInfo();
 
   // Dump the failures encountered by the verifier.
   std::ostream& DumpFailures(std::ostream& os);

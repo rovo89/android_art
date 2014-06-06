@@ -17,10 +17,10 @@
 #ifndef ART_RUNTIME_VERIFIER_INSTRUCTION_FLAGS_H_
 #define ART_RUNTIME_VERIFIER_INSTRUCTION_FLAGS_H_
 
-#include "base/logging.h"
-
 #include <stdint.h>
 #include <string>
+
+#include "base/logging.h"
 
 namespace art {
 namespace verifier {
