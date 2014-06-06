@@ -53,7 +53,6 @@ BackgroundMethodSamplingProfiler* BackgroundMethodSamplingProfiler::profiler_ = 
 pthread_t BackgroundMethodSamplingProfiler::profiler_pthread_ = 0U;
 volatile bool BackgroundMethodSamplingProfiler::shutting_down_ = false;
 
-
 // TODO: this profiler runs regardless of the state of the machine.  Maybe we should use the
 // wakelock or something to modify the run characteristics.  This can be done when we
 // have some performance data after it's been used for a while.
@@ -126,6 +125,7 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
 
   Thread* self = Thread::Current();
 
+  double backoff = 1.0;
   while (true) {
     if (ShuttingDown(self)) {
       break;
@@ -133,13 +133,13 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
 
     {
       // wait until we need to run another profile
-      uint64_t delay_secs = profiler->period_s_ * profiler->backoff_factor_;
+      uint64_t delay_secs = profiler->options_.GetPeriodS() * backoff;
 
       // Add a startup delay to prevent all the profiles running at once.
       delay_secs += startup_delay;
 
       // Immediate startup for benchmarking?
-      if (profiler->start_immediately_ && startup_delay > 0) {
+      if (profiler->options_.GetStartImmediately() && startup_delay > 0) {
         delay_secs = 0;
       }
 
@@ -150,10 +150,7 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
       profiler->period_condition_.TimedWait(self, delay_secs * 1000, 0);
 
       // Expand the backoff by its coefficient, but don't go beyond the max.
-      double new_backoff = profiler->backoff_factor_ * profiler->backoff_coefficient_;
-      if (new_backoff < kMaxBackoffSecs) {
-        profiler->backoff_factor_ = new_backoff;
-      }
+      backoff = std::min(backoff * profiler->options_.GetBackoffCoefficient(), kMaxBackoffSecs);
     }
 
     if (ShuttingDown(self)) {
@@ -162,11 +159,11 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
 
 
     uint64_t start_us = MicroTime();
-    uint64_t end_us = start_us + profiler->duration_s_ * UINT64_C(1000000);
+    uint64_t end_us = start_us + profiler->options_.GetDurationS() * UINT64_C(1000000);
     uint64_t now_us = start_us;
 
-    VLOG(profiler) << "Starting profiling run now for " << PrettyDuration((end_us - start_us) * 1000);
-
+    VLOG(profiler) << "Starting profiling run now for "
+                   << PrettyDuration((end_us - start_us) * 1000);
 
     SampleCheckpoint check_point(profiler);
 
@@ -176,7 +173,7 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
         break;
       }
 
-      usleep(profiler->interval_us_);    // Non-interruptible sleep.
+      usleep(profiler->options_.GetIntervalUs());    // Non-interruptible sleep.
 
       ThreadList* thread_list = runtime->GetThreadList();
 
@@ -228,7 +225,7 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
 
 // Write out the profile file if we are generating a profile.
 uint32_t BackgroundMethodSamplingProfiler::WriteProfile() {
-  std::string full_name = profile_file_name_;
+  std::string full_name = output_filename_;
   VLOG(profiler) << "Saving profile to " << full_name;
 
   int fd = open(full_name.c_str(), O_RDWR);
@@ -283,45 +280,35 @@ uint32_t BackgroundMethodSamplingProfiler::WriteProfile() {
   return num_methods;
 }
 
-// Start a profile thread with the user-supplied arguments.
-void BackgroundMethodSamplingProfiler::Start(int period, int duration,
-                  const std::string& profile_file_name, const std::string& procName,
-                  int interval_us,
-                  double backoff_coefficient, bool startImmediately) {
+bool BackgroundMethodSamplingProfiler::Start(
+    const std::string& output_filename, const ProfilerOptions& options) {
+  if (!options.IsEnabled()) {
+    LOG(INFO) << "Profiler disabled. To enable setprop dalvik.vm.profiler 1.";
+    return false;
+  }
+
+  CHECK(!output_filename.empty());
+
   Thread* self = Thread::Current();
   {
     MutexLock mu(self, *Locks::profiler_lock_);
     // Don't start two profiler threads.
     if (profiler_ != nullptr) {
-      return;
+      return true;
     }
   }
 
-  // Only on target...
-#ifdef HAVE_ANDROID_OS
-  // Switch off profiler if the dalvik.vm.profiler property has value 0.
-  char buf[PROP_VALUE_MAX];
-  property_get("dalvik.vm.profiler", buf, "0");
-  if (strcmp(buf, "0") == 0) {
-    LOG(INFO) << "Profiler disabled.  To enable setprop dalvik.vm.profiler 1";
-    return;
-  }
-#endif
-
-  LOG(INFO) << "Starting profile with period " << period << "s, duration " << duration <<
-      "s, interval " << interval_us << "us.  Profile file " << profile_file_name;
-
+  LOG(INFO) << "Starting profiler using output file: " << output_filename
+            << " and options: " << options;
   {
     MutexLock mu(self, *Locks::profiler_lock_);
-    profiler_ = new BackgroundMethodSamplingProfiler(period, duration, profile_file_name,
-                                      procName,
-                                      backoff_coefficient,
-                                      interval_us, startImmediately);
+    profiler_ = new BackgroundMethodSamplingProfiler(output_filename, options);
 
     CHECK_PTHREAD_CALL(pthread_create, (&profiler_pthread_, nullptr, &RunProfilerThread,
         reinterpret_cast<void*>(profiler_)),
                        "Profiler thread");
   }
+  return true;
 }
 
 
@@ -357,14 +344,10 @@ void BackgroundMethodSamplingProfiler::Shutdown() {
   Stop();
 }
 
-BackgroundMethodSamplingProfiler::BackgroundMethodSamplingProfiler(int period, int duration,
-                   const std::string& profile_file_name,
-                   const std::string& process_name,
-                   double backoff_coefficient, int interval_us, bool startImmediately)
-    : profile_file_name_(profile_file_name), process_name_(process_name),
-      period_s_(period), start_immediately_(startImmediately),
-      interval_us_(interval_us), backoff_factor_(1.0),
-      backoff_coefficient_(backoff_coefficient), duration_s_(duration),
+BackgroundMethodSamplingProfiler::BackgroundMethodSamplingProfiler(
+  const std::string& output_filename, const ProfilerOptions& options)
+    : output_filename_(output_filename),
+      options_(options),
       wait_lock_("Profile wait lock"),
       period_condition_("Profile condition", wait_lock_),
       profile_table_(wait_lock_),
@@ -466,7 +449,8 @@ uint32_t ProfileSampleResults::Write(std::ostream &os) {
   num_null_methods_ += previous_num_null_methods_;
   num_boot_methods_ += previous_num_boot_methods_;
 
-  VLOG(profiler) << "Profile: " << num_samples_ << "/" << num_null_methods_ << "/" << num_boot_methods_;
+  VLOG(profiler) << "Profile: "
+                 << num_samples_ << "/" << num_null_methods_ << "/" << num_boot_methods_;
   os << num_samples_ << "/" << num_null_methods_ << "/" << num_boot_methods_ << "\n";
   uint32_t num_methods = 0;
   for (int i = 0 ; i < kHashSize; i++) {

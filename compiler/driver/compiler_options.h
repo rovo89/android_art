@@ -24,7 +24,6 @@ class CompilerOptions {
   enum CompilerFilter {
     kVerifyNone,          // Skip verification and compile nothing except JNI stubs.
     kInterpretOnly,       // Compile nothing except JNI stubs.
-    kProfiled,            // Compile based on profile.
     kSpace,               // Maximize space savings.
     kBalanced,            // Try to get the best performance return on compilation investment.
     kSpeed,               // Maximize runtime performance.
@@ -33,7 +32,7 @@ class CompilerOptions {
 
   // Guide heuristics to determine whether to compile method if profile data not available.
 #if ART_SMALL_MODE
-  static const CompilerFilter kDefaultCompilerFilter = kProfiled;
+  static const CompilerFilter kDefaultCompilerFilter = kInterpretOnly;
 #else
   static const CompilerFilter kDefaultCompilerFilter = kSpeed;
 #endif
@@ -42,6 +41,7 @@ class CompilerOptions {
   static const size_t kDefaultSmallMethodThreshold = 60;
   static const size_t kDefaultTinyMethodThreshold = 20;
   static const size_t kDefaultNumDexMethodsThreshold = 900;
+  static constexpr double kDefaultTopKProfileThreshold = 90.0;
 
   CompilerOptions() :
     compiler_filter_(kDefaultCompilerFilter),
@@ -50,7 +50,8 @@ class CompilerOptions {
     small_method_threshold_(kDefaultSmallMethodThreshold),
     tiny_method_threshold_(kDefaultTinyMethodThreshold),
     num_dex_methods_threshold_(kDefaultNumDexMethodsThreshold),
-    generate_gdb_information_(false)
+    generate_gdb_information_(false),
+    top_k_profile_threshold_(kDefaultTopKProfileThreshold)
 #ifdef ART_SEA_IR_MODE
     , sea_ir_mode_(false)
 #endif
@@ -62,7 +63,8 @@ class CompilerOptions {
                   size_t small_method_threshold,
                   size_t tiny_method_threshold,
                   size_t num_dex_methods_threshold,
-                  bool generate_gdb_information
+                  bool generate_gdb_information,
+                  double top_k_profile_threshold
 #ifdef ART_SEA_IR_MODE
                   , bool sea_ir_mode
 #endif
@@ -73,7 +75,8 @@ class CompilerOptions {
     small_method_threshold_(small_method_threshold),
     tiny_method_threshold_(tiny_method_threshold),
     num_dex_methods_threshold_(num_dex_methods_threshold),
-    generate_gdb_information_(generate_gdb_information)
+    generate_gdb_information_(generate_gdb_information),
+    top_k_profile_threshold_(top_k_profile_threshold)
 #ifdef ART_SEA_IR_MODE
     , sea_ir_mode_(sea_ir_mode)
 #endif
@@ -132,6 +135,10 @@ class CompilerOptions {
     return num_dex_methods_threshold_;
   }
 
+  double GetTopKProfileThreshold() const {
+    return top_k_profile_threshold_;
+  }
+
 #ifdef ART_SEA_IR_MODE
   bool GetSeaIrMode();
 #endif
@@ -148,7 +155,8 @@ class CompilerOptions {
   size_t tiny_method_threshold_;
   size_t num_dex_methods_threshold_;
   bool generate_gdb_information_;
-
+  // When using a profile file only the top K% of the profiled samples will be compiled.
+  double top_k_profile_threshold_;
 #ifdef ART_SEA_IR_MODE
   bool sea_ir_mode_;
 #endif

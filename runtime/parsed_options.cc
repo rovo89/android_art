@@ -248,12 +248,6 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
   method_trace_file_ = "/data/method-trace-file.bin";
   method_trace_file_size_ = 10 * MB;
 
-  profile_ = false;
-  profile_period_s_ = 10;           // Seconds.
-  profile_duration_s_ = 20;          // Seconds.
-  profile_interval_us_ = 500;       // Microseconds.
-  profile_backoff_coefficient_ = 2.0;
-  profile_start_immediately_ = true;
   profile_clock_source_ = kDefaultProfilerClockSource;
 
   verify_ = true;
@@ -534,29 +528,38 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
       Trace::SetDefaultClockSource(kProfilerClockSourceWall);
     } else if (option == "-Xprofile:dualclock") {
       Trace::SetDefaultClockSource(kProfilerClockSourceDual);
+    } else if (option == "-Xenable-profiler") {
+      profiler_options_.enabled_ = true;
     } else if (StartsWith(option, "-Xprofile-filename:")) {
       if (!ParseStringAfterChar(option, ':', &profile_output_filename_)) {
         return false;
       }
-      profile_ = true;
     } else if (StartsWith(option, "-Xprofile-period:")) {
-      if (!ParseUnsignedInteger(option, ':', &profile_period_s_)) {
+      if (!ParseUnsignedInteger(option, ':', &profiler_options_.period_s_)) {
         return false;
       }
     } else if (StartsWith(option, "-Xprofile-duration:")) {
-      if (!ParseUnsignedInteger(option, ':', &profile_duration_s_)) {
+      if (!ParseUnsignedInteger(option, ':', &profiler_options_.duration_s_)) {
         return false;
       }
     } else if (StartsWith(option, "-Xprofile-interval:")) {
-      if (!ParseUnsignedInteger(option, ':', &profile_interval_us_)) {
+      if (!ParseUnsignedInteger(option, ':', &profiler_options_.interval_us_)) {
         return false;
       }
     } else if (StartsWith(option, "-Xprofile-backoff:")) {
-      if (!ParseDouble(option, ':', 1.0, 10.0, &profile_backoff_coefficient_)) {
+      if (!ParseDouble(option, ':', 1.0, 10.0, &profiler_options_.backoff_coefficient_)) {
         return false;
       }
-    } else if (option == "-Xprofile-start-lazy") {
-      profile_start_immediately_ = false;
+    } else if (option == "-Xprofile-start-immediately") {
+      profiler_options_.start_immediately_ = true;
+    } else if (StartsWith(option, "-Xprofile-top-k-threshold:")) {
+      if (!ParseDouble(option, ':', 10.0, 90.0, &profiler_options_.top_k_threshold_)) {
+        return false;
+      }
+    } else if (StartsWith(option, "-Xprofile-top-k-change-threshold:")) {
+      if (!ParseDouble(option, ':', 10.0, 90.0, &profiler_options_.top_k_change_threshold_)) {
+        return false;
+      }
     } else if (StartsWith(option, "-implicit-checks:")) {
       std::string checks;
       if (!ParseStringAfterChar(option, ':', &checks)) {
@@ -791,11 +794,15 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xmethod-trace\n");
   UsageMessage(stream, "  -Xmethod-trace-file:filename");
   UsageMessage(stream, "  -Xmethod-trace-file-size:integervalue\n");
+  UsageMessage(stream, "  -Xenable-profiler\n");
   UsageMessage(stream, "  -Xprofile-filename:filename\n");
   UsageMessage(stream, "  -Xprofile-period:integervalue\n");
   UsageMessage(stream, "  -Xprofile-duration:integervalue\n");
   UsageMessage(stream, "  -Xprofile-interval:integervalue\n");
   UsageMessage(stream, "  -Xprofile-backoff:doublevalue\n");
+  UsageMessage(stream, "  -Xprofile-start-immediately\n");
+  UsageMessage(stream, "  -Xprofile-top-k-threshold:doublevalue\n");
+  UsageMessage(stream, "  -Xprofile-top-k-change-threshold:doublevalue\n");
   UsageMessage(stream, "  -Xcompiler:filename\n");
   UsageMessage(stream, "  -Xcompiler-option dex2oat-option\n");
   UsageMessage(stream, "  -Ximage-compiler-option dex2oat-option\n");
