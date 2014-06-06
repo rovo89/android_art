@@ -316,6 +316,7 @@ class MANAGED LOCKABLE Object {
 
  private:
   // Verify the type correctness of stores to fields.
+  // TODO: This can cause thread suspension and isn't moving GC safe.
   void CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void CheckFieldAssignment(MemberOffset field_offset, Object* new_value)

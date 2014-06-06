@@ -502,29 +502,24 @@ void ClassLinker::FinishInit(Thread* self) {
       FindSystemClass(self, "Ljava/lang/ref/FinalizerReference;");
 
   mirror::ArtField* pendingNext = java_lang_ref_Reference->GetInstanceField(0);
-  FieldHelper fh(pendingNext);
-  CHECK_STREQ(fh.GetName(), "pendingNext");
-  CHECK_STREQ(fh.GetTypeDescriptor(), "Ljava/lang/ref/Reference;");
+  CHECK_STREQ(pendingNext->GetName(), "pendingNext");
+  CHECK_STREQ(pendingNext->GetTypeDescriptor(), "Ljava/lang/ref/Reference;");
 
   mirror::ArtField* queue = java_lang_ref_Reference->GetInstanceField(1);
-  fh.ChangeField(queue);
-  CHECK_STREQ(fh.GetName(), "queue");
-  CHECK_STREQ(fh.GetTypeDescriptor(), "Ljava/lang/ref/ReferenceQueue;");
+  CHECK_STREQ(queue->GetName(), "queue");
+  CHECK_STREQ(queue->GetTypeDescriptor(), "Ljava/lang/ref/ReferenceQueue;");
 
   mirror::ArtField* queueNext = java_lang_ref_Reference->GetInstanceField(2);
-  fh.ChangeField(queueNext);
-  CHECK_STREQ(fh.GetName(), "queueNext");
-  CHECK_STREQ(fh.GetTypeDescriptor(), "Ljava/lang/ref/Reference;");
+  CHECK_STREQ(queueNext->GetName(), "queueNext");
+  CHECK_STREQ(queueNext->GetTypeDescriptor(), "Ljava/lang/ref/Reference;");
 
   mirror::ArtField* referent = java_lang_ref_Reference->GetInstanceField(3);
-  fh.ChangeField(referent);
-  CHECK_STREQ(fh.GetName(), "referent");
-  CHECK_STREQ(fh.GetTypeDescriptor(), "Ljava/lang/Object;");
+  CHECK_STREQ(referent->GetName(), "referent");
+  CHECK_STREQ(referent->GetTypeDescriptor(), "Ljava/lang/Object;");
 
   mirror::ArtField* zombie = java_lang_ref_FinalizerReference->GetInstanceField(2);
-  fh.ChangeField(zombie);
-  CHECK_STREQ(fh.GetName(), "zombie");
-  CHECK_STREQ(fh.GetTypeDescriptor(), "Ljava/lang/Object;");
+  CHECK_STREQ(zombie->GetName(), "zombie");
+  CHECK_STREQ(zombie->GetTypeDescriptor(), "Ljava/lang/Object;");
 
   // ensure all class_roots_ are initialized
   for (size_t i = 0; i < kClassRootsMax; i++) {
@@ -3896,10 +3891,8 @@ struct LinkFieldsComparator {
   bool operator()(mirror::ArtField* field1, mirror::ArtField* field2)
       NO_THREAD_SAFETY_ANALYSIS {
     // First come reference fields, then 64-bit, and finally 32-bit
-    FieldHelper fh1(field1);
-    Primitive::Type type1 = fh1.GetTypeAsPrimitiveType();
-    FieldHelper fh2(field2);
-    Primitive::Type type2 = fh2.GetTypeAsPrimitiveType();
+    Primitive::Type type1 = field1->GetTypeAsPrimitiveType();
+    Primitive::Type type2 = field2->GetTypeAsPrimitiveType();
     if (type1 != type2) {
       bool is_primitive1 = type1 != Primitive::kPrimNot;
       bool is_primitive2 = type2 != Primitive::kPrimNot;
@@ -3914,9 +3907,7 @@ struct LinkFieldsComparator {
       }
     }
     // same basic group? then sort by string.
-    const char* name1 = fh1.GetName();
-    const char* name2 = fh2.GetName();
-    return strcmp(name1, name2) < 0;
+    return strcmp(field1->GetName(), field2->GetName()) < 0;
   }
 };
 
@@ -3961,8 +3952,7 @@ bool ClassLinker::LinkFields(Handle<mirror::Class> klass, bool is_static) {
   size_t num_reference_fields = 0;
   for (; current_field < num_fields; current_field++) {
     mirror::ArtField* field = grouped_and_sorted_fields.front();
-    FieldHelper fh(field);
-    Primitive::Type type = fh.GetTypeAsPrimitiveType();
+    Primitive::Type type = field->GetTypeAsPrimitiveType();
     bool isPrimitive = type != Primitive::kPrimNot;
     if (isPrimitive) {
       break;  // past last reference, move on to the next phase
@@ -3980,8 +3970,7 @@ bool ClassLinker::LinkFields(Handle<mirror::Class> klass, bool is_static) {
   if (current_field != num_fields && !IsAligned<8>(field_offset.Uint32Value())) {
     for (size_t i = 0; i < grouped_and_sorted_fields.size(); i++) {
       mirror::ArtField* field = grouped_and_sorted_fields[i];
-      FieldHelper fh(field);
-      Primitive::Type type = fh.GetTypeAsPrimitiveType();
+      Primitive::Type type = field->GetTypeAsPrimitiveType();
       CHECK(type != Primitive::kPrimNot) << PrettyField(field);  // should be primitive types
       if (type == Primitive::kPrimLong || type == Primitive::kPrimDouble) {
         continue;
@@ -4003,8 +3992,7 @@ bool ClassLinker::LinkFields(Handle<mirror::Class> klass, bool is_static) {
   while (!grouped_and_sorted_fields.empty()) {
     mirror::ArtField* field = grouped_and_sorted_fields.front();
     grouped_and_sorted_fields.pop_front();
-    FieldHelper fh(field);
-    Primitive::Type type = fh.GetTypeAsPrimitiveType();
+    Primitive::Type type = field->GetTypeAsPrimitiveType();
     CHECK(type != Primitive::kPrimNot) << PrettyField(field);  // should be primitive types
     fields->Set<false>(current_field, field);
     field->SetOffset(field_offset);
@@ -4020,8 +4008,7 @@ bool ClassLinker::LinkFields(Handle<mirror::Class> klass, bool is_static) {
     // We know there are no non-reference fields in the Reference classes, and we know
     // that 'referent' is alphabetically last, so this is easy...
     CHECK_EQ(num_reference_fields, num_fields) << PrettyClass(klass.Get());
-    FieldHelper fh(fields->Get(num_fields - 1));
-    CHECK_STREQ(fh.GetName(), "referent") << PrettyClass(klass.Get());
+    CHECK_STREQ(fields->Get(num_fields - 1)->GetName(), "referent") << PrettyClass(klass.Get());
     --num_reference_fields;
   }
 
@@ -4038,11 +4025,10 @@ bool ClassLinker::LinkFields(Handle<mirror::Class> klass, bool is_static) {
                     << " offset="
                     << field->GetField32(MemberOffset(mirror::ArtField::OffsetOffset()));
       }
-      FieldHelper fh(field);
-      Primitive::Type type = fh.GetTypeAsPrimitiveType();
+      Primitive::Type type = field->GetTypeAsPrimitiveType();
       bool is_primitive = type != Primitive::kPrimNot;
       if (klass->DescriptorEquals("Ljava/lang/ref/Reference;") &&
-          strcmp("referent", fh.GetName()) == 0) {
+          strcmp("referent", field->GetName()) == 0) {
         is_primitive = true;  // We lied above, so we have to expect a lie here.
       }
       if (is_primitive) {

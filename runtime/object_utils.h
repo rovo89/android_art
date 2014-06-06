@@ -68,66 +68,31 @@ class ObjectLock {
 
 class FieldHelper {
  public:
-  FieldHelper() : field_(nullptr) {}
-  explicit FieldHelper(mirror::ArtField* f) : field_(f) {}
+  explicit FieldHelper(Handle<mirror::ArtField> f) : field_(f) {}
 
   void ChangeField(mirror::ArtField* new_f) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(new_f != nullptr);
-    field_ = new_f;
+    field_.Assign(new_f);
   }
 
-  const char* GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    uint32_t field_index = field_->GetDexFieldIndex();
-    if (UNLIKELY(field_->GetDeclaringClass()->IsProxyClass())) {
-      DCHECK(field_->IsStatic());
-      DCHECK_LT(field_index, 2U);
-      return field_index == 0 ? "interfaces" : "throws";
-    }
-    const DexFile& dex_file = GetDexFile();
-    return dex_file.GetFieldName(dex_file.GetFieldId(field_index));
+  mirror::ArtField* GetField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return field_.Get();
   }
 
   mirror::Class* GetType(bool resolve = true) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t field_index = field_->GetDexFieldIndex();
     if (UNLIKELY(field_->GetDeclaringClass()->IsProxyClass())) {
-      return GetClassLinker()->FindSystemClass(Thread::Current(), GetTypeDescriptor());
+      return Runtime::Current()->GetClassLinker()->FindSystemClass(Thread::Current(),
+                                                                   field_->GetTypeDescriptor());
     }
-    const DexFile& dex_file = GetDexFile();
-    const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
-    mirror::Class* type = GetDexCache()->GetResolvedType(field_id.type_idx_);
+    const DexFile* dex_file = field_->GetDexFile();
+    const DexFile::FieldId& field_id = dex_file->GetFieldId(field_index);
+    mirror::Class* type = field_->GetDexCache()->GetResolvedType(field_id.type_idx_);
     if (resolve && (type == nullptr)) {
-      type = GetClassLinker()->ResolveType(field_id.type_idx_, field_);
+      type = Runtime::Current()->GetClassLinker()->ResolveType(field_id.type_idx_, field_.Get());
       CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
     }
     return type;
-  }
-
-  const char* GetTypeDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    uint32_t field_index = field_->GetDexFieldIndex();
-    if (UNLIKELY(field_->GetDeclaringClass()->IsProxyClass())) {
-      DCHECK(field_->IsStatic());
-      DCHECK_LT(field_index, 2U);
-      // 0 == Class[] interfaces; 1 == Class[][] throws;
-      return field_index == 0 ? "[Ljava/lang/Class;" : "[[Ljava/lang/Class;";
-    }
-    const DexFile& dex_file = GetDexFile();
-    const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
-    return dex_file.GetFieldTypeDescriptor(field_id);
-  }
-
-  Primitive::Type GetTypeAsPrimitiveType()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return Primitive::GetType(GetTypeDescriptor()[0]);
-  }
-
-  bool IsPrimitiveType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Primitive::Type type = GetTypeAsPrimitiveType();
-    return type != Primitive::kPrimNot;
-  }
-
-  size_t FieldSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Primitive::Type type = GetTypeAsPrimitiveType();
-    return Primitive::FieldSize(type);
   }
 
   // The returned const char* is only guaranteed to be valid for the lifetime of the FieldHelper.
@@ -142,22 +107,13 @@ class FieldHelper {
       declaring_class_descriptor_ = field_->GetDeclaringClass()->GetDescriptor();
       return declaring_class_descriptor_.c_str();
     }
-    const DexFile& dex_file = GetDexFile();
-    const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
-    return dex_file.GetFieldDeclaringClassDescriptor(field_id);
+    const DexFile* dex_file = field_->GetDexFile();
+    const DexFile::FieldId& field_id = dex_file->GetFieldId(field_index);
+    return dex_file->GetFieldDeclaringClassDescriptor(field_id);
   }
 
  private:
-  mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return field_->GetDeclaringClass()->GetDexCache();
-  }
-  ClassLinker* GetClassLinker() ALWAYS_INLINE {
-    return Runtime::Current()->GetClassLinker();
-  }
-  const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return *GetDexCache()->GetDexFile();
-  }
-  mirror::ArtField* field_;
+  Handle<mirror::ArtField> field_;
   std::string declaring_class_descriptor_;
 
   DISALLOW_COPY_AND_ASSIGN(FieldHelper);

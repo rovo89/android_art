@@ -197,7 +197,7 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, mirror::Object* new_v
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticObjectWrite,
                                           sizeof(mirror::HeapReference<mirror::Object>));
   if (LIKELY(field != NULL)) {
-    if (LIKELY(!FieldHelper(field).IsPrimitiveType())) {
+    if (LIKELY(!field->IsPrimitiveType())) {
       // Compiled code can't use transactional mode.
       field->SetObj<false>(field->GetDeclaringClass(), new_value);
       return 0;  // success
@@ -226,8 +226,12 @@ extern "C" int artSet32InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
     return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode<InstancePrimitiveWrite, true>(field_idx, referrer, self,
-                                                          sizeof(int32_t));
+  {
+    StackHandleScope<1> hs(self);
+    HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(&obj));
+    field = FindFieldFromCode<InstancePrimitiveWrite, true>(field_idx, referrer, self,
+                                                            sizeof(int32_t));
+  }
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();

@@ -517,11 +517,9 @@ ArtMethod* Class::FindClassInitializer() {
 ArtField* Class::FindDeclaredInstanceField(const StringPiece& name, const StringPiece& type) {
   // Is the field in this class?
   // Interfaces are not relevant because they can't contain instance fields.
-  FieldHelper fh;
   for (size_t i = 0; i < NumInstanceFields(); ++i) {
     ArtField* f = GetInstanceField(i);
-    fh.ChangeField(f);
-    if (name == fh.GetName() && type == fh.GetTypeDescriptor()) {
+    if (name == f->GetName() && type == f->GetTypeDescriptor()) {
       return f;
     }
   }
@@ -566,11 +564,9 @@ ArtField* Class::FindInstanceField(const DexCache* dex_cache, uint32_t dex_field
 
 ArtField* Class::FindDeclaredStaticField(const StringPiece& name, const StringPiece& type) {
   DCHECK(type != NULL);
-  FieldHelper fh;
   for (size_t i = 0; i < NumStaticFields(); ++i) {
     ArtField* f = GetStaticField(i);
-    fh.ChangeField(f);
-    if (name == fh.GetName() && type == fh.GetTypeDescriptor()) {
+    if (name == f->GetName() && type == f->GetTypeDescriptor()) {
       return f;
     }
   }

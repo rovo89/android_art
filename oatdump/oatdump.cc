@@ -919,10 +919,11 @@ class ImageDumper {
 
   static void PrintField(std::ostream& os, mirror::ArtField* field, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    FieldHelper fh(field);
-    const char* descriptor = fh.GetTypeDescriptor();
-    os << StringPrintf("%s: ", fh.GetName());
+    const char* descriptor = field->GetTypeDescriptor();
+    os << StringPrintf("%s: ", field->GetName());
     if (descriptor[0] != 'L' && descriptor[0] != '[') {
+      StackHandleScope<1> hs(Thread::Current());
+      FieldHelper fh(hs.NewHandle(field));
       mirror::Class* type = fh.GetType();
       if (type->IsPrimitiveLong()) {
         os << StringPrintf("%" PRId64 " (0x%" PRIx64 ")\n", field->Get64(obj), field->Get64(obj));
@@ -942,6 +943,8 @@ class ImageDumper {
         os << StringPrintf("null   %s\n", PrettyDescriptor(descriptor).c_str());
       } else {
         // Grab the field type without causing resolution.
+        StackHandleScope<1> hs(Thread::Current());
+        FieldHelper fh(hs.NewHandle(field));
         mirror::Class* field_type = fh.GetType(false);
         if (field_type != NULL) {
           PrettyObjectValue(os, field_type, value);
