@@ -261,7 +261,7 @@ MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
     // Helper signature is always
     // (method_idx, *this_object, *caller_method, *self, sp)
 
-    movq FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE(%rsp), %rdx  // pass caller Method*
+    movl FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE(%rsp), %edx  // pass caller Method*
     movq %gs:THREAD_SELF_OFFSET, %rcx                      // pass Thread
     movq %rsp, %r8                                         // pass SP
 
@@ -897,7 +897,7 @@ UNIMPLEMENTED art_quick_lushr
 
 MACRO3(ONE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
-    movq 8(%rsp), %rsi                 // pass referrer
+    movl 8(%rsp), %esi                 // pass referrer
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME
                                        // arg0 is in rdi
     movq %gs:THREAD_SELF_OFFSET, %rdx  // pass Thread::Current()
@@ -910,7 +910,7 @@ END_MACRO
 
 MACRO3(TWO_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
-    movq 8(%rsp), %rdx                 // pass referrer
+    movl 8(%rsp), %edx                 // pass referrer
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME
                                        // arg0 and arg1 are in rdi/rsi
     movq %gs:THREAD_SELF_OFFSET, %rcx  // pass Thread::Current()
@@ -923,7 +923,7 @@ END_MACRO
 
 MACRO3(THREE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
-    movq 8(%rsp), %rcx                 // pass referrer
+    movl 8(%rsp), %ecx                 // pass referrer
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME
                                        // arg0, arg1, and arg2 are in rdi/rsi/rdx
     movq %gs:THREAD_SELF_OFFSET, %r8    // pass Thread::Current()
@@ -953,7 +953,7 @@ ONE_ARG_REF_DOWNCALL art_quick_get_obj_static, artGetObjStaticFromCode, RETURN_O
 // This is singled out as the argument order is different.
 DEFINE_FUNCTION art_quick_set64_static
     movq %rsi, %rdx                    // pass new_val
-    movq 8(%rsp), %rsi                 // pass referrer
+    movl 8(%rsp), %esi                 // pass referrer
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME
                                        // field_idx is in rdi
     movq %gs:THREAD_SELF_OFFSET, %rcx  // pass Thread::Current()
@@ -1008,7 +1008,7 @@ END_FUNCTION art_quick_proxy_invoke_handler
      * TODO: With proper hard-float support, this needs to be kept in sync with the quick compiler.
      */
 DEFINE_FUNCTION art_quick_imt_conflict_trampoline
-    movq 16(%rsp), %rdi            // load caller Method*
+    movl 8(%rsp), %edi            // load caller Method*
     movl METHOD_DEX_CACHE_METHODS_OFFSET(%rdi), %edi  // load dex_cache_resolved_methods
     movd %xmm0, %rax               // get target method index stored in xmm0
     movl OBJECT_ARRAY_DATA_OFFSET(%rdi, %rax, 4), %edi  // load the target method
