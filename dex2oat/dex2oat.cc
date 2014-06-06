@@ -203,6 +203,10 @@ static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --dump-timing: display a breakdown of where time was spent");
   UsageError("");
+  UsageError("  --include-debug-symbols: Include ELF symbols in this oat file");
+  UsageError("");
+  UsageError("  --no-include-debug-symbols: Do not include ELF symbols in this oat file");
+  UsageError("");
   UsageError("  --runtime-arg <argument>: used to specify various arguments for the runtime,");
   UsageError("      such as initial heap size, maximum heap size, and verbose output.");
   UsageError("      Use a separate --runtime-arg switch for each argument.");
@@ -816,6 +820,7 @@ static int dex2oat(int argc, char** argv) {
   bool dump_stats = false;
   bool dump_timing = false;
   bool dump_passes = false;
+  bool include_debug_symbols = kIsDebugBuild;
   bool dump_slow_timing = kIsDebugBuild;
   bool watch_dog_enabled = !kIsTargetBuild;
   bool generate_gdb_information = kIsDebugBuild;
@@ -969,6 +974,10 @@ static int dex2oat(int argc, char** argv) {
       dump_passes = true;
     } else if (option == "--dump-stats") {
       dump_stats = true;
+    } else if (option == "--include-debug-symbols" || option == "--no-strip-symbols") {
+      include_debug_symbols = true;
+    } else if (option == "--no-include-debug-symbols" || option == "--strip-symbols") {
+      include_debug_symbols = false;
     } else if (option.starts_with("--profile-file=")) {
       profile_file = option.substr(strlen("--profile-file=")).data();
       VLOG(compiler) << "dex2oat: profile file is " << profile_file;
@@ -1122,7 +1131,8 @@ static int dex2oat(int argc, char** argv) {
                                    tiny_method_threshold,
                                    num_dex_methods_threshold,
                                    generate_gdb_information,
-                                   top_k_profile_threshold
+                                   top_k_profile_threshold,
+                                   include_debug_symbols
 #ifdef ART_SEA_IR_MODE
                                    , compiler_options.sea_ir_ = true;
 #endif
@@ -1409,16 +1419,20 @@ static int dex2oat(int argc, char** argv) {
   }
 
 #if ART_USE_PORTABLE_COMPILER  // We currently only generate symbols on Portable
-  timings.NewSplit("dex2oat ElfStripper");
-  // Strip unneeded sections for target
-  off_t seek_actual = lseek(oat_file->Fd(), 0, SEEK_SET);
-  CHECK_EQ(0, seek_actual);
-  std::string error_msg;
-  CHECK(ElfStripper::Strip(oat_file.get(), &error_msg)) << error_msg;
+  if (!compiler_options.GetIncludeDebugSymbols()) {
+    timings.NewSplit("dex2oat ElfStripper");
+    // Strip unneeded sections for target
+    off_t seek_actual = lseek(oat_file->Fd(), 0, SEEK_SET);
+    CHECK_EQ(0, seek_actual);
+    std::string error_msg;
+    CHECK(ElfStripper::Strip(oat_file.get(), &error_msg)) << error_msg;
 
 
-  // We wrote the oat file successfully, and want to keep it.
-  VLOG(compiler) << "Oat file written successfully (stripped): " << oat_location;
+    // We wrote the oat file successfully, and want to keep it.
+    VLOG(compiler) << "Oat file written successfully (stripped): " << oat_location;
+  } else {
+    VLOG(compiler) << "Oat file written successfully without stripping: " << oat_location;
+  }
 #endif  // ART_USE_PORTABLE_COMPILER
 
   timings.EndSplit();

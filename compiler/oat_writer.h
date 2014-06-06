@@ -108,6 +108,10 @@ class OatWriter {
     return method_info_;
   }
 
+  bool DidAddSymbols() const {
+    return compiler_driver_->DidIncludeDebugSymbols();
+  }
+
  private:
   // The DataAccess classes are helper classes that provide access to members related to
   // a given map, i.e. GC map, mapping table or vmap table. By abstracting these away

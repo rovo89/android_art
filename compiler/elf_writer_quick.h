@@ -48,6 +48,10 @@ class ElfWriterQuick FINAL : public ElfWriter {
   ~ElfWriterQuick() {}
 
   class ElfBuilder;
+  void AddDebugSymbols(ElfBuilder& builder,
+                       OatWriter* oat_writer,
+                       bool debug);
+
   class ElfSectionBuilder {
    public:
     ElfSectionBuilder(const std::string& sec_name, Elf32_Word type, Elf32_Word flags,
@@ -235,7 +239,6 @@ class ElfWriterQuick FINAL : public ElfWriter {
     ~ElfBuilder() {}
 
     bool Write();
-    ElfSymtabBuilder* GetDefaultDynsymBuilder() { return &dynsym_builder_; }
 
     // Adds the given raw section to the builder. This will copy it. The caller
     // is responsible for deallocating their copy.
