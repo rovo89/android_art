@@ -1131,13 +1131,14 @@ JDWP::JdwpError Dbg::GetSignature(JDWP::RefTypeId class_id, std::string* signatu
 JDWP::JdwpError Dbg::GetSourceFile(JDWP::RefTypeId class_id, std::string& result) {
   JDWP::JdwpError status;
   mirror::Class* c = DecodeClass(class_id, status);
-  if (c == NULL) {
+  if (c == nullptr) {
     return status;
   }
-  if (c->IsProxyClass()) {
+  const char* source_file = c->GetSourceFile();
+  if (source_file == nullptr) {
     return JDWP::ERR_ABSENT_INFORMATION;
   }
-  result = c->GetSourceFile();
+  result = source_file;
   return JDWP::ERR_NONE;
 }
 
