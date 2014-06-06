@@ -83,7 +83,7 @@ static void Unsafe_putOrderedInt(JNIEnv* env, jobject, jobject javaObj, jlong of
                                  jint newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  QuasiAtomic::MembarStoreStore();
+  QuasiAtomic::ThreadFenceRelease();
   // JNI must use non transactional mode.
   obj->SetField32<false>(MemberOffset(offset), newValue);
 }
@@ -119,7 +119,7 @@ static void Unsafe_putOrderedLong(JNIEnv* env, jobject, jobject javaObj, jlong o
                                   jlong newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  QuasiAtomic::MembarStoreStore();
+  QuasiAtomic::ThreadFenceRelease();
   // JNI must use non transactional mode.
   obj->SetField64<false>(MemberOffset(offset), newValue);
 }
@@ -161,7 +161,7 @@ static void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   mirror::Object* newValue = soa.Decode<mirror::Object*>(javaNewValue);
-  QuasiAtomic::MembarStoreStore();
+  QuasiAtomic::ThreadFenceRelease();
   // JNI must use non transactional mode.
   obj->SetFieldObject<false>(MemberOffset(offset), newValue);
 }
