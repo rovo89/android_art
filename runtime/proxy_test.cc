@@ -128,12 +128,12 @@ TEST_F(ProxyTest, ProxyClassHelper) {
   ASSERT_TRUE(proxy_class->IsProxyClass());
   ASSERT_TRUE(proxy_class->IsInitialized());
 
-  // Check ClassHelper for proxy.
-  EXPECT_EQ(proxy_class->NumDirectInterfaces(), 2U);  // Interfaces$I and Interfaces$J.
+  EXPECT_EQ(2U, proxy_class->NumDirectInterfaces());  // Interfaces$I and Interfaces$J.
   EXPECT_EQ(I.Get(), mirror::Class::GetDirectInterface(soa.Self(), proxy_class, 0));
   EXPECT_EQ(J.Get(), mirror::Class::GetDirectInterface(soa.Self(), proxy_class, 1));
   std::string proxy_class_descriptor(proxy_class->GetDescriptor());
   EXPECT_STREQ("L$Proxy1234;", proxy_class_descriptor.c_str());
+  EXPECT_EQ(nullptr, proxy_class->GetSourceFile());
 }
 
 // Creates a proxy class and check FieldHelper works correctly.
