@@ -426,8 +426,43 @@ LIR* Arm64Mir2Lir::OpRegRegShift(OpKind op, RegStorage r_dest_src1, RegStorage r
   return NULL;
 }
 
+LIR* Arm64Mir2Lir::OpRegRegExtend(OpKind op, RegStorage r_dest_src1, RegStorage r_src2, int extend) {
+  ArmOpcode wide = (r_dest_src1.Is64Bit()) ? WIDE(0) : UNWIDE(0);
+  ArmOpcode opcode = kA64Brk1d;
+
+  switch (op) {
+    case kOpCmn:
+      opcode = kA64Cmn3Rre;
+      break;
+    case kOpCmp:
+      opcode = kA64Cmp3Rre;
+      break;
+    default:
+      LOG(FATAL) << "Bad Opcode: " << opcode;
+      break;
+  }
+
+  DCHECK(!IsPseudoLirOp(opcode));
+  if (EncodingMap[opcode].flags & IS_TERTIARY_OP) {
+    ArmEncodingKind kind = EncodingMap[opcode].field_loc[2].kind;
+    if (kind == kFmtExtend) {
+      return NewLIR3(opcode | wide, r_dest_src1.GetReg(), r_src2.GetReg(), extend);
+    }
+  }
+
+  LOG(FATAL) << "Unexpected encoding operand count";
+  return NULL;
+}
+
 LIR* Arm64Mir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2) {
-  return OpRegRegShift(op, r_dest_src1, r_src2, ENCODE_NO_SHIFT);
+  /* RegReg operations with SP in first parameter need extended register instruction form.
+   * Only CMN and CMP instructions are implemented.
+   */
+  if (r_dest_src1 == rs_rA64_SP) {
+    return OpRegRegExtend(op, r_dest_src1, r_src2, ENCODE_NO_EXTEND);
+  } else {
+    return OpRegRegShift(op, r_dest_src1, r_src2, ENCODE_NO_SHIFT);
+  }
 }
 
 LIR* Arm64Mir2Lir::OpMovRegMem(RegStorage r_dest, RegStorage r_base, int offset, MoveType move_type) {

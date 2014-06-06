@@ -315,54 +315,119 @@ void Arm64Mir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
 
 void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   /*
-   * On entry, x0, x1, x2 & x3 are live.  Let the register allocation
+   * On entry, x0 to x7 are live.  Let the register allocation
    * mechanism know so it doesn't try to use any of them when
-   * expanding the frame or flushing.  This leaves the utility
-   * code with a single temp: r12.  This should be enough.
+   * expanding the frame or flushing.
+   * Reserve x8 & x9 for temporaries.
    */
   LockTemp(rs_x0);
   LockTemp(rs_x1);
   LockTemp(rs_x2);
   LockTemp(rs_x3);
+  LockTemp(rs_x4);
+  LockTemp(rs_x5);
+  LockTemp(rs_x6);
+  LockTemp(rs_x7);
+  LockTemp(rs_x8);
+  LockTemp(rs_x9);
 
   /*
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
   bool skip_overflow_check = (mir_graph_->MethodIsLeaf() &&
-                            (static_cast<size_t>(frame_size_) <
-                            Thread::kStackOverflowReservedBytes));
+                              (static_cast<size_t>(frame_size_) <
+                              Thread::kStackOverflowReservedBytes));
+
   NewLIR0(kPseudoMethodEntry);
 
+  const bool large_frame = (static_cast<size_t>(frame_size_) > Thread::kStackOverflowReservedUsableBytes);
+  const int spill_count = num_core_spills_ + num_fp_spills_;
+  const int spill_size = (spill_count * kArm64PointerSize + 15) & ~0xf;  // SP 16 byte alignment.
+  const int frame_size_without_spills = frame_size_ - spill_size;
+
   if (!skip_overflow_check) {
-    LoadWordDisp(rs_rA64_SELF, Thread::StackEndOffset<8>().Int32Value(), rs_x12);
-    OpRegImm64(kOpSub, rs_rA64_SP, frame_size_);
     if (Runtime::Current()->ExplicitStackOverflowChecks()) {
-      /* Load stack limit */
-      // TODO(Arm64): fix the line below:
-      // GenRegRegCheck(kCondUlt, rA64_SP, r12, kThrowStackOverflow);
+      if (!large_frame) {
+        // Load stack limit
+        LoadWordDisp(rs_rA64_SELF, Thread::StackEndOffset<8>().Int32Value(), rs_x9);
+      }
     } else {
+      // TODO(Arm64) Implement implicit checks.
       // Implicit stack overflow check.
       // Generate a load from [sp, #-framesize].  If this is in the stack
       // redzone we will get a segmentation fault.
-      // TODO(Arm64): does the following really work or do we need a reg != rA64_ZR?
-      Load32Disp(rs_rA64_SP, 0, rs_wzr);
-      MarkPossibleStackOverflowException();
+      // Load32Disp(rs_rA64_SP, -Thread::kStackOverflowReservedBytes, rs_wzr);
+      // MarkPossibleStackOverflowException();
+      LOG(FATAL) << "Implicit stack overflow checks not implemented.";
     }
-  } else if (frame_size_ > 0) {
-    OpRegImm64(kOpSub, rs_rA64_SP, frame_size_);
+  }
+
+  if (frame_size_ > 0) {
+    OpRegImm64(kOpSub, rs_rA64_SP, spill_size);
   }
 
   /* Need to spill any FP regs? */
   if (fp_spill_mask_) {
-    int spill_offset = frame_size_ - kArm64PointerSize*(num_fp_spills_ + num_core_spills_);
+    int spill_offset = spill_size - kArm64PointerSize*(num_fp_spills_ + num_core_spills_);
     SpillFPRegs(rs_rA64_SP, spill_offset, fp_spill_mask_);
   }
 
   /* Spill core callee saves. */
   if (core_spill_mask_) {
-    int spill_offset = frame_size_ - kArm64PointerSize*num_core_spills_;
+    int spill_offset = spill_size - kArm64PointerSize*num_core_spills_;
     SpillCoreRegs(rs_rA64_SP, spill_offset, core_spill_mask_);
+  }
+
+  if (!skip_overflow_check) {
+    if (Runtime::Current()->ExplicitStackOverflowChecks()) {
+      class StackOverflowSlowPath: public LIRSlowPath {
+      public:
+        StackOverflowSlowPath(Mir2Lir* m2l, LIR* branch, size_t sp_displace) :
+              LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch, nullptr),
+              sp_displace_(sp_displace) {
+        }
+        void Compile() OVERRIDE {
+          m2l_->ResetRegPool();
+          m2l_->ResetDefTracking();
+          GenerateTargetLabel(kPseudoThrowTarget);
+          // Unwinds stack.
+          m2l_->OpRegImm(kOpAdd, rs_rA64_SP, sp_displace_);
+          m2l_->ClobberCallerSave();
+          ThreadOffset<8> func_offset = QUICK_ENTRYPOINT_OFFSET(8, pThrowStackOverflow);
+          m2l_->LockTemp(rs_x8);
+          m2l_->LoadWordDisp(rs_rA64_SELF, func_offset.Int32Value(), rs_x8);
+          m2l_->NewLIR1(kA64Br1x, rs_x8.GetReg());
+          m2l_->FreeTemp(rs_x8);
+        }
+
+      private:
+        const size_t sp_displace_;
+      };
+
+      if (large_frame) {
+        // Compare Expected SP against bottom of stack.
+        // Branch to throw target if there is not enough room.
+        OpRegRegImm(kOpSub, rs_x9, rs_rA64_SP, frame_size_without_spills);
+        LoadWordDisp(rs_rA64_SELF, Thread::StackEndOffset<8>().Int32Value(), rs_x8);
+        LIR* branch = OpCmpBranch(kCondUlt, rs_rA64_SP, rs_x8, nullptr);
+        AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, spill_size));
+        OpRegCopy(rs_rA64_SP, rs_x9);  // Establish stack after checks.
+      } else {
+        /*
+         * If the frame is small enough we are guaranteed to have enough space that remains to
+         * handle signals on the user stack.
+         * Establishes stack before checks.
+         */
+        OpRegRegImm(kOpSub, rs_rA64_SP, rs_rA64_SP, frame_size_without_spills);
+        LIR* branch = OpCmpBranch(kCondUlt, rs_rA64_SP, rs_x9, nullptr);
+        AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, frame_size_));
+      }
+    } else {
+      OpRegImm(kOpSub, rs_rA64_SP, frame_size_without_spills);
+    }
+  } else {
+    OpRegImm(kOpSub, rs_rA64_SP, frame_size_without_spills);
   }
 
   FlushIns(ArgLocs, rl_method);
@@ -371,6 +436,12 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
   FreeTemp(rs_x1);
   FreeTemp(rs_x2);
   FreeTemp(rs_x3);
+  FreeTemp(rs_x4);
+  FreeTemp(rs_x5);
+  FreeTemp(rs_x6);
+  FreeTemp(rs_x7);
+  FreeTemp(rs_x8);
+  FreeTemp(rs_x9);
 }
 
 void Arm64Mir2Lir::GenExitSequence() {
