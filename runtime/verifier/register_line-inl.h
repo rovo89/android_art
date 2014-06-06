@@ -18,7 +18,9 @@
 #define ART_RUNTIME_VERIFIER_REGISTER_LINE_INL_H_
 
 #include "register_line.h"
+
 #include "method_verifier.h"
+#include "reg_type_cache-inl.h"
 
 namespace art {
 namespace verifier {

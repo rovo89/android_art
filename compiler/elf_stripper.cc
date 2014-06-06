@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "base/logging.h"
+#include "base/stringprintf.h"
 #include "elf_file.h"
 #include "elf_utils.h"
 #include "utils.h"

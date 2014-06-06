@@ -552,6 +552,18 @@ std::string FormatDuration(uint64_t nano_duration, TimeUnit time_unit) {
   }
 }
 
+std::string PrintableChar(uint16_t ch) {
+  std::string result;
+  result += '\'';
+  if (NeedsEscaping(ch)) {
+    StringAppendF(&result, "\\u%04x", ch);
+  } else {
+    result += ch;
+  }
+  result += '\'';
+  return result;
+}
+
 std::string PrintableString(const std::string& utf) {
   std::string result;
   result += '"';

@@ -29,7 +29,7 @@ namespace art {
 
 namespace mirror {
 class ArtMethod;
-}       // namespace mirror
+}  // namespace mirror
 
 class FaultHandler;
 

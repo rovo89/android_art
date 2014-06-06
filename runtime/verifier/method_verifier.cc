@@ -507,6 +507,11 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
   return *failure_message;
 }
 
+std::ostream& MethodVerifier::LogVerifyInfo() {
+  return info_messages_ << "VFY: " << PrettyMethod(dex_method_idx_, *dex_file_)
+                        << '[' << reinterpret_cast<void*>(work_insn_idx_) << "] : ";
+}
+
 void MethodVerifier::PrependToLastFailMessage(std::string prepend) {
   size_t failure_num = failure_messages_.size();
   DCHECK_NE(failure_num, 0U);
