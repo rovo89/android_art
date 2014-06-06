@@ -75,8 +75,6 @@ static void GetSample(Thread* thread, void* arg) SHARED_LOCKS_REQUIRED(Locks::mu
   profiler->RecordMethod(method);
 }
 
-
-
 // A closure that is called by the thread checkpoint code.
 class SampleCheckpoint : public Closure {
  public:
@@ -443,7 +441,7 @@ ProfileSampleResults::~ProfileSampleResults() {
   }
 }
 
-// Add a method to the profile table.  If it the first time the method
+// Add a method to the profile table.  If it's the first time the method
 // has been seen, add it with count=1, otherwise increment the count.
 void ProfileSampleResults::Put(mirror::ArtMethod* method) {
   lock_.Lock(Thread::Current());
@@ -578,7 +576,7 @@ void ProfileSampleResults::ReadPrevious(int fd) {
   }
 }
 
-bool ProfileHelper::LoadProfileMap(ProfileMap& profileMap, const std::string& fileName) {
+bool ProfileFile::LoadFile(const std::string& fileName) {
   LOG(VERBOSE) << "reading profile file " << fileName;
   struct stat st;
   int err = stat(fileName.c_str(), &st);
@@ -629,7 +627,7 @@ bool ProfileHelper::LoadProfileMap(ProfileMap& profileMap, const std::string& fi
     Split(line, '/', info);
     if (info.size() != 3) {
       // Malformed.
-      break;
+      return false;
     }
     int count = atoi(info[1].c_str());
     countSet.insert(std::make_pair(-count, info));
@@ -652,21 +650,24 @@ bool ProfileHelper::LoadProfileMap(ProfileMap& profileMap, const std::string& fi
 
     // Add it to the profile map.
     ProfileData curData = ProfileData(methodname, count, size, usedPercent, topKPercentage);
-    profileMap[methodname] = curData;
+    profile_map_[methodname] = curData;
     prevData = &curData;
   }
   return true;
 }
 
-bool ProfileHelper::LoadTopKSamples(std::set<std::string>& topKSamples, const std::string& fileName,
-                                    double topKPercentage) {
-  ProfileMap profileMap;
-  bool loadOk = LoadProfileMap(profileMap, fileName);
-  if (!loadOk) {
+bool ProfileFile::GetProfileData(ProfileFile::ProfileData* data, const std::string& method_name) {
+  ProfileMap::iterator i = profile_map_.find(method_name);
+  if (i == profile_map_.end()) {
     return false;
   }
-  ProfileMap::iterator end = profileMap.end();
-  for (ProfileMap::iterator it = profileMap.begin(); it != end; it++) {
+  *data = i->second;
+  return true;
+}
+
+bool ProfileFile::GetTopKSamples(std::set<std::string>& topKSamples, double topKPercentage) {
+  ProfileMap::iterator end = profile_map_.end();
+  for (ProfileMap::iterator it = profile_map_.begin(); it != end; it++) {
     if (it->second.GetTopKUsedPercentage() < topKPercentage) {
       topKSamples.insert(it->first);
     }
