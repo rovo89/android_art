@@ -26,7 +26,6 @@
 #include "base/mutex.h"
 #include "gc_allocator.h"
 #include "globals.h"
-#include "mem_map.h"
 #include "object_callbacks.h"
 
 namespace art {
@@ -34,6 +33,7 @@ namespace art {
 namespace mirror {
   class Object;
 }  // namespace mirror
+class MemMap;
 
 namespace gc {
 namespace accounting {
@@ -183,10 +183,7 @@ class SpaceBitmap {
     name_ = name;
   }
 
-  std::string Dump() const {
-    return StringPrintf("%s: %p-%p", name_.c_str(), reinterpret_cast<void*>(HeapBegin()),
-                        reinterpret_cast<void*>(HeapLimit()));
-  }
+  std::string Dump() const;
 
   const void* GetObjectWordAddress(const mirror::Object* obj) const {
     uintptr_t addr = reinterpret_cast<uintptr_t>(obj);

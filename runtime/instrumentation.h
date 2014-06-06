@@ -17,14 +17,14 @@
 #ifndef ART_RUNTIME_INSTRUMENTATION_H_
 #define ART_RUNTIME_INSTRUMENTATION_H_
 
+#include <stdint.h>
+#include <set>
+#include <list>
+
 #include "atomic.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "object_callbacks.h"
-
-#include <stdint.h>
-#include <set>
-#include <list>
 
 namespace art {
 namespace mirror {

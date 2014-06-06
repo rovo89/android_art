@@ -18,6 +18,7 @@
 
 #include "codegen_x86.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "gc/accounting/card_table.h"
 #include "x86_lir.h"
 
 namespace art {

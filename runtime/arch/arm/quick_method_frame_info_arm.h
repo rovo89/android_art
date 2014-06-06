@@ -20,6 +20,7 @@
 #include "quick/quick_method_frame_info.h"
 #include "registers_arm.h"
 #include "runtime.h"  // for Runtime::CalleeSaveType.
+#include "utils.h"
 
 namespace art {
 namespace arm {

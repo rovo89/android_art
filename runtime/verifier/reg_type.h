@@ -17,17 +17,17 @@
 #ifndef ART_RUNTIME_VERIFIER_REG_TYPE_H_
 #define ART_RUNTIME_VERIFIER_REG_TYPE_H_
 
-#include "base/macros.h"
-#include "globals.h"
-#include "object_callbacks.h"
-#include "primitive.h"
-
-#include "jni.h"
-
 #include <limits>
 #include <stdint.h>
 #include <set>
 #include <string>
+
+#include "jni.h"
+
+#include "base/macros.h"
+#include "globals.h"
+#include "object_callbacks.h"
+#include "primitive.h"
 
 namespace art {
 namespace mirror {

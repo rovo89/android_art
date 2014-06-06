@@ -20,6 +20,7 @@
 #include <unistd.h>
 
 #include "base/logging.h"
+#include "base/stringprintf.h"
 #include "base/stl_util.h"
 #include "utils.h"
 #include "instruction_set.h"

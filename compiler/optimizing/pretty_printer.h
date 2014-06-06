@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_PRETTY_PRINTER_H_
 #define ART_COMPILER_OPTIMIZING_PRETTY_PRINTER_H_
 
+#include "base/stringprintf.h"
 #include "nodes.h"
 
 namespace art {

@@ -23,7 +23,6 @@
 #include <vector>
 
 #include "base/logging.h"
-#include "base/stringprintf.h"
 #include "globals.h"
 #include "instruction_set.h"
 #include "primitive.h"
@@ -205,17 +204,7 @@ static inline bool NeedsEscaping(uint16_t ch) {
   return (ch < ' ' || ch > '~');
 }
 
-static inline std::string PrintableChar(uint16_t ch) {
-  std::string result;
-  result += '\'';
-  if (NeedsEscaping(ch)) {
-    StringAppendF(&result, "\\u%04x", ch);
-  } else {
-    result += ch;
-  }
-  result += '\'';
-  return result;
-}
+std::string PrintableChar(uint16_t ch);
 
 // Returns an ASCII string corresponding to the given UTF-8 string.
 // Java escapes are used for non-ASCII characters.

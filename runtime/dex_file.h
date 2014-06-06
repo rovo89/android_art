@@ -26,7 +26,6 @@
 #include "globals.h"
 #include "invoke_type.h"
 #include "jni.h"
-#include "mem_map.h"
 #include "modifiers.h"
 #include "safe_map.h"
 
@@ -41,6 +40,7 @@ namespace mirror {
   class DexCache;
 }  // namespace mirror
 class ClassLinker;
+class MemMap;
 class Signature;
 template<class T> class Handle;
 class StringPiece;
