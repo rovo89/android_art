@@ -143,7 +143,7 @@ class CompilerDriver {
   }
 
   bool ProfilePresent() const {
-    return profile_ok_;
+    return profile_present_;
   }
 
   // Are we compiling and creating an image file?
@@ -596,7 +596,7 @@ class CompilerDriver {
   }
 
   ProfileFile profile_file_;
-  bool profile_ok_;
+  bool profile_present_;
 
   // Should the compiler run on this method given profile information?
   bool SkipCompilation(const std::string& method_name);

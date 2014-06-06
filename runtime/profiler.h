@@ -28,6 +28,7 @@
 #include "base/mutex.h"
 #include "globals.h"
 #include "instrumentation.h"
+#include "profiler_options.h"
 #include "os.h"
 #include "safe_map.h"
 
@@ -62,17 +63,18 @@ class ProfileSampleResults {
  private:
   uint32_t Hash(mirror::ArtMethod* method);
   static constexpr int kHashSize = 17;
-  Mutex& lock_;                   // Reference to the main profiler lock - we don't need two of them.
-  uint32_t num_samples_;          // Total number of samples taken.
-  uint32_t num_null_methods_;     // Number of samples where can don't know the method.
-  uint32_t num_boot_methods_;     // Number of samples in the boot path.
+  Mutex& lock_;                  // Reference to the main profiler lock - we don't need two of them.
+  uint32_t num_samples_;         // Total number of samples taken.
+  uint32_t num_null_methods_;    // Number of samples where can don't know the method.
+  uint32_t num_boot_methods_;    // Number of samples in the boot path.
 
   typedef std::map<mirror::ArtMethod*, uint32_t> Map;   // Map of method vs its count.
   Map *table[kHashSize];
 
   struct PreviousValue {
     PreviousValue() : count_(0), method_size_(0) {}
-    PreviousValue(uint32_t count, uint32_t method_size) : count_(count), method_size_(method_size) {}
+    PreviousValue(uint32_t count, uint32_t method_size)
+      : count_(count), method_size_(method_size) {}
     uint32_t count_;
     uint32_t method_size_;
   };
@@ -101,9 +103,9 @@ class ProfileSampleResults {
 
 class BackgroundMethodSamplingProfiler {
  public:
-  static void Start(int period, int duration, const std::string& profile_filename,
-                    const std::string& procName, int interval_us,
-                    double backoff_coefficient, bool startImmediately)
+  // Start a profile thread with the user-supplied arguments.
+  // Returns true if the profile was started or if it was already running. Returns false otherwise.
+  static bool Start(const std::string& output_filename, const ProfilerOptions& options)
   LOCKS_EXCLUDED(Locks::mutator_lock_,
                  Locks::thread_list_lock_,
                  Locks::thread_suspend_count_lock_,
@@ -119,10 +121,8 @@ class BackgroundMethodSamplingProfiler {
   }
 
  private:
-  explicit BackgroundMethodSamplingProfiler(int period, int duration,
-                                            const std::string& profile_filename,
-                                            const std::string& process_name,
-                                            double backoff_coefficient, int interval_us, bool startImmediately);
+  explicit BackgroundMethodSamplingProfiler(
+    const std::string& output_filename, const ProfilerOptions& options);
 
   // The sampling interval in microseconds is passed as an argument.
   static void* RunProfilerThread(void* arg) LOCKS_EXCLUDED(Locks::profiler_lock_);
@@ -141,35 +141,14 @@ class BackgroundMethodSamplingProfiler {
   // Sampling thread, non-zero when sampling.
   static pthread_t profiler_pthread_;
 
-  // Some measure of the number of samples that are significant
+  // Some measure of the number of samples that are significant.
   static constexpr uint32_t kSignificantSamples = 10;
 
-  // File to write profile data out to.  Cannot be empty if we are profiling.
-  std::string profile_file_name_;
+  // The name of the file where profile data will be written.
+  std::string output_filename_;
+  // The options used to start the profiler.
+  const ProfilerOptions& options_;
 
-  // Process name.
-  std::string process_name_;
-
-  // Number of seconds between profile runs.
-  uint32_t period_s_;
-
-  // Most of the time we want to delay the profiler startup to prevent everything
-  // running at the same time (all processes).  This is the default, but if we
-  // want to override this, set the 'start_immediately_' to true.  This is done
-  // if the -Xprofile option is given on the command line.
-  bool start_immediately_;
-
-  uint32_t interval_us_;
-
-  // A backoff coefficent to adjust the profile period based on time.
-  double backoff_factor_;
-
-  // How much to increase the backoff by on each profile iteration.
-  double backoff_coefficient_;
-
-  // Duration of each profile run.  The profile file will be written at the end
-  // of each run.
-  uint32_t duration_s_;
 
   // Profile condition support.
   Mutex wait_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
@@ -188,6 +167,7 @@ class BackgroundMethodSamplingProfiler {
   DISALLOW_COPY_AND_ASSIGN(BackgroundMethodSamplingProfiler);
 };
 
+//
 // Contains profile data generated from previous runs of the program and stored
 // in a file.  It is used to determine whether to compile a particular method or not.
 class ProfileFile {
@@ -212,12 +192,12 @@ class ProfileFile {
     uint32_t count_;                // Number of times it has been called.
     uint32_t method_size_;          // Size of the method on dex instructions.
     double used_percent_;           // Percentage of how many times this method was called.
-    double top_k_used_percentage_;  // The percentage of the group that comprise K% of the total used
-                                    // methods this methods belongs to.
+    double top_k_used_percentage_;  // The percentage of the group that comprise K% of the total
+                                    // used methods this methods belongs to.
   };
 
  public:
-  // Loads profile data from the given file. The data are merged with any existing data.
+  // Loads profile data from the given file. The new data are merged with any existing data.
   // Returns true if the file was loaded successfully and false otherwise.
   bool LoadFile(const std::string& filename);
 
