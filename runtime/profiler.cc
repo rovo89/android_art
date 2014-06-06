@@ -589,14 +589,11 @@ bool ProfileFile::LoadFile(const std::string& fileName) {
   std::vector<std::string> summary_info;
   Split(line, '/', summary_info);
   if (summary_info.size() != 3) {
-    // Bad summary info.  It should be count/total/bootpath.
+    // Bad summary info.  It should be total/null/boot.
     return false;
   }
-  // This is the number of hits in all methods.
-  uint32_t total_count = 0;
-  for (int i = 0 ; i < 3; ++i) {
-    total_count += atoi(summary_info[i].c_str());
-  }
+  // This is the number of hits in all profiled methods (without nullptr or boot methods)
+  uint32_t total_count = atoi(summary_info[0].c_str());
 
   // Now read each line until the end of file.  Each line consists of 3 fields separated by '/'.
   // Store the info in descending order given by the most used methods.
