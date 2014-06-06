@@ -110,11 +110,17 @@ class RosAlloc {
         byte_size -= kPageSize;
         if (byte_size > 0) {
           if (release_pages) {
+            if (!kMadviseZeroes) {
+              memset(start, 0, byte_size);
+            }
             madvise(start, byte_size, MADV_DONTNEED);
           }
         }
       } else {
         if (release_pages) {
+          if (!kMadviseZeroes) {
+            memset(start, 0, byte_size);
+          }
           madvise(start, byte_size, MADV_DONTNEED);
         }
       }

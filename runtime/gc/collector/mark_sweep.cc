@@ -1130,9 +1130,7 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
   allocations->Reset();
   timings_.EndSplit();
 
-  int success = madvise(sweep_array_free_buffer_mem_map_->BaseBegin(),
-                        sweep_array_free_buffer_mem_map_->BaseSize(), MADV_DONTNEED);
-  DCHECK_EQ(success, 0) << "Failed to madvise the sweep array free buffer pages.";
+  sweep_array_free_buffer_mem_map_->MadviseDontNeedAndZero();
 }
 
 void MarkSweep::Sweep(bool swap_bitmaps) {

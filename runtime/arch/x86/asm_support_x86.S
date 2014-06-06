@@ -28,6 +28,7 @@
     #define END_MACRO .endmacro
 
     // Clang's as(1) uses $0, $1, and so on for macro arguments.
+    #define RAW_VAR(name,index) $index
     #define VAR(name,index) SYMBOL($index)
     #define PLT_VAR(name, index) SYMBOL($index)
     #define REG_VAR(name,index) %$index
@@ -50,6 +51,7 @@
     // no special meaning to $, so literals are still just $x. The use of altmacro means % is a
     // special character meaning care needs to be taken when passing registers as macro arguments.
     .altmacro
+    #define RAW_VAR(name,index) name&
     #define VAR(name,index) name&
     #define PLT_VAR(name, index) name&@PLT
     #define REG_VAR(name,index) %name
@@ -94,7 +96,7 @@
 #if !defined(__APPLE__)
     #define SYMBOL(name) name
     #if defined(__clang__) && (__clang_major__ < 4) && (__clang_minor__ < 5)
-        // TODO: Disabled for old clang 3.3, this leads to text reolocations and there should be a
+        // TODO: Disabled for old clang 3.3, this leads to text relocations and there should be a
         // better fix.
         #define PLT_SYMBOL(name) name // ## @PLT
     #else
@@ -151,8 +153,10 @@ VAR(name, 0):
 END_MACRO
 
 MACRO0(SETUP_GOT_NOSAVE)
+#ifndef __APPLE__
     call __x86.get_pc_thunk.bx
     addl $_GLOBAL_OFFSET_TABLE_, %ebx
+#endif
 END_MACRO
 
 MACRO0(SETUP_GOT)

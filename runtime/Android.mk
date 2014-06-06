@@ -195,7 +195,8 @@ LIBART_COMMON_SRC_FILES += \
 LIBART_GCC_ONLY_SRC_FILES := \
 	interpreter/interpreter_goto_table_impl.cc
 
-LIBART_LDFLAGS := -Wl,--no-fatal-warnings
+LIBART_TARGET_LDFLAGS := -Wl,--no-fatal-warnings
+LIBART_HOST_LDFLAGS :=
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
@@ -365,6 +366,11 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
 
   LOCAL_CFLAGS := $(LIBART_CFLAGS)
   LOCAL_LDFLAGS := $(LIBART_LDFLAGS)
+  ifeq ($$(art_target_or_host),target)
+    LOCAL_LDFLAGS += $(LIBART_TARGET_LDFLAGS)
+  else
+    LOCAL_LDFLAGS += $(LIBART_HOST_LDFLAGS)
+  endif
   $(foreach arch,$(ART_SUPPORTED_ARCH),
     LOCAL_LDFLAGS_$(arch) := $$(LIBART_TARGET_LDFLAGS_$(arch)))
 
@@ -439,13 +445,11 @@ endef
 
 # We always build dex2oat and dependencies, even if the host build is otherwise disabled, since
 # they are used to cross compile for the target.
-ifeq ($(WITH_HOST_DALVIK),true)
-  ifeq ($(ART_BUILD_NDEBUG),true)
-    $(eval $(call build-libart,host,ndebug))
-  endif
-  ifeq ($(ART_BUILD_DEBUG),true)
-    $(eval $(call build-libart,host,debug))
-  endif
+ifeq ($(ART_BUILD_NDEBUG),true)
+  $(eval $(call build-libart,host,ndebug))
+endif
+ifeq ($(ART_BUILD_DEBUG),true)
+  $(eval $(call build-libart,host,debug))
 endif
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
