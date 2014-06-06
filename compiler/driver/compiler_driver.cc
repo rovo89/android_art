@@ -55,7 +55,6 @@
 #include "thread_pool.h"
 #include "trampolines/trampoline_compiler.h"
 #include "transaction.h"
-#include "utils.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
 
@@ -331,7 +330,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
                                bool image, DescriptorSet* image_classes, size_t thread_count,
                                bool dump_stats, bool dump_passes, CumulativeLogger* timer,
                                std::string profile_file)
-    : profile_ok_(false), compiler_options_(compiler_options),
+    : profile_present_(false), compiler_options_(compiler_options),
       verification_results_(verification_results),
       method_inliner_map_(method_inliner_map),
       compiler_(Compiler::Create(this, compiler_kind)),
@@ -365,11 +364,6 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
 
   CHECK_PTHREAD_CALL(pthread_key_create, (&tls_key_, NULL), "compiler tls key");
 
-  // Read the profile file if one is provided.
-  if (profile_file != "") {
-    profile_ok_ = profile_file_.LoadFile(profile_file);
-  }
-
   dex_to_dex_compiler_ = reinterpret_cast<DexToDexCompilerFn>(ArtCompileDEX);
 
   compiler_->Init();
@@ -384,6 +378,16 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
   // Are we generating CFI information?
   if (compiler_options->GetGenerateGDBInformation()) {
     cfi_info_.reset(compiler_->GetCallFrameInformationInitialization(*this));
+  }
+
+  // Read the profile file if one is provided.
+  if (!profile_file.empty()) {
+    profile_present_ = profile_file_.LoadFile(profile_file);
+    if (profile_present_) {
+      LOG(INFO) << "Using profile data form file " << profile_file;
+    } else {
+      LOG(INFO) << "Failed to load profile file " << profile_file;
+    }
   }
 }
 
@@ -2044,7 +2048,7 @@ void CompilerDriver::InstructionSetToLLVMTarget(InstructionSet instruction_set,
   }
 
 bool CompilerDriver::SkipCompilation(const std::string& method_name) {
-  if (!profile_ok_) {
+  if (!profile_present_) {
     return false;
   }
   // First find the method in the profile file.
@@ -2056,18 +2060,17 @@ bool CompilerDriver::SkipCompilation(const std::string& method_name) {
   }
 
   // Methods that comprise top_k_threshold % of the total samples will be compiled.
-  double top_k_threshold = GetDoubleProperty("dalvik.vm.profiler.compile_thr", 10.0, 90.0, 90.0);
-
   // Compare against the start of the topK percentage bucket just in case the threshold
   // falls inside a bucket.
-  bool compile = data.GetTopKUsedPercentage() - data.GetUsedPercent() <= top_k_threshold;
+  bool compile = data.GetTopKUsedPercentage() - data.GetUsedPercent()
+                 <= compiler_options_->GetTopKProfileThreshold();
   if (compile) {
     LOG(INFO) << "compiling method " << method_name << " because its usage is part of top "
         << data.GetTopKUsedPercentage() << "% with a percent of " << data.GetUsedPercent() << "%"
-        << " (topKThreshold=" << top_k_threshold << ")";
+        << " (topKThreshold=" << compiler_options_->GetTopKProfileThreshold() << ")";
   } else {
     VLOG(compiler) << "not compiling method " << method_name << " because it's not part of leading "
-        << top_k_threshold << "% samples)";
+        << compiler_options_->GetTopKProfileThreshold() << "% samples)";
   }
   return !compile;
 }

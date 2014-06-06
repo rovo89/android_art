@@ -443,10 +443,6 @@ class VoidFunctor {
   }
 };
 
-// Returns the given property as a double or its default_value if the property string is not valid
-// or the parsed value is outside the interval [min_value, max_value].
-double GetDoubleProperty(const char* property, double min_value, double max_value, double default_value);
-
 }  // namespace art
 
 #endif  // ART_RUNTIME_UTILS_H_

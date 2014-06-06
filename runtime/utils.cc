@@ -1302,23 +1302,4 @@ bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg) {
   return true;
 }
 
-double GetDoubleProperty(const char* property, double min_value, double max_value, double default_value) {
-#ifndef HAVE_ANDROID_OS
-  return default_value;
-#else
-  char buf[PROP_VALUE_MAX];
-  char* endptr;
-
-  property_get(property, buf, "");
-  double value = strtod(buf, &endptr);
-
-  // Return the defalt value if the string is invalid or the value is outside the given range
-  if ((value == 0 && endptr == buf)                     // Invalid string
-      || (value < min_value) || (value > max_value)) {  // Out of range value
-    return default_value;
-  }
-  return value;
-#endif
-}
-
 }  // namespace art
