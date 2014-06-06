@@ -35,6 +35,7 @@
 #include "driver/compiler_options.h"
 #include "jni_internal.h"
 #include "object_utils.h"
+#include "profiler.h"
 #include "runtime.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap.h"
@@ -54,12 +55,9 @@
 #include "thread_pool.h"
 #include "trampolines/trampoline_compiler.h"
 #include "transaction.h"
+#include "utils.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
-
-#ifdef HAVE_ANDROID_OS
-#include "cutils/properties.h"
-#endif
 
 namespace art {
 
@@ -369,7 +367,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
 
   // Read the profile file if one is provided.
   if (profile_file != "") {
-    profile_ok_ = ProfileHelper::LoadProfileMap(profile_map_, profile_file);
+    profile_ok_ = profile_file_.LoadFile(profile_file);
   }
 
   dex_to_dex_compiler_ = reinterpret_cast<DexToDexCompilerFn>(ArtCompileDEX);
@@ -2049,36 +2047,27 @@ bool CompilerDriver::SkipCompilation(const std::string& method_name) {
   if (!profile_ok_) {
     return false;
   }
-  // Methods that comprise topKPercentThreshold % of the total samples will be compiled.
-  double topKPercentThreshold = 90.0;
-#ifdef HAVE_ANDROID_OS
-  char buf[PROP_VALUE_MAX];
-  property_get("dalvik.vm.profile.compile_thr", buf, "90.0");
-  topKPercentThreshold = strtod(buf, nullptr);
-#endif
-  // Test for reasonable thresholds.
-  if (topKPercentThreshold < 10.0 || topKPercentThreshold > 90.0) {
-    topKPercentThreshold = 90.0;
-  }
-
-  // First find the method in the profile map.
-  ProfileMap::iterator i = profile_map_.find(method_name);
-  if (i == profile_map_.end()) {
+  // First find the method in the profile file.
+  ProfileFile::ProfileData data;
+  if (!profile_file_.GetProfileData(&data, method_name)) {
     // Not in profile, no information can be determined.
     VLOG(compiler) << "not compiling " << method_name << " because it's not in the profile";
     return true;
   }
-  const ProfileData& data = i->second;
+
+  // Methods that comprise top_k_threshold % of the total samples will be compiled.
+  double top_k_threshold = GetDoubleProperty("dalvik.vm.profiler.compile_thr", 10.0, 90.0, 90.0);
 
   // Compare against the start of the topK percentage bucket just in case the threshold
   // falls inside a bucket.
-  bool compile = data.GetTopKUsedPercentage() - data.GetUsedPercent() <= topKPercentThreshold;
+  bool compile = data.GetTopKUsedPercentage() - data.GetUsedPercent() <= top_k_threshold;
   if (compile) {
     LOG(INFO) << "compiling method " << method_name << " because its usage is part of top "
-        << data.GetTopKUsedPercentage() << "% with a percent of " << data.GetUsedPercent() << "%";
+        << data.GetTopKUsedPercentage() << "% with a percent of " << data.GetUsedPercent() << "%"
+        << " (topKThreshold=" << top_k_threshold << ")";
   } else {
     VLOG(compiler) << "not compiling method " << method_name << " because it's not part of leading "
-        << topKPercentThreshold << "% samples)";
+        << top_k_threshold << "% samples)";
   }
   return !compile;
 }
