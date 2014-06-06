@@ -595,7 +595,7 @@ class CompilerDriver {
     return cfi_info_.get();
   }
 
-  ProfileMap profile_map_;
+  ProfileFile profile_file_;
   bool profile_ok_;
 
   // Should the compiler run on this method given profile information?
