@@ -19,6 +19,7 @@
 #include "arm64_lir.h"
 #include "codegen_arm64.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "gc/accounting/card_table.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 
 namespace art {

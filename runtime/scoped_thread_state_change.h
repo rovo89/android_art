@@ -18,6 +18,7 @@
 #define ART_RUNTIME_SCOPED_THREAD_STATE_CHANGE_H_
 
 #include "base/casts.h"
+#include "jni_internal-inl.h"
 #include "thread-inl.h"
 #include "verify_object.h"
 

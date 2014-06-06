@@ -16,6 +16,7 @@
 
 #include "register_line.h"
 
+#include "base/stringprintf.h"
 #include "dex_instruction-inl.h"
 #include "method_verifier.h"
 #include "register_line-inl.h"

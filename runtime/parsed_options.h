@@ -19,6 +19,7 @@
 
 #include <string>
 
+#include "gc/collector_type.h"
 #include "runtime.h"
 #include "trace.h"
 

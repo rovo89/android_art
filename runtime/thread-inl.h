@@ -21,9 +21,11 @@
 
 #include <pthread.h>
 
+#include "cutils/atomic-inline.h"
+
 #include "base/casts.h"
 #include "base/mutex-inl.h"
-#include "cutils/atomic-inline.h"
+#include "gc/heap.h"
 #include "jni_internal.h"
 
 namespace art {

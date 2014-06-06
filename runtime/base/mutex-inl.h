@@ -25,6 +25,8 @@
 
 #include "cutils/atomic-inline.h"
 #include "cutils/trace.h"
+
+#include "base/stringprintf.h"
 #include "runtime.h"
 #include "thread.h"
 
