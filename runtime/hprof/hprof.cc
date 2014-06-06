@@ -919,8 +919,6 @@ int Hprof::DumpHeapObject(mirror::Object* obj) {
 
       rec->AddU2(0);  // empty const pool
 
-      FieldHelper fh;
-
       // Static fields
       if (sFieldCount == 0) {
         rec->AddU2((uint16_t)0);
@@ -932,11 +930,10 @@ int Hprof::DumpHeapObject(mirror::Object* obj) {
 
         for (size_t i = 0; i < sFieldCount; ++i) {
           mirror::ArtField* f = thisClass->GetStaticField(i);
-          fh.ChangeField(f);
 
           size_t size;
-          HprofBasicType t = SignatureToBasicTypeAndSize(fh.GetTypeDescriptor(), &size);
-          rec->AddStringId(LookupStringId(fh.GetName()));
+          HprofBasicType t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
+          rec->AddStringId(LookupStringId(f->GetName()));
           rec->AddU1(t);
           if (size == 1) {
             rec->AddU1(static_cast<uint8_t>(f->Get32(thisClass)));
@@ -957,9 +954,8 @@ int Hprof::DumpHeapObject(mirror::Object* obj) {
       rec->AddU2((uint16_t)iFieldCount);
       for (int i = 0; i < iFieldCount; ++i) {
         mirror::ArtField* f = thisClass->GetInstanceField(i);
-        fh.ChangeField(f);
-        HprofBasicType t = SignatureToBasicTypeAndSize(fh.GetTypeDescriptor(), NULL);
-        rec->AddStringId(LookupStringId(fh.GetName()));
+        HprofBasicType t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), NULL);
+        rec->AddStringId(LookupStringId(f->GetName()));
         rec->AddU1(t);
       }
     } else if (c->IsArrayClass()) {
@@ -1015,14 +1011,12 @@ int Hprof::DumpHeapObject(mirror::Object* obj) {
       // Write the instance data;  fields for this class, followed by super class fields,
       // and so on. Don't write the klass or monitor fields of Object.class.
       mirror::Class* sclass = c;
-      FieldHelper fh;
       while (!sclass->IsObjectClass()) {
         int ifieldCount = sclass->NumInstanceFields();
         for (int i = 0; i < ifieldCount; ++i) {
           mirror::ArtField* f = sclass->GetInstanceField(i);
-          fh.ChangeField(f);
           size_t size;
-          SignatureToBasicTypeAndSize(fh.GetTypeDescriptor(), &size);
+          SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
           if (size == 1) {
             rec->AddU1(f->Get32(obj));
           } else if (size == 2) {

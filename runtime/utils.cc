@@ -290,15 +290,15 @@ std::string PrettyField(mirror::ArtField* f, bool with_type) {
   if (f == NULL) {
     return "null";
   }
-  FieldHelper fh(f);
   std::string result;
   if (with_type) {
-    result += PrettyDescriptor(fh.GetTypeDescriptor());
+    result += PrettyDescriptor(f->GetTypeDescriptor());
     result += ' ';
   }
-  result += PrettyDescriptor(fh.GetDeclaringClassDescriptor());
+  StackHandleScope<1> hs(Thread::Current());
+  result += PrettyDescriptor(FieldHelper(hs.NewHandle(f)).GetDeclaringClassDescriptor());
   result += '.';
-  result += fh.GetName();
+  result += f->GetName();
   return result;
 }
 

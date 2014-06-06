@@ -195,8 +195,9 @@ class ScopedCheck {
    */
   void CheckFieldType(jvalue value, jfieldID fid, char prim, bool isStatic)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtField* f = CheckFieldID(fid);
-    if (f == nullptr) {
+    StackHandleScope<1> hs(Thread::Current());
+    Handle<mirror::ArtField> f(hs.NewHandle(CheckFieldID(fid)));
+    if (f.Get() == nullptr) {
       return;
     }
     mirror::Class* field_type = FieldHelper(f).GetType();
@@ -215,22 +216,24 @@ class ScopedCheck {
         } else {
           if (!obj->InstanceOf(field_type)) {
             JniAbortF(function_name_, "attempt to set field %s with value of wrong type: %s",
-                      PrettyField(f).c_str(), PrettyTypeOf(obj).c_str());
+                      PrettyField(f.Get()).c_str(), PrettyTypeOf(obj).c_str());
             return;
           }
         }
       }
     } else if (field_type != Runtime::Current()->GetClassLinker()->FindPrimitiveClass(prim)) {
       JniAbortF(function_name_, "attempt to set field %s with value of wrong type: %c",
-                PrettyField(f).c_str(), prim);
+                PrettyField(f.Get()).c_str(), prim);
       return;
     }
 
-    if (isStatic != f->IsStatic()) {
+    if (isStatic != f.Get()->IsStatic()) {
       if (isStatic) {
-        JniAbortF(function_name_, "accessing non-static field %s as static", PrettyField(f).c_str());
+        JniAbortF(function_name_, "accessing non-static field %s as static",
+                  PrettyField(f.Get()).c_str());
       } else {
-        JniAbortF(function_name_, "accessing static field %s as non-static", PrettyField(f).c_str());
+        JniAbortF(function_name_, "accessing static field %s as non-static",
+                  PrettyField(f.Get()).c_str());
       }
       return;
     }
@@ -256,8 +259,7 @@ class ScopedCheck {
       return;
     }
     mirror::Class* c = o->GetClass();
-    FieldHelper fh(f);
-    if (c->FindInstanceField(fh.GetName(), fh.GetTypeDescriptor()) == nullptr) {
+    if (c->FindInstanceField(f->GetName(), f->GetTypeDescriptor()) == nullptr) {
       JniAbortF(function_name_, "jfieldID %s not valid for an object of class %s",
                 PrettyField(f).c_str(), PrettyTypeOf(o).c_str());
     }

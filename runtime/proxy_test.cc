@@ -140,52 +140,60 @@ TEST_F(ProxyTest, ProxyClassHelper) {
 TEST_F(ProxyTest, ProxyFieldHelper) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("Interfaces");
-  StackHandleScope<1> hs(soa.Self());
+  StackHandleScope<9> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
       hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
 
-  mirror::Class* I = class_linker_->FindClass(soa.Self(), "LInterfaces$I;", class_loader);
-  mirror::Class* J = class_linker_->FindClass(soa.Self(), "LInterfaces$J;", class_loader);
-  ASSERT_TRUE(I != nullptr);
-  ASSERT_TRUE(J != nullptr);
-  std::vector<mirror::Class*> interfaces;
-  interfaces.push_back(I);
-  interfaces.push_back(J);
+  Handle<mirror::Class> I(hs.NewHandle(
+      class_linker_->FindClass(soa.Self(), "LInterfaces$I;", class_loader)));
+  Handle<mirror::Class> J(hs.NewHandle(
+      class_linker_->FindClass(soa.Self(), "LInterfaces$J;", class_loader)));
+  ASSERT_TRUE(I.Get() != nullptr);
+  ASSERT_TRUE(J.Get() != nullptr);
 
-  mirror::Class* proxyClass = GenerateProxyClass(soa, jclass_loader, "$Proxy1234", interfaces);
-  ASSERT_TRUE(proxyClass != nullptr);
+  Handle<mirror::Class> proxyClass;
+  {
+    std::vector<mirror::Class*> interfaces;
+    interfaces.push_back(I.Get());
+    interfaces.push_back(J.Get());
+    proxyClass = hs.NewHandle(GenerateProxyClass(soa, jclass_loader, "$Proxy1234", interfaces));
+  }
+
+  ASSERT_TRUE(proxyClass.Get() != nullptr);
   ASSERT_TRUE(proxyClass->IsProxyClass());
   ASSERT_TRUE(proxyClass->IsInitialized());
 
-  mirror::ObjectArray<mirror::ArtField>* instance_fields = proxyClass->GetIFields();
-  EXPECT_TRUE(instance_fields == nullptr);
+  Handle<mirror::ObjectArray<mirror::ArtField>> instance_fields(
+      hs.NewHandle(proxyClass->GetIFields()));
+  EXPECT_TRUE(instance_fields.Get() == nullptr);
 
-  mirror::ObjectArray<mirror::ArtField>* static_fields = proxyClass->GetSFields();
-  ASSERT_TRUE(static_fields != nullptr);
+  Handle<mirror::ObjectArray<mirror::ArtField>> static_fields(
+      hs.NewHandle(proxyClass->GetSFields()));
+  ASSERT_TRUE(static_fields.Get() != nullptr);
   ASSERT_EQ(2, static_fields->GetLength());
 
-  mirror::Class* interfacesFieldClass = class_linker_->FindSystemClass(soa.Self(),
-                                                                       "[Ljava/lang/Class;");
-  ASSERT_TRUE(interfacesFieldClass != nullptr);
-  mirror::Class* throwsFieldClass = class_linker_->FindSystemClass(soa.Self(),
-                                                                   "[[Ljava/lang/Class;");
-  ASSERT_TRUE(throwsFieldClass != nullptr);
+  Handle<mirror::Class> interfacesFieldClass(
+      hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/Class;")));
+  ASSERT_TRUE(interfacesFieldClass.Get() != nullptr);
+  Handle<mirror::Class> throwsFieldClass(
+      hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "[[Ljava/lang/Class;")));
+  ASSERT_TRUE(throwsFieldClass.Get() != nullptr);
 
   // Test "Class[] interfaces" field.
-  FieldHelper fh(static_fields->Get(0));
-  EXPECT_EQ("interfaces", std::string(fh.GetName()));
-  EXPECT_EQ("[Ljava/lang/Class;", std::string(fh.GetTypeDescriptor()));
-  EXPECT_EQ(interfacesFieldClass, fh.GetType());
+  FieldHelper fh(hs.NewHandle(static_fields->Get(0)));
+  EXPECT_EQ("interfaces", std::string(fh.GetField()->GetName()));
+  EXPECT_EQ("[Ljava/lang/Class;", std::string(fh.GetField()->GetTypeDescriptor()));
+  EXPECT_EQ(interfacesFieldClass.Get(), fh.GetType());
   EXPECT_EQ("L$Proxy1234;", std::string(fh.GetDeclaringClassDescriptor()));
-  EXPECT_FALSE(fh.IsPrimitiveType());
+  EXPECT_FALSE(fh.GetField()->IsPrimitiveType());
 
   // Test "Class[][] throws" field.
   fh.ChangeField(static_fields->Get(1));
-  EXPECT_EQ("throws", std::string(fh.GetName()));
-  EXPECT_EQ("[[Ljava/lang/Class;", std::string(fh.GetTypeDescriptor()));
-  EXPECT_EQ(throwsFieldClass, fh.GetType());
+  EXPECT_EQ("throws", std::string(fh.GetField()->GetName()));
+  EXPECT_EQ("[[Ljava/lang/Class;", std::string(fh.GetField()->GetTypeDescriptor()));
+  EXPECT_EQ(throwsFieldClass.Get(), fh.GetType());
   EXPECT_EQ("L$Proxy1234;", std::string(fh.GetDeclaringClassDescriptor()));
-  EXPECT_FALSE(fh.IsPrimitiveType());
+  EXPECT_FALSE(fh.GetField()->IsPrimitiveType());
 }
 
 }  // namespace art

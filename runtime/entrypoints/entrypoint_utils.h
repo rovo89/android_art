@@ -327,8 +327,8 @@ static inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, mirror::Ar
       ThrowIllegalAccessErrorFinalField(referrer, resolved_field);
       return nullptr;  // Failure.
     } else {
-      FieldHelper fh(resolved_field);
-      if (UNLIKELY(fh.IsPrimitiveType() != is_primitive || fh.FieldSize() != expected_size)) {
+      if (UNLIKELY(resolved_field->IsPrimitiveType() != is_primitive ||
+                   resolved_field->FieldSize() != expected_size)) {
         ThrowLocation throw_location = self->GetCurrentLocationForThrow();
         DCHECK(throw_location.GetMethod() == referrer);
         self->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
@@ -553,9 +553,8 @@ static inline mirror::ArtField* FindFieldFast(uint32_t field_idx,
     // Illegal access.
     return NULL;
   }
-  FieldHelper fh(resolved_field);
-  if (UNLIKELY(fh.IsPrimitiveType() != is_primitive ||
-               fh.FieldSize() != expected_size)) {
+  if (UNLIKELY(resolved_field->IsPrimitiveType() != is_primitive ||
+               resolved_field->FieldSize() != expected_size)) {
     return NULL;
   }
   return resolved_field;

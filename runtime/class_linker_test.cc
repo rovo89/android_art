@@ -171,11 +171,12 @@ class ClassLinkerTest : public CommonRuntimeTest {
 
   void AssertField(mirror::Class* klass, mirror::ArtField* field)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    FieldHelper fh(field);
     EXPECT_TRUE(field != NULL);
     EXPECT_TRUE(field->GetClass() != NULL);
     EXPECT_EQ(klass, field->GetDeclaringClass());
-    EXPECT_TRUE(fh.GetName() != NULL);
+    EXPECT_TRUE(field->GetName() != NULL);
+    StackHandleScope<1> hs(Thread::Current());
+    FieldHelper fh(hs.NewHandle(field));
     EXPECT_TRUE(fh.GetType() != NULL);
   }
 
@@ -269,11 +270,12 @@ class ClassLinkerTest : public CommonRuntimeTest {
 
     // Confirm that all instances fields are packed together at the start
     EXPECT_GE(klass->NumInstanceFields(), klass->NumReferenceInstanceFields());
-    FieldHelper fh;
+    StackHandleScope<1> hs(Thread::Current());
+    FieldHelper fh(hs.NewHandle<mirror::ArtField>(nullptr));
     for (size_t i = 0; i < klass->NumReferenceInstanceFields(); i++) {
       mirror::ArtField* field = klass->GetInstanceField(i);
       fh.ChangeField(field);
-      ASSERT_TRUE(!fh.IsPrimitiveType());
+      ASSERT_TRUE(!field->IsPrimitiveType());
       mirror::Class* field_type = fh.GetType();
       ASSERT_TRUE(field_type != NULL);
       ASSERT_TRUE(!field_type->IsPrimitive());
@@ -283,10 +285,10 @@ class ClassLinkerTest : public CommonRuntimeTest {
       fh.ChangeField(field);
       mirror::Class* field_type = fh.GetType();
       ASSERT_TRUE(field_type != NULL);
-      if (!fh.IsPrimitiveType() || !field_type->IsPrimitive()) {
+      if (!fh.GetField()->IsPrimitiveType() || !field_type->IsPrimitive()) {
         // While Reference.referent is not primitive, the ClassLinker
         // treats it as such so that the garbage collector won't scan it.
-        EXPECT_EQ(PrettyField(field), "java.lang.Object java.lang.ref.Reference.referent");
+        EXPECT_EQ(PrettyField(fh.GetField()), "java.lang.Object java.lang.ref.Reference.referent");
       }
     }
 
@@ -390,11 +392,9 @@ struct CheckOffsets {
       error = true;
     }
 
-    FieldHelper fh;
     for (size_t i = 0; i < offsets.size(); i++) {
       mirror::ArtField* field = is_static ? klass->GetStaticField(i) : klass->GetInstanceField(i);
-      fh.ChangeField(field);
-      StringPiece field_name(fh.GetName());
+      StringPiece field_name(field->GetName());
       if (field_name != offsets[i].java_name) {
         error = true;
       }
@@ -403,8 +403,7 @@ struct CheckOffsets {
       for (size_t i = 0; i < offsets.size(); i++) {
         CheckOffset& offset = offsets[i];
         mirror::ArtField* field = is_static ? klass->GetStaticField(i) : klass->GetInstanceField(i);
-        fh.ChangeField(field);
-        StringPiece field_name(fh.GetName());
+        StringPiece field_name(field->GetName());
         if (field_name != offsets[i].java_name) {
           LOG(ERROR) << "JAVA FIELD ORDER MISMATCH NEXT LINE:";
         }
@@ -731,15 +730,11 @@ TEST_F(ClassLinkerTest, FindClass) {
   } else {
     EXPECT_EQ(4U, JavaLangObject->NumInstanceFields());
   }
-  FieldHelper fh(JavaLangObject->GetInstanceField(0));
-  EXPECT_STREQ(fh.GetName(), "shadow$_klass_");
-  fh.ChangeField(JavaLangObject->GetInstanceField(1));
-  EXPECT_STREQ(fh.GetName(), "shadow$_monitor_");
+  EXPECT_STREQ(JavaLangObject->GetInstanceField(0)->GetName(), "shadow$_klass_");
+  EXPECT_STREQ(JavaLangObject->GetInstanceField(1)->GetName(), "shadow$_monitor_");
   if (kUseBakerOrBrooksReadBarrier) {
-    fh.ChangeField(JavaLangObject->GetInstanceField(2));
-    EXPECT_STREQ(fh.GetName(), "shadow$_x_rb_ptr_");
-    fh.ChangeField(JavaLangObject->GetInstanceField(3));
-    EXPECT_STREQ(fh.GetName(), "shadow$_x_xpadding_");
+    EXPECT_STREQ(JavaLangObject->GetInstanceField(2)->GetName(), "shadow$_x_rb_ptr_");
+    EXPECT_STREQ(JavaLangObject->GetInstanceField(3)->GetName(), "shadow$_x_xpadding_");
   }
 
   EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
@@ -850,29 +845,21 @@ TEST_F(ClassLinkerTest, ValidateBoxedTypes) {
   NullHandle<mirror::ClassLoader> class_loader;
   mirror::Class* c;
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Boolean;", class_loader);
-  FieldHelper fh(c->GetIFields()->Get(0));
-  EXPECT_STREQ("value", fh.GetName());
+  EXPECT_STREQ("value", c->GetIFields()->Get(0)->GetName());
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Byte;", class_loader);
-  fh.ChangeField(c->GetIFields()->Get(0));
-  EXPECT_STREQ("value", fh.GetName());
+  EXPECT_STREQ("value", c->GetIFields()->Get(0)->GetName());
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Character;", class_loader);
-  fh.ChangeField(c->GetIFields()->Get(0));
-  EXPECT_STREQ("value", fh.GetName());
+  EXPECT_STREQ("value", c->GetIFields()->Get(0)->GetName());
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Double;", class_loader);
-  fh.ChangeField(c->GetIFields()->Get(0));
-  EXPECT_STREQ("value", fh.GetName());
+  EXPECT_STREQ("value", c->GetIFields()->Get(0)->GetName());
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Float;", class_loader);
-  fh.ChangeField(c->GetIFields()->Get(0));
-  EXPECT_STREQ("value", fh.GetName());
+  EXPECT_STREQ("value", c->GetIFields()->Get(0)->GetName());
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Integer;", class_loader);
-  fh.ChangeField(c->GetIFields()->Get(0));
-  EXPECT_STREQ("value", fh.GetName());
+  EXPECT_STREQ("value", c->GetIFields()->Get(0)->GetName());
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Long;", class_loader);
-  fh.ChangeField(c->GetIFields()->Get(0));
-  EXPECT_STREQ("value", fh.GetName());
+  EXPECT_STREQ("value", c->GetIFields()->Get(0)->GetName());
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Short;", class_loader);
-  fh.ChangeField(c->GetIFields()->Get(0));
-  EXPECT_STREQ("value", fh.GetName());
+  EXPECT_STREQ("value", c->GetIFields()->Get(0)->GetName());
 }
 
 TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
@@ -907,58 +894,49 @@ TEST_F(ClassLinkerTest, StaticFields) {
   EXPECT_EQ(9U, statics->NumStaticFields());
 
   mirror::ArtField* s0 = mirror::Class::FindStaticField(soa.Self(), statics, "s0", "Z");
-  FieldHelper fh(s0);
   EXPECT_STREQ(s0->GetClass()->GetDescriptor().c_str(), "Ljava/lang/reflect/ArtField;");
-  EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimBoolean);
+  EXPECT_EQ(s0->GetTypeAsPrimitiveType(), Primitive::kPrimBoolean);
   EXPECT_EQ(true, s0->GetBoolean(statics.Get()));
   s0->SetBoolean<false>(statics.Get(), false);
 
   mirror::ArtField* s1 = mirror::Class::FindStaticField(soa.Self(), statics, "s1", "B");
-  fh.ChangeField(s1);
-  EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimByte);
+  EXPECT_EQ(s1->GetTypeAsPrimitiveType(), Primitive::kPrimByte);
   EXPECT_EQ(5, s1->GetByte(statics.Get()));
   s1->SetByte<false>(statics.Get(), 6);
 
   mirror::ArtField* s2 = mirror::Class::FindStaticField(soa.Self(), statics, "s2", "C");
-  fh.ChangeField(s2);
-  EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimChar);
+  EXPECT_EQ(s2->GetTypeAsPrimitiveType(), Primitive::kPrimChar);
   EXPECT_EQ('a', s2->GetChar(statics.Get()));
   s2->SetChar<false>(statics.Get(), 'b');
 
   mirror::ArtField* s3 = mirror::Class::FindStaticField(soa.Self(), statics, "s3", "S");
-  fh.ChangeField(s3);
-  EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimShort);
+  EXPECT_EQ(s3->GetTypeAsPrimitiveType(), Primitive::kPrimShort);
   EXPECT_EQ(-536, s3->GetShort(statics.Get()));
   s3->SetShort<false>(statics.Get(), -535);
 
   mirror::ArtField* s4 = mirror::Class::FindStaticField(soa.Self(), statics, "s4", "I");
-  fh.ChangeField(s4);
-  EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimInt);
+  EXPECT_EQ(s4->GetTypeAsPrimitiveType(), Primitive::kPrimInt);
   EXPECT_EQ(2000000000, s4->GetInt(statics.Get()));
   s4->SetInt<false>(statics.Get(), 2000000001);
 
   mirror::ArtField* s5 = mirror::Class::FindStaticField(soa.Self(), statics, "s5", "J");
-  fh.ChangeField(s5);
-  EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimLong);
+  EXPECT_EQ(s5->GetTypeAsPrimitiveType(), Primitive::kPrimLong);
   EXPECT_EQ(0x1234567890abcdefLL, s5->GetLong(statics.Get()));
   s5->SetLong<false>(statics.Get(), INT64_C(0x34567890abcdef12));
 
   mirror::ArtField* s6 = mirror::Class::FindStaticField(soa.Self(), statics, "s6", "F");
-  fh.ChangeField(s6);
-  EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimFloat);
+  EXPECT_EQ(s6->GetTypeAsPrimitiveType(), Primitive::kPrimFloat);
   EXPECT_EQ(0.5, s6->GetFloat(statics.Get()));
   s6->SetFloat<false>(statics.Get(), 0.75);
 
   mirror::ArtField* s7 = mirror::Class::FindStaticField(soa.Self(), statics, "s7", "D");
-  fh.ChangeField(s7);
-  EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimDouble);
+  EXPECT_EQ(s7->GetTypeAsPrimitiveType(), Primitive::kPrimDouble);
   EXPECT_EQ(16777217, s7->GetDouble(statics.Get()));
   s7->SetDouble<false>(statics.Get(), 16777219);
 
   mirror::ArtField* s8 = mirror::Class::FindStaticField(soa.Self(), statics, "s8",
                                                         "Ljava/lang/String;");
-  fh.ChangeField(s8);
-  EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimNot);
+  EXPECT_EQ(s8->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
   EXPECT_TRUE(s8->GetObject(statics.Get())->AsString()->Equals("android"));
   s8->SetObject<false>(s8->GetDeclaringClass(),
                        mirror::String::AllocFromModifiedUtf8(soa.Self(), "robot"));

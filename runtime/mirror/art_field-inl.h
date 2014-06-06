@@ -116,60 +116,52 @@ inline void ArtField::SetObj(Object* object, Object* new_value) {
 }
 
 inline bool ArtField::GetBoolean(Object* object) {
-  DCHECK_EQ(Primitive::kPrimBoolean, FieldHelper(this).GetTypeAsPrimitiveType())
-      << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimBoolean, GetTypeAsPrimitiveType()) << PrettyField(this);
   return Get32(object);
 }
 
 template<bool kTransactionActive>
 inline void ArtField::SetBoolean(Object* object, bool z) {
-  DCHECK_EQ(Primitive::kPrimBoolean, FieldHelper(this).GetTypeAsPrimitiveType())
-      << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimBoolean, GetTypeAsPrimitiveType()) << PrettyField(this);
   Set32<kTransactionActive>(object, z);
 }
 
 inline int8_t ArtField::GetByte(Object* object) {
-  DCHECK_EQ(Primitive::kPrimByte, FieldHelper(this).GetTypeAsPrimitiveType())
-      << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimByte, GetTypeAsPrimitiveType()) << PrettyField(this);
   return Get32(object);
 }
 
 template<bool kTransactionActive>
 inline void ArtField::SetByte(Object* object, int8_t b) {
-  DCHECK_EQ(Primitive::kPrimByte, FieldHelper(this).GetTypeAsPrimitiveType())
-      << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimByte, GetTypeAsPrimitiveType()) << PrettyField(this);
   Set32<kTransactionActive>(object, b);
 }
 
 inline uint16_t ArtField::GetChar(Object* object) {
-  DCHECK_EQ(Primitive::kPrimChar, FieldHelper(this).GetTypeAsPrimitiveType())
-      << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimChar, GetTypeAsPrimitiveType()) << PrettyField(this);
   return Get32(object);
 }
 
 template<bool kTransactionActive>
 inline void ArtField::SetChar(Object* object, uint16_t c) {
-  DCHECK_EQ(Primitive::kPrimChar, FieldHelper(this).GetTypeAsPrimitiveType())
-       << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimChar, GetTypeAsPrimitiveType()) << PrettyField(this);
   Set32<kTransactionActive>(object, c);
 }
 
 inline int16_t ArtField::GetShort(Object* object) {
-  DCHECK_EQ(Primitive::kPrimShort, FieldHelper(this).GetTypeAsPrimitiveType())
-       << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimShort, GetTypeAsPrimitiveType()) << PrettyField(this);
   return Get32(object);
 }
 
 template<bool kTransactionActive>
 inline void ArtField::SetShort(Object* object, int16_t s) {
-  DCHECK_EQ(Primitive::kPrimShort, FieldHelper(this).GetTypeAsPrimitiveType())
-       << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimShort, GetTypeAsPrimitiveType()) << PrettyField(this);
   Set32<kTransactionActive>(object, s);
 }
 
 inline int32_t ArtField::GetInt(Object* object) {
   if (kIsDebugBuild) {
-    Primitive::Type type = FieldHelper(this).GetTypeAsPrimitiveType();
+    Primitive::Type type = GetTypeAsPrimitiveType();
     CHECK(type == Primitive::kPrimInt || type == Primitive::kPrimFloat) << PrettyField(this);
   }
   return Get32(object);
@@ -178,7 +170,7 @@ inline int32_t ArtField::GetInt(Object* object) {
 template<bool kTransactionActive>
 inline void ArtField::SetInt(Object* object, int32_t i) {
   if (kIsDebugBuild) {
-    Primitive::Type type = FieldHelper(this).GetTypeAsPrimitiveType();
+    Primitive::Type type = GetTypeAsPrimitiveType();
     CHECK(type == Primitive::kPrimInt || type == Primitive::kPrimFloat) << PrettyField(this);
   }
   Set32<kTransactionActive>(object, i);
@@ -186,7 +178,7 @@ inline void ArtField::SetInt(Object* object, int32_t i) {
 
 inline int64_t ArtField::GetLong(Object* object) {
   if (kIsDebugBuild) {
-    Primitive::Type type = FieldHelper(this).GetTypeAsPrimitiveType();
+    Primitive::Type type = GetTypeAsPrimitiveType();
     CHECK(type == Primitive::kPrimLong || type == Primitive::kPrimDouble) << PrettyField(this);
   }
   return Get64(object);
@@ -195,15 +187,14 @@ inline int64_t ArtField::GetLong(Object* object) {
 template<bool kTransactionActive>
 inline void ArtField::SetLong(Object* object, int64_t j) {
   if (kIsDebugBuild) {
-    Primitive::Type type = FieldHelper(this).GetTypeAsPrimitiveType();
+    Primitive::Type type = GetTypeAsPrimitiveType();
     CHECK(type == Primitive::kPrimLong || type == Primitive::kPrimDouble) << PrettyField(this);
   }
   Set64<kTransactionActive>(object, j);
 }
 
 inline float ArtField::GetFloat(Object* object) {
-  DCHECK_EQ(Primitive::kPrimFloat, FieldHelper(this).GetTypeAsPrimitiveType())
-       << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimFloat, GetTypeAsPrimitiveType()) << PrettyField(this);
   JValue bits;
   bits.SetI(Get32(object));
   return bits.GetF();
@@ -211,16 +202,14 @@ inline float ArtField::GetFloat(Object* object) {
 
 template<bool kTransactionActive>
 inline void ArtField::SetFloat(Object* object, float f) {
-  DCHECK_EQ(Primitive::kPrimFloat, FieldHelper(this).GetTypeAsPrimitiveType())
-       << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimFloat, GetTypeAsPrimitiveType()) << PrettyField(this);
   JValue bits;
   bits.SetF(f);
   Set32<kTransactionActive>(object, bits.GetI());
 }
 
 inline double ArtField::GetDouble(Object* object) {
-  DCHECK_EQ(Primitive::kPrimDouble, FieldHelper(this).GetTypeAsPrimitiveType())
-       << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimDouble, GetTypeAsPrimitiveType()) << PrettyField(this);
   JValue bits;
   bits.SetJ(Get64(object));
   return bits.GetD();
@@ -228,24 +217,66 @@ inline double ArtField::GetDouble(Object* object) {
 
 template<bool kTransactionActive>
 inline void ArtField::SetDouble(Object* object, double d) {
-  DCHECK_EQ(Primitive::kPrimDouble, FieldHelper(this).GetTypeAsPrimitiveType())
-       << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimDouble, GetTypeAsPrimitiveType()) << PrettyField(this);
   JValue bits;
   bits.SetD(d);
   Set64<kTransactionActive>(object, bits.GetJ());
 }
 
 inline Object* ArtField::GetObject(Object* object) {
-  DCHECK_EQ(Primitive::kPrimNot, FieldHelper(this).GetTypeAsPrimitiveType())
-       << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimNot, GetTypeAsPrimitiveType()) << PrettyField(this);
   return GetObj(object);
 }
 
 template<bool kTransactionActive>
 inline void ArtField::SetObject(Object* object, Object* l) {
-  DCHECK_EQ(Primitive::kPrimNot, FieldHelper(this).GetTypeAsPrimitiveType())
-       << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimNot, GetTypeAsPrimitiveType()) << PrettyField(this);
   SetObj<kTransactionActive>(object, l);
+}
+
+inline const char* ArtField::GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  uint32_t field_index = GetDexFieldIndex();
+  if (UNLIKELY(GetDeclaringClass()->IsProxyClass())) {
+    DCHECK(IsStatic());
+    DCHECK_LT(field_index, 2U);
+    return field_index == 0 ? "interfaces" : "throws";
+  }
+  const DexFile* dex_file = GetDexFile();
+  return dex_file->GetFieldName(dex_file->GetFieldId(field_index));
+}
+
+inline const char* ArtField::GetTypeDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  uint32_t field_index = GetDexFieldIndex();
+  if (UNLIKELY(GetDeclaringClass()->IsProxyClass())) {
+    DCHECK(IsStatic());
+    DCHECK_LT(field_index, 2U);
+    // 0 == Class[] interfaces; 1 == Class[][] throws;
+    return field_index == 0 ? "[Ljava/lang/Class;" : "[[Ljava/lang/Class;";
+  }
+  const DexFile* dex_file = GetDexFile();
+  const DexFile::FieldId& field_id = dex_file->GetFieldId(field_index);
+  return dex_file->GetFieldTypeDescriptor(field_id);
+}
+
+inline Primitive::Type ArtField::GetTypeAsPrimitiveType()
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return Primitive::GetType(GetTypeDescriptor()[0]);
+}
+
+inline bool ArtField::IsPrimitiveType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return GetTypeAsPrimitiveType() != Primitive::kPrimNot;
+}
+
+inline size_t ArtField::FieldSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return Primitive::FieldSize(GetTypeAsPrimitiveType());
+}
+
+inline mirror::DexCache* ArtField::GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return GetDeclaringClass()->GetDexCache();
+}
+
+inline const DexFile* ArtField::GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return GetDexCache()->GetDexFile();
 }
 
 }  // namespace mirror

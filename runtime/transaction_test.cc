@@ -115,48 +115,48 @@ TEST_F(TransactionTest, StaticFieldsTest) {
   // Lookup fields.
   mirror::ArtField* booleanField = h_klass->FindDeclaredStaticField("booleanField", "Z");
   ASSERT_TRUE(booleanField != nullptr);
-  ASSERT_EQ(FieldHelper(booleanField).GetTypeAsPrimitiveType(), Primitive::kPrimBoolean);
+  ASSERT_EQ(booleanField->GetTypeAsPrimitiveType(), Primitive::kPrimBoolean);
   ASSERT_EQ(booleanField->GetBoolean(h_klass.Get()), false);
 
   mirror::ArtField* byteField = h_klass->FindDeclaredStaticField("byteField", "B");
   ASSERT_TRUE(byteField != nullptr);
-  ASSERT_EQ(FieldHelper(byteField).GetTypeAsPrimitiveType(), Primitive::kPrimByte);
+  ASSERT_EQ(byteField->GetTypeAsPrimitiveType(), Primitive::kPrimByte);
   ASSERT_EQ(byteField->GetByte(h_klass.Get()), 0);
 
   mirror::ArtField* charField = h_klass->FindDeclaredStaticField("charField", "C");
   ASSERT_TRUE(charField != nullptr);
-  ASSERT_EQ(FieldHelper(charField).GetTypeAsPrimitiveType(), Primitive::kPrimChar);
+  ASSERT_EQ(charField->GetTypeAsPrimitiveType(), Primitive::kPrimChar);
   ASSERT_EQ(charField->GetChar(h_klass.Get()), 0u);
 
   mirror::ArtField* shortField = h_klass->FindDeclaredStaticField("shortField", "S");
   ASSERT_TRUE(shortField != nullptr);
-  ASSERT_EQ(FieldHelper(shortField).GetTypeAsPrimitiveType(), Primitive::kPrimShort);
+  ASSERT_EQ(shortField->GetTypeAsPrimitiveType(), Primitive::kPrimShort);
   ASSERT_EQ(shortField->GetShort(h_klass.Get()), 0);
 
   mirror::ArtField* intField = h_klass->FindDeclaredStaticField("intField", "I");
   ASSERT_TRUE(intField != nullptr);
-  ASSERT_EQ(FieldHelper(intField).GetTypeAsPrimitiveType(), Primitive::kPrimInt);
+  ASSERT_EQ(intField->GetTypeAsPrimitiveType(), Primitive::kPrimInt);
   ASSERT_EQ(intField->GetInt(h_klass.Get()), 0);
 
   mirror::ArtField* longField = h_klass->FindDeclaredStaticField("longField", "J");
   ASSERT_TRUE(longField != nullptr);
-  ASSERT_EQ(FieldHelper(longField).GetTypeAsPrimitiveType(), Primitive::kPrimLong);
+  ASSERT_EQ(longField->GetTypeAsPrimitiveType(), Primitive::kPrimLong);
   ASSERT_EQ(longField->GetLong(h_klass.Get()), static_cast<int64_t>(0));
 
   mirror::ArtField* floatField = h_klass->FindDeclaredStaticField("floatField", "F");
   ASSERT_TRUE(floatField != nullptr);
-  ASSERT_EQ(FieldHelper(floatField).GetTypeAsPrimitiveType(), Primitive::kPrimFloat);
+  ASSERT_EQ(floatField->GetTypeAsPrimitiveType(), Primitive::kPrimFloat);
   ASSERT_EQ(floatField->GetFloat(h_klass.Get()), static_cast<float>(0.0f));
 
   mirror::ArtField* doubleField = h_klass->FindDeclaredStaticField("doubleField", "D");
   ASSERT_TRUE(doubleField != nullptr);
-  ASSERT_EQ(FieldHelper(doubleField).GetTypeAsPrimitiveType(), Primitive::kPrimDouble);
+  ASSERT_EQ(doubleField->GetTypeAsPrimitiveType(), Primitive::kPrimDouble);
   ASSERT_EQ(doubleField->GetDouble(h_klass.Get()), static_cast<double>(0.0));
 
   mirror::ArtField* objectField = h_klass->FindDeclaredStaticField("objectField",
                                                                       "Ljava/lang/Object;");
   ASSERT_TRUE(objectField != nullptr);
-  ASSERT_EQ(FieldHelper(objectField).GetTypeAsPrimitiveType(), Primitive::kPrimNot);
+  ASSERT_EQ(objectField->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
   ASSERT_EQ(objectField->GetObject(h_klass.Get()), nullptr);
 
   // Create a java.lang.Object instance to set objectField.
@@ -214,48 +214,48 @@ TEST_F(TransactionTest, InstanceFieldsTest) {
   // Lookup fields.
   mirror::ArtField* booleanField = h_klass->FindDeclaredInstanceField("booleanField", "Z");
   ASSERT_TRUE(booleanField != nullptr);
-  ASSERT_EQ(FieldHelper(booleanField).GetTypeAsPrimitiveType(), Primitive::kPrimBoolean);
+  ASSERT_EQ(booleanField->GetTypeAsPrimitiveType(), Primitive::kPrimBoolean);
   ASSERT_EQ(booleanField->GetBoolean(h_instance.Get()), false);
 
   mirror::ArtField* byteField = h_klass->FindDeclaredInstanceField("byteField", "B");
   ASSERT_TRUE(byteField != nullptr);
-  ASSERT_EQ(FieldHelper(byteField).GetTypeAsPrimitiveType(), Primitive::kPrimByte);
+  ASSERT_EQ(byteField->GetTypeAsPrimitiveType(), Primitive::kPrimByte);
   ASSERT_EQ(byteField->GetByte(h_instance.Get()), 0);
 
   mirror::ArtField* charField = h_klass->FindDeclaredInstanceField("charField", "C");
   ASSERT_TRUE(charField != nullptr);
-  ASSERT_EQ(FieldHelper(charField).GetTypeAsPrimitiveType(), Primitive::kPrimChar);
+  ASSERT_EQ(charField->GetTypeAsPrimitiveType(), Primitive::kPrimChar);
   ASSERT_EQ(charField->GetChar(h_instance.Get()), 0u);
 
   mirror::ArtField* shortField = h_klass->FindDeclaredInstanceField("shortField", "S");
   ASSERT_TRUE(shortField != nullptr);
-  ASSERT_EQ(FieldHelper(shortField).GetTypeAsPrimitiveType(), Primitive::kPrimShort);
+  ASSERT_EQ(shortField->GetTypeAsPrimitiveType(), Primitive::kPrimShort);
   ASSERT_EQ(shortField->GetShort(h_instance.Get()), 0);
 
   mirror::ArtField* intField = h_klass->FindDeclaredInstanceField("intField", "I");
   ASSERT_TRUE(intField != nullptr);
-  ASSERT_EQ(FieldHelper(intField).GetTypeAsPrimitiveType(), Primitive::kPrimInt);
+  ASSERT_EQ(intField->GetTypeAsPrimitiveType(), Primitive::kPrimInt);
   ASSERT_EQ(intField->GetInt(h_instance.Get()), 0);
 
   mirror::ArtField* longField = h_klass->FindDeclaredInstanceField("longField", "J");
   ASSERT_TRUE(longField != nullptr);
-  ASSERT_EQ(FieldHelper(longField).GetTypeAsPrimitiveType(), Primitive::kPrimLong);
+  ASSERT_EQ(longField->GetTypeAsPrimitiveType(), Primitive::kPrimLong);
   ASSERT_EQ(longField->GetLong(h_instance.Get()), static_cast<int64_t>(0));
 
   mirror::ArtField* floatField = h_klass->FindDeclaredInstanceField("floatField", "F");
   ASSERT_TRUE(floatField != nullptr);
-  ASSERT_EQ(FieldHelper(floatField).GetTypeAsPrimitiveType(), Primitive::kPrimFloat);
+  ASSERT_EQ(floatField->GetTypeAsPrimitiveType(), Primitive::kPrimFloat);
   ASSERT_EQ(floatField->GetFloat(h_instance.Get()), static_cast<float>(0.0f));
 
   mirror::ArtField* doubleField = h_klass->FindDeclaredInstanceField("doubleField", "D");
   ASSERT_TRUE(doubleField != nullptr);
-  ASSERT_EQ(FieldHelper(doubleField).GetTypeAsPrimitiveType(), Primitive::kPrimDouble);
+  ASSERT_EQ(doubleField->GetTypeAsPrimitiveType(), Primitive::kPrimDouble);
   ASSERT_EQ(doubleField->GetDouble(h_instance.Get()), static_cast<double>(0.0));
 
   mirror::ArtField* objectField = h_klass->FindDeclaredInstanceField("objectField",
                                                                         "Ljava/lang/Object;");
   ASSERT_TRUE(objectField != nullptr);
-  ASSERT_EQ(FieldHelper(objectField).GetTypeAsPrimitiveType(), Primitive::kPrimNot);
+  ASSERT_EQ(objectField->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
   ASSERT_EQ(objectField->GetObject(h_instance.Get()), nullptr);
 
   // Create a java.lang.Object instance to set objectField.
