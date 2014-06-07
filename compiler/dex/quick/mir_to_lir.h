@@ -1313,7 +1313,7 @@ class Mir2Lir : public Backend {
 
     virtual void GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) = 0;
     virtual void GenExitSequence() = 0;
-    virtual void GenFillArrayData(DexOffset table_offset, RegLocation rl_src) = 0;
+    virtual void GenFillArrayData(MIR* mir, DexOffset table_offset, RegLocation rl_src) = 0;
     virtual void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double) = 0;
     virtual void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) = 0;
 
