@@ -51,7 +51,7 @@ enum TypeCategory {
 class RegisterLine {
  public:
   static RegisterLine* Create(size_t num_regs, MethodVerifier* verifier) {
-    uint8_t* memory = new uint8_t[sizeof(RegisterLine) + (num_regs * sizeof(uint16_t))];
+    void* memory = operator new(sizeof(RegisterLine) + (num_regs * sizeof(uint16_t)));
     RegisterLine* rl = new (memory) RegisterLine(num_regs, verifier);
     return rl;
   }
