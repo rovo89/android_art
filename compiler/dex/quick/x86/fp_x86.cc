@@ -272,21 +272,67 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
       return;
     }
     case Instruction::LONG_TO_DOUBLE:
+      if (Gen64Bit()) {
+        rcSrc = kCoreReg;
+        op = kX86Cvtsqi2sdRR;
+        break;
+      }
       GenLongToFP(rl_dest, rl_src, true /* is_double */);
       return;
     case Instruction::LONG_TO_FLOAT:
+      if (Gen64Bit()) {
+        rcSrc = kCoreReg;
+        op = kX86Cvtsqi2ssRR;
+       break;
+      }
       GenLongToFP(rl_dest, rl_src, false /* is_double */);
       return;
     case Instruction::FLOAT_TO_LONG:
-      if (Is64BitInstructionSet(cu_->instruction_set)) {
-        GenConversionCall(QUICK_ENTRYPOINT_OFFSET(8, pF2l), rl_dest, rl_src);
+      if (Gen64Bit()) {
+        rl_src = LoadValue(rl_src, kFPReg);
+        // If result vreg is also src vreg, break association to avoid useless copy by EvalLoc()
+        ClobberSReg(rl_dest.s_reg_low);
+        rl_result = EvalLoc(rl_dest, kCoreReg, true);
+        RegStorage temp_reg = AllocTempSingle();
+
+        // Set 0x7fffffffffffffff to rl_result
+        LoadConstantWide(rl_result.reg, 0x7fffffffffffffff);
+        NewLIR2(kX86Cvtsqi2ssRR, temp_reg.GetReg(), rl_result.reg.GetReg());
+        NewLIR2(kX86ComissRR, rl_src.reg.GetReg(), temp_reg.GetReg());
+        LIR* branch_pos_overflow = NewLIR2(kX86Jcc8, 0, kX86CondA);
+        LIR* branch_na_n = NewLIR2(kX86Jcc8, 0, kX86CondP);
+        NewLIR2(kX86Cvttss2sqiRR, rl_result.reg.GetReg(), rl_src.reg.GetReg());
+        LIR* branch_normal = NewLIR1(kX86Jmp8, 0);
+        branch_na_n->target = NewLIR0(kPseudoTargetLabel);
+        NewLIR2(kX86Xor64RR, rl_result.reg.GetReg(), rl_result.reg.GetReg());
+        branch_pos_overflow->target = NewLIR0(kPseudoTargetLabel);
+        branch_normal->target = NewLIR0(kPseudoTargetLabel);
+        StoreValueWide(rl_dest, rl_result);
       } else {
         GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pF2l), rl_dest, rl_src);
       }
       return;
     case Instruction::DOUBLE_TO_LONG:
-      if (Is64BitInstructionSet(cu_->instruction_set)) {
-        GenConversionCall(QUICK_ENTRYPOINT_OFFSET(8, pD2l), rl_dest, rl_src);
+      if (Gen64Bit()) {
+        rl_src = LoadValueWide(rl_src, kFPReg);
+        // If result vreg is also src vreg, break association to avoid useless copy by EvalLoc()
+        ClobberSReg(rl_dest.s_reg_low);
+        rl_result = EvalLoc(rl_dest, kCoreReg, true);
+        RegStorage temp_reg = AllocTempDouble();
+
+        // Set 0x7fffffffffffffff to rl_result
+        LoadConstantWide(rl_result.reg, 0x7fffffffffffffff);
+        NewLIR2(kX86Cvtsqi2sdRR, temp_reg.GetReg(), rl_result.reg.GetReg());
+        NewLIR2(kX86ComisdRR, rl_src.reg.GetReg(), temp_reg.GetReg());
+        LIR* branch_pos_overflow = NewLIR2(kX86Jcc8, 0, kX86CondA);
+        LIR* branch_na_n = NewLIR2(kX86Jcc8, 0, kX86CondP);
+        NewLIR2(kX86Cvttsd2sqiRR, rl_result.reg.GetReg(), rl_src.reg.GetReg());
+        LIR* branch_normal = NewLIR1(kX86Jmp8, 0);
+        branch_na_n->target = NewLIR0(kPseudoTargetLabel);
+        NewLIR2(kX86Xor64RR, rl_result.reg.GetReg(), rl_result.reg.GetReg());
+        branch_pos_overflow->target = NewLIR0(kPseudoTargetLabel);
+        branch_normal->target = NewLIR0(kPseudoTargetLabel);
+        StoreValueWide(rl_dest, rl_result);
       } else {
         GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pD2l), rl_dest, rl_src);
       }
@@ -434,9 +480,14 @@ void X86Mir2Lir::GenNegFloat(RegLocation rl_dest, RegLocation rl_src) {
 void X86Mir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result;
   rl_src = LoadValueWide(rl_src, kCoreReg);
-  rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  OpRegRegImm(kOpAdd, rl_result.reg.GetHigh(), rl_src.reg.GetHigh(), 0x80000000);
-  OpRegCopy(rl_result.reg, rl_src.reg);
+  rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+  if (Gen64Bit()) {
+    LoadConstantWide(rl_result.reg, 0x8000000000000000);
+    OpRegReg(kOpAdd, rl_result.reg, rl_src.reg);
+  } else {
+    OpRegRegImm(kOpAdd, rl_result.reg.GetHigh(), rl_src.reg.GetHigh(), 0x80000000);
+    OpRegCopy(rl_result.reg, rl_src.reg);
+  }
   StoreValueWide(rl_dest, rl_result);
 }
 

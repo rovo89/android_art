@@ -186,22 +186,25 @@ class X86Mir2Lir : public Mir2Lir {
     void GenNegFloat(RegLocation rl_dest, RegLocation rl_src);
     void GenPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
     void GenSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
+    void GenIntToLong(RegLocation rl_dest, RegLocation rl_src);
 
     /*
      * @brief Generate a two address long operation with a constant value
      * @param rl_dest location of result
      * @param rl_src constant source operand
      * @param op Opcode to be generated
+     * @return success or not
      */
-    void GenLongImm(RegLocation rl_dest, RegLocation rl_src, Instruction::Code op);
+    bool GenLongImm(RegLocation rl_dest, RegLocation rl_src, Instruction::Code op);
     /*
      * @brief Generate a three address long operation with a constant value
      * @param rl_dest location of result
      * @param rl_src1 source operand
      * @param rl_src2 constant source operand
      * @param op Opcode to be generated
+     * @return success or not
      */
-    void GenLongLongImm(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
+    bool GenLongLongImm(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
                         Instruction::Code op);
 
     /**
@@ -256,6 +259,9 @@ class X86Mir2Lir : public Mir2Lir {
                                     bool type_known_abstract, bool use_declaring_class,
                                     bool can_assume_type_is_in_dex_cache,
                                     uint32_t type_idx, RegLocation rl_dest, RegLocation rl_src);
+
+    void GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
+                        RegLocation rl_src1, RegLocation rl_shift);
 
     // Single operation generators.
     LIR* OpUnconditionalBranch(LIR* target);

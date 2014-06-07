@@ -178,7 +178,7 @@ RegLocation X86Mir2Lir::LocCReturnRef() {
 }
 
 RegLocation X86Mir2Lir::LocCReturnWide() {
-  return x86_loc_c_return_wide;
+  return Gen64Bit() ? x86_64_loc_c_return_wide : x86_loc_c_return_wide;
 }
 
 RegLocation X86Mir2Lir::LocCReturnFloat() {
