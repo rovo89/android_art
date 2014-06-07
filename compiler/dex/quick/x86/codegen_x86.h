@@ -20,9 +20,43 @@
 #include "dex/compiler_internals.h"
 #include "x86_lir.h"
 
+#include <map>
+
 namespace art {
 
 class X86Mir2Lir : public Mir2Lir {
+  protected:
+    class InToRegStorageMapper {
+      public:
+        virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide) = 0;
+        virtual ~InToRegStorageMapper() {}
+    };
+
+    class InToRegStorageX86_64Mapper : public InToRegStorageMapper {
+      public:
+        InToRegStorageX86_64Mapper() : cur_core_reg_(0), cur_fp_reg_(0) {}
+        virtual ~InToRegStorageX86_64Mapper() {}
+        virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide);
+      private:
+        int cur_core_reg_;
+        int cur_fp_reg_;
+    };
+
+    class InToRegStorageMapping {
+      public:
+        InToRegStorageMapping() : initialized_(false) {}
+        void Initialize(RegLocation* arg_locs, int count, InToRegStorageMapper* mapper);
+        int GetMaxMappedIn() { return max_mapped_in_; }
+        bool IsThereStackMapped() { return is_there_stack_mapped_; }
+        RegStorage Get(int in_position);
+        bool IsInitialized() { return initialized_; }
+      private:
+        std::map<int, RegStorage> mapping_;
+        int max_mapped_in_;
+        bool is_there_stack_mapped_;
+        bool initialized_;
+    };
+
   public:
     X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena, bool gen64bit);
 
@@ -56,6 +90,7 @@ class X86Mir2Lir : public Mir2Lir {
     // Required for target - register utilities.
     RegStorage TargetReg(SpecialTargetRegister reg);
     RegStorage GetArgMappingToPhysicalReg(int arg_num);
+    RegStorage GetCoreArgMappingToPhysicalReg(int core_arg_num);
     RegLocation GetReturnAlt();
     RegLocation GetReturnWideAlt();
     RegLocation LocCReturn();
@@ -305,6 +340,22 @@ class X86Mir2Lir : public Mir2Lir {
      * @note register will be passed to TargetReg to get physical register.
      */
     void LoadClassType(uint32_t type_idx, SpecialTargetRegister symbolic_reg);
+
+    void FlushIns(RegLocation* ArgLocs, RegLocation rl_method);
+
+    int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
+                             NextCallInsn next_call_insn,
+                             const MethodReference& target_method,
+                             uint32_t vtable_idx,
+                             uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
+                             bool skip_this);
+
+    int GenDalvikArgsRange(CallInfo* info, int call_state, LIR** pcrLabel,
+                           NextCallInsn next_call_insn,
+                           const MethodReference& target_method,
+                           uint32_t vtable_idx,
+                           uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
+                           bool skip_this);
 
     /*
      * @brief Generate a relative call to the method that will be patched at link time.
@@ -794,6 +845,8 @@ class X86Mir2Lir : public Mir2Lir {
      * @param mir A kMirOpConst128b MIR instruction to match.
      */
     LIR *AddVectorLiteral(MIR *mir);
+
+    InToRegStorageMapping in_to_reg_storage_mapping_;
 };
 
 }  // namespace art
