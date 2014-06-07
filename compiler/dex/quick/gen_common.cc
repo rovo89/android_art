@@ -1959,7 +1959,7 @@ static void GenArithOpLongImpl(Mir2Lir* mir_to_lir, CompilationUnit* cu, Instruc
 
   switch (opcode) {
     case Instruction::NOT_LONG:
-      if (cu->instruction_set == kArm64) {
+      if (cu->instruction_set == kArm64 || cu->instruction_set == kX86_64) {
         mir_to_lir->GenNotLong(rl_dest, rl_src2);
         return;
       }
@@ -2009,7 +2009,7 @@ static void GenArithOpLongImpl(Mir2Lir* mir_to_lir, CompilationUnit* cu, Instruc
       break;
     case Instruction::DIV_LONG:
     case Instruction::DIV_LONG_2ADDR:
-      if (cu->instruction_set == kArm64) {
+      if (cu->instruction_set == kArm64 || cu->instruction_set == kX86_64) {
         mir_to_lir->GenDivRemLong(opcode, rl_dest, rl_src1, rl_src2, /*is_div*/ true);
         return;
       }
@@ -2020,7 +2020,7 @@ static void GenArithOpLongImpl(Mir2Lir* mir_to_lir, CompilationUnit* cu, Instruc
       break;
     case Instruction::REM_LONG:
     case Instruction::REM_LONG_2ADDR:
-      if (cu->instruction_set == kArm64) {
+      if (cu->instruction_set == kArm64 || cu->instruction_set == kX86_64) {
         mir_to_lir->GenDivRemLong(opcode, rl_dest, rl_src1, rl_src2, /*is_div*/ false);
         return;
       }
