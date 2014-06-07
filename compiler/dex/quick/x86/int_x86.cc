@@ -108,7 +108,7 @@ LIR* X86Mir2Lir::OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) {
   }
   if (r_dest.IsFloat() || r_src.IsFloat())
     return OpFpRegCopy(r_dest, r_src);
-  LIR* res = RawLIR(current_dalvik_offset_, kX86Mov32RR,
+  LIR* res = RawLIR(current_dalvik_offset_, r_dest.Is64Bit() ? kX86Mov64RR : kX86Mov32RR,
                     r_dest.GetReg(), r_src.GetReg());
   if (!(cu_->disable_opt & (1 << kSafeOptimizations)) && r_dest == r_src) {
     res->flags.is_nop = true;
@@ -133,36 +133,51 @@ void X86Mir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
       } else {
         // TODO: Prevent this from happening in the code. The result is often
         // unused or could have been loaded more easily from memory.
-        NewLIR2(kX86MovdxrRR, r_dest.GetReg(), r_src.GetLowReg());
-        RegStorage r_tmp = AllocTempDouble();
-        NewLIR2(kX86MovdxrRR, r_tmp.GetReg(), r_src.GetHighReg());
-        NewLIR2(kX86PunpckldqRR, r_dest.GetReg(), r_tmp.GetReg());
-        FreeTemp(r_tmp);
+        if (!r_src.IsPair()) {
+          DCHECK(!r_dest.IsPair());
+          NewLIR2(kX86MovqxrRR, r_dest.GetReg(), r_src.GetReg());
+        } else {
+          NewLIR2(kX86MovdxrRR, r_dest.GetReg(), r_src.GetLowReg());
+          RegStorage r_tmp = AllocTempDouble();
+          NewLIR2(kX86MovdxrRR, r_tmp.GetReg(), r_src.GetHighReg());
+          NewLIR2(kX86PunpckldqRR, r_dest.GetReg(), r_tmp.GetReg());
+          FreeTemp(r_tmp);
+        }
       }
     } else {
       if (src_fp) {
-        NewLIR2(kX86MovdrxRR, r_dest.GetLowReg(), r_src.GetReg());
-        RegStorage temp_reg = AllocTempDouble();
-        NewLIR2(kX86MovsdRR, temp_reg.GetReg(), r_src.GetReg());
-        NewLIR2(kX86PsrlqRI, temp_reg.GetReg(), 32);
-        NewLIR2(kX86MovdrxRR, r_dest.GetHighReg(), temp_reg.GetReg());
-      } else {
-        DCHECK(r_dest.IsPair());
-        DCHECK(r_src.IsPair());
-        // Handle overlap
-        if (r_src.GetHighReg() == r_dest.GetLowReg() && r_src.GetLowReg() == r_dest.GetHighReg()) {
-          // Deal with cycles.
-          RegStorage temp_reg = AllocTemp();
-          OpRegCopy(temp_reg, r_dest.GetHigh());
-          OpRegCopy(r_dest.GetHigh(), r_dest.GetLow());
-          OpRegCopy(r_dest.GetLow(), temp_reg);
-          FreeTemp(temp_reg);
-        } else if (r_src.GetHighReg() == r_dest.GetLowReg()) {
-          OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
-          OpRegCopy(r_dest.GetLow(), r_src.GetLow());
+        if (!r_dest.IsPair()) {
+          DCHECK(!r_src.IsPair());
+          NewLIR2(kX86MovqrxRR, r_dest.GetReg(), r_src.GetReg());
         } else {
-          OpRegCopy(r_dest.GetLow(), r_src.GetLow());
-          OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
+          NewLIR2(kX86MovdrxRR, r_dest.GetLowReg(), r_src.GetReg());
+          RegStorage temp_reg = AllocTempDouble();
+          NewLIR2(kX86MovsdRR, temp_reg.GetReg(), r_src.GetReg());
+          NewLIR2(kX86PsrlqRI, temp_reg.GetReg(), 32);
+          NewLIR2(kX86MovdrxRR, r_dest.GetHighReg(), temp_reg.GetReg());
+        }
+      } else {
+        DCHECK_EQ(r_dest.IsPair(), r_src.IsPair());
+        if (!r_src.IsPair()) {
+          // Just copy the register directly.
+          OpRegCopy(r_dest, r_src);
+        } else {
+          // Handle overlap
+          if (r_src.GetHighReg() == r_dest.GetLowReg() &&
+              r_src.GetLowReg() == r_dest.GetHighReg()) {
+            // Deal with cycles.
+            RegStorage temp_reg = AllocTemp();
+            OpRegCopy(temp_reg, r_dest.GetHigh());
+            OpRegCopy(r_dest.GetHigh(), r_dest.GetLow());
+            OpRegCopy(r_dest.GetLow(), temp_reg);
+            FreeTemp(temp_reg);
+          } else if (r_src.GetHighReg() == r_dest.GetLowReg()) {
+            OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
+            OpRegCopy(r_dest.GetLow(), r_src.GetLow());
+          } else {
+            OpRegCopy(r_dest.GetLow(), r_src.GetLow());
+            OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
+          }
         }
       }
     }
@@ -832,7 +847,11 @@ LIR* X86Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
 
   // Address the start of the method
   RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
-  LoadValueDirectFixed(rl_method, reg);
+  if (rl_method.wide) {
+    LoadValueDirectWideFixed(rl_method, reg);
+  } else {
+    LoadValueDirectFixed(rl_method, reg);
+  }
   store_method_addr_used_ = true;
 
   // Load the proper value from the literal area.
@@ -1695,40 +1714,50 @@ X86OpCode X86Mir2Lir::GetOpcode(Instruction::Code op, RegLocation dest, RegLocat
                                 bool is_high_op) {
   bool rhs_in_mem = rhs.location != kLocPhysReg;
   bool dest_in_mem = dest.location != kLocPhysReg;
+  bool is64Bit = Gen64Bit();
   DCHECK(!rhs_in_mem || !dest_in_mem);
   switch (op) {
     case Instruction::ADD_LONG:
     case Instruction::ADD_LONG_2ADDR:
       if (dest_in_mem) {
-        return is_high_op ? kX86Adc32MR : kX86Add32MR;
+        return is64Bit ? kX86Add64MR : is_high_op ? kX86Adc32MR : kX86Add32MR;
       } else if (rhs_in_mem) {
-        return is_high_op ? kX86Adc32RM : kX86Add32RM;
+        return is64Bit ? kX86Add64RM : is_high_op ? kX86Adc32RM : kX86Add32RM;
       }
-      return is_high_op ? kX86Adc32RR : kX86Add32RR;
+      return is64Bit ? kX86Add64RR : is_high_op ? kX86Adc32RR : kX86Add32RR;
     case Instruction::SUB_LONG:
     case Instruction::SUB_LONG_2ADDR:
       if (dest_in_mem) {
-        return is_high_op ? kX86Sbb32MR : kX86Sub32MR;
+        return is64Bit ? kX86Sub64MR : is_high_op ? kX86Sbb32MR : kX86Sub32MR;
       } else if (rhs_in_mem) {
-        return is_high_op ? kX86Sbb32RM : kX86Sub32RM;
+        return is64Bit ? kX86Sub64RM : is_high_op ? kX86Sbb32RM : kX86Sub32RM;
       }
-      return is_high_op ? kX86Sbb32RR : kX86Sub32RR;
+      return is64Bit ? kX86Sub64RR : is_high_op ? kX86Sbb32RR : kX86Sub32RR;
     case Instruction::AND_LONG_2ADDR:
     case Instruction::AND_LONG:
       if (dest_in_mem) {
-        return kX86And32MR;
+        return is64Bit ? kX86And64MR : kX86And32MR;
+      }
+      if (is64Bit) {
+        return rhs_in_mem ? kX86And64RM : kX86And64RR;
       }
       return rhs_in_mem ? kX86And32RM : kX86And32RR;
     case Instruction::OR_LONG:
     case Instruction::OR_LONG_2ADDR:
       if (dest_in_mem) {
-        return kX86Or32MR;
+        return is64Bit ? kX86Or64MR : kX86Or32MR;
+      }
+      if (is64Bit) {
+        return rhs_in_mem ? kX86Or64RM : kX86Or64RR;
       }
       return rhs_in_mem ? kX86Or32RM : kX86Or32RR;
     case Instruction::XOR_LONG:
     case Instruction::XOR_LONG_2ADDR:
       if (dest_in_mem) {
-        return kX86Xor32MR;
+        return is64Bit ? kX86Xor64MR : kX86Xor32MR;
+      }
+      if (is64Bit) {
+        return rhs_in_mem ? kX86Xor64RM : kX86Xor64RR;
       }
       return rhs_in_mem ? kX86Xor32RM : kX86Xor32RR;
     default:
@@ -1740,6 +1769,7 @@ X86OpCode X86Mir2Lir::GetOpcode(Instruction::Code op, RegLocation dest, RegLocat
 X86OpCode X86Mir2Lir::GetOpcode(Instruction::Code op, RegLocation loc, bool is_high_op,
                                 int32_t value) {
   bool in_mem = loc.location != kLocPhysReg;
+  bool is64Bit = Gen64Bit();
   bool byte_imm = IS_SIMM8(value);
   DCHECK(in_mem || !loc.reg.IsFloat());
   switch (op) {
@@ -1747,42 +1777,60 @@ X86OpCode X86Mir2Lir::GetOpcode(Instruction::Code op, RegLocation loc, bool is_h
     case Instruction::ADD_LONG_2ADDR:
       if (byte_imm) {
         if (in_mem) {
-          return is_high_op ? kX86Adc32MI8 : kX86Add32MI8;
+          return is64Bit ? kX86Add64MI8 : is_high_op ? kX86Adc32MI8 : kX86Add32MI8;
         }
-        return is_high_op ? kX86Adc32RI8 : kX86Add32RI8;
+        return is64Bit ? kX86Add64RI8 : is_high_op ? kX86Adc32RI8 : kX86Add32RI8;
       }
       if (in_mem) {
-        return is_high_op ? kX86Adc32MI : kX86Add32MI;
+        return is64Bit ? kX86Add64MI : is_high_op ? kX86Adc32MI : kX86Add32MI;
       }
-      return is_high_op ? kX86Adc32RI : kX86Add32RI;
+      return is64Bit ? kX86Add64RI : is_high_op ? kX86Adc32RI : kX86Add32RI;
     case Instruction::SUB_LONG:
     case Instruction::SUB_LONG_2ADDR:
       if (byte_imm) {
         if (in_mem) {
-          return is_high_op ? kX86Sbb32MI8 : kX86Sub32MI8;
+          return is64Bit ? kX86Sub64MI8 : is_high_op ? kX86Sbb32MI8 : kX86Sub32MI8;
         }
-        return is_high_op ? kX86Sbb32RI8 : kX86Sub32RI8;
+        return is64Bit ? kX86Sub64RI8 : is_high_op ? kX86Sbb32RI8 : kX86Sub32RI8;
       }
       if (in_mem) {
-        return is_high_op ? kX86Sbb32MI : kX86Sub32MI;
+        return is64Bit ? kX86Sub64MI : is_high_op ? kX86Sbb32MI : kX86Sub32MI;
       }
-      return is_high_op ? kX86Sbb32RI : kX86Sub32RI;
+      return is64Bit ? kX86Sub64RI : is_high_op ? kX86Sbb32RI : kX86Sub32RI;
     case Instruction::AND_LONG_2ADDR:
     case Instruction::AND_LONG:
       if (byte_imm) {
+        if (is64Bit) {
+          return in_mem ? kX86And64MI8 : kX86And64RI8;
+        }
         return in_mem ? kX86And32MI8 : kX86And32RI8;
+      }
+      if (is64Bit) {
+        return in_mem ? kX86And64MI : kX86And64RI;
       }
       return in_mem ? kX86And32MI : kX86And32RI;
     case Instruction::OR_LONG:
     case Instruction::OR_LONG_2ADDR:
       if (byte_imm) {
+        if (is64Bit) {
+          return in_mem ? kX86Or64MI8 : kX86Or64RI8;
+        }
         return in_mem ? kX86Or32MI8 : kX86Or32RI8;
+      }
+      if (is64Bit) {
+        return in_mem ? kX86Or64MI : kX86Or64RI;
       }
       return in_mem ? kX86Or32MI : kX86Or32RI;
     case Instruction::XOR_LONG:
     case Instruction::XOR_LONG_2ADDR:
       if (byte_imm) {
+        if (is64Bit) {
+          return in_mem ? kX86Xor64MI8 : kX86Xor64RI8;
+        }
         return in_mem ? kX86Xor32MI8 : kX86Xor32RI8;
+      }
+      if (is64Bit) {
+        return in_mem ? kX86Xor64MI : kX86Xor64RI;
       }
       return in_mem ? kX86Xor32MI : kX86Xor32RI;
     default:
