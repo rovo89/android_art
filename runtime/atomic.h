@@ -561,8 +561,12 @@ COMPILE_ASSERT(sizeof(AtomicInteger) == sizeof(int32_t), weird_atomic_int_size);
 COMPILE_ASSERT(alignof(AtomicInteger) == alignof(int32_t),
                atomic_int_alignment_differs_from_that_of_underlying_type);
 COMPILE_ASSERT(sizeof(Atomic<int64_t>) == sizeof(int64_t), weird_atomic_int64_size);
-COMPILE_ASSERT(alignof(Atomic<int64_t>) == alignof(int64_t),
-               atomic_int64_alignment_differs_from_that_of_underlying_type);
+#if defined(__LP64__)
+  COMPILE_ASSERT(alignof(Atomic<int64_t>) == alignof(int64_t),
+                 atomic_int64_alignment_differs_from_that_of_underlying_type);
+#endif
+// The above fails on x86-32.
+// This is OK, since we explicitly arrange for alignment of 8-byte fields.
 
 
 #if !ART_HAVE_STDATOMIC
