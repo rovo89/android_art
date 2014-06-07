@@ -377,6 +377,9 @@ const RegLocation x86_loc_c_return
 const RegLocation x86_loc_c_return_wide
     {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1,
      RegStorage(RegStorage::k64BitPair, rAX, rDX), INVALID_SREG, INVALID_SREG};
+const RegLocation x86_64_loc_c_return_wide
+    {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1,
+     RegStorage(RegStorage::k64BitSolo, rAX), INVALID_SREG, INVALID_SREG};
 const RegLocation x86_loc_c_return_float
     {kLocPhysReg, 0, 0, 0, 1, 0, 0, 0, 1,
      RegStorage(RegStorage::k32BitSolo, fr0), INVALID_SREG, INVALID_SREG};
@@ -519,6 +522,7 @@ enum X86OpCode {
   UnaryOpcode(kX86Divmod,  DaR, DaM, DaA),
   UnaryOpcode(kX86Idivmod, DaR, DaM, DaA),
   kx86Cdq32Da,
+  kx86Cqo64Da,
   kX86Bswap32R,
   kX86Push32R, kX86Pop32R,
 #undef UnaryOpcode
@@ -532,8 +536,12 @@ enum X86OpCode {
   kX86MovssAR,
   Binary0fOpCode(kX86Cvtsi2sd),  // int to double
   Binary0fOpCode(kX86Cvtsi2ss),  // int to float
+  Binary0fOpCode(kX86Cvtsqi2sd),  // long to double
+  Binary0fOpCode(kX86Cvtsqi2ss),  // long to float
   Binary0fOpCode(kX86Cvttsd2si),  // truncating double to int
   Binary0fOpCode(kX86Cvttss2si),  // truncating float to int
+  Binary0fOpCode(kX86Cvttsd2sqi),  // truncating double to long
+  Binary0fOpCode(kX86Cvttss2sqi),  // truncating float to long
   Binary0fOpCode(kX86Cvtsd2si),  // rounding double to int
   Binary0fOpCode(kX86Cvtss2si),  // rounding float to int
   Binary0fOpCode(kX86Ucomisd),  // unordered double compare
@@ -601,11 +609,15 @@ enum X86OpCode {
   kX86MovhpsRM, kX86MovhpsRA,   // load packed single FP values from m64 to high quadword of xmm
   kX86MovhpsMR, kX86MovhpsAR,   // store packed single FP values from high quadword of xmm to m64
   Binary0fOpCode(kX86Movdxr),   // move into xmm from gpr
+  Binary0fOpCode(kX86Movqxr),   // move into xmm from 64 bit gpr
+  kX86MovqrxRR, kX86MovqrxMR, kX86MovqrxAR,  // move into 64 bit reg from xmm
   kX86MovdrxRR, kX86MovdrxMR, kX86MovdrxAR,  // move into reg from xmm
+  kX86MovsxdRR, kX86MovsxdRM, kX86MovsxdRA,  // move 32 bit to 64 bit with sign extension
   kX86Set8R, kX86Set8M, kX86Set8A,  // set byte depending on condition operand
   kX86Mfence,                   // memory barrier
   Binary0fOpCode(kX86Imul16),   // 16bit multiply
   Binary0fOpCode(kX86Imul32),   // 32bit multiply
+  Binary0fOpCode(kX86Imul64),   // 64bit multiply
   kX86CmpxchgRR, kX86CmpxchgMR, kX86CmpxchgAR,  // compare and exchange
   kX86LockCmpxchgMR, kX86LockCmpxchgAR,  // locked compare and exchange
   kX86LockCmpxchg8bM, kX86LockCmpxchg8bA,  // locked compare and exchange
