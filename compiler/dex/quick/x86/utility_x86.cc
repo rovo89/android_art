@@ -89,11 +89,8 @@ LIR* X86Mir2Lir::LoadConstantNoClobber(RegStorage r_dest, int value) {
     res = NewLIR2(kX86Xor32RR, r_dest.GetReg(), r_dest.GetReg());
   } else {
     // Note, there is no byte immediate form of a 32 bit immediate move.
-    if (r_dest.Is64Bit()) {
-      res = NewLIR2(kX86Mov64RI, r_dest.GetReg(), value);
-    } else {
-      res = NewLIR2(kX86Mov32RI, r_dest.GetReg(), value);
-    }
+    // 64-bit immediate is not supported by LIR structure
+    res = NewLIR2(kX86Mov32RI, r_dest.GetReg(), value);
   }
 
   if (r_dest_save.IsFloat()) {
@@ -120,8 +117,8 @@ LIR* X86Mir2Lir::OpCondBranch(ConditionCode cc, LIR* target) {
 LIR* X86Mir2Lir::OpReg(OpKind op, RegStorage r_dest_src) {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
-    case kOpNeg: opcode = kX86Neg32R; break;
-    case kOpNot: opcode = kX86Not32R; break;
+    case kOpNeg: opcode = r_dest_src.Is64Bit() ? kX86Neg64R : kX86Neg32R; break;
+    case kOpNot: opcode = r_dest_src.Is64Bit() ? kX86Not64R : kX86Not32R; break;
     case kOpRev: opcode = kX86Bswap32R; break;
     case kOpBlx: opcode = kX86CallR; break;
     default:
@@ -138,6 +135,9 @@ LIR* X86Mir2Lir::OpRegImm(OpKind op, RegStorage r_dest_src1, int value) {
     switch (op) {
       case kOpAdd: opcode = byte_imm ? kX86Add64RI8 : kX86Add64RI; break;
       case kOpSub: opcode = byte_imm ? kX86Sub64RI8 : kX86Sub64RI; break;
+      case kOpLsl: opcode = kX86Sal64RI; break;
+      case kOpLsr: opcode = kX86Shr64RI; break;
+      case kOpAsr: opcode = kX86Sar64RI; break;
       default:
         LOG(FATAL) << "Bad case in OpRegImm (64-bit) " << op;
     }
@@ -189,6 +189,7 @@ LIR* X86Mir2Lir::OpRegImm(OpKind op, RegStorage r_dest_src1, int value) {
 }
 
 LIR* X86Mir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2) {
+    bool is64Bit = r_dest_src1.Is64Bit();
     X86OpCode opcode = kX86Nop;
     bool src2_must_be_cx = false;
     switch (op) {
@@ -207,33 +208,34 @@ LIR* X86Mir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2) 
         OpReg(kOpRev, r_dest_src1);
         return OpRegImm(kOpAsr, r_dest_src1, 16);
         // X86 binary opcodes
-      case kOpSub: opcode = kX86Sub32RR; break;
-      case kOpSbc: opcode = kX86Sbb32RR; break;
-      case kOpLsl: opcode = kX86Sal32RC; src2_must_be_cx = true; break;
-      case kOpLsr: opcode = kX86Shr32RC; src2_must_be_cx = true; break;
-      case kOpAsr: opcode = kX86Sar32RC; src2_must_be_cx = true; break;
-      case kOpMov: opcode = kX86Mov32RR; break;
-      case kOpCmp: opcode = kX86Cmp32RR; break;
-      case kOpAdd: opcode = kX86Add32RR; break;
-      case kOpAdc: opcode = kX86Adc32RR; break;
-      case kOpAnd: opcode = kX86And32RR; break;
-      case kOpOr:  opcode = kX86Or32RR; break;
-      case kOpXor: opcode = kX86Xor32RR; break;
+      case kOpSub: opcode = is64Bit ? kX86Sub64RR : kX86Sub32RR; break;
+      case kOpSbc: opcode = is64Bit ? kX86Sbb64RR : kX86Sbb32RR; break;
+      case kOpLsl: opcode = is64Bit ? kX86Sal64RC : kX86Sal32RC; src2_must_be_cx = true; break;
+      case kOpLsr: opcode = is64Bit ? kX86Shr64RC : kX86Shr32RC; src2_must_be_cx = true; break;
+      case kOpAsr: opcode = is64Bit ? kX86Sar64RC : kX86Sar32RC; src2_must_be_cx = true; break;
+      case kOpMov: opcode = is64Bit ? kX86Mov64RR : kX86Mov32RR; break;
+      case kOpCmp: opcode = is64Bit ? kX86Cmp64RR : kX86Cmp32RR; break;
+      case kOpAdd: opcode = is64Bit ? kX86Add64RR : kX86Add32RR; break;
+      case kOpAdc: opcode = is64Bit ? kX86Adc64RR : kX86Adc32RR; break;
+      case kOpAnd: opcode = is64Bit ? kX86And64RR : kX86And32RR; break;
+      case kOpOr:  opcode = is64Bit ? kX86Or64RR : kX86Or32RR; break;
+      case kOpXor: opcode = is64Bit ? kX86Xor64RR : kX86Xor32RR; break;
       case kOp2Byte:
         // TODO: there are several instances of this check.  A utility function perhaps?
         // TODO: Similar to Arm's reg < 8 check.  Perhaps add attribute checks to RegStorage?
         // Use shifts instead of a byte operand if the source can't be byte accessed.
         if (r_src2.GetRegNum() >= rs_rX86_SP.GetRegNum()) {
-          NewLIR2(kX86Mov32RR, r_dest_src1.GetReg(), r_src2.GetReg());
-          NewLIR2(kX86Sal32RI, r_dest_src1.GetReg(), 24);
-          return NewLIR2(kX86Sar32RI, r_dest_src1.GetReg(), 24);
+          NewLIR2(is64Bit ? kX86Mov64RR : kX86Mov32RR, r_dest_src1.GetReg(), r_src2.GetReg());
+          NewLIR2(is64Bit ? kX86Sal64RI : kX86Sal32RI, r_dest_src1.GetReg(), is64Bit ? 56 : 24);
+          return NewLIR2(is64Bit ? kX86Sar64RI : kX86Sar32RI, r_dest_src1.GetReg(),
+                         is64Bit ? 56 : 24);
         } else {
-          opcode = kX86Movsx8RR;
+          opcode = is64Bit ? kX86Bkpt : kX86Movsx8RR;
         }
         break;
-      case kOp2Short: opcode = kX86Movsx16RR; break;
-      case kOp2Char: opcode = kX86Movzx16RR; break;
-      case kOpMul: opcode = kX86Imul32RR; break;
+      case kOp2Short: opcode = is64Bit ? kX86Bkpt : kX86Movsx16RR; break;
+      case kOp2Char: opcode = is64Bit ? kX86Bkpt : kX86Movzx16RR; break;
+      case kOpMul: opcode = is64Bit ? kX86Bkpt : kX86Imul32RR; break;
       default:
         LOG(FATAL) << "Bad case in OpRegReg " << op;
         break;
@@ -354,16 +356,17 @@ LIR* X86Mir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, RegStorage r_dest, Re
 }
 
 LIR* X86Mir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int offset) {
+  bool is64Bit = r_dest.Is64Bit();
   X86OpCode opcode = kX86Nop;
   switch (op) {
       // X86 binary opcodes
-    case kOpSub: opcode = kX86Sub32RM; break;
-    case kOpMov: opcode = kX86Mov32RM; break;
-    case kOpCmp: opcode = kX86Cmp32RM; break;
-    case kOpAdd: opcode = kX86Add32RM; break;
-    case kOpAnd: opcode = kX86And32RM; break;
-    case kOpOr:  opcode = kX86Or32RM; break;
-    case kOpXor: opcode = kX86Xor32RM; break;
+    case kOpSub: opcode = is64Bit ? kX86Sub64RM : kX86Sub32RM; break;
+    case kOpMov: opcode = is64Bit ? kX86Mov64RM : kX86Mov32RM; break;
+    case kOpCmp: opcode = is64Bit ? kX86Cmp64RM : kX86Cmp32RM; break;
+    case kOpAdd: opcode = is64Bit ? kX86Add64RM : kX86Add32RM; break;
+    case kOpAnd: opcode = is64Bit ? kX86And64RM : kX86And32RM; break;
+    case kOpOr:  opcode = is64Bit ? kX86Or64RM : kX86Or32RM; break;
+    case kOpXor: opcode = is64Bit ? kX86Xor64RM : kX86Xor32RM; break;
     case kOp2Byte: opcode = kX86Movsx8RM; break;
     case kOp2Short: opcode = kX86Movsx16RM; break;
     case kOp2Char: opcode = kX86Movzx16RM; break;
@@ -382,63 +385,68 @@ LIR* X86Mir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int o
 LIR* X86Mir2Lir::OpMemReg(OpKind op, RegLocation rl_dest, int r_value) {
   DCHECK_NE(rl_dest.location, kLocPhysReg);
   int displacement = SRegOffset(rl_dest.s_reg_low);
+  bool is64Bit = rl_dest.wide != 0;
   X86OpCode opcode = kX86Nop;
   switch (op) {
-    case kOpSub: opcode = kX86Sub32MR; break;
-    case kOpMov: opcode = kX86Mov32MR; break;
-    case kOpCmp: opcode = kX86Cmp32MR; break;
-    case kOpAdd: opcode = kX86Add32MR; break;
-    case kOpAnd: opcode = kX86And32MR; break;
-    case kOpOr:  opcode = kX86Or32MR; break;
-    case kOpXor: opcode = kX86Xor32MR; break;
-    case kOpLsl: opcode = kX86Sal32MC; break;
-    case kOpLsr: opcode = kX86Shr32MC; break;
-    case kOpAsr: opcode = kX86Sar32MC; break;
+    case kOpSub: opcode = is64Bit ? kX86Sub64MR : kX86Sub32MR; break;
+    case kOpMov: opcode = is64Bit ? kX86Mov64MR : kX86Mov32MR; break;
+    case kOpCmp: opcode = is64Bit ? kX86Cmp64MR : kX86Cmp32MR; break;
+    case kOpAdd: opcode = is64Bit ? kX86Add64MR : kX86Add32MR; break;
+    case kOpAnd: opcode = is64Bit ? kX86And64MR : kX86And32MR; break;
+    case kOpOr:  opcode = is64Bit ? kX86Or64MR : kX86Or32MR; break;
+    case kOpXor: opcode = is64Bit ? kX86Xor64MR : kX86Xor32MR; break;
+    case kOpLsl: opcode = is64Bit ? kX86Sal64MC : kX86Sal32MC; break;
+    case kOpLsr: opcode = is64Bit ? kX86Shr64MC : kX86Shr32MC; break;
+    case kOpAsr: opcode = is64Bit ? kX86Sar64MC : kX86Sar32MC; break;
     default:
       LOG(FATAL) << "Bad case in OpMemReg " << op;
       break;
   }
   LIR *l = NewLIR3(opcode, rs_rX86_SP.GetReg(), displacement, r_value);
-  AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, false /* is_64bit */);
-  AnnotateDalvikRegAccess(l, displacement >> 2, false /* is_load */, false /* is_64bit */);
+  AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, is64Bit /* is_64bit */);
+  AnnotateDalvikRegAccess(l, displacement >> 2, false /* is_load */, is64Bit /* is_64bit */);
   return l;
 }
 
 LIR* X86Mir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegLocation rl_value) {
   DCHECK_NE(rl_value.location, kLocPhysReg);
+  bool is64Bit = r_dest.Is64Bit();
   int displacement = SRegOffset(rl_value.s_reg_low);
   X86OpCode opcode = kX86Nop;
   switch (op) {
-    case kOpSub: opcode = kX86Sub32RM; break;
-    case kOpMov: opcode = kX86Mov32RM; break;
-    case kOpCmp: opcode = kX86Cmp32RM; break;
-    case kOpAdd: opcode = kX86Add32RM; break;
-    case kOpAnd: opcode = kX86And32RM; break;
-    case kOpOr:  opcode = kX86Or32RM; break;
-    case kOpXor: opcode = kX86Xor32RM; break;
-    case kOpMul: opcode = kX86Imul32RM; break;
+    case kOpSub: opcode = is64Bit ? kX86Sub64RM : kX86Sub32RM; break;
+    case kOpMov: opcode = is64Bit ? kX86Mov64RM : kX86Mov32RM; break;
+    case kOpCmp: opcode = is64Bit ? kX86Cmp64RM : kX86Cmp32RM; break;
+    case kOpAdd: opcode = is64Bit ? kX86Add64RM : kX86Add32RM; break;
+    case kOpAnd: opcode = is64Bit ? kX86And64RM : kX86And32RM; break;
+    case kOpOr:  opcode = is64Bit ? kX86Or64RM : kX86Or32RM; break;
+    case kOpXor: opcode = is64Bit ? kX86Xor64RM : kX86Xor32RM; break;
+    case kOpMul: opcode = is64Bit ? kX86Bkpt : kX86Imul32RM; break;
     default:
       LOG(FATAL) << "Bad case in OpRegMem " << op;
       break;
   }
   LIR *l = NewLIR3(opcode, r_dest.GetReg(), rs_rX86_SP.GetReg(), displacement);
-  AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, false /* is_64bit */);
+  AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, is64Bit /* is_64bit */);
   return l;
 }
 
 LIR* X86Mir2Lir::OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1,
                              RegStorage r_src2) {
+  bool is64Bit = r_dest.Is64Bit();
   if (r_dest != r_src1 && r_dest != r_src2) {
     if (op == kOpAdd) {  // lea special case, except can't encode rbp as base
       if (r_src1 == r_src2) {
         OpRegCopy(r_dest, r_src1);
         return OpRegImm(kOpLsl, r_dest, 1);
       } else if (r_src1 != rs_rBP) {
-        return NewLIR5(kX86Lea32RA, r_dest.GetReg(), r_src1.GetReg() /* base */,
-                       r_src2.GetReg() /* index */, 0 /* scale */, 0 /* disp */);
+        return NewLIR5(is64Bit ? kX86Lea64RA : kX86Lea32RA, r_dest.GetReg(),
+                       r_src1.GetReg() /* base */, r_src2.GetReg() /* index */,
+                       0 /* scale */, 0 /* disp */);
       } else {
-        return NewLIR5(kX86Lea32RA, r_dest.GetReg(), r_src2.GetReg() /* base */,
-                       r_src1.GetReg() /* index */, 0 /* scale */, 0 /* disp */);
+        return NewLIR5(is64Bit ? kX86Lea64RA : kX86Lea32RA, r_dest.GetReg(),
+                       r_src2.GetReg() /* base */, r_src1.GetReg() /* index */,
+                       0 /* scale */, 0 /* disp */);
       }
     } else {
       OpRegCopy(r_dest, r_src1);
@@ -476,10 +484,10 @@ LIR* X86Mir2Lir::OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1,
 }
 
 LIR* X86Mir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src, int value) {
-  if (op == kOpMul) {
+  if (op == kOpMul && !Gen64Bit()) {
     X86OpCode opcode = IS_SIMM8(value) ? kX86Imul32RRI8 : kX86Imul32RRI;
     return NewLIR3(opcode, r_dest.GetReg(), r_src.GetReg(), value);
-  } else if (op == kOpAnd) {
+  } else if (op == kOpAnd && !Gen64Bit()) {
     if (value == 0xFF && r_src.Low4()) {
       return NewLIR2(kX86Movzx8RR, r_dest.GetReg(), r_src.GetReg());
     } else if (value == 0xFFFF) {
@@ -492,8 +500,9 @@ LIR* X86Mir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src, int
       return NewLIR5(kX86Lea32RA, r_dest.GetReg(),  r5sib_no_base /* base */,
                      r_src.GetReg() /* index */, value /* scale */, 0 /* disp */);
     } else if (op == kOpAdd) {  // lea add special case
-      return NewLIR5(kX86Lea32RA, r_dest.GetReg(), r_src.GetReg() /* base */,
-                     rs_rX86_SP.GetReg()/*r4sib_no_index*/ /* index */, 0 /* scale */, value /* disp */);
+      return NewLIR5(Gen64Bit() ? kX86Lea64RA : kX86Lea32RA, r_dest.GetReg(),
+                     r_src.GetReg() /* base */, rs_rX86_SP.GetReg()/*r4sib_no_index*/ /* index */,
+                     0 /* scale */, value /* disp */);
     }
     OpRegCopy(r_dest, r_src);
   }
@@ -556,7 +565,11 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
 
         // Address the start of the method
         RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
-        rl_method = LoadValue(rl_method, kCoreReg);
+        if (rl_method.wide) {
+          rl_method = LoadValueWide(rl_method, kCoreReg);
+        } else {
+          rl_method = LoadValue(rl_method, kCoreReg);
+        }
 
         // Load the proper value from the literal area.
         // We don't know the proper offset for the value, so pick one that will force
@@ -582,8 +595,20 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
         }
       }
     } else {
-      res = LoadConstantNoClobber(r_dest.GetLow(), val_lo);
-      LoadConstantNoClobber(r_dest.GetHigh(), val_hi);
+      if (r_dest.IsPair()) {
+        res = LoadConstantNoClobber(r_dest.GetLow(), val_lo);
+        LoadConstantNoClobber(r_dest.GetHigh(), val_hi);
+      } else {
+        // TODO(64) make int64_t value parameter of LoadConstantNoClobber
+        if (val_lo < 0) {
+          val_hi += 1;
+        }
+        res = LoadConstantNoClobber(RegStorage::Solo32(r_dest.GetReg()), val_hi);
+        NewLIR2(kX86Sal64RI, r_dest.GetReg(), 32);
+        if (val_lo != 0) {
+          NewLIR2(kX86Add64RI, r_dest.GetReg(), val_lo);
+        }
+      }
     }
     return res;
 }
@@ -601,6 +626,8 @@ LIR* X86Mir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int 
     case kDouble:
       if (r_dest.IsFloat()) {
         opcode = is_array ? kX86MovsdRA : kX86MovsdRM;
+      } else if (!pair) {
+        opcode = is_array ? kX86Mov64RA  : kX86Mov64RM;
       } else {
         opcode = is_array ? kX86Mov32RA  : kX86Mov32RM;
       }
@@ -742,13 +769,10 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
     case kDouble:
       if (r_src.IsFloat()) {
         opcode = is_array ? kX86MovsdAR : kX86MovsdMR;
+      } else if (!pair) {
+        opcode = is_array ? kX86Mov64AR  : kX86Mov64MR;
       } else {
-        if (Gen64Bit()) {
-          opcode = is_array ? kX86Mov64AR  : kX86Mov64MR;
-        } else {
-          // TODO(64): pair = true;
-          opcode = is_array ? kX86Mov32AR  : kX86Mov32MR;
-        }
+        opcode = is_array ? kX86Mov32AR  : kX86Mov32MR;
       }
       // TODO: double store is to unaligned address
       DCHECK_EQ((displacement & 0x3), 0);
@@ -855,7 +879,7 @@ void X86Mir2Lir::AnalyzeMIR() {
 
   // Did we need a pointer to the method code?
   if (store_method_addr_) {
-    base_of_code_ = mir_graph_->GetNewCompilerTemp(kCompilerTempVR, false);
+    base_of_code_ = mir_graph_->GetNewCompilerTemp(kCompilerTempVR, Gen64Bit() == true);
   } else {
     base_of_code_ = nullptr;
   }
@@ -971,6 +995,7 @@ RegLocation X86Mir2Lir::UpdateLocTyped(RegLocation loc, int reg_class) {
       loc.location = kLocDalvikFrame;
     }
   }
+  DCHECK(CheckCorePoolSanity());
   return loc;
 }
 
@@ -984,7 +1009,7 @@ RegLocation X86Mir2Lir::UpdateLocWideTyped(RegLocation loc, int reg_class) {
       loc.location = kLocDalvikFrame;
     }
   }
+  DCHECK(CheckCorePoolSanity());
   return loc;
 }
-
 }  // namespace art

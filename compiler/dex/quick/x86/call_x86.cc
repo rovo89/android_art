@@ -86,11 +86,19 @@ void X86Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
   if (base_of_code_ != nullptr) {
     // We can use the saved value.
     RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
-    rl_method = LoadValue(rl_method, kCoreReg);
+    if (rl_method.wide) {
+      rl_method = LoadValueWide(rl_method, kCoreReg);
+    } else {
+      rl_method = LoadValue(rl_method, kCoreReg);
+    }
     start_of_method_reg = rl_method.reg;
     store_method_addr_used_ = true;
   } else {
-    start_of_method_reg = AllocTemp();
+    if (Gen64Bit()) {
+      start_of_method_reg = AllocTempWide();
+    } else {
+      start_of_method_reg = AllocTemp();
+    }
     NewLIR1(kX86StartOfMethod, start_of_method_reg.GetReg());
   }
   int low_key = s4FromSwitchData(&table[2]);
@@ -108,9 +116,14 @@ void X86Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
 
   // Load the displacement from the switch table
   RegStorage disp_reg = AllocTemp();
-  NewLIR5(kX86PcRelLoadRA, disp_reg.GetReg(), start_of_method_reg.GetReg(), keyReg.GetReg(), 2, WrapPointer(tab_rec));
+  NewLIR5(kX86PcRelLoadRA, disp_reg.GetReg(), start_of_method_reg.GetReg(), keyReg.GetReg(),
+          2, WrapPointer(tab_rec));
   // Add displacement to start of method
-  OpRegReg(kOpAdd, start_of_method_reg, disp_reg);
+  if (Gen64Bit()) {
+    NewLIR2(kX86Add64RR, start_of_method_reg.GetReg(), disp_reg.GetReg());
+  } else {
+    OpRegReg(kOpAdd, start_of_method_reg, disp_reg);
+  }
   // ..and go!
   LIR* switch_branch = NewLIR1(kX86JmpR, start_of_method_reg.GetReg());
   tab_rec->anchor = switch_branch;
@@ -150,13 +163,18 @@ void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
   if (base_of_code_ != nullptr) {
     // We can use the saved value.
     RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
-    LoadValueDirect(rl_method, rs_rX86_ARG2);
+    if (rl_method.wide) {
+      LoadValueDirectWide(rl_method, rs_rX86_ARG2);
+    } else {
+      LoadValueDirect(rl_method, rs_rX86_ARG2);
+    }
     store_method_addr_used_ = true;
   } else {
+    // TODO(64) force to be 64-bit
     NewLIR1(kX86StartOfMethod, rs_rX86_ARG2.GetReg());
   }
   NewLIR2(kX86PcRelAdr, rs_rX86_ARG1.GetReg(), WrapPointer(tab_rec));
-  NewLIR2(kX86Add32RR, rs_rX86_ARG1.GetReg(), rs_rX86_ARG2.GetReg());
+  NewLIR2(Gen64Bit() ? kX86Add64RR : kX86Add32RR, rs_rX86_ARG1.GetReg(), rs_rX86_ARG2.GetReg());
   if (Is64BitInstructionSet(cu_->instruction_set)) {
     CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pHandleFillArrayData), rs_rX86_ARG0,
                             rs_rX86_ARG1, true);
@@ -264,9 +282,10 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
       OpRegThreadMem(kOpCmp, rs_rX86_SP, Thread::StackEndOffset<4>());
     }
     LIR* branch = OpCondBranch(kCondUlt, nullptr);
-    AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch,
-                                                 frame_size_ -
-                                                 GetInstructionSetPointerSize(cu_->instruction_set)));
+    AddSlowPath(
+        new(arena_)StackOverflowSlowPath(this, branch,
+                                         frame_size_ -
+                                         GetInstructionSetPointerSize(cu_->instruction_set)));
   }
 
   FlushIns(ArgLocs, rl_method);
@@ -276,7 +295,7 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
     setup_method_address_[0] = NewLIR1(kX86StartOfMethod, rs_rX86_ARG0.GetReg());
     int displacement = SRegOffset(base_of_code_->s_reg_low);
     // Native pointer - must be natural word size.
-    setup_method_address_[1] = StoreWordDisp(rs_rX86_SP, displacement, rs_rX86_ARG0);
+    setup_method_address_[1] = StoreBaseDisp(rs_rX86_SP, displacement, rs_rX86_ARG0, Gen64Bit() ? k64 : k32);
   }
 
   FreeTemp(rs_rX86_ARG0);

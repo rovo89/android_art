@@ -687,6 +687,14 @@ bool X86Mir2Lir::SupportsVolatileLoadStore(OpSize size) {
 }
 
 RegisterClass X86Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatile) {
+  // X86_64 can handle any size.
+  if (Gen64Bit()) {
+    if (size == kReference) {
+      return kRefReg;
+    }
+    return kCoreReg;
+  }
+
   if (UNLIKELY(is_volatile)) {
     // On x86, atomic 64-bit load/store requires an fp register.
     // Smaller aligned load/store is atomic for both core and fp registers.
@@ -1425,7 +1433,11 @@ void X86Mir2Lir::GenConst128(BasicBlock* bb, MIR* mir) {
 
   // Address the start of the method.
   RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
-  rl_method = LoadValue(rl_method, kCoreReg);
+  if (rl_method.wide) {
+    rl_method = LoadValueWide(rl_method, kCoreReg);
+  } else {
+    rl_method = LoadValue(rl_method, kCoreReg);
+  }
 
   // Load the proper value from the literal area.
   // We don't know the proper offset for the value, so pick one that will force

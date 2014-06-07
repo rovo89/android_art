@@ -391,24 +391,34 @@ RegLocation Mir2Lir::ForceTemp(RegLocation loc) {
   return loc;
 }
 
-// FIXME: will need an update for 64-bit core regs.
 RegLocation Mir2Lir::ForceTempWide(RegLocation loc) {
   DCHECK(loc.wide);
   DCHECK(loc.location == kLocPhysReg);
   DCHECK(!loc.reg.IsFloat());
-  if (IsTemp(loc.reg.GetLow())) {
-    Clobber(loc.reg.GetLow());
+
+  if (!loc.reg.IsPair()) {
+    if (IsTemp(loc.reg)) {
+      Clobber(loc.reg);
+    } else {
+      RegStorage temp = AllocTempWide();
+      OpRegCopy(temp, loc.reg);
+      loc.reg = temp;
+    }
   } else {
-    RegStorage temp_low = AllocTemp();
-    OpRegCopy(temp_low, loc.reg.GetLow());
-    loc.reg.SetLowReg(temp_low.GetReg());
-  }
-  if (IsTemp(loc.reg.GetHigh())) {
-    Clobber(loc.reg.GetHigh());
-  } else {
-    RegStorage temp_high = AllocTemp();
-    OpRegCopy(temp_high, loc.reg.GetHigh());
-    loc.reg.SetHighReg(temp_high.GetReg());
+    if (IsTemp(loc.reg.GetLow())) {
+      Clobber(loc.reg.GetLow());
+    } else {
+      RegStorage temp_low = AllocTemp();
+      OpRegCopy(temp_low, loc.reg.GetLow());
+      loc.reg.SetLowReg(temp_low.GetReg());
+    }
+    if (IsTemp(loc.reg.GetHigh())) {
+      Clobber(loc.reg.GetHigh());
+    } else {
+      RegStorage temp_high = AllocTemp();
+      OpRegCopy(temp_high, loc.reg.GetHigh());
+      loc.reg.SetHighReg(temp_high.GetReg());
+    }
   }
 
   // Ensure that this doesn't represent the original SR any more.
