@@ -331,7 +331,10 @@ void Mutex::ExclusiveLock(Thread* self) {
         num_contenders_--;
       }
     } while (!done);
-    QuasiAtomic::MembarStoreLoad();
+    // We assert that no memory fence is needed here, since
+    // __sync_bool_compare_and_swap includes it.
+    // TODO: Change state_ to be a art::Atomic and use an intention revealing CAS operation
+    // that exposes the ordering semantics.
     DCHECK_EQ(state_, 1);
     exclusive_owner_ = SafeGetTid(self);
 #else
@@ -364,7 +367,7 @@ bool Mutex::ExclusiveTryLock(Thread* self) {
         return false;
       }
     } while (!done);
-    QuasiAtomic::MembarStoreLoad();
+    // We again assert no memory fence is needed.
     DCHECK_EQ(state_, 1);
     exclusive_owner_ = SafeGetTid(self);
 #else
@@ -403,7 +406,7 @@ void Mutex::ExclusiveUnlock(Thread* self) {
   do {
     int32_t cur_state = state_;
     if (LIKELY(cur_state == 1)) {
-      QuasiAtomic::MembarStoreStore();
+      // The __sync_bool_compare_and_swap enforces the necessary memory ordering.
       // We're no longer the owner.
       exclusive_owner_ = 0;
       // Change state to 0.
@@ -426,7 +429,6 @@ void Mutex::ExclusiveUnlock(Thread* self) {
       }
     }
   } while (!done);
-  QuasiAtomic::MembarStoreLoad();
 #else
     CHECK_MUTEX_CALL(pthread_mutex_unlock, (&mutex_));
 #endif
