@@ -150,6 +150,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       verify_pre_gc_rosalloc_(verify_pre_gc_rosalloc),
       verify_pre_sweeping_rosalloc_(verify_pre_sweeping_rosalloc),
       verify_post_gc_rosalloc_(verify_post_gc_rosalloc),
+      last_gc_time_ns_(NanoTime()),
       allocation_rate_(0),
       /* For GC a lot mode, we limit the allocations stacks to be kGcAlotInterval allocations. This
        * causes a lot of GC since we do a GC for alloc whenever the stack is full. When heap
