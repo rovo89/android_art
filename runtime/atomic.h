@@ -159,11 +159,11 @@ class QuasiAtomic {
 
   #if ART_HAVE_STDATOMIC
 
-  static void ThreadFenceAcquire () {
+  static void ThreadFenceAcquire() {
     std::atomic_thread_fence(std::memory_order_acquire);
   }
 
-  static void ThreadFenceRelease () {
+  static void ThreadFenceRelease() {
     std::atomic_thread_fence(std::memory_order_release);
   }
 
@@ -350,7 +350,6 @@ class Atomic : public std::atomic<T> {
   static T MaxValue() {
     return std::numeric_limits<T>::max();
   }
-
 };
 
 #else
@@ -363,7 +362,7 @@ template<typename T> class Atomic;
 template<int SZ, class T> struct AtomicHelper {
   friend class Atomic<T>;
 
-private:
+ private:
   COMPILE_ASSERT(sizeof(T) <= 4, bad_atomic_helper_arg);
 
   static T LoadRelaxed(const volatile T* loc) {
@@ -386,7 +385,7 @@ private:
 template<class T> struct AtomicHelper<8, T> {
   friend class Atomic<T>;
 
-private:
+ private:
   COMPILE_ASSERT(sizeof(T) == 8, bad_large_atomic_helper_arg);
 
   static T LoadRelaxed(const volatile T* loc) {
@@ -417,7 +416,6 @@ private:
 
 template<typename T>
 class Atomic {
-
  private:
   COMPILE_ASSERT(sizeof(T) <= 4 || sizeof(T) == 8, bad_atomic_arg);
 
@@ -428,7 +426,7 @@ class Atomic {
 
   // Load from memory without ordering or synchronization constraints.
   T LoadRelaxed() const {
-    return AtomicHelper<sizeof(T),T>::LoadRelaxed(&value_);
+    return AtomicHelper<sizeof(T), T>::LoadRelaxed(&value_);
   }
 
   // Word tearing allowed, but may race.
@@ -441,7 +439,7 @@ class Atomic {
 
   // Store to memory without ordering or synchronization constraints.
   void StoreRelaxed(T desired) {
-    AtomicHelper<sizeof(T),T>::StoreRelaxed(&value_,desired);
+    AtomicHelper<sizeof(T), T>::StoreRelaxed(&value_, desired);
   }
 
   // Word tearing allowed, but may race.
@@ -458,14 +456,14 @@ class Atomic {
   // Atomically replace the value with desired value if it matches the expected value.
   // Participates in total ordering of atomic operations.
   bool CompareExchangeStrongSequentiallyConsistent(T expected_value, T desired_value) {
-    return AtomicHelper<sizeof(T),T>::
+    return AtomicHelper<sizeof(T), T>::
         CompareExchangeStrongSequentiallyConsistent(&value_, expected_value, desired_value);
   }
 
   // The same, but may fail spuriously.
   bool CompareExchangeWeakSequentiallyConsistent(T expected_value, T desired_value) {
     // TODO: Take advantage of the fact that it may fail spuriously.
-    return AtomicHelper<sizeof(T),T>::
+    return AtomicHelper<sizeof(T), T>::
         CompareExchangeStrongSequentiallyConsistent(&value_, expected_value, desired_value);
   }
 
@@ -562,9 +560,9 @@ typedef Atomic<int32_t> AtomicInteger;
 COMPILE_ASSERT(sizeof(AtomicInteger) == sizeof(int32_t), weird_atomic_int_size);
 COMPILE_ASSERT(alignof(AtomicInteger) == alignof(int32_t),
                atomic_int_alignment_differs_from_that_of_underlying_type);
-COMPILE_ASSERT(sizeof(Atomic<long long>) == sizeof(long long), weird_atomic_long_long_size);
-COMPILE_ASSERT(alignof(Atomic<long long>) == alignof(long long),
-               atomic_long_long_alignment_differs_from_that_of_underlying_type);
+COMPILE_ASSERT(sizeof(Atomic<int64_t>) == sizeof(int64_t), weird_atomic_int64_size);
+COMPILE_ASSERT(alignof(Atomic<int64_t>) == alignof(int64_t),
+               atomic_int64_alignment_differs_from_that_of_underlying_type);
 
 
 #if !ART_HAVE_STDATOMIC
