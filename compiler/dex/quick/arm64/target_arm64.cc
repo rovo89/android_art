@@ -127,6 +127,7 @@ RegStorage Arm64Mir2Lir::TargetReg(SpecialTargetRegister reg) {
     case kHiddenArg: res_reg = rs_x12; break;
     case kHiddenFpArg: res_reg = RegStorage::InvalidReg(); break;
     case kCount: res_reg = RegStorage::InvalidReg(); break;
+    default: res_reg = RegStorage::InvalidReg();
   }
   return res_reg;
 }

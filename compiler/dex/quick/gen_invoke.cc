@@ -290,26 +290,51 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(ThreadOffset<pointer_size>
         }
         LoadValueDirectWideFixed(arg1, r_tmp);
       } else {
-        RegStorage r_tmp = RegStorage::MakeRegPair(TargetReg(kArg1), TargetReg(kArg2));
+        RegStorage r_tmp;
+        if (cu_->instruction_set == kX86_64) {
+          r_tmp = RegStorage::Solo64(TargetReg(kArg1).GetReg());
+        } else {
+          r_tmp = RegStorage::MakeRegPair(TargetReg(kArg1), TargetReg(kArg2));
+        }
         LoadValueDirectWideFixed(arg1, r_tmp);
       }
     }
   } else {
     RegStorage r_tmp;
     if (arg0.fp) {
-      r_tmp = RegStorage::MakeRegPair(TargetReg(kFArg0), TargetReg(kFArg1));
+      if (cu_->instruction_set == kX86_64) {
+        r_tmp = RegStorage::FloatSolo64(TargetReg(kFArg0).GetReg());
+      } else {
+        r_tmp = RegStorage::MakeRegPair(TargetReg(kFArg0), TargetReg(kFArg1));
+      }
     } else {
-      r_tmp = RegStorage::MakeRegPair(TargetReg(kArg0), TargetReg(kArg1));
+      if (cu_->instruction_set == kX86_64) {
+        r_tmp = RegStorage::Solo64(TargetReg(kArg0).GetReg());
+      } else {
+        r_tmp = RegStorage::MakeRegPair(TargetReg(kArg0), TargetReg(kArg1));
+      }
     }
     LoadValueDirectWideFixed(arg0, r_tmp);
     if (arg1.wide == 0) {
-      LoadValueDirectFixed(arg1, arg1.fp ? TargetReg(kFArg2) : TargetReg(kArg2));
+      if (cu_->instruction_set == kX86_64) {
+        LoadValueDirectFixed(arg1, arg1.fp ? TargetReg(kFArg1) : TargetReg(kArg1));
+      } else {
+        LoadValueDirectFixed(arg1, arg1.fp ? TargetReg(kFArg2) : TargetReg(kArg2));
+      }
     } else {
       RegStorage r_tmp;
       if (arg1.fp) {
-        r_tmp = RegStorage::MakeRegPair(TargetReg(kFArg2), TargetReg(kFArg3));
+        if (cu_->instruction_set == kX86_64) {
+          r_tmp = RegStorage::FloatSolo64(TargetReg(kFArg1).GetReg());
+        } else {
+          r_tmp = RegStorage::MakeRegPair(TargetReg(kFArg2), TargetReg(kFArg3));
+        }
       } else {
-        r_tmp = RegStorage::MakeRegPair(TargetReg(kArg2), TargetReg(kArg3));
+        if (cu_->instruction_set == kX86_64) {
+          r_tmp = RegStorage::Solo64(TargetReg(kArg1).GetReg());
+        } else {
+          r_tmp = RegStorage::MakeRegPair(TargetReg(kArg2), TargetReg(kArg3));
+        }
       }
       LoadValueDirectWideFixed(arg1, r_tmp);
     }
