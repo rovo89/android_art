@@ -532,11 +532,11 @@ LIR* Arm64Mir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, 
   switch (op) {
     case kOpLsl: {
       // "lsl w1, w2, #imm" is an alias of "ubfm w1, w2, #(-imm MOD 32), #(31-imm)"
-      // and "lsl x1, x2, #imm" of "ubfm x1, x2, #(-imm MOD 32), #(31-imm)".
+      // and "lsl x1, x2, #imm" of "ubfm x1, x2, #(-imm MOD 64), #(63-imm)".
       // For now, we just use ubfm directly.
-      int max_value = (is_wide) ? 64 : 32;
+      int max_value = (is_wide) ? 63 : 31;
       return NewLIR4(kA64Ubfm4rrdd | wide, r_dest.GetReg(), r_src1.GetReg(),
-                     (-value) & (max_value - 1), max_value - value);
+                     (-value) & max_value, max_value - value);
     }
     case kOpLsr:
       return NewLIR3(kA64Lsr3rrd | wide, r_dest.GetReg(), r_src1.GetReg(), value);
