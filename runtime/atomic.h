@@ -392,7 +392,7 @@ template<class T> struct AtomicHelper<8, T> {
     // sizeof(T) == 8
     volatile const int64_t* loc_ptr =
               reinterpret_cast<volatile const int64_t*>(loc);
-    return reinterpret_cast<T>(QuasiAtomic::Read64(loc_ptr));
+    return static_cast<T>(QuasiAtomic::Read64(loc_ptr));
   }
 
   static void StoreRelaxed(volatile T* loc, T desired) {
@@ -400,7 +400,7 @@ template<class T> struct AtomicHelper<8, T> {
     volatile int64_t* loc_ptr =
                 reinterpret_cast<volatile int64_t*>(loc);
     QuasiAtomic::Write64(loc_ptr,
-                         reinterpret_cast<int64_t>(desired));
+                         static_cast<int64_t>(desired));
   }
 
 
@@ -409,8 +409,8 @@ template<class T> struct AtomicHelper<8, T> {
     // sizeof(T) == 8
     volatile int64_t* loc_ptr = reinterpret_cast<volatile int64_t*>(loc);
     return QuasiAtomic::Cas64(
-                 reinterpret_cast<int64_t>(expected_value),
-                 reinterpret_cast<int64_t>(desired_value), loc_ptr);
+                 static_cast<int64_t>(reinterpret_cast<uintptr_t>(expected_value)),
+                 static_cast<int64_t>(reinterpret_cast<uintptr_t>(desired_value)), loc_ptr);
   }
 };
 
