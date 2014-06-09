@@ -15,6 +15,7 @@
  */
 
 #include "builder.h"
+#include "code_generator.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "nodes.h"
@@ -56,14 +57,16 @@ TEST(LiveRangesTest, CFG1) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildGraph(data, &allocator);
-  SsaLivenessAnalysis liveness(*graph);
+
+  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, InstructionSet::kX86);
+  SsaLivenessAnalysis liveness(*graph, codegen);
   liveness.Analyze();
 
   LiveInterval* interval = liveness.GetInstructionFromSsaIndex(0)->GetLiveInterval();
   LiveRange* range = interval->GetFirstRange();
   ASSERT_EQ(2u, range->GetStart());
   // Last use is the return instruction.
-  ASSERT_EQ(8u, range->GetEnd());
+  ASSERT_EQ(9u, range->GetEnd());
   HBasicBlock* block = graph->GetBlocks().Get(1);
   ASSERT_TRUE(block->GetLastInstruction()->AsReturn() != nullptr);
   ASSERT_EQ(8u, block->GetLastInstruction()->GetLifetimePosition());
@@ -101,14 +104,15 @@ TEST(LiveRangesTest, CFG2) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildGraph(data, &allocator);
-  SsaLivenessAnalysis liveness(*graph);
+  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, InstructionSet::kX86);
+  SsaLivenessAnalysis liveness(*graph, codegen);
   liveness.Analyze();
 
   LiveInterval* interval = liveness.GetInstructionFromSsaIndex(0)->GetLiveInterval();
   LiveRange* range = interval->GetFirstRange();
   ASSERT_EQ(2u, range->GetStart());
   // Last use is the return instruction.
-  ASSERT_EQ(22u, range->GetEnd());
+  ASSERT_EQ(23u, range->GetEnd());
   HBasicBlock* block = graph->GetBlocks().Get(3);
   ASSERT_TRUE(block->GetLastInstruction()->AsReturn() != nullptr);
   ASSERT_EQ(22u, block->GetLastInstruction()->GetLifetimePosition());
@@ -149,7 +153,8 @@ TEST(LiveRangesTest, CFG3) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildGraph(data, &allocator);
-  SsaLivenessAnalysis liveness(*graph);
+  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, InstructionSet::kX86);
+  SsaLivenessAnalysis liveness(*graph, codegen);
   liveness.Analyze();
 
   // Test for the 4 constant.
@@ -181,7 +186,7 @@ TEST(LiveRangesTest, CFG3) {
   range = interval->GetFirstRange();
   ASSERT_EQ(22u, liveness.GetInstructionFromSsaIndex(3)->GetLifetimePosition());
   ASSERT_EQ(22u, range->GetStart());
-  ASSERT_EQ(24u, range->GetEnd());
+  ASSERT_EQ(25u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 
@@ -224,7 +229,8 @@ TEST(LiveRangesTest, Loop) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildGraph(data, &allocator);
-  SsaLivenessAnalysis liveness(*graph);
+  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, InstructionSet::kX86);
+  SsaLivenessAnalysis liveness(*graph, codegen);
   liveness.Analyze();
 
   // Test for the 0 constant.
@@ -249,7 +255,7 @@ TEST(LiveRangesTest, Loop) {
   range = interval->GetFirstRange();
   // The instruction is live until the return instruction after the loop.
   ASSERT_EQ(6u, range->GetStart());
-  ASSERT_EQ(26u, range->GetEnd());
+  ASSERT_EQ(27u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the phi.
@@ -257,7 +263,7 @@ TEST(LiveRangesTest, Loop) {
   range = interval->GetFirstRange();
   // Instruction is consumed by the if.
   ASSERT_EQ(14u, range->GetStart());
-  ASSERT_EQ(16u, range->GetEnd());
+  ASSERT_EQ(17u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 
