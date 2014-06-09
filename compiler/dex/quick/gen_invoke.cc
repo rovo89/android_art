@@ -277,6 +277,8 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(ThreadOffset<pointer_size>
     if (arg1.wide == 0) {
       if (cu_->instruction_set == kMips) {
         LoadValueDirectFixed(arg1, arg1.fp ? TargetReg(kFArg2) : TargetReg(kArg1));
+      } else if (cu_->instruction_set == kArm64) {
+        LoadValueDirectFixed(arg1, arg1.fp ? TargetReg(kFArg1) : TargetReg(kArg1));
       } else {
         LoadValueDirectFixed(arg1, TargetReg(kArg1));
       }
