@@ -35,7 +35,7 @@ void HGraph::RemoveDeadBlocks(const ArenaBitVector& visited) const {
     if (!visited.IsBitSet(i)) {
       HBasicBlock* block = blocks_.Get(i);
       for (size_t j = 0; j < block->GetSuccessors().Size(); ++j) {
-        block->GetSuccessors().Get(j)->RemovePredecessor(block, false);
+        block->GetSuccessors().Get(j)->RemovePredecessor(block);
       }
       for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
         block->RemovePhi(it.Current()->AsPhi());
@@ -143,8 +143,7 @@ void HGraph::SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor) {
   HBasicBlock* new_block = new (arena_) HBasicBlock(this);
   AddBlock(new_block);
   new_block->AddInstruction(new (arena_) HGoto());
-  block->RemoveSuccessor(successor);
-  block->AddSuccessor(new_block);
+  block->ReplaceSuccessor(successor, new_block);
   new_block->AddSuccessor(successor);
   if (successor->IsLoopHeader()) {
     // If we split at a back edge boundary, make the new block the back edge.
@@ -168,8 +167,7 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
     new_back_edge->AddInstruction(new (arena_) HGoto());
     for (size_t pred = 0, e = info->GetBackEdges().Size(); pred < e; ++pred) {
       HBasicBlock* back_edge = info->GetBackEdges().Get(pred);
-      header->RemovePredecessor(back_edge);
-      back_edge->AddSuccessor(new_back_edge);
+      back_edge->ReplaceSuccessor(header, new_back_edge);
     }
     info->ClearBackEdges();
     info->AddBackEdge(new_back_edge);
@@ -190,9 +188,8 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
     for (size_t pred = 0; pred < header->GetPredecessors().Size(); ++pred) {
       HBasicBlock* predecessor = header->GetPredecessors().Get(pred);
       if (predecessor != back_edge) {
-        header->RemovePredecessor(predecessor);
+        predecessor->ReplaceSuccessor(header, pre_header);
         pred--;
-        predecessor->AddSuccessor(pre_header);
       }
     }
     pre_header->AddSuccessor(header);
@@ -294,12 +291,20 @@ bool HBasicBlock::Dominates(HBasicBlock* other) const {
 void HBasicBlock::InsertInstructionBefore(HInstruction* instruction, HInstruction* cursor) {
   DCHECK(cursor->AsPhi() == nullptr);
   DCHECK(instruction->AsPhi() == nullptr);
+  DCHECK_EQ(instruction->GetId(), -1);
+  DCHECK_NE(cursor->GetId(), -1);
+  DCHECK_EQ(cursor->GetBlock(), this);
+  DCHECK(!instruction->IsControlFlow());
   instruction->next_ = cursor;
   instruction->previous_ = cursor->previous_;
   cursor->previous_ = instruction;
   if (GetFirstInstruction() == cursor) {
     instructions_.first_instruction_ = instruction;
+  } else {
+    instruction->previous_->next_ = instruction;
   }
+  instruction->SetBlock(this);
+  instruction->SetId(GetGraph()->GetNextInstructionId());
 }
 
 static void Add(HInstructionList* instruction_list,
