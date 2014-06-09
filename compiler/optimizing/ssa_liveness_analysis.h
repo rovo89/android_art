@@ -99,7 +99,7 @@ class UsePosition : public ArenaObject {
 
   HInstruction* GetUser() const { return user_; }
 
-  void Dump(std::ostream& stream) {
+  void Dump(std::ostream& stream) const {
     stream << position_;
   }
 

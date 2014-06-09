@@ -102,8 +102,8 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
       for (size_t i = 0, e = block->GetPredecessors().Size(); i < e; ++i) {
         HInstruction* current = ValueOfLocal(block->GetPredecessors().Get(i), local);
         if (current == nullptr) {
-//          one_predecessor_has_no_value = true;
-//          break;
+          one_predecessor_has_no_value = true;
+          break;
         } else if (current != value) {
           is_different = true;
         }

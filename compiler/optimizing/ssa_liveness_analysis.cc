@@ -134,7 +134,6 @@ void SsaLivenessAnalysis::NumberInstructions() {
   for (HLinearOrderIterator it(linear_post_order_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     block->SetLifetimeStart(lifetime_position);
-    lifetime_position += 2;
 
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
@@ -146,6 +145,7 @@ void SsaLivenessAnalysis::NumberInstructions() {
       }
       current->SetLifetimePosition(lifetime_position);
     }
+    lifetime_position += 2;
 
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
