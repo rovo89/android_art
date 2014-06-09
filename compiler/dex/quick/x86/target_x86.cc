@@ -216,7 +216,7 @@ RegStorage X86Mir2Lir::TargetReg(SpecialTargetRegister reg) {
     case kRet1: res_reg = rs_rX86_RET1; break;
     case kInvokeTgt: res_reg = rs_rX86_INVOKE_TGT; break;
     case kHiddenArg: res_reg = rs_rAX; break;
-    case kHiddenFpArg: res_reg = rs_fr0; break;
+    case kHiddenFpArg: DCHECK(!Gen64Bit()); res_reg = rs_fr0; break;
     case kCount: res_reg = rs_rX86_COUNT; break;
     default: res_reg = RegStorage::InvalidReg();
   }
