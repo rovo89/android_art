@@ -309,7 +309,6 @@ void Runtime::SweepSystemWeaks(IsMarkedCallback* visitor, void* arg) {
   GetInternTable()->SweepInternTableWeaks(visitor, arg);
   GetMonitorList()->SweepMonitorList(visitor, arg);
   GetJavaVM()->SweepJniWeakGlobals(visitor, arg);
-  Dbg::UpdateObjectPointers(visitor, arg);
 }
 
 bool Runtime::Create(const Options& options, bool ignore_unrecognized) {
@@ -1043,14 +1042,12 @@ void Runtime::DisallowNewSystemWeaks() {
   monitor_list_->DisallowNewMonitors();
   intern_table_->DisallowNewInterns();
   java_vm_->DisallowNewWeakGlobals();
-  Dbg::DisallowNewObjectRegistryObjects();
 }
 
 void Runtime::AllowNewSystemWeaks() {
   monitor_list_->AllowNewMonitors();
   intern_table_->AllowNewInterns();
   java_vm_->AllowNewWeakGlobals();
-  Dbg::AllowNewObjectRegistryObjects();
 }
 
 void Runtime::SetInstructionSet(InstructionSet instruction_set) {
