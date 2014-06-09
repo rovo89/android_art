@@ -2464,7 +2464,7 @@ void Heap::DumpForSigQuit(std::ostream& os) {
 }
 
 size_t Heap::GetPercentFree() {
-  return static_cast<size_t>(100.0f * static_cast<float>(GetFreeMemory()) / GetMaxMemory());
+  return static_cast<size_t>(100.0f * static_cast<float>(GetFreeMemory()) / max_allowed_footprint_);
 }
 
 void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
