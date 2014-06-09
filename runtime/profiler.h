@@ -53,8 +53,9 @@ class ProfileSampleResults {
   ~ProfileSampleResults();
 
   void Put(mirror::ArtMethod* method);
-  uint32_t Write(std::ostream &os);
-  void ReadPrevious(int fd);
+  void PutDexPC(mirror::ArtMethod* method, uint32_t pc);
+  uint32_t Write(std::ostream &os, ProfileDataType type);
+  void ReadPrevious(int fd, ProfileDataType type);
   void Clear();
   uint32_t GetNumSamples() { return num_samples_; }
   void NullMethod() { ++num_null_methods_; }
@@ -68,15 +69,21 @@ class ProfileSampleResults {
   uint32_t num_null_methods_;    // Number of samples where can don't know the method.
   uint32_t num_boot_methods_;    // Number of samples in the boot path.
 
-  typedef std::map<mirror::ArtMethod*, uint32_t> Map;   // Map of method vs its count.
+  typedef std::map<mirror::ArtMethod*, uint32_t> Map;  // Map of method vs its count.
   Map *table[kHashSize];
 
+  typedef std::map<uint32_t, uint32_t> DexPCCountMap;  // Map of dex pc vs its count
+  // Map of method vs dex pc counts in the method.
+  typedef std::map<mirror::ArtMethod*, DexPCCountMap*> MethodDexPCMap;
+  MethodDexPCMap *dex_table[kHashSize];
+
   struct PreviousValue {
-    PreviousValue() : count_(0), method_size_(0) {}
-    PreviousValue(uint32_t count, uint32_t method_size)
-      : count_(count), method_size_(method_size) {}
+    PreviousValue() : count_(0), method_size_(0), dex_pc_map_(nullptr) {}
+    PreviousValue(uint32_t count, uint32_t method_size, DexPCCountMap* dex_pc_map)
+      : count_(count), method_size_(method_size), dex_pc_map_(dex_pc_map) {}
     uint32_t count_;
     uint32_t method_size_;
+    DexPCCountMap* dex_pc_map_;
   };
 
   typedef std::map<std::string, PreviousValue> PreviousProfile;
@@ -114,7 +121,7 @@ class BackgroundMethodSamplingProfiler {
   static void Stop() LOCKS_EXCLUDED(Locks::profiler_lock_, wait_lock_);
   static void Shutdown() LOCKS_EXCLUDED(Locks::profiler_lock_);
 
-  void RecordMethod(mirror::ArtMethod *method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void RecordMethod(mirror::ArtMethod *method, uint32_t pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Barrier& GetBarrier() {
     return *profiler_barrier_;
