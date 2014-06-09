@@ -82,9 +82,9 @@ class StubTest : public CommonRuntimeTest {
         "addl $4, %%esp"            // Pop referrer
         : "=a" (result)
           // Use the result from eax
-          : "a"(arg0), "c"(arg1), "d"(arg2), "D"(code), [referrer]"r"(referrer)
-            // This places code into edi, arg0 into eax, arg1 into ecx, and arg2 into edx
-            : );  // clobber.
+        : "a"(arg0), "c"(arg1), "d"(arg2), "D"(code), [referrer]"r"(referrer)
+          // This places code into edi, arg0 into eax, arg1 into ecx, and arg2 into edx
+        : "memory");  // clobber.
     // TODO: Should we clobber the other registers? EBX gets clobbered by some of the stubs,
     //       but compilation fails when declaring that.
 #elif defined(__arm__)
@@ -122,7 +122,7 @@ class StubTest : public CommonRuntimeTest {
           // Use the result from r0
         : [arg0] "r"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self),
           [referrer] "r"(referrer)
-        : );  // clobber.
+        : "memory");  // clobber.
 #elif defined(__aarch64__)
     __asm__ __volatile__(
         // Spill x0-x7 which we say we don't clobber. May contain args.
@@ -255,7 +255,8 @@ class StubTest : public CommonRuntimeTest {
           "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7",
           "d8", "d9", "d10", "d11", "d12", "d13", "d14", "d15",
           "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23",
-          "d24", "d25", "d26", "d27", "d28", "d29", "d30", "d31");  // clobber.
+          "d24", "d25", "d26", "d27", "d28", "d29", "d30", "d31",
+          "memory");  // clobber.
 #elif defined(__x86_64__)
     // Note: Uses the native convention
     // TODO: Set the thread?
@@ -268,9 +269,10 @@ class StubTest : public CommonRuntimeTest {
         ".cfi_adjust_cfa_offset -16\n\t"
         : "=a" (result)
           // Use the result from rax
-          : "D"(arg0), "S"(arg1), "d"(arg2), "a"(code), [referrer] "m"(referrer)
-            // This places arg0 into rdi, arg1 into rsi, arg2 into rdx, and code into rax
-            : "rbx", "rcx", "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");  // clobber all
+        : "D"(arg0), "S"(arg1), "d"(arg2), "a"(code), [referrer] "m"(referrer)
+          // This places arg0 into rdi, arg1 into rsi, arg2 into rdx, and code into rax
+        : "rbx", "rcx", "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
+          "memory");  // clobber all
     // TODO: Should we clobber the other registers?
 #else
     LOG(WARNING) << "Was asked to invoke for an architecture I do not understand.";
@@ -303,9 +305,9 @@ class StubTest : public CommonRuntimeTest {
         "addl $4, %%esp"            // Pop referrer
         : "=a" (result)
           // Use the result from eax
-          : "a"(arg0), "c"(arg1), "d"(arg2), "D"(code), [referrer]"m"(referrer), [hidden]"r"(hidden)
-            // This places code into edi, arg0 into eax, arg1 into ecx, and arg2 into edx
-            : );  // clobber.
+        : "a"(arg0), "c"(arg1), "d"(arg2), "D"(code), [referrer]"m"(referrer), [hidden]"r"(hidden)
+          // This places code into edi, arg0 into eax, arg1 into ecx, and arg2 into edx
+        : "memory");  // clobber.
     // TODO: Should we clobber the other registers? EBX gets clobbered by some of the stubs,
     //       but compilation fails when declaring that.
 #elif defined(__arm__)
@@ -343,9 +345,9 @@ class StubTest : public CommonRuntimeTest {
         "mov %[result], r0\n\t"     // Save the result
         : [result] "=r" (result)
           // Use the result from r0
-          : [arg0] "r"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self),
-            [referrer] "r"(referrer), [hidden] "r"(hidden)
-            : );  // clobber.
+        : [arg0] "r"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self),
+          [referrer] "r"(referrer), [hidden] "r"(hidden)
+        : "memory");  // clobber.
 #elif defined(__aarch64__)
     __asm__ __volatile__(
         // Spill x0-x7 which we say we don't clobber. May contain args.
@@ -477,7 +479,8 @@ class StubTest : public CommonRuntimeTest {
           "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7",
           "d8", "d9", "d10", "d11", "d12", "d13", "d14", "d15",
           "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23",
-          "d24", "d25", "d26", "d27", "d28", "d29", "d30", "d31");  // clobber.
+          "d24", "d25", "d26", "d27", "d28", "d29", "d30", "d31",
+          "memory");  // clobber.
 #elif defined(__x86_64__)
     // Note: Uses the native convention
     // TODO: Set the thread?
@@ -494,7 +497,8 @@ class StubTest : public CommonRuntimeTest {
         // Use the result from rax
         : "D"(arg0), "S"(arg1), "d"(arg2), "a"(code), [referrer] "m"(referrer), [hidden] "m"(hidden)
         // This places arg0 into rdi, arg1 into rsi, arg2 into rdx, and code into rax
-        : "rbx", "rcx", "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");  // clobber all
+        : "rbx", "rcx", "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
+          "memory");  // clobber all
     // TODO: Should we clobber the other registers?
 #else
     LOG(WARNING) << "Was asked to invoke for an architecture I do not understand.";
