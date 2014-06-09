@@ -31,9 +31,9 @@ class CacheFieldLoweringInfo : public PassME {
   CacheFieldLoweringInfo() : PassME("CacheFieldLoweringInfo", kNoNodes) {
   }
 
-  void Start(const PassDataHolder* data) const {
+  void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* cUnit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(cUnit != nullptr);
     cUnit->mir_graph->DoCacheFieldLoweringInfo();
   }
@@ -55,9 +55,9 @@ class CacheMethodLoweringInfo : public PassME {
   CacheMethodLoweringInfo() : PassME("CacheMethodLoweringInfo", kNoNodes) {
   }
 
-  void Start(const PassDataHolder* data) const {
+  void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* cUnit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(cUnit != nullptr);
     cUnit->mir_graph->DoCacheMethodLoweringInfo();
   }
@@ -86,9 +86,9 @@ class CallInlining : public PassME {
     return cUnit->mir_graph->InlineCallsGate();
   }
 
-  void Start(const PassDataHolder* data) const {
+  void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* cUnit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(cUnit != nullptr);
     cUnit->mir_graph->InlineCallsStart();
   }
@@ -105,9 +105,9 @@ class CallInlining : public PassME {
     return false;
   }
 
-  void End(const PassDataHolder* data) const {
+  void End(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* cUnit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(cUnit != nullptr);
     cUnit->mir_graph->InlineCallsEnd();
   }
@@ -122,9 +122,9 @@ class CodeLayout : public PassME {
   CodeLayout() : PassME("CodeLayout", kAllNodes, kOptimizationBasicBlockChange, "2_post_layout_cfg") {
   }
 
-  void Start(const PassDataHolder* data) const {
+  void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* cUnit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(cUnit != nullptr);
     cUnit->mir_graph->VerifyDataflow();
   }
@@ -142,9 +142,9 @@ class NullCheckEliminationAndTypeInference : public PassME {
     : PassME("NCE_TypeInference", kRepeatingPreOrderDFSTraversal, "4_post_nce_cfg") {
   }
 
-  void Start(const PassDataHolder* data) const {
+  void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* cUnit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(cUnit != nullptr);
     cUnit->mir_graph->EliminateNullChecksAndInferTypesStart();
   }
@@ -159,9 +159,9 @@ class NullCheckEliminationAndTypeInference : public PassME {
     return cUnit->mir_graph->EliminateNullChecksAndInferTypes(bb);
   }
 
-  void End(const PassDataHolder* data) const {
+  void End(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* cUnit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(cUnit != nullptr);
     cUnit->mir_graph->EliminateNullChecksAndInferTypesEnd();
   }
@@ -189,9 +189,9 @@ class ClassInitCheckElimination : public PassME {
     return cUnit->mir_graph->EliminateClassInitChecks(bb);
   }
 
-  void End(const PassDataHolder* data) const {
+  void End(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* cUnit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(cUnit != nullptr);
     cUnit->mir_graph->EliminateClassInitChecksEnd();
   }
@@ -232,7 +232,7 @@ class BBOptimizations : public PassME {
     return ((cUnit->disable_opt & (1 << kBBOpt)) == 0);
   }
 
-  void Start(const PassDataHolder* data) const;
+  void Start(PassDataHolder* data) const;
 };
 
 }  // namespace art

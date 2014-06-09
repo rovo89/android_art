@@ -32,11 +32,11 @@ class InitializeData : public PassME {
   InitializeData() : PassME("InitializeData") {
   }
 
-  void Start(const PassDataHolder* data) const {
+  void Start(PassDataHolder* data) const {
     // New blocks may have been inserted so the first thing we do is ensure that
     // the c_unit's number of blocks matches the actual count of basic blocks.
     DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
     c_unit->mir_graph.get()->InitializeBasicBlockData();
     c_unit->mir_graph.get()->SSATransformationStart();
@@ -78,7 +78,7 @@ class CalculatePredecessors : public PassME {
   CalculatePredecessors() : PassME("CalculatePredecessors") {
   }
 
-  void Start(const PassDataHolder* data) const;
+  void Start(PassDataHolder* data) const;
 };
 
 /**
@@ -90,9 +90,9 @@ class DFSOrders : public PassME {
   DFSOrders() : PassME("DFSOrders") {
   }
 
-  void Start(const PassDataHolder* data) const {
+  void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
     c_unit->mir_graph.get()->ComputeDFSOrders();
   }
@@ -107,17 +107,17 @@ class BuildDomination : public PassME {
   BuildDomination() : PassME("BuildDomination") {
   }
 
-  void Start(const PassDataHolder* data) const {
+  void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
     c_unit->mir_graph.get()->ComputeDominators();
     c_unit->mir_graph.get()->CompilerInitializeSSAConversion();
   }
 
-  void End(const PassDataHolder* data) const {
+  void End(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
     // Verify the dataflow information after the pass.
     if (c_unit->enable_debug & (1 << kDebugVerifyDataflow)) {
@@ -135,9 +135,9 @@ class DefBlockMatrix : public PassME {
   DefBlockMatrix() : PassME("DefBlockMatrix") {
   }
 
-  void Start(const PassDataHolder* data) const {
+  void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
     c_unit->mir_graph.get()->ComputeDefBlockMatrix();
   }
@@ -152,9 +152,9 @@ class CreatePhiNodes : public PassME {
   CreatePhiNodes() : PassME("CreatePhiNodes") {
   }
 
-  void Start(const PassDataHolder* data) const {
+  void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
     c_unit->mir_graph.get()->InsertPhiNodes();
   }
@@ -170,9 +170,9 @@ class ClearVisitedFlag : public PassME {
   ClearVisitedFlag() : PassME("ClearVisitedFlag") {
   }
 
-  void Start(const PassDataHolder* data) const {
+  void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
     c_unit->mir_graph.get()->ClearAllVisitedFlags();
   }
@@ -187,9 +187,9 @@ class SSAConversion : public PassME {
   SSAConversion() : PassME("SSAConversion") {
   }
 
-  void Start(const PassDataHolder* data) const {
+  void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
     MIRGraph *mir_graph = c_unit->mir_graph.get();
     mir_graph->DoDFSPreOrderSSARename(mir_graph->GetEntryBlock());
@@ -226,9 +226,9 @@ class PerformInitRegLocations : public PassME {
   PerformInitRegLocations() : PassME("PerformInitRegLocation") {
   }
 
-  void Start(const PassDataHolder* data) const {
+  void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
     c_unit->mir_graph->InitRegLocations();
   }
@@ -254,9 +254,9 @@ class ConstantPropagation : public PassME {
     return false;
   }
 
-  void Start(const PassDataHolder* data) const {
+  void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
     c_unit->mir_graph->InitializeConstantPropagation();
   }
@@ -271,9 +271,9 @@ class FreeData : public PassME {
   FreeData() : PassME("FreeData") {
   }
 
-  void End(const PassDataHolder* data) const {
+  void End(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
     c_unit->mir_graph.get()->SSATransformationEnd();
   }

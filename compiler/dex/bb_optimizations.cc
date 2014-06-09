@@ -54,9 +54,9 @@ bool BBCombine::Worker(const PassDataHolder* data) const {
 /*
  * BasicBlock Optimization pass implementation start.
  */
-void BBOptimizations::Start(const PassDataHolder* data) const {
+void BBOptimizations::Start(PassDataHolder* data) const {
   DCHECK(data != nullptr);
-  CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+  CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
   DCHECK(c_unit != nullptr);
   /*
    * This pass has a different ordering depEnding on the suppress exception,
