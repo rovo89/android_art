@@ -292,11 +292,14 @@ bool OatFile::Setup(std::string* error_msg) {
       return false;
     }
 
-    oat_dex_files_.Put(dex_file_location, new OatDexFile(this,
-                                                         dex_file_location,
-                                                         dex_file_checksum,
-                                                         dex_file_pointer,
-                                                         methods_offsets_pointer));
+    OatDexFile* oat_dex_file = new OatDexFile(this,
+                                              dex_file_location,
+                                              dex_file_checksum,
+                                              dex_file_pointer,
+                                              methods_offsets_pointer);
+    // Use a StringPiece backed by the oat_dex_file's internal std::string as the key.
+    StringPiece key(oat_dex_file->GetDexFileLocation());
+    oat_dex_files_.Put(key, oat_dex_file);
   }
   return true;
 }
