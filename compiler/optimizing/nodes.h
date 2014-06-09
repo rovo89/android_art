@@ -283,18 +283,16 @@ class HBasicBlock : public ArenaObject {
     block->predecessors_.Add(this);
   }
 
-  void RemovePredecessor(HBasicBlock* block, bool remove_in_successor = true) {
-    predecessors_.Delete(block);
-    if (remove_in_successor) {
-      block->successors_.Delete(this);
-    }
+  void ReplaceSuccessor(HBasicBlock* existing, HBasicBlock* new_block) {
+    size_t successor_index = GetSuccessorIndexOf(existing);
+    DCHECK_NE(successor_index, static_cast<size_t>(-1));
+    existing->RemovePredecessor(this);
+    new_block->predecessors_.Add(this);
+    successors_.Put(successor_index, new_block);
   }
 
-  void RemoveSuccessor(HBasicBlock* block, bool remove_in_predecessor = true) {
-    successors_.Delete(block);
-    if (remove_in_predecessor) {
-      block->predecessors_.Delete(this);
-    }
+  void RemovePredecessor(HBasicBlock* block) {
+    predecessors_.Delete(block);
   }
 
   void ClearAllPredecessors() {
@@ -309,6 +307,15 @@ class HBasicBlock : public ArenaObject {
   size_t GetPredecessorIndexOf(HBasicBlock* predecessor) {
     for (size_t i = 0, e = predecessors_.Size(); i < e; ++i) {
       if (predecessors_.Get(i) == predecessor) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  size_t GetSuccessorIndexOf(HBasicBlock* successor) {
+    for (size_t i = 0, e = successors_.Size(); i < e; ++i) {
+      if (successors_.Get(i) == successor) {
         return i;
       }
     }
@@ -455,6 +462,7 @@ class HInstruction : public ArenaObject {
   virtual void SetRawInputAt(size_t index, HInstruction* input) = 0;
 
   virtual bool NeedsEnvironment() const { return false; }
+  virtual bool IsControlFlow() const { return false; }
 
   void AddUseAt(HInstruction* user, size_t index) {
     uses_ = new (block_->GetGraph()->GetArena()) HUseListNode<HInstruction>(user, index, uses_);
@@ -733,7 +741,9 @@ class HTemplateInstruction: public HInstruction {
 // instruction that branches to the exit block.
 class HReturnVoid : public HTemplateInstruction<0> {
  public:
-  HReturnVoid() { }
+  HReturnVoid() {}
+
+  virtual bool IsControlFlow() const { return true; }
 
   DECLARE_INSTRUCTION(ReturnVoid);
 
@@ -749,6 +759,8 @@ class HReturn : public HTemplateInstruction<1> {
     SetRawInputAt(0, value);
   }
 
+  virtual bool IsControlFlow() const { return true; }
+
   DECLARE_INSTRUCTION(Return);
 
  private:
@@ -760,7 +772,9 @@ class HReturn : public HTemplateInstruction<1> {
 // exit block.
 class HExit : public HTemplateInstruction<0> {
  public:
-  HExit() { }
+  HExit() {}
+
+  virtual bool IsControlFlow() const { return true; }
 
   DECLARE_INSTRUCTION(Exit);
 
@@ -771,11 +785,13 @@ class HExit : public HTemplateInstruction<0> {
 // Jumps from one block to another.
 class HGoto : public HTemplateInstruction<0> {
  public:
-  HGoto() { }
+  HGoto() {}
 
   HBasicBlock* GetSuccessor() const {
     return GetBlock()->GetSuccessors().Get(0);
   }
+
+  virtual bool IsControlFlow() const { return true; }
 
   DECLARE_INSTRUCTION(Goto);
 
@@ -798,6 +814,8 @@ class HIf : public HTemplateInstruction<1> {
   HBasicBlock* IfFalseSuccessor() const {
     return GetBlock()->GetSuccessors().Get(1);
   }
+
+  virtual bool IsControlFlow() const { return true; }
 
   DECLARE_INSTRUCTION(If);
 
