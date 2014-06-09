@@ -157,10 +157,10 @@ class CallingConvention {
     return registers_[index];
   }
 
-  uint8_t GetStackOffsetOf(size_t index, size_t word_size) const {
+  uint8_t GetStackOffsetOf(size_t index) const {
     // We still reserve the space for parameters passed by registers.
-    // Add word_size for the method pointer.
-    return index * kVRegSize + word_size;
+    // Add one for the method pointer.
+    return (index + 1) * kVRegSize;
   }
 
  private:
