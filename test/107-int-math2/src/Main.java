@@ -979,7 +979,7 @@ class Main extends IntMathBase {
         if (lres == 0x96deff00aa010000L) {
             System.out.println("longShiftTest PASSED");
         } else {
-            System.out.println("longShiftTest FAILED: " + res);
+            System.out.println("longShiftTest FAILED: " + lres);
             failure = true;
         }
 
