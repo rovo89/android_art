@@ -730,6 +730,7 @@ X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator*
     rX86_FARG5 = fr5;
     rX86_FARG6 = fr6;
     rX86_FARG7 = fr7;
+    rs_rX86_INVOKE_TGT = rs_rDI;
   } else {
     rs_rX86_SP = rs_rX86_SP_32;
 
@@ -755,13 +756,13 @@ X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator*
     rX86_FARG1 = rCX;
     rX86_FARG2 = rDX;
     rX86_FARG3 = rBX;
+    rs_rX86_INVOKE_TGT = rs_rAX;
     // TODO(64): Initialize with invalid reg
 //    rX86_ARG4 = RegStorage::InvalidReg();
 //    rX86_ARG5 = RegStorage::InvalidReg();
   }
   rs_rX86_RET0 = rs_rAX;
   rs_rX86_RET1 = rs_rDX;
-  rs_rX86_INVOKE_TGT = rs_rAX;
   rs_rX86_COUNT = rs_rCX;
   rX86_RET0 = rAX;
   rX86_RET1 = rDX;
