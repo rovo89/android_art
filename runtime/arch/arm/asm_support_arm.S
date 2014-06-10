@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_S_
-#define ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_S_
+#ifndef ART_RUNTIME_ARCH_ARM_ASM_SUPPORT_ARM_S_
+#define ART_RUNTIME_ARCH_ARM_ASM_SUPPORT_ARM_S_
 
 #include "asm_support_arm.h"
 

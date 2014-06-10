@@ -233,8 +233,7 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pShlLong, pShrLong, kPointerSize);
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pShrLong, pUshrLong, kPointerSize);
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pUshrLong, pIndexOf, kPointerSize);
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pIndexOf, pMemcmp16, kPointerSize);
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pMemcmp16, pStringCompareTo, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pIndexOf, pStringCompareTo, kPointerSize);
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pStringCompareTo, pMemcpy, kPointerSize);
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pMemcpy, pQuickImtConflictTrampoline, kPointerSize);
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pQuickImtConflictTrampoline, pQuickResolutionTrampoline,

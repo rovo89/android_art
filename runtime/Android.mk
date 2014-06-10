@@ -158,6 +158,7 @@ LIBART_COMMON_SRC_FILES := \
 
 LIBART_COMMON_SRC_FILES += \
 	arch/context.cc \
+	arch/memcmp16.cc \
 	arch/arm/registers_arm.cc \
 	arch/arm64/registers_arm64.cc \
 	arch/x86/registers_x86.cc \
@@ -209,6 +210,7 @@ LIBART_TARGET_SRC_FILES_arm := \
 	arch/arm/context_arm.cc.arm \
 	arch/arm/entrypoints_init_arm.cc \
 	arch/arm/jni_entrypoints_arm.S \
+	arch/arm/memcmp16_arm.S \
 	arch/arm/portable_entrypoints_arm.S \
 	arch/arm/quick_entrypoints_arm.S \
 	arch/arm/arm_sdiv.S \
@@ -254,6 +256,7 @@ LIBART_TARGET_SRC_FILES_mips := \
 	arch/mips/context_mips.cc \
 	arch/mips/entrypoints_init_mips.cc \
 	arch/mips/jni_entrypoints_mips.S \
+	arch/mips/memcmp16.S \
 	arch/mips/portable_entrypoints_mips.S \
 	arch/mips/quick_entrypoints_mips.S \
 	arch/mips/thread_mips.cc \
