@@ -479,7 +479,7 @@ ENTRY \c_name
     // Helper signature is always
     // (method_idx, *this_object, *caller_method, *self, sp)
 
-    ldr    x2, [sp, #FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE]  // pass caller Method*
+    ldr    w2, [sp, #FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE]  // pass caller Method*
     mov    x3, xSELF                      // pass Thread::Current
     mov    x4, sp
     bl     \cxx_name                      // (method_idx, this, caller, Thread*, SP)
