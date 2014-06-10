@@ -87,6 +87,13 @@ static void TestCode(const uint16_t* data, const char* expected) {
   graph->TransformToSSA();
   ReNumberInstructions(graph);
 
+  // Test that phis had their type set.
+  for (size_t i = 0, e = graph->GetBlocks().Size(); i < e; ++i) {
+    for (HInstructionIterator it(graph->GetBlocks().Get(i)->GetPhis()); !it.Done(); it.Advance()) {
+      ASSERT_NE(it.Current()->GetType(), Primitive::kPrimVoid);
+    }
+  }
+
   SsaPrettyPrinter printer(graph);
   printer.VisitInsertionOrder();
 

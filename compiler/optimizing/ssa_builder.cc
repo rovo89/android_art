@@ -15,21 +15,11 @@
  */
 
 #include "ssa_builder.h"
+
 #include "nodes.h"
+#include "ssa_type_propagation.h"
 
 namespace art {
-
-static Primitive::Type MergeTypes(Primitive::Type existing, Primitive::Type new_type) {
-  // We trust the verifier has already done the necessary checking.
-  switch (existing) {
-    case Primitive::kPrimFloat:
-    case Primitive::kPrimDouble:
-    case Primitive::kPrimNot:
-      return existing;
-    default:
-      return new_type;
-  }
-}
 
 void SsaBuilder::BuildSsa() {
   // 1) Visit in reverse post order. We need to have all predecessors of a block visited
@@ -44,18 +34,18 @@ void SsaBuilder::BuildSsa() {
     HBasicBlock* block = loop_headers_.Get(i);
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       HPhi* phi = it.Current()->AsPhi();
-      Primitive::Type type = Primitive::kPrimVoid;
       for (size_t pred = 0; pred < block->GetPredecessors().Size(); pred++) {
         HInstruction* input = ValueOfLocal(block->GetPredecessors().Get(pred), phi->GetRegNumber());
         phi->AddInput(input);
-        type = MergeTypes(type, input->GetType());
       }
-      phi->SetType(type);
     }
   }
-  // TODO: Now that the type of loop phis is set, we need a type propagation phase.
 
-  // 3) Clear locals.
+  // 3) Propagate types of phis.
+  SsaTypePropagation type_propagation(GetGraph());
+  type_propagation.Run();
+
+  // 4) Clear locals.
   // TODO: Move this to a dead code eliminator phase.
   for (HInstructionIterator it(GetGraph()->GetEntryBlock()->GetInstructions());
        !it.Done();
@@ -118,16 +108,10 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
       if (is_different) {
         HPhi* phi = new (GetGraph()->GetArena()) HPhi(
             GetGraph()->GetArena(), local, block->GetPredecessors().Size(), Primitive::kPrimVoid);
-        Primitive::Type type = Primitive::kPrimVoid;
         for (size_t i = 0; i < block->GetPredecessors().Size(); i++) {
           HInstruction* value = ValueOfLocal(block->GetPredecessors().Get(i), local);
-          // We need to merge the incoming types, as the Dex format does not
-          // guarantee the inputs have the same type. In particular the 0 constant is
-          // used for all types, but the graph builder treats it as an int.
-          type = MergeTypes(type, value->GetType());
           phi->SetRawInputAt(i, value);
         }
-        phi->SetType(type);
         block->AddPhi(phi);
         value = phi;
       }
