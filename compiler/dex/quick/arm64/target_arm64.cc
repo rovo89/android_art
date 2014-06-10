@@ -814,7 +814,7 @@ static RegStorage GetArgPhysicalReg(RegLocation* loc, int* num_gpr_used, int* nu
       }
     }
   }
-
+  *op_size = kWord;
   return RegStorage::InvalidReg();
 }
 
