@@ -1002,15 +1002,12 @@ DEFINE_FUNCTION art_quick_proxy_invoke_handler
 END_FUNCTION art_quick_proxy_invoke_handler
 
     /*
-     * Called to resolve an imt conflict. Clobbers %rax (which will be clobbered later anyways).
-     *
-     * xmm0 is a hidden argument that holds the target method's dex method index.
-     * TODO: With proper hard-float support, this needs to be kept in sync with the quick compiler.
+     * Called to resolve an imt conflict.
+     * rax is a hidden argument that holds the target method's dex method index.
      */
 DEFINE_FUNCTION art_quick_imt_conflict_trampoline
     movl 8(%rsp), %edi            // load caller Method*
     movl METHOD_DEX_CACHE_METHODS_OFFSET(%rdi), %edi  // load dex_cache_resolved_methods
-    movd %xmm0, %rax               // get target method index stored in xmm0
     movl OBJECT_ARRAY_DATA_OFFSET(%rdi, %rax, 4), %edi  // load the target method
     jmp art_quick_invoke_interface_trampoline_local
 END_FUNCTION art_quick_imt_conflict_trampoline
