@@ -18,6 +18,7 @@
 
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
+#include "base/scoped_flock.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "mirror/art_method.h"
 #include "mirror/class-inl.h"
@@ -148,7 +149,17 @@ ImageSpace* ImageSpace::Create(const char* image_location,
   std::string image_filename;
   std::string error_msg;
   bool is_system = false;
-  if (FindImageFilename(image_location, image_isa, &image_filename, &is_system)) {
+  const bool found_image = FindImageFilename(image_location, image_isa, &image_filename,
+                                             &is_system);
+
+  // Note that we must not use the file descriptor associated with
+  // ScopedFlock::GetFile to Init the image file. We want the file
+  // descriptor (and the associated exclusive lock) to be released when
+  // we leave Create.
+  ScopedFlock image_lock;
+  image_lock.Init(image_filename.c_str(), &error_msg);
+
+  if (found_image) {
     ImageSpace* space = ImageSpace::Init(image_filename.c_str(), image_location, !is_system,
                                          &error_msg);
     if (space != nullptr) {
