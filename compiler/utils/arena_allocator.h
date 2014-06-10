@@ -156,7 +156,7 @@ class ArenaAllocator : private ArenaAllocatorStats {
     if (UNLIKELY(running_on_valgrind_)) {
       return AllocValgrind(bytes, kind);
     }
-    bytes = RoundUp(bytes, 4);
+    bytes = RoundUp(bytes, 8);
     if (UNLIKELY(ptr_ + bytes > end_)) {
       // Obtain a new block.
       ObtainNewArenaForAllocation(bytes);
