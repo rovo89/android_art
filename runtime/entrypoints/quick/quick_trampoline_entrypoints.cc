@@ -172,11 +172,7 @@ class QuickArgumentVisitor {
   // | Padding         |
   // | RDI/Method*     |  <- sp
   static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
-#ifdef TARGET_REX_SUPPORT
   static constexpr size_t kNumQuickGprArgs = 5;  // 5 arguments passed in GPRs.
-#else
-  static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs if r8..r15 not enabled.
-#endif
   static constexpr size_t kNumQuickFprArgs = 8;  // 8 arguments passed in FPRs.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 16;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 80;  // Offset of first GPR arg.
