@@ -1202,10 +1202,8 @@ class ComputeGenericJniFrameSize FINAL {
     size_t scope_and_method = handle_scope_size + sizeof(StackReference<mirror::ArtMethod>);
 
     sp8 -= scope_and_method;
-    // Align by kStackAlignment
-    uintptr_t sp_to_align = reinterpret_cast<uintptr_t>(sp8);
-    sp_to_align = RoundDown(sp_to_align, kStackAlignment);
-    sp8 = reinterpret_cast<uint8_t*>(sp_to_align);
+    // Align by kStackAlignment.
+    sp8 = reinterpret_cast<uint8_t*>(RoundDown(reinterpret_cast<uintptr_t>(sp8), kStackAlignment));
 
     uint8_t* sp8_table = sp8 + sizeof(StackReference<mirror::ArtMethod>);
     *table = reinterpret_cast<HandleScope*>(sp8_table);
@@ -1225,9 +1223,8 @@ class ComputeGenericJniFrameSize FINAL {
 
     // Next comes the native call stack.
     sp8 -= GetStackSize();
-    // Now align the call stack below. This aligns by 16, as AArch64 seems to require.
-    uintptr_t mask = ~0x0F;
-    sp8 = reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(sp8) & mask);
+    // Align by kStackAlignment.
+    sp8 = reinterpret_cast<uint8_t*>(RoundDown(reinterpret_cast<uintptr_t>(sp8), kStackAlignment));
     *start_stack = reinterpret_cast<uintptr_t*>(sp8);
 
     // put fprs and gprs below
