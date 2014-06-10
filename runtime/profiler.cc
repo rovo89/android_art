@@ -378,8 +378,7 @@ void BackgroundMethodSamplingProfiler::RecordMethod(mirror::ArtMethod* method) {
 
   bool is_filtered = false;
 
-  MethodHelper mh(method);
-  if (strcmp(mh.GetName(), "<clinit>") == 0) {
+  if (strcmp(method->GetName(), "<clinit>") == 0) {
     // always filter out class init
     is_filtered = true;
   }
@@ -460,8 +459,7 @@ uint32_t ProfileSampleResults::Write(std::ostream &os) {
         mirror::ArtMethod *method = meth_iter.first;
         std::string method_name = PrettyMethod(method);
 
-        MethodHelper mh(method);
-        const DexFile::CodeItem* codeitem = mh.GetCodeItem();
+        const DexFile::CodeItem* codeitem = method->GetCodeItem();
         uint32_t method_size = 0;
         if (codeitem != nullptr) {
           method_size = codeitem->insns_size_in_code_units_;

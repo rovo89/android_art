@@ -338,12 +338,11 @@ MethodVerifier::~MethodVerifier() {
 
 void MethodVerifier::FindLocksAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc,
                                       std::vector<uint32_t>* monitor_enter_dex_pcs) {
-  MethodHelper mh(m);
   StackHandleScope<2> hs(Thread::Current());
-  Handle<mirror::DexCache> dex_cache(hs.NewHandle(mh.GetDexCache()));
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(mh.GetClassLoader()));
-  MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader, &mh.GetClassDef(),
-                          mh.GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(), false,
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(m->GetDexCache()));
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(m->GetClassLoader()));
+  MethodVerifier verifier(m->GetDexFile(), &dex_cache, &class_loader, &m->GetClassDef(),
+                          m->GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(), false,
                           true, false);
   verifier.interesting_dex_pc_ = dex_pc;
   verifier.monitor_enter_dex_pcs_ = monitor_enter_dex_pcs;
@@ -363,12 +362,11 @@ void MethodVerifier::FindLocksAtDexPc() {
 
 mirror::ArtField* MethodVerifier::FindAccessedFieldAtDexPc(mirror::ArtMethod* m,
                                                            uint32_t dex_pc) {
-  MethodHelper mh(m);
   StackHandleScope<2> hs(Thread::Current());
-  Handle<mirror::DexCache> dex_cache(hs.NewHandle(mh.GetDexCache()));
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(mh.GetClassLoader()));
-  MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader, &mh.GetClassDef(),
-                          mh.GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(), true,
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(m->GetDexCache()));
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(m->GetClassLoader()));
+  MethodVerifier verifier(m->GetDexFile(), &dex_cache, &class_loader, &m->GetClassDef(),
+                          m->GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(), true,
                           true, false);
   return verifier.FindAccessedFieldAtDexPc(dex_pc);
 }
@@ -394,12 +392,11 @@ mirror::ArtField* MethodVerifier::FindAccessedFieldAtDexPc(uint32_t dex_pc) {
 
 mirror::ArtMethod* MethodVerifier::FindInvokedMethodAtDexPc(mirror::ArtMethod* m,
                                                             uint32_t dex_pc) {
-  MethodHelper mh(m);
   StackHandleScope<2> hs(Thread::Current());
-  Handle<mirror::DexCache> dex_cache(hs.NewHandle(mh.GetDexCache()));
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(mh.GetClassLoader()));
-  MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader, &mh.GetClassDef(),
-                          mh.GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(), true,
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(m->GetDexCache()));
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(m->GetClassLoader()));
+  MethodVerifier verifier(m->GetDexFile(), &dex_cache, &class_loader, &m->GetClassDef(),
+                          m->GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(), true,
                           true, false);
   return verifier.FindInvokedMethodAtDexPc(dex_pc);
 }
@@ -2136,19 +2133,22 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_SUPER_RANGE: {
       bool is_range = (inst->Opcode() == Instruction::INVOKE_VIRTUAL_RANGE ||
                        inst->Opcode() == Instruction::INVOKE_SUPER_RANGE);
-      bool is_super =  (inst->Opcode() == Instruction::INVOKE_SUPER ||
-                        inst->Opcode() == Instruction::INVOKE_SUPER_RANGE);
+      bool is_super = (inst->Opcode() == Instruction::INVOKE_SUPER ||
+                       inst->Opcode() == Instruction::INVOKE_SUPER_RANGE);
       mirror::ArtMethod* called_method = VerifyInvocationArgs(inst, METHOD_VIRTUAL,
                                                                    is_range, is_super);
       const RegType* return_type = nullptr;
       if (called_method != nullptr) {
-        MethodHelper mh(called_method);
+        Thread* self = Thread::Current();
+        StackHandleScope<1> hs(self);
+        Handle<mirror::ArtMethod> h_called_method(hs.NewHandle(called_method));
+        MethodHelper mh(h_called_method);
         mirror::Class* return_type_class = mh.GetReturnType(can_load_classes_);
         if (return_type_class != nullptr) {
-          return_type = &reg_types_.FromClass(mh.GetReturnTypeDescriptor(), return_type_class,
+          return_type = &reg_types_.FromClass(h_called_method->GetReturnTypeDescriptor(),
+                                              return_type_class,
                                               return_type_class->CannotBeAssignedFromOtherTypes());
         } else {
-          Thread* self = Thread::Current();
           DCHECK(!can_load_classes_ || self->IsExceptionPending());
           self->ClearException();
         }
@@ -2183,7 +2183,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         return_type_descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
       } else {
         is_constructor = called_method->IsConstructor();
-        return_type_descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
+        return_type_descriptor = called_method->GetReturnTypeDescriptor();
       }
       if (is_constructor) {
         /*
@@ -2249,10 +2249,10 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
           descriptor = dex_file_->StringByTypeIdx(return_type_idx);
         } else {
-          descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
+          descriptor = called_method->GetReturnTypeDescriptor();
         }
-        const RegType& return_type =  reg_types_.FromDescriptor(class_loader_->Get(), descriptor,
-                                                                false);
+        const RegType& return_type = reg_types_.FromDescriptor(class_loader_->Get(), descriptor,
+                                                               false);
         if (!return_type.IsLowHalf()) {
           work_line_->SetResultRegisterType(return_type);
         } else {
@@ -2307,7 +2307,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
         descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
       } else {
-        descriptor = MethodHelper(abs_method).GetReturnTypeDescriptor();
+        descriptor = abs_method->GetReturnTypeDescriptor();
       }
       const RegType& return_type = reg_types_.FromDescriptor(class_loader_->Get(), descriptor,
                                                              false);
@@ -2574,7 +2574,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       bool is_range = (inst->Opcode() == Instruction::INVOKE_VIRTUAL_RANGE_QUICK);
       mirror::ArtMethod* called_method = VerifyInvokeVirtualQuickArgs(inst, is_range);
       if (called_method != NULL) {
-        const char* descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
+        const char* descriptor = called_method->GetReturnTypeDescriptor();
         const RegType& return_type = reg_types_.FromDescriptor(class_loader_->Get(), descriptor,
                                                                false);
         if (!return_type.IsLowHalf()) {
@@ -2962,7 +2962,7 @@ mirror::ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex_meth
     return NULL;
   }
   // Disallow any calls to class initializers.
-  if (MethodHelper(res_method).IsClassInitializer()) {
+  if (res_method->IsClassInitializer()) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "rejecting call to class initializer "
                                       << PrettyMethod(res_method);
     return NULL;
@@ -3027,12 +3027,11 @@ mirror::ArtMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* inst,
     }
     mirror::Class* super_klass = super.GetClass();
     if (res_method->GetMethodIndex() >= super_klass->GetVTable()->GetLength()) {
-      MethodHelper mh(res_method);
       Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from "
                                    << PrettyMethod(dex_method_idx_, *dex_file_)
                                    << " to super " << super
-                                   << "." << mh.GetName()
-                                   << mh.GetSignature();
+                                   << "." << res_method->GetName()
+                                   << res_method->GetSignature();
       return NULL;
     }
   }
@@ -3081,8 +3080,7 @@ mirror::ArtMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* inst,
    * Process the target method's signature. This signature may or may not
    * have been verified, so we can't assume it's properly formed.
    */
-  MethodHelper mh(res_method);
-  const DexFile::TypeList* params = mh.GetParameterTypeList();
+  const DexFile::TypeList* params = res_method->GetParameterTypeList();
   size_t params_size = params == NULL ? 0 : params->Size();
   uint32_t arg[5];
   if (!is_range) {
@@ -3096,7 +3094,7 @@ mirror::ArtMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* inst,
       return NULL;
     }
     const char* descriptor =
-        mh.GetTypeDescriptorFromTypeIdx(params->GetTypeItem(param_index).type_idx_);
+        res_method->GetTypeDescriptorFromTypeIdx(params->GetTypeItem(param_index).type_idx_);
     if (descriptor == NULL) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invocation of " << PrettyMethod(res_method)
           << " missing signature component";
@@ -3204,8 +3202,7 @@ mirror::ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instructio
    * Process the target method's signature. This signature may or may not
    * have been verified, so we can't assume it's properly formed.
    */
-  MethodHelper mh(res_method);
-  const DexFile::TypeList* params = mh.GetParameterTypeList();
+  const DexFile::TypeList* params = res_method->GetParameterTypeList();
   size_t params_size = params == NULL ? 0 : params->Size();
   uint32_t arg[5];
   if (!is_range) {
@@ -3221,7 +3218,7 @@ mirror::ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instructio
       return NULL;
     }
     const char* descriptor =
-        mh.GetTypeDescriptorFromTypeIdx(params->GetTypeItem(param_index).type_idx_);
+        res_method->GetTypeDescriptorFromTypeIdx(params->GetTypeItem(param_index).type_idx_);
     if (descriptor == NULL) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invocation of " << PrettyMethod(res_method)
                                         << " missing signature component";
@@ -3849,13 +3846,18 @@ InstructionFlags* MethodVerifier::CurrentInsnFlags() {
 const RegType& MethodVerifier::GetMethodReturnType() {
   if (return_type_ == nullptr) {
     if (mirror_method_ != NULL) {
-      MethodHelper mh(mirror_method_);
-      mirror::Class* return_type_class = mh.GetReturnType(can_load_classes_);
+      Thread* self = Thread::Current();
+      StackHandleScope<1> hs(self);
+      mirror::Class* return_type_class;
+      {
+        HandleWrapper<mirror::ArtMethod> h_mirror_method(hs.NewHandleWrapper(&mirror_method_));
+        return_type_class = MethodHelper(h_mirror_method).GetReturnType(can_load_classes_);
+      }
       if (return_type_class != nullptr) {
-        return_type_ = &reg_types_.FromClass(mh.GetReturnTypeDescriptor(), return_type_class,
+        return_type_ = &reg_types_.FromClass(mirror_method_->GetReturnTypeDescriptor(),
+                                             return_type_class,
                                              return_type_class->CannotBeAssignedFromOtherTypes());
       } else {
-        Thread* self = Thread::Current();
         DCHECK(!can_load_classes_ || self->IsExceptionPending());
         self->ClearException();
       }

@@ -365,15 +365,14 @@ std::string PrettyMethod(mirror::ArtMethod* m, bool with_signature) {
   if (m == nullptr) {
     return "null";
   }
-  MethodHelper mh(m);
-  std::string result(PrettyDescriptor(mh.GetDeclaringClassDescriptor()));
+  std::string result(PrettyDescriptor(m->GetDeclaringClassDescriptor()));
   result += '.';
-  result += mh.GetName();
+  result += m->GetName();
   if (UNLIKELY(m->IsFastNative())) {
     result += "!";
   }
   if (with_signature) {
-    const Signature signature = mh.GetSignature();
+    const Signature signature = m->GetSignature();
     std::string sig_as_string(signature.ToString());
     if (signature == Signature::NoSignature()) {
       return result + sig_as_string;
@@ -642,15 +641,14 @@ std::string DescriptorToName(const char* descriptor) {
 }
 
 std::string JniShortName(mirror::ArtMethod* m) {
-  MethodHelper mh(m);
-  std::string class_name(mh.GetDeclaringClassDescriptor());
+  std::string class_name(m->GetDeclaringClassDescriptor());
   // Remove the leading 'L' and trailing ';'...
   CHECK_EQ(class_name[0], 'L') << class_name;
   CHECK_EQ(class_name[class_name.size() - 1], ';') << class_name;
   class_name.erase(0, 1);
   class_name.erase(class_name.size() - 1, 1);
 
-  std::string method_name(mh.GetName());
+  std::string method_name(m->GetName());
 
   std::string short_name;
   short_name += "Java_";
@@ -665,7 +663,7 @@ std::string JniLongName(mirror::ArtMethod* m) {
   long_name += JniShortName(m);
   long_name += "__";
 
-  std::string signature(MethodHelper(m).GetSignature().ToString());
+  std::string signature(m->GetSignature().ToString());
   signature.erase(0, 1);
   signature.erase(signature.begin() + signature.find(')'), signature.end());
 

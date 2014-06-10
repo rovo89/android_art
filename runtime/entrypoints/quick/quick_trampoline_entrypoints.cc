@@ -466,16 +466,16 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
   } else {
     DCHECK(!method->IsNative()) << PrettyMethod(method);
     const char* old_cause = self->StartAssertNoThreadSuspension("Building interpreter shadow frame");
-    MethodHelper mh(method);
-    const DexFile::CodeItem* code_item = mh.GetCodeItem();
+    const DexFile::CodeItem* code_item = method->GetCodeItem();
     DCHECK(code_item != nullptr) << PrettyMethod(method);
     uint16_t num_regs = code_item->registers_size_;
     void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
     ShadowFrame* shadow_frame(ShadowFrame::Create(num_regs, NULL,  // No last shadow coming from quick.
                                                   method, 0, memory));
     size_t first_arg_reg = code_item->registers_size_ - code_item->ins_size_;
-    BuildQuickShadowFrameVisitor shadow_frame_builder(sp, mh.IsStatic(), mh.GetShorty(),
-                                                      mh.GetShortyLength(),
+    uint32_t shorty_len = 0;
+    const char* shorty = method->GetShorty(&shorty_len);
+    BuildQuickShadowFrameVisitor shadow_frame_builder(sp, method->IsStatic(), shorty, shorty_len,
                                                       shadow_frame, first_arg_reg);
     shadow_frame_builder.VisitArguments();
     // Push a transition back into managed code onto the linked list in thread.
@@ -495,6 +495,8 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
       }
     }
 
+    StackHandleScope<1> hs(self);
+    MethodHelper mh(hs.NewHandle(method));
     JValue result = interpreter::EnterInterpreterFromStub(self, mh, code_item, *shadow_frame);
     // Pop transition.
     self->PopManagedStackFragment(fragment);
@@ -596,11 +598,13 @@ extern "C" uint64_t artQuickProxyInvokeHandler(mirror::ArtMethod* proxy_method,
   jobject rcvr_jobj = soa.AddLocalReference<jobject>(receiver);
 
   // Placing arguments into args vector and remove the receiver.
-  MethodHelper proxy_mh(proxy_method);
-  DCHECK(!proxy_mh.IsStatic()) << PrettyMethod(proxy_method);
+  mirror::ArtMethod* non_proxy_method = proxy_method->GetInterfaceMethodIfProxy();
+  CHECK(!non_proxy_method->IsStatic()) << PrettyMethod(proxy_method) << " "
+      << PrettyMethod(non_proxy_method);
   std::vector<jvalue> args;
-  BuildQuickArgumentVisitor local_ref_visitor(sp, proxy_mh.IsStatic(), proxy_mh.GetShorty(),
-                                              proxy_mh.GetShortyLength(), &soa, &args);
+  uint32_t shorty_len = 0;
+  const char* shorty = proxy_method->GetShorty(&shorty_len);
+  BuildQuickArgumentVisitor local_ref_visitor(sp, false, shorty, shorty_len, &soa, &args);
 
   local_ref_visitor.VisitArguments();
   DCHECK_GT(args.size(), 0U) << PrettyMethod(proxy_method);
@@ -615,8 +619,7 @@ extern "C" uint64_t artQuickProxyInvokeHandler(mirror::ArtMethod* proxy_method,
   // All naked Object*s should now be in jobjects, so its safe to go into the main invoke code
   // that performs allocations.
   self->EndAssertNoThreadSuspension(old_cause);
-  JValue result = InvokeProxyInvocationHandler(soa, proxy_mh.GetShorty(),
-                                               rcvr_jobj, interface_method_jobj, args);
+  JValue result = InvokeProxyInvocationHandler(soa, shorty, rcvr_jobj, interface_method_jobj, args);
   // Restore references which might have moved.
   local_ref_visitor.FixupReferences();
   return result.GetJ();
@@ -683,11 +686,8 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
   if (called->IsRuntimeMethod()) {
     uint32_t dex_pc = caller->ToDexPc(QuickArgumentVisitor::GetCallingPc(sp));
     const DexFile::CodeItem* code;
-    {
-      MethodHelper mh(caller);
-      dex_file = &mh.GetDexFile();
-      code = mh.GetCodeItem();
-    }
+    dex_file = caller->GetDexFile();
+    code = caller->GetCodeItem();
     CHECK_LT(dex_pc, code->insns_size_in_code_units_);
     const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
     Instruction::Code instr_code = instr->Opcode();
@@ -743,7 +743,7 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
 
   } else {
     invoke_type = kStatic;
-    dex_file = &MethodHelper(called).GetDexFile();
+    dex_file = called->GetDexFile();
     dex_method_idx = called->GetDexMethodIndex();
   }
   uint32_t shorty_len;
@@ -789,9 +789,10 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
         // Calling from one dex file to another, need to compute the method index appropriate to
         // the caller's dex file. Since we get here only if the original called was a runtime
         // method, we've got the correct dex_file and a dex_method_idx from above.
-        DCHECK(&MethodHelper(caller).GetDexFile() == dex_file);
-        uint32_t method_index =
-            MethodHelper(called).FindDexMethodIndexInOtherDexFile(*dex_file, dex_method_idx);
+        DCHECK_EQ(caller->GetDexFile(), dex_file);
+        StackHandleScope<1> hs(self);
+        MethodHelper mh(hs.NewHandle(called));
+        uint32_t method_index = mh.FindDexMethodIndexInOtherDexFile(*dex_file, dex_method_idx);
         if (method_index != DexFile::kDexNoIndex) {
           caller->GetDexCacheResolvedMethods()->Set<false>(method_index, called);
         }
@@ -1500,10 +1501,9 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, StackReference<mir
   DCHECK(called->IsNative()) << PrettyMethod(called, true);
 
   // run the visitor
-  MethodHelper mh(called);
-
-  BuildGenericJniFrameVisitor visitor(&sp, called->IsStatic(), mh.GetShorty(), mh.GetShortyLength(),
-                                      self);
+  uint32_t shorty_len = 0;
+  const char* shorty = called->GetShorty(&shorty_len);
+  BuildGenericJniFrameVisitor visitor(&sp, called->IsStatic(), shorty, shorty_len, self);
   visitor.VisitArguments();
   visitor.FinalizeHandleScope(self);
 
@@ -1544,7 +1544,7 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, StackReference<mir
 
       // End JNI, as the assembly will move to deliver the exception.
       jobject lock = called->IsSynchronized() ? visitor.GetFirstHandleScopeJObject() : nullptr;
-      if (mh.GetShorty()[0] == 'L') {
+      if (shorty[0] == 'L') {
         artQuickGenericJniEndJNIRef(self, cookie, nullptr, lock);
       } else {
         artQuickGenericJniEndJNINonRef(self, cookie, lock);
@@ -1583,8 +1583,7 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self,
     lock = table->GetHandle(0).ToJObject();
   }
 
-  MethodHelper mh(called);
-  char return_shorty_char = mh.GetShorty()[0];
+  char return_shorty_char = called->GetShorty()[0];
 
   if (return_shorty_char == 'L') {
     return artQuickGenericJniEndJNIRef(self, cookie, result.l, lock);
@@ -1659,7 +1658,7 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx, mirror::Object* this_o
 
   // When we return, the caller will branch to this address, so it had better not be 0!
   DCHECK(code != nullptr) << "Code was NULL in method: " << PrettyMethod(method) << " location: "
-      << MethodHelper(method).GetDexFile().GetLocation();
+      << method->GetDexFile()->GetLocation();
 
   return GetTwoWordSuccessValue(reinterpret_cast<uintptr_t>(code),
                                 reinterpret_cast<uintptr_t>(method));
@@ -1755,7 +1754,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(mirror::ArtMethod* interfa
 
     // Map the caller PC to a dex PC.
     uint32_t dex_pc = caller_method->ToDexPc(caller_pc);
-    const DexFile::CodeItem* code = MethodHelper(caller_method).GetCodeItem();
+    const DexFile::CodeItem* code = caller_method->GetCodeItem();
     CHECK_LT(dex_pc, code->insns_size_in_code_units_);
     const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
     Instruction::Code instr_code = instr->Opcode();
@@ -1793,7 +1792,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(mirror::ArtMethod* interfa
 
   // When we return, the caller will branch to this address, so it had better not be 0!
   DCHECK(code != nullptr) << "Code was NULL in method: " << PrettyMethod(method) << " location: "
-      << MethodHelper(method).GetDexFile().GetLocation();
+      << method->GetDexFile()->GetLocation();
 
   return GetTwoWordSuccessValue(reinterpret_cast<uintptr_t>(code),
                                 reinterpret_cast<uintptr_t>(method));

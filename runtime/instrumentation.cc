@@ -860,7 +860,8 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
   CheckStackDepth(self, instrumentation_frame, 0);
 
   mirror::ArtMethod* method = instrumentation_frame.method_;
-  char return_shorty = MethodHelper(method).GetShorty()[0];
+  uint32_t length;
+  char return_shorty = method->GetShorty(&length)[0];
   JValue return_value;
   if (return_shorty == 'V') {
     return_value.SetJ(0);

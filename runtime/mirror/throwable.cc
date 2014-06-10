@@ -85,16 +85,14 @@ std::string Throwable::Dump() {
     ObjectArray<Object>* method_trace = down_cast<ObjectArray<Object>*>(stack_state);
     int32_t depth = method_trace->GetLength() - 1;
     IntArray* pc_trace = down_cast<IntArray*>(method_trace->Get(depth));
-    MethodHelper mh;
     if (depth == 0) {
       result += "(Throwable with empty stack trace)";
     } else {
       for (int32_t i = 0; i < depth; ++i) {
-        ArtMethod* method = down_cast<ArtMethod*>(method_trace->Get(i));
-        mh.ChangeMethod(method);
+        mirror::ArtMethod* method = down_cast<ArtMethod*>(method_trace->Get(i));
         uint32_t dex_pc = pc_trace->Get(i);
-        int32_t line_number = mh.GetLineNumFromDexPC(dex_pc);
-        const char* source_file = mh.GetDeclaringClassSourceFile();
+        int32_t line_number = method->GetLineNumFromDexPC(dex_pc);
+        const char* source_file = method->GetDeclaringClassSourceFile();
         result += StringPrintf("  at %s (%s:%d)\n", PrettyMethod(method, true).c_str(),
                                source_file, line_number);
       }
