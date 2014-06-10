@@ -26,6 +26,7 @@ LIBART_COMMON_SRC_FILES := \
 	base/hex_dump.cc \
 	base/logging.cc \
 	base/mutex.cc \
+	base/scoped_flock.cc \
 	base/stringpiece.cc \
 	base/stringprintf.cc \
 	base/timing_logger.cc \
