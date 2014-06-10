@@ -61,15 +61,20 @@ mirror::Object* ReferenceProcessor::GetReferent(Thread* self, mirror::Reference*
     }
     // Try to see if the referent is already marked by using the is_marked_callback. We can return
     // it to the mutator as long as the GC is not preserving references. If the GC is
-    // preserving references, the mutator could take a white field and move it somewhere else
-    // in the heap causing corruption since this field would get swept.
     IsMarkedCallback* const is_marked_callback = process_references_args_.is_marked_callback_;
-    if (!preserving_references_ && is_marked_callback != nullptr) {
+    if (LIKELY(is_marked_callback != nullptr)) {
       mirror::Object* const obj = is_marked_callback(referent, process_references_args_.arg_);
       // If it's null it means not marked, but it could become marked if the referent is reachable
-      // by finalizer referents. So we can not return in this case and must block.
+      // by finalizer referents. So we can not return in this case and must block. Otherwise, we
+      // can return it to the mutator as long as the GC is not preserving references, in which
+      // case only black nodes can be safely returned. If the GC is preserving references, the
+      // mutator could take a white field from a grey or white node and move it somewhere else
+      // in the heap causing corruption since this field would get swept.
       if (obj != nullptr) {
-        return obj;
+        if (!preserving_references_ ||
+           (LIKELY(!reference->IsFinalizerReferenceInstance()) && !reference->IsEnqueued())) {
+          return obj;
+        }
       }
     }
     condition_.WaitHoldingLocks(self);
@@ -113,14 +118,14 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
   timings->StartSplit(concurrent ? "ProcessReferences" : "(Paused)ProcessReferences");
   // Unless required to clear soft references with white references, preserve some white referents.
   if (!clear_soft_references) {
-    TimingLogger::ScopedSplit split(concurrent ? "PreserveSomeSoftReferences" :
-        "(Paused)PreserveSomeSoftReferences", timings);
+    TimingLogger::ScopedSplit split(concurrent ? "ForwardSoftReferences" :
+        "(Paused)ForwardSoftReferences", timings);
     if (concurrent) {
       StartPreservingReferences(self);
     }
-    // References with a marked referent are removed from the list.
-    soft_reference_queue_.PreserveSomeSoftReferences(&PreserveSoftReferenceCallback,
-                                                     &process_references_args_);
+
+    soft_reference_queue_.ForwardSoftReferences(&PreserveSoftReferenceCallback,
+                                                &process_references_args_);
     process_mark_stack_callback(arg);
     if (concurrent) {
       StopPreservingReferences(self);
