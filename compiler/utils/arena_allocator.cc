@@ -215,7 +215,7 @@ void ArenaAllocator::UpdateBytesAllocated() {
 }
 
 void* ArenaAllocator::AllocValgrind(size_t bytes, ArenaAllocKind kind) {
-  size_t rounded_bytes = (bytes + 3 + kValgrindRedZoneBytes) & ~3;
+  size_t rounded_bytes = RoundUp(bytes + kValgrindRedZoneBytes, 8);
   if (UNLIKELY(ptr_ + rounded_bytes > end_)) {
     // Obtain a new block.
     ObtainNewArenaForAllocation(rounded_bytes);
