@@ -1293,14 +1293,77 @@ END_FUNCTION art_quick_to_interpreter_bridge
     /*
      * Routine that intercepts method calls and returns.
      */
-UNIMPLEMENTED art_quick_instrumentation_entry
-UNIMPLEMENTED art_quick_instrumentation_exit
+DEFINE_FUNCTION art_quick_instrumentation_entry
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+
+    movq %rdi, %r12               // Preserve method pointer in a callee-save.
+
+    movq %gs:THREAD_SELF_OFFSET, %rdx   // Pass thread.
+    movq %rsp, %rcx                     // Pass SP.
+    movq FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE-8(%rsp), %r8   // Pass return PC.
+
+    call PLT_SYMBOL(artInstrumentationMethodEntryFromCode) // (Method*, Object*, Thread*, SP, LR)
+
+                                  // %rax = result of call.
+    movq %r12, %rdi               // Reload method pointer.
+
+    leaq art_quick_instrumentation_exit_local(%rip), %r12   // Set up return through instrumentation
+    movq %r12, FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE-8(%rsp) // exit.
+
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+
+    jmp *%rax                     // Tail call to intended method.
+END_FUNCTION art_quick_instrumentation_entry
+
+DEFINE_FUNCTION art_quick_instrumentation_exit
+    pushq LITERAL(0)          // Push a fake return PC as there will be none on the stack.
+
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+
+    // We need to save rax and xmm0. We could use a callee-save from SETUP_REF_ONLY, but then
+    // we would need to fully restore it. As there are a good number of callee-save registers, it
+    // seems easier to have an extra small stack area. But this should be revisited.
+
+    movq  %rsp, %rsi                          // Pass SP.
+
+    PUSH rax                  // Save integer result.
+    subq LITERAL(8), %rsp     // Save floating-point result.
+    CFI_ADJUST_CFA_OFFSET(8)
+    movd %xmm0, (%rsp)
+
+    movq  %gs:THREAD_SELF_OFFSET, %rdi        // Pass Thread.
+    movq  %rax, %rdx                          // Pass integer result.
+    movq  %xmm0, %rcx                         // Pass floating-point result.
+
+    call PLT_SYMBOL(artInstrumentationMethodExitFromCode)   // (Thread*, SP, gpr_res, fpr_res)
+
+    movq  %rax, %rdi          // Store return PC
+    movq  %rdx, %rsi          // Store second return PC in hidden arg.
+
+    movd (%rsp), %xmm0        // Restore floating-point result.
+    addq LITERAL(8), %rsp
+    CFI_ADJUST_CFA_OFFSET(-8)
+    POP rax                   // Restore integer result.
+
+    addq LITERAL(FRAME_SIZE_REFS_ONLY_CALLEE_SAVE), %rsp   // Drop save frame and fake return pc.
+
+    jmp   *%rdi               // Return.
+END_FUNCTION art_quick_instrumentation_exit
 
     /*
      * Instrumentation has requested that we deoptimize into the interpreter. The deoptimization
      * will long jump to the upcall with a special exception of -1.
      */
-UNIMPLEMENTED art_quick_deoptimize
+DEFINE_FUNCTION art_quick_deoptimize
+    pushq %rsi                     // Fake that we were called. Use hidden arg.
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+                                   // Stack should be aligned now.
+    movq %rsp, %rsi                           // Pass SP.
+    movq %gs:THREAD_SELF_OFFSET, %rdi         // Pass Thread.
+    call PLT_SYMBOL(artDeoptimize) // artDeoptimize(Thread*, SP)
+    int3                           // Unreachable.
+END_FUNCTION art_quick_deoptimize
+
 
     /*
      * String's compareTo.

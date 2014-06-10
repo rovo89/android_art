@@ -196,6 +196,11 @@
     .cfi_adjust_cfa_offset -176
 .endm
 
+.macro POP_REF_ONLY_CALLEE_SAVE_FRAME
+    add sp, sp, #176
+    .cfi_adjust_cfa_offset -176
+.endm
+
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     ret
@@ -600,12 +605,12 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
     str x0, [x4]
 
 .Lexit_art_quick_invoke_stub\@:
-    ldp x2, x19, [x29, #32]   // Restore stack pointer and x19.
+    ldp x2, x19, [xFP, #32]   // Restore stack pointer and x19.
     .cfi_restore x19
     mov sp, x2
     .cfi_restore sp
 
-    ldp x29, x30, [x29]    // Restore old frame pointer and link register.
+    ldp xFP, xLR, [xFP]    // Restore old frame pointer and link register.
     .cfi_restore x29
     .cfi_restore x30
 
@@ -1577,9 +1582,74 @@ ENTRY art_quick_to_interpreter_bridge
     RETURN_OR_DELIVER_PENDING_EXCEPTION
 END art_quick_to_interpreter_bridge
 
-UNIMPLEMENTED art_quick_instrumentation_entry
-UNIMPLEMENTED art_quick_instrumentation_exit
-UNIMPLEMENTED art_quick_deoptimize
+
+//
+// Instrumentation-related stubs
+//
+    .extern artInstrumentationMethodEntryFromCode
+ENTRY art_quick_instrumentation_entry
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+
+    mov   x19, x0             // Preserve method reference in a callee-save.
+
+    mov   x2, xSELF
+    mov   x3, sp
+    mov   x4, xLR
+    bl    artInstrumentationMethodEntryFromCode  // (Method*, Object*, Thread*, SP, LR)
+
+    mov   x9, x0              // x0 = result of call.
+    mov   x0, x19             // Reload method reference.
+
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME  // Note: will restore xSELF
+    adr   xLR, art_quick_instrumentation_exit
+    br    x9                 // Tail-call method with lr set to art_quick_instrumentation_exit.
+END art_quick_instrumentation_entry
+
+    .extern artInstrumentationMethodExitFromCode
+ENTRY art_quick_instrumentation_exit
+    mov   xLR, #0             // Clobber LR for later checks.
+
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+
+    // We need to save x0 and d0. We could use a callee-save from SETUP_REF_ONLY, but then
+    // we would need to fully restore it. As there are a lot of callee-save registers, it seems
+    // easier to have an extra small stack area.
+
+    str x19, [sp, #-16]!      // Save integer result.
+    .cfi_adjust_cfa_offset 16
+    str d0,  [sp, #8]         // Save floating-point result.
+
+    mov   x0, xSELF           // Pass Thread.
+    add   x1, sp, #16         // Pass SP.
+    mov   x2, x0              // Pass integer result.
+    fmov  x3, d0              // Pass floating-point result.
+    bl   artInstrumentationMethodExitFromCode    // (Thread*, SP, gpr_res, fpr_res)
+
+    mov   x9, x0              // Return address from instrumentation call.
+    mov   xLR, x1             // r1 is holding link register if we're to bounce to deoptimize
+
+    ldr   d0, [sp, #8]        // Restore floating-point result.
+    ldr   x0, [sp], 16        // Restore integer result, and drop stack area.
+    .cfi_adjust_cfa_offset 16
+
+    POP_REF_ONLY_CALLEE_SAVE_FRAME
+
+    br    x9                  // Tail-call out.
+END art_quick_instrumentation_exit
+
+    /*
+     * Instrumentation has requested that we deoptimize into the interpreter. The deoptimization
+     * will long jump to the upcall with a special exception of -1.
+     */
+    .extern artDeoptimize
+ENTRY art_quick_deoptimize
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    mov    x0, xSELF          // Pass thread.
+    mov    x1, sp             // Pass SP.
+    bl     artDeoptimize      // artDeoptimize(Thread*, SP)
+END art_quick_deoptimize
+
+
 UNIMPLEMENTED art_quick_indexof
 
    /*
