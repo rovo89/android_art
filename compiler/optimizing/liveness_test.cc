@@ -15,6 +15,7 @@
  */
 
 #include "builder.h"
+#include "code_generator.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "nodes.h"
@@ -48,7 +49,8 @@ static void TestCode(const uint16_t* data, const char* expected) {
   graph->BuildDominatorTree();
   graph->TransformToSSA();
   graph->FindNaturalLoops();
-  SsaLivenessAnalysis liveness(*graph);
+  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, InstructionSet::kX86);
+  SsaLivenessAnalysis liveness(*graph, codegen);
   liveness.Analyze();
 
   std::ostringstream buffer;
@@ -69,17 +71,17 @@ static void TestCode(const uint16_t* data, const char* expected) {
 TEST(LivenessTest, CFG1) {
   const char* expected =
     "Block 0\n"
-    "  live in: ()\n"
-    "  live out: ()\n"
-    "  kill: ()\n"
+    "  live in: (0)\n"
+    "  live out: (0)\n"
+    "  kill: (1)\n"
     "Block 1\n"
-    "  live in: ()\n"
-    "  live out: ()\n"
-    "  kill: ()\n"
+    "  live in: (0)\n"
+    "  live out: (0)\n"
+    "  kill: (0)\n"
     "Block 2\n"
-    "  live in: ()\n"
-    "  live out: ()\n"
-    "  kill: ()\n";
+    "  live in: (0)\n"
+    "  live out: (0)\n"
+    "  kill: (0)\n";
 
   // Constant is not used.
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(

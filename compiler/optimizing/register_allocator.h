@@ -55,6 +55,7 @@ class RegisterAllocator {
 
   // Helper method for validation. Used by unit testing.
   static bool ValidateIntervals(const GrowableArray<LiveInterval*>& intervals,
+                                size_t number_of_spill_slots,
                                 const CodeGenerator& codegen,
                                 ArenaAllocator* allocator,
                                 bool processing_core_registers,
@@ -74,6 +75,9 @@ class RegisterAllocator {
 
   // Returns whether `reg` is blocked by the code generator.
   bool IsBlocked(int reg) const;
+
+  // Allocate a spill slot for the given interval.
+  void AllocateSpillSlotFor(LiveInterval* interval);
 
   // Helper methods.
   void AllocateRegistersInternal(const SsaLivenessAnalysis& liveness);
@@ -97,6 +101,9 @@ class RegisterAllocator {
   // List of intervals that are currently inactive when processing a new live interval.
   // That is, they have a lifetime hole that spans the start of the new interval.
   GrowableArray<LiveInterval*> inactive_;
+
+  // The spill slots allocated for live intervals.
+  GrowableArray<size_t> spill_slots_;
 
   // True if processing core registers. False if processing floating
   // point registers.
