@@ -152,11 +152,10 @@ class ClassLinkerTest : public CommonRuntimeTest {
   }
 
   void AssertMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    MethodHelper mh(method);
     EXPECT_TRUE(method != NULL);
     EXPECT_TRUE(method->GetClass() != NULL);
-    EXPECT_TRUE(mh.GetName() != NULL);
-    EXPECT_TRUE(mh.GetSignature() != Signature::NoSignature());
+    EXPECT_TRUE(method->GetName() != NULL);
+    EXPECT_TRUE(method->GetSignature() != Signature::NoSignature());
 
     EXPECT_TRUE(method->GetDexCacheStrings() != NULL);
     EXPECT_TRUE(method->GetDexCacheResolvedMethods() != NULL);
@@ -203,8 +202,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     if (klass->IsInterface()) {
       EXPECT_TRUE(klass->IsAbstract());
       if (klass->NumDirectMethods() == 1) {
-        MethodHelper mh(klass->GetDirectMethod(0));
-        EXPECT_TRUE(mh.IsClassInitializer());
+        EXPECT_TRUE(klass->GetDirectMethod(0)->IsClassInitializer());
         EXPECT_TRUE(klass->GetDirectMethod(0)->IsDirect());
       } else {
         EXPECT_EQ(0U, klass->NumDirectMethods());

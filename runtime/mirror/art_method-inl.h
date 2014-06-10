@@ -295,7 +295,9 @@ inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
   if (UNLIKELY(entry_point == runtime->GetClassLinker()->GetQuickGenericJniTrampoline())) {
     // Generic JNI frame.
     DCHECK(IsNative());
-    uint32_t handle_refs = MethodHelper(this).GetNumberOfReferenceArgsWithoutReceiver() + 1;
+    StackHandleScope<1> hs(Thread::Current());
+    uint32_t handle_refs =
+        MethodHelper(hs.NewHandle(this)).GetNumberOfReferenceArgsWithoutReceiver() + 1;
     size_t scope_size = HandleScope::SizeOf(handle_refs);
     QuickMethodFrameInfo callee_info = runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
 
@@ -314,8 +316,141 @@ inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
 
 inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo(const void* code_pointer) {
   DCHECK(code_pointer != nullptr);
-  DCHECK(code_pointer == GetQuickOatCodePointer());
+  DCHECK_EQ(code_pointer, GetQuickOatCodePointer());
   return reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].frame_info_;
+}
+
+inline const DexFile* ArtMethod::GetDexFile() {
+  return GetInterfaceMethodIfProxy()->GetDeclaringClass()->GetDexCache()->GetDexFile();
+}
+
+inline const char* ArtMethod::GetDeclaringClassDescriptor() {
+  mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
+  uint32_t dex_method_idx = method->GetDexMethodIndex();
+  if (UNLIKELY(dex_method_idx == DexFile::kDexNoIndex)) {
+    return "<runtime method>";
+  }
+  const DexFile* dex_file = method->GetDexFile();
+  return dex_file->GetMethodDeclaringClassDescriptor(dex_file->GetMethodId(dex_method_idx));
+}
+
+inline const char* ArtMethod::GetShorty(uint32_t* out_length) {
+  mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
+  const DexFile* dex_file = method->GetDexFile();
+  return dex_file->GetMethodShorty(dex_file->GetMethodId(method->GetDexMethodIndex()), out_length);
+}
+
+inline const Signature ArtMethod::GetSignature() {
+  mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
+  uint32_t dex_method_idx = method->GetDexMethodIndex();
+  if (dex_method_idx != DexFile::kDexNoIndex) {
+    const DexFile* dex_file = method->GetDexFile();
+    return dex_file->GetMethodSignature(dex_file->GetMethodId(dex_method_idx));
+  }
+  return Signature::NoSignature();
+}
+
+inline const char* ArtMethod::GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
+  uint32_t dex_method_idx = method->GetDexMethodIndex();
+  if (LIKELY(dex_method_idx != DexFile::kDexNoIndex)) {
+    const DexFile* dex_file = method->GetDexFile();
+    return dex_file->GetMethodName(dex_file->GetMethodId(dex_method_idx));
+  }
+  Runtime* runtime = Runtime::Current();
+  if (method == runtime->GetResolutionMethod()) {
+    return "<runtime internal resolution method>";
+  } else if (method == runtime->GetImtConflictMethod()) {
+    return "<runtime internal imt conflict method>";
+  } else if (method == runtime->GetCalleeSaveMethod(Runtime::kSaveAll)) {
+    return "<runtime internal callee-save all registers method>";
+  } else if (method == runtime->GetCalleeSaveMethod(Runtime::kRefsOnly)) {
+    return "<runtime internal callee-save reference registers method>";
+  } else if (method == runtime->GetCalleeSaveMethod(Runtime::kRefsAndArgs)) {
+    return "<runtime internal callee-save reference and argument registers method>";
+  } else {
+    return "<unknown runtime internal method>";
+  }
+}
+
+inline const DexFile::CodeItem* ArtMethod::GetCodeItem() {
+  mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
+  return method->GetDexFile()->GetCodeItem(method->GetCodeItemOffset());
+}
+
+inline bool ArtMethod::IsResolvedTypeIdx(uint16_t type_idx) {
+  mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
+  return method->GetDexCacheResolvedTypes()->Get(type_idx) != nullptr;
+}
+
+inline int32_t ArtMethod::GetLineNumFromDexPC(uint32_t dex_pc) {
+  mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
+  if (dex_pc == DexFile::kDexNoIndex) {
+    return method->IsNative() ? -2 : -1;
+  }
+  return method->GetDexFile()->GetLineNumFromPC(method, dex_pc);
+}
+
+inline const DexFile::ProtoId& ArtMethod::GetPrototype() {
+  mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
+  const DexFile* dex_file = method->GetDexFile();
+  return dex_file->GetMethodPrototype(dex_file->GetMethodId(method->GetDexMethodIndex()));
+}
+
+inline const DexFile::TypeList* ArtMethod::GetParameterTypeList() {
+  mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
+  const DexFile* dex_file = method->GetDexFile();
+  const DexFile::ProtoId& proto = dex_file->GetMethodPrototype(
+      dex_file->GetMethodId(method->GetDexMethodIndex()));
+  return dex_file->GetProtoParameters(proto);
+}
+
+inline const char* ArtMethod::GetDeclaringClassSourceFile() {
+  return GetInterfaceMethodIfProxy()->GetDeclaringClass()->GetSourceFile();
+}
+
+inline uint16_t ArtMethod::GetClassDefIndex() {
+  return GetInterfaceMethodIfProxy()->GetDeclaringClass()->GetDexClassDefIndex();
+}
+
+inline const DexFile::ClassDef& ArtMethod::GetClassDef() {
+  mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
+  return method->GetDexFile()->GetClassDef(GetClassDefIndex());
+}
+
+inline const char* ArtMethod::GetReturnTypeDescriptor() {
+  mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
+  const DexFile* dex_file = method->GetDexFile();
+  const DexFile::MethodId& method_id = dex_file->GetMethodId(method->GetDexMethodIndex());
+  const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
+  uint16_t return_type_idx = proto_id.return_type_idx_;
+  return dex_file->GetTypeDescriptor(dex_file->GetTypeId(return_type_idx));
+}
+
+inline const char* ArtMethod::GetTypeDescriptorFromTypeIdx(uint16_t type_idx) {
+  mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
+  const DexFile* dex_file = method->GetDexFile();
+  return dex_file->GetTypeDescriptor(dex_file->GetTypeId(type_idx));
+}
+
+inline mirror::ClassLoader* ArtMethod::GetClassLoader() {
+  return GetInterfaceMethodIfProxy()->GetDeclaringClass()->GetClassLoader();
+}
+
+inline mirror::DexCache* ArtMethod::GetDexCache() {
+  return GetInterfaceMethodIfProxy()->GetDeclaringClass()->GetDexCache();
+}
+
+inline ArtMethod* ArtMethod::GetInterfaceMethodIfProxy() {
+  mirror::Class* klass = GetDeclaringClass();
+  if (LIKELY(!klass->IsProxyClass())) {
+    return this;
+  }
+  mirror::ArtMethod* interface_method = GetDexCacheResolvedMethods()->Get(GetDexMethodIndex());
+  DCHECK(interface_method != nullptr);
+  DCHECK_EQ(interface_method,
+            Runtime::Current()->GetClassLinker()->FindMethodForProxy(klass, this));
+  return interface_method;
 }
 
 }  // namespace mirror

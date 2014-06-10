@@ -560,9 +560,8 @@ void CompilerDriver::CompileOne(mirror::ArtMethod* method, TimingLogger* timings
                     soa.AddLocalReference<jobject>(method->GetDeclaringClass()->GetClassLoader()));
     jclass_loader = soa.Env()->NewGlobalRef(local_class_loader.get());
     // Find the dex_file
-    MethodHelper mh(method);
-    dex_file = &mh.GetDexFile();
-    class_def_idx = mh.GetClassDefIndex();
+    dex_file = method->GetDexFile();
+    class_def_idx = method->GetClassDefIndex();
   }
   const DexFile::CodeItem* code_item = dex_file->GetCodeItem(method->GetCodeItemOffset());
   self->TransitionFromRunnableToSuspended(kNative);
@@ -630,7 +629,7 @@ bool CompilerDriver::IsImageClass(const char* descriptor) const {
 static void ResolveExceptionsForMethod(MethodHelper* mh,
     std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const DexFile::CodeItem* code_item = mh->GetCodeItem();
+  const DexFile::CodeItem* code_item = mh->GetMethod()->GetCodeItem();
   if (code_item == NULL) {
     return;  // native or abstract method
   }
@@ -650,10 +649,10 @@ static void ResolveExceptionsForMethod(MethodHelper* mh,
       uint16_t encoded_catch_handler_handlers_type_idx =
           DecodeUnsignedLeb128(&encoded_catch_handler_list);
       // Add to set of types to resolve if not already in the dex cache resolved types
-      if (!mh->IsResolvedTypeIdx(encoded_catch_handler_handlers_type_idx)) {
+      if (!mh->GetMethod()->IsResolvedTypeIdx(encoded_catch_handler_handlers_type_idx)) {
         exceptions_to_resolve.insert(
             std::pair<uint16_t, const DexFile*>(encoded_catch_handler_handlers_type_idx,
-                                                &mh->GetDexFile()));
+                                                mh->GetMethod()->GetDexFile()));
       }
       // ignore address associated with catch handler
       DecodeUnsignedLeb128(&encoded_catch_handler_list);
@@ -669,15 +668,14 @@ static bool ResolveCatchBlockExceptionsClassVisitor(mirror::Class* c, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::set<std::pair<uint16_t, const DexFile*>>* exceptions_to_resolve =
       reinterpret_cast<std::set<std::pair<uint16_t, const DexFile*>>*>(arg);
-  MethodHelper mh;
+  StackHandleScope<1> hs(Thread::Current());
+  MethodHelper mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
   for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
-    mirror::ArtMethod* m = c->GetVirtualMethod(i);
-    mh.ChangeMethod(m);
+    mh.ChangeMethod(c->GetVirtualMethod(i));
     ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
   }
   for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
-    mirror::ArtMethod* m = c->GetDirectMethod(i);
-    mh.ChangeMethod(m);
+    mh.ChangeMethod(c->GetDirectMethod(i));
     ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
   }
   return true;
@@ -1117,8 +1115,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
     *stats_flags |= kFlagDirectCallToBoot | kFlagDirectMethodToBoot;
   }
   if (!use_dex_cache && compiling_boot) {
-    MethodHelper mh(method);
-    if (!IsImageClass(mh.GetDeclaringClassDescriptor())) {
+    if (!IsImageClass(method->GetDeclaringClassDescriptor())) {
       // We can only branch directly to Methods that are resolved in the DexCache.
       // Otherwise we won't invoke the resolution trampoline.
       use_dex_cache = true;
@@ -1131,8 +1128,10 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
     target_method->dex_method_index = method->GetDexMethodIndex();
   } else {
     if (no_guarantee_of_dex_cache_entry) {
+      StackHandleScope<1> hs(Thread::Current());
+      MethodHelper mh(hs.NewHandle(method));
       // See if the method is also declared in this dex cache.
-      uint32_t dex_method_idx = MethodHelper(method).FindDexMethodIndexInOtherDexFile(
+      uint32_t dex_method_idx = mh.FindDexMethodIndexInOtherDexFile(
           *target_method->dex_file, target_method->dex_method_index);
       if (dex_method_idx != DexFile::kDexNoIndex) {
         target_method->dex_method_index = dex_method_idx;

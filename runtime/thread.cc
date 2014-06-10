@@ -892,8 +892,7 @@ struct StackDumpVisitor : public StackVisitor {
       if (m->IsNative()) {
         os << "(Native method)";
       } else {
-        mh.ChangeMethod(m);
-        const char* source_file(mh.GetDeclaringClassSourceFile());
+        const char* source_file(m->GetDeclaringClassSourceFile());
         os << "(" << (source_file != nullptr ? source_file : "unavailable")
            << ":" << line_number << ")";
       }
@@ -933,7 +932,7 @@ struct StackDumpVisitor : public StackVisitor {
   std::ostream& os;
   const Thread* thread;
   const bool can_allocate;
-  MethodHelper mh;
+  mirror::ArtMethod* method;
   mirror::ArtMethod* last_method;
   int last_line_number;
   int repetition_count;
@@ -1530,7 +1529,6 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
           soa.Decode<mirror::ObjectArray<mirror::Object>*>(internal);
     // Prepare parameters for StackTraceElement(String cls, String method, String file, int line)
     mirror::ArtMethod* method = down_cast<mirror::ArtMethod*>(method_trace->Get(i));
-    MethodHelper mh(method);
     int32_t line_number;
     StackHandleScope<3> hs(soa.Self());
     auto class_name_object(hs.NewHandle<mirror::String>(nullptr));
@@ -1542,17 +1540,17 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
     } else {
       mirror::IntArray* pc_trace = down_cast<mirror::IntArray*>(method_trace->Get(depth));
       uint32_t dex_pc = pc_trace->Get(i);
-      line_number = mh.GetLineNumFromDexPC(dex_pc);
+      line_number = method->GetLineNumFromDexPC(dex_pc);
       // Allocate element, potentially triggering GC
       // TODO: reuse class_name_object via Class::name_?
-      const char* descriptor = mh.GetDeclaringClassDescriptor();
+      const char* descriptor = method->GetDeclaringClassDescriptor();
       CHECK(descriptor != nullptr);
       std::string class_name(PrettyDescriptor(descriptor));
       class_name_object.Assign(mirror::String::AllocFromModifiedUtf8(soa.Self(), class_name.c_str()));
       if (class_name_object.Get() == nullptr) {
         return nullptr;
       }
-      const char* source_file = mh.GetDeclaringClassSourceFile();
+      const char* source_file = method->GetDeclaringClassSourceFile();
       if (source_file != nullptr) {
         source_name_object.Assign(mirror::String::AllocFromModifiedUtf8(soa.Self(), source_file));
         if (source_name_object.Get() == nullptr) {
@@ -1560,7 +1558,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
         }
       }
     }
-    const char* method_name = mh.GetName();
+    const char* method_name = method->GetName();
     CHECK(method_name != nullptr);
     Handle<mirror::String> method_name_object(
         hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), method_name)));
@@ -2044,8 +2042,7 @@ class ReferenceMapVisitor : public StackVisitor {
     if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
       const uint8_t* native_gc_map = m->GetNativeGcMap();
       CHECK(native_gc_map != nullptr) << PrettyMethod(m);
-      mh_.ChangeMethod(m);
-      const DexFile::CodeItem* code_item = mh_.GetCodeItem();
+      const DexFile::CodeItem* code_item = m->GetCodeItem();
       DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be nullptr or how would we compile its instructions?
       NativePcOffsetToReferenceMap map(native_gc_map);
       size_t num_regs = std::min(map.RegWidth() * 8,
@@ -2100,9 +2097,6 @@ class ReferenceMapVisitor : public StackVisitor {
 
   // Visitor for when we visit a root.
   const RootVisitor& visitor_;
-
-  // A method helper we keep around to avoid dex file/cache re-computations.
-  MethodHelper mh_;
 };
 
 class RootCallbackVisitor {

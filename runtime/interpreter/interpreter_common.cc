@@ -54,8 +54,7 @@ template<bool is_range, bool do_assignability_check>
 bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
             const Instruction* inst, uint16_t inst_data, JValue* result) {
   // Compute method information.
-  MethodHelper mh(method);
-  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  const DexFile::CodeItem* code_item = method->GetCodeItem();
   const uint16_t num_ins = (is_range) ? inst->VRegA_3rc(inst_data) : inst->VRegA_35c(inst_data);
   uint16_t num_regs;
   if (LIKELY(code_item != NULL)) {
@@ -73,6 +72,8 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
 
   // Initialize new shadow frame.
   const size_t first_dest_reg = num_regs - num_ins;
+  StackHandleScope<1> hs(self);
+  MethodHelper mh(hs.NewHandle(method));
   if (do_assignability_check) {
     // Slow path.
     // We might need to do class loading, which incurs a thread state change to kNative. So
@@ -82,8 +83,9 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
 
     // We need to do runtime check on reference assignment. We need to load the shorty
     // to get the exact type of each reference argument.
-    const DexFile::TypeList* params = mh.GetParameterTypeList();
-    const char* shorty = mh.GetShorty();
+    const DexFile::TypeList* params = method->GetParameterTypeList();
+    uint32_t shorty_len = 0;
+    const char* shorty = method->GetShorty(&shorty_len);
 
     // TODO: find a cleaner way to separate non-range and range information without duplicating code.
     uint32_t arg[5];  // only used in invoke-XXX.
@@ -98,13 +100,13 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
     size_t dest_reg = first_dest_reg;
     size_t arg_offset = 0;
     if (!method->IsStatic()) {
-      size_t receiver_reg = (is_range) ? vregC : arg[0];
+      size_t receiver_reg = is_range ? vregC : arg[0];
       new_shadow_frame->SetVRegReference(dest_reg, shadow_frame.GetVRegReference(receiver_reg));
       ++dest_reg;
       ++arg_offset;
     }
     for (uint32_t shorty_pos = 0; dest_reg < num_regs; ++shorty_pos, ++dest_reg, ++arg_offset) {
-      DCHECK_LT(shorty_pos + 1, mh.GetShortyLength());
+      DCHECK_LT(shorty_pos + 1, shorty_len);
       const size_t src_reg = (is_range) ? vregC + arg_offset : arg[arg_offset];
       switch (shorty[shorty_pos + 1]) {
         case 'L': {
@@ -120,7 +122,7 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
               self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
                                        "Ljava/lang/VirtualMachineError;",
                                        "Invoking %s with bad arg %d, type '%s' not instance of '%s'",
-                                       mh.GetName(), shorty_pos,
+                                       method->GetName(), shorty_pos,
                                        o->GetClass()->GetDescriptor().c_str(),
                                        arg_type->GetDescriptor().c_str());
               return false;
@@ -368,8 +370,9 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     Object* obj = shadow_frame->GetVRegReference(arg_offset);
     result->SetI(obj->IdentityHashCode());
   } else if (name == "java.lang.String java.lang.reflect.ArtMethod.getMethodName(java.lang.reflect.ArtMethod)") {
-    ArtMethod* method = shadow_frame->GetVRegReference(arg_offset)->AsArtMethod();
-    result->SetL(MethodHelper(method).GetNameAsString());
+    StackHandleScope<1> hs(self);
+    MethodHelper mh(hs.NewHandle(shadow_frame->GetVRegReference(arg_offset)->AsArtMethod()));
+    result->SetL(mh.GetNameAsString(self));
   } else if (name == "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)" ||
              name == "void java.lang.System.arraycopy(char[], int, char[], int, int)") {
     // Special case array copying without initializing System.

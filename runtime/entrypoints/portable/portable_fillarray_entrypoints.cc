@@ -26,7 +26,7 @@ extern "C" void art_portable_fill_array_data_from_code(mirror::ArtMethod* method
                                                        mirror::Array* array,
                                                        uint32_t payload_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const DexFile::CodeItem* code_item = MethodHelper(method).GetCodeItem();
+  const DexFile::CodeItem* code_item = method->GetCodeItem();
   const Instruction::ArrayDataPayload* payload =
       reinterpret_cast<const Instruction::ArrayDataPayload*>(code_item->insns_ + payload_offset);
   DCHECK_EQ(payload->ident, static_cast<uint16_t>(Instruction::kArrayDataSignature));

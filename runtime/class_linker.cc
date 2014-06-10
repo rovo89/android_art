@@ -2754,7 +2754,7 @@ void ClassLinker::ResolveMethodExceptionHandlerTypes(const DexFile& dex_file,
 }
 
 static void CheckProxyConstructor(mirror::ArtMethod* constructor);
-static void CheckProxyMethod(mirror::ArtMethod* method,
+static void CheckProxyMethod(Handle<mirror::ArtMethod> method,
                              Handle<mirror::ArtMethod> prototype);
 
 mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& soa, jstring name,
@@ -2876,11 +2876,12 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     CHECK(klass->GetIFields() == nullptr);
     CheckProxyConstructor(klass->GetDirectMethod(0));
     for (size_t i = 0; i < num_virtual_methods; ++i) {
-      StackHandleScope<1> hs(self);
+      StackHandleScope<2> hs(self);
       mirror::ObjectArray<mirror::ArtMethod>* decoded_methods =
           soa.Decode<mirror::ObjectArray<mirror::ArtMethod>*>(methods);
       Handle<mirror::ArtMethod> prototype(hs.NewHandle(decoded_methods->Get(i)));
-      CheckProxyMethod(klass->GetVirtualMethod(i), prototype);
+      Handle<mirror::ArtMethod> virtual_method(hs.NewHandle(klass->GetVirtualMethod(i)));
+      CheckProxyMethod(virtual_method, prototype);
     }
 
     mirror::String* decoded_name = soa.Decode<mirror::String*>(name);
@@ -2961,9 +2962,9 @@ mirror::ArtMethod* ClassLinker::CreateProxyConstructor(Thread* self,
 static void CheckProxyConstructor(mirror::ArtMethod* constructor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CHECK(constructor->IsConstructor());
-  MethodHelper mh(constructor);
-  CHECK_STREQ(mh.GetName(), "<init>");
-  CHECK_STREQ(mh.GetSignature().ToString().c_str(), "(Ljava/lang/reflect/InvocationHandler;)V");
+  CHECK_STREQ(constructor->GetName(), "<init>");
+  CHECK_STREQ(constructor->GetSignature().ToString().c_str(),
+              "(Ljava/lang/reflect/InvocationHandler;)V");
   DCHECK(constructor->IsPublic());
 }
 
@@ -2996,7 +2997,7 @@ mirror::ArtMethod* ClassLinker::CreateProxyMethod(Thread* self,
   return method;
 }
 
-static void CheckProxyMethod(mirror::ArtMethod* method, Handle<mirror::ArtMethod> prototype)
+static void CheckProxyMethod(Handle<mirror::ArtMethod> method, Handle<mirror::ArtMethod> prototype)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Basic sanity
   CHECK(!prototype->IsFinal());
@@ -3011,9 +3012,9 @@ static void CheckProxyMethod(mirror::ArtMethod* method, Handle<mirror::ArtMethod
   CHECK_EQ(prototype->GetDexMethodIndex(), method->GetDexMethodIndex());
 
   MethodHelper mh(method);
-  MethodHelper mh2(prototype.Get());
-  CHECK_STREQ(mh.GetName(), mh2.GetName());
-  CHECK_STREQ(mh.GetShorty(), mh2.GetShorty());
+  MethodHelper mh2(prototype);
+  CHECK_STREQ(method->GetName(), prototype->GetName());
+  CHECK_STREQ(method->GetShorty(), prototype->GetShorty());
   // More complex sanity - via dex cache
   CHECK_EQ(mh.GetReturnType(), mh2.GetReturnType());
 }
@@ -3268,16 +3269,18 @@ bool ClassLinker::ValidateSuperClassDescriptors(Handle<mirror::Class> klass) {
     return true;
   }
   // Begin with the methods local to the superclass.
-  MethodHelper mh;
-  MethodHelper super_mh;
+  StackHandleScope<2> hs(Thread::Current());
+  MethodHelper mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
+  MethodHelper super_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
   if (klass->HasSuperClass() &&
       klass->GetClassLoader() != klass->GetSuperClass()->GetClassLoader()) {
     for (int i = klass->GetSuperClass()->GetVTable()->GetLength() - 1; i >= 0; --i) {
       mh.ChangeMethod(klass->GetVTable()->GetWithoutChecks(i));
       super_mh.ChangeMethod(klass->GetSuperClass()->GetVTable()->GetWithoutChecks(i));
-      bool is_override = mh.GetMethod() != super_mh.GetMethod();
-      if (is_override && !mh.HasSameSignatureWithDifferentClassLoaders(&super_mh)) {
-        ThrowLinkageError(klass.Get(), "Class %s method %s resolves differently in superclass %s",
+      if (mh.GetMethod() != super_mh.GetMethod() &&
+          !mh.HasSameSignatureWithDifferentClassLoaders(&super_mh)) {
+        ThrowLinkageError(klass.Get(),
+                          "Class %s method %s resolves differently in superclass %s",
                           PrettyDescriptor(klass.Get()).c_str(),
                           PrettyMethod(mh.GetMethod()).c_str(),
                           PrettyDescriptor(klass->GetSuperClass()).c_str());
@@ -3291,9 +3294,10 @@ bool ClassLinker::ValidateSuperClassDescriptors(Handle<mirror::Class> klass) {
       for (uint32_t j = 0; j < num_methods; ++j) {
         mh.ChangeMethod(klass->GetIfTable()->GetMethodArray(i)->GetWithoutChecks(j));
         super_mh.ChangeMethod(klass->GetIfTable()->GetInterface(i)->GetVirtualMethod(j));
-        bool is_override = mh.GetMethod() != super_mh.GetMethod();
-        if (is_override && !mh.HasSameSignatureWithDifferentClassLoaders(&super_mh)) {
-          ThrowLinkageError(klass.Get(), "Class %s method %s resolves differently in interface %s",
+        if (mh.GetMethod() != super_mh.GetMethod() &&
+            !mh.HasSameSignatureWithDifferentClassLoaders(&super_mh)) {
+          ThrowLinkageError(klass.Get(),
+                            "Class %s method %s resolves differently in interface %s",
                             PrettyDescriptor(klass.Get()).c_str(),
                             PrettyMethod(mh.GetMethod()).c_str(),
                             PrettyDescriptor(klass->GetIfTable()->GetInterface(i)).c_str());
@@ -3335,7 +3339,7 @@ bool ClassLinker::LinkClass(Thread* self, Handle<mirror::Class> klass,
   if (!LinkSuperClass(klass)) {
     return false;
   }
-  if (!LinkMethods(klass, interfaces)) {
+  if (!LinkMethods(self, klass, interfaces)) {
     return false;
   }
   if (!LinkInstanceFields(klass)) {
@@ -3454,7 +3458,7 @@ bool ClassLinker::LinkSuperClass(Handle<mirror::Class> klass) {
 }
 
 // Populate the class vtable and itable. Compute return type indices.
-bool ClassLinker::LinkMethods(Handle<mirror::Class> klass,
+bool ClassLinker::LinkMethods(Thread* self, Handle<mirror::Class> klass,
                               Handle<mirror::ObjectArray<mirror::Class>> interfaces) {
   if (klass->IsInterface()) {
     // No vtable.
@@ -3470,20 +3474,19 @@ bool ClassLinker::LinkMethods(Handle<mirror::Class> klass,
     return LinkInterfaceMethods(klass, interfaces);
   } else {
     // Link virtual and interface method tables
-    return LinkVirtualMethods(klass) && LinkInterfaceMethods(klass, interfaces);
+    return LinkVirtualMethods(self, klass) && LinkInterfaceMethods(klass, interfaces);
   }
   return true;
 }
 
-bool ClassLinker::LinkVirtualMethods(Handle<mirror::Class> klass) {
-  Thread* self = Thread::Current();
+bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) {
   if (klass->HasSuperClass()) {
-    uint32_t max_count = (klass->NumVirtualMethods() +
-                          klass->GetSuperClass()->GetVTable()->GetLength());
+    uint32_t max_count = klass->NumVirtualMethods() +
+        klass->GetSuperClass()->GetVTable()->GetLength();
     size_t actual_count = klass->GetSuperClass()->GetVTable()->GetLength();
     CHECK_LE(actual_count, max_count);
     // TODO: do not assign to the vtable field until it is fully constructed.
-    StackHandleScope<1> hs(self);
+    StackHandleScope<3> hs(self);
     Handle<mirror::ObjectArray<mirror::ArtMethod>> vtable(
         hs.NewHandle(klass->GetSuperClass()->GetVTable()->CopyOf(self, max_count)));
     if (UNLIKELY(vtable.Get() == NULL)) {
@@ -3491,20 +3494,22 @@ bool ClassLinker::LinkVirtualMethods(Handle<mirror::Class> klass) {
       return false;
     }
     // See if any of our virtual methods override the superclass.
+    MethodHelper local_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
+    MethodHelper super_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
     for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
       mirror::ArtMethod* local_method = klass->GetVirtualMethodDuringLinking(i);
-      MethodHelper local_mh(local_method);
+      local_mh.ChangeMethod(local_method);
       size_t j = 0;
       for (; j < actual_count; ++j) {
         mirror::ArtMethod* super_method = vtable->Get(j);
-        MethodHelper super_mh(super_method);
+        super_mh.ChangeMethod(super_method);
         if (local_mh.HasSameNameAndSignature(&super_mh)) {
           if (klass->CanAccessMember(super_method->GetDeclaringClass(),
                                      super_method->GetAccessFlags())) {
             if (super_method->IsFinal()) {
               ThrowLinkageError(klass.Get(), "Method %s overrides final method in class %s",
                                 PrettyMethod(local_method).c_str(),
-                                super_mh.GetDeclaringClassDescriptor());
+                                super_method->GetDeclaringClassDescriptor());
               return false;
             }
             vtable->Set<false>(j, local_method);
@@ -3513,7 +3518,7 @@ bool ClassLinker::LinkVirtualMethods(Handle<mirror::Class> klass) {
           } else {
             LOG(WARNING) << "Before Android 4.1, method " << PrettyMethod(local_method)
                          << " would have incorrectly overridden the package-private method in "
-                         << PrettyDescriptor(super_mh.GetDeclaringClassDescriptor());
+                         << PrettyDescriptor(super_method->GetDeclaringClassDescriptor());
           }
         }
       }
@@ -3539,7 +3544,7 @@ bool ClassLinker::LinkVirtualMethods(Handle<mirror::Class> klass) {
     }
     klass->SetVTable(vtable.Get());
   } else {
-    CHECK(klass.Get() == GetClassRoot(kJavaLangObject));
+    CHECK_EQ(klass.Get(), GetClassRoot(kJavaLangObject));
     uint32_t num_virtual_methods = klass->NumVirtualMethods();
     if (!IsUint(16, num_virtual_methods)) {
       ThrowClassFormatError(klass.Get(), "Too many methods: %d", num_virtual_methods);
@@ -3565,8 +3570,9 @@ bool ClassLinker::LinkVirtualMethods(Handle<mirror::Class> klass) {
 bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
                                        Handle<mirror::ObjectArray<mirror::Class>> interfaces) {
   Thread* const self = Thread::Current();
+  Runtime* const runtime = Runtime::Current();
   // Set the imt table to be all conflicts by default.
-  klass->SetImTable(Runtime::Current()->GetDefaultImt());
+  klass->SetImTable(runtime->GetDefaultImt());
   size_t super_ifcount;
   if (klass->HasSuperClass()) {
     super_ifcount = klass->GetSuperClass()->GetIfTableCount();
@@ -3604,7 +3610,7 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
       return true;
     }
   }
-  StackHandleScope<2> hs(self);
+  StackHandleScope<4> hs(self);
   Handle<mirror::IfTable> iftable(hs.NewHandle(AllocIfTable(self, ifcount)));
   if (UNLIKELY(iftable.Get() == NULL)) {
     CHECK(self->IsExceptionPending());  // OOME.
@@ -3684,6 +3690,8 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
     CHECK(self->IsExceptionPending());  // OOME.
     return false;
   }
+  MethodHelper interface_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
+  MethodHelper vtable_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
   std::vector<mirror::ArtMethod*> miranda_list;
   for (size_t i = 0; i < ifcount; ++i) {
     size_t num_methods = iftable->GetInterface(i)->NumVirtualMethods();
@@ -3700,7 +3708,7 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
           hs.NewHandle(klass->GetVTableDuringLinking()));
       for (size_t j = 0; j < num_methods; ++j) {
         mirror::ArtMethod* interface_method = iftable->GetInterface(i)->GetVirtualMethod(j);
-        MethodHelper interface_mh(interface_method);
+        interface_mh.ChangeMethod(interface_method);
         int32_t k;
         // For each method listed in the interface's method list, find the
         // matching method in our class's method list.  We want to favor the
@@ -3712,7 +3720,7 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
         // matter which direction we go.  We walk it backward anyway.)
         for (k = vtable->GetLength() - 1; k >= 0; --k) {
           mirror::ArtMethod* vtable_method = vtable->Get(k);
-          MethodHelper vtable_mh(vtable_method);
+          vtable_mh.ChangeMethod(vtable_method);
           if (interface_mh.HasSameNameAndSignature(&vtable_mh)) {
             if (!vtable_method->IsAbstract() && !vtable_method->IsPublic()) {
               ThrowIllegalAccessError(
@@ -3729,7 +3737,7 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
               imtable->Set<false>(imt_index, vtable_method);
               imtable_changed = true;
             } else {
-              imtable->Set<false>(imt_index, Runtime::Current()->GetImtConflictMethod());
+              imtable->Set<false>(imt_index, runtime->GetImtConflictMethod());
             }
             break;
           }
@@ -3737,11 +3745,10 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
         if (k < 0) {
           StackHandleScope<1> hs(self);
           auto miranda_method = hs.NewHandle<mirror::ArtMethod>(nullptr);
-          for (size_t mir = 0; mir < miranda_list.size(); mir++) {
-            mirror::ArtMethod* mir_method = miranda_list[mir];
-            MethodHelper vtable_mh(mir_method);
+          for (mirror::ArtMethod* mir_method : miranda_list) {
+            vtable_mh.ChangeMethod(mir_method);
             if (interface_mh.HasSameNameAndSignature(&vtable_mh)) {
-              miranda_method.Assign(miranda_list[mir]);
+              miranda_method.Assign(mir_method);
               break;
             }
           }
@@ -3762,7 +3769,7 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
   }
   if (imtable_changed) {
     // Fill in empty entries in interface method table with conflict.
-    mirror::ArtMethod* imt_conflict_method = Runtime::Current()->GetImtConflictMethod();
+    mirror::ArtMethod* imt_conflict_method = runtime->GetImtConflictMethod();
     for (size_t i = 0; i < kImtSize; i++) {
       if (imtable->Get(i) == NULL) {
         imtable->Set<false>(i, imt_conflict_method);

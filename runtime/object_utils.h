@@ -121,12 +121,9 @@ class FieldHelper {
 
 class MethodHelper {
  public:
-  MethodHelper() : method_(nullptr), shorty_(nullptr), shorty_len_(0) {}
-
-  explicit MethodHelper(mirror::ArtMethod* m)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : method_(nullptr), shorty_(nullptr), shorty_len_(0) {
-    SetMethod(m);
+  explicit MethodHelper(Handle<mirror::ArtMethod> m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : method_(m), shorty_(nullptr), shorty_len_(0) {
+    SetMethod(m.Get());
   }
 
   void ChangeMethod(mirror::ArtMethod* new_m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -135,48 +132,25 @@ class MethodHelper {
     shorty_ = nullptr;
   }
 
-  mirror::ArtMethod* GetMethod() const {
-    return method_;
+  mirror::ArtMethod* GetMethod() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return method_->GetInterfaceMethodIfProxy();
   }
 
-  const char* GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile& dex_file = GetDexFile();
-    uint32_t dex_method_idx = method_->GetDexMethodIndex();
-    if (LIKELY(dex_method_idx != DexFile::kDexNoIndex)) {
-      return dex_file.GetMethodName(dex_file.GetMethodId(dex_method_idx));
-    } else {
-      Runtime* runtime = Runtime::Current();
-      if (method_ == runtime->GetResolutionMethod()) {
-        return "<runtime internal resolution method>";
-      } else if (method_ == runtime->GetImtConflictMethod()) {
-        return "<runtime internal imt conflict method>";
-      } else if (method_ == runtime->GetCalleeSaveMethod(Runtime::kSaveAll)) {
-        return "<runtime internal callee-save all registers method>";
-      } else if (method_ == runtime->GetCalleeSaveMethod(Runtime::kRefsOnly)) {
-        return "<runtime internal callee-save reference registers method>";
-      } else if (method_ == runtime->GetCalleeSaveMethod(Runtime::kRefsAndArgs)) {
-        return "<runtime internal callee-save reference and argument registers method>";
-      } else {
-        return "<unknown runtime internal method>";
-      }
-    }
-  }
-
-  mirror::String* GetNameAsString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile& dex_file = GetDexFile();
-    uint32_t dex_method_idx = method_->GetDexMethodIndex();
-    const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
-    StackHandleScope<1> hs(Thread::Current());
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(GetDexCache()));
-    return GetClassLinker()->ResolveString(dex_file, method_id.name_idx_, dex_cache);
+  mirror::String* GetNameAsString(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    const DexFile* dex_file = method_->GetDexFile();
+    mirror::ArtMethod* method = method_->GetInterfaceMethodIfProxy();
+    uint32_t dex_method_idx = method->GetDexMethodIndex();
+    const DexFile::MethodId& method_id = dex_file->GetMethodId(dex_method_idx);
+    StackHandleScope<1> hs(self);
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
+    return Runtime::Current()->GetClassLinker()->ResolveString(*dex_file, method_id.name_idx_,
+                                                               dex_cache);
   }
 
   const char* GetShorty() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const char* result = shorty_;
     if (result == nullptr) {
-      const DexFile& dex_file = GetDexFile();
-      result = dex_file.GetMethodShorty(dex_file.GetMethodId(method_->GetDexMethodIndex()),
-                                        &shorty_len_);
+      result = method_->GetShorty(&shorty_len_);
       shorty_ = result;
     }
     return result;
@@ -203,94 +177,27 @@ class MethodHelper {
     return refs;
   }
 
-  const Signature GetSignature() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile& dex_file = GetDexFile();
-    uint32_t dex_method_idx = method_->GetDexMethodIndex();
-    if (dex_method_idx != DexFile::kDexNoIndex) {
-      return dex_file.GetMethodSignature(dex_file.GetMethodId(dex_method_idx));
-    } else {
-      return Signature::NoSignature();
-    }
-  }
-
-  const DexFile::ProtoId& GetPrototype() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile& dex_file = GetDexFile();
-    return dex_file.GetMethodPrototype(dex_file.GetMethodId(method_->GetDexMethodIndex()));
-  }
-
-  const DexFile::TypeList* GetParameterTypeList() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile::ProtoId& proto = GetPrototype();
-    return GetDexFile().GetProtoParameters(proto);
-  }
-
+  // May cause thread suspension due to GetClassFromTypeIdx calling ResolveType this caused a large
+  // number of bugs at call sites.
   mirror::Class* GetReturnType(bool resolve = true) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile& dex_file = GetDexFile();
-    const DexFile::MethodId& method_id = dex_file.GetMethodId(method_->GetDexMethodIndex());
-    const DexFile::ProtoId& proto_id = dex_file.GetMethodPrototype(method_id);
+    mirror::ArtMethod* method = GetMethod();
+    const DexFile* dex_file = method->GetDexFile();
+    const DexFile::MethodId& method_id = dex_file->GetMethodId(method->GetDexMethodIndex());
+    const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
     uint16_t return_type_idx = proto_id.return_type_idx_;
     return GetClassFromTypeIdx(return_type_idx, resolve);
-  }
-
-  const char* GetReturnTypeDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile& dex_file = GetDexFile();
-    const DexFile::MethodId& method_id = dex_file.GetMethodId(method_->GetDexMethodIndex());
-    const DexFile::ProtoId& proto_id = dex_file.GetMethodPrototype(method_id);
-    uint16_t return_type_idx = proto_id.return_type_idx_;
-    return dex_file.GetTypeDescriptor(dex_file.GetTypeId(return_type_idx));
-  }
-
-  int32_t GetLineNumFromDexPC(uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (dex_pc == DexFile::kDexNoIndex) {
-      return method_->IsNative() ? -2 : -1;
-    } else {
-      const DexFile& dex_file = GetDexFile();
-      return dex_file.GetLineNumFromPC(method_, dex_pc);
-    }
-  }
-
-  const char* GetDeclaringClassDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile& dex_file = GetDexFile();
-    uint32_t dex_method_idx = method_->GetDexMethodIndex();
-    if (UNLIKELY(dex_method_idx == DexFile::kDexNoIndex)) {
-      return "<runtime method>";
-    }
-    return dex_file.GetMethodDeclaringClassDescriptor(dex_file.GetMethodId(dex_method_idx));
-  }
-
-  const char* GetDeclaringClassSourceFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return method_->GetDeclaringClass()->GetSourceFile();
-  }
-
-  uint16_t GetClassDefIndex() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return method_->GetDeclaringClass()->GetDexClassDefIndex();
-  }
-
-  const DexFile::ClassDef& GetClassDef() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetDexFile().GetClassDef(GetClassDefIndex());
-  }
-
-  mirror::ClassLoader* GetClassLoader() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return method_->GetDeclaringClass()->GetClassLoader();
-  }
-
-  bool IsStatic() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return method_->IsStatic();
-  }
-
-  bool IsClassInitializer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return method_->IsConstructor() && IsStatic();
   }
 
   size_t NumArgs() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // "1 +" because the first in Args is the receiver.
     // "- 1" because we don't count the return type.
-    return (IsStatic() ? 0 : 1) + GetShortyLength() - 1;
+    return (method_->IsStatic() ? 0 : 1) + GetShortyLength() - 1;
   }
 
   // Get the primitive type associated with the given parameter.
   Primitive::Type GetParamPrimitiveType(size_t param) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK_LT(param, NumArgs());
-    if (IsStatic()) {
+    if (GetMethod()->IsStatic()) {
       param++;  // 0th argument must skip return value at start of the shorty
     } else if (param == 0) {
       return Primitive::kPrimNot;
@@ -310,21 +217,20 @@ class MethodHelper {
   }
 
   bool HasSameNameAndSignature(MethodHelper* other) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile& dex_file = GetDexFile();
-    const DexFile::MethodId& mid = dex_file.GetMethodId(method_->GetDexMethodIndex());
-    if (GetDexCache() == other->GetDexCache()) {
+    const DexFile* dex_file = method_->GetDexFile();
+    const DexFile::MethodId& mid = dex_file->GetMethodId(GetMethod()->GetDexMethodIndex());
+    if (method_->GetDexCache() == other->method_->GetDexCache()) {
       const DexFile::MethodId& other_mid =
-          dex_file.GetMethodId(other->method_->GetDexMethodIndex());
+          dex_file->GetMethodId(other->GetMethod()->GetDexMethodIndex());
       return mid.name_idx_ == other_mid.name_idx_ && mid.proto_idx_ == other_mid.proto_idx_;
     }
-    const DexFile& other_dex_file = other->GetDexFile();
+    const DexFile* other_dex_file = other->method_->GetDexFile();
     const DexFile::MethodId& other_mid =
-        other_dex_file.GetMethodId(other->method_->GetDexMethodIndex());
-    if (!DexFileStringEquals(&dex_file, mid.name_idx_,
-                             &other_dex_file, other_mid.name_idx_)) {
+        other_dex_file->GetMethodId(other->GetMethod()->GetDexMethodIndex());
+    if (!DexFileStringEquals(dex_file, mid.name_idx_, other_dex_file, other_mid.name_idx_)) {
       return false;  // Name mismatch.
     }
-    return dex_file.GetMethodSignature(mid) == other_dex_file.GetMethodSignature(other_mid);
+    return dex_file->GetMethodSignature(mid) == other_dex_file->GetMethodSignature(other_mid);
   }
 
   bool HasSameSignatureWithDifferentClassLoaders(MethodHelper* other)
@@ -332,8 +238,8 @@ class MethodHelper {
     if (UNLIKELY(GetReturnType() != other->GetReturnType())) {
       return false;
     }
-    const DexFile::TypeList* types = GetParameterTypeList();
-    const DexFile::TypeList* other_types = other->GetParameterTypeList();
+    const DexFile::TypeList* types = method_->GetParameterTypeList();
+    const DexFile::TypeList* other_types = other->method_->GetParameterTypeList();
     if (types == nullptr) {
       return (other_types == nullptr) || (other_types->Size() == 0);
     } else if (UNLIKELY(other_types == nullptr)) {
@@ -354,84 +260,63 @@ class MethodHelper {
     return true;
   }
 
-  const DexFile::CodeItem* GetCodeItem()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetDexFile().GetCodeItem(method_->GetCodeItemOffset());
-  }
-
-  bool IsResolvedTypeIdx(uint16_t type_idx) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return method_->GetDexCacheResolvedTypes()->Get(type_idx) != nullptr;
-  }
-
   mirror::Class* GetClassFromTypeIdx(uint16_t type_idx, bool resolve = true)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::Class* type = method_->GetDexCacheResolvedTypes()->Get(type_idx);
+    mirror::ArtMethod* method = GetMethod();
+    mirror::Class* type = method->GetDexCacheResolvedTypes()->Get(type_idx);
     if (type == nullptr && resolve) {
-      type = GetClassLinker()->ResolveType(type_idx, method_);
+      type = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
       CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
     }
     return type;
   }
 
-  const char* GetTypeDescriptorFromTypeIdx(uint16_t type_idx)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile& dex_file = GetDexFile();
-    return dex_file.GetTypeDescriptor(dex_file.GetTypeId(type_idx));
-  }
-
   mirror::Class* GetDexCacheResolvedType(uint16_t type_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return method_->GetDexCacheResolvedTypes()->Get(type_idx);
-  }
-
-  const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return *GetDexCache()->GetDexFile();
-  }
-
-  mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return method_->GetDeclaringClass()->GetDexCache();
+    return GetMethod()->GetDexCacheResolvedTypes()->Get(type_idx);
   }
 
   mirror::String* ResolveString(uint32_t string_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::String* s = method_->GetDexCacheStrings()->Get(string_idx);
+    mirror::ArtMethod* method = GetMethod();
+    mirror::String* s = method->GetDexCacheStrings()->Get(string_idx);
     if (UNLIKELY(s == nullptr)) {
       StackHandleScope<1> hs(Thread::Current());
-      Handle<mirror::DexCache> dex_cache(hs.NewHandle(GetDexCache()));
-      s = GetClassLinker()->ResolveString(GetDexFile(), string_idx, dex_cache);
+      Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
+      s = Runtime::Current()->GetClassLinker()->ResolveString(*method->GetDexFile(), string_idx,
+                                                              dex_cache);
     }
     return s;
   }
 
   uint32_t FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfile)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile& dexfile = GetDexFile();
-    if (&dexfile == &other_dexfile) {
-      return method_->GetDexMethodIndex();
+    mirror::ArtMethod* method = GetMethod();
+    const DexFile* dexfile = method->GetDexFile();
+    if (dexfile == &other_dexfile) {
+      return method->GetDexMethodIndex();
     }
-    const DexFile::MethodId& mid = dexfile.GetMethodId(method_->GetDexMethodIndex());
-    const char* mid_declaring_class_descriptor = dexfile.StringByTypeIdx(mid.class_idx_);
+    const DexFile::MethodId& mid = dexfile->GetMethodId(method->GetDexMethodIndex());
+    const char* mid_declaring_class_descriptor = dexfile->StringByTypeIdx(mid.class_idx_);
     const DexFile::StringId* other_descriptor =
         other_dexfile.FindStringId(mid_declaring_class_descriptor);
     if (other_descriptor != nullptr) {
       const DexFile::TypeId* other_type_id =
           other_dexfile.FindTypeId(other_dexfile.GetIndexForStringId(*other_descriptor));
       if (other_type_id != nullptr) {
-        const char* mid_name = dexfile.GetMethodName(mid);
+        const char* mid_name = dexfile->GetMethodName(mid);
         const DexFile::StringId* other_name = other_dexfile.FindStringId(mid_name);
         if (other_name != nullptr) {
           uint16_t other_return_type_idx;
           std::vector<uint16_t> other_param_type_idxs;
-          bool success = other_dexfile.CreateTypeList(dexfile.GetMethodSignature(mid).ToString(),
-                                                      &other_return_type_idx,
-                                                      &other_param_type_idxs);
+          bool success = other_dexfile.CreateTypeList(
+              dexfile->GetMethodSignature(mid).ToString(), &other_return_type_idx,
+              &other_param_type_idxs);
           if (success) {
             const DexFile::ProtoId* other_sig =
                 other_dexfile.FindProtoId(other_return_type_idx, other_param_type_idxs);
             if (other_sig != nullptr) {
-              const  DexFile::MethodId* other_mid = other_dexfile.FindMethodId(*other_type_id,
-                                                                               *other_name,
-                                                                               *other_sig);
+              const  DexFile::MethodId* other_mid = other_dexfile.FindMethodId(
+                  *other_type_id, *other_name, *other_sig);
               if (other_mid != nullptr) {
                 return other_dexfile.GetIndexForMethodId(*other_mid);
               }
@@ -448,15 +333,17 @@ class MethodHelper {
   uint32_t FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfile,
                                             uint32_t name_and_signature_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile& dexfile = GetDexFile();
-    const DexFile::MethodId& mid = dexfile.GetMethodId(method_->GetDexMethodIndex());
+    mirror::ArtMethod* method = GetMethod();
+    const DexFile* dexfile = method->GetDexFile();
+    const uint32_t dex_method_idx = method->GetDexMethodIndex();
+    const DexFile::MethodId& mid = dexfile->GetMethodId(dex_method_idx);
     const DexFile::MethodId& name_and_sig_mid = other_dexfile.GetMethodId(name_and_signature_idx);
-    DCHECK_STREQ(dexfile.GetMethodName(mid), other_dexfile.GetMethodName(name_and_sig_mid));
-    DCHECK_EQ(dexfile.GetMethodSignature(mid), other_dexfile.GetMethodSignature(name_and_sig_mid));
-    if (&dexfile == &other_dexfile) {
-      return method_->GetDexMethodIndex();
+    DCHECK_STREQ(dexfile->GetMethodName(mid), other_dexfile.GetMethodName(name_and_sig_mid));
+    DCHECK_EQ(dexfile->GetMethodSignature(mid), other_dexfile.GetMethodSignature(name_and_sig_mid));
+    if (dexfile == &other_dexfile) {
+      return dex_method_idx;
     }
-    const char* mid_declaring_class_descriptor = dexfile.StringByTypeIdx(mid.class_idx_);
+    const char* mid_declaring_class_descriptor = dexfile->StringByTypeIdx(mid.class_idx_);
     const DexFile::StringId* other_descriptor =
         other_dexfile.FindStringId(mid_declaring_class_descriptor);
     if (other_descriptor != nullptr) {
@@ -478,24 +365,10 @@ class MethodHelper {
   // Set the method_ field, for proxy methods looking up the interface method via the resolved
   // methods table.
   void SetMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (method != nullptr) {
-      mirror::Class* klass = method->GetDeclaringClass();
-      if (UNLIKELY(klass->IsProxyClass())) {
-        mirror::ArtMethod* interface_method =
-            method->GetDexCacheResolvedMethods()->Get(method->GetDexMethodIndex());
-        DCHECK(interface_method != nullptr);
-        DCHECK(interface_method == GetClassLinker()->FindMethodForProxy(klass, method));
-        method = interface_method;
-      }
-    }
-    method_ = method;
+    method_.Assign(method);
   }
 
-  ClassLinker* GetClassLinker() ALWAYS_INLINE {
-    return Runtime::Current()->GetClassLinker();
-  }
-
-  mirror::ArtMethod* method_;
+  Handle<mirror::ArtMethod> method_;
   const char* shorty_;
   uint32_t shorty_len_;
 

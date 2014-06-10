@@ -677,12 +677,10 @@ void Trace::GetVisitedMethods(size_t buf_size,
 }
 
 void Trace::DumpMethodList(std::ostream& os, const std::set<mirror::ArtMethod*>& visited_methods) {
-  MethodHelper mh;
   for (const auto& method : visited_methods) {
-    mh.ChangeMethod(method);
     os << StringPrintf("%p\t%s\t%s\t%s\t%s\n", method,
-        PrettyDescriptor(mh.GetDeclaringClassDescriptor()).c_str(), mh.GetName(),
-        mh.GetSignature().ToString().c_str(), mh.GetDeclaringClassSourceFile());
+        PrettyDescriptor(method->GetDeclaringClassDescriptor()).c_str(), method->GetName(),
+        method->GetSignature().ToString().c_str(), method->GetDeclaringClassSourceFile());
   }
 }
 
