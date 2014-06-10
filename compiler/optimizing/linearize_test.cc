@@ -18,6 +18,7 @@
 
 #include "base/stringprintf.h"
 #include "builder.h"
+#include "code_generator.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "graph_visualizer.h"
@@ -41,8 +42,11 @@ static void TestCode(const uint16_t* data, const int* expected_order, size_t num
   ASSERT_NE(graph, nullptr);
 
   graph->BuildDominatorTree();
+  graph->TransformToSSA();
   graph->FindNaturalLoops();
-  SsaLivenessAnalysis liveness(*graph);
+
+  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, InstructionSet::kX86);
+  SsaLivenessAnalysis liveness(*graph, codegen);
   liveness.Analyze();
 
   ASSERT_EQ(liveness.GetLinearPostOrder().Size(), number_of_blocks);

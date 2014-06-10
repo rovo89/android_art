@@ -22,6 +22,7 @@
 namespace art {
 
 static constexpr size_t kMaxLifetimePosition = -1;
+static constexpr size_t kDefaultNumberOfSpillSlots = 4;
 
 RegisterAllocator::RegisterAllocator(ArenaAllocator* allocator, const CodeGenerator& codegen)
       : allocator_(allocator),
@@ -30,6 +31,7 @@ RegisterAllocator::RegisterAllocator(ArenaAllocator* allocator, const CodeGenera
         handled_(allocator, 0),
         active_(allocator, 0),
         inactive_(allocator, 0),
+        spill_slots_(allocator, kDefaultNumberOfSpillSlots),
         processing_core_registers_(false),
         number_of_registers_(-1),
         registers_array_(nullptr),
@@ -78,11 +80,39 @@ bool RegisterAllocator::ValidateInternal(const SsaLivenessAnalysis& liveness,
       intervals.Add(instruction->GetLiveInterval());
     }
   }
-  return ValidateIntervals(intervals, codegen_, allocator_, processing_core_registers_,
-                           log_fatal_on_failure);
+  return ValidateIntervals(intervals, spill_slots_.Size(), codegen_, allocator_,
+                           processing_core_registers_, log_fatal_on_failure);
 }
 
-bool RegisterAllocator::ValidateIntervals(const GrowableArray<LiveInterval*>& ranges,
+class AllRangesIterator : public ValueObject {
+ public:
+  explicit AllRangesIterator(LiveInterval* interval)
+      : current_interval_(interval),
+        current_range_(interval->GetFirstRange()) {}
+
+  bool Done() const { return current_interval_ == nullptr; }
+  LiveRange* CurrentRange() const { return current_range_; }
+  LiveInterval* CurrentInterval() const { return current_interval_; }
+
+  void Advance() {
+    current_range_ = current_range_->GetNext();
+    if (current_range_ == nullptr) {
+      current_interval_ = current_interval_->GetNextSibling();
+      if (current_interval_ != nullptr) {
+        current_range_ = current_interval_->GetFirstRange();
+      }
+    }
+  }
+
+ private:
+  LiveInterval* current_interval_;
+  LiveRange* current_range_;
+
+  DISALLOW_COPY_AND_ASSIGN(AllRangesIterator);
+};
+
+bool RegisterAllocator::ValidateIntervals(const GrowableArray<LiveInterval*>& intervals,
+                                          size_t number_of_spill_slots,
                                           const CodeGenerator& codegen,
                                           ArenaAllocator* allocator,
                                           bool processing_core_registers,
@@ -90,25 +120,40 @@ bool RegisterAllocator::ValidateIntervals(const GrowableArray<LiveInterval*>& ra
   size_t number_of_registers = processing_core_registers
       ? codegen.GetNumberOfCoreRegisters()
       : codegen.GetNumberOfFloatingPointRegisters();
-  GrowableArray<ArenaBitVector*> bit_vectors(allocator, number_of_registers);
+  GrowableArray<ArenaBitVector*> liveness_of_values(
+      allocator, number_of_registers + number_of_spill_slots);
 
   // Allocate a bit vector per register. A live interval that has a register
   // allocated will populate the associated bit vector based on its live ranges.
-  for (size_t i = 0; i < number_of_registers; i++) {
-    bit_vectors.Add(new (allocator) ArenaBitVector(allocator, 0, true));
+  for (size_t i = 0; i < number_of_registers + number_of_spill_slots; ++i) {
+    liveness_of_values.Add(new (allocator) ArenaBitVector(allocator, 0, true));
   }
 
-  for (size_t i = 0, e = ranges.Size(); i < e; ++i) {
-    LiveInterval* current = ranges.Get(i);
-    do {
-      if (!current->HasRegister()) {
-        continue;
+  for (size_t i = 0, e = intervals.Size(); i < e; ++i) {
+    for (AllRangesIterator it(intervals.Get(i)); !it.Done(); it.Advance()) {
+      LiveInterval* current = it.CurrentInterval();
+      if (current->GetParent()->HasSpillSlot()) {
+        BitVector* liveness_of_spill_slot = liveness_of_values.Get(
+            number_of_registers + current->GetParent()->GetSpillSlot() / kVRegSize);
+        for (size_t j = it.CurrentRange()->GetStart(); j < it.CurrentRange()->GetEnd(); ++j) {
+          if (liveness_of_spill_slot->IsBitSet(j)) {
+            if (log_fatal_on_failure) {
+              std::ostringstream message;
+              message << "Spill slot conflict at " << j;
+              LOG(FATAL) << message.str();
+            } else {
+              return false;
+            }
+          } else {
+            liveness_of_spill_slot->SetBit(j);
+          }
+        }
       }
-      BitVector* vector = bit_vectors.Get(current->GetRegister());
-      LiveRange* range = current->GetFirstRange();
-      do {
-        for (size_t j = range->GetStart(); j < range->GetEnd(); ++j) {
-          if (vector->IsBitSet(j)) {
+
+      if (current->HasRegister()) {
+        BitVector* liveness_of_register = liveness_of_values.Get(current->GetRegister());
+        for (size_t j = it.CurrentRange()->GetStart(); j < it.CurrentRange()->GetEnd(); ++j) {
+          if (liveness_of_register->IsBitSet(j)) {
             if (log_fatal_on_failure) {
               std::ostringstream message;
               message << "Register conflict at " << j << " for ";
@@ -122,11 +167,11 @@ bool RegisterAllocator::ValidateIntervals(const GrowableArray<LiveInterval*>& ra
               return false;
             }
           } else {
-            vector->SetBit(j);
+            liveness_of_register->SetBit(j);
           }
         }
-      } while ((range = range->GetNext()) != nullptr);
-    } while ((current = current->GetNextSibling()) != nullptr);
+      }
+    }
   }
   return true;
 }
@@ -270,7 +315,7 @@ bool RegisterAllocator::IsBlocked(int reg) const {
 bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
   size_t first_register_use = current->FirstRegisterUse();
   if (current->FirstRegisterUse() == kNoLifetime) {
-    // TODO: Allocate spill slot for `current`.
+    AllocateSpillSlotFor(current);
     return false;
   }
 
@@ -317,6 +362,7 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
   if (first_register_use >= next_use[reg]) {
     // If the first use of that instruction is after the last use of the found
     // register, we split this interval just before its first register use.
+    AllocateSpillSlotFor(current);
     LiveInterval* split = Split(current, first_register_use - 1);
     AddToUnhandled(split);
     return false;
@@ -370,9 +416,42 @@ LiveInterval* RegisterAllocator::Split(LiveInterval* interval, size_t position) 
     return interval;
   } else {
     LiveInterval* new_interval = interval->SplitAt(position);
-    // TODO: Allocate spill slot for `interval`.
     return new_interval;
   }
+}
+
+void RegisterAllocator::AllocateSpillSlotFor(LiveInterval* interval) {
+  LiveInterval* parent = interval->GetParent();
+
+  // An instruction gets a spill slot for its entire lifetime. If the parent
+  // of this interval already has a spill slot, there is nothing to do.
+  if (parent->HasSpillSlot()) {
+    return;
+  }
+
+  // Find when this instruction dies.
+  LiveInterval* last_sibling = interval;
+  while (last_sibling->GetNextSibling() != nullptr) {
+    last_sibling = last_sibling->GetNextSibling();
+  }
+  size_t end = last_sibling->GetEnd();
+
+  // Find an available spill slot.
+  size_t slot = 0;
+  for (size_t e = spill_slots_.Size(); slot < e; ++slot) {
+    if (spill_slots_.Get(slot) <= parent->GetStart()) {
+      break;
+    }
+  }
+
+  if (slot == spill_slots_.Size()) {
+    // We need a new spill slot.
+    spill_slots_.Add(end);
+  } else {
+    spill_slots_.Put(slot, end);
+  }
+
+  interval->GetParent()->SetSpillSlot(slot * kVRegSize);
 }
 
 }  // namespace art
