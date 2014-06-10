@@ -689,7 +689,7 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
     case 0:  // Set target method index in case of conflict [set kHiddenArg, kHiddenFpArg (x86)]
       CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
       cg->LoadConstant(cg->TargetReg(kHiddenArg), target_method.dex_method_index);
-      if (cu->instruction_set == kX86 || cu->instruction_set == kX86_64) {
+      if (cu->instruction_set == kX86) {
         cg->OpRegCopy(cg->TargetReg(kHiddenFpArg), cg->TargetReg(kHiddenArg));
       }
       break;
