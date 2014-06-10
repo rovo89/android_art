@@ -31,33 +31,25 @@ static constexpr RegStorage core_regs_arr_32[] = {
 };
 static constexpr RegStorage core_regs_arr_64[] = {
     rs_rAX, rs_rCX, rs_rDX, rs_rBX, rs_rX86_SP_32, rs_rBP, rs_rSI, rs_rDI,
-#ifdef TARGET_REX_SUPPORT
     rs_r8, rs_r9, rs_r10, rs_r11, rs_r12, rs_r13, rs_r14, rs_r15
-#endif
 };
 static constexpr RegStorage core_regs_arr_64q[] = {
     rs_r0q, rs_r1q, rs_r2q, rs_r3q, rs_rX86_SP_64, rs_r5q, rs_r6q, rs_r7q,
-#ifdef TARGET_REX_SUPPORT
     rs_r8q, rs_r9q, rs_r10q, rs_r11q, rs_r12q, rs_r13q, rs_r14q, rs_r15q
-#endif
 };
 static constexpr RegStorage sp_regs_arr_32[] = {
     rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
 };
 static constexpr RegStorage sp_regs_arr_64[] = {
     rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
-#ifdef TARGET_REX_SUPPORT
     rs_fr8, rs_fr9, rs_fr10, rs_fr11, rs_fr12, rs_fr13, rs_fr14, rs_fr15
-#endif
 };
 static constexpr RegStorage dp_regs_arr_32[] = {
     rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
 };
 static constexpr RegStorage dp_regs_arr_64[] = {
     rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
-#ifdef TARGET_REX_SUPPORT
     rs_dr8, rs_dr9, rs_dr10, rs_dr11, rs_dr12, rs_dr13, rs_dr14, rs_dr15
-#endif
 };
 static constexpr RegStorage reserved_regs_arr_32[] = {rs_rX86_SP_32};
 static constexpr RegStorage reserved_regs_arr_64[] = {rs_rX86_SP_32};
@@ -65,33 +57,25 @@ static constexpr RegStorage reserved_regs_arr_64q[] = {rs_rX86_SP_64};
 static constexpr RegStorage core_temps_arr_32[] = {rs_rAX, rs_rCX, rs_rDX, rs_rBX};
 static constexpr RegStorage core_temps_arr_64[] = {
     rs_rAX, rs_rCX, rs_rDX, rs_rSI, rs_rDI,
-#ifdef TARGET_REX_SUPPORT
     rs_r8, rs_r9, rs_r10, rs_r11
-#endif
 };
 static constexpr RegStorage core_temps_arr_64q[] = {
     rs_r0q, rs_r1q, rs_r2q, rs_r6q, rs_r7q,
-#ifdef TARGET_REX_SUPPORT
     rs_r8q, rs_r9q, rs_r10q, rs_r11q
-#endif
 };
 static constexpr RegStorage sp_temps_arr_32[] = {
     rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
 };
 static constexpr RegStorage sp_temps_arr_64[] = {
     rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
-#ifdef TARGET_REX_SUPPORT
     rs_fr8, rs_fr9, rs_fr10, rs_fr11, rs_fr12, rs_fr13, rs_fr14, rs_fr15
-#endif
 };
 static constexpr RegStorage dp_temps_arr_32[] = {
     rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
 };
 static constexpr RegStorage dp_temps_arr_64[] = {
     rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
-#ifdef TARGET_REX_SUPPORT
     rs_dr8, rs_dr9, rs_dr10, rs_dr11, rs_dr12, rs_dr13, rs_dr14, rs_dr15
-#endif
 };
 
 static constexpr RegStorage xp_temps_arr_32[] = {
@@ -99,9 +83,7 @@ static constexpr RegStorage xp_temps_arr_32[] = {
 };
 static constexpr RegStorage xp_temps_arr_64[] = {
     rs_xr0, rs_xr1, rs_xr2, rs_xr3, rs_xr4, rs_xr5, rs_xr6, rs_xr7,
-#ifdef TARGET_REX_SUPPORT
     rs_xr8, rs_xr9, rs_xr10, rs_xr11, rs_xr12, rs_xr13, rs_xr14, rs_xr15
-#endif
 };
 
 static constexpr ArrayRef<const RegStorage> empty_pool;
@@ -132,10 +114,8 @@ X86NativeRegisterPool rX86_ARG0;
 X86NativeRegisterPool rX86_ARG1;
 X86NativeRegisterPool rX86_ARG2;
 X86NativeRegisterPool rX86_ARG3;
-#ifdef TARGET_REX_SUPPORT
 X86NativeRegisterPool rX86_ARG4;
 X86NativeRegisterPool rX86_ARG5;
-#endif
 X86NativeRegisterPool rX86_FARG0;
 X86NativeRegisterPool rX86_FARG1;
 X86NativeRegisterPool rX86_FARG2;
@@ -488,7 +468,6 @@ void X86Mir2Lir::LockCallTemps() {
   LockTemp(rs_rX86_ARG1);
   LockTemp(rs_rX86_ARG2);
   LockTemp(rs_rX86_ARG3);
-#ifdef TARGET_REX_SUPPORT
   if (Gen64Bit()) {
     LockTemp(rs_rX86_ARG4);
     LockTemp(rs_rX86_ARG5);
@@ -501,7 +480,6 @@ void X86Mir2Lir::LockCallTemps() {
     LockTemp(rs_rX86_FARG6);
     LockTemp(rs_rX86_FARG7);
   }
-#endif
 }
 
 /* To be used when explicitly managing register use */
@@ -510,7 +488,6 @@ void X86Mir2Lir::FreeCallTemps() {
   FreeTemp(rs_rX86_ARG1);
   FreeTemp(rs_rX86_ARG2);
   FreeTemp(rs_rX86_ARG3);
-#ifdef TARGET_REX_SUPPORT
   if (Gen64Bit()) {
     FreeTemp(rs_rX86_ARG4);
     FreeTemp(rs_rX86_ARG5);
@@ -523,7 +500,6 @@ void X86Mir2Lir::FreeCallTemps() {
     FreeTemp(rs_rX86_FARG6);
     FreeTemp(rs_rX86_FARG7);
   }
-#endif
 }
 
 bool X86Mir2Lir::ProvidesFullMemoryBarrier(X86OpCode opcode) {
@@ -730,13 +706,8 @@ X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator*
     rs_rX86_ARG1 = rs_rSI;
     rs_rX86_ARG2 = rs_rDX;
     rs_rX86_ARG3 = rs_rCX;
-#ifdef TARGET_REX_SUPPORT
     rs_rX86_ARG4 = rs_r8;
     rs_rX86_ARG5 = rs_r9;
-#else
-    rs_rX86_ARG4 = RegStorage::InvalidReg();
-    rs_rX86_ARG5 = RegStorage::InvalidReg();
-#endif
     rs_rX86_FARG0 = rs_fr0;
     rs_rX86_FARG1 = rs_fr1;
     rs_rX86_FARG2 = rs_fr2;
@@ -749,10 +720,8 @@ X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator*
     rX86_ARG1 = rSI;
     rX86_ARG2 = rDX;
     rX86_ARG3 = rCX;
-#ifdef TARGET_REX_SUPPORT
     rX86_ARG4 = r8;
     rX86_ARG5 = r9;
-#endif
     rX86_FARG0 = fr0;
     rX86_FARG1 = fr1;
     rX86_FARG2 = fr2;
