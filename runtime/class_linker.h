@@ -247,8 +247,10 @@ class ClassLinker {
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void VisitClassRoots(RootCallback* callback, void* arg, VisitRootFlags flags)
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_);
   void VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags)
-      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_, dex_lock_);
+      LOCKS_EXCLUDED(dex_lock_);
 
   mirror::DexCache* FindDexCache(const DexFile& dex_file) const
       LOCKS_EXCLUDED(dex_lock_)
