@@ -2154,7 +2154,12 @@ void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
   LoadConstant(result_reg, 0);
   LIR* null_branchover = OpCmpImmBranch(kCondEq, object.reg, 0, NULL);
 
-  RegStorage check_class = AllocTypedTemp(false, kRefReg);
+  // We will use this register to compare to memory below.
+  // References are 32 bit in memory, and 64 bit in registers (in 64 bit mode).
+  // For this reason, force allocation of a 32 bit register to use, so that the
+  // compare to memory will be done using a 32 bit comparision.
+  // The LoadRefDisp(s) below will work normally, even in 64 bit mode.
+  RegStorage check_class = AllocTemp();
 
   // If Method* is already in a register, we can save a copy.
   RegLocation rl_method = mir_graph_->GetMethodLoc();
