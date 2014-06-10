@@ -97,7 +97,7 @@ include $(art_path)/sigchainlib/Android.mk
 
 # ART_HOST_DEPENDENCIES depends on Android.executable.mk above for ART_HOST_EXECUTABLES
 ART_HOST_DEPENDENCIES := $(ART_HOST_EXECUTABLES) $(HOST_OUT_JAVA_LIBRARIES)/core-libart-hostdex.jar
-ART_HOST_DEPENDENCIES += $(HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
+ART_HOST_DEPENDENCIES += $(HOST_LIBRARY_PATH)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
 ART_TARGET_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_JAVA_LIBRARIES)/core-libart.jar $(TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
 ifdef TARGET_2ND_ARCH
 ART_TARGET_DEPENDENCIES += $(2ND_TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
@@ -166,7 +166,7 @@ test-art-host-interpreter: test-art-host-oat-interpreter test-art-host-run-test-
 	@echo test-art-host-interpreter PASSED
 
 .PHONY: test-art-host-dependencies
-test-art-host-dependencies: $(ART_HOST_TEST_DEPENDENCIES) $(HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION) $(HOST_CORE_DEX_LOCATIONS)
+test-art-host-dependencies: $(ART_HOST_TEST_DEPENDENCIES) $(HOST_LIBRARY_PATH)/libarttest$(ART_HOST_SHLIB_EXTENSION) $(HOST_CORE_DEX_LOCATIONS)
 
 .PHONY: test-art-host-gtest
 test-art-host-gtest: $(ART_HOST_GTEST_TARGETS)
