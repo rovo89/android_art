@@ -143,8 +143,8 @@ test-art-host-oat-default-$(1): $(HOST_OUT_JAVA_LIBRARIES)/$(ART_HOST_ARCH)/oat-
 	mkdir -p /tmp/android-data/test-art-host-oat-default-$(1)
 	ANDROID_DATA=/tmp/android-data/test-art-host-oat-default-$(1) \
 	  ANDROID_ROOT=$(HOST_OUT) \
-	  LD_LIBRARY_PATH=$(HOST_OUT_SHARED_LIBRARIES) \
-	  $(HOST_OUT_EXECUTABLES)/dalvikvm $(DALVIKVM_FLAGS) -XXlib:libartd.so -Ximage:$(HOST_CORE_IMG_LOCATION) -classpath $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar -Djava.library.path=$(HOST_OUT_SHARED_LIBRARIES) $(1) $(2) \
+	  LD_LIBRARY_PATH=$(HOST_LIBRARY_PATH) \
+	  $(HOST_OUT_EXECUTABLES)/dalvikvm $(DALVIKVM_FLAGS) -XXlib:libartd.so -Ximage:$(HOST_CORE_IMG_LOCATION) -classpath $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar -Djava.library.path=$(HOST_LIBRARY_PATH) $(1) $(2) \
           && echo test-art-host-oat-default-$(1) PASSED || (echo test-art-host-oat-default-$(1) FAILED && exit 1)
 	$(hide) rm -r /tmp/android-data/test-art-host-oat-default-$(1)
 
@@ -153,8 +153,8 @@ test-art-host-oat-interpreter-$(1): $(HOST_OUT_JAVA_LIBRARIES)/$(ART_HOST_ARCH)/
 	mkdir -p /tmp/android-data/test-art-host-oat-interpreter-$(1)
 	ANDROID_DATA=/tmp/android-data/test-art-host-oat-interpreter-$(1) \
 	  ANDROID_ROOT=$(HOST_OUT) \
-	  LD_LIBRARY_PATH=$(HOST_OUT_SHARED_LIBRARIES) \
-	  $(HOST_OUT_EXECUTABLES)/dalvikvm -XXlib:libartd.so -Ximage:$(HOST_CORE_IMG_LOCATION) $(DALVIKVM_FLAGS) -Xint -classpath $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar -Djava.library.path=$(HOST_OUT_SHARED_LIBRARIES) $(1) $(2) \
+	  LD_LIBRARY_PATH=$(HOST_LIBRARY_PATH) \
+	  $(HOST_OUT_EXECUTABLES)/dalvikvm -XXlib:libartd.so -Ximage:$(HOST_CORE_IMG_LOCATION) $(DALVIKVM_FLAGS) -Xint -classpath $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar -Djava.library.path=$(HOST_LIBRARY_PATH) $(1) $(2) \
           && echo test-art-host-oat-interpreter-$(1) PASSED || (echo test-art-host-oat-interpreter-$(1) FAILED && exit 1)
 	$(hide) rm -r /tmp/android-data/test-art-host-oat-interpreter-$(1)
 
