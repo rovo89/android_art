@@ -386,6 +386,10 @@ const ArmEncodingMap Arm64Mir2Lir::EncodingMap[kA64Last] = {
                  kFmtRegR, 4, 0, kFmtRegXOrSp, 9, 5, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1 | IS_LOAD,
                  "ldxr", "!0r, [!1X]", kFixupNone),
+    ENCODING_MAP(WIDE(kA64Ldaxr2rX), SIZE_VARIANTS(0x885ffc00),
+                 kFmtRegR, 4, 0, kFmtRegXOrSp, 9, 5, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1 | IS_LOAD,
+                 "ldaxr", "!0r, [!1X]", kFixupNone),
     ENCODING_MAP(WIDE(kA64Lsl3rrr), SF_VARIANTS(0x1ac02000),
                  kFmtRegR, 4, 0, kFmtRegR, 9, 5, kFmtRegR, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
@@ -443,11 +447,11 @@ const ArmEncodingMap Arm64Mir2Lir::EncodingMap[kA64Last] = {
                  kFmtUnused, -1, -1, NO_OPERAND | IS_BRANCH,
                  "ret", "", kFixupNone),
     ENCODING_MAP(WIDE(kA64Rev2rr), CUSTOM_VARIANTS(0x5ac00800, 0xdac00c00),
-                 kFmtRegR, 11, 8, kFmtRegR, 19, 16, kFmtUnused, -1, -1,
+                 kFmtRegR, 4, 0, kFmtRegR, 9, 5, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
                  "rev", "!0r, !1r", kFixupNone),
-    ENCODING_MAP(WIDE(kA64Rev162rr), SF_VARIANTS(0xfa90f0b0),
-                 kFmtRegR, 11, 8, kFmtRegR, 19, 16, kFmtUnused, -1, -1,
+    ENCODING_MAP(WIDE(kA64Rev162rr), SF_VARIANTS(0x5ac00400),
+                 kFmtRegR, 4, 0, kFmtRegR, 9, 5, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
                  "rev16", "!0r, !1r", kFixupNone),
     ENCODING_MAP(WIDE(kA64Ror3rrr), SF_VARIANTS(0x1ac02c00),
@@ -542,6 +546,10 @@ const ArmEncodingMap Arm64Mir2Lir::EncodingMap[kA64Last] = {
                  kFmtRegW, 20, 16, kFmtRegR, 4, 0, kFmtRegXOrSp, 9, 5,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12 | IS_STORE,
                  "stxr", "!0w, !1r, [!2X]", kFixupNone),
+    ENCODING_MAP(WIDE(kA64Stlxr3wrX), SIZE_VARIANTS(0x8800fc00),
+                 kFmtRegW, 20, 16, kFmtRegR, 4, 0, kFmtRegXOrSp, 9, 5,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12 | IS_STORE,
+                 "stlxr", "!0w, !1r, [!2X]", kFixupNone),
     ENCODING_MAP(WIDE(kA64Sub4RRdT), SF_VARIANTS(0x51000000),
                  kFmtRegROrSp, 4, 0, kFmtRegROrSp, 9, 5, kFmtBitBlt, 21, 10,
                  kFmtBitBlt, 23, 22, IS_QUAD_OP | REG_DEF0_USE1,
@@ -803,7 +811,7 @@ void Arm64Mir2Lir::AssembleLIR() {
           DCHECK(target_lir);
           CodeOffset pc = lir->offset;
           CodeOffset target = target_lir->offset +
-              ((target_lir->flags.generation == lir->flags.generation) ? 0 : offset_adjustment);
+            ((target_lir->flags.generation == lir->flags.generation) ? 0 : offset_adjustment);
           int32_t delta = target - pc;
           if (!((delta & 0x3) == 0 && IS_SIGNED_IMM19(delta >> 2))) {
             LOG(FATAL) << "Invalid jump range in kFixupLoad";

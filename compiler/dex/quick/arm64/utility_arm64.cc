@@ -387,11 +387,11 @@ LIR* Arm64Mir2Lir::OpRegRegShift(OpKind op, RegStorage r_dest_src1, RegStorage r
     case kOpRev:
       DCHECK_EQ(shift, 0);
       // Binary, but rm is encoded twice.
-      return NewLIR3(kA64Rev2rr | wide, r_dest_src1.GetReg(), r_src2.GetReg(), r_src2.GetReg());
+      return NewLIR2(kA64Rev2rr | wide, r_dest_src1.GetReg(), r_src2.GetReg());
       break;
     case kOpRevsh:
       // Binary, but rm is encoded twice.
-      return NewLIR3(kA64Rev162rr | wide, r_dest_src1.GetReg(), r_src2.GetReg(), r_src2.GetReg());
+      return NewLIR2(kA64Rev162rr | wide, r_dest_src1.GetReg(), r_src2.GetReg());
       break;
     case kOp2Byte:
       DCHECK_EQ(shift, ENCODE_NO_SHIFT);

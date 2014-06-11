@@ -361,11 +361,22 @@ RegLocation Arm64Mir2Lir::GenDivRem(RegLocation rl_dest, RegStorage r_src1, RegS
   return rl_result;
 }
 
-bool Arm64Mir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
-  // TODO(Arm64): implement this.
-  UNIMPLEMENTED(FATAL);
+bool Arm64Mir2Lir::GenInlinedAbsLong(CallInfo* info) {
+  RegLocation rl_src = info->args[0];
+  rl_src = LoadValueWide(rl_src, kCoreReg);
+  RegLocation rl_dest = InlineTargetWide(info);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  RegStorage sign_reg = AllocTempWide();
+  // abs(x) = y<=x>>63, (x+y)^y.
+  OpRegRegImm(kOpAsr, sign_reg, rl_src.reg, 63);
+  OpRegRegReg(kOpAdd, rl_result.reg, rl_src.reg, sign_reg);
+  OpRegReg(kOpXor, rl_result.reg, sign_reg);
+  StoreValueWide(rl_dest, rl_result);
+  return true;
+}
 
-  DCHECK_EQ(cu_->instruction_set, kThumb2);
+bool Arm64Mir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
+  DCHECK_EQ(cu_->instruction_set, kArm64);
   RegLocation rl_src1 = info->args[0];
   RegLocation rl_src2 = info->args[1];
   rl_src1 = LoadValue(rl_src1, kCoreReg);
@@ -373,61 +384,43 @@ bool Arm64Mir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   OpRegReg(kOpCmp, rl_src1.reg, rl_src2.reg);
-  // OpIT((is_min) ? kCondGt : kCondLt, "E");
-  OpRegReg(kOpMov, rl_result.reg, rl_src2.reg);
-  OpRegReg(kOpMov, rl_result.reg, rl_src1.reg);
-  GenBarrier();
+  NewLIR4(kA64Csel4rrrc, rl_result.reg.GetReg(), rl_src1.reg.GetReg(),
+          rl_src2.reg.GetReg(), (is_min) ? kArmCondLt : kArmCondGt);
   StoreValue(rl_dest, rl_result);
   return true;
 }
 
 bool Arm64Mir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
-  // TODO(Arm64): implement this.
-  UNIMPLEMENTED(WARNING);
-
   RegLocation rl_src_address = info->args[0];  // long address
-  rl_src_address = NarrowRegLoc(rl_src_address);  // ignore high half in info->args[1]
+  rl_src_address = NarrowRegLoc(rl_src_address);  // ignore high half in info->args[1] ?
   RegLocation rl_dest = InlineTarget(info);
-  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
+  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);   // kRefReg
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+
+  LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size);
   if (size == k64) {
-    // Fake unaligned LDRD by two unaligned LDR instructions on ARMv7 with SCTLR.A set to 0.
-    if (rl_address.reg.GetReg() != rl_result.reg.GetLowReg()) {
-      LoadWordDisp(rl_address.reg, 0, rl_result.reg.GetLow());
-      LoadWordDisp(rl_address.reg, 4, rl_result.reg.GetHigh());
-    } else {
-      LoadWordDisp(rl_address.reg, 4, rl_result.reg.GetHigh());
-      LoadWordDisp(rl_address.reg, 0, rl_result.reg.GetLow());
-    }
     StoreValueWide(rl_dest, rl_result);
   } else {
     DCHECK(size == kSignedByte || size == kSignedHalf || size == k32);
-    // Unaligned load with LDR and LDRSH is allowed on ARMv7 with SCTLR.A set to 0.
-    LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size);
     StoreValue(rl_dest, rl_result);
   }
   return true;
 }
 
 bool Arm64Mir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
-  // TODO(Arm64): implement this.
-  UNIMPLEMENTED(WARNING);
-
   RegLocation rl_src_address = info->args[0];  // long address
   rl_src_address = NarrowRegLoc(rl_src_address);  // ignore high half in info->args[1]
   RegLocation rl_src_value = info->args[2];  // [size] value
-  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
+  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);   // kRefReg
+
+  RegLocation rl_value;
   if (size == k64) {
-    // Fake unaligned STRD by two unaligned STR instructions on ARMv7 with SCTLR.A set to 0.
-    RegLocation rl_value = LoadValueWide(rl_src_value, kCoreReg);
-    StoreBaseDisp(rl_address.reg, 0, rl_value.reg.GetLow(), k32);
-    StoreBaseDisp(rl_address.reg, 4, rl_value.reg.GetHigh(), k32);
+    rl_value = LoadValueWide(rl_src_value, kCoreReg);
   } else {
     DCHECK(size == kSignedByte || size == kSignedHalf || size == k32);
-    // Unaligned store with STR and STRSH is allowed on ARMv7 with SCTLR.A set to 0.
-    RegLocation rl_value = LoadValue(rl_src_value, kCoreReg);
-    StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size);
+    rl_value = LoadValue(rl_src_value, kCoreReg);
   }
+  StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size);
   return true;
 }
 
@@ -444,71 +437,30 @@ void Arm64Mir2Lir::OpTlsCmp(ThreadOffset<8> offset, int val) {
 }
 
 bool Arm64Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
-  // TODO(Arm64): implement this.
-  UNIMPLEMENTED(WARNING);
-
-  DCHECK_EQ(cu_->instruction_set, kThumb2);
+  DCHECK_EQ(cu_->instruction_set, kArm64);
+  ArmOpcode wide = is_long ? WIDE(0) : UNWIDE(0);
   // Unused - RegLocation rl_src_unsafe = info->args[0];
   RegLocation rl_src_obj = info->args[1];  // Object - known non-null
   RegLocation rl_src_offset = info->args[2];  // long low
-  rl_src_offset = NarrowRegLoc(rl_src_offset);  // ignore high half in info->args[3]
+  rl_src_offset = NarrowRegLoc(rl_src_offset);  // ignore high half in info->args[3] //TODO: do we really need this
   RegLocation rl_src_expected = info->args[4];  // int, long or Object
   // If is_long, high half is in info->args[5]
   RegLocation rl_src_new_value = info->args[is_long ? 6 : 5];  // int, long or Object
   // If is_long, high half is in info->args[7]
   RegLocation rl_dest = InlineTarget(info);  // boolean place for result
 
-  // We have only 5 temporary registers available and actually only 4 if the InlineTarget
-  // above locked one of the temps. For a straightforward CAS64 we need 7 registers:
-  // r_ptr (1), new_value (2), expected(2) and ldrexd result (2). If neither expected nor
-  // new_value is in a non-temp core register we shall reload them in the ldrex/strex loop
-  // into the same temps, reducing the number of required temps down to 5. We shall work
-  // around the potentially locked temp by using LR for r_ptr, unconditionally.
-  // TODO: Pass information about the need for more temps to the stack frame generation
-  // code so that we can rely on being able to allocate enough temps.
-  DCHECK(!GetRegInfo(rs_rA64_LR)->IsTemp());
-  MarkTemp(rs_rA64_LR);
-  FreeTemp(rs_rA64_LR);
-  LockTemp(rs_rA64_LR);
-  bool load_early = true;
-  if (is_long) {
-    RegStorage expected_reg = rl_src_expected.reg.IsPair() ? rl_src_expected.reg.GetLow() :
-        rl_src_expected.reg;
-    RegStorage new_val_reg = rl_src_new_value.reg.IsPair() ? rl_src_new_value.reg.GetLow() :
-        rl_src_new_value.reg;
-    bool expected_is_core_reg = rl_src_expected.location == kLocPhysReg && !expected_reg.IsFloat();
-    bool new_value_is_core_reg = rl_src_new_value.location == kLocPhysReg && !new_val_reg.IsFloat();
-    bool expected_is_good_reg = expected_is_core_reg && !IsTemp(expected_reg);
-    bool new_value_is_good_reg = new_value_is_core_reg && !IsTemp(new_val_reg);
-
-    if (!expected_is_good_reg && !new_value_is_good_reg) {
-      // None of expected/new_value is non-temp reg, need to load both late
-      load_early = false;
-      // Make sure they are not in the temp regs and the load will not be skipped.
-      if (expected_is_core_reg) {
-        FlushRegWide(rl_src_expected.reg);
-        ClobberSReg(rl_src_expected.s_reg_low);
-        ClobberSReg(GetSRegHi(rl_src_expected.s_reg_low));
-        rl_src_expected.location = kLocDalvikFrame;
-      }
-      if (new_value_is_core_reg) {
-        FlushRegWide(rl_src_new_value.reg);
-        ClobberSReg(rl_src_new_value.s_reg_low);
-        ClobberSReg(GetSRegHi(rl_src_new_value.s_reg_low));
-        rl_src_new_value.location = kLocDalvikFrame;
-      }
-    }
-  }
-
-  // Release store semantics, get the barrier out of the way.  TODO: revisit
-  GenMemBarrier(kStoreLoad);
-
+  // Load Object and offset
   RegLocation rl_object = LoadValue(rl_src_obj, kRefReg);
+  RegLocation rl_offset = LoadValue(rl_src_offset, kRefReg);
+
   RegLocation rl_new_value;
-  if (!is_long) {
-    rl_new_value = LoadValue(rl_src_new_value);
-  } else if (load_early) {
+  RegLocation rl_expected;
+  if (is_long) {
     rl_new_value = LoadValueWide(rl_src_new_value, kCoreReg);
+    rl_expected = LoadValueWide(rl_src_expected, kCoreReg);
+  } else {
+    rl_new_value = LoadValue(rl_src_new_value, is_object ? kRefReg : kCoreReg);
+    rl_expected = LoadValue(rl_src_expected, is_object ? kRefReg : kCoreReg);
   }
 
   if (is_object && !mir_graph_->IsConstantNullRef(rl_new_value)) {
@@ -516,9 +468,7 @@ bool Arm64Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
     MarkGCCard(rl_new_value.reg, rl_object.reg);
   }
 
-  RegLocation rl_offset = LoadValue(rl_src_offset, kCoreReg);
-
-  RegStorage r_ptr = rs_rA64_LR;
+  RegStorage r_ptr = AllocTempRef();
   OpRegRegReg(kOpAdd, r_ptr, rl_object.reg, rl_offset.reg);
 
   // Free now unneeded rl_object and rl_offset to give more temps.
@@ -527,77 +477,40 @@ bool Arm64Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   ClobberSReg(rl_offset.s_reg_low);
   FreeTemp(rl_offset.reg);
 
-  RegLocation rl_expected;
-  if (!is_long) {
-    rl_expected = LoadValue(rl_src_expected);
-  } else if (load_early) {
-    rl_expected = LoadValueWide(rl_src_expected, kCoreReg);
-  } else {
-    // NOTE: partially defined rl_expected & rl_new_value - but we just want the regs.
-    int low_reg = AllocTemp().GetReg();
-    int high_reg = AllocTemp().GetReg();
-    rl_new_value.reg = RegStorage(RegStorage::k64BitPair, low_reg, high_reg);
-    rl_expected = rl_new_value;
-  }
-
   // do {
   //   tmp = [r_ptr] - expected;
   // } while (tmp == 0 && failure([r_ptr] <- r_new_value));
   // result = tmp != 0;
 
-  RegStorage r_tmp = AllocTemp();
-  LIR* target = NewLIR0(kPseudoTargetLabel);
-
+  RegStorage r_tmp;
   if (is_long) {
-    RegStorage r_tmp_high = AllocTemp();
-    if (!load_early) {
-      LoadValueDirectWide(rl_src_expected, rl_expected.reg);
-    }
-    NewLIR3(kA64Ldxr2rX, r_tmp.GetReg(), r_tmp_high.GetReg(), r_ptr.GetReg());
-    OpRegReg(kOpSub, r_tmp, rl_expected.reg.GetLow());
-    OpRegReg(kOpSub, r_tmp_high, rl_expected.reg.GetHigh());
-    if (!load_early) {
-      LoadValueDirectWide(rl_src_new_value, rl_new_value.reg);
-    }
-
-    LIR* branch1 = OpCmpImmBranch(kCondNe, r_tmp, 0, NULL);
-    LIR* branch2 = OpCmpImmBranch(kCondNe, r_tmp_high, 0, NULL);
-    NewLIR4(WIDE(kA64Stxr3wrX) /* eq */, r_tmp.GetReg(), rl_new_value.reg.GetReg(),
-            rl_new_value.reg.GetHighReg(), r_ptr.GetReg());
-    LIR* target2 = NewLIR0(kPseudoTargetLabel);
-    branch1->target = target2;
-    branch2->target = target2;
-    FreeTemp(r_tmp_high);  // Now unneeded
-
+    r_tmp = AllocTempWide();
+  } else if (is_object) {
+    r_tmp = AllocTempRef();
   } else {
-    NewLIR3(kA64Ldxr2rX, r_tmp.GetReg(), r_ptr.GetReg(), 0);
-    OpRegReg(kOpSub, r_tmp, rl_expected.reg);
-    DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
-    // OpIT(kCondEq, "T");
-    NewLIR4(kA64Stxr3wrX /* eq */, r_tmp.GetReg(), rl_new_value.reg.GetReg(), r_ptr.GetReg(), 0);
+    r_tmp = AllocTemp();
   }
 
-  // Still one conditional left from OpIT(kCondEq, "T") from either branch
-  OpRegImm(kOpCmp /* eq */, r_tmp, 1);
-  OpCondBranch(kCondEq, target);
-
-  if (!load_early) {
-    FreeTemp(rl_expected.reg);  // Now unneeded.
-  }
-
-  // result := (tmp1 != 0) ? 0 : 1;
-  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  OpRegRegImm(kOpRsub, rl_result.reg, r_tmp, 1);
+  LIR* loop = NewLIR0(kPseudoTargetLabel);
+  NewLIR2(kA64Ldaxr2rX | wide, r_tmp.GetReg(), r_ptr.GetReg());
+  OpRegReg(kOpCmp, r_tmp, rl_expected.reg);
   DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
-  // OpIT(kCondUlt, "");
-  LoadConstant(rl_result.reg, 0); /* cc */
+  LIR* early_exit = OpCondBranch(kCondNe, NULL);
+
+  NewLIR3(kA64Stlxr3wrX | wide, As32BitReg(r_tmp).GetReg(), rl_new_value.reg.GetReg(), r_ptr.GetReg());
+  NewLIR3(kA64Cmp3RdT, As32BitReg(r_tmp).GetReg(), 0, ENCODE_NO_SHIFT);
+  DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
+  OpCondBranch(kCondNe, loop);
+
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  LIR* exit =  NewLIR4(kA64Csinc4rrrc, rl_result.reg.GetReg(), rwzr, rwzr, kArmCondNe);
+  early_exit->target = exit;
+
   FreeTemp(r_tmp);  // Now unneeded.
+  FreeTemp(r_ptr);  // Now unneeded.
 
   StoreValue(rl_dest, rl_result);
 
-  // Now, restore lr to its non-temp status.
-  Clobber(rs_rA64_LR);
-  UnmarkTemp(rs_rA64_LR);
   return true;
 }
 

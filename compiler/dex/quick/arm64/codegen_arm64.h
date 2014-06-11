@@ -124,6 +124,7 @@ class Arm64Mir2Lir : public Mir2Lir {
     bool GenInlinedSqrt(CallInfo* info);
     bool GenInlinedPeek(CallInfo* info, OpSize size);
     bool GenInlinedPoke(CallInfo* info, OpSize size);
+    bool GenInlinedAbsLong(CallInfo* info);
     void GenIntToLong(RegLocation rl_dest, RegLocation rl_src);
     void GenNotLong(RegLocation rl_dest, RegLocation rl_src);
     void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
