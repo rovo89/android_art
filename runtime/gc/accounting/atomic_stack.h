@@ -49,10 +49,7 @@ class AtomicStack {
     front_index_.StoreRelaxed(0);
     back_index_.StoreRelaxed(0);
     debug_is_sorted_ = true;
-    int result = madvise(begin_, sizeof(T) * capacity_, MADV_DONTNEED);
-    if (result == -1) {
-      PLOG(WARNING) << "madvise failed";
-    }
+    mem_map_->MadviseDontNeedAndZero();
   }
 
   // Beware: Mixing atomic pushes and atomic pops will cause ABA problem.

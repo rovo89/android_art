@@ -38,7 +38,6 @@ include  $(BUILD_SYSTEM)/executable_prefer_symlink.mk
 
 ART_TARGET_EXECUTABLES += $(TARGET_OUT_EXECUTABLES)/$(LOCAL_MODULE)
 
-ifeq ($(WITH_HOST_DALVIK),true)
 include $(CLEAR_VARS)
 LOCAL_MODULE := dalvikvm
 LOCAL_MODULE_TAGS := optional
@@ -54,4 +53,3 @@ LOCAL_IS_HOST_MODULE := true
 include external/libcxx/libcxx.mk
 include $(BUILD_HOST_EXECUTABLE)
 ART_HOST_EXECUTABLES += $(HOST_OUT_EXECUTABLES)/$(LOCAL_MODULE)
-endif

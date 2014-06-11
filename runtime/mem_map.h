@@ -30,6 +30,12 @@
 
 namespace art {
 
+#ifdef __linux__
+static constexpr bool kMadviseZeroes = true;
+#else
+static constexpr bool kMadviseZeroes = false;
+#endif
+
 // Used to keep track of mmap segments.
 //
 // On 64b systems not supporting MAP_32BIT, the implementation of MemMap will do a linear scan
@@ -76,6 +82,8 @@ class MemMap {
   }
 
   bool Protect(int prot);
+
+  void MadviseDontNeedAndZero();
 
   int GetProtect() const {
     return prot_;

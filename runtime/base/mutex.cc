@@ -263,19 +263,11 @@ Mutex::Mutex(const char* name, LockLevel level, bool recursive)
     : BaseMutex(name, level), recursive_(recursive), recursion_count_(0) {
 #if ART_USE_FUTEXES
   state_ = 0;
-  exclusive_owner_ = 0;
   DCHECK_EQ(0, num_contenders_.LoadRelaxed());
-#elif defined(__BIONIC__) || defined(__APPLE__)
-  // Use recursive mutexes for bionic and Apple otherwise the
-  // non-recursive mutexes don't have TIDs to check lock ownership of.
-  pthread_mutexattr_t attributes;
-  CHECK_MUTEX_CALL(pthread_mutexattr_init, (&attributes));
-  CHECK_MUTEX_CALL(pthread_mutexattr_settype, (&attributes, PTHREAD_MUTEX_RECURSIVE));
-  CHECK_MUTEX_CALL(pthread_mutex_init, (&mutex_, &attributes));
-  CHECK_MUTEX_CALL(pthread_mutexattr_destroy, (&attributes));
 #else
-  CHECK_MUTEX_CALL(pthread_mutex_init, (&mutex_, NULL));
+  CHECK_MUTEX_CALL(pthread_mutex_init, (&mutex_, nullptr));
 #endif
+  exclusive_owner_ = 0;
 }
 
 Mutex::~Mutex() {
@@ -336,10 +328,11 @@ void Mutex::ExclusiveLock(Thread* self) {
     // TODO: Change state_ to be a art::Atomic and use an intention revealing CAS operation
     // that exposes the ordering semantics.
     DCHECK_EQ(state_, 1);
-    exclusive_owner_ = SafeGetTid(self);
 #else
     CHECK_MUTEX_CALL(pthread_mutex_lock, (&mutex_));
 #endif
+    DCHECK_EQ(exclusive_owner_, 0U);
+    exclusive_owner_ = SafeGetTid(self);
     RegisterAsLocked(self);
   }
   recursion_count_++;
@@ -369,7 +362,6 @@ bool Mutex::ExclusiveTryLock(Thread* self) {
     } while (!done);
     // We again assert no memory fence is needed.
     DCHECK_EQ(state_, 1);
-    exclusive_owner_ = SafeGetTid(self);
 #else
     int result = pthread_mutex_trylock(&mutex_);
     if (result == EBUSY) {
@@ -380,6 +372,8 @@ bool Mutex::ExclusiveTryLock(Thread* self) {
       PLOG(FATAL) << "pthread_mutex_trylock failed for " << name_;
     }
 #endif
+    DCHECK_EQ(exclusive_owner_, 0U);
+    exclusive_owner_ = SafeGetTid(self);
     RegisterAsLocked(self);
   }
   recursion_count_++;
@@ -394,6 +388,7 @@ bool Mutex::ExclusiveTryLock(Thread* self) {
 void Mutex::ExclusiveUnlock(Thread* self) {
   DCHECK(self == NULL || self == Thread::Current());
   AssertHeld(self);
+  DCHECK_NE(exclusive_owner_, 0U);
   recursion_count_--;
   if (!recursive_ || recursion_count_ == 0) {
     if (kDebugLocking) {
@@ -402,34 +397,35 @@ void Mutex::ExclusiveUnlock(Thread* self) {
     }
     RegisterAsUnlocked(self);
 #if ART_USE_FUTEXES
-  bool done = false;
-  do {
-    int32_t cur_state = state_;
-    if (LIKELY(cur_state == 1)) {
-      // The __sync_bool_compare_and_swap enforces the necessary memory ordering.
-      // We're no longer the owner.
-      exclusive_owner_ = 0;
-      // Change state to 0.
-      done =  __sync_bool_compare_and_swap(&state_, cur_state, 0 /* new state */);
-      if (LIKELY(done)) {  // Spurious fail?
-        // Wake a contender
-        if (UNLIKELY(num_contenders_.LoadRelaxed() > 0)) {
-          futex(&state_, FUTEX_WAKE, 1, NULL, NULL, 0);
+    bool done = false;
+    do {
+      int32_t cur_state = state_;
+      if (LIKELY(cur_state == 1)) {
+        // The __sync_bool_compare_and_swap enforces the necessary memory ordering.
+        // We're no longer the owner.
+        exclusive_owner_ = 0;
+        // Change state to 0.
+        done =  __sync_bool_compare_and_swap(&state_, cur_state, 0 /* new state */);
+        if (LIKELY(done)) {  // Spurious fail?
+          // Wake a contender
+          if (UNLIKELY(num_contenders_.LoadRelaxed() > 0)) {
+            futex(&state_, FUTEX_WAKE, 1, NULL, NULL, 0);
+          }
+        }
+      } else {
+        // Logging acquires the logging lock, avoid infinite recursion in that case.
+        if (this != Locks::logging_lock_) {
+          LOG(FATAL) << "Unexpected state_ in unlock " << cur_state << " for " << name_;
+        } else {
+          LogMessageData data(__FILE__, __LINE__, INTERNAL_FATAL, -1);
+          LogMessage::LogLine(data, StringPrintf("Unexpected state_ %d in unlock for %s",
+                                                 cur_state, name_).c_str());
+          _exit(1);
         }
       }
-    } else {
-      // Logging acquires the logging lock, avoid infinite recursion in that case.
-      if (this != Locks::logging_lock_) {
-        LOG(FATAL) << "Unexpected state_ in unlock " << cur_state << " for " << name_;
-      } else {
-        LogMessageData data(__FILE__, __LINE__, INTERNAL_FATAL, -1);
-        LogMessage::LogLine(data, StringPrintf("Unexpected state_ %d in unlock for %s",
-                                               cur_state, name_).c_str());
-        _exit(1);
-      }
-    }
-  } while (!done);
+    } while (!done);
 #else
+    exclusive_owner_ = 0;
     CHECK_MUTEX_CALL(pthread_mutex_unlock, (&mutex_));
 #endif
   }
@@ -452,12 +448,13 @@ std::ostream& operator<<(std::ostream& os, const Mutex& mu) {
 ReaderWriterMutex::ReaderWriterMutex(const char* name, LockLevel level)
     : BaseMutex(name, level)
 #if ART_USE_FUTEXES
-    , state_(0), exclusive_owner_(0), num_pending_readers_(0), num_pending_writers_(0)
+    , state_(0), num_pending_readers_(0), num_pending_writers_(0)
 #endif
 {  // NOLINT(whitespace/braces)
 #if !ART_USE_FUTEXES
-  CHECK_MUTEX_CALL(pthread_rwlock_init, (&rwlock_, NULL));
+  CHECK_MUTEX_CALL(pthread_rwlock_init, (&rwlock_, nullptr));
 #endif
+  exclusive_owner_ = 0;
 }
 
 ReaderWriterMutex::~ReaderWriterMutex() {
@@ -506,10 +503,11 @@ void ReaderWriterMutex::ExclusiveLock(Thread* self) {
     }
   } while (!done);
   DCHECK_EQ(state_, -1);
-  exclusive_owner_ = SafeGetTid(self);
 #else
   CHECK_MUTEX_CALL(pthread_rwlock_wrlock, (&rwlock_));
 #endif
+  DCHECK_EQ(exclusive_owner_, 0U);
+  exclusive_owner_ = SafeGetTid(self);
   RegisterAsLocked(self);
   AssertExclusiveHeld(self);
 }
@@ -518,6 +516,7 @@ void ReaderWriterMutex::ExclusiveUnlock(Thread* self) {
   DCHECK(self == NULL || self == Thread::Current());
   AssertExclusiveHeld(self);
   RegisterAsUnlocked(self);
+  DCHECK_NE(exclusive_owner_, 0U);
 #if ART_USE_FUTEXES
   bool done = false;
   do {
@@ -538,6 +537,7 @@ void ReaderWriterMutex::ExclusiveUnlock(Thread* self) {
     }
   } while (!done);
 #else
+  exclusive_owner_ = 0;
   CHECK_MUTEX_CALL(pthread_rwlock_unlock, (&rwlock_));
 #endif
 }
@@ -578,7 +578,6 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
       num_pending_writers_--;
     }
   } while (!done);
-  exclusive_owner_ = SafeGetTid(self);
 #else
   timespec ts;
   InitTimeSpec(true, CLOCK_REALTIME, ms, ns, &ts);
@@ -591,6 +590,7 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
     PLOG(FATAL) << "pthread_rwlock_timedwrlock failed for " << name_;
   }
 #endif
+  exclusive_owner_ = SafeGetTid(self);
   RegisterAsLocked(self);
   AssertSharedHeld(self);
   return true;
@@ -656,7 +656,7 @@ ConditionVariable::ConditionVariable(const char* name, Mutex& guard)
   num_waiters_ = 0;
 #else
   pthread_condattr_t cond_attrs;
-  CHECK_MUTEX_CALL(pthread_condattr_init(&cond_attrs));
+  CHECK_MUTEX_CALL(pthread_condattr_init, (&cond_attrs));
 #if !defined(__APPLE__)
   // Apple doesn't have CLOCK_MONOTONIC or pthread_condattr_setclock.
   CHECK_MUTEX_CALL(pthread_condattr_setclock(&cond_attrs, CLOCK_MONOTONIC));
@@ -763,8 +763,11 @@ void ConditionVariable::WaitHoldingLocks(Thread* self) {
   CHECK_GE(guard_.num_contenders_.LoadRelaxed(), 0);
   guard_.num_contenders_--;
 #else
+  uint64_t old_owner = guard_.exclusive_owner_;
+  guard_.exclusive_owner_ = 0;
   guard_.recursion_count_ = 0;
   CHECK_MUTEX_CALL(pthread_cond_wait, (&cond_, &guard_.mutex_));
+  guard_.exclusive_owner_ = old_owner;
 #endif
   guard_.recursion_count_ = old_recursion_count;
 }
@@ -804,6 +807,8 @@ void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
 #else
   int clock = CLOCK_REALTIME;
 #endif
+  uint64_t old_owner = guard_.exclusive_owner_;
+  guard_.exclusive_owner_ = 0;
   guard_.recursion_count_ = 0;
   timespec ts;
   InitTimeSpec(true, clock, ms, ns, &ts);
@@ -812,6 +817,7 @@ void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
     errno = rc;
     PLOG(FATAL) << "TimedWait failed for " << name_;
   }
+  guard_.exclusive_owner_ = old_owner;
 #endif
   guard_.recursion_count_ = old_recursion_count;
 }

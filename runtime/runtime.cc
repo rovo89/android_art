@@ -18,7 +18,9 @@
 
 // sys/mount.h has to come before linux/fs.h due to redefinition of MS_RDONLY, MS_BIND, etc
 #include <sys/mount.h>
+#ifdef __linux__
 #include <linux/fs.h>
+#endif
 
 #include <signal.h>
 #include <sys/syscall.h>
@@ -437,6 +439,7 @@ void Runtime::EndThreadBirth() EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_
 
 // Do zygote-mode-only initialization.
 bool Runtime::InitZygote() {
+#ifdef __linux__
   // zygote goes into its own process group
   setpgid(0, 0);
 
@@ -467,6 +470,10 @@ bool Runtime::InitZygote() {
   }
 
   return true;
+#else
+  UNIMPLEMENTED(FATAL);
+  return false;
+#endif
 }
 
 void Runtime::DidForkFromZygote() {

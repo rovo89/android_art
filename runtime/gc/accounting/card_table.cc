@@ -96,7 +96,7 @@ void CardTable::ClearSpaceCards(space::ContinuousSpace* space) {
 
 void CardTable::ClearCardTable() {
   COMPILE_ASSERT(kCardClean == 0, clean_card_must_be_0);
-  madvise(mem_map_->Begin(), mem_map_->Size(), MADV_DONTNEED);
+  mem_map_->MadviseDontNeedAndZero();
 }
 
 bool CardTable::AddrIsInCardTable(const void* addr) const {

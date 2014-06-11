@@ -77,9 +77,10 @@ class StubTest : public CommonRuntimeTest {
 #if defined(__i386__)
     // TODO: Set the thread?
     __asm__ __volatile__(
-        "pushl %[referrer]\n\t"     // Store referrer
+        "subl $12, %%esp\n\t"       // Align stack.
+        "pushl %[referrer]\n\t"     // Store referrer.
         "call *%%edi\n\t"           // Call the stub
-        "addl $4, %%esp"            // Pop referrer
+        "addl $16, %%esp"           // Pop referrer
         : "=a" (result)
           // Use the result from eax
         : "a"(arg0), "c"(arg1), "d"(arg2), "D"(code), [referrer]"r"(referrer)
@@ -300,9 +301,10 @@ class StubTest : public CommonRuntimeTest {
     // TODO: Set the thread?
     __asm__ __volatile__(
         "movd %[hidden], %%xmm0\n\t"
+        "subl $12, %%esp\n\t"       // Align stack.
         "pushl %[referrer]\n\t"     // Store referrer
         "call *%%edi\n\t"           // Call the stub
-        "addl $4, %%esp"            // Pop referrer
+        "addl $16, %%esp"           // Pop referrer
         : "=a" (result)
           // Use the result from eax
         : "a"(arg0), "c"(arg1), "d"(arg2), "D"(code), [referrer]"m"(referrer), [hidden]"r"(hidden)
