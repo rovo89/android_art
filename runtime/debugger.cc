@@ -62,45 +62,98 @@ namespace art {
 static const size_t kMaxAllocRecordStackDepth = 16;  // Max 255.
 static const size_t kDefaultNumAllocRecords = 64*1024;  // Must be a power of 2.
 
-struct AllocRecordStackTraceElement {
-  mirror::ArtMethod* method;
-  uint32_t dex_pc;
-
-  AllocRecordStackTraceElement() : method(nullptr), dex_pc(0) {
+class AllocRecordStackTraceElement {
+ public:
+  AllocRecordStackTraceElement() : method_(nullptr), dex_pc_(0) {
   }
 
-  int32_t LineNumber() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return method->GetLineNumFromDexPC(dex_pc);
+  int32_t LineNumber() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::ArtMethod* method = Method();
+    DCHECK(method != nullptr);
+    return method->GetLineNumFromDexPC(DexPc());
   }
+
+  mirror::ArtMethod* Method() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::ArtMethod* method = reinterpret_cast<mirror::ArtMethod*>(
+        Thread::Current()->DecodeJObject(method_));
+    return method;
+  }
+
+  void SetMethod(mirror::ArtMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    ScopedObjectAccessUnchecked soa(Thread::Current());
+    JNIEnv* env = soa.Env();
+    if (method_ != nullptr) {
+      env->DeleteWeakGlobalRef(method_);
+    }
+    method_ = env->NewWeakGlobalRef(soa.AddLocalReference<jobject>(m));
+  }
+
+  uint32_t DexPc() const {
+    return dex_pc_;
+  }
+
+  void SetDexPc(uint32_t pc) {
+    dex_pc_ = pc;
+  }
+
+ private:
+  jobject method_;  // This is a weak global.
+  uint32_t dex_pc_;
 };
 
-struct AllocRecord {
-  mirror::Class* type;
-  size_t byte_count;
-  uint16_t thin_lock_id;
-  AllocRecordStackTraceElement stack[kMaxAllocRecordStackDepth];  // Unused entries have NULL method.
+class AllocRecord {
+ public:
+  AllocRecord() : type_(nullptr), byte_count_(0), thin_lock_id_(0) {}
 
-  size_t GetDepth() {
+  mirror::Class* Type() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::Class* type = reinterpret_cast<mirror::Class*>(
+        Thread::Current()->DecodeJObject(type_));
+    return type;
+  }
+
+  void SetType(mirror::Class* t) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    ScopedObjectAccessUnchecked soa(Thread::Current());
+    JNIEnv* env = soa.Env();
+    if (type_ != nullptr) {
+      env->DeleteWeakGlobalRef(type_);
+    }
+    type_ = env->NewWeakGlobalRef(soa.AddLocalReference<jobject>(t));
+  }
+
+  size_t GetDepth() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     size_t depth = 0;
-    while (depth < kMaxAllocRecordStackDepth && stack[depth].method != NULL) {
+    while (depth < kMaxAllocRecordStackDepth && stack_[depth].Method() != NULL) {
       ++depth;
     }
     return depth;
   }
 
-  void UpdateObjectPointers(IsMarkedCallback* callback, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (type != nullptr) {
-      type = down_cast<mirror::Class*>(callback(type, arg));
-    }
-    for (size_t stack_frame = 0; stack_frame < kMaxAllocRecordStackDepth; ++stack_frame) {
-      mirror::ArtMethod*& m = stack[stack_frame].method;
-      if (m == nullptr) {
-        break;
-      }
-      m = down_cast<mirror::ArtMethod*>(callback(m, arg));
-    }
+  size_t ByteCount() const {
+    return byte_count_;
   }
+
+  void SetByteCount(size_t count) {
+    byte_count_ = count;
+  }
+
+  uint16_t ThinLockId() const {
+    return thin_lock_id_;
+  }
+
+  void SetThinLockId(uint16_t id) {
+    thin_lock_id_ = id;
+  }
+
+  AllocRecordStackTraceElement* StackElement(size_t index) {
+    DCHECK_LT(index, kMaxAllocRecordStackDepth);
+    return &stack_[index];
+  }
+
+ private:
+  jobject type_;  // This is a weak global.
+  size_t byte_count_;
+  uint16_t thin_lock_id_;
+  AllocRecordStackTraceElement stack_[kMaxAllocRecordStackDepth];  // Unused entries have NULL method.
 };
 
 struct Breakpoint {
@@ -848,21 +901,13 @@ JDWP::JdwpError Dbg::GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* r
 JDWP::JdwpError Dbg::GetOwnedMonitors(JDWP::ObjectId thread_id,
                                       std::vector<JDWP::ObjectId>& monitors,
                                       std::vector<uint32_t>& stack_depths) {
-  ScopedObjectAccessUnchecked soa(Thread::Current());
-  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
-  Thread* thread;
-  JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
-  if (error != JDWP::ERR_NONE) {
-    return error;
-  }
-  if (!IsSuspendedForDebugger(soa, thread)) {
-    return JDWP::ERR_THREAD_NOT_SUSPENDED;
-  }
-
   struct OwnedMonitorVisitor : public StackVisitor {
-    OwnedMonitorVisitor(Thread* thread, Context* context)
+    OwnedMonitorVisitor(Thread* thread, Context* context,
+                        std::vector<mirror::Object*>* monitor_vector,
+                        std::vector<uint32_t>* stack_depth_vector)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        : StackVisitor(thread, context), current_stack_depth(0) {}
+      : StackVisitor(thread, context), current_stack_depth(0),
+        monitors(monitor_vector), stack_depths(stack_depth_vector) {}
 
     // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
     // annotalysis.
@@ -876,21 +921,38 @@ JDWP::JdwpError Dbg::GetOwnedMonitors(JDWP::ObjectId thread_id,
 
     static void AppendOwnedMonitors(mirror::Object* owned_monitor, void* arg) {
       OwnedMonitorVisitor* visitor = reinterpret_cast<OwnedMonitorVisitor*>(arg);
-      visitor->monitors.push_back(owned_monitor);
-      visitor->stack_depths.push_back(visitor->current_stack_depth);
+      visitor->monitors->push_back(owned_monitor);
+      visitor->stack_depths->push_back(visitor->current_stack_depth);
     }
 
     size_t current_stack_depth;
-    std::vector<mirror::Object*> monitors;
-    std::vector<uint32_t> stack_depths;
+    std::vector<mirror::Object*>* monitors;
+    std::vector<uint32_t>* stack_depths;
   };
-  std::unique_ptr<Context> context(Context::Create());
-  OwnedMonitorVisitor visitor(thread, context.get());
-  visitor.WalkStack();
 
-  for (size_t i = 0; i < visitor.monitors.size(); ++i) {
-    monitors.push_back(gRegistry->Add(visitor.monitors[i]));
-    stack_depths.push_back(visitor.stack_depths[i]);
+  std::vector<mirror::Object*> monitor_vector;
+  std::vector<uint32_t> stack_depth_vector;
+  ScopedObjectAccessUnchecked soa(Thread::Current());
+  {
+    MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
+    Thread* thread;
+    JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
+    if (error != JDWP::ERR_NONE) {
+      return error;
+    }
+    if (!IsSuspendedForDebugger(soa, thread)) {
+      return JDWP::ERR_THREAD_NOT_SUSPENDED;
+    }
+    std::unique_ptr<Context> context(Context::Create());
+    OwnedMonitorVisitor visitor(thread, context.get(), &monitor_vector, &stack_depth_vector);
+    visitor.WalkStack();
+  }
+
+  // Add() requires the thread_list_lock_ not held to avoid the lock
+  // level violation.
+  for (size_t i = 0; i < monitor_vector.size(); ++i) {
+    monitors.push_back(gRegistry->Add(monitor_vector[i]));
+    stack_depths.push_back(stack_depth_vector[i]);
   }
 
   return JDWP::ERR_NONE;
@@ -898,19 +960,23 @@ JDWP::JdwpError Dbg::GetOwnedMonitors(JDWP::ObjectId thread_id,
 
 JDWP::JdwpError Dbg::GetContendedMonitor(JDWP::ObjectId thread_id,
                                          JDWP::ObjectId& contended_monitor) {
+  mirror::Object* contended_monitor_obj;
   ScopedObjectAccessUnchecked soa(Thread::Current());
-  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
-  Thread* thread;
-  JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
-  if (error != JDWP::ERR_NONE) {
-    return error;
+  {
+    MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
+    Thread* thread;
+    JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
+    if (error != JDWP::ERR_NONE) {
+      return error;
+    }
+    if (!IsSuspendedForDebugger(soa, thread)) {
+      return JDWP::ERR_THREAD_NOT_SUSPENDED;
+    }
+    contended_monitor_obj = Monitor::GetContendedMonitor(thread);
   }
-  if (!IsSuspendedForDebugger(soa, thread)) {
-    return JDWP::ERR_THREAD_NOT_SUSPENDED;
-  }
-
-  contended_monitor = gRegistry->Add(Monitor::GetContendedMonitor(thread));
-
+  // Add() requires the thread_list_lock_ not held to avoid the lock
+  // level violation.
+  contended_monitor = gRegistry->Add(contended_monitor_obj);
   return JDWP::ERR_NONE;
 }
 
@@ -1845,9 +1911,12 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
   }
   const char* old_cause = soa.Self()->StartAssertNoThreadSuspension("Debugger: GetThreadGroup");
   // Okay, so it's an object, but is it actually a thread?
-  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
-  Thread* thread;
-  JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
+  JDWP::JdwpError error;
+  {
+    MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
+    Thread* thread;
+    error = DecodeThread(soa, thread_id, thread);
+  }
   if (error == JDWP::ERR_THREAD_NOT_ALIVE) {
     // Zombie threads are in the null group.
     expandBufAddObjectId(pReply, JDWP::ObjectId(0));
@@ -1856,9 +1925,9 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
     mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread);
     CHECK(c != nullptr);
     mirror::ArtField* f = c->FindInstanceField("group", "Ljava/lang/ThreadGroup;");
-    CHECK(f != NULL);
+    CHECK(f != nullptr);
     mirror::Object* group = f->GetObject(thread_object);
-    CHECK(group != NULL);
+    CHECK(group != nullptr);
     JDWP::ObjectId thread_group_id = gRegistry->Add(group);
     expandBufAddObjectId(pReply, thread_group_id);
   }
@@ -4146,8 +4215,8 @@ struct AllocRecordStackVisitor : public StackVisitor {
     }
     mirror::ArtMethod* m = GetMethod();
     if (!m->IsRuntimeMethod()) {
-      record->stack[depth].method = m;
-      record->stack[depth].dex_pc = GetDexPc();
+      record->StackElement(depth)->SetMethod(m);
+      record->StackElement(depth)->SetDexPc(GetDexPc());
       ++depth;
     }
     return true;
@@ -4156,8 +4225,8 @@ struct AllocRecordStackVisitor : public StackVisitor {
   ~AllocRecordStackVisitor() {
     // Clear out any unused stack trace elements.
     for (; depth < kMaxAllocRecordStackDepth; ++depth) {
-      record->stack[depth].method = NULL;
-      record->stack[depth].dex_pc = 0;
+      record->StackElement(depth)->SetMethod(nullptr);
+      record->StackElement(depth)->SetDexPc(0);
     }
   }
 
@@ -4181,9 +4250,9 @@ void Dbg::RecordAllocation(mirror::Class* type, size_t byte_count) {
 
   // Fill in the basics.
   AllocRecord* record = &recent_allocation_records_[alloc_record_head_];
-  record->type = type;
-  record->byte_count = byte_count;
-  record->thin_lock_id = self->GetThreadId();
+  record->SetType(type);
+  record->SetByteCount(byte_count);
+  record->SetThinLockId(self->GetThreadId());
 
   // Fill in the stack trace.
   AllocRecordStackVisitor visitor(self, record);
@@ -4224,15 +4293,16 @@ void Dbg::DumpRecentAllocations() {
   while (count--) {
     AllocRecord* record = &recent_allocation_records_[i];
 
-    LOG(INFO) << StringPrintf(" Thread %-2d %6zd bytes ", record->thin_lock_id, record->byte_count)
-              << PrettyClass(record->type);
+    LOG(INFO) << StringPrintf(" Thread %-2d %6zd bytes ", record->ThinLockId(), record->ByteCount())
+              << PrettyClass(record->Type());
 
     for (size_t stack_frame = 0; stack_frame < kMaxAllocRecordStackDepth; ++stack_frame) {
-      mirror::ArtMethod* m = record->stack[stack_frame].method;
+      AllocRecordStackTraceElement* stack_element = record->StackElement(stack_frame);
+      mirror::ArtMethod* m = stack_element->Method();
       if (m == NULL) {
         break;
       }
-      LOG(INFO) << "    " << PrettyMethod(m) << " line " << record->stack[stack_frame].LineNumber();
+      LOG(INFO) << "    " << PrettyMethod(m) << " line " << stack_element->LineNumber();
     }
 
     // pause periodically to help logcat catch up
@@ -4241,35 +4311,6 @@ void Dbg::DumpRecentAllocations() {
     }
 
     i = (i + 1) & (alloc_record_max_ - 1);
-  }
-}
-
-void Dbg::UpdateObjectPointers(IsMarkedCallback* callback, void* arg) {
-  if (recent_allocation_records_ != nullptr) {
-    MutexLock mu(Thread::Current(), *alloc_tracker_lock_);
-    size_t i = HeadIndex();
-    size_t count = alloc_record_count_;
-    while (count--) {
-      AllocRecord* record = &recent_allocation_records_[i];
-      DCHECK(record != nullptr);
-      record->UpdateObjectPointers(callback, arg);
-      i = (i + 1) & (alloc_record_max_ - 1);
-    }
-  }
-  if (gRegistry != nullptr) {
-    gRegistry->UpdateObjectPointers(callback, arg);
-  }
-}
-
-void Dbg::AllowNewObjectRegistryObjects() {
-  if (gRegistry != nullptr) {
-    gRegistry->AllowNewObjects();
-  }
-}
-
-void Dbg::DisallowNewObjectRegistryObjects() {
-  if (gRegistry != nullptr) {
-    gRegistry->DisallowNewObjects();
   }
 }
 
@@ -4379,10 +4420,10 @@ jbyteArray Dbg::GetRecentAllocations() {
     while (count--) {
       AllocRecord* record = &recent_allocation_records_[idx];
 
-      class_names.Add(record->type->GetDescriptor().c_str());
+      class_names.Add(record->Type()->GetDescriptor().c_str());
 
       for (size_t i = 0; i < kMaxAllocRecordStackDepth; i++) {
-        mirror::ArtMethod* m = record->stack[i].method;
+        mirror::ArtMethod* m = record->StackElement(i)->Method();
         if (m != NULL) {
           class_names.Add(m->GetDeclaringClassDescriptor());
           method_names.Add(m->GetName());
@@ -4432,9 +4473,9 @@ jbyteArray Dbg::GetRecentAllocations() {
       AllocRecord* record = &recent_allocation_records_[idx];
       size_t stack_depth = record->GetDepth();
       size_t allocated_object_class_name_index =
-          class_names.IndexOf(record->type->GetDescriptor().c_str());
-      JDWP::Append4BE(bytes, record->byte_count);
-      JDWP::Append2BE(bytes, record->thin_lock_id);
+          class_names.IndexOf(record->Type()->GetDescriptor().c_str());
+      JDWP::Append4BE(bytes, record->ByteCount());
+      JDWP::Append2BE(bytes, record->ThinLockId());
       JDWP::Append2BE(bytes, allocated_object_class_name_index);
       JDWP::Append1BE(bytes, stack_depth);
 
@@ -4444,14 +4485,14 @@ jbyteArray Dbg::GetRecentAllocations() {
         // (2b) method name
         // (2b) method source file
         // (2b) line number, clipped to 32767; -2 if native; -1 if no source
-        mirror::ArtMethod* m = record->stack[stack_frame].method;
+        mirror::ArtMethod* m = record->StackElement(stack_frame)->Method();
         size_t class_name_index = class_names.IndexOf(m->GetDeclaringClassDescriptor());
         size_t method_name_index = method_names.IndexOf(m->GetName());
         size_t file_name_index = filenames.IndexOf(GetMethodSourceFile(m));
         JDWP::Append2BE(bytes, class_name_index);
         JDWP::Append2BE(bytes, method_name_index);
         JDWP::Append2BE(bytes, file_name_index);
-        JDWP::Append2BE(bytes, record->stack[stack_frame].LineNumber());
+        JDWP::Append2BE(bytes, record->StackElement(stack_frame)->LineNumber());
       }
 
       idx = (idx + 1) & (alloc_record_max_ - 1);
