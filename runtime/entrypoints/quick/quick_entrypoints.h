@@ -115,7 +115,6 @@ struct PACKED(4) QuickEntryPoints {
 
   // Intrinsics
   int32_t (*pIndexOf)(void*, uint32_t, uint32_t, uint32_t);
-  int32_t (*pMemcmp16)(void*, void*, int32_t);
   int32_t (*pStringCompareTo)(void*, void*);
   void* (*pMemcpy)(void*, const void*, size_t);
 
