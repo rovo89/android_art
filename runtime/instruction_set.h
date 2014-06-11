@@ -20,6 +20,7 @@
 #include <iosfwd>
 #include <string>
 
+#include "base/logging.h"  // Logging is required for FATAL in the helper functions.
 #include "base/macros.h"
 
 namespace art {
@@ -35,14 +36,122 @@ enum InstructionSet {
 };
 std::ostream& operator<<(std::ostream& os, const InstructionSet& rhs);
 
+// Architecture-specific pointer sizes
+static constexpr size_t kArmPointerSize = 4;
+static constexpr size_t kArm64PointerSize = 8;
+static constexpr size_t kMipsPointerSize = 4;
+static constexpr size_t kX86PointerSize = 4;
+static constexpr size_t kX86_64PointerSize = 8;
+
+// ARM instruction alignment. ARM processors require code to be 4-byte aligned,
+// but ARM ELF requires 8..
+static constexpr size_t kArmAlignment = 8;
+
+// ARM64 instruction alignment. This is the recommended alignment for maximum performance.
+static constexpr size_t kArm64Alignment = 16;
+
+// MIPS instruction alignment.  MIPS processors require code to be 4-byte aligned.
+// TODO: Can this be 4?
+static constexpr size_t kMipsAlignment = 8;
+
+// X86 instruction alignment. This is the recommended alignment for maximum performance.
+static constexpr size_t kX86Alignment = 16;
+
+
 const char* GetInstructionSetString(InstructionSet isa);
 InstructionSet GetInstructionSetFromString(const char* instruction_set);
 
-size_t GetInstructionSetPointerSize(InstructionSet isa);
+static inline size_t GetInstructionSetPointerSize(InstructionSet isa) {
+  switch (isa) {
+    case kArm:
+      // Fall-through.
+    case kThumb2:
+      return kArmPointerSize;
+    case kArm64:
+      return kArm64PointerSize;
+    case kX86:
+      return kX86PointerSize;
+    case kX86_64:
+      return kX86_64PointerSize;
+    case kMips:
+      return kMipsPointerSize;
+    case kNone:
+      LOG(FATAL) << "ISA kNone does not have pointer size.";
+      return 0;
+    default:
+      LOG(FATAL) << "Unknown ISA " << isa;
+      return 0;
+  }
+}
+
 size_t GetInstructionSetAlignment(InstructionSet isa);
-bool Is64BitInstructionSet(InstructionSet isa);
-size_t GetBytesPerGprSpillLocation(InstructionSet isa);
-size_t GetBytesPerFprSpillLocation(InstructionSet isa);
+
+static inline bool Is64BitInstructionSet(InstructionSet isa) {
+  switch (isa) {
+    case kArm:
+    case kThumb2:
+    case kX86:
+    case kMips:
+      return false;
+
+    case kArm64:
+    case kX86_64:
+      return true;
+
+    case kNone:
+      LOG(FATAL) << "ISA kNone does not have bit width.";
+      return 0;
+    default:
+      LOG(FATAL) << "Unknown ISA " << isa;
+      return 0;
+  }
+}
+
+static inline size_t GetBytesPerGprSpillLocation(InstructionSet isa) {
+  switch (isa) {
+    case kArm:
+      // Fall-through.
+    case kThumb2:
+      return 4;
+    case kArm64:
+      return 8;
+    case kX86:
+      return 4;
+    case kX86_64:
+      return 8;
+    case kMips:
+      return 4;
+    case kNone:
+      LOG(FATAL) << "ISA kNone does not have spills.";
+      return 0;
+    default:
+      LOG(FATAL) << "Unknown ISA " << isa;
+      return 0;
+  }
+}
+
+static inline size_t GetBytesPerFprSpillLocation(InstructionSet isa) {
+  switch (isa) {
+    case kArm:
+      // Fall-through.
+    case kThumb2:
+      return 4;
+    case kArm64:
+      return 8;
+    case kX86:
+      return 8;
+    case kX86_64:
+      return 8;
+    case kMips:
+      return 4;
+    case kNone:
+      LOG(FATAL) << "ISA kNone does not have spills.";
+      return 0;
+    default:
+      LOG(FATAL) << "Unknown ISA " << isa;
+      return 0;
+  }
+}
 
 #if defined(__arm__)
 static constexpr InstructionSet kRuntimeISA = kArm;

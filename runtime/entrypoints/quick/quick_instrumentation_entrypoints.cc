@@ -50,10 +50,8 @@ extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self,
   // Be aware the store below may well stomp on an incoming argument.
   Locks::mutator_lock_->AssertSharedHeld(self);
   Runtime* runtime = Runtime::Current();
-  mirror::ArtMethod* callee_save = runtime->GetCalleeSaveMethod(Runtime::kRefsOnly);
-  sp->Assign(callee_save);
-  uint32_t return_pc_offset = callee_save->GetReturnPcOffsetInBytes(
-      runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsOnly).FrameSizeInBytes());
+  sp->Assign(runtime->GetCalleeSaveMethod(Runtime::kRefsOnly));
+  uint32_t return_pc_offset = GetCalleeSavePCOffset(kRuntimeISA, Runtime::kRefsOnly);
   uintptr_t* return_pc = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) +
                                                       return_pc_offset);
   CHECK_EQ(*return_pc, 0U);

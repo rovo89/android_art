@@ -248,10 +248,7 @@ extern "C" int artSet32InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
 extern "C" int artSet64InstanceFromCode(uint32_t field_idx, mirror::Object* obj, uint64_t new_value,
                                         Thread* self, StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Runtime* runtime = Runtime::Current();
-  mirror::ArtMethod* callee_save = runtime->GetCalleeSaveMethod(Runtime::kRefsOnly);
-  uint32_t frame_size =
-      runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsOnly).FrameSizeInBytes();
+  constexpr size_t frame_size = GetCalleeSaveFrameSize(kRuntimeISA, Runtime::kRefsOnly);
   mirror::ArtMethod* referrer =
       reinterpret_cast<StackReference<mirror::ArtMethod>*>(
           reinterpret_cast<uint8_t*>(sp) + frame_size)->AsMirrorPtr();
@@ -262,7 +259,7 @@ extern "C" int artSet64InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
     field->Set64<false>(obj, new_value);
     return 0;  // success
   }
-  sp->Assign(callee_save);
+  sp->Assign(Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsOnly));
   self->SetTopOfStack(sp, 0);
   field = FindFieldFromCode<InstancePrimitiveWrite, true>(field_idx, referrer, self,
                                                           sizeof(int64_t));
