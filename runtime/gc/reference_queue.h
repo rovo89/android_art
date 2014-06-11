@@ -65,7 +65,7 @@ class ReferenceQueue {
   // Walks the reference list marking any references subject to the reference clearing policy.
   // References with a black referent are removed from the list.  References with white referents
   // biased toward saving are blackened and also removed from the list.
-  void PreserveSomeSoftReferences(IsMarkedCallback* preserve_callback, void* arg)
+  void ForwardSoftReferences(IsMarkedCallback* preserve_callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Unlink the reference list clearing references objects with white referents.  Cleared references
   // registered to a reference queue are scheduled for appending by the heap worker thread.
