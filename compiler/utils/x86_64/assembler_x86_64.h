@@ -29,6 +29,13 @@
 namespace art {
 namespace x86_64 {
 
+// Encodes an immediate value for operands.
+//
+// Note: Immediates can be 64b on x86-64 for certain instructions, but are often restricted
+// to 32b.
+//
+// Note: As we support cross-compilation, the value type must be int64_t. Please be aware of
+// conversion rules in expressions regarding negation, especially size_t on 32b.
 class Immediate {
  public:
   explicit Immediate(int64_t value) : value_(value) {}
