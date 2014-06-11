@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_ELF_UTILS_H_
 #define ART_RUNTIME_ELF_UTILS_H_
 
+#include <sys/cdefs.h>
+
 // Explicitly include elf.h from elfutils to avoid Linux and other dependencies.
 #include "../../external/elfutils/0.153/libelf/elf.h"
 
