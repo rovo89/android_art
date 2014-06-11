@@ -553,11 +553,11 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
     } else if (option == "-Xprofile-start-immediately") {
       profiler_options_.start_immediately_ = true;
     } else if (StartsWith(option, "-Xprofile-top-k-threshold:")) {
-      if (!ParseDouble(option, ':', 10.0, 90.0, &profiler_options_.top_k_threshold_)) {
+      if (!ParseDouble(option, ':', 0.0, 100.0, &profiler_options_.top_k_threshold_)) {
         return false;
       }
     } else if (StartsWith(option, "-Xprofile-top-k-change-threshold:")) {
-      if (!ParseDouble(option, ':', 10.0, 90.0, &profiler_options_.top_k_change_threshold_)) {
+      if (!ParseDouble(option, ':', 0.0, 100.0, &profiler_options_.top_k_change_threshold_)) {
         return false;
       }
     } else if (StartsWith(option, "-implicit-checks:")) {
