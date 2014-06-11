@@ -31,8 +31,7 @@ std::ostream& operator<<(std::ostream& os, const ObjectRegistryEntry& rhs) {
 }
 
 ObjectRegistry::ObjectRegistry()
-    : lock_("ObjectRegistry lock", kJdwpObjectRegistryLock), allow_new_objects_(true),
-      condition_("object registry condition", lock_), next_id_(1) {
+    : lock_("ObjectRegistry lock", kJdwpObjectRegistryLock), next_id_(1) {
 }
 
 JDWP::RefTypeId ObjectRegistry::AddRefType(mirror::Class* c) {
@@ -44,20 +43,17 @@ JDWP::ObjectId ObjectRegistry::Add(mirror::Object* o) {
 }
 
 JDWP::ObjectId ObjectRegistry::InternalAdd(mirror::Object* o) {
-  if (o == NULL) {
+  if (o == nullptr) {
     return 0;
   }
 
+  // Call IdentityHashCode here to avoid a lock level violation between lock_ and monitor_lock.
+  int32_t identity_hash_code = o->IdentityHashCode();
   ScopedObjectAccessUnchecked soa(Thread::Current());
   MutexLock mu(soa.Self(), lock_);
-  while (UNLIKELY(!allow_new_objects_)) {
-    condition_.WaitHoldingLocks(soa.Self());
-  }
-  ObjectRegistryEntry* entry;
-  auto it = object_to_entry_.find(o);
-  if (it != object_to_entry_.end()) {
+  ObjectRegistryEntry* entry = nullptr;
+  if (ContainsLocked(soa.Self(), o, identity_hash_code, &entry)) {
     // This object was already in our map.
-    entry = it->second;
     ++entry->reference_count;
   } else {
     entry = new ObjectRegistryEntry;
@@ -65,7 +61,8 @@ JDWP::ObjectId ObjectRegistry::InternalAdd(mirror::Object* o) {
     entry->jni_reference = nullptr;
     entry->reference_count = 0;
     entry->id = 0;
-    object_to_entry_.insert(std::make_pair(o, entry));
+    entry->identity_hash_code = identity_hash_code;
+    object_to_entry_.insert(std::make_pair(identity_hash_code, entry));
 
     // This object isn't in the registry yet, so add it.
     JNIEnv* env = soa.Env();
@@ -84,9 +81,31 @@ JDWP::ObjectId ObjectRegistry::InternalAdd(mirror::Object* o) {
   return entry->id;
 }
 
-bool ObjectRegistry::Contains(mirror::Object* o) {
-  MutexLock mu(Thread::Current(), lock_);
-  return object_to_entry_.find(o) != object_to_entry_.end();
+bool ObjectRegistry::Contains(mirror::Object* o, ObjectRegistryEntry** out_entry) {
+  if (o == nullptr) {
+    return false;
+  }
+  // Call IdentityHashCode here to avoid a lock level violation between lock_ and monitor_lock.
+  int32_t identity_hash_code = o->IdentityHashCode();
+  Thread* self = Thread::Current();
+  MutexLock mu(self, lock_);
+  return ContainsLocked(self, o, identity_hash_code, out_entry);
+}
+
+bool ObjectRegistry::ContainsLocked(Thread* self, mirror::Object* o, int32_t identity_hash_code,
+                                    ObjectRegistryEntry** out_entry) {
+  DCHECK(o != nullptr);
+  for (auto it = object_to_entry_.lower_bound(identity_hash_code), end = object_to_entry_.end();
+       it != end && it->first == identity_hash_code; ++it) {
+    ObjectRegistryEntry* entry = it->second;
+    if (o == self->DecodeJObject(entry->jni_reference)) {
+      if (out_entry != nullptr) {
+        *out_entry = entry;
+      }
+      return true;
+    }
+  }
+  return false;
 }
 
 void ObjectRegistry::Clear() {
@@ -194,47 +213,24 @@ void ObjectRegistry::DisposeObject(JDWP::ObjectId id, uint32_t reference_count) 
   entry->reference_count -= reference_count;
   if (entry->reference_count <= 0) {
     JNIEnv* env = self->GetJniEnv();
-    mirror::Object* object = self->DecodeJObject(entry->jni_reference);
+    // Erase the object from the maps. Note object may be null if it's
+    // a weak ref and the GC has cleared it.
+    int32_t hash_code = entry->identity_hash_code;
+    for (auto it = object_to_entry_.lower_bound(hash_code), end = object_to_entry_.end();
+         it != end && it->first == hash_code; ++it) {
+      if (entry == it->second) {
+        object_to_entry_.erase(it);
+        break;
+      }
+    }
     if (entry->jni_reference_type == JNIWeakGlobalRefType) {
       env->DeleteWeakGlobalRef(entry->jni_reference);
     } else {
       env->DeleteGlobalRef(entry->jni_reference);
     }
-    object_to_entry_.erase(object);
     id_to_entry_.erase(id);
     delete entry;
   }
-}
-
-void ObjectRegistry::UpdateObjectPointers(IsMarkedCallback* callback, void* arg) {
-  MutexLock mu(Thread::Current(), lock_);
-  if (object_to_entry_.empty()) {
-    return;
-  }
-  std::map<mirror::Object*, ObjectRegistryEntry*> new_object_to_entry;
-  for (auto& pair : object_to_entry_) {
-    mirror::Object* new_obj;
-    if (pair.first != nullptr) {
-      new_obj = callback(pair.first, arg);
-      if (new_obj != nullptr) {
-        new_object_to_entry.insert(std::make_pair(new_obj, pair.second));
-      }
-    }
-  }
-  object_to_entry_ = new_object_to_entry;
-}
-
-void ObjectRegistry::AllowNewObjects() {
-  Thread* self = Thread::Current();
-  MutexLock mu(self, lock_);
-  allow_new_objects_ = true;
-  condition_.Broadcast(self);
-}
-
-void ObjectRegistry::DisallowNewObjects() {
-  Thread* self = Thread::Current();
-  MutexLock mu(self, lock_);
-  allow_new_objects_ = false;
 }
 
 }  // namespace art
