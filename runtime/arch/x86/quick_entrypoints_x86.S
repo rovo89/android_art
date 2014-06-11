@@ -111,7 +111,7 @@ MACRO0(DELIVER_PENDING_EXCEPTION)
 END_MACRO
 
 MACRO2(NO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
-    DEFINE_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION RAW_VAR(c_name, 0)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
     mov %esp, %ecx
     // Outgoing argument set up
@@ -123,11 +123,11 @@ MACRO2(NO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     SETUP_GOT_NOSAVE              // clobbers ebx (harmless here)
     call PLT_VAR(cxx_name, 1)     // cxx_name(Thread*, SP)
     int3                          // unreached
-    END_FUNCTION VAR(c_name, 0)
+    END_FUNCTION RAW_VAR(c_name, 0)
 END_MACRO
 
 MACRO2(ONE_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
-    DEFINE_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION RAW_VAR(c_name, 0)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
     mov %esp, %ecx
     // Outgoing argument set up
@@ -139,11 +139,11 @@ MACRO2(ONE_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     SETUP_GOT_NOSAVE              // clobbers ebx (harmless here)
     call PLT_VAR(cxx_name, 1)     // cxx_name(arg1, Thread*, SP)
     int3                          // unreached
-    END_FUNCTION VAR(c_name, 0)
+    END_FUNCTION RAW_VAR(c_name, 0)
 END_MACRO
 
 MACRO2(TWO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
-    DEFINE_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION RAW_VAR(c_name, 0)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
     mov %esp, %edx
     // Outgoing argument set up
@@ -155,7 +155,7 @@ MACRO2(TWO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     SETUP_GOT_NOSAVE              // clobbers ebx (harmless here)
     call PLT_VAR(cxx_name, 1)     // cxx_name(arg1, arg2, Thread*, SP)
     int3                          // unreached
-    END_FUNCTION VAR(c_name, 0)
+    END_FUNCTION RAW_VAR(c_name, 0)
 END_MACRO
 
     /*
@@ -207,7 +207,7 @@ TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_array_bounds, artThrowArrayBoundsFromC
      * pointing back to the original caller.
      */
 MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
-    DEFINE_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION RAW_VAR(c_name, 0)
     // Set up the callee save frame to conform with Runtime::CreateCalleeSaveMethod(kRefsAndArgs)
     // return address
     PUSH edi
@@ -248,7 +248,7 @@ MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
     addl MACRO_LITERAL(4), %esp   // Pop code pointer off stack
     CFI_ADJUST_CFA_OFFSET(-4)
     DELIVER_PENDING_EXCEPTION
-    END_FUNCTION VAR(c_name, 0)
+    END_FUNCTION RAW_VAR(c_name, 0)
 END_MACRO
 
 INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline, artInvokeInterfaceTrampoline
@@ -315,7 +315,7 @@ DEFINE_FUNCTION art_quick_invoke_stub
 END_FUNCTION art_quick_invoke_stub
 
 MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION RAW_VAR(c_name, 0)
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     SETUP_GOT_NOSAVE              // clobbers ebx (harmless here)
@@ -330,11 +330,11 @@ MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     CFI_ADJUST_CFA_OFFSET(-16)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     CALL_MACRO(return_macro, 2)   // return or deliver exception
-    END_FUNCTION VAR(c_name, 0)
+    END_FUNCTION RAW_VAR(c_name, 0)
 END_MACRO
 
 MACRO3(ONE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION RAW_VAR(c_name, 0)
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     SETUP_GOT_NOSAVE              // clobbers EBX
@@ -349,11 +349,11 @@ MACRO3(ONE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     CFI_ADJUST_CFA_OFFSET(-16)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     CALL_MACRO(return_macro, 2)   // return or deliver exception
-    END_FUNCTION VAR(c_name, 0)
+    END_FUNCTION RAW_VAR(c_name, 0)
 END_MACRO
 
 MACRO3(TWO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION RAW_VAR(c_name, 0)
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     SETUP_GOT_NOSAVE              // clobbers EBX
@@ -368,11 +368,11 @@ MACRO3(TWO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     CFI_ADJUST_CFA_OFFSET(-16)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     CALL_MACRO(return_macro, 2)   // return or deliver exception
-    END_FUNCTION VAR(c_name, 0)
+    END_FUNCTION RAW_VAR(c_name, 0)
 END_MACRO
 
 MACRO3(THREE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION RAW_VAR(c_name, 0)
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     // Outgoing argument set up
@@ -390,7 +390,7 @@ MACRO3(THREE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     CFI_ADJUST_CFA_OFFSET(-32)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     CALL_MACRO(return_macro, 2)   // return or deliver exception
-    END_FUNCTION VAR(c_name, 0)
+    END_FUNCTION RAW_VAR(c_name, 0)
 END_MACRO
 
 MACRO0(RETURN_IF_RESULT_IS_NON_ZERO)
@@ -653,17 +653,17 @@ END_FUNCTION art_quick_check_cast
      */
 DEFINE_FUNCTION art_quick_aput_obj_with_null_and_bound_check
     testl %eax, %eax
-    jnz art_quick_aput_obj_with_bound_check
-    jmp art_quick_throw_null_pointer_exception
+    jnz SYMBOL(art_quick_aput_obj_with_bound_check)
+    jmp SYMBOL(art_quick_throw_null_pointer_exception)
 END_FUNCTION art_quick_aput_obj_with_null_and_bound_check
 
 DEFINE_FUNCTION art_quick_aput_obj_with_bound_check
     movl ARRAY_LENGTH_OFFSET(%eax), %ebx
     cmpl %ebx, %ecx
-    jb art_quick_aput_obj
+    jb SYMBOL(art_quick_aput_obj)
     mov %ecx, %eax
     mov %ebx, %ecx
-    jmp art_quick_throw_array_bounds
+    jmp SYMBOL(art_quick_throw_array_bounds)
 END_FUNCTION art_quick_aput_obj_with_bound_check
 
 DEFINE_FUNCTION art_quick_aput_obj
@@ -1122,7 +1122,7 @@ DEFINE_FUNCTION art_quick_imt_conflict_trampoline
     movd %xmm0, %ecx              // get target method index stored in xmm0
     movl OBJECT_ARRAY_DATA_OFFSET(%eax, %ecx, 4), %eax  // load the target method
     POP ecx
-    jmp art_quick_invoke_interface_trampoline
+    jmp SYMBOL(art_quick_invoke_interface_trampoline)
 END_FUNCTION art_quick_imt_conflict_trampoline
 
 DEFINE_FUNCTION art_quick_resolution_trampoline

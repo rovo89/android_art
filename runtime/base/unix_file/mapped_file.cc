@@ -61,7 +61,11 @@ bool MappedFile::MapReadOnly() {
 bool MappedFile::MapReadWrite(int64_t file_size) {
   CHECK(IsOpened());
   CHECK(!IsMapped());
+#ifdef __linux__
   int result = TEMP_FAILURE_RETRY(ftruncate64(Fd(), file_size));
+#else
+  int result = TEMP_FAILURE_RETRY(ftruncate(Fd(), file_size));
+#endif
   if (result == -1) {
     PLOG(ERROR) << "Failed to truncate file '" << GetPath()
                 << "' to size " << file_size;

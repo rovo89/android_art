@@ -17,7 +17,11 @@
 #include <algorithm>
 #include <set>
 #include <fcntl.h>
+#ifdef __linux__
 #include <sys/sendfile.h>
+#else
+#include <sys/socket.h>
+#endif
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -241,7 +245,12 @@ static void CopyProfileFile(const char* oldfile, const char* newfile) {
     return;
   }
 
+#ifdef __linux__
   if (sendfile(dst.get(), src.get(), nullptr, stat_src.st_size) == -1) {
+#else
+  off_t len;
+  if (sendfile(dst.get(), src.get(), 0, &len, nullptr, 0) == -1) {
+#endif
     PLOG(ERROR) << "Failed to copy profile file " << oldfile << " to " << newfile
       << ". My uid:gid is " << getuid() << ":" << getgid();
   }

@@ -1507,6 +1507,9 @@ bool RosAlloc::Trim() {
     if (madvise_size > 0) {
       DCHECK_ALIGNED(madvise_begin, kPageSize);
       DCHECK_EQ(RoundUp(madvise_size, kPageSize), madvise_size);
+      if (!kMadviseZeroes) {
+        memset(madvise_begin, 0, madvise_size);
+      }
       CHECK_EQ(madvise(madvise_begin, madvise_size, MADV_DONTNEED), 0);
     }
     if (madvise_begin - zero_begin) {
@@ -2117,6 +2120,9 @@ size_t RosAlloc::ReleasePages() {
           start = reinterpret_cast<byte*>(fpr) + kPageSize;
         }
         byte* end = reinterpret_cast<byte*>(fpr) + fpr_size;
+        if (!kMadviseZeroes) {
+          memset(start, 0, end - start);
+        }
         CHECK_EQ(madvise(start, end - start, MADV_DONTNEED), 0);
         reclaimed_bytes += fpr_size;
         size_t num_pages = fpr_size / kPageSize;

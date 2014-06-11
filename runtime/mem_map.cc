@@ -473,6 +473,18 @@ MemMap* MemMap::RemapAtEnd(byte* new_end, const char* tail_name, int tail_prot,
   return new MemMap(tail_name, actual, tail_size, actual, tail_base_size, tail_prot);
 }
 
+void MemMap::MadviseDontNeedAndZero() {
+  if (base_begin_ != nullptr || base_size_ != 0) {
+    if (!kMadviseZeroes) {
+      memset(base_begin_, 0, base_size_);
+    }
+    int result = madvise(base_begin_, base_size_, MADV_DONTNEED);
+    if (result == -1) {
+      PLOG(WARNING) << "madvise failed";
+    }
+  }
+}
+
 bool MemMap::Protect(int prot) {
   if (base_begin_ == nullptr && base_size_ == 0) {
     prot_ = prot;

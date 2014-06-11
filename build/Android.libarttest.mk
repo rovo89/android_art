@@ -74,8 +74,6 @@ endef
 ifeq ($(ART_BUILD_TARGET),true)
   $(eval $(call build-libarttest,target))
 endif
-ifeq ($(WITH_HOST_DALVIK),true)
-  ifeq ($(ART_BUILD_HOST),true)
-    $(eval $(call build-libarttest,host))
-  endif
+ifeq ($(ART_BUILD_HOST),true)
+  $(eval $(call build-libarttest,host))
 endif

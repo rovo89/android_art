@@ -79,12 +79,8 @@ std::string SpaceBitmap<kAlignment>::Dump() const {
 
 template<size_t kAlignment>
 void SpaceBitmap<kAlignment>::Clear() {
-  if (bitmap_begin_ != NULL) {
-    // This returns the memory to the system.  Successive page faults will return zeroed memory.
-    int result = madvise(bitmap_begin_, bitmap_size_, MADV_DONTNEED);
-    if (result == -1) {
-      PLOG(FATAL) << "madvise failed";
-    }
+  if (bitmap_begin_ != nullptr) {
+    mem_map_->MadviseDontNeedAndZero();
   }
 }
 

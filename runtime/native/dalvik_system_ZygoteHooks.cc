@@ -32,9 +32,11 @@ namespace art {
 static void EnableDebugger() {
   // To let a non-privileged gdbserver attach to this
   // process, we must set our dumpable flag.
+#if defined(HAVE_PRCTL)
   if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) == -1) {
     PLOG(ERROR) << "prctl(PR_SET_DUMPABLE) failed for pid " << getpid();
   }
+#endif
   // We don't want core dumps, though, so set the core dump size to 0.
   rlimit rl;
   rl.rlim_cur = 0;

@@ -495,7 +495,9 @@ void Thread::InitStackHwm() {
   }
 
   // TODO: move this into the Linux GetThreadStack implementation.
-#if !defined(__APPLE__)
+#if defined(__APPLE__)
+  bool is_main_thread = false;
+#else
   // If we're the main thread, check whether we were run with an unlimited stack. In that case,
   // glibc will have reported a 2GB stack for our 32-bit process, and our stack overflow detection
   // will be broken because we'll die long before we get close to 2GB.

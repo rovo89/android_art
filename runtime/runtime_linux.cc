@@ -327,7 +327,7 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
     while (true) {
     }
   }
-
+#ifdef __linux__
   // Remove our signal handler for this signal...
   struct sigaction action;
   memset(&action, 0, sizeof(action));
@@ -336,6 +336,9 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
   sigaction(signal_number, &action, NULL);
   // ...and re-raise so we die with the appropriate status.
   kill(getpid(), signal_number);
+#else
+  exit(EXIT_FAILURE);
+#endif
 }
 
 void Runtime::InitPlatformSignalHandlers() {
