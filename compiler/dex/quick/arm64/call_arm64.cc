@@ -68,7 +68,7 @@ void Arm64Mir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
-  RegStorage r_base = AllocTemp();
+  RegStorage r_base = AllocTempWide();
   // Allocate key and disp temps.
   RegStorage r_key = AllocTemp();
   RegStorage r_disp = AllocTemp();
@@ -95,7 +95,8 @@ void Arm64Mir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
   tab_rec->anchor = switch_label;
 
   // Add displacement to base branch address and go!
-  OpRegRegRegShift(kOpAdd, r_base, r_base, r_disp, ENCODE_NO_SHIFT);
+  // TODO(Arm64): generate "add x1, x1, w3, sxtw" rather than "add x1, x1, x3"?
+  OpRegRegRegShift(kOpAdd, r_base, r_base, As64BitReg(r_disp), ENCODE_NO_SHIFT);
   NewLIR1(kA64Br1x, r_base.GetReg());
 
   // Loop exit label.
@@ -105,7 +106,7 @@ void Arm64Mir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
 
 
 void Arm64Mir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
-                                 RegLocation rl_src) {
+                                   RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpPackedSwitchTable(table);
@@ -122,7 +123,7 @@ void Arm64Mir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
-  RegStorage table_base = AllocTemp();
+  RegStorage table_base = AllocTempWide();
   // Materialize a pointer to the switch table
   NewLIR3(kA64Adr2xd, table_base.GetReg(), 0, WrapPointer(tab_rec));
   int low_key = s4FromSwitchData(&table[2]);
@@ -140,15 +141,17 @@ void Arm64Mir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
 
   // Load the displacement from the switch table
   RegStorage disp_reg = AllocTemp();
-  LoadBaseIndexed(table_base, key_reg, disp_reg, 2, k32);
+  // TODO(Arm64): generate "ldr w3, [x1,w2,sxtw #2]" rather than "ldr w3, [x1,x2,lsl #2]"?
+  LoadBaseIndexed(table_base, key_reg, As64BitReg(disp_reg), 2, k32);
 
   // Get base branch address.
-  RegStorage branch_reg = AllocTemp();
+  RegStorage branch_reg = AllocTempWide();
   LIR* switch_label = NewLIR3(kA64Adr2xd, branch_reg.GetReg(), 0, -1);
   tab_rec->anchor = switch_label;
 
   // Add displacement to base branch address and go!
-  OpRegRegRegShift(kOpAdd, branch_reg, branch_reg, disp_reg, ENCODE_NO_SHIFT);
+  // TODO(Arm64): generate "add x4, x4, w3, sxtw" rather than "add x4, x4, x3"?
+  OpRegRegRegShift(kOpAdd, branch_reg, branch_reg, As64BitReg(disp_reg), ENCODE_NO_SHIFT);
   NewLIR1(kA64Br1x, branch_reg.GetReg());
 
   // branch_over target here
