@@ -146,16 +146,13 @@ void Instrumentation::InstallStubsForMethod(mirror::ArtMethod* method) {
       // class, all its static methods code will be set to the instrumentation entry point.
       // For more details, see ClassLinker::FixupStaticTrampolines.
       if (is_class_initialized || !method->IsStatic() || method->IsConstructor()) {
-        // Do not overwrite interpreter to prevent from posting method entry/exit events twice.
-        new_portable_code = class_linker->GetPortableOatCodeFor(method, &have_portable_code);
-        new_quick_code = class_linker->GetQuickOatCodeFor(method);
-        DCHECK(new_quick_code != GetQuickToInterpreterBridgeTrampoline(class_linker));
-        if (entry_exit_stubs_installed_ && new_quick_code != GetQuickToInterpreterBridge()) {
-          // TODO: portable to quick bridge. Bug: 8196384. We cannot enable the check below as long
-          // as GetPortableToQuickBridge() == GetPortableToInterpreterBridge().
-          // DCHECK(new_portable_code != GetPortableToInterpreterBridge());
+        if (entry_exit_stubs_installed_) {
           new_portable_code = GetPortableToInterpreterBridge();
           new_quick_code = GetQuickInstrumentationEntryPoint();
+        } else {
+          new_portable_code = class_linker->GetPortableOatCodeFor(method, &have_portable_code);
+          new_quick_code = class_linker->GetQuickOatCodeFor(method);
+          DCHECK(new_quick_code != GetQuickToInterpreterBridgeTrampoline(class_linker));
         }
       } else {
         new_portable_code = GetPortableResolutionTrampoline(class_linker);
@@ -175,7 +172,6 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
   struct InstallStackVisitor : public StackVisitor {
     InstallStackVisitor(Thread* thread, Context* context, uintptr_t instrumentation_exit_pc)
         : StackVisitor(thread, context),  instrumentation_stack_(thread->GetInstrumentationStack()),
-          existing_instrumentation_frames_count_(instrumentation_stack_->size()),
           instrumentation_exit_pc_(instrumentation_exit_pc),
           reached_existing_instrumentation_frames_(false), instrumentation_stack_depth_(0),
           last_return_pc_(0) {
@@ -190,18 +186,10 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
         last_return_pc_ = 0;
         return true;  // Ignore upcalls.
       }
-      if (m->IsRuntimeMethod()) {
-        if (kVerboseInstrumentation) {
-          LOG(INFO) << "  Skipping runtime method. Frame " << GetFrameId();
-        }
-        last_return_pc_ = GetReturnPc();
-        return true;  // Ignore unresolved methods since they will be instrumented after resolution.
-      }
-      if (kVerboseInstrumentation) {
-        LOG(INFO) << "  Installing exit stub in " << DescribeLocation();
-      }
       if (GetCurrentQuickFrame() == NULL) {
-        InstrumentationStackFrame instrumentation_frame(GetThisObject(), m, 0, GetFrameId(), false);
+        bool interpreter_frame = !m->IsPortableCompiled();
+        InstrumentationStackFrame instrumentation_frame(GetThisObject(), m, 0, GetFrameId(),
+                                                        interpreter_frame);
         if (kVerboseInstrumentation) {
           LOG(INFO) << "Pushing shadow frame " << instrumentation_frame.Dump();
         }
@@ -209,6 +197,32 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
         return true;  // Continue.
       }
       uintptr_t return_pc = GetReturnPc();
+      if (m->IsRuntimeMethod()) {
+        if (return_pc == instrumentation_exit_pc_) {
+          if (kVerboseInstrumentation) {
+            LOG(INFO) << "  Handling quick to interpreter transition. Frame " << GetFrameId();
+          }
+          CHECK_LT(instrumentation_stack_depth_, instrumentation_stack_->size());
+          const InstrumentationStackFrame& frame = instrumentation_stack_->at(instrumentation_stack_depth_);
+          CHECK(frame.interpreter_entry_);
+          // This is an interpreter frame so method enter event must have been reported. However we
+          // need to push a DEX pc into the dex_pcs_ list to match size of instrumentation stack.
+          // Since we won't report method entry here, we can safely push any DEX pc.
+          dex_pcs_.push_back(0);
+          last_return_pc_ = frame.return_pc_;
+          ++instrumentation_stack_depth_;
+          return true;
+        } else {
+          if (kVerboseInstrumentation) {
+            LOG(INFO) << "  Skipping runtime method. Frame " << GetFrameId();
+          }
+          last_return_pc_ = GetReturnPc();
+          return true;  // Ignore unresolved methods since they will be instrumented after resolution.
+        }
+      }
+      if (kVerboseInstrumentation) {
+        LOG(INFO) << "  Installing exit stub in " << DescribeLocation();
+      }
       if (return_pc == instrumentation_exit_pc_) {
         // We've reached a frame which has already been installed with instrumentation exit stub.
         // We should have already installed instrumentation on previous frames.
@@ -231,8 +245,15 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
           LOG(INFO) << "Pushing frame " << instrumentation_frame.Dump();
         }
 
-        // Insert frame before old ones so we do not corrupt the instrumentation stack.
-        auto it = instrumentation_stack_->end() - existing_instrumentation_frames_count_;
+        // Insert frame at the right position so we do not corrupt the instrumentation stack.
+        // Instrumentation stack frames are in descending frame id order.
+        auto it = instrumentation_stack_->begin();
+        for (auto end = instrumentation_stack_->end(); it != end; ++it) {
+          const InstrumentationStackFrame& current = *it;
+          if (instrumentation_frame.frame_id_ >= current.frame_id_) {
+            break;
+          }
+        }
         instrumentation_stack_->insert(it, instrumentation_frame);
         SetReturnPc(instrumentation_exit_pc_);
       }
@@ -243,7 +264,6 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
     }
     std::deque<InstrumentationStackFrame>* const instrumentation_stack_;
     std::vector<InstrumentationStackFrame> shadow_stack_;
-    const size_t existing_instrumentation_frames_count_;
     std::vector<uint32_t> dex_pcs_;
     const uintptr_t instrumentation_exit_pc_;
     bool reached_existing_instrumentation_frames_;
@@ -275,7 +295,9 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
       }
       uint32_t dex_pc = visitor.dex_pcs_.back();
       visitor.dex_pcs_.pop_back();
-      instrumentation->MethodEnterEvent(thread, (*isi).this_object_, (*isi).method_, dex_pc);
+      if (!isi->interpreter_entry_) {
+        instrumentation->MethodEnterEvent(thread, (*isi).this_object_, (*isi).method_, dex_pc);
+      }
     }
   }
   thread->VerifyStack();
@@ -606,7 +628,7 @@ void Instrumentation::Deoptimize(mirror::ArtMethod* method) {
   CHECK(!already_deoptimized) << "Method " << PrettyMethod(method) << " is already deoptimized";
 
   if (!interpreter_stubs_installed_) {
-    UpdateEntrypoints(method, GetQuickToInterpreterBridge(), GetPortableToInterpreterBridge(),
+    UpdateEntrypoints(method, GetQuickInstrumentationEntryPoint(), GetPortableToInterpreterBridge(),
                       false);
 
     // Install instrumentation exit stub and instrumentation frames. We may already have installed
@@ -844,7 +866,9 @@ void Instrumentation::PushInstrumentationStackFrame(Thread* self, mirror::Object
                                                                    frame_id, interpreter_entry);
   stack->push_front(instrumentation_frame);
 
-  MethodEnterEvent(self, this_object, method, 0);
+  if (!interpreter_entry) {
+    MethodEnterEvent(self, this_object, method, 0);
+  }
 }
 
 TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintptr_t* return_pc,
@@ -875,7 +899,9 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
   //       return_pc.
   uint32_t dex_pc = DexFile::kDexNoIndex;
   mirror::Object* this_object = instrumentation_frame.this_object_;
-  MethodExitEvent(self, this_object, instrumentation_frame.method_, dex_pc, return_value);
+  if (!instrumentation_frame.interpreter_entry_) {
+    MethodExitEvent(self, this_object, instrumentation_frame.method_, dex_pc, return_value);
+  }
 
   // Deoptimize if the caller needs to continue execution in the interpreter. Do nothing if we get
   // back to an upcall.
