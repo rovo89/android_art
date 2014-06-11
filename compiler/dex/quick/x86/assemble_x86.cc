@@ -896,7 +896,7 @@ void X86Mir2Lir::EmitImm(const X86EncodingMap* entry, int64_t imm) {
 }
 
 void X86Mir2Lir::EmitOpRegOpcode(const X86EncodingMap* entry, uint8_t reg) {
-  EmitPrefixAndOpcode(entry, reg, NO_REG, NO_REG);
+  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, reg);
   reg = LowRegisterBits(reg);
   // There's no 3-byte instruction with +rd
   DCHECK(entry->skeleton.opcode != 0x0F ||
@@ -909,7 +909,7 @@ void X86Mir2Lir::EmitOpRegOpcode(const X86EncodingMap* entry, uint8_t reg) {
 }
 
 void X86Mir2Lir::EmitOpReg(const X86EncodingMap* entry, uint8_t reg) {
-  EmitPrefixAndOpcode(entry, reg, NO_REG, NO_REG);
+  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, reg);
   reg = LowRegisterBits(reg);
   if (RegStorage::RegNum(reg) >= 4) {
     DCHECK(strchr(entry->name, '8') == NULL) << entry->name << " "
