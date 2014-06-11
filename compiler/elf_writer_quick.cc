@@ -190,8 +190,8 @@ bool ElfWriterQuick::ElfBuilder::Write() {
   if (debug_logging_) {
     LOG(INFO) << "dynstr size (bytes)   =" << dynstr.size()
               << std::hex << " " << dynstr.size();
-    LOG(INFO) << "dynsym size (elements)=" << dynsym_builder_.size()
-              << std::hex << " " << dynsym_builder_.size();
+    LOG(INFO) << "dynsym size (elements)=" << dynsym_builder_.GetSize()
+              << std::hex << " " << dynsym_builder_.GetSize();
   }
 
   // get the strtab
@@ -201,8 +201,8 @@ bool ElfWriterQuick::ElfBuilder::Write() {
     if (debug_logging_) {
       LOG(INFO) << "strtab size (bytes)    =" << strtab.size()
                 << std::hex << " " << strtab.size();
-      LOG(INFO) << "symtab size (elements) =" << symtab_builder_.size()
-                << std::hex << " " << symtab_builder_.size();
+      LOG(INFO) << "symtab size (elements) =" << symtab_builder_.GetSize()
+                << std::hex << " " << symtab_builder_.GetSize();
     }
   }
 
@@ -297,7 +297,7 @@ bool ElfWriterQuick::ElfBuilder::Write() {
   // Get the layout of the dynsym section.
   dynsym_builder_.section_.sh_offset = RoundUp(base_offset, dynsym_builder_.section_.sh_addralign);
   dynsym_builder_.section_.sh_addr = dynsym_builder_.section_.sh_offset;
-  dynsym_builder_.section_.sh_size = dynsym_builder_.size()*sizeof(Elf32_Sym);
+  dynsym_builder_.section_.sh_size = dynsym_builder_.GetSize() * sizeof(Elf32_Sym);
   dynsym_builder_.section_.sh_link = dynsym_builder_.GetLink();
 
   // Get the layout of the dynstr section.
@@ -332,7 +332,7 @@ bool ElfWriterQuick::ElfBuilder::Write() {
   dynamic_builder_.section_.sh_offset = NextOffset(dynamic_builder_.section_,
                                                    text_builder_.section_);
   dynamic_builder_.section_.sh_addr = dynamic_builder_.section_.sh_offset;
-  dynamic_builder_.section_.sh_size = dynamic_builder_.size()*sizeof(Elf32_Dyn);
+  dynamic_builder_.section_.sh_size = dynamic_builder_.GetSize() * sizeof(Elf32_Dyn);
   dynamic_builder_.section_.sh_link = dynamic_builder_.GetLink();
 
   Elf32_Shdr prev = dynamic_builder_.section_;
@@ -342,7 +342,7 @@ bool ElfWriterQuick::ElfBuilder::Write() {
                                                     dynamic_builder_.section_);
     symtab_builder_.section_.sh_addr = 0;
     // Add to leave space for the null symbol.
-    symtab_builder_.section_.sh_size = symtab_builder_.size()*sizeof(Elf32_Sym);
+    symtab_builder_.section_.sh_size = symtab_builder_.GetSize() * sizeof(Elf32_Sym);
     symtab_builder_.section_.sh_link = symtab_builder_.GetLink();
 
     // Get the layout of the dynstr section.
@@ -406,11 +406,11 @@ bool ElfWriterQuick::ElfBuilder::Write() {
 
   // Setup the actual symbol arrays.
   std::vector<Elf32_Sym> dynsym = dynsym_builder_.GenerateSymtab();
-  CHECK_EQ(dynsym.size()*sizeof(Elf32_Sym), dynsym_builder_.section_.sh_size);
+  CHECK_EQ(dynsym.size() * sizeof(Elf32_Sym), dynsym_builder_.section_.sh_size);
   std::vector<Elf32_Sym> symtab;
   if (IncludingDebugSymbols()) {
     symtab = symtab_builder_.GenerateSymtab();
-    CHECK_EQ(symtab.size()*sizeof(Elf32_Sym), symtab_builder_.section_.sh_size);
+    CHECK_EQ(symtab.size() * sizeof(Elf32_Sym), symtab_builder_.section_.sh_size);
   }
 
   // Setup the dynamic section.
@@ -418,7 +418,7 @@ bool ElfWriterQuick::ElfBuilder::Write() {
   // and the soname_offset.
   std::vector<Elf32_Dyn> dynamic = dynamic_builder_.GetDynamics(dynstr.size(),
                                                                 dynstr_soname_offset);
-  CHECK_EQ(dynamic.size()*sizeof(Elf32_Dyn), dynamic_builder_.section_.sh_size);
+  CHECK_EQ(dynamic.size() * sizeof(Elf32_Dyn), dynamic_builder_.section_.sh_size);
 
   // Finish setup of the program headers now that we know the layout of the
   // whole file.
@@ -463,7 +463,7 @@ bool ElfWriterQuick::ElfBuilder::Write() {
   pieces.push_back(ElfFilePiece(".dynamic", dynamic_builder_.section_.sh_offset,
                                 dynamic.data(), dynamic_builder_.section_.sh_size));
   pieces.push_back(ElfFilePiece(".dynsym", dynsym_builder_.section_.sh_offset,
-                                dynsym.data(), dynsym.size()*sizeof(Elf32_Sym)));
+                                dynsym.data(), dynsym.size() * sizeof(Elf32_Sym)));
   pieces.push_back(ElfFilePiece(".dynstr", dynsym_builder_.strtab_.section_.sh_offset,
                                 dynstr.c_str(), dynstr.size()));
   pieces.push_back(ElfFilePiece(".hash", hash_builder_.section_.sh_offset,
@@ -543,14 +543,14 @@ void ElfWriterQuick::ElfBuilder::SetupRequiredSymbols() {
                             true, 4, STB_GLOBAL, STT_OBJECT);
 }
 
-void ElfWriterQuick::ElfDynamicBuilder::AddDynamicTag(Elf32_Sword tag, Elf32_Sword d_un) {
+void ElfWriterQuick::ElfDynamicBuilder::AddDynamicTag(Elf32_Sword tag, Elf32_Word d_un) {
   if (tag == DT_NULL) {
     return;
   }
   dynamics_.push_back({NULL, tag, d_un});
 }
 
-void ElfWriterQuick::ElfDynamicBuilder::AddDynamicTag(Elf32_Sword tag, Elf32_Sword d_un,
+void ElfWriterQuick::ElfDynamicBuilder::AddDynamicTag(Elf32_Sword tag, Elf32_Word d_un,
                                                       ElfSectionBuilder* section) {
   if (tag == DT_NULL) {
     return;
@@ -558,14 +558,14 @@ void ElfWriterQuick::ElfDynamicBuilder::AddDynamicTag(Elf32_Sword tag, Elf32_Swo
   dynamics_.push_back({section, tag, d_un});
 }
 
-std::vector<Elf32_Dyn> ElfWriterQuick::ElfDynamicBuilder::GetDynamics(Elf32_Sword strsz,
-                                                                      Elf32_Sword soname) {
+std::vector<Elf32_Dyn> ElfWriterQuick::ElfDynamicBuilder::GetDynamics(Elf32_Word strsz,
+                                                                      Elf32_Word soname) {
   std::vector<Elf32_Dyn> ret;
   for (auto it = dynamics_.cbegin(); it != dynamics_.cend(); ++it) {
     if (it->section_) {
       // We are adding an address relative to a section.
       ret.push_back(
-          {it->tag_, {it->off_ + static_cast<Elf32_Sword>(it->section_->section_.sh_addr)}});
+          {it->tag_, {it->off_ + it->section_->section_.sh_addr}});
     } else {
       ret.push_back({it->tag_, {it->off_}});
     }
@@ -675,7 +675,7 @@ std::vector<Elf32_Word> ElfWriterQuick::ElfSymtabBuilder::GenerateHashContents()
   // Select number of buckets.
   // This is essentially arbitrary.
   Elf32_Word nbuckets;
-  Elf32_Word chain_size = size();
+  Elf32_Word chain_size = GetSize();
   if (symbols_.size() < 8) {
     nbuckets = 2;
   } else if (symbols_.size() < 32) {

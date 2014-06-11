@@ -81,8 +81,8 @@ class ElfWriterQuick FINAL : public ElfWriter {
 
   class ElfDynamicBuilder : public ElfSectionBuilder {
    public:
-    void AddDynamicTag(Elf32_Sword tag, Elf32_Sword d_un);
-    void AddDynamicTag(Elf32_Sword tag, Elf32_Sword offset, ElfSectionBuilder* section);
+    void AddDynamicTag(Elf32_Sword tag, Elf32_Word d_un);
+    void AddDynamicTag(Elf32_Sword tag, Elf32_Word offset, ElfSectionBuilder* section);
 
     ElfDynamicBuilder(const std::string& sec_name, ElfSectionBuilder *link)
         : ElfSectionBuilder(sec_name, SHT_DYNAMIC, SHF_ALLOC | SHF_ALLOC, link,
@@ -93,10 +93,10 @@ class ElfWriterQuick FINAL : public ElfWriter {
     struct ElfDynamicState {
       ElfSectionBuilder* section_;
       Elf32_Sword tag_;
-      Elf32_Sword off_;
+      Elf32_Word off_;
     };
     std::vector<ElfDynamicState> dynamics_;
-    Elf32_Word size() {
+    Elf32_Word GetSize() {
       // Add 1 for the DT_NULL, 1 for DT_STRSZ, and 1 for DT_SONAME. All of
       // these must be added when we actually put the file together because
       // their values are very dependent on state.
@@ -107,7 +107,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
     // table and soname_off should be the offset of the soname in .dynstr.
     // Since niether can be found prior to final layout we will wait until here
     // to add them.
-    std::vector<Elf32_Dyn> GetDynamics(Elf32_Sword strsz, Elf32_Sword soname_off);
+    std::vector<Elf32_Dyn> GetDynamics(Elf32_Word strsz, Elf32_Word soname_off);
 
    private:
     friend class ElfBuilder;
@@ -174,7 +174,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
     std::string GenerateStrtab();
     std::vector<Elf32_Sym> GenerateSymtab();
 
-    Elf32_Word size() {
+    Elf32_Word GetSize() {
       // 1 is for the implicit NULL symbol.
       return symbols_.size() + 1;
     }
@@ -303,7 +303,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
 
     // Write each of the pieces out to the file.
     bool WriteOutFile(const std::vector<ElfFilePiece>& pieces);
-    bool IncludingDebugSymbols() { return add_symbols_ && symtab_builder_.size() > 1; }
+    bool IncludingDebugSymbols() { return add_symbols_ && symtab_builder_.GetSize() > 1; }
   };
 
   /*
