@@ -42,7 +42,8 @@ class QuickExceptionHandler {
     LOG(FATAL) << "UNREACHABLE";  // Expected to take long jump.
   }
 
-  void FindCatch(const ThrowLocation& throw_location, mirror::Throwable* exception)
+  void FindCatch(const ThrowLocation& throw_location, mirror::Throwable* exception,
+                 bool is_exception_reported)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DeoptimizeStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void UpdateInstrumentationStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

@@ -1611,6 +1611,7 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
   Handle<mirror::ArtMethod> saved_throw_method(hs.NewHandle(throw_location.GetMethod()));
   // Ignore the cause throw location. TODO: should we report this as a re-throw?
   ScopedLocalRef<jobject> cause(GetJniEnv(), soa.AddLocalReference<jobject>(GetException(nullptr)));
+  bool is_exception_reported = IsExceptionReportedToInstrumentation();
   ClearException();
   Runtime* runtime = Runtime::Current();
 
@@ -1641,6 +1642,7 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
     ThrowLocation gc_safe_throw_location(saved_throw_this.Get(), saved_throw_method.Get(),
                                          throw_location.GetDexPc());
     SetException(gc_safe_throw_location, Runtime::Current()->GetPreAllocatedOutOfMemoryError());
+    SetExceptionReportedToInstrumentation(is_exception_reported);
     return;
   }
 
@@ -1693,6 +1695,7 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
     ThrowLocation gc_safe_throw_location(saved_throw_this.Get(), saved_throw_method.Get(),
                                          throw_location.GetDexPc());
     SetException(gc_safe_throw_location, exception.Get());
+    SetExceptionReportedToInstrumentation(is_exception_reported);
   } else {
     jvalue jv_args[2];
     size_t i = 0;
@@ -1710,6 +1713,7 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
       ThrowLocation gc_safe_throw_location(saved_throw_this.Get(), saved_throw_method.Get(),
                                            throw_location.GetDexPc());
       SetException(gc_safe_throw_location, exception.Get());
+      SetExceptionReportedToInstrumentation(is_exception_reported);
     }
   }
 }
@@ -1892,13 +1896,14 @@ void Thread::QuickDeliverException() {
   CHECK(exception != nullptr);
   // Don't leave exception visible while we try to find the handler, which may cause class
   // resolution.
+  bool is_exception_reported = IsExceptionReportedToInstrumentation();
   ClearException();
   bool is_deoptimization = (exception == GetDeoptimizationException());
   QuickExceptionHandler exception_handler(this, is_deoptimization);
   if (is_deoptimization) {
     exception_handler.DeoptimizeStack();
   } else {
-    exception_handler.FindCatch(throw_location, exception);
+    exception_handler.FindCatch(throw_location, exception, is_exception_reported);
   }
   exception_handler.UpdateInstrumentationStack();
   exception_handler.DoLongJump();

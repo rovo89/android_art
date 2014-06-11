@@ -329,6 +329,7 @@ class Thread {
   void ClearException() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     tlsPtr_.exception = nullptr;
     tlsPtr_.throw_location.Clear();
+    SetExceptionReportedToInstrumentation(false);
   }
 
   // Find catch block and perform long jump to appropriate exception handle
@@ -809,6 +810,14 @@ class Thread {
     tlsPtr_.rosalloc_runs[index] = run;
   }
 
+  bool IsExceptionReportedToInstrumentation() const {
+    return tls32_.is_exception_reported_to_instrumentation_;
+  }
+
+  void SetExceptionReportedToInstrumentation(bool reported) {
+    tls32_.is_exception_reported_to_instrumentation_ = reported;
+  }
+
  private:
   explicit Thread(bool daemon);
   ~Thread() LOCKS_EXCLUDED(Locks::mutator_lock_,
@@ -911,7 +920,7 @@ class Thread {
     explicit tls_32bit_sized_values(bool is_daemon) :
       suspend_count(0), debug_suspend_count(0), thin_lock_thread_id(0), tid(0),
       daemon(is_daemon), throwing_OutOfMemoryError(false), no_thread_suspension(0),
-      thread_exit_check_count(0) {
+      thread_exit_check_count(0), is_exception_reported_to_instrumentation_(false) {
     }
 
     union StateAndFlags state_and_flags;
@@ -947,6 +956,10 @@ class Thread {
 
     // How many times has our pthread key's destructor been called?
     uint32_t thread_exit_check_count;
+
+    // When true this field indicates that the exception associated with this thread has already
+    // been reported to instrumentation.
+    bool32_t is_exception_reported_to_instrumentation_;
   } tls32_;
 
   struct PACKED(8) tls_64bit_sized_values {
