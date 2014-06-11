@@ -1123,7 +1123,6 @@ void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation 
           return;
         }
       }
-      // Falltrhough to handle.
     }
     rl_src1 = LoadValueWide(rl_src1, kCoreReg);
     rl_src2 = LoadValueWide(rl_src2, kCoreReg);
