@@ -256,7 +256,7 @@ LIBART_TARGET_SRC_FILES_mips := \
 	arch/mips/context_mips.cc \
 	arch/mips/entrypoints_init_mips.cc \
 	arch/mips/jni_entrypoints_mips.S \
-	arch/mips/memcmp16.S \
+	arch/mips/memcmp16_mips.S \
 	arch/mips/portable_entrypoints_mips.S \
 	arch/mips/quick_entrypoints_mips.S \
 	arch/mips/thread_mips.cc \
