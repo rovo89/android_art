@@ -346,7 +346,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
           if (mir->next != NULL) {
             MIR* mir_next = mir->next;
             // Make sure result of cmp is used by next insn and nowhere else
-            if (IsInstructionIfCcZ(mir->next->dalvikInsn.opcode) &&
+            if (IsInstructionIfCcZ(mir_next->dalvikInsn.opcode) &&
                 (mir->ssa_rep->defs[0] == mir_next->ssa_rep->uses[0]) &&
                 (GetSSAUseCount(mir->ssa_rep->defs[0]) == 1)) {
               mir_next->meta.ccode = ConditionCodeForIfCcZ(mir_next->dalvikInsn.opcode);
@@ -374,12 +374,16 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
                 default: LOG(ERROR) << "Unexpected opcode: " << opcode;
               }
               mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+              // Copy the SSA information that is relevant.
               mir_next->ssa_rep->num_uses = mir->ssa_rep->num_uses;
               mir_next->ssa_rep->uses = mir->ssa_rep->uses;
               mir_next->ssa_rep->fp_use = mir->ssa_rep->fp_use;
               mir_next->ssa_rep->num_defs = 0;
               mir->ssa_rep->num_uses = 0;
               mir->ssa_rep->num_defs = 0;
+              // Copy in the decoded instruction information for potential SSA re-creation.
+              mir_next->dalvikInsn.vA = mir->dalvikInsn.vB;
+              mir_next->dalvikInsn.vB = mir->dalvikInsn.vC;
             }
           }
           break;
