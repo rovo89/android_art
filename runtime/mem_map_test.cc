@@ -198,16 +198,17 @@ TEST_F(MemMapTest, RemapAtEnd32bit) {
 #endif
 
 TEST_F(MemMapTest, MapAnonymousExactAddr32bitHighAddr) {
+  uintptr_t start_addr = ART_BASE_ADDRESS + 0x1000000;
   std::string error_msg;
   std::unique_ptr<MemMap> map(MemMap::MapAnonymous("MapAnonymousExactAddr32bitHighAddr",
-                                             reinterpret_cast<byte*>(0x71000000),
+                                             reinterpret_cast<byte*>(start_addr),
                                              0x21000000,
                                              PROT_READ | PROT_WRITE,
                                              true,
                                              &error_msg));
   ASSERT_TRUE(map.get() != nullptr) << error_msg;
   ASSERT_TRUE(error_msg.empty());
-  ASSERT_EQ(reinterpret_cast<uintptr_t>(BaseBegin(map.get())), 0x71000000U);
+  ASSERT_EQ(reinterpret_cast<uintptr_t>(BaseBegin(map.get())), start_addr);
 }
 
 TEST_F(MemMapTest, MapAnonymousOverflow) {
