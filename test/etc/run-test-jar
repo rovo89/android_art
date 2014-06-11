@@ -175,6 +175,7 @@ if [ "x$1" = "x" ] ; then
   MAIN="Main"
 else
   MAIN="$1"
+  shift
 fi
 
 if [ "$ZYGOTE" = "" ]; then
