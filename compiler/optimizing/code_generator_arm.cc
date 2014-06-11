@@ -484,7 +484,10 @@ void InstructionCodeGeneratorARM::VisitStoreLocal(HStoreLocal* store) {
 }
 
 void LocationsBuilderARM::VisitIntConstant(HIntConstant* constant) {
-  constant->SetLocations(nullptr);
+  // TODO: Support constant locations.
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(constant);
+  locations->SetOut(Location::RequiresRegister());
+  constant->SetLocations(locations);
 }
 
 void InstructionCodeGeneratorARM::VisitIntConstant(HIntConstant* constant) {
@@ -492,7 +495,10 @@ void InstructionCodeGeneratorARM::VisitIntConstant(HIntConstant* constant) {
 }
 
 void LocationsBuilderARM::VisitLongConstant(HLongConstant* constant) {
-  constant->SetLocations(nullptr);
+  // TODO: Support constant locations.
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(constant);
+  locations->SetOut(Location::RequiresRegister());
+  constant->SetLocations(locations);
 }
 
 void InstructionCodeGeneratorARM::VisitLongConstant(HLongConstant* constant) {
@@ -794,7 +800,12 @@ void InstructionCodeGeneratorARM::VisitNot(HNot* instruction) {
 }
 
 void LocationsBuilderARM::VisitPhi(HPhi* instruction) {
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
+  for (size_t i = 0, e = instruction->InputCount(); i < e; ++i) {
+    locations->SetInAt(i, Location::Any());
+  }
+  locations->SetOut(Location::Any());
+  instruction->SetLocations(locations);
 }
 
 void InstructionCodeGeneratorARM::VisitPhi(HPhi* instruction) {
