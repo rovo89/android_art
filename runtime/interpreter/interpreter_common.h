@@ -38,6 +38,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
+#include "mirror/string-inl.h"
 #include "object_utils.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
