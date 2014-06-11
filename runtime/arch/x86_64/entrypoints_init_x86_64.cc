@@ -80,7 +80,6 @@ extern "C" uint64_t art_quick_lshr(uint64_t, uint32_t);
 extern "C" uint64_t art_quick_lushr(uint64_t, uint32_t);
 
 // Intrinsic entrypoints.
-extern "C" int32_t art_quick_memcmp16(void*, void*, int32_t);
 extern "C" int32_t art_quick_string_compareto(void*, void*);
 extern "C" void* art_quick_memcpy(void*, const void*, size_t);
 
@@ -193,7 +192,6 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
 
   // Intrinsics
   // qpoints->pIndexOf = NULL;  // Not needed on x86.
-  qpoints->pMemcmp16 = art_quick_memcmp16;
   qpoints->pStringCompareTo = art_quick_string_compareto;
   qpoints->pMemcpy = art_quick_memcpy;
 
