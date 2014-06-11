@@ -846,8 +846,9 @@ void Instrumentation::PushInstrumentationStackFrame(Thread* self, mirror::Object
   MethodEnterEvent(self, this_object, method, 0);
 }
 
-uint64_t Instrumentation::PopInstrumentationStackFrame(Thread* self, uintptr_t* return_pc,
-                                                       uint64_t gpr_result, uint64_t fpr_result) {
+TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintptr_t* return_pc,
+                                                            uint64_t gpr_result,
+                                                            uint64_t fpr_result) {
   // Do the pop.
   std::deque<instrumentation::InstrumentationStackFrame>* stack = self->GetInstrumentationStack();
   CHECK_GT(stack->size(), 0U);
@@ -889,14 +890,14 @@ uint64_t Instrumentation::PopInstrumentationStackFrame(Thread* self, uintptr_t* 
                 << " result is " << std::hex << return_value.GetJ();
     }
     self->SetDeoptimizationReturnValue(return_value);
-    return static_cast<uint64_t>(GetQuickDeoptimizationEntryPoint()) |
-        (static_cast<uint64_t>(*return_pc) << 32);
+    return GetTwoWordSuccessValue(*return_pc,
+                                  reinterpret_cast<uintptr_t>(GetQuickDeoptimizationEntryPoint()));
   } else {
     if (kVerboseInstrumentation) {
       LOG(INFO) << "Returning from " << PrettyMethod(method)
                 << " to PC " << reinterpret_cast<void*>(*return_pc);
     }
-    return *return_pc;
+    return GetTwoWordSuccessValue(0, *return_pc);
   }
 }
 
