@@ -397,10 +397,11 @@ class X86Mir2Lir : public Mir2Lir {
   void CheckValidByteRegister(const X86EncodingMap* entry, int32_t raw_reg);
   void EmitPrefix(const X86EncodingMap* entry,
                   int32_t raw_reg_r, int32_t raw_reg_x, int32_t raw_reg_b,
-                  bool r8_form);
+                  bool r8_form_r, bool modrm_is_reg_reg);
   void EmitOpcode(const X86EncodingMap* entry);
   void EmitPrefixAndOpcode(const X86EncodingMap* entry,
-                           int32_t reg_r, int32_t reg_x, int32_t reg_b, bool r8_form);
+                           int32_t reg_r, int32_t reg_x, int32_t reg_b, bool r8_form,
+                           bool modrm_is_reg_reg);
   void EmitDisp(uint8_t base, int32_t disp);
   void EmitModrmThread(uint8_t reg_or_opcode);
   void EmitModrmDisp(uint8_t reg_or_opcode, uint8_t base, int32_t disp);
@@ -462,6 +463,12 @@ class X86Mir2Lir : public Mir2Lir {
    * @returns a temporary guarenteed to be byte addressable.
    */
   virtual RegStorage AllocateByteRegister();
+
+  /*
+   * @brief Check if a register is byte addressable.
+   * @returns true if a register is byte addressable.
+   */
+  bool IsByteRegister(RegStorage reg);
 
   /*
    * @brief generate inline code for fast case of Strng.indexOf.

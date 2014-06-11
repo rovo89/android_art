@@ -155,7 +155,12 @@ void Mir2Lir::CallRuntimeHelperRegLocation(ThreadOffset<pointer_size> helper_off
   if (arg0.wide == 0) {
     LoadValueDirectFixed(arg0, TargetReg(kArg0));
   } else {
-    RegStorage r_tmp = RegStorage::MakeRegPair(TargetReg(kArg0), TargetReg(kArg1));
+    RegStorage r_tmp;
+    if (cu_->instruction_set == kX86_64) {
+      r_tmp = RegStorage::Solo64(TargetReg(kArg0).GetReg());
+    } else {
+      r_tmp = RegStorage::MakeRegPair(TargetReg(kArg0), TargetReg(kArg1));
+    }
     LoadValueDirectWideFixed(arg0, r_tmp);
   }
   ClobberCallerSave();
@@ -181,7 +186,12 @@ void Mir2Lir::CallRuntimeHelperImmRegLocation(ThreadOffset<pointer_size> helper_
   if (arg1.wide == 0) {
     LoadValueDirectFixed(arg1, TargetReg(kArg1));
   } else {
-    RegStorage r_tmp = RegStorage::MakeRegPair(TargetReg(kArg1), TargetReg(kArg2));
+    RegStorage r_tmp;
+    if (cu_->instruction_set == kX86_64) {
+      r_tmp = RegStorage::Solo64(TargetReg(kArg1).GetReg());
+    } else {
+      r_tmp = RegStorage::MakeRegPair(TargetReg(kArg1), TargetReg(kArg2));
+    }
     LoadValueDirectWideFixed(arg1, r_tmp);
   }
   LoadConstant(TargetReg(kArg0), arg0);
@@ -279,6 +289,12 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(ThreadOffset<pointer_size>
         LoadValueDirectFixed(arg1, arg1.fp ? TargetReg(kFArg2) : TargetReg(kArg1));
       } else if (cu_->instruction_set == kArm64) {
         LoadValueDirectFixed(arg1, arg1.fp ? TargetReg(kFArg1) : TargetReg(kArg1));
+      } else if (cu_->instruction_set == kX86_64) {
+        if (arg0.fp) {
+          LoadValueDirectFixed(arg1, arg1.fp ? TargetReg(kFArg1) : TargetReg(kArg0));
+        } else {
+          LoadValueDirectFixed(arg1, arg1.fp ? TargetReg(kFArg0) : TargetReg(kArg1));
+        }
       } else {
         LoadValueDirectFixed(arg1, TargetReg(kArg1));
       }
@@ -423,7 +439,12 @@ void Mir2Lir::CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset<pointer_si
   if (arg2.wide == 0) {
     LoadValueDirectFixed(arg2, TargetReg(kArg2));
   } else {
-    RegStorage r_tmp = RegStorage::MakeRegPair(TargetReg(kArg2), TargetReg(kArg3));
+    RegStorage r_tmp;
+    if (cu_->instruction_set == kX86_64) {
+      r_tmp = RegStorage::Solo64(TargetReg(kArg2).GetReg());
+    } else {
+      r_tmp = RegStorage::MakeRegPair(TargetReg(kArg2), TargetReg(kArg3));
+    }
     LoadValueDirectWideFixed(arg2, r_tmp);
   }
   LoadConstant(TargetReg(kArg0), arg0);

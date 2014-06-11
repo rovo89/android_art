@@ -456,7 +456,8 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
      * this is an uncommon operation and isn't especially performance
      * critical.
      */
-    RegStorage r_src = AllocTemp();
+    // This is addressing the stack, which may be out of the 4G area.
+    RegStorage r_src = cu_->target64 ? AllocTempWide() : AllocTemp();
     RegStorage r_dst = AllocTemp();
     RegStorage r_idx = AllocTemp();
     RegStorage r_val;
