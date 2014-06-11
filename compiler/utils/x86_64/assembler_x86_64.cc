@@ -1650,7 +1650,7 @@ void X86_64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
     pushq(spill_regs.at(i).AsX86_64().AsCpuRegister());
   }
   // return address then method on stack
-  addq(CpuRegister(RSP), Immediate(-frame_size + (spill_regs.size() * kFramePointerSize) +
+  addq(CpuRegister(RSP), Immediate(-static_cast<int64_t>(frame_size) + (spill_regs.size() * kFramePointerSize) +
                                    sizeof(StackReference<mirror::ArtMethod>) /*method*/ +
                                    kFramePointerSize /*return address*/));
 
@@ -1682,7 +1682,7 @@ void X86_64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 void X86_64Assembler::RemoveFrame(size_t frame_size,
                             const std::vector<ManagedRegister>& spill_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
-  addq(CpuRegister(RSP), Immediate(frame_size - (spill_regs.size() * kFramePointerSize) - kFramePointerSize));
+  addq(CpuRegister(RSP), Immediate(static_cast<int64_t>(frame_size) - (spill_regs.size() * kFramePointerSize) - kFramePointerSize));
   for (size_t i = 0; i < spill_regs.size(); ++i) {
     popq(spill_regs.at(i).AsX86_64().AsCpuRegister());
   }
@@ -1691,7 +1691,7 @@ void X86_64Assembler::RemoveFrame(size_t frame_size,
 
 void X86_64Assembler::IncreaseFrameSize(size_t adjust) {
   CHECK_ALIGNED(adjust, kStackAlignment);
-  addq(CpuRegister(RSP), Immediate(-adjust));
+  addq(CpuRegister(RSP), Immediate(-static_cast<int64_t>(adjust)));
 }
 
 void X86_64Assembler::DecreaseFrameSize(size_t adjust) {
