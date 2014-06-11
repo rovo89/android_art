@@ -1095,6 +1095,56 @@ void X86Mir2Lir::GenImulMemImm(RegStorage dest, int sreg, int displacement, int 
 
 void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) {
+  if (Gen64Bit()) {
+    if (rl_src1.is_const) {
+      std::swap(rl_src1, rl_src2);
+    }
+    // Are we multiplying by a constant?
+    if (rl_src2.is_const) {
+      int64_t val = mir_graph_->ConstantValueWide(rl_src2);
+      if (val == 0) {
+        RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+        OpRegReg(kOpXor, rl_result.reg, rl_result.reg);
+        StoreValueWide(rl_dest, rl_result);
+        return;
+      } else if (val == 1) {
+        StoreValueWide(rl_dest, rl_src1);
+        return;
+      } else if (val == 2) {
+        GenAddLong(Instruction::ADD_LONG, rl_dest, rl_src1, rl_src1);
+        return;
+      } else if (IsPowerOfTwo(val)) {
+        int shift_amount = LowestSetBit(val);
+        if (!BadOverlap(rl_src1, rl_dest)) {
+          rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+          RegLocation rl_result = GenShiftImmOpLong(Instruction::SHL_LONG, rl_dest,
+                                                    rl_src1, shift_amount);
+          StoreValueWide(rl_dest, rl_result);
+          return;
+        }
+      }
+      // Falltrhough to handle.
+    }
+    rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+    rl_src2 = LoadValueWide(rl_src2, kCoreReg);
+    RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+    if (rl_result.reg.GetReg() == rl_src1.reg.GetReg() &&
+        rl_result.reg.GetReg() == rl_src2.reg.GetReg()) {
+      NewLIR2(kX86Imul64RR, rl_result.reg.GetReg(), rl_result.reg.GetReg());
+    } else if (rl_result.reg.GetReg() != rl_src1.reg.GetReg() &&
+               rl_result.reg.GetReg() == rl_src2.reg.GetReg()) {
+      NewLIR2(kX86Imul64RR, rl_result.reg.GetReg(), rl_src1.reg.GetReg());
+    } else if (rl_result.reg.GetReg() == rl_src1.reg.GetReg() &&
+               rl_result.reg.GetReg() != rl_src2.reg.GetReg()) {
+      NewLIR2(kX86Imul64RR, rl_result.reg.GetReg(), rl_src2.reg.GetReg());
+    } else {
+      OpRegCopy(rl_result.reg, rl_src1.reg);
+      NewLIR2(kX86Imul64RR, rl_result.reg.GetReg(), rl_src2.reg.GetReg());
+    }
+    StoreValueWide(rl_dest, rl_result);
+    return;
+  }
+
   if (rl_src1.is_const) {
     std::swap(rl_src1, rl_src2);
   }
