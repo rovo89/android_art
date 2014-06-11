@@ -85,7 +85,6 @@ extern "C" float fmodf(float a, float b);          // REM_FLOAT[_2ADDR]
 extern "C" double fmod(double a, double b);         // REM_DOUBLE[_2ADDR]
 
 // Intrinsic entrypoints.
-extern "C" int32_t __memcmp16(void*, void*, int32_t);
 extern "C" int32_t art_quick_indexof(void*, uint32_t, uint32_t, uint32_t);
 extern "C" int32_t art_quick_string_compareto(void*, void*);
 
@@ -199,7 +198,6 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
 
   // Intrinsics
   qpoints->pIndexOf = art_quick_indexof;
-  qpoints->pMemcmp16 = __memcmp16;
   qpoints->pStringCompareTo = art_quick_string_compareto;
   qpoints->pMemcpy = memcpy;
 

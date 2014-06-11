@@ -16,6 +16,7 @@
 
 #include "string-inl.h"
 
+#include "arch/memcmp16.h"
 #include "array.h"
 #include "class-inl.h"
 #include "gc/accounting/card_table-inl.h"
@@ -206,21 +207,6 @@ std::string String::ToModifiedUtf8() {
   return result;
 }
 
-#ifdef HAVE__MEMCMP16
-// "count" is in 16-bit units.
-extern "C" uint32_t __memcmp16(const uint16_t* s0, const uint16_t* s1, size_t count);
-#define MemCmp16 __memcmp16
-#else
-static uint32_t MemCmp16(const uint16_t* s0, const uint16_t* s1, size_t count) {
-  for (size_t i = 0; i < count; i++) {
-    if (s0[i] != s1[i]) {
-      return static_cast<int32_t>(s0[i]) - static_cast<int32_t>(s1[i]);
-    }
-  }
-  return 0;
-}
-#endif
-
 int32_t String::CompareTo(String* rhs) {
   // Quick test for comparison of a string with itself.
   String* lhs = this;
@@ -233,13 +219,13 @@ int32_t String::CompareTo(String* rhs) {
   // *without* sign extension before it subtracts them (which makes some
   // sense since "char" is unsigned).  So what we get is the result of
   // 0x000000e9 - 0x0000ffff, which is 0xffff00ea.
-  int lhsCount = lhs->GetLength();
-  int rhsCount = rhs->GetLength();
-  int countDiff = lhsCount - rhsCount;
-  int minCount = (countDiff < 0) ? lhsCount : rhsCount;
+  int32_t lhsCount = lhs->GetLength();
+  int32_t rhsCount = rhs->GetLength();
+  int32_t countDiff = lhsCount - rhsCount;
+  int32_t minCount = (countDiff < 0) ? lhsCount : rhsCount;
   const uint16_t* lhsChars = lhs->GetCharArray()->GetData() + lhs->GetOffset();
   const uint16_t* rhsChars = rhs->GetCharArray()->GetData() + rhs->GetOffset();
-  int otherRes = MemCmp16(lhsChars, rhsChars, minCount);
+  int32_t otherRes = MemCmp16(lhsChars, rhsChars, minCount);
   if (otherRes != 0) {
     return otherRes;
   }
