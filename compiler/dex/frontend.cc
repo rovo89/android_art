@@ -889,7 +889,9 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
     // TODO(Arm64): enable optimizations once backend is mature enough.
     // TODO(X86_64): enable optimizations once backend is mature enough.
     cu.disable_opt = ~(uint32_t)0;
-    cu.enable_debug |= (1 << kDebugCodegenDump);
+    if (cu.instruction_set == kArm64) {
+      cu.enable_debug |= (1 << kDebugCodegenDump);
+    }
   }
 
   cu.StartTimingSplit("BuildMIRGraph");
