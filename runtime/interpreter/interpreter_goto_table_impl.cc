@@ -2391,10 +2391,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       CheckSuspend(self);
       UPDATE_HANDLER_TABLE();
     }
-    Object* this_object = shadow_frame.GetThisObject(code_item->ins_size_);
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     uint32_t found_dex_pc = FindNextInstructionFollowingException(self, shadow_frame, dex_pc,
-                                                                  this_object,
                                                                   instrumentation);
     if (found_dex_pc == DexFile::kDexNoIndex) {
       return JValue(); /* Handled in caller. */

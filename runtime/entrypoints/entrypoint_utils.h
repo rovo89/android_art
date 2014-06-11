@@ -652,6 +652,7 @@ static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
   // Save any pending exception over monitor exit call.
   mirror::Throwable* saved_exception = NULL;
   ThrowLocation saved_throw_location;
+  bool is_exception_reported = self->IsExceptionReportedToInstrumentation();
   if (UNLIKELY(self->IsExceptionPending())) {
     saved_exception = self->GetException(&saved_throw_location);
     self->ClearException();
@@ -667,6 +668,7 @@ static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
   // Restore pending exception.
   if (saved_exception != NULL) {
     self->SetException(saved_throw_location, saved_exception);
+    self->SetExceptionReportedToInstrumentation(is_exception_reported);
   }
 }
 

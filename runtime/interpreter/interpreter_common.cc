@@ -372,31 +372,107 @@ EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(Primitive::kPrimNot);    // iget-object
 #undef EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL
 #undef EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL
 
+/**
+ * Finds the location where this exception will be caught. We search until we reach either the top
+ * frame or a native frame, in which cases this exception is considered uncaught.
+ */
+class CatchLocationFinder : public StackVisitor {
+ public:
+  explicit CatchLocationFinder(Thread* self, Handle<mirror::Throwable>* exception)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    : StackVisitor(self, nullptr), self_(self), handle_scope_(self), exception_(exception),
+      catch_method_(handle_scope_.NewHandle<mirror::ArtMethod>(nullptr)),
+      catch_dex_pc_(DexFile::kDexNoIndex), clear_exception_(false) {
+  }
+
+  bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::ArtMethod* method = GetMethod();
+    if (method == nullptr) {
+      return true;
+    }
+    if (method->IsRuntimeMethod()) {
+      // Ignore callee save method.
+      DCHECK(method->IsCalleeSaveMethod());
+      return true;
+    }
+    if (method->IsNative()) {
+      return false;  // End stack walk.
+    }
+    DCHECK(!method->IsNative());
+    uint32_t dex_pc = GetDexPc();
+    if (dex_pc != DexFile::kDexNoIndex) {
+      uint32_t found_dex_pc;
+      {
+        StackHandleScope<3> hs(self_);
+        Handle<mirror::Class> exception_class(hs.NewHandle((*exception_)->GetClass()));
+        Handle<mirror::ArtMethod> h_method(hs.NewHandle(method));
+        found_dex_pc = mirror::ArtMethod::FindCatchBlock(h_method, exception_class, dex_pc,
+                                                         &clear_exception_);
+      }
+      if (found_dex_pc != DexFile::kDexNoIndex) {
+        catch_method_.Assign(method);
+        catch_dex_pc_ = found_dex_pc;
+        return false;  // End stack walk.
+      }
+    }
+    return true;  // Continue stack walk.
+  }
+
+  ArtMethod* GetCatchMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return catch_method_.Get();
+  }
+
+  uint32_t GetCatchDexPc() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return catch_dex_pc_;
+  }
+
+  bool NeedClearException() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return clear_exception_;
+  }
+
+ private:
+  Thread* const self_;
+  StackHandleScope<1> handle_scope_;
+  Handle<mirror::Throwable>* exception_;
+  Handle<mirror::ArtMethod> catch_method_;
+  uint32_t catch_dex_pc_;
+  bool clear_exception_;
+
+
+  DISALLOW_COPY_AND_ASSIGN(CatchLocationFinder);
+};
+
 uint32_t FindNextInstructionFollowingException(Thread* self,
                                                ShadowFrame& shadow_frame,
                                                uint32_t dex_pc,
-                                               mirror::Object* this_object,
                                                const instrumentation::Instrumentation* instrumentation) {
   self->VerifyStack();
   ThrowLocation throw_location;
-  mirror::Throwable* exception = self->GetException(&throw_location);
+  StackHandleScope<3> hs(self);
+  Handle<mirror::Throwable> exception(hs.NewHandle(self->GetException(&throw_location)));
+  if (!self->IsExceptionReportedToInstrumentation() && instrumentation->HasExceptionCaughtListeners()) {
+    CatchLocationFinder clf(self, &exception);
+    clf.WalkStack(false);
+    instrumentation->ExceptionCaughtEvent(self, throw_location, clf.GetCatchMethod(),
+                                          clf.GetCatchDexPc(), exception.Get());
+    self->SetExceptionReportedToInstrumentation(true);
+  }
   bool clear_exception = false;
   uint32_t found_dex_pc;
   {
-    StackHandleScope<3> hs(self);
     Handle<mirror::Class> exception_class(hs.NewHandle(exception->GetClass()));
     Handle<mirror::ArtMethod> h_method(hs.NewHandle(shadow_frame.GetMethod()));
-    HandleWrapper<mirror::Object> h(hs.NewHandleWrapper(&this_object));
     found_dex_pc = mirror::ArtMethod::FindCatchBlock(h_method, exception_class, dex_pc,
                                                      &clear_exception);
   }
   if (found_dex_pc == DexFile::kDexNoIndex) {
-    instrumentation->MethodUnwindEvent(self, this_object,
+    instrumentation->MethodUnwindEvent(self, shadow_frame.GetThisObject(),
                                        shadow_frame.GetMethod(), dex_pc);
   } else {
-    instrumentation->ExceptionCaughtEvent(self, throw_location,
-                                          shadow_frame.GetMethod(),
-                                          found_dex_pc, exception);
+    if (self->IsExceptionReportedToInstrumentation()) {
+      instrumentation->MethodUnwindEvent(self, shadow_frame.GetThisObject(),
+                                         shadow_frame.GetMethod(), dex_pc);
+    }
     if (clear_exception) {
       self->ClearException();
     }

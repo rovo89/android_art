@@ -240,6 +240,7 @@ uint32_t ArtMethod::FindCatchBlock(Handle<ArtMethod> h_this, Handle<Class> excep
   ThrowLocation throw_location;
   StackHandleScope<1> hs(self);
   Handle<mirror::Throwable> exception(hs.NewHandle(self->GetException(&throw_location)));
+  bool is_exception_reported = self->IsExceptionReportedToInstrumentation();
   self->ClearException();
   // Default to handler not found.
   uint32_t found_dex_pc = DexFile::kDexNoIndex;
@@ -276,6 +277,7 @@ uint32_t ArtMethod::FindCatchBlock(Handle<ArtMethod> h_this, Handle<Class> excep
   // Put the exception back.
   if (exception.Get() != nullptr) {
     self->SetException(throw_location, exception.Get());
+    self->SetExceptionReportedToInstrumentation(is_exception_reported);
   }
   return found_dex_pc;
 }
