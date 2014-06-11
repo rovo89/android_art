@@ -41,7 +41,7 @@ class Class;
 class Object;
 class Throwable;
 }  // namespace mirror
-struct AllocRecord;
+class AllocRecord;
 class Thread;
 class ThrowLocation;
 
@@ -531,11 +531,6 @@ class Dbg {
   static size_t HeadIndex() EXCLUSIVE_LOCKS_REQUIRED(alloc_tracker_lock_);
   static void DumpRecentAllocations() LOCKS_EXCLUDED(alloc_tracker_lock_);
 
-  // Updates the stored direct object pointers (called from SweepSystemWeaks).
-  static void UpdateObjectPointers(IsMarkedCallback* callback, void* arg)
-      LOCKS_EXCLUDED(alloc_tracker_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   enum HpifWhen {
     HPIF_WHEN_NEVER = 0,
     HPIF_WHEN_NOW = 1,
@@ -559,9 +554,6 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DdmSendHeapSegments(bool native)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  static void AllowNewObjectRegistryObjects() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void DisallowNewObjectRegistryObjects() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   static void DdmBroadcast(bool connect) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

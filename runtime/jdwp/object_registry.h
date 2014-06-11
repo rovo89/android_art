@@ -43,6 +43,10 @@ struct ObjectRegistryEntry {
 
   // The corresponding id, so we only need one map lookup in Add.
   JDWP::ObjectId id;
+
+  // The identity hash code of the object. This is the same as the key
+  // for object_to_entry_. Store this for DisposeObject().
+  int32_t identity_hash_code;
 };
 std::ostream& operator<<(std::ostream& os, const ObjectRegistryEntry& rhs);
 
@@ -55,7 +59,8 @@ class ObjectRegistry {
  public:
   ObjectRegistry();
 
-  JDWP::ObjectId Add(mirror::Object* o) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  JDWP::ObjectId Add(mirror::Object* o)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::thread_list_lock_);
   JDWP::RefTypeId AddRefType(mirror::Class* c) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<typename T> T Get(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -65,7 +70,9 @@ class ObjectRegistry {
     return reinterpret_cast<T>(InternalGet(id));
   }
 
-  bool Contains(mirror::Object* o) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool Contains(mirror::Object* o) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return Contains(o, nullptr);
+  }
 
   void Clear() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -84,26 +91,20 @@ class ObjectRegistry {
   // Avoid using this and use standard Get when possible.
   jobject GetJObject(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Visit, objects are treated as system weaks.
-  void UpdateObjectPointers(IsMarkedCallback* callback, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // We have allow / disallow functionality since we use system weak sweeping logic to update moved
-  // objects inside of the object_to_entry_ map.
-  void AllowNewObjects() LOCKS_EXCLUDED(lock_);
-  void DisallowNewObjects() LOCKS_EXCLUDED(lock_);
-
  private:
-  JDWP::ObjectId InternalAdd(mirror::Object* o) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  JDWP::ObjectId InternalAdd(mirror::Object* o)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::thread_list_lock_);
   mirror::Object* InternalGet(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void Demote(ObjectRegistryEntry& entry) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, lock_);
   void Promote(ObjectRegistryEntry& entry) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, lock_);
+  bool Contains(mirror::Object* o, ObjectRegistryEntry** out_entry)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool ContainsLocked(Thread* self, mirror::Object* o, int32_t identity_hash_code,
+                      ObjectRegistryEntry** out_entry)
+      EXCLUSIVE_LOCKS_REQUIRED(lock_) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  bool allow_new_objects_ GUARDED_BY(lock_);
-  ConditionVariable condition_ GUARDED_BY(lock_);
-
-  std::map<mirror::Object*, ObjectRegistryEntry*> object_to_entry_ GUARDED_BY(lock_);
+  std::multimap<int32_t, ObjectRegistryEntry*> object_to_entry_ GUARDED_BY(lock_);
   SafeMap<JDWP::ObjectId, ObjectRegistryEntry*> id_to_entry_ GUARDED_BY(lock_);
 
   size_t next_id_ GUARDED_BY(lock_);
