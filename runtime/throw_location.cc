@@ -27,7 +27,7 @@ namespace art {
 std::string ThrowLocation::Dump() const {
   if (method_ != nullptr) {
     return StringPrintf("%s:%d", PrettyMethod(method_).c_str(),
-                        MethodHelper(method_).GetLineNumFromDexPC(dex_pc_));
+                        method_->GetLineNumFromDexPC(dex_pc_));
   } else {
     return "unknown throw location";
   }

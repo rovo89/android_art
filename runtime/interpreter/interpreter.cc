@@ -400,8 +400,7 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
   }
 
   const char* old_cause = self->StartAssertNoThreadSuspension("EnterInterpreterFromInvoke");
-  MethodHelper mh(method);
-  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  const DexFile::CodeItem* code_item = method->GetCodeItem();
   uint16_t num_regs;
   uint16_t num_ins;
   if (code_item != NULL) {
@@ -413,7 +412,7 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
     return;
   } else {
     DCHECK(method->IsNative());
-    num_regs = num_ins = ArtMethod::NumArgRegisters(mh.GetShorty());
+    num_regs = num_ins = ArtMethod::NumArgRegisters(method->GetShorty());
     if (!method->IsStatic()) {
       num_regs++;
       num_ins++;
@@ -431,9 +430,10 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
     shadow_frame->SetVRegReference(cur_reg, receiver);
     ++cur_reg;
   }
-  const char* shorty = mh.GetShorty();
+  uint32_t shorty_len = 0;
+  const char* shorty = method->GetShorty(&shorty_len);
   for (size_t shorty_pos = 0, arg_pos = 0; cur_reg < num_regs; ++shorty_pos, ++arg_pos, cur_reg++) {
-    DCHECK_LT(shorty_pos + 1, mh.GetShortyLength());
+    DCHECK_LT(shorty_pos + 1, shorty_len);
     switch (shorty[shorty_pos + 1]) {
       case 'L': {
         Object* o = reinterpret_cast<StackReference<Object>*>(&args[arg_pos])->AsMirrorPtr();
@@ -465,6 +465,8 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
     }
   }
   if (LIKELY(!method->IsNative())) {
+    StackHandleScope<1> hs(self);
+    MethodHelper mh(hs.NewHandle(method));
     JValue r = Execute(self, mh, code_item, *shadow_frame, JValue());
     if (result != NULL) {
       *result = r;
@@ -488,11 +490,11 @@ void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JVa
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   JValue value;
   value.SetJ(ret_val->GetJ());  // Set value to last known result in case the shadow frame chain is empty.
-  MethodHelper mh;
   while (shadow_frame != NULL) {
     self->SetTopOfShadowStack(shadow_frame);
-    mh.ChangeMethod(shadow_frame->GetMethod());
-    const DexFile::CodeItem* code_item = mh.GetCodeItem();
+    StackHandleScope<1> hs(self);
+    MethodHelper mh(hs.NewHandle(shadow_frame->GetMethod()));
+    const DexFile::CodeItem* code_item = mh.GetMethod()->GetCodeItem();
     value = Execute(self, mh, code_item, *shadow_frame, value);
     ShadowFrame* old_frame = shadow_frame;
     shadow_frame = shadow_frame->GetLink();

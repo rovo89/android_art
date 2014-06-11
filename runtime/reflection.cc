@@ -222,7 +222,7 @@ class ArgArray {
                                     mirror::Object* receiver,
                                     mirror::ObjectArray<mirror::Object>* args, MethodHelper& mh)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile::TypeList* classes = mh.GetParameterTypeList();
+    const DexFile::TypeList* classes = mh.GetMethod()->GetParameterTypeList();
     // Set receiver if non-null (method is not static)
     if (receiver != nullptr) {
       Append(receiver);
@@ -349,7 +349,7 @@ class ArgArray {
 
 static void CheckMethodArguments(mirror::ArtMethod* m, uint32_t* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const DexFile::TypeList* params = MethodHelper(m).GetParameterTypeList();
+  const DexFile::TypeList* params = m->GetParameterTypeList();
   if (params == nullptr) {
     return;  // No arguments so nothing to check.
   }
@@ -359,24 +359,31 @@ static void CheckMethodArguments(mirror::ArtMethod* m, uint32_t* args)
   if (!m->IsStatic()) {
     offset = 1;
   }
+  // TODO: If args contain object references, it may cause problems
+  Thread* self = Thread::Current();
+  StackHandleScope<1> hs(self);
+  Handle<mirror::ArtMethod> h_m(hs.NewHandle(m));
+  MethodHelper mh(h_m);
   for (uint32_t i = 0; i < num_params; i++) {
     uint16_t type_idx = params->GetTypeItem(i).type_idx_;
-    mirror::Class* param_type = MethodHelper(m).GetClassFromTypeIdx(type_idx);
+    mirror::Class* param_type = mh.GetClassFromTypeIdx(type_idx);
     if (param_type == nullptr) {
-      Thread* self = Thread::Current();
       CHECK(self->IsExceptionPending());
       LOG(ERROR) << "Internal error: unresolvable type for argument type in JNI invoke: "
-          << MethodHelper(m).GetTypeDescriptorFromTypeIdx(type_idx) << "\n"
+          << h_m->GetTypeDescriptorFromTypeIdx(type_idx) << "\n"
           << self->GetException(nullptr)->Dump();
       self->ClearException();
       ++error_count;
     } else if (!param_type->IsPrimitive()) {
       // TODO: check primitives are in range.
+      // TODO: There is a compaction bug here since GetClassFromTypeIdx can cause thread suspension,
+      // this is a hard to fix problem since the args can contain Object*, we need to save and
+      // restore them by using a visitor similar to the ones used in the trampoline entrypoints.
       mirror::Object* argument = reinterpret_cast<mirror::Object*>(args[i + offset]);
       if (argument != nullptr && !argument->InstanceOf(param_type)) {
         LOG(ERROR) << "JNI ERROR (app bug): attempt to pass an instance of "
                    << PrettyTypeOf(argument) << " as argument " << (i + 1)
-                   << " to " << PrettyMethod(m);
+                   << " to " << PrettyMethod(h_m.Get());
         ++error_count;
       }
     } else if (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble()) {
@@ -387,7 +394,7 @@ static void CheckMethodArguments(mirror::ArtMethod* m, uint32_t* args)
     // TODO: pass the JNI function name (such as "CallVoidMethodV") through so we can call JniAbort
     // with an argument.
     JniAbortF(nullptr, "bad arguments passed to %s (see above for details)",
-              PrettyMethod(m).c_str());
+              PrettyMethod(h_m.Get()).c_str());
   }
 }
 
@@ -414,33 +421,36 @@ JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtMethod* method = soa.DecodeMethod(mid);
   mirror::Object* receiver = method->IsStatic() ? nullptr : soa.Decode<mirror::Object*>(obj);
-  MethodHelper mh(method);
+  uint32_t shorty_len = 0;
+  const char* shorty = method->GetShorty(&shorty_len);
   JValue result;
-  ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
+  ArgArray arg_array(shorty, shorty_len);
   arg_array.BuildArgArrayFromVarArgs(soa, receiver, args);
-  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty());
+  InvokeWithArgArray(soa, method, &arg_array, &result, shorty);
   return result;
 }
 
 JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, mirror::Object* receiver,
                          jmethodID mid, jvalue* args) {
   mirror::ArtMethod* method = soa.DecodeMethod(mid);
-  MethodHelper mh(method);
+  uint32_t shorty_len = 0;
+  const char* shorty = method->GetShorty(&shorty_len);
   JValue result;
-  ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
+  ArgArray arg_array(shorty, shorty_len);
   arg_array.BuildArgArrayFromJValues(soa, receiver, args);
-  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty());
+  InvokeWithArgArray(soa, method, &arg_array, &result, shorty);
   return result;
 }
 
 JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccessAlreadyRunnable& soa,
                                            mirror::Object* receiver, jmethodID mid, jvalue* args) {
   mirror::ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
-  MethodHelper mh(method);
+  uint32_t shorty_len = 0;
+  const char* shorty = method->GetShorty(&shorty_len);
   JValue result;
-  ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
+  ArgArray arg_array(shorty, shorty_len);
   arg_array.BuildArgArrayFromJValues(soa, receiver, args);
-  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty());
+  InvokeWithArgArray(soa, method, &arg_array, &result, shorty);
   return result;
 }
 
@@ -448,11 +458,12 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnab
                                            jobject obj, jmethodID mid, va_list args) {
   mirror::Object* receiver = soa.Decode<mirror::Object*>(obj);
   mirror::ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
-  MethodHelper mh(method);
+  uint32_t shorty_len = 0;
+  const char* shorty = method->GetShorty(&shorty_len);
   JValue result;
-  ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
+  ArgArray arg_array(shorty, shorty_len);
   arg_array.BuildArgArrayFromVarArgs(soa, receiver, args);
-  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty());
+  InvokeWithArgArray(soa, method, &arg_array, &result, shorty);
   return result;
 }
 
@@ -493,8 +504,7 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   // Get our arrays of arguments and their types, and check they're the same size.
   mirror::ObjectArray<mirror::Object>* objects =
       soa.Decode<mirror::ObjectArray<mirror::Object>*>(javaArgs);
-  MethodHelper mh(m);
-  const DexFile::TypeList* classes = mh.GetParameterTypeList();
+  const DexFile::TypeList* classes = m->GetParameterTypeList();
   uint32_t classes_size = (classes == nullptr) ? 0 : classes->Size();
   uint32_t arg_count = (objects != nullptr) ? objects->GetLength() : 0;
   if (arg_count != classes_size) {
@@ -513,13 +523,17 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
 
   // Invoke the method.
   JValue result;
-  ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
+  uint32_t shorty_len = 0;
+  const char* shorty = m->GetShorty(&shorty_len);
+  ArgArray arg_array(shorty, shorty_len);
+  StackHandleScope<1> hs(soa.Self());
+  MethodHelper mh(hs.NewHandle(m));
   if (!arg_array.BuildArgArrayFromObjectArray(soa, receiver, objects, mh)) {
     CHECK(soa.Self()->IsExceptionPending());
     return nullptr;
   }
 
-  InvokeWithArgArray(soa, m, &arg_array, &result, mh.GetShorty());
+  InvokeWithArgArray(soa, m, &arg_array, &result, shorty);
 
   // Wrap any exception with "Ljava/lang/reflect/InvocationTargetException;" and return early.
   if (soa.Self()->IsExceptionPending()) {

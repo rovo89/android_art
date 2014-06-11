@@ -129,7 +129,7 @@ static bool ShouldTrace(JavaVMExt* vm, mirror::ArtMethod* method)
   // such as NewByteArray.
   // If -verbose:third-party-jni is on, we want to log any JNI function calls
   // made by a third-party native method.
-  std::string class_name(MethodHelper(method).GetDeclaringClassDescriptor());
+  std::string class_name(method->GetDeclaringClassDescriptor());
   if (!vm->trace.empty() && class_name.find(vm->trace) != std::string::npos) {
     return true;
   }
@@ -284,7 +284,7 @@ class ScopedCheck {
     if (m == nullptr) {
       return;
     }
-    if (*expectedType != MethodHelper(m).GetShorty()[0]) {
+    if (*expectedType != m->GetShorty()[0]) {
       JniAbortF(function_name_, "the return type of %s does not match %s",
                 function_name_, PrettyMethod(m).c_str());
     }

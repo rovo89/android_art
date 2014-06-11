@@ -499,11 +499,11 @@ class ClassLinker {
   bool LoadSuperAndInterfaces(Handle<mirror::Class> klass, const DexFile& dex_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool LinkMethods(Handle<mirror::Class> klass,
+  bool LinkMethods(Thread* self, Handle<mirror::Class> klass,
                    Handle<mirror::ObjectArray<mirror::Class>> interfaces)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool LinkVirtualMethods(Handle<mirror::Class> klass)
+  bool LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkInterfaceMethods(Handle<mirror::Class> klass,

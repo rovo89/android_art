@@ -604,10 +604,15 @@ static inline uint32_t FindNextInstructionFollowingException(Thread* self,
   ThrowLocation throw_location;
   mirror::Throwable* exception = self->GetException(&throw_location);
   bool clear_exception = false;
-  StackHandleScope<3> hs(self);
-  Handle<mirror::Class> exception_class(hs.NewHandle(exception->GetClass()));
-  uint32_t found_dex_pc = shadow_frame.GetMethod()->FindCatchBlock(exception_class, dex_pc,
-                                                                   &clear_exception);
+  uint32_t found_dex_pc;
+  {
+    StackHandleScope<3> hs(self);
+    Handle<mirror::Class> exception_class(hs.NewHandle(exception->GetClass()));
+    Handle<mirror::ArtMethod> h_method(hs.NewHandle(shadow_frame.GetMethod()));
+    HandleWrapper<mirror::Object> h(hs.NewHandleWrapper(&this_object));
+    found_dex_pc = mirror::ArtMethod::FindCatchBlock(h_method, exception_class, dex_pc,
+                                                     &clear_exception);
+  }
   if (found_dex_pc == DexFile::kDexNoIndex) {
     instrumentation->MethodUnwindEvent(self, this_object,
                                        shadow_frame.GetMethod(), dex_pc);
@@ -627,7 +632,7 @@ static inline void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh)
   SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 static inline void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh) {
-  LOG(FATAL) << "Unexpected instruction: " << inst->DumpString(&mh.GetDexFile());
+  LOG(FATAL) << "Unexpected instruction: " << inst->DumpString(mh.GetMethod()->GetDexFile());
   exit(0);  // Unreachable, keep GCC happy.
 }
 
@@ -640,7 +645,7 @@ static inline void TraceExecution(const ShadowFrame& shadow_frame, const Instruc
     std::ostringstream oss;
     oss << PrettyMethod(shadow_frame.GetMethod())
         << StringPrintf("\n0x%x: ", dex_pc)
-        << inst->DumpString(&mh.GetDexFile()) << "\n";
+        << inst->DumpString(mh.GetMethod()->GetDexFile()) << "\n";
     for (uint32_t i = 0; i < shadow_frame.NumberOfVRegs(); ++i) {
       uint32_t raw_value = shadow_frame.GetVReg(i);
       Object* ref_value = shadow_frame.GetVRegReference(i);

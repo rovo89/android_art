@@ -363,7 +363,7 @@ void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_locatio
 }
 
 void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
-  const DexFile::CodeItem* code = MethodHelper(throw_location.GetMethod()).GetCodeItem();
+  const DexFile::CodeItem* code = throw_location.GetMethod()->GetCodeItem();
   uint32_t throw_dex_pc = throw_location.GetDexPc();
   CHECK_LT(throw_dex_pc, code->insns_size_in_code_units_);
   const Instruction* instr = Instruction::At(&code->insns_[throw_dex_pc]);

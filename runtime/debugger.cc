@@ -70,7 +70,7 @@ struct AllocRecordStackTraceElement {
   }
 
   int32_t LineNumber() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return MethodHelper(method).GetLineNumFromDexPC(dex_pc);
+    return method->GetLineNumFromDexPC(dex_pc);
   }
 };
 
@@ -1373,7 +1373,7 @@ static void SetLocation(JDWP::JdwpLocation& location, mirror::ArtMethod* m, uint
 std::string Dbg::GetMethodName(JDWP::MethodId method_id)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtMethod* m = FromMethodId(method_id);
-  return MethodHelper(m).GetName();
+  return m->GetName();
 }
 
 std::string Dbg::GetFieldName(JDWP::FieldId field_id)
@@ -1401,7 +1401,7 @@ static uint32_t MangleAccessFlags(uint32_t accessFlags) {
  */
 static uint16_t MangleSlot(uint16_t slot, mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+  const DexFile::CodeItem* code_item = m->GetCodeItem();
   if (code_item == nullptr) {
     // We should not get here for a method without code (native, proxy or abstract). Log it and
     // return the slot as is since all registers are arguments.
@@ -1423,7 +1423,7 @@ static uint16_t MangleSlot(uint16_t slot, mirror::ArtMethod* m)
  */
 static uint16_t DemangleSlot(uint16_t slot, mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+  const DexFile::CodeItem* code_item = m->GetCodeItem();
   if (code_item == nullptr) {
     // We should not get here for a method without code (native, proxy or abstract). Log it and
     // return the slot as is since all registers are arguments.
@@ -1480,10 +1480,9 @@ JDWP::JdwpError Dbg::OutputDeclaredMethods(JDWP::RefTypeId class_id, bool with_g
 
   for (size_t i = 0; i < direct_method_count + virtual_method_count; ++i) {
     mirror::ArtMethod* m = (i < direct_method_count) ? c->GetDirectMethod(i) : c->GetVirtualMethod(i - direct_method_count);
-    MethodHelper mh(m);
     expandBufAddMethodId(pReply, ToMethodId(m));
-    expandBufAddUtf8String(pReply, mh.GetName());
-    expandBufAddUtf8String(pReply, mh.GetSignature().ToString());
+    expandBufAddUtf8String(pReply, m->GetName());
+    expandBufAddUtf8String(pReply, m->GetSignature().ToString());
     if (with_generic) {
       static const char genericSignature[1] = "";
       expandBufAddUtf8String(pReply, genericSignature);
@@ -1525,8 +1524,7 @@ void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId method_id, JDWP::Expan
     }
   };
   mirror::ArtMethod* m = FromMethodId(method_id);
-  MethodHelper mh(m);
-  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  const DexFile::CodeItem* code_item = m->GetCodeItem();
   uint64_t start, end;
   if (code_item == nullptr) {
     DCHECK(m->IsNative() || m->IsProxyMethod());
@@ -1550,25 +1548,30 @@ void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId method_id, JDWP::Expan
   context.pReply = pReply;
 
   if (code_item != nullptr) {
-    mh.GetDexFile().DecodeDebugInfo(code_item, m->IsStatic(), m->GetDexMethodIndex(),
-                                    DebugCallbackContext::Callback, NULL, &context);
+    m->GetDexFile()->DecodeDebugInfo(code_item, m->IsStatic(), m->GetDexMethodIndex(),
+                                     DebugCallbackContext::Callback, NULL, &context);
   }
 
   JDWP::Set4BE(expandBufGetBuffer(pReply) + numLinesOffset, context.numItems);
 }
 
-void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool with_generic, JDWP::ExpandBuf* pReply) {
+void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool with_generic,
+                              JDWP::ExpandBuf* pReply) {
   struct DebugCallbackContext {
     mirror::ArtMethod* method;
     JDWP::ExpandBuf* pReply;
     size_t variable_count;
     bool with_generic;
 
-    static void Callback(void* context, uint16_t slot, uint32_t startAddress, uint32_t endAddress, const char* name, const char* descriptor, const char* signature)
+    static void Callback(void* context, uint16_t slot, uint32_t startAddress, uint32_t endAddress,
+                         const char* name, const char* descriptor, const char* signature)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       DebugCallbackContext* pContext = reinterpret_cast<DebugCallbackContext*>(context);
 
-      VLOG(jdwp) << StringPrintf("    %2zd: %d(%d) '%s' '%s' '%s' actual slot=%d mangled slot=%d", pContext->variable_count, startAddress, endAddress - startAddress, name, descriptor, signature, slot, MangleSlot(slot, pContext->method));
+      VLOG(jdwp) << StringPrintf("    %2zd: %d(%d) '%s' '%s' '%s' actual slot=%d mangled slot=%d",
+                                 pContext->variable_count, startAddress, endAddress - startAddress,
+                                 name, descriptor, signature, slot,
+                                 MangleSlot(slot, pContext->method));
 
       slot = MangleSlot(slot, pContext->method);
 
@@ -1585,11 +1588,10 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool wi
     }
   };
   mirror::ArtMethod* m = FromMethodId(method_id);
-  MethodHelper mh(m);
 
   // arg_count considers doubles and longs to take 2 units.
   // variable_count considers everything to take 1 unit.
-  std::string shorty(mh.GetShorty());
+  std::string shorty(m->GetShorty());
   expandBufAdd4BE(pReply, mirror::ArtMethod::NumArgRegisters(shorty));
 
   // We don't know the total number of variables yet, so leave a blank and update it later.
@@ -1602,10 +1604,11 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool wi
   context.variable_count = 0;
   context.with_generic = with_generic;
 
-  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  const DexFile::CodeItem* code_item = m->GetCodeItem();
   if (code_item != nullptr) {
-    mh.GetDexFile().DecodeDebugInfo(code_item, m->IsStatic(), m->GetDexMethodIndex(), NULL,
-                                    DebugCallbackContext::Callback, &context);
+    m->GetDexFile()->DecodeDebugInfo(
+        code_item, m->IsStatic(), m->GetDexMethodIndex(), NULL, DebugCallbackContext::Callback,
+        &context);
   }
 
   JDWP::Set4BE(expandBufGetBuffer(pReply) + variable_count_offset, context.variable_count);
@@ -1614,7 +1617,7 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool wi
 void Dbg::OutputMethodReturnValue(JDWP::MethodId method_id, const JValue* return_value,
                                   JDWP::ExpandBuf* pReply) {
   mirror::ArtMethod* m = FromMethodId(method_id);
-  JDWP::JdwpTag tag = BasicTagFromDescriptor(MethodHelper(m).GetShorty());
+  JDWP::JdwpTag tag = BasicTagFromDescriptor(m->GetShorty());
   OutputJValue(tag, return_value, pReply);
 }
 
@@ -1632,8 +1635,7 @@ JDWP::JdwpError Dbg::GetBytecodes(JDWP::RefTypeId, JDWP::MethodId method_id,
   if (m == NULL) {
     return JDWP::ERR_INVALID_METHODID;
   }
-  MethodHelper mh(m);
-  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  const DexFile::CodeItem* code_item = m->GetCodeItem();
   size_t byte_count = code_item->insns_size_in_code_units_ * 2;
   const uint8_t* begin = reinterpret_cast<const uint8_t*>(code_item->insns_);
   const uint8_t* end = begin + byte_count;
@@ -2875,18 +2877,18 @@ void Dbg::ManageDeoptimization() {
 
 static bool IsMethodPossiblyInlined(Thread* self, mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  MethodHelper mh(m);
-  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  const DexFile::CodeItem* code_item = m->GetCodeItem();
   if (code_item == nullptr) {
     // TODO We should not be asked to watch location in a native or abstract method so the code item
     // should never be null. We could just check we never encounter this case.
     return false;
   }
   StackHandleScope<2> hs(self);
-  Handle<mirror::DexCache> dex_cache(hs.NewHandle(mh.GetDexCache()));
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(mh.GetClassLoader()));
-  verifier::MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader,
-                                    &mh.GetClassDef(), code_item, m->GetDexMethodIndex(), m,
+  mirror::Class* declaring_class = m->GetDeclaringClass();
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
+  verifier::MethodVerifier verifier(dex_cache->GetDexFile(), &dex_cache, &class_loader,
+                                    &m->GetClassDef(), code_item, m->GetDexMethodIndex(), m,
                                     m->GetAccessFlags(), false, true, false);
   // Note: we don't need to verify the method.
   return InlineMethodAnalyser::AnalyseMethodCode(&verifier, nullptr);
@@ -3156,11 +3158,10 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
   single_step_control->dex_pcs.clear();
   mirror::ArtMethod* m = single_step_control->method;
   if (!m->IsNative()) {
-    MethodHelper mh(m);
-    const DexFile::CodeItem* const code_item = mh.GetCodeItem();
+    const DexFile::CodeItem* const code_item = m->GetCodeItem();
     DebugCallbackContext context(single_step_control, line_number, code_item);
-    mh.GetDexFile().DecodeDebugInfo(code_item, m->IsStatic(), m->GetDexMethodIndex(),
-                                    DebugCallbackContext::Callback, NULL, &context);
+    m->GetDexFile()->DecodeDebugInfo(code_item, m->IsStatic(), m->GetDexMethodIndex(),
+                                     DebugCallbackContext::Callback, NULL, &context);
   }
 
   //
@@ -3308,32 +3309,41 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
     }
 
     // Check the argument list matches the method.
-    MethodHelper mh(m);
-    if (mh.GetShortyLength() - 1 != arg_count) {
+    uint32_t shorty_len = 0;
+    const char* shorty = m->GetShorty(&shorty_len);
+    if (shorty_len - 1 != arg_count) {
       return JDWP::ERR_ILLEGAL_ARGUMENT;
     }
-    const char* shorty = mh.GetShorty();
-    const DexFile::TypeList* types = mh.GetParameterTypeList();
-    for (size_t i = 0; i < arg_count; ++i) {
-      if (shorty[i + 1] != JdwpTagToShortyChar(arg_types[i])) {
-        return JDWP::ERR_ILLEGAL_ARGUMENT;
-      }
 
-      if (shorty[i + 1] == 'L') {
-        // Did we really get an argument of an appropriate reference type?
-        mirror::Class* parameter_type = mh.GetClassFromTypeIdx(types->GetTypeItem(i).type_idx_);
-        mirror::Object* argument = gRegistry->Get<mirror::Object*>(arg_values[i]);
-        if (argument == ObjectRegistry::kInvalidObject) {
-          return JDWP::ERR_INVALID_OBJECT;
-        }
-        if (argument != NULL && !argument->InstanceOf(parameter_type)) {
+    {
+      StackHandleScope<3> hs(soa.Self());
+      MethodHelper mh(hs.NewHandle(m));
+      HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(&receiver));
+      HandleWrapper<mirror::Class> h_klass(hs.NewHandleWrapper(&c));
+      const DexFile::TypeList* types = m->GetParameterTypeList();
+      for (size_t i = 0; i < arg_count; ++i) {
+        if (shorty[i + 1] != JdwpTagToShortyChar(arg_types[i])) {
           return JDWP::ERR_ILLEGAL_ARGUMENT;
         }
 
-        // Turn the on-the-wire ObjectId into a jobject.
-        jvalue& v = reinterpret_cast<jvalue&>(arg_values[i]);
-        v.l = gRegistry->GetJObject(arg_values[i]);
+        if (shorty[i + 1] == 'L') {
+          // Did we really get an argument of an appropriate reference type?
+          mirror::Class* parameter_type = mh.GetClassFromTypeIdx(types->GetTypeItem(i).type_idx_);
+          mirror::Object* argument = gRegistry->Get<mirror::Object*>(arg_values[i]);
+          if (argument == ObjectRegistry::kInvalidObject) {
+            return JDWP::ERR_INVALID_OBJECT;
+          }
+          if (argument != NULL && !argument->InstanceOf(parameter_type)) {
+            return JDWP::ERR_ILLEGAL_ARGUMENT;
+          }
+
+          // Turn the on-the-wire ObjectId into a jobject.
+          jvalue& v = reinterpret_cast<jvalue&>(arg_values[i]);
+          v.l = gRegistry->GetJObject(arg_values[i]);
+        }
       }
+      // Update in case it moved.
+      m = mh.GetMethod();
     }
 
     req->receiver = receiver;
@@ -3452,7 +3462,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   mirror::Throwable* exception = soa.Self()->GetException(NULL);
   soa.Self()->ClearException();
   pReq->exception = gRegistry->Add(exception);
-  pReq->result_tag = BasicTagFromDescriptor(MethodHelper(m.Get()).GetShorty());
+  pReq->result_tag = BasicTagFromDescriptor(m.Get()->GetShorty());
   if (pReq->exception != 0) {
     VLOG(jdwp) << "  JDWP invocation returning with exception=" << exception
         << " " << exception->Dump();
@@ -4296,10 +4306,10 @@ class StringTable {
   DISALLOW_COPY_AND_ASSIGN(StringTable);
 };
 
-static const char* GetMethodSourceFile(MethodHelper* mh)
+static const char* GetMethodSourceFile(mirror::ArtMethod* method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  DCHECK(mh != nullptr);
-  const char* source_file = mh->GetDeclaringClassSourceFile();
+  DCHECK(method != nullptr);
+  const char* source_file = method->GetDeclaringClassSourceFile();
   return (source_file != nullptr) ? source_file : "";
 }
 
@@ -4368,14 +4378,12 @@ jbyteArray Dbg::GetRecentAllocations() {
 
       class_names.Add(record->type->GetDescriptor().c_str());
 
-      MethodHelper mh;
       for (size_t i = 0; i < kMaxAllocRecordStackDepth; i++) {
         mirror::ArtMethod* m = record->stack[i].method;
         if (m != NULL) {
-          mh.ChangeMethod(m);
-          class_names.Add(mh.GetDeclaringClassDescriptor());
-          method_names.Add(mh.GetName());
-          filenames.Add(GetMethodSourceFile(&mh));
+          class_names.Add(m->GetDeclaringClassDescriptor());
+          method_names.Add(m->GetName());
+          filenames.Add(GetMethodSourceFile(m));
         }
       }
 
@@ -4427,17 +4435,16 @@ jbyteArray Dbg::GetRecentAllocations() {
       JDWP::Append2BE(bytes, allocated_object_class_name_index);
       JDWP::Append1BE(bytes, stack_depth);
 
-      MethodHelper mh;
       for (size_t stack_frame = 0; stack_frame < stack_depth; ++stack_frame) {
         // For each stack frame:
         // (2b) method's class name
         // (2b) method name
         // (2b) method source file
         // (2b) line number, clipped to 32767; -2 if native; -1 if no source
-        mh.ChangeMethod(record->stack[stack_frame].method);
-        size_t class_name_index = class_names.IndexOf(mh.GetDeclaringClassDescriptor());
-        size_t method_name_index = method_names.IndexOf(mh.GetName());
-        size_t file_name_index = filenames.IndexOf(GetMethodSourceFile(&mh));
+        mirror::ArtMethod* m = record->stack[stack_frame].method;
+        size_t class_name_index = class_names.IndexOf(m->GetDeclaringClassDescriptor());
+        size_t method_name_index = method_names.IndexOf(m->GetName());
+        size_t file_name_index = filenames.IndexOf(GetMethodSourceFile(m));
         JDWP::Append2BE(bytes, class_name_index);
         JDWP::Append2BE(bytes, method_name_index);
         JDWP::Append2BE(bytes, file_name_index);
