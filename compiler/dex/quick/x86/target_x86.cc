@@ -530,8 +530,8 @@ bool X86Mir2Lir::ProvidesFullMemoryBarrier(X86OpCode opcode) {
     switch (opcode) {
       case kX86LockCmpxchgMR:
       case kX86LockCmpxchgAR:
-      case kX86LockCmpxchg8bM:
-      case kX86LockCmpxchg8bA:
+      case kX86LockCmpxchg64M:
+      case kX86LockCmpxchg64A:
       case kX86XchgMR:
       case kX86Mfence:
         // Atomic memory instructions provide full barrier.

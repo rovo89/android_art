@@ -810,7 +810,7 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
                    : (IsInReg(this, rl_src_offset, rs_rDI) ? 4
                    : (SRegOffset(rl_src_offset.s_reg_low) + push_offset));
     LoadWordDisp(TargetReg(kSp), srcOffsetSp, rs_rSI);
-    NewLIR4(kX86LockCmpxchg8bA, rs_rDI.GetReg(), rs_rSI.GetReg(), 0, 0);
+    NewLIR4(kX86LockCmpxchg64A, rs_rDI.GetReg(), rs_rSI.GetReg(), 0, 0);
 
     // After a store we need to insert barrier in case of potential load. Since the
     // locked cmpxchg has full barrier semantics, only a scheduling barrier will be generated.
@@ -853,8 +853,18 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   // Convert ZF to boolean
   RegLocation rl_dest = InlineTarget(info);  // boolean place for result
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  NewLIR2(kX86Set8R, rl_result.reg.GetReg(), kX86CondZ);
-  NewLIR2(kX86Movzx8RR, rl_result.reg.GetReg(), rl_result.reg.GetReg());
+  RegStorage result_reg = rl_result.reg;
+
+  // SETcc only works with EAX..EDX.
+  if (result_reg.GetRegNum() >= rs_rX86_SP.GetRegNum()) {
+    result_reg = AllocateByteRegister();
+    DCHECK_LT(result_reg.GetRegNum(), rs_rX86_SP.GetRegNum());
+  }
+  NewLIR2(kX86Set8R, result_reg.GetReg(), kX86CondZ);
+  NewLIR2(kX86Movzx8RR, rl_result.reg.GetReg(), result_reg.GetReg());
+  if (IsTemp(result_reg)) {
+    FreeTemp(result_reg);
+  }
   StoreValue(rl_dest, rl_result);
   return true;
 }
