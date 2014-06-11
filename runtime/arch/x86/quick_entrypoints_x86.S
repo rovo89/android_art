@@ -1218,10 +1218,10 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     jnz .Lexception_in_native
 
     // Tear down the callee-save frame.
-    addl MACRO_LITERAL(4), %esp     // Remove padding
+    addl LITERAL(4), %esp     // Remove padding
     CFI_ADJUST_CFA_OFFSET(-4)
     POP ecx
-    addl MACRO_LITERAL(4), %esp     // Avoid edx, as it may be part of the result.
+    addl LITERAL(4), %esp     // Avoid edx, as it may be part of the result.
     CFI_ADJUST_CFA_OFFSET(-4)
     POP ebx
     POP ebp  // Restore callee saves
