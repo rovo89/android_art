@@ -120,7 +120,8 @@ bool DexFileVerifier::CheckPointerRange(const void* start, const void* end, cons
   if (UNLIKELY((range_start < file_start) || (range_start > file_end) ||
                (range_end < file_start) || (range_end > file_end))) {
     ErrorStringPrintf("Bad range for %s: %zx to %zx", label,
-                      range_start - file_start, range_end - file_start);
+                      static_cast<size_t>(range_start - file_start),
+                      static_cast<size_t>(range_end - file_start));
     return false;
   }
   return true;
