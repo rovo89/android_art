@@ -139,7 +139,7 @@ void Arena::Reset() {
     if (kUseMemSet || !kUseMemMap) {
       memset(Begin(), 0, bytes_allocated_);
     } else {
-      madvise(Begin(), bytes_allocated_, MADV_DONTNEED);
+      map_->MadviseDontNeedAndZero();
     }
     bytes_allocated_ = 0;
   }

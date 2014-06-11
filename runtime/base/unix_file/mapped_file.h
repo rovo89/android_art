@@ -32,8 +32,13 @@ class MappedFile : public FdFile {
  public:
   // File modes used in Open().
   enum FileMode {
+#ifdef __linux__
     kReadOnlyMode = O_RDONLY | O_LARGEFILE,
     kReadWriteMode = O_CREAT | O_RDWR | O_LARGEFILE,
+#else
+    kReadOnlyMode = O_RDONLY,
+    kReadWriteMode = O_CREAT | O_RDWR,
+#endif
   };
 
   MappedFile() : FdFile(), file_size_(-1), mapped_file_(NULL) {

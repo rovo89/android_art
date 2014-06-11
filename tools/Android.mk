@@ -16,7 +16,6 @@
 
 LOCAL_PATH := $(call my-dir)
 
-ifeq ($(WITH_HOST_DALVIK),true)
 # Copy the art shell script to the host's bin directory
 include $(CLEAR_VARS)
 LOCAL_IS_HOST_MODULE := true
@@ -28,5 +27,3 @@ $(LOCAL_BUILT_MODULE): $(LOCAL_PATH)/art $(ACP)
 	@echo "Copy: $(PRIVATE_MODULE) ($@)"
 	$(copy-file-to-new-target)
 	$(hide) chmod 755 $@
-
-endif

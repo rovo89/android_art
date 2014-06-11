@@ -250,11 +250,9 @@ ifeq ($(ART_BUILD_TARGET),true)
   $(foreach file,$(RUNTIME_GTEST_TARGET_SRC_FILES), $(eval $(call build-art-test,target,$(file),,)))
   $(foreach file,$(COMPILER_GTEST_TARGET_SRC_FILES), $(eval $(call build-art-test,target,$(file),art/compiler,libartd-compiler)))
 endif
-ifeq ($(WITH_HOST_DALVIK),true)
-  ifeq ($(ART_BUILD_HOST),true)
-    $(foreach file,$(RUNTIME_GTEST_HOST_SRC_FILES), $(eval $(call build-art-test,host,$(file),,)))
-    $(foreach file,$(COMPILER_GTEST_HOST_SRC_FILES), $(eval $(call build-art-test,host,$(file),art/compiler,libartd-compiler)))
-  endif
+ifeq ($(ART_BUILD_HOST),true)
+  $(foreach file,$(RUNTIME_GTEST_HOST_SRC_FILES), $(eval $(call build-art-test,host,$(file),,)))
+  $(foreach file,$(COMPILER_GTEST_HOST_SRC_FILES), $(eval $(call build-art-test,host,$(file),art/compiler,libartd-compiler)))
 endif
 
 # Used outside the art project to get a list of the current tests

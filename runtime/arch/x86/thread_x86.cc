@@ -156,7 +156,11 @@ void Thread::CleanupCpu() {
 
   // Free LDT entry.
 #if defined(__APPLE__)
-  i386_set_ldt(selector >> 3, 0, 1);
+  // TODO: release selectors on OS/X this is a leak which will cause ldt entries to be exhausted
+  // after enough threads are created. However, the following code results in kernel panics in OS/X
+  // 10.9.
+  UNUSED(selector);
+  // i386_set_ldt(selector >> 3, 0, 1);
 #else
   user_desc ldt_entry;
   memset(&ldt_entry, 0, sizeof(ldt_entry));

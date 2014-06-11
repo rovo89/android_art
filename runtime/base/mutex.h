@@ -245,6 +245,7 @@ class LOCKABLE Mutex : public BaseMutex {
   AtomicInteger num_contenders_;
 #else
   pthread_mutex_t mutex_;
+  volatile uint64_t exclusive_owner_;  // Guarded by mutex_.
 #endif
   const bool recursive_;  // Can the lock be recursively held?
   unsigned int recursion_count_;
@@ -358,6 +359,7 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
   AtomicInteger num_pending_writers_;
 #else
   pthread_rwlock_t rwlock_;
+  volatile uint64_t exclusive_owner_;  // Guarded by rwlock_.
 #endif
   DISALLOW_COPY_AND_ASSIGN(ReaderWriterMutex);
 };
