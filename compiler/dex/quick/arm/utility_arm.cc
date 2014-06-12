@@ -819,6 +819,30 @@ LIR* ArmMir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStor
   return store;
 }
 
+// Helper function for LoadBaseDispBody()/StoreBaseDispBody().
+LIR* ArmMir2Lir::LoadStoreMaxDisp1020(ArmOpcode opcode, RegStorage r_base, int displacement,
+                                      RegStorage r_src_dest, RegStorage r_work) {
+  DCHECK_EQ(displacement & 3, 0);
+  int encoded_disp = (displacement & 1020) >> 2;  // Within range of the instruction.
+  RegStorage r_ptr = r_base;
+  if ((displacement & ~1020) != 0) {
+    r_ptr = r_work.Valid() ? r_work : AllocTemp();
+    // Add displacement & ~1020 to base, it's a single instruction for up to +-256KiB.
+    OpRegRegImm(kOpAdd, r_ptr, r_base, displacement & ~1020);
+  }
+  LIR* lir = nullptr;
+  if (!r_src_dest.IsPair()) {
+    lir = NewLIR3(opcode, r_src_dest.GetReg(), r_ptr.GetReg(), encoded_disp);
+  } else {
+    lir = NewLIR4(opcode, r_src_dest.GetLowReg(), r_src_dest.GetHighReg(), r_ptr.GetReg(),
+                  encoded_disp);
+  }
+  if ((displacement & ~1020) != 0 && !r_work.Valid()) {
+    FreeTemp(r_ptr);
+  }
+  return lir;
+}
+
 /*
  * Load value from base + displacement.  Optionally perform null check
  * on base (which must have an associated s_reg and MIR).  If not
@@ -836,40 +860,26 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
   switch (size) {
     case kDouble:
     // Intentional fall-though.
-    case k64: {
-      DCHECK_EQ(displacement & 3, 0);
-      encoded_disp = (displacement & 1020) >> 2;  // Within range of kThumb2Vldrd/kThumb2LdrdI8.
-      RegStorage r_ptr = r_base;
-      if ((displacement & ~1020) != 0) {
-        // For core register load, use the r_dest.GetLow() for the temporary pointer.
-        r_ptr = r_dest.IsFloat() ? AllocTemp() : r_dest.GetLow();
-        // Add displacement & ~1020 to base, it's a single instruction for up to +-256KiB.
-        OpRegRegImm(kOpAdd, r_ptr, r_base, displacement & ~1020);
-      }
+    case k64:
       if (r_dest.IsFloat()) {
         DCHECK(!r_dest.IsPair());
-        load = NewLIR3(kThumb2Vldrd, r_dest.GetReg(), r_ptr.GetReg(), encoded_disp);
+        load = LoadStoreMaxDisp1020(kThumb2Vldrd, r_base, displacement, r_dest);
       } else {
-        load = NewLIR4(kThumb2LdrdI8, r_dest.GetLowReg(), r_dest.GetHighReg(), r_ptr.GetReg(),
-                       encoded_disp);
-      }
-      if ((displacement & ~1020) != 0 && r_dest.IsFloat()) {
-        FreeTemp(r_ptr);
+        DCHECK(r_dest.IsPair());
+        // Use the r_dest.GetLow() for the temporary pointer if needed.
+        load = LoadStoreMaxDisp1020(kThumb2LdrdI8, r_base, displacement, r_dest, r_dest.GetLow());
       }
       already_generated = true;
       break;
-    }
     case kSingle:
     // Intentional fall-though.
     case k32:
     // Intentional fall-though.
     case kReference:
       if (r_dest.IsFloat()) {
-        opcode = kThumb2Vldrs;
-        if (displacement <= 1020) {
-          short_form = true;
-          encoded_disp >>= 2;
-        }
+        DCHECK(r_dest.IsSingle());
+        load = LoadStoreMaxDisp1020(kThumb2Vldrs, r_base, displacement, r_dest);
+        already_generated = true;
         break;
       }
       if (r_dest.Low8() && (r_base == rs_rARM_PC) && (displacement <= 1020) &&
@@ -934,13 +944,8 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
     } else {
       RegStorage reg_offset = AllocTemp();
       LoadConstant(reg_offset, encoded_disp);
-      if (r_dest.IsFloat()) {
-        // No index ops - must use a long sequence.  Turn the offset into a direct pointer.
-        OpRegReg(kOpAdd, reg_offset, r_base);
-        load = LoadBaseDispBody(reg_offset, 0, r_dest, size);
-      } else {
-        load = LoadBaseIndexed(r_base, reg_offset, r_dest, 0, size);
-      }
+      DCHECK(!r_dest.IsFloat());
+      load = LoadBaseIndexed(r_base, reg_offset, r_dest, 0, size);
       FreeTemp(reg_offset);
     }
   }
@@ -992,28 +997,16 @@ LIR* ArmMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStora
   switch (size) {
     case kDouble:
     // Intentional fall-though.
-    case k64: {
-      DCHECK_EQ(displacement & 3, 0);
-      encoded_disp = (displacement & 1020) >> 2;  // Within range of kThumb2Vstrd/kThumb2StrdI8.
-      RegStorage r_ptr = r_base;
-      if ((displacement & ~1020) != 0) {
-        r_ptr = AllocTemp();
-        // Add displacement & ~1020 to base, it's a single instruction for up to +-256KiB.
-        OpRegRegImm(kOpAdd, r_ptr, r_base, displacement & ~1020);
-      }
+    case k64:
       if (r_src.IsFloat()) {
         DCHECK(!r_src.IsPair());
-        store = NewLIR3(kThumb2Vstrd, r_src.GetReg(), r_ptr.GetReg(), encoded_disp);
+        store = LoadStoreMaxDisp1020(kThumb2Vstrd, r_base, displacement, r_src);
       } else {
-        store = NewLIR4(kThumb2StrdI8, r_src.GetLowReg(), r_src.GetHighReg(), r_ptr.GetReg(),
-                        encoded_disp);
-      }
-      if ((displacement & ~1020) != 0) {
-        FreeTemp(r_ptr);
+        DCHECK(r_src.IsPair());
+        store = LoadStoreMaxDisp1020(kThumb2StrdI8, r_base, displacement, r_src);
       }
       already_generated = true;
       break;
-    }
     case kSingle:
     // Intentional fall-through.
     case k32:
@@ -1021,11 +1014,8 @@ LIR* ArmMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStora
     case kReference:
       if (r_src.IsFloat()) {
         DCHECK(r_src.IsSingle());
-        opcode = kThumb2Vstrs;
-        if (displacement <= 1020) {
-          short_form = true;
-          encoded_disp >>= 2;
-        }
+        store = LoadStoreMaxDisp1020(kThumb2Vstrs, r_base, displacement, r_src);
+        already_generated = true;
         break;
       }
       if (r_src.Low8() && (r_base == rs_r13sp) && (displacement <= 1020) && (displacement >= 0)) {
@@ -1073,13 +1063,8 @@ LIR* ArmMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStora
     } else {
       RegStorage r_scratch = AllocTemp();
       LoadConstant(r_scratch, encoded_disp);
-      if (r_src.IsFloat()) {
-        // No index ops - must use a long sequence.  Turn the offset into a direct pointer.
-        OpRegReg(kOpAdd, r_scratch, r_base);
-        store = StoreBaseDispBody(r_scratch, 0, r_src, size);
-      } else {
-        store = StoreBaseIndexed(r_base, r_scratch, r_src, 0, size);
-      }
+      DCHECK(!r_src.IsFloat());
+      store = StoreBaseIndexed(r_base, r_scratch, r_src, 0, size);
       FreeTemp(r_scratch);
     }
   }
