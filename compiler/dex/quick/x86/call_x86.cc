@@ -175,7 +175,7 @@ void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
   }
   NewLIR2(kX86PcRelAdr, rs_rX86_ARG1.GetReg(), WrapPointer(tab_rec));
   NewLIR2(Gen64Bit() ? kX86Add64RR : kX86Add32RR, rs_rX86_ARG1.GetReg(), rs_rX86_ARG2.GetReg());
-  if (Is64BitInstructionSet(cu_->instruction_set)) {
+  if (cu_->target64) {
     CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pHandleFillArrayData), rs_rX86_ARG0,
                             rs_rX86_ARG1, true);
   } else {
@@ -185,7 +185,7 @@ void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
 }
 
 void X86Mir2Lir::GenMoveException(RegLocation rl_dest) {
-  int ex_offset = Is64BitInstructionSet(cu_->instruction_set) ?
+  int ex_offset = cu_->target64 ?
       Thread::ExceptionOffset<8>().Int32Value() :
       Thread::ExceptionOffset<4>().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
@@ -201,7 +201,7 @@ void X86Mir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
   RegStorage reg_card_base = AllocTemp();
   RegStorage reg_card_no = AllocTemp();
   LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
-  int ct_offset = Is64BitInstructionSet(cu_->instruction_set) ?
+  int ct_offset = cu_->target64 ?
       Thread::CardTableOffset<8>().Int32Value() :
       Thread::CardTableOffset<4>().Int32Value();
   if (Gen64Bit()) {
@@ -255,7 +255,7 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
         m2l_->OpRegImm(kOpAdd, rs_rX86_SP, sp_displace_);
         m2l_->ClobberCallerSave();
         // Assumes codegen and target are in thumb2 mode.
-        if (Is64BitInstructionSet(cu_->instruction_set)) {
+        if (cu_->target64) {
           m2l_->CallHelper(RegStorage::InvalidReg(), QUICK_ENTRYPOINT_OFFSET(8, pThrowStackOverflow),
                            false /* MarkSafepointPC */, false /* UseLink */);
         } else {
@@ -276,7 +276,7 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
     // in case a signal comes in that's not using an alternate signal stack and the large frame may
     // have moved us outside of the reserved area at the end of the stack.
     // cmp rs_rX86_SP, fs:[stack_end_]; jcc throw_slowpath
-    if (Is64BitInstructionSet(cu_->instruction_set)) {
+    if (cu_->target64) {
       OpRegThreadMem(kOpCmp, rs_rX86_SP, Thread::StackEndOffset<8>());
     } else {
       OpRegThreadMem(kOpCmp, rs_rX86_SP, Thread::StackEndOffset<4>());

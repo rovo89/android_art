@@ -551,8 +551,11 @@ LIR* Arm64Mir2Lir::OpTestSuspend(LIR* target) {
 
 // Decrement register and branch on condition
 LIR* Arm64Mir2Lir::OpDecAndBranch(ConditionCode c_code, RegStorage reg, LIR* target) {
-  // Combine sub & test using sub setflags encoding here
-  OpRegRegImm(kOpSub, reg, reg, 1);  // For value == 1, this should set flags.
+  // Combine sub & test using sub setflags encoding here.  We need to make sure a
+  // subtract form that sets carry is used, so generate explicitly.
+  // TODO: might be best to add a new op, kOpSubs, and handle it generically.
+  ArmOpcode opcode = reg.Is64Bit() ? WIDE(kA64Subs3rRd) : UNWIDE(kA64Subs3rRd);
+  NewLIR3(opcode, reg.GetReg(), reg.GetReg(), 1);  // For value == 1, this should set flags.
   DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
   return OpCondBranch(c_code, target);
 }
@@ -676,9 +679,6 @@ void Arm64Mir2Lir::GenXorLong(Instruction::Code opcode, RegLocation rl_dest, Reg
  */
 void Arm64Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_dest, int scale) {
-  // TODO(Arm64): check this.
-  UNIMPLEMENTED(WARNING);
-
   RegisterClass reg_class = RegClassBySize(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
@@ -720,7 +720,8 @@ void Arm64Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
     } else {
       // No special indexed operation, lea + load w/ displacement
       reg_ptr = AllocTempRef();
-      OpRegRegRegShift(kOpAdd, reg_ptr, rl_array.reg, rl_index.reg, EncodeShift(kA64Lsl, scale));
+      OpRegRegRegShift(kOpAdd, reg_ptr, rl_array.reg, As64BitReg(rl_index.reg),
+                       EncodeShift(kA64Lsl, scale));
       FreeTemp(rl_index.reg);
     }
     rl_result = EvalLoc(rl_dest, reg_class, true);
@@ -754,7 +755,7 @@ void Arm64Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       GenArrayBoundsCheck(rl_index.reg, reg_len);
       FreeTemp(reg_len);
     }
-    LoadBaseIndexed(reg_ptr, rl_index.reg, rl_result.reg, scale, size);
+    LoadBaseIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_result.reg, scale, size);
     MarkPossibleNullPointerException(opt_flags);
     FreeTemp(reg_ptr);
     StoreValue(rl_dest, rl_result);
@@ -767,9 +768,6 @@ void Arm64Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
  */
 void Arm64Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_src, int scale, bool card_mark) {
-  // TODO(Arm64): check this.
-  UNIMPLEMENTED(WARNING);
-
   RegisterClass reg_class = RegClassBySize(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   bool constant_index = rl_index.is_const;
@@ -825,7 +823,8 @@ void Arm64Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
       rl_src = LoadValue(rl_src, reg_class);
     }
     if (!constant_index) {
-      OpRegRegRegShift(kOpAdd, reg_ptr, rl_array.reg, rl_index.reg, EncodeShift(kA64Lsl, scale));
+      OpRegRegRegShift(kOpAdd, reg_ptr, rl_array.reg, As64BitReg(rl_index.reg),
+                       EncodeShift(kA64Lsl, scale));
     }
     if (needs_range_check) {
       if (constant_index) {
@@ -846,7 +845,7 @@ void Arm64Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
       GenArrayBoundsCheck(rl_index.reg, reg_len);
       FreeTemp(reg_len);
     }
-    StoreBaseIndexed(reg_ptr, rl_index.reg, rl_src.reg, scale, size);
+    StoreBaseIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_src.reg, scale, size);
     MarkPossibleNullPointerException(opt_flags);
   }
   if (allocated_reg_ptr_temp) {

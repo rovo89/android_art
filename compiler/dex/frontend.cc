@@ -165,7 +165,7 @@ int arm64_support_list[] = {
     Instruction::CONST_STRING,
     Instruction::MONITOR_ENTER,
     Instruction::MONITOR_EXIT,
-    Instruction::THROW,
+    // Instruction::THROW,
     Instruction::GOTO,
     Instruction::GOTO_16,
     Instruction::GOTO_32,
@@ -295,12 +295,12 @@ int arm64_support_list[] = {
     Instruction::SHL_LONG,
     Instruction::SHR_LONG,
     Instruction::USHR_LONG,
-    Instruction::REM_FLOAT,
+    // Instruction::REM_FLOAT,
     Instruction::ADD_DOUBLE,
     Instruction::SUB_DOUBLE,
     Instruction::MUL_DOUBLE,
     Instruction::DIV_DOUBLE,
-    Instruction::REM_DOUBLE,
+    // Instruction::REM_DOUBLE,
     Instruction::ADD_LONG_2ADDR,
     Instruction::SUB_LONG_2ADDR,
     Instruction::MUL_LONG_2ADDR,
@@ -312,12 +312,12 @@ int arm64_support_list[] = {
     Instruction::SHL_LONG_2ADDR,
     Instruction::SHR_LONG_2ADDR,
     Instruction::USHR_LONG_2ADDR,
-    Instruction::REM_FLOAT_2ADDR,
+    // Instruction::REM_FLOAT_2ADDR,
     Instruction::ADD_DOUBLE_2ADDR,
     Instruction::SUB_DOUBLE_2ADDR,
     Instruction::MUL_DOUBLE_2ADDR,
     Instruction::DIV_DOUBLE_2ADDR,
-    Instruction::REM_DOUBLE_2ADDR,
+    // Instruction::REM_DOUBLE_2ADDR,
     // TODO(Arm64): Enable compiler pass
     // ----- ExtendedMIROpcode -----
     kMirOpPhi,
@@ -336,54 +336,54 @@ int arm64_support_list[] = {
     kMirOpSelect,
 
 #if ARM64_USE_EXPERIMENTAL_OPCODES
-    // Instruction::MOVE_RESULT,
-    // Instruction::MOVE_RESULT_WIDE,
-    // Instruction::MOVE_RESULT_OBJECT,
-    // Instruction::CONST_STRING_JUMBO,
-    // Instruction::CONST_CLASS,
-    // Instruction::CHECK_CAST,
-    // Instruction::INSTANCE_OF,
-    // Instruction::ARRAY_LENGTH,
-    // Instruction::NEW_INSTANCE,
-    // Instruction::NEW_ARRAY,
-    // Instruction::FILLED_NEW_ARRAY,
-    // Instruction::FILLED_NEW_ARRAY_RANGE,
-    // Instruction::FILL_ARRAY_DATA,
+    Instruction::MOVE_RESULT,
+    Instruction::MOVE_RESULT_WIDE,
+    Instruction::MOVE_RESULT_OBJECT,
+    Instruction::CONST_STRING_JUMBO,
+    Instruction::CONST_CLASS,
+    Instruction::CHECK_CAST,
+    Instruction::INSTANCE_OF,
+    Instruction::ARRAY_LENGTH,
+    Instruction::NEW_INSTANCE,
+    Instruction::NEW_ARRAY,
+    Instruction::FILLED_NEW_ARRAY,
+    Instruction::FILLED_NEW_ARRAY_RANGE,
+    Instruction::FILL_ARRAY_DATA,
     // Instruction::UNUSED_3E,
     // Instruction::UNUSED_3F,
     // Instruction::UNUSED_40,
     // Instruction::UNUSED_41,
     // Instruction::UNUSED_42,
     // Instruction::UNUSED_43,
-    // Instruction::AGET,
-    // Instruction::AGET_WIDE,
-    // Instruction::AGET_OBJECT,
-    // Instruction::AGET_BOOLEAN,
-    // Instruction::AGET_BYTE,
-    // Instruction::AGET_CHAR,
-    // Instruction::AGET_SHORT,
-    // Instruction::APUT,
-    // Instruction::APUT_WIDE,
-    // Instruction::APUT_OBJECT,
-    // Instruction::APUT_BOOLEAN,
-    // Instruction::APUT_BYTE,
-    // Instruction::APUT_CHAR,
-    // Instruction::APUT_SHORT,
-    // Instruction::IPUT_WIDE,
-    // Instruction::IGET_WIDE,
-    // Instruction::SGET_WIDE,
-    // Instruction::SPUT_WIDE,
+    Instruction::AGET,
+    Instruction::AGET_WIDE,
+    Instruction::AGET_OBJECT,
+    Instruction::AGET_BOOLEAN,
+    Instruction::AGET_BYTE,
+    Instruction::AGET_CHAR,
+    Instruction::AGET_SHORT,
+    Instruction::APUT,
+    Instruction::APUT_WIDE,
+    Instruction::APUT_OBJECT,
+    Instruction::APUT_BOOLEAN,
+    Instruction::APUT_BYTE,
+    Instruction::APUT_CHAR,
+    Instruction::APUT_SHORT,
+    Instruction::IPUT_WIDE,
+    Instruction::IGET_WIDE,
+    Instruction::SGET_WIDE,
+    Instruction::SPUT_WIDE,
     Instruction::INVOKE_VIRTUAL,
     Instruction::INVOKE_SUPER,
     Instruction::INVOKE_DIRECT,
     Instruction::INVOKE_STATIC,
     Instruction::INVOKE_INTERFACE,
-    // Instruction::RETURN_VOID_BARRIER,
-    // Instruction::INVOKE_VIRTUAL_RANGE,
-    // Instruction::INVOKE_SUPER_RANGE,
-    // Instruction::INVOKE_DIRECT_RANGE,
-    // Instruction::INVOKE_STATIC_RANGE,
-    // Instruction::INVOKE_INTERFACE_RANGE,
+    Instruction::RETURN_VOID_BARRIER,
+    Instruction::INVOKE_VIRTUAL_RANGE,
+    Instruction::INVOKE_SUPER_RANGE,
+    Instruction::INVOKE_DIRECT_RANGE,
+    Instruction::INVOKE_STATIC_RANGE,
+    Instruction::INVOKE_INTERFACE_RANGE,
     // Instruction::UNUSED_79,
     // Instruction::UNUSED_7A,
     // Instruction::IGET_QUICK,
@@ -714,19 +714,9 @@ constexpr char x86_64_supported_types[] = "ZBSCILVJFD";
 static bool CanCompileShorty(const char* shorty, InstructionSet instruction_set) {
   uint32_t shorty_size = strlen(shorty);
   CHECK_GE(shorty_size, 1u);
-  // Set a limitation on maximum number of parameters.
-  // Note : there is an implied "method*" parameter, and probably "this" as well.
-  // 1 is for the return type. Currently, we only accept 2 parameters at the most.
-  // (x86_64): For now we have the same limitation. But we might want to split this
-  //           check in future into two separate cases for arm64 and x86_64.
-  if ((shorty_size > (1 + 2)) && (instruction_set != kX86_64)) {
-    return false;
-  }
 
-  const char* supported_types = arm64_supported_types;
-  if (instruction_set == kX86_64) {
-    supported_types = x86_64_supported_types;
-  }
+  const char* supported_types =
+      (instruction_set == kX86_64) ? x86_64_supported_types : arm64_supported_types;
   for (uint32_t i = 0; i < shorty_size; i++) {
     if (strchr(supported_types, shorty[i]) == nullptr) {
       return false;
@@ -791,9 +781,6 @@ static bool CanCompileMethod(uint32_t method_idx, const DexFile& dex_file,
         }
       }
     }
-
-    LOG(INFO) << "Using experimental instruction set A64 for "
-              << PrettyMethod(method_idx, dex_file);
   }
   return true;
 }
@@ -890,7 +877,6 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   } else if (cu.instruction_set == kArm64) {
     // TODO(Arm64): enable optimizations once backend is mature enough.
     cu.disable_opt = ~(uint32_t)0;
-    cu.enable_debug |= (1 << kDebugCodegenDump);
   }
 
   cu.StartTimingSplit("BuildMIRGraph");
@@ -928,7 +914,8 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
 
   cu.NewTimingSplit("MIROpt:CheckFilters");
   if (cu.mir_graph->SkipCompilation()) {
-    return NULL;
+    VLOG(compiler) << "Skipping method : " << PrettyMethod(method_idx, dex_file);
+    return nullptr;
   }
 
   /* Create the pass driver and launch it */
