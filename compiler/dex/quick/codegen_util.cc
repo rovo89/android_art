@@ -74,9 +74,9 @@ bool Mir2Lir::IsInexpensiveConstant(RegLocation rl_src) {
 
 void Mir2Lir::MarkSafepointPC(LIR* inst) {
   DCHECK(!inst->flags.use_def_invalid);
-  inst->u.m.def_mask = ENCODE_ALL;
+  inst->u.m.def_mask = &kEncodeAll;
   LIR* safepoint_pc = NewLIR0(kPseudoSafepointPC);
-  DCHECK_EQ(safepoint_pc->u.m.def_mask, ENCODE_ALL);
+  DCHECK(safepoint_pc->u.m.def_mask->Equals(kEncodeAll));
 }
 
 /* Remove a LIR from the list. */
@@ -108,37 +108,40 @@ void Mir2Lir::NopLIR(LIR* lir) {
 }
 
 void Mir2Lir::SetMemRefType(LIR* lir, bool is_load, int mem_type) {
-  uint64_t *mask_ptr;
-  uint64_t mask = ENCODE_MEM;
   DCHECK(GetTargetInstFlags(lir->opcode) & (IS_LOAD | IS_STORE));
   DCHECK(!lir->flags.use_def_invalid);
+  // TODO: Avoid the extra Arena allocation!
+  const ResourceMask** mask_ptr;
+  ResourceMask mask;
   if (is_load) {
     mask_ptr = &lir->u.m.use_mask;
   } else {
     mask_ptr = &lir->u.m.def_mask;
   }
+  mask = **mask_ptr;
   /* Clear out the memref flags */
-  *mask_ptr &= ~mask;
+  mask.ClearBits(kEncodeMem);
   /* ..and then add back the one we need */
   switch (mem_type) {
-    case kLiteral:
+    case ResourceMask::kLiteral:
       DCHECK(is_load);
-      *mask_ptr |= ENCODE_LITERAL;
+      mask.SetBit(ResourceMask::kLiteral);
       break;
-    case kDalvikReg:
-      *mask_ptr |= ENCODE_DALVIK_REG;
+    case ResourceMask::kDalvikReg:
+      mask.SetBit(ResourceMask::kDalvikReg);
       break;
-    case kHeapRef:
-      *mask_ptr |= ENCODE_HEAP_REF;
+    case ResourceMask::kHeapRef:
+      mask.SetBit(ResourceMask::kHeapRef);
       break;
-    case kMustNotAlias:
+    case ResourceMask::kMustNotAlias:
       /* Currently only loads can be marked as kMustNotAlias */
       DCHECK(!(GetTargetInstFlags(lir->opcode) & IS_STORE));
-      *mask_ptr |= ENCODE_MUST_NOT_ALIAS;
+      mask.SetBit(ResourceMask::kMustNotAlias);
       break;
     default:
       LOG(FATAL) << "Oat: invalid memref kind - " << mem_type;
   }
+  *mask_ptr = mask_cache_.GetMask(mask);
 }
 
 /*
@@ -146,7 +149,8 @@ void Mir2Lir::SetMemRefType(LIR* lir, bool is_load, int mem_type) {
  */
 void Mir2Lir::AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load,
                                       bool is64bit) {
-  SetMemRefType(lir, is_load, kDalvikReg);
+  DCHECK((is_load ? lir->u.m.use_mask : lir->u.m.def_mask)->Intersection(kEncodeMem).Equals(
+      kEncodeDalvikReg));
 
   /*
    * Store the Dalvik register id in alias_info. Mark the MSB if it is a 64-bit
@@ -241,10 +245,10 @@ void Mir2Lir::DumpLIRInsn(LIR* lir, unsigned char* base_addr) {
   }
 
   if (lir->u.m.use_mask && (!lir->flags.is_nop || dump_nop)) {
-    DUMP_RESOURCE_MASK(DumpResourceMask(lir, lir->u.m.use_mask, "use"));
+    DUMP_RESOURCE_MASK(DumpResourceMask(lir, *lir->u.m.use_mask, "use"));
   }
   if (lir->u.m.def_mask && (!lir->flags.is_nop || dump_nop)) {
-    DUMP_RESOURCE_MASK(DumpResourceMask(lir, lir->u.m.def_mask, "def"));
+    DUMP_RESOURCE_MASK(DumpResourceMask(lir, *lir->u.m.def_mask, "def"));
   }
 }
 
@@ -794,7 +798,7 @@ LIR* Mir2Lir::InsertCaseLabel(DexOffset vaddr, int keyVal) {
     new_label->operands[0] = keyVal;
     new_label->flags.fixup = kFixupLabel;
     DCHECK(!new_label->flags.use_def_invalid);
-    new_label->u.m.def_mask = ENCODE_ALL;
+    new_label->u.m.def_mask = &kEncodeAll;
     InsertLIRAfter(boundary_lir, new_label);
     res = new_label;
   }
@@ -972,7 +976,9 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       fp_spill_mask_(0),
       first_lir_insn_(NULL),
       last_lir_insn_(NULL),
-      slow_paths_(arena, 32, kGrowableArraySlowPaths) {
+      slow_paths_(arena, 32, kGrowableArraySlowPaths),
+      mem_ref_type_(ResourceMask::kHeapRef),
+      mask_cache_(arena) {
   // Reserve pointer id 0 for NULL.
   size_t null_idx = WrapPointer(NULL);
   DCHECK_EQ(null_idx, 0U);

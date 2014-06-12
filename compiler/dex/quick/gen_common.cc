@@ -44,7 +44,7 @@ void Mir2Lir::GenBarrier() {
   LIR* barrier = NewLIR0(kPseudoBarrier);
   /* Mark all resources as being clobbered */
   DCHECK(!barrier->flags.use_def_invalid);
-  barrier->u.m.def_mask = ENCODE_ALL;
+  barrier->u.m.def_mask = &kEncodeAll;
 }
 
 void Mir2Lir::GenDivZeroException() {
@@ -447,6 +447,7 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
     for (int i = 0; i < elems; i++) {
       RegLocation loc = UpdateLoc(info->args[i]);
       if (loc.location == kLocPhysReg) {
+        ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
         Store32Disp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg);
       }
     }
@@ -484,7 +485,12 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
     // Generate the copy loop.  Going backwards for convenience
     LIR* target = NewLIR0(kPseudoTargetLabel);
     // Copy next element
-    LoadBaseIndexed(r_src, r_idx, r_val, 2, k32);
+    {
+      ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+      LoadBaseIndexed(r_src, r_idx, r_val, 2, k32);
+      // NOTE: No dalvik register annotation, local optimizations will be stopped
+      // by the loop boundaries.
+    }
     StoreBaseIndexed(r_dst, r_idx, r_val, 2, k32);
     FreeTemp(r_val);
     OpDecAndBranch(kCondGe, r_idx, target);

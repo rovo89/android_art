@@ -534,7 +534,8 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
     }
   }
 
-  if (r_base == rs_rMIPS_SP) {
+  if (mem_ref_type_ == ResourceMask::kDalvikReg) {
+    DCHECK(r_base == rs_rMIPS_SP);
     AnnotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                             true /* is_load */, pair /* is64bit */);
     if (pair) {
@@ -634,7 +635,8 @@ LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement,
     FreeTemp(r_scratch);
   }
 
-  if (r_base == rs_rMIPS_SP) {
+  if (mem_ref_type_ == ResourceMask::kDalvikReg) {
+    DCHECK(r_base == rs_rMIPS_SP);
     AnnotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                             false /* is_load */, pair /* is64bit */);
     if (pair) {

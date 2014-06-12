@@ -65,6 +65,7 @@ void Mir2Lir::Workaround7250540(RegLocation rl_dest, RegStorage zero_reg) {
         OpRegCopy(RegStorage::Solo32(promotion_map_[pmap_index].core_reg), temp_reg);
       } else {
         // Lives in the frame, need to store.
+        ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
         StoreBaseDisp(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low), temp_reg, k32);
       }
       if (!zero_reg.Valid()) {
@@ -90,6 +91,7 @@ void Mir2Lir::LoadValueDirect(RegLocation rl_src, RegStorage r_dest) {
   } else {
     DCHECK((rl_src.location == kLocDalvikFrame) ||
            (rl_src.location == kLocCompilerTemp));
+    ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
     if (rl_src.ref) {
       LoadRefDisp(TargetReg(kSp), SRegOffset(rl_src.s_reg_low), r_dest);
     } else {
@@ -123,6 +125,7 @@ void Mir2Lir::LoadValueDirectWide(RegLocation rl_src, RegStorage r_dest) {
   } else {
     DCHECK((rl_src.location == kLocDalvikFrame) ||
            (rl_src.location == kLocCompilerTemp));
+    ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
     LoadBaseDisp(TargetReg(kSp), SRegOffset(rl_src.s_reg_low), r_dest, k64);
   }
 }
@@ -210,6 +213,7 @@ void Mir2Lir::StoreValue(RegLocation rl_dest, RegLocation rl_src) {
   ResetDefLoc(rl_dest);
   if (IsDirty(rl_dest.reg) && LiveOut(rl_dest.s_reg_low)) {
     def_start = last_lir_insn_;
+    ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
     Store32Disp(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low), rl_dest.reg);
     MarkClean(rl_dest);
     def_end = last_lir_insn_;
@@ -296,6 +300,7 @@ void Mir2Lir::StoreValueWide(RegLocation rl_dest, RegLocation rl_src) {
     def_start = last_lir_insn_;
     DCHECK_EQ((mir_graph_->SRegToVReg(rl_dest.s_reg_low)+1),
               mir_graph_->SRegToVReg(GetSRegHi(rl_dest.s_reg_low)));
+    ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
     StoreBaseDisp(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low), rl_dest.reg, k64);
     MarkClean(rl_dest);
     def_end = last_lir_insn_;
@@ -323,6 +328,7 @@ void Mir2Lir::StoreFinalValue(RegLocation rl_dest, RegLocation rl_src) {
   ResetDefLoc(rl_dest);
   if (IsDirty(rl_dest.reg) && LiveOut(rl_dest.s_reg_low)) {
     LIR *def_start = last_lir_insn_;
+    ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
     Store32Disp(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low), rl_dest.reg);
     MarkClean(rl_dest);
     LIR *def_end = last_lir_insn_;
@@ -358,6 +364,7 @@ void Mir2Lir::StoreFinalValueWide(RegLocation rl_dest, RegLocation rl_src) {
     LIR *def_start = last_lir_insn_;
     DCHECK_EQ((mir_graph_->SRegToVReg(rl_dest.s_reg_low)+1),
               mir_graph_->SRegToVReg(GetSRegHi(rl_dest.s_reg_low)));
+    ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
     StoreBaseDisp(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low), rl_dest.reg, k64);
     MarkClean(rl_dest);
     LIR *def_end = last_lir_insn_;

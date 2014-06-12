@@ -38,7 +38,7 @@ void Mir2Lir::ResetRegPool() {
   }
 }
 
-Mir2Lir::RegisterInfo::RegisterInfo(RegStorage r, uint64_t mask)
+Mir2Lir::RegisterInfo::RegisterInfo(RegStorage r, const ResourceMask& mask)
   : reg_(r), is_temp_(false), wide_value_(false), dirty_(false), aliased_(false), partner_(r),
     s_reg_(INVALID_SREG), def_use_mask_(mask), master_(this), def_start_(nullptr),
     def_end_(nullptr), alias_chain_(nullptr) {
@@ -82,22 +82,22 @@ Mir2Lir::RegisterPool::RegisterPool(Mir2Lir* m2l, ArenaAllocator* arena,
   }
 
   // Construct the register pool.
-  for (RegStorage reg : core_regs) {
+  for (const RegStorage& reg : core_regs) {
     RegisterInfo* info = new (arena) RegisterInfo(reg, m2l_->GetRegMaskCommon(reg));
     m2l_->reginfo_map_.Put(reg.GetReg(), info);
     core_regs_.Insert(info);
   }
-  for (RegStorage reg : core64_regs) {
+  for (const RegStorage& reg : core64_regs) {
     RegisterInfo* info = new (arena) RegisterInfo(reg, m2l_->GetRegMaskCommon(reg));
     m2l_->reginfo_map_.Put(reg.GetReg(), info);
     core64_regs_.Insert(info);
   }
-  for (RegStorage reg : sp_regs) {
+  for (const RegStorage& reg : sp_regs) {
     RegisterInfo* info = new (arena) RegisterInfo(reg, m2l_->GetRegMaskCommon(reg));
     m2l_->reginfo_map_.Put(reg.GetReg(), info);
     sp_regs_.Insert(info);
   }
-  for (RegStorage reg : dp_regs) {
+  for (const RegStorage& reg : dp_regs) {
     RegisterInfo* info = new (arena) RegisterInfo(reg, m2l_->GetRegMaskCommon(reg));
     m2l_->reginfo_map_.Put(reg.GetReg(), info);
     dp_regs_.Insert(info);
@@ -126,7 +126,7 @@ Mir2Lir::RegisterPool::RegisterPool(Mir2Lir* m2l, ArenaAllocator* arena,
   }
 
   // Add an entry for InvalidReg with zero'd mask.
-  RegisterInfo* invalid_reg = new (arena) RegisterInfo(RegStorage::InvalidReg(), 0);
+  RegisterInfo* invalid_reg = new (arena) RegisterInfo(RegStorage::InvalidReg(), kEncodeNone);
   m2l_->reginfo_map_.Put(RegStorage::InvalidReg().GetReg(), invalid_reg);
 
   // Existence of core64 registers implies wide references.
@@ -734,6 +734,7 @@ void Mir2Lir::FlushRegWide(RegStorage reg) {
         info1 = info2;
       }
       int v_reg = mir_graph_->SRegToVReg(info1->SReg());
+      ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
       StoreBaseDisp(TargetReg(kSp), VRegOffset(v_reg), reg, k64);
     }
   } else {
@@ -741,6 +742,7 @@ void Mir2Lir::FlushRegWide(RegStorage reg) {
     if (info->IsLive() && info->IsDirty()) {
       info->SetIsDirty(false);
       int v_reg = mir_graph_->SRegToVReg(info->SReg());
+      ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
       StoreBaseDisp(TargetReg(kSp), VRegOffset(v_reg), reg, k64);
     }
   }
@@ -752,6 +754,7 @@ void Mir2Lir::FlushReg(RegStorage reg) {
   if (info->IsLive() && info->IsDirty()) {
     info->SetIsDirty(false);
     int v_reg = mir_graph_->SRegToVReg(info->SReg());
+    ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
     StoreBaseDisp(TargetReg(kSp), VRegOffset(v_reg), reg, kWord);
   }
 }

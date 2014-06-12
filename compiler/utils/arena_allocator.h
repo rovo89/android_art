@@ -41,6 +41,7 @@ enum ArenaAllocKind {
   kArenaAllocMisc,
   kArenaAllocBB,
   kArenaAllocLIR,
+  kArenaAllocLIRResourceMask,
   kArenaAllocMIR,
   kArenaAllocDFInfo,
   kArenaAllocGrowableArray,
@@ -92,7 +93,7 @@ class ArenaAllocatorStatsImpl {
   // TODO: Use std::array<size_t, kNumArenaAllocKinds> from C++11 when we upgrade the STL.
   size_t alloc_stats_[kNumArenaAllocKinds];  // Bytes used by various allocation kinds.
 
-  static const char* kAllocNames[kNumArenaAllocKinds];
+  static const char* const kAllocNames[];
 };
 
 typedef ArenaAllocatorStatsImpl<kArenaAllocatorCountAllocations> ArenaAllocatorStats;

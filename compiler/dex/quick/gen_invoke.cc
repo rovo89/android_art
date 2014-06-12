@@ -493,6 +493,7 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
    * end up half-promoted.  In those cases, we must flush the promoted
    * half to memory as well.
    */
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
   for (int i = 0; i < cu_->num_ins; i++) {
     PromotionMap* v_map = &promotion_map_[start_vreg + i];
     RegStorage reg = GetArgMappingToPhysicalReg(i);
@@ -901,11 +902,17 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
       } else {
         // kArg2 & rArg3 can safely be used here
         reg = TargetReg(kArg3);
-        Load32Disp(TargetReg(kSp), SRegOffset(rl_arg.s_reg_low) + 4, reg);
+        {
+          ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+          Load32Disp(TargetReg(kSp), SRegOffset(rl_arg.s_reg_low) + 4, reg);
+        }
         call_state = next_call_insn(cu_, info, call_state, target_method,
                                     vtable_idx, direct_code, direct_method, type);
       }
-      Store32Disp(TargetReg(kSp), (next_use + 1) * 4, reg);
+      {
+        ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+        Store32Disp(TargetReg(kSp), (next_use + 1) * 4, reg);
+      }
       call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                                   direct_code, direct_method, type);
       next_use++;
@@ -929,12 +936,15 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
                                     vtable_idx, direct_code, direct_method, type);
       }
       int outs_offset = (next_use + 1) * 4;
-      if (rl_arg.wide) {
-        StoreBaseDisp(TargetReg(kSp), outs_offset, arg_reg, k64);
-        next_use += 2;
-      } else {
-        Store32Disp(TargetReg(kSp), outs_offset, arg_reg);
-        next_use++;
+      {
+        ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+        if (rl_arg.wide) {
+          StoreBaseDisp(TargetReg(kSp), outs_offset, arg_reg, k64);
+          next_use += 2;
+        } else {
+          Store32Disp(TargetReg(kSp), outs_offset, arg_reg);
+          next_use++;
+        }
       }
       call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                                direct_code, direct_method, type);
@@ -998,12 +1008,14 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     if (loc.wide) {
       loc = UpdateLocWide(loc);
       if ((next_arg >= 2) && (loc.location == kLocPhysReg)) {
+        ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
         StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k64);
       }
       next_arg += 2;
     } else {
       loc = UpdateLoc(loc);
       if ((next_arg >= 3) && (loc.location == kLocPhysReg)) {
+        ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
         Store32Disp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg);
       }
       next_arg++;
@@ -1026,24 +1038,32 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                              direct_code, direct_method, type);
     OpRegRegImm(kOpAdd, TargetReg(kArg3), TargetReg(kSp), start_offset);
-    LIR* ld = OpVldm(TargetReg(kArg3), regs_left_to_pass_via_stack);
+    LIR* ld = nullptr;
+    {
+      ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+      ld = OpVldm(TargetReg(kArg3), regs_left_to_pass_via_stack);
+    }
     // TUNING: loosen barrier
-    ld->u.m.def_mask = ENCODE_ALL;
-    SetMemRefType(ld, true /* is_load */, kDalvikReg);
+    ld->u.m.def_mask = &kEncodeAll;
     call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                              direct_code, direct_method, type);
     OpRegRegImm(kOpAdd, TargetReg(kArg3), TargetReg(kSp), 4 /* Method* */ + (3 * 4));
     call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                              direct_code, direct_method, type);
-    LIR* st = OpVstm(TargetReg(kArg3), regs_left_to_pass_via_stack);
-    SetMemRefType(st, false /* is_load */, kDalvikReg);
-    st->u.m.def_mask = ENCODE_ALL;
+    LIR* st = nullptr;
+    {
+      ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+      st = OpVstm(TargetReg(kArg3), regs_left_to_pass_via_stack);
+    }
+    st->u.m.def_mask = &kEncodeAll;
     call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                              direct_code, direct_method, type);
   } else if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
     int current_src_offset = start_offset;
     int current_dest_offset = outs_offset;
 
+    // Only davik regs are accessed in this loop; no next_call_insn() calls.
+    ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
     while (regs_left_to_pass_via_stack > 0) {
       // This is based on the knowledge that the stack itself is 16-byte aligned.
       bool src_is_16b_aligned = (current_src_offset & 0xF) == 0;
@@ -1110,8 +1130,7 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
             AnnotateDalvikRegAccess(ld2, (current_src_offset + (bytes_to_move >> 1)) >> 2, true, true);
           } else {
             // Set barrier for 128-bit load.
-            SetMemRefType(ld1, true /* is_load */, kDalvikReg);
-            ld1->u.m.def_mask = ENCODE_ALL;
+            ld1->u.m.def_mask = &kEncodeAll;
           }
         }
         if (st1 != nullptr) {
@@ -1121,8 +1140,7 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
             AnnotateDalvikRegAccess(st2, (current_dest_offset + (bytes_to_move >> 1)) >> 2, false, true);
           } else {
             // Set barrier for 128-bit store.
-            SetMemRefType(st1, false /* is_load */, kDalvikReg);
-            st1->u.m.def_mask = ENCODE_ALL;
+            st1->u.m.def_mask = &kEncodeAll;
           }
         }
 

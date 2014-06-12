@@ -48,6 +48,7 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/quick/mips/utility_mips.cc \
 	dex/quick/mir_to_lir.cc \
 	dex/quick/ralloc_util.cc \
+	dex/quick/resource_mask.cc \
 	dex/quick/x86/assemble_x86.cc \
 	dex/quick/x86/call_x86.cc \
 	dex/quick/x86/fp_x86.cc \
