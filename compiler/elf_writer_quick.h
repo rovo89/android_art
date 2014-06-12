@@ -51,6 +51,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
   void AddDebugSymbols(ElfBuilder& builder,
                        OatWriter* oat_writer,
                        bool debug);
+  void ReservePatchSpace(std::vector<uint8_t>* buffer, bool debug);
 
   class ElfSectionBuilder {
    public:

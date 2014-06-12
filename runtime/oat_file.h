@@ -60,6 +60,12 @@ class OatFile {
 
   ~OatFile();
 
+  ElfFile* GetElfFile() const {
+    CHECK_NE(reinterpret_cast<uintptr_t>(elf_file_.get()), reinterpret_cast<uintptr_t>(nullptr))
+        << "Cannot get an elf file from " << GetLocation();
+    return elf_file_.get();
+  }
+
   const std::string& GetLocation() const {
     return location_;
   }
@@ -227,6 +233,9 @@ class OatFile {
     return End() - Begin();
   }
 
+  const byte* Begin() const;
+  const byte* End() const;
+
  private:
   static void CheckLocation(const std::string& location);
 
@@ -247,9 +256,6 @@ class OatFile {
   bool ElfFileOpen(File* file, byte* requested_base, bool writable, bool executable,
                    std::string* error_msg);
   bool Setup(std::string* error_msg);
-
-  const byte* Begin() const;
-  const byte* End() const;
 
   // The oat file name.
   //
