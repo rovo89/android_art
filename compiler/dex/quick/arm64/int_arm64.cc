@@ -77,10 +77,10 @@ void Arm64Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
   default:
     LOG(FATAL) << "Unexpected case: " << opcode;
   }
-  rl_shift = LoadValueWide(rl_shift, kCoreReg);
+  rl_shift = LoadValue(rl_shift, kCoreReg);
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
-  OpRegRegReg(op, rl_result.reg, rl_src1.reg, rl_shift.reg);
+  OpRegRegReg(op, rl_result.reg, rl_src1.reg, As64BitReg(rl_shift.reg));
   StoreValueWide(rl_dest, rl_result);
 }
 
@@ -1021,7 +1021,7 @@ void Arm64Mir2Lir::GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_de
 
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
-  OpRegRegImm(op, rl_result.reg, rl_src1.reg, val);
+  OpRegRegImm64(op, rl_result.reg, rl_src1.reg, val);
   StoreValueWide(rl_dest, rl_result);
 }
 

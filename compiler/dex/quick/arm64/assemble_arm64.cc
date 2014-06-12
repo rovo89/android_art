@@ -268,7 +268,7 @@ const ArmEncodingMap Arm64Mir2Lir::EncodingMap[kA64Last] = {
                  kFmtRegS, 4, 0, kFmtRegW, 9, 5, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
                  "fmov", "!0s, !1w", kFixupNone),
-    ENCODING_MAP(kA64Fmov2Sx, NO_VARIANTS(0x9e6f0000),
+    ENCODING_MAP(kA64Fmov2Sx, NO_VARIANTS(0x9e670000),
                  kFmtRegD, 4, 0, kFmtRegX, 9, 5, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
                  "fmov", "!0S, !1x", kFixupNone),
