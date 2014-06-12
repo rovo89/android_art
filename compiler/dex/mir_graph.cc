@@ -191,14 +191,16 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
     bottom_block->successor_block_list_type = orig_block->successor_block_list_type;
     bottom_block->successor_blocks = orig_block->successor_blocks;
     orig_block->successor_block_list_type = kNotUsed;
-    orig_block->successor_blocks = NULL;
+    orig_block->successor_blocks = nullptr;
     GrowableArray<SuccessorBlockInfo*>::Iterator iterator(bottom_block->successor_blocks);
     while (true) {
       SuccessorBlockInfo* successor_block_info = iterator.Next();
-      if (successor_block_info == NULL) break;
+      if (successor_block_info == nullptr) break;
       BasicBlock* bb = GetBasicBlock(successor_block_info->block);
-      bb->predecessors->Delete(orig_block->id);
-      bb->predecessors->Insert(bottom_block->id);
+      if (bb != nullptr) {
+        bb->predecessors->Delete(orig_block->id);
+        bb->predecessors->Insert(bottom_block->id);
+      }
     }
   }
 
@@ -1691,11 +1693,13 @@ BasicBlock* ChildBlockIterator::Next() {
   // We visited both taken and fallthrough. Now check if we have successors we need to visit.
   if (have_successors_ == true) {
     // Get information about next successor block.
-    SuccessorBlockInfo* successor_block_info = successor_iter_.Next();
-
-    // If we don't have anymore successors, return nullptr.
-    if (successor_block_info != nullptr) {
-      return mir_graph_->GetBasicBlock(successor_block_info->block);
+    for (SuccessorBlockInfo* successor_block_info = successor_iter_.Next();
+      successor_block_info != nullptr;
+      successor_block_info = successor_iter_.Next()) {
+      // If block was replaced by zero block, take next one.
+      if (successor_block_info->block != NullBasicBlockId) {
+        return mir_graph_->GetBasicBlock(successor_block_info->block);
+      }
     }
   }
 
