@@ -103,6 +103,66 @@ extern "C" JNIEXPORT void JNICALL Java_JniTest_testFindFieldOnAttachedNativeThre
   assert(pthread_join_result == 0);
 }
 
+static void* testReflectFieldGetFromAttachedNativeThread(void*) {
+  assert(jvm != NULL);
+
+  JNIEnv* env = NULL;
+  JavaVMAttachArgs args = { JNI_VERSION_1_6, __FUNCTION__, NULL };
+  int attach_result = jvm->AttachCurrentThread(&env, &args);
+  assert(attach_result == 0);
+
+  jclass clazz = env->FindClass("JniTest");
+  assert(clazz != NULL);
+  assert(!env->ExceptionCheck());
+
+  jclass class_clazz = env->FindClass("java/lang/Class");
+  assert(class_clazz != NULL);
+  assert(!env->ExceptionCheck());
+
+  jmethodID getFieldMetodId = env->GetMethodID(class_clazz, "getField",
+                                               "(Ljava/lang/String;)Ljava/lang/reflect/Field;");
+  assert(getFieldMetodId != NULL);
+  assert(!env->ExceptionCheck());
+
+  jstring field_name = env->NewStringUTF("testReflectFieldGetFromAttachedNativeThreadField");
+  assert(field_name != NULL);
+  assert(!env->ExceptionCheck());
+
+  jobject field = env->CallObjectMethod(clazz, getFieldMetodId, field_name);
+  assert(field != NULL);
+  assert(!env->ExceptionCheck());
+
+  jclass field_clazz = env->FindClass("java/lang/reflect/Field");
+  assert(field_clazz != NULL);
+  assert(!env->ExceptionCheck());
+
+  jmethodID getBooleanMetodId = env->GetMethodID(field_clazz, "getBoolean",
+                                                 "(Ljava/lang/Object;)Z");
+  assert(getBooleanMetodId != NULL);
+  assert(!env->ExceptionCheck());
+
+  jboolean value = env->CallBooleanMethod(field, getBooleanMetodId, /* ignored */ clazz);
+  assert(value == false);
+  assert(!env->ExceptionCheck());
+
+  int detach_result = jvm->DetachCurrentThread();
+  assert(detach_result == 0);
+  return NULL;
+}
+
+// http://b/15539150
+extern "C" JNIEXPORT void JNICALL Java_JniTest_testReflectFieldGetFromAttachedNativeThreadNative(
+    JNIEnv*, jclass) {
+  pthread_t pthread;
+  int pthread_create_result = pthread_create(&pthread,
+                                             NULL,
+                                             testReflectFieldGetFromAttachedNativeThread,
+                                             NULL);
+  assert(pthread_create_result == 0);
+  int pthread_join_result = pthread_join(pthread, NULL);
+  assert(pthread_join_result == 0);
+}
+
 
 // http://b/11243757
 extern "C" JNIEXPORT void JNICALL Java_JniTest_testCallStaticVoidMethodOnSubClassNative(JNIEnv* env,
