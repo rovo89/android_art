@@ -1328,6 +1328,9 @@ bool Mir2Lir::GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty) {
       RegStorage t_reg = AllocTemp();
       OpRegReg(kOpNeg, t_reg, rl_result.reg);
       OpRegRegReg(kOpAdc, rl_result.reg, rl_result.reg, t_reg);
+    } else if (cu_->instruction_set == kArm64) {
+      OpRegImm(kOpSub, rl_result.reg, 1);
+      OpRegRegImm(kOpLsr, rl_result.reg, rl_result.reg, 31);
     } else {
       DCHECK(cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64);
       OpRegImm(kOpSub, rl_result.reg, 1);
@@ -1348,6 +1351,11 @@ bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (size == k64) {
     RegLocation rl_i = LoadValueWide(rl_src_i, kCoreReg);
+    if (cu_->instruction_set == kArm64) {
+      OpRegReg(kOpRev, rl_result.reg, rl_i.reg);
+      StoreValueWide(rl_dest, rl_result);
+      return true;
+    }
     RegStorage r_i_low = rl_i.reg.GetLow();
     if (rl_i.reg.GetLowReg() == rl_result.reg.GetLowReg()) {
       // First REV shall clobber rl_result.reg.GetReg(), save the value in a temp for the second REV.
@@ -1446,8 +1454,15 @@ bool Mir2Lir::GenInlinedAbsDouble(CallInfo* info) {
   rl_src = LoadValueWide(rl_src, kCoreReg);
   RegLocation rl_dest = InlineTargetWide(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  OpRegCopyWide(rl_result.reg, rl_src.reg);
-  OpRegImm(kOpAnd, rl_result.reg.GetHigh(), 0x7fffffff);
+
+  if (cu_->instruction_set == kArm64) {
+    // TODO - Can ecode ? UBXF otherwise
+    // OpRegRegImm(kOpAnd, rl_result.reg, 0x7fffffffffffffff);
+    return false;
+  } else {
+    OpRegCopyWide(rl_result.reg, rl_src.reg);
+    OpRegImm(kOpAnd, rl_result.reg.GetHigh(), 0x7fffffff);
+  }
   StoreValueWide(rl_dest, rl_result);
   return true;
 }

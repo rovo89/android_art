@@ -1650,7 +1650,102 @@ ENTRY art_quick_deoptimize
 END art_quick_deoptimize
 
 
-UNIMPLEMENTED art_quick_indexof
+    /*
+     * String's indexOf.
+     *
+     * TODO: Not very optimized.
+     * On entry:
+     *    x0:   string object (known non-null)
+     *    w1:   char to match (known <= 0xFFFF)
+     *    w2:   Starting offset in string data
+     */
+ENTRY art_quick_indexof
+    ldr   w3, [x0, #STRING_COUNT_OFFSET]
+    ldr   w4, [x0, #STRING_OFFSET_OFFSET]
+    ldr   w0, [x0, #STRING_VALUE_OFFSET] // x0 ?
+
+    /* Clamp start to [0..count] */
+    cmp   w2, #0
+    csel  w2, wzr, w2, lt
+    cmp   w2, w3
+    csel  w2, w3, w2, gt
+
+    /* Build a pointer to the start of the string data */
+    add   x0, x0, #STRING_DATA_OFFSET
+    add   x0, x0, x4, lsl #1
+
+    /* Save a copy to compute result */
+    mov   x5, x0
+
+    /* Build pointer to start of data to compare and pre-bias */
+    add   x0, x0, x2, lsl #1
+    sub   x0, x0, #2
+
+    /* Compute iteration count */
+    sub   w2, w3, w2
+
+    /*
+     * At this point we have:
+     *  x0: start of the data to test
+     *  w1: char to compare
+     *  w2: iteration count
+     *  x5: original start of string data
+     */
+
+    subs  w2, w2, #4
+    b.lt  .Lindexof_remainder
+
+.Lindexof_loop4:
+    ldrh  w6, [x0, #2]!
+    ldrh  w7, [x0, #2]!
+    ldrh  w8, [x0, #2]!
+    ldrh  w9, [x0, #2]!
+    cmp   w6, w1
+    b.eq  .Lmatch_0
+    cmp   w7, w1
+    b.eq  .Lmatch_1
+    cmp   w8, w1
+    b.eq  .Lmatch_2
+    cmp   w9, w1
+    b.eq  .Lmatch_3
+    subs  w2, w2, #4
+    b.ge  .Lindexof_loop4
+
+.Lindexof_remainder:
+    adds  w2, w2, #4
+    b.eq  .Lindexof_nomatch
+
+.Lindexof_loop1:
+    ldrh  w6, [x0, #2]!
+    cmp   w6, w1
+    b.eq  .Lmatch_3
+    subs  w2, w2, #1
+    b.ne  .Lindexof_loop1
+
+.Lindexof_nomatch:
+    mov   x0, #-1
+    ret
+
+.Lmatch_0:
+    sub   x0, x0, #6
+    sub   x0, x0, x5
+    asr   x0, x0, #1
+    ret
+.Lmatch_1:
+    sub   x0, x0, #4
+    sub   x0, x0, x5
+    asr   x0, x0, #1
+    ret
+.Lmatch_2:
+    sub   x0, x0, #2
+    sub   x0, x0, x5
+    asr   x0, x0, #1
+    ret
+.Lmatch_3:
+    sub   x0, x0, x5
+    asr   x0, x0, #1
+    ret
+END art_quick_indexof
 
    /*
      * String's compareTo.
@@ -1698,6 +1793,7 @@ ENTRY art_quick_string_compareto
     add x2, x2, #STRING_DATA_OFFSET
     add x1, x1, #STRING_DATA_OFFSET
 
+    // TODO: Tune this value.
     // Check for long string, do memcmp16 for them.
     cmp w3, #28  // Constant from arm32.
     bgt .Ldo_memcmp16
