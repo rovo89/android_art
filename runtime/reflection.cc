@@ -815,6 +815,10 @@ bool UnboxPrimitiveForResult(const ThrowLocation& throw_location, mirror::Object
 bool VerifyAccess(mirror::Object* obj, mirror::Class* declaring_class, uint32_t access_flags) {
   NthCallerVisitor visitor(Thread::Current(), 2);
   visitor.WalkStack();
+  if (UNLIKELY(visitor.caller == nullptr)) {
+    // The caller is an attached native thread.
+    return (access_flags & kAccPublic) != 0;
+  }
   mirror::Class* caller_class = visitor.caller->GetDeclaringClass();
 
   if (((access_flags & kAccPublic) != 0) || (caller_class == declaring_class)) {
