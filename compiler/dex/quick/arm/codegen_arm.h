@@ -204,6 +204,8 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1, int64_t val,
                                   ConditionCode ccode);
     LIR* LoadFPConstantValue(int r_dest, int value);
+    LIR* LoadStoreMaxDisp1020(ArmOpcode opcode, RegStorage r_base, int displacement,
+                              RegStorage r_src_dest, RegStorage r_work = RegStorage::InvalidReg());
     void ReplaceFixup(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
     void InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
     void AssignDataOffsets();
