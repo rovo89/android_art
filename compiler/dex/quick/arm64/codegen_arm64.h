@@ -201,6 +201,7 @@ class Arm64Mir2Lir : public Mir2Lir {
     LIR* OpRegRegRegShift(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2,
                           int shift);
     LIR* OpRegRegShift(OpKind op, RegStorage r_dest_src1, RegStorage r_src2, int shift);
+    LIR* OpRegRegExtend(OpKind op, RegStorage r_dest_src1, RegStorage r_src2, int shift);
     static const ArmEncodingMap EncodingMap[kA64Last];
     int EncodeShift(int code, int amount);
     int EncodeExtend(int extend_type, int amount);
