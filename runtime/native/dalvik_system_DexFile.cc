@@ -340,16 +340,7 @@ static jboolean IsDexOptNeededInternal(JNIEnv* env, const char* filename,
   if (Runtime::Current()->GetProfilerOptions().IsEnabled() && (pkgname != nullptr)) {
     const std::string profile_file = GetDalvikCacheOrDie("profiles", false /* create_if_absent */)
         + std::string("/") + pkgname;
-    const std::string profile_cache_dir = GetDalvikCacheOrDie("profile-cache",
-                                                              false /* create_if_absent */);
-
-    // Make the profile cache if it doesn't exist.
-    mkdir(profile_cache_dir.c_str(), 0700);
-
-    // The previous profile file (a copy of the profile the last time this was run) is
-    // in the dalvik-cache directory because this is owned by system.  The profiles
-    // directory is owned by install so system cannot write files in there.
-    std::string prev_profile_file = profile_cache_dir + std::string("/") + pkgname;
+    const std::string prev_profile_file = profile_file + std::string("@old");
 
     struct stat profstat, prevstat;
     int e1 = stat(profile_file.c_str(), &profstat);
