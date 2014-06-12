@@ -2131,6 +2131,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_VIRTUAL_RANGE:
     case Instruction::INVOKE_SUPER:
     case Instruction::INVOKE_SUPER_RANGE: {
+      if (inst->VRegA() == 0) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invoke_virtual/super needs at least receiver";
+      }
       bool is_range = (inst->Opcode() == Instruction::INVOKE_VIRTUAL_RANGE ||
                        inst->Opcode() == Instruction::INVOKE_SUPER_RANGE);
       bool is_super = (inst->Opcode() == Instruction::INVOKE_SUPER ||
