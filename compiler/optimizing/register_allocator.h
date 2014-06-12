@@ -23,7 +23,12 @@
 namespace art {
 
 class CodeGenerator;
+class HBasicBlock;
+class HGraph;
+class HInstruction;
+class HParallelMove;
 class LiveInterval;
+class Location;
 class SsaLivenessAnalysis;
 
 /**
@@ -31,26 +36,23 @@ class SsaLivenessAnalysis;
  */
 class RegisterAllocator {
  public:
-  RegisterAllocator(ArenaAllocator* allocator, const CodeGenerator& codegen);
+  RegisterAllocator(ArenaAllocator* allocator,
+                    CodeGenerator* codegen,
+                    const SsaLivenessAnalysis& analysis);
 
   // Main entry point for the register allocator. Given the liveness analysis,
   // allocates registers to live intervals.
-  void AllocateRegisters(const SsaLivenessAnalysis& liveness) {
-    processing_core_registers_ = true;
-    AllocateRegistersInternal(liveness);
-    processing_core_registers_ = false;
-    AllocateRegistersInternal(liveness);
-  }
+  void AllocateRegisters();
 
   // Validate that the register allocator did not allocate the same register to
   // intervals that intersect each other. Returns false if it did not.
-  bool Validate(const SsaLivenessAnalysis& liveness, bool log_fatal_on_failure) {
+  bool Validate(bool log_fatal_on_failure) {
     processing_core_registers_ = true;
-    if (!ValidateInternal(liveness, log_fatal_on_failure)) {
+    if (!ValidateInternal(log_fatal_on_failure)) {
       return false;
     }
     processing_core_registers_ = false;
-    return ValidateInternal(liveness, log_fatal_on_failure);
+    return ValidateInternal(log_fatal_on_failure);
   }
 
   // Helper method for validation. Used by unit testing.
@@ -61,11 +63,21 @@ class RegisterAllocator {
                                 bool processing_core_registers,
                                 bool log_fatal_on_failure);
 
+  static bool CanAllocateRegistersFor(const HGraph& graph, InstructionSet instruction_set);
+  static bool Supports(InstructionSet instruction_set) {
+    return instruction_set == kX86;
+  }
+
+  size_t GetNumberOfSpillSlots() const {
+    return spill_slots_.Size();
+  }
+
  private:
   // Main methods of the allocator.
   void LinearScan();
   bool TryAllocateFreeReg(LiveInterval* interval);
   bool AllocateBlockedReg(LiveInterval* interval);
+  void Resolve();
 
   // Add `interval` in the sorted list of unhandled intervals.
   void AddToUnhandled(LiveInterval* interval);
@@ -76,16 +88,33 @@ class RegisterAllocator {
   // Returns whether `reg` is blocked by the code generator.
   bool IsBlocked(int reg) const;
 
+  // Update the interval for the register in `location` to cover [start, end).
+  void BlockRegister(Location location, size_t start, size_t end, Primitive::Type type);
+
   // Allocate a spill slot for the given interval.
   void AllocateSpillSlotFor(LiveInterval* interval);
 
+  // Connect adjacent siblings within blocks.
+  void ConnectSiblings(LiveInterval* interval);
+
+  // Connect siblings between block entries and exits.
+  void ConnectSplitSiblings(LiveInterval* interval, HBasicBlock* from, HBasicBlock* to) const;
+
+  // Helper methods to insert parallel moves in the graph.
+  void InsertParallelMoveAtExitOf(HBasicBlock* block, Location source, Location destination) const;
+  void InsertParallelMoveAtEntryOf(HBasicBlock* block, Location source, Location destination) const;
+  void InsertMoveAfter(HInstruction* instruction, Location source, Location destination) const;
+  void AddInputMoveFor(HInstruction* instruction, Location source, Location destination) const;
+  void InsertParallelMoveAt(size_t position, Location source, Location destination) const;
+
   // Helper methods.
-  void AllocateRegistersInternal(const SsaLivenessAnalysis& liveness);
-  bool ValidateInternal(const SsaLivenessAnalysis& liveness, bool log_fatal_on_failure) const;
-  void DumpInterval(std::ostream& stream, LiveInterval* interval);
+  void AllocateRegistersInternal();
+  bool ValidateInternal(bool log_fatal_on_failure) const;
+  void DumpInterval(std::ostream& stream, LiveInterval* interval) const;
 
   ArenaAllocator* const allocator_;
-  const CodeGenerator& codegen_;
+  CodeGenerator* const codegen_;
+  const SsaLivenessAnalysis& liveness_;
 
   // List of intervals that must be processed, ordered by start position. Last entry
   // is the interval that has the lowest start position.
@@ -101,6 +130,10 @@ class RegisterAllocator {
   // List of intervals that are currently inactive when processing a new live interval.
   // That is, they have a lifetime hole that spans the start of the new interval.
   GrowableArray<LiveInterval*> inactive_;
+
+  // Fixed intervals for physical registers. Such an interval covers the positions
+  // where an instruction requires a specific register.
+  GrowableArray<LiveInterval*> physical_register_intervals_;
 
   // The spill slots allocated for live intervals.
   GrowableArray<size_t> spill_slots_;

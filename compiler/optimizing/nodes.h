@@ -508,6 +508,7 @@ class HInstruction : public ArenaObject {
   void ReplaceWith(HInstruction* instruction);
 
 #define INSTRUCTION_TYPE_CHECK(type)                                           \
+  bool Is##type() { return (As##type() != nullptr); }                          \
   virtual H##type* As##type() { return nullptr; }
 
   FOR_EACH_INSTRUCTION(INSTRUCTION_TYPE_CHECK)

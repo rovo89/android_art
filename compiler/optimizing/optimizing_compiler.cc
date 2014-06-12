@@ -85,6 +85,8 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   // For testing purposes, we put a special marker on method names that should be compiled
   // with this compiler. This makes sure we're not regressing.
   bool shouldCompile = dex_compilation_unit.GetSymbol().find("00024opt_00024") != std::string::npos;
+  bool shouldOptimize =
+      dex_compilation_unit.GetSymbol().find("00024reg_00024") != std::string::npos;
 
   ArenaPool pool;
   ArenaAllocator arena(&pool);
@@ -116,7 +118,36 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   visualizer.DumpGraph("builder");
 
   CodeVectorAllocator allocator;
-  codegen->Compile(&allocator);
+
+  if (RegisterAllocator::CanAllocateRegistersFor(*graph, instruction_set)) {
+    graph->BuildDominatorTree();
+    graph->TransformToSSA();
+    visualizer.DumpGraph("ssa");
+
+    graph->FindNaturalLoops();
+    SsaLivenessAnalysis liveness(*graph, codegen);
+    liveness.Analyze();
+    visualizer.DumpGraph(kLivenessPassName);
+
+    RegisterAllocator register_allocator(graph->GetArena(), codegen, liveness);
+    register_allocator.AllocateRegisters();
+
+    visualizer.DumpGraph(kRegisterAllocatorPassName);
+    codegen->CompileOptimized(&allocator);
+  } else if (shouldOptimize && RegisterAllocator::Supports(instruction_set)) {
+    LOG(FATAL) << "Could not allocate registers in optimizing compiler";
+  } else {
+    codegen->CompileBaseline(&allocator);
+
+    // Run these phases to get some test coverage.
+    graph->BuildDominatorTree();
+    graph->TransformToSSA();
+    visualizer.DumpGraph("ssa");
+    graph->FindNaturalLoops();
+    SsaLivenessAnalysis liveness(*graph, codegen);
+    liveness.Analyze();
+    visualizer.DumpGraph(kLivenessPassName);
+  }
 
   std::vector<uint8_t> mapping_table;
   codegen->BuildMappingTable(&mapping_table);
@@ -124,19 +155,6 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   codegen->BuildVMapTable(&vmap_table);
   std::vector<uint8_t> gc_map;
   codegen->BuildNativeGCMap(&gc_map, dex_compilation_unit);
-
-  // Run these phases to get some test coverage.
-  graph->BuildDominatorTree();
-  graph->TransformToSSA();
-  visualizer.DumpGraph("ssa");
-
-  graph->FindNaturalLoops();
-  SsaLivenessAnalysis liveness(*graph, codegen);
-  liveness.Analyze();
-  visualizer.DumpGraph("liveness");
-
-  RegisterAllocator(graph->GetArena(), *codegen).AllocateRegisters(liveness);
-  visualizer.DumpGraph("register");
 
   return new CompiledMethod(GetCompilerDriver(),
                             instruction_set,

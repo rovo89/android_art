@@ -23,6 +23,7 @@
 namespace art {
 
 class HParallelMove;
+class Location;
 class MoveOperands;
 
 /**
@@ -39,14 +40,36 @@ class ParallelMoveResolver : public ValueObject {
   void EmitNativeCode(HParallelMove* parallel_move);
 
  protected:
+  class ScratchRegisterScope : public ValueObject {
+   public:
+    ScratchRegisterScope(ParallelMoveResolver* resolver, int blocked, int number_of_registers);
+    ~ScratchRegisterScope();
+
+    int GetRegister() const { return reg_; }
+    bool IsSpilled() const { return spilled_; }
+
+   private:
+    ParallelMoveResolver* resolver_;
+    int reg_;
+    bool spilled_;
+  };
+
+  bool IsScratchLocation(Location loc);
+  int AllocateScratchRegister(int blocked, int register_count, bool* spilled);
+
   // Emit a move.
   virtual void EmitMove(size_t index) = 0;
 
   // Execute a move by emitting a swap of two operands.
   virtual void EmitSwap(size_t index) = 0;
 
+  virtual void SpillScratch(int reg) = 0;
+  virtual void RestoreScratch(int reg) = 0;
+
   // List of moves not yet resolved.
   GrowableArray<MoveOperands*> moves_;
+
+  static constexpr int kNoRegister = -1;
 
  private:
   // Build the initial list of moves.

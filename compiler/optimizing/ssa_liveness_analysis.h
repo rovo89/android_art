@@ -172,6 +172,7 @@ class LiveInterval : public ArenaObject {
       // Last use is in the following block.
       first_range_->start_ = start_block_position;
     } else {
+      DCHECK(first_range_->GetStart() > position);
       // There is a hole in the interval. Create a new range.
       first_range_ = new (allocator_) LiveRange(start_block_position, position, first_range_);
     }
@@ -192,6 +193,7 @@ class LiveInterval : public ArenaObject {
       // There is a use in the following block.
       first_range_->start_ = start;
     } else {
+      DCHECK(first_range_->GetStart() > end);
       // There is a hole in the interval. Create a new range.
       first_range_ = new (allocator_) LiveRange(start, end, first_range_);
     }
