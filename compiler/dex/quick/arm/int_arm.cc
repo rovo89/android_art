@@ -224,13 +224,13 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
     bool cheap_false_val = InexpensiveConstantInt(false_val);
     if (cheap_false_val && ccode == kCondEq && (true_val == 0 || true_val == -1)) {
       OpRegRegImm(kOpSub, rl_result.reg, rl_src.reg, -true_val);
-      DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
+      DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
       LIR* it = OpIT(true_val == 0 ? kCondNe : kCondUge, "");
       LoadConstant(rl_result.reg, false_val);
       OpEndIT(it);  // Add a scheduling barrier to keep the IT shadow intact
     } else if (cheap_false_val && ccode == kCondEq && true_val == 1) {
       OpRegRegImm(kOpRsub, rl_result.reg, rl_src.reg, 1);
-      DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
+      DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
       LIR* it = OpIT(kCondLs, "");
       LoadConstant(rl_result.reg, false_val);
       OpEndIT(it);  // Add a scheduling barrier to keep the IT shadow intact
@@ -882,14 +882,14 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
     }
     FreeTemp(r_tmp_high);  // Now unneeded
 
-    DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
+    DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
     it = OpIT(kCondEq, "T");
     NewLIR4(kThumb2Strexd /* eq */, r_tmp.GetReg(), rl_new_value.reg.GetLowReg(), rl_new_value.reg.GetHighReg(), r_ptr.GetReg());
 
   } else {
     NewLIR3(kThumb2Ldrex, r_tmp.GetReg(), r_ptr.GetReg(), 0);
     OpRegReg(kOpSub, r_tmp, rl_expected.reg);
-    DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
+    DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
     it = OpIT(kCondEq, "T");
     NewLIR4(kThumb2Strex /* eq */, r_tmp.GetReg(), rl_new_value.reg.GetReg(), r_ptr.GetReg(), 0);
   }
@@ -907,7 +907,7 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   // result := (tmp1 != 0) ? 0 : 1;
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   OpRegRegImm(kOpRsub, rl_result.reg, r_tmp, 1);
-  DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
+  DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
   it = OpIT(kCondUlt, "");
   LoadConstant(rl_result.reg, 0); /* cc */
   FreeTemp(r_tmp);  // Now unneeded.
@@ -971,7 +971,7 @@ LIR* ArmMir2Lir::OpTestSuspend(LIR* target) {
 LIR* ArmMir2Lir::OpDecAndBranch(ConditionCode c_code, RegStorage reg, LIR* target) {
   // Combine sub & test using sub setflags encoding here
   OpRegRegImm(kOpSub, reg, reg, 1);  // For value == 1, this should set flags.
-  DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
+  DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
   return OpCondBranch(c_code, target);
 }
 
@@ -1004,7 +1004,7 @@ bool ArmMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 
   // At this point we must have a memory barrier. Mark it as a scheduling barrier as well.
   DCHECK(!barrier->flags.use_def_invalid);
-  barrier->u.m.def_mask = ENCODE_ALL;
+  barrier->u.m.def_mask = &kEncodeAll;
   return ret;
 #else
   return false;

@@ -23,6 +23,7 @@
 #include "dex/compiler_ir.h"
 #include "dex/reg_storage.h"
 #include "dex/backend.h"
+#include "dex/quick/resource_mask.h"
 #include "driver/compiler_driver.h"
 #include "leb128.h"
 #include "safe_map.h"
@@ -136,8 +137,8 @@ typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int,
 typedef std::vector<uint8_t> CodeBuffer;
 
 struct UseDefMasks {
-  uint64_t use_mask;        // Resource mask for use.
-  uint64_t def_mask;        // Resource mask for def.
+  const ResourceMask* use_mask;        // Resource mask for use.
+  const ResourceMask* def_mask;        // Resource mask for def.
 };
 
 struct AssemblyInfo {
@@ -187,20 +188,6 @@ Mir2Lir* X86_64CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_grap
 #define DECODE_ALIAS_INFO_WIDE_FLAG     (0x10000)
 #define DECODE_ALIAS_INFO_WIDE(X)       ((X & DECODE_ALIAS_INFO_WIDE_FLAG) ? 1 : 0)
 #define ENCODE_ALIAS_INFO(REG, ISWIDE)  (REG | (ISWIDE ? DECODE_ALIAS_INFO_WIDE_FLAG : 0))
-
-// Common resource macros.
-#define ENCODE_CCODE            (1ULL << kCCode)
-#define ENCODE_FP_STATUS        (1ULL << kFPStatus)
-
-// Abstract memory locations.
-#define ENCODE_DALVIK_REG       (1ULL << kDalvikReg)
-#define ENCODE_LITERAL          (1ULL << kLiteral)
-#define ENCODE_HEAP_REF         (1ULL << kHeapRef)
-#define ENCODE_MUST_NOT_ALIAS   (1ULL << kMustNotAlias)
-
-#define ENCODE_ALL              (~0ULL)
-#define ENCODE_MEM              (ENCODE_DALVIK_REG | ENCODE_LITERAL | \
-                                 ENCODE_HEAP_REF | ENCODE_MUST_NOT_ALIAS)
 
 #define ENCODE_REG_PAIR(low_reg, high_reg) ((low_reg & 0xff) | ((high_reg & 0xff) << 8))
 #define DECODE_REG_PAIR(both_regs, low_reg, high_reg) \
@@ -327,7 +314,7 @@ class Mir2Lir : public Backend {
      */
     class RegisterInfo {
      public:
-      RegisterInfo(RegStorage r, uint64_t mask = ENCODE_ALL);
+      RegisterInfo(RegStorage r, const ResourceMask& mask = kEncodeAll);
       ~RegisterInfo() {}
       static void* operator new(size_t size, ArenaAllocator* arena) {
         return arena->Alloc(size, kArenaAllocRegAlloc);
@@ -378,8 +365,8 @@ class Mir2Lir : public Backend {
       RegStorage Partner() { return partner_; }
       void SetPartner(RegStorage partner) { partner_ = partner; }
       int SReg() { return (!IsTemp() || IsLive()) ? s_reg_ : INVALID_SREG; }
-      uint64_t DefUseMask() { return def_use_mask_; }
-      void SetDefUseMask(uint64_t def_use_mask) { def_use_mask_ = def_use_mask; }
+      const ResourceMask& DefUseMask() { return def_use_mask_; }
+      void SetDefUseMask(const ResourceMask& def_use_mask) { def_use_mask_ = def_use_mask; }
       RegisterInfo* Master() { return master_; }
       void SetMaster(RegisterInfo* master) {
         master_ = master;
@@ -417,7 +404,7 @@ class Mir2Lir : public Backend {
       bool aliased_;               // Is this the master for other aliased RegisterInfo's?
       RegStorage partner_;         // If wide_value, other reg of pair or self if 64-bit register.
       int s_reg_;                  // Name of live value.
-      uint64_t def_use_mask_;      // Resources for this element.
+      ResourceMask def_use_mask_;  // Resources for this element.
       uint32_t used_storage_;      // 1 bit per 4 bytes of storage. Unused by aliases.
       uint32_t liveness_;          // 1 bit per 4 bytes of storage. Unused by aliases.
       RegisterInfo* master_;       // Pointer to controlling storage mask.
@@ -539,6 +526,26 @@ class Mir2Lir : public Backend {
       LIR* const cont_;
     };
 
+    // Helper class for changing mem_ref_type_ until the end of current scope. See mem_ref_type_.
+    class ScopedMemRefType {
+     public:
+      ScopedMemRefType(Mir2Lir* m2l, ResourceMask::ResourceBit new_mem_ref_type)
+          : m2l_(m2l),
+            old_mem_ref_type_(m2l->mem_ref_type_) {
+        m2l_->mem_ref_type_ = new_mem_ref_type;
+      }
+
+      ~ScopedMemRefType() {
+        m2l_->mem_ref_type_ = old_mem_ref_type_;
+      }
+
+     private:
+      Mir2Lir* const m2l_;
+      ResourceMask::ResourceBit old_mem_ref_type_;
+
+      DISALLOW_COPY_AND_ASSIGN(ScopedMemRefType);
+    };
+
     virtual ~Mir2Lir() {}
 
     int32_t s4FromSwitchData(const void* switch_data) {
@@ -625,10 +632,10 @@ class Mir2Lir : public Backend {
     virtual void Materialize();
     virtual CompiledMethod* GetCompiledMethod();
     void MarkSafepointPC(LIR* inst);
-    void SetupResourceMasks(LIR* lir, bool leave_mem_ref = false);
+    void SetupResourceMasks(LIR* lir);
     void SetMemRefType(LIR* lir, bool is_load, int mem_type);
     void AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load, bool is64bit);
-    void SetupRegMask(uint64_t* mask, int reg);
+    void SetupRegMask(ResourceMask* mask, int reg);
     void DumpLIRInsn(LIR* arg, unsigned char* base_addr);
     void DumpPromotionMap();
     void CodegenDump();
@@ -1136,7 +1143,7 @@ class Mir2Lir : public Backend {
     virtual RegLocation LocCReturnDouble() = 0;
     virtual RegLocation LocCReturnFloat() = 0;
     virtual RegLocation LocCReturnWide() = 0;
-    virtual uint64_t GetRegMaskCommon(RegStorage reg) = 0;
+    virtual ResourceMask GetRegMaskCommon(const RegStorage& reg) const = 0;
     virtual void AdjustSpillMask() = 0;
     virtual void ClobberCallerSave() = 0;
     virtual void FreeCallTemps() = 0;
@@ -1147,12 +1154,13 @@ class Mir2Lir : public Backend {
 
     // Required for target - miscellaneous.
     virtual void AssembleLIR() = 0;
-    virtual void DumpResourceMask(LIR* lir, uint64_t mask, const char* prefix) = 0;
-    virtual void SetupTargetResourceMasks(LIR* lir, uint64_t flags) = 0;
+    virtual void DumpResourceMask(LIR* lir, const ResourceMask& mask, const char* prefix) = 0;
+    virtual void SetupTargetResourceMasks(LIR* lir, uint64_t flags,
+                                          ResourceMask* use_mask, ResourceMask* def_mask) = 0;
     virtual const char* GetTargetInstFmt(int opcode) = 0;
     virtual const char* GetTargetInstName(int opcode) = 0;
     virtual std::string BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr) = 0;
-    virtual uint64_t GetPCUseDefEncoding() = 0;
+    virtual ResourceMask GetPCUseDefEncoding() const = 0;
     virtual uint64_t GetTargetInstFlags(int opcode) = 0;
     virtual int GetInsnSize(LIR* lir) = 0;
     virtual bool IsUnconditionalBranch(LIR* lir) = 0;
@@ -1576,6 +1584,17 @@ class Mir2Lir : public Backend {
     LIR* last_lir_insn_;
 
     GrowableArray<LIRSlowPath*> slow_paths_;
+
+    // The memory reference type for new LIRs.
+    // NOTE: Passing this as an explicit parameter by all functions that directly or indirectly
+    // invoke RawLIR() would clutter the code and reduce the readability.
+    ResourceMask::ResourceBit mem_ref_type_;
+
+    // Each resource mask now takes 16-bytes, so having both use/def masks directly in a LIR
+    // would consume 32 bytes per LIR. Instead, the LIR now holds only pointers to the masks
+    // (i.e. 8 bytes on 32-bit arch, 16 bytes on 64-bit arch) and we use ResourceMaskCache
+    // to deduplicate the masks.
+    ResourceMaskCache mask_cache_;
 };  // Class Mir2Lir
 
 }  // namespace art

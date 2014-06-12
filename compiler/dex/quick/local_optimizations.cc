@@ -21,8 +21,8 @@ namespace art {
 #define DEBUG_OPT(X)
 
 /* Check RAW, WAR, and RAW dependency on the register operands */
-#define CHECK_REG_DEP(use, def, check) ((def & check->u.m.use_mask) || \
-                                        ((use | def) & check->u.m.def_mask))
+#define CHECK_REG_DEP(use, def, check) (def.Intersects(*check->u.m.use_mask)) || \
+                                       (use.Union(def).Intersects(*check->u.m.def_mask))
 
 /* Scheduler heuristics */
 #define MAX_HOIST_DISTANCE 20
@@ -109,20 +109,23 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
     bool is_this_lir_load = target_flags & IS_LOAD;
     LIR* check_lir;
     /* Use the mem mask to determine the rough memory location */
-    uint64_t this_mem_mask = (this_lir->u.m.use_mask | this_lir->u.m.def_mask) & ENCODE_MEM;
+    ResourceMask this_mem_mask = kEncodeMem.Intersection(
+        this_lir->u.m.use_mask->Union(*this_lir->u.m.def_mask));
 
     /*
      * Currently only eliminate redundant ld/st for constant and Dalvik
      * register accesses.
      */
-    if (!(this_mem_mask & (ENCODE_LITERAL | ENCODE_DALVIK_REG))) {
+    if (!this_mem_mask.Intersects(kEncodeLiteral.Union(kEncodeDalvikReg))) {
       continue;
     }
 
-    uint64_t stop_def_reg_mask = this_lir->u.m.def_mask & ~ENCODE_MEM;
-    uint64_t stop_use_reg_mask;
+    ResourceMask stop_def_reg_mask = this_lir->u.m.def_mask->Without(kEncodeMem);
+    ResourceMask stop_use_reg_mask;
     if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
-      stop_use_reg_mask = (IS_BRANCH | this_lir->u.m.use_mask) & ~ENCODE_MEM;
+      // TODO: Stop the abuse of kIsBranch as a bit specification for ResourceMask.
+      stop_use_reg_mask = ResourceMask::Bit(kIsBranch).Union(*this_lir->u.m.use_mask).Without(
+          kEncodeMem);
     } else {
       /*
        * Add pc to the resource mask to prevent this instruction
@@ -130,7 +133,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
        * region bits since stop_mask is used to check data/control
        * dependencies.
        */
-        stop_use_reg_mask = (GetPCUseDefEncoding() | this_lir->u.m.use_mask) & ~ENCODE_MEM;
+      stop_use_reg_mask = GetPCUseDefEncoding().Union(*this_lir->u.m.use_mask).Without(kEncodeMem);
     }
 
     for (check_lir = NEXT_LIR(this_lir); check_lir != tail_lir; check_lir = NEXT_LIR(check_lir)) {
@@ -142,8 +145,9 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
         continue;
       }
 
-      uint64_t check_mem_mask = (check_lir->u.m.use_mask | check_lir->u.m.def_mask) & ENCODE_MEM;
-      uint64_t alias_condition = this_mem_mask & check_mem_mask;
+      ResourceMask check_mem_mask = kEncodeMem.Intersection(
+          check_lir->u.m.use_mask->Union(*check_lir->u.m.def_mask));
+      ResourceMask alias_condition = this_mem_mask.Intersection(check_mem_mask);
       bool stop_here = false;
 
       /*
@@ -153,9 +157,9 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
       // TUNING: Support instructions with multiple register targets.
       if ((check_flags & (REG_DEF0 | REG_DEF1)) == (REG_DEF0 | REG_DEF1)) {
         stop_here = true;
-      } else if (check_mem_mask != ENCODE_MEM && alias_condition != 0) {
+      } else if (!check_mem_mask.Equals(kEncodeMem) && !alias_condition.Equals(kEncodeNone)) {
         bool is_check_lir_load = check_flags & IS_LOAD;
-        if  (alias_condition == ENCODE_LITERAL) {
+        if  (alias_condition.Equals(kEncodeLiteral)) {
           /*
            * Should only see literal loads in the instruction
            * stream.
@@ -175,7 +179,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
             }
             NopLIR(check_lir);
           }
-        } else if (alias_condition == ENCODE_DALVIK_REG) {
+        } else if (alias_condition.Equals(kEncodeDalvikReg)) {
           /* Must alias */
           if (check_lir->flags.alias_info == this_lir->flags.alias_info) {
             /* Only optimize compatible registers */
@@ -304,7 +308,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
       continue;
     }
 
-    uint64_t stop_use_all_mask = this_lir->u.m.use_mask;
+    ResourceMask stop_use_all_mask = *this_lir->u.m.use_mask;
 
     if (cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64) {
       /*
@@ -313,14 +317,14 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
        * locations are safe to be hoisted. So only mark the heap references
        * conservatively here.
        */
-      if (stop_use_all_mask & ENCODE_HEAP_REF) {
-        stop_use_all_mask |= GetPCUseDefEncoding();
+      if (stop_use_all_mask.HasBit(ResourceMask::kHeapRef)) {
+        stop_use_all_mask.SetBits(GetPCUseDefEncoding());
       }
     }
 
     /* Similar as above, but just check for pure register dependency */
-    uint64_t stop_use_reg_mask = stop_use_all_mask & ~ENCODE_MEM;
-    uint64_t stop_def_reg_mask = this_lir->u.m.def_mask & ~ENCODE_MEM;
+    ResourceMask stop_use_reg_mask = stop_use_all_mask.Without(kEncodeMem);
+    ResourceMask stop_def_reg_mask = this_lir->u.m.def_mask->Without(kEncodeMem);
 
     int next_slot = 0;
     bool stop_here = false;
@@ -335,22 +339,22 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
         continue;
       }
 
-      uint64_t check_mem_mask = check_lir->u.m.def_mask & ENCODE_MEM;
-      uint64_t alias_condition = stop_use_all_mask & check_mem_mask;
+      ResourceMask check_mem_mask = check_lir->u.m.def_mask->Intersection(kEncodeMem);
+      ResourceMask alias_condition = stop_use_all_mask.Intersection(check_mem_mask);
       stop_here = false;
 
       /* Potential WAR alias seen - check the exact relation */
-      if (check_mem_mask != ENCODE_MEM && alias_condition != 0) {
+      if (!check_mem_mask.Equals(kEncodeMem) && !alias_condition.Equals(kEncodeNone)) {
         /* We can fully disambiguate Dalvik references */
-        if (alias_condition == ENCODE_DALVIK_REG) {
-          /* Must alias or partually overlap */
+        if (alias_condition.Equals(kEncodeDalvikReg)) {
+          /* Must alias or partially overlap */
           if ((check_lir->flags.alias_info == this_lir->flags.alias_info) ||
             IsDalvikRegisterClobbered(this_lir, check_lir)) {
             stop_here = true;
           }
         /* Conservatively treat all heap refs as may-alias */
         } else {
-          DCHECK_EQ(alias_condition, ENCODE_HEAP_REF);
+          DCHECK(alias_condition.Equals(kEncodeHeapRef));
           stop_here = true;
         }
         /* Memory content may be updated. Stop looking now. */
@@ -413,7 +417,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
         LIR* prev_lir = prev_inst_list[slot+1];
 
         /* Check the highest instruction */
-        if (prev_lir->u.m.def_mask == ENCODE_ALL) {
+        if (prev_lir->u.m.def_mask->Equals(kEncodeAll)) {
           /*
            * If the first instruction is a load, don't hoist anything
            * above it since it is unlikely to be beneficial.
@@ -443,7 +447,8 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
          */
         bool prev_is_load = IsPseudoLirOp(prev_lir->opcode) ? false :
             (GetTargetInstFlags(prev_lir->opcode) & IS_LOAD);
-        if (((cur_lir->u.m.use_mask & prev_lir->u.m.def_mask) && prev_is_load) || (slot < LD_LATENCY)) {
+        if ((prev_is_load && (cur_lir->u.m.use_mask->Intersects(*prev_lir->u.m.def_mask))) ||
+            (slot < LD_LATENCY)) {
           break;
         }
       }

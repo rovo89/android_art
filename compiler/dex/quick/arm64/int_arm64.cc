@@ -572,7 +572,7 @@ bool Arm64Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   } else {
     NewLIR3(kA64Ldxr2rX, r_tmp.GetReg(), r_ptr.GetReg(), 0);
     OpRegReg(kOpSub, r_tmp, rl_expected.reg);
-    DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
+    DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
     // OpIT(kCondEq, "T");
     NewLIR4(kA64Stxr3wrX /* eq */, r_tmp.GetReg(), rl_new_value.reg.GetReg(), r_ptr.GetReg(), 0);
   }
@@ -588,7 +588,7 @@ bool Arm64Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   // result := (tmp1 != 0) ? 0 : 1;
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   OpRegRegImm(kOpRsub, rl_result.reg, r_tmp, 1);
-  DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
+  DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
   // OpIT(kCondUlt, "");
   LoadConstant(rl_result.reg, 0); /* cc */
   FreeTemp(r_tmp);  // Now unneeded.
@@ -640,7 +640,7 @@ LIR* Arm64Mir2Lir::OpTestSuspend(LIR* target) {
 LIR* Arm64Mir2Lir::OpDecAndBranch(ConditionCode c_code, RegStorage reg, LIR* target) {
   // Combine sub & test using sub setflags encoding here
   OpRegRegImm(kOpSub, reg, reg, 1);  // For value == 1, this should set flags.
-  DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
+  DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
   return OpCondBranch(c_code, target);
 }
 
@@ -673,7 +673,7 @@ bool Arm64Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 
   // At this point we must have a memory barrier. Mark it as a scheduling barrier as well.
   DCHECK(!barrier->flags.use_def_invalid);
-  barrier->u.m.def_mask = ENCODE_ALL;
+  barrier->u.m.def_mask = &kEncodeAll;
   return ret;
 #else
   return false;

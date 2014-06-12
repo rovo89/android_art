@@ -111,9 +111,6 @@ enum X86ResourceEncodingPos {
   kX86RegEnd   = kX86FPStack,
 };
 
-#define ENCODE_X86_REG_SP           (1ULL << kX86RegSP)
-#define ENCODE_X86_FP_STACK         (1ULL << kX86FPStack)
-
 // FIXME: for 64-bit, perhaps add an X86_64NativeRegisterPool enum?
 enum X86NativeRegisterPool {
   r0             = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 0,
