@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_DEX_REG_STORAGE_H_
 #define ART_COMPILER_DEX_REG_STORAGE_H_
 
+#include "base/logging.h"
 
 namespace art {
 
@@ -102,17 +103,21 @@ class RegStorage {
   static const uint16_t kHighRegMask = (kHighRegNumMask << kHighRegShift);
 
   // Reg is [F][LLLLL], will override any existing shape and use rs_kind.
-  RegStorage(RegStorageKind rs_kind, int reg) {
-    DCHECK_NE(rs_kind, k64BitPair);
-    DCHECK_EQ(rs_kind & ~kShapeMask, 0);
-    reg_ = kValid | rs_kind | (reg & kRegTypeMask);
+  constexpr RegStorage(RegStorageKind rs_kind, int reg)
+      : reg_(
+          DCHECK_CONSTEXPR(rs_kind != k64BitPair, , 0u)
+          DCHECK_CONSTEXPR((rs_kind & ~kShapeMask) == 0, , 0u)
+          kValid | rs_kind | (reg & kRegTypeMask)) {
   }
-  RegStorage(RegStorageKind rs_kind, int low_reg, int high_reg) {
-    DCHECK_EQ(rs_kind, k64BitPair);
-    DCHECK_EQ(low_reg & kFloatingPoint, high_reg & kFloatingPoint);
-    DCHECK_LE(high_reg & kRegNumMask, kHighRegNumMask) << "High reg must be in 0..31";
-    reg_ = kValid | rs_kind | ((high_reg & kHighRegNumMask) << kHighRegShift) |
-        (low_reg & kRegTypeMask);
+  constexpr RegStorage(RegStorageKind rs_kind, int low_reg, int high_reg)
+      : reg_(
+          DCHECK_CONSTEXPR(rs_kind == k64BitPair, << rs_kind, 0u)
+          DCHECK_CONSTEXPR((low_reg & kFloatingPoint) == (high_reg & kFloatingPoint),
+                           << low_reg << ", " << high_reg, 0u)
+          DCHECK_CONSTEXPR((high_reg & kRegNumMask) <= kHighRegNumMask,
+                           << "High reg must be in 0..31: " << high_reg, false)
+          kValid | rs_kind | ((high_reg & kHighRegNumMask) << kHighRegShift) |
+                  (low_reg & kRegTypeMask)) {
   }
   constexpr explicit RegStorage(uint16_t val) : reg_(val) {}
   RegStorage() : reg_(kInvalid) {}
@@ -125,50 +130,53 @@ class RegStorage {
     return (reg_ != rhs.GetRawBits());
   }
 
-  bool Valid() const {
+  constexpr bool Valid() const {
     return ((reg_ & kValidMask) == kValid);
   }
 
-  bool Is32Bit() const {
+  constexpr bool Is32Bit() const {
     return ((reg_ & kShapeMask) == k32BitSolo);
   }
 
-  bool Is64Bit() const {
+  constexpr bool Is64Bit() const {
     return ((reg_ & k64BitMask) == k64Bits);
   }
 
-  bool Is64BitSolo() const {
+  constexpr bool Is64BitSolo() const {
     return ((reg_ & kShapeMask) == k64BitSolo);
   }
 
-  bool IsPair() const {
+  constexpr bool IsPair() const {
     return ((reg_ & kShapeMask) == k64BitPair);
   }
 
-  bool IsFloat() const {
-    DCHECK(Valid());
-    return ((reg_ & kFloatingPoint) == kFloatingPoint);
+  constexpr bool IsFloat() const {
+    return
+        DCHECK_CONSTEXPR(Valid(), , false)
+        ((reg_ & kFloatingPoint) == kFloatingPoint);
   }
 
-  bool IsDouble() const {
-    DCHECK(Valid());
-    return (reg_ & (kFloatingPoint | k64BitMask)) == (kFloatingPoint | k64Bits);
+  constexpr bool IsDouble() const {
+    return
+        DCHECK_CONSTEXPR(Valid(), , false)
+        (reg_ & (kFloatingPoint | k64BitMask)) == (kFloatingPoint | k64Bits);
   }
 
-  bool IsSingle() const {
-    DCHECK(Valid());
-    return (reg_ & (kFloatingPoint | k64BitMask)) == kFloatingPoint;
+  constexpr bool IsSingle() const {
+    return
+        DCHECK_CONSTEXPR(Valid(), , false)
+        (reg_ & (kFloatingPoint | k64BitMask)) == kFloatingPoint;
   }
 
-  static bool IsFloat(uint16_t reg) {
+  static constexpr bool IsFloat(uint16_t reg) {
     return ((reg & kFloatingPoint) == kFloatingPoint);
   }
 
-  static bool IsDouble(uint16_t reg) {
+  static constexpr bool IsDouble(uint16_t reg) {
     return (reg & (kFloatingPoint | k64BitMask)) == (kFloatingPoint | k64Bits);
   }
 
-  static bool IsSingle(uint16_t reg) {
+  static constexpr bool IsSingle(uint16_t reg) {
     return (reg & (kFloatingPoint | k64BitMask)) == kFloatingPoint;
   }
 
@@ -221,17 +229,17 @@ class RegStorage {
   }
 
   // Return the register number of low or solo.
-  int GetRegNum() const {
+  constexpr int GetRegNum() const {
     return reg_ & kRegNumMask;
   }
 
   // Is register number in 0..7?
-  bool Low8() const {
+  constexpr bool Low8() const {
     return GetRegNum() < 8;
   }
 
   // Is register number in 0..3?
-  bool Low4() const {
+  constexpr bool Low4() const {
     return GetRegNum() < 4;
   }
 
@@ -244,11 +252,11 @@ class RegStorage {
     return RegStorage(k64BitPair, low.GetReg(), high.GetReg());
   }
 
-  static bool SameRegType(RegStorage reg1, RegStorage reg2) {
+  static constexpr bool SameRegType(RegStorage reg1, RegStorage reg2) {
     return (reg1.IsDouble() == reg2.IsDouble()) && (reg1.IsSingle() == reg2.IsSingle());
   }
 
-  static bool SameRegType(int reg1, int reg2) {
+  static constexpr bool SameRegType(int reg1, int reg2) {
     return (IsDouble(reg1) == IsDouble(reg2)) && (IsSingle(reg1) == IsSingle(reg2));
   }
 
@@ -258,17 +266,17 @@ class RegStorage {
   }
 
   // Create a floating point 32-bit solo.
-  static RegStorage FloatSolo32(int reg_num) {
+  static constexpr RegStorage FloatSolo32(int reg_num) {
     return RegStorage(k32BitSolo, (reg_num & kRegNumMask) | kFloatingPoint);
   }
 
   // Create a 128-bit solo.
-  static RegStorage Solo128(int reg_num) {
+  static constexpr RegStorage Solo128(int reg_num) {
     return RegStorage(k128BitSolo, reg_num & kRegTypeMask);
   }
 
   // Create a 64-bit solo.
-  static RegStorage Solo64(int reg_num) {
+  static constexpr RegStorage Solo64(int reg_num) {
     return RegStorage(k64BitSolo, reg_num & kRegTypeMask);
   }
 
@@ -277,19 +285,19 @@ class RegStorage {
     return RegStorage(k64BitSolo, (reg_num & kRegNumMask) | kFloatingPoint);
   }
 
-  static RegStorage InvalidReg() {
+  static constexpr RegStorage InvalidReg() {
     return RegStorage(kInvalid);
   }
 
-  static uint16_t RegNum(int raw_reg_bits) {
+  static constexpr uint16_t RegNum(int raw_reg_bits) {
     return raw_reg_bits & kRegNumMask;
   }
 
-  int GetRawBits() const {
+  constexpr int GetRawBits() const {
     return reg_;
   }
 
-  size_t StorageSize() {
+  size_t StorageSize() const {
     switch (reg_ & kShapeMask) {
       case kInvalid: return 0;
       case k32BitSolo: return 4;

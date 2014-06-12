@@ -140,9 +140,8 @@ struct TypeIdentity {
 template<typename T>
 static constexpr T RoundDown(T x, typename TypeIdentity<T>::type n) {
   return
-      // DCHECK(IsPowerOfTwo(n)) in a form acceptable in a constexpr function:
-      (kIsDebugBuild && !IsPowerOfTwo(n)) ? (LOG(FATAL) << n << " isn't a power of 2", T(0))
-      : (x & -n);
+      DCHECK_CONSTEXPR(IsPowerOfTwo(n), , T(0))
+      (x & -n);
 }
 
 template<typename T>
