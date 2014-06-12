@@ -19,6 +19,7 @@
 
 #include "code_generator.h"
 #include "nodes.h"
+#include "parallel_move_resolver.h"
 #include "utils/x86/assembler_x86.h"
 
 namespace art {
@@ -57,6 +58,28 @@ class InvokeDexCallingConventionVisitor {
   uint32_t gp_index_;
 
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
+};
+
+class ParallelMoveResolverX86 : public ParallelMoveResolver {
+ public:
+  ParallelMoveResolverX86(ArenaAllocator* allocator, CodeGeneratorX86* codegen)
+      : ParallelMoveResolver(allocator), codegen_(codegen) {}
+
+  virtual void EmitMove(size_t index) OVERRIDE;
+  virtual void EmitSwap(size_t index) OVERRIDE;
+  virtual void SpillScratch(int reg) OVERRIDE;
+  virtual void RestoreScratch(int reg) OVERRIDE;
+
+  X86Assembler* GetAssembler() const;
+
+ private:
+  void Exchange(Register reg, int mem);
+  void Exchange(int mem1, int mem2);
+  void MoveMemoryToMemory(int dst, int src);
+
+  CodeGeneratorX86* const codegen_;
+
+  DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolverX86);
 };
 
 class LocationsBuilderX86 : public HGraphVisitor {
@@ -105,6 +128,7 @@ class CodeGeneratorX86 : public CodeGenerator {
   explicit CodeGeneratorX86(HGraph* graph);
   virtual ~CodeGeneratorX86() { }
 
+  virtual void ComputeFrameSize(size_t number_of_spill_slots) OVERRIDE;
   virtual void GenerateFrameEntry() OVERRIDE;
   virtual void GenerateFrameExit() OVERRIDE;
   virtual void Bind(Label* label) OVERRIDE;
@@ -145,6 +169,10 @@ class CodeGeneratorX86 : public CodeGenerator {
   virtual void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
 
+  ParallelMoveResolverX86* GetMoveResolver() {
+    return &move_resolver_;
+  }
+
  private:
   // Helper method to move a 32bits value between two locations.
   void Move32(Location destination, Location source);
@@ -153,6 +181,7 @@ class CodeGeneratorX86 : public CodeGenerator {
 
   LocationsBuilderX86 location_builder_;
   InstructionCodeGeneratorX86 instruction_visitor_;
+  ParallelMoveResolverX86 move_resolver_;
   X86Assembler assembler_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorX86);

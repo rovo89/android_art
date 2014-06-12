@@ -29,30 +29,60 @@
 
 namespace art {
 
-void CodeGenerator::Compile(CodeAllocator* allocator) {
+void CodeGenerator::CompileBaseline(CodeAllocator* allocator) {
   const GrowableArray<HBasicBlock*>& blocks = GetGraph()->GetBlocks();
   DCHECK(blocks.Get(0) == GetGraph()->GetEntryBlock());
   DCHECK(GoesToNextBlock(GetGraph()->GetEntryBlock(), blocks.Get(1)));
+  block_labels_.SetSize(blocks.Size());
+
+  DCHECK_EQ(frame_size_, kUninitializedFrameSize);
+  ComputeFrameSize(GetGraph()->GetMaximumNumberOfOutVRegs()
+                   + GetGraph()->GetNumberOfVRegs()
+                   + 1 /* filler */);
   GenerateFrameEntry();
+
   for (size_t i = 0, e = blocks.Size(); i < e; ++i) {
-    CompileBlock(blocks.Get(i));
+    HBasicBlock* block = blocks.Get(i);
+    Bind(GetLabelOf(block));
+    HGraphVisitor* location_builder = GetLocationBuilder();
+    HGraphVisitor* instruction_visitor = GetInstructionVisitor();
+    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+      HInstruction* current = it.Current();
+      current->Accept(location_builder);
+      InitLocations(current);
+      current->Accept(instruction_visitor);
+    }
   }
+
   size_t code_size = GetAssembler()->CodeSize();
   uint8_t* buffer = allocator->Allocate(code_size);
   MemoryRegion code(buffer, code_size);
   GetAssembler()->FinalizeInstructions(code);
 }
 
-void CodeGenerator::CompileBlock(HBasicBlock* block) {
-  Bind(GetLabelOf(block));
-  HGraphVisitor* location_builder = GetLocationBuilder();
-  HGraphVisitor* instruction_visitor = GetInstructionVisitor();
-  for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-    HInstruction* current = it.Current();
-    current->Accept(location_builder);
-    InitLocations(current);
-    current->Accept(instruction_visitor);
+void CodeGenerator::CompileOptimized(CodeAllocator* allocator) {
+  // The frame size has already been computed during register allocation.
+  DCHECK_NE(frame_size_, kUninitializedFrameSize);
+  const GrowableArray<HBasicBlock*>& blocks = GetGraph()->GetBlocks();
+  DCHECK(blocks.Get(0) == GetGraph()->GetEntryBlock());
+  DCHECK(GoesToNextBlock(GetGraph()->GetEntryBlock(), blocks.Get(1)));
+  block_labels_.SetSize(blocks.Size());
+
+  GenerateFrameEntry();
+  for (size_t i = 0, e = blocks.Size(); i < e; ++i) {
+    HBasicBlock* block = blocks.Get(i);
+    Bind(GetLabelOf(block));
+    HGraphVisitor* instruction_visitor = GetInstructionVisitor();
+    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+      HInstruction* current = it.Current();
+      current->Accept(instruction_visitor);
+    }
   }
+
+  size_t code_size = GetAssembler()->CodeSize();
+  uint8_t* buffer = allocator->Allocate(code_size);
+  MemoryRegion code(buffer, code_size);
+  GetAssembler()->FinalizeInstructions(code);
 }
 
 size_t CodeGenerator::AllocateFreeRegisterInternal(

@@ -28,6 +28,7 @@
 namespace art {
 
 static size_t constexpr kVRegSize = 4;
+static size_t constexpr kUninitializedFrameSize = 0;
 
 class DexCompilationUnit;
 
@@ -51,7 +52,8 @@ class CodeGenerator : public ArenaObject {
  public:
   // Compiles the graph to executable instructions. Returns whether the compilation
   // succeeded.
-  void Compile(CodeAllocator* allocator);
+  void CompileBaseline(CodeAllocator* allocator);
+  void CompileOptimized(CodeAllocator* allocator);
   static CodeGenerator* Create(ArenaAllocator* allocator,
                                HGraph* graph,
                                InstructionSet instruction_set);
@@ -61,6 +63,14 @@ class CodeGenerator : public ArenaObject {
   Label* GetLabelOf(HBasicBlock* block) const;
   bool GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) const;
 
+  size_t GetStackSlotOfParameter(HParameterValue* parameter) const {
+    // Note that this follows the current calling convention.
+    return GetFrameSize()
+        + kVRegSize  // Art method
+        + (parameter->GetIndex() - graph_->GetNumberOfVRegs() + graph_->GetNumberOfInVRegs())
+          * kVRegSize;
+  }
+
   virtual void GenerateFrameEntry() = 0;
   virtual void GenerateFrameExit() = 0;
   virtual void Bind(Label* label) = 0;
@@ -69,6 +79,7 @@ class CodeGenerator : public ArenaObject {
   virtual HGraphVisitor* GetInstructionVisitor() = 0;
   virtual Assembler* GetAssembler() = 0;
   virtual size_t GetWordSize() const = 0;
+  virtual void ComputeFrameSize(size_t number_of_spill_slots) = 0;
 
   uint32_t GetFrameSize() const { return frame_size_; }
   void SetFrameSize(uint32_t size) { frame_size_ = size; }
@@ -95,14 +106,12 @@ class CodeGenerator : public ArenaObject {
 
  protected:
   CodeGenerator(HGraph* graph, size_t number_of_registers)
-      : frame_size_(0),
+      : frame_size_(kUninitializedFrameSize),
         graph_(graph),
         block_labels_(graph->GetArena(), 0),
         pc_infos_(graph->GetArena(), 32),
-        blocked_registers_(graph->GetArena()->AllocArray<bool>(number_of_registers)) {
-    block_labels_.SetSize(graph->GetBlocks().Size());
-  }
-  ~CodeGenerator() { }
+        blocked_registers_(graph->GetArena()->AllocArray<bool>(number_of_registers)) {}
+  ~CodeGenerator() {}
 
   // Register allocation logic.
   void AllocateRegistersLocally(HInstruction* instruction) const;
@@ -123,7 +132,6 @@ class CodeGenerator : public ArenaObject {
 
  private:
   void InitLocations(HInstruction* instruction);
-  void CompileBlock(HBasicBlock* block);
 
   HGraph* const graph_;
 
