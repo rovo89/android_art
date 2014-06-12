@@ -42,7 +42,10 @@ class ParallelMoveResolver : public ValueObject {
  protected:
   class ScratchRegisterScope : public ValueObject {
    public:
-    ScratchRegisterScope(ParallelMoveResolver* resolver, int blocked, int number_of_registers);
+    ScratchRegisterScope(ParallelMoveResolver* resolver,
+                         int blocked,
+                         int if_scratch,
+                         int number_of_registers);
     ~ScratchRegisterScope();
 
     int GetRegister() const { return reg_; }
@@ -55,7 +58,7 @@ class ParallelMoveResolver : public ValueObject {
   };
 
   bool IsScratchLocation(Location loc);
-  int AllocateScratchRegister(int blocked, int register_count, bool* spilled);
+  int AllocateScratchRegister(int blocked, int if_scratch, int register_count, bool* spilled);
 
   // Emit a move.
   virtual void EmitMove(size_t index) = 0;

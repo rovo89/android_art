@@ -163,7 +163,11 @@ bool ParallelMoveResolver::IsScratchLocation(Location loc) {
   return false;
 }
 
-int ParallelMoveResolver::AllocateScratchRegister(int blocked, int register_count, bool* spilled) {
+int ParallelMoveResolver::AllocateScratchRegister(int blocked,
+                                                  int register_count,
+                                                  int if_scratch,
+                                                  bool* spilled) {
+  DCHECK_NE(blocked, if_scratch);
   int scratch = -1;
   for (int reg = 0; reg < register_count; ++reg) {
     if ((blocked != reg) &&
@@ -175,11 +179,7 @@ int ParallelMoveResolver::AllocateScratchRegister(int blocked, int register_coun
 
   if (scratch == -1) {
     *spilled = true;
-    for (int reg = 0; reg < register_count; ++reg) {
-      if (blocked != reg) {
-        scratch = reg;
-      }
-    }
+    scratch = if_scratch;
   } else {
     *spilled = false;
   }
@@ -189,11 +189,11 @@ int ParallelMoveResolver::AllocateScratchRegister(int blocked, int register_coun
 
 
 ParallelMoveResolver::ScratchRegisterScope::ScratchRegisterScope(
-    ParallelMoveResolver* resolver, int blocked, int number_of_registers)
+    ParallelMoveResolver* resolver, int blocked, int if_scratch, int number_of_registers)
     : resolver_(resolver),
       reg_(kNoRegister),
       spilled_(false) {
-  reg_ = resolver_->AllocateScratchRegister(blocked, number_of_registers, &spilled_);
+  reg_ = resolver_->AllocateScratchRegister(blocked, number_of_registers, if_scratch, &spilled_);
 
   if (spilled_) {
     resolver->SpillScratch(reg_);

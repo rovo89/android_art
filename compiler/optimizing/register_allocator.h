@@ -65,7 +65,7 @@ class RegisterAllocator {
 
   static bool CanAllocateRegistersFor(const HGraph& graph, InstructionSet instruction_set);
   static bool Supports(InstructionSet instruction_set) {
-    return instruction_set == kX86;
+    return instruction_set == kX86 || instruction_set == kArm;
   }
 
   size_t GetNumberOfSpillSlots() const {
