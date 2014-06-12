@@ -48,7 +48,16 @@ void CodeGeneratorX86::DumpFloatingPointRegister(std::ostream& stream, int reg) 
 CodeGeneratorX86::CodeGeneratorX86(HGraph* graph)
     : CodeGenerator(graph, kNumberOfRegIds),
       location_builder_(graph, this),
-      instruction_visitor_(graph, this) {}
+      instruction_visitor_(graph, this),
+      move_resolver_(graph->GetArena(), this) {}
+
+void CodeGeneratorX86::ComputeFrameSize(size_t number_of_spill_slots) {
+  SetFrameSize(RoundUp(
+      number_of_spill_slots * kVRegSize
+      + kVRegSize  // Art method
+      + kNumberOfPushedRegistersAtEntry * kX86WordSize,
+      kStackAlignment));
+}
 
 static bool* GetBlockedRegisterPairs(bool* blocked_registers) {
   return blocked_registers + kNumberOfAllocIds;
@@ -124,13 +133,6 @@ void CodeGeneratorX86::GenerateFrameEntry() {
   // Create a fake register to mimic Quick.
   static const int kFakeReturnRegister = 8;
   core_spill_mask_ |= (1 << kFakeReturnRegister);
-
-  SetFrameSize(RoundUp(
-      (GetGraph()->GetMaximumNumberOfOutVRegs() + GetGraph()->GetNumberOfVRegs()) * kVRegSize
-      + kVRegSize  // filler
-      + kX86WordSize  // Art method
-      + kNumberOfPushedRegistersAtEntry * kX86WordSize,
-      kStackAlignment));
 
   // The return PC has already been pushed on the stack.
   __ subl(ESP, Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86WordSize));
@@ -264,8 +266,8 @@ void CodeGeneratorX86::Move32(Location destination, Location source) {
       __ movl(Address(ESP, destination.GetStackIndex()), source.AsX86().AsCpuRegister());
     } else {
       DCHECK(source.IsStackSlot());
-      __ movl(EAX, Address(ESP, source.GetStackIndex()));
-      __ movl(Address(ESP, destination.GetStackIndex()), EAX);
+      __ pushl(Address(ESP, source.GetStackIndex()));
+      __ popl(Address(ESP, destination.GetStackIndex()));
     }
   }
 }
@@ -302,8 +304,8 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
       DCHECK(source.IsDoubleStackSlot());
       __ movl(calling_convention.GetRegisterAt(argument_index),
               Address(ESP, source.GetStackIndex()));
-      __ movl(EAX, Address(ESP, source.GetHighStackIndex(kX86WordSize)));
-      __ movl(Address(ESP, calling_convention.GetStackOffsetOf(argument_index + 1, kX86WordSize)), EAX);
+      __ pushl(Address(ESP, source.GetHighStackIndex(kX86WordSize)));
+      __ popl(Address(ESP, calling_convention.GetStackOffsetOf(argument_index + 1, kX86WordSize)));
     }
   } else {
     if (source.IsRegister()) {
@@ -315,15 +317,15 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
       uint32_t argument_index = source.GetQuickParameterIndex();
       __ movl(Address(ESP, destination.GetStackIndex()),
               calling_convention.GetRegisterAt(argument_index));
-      __ movl(EAX, Address(ESP,
+      __ pushl(Address(ESP,
           calling_convention.GetStackOffsetOf(argument_index + 1, kX86WordSize) + GetFrameSize()));
-      __ movl(Address(ESP, destination.GetHighStackIndex(kX86WordSize)), EAX);
+      __ popl(Address(ESP, destination.GetHighStackIndex(kX86WordSize)));
     } else {
       DCHECK(source.IsDoubleStackSlot());
-      __ movl(EAX, Address(ESP, source.GetStackIndex()));
-      __ movl(Address(ESP, destination.GetStackIndex()), EAX);
-      __ movl(EAX, Address(ESP, source.GetHighStackIndex(kX86WordSize)));
-      __ movl(Address(ESP, destination.GetHighStackIndex(kX86WordSize)), EAX);
+      __ pushl(Address(ESP, source.GetStackIndex()));
+      __ popl(Address(ESP, destination.GetStackIndex()));
+      __ pushl(Address(ESP, source.GetHighStackIndex(kX86WordSize)));
+      __ popl(Address(ESP, destination.GetHighStackIndex(kX86WordSize)));
     }
   }
 }
@@ -501,7 +503,7 @@ void LocationsBuilderX86::VisitIntConstant(HIntConstant* constant) {
 }
 
 void InstructionCodeGeneratorX86::VisitIntConstant(HIntConstant* constant) {
-  // Will be generated at use site.
+  codegen_->Move(constant, constant->GetLocations()->Out(), nullptr);
 }
 
 void LocationsBuilderX86::VisitLongConstant(HLongConstant* constant) {
@@ -573,7 +575,7 @@ void InstructionCodeGeneratorX86::VisitReturn(HReturn* ret) {
 
 void LocationsBuilderX86::VisitInvokeStatic(HInvokeStatic* invoke) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(invoke);
-  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(X86CpuLocation(EAX));
 
   InvokeDexCallingConventionVisitor calling_convention_visitor;
   for (size_t i = 0; i < invoke->InputCount(); i++) {
@@ -802,7 +804,6 @@ void LocationsBuilderX86::VisitParameterValue(HParameterValue* instruction) {
 }
 
 void InstructionCodeGeneratorX86::VisitParameterValue(HParameterValue* instruction) {
-  // Nothing to do, the parameter is already at its location.
 }
 
 void LocationsBuilderX86::VisitNot(HNot* instruction) {
@@ -829,15 +830,100 @@ void LocationsBuilderX86::VisitPhi(HPhi* instruction) {
 }
 
 void InstructionCodeGeneratorX86::VisitPhi(HPhi* instruction) {
-  LOG(FATAL) << "Unimplemented";
+  LOG(FATAL) << "Unreachable";
 }
 
 void LocationsBuilderX86::VisitParallelMove(HParallelMove* instruction) {
-  LOG(FATAL) << "Unimplemented";
+  LOG(FATAL) << "Unreachable";
 }
 
 void InstructionCodeGeneratorX86::VisitParallelMove(HParallelMove* instruction) {
-  LOG(FATAL) << "Unimplemented";
+  codegen_->GetMoveResolver()->EmitNativeCode(instruction);
+}
+
+X86Assembler* ParallelMoveResolverX86::GetAssembler() const {
+  return codegen_->GetAssembler();
+}
+
+void ParallelMoveResolverX86::MoveMemoryToMemory(int dst, int src) {
+  ScratchRegisterScope ensure_scratch(
+      this, kNoRegister, codegen_->GetNumberOfCoreRegisters());
+  int stack_offset = ensure_scratch.IsSpilled() ? kX86WordSize : 0;
+  __ movl(static_cast<Register>(ensure_scratch.GetRegister()), Address(ESP, src + stack_offset));
+  __ movl(Address(ESP, dst + stack_offset), static_cast<Register>(ensure_scratch.GetRegister()));
+}
+
+void ParallelMoveResolverX86::EmitMove(size_t index) {
+  MoveOperands* move = moves_.Get(index);
+  Location source = move->GetSource();
+  Location destination = move->GetDestination();
+
+  if (source.IsRegister()) {
+    if (destination.IsRegister()) {
+      __ movl(destination.AsX86().AsCpuRegister(), source.AsX86().AsCpuRegister());
+    } else {
+      DCHECK(destination.IsStackSlot());
+      __ movl(Address(ESP, destination.GetStackIndex()), source.AsX86().AsCpuRegister());
+    }
+  } else if (source.IsStackSlot()) {
+    if (destination.IsRegister()) {
+      __ movl(destination.AsX86().AsCpuRegister(), Address(ESP, source.GetStackIndex()));
+    } else {
+      DCHECK(destination.IsStackSlot());
+      MoveMemoryToMemory(destination.GetStackIndex(),
+                         source.GetStackIndex());
+    }
+  } else {
+    LOG(FATAL) << "Unimplemented";
+  }
+}
+
+void ParallelMoveResolverX86::Exchange(Register reg, int mem) {
+  ScratchRegisterScope ensure_scratch(this, reg, codegen_->GetNumberOfCoreRegisters());
+  int stack_offset = ensure_scratch.IsSpilled() ? kX86WordSize : 0;
+  __ movl(static_cast<Register>(ensure_scratch.GetRegister()), Address(ESP, mem + stack_offset));
+  __ movl(Address(ESP, mem + stack_offset), reg);
+  __ movl(reg, static_cast<Register>(ensure_scratch.GetRegister()));
+}
+
+
+void ParallelMoveResolverX86::Exchange(int mem1, int mem2) {
+  ScratchRegisterScope ensure_scratch1(
+      this, kNoRegister, codegen_->GetNumberOfCoreRegisters());
+  ScratchRegisterScope ensure_scratch2(
+      this, ensure_scratch1.GetRegister(), codegen_->GetNumberOfCoreRegisters());
+  int stack_offset = ensure_scratch1.IsSpilled() ? kX86WordSize : 0;
+  stack_offset += ensure_scratch2.IsSpilled() ? kX86WordSize : 0;
+  __ movl(static_cast<Register>(ensure_scratch1.GetRegister()), Address(ESP, mem1 + stack_offset));
+  __ movl(static_cast<Register>(ensure_scratch2.GetRegister()), Address(ESP, mem2 + stack_offset));
+  __ movl(Address(ESP, mem2 + stack_offset), static_cast<Register>(ensure_scratch1.GetRegister()));
+  __ movl(Address(ESP, mem1 + stack_offset), static_cast<Register>(ensure_scratch2.GetRegister()));
+}
+
+void ParallelMoveResolverX86::EmitSwap(size_t index) {
+  MoveOperands* move = moves_.Get(index);
+  Location source = move->GetSource();
+  Location destination = move->GetDestination();
+
+  if (source.IsRegister() && destination.IsRegister()) {
+    __ xchgl(destination.AsX86().AsCpuRegister(), source.AsX86().AsCpuRegister());
+  } else if (source.IsRegister() && destination.IsStackSlot()) {
+    Exchange(source.AsX86().AsCpuRegister(), destination.GetStackIndex());
+  } else if (source.IsStackSlot() && destination.IsRegister()) {
+    Exchange(destination.AsX86().AsCpuRegister(), source.GetStackIndex());
+  } else if (source.IsStackSlot() && destination.IsStackSlot()) {
+    Exchange(destination.GetStackIndex(), source.GetStackIndex());
+  } else {
+    LOG(FATAL) << "Unimplemented";
+  }
+}
+
+void ParallelMoveResolverX86::SpillScratch(int reg) {
+  __ pushl(static_cast<Register>(reg));
+}
+
+void ParallelMoveResolverX86::RestoreScratch(int reg) {
+  __ popl(static_cast<Register>(reg));
 }
 
 }  // namespace x86

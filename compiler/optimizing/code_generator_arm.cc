@@ -129,16 +129,18 @@ InstructionCodeGeneratorARM::InstructionCodeGeneratorARM(HGraph* graph, CodeGene
         assembler_(codegen->GetAssembler()),
         codegen_(codegen) {}
 
+void CodeGeneratorARM::ComputeFrameSize(size_t number_of_spill_slots) {
+  SetFrameSize(RoundUp(
+      number_of_spill_slots * kVRegSize
+      + kVRegSize  // Art method
+      + kNumberOfPushedRegistersAtEntry * kArmWordSize,
+      kStackAlignment));
+}
+
 void CodeGeneratorARM::GenerateFrameEntry() {
   core_spill_mask_ |= (1 << LR);
   __ PushList((1 << LR));
 
-  SetFrameSize(RoundUp(
-      (GetGraph()->GetMaximumNumberOfOutVRegs() + GetGraph()->GetNumberOfVRegs()) * kVRegSize
-      + kVRegSize  // filler
-      + kArmWordSize  // Art method
-      + kNumberOfPushedRegistersAtEntry * kArmWordSize,
-      kStackAlignment));
   // The return PC has already been pushed on the stack.
   __ AddConstant(SP, -(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kArmWordSize));
   __ str(R0, Address(SP, 0));
