@@ -146,7 +146,7 @@ static int CountTrailingZeros(bool is_wide, uint64_t value) {
 
 static int CountSetBits(bool is_wide, uint64_t value) {
   return ((is_wide) ?
-          __builtin_popcountl(value) : __builtin_popcount((uint32_t)value));
+          __builtin_popcountll(value) : __builtin_popcount((uint32_t)value));
 }
 
 /**
@@ -552,8 +552,11 @@ LIR* Arm64Mir2Lir::OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1, 
   return OpRegRegRegShift(op, r_dest, r_src1, r_src2, ENCODE_NO_SHIFT);
 }
 
-// Should be taking an int64_t value ?
 LIR* Arm64Mir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, int value) {
+  return OpRegRegImm64(op, r_dest, r_src1, static_cast<int64_t>(value));
+}
+
+LIR* Arm64Mir2Lir::OpRegRegImm64(OpKind op, RegStorage r_dest, RegStorage r_src1, int64_t value) {
   LIR* res;
   bool neg = (value < 0);
   int64_t abs_value = (neg) ? -value : value;
@@ -637,11 +640,17 @@ LIR* Arm64Mir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, 
     return NewLIR3(opcode | wide, r_dest.GetReg(), r_src1.GetReg(), log_imm);
   } else {
     RegStorage r_scratch = AllocTemp();
-    LoadConstant(r_scratch, value);
+    if (IS_WIDE(wide)) {
+      r_scratch = AllocTempWide();
+      LoadConstantWide(r_scratch, value);
+    } else {
+      r_scratch = AllocTemp();
+      LoadConstant(r_scratch, value);
+    }
     if (EncodingMap[alt_opcode].flags & IS_QUAD_OP)
-      res = NewLIR4(alt_opcode, r_dest.GetReg(), r_src1.GetReg(), r_scratch.GetReg(), 0);
+      res = NewLIR4(alt_opcode | wide, r_dest.GetReg(), r_src1.GetReg(), r_scratch.GetReg(), 0);
     else
-      res = NewLIR3(alt_opcode, r_dest.GetReg(), r_src1.GetReg(), r_scratch.GetReg());
+      res = NewLIR3(alt_opcode | wide, r_dest.GetReg(), r_src1.GetReg(), r_scratch.GetReg());
     FreeTemp(r_scratch);
     return res;
   }
@@ -666,9 +675,36 @@ LIR* Arm64Mir2Lir::OpRegImm64(OpKind op, RegStorage r_dest_src1, int64_t value) 
     // abs_value is a shifted 12-bit immediate.
     shift = true;
     abs_value >>= 12;
+  } else if (LIKELY(abs_value < 0x1000000 && (op == kOpAdd || op == kOpSub))) {
+    // Note: It is better to use two ADD/SUB instead of loading a number to a temp register.
+    // This works for both normal registers and SP.
+    // For a frame size == 0x2468, it will be encoded as:
+    //   sub sp, #0x2000
+    //   sub sp, #0x468
+    if (neg) {
+      op = (op == kOpAdd) ? kOpSub : kOpAdd;
+    }
+    OpRegImm64(op, r_dest_src1, abs_value & (~INT64_C(0xfff)));
+    return OpRegImm64(op, r_dest_src1, abs_value & 0xfff);
+  } else if (LIKELY(A64_REG_IS_SP(r_dest_src1.GetReg()) && (op == kOpAdd || op == kOpSub))) {
+    // Note: "sub sp, sp, Xm" is not correct on arm64.
+    // We need special instructions for SP.
+    // Also operation on 32-bit SP should be avoided.
+    DCHECK(IS_WIDE(wide));
+    RegStorage r_tmp = AllocTempWide();
+    OpRegRegImm(kOpAdd, r_tmp, r_dest_src1, 0);
+    OpRegImm64(op, r_tmp, value);
+    return OpRegRegImm(kOpAdd, r_dest_src1, r_tmp, 0);
   } else {
-    RegStorage r_tmp = AllocTemp();
-    LIR* res = LoadConstant(r_tmp, value);
+    RegStorage r_tmp;
+    LIR* res;
+    if (IS_WIDE(wide)) {
+      r_tmp = AllocTempWide();
+      res = LoadConstantWide(r_tmp, value);
+    } else {
+      r_tmp = AllocTemp();
+      res = LoadConstant(r_tmp, value);
+    }
     OpRegReg(op, r_dest_src1, r_tmp);
     FreeTemp(r_tmp);
     return res;

@@ -185,6 +185,7 @@ class Arm64Mir2Lir : public Mir2Lir {
     LIR* OpMovRegMem(RegStorage r_dest, RegStorage r_base, int offset, MoveType move_type);
     LIR* OpMovMemReg(RegStorage r_base, int offset, RegStorage r_src, MoveType move_type);
     LIR* OpCondRegReg(OpKind op, ConditionCode cc, RegStorage r_dest, RegStorage r_src);
+    LIR* OpRegRegImm64(OpKind op, RegStorage r_dest, RegStorage r_src1, int64_t value);
     LIR* OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, int value);
     LIR* OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2);
     LIR* OpTestSuspend(LIR* target);
