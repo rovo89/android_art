@@ -67,14 +67,14 @@ static bool IsDataSectionType(uint32_t map_type) {
 }
 
 const char* DexFileVerifier::CheckLoadStringByIdx(uint32_t idx, const char* error_string) {
-  if (!CheckIndex(idx, dex_file_->NumStringIds(), error_string)) {
+  if (UNLIKELY(!CheckIndex(idx, dex_file_->NumStringIds(), error_string))) {
     return nullptr;
   }
   return dex_file_->StringDataByIdx(idx);
 }
 
 const char* DexFileVerifier::CheckLoadStringByTypeIdx(uint32_t type_idx, const char* error_string) {
-  if (!CheckIndex(type_idx, dex_file_->NumTypeIds(), error_string)) {
+  if (UNLIKELY(!CheckIndex(type_idx, dex_file_->NumTypeIds(), error_string))) {
     return nullptr;
   }
   const DexFile::TypeId& type_id = dex_file_->GetTypeId(type_idx);
@@ -83,14 +83,14 @@ const char* DexFileVerifier::CheckLoadStringByTypeIdx(uint32_t type_idx, const c
 }
 
 const DexFile::FieldId* DexFileVerifier::CheckLoadFieldId(uint32_t idx, const char* error_string) {
-  if (!CheckIndex(idx, dex_file_->NumFieldIds(), error_string)) {
+  if (UNLIKELY(!CheckIndex(idx, dex_file_->NumFieldIds(), error_string))) {
     return nullptr;
   }
   return &dex_file_->GetFieldId(idx);
 }
 
 const DexFile::MethodId* DexFileVerifier::CheckLoadMethodId(uint32_t idx, const char* err_string) {
-  if (!CheckIndex(idx, dex_file_->NumMethodIds(), err_string)) {
+  if (UNLIKELY(!CheckIndex(idx, dex_file_->NumMethodIds(), err_string))) {
     return nullptr;
   }
   return &dex_file_->GetMethodId(idx);
@@ -99,28 +99,28 @@ const DexFile::MethodId* DexFileVerifier::CheckLoadMethodId(uint32_t idx, const 
 // Helper macro to load string and return false on error.
 #define LOAD_STRING(var, idx, error)                  \
   const char* var = CheckLoadStringByIdx(idx, error); \
-  if (var == nullptr) {                               \
+  if (UNLIKELY(var == nullptr)) {                     \
     return false;                                     \
   }
 
 // Helper macro to load string by type idx and return false on error.
 #define LOAD_STRING_BY_TYPE(var, type_idx, error)              \
   const char* var = CheckLoadStringByTypeIdx(type_idx, error); \
-  if (var == nullptr) {                                        \
+  if (UNLIKELY(var == nullptr)) {                              \
     return false;                                              \
   }
 
 // Helper macro to load method id. Return last parameter on error.
 #define LOAD_METHOD(var, idx, error_string, error_val)                  \
   const DexFile::MethodId* var  = CheckLoadMethodId(idx, error_string); \
-  if (var == nullptr) {                                                 \
+  if (UNLIKELY(var == nullptr)) {                                       \
     return error_val;                                                   \
   }
 
 // Helper macro to load method id. Return last parameter on error.
 #define LOAD_FIELD(var, idx, fmt, error_val)                \
   const DexFile::FieldId* var = CheckLoadFieldId(idx, fmt); \
-  if (var == nullptr) {                                     \
+  if (UNLIKELY(var == nullptr)) {                           \
     return error_val;                                       \
   }
 
@@ -1596,9 +1596,15 @@ bool DexFileVerifier::CheckInterMethodIdItem() {
   }
 
   // Check that the name is valid.
-  LOAD_STRING(descriptor, item->name_idx_, "inter_method_id_item class_idx")
+  LOAD_STRING(descriptor, item->name_idx_, "inter_method_id_item name_idx")
   if (UNLIKELY(!IsValidMemberName(descriptor))) {
     ErrorStringPrintf("Invalid method name: '%s'", descriptor);
+    return false;
+  }
+
+  // Check that the proto id is valid.
+  if (UNLIKELY(!CheckIndex(item->proto_idx_, dex_file_->NumProtoIds(),
+                           "inter_method_id_item proto_idx"))) {
     return false;
   }
 

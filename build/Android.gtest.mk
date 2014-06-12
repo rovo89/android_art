@@ -34,6 +34,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
 	runtime/base/unix_file/string_file_test.cc \
 	runtime/class_linker_test.cc \
 	runtime/dex_file_test.cc \
+	runtime/dex_file_verifier_test.cc \
 	runtime/dex_instruction_visitor_test.cc \
 	runtime/dex_method_iterator_test.cc \
 	runtime/entrypoints/math_entrypoints_test.cc \
