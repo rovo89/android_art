@@ -120,60 +120,50 @@ RegStorage MipsMir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
 /*
  * Decode the register id.
  */
-uint64_t MipsMir2Lir::GetRegMaskCommon(RegStorage reg) {
-  uint64_t seed;
-  int shift;
-  int reg_id = reg.GetRegNum();
-  /* Each double register is equal to a pair of single-precision FP registers */
-  if (reg.IsDouble()) {
-    seed = 0x3;
-    reg_id = reg_id << 1;
-  } else {
-    seed = 1;
-  }
-  /* FP register starts at bit position 32 */
-  shift = reg.IsFloat() ? kMipsFPReg0 : 0;
-  /* Expand the double register id into single offset */
-  shift += reg_id;
-  return (seed << shift);
+ResourceMask MipsMir2Lir::GetRegMaskCommon(const RegStorage& reg) const {
+  return reg.IsDouble()
+      /* Each double register is equal to a pair of single-precision FP registers */
+      ? ResourceMask::TwoBits(reg.GetRegNum() * 2 + kMipsFPReg0)
+      : ResourceMask::Bit(reg.IsSingle() ? reg.GetRegNum() + kMipsFPReg0 : reg.GetRegNum());
 }
 
-uint64_t MipsMir2Lir::GetPCUseDefEncoding() {
-  return ENCODE_MIPS_REG_PC;
+ResourceMask MipsMir2Lir::GetPCUseDefEncoding() const {
+  return ResourceMask::Bit(kMipsRegPC);
 }
 
 
-void MipsMir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags) {
+void MipsMir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags,
+                                           ResourceMask* use_mask, ResourceMask* def_mask) {
   DCHECK_EQ(cu_->instruction_set, kMips);
   DCHECK(!lir->flags.use_def_invalid);
 
   // Mips-specific resource map setup here.
   if (flags & REG_DEF_SP) {
-    lir->u.m.def_mask |= ENCODE_MIPS_REG_SP;
+    def_mask->SetBit(kMipsRegSP);
   }
 
   if (flags & REG_USE_SP) {
-    lir->u.m.use_mask |= ENCODE_MIPS_REG_SP;
+    use_mask->SetBit(kMipsRegSP);
   }
 
   if (flags & REG_DEF_LR) {
-    lir->u.m.def_mask |= ENCODE_MIPS_REG_LR;
+    def_mask->SetBit(kMipsRegLR);
   }
 
   if (flags & REG_DEF_HI) {
-    lir->u.m.def_mask |= ENCODE_MIPS_REG_HI;
+    def_mask->SetBit(kMipsRegHI);
   }
 
   if (flags & REG_DEF_LO) {
-    lir->u.m.def_mask |= ENCODE_MIPS_REG_LO;
+    def_mask->SetBit(kMipsRegLO);
   }
 
   if (flags & REG_USE_HI) {
-    lir->u.m.use_mask |= ENCODE_MIPS_REG_HI;
+    use_mask->SetBit(kMipsRegHI);
   }
 
   if (flags & REG_USE_LO) {
-    lir->u.m.use_mask |= ENCODE_MIPS_REG_LO;
+    use_mask->SetBit(kMipsRegLO);
   }
 }
 
@@ -283,43 +273,43 @@ std::string MipsMir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned cha
 }
 
 // FIXME: need to redo resource maps for MIPS - fix this at that time
-void MipsMir2Lir::DumpResourceMask(LIR *mips_lir, uint64_t mask, const char *prefix) {
+void MipsMir2Lir::DumpResourceMask(LIR *mips_lir, const ResourceMask& mask, const char *prefix) {
   char buf[256];
   buf[0] = 0;
 
-  if (mask == ENCODE_ALL) {
+  if (mask.Equals(kEncodeAll)) {
     strcpy(buf, "all");
   } else {
     char num[8];
     int i;
 
     for (i = 0; i < kMipsRegEnd; i++) {
-      if (mask & (1ULL << i)) {
+      if (mask.HasBit(i)) {
         snprintf(num, arraysize(num), "%d ", i);
         strcat(buf, num);
       }
     }
 
-    if (mask & ENCODE_CCODE) {
+    if (mask.HasBit(ResourceMask::kCCode)) {
       strcat(buf, "cc ");
     }
-    if (mask & ENCODE_FP_STATUS) {
+    if (mask.HasBit(ResourceMask::kFPStatus)) {
       strcat(buf, "fpcc ");
     }
     /* Memory bits */
-    if (mips_lir && (mask & ENCODE_DALVIK_REG)) {
+    if (mips_lir && (mask.HasBit(ResourceMask::kDalvikReg))) {
       snprintf(buf + strlen(buf), arraysize(buf) - strlen(buf), "dr%d%s",
                DECODE_ALIAS_INFO_REG(mips_lir->flags.alias_info),
                DECODE_ALIAS_INFO_WIDE(mips_lir->flags.alias_info) ? "(+1)" : "");
     }
-    if (mask & ENCODE_LITERAL) {
+    if (mask.HasBit(ResourceMask::kLiteral)) {
       strcat(buf, "lit ");
     }
 
-    if (mask & ENCODE_HEAP_REF) {
+    if (mask.HasBit(ResourceMask::kHeapRef)) {
       strcat(buf, "heap ");
     }
-    if (mask & ENCODE_MUST_NOT_ALIAS) {
+    if (mask.HasBit(ResourceMask::kMustNotAlias)) {
       strcat(buf, "noalias ");
     }
   }

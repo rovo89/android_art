@@ -376,7 +376,8 @@ LIR* X86Mir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int o
       break;
   }
   LIR *l = NewLIR3(opcode, r_dest.GetReg(), r_base.GetReg(), offset);
-  if (r_base == rs_rX86_SP) {
+  if (mem_ref_type_ == ResourceMask::kDalvikReg) {
+    DCHECK(r_base == rs_rX86_SP);
     AnnotateDalvikRegAccess(l, offset >> 2, true /* is_load */, false /* is_64bit */);
   }
   return l;
@@ -403,8 +404,10 @@ LIR* X86Mir2Lir::OpMemReg(OpKind op, RegLocation rl_dest, int r_value) {
       break;
   }
   LIR *l = NewLIR3(opcode, rs_rX86_SP.GetReg(), displacement, r_value);
-  AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, is64Bit /* is_64bit */);
-  AnnotateDalvikRegAccess(l, displacement >> 2, false /* is_load */, is64Bit /* is_64bit */);
+  if (mem_ref_type_ == ResourceMask::kDalvikReg) {
+    AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, is64Bit /* is_64bit */);
+    AnnotateDalvikRegAccess(l, displacement >> 2, false /* is_load */, is64Bit /* is_64bit */);
+  }
   return l;
 }
 
@@ -427,7 +430,9 @@ LIR* X86Mir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegLocation rl_value) {
       break;
   }
   LIR *l = NewLIR3(opcode, r_dest.GetReg(), rs_rX86_SP.GetReg(), displacement);
-  AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, is64Bit /* is_64bit */);
+  if (mem_ref_type_ == ResourceMask::kDalvikReg) {
+    AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, is64Bit /* is_64bit */);
+  }
   return l;
 }
 
@@ -575,11 +580,11 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
         // We don't know the proper offset for the value, so pick one that will force
         // 4 byte offset.  We will fix this up in the assembler later to have the right
         // value.
+        ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
         res = LoadBaseDisp(rl_method.reg, 256 /* bogus */, RegStorage::FloatSolo64(low_reg_val),
                            kDouble);
         res->target = data_target;
         res->flags.fixup = kFixupLoad;
-        SetMemRefType(res, true, kLiteral);
         store_method_addr_used_ = true;
       } else {
         if (val_lo == 0) {
@@ -684,7 +689,8 @@ LIR* X86Mir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int 
                         displacement + HIWORD_OFFSET);
       }
     }
-    if (r_base == rs_rX86_SP) {
+    if (mem_ref_type_ == ResourceMask::kDalvikReg) {
+      DCHECK(r_base == rs_rX86_SP);
       AnnotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                               true /* is_load */, is64bit);
       if (pair) {
@@ -815,7 +821,8 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
       store = NewLIR3(opcode, r_base.GetReg(), displacement + LOWORD_OFFSET, r_src.GetLowReg());
       store2 = NewLIR3(opcode, r_base.GetReg(), displacement + HIWORD_OFFSET, r_src.GetHighReg());
     }
-    if (r_base == rs_rX86_SP) {
+    if (mem_ref_type_ == ResourceMask::kDalvikReg) {
+      DCHECK(r_base == rs_rX86_SP);
       AnnotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                               false /* is_load */, is64bit);
       if (pair) {

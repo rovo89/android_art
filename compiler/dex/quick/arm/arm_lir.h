@@ -109,12 +109,6 @@ enum ArmResourceEncodingPos {
   kArmRegEnd   = 48,
 };
 
-#define ENCODE_ARM_REG_LIST(N)      (static_cast<uint64_t>(N))
-#define ENCODE_ARM_REG_SP           (1ULL << kArmRegSP)
-#define ENCODE_ARM_REG_LR           (1ULL << kArmRegLR)
-#define ENCODE_ARM_REG_PC           (1ULL << kArmRegPC)
-#define ENCODE_ARM_REG_FPCS_LIST(N) (static_cast<uint64_t>(N) << kArmFPReg16)
-
 enum ArmNativeRegisterPool {
   r0           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  0,
   r1           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  1,

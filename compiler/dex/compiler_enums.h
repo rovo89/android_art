@@ -82,22 +82,6 @@ enum BBType {
   kDead,
 };
 
-/*
- * Def/Use encoding in 64-bit use_mask/def_mask.  Low positions used for target-specific
- * registers (and typically use the register number as the position).  High positions
- * reserved for common and abstract resources.
- */
-
-enum ResourceEncodingPos {
-  kMustNotAlias = 63,
-  kHeapRef = 62,          // Default memory reference type.
-  kLiteral = 61,          // Literal pool memory reference.
-  kDalvikReg = 60,        // Dalvik v_reg memory reference.
-  kFPStatus = 59,
-  kCCode = 58,
-  kLowestCommonResource = kCCode
-};
-
 // Shared pseudo opcodes - must be < 0.
 enum LIRPseudoOpcode {
   kPseudoExportedPC = -16,

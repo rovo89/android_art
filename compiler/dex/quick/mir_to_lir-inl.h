@@ -57,7 +57,7 @@ inline LIR* Mir2Lir::RawLIR(DexOffset dalvik_offset, int opcode, int op0,
       (opcode == kPseudoExportedPC)) {
     // Always make labels scheduling barriers
     DCHECK(!insn->flags.use_def_invalid);
-    insn->u.m.use_mask = insn->u.m.def_mask = ENCODE_ALL;
+    insn->u.m.use_mask = insn->u.m.def_mask = &kEncodeAll;
   }
   return insn;
 }
@@ -140,19 +140,20 @@ inline LIR* Mir2Lir::NewLIR5(int opcode, int dest, int src1, int src2, int info1
 /*
  * Mark the corresponding bit(s).
  */
-inline void Mir2Lir::SetupRegMask(uint64_t* mask, int reg) {
+inline void Mir2Lir::SetupRegMask(ResourceMask* mask, int reg) {
   DCHECK_EQ((reg & ~RegStorage::kRegValMask), 0);
   DCHECK(reginfo_map_.Get(reg) != nullptr) << "No info for 0x" << reg;
-  *mask |= reginfo_map_.Get(reg)->DefUseMask();
+  *mask = mask->Union(reginfo_map_.Get(reg)->DefUseMask());
 }
 
 /*
  * Set up the proper fields in the resource mask
  */
-inline void Mir2Lir::SetupResourceMasks(LIR* lir, bool leave_mem_ref) {
+inline void Mir2Lir::SetupResourceMasks(LIR* lir) {
   int opcode = lir->opcode;
 
   if (IsPseudoLirOp(opcode)) {
+    lir->u.m.use_mask = lir->u.m.def_mask = &kEncodeNone;
     if (opcode != kPseudoBarrier) {
       lir->flags.fixup = kFixupLabel;
     }
@@ -166,13 +167,27 @@ inline void Mir2Lir::SetupResourceMasks(LIR* lir, bool leave_mem_ref) {
     lir->flags.fixup = kFixupLabel;
   }
 
-  /* Get the starting size of the instruction's template */
+  /* Get the starting size of the instruction's template. */
   lir->flags.size = GetInsnSize(lir);
   estimated_native_code_size_ += lir->flags.size;
-  /* Set up the mask for resources that are updated */
-  if (!leave_mem_ref && (flags & (IS_LOAD | IS_STORE))) {
-    /* Default to heap - will catch specialized classes later */
-    SetMemRefType(lir, flags & IS_LOAD, kHeapRef);
+
+  /* Set up the mask for resources. */
+  ResourceMask use_mask;
+  ResourceMask def_mask;
+
+  if (flags & (IS_LOAD | IS_STORE)) {
+    /* Set memory reference type (defaults to heap, overridden by ScopedMemRefType). */
+    if (flags & IS_LOAD) {
+      use_mask.SetBit(mem_ref_type_);
+    } else {
+      /* Currently only loads can be marked as kMustNotAlias. */
+      DCHECK(mem_ref_type_ != ResourceMask::kMustNotAlias);
+    }
+    if (flags & IS_STORE) {
+      /* Literals cannot be written to. */
+      DCHECK(mem_ref_type_ != ResourceMask::kLiteral);
+      def_mask.SetBit(mem_ref_type_);
+    }
   }
 
   /*
@@ -180,52 +195,55 @@ inline void Mir2Lir::SetupResourceMasks(LIR* lir, bool leave_mem_ref) {
    * turn will trash everything.
    */
   if (flags & IS_BRANCH) {
-    lir->u.m.def_mask = lir->u.m.use_mask = ENCODE_ALL;
+    lir->u.m.def_mask = lir->u.m.use_mask = &kEncodeAll;
     return;
   }
 
   if (flags & REG_DEF0) {
-    SetupRegMask(&lir->u.m.def_mask, lir->operands[0]);
+    SetupRegMask(&def_mask, lir->operands[0]);
   }
 
   if (flags & REG_DEF1) {
-    SetupRegMask(&lir->u.m.def_mask, lir->operands[1]);
+    SetupRegMask(&def_mask, lir->operands[1]);
   }
 
   if (flags & REG_DEF2) {
-    SetupRegMask(&lir->u.m.def_mask, lir->operands[2]);
+    SetupRegMask(&def_mask, lir->operands[2]);
   }
 
   if (flags & REG_USE0) {
-    SetupRegMask(&lir->u.m.use_mask, lir->operands[0]);
+    SetupRegMask(&use_mask, lir->operands[0]);
   }
 
   if (flags & REG_USE1) {
-    SetupRegMask(&lir->u.m.use_mask, lir->operands[1]);
+    SetupRegMask(&use_mask, lir->operands[1]);
   }
 
   if (flags & REG_USE2) {
-    SetupRegMask(&lir->u.m.use_mask, lir->operands[2]);
+    SetupRegMask(&use_mask, lir->operands[2]);
   }
 
   if (flags & REG_USE3) {
-    SetupRegMask(&lir->u.m.use_mask, lir->operands[3]);
+    SetupRegMask(&use_mask, lir->operands[3]);
   }
 
   if (flags & REG_USE4) {
-    SetupRegMask(&lir->u.m.use_mask, lir->operands[4]);
+    SetupRegMask(&use_mask, lir->operands[4]);
   }
 
   if (flags & SETS_CCODES) {
-    lir->u.m.def_mask |= ENCODE_CCODE;
+    def_mask.SetBit(ResourceMask::kCCode);
   }
 
   if (flags & USES_CCODES) {
-    lir->u.m.use_mask |= ENCODE_CCODE;
+    use_mask.SetBit(ResourceMask::kCCode);
   }
 
   // Handle target-specific actions
-  SetupTargetResourceMasks(lir, flags);
+  SetupTargetResourceMasks(lir, flags, &def_mask, &use_mask);
+
+  lir->u.m.use_mask = mask_cache_.GetMask(use_mask);
+  lir->u.m.def_mask = mask_cache_.GetMask(def_mask);
 }
 
 inline art::Mir2Lir::RegisterInfo* Mir2Lir::GetRegInfo(RegStorage reg) {

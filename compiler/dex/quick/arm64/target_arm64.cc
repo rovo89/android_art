@@ -139,41 +139,43 @@ RegStorage Arm64Mir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
 /*
  * Decode the register id. This routine makes assumptions on the encoding made by RegStorage.
  */
-uint64_t Arm64Mir2Lir::GetRegMaskCommon(RegStorage reg) {
+ResourceMask Arm64Mir2Lir::GetRegMaskCommon(const RegStorage& reg) const {
   // TODO(Arm64): this function depends too much on the internal RegStorage encoding. Refactor.
 
-  int reg_raw = reg.GetRawBits();
   // Check if the shape mask is zero (i.e. invalid).
   if (UNLIKELY(reg == rs_wzr || reg == rs_xzr)) {
     // The zero register is not a true register. It is just an immediate zero.
-    return 0;
+    return kEncodeNone;
   }
 
-  return UINT64_C(1) << (reg_raw & RegStorage::kRegTypeMask);
+  return ResourceMask::Bit(
+      // FP register starts at bit position 32.
+      (reg.IsFloat() ? kArm64FPReg0 : 0) + reg.GetRegNum());
 }
 
-uint64_t Arm64Mir2Lir::GetPCUseDefEncoding() {
+ResourceMask Arm64Mir2Lir::GetPCUseDefEncoding() const {
   LOG(FATAL) << "Unexpected call to GetPCUseDefEncoding for Arm64";
-  return 0ULL;
+  return kEncodeNone;
 }
 
 // Arm64 specific setup.  TODO: inline?:
-void Arm64Mir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags) {
+void Arm64Mir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags,
+                                            ResourceMask* use_mask, ResourceMask* def_mask) {
   DCHECK_EQ(cu_->instruction_set, kArm64);
   DCHECK(!lir->flags.use_def_invalid);
 
   // These flags are somewhat uncommon - bypass if we can.
   if ((flags & (REG_DEF_SP | REG_USE_SP | REG_DEF_LR)) != 0) {
     if (flags & REG_DEF_SP) {
-      lir->u.m.def_mask |= ENCODE_ARM_REG_SP;
+      def_mask->SetBit(kArm64RegSP);
     }
 
     if (flags & REG_USE_SP) {
-      lir->u.m.use_mask |= ENCODE_ARM_REG_SP;
+      use_mask->SetBit(kArm64RegSP);
     }
 
     if (flags & REG_DEF_LR) {
-      lir->u.m.def_mask |= ENCODE_ARM_REG_LR;
+      def_mask->SetBit(kArm64RegLR);
     }
   }
 }
@@ -510,44 +512,44 @@ std::string Arm64Mir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned ch
   return buf;
 }
 
-void Arm64Mir2Lir::DumpResourceMask(LIR* arm_lir, uint64_t mask, const char* prefix) {
+void Arm64Mir2Lir::DumpResourceMask(LIR* arm_lir, const ResourceMask& mask, const char* prefix) {
   char buf[256];
   buf[0] = 0;
 
-  if (mask == ENCODE_ALL) {
+  if (mask.Equals(kEncodeAll)) {
     strcpy(buf, "all");
   } else {
     char num[8];
     int i;
 
-    for (i = 0; i < kArmRegEnd; i++) {
-      if (mask & (1ULL << i)) {
+    for (i = 0; i < kArm64RegEnd; i++) {
+      if (mask.HasBit(i)) {
         snprintf(num, arraysize(num), "%d ", i);
         strcat(buf, num);
       }
     }
 
-    if (mask & ENCODE_CCODE) {
+    if (mask.HasBit(ResourceMask::kCCode)) {
       strcat(buf, "cc ");
     }
-    if (mask & ENCODE_FP_STATUS) {
+    if (mask.HasBit(ResourceMask::kFPStatus)) {
       strcat(buf, "fpcc ");
     }
 
     /* Memory bits */
-    if (arm_lir && (mask & ENCODE_DALVIK_REG)) {
+    if (arm_lir && (mask.HasBit(ResourceMask::kDalvikReg))) {
       snprintf(buf + strlen(buf), arraysize(buf) - strlen(buf), "dr%d%s",
                DECODE_ALIAS_INFO_REG(arm_lir->flags.alias_info),
                DECODE_ALIAS_INFO_WIDE(arm_lir->flags.alias_info) ? "(+1)" : "");
     }
-    if (mask & ENCODE_LITERAL) {
+    if (mask.HasBit(ResourceMask::kLiteral)) {
       strcat(buf, "lit ");
     }
 
-    if (mask & ENCODE_HEAP_REF) {
+    if (mask.HasBit(ResourceMask::kHeapRef)) {
       strcat(buf, "heap ");
     }
-    if (mask & ENCODE_MUST_NOT_ALIAS) {
+    if (mask.HasBit(ResourceMask::kMustNotAlias)) {
       strcat(buf, "noalias ");
     }
   }
@@ -850,6 +852,8 @@ void Arm64Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
     return;
   }
 
+  // Handle dalvik registers.
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
   int start_vreg = cu_->num_dalvik_registers - cu_->num_ins;
   for (int i = 0; i < cu_->num_ins; i++) {
     PromotionMap* v_map = &promotion_map_[start_vreg + i];

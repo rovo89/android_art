@@ -32,10 +32,11 @@ static constexpr size_t kValgrindRedZoneBytes = 8;
 constexpr size_t Arena::kDefaultSize;
 
 template <bool kCount>
-const char* ArenaAllocatorStatsImpl<kCount>::kAllocNames[kNumArenaAllocKinds] = {
+const char* const ArenaAllocatorStatsImpl<kCount>::kAllocNames[] = {
   "Misc       ",
   "BasicBlock ",
   "LIR        ",
+  "LIR masks  ",
   "MIR        ",
   "DataFlow   ",
   "GrowList   ",
@@ -101,6 +102,7 @@ void ArenaAllocatorStatsImpl<kCount>::Dump(std::ostream& os, const Arena* first,
        << num_allocations << ", avg size: " << bytes_allocated / num_allocations << "\n";
   }
   os << "===== Allocation by kind\n";
+  COMPILE_ASSERT(arraysize(kAllocNames) == kNumArenaAllocKinds, check_arraysize_kAllocNames);
   for (int i = 0; i < kNumArenaAllocKinds; i++) {
       os << kAllocNames[i] << std::setw(10) << alloc_stats_[i] << "\n";
   }

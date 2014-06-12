@@ -135,30 +135,32 @@ RegStorage ArmMir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
 /*
  * Decode the register id.
  */
-uint64_t ArmMir2Lir::GetRegMaskCommon(RegStorage reg) {
-  uint64_t seed;
-  int shift;
-  int reg_id = reg.GetRegNum();
-  /* Each double register is equal to a pair of single-precision FP registers */
-  if (reg.IsDouble()) {
-    seed = 0x3;
-    reg_id = reg_id << 1;
-  } else {
-    seed = 1;
-  }
-  /* FP register starts at bit position 16 */
-  shift = reg.IsFloat() ? kArmFPReg0 : 0;
-  /* Expand the double register id into single offset */
-  shift += reg_id;
-  return (seed << shift);
+ResourceMask ArmMir2Lir::GetRegMaskCommon(const RegStorage& reg) const {
+  return GetRegMaskArm(reg);
 }
 
-uint64_t ArmMir2Lir::GetPCUseDefEncoding() {
-  return ENCODE_ARM_REG_PC;
+constexpr ResourceMask ArmMir2Lir::GetRegMaskArm(RegStorage reg) {
+  return reg.IsDouble()
+      /* Each double register is equal to a pair of single-precision FP registers */
+      ? ResourceMask::TwoBits(reg.GetRegNum() * 2 + kArmFPReg0)
+      : ResourceMask::Bit(reg.IsSingle() ? reg.GetRegNum() + kArmFPReg0 : reg.GetRegNum());
+}
+
+constexpr ResourceMask ArmMir2Lir::EncodeArmRegList(int reg_list) {
+  return ResourceMask::RawMask(static_cast<uint64_t >(reg_list), 0u);
+}
+
+constexpr ResourceMask ArmMir2Lir::EncodeArmRegFpcsList(int reg_list) {
+  return ResourceMask::RawMask(static_cast<uint64_t >(reg_list) << kArmFPReg16, 0u);
+}
+
+ResourceMask ArmMir2Lir::GetPCUseDefEncoding() const {
+  return ResourceMask::Bit(kArmRegPC);
 }
 
 // Thumb2 specific setup.  TODO: inline?:
-void ArmMir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags) {
+void ArmMir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags,
+                                          ResourceMask* use_mask, ResourceMask* def_mask) {
   DCHECK_EQ(cu_->instruction_set, kThumb2);
   DCHECK(!lir->flags.use_def_invalid);
 
@@ -169,70 +171,70 @@ void ArmMir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags) {
                 REG_DEF_FPCS_LIST0 | REG_DEF_FPCS_LIST2 | REG_USE_PC | IS_IT | REG_USE_LIST0 |
                 REG_USE_LIST1 | REG_USE_FPCS_LIST0 | REG_USE_FPCS_LIST2 | REG_DEF_LR)) != 0) {
     if (flags & REG_DEF_SP) {
-      lir->u.m.def_mask |= ENCODE_ARM_REG_SP;
+      def_mask->SetBit(kArmRegSP);
     }
 
     if (flags & REG_USE_SP) {
-      lir->u.m.use_mask |= ENCODE_ARM_REG_SP;
+      use_mask->SetBit(kArmRegSP);
     }
 
     if (flags & REG_DEF_LIST0) {
-      lir->u.m.def_mask |= ENCODE_ARM_REG_LIST(lir->operands[0]);
+      def_mask->SetBits(EncodeArmRegList(lir->operands[0]));
     }
 
     if (flags & REG_DEF_LIST1) {
-      lir->u.m.def_mask |= ENCODE_ARM_REG_LIST(lir->operands[1]);
+      def_mask->SetBits(EncodeArmRegList(lir->operands[1]));
     }
 
     if (flags & REG_DEF_FPCS_LIST0) {
-      lir->u.m.def_mask |= ENCODE_ARM_REG_FPCS_LIST(lir->operands[0]);
+      def_mask->SetBits(EncodeArmRegList(lir->operands[0]));
     }
 
     if (flags & REG_DEF_FPCS_LIST2) {
       for (int i = 0; i < lir->operands[2]; i++) {
-        SetupRegMask(&lir->u.m.def_mask, lir->operands[1] + i);
+        SetupRegMask(def_mask, lir->operands[1] + i);
       }
     }
 
     if (flags & REG_USE_PC) {
-      lir->u.m.use_mask |= ENCODE_ARM_REG_PC;
+      use_mask->SetBit(kArmRegPC);
     }
 
     /* Conservatively treat the IT block */
     if (flags & IS_IT) {
-      lir->u.m.def_mask = ENCODE_ALL;
+      *def_mask = kEncodeAll;
     }
 
     if (flags & REG_USE_LIST0) {
-      lir->u.m.use_mask |= ENCODE_ARM_REG_LIST(lir->operands[0]);
+      use_mask->SetBits(EncodeArmRegList(lir->operands[0]));
     }
 
     if (flags & REG_USE_LIST1) {
-      lir->u.m.use_mask |= ENCODE_ARM_REG_LIST(lir->operands[1]);
+      use_mask->SetBits(EncodeArmRegList(lir->operands[1]));
     }
 
     if (flags & REG_USE_FPCS_LIST0) {
-      lir->u.m.use_mask |= ENCODE_ARM_REG_FPCS_LIST(lir->operands[0]);
+      use_mask->SetBits(EncodeArmRegList(lir->operands[0]));
     }
 
     if (flags & REG_USE_FPCS_LIST2) {
       for (int i = 0; i < lir->operands[2]; i++) {
-        SetupRegMask(&lir->u.m.use_mask, lir->operands[1] + i);
+        SetupRegMask(use_mask, lir->operands[1] + i);
       }
     }
     /* Fixup for kThumbPush/lr and kThumbPop/pc */
     if (opcode == kThumbPush || opcode == kThumbPop) {
-      uint64_t r8Mask = GetRegMaskCommon(rs_r8);
-      if ((opcode == kThumbPush) && (lir->u.m.use_mask & r8Mask)) {
-        lir->u.m.use_mask &= ~r8Mask;
-        lir->u.m.use_mask |= ENCODE_ARM_REG_LR;
-      } else if ((opcode == kThumbPop) && (lir->u.m.def_mask & r8Mask)) {
-        lir->u.m.def_mask &= ~r8Mask;
-        lir->u.m.def_mask |= ENCODE_ARM_REG_PC;
+      constexpr ResourceMask r8Mask = GetRegMaskArm(rs_r8);
+      if ((opcode == kThumbPush) && (use_mask->Intersects(r8Mask))) {
+        use_mask->ClearBits(r8Mask);
+        use_mask->SetBit(kArmRegLR);
+      } else if ((opcode == kThumbPop) && (def_mask->Intersects(r8Mask))) {
+        def_mask->ClearBits(r8Mask);
+        def_mask->SetBit(kArmRegPC);;
       }
     }
     if (flags & REG_DEF_LR) {
-      lir->u.m.def_mask |= ENCODE_ARM_REG_LR;
+      def_mask->SetBit(kArmRegLR);
     }
   }
 }
@@ -486,44 +488,44 @@ std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char
   return buf;
 }
 
-void ArmMir2Lir::DumpResourceMask(LIR* arm_lir, uint64_t mask, const char* prefix) {
+void ArmMir2Lir::DumpResourceMask(LIR* arm_lir, const ResourceMask& mask, const char* prefix) {
   char buf[256];
   buf[0] = 0;
 
-  if (mask == ENCODE_ALL) {
+  if (mask.Equals(kEncodeAll)) {
     strcpy(buf, "all");
   } else {
     char num[8];
     int i;
 
     for (i = 0; i < kArmRegEnd; i++) {
-      if (mask & (1ULL << i)) {
+      if (mask.HasBit(i)) {
         snprintf(num, arraysize(num), "%d ", i);
         strcat(buf, num);
       }
     }
 
-    if (mask & ENCODE_CCODE) {
+    if (mask.HasBit(ResourceMask::kCCode)) {
       strcat(buf, "cc ");
     }
-    if (mask & ENCODE_FP_STATUS) {
+    if (mask.HasBit(ResourceMask::kFPStatus)) {
       strcat(buf, "fpcc ");
     }
 
     /* Memory bits */
-    if (arm_lir && (mask & ENCODE_DALVIK_REG)) {
+    if (arm_lir && (mask.HasBit(ResourceMask::kDalvikReg))) {
       snprintf(buf + strlen(buf), arraysize(buf) - strlen(buf), "dr%d%s",
                DECODE_ALIAS_INFO_REG(arm_lir->flags.alias_info),
                DECODE_ALIAS_INFO_WIDE(arm_lir->flags.alias_info) ? "(+1)" : "");
     }
-    if (mask & ENCODE_LITERAL) {
+    if (mask.HasBit(ResourceMask::kLiteral)) {
       strcat(buf, "lit ");
     }
 
-    if (mask & ENCODE_HEAP_REF) {
+    if (mask.HasBit(ResourceMask::kHeapRef)) {
       strcat(buf, "heap ");
     }
-    if (mask & ENCODE_MUST_NOT_ALIAS) {
+    if (mask.HasBit(ResourceMask::kMustNotAlias)) {
       strcat(buf, "noalias ");
     }
   }

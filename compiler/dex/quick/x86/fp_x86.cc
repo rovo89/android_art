@@ -147,6 +147,9 @@ void X86Mir2Lir::GenLongToFP(RegLocation rl_dest, RegLocation rl_src, bool is_do
   // Update the in-register state of source.
   rl_src = UpdateLocWide(rl_src);
 
+  // All memory accesses below reference dalvik regs.
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+
   // If the source is in physical register, then put it in its location on stack.
   if (rl_src.location == kLocPhysReg) {
     RegisterInfo* reg_info = GetRegInfo(rl_src.reg);
@@ -191,15 +194,12 @@ void X86Mir2Lir::GenLongToFP(RegLocation rl_dest, RegLocation rl_src, bool is_do
      * right class. So we call EvalLoc(Wide) first which will ensure that it will get moved to the
      * correct register class.
      */
+    rl_result = EvalLoc(rl_dest, kFPReg, true);
     if (is_double) {
-      rl_result = EvalLocWide(rl_dest, kFPReg, true);
-
       LoadBaseDisp(TargetReg(kSp), dest_v_reg_offset, rl_result.reg, k64);
 
       StoreFinalValueWide(rl_dest, rl_result);
     } else {
-      rl_result = EvalLoc(rl_dest, kFPReg, true);
-
       Load32Disp(TargetReg(kSp), dest_v_reg_offset, rl_result.reg);
 
       StoreFinalValue(rl_dest, rl_result);
