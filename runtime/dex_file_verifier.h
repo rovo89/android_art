@@ -71,8 +71,11 @@ class DexFileVerifier {
   bool CheckIntraSection();
 
   bool CheckOffsetToTypeMap(size_t offset, uint16_t type);
-  uint16_t FindFirstClassDataDefiner(const byte* ptr) const;
-  uint16_t FindFirstAnnotationsDirectoryDefiner(const byte* ptr) const;
+
+  // Note: the result type of the following methods is wider than that of the underlying index
+  // (16b vs 32b). This is so that we can define an error value (anything >= 2^16).
+  uint32_t FindFirstClassDataDefiner(const byte* ptr);
+  uint32_t FindFirstAnnotationsDirectoryDefiner(const byte* ptr);
 
   bool CheckInterStringIdItem();
   bool CheckInterTypeIdItem();
@@ -87,6 +90,16 @@ class DexFileVerifier {
 
   bool CheckInterSectionIterate(size_t offset, uint32_t count, uint16_t type);
   bool CheckInterSection();
+
+  // Load a string by (type) index. Checks whether the index is in bounds, printing the error if
+  // not. If there is an error, nullptr is returned.
+  const char* CheckLoadStringByIdx(uint32_t idx, const char* error_fmt);
+  const char* CheckLoadStringByTypeIdx(uint32_t type_idx, const char* error_fmt);
+
+  // Load a field/method Id by index. Checks whether the index is in bounds, printing the error if
+  // not. If there is an error, nullptr is returned.
+  const DexFile::FieldId* CheckLoadFieldId(uint32_t idx, const char* error_fmt);
+  const DexFile::MethodId* CheckLoadMethodId(uint32_t idx, const char* error_fmt);
 
   void ErrorStringPrintf(const char* fmt, ...)
       __attribute__((__format__(__printf__, 2, 3))) COLD_ATTR;
