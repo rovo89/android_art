@@ -212,7 +212,7 @@ enum A64RegExtEncodings {
 };
 
 #define ENCODE_NO_SHIFT (EncodeShift(kA64Lsl, 0))
-
+#define ENCODE_NO_EXTEND (EncodeExtend(kA64Uxtx, 0))
 /*
  * The following enum defines the list of supported A64 instructions by the
  * assembler. Their corresponding EncodingMap positions will be defined in
@@ -329,7 +329,7 @@ enum ArmOpcode {
   kA64Stur3rXd,      // stur[1s111000000] imm_9[20-12] [00] rn[9-5] rt[4-0].
   kA64Stxr3wrX,      // stxr[11001000000] rs[20-16] [011111] rn[9-5] rt[4-0].
   kA64Sub4RRdT,      // sub [s101000100] imm_12[21-10] rn[9-5] rd[4-0].
-  kA64Sub4rrro,      // sub [s1001011001] rm[20-16] option[15-13] imm_3[12-10] rn[9-5] rd[4-0].
+  kA64Sub4rrro,      // sub [s1001011000] rm[20-16] option[15-13] imm_3[12-10] rn[9-5] rd[4-0].
   kA64Subs3rRd,      // subs[s111000100] imm_12[21-10] rn[9-5] rd[4-0].
   kA64Tst3rro,       // tst alias of "ands rzr, arg1, arg2, arg3".
   kA64Ubfm4rrdd,     // ubfm[s10100110] N[22] imm_r[21-16] imm_s[15-10] rn[9-5] rd[4-0].
@@ -393,9 +393,6 @@ enum ArmEncodingKind {
   kFmtExtend,    // Register extend, 9-bit at [23..21, 15..10].
   kFmtSkip,      // Unused field, but continue to next.
 };
-
-// TODO(Arm64): should we get rid of kFmtExtend?
-//   Note: the only instructions that use it (cmp, cmn) are not used themselves.
 
 // Struct used to define the snippet positions for each A64 opcode.
 struct ArmEncodingMap {
