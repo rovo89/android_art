@@ -67,8 +67,7 @@ class CodeGenerator : public ArenaObject {
     // Note that this follows the current calling convention.
     return GetFrameSize()
         + kVRegSize  // Art method
-        + (parameter->GetIndex() - graph_->GetNumberOfVRegs() + graph_->GetNumberOfInVRegs())
-          * kVRegSize;
+        + parameter->GetIndex() * kVRegSize;
   }
 
   virtual void GenerateFrameEntry() = 0;

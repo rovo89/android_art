@@ -847,7 +847,7 @@ X86Assembler* ParallelMoveResolverX86::GetAssembler() const {
 
 void ParallelMoveResolverX86::MoveMemoryToMemory(int dst, int src) {
   ScratchRegisterScope ensure_scratch(
-      this, kNoRegister, codegen_->GetNumberOfCoreRegisters());
+      this, kNoRegister, EAX, codegen_->GetNumberOfCoreRegisters());
   int stack_offset = ensure_scratch.IsSpilled() ? kX86WordSize : 0;
   __ movl(static_cast<Register>(ensure_scratch.GetRegister()), Address(ESP, src + stack_offset));
   __ movl(Address(ESP, dst + stack_offset), static_cast<Register>(ensure_scratch.GetRegister()));
@@ -879,7 +879,10 @@ void ParallelMoveResolverX86::EmitMove(size_t index) {
 }
 
 void ParallelMoveResolverX86::Exchange(Register reg, int mem) {
-  ScratchRegisterScope ensure_scratch(this, reg, codegen_->GetNumberOfCoreRegisters());
+  Register suggested_scratch = reg == EAX ? EBX : EAX;
+  ScratchRegisterScope ensure_scratch(
+      this, reg, suggested_scratch, codegen_->GetNumberOfCoreRegisters());
+
   int stack_offset = ensure_scratch.IsSpilled() ? kX86WordSize : 0;
   __ movl(static_cast<Register>(ensure_scratch.GetRegister()), Address(ESP, mem + stack_offset));
   __ movl(Address(ESP, mem + stack_offset), reg);
@@ -889,9 +892,12 @@ void ParallelMoveResolverX86::Exchange(Register reg, int mem) {
 
 void ParallelMoveResolverX86::Exchange(int mem1, int mem2) {
   ScratchRegisterScope ensure_scratch1(
-      this, kNoRegister, codegen_->GetNumberOfCoreRegisters());
+      this, kNoRegister, EAX, codegen_->GetNumberOfCoreRegisters());
+
+  Register suggested_scratch = ensure_scratch1.GetRegister() == EAX ? EBX : EAX;
   ScratchRegisterScope ensure_scratch2(
-      this, ensure_scratch1.GetRegister(), codegen_->GetNumberOfCoreRegisters());
+      this, ensure_scratch1.GetRegister(), suggested_scratch, codegen_->GetNumberOfCoreRegisters());
+
   int stack_offset = ensure_scratch1.IsSpilled() ? kX86WordSize : 0;
   stack_offset += ensure_scratch2.IsSpilled() ? kX86WordSize : 0;
   __ movl(static_cast<Register>(ensure_scratch1.GetRegister()), Address(ESP, mem1 + stack_offset));

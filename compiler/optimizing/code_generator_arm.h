@@ -19,6 +19,7 @@
 
 #include "code_generator.h"
 #include "nodes.h"
+#include "parallel_move_resolver.h"
 #include "utils/arm/assembler_arm32.h"
 
 namespace art {
@@ -57,6 +58,27 @@ class InvokeDexCallingConventionVisitor {
   uint32_t gp_index_;
 
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
+};
+
+class ParallelMoveResolverARM : public ParallelMoveResolver {
+ public:
+  ParallelMoveResolverARM(ArenaAllocator* allocator, CodeGeneratorARM* codegen)
+      : ParallelMoveResolver(allocator), codegen_(codegen) {}
+
+  virtual void EmitMove(size_t index) OVERRIDE;
+  virtual void EmitSwap(size_t index) OVERRIDE;
+  virtual void SpillScratch(int reg) OVERRIDE;
+  virtual void RestoreScratch(int reg) OVERRIDE;
+
+  ArmAssembler* GetAssembler() const;
+
+ private:
+  void Exchange(Register reg, int mem);
+  void Exchange(int mem1, int mem2);
+
+  CodeGeneratorARM* const codegen_;
+
+  DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolverARM);
 };
 
 class LocationsBuilderARM : public HGraphVisitor {
@@ -145,6 +167,10 @@ class CodeGeneratorARM : public CodeGenerator {
   virtual void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
 
+  ParallelMoveResolverARM* GetMoveResolver() {
+    return &move_resolver_;
+  }
+
  private:
   // Helper method to move a 32bits value between two locations.
   void Move32(Location destination, Location source);
@@ -153,6 +179,7 @@ class CodeGeneratorARM : public CodeGenerator {
 
   LocationsBuilderARM location_builder_;
   InstructionCodeGeneratorARM instruction_visitor_;
+  ParallelMoveResolverARM move_resolver_;
   Arm32Assembler assembler_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM);
