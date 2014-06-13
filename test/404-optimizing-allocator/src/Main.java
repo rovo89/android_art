@@ -27,7 +27,8 @@ public class Main {
     expectEquals(10, $opt$reg$TestMultipleLive());
     expectEquals(1, $opt$reg$TestWithBreakAndContinue());
     expectEquals(-15, $opt$reg$testSpillInIf(5, 6, 7));
-    expectEquals(-567, $opt$reg$TestAgressiveLive(1, 2, 3, 4, 5, 6, 7));
+    expectEquals(-567, $opt$reg$TestAgressiveLive1(1, 2, 3, 4, 5, 6, 7));
+    expectEquals(-77, $opt$reg$TestAgressiveLive2(1, 2, 3, 4, 5, 6, 7));
   }
 
   public static int $opt$reg$TestLostCopy() {
@@ -125,7 +126,7 @@ public class Main {
     return a - b - c - d - e;
   }
 
-  public static int $opt$reg$TestAgressiveLive(int a, int b, int c, int d, int e, int f, int g) {
+  public static int $opt$reg$TestAgressiveLive1(int a, int b, int c, int d, int e, int f, int g) {
     int h = a - b;
     int i = c - d;
     int j = e - f;
@@ -141,6 +142,17 @@ public class Main {
         j += 5;
       }
       k = 9;
+      h++;
+    } while (h != 5);
+    return a - b - c - d - e - f - g - h - i - j - k;
+  }
+
+  public static int $opt$reg$TestAgressiveLive2(int a, int b, int c, int d, int e, int f, int g) {
+    int h = a - b;
+    int i = c - d;
+    int j = e - f;
+    int k = 42 + g - a;
+    do {
       h++;
     } while (h != 5);
     return a - b - c - d - e - f - g - h - i - j - k;
