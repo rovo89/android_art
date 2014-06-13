@@ -47,6 +47,7 @@ class InternalCodeAllocator : public CodeAllocator {
   DISALLOW_COPY_AND_ASSIGN(InternalCodeAllocator);
 };
 
+#if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
 static void Run(const InternalCodeAllocator& allocator, bool has_result, int32_t expected) {
   typedef int32_t (*fptr)();
   CommonCompilerTest::MakeExecutable(allocator.GetMemory(), allocator.GetSize());
@@ -55,6 +56,7 @@ static void Run(const InternalCodeAllocator& allocator, bool has_result, int32_t
     CHECK_EQ(result, expected);
   }
 }
+#endif
 
 static void TestCode(const uint16_t* data, bool has_result = false, int32_t expected = 0) {
   ArenaPool pool;
