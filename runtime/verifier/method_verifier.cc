@@ -274,7 +274,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx,
     result = kHardFailure;
   }
   uint64_t duration_ns = NanoTime() - start_ns;
-  if (duration_ns > MsToNs(100)) {
+  if (duration_ns > MsToNs(100) && !kIsDebugBuild) {
     LOG(WARNING) << "Verification of " << PrettyMethod(method_idx, *dex_file)
                  << " took " << PrettyDuration(duration_ns);
   }
