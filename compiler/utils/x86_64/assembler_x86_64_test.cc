@@ -125,6 +125,16 @@ TEST_F(AssemblerX86_64Test, XorqImm) {
   DriverStr(RepeatRI(&x86_64::X86_64Assembler::xorq, 4U, "xorq ${imm}, %{reg}"), "xorqi");
 }
 
+TEST_F(AssemblerX86_64Test, Movl) {
+  GetAssembler()->movl(x86_64::CpuRegister(x86_64::R8), x86_64::CpuRegister(x86_64::R11));
+  GetAssembler()->movl(x86_64::CpuRegister(x86_64::RAX), x86_64::CpuRegister(x86_64::R11));
+  const char* expected =
+    "movl %R11d, %R8d\n"
+    "movl %R11d, %EAX\n";
+
+  DriverStr(expected, "movl");
+}
+
 
 std::string setcc_test_fn(x86_64::X86_64Assembler* assembler) {
   // From Condition
