@@ -574,7 +574,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
       break;
   }
 
-  if (implicit_checks_supported &&
+  if (!options->interpreter_only_ && implicit_checks_supported &&
       (options->explicit_checks_ != (ParsedOptions::kExplicitSuspendCheck |
           ParsedOptions::kExplicitNullCheck |
           ParsedOptions::kExplicitStackOverflowCheck) || kEnableJavaStackTraceHandler)) {
