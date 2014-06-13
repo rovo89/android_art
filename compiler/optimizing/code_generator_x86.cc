@@ -157,7 +157,7 @@ int32_t CodeGeneratorX86::GetStackSlot(HLocal* local) const {
   uint16_t number_of_in_vregs = GetGraph()->GetNumberOfInVRegs();
   if (reg_number >= number_of_vregs - number_of_in_vregs) {
     // Local is a parameter of the method. It is stored in the caller's frame.
-    return GetFrameSize() + kX86WordSize  // ART method
+    return GetFrameSize() + kVRegSize  // ART method
                           + (reg_number - number_of_vregs + number_of_in_vregs) * kVRegSize;
   } else {
     // Local is a temporary in this method. It is stored in this method's frame.
@@ -221,7 +221,7 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
       if (index < calling_convention.GetNumberOfRegisters()) {
         return X86CpuLocation(calling_convention.GetRegisterAt(index));
       } else {
-        return Location::StackSlot(calling_convention.GetStackOffsetOf(index, kX86WordSize));
+        return Location::StackSlot(calling_convention.GetStackOffsetOf(index));
       }
     }
 
@@ -234,7 +234,7 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
       } else if (index + 1 == calling_convention.GetNumberOfRegisters()) {
         return Location::QuickParameter(index);
       } else {
-        return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(index, kX86WordSize));
+        return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(index));
       }
     }
 
@@ -286,7 +286,7 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
       __ movl(destination.AsX86().AsRegisterPairLow(),
               calling_convention.GetRegisterAt(argument_index));
       __ movl(destination.AsX86().AsRegisterPairHigh(), Address(ESP,
-          calling_convention.GetStackOffsetOf(argument_index + 1, kX86WordSize) + GetFrameSize()));
+          calling_convention.GetStackOffsetOf(argument_index + 1) + GetFrameSize()));
     } else {
       DCHECK(source.IsDoubleStackSlot());
       __ movl(destination.AsX86().AsRegisterPairLow(), Address(ESP, source.GetStackIndex()));
@@ -298,14 +298,14 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
     uint32_t argument_index = destination.GetQuickParameterIndex();
     if (source.IsRegister()) {
       __ movl(calling_convention.GetRegisterAt(argument_index), source.AsX86().AsRegisterPairLow());
-      __ movl(Address(ESP, calling_convention.GetStackOffsetOf(argument_index + 1, kX86WordSize)),
+      __ movl(Address(ESP, calling_convention.GetStackOffsetOf(argument_index + 1)),
               source.AsX86().AsRegisterPairHigh());
     } else {
       DCHECK(source.IsDoubleStackSlot());
       __ movl(calling_convention.GetRegisterAt(argument_index),
               Address(ESP, source.GetStackIndex()));
       __ pushl(Address(ESP, source.GetHighStackIndex(kX86WordSize)));
-      __ popl(Address(ESP, calling_convention.GetStackOffsetOf(argument_index + 1, kX86WordSize)));
+      __ popl(Address(ESP, calling_convention.GetStackOffsetOf(argument_index + 1)));
     }
   } else {
     if (source.IsRegister()) {
@@ -318,7 +318,7 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
       __ movl(Address(ESP, destination.GetStackIndex()),
               calling_convention.GetRegisterAt(argument_index));
       __ pushl(Address(ESP,
-          calling_convention.GetStackOffsetOf(argument_index + 1, kX86WordSize) + GetFrameSize()));
+          calling_convention.GetStackOffsetOf(argument_index + 1) + GetFrameSize()));
       __ popl(Address(ESP, destination.GetHighStackIndex(kX86WordSize)));
     } else {
       DCHECK(source.IsDoubleStackSlot());

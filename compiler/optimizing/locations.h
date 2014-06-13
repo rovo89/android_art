@@ -150,6 +150,7 @@ class Location : public ValueObject {
 
   arm::ArmManagedRegister AsArm() const;
   x86::X86ManagedRegister AsX86() const;
+  x86_64::X86_64ManagedRegister AsX86_64() const;
 
   Kind GetKind() const {
     return KindField::Decode(value_);
