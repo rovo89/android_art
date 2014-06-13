@@ -42,6 +42,7 @@ class CompilerOptions {
   static const size_t kDefaultTinyMethodThreshold = 20;
   static const size_t kDefaultNumDexMethodsThreshold = 900;
   static constexpr double kDefaultTopKProfileThreshold = 90.0;
+  static const bool kDefaultIncludeDebugSymbols = kIsDebugBuild;
 
   CompilerOptions() :
     compiler_filter_(kDefaultCompilerFilter),
@@ -51,7 +52,8 @@ class CompilerOptions {
     tiny_method_threshold_(kDefaultTinyMethodThreshold),
     num_dex_methods_threshold_(kDefaultNumDexMethodsThreshold),
     generate_gdb_information_(false),
-    top_k_profile_threshold_(kDefaultTopKProfileThreshold)
+    top_k_profile_threshold_(kDefaultTopKProfileThreshold),
+    include_debug_symbols_(kDefaultIncludeDebugSymbols)
 #ifdef ART_SEA_IR_MODE
     , sea_ir_mode_(false)
 #endif
@@ -64,7 +66,8 @@ class CompilerOptions {
                   size_t tiny_method_threshold,
                   size_t num_dex_methods_threshold,
                   bool generate_gdb_information,
-                  double top_k_profile_threshold
+                  double top_k_profile_threshold,
+                  bool include_debug_symbols
 #ifdef ART_SEA_IR_MODE
                   , bool sea_ir_mode
 #endif
@@ -76,7 +79,8 @@ class CompilerOptions {
     tiny_method_threshold_(tiny_method_threshold),
     num_dex_methods_threshold_(num_dex_methods_threshold),
     generate_gdb_information_(generate_gdb_information),
-    top_k_profile_threshold_(top_k_profile_threshold)
+    top_k_profile_threshold_(top_k_profile_threshold),
+    include_debug_symbols_(include_debug_symbols)
 #ifdef ART_SEA_IR_MODE
     , sea_ir_mode_(sea_ir_mode)
 #endif
@@ -139,6 +143,10 @@ class CompilerOptions {
     return top_k_profile_threshold_;
   }
 
+  bool GetIncludeDebugSymbols() const {
+    return include_debug_symbols_;
+  }
+
 #ifdef ART_SEA_IR_MODE
   bool GetSeaIrMode();
 #endif
@@ -157,6 +165,7 @@ class CompilerOptions {
   bool generate_gdb_information_;
   // When using a profile file only the top K% of the profiled samples will be compiled.
   double top_k_profile_threshold_;
+  bool include_debug_symbols_;
 #ifdef ART_SEA_IR_MODE
   bool sea_ir_mode_;
 #endif

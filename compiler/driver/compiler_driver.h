@@ -28,6 +28,7 @@
 #include "compiled_method.h"
 #include "compiler.h"
 #include "dex_file.h"
+#include "driver/compiler_options.h"
 #include "instruction_set.h"
 #include "invoke_type.h"
 #include "method_reference.h"
@@ -105,8 +106,7 @@ class CompilerDriver {
                           InstructionSetFeatures instruction_set_features,
                           bool image, DescriptorSet* image_classes,
                           size_t thread_count, bool dump_stats, bool dump_passes,
-                          CumulativeLogger* timer,
-                          std::string profile_file = "");
+                          CumulativeLogger* timer, std::string profile_file = "");
 
   ~CompilerDriver();
 
@@ -392,6 +392,10 @@ class CompilerDriver {
 
   bool GetDumpPasses() const {
     return dump_passes_;
+  }
+
+  bool DidIncludeDebugSymbols() const {
+    return compiler_options_->GetIncludeDebugSymbols();
   }
 
   CumulativeLogger* GetTimingsLogger() const {
