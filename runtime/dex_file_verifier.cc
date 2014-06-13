@@ -111,17 +111,17 @@ const DexFile::MethodId* DexFileVerifier::CheckLoadMethodId(uint32_t idx, const 
   }
 
 // Helper macro to load method id. Return last parameter on error.
-#define LOAD_METHOD(var, idx, error_string, error_val)                  \
+#define LOAD_METHOD(var, idx, error_string, error_stmt)                 \
   const DexFile::MethodId* var  = CheckLoadMethodId(idx, error_string); \
   if (UNLIKELY(var == nullptr)) {                                       \
-    return error_val;                                                   \
+    error_stmt;                                                         \
   }
 
 // Helper macro to load method id. Return last parameter on error.
-#define LOAD_FIELD(var, idx, fmt, error_val)                \
+#define LOAD_FIELD(var, idx, fmt, error_stmt)               \
   const DexFile::FieldId* var = CheckLoadFieldId(idx, fmt); \
   if (UNLIKELY(var == nullptr)) {                           \
-    return error_val;                                       \
+    error_stmt;                                             \
   }
 
 bool DexFileVerifier::Verify(const DexFile* dex_file, const byte* begin, size_t size,
@@ -1378,42 +1378,48 @@ bool DexFileVerifier::CheckOffsetToTypeMap(size_t offset, uint16_t type) {
   return true;
 }
 
-uint32_t DexFileVerifier::FindFirstClassDataDefiner(const byte* ptr) {
+uint16_t DexFileVerifier::FindFirstClassDataDefiner(const byte* ptr, bool* success) {
   ClassDataItemIterator it(*dex_file_, ptr);
+  *success = true;
 
   if (it.HasNextStaticField() || it.HasNextInstanceField()) {
-    LOAD_FIELD(field, it.GetMemberIndex(), "first_class_data_definer field_id", 0x10000U)
+    LOAD_FIELD(field, it.GetMemberIndex(), "first_class_data_definer field_id",
+               *success = false; return DexFile::kDexNoIndex16)
     return field->class_idx_;
   }
 
   if (it.HasNextDirectMethod() || it.HasNextVirtualMethod()) {
-    LOAD_METHOD(method, it.GetMemberIndex(), "first_class_data_definer method_id", 0x10000U)
+    LOAD_METHOD(method, it.GetMemberIndex(), "first_class_data_definer method_id",
+                *success = false; return DexFile::kDexNoIndex16)
     return method->class_idx_;
   }
 
   return DexFile::kDexNoIndex16;
 }
 
-uint32_t DexFileVerifier::FindFirstAnnotationsDirectoryDefiner(const byte* ptr) {
+uint16_t DexFileVerifier::FindFirstAnnotationsDirectoryDefiner(const byte* ptr, bool* success) {
   const DexFile::AnnotationsDirectoryItem* item =
       reinterpret_cast<const DexFile::AnnotationsDirectoryItem*>(ptr);
+  *success = true;
+
   if (item->fields_size_ != 0) {
     DexFile::FieldAnnotationsItem* field_items = (DexFile::FieldAnnotationsItem*) (item + 1);
-    LOAD_FIELD(field, field_items[0].field_idx_, "first_annotations_dir_definer field_id", 0x10000U)
+    LOAD_FIELD(field, field_items[0].field_idx_, "first_annotations_dir_definer field_id",
+               *success = false; return DexFile::kDexNoIndex16)
     return field->class_idx_;
   }
 
   if (item->methods_size_ != 0) {
     DexFile::MethodAnnotationsItem* method_items = (DexFile::MethodAnnotationsItem*) (item + 1);
     LOAD_METHOD(method, method_items[0].method_idx_, "first_annotations_dir_definer method id",
-                0x10000U)
+                *success = false; return DexFile::kDexNoIndex16)
     return method->class_idx_;
   }
 
   if (item->parameters_size_ != 0) {
     DexFile::ParameterAnnotationsItem* parameter_items = (DexFile::ParameterAnnotationsItem*) (item + 1);
     LOAD_METHOD(method, parameter_items[0].method_idx_, "first_annotations_dir_definer method id",
-                0x10000U)
+                *success = false; return DexFile::kDexNoIndex16)
     return method->class_idx_;
   }
 
@@ -1699,8 +1705,9 @@ bool DexFileVerifier::CheckInterClassDefItem() {
   // Check that references in class_data_item are to the right class.
   if (item->class_data_off_ != 0) {
     const byte* data = begin_ + item->class_data_off_;
-    uint32_t data_definer = FindFirstClassDataDefiner(data);
-    if (data_definer >= 0x10000U) {
+    bool success;
+    uint16_t data_definer = FindFirstClassDataDefiner(data, &success);
+    if (!success) {
       return false;
     }
     if (UNLIKELY((data_definer != item->class_idx_) && (data_definer != DexFile::kDexNoIndex16))) {
@@ -1712,8 +1719,9 @@ bool DexFileVerifier::CheckInterClassDefItem() {
   // Check that references in annotations_directory_item are to right class.
   if (item->annotations_off_ != 0) {
     const byte* data = begin_ + item->annotations_off_;
-    uint32_t annotations_definer = FindFirstAnnotationsDirectoryDefiner(data);
-    if (annotations_definer >= 0x10000U) {
+    bool success;
+    uint16_t annotations_definer = FindFirstAnnotationsDirectoryDefiner(data, &success);
+    if (!success) {
       return false;
     }
     if (UNLIKELY((annotations_definer != item->class_idx_) &&
@@ -1777,13 +1785,14 @@ bool DexFileVerifier::CheckInterAnnotationSetItem() {
 
 bool DexFileVerifier::CheckInterClassDataItem() {
   ClassDataItemIterator it(*dex_file_, ptr_);
-  uint32_t defining_class = FindFirstClassDataDefiner(ptr_);
-  if (defining_class >= 0x10000U) {
+  bool success;
+  uint16_t defining_class = FindFirstClassDataDefiner(ptr_, &success);
+  if (!success) {
     return false;
   }
 
   for (; it.HasNextStaticField() || it.HasNextInstanceField(); it.Next()) {
-    LOAD_FIELD(field, it.GetMemberIndex(), "inter_class_data_item field_id", false)
+    LOAD_FIELD(field, it.GetMemberIndex(), "inter_class_data_item field_id", return false)
     if (UNLIKELY(field->class_idx_ != defining_class)) {
       ErrorStringPrintf("Mismatched defining class for class_data_item field");
       return false;
@@ -1794,7 +1803,7 @@ bool DexFileVerifier::CheckInterClassDataItem() {
     if (code_off != 0 && !CheckOffsetToTypeMap(code_off, DexFile::kDexTypeCodeItem)) {
       return false;
     }
-    LOAD_METHOD(method, it.GetMemberIndex(), "inter_class_data_item method_id", false)
+    LOAD_METHOD(method, it.GetMemberIndex(), "inter_class_data_item method_id", return false)
     if (UNLIKELY(method->class_idx_ != defining_class)) {
       ErrorStringPrintf("Mismatched defining class for class_data_item method");
       return false;
@@ -1808,8 +1817,9 @@ bool DexFileVerifier::CheckInterClassDataItem() {
 bool DexFileVerifier::CheckInterAnnotationsDirectoryItem() {
   const DexFile::AnnotationsDirectoryItem* item =
       reinterpret_cast<const DexFile::AnnotationsDirectoryItem*>(ptr_);
-  uint32_t defining_class = FindFirstAnnotationsDirectoryDefiner(ptr_);
-  if (defining_class >= 0x10000U) {
+  bool success;
+  uint16_t defining_class = FindFirstAnnotationsDirectoryDefiner(ptr_, &success);
+  if (!success) {
     return false;
   }
 
@@ -1823,7 +1833,8 @@ bool DexFileVerifier::CheckInterAnnotationsDirectoryItem() {
       reinterpret_cast<const DexFile::FieldAnnotationsItem*>(item + 1);
   uint32_t field_count = item->fields_size_;
   for (uint32_t i = 0; i < field_count; i++) {
-    LOAD_FIELD(field, field_item->field_idx_, "inter_annotations_directory_item field_id", false)
+    LOAD_FIELD(field, field_item->field_idx_, "inter_annotations_directory_item field_id",
+               return false)
     if (UNLIKELY(field->class_idx_ != defining_class)) {
       ErrorStringPrintf("Mismatched defining class for field_annotation");
       return false;
@@ -1840,7 +1851,7 @@ bool DexFileVerifier::CheckInterAnnotationsDirectoryItem() {
   uint32_t method_count = item->methods_size_;
   for (uint32_t i = 0; i < method_count; i++) {
     LOAD_METHOD(method, method_item->method_idx_, "inter_annotations_directory_item method_id",
-                false)
+                return false)
     if (UNLIKELY(method->class_idx_ != defining_class)) {
       ErrorStringPrintf("Mismatched defining class for method_annotation");
       return false;
@@ -1857,7 +1868,7 @@ bool DexFileVerifier::CheckInterAnnotationsDirectoryItem() {
   uint32_t parameter_count = item->parameters_size_;
   for (uint32_t i = 0; i < parameter_count; i++) {
     LOAD_METHOD(parameter_method, parameter_item->method_idx_,
-                "inter_annotations_directory_item parameter method_id", false)
+                "inter_annotations_directory_item parameter method_id", return false)
     if (UNLIKELY(parameter_method->class_idx_ != defining_class)) {
       ErrorStringPrintf("Mismatched defining class for parameter_annotation");
       return false;
