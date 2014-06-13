@@ -1137,8 +1137,10 @@ void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) {
     MoveImageClassesToClassTable();
   }
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  for (const std::pair<size_t, mirror::Class*>& it : class_table_) {
-    if (!visitor(it.second, arg)) {
+  for (std::pair<const size_t, mirror::Class*>& it : class_table_) {
+    mirror::Class** root = &it.second;
+    mirror::Class* c = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
+    if (!visitor(c, arg)) {
       return;
     }
   }
@@ -2353,7 +2355,8 @@ bool ClassLinker::RemoveClass(const char* descriptor, const mirror::ClassLoader*
   for (auto it = class_table_.lower_bound(hash), end = class_table_.end();
        it != end && it->first == hash;
        ++it) {
-    mirror::Class* klass = it->second;
+    mirror::Class** root = &it->second;
+    mirror::Class* klass = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
     if (klass->GetClassLoader() == class_loader && klass->DescriptorEquals(descriptor)) {
       class_table_.erase(it);
       return true;
@@ -2397,12 +2400,14 @@ mirror::Class* ClassLinker::LookupClassFromTableLocked(const char* descriptor,
                                                        size_t hash) {
   auto end = class_table_.end();
   for (auto it = class_table_.lower_bound(hash); it != end && it->first == hash; ++it) {
-    mirror::Class* klass = it->second;
+    mirror::Class** root = &it->second;
+    mirror::Class* klass = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
     if (klass->GetClassLoader() == class_loader && klass->DescriptorEquals(descriptor)) {
       if (kIsDebugBuild) {
         // Check for duplicates in the table.
         for (++it; it != end && it->first == hash; ++it) {
-          mirror::Class* klass2 = it->second;
+          mirror::Class** root2 = &it->second;
+          mirror::Class* klass2 = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root2);
           CHECK(!(klass2->GetClassLoader() == class_loader &&
               klass2->DescriptorEquals(descriptor)))
               << PrettyClass(klass) << " " << klass << " " << klass->GetClassLoader() << " "
@@ -2494,7 +2499,8 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<mirror::Clas
   ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   for (auto it = class_table_.lower_bound(hash), end = class_table_.end();
       it != end && it->first == hash; ++it) {
-    mirror::Class* klass = it->second;
+    mirror::Class** root = &it->second;
+    mirror::Class* klass = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
     if (klass->DescriptorEquals(descriptor)) {
       result.push_back(klass);
     }
@@ -4362,8 +4368,10 @@ void ClassLinker::DumpAllClasses(int flags) {
   std::vector<mirror::Class*> all_classes;
   {
     ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-    for (const std::pair<size_t, mirror::Class*>& it : class_table_) {
-      all_classes.push_back(it.second);
+    for (std::pair<const size_t, mirror::Class*>& it : class_table_) {
+      mirror::Class** root = &it.second;
+      mirror::Class* klass = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
+      all_classes.push_back(klass);
     }
   }
 
