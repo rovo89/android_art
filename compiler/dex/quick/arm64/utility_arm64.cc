@@ -86,14 +86,14 @@ static int32_t EncodeImmDouble(uint64_t bits) {
   return (bit7 | bit6 | bit5_to_0);
 }
 
-LIR* Arm64Mir2Lir::LoadFPConstantValue(int r_dest, int32_t value) {
-  DCHECK(RegStorage::IsSingle(r_dest));
+LIR* Arm64Mir2Lir::LoadFPConstantValue(RegStorage r_dest, int32_t value) {
+  DCHECK(r_dest.IsSingle());
   if (value == 0) {
-    return NewLIR2(kA64Fmov2sw, r_dest, rwzr);
+    return NewLIR2(kA64Fmov2sw, r_dest.GetReg(), rwzr);
   } else {
     int32_t encoded_imm = EncodeImmSingle((uint32_t)value);
     if (encoded_imm >= 0) {
-      return NewLIR2(kA64Fmov2fI, r_dest, encoded_imm);
+      return NewLIR2(kA64Fmov2fI, r_dest.GetReg(), encoded_imm);
     }
   }
 
@@ -104,19 +104,19 @@ LIR* Arm64Mir2Lir::LoadFPConstantValue(int r_dest, int32_t value) {
 
   ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
   LIR* load_pc_rel = RawLIR(current_dalvik_offset_, kA64Ldr2fp,
-                            r_dest, 0, 0, 0, 0, data_target);
+                            r_dest.GetReg(), 0, 0, 0, 0, data_target);
   AppendLIR(load_pc_rel);
   return load_pc_rel;
 }
 
-LIR* Arm64Mir2Lir::LoadFPConstantValueWide(int r_dest, int64_t value) {
-  DCHECK(RegStorage::IsDouble(r_dest));
+LIR* Arm64Mir2Lir::LoadFPConstantValueWide(RegStorage r_dest, int64_t value) {
+  DCHECK(r_dest.IsDouble());
   if (value == 0) {
-    return NewLIR2(kA64Fmov2Sx, r_dest, rxzr);
+    return NewLIR2(kA64Fmov2Sx, r_dest.GetReg(), rxzr);
   } else {
     int32_t encoded_imm = EncodeImmDouble(value);
     if (encoded_imm >= 0) {
-      return NewLIR2(FWIDE(kA64Fmov2fI), r_dest, encoded_imm);
+      return NewLIR2(FWIDE(kA64Fmov2fI), r_dest.GetReg(), encoded_imm);
     }
   }
 
@@ -128,20 +128,19 @@ LIR* Arm64Mir2Lir::LoadFPConstantValueWide(int r_dest, int64_t value) {
     data_target = AddWideData(&literal_list_, val_lo, val_hi);
   }
 
-  DCHECK(RegStorage::IsFloat(r_dest));
   ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
   LIR* load_pc_rel = RawLIR(current_dalvik_offset_, FWIDE(kA64Ldr2fp),
-                            r_dest, 0, 0, 0, 0, data_target);
+                            r_dest.GetReg(), 0, 0, 0, 0, data_target);
   AppendLIR(load_pc_rel);
   return load_pc_rel;
 }
 
 static int CountLeadingZeros(bool is_wide, uint64_t value) {
-  return (is_wide) ? __builtin_clzl(value) : __builtin_clz((uint32_t)value);
+  return (is_wide) ? __builtin_clzll(value) : __builtin_clz((uint32_t)value);
 }
 
 static int CountTrailingZeros(bool is_wide, uint64_t value) {
-  return (is_wide) ? __builtin_ctzl(value) : __builtin_ctz((uint32_t)value);
+  return (is_wide) ? __builtin_ctzll(value) : __builtin_ctz((uint32_t)value);
 }
 
 static int CountSetBits(bool is_wide, uint64_t value) {
@@ -276,12 +275,16 @@ LIR* Arm64Mir2Lir::LoadConstantNoClobber(RegStorage r_dest, int value) {
   LIR* res;
 
   if (r_dest.IsFloat()) {
-    return LoadFPConstantValue(r_dest.GetReg(), value);
+    return LoadFPConstantValue(r_dest, value);
+  }
+
+  if (r_dest.Is64Bit()) {
+    return LoadConstantWide(r_dest, value);
   }
 
   // Loading SP/ZR with an immediate is not supported.
-  DCHECK_NE(r_dest.GetReg(), rwsp);
-  DCHECK_NE(r_dest.GetReg(), rwzr);
+  DCHECK(!A64_REG_IS_SP(r_dest.GetReg()));
+  DCHECK(!A64_REG_IS_ZR(r_dest.GetReg()));
 
   // Compute how many movk, movz instructions are needed to load the value.
   uint16_t high_bits = High16Bits(value);
@@ -328,6 +331,98 @@ LIR* Arm64Mir2Lir::LoadConstantNoClobber(RegStorage r_dest, int value) {
     }
   }
 
+  return res;
+}
+
+// TODO: clean up the names. LoadConstantWide() should really be LoadConstantNoClobberWide().
+LIR* Arm64Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
+  // Maximum number of instructions to use for encoding the immediate.
+  const int max_num_ops = 2;
+
+  if (r_dest.IsFloat()) {
+    return LoadFPConstantValueWide(r_dest, value);
+  }
+
+  DCHECK(r_dest.Is64Bit());
+
+  // Loading SP/ZR with an immediate is not supported.
+  DCHECK(!A64_REG_IS_SP(r_dest.GetReg()));
+  DCHECK(!A64_REG_IS_ZR(r_dest.GetReg()));
+
+  if (LIKELY(value == INT64_C(0) || value == INT64_C(-1))) {
+    // value is either 0 or -1: we can just use xzr.
+    ArmOpcode opcode = LIKELY(value == 0) ? WIDE(kA64Mov2rr) : WIDE(kA64Mvn2rr);
+    return NewLIR2(opcode, r_dest.GetReg(), rxzr);
+  }
+
+  // At least one in value's halfwords is not 0x0, nor 0xffff: find out how many.
+  int num_0000_halfwords = 0;
+  int num_ffff_halfwords = 0;
+  uint64_t uvalue = static_cast<uint64_t>(value);
+  for (int shift = 0; shift < 64; shift += 16) {
+    uint16_t halfword = static_cast<uint16_t>(uvalue >> shift);
+    if (halfword == 0)
+      num_0000_halfwords++;
+    else if (halfword == UINT16_C(0xffff))
+      num_ffff_halfwords++;
+  }
+  int num_fast_halfwords = std::max(num_0000_halfwords, num_ffff_halfwords);
+
+  if (num_fast_halfwords < 3) {
+    // A single movz/movn is not enough. Try the logical immediate route.
+    int log_imm = EncodeLogicalImmediate(/*is_wide=*/true, value);
+    if (log_imm >= 0) {
+      return NewLIR3(WIDE(kA64Orr3Rrl), r_dest.GetReg(), rxzr, log_imm);
+    }
+  }
+
+  if (num_fast_halfwords >= 4 - max_num_ops) {
+    // We can encode the number using a movz/movn followed by one or more movk.
+    ArmOpcode op;
+    uint16_t background;
+    LIR* res = nullptr;
+
+    // Decide whether to use a movz or a movn.
+    if (num_0000_halfwords >= num_ffff_halfwords) {
+      op = WIDE(kA64Movz3rdM);
+      background = 0;
+    } else {
+      op = WIDE(kA64Movn3rdM);
+      background = 0xffff;
+    }
+
+    // Emit the first instruction (movz, movn).
+    int shift;
+    for (shift = 0; shift < 4; shift++) {
+      uint16_t halfword = static_cast<uint16_t>(uvalue >> (shift << 4));
+      if (halfword != background) {
+        res = NewLIR3(op, r_dest.GetReg(), halfword ^ background, shift);
+        break;
+      }
+    }
+
+    // Emit the movk instructions.
+    for (shift++; shift < 4; shift++) {
+      uint16_t halfword = static_cast<uint16_t>(uvalue >> (shift << 4));
+      if (halfword != background) {
+        NewLIR3(WIDE(kA64Movk3rdM), r_dest.GetReg(), halfword, shift);
+      }
+    }
+    return res;
+  }
+
+  // Use the literal pool.
+  int32_t val_lo = Low32Bits(value);
+  int32_t val_hi = High32Bits(value);
+  LIR* data_target = ScanLiteralPoolWide(literal_list_, val_lo, val_hi);
+  if (data_target == NULL) {
+    data_target = AddWideData(&literal_list_, val_lo, val_hi);
+  }
+
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
+  LIR *res = RawLIR(current_dalvik_offset_, WIDE(kA64Ldr2rp),
+                    r_dest.GetReg(), 0, 0, 0, 0, data_target);
+  AppendLIR(res);
   return res;
 }
 
@@ -736,29 +831,6 @@ LIR* Arm64Mir2Lir::OpRegImm64(OpKind op, RegStorage r_dest_src1, int64_t value) 
                    (shift) ? 1 : 0);
   else
     return NewLIR3(opcode | wide, r_dest_src1.GetReg(), abs_value, (shift) ? 1 : 0);
-}
-
-LIR* Arm64Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
-  if (r_dest.IsFloat()) {
-    return LoadFPConstantValueWide(r_dest.GetReg(), value);
-  } else {
-    // TODO(Arm64): check whether we can load the immediate with a short form.
-    //   e.g. via movz, movk or via logical immediate.
-
-    // No short form - load from the literal pool.
-    int32_t val_lo = Low32Bits(value);
-    int32_t val_hi = High32Bits(value);
-    LIR* data_target = ScanLiteralPoolWide(literal_list_, val_lo, val_hi);
-    if (data_target == NULL) {
-      data_target = AddWideData(&literal_list_, val_lo, val_hi);
-    }
-
-    ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
-    LIR* res = RawLIR(current_dalvik_offset_, WIDE(kA64Ldr2rp),
-                      r_dest.GetReg(), 0, 0, 0, 0, data_target);
-    AppendLIR(res);
-    return res;
-  }
 }
 
 int Arm64Mir2Lir::EncodeShift(int shift_type, int amount) {
