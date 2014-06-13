@@ -48,7 +48,8 @@ void CodeGeneratorARM::DumpFloatingPointRegister(std::ostream& stream, int reg) 
 CodeGeneratorARM::CodeGeneratorARM(HGraph* graph)
     : CodeGenerator(graph, kNumberOfRegIds),
       location_builder_(graph, this),
-      instruction_visitor_(graph, this) {}
+      instruction_visitor_(graph, this),
+      move_resolver_(graph->GetArena(), this) {}
 
 static bool* GetBlockedRegisterPairs(bool* blocked_registers) {
   return blocked_registers + kNumberOfAllocIds;
@@ -105,6 +106,9 @@ void CodeGeneratorARM::SetupBlockedRegisters(bool* blocked_registers) const {
 
   // Reserve thread register.
   blocked_registers[TR] = true;
+
+  // Reserve temp register.
+  blocked_registers[IP] = true;
 
   // TODO: We currently don't use Quick's callee saved registers.
   blocked_registers[R5] = true;
@@ -254,8 +258,8 @@ void CodeGeneratorARM::Move32(Location destination, Location source) {
     if (source.IsRegister()) {
       __ str(source.AsArm().AsCoreRegister(), Address(SP, destination.GetStackIndex()));
     } else {
-      __ ldr(R0, Address(SP, source.GetStackIndex()));
-      __ str(R0, Address(SP, destination.GetStackIndex()));
+      __ ldr(IP, Address(SP, source.GetStackIndex()));
+      __ str(IP, Address(SP, destination.GetStackIndex()));
     }
   }
 }
@@ -295,8 +299,8 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
     } else {
       DCHECK(source.IsDoubleStackSlot());
       __ ldr(calling_convention.GetRegisterAt(argument_index), Address(SP, source.GetStackIndex()));
-      __ ldr(R0, Address(SP, source.GetHighStackIndex(kArmWordSize)));
-      __ str(R0, Address(SP, calling_convention.GetStackOffsetOf(argument_index + 1, kArmWordSize)));
+      __ ldr(IP, Address(SP, source.GetHighStackIndex(kArmWordSize)));
+      __ str(IP, Address(SP, calling_convention.GetStackOffsetOf(argument_index + 1, kArmWordSize)));
     }
   } else {
     DCHECK(destination.IsDoubleStackSlot());
@@ -313,15 +317,15 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
       uint32_t argument_index = source.GetQuickParameterIndex();
       __ str(calling_convention.GetRegisterAt(argument_index),
              Address(SP, destination.GetStackIndex()));
-      __ ldr(R0,
+      __ ldr(IP,
              Address(SP, calling_convention.GetStackOffsetOf(argument_index + 1, kArmWordSize) + GetFrameSize()));
-      __ str(R0, Address(SP, destination.GetHighStackIndex(kArmWordSize)));
+      __ str(IP, Address(SP, destination.GetHighStackIndex(kArmWordSize)));
     } else {
       DCHECK(source.IsDoubleStackSlot());
-      __ ldr(R0, Address(SP, source.GetStackIndex()));
-      __ str(R0, Address(SP, destination.GetStackIndex()));
-      __ ldr(R0, Address(SP, source.GetHighStackIndex(kArmWordSize)));
-      __ str(R0, Address(SP, destination.GetHighStackIndex(kArmWordSize)));
+      __ ldr(IP, Address(SP, source.GetStackIndex()));
+      __ str(IP, Address(SP, destination.GetStackIndex()));
+      __ ldr(IP, Address(SP, source.GetHighStackIndex(kArmWordSize)));
+      __ str(IP, Address(SP, destination.GetHighStackIndex(kArmWordSize)));
     }
   }
 }
@@ -332,8 +336,8 @@ void CodeGeneratorARM::Move(HInstruction* instruction, Location location, HInstr
     if (location.IsRegister()) {
       __ LoadImmediate(location.AsArm().AsCoreRegister(), value);
     } else {
-      __ LoadImmediate(R0, value);
-      __ str(R0, Address(SP, location.GetStackIndex()));
+      __ LoadImmediate(IP, value);
+      __ str(IP, Address(SP, location.GetStackIndex()));
     }
   } else if (instruction->AsLongConstant() != nullptr) {
     int64_t value = instruction->AsLongConstant()->GetValue();
@@ -341,10 +345,10 @@ void CodeGeneratorARM::Move(HInstruction* instruction, Location location, HInstr
       __ LoadImmediate(location.AsArm().AsRegisterPairLow(), Low32Bits(value));
       __ LoadImmediate(location.AsArm().AsRegisterPairHigh(), High32Bits(value));
     } else {
-      __ LoadImmediate(R0, Low32Bits(value));
-      __ str(R0, Address(SP, location.GetStackIndex()));
-      __ LoadImmediate(R0, High32Bits(value));
-      __ str(R0, Address(SP, location.GetHighStackIndex(kArmWordSize)));
+      __ LoadImmediate(IP, Low32Bits(value));
+      __ str(IP, Address(SP, location.GetStackIndex()));
+      __ LoadImmediate(IP, High32Bits(value));
+      __ str(IP, Address(SP, location.GetHighStackIndex(kArmWordSize)));
     }
   } else if (instruction->AsLoadLocal() != nullptr) {
     uint32_t stack_slot = GetStackSlot(instruction->AsLoadLocal()->GetLocal());
@@ -493,7 +497,7 @@ void LocationsBuilderARM::VisitIntConstant(HIntConstant* constant) {
 }
 
 void InstructionCodeGeneratorARM::VisitIntConstant(HIntConstant* constant) {
-  // Will be generated at use site.
+  codegen_->Move(constant, constant->GetLocations()->Out(), nullptr);
 }
 
 void LocationsBuilderARM::VisitLongConstant(HLongConstant* constant) {
@@ -564,7 +568,7 @@ void InstructionCodeGeneratorARM::VisitReturn(HReturn* ret) {
 
 void LocationsBuilderARM::VisitInvokeStatic(HInvokeStatic* invoke) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(invoke);
-  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(ArmCoreLocation(R0));
 
   InvokeDexCallingConventionVisitor calling_convention_visitor;
   for (size_t i = 0; i < invoke->InputCount(); i++) {
@@ -811,15 +815,93 @@ void LocationsBuilderARM::VisitPhi(HPhi* instruction) {
 }
 
 void InstructionCodeGeneratorARM::VisitPhi(HPhi* instruction) {
-  LOG(FATAL) << "Unimplemented";
+  LOG(FATAL) << "Unreachable";
 }
 
 void LocationsBuilderARM::VisitParallelMove(HParallelMove* instruction) {
-  LOG(FATAL) << "Unimplemented";
+  LOG(FATAL) << "Unreachable";
 }
 
 void InstructionCodeGeneratorARM::VisitParallelMove(HParallelMove* instruction) {
-  LOG(FATAL) << "Unimplemented";
+  codegen_->GetMoveResolver()->EmitNativeCode(instruction);
+}
+
+ArmAssembler* ParallelMoveResolverARM::GetAssembler() const {
+  return codegen_->GetAssembler();
+}
+
+void ParallelMoveResolverARM::EmitMove(size_t index) {
+  MoveOperands* move = moves_.Get(index);
+  Location source = move->GetSource();
+  Location destination = move->GetDestination();
+
+  if (source.IsRegister()) {
+    if (destination.IsRegister()) {
+      __ Mov(destination.AsArm().AsCoreRegister(), source.AsArm().AsCoreRegister());
+    } else {
+      DCHECK(destination.IsStackSlot());
+      __ StoreToOffset(kStoreWord, source.AsArm().AsCoreRegister(),
+                       SP, destination.GetStackIndex());
+    }
+  } else if (source.IsStackSlot()) {
+    if (destination.IsRegister()) {
+      __ LoadFromOffset(kLoadWord, destination.AsArm().AsCoreRegister(),
+                        SP, source.GetStackIndex());
+    } else {
+      DCHECK(destination.IsStackSlot());
+      __ LoadFromOffset(kLoadWord, IP, SP, source.GetStackIndex());
+      __ StoreToOffset(kStoreWord, IP, SP, destination.GetStackIndex());
+    }
+  } else {
+    LOG(FATAL) << "Unimplemented";
+  }
+}
+
+void ParallelMoveResolverARM::Exchange(Register reg, int mem) {
+  __ Mov(IP, reg);
+  __ LoadFromOffset(kLoadWord, reg, SP, mem);
+  __ StoreToOffset(kStoreWord, IP, SP, mem);
+}
+
+void ParallelMoveResolverARM::Exchange(int mem1, int mem2) {
+  ScratchRegisterScope ensure_scratch(this, IP, R0, codegen_->GetNumberOfCoreRegisters());
+  int stack_offset = ensure_scratch.IsSpilled() ? kArmWordSize : 0;
+  __ LoadFromOffset(kLoadWord, static_cast<Register>(ensure_scratch.GetRegister()),
+                    SP, mem1 + stack_offset);
+  __ LoadFromOffset(kLoadWord, IP, SP, mem2 + stack_offset);
+  __ StoreToOffset(kStoreWord, static_cast<Register>(ensure_scratch.GetRegister()),
+                   SP, mem2 + stack_offset);
+  __ StoreToOffset(kStoreWord, IP, SP, mem1 + stack_offset);
+}
+
+void ParallelMoveResolverARM::EmitSwap(size_t index) {
+  MoveOperands* move = moves_.Get(index);
+  Location source = move->GetSource();
+  Location destination = move->GetDestination();
+
+  if (source.IsRegister() && destination.IsRegister()) {
+    DCHECK_NE(source.AsArm().AsCoreRegister(), IP);
+    DCHECK_NE(destination.AsArm().AsCoreRegister(), IP);
+    __ Mov(IP, source.AsArm().AsCoreRegister());
+    __ Mov(source.AsArm().AsCoreRegister(), destination.AsArm().AsCoreRegister());
+    __ Mov(destination.AsArm().AsCoreRegister(), IP);
+  } else if (source.IsRegister() && destination.IsStackSlot()) {
+    Exchange(source.AsArm().AsCoreRegister(), destination.GetStackIndex());
+  } else if (source.IsStackSlot() && destination.IsRegister()) {
+    Exchange(destination.AsArm().AsCoreRegister(), source.GetStackIndex());
+  } else if (source.IsStackSlot() && destination.IsStackSlot()) {
+    Exchange(source.GetStackIndex(), destination.GetStackIndex());
+  } else {
+    LOG(FATAL) << "Unimplemented";
+  }
+}
+
+void ParallelMoveResolverARM::SpillScratch(int reg) {
+  __ Push(static_cast<Register>(reg));
+}
+
+void ParallelMoveResolverARM::RestoreScratch(int reg) {
+  __ Pop(static_cast<Register>(reg));
 }
 
 }  // namespace arm
