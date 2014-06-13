@@ -145,27 +145,28 @@ class Instruction {
   };
 
   enum VerifyFlag {
-    kVerifyNone            = 0x00000,
-    kVerifyRegA            = 0x00001,
-    kVerifyRegAWide        = 0x00002,
-    kVerifyRegB            = 0x00004,
-    kVerifyRegBField       = 0x00008,
-    kVerifyRegBMethod      = 0x00010,
-    kVerifyRegBNewInstance = 0x00020,
-    kVerifyRegBString      = 0x00040,
-    kVerifyRegBType        = 0x00080,
-    kVerifyRegBWide        = 0x00100,
-    kVerifyRegC            = 0x00200,
-    kVerifyRegCField       = 0x00400,
-    kVerifyRegCNewArray    = 0x00800,
-    kVerifyRegCType        = 0x01000,
-    kVerifyRegCWide        = 0x02000,
-    kVerifyArrayData       = 0x04000,
-    kVerifyBranchTarget    = 0x08000,
-    kVerifySwitchTargets   = 0x10000,
-    kVerifyVarArg          = 0x20000,
-    kVerifyVarArgRange     = 0x40000,
-    kVerifyError           = 0x80000,
+    kVerifyNone            = 0x000000,
+    kVerifyRegA            = 0x000001,
+    kVerifyRegAWide        = 0x000002,
+    kVerifyRegB            = 0x000004,
+    kVerifyRegBField       = 0x000008,
+    kVerifyRegBMethod      = 0x000010,
+    kVerifyRegBNewInstance = 0x000020,
+    kVerifyRegBString      = 0x000040,
+    kVerifyRegBType        = 0x000080,
+    kVerifyRegBWide        = 0x000100,
+    kVerifyRegC            = 0x000200,
+    kVerifyRegCField       = 0x000400,
+    kVerifyRegCNewArray    = 0x000800,
+    kVerifyRegCType        = 0x001000,
+    kVerifyRegCWide        = 0x002000,
+    kVerifyArrayData       = 0x004000,
+    kVerifyBranchTarget    = 0x008000,
+    kVerifySwitchTargets   = 0x010000,
+    kVerifyVarArg          = 0x020000,
+    kVerifyVarArgRange     = 0x040000,
+    kVerifyRuntimeOnly     = 0x080000,
+    kVerifyError           = 0x100000,
   };
 
   static constexpr uint32_t kMaxVarArgRegs = 5;
@@ -493,18 +494,23 @@ class Instruction {
   }
 
   int GetVerifyTypeArgumentB() const {
-    return (kInstructionVerifyFlags[Opcode()] & (kVerifyRegB | kVerifyRegBField | kVerifyRegBMethod |
-             kVerifyRegBNewInstance | kVerifyRegBString | kVerifyRegBType | kVerifyRegBWide));
+    return (kInstructionVerifyFlags[Opcode()] & (kVerifyRegB | kVerifyRegBField |
+        kVerifyRegBMethod | kVerifyRegBNewInstance | kVerifyRegBString | kVerifyRegBType |
+        kVerifyRegBWide));
   }
 
   int GetVerifyTypeArgumentC() const {
     return (kInstructionVerifyFlags[Opcode()] & (kVerifyRegC | kVerifyRegCField |
-             kVerifyRegCNewArray | kVerifyRegCType | kVerifyRegCWide));
+        kVerifyRegCNewArray | kVerifyRegCType | kVerifyRegCWide));
   }
 
   int GetVerifyExtraFlags() const {
     return (kInstructionVerifyFlags[Opcode()] & (kVerifyArrayData | kVerifyBranchTarget |
-             kVerifySwitchTargets | kVerifyVarArg | kVerifyVarArgRange | kVerifyError));
+        kVerifySwitchTargets | kVerifyVarArg | kVerifyVarArgRange | kVerifyError));
+  }
+
+  bool GetVerifyIsRuntimeOnly() const {
+    return (kInstructionVerifyFlags[Opcode()] & kVerifyRuntimeOnly) != 0;
   }
 
   // Get the dex PC of this instruction as a offset in code units from the beginning of insns.
