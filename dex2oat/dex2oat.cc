@@ -1093,8 +1093,7 @@ static int dex2oat(int argc, char** argv) {
   }
 
   if (compiler_filter_string == nullptr) {
-    if ((instruction_set == kX86_64 && image) ||
-        instruction_set == kArm64 ||
+    if (instruction_set == kArm64 ||
         instruction_set == kMips) {
       // TODO: implement/fix compilers for these architectures.
       compiler_filter_string = "interpret-only";
