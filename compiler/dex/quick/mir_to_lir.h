@@ -1162,7 +1162,7 @@ class Mir2Lir : public Backend {
     virtual std::string BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr) = 0;
     virtual ResourceMask GetPCUseDefEncoding() const = 0;
     virtual uint64_t GetTargetInstFlags(int opcode) = 0;
-    virtual int GetInsnSize(LIR* lir) = 0;
+    virtual size_t GetInsnSize(LIR* lir) = 0;
     virtual bool IsUnconditionalBranch(LIR* lir) = 0;
 
     // Check support for volatile load/store of a given size.
