@@ -2156,15 +2156,12 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_VIRTUAL_RANGE:
     case Instruction::INVOKE_SUPER:
     case Instruction::INVOKE_SUPER_RANGE: {
-      if (inst->VRegA() == 0) {
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invoke_virtual/super needs at least receiver";
-      }
       bool is_range = (inst->Opcode() == Instruction::INVOKE_VIRTUAL_RANGE ||
                        inst->Opcode() == Instruction::INVOKE_SUPER_RANGE);
       bool is_super = (inst->Opcode() == Instruction::INVOKE_SUPER ||
                        inst->Opcode() == Instruction::INVOKE_SUPER_RANGE);
-      mirror::ArtMethod* called_method = VerifyInvocationArgs(inst, METHOD_VIRTUAL,
-                                                                   is_range, is_super);
+      mirror::ArtMethod* called_method = VerifyInvocationArgs(inst, METHOD_VIRTUAL, is_range,
+                                                              is_super);
       const RegType* return_type = nullptr;
       if (called_method != nullptr) {
         Thread* self = Thread::Current();
@@ -3037,6 +3034,26 @@ mirror::ArtMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* inst,
   // Resolve the method. This could be an abstract or concrete method depending on what sort of call
   // we're making.
   const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
+
+  // As the method may not have been resolved, make this static check against what we expect.
+  const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
+  uint32_t shorty_idx = dex_file_->GetProtoId(method_id.proto_idx_).shorty_idx_;
+  uint32_t shorty_len;
+  const char* descriptor = dex_file_->StringDataAndUtf16LengthByIdx(shorty_idx, &shorty_len);
+  int32_t sig_registers = method_type == METHOD_STATIC ? 0 : 1;
+  for (size_t i = 1; i < shorty_len; i++) {
+    if (descriptor[i] == 'J' || descriptor[i] == 'D') {
+      sig_registers += 2;
+    } else {
+      sig_registers++;
+    }
+  }
+  if (inst->VRegA() != sig_registers) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invocation, expected " << inst->VRegA() <<
+        " arguments, found " << sig_registers;
+    return nullptr;
+  }
+
   mirror::ArtMethod* res_method = ResolveMethodAndCheckAccess(method_idx, method_type);
   if (res_method == NULL) {  // error or class is unresolved
     return NULL;
