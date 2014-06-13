@@ -138,6 +138,7 @@ LIR* X86Mir2Lir::OpRegImm(OpKind op, RegStorage r_dest_src1, int value) {
       case kOpLsl: opcode = kX86Sal64RI; break;
       case kOpLsr: opcode = kX86Shr64RI; break;
       case kOpAsr: opcode = kX86Sar64RI; break;
+      case kOpCmp: opcode = byte_imm ? kX86Cmp64RI8 : kX86Cmp64RI; break;
       default:
         LOG(FATAL) << "Bad case in OpRegImm (64-bit) " << op;
     }
@@ -505,7 +506,7 @@ LIR* X86Mir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src, int
       return NewLIR5(kX86Lea32RA, r_dest.GetReg(),  r5sib_no_base /* base */,
                      r_src.GetReg() /* index */, value /* scale */, 0 /* disp */);
     } else if (op == kOpAdd) {  // lea add special case
-      return NewLIR5(Gen64Bit() ? kX86Lea64RA : kX86Lea32RA, r_dest.GetReg(),
+      return NewLIR5(r_dest.Is64Bit() ? kX86Lea64RA : kX86Lea32RA, r_dest.GetReg(),
                      r_src.GetReg() /* base */, rs_rX86_SP.GetReg()/*r4sib_no_index*/ /* index */,
                      0 /* scale */, value /* disp */);
     }
