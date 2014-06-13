@@ -72,10 +72,10 @@ class DexFileVerifier {
 
   bool CheckOffsetToTypeMap(size_t offset, uint16_t type);
 
-  // Note: the result type of the following methods is wider than that of the underlying index
-  // (16b vs 32b). This is so that we can define an error value (anything >= 2^16).
-  uint32_t FindFirstClassDataDefiner(const byte* ptr);
-  uint32_t FindFirstAnnotationsDirectoryDefiner(const byte* ptr);
+  // Note: as sometimes kDexNoIndex16, being 0xFFFF, is a valid return value, we need an
+  // additional out parameter to signal any errors loading an index.
+  uint16_t FindFirstClassDataDefiner(const byte* ptr, bool* success);
+  uint16_t FindFirstAnnotationsDirectoryDefiner(const byte* ptr, bool* success);
 
   bool CheckInterStringIdItem();
   bool CheckInterTypeIdItem();
