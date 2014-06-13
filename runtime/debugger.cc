@@ -903,7 +903,7 @@ JDWP::JdwpError Dbg::GetOwnedMonitors(JDWP::ObjectId thread_id,
                                       std::vector<uint32_t>& stack_depths) {
   struct OwnedMonitorVisitor : public StackVisitor {
     OwnedMonitorVisitor(Thread* thread, Context* context,
-                        std::vector<mirror::Object*>* monitor_vector,
+                        std::vector<JDWP::ObjectId>* monitor_vector,
                         std::vector<uint32_t>* stack_depth_vector)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(thread, context), current_stack_depth(0),
@@ -919,23 +919,22 @@ JDWP::JdwpError Dbg::GetOwnedMonitors(JDWP::ObjectId thread_id,
       return true;
     }
 
-    static void AppendOwnedMonitors(mirror::Object* owned_monitor, void* arg) {
+    static void AppendOwnedMonitors(mirror::Object* owned_monitor, void* arg)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       OwnedMonitorVisitor* visitor = reinterpret_cast<OwnedMonitorVisitor*>(arg);
-      visitor->monitors->push_back(owned_monitor);
+      visitor->monitors->push_back(gRegistry->Add(owned_monitor));
       visitor->stack_depths->push_back(visitor->current_stack_depth);
     }
 
     size_t current_stack_depth;
-    std::vector<mirror::Object*>* monitors;
+    std::vector<JDWP::ObjectId>* monitors;
     std::vector<uint32_t>* stack_depths;
   };
 
-  std::vector<mirror::Object*> monitor_vector;
-  std::vector<uint32_t> stack_depth_vector;
   ScopedObjectAccessUnchecked soa(Thread::Current());
+  Thread* thread;
   {
     MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
-    Thread* thread;
     JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
     if (error != JDWP::ERR_NONE) {
       return error;
@@ -943,18 +942,10 @@ JDWP::JdwpError Dbg::GetOwnedMonitors(JDWP::ObjectId thread_id,
     if (!IsSuspendedForDebugger(soa, thread)) {
       return JDWP::ERR_THREAD_NOT_SUSPENDED;
     }
-    std::unique_ptr<Context> context(Context::Create());
-    OwnedMonitorVisitor visitor(thread, context.get(), &monitor_vector, &stack_depth_vector);
-    visitor.WalkStack();
   }
-
-  // Add() requires the thread_list_lock_ not held to avoid the lock
-  // level violation.
-  for (size_t i = 0; i < monitor_vector.size(); ++i) {
-    monitors.push_back(gRegistry->Add(monitor_vector[i]));
-    stack_depths.push_back(stack_depth_vector[i]);
-  }
-
+  std::unique_ptr<Context> context(Context::Create());
+  OwnedMonitorVisitor visitor(thread, context.get(), &monitors, &stack_depths);
+  visitor.WalkStack();
   return JDWP::ERR_NONE;
 }
 
