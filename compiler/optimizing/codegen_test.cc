@@ -47,6 +47,15 @@ class InternalCodeAllocator : public CodeAllocator {
   DISALLOW_COPY_AND_ASSIGN(InternalCodeAllocator);
 };
 
+static void Run(const InternalCodeAllocator& allocator, bool has_result, int32_t expected) {
+  typedef int32_t (*fptr)();
+  CommonCompilerTest::MakeExecutable(allocator.GetMemory(), allocator.GetSize());
+  int32_t result = reinterpret_cast<fptr>(allocator.GetMemory())();
+  if (has_result) {
+    CHECK_EQ(result, expected);
+  }
+}
+
 static void TestCode(const uint16_t* data, bool has_result = false, int32_t expected = 0) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
@@ -55,24 +64,23 @@ static void TestCode(const uint16_t* data, bool has_result = false, int32_t expe
   HGraph* graph = builder.BuildGraph(*item);
   ASSERT_NE(graph, nullptr);
   InternalCodeAllocator allocator;
+
   CodeGenerator* codegen = CodeGenerator::Create(&arena, graph, kX86);
   codegen->CompileBaseline(&allocator);
-  typedef int32_t (*fptr)();
 #if defined(__i386__)
-  CommonCompilerTest::MakeExecutable(allocator.GetMemory(), allocator.GetSize());
-  int32_t result = reinterpret_cast<fptr>(allocator.GetMemory())();
-  if (has_result) {
-    CHECK_EQ(result, expected);
-  }
+  Run(allocator, has_result, expected);
 #endif
+
   codegen = CodeGenerator::Create(&arena, graph, kArm);
   codegen->CompileBaseline(&allocator);
 #if defined(__arm__)
-  CommonCompilerTest::MakeExecutable(allocator.GetMemory(), allocator.GetSize());
-  int32_t result = reinterpret_cast<fptr>(allocator.GetMemory())();
-  if (has_result) {
-    CHECK_EQ(result, expected);
-  }
+  Run(allocator, has_result, expected);
+#endif
+
+  codegen = CodeGenerator::Create(&arena, graph, kX86_64);
+  codegen->CompileBaseline(&allocator);
+#if defined(__x86_64__)
+  Run(allocator, has_result, expected);
 #endif
 }
 
