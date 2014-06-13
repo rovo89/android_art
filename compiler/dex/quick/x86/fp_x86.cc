@@ -381,7 +381,7 @@ void X86Mir2Lir::GenCmpFP(Instruction::Code code, RegLocation rl_dest,
     branch = NewLIR2(kX86Jcc8, 0, kX86CondPE);
   }
   // If the result reg can't be byte accessed, use a jump and move instead of a set.
-  if (rl_result.reg.GetReg() >= rs_rX86_SP.GetReg()) {
+  if (!IsByteRegister(rl_result.reg)) {
     LIR* branch2 = NULL;
     if (unordered_gt) {
       branch2 = NewLIR2(kX86Jcc8, 0, kX86CondA);

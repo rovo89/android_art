@@ -424,7 +424,15 @@ void X86Mir2Lir::MarkPreservedDouble(int v_reg, RegStorage reg) {
 }
 
 RegStorage X86Mir2Lir::AllocateByteRegister() {
-  return AllocTypedTemp(false, kCoreReg);
+  RegStorage reg = AllocTypedTemp(false, kCoreReg);
+  if (!Gen64Bit()) {
+    DCHECK_LT(reg.GetRegNum(), rs_rX86_SP.GetRegNum());
+  }
+  return reg;
+}
+
+bool X86Mir2Lir::IsByteRegister(RegStorage reg) {
+  return Gen64Bit() || reg.GetRegNum() < rs_rX86_SP.GetRegNum();
 }
 
 /* Clobber all regs that might be used by an external C call */
