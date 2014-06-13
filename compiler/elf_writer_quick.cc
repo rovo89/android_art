@@ -807,12 +807,17 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
                            const std::string& android_root_unused,
                            bool is_host_unused) {
   const bool debug = false;
+  const bool add_symbols = oat_writer->DidAddSymbols();
   const OatHeader& oat_header = oat_writer->GetOatHeader();
   Elf32_Word oat_data_size = oat_header.GetExecutableOffset();
   uint32_t oat_exec_size = oat_writer->GetSize() - oat_data_size;
 
   ElfBuilder builder(oat_writer, elf_file_, compiler_driver_->GetInstructionSet(), 0,
-                     oat_data_size, oat_data_size, oat_exec_size, false, debug);
+                     oat_data_size, oat_data_size, oat_exec_size, add_symbols, debug);
+
+  if (add_symbols) {
+    AddDebugSymbols(builder, oat_writer, debug);
+  }
 
   bool generateDebugInformation = compiler_driver_->GetCallFrameInformation() != nullptr;
   if (generateDebugInformation) {
@@ -831,6 +836,15 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
   }
 
   return builder.Write();
+}
+
+void ElfWriterQuick::AddDebugSymbols(ElfBuilder& builder, OatWriter* oat_writer, bool debug) {
+  const std::vector<OatWriter::DebugInfo>& method_info = oat_writer->GetCFIMethodInfo();
+  ElfSymtabBuilder* symtab = &builder.symtab_builder_;
+  for (auto it = method_info.begin(); it != method_info.end(); ++it) {
+    symtab->AddSymbol(it->method_name_, &builder.text_builder_, it->low_pc_, true,
+                      it->high_pc_ - it->low_pc_, STB_GLOBAL, STT_FUNC);
+  }
 }
 
 static void UpdateWord(std::vector<uint8_t>*buf, int offset, int data) {
