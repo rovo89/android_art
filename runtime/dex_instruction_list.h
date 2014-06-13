@@ -245,14 +245,14 @@
   V(0xE0, SHL_INT_LIT8, "shl-int/lit8", k22b, true, kNone, kContinue | kShl | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB) \
   V(0xE1, SHR_INT_LIT8, "shr-int/lit8", k22b, true, kNone, kContinue | kShr | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB) \
   V(0xE2, USHR_INT_LIT8, "ushr-int/lit8", k22b, true, kNone, kContinue | kUshr | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB) \
-  V(0xE3, IGET_QUICK, "iget-quick", k22c, true, kFieldRef, kContinue | kThrow | kLoad | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB) \
-  V(0xE4, IGET_WIDE_QUICK, "iget-wide-quick", k22c, true, kFieldRef, kContinue | kThrow | kLoad | kRegCFieldOrConstant, kVerifyRegAWide | kVerifyRegB) \
-  V(0xE5, IGET_OBJECT_QUICK, "iget-object-quick", k22c, true, kFieldRef, kContinue | kThrow | kLoad | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB) \
-  V(0xE6, IPUT_QUICK, "iput-quick", k22c, false, kFieldRef, kContinue | kThrow | kStore | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB) \
-  V(0xE7, IPUT_WIDE_QUICK, "iput-wide-quick", k22c, false, kFieldRef, kContinue | kThrow | kStore | kRegCFieldOrConstant, kVerifyRegAWide | kVerifyRegB) \
-  V(0xE8, IPUT_OBJECT_QUICK, "iput-object-quick", k22c, false, kFieldRef, kContinue | kThrow | kStore | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB) \
-  V(0xE9, INVOKE_VIRTUAL_QUICK, "invoke-virtual-quick", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyVarArg) \
-  V(0xEA, INVOKE_VIRTUAL_RANGE_QUICK, "invoke-virtual/range-quick", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyVarArgRange) \
+  V(0xE3, IGET_QUICK, "iget-quick", k22c, true, kFieldRef, kContinue | kThrow | kLoad | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB | kVerifyRuntimeOnly) \
+  V(0xE4, IGET_WIDE_QUICK, "iget-wide-quick", k22c, true, kFieldRef, kContinue | kThrow | kLoad | kRegCFieldOrConstant, kVerifyRegAWide | kVerifyRegB | kVerifyRuntimeOnly) \
+  V(0xE5, IGET_OBJECT_QUICK, "iget-object-quick", k22c, true, kFieldRef, kContinue | kThrow | kLoad | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB | kVerifyRuntimeOnly) \
+  V(0xE6, IPUT_QUICK, "iput-quick", k22c, false, kFieldRef, kContinue | kThrow | kStore | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB | kVerifyRuntimeOnly) \
+  V(0xE7, IPUT_WIDE_QUICK, "iput-wide-quick", k22c, false, kFieldRef, kContinue | kThrow | kStore | kRegCFieldOrConstant, kVerifyRegAWide | kVerifyRegB | kVerifyRuntimeOnly) \
+  V(0xE8, IPUT_OBJECT_QUICK, "iput-object-quick", k22c, false, kFieldRef, kContinue | kThrow | kStore | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB | kVerifyRuntimeOnly) \
+  V(0xE9, INVOKE_VIRTUAL_QUICK, "invoke-virtual-quick", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyVarArg | kVerifyRuntimeOnly) \
+  V(0xEA, INVOKE_VIRTUAL_RANGE_QUICK, "invoke-virtual/range-quick", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyVarArgRange | kVerifyRuntimeOnly) \
   V(0xEB, UNUSED_EB, "unused-eb", k10x, false, kUnknown, 0, kVerifyError) \
   V(0xEC, UNUSED_EC, "unused-ec", k10x, false, kUnknown, 0, kVerifyError) \
   V(0xED, UNUSED_ED, "unused-ed", k10x, false, kUnknown, 0, kVerifyError) \
