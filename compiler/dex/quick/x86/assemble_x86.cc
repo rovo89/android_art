@@ -685,6 +685,7 @@ int X86Mir2Lir::GetInsnSize(LIR* lir) {
       return ComputeSize(entry, lir->operands[4], lir->operands[1], lir->operands[0],
                          true, false, false, lir->operands[3]);
     case kRegCond:  // lir operands - 0: reg, 1: cond
+      // Note: RegCond form passes reg as REX_R but encodes it as REX_B.
       return ComputeSize(entry, lir->operands[0], NO_REG, NO_REG,
                          false, entry->skeleton.r8_form, false, 0);
     case kMemCond:  // lir operands - 0: base, 1: disp, 2: cond
@@ -802,7 +803,7 @@ void X86Mir2Lir::CheckValidByteRegister(const X86EncodingMap* entry, int32_t raw
 
 void X86Mir2Lir::EmitPrefix(const X86EncodingMap* entry,
                             int32_t raw_reg_r, int32_t raw_reg_x, int32_t raw_reg_b,
-                            bool r8_form) {
+                            bool r8_form, bool modrm_is_reg_reg) {
   // REX.WRXB
   // W - 64-bit operand
   // R - MODRM.reg
@@ -813,8 +814,13 @@ void X86Mir2Lir::EmitPrefix(const X86EncodingMap* entry,
   bool x = NeedsRex(raw_reg_x);
   bool b = NeedsRex(raw_reg_b);
   uint8_t rex = 0;
-  if (r8_form && RegStorage::RegNum(raw_reg_r) > 4) {
-    rex |= 0x40;  // REX.0000
+  if (r8_form) {
+    // Do we need an empty REX prefix to normalize byte register addressing?
+    if (RegStorage::RegNum(raw_reg_r) >= 4) {
+      rex |= 0x40;  // REX.0000
+    } else if (modrm_is_reg_reg && RegStorage::RegNum(raw_reg_b) >= 4) {
+      rex |= 0x40;  // REX.0000
+    }
   }
   if (w) {
     rex |= 0x48;  // REX.W000
@@ -876,8 +882,8 @@ void X86Mir2Lir::EmitOpcode(const X86EncodingMap* entry) {
 
 void X86Mir2Lir::EmitPrefixAndOpcode(const X86EncodingMap* entry,
                                      int32_t raw_reg_r, int32_t raw_reg_x, int32_t raw_reg_b,
-                                     bool r8_form) {
-  EmitPrefix(entry, raw_reg_r, raw_reg_x, raw_reg_b, r8_form);
+                                     bool r8_form, bool modrm_is_reg_reg) {
+  EmitPrefix(entry, raw_reg_r, raw_reg_x, raw_reg_b, r8_form, modrm_is_reg_reg);
   EmitOpcode(entry);
 }
 
@@ -971,7 +977,7 @@ void X86Mir2Lir::EmitImm(const X86EncodingMap* entry, int64_t imm) {
 
 void X86Mir2Lir::EmitNullary(const X86EncodingMap* entry) {
   DCHECK_EQ(false, entry->skeleton.r8_form);
-  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, NO_REG, false);
+  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, NO_REG, false, false);
   DCHECK_EQ(0, entry->skeleton.modrm_opcode);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
@@ -979,7 +985,7 @@ void X86Mir2Lir::EmitNullary(const X86EncodingMap* entry) {
 
 void X86Mir2Lir::EmitOpRegOpcode(const X86EncodingMap* entry, int32_t raw_reg) {
   DCHECK_EQ(false, entry->skeleton.r8_form);
-  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, raw_reg, false);
+  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, raw_reg, false, false);
   // There's no 3-byte instruction with +rd
   DCHECK(entry->skeleton.opcode != 0x0F ||
          (entry->skeleton.extra_opcode1 != 0x38 && entry->skeleton.extra_opcode1 != 0x3A));
@@ -992,7 +998,7 @@ void X86Mir2Lir::EmitOpRegOpcode(const X86EncodingMap* entry, int32_t raw_reg) {
 
 void X86Mir2Lir::EmitOpReg(const X86EncodingMap* entry, int32_t raw_reg) {
   CheckValidByteRegister(entry, raw_reg);
-  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, raw_reg, entry->skeleton.r8_form);
+  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, raw_reg, entry->skeleton.r8_form, true);
   uint8_t low_reg = LowRegisterBits(raw_reg);
   uint8_t modrm = (3 << 6) | (entry->skeleton.modrm_opcode << 3) | low_reg;
   code_buffer_.push_back(modrm);
@@ -1002,7 +1008,7 @@ void X86Mir2Lir::EmitOpReg(const X86EncodingMap* entry, int32_t raw_reg) {
 
 void X86Mir2Lir::EmitOpMem(const X86EncodingMap* entry, int32_t raw_base, int32_t disp) {
   DCHECK_EQ(false, entry->skeleton.r8_form);
-  EmitPrefix(entry, NO_REG, NO_REG, raw_base, false);
+  EmitPrefix(entry, NO_REG, NO_REG, raw_base, false, false);
   code_buffer_.push_back(entry->skeleton.opcode);
   DCHECK_NE(0x0F, entry->skeleton.opcode);
   DCHECK_EQ(0, entry->skeleton.extra_opcode1);
@@ -1016,7 +1022,7 @@ void X86Mir2Lir::EmitOpMem(const X86EncodingMap* entry, int32_t raw_base, int32_
 void X86Mir2Lir::EmitOpArray(const X86EncodingMap* entry, int32_t raw_base, int32_t raw_index,
                              int scale, int32_t disp) {
   DCHECK_EQ(false, entry->skeleton.r8_form);
-  EmitPrefixAndOpcode(entry, NO_REG, raw_index, raw_base, false);
+  EmitPrefixAndOpcode(entry, NO_REG, raw_index, raw_base, false, false);
   uint8_t low_index = LowRegisterBits(raw_index);
   uint8_t low_base = LowRegisterBits(raw_base);
   EmitModrmSibDisp(entry->skeleton.modrm_opcode, low_base, low_index, scale, disp);
@@ -1027,7 +1033,7 @@ void X86Mir2Lir::EmitOpArray(const X86EncodingMap* entry, int32_t raw_base, int3
 void X86Mir2Lir::EmitMemReg(const X86EncodingMap* entry, int32_t raw_base, int32_t disp,
                             int32_t raw_reg) {
   CheckValidByteRegister(entry, raw_reg);
-  EmitPrefixAndOpcode(entry, raw_reg, NO_REG, raw_base, entry->skeleton.r8_form);
+  EmitPrefixAndOpcode(entry, raw_reg, NO_REG, raw_base, entry->skeleton.r8_form, false);
   uint8_t low_reg = LowRegisterBits(raw_reg);
   uint8_t low_base = LowRegisterBits(raw_base);
   EmitModrmDisp(low_reg, low_base, disp);
@@ -1045,7 +1051,7 @@ void X86Mir2Lir::EmitRegMem(const X86EncodingMap* entry, int32_t raw_reg, int32_
 void X86Mir2Lir::EmitRegArray(const X86EncodingMap* entry, int32_t raw_reg, int32_t raw_base,
                               int32_t raw_index, int scale, int32_t disp) {
   CheckValidByteRegister(entry, raw_reg);
-  EmitPrefixAndOpcode(entry, raw_reg, raw_index, raw_base, entry->skeleton.r8_form);
+  EmitPrefixAndOpcode(entry, raw_reg, raw_index, raw_base, entry->skeleton.r8_form, false);
   uint8_t low_reg = LowRegisterBits(raw_reg);
   uint8_t low_index = LowRegisterBits(raw_index);
   uint8_t low_base = LowRegisterBits(raw_base);
@@ -1064,7 +1070,7 @@ void X86Mir2Lir::EmitArrayReg(const X86EncodingMap* entry, int32_t raw_base, int
 void X86Mir2Lir::EmitMemImm(const X86EncodingMap* entry, int32_t raw_base, int32_t disp,
                             int32_t imm) {
   DCHECK_EQ(false, entry->skeleton.r8_form);
-  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, raw_base, false);
+  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, raw_base, false, false);
   uint8_t low_base = LowRegisterBits(raw_base);
   EmitModrmDisp(entry->skeleton.modrm_opcode, low_base, disp);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
@@ -1075,7 +1081,7 @@ void X86Mir2Lir::EmitArrayImm(const X86EncodingMap* entry,
                               int32_t raw_base, int32_t raw_index, int scale, int32_t disp,
                               int32_t imm) {
   DCHECK_EQ(false, entry->skeleton.r8_form);
-  EmitPrefixAndOpcode(entry, NO_REG, raw_index, raw_base, false);
+  EmitPrefixAndOpcode(entry, NO_REG, raw_index, raw_base, false, false);
   uint8_t low_index = LowRegisterBits(raw_index);
   uint8_t low_base = LowRegisterBits(raw_base);
   EmitModrmSibDisp(entry->skeleton.modrm_opcode, low_base, low_index, scale, disp);
@@ -1086,7 +1092,7 @@ void X86Mir2Lir::EmitArrayImm(const X86EncodingMap* entry,
 void X86Mir2Lir::EmitRegThread(const X86EncodingMap* entry, int32_t raw_reg, int32_t disp) {
   DCHECK_EQ(false, entry->skeleton.r8_form);
   DCHECK_NE(entry->skeleton.prefix1, 0);
-  EmitPrefixAndOpcode(entry, raw_reg, NO_REG, NO_REG, false);
+  EmitPrefixAndOpcode(entry, raw_reg, NO_REG, NO_REG, false, false);
   uint8_t low_reg = LowRegisterBits(raw_reg);
   EmitModrmThread(low_reg);
   code_buffer_.push_back(disp & 0xFF);
@@ -1101,7 +1107,7 @@ void X86Mir2Lir::EmitRegThread(const X86EncodingMap* entry, int32_t raw_reg, int
 void X86Mir2Lir::EmitRegReg(const X86EncodingMap* entry, int32_t raw_reg1, int32_t raw_reg2) {
   CheckValidByteRegister(entry, raw_reg1);
   CheckValidByteRegister(entry, raw_reg2);
-  EmitPrefixAndOpcode(entry, raw_reg1, NO_REG, raw_reg2, entry->skeleton.r8_form);
+  EmitPrefixAndOpcode(entry, raw_reg1, NO_REG, raw_reg2, entry->skeleton.r8_form, false);
   uint8_t low_reg1 = LowRegisterBits(raw_reg1);
   uint8_t low_reg2 = LowRegisterBits(raw_reg2);
   uint8_t modrm = (3 << 6) | (low_reg1 << 3) | low_reg2;
@@ -1114,7 +1120,7 @@ void X86Mir2Lir::EmitRegReg(const X86EncodingMap* entry, int32_t raw_reg1, int32
 void X86Mir2Lir::EmitRegRegImm(const X86EncodingMap* entry, int32_t raw_reg1, int32_t raw_reg2,
                                int32_t imm) {
   DCHECK_EQ(false, entry->skeleton.r8_form);
-  EmitPrefixAndOpcode(entry, raw_reg1, NO_REG, raw_reg2, false);
+  EmitPrefixAndOpcode(entry, raw_reg1, NO_REG, raw_reg2, false, true);
   uint8_t low_reg1 = LowRegisterBits(raw_reg1);
   uint8_t low_reg2 = LowRegisterBits(raw_reg2);
   uint8_t modrm = (3 << 6) | (low_reg1 << 3) | low_reg2;
@@ -1128,7 +1134,7 @@ void X86Mir2Lir::EmitRegMemImm(const X86EncodingMap* entry,
                                int32_t raw_reg, int32_t raw_base, int disp, int32_t imm) {
   DCHECK(!RegStorage::IsFloat(raw_reg));
   CheckValidByteRegister(entry, raw_reg);
-  EmitPrefixAndOpcode(entry, raw_reg, NO_REG, raw_base, entry->skeleton.r8_form);
+  EmitPrefixAndOpcode(entry, raw_reg, NO_REG, raw_base, entry->skeleton.r8_form, false);
   uint8_t low_reg = LowRegisterBits(raw_reg);
   uint8_t low_base = LowRegisterBits(raw_base);
   EmitModrmDisp(low_reg, low_base, disp);
@@ -1145,7 +1151,7 @@ void X86Mir2Lir::EmitMemRegImm(const X86EncodingMap* entry,
 
 void X86Mir2Lir::EmitRegImm(const X86EncodingMap* entry, int32_t raw_reg, int32_t imm) {
   CheckValidByteRegister(entry, raw_reg);
-  EmitPrefix(entry, NO_REG, NO_REG, raw_reg, entry->skeleton.r8_form);
+  EmitPrefix(entry, NO_REG, NO_REG, raw_reg, entry->skeleton.r8_form, true);
   if (RegStorage::RegNum(raw_reg) == rs_rAX.GetRegNum() && entry->skeleton.ax_opcode != 0) {
     code_buffer_.push_back(entry->skeleton.ax_opcode);
   } else {
@@ -1158,7 +1164,8 @@ void X86Mir2Lir::EmitRegImm(const X86EncodingMap* entry, int32_t raw_reg, int32_
 }
 
 void X86Mir2Lir::EmitThreadImm(const X86EncodingMap* entry, int32_t disp, int32_t imm) {
-  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, NO_REG, false);
+  DCHECK_EQ(false, entry->skeleton.r8_form);
+  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, NO_REG, false, false);
   EmitModrmThread(entry->skeleton.modrm_opcode);
   code_buffer_.push_back(disp & 0xFF);
   code_buffer_.push_back((disp >> 8) & 0xFF);
@@ -1170,7 +1177,7 @@ void X86Mir2Lir::EmitThreadImm(const X86EncodingMap* entry, int32_t disp, int32_
 
 void X86Mir2Lir::EmitMovRegImm(const X86EncodingMap* entry, int32_t raw_reg, int64_t imm) {
   DCHECK_EQ(false, entry->skeleton.r8_form);
-  EmitPrefix(entry, NO_REG, NO_REG, raw_reg, false);
+  EmitPrefix(entry, NO_REG, NO_REG, raw_reg, false, true);
   uint8_t low_reg = LowRegisterBits(raw_reg);
   code_buffer_.push_back(0xB8 + low_reg);
   switch (entry->skeleton.immediate_bytes) {
@@ -1198,7 +1205,7 @@ void X86Mir2Lir::EmitMovRegImm(const X86EncodingMap* entry, int32_t raw_reg, int
 
 void X86Mir2Lir::EmitShiftRegImm(const X86EncodingMap* entry, int32_t raw_reg, int32_t imm) {
   CheckValidByteRegister(entry, raw_reg);
-  EmitPrefix(entry, NO_REG, NO_REG, raw_reg, entry->skeleton.r8_form);
+  EmitPrefix(entry, NO_REG, NO_REG, raw_reg, entry->skeleton.r8_form, true);
   if (imm != 1) {
     code_buffer_.push_back(entry->skeleton.opcode);
   } else {
@@ -1221,7 +1228,7 @@ void X86Mir2Lir::EmitShiftRegImm(const X86EncodingMap* entry, int32_t raw_reg, i
 void X86Mir2Lir::EmitShiftRegCl(const X86EncodingMap* entry, int32_t raw_reg, int32_t raw_cl) {
   CheckValidByteRegister(entry, raw_reg);
   DCHECK_EQ(rs_rCX.GetRegNum(), RegStorage::RegNum(raw_cl));
-  EmitPrefix(entry, NO_REG, NO_REG, raw_reg, entry->skeleton.r8_form);
+  EmitPrefix(entry, NO_REG, NO_REG, raw_reg, entry->skeleton.r8_form, true);
   code_buffer_.push_back(entry->skeleton.opcode);
   DCHECK_NE(0x0F, entry->skeleton.opcode);
   DCHECK_EQ(0, entry->skeleton.extra_opcode1);
@@ -1237,7 +1244,7 @@ void X86Mir2Lir::EmitShiftMemCl(const X86EncodingMap* entry, int32_t raw_base,
                                 int32_t displacement, int32_t raw_cl) {
   DCHECK_EQ(false, entry->skeleton.r8_form);
   DCHECK_EQ(rs_rCX.GetRegNum(), RegStorage::RegNum(raw_cl));
-  EmitPrefix(entry, NO_REG, NO_REG, raw_base, false);
+  EmitPrefix(entry, NO_REG, NO_REG, raw_base, false, false);
   code_buffer_.push_back(entry->skeleton.opcode);
   DCHECK_NE(0x0F, entry->skeleton.opcode);
   DCHECK_EQ(0, entry->skeleton.extra_opcode1);
@@ -1251,7 +1258,7 @@ void X86Mir2Lir::EmitShiftMemCl(const X86EncodingMap* entry, int32_t raw_base,
 void X86Mir2Lir::EmitShiftMemImm(const X86EncodingMap* entry, int32_t raw_base, int32_t disp,
                                  int32_t imm) {
   DCHECK_EQ(false, entry->skeleton.r8_form);
-  EmitPrefix(entry, NO_REG, NO_REG, raw_base, false);
+  EmitPrefix(entry, NO_REG, NO_REG, raw_base, false, false);
   if (imm != 1) {
     code_buffer_.push_back(entry->skeleton.opcode);
   } else {
@@ -1272,7 +1279,7 @@ void X86Mir2Lir::EmitShiftMemImm(const X86EncodingMap* entry, int32_t raw_base, 
 
 void X86Mir2Lir::EmitRegCond(const X86EncodingMap* entry, int32_t raw_reg, int32_t cc) {
   CheckValidByteRegister(entry, raw_reg);
-  EmitPrefix(entry, raw_reg, NO_REG, NO_REG, entry->skeleton.r8_form);
+  EmitPrefix(entry, NO_REG, NO_REG, raw_reg, entry->skeleton.r8_form, true);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0x0F, entry->skeleton.opcode);
   code_buffer_.push_back(0x0F);
@@ -1315,7 +1322,7 @@ void X86Mir2Lir::EmitRegRegCond(const X86EncodingMap* entry, int32_t raw_reg1, i
                                 int32_t cc) {
   // Generate prefix and opcode without the condition.
   DCHECK_EQ(false, entry->skeleton.r8_form);
-  EmitPrefixAndOpcode(entry, raw_reg1, NO_REG, raw_reg2, false);
+  EmitPrefixAndOpcode(entry, raw_reg1, NO_REG, raw_reg2, false, true);
 
   // Now add the condition. The last byte of opcode is the one that receives it.
   DCHECK_GE(cc, 0);
@@ -1341,7 +1348,7 @@ void X86Mir2Lir::EmitRegMemCond(const X86EncodingMap* entry, int32_t raw_reg1, i
                                 int32_t disp, int32_t cc) {
   // Generate prefix and opcode without the condition.
   DCHECK_EQ(false, entry->skeleton.r8_form);
-  EmitPrefixAndOpcode(entry, raw_reg1, NO_REG, raw_base, false);
+  EmitPrefixAndOpcode(entry, raw_reg1, NO_REG, raw_base, false, false);
 
   // Now add the condition. The last byte of opcode is the one that receives it.
   DCHECK_GE(cc, 0);
@@ -1376,7 +1383,7 @@ void X86Mir2Lir::EmitJmp(const X86EncodingMap* entry, int32_t rel) {
   } else {
     DCHECK(entry->opcode == kX86JmpR);
     DCHECK_EQ(false, entry->skeleton.r8_form);
-    EmitPrefix(entry, NO_REG, NO_REG, rel, false);
+    EmitPrefix(entry, NO_REG, NO_REG, rel, false, true);
     code_buffer_.push_back(entry->skeleton.opcode);
     uint8_t low_reg = LowRegisterBits(rel);
     uint8_t modrm = (3 << 6) | (entry->skeleton.modrm_opcode << 3) | low_reg;
@@ -1404,7 +1411,7 @@ void X86Mir2Lir::EmitJcc(const X86EncodingMap* entry, int32_t rel, int32_t cc) {
 
 void X86Mir2Lir::EmitCallMem(const X86EncodingMap* entry, int32_t raw_base, int32_t disp) {
   DCHECK_EQ(false, entry->skeleton.r8_form);
-  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, raw_base, false);
+  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, raw_base, false, false);
   uint8_t low_base = LowRegisterBits(raw_base);
   EmitModrmDisp(entry->skeleton.modrm_opcode, low_base, disp);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
@@ -1413,7 +1420,7 @@ void X86Mir2Lir::EmitCallMem(const X86EncodingMap* entry, int32_t raw_base, int3
 
 void X86Mir2Lir::EmitCallImmediate(const X86EncodingMap* entry, int32_t disp) {
   DCHECK_EQ(false, entry->skeleton.r8_form);
-  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, NO_REG, false);
+  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, NO_REG, false, false);
   DCHECK_EQ(4, entry->skeleton.immediate_bytes);
   code_buffer_.push_back(disp & 0xFF);
   code_buffer_.push_back((disp >> 8) & 0xFF);
@@ -1425,7 +1432,7 @@ void X86Mir2Lir::EmitCallImmediate(const X86EncodingMap* entry, int32_t disp) {
 void X86Mir2Lir::EmitCallThread(const X86EncodingMap* entry, int32_t disp) {
   DCHECK_EQ(false, entry->skeleton.r8_form);
   DCHECK_NE(entry->skeleton.prefix1, 0);
-  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, NO_REG, false);
+  EmitPrefixAndOpcode(entry, NO_REG, NO_REG, NO_REG, false, false);
   EmitModrmThread(entry->skeleton.modrm_opcode);
   code_buffer_.push_back(disp & 0xFF);
   code_buffer_.push_back((disp >> 8) & 0xFF);
@@ -1450,7 +1457,7 @@ void X86Mir2Lir::EmitPcRel(const X86EncodingMap* entry, int32_t raw_reg, int32_t
   }
   if (entry->opcode == kX86PcRelLoadRA) {
     DCHECK_EQ(false, entry->skeleton.r8_form);
-    EmitPrefix(entry, raw_reg, raw_index, raw_base_or_table, false);
+    EmitPrefix(entry, raw_reg, raw_index, raw_base_or_table, false, false);
     code_buffer_.push_back(entry->skeleton.opcode);
     DCHECK_NE(0x0F, entry->skeleton.opcode);
     DCHECK_EQ(0, entry->skeleton.extra_opcode1);
@@ -1479,7 +1486,7 @@ void X86Mir2Lir::EmitPcRel(const X86EncodingMap* entry, int32_t raw_reg, int32_t
 void X86Mir2Lir::EmitMacro(const X86EncodingMap* entry, int32_t raw_reg, int32_t offset) {
   DCHECK_EQ(entry->opcode, kX86StartOfMethod) << entry->name;
   DCHECK_EQ(false, entry->skeleton.r8_form);
-  EmitPrefix(entry, raw_reg, NO_REG, NO_REG, false);
+  EmitPrefix(entry, raw_reg, NO_REG, NO_REG, false, false);
   code_buffer_.push_back(0xE8);  // call +0
   code_buffer_.push_back(0);
   code_buffer_.push_back(0);
