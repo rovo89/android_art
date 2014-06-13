@@ -731,6 +731,10 @@ bool MethodVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_of
       result = false;
       break;
   }
+  if (inst->GetVerifyIsRuntimeOnly() && Runtime::Current()->IsCompiler()) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "opcode only expected at runtime " << inst->Name();
+    result = false;
+  }
   return result;
 }
 
@@ -1332,31 +1336,6 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
     /* Clear "changed" and mark as visited. */
     insn_flags_[insn_idx].SetVisited();
     insn_flags_[insn_idx].ClearChanged();
-  }
-
-  // When we're in compiler mode, do not accept quickened instructions.
-  // We explicitly iterate over *all* instructions to check code that may be unreachable and
-  // missed by the loop above.
-  if (Runtime::Current() != nullptr && Runtime::Current()->IsCompiler()) {
-    uint32_t insn_idx = 0;
-    for (; insn_idx < insns_size; insn_idx += insn_flags_[insn_idx].GetLengthInCodeUnits()) {
-      const Instruction* inst = Instruction::At(insns + insn_idx);
-      switch (inst->Opcode()) {
-        case Instruction::IGET_QUICK:
-        case Instruction::IGET_WIDE_QUICK:
-        case Instruction::IGET_OBJECT_QUICK:
-        case Instruction::IPUT_QUICK:
-        case Instruction::IPUT_WIDE_QUICK:
-        case Instruction::IPUT_OBJECT_QUICK:
-        case Instruction::INVOKE_VIRTUAL_QUICK:
-        case Instruction::INVOKE_VIRTUAL_RANGE_QUICK:
-          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Quickened instructions not allowed. ";
-          return false;
-
-        default:
-          break;
-      }
-    }
   }
 
   if (gDebugVerify) {
