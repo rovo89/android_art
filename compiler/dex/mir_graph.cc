@@ -586,7 +586,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
   if (current_method_ == 0) {
     DCHECK(entry_block_ == NULL);
     DCHECK(exit_block_ == NULL);
-    DCHECK_EQ(num_blocks_, 0);
+    DCHECK_EQ(num_blocks_, 0U);
     // Use id 0 to represent a null block.
     BasicBlock* null_block = NewMemBB(kNullBlock, num_blocks_++);
     DCHECK_EQ(null_block->id, NullBasicBlockId);

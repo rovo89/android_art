@@ -117,6 +117,16 @@ void MIRGraph::ComputeDFSOrders() {
   RecordDFSOrders(GetEntryBlock());
 
   num_reachable_blocks_ = dfs_order_->Size();
+
+  if (num_reachable_blocks_ != num_blocks_) {
+    // Hide all unreachable blocks.
+    AllNodesIterator iter(this);
+    for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
+      if (!bb->visited) {
+        bb->Hide(cu_);
+      }
+    }
+  }
 }
 
 /*
