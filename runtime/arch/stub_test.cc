@@ -1784,9 +1784,87 @@ TEST_F(StubTest, IMT) {
   ASSERT_FALSE(self->IsExceptionPending());
   EXPECT_EQ(static_cast<size_t>(JNI_TRUE), result);
 #else
-  LOG(INFO) << "Skipping memcpy as I don't know how to do that on " << kRuntimeISA;
+  LOG(INFO) << "Skipping imt as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
-  std::cout << "Skipping memcpy as I don't know how to do that on " << kRuntimeISA << std::endl;
+  std::cout << "Skipping imt as I don't know how to do that on " << kRuntimeISA << std::endl;
+#endif
+}
+
+#if defined(__arm__) || defined(__aarch64__)
+extern "C" void art_quick_indexof(void);
+#endif
+
+TEST_F(StubTest, StringIndexOf) {
+#if defined(__arm__) || defined(__aarch64__)
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+  // garbage is created during ClassLinker::Init
+
+  // Create some strings
+  // Use array so we can index into it and use a matrix for expected results
+  // Setup: The first half is standard. The second half uses a non-zero offset.
+  // TODO: Shared backing arrays.
+  static constexpr size_t kStringCount = 7;
+  const char* c_str[kStringCount] = { "", "a", "ba", "cba", "dcba", "edcba", "asdfghjkl" };
+  static constexpr size_t kCharCount = 5;
+  const char c_char[kCharCount] = { 'a', 'b', 'c', 'd', 'e' };
+
+  StackHandleScope<kStringCount> hs(self);
+  Handle<mirror::String> s[kStringCount];
+
+  for (size_t i = 0; i < kStringCount; ++i) {
+    s[i] = hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), c_str[i]));
+  }
+
+  // Matrix of expectations. First component is first parameter. Note we only check against the
+  // sign, not the value. As we are testing random offsets, we need to compute this and need to
+  // rely on String::CompareTo being correct.
+  static constexpr size_t kMaxLen = 9;
+  DCHECK_LE(strlen(c_str[kStringCount-1]), kMaxLen) << "Please fix the indexof test.";
+
+  // Last dimension: start, offset by 1.
+  int32_t expected[kStringCount][kCharCount][kMaxLen + 3];
+  for (size_t x = 0; x < kStringCount; ++x) {
+    for (size_t y = 0; y < kCharCount; ++y) {
+      for (size_t z = 0; z <= kMaxLen + 2; ++z) {
+        expected[x][y][z] = s[x]->FastIndexOf(c_char[y], static_cast<int32_t>(z) - 1);
+      }
+    }
+  }
+
+  // Play with it...
+
+  for (size_t x = 0; x < kStringCount; ++x) {
+    for (size_t y = 0; y < kCharCount; ++y) {
+      for (size_t z = 0; z <= kMaxLen + 2; ++z) {
+        int32_t start = static_cast<int32_t>(z) - 1;
+
+        // Test string_compareto x y
+        size_t result = Invoke3(reinterpret_cast<size_t>(s[x].Get()), c_char[y], start,
+                                reinterpret_cast<uintptr_t>(&art_quick_indexof), self);
+
+        EXPECT_FALSE(self->IsExceptionPending());
+
+        // The result is a 32b signed integer
+        union {
+          size_t r;
+          int32_t i;
+        } conv;
+        conv.r = result;
+
+        EXPECT_EQ(expected[x][y][z], conv.i) << "Wrong result for " << c_str[x] << " / " <<
+            c_char[y] << " @ " << start;
+      }
+    }
+  }
+
+  // TODO: Deallocate things.
+
+  // Tests done.
+#else
+  LOG(INFO) << "Skipping indexof as I don't know how to do that on " << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping indexof as I don't know how to do that on " << kRuntimeISA << std::endl;
 #endif
 }
 
