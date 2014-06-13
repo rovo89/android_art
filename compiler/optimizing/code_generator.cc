@@ -18,6 +18,7 @@
 
 #include "code_generator_arm.h"
 #include "code_generator_x86.h"
+#include "code_generator_x86_64.h"
 #include "dex/verified_method.h"
 #include "driver/dex_compilation_unit.h"
 #include "gc_map_builder.h"
@@ -221,7 +222,7 @@ CodeGenerator* CodeGenerator::Create(ArenaAllocator* allocator,
       return new (allocator) x86::CodeGeneratorX86(graph);
     }
     case kX86_64: {
-      return new (allocator) x86::CodeGeneratorX86(graph);
+      return new (allocator) x86_64::CodeGeneratorX86_64(graph);
     }
     default:
       return nullptr;
