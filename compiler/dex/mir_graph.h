@@ -587,7 +587,7 @@ class MIRGraph {
     return m_units_[m_unit_index]->GetCodeItem()->insns_;
   }
 
-  int GetNumBlocks() const {
+  unsigned int GetNumBlocks() const {
     return num_blocks_;
   }
 
@@ -607,7 +607,7 @@ class MIRGraph {
     return exit_block_;
   }
 
-  BasicBlock* GetBasicBlock(int block_id) const {
+  BasicBlock* GetBasicBlock(unsigned int block_id) const {
     return (block_id == NullBasicBlockId) ? NULL : block_list_.Get(block_id);
   }
 
@@ -1149,7 +1149,7 @@ class MIRGraph {
   ArenaBitVector* try_block_addr_;
   BasicBlock* entry_block_;
   BasicBlock* exit_block_;
-  int num_blocks_;
+  unsigned int num_blocks_;
   const DexFile::CodeItem* current_code_item_;
   GrowableArray<uint16_t> dex_pc_to_block_map_;  // FindBlock lookup cache.
   std::vector<DexCompilationUnit*> m_units_;     // List of methods included in this graph

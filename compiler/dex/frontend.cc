@@ -756,7 +756,7 @@ static bool CanCompileMethod(uint32_t method_idx, const DexFile& dex_file,
       support_list_size = arraysize(x86_64_support_list);
     }
 
-    for (int idx = 0; idx < cu.mir_graph->GetNumBlocks(); idx++) {
+    for (unsigned int idx = 0; idx < cu.mir_graph->GetNumBlocks(); idx++) {
       BasicBlock* bb = cu.mir_graph->GetBasicBlock(idx);
       if (bb == NULL) continue;
       if (bb->block_type == kDead) continue;
