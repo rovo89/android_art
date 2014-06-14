@@ -1493,6 +1493,10 @@ bool DexFileVerifier::CheckInterProtoIdItem() {
 
   DexFileParameterIterator it(*dex_file_, *item);
   while (it.HasNext() && *shorty != '\0') {
+    if (!CheckIndex(it.GetTypeIdx(), dex_file_->NumTypeIds(),
+                    "inter_proto_id_item shorty type_idx")) {
+      return false;
+    }
     const char* descriptor = it.GetDescriptor();
     if (!CheckShortyDescriptorMatch(*shorty, descriptor, false)) {
       return false;
