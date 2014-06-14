@@ -708,7 +708,6 @@ int x86_64_support_list[] = {
 // (ARM64) Current calling conversion only support 32bit softfp
 //         which has problems with long, float, double
 constexpr char arm64_supported_types[] = "ZBSCILVJFD";
-// (x84_64) We still have troubles with compiling longs/doubles/floats
 constexpr char x86_64_supported_types[] = "ZBSCILVJFD";
 
 // TODO: Remove this when we are able to compile everything.
@@ -741,7 +740,7 @@ static bool CanCompileShorty(const char* shorty, InstructionSet instruction_set)
 static bool CanCompileMethod(uint32_t method_idx, const DexFile& dex_file,
                              CompilationUnit& cu) {
   // There is some limitation with current ARM 64 backend.
-  if (cu.instruction_set == kArm64 || cu.instruction_set == kX86_64) {
+  if (cu.instruction_set == kArm64) {
     // Check if we can compile the prototype.
     const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
     if (!CanCompileShorty(shorty, cu.instruction_set)) {
