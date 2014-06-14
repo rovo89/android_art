@@ -123,6 +123,16 @@ bool MIRGraph::SetHigh(int index) {
  */
 bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
   SSARepresentation *ssa_rep = mir->ssa_rep;
+
+  /*
+   * The dex bytecode definition does not explicitly outlaw the definition of the same
+   * virtual register to be used in both a 32-bit and 64-bit pair context.  However, dx
+   * does not generate this pattern (at least recently).  Further, in the next revision of
+   * dex, we will forbid this.  To support the few cases in the wild, detect this pattern
+   * and punt to the interpreter.
+   */
+  bool type_mismatch = false;
+
   if (ssa_rep) {
     uint64_t attrs = GetDataFlowAttributes(mir);
     const int* uses = ssa_rep->uses;
@@ -145,6 +155,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
       }
     }
 
+
     // Handles uses
     int next = 0;
     if (attrs & DF_UA) {
@@ -162,6 +173,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
         SRegToVReg(uses[next + 1]));
         next += 2;
       } else {
+        type_mismatch |= reg_location_[uses[next]].wide;
         next++;
       }
     }
@@ -180,6 +192,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
                              SRegToVReg(uses[next + 1]));
         next += 2;
       } else {
+        type_mismatch |= reg_location_[uses[next]].wide;
         next++;
       }
     }
@@ -196,6 +209,8 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
         reg_location_[uses[next + 1]].high_word = true;
         DCHECK_EQ(SRegToVReg(uses[next])+1,
         SRegToVReg(uses[next + 1]));
+      } else {
+        type_mismatch |= reg_location_[uses[next]].wide;
       }
     }
 
@@ -205,6 +220,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
         (mir->dalvikInsn.opcode == Instruction::RETURN_OBJECT)) {
       switch (cu_->shorty[0]) {
           case 'I':
+            type_mismatch |= reg_location_[uses[0]].wide;
             changed |= SetCore(uses[0]);
             break;
           case 'J':
@@ -215,6 +231,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
             reg_location_[uses[1]].high_word = true;
             break;
           case 'F':
+            type_mismatch |= reg_location_[uses[0]].wide;
             changed |= SetFp(uses[0]);
             break;
           case 'D':
@@ -225,6 +242,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
             reg_location_[uses[1]].high_word = true;
             break;
           case 'L':
+            type_mismatch |= reg_location_[uses[0]].wide;
             changed |= SetRef(uses[0]);
             break;
           default: break;
@@ -261,6 +279,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
           (mir->dalvikInsn.opcode != Instruction::INVOKE_STATIC_RANGE))) {
         reg_location_[uses[next]].defined = true;
         reg_location_[uses[next]].ref = true;
+        type_mismatch |= reg_location_[uses[next]].wide;
         next++;
       }
       uint32_t cpos = 1;
@@ -286,12 +305,15 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
               i++;
               break;
             case 'F':
+              type_mismatch |= reg_location_[uses[i]].wide;
               ssa_rep->fp_use[i] = true;
               break;
             case 'L':
+              type_mismatch |= reg_location_[uses[i]].wide;
               changed |= SetRef(uses[i]);
               break;
             default:
+              type_mismatch |= reg_location_[uses[i]].wide;
               changed |= SetCore(uses[i]);
               break;
           }
@@ -366,6 +388,12 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
         changed |= SetHigh(uses[1]);
       }
     }
+  }
+  if (type_mismatch) {
+    LOG(WARNING) << "Deprecated dex type mismatch, interpreting "
+                 << PrettyMethod(cu_->method_idx, *cu_->dex_file);
+    LOG(INFO) << "@ 0x" << std::hex << mir->offset;
+    SetPuntToInterpreter(true);
   }
   return changed;
 }
