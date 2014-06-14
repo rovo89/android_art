@@ -1011,7 +1011,7 @@ bool MIRGraph::SkipCompilation() {
   }
 
   // Contains a pattern we don't want to compile?
-  if (punt_to_interpreter_) {
+  if (PuntToInterpreter()) {
     return true;
   }
 
