@@ -958,6 +958,14 @@ class MIRGraph {
   bool SetHigh(int index, bool is_high);
   bool SetHigh(int index);
 
+  bool PuntToInterpreter() {
+    return punt_to_interpreter_;
+  }
+
+  void SetPuntToInterpreter(bool val) {
+    punt_to_interpreter_ = val;
+  }
+
   char* GetDalvikDisassembly(const MIR* mir);
   void ReplaceSpecialChars(std::string& str);
   std::string GetSSAName(int ssa_reg);
