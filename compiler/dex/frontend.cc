@@ -957,6 +957,10 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
 
   CompiledMethod* result = NULL;
 
+  if (cu.mir_graph->PuntToInterpreter()) {
+    return NULL;
+  }
+
   cu.cg->Materialize();
 
   cu.NewTimingSplit("Dedupe");  /* deduping takes up the vast majority of time in GetCompiledMethod(). */
