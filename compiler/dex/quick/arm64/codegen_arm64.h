@@ -86,7 +86,7 @@ class Arm64Mir2Lir : public Mir2Lir {
     std::string BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr);
     ResourceMask GetPCUseDefEncoding() const OVERRIDE;
     uint64_t GetTargetInstFlags(int opcode);
-    int GetInsnSize(LIR* lir);
+    size_t GetInsnSize(LIR* lir) OVERRIDE;
     bool IsUnconditionalBranch(LIR* lir);
 
     // Check support for volatile load/store of a given size.

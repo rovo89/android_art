@@ -1628,7 +1628,7 @@ void ArmMir2Lir::AssembleLIR() {
   CreateNativeGcMap();
 }
 
-int ArmMir2Lir::GetInsnSize(LIR* lir) {
+size_t ArmMir2Lir::GetInsnSize(LIR* lir) {
   DCHECK(!IsPseudoLirOp(lir->opcode));
   return EncodingMap[lir->opcode].size;
 }
