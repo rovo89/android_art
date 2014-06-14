@@ -121,7 +121,7 @@ class X86Mir2Lir : public Mir2Lir {
   std::string BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr);
   ResourceMask GetPCUseDefEncoding() const OVERRIDE;
   uint64_t GetTargetInstFlags(int opcode);
-  int GetInsnSize(LIR* lir);
+  size_t GetInsnSize(LIR* lir) OVERRIDE;
   bool IsUnconditionalBranch(LIR* lir);
 
   // Check support for volatile load/store of a given size.
@@ -392,16 +392,13 @@ class X86Mir2Lir : public Mir2Lir {
 
  protected:
   size_t ComputeSize(const X86EncodingMap* entry, int32_t raw_reg, int32_t raw_index,
-                     int32_t raw_base, bool has_sib, bool r8_form, bool r8_reg_reg_form,
-                     int32_t displacement);
+                     int32_t raw_base, int32_t displacement);
   void CheckValidByteRegister(const X86EncodingMap* entry, int32_t raw_reg);
   void EmitPrefix(const X86EncodingMap* entry,
-                  int32_t raw_reg_r, int32_t raw_reg_x, int32_t raw_reg_b,
-                  bool r8_form_r, bool modrm_is_reg_reg);
+                  int32_t raw_reg_r, int32_t raw_reg_x, int32_t raw_reg_b);
   void EmitOpcode(const X86EncodingMap* entry);
   void EmitPrefixAndOpcode(const X86EncodingMap* entry,
-                           int32_t reg_r, int32_t reg_x, int32_t reg_b, bool r8_form,
-                           bool modrm_is_reg_reg);
+                           int32_t reg_r, int32_t reg_x, int32_t reg_b);
   void EmitDisp(uint8_t base, int32_t disp);
   void EmitModrmThread(uint8_t reg_or_opcode);
   void EmitModrmDisp(uint8_t reg_or_opcode, uint8_t base, int32_t disp);
