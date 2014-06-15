@@ -411,28 +411,24 @@ void LargeObjectSpace::SweepCallback(size_t num_ptrs, mirror::Object** ptrs, voi
       bitmap->Clear(ptrs[i]);
     }
   }
-  context->freed_objects += num_ptrs;
-  context->freed_bytes += space->FreeList(self, num_ptrs, ptrs);
+  context->freed.objects += num_ptrs;
+  context->freed.bytes += space->FreeList(self, num_ptrs, ptrs);
 }
 
-void LargeObjectSpace::Sweep(bool swap_bitmaps, size_t* out_freed_objects,
-                             size_t* out_freed_bytes) {
+collector::ObjectBytePair LargeObjectSpace::Sweep(bool swap_bitmaps) {
   if (Begin() >= End()) {
-    return;
+    return collector::ObjectBytePair(0, 0);
   }
   accounting::LargeObjectBitmap* live_bitmap = GetLiveBitmap();
   accounting::LargeObjectBitmap* mark_bitmap = GetMarkBitmap();
   if (swap_bitmaps) {
     std::swap(live_bitmap, mark_bitmap);
   }
-  DCHECK(out_freed_objects != nullptr);
-  DCHECK(out_freed_bytes != nullptr);
-  SweepCallbackContext scc(swap_bitmaps, this);
+  AllocSpace::SweepCallbackContext scc(swap_bitmaps, this);
   accounting::LargeObjectBitmap::SweepWalk(*live_bitmap, *mark_bitmap,
                                            reinterpret_cast<uintptr_t>(Begin()),
                                            reinterpret_cast<uintptr_t>(End()), SweepCallback, &scc);
-  *out_freed_objects += scc.freed_objects;
-  *out_freed_bytes += scc.freed_bytes;
+  return scc.freed;
 }
 
 }  // namespace space

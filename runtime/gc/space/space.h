@@ -23,6 +23,7 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "gc/accounting/space_bitmap.h"
+#include "gc/collector/garbage_collector.h"
 #include "globals.h"
 #include "image.h"
 #include "mem_map.h"
@@ -172,16 +173,6 @@ class Space {
   std::string name_;
 
  protected:
-  struct SweepCallbackContext {
-   public:
-    SweepCallbackContext(bool swap_bitmaps, space::Space* space);
-    const bool swap_bitmaps;
-    space::Space* const space;
-    Thread* const self;
-    size_t freed_objects;
-    size_t freed_bytes;
-  };
-
   // When should objects within this space be reclaimed? Not constant as we vary it in the case
   // of Zygote forking.
   GcRetentionPolicy gc_retention_policy_;
@@ -232,6 +223,14 @@ class AllocSpace {
   virtual void RevokeAllThreadLocalBuffers() = 0;
 
  protected:
+  struct SweepCallbackContext {
+    SweepCallbackContext(bool swap_bitmaps, space::Space* space);
+    const bool swap_bitmaps;
+    space::Space* const space;
+    Thread* const self;
+    collector::ObjectBytePair freed;
+  };
+
   AllocSpace() {}
   virtual ~AllocSpace() {}
 
@@ -415,7 +414,7 @@ class ContinuousMemMapAllocSpace : public MemMapSpace, public AllocSpace {
     return mark_bitmap_.get();
   }
 
-  void Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes);
+  collector::ObjectBytePair Sweep(bool swap_bitmaps);
   virtual accounting::ContinuousSpaceBitmap::SweepCallback* GetSweepCallback() = 0;
 
  protected:

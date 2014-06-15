@@ -81,14 +81,12 @@ DiscontinuousSpace::DiscontinuousSpace(const std::string& name,
   CHECK(mark_bitmap_.get() != nullptr);
 }
 
-void ContinuousMemMapAllocSpace::Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes) {
-  DCHECK(freed_objects != nullptr);
-  DCHECK(freed_bytes != nullptr);
+collector::ObjectBytePair ContinuousMemMapAllocSpace::Sweep(bool swap_bitmaps) {
   accounting::ContinuousSpaceBitmap* live_bitmap = GetLiveBitmap();
   accounting::ContinuousSpaceBitmap* mark_bitmap = GetMarkBitmap();
   // If the bitmaps are bound then sweeping this space clearly won't do anything.
   if (live_bitmap == mark_bitmap) {
-    return;
+    return collector::ObjectBytePair(0, 0);
   }
   SweepCallbackContext scc(swap_bitmaps, this);
   if (swap_bitmaps) {
@@ -98,8 +96,7 @@ void ContinuousMemMapAllocSpace::Sweep(bool swap_bitmaps, size_t* freed_objects,
   accounting::ContinuousSpaceBitmap::SweepWalk(
       *live_bitmap, *mark_bitmap, reinterpret_cast<uintptr_t>(Begin()),
       reinterpret_cast<uintptr_t>(End()), GetSweepCallback(), reinterpret_cast<void*>(&scc));
-  *freed_objects += scc.freed_objects;
-  *freed_bytes += scc.freed_bytes;
+  return scc.freed;
 }
 
 // Returns the old mark bitmap.
@@ -136,9 +133,8 @@ void ContinuousMemMapAllocSpace::SwapBitmaps() {
   mark_bitmap_->SetName(temp_name);
 }
 
-Space::SweepCallbackContext::SweepCallbackContext(bool swap_bitmaps, space::Space* space)
-    : swap_bitmaps(swap_bitmaps), space(space), self(Thread::Current()), freed_objects(0),
-      freed_bytes(0) {
+AllocSpace::SweepCallbackContext::SweepCallbackContext(bool swap_bitmaps, space::Space* space)
+    : swap_bitmaps(swap_bitmaps), space(space), self(Thread::Current()) {
 }
 
 }  // namespace space
