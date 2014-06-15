@@ -176,7 +176,7 @@ void MarkSweep::ProcessReferences(Thread* self) {
   TimingLogger::ScopedSplit split("ProcessReferences", &timings_);
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   GetHeap()->GetReferenceProcessor()->ProcessReferences(
-      true, &timings_, clear_soft_references_, &IsMarkedCallback, &MarkObjectCallback,
+      true, &timings_, clear_soft_references_, &HeapReferenceMarkedCallback, &MarkObjectCallback,
       &ProcessMarkStackCallback, this);
 }
 
@@ -372,6 +372,10 @@ mirror::Object* MarkSweep::MarkObjectCallback(mirror::Object* obj, void* arg) {
 
 void MarkSweep::MarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>* ref, void* arg) {
   reinterpret_cast<MarkSweep*>(arg)->MarkObject(ref->AsMirrorPtr());
+}
+
+bool MarkSweep::HeapReferenceMarkedCallback(mirror::HeapReference<mirror::Object>* ref, void* arg) {
+  return reinterpret_cast<MarkSweep*>(arg)->IsMarked(ref->AsMirrorPtr());
 }
 
 class MarkSweepMarkObjectSlowPath {
@@ -1170,11 +1174,11 @@ void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
 // marked, put it on the appropriate list in the heap for later processing.
 void MarkSweep::DelayReferenceReferent(mirror::Class* klass, mirror::Reference* ref) {
-  DCHECK(klass != nullptr);
   if (kCountJavaLangRefs) {
     ++reference_count_;
   }
-  heap_->GetReferenceProcessor()->DelayReferenceReferent(klass, ref, IsMarkedCallback, this);
+  heap_->GetReferenceProcessor()->DelayReferenceReferent(klass, ref, &HeapReferenceMarkedCallback,
+                                                         this);
 }
 
 class MarkObjectVisitor {
@@ -1270,6 +1274,7 @@ void MarkSweep::ProcessMarkStack(bool paused) {
 
 inline bool MarkSweep::IsMarked(const Object* object) const
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+  DCHECK(object != nullptr);
   if (immune_region_.ContainsObject(object)) {
     return true;
   }

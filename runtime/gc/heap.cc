@@ -1411,7 +1411,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   ChangeCollector(collector_type);
   tl->ResumeAll();
   // Can't call into java code with all threads suspended.
-  reference_processor_.EnqueueClearedReferences();
+  reference_processor_.EnqueueClearedReferences(self);
   uint64_t duration = NanoTime() - start_time;
   GrowForUtilization(semi_space_collector_);
   FinishGC(self, collector::kGcTypeFull);
@@ -1814,7 +1814,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   total_bytes_freed_ever_ += collector->GetFreedBytes();
   RequestHeapTrim();
   // Enqueue cleared references.
-  reference_processor_.EnqueueClearedReferences();
+  reference_processor_.EnqueueClearedReferences(self);
   // Grow the heap so that we know when to perform the next GC.
   GrowForUtilization(collector);
   const size_t duration = collector->GetDurationNs();
@@ -1840,7 +1840,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
                      << ((i != pause_times.size() - 1) ? "," : "");
     }
     LOG(INFO) << gc_cause << " " << collector->GetName()
-              << " GC freed "  <<  collector->GetFreedObjects() << "("
+              << " GC freed "  << collector->GetFreedObjects() << "("
               << PrettySize(collector->GetFreedBytes()) << ") AllocSpace objects, "
               << collector->GetFreedLargeObjects() << "("
               << PrettySize(collector->GetFreedLargeObjectBytes()) << ") LOS objects, "
