@@ -1810,7 +1810,7 @@ RegLocation X86Mir2Lir::GenShiftImmOpLong(Instruction::Code opcode, RegLocation 
           NewLIR2(kX86Sal32RI, rl_result.reg.GetHighReg(), shift_amount - 32);
           LoadConstant(rl_result.reg.GetLow(), 0);
         } else {
-          OpRegCopy(rl_result.reg, rl_src.reg);
+          OpRegCopy(rl_result.reg.GetLow(), rl_src.reg.GetLow());
           OpRegCopy(rl_result.reg.GetHigh(), rl_src.reg.GetHigh());
           NewLIR3(kX86Shld32RRI, rl_result.reg.GetHighReg(), rl_result.reg.GetLowReg(),
                   shift_amount);
@@ -1829,7 +1829,7 @@ RegLocation X86Mir2Lir::GenShiftImmOpLong(Instruction::Code opcode, RegLocation 
           NewLIR2(kX86Sar32RI, rl_result.reg.GetLowReg(), shift_amount - 32);
           NewLIR2(kX86Sar32RI, rl_result.reg.GetHighReg(), 31);
         } else {
-          OpRegCopy(rl_result.reg, rl_src.reg);
+          OpRegCopy(rl_result.reg.GetLow(), rl_src.reg.GetLow());
           OpRegCopy(rl_result.reg.GetHigh(), rl_src.reg.GetHigh());
           NewLIR3(kX86Shrd32RRI, rl_result.reg.GetLowReg(), rl_result.reg.GetHighReg(),
                   shift_amount);
@@ -1846,7 +1846,7 @@ RegLocation X86Mir2Lir::GenShiftImmOpLong(Instruction::Code opcode, RegLocation 
           NewLIR2(kX86Shr32RI, rl_result.reg.GetLowReg(), shift_amount - 32);
           LoadConstant(rl_result.reg.GetHigh(), 0);
         } else {
-          OpRegCopy(rl_result.reg, rl_src.reg);
+          OpRegCopy(rl_result.reg.GetLow(), rl_src.reg.GetLow());
           OpRegCopy(rl_result.reg.GetHigh(), rl_src.reg.GetHigh());
           NewLIR3(kX86Shrd32RRI, rl_result.reg.GetLowReg(), rl_result.reg.GetHighReg(),
                   shift_amount);
