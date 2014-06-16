@@ -49,7 +49,7 @@ void X86Mir2Lir::GenArithOpFloat(Instruction::Code opcode,
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
       FlushAllRegs();   // Send everything to home location
-      if (Is64BitInstructionSet(cu_->instruction_set)) {
+      if (cu_->target64) {
         CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(8, pFmodf), rl_src1, rl_src2,
                                                 false);
       } else {
@@ -111,7 +111,7 @@ void X86Mir2Lir::GenArithOpDouble(Instruction::Code opcode,
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
       FlushAllRegs();   // Send everything to home location
-      if (Is64BitInstructionSet(cu_->instruction_set)) {
+      if (cu_->target64) {
         CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(8, pFmod), rl_src1, rl_src2,
                                                 false);
       } else {

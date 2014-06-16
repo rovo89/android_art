@@ -73,7 +73,7 @@ void Mir2Lir::AddDivZeroCheckSlowPath(LIR* branch) {
       m2l_->ResetRegPool();
       m2l_->ResetDefTracking();
       GenerateTargetLabel(kPseudoThrowTarget);
-      if (Is64BitInstructionSet(m2l_->cu_->instruction_set)) {
+      if (m2l_->cu_->target64) {
         m2l_->CallRuntimeHelper(QUICK_ENTRYPOINT_OFFSET(8, pThrowDivZero), true);
       } else {
         m2l_->CallRuntimeHelper(QUICK_ENTRYPOINT_OFFSET(4, pThrowDivZero), true);
@@ -96,7 +96,7 @@ void Mir2Lir::GenArrayBoundsCheck(RegStorage index, RegStorage length) {
       m2l_->ResetRegPool();
       m2l_->ResetDefTracking();
       GenerateTargetLabel(kPseudoThrowTarget);
-      if (Is64BitInstructionSet(m2l_->cu_->instruction_set)) {
+      if (m2l_->cu_->target64) {
         m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pThrowArrayBounds),
                                       index_, length_, true);
       } else {
@@ -129,7 +129,7 @@ void Mir2Lir::GenArrayBoundsCheck(int index, RegStorage length) {
 
       m2l_->OpRegCopy(m2l_->TargetReg(kArg1), length_);
       m2l_->LoadConstant(m2l_->TargetReg(kArg0), index_);
-      if (Is64BitInstructionSet(m2l_->cu_->instruction_set)) {
+      if (m2l_->cu_->target64) {
         m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pThrowArrayBounds),
                                       m2l_->TargetReg(kArg0), m2l_->TargetReg(kArg1), true);
       } else {
@@ -158,7 +158,7 @@ LIR* Mir2Lir::GenNullCheck(RegStorage reg) {
       m2l_->ResetRegPool();
       m2l_->ResetDefTracking();
       GenerateTargetLabel(kPseudoThrowTarget);
-      if (Is64BitInstructionSet(m2l_->cu_->instruction_set)) {
+      if (m2l_->cu_->target64) {
         m2l_->CallRuntimeHelper(QUICK_ENTRYPOINT_OFFSET(8, pThrowNullPointer), true);
       } else {
         m2l_->CallRuntimeHelper(QUICK_ENTRYPOINT_OFFSET(4, pThrowNullPointer), true);
@@ -385,7 +385,7 @@ static void GenNewArrayImpl(Mir2Lir* mir_to_lir, CompilationUnit* cu,
  */
 void Mir2Lir::GenNewArray(uint32_t type_idx, RegLocation rl_dest,
                           RegLocation rl_src) {
-  if (Is64BitInstructionSet(cu_->instruction_set)) {
+  if (cu_->target64) {
     GenNewArrayImpl<8>(this, cu_, type_idx, rl_dest, rl_src);
   } else {
     GenNewArrayImpl<4>(this, cu_, type_idx, rl_dest, rl_src);
@@ -414,7 +414,7 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
   int elems = info->num_arg_words;
   int type_idx = info->index;
   FlushAllRegs();  /* Everything to home location */
-  if (Is64BitInstructionSet(cu_->instruction_set)) {
+  if (cu_->target64) {
     GenFilledNewArrayCall<8>(this, cu_, elems, type_idx);
   } else {
     GenFilledNewArrayCall<4>(this, cu_, elems, type_idx);
@@ -457,12 +457,13 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
      * critical.
      */
     // This is addressing the stack, which may be out of the 4G area.
-    RegStorage r_src = cu_->target64 ? AllocTempWide() : AllocTemp();
-    RegStorage r_dst = AllocTemp();
-    RegStorage r_idx = AllocTemp();
+    RegStorage r_src = AllocTempRef();
+    RegStorage r_dst = AllocTempRef();
+    RegStorage r_idx = AllocTempRef();  // Not really a reference, but match src/dst.
     RegStorage r_val;
     switch (cu_->instruction_set) {
       case kThumb2:
+      case kArm64:
         r_val = TargetReg(kLr);
         break;
       case kX86:
@@ -531,7 +532,7 @@ class StaticFieldSlowPath : public Mir2Lir::LIRSlowPath {
   void Compile() {
     LIR* unresolved_target = GenerateTargetLabel();
     uninit_->target = unresolved_target;
-    if (Is64BitInstructionSet(cu_->instruction_set)) {
+    if (cu_->target64) {
       m2l_->CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(8, pInitializeStaticStorage),
                                  storage_index_, true);
     } else {
@@ -640,7 +641,7 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, bool is_long_or_double,
     FreeTemp(r_base);
   } else {
     FlushAllRegs();  // Everything to home locations
-    if (Is64BitInstructionSet(cu_->instruction_set)) {
+    if (cu_->target64) {
       GenSputCall<8>(this, is_long_or_double, is_object, &field_info, rl_src);
     } else {
       GenSputCall<4>(this, is_long_or_double, is_object, &field_info, rl_src);
@@ -734,7 +735,7 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
     }
   } else {
     FlushAllRegs();  // Everything to home locations
-    if (Is64BitInstructionSet(cu_->instruction_set)) {
+    if (cu_->target64) {
       GenSgetCall<8>(this, is_long_or_double, is_object, &field_info);
     } else {
       GenSgetCall<4>(this, is_long_or_double, is_object, &field_info);
@@ -801,7 +802,7 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
       StoreValue(rl_dest, rl_result);
     }
   } else {
-    if (Is64BitInstructionSet(cu_->instruction_set)) {
+    if (cu_->target64) {
       GenIgetCall<8>(this, is_long_or_double, is_object, &field_info, rl_obj);
     } else {
       GenIgetCall<4>(this, is_long_or_double, is_object, &field_info, rl_obj);
@@ -861,7 +862,7 @@ void Mir2Lir::GenIPut(MIR* mir, int opt_flags, OpSize size,
       MarkGCCard(rl_src.reg, rl_obj.reg);
     }
   } else {
-    if (Is64BitInstructionSet(cu_->instruction_set)) {
+    if (cu_->target64) {
       GenIputCall<8>(this, is_long_or_double, is_object, &field_info, rl_obj, rl_src);
     } else {
       GenIputCall<4>(this, is_long_or_double, is_object, &field_info, rl_obj, rl_src);
@@ -885,7 +886,7 @@ void Mir2Lir::GenArrayObjPut(int opt_flags, RegLocation rl_array, RegLocation rl
   bool needs_range_check = !(opt_flags & MIR_IGNORE_RANGE_CHECK);
   bool needs_null_check = !((cu_->disable_opt & (1 << kNullCheckElimination)) &&
       (opt_flags & MIR_IGNORE_NULL_CHECK));
-  if (Is64BitInstructionSet(cu_->instruction_set)) {
+  if (cu_->target64) {
     GenArrayObjPutCall<8>(this, needs_range_check, needs_null_check, rl_array, rl_index, rl_src);
   } else {
     GenArrayObjPutCall<4>(this, needs_range_check, needs_null_check, rl_array, rl_index, rl_src);
@@ -894,14 +895,15 @@ void Mir2Lir::GenArrayObjPut(int opt_flags, RegLocation rl_array, RegLocation rl
 
 void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest) {
   RegLocation rl_method = LoadCurrMethod();
-  RegStorage res_reg = AllocTemp();
+  DCHECK(!cu_->target64 || rl_method.reg.Is64Bit());
+  RegStorage res_reg = AllocTempRef();
   RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
   if (!cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx,
                                                    *cu_->dex_file,
                                                    type_idx)) {
     // Call out to helper which resolves type and verifies access.
     // Resolved type returned in kRet0.
-    if (Is64BitInstructionSet(cu_->instruction_set)) {
+    if (cu_->target64) {
       CallRuntimeHelperImmReg(QUICK_ENTRYPOINT_OFFSET(8, pInitializeTypeAndVerifyAccess),
                               type_idx, rl_method.reg, true);
     } else {
@@ -936,7 +938,7 @@ void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest) {
         void Compile() {
           GenerateTargetLabel();
 
-          if (Is64BitInstructionSet(cu_->instruction_set)) {
+          if (cu_->target64) {
             m2l_->CallRuntimeHelperImmReg(QUICK_ENTRYPOINT_OFFSET(8, pInitializeType), type_idx_,
                                           rl_method_.reg, true);
           } else {
@@ -1005,7 +1007,7 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
 
         void Compile() {
           GenerateTargetLabel();
-          if (Is64BitInstructionSet(cu_->instruction_set)) {
+          if (cu_->target64) {
             m2l_->CallRuntimeHelperRegImm(QUICK_ENTRYPOINT_OFFSET(8, pResolveString),
                                           r_method_, string_idx_, true);
           } else {
@@ -1094,7 +1096,7 @@ static void GenNewInstanceImpl(Mir2Lir* mir_to_lir, CompilationUnit* cu, uint32_
  * call Class::NewInstanceFromCode(type_idx, method);
  */
 void Mir2Lir::GenNewInstance(uint32_t type_idx, RegLocation rl_dest) {
-  if (Is64BitInstructionSet(cu_->instruction_set)) {
+  if (cu_->target64) {
     GenNewInstanceImpl<8>(this, cu_, type_idx, rl_dest);
   } else {
     GenNewInstanceImpl<4>(this, cu_, type_idx, rl_dest);
@@ -1103,7 +1105,7 @@ void Mir2Lir::GenNewInstance(uint32_t type_idx, RegLocation rl_dest) {
 
 void Mir2Lir::GenThrow(RegLocation rl_src) {
   FlushAllRegs();
-  if (Is64BitInstructionSet(cu_->instruction_set)) {
+  if (cu_->target64) {
     CallRuntimeHelperRegLocation(QUICK_ENTRYPOINT_OFFSET(8, pDeliverException), rl_src, true);
   } else {
     CallRuntimeHelperRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pDeliverException), rl_src, true);
@@ -1182,7 +1184,7 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
   if (needs_access_check) {
     // Check we have access to type_idx and if not throw IllegalAccessError,
     // returns Class* in kArg0
-    if (Is64BitInstructionSet(cu_->instruction_set)) {
+    if (cu_->target64) {
       CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(8, pInitializeTypeAndVerifyAccess),
                            type_idx, true);
     } else {
@@ -1207,7 +1209,7 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
       LIR* hop_branch = OpCmpImmBranch(kCondNe, class_reg, 0, NULL);
       // Not resolved
       // Call out to helper, which will return resolved type in kRet0
-      if (Is64BitInstructionSet(cu_->instruction_set)) {
+      if (cu_->target64) {
         CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(8, pInitializeType), type_idx, true);
       } else {
         CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(4, pInitializeType), type_idx, true);
@@ -1247,7 +1249,7 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
     }
   } else {
     if (cu_->instruction_set == kThumb2) {
-      RegStorage r_tgt = Is64BitInstructionSet(cu_->instruction_set) ?
+      RegStorage r_tgt = cu_->target64 ?
           LoadHelper(QUICK_ENTRYPOINT_OFFSET(8, pInstanceofNonTrivial)) :
           LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pInstanceofNonTrivial));
       LIR* it = nullptr;
@@ -1269,7 +1271,7 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
         LoadConstant(rl_result.reg, 1);     // assume true
         branchover = OpCmpBranch(kCondEq, TargetReg(kArg1), TargetReg(kArg2), NULL);
       }
-      RegStorage r_tgt = Is64BitInstructionSet(cu_->instruction_set) ?
+      RegStorage r_tgt = cu_->target64 ?
           LoadHelper(QUICK_ENTRYPOINT_OFFSET(8, pInstanceofNonTrivial)) :
           LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pInstanceofNonTrivial));
       OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));    // .ne case - arg0 <= class
@@ -1332,7 +1334,7 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
     // Check we have access to type_idx and if not throw IllegalAccessError,
     // returns Class* in kRet0
     // InitializeTypeAndVerifyAccess(idx, method)
-    if (Is64BitInstructionSet(cu_->instruction_set)) {
+    if (cu_->target64) {
       CallRuntimeHelperImmReg(QUICK_ENTRYPOINT_OFFSET(8, pInitializeTypeAndVerifyAccess),
                               type_idx, TargetReg(kArg1), true);
     } else {
@@ -1368,7 +1370,7 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
 
           // Call out to helper, which will return resolved type in kArg0
           // InitializeTypeFromCode(idx, method)
-          if (Is64BitInstructionSet(m2l_->cu_->instruction_set)) {
+          if (m2l_->cu_->target64) {
             m2l_->CallRuntimeHelperImmReg(QUICK_ENTRYPOINT_OFFSET(8, pInitializeType), type_idx_,
                                           m2l_->TargetReg(kArg1), true);
           } else {
@@ -1405,7 +1407,7 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
         m2l_->LoadRefDisp(m2l_->TargetReg(kArg0), mirror::Object::ClassOffset().Int32Value(),
                           m2l_->TargetReg(kArg1));
       }
-      if (Is64BitInstructionSet(m2l_->cu_->instruction_set)) {
+      if (m2l_->cu_->target64) {
         m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pCheckCast), m2l_->TargetReg(kArg2),
                                       m2l_->TargetReg(kArg1), true);
       } else {
@@ -1520,7 +1522,7 @@ static void GenShiftOpLongCall(Mir2Lir* mir_to_lir, Instruction::Code opcode, Re
 
 void Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
                              RegLocation rl_src1, RegLocation rl_shift) {
-  if (Is64BitInstructionSet(cu_->instruction_set)) {
+  if (cu_->target64) {
     GenShiftOpLongCall<8>(this, opcode, rl_src1, rl_shift);
   } else {
     GenShiftOpLongCall<4>(this, opcode, rl_src1, rl_shift);
@@ -1653,7 +1655,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
     if (!done) {
       FlushAllRegs();   /* Send everything to home location */
       LoadValueDirectFixed(rl_src2, TargetReg(kArg1));
-      RegStorage r_tgt = Is64BitInstructionSet(cu_->instruction_set) ?
+      RegStorage r_tgt = cu_->target64 ?
           CallHelperSetup(QUICK_ENTRYPOINT_OFFSET(8, pIdivmod)) :
           CallHelperSetup(QUICK_ENTRYPOINT_OFFSET(4, pIdivmod));
       LoadValueDirectFixed(rl_src1, TargetReg(kArg0));
@@ -1661,7 +1663,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
         GenDivZeroCheck(TargetReg(kArg1));
       }
       // NOTE: callout here is not a safepoint.
-      if (Is64BitInstructionSet(cu_->instruction_set)) {
+      if (cu_->target64) {
         CallHelper(r_tgt, QUICK_ENTRYPOINT_OFFSET(8, pIdivmod), false /* not a safepoint */);
       } else {
         CallHelper(r_tgt, QUICK_ENTRYPOINT_OFFSET(4, pIdivmod), false /* not a safepoint */);
@@ -1924,7 +1926,7 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
         FlushAllRegs();   /* Everything to home location. */
         LoadValueDirectFixed(rl_src, TargetReg(kArg0));
         Clobber(TargetReg(kArg0));
-        if (Is64BitInstructionSet(cu_->instruction_set)) {
+        if (cu_->target64) {
           CallRuntimeHelperRegImm(QUICK_ENTRYPOINT_OFFSET(8, pIdivmod), TargetReg(kArg0), lit,
                                   false);
         } else {
@@ -2104,7 +2106,7 @@ static void GenArithOpLongImpl(Mir2Lir* mir_to_lir, CompilationUnit* cu, Instruc
 
 void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
                              RegLocation rl_src1, RegLocation rl_src2) {
-  if (Is64BitInstructionSet(cu_->instruction_set)) {
+  if (cu_->target64) {
     GenArithOpLongImpl<8>(this, cu_, opcode, rl_dest, rl_src1, rl_src2);
   } else {
     GenArithOpLongImpl<4>(this, cu_, opcode, rl_dest, rl_src1, rl_src2);
@@ -2156,7 +2158,7 @@ class SuspendCheckSlowPath : public Mir2Lir::LIRSlowPath {
     m2l_->ResetRegPool();
     m2l_->ResetDefTracking();
     GenerateTargetLabel(kPseudoSuspendTarget);
-    if (Is64BitInstructionSet(cu_->instruction_set)) {
+    if (cu_->target64) {
       m2l_->CallRuntimeHelper(QUICK_ENTRYPOINT_OFFSET(8, pTestSuspend), true);
     } else {
       m2l_->CallRuntimeHelper(QUICK_ENTRYPOINT_OFFSET(4, pTestSuspend), true);
@@ -2215,7 +2217,7 @@ void Mir2Lir::GenSuspendTestAndBranch(int opt_flags, LIR* target) {
 /* Call out to helper assembly routine that will null check obj and then lock it. */
 void Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
   FlushAllRegs();
-  if (Is64BitInstructionSet(cu_->instruction_set)) {
+  if (cu_->target64) {
     CallRuntimeHelperRegLocation(QUICK_ENTRYPOINT_OFFSET(8, pLockObject), rl_src, true);
   } else {
     CallRuntimeHelperRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pLockObject), rl_src, true);
@@ -2225,7 +2227,7 @@ void Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
 /* Call out to helper assembly routine that will null check obj and then unlock it. */
 void Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
   FlushAllRegs();
-  if (Is64BitInstructionSet(cu_->instruction_set)) {
+  if (cu_->target64) {
     CallRuntimeHelperRegLocation(QUICK_ENTRYPOINT_OFFSET(8, pUnlockObject), rl_src, true);
   } else {
     CallRuntimeHelperRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pUnlockObject), rl_src, true);

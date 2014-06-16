@@ -50,6 +50,8 @@ enum SpecialTargetRegister {
   kArg3,
   kArg4,
   kArg5,
+  kArg6,
+  kArg7,
   kFArg0,
   kFArg1,
   kFArg2,
