@@ -306,8 +306,8 @@ class Arm64Mir2Lir : public Mir2Lir {
       return ret_val;
     }
 
-    LIR* LoadFPConstantValue(int r_dest, int32_t value);
-    LIR* LoadFPConstantValueWide(int r_dest, int64_t value);
+    LIR* LoadFPConstantValue(RegStorage r_dest, int32_t value);
+    LIR* LoadFPConstantValueWide(RegStorage r_dest, int64_t value);
     void ReplaceFixup(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
     void InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
     void AssignDataOffsets();
