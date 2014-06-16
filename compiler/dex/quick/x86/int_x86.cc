@@ -991,7 +991,7 @@ void X86Mir2Lir::GenArrayBoundsCheck(RegStorage index,
       }
       // Load array length to kArg1.
       m2l_->OpRegMem(kOpMov, m2l_->TargetReg(kArg1), array_base_, len_offset_);
-      if (Is64BitInstructionSet(cu_->instruction_set)) {
+      if (cu_->target64) {
         m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pThrowArrayBounds),
                                       new_index, m2l_->TargetReg(kArg1), true);
       } else {
@@ -1031,7 +1031,7 @@ void X86Mir2Lir::GenArrayBoundsCheck(int32_t index,
       // Load array length to kArg1.
       m2l_->OpRegMem(kOpMov, m2l_->TargetReg(kArg1), array_base_, len_offset_);
       m2l_->LoadConstant(m2l_->TargetReg(kArg0), index_);
-      if (Is64BitInstructionSet(cu_->instruction_set)) {
+      if (cu_->target64) {
         m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pThrowArrayBounds),
                                       m2l_->TargetReg(kArg0), m2l_->TargetReg(kArg1), true);
       } else {
@@ -1054,7 +1054,7 @@ void X86Mir2Lir::GenArrayBoundsCheck(int32_t index,
 
 // Test suspend flag, return target of taken suspend branch
 LIR* X86Mir2Lir::OpTestSuspend(LIR* target) {
-  if (Is64BitInstructionSet(cu_->instruction_set)) {
+  if (cu_->target64) {
     OpTlsCmp(Thread::ThreadFlagsOffset<8>(), 0);
   } else {
     OpTlsCmp(Thread::ThreadFlagsOffset<4>(), 0);
@@ -2311,7 +2311,7 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
   if (needs_access_check) {
     // Check we have access to type_idx and if not throw IllegalAccessError,
     // Caller function returns Class* in kArg0.
-    if (Is64BitInstructionSet(cu_->instruction_set)) {
+    if (cu_->target64) {
       CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(8, pInitializeTypeAndVerifyAccess),
                            type_idx, true);
     } else {
@@ -2337,7 +2337,7 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
       // Need to test presence of type in dex cache at runtime.
       LIR* hop_branch = OpCmpImmBranch(kCondNe, class_reg, 0, NULL);
       // Type is not resolved. Call out to helper, which will return resolved type in kRet0/kArg0.
-      if (Is64BitInstructionSet(cu_->instruction_set)) {
+      if (cu_->target64) {
         CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(8, pInitializeType), type_idx, true);
       } else {
         CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(4, pInitializeType), type_idx, true);
@@ -2375,7 +2375,7 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
       branchover = OpCmpBranch(kCondEq, TargetReg(kArg1), TargetReg(kArg2), NULL);
     }
     OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));
-    if (Is64BitInstructionSet(cu_->instruction_set)) {
+    if (cu_->target64) {
       OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(8, pInstanceofNonTrivial));
     } else {
       OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(4, pInstanceofNonTrivial));

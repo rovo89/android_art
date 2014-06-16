@@ -66,7 +66,7 @@ void Mir2Lir::LockArg(int in_position, bool wide) {
   }
 }
 
-// TODO: needs revisit for 64-bit.
+// TODO: simplify when 32-bit targets go hard-float.
 RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide) {
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
   int offset = StackVisitor::GetOutVROffset(in_position, cu_->instruction_set);
@@ -87,10 +87,11 @@ RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide)
     offset += sizeof(uint64_t);
   }
 
-  if (cu_->instruction_set == kX86_64) {
+  if (cu_->target64) {
     RegStorage reg_arg = GetArgMappingToPhysicalReg(in_position);
     if (!reg_arg.Valid()) {
-      RegStorage new_reg = wide ? AllocTypedTempWide(false, reg_class) : AllocTypedTemp(false, reg_class);
+      RegStorage new_reg =
+          wide ?  AllocTypedTempWide(false, reg_class) : AllocTypedTemp(false, reg_class);
       LoadBaseDisp(TargetReg(kSp), offset, new_reg, wide ? k64 : k32);
       return new_reg;
     } else {
@@ -159,6 +160,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide)
   return reg_arg;
 }
 
+// TODO: simpilfy when 32-bit targets go hard float.
 void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
   int offset = StackVisitor::GetOutVROffset(in_position, cu_->instruction_set);
@@ -186,7 +188,7 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
       Load32Disp(TargetReg(kSp), offset, rl_dest.reg);
     }
   } else {
-    if (cu_->instruction_set == kX86_64) {
+    if (cu_->target64) {
       RegStorage reg = GetArgMappingToPhysicalReg(in_position);
       if (reg.Valid()) {
         OpRegCopy(rl_dest.reg, reg);

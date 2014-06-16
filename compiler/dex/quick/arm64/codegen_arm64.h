@@ -20,9 +20,45 @@
 #include "arm64_lir.h"
 #include "dex/compiler_internals.h"
 
+#include <map>
+
 namespace art {
 
 class Arm64Mir2Lir : public Mir2Lir {
+ protected:
+  // TODO: consolidate 64-bit target support.
+  class InToRegStorageMapper {
+   public:
+    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide) = 0;
+    virtual ~InToRegStorageMapper() {}
+  };
+
+  class InToRegStorageArm64Mapper : public InToRegStorageMapper {
+   public:
+    InToRegStorageArm64Mapper() : cur_core_reg_(0), cur_fp_reg_(0) {}
+    virtual ~InToRegStorageArm64Mapper() {}
+    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide);
+   private:
+    int cur_core_reg_;
+    int cur_fp_reg_;
+  };
+
+  class InToRegStorageMapping {
+   public:
+    InToRegStorageMapping() : max_mapped_in_(0), is_there_stack_mapped_(false),
+    initialized_(false) {}
+    void Initialize(RegLocation* arg_locs, int count, InToRegStorageMapper* mapper);
+    int GetMaxMappedIn() { return max_mapped_in_; }
+    bool IsThereStackMapped() { return is_there_stack_mapped_; }
+    RegStorage Get(int in_position);
+    bool IsInitialized() { return initialized_; }
+   private:
+    std::map<int, RegStorage> mapping_;
+    int max_mapped_in_;
+    bool is_there_stack_mapped_;
+    bool initialized_;
+  };
+
   public:
     Arm64Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
@@ -219,12 +255,21 @@ class Arm64Mir2Lir : public Mir2Lir {
     bool InexpensiveConstantDouble(int64_t value);
 
     void FlushIns(RegLocation* ArgLocs, RegLocation rl_method);
-    int LoadArgRegs(CallInfo* info, int call_state,
-                    NextCallInsn next_call_insn,
-                    const MethodReference& target_method,
-                    uint32_t vtable_idx,
-                    uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
-                    bool skip_this);
+
+    int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
+                             NextCallInsn next_call_insn,
+                             const MethodReference& target_method,
+                             uint32_t vtable_idx,
+                             uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
+                             bool skip_this);
+
+    int GenDalvikArgsRange(CallInfo* info, int call_state, LIR** pcrLabel,
+                           NextCallInsn next_call_insn,
+                           const MethodReference& target_method,
+                           uint32_t vtable_idx,
+                           uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
+                           bool skip_this);
+    InToRegStorageMapping in_to_reg_storage_mapping_;
 
   private:
     /**
