@@ -38,6 +38,16 @@ size_t InternTable::Size() const {
   return strong_interns_.size() + weak_interns_.size();
 }
 
+size_t InternTable::StrongSize() const {
+  MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
+  return strong_interns_.size();
+}
+
+size_t InternTable::WeakSize() const {
+  MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
+  return weak_interns_.size();
+}
+
 void InternTable::DumpForSigQuit(std::ostream& os) const {
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
   os << "Intern table: " << strong_interns_.size() << " strong; "
@@ -83,24 +93,21 @@ void InternTable::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags f
 }
 
 mirror::String* InternTable::LookupStrong(mirror::String* s, int32_t hash_code) {
-  return Lookup<kWithoutReadBarrier>(&strong_interns_, s, hash_code);
+  return Lookup(&strong_interns_, s, hash_code);
 }
 
 mirror::String* InternTable::LookupWeak(mirror::String* s, int32_t hash_code) {
   // Weak interns need a read barrier because they are weak roots.
-  return Lookup<kWithReadBarrier>(&weak_interns_, s, hash_code);
+  return Lookup(&weak_interns_, s, hash_code);
 }
 
-template<ReadBarrierOption kReadBarrierOption>
 mirror::String* InternTable::Lookup(Table* table, mirror::String* s, int32_t hash_code) {
-  CHECK_EQ(table == &weak_interns_, kReadBarrierOption == kWithReadBarrier)
-      << "Only weak_interns_ needs a read barrier.";
   Locks::intern_table_lock_->AssertHeld(Thread::Current());
   for (auto it = table->lower_bound(hash_code), end = table->end();
        it != end && it->first == hash_code; ++it) {
-    mirror::String** weak_root = &it->second;
-    mirror::String* existing_string =
-        ReadBarrier::BarrierForWeakRoot<mirror::String, kReadBarrierOption>(weak_root);
+    mirror::String* existing_string;
+    mirror::String** root = &it->second;
+    existing_string = ReadBarrier::BarrierForRoot<mirror::String, kWithReadBarrier>(root);
     if (existing_string->Equals(s)) {
       return existing_string;
     }
@@ -130,7 +137,7 @@ mirror::String* InternTable::InsertWeak(mirror::String* s, int32_t hash_code) {
 }
 
 void InternTable::RemoveStrong(mirror::String* s, int32_t hash_code) {
-  Remove<kWithoutReadBarrier>(&strong_interns_, s, hash_code);
+  Remove(&strong_interns_, s, hash_code);
 }
 
 void InternTable::RemoveWeak(mirror::String* s, int32_t hash_code) {
@@ -138,18 +145,15 @@ void InternTable::RemoveWeak(mirror::String* s, int32_t hash_code) {
   if (runtime->IsActiveTransaction()) {
     runtime->RecordWeakStringRemoval(s, hash_code);
   }
-  Remove<kWithReadBarrier>(&weak_interns_, s, hash_code);
+  Remove(&weak_interns_, s, hash_code);
 }
 
-template<ReadBarrierOption kReadBarrierOption>
 void InternTable::Remove(Table* table, mirror::String* s, int32_t hash_code) {
-  CHECK_EQ(table == &weak_interns_, kReadBarrierOption == kWithReadBarrier)
-      << "Only weak_interns_ needs a read barrier.";
   for (auto it = table->lower_bound(hash_code), end = table->end();
        it != end && it->first == hash_code; ++it) {
-    mirror::String** weak_root = &it->second;
-    mirror::String* existing_string =
-        ReadBarrier::BarrierForWeakRoot<mirror::String, kReadBarrierOption>(weak_root);
+    mirror::String* existing_string;
+    mirror::String** root = &it->second;
+    existing_string = ReadBarrier::BarrierForRoot<mirror::String, kWithReadBarrier>(root);
     if (existing_string == s) {
       table->erase(it);
       return;

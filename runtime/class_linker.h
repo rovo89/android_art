@@ -573,6 +573,8 @@ class ClassLinker {
   // mirror::Class* instances. Results should be compared for a matching
   // Class::descriptor_ and Class::class_loader_.
   typedef std::multimap<size_t, mirror::Class*> Table;
+  // This contains strong roots. To enable concurrent root scanning of
+  // the class table, be careful to use a read barrier when accessing this.
   Table class_table_ GUARDED_BY(Locks::classlinker_classes_lock_);
   std::vector<std::pair<size_t, mirror::Class*>> new_class_roots_;
 
