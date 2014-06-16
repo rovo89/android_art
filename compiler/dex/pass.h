@@ -64,7 +64,7 @@ class Pass {
   /**
    * @brief Start of the pass: called before the Worker function.
    */
-  virtual void Start(const PassDataHolder* data) const {
+  virtual void Start(PassDataHolder* data) const {
     // Unused parameter.
     UNUSED(data);
   }
@@ -72,7 +72,7 @@ class Pass {
   /**
    * @brief End of the pass: called after the WalkBasicBlocks function.
    */
-  virtual void End(const PassDataHolder* data) const {
+  virtual void End(PassDataHolder* data) const {
     // Unused parameter.
     UNUSED(data);
   }

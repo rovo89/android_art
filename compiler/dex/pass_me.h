@@ -42,6 +42,7 @@ class PassMEDataHolder: public PassDataHolder {
   public:
     CompilationUnit* c_unit;
     BasicBlock* bb;
+    void* data;
 };
 
 enum DataFlowAnalysisMode {
