@@ -19,6 +19,7 @@
 
 #include "code_generator.h"
 #include "nodes.h"
+#include "parallel_move_resolver.h"
 #include "utils/x86_64/assembler_x86_64.h"
 
 namespace art {
@@ -54,6 +55,27 @@ class InvokeDexCallingConventionVisitor {
 };
 
 class CodeGeneratorX86_64;
+
+class ParallelMoveResolverX86_64 : public ParallelMoveResolver {
+ public:
+  ParallelMoveResolverX86_64(ArenaAllocator* allocator, CodeGeneratorX86_64* codegen)
+      : ParallelMoveResolver(allocator), codegen_(codegen) {}
+
+  virtual void EmitMove(size_t index) OVERRIDE;
+  virtual void EmitSwap(size_t index) OVERRIDE;
+  virtual void SpillScratch(int reg) OVERRIDE;
+  virtual void RestoreScratch(int reg) OVERRIDE;
+
+  X86_64Assembler* GetAssembler() const;
+
+ private:
+  void Exchange(CpuRegister reg, int mem);
+  void Exchange(int mem1, int mem2);
+
+  CodeGeneratorX86_64* const codegen_;
+
+  DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolverX86_64);
+};
 
 class LocationsBuilderX86_64 : public HGraphVisitor {
  public:
@@ -123,6 +145,10 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return &assembler_;
   }
 
+  ParallelMoveResolverX86_64* GetMoveResolver() {
+    return &move_resolver_;
+  }
+
   int32_t GetStackSlot(HLocal* local) const;
   virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
 
@@ -150,6 +176,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
 
   LocationsBuilderX86_64 location_builder_;
   InstructionCodeGeneratorX86_64 instruction_visitor_;
+  ParallelMoveResolverX86_64 move_resolver_;
   X86_64Assembler assembler_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorX86_64);
