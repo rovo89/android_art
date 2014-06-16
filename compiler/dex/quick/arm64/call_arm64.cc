@@ -142,7 +142,7 @@ void Arm64Mir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
   // Load the displacement from the switch table
   RegStorage disp_reg = AllocTemp();
   // TODO(Arm64): generate "ldr w3, [x1,w2,sxtw #2]" rather than "ldr w3, [x1,x2,lsl #2]"?
-  LoadBaseIndexed(table_base, key_reg, As64BitReg(disp_reg), 2, k32);
+  LoadBaseIndexed(table_base, As64BitReg(key_reg), As64BitReg(disp_reg), 2, k32);
 
   // Get base branch address.
   RegStorage branch_reg = AllocTempWide();

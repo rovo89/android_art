@@ -112,7 +112,7 @@ LIR* Arm64Mir2Lir::LoadFPConstantValue(int r_dest, int32_t value) {
 LIR* Arm64Mir2Lir::LoadFPConstantValueWide(int r_dest, int64_t value) {
   DCHECK(RegStorage::IsDouble(r_dest));
   if (value == 0) {
-    return NewLIR2(kA64Fmov2Sx, r_dest, rwzr);
+    return NewLIR2(kA64Fmov2Sx, r_dest, rxzr);
   } else {
     int32_t encoded_imm = EncodeImmDouble(value);
     if (encoded_imm >= 0) {
@@ -778,6 +778,11 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
   LIR* load;
   int expected_scale = 0;
   ArmOpcode opcode = kA64Brk1d;
+  DCHECK(r_base.Is64Bit());
+  // TODO: need a cleaner handling of index registers here and throughout.
+  if (r_index.Is32Bit()) {
+    r_index = As64BitReg(r_index);
+  }
 
   if (r_dest.IsFloat()) {
     if (r_dest.IsDouble()) {
@@ -846,6 +851,11 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
   LIR* store;
   int expected_scale = 0;
   ArmOpcode opcode = kA64Brk1d;
+  DCHECK(r_base.Is64Bit());
+  // TODO: need a cleaner handling of index registers here and throughout.
+  if (r_index.Is32Bit()) {
+    r_index = As64BitReg(r_index);
+  }
 
   if (r_src.IsFloat()) {
     if (r_src.IsDouble()) {
@@ -968,8 +978,9 @@ LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStor
     load = NewLIR3(alt_opcode, r_dest.GetReg(), r_base.GetReg(), displacement);
   } else {
     // Use long sequence.
-    RegStorage r_scratch = AllocTemp();
-    LoadConstant(r_scratch, displacement);
+    // TODO: cleaner support for index/displacement registers?  Not a reference, but must match width.
+    RegStorage r_scratch = AllocTempWide();
+    LoadConstantWide(r_scratch, displacement);
     load = LoadBaseIndexed(r_base, r_scratch, r_dest, 0, size);
     FreeTemp(r_scratch);
   }
@@ -1050,8 +1061,8 @@ LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegSto
     store = NewLIR3(alt_opcode, r_src.GetReg(), r_base.GetReg(), displacement);
   } else {
     // Use long sequence.
-    RegStorage r_scratch = AllocTemp();
-    LoadConstant(r_scratch, displacement);
+    RegStorage r_scratch = AllocTempWide();
+    LoadConstantWide(r_scratch, displacement);
     store = StoreBaseIndexed(r_base, r_scratch, r_src, 0, size);
     FreeTemp(r_scratch);
   }

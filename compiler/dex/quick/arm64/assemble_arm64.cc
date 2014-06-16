@@ -688,9 +688,10 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
 
               // Fail, if `expected' contains an unsatisfied requirement.
               if (expected != nullptr) {
-                // TODO(Arm64): make this FATAL.
-                LOG(WARNING) << "Bad argument n. " << i << " of " << encoder->name
-                             << ". Expected " << expected << ", got 0x" << std::hex << operand;
+                LOG(WARNING) << "Method: " << PrettyMethod(cu_->method_idx, *cu_->dex_file)
+                             << " @ 0x" << std::hex << lir->dalvik_offset;
+                LOG(FATAL) << "Bad argument n. " << i << " of " << encoder->name
+                           << ". Expected " << expected << ", got 0x" << std::hex << operand;
               }
             }
 
