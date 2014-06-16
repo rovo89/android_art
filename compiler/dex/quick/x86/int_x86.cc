@@ -2352,6 +2352,11 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
   /* kArg0 is ref, kArg2 is class. If ref==null, use directly as bool result. */
   RegLocation rl_result = GetReturn(kRefReg);
 
+  // On x86-64 kArg0 is not EAX, so we have to copy ref from kArg0 to EAX.
+  if (Gen64Bit()) {
+    OpRegCopy(rl_result.reg, TargetReg(kArg0));
+  }
+
   // For 32-bit, SETcc only works with EAX..EDX.
   DCHECK_LT(rl_result.reg.GetRegNum(), 4);
 
