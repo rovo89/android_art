@@ -375,6 +375,7 @@ class X86_64Assembler FINAL : public Assembler {
   void fptan();
 
   void xchgl(CpuRegister dst, CpuRegister src);
+  void xchgq(CpuRegister dst, CpuRegister src);
   void xchgl(CpuRegister reg, const Address& address);
 
   void cmpl(CpuRegister reg, const Immediate& imm);
