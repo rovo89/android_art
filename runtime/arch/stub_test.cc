@@ -1796,6 +1796,8 @@ extern "C" void art_quick_indexof(void);
 
 TEST_F(StubTest, StringIndexOf) {
 #if defined(__arm__) || defined(__aarch64__)
+  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
   // garbage is created during ClassLinker::Init
