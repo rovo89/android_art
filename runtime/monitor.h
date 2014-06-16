@@ -95,7 +95,7 @@ class Monitor {
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   mirror::Object* GetObject() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return ReadBarrier::BarrierForWeakRoot<mirror::Object, kReadBarrierOption>(&obj_);
+    return ReadBarrier::BarrierForRoot<mirror::Object, kReadBarrierOption>(&obj_);
   }
 
   void SetObject(mirror::Object* object);
