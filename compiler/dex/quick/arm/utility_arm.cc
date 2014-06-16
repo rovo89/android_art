@@ -820,15 +820,17 @@ LIR* ArmMir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStor
 }
 
 // Helper function for LoadBaseDispBody()/StoreBaseDispBody().
-LIR* ArmMir2Lir::LoadStoreMaxDisp1020(ArmOpcode opcode, RegStorage r_base, int displacement,
-                                      RegStorage r_src_dest, RegStorage r_work) {
+LIR* ArmMir2Lir::LoadStoreUsingInsnWithOffsetImm8Shl2(ArmOpcode opcode, RegStorage r_base,
+                                                      int displacement, RegStorage r_src_dest,
+                                                      RegStorage r_work) {
   DCHECK_EQ(displacement & 3, 0);
-  int encoded_disp = (displacement & 1020) >> 2;  // Within range of the instruction.
+  constexpr int kOffsetMask = 0xff << 2;
+  int encoded_disp = (displacement & kOffsetMask) >> 2;  // Within range of the instruction.
   RegStorage r_ptr = r_base;
-  if ((displacement & ~1020) != 0) {
+  if ((displacement & ~kOffsetMask) != 0) {
     r_ptr = r_work.Valid() ? r_work : AllocTemp();
-    // Add displacement & ~1020 to base, it's a single instruction for up to +-256KiB.
-    OpRegRegImm(kOpAdd, r_ptr, r_base, displacement & ~1020);
+    // Add displacement & ~kOffsetMask to base, it's a single instruction for up to +-256KiB.
+    OpRegRegImm(kOpAdd, r_ptr, r_base, displacement & ~kOffsetMask);
   }
   LIR* lir = nullptr;
   if (!r_src_dest.IsPair()) {
@@ -837,7 +839,7 @@ LIR* ArmMir2Lir::LoadStoreMaxDisp1020(ArmOpcode opcode, RegStorage r_base, int d
     lir = NewLIR4(opcode, r_src_dest.GetLowReg(), r_src_dest.GetHighReg(), r_ptr.GetReg(),
                   encoded_disp);
   }
-  if ((displacement & ~1020) != 0 && !r_work.Valid()) {
+  if ((displacement & ~kOffsetMask) != 0 && !r_work.Valid()) {
     FreeTemp(r_ptr);
   }
   return lir;
@@ -863,11 +865,12 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
     case k64:
       if (r_dest.IsFloat()) {
         DCHECK(!r_dest.IsPair());
-        load = LoadStoreMaxDisp1020(kThumb2Vldrd, r_base, displacement, r_dest);
+        load = LoadStoreUsingInsnWithOffsetImm8Shl2(kThumb2Vldrd, r_base, displacement, r_dest);
       } else {
         DCHECK(r_dest.IsPair());
         // Use the r_dest.GetLow() for the temporary pointer if needed.
-        load = LoadStoreMaxDisp1020(kThumb2LdrdI8, r_base, displacement, r_dest, r_dest.GetLow());
+        load = LoadStoreUsingInsnWithOffsetImm8Shl2(kThumb2LdrdI8, r_base, displacement, r_dest,
+                                                    r_dest.GetLow());
       }
       already_generated = true;
       break;
@@ -878,7 +881,7 @@ LIR* ArmMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorag
     case kReference:
       if (r_dest.IsFloat()) {
         DCHECK(r_dest.IsSingle());
-        load = LoadStoreMaxDisp1020(kThumb2Vldrs, r_base, displacement, r_dest);
+        load = LoadStoreUsingInsnWithOffsetImm8Shl2(kThumb2Vldrs, r_base, displacement, r_dest);
         already_generated = true;
         break;
       }
@@ -1001,10 +1004,10 @@ LIR* ArmMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStora
     case k64:
       if (r_src.IsFloat()) {
         DCHECK(!r_src.IsPair());
-        store = LoadStoreMaxDisp1020(kThumb2Vstrd, r_base, displacement, r_src);
+        store = LoadStoreUsingInsnWithOffsetImm8Shl2(kThumb2Vstrd, r_base, displacement, r_src);
       } else {
         DCHECK(r_src.IsPair());
-        store = LoadStoreMaxDisp1020(kThumb2StrdI8, r_base, displacement, r_src);
+        store = LoadStoreUsingInsnWithOffsetImm8Shl2(kThumb2StrdI8, r_base, displacement, r_src);
       }
       already_generated = true;
       break;
@@ -1015,7 +1018,7 @@ LIR* ArmMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStora
     case kReference:
       if (r_src.IsFloat()) {
         DCHECK(r_src.IsSingle());
-        store = LoadStoreMaxDisp1020(kThumb2Vstrs, r_base, displacement, r_src);
+        store = LoadStoreUsingInsnWithOffsetImm8Shl2(kThumb2Vstrs, r_base, displacement, r_src);
         already_generated = true;
         break;
       }
