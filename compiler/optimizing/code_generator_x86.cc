@@ -889,7 +889,6 @@ void ParallelMoveResolverX86::Exchange(Register reg, int mem) {
   __ movl(reg, static_cast<Register>(ensure_scratch.GetRegister()));
 }
 
-
 void ParallelMoveResolverX86::Exchange(int mem1, int mem2) {
   ScratchRegisterScope ensure_scratch1(
       this, kNoRegister, EAX, codegen_->GetNumberOfCoreRegisters());

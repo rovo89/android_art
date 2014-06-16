@@ -138,8 +138,8 @@ void X86_64Assembler::movq(CpuRegister dst, CpuRegister src) {
 void X86_64Assembler::movl(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(dst, src);
-  EmitUint8(0x89);
-  EmitRegisterOperand(src.LowBits(), dst.LowBits());
+  EmitUint8(0x8B);
+  EmitRegisterOperand(dst.LowBits(), src.LowBits());
 }
 
 
@@ -820,6 +820,15 @@ void X86_64Assembler::xchgl(CpuRegister dst, CpuRegister src) {
   EmitUint8(0x87);
   EmitRegisterOperand(dst.LowBits(), src.LowBits());
 }
+
+
+void X86_64Assembler::xchgq(CpuRegister dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(dst, src);
+  EmitUint8(0x87);
+  EmitOperand(dst.LowBits(), Operand(src));
+}
+
 
 void X86_64Assembler::xchgl(CpuRegister reg, const Address& address) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
