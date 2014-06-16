@@ -64,6 +64,8 @@ class InternTable {
   bool ContainsWeak(mirror::String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   size_t Size() const;
+  size_t StrongSize() const;
+  size_t WeakSize() const;
 
   void VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags);
 
@@ -83,7 +85,6 @@ class InternTable {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::String* LookupWeak(mirror::String* s, int32_t hash_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   mirror::String* Lookup(Table* table, mirror::String* s, int32_t hash_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::String* InsertStrong(mirror::String* s, int32_t hash_code)
@@ -96,7 +97,6 @@ class InternTable {
   void RemoveWeak(mirror::String* s, int32_t hash_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   void Remove(Table* table, mirror::String* s, int32_t hash_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
@@ -117,12 +117,16 @@ class InternTable {
   bool log_new_roots_ GUARDED_BY(Locks::intern_table_lock_);
   bool allow_new_interns_ GUARDED_BY(Locks::intern_table_lock_);
   ConditionVariable new_intern_condition_ GUARDED_BY(Locks::intern_table_lock_);
+  // Since this contains (strong) roots, they need a read barrier to
+  // enable concurrent intern table (strong) root scan. Do not
+  // directly access the strings in it. Use functions that contain
+  // read barriers.
   Table strong_interns_ GUARDED_BY(Locks::intern_table_lock_);
   std::vector<std::pair<int32_t, mirror::String*>> new_strong_intern_roots_
       GUARDED_BY(Locks::intern_table_lock_);
-  // Since weak_interns_ contain weak roots, they need a read
-  // barrier. Do not directly access the strings in it. Use functions
-  // that contain read barriers.
+  // Since this contains (weak) roots, they need a read barrier. Do
+  // not directly access the strings in it. Use functions that contain
+  // read barriers.
   Table weak_interns_ GUARDED_BY(Locks::intern_table_lock_);
 };
 

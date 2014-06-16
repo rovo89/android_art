@@ -280,7 +280,7 @@ void IndirectReferenceTable::Dump(std::ostream& os) const {
       // We need a read barrier if weak globals. Since this is for
       // debugging where performance isn't top priority, we
       // unconditionally enable the read barrier, which is conservative.
-      obj = ReadBarrier::BarrierForWeakRoot<mirror::Object, kWithReadBarrier>(root);
+      obj = ReadBarrier::BarrierForRoot<mirror::Object, kWithReadBarrier>(root);
       entries.push_back(obj);
     }
   }
