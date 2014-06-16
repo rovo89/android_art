@@ -74,9 +74,9 @@ bool ClearPhiInstructions::Worker(const PassDataHolder* data) const {
   return false;
 }
 
-void CalculatePredecessors::Start(const PassDataHolder* data) const {
+void CalculatePredecessors::Start(PassDataHolder* data) const {
   DCHECK(data != nullptr);
-  CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+  CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
   DCHECK(c_unit != nullptr);
   // First get the MIRGraph here to factorize a bit the code.
   MIRGraph *mir_graph = c_unit->mir_graph.get();
