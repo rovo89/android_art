@@ -160,6 +160,19 @@ LIR* Arm64Mir2Lir::OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_
   return branch;
 }
 
+LIR* Arm64Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg,
+                                     RegStorage base_reg, int offset, int check_value,
+                                     LIR* target) {
+  // It is possible that temp register is 64-bit. (ArgReg or RefReg)
+  // Always compare 32-bit value no matter what temp_reg is.
+  if (temp_reg.Is64Bit()) {
+    temp_reg = As32BitReg(temp_reg);
+  }
+  Load32Disp(base_reg, offset, temp_reg);
+  LIR* branch = OpCmpImmBranch(cond, temp_reg, check_value, target);
+  return branch;
+}
+
 LIR* Arm64Mir2Lir::OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) {
   bool dest_is_fp = r_dest.IsFloat();
   bool src_is_fp = r_src.IsFloat();
