@@ -32,53 +32,31 @@ class Arm64Context : public Context {
 
   ~Arm64Context() {}
 
-  void Reset() OVERRIDE;
+  void Reset();
 
-  void FillCalleeSaves(const StackVisitor& fr) OVERRIDE;
+  void FillCalleeSaves(const StackVisitor& fr);
 
-  void SetSP(uintptr_t new_sp) OVERRIDE {
-    bool success = SetGPR(SP, new_sp);
-    CHECK(success) << "Failed to set SP register";
+  void SetSP(uintptr_t new_sp) {
+    SetGPR(SP, new_sp);
   }
 
-  void SetPC(uintptr_t new_lr) OVERRIDE {
-    bool success = SetGPR(LR, new_lr);
-    CHECK(success) << "Failed to set LR register";
+  void SetPC(uintptr_t new_lr) {
+    SetGPR(LR, new_lr);
   }
 
-  uintptr_t* GetGPRAddress(uint32_t reg) OVERRIDE {
+  virtual uintptr_t* GetGPRAddress(uint32_t reg) {
     DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCoreRegisters));
     return gprs_[reg];
   }
 
-  bool GetGPR(uint32_t reg, uintptr_t* val) OVERRIDE {
+  uintptr_t GetGPR(uint32_t reg) {
     DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCoreRegisters));
-    if (gprs_[reg] == nullptr) {
-      return false;
-    } else {
-      DCHECK(val != nullptr);
-      *val = *gprs_[reg];
-      return true;
-    }
+    return *gprs_[reg];
   }
 
-  bool SetGPR(uint32_t reg, uintptr_t value) OVERRIDE;
-
-  bool GetFPR(uint32_t reg, uintptr_t* val) OVERRIDE {
-    DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfDRegisters));
-    if (fprs_[reg] == nullptr) {
-      return false;
-    } else {
-      DCHECK(val != nullptr);
-      *val = *fprs_[reg];
-      return true;
-    }
-  }
-
-  bool SetFPR(uint32_t reg, uintptr_t value) OVERRIDE;
-
-  void SmashCallerSaves() OVERRIDE;
-  void DoLongJump() OVERRIDE;
+  void SetGPR(uint32_t reg, uintptr_t value);
+  void SmashCallerSaves();
+  void DoLongJump();
 
  private:
   // Pointers to register locations, initialized to NULL or the specific registers below.
