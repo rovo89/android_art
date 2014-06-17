@@ -72,17 +72,14 @@ extern "C" void art_quick_handle_fill_data(void*, void*);
 extern "C" void art_quick_lock_object(void*);
 extern "C" void art_quick_unlock_object(void*);
 
-// Math entrypoints.
-extern int32_t CmpgDouble(double a, double b);
-extern int32_t CmplDouble(double a, double b);
-extern int32_t CmpgFloat(float a, float b);
-extern int32_t CmplFloat(float a, float b);
-
 // Single-precision FP arithmetics.
-extern "C" float fmodf(float a, float b);          // REM_FLOAT[_2ADDR]
+extern "C" float art_quick_fmodf(float a, float b);          // REM_FLOAT[_2ADDR]
 
 // Double-precision FP arithmetics.
-extern "C" double fmod(double a, double b);         // REM_DOUBLE[_2ADDR]
+extern "C" double art_quick_fmod(double a, double b);         // REM_DOUBLE[_2ADDR]
+
+// Memcpy
+extern "C" void* art_quick_memcpy(void* __restrict, const void* __restrict, size_t);
 
 // Intrinsic entrypoints.
 extern "C" int32_t art_quick_indexof(void*, uint32_t, uint32_t, uint32_t);
@@ -175,31 +172,31 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pUnlockObject = art_quick_unlock_object;
 
   // Math
-  // TODO NULL entrypoints not needed for ARM64 - generate inline.
-  qpoints->pCmpgDouble = CmpgDouble;
-  qpoints->pCmpgFloat = CmpgFloat;
-  qpoints->pCmplDouble = CmplDouble;
-  qpoints->pCmplFloat = CmplFloat;
-  qpoints->pFmod = fmod;
-  qpoints->pL2d = NULL;
-  qpoints->pFmodf = fmodf;
-  qpoints->pL2f = NULL;
-  qpoints->pD2iz = NULL;
-  qpoints->pF2iz = NULL;
-  qpoints->pIdivmod = NULL;
-  qpoints->pD2l = NULL;
-  qpoints->pF2l = NULL;
-  qpoints->pLdiv = NULL;
-  qpoints->pLmod = NULL;
-  qpoints->pLmul = NULL;
-  qpoints->pShlLong = NULL;
-  qpoints->pShrLong = NULL;
-  qpoints->pUshrLong = NULL;
+  // TODO nullptr entrypoints not needed for ARM64 - generate inline.
+  qpoints->pCmpgDouble = nullptr;
+  qpoints->pCmpgFloat = nullptr;
+  qpoints->pCmplDouble = nullptr;
+  qpoints->pCmplFloat = nullptr;
+  qpoints->pFmod = art_quick_fmod;
+  qpoints->pL2d = nullptr;
+  qpoints->pFmodf = art_quick_fmodf;
+  qpoints->pL2f = nullptr;
+  qpoints->pD2iz = nullptr;
+  qpoints->pF2iz = nullptr;
+  qpoints->pIdivmod = nullptr;
+  qpoints->pD2l = nullptr;
+  qpoints->pF2l = nullptr;
+  qpoints->pLdiv = nullptr;
+  qpoints->pLmod = nullptr;
+  qpoints->pLmul = nullptr;
+  qpoints->pShlLong = nullptr;
+  qpoints->pShrLong = nullptr;
+  qpoints->pUshrLong = nullptr;
 
   // Intrinsics
   qpoints->pIndexOf = art_quick_indexof;
   qpoints->pStringCompareTo = art_quick_string_compareto;
-  qpoints->pMemcpy = memcpy;
+  qpoints->pMemcpy = art_quick_memcpy;
 
   // Invocation
   qpoints->pQuickImtConflictTrampoline = art_quick_imt_conflict_trampoline;
