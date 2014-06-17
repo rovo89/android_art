@@ -18,8 +18,6 @@
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/dataflow_iterator-inl.h"
 #include "x86_lir.h"
-#include "dex/quick/dex_file_method_inliner.h"
-#include "dex/quick/dex_file_to_method_inliner_map.h"
 
 namespace art {
 
@@ -955,9 +953,6 @@ void X86Mir2Lir::AnalyzeMIR(int opcode, BasicBlock * bb, MIR *mir) {
     case Instruction::PACKED_SWITCH:
       store_method_addr_ = true;
       break;
-    case Instruction::INVOKE_STATIC:
-      AnalyzeInvokeStatic(opcode, bb, mir);
-      break;
     default:
       // Other instructions are not interesting yet.
       break;
@@ -1024,23 +1019,5 @@ RegLocation X86Mir2Lir::UpdateLocWideTyped(RegLocation loc, int reg_class) {
   }
   DCHECK(CheckCorePoolSanity());
   return loc;
-}
-
-void X86Mir2Lir::AnalyzeInvokeStatic(int opcode, BasicBlock * bb, MIR *mir) {
-  uint32_t index = mir->dalvikInsn.vB;
-  if (!(mir->optimization_flags & MIR_INLINED)) {
-    DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
-    InlineMethod method;
-    if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file)
-        ->IsIntrinsic(index, &method)) {
-      switch (method.opcode) {
-        case kIntrinsicAbsDouble:
-          store_method_addr_ = true;
-          break;
-        default:
-          break;
-      }
-    }
-  }
 }
 }  // namespace art
