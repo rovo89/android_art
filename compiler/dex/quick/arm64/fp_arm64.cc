@@ -45,7 +45,6 @@ void Arm64Mir2Lir::GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
       FlushAllRegs();   // Send everything to home location
-      // TODO: Fix xSELF.
       CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(8, pFmodf), rl_src1, rl_src2,
                                               false);
       rl_result = GetReturn(kFPReg);
@@ -89,7 +88,6 @@ void Arm64Mir2Lir::GenArithOpDouble(Instruction::Code opcode,
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
       FlushAllRegs();   // Send everything to home location
-      // TODO: Fix xSELF.
       {
         ThreadOffset<8> helper_offset = QUICK_ENTRYPOINT_OFFSET(8, pFmod);
         RegStorage r_tgt = CallHelperSetup(helper_offset);
