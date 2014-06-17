@@ -561,15 +561,21 @@ class StackVisitor {
   bool GetNextMethodAndDexPc(mirror::ArtMethod** next_method, uint32_t* next_dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  uint32_t GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind) const
+  bool GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind, uint32_t* val) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind)
+  uint32_t GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    uint32_t val;
+    bool success = GetVReg(m, vreg, kind, &val);
+    CHECK(success) << "Failed to read vreg " << vreg << " of kind " << kind;
+    return val;
+  }
+
+  bool SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uintptr_t* GetGPRAddress(uint32_t reg) const;
-  uintptr_t GetGPR(uint32_t reg) const;
-  void SetGPR(uint32_t reg, uintptr_t value);
 
   // This is a fast-path for getting/setting values in a quick frame.
   uint32_t* GetVRegAddr(StackReference<mirror::ArtMethod>* cur_quick_frame,
@@ -699,6 +705,11 @@ class StackVisitor {
   // Private constructor known in the case that num_frames_ has already been computed.
   StackVisitor(Thread* thread, Context* context, size_t num_frames)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool GetGPR(uint32_t reg, uintptr_t* val) const;
+  bool SetGPR(uint32_t reg, uintptr_t value);
+  bool GetFPR(uint32_t reg, uintptr_t* val) const;
+  bool SetFPR(uint32_t reg, uintptr_t value);
 
   instrumentation::InstrumentationStackFrame& GetInstrumentationStackFrame(uint32_t depth) const;
 
