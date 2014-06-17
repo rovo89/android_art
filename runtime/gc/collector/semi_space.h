@@ -162,6 +162,10 @@ class SemiSpace : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
+  static bool HeapReferenceMarkedCallback(mirror::HeapReference<mirror::Object>* object, void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
   static mirror::Object* MarkedForwardingAddressCallback(mirror::Object* object, void* arg)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
