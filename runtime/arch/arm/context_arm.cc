@@ -25,14 +25,14 @@
 namespace art {
 namespace arm {
 
-static constexpr uint32_t gZero = 0;
+static const uint32_t gZero = 0;
 
 void ArmContext::Reset() {
   for (size_t i = 0; i < kNumberOfCoreRegisters; i++) {
-    gprs_[i] = nullptr;
+    gprs_[i] = NULL;
   }
   for (size_t i = 0; i < kNumberOfSRegisters; i++) {
-    fprs_[i] = nullptr;
+    fprs_[i] = NULL;
   }
   gprs_[SP] = &sp_;
   gprs_[PC] = &pc_;
@@ -69,46 +69,31 @@ void ArmContext::FillCalleeSaves(const StackVisitor& fr) {
   }
 }
 
-bool ArmContext::SetGPR(uint32_t reg, uintptr_t value) {
+void ArmContext::SetGPR(uint32_t reg, uintptr_t value) {
   DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCoreRegisters));
   DCHECK_NE(gprs_[reg], &gZero);  // Can't overwrite this static value since they are never reset.
-  if (gprs_[reg] != nullptr) {
-    *gprs_[reg] = value;
-    return true;
-  } else {
-    return false;
-  }
-}
-
-bool ArmContext::SetFPR(uint32_t reg, uintptr_t value) {
-  DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfSRegisters));
-  DCHECK_NE(fprs_[reg], &gZero);  // Can't overwrite this static value since they are never reset.
-  if (fprs_[reg] != nullptr) {
-    *fprs_[reg] = value;
-    return true;
-  } else {
-    return false;
-  }
+  DCHECK(gprs_[reg] != NULL);
+  *gprs_[reg] = value;
 }
 
 void ArmContext::SmashCallerSaves() {
   // This needs to be 0 because we want a null/zero return value.
   gprs_[R0] = const_cast<uint32_t*>(&gZero);
   gprs_[R1] = const_cast<uint32_t*>(&gZero);
-  gprs_[R2] = nullptr;
-  gprs_[R3] = nullptr;
+  gprs_[R2] = NULL;
+  gprs_[R3] = NULL;
 }
 
 extern "C" void art_quick_do_long_jump(uint32_t*, uint32_t*);
 
 void ArmContext::DoLongJump() {
-  uintptr_t gprs[kNumberOfCoreRegisters];
-  uint32_t fprs[kNumberOfSRegisters];
+  uintptr_t gprs[16];
+  uint32_t fprs[32];
   for (size_t i = 0; i < kNumberOfCoreRegisters; ++i) {
-    gprs[i] = gprs_[i] != nullptr ? *gprs_[i] : ArmContext::kBadGprBase + i;
+    gprs[i] = gprs_[i] != NULL ? *gprs_[i] : ArmContext::kBadGprBase + i;
   }
   for (size_t i = 0; i < kNumberOfSRegisters; ++i) {
-    fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : ArmContext::kBadFprBase + i;
+    fprs[i] = fprs_[i] != NULL ? *fprs_[i] : ArmContext::kBadGprBase + i;
   }
   DCHECK_EQ(reinterpret_cast<uintptr_t>(Thread::Current()), gprs[TR]);
   art_quick_do_long_jump(gprs, fprs);
