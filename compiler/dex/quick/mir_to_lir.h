@@ -953,8 +953,8 @@ class Mir2Lir : public Backend {
     bool GenInlinedReverseBytes(CallInfo* info, OpSize size);
     bool GenInlinedAbsInt(CallInfo* info);
     virtual bool GenInlinedAbsLong(CallInfo* info);
-    bool GenInlinedAbsFloat(CallInfo* info);
-    bool GenInlinedAbsDouble(CallInfo* info);
+    virtual bool GenInlinedAbsFloat(CallInfo* info);
+    virtual bool GenInlinedAbsDouble(CallInfo* info);
     bool GenInlinedFloatCvt(CallInfo* info);
     bool GenInlinedDoubleCvt(CallInfo* info);
     virtual bool GenInlinedIndexOf(CallInfo* info, bool zero_based);
