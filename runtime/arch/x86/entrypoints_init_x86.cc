@@ -69,8 +69,6 @@ extern "C" void art_quick_lock_object(void*);
 extern "C" void art_quick_unlock_object(void*);
 
 // Math entrypoints.
-extern "C" double art_quick_fmod(double, double);
-extern "C" float art_quick_fmodf(float, float);
 extern "C" int64_t art_quick_d2l(double);
 extern "C" int64_t art_quick_f2l(float);
 extern "C" int64_t art_quick_ldiv(int64_t, int64_t);
@@ -175,9 +173,9 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   // points->pCmpgFloat = NULL;  // Not needed on x86.
   // points->pCmplDouble = NULL;  // Not needed on x86.
   // points->pCmplFloat = NULL;  // Not needed on x86.
-  qpoints->pFmod = art_quick_fmod;
+  // qpoints->pFmod = NULL;  // Not needed on x86.
   // qpoints->pL2d = NULL;  // Not needed on x86.
-  qpoints->pFmodf = art_quick_fmodf;
+  // qpoints->pFmodf = NULL;  // Not needed on x86.
   // qpoints->pL2f = NULL;  // Not needed on x86.
   // points->pD2iz = NULL;  // Not needed on x86.
   // points->pF2iz = NULL;  // Not needed on x86.

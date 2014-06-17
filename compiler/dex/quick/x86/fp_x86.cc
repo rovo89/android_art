@@ -48,16 +48,7 @@ void X86Mir2Lir::GenArithOpFloat(Instruction::Code opcode,
       break;
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
-      FlushAllRegs();   // Send everything to home location
-      if (cu_->target64) {
-        CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(8, pFmodf), rl_src1, rl_src2,
-                                                false);
-      } else {
-        CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmodf), rl_src1, rl_src2,
-                                                false);
-      }
-      rl_result = GetReturn(kFPReg);
-      StoreValue(rl_dest, rl_result);
+      GenRemFP(rl_dest, rl_src1, rl_src2, false /* is_double */);
       return;
     case Instruction::NEG_FLOAT:
       GenNegFloat(rl_dest, rl_src1);
@@ -110,16 +101,7 @@ void X86Mir2Lir::GenArithOpDouble(Instruction::Code opcode,
       break;
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
-      FlushAllRegs();   // Send everything to home location
-      if (cu_->target64) {
-        CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(8, pFmod), rl_src1, rl_src2,
-                                                false);
-      } else {
-        CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmod), rl_src1, rl_src2,
-                                                false);
-      }
-      rl_result = GetReturnWide(kFPReg);
-      StoreValueWide(rl_dest, rl_result);
+      GenRemFP(rl_dest, rl_src1, rl_src2, true /* is_double */);
       return;
     case Instruction::NEG_DOUBLE:
       GenNegDouble(rl_dest, rl_src1);
@@ -353,6 +335,110 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
     StoreValueWide(rl_dest, rl_result);
   } else {
     StoreValue(rl_dest, rl_result);
+  }
+}
+
+void X86Mir2Lir::GenRemFP(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2, bool is_double) {
+  // Compute offsets to the source and destination VRs on stack.
+  int src1_v_reg_offset = SRegOffset(rl_src1.s_reg_low);
+  int src2_v_reg_offset = SRegOffset(rl_src2.s_reg_low);
+  int dest_v_reg_offset = SRegOffset(rl_dest.s_reg_low);
+
+  // Update the in-register state of sources.
+  rl_src1 = is_double ? UpdateLocWide(rl_src1) : UpdateLoc(rl_src1);
+  rl_src2 = is_double ? UpdateLocWide(rl_src2) : UpdateLoc(rl_src2);
+
+  // All memory accesses below reference dalvik regs.
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+
+  // If the source is in physical register, then put it in its location on stack.
+  if (rl_src1.location == kLocPhysReg) {
+    RegisterInfo* reg_info = GetRegInfo(rl_src1.reg);
+
+    if (reg_info != nullptr && reg_info->IsTemp()) {
+      // Calling FlushSpecificReg because it will only write back VR if it is dirty.
+      FlushSpecificReg(reg_info);
+      // ResetDef to prevent NullifyRange from removing stores.
+      ResetDef(rl_src1.reg);
+    } else {
+      // It must have been register promoted if it is not a temp but is still in physical
+      // register. Since we need it to be in memory to convert, we place it there now.
+      StoreBaseDisp(TargetReg(kSp), src1_v_reg_offset, rl_src1.reg, is_double ? k64 : k32);
+    }
+  }
+
+  if (rl_src2.location == kLocPhysReg) {
+    RegisterInfo* reg_info = GetRegInfo(rl_src2.reg);
+    if (reg_info != nullptr && reg_info->IsTemp()) {
+      FlushSpecificReg(reg_info);
+      ResetDef(rl_src2.reg);
+    } else {
+      StoreBaseDisp(TargetReg(kSp), src2_v_reg_offset, rl_src2.reg, is_double ? k64 : k32);
+    }
+  }
+
+  int fld_opcode = is_double ? kX86Fld64M : kX86Fld32M;
+
+  // Push the source virtual registers onto the x87 stack.
+  LIR *fld_2 = NewLIR2NoDest(fld_opcode, TargetReg(kSp).GetReg(),
+                             src2_v_reg_offset + LOWORD_OFFSET);
+  AnnotateDalvikRegAccess(fld_2, (src2_v_reg_offset + LOWORD_OFFSET) >> 2,
+                          true /* is_load */, is_double /* is64bit */);
+
+  LIR *fld_1 = NewLIR2NoDest(fld_opcode, TargetReg(kSp).GetReg(),
+                             src1_v_reg_offset + LOWORD_OFFSET);
+  AnnotateDalvikRegAccess(fld_1, (src1_v_reg_offset + LOWORD_OFFSET) >> 2,
+                          true /* is_load */, is_double /* is64bit */);
+
+  FlushReg(rs_rAX);
+  Clobber(rs_rAX);
+  LockTemp(rs_rAX);
+
+  LIR* retry = NewLIR0(kPseudoTargetLabel);
+
+  // Divide ST(0) by ST(1) and place result to ST(0).
+  NewLIR0(kX86Fprem);
+
+  // Move FPU status word to AX.
+  NewLIR0(kX86Fstsw16R);
+
+  // Check if reduction is complete.
+  OpRegImm(kOpAnd, rs_rAX, 0x400);
+
+  // If no then continue to compute remainder.
+  LIR* branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
+  branch->target = retry;
+
+  FreeTemp(rs_rAX);
+
+  // Now store result in the destination VR's stack location.
+  int displacement = dest_v_reg_offset + LOWORD_OFFSET;
+  int opcode = is_double ? kX86Fst64M : kX86Fst32M;
+  LIR *fst = NewLIR2NoDest(opcode, TargetReg(kSp).GetReg(), displacement);
+  AnnotateDalvikRegAccess(fst, displacement >> 2, false /* is_load */, is_double /* is64bit */);
+
+  // Pop ST(1) and ST(0).
+  NewLIR0(kX86Fucompp);
+
+  /*
+   * The result is in a physical register if it was in a temp or was register
+   * promoted. For that reason it is enough to check if it is in physical
+   * register. If it is, then we must do all of the bookkeeping necessary to
+   * invalidate temp (if needed) and load in promoted register (if needed).
+   * If the result's location is in memory, then we do not need to do anything
+   * more since the fstp has already placed the correct value in memory.
+   */
+  RegLocation rl_result = is_double ? UpdateLocWideTyped(rl_dest, kFPReg) :
+      UpdateLocTyped(rl_dest, kFPReg);
+  if (rl_result.location == kLocPhysReg) {
+    rl_result = EvalLoc(rl_dest, kFPReg, true);
+    if (is_double) {
+      LoadBaseDisp(TargetReg(kSp), dest_v_reg_offset, rl_result.reg, k64);
+      StoreFinalValueWide(rl_dest, rl_result);
+    } else {
+      Load32Disp(TargetReg(kSp), dest_v_reg_offset, rl_result.reg);
+      StoreFinalValue(rl_dest, rl_result);
+    }
   }
 }
 
