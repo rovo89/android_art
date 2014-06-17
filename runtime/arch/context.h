@@ -38,30 +38,40 @@ class Context {
   // Re-initializes the registers for context re-use.
   virtual void Reset() = 0;
 
-  // Read values from callee saves in the given frame. The frame also holds
+  // Reads values from callee saves in the given frame. The frame also holds
   // the method that holds the layout.
   virtual void FillCalleeSaves(const StackVisitor& fr)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
-  // Set the stack pointer value
+  // Sets the stack pointer value.
   virtual void SetSP(uintptr_t new_sp) = 0;
 
-  // Set the program counter value
+  // Sets the program counter value.
   virtual void SetPC(uintptr_t new_pc) = 0;
 
   // Gets the given GPRs address.
   virtual uintptr_t* GetGPRAddress(uint32_t reg) = 0;
 
-  // Read the given GPR
-  virtual uintptr_t GetGPR(uint32_t reg) = 0;
+  // Reads the given GPR. Returns true if we successfully read the register and
+  // set its value into 'val', returns false otherwise.
+  virtual bool GetGPR(uint32_t reg, uintptr_t* val) = 0;
 
-  // Set the given GPR.
-  virtual void SetGPR(uint32_t reg, uintptr_t value) = 0;
+  // Sets the given GPR. Returns true if we successfully write the given value
+  // into the register, returns false otherwise.
+  virtual bool SetGPR(uint32_t reg, uintptr_t value) = 0;
 
-  // Smash the caller save registers. If we're throwing, we don't want to return bogus values.
+  // Reads the given FPR. Returns true if we successfully read the register and
+  // set its value into 'val', returns false otherwise.
+  virtual bool GetFPR(uint32_t reg, uintptr_t* val) = 0;
+
+  // Sets the given FPR. Returns true if we successfully write the given value
+  // into the register, returns false otherwise.
+  virtual bool SetFPR(uint32_t reg, uintptr_t value) = 0;
+
+  // Smashes the caller save registers. If we're throwing, we don't want to return bogus values.
   virtual void SmashCallerSaves() = 0;
 
-  // Switch execution of the executing context to this context
+  // Switches execution of the executing context to this context
   virtual void DoLongJump() = 0;
 
  protected:
