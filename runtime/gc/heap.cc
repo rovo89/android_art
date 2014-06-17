@@ -285,17 +285,11 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   CHECK(mod_union_table != nullptr) << "Failed to create image mod-union table";
   AddModUnionTable(mod_union_table);
 
-  if (collector::SemiSpace::kUseRememberedSet) {
+  if (collector::SemiSpace::kUseRememberedSet && non_moving_space_ != main_space_) {
     accounting::RememberedSet* non_moving_space_rem_set =
         new accounting::RememberedSet("Non-moving space remembered set", this, non_moving_space_);
     CHECK(non_moving_space_rem_set != nullptr) << "Failed to create non-moving space remembered set";
     AddRememberedSet(non_moving_space_rem_set);
-    if (main_space_ != nullptr && main_space_ != non_moving_space_) {
-      accounting::RememberedSet* main_space_rem_set =
-          new accounting::RememberedSet("Main space remembered set", this, main_space_);
-      CHECK(main_space_rem_set != nullptr) << "Failed to create main space remembered set";
-      AddRememberedSet(main_space_rem_set);
-    }
   }
 
   // TODO: Count objects in the image space here.
@@ -376,6 +370,9 @@ void Heap::CreateMainMallocSpace(MemMap* mem_map, size_t initial_size, size_t gr
     // that getting primitive array elements is faster.
     can_move_objects = !have_zygote_space_;
   }
+  if (collector::SemiSpace::kUseRememberedSet && main_space_ != nullptr) {
+    RemoveRememberedSet(main_space_);
+  }
   if (kUseRosAlloc) {
     rosalloc_space_ = space::RosAllocSpace::CreateFromMemMap(
         mem_map, "main rosalloc space", kDefaultStartingSize, initial_size, growth_limit, capacity,
@@ -390,6 +387,12 @@ void Heap::CreateMainMallocSpace(MemMap* mem_map, size_t initial_size, size_t gr
     CHECK(main_space_ != nullptr) << "Failed to create dlmalloc space";
   }
   main_space_->SetFootprintLimit(main_space_->Capacity());
+  if (collector::SemiSpace::kUseRememberedSet) {
+    accounting::RememberedSet* main_space_rem_set =
+        new accounting::RememberedSet("Main space remembered set", this, main_space_);
+    CHECK(main_space_rem_set != nullptr) << "Failed to create main space remembered set";
+    AddRememberedSet(main_space_rem_set);
+  }
   VLOG(heap) << "Created main space " << main_space_;
 }
 
@@ -1386,7 +1389,6 @@ void Heap::TransitionCollector(CollectorType collector_type) {
         Compact(bump_pointer_space_, main_space_);
         // Remove the main space so that we don't try to trim it, this doens't work for debug
         // builds since RosAlloc attempts to read the magic number from a protected page.
-        // TODO: Clean this up by getting rid of the remove_as_default parameter.
         RemoveSpace(main_space_);
       }
       break;
@@ -1617,9 +1619,9 @@ void Heap::PreZygoteFork() {
       madvise(main_space_->Begin(), main_space_->Capacity(), MADV_DONTNEED);
       MemMap* mem_map = main_space_->ReleaseMemMap();
       RemoveSpace(main_space_);
-      delete main_space_;
-      main_space_ = nullptr;
+      space::Space* old_main_space = main_space_;
       CreateMainMallocSpace(mem_map, kDefaultInitialSize, mem_map->Size(), mem_map->Size());
+      delete old_main_space;
       AddSpace(main_space_);
     } else {
       bump_pointer_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
