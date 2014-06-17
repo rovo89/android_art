@@ -148,6 +148,7 @@ class X86Mir2Lir : public Mir2Lir {
                         RegLocation rl_src2);
   void GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                        RegLocation rl_src2);
+  void GenRemFP(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2, bool is_double);
   void GenCmpFP(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                 RegLocation rl_src2);
   void GenConversion(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src);
