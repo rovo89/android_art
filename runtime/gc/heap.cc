@@ -1419,8 +1419,14 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   FinishGC(self, collector::kGcTypeFull);
   int32_t after_allocated = num_bytes_allocated_.LoadSequentiallyConsistent();
   int32_t delta_allocated = before_allocated - after_allocated;
+  std::string saved_str;
+  if (delta_allocated >= 0) {
+    saved_str = " saved at least " + PrettySize(delta_allocated);
+  } else {
+    saved_str = " expanded " + PrettySize(-delta_allocated);
+  }
   LOG(INFO) << "Heap transition to " << process_state_ << " took "
-      << PrettyDuration(duration) << " saved at least " << PrettySize(delta_allocated);
+      << PrettyDuration(duration) << saved_str;
 }
 
 void Heap::ChangeCollector(CollectorType collector_type) {
@@ -1810,7 +1816,6 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   CHECK(collector != nullptr)
       << "Could not find garbage collector with collector_type="
       << static_cast<size_t>(collector_type_) << " and gc_type=" << gc_type;
-  ATRACE_BEGIN(StringPrintf("%s %s GC", PrettyCause(gc_cause), collector->GetName()).c_str());
   collector->Run(gc_cause, clear_soft_references || runtime->IsZygote());
   total_objects_freed_ever_ += collector->GetFreedObjects();
   total_bytes_freed_ever_ += collector->GetFreedBytes();
@@ -1852,8 +1857,6 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
     VLOG(heap) << ConstDumpable<TimingLogger>(collector->GetTimings());
   }
   FinishGC(self, gc_type);
-  ATRACE_END();
-
   // Inform DDMS that a GC completed.
   Dbg::GcDidFinish();
   return gc_type;
