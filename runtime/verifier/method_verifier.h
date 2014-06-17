@@ -565,6 +565,18 @@ class MethodVerifier {
                                           bool is_range, bool is_super)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Similar checks to the above, but on the proto. Will be used when the method cannot be
+  // resolved.
+  void VerifyInvocationArgsUnresolvedMethod(const Instruction* inst, MethodType method_type,
+                                            bool is_range)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template <class T>
+  mirror::ArtMethod* VerifyInvocationArgsFromIterator(T* it, const Instruction* inst,
+                                                      MethodType method_type, bool is_range,
+                                                      mirror::ArtMethod* res_method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   mirror::ArtMethod* GetQuickInvokedMethod(const Instruction* inst,
                                            RegisterLine* reg_line,
                                            bool is_range)
