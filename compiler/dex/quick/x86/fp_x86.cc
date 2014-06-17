@@ -565,7 +565,6 @@ bool X86Mir2Lir::GenInlinedAbsDouble(CallInfo* info) {
     StoreValueWide(rl_dest, rl_result);
     return true;
   } else if (v_src_reg == v_dst_reg) {
-
     // if argument is the same as inlined intrinsic target
     // if argument is in the physical register
     if (rl_src.location == kLocPhysReg) {
