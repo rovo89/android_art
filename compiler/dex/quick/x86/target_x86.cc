@@ -2177,7 +2177,7 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
   call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                            direct_code, direct_method, type);
   if (pcrLabel) {
-    if (Runtime::Current()->ExplicitNullChecks()) {
+    if (cu_->compiler_driver->GetCompilerOptions().GetExplicitNullChecks()) {
       *pcrLabel = GenExplicitNullCheck(TargetReg(kArg1), info->opt_flags);
     } else {
       *pcrLabel = nullptr;
