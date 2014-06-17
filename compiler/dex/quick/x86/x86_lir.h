@@ -572,8 +572,15 @@ enum X86OpCode {
   kX86PsllqRI,                  // left shift of floating point registers 64 bits x 2
   kX86Fild32M,                  // push 32-bit integer on x87 stack
   kX86Fild64M,                  // push 64-bit integer on x87 stack
+  kX86Fld32M,                   // push float on x87 stack
+  kX86Fld64M,                   // push double on x87 stack
   kX86Fstp32M,                  // pop top x87 fp stack and do 32-bit store
   kX86Fstp64M,                  // pop top x87 fp stack and do 64-bit store
+  kX86Fst32M,                   // do 32-bit store
+  kX86Fst64M,                   // do 64-bit store
+  kX86Fprem,                    // remainder from dividing of two floating point values
+  kX86Fucompp,                  // compare floating point values and pop x87 fp stack twice
+  kX86Fstsw16R,                 // store FPU status word
   Binary0fOpCode(kX86Mova128),  // move 128 bits aligned
   kX86Mova128MR, kX86Mova128AR,  // store 128 bit aligned from xmm1 to m128
   Binary0fOpCode(kX86Movups),   // load unaligned packed single FP values from xmm2/m128 to xmm1
