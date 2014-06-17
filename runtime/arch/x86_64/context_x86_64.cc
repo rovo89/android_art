@@ -24,7 +24,7 @@
 namespace art {
 namespace x86_64 {
 
-static const uintptr_t gZero = 0;
+static constexpr uintptr_t gZero = 0;
 
 void X86_64Context::Reset() {
   for (size_t i = 0; i < kNumberOfCpuRegisters; ++i) {
@@ -80,11 +80,26 @@ void X86_64Context::SmashCallerSaves() {
   gprs_[R11] = nullptr;
 }
 
-void X86_64Context::SetGPR(uint32_t reg, uintptr_t value) {
+bool X86_64Context::SetGPR(uint32_t reg, uintptr_t value) {
   CHECK_LT(reg, static_cast<uint32_t>(kNumberOfCpuRegisters));
   CHECK_NE(gprs_[reg], &gZero);
-  CHECK(gprs_[reg] != NULL);
-  *gprs_[reg] = value;
+  if (gprs_[reg] != nullptr) {
+    *gprs_[reg] = value;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool X86_64Context::SetFPR(uint32_t reg, uintptr_t value) {
+  CHECK_LT(reg, static_cast<uint32_t>(kNumberOfFloatRegisters));
+  CHECK_NE(fprs_[reg], &gZero);
+  if (fprs_[reg] != nullptr) {
+    *fprs_[reg] = value;
+    return true;
+  } else {
+    return false;
+  }
 }
 
 void X86_64Context::DoLongJump() {
@@ -93,7 +108,7 @@ void X86_64Context::DoLongJump() {
   // the top for the stack pointer that doesn't get popped in a pop-all.
   volatile uintptr_t gprs[kNumberOfCpuRegisters + 1];
   for (size_t i = 0; i < kNumberOfCpuRegisters; ++i) {
-    gprs[kNumberOfCpuRegisters - i - 1] = gprs_[i] != NULL ? *gprs_[i] : X86_64Context::kBadGprBase + i;
+    gprs[kNumberOfCpuRegisters - i - 1] = gprs_[i] != nullptr ? *gprs_[i] : X86_64Context::kBadGprBase + i;
   }
   // We want to load the stack pointer one slot below so that the ret will pop eip.
   uintptr_t rsp = gprs[kNumberOfCpuRegisters - RSP - 1] - kWordSize;
