@@ -56,6 +56,7 @@ void GarbageCollector::ResetCumulativeStatistics() {
 }
 
 void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
+  ATRACE_BEGIN(StringPrintf("%s %s GC", PrettyCause(gc_cause), GetName()).c_str());
   Thread* self = Thread::Current();
   uint64_t start_time = NanoTime();
   timings_.Reset();
@@ -86,6 +87,7 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
   for (uint64_t pause_time : pause_times_) {
     pause_histogram_.AddValue(pause_time / 1000);
   }
+  ATRACE_END();
 }
 
 void GarbageCollector::SwapBitmaps() {

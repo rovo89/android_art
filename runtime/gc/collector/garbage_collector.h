@@ -105,7 +105,7 @@ class GarbageCollector {
   }
 
   uint64_t GetTotalPausedTimeNs() const {
-    return pause_histogram_.Sum();
+    return pause_histogram_.AdjustedSum();
   }
 
   int64_t GetTotalFreedBytes() const {

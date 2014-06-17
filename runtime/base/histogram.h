@@ -71,6 +71,10 @@ template <class Value> class Histogram {
     return sum_;
   }
 
+  Value AdjustedSum() const {
+    return sum_ * kAdjust;
+  }
+
   Value Min() const {
     return min_value_added_;
   }
