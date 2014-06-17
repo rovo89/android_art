@@ -40,9 +40,10 @@ class Heap;
 class ReferenceProcessor {
  public:
   explicit ReferenceProcessor();
-  static mirror::Object* PreserveSoftReferenceCallback(mirror::Object* obj, void* arg);
+  static bool PreserveSoftReferenceCallback(mirror::HeapReference<mirror::Object>* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ProcessReferences(bool concurrent, TimingLogger* timings, bool clear_soft_references,
-                         IsMarkedCallback* is_marked_callback,
+                         IsHeapReferenceMarkedCallback* is_marked_callback,
                          MarkObjectCallback* mark_object_callback,
                          ProcessMarkStackCallback* process_mark_stack_callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
@@ -54,21 +55,21 @@ class ReferenceProcessor {
   // Decode the referent, may block if references are being processed.
   mirror::Object* GetReferent(Thread* self, mirror::Reference* reference)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
-  void EnqueueClearedReferences() LOCKS_EXCLUDED(Locks::mutator_lock_);
+  void EnqueueClearedReferences(Thread* self) LOCKS_EXCLUDED(Locks::mutator_lock_);
   void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* ref,
-                              IsMarkedCallback is_marked_callback, void* arg)
+                              IsHeapReferenceMarkedCallback* is_marked_callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   class ProcessReferencesArgs {
    public:
-    ProcessReferencesArgs(IsMarkedCallback* is_marked_callback,
+    ProcessReferencesArgs(IsHeapReferenceMarkedCallback* is_marked_callback,
                           MarkObjectCallback* mark_callback, void* arg)
         : is_marked_callback_(is_marked_callback), mark_callback_(mark_callback), arg_(arg) {
     }
 
     // The is marked callback is null when the args aren't set up.
-    IsMarkedCallback* is_marked_callback_;
+    IsHeapReferenceMarkedCallback* is_marked_callback_;
     MarkObjectCallback* mark_callback_;
     void* arg_;
   };

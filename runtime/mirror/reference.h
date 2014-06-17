@@ -21,6 +21,13 @@
 
 namespace art {
 
+namespace gc {
+
+class ReferenceProcessor;
+class ReferenceQueue;
+
+}  // namespace gc
+
 struct ReferenceOffsets;
 struct FinalizerReferenceOffsets;
 
@@ -41,7 +48,6 @@ class MANAGED Reference : public Object {
   static MemberOffset ReferentOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Reference, referent_);
   }
-
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   Object* GetReferent() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetFieldObjectVolatile<Object, kDefaultVerifyFlags, kReadBarrierOption>(
@@ -55,7 +61,6 @@ class MANAGED Reference : public Object {
   void ClearReferent() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     SetFieldObjectVolatile<kTransactionActive>(ReferentOffset(), nullptr);
   }
-
   // Volatile read/write is not necessary since the java pending next is only accessed from
   // the java threads for cleared references. Once these cleared references have a null referent,
   // we never end up reading their pending next from the GC again.
@@ -76,6 +81,11 @@ class MANAGED Reference : public Object {
   bool IsEnqueuable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
+  // Note: This avoids a read barrier, it should only be used by the GC.
+  HeapReference<Object>* GetReferentReferenceAddr() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObjectReferenceAddr<kDefaultVerifyFlags>(ReferentOffset());
+  }
+
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   HeapReference<Reference> pending_next_;  // Note this is Java volatile:
   HeapReference<Object> queue_;  // Note this is Java volatile:
@@ -83,6 +93,8 @@ class MANAGED Reference : public Object {
   HeapReference<Object> referent_;  // Note this is Java volatile:
 
   friend struct art::ReferenceOffsets;  // for verifying offset information
+  friend class gc::ReferenceProcessor;
+  friend class gc::ReferenceQueue;
   DISALLOW_IMPLICIT_CONSTRUCTORS(Reference);
 };
 
