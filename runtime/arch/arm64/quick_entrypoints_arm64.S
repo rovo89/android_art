@@ -1862,3 +1862,22 @@ ENTRY art_quick_string_compareto
     csel x0, x0, x1, ne          // x0 := x0 != 0 ? x0 : x1
     ret
 END art_quick_string_compareto
+
+// Macro to facilitate adding new entrypoints which call to native function directly.
+// Currently, xSELF is the only thing we need to take care of between managed code and AAPCS.
+// But we might introduce more differences.
+.macro NATIVE_DOWNCALL name, entrypoint
+    .extern \entrypoint
+ENTRY \name
+    sub    sp, sp, #16
+    stp    xSELF, xLR, [sp]
+    bl     \entrypoint
+    ldp    xSELF, xLR, [sp]
+    add    sp, sp, #16
+    ret
+END \name
+.endm
+
+NATIVE_DOWNCALL art_quick_fmod fmod
+NATIVE_DOWNCALL art_quick_fmodf fmodf
+NATIVE_DOWNCALL art_quick_memcpy memcpy
