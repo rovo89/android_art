@@ -28,14 +28,14 @@
 namespace art {
 namespace arm64 {
 
-static const uint64_t gZero = 0;
+static constexpr uint64_t gZero = 0;
 
 void Arm64Context::Reset() {
   for (size_t i = 0; i < kNumberOfCoreRegisters; i++) {
-    gprs_[i] = NULL;
+    gprs_[i] = nullptr;
   }
   for (size_t i = 0; i < kNumberOfDRegisters; i++) {
-    fprs_[i] = NULL;
+    fprs_[i] = nullptr;
   }
   gprs_[SP] = &sp_;
   gprs_[LR] = &pc_;
@@ -73,73 +73,88 @@ void Arm64Context::FillCalleeSaves(const StackVisitor& fr) {
   }
 }
 
-void Arm64Context::SetGPR(uint32_t reg, uintptr_t value) {
+bool Arm64Context::SetGPR(uint32_t reg, uintptr_t value) {
   DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCoreRegisters));
   DCHECK_NE(gprs_[reg], &gZero);  // Can't overwrite this static value since they are never reset.
-  DCHECK(gprs_[reg] != NULL);
-  *gprs_[reg] = value;
+  if (gprs_[reg] != nullptr) {
+    *gprs_[reg] = value;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool Arm64Context::SetFPR(uint32_t reg, uintptr_t value) {
+  DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfDRegisters));
+  DCHECK_NE(fprs_[reg], &gZero);  // Can't overwrite this static value since they are never reset.
+  if (fprs_[reg] != nullptr) {
+    *fprs_[reg] = value;
+    return true;
+  } else {
+    return false;
+  }
 }
 
 void Arm64Context::SmashCallerSaves() {
   // This needs to be 0 because we want a null/zero return value.
   gprs_[X0] = const_cast<uint64_t*>(&gZero);
-  gprs_[X1] = NULL;
-  gprs_[X2] = NULL;
-  gprs_[X3] = NULL;
-  gprs_[X4] = NULL;
-  gprs_[X5] = NULL;
-  gprs_[X6] = NULL;
-  gprs_[X7] = NULL;
-  gprs_[X8] = NULL;
-  gprs_[X9] = NULL;
-  gprs_[X10] = NULL;
-  gprs_[X11] = NULL;
-  gprs_[X12] = NULL;
-  gprs_[X13] = NULL;
-  gprs_[X14] = NULL;
-  gprs_[X15] = NULL;
+  gprs_[X1] = nullptr;
+  gprs_[X2] = nullptr;
+  gprs_[X3] = nullptr;
+  gprs_[X4] = nullptr;
+  gprs_[X5] = nullptr;
+  gprs_[X6] = nullptr;
+  gprs_[X7] = nullptr;
+  gprs_[X8] = nullptr;
+  gprs_[X9] = nullptr;
+  gprs_[X10] = nullptr;
+  gprs_[X11] = nullptr;
+  gprs_[X12] = nullptr;
+  gprs_[X13] = nullptr;
+  gprs_[X14] = nullptr;
+  gprs_[X15] = nullptr;
 
   // d0-d7, d16-d31 are caller-saved; d8-d15 are callee-saved.
 
-  fprs_[D0] = NULL;
-  fprs_[D1] = NULL;
-  fprs_[D2] = NULL;
-  fprs_[D3] = NULL;
-  fprs_[D4] = NULL;
-  fprs_[D5] = NULL;
-  fprs_[D6] = NULL;
-  fprs_[D7] = NULL;
+  fprs_[D0] = nullptr;
+  fprs_[D1] = nullptr;
+  fprs_[D2] = nullptr;
+  fprs_[D3] = nullptr;
+  fprs_[D4] = nullptr;
+  fprs_[D5] = nullptr;
+  fprs_[D6] = nullptr;
+  fprs_[D7] = nullptr;
 
-  fprs_[D16] = NULL;
-  fprs_[D17] = NULL;
-  fprs_[D18] = NULL;
-  fprs_[D19] = NULL;
-  fprs_[D20] = NULL;
-  fprs_[D21] = NULL;
-  fprs_[D22] = NULL;
-  fprs_[D23] = NULL;
-  fprs_[D24] = NULL;
-  fprs_[D25] = NULL;
-  fprs_[D26] = NULL;
-  fprs_[D27] = NULL;
-  fprs_[D28] = NULL;
-  fprs_[D29] = NULL;
-  fprs_[D30] = NULL;
-  fprs_[D31] = NULL;
+  fprs_[D16] = nullptr;
+  fprs_[D17] = nullptr;
+  fprs_[D18] = nullptr;
+  fprs_[D19] = nullptr;
+  fprs_[D20] = nullptr;
+  fprs_[D21] = nullptr;
+  fprs_[D22] = nullptr;
+  fprs_[D23] = nullptr;
+  fprs_[D24] = nullptr;
+  fprs_[D25] = nullptr;
+  fprs_[D26] = nullptr;
+  fprs_[D27] = nullptr;
+  fprs_[D28] = nullptr;
+  fprs_[D29] = nullptr;
+  fprs_[D30] = nullptr;
+  fprs_[D31] = nullptr;
 }
 
 extern "C" void art_quick_do_long_jump(uint64_t*, uint64_t*);
 
 void Arm64Context::DoLongJump() {
   uint64_t gprs[32];
-  uint64_t fprs[32];
+  uint64_t fprs[kNumberOfDRegisters];
 
   // Do not use kNumberOfCoreRegisters, as this is with the distinction of SP and XZR
   for (size_t i = 0; i < 32; ++i) {
-    gprs[i] = gprs_[i] != NULL ? *gprs_[i] : Arm64Context::kBadGprBase + i;
+    gprs[i] = gprs_[i] != nullptr ? *gprs_[i] : Arm64Context::kBadGprBase + i;
   }
   for (size_t i = 0; i < kNumberOfDRegisters; ++i) {
-    fprs[i] = fprs_[i] != NULL ? *fprs_[i] : Arm64Context::kBadGprBase + i;
+    fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : Arm64Context::kBadGprBase + i;
   }
   DCHECK_EQ(reinterpret_cast<uintptr_t>(Thread::Current()), gprs[TR]);
   art_quick_do_long_jump(gprs, fprs);
