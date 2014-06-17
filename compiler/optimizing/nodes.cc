@@ -445,4 +445,23 @@ void HGraphVisitor::VisitBasicBlock(HBasicBlock* block) {
   }
 }
 
+
+bool HCondition::NeedsMaterialization() const {
+  if (!HasOnlyOneUse()) {
+    return true;
+  }
+  HUseListNode<HInstruction>* uses = GetUses();
+  HInstruction* user = uses->GetUser();
+  if (!user->IsIf()) {
+    return true;
+  }
+
+  // TODO: should we allow intervening instructions with no side-effect between this condition
+  // and the If instruction?
+  if (GetNext() != user) {
+    return true;
+  }
+  return false;
+}
+
 }  // namespace art

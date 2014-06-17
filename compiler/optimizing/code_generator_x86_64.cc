@@ -35,6 +35,20 @@ x86_64::X86_64ManagedRegister Location::AsX86_64() const {
 
 namespace x86_64 {
 
+inline Condition X86_64Condition(IfCondition cond) {
+  switch (cond) {
+    case kCondEQ: return kEqual;
+    case kCondNE: return kNotEqual;
+    case kCondLT: return kLess;
+    case kCondLE: return kLessEqual;
+    case kCondGT: return kGreater;
+    case kCondGE: return kGreaterEqual;
+    default:
+      LOG(FATAL) << "Unknown if condition";
+  }
+  return kEqual;
+}
+
 // Some x86_64 instructions require a register to be available as temp.
 static constexpr Register TMP = R11;
 
@@ -295,16 +309,32 @@ void InstructionCodeGeneratorX86_64::VisitExit(HExit* exit) {
 
 void LocationsBuilderX86_64::VisitIf(HIf* if_instr) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(if_instr);
-  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(0, Location::Any());
   if_instr->SetLocations(locations);
 }
 
 void InstructionCodeGeneratorX86_64::VisitIf(HIf* if_instr) {
-  // TODO: Generate the input as a condition, instead of materializing in a register.
-  __ cmpl(if_instr->GetLocations()->InAt(0).AsX86_64().AsCpuRegister(), Immediate(0));
-  __ j(kEqual, codegen_->GetLabelOf(if_instr->IfFalseSuccessor()));
-  if (!codegen_->GoesToNextBlock(if_instr->GetBlock(), if_instr->IfTrueSuccessor())) {
-    __ jmp(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
+  HInstruction* cond = if_instr->InputAt(0);
+  DCHECK(cond->IsCondition());
+  HCondition* condition = cond->AsCondition();
+  if (condition->NeedsMaterialization()) {
+    // Materialized condition, compare against 0.
+    Location lhs = if_instr->GetLocations()->InAt(0);
+    if (lhs.IsRegister()) {
+      __ cmpl(lhs.AsX86_64().AsCpuRegister(), Immediate(0));
+    } else {
+      __ cmpl(Address(CpuRegister(RSP), lhs.GetStackIndex()), Immediate(0));
+    }
+    __ j(kEqual, codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
+  } else {
+    Location lhs = condition->GetLocations()->InAt(0);
+    Location rhs = condition->GetLocations()->InAt(1);
+    __ cmpl(lhs.AsX86_64().AsCpuRegister(), rhs.AsX86_64().AsCpuRegister());
+    __ j(X86_64Condition(condition->GetCondition()),
+         codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
+  }
+  if (!codegen_->GoesToNextBlock(if_instr->GetBlock(), if_instr->IfFalseSuccessor())) {
+    __ jmp(codegen_->GetLabelOf(if_instr->IfFalseSuccessor()));
   }
 }
 
@@ -349,18 +379,69 @@ void LocationsBuilderX86_64::VisitStoreLocal(HStoreLocal* store) {
 void InstructionCodeGeneratorX86_64::VisitStoreLocal(HStoreLocal* store) {
 }
 
-void LocationsBuilderX86_64::VisitEqual(HEqual* equal) {
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(equal);
+void LocationsBuilderX86_64::VisitCondition(HCondition* comp) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(comp);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetOut(Location::SameAsFirstInput());
-  equal->SetLocations(locations);
+  comp->SetLocations(locations);
 }
 
-void InstructionCodeGeneratorX86_64::VisitEqual(HEqual* equal) {
-  __ cmpq(equal->GetLocations()->InAt(0).AsX86_64().AsCpuRegister(),
-          equal->GetLocations()->InAt(1).AsX86_64().AsCpuRegister());
-  __ setcc(kEqual, equal->GetLocations()->Out().AsX86_64().AsCpuRegister());
+void InstructionCodeGeneratorX86_64::VisitCondition(HCondition* comp) {
+  if (comp->NeedsMaterialization()) {
+    __ cmpq(comp->GetLocations()->InAt(0).AsX86_64().AsCpuRegister(),
+            comp->GetLocations()->InAt(1).AsX86_64().AsCpuRegister());
+    __ setcc(X86_64Condition(comp->GetCondition()),
+             comp->GetLocations()->Out().AsX86_64().AsCpuRegister());
+  }
+}
+
+void LocationsBuilderX86_64::VisitEqual(HEqual* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorX86_64::VisitEqual(HEqual* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderX86_64::VisitNotEqual(HNotEqual* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorX86_64::VisitNotEqual(HNotEqual* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderX86_64::VisitLessThan(HLessThan* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorX86_64::VisitLessThan(HLessThan* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderX86_64::VisitLessThanOrEqual(HLessThanOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorX86_64::VisitLessThanOrEqual(HLessThanOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderX86_64::VisitGreaterThan(HGreaterThan* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorX86_64::VisitGreaterThan(HGreaterThan* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderX86_64::VisitGreaterThanOrEqual(HGreaterThanOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorX86_64::VisitGreaterThanOrEqual(HGreaterThanOrEqual* comp) {
+  VisitCondition(comp);
 }
 
 void LocationsBuilderX86_64::VisitIntConstant(HIntConstant* constant) {
