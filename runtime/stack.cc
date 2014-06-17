@@ -142,8 +142,7 @@ size_t StackVisitor::GetNativePcOffset() const {
   return GetMethod()->NativePcOffset(cur_quick_frame_pc_);
 }
 
-bool StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind,
-                           uint32_t* val) const {
+uint32_t StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind) const {
   if (cur_quick_frame_ != NULL) {
     DCHECK(context_ != NULL);  // You can't reliably read registers without a context.
     DCHECK(m == GetMethod());
@@ -156,26 +155,19 @@ bool StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind,
     if (vmap_table.IsInContext(vreg, kind, &vmap_offset)) {
       bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
       uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
-      uint32_t reg = vmap_table.ComputeRegister(spill_mask, vmap_offset, kind);
-      if (is_float) {
-        return GetFPR(reg, val);
-      } else {
-        return GetGPR(reg, val);
-      }
+      return GetGPR(vmap_table.ComputeRegister(spill_mask, vmap_offset, kind));
     } else {
       const DexFile::CodeItem* code_item = m->GetCodeItem();
       DCHECK(code_item != NULL) << PrettyMethod(m);  // Can't be NULL or how would we compile its instructions?
-      *val = *GetVRegAddr(cur_quick_frame_, code_item, frame_info.CoreSpillMask(),
+      return *GetVRegAddr(cur_quick_frame_, code_item, frame_info.CoreSpillMask(),
                           frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), vreg);
-      return true;
     }
   } else {
-    *val = cur_shadow_frame_->GetVReg(vreg);
-    return true;
+    return cur_shadow_frame_->GetVReg(vreg);
   }
 }
 
-bool StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value,
+void StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value,
                            VRegKind kind) {
   if (cur_quick_frame_ != NULL) {
     DCHECK(context_ != NULL);  // You can't reliably write registers without a context.
@@ -189,12 +181,8 @@ bool StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_val
     if (vmap_table.IsInContext(vreg, kind, &vmap_offset)) {
       bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
       uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
-      const uint32_t reg = vmap_table.ComputeRegister(spill_mask, vmap_offset, kind);
-      if (is_float) {
-        return SetFPR(reg, new_value);
-      } else {
-        return SetGPR(reg, new_value);
-      }
+      const uint32_t reg = vmap_table.ComputeRegister(spill_mask, vmap_offset, kReferenceVReg);
+      SetGPR(reg, new_value);
     } else {
       const DexFile::CodeItem* code_item = m->GetCodeItem();
       DCHECK(code_item != NULL) << PrettyMethod(m);  // Can't be NULL or how would we compile its instructions?
@@ -202,11 +190,9 @@ bool StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_val
                                  frame_info.FrameSizeInBytes(), vreg, kRuntimeISA);
       byte* vreg_addr = reinterpret_cast<byte*>(GetCurrentQuickFrame()) + offset;
       *reinterpret_cast<uint32_t*>(vreg_addr) = new_value;
-      return true;
     }
   } else {
-    cur_shadow_frame_->SetVReg(vreg, new_value);
-    return true;
+    return cur_shadow_frame_->SetVReg(vreg, new_value);
   }
 }
 
@@ -215,24 +201,14 @@ uintptr_t* StackVisitor::GetGPRAddress(uint32_t reg) const {
   return context_->GetGPRAddress(reg);
 }
 
-bool StackVisitor::GetGPR(uint32_t reg, uintptr_t* val) const {
+uintptr_t StackVisitor::GetGPR(uint32_t reg) const {
   DCHECK(cur_quick_frame_ != NULL) << "This is a quick frame routine";
-  return context_->GetGPR(reg, val);
+  return context_->GetGPR(reg);
 }
 
-bool StackVisitor::SetGPR(uint32_t reg, uintptr_t value) {
+void StackVisitor::SetGPR(uint32_t reg, uintptr_t value) {
   DCHECK(cur_quick_frame_ != NULL) << "This is a quick frame routine";
-  return context_->SetGPR(reg, value);
-}
-
-bool StackVisitor::GetFPR(uint32_t reg, uintptr_t* val) const {
-  DCHECK(cur_quick_frame_ != NULL) << "This is a quick frame routine";
-  return context_->GetFPR(reg, val);
-}
-
-bool StackVisitor::SetFPR(uint32_t reg, uintptr_t value) {
-  DCHECK(cur_quick_frame_ != NULL) << "This is a quick frame routine";
-  return context_->SetFPR(reg, value);
+  context_->SetGPR(reg, value);
 }
 
 uintptr_t StackVisitor::GetReturnPc() const {

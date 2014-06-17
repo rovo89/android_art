@@ -31,52 +31,32 @@ class X86_64Context : public Context {
   }
   virtual ~X86_64Context() {}
 
-  void Reset() OVERRIDE;
+  virtual void Reset();
 
-  void FillCalleeSaves(const StackVisitor& fr) OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void FillCalleeSaves(const StackVisitor& fr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetSP(uintptr_t new_sp) OVERRIDE {
-    bool success = SetGPR(RSP, new_sp);
-    CHECK(success) << "Failed to set RSP register";
+  virtual void SetSP(uintptr_t new_sp) {
+    SetGPR(RSP, new_sp);
   }
 
-  void SetPC(uintptr_t new_pc) OVERRIDE {
+  virtual void SetPC(uintptr_t new_pc) {
     rip_ = new_pc;
   }
 
-  uintptr_t* GetGPRAddress(uint32_t reg) OVERRIDE {
+  virtual uintptr_t* GetGPRAddress(uint32_t reg) {
     DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCpuRegisters));
     return gprs_[reg];
   }
 
-  bool GetGPR(uint32_t reg, uintptr_t* val) OVERRIDE {
+  virtual uintptr_t GetGPR(uint32_t reg) {
     DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCpuRegisters));
-    if (gprs_[reg] == nullptr) {
-      return false;
-    } else {
-      DCHECK(val != nullptr);
-      *val = *gprs_[reg];
-      return true;
-    }
+    return *gprs_[reg];
   }
 
-  bool SetGPR(uint32_t reg, uintptr_t value) OVERRIDE;
+  virtual void SetGPR(uint32_t reg, uintptr_t value);
 
-  bool GetFPR(uint32_t reg, uintptr_t* val) OVERRIDE {
-    DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfFloatRegisters));
-    if (fprs_[reg] == nullptr) {
-      return false;
-    } else {
-      DCHECK(val != nullptr);
-      *val = *fprs_[reg];
-      return true;
-    }
-  }
-
-  bool SetFPR(uint32_t reg, uintptr_t value) OVERRIDE;
-
-  void SmashCallerSaves() OVERRIDE;
-  void DoLongJump() OVERRIDE;
+  virtual void SmashCallerSaves();
+  virtual void DoLongJump();
 
  private:
   // Pointers to register locations. Values are initialized to NULL or the special registers below.
