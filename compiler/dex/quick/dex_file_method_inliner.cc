@@ -292,14 +292,10 @@ bool DexFileMethodInliner::AnalyseMethodCode(verifier::MethodVerifier* verifier)
   return success && AddInlineMethod(verifier->GetMethodReference().dex_method_index, method);
 }
 
-bool DexFileMethodInliner::IsIntrinsic(uint32_t method_index, InlineMethod* intrinsic) {
+bool DexFileMethodInliner::IsIntrinsic(uint32_t method_index) {
   ReaderMutexLock mu(Thread::Current(), lock_);
   auto it = inline_methods_.find(method_index);
-  bool res = (it != inline_methods_.end() && (it->second.flags & kInlineIntrinsic) != 0);
-  if (res && intrinsic != nullptr) {
-    *intrinsic = it->second;
-  }
-  return res;
+  return it != inline_methods_.end() && (it->second.flags & kInlineIntrinsic) != 0;
 }
 
 bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
