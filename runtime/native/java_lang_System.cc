@@ -147,23 +147,73 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
   dstObjArray->AssignableCheckingMemcpy(dstPos, srcObjArray, srcPos, count, true);
 }
 
-static void System_arraycopyCharUnchecked(JNIEnv* env, jclass, jobject javaSrc, jint srcPos,
-                                          jobject javaDst, jint dstPos, jint count) {
+// Template to convert general array to that of its specific primitive type.
+template <typename T>
+inline T* AsPrimitiveArray(mirror::Array* array) {
+  return down_cast<T*>(array);
+}
+
+template <typename T, Primitive::Type kPrimType>
+inline void System_arraycopyTUnchecked(JNIEnv* env, jobject javaSrc, jint srcPos,
+                                       jobject javaDst, jint dstPos, jint count) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* srcObject = soa.Decode<mirror::Object*>(javaSrc);
   mirror::Object* dstObject = soa.Decode<mirror::Object*>(javaDst);
-  DCHECK(srcObject != nullptr);
   DCHECK(dstObject != nullptr);
   mirror::Array* srcArray = srcObject->AsArray();
   mirror::Array* dstArray = dstObject->AsArray();
-  DCHECK_GE(srcPos, 0);
-  DCHECK_GE(dstPos, 0);
   DCHECK_GE(count, 0);
-  DCHECK_LE(srcPos + count, srcArray->GetLength());
-  DCHECK_LE(dstPos + count, dstArray->GetLength());
   DCHECK_EQ(srcArray->GetClass(), dstArray->GetClass());
-  DCHECK_EQ(srcArray->GetClass()->GetComponentType()->GetPrimitiveType(), Primitive::kPrimChar);
-  dstArray->AsCharArray()->Memmove(dstPos, srcArray->AsCharArray(), srcPos, count);
+  DCHECK_EQ(srcArray->GetClass()->GetComponentType()->GetPrimitiveType(), kPrimType);
+  AsPrimitiveArray<T>(dstArray)->Memmove(dstPos, AsPrimitiveArray<T>(srcArray), srcPos, count);
+}
+
+static void System_arraycopyCharUnchecked(JNIEnv* env, jclass, jobject javaSrc, jint srcPos,
+                                          jobject javaDst, jint dstPos, jint count) {
+  System_arraycopyTUnchecked<mirror::CharArray, Primitive::kPrimChar>(env, javaSrc, srcPos,
+      javaDst, dstPos, count);
+}
+
+static void System_arraycopyByteUnchecked(JNIEnv* env, jclass, jobject javaSrc, jint srcPos,
+                                          jobject javaDst, jint dstPos, jint count) {
+  System_arraycopyTUnchecked<mirror::ByteArray, Primitive::kPrimByte>(env, javaSrc, srcPos,
+      javaDst, dstPos, count);
+}
+
+static void System_arraycopyShortUnchecked(JNIEnv* env, jclass, jobject javaSrc, jint srcPos,
+                                           jobject javaDst, jint dstPos, jint count) {
+  System_arraycopyTUnchecked<mirror::ShortArray, Primitive::kPrimShort>(env, javaSrc, srcPos,
+      javaDst, dstPos, count);
+}
+
+static void System_arraycopyIntUnchecked(JNIEnv* env, jclass, jobject javaSrc, jint srcPos,
+                                         jobject javaDst, jint dstPos, jint count) {
+  System_arraycopyTUnchecked<mirror::IntArray, Primitive::kPrimInt>(env, javaSrc, srcPos,
+      javaDst, dstPos, count);
+}
+
+static void System_arraycopyLongUnchecked(JNIEnv* env, jclass, jobject javaSrc, jint srcPos,
+                                          jobject javaDst, jint dstPos, jint count) {
+  System_arraycopyTUnchecked<mirror::LongArray, Primitive::kPrimLong>(env, javaSrc, srcPos,
+      javaDst, dstPos, count);
+}
+
+static void System_arraycopyFloatUnchecked(JNIEnv* env, jclass, jobject javaSrc, jint srcPos,
+                                           jobject javaDst, jint dstPos, jint count) {
+  System_arraycopyTUnchecked<mirror::FloatArray, Primitive::kPrimFloat>(env, javaSrc, srcPos,
+      javaDst, dstPos, count);
+}
+
+static void System_arraycopyDoubleUnchecked(JNIEnv* env, jclass, jobject javaSrc, jint srcPos,
+                                            jobject javaDst, jint dstPos, jint count) {
+  System_arraycopyTUnchecked<mirror::DoubleArray, Primitive::kPrimDouble>(env, javaSrc, srcPos,
+      javaDst, dstPos, count);
+}
+
+static void System_arraycopyBooleanUnchecked(JNIEnv* env, jclass, jobject javaSrc, jint srcPos,
+                                             jobject javaDst, jint dstPos, jint count) {
+  System_arraycopyTUnchecked<mirror::BooleanArray, Primitive::kPrimBoolean>(env, javaSrc, srcPos,
+      javaDst, dstPos, count);
 }
 
 static jint System_identityHashCode(JNIEnv* env, jclass, jobject javaObject) {
@@ -178,6 +228,13 @@ static jint System_identityHashCode(JNIEnv* env, jclass, jobject javaObject) {
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(System, arraycopy, "!(Ljava/lang/Object;ILjava/lang/Object;II)V"),
   NATIVE_METHOD(System, arraycopyCharUnchecked, "!([CI[CII)V"),
+  NATIVE_METHOD(System, arraycopyByteUnchecked, "!([BI[BII)V"),
+  NATIVE_METHOD(System, arraycopyShortUnchecked, "!([SI[SII)V"),
+  NATIVE_METHOD(System, arraycopyIntUnchecked, "!([II[III)V"),
+  NATIVE_METHOD(System, arraycopyLongUnchecked, "!([JI[JII)V"),
+  NATIVE_METHOD(System, arraycopyFloatUnchecked, "!([FI[FII)V"),
+  NATIVE_METHOD(System, arraycopyDoubleUnchecked, "!([DI[DII)V"),
+  NATIVE_METHOD(System, arraycopyBooleanUnchecked, "!([ZI[ZII)V"),
   NATIVE_METHOD(System, identityHashCode, "!(Ljava/lang/Object;)I"),
 };
 
