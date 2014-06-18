@@ -207,7 +207,7 @@ TEST_ART_HOST_RUN_TEST_DEFAULT_TARGETS += test-art-host-run-test-default-$(1)
 .PHONY: test-art-host-run-test-optimizing-$(1)
 test-art-host-run-test-optimizing-$(1): test-art-host-dependencies $(DX) $(HOST_OUT_EXECUTABLES)/jasmin
 	DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) art/test/run-test -Xcompiler-option --compiler-backend=Optimizing $(addprefix --runtime-option ,$(DALVIKVM_FLAGS)) --host $(1) \
-	|| echo -e "\x1b[31;01mTest $(1) $(FAILING_OPTIMIZING_MESSAGE)\x1b[0m" && exit 1
+	|| (echo -e "\x1b[31;01mTest $(1) $(FAILING_OPTIMIZING_MESSAGE)\x1b[0m" && exit 1)
 	@echo test-art-host-run-test-optimizing-$(1) PASSED
 
 TEST_ART_HOST_RUN_TEST_OPTIMIZING_TARGETS += test-art-host-run-test-optimizing-$(1)
