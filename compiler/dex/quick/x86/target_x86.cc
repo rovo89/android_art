@@ -441,6 +441,31 @@ void X86Mir2Lir::ClobberCallerSave() {
   Clobber(rs_rCX);
   Clobber(rs_rDX);
   Clobber(rs_rBX);
+
+  Clobber(rs_fr0);
+  Clobber(rs_fr1);
+  Clobber(rs_fr2);
+  Clobber(rs_fr3);
+  Clobber(rs_fr4);
+  Clobber(rs_fr5);
+  Clobber(rs_fr6);
+  Clobber(rs_fr7);
+
+  if (Gen64Bit()) {
+    Clobber(rs_r8);
+    Clobber(rs_r9);
+    Clobber(rs_r10);
+    Clobber(rs_r11);
+
+    Clobber(rs_fr8);
+    Clobber(rs_fr9);
+    Clobber(rs_fr10);
+    Clobber(rs_fr11);
+    Clobber(rs_fr12);
+    Clobber(rs_fr13);
+    Clobber(rs_fr14);
+    Clobber(rs_fr15);
+  }
 }
 
 RegLocation X86Mir2Lir::GetReturnWideAlt() {
