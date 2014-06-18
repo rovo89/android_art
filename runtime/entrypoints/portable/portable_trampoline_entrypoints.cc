@@ -213,7 +213,7 @@ extern "C" uint64_t artPortableToInterpreterBridge(mirror::ArtMethod* method, Th
     self->PushShadowFrame(shadow_frame);
     self->EndAssertNoThreadSuspension(old_cause);
 
-    if (method->IsStatic() && !method->GetDeclaringClass()->IsInitializing()) {
+    if (method->IsStatic() && !method->GetDeclaringClass()->IsInitialized()) {
       // Ensure static method's class is initialized.
       Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
       if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_class, true, true)) {

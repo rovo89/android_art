@@ -33,7 +33,7 @@ extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& m
   // Ensure static methods are initialized.
   if (method->IsStatic()) {
     mirror::Class* declaringClass = method->GetDeclaringClass();
-    if (UNLIKELY(!declaringClass->IsInitializing())) {
+    if (UNLIKELY(!declaringClass->IsInitialized())) {
       self->PushShadowFrame(shadow_frame);
       StackHandleScope<1> hs(self);
       Handle<mirror::Class> h_class(hs.NewHandle(declaringClass));
