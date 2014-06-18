@@ -135,6 +135,8 @@ static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
   mirror::ArtMethod* method = nullptr;
   if (is_static) {
     method = c->FindDirectMethod(name, sig);
+  } else if (c->IsInterface()) {
+    method = c->FindInterfaceMethod(name, sig);
   } else {
     method = c->FindVirtualMethod(name, sig);
     if (method == nullptr) {

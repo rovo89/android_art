@@ -648,6 +648,9 @@ class MANAGED Class : public Object {
   ArtMethod* FindVirtualMethodForVirtualOrInterface(ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  ArtMethod* FindInterfaceMethod(const StringPiece& name, const StringPiece& signature)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   ArtMethod* FindInterfaceMethod(const StringPiece& name, const Signature& signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
