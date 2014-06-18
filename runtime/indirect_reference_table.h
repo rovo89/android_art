@@ -27,6 +27,7 @@
 #include "mem_map.h"
 #include "object_callbacks.h"
 #include "offsets.h"
+#include "read_barrier.h"
 
 namespace art {
 namespace mirror {
@@ -215,6 +216,7 @@ class IrtIterator {
   }
 
   mirror::Object** operator*() {
+    // This does not have a read barrier as this is used to visit roots.
     return &table_[i_];
   }
 
@@ -298,6 +300,7 @@ class IndirectReferenceTable {
     return segment_state_.parts.topIndex;
   }
 
+  // Note IrtIterator does not have a read barrier as it's used to visit roots.
   IrtIterator begin() {
     return IrtIterator(table_, 0, Capacity());
   }
@@ -333,7 +336,7 @@ class IndirectReferenceTable {
    * The object pointer itself is subject to relocation in some GC
    * implementations, so we shouldn't really be using it here.
    */
-  IndirectRef ToIndirectRef(const mirror::Object* /*o*/, uint32_t tableIndex) const {
+  IndirectRef ToIndirectRef(uint32_t tableIndex) const {
     DCHECK_LT(tableIndex, 65536U);
     uint32_t serialChunk = slot_data_[tableIndex].serial;
     uintptr_t uref = serialChunk << 20 | (tableIndex << 2) | kind_;
@@ -368,9 +371,8 @@ class IndirectReferenceTable {
   std::unique_ptr<MemMap> table_mem_map_;
   // Mem map where we store the extended debugging info.
   std::unique_ptr<MemMap> slot_mem_map_;
-  // bottom of the stack. If a JNI weak global table, do not directly
-  // access the object references in this as they are weak roots. Use
-  // Get() that has a read barrier.
+  // bottom of the stack. Do not directly access the object references
+  // in this as they are roots. Use Get() that has a read barrier.
   mirror::Object** table_;
   /* bit mask, ORed into all irefs */
   IndirectRefKind kind_;

@@ -59,8 +59,7 @@ inline bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
 
 // Make sure that the entry at "idx" is correctly paired with "iref".
 inline bool IndirectReferenceTable::CheckEntry(const char* what, IndirectRef iref, int idx) const {
-  const mirror::Object* obj = table_[idx];
-  IndirectRef checkRef = ToIndirectRef(obj, idx);
+  IndirectRef checkRef = ToIndirectRef(idx);
   if (UNLIKELY(checkRef != iref)) {
     LOG(ERROR) << "JNI ERROR (app bug): attempt to " << what
                << " stale " << kind_ << " " << iref
