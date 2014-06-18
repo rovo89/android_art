@@ -816,8 +816,8 @@ class Mir2Lir : public Backend {
 
     // Shared by all targets - implemented in gen_common.cc.
     void AddIntrinsicSlowPath(CallInfo* info, LIR* branch, LIR* resume = nullptr);
-    bool HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
-                          RegLocation rl_src, RegLocation rl_dest, int lit);
+    virtual bool HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
+                                  RegLocation rl_src, RegLocation rl_dest, int lit);
     bool HandleEasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit);
     virtual void HandleSlowPaths();
     void GenBarrier();

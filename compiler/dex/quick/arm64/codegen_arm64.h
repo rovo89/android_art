@@ -64,7 +64,9 @@ class Arm64Mir2Lir : public Mir2Lir {
 
     // Required for target - codegen helpers.
     bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div, RegLocation rl_src,
-                            RegLocation rl_dest, int lit);
+                            RegLocation rl_dest, int lit) OVERRIDE;
+    bool HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
+                          RegLocation rl_src, RegLocation rl_dest, int lit) OVERRIDE;
     bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) OVERRIDE;
     LIR* CheckSuspendUsingLoad() OVERRIDE;
     RegStorage LoadHelper(ThreadOffset<4> offset) OVERRIDE;

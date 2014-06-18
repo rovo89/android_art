@@ -271,14 +271,8 @@ static const MagicTable magic_table[] = {
 
 // Integer division by constant via reciprocal multiply (Hacker's Delight, 10-4)
 bool Arm64Mir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div,
-                                    RegLocation rl_src, RegLocation rl_dest, int lit) {
-  // TODO(Arm64): fix this for Arm64. Note: may be worth revisiting the magic table.
-  //   It should be possible subtracting one from all its entries, and using smaddl
-  //   to counteract this. The advantage is that integers should then be easier to
-  //   encode as logical immediates (0x55555555 rather than 0x55555556).
-  UNIMPLEMENTED(FATAL);
-
-  if ((lit < 0) || (lit >= static_cast<int>(sizeof(magic_table)/sizeof(magic_table[0])))) {
+                                      RegLocation rl_src, RegLocation rl_dest, int lit) {
+  if ((lit < 0) || (lit >= static_cast<int>(arraysize(magic_table)))) {
     return false;
   }
   DividePattern pattern = magic_table[lit].pattern;
@@ -294,24 +288,73 @@ bool Arm64Mir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_d
   LoadConstant(r_magic, magic_table[lit].magic);
   rl_src = LoadValue(rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  RegStorage r_hi = AllocTemp();
-  RegStorage r_lo = AllocTemp();
-  NewLIR4(kA64Smaddl4xwwx, r_lo.GetReg(), r_magic.GetReg(), rl_src.reg.GetReg(), rxzr);
+  RegStorage r_long_mul = AllocTemp();
+  NewLIR4(kA64Smaddl4xwwx, As64BitReg(r_long_mul).GetReg(),
+          r_magic.GetReg(), rl_src.reg.GetReg(), rxzr);
   switch (pattern) {
     case Divide3:
-      OpRegRegRegShift(kOpSub, rl_result.reg, r_hi, rl_src.reg, EncodeShift(kA64Asr, 31));
+      OpRegRegImm(kOpLsr, As64BitReg(r_long_mul), As64BitReg(r_long_mul), 32);
+      OpRegRegRegShift(kOpSub, rl_result.reg, r_long_mul, rl_src.reg, EncodeShift(kA64Asr, 31));
       break;
     case Divide5:
-      OpRegRegImm(kOpAsr, r_lo, rl_src.reg, 31);
-      OpRegRegRegShift(kOpRsub, rl_result.reg, r_lo, r_hi, EncodeShift(kA64Asr, magic_table[lit].shift));
+      OpRegRegImm(kOpAsr, As64BitReg(r_long_mul), As64BitReg(r_long_mul),
+                  32 + magic_table[lit].shift);
+      OpRegRegRegShift(kOpSub, rl_result.reg, r_long_mul, rl_src.reg, EncodeShift(kA64Asr, 31));
       break;
     case Divide7:
-      OpRegReg(kOpAdd, r_hi, rl_src.reg);
-      OpRegRegImm(kOpAsr, r_lo, rl_src.reg, 31);
-      OpRegRegRegShift(kOpRsub, rl_result.reg, r_lo, r_hi, EncodeShift(kA64Asr, magic_table[lit].shift));
+      OpRegRegRegShift(kOpAdd, As64BitReg(r_long_mul), As64BitReg(rl_src.reg),
+                       As64BitReg(r_long_mul), EncodeShift(kA64Lsr, 32));
+      OpRegRegImm(kOpAsr, r_long_mul, r_long_mul, magic_table[lit].shift);
+      OpRegRegRegShift(kOpSub, rl_result.reg, r_long_mul, rl_src.reg, EncodeShift(kA64Asr, 31));
       break;
     default:
       LOG(FATAL) << "Unexpected pattern: " << pattern;
+  }
+  StoreValue(rl_dest, rl_result);
+  return true;
+}
+
+// Returns true if it added instructions to 'cu' to divide 'rl_src' by 'lit'
+// and store the result in 'rl_dest'.
+bool Arm64Mir2Lir::HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
+                                    RegLocation rl_src, RegLocation rl_dest, int lit) {
+  if (lit < 2) {
+    return false;
+  }
+  if (!IsPowerOfTwo(lit)) {
+    return SmallLiteralDivRem(dalvik_opcode, is_div, rl_src, rl_dest, lit);
+  }
+  int k = LowestSetBit(lit);
+  if (k >= 30) {
+    // Avoid special cases.
+    return false;
+  }
+  rl_src = LoadValue(rl_src, kCoreReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  if (is_div) {
+    RegStorage t_reg = AllocTemp();
+    if (lit == 2) {
+      // Division by 2 is by far the most common division by constant.
+      OpRegRegRegShift(kOpAdd, t_reg, rl_src.reg, rl_src.reg, EncodeShift(kA64Lsr, 32 - k));
+      OpRegRegImm(kOpAsr, rl_result.reg, t_reg, k);
+    } else {
+      OpRegRegImm(kOpAsr, t_reg, rl_src.reg, 31);
+      OpRegRegRegShift(kOpAdd, t_reg, rl_src.reg, t_reg, EncodeShift(kA64Lsr, 32 - k));
+      OpRegRegImm(kOpAsr, rl_result.reg, t_reg, k);
+    }
+  } else {
+    RegStorage t_reg = AllocTemp();
+    if (lit == 2) {
+      OpRegRegRegShift(kOpAdd, t_reg, rl_src.reg, rl_src.reg, EncodeShift(kA64Lsr, 32 - k));
+      OpRegRegImm(kOpAnd, t_reg, t_reg, lit - 1);
+      OpRegRegRegShift(kOpSub, rl_result.reg, t_reg, rl_src.reg, EncodeShift(kA64Lsr, 32 - k));
+    } else {
+      RegStorage t_reg2 = AllocTemp();
+      OpRegRegImm(kOpAsr, t_reg, rl_src.reg, 31);
+      OpRegRegRegShift(kOpAdd, t_reg2, rl_src.reg, t_reg, EncodeShift(kA64Lsr, 32 - k));
+      OpRegRegImm(kOpAnd, t_reg2, t_reg2, lit - 1);
+      OpRegRegRegShift(kOpSub, rl_result.reg, t_reg2, t_reg, EncodeShift(kA64Lsr, 32 - k));
+    }
   }
   StoreValue(rl_dest, rl_result);
   return true;
@@ -323,7 +366,7 @@ bool Arm64Mir2Lir::EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit
 }
 
 RegLocation Arm64Mir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
-                      RegLocation rl_src2, bool is_div, bool check_zero) {
+                                    RegLocation rl_src2, bool is_div, bool check_zero) {
   LOG(FATAL) << "Unexpected use of GenDivRem for Arm64";
   return rl_dest;
 }

@@ -875,7 +875,7 @@ LIR* Arm64Mir2Lir::OpRegImm64(OpKind op, RegStorage r_dest_src1, int64_t value) 
 }
 
 int Arm64Mir2Lir::EncodeShift(int shift_type, int amount) {
-  return ((shift_type & 0x3) << 7) | (amount & 0x1f);
+  return ((shift_type & 0x3) << 7) | (amount & 0x3f);
 }
 
 int Arm64Mir2Lir::EncodeExtend(int extend_type, int amount) {
