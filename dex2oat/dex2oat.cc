@@ -875,6 +875,8 @@ static int dex2oat(int argc, char** argv) {
       watch_dog_enabled = false;
     } else if (option == "--gen-gdb-info") {
       generate_gdb_information = true;
+      // Debug symbols are needed for gdb information.
+      include_debug_symbols = true;
     } else if (option == "--no-gen-gdb-info") {
       generate_gdb_information = false;
     } else if (option.starts_with("-j")) {
