@@ -268,29 +268,35 @@ TEST_F(JniInternalTest, GetMethodID) {
   jclass jlobject = env_->FindClass("java/lang/Object");
   jclass jlstring = env_->FindClass("java/lang/String");
   jclass jlnsme = env_->FindClass("java/lang/NoSuchMethodError");
+  jclass jncrbc = env_->FindClass("java/nio/channels/ReadableByteChannel");
 
-  // Sanity check that no exceptions are pending
+  // Sanity check that no exceptions are pending.
   ASSERT_FALSE(env_->ExceptionCheck());
 
   // Check that java.lang.Object.foo() doesn't exist and NoSuchMethodError is
-  // a pending exception
+  // a pending exception.
   jmethodID method = env_->GetMethodID(jlobject, "foo", "()V");
   EXPECT_EQ(nullptr, method);
   ExpectException(jlnsme);
 
-  // Check that java.lang.Object.equals() does exist
+  // Check that java.lang.Object.equals() does exist.
   method = env_->GetMethodID(jlobject, "equals", "(Ljava/lang/Object;)Z");
   EXPECT_NE(nullptr, method);
   EXPECT_FALSE(env_->ExceptionCheck());
 
   // Check that GetMethodID for java.lang.String.valueOf(int) fails as the
-  // method is static
+  // method is static.
   method = env_->GetMethodID(jlstring, "valueOf", "(I)Ljava/lang/String;");
   EXPECT_EQ(nullptr, method);
   ExpectException(jlnsme);
 
-  // Check that GetMethodID for java.lang.NoSuchMethodError.<init>(String) finds the constructor
+  // Check that GetMethodID for java.lang.NoSuchMethodError.<init>(String) finds the constructor.
   method = env_->GetMethodID(jlnsme, "<init>", "(Ljava/lang/String;)V");
+  EXPECT_NE(nullptr, method);
+  EXPECT_FALSE(env_->ExceptionCheck());
+
+  // Check that GetMethodID can find a interface method inherited from another interface.
+  method = env_->GetMethodID(jncrbc, "close", "()V");
   EXPECT_NE(nullptr, method);
   EXPECT_FALSE(env_->ExceptionCheck());
 
@@ -630,11 +636,13 @@ TEST_F(JniInternalTest, GetPrimitiveArrayElementsOfWrongType) {
   jni_abort_catcher.Check(
       "attempt to get double primitive array elements with an object of type boolean[]");
   jbyteArray array2 = env_->NewByteArray(10);
-  EXPECT_EQ(env_->GetBooleanArrayElements(reinterpret_cast<jbooleanArray>(array2), &is_copy), nullptr);
+  EXPECT_EQ(env_->GetBooleanArrayElements(reinterpret_cast<jbooleanArray>(array2), &is_copy),
+            nullptr);
   jni_abort_catcher.Check(
       "attempt to get boolean primitive array elements with an object of type byte[]");
   jobject object = env_->NewStringUTF("Test String");
-  EXPECT_EQ(env_->GetBooleanArrayElements(reinterpret_cast<jbooleanArray>(object), &is_copy), nullptr);
+  EXPECT_EQ(env_->GetBooleanArrayElements(reinterpret_cast<jbooleanArray>(object), &is_copy),
+            nullptr);
   jni_abort_catcher.Check(
       "attempt to get boolean primitive array elements with an object of type java.lang.String");
 }
@@ -681,7 +689,8 @@ TEST_F(JniInternalTest, ReleasePrimitiveArrayElementsOfWrongType) {
   jobject object = env_->NewStringUTF("Test String");
   env_->ReleaseBooleanArrayElements(reinterpret_cast<jbooleanArray>(object), elements, 0);
   jni_abort_catcher.Check(
-      "attempt to release boolean primitive array elements with an object of type java.lang.String");
+      "attempt to release boolean primitive array elements with an object of type "
+      "java.lang.String");
 }
 TEST_F(JniInternalTest, GetReleasePrimitiveArrayCriticalOfWrongType) {
   CheckJniAbortCatcher jni_abort_catcher;
@@ -736,7 +745,8 @@ TEST_F(JniInternalTest, GetPrimitiveArrayRegionElementsOfWrongType) {
   env_->GetBooleanArrayRegion(reinterpret_cast<jbooleanArray>(object), 0, kLength,
                               reinterpret_cast<jboolean*>(elements));
   jni_abort_catcher.Check(
-      "attempt to get region of boolean primitive array elements with an object of type java.lang.String");
+      "attempt to get region of boolean primitive array elements with an object of type "
+      "java.lang.String");
 }
 
 TEST_F(JniInternalTest, SetPrimitiveArrayRegionElementsOfWrongType) {
@@ -782,7 +792,8 @@ TEST_F(JniInternalTest, SetPrimitiveArrayRegionElementsOfWrongType) {
   env_->SetBooleanArrayRegion(reinterpret_cast<jbooleanArray>(object), 0, kLength,
                               reinterpret_cast<jboolean*>(elements));
   jni_abort_catcher.Check(
-      "attempt to set region of boolean primitive array elements with an object of type java.lang.String");
+      "attempt to set region of boolean primitive array elements with an object of type "
+      "java.lang.String");
 }
 
 TEST_F(JniInternalTest, NewObjectArray) {
