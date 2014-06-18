@@ -511,13 +511,8 @@ static inline mirror::ArtField* FindFieldFast(uint32_t field_idx,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* resolved_field =
       referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
-  if (UNLIKELY(resolved_field == NULL)) {
-    return NULL;
-  }
-  mirror::Class* fields_class = resolved_field->GetDeclaringClass();
-  // Check class is initiliazed or initializing.
-  if (UNLIKELY(!fields_class->IsInitializing())) {
-    return NULL;
+  if (UNLIKELY(resolved_field == nullptr)) {
+    return nullptr;
   }
   // Check for incompatible class change.
   bool is_primitive;
@@ -541,7 +536,15 @@ static inline mirror::ArtField* FindFieldFast(uint32_t field_idx,
   }
   if (UNLIKELY(resolved_field->IsStatic() != is_static)) {
     // Incompatible class change.
-    return NULL;
+    return nullptr;
+  }
+  mirror::Class* fields_class = resolved_field->GetDeclaringClass();
+  if (is_static) {
+    // Check class is initialized else fail so that we can contend to initialize the class with
+    // other threads that may be racing to do this.
+    if (UNLIKELY(!fields_class->IsInitialized())) {
+      return nullptr;
+    }
   }
   mirror::Class* referring_class = referrer->GetDeclaringClass();
   if (UNLIKELY(!referring_class->CanAccess(fields_class) ||
@@ -549,11 +552,11 @@ static inline mirror::ArtField* FindFieldFast(uint32_t field_idx,
                                                  resolved_field->GetAccessFlags()) ||
                (is_set && resolved_field->IsFinal() && (fields_class != referring_class)))) {
     // Illegal access.
-    return NULL;
+    return nullptr;
   }
   if (UNLIKELY(resolved_field->IsPrimitiveType() != is_primitive ||
                resolved_field->FieldSize() != expected_size)) {
-    return NULL;
+    return nullptr;
   }
   return resolved_field;
 }

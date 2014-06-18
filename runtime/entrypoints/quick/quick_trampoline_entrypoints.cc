@@ -484,7 +484,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
     self->PushShadowFrame(shadow_frame);
     self->EndAssertNoThreadSuspension(old_cause);
 
-    if (method->IsStatic() && !method->GetDeclaringClass()->IsInitializing()) {
+    if (method->IsStatic() && !method->GetDeclaringClass()->IsInitialized()) {
       // Ensure static method's class is initialized.
       StackHandleScope<1> hs(self);
       Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
