@@ -22,9 +22,13 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "invoke_type.h"
 #include "mirror/array.h"
+#include "mirror/class-inl.h"
+#include "mirror/dex_cache.h"
 #include "mirror/object_array-inl.h"
+#include "mirror/reference.h"
 #include "mirror/string.h"
 #include "mir_to_lir-inl.h"
+#include "scoped_thread_state_change.h"
 #include "x86/codegen_x86.h"
 
 namespace art {
@@ -1241,6 +1245,85 @@ RegLocation Mir2Lir::InlineTargetWide(CallInfo* info) {
     res = info->result;
   }
   return res;
+}
+
+bool Mir2Lir::GenInlinedGet(CallInfo* info) {
+  if (cu_->instruction_set == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
+
+  // the refrence class is stored in the image dex file which might not be the same as the cu's
+  // dex file. Query the reference class for the image dex file then reset to starting dex file
+  // in after loading class type.
+  uint16_t type_idx = 0;
+  const DexFile* ref_dex_file = nullptr;
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    type_idx = mirror::Reference::GetJavaLangRefReference()->GetDexTypeIndex();
+    ref_dex_file = mirror::Reference::GetJavaLangRefReference()->GetDexCache()->GetDexFile();
+  }
+  CHECK(LIKELY(ref_dex_file != nullptr));
+
+  // address is either static within the image file, or needs to be patched up after compilation.
+  bool unused_type_initialized;
+  bool use_direct_type_ptr;
+  uintptr_t direct_type_ptr;
+  bool is_finalizable;
+  const DexFile* old_dex = cu_->dex_file;
+  cu_->dex_file = ref_dex_file;
+  if (!cu_->compiler_driver->CanEmbedTypeInCode(*ref_dex_file, type_idx, &unused_type_initialized,
+                                                &use_direct_type_ptr, &direct_type_ptr,
+                                                &is_finalizable) || is_finalizable) {
+    cu_->dex_file = old_dex;
+    // address is not known and post-compile patch is not possible, cannot insert intrinsic.
+    return false;
+  }
+  if (use_direct_type_ptr) {
+    LoadConstant(TargetReg(kArg1), direct_type_ptr);
+  } else {
+    LoadClassType(type_idx, kArg1);
+  }
+  cu_->dex_file = old_dex;
+
+  // intrinsic logic start.
+  RegLocation rl_obj = info->args[0];
+  rl_obj = LoadValue(rl_obj);
+
+  RegStorage reg_class = TargetReg(kArg1, cu_->target64);
+  RegStorage reg_slow_path = AllocTemp();
+  RegStorage reg_disabled = AllocTemp();
+  Load32Disp(reg_class, mirror::ReferenceClass::SlowPathEnabledOffset().Int32Value(),
+      reg_slow_path);
+  Load32Disp(reg_class, mirror::ReferenceClass::DisableIntrinsicOffset().Int32Value(),
+      reg_disabled);
+  OpRegRegReg(kOpOr, reg_slow_path, reg_slow_path, reg_disabled);
+  FreeTemp(reg_disabled);
+
+  // if slow path, jump to JNI path target
+  LIR* slow_path_branch = OpCmpImmBranch(kCondNe, reg_slow_path, 0, nullptr);
+  FreeTemp(reg_slow_path);
+
+  // slow path not enabled, simply load the referent of the reference object
+  RegLocation rl_dest = InlineTarget(info);
+  RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
+  GenNullCheck(rl_obj.reg, info->opt_flags);
+  LoadRefDisp(rl_obj.reg, mirror::Reference::ReferentOffset().Int32Value(), rl_result.reg,
+      kNotVolatile);
+  MarkPossibleNullPointerException(info->opt_flags);
+  StoreValue(rl_dest, rl_result);
+  LIR* jump_finished = OpUnconditionalBranch(nullptr);
+
+  // JNI target
+  LIR* slow_path_target = NewLIR0(kPseudoTargetLabel);
+  slow_path_branch->target = slow_path_target;
+  ResetRegPool();
+  GenInvokeNoInline(info);
+
+  LIR* finished_target = NewLIR0(kPseudoTargetLabel);
+  jump_finished->target = finished_target;
+
+  return true;
 }
 
 bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {

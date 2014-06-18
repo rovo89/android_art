@@ -921,6 +921,7 @@ void Runtime::VisitConstantRoots(RootCallback* callback, void* arg) {
   mirror::ArtField::VisitRoots(callback, arg);
   mirror::ArtMethod::VisitRoots(callback, arg);
   mirror::Class::VisitRoots(callback, arg);
+  mirror::Reference::VisitRoots(callback, arg);
   mirror::StackTraceElement::VisitRoots(callback, arg);
   mirror::String::VisitRoots(callback, arg);
   mirror::Throwable::VisitRoots(callback, arg);
