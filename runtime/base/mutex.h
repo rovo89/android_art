@@ -55,6 +55,7 @@ class Thread;
 enum LockLevel {
   kLoggingLock = 0,
   kMemMapsLock,
+  kSwapMutexesLock,
   kUnexpectedSignalLock,
   kThreadSuspendCountLock,
   kAbortLock,

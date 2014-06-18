@@ -31,7 +31,7 @@ void QuasiAtomic::Startup() {
   if (kNeedSwapMutexes) {
     gSwapMutexes = new std::vector<Mutex*>;
     for (size_t i = 0; i < kSwapMutexCount; ++i) {
-      gSwapMutexes->push_back(new Mutex("QuasiAtomic stripe"));
+      gSwapMutexes->push_back(new Mutex("QuasiAtomic stripe", kSwapMutexesLock));
     }
   }
 }
