@@ -356,11 +356,11 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  bool skip_overflow_check = (mir_graph_->MethodIsLeaf() &&
-                            (static_cast<size_t>(frame_size_) <
-                            Thread::kStackOverflowReservedBytes));
+  bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !IsLargeFrame(frame_size_, kArm);
   NewLIR0(kPseudoMethodEntry);
-  bool large_frame = (static_cast<size_t>(frame_size_) > Thread::kStackOverflowReservedUsableBytes);
+  constexpr size_t kStackOverflowReservedUsableBytes = kArmStackOverflowReservedBytes -
+      Thread::kStackOverflowSignalReservedBytes;
+  bool large_frame = (static_cast<size_t>(frame_size_) > kStackOverflowReservedUsableBytes);
   if (!skip_overflow_check) {
     if (Runtime::Current()->ExplicitStackOverflowChecks()) {
       if (!large_frame) {
@@ -381,7 +381,7 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
       // This is done before the callee save instructions to avoid any possibility
       // of these overflowing.  This uses r12 and that's never saved in a callee
       // save.
-      OpRegRegImm(kOpSub, rs_r12, rs_rARM_SP, Thread::kStackOverflowReservedBytes);
+      OpRegRegImm(kOpSub, rs_r12, rs_rARM_SP, kArmStackOverflowReservedBytes);
       Load32Disp(rs_r12, 0, rs_r12);
       MarkPossibleStackOverflowException();
     }
