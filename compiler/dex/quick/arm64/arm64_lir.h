@@ -219,7 +219,8 @@ enum ArmOpcode {
   kA64First = 0,
   kA64Adc3rrr = kA64First,  // adc [00011010000] rm[20-16] [000000] rn[9-5] rd[4-0].
   kA64Add4RRdT,      // add [s001000100] imm_12[21-10] rn[9-5] rd[4-0].
-  kA64Add4rrro,      // add [00001011000] rm[20-16] option[15-13] imm_3[12-10] rn[9-5] rd[4-0].
+  kA64Add4rrro,      // add [00001011000] rm[20-16] imm_6[15-10] rn[9-5] rd[4-0].
+  kA64Add4rrre,      // add [00001011001] rm[20-16] option[15-13] imm_3[12-10] rn[9-5] rd[4-0].
   kA64Adr2xd,        // adr [0] immlo[30-29] [10000] immhi[23-5] rd[4-0].
   kA64And3Rrl,       // and [00010010] N[22] imm_r[21-16] imm_s[15-10] rn[9-5] rd[4-0].
   kA64And4rrro,      // and [00001010] shift[23-22] [N=0] rm[20-16] imm_6[15-10] rn[9-5] rd[4-0].
@@ -328,7 +329,8 @@ enum ArmOpcode {
   kA64Stxr3wrX,      // stxr[11001000000] rs[20-16] [011111] rn[9-5] rt[4-0].
   kA64Stlxr3wrX,     // stlxr[11001000000] rs[20-16] [111111] rn[9-5] rt[4-0].
   kA64Sub4RRdT,      // sub [s101000100] imm_12[21-10] rn[9-5] rd[4-0].
-  kA64Sub4rrro,      // sub [s1001011000] rm[20-16] option[15-13] imm_3[12-10] rn[9-5] rd[4-0].
+  kA64Sub4rrro,      // sub [s1001011000] rm[20-16] imm_6[15-10] rn[9-5] rd[4-0].
+  kA64Sub4rrre,      // sub [s1001011001] rm[20-16] option[15-13] imm_3[12-10] rn[9-5] rd[4-0].
   kA64Subs3rRd,      // subs[s111000100] imm_12[21-10] rn[9-5] rd[4-0].
   kA64Tst3rro,       // tst alias of "ands rzr, arg1, arg2, arg3".
   kA64Ubfm4rrdd,     // ubfm[s10100110] N[22] imm_r[21-16] imm_s[15-10] rn[9-5] rd[4-0].

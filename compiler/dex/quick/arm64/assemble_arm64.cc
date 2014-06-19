@@ -115,6 +115,10 @@ const ArmEncodingMap Arm64Mir2Lir::EncodingMap[kA64Last] = {
                  kFmtRegR, 4, 0, kFmtRegR, 9, 5, kFmtRegR, 20, 16,
                  kFmtShift, -1, -1, IS_QUAD_OP | REG_DEF0_USE1,
                  "add", "!0r, !1r, !2r!3o", kFixupNone),
+    ENCODING_MAP(WIDE(kA64Add4rrre), SF_VARIANTS(0x0b200000),
+                 kFmtRegROrSp, 4, 0, kFmtRegROrSp, 9, 5, kFmtRegR, 20, 16,
+                 kFmtExtend, -1, -1, IS_QUAD_OP | REG_DEF0_USE12,
+                 "add", "!0r, !1r, !2r!3o", kFixupNone),
     // Note: adr is binary, but declared as tertiary. The third argument is used while doing the
     //   fixups and contains information to identify the adr label.
     ENCODING_MAP(kA64Adr2xd, NO_VARIANTS(0x10000000),
@@ -557,6 +561,10 @@ const ArmEncodingMap Arm64Mir2Lir::EncodingMap[kA64Last] = {
     ENCODING_MAP(WIDE(kA64Sub4rrro), SF_VARIANTS(0x4b000000),
                  kFmtRegR, 4, 0, kFmtRegR, 9, 5, kFmtRegR, 20, 16,
                  kFmtShift, -1, -1, IS_QUAD_OP | REG_DEF0_USE12,
+                 "sub", "!0r, !1r, !2r!3o", kFixupNone),
+    ENCODING_MAP(WIDE(kA64Sub4rrre), SF_VARIANTS(0x4b200000),
+                 kFmtRegROrSp, 4, 0, kFmtRegROrSp, 9, 5, kFmtRegR, 20, 16,
+                 kFmtExtend, -1, -1, IS_QUAD_OP | REG_DEF0_USE12,
                  "sub", "!0r, !1r, !2r!3o", kFixupNone),
     ENCODING_MAP(WIDE(kA64Subs3rRd), SF_VARIANTS(0x71000000),
                  kFmtRegR, 4, 0, kFmtRegROrSp, 9, 5, kFmtBitBlt, 21, 10,
