@@ -1615,14 +1615,14 @@ ENTRY art_quick_instrumentation_exit
     // we would need to fully restore it. As there are a lot of callee-save registers, it seems
     // easier to have an extra small stack area.
 
-    str x19, [sp, #-16]!      // Save integer result.
+    str x0, [sp, #-16]!       // Save integer result.
     .cfi_adjust_cfa_offset 16
     str d0,  [sp, #8]         // Save floating-point result.
 
-    mov   x0, xSELF           // Pass Thread.
     add   x1, sp, #16         // Pass SP.
     mov   x2, x0              // Pass integer result.
     fmov  x3, d0              // Pass floating-point result.
+    mov   x0, xSELF           // Pass Thread.
     bl   artInstrumentationMethodExitFromCode    // (Thread*, SP, gpr_res, fpr_res)
 
     mov   x9, x0              // Return address from instrumentation call.
