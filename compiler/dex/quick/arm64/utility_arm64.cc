@@ -99,7 +99,8 @@ LIR* Arm64Mir2Lir::LoadFPConstantValue(RegStorage r_dest, int32_t value) {
 
   LIR* data_target = ScanLiteralPool(literal_list_, value, 0);
   if (data_target == NULL) {
-    data_target = AddWordData(&literal_list_, value);
+    // Wide, as we need 8B alignment.
+    data_target = AddWideData(&literal_list_, value, 0);
   }
 
   ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
