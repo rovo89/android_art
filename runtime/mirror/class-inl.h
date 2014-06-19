@@ -505,8 +505,10 @@ inline Object* Class::AllocNonMovableObject(Thread* self) {
 
 template <bool kVisitClass, typename Visitor>
 inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor) {
-  VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
+  // Visit the static fields first so that we don't overwrite the SFields / IFields instance
+  // fields.
   VisitStaticFieldsReferences<kVisitClass>(this, visitor);
+  VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
 }
 
 inline bool Class::IsArtFieldClass() const {

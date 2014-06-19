@@ -205,6 +205,10 @@ void ReferenceProcessor::DelayReferenceReferent(mirror::Class* klass, mirror::Re
   }
 }
 
+void ReferenceProcessor::UpdateRoots(IsMarkedCallback* callback, void* arg) {
+  cleared_references_.UpdateRoots(callback, arg);
+}
+
 void ReferenceProcessor::EnqueueClearedReferences(Thread* self) {
   Locks::mutator_lock_->AssertNotHeld(self);
   if (!cleared_references_.IsEmpty()) {

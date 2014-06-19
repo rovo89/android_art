@@ -66,6 +66,7 @@ namespace accounting {
 namespace collector {
   class ConcurrentCopying;
   class GarbageCollector;
+  class MarkCompact;
   class MarkSweep;
   class SemiSpace;
 }  // namespace collector
@@ -573,7 +574,7 @@ class Heap {
   }
   static bool IsMovingGc(CollectorType collector_type) {
     return collector_type == kCollectorTypeSS || collector_type == kCollectorTypeGSS ||
-        collector_type == kCollectorTypeCC;
+        collector_type == kCollectorTypeCC || collector_type == kCollectorTypeMC;
   }
   bool ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -952,12 +953,14 @@ class Heap {
 
   std::vector<collector::GarbageCollector*> garbage_collectors_;
   collector::SemiSpace* semi_space_collector_;
+  collector::MarkCompact* mark_compact_collector_;
   collector::ConcurrentCopying* concurrent_copying_collector_;
 
   const bool running_on_valgrind_;
   const bool use_tlab_;
 
   friend class collector::GarbageCollector;
+  friend class collector::MarkCompact;
   friend class collector::MarkSweep;
   friend class collector::SemiSpace;
   friend class ReferenceQueue;

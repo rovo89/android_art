@@ -1061,6 +1061,42 @@ void ClassLinker::InitFromImage() {
   VLOG(startup) << "ClassLinker::InitFromImage exiting";
 }
 
+void ClassLinker::VisitClassRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
+  WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+  if ((flags & kVisitRootFlagAllRoots) != 0) {
+    for (std::pair<const size_t, mirror::Class*>& it : class_table_) {
+      callback(reinterpret_cast<mirror::Object**>(&it.second), arg, 0, kRootStickyClass);
+    }
+  } else if ((flags & kVisitRootFlagNewRoots) != 0) {
+    for (auto& pair : new_class_roots_) {
+      mirror::Object* old_ref = pair.second;
+      callback(reinterpret_cast<mirror::Object**>(&pair.second), arg, 0, kRootStickyClass);
+      if (UNLIKELY(pair.second != old_ref)) {
+        // Uh ohes, GC moved a root in the log. Need to search the class_table and update the
+        // corresponding object. This is slow, but luckily for us, this may only happen with a
+        // concurrent moving GC.
+        for (auto it = class_table_.lower_bound(pair.first), end = class_table_.end();
+            it != end && it->first == pair.first; ++it) {
+          // If the class stored matches the old class, update it to the new value.
+          if (old_ref == it->second) {
+            it->second = pair.second;
+          }
+        }
+      }
+    }
+  }
+  if ((flags & kVisitRootFlagClearRootLog) != 0) {
+    new_class_roots_.clear();
+  }
+  if ((flags & kVisitRootFlagStartLoggingNewRoots) != 0) {
+    log_new_class_table_roots_ = true;
+  } else if ((flags & kVisitRootFlagStopLoggingNewRoots) != 0) {
+    log_new_class_table_roots_ = false;
+  }
+  // We deliberately ignore the class roots in the image since we
+  // handle image roots by using the MS/CMS rescanning of dirty cards.
+}
+
 // Keep in sync with InitCallback. Anything we visit, we need to
 // reinit references to when reinitializing a ClassLinker from a
 // mapped image.
@@ -1087,41 +1123,7 @@ void ClassLinker::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags f
       log_new_dex_caches_roots_ = false;
     }
   }
-  {
-    WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
-    if ((flags & kVisitRootFlagAllRoots) != 0) {
-      for (std::pair<const size_t, mirror::Class*>& it : class_table_) {
-        callback(reinterpret_cast<mirror::Object**>(&it.second), arg, 0, kRootStickyClass);
-      }
-    } else if ((flags & kVisitRootFlagNewRoots) != 0) {
-      for (auto& pair : new_class_roots_) {
-        mirror::Object* old_ref = pair.second;
-        callback(reinterpret_cast<mirror::Object**>(&pair.second), arg, 0, kRootStickyClass);
-        if (UNLIKELY(pair.second != old_ref)) {
-          // Uh ohes, GC moved a root in the log. Need to search the class_table and update the
-          // corresponding object. This is slow, but luckily for us, this may only happen with a
-          // concurrent moving GC.
-          for (auto it = class_table_.lower_bound(pair.first), end = class_table_.end();
-              it != end && it->first == pair.first; ++it) {
-            // If the class stored matches the old class, update it to the new value.
-            if (old_ref == it->second) {
-              it->second = pair.second;
-            }
-          }
-        }
-      }
-    }
-    if ((flags & kVisitRootFlagClearRootLog) != 0) {
-      new_class_roots_.clear();
-    }
-    if ((flags & kVisitRootFlagStartLoggingNewRoots) != 0) {
-      log_new_class_table_roots_ = true;
-    } else if ((flags & kVisitRootFlagStopLoggingNewRoots) != 0) {
-      log_new_class_table_roots_ = false;
-    }
-    // We deliberately ignore the class roots in the image since we
-    // handle image roots by using the MS/CMS rescanning of dirty cards.
-  }
+  VisitClassRoots(callback, arg, flags);
   callback(reinterpret_cast<mirror::Object**>(&array_iftable_), arg, 0, kRootVMInternal);
   DCHECK(array_iftable_ != nullptr);
   for (size_t i = 0; i < kFindArrayCacheSize; ++i) {
@@ -1252,7 +1254,7 @@ mirror::Class* ClassLinker::AllocClass(Thread* self, mirror::Class* java_lang_Cl
   DCHECK_GE(class_size, sizeof(mirror::Class));
   gc::Heap* heap = Runtime::Current()->GetHeap();
   InitializeClassVisitor visitor(class_size);
-  mirror::Object* k = (kMovingClasses) ?
+  mirror::Object* k = kMovingClasses ?
       heap->AllocObject<true>(self, java_lang_Class, class_size, visitor) :
       heap->AllocNonMovableObject<true>(self, java_lang_Class, class_size, visitor);
   if (UNLIKELY(k == nullptr)) {

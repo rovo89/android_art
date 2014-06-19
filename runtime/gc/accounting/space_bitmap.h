@@ -42,7 +42,6 @@ template<size_t kAlignment>
 class SpaceBitmap {
  public:
   typedef void ScanCallback(mirror::Object* obj, void* finger, void* arg);
-
   typedef void SweepCallback(size_t ptr_count, mirror::Object** ptrs, void* arg);
 
   // Initialize a space bitmap so that it points to a bitmap large enough to cover a heap at

@@ -41,22 +41,12 @@
 #include "jni_internal.h"
 #include "mark_sweep-inl.h"
 #include "monitor.h"
-#include "mirror/art_field.h"
-#include "mirror/art_field-inl.h"
-#include "mirror/class-inl.h"
-#include "mirror/class_loader.h"
-#include "mirror/dex_cache.h"
 #include "mirror/reference-inl.h"
 #include "mirror/object-inl.h"
-#include "mirror/object_array.h"
-#include "mirror/object_array-inl.h"
 #include "runtime.h"
-#include "stack.h"
 #include "thread-inl.h"
 #include "thread_list.h"
-#include "verifier/method_verifier.h"
 
-using ::art::mirror::Class;
 using ::art::mirror::Object;
 
 namespace art {
@@ -788,7 +778,7 @@ inline Object* SemiSpace::GetMarkedForwardAddress(mirror::Object* obj) const
     // Already forwarded, must be marked.
     return obj;
   }
-  return heap_->GetMarkBitmap()->Test(obj) ? obj : nullptr;
+  return mark_bitmap_->Test(obj) ? obj : nullptr;
 }
 
 void SemiSpace::SetToSpace(space::ContinuousMemMapAllocSpace* to_space) {

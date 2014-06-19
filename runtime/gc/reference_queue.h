@@ -83,12 +83,16 @@ class ReferenceQueue {
   mirror::Reference* GetList() {
     return list_;
   }
+  // Visits list_, currently only used for the mark compact GC.
+  void UpdateRoots(IsMarkedCallback* callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   // Lock, used for parallel GC reference enqueuing. It allows for multiple threads simultaneously
   // calling AtomicEnqueueIfNotEnqueued.
   Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  // The actual reference list. Not a root since it will be nullptr when the GC is not running.
+  // The actual reference list. Only a root for the mark compact GC since it will be null for other
+  // GC types.
   mirror::Reference* list_;
 };
 

@@ -43,10 +43,7 @@
 #include "thread-inl.h"
 #include "thread_list.h"
 
-using ::art::mirror::ArtField;
-using ::art::mirror::Class;
 using ::art::mirror::Object;
-using ::art::mirror::ObjectArray;
 
 namespace art {
 namespace gc {
@@ -1272,9 +1269,7 @@ void MarkSweep::ProcessMarkStack(bool paused) {
   timings_.EndSplit();
 }
 
-inline bool MarkSweep::IsMarked(const Object* object) const
-    SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
-  DCHECK(object != nullptr);
+inline bool MarkSweep::IsMarked(const Object* object) const {
   if (immune_region_.ContainsObject(object)) {
     return true;
   }
