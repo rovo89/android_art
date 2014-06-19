@@ -559,12 +559,12 @@ class MIRGraph {
    * Examine the graph to determine whether it's worthwile to spend the time compiling
    * this method.
    */
-  bool SkipCompilation();
+  bool SkipCompilation(std::string* skip_message);
 
   /*
    * Should we skip the compilation of this method based on its name?
    */
-  bool SkipCompilation(const std::string& methodname);
+  bool SkipCompilationByName(const std::string& methodname);
 
   /*
    * Parse dex method and add MIR at current insert point.  Returns id (which is
@@ -1127,7 +1127,8 @@ class MIRGraph {
 
   void CountChecks(BasicBlock* bb);
   void AnalyzeBlock(BasicBlock* bb, struct MethodStats* stats);
-  bool ComputeSkipCompilation(struct MethodStats* stats, bool skip_default);
+  bool ComputeSkipCompilation(struct MethodStats* stats, bool skip_default,
+                              std::string* skip_message);
 
   CompilationUnit* const cu_;
   GrowableArray<int>* ssa_base_vregs_;
