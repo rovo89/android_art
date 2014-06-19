@@ -53,7 +53,10 @@ class CompilerOptions {
     num_dex_methods_threshold_(kDefaultNumDexMethodsThreshold),
     generate_gdb_information_(false),
     top_k_profile_threshold_(kDefaultTopKProfileThreshold),
-    include_debug_symbols_(kDefaultIncludeDebugSymbols)
+    include_debug_symbols_(kDefaultIncludeDebugSymbols),
+    explicit_null_checks_(true),
+    explicit_so_checks_(true),
+    explicit_suspend_checks_(true)
 #ifdef ART_SEA_IR_MODE
     , sea_ir_mode_(false)
 #endif
@@ -67,7 +70,10 @@ class CompilerOptions {
                   size_t num_dex_methods_threshold,
                   bool generate_gdb_information,
                   double top_k_profile_threshold,
-                  bool include_debug_symbols
+                  bool include_debug_symbols,
+                  bool explicit_null_checks,
+                  bool explicit_so_checks,
+                  bool explicit_suspend_checks
 #ifdef ART_SEA_IR_MODE
                   , bool sea_ir_mode
 #endif
@@ -80,7 +86,10 @@ class CompilerOptions {
     num_dex_methods_threshold_(num_dex_methods_threshold),
     generate_gdb_information_(generate_gdb_information),
     top_k_profile_threshold_(top_k_profile_threshold),
-    include_debug_symbols_(include_debug_symbols)
+    include_debug_symbols_(include_debug_symbols),
+    explicit_null_checks_(explicit_null_checks),
+    explicit_so_checks_(explicit_so_checks),
+    explicit_suspend_checks_(explicit_suspend_checks)
 #ifdef ART_SEA_IR_MODE
     , sea_ir_mode_(sea_ir_mode)
 #endif
@@ -147,6 +156,30 @@ class CompilerOptions {
     return include_debug_symbols_;
   }
 
+  bool GetExplicitNullChecks() const {
+    return explicit_null_checks_;
+  }
+
+  void SetExplicitNullChecks(bool new_val) {
+    explicit_null_checks_ = new_val;
+  }
+
+  bool GetExplicitStackOverflowChecks() const {
+    return explicit_so_checks_;
+  }
+
+  void SetExplicitStackOverflowChecks(bool new_val) {
+    explicit_so_checks_ = new_val;
+  }
+
+  bool GetExplicitSuspendChecks() const {
+    return explicit_suspend_checks_;
+  }
+
+  void SetExplicitSuspendChecks(bool new_val) {
+    explicit_suspend_checks_ = new_val;
+  }
+
 #ifdef ART_SEA_IR_MODE
   bool GetSeaIrMode();
 #endif
@@ -166,6 +199,9 @@ class CompilerOptions {
   // When using a profile file only the top K% of the profiled samples will be compiled.
   double top_k_profile_threshold_;
   bool include_debug_symbols_;
+  bool explicit_null_checks_;
+  bool explicit_so_checks_;
+  bool explicit_suspend_checks_;
 #ifdef ART_SEA_IR_MODE
   bool sea_ir_mode_;
 #endif
