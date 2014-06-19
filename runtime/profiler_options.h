@@ -22,6 +22,11 @@
 
 namespace art {
 
+enum ProfileDataType {
+  kProfilerMethod,          // Method only
+  kProfilerMethodAndDexPC,  // Method with Dex PC
+};
+
 class ProfilerOptions {
  public:
   static constexpr bool kDefaultEnabled = false;
@@ -32,6 +37,7 @@ class ProfilerOptions {
   static constexpr bool kDefaultStartImmediately = false;
   static constexpr double kDefaultTopKThreshold = 90.0;
   static constexpr double kDefaultChangeInTopKThreshold = 10.0;
+  static constexpr ProfileDataType kDefaultProfileData = kProfilerMethod;
 
   ProfilerOptions() :
     enabled_(kDefaultEnabled),
@@ -41,7 +47,8 @@ class ProfilerOptions {
     backoff_coefficient_(kDefaultBackoffCoefficient),
     start_immediately_(kDefaultStartImmediately),
     top_k_threshold_(kDefaultTopKThreshold),
-    top_k_change_threshold_(kDefaultChangeInTopKThreshold) {}
+    top_k_change_threshold_(kDefaultChangeInTopKThreshold),
+    profile_type_(kDefaultProfileData) {}
 
   ProfilerOptions(bool enabled,
                  uint32_t period_s,
@@ -50,7 +57,8 @@ class ProfilerOptions {
                  double backoff_coefficient,
                  bool start_immediately,
                  double top_k_threshold,
-                 double top_k_change_threshold):
+                 double top_k_change_threshold,
+                 ProfileDataType profile_type):
     enabled_(enabled),
     period_s_(period_s),
     duration_s_(duration_s),
@@ -58,7 +66,8 @@ class ProfilerOptions {
     backoff_coefficient_(backoff_coefficient),
     start_immediately_(start_immediately),
     top_k_threshold_(top_k_threshold),
-    top_k_change_threshold_(top_k_change_threshold) {}
+    top_k_change_threshold_(top_k_change_threshold),
+    profile_type_(profile_type) {}
 
   bool IsEnabled() const {
     return enabled_;
@@ -92,6 +101,10 @@ class ProfilerOptions {
     return top_k_change_threshold_;
   }
 
+  ProfileDataType GetProfileType() const {
+    return profile_type_;
+  }
+
  private:
   friend std::ostream & operator<<(std::ostream &os, const ProfilerOptions& po) {
     os << "enabled=" << po.enabled_
@@ -101,7 +114,8 @@ class ProfilerOptions {
        << ", backoff_coefficient=" << po.backoff_coefficient_
        << ", start_immediately=" << po.start_immediately_
        << ", top_k_threshold=" << po.top_k_threshold_
-       << ", top_k_change_threshold=" << po.top_k_change_threshold_;
+       << ", top_k_change_threshold=" << po.top_k_change_threshold_
+       << ", profile_type=" << po.profile_type_;
     return os;
   }
 
@@ -123,6 +137,8 @@ class ProfilerOptions {
   double top_k_threshold_;
   // How much the top K% samples needs to change in order for the app to be recompiled.
   double top_k_change_threshold_;
+  // The type of profile data dumped to the disk.
+  ProfileDataType profile_type_;
 };
 
 }  // namespace art
