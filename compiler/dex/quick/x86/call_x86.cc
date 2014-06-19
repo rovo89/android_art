@@ -235,8 +235,8 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  const bool skip_overflow_check = (mir_graph_->MethodIsLeaf() &&
-      (static_cast<size_t>(frame_size_) < Thread::kStackOverflowReservedBytes));
+  const bool skip_overflow_check = mir_graph_->MethodIsLeaf() &&
+      !IsLargeFrame(frame_size_, Gen64Bit() ? kX86_64 : kX86);
   NewLIR0(kPseudoMethodEntry);
   /* Spill core callee saves */
   SpillCoreRegs();

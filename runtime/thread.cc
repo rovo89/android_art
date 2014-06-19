@@ -220,7 +220,7 @@ static size_t FixStackSize(size_t stack_size) {
     // It's likely that callers are trying to ensure they have at least a certain amount of
     // stack space, so we should add our reserved space on top of what they requested, rather
     // than implicitly take it away from them.
-    stack_size += Thread::kStackOverflowReservedBytes;
+    stack_size += kRuntimeStackOverflowReservedBytes;
   } else {
     // If we are going to use implicit stack checks, allocate space for the protected
     // region at the bottom of the stack.
@@ -489,7 +489,7 @@ void Thread::InitStackHwm() {
   tlsPtr_.stack_begin = reinterpret_cast<byte*>(read_stack_base);
   tlsPtr_.stack_size = read_stack_size;
 
-  if (read_stack_size <= kStackOverflowReservedBytes) {
+  if (read_stack_size <= kRuntimeStackOverflowReservedBytes) {
     LOG(FATAL) << "Attempt to attach a thread with a too-small stack (" << read_stack_size
         << " bytes)";
   }
@@ -2200,7 +2200,7 @@ void Thread::SetStackEndForStackOverflow() {
   if (tlsPtr_.stack_end == tlsPtr_.stack_begin) {
     // However, we seem to have already extended to use the full stack.
     LOG(ERROR) << "Need to increase kStackOverflowReservedBytes (currently "
-               << kStackOverflowReservedBytes << ")?";
+               << kRuntimeStackOverflowReservedBytes << ")?";
     DumpStack(LOG(ERROR));
     LOG(FATAL) << "Recursive stack overflow.";
   }
