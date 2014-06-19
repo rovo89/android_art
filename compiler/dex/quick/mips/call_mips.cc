@@ -305,8 +305,7 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  bool skip_overflow_check = (mir_graph_->MethodIsLeaf() &&
-      (static_cast<size_t>(frame_size_) < Thread::kStackOverflowReservedBytes));
+  bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !IsLargeFrame(frame_size_, kMips);
   NewLIR0(kPseudoMethodEntry);
   RegStorage check_reg = AllocTemp();
   RegStorage new_sp = AllocTemp();

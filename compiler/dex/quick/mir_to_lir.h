@@ -25,6 +25,7 @@
 #include "dex/backend.h"
 #include "dex/quick/resource_mask.h"
 #include "driver/compiler_driver.h"
+#include "instruction_set.h"
 #include "leb128.h"
 #include "safe_map.h"
 #include "utils/array_ref.h"
@@ -205,6 +206,36 @@ Mir2Lir* X86_64CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_grap
 #define SLOW_STRING_PATH (cu_->enable_debug & (1 << kDebugSlowStringPath))
 #define SLOW_TYPE_PATH (cu_->enable_debug & (1 << kDebugSlowTypePath))
 #define EXERCISE_SLOWEST_STRING_PATH (cu_->enable_debug & (1 << kDebugSlowestStringPath))
+
+// Size of a frame that we definitely consider large. Anything larger than this should
+// definitely get a stack overflow check.
+static constexpr size_t kLargeFrameSize = 2 * KB;
+
+// Size of a frame that should be small. Anything leaf method smaller than this should run
+// without a stack overflow check.
+// The constant is from experience with frameworks code.
+static constexpr size_t kSmallFrameSize = 1 * KB;
+
+// Determine whether a frame is small or large, used in the decision on whether to elide a
+// stack overflow check on method entry.
+//
+// A frame is considered large when it's either above kLargeFrameSize, or a quarter of the
+// overflow-usable stack space.
+static constexpr bool IsLargeFrame(size_t size, InstructionSet isa) {
+  return size >= kLargeFrameSize || size >= GetStackOverflowReservedBytes(isa) / 4;
+}
+
+// We want to ensure that on all systems kSmallFrameSize will lead to false in IsLargeFrame.
+COMPILE_ASSERT(!IsLargeFrame(kSmallFrameSize, kArm),
+               kSmallFrameSize_is_not_a_small_frame_arm);
+COMPILE_ASSERT(!IsLargeFrame(kSmallFrameSize, kArm64),
+               kSmallFrameSize_is_not_a_small_frame_arm64);
+COMPILE_ASSERT(!IsLargeFrame(kSmallFrameSize, kMips),
+               kSmallFrameSize_is_not_a_small_frame_mips);
+COMPILE_ASSERT(!IsLargeFrame(kSmallFrameSize, kX86),
+               kSmallFrameSize_is_not_a_small_frame_x86);
+COMPILE_ASSERT(!IsLargeFrame(kSmallFrameSize, kX86_64),
+               kSmallFrameSize_is_not_a_small_frame_x64_64);
 
 class Mir2Lir : public Backend {
   public:

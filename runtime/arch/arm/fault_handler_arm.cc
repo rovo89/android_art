@@ -22,6 +22,7 @@
 #include "globals.h"
 #include "base/logging.h"
 #include "base/hex_dump.h"
+#include "instruction_set.h"
 #include "mirror/art_method.h"
 #include "mirror/art_method-inl.h"
 #include "thread.h"
@@ -59,7 +60,7 @@ void FaultManager::GetMethodAndReturnPCAndSP(void* context, mirror::ArtMethod** 
   // get the method from the top of the stack.  However it's in r0.
   uintptr_t* fault_addr = reinterpret_cast<uintptr_t*>(sc->fault_address);
   uintptr_t* overflow_addr = reinterpret_cast<uintptr_t*>(
-      reinterpret_cast<uint8_t*>(*out_sp) - Thread::kStackOverflowReservedBytes);
+      reinterpret_cast<uint8_t*>(*out_sp) - kArmStackOverflowReservedBytes);
   if (overflow_addr == fault_addr) {
     *out_method = reinterpret_cast<mirror::ArtMethod*>(sc->arm_r0);
   } else {
@@ -190,7 +191,7 @@ bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
   VLOG(signals) << "checking for stack overflow, sp: " << std::hex << sp <<
     ", fault_addr: " << fault_addr;
 
-  uintptr_t overflow_addr = sp - Thread::kStackOverflowReservedBytes;
+  uintptr_t overflow_addr = sp - kArmStackOverflowReservedBytes;
 
   Thread* self = reinterpret_cast<Thread*>(sc->arm_r9);
   CHECK_EQ(self, Thread::Current());
