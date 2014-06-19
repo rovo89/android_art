@@ -644,6 +644,44 @@ LIR* Arm64Mir2Lir::OpRegRegRegShift(OpKind op, RegStorage r_dest, RegStorage r_s
   }
 }
 
+LIR* Arm64Mir2Lir::OpRegRegRegExtend(OpKind op, RegStorage r_dest, RegStorage r_src1,
+                                     RegStorage r_src2, A64RegExtEncodings ext, uint8_t amount) {
+  ArmOpcode opcode = kA64Brk1d;
+
+  switch (op) {
+    case kOpAdd:
+      opcode = kA64Add4RRre;
+      break;
+    case kOpSub:
+      opcode = kA64Sub4RRre;
+      break;
+    default:
+      LOG(FATAL) << "Unimplemented opcode: " << op;
+      break;
+  }
+  ArmOpcode widened_opcode = r_dest.Is64Bit() ? WIDE(opcode) : opcode;
+
+  if (r_dest.Is64Bit()) {
+    CHECK(r_src1.Is64Bit());
+
+    // dest determines whether the op is wide or not. Up-convert src2 when necessary.
+    // Note: this is not according to aarch64 specifications, but our encoding.
+    if (!r_src2.Is64Bit()) {
+      r_src2 = As64BitReg(r_src2);
+    }
+  } else {
+    CHECK(!r_src1.Is64Bit());
+    CHECK(!r_src2.Is64Bit());
+  }
+
+  // Sanity checks.
+  //    1) Amount is in the range 0..4
+  CHECK_LE(amount, 4);
+
+  return NewLIR4(widened_opcode, r_dest.GetReg(), r_src1.GetReg(), r_src2.GetReg(),
+                 EncodeExtend(ext, amount));
+}
+
 LIR* Arm64Mir2Lir::OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2) {
   return OpRegRegRegShift(op, r_dest, r_src1, r_src2, ENCODE_NO_SHIFT);
 }
@@ -694,14 +732,8 @@ LIR* Arm64Mir2Lir::OpRegRegImm64(OpKind op, RegStorage r_dest, RegStorage r_src1
         return NewLIR4(opcode | wide, r_dest.GetReg(), r_src1.GetReg(), abs_value >> 12, 1);
       } else {
         log_imm = -1;
-        alt_opcode = (neg) ? kA64Add4rrre : kA64Sub4rrre;
-        // To make it correct, we need:
-        // 23..21 = 001  = extend
-        // 15..13 = 01x  = LSL/UXTW/X  /  x defines wide or not
-        // 12..10 = 000  = no shift (in case of SP)
-        // => info =   00101x000
-        // =>      =0x 0 5  (0/8)
-        info = (is_wide ? 8 : 0) | 0x50;
+        alt_opcode = (neg) ? kA64Add4RRre : kA64Sub4RRre;
+        info = EncodeExtend(is_wide ? kA64Uxtx : kA64Uxtw, 0);
       }
       break;
     // case kOpRsub:
@@ -744,7 +776,7 @@ LIR* Arm64Mir2Lir::OpRegRegImm64(OpKind op, RegStorage r_dest, RegStorage r_src1
     return NewLIR3(opcode | wide, r_dest.GetReg(), r_src1.GetReg(), log_imm);
   } else {
     RegStorage r_scratch;
-    if (IS_WIDE(wide)) {
+    if (is_wide) {
       r_scratch = AllocTempWide();
       LoadConstantWide(r_scratch, value);
     } else {

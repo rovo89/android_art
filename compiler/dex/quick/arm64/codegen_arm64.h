@@ -241,6 +241,8 @@ class Arm64Mir2Lir : public Mir2Lir {
     LIR* StoreBaseDispBody(RegStorage r_base, int displacement, RegStorage r_src, OpSize size);
     LIR* OpRegRegRegShift(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2,
                           int shift);
+    LIR* OpRegRegRegExtend(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2,
+                           A64RegExtEncodings ext, uint8_t amount);
     LIR* OpRegRegShift(OpKind op, RegStorage r_dest_src1, RegStorage r_src2, int shift);
     LIR* OpRegRegExtend(OpKind op, RegStorage r_dest_src1, RegStorage r_src2, int shift);
     static const ArmEncodingMap EncodingMap[kA64Last];
