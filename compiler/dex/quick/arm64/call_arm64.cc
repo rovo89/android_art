@@ -337,13 +337,13 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  bool skip_overflow_check = (mir_graph_->MethodIsLeaf() &&
-                              (static_cast<size_t>(frame_size_) <
-                              Thread::kStackOverflowReservedBytes));
+  bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !IsLargeFrame(frame_size_, kArm64);
 
   NewLIR0(kPseudoMethodEntry);
 
-  const bool large_frame = (static_cast<size_t>(frame_size_) > Thread::kStackOverflowReservedUsableBytes);
+  constexpr size_t kStackOverflowReservedUsableBytes = kArm64StackOverflowReservedBytes -
+        Thread::kStackOverflowSignalReservedBytes;
+  const bool large_frame = static_cast<size_t>(frame_size_) > kStackOverflowReservedUsableBytes;
   const int spill_count = num_core_spills_ + num_fp_spills_;
   const int spill_size = (spill_count * kArm64PointerSize + 15) & ~0xf;  // SP 16 byte alignment.
   const int frame_size_without_spills = frame_size_ - spill_size;
@@ -412,7 +412,7 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
         // Branch to throw target if there is not enough room.
         OpRegRegImm(kOpSub, rs_x9, rs_rA64_SP, frame_size_without_spills);
         LoadWordDisp(rs_rA64_SELF, Thread::StackEndOffset<8>().Int32Value(), rs_x8);
-        LIR* branch = OpCmpBranch(kCondUlt, rs_rA64_SP, rs_x8, nullptr);
+        LIR* branch = OpCmpBranch(kCondUlt, rs_x9, rs_x8, nullptr);
         AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, spill_size));
         OpRegCopy(rs_rA64_SP, rs_x9);  // Establish stack after checks.
       } else {

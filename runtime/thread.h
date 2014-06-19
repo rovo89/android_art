@@ -33,6 +33,7 @@
 #include "gc/allocator/rosalloc.h"
 #include "globals.h"
 #include "handle_scope.h"
+#include "instruction_set.h"
 #include "jvalue.h"
 #include "object_callbacks.h"
 #include "offsets.h"
@@ -94,28 +95,8 @@ enum ThreadFlag {
 
 class Thread {
  public:
-  // Space to throw a StackOverflowError in.
-  // TODO: shrink reserved space, in particular for 64bit.
-#if defined(__x86_64__)
-  static constexpr size_t kStackOverflowReservedBytes = 32 * KB;
-#elif defined(__aarch64__)
-  // Worst-case, we would need about 2.6x the amount of x86_64 for many more registers.
-  // But this one works rather well.
-  static constexpr size_t kStackOverflowReservedBytes = 32 * KB;
-#elif defined(__i386__)
-  // TODO: Bumped to workaround regression (http://b/14982147) Specifically to fix:
-  // test-art-host-run-test-interpreter-018-stack-overflow
-  // test-art-host-run-test-interpreter-107-int-math2
-  static constexpr size_t kStackOverflowReservedBytes = 24 * KB;
-#else
-  static constexpr size_t kStackOverflowReservedBytes = 16 * KB;
-#endif
   // How much of the reserved bytes is reserved for incoming signals.
   static constexpr size_t kStackOverflowSignalReservedBytes = 2 * KB;
-  // How much of the reserved bytes we may temporarily use during stack overflow checks as an
-  // optimization.
-  static constexpr size_t kStackOverflowReservedUsableBytes =
-      kStackOverflowReservedBytes - kStackOverflowSignalReservedBytes;
 
   // For implicit overflow checks we reserve an extra piece of memory at the bottom
   // of the stack (lowest memory).  The higher portion of the memory
@@ -123,7 +104,7 @@ class Thread {
   // throwing the StackOverflow exception.
   static constexpr size_t kStackOverflowProtectedSize = 16 * KB;
   static constexpr size_t kStackOverflowImplicitCheckSize = kStackOverflowProtectedSize +
-    kStackOverflowReservedBytes;
+      kRuntimeStackOverflowReservedBytes;
 
   // Creates a new native thread corresponding to the given managed peer.
   // Used to implement Thread.start.
@@ -585,7 +566,7 @@ class Thread {
       // overflow region.
       tlsPtr_.stack_end = tlsPtr_.stack_begin + kStackOverflowImplicitCheckSize;
     } else {
-      tlsPtr_.stack_end = tlsPtr_.stack_begin + kStackOverflowReservedBytes;
+      tlsPtr_.stack_end = tlsPtr_.stack_begin + kRuntimeStackOverflowReservedBytes;
     }
   }
 
