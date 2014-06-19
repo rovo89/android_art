@@ -568,8 +568,11 @@ void X86Mir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
   rl_src = LoadValueWide(rl_src, kCoreReg);
   rl_result = EvalLocWide(rl_dest, kCoreReg, true);
   if (Gen64Bit()) {
-    LoadConstantWide(rl_result.reg, 0x8000000000000000);
-    OpRegReg(kOpAdd, rl_result.reg, rl_src.reg);
+    OpRegCopy(rl_result.reg, rl_src.reg);
+    // Flip sign bit.
+    NewLIR2(kX86Rol64RI, rl_result.reg.GetReg(), 1);
+    NewLIR2(kX86Xor64RI, rl_result.reg.GetReg(), 1);
+    NewLIR2(kX86Ror64RI, rl_result.reg.GetReg(), 1);
   } else {
     OpRegRegImm(kOpAdd, rl_result.reg.GetHigh(), rl_src.reg.GetHigh(), 0x80000000);
     OpRegCopy(rl_result.reg, rl_src.reg);
