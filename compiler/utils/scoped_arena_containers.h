@@ -17,13 +17,21 @@
 #ifndef ART_COMPILER_UTILS_SCOPED_ARENA_CONTAINERS_H_
 #define ART_COMPILER_UTILS_SCOPED_ARENA_CONTAINERS_H_
 
-#include <vector>
+#include <deque>
+#include <queue>
 #include <set>
+#include <vector>
 
 #include "utils/scoped_arena_allocator.h"
 #include "safe_map.h"
 
 namespace art {
+
+template <typename T>
+using ScopedArenaDeque = std::deque<T, ScopedArenaAllocatorAdapter<T>>;
+
+template <typename T>
+using ScopedArenaQueue = std::queue<T, ScopedArenaDeque<T>>;
 
 template <typename T>
 using ScopedArenaVector = std::vector<T, ScopedArenaAllocatorAdapter<T>>;
