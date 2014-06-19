@@ -1222,8 +1222,12 @@ TEST_F(StubTest, StringCompareTo) {
   // Use array so we can index into it and use a matrix for expected results
   // Setup: The first half is standard. The second half uses a non-zero offset.
   // TODO: Shared backing arrays.
-  static constexpr size_t kBaseStringCount  = 7;
-  const char* c[kBaseStringCount] = { "", "", "a", "aa", "ab", "aac", "aac" , };
+  static constexpr size_t kBaseStringCount  = 8;
+  const char* c[kBaseStringCount] = { "", "", "a", "aa", "ab",
+      "aacaacaacaacaacaac",  // This one's under the default limit to go to __memcmp16.
+      "aacaacaacaacaacaacaacaacaacaacaacaac",     // This one's over.
+      "aacaacaacaacaacaacaacaacaacaacaacaaca" };  // As is this one. We need a separate one to
+                                                  // defeat object-equal optimizations.
 
   static constexpr size_t kStringCount = 2 * kBaseStringCount;
 

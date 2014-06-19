@@ -223,6 +223,7 @@ LIBART_TARGET_SRC_FILES_arm64 := \
 	arch/arm64/context_arm64.cc \
 	arch/arm64/entrypoints_init_arm64.cc \
 	arch/arm64/jni_entrypoints_arm64.S \
+	arch/arm64/memcmp16_arm64.S \
 	arch/arm64/portable_entrypoints_arm64.S \
 	arch/arm64/quick_entrypoints_arm64.S \
 	arch/arm64/thread_arm64.cc \

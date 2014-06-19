@@ -180,7 +180,7 @@ TEST_F(OatTest, OatHeaderSizeCheck) {
   EXPECT_EQ(80U, sizeof(OatHeader));
   EXPECT_EQ(8U, sizeof(OatMethodOffsets));
   EXPECT_EQ(24U, sizeof(OatQuickMethodHeader));
-  EXPECT_EQ(78 * GetInstructionSetPointerSize(kRuntimeISA), sizeof(QuickEntryPoints));
+  EXPECT_EQ(77 * GetInstructionSetPointerSize(kRuntimeISA), sizeof(QuickEntryPoints));
 }
 
 TEST_F(OatTest, OatHeaderIsValid) {
