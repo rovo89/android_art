@@ -213,7 +213,7 @@ void Arm64Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
     null_check_branch = nullptr;  // No null check.
   } else {
     // If the null-check fails its handled by the slow-path to reduce exception related meta-data.
-    if (Runtime::Current()->ExplicitNullChecks()) {
+    if (cu_->compiler_driver->GetCompilerOptions().GetExplicitNullChecks()) {
       null_check_branch = OpCmpImmBranch(kCondEq, rs_x0, 0, NULL);
     }
   }
@@ -261,7 +261,7 @@ void Arm64Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
     null_check_branch = nullptr;  // No null check.
   } else {
     // If the null-check fails its handled by the slow-path to reduce exception related meta-data.
-    if (Runtime::Current()->ExplicitNullChecks()) {
+    if (cu_->compiler_driver->GetCompilerOptions().GetExplicitNullChecks()) {
       null_check_branch = OpCmpImmBranch(kCondEq, rs_x0, 0, NULL);
     }
   }
@@ -349,7 +349,7 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
   const int frame_size_without_spills = frame_size_ - spill_size;
 
   if (!skip_overflow_check) {
-    if (Runtime::Current()->ExplicitStackOverflowChecks()) {
+    if (cu_->compiler_driver->GetCompilerOptions().GetExplicitStackOverflowChecks()) {
       if (!large_frame) {
         // Load stack limit
         LoadWordDisp(rs_rA64_SELF, Thread::StackEndOffset<8>().Int32Value(), rs_x9);
@@ -382,7 +382,7 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
   }
 
   if (!skip_overflow_check) {
-    if (Runtime::Current()->ExplicitStackOverflowChecks()) {
+    if (cu_->compiler_driver->GetCompilerOptions().GetExplicitStackOverflowChecks()) {
       class StackOverflowSlowPath: public LIRSlowPath {
       public:
         StackOverflowSlowPath(Mir2Lir* m2l, LIR* branch, size_t sp_displace) :
