@@ -421,6 +421,9 @@ bool Runtime::Start() {
     int fd = open(profile_output_filename_.c_str(), O_RDWR|O_CREAT|O_EXCL, 0660);
     if (fd >= 0) {
       close(fd);
+    } else if (errno != EEXIST) {
+      LOG(INFO) << "Failed to access the profile file. Profiler disabled.";
+      return true;
     }
     StartProfiler(profile_output_filename_.c_str());
   }
