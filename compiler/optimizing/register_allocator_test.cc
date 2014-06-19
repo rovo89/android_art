@@ -318,4 +318,42 @@ TEST(RegisterAllocatorTest, Loop3) {
   ASSERT_EQ(phi_interval->GetRegister(), ret->InputAt(0)->GetLiveInterval()->GetRegister());
 }
 
+TEST(RegisterAllocatorTest, FirstRegisterUse) {
+  const uint16_t data[] = THREE_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::ADD_INT_LIT8 | 1 << 8, 1 << 8,
+    Instruction::ADD_INT_LIT8 | 0 << 8, 1 << 8,
+    Instruction::ADD_INT_LIT8 | 1 << 8, 1 << 8 | 1,
+    Instruction::RETURN_VOID);
+
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+  HGraph* graph = BuildSSAGraph(data, &allocator);
+  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, kArm);
+  SsaLivenessAnalysis liveness(*graph, codegen);
+  liveness.Analyze();
+
+  HAdd* first_add = graph->GetBlocks().Get(1)->GetFirstInstruction()->AsAdd();
+  HAdd* last_add = graph->GetBlocks().Get(1)->GetLastInstruction()->GetPrevious()->AsAdd();
+  ASSERT_EQ(last_add->InputAt(0), first_add);
+  LiveInterval* interval = first_add->GetLiveInterval();
+  ASSERT_EQ(interval->GetEnd(), last_add->GetLifetimePosition() + 1);
+  ASSERT_TRUE(interval->GetNextSibling() == nullptr);
+
+  // We need a register for the output of the instruction.
+  ASSERT_EQ(interval->FirstRegisterUse(), first_add->GetLifetimePosition());
+
+  // Split at the next instruction.
+  interval = interval->SplitAt(first_add->GetLifetimePosition() + 2);
+  // The user of the split is the last add.
+  ASSERT_EQ(interval->FirstRegisterUse(), last_add->GetLifetimePosition() + 1);
+
+  // Split before the last add.
+  LiveInterval* new_interval = interval->SplitAt(last_add->GetLifetimePosition() - 1);
+  // Ensure the current interval has no register use...
+  ASSERT_EQ(interval->FirstRegisterUse(), kNoLifetime);
+  // And the new interval has it for the last add.
+  ASSERT_EQ(new_interval->FirstRegisterUse(), last_add->GetLifetimePosition() + 1);
+}
+
 }  // namespace art

@@ -289,21 +289,23 @@ class LiveInterval : public ArenaObject {
 
   size_t FirstRegisterUseAfter(size_t position) const {
     if (position == GetStart() && defined_by_ != nullptr) {
-      Location location = defined_by_->GetLocations()->Out();
+      LocationSummary* locations = defined_by_->GetLocations();
+      Location location = locations->Out();
       // This interval is the first interval of the instruction. If the output
       // of the instruction requires a register, we return the position of that instruction
       // as the first register use.
       if (location.IsUnallocated()) {
         if ((location.GetPolicy() == Location::kRequiresRegister)
              || (location.GetPolicy() == Location::kSameAsFirstInput
-                && defined_by_->GetLocations()->InAt(0).GetPolicy() == Location::kRequiresRegister)) {
+                 && locations->InAt(0).GetPolicy() == Location::kRequiresRegister)) {
           return position;
         }
       }
     }
 
     UsePosition* use = first_use_;
-    while (use != nullptr) {
+    size_t end = GetEnd();
+    while (use != nullptr && use->GetPosition() <= end) {
       size_t use_position = use->GetPosition();
       if (use_position >= position && !use->GetIsEnvironment()) {
         Location location = use->GetUser()->GetLocations()->InAt(use->GetInputIndex());
