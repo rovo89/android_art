@@ -897,8 +897,8 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   // Check early if we should skip this compilation if the profiler is enabled.
   if (cu.compiler_driver->ProfilePresent()) {
     std::string methodname = PrettyMethod(method_idx, dex_file);
-    if (cu.mir_graph->SkipCompilation(methodname)) {
-      return NULL;
+    if (cu.mir_graph->SkipCompilationByName(methodname)) {
+      return nullptr;
     }
   }
 
@@ -908,13 +908,16 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
 
   // TODO(Arm64): Remove this when we are able to compile everything.
   if (!CanCompileMethod(method_idx, dex_file, cu)) {
-    VLOG(compiler) << "Cannot compile method : " << PrettyMethod(method_idx, dex_file);
+    VLOG(compiler)  << cu.instruction_set << ": Cannot compile method : "
+                    << PrettyMethod(method_idx, dex_file);
     return nullptr;
   }
 
   cu.NewTimingSplit("MIROpt:CheckFilters");
-  if (cu.mir_graph->SkipCompilation()) {
-    VLOG(compiler) << "Skipping method : " << PrettyMethod(method_idx, dex_file);
+  std::string skip_message;
+  if (cu.mir_graph->SkipCompilation(&skip_message)) {
+    VLOG(compiler) << cu.instruction_set << ": Skipping method : "
+                   << PrettyMethod(method_idx, dex_file) << "  Reason = " << skip_message;
     return nullptr;
   }
 
@@ -945,7 +948,9 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   CompiledMethod* result = NULL;
 
   if (cu.mir_graph->PuntToInterpreter()) {
-    return NULL;
+    VLOG(compiler) << cu.instruction_set << ": Punted method to interpreter: "
+                   << PrettyMethod(method_idx, dex_file);
+    return nullptr;
   }
 
   cu.cg->Materialize();
@@ -955,9 +960,9 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   cu.NewTimingSplit("Cleanup");
 
   if (result) {
-    VLOG(compiler) << "Compiled " << PrettyMethod(method_idx, dex_file);
+    VLOG(compiler) << cu.instruction_set << ": Compiled " << PrettyMethod(method_idx, dex_file);
   } else {
-    VLOG(compiler) << "Deferred " << PrettyMethod(method_idx, dex_file);
+    VLOG(compiler) << cu.instruction_set << ": Deferred " << PrettyMethod(method_idx, dex_file);
   }
 
   if (cu.enable_debug & (1 << kDebugShowMemoryUsage)) {

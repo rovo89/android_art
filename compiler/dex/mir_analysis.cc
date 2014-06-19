@@ -941,7 +941,8 @@ void MIRGraph::AnalyzeBlock(BasicBlock* bb, MethodStats* stats) {
   }
 }
 
-bool MIRGraph::ComputeSkipCompilation(MethodStats* stats, bool skip_default) {
+bool MIRGraph::ComputeSkipCompilation(MethodStats* stats, bool skip_default,
+                                      std::string* skip_message) {
   float count = stats->dex_instructions;
   stats->math_ratio = stats->math_ops / count;
   stats->fp_ratio = stats->fp_ops / count;
@@ -994,6 +995,8 @@ bool MIRGraph::ComputeSkipCompilation(MethodStats* stats, bool skip_default) {
   // If significant in size and high proportion of expensive operations, skip.
   if (cu_->compiler_driver->GetCompilerOptions().IsSmallMethod(GetNumDalvikInsns()) &&
       (stats->heavyweight_ratio > 0.3)) {
+    *skip_message = "Is a small method with heavyweight ratio " +
+                    std::to_string(stats->heavyweight_ratio);
     return true;
   }
 
@@ -1003,7 +1006,7 @@ bool MIRGraph::ComputeSkipCompilation(MethodStats* stats, bool skip_default) {
  /*
   * Will eventually want this to be a bit more sophisticated and happen at verification time.
   */
-bool MIRGraph::SkipCompilation() {
+bool MIRGraph::SkipCompilation(std::string* skip_message) {
   const CompilerOptions& compiler_options = cu_->compiler_driver->GetCompilerOptions();
   CompilerOptions::CompilerFilter compiler_filter = compiler_options.GetCompilerFilter();
   if (compiler_filter == CompilerOptions::kEverything) {
@@ -1012,10 +1015,12 @@ bool MIRGraph::SkipCompilation() {
 
   // Contains a pattern we don't want to compile?
   if (PuntToInterpreter()) {
+    *skip_message = "Punt to interpreter set";
     return true;
   }
 
   if (!compiler_options.IsCompilationEnabled()) {
+    *skip_message = "Compilation disabled";
     return true;
   }
 
@@ -1041,6 +1046,9 @@ bool MIRGraph::SkipCompilation() {
 
   // If size < cutoff, assume we'll compile - but allow removal.
   bool skip_compilation = (GetNumDalvikInsns() >= default_cutoff);
+  if (skip_compilation) {
+    *skip_message = "#Insns >= default_cutoff: " + std::to_string(GetNumDalvikInsns());
+  }
 
   /*
    * Filter 1: Huge methods are likely to be machine generated, but some aren't.
@@ -1048,6 +1056,7 @@ bool MIRGraph::SkipCompilation() {
    */
   if (compiler_options.IsHugeMethod(GetNumDalvikInsns())) {
     skip_compilation = true;
+    *skip_message = "Huge method: " + std::to_string(GetNumDalvikInsns());
     // If we're got a huge number of basic blocks, don't bother with further analysis.
     if (static_cast<size_t>(num_blocks_) > (compiler_options.GetHugeMethodThreshold() / 2)) {
       return true;
@@ -1055,6 +1064,7 @@ bool MIRGraph::SkipCompilation() {
   } else if (compiler_options.IsLargeMethod(GetNumDalvikInsns()) &&
     /* If it's large and contains no branches, it's likely to be machine generated initialization */
       (GetBranchCount() == 0)) {
+    *skip_message = "Large method with no branches";
     return true;
   } else if (compiler_filter == CompilerOptions::kSpeed) {
     // If not huge, compile.
@@ -1063,6 +1073,7 @@ bool MIRGraph::SkipCompilation() {
 
   // Filter 2: Skip class initializers.
   if (((cu_->access_flags & kAccConstructor) != 0) && ((cu_->access_flags & kAccStatic) != 0)) {
+    *skip_message = "Class initializer";
     return true;
   }
 
@@ -1092,7 +1103,7 @@ bool MIRGraph::SkipCompilation() {
     AnalyzeBlock(bb, &stats);
   }
 
-  return ComputeSkipCompilation(&stats, skip_compilation);
+  return ComputeSkipCompilation(&stats, skip_compilation, skip_message);
 }
 
 void MIRGraph::DoCacheFieldLoweringInfo() {
@@ -1285,7 +1296,7 @@ void MIRGraph::DoCacheMethodLoweringInfo() {
                                  method_lowering_infos_.GetRawStorage(), count);
 }
 
-bool MIRGraph::SkipCompilation(const std::string& methodname) {
+bool MIRGraph::SkipCompilationByName(const std::string& methodname) {
   return cu_->compiler_driver->SkipCompilation(methodname);
 }
 
