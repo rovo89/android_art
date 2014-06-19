@@ -323,12 +323,22 @@ void X86Mir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
     return;
   }
 
+  if (Gen64Bit()) {
+    rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+    rl_src2 = LoadValueWide(rl_src2, kCoreReg);
+
+    OpRegReg(kOpCmp, rl_src1.reg, rl_src2.reg);
+    OpCondBranch(ccode, taken);
+    return;
+  }
+
   FlushAllRegs();
   LockCallTemps();  // Prepare for explicit register usage
   RegStorage r_tmp1 = RegStorage::MakeRegPair(rs_r0, rs_r1);
   RegStorage r_tmp2 = RegStorage::MakeRegPair(rs_r2, rs_r3);
   LoadValueDirectWideFixed(rl_src1, r_tmp1);
   LoadValueDirectWideFixed(rl_src2, r_tmp2);
+
   // Swap operands and condition code to prevent use of zero flag.
   if (ccode == kCondLe || ccode == kCondGt) {
     // Compute (r3:r2) = (r3:r2) - (r1:r0)
@@ -366,6 +376,23 @@ void X86Mir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
   LIR* taken = &block_label_list_[bb->taken];
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   bool is_equality_test = ccode == kCondEq || ccode == kCondNe;
+
+  if (Gen64Bit()) {
+    if (is_equality_test && val == 0) {
+      // We can simplify of comparing for ==, != to 0.
+      NewLIR2(kX86Test64RR, rl_src1.reg.GetReg(), rl_src1.reg.GetReg());
+    } else if (is_equality_test && val_hi == 0 && val_lo > 0) {
+      OpRegImm(kOpCmp, rl_src1.reg, val_lo);
+    } else {
+      RegStorage tmp = AllocTypedTempWide(false, kCoreReg);
+      LoadConstantWide(tmp, val);
+      OpRegReg(kOpCmp, rl_src1.reg, tmp);
+      FreeTemp(tmp);
+    }
+    OpCondBranch(ccode, taken);
+    return;
+  }
+
   if (is_equality_test && val != 0) {
     rl_src1 = ForceTempWide(rl_src1);
   }
@@ -373,7 +400,7 @@ void X86Mir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
   RegStorage high_reg = rl_src1.reg.GetHigh();
 
   if (is_equality_test) {
-    // We can simpolify of comparing for ==, != to 0.
+    // We can simplify of comparing for ==, != to 0.
     if (val == 0) {
       if (IsTemp(low_reg)) {
         OpRegReg(kOpOr, low_reg, high_reg);
@@ -1582,8 +1609,8 @@ void X86Mir2Lir::GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocati
   LIR *minus_one_branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
 
   // RHS is -1.
-  LoadConstantWide(rs_r3q, 0x8000000000000000);
-  NewLIR2(kX86Cmp64RR, rs_r0q.GetReg(), rs_r3q.GetReg());
+  LoadConstantWide(rs_r6q, 0x8000000000000000);
+  NewLIR2(kX86Cmp64RR, rs_r0q.GetReg(), rs_r6q.GetReg());
   LIR * minint_branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
 
   // In 0x8000000000000000/-1 case.
@@ -2174,6 +2201,7 @@ bool X86Mir2Lir::GenLongLongImm(RegLocation rl_dest, RegLocation rl_src1,
     if (rl_dest.location == kLocPhysReg &&
         rl_src1.location == kLocPhysReg && !rl_dest.reg.IsFloat()) {
       X86OpCode x86op = GetOpcode(op, rl_dest, false, val);
+      OpRegCopy(rl_dest.reg, rl_src1.reg);
       NewLIR2(x86op, rl_dest.reg.GetReg(), val);
       StoreFinalValueWide(rl_dest, rl_dest);
       return true;
