@@ -26,6 +26,7 @@
 #include "class.h"
 #include "lock_word-inl.h"
 #include "monitor.h"
+#include "object_array-inl.h"
 #include "read_barrier-inl.h"
 #include "runtime.h"
 #include "reference.h"
@@ -667,10 +668,9 @@ inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& v
         mirror::ArtField* field = kIsStatic ? klass->GetStaticField(i) : klass->GetInstanceField(i);
         MemberOffset field_offset = field->GetOffset();
         // TODO: Do a simpler check?
-        if (!kVisitClass && UNLIKELY(field_offset.Uint32Value() == ClassOffset().Uint32Value())) {
-          continue;
+        if (kVisitClass || field_offset.Uint32Value() != ClassOffset().Uint32Value()) {
+          visitor(this, field_offset, kIsStatic);
         }
-        visitor(this, field_offset, kIsStatic);
       }
     }
   }
@@ -693,18 +693,16 @@ template <const bool kVisitClass, VerifyObjectFlags kVerifyFlags, typename Visit
 inline void Object::VisitReferences(const Visitor& visitor,
                                     const JavaLangRefVisitor& ref_visitor) {
   mirror::Class* klass = GetClass<kVerifyFlags>();
-  if (klass->IsVariableSize()) {
-    if (klass->IsClassClass()) {
-      AsClass<kVerifyNone>()->VisitReferences<kVisitClass>(klass, visitor);
-    } else {
-      DCHECK(klass->IsArrayClass<kVerifyFlags>());
-      if (klass->IsObjectArrayClass<kVerifyNone>()) {
-        AsObjectArray<mirror::Object, kVerifyNone>()->VisitReferences<kVisitClass>(visitor);
-      } else if (kVisitClass) {
-        visitor(this, ClassOffset(), false);
-      }
+  if (klass == Class::GetJavaLangClass()) {
+    AsClass<kVerifyNone>()->VisitReferences<kVisitClass>(klass, visitor);
+  } else if (klass->IsArrayClass()) {
+    if (klass->IsObjectArrayClass<kVerifyNone>()) {
+      AsObjectArray<mirror::Object, kVerifyNone>()->VisitReferences<kVisitClass>(visitor);
+    } else if (kVisitClass) {
+      visitor(this, ClassOffset(), false);
     }
   } else {
+    DCHECK(!klass->IsVariableSize());
     VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
     if (UNLIKELY(klass->IsReferenceClass<kVerifyNone>())) {
       ref_visitor(klass, AsReference());

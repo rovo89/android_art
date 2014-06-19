@@ -36,6 +36,7 @@
 #include "gc/accounting/remembered_set.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/collector/concurrent_copying.h"
+#include "gc/collector/mark_compact.h"
 #include "gc/collector/mark_sweep-inl.h"
 #include "gc/collector/partial_mark_sweep.h"
 #include "gc/collector/semi_space.h"
@@ -331,9 +332,10 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     semi_space_collector_ = new collector::SemiSpace(this, generational,
                                                      generational ? "generational" : "");
     garbage_collectors_.push_back(semi_space_collector_);
-
     concurrent_copying_collector_ = new collector::ConcurrentCopying(this);
     garbage_collectors_.push_back(concurrent_copying_collector_);
+    mark_compact_collector_ = new collector::MarkCompact(this);
+    garbage_collectors_.push_back(mark_compact_collector_);
   }
 
   if (GetImageSpace() != nullptr && main_space_ != nullptr) {
@@ -1341,8 +1343,9 @@ void Heap::TransitionCollector(CollectorType collector_type) {
              << " -> " << static_cast<int>(collector_type);
   uint64_t start_time = NanoTime();
   uint32_t before_allocated = num_bytes_allocated_.LoadSequentiallyConsistent();
-  ThreadList* tl = Runtime::Current()->GetThreadList();
-  Thread* self = Thread::Current();
+  Runtime* const runtime = Runtime::Current();
+  ThreadList* const tl = runtime->GetThreadList();
+  Thread* const self = Thread::Current();
   ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
   const bool copying_transition =
@@ -1371,7 +1374,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
     }
     usleep(1000);
   }
-  if (Runtime::Current()->IsShuttingDown(self)) {
+  if (runtime->IsShuttingDown(self)) {
     // Don't allow heap transitions to happen if the runtime is shutting down since these can
     // cause objects to get finalized.
     FinishGC(self, collector::kGcTypeNone);
@@ -1432,10 +1435,15 @@ void Heap::TransitionCollector(CollectorType collector_type) {
 void Heap::ChangeCollector(CollectorType collector_type) {
   // TODO: Only do this with all mutators suspended to avoid races.
   if (collector_type != collector_type_) {
+    if (collector_type == kCollectorTypeMC) {
+      // Don't allow mark compact unless support is compiled in.
+      CHECK(kMarkCompactSupport);
+    }
     collector_type_ = collector_type;
     gc_plan_.clear();
     switch (collector_type_) {
       case kCollectorTypeCC:  // Fall-through.
+      case kCollectorTypeMC:  // Fall-through.
       case kCollectorTypeSS:  // Fall-through.
       case kCollectorTypeGSS: {
         gc_plan_.push_back(collector::kGcTypeFull);
@@ -1722,13 +1730,17 @@ void Heap::SwapSemiSpaces() {
 void Heap::Compact(space::ContinuousMemMapAllocSpace* target_space,
                    space::ContinuousMemMapAllocSpace* source_space) {
   CHECK(kMovingCollector);
-  CHECK_NE(target_space, source_space) << "In-place compaction currently unsupported";
   if (target_space != source_space) {
     // Don't swap spaces since this isn't a typical semi space collection.
     semi_space_collector_->SetSwapSemiSpaces(false);
     semi_space_collector_->SetFromSpace(source_space);
     semi_space_collector_->SetToSpace(target_space);
     semi_space_collector_->Run(kGcCauseCollectorTransition, false);
+  } else {
+    CHECK(target_space->IsBumpPointerSpace())
+        << "In-place compaction is only supported for bump pointer spaces";
+    mark_compact_collector_->SetSpace(target_space->AsBumpPointerSpace());
+    mark_compact_collector_->Run(kGcCauseCollectorTransition, false);
   }
 }
 
@@ -1792,21 +1804,30 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   if (compacting_gc) {
     DCHECK(current_allocator_ == kAllocatorTypeBumpPointer ||
            current_allocator_ == kAllocatorTypeTLAB);
-    if (collector_type_ == kCollectorTypeSS || collector_type_ == kCollectorTypeGSS) {
-      gc_type = semi_space_collector_->GetGcType();
-      semi_space_collector_->SetFromSpace(bump_pointer_space_);
-      semi_space_collector_->SetToSpace(temp_space_);
-      collector = semi_space_collector_;
-      semi_space_collector_->SetSwapSemiSpaces(true);
-    } else if (collector_type_ == kCollectorTypeCC) {
-      gc_type = concurrent_copying_collector_->GetGcType();
-      collector = concurrent_copying_collector_;
-    } else {
-      LOG(FATAL) << "Unreachable - invalid collector type " << static_cast<size_t>(collector_type_);
+    switch (collector_type_) {
+      case kCollectorTypeSS:
+        // Fall-through.
+      case kCollectorTypeGSS:
+        semi_space_collector_->SetFromSpace(bump_pointer_space_);
+        semi_space_collector_->SetToSpace(temp_space_);
+        semi_space_collector_->SetSwapSemiSpaces(true);
+        collector = semi_space_collector_;
+        break;
+      case kCollectorTypeCC:
+        collector = concurrent_copying_collector_;
+        break;
+      case kCollectorTypeMC:
+        mark_compact_collector_->SetSpace(bump_pointer_space_);
+        collector = mark_compact_collector_;
+        break;
+      default:
+        LOG(FATAL) << "Invalid collector type " << static_cast<size_t>(collector_type_);
     }
-    temp_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
-    CHECK(temp_space_->IsEmpty());
-    gc_type = collector::kGcTypeFull;
+    if (collector != mark_compact_collector_) {
+      temp_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
+      CHECK(temp_space_->IsEmpty());
+    }
+    gc_type = collector::kGcTypeFull;  // TODO: Not hard code this in.
   } else if (current_allocator_ == kAllocatorTypeRosAlloc ||
       current_allocator_ == kAllocatorTypeDlMalloc) {
     collector = FindCollectorByGcType(gc_type);

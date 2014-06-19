@@ -18,6 +18,7 @@
 #define ART_RUNTIME_CLASS_LINKER_INL_H_
 
 #include "class_linker.h"
+#include "gc/heap-inl.h"
 #include "mirror/art_field.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
@@ -186,13 +187,19 @@ inline mirror::ObjectArray<mirror::ArtMethod>* ClassLinker::AllocArtMethodArray(
 
 inline mirror::IfTable* ClassLinker::AllocIfTable(Thread* self, size_t ifcount) {
   return down_cast<mirror::IfTable*>(
-      mirror::IfTable::Alloc(self, GetClassRoot(kObjectArrayClass), ifcount * mirror::IfTable::kMax));
+      mirror::IfTable::Alloc(self, GetClassRoot(kObjectArrayClass),
+                             ifcount * mirror::IfTable::kMax));
 }
 
 inline mirror::ObjectArray<mirror::ArtField>* ClassLinker::AllocArtFieldArray(Thread* self,
                                                                               size_t length) {
+  gc::Heap* const heap = Runtime::Current()->GetHeap();
+  // Can't have movable field arrays for mark compact since we need these arrays to always be valid
+  // so that we can do Object::VisitReferences in the case where the fields don't fit in the
+  // reference offsets word.
   return mirror::ObjectArray<mirror::ArtField>::Alloc(
-      self, GetClassRoot(kJavaLangReflectArtFieldArrayClass), length);
+      self, GetClassRoot(kJavaLangReflectArtFieldArrayClass), length,
+      kMoveFieldArrays ? heap->GetCurrentAllocator() : heap->GetCurrentNonMovingAllocator());
 }
 
 inline mirror::Class* ClassLinker::GetClassRoot(ClassRoot class_root)
