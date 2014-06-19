@@ -454,7 +454,7 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
   }
   self->EndAssertNoThreadSuspension(old_cause);
   // Do this after populating the shadow frame in case EnsureInitialized causes a GC.
-  if (method->IsStatic() && UNLIKELY(!method->GetDeclaringClass()->IsInitializing())) {
+  if (method->IsStatic() && UNLIKELY(!method->GetDeclaringClass()->IsInitialized())) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
@@ -527,7 +527,7 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
   // Ensure static methods are initialized.
   if (method->IsStatic()) {
     mirror::Class* declaring_class = method->GetDeclaringClass();
-    if (UNLIKELY(!declaring_class->IsInitializing())) {
+    if (UNLIKELY(!declaring_class->IsInitialized())) {
       StackHandleScope<1> hs(self);
       HandleWrapper<Class> h_declaring_class(hs.NewHandleWrapper(&declaring_class));
       if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(

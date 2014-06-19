@@ -3314,8 +3314,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path,
 void* JavaVMExt::FindCodeForNativeMethod(mirror::ArtMethod* m) {
   CHECK(m->IsNative());
   mirror::Class* c = m->GetDeclaringClass();
-  // If this is a static method, it could be called before the class
-  // has been initialized.
+  // If this is a static method, it could be called before the class has been initialized.
   if (m->IsStatic()) {
     c = EnsureInitialized(Thread::Current(), c);
     if (c == nullptr) {
