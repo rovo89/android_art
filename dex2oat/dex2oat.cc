@@ -744,6 +744,19 @@ void ParseDouble(const std::string& option, char after_char,
   *parsed_value = value;
 }
 
+void CheckExplicitCheckOptions(InstructionSet isa, bool* explicit_null_checks,
+                               bool* explicit_so_checks, bool* explicit_suspend_checks) {
+  switch (isa) {
+    case kArm:
+      break;  // All checks implemented, leave as is.
+
+    default:  // No checks implemented, reset all to explicit checks.
+      *explicit_null_checks = true;
+      *explicit_so_checks = true;
+      *explicit_suspend_checks = true;
+  }
+}
+
 static int dex2oat(int argc, char** argv) {
 #if defined(__linux__) && defined(__arm__)
   int major, minor;
@@ -824,6 +837,11 @@ static int dex2oat(int argc, char** argv) {
   bool dump_slow_timing = kIsDebugBuild;
   bool watch_dog_enabled = !kIsTargetBuild;
   bool generate_gdb_information = kIsDebugBuild;
+
+  bool explicit_null_checks = true;
+  bool explicit_so_checks = true;
+  bool explicit_suspend_checks = true;
+  bool has_explicit_checks_options = false;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -998,6 +1016,31 @@ static int dex2oat(int argc, char** argv) {
     } else if (option.starts_with("--dump-cfg-passes=")) {
       std::string dump_passes = option.substr(strlen("--dump-cfg-passes=")).data();
       PassDriverMEOpts::SetDumpPassList(dump_passes);
+    } else if (option.starts_with("--implicit-checks=")) {
+      std::string checks = option.substr(strlen("--implicit-checks=")).data();
+      std::vector<std::string> checkvec;
+      Split(checks, ',', checkvec);
+      for (auto& str : checkvec) {
+        std::string val = Trim(str);
+        if (val == "none") {
+          explicit_null_checks = true;
+          explicit_so_checks = true;
+          explicit_suspend_checks = true;
+        } else if (val == "null") {
+          explicit_null_checks = false;
+        } else if (val == "suspend") {
+          explicit_suspend_checks = false;
+        } else if (val == "stack") {
+          explicit_so_checks = false;
+        } else if (val == "all") {
+          explicit_null_checks = false;
+          explicit_so_checks = false;
+          explicit_suspend_checks = false;
+        } else {
+          Usage("--implicit-checks passed non-recognized value %s", val.c_str());
+        }
+        has_explicit_checks_options = true;
+      }
     } else {
       Usage("Unknown argument %s", option.data());
     }
@@ -1126,6 +1169,9 @@ static int dex2oat(int argc, char** argv) {
     Usage("Unknown --compiler-filter value %s", compiler_filter_string);
   }
 
+  CheckExplicitCheckOptions(instruction_set, &explicit_null_checks, &explicit_so_checks,
+                            &explicit_suspend_checks);
+
   CompilerOptions compiler_options(compiler_filter,
                                    huge_method_threshold,
                                    large_method_threshold,
@@ -1134,7 +1180,10 @@ static int dex2oat(int argc, char** argv) {
                                    num_dex_methods_threshold,
                                    generate_gdb_information,
                                    top_k_profile_threshold,
-                                   include_debug_symbols
+                                   include_debug_symbols,
+                                   explicit_null_checks,
+                                   explicit_so_checks,
+                                   explicit_suspend_checks
 #ifdef ART_SEA_IR_MODE
                                    , compiler_options.sea_ir_ = true;
 #endif
@@ -1205,6 +1254,18 @@ static int dex2oat(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   std::unique_ptr<Dex2Oat> dex2oat(p_dex2oat);
+
+  // TODO: Not sure whether it's a good idea to allow anything else but the runtime option in
+  // this case at all, as we'll have to throw away produced code for a mismatch.
+  if (!has_explicit_checks_options) {
+    if (instruction_set == kRuntimeISA) {
+      Runtime* runtime = Runtime::Current();
+      compiler_options.SetExplicitNullChecks(runtime->ExplicitNullChecks());
+      compiler_options.SetExplicitStackOverflowChecks(runtime->ExplicitStackOverflowChecks());
+      compiler_options.SetExplicitSuspendChecks(runtime->ExplicitSuspendChecks());
+    }
+  }
+
   // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
   // give it away now so that we don't starve GC.
   Thread* self = Thread::Current();
