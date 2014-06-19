@@ -95,8 +95,7 @@ void Arm64Mir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
   tab_rec->anchor = switch_label;
 
   // Add displacement to base branch address and go!
-  // TODO(Arm64): generate "add x1, x1, w3, sxtw" rather than "add x1, x1, x3"?
-  OpRegRegRegShift(kOpAdd, r_base, r_base, As64BitReg(r_disp), ENCODE_NO_SHIFT);
+  OpRegRegRegExtend(kOpAdd, r_base, r_base, As64BitReg(r_disp), kA64Sxtw, 0U);
   NewLIR1(kA64Br1x, r_base.GetReg());
 
   // Loop exit label.
@@ -141,7 +140,6 @@ void Arm64Mir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
 
   // Load the displacement from the switch table
   RegStorage disp_reg = AllocTemp();
-  // TODO(Arm64): generate "ldr w3, [x1,w2,sxtw #2]" rather than "ldr w3, [x1,x2,lsl #2]"?
   LoadBaseIndexed(table_base, As64BitReg(key_reg), As64BitReg(disp_reg), 2, k32);
 
   // Get base branch address.
@@ -150,8 +148,7 @@ void Arm64Mir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
   tab_rec->anchor = switch_label;
 
   // Add displacement to base branch address and go!
-  // TODO(Arm64): generate "add x4, x4, w3, sxtw" rather than "add x4, x4, x3"?
-  OpRegRegRegShift(kOpAdd, branch_reg, branch_reg, As64BitReg(disp_reg), ENCODE_NO_SHIFT);
+  OpRegRegRegExtend(kOpAdd, branch_reg, branch_reg, As64BitReg(disp_reg), kA64Sxtw, 0U);
   NewLIR1(kA64Br1x, branch_reg.GetReg());
 
   // branch_over target here
