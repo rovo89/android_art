@@ -359,8 +359,9 @@ class SharedLibrary {
         jni_on_load_result_(kPending) {
   }
 
-  mirror::Object* GetClassLoader() {
-    return class_loader_;
+  mirror::Object* GetClassLoader() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::Object** root = &class_loader_;
+    return ReadBarrier::BarrierForRoot<mirror::Object, kWithReadBarrier>(root);
   }
 
   std::string GetPath() {
@@ -3160,9 +3161,7 @@ mirror::Object* JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref) {
   while (UNLIKELY(!allow_new_weak_globals_)) {
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
-  // The weak globals do need a read barrier as they are weak roots.
-  mirror::Object* obj = weak_globals_.Get<kWithReadBarrier>(ref);
-  return obj;
+  return weak_globals_.Get(ref);
 }
 
 void JavaVMExt::DumpReferenceTables(std::ostream& os) {

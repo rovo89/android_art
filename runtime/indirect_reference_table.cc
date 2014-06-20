@@ -137,13 +137,13 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {
       DCHECK_GE(pScan, table_ + prevState.parts.topIndex);
     }
     UpdateSlotAdd(obj, pScan - table_);
-    result = ToIndirectRef(obj, pScan - table_);
+    result = ToIndirectRef(pScan - table_);
     *pScan = obj;
     segment_state_.parts.numHoles--;
   } else {
     // Add to the end.
     UpdateSlotAdd(obj, topIndex);
-    result = ToIndirectRef(obj, topIndex);
+    result = ToIndirectRef(topIndex);
     table_[topIndex++] = obj;
     segment_state_.parts.topIndex = topIndex;
   }
@@ -277,9 +277,6 @@ void IndirectReferenceTable::Dump(std::ostream& os) const {
       // while the read barrier won't.
       entries.push_back(obj);
     } else {
-      // We need a read barrier if weak globals. Since this is for
-      // debugging where performance isn't top priority, we
-      // unconditionally enable the read barrier, which is conservative.
       obj = ReadBarrier::BarrierForRoot<mirror::Object, kWithReadBarrier>(root);
       entries.push_back(obj);
     }
