@@ -1643,8 +1643,8 @@ void Heap::PreZygoteFork() {
     if (temp_space_ != nullptr) {
       CHECK(temp_space_->IsEmpty());
     }
-    total_objects_freed_ever_ += semi_space_collector_->GetFreedObjects();
-    total_bytes_freed_ever_ += semi_space_collector_->GetFreedBytes();
+    total_objects_freed_ever_ += GetCurrentGcIteration()->GetFreedObjects();
+    total_bytes_freed_ever_ += GetCurrentGcIteration()->GetFreedBytes();
     // Update the end and write out image.
     non_moving_space_->SetEnd(target_space.End());
     non_moving_space_->SetLimit(target_space.Limit());
@@ -1838,15 +1838,15 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
       << "Could not find garbage collector with collector_type="
       << static_cast<size_t>(collector_type_) << " and gc_type=" << gc_type;
   collector->Run(gc_cause, clear_soft_references || runtime->IsZygote());
-  total_objects_freed_ever_ += collector->GetFreedObjects();
-  total_bytes_freed_ever_ += collector->GetFreedBytes();
+  total_objects_freed_ever_ += GetCurrentGcIteration()->GetFreedObjects();
+  total_bytes_freed_ever_ += GetCurrentGcIteration()->GetFreedBytes();
   RequestHeapTrim();
   // Enqueue cleared references.
   reference_processor_.EnqueueClearedReferences(self);
   // Grow the heap so that we know when to perform the next GC.
   GrowForUtilization(collector);
-  const size_t duration = collector->GetDurationNs();
-  const std::vector<uint64_t>& pause_times = collector->GetPauseTimes();
+  const size_t duration = GetCurrentGcIteration()->GetDurationNs();
+  const std::vector<uint64_t>& pause_times = GetCurrentGcIteration()->GetPauseTimes();
   // Print the GC if it is an explicit GC (e.g. Runtime.gc()) or a slow GC
   // (mutator time blocked >=  long_pause_log_threshold_).
   bool log_gc = gc_cause == kGcCauseExplicit;
@@ -1868,14 +1868,14 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
                      << ((i != pause_times.size() - 1) ? "," : "");
     }
     LOG(INFO) << gc_cause << " " << collector->GetName()
-              << " GC freed "  << collector->GetFreedObjects() << "("
-              << PrettySize(collector->GetFreedBytes()) << ") AllocSpace objects, "
-              << collector->GetFreedLargeObjects() << "("
-              << PrettySize(collector->GetFreedLargeObjectBytes()) << ") LOS objects, "
+              << " GC freed "  << current_gc_iteration_.GetFreedObjects() << "("
+              << PrettySize(current_gc_iteration_.GetFreedBytes()) << ") AllocSpace objects, "
+              << current_gc_iteration_.GetFreedLargeObjects() << "("
+              << PrettySize(current_gc_iteration_.GetFreedLargeObjectBytes()) << ") LOS objects, "
               << percent_free << "% free, " << PrettySize(current_heap_size) << "/"
               << PrettySize(total_memory) << ", " << "paused " << pause_string.str()
               << " total " << PrettyDuration((duration / 1000) * 1000);
-    VLOG(heap) << ConstDumpable<TimingLogger>(collector->GetTimings());
+    VLOG(heap) << ConstDumpable<TimingLogger>(*current_gc_iteration_.GetTimings());
   }
   FinishGC(self, gc_type);
   // Inform DDMS that a GC completed.
@@ -2313,7 +2313,7 @@ accounting::RememberedSet* Heap::FindRememberedSetFromSpace(space::Space* space)
   return it->second;
 }
 
-void Heap::ProcessCards(TimingLogger& timings, bool use_rem_sets) {
+void Heap::ProcessCards(TimingLogger* timings, bool use_rem_sets) {
   // Clear cards and keep track of cards cleared in the mod-union table.
   for (const auto& space : continuous_spaces_) {
     accounting::ModUnionTable* table = FindModUnionTableFromSpace(space);
@@ -2321,15 +2321,15 @@ void Heap::ProcessCards(TimingLogger& timings, bool use_rem_sets) {
     if (table != nullptr) {
       const char* name = space->IsZygoteSpace() ? "ZygoteModUnionClearCards" :
           "ImageModUnionClearCards";
-      TimingLogger::ScopedSplit split(name, &timings);
+      TimingLogger::ScopedSplit split(name, timings);
       table->ClearCards();
     } else if (use_rem_sets && rem_set != nullptr) {
       DCHECK(collector::SemiSpace::kUseRememberedSet && collector_type_ == kCollectorTypeGSS)
           << static_cast<int>(collector_type_);
-      TimingLogger::ScopedSplit split("AllocSpaceRemSetClearCards", &timings);
+      TimingLogger::ScopedSplit split("AllocSpaceRemSetClearCards", timings);
       rem_set->ClearCards();
     } else if (space->GetType() != space::kSpaceTypeBumpPointerSpace) {
-      TimingLogger::ScopedSplit split("AllocSpaceClearCards", &timings);
+      TimingLogger::ScopedSplit split("AllocSpaceClearCards", timings);
       // No mod union table for the AllocSpace. Age the cards so that the GC knows that these cards
       // were dirty before the GC started.
       // TODO: Need to use atomic for the case where aged(cleaning thread) -> dirty(other thread)
@@ -2337,7 +2337,8 @@ void Heap::ProcessCards(TimingLogger& timings, bool use_rem_sets) {
       // The races are we either end up with: Aged card, unaged card. Since we have the checkpoint
       // roots and then we scan / update mod union tables after. We will always scan either card.
       // If we end up with the non aged card, we scan it it in the pause.
-      card_table_->ModifyCardsAtomic(space->Begin(), space->End(), AgeCardVisitor(), VoidFunctor());
+      card_table_->ModifyCardsAtomic(space->Begin(), space->End(), AgeCardVisitor(),
+                                     VoidFunctor());
     }
   }
 }
@@ -2347,7 +2348,7 @@ static void IdentityMarkHeapReferenceCallback(mirror::HeapReference<mirror::Obje
 
 void Heap::PreGcVerificationPaused(collector::GarbageCollector* gc) {
   Thread* const self = Thread::Current();
-  TimingLogger* const timings = &gc->GetTimings();
+  TimingLogger* const timings = current_gc_iteration_.GetTimings();
   if (verify_pre_gc_heap_) {
     TimingLogger::ScopedSplit split("PreGcVerifyHeapReferences", timings);
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
@@ -2389,13 +2390,13 @@ void Heap::PreGcVerification(collector::GarbageCollector* gc) {
 void Heap::PrePauseRosAllocVerification(collector::GarbageCollector* gc) {
   // TODO: Add a new runtime option for this?
   if (verify_pre_gc_rosalloc_) {
-    RosAllocVerification(&gc->GetTimings(), "PreGcRosAllocVerification");
+    RosAllocVerification(current_gc_iteration_.GetTimings(), "PreGcRosAllocVerification");
   }
 }
 
 void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
   Thread* const self = Thread::Current();
-  TimingLogger* const timings = &gc->GetTimings();
+  TimingLogger* const timings = current_gc_iteration_.GetTimings();
   // Called before sweeping occurs since we want to make sure we are not going so reclaim any
   // reachable objects.
   if (verify_pre_sweeping_heap_) {
@@ -2421,7 +2422,7 @@ void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
 void Heap::PostGcVerificationPaused(collector::GarbageCollector* gc) {
   // Only pause if we have to do some verification.
   Thread* const self = Thread::Current();
-  TimingLogger* const timings = &gc->GetTimings();
+  TimingLogger* const timings = GetCurrentGcIteration()->GetTimings();
   if (verify_system_weaks_) {
     ReaderMutexLock mu2(self, *Locks::heap_bitmap_lock_);
     collector::MarkSweep* mark_sweep = down_cast<collector::MarkSweep*>(gc);
@@ -2575,9 +2576,9 @@ void Heap::GrowForUtilization(collector::GarbageCollector* collector_ran) {
     // We also check that the bytes allocated aren't over the footprint limit in order to prevent a
     // pathological case where dead objects which aren't reclaimed by sticky could get accumulated
     // if the sticky GC throughput always remained >= the full/partial throughput.
-    if (collector_ran->GetEstimatedLastIterationThroughput() * kStickyGcThroughputAdjustment >=
+    if (current_gc_iteration_.GetEstimatedThroughput() * kStickyGcThroughputAdjustment >=
         non_sticky_collector->GetEstimatedMeanThroughput() &&
-        non_sticky_collector->GetIterations() > 0 &&
+        non_sticky_collector->NumberOfIterations() > 0 &&
         bytes_allocated <= max_allowed_footprint_) {
       next_gc_type_ = collector::kGcTypeSticky;
     } else {
@@ -2595,7 +2596,7 @@ void Heap::GrowForUtilization(collector::GarbageCollector* collector_ran) {
     if (IsGcConcurrent()) {
       // Calculate when to perform the next ConcurrentGC.
       // Calculate the estimated GC duration.
-      const double gc_duration_seconds = NsToMs(collector_ran->GetDurationNs()) / 1000.0;
+      const double gc_duration_seconds = NsToMs(current_gc_iteration_.GetDurationNs()) / 1000.0;
       // Estimate how many remaining bytes we will have when we need to start the next GC.
       size_t remaining_bytes = allocation_rate_ * gc_duration_seconds;
       remaining_bytes = std::min(remaining_bytes, kMaxConcurrentRemainingBytes);

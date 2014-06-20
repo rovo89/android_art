@@ -57,7 +57,7 @@ namespace gc {
 namespace collector {
 
 void MarkCompact::BindBitmaps() {
-  timings_.StartSplit("BindBitmaps");
+  GetTimings()->StartSplit("BindBitmaps");
   WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   // Mark all of the spaces we never collect as immune.
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
@@ -66,7 +66,7 @@ void MarkCompact::BindBitmaps() {
       CHECK(immune_region_.AddContinuousSpace(space)) << "Failed to add space " << *space;
     }
   }
-  timings_.EndSplit();
+  GetTimings()->EndSplit();
 }
 
 MarkCompact::MarkCompact(Heap* heap, const std::string& name_prefix)
@@ -120,7 +120,7 @@ class CalculateObjectForwardingAddressVisitor {
 };
 
 void MarkCompact::CalculateObjectForwardingAddresses() {
-  timings_.NewSplit(__FUNCTION__);
+  GetTimings()->NewSplit(__FUNCTION__);
   // The bump pointer in the space where the next forwarding address will be.
   bump_pointer_ = reinterpret_cast<byte*>(space_->Begin());
   // Visit all the marked objects in the bitmap.
@@ -131,7 +131,7 @@ void MarkCompact::CalculateObjectForwardingAddresses() {
 }
 
 void MarkCompact::InitializePhase() {
-  TimingLogger::ScopedSplit split("InitializePhase", &timings_);
+  TimingLogger::ScopedSplit split("InitializePhase", GetTimings());
   mark_stack_ = heap_->GetMarkStack();
   DCHECK(mark_stack_ != nullptr);
   immune_region_.Reset();
@@ -143,11 +143,11 @@ void MarkCompact::InitializePhase() {
 }
 
 void MarkCompact::ProcessReferences(Thread* self) {
-  TimingLogger::ScopedSplit split("ProcessReferences", &timings_);
+  TimingLogger::ScopedSplit split("ProcessReferences", GetTimings());
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   heap_->GetReferenceProcessor()->ProcessReferences(
-      false, &timings_, clear_soft_references_, &HeapReferenceMarkedCallback, &MarkObjectCallback,
-      &ProcessMarkStackCallback, this);
+      false, GetTimings(), GetCurrentIteration()->GetClearSoftReferences(),
+      &HeapReferenceMarkedCallback, &MarkObjectCallback, &ProcessMarkStackCallback, this);
 }
 
 class BitmapSetSlowPathVisitor {
@@ -195,18 +195,18 @@ void MarkCompact::MarkingPhase() {
   objects_with_lockword_.reset(accounting::ContinuousSpaceBitmap::Create(
       "objects with lock words", space_->Begin(), space_->Size()));
   CHECK(Locks::mutator_lock_->IsExclusiveHeld(self));
-  TimingLogger::ScopedSplit split("MarkingPhase", &timings_);
+  TimingLogger::ScopedSplit split("MarkingPhase", GetTimings());
   // Assume the cleared space is already empty.
   BindBitmaps();
   // Process dirty cards and add dirty cards to mod-union tables.
-  heap_->ProcessCards(timings_, false);
+  heap_->ProcessCards(GetTimings(), false);
   // Clear the whole card table since we can not Get any additional dirty cards during the
   // paused GC. This saves memory but only works for pause the world collectors.
-  timings_.NewSplit("ClearCardTable");
+  GetTimings()->NewSplit("ClearCardTable");
   heap_->GetCardTable()->ClearCardTable();
   // Need to do this before the checkpoint since we don't want any threads to add references to
   // the live stack during the recursive mark.
-  timings_.NewSplit("SwapStacks");
+  GetTimings()->NewSplit("SwapStacks");
   if (kUseThreadLocalAllocationStack) {
     heap_->RevokeAllThreadLocalAllocationStacks(self);
   }
@@ -227,11 +227,11 @@ void MarkCompact::MarkingPhase() {
   // Revoke buffers before measuring how many objects were moved since the TLABs need to be revoked
   // before they are properly counted.
   RevokeAllThreadLocalBuffers();
-  timings_.StartSplit("PreSweepingGcVerification");
+  GetTimings()->StartSplit("PreSweepingGcVerification");
   // Disabled due to an issue where we have objects in the bump pointer space which reference dead
   // objects.
   // heap_->PreSweepingGcVerification(this);
-  timings_.EndSplit();
+  GetTimings()->EndSplit();
 }
 
 void MarkCompact::UpdateAndMarkModUnion() {
@@ -243,8 +243,7 @@ void MarkCompact::UpdateAndMarkModUnion() {
         // TODO: Improve naming.
         TimingLogger::ScopedSplit split(
             space->IsZygoteSpace() ? "UpdateAndMarkZygoteModUnionTable" :
-                                     "UpdateAndMarkImageModUnionTable",
-                                     &timings_);
+                                     "UpdateAndMarkImageModUnionTable", GetTimings());
         table->UpdateAndMarkReferences(MarkHeapReferenceCallback, this);
       }
     }
@@ -252,27 +251,28 @@ void MarkCompact::UpdateAndMarkModUnion() {
 }
 
 void MarkCompact::MarkReachableObjects() {
-  timings_.StartSplit("MarkStackAsLive");
+  GetTimings()->StartSplit("MarkStackAsLive");
   accounting::ObjectStack* live_stack = heap_->GetLiveStack();
   heap_->MarkAllocStackAsLive(live_stack);
   live_stack->Reset();
   // Recursively process the mark stack.
   ProcessMarkStack();
+  GetTimings()->EndSplit();
 }
 
 void MarkCompact::ReclaimPhase() {
-  TimingLogger::ScopedSplit split("ReclaimPhase", &timings_);
+  TimingLogger::ScopedSplit split("ReclaimPhase", GetTimings());
   WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   // Reclaim unmarked objects.
   Sweep(false);
   // Swap the live and mark bitmaps for each space which we modified space. This is an
   // optimization that enables us to not clear live bits inside of the sweep. Only swaps unbound
   // bitmaps.
-  timings_.StartSplit("SwapBitmapsAndUnBindBitmaps");
+  GetTimings()->StartSplit("SwapBitmapsAndUnBindBitmaps");
   SwapBitmaps();
   GetHeap()->UnBindBitmaps();  // Unbind the live and mark bitmaps.
   Compact();
-  timings_.EndSplit();
+  GetTimings()->EndSplit();
 }
 
 void MarkCompact::ResizeMarkStack(size_t new_size) {
@@ -340,7 +340,7 @@ class UpdateObjectReferencesVisitor {
 };
 
 void MarkCompact::UpdateReferences() {
-  timings_.NewSplit(__FUNCTION__);
+  GetTimings()->NewSplit(__FUNCTION__);
   Runtime* runtime = Runtime::Current();
   // Update roots.
   runtime->VisitRoots(UpdateRootCallback, this);
@@ -353,7 +353,7 @@ void MarkCompact::UpdateReferences() {
       TimingLogger::ScopedSplit split(
           space->IsZygoteSpace() ? "UpdateZygoteModUnionTableReferences" :
                                    "UpdateImageModUnionTableReferences",
-                                   &timings_);
+                                   GetTimings());
       table->UpdateAndMarkReferences(&UpdateHeapReferenceCallback, this);
     } else {
       // No mod union table, so we need to scan the space using bitmap visit.
@@ -381,7 +381,7 @@ void MarkCompact::UpdateReferences() {
 }
 
 void MarkCompact::Compact() {
-  timings_.NewSplit(__FUNCTION__);
+  GetTimings()->NewSplit(__FUNCTION__);
   CalculateObjectForwardingAddresses();
   UpdateReferences();
   MoveObjects();
@@ -389,9 +389,9 @@ void MarkCompact::Compact() {
   int64_t objects_freed = space_->GetObjectsAllocated() - live_objects_in_space_;
   int64_t bytes_freed = reinterpret_cast<int64_t>(space_->End()) -
       reinterpret_cast<int64_t>(bump_pointer_);
-  timings_.NewSplit("RecordFree");
+  GetTimings()->NewSplit("RecordFree");
   space_->RecordFree(objects_freed, bytes_freed);
-  RecordFree(objects_freed, bytes_freed);
+  RecordFree(ObjectBytePair(objects_freed, bytes_freed));
   space_->SetEnd(bump_pointer_);
   // Need to zero out the memory we freed. TODO: Use madvise for pages.
   memset(bump_pointer_, 0, bytes_freed);
@@ -399,7 +399,7 @@ void MarkCompact::Compact() {
 
 // Marks all objects in the root set.
 void MarkCompact::MarkRoots() {
-  timings_.NewSplit("MarkRoots");
+  GetTimings()->NewSplit("MarkRoots");
   Runtime::Current()->VisitRoots(MarkRootCallback, this);
 }
 
@@ -483,9 +483,9 @@ bool MarkCompact::HeapReferenceMarkedCallback(mirror::HeapReference<mirror::Obje
 }
 
 void MarkCompact::SweepSystemWeaks() {
-  timings_.StartSplit("SweepSystemWeaks");
+  GetTimings()->StartSplit("SweepSystemWeaks");
   Runtime::Current()->SweepSystemWeaks(IsMarkedCallback, this);
-  timings_.EndSplit();
+  GetTimings()->EndSplit();
 }
 
 bool MarkCompact::ShouldSweepSpace(space::ContinuousSpace* space) const {
@@ -523,7 +523,7 @@ void MarkCompact::MoveObject(mirror::Object* obj, size_t len) {
 }
 
 void MarkCompact::MoveObjects() {
-  timings_.NewSplit(__FUNCTION__);
+  GetTimings()->NewSplit(__FUNCTION__);
   // Move the objects in the before forwarding bitmap.
   MoveObjectVisitor visitor(this);
   objects_before_forwarding_->VisitMarkedRange(reinterpret_cast<uintptr_t>(space_->Begin()),
@@ -534,7 +534,7 @@ void MarkCompact::MoveObjects() {
 
 void MarkCompact::Sweep(bool swap_bitmaps) {
   DCHECK(mark_stack_->IsEmpty());
-  TimingLogger::ScopedSplit split("Sweep", &timings_);
+  TimingLogger::ScopedSplit split("Sweep", GetTimings());
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->IsContinuousMemMapAllocSpace()) {
       space::ContinuousMemMapAllocSpace* alloc_space = space->AsContinuousMemMapAllocSpace();
@@ -542,22 +542,16 @@ void MarkCompact::Sweep(bool swap_bitmaps) {
         continue;
       }
       TimingLogger::ScopedSplit split(
-          alloc_space->IsZygoteSpace() ? "SweepZygoteSpace" : "SweepAllocSpace", &timings_);
-      size_t freed_objects = 0;
-      size_t freed_bytes = 0;
-      alloc_space->Sweep(swap_bitmaps, &freed_objects, &freed_bytes);
-      RecordFree(freed_objects, freed_bytes);
+          alloc_space->IsZygoteSpace() ? "SweepZygoteSpace" : "SweepAllocSpace", GetTimings());
+      RecordFree(alloc_space->Sweep(swap_bitmaps));
     }
   }
   SweepLargeObjects(swap_bitmaps);
 }
 
 void MarkCompact::SweepLargeObjects(bool swap_bitmaps) {
-  TimingLogger::ScopedSplit split("SweepLargeObjects", &timings_);
-  size_t freed_objects = 0;
-  size_t freed_bytes = 0;
-  heap_->GetLargeObjectsSpace()->Sweep(swap_bitmaps, &freed_objects, &freed_bytes);
-  RecordFreeLargeObjects(freed_objects, freed_bytes);
+  TimingLogger::ScopedSplit split("SweepLargeObjects", GetTimings());
+  RecordFreeLOS(heap_->GetLargeObjectsSpace()->Sweep(swap_bitmaps));
 }
 
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
@@ -596,13 +590,13 @@ void MarkCompact::ScanObject(Object* obj) {
 
 // Scan anything that's on the mark stack.
 void MarkCompact::ProcessMarkStack() {
-  timings_.StartSplit("ProcessMarkStack");
+  GetTimings()->StartSplit("ProcessMarkStack");
   while (!mark_stack_->IsEmpty()) {
     Object* obj = mark_stack_->PopBack();
     DCHECK(obj != nullptr);
     ScanObject(obj);
   }
-  timings_.EndSplit();
+  GetTimings()->EndSplit();
 }
 
 void MarkCompact::SetSpace(space::BumpPointerSpace* space) {
@@ -611,7 +605,7 @@ void MarkCompact::SetSpace(space::BumpPointerSpace* space) {
 }
 
 void MarkCompact::FinishPhase() {
-  TimingLogger::ScopedSplit split("FinishPhase", &timings_);
+  TimingLogger::ScopedSplit split("FinishPhase", GetTimings());
   space_ = nullptr;
   CHECK(mark_stack_->IsEmpty());
   mark_stack_->Reset();
@@ -624,9 +618,9 @@ void MarkCompact::FinishPhase() {
 }
 
 void MarkCompact::RevokeAllThreadLocalBuffers() {
-  timings_.StartSplit("(Paused)RevokeAllThreadLocalBuffers");
+  GetTimings()->StartSplit("(Paused)RevokeAllThreadLocalBuffers");
   GetHeap()->RevokeAllThreadLocalBuffers();
-  timings_.EndSplit();
+  GetTimings()->EndSplit();
 }
 
 }  // namespace collector
