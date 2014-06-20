@@ -1298,9 +1298,7 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
     }
   } else if (kind == kGlobal) {
     JavaVMExt* const vm = Runtime::Current()->GetJavaVM();
-    // Strong global references do not need a read barrier.
-    result = vm->globals.SynchronizedGet<kWithoutReadBarrier>(
-        const_cast<Thread*>(this), &vm->globals_lock, ref);
+    result = vm->globals.SynchronizedGet(const_cast<Thread*>(this), &vm->globals_lock, ref);
   } else {
     DCHECK_EQ(kind, kWeakGlobal);
     result = Runtime::Current()->GetJavaVM()->DecodeWeakGlobal(const_cast<Thread*>(this), ref);

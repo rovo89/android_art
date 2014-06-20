@@ -24,6 +24,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/string-inl.h"
+#include "read_barrier.h"
 #include "thread.h"
 #include "utils.h"
 
@@ -51,7 +52,9 @@ void ReferenceTable::Add(mirror::Object* obj) {
 void ReferenceTable::Remove(mirror::Object* obj) {
   // We iterate backwards on the assumption that references are LIFO.
   for (int i = entries_.size() - 1; i >= 0; --i) {
-    if (entries_[i] == obj) {
+    mirror::Object* entry =
+        ReadBarrier::BarrierForRoot<mirror::Object, kWithReadBarrier>(&entries_[i]);
+    if (entry == obj) {
       entries_.erase(entries_.begin() + i);
       return;
     }
@@ -140,12 +143,12 @@ size_t ReferenceTable::Size() const {
   return entries_.size();
 }
 
-void ReferenceTable::Dump(std::ostream& os) const {
+void ReferenceTable::Dump(std::ostream& os) {
   os << name_ << " reference table dump:\n";
   Dump(os, entries_);
 }
 
-void ReferenceTable::Dump(std::ostream& os, const Table& entries) {
+void ReferenceTable::Dump(std::ostream& os, Table& entries) {
   if (entries.empty()) {
     os << "  (empty)\n";
     return;
@@ -160,7 +163,8 @@ void ReferenceTable::Dump(std::ostream& os, const Table& entries) {
   }
   os << "  Last " << (count - first) << " entries (of " << count << "):\n";
   for (int idx = count - 1; idx >= first; --idx) {
-    mirror::Object* ref = entries[idx];
+    mirror::Object* ref =
+        ReadBarrier::BarrierForRoot<mirror::Object, kWithReadBarrier>(&entries[idx]);
     if (ref == NULL) {
       continue;
     }
@@ -194,7 +198,12 @@ void ReferenceTable::Dump(std::ostream& os, const Table& entries) {
   }
 
   // Make a copy of the table and sort it.
-  Table sorted_entries(entries.begin(), entries.end());
+  Table sorted_entries;
+  for (size_t i = 0; i < entries.size(); ++i) {
+    mirror::Object* entry =
+        ReadBarrier::BarrierForRoot<mirror::Object, kWithReadBarrier>(&entries[i]);
+    sorted_entries.push_back(entry);
+  }
   std::sort(sorted_entries.begin(), sorted_entries.end(), ObjectComparator());
 
   // Remove any uninteresting stuff from the list. The sort moved them all to the end.
