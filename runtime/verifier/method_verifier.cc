@@ -1219,6 +1219,12 @@ bool MethodVerifier::SetTypesFromSignature() {
         break;
       case 'J':
       case 'D': {
+        if (cur_arg + 1 >= expected_args) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected " << expected_args
+              << " args, found more (" << descriptor << ")";
+          return false;
+        }
+
         const RegType& lo_half = descriptor[0] == 'J' ? reg_types_.LongLo() : reg_types_.DoubleLo();
         const RegType& hi_half = descriptor[0] == 'J' ? reg_types_.LongHi() : reg_types_.DoubleHi();
         reg_line->SetRegisterTypeWide(arg_start + cur_arg, lo_half, hi_half);
