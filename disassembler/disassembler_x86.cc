@@ -640,6 +640,21 @@ DISASSEMBLER_ENTRY(cmp,
         store = true;
         immediate_bytes = 1;
         break;
+      case 0x7C:
+        if (prefix[0] == 0xF2) {
+          opcode << "haddps";
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else if (prefix[2] == 0x66) {
+          opcode << "haddpd";
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          opcode << StringPrintf("unknown opcode '0F %02X'", *instr);
+          break;
+        }
+        src_reg_file = dst_reg_file = SSE;
+        has_modrm = true;
+        load = true;
+        break;
       case 0x7E:
         if (prefix[2] == 0x66) {
           src_reg_file = SSE;
@@ -731,6 +746,18 @@ DISASSEMBLER_ENTRY(cmp,
         } else {
           opcode << StringPrintf("unknown opcode '0F %02X'", *instr);
         }
+        break;
+      case 0xC6:
+        if (prefix[2] == 0x66) {
+          opcode << "shufpd";
+          prefix[2] = 0;
+        } else {
+          opcode << "shufps";
+        }
+        has_modrm = true;
+        store = true;
+        src_reg_file = dst_reg_file = SSE;
+        immediate_bytes = 1;
         break;
       case 0xC7:
         static const char* x0FxC7_opcodes[] = { "unknown-0f-c7", "cmpxchg8b", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7" };

@@ -557,11 +557,15 @@ enum X86OpCode {
   Binary0fOpCode(kX86Pxor),     // parallel XOR 128 bits x 1
   Binary0fOpCode(kX86Phaddw),   // parallel horizontal addition 16 bits x 8
   Binary0fOpCode(kX86Phaddd),   // parallel horizontal addition 32 bits x 4
+  Binary0fOpCode(kX86Haddpd),   // parallel FP horizontal addition 64 bits x 2
+  Binary0fOpCode(kX86Haddps),   // parallel FP horizontal addition 32 bits x 4
   kX86PextrbRRI,                // Extract 8 bits from XMM into GPR
   kX86PextrwRRI,                // Extract 16 bits from XMM into GPR
   kX86PextrdRRI,                // Extract 32 bits from XMM into GPR
   kX86PshuflwRRI,               // Shuffle 16 bits in lower 64 bits of XMM.
   kX86PshufdRRI,                // Shuffle 32 bits in XMM.
+  kX86ShufpsRRI,                // FP Shuffle 32 bits in XMM.
+  kX86ShufpdRRI,                // FP Shuffle 64 bits in XMM.
   kX86PsrawRI,                  // signed right shift of floating point registers 16 bits x 8
   kX86PsradRI,                  // signed right shift of floating point registers 32 bits x 4
   kX86PsrlwRI,                  // logical right shift of floating point registers 16 bits x 8
