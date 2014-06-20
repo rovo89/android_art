@@ -221,7 +221,7 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
       LoadConstant(rl_result.reg, 0x7fffffff);
       NewLIR2(kX86Cvtsi2ssRR, temp_reg.GetReg(), rl_result.reg.GetReg());
       NewLIR2(kX86ComissRR, rl_src.reg.GetReg(), temp_reg.GetReg());
-      LIR* branch_pos_overflow = NewLIR2(kX86Jcc8, 0, kX86CondA);
+      LIR* branch_pos_overflow = NewLIR2(kX86Jcc8, 0, kX86CondAe);
       LIR* branch_na_n = NewLIR2(kX86Jcc8, 0, kX86CondP);
       NewLIR2(kX86Cvttss2siRR, rl_result.reg.GetReg(), rl_src.reg.GetReg());
       LIR* branch_normal = NewLIR1(kX86Jmp8, 0);
@@ -242,7 +242,7 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
       LoadConstant(rl_result.reg, 0x7fffffff);
       NewLIR2(kX86Cvtsi2sdRR, temp_reg.GetReg(), rl_result.reg.GetReg());
       NewLIR2(kX86ComisdRR, rl_src.reg.GetReg(), temp_reg.GetReg());
-      LIR* branch_pos_overflow = NewLIR2(kX86Jcc8, 0, kX86CondA);
+      LIR* branch_pos_overflow = NewLIR2(kX86Jcc8, 0, kX86CondAe);
       LIR* branch_na_n = NewLIR2(kX86Jcc8, 0, kX86CondP);
       NewLIR2(kX86Cvttsd2siRR, rl_result.reg.GetReg(), rl_src.reg.GetReg());
       LIR* branch_normal = NewLIR1(kX86Jmp8, 0);
@@ -281,7 +281,7 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
         LoadConstantWide(rl_result.reg, 0x7fffffffffffffff);
         NewLIR2(kX86Cvtsqi2ssRR, temp_reg.GetReg(), rl_result.reg.GetReg());
         NewLIR2(kX86ComissRR, rl_src.reg.GetReg(), temp_reg.GetReg());
-        LIR* branch_pos_overflow = NewLIR2(kX86Jcc8, 0, kX86CondA);
+        LIR* branch_pos_overflow = NewLIR2(kX86Jcc8, 0, kX86CondAe);
         LIR* branch_na_n = NewLIR2(kX86Jcc8, 0, kX86CondP);
         NewLIR2(kX86Cvttss2sqiRR, rl_result.reg.GetReg(), rl_src.reg.GetReg());
         LIR* branch_normal = NewLIR1(kX86Jmp8, 0);
@@ -306,7 +306,7 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
         LoadConstantWide(rl_result.reg, 0x7fffffffffffffff);
         NewLIR2(kX86Cvtsqi2sdRR, temp_reg.GetReg(), rl_result.reg.GetReg());
         NewLIR2(kX86ComisdRR, rl_src.reg.GetReg(), temp_reg.GetReg());
-        LIR* branch_pos_overflow = NewLIR2(kX86Jcc8, 0, kX86CondA);
+        LIR* branch_pos_overflow = NewLIR2(kX86Jcc8, 0, kX86CondAe);
         LIR* branch_na_n = NewLIR2(kX86Jcc8, 0, kX86CondP);
         NewLIR2(kX86Cvttsd2sqiRR, rl_result.reg.GetReg(), rl_src.reg.GetReg());
         LIR* branch_normal = NewLIR1(kX86Jmp8, 0);
