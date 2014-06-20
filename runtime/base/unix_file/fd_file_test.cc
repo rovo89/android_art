@@ -16,6 +16,7 @@
 
 #include "base/unix_file/fd_file.h"
 #include "base/unix_file/random_access_file_test.h"
+#include "common_runtime_test.h"  // For ScratchFile
 #include "gtest/gtest.h"
 
 namespace unix_file {
@@ -58,6 +59,17 @@ TEST_F(FdFileTest, OpenClose) {
   EXPECT_TRUE(file.Open(good_path,  O_RDONLY));
   EXPECT_GE(file.Fd(), 0);
   EXPECT_TRUE(file.IsOpened());
+}
+
+TEST_F(FdFileTest, ReadFullyEmptyFile) {
+  // New scratch file, zero-length.
+  art::ScratchFile tmp;
+  FdFile file;
+  ASSERT_TRUE(file.Open(tmp.GetFilename(), O_RDONLY));
+  EXPECT_GE(file.Fd(), 0);
+  EXPECT_TRUE(file.IsOpened());
+  uint8_t buffer[16];
+  EXPECT_FALSE(file.ReadFully(&buffer, 4));
 }
 
 }  // namespace unix_file

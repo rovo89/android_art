@@ -122,7 +122,9 @@ bool FdFile::ReadFully(void* buffer, size_t byte_count) {
   char* ptr = static_cast<char*>(buffer);
   while (byte_count > 0) {
     ssize_t bytes_read = TEMP_FAILURE_RETRY(read(fd_, ptr, byte_count));
-    if (bytes_read == -1) {
+    if (bytes_read <= 0) {
+      // 0: end of file
+      // -1: error
       return false;
     }
     byte_count -= bytes_read;  // Reduce the number of remaining bytes.
