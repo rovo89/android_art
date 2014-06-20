@@ -27,6 +27,7 @@
 #include "gc/accounting/atomic_stack.h"
 #include "gc/accounting/card_table.h"
 #include "gc/gc_cause.h"
+#include "gc/collector/garbage_collector.h"
 #include "gc/collector/gc_type.h"
 #include "gc/collector_type.h"
 #include "globals.h"
@@ -315,6 +316,13 @@ class Heap {
 
   const std::vector<space::DiscontinuousSpace*>& GetDiscontinuousSpaces() const {
     return discontinuous_spaces_;
+  }
+
+  const collector::Iteration* GetCurrentGcIteration() const {
+    return &current_gc_iteration_;
+  }
+  collector::Iteration* GetCurrentGcIteration() {
+    return &current_gc_iteration_;
   }
 
   // Enable verification of object references when the runtime is sufficiently initialized.
@@ -690,7 +698,7 @@ class Heap {
   void SwapStacks(Thread* self);
 
   // Clear cards and update the mod union table.
-  void ProcessCards(TimingLogger& timings, bool use_rem_sets);
+  void ProcessCards(TimingLogger* timings, bool use_rem_sets);
 
   // Signal the heap trim daemon that there is something to do, either a heap transition or heap
   // trim.
@@ -848,6 +856,9 @@ class Heap {
 
   // Data structure GC overhead.
   Atomic<size_t> gc_memory_overhead_;
+
+  // Info related to the current or previous GC iteration.
+  collector::Iteration current_gc_iteration_;
 
   // Heap verification flags.
   const bool verify_missing_card_marks_;

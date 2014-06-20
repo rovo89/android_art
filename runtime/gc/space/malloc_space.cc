@@ -242,8 +242,8 @@ void MallocSpace::SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* ar
   // Use a bulk free, that merges consecutive objects before freeing or free per object?
   // Documentation suggests better free performance with merging, but this may be at the expensive
   // of allocation.
-  context->freed_objects += num_ptrs;
-  context->freed_bytes += space->FreeList(self, num_ptrs, ptrs);
+  context->freed.objects += num_ptrs;
+  context->freed.bytes += space->FreeList(self, num_ptrs, ptrs);
 }
 
 }  // namespace space
