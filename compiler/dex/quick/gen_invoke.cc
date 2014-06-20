@@ -363,20 +363,27 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(ThreadOffset<pointer_size>
 INSTANTIATE(void Mir2Lir::CallRuntimeHelperRegLocationRegLocation, RegLocation arg0,
             RegLocation arg1, bool safepoint_pc)
 
+// TODO: This is a hack! Reshape the two macros into functions and move them to a better place.
+#define IsSameReg(r1, r2) \
+  (GetRegInfo(r1)->Master()->GetReg().GetReg() == GetRegInfo(r2)->Master()->GetReg().GetReg())
+#define TargetArgReg(arg, is_wide) \
+  (GetRegInfo(TargetReg(arg))->FindMatchingView( \
+     (is_wide) ? RegisterInfo::k64SoloStorageMask : RegisterInfo::k32SoloStorageMask)->GetReg())
+
 void Mir2Lir::CopyToArgumentRegs(RegStorage arg0, RegStorage arg1) {
-  if (arg1.GetReg() == TargetReg(kArg0).GetReg()) {
-    if (arg0.GetReg() == TargetReg(kArg1).GetReg()) {
+  if (IsSameReg(arg1, TargetReg(kArg0))) {
+    if (IsSameReg(arg0, TargetReg(kArg1))) {
       // Swap kArg0 and kArg1 with kArg2 as temp.
-      OpRegCopy(TargetReg(kArg2), arg1);
-      OpRegCopy(TargetReg(kArg0), arg0);
-      OpRegCopy(TargetReg(kArg1), TargetReg(kArg2));
+      OpRegCopy(TargetArgReg(kArg2, arg1.Is64Bit()), arg1);
+      OpRegCopy(TargetArgReg(kArg0, arg0.Is64Bit()), arg0);
+      OpRegCopy(TargetArgReg(kArg1, arg1.Is64Bit()), TargetReg(kArg2));
     } else {
-      OpRegCopy(TargetReg(kArg1), arg1);
-      OpRegCopy(TargetReg(kArg0), arg0);
+      OpRegCopy(TargetArgReg(kArg1, arg1.Is64Bit()), arg1);
+      OpRegCopy(TargetArgReg(kArg0, arg0.Is64Bit()), arg0);
     }
   } else {
-    OpRegCopy(TargetReg(kArg0), arg0);
-    OpRegCopy(TargetReg(kArg1), arg1);
+    OpRegCopy(TargetArgReg(kArg0, arg0.Is64Bit()), arg0);
+    OpRegCopy(TargetArgReg(kArg1, arg1.Is64Bit()), arg1);
   }
 }
 
