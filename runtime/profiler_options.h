@@ -24,7 +24,7 @@ namespace art {
 
 enum ProfileDataType {
   kProfilerMethod,          // Method only
-  kProfilerMethodAndDexPC,  // Method with Dex PC
+  kProfilerBoundedStack,    // Methods with Dex PC on top of the stack
 };
 
 class ProfilerOptions {
@@ -38,6 +38,7 @@ class ProfilerOptions {
   static constexpr double kDefaultTopKThreshold = 90.0;
   static constexpr double kDefaultChangeInTopKThreshold = 10.0;
   static constexpr ProfileDataType kDefaultProfileData = kProfilerMethod;
+  static constexpr uint32_t kDefaultMaxStackDepth = 3;
 
   ProfilerOptions() :
     enabled_(kDefaultEnabled),
@@ -48,7 +49,8 @@ class ProfilerOptions {
     start_immediately_(kDefaultStartImmediately),
     top_k_threshold_(kDefaultTopKThreshold),
     top_k_change_threshold_(kDefaultChangeInTopKThreshold),
-    profile_type_(kDefaultProfileData) {}
+    profile_type_(kDefaultProfileData),
+    max_stack_depth_(kDefaultMaxStackDepth) {}
 
   ProfilerOptions(bool enabled,
                  uint32_t period_s,
@@ -58,7 +60,8 @@ class ProfilerOptions {
                  bool start_immediately,
                  double top_k_threshold,
                  double top_k_change_threshold,
-                 ProfileDataType profile_type):
+                 ProfileDataType profile_type,
+                 uint32_t max_stack_depth):
     enabled_(enabled),
     period_s_(period_s),
     duration_s_(duration_s),
@@ -67,7 +70,8 @@ class ProfilerOptions {
     start_immediately_(start_immediately),
     top_k_threshold_(top_k_threshold),
     top_k_change_threshold_(top_k_change_threshold),
-    profile_type_(profile_type) {}
+    profile_type_(profile_type),
+    max_stack_depth_(max_stack_depth) {}
 
   bool IsEnabled() const {
     return enabled_;
@@ -105,6 +109,10 @@ class ProfilerOptions {
     return profile_type_;
   }
 
+  uint32_t GetMaxStackDepth() const {
+    return max_stack_depth_;
+  }
+
  private:
   friend std::ostream & operator<<(std::ostream &os, const ProfilerOptions& po) {
     os << "enabled=" << po.enabled_
@@ -115,7 +123,8 @@ class ProfilerOptions {
        << ", start_immediately=" << po.start_immediately_
        << ", top_k_threshold=" << po.top_k_threshold_
        << ", top_k_change_threshold=" << po.top_k_change_threshold_
-       << ", profile_type=" << po.profile_type_;
+       << ", profile_type=" << po.profile_type_
+       << ", max_stack_depth=" << po.max_stack_depth_;
     return os;
   }
 
@@ -139,6 +148,8 @@ class ProfilerOptions {
   double top_k_change_threshold_;
   // The type of profile data dumped to the disk.
   ProfileDataType profile_type_;
+  // The max depth of the stack collected by the profiler
+  uint32_t max_stack_depth_;
 };
 
 }  // namespace art
