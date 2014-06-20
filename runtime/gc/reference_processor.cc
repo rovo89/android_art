@@ -110,6 +110,7 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
                                            MarkObjectCallback* mark_object_callback,
                                            ProcessMarkStackCallback* process_mark_stack_callback,
                                            void* arg) {
+  TimingLogger::ScopedTiming t(concurrent ? __FUNCTION__ : "(Paused)ProcessReferences", timings);
   Thread* self = Thread::Current();
   {
     MutexLock mu(self, lock_);
@@ -118,10 +119,9 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
     process_references_args_.arg_ = arg;
     CHECK_EQ(slow_path_enabled_, concurrent) << "Slow path must be enabled iff concurrent";
   }
-  timings->StartSplit(concurrent ? "ProcessReferences" : "(Paused)ProcessReferences");
   // Unless required to clear soft references with white references, preserve some white referents.
   if (!clear_soft_references) {
-    TimingLogger::ScopedSplit split(concurrent ? "ForwardSoftReferences" :
+    TimingLogger::ScopedTiming split(concurrent ? "ForwardSoftReferences" :
         "(Paused)ForwardSoftReferences", timings);
     if (concurrent) {
       StartPreservingReferences(self);
@@ -138,7 +138,7 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
   soft_reference_queue_.ClearWhiteReferences(&cleared_references_, is_marked_callback, arg);
   weak_reference_queue_.ClearWhiteReferences(&cleared_references_, is_marked_callback, arg);
   {
-    TimingLogger::ScopedSplit split(concurrent ? "EnqueueFinalizerReferences" :
+    TimingLogger::ScopedTiming t(concurrent ? "EnqueueFinalizerReferences" :
         "(Paused)EnqueueFinalizerReferences", timings);
     if (concurrent) {
       StartPreservingReferences(self);
@@ -173,7 +173,6 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
       DisableSlowPath(self);
     }
   }
-  timings->EndSplit();
 }
 
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been

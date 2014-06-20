@@ -529,7 +529,7 @@ size_t RosAlloc::FreeInternal(Thread* self, void* ptr) {
 }
 
 size_t RosAlloc::Free(Thread* self, void* ptr) {
-  WriterMutexLock rmu(self, bulk_free_lock_);
+  ReaderMutexLock rmu(self, bulk_free_lock_);
   return FreeInternal(self, ptr);
 }
 

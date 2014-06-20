@@ -1580,6 +1580,7 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
 };
 
 void Heap::UnBindBitmaps() {
+  TimingLogger::ScopedTiming t("UnBindBitmaps", GetCurrentGcIteration()->GetTimings());
   for (const auto& space : GetContinuousSpaces()) {
     if (space->IsContinuousMemMapAllocSpace()) {
       space::ContinuousMemMapAllocSpace* alloc_space = space->AsContinuousMemMapAllocSpace();
@@ -1848,7 +1849,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   const size_t duration = GetCurrentGcIteration()->GetDurationNs();
   const std::vector<uint64_t>& pause_times = GetCurrentGcIteration()->GetPauseTimes();
   // Print the GC if it is an explicit GC (e.g. Runtime.gc()) or a slow GC
-  // (mutator time blocked >=  long_pause_log_threshold_).
+  // (mutator time blocked >= long_pause_log_threshold_).
   bool log_gc = gc_cause == kGcCauseExplicit;
   if (!log_gc && CareAboutPauseTimes()) {
     // GC for alloc pauses the allocating thread, so consider it as a pause.
@@ -2314,6 +2315,7 @@ accounting::RememberedSet* Heap::FindRememberedSetFromSpace(space::Space* space)
 }
 
 void Heap::ProcessCards(TimingLogger* timings, bool use_rem_sets) {
+  TimingLogger::ScopedTiming t(__FUNCTION__, timings);
   // Clear cards and keep track of cards cleared in the mod-union table.
   for (const auto& space : continuous_spaces_) {
     accounting::ModUnionTable* table = FindModUnionTableFromSpace(space);
@@ -2321,15 +2323,15 @@ void Heap::ProcessCards(TimingLogger* timings, bool use_rem_sets) {
     if (table != nullptr) {
       const char* name = space->IsZygoteSpace() ? "ZygoteModUnionClearCards" :
           "ImageModUnionClearCards";
-      TimingLogger::ScopedSplit split(name, timings);
+      TimingLogger::ScopedTiming t(name, timings);
       table->ClearCards();
     } else if (use_rem_sets && rem_set != nullptr) {
       DCHECK(collector::SemiSpace::kUseRememberedSet && collector_type_ == kCollectorTypeGSS)
           << static_cast<int>(collector_type_);
-      TimingLogger::ScopedSplit split("AllocSpaceRemSetClearCards", timings);
+      TimingLogger::ScopedTiming t("AllocSpaceRemSetClearCards", timings);
       rem_set->ClearCards();
     } else if (space->GetType() != space::kSpaceTypeBumpPointerSpace) {
-      TimingLogger::ScopedSplit split("AllocSpaceClearCards", timings);
+      TimingLogger::ScopedTiming t("AllocSpaceClearCards", timings);
       // No mod union table for the AllocSpace. Age the cards so that the GC knows that these cards
       // were dirty before the GC started.
       // TODO: Need to use atomic for the case where aged(cleaning thread) -> dirty(other thread)
@@ -2349,8 +2351,9 @@ static void IdentityMarkHeapReferenceCallback(mirror::HeapReference<mirror::Obje
 void Heap::PreGcVerificationPaused(collector::GarbageCollector* gc) {
   Thread* const self = Thread::Current();
   TimingLogger* const timings = current_gc_iteration_.GetTimings();
+  TimingLogger::ScopedTiming t(__FUNCTION__, timings);
   if (verify_pre_gc_heap_) {
-    TimingLogger::ScopedSplit split("PreGcVerifyHeapReferences", timings);
+    TimingLogger::ScopedTiming t("(Paused)PreGcVerifyHeapReferences", timings);
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     size_t failures = VerifyHeapReferences();
     if (failures > 0) {
@@ -2360,7 +2363,7 @@ void Heap::PreGcVerificationPaused(collector::GarbageCollector* gc) {
   }
   // Check that all objects which reference things in the live stack are on dirty cards.
   if (verify_missing_card_marks_) {
-    TimingLogger::ScopedSplit split("PreGcVerifyMissingCardMarks", timings);
+    TimingLogger::ScopedTiming t("(Paused)PreGcVerifyMissingCardMarks", timings);
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     SwapStacks(self);
     // Sort the live stack so that we can quickly binary search it later.
@@ -2370,7 +2373,7 @@ void Heap::PreGcVerificationPaused(collector::GarbageCollector* gc) {
     SwapStacks(self);
   }
   if (verify_mod_union_table_) {
-    TimingLogger::ScopedSplit split("PreGcVerifyModUnionTables", timings);
+    TimingLogger::ScopedTiming t("(Paused)PreGcVerifyModUnionTables", timings);
     ReaderMutexLock reader_lock(self, *Locks::heap_bitmap_lock_);
     for (const auto& table_pair : mod_union_tables_) {
       accounting::ModUnionTable* mod_union_table = table_pair.second;
@@ -2397,10 +2400,11 @@ void Heap::PrePauseRosAllocVerification(collector::GarbageCollector* gc) {
 void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
   Thread* const self = Thread::Current();
   TimingLogger* const timings = current_gc_iteration_.GetTimings();
+  TimingLogger::ScopedTiming t(__FUNCTION__, timings);
   // Called before sweeping occurs since we want to make sure we are not going so reclaim any
   // reachable objects.
   if (verify_pre_sweeping_heap_) {
-    TimingLogger::ScopedSplit split("PostSweepingVerifyHeapReferences", timings);
+    TimingLogger::ScopedTiming t("(Paused)PostSweepingVerifyHeapReferences", timings);
     CHECK_NE(self->GetState(), kRunnable);
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     // Swapping bound bitmaps does nothing.
@@ -2423,16 +2427,17 @@ void Heap::PostGcVerificationPaused(collector::GarbageCollector* gc) {
   // Only pause if we have to do some verification.
   Thread* const self = Thread::Current();
   TimingLogger* const timings = GetCurrentGcIteration()->GetTimings();
+  TimingLogger::ScopedTiming t(__FUNCTION__, timings);
   if (verify_system_weaks_) {
     ReaderMutexLock mu2(self, *Locks::heap_bitmap_lock_);
     collector::MarkSweep* mark_sweep = down_cast<collector::MarkSweep*>(gc);
     mark_sweep->VerifySystemWeaks();
   }
   if (verify_post_gc_rosalloc_) {
-    RosAllocVerification(timings, "PostGcRosAllocVerification");
+    RosAllocVerification(timings, "(Paused)PostGcRosAllocVerification");
   }
   if (verify_post_gc_heap_) {
-    TimingLogger::ScopedSplit split("PostGcVerifyHeapReferences", timings);
+    TimingLogger::ScopedTiming t("(Paused)PostGcVerifyHeapReferences", timings);
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     size_t failures = VerifyHeapReferences();
     if (failures > 0) {
@@ -2450,7 +2455,7 @@ void Heap::PostGcVerification(collector::GarbageCollector* gc) {
 }
 
 void Heap::RosAllocVerification(TimingLogger* timings, const char* name) {
-  TimingLogger::ScopedSplit split(name, timings);
+  TimingLogger::ScopedTiming t(name, timings);
   for (const auto& space : continuous_spaces_) {
     if (space->IsRosAllocSpace()) {
       VLOG(heap) << name << " : " << space->GetName();

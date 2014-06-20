@@ -171,14 +171,15 @@ TEST_F(UtilsTest, PrettyDuration) {
   EXPECT_EQ("10s", PrettyDuration(10 * one_sec));
   EXPECT_EQ("100s", PrettyDuration(100 * one_sec));
   EXPECT_EQ("1.001s", PrettyDuration(1 * one_sec + one_ms));
-  EXPECT_EQ("1.000001s", PrettyDuration(1 * one_sec + one_us));
-  EXPECT_EQ("1.000000001s", PrettyDuration(1 * one_sec + 1));
+  EXPECT_EQ("1.000001s", PrettyDuration(1 * one_sec + one_us, 6));
+  EXPECT_EQ("1.000000001s", PrettyDuration(1 * one_sec + 1, 9));
+  EXPECT_EQ("1.000s", PrettyDuration(1 * one_sec + one_us, 3));
 
   EXPECT_EQ("1ms", PrettyDuration(1 * one_ms));
   EXPECT_EQ("10ms", PrettyDuration(10 * one_ms));
   EXPECT_EQ("100ms", PrettyDuration(100 * one_ms));
   EXPECT_EQ("1.001ms", PrettyDuration(1 * one_ms + one_us));
-  EXPECT_EQ("1.000001ms", PrettyDuration(1 * one_ms + 1));
+  EXPECT_EQ("1.000001ms", PrettyDuration(1 * one_ms + 1, 6));
 
   EXPECT_EQ("1us", PrettyDuration(1 * one_us));
   EXPECT_EQ("10us", PrettyDuration(10 * one_us));

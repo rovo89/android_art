@@ -164,18 +164,18 @@ inline void Histogram<Value>::PrintBins(std::ostream& os, const CumulativeData& 
 template <class Value>
 inline void Histogram<Value>::PrintConfidenceIntervals(std::ostream &os, double interval,
                                                        const CumulativeData& data) const {
+  static constexpr size_t kFractionalDigits = 3;
   DCHECK_GT(interval, 0);
   DCHECK_LT(interval, 1.0);
-
-  double per_0 = (1.0 - interval) / 2.0;
-  double per_1 = per_0 + interval;
-  TimeUnit unit = GetAppropriateTimeUnit(Mean() * kAdjust);
-  os << Name() << ":\tSum: ";
-  os << PrettyDuration(Sum() * kAdjust) << " ";
-  os << (interval * 100) << "% C.I. " << FormatDuration(Percentile(per_0, data) * kAdjust, unit);
-  os << "-" << FormatDuration(Percentile(per_1, data) * kAdjust, unit) << " ";
-  os << "Avg: " << FormatDuration(Mean() * kAdjust, unit) << " Max: ";
-  os << FormatDuration(Max() * kAdjust, unit) << "\n";
+  const double per_0 = (1.0 - interval) / 2.0;
+  const double per_1 = per_0 + interval;
+  const TimeUnit unit = GetAppropriateTimeUnit(Mean() * kAdjust);
+  os << Name() << ":\tSum: " << PrettyDuration(Sum() * kAdjust) << " "
+     << (interval * 100) << "% C.I. " << FormatDuration(Percentile(per_0, data) * kAdjust, unit,
+                                                        kFractionalDigits)
+     << "-" << FormatDuration(Percentile(per_1, data) * kAdjust, unit, kFractionalDigits) << " "
+     << "Avg: " << FormatDuration(Mean() * kAdjust, unit, kFractionalDigits) << " Max: "
+     << FormatDuration(Max() * kAdjust, unit, kFractionalDigits) << "\n";
 }
 
 template <class Value>

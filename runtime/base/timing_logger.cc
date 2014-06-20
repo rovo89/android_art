@@ -33,6 +33,8 @@ namespace art {
 
 constexpr size_t CumulativeLogger::kLowMemoryBucketCount;
 constexpr size_t CumulativeLogger::kDefaultBucketCount;
+constexpr size_t TimingLogger::kIndexNotFound;
+
 CumulativeLogger::CumulativeLogger(const std::string& name)
     : name_(name),
       lock_name_("CumulativeLoggerLock" + name),
@@ -66,10 +68,12 @@ void CumulativeLogger::Reset() {
 
 void CumulativeLogger::AddLogger(const TimingLogger &logger) {
   MutexLock mu(Thread::Current(), lock_);
-  for (const TimingLogger::SplitTiming& split : logger.GetSplits()) {
-    uint64_t split_time = split.first;
-    const char* split_name = split.second;
-    AddPair(split_name, split_time);
+  TimingLogger::TimingData timing_data(logger.CalculateTimingData());
+  const std::vector<TimingLogger::Timing>& timings = logger.GetTimings();
+  for (size_t i = 0; i < timings.size(); ++i) {
+    if (timings[i].IsStartTiming()) {
+      AddPair(timings[i].GetName(), timing_data.GetExclusiveTime(i));
+    }
   }
   ++iterations_;
 }
@@ -124,166 +128,125 @@ void CumulativeLogger::DumpHistogram(std::ostream &os) const {
 }
 
 TimingLogger::TimingLogger(const char* name, bool precise, bool verbose)
-    : name_(name), precise_(precise), verbose_(verbose), current_split_(NULL) {
+    : name_(name), precise_(precise), verbose_(verbose) {
 }
 
 void TimingLogger::Reset() {
-  current_split_ = NULL;
-  splits_.clear();
+  timings_.clear();
 }
 
-void TimingLogger::StartSplit(const char* new_split_label) {
-  DCHECK(new_split_label != nullptr) << "Starting split with null label.";
-  TimingLogger::ScopedSplit* explicit_scoped_split =
-      new TimingLogger::ScopedSplit(new_split_label, this);
-  explicit_scoped_split->explicit_ = true;
+void TimingLogger::StartTiming(const char* label) {
+  DCHECK(label != nullptr);
+  timings_.push_back(Timing(NanoTime(), label));
+  ATRACE_BEGIN(label);
 }
 
-void TimingLogger::EndSplit() {
-  CHECK(current_split_ != nullptr) << "Ending a non-existent split.";
-  DCHECK(current_split_->label_ != nullptr);
-  DCHECK(current_split_->explicit_ == true)
-      << "Explicitly ending scoped split: " << current_split_->label_;
-  delete current_split_;
-  // TODO: current_split_ = nullptr;
-}
-
-// Ends the current split and starts the one given by the label.
-void TimingLogger::NewSplit(const char* new_split_label) {
-  if (current_split_ == nullptr) {
-    StartSplit(new_split_label);
-  } else {
-    DCHECK(new_split_label != nullptr) << "New split (" << new_split_label << ") with null label.";
-    current_split_->TailInsertSplit(new_split_label);
-  }
+void TimingLogger::EndTiming() {
+  timings_.push_back(Timing(NanoTime(), nullptr));
+  ATRACE_END();
 }
 
 uint64_t TimingLogger::GetTotalNs() const {
-  uint64_t total_ns = 0;
-  for (const TimingLogger::SplitTiming& split : splits_) {
-    total_ns += split.first;
+  if (timings_.size() < 2) {
+    return 0;
   }
-  return total_ns;
+  return timings_.back().GetTime() - timings_.front().GetTime();
 }
 
-void TimingLogger::Dump(std::ostream &os) const {
+size_t TimingLogger::FindTimingIndex(const char* name, size_t start_idx) const {
+  DCHECK_LT(start_idx, timings_.size());
+  for (size_t i = start_idx; i < timings_.size(); ++i) {
+    if (timings_[i].IsStartTiming() && strcmp(timings_[i].GetName(), name) == 0) {
+      return i;
+    }
+  }
+  return kIndexNotFound;
+}
+
+TimingLogger::TimingData TimingLogger::CalculateTimingData() const {
+  TimingLogger::TimingData ret;
+  ret.data_.resize(timings_.size());
+  std::vector<size_t> open_stack;
+  for (size_t i = 0; i < timings_.size(); ++i) {
+    if (timings_[i].IsEndTiming()) {
+      CHECK(!open_stack.empty()) << "No starting split for ending split at index " << i;
+      size_t open_idx = open_stack.back();
+      uint64_t time = timings_[i].GetTime() - timings_[open_idx].GetTime();
+      ret.data_[open_idx].exclusive_time += time;
+      DCHECK_EQ(ret.data_[open_idx].total_time, 0U);
+      ret.data_[open_idx].total_time += time;
+      // Each open split has exactly one end.
+      open_stack.pop_back();
+      // If there is a parent node, subtract from the exclusive time.
+      if (!open_stack.empty()) {
+        // Note this may go negative, but will work due to 2s complement when we add the value
+        // total time value later.
+        ret.data_[open_stack.back()].exclusive_time -= time;
+      }
+    } else {
+      open_stack.push_back(i);
+    }
+  }
+  CHECK(open_stack.empty()) << "Missing ending for timing "
+      << timings_[open_stack.back()].GetName() << " at index " << open_stack.back();
+  return ret;  // No need to fear, C++11 move semantics are here.
+}
+
+void TimingLogger::Dump(std::ostream &os, const char* indent_string) const {
+  static constexpr size_t kFractionalDigits = 3;
+  TimingLogger::TimingData timing_data(CalculateTimingData());
   uint64_t longest_split = 0;
-  uint64_t total_ns = 0;
-  for (const SplitTiming& split : splits_) {
-    uint64_t split_time = split.first;
-    longest_split = std::max(longest_split, split_time);
-    total_ns += split_time;
+  for (size_t i = 0; i < timings_.size(); ++i) {
+    longest_split = std::max(longest_split, timing_data.GetTotalTime(i));
   }
   // Compute which type of unit we will use for printing the timings.
   TimeUnit tu = GetAppropriateTimeUnit(longest_split);
   uint64_t divisor = GetNsToTimeUnitDivisor(tu);
+  uint64_t mod_fraction = divisor >= 1000 ? divisor / 1000 : 1;
   // Print formatted splits.
-  for (const SplitTiming& split : splits_) {
-    uint64_t split_time = split.first;
-    if (!precise_ && divisor >= 1000) {
-      // Make the fractional part 0.
-      split_time -= split_time % (divisor / 1000);
+  size_t tab_count = 1;
+  os << name_ << " [Exclusive time] [Total time]\n";
+  for (size_t i = 0; i < timings_.size(); ++i) {
+    if (timings_[i].IsStartTiming()) {
+      uint64_t exclusive_time = timing_data.GetExclusiveTime(i);
+      uint64_t total_time = timing_data.GetTotalTime(i);
+      if (!precise_) {
+        // Make the fractional part 0.
+        exclusive_time -= exclusive_time % mod_fraction;
+        total_time -= total_time % mod_fraction;
+      }
+      for (size_t j = 0; j < tab_count; ++j) {
+        os << indent_string;
+      }
+      os << FormatDuration(exclusive_time, tu, kFractionalDigits);
+      // If they are the same, just print one value to prevent spam.
+      if (exclusive_time != total_time) {
+        os << "/" << FormatDuration(total_time, tu, kFractionalDigits);
+      }
+      os << " " << timings_[i].GetName() << "\n";
+      ++tab_count;
+    } else {
+      --tab_count;
     }
-    os << name_ << ": " << std::setw(8) << FormatDuration(split_time, tu) << " "
-       << split.second << "\n";
   }
-  os << name_ << ": end, " << NsToMs(total_ns) << " ms\n";
+  os << name_ << ": end, " << PrettyDuration(GetTotalNs()) << "\n";
 }
 
-TimingLogger::ScopedSplit::ScopedSplit(const char* label, TimingLogger* timing_logger) {
-  DCHECK(label != NULL) << "New scoped split (" << label << ") with null label.";
-  CHECK(timing_logger != NULL) << "New scoped split (" << label << ") without TimingLogger.";
-  timing_logger_ = timing_logger;
-  label_ = label;
-  running_ns_ = 0;
-  explicit_ = false;
-
-  // Stash away the current split and pause it.
-  enclosing_split_ = timing_logger->current_split_;
-  if (enclosing_split_ != NULL) {
-    enclosing_split_->Pause();
+void TimingLogger::Verify() {
+  size_t counts[2] = { 0 };
+  for (size_t i = 0; i < timings_.size(); ++i) {
+    if (i > 0) {
+      CHECK_LE(timings_[i - 1].GetTime(), timings_[i].GetTime());
+    }
+    ++counts[timings_[i].IsStartTiming() ? 0 : 1];
   }
-
-  timing_logger_->current_split_ = this;
-
-  ATRACE_BEGIN(label_);
-
-  start_ns_ = NanoTime();
-  if (timing_logger_->verbose_) {
-    LOG(INFO) << "Begin: " << label_;
-  }
+  CHECK_EQ(counts[0], counts[1]) << "Number of StartTiming and EndTiming doesn't match";
 }
 
-TimingLogger::ScopedSplit::~ScopedSplit() {
-  uint64_t current_time = NanoTime();
-  uint64_t split_time = current_time - start_ns_;
-  running_ns_ += split_time;
-  ATRACE_END();
-
-  if (timing_logger_->verbose_) {
-    LOG(INFO) << "End: " << label_ << " " << PrettyDuration(split_time);
+TimingLogger::~TimingLogger() {
+  if (kIsDebugBuild) {
+    Verify();
   }
-
-  // If one or more enclosed explicitly started splits are not terminated we can
-  // either fail or "unwind" the stack of splits in the timing logger to 'this'
-  // (by deleting the intervening scoped splits). This implements the latter.
-  TimingLogger::ScopedSplit* current = timing_logger_->current_split_;
-  while ((current != NULL) && (current != this)) {
-    delete current;
-    current = timing_logger_->current_split_;
-  }
-
-  CHECK(current != NULL) << "Missing scoped split (" << this->label_
-                           << ") in timing logger (" << timing_logger_->name_ << ").";
-  CHECK(timing_logger_->current_split_ == this);
-
-  timing_logger_->splits_.push_back(SplitTiming(running_ns_, label_));
-
-  timing_logger_->current_split_ = enclosing_split_;
-  if (enclosing_split_ != NULL) {
-    enclosing_split_->Resume();
-  }
-}
-
-
-void TimingLogger::ScopedSplit::TailInsertSplit(const char* label) {
-  // Sleight of hand here: Rather than embedding a new scoped split, we're updating the current
-  // scoped split in place. Basically, it's one way to make explicit and scoped splits compose
-  // well while maintaining the current semantics of NewSplit. An alternative is to push a new split
-  // since we unwind the stack of scoped splits in the scoped split destructor. However, this implies
-  // that the current split is not ended by NewSplit (which calls TailInsertSplit), which would
-  // be different from what we had before.
-
-  uint64_t current_time = NanoTime();
-  uint64_t split_time = current_time - start_ns_;
-  ATRACE_END();
-  timing_logger_->splits_.push_back(std::pair<uint64_t, const char*>(split_time, label_));
-
-  if (timing_logger_->verbose_) {
-    LOG(INFO) << "End: " << label_ << " " << PrettyDuration(split_time) << "\n"
-              << "Begin: " << label;
-  }
-
-  label_ = label;
-  start_ns_ = current_time;
-  running_ns_ = 0;
-
-  ATRACE_BEGIN(label);
-}
-
-void TimingLogger::ScopedSplit::Pause() {
-  uint64_t current_time = NanoTime();
-  uint64_t split_time = current_time - start_ns_;
-  running_ns_ += split_time;
-  ATRACE_END();
-}
-
-
-void TimingLogger::ScopedSplit::Resume() {
-  uint64_t current_time = NanoTime();
-
-  start_ns_ = current_time;
-  ATRACE_BEGIN(label_);
 }
 
 }  // namespace art

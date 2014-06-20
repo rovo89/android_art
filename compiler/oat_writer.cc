@@ -91,31 +91,31 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
     size_oat_class_method_offsets_(0) {
   size_t offset;
   {
-    TimingLogger::ScopedSplit split("InitOatHeader", timings);
+    TimingLogger::ScopedTiming split("InitOatHeader", timings);
     offset = InitOatHeader();
   }
   {
-    TimingLogger::ScopedSplit split("InitOatDexFiles", timings);
+    TimingLogger::ScopedTiming split("InitOatDexFiles", timings);
     offset = InitOatDexFiles(offset);
   }
   {
-    TimingLogger::ScopedSplit split("InitDexFiles", timings);
+    TimingLogger::ScopedTiming split("InitDexFiles", timings);
     offset = InitDexFiles(offset);
   }
   {
-    TimingLogger::ScopedSplit split("InitOatClasses", timings);
+    TimingLogger::ScopedTiming split("InitOatClasses", timings);
     offset = InitOatClasses(offset);
   }
   {
-    TimingLogger::ScopedSplit split("InitOatMaps", timings);
+    TimingLogger::ScopedTiming split("InitOatMaps", timings);
     offset = InitOatMaps(offset);
   }
   {
-    TimingLogger::ScopedSplit split("InitOatCode", timings);
+    TimingLogger::ScopedTiming split("InitOatCode", timings);
     offset = InitOatCode(offset);
   }
   {
-    TimingLogger::ScopedSplit split("InitOatCodeDexFiles", timings);
+    TimingLogger::ScopedTiming split("InitOatCodeDexFiles", timings);
     offset = InitOatCodeDexFiles(offset);
   }
   size_ = offset;

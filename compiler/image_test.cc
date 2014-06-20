@@ -64,7 +64,7 @@ TEST_F(ImageTest, WriteRead) {
       jobject class_loader = NULL;
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       TimingLogger timings("ImageTest::WriteRead", false, false);
-      timings.StartSplit("CompileAll");
+      TimingLogger::ScopedTiming t("CompileAll", &timings);
       if (kUsePortableCompiler) {
         // TODO: we disable this for portable so the test executes in a reasonable amount of time.
         //       We shouldn't need to do this.
@@ -75,6 +75,7 @@ TEST_F(ImageTest, WriteRead) {
       }
       compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
 
+      t.NewTiming("WriteElf");
       ScopedObjectAccess soa(Thread::Current());
       OatWriter oat_writer(class_linker->GetBootClassPath(),
                            0, 0, "", compiler_driver_.get(), &timings);
@@ -84,7 +85,6 @@ TEST_F(ImageTest, WriteRead) {
                                                 &oat_writer,
                                                 oat_file.GetFile());
       ASSERT_TRUE(success);
-      timings.EndSplit();
     }
   }
   // Workound bug that mcld::Linker::emit closes oat_file by reopening as dup_oat.
