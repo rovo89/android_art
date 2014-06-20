@@ -146,7 +146,8 @@ class ScopedObjectAccessAlreadyRunnable {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
     CHECK(!kMovingFields);
-    return reinterpret_cast<mirror::ArtField*>(fid);
+    mirror::ArtField* field = reinterpret_cast<mirror::ArtField*>(fid);
+    return ReadBarrier::BarrierForRoot<mirror::ArtField, kWithReadBarrier>(&field);
   }
 
   jfieldID EncodeField(mirror::ArtField* field) const
@@ -162,7 +163,8 @@ class ScopedObjectAccessAlreadyRunnable {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
     CHECK(!kMovingMethods);
-    return reinterpret_cast<mirror::ArtMethod*>(mid);
+    mirror::ArtMethod* method = reinterpret_cast<mirror::ArtMethod*>(mid);
+    return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(&method);
   }
 
   jmethodID EncodeMethod(mirror::ArtMethod* method) const
