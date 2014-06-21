@@ -195,8 +195,8 @@ Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
     high_reg = (both_regs >> 8) & 0xff; \
   } while (false)
 
-// Mask to denote sreg as the start of a double.  Must not interfere with low 16 bits.
-#define STARTING_DOUBLE_SREG 0x10000
+// Mask to denote sreg as the start of a 64-bit item.  Must not interfere with low 16 bits.
+#define STARTING_WIDE_SREG 0x10000
 
 // TODO: replace these macros
 #define SLOW_FIELD_PATH (cu_->enable_debug & (1 << kDebugSlowFieldPath))
@@ -487,7 +487,7 @@ class Mir2Lir : public Backend {
       RegLocationType core_location:3;
       uint8_t core_reg;
       RegLocationType fp_location:3;
-      uint8_t FpReg;
+      uint8_t fp_reg;
       bool first_in_pair;
     };
 
@@ -740,9 +740,9 @@ class Mir2Lir : public Backend {
     int SRegToPMap(int s_reg);
     void RecordCorePromotion(RegStorage reg, int s_reg);
     RegStorage AllocPreservedCoreReg(int s_reg);
-    void RecordSinglePromotion(RegStorage reg, int s_reg);
-    void RecordDoublePromotion(RegStorage reg, int s_reg);
-    RegStorage AllocPreservedSingle(int s_reg);
+    void RecordFpPromotion(RegStorage reg, int s_reg);
+    RegStorage AllocPreservedFpReg(int s_reg);
+    virtual RegStorage AllocPreservedSingle(int s_reg);
     virtual RegStorage AllocPreservedDouble(int s_reg);
     RegStorage AllocTempBody(GrowableArray<RegisterInfo*> &regs, int* next_temp, bool required);
     virtual RegStorage AllocFreeTemp();
@@ -1175,6 +1175,13 @@ class Mir2Lir : public Backend {
 
     // Required for target - register utilities.
 
+    bool IsSameReg(RegStorage reg1, RegStorage reg2) {
+      RegisterInfo* info1 = GetRegInfo(reg1);
+      RegisterInfo* info2 = GetRegInfo(reg2);
+      return (info1->Master() == info2->Master() &&
+             (info1->StorageMask() & info2->StorageMask()) != 0);
+    }
+
     /**
      * @brief Portable way of getting special registers from the backend.
      * @param reg Enumeration describing the purpose of the register.
@@ -1224,8 +1231,6 @@ class Mir2Lir : public Backend {
     virtual void ClobberCallerSave() = 0;
     virtual void FreeCallTemps() = 0;
     virtual void LockCallTemps() = 0;
-    virtual void MarkPreservedSingle(int v_reg, RegStorage reg) = 0;
-    virtual void MarkPreservedDouble(int v_reg, RegStorage reg) = 0;
     virtual void CompilerInitializeRegAlloc() = 0;
 
     // Required for target - miscellaneous.

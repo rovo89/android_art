@@ -100,8 +100,6 @@ class X86Mir2Lir : public Mir2Lir {
   void ClobberCallerSave();
   void FreeCallTemps();
   void LockCallTemps();
-  void MarkPreservedSingle(int v_reg, RegStorage reg);
-  void MarkPreservedDouble(int v_reg, RegStorage reg);
   void CompilerInitializeRegAlloc();
 
   // Required for target - miscellaneous.

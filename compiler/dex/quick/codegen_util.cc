@@ -272,7 +272,7 @@ void Mir2Lir::DumpPromotionMap() {
     PromotionMap v_reg_map = promotion_map_[i];
     std::string buf;
     if (v_reg_map.fp_location == kLocPhysReg) {
-      StringAppendF(&buf, " : s%d", RegStorage::RegNum(v_reg_map.FpReg));
+      StringAppendF(&buf, " : s%d", RegStorage::RegNum(v_reg_map.fp_reg));
     }
 
     std::string buf3;
@@ -1184,6 +1184,7 @@ void Mir2Lir::LoadCodeAddress(const MethodReference& target_method, InvokeType t
     // resolve these invokes to the same method, so we don't care which one we record here.
     data_target->operands[2] = type;
   }
+  // TODO: This is actually a pointer, not a reference.
   LIR* load_pc_rel = OpPcRelLoad(TargetRefReg(symbolic_reg), data_target);
   AppendLIR(load_pc_rel);
   DCHECK_NE(cu_->instruction_set, kMips) << reinterpret_cast<void*>(data_target);
@@ -1211,7 +1212,7 @@ void Mir2Lir::LoadClassType(uint32_t type_idx, SpecialTargetRegister symbolic_re
   if (data_target == nullptr) {
     data_target = AddWordData(&class_literal_list_, type_idx);
   }
-  LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg), data_target);
+  LIR* load_pc_rel = OpPcRelLoad(TargetRefReg(symbolic_reg), data_target);
   AppendLIR(load_pc_rel);
 }
 

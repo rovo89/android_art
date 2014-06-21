@@ -445,17 +445,59 @@ void Arm64Mir2Lir::GenExitSequence() {
 
   NewLIR0(kPseudoMethodExit);
 
-  /* Need to restore any FP callee saves? */
-  if (fp_spill_mask_) {
-    int spill_offset = frame_size_ - kArm64PointerSize*(num_fp_spills_ + num_core_spills_);
-    UnSpillFPRegs(rs_sp, spill_offset, fp_spill_mask_);
-  }
-  if (core_spill_mask_) {
-    int spill_offset = frame_size_ - kArm64PointerSize*num_core_spills_;
-    UnSpillCoreRegs(rs_sp, spill_offset, core_spill_mask_);
+  // Restore saves and drop stack frame.
+  // 2 versions:
+  //
+  // 1. (Original): Try to address directly, then drop the whole frame.
+  //                Limitation: ldp is a 7b signed immediate. There should have been a DCHECK!
+  //
+  // 2. (New): Drop the non-save-part. Then do similar to original, which is now guaranteed to be
+  //           in range. Then drop the rest.
+  //
+  // TODO: In methods with few spills but huge frame, it would be better to do non-immediate loads
+  //       in variant 1.
+
+  if (frame_size_ <= 504) {
+    // "Magic" constant, 63 (max signed 7b) * 8. Do variant 1.
+    // Could be tighter, as the last load is below frame_size_ offset.
+    if (fp_spill_mask_) {
+      int spill_offset = frame_size_ - kArm64PointerSize * (num_fp_spills_ + num_core_spills_);
+      UnSpillFPRegs(rs_sp, spill_offset, fp_spill_mask_);
+    }
+    if (core_spill_mask_) {
+      int spill_offset = frame_size_ - kArm64PointerSize * num_core_spills_;
+      UnSpillCoreRegs(rs_sp, spill_offset, core_spill_mask_);
+    }
+
+    OpRegImm64(kOpAdd, rs_sp, frame_size_);
+  } else {
+    // Second variant. Drop the frame part.
+    int drop = 0;
+    // TODO: Always use the first formula, as num_fp_spills would be zero?
+    if (fp_spill_mask_) {
+      drop = frame_size_ - kArm64PointerSize * (num_fp_spills_ + num_core_spills_);
+    } else {
+      drop = frame_size_ - kArm64PointerSize * num_core_spills_;
+    }
+
+    // Drop needs to be 16B aligned, so that SP keeps aligned.
+    drop = RoundDown(drop, 16);
+
+    OpRegImm64(kOpAdd, rs_sp, drop);
+
+    if (fp_spill_mask_) {
+      int offset = frame_size_ - drop - kArm64PointerSize * (num_fp_spills_ + num_core_spills_);
+      UnSpillFPRegs(rs_sp, offset, fp_spill_mask_);
+    }
+    if (core_spill_mask_) {
+      int offset = frame_size_ - drop - kArm64PointerSize * num_core_spills_;
+      UnSpillCoreRegs(rs_sp, offset, core_spill_mask_);
+    }
+
+    OpRegImm64(kOpAdd, rs_sp, frame_size_ - drop);
   }
 
-  OpRegImm64(kOpAdd, rs_sp, frame_size_);
+  // Finally return.
   NewLIR0(kA64Ret);
 }
 

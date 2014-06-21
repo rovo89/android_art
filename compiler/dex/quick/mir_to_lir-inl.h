@@ -31,7 +31,7 @@ inline void Mir2Lir::ClobberBody(RegisterInfo* p) {
     p->MarkDead();
     if (p->IsWide()) {
       p->SetIsWide(false);
-      if (p->GetReg() != p->Partner()) {
+      if (p->GetReg().NotExactlyEquals(p->Partner())) {
         // Register pair - deal with the other half.
         p = GetRegInfo(p->Partner());
         p->SetIsWide(false);

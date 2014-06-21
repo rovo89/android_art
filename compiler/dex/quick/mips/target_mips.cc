@@ -340,20 +340,6 @@ void MipsMir2Lir::AdjustSpillMask() {
   num_core_spills_++;
 }
 
-/*
- * Mark a callee-save fp register as promoted.  Note that
- * vpush/vpop uses contiguous register lists so we must
- * include any holes in the mask.  Associate holes with
- * Dalvik register INVALID_VREG (0xFFFFU).
- */
-void MipsMir2Lir::MarkPreservedSingle(int s_reg, RegStorage reg) {
-  LOG(FATAL) << "No support yet for promoted FP regs";
-}
-
-void MipsMir2Lir::MarkPreservedDouble(int s_reg, RegStorage reg) {
-  LOG(FATAL) << "No support yet for promoted FP regs";
-}
-
 /* Clobber all regs that might be used by an external C call */
 void MipsMir2Lir::ClobberCallerSave() {
   Clobber(rs_rZERO);
