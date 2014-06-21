@@ -145,28 +145,30 @@ class Instruction {
   };
 
   enum VerifyFlag {
-    kVerifyNone            = 0x000000,
-    kVerifyRegA            = 0x000001,
-    kVerifyRegAWide        = 0x000002,
-    kVerifyRegB            = 0x000004,
-    kVerifyRegBField       = 0x000008,
-    kVerifyRegBMethod      = 0x000010,
-    kVerifyRegBNewInstance = 0x000020,
-    kVerifyRegBString      = 0x000040,
-    kVerifyRegBType        = 0x000080,
-    kVerifyRegBWide        = 0x000100,
-    kVerifyRegC            = 0x000200,
-    kVerifyRegCField       = 0x000400,
-    kVerifyRegCNewArray    = 0x000800,
-    kVerifyRegCType        = 0x001000,
-    kVerifyRegCWide        = 0x002000,
-    kVerifyArrayData       = 0x004000,
-    kVerifyBranchTarget    = 0x008000,
-    kVerifySwitchTargets   = 0x010000,
-    kVerifyVarArg          = 0x020000,
-    kVerifyVarArgRange     = 0x040000,
-    kVerifyRuntimeOnly     = 0x080000,
-    kVerifyError           = 0x100000,
+    kVerifyNone               = 0x000000,
+    kVerifyRegA               = 0x000001,
+    kVerifyRegAWide           = 0x000002,
+    kVerifyRegB               = 0x000004,
+    kVerifyRegBField          = 0x000008,
+    kVerifyRegBMethod         = 0x000010,
+    kVerifyRegBNewInstance    = 0x000020,
+    kVerifyRegBString         = 0x000040,
+    kVerifyRegBType           = 0x000080,
+    kVerifyRegBWide           = 0x000100,
+    kVerifyRegC               = 0x000200,
+    kVerifyRegCField          = 0x000400,
+    kVerifyRegCNewArray       = 0x000800,
+    kVerifyRegCType           = 0x001000,
+    kVerifyRegCWide           = 0x002000,
+    kVerifyArrayData          = 0x004000,
+    kVerifyBranchTarget       = 0x008000,
+    kVerifySwitchTargets      = 0x010000,
+    kVerifyVarArg             = 0x020000,
+    kVerifyVarArgNonZero      = 0x040000,
+    kVerifyVarArgRange        = 0x080000,
+    kVerifyVarArgRangeNonZero = 0x100000,
+    kVerifyRuntimeOnly        = 0x200000,
+    kVerifyError              = 0x400000,
   };
 
   static constexpr uint32_t kMaxVarArgRegs = 5;
@@ -506,7 +508,8 @@ class Instruction {
 
   int GetVerifyExtraFlags() const {
     return (kInstructionVerifyFlags[Opcode()] & (kVerifyArrayData | kVerifyBranchTarget |
-        kVerifySwitchTargets | kVerifyVarArg | kVerifyVarArgRange | kVerifyError));
+        kVerifySwitchTargets | kVerifyVarArg | kVerifyVarArgNonZero | kVerifyVarArgRange |
+        kVerifyVarArgRangeNonZero | kVerifyError));
   }
 
   bool GetVerifyIsRuntimeOnly() const {

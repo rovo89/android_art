@@ -717,13 +717,28 @@ bool MethodVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_of
     case Instruction::kVerifySwitchTargets:
       result = result && CheckSwitchTargets(code_offset);
       break;
+    case Instruction::kVerifyVarArgNonZero:
+      // Fall-through.
     case Instruction::kVerifyVarArg: {
+      if (inst->GetVerifyExtraFlags() == Instruction::kVerifyVarArgNonZero && inst->VRegA() <= 0) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid arg count (" << inst->VRegA() << ") in "
+                                             "non-range invoke";
+        return false;
+      }
       uint32_t args[Instruction::kMaxVarArgRegs];
       inst->GetVarArgs(args);
       result = result && CheckVarArgRegs(inst->VRegA(), args);
       break;
     }
+    case Instruction::kVerifyVarArgRangeNonZero:
+      // Fall-through.
     case Instruction::kVerifyVarArgRange:
+      if (inst->GetVerifyExtraFlags() == Instruction::kVerifyVarArgRangeNonZero &&
+          inst->VRegA() <= 0) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid arg count (" << inst->VRegA() << ") in "
+                                             "range invoke";
+        return false;
+      }
       result = result && CheckVarArgRangeRegs(inst->VRegA(), inst->VRegC());
       break;
     case Instruction::kVerifyError:
