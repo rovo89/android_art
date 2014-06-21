@@ -128,17 +128,17 @@
   V(0x6B, SPUT_BYTE, "sput-byte", k21c, false, kFieldRef, kContinue | kThrow | kStore | kRegBFieldOrConstant, kVerifyRegA | kVerifyRegBField) \
   V(0x6C, SPUT_CHAR, "sput-char", k21c, false, kFieldRef, kContinue | kThrow | kStore | kRegBFieldOrConstant, kVerifyRegA | kVerifyRegBField) \
   V(0x6D, SPUT_SHORT, "sput-short", k21c, false, kFieldRef, kContinue | kThrow | kStore | kRegBFieldOrConstant, kVerifyRegA | kVerifyRegBField) \
-  V(0x6E, INVOKE_VIRTUAL, "invoke-virtual", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArg) \
-  V(0x6F, INVOKE_SUPER, "invoke-super", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArg) \
-  V(0x70, INVOKE_DIRECT, "invoke-direct", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArg) \
+  V(0x6E, INVOKE_VIRTUAL, "invoke-virtual", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgNonZero) \
+  V(0x6F, INVOKE_SUPER, "invoke-super", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgNonZero) \
+  V(0x70, INVOKE_DIRECT, "invoke-direct", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgNonZero) \
   V(0x71, INVOKE_STATIC, "invoke-static", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArg) \
-  V(0x72, INVOKE_INTERFACE, "invoke-interface", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArg) \
+  V(0x72, INVOKE_INTERFACE, "invoke-interface", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgNonZero) \
   V(0x73, RETURN_VOID_BARRIER, "return-void-barrier", k10x, false, kNone, kReturn, kVerifyNone) \
-  V(0x74, INVOKE_VIRTUAL_RANGE, "invoke-virtual/range", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgRange) \
-  V(0x75, INVOKE_SUPER_RANGE, "invoke-super/range", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgRange) \
-  V(0x76, INVOKE_DIRECT_RANGE, "invoke-direct/range", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgRange) \
+  V(0x74, INVOKE_VIRTUAL_RANGE, "invoke-virtual/range", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgRangeNonZero) \
+  V(0x75, INVOKE_SUPER_RANGE, "invoke-super/range", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgRangeNonZero) \
+  V(0x76, INVOKE_DIRECT_RANGE, "invoke-direct/range", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgRangeNonZero) \
   V(0x77, INVOKE_STATIC_RANGE, "invoke-static/range", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgRange) \
-  V(0x78, INVOKE_INTERFACE_RANGE, "invoke-interface/range", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgRange) \
+  V(0x78, INVOKE_INTERFACE_RANGE, "invoke-interface/range", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgRangeNonZero) \
   V(0x79, UNUSED_79, "unused-79", k10x, false, kUnknown, 0, kVerifyError) \
   V(0x7A, UNUSED_7A, "unused-7a", k10x, false, kUnknown, 0, kVerifyError) \
   V(0x7B, NEG_INT, "neg-int", k12x, true, kNone, kContinue, kVerifyRegA | kVerifyRegB) \
@@ -251,8 +251,8 @@
   V(0xE6, IPUT_QUICK, "iput-quick", k22c, false, kFieldRef, kContinue | kThrow | kStore | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB | kVerifyRuntimeOnly) \
   V(0xE7, IPUT_WIDE_QUICK, "iput-wide-quick", k22c, false, kFieldRef, kContinue | kThrow | kStore | kRegCFieldOrConstant, kVerifyRegAWide | kVerifyRegB | kVerifyRuntimeOnly) \
   V(0xE8, IPUT_OBJECT_QUICK, "iput-object-quick", k22c, false, kFieldRef, kContinue | kThrow | kStore | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB | kVerifyRuntimeOnly) \
-  V(0xE9, INVOKE_VIRTUAL_QUICK, "invoke-virtual-quick", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyVarArg | kVerifyRuntimeOnly) \
-  V(0xEA, INVOKE_VIRTUAL_RANGE_QUICK, "invoke-virtual/range-quick", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyVarArgRange | kVerifyRuntimeOnly) \
+  V(0xE9, INVOKE_VIRTUAL_QUICK, "invoke-virtual-quick", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyVarArgNonZero | kVerifyRuntimeOnly) \
+  V(0xEA, INVOKE_VIRTUAL_RANGE_QUICK, "invoke-virtual/range-quick", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyVarArgRangeNonZero | kVerifyRuntimeOnly) \
   V(0xEB, UNUSED_EB, "unused-eb", k10x, false, kUnknown, 0, kVerifyError) \
   V(0xEC, UNUSED_EC, "unused-ec", k10x, false, kUnknown, 0, kVerifyError) \
   V(0xED, UNUSED_ED, "unused-ed", k10x, false, kUnknown, 0, kVerifyError) \
