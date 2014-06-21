@@ -21,6 +21,7 @@ public class Main {
     public static void main(String args[]) {
         test1();
         test2();
+        test3();
     }
 
     public static void test1() {
@@ -53,6 +54,11 @@ public class Main {
         float inter3 = a;
         float inter4 = b;
         System.out.println("inter4:" + inter4);
+    }
+
+    public static void test3() {
+        double d = Long.MAX_VALUE;
+        System.out.println("max_long:" + (long)d);
     }
 
 }
