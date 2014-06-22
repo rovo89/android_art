@@ -1076,7 +1076,7 @@ static int dex2oat(int argc, char** argv) {
 
   bool image = (!image_filename.empty());
   if (!image && boot_image_filename.empty()) {
-    boot_image_filename += GetAndroidRoot();
+    boot_image_filename += android_root;
     boot_image_filename += "/framework/boot.art";
   }
   std::string boot_image_option;
