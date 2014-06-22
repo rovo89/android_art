@@ -56,10 +56,16 @@ static const char* gReg64Names[] = {
   "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
 };
 
+// 64-bit opcode REX modifier.
+constexpr uint8_t REX_W = 0b1000;
+constexpr uint8_t REX_R = 0b0100;
+constexpr uint8_t REX_X = 0b0010;
+constexpr uint8_t REX_B = 0b0001;
+
 static void DumpReg0(std::ostream& os, uint8_t rex, size_t reg,
                      bool byte_operand, uint8_t size_override) {
   DCHECK_LT(reg, (rex == 0) ? 8u : 16u);
-  bool rex_w = (rex & 0b1000) != 0;
+  bool rex_w = (rex & REX_W) != 0;
   if (byte_operand) {
     os << ((rex == 0) ? gReg8Names[reg] : gExtReg8Names[reg]);
   } else if (rex_w) {
@@ -86,14 +92,14 @@ static void DumpAnyReg(std::ostream& os, uint8_t rex, size_t reg,
 
 static void DumpReg(std::ostream& os, uint8_t rex, uint8_t reg,
                     bool byte_operand, uint8_t size_override, RegFile reg_file) {
-  bool rex_r = (rex & 0b0100) != 0;
+  bool rex_r = (rex & REX_R) != 0;
   size_t reg_num = rex_r ? (reg + 8) : reg;
   DumpAnyReg(os, rex, reg_num, byte_operand, size_override, reg_file);
 }
 
 static void DumpRmReg(std::ostream& os, uint8_t rex, uint8_t reg,
                       bool byte_operand, uint8_t size_override, RegFile reg_file) {
-  bool rex_b = (rex & 0b0001) != 0;
+  bool rex_b = (rex & REX_B) != 0;
   size_t reg_num = rex_b ? (reg + 8) : reg;
   DumpAnyReg(os, rex, reg_num, byte_operand, size_override, reg_file);
 }
@@ -107,19 +113,19 @@ static void DumpAddrReg(std::ostream& os, uint8_t rex, uint8_t reg) {
 }
 
 static void DumpBaseReg(std::ostream& os, uint8_t rex, uint8_t reg) {
-  bool rex_b = (rex & 0b0001) != 0;
+  bool rex_b = (rex & REX_B) != 0;
   size_t reg_num = rex_b ? (reg + 8) : reg;
   DumpAddrReg(os, rex, reg_num);
 }
 
 static void DumpIndexReg(std::ostream& os, uint8_t rex, uint8_t reg) {
-  bool rex_x = (rex & 0b0010) != 0;
+  bool rex_x = (rex & REX_X) != 0;
   uint8_t reg_num = rex_x ? (reg + 8) : reg;
   DumpAddrReg(os, rex, reg_num);
 }
 
 static void DumpOpcodeReg(std::ostream& os, uint8_t rex, uint8_t reg) {
-  bool rex_b = (rex & 0b0001) != 0;
+  bool rex_b = (rex & REX_B) != 0;
   size_t reg_num = rex_b ? (reg + 8) : reg;
   DumpReg0(os, rex, reg_num, false, 0);
 }
@@ -896,6 +902,7 @@ DISASSEMBLER_ENTRY(cmp,
   case 0xB0: case 0xB1: case 0xB2: case 0xB3: case 0xB4: case 0xB5: case 0xB6: case 0xB7:
     opcode << "mov";
     immediate_bytes = 1;
+    byte_operand = true;
     reg_in_opcode = true;
     break;
   case 0xB8: case 0xB9: case 0xBA: case 0xBB: case 0xBC: case 0xBD: case 0xBE: case 0xBF:
@@ -916,6 +923,15 @@ DISASSEMBLER_ENTRY(cmp,
     byte_operand = (*instr == 0xC0);
     break;
   case 0xC3: opcode << "ret"; break;
+  case 0xC6:
+    static const char* c6_opcodes[] = {"mov", "unknown-c6", "unknown-c6", "unknown-c6", "unknown-c6", "unknown-c6", "unknown-c6", "unknown-c6"};
+    modrm_opcodes = c6_opcodes;
+    store = true;
+    immediate_bytes = 1;
+    has_modrm = true;
+    reg_is_opcode = true;
+    byte_operand = true;
+    break;
   case 0xC7:
     static const char* c7_opcodes[] = {"mov", "unknown-c7", "unknown-c7", "unknown-c7", "unknown-c7", "unknown-c7", "unknown-c7", "unknown-c7"};
     modrm_opcodes = c7_opcodes;
@@ -1064,6 +1080,16 @@ DISASSEMBLER_ENTRY(cmp,
     if (reg_is_opcode && modrm_opcodes != NULL) {
       opcode << modrm_opcodes[reg_or_opcode];
     }
+
+    // Add opcode suffixes to indicate size.
+    if (byte_operand) {
+      opcode << 'b';
+    } else if ((rex & REX_W) != 0) {
+      opcode << 'q';
+    } else if (prefix[2] == 0x66) {
+      opcode << 'w';
+    }
+
     if (load) {
       if (!reg_is_opcode) {
         DumpReg(args, rex, reg_or_opcode, byte_operand, prefix[2], dst_reg_file);
