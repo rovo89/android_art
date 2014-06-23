@@ -39,6 +39,10 @@
 #endif
 #endif
 
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+
 namespace art {
 
 static std::ostream& operator<<(
