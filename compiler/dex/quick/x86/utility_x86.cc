@@ -611,8 +611,12 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
         if (val_lo < 0) {
           val_hi += 1;
         }
-        res = LoadConstantNoClobber(RegStorage::Solo32(r_dest.GetReg()), val_hi);
-        NewLIR2(kX86Sal64RI, r_dest.GetReg(), 32);
+        if (val_hi != 0) {
+          res = LoadConstantNoClobber(RegStorage::Solo32(r_dest.GetReg()), val_hi);
+          NewLIR2(kX86Sal64RI, r_dest.GetReg(), 32);
+        } else {
+          res = NewLIR2(kX86Xor64RR, r_dest.GetReg(), r_dest.GetReg());
+        }
         if (val_lo != 0) {
           NewLIR2(kX86Add64RI, r_dest.GetReg(), val_lo);
         }
