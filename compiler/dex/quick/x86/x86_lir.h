@@ -609,6 +609,10 @@ enum X86OpCode {
   Binary0fOpCode(kX86Movzx16),  // zero-extend 16-bit value
   Binary0fOpCode(kX86Movsx8),   // sign-extend 8-bit value
   Binary0fOpCode(kX86Movsx16),  // sign-extend 16-bit value
+  Binary0fOpCode(kX86Movzx8q),   // zero-extend 8-bit value to quad word
+  Binary0fOpCode(kX86Movzx16q),  // zero-extend 16-bit value to quad word
+  Binary0fOpCode(kX86Movsx8q),   // sign-extend 8-bit value to quad word
+  Binary0fOpCode(kX86Movsx16q),  // sign-extend 16-bit value to quad word
 #undef Binary0fOpCode
   kX86Jcc8, kX86Jcc32,  // jCC rel8/32; lir operands - 0: rel, 1: CC, target assigned
   kX86Jmp8, kX86Jmp32,  // jmp rel8/32; lir operands - 0: rel, target assigned
@@ -707,6 +711,8 @@ struct X86EncodingMap {
 #define REX_X 0x42
 // Extension of the ModR/M r/m field, SIB base field, or Opcode reg field
 #define REX_B 0x41
+// Extended register set
+#define REX 0x40
 // Mask extracting the least 3 bits of r0..r15
 #define kRegNumMask32 0x07
 // Value indicating that base or reg is not used

@@ -325,10 +325,20 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
 { kX86 ## opname ## RM, kRegMem,   IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE1,  { prefix, 0, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RM", "!0r,[!1r+!2d]" }, \
 { kX86 ## opname ## RA, kRegArray, IS_LOAD | IS_QUIN_OP     | reg_def | REG_USE12, { prefix, 0, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RA", "!0r,[!1r+!2r<<!3d+!4d]" }
 
+#define EXT_0F_REX_NO_PREFIX_ENCODING_MAP(opname, opcode, reg_def) \
+{ kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE1,  { REX, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RR", "!0r,!1r" }, \
+{ kX86 ## opname ## RM, kRegMem,   IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE1,  { REX, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RM", "!0r,[!1r+!2d]" }, \
+{ kX86 ## opname ## RA, kRegArray, IS_LOAD | IS_QUIN_OP     | reg_def | REG_USE12, { REX, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RA", "!0r,[!1r+!2r<<!3d+!4d]" }
+
 #define EXT_0F_REX_W_ENCODING_MAP(opname, prefix, opcode, reg_def) \
 { kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE1,  { prefix, REX_W, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RR", "!0r,!1r" }, \
 { kX86 ## opname ## RM, kRegMem,   IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE1,  { prefix, REX_W, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RM", "!0r,[!1r+!2d]" }, \
 { kX86 ## opname ## RA, kRegArray, IS_LOAD | IS_QUIN_OP     | reg_def | REG_USE12, { prefix, REX_W, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RA", "!0r,[!1r+!2r<<!3d+!4d]" }
+
+#define EXT_0F_REX_W_NO_PREFIX_ENCODING_MAP(opname, opcode, reg_def) \
+{ kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE1,  { REX_W, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RR", "!0r,!1r" }, \
+{ kX86 ## opname ## RM, kRegMem,   IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE1,  { REX_W, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RM", "!0r,[!1r+!2d]" }, \
+{ kX86 ## opname ## RA, kRegArray, IS_LOAD | IS_QUIN_OP     | reg_def | REG_USE12, { REX_W, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RA", "!0r,[!1r+!2r<<!3d+!4d]" }
 
 #define EXT_0F_ENCODING2_MAP(opname, prefix, opcode, opcode2, reg_def) \
 { kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE1,  { prefix, 0, 0x0F, opcode, opcode2, 0, 0, 0, false }, #opname "RR", "!0r,!1r" }, \
@@ -481,6 +491,10 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   EXT_0F_ENCODING_MAP(Movzx16, 0x00, 0xB7, REG_DEF0),
   EXT_0F_ENCODING_MAP(Movsx8,  0x00, 0xBE, REG_DEF0),
   EXT_0F_ENCODING_MAP(Movsx16, 0x00, 0xBF, REG_DEF0),
+  EXT_0F_REX_NO_PREFIX_ENCODING_MAP(Movzx8q, 0xB6, REG_DEF0),
+  EXT_0F_REX_W_NO_PREFIX_ENCODING_MAP(Movzx16q, 0xB7, REG_DEF0),
+  EXT_0F_REX_NO_PREFIX_ENCODING_MAP(Movsx8q, 0xBE, REG_DEF0),
+  EXT_0F_REX_W_NO_PREFIX_ENCODING_MAP(Movsx16q, 0xBF, REG_DEF0),
 #undef EXT_0F_ENCODING_MAP
 
   { kX86Jcc8,  kJcc,  IS_BINARY_OP | IS_BRANCH | NEEDS_FIXUP | USES_CCODES, { 0,             0, 0x70, 0,    0, 0, 0, 0, false }, "Jcc8",  "!1c !0t" },
@@ -827,7 +841,8 @@ void X86Mir2Lir::CheckValidByteRegister(const X86EncodingMap* entry, int32_t raw
       CHECK(strchr(entry->name, '8') != nullptr) << entry->name;
     } else {
       if (entry->skeleton.immediate_bytes != 1) {  // Ignore ...I8 instructions.
-        if (!StartsWith(entry->name, "Movzx8") && !StartsWith(entry->name, "Movsx8")) {
+        if (!StartsWith(entry->name, "Movzx8") && !StartsWith(entry->name, "Movsx8")
+           && !StartsWith(entry->name, "Movzx8q") && !StartsWith(entry->name, "Movsx8q")) {
           CHECK(strchr(entry->name, '8') == nullptr) << entry->name;
         }
       }
