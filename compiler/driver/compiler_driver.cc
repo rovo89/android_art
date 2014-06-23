@@ -1756,7 +1756,9 @@ static const char* class_initializer_black_list[] = {
   "Landroid/graphics/drawable/Drawable;",  // Requires android.graphics.Rect.
   "Landroid/graphics/drawable/DrawableContainer;",  // Sub-class of Drawable.
   "Landroid/graphics/drawable/GradientDrawable;",  // Sub-class of Drawable.
+  "Landroid/graphics/drawable/InsetDrawable;",  // Sub-class of Drawable.
   "Landroid/graphics/drawable/LayerDrawable;",  // Sub-class of Drawable.
+  "Landroid/graphics/drawable/LevelListDrawable;",  // Sub-class of Drawable.
   "Landroid/graphics/drawable/NinePatchDrawable;",  // Sub-class of Drawable.
   "Landroid/graphics/drawable/RotateDrawable;",  // Sub-class of Drawable.
   "Landroid/graphics/drawable/ScaleDrawable;",  // Sub-class of Drawable.
@@ -1769,6 +1771,7 @@ static const char* class_initializer_black_list[] = {
   "Landroid/graphics/Rect;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Landroid/graphics/SurfaceTexture;",  // Calls android.graphics.SurfaceTexture.nativeClassInit().
   "Landroid/graphics/Typeface;",  // Calls android.graphics.Typeface.nativeCreate.
+  "Landroid/hardware/camera2/impl/CameraMetadataNative;",  // Calls android.util.Log.isLoggable.
   "Landroid/inputmethodservice/ExtractEditText;",  // Requires android.widget.TextView.
   "Landroid/media/AmrInputStream;",  // Calls OsConstants.initConstants.
   "Landroid/media/CamcorderProfile;",  // Calls OsConstants.initConstants.
@@ -1803,14 +1806,17 @@ static const char* class_initializer_black_list[] = {
   "Landroid/net/Uri$StringUri;",  // Requires Uri.
   "Landroid/net/Uri;",  // Calls Class.getSimpleName -> Class.isAnonymousClass -> Class.getDex.
   "Landroid/net/WebAddress;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/net/wifi/WifiInfo;",  // Calls OsConstants.initConstants.
   "Landroid/net/wifi/WifiNative;",  // Calls new LocalLog -> new Time -> TimeZone -> Pattern.compile.
   "Landroid/nfc/NdefRecord;",  // Calls String.getBytes -> java.nio.charset.Charset.
   "Landroid/opengl/EGL14;",  // Calls android.opengl.EGL14._nativeClassInit.
+  "Landroid/opengl/EGLExt;",  // Calls android.opengl.EGLExt._nativeClassInit.
   "Landroid/opengl/GLES10;",  // Calls android.opengl.GLES10._nativeClassInit.
   "Landroid/opengl/GLES10Ext;",  // Calls android.opengl.GLES10Ext._nativeClassInit.
   "Landroid/opengl/GLES11;",  // Requires GLES10.
   "Landroid/opengl/GLES11Ext;",  // Calls android.opengl.GLES11Ext._nativeClassInit.
   "Landroid/opengl/GLES20;",  // Calls android.opengl.GLES20._nativeClassInit.
+  "Landroid/opengl/GLES30;",  // Calls android.opengl.GLES30._nativeClassInit.
   "Landroid/opengl/GLUtils;",  // Calls android.opengl.GLUtils.nativeClassInit.
   "Landroid/os/Build;",  // Calls -..-> android.os.SystemProperties.native_get.
   "Landroid/os/Build$VERSION;",  // Requires Build.
@@ -1841,7 +1847,7 @@ static const char* class_initializer_black_list[] = {
   "Landroid/util/DisplayMetrics;",  // Calls SystemProperties.native_get_int.
   "Landroid/util/Patterns;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Landroid/view/Choreographer;",  // Calls SystemProperties.native_get_boolean.
-  "Landroid/util/Patterns;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/view/DisplayAdjustments;",  // Calls SystemProperties.native_get_int.
   "Landroid/view/GLES20Canvas;",  // Calls GLES20Canvas.nIsAvailable().
   "Landroid/view/GLES20RecordingCanvas;",  // Requires android.view.GLES20Canvas.
   "Landroid/view/GestureDetector;",  // Calls android.view.GLES20Canvas.nIsAvailable.
@@ -1850,9 +1856,11 @@ static const char* class_initializer_black_list[] = {
   "Landroid/view/InputEventConsistencyVerifier;",  // Requires android.os.Build.
   "Landroid/view/Surface;",  // Requires SystemProperties.native_get.
   "Landroid/view/SurfaceControl;",  // Calls OsConstants.initConstants.
+  "Landroid/view/WindowInsets;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Landroid/view/animation/AlphaAnimation;",  // Requires Animation.
   "Landroid/view/animation/Animation;",  // Calls SystemProperties.native_get_boolean.
   "Landroid/view/animation/AnimationSet;",  // Calls OsConstants.initConstants.
+  "Landroid/view/animation/RotateAnimation;",  // Calls SystemProperties.native_get_boolean.
   "Landroid/view/textservice/SpellCheckerSubtype;",  // Calls Class.getDex().
   "Landroid/webkit/JniUtil;",  // Calls System.loadLibrary.
   "Landroid/webkit/PluginManager;",  // // Calls OsConstants.initConstants.
@@ -1871,6 +1879,7 @@ static const char* class_initializer_black_list[] = {
   "Landroid/widget/ScrollBarDrawable;",  // Sub-class of Drawable.
   "Landroid/widget/SearchView$SearchAutoComplete;",  // Requires TextView.
   "Landroid/widget/Switch;",  // Requires TextView.
+  "Landroid/widget/TextClock;",  // Calls Paint.<init> -> Paint.native_init.
   "Landroid/widget/TextView;",  // Calls Paint.<init> -> Paint.native_init.
   "Lcom/android/i18n/phonenumbers/AsYouTypeFormatter;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Lcom/android/i18n/phonenumbers/MetadataManager;",  // Calls OsConstants.initConstants.
