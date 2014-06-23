@@ -34,6 +34,9 @@
 
 #ifdef USE_ASHMEM
 #include <cutils/ashmem.h>
+#ifndef ANDROID_OS
+#include <sys/resource.h>
+#endif
 #endif
 
 namespace art {
@@ -179,20 +182,32 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* expected, size_t byte_count
   }
   size_t page_aligned_byte_count = RoundUp(byte_count, kPageSize);
 
-#ifdef USE_ASHMEM
-  // android_os_Debug.cpp read_mapinfo assumes all ashmem regions associated with the VM are
-  // prefixed "dalvik-".
-  std::string debug_friendly_name("dalvik-");
-  debug_friendly_name += name;
-  ScopedFd fd(ashmem_create_region(debug_friendly_name.c_str(), page_aligned_byte_count));
-  if (fd.get() == -1) {
-    *error_msg = StringPrintf("ashmem_create_region failed for '%s': %s", name, strerror(errno));
-    return nullptr;
-  }
-  int flags = MAP_PRIVATE;
-#else
-  ScopedFd fd(-1);
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+  ScopedFd fd(-1);
+
+#ifdef USE_ASHMEM
+#ifdef HAVE_ANDROID_OS
+  const bool use_ashmem = true;
+#else
+  // When not on Android ashmem is faked using files in /tmp. Ensure that such files won't
+  // fail due to ulimit restrictions. If they will then use a regular mmap.
+  struct rlimit rlimit_fsize;
+  CHECK_EQ(getrlimit(RLIMIT_FSIZE, &rlimit_fsize), 0);
+  const bool use_ashmem = (rlimit_fsize.rlim_cur == RLIM_INFINITY) ||
+      (page_aligned_byte_count < rlimit_fsize.rlim_cur);
+#endif
+  if (use_ashmem) {
+    // android_os_Debug.cpp read_mapinfo assumes all ashmem regions associated with the VM are
+    // prefixed "dalvik-".
+    std::string debug_friendly_name("dalvik-");
+    debug_friendly_name += name;
+    fd.reset(ashmem_create_region(debug_friendly_name.c_str(), page_aligned_byte_count));
+    if (fd.get() == -1) {
+      *error_msg = StringPrintf("ashmem_create_region failed for '%s': %s", name, strerror(errno));
+      return nullptr;
+    }
+    flags = MAP_PRIVATE;
+  }
 #endif
 
   // We need to store and potentially set an error number for pretty printing of errors

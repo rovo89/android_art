@@ -42,5 +42,5 @@ function writeFile(name, start, end) {
 mkdir classes
 ${JAVAC} -d classes src/*.java
 
-${DX} -JXmx500m --debug --dex --no-optimize --positions=none --no-locals --dump-to=classes.lst --output=classes.dex classes
+${DX} -JXmx500m --debug --dex --no-optimize --positions=none --no-locals --output=classes.dex classes
 zip $TEST_NAME.jar classes.dex

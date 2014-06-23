@@ -22,5 +22,5 @@ ${JAVAC} -d classes `find src -name '*.java'`
 rm classes/UnresClass.class
 ${JAVAC} -d classes `find src2 -name '*.java'`
 
-${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex classes
+${DX} -JXmx256m --debug --dex --output=classes.dex classes
 zip $TEST_NAME.jar classes.dex
