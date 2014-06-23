@@ -35,17 +35,12 @@ void X86Mir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
     rl_src1 = LoadValueWide(rl_src1, kCoreReg);
     rl_src2 = LoadValueWide(rl_src2, kCoreReg);
     RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-    RegStorage rl_result_wide = RegStorage::Solo64(rl_result.reg.GetRegNum());
     RegStorage temp_reg = AllocTemp();
-    OpRegReg(kOpXor, temp_reg, temp_reg);  // temp = 0
-    OpRegRegReg(kOpSub, rl_result_wide, rl_src1.reg, rl_src2.reg);
-    NewLIR2(kX86Set8R, temp_reg.GetReg(), kX86CondG);  // temp = (src1 > src2) ? 1 : temp
-
-    NewLIR2(kX86Rol64RI, rl_result_wide.GetReg(), 1);
-    OpRegImm(kOpAnd, rl_result.reg, 1);
-    OpRegReg(kOpNeg, rl_result.reg, rl_result.reg);
-    // result = (src1 < src2) ? -1 : 0;
-    OpRegReg(kOpAdd, rl_result.reg, temp_reg);
+    OpRegReg(kOpCmp, rl_src1.reg, rl_src2.reg);
+    NewLIR2(kX86Set8R, rl_result.reg.GetReg(), kX86CondG);   // result = (src1 > src2) ? 1 : 0
+    NewLIR2(kX86Set8R, temp_reg.GetReg(), kX86CondL);  // temp = (src1 >= src2) ? 0 : 1
+    NewLIR2(kX86Sub8RR, rl_result.reg.GetReg(), temp_reg.GetReg());
+    NewLIR2(kX86Movsx8qRR, rl_result.reg.GetReg(), rl_result.reg.GetReg());
 
     StoreValue(rl_dest, rl_result);
     FreeTemp(temp_reg);
