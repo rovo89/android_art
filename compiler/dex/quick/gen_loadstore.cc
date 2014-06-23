@@ -214,7 +214,11 @@ void Mir2Lir::StoreValue(RegLocation rl_dest, RegLocation rl_src) {
   if (IsDirty(rl_dest.reg) && LiveOut(rl_dest.s_reg_low)) {
     def_start = last_lir_insn_;
     ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-    Store32Disp(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low), rl_dest.reg);
+    if (rl_dest.ref) {
+      StoreRefDisp(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low), rl_dest.reg);
+    } else {
+      Store32Disp(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low), rl_dest.reg);
+    }
     MarkClean(rl_dest);
     def_end = last_lir_insn_;
     if (!rl_dest.ref) {
