@@ -748,6 +748,7 @@ void CheckExplicitCheckOptions(InstructionSet isa, bool* explicit_null_checks,
                                bool* explicit_so_checks, bool* explicit_suspend_checks) {
   switch (isa) {
     case kArm:
+    case kThumb2:
       break;  // All checks implemented, leave as is.
 
     default:  // No checks implemented, reset all to explicit checks.
@@ -1039,8 +1040,8 @@ static int dex2oat(int argc, char** argv) {
         } else {
           Usage("--implicit-checks passed non-recognized value %s", val.c_str());
         }
-        has_explicit_checks_options = true;
       }
+      has_explicit_checks_options = true;
     } else {
       Usage("Unknown argument %s", option.data());
     }
@@ -1170,6 +1171,7 @@ static int dex2oat(int argc, char** argv) {
   CheckExplicitCheckOptions(instruction_set, &explicit_null_checks, &explicit_so_checks,
                             &explicit_suspend_checks);
 
+  LOG(INFO) << "init compiler options for explicit null: " << explicit_null_checks;
   CompilerOptions compiler_options(compiler_filter,
                                    huge_method_threshold,
                                    large_method_threshold,
@@ -1256,7 +1258,17 @@ static int dex2oat(int argc, char** argv) {
   // TODO: Not sure whether it's a good idea to allow anything else but the runtime option in
   // this case at all, as we'll have to throw away produced code for a mismatch.
   if (!has_explicit_checks_options) {
-    if (instruction_set == kRuntimeISA) {
+    bool cross_compiling = true;
+    switch (kRuntimeISA) {
+      case kArm:
+      case kThumb2:
+        cross_compiling = instruction_set != kArm && instruction_set != kThumb2;
+        break;
+      default:
+        cross_compiling = instruction_set != kRuntimeISA;
+        break;
+    }
+    if (!cross_compiling) {
       Runtime* runtime = Runtime::Current();
       compiler_options.SetExplicitNullChecks(runtime->ExplicitNullChecks());
       compiler_options.SetExplicitStackOverflowChecks(runtime->ExplicitStackOverflowChecks());
