@@ -294,14 +294,14 @@ struct JdwpState {
                                      ObjectId threadId)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void CleanupMatchList(JdwpEvent** match_list,
-                        int match_count)
+                        size_t match_count)
       EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void EventFinish(ExpandBuf* pReq);
   void FindMatchingEvents(JdwpEventKind eventKind,
-                          ModBasket* basket,
+                          const ModBasket& basket,
                           JdwpEvent** match_list,
-                          int* pMatchCount)
+                          size_t* pMatchCount)
       EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void UnregisterEvent(JdwpEvent* pEvent)
