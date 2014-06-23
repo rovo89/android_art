@@ -34,7 +34,7 @@ class Arm64Mir2Lir : public Mir2Lir {
   // TODO: consolidate 64-bit target support.
   class InToRegStorageMapper {
    public:
-    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide) = 0;
+    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide, bool is_ref) = 0;
     virtual ~InToRegStorageMapper() {}
   };
 
@@ -42,7 +42,7 @@ class Arm64Mir2Lir : public Mir2Lir {
    public:
     InToRegStorageArm64Mapper() : cur_core_reg_(0), cur_fp_reg_(0) {}
     virtual ~InToRegStorageArm64Mapper() {}
-    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide);
+    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide, bool is_ref);
    private:
     int cur_core_reg_;
     int cur_fp_reg_;
@@ -205,7 +205,6 @@ class Arm64Mir2Lir : public Mir2Lir {
     void GenNegFloat(RegLocation rl_dest, RegLocation rl_src);
     void GenPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
     void GenSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
-    bool GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& special);
 
     uint32_t GenPairWise(uint32_t reg_mask, int* reg1, int* reg2);
     void UnSpillCoreRegs(RegStorage base, int offset, uint32_t reg_mask);
