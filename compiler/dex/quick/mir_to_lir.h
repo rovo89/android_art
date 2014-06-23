@@ -663,6 +663,7 @@ class Mir2Lir : public Backend {
     virtual void Materialize();
     virtual CompiledMethod* GetCompiledMethod();
     void MarkSafepointPC(LIR* inst);
+    void MarkSafepointPCAfter(LIR* after);
     void SetupResourceMasks(LIR* lir);
     void SetMemRefType(LIR* lir, bool is_load, int mem_type);
     void AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load, bool is64bit);
@@ -830,6 +831,7 @@ class Mir2Lir : public Backend {
     void GenArrayBoundsCheck(int32_t index, RegStorage length);
     LIR* GenNullCheck(RegStorage reg);
     void MarkPossibleNullPointerException(int opt_flags);
+    void MarkPossibleNullPointerExceptionAfter(int opt_flags, LIR* after);
     void MarkPossibleStackOverflowException();
     void ForceImplicitNullCheck(RegStorage reg, int opt_flags);
     LIR* GenImmedCheck(ConditionCode c_code, RegStorage reg, int imm_val, ThrowKind kind);
@@ -1007,15 +1009,20 @@ class Mir2Lir : public Backend {
     virtual LIR* LoadConstant(RegStorage r_dest, int value);
     // Natural word size.
     virtual LIR* LoadWordDisp(RegStorage r_base, int displacement, RegStorage r_dest) {
-      return LoadBaseDisp(r_base, displacement, r_dest, kWord);
+      return LoadBaseDisp(r_base, displacement, r_dest, kWord, kNotVolatile);
     }
     // Load 32 bits, regardless of target.
     virtual LIR* Load32Disp(RegStorage r_base, int displacement, RegStorage r_dest)  {
-      return LoadBaseDisp(r_base, displacement, r_dest, k32);
+      return LoadBaseDisp(r_base, displacement, r_dest, k32, kNotVolatile);
     }
     // Load a reference at base + displacement and decompress into register.
-    virtual LIR* LoadRefDisp(RegStorage r_base, int displacement, RegStorage r_dest) {
-      return LoadBaseDisp(r_base, displacement, r_dest, kReference);
+    virtual LIR* LoadRefDisp(RegStorage r_base, int displacement, RegStorage r_dest,
+                             VolatileKind is_volatile) {
+      return LoadBaseDisp(r_base, displacement, r_dest, kReference, is_volatile);
+    }
+    // Load a reference at base + index and decompress into register.
+    virtual LIR* LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest) {
+      return LoadBaseIndexed(r_base, r_index, r_dest, 2, kReference);
     }
     // Load Dalvik value with 32-bit memory storage.  If compressed object reference, decompress.
     virtual RegLocation LoadValue(RegLocation rl_src, RegisterClass op_kind);
@@ -1033,15 +1040,20 @@ class Mir2Lir : public Backend {
     virtual void LoadValueDirectWideFixed(RegLocation rl_src, RegStorage r_dest);
     // Store an item of natural word size.
     virtual LIR* StoreWordDisp(RegStorage r_base, int displacement, RegStorage r_src) {
-      return StoreBaseDisp(r_base, displacement, r_src, kWord);
+      return StoreBaseDisp(r_base, displacement, r_src, kWord, kNotVolatile);
     }
     // Store an uncompressed reference into a compressed 32-bit container.
-    virtual LIR* StoreRefDisp(RegStorage r_base, int displacement, RegStorage r_src) {
-      return StoreBaseDisp(r_base, displacement, r_src, kReference);
+    virtual LIR* StoreRefDisp(RegStorage r_base, int displacement, RegStorage r_src,
+                              VolatileKind is_volatile) {
+      return StoreBaseDisp(r_base, displacement, r_src, kReference, is_volatile);
+    }
+    // Store an uncompressed reference into a compressed 32-bit container by index.
+    virtual LIR* StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src) {
+      return StoreBaseIndexed(r_base, r_index, r_src, 2, kReference);
     }
     // Store 32 bits, regardless of target.
     virtual LIR* Store32Disp(RegStorage r_base, int displacement, RegStorage r_src) {
-      return StoreBaseDisp(r_base, displacement, r_src, k32);
+      return StoreBaseDisp(r_base, displacement, r_src, k32, kNotVolatile);
     }
 
     /**
@@ -1144,20 +1156,16 @@ class Mir2Lir : public Backend {
     virtual RegStorage LoadHelper(ThreadOffset<4> offset) = 0;
     virtual RegStorage LoadHelper(ThreadOffset<8> offset) = 0;
 
-    virtual LIR* LoadBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
-                                      OpSize size) = 0;
     virtual LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
-                              OpSize size) = 0;
+                              OpSize size, VolatileKind is_volatile) = 0;
     virtual LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest,
                                  int scale, OpSize size) = 0;
     virtual LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
                                      int displacement, RegStorage r_dest, OpSize size) = 0;
     virtual LIR* LoadConstantNoClobber(RegStorage r_dest, int value) = 0;
     virtual LIR* LoadConstantWide(RegStorage r_dest, int64_t value) = 0;
-    virtual LIR* StoreBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_src,
-                                       OpSize size) = 0;
     virtual LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
-                               OpSize size) = 0;
+                               OpSize size, VolatileKind is_volatile) = 0;
     virtual LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
                                   int scale, OpSize size) = 0;
     virtual LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
