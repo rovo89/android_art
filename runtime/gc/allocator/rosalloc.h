@@ -45,10 +45,7 @@ class RosAlloc {
     byte magic_num_;  // The magic number used for debugging only.
 
     bool IsFree() const {
-      if (kIsDebugBuild) {
-        return magic_num_ == kMagicNumFree;
-      }
-      return true;
+      return !kIsDebugBuild || magic_num_ == kMagicNumFree;
     }
     size_t ByteSize(RosAlloc* rosalloc) const EXCLUSIVE_LOCKS_REQUIRED(rosalloc->lock_) {
       const byte* fpr_base = reinterpret_cast<const byte*>(this);
