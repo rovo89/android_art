@@ -30,11 +30,7 @@ namespace art {
 namespace arm {
 static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention abi,
                                                     ThreadOffset<4> offset) {
-  // NOTE: the assembler used here is ARM, not Thumb.  This is because the address
-  // returned by this function is a pointer and for thumb we would have to set the
-  // bottom bit.  It doesn't matter since the instructions generated are the same
-  // size anyway.
-  std::unique_ptr<ArmAssembler> assembler(static_cast<ArmAssembler*>(Assembler::Create(kArm)));
+  std::unique_ptr<ArmAssembler> assembler(static_cast<ArmAssembler*>(Assembler::Create(kThumb2)));
 
   switch (abi) {
     case kInterpreterAbi:  // Thread* is first argument (R0) in interpreter ABI.
