@@ -1461,6 +1461,7 @@ static int dex2oat(int argc, char** argv) {
   }
 
   if (is_host) {
+    timings.EndSplit();
     if (dump_timing || (dump_slow_timing && timings.GetTotalNs() > MsToNs(1000))) {
       LOG(INFO) << Dumpable<TimingLogger>(timings);
     }
