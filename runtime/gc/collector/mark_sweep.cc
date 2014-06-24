@@ -81,7 +81,7 @@ static constexpr bool kVerifyRootsMarked = kIsDebugBuild;
 static constexpr bool kRevokeRosAllocThreadLocalBuffersAtCheckpoint = true;
 
 void MarkSweep::BindBitmaps() {
-  GetTimings()->StartSplit("BindBitmaps");
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   // Mark all of the spaces we never collect as immune.
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
@@ -89,7 +89,6 @@ void MarkSweep::BindBitmaps() {
       CHECK(immune_region_.AddContinuousSpace(space)) << "Failed to add space " << *space;
     }
   }
-  GetTimings()->EndSplit();
 }
 
 MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_prefix)
@@ -110,7 +109,7 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_pre
 }
 
 void MarkSweep::InitializePhase() {
-  TimingLogger::ScopedSplit split("InitializePhase", GetTimings());
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   mark_stack_ = heap_->GetMarkStack();
   DCHECK(mark_stack_ != nullptr);
   immune_region_.Reset();
@@ -170,7 +169,6 @@ void MarkSweep::RunPhases() {
 }
 
 void MarkSweep::ProcessReferences(Thread* self) {
-  TimingLogger::ScopedSplit split("ProcessReferences", GetTimings());
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   GetHeap()->GetReferenceProcessor()->ProcessReferences(
       true, GetTimings(), GetCurrentIteration()->GetClearSoftReferences(),
@@ -178,7 +176,7 @@ void MarkSweep::ProcessReferences(Thread* self) {
 }
 
 void MarkSweep::PausePhase() {
-  TimingLogger::ScopedSplit split("(Paused)PausePhase", GetTimings());
+  TimingLogger::ScopedTiming t("(Paused)PausePhase", GetTimings());
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertExclusiveHeld(self);
   if (IsConcurrent()) {
@@ -190,7 +188,7 @@ void MarkSweep::PausePhase() {
     RecursiveMarkDirtyObjects(true, accounting::CardTable::kCardDirty);
   }
   {
-    TimingLogger::ScopedSplit split("SwapStacks", GetTimings());
+    TimingLogger::ScopedTiming t2("SwapStacks", GetTimings());
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     heap_->SwapStacks(self);
     live_stack_freeze_size_ = heap_->GetLiveStack()->Size();
@@ -198,9 +196,7 @@ void MarkSweep::PausePhase() {
     // stacks and don't want anybody to allocate into the live stack.
     RevokeAllThreadLocalAllocationStacks(self);
   }
-  GetTimings()->StartSplit("PreSweepingGcVerification");
   heap_->PreSweepingGcVerification(this);
-  GetTimings()->EndSplit();
   // Disallow new system weaks to prevent a race which occurs when someone adds a new system
   // weak before we sweep them. Since this new system weak may not be marked, the GC may
   // incorrectly sweep it. This also fixes a race where interning may attempt to return a strong
@@ -214,6 +210,7 @@ void MarkSweep::PausePhase() {
 void MarkSweep::PreCleanCards() {
   // Don't do this for non concurrent GCs since they don't have any dirty cards.
   if (kPreCleanCards && IsConcurrent()) {
+    TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
     Thread* self = Thread::Current();
     CHECK(!Locks::mutator_lock_->IsExclusiveHeld(self));
     // Process dirty cards and add dirty cards to mod union tables, also ages cards.
@@ -243,14 +240,14 @@ void MarkSweep::PreCleanCards() {
 
 void MarkSweep::RevokeAllThreadLocalAllocationStacks(Thread* self) {
   if (kUseThreadLocalAllocationStack) {
-    GetTimings()->NewSplit("RevokeAllThreadLocalAllocationStacks");
+    TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
     Locks::mutator_lock_->AssertExclusiveHeld(self);
     heap_->RevokeAllThreadLocalAllocationStacks(self);
   }
 }
 
 void MarkSweep::MarkingPhase() {
-  TimingLogger::ScopedSplit split("MarkingPhase", GetTimings());
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   Thread* self = Thread::Current();
   BindBitmaps();
   FindDefaultSpaceBitmap();
@@ -268,7 +265,7 @@ void MarkSweep::UpdateAndMarkModUnion() {
     if (immune_region_.ContainsSpace(space)) {
       const char* name = space->IsZygoteSpace() ? "UpdateAndMarkZygoteModUnionTable" :
           "UpdateAndMarkImageModUnionTable";
-      TimingLogger::ScopedSplit split(name, GetTimings());
+      TimingLogger::ScopedTiming t(name, GetTimings());
       accounting::ModUnionTable* mod_union_table = heap_->FindModUnionTableFromSpace(space);
       CHECK(mod_union_table != nullptr);
       mod_union_table->UpdateAndMarkReferences(MarkHeapReferenceCallback, this);
@@ -283,7 +280,7 @@ void MarkSweep::MarkReachableObjects() {
 }
 
 void MarkSweep::ReclaimPhase() {
-  TimingLogger::ScopedSplit split("ReclaimPhase", GetTimings());
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   Thread* self = Thread::Current();
   // Process the references concurrently.
   ProcessReferences(self);
@@ -291,25 +288,19 @@ void MarkSweep::ReclaimPhase() {
   Runtime::Current()->AllowNewSystemWeaks();
   {
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-
     // Reclaim unmarked objects.
     Sweep(false);
-
     // Swap the live and mark bitmaps for each space which we modified space. This is an
     // optimization that enables us to not clear live bits inside of the sweep. Only swaps unbound
     // bitmaps.
-    GetTimings()->StartSplit("SwapBitmaps");
     SwapBitmaps();
-    GetTimings()->EndSplit();
-
     // Unbind the live and mark bitmaps.
-    TimingLogger::ScopedSplit split("UnBindBitmaps", GetTimings());
     GetHeap()->UnBindBitmaps();
   }
 }
 
 void MarkSweep::FindDefaultSpaceBitmap() {
-  TimingLogger::ScopedSplit split("FindDefaultMarkBitmap", GetTimings());
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     accounting::ContinuousSpaceBitmap* bitmap = space->GetMarkBitmap();
     // We want to have the main space instead of non moving if possible.
@@ -506,11 +497,10 @@ void MarkSweep::VerifyRoots() {
 }
 
 void MarkSweep::MarkRoots(Thread* self) {
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
     // If we exclusively hold the mutator lock, all threads must be suspended.
-    GetTimings()->StartSplit("MarkRoots");
     Runtime::Current()->VisitRoots(MarkRootCallback, this);
-    GetTimings()->EndSplit();
     RevokeAllThreadLocalAllocationStacks(self);
   } else {
     MarkRootsCheckpoint(self, kRevokeRosAllocThreadLocalBuffersAtCheckpoint);
@@ -522,16 +512,14 @@ void MarkSweep::MarkRoots(Thread* self) {
 }
 
 void MarkSweep::MarkNonThreadRoots() {
-  GetTimings()->StartSplit("MarkNonThreadRoots");
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   Runtime::Current()->VisitNonThreadRoots(MarkRootCallback, this);
-  GetTimings()->EndSplit();
 }
 
 void MarkSweep::MarkConcurrentRoots(VisitRootFlags flags) {
-  GetTimings()->StartSplit("MarkConcurrentRoots");
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   // Visit all runtime roots and clear dirty flags.
   Runtime::Current()->VisitConcurrentRoots(MarkRootCallback, this, flags);
-  GetTimings()->EndSplit();
 }
 
 class ScanObjectVisitor {
@@ -752,7 +740,8 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
     Thread* self = Thread::Current();
     // Can't have a different split for each space since multiple spaces can have their cards being
     // scanned at the same time.
-    GetTimings()->StartSplit(paused ? "(Paused)ScanGrayObjects" : "ScanGrayObjects");
+    TimingLogger::ScopedTiming t(paused ? "(Paused)ScanGrayObjects" : __FUNCTION__,
+        GetTimings());
     // Try to take some of the mark stack since we can pass this off to the worker tasks.
     Object** mark_stack_begin = mark_stack_->Begin();
     Object** mark_stack_end = mark_stack_->End();
@@ -805,28 +794,28 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
     thread_pool->StartWorkers(self);
     thread_pool->Wait(self, true, true);
     thread_pool->StopWorkers(self);
-    GetTimings()->EndSplit();
   } else {
     for (const auto& space : GetHeap()->GetContinuousSpaces()) {
       if (space->GetMarkBitmap() != nullptr) {
         // Image spaces are handled properly since live == marked for them.
+        const char* name = nullptr;
         switch (space->GetGcRetentionPolicy()) {
-          case space::kGcRetentionPolicyNeverCollect:
-            GetTimings()->StartSplit(paused ? "(Paused)ScanGrayImageSpaceObjects" :
-                "ScanGrayImageSpaceObjects");
-            break;
-          case space::kGcRetentionPolicyFullCollect:
-            GetTimings()->StartSplit(paused ? "(Paused)ScanGrayZygoteSpaceObjects" :
-                "ScanGrayZygoteSpaceObjects");
-            break;
-          case space::kGcRetentionPolicyAlwaysCollect:
-            GetTimings()->StartSplit(paused ? "(Paused)ScanGrayAllocSpaceObjects" :
-                "ScanGrayAllocSpaceObjects");
-            break;
-          }
+        case space::kGcRetentionPolicyNeverCollect:
+          name = paused ? "(Paused)ScanGrayImageSpaceObjects" : "ScanGrayImageSpaceObjects";
+          break;
+        case space::kGcRetentionPolicyFullCollect:
+          name = paused ? "(Paused)ScanGrayZygoteSpaceObjects" : "ScanGrayZygoteSpaceObjects";
+          break;
+        case space::kGcRetentionPolicyAlwaysCollect:
+          name = paused ? "(Paused)ScanGrayAllocSpaceObjects" : "ScanGrayAllocSpaceObjects";
+          break;
+        default:
+          LOG(FATAL) << "Unreachable";
+        }
+        TimingLogger::ScopedTiming t(name, GetTimings());
         ScanObjectVisitor visitor(this);
-        card_table->Scan(space->GetMarkBitmap(), space->Begin(), space->End(), visitor, minimum_age);
-        GetTimings()->EndSplit();
+        card_table->Scan(space->GetMarkBitmap(), space->Begin(), space->End(), visitor,
+                         minimum_age);
       }
     }
   }
@@ -836,9 +825,7 @@ class RecursiveMarkTask : public MarkStackTask<false> {
  public:
   RecursiveMarkTask(ThreadPool* thread_pool, MarkSweep* mark_sweep,
                     accounting::ContinuousSpaceBitmap* bitmap, uintptr_t begin, uintptr_t end)
-      : MarkStackTask<false>(thread_pool, mark_sweep, 0, NULL),
-        bitmap_(bitmap),
-        begin_(begin),
+      : MarkStackTask<false>(thread_pool, mark_sweep, 0, NULL), bitmap_(bitmap), begin_(begin),
         end_(end) {
   }
 
@@ -863,7 +850,7 @@ class RecursiveMarkTask : public MarkStackTask<false> {
 // Populates the mark stack based on the set of marked objects and
 // recursively marks until the mark stack is emptied.
 void MarkSweep::RecursiveMark() {
-  TimingLogger::ScopedSplit split("RecursiveMark", GetTimings());
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   // RecursiveMark will build the lists of known instances of the Reference classes. See
   // DelayReferenceReferent for details.
   if (kUseRecursiveMark) {
@@ -930,25 +917,22 @@ void MarkSweep::RecursiveMarkDirtyObjects(bool paused, byte minimum_age) {
 }
 
 void MarkSweep::ReMarkRoots() {
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
-  GetTimings()->StartSplit("(Paused)ReMarkRoots");
   Runtime::Current()->VisitRoots(
       MarkRootCallback, this, static_cast<VisitRootFlags>(kVisitRootFlagNewRoots |
                                                           kVisitRootFlagStopLoggingNewRoots |
                                                           kVisitRootFlagClearRootLog));
-  GetTimings()->EndSplit();
   if (kVerifyRootsMarked) {
-    GetTimings()->StartSplit("(Paused)VerifyRoots");
+    TimingLogger::ScopedTiming t("(Paused)VerifyRoots", GetTimings());
     Runtime::Current()->VisitRoots(VerifyRootMarked, this);
-    GetTimings()->EndSplit();
   }
 }
 
 void MarkSweep::SweepSystemWeaks(Thread* self) {
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  GetTimings()->StartSplit("SweepSystemWeaks");
   Runtime::Current()->SweepSystemWeaks(IsMarkedCallback, this);
-  GetTimings()->EndSplit();
 }
 
 mirror::Object* MarkSweep::VerifySystemWeakIsLiveCallback(Object* obj, void* arg) {
@@ -969,6 +953,7 @@ void MarkSweep::VerifyIsLive(const Object* obj) {
 }
 
 void MarkSweep::VerifySystemWeaks() {
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   // Verify system weaks, uses a special object visitor which returns the input object.
   Runtime::Current()->SweepSystemWeaks(VerifySystemWeakIsLiveCallback, this);
 }
@@ -1005,8 +990,8 @@ class CheckpointMarkThreadRoots : public Closure {
 
 void MarkSweep::MarkRootsCheckpoint(Thread* self,
                                     bool revoke_ros_alloc_thread_local_buffers_at_checkpoint) {
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   CheckpointMarkThreadRoots check_point(this, revoke_ros_alloc_thread_local_buffers_at_checkpoint);
-  GetTimings()->StartSplit("MarkRootsCheckpoint");
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   // Request the check point is run on all threads returning a count of the threads that must
   // run through the barrier including self.
@@ -1021,11 +1006,10 @@ void MarkSweep::MarkRootsCheckpoint(Thread* self,
   }
   Locks::mutator_lock_->SharedLock(self);
   Locks::heap_bitmap_lock_->ExclusiveLock(self);
-  GetTimings()->EndSplit();
 }
 
 void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitmaps) {
-  GetTimings()->StartSplit("SweepArray");
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   Thread* self = Thread::Current();
   mirror::Object** chunk_free_buffer = reinterpret_cast<mirror::Object**>(
       sweep_array_free_buffer_mem_map_->BaseBegin());
@@ -1072,10 +1056,9 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
         // if needed.
         if (!mark_bitmap->Test(obj)) {
           if (chunk_free_pos >= kSweepArrayChunkFreeSize) {
-            GetTimings()->StartSplit("FreeList");
+            TimingLogger::ScopedTiming t("FreeList", GetTimings());
             freed.objects += chunk_free_pos;
             freed.bytes += alloc_space->FreeList(self, chunk_free_pos, chunk_free_buffer);
-            GetTimings()->EndSplit();
             chunk_free_pos = 0;
           }
           chunk_free_buffer[chunk_free_pos++] = obj;
@@ -1085,10 +1068,9 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
       }
     }
     if (chunk_free_pos > 0) {
-      GetTimings()->StartSplit("FreeList");
+      TimingLogger::ScopedTiming t("FreeList", GetTimings());
       freed.objects += chunk_free_pos;
       freed.bytes += alloc_space->FreeList(self, chunk_free_pos, chunk_free_buffer);
-      GetTimings()->EndSplit();
       chunk_free_pos = 0;
     }
     // All of the references which space contained are no longer in the allocation stack, update
@@ -1113,31 +1095,33 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
       freed_los.bytes += large_object_space->Free(self, obj);
     }
   }
-  GetTimings()->NewSplit("RecordFree");
-  RecordFree(freed);
-  RecordFreeLOS(freed_los);
-  GetTimings()->NewSplit("ResetStack");
-  allocations->Reset();
-  GetTimings()->EndSplit();
+  {
+    TimingLogger::ScopedTiming t("RecordFree", GetTimings());
+    RecordFree(freed);
+    RecordFreeLOS(freed_los);
+    t.NewTiming("ResetStack");
+    allocations->Reset();
+  }
   sweep_array_free_buffer_mem_map_->MadviseDontNeedAndZero();
 }
 
 void MarkSweep::Sweep(bool swap_bitmaps) {
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   // Ensure that nobody inserted items in the live stack after we swapped the stacks.
   CHECK_GE(live_stack_freeze_size_, GetHeap()->GetLiveStack()->Size());
-  // Mark everything allocated since the last as GC live so that we can sweep concurrently,
-  // knowing that new allocations won't be marked as live.
-  GetTimings()->StartSplit("MarkStackAsLive");
-  accounting::ObjectStack* live_stack = heap_->GetLiveStack();
-  heap_->MarkAllocStackAsLive(live_stack);
-  live_stack->Reset();
-  GetTimings()->EndSplit();
-
-  DCHECK(mark_stack_->IsEmpty());
+  {
+    TimingLogger::ScopedTiming t2("MarkAllocStackAsLive", GetTimings());
+    // Mark everything allocated since the last as GC live so that we can sweep concurrently,
+    // knowing that new allocations won't be marked as live.
+    accounting::ObjectStack* live_stack = heap_->GetLiveStack();
+    heap_->MarkAllocStackAsLive(live_stack);
+    live_stack->Reset();
+    DCHECK(mark_stack_->IsEmpty());
+  }
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->IsContinuousMemMapAllocSpace()) {
       space::ContinuousMemMapAllocSpace* alloc_space = space->AsContinuousMemMapAllocSpace();
-      TimingLogger::ScopedSplit split(
+      TimingLogger::ScopedTiming split(
           alloc_space->IsZygoteSpace() ? "SweepZygoteSpace" : "SweepMallocSpace", GetTimings());
       RecordFree(alloc_space->Sweep(swap_bitmaps));
     }
@@ -1146,7 +1130,7 @@ void MarkSweep::Sweep(bool swap_bitmaps) {
 }
 
 void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
-  TimingLogger::ScopedSplit split("SweepLargeObjects", GetTimings());
+  TimingLogger::ScopedTiming split(__FUNCTION__, GetTimings());
   RecordFreeLOS(heap_->GetLargeObjectsSpace()->Sweep(swap_bitmaps));
 }
 
@@ -1215,7 +1199,7 @@ void MarkSweep::ProcessMarkStackParallel(size_t thread_count) {
 
 // Scan anything that's on the mark stack.
 void MarkSweep::ProcessMarkStack(bool paused) {
-  GetTimings()->StartSplit(paused ? "(Paused)ProcessMarkStack" : "ProcessMarkStack");
+  TimingLogger::ScopedTiming t(paused ? "(Paused)ProcessMarkStack" : __FUNCTION__, GetTimings());
   size_t thread_count = GetThreadCount(paused);
   if (kParallelProcessMarkStack && thread_count > 1 &&
       mark_stack_->Size() >= kMinimumParallelMarkStackSize) {
@@ -1248,7 +1232,6 @@ void MarkSweep::ProcessMarkStack(bool paused) {
       ScanObject(obj);
     }
   }
-  GetTimings()->EndSplit();
 }
 
 inline bool MarkSweep::IsMarked(const Object* object) const {
@@ -1262,7 +1245,7 @@ inline bool MarkSweep::IsMarked(const Object* object) const {
 }
 
 void MarkSweep::FinishPhase() {
-  TimingLogger::ScopedSplit split("FinishPhase", GetTimings());
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   if (kCountScannedTypes) {
     VLOG(gc) << "MarkSweep scanned classes=" << class_count_.LoadRelaxed()
         << " arrays=" << array_count_.LoadRelaxed() << " other=" << other_count_.LoadRelaxed();
@@ -1299,9 +1282,8 @@ void MarkSweep::RevokeAllThreadLocalBuffers() {
     // not be in use.
     GetHeap()->AssertAllBumpPointerSpaceThreadLocalBuffersAreRevoked();
   } else {
-    GetTimings()->StartSplit("(Paused)RevokeAllThreadLocalBuffers");
+    TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
     GetHeap()->RevokeAllThreadLocalBuffers();
-    GetTimings()->EndSplit();
   }
 }
 

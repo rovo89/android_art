@@ -77,93 +77,119 @@ class CumulativeLogger {
 // A timing logger that knows when a split starts for the purposes of logging tools, like systrace.
 class TimingLogger {
  public:
-  // Splits are nanosecond times and split names.
-  typedef std::pair<uint64_t, const char*> SplitTiming;
-  typedef std::vector<SplitTiming> SplitTimings;
+  static constexpr size_t kIndexNotFound = static_cast<size_t>(-1);
+
+  class Timing {
+   public:
+    Timing(uint64_t time, const char* name) : time_(time), name_(name) {
+    }
+    bool IsStartTiming() const {
+      return !IsEndTiming();
+    }
+    bool IsEndTiming() const {
+      return name_ == nullptr;
+    }
+    uint64_t GetTime() const {
+      return time_;
+    }
+    const char* GetName() const {
+      return name_;
+    }
+
+   private:
+    uint64_t time_;
+    const char* name_;
+  };
+
+  // Extra data that is only calculated when you call dump to prevent excess allocation.
+  class TimingData {
+   public:
+    TimingData() = default;
+    TimingData(TimingData&& other) {
+      std::swap(data_, other.data_);
+    }
+    TimingData& operator=(TimingData&& other) {
+      std::swap(data_, other.data_);
+      return *this;
+    }
+    uint64_t GetTotalTime(size_t idx) {
+      return data_[idx].total_time;
+    }
+    uint64_t GetExclusiveTime(size_t idx) {
+      return data_[idx].exclusive_time;
+    }
+
+   private:
+    // Each begin split has a total time and exclusive time. Exclusive time is total time - total
+    // time of children nodes.
+    struct CalculatedDataPoint {
+      CalculatedDataPoint() : total_time(0), exclusive_time(0) {}
+      uint64_t total_time;
+      uint64_t exclusive_time;
+    };
+    std::vector<CalculatedDataPoint> data_;
+    friend class TimingLogger;
+  };
 
   explicit TimingLogger(const char* name, bool precise, bool verbose);
-  ~TimingLogger() {
-    // TODO: DCHECK(current_split_ == nullptr) << "Forgot to end split: " << current_split_->label_;
-  }
-  // Clears current splits and labels.
+  ~TimingLogger();
+  // Verify that all open timings have related closed timings.
+  void Verify();
+  // Clears current timings and labels.
   void Reset();
-
-  // Starts a split
-  void StartSplit(const char* new_split_label);
-
-  // Ends the current split and starts the one given by the label.
-  void NewSplit(const char* new_split_label);
-
-  // Ends the current split and records the end time.
-  void EndSplit();
-
+  // Starts a timing.
+  void StartTiming(const char* new_split_label);
+  // Ends the current timing.
+  void EndTiming();
+  // End the current timing and start a new timing. Usage not recommended.
+  void NewTiming(const char* new_split_label) {
+    EndTiming();
+    StartTiming(new_split_label);
+  }
+  // Returns the total duration of the timings (sum of total times).
   uint64_t GetTotalNs() const;
-
-  void Dump(std::ostream& os) const;
+  // Find the index of a timing by name.
+  size_t FindTimingIndex(const char* name, size_t start_idx) const;
+  void Dump(std::ostream& os, const char* indent_string = "  ") const;
 
   // Scoped timing splits that can be nested and composed with the explicit split
   // starts and ends.
-  class ScopedSplit {
-    public:
-      explicit ScopedSplit(const char* label, TimingLogger* timing_logger);
+  class ScopedTiming {
+   public:
+    explicit ScopedTiming(const char* label, TimingLogger* logger) : logger_(logger) {
+      logger_->StartTiming(label);
+    }
+    ~ScopedTiming() {
+      logger_->EndTiming();
+    }
+    // Closes the current timing and opens a new timing.
+    void NewTiming(const char* label) {
+      logger_->NewTiming(label);
+    }
 
-      ~ScopedSplit();
-
-      friend class TimingLogger;
-
-    private:
-      // Pauses timing of the split, usually due to nesting of another split.
-      void Pause();
-
-      // Resumes timing of the split, usually because a nested split has ended.
-      void Resume();
-
-      // Used by new split to swap splits in place in a ScopedSplit instance.
-      void TailInsertSplit(const char* label);
-
-      // The scoped split immediately enclosing this split. Essentially, we get a
-      // stack of nested splits through this field.
-      ScopedSplit* enclosing_split_;
-
-      // Was this created via TimingLogger's StartSplit?
-      bool explicit_;
-
-      // The split's name.
-      const char* label_;
-
-      // The current split's latest start time. (It may have been paused and restarted.)
-      uint64_t start_ns_;
-
-      // The running time, outside of pauses.
-      uint64_t running_ns_;
-
-      // The timing logger holding this split.
-      TimingLogger* timing_logger_;
-
-      DISALLOW_COPY_AND_ASSIGN(ScopedSplit);
+   private:
+    TimingLogger* const logger_;  // The timing logger which the scoped timing is associated with.
+    DISALLOW_COPY_AND_ASSIGN(ScopedTiming);
   };
 
-  const SplitTimings& GetSplits() const {
-    return splits_;
+  // Return the time points of when each start / end timings start and finish.
+  const std::vector<Timing>& GetTimings() const {
+    return timings_;
   }
 
-  friend class ScopedSplit;
+  TimingData CalculateTimingData() const;
+
  protected:
   // The name of the timing logger.
   const char* const name_;
-
   // Do we want to print the exactly recorded split (true) or round down to the time unit being
   // used (false).
   const bool precise_;
-
   // Verbose logging.
   const bool verbose_;
-
-  // The current scoped split is also the 'top' of the stack of splits in progress.
-  ScopedSplit* current_split_;
-
-  // Splits that have ended.
-  SplitTimings splits_;
+  // Timing points that are either start or end points. For each starting point ret[i] = location
+  // of end split associated with i. If it is and end split ret[i] = i.
+  std::vector<Timing> timings_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(TimingLogger);

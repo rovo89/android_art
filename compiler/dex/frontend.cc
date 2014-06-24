@@ -114,19 +114,20 @@ CompilationUnit::~CompilationUnit() {
 
 void CompilationUnit::StartTimingSplit(const char* label) {
   if (compiler_driver->GetDumpPasses()) {
-    timings.StartSplit(label);
+    timings.StartTiming(label);
   }
 }
 
 void CompilationUnit::NewTimingSplit(const char* label) {
   if (compiler_driver->GetDumpPasses()) {
-    timings.NewSplit(label);
+    timings.EndTiming();
+    timings.StartTiming(label);
   }
 }
 
 void CompilationUnit::EndTiming() {
   if (compiler_driver->GetDumpPasses()) {
-    timings.EndSplit();
+    timings.EndTiming();
     if (enable_debug & (1 << kDebugTimings)) {
       LOG(INFO) << "TIMINGS " << PrettyMethod(method_idx, *dex_file);
       LOG(INFO) << Dumpable<TimingLogger>(timings);
