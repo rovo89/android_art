@@ -329,7 +329,7 @@ void Thumb2Assembler::ldm(BlockAddressMode am,
       ++reg;
     }
     CHECK_LT(reg, 16);
-    CHECK(am == DB_W);      // Only writeback is supported.
+    CHECK(am == IA_W);      // Only writeback is supported.
     ldr(static_cast<Register>(reg), Address(base, kRegisterSize, Address::PostIndex), cond);
   } else {
     EmitMultiMemOp(cond, am, true, base, regs);
@@ -352,8 +352,8 @@ void Thumb2Assembler::stm(BlockAddressMode am,
       ++reg;
     }
     CHECK_LT(reg, 16);
-    CHECK(am == IA || am == IA_W);
-    Address::Mode strmode = am == IA ? Address::PreIndex : Address::Offset;
+    CHECK(am == DB || am == DB_W);
+    Address::Mode strmode = am == DB_W ? Address::PreIndex : Address::Offset;
     str(static_cast<Register>(reg), Address(base, -kRegisterSize, strmode), cond);
   } else {
     EmitMultiMemOp(cond, am, false, base, regs);
@@ -642,6 +642,7 @@ bool Thumb2Assembler::Is32BitDataProcessing(Condition cond,
            if (imm > (1 << 9)) {    // 9 bit immediate.
              return true;
            }
+           return false;      // 16 bit good.
          } else if (opcode == ADD && rd != SP && rn == SP) {   // 10 bit immediate.
            if (imm > (1 << 10)) {
              return true;

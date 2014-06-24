@@ -269,18 +269,34 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
         uint32_t op = (instruction >> 21) & 0xf;
         opcode = kDataProcessingOperations[op];
         bool implicit_s = ((op & ~3) == 8);  // TST, TEQ, CMP, and CMN.
-        if (implicit_s) {
-          // Rd is unused (and not shown), and we don't show the 's' suffix either.
-        } else {
+        bool is_mov = op == 0b1101 || op == 0b1111;
+        if (is_mov) {
+          // Show only Rd and Rm.
           if (s) {
-            suffixes += 's';
-          }
-          args << ArmRegister(instruction, 12) << ", ";
-        }
-        if (i) {
-          args << ArmRegister(instruction, 16) << ", " << ShiftedImmediate(instruction);
+             suffixes += 's';
+           }
+           args << ArmRegister(instruction, 12) << ", ";
+           if (i) {
+              args << ShiftedImmediate(instruction);
+            } else {
+              // TODO: Shifted register.
+              args << ArmRegister(instruction, 16) << ", " << ArmRegister(instruction, 0);
+            }
         } else {
-          args << Rm(instruction);
+          if (implicit_s) {
+            // Rd is unused (and not shown), and we don't show the 's' suffix either.
+          } else {
+            if (s) {
+              suffixes += 's';
+            }
+            args << ArmRegister(instruction, 12) << ", ";
+          }
+          if (i) {
+            args << ArmRegister(instruction, 16) << ", " << ShiftedImmediate(instruction);
+          } else {
+            // TODO: Shifted register.
+            args << ArmRegister(instruction, 16) << ", " << ArmRegister(instruction, 0);
+          }
         }
       }
       break;
@@ -1291,7 +1307,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
                   int32_t imm32 = (imm8 << 24) >> 24;  // sign-extend imm8
                   if (Rn.r == 13 && P == 1 && U == 0 && W == 1 && imm32 == 4) {
                     opcode << "push";
-                    args << Rt;
+                    args << "{" << Rt << "}";
                   } else if (Rn.r == 15 || (P == 0 && W == 0)) {
                     opcode << "UNDEFINED";
                   } else {
@@ -1443,10 +1459,33 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             }
             args << "]";
           } else {
-            // LDRT Rt, [Rn, #imm8]            - 111 11 00 00 101 nnnn tttt 1110iiiiiiii
-            uint32_t imm8 = instr & 0xFF;
-            opcode << "ldrt";
-            args << Rt << ", [" << Rn << ", #" << imm8 << "]";
+            bool p = (instr & (1 << 10)) != 0;
+            bool w = (instr & (1 << 8)) != 0;
+            bool u = (instr & (1 << 9)) != 0;
+            if (p && u && !w) {
+              // LDRT Rt, [Rn, #imm8]            - 111 11 00 00 101 nnnn tttt 1110iiiiiiii
+              uint32_t imm8 = instr & 0xFF;
+              opcode << "ldrt";
+              args << Rt << ", [" << Rn << ", #" << imm8 << "]";
+            } else if (Rn.r == 13 && !p && u && w && (instr & 0xff) == 4) {
+              // POP
+              opcode << "pop";
+              args << "{" << Rt << "}";
+           } else {
+              bool wback = !p || w;
+              uint32_t offset = (instr & 0xff);
+              opcode << "ldr.w";
+              args << Rt << ",";
+              if (p && !wback) {
+                args << "[" << Rn << ", #" << offset << "]";
+              } else if (p && wback) {
+                args << "[" << Rn << ", #" << offset << "]!";
+              } else if (!p && wback) {
+                args << "[" << Rn << "], #" << offset;
+              } else {
+                LOG(FATAL) << p << " " << w;
+              }
+            }
           }
           break;
         }
