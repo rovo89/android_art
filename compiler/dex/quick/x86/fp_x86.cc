@@ -144,7 +144,7 @@ void X86Mir2Lir::GenLongToFP(RegLocation rl_dest, RegLocation rl_src, bool is_do
     } else {
       // It must have been register promoted if it is not a temp but is still in physical
       // register. Since we need it to be in memory to convert, we place it there now.
-      StoreBaseDisp(TargetReg(kSp), src_v_reg_offset, rl_src.reg, k64);
+      StoreBaseDisp(TargetReg(kSp), src_v_reg_offset, rl_src.reg, k64, kNotVolatile);
     }
   }
 
@@ -178,7 +178,7 @@ void X86Mir2Lir::GenLongToFP(RegLocation rl_dest, RegLocation rl_src, bool is_do
      */
     rl_result = EvalLoc(rl_dest, kFPReg, true);
     if (is_double) {
-      LoadBaseDisp(TargetReg(kSp), dest_v_reg_offset, rl_result.reg, k64);
+      LoadBaseDisp(TargetReg(kSp), dest_v_reg_offset, rl_result.reg, k64, kNotVolatile);
 
       StoreFinalValueWide(rl_dest, rl_result);
     } else {
@@ -363,7 +363,8 @@ void X86Mir2Lir::GenRemFP(RegLocation rl_dest, RegLocation rl_src1, RegLocation 
     } else {
       // It must have been register promoted if it is not a temp but is still in physical
       // register. Since we need it to be in memory to convert, we place it there now.
-      StoreBaseDisp(TargetReg(kSp), src1_v_reg_offset, rl_src1.reg, is_double ? k64 : k32);
+      StoreBaseDisp(TargetReg(kSp), src1_v_reg_offset, rl_src1.reg, is_double ? k64 : k32,
+                    kNotVolatile);
     }
   }
 
@@ -373,7 +374,8 @@ void X86Mir2Lir::GenRemFP(RegLocation rl_dest, RegLocation rl_src1, RegLocation 
       FlushSpecificReg(reg_info);
       ResetDef(rl_src2.reg);
     } else {
-      StoreBaseDisp(TargetReg(kSp), src2_v_reg_offset, rl_src2.reg, is_double ? k64 : k32);
+      StoreBaseDisp(TargetReg(kSp), src2_v_reg_offset, rl_src2.reg, is_double ? k64 : k32,
+                    kNotVolatile);
     }
   }
 
@@ -433,7 +435,7 @@ void X86Mir2Lir::GenRemFP(RegLocation rl_dest, RegLocation rl_src1, RegLocation 
   if (rl_result.location == kLocPhysReg) {
     rl_result = EvalLoc(rl_dest, kFPReg, true);
     if (is_double) {
-      LoadBaseDisp(TargetReg(kSp), dest_v_reg_offset, rl_result.reg, k64);
+      LoadBaseDisp(TargetReg(kSp), dest_v_reg_offset, rl_result.reg, k64, kNotVolatile);
       StoreFinalValueWide(rl_dest, rl_result);
     } else {
       Load32Disp(TargetReg(kSp), dest_v_reg_offset, rl_result.reg);
