@@ -16,10 +16,10 @@
 
 LOCAL_PATH := $(call my-dir)
 
+include art/build/Android.executable.mk
+
 OATDUMP_SRC_FILES := \
 	oatdump.cc
-
-include art/build/Android.executable.mk
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
   $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libcutils libart-disassembler,art/disassembler,target,ndebug))
@@ -33,4 +33,63 @@ ifeq ($(ART_BUILD_HOST_NDEBUG),true)
 endif
 ifeq ($(ART_BUILD_HOST_DEBUG),true)
   $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libartd-disassembler,art/disassembler,host,debug))
+endif
+
+########################################################################
+# oatdump targets
+
+ART_DUMP_OAT_PATH ?= $(OUT_DIR)
+
+OATDUMP := $(HOST_OUT_EXECUTABLES)/oatdump$(HOST_EXECUTABLE_SUFFIX)
+OATDUMPD := $(HOST_OUT_EXECUTABLES)/oatdumpd$(HOST_EXECUTABLE_SUFFIX)
+# TODO: for now, override with debug version for better error reporting
+OATDUMP := $(OATDUMPD)
+
+.PHONY: dump-oat
+dump-oat: dump-oat-core dump-oat-boot
+
+.PHONY: dump-oat-core
+dump-oat-core: dump-oat-core-host dump-oat-core-target
+
+.PHONY: dump-oat-core-host
+ifeq ($(ART_BUILD_HOST),true)
+dump-oat-core-host: $(HOST_CORE_IMG_OUT) $(OATDUMP)
+	$(OATDUMP) --image=$(HOST_CORE_IMG_LOCATION) --output=$(ART_DUMP_OAT_PATH)/core.host.oatdump.txt
+	@echo Output in $(ART_DUMP_OAT_PATH)/core.host.oatdump.txt
+endif
+
+.PHONY: dump-oat-core-target
+ifeq ($(ART_BUILD_TARGET),true)
+dump-oat-core-target: $(TARGET_CORE_IMG_OUT) $(OATDUMP)
+	$(OATDUMP) --image=$(TARGET_CORE_IMG_LOCATION) \
+	  --output=$(ART_DUMP_OAT_PATH)/core.target.oatdump.txt --instruction-set=$(TARGET_ARCH)
+	@echo Output in $(ART_DUMP_OAT_PATH)/core.target.oatdump.txt
+endif
+
+.PHONY: dump-oat-boot-$(TARGET_ARCH)
+ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
+dump-oat-boot-$(TARGET_ARCH): $(DEFAULT_DEX_PREOPT_BUILT_IMAGE_FILENAME) $(OATDUMP)
+	$(OATDUMP) --image=$(DEFAULT_DEX_PREOPT_BUILT_IMAGE_LOCATION) \
+	  --output=$(ART_DUMP_OAT_PATH)/boot.$(TARGET_ARCH).oatdump.txt --instruction-set=$(TARGET_ARCH)
+	@echo Output in $(ART_DUMP_OAT_PATH)/boot.$(TARGET_ARCH).oatdump.txt
+endif
+
+ifdef TARGET_2ND_ARCH
+dump-oat-boot-$(TARGET_2ND_ARCH): $(2ND_DEFAULT_DEX_PREOPT_BUILT_IMAGE_FILENAME) $(OATDUMP)
+	$(OATDUMP) --image=$(2ND_DEFAULT_DEX_PREOPT_BUILT_IMAGE_LOCATION) \
+	  --output=$(ART_DUMP_OAT_PATH)/boot.$(TARGET_2ND_ARCH).oatdump.txt --instruction-set=$(TARGET_2ND_ARCH)
+	@echo Output in $(ART_DUMP_OAT_PATH)/boot.$(TARGET_2ND_ARCH).oatdump.txt
+endif
+
+.PHONY: dump-oat-boot
+dump-oat-boot: dump-oat-boot-$(TARGET_ARCH)
+ifdef TARGET_2ND_ARCH
+dump-oat-boot: dump-oat-boot-$(TARGET_2ND_ARCH)
+endif
+
+.PHONY: dump-oat-Calculator
+ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
+dump-oat-Calculator: $(TARGET_OUT_APPS)/Calculator.odex $(DEFAULT_DEX_PREOPT_BUILT_IMAGE) $(OATDUMP)
+	$(OATDUMP) --oat-file=$< --output=$(ART_DUMP_OAT_PATH)/Calculator.oatdump.txt
+	@echo Output in $(ART_DUMP_OAT_PATH)/Calculator.oatdump.txt
 endif
