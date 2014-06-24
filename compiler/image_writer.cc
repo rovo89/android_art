@@ -263,7 +263,11 @@ void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
   }
   mirror::String* string = obj->AsString();
   const uint16_t* utf16_string = string->GetCharArray()->GetData() + string->GetOffset();
-  for (DexCache* dex_cache : Runtime::Current()->GetClassLinker()->GetDexCaches()) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  ReaderMutexLock mu(Thread::Current(), *class_linker->DexLock());
+  size_t dex_cache_count = class_linker->GetDexCacheCount();
+  for (size_t i = 0; i < dex_cache_count; ++i) {
+    DexCache* dex_cache = class_linker->GetDexCache(i);
     const DexFile& dex_file = *dex_cache->GetDexFile();
     const DexFile::StringId* string_id;
     if (UNLIKELY(string->GetLength() == 0)) {
@@ -316,7 +320,10 @@ void ImageWriter::PruneNonImageClasses() {
 
   // Clear references to removed classes from the DexCaches.
   ArtMethod* resolution_method = runtime->GetResolutionMethod();
-  for (DexCache* dex_cache : class_linker->GetDexCaches()) {
+  ReaderMutexLock mu(Thread::Current(), *class_linker->DexLock());
+  size_t dex_cache_count = class_linker->GetDexCacheCount();
+  for (size_t idx = 0; idx < dex_cache_count; ++idx) {
+    DexCache* dex_cache = class_linker->GetDexCache(idx);
     for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
       Class* klass = dex_cache->GetResolvedType(i);
       if (klass != NULL && !IsImageClass(klass)) {
@@ -408,13 +415,27 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   Handle<Class> object_array_class(hs.NewHandle(
       class_linker->FindSystemClass(self, "[Ljava/lang/Object;")));
 
-  // build an Object[] of all the DexCaches used in the source_space_
+  // build an Object[] of all the DexCaches used in the source_space_.
+  // Since we can't hold the dex lock when allocating the dex_caches
+  // ObjectArray, we lock the dex lock twice, first to get the number
+  // of dex caches first and then lock it again to copy the dex
+  // caches. We check that the number of dex caches does not change.
+  size_t dex_cache_count;
+  {
+    ReaderMutexLock mu(Thread::Current(), *class_linker->DexLock());
+    dex_cache_count = class_linker->GetDexCacheCount();
+  }
   Handle<ObjectArray<Object>> dex_caches(
       hs.NewHandle(ObjectArray<Object>::Alloc(self, object_array_class.Get(),
-                                              class_linker->GetDexCaches().size())));
-  int i = 0;
-  for (DexCache* dex_cache : class_linker->GetDexCaches()) {
-    dex_caches->Set<false>(i++, dex_cache);
+                                              dex_cache_count)));
+  CHECK(dex_caches.Get() != nullptr) << "Failed to allocate a dex cache array.";
+  {
+    ReaderMutexLock mu(Thread::Current(), *class_linker->DexLock());
+    CHECK_EQ(dex_cache_count, class_linker->GetDexCacheCount())
+        << "The number of dex caches changed.";
+    for (size_t i = 0; i < dex_cache_count; ++i) {
+      dex_caches->Set<false>(i, class_linker->GetDexCache(i));
+    }
   }
 
   // build an Object[] of the roots needed to restore the runtime
