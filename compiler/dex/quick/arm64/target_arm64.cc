@@ -789,7 +789,7 @@ RegStorage Arm64Mir2Lir::LoadHelper(ThreadOffset<4> offset) {
 RegStorage Arm64Mir2Lir::LoadHelper(ThreadOffset<8> offset) {
   // TODO(Arm64): use LoadWordDisp instead.
   //   e.g. LoadWordDisp(rs_rA64_SELF, offset.Int32Value(), rs_rA64_LR);
-  LoadBaseDisp(rs_rA64_SELF, offset.Int32Value(), rs_rA64_LR, k64);
+  LoadBaseDisp(rs_rA64_SELF, offset.Int32Value(), rs_rA64_LR, k64, kNotVolatile);
   return rs_rA64_LR;
 }
 
@@ -949,7 +949,7 @@ void Arm64Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
   StoreValue(rl_method, rl_src);
   // If Method* has been promoted, explicitly flush
   if (rl_method.location == kLocPhysReg) {
-    StoreRefDisp(TargetReg(kSp), 0, TargetReg(kArg0));
+    StoreRefDisp(TargetReg(kSp), 0, TargetReg(kArg0), kNotVolatile);
   }
 
   if (cu_->num_ins == 0) {
@@ -971,7 +971,7 @@ void Arm64Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
       } else if ((v_map->fp_location == kLocPhysReg) && t_loc->fp) {
         OpRegCopy(RegStorage::Solo32(v_map->FpReg), reg);
       } else {
-        StoreBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i), reg, op_size);
+        StoreBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i), reg, op_size, kNotVolatile);
         if (reg.Is64Bit()) {
           if (SRegOffset(start_vreg + i) + 4 != SRegOffset(start_vreg + i + 1)) {
             LOG(FATAL) << "64 bit value stored in non-consecutive 4 bytes slots";
@@ -1057,14 +1057,14 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
         loc = UpdateLocWide(loc);
         if (loc.location == kLocPhysReg) {
           ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k64);
+          StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k64, kNotVolatile);
         }
         next_arg += 2;
       } else {
         loc = UpdateLoc(loc);
         if (loc.location == kLocPhysReg) {
           ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k32);
+          StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k32, kNotVolatile);
         }
         next_arg++;
       }
@@ -1122,18 +1122,27 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
           ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
           if (rl_arg.wide) {
             if (rl_arg.location == kLocPhysReg) {
-              StoreBaseDisp(TargetReg(kSp), out_offset, rl_arg.reg, k64);
+              StoreBaseDisp(TargetReg(kSp), out_offset, rl_arg.reg, k64, kNotVolatile);
             } else {
               LoadValueDirectWideFixed(rl_arg, regWide);
-              StoreBaseDisp(TargetReg(kSp), out_offset, regWide, k64);
+              StoreBaseDisp(TargetReg(kSp), out_offset, regWide, k64, kNotVolatile);
             }
             i++;
           } else {
             if (rl_arg.location == kLocPhysReg) {
-              StoreBaseDisp(TargetReg(kSp), out_offset, rl_arg.reg, k32);
+              if (rl_arg.ref) {
+                StoreRefDisp(TargetReg(kSp), out_offset, rl_arg.reg, kNotVolatile);
+              } else {
+                StoreBaseDisp(TargetReg(kSp), out_offset, rl_arg.reg, k32, kNotVolatile);
+              }
             } else {
-              LoadValueDirectFixed(rl_arg, regSingle);
-              StoreBaseDisp(TargetReg(kSp), out_offset, regSingle, k32);
+              if (rl_arg.ref) {
+                LoadValueDirectFixed(rl_arg, regSingle);
+                StoreRefDisp(TargetReg(kSp), out_offset, regSingle, kNotVolatile);
+              } else {
+                LoadValueDirectFixed(rl_arg, As32BitReg(regSingle));
+                StoreBaseDisp(TargetReg(kSp), out_offset, As32BitReg(regSingle), k32, kNotVolatile);
+              }
             }
           }
         }

@@ -632,19 +632,19 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
           if (static_cast<unsigned>(kind) < kFmtBitBlt) {
             bool is_zero = A64_REG_IS_ZR(operand);
 
-            if (kIsDebugBuild) {
+            if (kIsDebugBuild && (kFailOnSizeError || kReportSizeError)) {
               // Register usage checks: First establish register usage requirements based on the
               // format in `kind'.
               bool want_float = false;
               bool want_64_bit = false;
-              bool want_size_match = false;
+              bool want_var_size = true;
               bool want_zero = false;
               switch (kind) {
                 case kFmtRegX:
                   want_64_bit = true;
                   // Intentional fall-through.
                 case kFmtRegW:
-                  want_size_match = true;
+                  want_var_size = false;
                   // Intentional fall-through.
                 case kFmtRegR:
                   want_zero = true;
@@ -653,7 +653,7 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
                   want_64_bit = true;
                   // Intentional fall-through.
                 case kFmtRegWOrSp:
-                  want_size_match = true;
+                  want_var_size = false;
                   break;
                 case kFmtRegROrSp:
                   break;
@@ -661,7 +661,7 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
                   want_64_bit = true;
                   // Intentional fall-through.
                 case kFmtRegS:
-                  want_size_match = true;
+                  want_var_size = false;
                   // Intentional fall-through.
                 case kFmtRegF:
                   want_float = true;
@@ -672,21 +672,27 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
                   break;
               }
 
+              // want_var_size == true means kind == kFmtReg{R,F}. In these two cases, we want
+              // the register size to be coherent with the instruction width.
+              if (want_var_size) {
+                want_64_bit = opcode_is_wide;
+              }
+
               // Now check that the requirements are satisfied.
               RegStorage reg(operand | RegStorage::kValid);
               const char *expected = nullptr;
               if (want_float) {
                 if (!reg.IsFloat()) {
                   expected = "float register";
-                } else if (want_size_match && (reg.IsDouble() != want_64_bit)) {
+                } else if (reg.IsDouble() != want_64_bit) {
                   expected = (want_64_bit) ? "double register" : "single register";
                 }
               } else {
                 if (reg.IsFloat()) {
                   expected = "core register";
-                } else if (want_size_match && (reg.Is64Bit() != want_64_bit)) {
+                } else if (reg.Is64Bit() != want_64_bit) {
                   expected = (want_64_bit) ? "x-register" : "w-register";
-                } else if (reg.GetRegNum() == 31 && is_zero != want_zero) {
+                } else if (A64_REGSTORAGE_IS_SP_OR_ZR(reg) && is_zero != want_zero) {
                   expected = (want_zero) ? "zero-register" : "sp-register";
                 }
               }
@@ -698,8 +704,13 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
               if (expected != nullptr) {
                 LOG(WARNING) << "Method: " << PrettyMethod(cu_->method_idx, *cu_->dex_file)
                              << " @ 0x" << std::hex << lir->dalvik_offset;
-                LOG(FATAL) << "Bad argument n. " << i << " of " << encoder->name
-                           << ". Expected " << expected << ", got 0x" << std::hex << operand;
+                if (kFailOnSizeError) {
+                  LOG(FATAL) << "Bad argument n. " << i << " of " << encoder->name
+                             << ". Expected " << expected << ", got 0x" << std::hex << operand;
+                } else {
+                  LOG(WARNING) << "Bad argument n. " << i << " of " << encoder->name
+                               << ". Expected " << expected << ", got 0x" << std::hex << operand;
+                }
               }
             }
 

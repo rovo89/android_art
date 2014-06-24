@@ -527,6 +527,13 @@ enum FixupKind {
 
 std::ostream& operator<<(std::ostream& os, const FixupKind& kind);
 
+enum VolatileKind {
+  kNotVolatile,      // Load/Store is not volatile
+  kVolatile          // Load/Store is volatile
+};
+
+std::ostream& operator<<(std::ostream& os, const VolatileKind& kind);
+
 }  // namespace art
 
 #endif  // ART_COMPILER_DEX_COMPILER_ENUMS_H_
