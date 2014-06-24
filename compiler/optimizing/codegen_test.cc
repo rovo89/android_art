@@ -51,7 +51,12 @@ class InternalCodeAllocator : public CodeAllocator {
 static void Run(const InternalCodeAllocator& allocator, bool has_result, int32_t expected) {
   typedef int32_t (*fptr)();
   CommonCompilerTest::MakeExecutable(allocator.GetMemory(), allocator.GetSize());
-  int32_t result = reinterpret_cast<fptr>(allocator.GetMemory())();
+  fptr f = reinterpret_cast<fptr>(allocator.GetMemory());
+#if defined(__arm__)
+  // For thumb we need the bottom bit set.
+  f = reinterpret_cast<fptr>(reinterpret_cast<uintptr_t>(f) + 1);
+#endif
+  int32_t result = f();
   if (has_result) {
     CHECK_EQ(result, expected);
   }

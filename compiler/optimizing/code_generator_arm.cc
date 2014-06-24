@@ -34,6 +34,35 @@ arm::ArmManagedRegister Location::AsArm() const {
 
 namespace arm {
 
+
+inline Condition ARMCondition(IfCondition cond) {
+  switch (cond) {
+    case kCondEQ: return EQ;
+    case kCondNE: return NE;
+    case kCondLT: return LT;
+    case kCondLE: return LE;
+    case kCondGT: return GT;
+    case kCondGE: return GE;
+    default:
+      LOG(FATAL) << "Unknown if condition";
+  }
+  return EQ;        // Unreachable.
+}
+
+inline Condition ARMOppositeCondition(IfCondition cond) {
+  switch (cond) {
+    case kCondEQ: return NE;
+    case kCondNE: return EQ;
+    case kCondLT: return GE;
+    case kCondLE: return GT;
+    case kCondGT: return LE;
+    case kCondGE: return LT;
+    default:
+      LOG(FATAL) << "Unknown if condition";
+  }
+  return EQ;        // Unreachable.
+}
+
 static constexpr int kNumberOfPushedRegistersAtEntry = 1;
 static constexpr int kCurrentMethodStackOffset = 0;
 
@@ -419,33 +448,103 @@ void InstructionCodeGeneratorARM::VisitExit(HExit* exit) {
 
 void LocationsBuilderARM::VisitIf(HIf* if_instr) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(if_instr);
-  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(0, Location::Any());
   if_instr->SetLocations(locations);
 }
 
 void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
-  // TODO: Generate the input as a condition, instead of materializing in a register.
-  __ cmp(if_instr->GetLocations()->InAt(0).AsArm().AsCoreRegister(), ShifterOperand(0));
-  __ b(codegen_->GetLabelOf(if_instr->IfFalseSuccessor()), EQ);
-  if (!codegen_->GoesToNextBlock(if_instr->GetBlock(), if_instr->IfTrueSuccessor())) {
-    __ b(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
+  HInstruction* cond = if_instr->InputAt(0);
+  DCHECK(cond->IsCondition());
+  HCondition* condition = cond->AsCondition();
+  if (condition->NeedsMaterialization()) {
+    // Condition has been materialized, compare the output to 0
+    if (!if_instr->GetLocations()->InAt(0).IsRegister()) {
+      LOG(FATAL) << "Materialized condition is not in an ARM register";
+    }
+    __ cmp(if_instr->GetLocations()->InAt(0).AsArm().AsCoreRegister(),
+           ShifterOperand(0));
+    __ b(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()), EQ);
+  } else {
+    // Condition has not been materialized, use its inputs as the comparison and its
+    // condition as the branch condition.
+    __ cmp(condition->GetLocations()->InAt(0).AsArm().AsCoreRegister(),
+           ShifterOperand(condition->GetLocations()->InAt(1).AsArm().AsCoreRegister()));
+    __ b(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()),
+         ARMCondition(condition->GetCondition()));
+  }
+  if (!codegen_->GoesToNextBlock(if_instr->GetBlock(), if_instr->IfFalseSuccessor())) {
+    __ b(codegen_->GetLabelOf(if_instr->IfFalseSuccessor()));
   }
 }
 
-void LocationsBuilderARM::VisitEqual(HEqual* equal) {
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(equal);
+
+void LocationsBuilderARM::VisitCondition(HCondition* comp) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(comp);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());
-  equal->SetLocations(locations);
+  comp->SetLocations(locations);
 }
 
-void InstructionCodeGeneratorARM::VisitEqual(HEqual* equal) {
-  LocationSummary* locations = equal->GetLocations();
-  __ teq(locations->InAt(0).AsArm().AsCoreRegister(),
-         ShifterOperand(locations->InAt(1).AsArm().AsCoreRegister()));
-  __ mov(locations->Out().AsArm().AsCoreRegister(), ShifterOperand(1), EQ);
-  __ mov(locations->Out().AsArm().AsCoreRegister(), ShifterOperand(0), NE);
+void InstructionCodeGeneratorARM::VisitCondition(HCondition* comp) {
+  if (comp->NeedsMaterialization()) {
+    LocationSummary* locations = comp->GetLocations();
+    __ cmp(locations->InAt(0).AsArm().AsCoreRegister(),
+           ShifterOperand(locations->InAt(1).AsArm().AsCoreRegister()));
+    __ it(ARMCondition(comp->GetCondition()), kItElse);
+    __ mov(locations->Out().AsArm().AsCoreRegister(), ShifterOperand(1),
+           ARMCondition(comp->GetCondition()));
+    __ mov(locations->Out().AsArm().AsCoreRegister(), ShifterOperand(0),
+           ARMOppositeCondition(comp->GetCondition()));
+  }
+}
+
+void LocationsBuilderARM::VisitEqual(HEqual* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorARM::VisitEqual(HEqual* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderARM::VisitNotEqual(HNotEqual* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorARM::VisitNotEqual(HNotEqual* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderARM::VisitLessThan(HLessThan* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorARM::VisitLessThan(HLessThan* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderARM::VisitLessThanOrEqual(HLessThanOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorARM::VisitLessThanOrEqual(HLessThanOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderARM::VisitGreaterThan(HGreaterThan* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorARM::VisitGreaterThan(HGreaterThan* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderARM::VisitGreaterThanOrEqual(HGreaterThanOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorARM::VisitGreaterThanOrEqual(HGreaterThanOrEqual* comp) {
+  VisitCondition(comp);
 }
 
 void LocationsBuilderARM::VisitLocal(HLocal* local) {

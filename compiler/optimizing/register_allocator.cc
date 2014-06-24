@@ -100,6 +100,9 @@ void RegisterAllocator::BlockRegister(Location location,
   interval->AddRange(start, end);
 }
 
+// TODO: make the register allocator understand instructions like HCondition
+// that may not need to be materialized.  It doesn't need to allocate any
+// registers for it.
 void RegisterAllocator::AllocateRegistersInternal() {
   number_of_registers_ = processing_core_registers_
       ? codegen_->GetNumberOfCoreRegisters()
