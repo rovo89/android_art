@@ -410,7 +410,7 @@ bool Arm64Mir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
   RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);   // kRefReg
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
 
-  LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size, kNotVolatile);
+  LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size);
   if (size == k64) {
     StoreValueWide(rl_dest, rl_result);
   } else {
@@ -433,7 +433,7 @@ bool Arm64Mir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
     DCHECK(size == kSignedByte || size == kSignedHalf || size == k32);
     rl_value = LoadValue(rl_src_value, kCoreReg);
   }
-  StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size, kNotVolatile);
+  StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size);
   return true;
 }
 
@@ -747,11 +747,7 @@ void Arm64Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       }
       FreeTemp(reg_len);
     }
-    if (rl_result.ref) {
-      LoadRefDisp(reg_ptr, data_offset, rl_result.reg, kNotVolatile);
-    } else {
-      LoadBaseDisp(reg_ptr, data_offset, rl_result.reg, size, kNotVolatile);
-    }
+    LoadBaseDisp(reg_ptr, data_offset, rl_result.reg, size);
     MarkPossibleNullPointerException(opt_flags);
     if (!constant_index) {
       FreeTemp(reg_ptr);
@@ -772,11 +768,7 @@ void Arm64Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       GenArrayBoundsCheck(rl_index.reg, reg_len);
       FreeTemp(reg_len);
     }
-    if (rl_result.ref) {
-      LoadRefIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_result.reg);
-    } else {
-      LoadBaseIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_result.reg, scale, size);
-    }
+    LoadBaseIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_result.reg, scale, size);
     MarkPossibleNullPointerException(opt_flags);
     FreeTemp(reg_ptr);
     StoreValue(rl_dest, rl_result);
@@ -855,11 +847,8 @@ void Arm64Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
       }
       FreeTemp(reg_len);
     }
-    if (rl_src.ref) {
-      StoreRefDisp(reg_ptr, data_offset, rl_src.reg, kNotVolatile);
-    } else {
-      StoreBaseDisp(reg_ptr, data_offset, rl_src.reg, size, kNotVolatile);
-    }
+
+    StoreBaseDisp(reg_ptr, data_offset, rl_src.reg, size);
     MarkPossibleNullPointerException(opt_flags);
   } else {
     /* reg_ptr -> array data */
@@ -869,11 +858,7 @@ void Arm64Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
       GenArrayBoundsCheck(rl_index.reg, reg_len);
       FreeTemp(reg_len);
     }
-    if (rl_src.ref) {
-      StoreRefIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_src.reg);
-    } else {
-      StoreBaseIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_src.reg, scale, size);
-    }
+    StoreBaseIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_src.reg, scale, size);
     MarkPossibleNullPointerException(opt_flags);
   }
   if (allocated_reg_ptr_temp) {
