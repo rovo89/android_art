@@ -114,7 +114,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       desired_collector_type_(foreground_collector_type_),
       heap_trim_request_lock_(nullptr),
       last_trim_time_(0),
-      heap_transition_target_time_(0),
+      heap_transition_or_trim_target_time_(0),
       heap_trim_request_pending_(false),
       parallel_gc_threads_(parallel_gc_threads),
       conc_gc_threads_(conc_gc_threads),
@@ -850,10 +850,10 @@ void Heap::DoPendingTransitionOrTrim() {
       MutexLock mu(self, *heap_trim_request_lock_);
       desired_collector_type = desired_collector_type_;
       uint64_t current_time = NanoTime();
-      if (current_time >= heap_transition_target_time_) {
+      if (current_time >= heap_transition_or_trim_target_time_) {
         break;
       }
-      wait_time = heap_transition_target_time_ - current_time;
+      wait_time = heap_transition_or_trim_target_time_ - current_time;
     }
     ScopedThreadStateChange tsc(self, kSleeping);
     usleep(wait_time / 1000);  // Usleep takes microseconds.
@@ -871,9 +871,9 @@ void Heap::DoPendingTransitionOrTrim() {
     VLOG(heap) << "Deflating " << count << " monitors took "
         << PrettyDuration(NanoTime() - start_time);
     runtime->GetThreadList()->ResumeAll();
-    // Do a heap trim if it is needed.
-    Trim();
   }
+  // Do a heap trim if it is needed.
+  Trim();
 }
 
 void Heap::Trim() {
@@ -904,9 +904,13 @@ void Heap::Trim() {
   uint64_t managed_reclaimed = 0;
   for (const auto& space : continuous_spaces_) {
     if (space->IsMallocSpace()) {
-      gc::space::MallocSpace* alloc_space = space->AsMallocSpace();
-      total_alloc_space_size += alloc_space->Size();
-      managed_reclaimed += alloc_space->Trim();
+      gc::space::MallocSpace* malloc_space = space->AsMallocSpace();
+      if (malloc_space->IsRosAllocSpace() || !CareAboutPauseTimes()) {
+        // Don't trim dlmalloc spaces if we care about pauses since this can hold the space lock
+        // for a long period of time.
+        managed_reclaimed += malloc_space->Trim();
+      }
+      total_alloc_space_size += malloc_space->Size();
     }
   }
   total_alloc_space_allocated = GetBytesAllocated() - large_object_space_->GetBytesAllocated();
@@ -919,15 +923,18 @@ void Heap::Trim() {
   // We never move things in the native heap, so we can finish the GC at this point.
   FinishGC(self, collector::kGcTypeNone);
   size_t native_reclaimed = 0;
+  // Only trim the native heap if we don't care about pauses.
+  if (!CareAboutPauseTimes()) {
 #if defined(USE_DLMALLOC)
-  // Trim the native heap.
-  dlmalloc_trim(0);
-  dlmalloc_inspect_all(DlmallocMadviseCallback, &native_reclaimed);
+    // Trim the native heap.
+    dlmalloc_trim(0);
+    dlmalloc_inspect_all(DlmallocMadviseCallback, &native_reclaimed);
 #elif defined(USE_JEMALLOC)
-  // Jemalloc does it's own internal trimming.
+    // Jemalloc does it's own internal trimming.
 #else
-  UNIMPLEMENTED(WARNING) << "Add trimming support";
+    UNIMPLEMENTED(WARNING) << "Add trimming support";
 #endif
+  }
   uint64_t end_ns = NanoTime();
   VLOG(heap) << "Heap trim of managed (duration=" << PrettyDuration(gc_heap_end_ns - start_ns)
       << ", advised=" << PrettySize(managed_reclaimed) << ") and native (duration="
@@ -2693,17 +2700,14 @@ void Heap::RequestCollectorTransition(CollectorType desired_collector_type, uint
     if (desired_collector_type_ == desired_collector_type) {
       return;
     }
-    heap_transition_target_time_ = std::max(heap_transition_target_time_, NanoTime() + delta_time);
+    heap_transition_or_trim_target_time_ =
+        std::max(heap_transition_or_trim_target_time_, NanoTime() + delta_time);
     desired_collector_type_ = desired_collector_type;
   }
   SignalHeapTrimDaemon(self);
 }
 
 void Heap::RequestHeapTrim() {
-  // Request a heap trim only if we do not currently care about pause times.
-  if (CareAboutPauseTimes()) {
-    return;
-  }
   // GC completed and now we must decide whether to request a heap trim (advising pages back to the
   // kernel) or not. Issuing a request will also cause trimming of the libc heap. As a trim scans
   // a space it will hold its lock and can become a cause of jank.
@@ -2733,6 +2737,10 @@ void Heap::RequestHeapTrim() {
       return;
     }
     heap_trim_request_pending_ = true;
+    uint64_t current_time = NanoTime();
+    if (heap_transition_or_trim_target_time_ < current_time) {
+      heap_transition_or_trim_target_time_ = current_time + kHeapTrimWait;
+    }
   }
   // Notify the daemon thread which will actually do the heap trim.
   SignalHeapTrimDaemon(self);
