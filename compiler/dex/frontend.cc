@@ -783,10 +783,11 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
                                      uint16_t class_def_idx, uint32_t method_idx,
                                      jobject class_loader, const DexFile& dex_file,
                                      void* llvm_compilation_unit) {
-  VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
+  std::string method_name = PrettyMethod(method_idx, dex_file);
+  VLOG(compiler) << "Compiling " << method_name << "...";
   if (code_item->insns_size_in_code_units_ >= 0x10000) {
     LOG(INFO) << "Method size exceeds compiler limits: " << code_item->insns_size_in_code_units_
-              << " in " << PrettyMethod(method_idx, dex_file);
+              << " in " << method_name;
     return NULL;
   }
 
@@ -818,8 +819,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   cu.compiler_flip_match = false;
   bool use_match = !cu.compiler_method_match.empty();
   bool match = use_match && (cu.compiler_flip_match ^
-      (PrettyMethod(method_idx, dex_file).find(cu.compiler_method_match) !=
-       std::string::npos));
+      (method_name.find(cu.compiler_method_match) != std::string::npos));
   if (!use_match || match) {
     cu.disable_opt = kCompilerOptimizerDisableFlags;
     cu.enable_debug = kCompilerDebugFlags;
@@ -830,7 +830,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   if (gVerboseMethods.size() != 0) {
     cu.verbose = false;
     for (size_t i = 0; i < gVerboseMethods.size(); ++i) {
-      if (PrettyMethod(method_idx, dex_file).find(gVerboseMethods[i])
+      if (method_name.find(gVerboseMethods[i])
           != std::string::npos) {
         cu.verbose = true;
         break;
@@ -887,22 +887,13 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
     cu.mir_graph->EnableOpcodeCounting();
   }
 
-  // Check early if we should skip this compilation if the profiler is enabled.
-  if (cu.compiler_driver->ProfilePresent()) {
-    std::string methodname = PrettyMethod(method_idx, dex_file);
-    if (cu.mir_graph->SkipCompilationByName(methodname)) {
-      return nullptr;
-    }
-  }
-
   /* Build the raw MIR graph */
   cu.mir_graph->InlineMethod(code_item, access_flags, invoke_type, class_def_idx, method_idx,
                               class_loader, dex_file);
 
   // TODO(Arm64): Remove this when we are able to compile everything.
   if (!CanCompileMethod(method_idx, dex_file, cu)) {
-    VLOG(compiler)  << cu.instruction_set << ": Cannot compile method : "
-                    << PrettyMethod(method_idx, dex_file);
+    VLOG(compiler)  << cu.instruction_set << ": Cannot compile method : " << method_name;
     return nullptr;
   }
 
@@ -910,13 +901,20 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   std::string skip_message;
   if (cu.mir_graph->SkipCompilation(&skip_message)) {
     VLOG(compiler) << cu.instruction_set << ": Skipping method : "
-                   << PrettyMethod(method_idx, dex_file) << "  Reason = " << skip_message;
+                   << method_name << "  Reason = " << skip_message;
     return nullptr;
   }
 
   /* Create the pass driver and launch it */
   PassDriverMEOpts pass_driver(&cu);
   pass_driver.Launch();
+
+  /* For non-leaf methods check if we should skip compilation when the profiler is enabled. */
+  if (cu.compiler_driver->ProfilePresent()
+      && !cu.mir_graph->MethodIsLeaf()
+      && cu.mir_graph->SkipCompilationByName(method_name)) {
+    return nullptr;
+  }
 
   if (cu.enable_debug & (1 << kDebugDumpCheckStats)) {
     cu.mir_graph->DumpCheckStats();
@@ -933,7 +931,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   if (cu.enable_debug & (1 << kDebugShowMemoryUsage)) {
     if (cu.arena_stack.PeakBytesAllocated() > 256 * 1024) {
       MemStats stack_stats(cu.arena_stack.GetPeakStats());
-      LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(stack_stats);
+      LOG(INFO) << method_name << " " << Dumpable<MemStats>(stack_stats);
     }
   }
   cu.arena_stack.Reset();
@@ -941,8 +939,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   CompiledMethod* result = NULL;
 
   if (cu.mir_graph->PuntToInterpreter()) {
-    VLOG(compiler) << cu.instruction_set << ": Punted method to interpreter: "
-                   << PrettyMethod(method_idx, dex_file);
+    VLOG(compiler) << cu.instruction_set << ": Punted method to interpreter: " << method_name;
     return nullptr;
   }
 
@@ -953,21 +950,21 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   cu.NewTimingSplit("Cleanup");
 
   if (result) {
-    VLOG(compiler) << cu.instruction_set << ": Compiled " << PrettyMethod(method_idx, dex_file);
+    VLOG(compiler) << cu.instruction_set << ": Compiled " << method_name;
   } else {
-    VLOG(compiler) << cu.instruction_set << ": Deferred " << PrettyMethod(method_idx, dex_file);
+    VLOG(compiler) << cu.instruction_set << ": Deferred " << method_name;
   }
 
   if (cu.enable_debug & (1 << kDebugShowMemoryUsage)) {
     if (cu.arena.BytesAllocated() > (1 * 1024 *1024)) {
       MemStats mem_stats(cu.arena.GetMemStats());
-      LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(mem_stats);
+      LOG(INFO) << method_name << " " << Dumpable<MemStats>(mem_stats);
     }
   }
 
   if (cu.enable_debug & (1 << kDebugShowSummaryMemoryUsage)) {
     LOG(INFO) << "MEMINFO " << cu.arena.BytesAllocated() << " " << cu.mir_graph->GetNumBlocks()
-              << " " << PrettyMethod(method_idx, dex_file);
+              << " " << method_name;
   }
 
   cu.EndTiming();
