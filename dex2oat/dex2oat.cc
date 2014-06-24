@@ -467,6 +467,7 @@ class Dex2Oat {
       }
     }
     runtime->GetClassLinker()->FixupDexCaches(runtime->GetResolutionMethod());
+    runtime->GetClassLinker()->RunRootClinits();
     runtime_ = runtime;
     return true;
   }

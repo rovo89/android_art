@@ -354,6 +354,7 @@ static inline JValue Execute(Thread* self, MethodHelper& mh, const DexFile::Code
          shadow_frame.GetMethod()->GetDeclaringClass()->IsProxyClass());
   DCHECK(!shadow_frame.GetMethod()->IsAbstract());
   DCHECK(!shadow_frame.GetMethod()->IsNative());
+  shadow_frame.GetMethod()->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
 
   bool transaction_active = Runtime::Current()->IsActiveTransaction();
   if (LIKELY(shadow_frame.GetMethod()->IsPreverified())) {
