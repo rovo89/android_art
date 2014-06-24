@@ -754,7 +754,7 @@ bool X86Mir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
   RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   // Unaligned access is allowed on x86.
-  LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size, kNotVolatile);
+  LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size);
   if (size == k64) {
     StoreValueWide(rl_dest, rl_result);
   } else {
@@ -772,12 +772,12 @@ bool X86Mir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
   if (size == k64) {
     // Unaligned access is allowed on x86.
     RegLocation rl_value = LoadValueWide(rl_src_value, kCoreReg);
-    StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size, kNotVolatile);
+    StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size);
   } else {
     DCHECK(size == kSignedByte || size == kSignedHalf || size == k32);
     // Unaligned access is allowed on x86.
     RegLocation rl_value = LoadValue(rl_src_value, kCoreReg);
-    StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size, kNotVolatile);
+    StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size);
   }
   return true;
 }
@@ -1138,7 +1138,7 @@ void X86Mir2Lir::GenImulMemImm(RegStorage dest, int sreg, int displacement, int 
       NewLIR2(kX86Xor32RR, dest.GetReg(), dest.GetReg());
       break;
     case 1:
-      LoadBaseDisp(rs_rX86_SP, displacement, dest, k32, kNotVolatile);
+      LoadBaseDisp(rs_rX86_SP, displacement, dest, k32);
       break;
     default:
       m = NewLIR4(IS_SIMM8(val) ? kX86Imul32RMI8 : kX86Imul32RMI, dest.GetReg(),
@@ -1294,8 +1294,7 @@ void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation 
   if (src1_in_reg) {
     NewLIR2(kX86Mov32RR, rs_r1.GetReg(), rl_src1.reg.GetHighReg());
   } else {
-    LoadBaseDisp(rs_rX86_SP, SRegOffset(rl_src1.s_reg_low) + HIWORD_OFFSET, rs_r1, k32,
-                 kNotVolatile);
+    LoadBaseDisp(rs_rX86_SP, SRegOffset(rl_src1.s_reg_low) + HIWORD_OFFSET, rs_r1, k32);
   }
 
   if (is_square) {
@@ -1318,8 +1317,7 @@ void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation 
     if (src2_in_reg) {
       NewLIR2(kX86Mov32RR, rs_r0.GetReg(), rl_src2.reg.GetHighReg());
     } else {
-      LoadBaseDisp(rs_rX86_SP, SRegOffset(rl_src2.s_reg_low) + HIWORD_OFFSET, rs_r0, k32,
-                   kNotVolatile);
+      LoadBaseDisp(rs_rX86_SP, SRegOffset(rl_src2.s_reg_low) + HIWORD_OFFSET, rs_r0, k32);
     }
 
     // EAX <- EAX * 1L  (2H * 1L)
@@ -1352,8 +1350,7 @@ void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation 
   if (src2_in_reg) {
     NewLIR2(kX86Mov32RR, rs_r0.GetReg(), rl_src2.reg.GetLowReg());
   } else {
-    LoadBaseDisp(rs_rX86_SP, SRegOffset(rl_src2.s_reg_low) + LOWORD_OFFSET, rs_r0, k32,
-                 kNotVolatile);
+    LoadBaseDisp(rs_rX86_SP, SRegOffset(rl_src2.s_reg_low) + LOWORD_OFFSET, rs_r0, k32);
   }
 
   // EDX:EAX <- 2L * 1L (double precision)
@@ -2292,21 +2289,21 @@ void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
   if (rl_method.location == kLocPhysReg) {
     if (use_declaring_class) {
       LoadRefDisp(rl_method.reg, mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
-                  check_class, kNotVolatile);
+                   check_class);
     } else {
       LoadRefDisp(rl_method.reg, mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
-                  check_class, kNotVolatile);
-      LoadRefDisp(check_class, offset_of_type, check_class, kNotVolatile);
+                   check_class);
+      LoadRefDisp(check_class, offset_of_type, check_class);
     }
   } else {
     LoadCurrMethodDirect(check_class);
     if (use_declaring_class) {
       LoadRefDisp(check_class, mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
-                  check_class, kNotVolatile);
+                   check_class);
     } else {
       LoadRefDisp(check_class, mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
-                  check_class, kNotVolatile);
-      LoadRefDisp(check_class, offset_of_type, check_class, kNotVolatile);
+                   check_class);
+      LoadRefDisp(check_class, offset_of_type, check_class);
     }
   }
 
@@ -2353,16 +2350,16 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
   } else if (use_declaring_class) {
     LoadValueDirectFixed(rl_src, TargetReg(kArg0));
     LoadRefDisp(TargetReg(kArg1), mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
-                class_reg, kNotVolatile);
+                 class_reg);
   } else {
     // Load dex cache entry into class_reg (kArg2).
     LoadValueDirectFixed(rl_src, TargetReg(kArg0));
     LoadRefDisp(TargetReg(kArg1), mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
-                class_reg, kNotVolatile);
+                 class_reg);
     int32_t offset_of_type =
         mirror::Array::DataOffset(sizeof(mirror::HeapReference<mirror::Class*>)).Int32Value() +
         (sizeof(mirror::HeapReference<mirror::Class*>) * type_idx);
-    LoadRefDisp(class_reg, offset_of_type, class_reg, kNotVolatile);
+    LoadRefDisp(class_reg, offset_of_type, class_reg);
     if (!can_assume_type_is_in_dex_cache) {
       // Need to test presence of type in dex cache at runtime.
       LIR* hop_branch = OpCmpImmBranch(kCondNe, class_reg, 0, NULL);
@@ -2395,8 +2392,7 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
 
   /* Load object->klass_. */
   DCHECK_EQ(mirror::Object::ClassOffset().Int32Value(), 0);
-  LoadRefDisp(TargetReg(kArg0),  mirror::Object::ClassOffset().Int32Value(), TargetReg(kArg1),
-              kNotVolatile);
+  LoadRefDisp(TargetReg(kArg0),  mirror::Object::ClassOffset().Int32Value(), TargetReg(kArg1));
   /* kArg0 is ref, kArg1 is ref->klass_, kArg2 is class. */
   LIR* branchover = nullptr;
   if (type_known_final) {

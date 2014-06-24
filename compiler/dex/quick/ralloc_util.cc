@@ -735,7 +735,7 @@ void Mir2Lir::FlushRegWide(RegStorage reg) {
       }
       int v_reg = mir_graph_->SRegToVReg(info1->SReg());
       ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-      StoreBaseDisp(TargetReg(kSp), VRegOffset(v_reg), reg, k64, kNotVolatile);
+      StoreBaseDisp(TargetReg(kSp), VRegOffset(v_reg), reg, k64);
     }
   } else {
     RegisterInfo* info = GetRegInfo(reg);
@@ -743,7 +743,7 @@ void Mir2Lir::FlushRegWide(RegStorage reg) {
       info->SetIsDirty(false);
       int v_reg = mir_graph_->SRegToVReg(info->SReg());
       ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-      StoreBaseDisp(TargetReg(kSp), VRegOffset(v_reg), reg, k64, kNotVolatile);
+      StoreBaseDisp(TargetReg(kSp), VRegOffset(v_reg), reg, k64);
     }
   }
 }
@@ -755,7 +755,7 @@ void Mir2Lir::FlushReg(RegStorage reg) {
     info->SetIsDirty(false);
     int v_reg = mir_graph_->SRegToVReg(info->SReg());
     ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-    StoreBaseDisp(TargetReg(kSp), VRegOffset(v_reg), reg, kWord, kNotVolatile);
+    StoreBaseDisp(TargetReg(kSp), VRegOffset(v_reg), reg, kWord);
   }
 }
 
