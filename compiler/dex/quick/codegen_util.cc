@@ -79,6 +79,15 @@ void Mir2Lir::MarkSafepointPC(LIR* inst) {
   DCHECK(safepoint_pc->u.m.def_mask->Equals(kEncodeAll));
 }
 
+void Mir2Lir::MarkSafepointPCAfter(LIR* after) {
+  DCHECK(!after->flags.use_def_invalid);
+  after->u.m.def_mask = &kEncodeAll;
+  // As NewLIR0 uses Append, we need to create the LIR by hand.
+  LIR* safepoint_pc = RawLIR(current_dalvik_offset_, kPseudoSafepointPC);
+  InsertLIRAfter(after, safepoint_pc);
+  DCHECK(safepoint_pc->u.m.def_mask->Equals(kEncodeAll));
+}
+
 /* Remove a LIR from the list. */
 void Mir2Lir::UnlinkLIR(LIR* lir) {
   if (UNLIKELY(lir == first_lir_insn_)) {

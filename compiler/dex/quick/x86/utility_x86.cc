@@ -585,7 +585,7 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
         // value.
         ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
         res = LoadBaseDisp(rl_method.reg, 256 /* bogus */, RegStorage::FloatSolo64(low_reg_val),
-                           kDouble);
+                           kDouble, kNotVolatile);
         res->target = data_target;
         res->flags.fixup = kFixupLoad;
         store_method_addr_used_ = true;
@@ -756,17 +756,22 @@ LIR* X86Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStora
   return LoadBaseIndexedDisp(r_base, r_index, scale, 0, r_dest, size);
 }
 
-LIR* X86Mir2Lir::LoadBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
-                                      OpSize size) {
+LIR* X86Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
+                              OpSize size, VolatileKind is_volatile) {
   // LoadBaseDisp() will emit correct insn for atomic load on x86
   // assuming r_dest is correctly prepared using RegClassForFieldLoadStore().
-  return LoadBaseDisp(r_base, displacement, r_dest, size);
-}
 
-LIR* X86Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
-                              OpSize size) {
-  return LoadBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_dest,
-                             size);
+  LIR* load = LoadBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_dest,
+                                  size);
+
+  if (UNLIKELY(is_volatile == kVolatile)) {
+    // Without context sensitive analysis, we must issue the most conservative barriers.
+    // In this case, either a load or store may follow so we issue both barriers.
+    GenMemBarrier(kLoadLoad);
+    GenMemBarrier(kLoadStore);
+  }
+
+  return load;
 }
 
 LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
@@ -854,20 +859,28 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
 
 /* store value base base + scaled index. */
 LIR* X86Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
-                      int scale, OpSize size) {
+                                  int scale, OpSize size) {
   return StoreBaseIndexedDisp(r_base, r_index, scale, 0, r_src, size);
 }
 
-LIR* X86Mir2Lir::StoreBaseDispVolatile(RegStorage r_base, int displacement,
-                                       RegStorage r_src, OpSize size) {
+LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src, OpSize size,
+                               VolatileKind is_volatile) {
+  if (UNLIKELY(is_volatile == kVolatile)) {
+    // There might have been a store before this volatile one so insert StoreStore barrier.
+    GenMemBarrier(kStoreStore);
+  }
+
   // StoreBaseDisp() will emit correct insn for atomic store on x86
   // assuming r_dest is correctly prepared using RegClassForFieldLoadStore().
-  return StoreBaseDisp(r_base, displacement, r_src, size);
-}
 
-LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement,
-                               RegStorage r_src, OpSize size) {
-  return StoreBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_src, size);
+  LIR* store = StoreBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_src, size);
+
+  if (UNLIKELY(is_volatile == kVolatile)) {
+    // A load might follow the volatile store so insert a StoreLoad barrier.
+    GenMemBarrier(kStoreLoad);
+  }
+
+  return store;
 }
 
 LIR* X86Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,

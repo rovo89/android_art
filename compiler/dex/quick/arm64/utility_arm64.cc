@@ -893,9 +893,7 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
   ArmOpcode opcode = kA64Brk1d;
   DCHECK(r_base.Is64Bit());
   // TODO: need a cleaner handling of index registers here and throughout.
-  if (r_index.Is32Bit()) {
-    r_index = As64BitReg(r_index);
-  }
+  r_index = Check32BitReg(r_index);
 
   if (r_dest.IsFloat()) {
     if (r_dest.IsDouble()) {
@@ -918,12 +916,14 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
     case kDouble:
     case kWord:
     case k64:
+      r_dest = Check64BitReg(r_dest);
       opcode = WIDE(kA64Ldr4rXxG);
       expected_scale = 3;
       break;
     case kSingle:
     case k32:
     case kReference:
+      r_dest = Check32BitReg(r_dest);
       opcode = kA64Ldr4rXxG;
       expected_scale = 2;
       break;
@@ -959,6 +959,10 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
   return load;
 }
 
+LIR* Arm64Mir2Lir::LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest) {
+  return LoadBaseIndexed(r_base, r_index, As32BitReg(r_dest), 2, kReference);
+}
+
 LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
                                     int scale, OpSize size) {
   LIR* store;
@@ -966,9 +970,7 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
   ArmOpcode opcode = kA64Brk1d;
   DCHECK(r_base.Is64Bit());
   // TODO: need a cleaner handling of index registers here and throughout.
-  if (r_index.Is32Bit()) {
-    r_index = As64BitReg(r_index);
-  }
+  r_index = Check32BitReg(r_index);
 
   if (r_src.IsFloat()) {
     if (r_src.IsDouble()) {
@@ -991,12 +993,14 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
     case kDouble:     // Intentional fall-trough.
     case kWord:       // Intentional fall-trough.
     case k64:
+      r_src = Check64BitReg(r_src);
       opcode = WIDE(kA64Str4rXxG);
       expected_scale = 3;
       break;
     case kSingle:     // Intentional fall-trough.
     case k32:         // Intentional fall-trough.
     case kReference:
+      r_src = Check32BitReg(r_src);
       opcode = kA64Str4rXxG;
       expected_scale = 2;
       break;
@@ -1026,6 +1030,10 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
   return store;
 }
 
+LIR* Arm64Mir2Lir::StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src) {
+  return StoreBaseIndexed(r_base, r_index, As32BitReg(r_src), 2, kReference);
+}
+
 /*
  * Load value from base + displacement.  Optionally perform null check
  * on base (which must have an associated s_reg and MIR).  If not
@@ -1042,6 +1050,7 @@ LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStor
     case kDouble:     // Intentional fall-through.
     case kWord:       // Intentional fall-through.
     case k64:
+      r_dest = Check64BitReg(r_dest);
       scale = 3;
       if (r_dest.IsFloat()) {
         DCHECK(r_dest.IsDouble());
@@ -1055,6 +1064,7 @@ LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStor
     case kSingle:     // Intentional fall-through.
     case k32:         // Intentional fall-trough.
     case kReference:
+      r_dest = Check32BitReg(r_dest);
       scale = 2;
       if (r_dest.IsFloat()) {
         DCHECK(r_dest.IsSingle());
@@ -1106,18 +1116,27 @@ LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStor
   return load;
 }
 
-LIR* Arm64Mir2Lir::LoadBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
-                                        OpSize size) {
+LIR* Arm64Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
+                                OpSize size, VolatileKind is_volatile) {
   // LoadBaseDisp() will emit correct insn for atomic load on arm64
   // assuming r_dest is correctly prepared using RegClassForFieldLoadStore().
-  return LoadBaseDisp(r_base, displacement, r_dest, size);
+
+  LIR* load = LoadBaseDispBody(r_base, displacement, r_dest, size);
+
+  if (UNLIKELY(is_volatile == kVolatile)) {
+    // Without context sensitive analysis, we must issue the most conservative barriers.
+    // In this case, either a load or store may follow so we issue both barriers.
+    GenMemBarrier(kLoadLoad);
+    GenMemBarrier(kLoadStore);
+  }
+
+  return load;
 }
 
-LIR* Arm64Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
-                                OpSize size) {
-  return LoadBaseDispBody(r_base, displacement, r_dest, size);
+LIR* Arm64Mir2Lir::LoadRefDisp(RegStorage r_base, int displacement, RegStorage r_dest,
+                               VolatileKind is_volatile) {
+  return LoadBaseDisp(r_base, displacement, As32BitReg(r_dest), kReference, is_volatile);
 }
-
 
 LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStorage r_src,
                                      OpSize size) {
@@ -1130,6 +1149,7 @@ LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegSto
     case kDouble:     // Intentional fall-through.
     case kWord:       // Intentional fall-through.
     case k64:
+      r_src = Check64BitReg(r_src);
       scale = 3;
       if (r_src.IsFloat()) {
         DCHECK(r_src.IsDouble());
@@ -1143,6 +1163,7 @@ LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegSto
     case kSingle:     // Intentional fall-through.
     case k32:         // Intentional fall-trough.
     case kReference:
+      r_src = Check32BitReg(r_src);
       scale = 2;
       if (r_src.IsFloat()) {
         DCHECK(r_src.IsSingle());
@@ -1188,16 +1209,29 @@ LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegSto
   return store;
 }
 
-LIR* Arm64Mir2Lir::StoreBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_src,
-                                         OpSize size) {
+LIR* Arm64Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
+                                 OpSize size, VolatileKind is_volatile) {
+  if (UNLIKELY(is_volatile == kVolatile)) {
+    // There might have been a store before this volatile one so insert StoreStore barrier.
+    GenMemBarrier(kStoreStore);
+  }
+
   // StoreBaseDisp() will emit correct insn for atomic store on arm64
   // assuming r_dest is correctly prepared using RegClassForFieldLoadStore().
-  return StoreBaseDisp(r_base, displacement, r_src, size);
+
+  LIR* store = StoreBaseDispBody(r_base, displacement, r_src, size);
+
+  if (UNLIKELY(is_volatile == kVolatile)) {
+    // A load might follow the volatile store so insert a StoreLoad barrier.
+    GenMemBarrier(kStoreLoad);
+  }
+
+  return store;
 }
 
-LIR* Arm64Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
-                                 OpSize size) {
-  return StoreBaseDispBody(r_base, displacement, r_src, size);
+LIR* Arm64Mir2Lir::StoreRefDisp(RegStorage r_base, int displacement, RegStorage r_src,
+                                VolatileKind is_volatile) {
+  return StoreBaseDisp(r_base, displacement, As32BitReg(r_src), kReference, is_volatile);
 }
 
 LIR* Arm64Mir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
