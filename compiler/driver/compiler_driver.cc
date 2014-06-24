@@ -2054,7 +2054,9 @@ bool CompilerDriver::SkipCompilation(const std::string& method_name) {
   ProfileFile::ProfileData data;
   if (!profile_file_.GetProfileData(&data, method_name)) {
     // Not in profile, no information can be determined.
-    VLOG(compiler) << "not compiling " << method_name << " because it's not in the profile";
+    if (kIsDebugBuild) {
+      VLOG(compiler) << "not compiling " << method_name << " because it's not in the profile";
+    }
     return true;
   }
 
@@ -2063,13 +2065,16 @@ bool CompilerDriver::SkipCompilation(const std::string& method_name) {
   // falls inside a bucket.
   bool compile = data.GetTopKUsedPercentage() - data.GetUsedPercent()
                  <= compiler_options_->GetTopKProfileThreshold();
-  if (compile) {
-    LOG(INFO) << "compiling method " << method_name << " because its usage is part of top "
-        << data.GetTopKUsedPercentage() << "% with a percent of " << data.GetUsedPercent() << "%"
-        << " (topKThreshold=" << compiler_options_->GetTopKProfileThreshold() << ")";
-  } else {
-    VLOG(compiler) << "not compiling method " << method_name << " because it's not part of leading "
-        << compiler_options_->GetTopKProfileThreshold() << "% samples)";
+  if (kIsDebugBuild) {
+    if (compile) {
+      LOG(INFO) << "compiling method " << method_name << " because its usage is part of top "
+          << data.GetTopKUsedPercentage() << "% with a percent of " << data.GetUsedPercent() << "%"
+          << " (topKThreshold=" << compiler_options_->GetTopKProfileThreshold() << ")";
+    } else {
+      VLOG(compiler) << "not compiling method " << method_name
+          << " because it's not part of leading " << compiler_options_->GetTopKProfileThreshold()
+          << "% samples)";
+    }
   }
   return !compile;
 }
