@@ -2688,7 +2688,7 @@ void X86Mir2Lir::GenIntToLong(RegLocation rl_dest, RegLocation rl_src) {
     Mir2Lir::GenIntToLong(rl_dest, rl_src);
     return;
   }
-  rl_src = UpdateLoc(rl_src);
+  rl_src = UpdateLocTyped(rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (rl_src.location == kLocPhysReg) {
     NewLIR2(kX86MovsxdRR, rl_result.reg.GetReg(), rl_src.reg.GetReg());
