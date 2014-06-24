@@ -16,7 +16,7 @@
 
 LOCAL_PATH := $(call my-dir)
 
-include art/build/Android.common.mk
+include art/build/Android.common_build.mk
 
 LIBART_COMPILER_SRC_FILES := \
 	compiled_method.cc \
@@ -249,13 +249,14 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   ifeq ($$(art_target_or_host),host)
     LOCAL_LDLIBS += -ldl -lpthread
   endif
-  LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
+  LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libcutils libvixl
     include $(BUILD_SHARED_LIBRARY)
   else # host
     LOCAL_STATIC_LIBRARIES += libcutils libvixl
+    LOCAL_MULTILIB := both
     include $(BUILD_HOST_SHARED_LIBRARY)
   endif
 
