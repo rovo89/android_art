@@ -866,7 +866,10 @@ void Heap::DoPendingTransitionOrTrim() {
     // about pauses.
     Runtime* runtime = Runtime::Current();
     runtime->GetThreadList()->SuspendAll();
-    runtime->GetMonitorList()->DeflateMonitors();
+    uint64_t start_time = NanoTime();
+    size_t count = runtime->GetMonitorList()->DeflateMonitors();
+    VLOG(heap) << "Deflating " << count << " monitors took "
+        << PrettyDuration(NanoTime() - start_time);
     runtime->GetThreadList()->ResumeAll();
     // Do a heap trim if it is needed.
     Trim();
