@@ -294,7 +294,7 @@ bool MipsMir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
   RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   DCHECK(size == kSignedByte);
-  LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size);
+  LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size, kNotVolatile);
   StoreValue(rl_dest, rl_result);
   return true;
 }
@@ -310,7 +310,7 @@ bool MipsMir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
   RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
   DCHECK(size == kSignedByte);
   RegLocation rl_value = LoadValue(rl_src_value, kCoreReg);
-  StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size);
+  StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size, kNotVolatile);
   return true;
 }
 
@@ -524,7 +524,7 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       GenArrayBoundsCheck(rl_index.reg, reg_len);
       FreeTemp(reg_len);
     }
-    LoadBaseDisp(reg_ptr, 0, rl_result.reg, size);
+    LoadBaseDisp(reg_ptr, 0, rl_result.reg, size, kNotVolatile);
 
     FreeTemp(reg_ptr);
     StoreValueWide(rl_dest, rl_result);
@@ -602,7 +602,7 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
       FreeTemp(reg_len);
     }
 
-    StoreBaseDisp(reg_ptr, 0, rl_src.reg, size);
+    StoreBaseDisp(reg_ptr, 0, rl_src.reg, size, kNotVolatile);
   } else {
     rl_src = LoadValue(rl_src, reg_class);
     if (needs_range_check) {

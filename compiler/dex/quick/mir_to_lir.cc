@@ -92,7 +92,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide)
     if (!reg_arg.Valid()) {
       RegStorage new_reg =
           wide ?  AllocTypedTempWide(false, reg_class) : AllocTypedTemp(false, reg_class);
-      LoadBaseDisp(TargetReg(kSp), offset, new_reg, wide ? k64 : k32);
+      LoadBaseDisp(TargetReg(kSp), offset, new_reg, wide ? k64 : k32, kNotVolatile);
       return new_reg;
     } else {
       // Check if we need to copy the arg to a different reg_class.
@@ -120,7 +120,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide)
     // If the low part is not in a reg, we allocate a pair. Otherwise, we just load to high reg.
     if (!reg_arg_low.Valid()) {
       RegStorage new_regs = AllocTypedTempWide(false, reg_class);
-      LoadBaseDisp(TargetReg(kSp), offset, new_regs, k64);
+      LoadBaseDisp(TargetReg(kSp), offset, new_regs, k64, kNotVolatile);
       return new_regs;  // The reg_class is OK, we can return.
     } else {
       // Assume that no ABI allows splitting a wide fp reg between a narrow fp reg and memory,
@@ -193,7 +193,7 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
       if (reg.Valid()) {
         OpRegCopy(rl_dest.reg, reg);
       } else {
-        LoadBaseDisp(TargetReg(kSp), offset, rl_dest.reg, k64);
+        LoadBaseDisp(TargetReg(kSp), offset, rl_dest.reg, k64, kNotVolatile);
       }
       return;
     }
@@ -211,7 +211,7 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
       OpRegCopy(rl_dest.reg.GetHigh(), reg_arg_high);
       Load32Disp(TargetReg(kSp), offset, rl_dest.reg.GetLow());
     } else {
-      LoadBaseDisp(TargetReg(kSp), offset, rl_dest.reg, k64);
+      LoadBaseDisp(TargetReg(kSp), offset, rl_dest.reg, k64, kNotVolatile);
     }
   }
 }
@@ -243,14 +243,11 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
     r_result = wide ? AllocTypedTempWide(rl_dest.fp, reg_class)
                     : AllocTypedTemp(rl_dest.fp, reg_class);
   }
-  if (data.is_volatile) {
-    LoadBaseDispVolatile(reg_obj, data.field_offset, r_result, size);
-    // Without context sensitive analysis, we must issue the most conservative barriers.
-    // In this case, either a load or store may follow so we issue both barriers.
-    GenMemBarrier(kLoadLoad);
-    GenMemBarrier(kLoadStore);
+  if (ref) {
+    LoadRefDisp(reg_obj, data.field_offset, r_result, data.is_volatile ? kVolatile : kNotVolatile);
   } else {
-    LoadBaseDisp(reg_obj, data.field_offset, r_result, size);
+    LoadBaseDisp(reg_obj, data.field_offset, r_result, size, data.is_volatile ? kVolatile :
+        kNotVolatile);
   }
   if (r_result != rl_dest.reg) {
     if (wide) {
@@ -288,14 +285,11 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
   RegStorage reg_obj = LoadArg(data.object_arg, kRefReg);
   RegisterClass reg_class = RegClassForFieldLoadStore(size, data.is_volatile);
   RegStorage reg_src = LoadArg(data.src_arg, reg_class, wide);
-  if (data.is_volatile) {
-    // There might have been a store before this volatile one so insert StoreStore barrier.
-    GenMemBarrier(kStoreStore);
-    StoreBaseDispVolatile(reg_obj, data.field_offset, reg_src, size);
-    // A load might follow the volatile store so insert a StoreLoad barrier.
-    GenMemBarrier(kStoreLoad);
+  if (ref) {
+    StoreRefDisp(reg_obj, data.field_offset, reg_src, data.is_volatile ? kVolatile : kNotVolatile);
   } else {
-    StoreBaseDisp(reg_obj, data.field_offset, reg_src, size);
+    StoreBaseDisp(reg_obj, data.field_offset, reg_src, size, data.is_volatile ? kVolatile :
+        kNotVolatile);
   }
   if (ref) {
     MarkGCCard(reg_src, reg_obj);
