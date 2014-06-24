@@ -316,9 +316,9 @@ void ArmMir2Lir::GenMoveException(RegLocation rl_dest) {
   int ex_offset = Thread::ExceptionOffset<4>().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
   RegStorage reset_reg = AllocTempRef();
-  LoadRefDisp(rs_rARM_SELF, ex_offset, rl_result.reg, kNotVolatile);
+  LoadRefDisp(rs_rARM_SELF, ex_offset, rl_result.reg);
   LoadConstant(reset_reg, 0);
-  StoreRefDisp(rs_rARM_SELF, ex_offset, reset_reg, kNotVolatile);
+  StoreRefDisp(rs_rARM_SELF, ex_offset, reset_reg);
   FreeTemp(reset_reg);
   StoreValue(rl_dest, rl_result);
 }
