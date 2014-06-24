@@ -408,8 +408,12 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   CHECK(java_io_Serializable != NULL);
   // We assume that Cloneable/Serializable don't have superinterfaces -- normally we'd have to
   // crawl up and explicitly list all of the supers as well.
-  array_iftable_->SetInterface(0, java_lang_Cloneable);
-  array_iftable_->SetInterface(1, java_io_Serializable);
+  {
+    mirror::IfTable* array_iftable =
+        ReadBarrier::BarrierForRoot<mirror::IfTable, kWithReadBarrier>(&array_iftable_);
+    array_iftable->SetInterface(0, java_lang_Cloneable);
+    array_iftable->SetInterface(1, java_io_Serializable);
+  }
 
   // Sanity check Class[] and Object[]'s interfaces.
   CHECK_EQ(java_lang_Cloneable, mirror::Class::GetDirectInterface(self, class_array_class, 0));
@@ -2036,17 +2040,18 @@ void ClassLinker::AppendToBootClassPath(const DexFile& dex_file,
   RegisterDexFile(dex_file, dex_cache);
 }
 
-bool ClassLinker::IsDexFileRegisteredLocked(const DexFile& dex_file) const {
+bool ClassLinker::IsDexFileRegisteredLocked(const DexFile& dex_file) {
   dex_lock_.AssertSharedHeld(Thread::Current());
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
-    if (dex_caches_[i]->GetDexFile() == &dex_file) {
+    mirror::DexCache* dex_cache = GetDexCache(i);
+    if (dex_cache->GetDexFile() == &dex_file) {
       return true;
     }
   }
   return false;
 }
 
-bool ClassLinker::IsDexFileRegistered(const DexFile& dex_file) const {
+bool ClassLinker::IsDexFileRegistered(const DexFile& dex_file) {
   ReaderMutexLock mu(Thread::Current(), dex_lock_);
   return IsDexFileRegisteredLocked(dex_file);
 }
@@ -2094,11 +2099,11 @@ void ClassLinker::RegisterDexFile(const DexFile& dex_file,
   RegisterDexFileLocked(dex_file, dex_cache);
 }
 
-mirror::DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
+mirror::DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) {
   ReaderMutexLock mu(Thread::Current(), dex_lock_);
   // Search assuming unique-ness of dex file.
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
-    mirror::DexCache* dex_cache = dex_caches_[i];
+    mirror::DexCache* dex_cache = GetDexCache(i);
     if (dex_cache->GetDexFile() == &dex_file) {
       return dex_cache;
     }
@@ -2106,24 +2111,25 @@ mirror::DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
   // Search matching by location name.
   std::string location(dex_file.GetLocation());
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
-    mirror::DexCache* dex_cache = dex_caches_[i];
+    mirror::DexCache* dex_cache = GetDexCache(i);
     if (dex_cache->GetDexFile()->GetLocation() == location) {
       return dex_cache;
     }
   }
   // Failure, dump diagnostic and abort.
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
-    mirror::DexCache* dex_cache = dex_caches_[i];
+    mirror::DexCache* dex_cache = GetDexCache(i);
     LOG(ERROR) << "Registered dex file " << i << " = " << dex_cache->GetDexFile()->GetLocation();
   }
   LOG(FATAL) << "Failed to find DexCache for DexFile " << location;
   return NULL;
 }
 
-void ClassLinker::FixupDexCaches(mirror::ArtMethod* resolution_method) const {
+void ClassLinker::FixupDexCaches(mirror::ArtMethod* resolution_method) {
   ReaderMutexLock mu(Thread::Current(), dex_lock_);
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
-    dex_caches_[i]->Fixup(resolution_method);
+    mirror::DexCache* dex_cache = GetDexCache(i);
+    dex_cache->Fixup(resolution_method);
   }
 }
 
@@ -2263,8 +2269,12 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
 
   // Use the single, global copies of "interfaces" and "iftable"
   // (remember not to free them for arrays).
-  CHECK(array_iftable_ != nullptr);
-  new_class->SetIfTable(array_iftable_);
+  {
+    mirror::IfTable* array_iftable =
+        ReadBarrier::BarrierForRoot<mirror::IfTable, kWithReadBarrier>(&array_iftable_);
+    CHECK(array_iftable != nullptr);
+    new_class->SetIfTable(array_iftable);
+  }
 
   // Inherit access flags from the component type.
   int access_flags = new_class->GetComponentType()->GetAccessFlags();
@@ -2931,8 +2941,9 @@ mirror::ArtMethod* ClassLinker::FindMethodForProxy(mirror::Class* proxy_class,
     mirror::ObjectArray<mirror::Class>* resolved_types = proxy_method->GetDexCacheResolvedTypes();
     ReaderMutexLock mu(Thread::Current(), dex_lock_);
     for (size_t i = 0; i != dex_caches_.size(); ++i) {
-      if (dex_caches_[i]->GetResolvedTypes() == resolved_types) {
-        dex_cache = dex_caches_[i];
+      mirror::DexCache* a_dex_cache = GetDexCache(i);
+      if (a_dex_cache->GetResolvedTypes() == resolved_types) {
+        dex_cache = a_dex_cache;
         break;
       }
     }
@@ -4412,9 +4423,12 @@ void ClassLinker::SetClassRoot(ClassRoot class_root, mirror::Class* klass) {
   DCHECK(klass != NULL);
   DCHECK(klass->GetClassLoader() == NULL);
 
-  DCHECK(class_roots_ != NULL);
-  DCHECK(class_roots_->Get(class_root) == NULL);
-  class_roots_->Set<false>(class_root, klass);
+  mirror::ObjectArray<mirror::Class>* class_roots =
+      ReadBarrier::BarrierForRoot<mirror::ObjectArray<mirror::Class>, kWithReadBarrier>(
+          &class_roots_);
+  DCHECK(class_roots != NULL);
+  DCHECK(class_roots->Get(class_root) == NULL);
+  class_roots->Set<false>(class_root, klass);
 }
 
 }  // namespace art
