@@ -26,16 +26,14 @@ class TimingLoggerTest : public CommonRuntimeTest {};
 
 TEST_F(TimingLoggerTest, StartEnd) {
   const char* split1name = "First Split";
-  TimingLogger timings("StartEnd", true, false);
-
-  timings.StartSplit(split1name);
-
-  timings.EndSplit();  // Ends split1.
-
-  const TimingLogger::SplitTimings& splits = timings.GetSplits();
-
-  EXPECT_EQ(1U, splits.size());
-  EXPECT_STREQ(splits[0].second, split1name);
+  TimingLogger logger("StartEnd", true, false);
+  logger.StartTiming(split1name);
+  logger.EndTiming();  // Ends split1.
+  const auto& timings = logger.GetTimings();
+  EXPECT_EQ(2U, timings.size());  // Start, End splits
+  EXPECT_TRUE(timings[0].IsStartTiming());
+  EXPECT_STREQ(timings[0].GetName(), split1name);
+  EXPECT_TRUE(timings[1].IsEndTiming());
 }
 
 
@@ -43,56 +41,61 @@ TEST_F(TimingLoggerTest, StartNewEnd) {
   const char* split1name = "First Split";
   const char* split2name = "Second Split";
   const char* split3name = "Third Split";
-  TimingLogger timings("StartNewEnd", true, false);
-
-  timings.StartSplit(split1name);
-
-  timings.NewSplit(split2name);  // Ends split1.
-
-  timings.NewSplit(split3name);  // Ends split2.
-
-  timings.EndSplit();  // Ends split3.
-
-  const TimingLogger::SplitTimings& splits = timings.GetSplits();
-
-  EXPECT_EQ(3U, splits.size());
-  EXPECT_STREQ(splits[0].second, split1name);
-  EXPECT_STREQ(splits[1].second, split2name);
-  EXPECT_STREQ(splits[2].second, split3name);
+  TimingLogger logger("StartNewEnd", true, false);
+  logger.StartTiming(split1name);
+  logger.NewTiming(split2name);
+  logger.NewTiming(split3name);
+  logger.EndTiming();
+  // Get the timings and verify that they are sane.
+  const auto& timings = logger.GetTimings();
+  // 6 timings in the timing logger at this point.
+  EXPECT_EQ(6U, timings.size());
+  EXPECT_TRUE(timings[0].IsStartTiming());
+  EXPECT_STREQ(timings[0].GetName(), split1name);
+  EXPECT_TRUE(timings[1].IsEndTiming());
+  EXPECT_TRUE(timings[2].IsStartTiming());
+  EXPECT_STREQ(timings[2].GetName(), split2name);
+  EXPECT_TRUE(timings[3].IsEndTiming());
+  EXPECT_TRUE(timings[4].IsStartTiming());
+  EXPECT_STREQ(timings[4].GetName(), split3name);
+  EXPECT_TRUE(timings[5].IsEndTiming());
 }
 
 TEST_F(TimingLoggerTest, StartNewEndNested) {
-  const char* split1name = "First Split";
-  const char* split2name = "Second Split";
-  const char* split3name = "Third Split";
-  const char* split4name = "Fourth Split";
-  const char* split5name = "Fifth Split";
-  TimingLogger timings("StartNewEndNested", true, false);
-
-  timings.StartSplit(split1name);
-
-  timings.NewSplit(split2name);  // Ends split1.
-
-  timings.StartSplit(split3name);
-
-  timings.StartSplit(split4name);
-
-  timings.NewSplit(split5name);  // Ends split4.
-
-  timings.EndSplit();  // Ends split5.
-
-  timings.EndSplit();  // Ends split3.
-
-  timings.EndSplit();  // Ends split2.
-
-  const TimingLogger::SplitTimings& splits = timings.GetSplits();
-
-  EXPECT_EQ(5U, splits.size());
-  EXPECT_STREQ(splits[0].second, split1name);
-  EXPECT_STREQ(splits[1].second, split4name);
-  EXPECT_STREQ(splits[2].second, split5name);
-  EXPECT_STREQ(splits[3].second, split3name);
-  EXPECT_STREQ(splits[4].second, split2name);
+  const char* name1 = "First Split";
+  const char* name2 = "Second Split";
+  const char* name3 = "Third Split";
+  const char* name4 = "Fourth Split";
+  const char* name5 = "Fifth Split";
+  TimingLogger logger("StartNewEndNested", true, false);
+  logger.StartTiming(name1);
+  logger.NewTiming(name2);  // Ends timing1.
+  logger.StartTiming(name3);
+  logger.StartTiming(name4);
+  logger.NewTiming(name5);  // Ends timing4.
+  logger.EndTiming();  // Ends timing5.
+  logger.EndTiming();  // Ends timing3.
+  logger.EndTiming();  // Ends timing2.
+  const auto& timings = logger.GetTimings();
+  EXPECT_EQ(10U, timings.size());
+  size_t idx_1 = logger.FindTimingIndex(name1, 0);
+  size_t idx_2 = logger.FindTimingIndex(name2, 0);
+  size_t idx_3 = logger.FindTimingIndex(name3, 0);
+  size_t idx_4 = logger.FindTimingIndex(name4, 0);
+  size_t idx_5 = logger.FindTimingIndex(name5, 0);
+  size_t idx_6 = logger.FindTimingIndex("Not found", 0);
+  EXPECT_NE(idx_1, TimingLogger::kIndexNotFound);
+  EXPECT_NE(idx_2, TimingLogger::kIndexNotFound);
+  EXPECT_NE(idx_3, TimingLogger::kIndexNotFound);
+  EXPECT_NE(idx_4, TimingLogger::kIndexNotFound);
+  EXPECT_NE(idx_5, TimingLogger::kIndexNotFound);
+  EXPECT_EQ(idx_6, TimingLogger::kIndexNotFound);
+  TimingLogger::TimingData data = logger.CalculateTimingData();
+  EXPECT_STREQ(timings[idx_1].GetName(), name1);
+  EXPECT_STREQ(timings[idx_2].GetName(), name2);
+  EXPECT_STREQ(timings[idx_3].GetName(), name3);
+  EXPECT_STREQ(timings[idx_4].GetName(), name4);
+  EXPECT_STREQ(timings[idx_5].GetName(), name5);
 }
 
 
@@ -101,31 +104,32 @@ TEST_F(TimingLoggerTest, Scoped) {
   const char* innersplit1 = "Inner Split 1";
   const char* innerinnersplit1 = "Inner Inner Split 1";
   const char* innersplit2 = "Inner Split 2";
-  TimingLogger timings("Scoped", true, false);
-
+  TimingLogger logger("Scoped", true, false);
   {
-      TimingLogger::ScopedSplit outer(outersplit, &timings);
-
+    TimingLogger::ScopedTiming outer(outersplit, &logger);
+    {
+      TimingLogger::ScopedTiming inner1(innersplit1, &logger);
       {
-          TimingLogger::ScopedSplit inner1(innersplit1, &timings);
-
-          {
-              TimingLogger::ScopedSplit innerinner1(innerinnersplit1, &timings);
-          }  // Ends innerinnersplit1.
-      }  // Ends innersplit1.
-
-      {
-          TimingLogger::ScopedSplit inner2(innersplit2, &timings);
-      }  // Ends innersplit2.
+        TimingLogger::ScopedTiming innerinner1(innerinnersplit1, &logger);
+      }  // Ends innerinnersplit1.
+    }  // Ends innersplit1.
+    {
+      TimingLogger::ScopedTiming inner2(innersplit2, &logger);
+    }  // Ends innersplit2.
   }  // Ends outersplit.
-
-  const TimingLogger::SplitTimings& splits = timings.GetSplits();
-
-  EXPECT_EQ(4U, splits.size());
-  EXPECT_STREQ(splits[0].second, innerinnersplit1);
-  EXPECT_STREQ(splits[1].second, innersplit1);
-  EXPECT_STREQ(splits[2].second, innersplit2);
-  EXPECT_STREQ(splits[3].second, outersplit);
+  const size_t idx_outersplit = logger.FindTimingIndex(outersplit, 0);
+  const size_t idx_innersplit1 = logger.FindTimingIndex(innersplit1, 0);
+  const size_t idx_innerinnersplit1 = logger.FindTimingIndex(innerinnersplit1, 0);
+  const size_t idx_innersplit2 = logger.FindTimingIndex(innersplit2, 0);
+  const auto& timings = logger.GetTimings();
+  EXPECT_EQ(8U, timings.size());  // 4 start timings and 4 end timings.
+  EXPECT_GE(timings[idx_innerinnersplit1].GetTime(), timings[idx_innersplit1].GetTime());
+  EXPECT_GE(timings[idx_innersplit2].GetTime(), timings[idx_innersplit1].GetTime());
+  TimingLogger::TimingData data(logger.CalculateTimingData());
+  EXPECT_GE(data.GetTotalTime(idx_outersplit), data.GetTotalTime(idx_innerinnersplit1));
+  EXPECT_GE(data.GetTotalTime(idx_outersplit),
+            data.GetTotalTime(idx_innersplit1) + data.GetTotalTime(idx_innersplit2));
+  EXPECT_GE(data.GetTotalTime(idx_innersplit1), data.GetTotalTime(idx_innerinnersplit1));
 }
 
 
@@ -134,27 +138,24 @@ TEST_F(TimingLoggerTest, ScopedAndExplicit) {
   const char* innersplit = "Inner Split";
   const char* innerinnersplit1 = "Inner Inner Split 1";
   const char* innerinnersplit2 = "Inner Inner Split 2";
-  TimingLogger timings("Scoped", true, false);
-
-  timings.StartSplit(outersplit);
-
+  TimingLogger logger("Scoped", true, false);
+  logger.StartTiming(outersplit);
   {
-      TimingLogger::ScopedSplit inner(innersplit, &timings);
-
-      timings.StartSplit(innerinnersplit1);
-
-      timings.NewSplit(innerinnersplit2);  // Ends innerinnersplit1.
+    TimingLogger::ScopedTiming inner(innersplit, &logger);
+    logger.StartTiming(innerinnersplit1);
+    logger.NewTiming(innerinnersplit2);  // Ends innerinnersplit1.
+    logger.EndTiming();
   }  // Ends innerinnersplit2, then innersplit.
-
-  timings.EndSplit();  // Ends outersplit.
-
-  const TimingLogger::SplitTimings& splits = timings.GetSplits();
-
-  EXPECT_EQ(4U, splits.size());
-  EXPECT_STREQ(splits[0].second, innerinnersplit1);
-  EXPECT_STREQ(splits[1].second, innerinnersplit2);
-  EXPECT_STREQ(splits[2].second, innersplit);
-  EXPECT_STREQ(splits[3].second, outersplit);
+  logger.EndTiming();  // Ends outersplit.
+  const size_t idx_outersplit = logger.FindTimingIndex(outersplit, 0);
+  const size_t idx_innersplit = logger.FindTimingIndex(innersplit, 0);
+  const size_t idx_innerinnersplit1 = logger.FindTimingIndex(innerinnersplit1, 0);
+  const size_t idx_innerinnersplit2 = logger.FindTimingIndex(innerinnersplit2, 0);
+  const auto& timings = logger.GetTimings();
+  EXPECT_EQ(8U, timings.size());
+  EXPECT_LE(timings[idx_outersplit].GetTime(), timings[idx_innersplit].GetTime());
+  EXPECT_LE(timings[idx_innersplit].GetTime(), timings[idx_innerinnersplit1].GetTime());
+  EXPECT_LE(timings[idx_innerinnersplit1].GetTime(), timings[idx_innerinnersplit2].GetTime());
 }
 
 }  // namespace art

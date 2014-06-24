@@ -265,10 +265,11 @@ std::string PrettySize(int64_t size_in_bytes);
 // Returns a human-readable time string which prints every nanosecond while trying to limit the
 // number of trailing zeros. Prints using the largest human readable unit up to a second.
 // e.g. "1ms", "1.000000001s", "1.001us"
-std::string PrettyDuration(uint64_t nano_duration);
+std::string PrettyDuration(uint64_t nano_duration, size_t max_fraction_digits = 3);
 
 // Format a nanosecond time to specified units.
-std::string FormatDuration(uint64_t nano_duration, TimeUnit time_unit);
+std::string FormatDuration(uint64_t nano_duration, TimeUnit time_unit,
+                           size_t max_fraction_digits);
 
 // Get the appropriate unit for a nanosecond duration.
 TimeUnit GetAppropriateTimeUnit(uint64_t nano_duration);

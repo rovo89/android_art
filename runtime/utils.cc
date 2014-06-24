@@ -468,11 +468,12 @@ std::string PrettySize(int64_t byte_count) {
                       negative_str, byte_count / kBytesPerUnit[i], kUnitStrings[i]);
 }
 
-std::string PrettyDuration(uint64_t nano_duration) {
+std::string PrettyDuration(uint64_t nano_duration, size_t max_fraction_digits) {
   if (nano_duration == 0) {
     return "0";
   } else {
-    return FormatDuration(nano_duration, GetAppropriateTimeUnit(nano_duration));
+    return FormatDuration(nano_duration, GetAppropriateTimeUnit(nano_duration),
+                          max_fraction_digits);
   }
 }
 
@@ -509,45 +510,41 @@ uint64_t GetNsToTimeUnitDivisor(TimeUnit time_unit) {
   return 0;
 }
 
-std::string FormatDuration(uint64_t nano_duration, TimeUnit time_unit) {
-  const char* unit = NULL;
+std::string FormatDuration(uint64_t nano_duration, TimeUnit time_unit,
+                           size_t max_fraction_digits) {
+  const char* unit = nullptr;
   uint64_t divisor = GetNsToTimeUnitDivisor(time_unit);
-  uint32_t zero_fill = 1;
   switch (time_unit) {
     case kTimeUnitSecond:
       unit = "s";
-      zero_fill = 9;
       break;
     case kTimeUnitMillisecond:
       unit = "ms";
-      zero_fill = 6;
       break;
     case kTimeUnitMicrosecond:
       unit = "us";
-      zero_fill = 3;
       break;
     case kTimeUnitNanosecond:
       unit = "ns";
-      zero_fill = 0;
       break;
   }
-
-  uint64_t whole_part = nano_duration / divisor;
+  const uint64_t whole_part = nano_duration / divisor;
   uint64_t fractional_part = nano_duration % divisor;
   if (fractional_part == 0) {
     return StringPrintf("%" PRIu64 "%s", whole_part, unit);
   } else {
-    while ((fractional_part % 1000) == 0) {
-      zero_fill -= 3;
-      fractional_part /= 1000;
+    static constexpr size_t kMaxDigits = 30;
+    char fraction_buffer[kMaxDigits];
+    char* ptr = fraction_buffer;
+    uint64_t multiplier = 10;
+    // This infinite loops if fractional part is 0.
+    while (fractional_part * multiplier < divisor) {
+      multiplier *= 10;
+      *ptr++ = '0';
     }
-    if (zero_fill == 3) {
-      return StringPrintf("%" PRIu64 ".%03" PRIu64 "%s", whole_part, fractional_part, unit);
-    } else if (zero_fill == 6) {
-      return StringPrintf("%" PRIu64 ".%06" PRIu64 "%s", whole_part, fractional_part, unit);
-    } else {
-      return StringPrintf("%" PRIu64 ".%09" PRIu64 "%s", whole_part, fractional_part, unit);
-    }
+    sprintf(ptr, "%" PRIu64, fractional_part);
+    fraction_buffer[std::min(kMaxDigits - 1, max_fraction_digits)] = '\0';
+    return StringPrintf("%" PRIu64 ".%s%s", whole_part, fraction_buffer, unit);
   }
 }
 
