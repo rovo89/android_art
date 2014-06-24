@@ -501,7 +501,7 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
   StoreValue(rl_method, rl_src);
   // If Method* has been promoted, explicitly flush
   if (rl_method.location == kLocPhysReg) {
-    StoreRefDisp(TargetReg(kSp), 0, TargetReg(kArg0));
+    StoreRefDisp(TargetReg(kSp), 0, TargetReg(kArg0), kNotVolatile);
   }
 
   if (cu_->num_ins == 0) {
@@ -616,7 +616,8 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
     case 1:  // Get method->dex_cache_resolved_methods_
       cg->LoadRefDisp(cg->TargetReg(kArg0),
                       mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
-                      cg->TargetReg(kArg0));
+                      cg->TargetReg(kArg0),
+                      kNotVolatile);
       // Set up direct code if known.
       if (direct_code != 0) {
         if (direct_code != static_cast<uintptr_t>(-1)) {
@@ -631,7 +632,8 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       CHECK_EQ(cu->dex_file, target_method.dex_file);
       cg->LoadRefDisp(cg->TargetReg(kArg0),
                       ObjArray::OffsetOfElement(target_method.dex_method_index).Int32Value(),
-                      cg->TargetReg(kArg0));
+                      cg->TargetReg(kArg0),
+                      kNotVolatile);
       break;
     case 3:  // Grab the code from the method*
       if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
@@ -676,17 +678,20 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
       cg->GenNullCheck(cg->TargetReg(kArg1), info->opt_flags);
       // get this->klass_ [use kArg1, set kInvokeTgt]
       cg->LoadRefDisp(cg->TargetReg(kArg1), mirror::Object::ClassOffset().Int32Value(),
-                      cg->TargetReg(kInvokeTgt));
+                      cg->TargetReg(kInvokeTgt),
+                      kNotVolatile);
       cg->MarkPossibleNullPointerException(info->opt_flags);
       break;
     case 2:  // Get this->klass_->vtable [usr kInvokeTgt, set kInvokeTgt]
       cg->LoadRefDisp(cg->TargetReg(kInvokeTgt), mirror::Class::VTableOffset().Int32Value(),
-                      cg->TargetReg(kInvokeTgt));
+                      cg->TargetReg(kInvokeTgt),
+                      kNotVolatile);
       break;
     case 3:  // Get target method [use kInvokeTgt, set kArg0]
       cg->LoadRefDisp(cg->TargetReg(kInvokeTgt),
                       ObjArray::OffsetOfElement(method_idx).Int32Value(),
-                      cg->TargetReg(kArg0));
+                      cg->TargetReg(kArg0),
+                      kNotVolatile);
       break;
     case 4:  // Get the compiled code address [uses kArg0, sets kInvokeTgt]
       if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
@@ -731,19 +736,22 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
       cg->GenNullCheck(cg->TargetReg(kArg1), info->opt_flags);
       // Get this->klass_ [use kArg1, set kInvokeTgt]
       cg->LoadRefDisp(cg->TargetReg(kArg1), mirror::Object::ClassOffset().Int32Value(),
-                      cg->TargetReg(kInvokeTgt));
+                      cg->TargetReg(kInvokeTgt),
+                      kNotVolatile);
       cg->MarkPossibleNullPointerException(info->opt_flags);
       break;
     case 3:  // Get this->klass_->imtable [use kInvokeTgt, set kInvokeTgt]
       // NOTE: native pointer.
       cg->LoadRefDisp(cg->TargetReg(kInvokeTgt), mirror::Class::ImTableOffset().Int32Value(),
-                      cg->TargetReg(kInvokeTgt));
+                      cg->TargetReg(kInvokeTgt),
+                      kNotVolatile);
       break;
     case 4:  // Get target method [use kInvokeTgt, set kArg0]
       // NOTE: native pointer.
       cg->LoadRefDisp(cg->TargetReg(kInvokeTgt),
                        ObjArray::OffsetOfElement(method_idx % ClassLinker::kImtSize).Int32Value(),
-                       cg->TargetReg(kArg0));
+                       cg->TargetReg(kArg0),
+                       kNotVolatile);
       break;
     case 5:  // Get the compiled code address [use kArg0, set kInvokeTgt]
       if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
@@ -967,7 +975,7 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
       {
         ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
         if (rl_arg.wide) {
-          StoreBaseDisp(TargetReg(kSp), outs_offset, arg_reg, k64);
+          StoreBaseDisp(TargetReg(kSp), outs_offset, arg_reg, k64, kNotVolatile);
           next_use += 2;
         } else {
           Store32Disp(TargetReg(kSp), outs_offset, arg_reg);
@@ -1037,7 +1045,7 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
       loc = UpdateLocWide(loc);
       if ((next_arg >= 2) && (loc.location == kLocPhysReg)) {
         ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-        StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k64);
+        StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k64, kNotVolatile);
       }
       next_arg += 2;
     } else {
@@ -1307,7 +1315,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
     reg_off = AllocTemp();
     reg_ptr = AllocTempRef();
     Load32Disp(rl_obj.reg, offset_offset, reg_off);
-    LoadRefDisp(rl_obj.reg, value_offset, reg_ptr);
+    LoadRefDisp(rl_obj.reg, value_offset, reg_ptr, kNotVolatile);
   }
   if (rl_idx.is_const) {
     OpRegImm(kOpAdd, reg_off, mir_graph_->ConstantValue(rl_idx.orig_sreg));
@@ -1672,7 +1680,7 @@ bool Mir2Lir::GenInlinedUnsafeGet(CallInfo* info,
     } else {
       RegStorage rl_temp_offset = AllocTemp();
       OpRegRegReg(kOpAdd, rl_temp_offset, rl_object.reg, rl_offset.reg);
-      LoadBaseDisp(rl_temp_offset, 0, rl_result.reg, k64);
+      LoadBaseDisp(rl_temp_offset, 0, rl_result.reg, k64, kNotVolatile);
       FreeTemp(rl_temp_offset);
     }
   } else {
@@ -1719,7 +1727,7 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
     } else {
       RegStorage rl_temp_offset = AllocTemp();
       OpRegRegReg(kOpAdd, rl_temp_offset, rl_object.reg, rl_offset.reg);
-      StoreBaseDisp(rl_temp_offset, 0, rl_value.reg, k64);
+      StoreBaseDisp(rl_temp_offset, 0, rl_value.reg, k64, kNotVolatile);
       FreeTemp(rl_temp_offset);
     }
   } else {

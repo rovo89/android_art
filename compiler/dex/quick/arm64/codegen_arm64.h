@@ -26,6 +26,11 @@ namespace art {
 
 class Arm64Mir2Lir : public Mir2Lir {
  protected:
+  // If we detect a size error, FATAL out.
+  static constexpr bool kFailOnSizeError = false && kIsDebugBuild;
+  // If we detect a size error, report to LOG.
+  static constexpr bool kReportSizeError = false && kIsDebugBuild;
+
   // TODO: consolidate 64-bit target support.
   class InToRegStorageMapper {
    public:
@@ -69,22 +74,25 @@ class Arm64Mir2Lir : public Mir2Lir {
     LIR* CheckSuspendUsingLoad() OVERRIDE;
     RegStorage LoadHelper(ThreadOffset<4> offset) OVERRIDE;
     RegStorage LoadHelper(ThreadOffset<8> offset) OVERRIDE;
-    LIR* LoadBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
-                              OpSize size) OVERRIDE;
     LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
-                      OpSize size) OVERRIDE;
+                      OpSize size, VolatileKind is_volatile) OVERRIDE;
+    LIR* LoadRefDisp(RegStorage r_base, int displacement, RegStorage r_dest,
+                     VolatileKind is_volatile)
+        OVERRIDE;
     LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale,
                          OpSize size) OVERRIDE;
+    LIR* LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest) OVERRIDE;
     LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
                              RegStorage r_dest, OpSize size) OVERRIDE;
     LIR* LoadConstantNoClobber(RegStorage r_dest, int value);
     LIR* LoadConstantWide(RegStorage r_dest, int64_t value);
-    LIR* StoreBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
-                               OpSize size) OVERRIDE;
     LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
-                       OpSize size) OVERRIDE;
+                       OpSize size, VolatileKind is_volatile) OVERRIDE;
+    LIR* StoreRefDisp(RegStorage r_base, int displacement, RegStorage r_src,
+                      VolatileKind is_volatile) OVERRIDE;
     LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
                           OpSize size) OVERRIDE;
+    LIR* StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src) OVERRIDE;
     LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
                               RegStorage r_src, OpSize size) OVERRIDE;
     void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) OVERRIDE;
@@ -283,14 +291,33 @@ class Arm64Mir2Lir : public Mir2Lir {
      * @see As64BitReg
      */
     RegStorage As32BitReg(RegStorage reg) {
-      DCHECK(reg.Is64Bit());
       DCHECK(!reg.IsPair());
+      if ((kFailOnSizeError || kReportSizeError) && !reg.Is64Bit()) {
+        if (kFailOnSizeError) {
+          LOG(FATAL) << "Expected 64b register";
+        } else {
+          LOG(WARNING) << "Expected 64b register";
+          return reg;
+        }
+      }
       RegStorage ret_val = RegStorage(RegStorage::k32BitSolo,
                                       reg.GetRawBits() & RegStorage::kRegTypeMask);
       DCHECK_EQ(GetRegInfo(reg)->FindMatchingView(RegisterInfo::k32SoloStorageMask)
                                ->GetReg().GetReg(),
                 ret_val.GetReg());
       return ret_val;
+    }
+
+    RegStorage Check32BitReg(RegStorage reg) {
+      if ((kFailOnSizeError || kReportSizeError) && !reg.Is32Bit()) {
+        if (kFailOnSizeError) {
+          LOG(FATAL) << "Checked for 32b register";
+        } else {
+          LOG(WARNING) << "Checked for 32b register";
+          return As32BitReg(reg);
+        }
+      }
+      return reg;
     }
 
     /**
@@ -300,14 +327,33 @@ class Arm64Mir2Lir : public Mir2Lir {
      * @see As32BitReg
      */
     RegStorage As64BitReg(RegStorage reg) {
-      DCHECK(reg.Is32Bit());
       DCHECK(!reg.IsPair());
+      if ((kFailOnSizeError || kReportSizeError) && !reg.Is32Bit()) {
+        if (kFailOnSizeError) {
+          LOG(FATAL) << "Expected 32b register";
+        } else {
+          LOG(WARNING) << "Expected 32b register";
+          return reg;
+        }
+      }
       RegStorage ret_val = RegStorage(RegStorage::k64BitSolo,
                                       reg.GetRawBits() & RegStorage::kRegTypeMask);
       DCHECK_EQ(GetRegInfo(reg)->FindMatchingView(RegisterInfo::k64SoloStorageMask)
                                ->GetReg().GetReg(),
                 ret_val.GetReg());
       return ret_val;
+    }
+
+    RegStorage Check64BitReg(RegStorage reg) {
+      if ((kFailOnSizeError || kReportSizeError) && !reg.Is64Bit()) {
+        if (kFailOnSizeError) {
+          LOG(FATAL) << "Checked for 64b register";
+        } else {
+          LOG(WARNING) << "Checked for 64b register";
+          return As64BitReg(reg);
+        }
+      }
+      return reg;
     }
 
     LIR* LoadFPConstantValue(RegStorage r_dest, int32_t value);
