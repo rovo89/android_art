@@ -86,7 +86,11 @@ uint32_t CompiledCode::AlignCode(uint32_t offset, InstructionSet instruction_set
 }
 
 size_t CompiledCode::CodeDelta() const {
-  switch (instruction_set_) {
+  return CodeDelta(instruction_set_);
+}
+
+size_t CompiledCode::CodeDelta(InstructionSet instruction_set) {
+  switch (instruction_set) {
     case kArm:
     case kArm64:
     case kMips:
@@ -98,7 +102,7 @@ size_t CompiledCode::CodeDelta() const {
       return 1;
     }
     default:
-      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set_;
+      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
       return 0;
   }
 }
