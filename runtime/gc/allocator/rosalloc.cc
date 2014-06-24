@@ -529,7 +529,7 @@ size_t RosAlloc::FreeInternal(Thread* self, void* ptr) {
 }
 
 size_t RosAlloc::Free(Thread* self, void* ptr) {
-  ReaderMutexLock rmu(self, bulk_free_lock_);
+  WriterMutexLock rmu(self, bulk_free_lock_);
   return FreeInternal(self, ptr);
 }
 
@@ -1642,7 +1642,7 @@ void RosAlloc::SetFootprintLimit(size_t new_capacity) {
 void RosAlloc::RevokeThreadLocalRuns(Thread* thread) {
   Thread* self = Thread::Current();
   // Avoid race conditions on the bulk free bit maps with BulkFree() (GC).
-  WriterMutexLock wmu(self, bulk_free_lock_);
+  ReaderMutexLock wmu(self, bulk_free_lock_);
   for (size_t idx = 0; idx < kNumThreadLocalSizeBrackets; idx++) {
     MutexLock mu(self, *size_bracket_locks_[idx]);
     Run* thread_local_run = reinterpret_cast<Run*>(thread->GetRosAllocRun(idx));
@@ -1720,7 +1720,7 @@ void RosAlloc::AssertThreadLocalRunsAreRevoked(Thread* thread) {
   if (kIsDebugBuild) {
     Thread* self = Thread::Current();
     // Avoid race conditions on the bulk free bit maps with BulkFree() (GC).
-    WriterMutexLock wmu(self, bulk_free_lock_);
+    ReaderMutexLock wmu(self, bulk_free_lock_);
     for (size_t idx = 0; idx < kNumThreadLocalSizeBrackets; idx++) {
       MutexLock mu(self, *size_bracket_locks_[idx]);
       Run* thread_local_run = reinterpret_cast<Run*>(thread->GetRosAllocRun(idx));
@@ -1867,7 +1867,7 @@ void RosAlloc::Verify() {
   CHECK(Locks::mutator_lock_->IsExclusiveHeld(self))
       << "The mutator locks isn't exclusively locked at RosAlloc::Verify()";
   MutexLock mu(self, *Locks::thread_list_lock_);
-  WriterMutexLock wmu(self, bulk_free_lock_);
+  ReaderMutexLock wmu(self, bulk_free_lock_);
   std::vector<Run*> runs;
   {
     MutexLock mu(self, lock_);
