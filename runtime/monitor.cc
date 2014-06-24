@@ -1115,20 +1115,29 @@ void MonitorList::SweepMonitorList(IsMarkedCallback* callback, void* arg) {
   }
 }
 
+struct MonitorDeflateArgs {
+  MonitorDeflateArgs() : self(Thread::Current()), deflate_count(0) {}
+  Thread* const self;
+  size_t deflate_count;
+};
+
 static mirror::Object* MonitorDeflateCallback(mirror::Object* object, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (Monitor::Deflate(reinterpret_cast<Thread*>(arg), object)) {
+  MonitorDeflateArgs* args = reinterpret_cast<MonitorDeflateArgs*>(arg);
+  if (Monitor::Deflate(args->self, object)) {
     DCHECK_NE(object->GetLockWord(true).GetState(), LockWord::kFatLocked);
+    ++args->deflate_count;
     // If we deflated, return nullptr so that the monitor gets removed from the array.
     return nullptr;
   }
   return object;  // Monitor was not deflated.
 }
 
-void MonitorList::DeflateMonitors() {
-  Thread* self = Thread::Current();
-  Locks::mutator_lock_->AssertExclusiveHeld(self);
-  SweepMonitorList(MonitorDeflateCallback, reinterpret_cast<Thread*>(self));
+size_t MonitorList::DeflateMonitors() {
+  MonitorDeflateArgs args;
+  Locks::mutator_lock_->AssertExclusiveHeld(args.self);
+  SweepMonitorList(MonitorDeflateCallback, &args);
+  return args.deflate_count;
 }
 
 MonitorInfo::MonitorInfo(mirror::Object* obj) : owner_(NULL), entry_count_(0) {
