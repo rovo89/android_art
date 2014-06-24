@@ -22,17 +22,11 @@
 #include "primitive.h"
 #include "utils/allocation.h"
 #include "utils/growable_array.h"
+#include "nodes.h"
 
 namespace art {
 
-class ArenaAllocator;
 class Instruction;
-class HBasicBlock;
-class HGraph;
-class HIntConstant;
-class HLongConstant;
-class HInstruction;
-class HLocal;
 
 class HGraphBuilder : public ValueObject {
  public:
@@ -90,7 +84,11 @@ class HGraphBuilder : public ValueObject {
   template<typename T>
   void Binop_22s(const Instruction& instruction, bool reverse);
 
-  template<typename T> void If_22t(const Instruction& instruction, int32_t dex_offset, bool is_not);
+  template<typename T>
+  void If_22t(const Instruction& instruction, int32_t dex_offset);
+
+  template<typename T>
+  void If_21t(const Instruction& instruction, int32_t dex_offset);
 
   void BuildReturn(const Instruction& instruction, Primitive::Type type);
 
