@@ -101,6 +101,7 @@ namespace art {
 // Temporary macros, used to mark code which wants to distinguish betweek zr/sp.
 #define A64_REG_IS_SP(reg_num) ((reg_num) == rwsp || (reg_num) == rsp)
 #define A64_REG_IS_ZR(reg_num) ((reg_num) == rwzr || (reg_num) == rxzr)
+#define A64_REGSTORAGE_IS_SP_OR_ZR(rs) (((rs).GetRegNum() & 0x1f) == 0x1f)
 
 enum Arm64ResourceEncodingPos {
   kArm64GPReg0   = 0,
