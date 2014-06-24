@@ -2150,7 +2150,8 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
   if (in_to_reg_storage_mapping.IsThereStackMapped()) {
     RegStorage regSingle = TargetReg(kArg2);
     RegStorage regWide = RegStorage::Solo64(TargetReg(kArg3).GetReg());
-    for (int i = start_index; i <= last_mapped_in + regs_left_to_pass_via_stack; i++) {
+    for (int i = start_index;
+         i < last_mapped_in + size_of_the_last_mapped + regs_left_to_pass_via_stack; i++) {
       RegLocation rl_arg = info->args[i];
       rl_arg = UpdateRawLoc(rl_arg);
       RegStorage reg = in_to_reg_storage_mapping.Get(i);
@@ -2166,7 +2167,6 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
               LoadValueDirectWideFixed(rl_arg, regWide);
               StoreBaseDisp(TargetReg(kSp), out_offset, regWide, k64);
             }
-            i++;
           } else {
             if (rl_arg.location == kLocPhysReg) {
               StoreBaseDisp(TargetReg(kSp), out_offset, rl_arg.reg, k32);
@@ -2179,6 +2179,9 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
         call_state = next_call_insn(cu_, info, call_state, target_method,
                                     vtable_idx, direct_code, direct_method, type);
       }
+      if (rl_arg.wide) {
+        i++;
+      }
     }
   }
 
@@ -2190,12 +2193,14 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     if (reg.Valid()) {
       if (rl_arg.wide) {
         LoadValueDirectWideFixed(rl_arg, reg);
-        i++;
       } else {
         LoadValueDirectFixed(rl_arg, reg);
       }
       call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                                direct_code, direct_method, type);
+    }
+    if (rl_arg.wide) {
+      i++;
     }
   }
 
