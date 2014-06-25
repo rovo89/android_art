@@ -60,7 +60,10 @@ ART_TEST_TARGET_OAT$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_OAT_RULES :=
 
 # We need dex2oat and dalvikvm on the target as well as the core image.
-TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(2ND_TARGET_CORE_IMG_OUT)
+TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(2ND_TARGET_CORE_IMG_OUT) $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttest.so
+ifdef TARGET_2ND_ARCH
+TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_TEST_OUT)/$(TARGET_2ND_ARCH)/libarttest.so
+endif
 
 # Define rule to run an individual oat test on the host. Output from the test is written to the
 # host in /tmp/android-data in a directory named after test's rule name (its target) and the parent
@@ -72,7 +75,7 @@ TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(
 # $(3): the target (rule name), e.g. test-art-target-oat-default-HelloWorld64
 # $(4): -Xint or undefined - do we want to run with the interpreter or default.
 define define-test-art-oat-rule-target
-  # Add the test dependencies to test-art-target-sync, which will be a prerequisit for the test
+  # Add the test dependencies to test-art-target-sync, which will be a prerequisite for the test
   # to ensure files are pushed to the device.
   TEST_ART_TARGET_SYNC_DEPS += $$(ART_OAT_TEST_$(1)_DEX)
 
