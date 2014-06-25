@@ -59,8 +59,8 @@ void X86_64Context::FillCalleeSaves(const StackVisitor& fr) {
     size_t j = 2;  // Offset j to skip return address spill.
     for (size_t i = 0; i < kNumberOfFloatRegisters; ++i) {
       if (((frame_info.FpSpillMask() >> i) & 1) != 0) {
-        fprs_[i] = fr.CalleeSaveAddress(spill_count + fp_spill_count - j,
-                                        frame_info.FrameSizeInBytes());
+        fprs_[i] = reinterpret_cast<uint64_t*>(
+            fr.CalleeSaveAddress(spill_count + fp_spill_count - j, frame_info.FrameSizeInBytes()));
         j++;
       }
     }
@@ -93,7 +93,7 @@ bool X86_64Context::SetGPR(uint32_t reg, uintptr_t value) {
 
 bool X86_64Context::SetFPR(uint32_t reg, uintptr_t value) {
   CHECK_LT(reg, static_cast<uint32_t>(kNumberOfFloatRegisters));
-  CHECK_NE(fprs_[reg], &gZero);
+  CHECK_NE(fprs_[reg], reinterpret_cast<const uint64_t*>(&gZero));
   if (fprs_[reg] != nullptr) {
     *fprs_[reg] = value;
     return true;
