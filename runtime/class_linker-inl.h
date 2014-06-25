@@ -41,7 +41,8 @@ inline mirror::Class* ClassLinker::FindSystemClass(Thread* self, const char* des
 inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class** element_class) {
   for (size_t i = 0; i < kFindArrayCacheSize; ++i) {
     // Read the cached array class once to avoid races with other threads setting it.
-    mirror::Class* array_class = find_array_class_cache_[i];
+    mirror::Class* array_class = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(
+        &find_array_class_cache_[i]);
     if (array_class != nullptr && array_class->GetComponentType() == *element_class) {
       return array_class;
     }
@@ -205,9 +206,18 @@ inline mirror::ObjectArray<mirror::ArtField>* ClassLinker::AllocArtFieldArray(Th
 inline mirror::Class* ClassLinker::GetClassRoot(ClassRoot class_root)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(class_roots_ != NULL);
-  mirror::Class* klass = class_roots_->Get(class_root);
+  mirror::ObjectArray<mirror::Class>* class_roots =
+      ReadBarrier::BarrierForRoot<mirror::ObjectArray<mirror::Class>, kWithReadBarrier>(
+          &class_roots_);
+  mirror::Class* klass = class_roots->Get(class_root);
   DCHECK(klass != NULL);
   return klass;
+}
+
+inline mirror::DexCache* ClassLinker::GetDexCache(size_t idx) {
+  dex_lock_.AssertSharedHeld(Thread::Current());
+  DCHECK(idx < dex_caches_.size());
+  return ReadBarrier::BarrierForRoot<mirror::DexCache, kWithReadBarrier>(&dex_caches_[idx]);
 }
 
 }  // namespace art

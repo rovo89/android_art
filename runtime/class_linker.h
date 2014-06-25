@@ -28,6 +28,7 @@
 #include "jni.h"
 #include "oat_file.h"
 #include "object_callbacks.h"
+#include "read_barrier.h"
 
 namespace art {
 namespace gc {
@@ -252,12 +253,12 @@ class ClassLinker {
   void VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags)
       LOCKS_EXCLUDED(dex_lock_);
 
-  mirror::DexCache* FindDexCache(const DexFile& dex_file) const
+  mirror::DexCache* FindDexCache(const DexFile& dex_file)
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool IsDexFileRegistered(const DexFile& dex_file) const
+  bool IsDexFileRegistered(const DexFile& dex_file)
       LOCKS_EXCLUDED(dex_lock_) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupDexCaches(mirror::ArtMethod* resolution_method) const
+  void FixupDexCaches(mirror::ArtMethod* resolution_method)
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -470,7 +471,7 @@ class ClassLinker {
   void RegisterDexFileLocked(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
       EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool IsDexFileRegisteredLocked(const DexFile& dex_file) const
+  bool IsDexFileRegisteredLocked(const DexFile& dex_file)
       SHARED_LOCKS_REQUIRED(dex_lock_, Locks::mutator_lock_);
 
   bool InitializeClass(Handle<mirror::Class> klass, bool can_run_clinit,
@@ -532,9 +533,14 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // For use by ImageWriter to find DexCaches for its roots
-  const std::vector<mirror::DexCache*>& GetDexCaches() {
-    return dex_caches_;
+  ReaderWriterMutex* DexLock()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCK_RETURNED(dex_lock_) {
+    return &dex_lock_;
   }
+  size_t GetDexCacheCount() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, dex_lock_) {
+    return dex_caches_.size();
+  }
+  mirror::DexCache* GetDexCache(size_t idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, dex_lock_);
 
   const OatFile* FindOpenedOatFileForDexFile(const DexFile& dex_file)
       LOCKS_EXCLUDED(dex_lock_)
@@ -643,9 +649,12 @@ class ClassLinker {
   void SetClassRoot(ClassRoot class_root, mirror::Class* klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::ObjectArray<mirror::Class>* GetClassRoots() {
-    DCHECK(class_roots_ != NULL);
-    return class_roots_;
+  mirror::ObjectArray<mirror::Class>* GetClassRoots() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::ObjectArray<mirror::Class>* class_roots =
+        ReadBarrier::BarrierForRoot<mirror::ObjectArray<mirror::Class>, kWithReadBarrier>(
+            &class_roots_);
+    DCHECK(class_roots != NULL);
+    return class_roots;
   }
 
   static const char* class_roots_descriptors_[];
