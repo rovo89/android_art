@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-include art/build/Android.common.mk
+include art/build/Android.common_build.mk
 
 ART_HOST_EXECUTABLES ?=
 ART_TARGET_EXECUTABLES ?=
@@ -85,13 +85,13 @@ define build-art-executable
     LOCAL_SHARED_LIBRARIES += libartd
   endif
 
-  LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
+  LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.executable.mk
 
   ifeq ($$(art_target_or_host),target)
     LOCAL_MODULE_TARGET_ARCH := $(ART_SUPPORTED_ARCH)
-    LOCAL_MULTILIB := $$(art_multilib)
   endif
+  LOCAL_MULTILIB := $$(art_multilib)
 
   include external/libcxx/libcxx.mk
   ifeq ($$(art_target_or_host),target)

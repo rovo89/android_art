@@ -273,7 +273,7 @@ class CommonRuntimeTest : public testing::Test {
     } else {
       filename += "/data/nativetest/art/";
     }
-    filename += "art-test-dex-";
+    filename += "art-gtest-";
     filename += name;
     filename += ".jar";
     std::string error_msg;

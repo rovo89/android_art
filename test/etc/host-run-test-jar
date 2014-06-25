@@ -18,6 +18,7 @@ INVOKE_WITH=""
 DEV_MODE="n"
 QUIET="n"
 FLAGS=""
+exe="${ANDROID_HOST_OUT}/bin/dalvikvm32"
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -63,6 +64,9 @@ while true; do
     elif [ "x$1" = "x--interpreter" ]; then
         INTERPRETER="y"
         shift
+    elif [ "x$1" = "x--64" ]; then
+        exe="${ANDROID_HOST_OUT}/bin/dalvikvm64"
+        shift
     elif [ "x$1" = "x--no-verify" ]; then
         VERIFY="n"
         shift
@@ -102,8 +106,6 @@ export ANDROID_DATA="$DEX_LOCATION"
 export ANDROID_ROOT="${ANDROID_HOST_OUT}"
 export LD_LIBRARY_PATH="${ANDROID_ROOT}/lib"
 export DYLD_LIBRARY_PATH="${ANDROID_ROOT}/lib"
-
-exe="${ANDROID_ROOT}/bin/dalvikvm"
 
 if [ "$DEBUGGER" = "y" ]; then
     PORT=8000

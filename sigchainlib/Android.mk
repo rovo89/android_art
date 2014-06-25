@@ -16,7 +16,7 @@
 
 LOCAL_PATH:= $(call my-dir)
 
-include art/build/Android.common.mk
+include art/build/Android.common_build.mk
 
 include $(CLEAR_VARS)
 LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
@@ -24,6 +24,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
 LOCAL_SRC_FILES := sigchain.cc
 LOCAL_MODULE:= libsigchain
-LOCAL_SHARED_LIBRARIES += liblog libdl
-LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
+LOCAL_SHARED_LIBRARIES := liblog libdl
+LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
+LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.common_build.mk
 include $(BUILD_SHARED_LIBRARY)

@@ -16,7 +16,7 @@
 
 LOCAL_PATH := $(call my-dir)
 
-include art/build/Android.common.mk
+include art/build/Android.common_build.mk
 
 LIBART_DISASSEMBLER_SRC_FILES := \
 	disassembler.cc \
@@ -80,7 +80,7 @@ define build-libart-disassembler
 
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
 
-  LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
+  LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
   include external/libcxx/libcxx.mk
   ifeq ($$(art_target_or_host),target)
