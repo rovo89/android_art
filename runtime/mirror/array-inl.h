@@ -168,8 +168,7 @@ inline void PrimitiveArray<T>::VisitRoots(RootCallback* callback, void* arg) {
 
 template<typename T>
 inline PrimitiveArray<T>* PrimitiveArray<T>::Alloc(Thread* self, size_t length) {
-  DCHECK(array_class_ != NULL);
-  Array* raw_array = Array::Alloc<true>(self, array_class_, length, sizeof(T),
+  Array* raw_array = Array::Alloc<true>(self, GetArrayClass(), length, sizeof(T),
                                         Runtime::Current()->GetHeap()->GetCurrentAllocator());
   return down_cast<PrimitiveArray<T>*>(raw_array);
 }

@@ -20,6 +20,7 @@
 #include "gc/allocator_type.h"
 #include "object.h"
 #include "object_callbacks.h"
+#include "read_barrier.h"
 
 namespace art {
 
@@ -160,9 +161,10 @@ class MANAGED PrimitiveArray : public Array {
     array_class_ = array_class;
   }
 
-  static Class* GetArrayClass() {
+  static Class* GetArrayClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(array_class_ != nullptr);
-    return array_class_;
+    return ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(
+        &array_class_);
   }
 
   static void ResetArrayClass() {

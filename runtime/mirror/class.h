@@ -24,6 +24,7 @@
 #include "object.h"
 #include "object_callbacks.h"
 #include "primitive.h"
+#include "read_barrier.h"
 
 /*
  * A magic value for refOffsets. Ignore the bits and walk the super
@@ -376,8 +377,10 @@ class MANAGED Class : public Object {
 
   bool IsThrowableClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsArtFieldClass() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsArtMethodClass() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static MemberOffset ComponentTypeOffset() {
@@ -845,13 +848,14 @@ class MANAGED Class : public Object {
     SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, dex_type_idx_), type_idx);
   }
 
-  static Class* GetJavaLangClass() {
+  static Class* GetJavaLangClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(java_lang_Class_ != NULL);
-    return java_lang_Class_;
+    return ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(
+        &java_lang_Class_);
   }
 
   // Can't call this SetClass or else gets called instead of Object::SetClass in places.
-  static void SetClassClass(Class* java_lang_Class);
+  static void SetClassClass(Class* java_lang_Class) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void ResetClass();
   static void VisitRoots(RootCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

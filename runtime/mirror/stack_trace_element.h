@@ -19,6 +19,7 @@
 
 #include "object.h"
 #include "object_callbacks.h"
+#include "read_barrier.h"
 
 namespace art {
 
@@ -55,9 +56,10 @@ class MANAGED StackTraceElement : public Object {
   static void ResetClass();
   static void VisitRoots(RootCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static Class* GetStackTraceElement() {
+  static Class* GetStackTraceElement() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(java_lang_StackTraceElement_ != NULL);
-    return java_lang_StackTraceElement_;
+    return ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(
+        &java_lang_StackTraceElement_);
   }
 
  private:

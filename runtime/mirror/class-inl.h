@@ -511,12 +511,14 @@ inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor)
   VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
 }
 
+template<ReadBarrierOption kReadBarrierOption>
 inline bool Class::IsArtFieldClass() const {
-  return this == ArtField::GetJavaLangReflectArtField();
+  return this == ArtField::GetJavaLangReflectArtField<kReadBarrierOption>();
 }
 
+template<ReadBarrierOption kReadBarrierOption>
 inline bool Class::IsArtMethodClass() const {
-  return this == ArtMethod::GetJavaLangReflectArtMethod();
+  return this == ArtMethod::GetJavaLangReflectArtMethod<kReadBarrierOption>();
 }
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
