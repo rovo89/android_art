@@ -101,6 +101,7 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
 }
 
 void GarbageCollector::SwapBitmaps() {
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   // Swap the live and mark bitmaps for each alloc space. This is needed since sweep re-swaps
   // these bitmaps. The bitmap swapping is an optimization so that we do not need to clear the live
   // bits of dead objects in the live bitmap.

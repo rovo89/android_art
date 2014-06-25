@@ -371,10 +371,10 @@ class CommonCompilerTest : public CommonRuntimeTest {
   void CompileMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(method != nullptr);
     TimingLogger timings("CommonTest::CompileMethod", false, false);
-    timings.StartSplit("CompileOne");
+    TimingLogger::ScopedTiming t(__FUNCTION__, &timings);
     compiler_driver_->CompileOne(method, &timings);
+    TimingLogger::ScopedTiming t2("MakeExecutable", &timings);
     MakeExecutable(method);
-    timings.EndSplit();
   }
 
   void CompileDirectMethod(Handle<mirror::ClassLoader> class_loader, const char* class_name,

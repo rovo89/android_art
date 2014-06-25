@@ -697,7 +697,7 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings)
     return;
   }
 
-  timings->NewSplit("LoadImageClasses");
+  TimingLogger::ScopedTiming t("LoadImageClasses", timings);
   // Make a first class to load all classes explicitly listed in the file
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
@@ -794,8 +794,7 @@ void CompilerDriver::FindClinitImageClassesCallback(mirror::Object* object, void
 
 void CompilerDriver::UpdateImageClasses(TimingLogger* timings) {
   if (IsImage()) {
-    timings->NewSplit("UpdateImageClasses");
-
+    TimingLogger::ScopedTiming t("UpdateImageClasses", timings);
     // Update image_classes_ with classes for objects created by <clinit> methods.
     Thread* self = Thread::Current();
     const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
@@ -1606,11 +1605,11 @@ void CompilerDriver::ResolveDexFile(jobject class_loader, const DexFile& dex_fil
   if (IsImage()) {
     // For images we resolve all types, such as array, whereas for applications just those with
     // classdefs are resolved by ResolveClassFieldsAndMethods.
-    timings->NewSplit("Resolve Types");
+    TimingLogger::ScopedTiming t("Resolve Types", timings);
     context.ForAll(0, dex_file.NumTypeIds(), ResolveType, thread_count_);
   }
 
-  timings->NewSplit("Resolve MethodsAndFields");
+  TimingLogger::ScopedTiming t("Resolve MethodsAndFields", timings);
   context.ForAll(0, dex_file.NumClassDefs(), ResolveClassFieldsAndMethods, thread_count_);
 }
 
@@ -1672,7 +1671,7 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
 
 void CompilerDriver::VerifyDexFile(jobject class_loader, const DexFile& dex_file,
                                    ThreadPool* thread_pool, TimingLogger* timings) {
-  timings->NewSplit("Verify Dex File");
+  TimingLogger::ScopedTiming t("Verify Dex File", timings);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ParallelCompilationManager context(class_linker, class_loader, this, &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), VerifyClass, thread_count_);
@@ -1765,7 +1764,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
 
 void CompilerDriver::InitializeClasses(jobject jni_class_loader, const DexFile& dex_file,
                                        ThreadPool* thread_pool, TimingLogger* timings) {
-  timings->NewSplit("InitializeNoClinit");
+  TimingLogger::ScopedTiming t("InitializeNoClinit", timings);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ParallelCompilationManager context(class_linker, jni_class_loader, this, &dex_file, thread_pool);
   size_t thread_count;
@@ -1877,7 +1876,7 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
 
 void CompilerDriver::CompileDexFile(jobject class_loader, const DexFile& dex_file,
                                     ThreadPool* thread_pool, TimingLogger* timings) {
-  timings->NewSplit("Compile Dex File");
+  TimingLogger::ScopedTiming t("Compile Dex File", timings);
   ParallelCompilationManager context(Runtime::Current()->GetClassLinker(), class_loader, this,
                                      &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), CompilerDriver::CompileClass, thread_count_);

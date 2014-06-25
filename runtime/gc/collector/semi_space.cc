@@ -59,7 +59,7 @@ static constexpr size_t kBytesPromotedThreshold = 4 * MB;
 static constexpr size_t kLargeObjectBytesAllocatedThreshold = 16 * MB;
 
 void SemiSpace::BindBitmaps() {
-  GetTimings()->StartSplit("BindBitmaps");
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   WriterMutexLock mu(self_, *Locks::heap_bitmap_lock_);
   // Mark all of the spaces we never collect as immune.
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
@@ -83,7 +83,6 @@ void SemiSpace::BindBitmaps() {
     // We won't collect the large object space if a bump pointer space only collection.
     is_large_object_space_immune_ = true;
   }
-  GetTimings()->EndSplit();
 }
 
 SemiSpace::SemiSpace(Heap* heap, bool generational, const std::string& name_prefix)
@@ -131,7 +130,7 @@ void SemiSpace::RunPhases() {
 }
 
 void SemiSpace::InitializePhase() {
-  TimingLogger::ScopedSplit split("InitializePhase", GetTimings());
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   mark_stack_ = heap_->GetMarkStack();
   DCHECK(mark_stack_ != nullptr);
   immune_region_.Reset();
@@ -151,7 +150,6 @@ void SemiSpace::InitializePhase() {
 }
 
 void SemiSpace::ProcessReferences(Thread* self) {
-  TimingLogger::ScopedSplit split("ProcessReferences", GetTimings());
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   GetHeap()->GetReferenceProcessor()->ProcessReferences(
       false, GetTimings(), GetCurrentIteration()->GetClearSoftReferences(),
@@ -159,6 +157,7 @@ void SemiSpace::ProcessReferences(Thread* self) {
 }
 
 void SemiSpace::MarkingPhase() {
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   CHECK(Locks::mutator_lock_->IsExclusiveHeld(self_));
   if (kStoreStackTraces) {
     Locks::mutator_lock_->AssertExclusiveHeld(self_);
@@ -197,10 +196,7 @@ void SemiSpace::MarkingPhase() {
     // If generational, clear soft references if a whole heap collection.
     GetCurrentIteration()->SetClearSoftReferences(true);
   }
-
   Locks::mutator_lock_->AssertExclusiveHeld(self_);
-
-  TimingLogger::ScopedSplit split("MarkingPhase", GetTimings());
   if (generational_) {
     // If last_gc_to_space_end_ is out of the bounds of the from-space
     // (the to-space from last GC), then point it to the beginning of
@@ -218,12 +214,13 @@ void SemiSpace::MarkingPhase() {
   heap_->ProcessCards(GetTimings(), kUseRememberedSet && generational_);
   // Clear the whole card table since we can not Get any additional dirty cards during the
   // paused GC. This saves memory but only works for pause the world collectors.
-  GetTimings()->NewSplit("ClearCardTable");
+  t.NewTiming("ClearCardTable");
   heap_->GetCardTable()->ClearCardTable();
   // Need to do this before the checkpoint since we don't want any threads to add references to
   // the live stack during the recursive mark.
-  GetTimings()->NewSplit("SwapStacks");
+  t.NewTiming("SwapStacks");
   if (kUseThreadLocalAllocationStack) {
+    TimingLogger::ScopedTiming t("RevokeAllThreadLocalAllocationStacks", GetTimings());
     heap_->RevokeAllThreadLocalAllocationStacks(self_);
   }
   heap_->SwapStacks(self_);
@@ -240,7 +237,6 @@ void SemiSpace::MarkingPhase() {
     ReaderMutexLock mu(self_, *Locks::heap_bitmap_lock_);
     SweepSystemWeaks();
   }
-  GetTimings()->NewSplit("RecordFree");
   // Revoke buffers before measuring how many objects were moved since the TLABs need to be revoked
   // before they are properly counted.
   RevokeAllThreadLocalBuffers();
@@ -257,9 +253,7 @@ void SemiSpace::MarkingPhase() {
   from_space_->Clear();
   VLOG(heap) << "Protecting from_space_: " << *from_space_;
   from_space_->GetMemMap()->Protect(kProtectFromSpace ? PROT_NONE : PROT_READ);
-  GetTimings()->StartSplit("PreSweepingGcVerification");
   heap_->PreSweepingGcVerification(this);
-  GetTimings()->EndSplit();
   if (swap_semi_spaces_) {
     heap_->SwapSemiSpaces();
   }
@@ -272,7 +266,7 @@ void SemiSpace::UpdateAndMarkModUnion() {
       accounting::ModUnionTable* table = heap_->FindModUnionTableFromSpace(space);
       if (table != nullptr) {
         // TODO: Improve naming.
-        TimingLogger::ScopedSplit split(
+        TimingLogger::ScopedTiming t(
             space->IsZygoteSpace() ? "UpdateAndMarkZygoteModUnionTable" :
                                      "UpdateAndMarkImageModUnionTable",
                                      GetTimings());
@@ -354,12 +348,14 @@ class SemiSpaceVerifyNoFromSpaceReferencesObjectVisitor {
 };
 
 void SemiSpace::MarkReachableObjects() {
-  GetTimings()->StartSplit("MarkStackAsLive");
-  accounting::ObjectStack* live_stack = heap_->GetLiveStack();
-  heap_->MarkAllocStackAsLive(live_stack);
-  live_stack->Reset();
-
-  GetTimings()->NewSplit("UpdateAndMarkRememberedSets");
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
+  {
+    TimingLogger::ScopedTiming t2("MarkStackAsLive", GetTimings());
+    accounting::ObjectStack* live_stack = heap_->GetLiveStack();
+    heap_->MarkAllocStackAsLive(live_stack);
+    live_stack->Reset();
+  }
+  t.NewTiming("UpdateAndMarkRememberedSets");
   for (auto& space : heap_->GetContinuousSpaces()) {
     // If the space is immune and has no mod union table (the
     // non-moving space when the bump pointer space only collection is
@@ -398,7 +394,7 @@ void SemiSpace::MarkReachableObjects() {
   }
 
   if (is_large_object_space_immune_) {
-    GetTimings()->NewSplit("VisitLargeObjects");
+    TimingLogger::ScopedTiming t("VisitLargeObjects", GetTimings());
     DCHECK(generational_ && !whole_heap_collection_);
     // Delay copying the live set to the marked set until here from
     // BindBitmaps() as the large objects on the allocation stack may
@@ -416,31 +412,24 @@ void SemiSpace::MarkReachableObjects() {
                                         reinterpret_cast<uintptr_t>(large_object_space->End()),
                                         visitor);
   }
-  GetTimings()->EndSplit();
   // Recursively process the mark stack.
   ProcessMarkStack();
 }
 
 void SemiSpace::ReclaimPhase() {
-  TimingLogger::ScopedSplit split("ReclaimPhase", GetTimings());
-  {
-    WriterMutexLock mu(self_, *Locks::heap_bitmap_lock_);
-    // Reclaim unmarked objects.
-    Sweep(false);
-    // Swap the live and mark bitmaps for each space which we modified space. This is an
-    // optimization that enables us to not clear live bits inside of the sweep. Only swaps unbound
-    // bitmaps.
-    GetTimings()->StartSplit("SwapBitmaps");
-    SwapBitmaps();
-    GetTimings()->EndSplit();
-    // Unbind the live and mark bitmaps.
-    TimingLogger::ScopedSplit split("UnBindBitmaps", GetTimings());
-    GetHeap()->UnBindBitmaps();
-  }
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
+  WriterMutexLock mu(self_, *Locks::heap_bitmap_lock_);
+  // Reclaim unmarked objects.
+  Sweep(false);
+  // Swap the live and mark bitmaps for each space which we modified space. This is an
+  // optimization that enables us to not clear live bits inside of the sweep. Only swaps unbound
+  // bitmaps.
+  SwapBitmaps();
+  // Unbind the live and mark bitmaps.
+  GetHeap()->UnBindBitmaps();
   if (saved_bytes_ > 0) {
     VLOG(heap) << "Avoided dirtying " << PrettySize(saved_bytes_);
   }
-
   if (generational_) {
     // Record the end (top) of the to space so we can distinguish
     // between objects that were allocated since the last GC and the
@@ -629,8 +618,7 @@ void SemiSpace::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*
 
 // Marks all objects in the root set.
 void SemiSpace::MarkRoots() {
-  GetTimings()->NewSplit("MarkRoots");
-  // TODO: Visit up image roots as well?
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   Runtime::Current()->VisitRoots(MarkRootCallback, this);
 }
 
@@ -655,9 +643,8 @@ mirror::Object* SemiSpace::MarkedForwardingAddressCallback(mirror::Object* objec
 }
 
 void SemiSpace::SweepSystemWeaks() {
-  GetTimings()->StartSplit("SweepSystemWeaks");
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   Runtime::Current()->SweepSystemWeaks(MarkedForwardingAddressCallback, this);
-  GetTimings()->EndSplit();
 }
 
 bool SemiSpace::ShouldSweepSpace(space::ContinuousSpace* space) const {
@@ -665,15 +652,15 @@ bool SemiSpace::ShouldSweepSpace(space::ContinuousSpace* space) const {
 }
 
 void SemiSpace::Sweep(bool swap_bitmaps) {
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   DCHECK(mark_stack_->IsEmpty());
-  TimingLogger::ScopedSplit split("Sweep", GetTimings());
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->IsContinuousMemMapAllocSpace()) {
       space::ContinuousMemMapAllocSpace* alloc_space = space->AsContinuousMemMapAllocSpace();
       if (!ShouldSweepSpace(alloc_space)) {
         continue;
       }
-      TimingLogger::ScopedSplit split(
+      TimingLogger::ScopedTiming split(
           alloc_space->IsZygoteSpace() ? "SweepZygoteSpace" : "SweepAllocSpace", GetTimings());
       RecordFree(alloc_space->Sweep(swap_bitmaps));
     }
@@ -685,7 +672,7 @@ void SemiSpace::Sweep(bool swap_bitmaps) {
 
 void SemiSpace::SweepLargeObjects(bool swap_bitmaps) {
   DCHECK(!is_large_object_space_immune_);
-  TimingLogger::ScopedSplit split("SweepLargeObjects", GetTimings());
+  TimingLogger::ScopedTiming split("SweepLargeObjects", GetTimings());
   RecordFreeLOS(heap_->GetLargeObjectsSpace()->Sweep(swap_bitmaps));
 }
 
@@ -726,6 +713,7 @@ void SemiSpace::ScanObject(Object* obj) {
 
 // Scan anything that's on the mark stack.
 void SemiSpace::ProcessMarkStack() {
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   space::MallocSpace* promo_dest_space = nullptr;
   accounting::ContinuousSpaceBitmap* live_bitmap = nullptr;
   if (generational_ && !whole_heap_collection_) {
@@ -739,7 +727,6 @@ void SemiSpace::ProcessMarkStack() {
     DCHECK(mark_bitmap != nullptr);
     DCHECK_EQ(live_bitmap, mark_bitmap);
   }
-  GetTimings()->StartSplit("ProcessMarkStack");
   while (!mark_stack_->IsEmpty()) {
     Object* obj = mark_stack_->PopBack();
     if (generational_ && !whole_heap_collection_ && promo_dest_space->HasAddress(obj)) {
@@ -750,7 +737,6 @@ void SemiSpace::ProcessMarkStack() {
     }
     ScanObject(obj);
   }
-  GetTimings()->EndSplit();
 }
 
 inline Object* SemiSpace::GetMarkedForwardAddress(mirror::Object* obj) const
@@ -781,7 +767,7 @@ void SemiSpace::SetFromSpace(space::ContinuousMemMapAllocSpace* from_space) {
 }
 
 void SemiSpace::FinishPhase() {
-  TimingLogger::ScopedSplit split("FinishPhase", GetTimings());
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   // Null the "to" and "from" spaces since compacting from one to the other isn't valid until
   // further action is done by the heap.
   to_space_ = nullptr;
@@ -822,9 +808,8 @@ void SemiSpace::FinishPhase() {
 }
 
 void SemiSpace::RevokeAllThreadLocalBuffers() {
-  GetTimings()->StartSplit("(Paused)RevokeAllThreadLocalBuffers");
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   GetHeap()->RevokeAllThreadLocalBuffers();
-  GetTimings()->EndSplit();
 }
 
 }  // namespace collector
