@@ -264,9 +264,9 @@ void MipsMir2Lir::GenMoveException(RegLocation rl_dest) {
   int ex_offset = Thread::ExceptionOffset<4>().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
   RegStorage reset_reg = AllocTempRef();
-  LoadRefDisp(rs_rMIPS_SELF, ex_offset, rl_result.reg);
+  LoadRefDisp(rs_rMIPS_SELF, ex_offset, rl_result.reg, kNotVolatile);
   LoadConstant(reset_reg, 0);
-  StoreRefDisp(rs_rMIPS_SELF, ex_offset, reset_reg);
+  StoreRefDisp(rs_rMIPS_SELF, ex_offset, reset_reg, kNotVolatile);
   FreeTemp(reset_reg);
   StoreValue(rl_dest, rl_result);
 }

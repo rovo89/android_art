@@ -546,23 +546,31 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
   return load;
 }
 
-LIR* MipsMir2Lir::LoadBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
-                                       OpSize size) {
-  DCHECK(size != k64 && size != kDouble);
-  return LoadBaseDisp(r_base, displacement, r_dest, size);
-}
-
 LIR* MipsMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
-                               OpSize size) {
+                               OpSize size, VolatileKind is_volatile) {
+  if (is_volatile == kVolatile) {
+    DCHECK(size != k64 && size != kDouble);
+  }
+
   // TODO: base this on target.
   if (size == kWord) {
     size = k32;
   }
+  LIR* load;
   if (size == k64 || size == kDouble) {
-    return LoadBaseDispBody(r_base, displacement, r_dest.GetLow(), r_dest.GetHigh(), size);
+    load = LoadBaseDispBody(r_base, displacement, r_dest.GetLow(), r_dest.GetHigh(), size);
   } else {
-    return LoadBaseDispBody(r_base, displacement, r_dest, RegStorage::InvalidReg(), size);
+    load = LoadBaseDispBody(r_base, displacement, r_dest, RegStorage::InvalidReg(), size);
   }
+
+  if (UNLIKELY(is_volatile == kVolatile)) {
+    // Without context sensitive analysis, we must issue the most conservative barriers.
+    // In this case, either a load or store may follow so we issue both barriers.
+    GenMemBarrier(kLoadLoad);
+    GenMemBarrier(kLoadStore);
+  }
+
+  return load;
 }
 
 // FIXME: don't split r_dest into 2 containers.
@@ -648,23 +656,31 @@ LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement,
   return res;
 }
 
-LIR* MipsMir2Lir::StoreBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_src,
-                                        OpSize size) {
-  DCHECK(size != k64 && size != kDouble);
-  return StoreBaseDisp(r_base, displacement, r_src, size);
-}
-
 LIR* MipsMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
-                                OpSize size) {
+                                OpSize size, VolatileKind is_volatile) {
+  if (is_volatile == kVolatile) {
+    DCHECK(size != k64 && size != kDouble);
+    // There might have been a store before this volatile one so insert StoreStore barrier.
+    GenMemBarrier(kStoreStore);
+  }
+
   // TODO: base this on target.
   if (size == kWord) {
     size = k32;
   }
+  LIR* store;
   if (size == k64 || size == kDouble) {
-    return StoreBaseDispBody(r_base, displacement, r_src.GetLow(), r_src.GetHigh(), size);
+    store = StoreBaseDispBody(r_base, displacement, r_src.GetLow(), r_src.GetHigh(), size);
   } else {
-    return StoreBaseDispBody(r_base, displacement, r_src, RegStorage::InvalidReg(), size);
+    store = StoreBaseDispBody(r_base, displacement, r_src, RegStorage::InvalidReg(), size);
   }
+
+  if (UNLIKELY(is_volatile == kVolatile)) {
+    // A load might follow the volatile store so insert a StoreLoad barrier.
+    GenMemBarrier(kStoreLoad);
+  }
+
+  return store;
 }
 
 LIR* MipsMir2Lir::OpThreadMem(OpKind op, ThreadOffset<4> thread_offset) {
