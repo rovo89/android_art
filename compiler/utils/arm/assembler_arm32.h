@@ -197,11 +197,25 @@ class Arm32Assembler FINAL : public ArmAssembler {
   void bl(Label* label, Condition cond = AL);
   void blx(Register rm, Condition cond = AL) OVERRIDE;
   void bx(Register rm, Condition cond = AL) OVERRIDE;
-  void Lsl(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL);
-  void Lsr(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL);
-  void Asr(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL);
-  void Ror(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL);
-  void Rrx(Register rd, Register rm, Condition cond = AL);
+  void Lsl(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
+  void Lsr(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
+  void Asr(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
+  void Ror(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
+  void Rrx(Register rd, Register rm, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
+
+  void Lsl(Register rd, Register rm, Register rn, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
+  void Lsr(Register rd, Register rm, Register rn, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
+  void Asr(Register rd, Register rm, Register rn, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
+  void Ror(Register rd, Register rm, Register rn, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
 
   void Push(Register rd, Condition cond = AL) OVERRIDE;
   void Pop(Register rd, Condition cond = AL) OVERRIDE;

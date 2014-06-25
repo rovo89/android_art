@@ -28,6 +28,15 @@ namespace arm {
 #include "assembler_thumb_test_expected.cc.inc"
 
 #ifndef HAVE_ANDROID_OS
+// This controls whether the results are printed to the
+// screen or compared against the expected output.
+// To generate new expected output, set this to true and
+// copy the output into the .cc.inc file in the form
+// of the other results.
+//
+// When this is false, the results are not printed to the
+// output, but are compared against the expected results
+// in the .cc.inc file.
 static constexpr bool kPrintResults = false;
 #endif
 
@@ -36,6 +45,19 @@ void SetAndroidData() {
   if (data == nullptr) {
     setenv("ANDROID_DATA", "/tmp", 1);
   }
+}
+
+int CompareIgnoringSpace(const char* s1, const char* s2) {
+  while (*s1 != '\0') {
+    while (isspace(*s1)) ++s1;
+    while (isspace(*s2)) ++s2;
+    if (*s1 == '\0' || *s1 != *s2) {
+      break;
+    }
+    ++s1;
+    ++s2;
+  }
+  return *s1 - *s2;
 }
 
 std::string GetAndroidToolsDir() {
@@ -180,7 +202,10 @@ void dump(std::vector<uint8_t>& code, const char* testname) {
       if (s == nullptr) {
         break;
       }
-      ASSERT_EQ(strcmp(results->second[lineindex], testline), 0);
+      if (CompareIgnoringSpace(results->second[lineindex], testline) != 0) {
+        LOG(FATAL) << "Output is not as expected at line: " << lineindex
+          << results->second[lineindex] << "/" << testline;
+      }
       ++lineindex;
     }
     // Check that we are at the end.
@@ -1219,6 +1244,117 @@ TEST(Thumb2AssemblerTest, MixedBranch32) {
   MemoryRegion code(&managed_code[0], managed_code.size());
   __ FinalizeInstructions(code);
   dump(managed_code, "MixedBranch32");
+  delete assembler;
+}
+
+TEST(Thumb2AssemblerTest, Shifts) {
+  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+
+  // 16 bit
+  __ Lsl(R0, R1, 5);
+  __ Lsr(R0, R1, 5);
+  __ Asr(R0, R1, 5);
+
+  __ Lsl(R0, R0, R1);
+  __ Lsr(R0, R0, R1);
+  __ Asr(R0, R0, R1);
+
+  // 32 bit due to high registers.
+  __ Lsl(R8, R1, 5);
+  __ Lsr(R0, R8, 5);
+  __ Asr(R8, R1, 5);
+  __ Ror(R0, R8, 5);
+
+  // 32 bit due to different Rd and Rn.
+  __ Lsl(R0, R1, R2);
+  __ Lsr(R0, R1, R2);
+  __ Asr(R0, R1, R2);
+  __ Ror(R0, R1, R2);
+
+  // 32 bit due to use of high registers.
+  __ Lsl(R8, R1, R2);
+  __ Lsr(R0, R8, R2);
+  __ Asr(R0, R1, R8);
+
+  // S bit (all 32 bit)
+
+  // 32 bit due to high registers.
+  __ Lsl(R8, R1, 5, true);
+  __ Lsr(R0, R8, 5, true);
+  __ Asr(R8, R1, 5, true);
+  __ Ror(R0, R8, 5, true);
+
+  // 32 bit due to different Rd and Rn.
+  __ Lsl(R0, R1, R2, true);
+  __ Lsr(R0, R1, R2, true);
+  __ Asr(R0, R1, R2, true);
+  __ Ror(R0, R1, R2, true);
+
+  // 32 bit due to use of high registers.
+  __ Lsl(R8, R1, R2, true);
+  __ Lsr(R0, R8, R2, true);
+  __ Asr(R0, R1, R8, true);
+
+  size_t cs = __ CodeSize();
+  std::vector<uint8_t> managed_code(cs);
+  MemoryRegion code(&managed_code[0], managed_code.size());
+  __ FinalizeInstructions(code);
+  dump(managed_code, "Shifts");
+  delete assembler;
+}
+
+TEST(Thumb2AssemblerTest, LoadStoreRegOffset) {
+  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+
+  // 16 bit.
+  __ ldr(R0, Address(R1, R2));
+  __ str(R0, Address(R1, R2));
+
+  // 32 bit due to shift.
+  __ ldr(R0, Address(R1, R2, LSL, 1));
+  __ str(R0, Address(R1, R2, LSL, 1));
+
+  __ ldr(R0, Address(R1, R2, LSL, 3));
+  __ str(R0, Address(R1, R2, LSL, 3));
+
+  // 32 bit due to high register use.
+  __ ldr(R8, Address(R1, R2));
+  __ str(R8, Address(R1, R2));
+
+  __ ldr(R1, Address(R8, R2));
+  __ str(R2, Address(R8, R2));
+
+  __ ldr(R0, Address(R1, R8));
+  __ str(R0, Address(R1, R8));
+
+  size_t cs = __ CodeSize();
+  std::vector<uint8_t> managed_code(cs);
+  MemoryRegion code(&managed_code[0], managed_code.size());
+  __ FinalizeInstructions(code);
+  dump(managed_code, "LoadStoreRegOffset");
+  delete assembler;
+}
+
+TEST(Thumb2AssemblerTest, LoadStoreLiteral) {
+  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+
+  __ ldr(R0, Address(4));
+  __ str(R0, Address(4));
+
+  __ ldr(R0, Address(-8));
+  __ str(R0, Address(-8));
+
+  // Limits.
+  __ ldr(R0, Address(0x3ff));       // 10 bits (16 bit).
+  __ ldr(R0, Address(0x7ff));       // 11 bits (32 bit).
+  __ str(R0, Address(0x3ff));       // 32 bit (no 16 bit str(literal)).
+  __ str(R0, Address(0x7ff));       // 11 bits (32 bit).
+
+  size_t cs = __ CodeSize();
+  std::vector<uint8_t> managed_code(cs);
+  MemoryRegion code(&managed_code[0], managed_code.size());
+  __ FinalizeInstructions(code);
+  dump(managed_code, "LoadStoreLiteral");
   delete assembler;
 }
 

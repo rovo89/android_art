@@ -68,7 +68,7 @@ class ShifterOperand {
   }
 
   uint32_t encodingArm() const;
-  uint32_t encodingThumb(int version) const;
+  uint32_t encodingThumb() const;
 
   bool IsEmpty() const {
     return type_ == kUnknown;
@@ -196,8 +196,26 @@ class Address {
     NegPostIndex = (0|0|0) << 21   // negative post-indexed with writeback
   };
 
-  explicit Address(Register rn, int32_t offset = 0, Mode am = Offset) : rn_(rn), offset_(offset),
-      am_(am) {
+  Address(Register rn, int32_t offset = 0, Mode am = Offset) : rn_(rn), rm_(R0),
+      offset_(offset),
+      am_(am), is_immed_offset_(true), shift_(LSL) {
+  }
+
+  Address(Register rn, Register rm, Mode am = Offset) : rn_(rn), rm_(rm), offset_(0),
+      am_(am), is_immed_offset_(false), shift_(LSL) {
+    CHECK_NE(rm, PC);
+  }
+
+  Address(Register rn, Register rm, Shift shift, uint32_t count, Mode am = Offset) :
+                       rn_(rn), rm_(rm), offset_(count),
+                       am_(am), is_immed_offset_(false), shift_(shift) {
+    CHECK_NE(rm, PC);
+  }
+
+  // LDR(literal) - pc relative load.
+  explicit Address(int32_t offset) :
+               rn_(PC), rm_(R0), offset_(offset),
+               am_(Offset), is_immed_offset_(false), shift_(LSL) {
   }
 
   static bool CanHoldLoadOffsetArm(LoadOperandType type, int offset);
@@ -207,7 +225,7 @@ class Address {
   static bool CanHoldStoreOffsetThumb(StoreOperandType type, int offset);
 
   uint32_t encodingArm() const;
-  uint32_t encodingThumb(int version) const;
+  uint32_t encodingThumb(bool is_32bit) const;
 
   uint32_t encoding3() const;
   uint32_t vencoding() const;
@@ -218,6 +236,10 @@ class Address {
     return rn_;
   }
 
+  Register GetRegisterOffset() const {
+    return rm_;
+  }
+
   int32_t GetOffset() const {
     return offset_;
   }
@@ -226,10 +248,26 @@ class Address {
     return am_;
   }
 
+  bool IsImmediate() const {
+    return is_immed_offset_;
+  }
+
+  Shift GetShift() const {
+    return shift_;
+  }
+
+  int32_t GetShiftCount() const {
+    CHECK(!is_immed_offset_);
+    return offset_;
+  }
+
  private:
   Register rn_;
-  int32_t offset_;
+  Register rm_;
+  int32_t offset_;      // Used as shift amount for register offset.
   Mode am_;
+  bool is_immed_offset_;
+  Shift shift_;
 };
 
 // Instruction encoding bits.
@@ -544,11 +582,25 @@ class ArmAssembler : public Assembler {
 
   // Convenience shift instructions. Use mov instruction with shifter operand
   // for variants setting the status flags or using a register shift count.
-  virtual void Lsl(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL) = 0;
-  virtual void Lsr(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL) = 0;
-  virtual void Asr(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL) = 0;
-  virtual void Ror(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL) = 0;
-  virtual void Rrx(Register rd, Register rm, Condition cond = AL) = 0;
+  virtual void Lsl(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
+                   Condition cond = AL) = 0;
+  virtual void Lsr(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
+                   Condition cond = AL) = 0;
+  virtual void Asr(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
+                   Condition cond = AL) = 0;
+  virtual void Ror(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
+                   Condition cond = AL) = 0;
+  virtual void Rrx(Register rd, Register rm, bool setcc = false,
+                   Condition cond = AL) = 0;
+
+  virtual void Lsl(Register rd, Register rm, Register rn, bool setcc = false,
+                   Condition cond = AL) = 0;
+  virtual void Lsr(Register rd, Register rm, Register rn, bool setcc = false,
+                   Condition cond = AL) = 0;
+  virtual void Asr(Register rd, Register rm, Register rn, bool setcc = false,
+                   Condition cond = AL) = 0;
+  virtual void Ror(Register rd, Register rm, Register rn, bool setcc = false,
+                   Condition cond = AL) = 0;
 
   static bool IsInstructionForExceptionHandling(uword pc);
 
@@ -672,6 +724,14 @@ class ArmAssembler : public Assembler {
   void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust) OVERRIDE;
 
   static uint32_t ModifiedImmediate(uint32_t value);
+
+  static bool IsLowRegister(Register r) {
+    return r < R8;
+  }
+
+  static bool IsHighRegister(Register r) {
+     return r >= R8;
+  }
 
  protected:
   // Returns whether or not the given register is used for passing parameters.

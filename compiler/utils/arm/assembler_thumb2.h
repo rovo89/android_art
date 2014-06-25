@@ -221,11 +221,25 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void blx(Register rm, Condition cond = AL) OVERRIDE;
   void bx(Register rm, Condition cond = AL) OVERRIDE;
 
-  void Lsl(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL);
-  void Lsr(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL);
-  void Asr(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL);
-  void Ror(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL);
-  void Rrx(Register rd, Register rm, Condition cond = AL);
+  void Lsl(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
+  void Lsr(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
+  void Asr(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
+  void Ror(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
+  void Rrx(Register rd, Register rm, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
+
+  void Lsl(Register rd, Register rm, Register rn, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
+  void Lsr(Register rd, Register rm, Register rn, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
+  void Asr(Register rd, Register rm, Register rn, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
+  void Ror(Register rd, Register rm, Register rn, bool setcc = false,
+           Condition cond = AL) OVERRIDE;
 
   void Push(Register rd, Condition cond = AL) OVERRIDE;
   void Pop(Register rd, Condition cond = AL) OVERRIDE;
@@ -395,14 +409,8 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   static int DecodeBranchOffset(int32_t inst);
   int32_t EncodeTstOffset(int offset, int32_t inst);
   int DecodeTstOffset(int32_t inst);
-
-  bool IsLowRegister(Register r) {
-    return r < R8;
-  }
-
-  bool IsHighRegister(Register r) {
-     return r >= R8;
-  }
+  void EmitShift(Register rd, Register rm, Shift shift, uint8_t amount, bool setcc = false);
+  void EmitShift(Register rd, Register rn, Shift shift, Register rm, bool setcc = false);
 
   bool force_32bit_;      // Force the assembler to use 32 bit thumb2 instructions.
 
