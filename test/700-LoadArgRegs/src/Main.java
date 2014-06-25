@@ -270,8 +270,11 @@ public class Main {
 //        testL2x(100100100100011L, 100100100100011L);
   }
 
-  static public void main(String[] args) throws Exception {
+  static void testMore(int i1, double d1, double d2, double d3, double d4, double d5, double d6, double d7, double d8, double d9, int i2, int i3, int i4, int i5, int i6) {
+    System.out.println(i1+", "+d1+", "+d2+", "+d3+", "+d4+", "+d5+", "+d6+", "+d7+", "+d8+", "+d9+", "+i2+", "+i3+", "+i4+", "+i5+", "+i6);
+  }
 
+  static public void main(String[] args) throws Exception {
     testI();
     testB();
     testO();
@@ -284,5 +287,6 @@ public class Main {
 
     testLL();
 
+    testMore(1, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 2, 3, 4, 5, 6);
   }
 }
