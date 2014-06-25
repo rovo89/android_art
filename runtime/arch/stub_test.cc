@@ -258,7 +258,7 @@ class StubTest : public CommonRuntimeTest {
           "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23",
           "d24", "d25", "d26", "d27", "d28", "d29", "d30", "d31",
           "memory");  // clobber.
-#elif defined(__x86_64__)
+#elif defined(__x86_64__) && !defined(__APPLE__)
     // Note: Uses the native convention
     // TODO: Set the thread?
     __asm__ __volatile__(
@@ -483,7 +483,7 @@ class StubTest : public CommonRuntimeTest {
           "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23",
           "d24", "d25", "d26", "d27", "d28", "d29", "d30", "d31",
           "memory");  // clobber.
-#elif defined(__x86_64__)
+#elif defined(__x86_64__) && !defined(__APPLE__)
     // Note: Uses the native convention
     // TODO: Set the thread?
     __asm__ __volatile__(
@@ -518,7 +518,7 @@ class StubTest : public CommonRuntimeTest {
   // Method with 32b arg0, 64b arg1
   size_t Invoke3UWithReferrer(size_t arg0, uint64_t arg1, uintptr_t code, Thread* self,
                               mirror::ArtMethod* referrer) {
-#if defined(__x86_64__) || defined(__aarch64__)
+#if (defined(__x86_64__) && !defined(__APPLE__)) || defined(__aarch64__)
     // Just pass through.
     return Invoke3WithReferrer(arg0, arg1, 0U, code, self, referrer);
 #else
@@ -533,7 +533,7 @@ class StubTest : public CommonRuntimeTest {
   // Method with 32b arg0, 32b arg1, 64b arg2
   size_t Invoke3UUWithReferrer(uint32_t arg0, uint32_t arg1, uint64_t arg2, uintptr_t code,
                                Thread* self, mirror::ArtMethod* referrer) {
-#if defined(__x86_64__) || defined(__aarch64__)
+#if (defined(__x86_64__) && !defined(__APPLE__)) || defined(__aarch64__)
     // Just pass through.
     return Invoke3WithReferrer(arg0, arg1, arg2, code, self, referrer);
 #else
@@ -547,12 +547,12 @@ class StubTest : public CommonRuntimeTest {
 };
 
 
-#if defined(__i386__) || defined(__x86_64__)
+#if defined(__i386__) || (defined(__x86_64__) && !defined(__APPLE__))
 extern "C" void art_quick_memcpy(void);
 #endif
 
 TEST_F(StubTest, Memcpy) {
-#if defined(__i386__) || defined(__x86_64__)
+#if defined(__i386__) || (defined(__x86_64__) && !defined(__APPLE__))
   Thread* self = Thread::Current();
 
   uint32_t orig[20];
@@ -588,12 +588,12 @@ TEST_F(StubTest, Memcpy) {
 #endif
 }
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
 extern "C" void art_quick_lock_object(void);
 #endif
 
 TEST_F(StubTest, LockObject) {
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   static constexpr size_t kThinLockLoops = 100;
 
   Thread* self = Thread::Current();
@@ -664,14 +664,14 @@ class RandGen {
 };
 
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
 extern "C" void art_quick_lock_object(void);
 extern "C" void art_quick_unlock_object(void);
 #endif
 
 // NO_THREAD_SAFETY_ANALYSIS as we do not want to grab exclusive mutator lock for MonitorInfo.
 static void TestUnlockObject(StubTest* test) NO_THREAD_SAFETY_ANALYSIS {
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   static constexpr size_t kThinLockLoops = 100;
 
   Thread* self = Thread::Current();
@@ -817,12 +817,12 @@ TEST_F(StubTest, UnlockObject) {
   TestUnlockObject(this);
 }
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
 extern "C" void art_quick_check_cast(void);
 #endif
 
 TEST_F(StubTest, CheckCast) {
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   Thread* self = Thread::Current();
   // Find some classes.
   ScopedObjectAccess soa(self);
@@ -867,7 +867,7 @@ TEST_F(StubTest, CheckCast) {
 }
 
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
 extern "C" void art_quick_aput_obj_with_null_and_bound_check(void);
 // Do not check non-checked ones, we'd need handlers and stuff...
 #endif
@@ -875,7 +875,7 @@ extern "C" void art_quick_aput_obj_with_null_and_bound_check(void);
 TEST_F(StubTest, APutObj) {
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   Thread* self = Thread::Current();
   // Create an object
   ScopedObjectAccess soa(self);
@@ -1003,7 +1003,7 @@ TEST_F(StubTest, APutObj) {
 TEST_F(StubTest, AllocObject) {
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   // TODO: Check the "Unresolved" allocation stubs
 
   Thread* self = Thread::Current();
@@ -1125,7 +1125,7 @@ TEST_F(StubTest, AllocObject) {
 TEST_F(StubTest, AllocObjectArray) {
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   // TODO: Check the "Unresolved" allocation stubs
 
   Thread* self = Thread::Current();
@@ -1204,14 +1204,14 @@ TEST_F(StubTest, AllocObjectArray) {
 }
 
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
 extern "C" void art_quick_string_compareto(void);
 #endif
 
 TEST_F(StubTest, StringCompareTo) {
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   // TODO: Check the "Unresolved" allocation stubs
 
   Thread* self = Thread::Current();
@@ -1301,7 +1301,7 @@ TEST_F(StubTest, StringCompareTo) {
 }
 
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
 extern "C" void art_quick_set32_static(void);
 extern "C" void art_quick_get32_static(void);
 #endif
@@ -1309,7 +1309,7 @@ extern "C" void art_quick_get32_static(void);
 static void GetSet32Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
                            mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   constexpr size_t num_values = 7;
   uint32_t values[num_values] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF };
 
@@ -1337,7 +1337,7 @@ static void GetSet32Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>
 }
 
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
 extern "C" void art_quick_set32_instance(void);
 extern "C" void art_quick_get32_instance(void);
 #endif
@@ -1345,7 +1345,7 @@ extern "C" void art_quick_get32_instance(void);
 static void GetSet32Instance(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f,
                              Thread* self, mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   constexpr size_t num_values = 7;
   uint32_t values[num_values] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF };
 
@@ -1379,7 +1379,7 @@ static void GetSet32Instance(Handle<mirror::Object>* obj, Handle<mirror::ArtFiel
 }
 
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
 extern "C" void art_quick_set_obj_static(void);
 extern "C" void art_quick_get_obj_static(void);
 
@@ -1406,7 +1406,7 @@ static void set_and_check_static(uint32_t f_idx, mirror::Object* val, Thread* se
 static void GetSetObjStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
                             mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   set_and_check_static((*f)->GetDexFieldIndex(), nullptr, self, referrer, test);
 
   // Allocate a string object for simplicity.
@@ -1422,7 +1422,7 @@ static void GetSetObjStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtField
 }
 
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
 extern "C" void art_quick_set_obj_instance(void);
 extern "C" void art_quick_get_obj_instance(void);
 
@@ -1453,7 +1453,7 @@ static void set_and_check_instance(Handle<mirror::ArtField>* f, mirror::Object* 
 static void GetSetObjInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f,
                               Thread* self, mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   set_and_check_instance(f, obj->Get(), nullptr, self, referrer, test);
 
   // Allocate a string object for simplicity.
@@ -1471,7 +1471,7 @@ static void GetSetObjInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtFie
 
 // TODO: Complete these tests for 32b architectures.
 
-#if defined(__x86_64__) || defined(__aarch64__)
+#if (defined(__x86_64__) && !defined(__APPLE__)) || defined(__aarch64__)
 extern "C" void art_quick_set64_static(void);
 extern "C" void art_quick_get64_static(void);
 #endif
@@ -1479,7 +1479,7 @@ extern "C" void art_quick_get64_static(void);
 static void GetSet64Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
                            mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#if defined(__x86_64__) || defined(__aarch64__)
+#if (defined(__x86_64__) && !defined(__APPLE__)) || defined(__aarch64__)
   constexpr size_t num_values = 8;
   uint64_t values[num_values] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF, 0xFFFFFFFFFFFF };
 
@@ -1506,7 +1506,7 @@ static void GetSet64Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>
 }
 
 
-#if defined(__x86_64__) || defined(__aarch64__)
+#if (defined(__x86_64__) && !defined(__APPLE__)) || defined(__aarch64__)
 extern "C" void art_quick_set64_instance(void);
 extern "C" void art_quick_get64_instance(void);
 #endif
@@ -1514,7 +1514,7 @@ extern "C" void art_quick_get64_instance(void);
 static void GetSet64Instance(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f,
                              Thread* self, mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#if defined(__x86_64__) || defined(__aarch64__)
+#if (defined(__x86_64__) && !defined(__APPLE__)) || defined(__aarch64__)
   constexpr size_t num_values = 8;
   uint64_t values[num_values] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF, 0xFFFFFFFFFFFF };
 
@@ -1678,12 +1678,12 @@ TEST_F(StubTest, Fields64) {
   TestFields(self, this, Primitive::Type::kPrimLong);
 }
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
 extern "C" void art_quick_imt_conflict_trampoline(void);
 #endif
 
 TEST_F(StubTest, IMT) {
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
 
   Thread* self = Thread::Current();
