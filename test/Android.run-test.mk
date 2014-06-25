@@ -62,6 +62,7 @@ $$(dmart_target): $(DX) $(HOST_OUT_EXECUTABLES)/jasmin
   TEST_ART_RUN_TEST_BUILD_RULES += $$(dmart_target)
   dmart_target :=
 endef
+$(foreach test, $(TEST_ART_RUN_TESTS), $(eval $(call define-build-art-run-test,$(test))))
 
 include $(CLEAR_VARS)
 LOCAL_MODULE_TAGS := tests
