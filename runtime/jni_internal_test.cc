@@ -1518,7 +1518,7 @@ TEST_F(JniInternalTest, NewDirectBuffer_GetDirectBufferAddress_GetDirectBufferCa
 
   {
     CheckJniAbortCatcher check_jni_abort_catcher;
-    env_->NewDirectByteBuffer(bytes, static_cast<jlong>(INT_MAX) * 2);
+    env_->NewDirectByteBuffer(bytes, static_cast<jlong>(INT_MAX) + 1);
     check_jni_abort_catcher.Check("in call to NewDirectByteBuffer");
   }
 }
