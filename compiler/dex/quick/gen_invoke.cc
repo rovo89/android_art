@@ -1527,6 +1527,11 @@ bool Mir2Lir::GenInlinedDoubleCvt(CallInfo* info) {
   return true;
 }
 
+bool Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
+  return false;
+}
+
+
 /*
  * Fast String.indexOf(I) & (II).  Tests for simple case of char <= 0xFFFF,
  * otherwise bails to standard library code.

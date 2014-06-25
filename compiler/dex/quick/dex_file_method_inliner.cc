@@ -84,6 +84,8 @@ const char* const DexFileMethodInliner::kClassCacheNames[] = {
     "Ljava/lang/Thread;",      // kClassCacheJavaLangThread
     "Llibcore/io/Memory;",     // kClassCacheLibcoreIoMemory
     "Lsun/misc/Unsafe;",       // kClassCacheSunMiscUnsafe
+    "Ljava/lang/System;",      // kClassCacheJavaLangSystem
+    "[C"                       // kClassCacheJavaLangCharArray
 };
 
 const char* const DexFileMethodInliner::kNameCacheNames[] = {
@@ -129,6 +131,7 @@ const char* const DexFileMethodInliner::kNameCacheNames[] = {
     "putObject",             // kNameCachePutObject
     "putObjectVolatile",     // kNameCachePutObjectVolatile
     "putOrderedObject",      // kNameCachePutOrderedObject
+    "arraycopy",             // kNameCacheArrayCopy
 };
 
 const DexFileMethodInliner::ProtoDef DexFileMethodInliner::kProtoCacheDefs[] = {
@@ -204,6 +207,9 @@ const DexFileMethodInliner::ProtoDef DexFileMethodInliner::kProtoCacheDefs[] = {
     // kProtoCacheObjectJObject_V
     { kClassCacheVoid, 3, { kClassCacheJavaLangObject, kClassCacheLong,
         kClassCacheJavaLangObject } },
+    // kProtoCacheCharArrayICharArrayII_V
+    { kClassCacheVoid, 5, {kClassCacheJavaLangCharArray, kClassCacheInt,
+                kClassCacheJavaLangCharArray, kClassCacheInt, kClassCacheInt}}
 };
 
 const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods[] = {
@@ -290,6 +296,10 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     UNSAFE_GET_PUT(Long, J, kIntrinsicFlagIsLong),
     UNSAFE_GET_PUT(Object, Object, kIntrinsicFlagIsObject),
 #undef UNSAFE_GET_PUT
+
+    INTRINSIC(JavaLangSystem, ArrayCopy, CharArrayICharArrayII_V , kIntrinsicSystemArrayCopyCharArray,
+              0),
+
 
 #undef INTRINSIC
 };
@@ -387,6 +397,8 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
                                           intrinsic.d.data & kIntrinsicFlagIsObject,
                                           intrinsic.d.data & kIntrinsicFlagIsVolatile,
                                           intrinsic.d.data & kIntrinsicFlagIsOrdered);
+    case kIntrinsicSystemArrayCopyCharArray:
+      return backend->GenInlinedArrayCopyCharArray(info);
     default:
       LOG(FATAL) << "Unexpected intrinsic opcode: " << intrinsic.opcode;
       return false;  // avoid warning "control reaches end of non-void function"
