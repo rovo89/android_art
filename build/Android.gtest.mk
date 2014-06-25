@@ -45,21 +45,21 @@ $(foreach dir,$(GTEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,art-gte
   $(ART_TARGET_NATIVETEST_OUT),art/build/Android.gtest.mk,ART_GTEST_$(dir)_DEX)))
 
 # Dex file dependencies for each gtest.
-ART_GTEST_class_linker_test_DEPS := Interfaces MyClass Nested Statics StaticsFromCode
-ART_GTEST_compiler_driver_test_DEPS := AbstractMethod
-ART_GTEST_dex_file_test_DEPS := GetMethodSignature
-ART_GTEST_exception_test_DEPS := ExceptionHandle
-ART_GTEST_jni_compiler_test_DEPS := MyClassNatives
-ART_GTEST_jni_internal_test_DEPS := AllFields StaticLeafMethods
-ART_GTEST_object_test_DEPS := ProtoCompare ProtoCompare2 StaticsFromCode XandY
-ART_GTEST_proxy_test_DEPS := Interfaces
-ART_GTEST_reflection_test_DEPS := Main NonStaticLeafMethods StaticLeafMethods
-ART_GTEST_stub_test_DEPS := AllFields
-ART_GTEST_transaction_test_DEPS := Transaction
+ART_GTEST_class_linker_test_DEX_DEPS := Interfaces MyClass Nested Statics StaticsFromCode
+ART_GTEST_compiler_driver_test_DEX_DEPS := AbstractMethod
+ART_GTEST_dex_file_test_DEX_DEPS := GetMethodSignature
+ART_GTEST_exception_test_DEX_DEPS := ExceptionHandle
+ART_GTEST_jni_compiler_test_DEX_DEPS := MyClassNatives
+ART_GTEST_jni_internal_test_DEX_DEPS := AllFields StaticLeafMethods
+ART_GTEST_object_test_DEX_DEPS := ProtoCompare ProtoCompare2 StaticsFromCode XandY
+ART_GTEST_proxy_test_DEX_DEPS := Interfaces
+ART_GTEST_reflection_test_DEX_DEPS := Main NonStaticLeafMethods StaticLeafMethods
+ART_GTEST_stub_test_DEX_DEPS := AllFields
+ART_GTEST_transaction_test_DEX_DEPS := Transaction
 
 # The elf writer test has dependencies on core.oat.
-ART_GTEST_elf_writer_test_DEPS := $(HOST_CORE_OAT_OUT) $(2ND_HOST_CORE_OAT_OUT) \
-  $(TARGET_CORE_OAT_OUT) $(2ND_TARGET_CORE_OAT_OUT)
+ART_GTEST_elf_writer_test_HOST_DEPS := $(HOST_CORE_OAT_OUT) $(2ND_HOST_CORE_OAT_OUT)
+ART_GTEST_elf_writer_test_TARGET_DEPS := $(TARGET_CORE_OAT_OUT) $(2ND_TARGET_CORE_OAT_OUT)
 
 # The path for which all the source files are relative, not actually the current directory.
 LOCAL_PATH := art
@@ -194,7 +194,8 @@ define define-art-gtest-rule-target
   # Add the test dependencies to test-art-target-sync, which will be a prerequisite for the test
   # to ensure files are pushed to the device.
   TEST_ART_TARGET_SYNC_DEPS += \
-    $(foreach file,$(ART_GTEST_$(1)_DEPS),$(ART_GTEST_$(file)_DEX)) \
+    $$(ART_GTEST_$(1)_TARGET_DEPS) \
+    $(foreach file,$(ART_GTEST_$(1)_DEX_DEPS),$(ART_GTEST_$(file)_DEX)) \
     $$(ART_TARGET_NATIVETEST_OUT)/$$(TARGET_$(2)ARCH)/$(1) \
     $$($(2)TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
 
@@ -230,7 +231,7 @@ define define-art-gtest-rule-host
 
 
 .PHONY: $$(gtest_rule)
-$$(gtest_rule): $$(gtest_exe) $(foreach file,$(ART_GTEST_$(1)_DEPS),$(ART_GTEST_$(file)_DEX-host)) $$(gtest_deps)
+$$(gtest_rule): $$(gtest_exe) $$(ART_GTEST_$(1)_HOST_DEPS) $(foreach file,$(ART_GTEST_$(1)_DEX_DEPS),$(ART_GTEST_$(file)_DEX-host)) $$(gtest_deps)
 	$(hide) ($$(call ART_TEST_SKIP,$$@) && $$< && $$(call ART_TEST_PASSED,$$@)) \
 	  || $$(call ART_TEST_FAILED,$$@)
 
@@ -239,7 +240,7 @@ $$(gtest_rule): $$(gtest_exe) $(foreach file,$(ART_GTEST_$(1)_DEPS),$(ART_GTEST_
   ART_TEST_HOST_GTEST_$(1)_RULES += $$(gtest_rule)
 
 .PHONY: valgrind-$$(gtest_rule)
-valgrind-$$(gtest_rule): $$(gtest_exe) $$(ART_GTEST_$(1)_DEPS) $$(gtest_deps)
+valgrind-$$(gtest_rule): $$(gtest_exe) $$(ART_GTEST_$(1)_HOST_DEPS) $(foreach file,$(ART_GTEST_$(1)_DEX_DEPS),$(ART_GTEST_$(file)_DEX-host)) $$(gtest_deps)
 	$(hide) $$(call ART_TEST_SKIP,$$@) && \
 	  valgrind --leak-check=full --error-exitcode=1 $$< && $$(call ART_TEST_PASSED,$$@) \
 	    || $$(call ART_TEST_FAILED,$$@)
@@ -444,17 +445,19 @@ ART_TEST_HOST_VALGRIND_GTEST_RULES :=
 ART_TEST_TARGET_GTEST$(ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_GTEST$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_GTEST_RULES :=
-ART_GTEST_class_linker_test_DEPS :=
-ART_GTEST_compiler_driver_test_DEPS :=
-ART_GTEST_dex_file_test_DEPS :=
-ART_GTEST_exception_test_DEPS :=
-ART_GTEST_jni_compiler_test_DEPS :=
-ART_GTEST_jni_internal_test_DEPS :=
-ART_GTEST_object_test_DEPS :=
-ART_GTEST_proxy_test_DEPS :=
-ART_GTEST_reflection_test_DEPS :=
-ART_GTEST_stub_test_DEPS :=
-ART_GTEST_transaction_test_DEPS :=
+ART_GTEST_class_linker_test_DEX_DEPS :=
+ART_GTEST_compiler_driver_test_DEX_DEPS :=
+ART_GTEST_dex_file_test_DEX_DEPS :=
+ART_GTEST_exception_test_DEX_DEPS :=
+ART_GTEST_elf_writer_test_HOST_DEPS :=
+ART_GTEST_elf_writer_test_TARGET_DEPS :=
+ART_GTEST_jni_compiler_test_DEX_DEPS :=
+ART_GTEST_jni_internal_test_DEX_DEPS :=
+ART_GTEST_object_test_DEX_DEPS :=
+ART_GTEST_proxy_test_DEX_DEPS :=
+ART_GTEST_reflection_test_DEX_DEPS :=
+ART_GTEST_stub_test_DEX_DEPS :=
+ART_GTEST_transaction_test_DEX_DEPS :=
 $(foreach dir,$(GTEST_DEX_DIRECTORIES), $(eval ART_GTEST_TEST_$(dir)_DEX :=))
 GTEST_DEX_DIRECTORIES :=
 LOCAL_PATH :=
