@@ -163,9 +163,14 @@ ART_TEST_HOST_OAT_RULES :=
 # All tests require the host executables, libarttest and the core images.
 ART_TEST_HOST_OAT_DEPENDENCIES := \
   $(ART_HOST_EXECUTABLES) \
-  $(HOST_LIBRARY_PATH)/libarttest$(ART_HOST_SHLIB_EXTENSION) \
-  $(HOST_CORE_IMG_OUT) \
+  $(ART_HOST_LIBRARY_PATH)/libarttest$(ART_HOST_SHLIB_EXTENSION) \
+  $(HOST_CORE_IMG_OUT)
+
+ifneq ($(HOST_PREFER_32_BIT),true)
+ART_TEST_HOST_OAT_DEPENDENCIES += \
+  $(2ND_ART_HOST_LIBRARY_PATH)/libarttest$(ART_HOST_SHLIB_EXTENSION) \
   $(2ND_HOST_CORE_IMG_OUT)
+endif
 
 # Define rule to run an individual oat test on the host. Output from the test is written to the
 # host in /tmp/android-data in a directory named after test's rule name (its target) and the parent
