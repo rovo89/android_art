@@ -45,20 +45,17 @@ $(foreach dir,$(GTEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,art-gte
   $(ART_TARGET_NATIVETEST_OUT),art/build/Android.gtest.mk,ART_GTEST_$(dir)_DEX)))
 
 # Dex file dependencies for each gtest.
-ART_GTEST_class_linker_test_DEPS := $(ART_GTEST_Interfaces_DEX) $(ART_GTEST_MyClass_DEX) \
-  $(ART_GTEST_Nested_DEX) $(ART_GTEST_Statics_DEX) $(ART_GTEST_StaticsFromCode_DEX)
-ART_GTEST_compiler_driver_test_DEPS := $(ART_GTEST_AbstractMethod_DEX)
-ART_GTEST_dex_file_test_DEPS := $(ART_GTEST_GetMethodSignature_DEX)
-ART_GTEST_exception_test_DEPS := $(ART_GTEST_ExceptionHandle_DEX)
-ART_GTEST_jni_compiler_test_DEPS := $(ART_GTEST_MyClassNatives_DEX)
-ART_GTEST_jni_internal_test_DEPS := $(ART_GTEST_AllFields_DEX)
-ART_GTEST_object_test_DEPS := $(ART_GTEST_ProtoCompare_DEX) $(ART_GTEST_ProtoCompare2_DEX) \
-   $(ART_GTEST_StaticsFromCode_DEX) $(ART_GTEST_XandY_DEX)
-ART_GTEST_proxy_test_DEPS := $(ART_GTEST_Interfaces_DEX)
-ART_GTEST_reflection_test_DEPS := $(ART_GTEST_Main_DEX) $(ART_GTEST_NonStaticLeafMethods_DEX) \
-  $(ART_GTEST_StaticLeafMethods_DEX)
-ART_GTEST_stub_test_DEPS := $(ART_GTEST_AllFields_DEX)
-ART_GTEST_transaction_test_DEPS := $(ART_GTEST_Transaction_DEX)
+ART_GTEST_class_linker_test_DEPS := Interfaces MyClass Nested Statics StaticsFromCode
+ART_GTEST_compiler_driver_test_DEPS := AbstractMethod
+ART_GTEST_dex_file_test_DEPS := GetMethodSignature
+ART_GTEST_exception_test_DEPS := ExceptionHandle
+ART_GTEST_jni_compiler_test_DEPS := MyClassNatives
+ART_GTEST_jni_internal_test_DEPS := AllFields StaticLeafMethods
+ART_GTEST_object_test_DEPS := ProtoCompare ProtoCompare2 StaticsFromCode XandY
+ART_GTEST_proxy_test_DEPS := Interfaces
+ART_GTEST_reflection_test_DEPS := Main NonStaticLeafMethods StaticLeafMethods
+ART_GTEST_stub_test_DEPS := AllFields
+ART_GTEST_transaction_test_DEPS := Transaction
 
 # The elf writer test has dependencies on core.oat.
 ART_GTEST_elf_writer_test_DEPS := $(HOST_CORE_OAT_OUT) $(2ND_HOST_CORE_OAT_OUT) \
@@ -194,12 +191,11 @@ ART_TEST_TARGET_GTEST_RULES :=
 define define-art-gtest-rule-target
   gtest_rule := test-art-target-gtest-$(1)$$($(2)ART_PHONY_TEST_TARGET_SUFFIX)
 
-  # Add the test dependencies to test-art-target-sync, which will be a prerequisit for the test
+  # Add the test dependencies to test-art-target-sync, which will be a prerequisite for the test
   # to ensure files are pushed to the device.
   TEST_ART_TARGET_SYNC_DEPS += \
-    $$(ART_GTEST_$(1)_DEPS) \
+    $(foreach file,$(ART_GTEST_$(1)_DEPS),$(ART_GTEST_$(file)_DEX)) \
     $$(ART_TARGET_NATIVETEST_OUT)/$$(TARGET_$(2)ARCH)/$(1) \
-    $$(TARGET_CORE_DEX_LOCATIONS) \
     $$($(2)TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
 
 .PHONY: $$(gtest_rule)
@@ -234,7 +230,7 @@ define define-art-gtest-rule-host
 
 
 .PHONY: $$(gtest_rule)
-$$(gtest_rule): $$(gtest_exe) $$(ART_GTEST_$(1)_DEPS) $$(gtest_deps)
+$$(gtest_rule): $$(gtest_exe) $(foreach file,$(ART_GTEST_$(1)_DEPS),$(ART_GTEST_$(file)_DEX-host)) $$(gtest_deps)
 	$(hide) ($$(call ART_TEST_SKIP,$$@) && $$< && $$(call ART_TEST_PASSED,$$@)) \
 	  || $$(call ART_TEST_FAILED,$$@)
 
