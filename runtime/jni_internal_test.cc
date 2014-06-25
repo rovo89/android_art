@@ -1515,6 +1515,12 @@ TEST_F(JniInternalTest, NewDirectBuffer_GetDirectBufferAddress_GetDirectBufferCa
   ASSERT_TRUE(env_->IsInstanceOf(buffer, buffer_class));
   ASSERT_EQ(env_->GetDirectBufferAddress(buffer), bytes);
   ASSERT_EQ(env_->GetDirectBufferCapacity(buffer), static_cast<jlong>(sizeof(bytes)));
+
+  {
+    CheckJniAbortCatcher check_jni_abort_catcher;
+    env_->NewDirectByteBuffer(bytes, static_cast<jlong>(INT_MAX) * 2);
+    check_jni_abort_catcher.Check("in call to NewDirectByteBuffer");
+  }
 }
 
 TEST_F(JniInternalTest, MonitorEnterExit) {
@@ -1568,7 +1574,6 @@ TEST_F(JniInternalTest, MonitorEnterExit) {
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->MonitorEnter(nullptr);
     check_jni_abort_catcher.Check("in call to MonitorEnter");
-
     env_->MonitorExit(nullptr);
     check_jni_abort_catcher.Check("in call to MonitorExit");
   }
