@@ -99,6 +99,7 @@ define build-art-test-dex
     LOCAL_MODULE_PATH := $(3)
     LOCAL_DEX_PREOPT_IMAGE_LOCATION := $(TARGET_CORE_IMG_OUT)
     include $(BUILD_JAVA_LIBRARY)
+    $(5) := $$(LOCAL_INSTALLED_MODULE)
   endif
   ifeq ($(ART_BUILD_HOST),true)
     include $(CLEAR_VARS)
@@ -110,8 +111,8 @@ define build-art-test-dex
     LOCAL_JAVA_LIBRARIES := $(HOST_CORE_JARS)
     LOCAL_DEX_PREOPT_IMAGE := $(HOST_CORE_IMG_LOCATION)
     include $(BUILD_HOST_DALVIK_JAVA_LIBRARY)
+    $(5)-host := $$(LOCAL_INSTALLED_MODULE)
   endif
-  $(5) := $$(LOCAL_INSTALLED_MODULE)
 endef
 
 endif # ANDROID_COMMON_TEST_MK
