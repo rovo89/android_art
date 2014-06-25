@@ -115,12 +115,13 @@ void ObjectRegistry::Clear() {
   // Delete all the JNI references.
   JNIEnv* env = self->GetJniEnv();
   for (const auto& pair : object_to_entry_) {
-    const ObjectRegistryEntry& entry = *pair.second;
-    if (entry.jni_reference_type == JNIWeakGlobalRefType) {
-      env->DeleteWeakGlobalRef(entry.jni_reference);
+    const ObjectRegistryEntry* entry = pair.second;
+    if (entry->jni_reference_type == JNIWeakGlobalRefType) {
+      env->DeleteWeakGlobalRef(entry->jni_reference);
     } else {
-      env->DeleteGlobalRef(entry.jni_reference);
+      env->DeleteGlobalRef(entry->jni_reference);
     }
+    delete entry;
   }
   // Clear the maps.
   object_to_entry_.clear();
