@@ -101,10 +101,6 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   }
 
   InstructionSet instruction_set = GetCompilerDriver()->GetInstructionSet();
-  // The optimizing compiler currently does not have a Thumb2 assembler.
-  if (instruction_set == kThumb2) {
-    instruction_set = kArm;
-  }
   CodeGenerator* codegen = CodeGenerator::Create(&arena, graph, instruction_set);
   if (codegen == nullptr) {
     if (shouldCompile) {
