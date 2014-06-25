@@ -19,7 +19,7 @@
 
 #include "asm_support_x86_64.h"
 
-#if defined(__clang__) && (__clang_major__ < 4) && (__clang_minor__ < 5)
+#if defined(__APPLE__) || (defined(__clang__) && (__clang_major__ < 4) && (__clang_minor__ < 5))
     // Clang's as(1) doesn't let you name macro parameters prior to 3.5.
     #define MACRO0(macro_name) .macro macro_name
     #define MACRO1(macro_name, macro_arg1) .macro macro_name
@@ -27,13 +27,12 @@
     #define MACRO3(macro_name, macro_arg1, macro_args2, macro_args3) .macro macro_name
     #define END_MACRO .endmacro
 
-    // Clang's as(1) uses $0, $1, and so on for macro arguments prior to 3.5.
+    // Clang's as(1) uses $0, $1, and so on for macro arguments.
+    #define RAW_VAR(name,index) $index
     #define VAR(name,index) SYMBOL($index)
-    #define PLT_VAR(name, index) SYMBOL($index)@PLT
+    #define PLT_VAR(name, index) PLT_SYMBOL($index)
     #define REG_VAR(name,index) %$index
     #define CALL_MACRO(name,index) $index
-    #define FUNCTION_TYPE(name,index) .type $index, @function
-    #define SIZE(name,index) .size $index, .-$index
 
     //  The use of $x for arguments mean that literals need to be represented with $$x in macros.
     #define LITERAL(value) $value
@@ -52,15 +51,25 @@
     // no special meaning to $, so literals are still just $x. The use of altmacro means % is a
     // special character meaning care needs to be taken when passing registers as macro arguments.
     .altmacro
+    #define RAW_VAR(name,index) name&
     #define VAR(name,index) name&
     #define PLT_VAR(name, index) name&@PLT
     #define REG_VAR(name,index) %name
     #define CALL_MACRO(name,index) name&
-    #define FUNCTION_TYPE(name,index) .type name&, @function
-    #define SIZE(name,index) .size name, .-name
 
     #define LITERAL(value) $value
     #define MACRO_LITERAL(value) $value
+#endif
+
+#if defined(__APPLE__)
+    #define FUNCTION_TYPE(name,index)
+    #define SIZE(name,index)
+#elif defined(__clang__) && (__clang_major__ < 4) && (__clang_minor__ < 5)
+    #define FUNCTION_TYPE(name,index) .type $index, @function
+    #define SIZE(name,index) .size $index, .-$index
+#else
+    #define FUNCTION_TYPE(name,index) .type name&, @function
+    #define SIZE(name,index) .size name, .-name
 #endif
 
     // CFI support.
@@ -86,9 +95,14 @@
     // Symbols.
 #if !defined(__APPLE__)
     #define SYMBOL(name) name
-    #define PLT_SYMBOL(name) name ## @PLT
+    #if defined(__clang__) && (__clang_major__ < 4) && (__clang_minor__ < 5)
+        // TODO: Disabled for old clang 3.3, this leads to text relocations and there should be a
+        // better fix.
+        #define PLT_SYMBOL(name) name // ## @PLT
+    #else
+        #define PLT_SYMBOL(name) name ## @PLT
+    #endif
 #else
-    // Mac OS' symbols have an _ prefix.
     #define SYMBOL(name) _ ## name
     #define PLT_SYMBOL(name) _ ## name
 #endif
@@ -103,8 +117,6 @@ MACRO1(DEFINE_FUNCTION, c_name)
     .globl VAR(c_name, 0)
     ALIGN_FUNCTION_ENTRY
 VAR(c_name, 0):
-    // Have a local entrypoint that's not globl
-VAR(c_name, 0)_local:
     CFI_STARTPROC
     // Ensure we get a sane starting CFA.
     CFI_DEF_CFA(rsp, 8)
