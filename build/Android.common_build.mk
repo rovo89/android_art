@@ -139,9 +139,6 @@ endef
 
 ART_CPP_EXTENSION := .cc
 
-ART_HOST_SHLIB_EXTENSION := $(HOST_SHLIB_SUFFIX)
-ART_HOST_SHLIB_EXTENSION ?= .so
-
 ART_C_INCLUDES := \
   external/gtest/include \
   external/valgrind/main/include \

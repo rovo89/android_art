@@ -47,7 +47,7 @@ $(foreach dir,$(GTEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,art-gte
 # Dex file dependencies for each gtest.
 ART_GTEST_class_linker_test_DEPS := $(ART_GTEST_Interfaces_DEX) $(ART_GTEST_MyClass_DEX) \
   $(ART_GTEST_Nested_DEX) $(ART_GTEST_Statics_DEX) $(ART_GTEST_StaticsFromCode_DEX)
-ART_GTEST_compiler_test_DEPS := $(ART_GTEST_AbstractMethod_DEX)
+ART_GTEST_compiler_driver_test_DEPS := $(ART_GTEST_AbstractMethod_DEX)
 ART_GTEST_dex_file_test_DEPS := $(ART_GTEST_GetMethodSignature_DEX)
 ART_GTEST_exception_test_DEPS := $(ART_GTEST_ExceptionHandle_DEX)
 ART_GTEST_jni_compiler_test_DEPS := $(ART_GTEST_MyClassNatives_DEX)
@@ -199,7 +199,8 @@ define define-art-gtest-rule-target
   TEST_ART_TARGET_SYNC_DEPS += \
     $$(ART_GTEST_$(1)_DEPS) \
     $$(ART_TARGET_NATIVETEST_OUT)/$$(TARGET_$(2)ARCH)/$(1) \
-    $$(TARGET_CORE_DEX_LOCATIONS)
+    $$(TARGET_CORE_DEX_LOCATIONS) \
+    $$($(2)TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
 
 .PHONY: $$(gtest_rule)
 $$(gtest_rule): test-art-target-sync
@@ -227,9 +228,13 @@ endef  # define-art-gtest-rule-target
 define define-art-gtest-rule-host
   gtest_rule := test-art-host-gtest-$(1)$$($(2)ART_PHONY_TEST_HOST_SUFFIX)
   gtest_exe := $$(HOST_OUT_EXECUTABLES)/$(1)$$($(2)ART_PHONY_TEST_HOST_SUFFIX)
+  # Dependencies for all host gtests.
+  gtest_deps := $$(HOST_CORE_DEX_LOCATIONS) \
+    $$($(2)ART_HOST_LIBRARY_PATH)/libjavacore$$(ART_HOST_SHLIB_EXTENSION)
+
 
 .PHONY: $$(gtest_rule)
-$$(gtest_rule): $$(gtest_exe) $$(ART_GTEST_$(1)_DEPS) $$(HOST_CORE_DEX_LOCATIONS)
+$$(gtest_rule): $$(gtest_exe) $$(ART_GTEST_$(1)_DEPS) $$(gtest_deps)
 	$(hide) ($$(call ART_TEST_SKIP,$$@) && $$< && $$(call ART_TEST_PASSED,$$@)) \
 	  || $$(call ART_TEST_FAILED,$$@)
 
@@ -238,7 +243,7 @@ $$(gtest_rule): $$(gtest_exe) $$(ART_GTEST_$(1)_DEPS) $$(HOST_CORE_DEX_LOCATIONS
   ART_TEST_HOST_GTEST_$(1)_RULES += $$(gtest_rule)
 
 .PHONY: valgrind-$$(gtest_rule)
-valgrind-$$(gtest_rule): $$(gtest_exe) test-art-host-dependencies $$(ART_GTEST_$(1)_DEPS)
+valgrind-$$(gtest_rule): $$(gtest_exe) $$(ART_GTEST_$(1)_DEPS) $$(gtest_deps)
 	$(hide) $$(call ART_TEST_SKIP,$$@) && \
 	  valgrind --leak-check=full --error-exitcode=1 $$< && $$(call ART_TEST_PASSED,$$@) \
 	    || $$(call ART_TEST_FAILED,$$@)
@@ -251,6 +256,7 @@ valgrind-$$(gtest_rule): $$(gtest_exe) test-art-host-dependencies $$(ART_GTEST_$
   valgrind_gtest_rule :=
   gtest_rule :=
   gtest_exe :=
+  gtest_deps :=
 endef  # define-art-gtest-rule-host
 
 # Define the rules to build and run host and target gtests.
@@ -443,7 +449,7 @@ ART_TEST_TARGET_GTEST$(ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_GTEST$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_GTEST_RULES :=
 ART_GTEST_class_linker_test_DEPS :=
-ART_GTEST_compiler_test_DEPS :=
+ART_GTEST_compiler_driver_test_DEPS :=
 ART_GTEST_dex_file_test_DEPS :=
 ART_GTEST_exception_test_DEPS :=
 ART_GTEST_jni_compiler_test_DEPS :=
