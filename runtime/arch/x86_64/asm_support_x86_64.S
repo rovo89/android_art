@@ -117,6 +117,10 @@ MACRO1(DEFINE_FUNCTION, c_name)
     .globl VAR(c_name, 0)
     ALIGN_FUNCTION_ENTRY
 VAR(c_name, 0):
+#if !defined(__APPLE__)
+    // Have a local entrypoint that's not globl
+VAR(c_name, 0)_local:
+#endif
     CFI_STARTPROC
     // Ensure we get a sane starting CFA.
     CFI_DEF_CFA(rsp, 8)
