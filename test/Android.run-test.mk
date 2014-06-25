@@ -23,18 +23,18 @@ TEST_ART_RUN_TESTS := $(subst $(LOCAL_PATH)/,, $(TEST_ART_RUN_TESTS))
 
 # Tests that are timing sensitive and flaky on heavily loaded systems.
 TEST_ART_TIMING_SENSITIVE_RUN_TESTS := \
-  test-art-host-default-053-wait-some32 \
-  test-art-host-default-053-wait-some64 \
-  test-art-host-interpreter-053-wait-some32 \
-  test-art-host-interpreter-053-wait-some64 \
-  test-art-host-optimizing-053-wait-some32 \
-  test-art-host-optimizing-053-wait-some64 \
-  test-art-host-default-055-enum-performance32 \
-  test-art-host-default-055-enum-performance64 \
-  test-art-host-interpreter-055-enum-performance32 \
-  test-art-host-interpreter-055-enum-performance64 \
-  test-art-host-optimizing-055-enum-performance32 \
-  test-art-host-optimizing-055-enum-performance64
+  test-art-host-run-test-default-053-wait-some32 \
+  test-art-host-run-test-default-053-wait-some64 \
+  test-art-host-run-test-interpreter-053-wait-some32 \
+  test-art-host-run-test-interpreter-053-wait-some64 \
+  test-art-host-run-test-optimizing-053-wait-some32 \
+  test-art-host-run-test-optimizing-053-wait-some64 \
+  test-art-host-run-test-default-055-enum-performance32 \
+  test-art-host-run-test-default-055-enum-performance64 \
+  test-art-host-run-test-interpreter-055-enum-performance32 \
+  test-art-host-run-test-interpreter-055-enum-performance64 \
+  test-art-host-run-test-optimizing-055-enum-performance32 \
+  test-art-host-run-test-optimizing-055-enum-performance64
 
  # disable timing sensitive tests on "dist" builds.
 ifdef dist_goal
