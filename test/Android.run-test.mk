@@ -177,11 +177,6 @@ $$(run_test_rule_name): $(DX) $(HOST_OUT_EXECUTABLES)/jasmin $$(prereq_rule)
 	  echo "run-test run as top-level target, removing test directory $(ART_HOST_TEST_DIR)" && \
 	  rm -r $(ART_HOST_TEST_DIR)) || true
 
-  # Mark all tests with the optimizing compiler broken. TODO: fix.
-  ifeq ($(3),optimizing)
-    ART_TEST_KNOWN_BROKEN += $$(run_test_rule_name)
-  endif
-
   ART_TEST_$$(uc_host_or_target)_RUN_TEST_$$(uc_compiler)$(4)_RULES += $$(run_test_rule_name)
   ART_TEST_$$(uc_host_or_target)_RUN_TEST_$$(uc_compiler)_RULES += $$(run_test_rule_name)
   ART_TEST_$$(uc_host_or_target)_RUN_TEST_$$(uc_compiler)_$(1)_RULES += $$(run_test_rule_name)
