@@ -1757,9 +1757,7 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
     CHECK_JNI_ENTRY(kFlag_Default, "EpJ", env, address, capacity);
     if (address == nullptr) {
       JniAbortF(__FUNCTION__, "non-nullable address is NULL");
-    }
-    if (capacity < 0) {
-      JniAbortF(__FUNCTION__, "capacity must be non-negative: %" PRId64, capacity);
+      return nullptr;
     }
     return CHECK_JNI_EXIT("L", baseEnv(env)->NewDirectByteBuffer(env, address, capacity));
   }
