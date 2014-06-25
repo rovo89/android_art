@@ -2454,7 +2454,7 @@ class JNI {
       return nullptr;
     }
 
-    // At the moment, the capacity is limited to a jint (31 bits).
+    // At the moment, the capacity of DirectByteBuffer is limited to a signed int.
     if (capacity > INT_MAX) {
       JniAbortF("NewDirectByteBuffer", "buffer capacity greater than maximum jint: %" PRId64, capacity);
       return nullptr;
