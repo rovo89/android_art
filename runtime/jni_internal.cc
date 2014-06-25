@@ -2447,13 +2447,18 @@ class JNI {
   static jobject NewDirectByteBuffer(JNIEnv* env, void* address, jlong capacity) {
     if (capacity < 0) {
       JniAbortF("NewDirectByteBuffer", "negative buffer capacity: %" PRId64, capacity);
+      return nullptr;
     }
     if (address == nullptr && capacity != 0) {
       JniAbortF("NewDirectByteBuffer", "non-zero capacity for nullptr pointer: %" PRId64, capacity);
+      return nullptr;
     }
 
-    // At the moment, the capacity is limited to 32 bits.
-    CHECK_LE(capacity, 0xffffffff);
+    // At the moment, the capacity is limited to a jint (31 bits).
+    if (capacity > INT_MAX) {
+      JniAbortF("NewDirectByteBuffer", "buffer capacity greater than maximum jint: %" PRId64, capacity);
+      return nullptr;
+    }
     jlong address_arg = reinterpret_cast<jlong>(address);
     jint capacity_arg = static_cast<jint>(capacity);
 
