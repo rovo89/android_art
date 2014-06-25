@@ -121,10 +121,10 @@ ifneq ($(WITHOUT_HOST_CLANG),true)
   ART_HOST_CLANG := true
 endif
 
-# Clang on the target: only enabled for ARM64. Target builds use GCC by default.
+# Clang on the target. Target builds use GCC by default.
 ART_TARGET_CLANG :=
 ART_TARGET_CLANG_arm :=
-ART_TARGET_CLANG_arm64 := true
+ART_TARGET_CLANG_arm64 :=
 ART_TARGET_CLANG_mips :=
 ART_TARGET_CLANG_x86 :=
 ART_TARGET_CLANG_x86_64 :=
