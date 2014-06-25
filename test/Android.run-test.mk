@@ -109,7 +109,13 @@ TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(
 ART_TEST_HOST_RUN_TEST_DEPENDENCIES := \
   $(ART_HOST_EXECUTABLES) \
   $(HOST_CORE_IMG_OUT) \
+  $(ART_HOST_LIBRARY_PATH)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
+
+ifneq ($(HOST_PREFER_32_BIT),true)
+ART_TEST_HOST_RUN_TEST_DEPENDENCIES += \
+  $(2ND_ART_HOST_LIBRARY_PATH)/libjavacore$(ART_HOST_SHLIB_EXTENSION) \
   $(2ND_HOST_CORE_IMG_OUT)
+endif
 
 # For a given test create all the combinations of host/target, compiler and suffix such as:
 # test-art-host-run-test-optimizing-003-omnibus-opcodes32
