@@ -112,6 +112,9 @@ extern void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints);
 
 void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
                      PortableEntryPoints* ppoints, QuickEntryPoints* qpoints) {
+#if defined(__APPLE__)
+  UNIMPLEMENTED(FATAL);
+#else
   // Interpreter
   ipoints->pInterpreterToInterpreterBridge = artInterpreterToInterpreterBridge;
   ipoints->pInterpreterToCompiledCodeBridge = artInterpreterToCompiledCodeBridge;
@@ -216,6 +219,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pThrowNoSuchMethod = art_quick_throw_no_such_method;
   qpoints->pThrowNullPointer = art_quick_throw_null_pointer_exception;
   qpoints->pThrowStackOverflow = art_quick_throw_stack_overflow;
+#endif  // __APPLE__
 };
 
 }  // namespace art

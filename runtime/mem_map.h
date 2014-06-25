@@ -30,6 +30,12 @@
 
 namespace art {
 
+#if defined(__LP64__) && (!defined(__x86_64__) || defined(__APPLE__))
+#define USE_ART_LOW_4G_ALLOCATOR 1
+#else
+#define USE_ART_LOW_4G_ALLOCATOR 0
+#endif
+
 #ifdef __linux__
 static constexpr bool kMadviseZeroes = true;
 #else
@@ -147,8 +153,8 @@ class MemMap {
   size_t base_size_;  // Length of mapping. May be changed by RemapAtEnd (ie Zygote).
   int prot_;  // Protection of the map.
 
-#if defined(__LP64__) && !defined(__x86_64__)
-  static uintptr_t next_mem_pos_;   // next memory location to check for low_4g extent
+#if USE_ART_LOW_4G_ALLOCATOR
+  static uintptr_t next_mem_pos_;   // Next memory location to check for low_4g extent.
 #endif
 
   // All the non-empty MemMaps. Use a multimap as we do a reserve-and-divide (eg ElfMap::Load()).
