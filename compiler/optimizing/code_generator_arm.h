@@ -20,7 +20,7 @@
 #include "code_generator.h"
 #include "nodes.h"
 #include "parallel_move_resolver.h"
-#include "utils/arm/assembler_thumb2.h"
+#include "utils/arm/assembler_arm32.h"
 
 namespace art {
 namespace arm {
@@ -180,7 +180,7 @@ class CodeGeneratorARM : public CodeGenerator {
   LocationsBuilderARM location_builder_;
   InstructionCodeGeneratorARM instruction_visitor_;
   ParallelMoveResolverARM move_resolver_;
-  Thumb2Assembler assembler_;
+  Arm32Assembler assembler_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM);
 };
