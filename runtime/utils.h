@@ -401,6 +401,7 @@ std::string GetSystemImageFilename(const char* location, InstructionSet isa);
 
 // Returns an .odex file name next adjacent to the dex location.
 // For example, for "/foo/bar/baz.jar", return "/foo/bar/<isa>/baz.odex".
+// Note: does not support multidex location strings.
 std::string DexFilenameToOdexFilename(const std::string& location, InstructionSet isa);
 
 // Check whether the given magic matches a known file type.
