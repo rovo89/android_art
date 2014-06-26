@@ -691,7 +691,8 @@ void LocationsBuilderX86::VisitInvokeStatic(HInvokeStatic* invoke) {
 
 void InstructionCodeGeneratorX86::VisitInvokeStatic(HInvokeStatic* invoke) {
   Register temp = invoke->GetLocations()->GetTemp(0).AsX86().AsCpuRegister();
-  size_t index_in_cache = mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
+  uint32_t heap_reference_size = sizeof(mirror::HeapReference<mirror::Object>);
+  size_t index_in_cache = mirror::Array::DataOffset(heap_reference_size).Int32Value() +
       invoke->GetIndexInDexCache() * kX86WordSize;
 
   // TODO: Implement all kinds of calls:
