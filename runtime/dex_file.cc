@@ -155,7 +155,7 @@ bool DexFile::Open(const char* filename, const char* location, std::string* erro
     }
   }
   *error_msg = StringPrintf("Expected valid zip or dex file: '%s'", filename);
-  return nullptr;
+  return false;
 }
 
 int DexFile::GetPermissions() const {
