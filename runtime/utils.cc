@@ -534,15 +534,17 @@ std::string FormatDuration(uint64_t nano_duration, TimeUnit time_unit,
     return StringPrintf("%" PRIu64 "%s", whole_part, unit);
   } else {
     static constexpr size_t kMaxDigits = 30;
+    size_t avail_digits = kMaxDigits;
     char fraction_buffer[kMaxDigits];
     char* ptr = fraction_buffer;
     uint64_t multiplier = 10;
     // This infinite loops if fractional part is 0.
-    while (fractional_part * multiplier < divisor) {
+    while (avail_digits > 1 && fractional_part * multiplier < divisor) {
       multiplier *= 10;
       *ptr++ = '0';
+      avail_digits--;
     }
-    sprintf(ptr, "%" PRIu64, fractional_part);
+    snprintf(ptr, avail_digits, "%" PRIu64, fractional_part);
     fraction_buffer[std::min(kMaxDigits - 1, max_fraction_digits)] = '\0';
     return StringPrintf("%" PRIu64 ".%s%s", whole_part, fraction_buffer, unit);
   }
