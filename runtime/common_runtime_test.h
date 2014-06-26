@@ -114,32 +114,42 @@ class CommonRuntimeTest : public testing::Test {
  public:
   static void SetEnvironmentVariables(std::string& android_data) {
     if (IsHost()) {
-      // $ANDROID_ROOT is set on the device, but not on the host.
-      // We need to set this so that icu4c can find its locale data.
-      std::string root;
-      const char* android_build_top = getenv("ANDROID_BUILD_TOP");
-      if (android_build_top != nullptr) {
-        root += android_build_top;
-      } else {
-        // Not set by build server, so default to current directory
-        char* cwd = getcwd(nullptr, 0);
-        setenv("ANDROID_BUILD_TOP", cwd, 1);
-        root += cwd;
-        free(cwd);
-      }
+      // $ANDROID_ROOT is set on the device, but not necessarily on the host.
+      // But it needs to be set so that icu4c can find its locale data.
+      const char* android_root_from_env = getenv("ANDROID_ROOT");
+      if (android_root_from_env == nullptr) {
+        // Use ANDROID_HOST_OUT for ANDROID_ROOT if it is set.
+        const char* android_host_out = getenv("ANDROID_HOST_OUT");
+        if (android_host_out != nullptr) {
+          setenv("ANDROID_ROOT", android_host_out, 1);
+        } else {
+          // Build it from ANDROID_BUILD_TOP or cwd
+          std::string root;
+          const char* android_build_top = getenv("ANDROID_BUILD_TOP");
+          if (android_build_top != nullptr) {
+            root += android_build_top;
+          } else {
+            // Not set by build server, so default to current directory
+            char* cwd = getcwd(nullptr, 0);
+            setenv("ANDROID_BUILD_TOP", cwd, 1);
+            root += cwd;
+            free(cwd);
+          }
 #if defined(__linux__)
-      root += "/out/host/linux-x86";
+          root += "/out/host/linux-x86";
 #elif defined(__APPLE__)
-      root += "/out/host/darwin-x86";
+          root += "/out/host/darwin-x86";
 #else
 #error unsupported OS
 #endif
-      setenv("ANDROID_ROOT", root.c_str(), 1);
+          setenv("ANDROID_ROOT", root.c_str(), 1);
+        }
+      }
       setenv("LD_LIBRARY_PATH", ":", 0);  // Required by java.lang.System.<clinit>.
 
       // Not set by build server, so default
       if (getenv("ANDROID_HOST_OUT") == nullptr) {
-        setenv("ANDROID_HOST_OUT", root.c_str(), 1);
+        setenv("ANDROID_HOST_OUT", getenv("ANDROID_ROOT"), 1);
       }
     }
 
