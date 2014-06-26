@@ -541,20 +541,40 @@ void Arm32Assembler::EmitType5(Condition cond, int offset, bool link) {
 
 
 void Arm32Assembler::EmitMemOp(Condition cond,
-                             bool load,
-                             bool byte,
-                             Register rd,
-                             const Address& ad) {
+                               bool load,
+                               bool byte,
+                               Register rd,
+                               const Address& ad) {
   CHECK_NE(rd, kNoRegister);
   CHECK_NE(cond, kNoCondition);
   const Address& addr = static_cast<const Address&>(ad);
 
-  int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) |
-                     B26 |
-                     (load ? L : 0) |
-                     (byte ? B : 0) |
-                     (static_cast<int32_t>(rd) << kRdShift) |
-                     addr.encodingArm();
+  int32_t encoding = 0;
+  if (!ad.IsImmediate() && ad.GetRegisterOffset() == PC) {
+    // PC relative LDR(literal)
+    int32_t offset = ad.GetOffset();
+    int32_t u = B23;
+    if (offset < 0) {
+      offset = -offset;
+      u = 0;
+    }
+    CHECK_LT(offset, (1 << 12));
+    encoding = (static_cast<int32_t>(cond) << kConditionShift) |
+         B26 | B24 | u | B20 |
+         (load ? L : 0) |
+         (byte ? B : 0) |
+         (static_cast<int32_t>(rd) << kRdShift) |
+         0xf << 16 |
+         (offset & 0xfff);
+
+  } else {
+    encoding = (static_cast<int32_t>(cond) << kConditionShift) |
+        B26 |
+        (load ? L : 0) |
+        (byte ? B : 0) |
+        (static_cast<int32_t>(rd) << kRdShift) |
+        addr.encodingArm();
+  }
   Emit(encoding);
 }
 
@@ -1020,38 +1040,97 @@ void Arm32Assembler::EmitVFPds(Condition cond, int32_t opcode,
 
 
 void Arm32Assembler::Lsl(Register rd, Register rm, uint32_t shift_imm,
-                         Condition cond) {
+                         bool setcc, Condition cond) {
   CHECK_NE(shift_imm, 0u);  // Do not use Lsl if no shift is wanted.
-  mov(rd, ShifterOperand(rm, LSL, shift_imm), cond);
+  if (setcc) {
+    movs(rd, ShifterOperand(rm, LSL, shift_imm), cond);
+  } else {
+    mov(rd, ShifterOperand(rm, LSL, shift_imm), cond);
+  }
 }
 
 
 void Arm32Assembler::Lsr(Register rd, Register rm, uint32_t shift_imm,
-                         Condition cond) {
+                         bool setcc, Condition cond) {
   CHECK_NE(shift_imm, 0u);  // Do not use Lsr if no shift is wanted.
   if (shift_imm == 32) shift_imm = 0;  // Comply to UAL syntax.
-  mov(rd, ShifterOperand(rm, LSR, shift_imm), cond);
+  if (setcc) {
+    movs(rd, ShifterOperand(rm, LSR, shift_imm), cond);
+  } else {
+    mov(rd, ShifterOperand(rm, LSR, shift_imm), cond);
+  }
 }
 
 
 void Arm32Assembler::Asr(Register rd, Register rm, uint32_t shift_imm,
-                         Condition cond) {
+                         bool setcc, Condition cond) {
   CHECK_NE(shift_imm, 0u);  // Do not use Asr if no shift is wanted.
   if (shift_imm == 32) shift_imm = 0;  // Comply to UAL syntax.
-  mov(rd, ShifterOperand(rm, ASR, shift_imm), cond);
+  if (setcc) {
+    movs(rd, ShifterOperand(rm, ASR, shift_imm), cond);
+  } else {
+    mov(rd, ShifterOperand(rm, ASR, shift_imm), cond);
+  }
 }
 
 
 void Arm32Assembler::Ror(Register rd, Register rm, uint32_t shift_imm,
-                         Condition cond) {
+                         bool setcc, Condition cond) {
   CHECK_NE(shift_imm, 0u);  // Use Rrx instruction.
-  mov(rd, ShifterOperand(rm, ROR, shift_imm), cond);
+  if (setcc) {
+    movs(rd, ShifterOperand(rm, ROR, shift_imm), cond);
+  } else {
+    mov(rd, ShifterOperand(rm, ROR, shift_imm), cond);
+  }
 }
 
-void Arm32Assembler::Rrx(Register rd, Register rm, Condition cond) {
-  mov(rd, ShifterOperand(rm, ROR, 0), cond);
+void Arm32Assembler::Rrx(Register rd, Register rm, bool setcc, Condition cond) {
+  if (setcc) {
+    movs(rd, ShifterOperand(rm, ROR, 0), cond);
+  } else {
+    mov(rd, ShifterOperand(rm, ROR, 0), cond);
+  }
 }
 
+
+void Arm32Assembler::Lsl(Register rd, Register rm, Register rn,
+                         bool setcc, Condition cond) {
+  if (setcc) {
+    movs(rd, ShifterOperand(rm, LSL, rn), cond);
+  } else {
+    mov(rd, ShifterOperand(rm, LSL, rn), cond);
+  }
+}
+
+
+void Arm32Assembler::Lsr(Register rd, Register rm, Register rn,
+                         bool setcc, Condition cond) {
+  if (setcc) {
+    movs(rd, ShifterOperand(rm, LSR, rn), cond);
+  } else {
+    mov(rd, ShifterOperand(rm, LSR, rn), cond);
+  }
+}
+
+
+void Arm32Assembler::Asr(Register rd, Register rm, Register rn,
+                         bool setcc, Condition cond) {
+  if (setcc) {
+    movs(rd, ShifterOperand(rm, ASR, rn), cond);
+  } else {
+    mov(rd, ShifterOperand(rm, ASR, rn), cond);
+  }
+}
+
+
+void Arm32Assembler::Ror(Register rd, Register rm, Register rn,
+                         bool setcc, Condition cond) {
+  if (setcc) {
+    movs(rd, ShifterOperand(rm, ROR, rn), cond);
+  } else {
+    mov(rd, ShifterOperand(rm, ROR, rn), cond);
+  }
+}
 
 void Arm32Assembler::vmstat(Condition cond) {  // VMRS APSR_nzcv, FPSCR
   CHECK_NE(cond, kNoCondition);

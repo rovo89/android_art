@@ -111,43 +111,38 @@ uint32_t ShifterOperand::encodingArm() const {
   }
 }
 
-uint32_t ShifterOperand::encodingThumb(int version) const {
-  CHECK(version == 1 || version == 2);
-  if (version == 1) {
-    LOG(FATAL) << "Invalid of use encodingThumb with version 1";
-  } else {
-    switch (type_) {
-      case kImmediate:
-        return immed_;
-      case kRegister:
-        if (is_shift_) {
-          // Shifted immediate or register.
-          if (rs_ == kNoRegister) {
-            // Immediate shift.
-            if (shift_ == RRX) {
-              // RRX is encoded as an ROR with imm 0.
-              return ROR << 4 | static_cast<uint32_t>(rm_);
-            } else {
-              uint32_t imm3 = immed_ >> 2;
-              uint32_t imm2 = immed_ & 0b11;
-
-              return imm3 << 12 | imm2 << 6 | shift_ << 4 |
-                  static_cast<uint32_t>(rm_);
-            }
+uint32_t ShifterOperand::encodingThumb() const {
+  switch (type_) {
+    case kImmediate:
+      return immed_;
+    case kRegister:
+      if (is_shift_) {
+        // Shifted immediate or register.
+        if (rs_ == kNoRegister) {
+          // Immediate shift.
+          if (shift_ == RRX) {
+            // RRX is encoded as an ROR with imm 0.
+            return ROR << 4 | static_cast<uint32_t>(rm_);
           } else {
-            LOG(FATAL) << "No register-shifted register instruction available in thumb";
-            return 0;
+            uint32_t imm3 = immed_ >> 2;
+            uint32_t imm2 = immed_ & 0b11;
+
+            return imm3 << 12 | imm2 << 6 | shift_ << 4 |
+                static_cast<uint32_t>(rm_);
           }
         } else {
-          // Simple register
-          return static_cast<uint32_t>(rm_);
+          LOG(FATAL) << "No register-shifted register instruction available in thumb";
+          return 0;
         }
-        break;
-      default:
-        // Can't get here.
-        LOG(FATAL) << "Invalid shifter operand for thumb";
-        return 0;
-    }
+      } else {
+        // Simple register
+        return static_cast<uint32_t>(rm_);
+      }
+      break;
+    default:
+      // Can't get here.
+      LOG(FATAL) << "Invalid shifter operand for thumb";
+      return 0;
   }
   return 0;
 }
@@ -187,51 +182,78 @@ bool ShifterOperand::CanHoldThumb(Register rd, Register rn, Opcode opcode,
 uint32_t Address::encodingArm() const {
   CHECK(IsAbsoluteUint(12, offset_));
   uint32_t encoding;
-  if (offset_ < 0) {
-    encoding = (am_ ^ (1 << kUShift)) | -offset_;  // Flip U to adjust sign.
+  if (is_immed_offset_) {
+    if (offset_ < 0) {
+      encoding = (am_ ^ (1 << kUShift)) | -offset_;  // Flip U to adjust sign.
+    } else {
+      encoding =  am_ | offset_;
+    }
   } else {
-    encoding =  am_ | offset_;
+    uint32_t imm5 = offset_;
+    uint32_t shift = shift_;
+    if (shift == RRX) {
+      imm5 = 0;
+      shift = ROR;
+    }
+    encoding = am_ | static_cast<uint32_t>(rm_) | shift << 5 | offset_ << 7 | B25;
   }
   encoding |= static_cast<uint32_t>(rn_) << kRnShift;
   return encoding;
 }
 
 
-uint32_t Address::encodingThumb(int version) const {
-  CHECK(version == 1 || version == 2);
+uint32_t Address::encodingThumb(bool is_32bit) const {
   uint32_t encoding = 0;
-  if (version == 2) {
-      encoding = static_cast<uint32_t>(rn_) << 16;
-      // Check for the T3/T4 encoding.
-      // PUW must Offset for T3
-      // Convert ARM PU0W to PUW
-      // The Mode is in ARM encoding format which is:
-      // |P|U|0|W|
-      // we need this in thumb2 mode:
-      // |P|U|W|
+  if (is_immed_offset_) {
+    encoding = static_cast<uint32_t>(rn_) << 16;
+    // Check for the T3/T4 encoding.
+    // PUW must Offset for T3
+    // Convert ARM PU0W to PUW
+    // The Mode is in ARM encoding format which is:
+    // |P|U|0|W|
+    // we need this in thumb2 mode:
+    // |P|U|W|
 
-      uint32_t am = am_;
-      int32_t offset = offset_;
-      if (offset < 0) {
-        am ^= 1 << kUShift;
-        offset = -offset;
-      }
-      if (offset_ < 0 || (offset >= 0 && offset < 256 &&
+    uint32_t am = am_;
+    int32_t offset = offset_;
+    if (offset < 0) {
+      am ^= 1 << kUShift;
+      offset = -offset;
+    }
+    if (offset_ < 0 || (offset >= 0 && offset < 256 &&
         am_ != Mode::Offset)) {
-          // T4 encoding.
-        uint32_t PUW = am >> 21;   // Move down to bottom of word.
-        PUW = (PUW >> 1) | (PUW & 1);   // Bits 3, 2 and 0.
-        // If P is 0 then W must be 1 (Different from ARM).
-        if ((PUW & 0b100) == 0) {
-          PUW |= 0b1;
-        }
-        encoding |= B11 | PUW << 8 | offset;
-      } else {
-        // T3 encoding (also sets op1 to 0b01).
-        encoding |= B23 | offset_;
+      // T4 encoding.
+      uint32_t PUW = am >> 21;   // Move down to bottom of word.
+      PUW = (PUW >> 1) | (PUW & 1);   // Bits 3, 2 and 0.
+      // If P is 0 then W must be 1 (Different from ARM).
+      if ((PUW & 0b100) == 0) {
+        PUW |= 0b1;
       }
+      encoding |= B11 | PUW << 8 | offset;
+    } else {
+      // T3 encoding (also sets op1 to 0b01).
+      encoding |= B23 | offset_;
+    }
   } else {
-    LOG(FATAL) << "Invalid use of encodingThumb for version 1";
+    // Register offset, possibly shifted.
+    // Need to choose between encoding T1 (16 bit) or T2.
+    // Only Offset mode is supported.  Shift must be LSL and the count
+    // is only 2 bits.
+    CHECK_EQ(shift_, LSL);
+    CHECK_LE(offset_, 4);
+    CHECK_EQ(am_, Offset);
+    bool is_t2 = is_32bit;
+    if (ArmAssembler::IsHighRegister(rn_) || ArmAssembler::IsHighRegister(rm_)) {
+      is_t2 = true;
+    } else if (offset_ != 0) {
+      is_t2 = true;
+    }
+    if (is_t2) {
+      encoding = static_cast<uint32_t>(rn_) << 16 | static_cast<uint32_t>(rm_) |
+          offset_ << 4;
+    } else {
+      encoding = static_cast<uint32_t>(rn_) << 3 | static_cast<uint32_t>(rm_) << 6;
+    }
   }
   return encoding;
 }

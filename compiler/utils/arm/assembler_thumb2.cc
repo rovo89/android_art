@@ -329,7 +329,7 @@ void Thumb2Assembler::ldm(BlockAddressMode am,
       ++reg;
     }
     CHECK_LT(reg, 16);
-    CHECK(am == IA_W);      // Only writeback is supported.
+    CHECK(am == DB_W);      // Only writeback is supported.
     ldr(static_cast<Register>(reg), Address(base, kRegisterSize, Address::PostIndex), cond);
   } else {
     EmitMultiMemOp(cond, am, true, base, regs);
@@ -352,8 +352,8 @@ void Thumb2Assembler::stm(BlockAddressMode am,
       ++reg;
     }
     CHECK_LT(reg, 16);
-    CHECK(am == DB || am == DB_W);
-    Address::Mode strmode = am == DB_W ? Address::PreIndex : Address::Offset;
+    CHECK(am == IA || am == IA_W);
+    Address::Mode strmode = am == IA ? Address::PreIndex : Address::Offset;
     str(static_cast<Register>(reg), Address(base, -kRegisterSize, strmode), cond);
   } else {
     EmitMultiMemOp(cond, am, false, base, regs);
@@ -642,7 +642,6 @@ bool Thumb2Assembler::Is32BitDataProcessing(Condition cond,
            if (imm > (1 << 9)) {    // 9 bit immediate.
              return true;
            }
-           return false;      // 16 bit good.
          } else if (opcode == ADD && rd != SP && rn == SP) {   // 10 bit immediate.
            if (imm > (1 << 10)) {
              return true;
@@ -781,7 +780,7 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond,
            imm8;
     } else {
       // Modified immediate.
-      uint32_t imm = ModifiedImmediate(so.encodingThumb(2));
+      uint32_t imm = ModifiedImmediate(so.encodingThumb());
       if (imm == kInvalidModifiedImmediate) {
         LOG(FATAL) << "Immediate value cannot fit in thumb2 modified immediate";
       }
@@ -799,7 +798,7 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond,
          set_cc << 20 |
          rn << 16 |
          rd << 8 |
-         so.encodingThumb(2);
+         so.encodingThumb();
   }
   Emit32(encoding);
 }
@@ -1081,6 +1080,82 @@ void Thumb2Assembler::EmitDataProcessing(Condition cond,
   }
 }
 
+void Thumb2Assembler::EmitShift(Register rd, Register rm, Shift shift, uint8_t amount, bool setcc) {
+  CHECK_LT(amount, (1 << 5));
+  if (IsHighRegister(rd) || IsHighRegister(rm) || shift == ROR || shift == RRX) {
+    uint16_t opcode = 0;
+    switch (shift) {
+      case LSL: opcode = 0b00; break;
+      case LSR: opcode = 0b01; break;
+      case ASR: opcode = 0b10; break;
+      case ROR: opcode = 0b11; break;
+      case RRX: opcode = 0b11; amount = 0; break;
+      default:
+        LOG(FATAL) << "Unsupported thumb2 shift opcode";
+    }
+    // 32 bit.
+    int32_t encoding = B31 | B30 | B29 | B27 | B25 | B22 |
+        0xf << 16 | (setcc ? B20 : 0);
+    uint32_t imm3 = amount >> 2;
+    uint32_t imm2 = amount & 0b11;
+    encoding |= imm3 << 12 | imm2 << 6 | static_cast<int16_t>(rm) |
+        static_cast<int16_t>(rd) << 8 | opcode << 4;
+    Emit32(encoding);
+  } else {
+    // 16 bit shift
+    uint16_t opcode = 0;
+    switch (shift) {
+      case LSL: opcode = 0b00; break;
+      case LSR: opcode = 0b01; break;
+      case ASR: opcode = 0b10; break;
+      default:
+         LOG(FATAL) << "Unsupported thumb2 shift opcode";
+    }
+    int16_t encoding = opcode << 11 | amount << 6 | static_cast<int16_t>(rm) << 3 |
+        static_cast<int16_t>(rd);
+    Emit16(encoding);
+  }
+}
+
+void Thumb2Assembler::EmitShift(Register rd, Register rn, Shift shift, Register rm, bool setcc) {
+  CHECK_NE(shift, RRX);
+  bool must_be_32bit = false;
+  if (IsHighRegister(rd) || IsHighRegister(rm) || IsHighRegister(rn) || rd != rn) {
+    must_be_32bit = true;
+  }
+
+  if (must_be_32bit) {
+    uint16_t opcode = 0;
+     switch (shift) {
+       case LSL: opcode = 0b00; break;
+       case LSR: opcode = 0b01; break;
+       case ASR: opcode = 0b10; break;
+       case ROR: opcode = 0b11; break;
+       default:
+         LOG(FATAL) << "Unsupported thumb2 shift opcode";
+     }
+     // 32 bit.
+     int32_t encoding = B31 | B30 | B29 | B28 | B27 | B25 |
+         0xf << 12 | (setcc ? B20 : 0);
+     encoding |= static_cast<int16_t>(rn) << 16 | static_cast<int16_t>(rm) |
+         static_cast<int16_t>(rd) << 8 | opcode << 21;
+     Emit32(encoding);
+  } else {
+    uint16_t opcode = 0;
+    switch (shift) {
+      case LSL: opcode = 0b0010; break;
+      case LSR: opcode = 0b0011; break;
+      case ASR: opcode = 0b0100; break;
+      default:
+         LOG(FATAL) << "Unsupported thumb2 shift opcode";
+    }
+    int16_t encoding = B14 | opcode << 6 | static_cast<int16_t>(rm) << 3 |
+        static_cast<int16_t>(rd);
+    Emit16(encoding);
+  }
+}
+
+
 
 void Thumb2Assembler::Branch::Emit(AssemblerBuffer* buffer) const {
   bool link = type_ == kUnconditionalLinkX || type_ == kUnconditionalLink;
@@ -1172,7 +1247,7 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
   }
 
   Register rn = ad.GetRegister();
-  if (IsHighRegister(rn) && rn != SP) {
+  if (IsHighRegister(rn) && rn != SP && rn != PC) {
     must_be_32bit = true;
   }
 
@@ -1180,87 +1255,132 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
     must_be_32bit = true;
   }
 
-  int32_t offset = ad.GetOffset();
+  if (ad.IsImmediate()) {
+    // Immediate offset
+    int32_t offset = ad.GetOffset();
 
-  // The 16 bit SP relative instruction can only have a 10 bit offset.
-  if (rn == SP && offset > 1024) {
-    must_be_32bit = true;
-  }
-
-  if (byte) {
-    // 5 bit offset, no shift.
-    if (offset > 32) {
+    // The 16 bit SP relative instruction can only have a 10 bit offset.
+    if (rn == SP && offset > 1024) {
       must_be_32bit = true;
     }
-  } else if (half) {
-    // 6 bit offset, shifted by 1.
-    if (offset > 64) {
-      must_be_32bit = true;
-    }
-  } else {
-    // 7 bit offset, shifted by 2.
-    if (offset > 128) {
-       must_be_32bit = true;
-     }
-  }
-
-  if (must_be_32bit) {
-    int32_t encoding = B31 | B30 | B29 | B28 | B27 |
-                  (load ? B20 : 0) |
-                  (is_signed ? B24 : 0) |
-                  static_cast<uint32_t>(rd) << 12 |
-                  ad.encodingThumb(2) |
-                  (byte ? 0 : half ? B21 : B22);
-    Emit32(encoding);
-  } else {
-    // 16 bit thumb1.
-    uint8_t opA = 0;
-    bool sp_relative = false;
 
     if (byte) {
-      opA = 0b0111;
+      // 5 bit offset, no shift.
+      if (offset > 32) {
+        must_be_32bit = true;
+      }
     } else if (half) {
-      opA = 0b1000;
+      // 6 bit offset, shifted by 1.
+      if (offset > 64) {
+        must_be_32bit = true;
+      }
     } else {
-      if (rn == SP) {
-        opA = 0b1001;
-        sp_relative = true;
-      } else {
-        opA = 0b0110;
+      // 7 bit offset, shifted by 2.
+      if (offset > 128) {
+        must_be_32bit = true;
       }
     }
-    int16_t encoding = opA << 12 |
-                (load ? B11 : 0);
 
-    CHECK_GE(offset, 0);
-    if (sp_relative) {
-      // SP relative, 10 bit offset.
-      CHECK_LT(offset, 1024);
-      CHECK_EQ((offset & 0b11), 0);
-      encoding |= rd << 8 | offset >> 2;
+    if (must_be_32bit) {
+      int32_t encoding = B31 | B30 | B29 | B28 | B27 |
+          (load ? B20 : 0) |
+          (is_signed ? B24 : 0) |
+          static_cast<uint32_t>(rd) << 12 |
+          ad.encodingThumb(true) |
+          (byte ? 0 : half ? B21 : B22);
+      Emit32(encoding);
     } else {
-      // No SP relative.  The offset is shifted right depending on
-      // the size of the load/store.
-      encoding |= static_cast<uint32_t>(rd);
+      // 16 bit thumb1.
+      uint8_t opA = 0;
+      bool sp_relative = false;
 
       if (byte) {
-        // 5 bit offset, no shift.
-        CHECK_LT(offset, 32);
+        opA = 0b0111;
       } else if (half) {
-        // 6 bit offset, shifted by 1.
-        CHECK_LT(offset, 64);
-        CHECK_EQ((offset & 0b1), 0);
-        offset >>= 1;
+        opA = 0b1000;
       } else {
-        // 7 bit offset, shifted by 2.
-        CHECK_LT(offset, 128);
-        CHECK_EQ((offset & 0b11), 0);
-        offset >>= 2;
+        if (rn == SP) {
+          opA = 0b1001;
+          sp_relative = true;
+        } else {
+          opA = 0b0110;
+        }
       }
-      encoding |= rn << 3 | offset  << 6;
-    }
+      int16_t encoding = opA << 12 |
+          (load ? B11 : 0);
 
-    Emit16(encoding);
+      CHECK_GE(offset, 0);
+      if (sp_relative) {
+        // SP relative, 10 bit offset.
+        CHECK_LT(offset, 1024);
+        CHECK_EQ((offset & 0b11), 0);
+        encoding |= rd << 8 | offset >> 2;
+      } else {
+        // No SP relative.  The offset is shifted right depending on
+        // the size of the load/store.
+        encoding |= static_cast<uint32_t>(rd);
+
+        if (byte) {
+          // 5 bit offset, no shift.
+          CHECK_LT(offset, 32);
+        } else if (half) {
+          // 6 bit offset, shifted by 1.
+          CHECK_LT(offset, 64);
+          CHECK_EQ((offset & 0b1), 0);
+          offset >>= 1;
+        } else {
+          // 7 bit offset, shifted by 2.
+          CHECK_LT(offset, 128);
+          CHECK_EQ((offset & 0b11), 0);
+          offset >>= 2;
+        }
+        encoding |= rn << 3 | offset  << 6;
+      }
+
+      Emit16(encoding);
+    }
+  } else {
+    // Register shift.
+    if (ad.GetRegister() == PC) {
+       // PC relative literal encoding.
+      int32_t offset = ad.GetOffset();
+      if (must_be_32bit || offset < 0 || offset > (1 << 10) || !load) {
+        int32_t up = B23;
+        if (offset < 0) {
+          offset = -offset;
+          up = 0;
+        }
+        CHECK_LT(offset, (1 << 12));
+        int32_t encoding = 0x1f << 27 | 0xf << 16 | B22 | (load ? B20 : 0) |
+            offset | up |
+            static_cast<uint32_t>(rd) << 12;
+        Emit32(encoding);
+      } else {
+        // 16 bit literal load.
+        CHECK_GE(offset, 0);
+        CHECK_LT(offset, (1 << 10));
+        int32_t encoding = B14 | (load ? B11 : 0) | static_cast<uint32_t>(rd) << 8 | offset >> 2;
+        Emit16(encoding);
+      }
+    } else {
+      if (ad.GetShiftCount() != 0) {
+        // If there is a shift count this must be 32 bit.
+        must_be_32bit = true;
+      } else if (IsHighRegister(ad.GetRegisterOffset())) {
+        must_be_32bit = true;
+      }
+
+      if (must_be_32bit) {
+        int32_t encoding = 0x1f << 27 | B22 | (load ? B20 : 0) | static_cast<uint32_t>(rd) << 12 |
+            ad.encodingThumb(true);
+        Emit32(encoding);
+      } else {
+        // 16 bit register offset.
+        int32_t encoding = B14 | B12 | (load ? B11 : 0) | static_cast<uint32_t>(rd) |
+            ad.encodingThumb(false);
+        Emit16(encoding);
+      }
+    }
   }
 }
 
@@ -2012,37 +2132,70 @@ void Thumb2Assembler::EmitBranches() {
 
 
 void Thumb2Assembler::Lsl(Register rd, Register rm, uint32_t shift_imm,
-                          Condition cond) {
+                          bool setcc, Condition cond) {
   CHECK_NE(shift_imm, 0u);  // Do not use Lsl if no shift is wanted.
-  mov(rd, ShifterOperand(rm, LSL, shift_imm), cond);
+  CheckCondition(cond);
+  EmitShift(rd, rm, LSL, shift_imm, setcc);
 }
 
 
 void Thumb2Assembler::Lsr(Register rd, Register rm, uint32_t shift_imm,
-                          Condition cond) {
+                          bool setcc, Condition cond) {
   CHECK_NE(shift_imm, 0u);  // Do not use Lsr if no shift is wanted.
   if (shift_imm == 32) shift_imm = 0;  // Comply to UAL syntax.
-  mov(rd, ShifterOperand(rm, LSR, shift_imm), cond);
+  CheckCondition(cond);
+  EmitShift(rd, rm, LSR, shift_imm, setcc);
 }
 
 
 void Thumb2Assembler::Asr(Register rd, Register rm, uint32_t shift_imm,
-                          Condition cond) {
+                          bool setcc, Condition cond) {
   CHECK_NE(shift_imm, 0u);  // Do not use Asr if no shift is wanted.
   if (shift_imm == 32) shift_imm = 0;  // Comply to UAL syntax.
-  mov(rd, ShifterOperand(rm, ASR, shift_imm), cond);
+  CheckCondition(cond);
+  EmitShift(rd, rm, ASR, shift_imm, setcc);
 }
 
 
 void Thumb2Assembler::Ror(Register rd, Register rm, uint32_t shift_imm,
-                          Condition cond) {
+                          bool setcc, Condition cond) {
   CHECK_NE(shift_imm, 0u);  // Use Rrx instruction.
-  mov(rd, ShifterOperand(rm, ROR, shift_imm), cond);
+  CheckCondition(cond);
+  EmitShift(rd, rm, ROR, shift_imm, setcc);
 }
 
 
-void Thumb2Assembler::Rrx(Register rd, Register rm, Condition cond) {
-  mov(rd, ShifterOperand(rm, ROR, 0), cond);
+void Thumb2Assembler::Rrx(Register rd, Register rm, bool setcc, Condition cond) {
+  CheckCondition(cond);
+  EmitShift(rd, rm, RRX, rm, setcc);
+}
+
+
+void Thumb2Assembler::Lsl(Register rd, Register rm, Register rn,
+                          bool setcc, Condition cond) {
+  CheckCondition(cond);
+  EmitShift(rd, rm, LSL, rn, setcc);
+}
+
+
+void Thumb2Assembler::Lsr(Register rd, Register rm, Register rn,
+                          bool setcc, Condition cond) {
+  CheckCondition(cond);
+  EmitShift(rd, rm, LSR, rn, setcc);
+}
+
+
+void Thumb2Assembler::Asr(Register rd, Register rm, Register rn,
+                          bool setcc, Condition cond) {
+  CheckCondition(cond);
+  EmitShift(rd, rm, ASR, rn, setcc);
+}
+
+
+void Thumb2Assembler::Ror(Register rd, Register rm, Register rn,
+                          bool setcc, Condition cond) {
+  CheckCondition(cond);
+  EmitShift(rd, rm, ROR, rn, setcc);
 }
 
 
