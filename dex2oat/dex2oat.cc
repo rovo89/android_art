@@ -478,11 +478,8 @@ class Dex2Oat {
         continue;
       }
       std::string error_msg;
-      const DexFile* dex_file = DexFile::Open(parsed[i].c_str(), parsed[i].c_str(), &error_msg);
-      if (dex_file == nullptr) {
+      if (!DexFile::Open(parsed[i].c_str(), parsed[i].c_str(), &error_msg, &dex_files)) {
         LOG(WARNING) << "Failed to open dex file '" << parsed[i] << "': " << error_msg;
-      } else {
-        dex_files.push_back(dex_file);
       }
     }
   }
@@ -536,12 +533,9 @@ static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
       LOG(WARNING) << "Skipping non-existent dex file '" << dex_filename << "'";
       continue;
     }
-    const DexFile* dex_file = DexFile::Open(dex_filename, dex_location, &error_msg);
-    if (dex_file == nullptr) {
+    if (!DexFile::Open(dex_filename, dex_location, &error_msg, &dex_files)) {
       LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "': " << error_msg;
       ++failure_count;
-    } else {
-      dex_files.push_back(dex_file);
     }
     ATRACE_END();
   }
@@ -1319,13 +1313,11 @@ static int dex2oat(int argc, char** argv) {
             << error_msg;
         return EXIT_FAILURE;
       }
-      const DexFile* dex_file = DexFile::Open(*zip_archive.get(), zip_location, &error_msg);
-      if (dex_file == nullptr) {
+      if (!DexFile::OpenFromZip(*zip_archive.get(), zip_location, &error_msg, &dex_files)) {
         LOG(ERROR) << "Failed to open dex from file descriptor for zip file '" << zip_location
             << "': " << error_msg;
         return EXIT_FAILURE;
       }
-      dex_files.push_back(dex_file);
       ATRACE_END();
     } else {
       size_t failure_count = OpenDexFiles(dex_filenames, dex_locations, dex_files);

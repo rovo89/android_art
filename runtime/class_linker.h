@@ -273,23 +273,12 @@ class ClassLinker {
                                             std::string* error_msg)
       LOCKS_EXCLUDED(dex_lock_);
 
-  // Finds the oat file for a dex location, generating the oat file if
-  // it is missing or out of date. Returns the DexFile from within the
-  // created oat file.
-  const DexFile* FindOrCreateOatFileForDexLocation(const char* dex_location,
-                                                   uint32_t dex_location_checksum,
-                                                   const char* oat_location,
-                                                   std::vector<std::string>* error_msgs)
+  // Find or create the oat file holding dex_location. Then load all corresponding dex files
+  // (if multidex) into the given vector.
+  bool OpenDexFilesFromOat(const char* dex_location, const char* oat_location,
+                           std::vector<std::string>* error_msgs,
+                           std::vector<const DexFile*>* dex_files)
       LOCKS_EXCLUDED(dex_lock_, Locks::mutator_lock_);
-  // Find a DexFile within an OatFile given a DexFile location. Note
-  // that this returns null if the location checksum of the DexFile
-  // does not match the OatFile.
-  const DexFile* FindDexFileInOatFileFromDexLocation(const char* location,
-                                                     const uint32_t* const location_checksum,
-                                                     InstructionSet isa,
-                                                     std::vector<std::string>* error_msgs)
-      LOCKS_EXCLUDED(dex_lock_, Locks::mutator_lock_);
-
 
   // Returns true if oat file contains the dex file with the given location and checksum.
   static bool VerifyOatFileChecksums(const OatFile* oat_file,
@@ -545,21 +534,47 @@ class ClassLinker {
   const OatFile* FindOpenedOatFileForDexFile(const DexFile& dex_file)
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const OatFile* FindOpenedOatFileFromDexLocation(const char* dex_location,
-                                                  const uint32_t* const dex_location_checksum)
+
+  // Find an opened oat file that contains dex_location. If oat_location is not nullptr, the file
+  // must have that location, else any oat location is accepted.
+  const OatFile* FindOpenedOatFile(const char* oat_location, const char* dex_location,
+                                   const uint32_t* const dex_location_checksum)
       LOCKS_EXCLUDED(dex_lock_);
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location)
       LOCKS_EXCLUDED(dex_lock_);
-  const DexFile* FindDexFileInOatLocation(const char* dex_location,
-                                          uint32_t dex_location_checksum,
-                                          const char* oat_location,
-                                          std::string* error_msg)
+
+  // Note: will not register the oat file.
+  const OatFile* FindOatFileInOatLocationForDexFile(const char* dex_location,
+                                                    uint32_t dex_location_checksum,
+                                                    const char* oat_location,
+                                                    std::string* error_msg)
       LOCKS_EXCLUDED(dex_lock_);
 
-  const DexFile* VerifyAndOpenDexFileFromOatFile(const std::string& oat_file_location,
-                                                 const char* dex_location,
-                                                 std::string* error_msg,
-                                                 bool* open_failed)
+  // Creates the oat file from the dex_location to the oat_location. Needs a file descriptor for
+  // the file to be written, which is assumed to be under a lock.
+  const OatFile* CreateOatFileForDexLocation(const char* dex_location,
+                                             int fd, const char* oat_location,
+                                             std::vector<std::string>* error_msgs)
+      LOCKS_EXCLUDED(dex_lock_, Locks::mutator_lock_);
+
+  // Finds an OatFile that contains a DexFile for the given a DexFile location.
+  //
+  // Note 1: this will not check open oat files, which are assumed to be stale when this is run.
+  // Note 2: Does not register the oat file. It is the caller's job to register if the file is to
+  //         be kept.
+  const OatFile* FindOatFileContainingDexFileFromDexLocation(const char* location,
+                                                             const uint32_t* const location_checksum,
+                                                             InstructionSet isa,
+                                                             std::vector<std::string>* error_msgs)
+      LOCKS_EXCLUDED(dex_lock_, Locks::mutator_lock_);
+
+  // Find a verify an oat file with the given dex file. Will return nullptr when the oat file
+  // was not found or the dex file could not be verified.
+  // Note: Does not register the oat file.
+  const OatFile* LoadOatFileAndVerifyDexFile(const std::string& oat_file_location,
+                                             const char* dex_location,
+                                             std::string* error_msg,
+                                             bool* open_failed)
       LOCKS_EXCLUDED(dex_lock_);
 
   mirror::ArtMethod* CreateProxyConstructor(Thread* self, Handle<mirror::Class> klass,

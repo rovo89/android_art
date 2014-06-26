@@ -40,6 +40,10 @@ class ScopedFlock {
 
   // Returns the (locked) file associated with this instance.
   File* GetFile();
+
+  // Returns whether a file is held.
+  bool HasFile();
+
   ~ScopedFlock();
  private:
   std::unique_ptr<File> file_;
