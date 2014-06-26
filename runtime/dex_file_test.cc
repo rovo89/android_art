@@ -146,8 +146,11 @@ static const DexFile* OpenDexFileBase64(const char* base64,
   // read dex file
   ScopedObjectAccess soa(Thread::Current());
   std::string error_msg;
-  const DexFile* dex_file = DexFile::Open(location, location, &error_msg);
-  CHECK(dex_file != nullptr) << error_msg;
+  std::vector<const DexFile*> tmp;
+  bool success = DexFile::Open(location, location, &error_msg, &tmp);
+  CHECK(success) << error_msg;
+  EXPECT_EQ(1U, tmp.size());
+  const DexFile* dex_file = tmp[0];
   EXPECT_EQ(PROT_READ, dex_file->GetPermissions());
   EXPECT_TRUE(dex_file->IsReadOnly());
   return dex_file;

@@ -23,11 +23,12 @@ import string
 import sys
 
 
-_ENUM_START_RE = re.compile(r'\benum\b\s+(\S+)\s+:?.*\{')
+_ENUM_START_RE = re.compile(r'\benum\b\s+(class\s+)?(\S+)\s+:?.*\{(\s+// private)?')
 _ENUM_VALUE_RE = re.compile(r'([A-Za-z0-9_]+)(.*)')
 _ENUM_END_RE = re.compile(r'^\s*\};$')
 _ENUMS = {}
 _NAMESPACES = {}
+_ENUM_CLASSES = {}
 
 def Confused(filename, line_number, line):
   sys.stderr.write('%s:%d: confused by:\n%s\n' % (filename, line_number, line))
@@ -38,7 +39,9 @@ def Confused(filename, line_number, line):
 def ProcessFile(filename):
   lines = codecs.open(filename, 'r', 'utf8', 'replace').read().split('\n')
   in_enum = False
+  is_enum_class = False
   line_number = 0
+  
 
   namespaces = []
   enclosing_classes = []
@@ -51,11 +54,18 @@ def ProcessFile(filename):
       m = _ENUM_START_RE.search(raw_line)
       if m:
         # Yes, so add an empty entry to _ENUMS for this enum.
-        enum_name = m.group(1)
+        
+        # Except when it's private
+        if m.group(3) is not None:
+          continue
+        
+        is_enum_class = m.group(1) is not None
+        enum_name = m.group(2)
         if len(enclosing_classes) > 0:
           enum_name = '::'.join(enclosing_classes) + '::' + enum_name
         _ENUMS[enum_name] = []
         _NAMESPACES[enum_name] = '::'.join(namespaces)
+        _ENUM_CLASSES[enum_name] = is_enum_class
         in_enum = True
         continue
 
@@ -139,7 +149,10 @@ def ProcessFile(filename):
       Confused(filename, line_number, raw_line)
 
     if len(enclosing_classes) > 0:
-      enum_value = '::'.join(enclosing_classes) + '::' + enum_value
+      if is_enum_class:
+        enum_value = enum_name + '::' + enum_value
+      else:
+        enum_value = '::'.join(enclosing_classes) + '::' + enum_value
 
     _ENUMS[enum_name].append((enum_value, enum_text))
 
@@ -170,7 +183,8 @@ def main():
     print '  switch (rhs) {'
     for (enum_value, enum_text) in _ENUMS[enum_name]:
       print '    case %s: os << "%s"; break;' % (enum_value, enum_text)
-    print '    default: os << "%s[" << static_cast<int>(rhs) << "]"; break;' % enum_name
+    if not _ENUM_CLASSES[enum_name]:
+      print '    default: os << "%s[" << static_cast<int>(rhs) << "]"; break;' % enum_name
     print '  }'
     print '  return os;'
     print '}'

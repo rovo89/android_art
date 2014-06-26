@@ -1232,6 +1232,7 @@ std::string GetSystemImageFilename(const char* location, const InstructionSet is
 std::string DexFilenameToOdexFilename(const std::string& location, const InstructionSet isa) {
   // location = /foo/bar/baz.jar
   // odex_location = /foo/bar/<isa>/baz.odex
+
   CHECK_GE(location.size(), 4U) << location;  // must be at least .123
   std::string odex_location(location);
   InsertIsaDirectory(isa, &odex_location);
