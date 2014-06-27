@@ -4799,6 +4799,25 @@ const char* LoadStoreLiteralResults[] = {
   "  18:   f8cf 07ff       str.w   r0, [pc, #2047] ; 81b <LoadStoreLiteral+0x81b>\n",
   nullptr
 };
+const char* LoadStoreLimitsResults[] = {
+  "   0:   6fe0            ldr     r0, [r4, #124]  ; 0x7c\n",
+  "   2:   f8d4 0080       ldr.w   r0, [r4, #128]  ; 0x80\n",
+  "   6:   7fe0            ldrb    r0, [r4, #31]\n",
+  "   8:   f894 0020       ldrb.w  r0, [r4, #32]\n",
+  "   c:   8fe0            ldrh    r0, [r4, #62]   ; 0x3e\n",
+  "   e:   f8b4 0040       ldrh.w  r0, [r4, #64]   ; 0x40\n",
+  "  12:   f994 001f       ldrsb.w r0, [r4, #31]\n",
+  "  16:   f994 0020       ldrsb.w r0, [r4, #32]\n",
+  "  1a:   f9b4 003e       ldrsh.w r0, [r4, #62]   ; 0x3e\n",
+  "  1e:   f9b4 0040       ldrsh.w r0, [r4, #64]   ; 0x40\n",
+  "  22:   67e0            str     r0, [r4, #124]  ; 0x7c\n",
+  "  24:   f8c4 0080       str.w   r0, [r4, #128]  ; 0x80\n",
+  "  28:   77e0            strb    r0, [r4, #31]\n",
+  "  2a:   f884 0020       strb.w  r0, [r4, #32]\n",
+  "  2e:   87e0            strh    r0, [r4, #62]   ; 0x3e\n",
+  "  30:   f8a4 0040       strh.w  r0, [r4, #64]   ; 0x40\n",
+  nullptr
+};
 std::map<std::string, const char**> test_results;
 void setup_results() {
     test_results["SimpleMov"] = SimpleMovResults;
@@ -4845,4 +4864,5 @@ void setup_results() {
     test_results["Shifts"] = ShiftsResults;
     test_results["LoadStoreRegOffset"] = LoadStoreRegOffsetResults;
     test_results["LoadStoreLiteral"] = LoadStoreLiteralResults;
+    test_results["LoadStoreLimits"] = LoadStoreLimitsResults;
 }

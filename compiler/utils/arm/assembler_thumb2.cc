@@ -1260,23 +1260,23 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
     int32_t offset = ad.GetOffset();
 
     // The 16 bit SP relative instruction can only have a 10 bit offset.
-    if (rn == SP && offset > 1024) {
+    if (rn == SP && offset >= (1 << 10)) {
       must_be_32bit = true;
     }
 
     if (byte) {
       // 5 bit offset, no shift.
-      if (offset > 32) {
+      if (offset >= (1 << 5)) {
         must_be_32bit = true;
       }
     } else if (half) {
       // 6 bit offset, shifted by 1.
-      if (offset > 64) {
+      if (offset >= (1 << 6)) {
         must_be_32bit = true;
       }
     } else {
       // 7 bit offset, shifted by 2.
-      if (offset > 128) {
+      if (offset >= (1 << 7)) {
         must_be_32bit = true;
       }
     }
@@ -1312,7 +1312,7 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
       CHECK_GE(offset, 0);
       if (sp_relative) {
         // SP relative, 10 bit offset.
-        CHECK_LT(offset, 1024);
+        CHECK_LT(offset, (1 << 10));
         CHECK_EQ((offset & 0b11), 0);
         encoding |= rd << 8 | offset >> 2;
       } else {
@@ -1322,15 +1322,15 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
 
         if (byte) {
           // 5 bit offset, no shift.
-          CHECK_LT(offset, 32);
+          CHECK_LT(offset, (1 << 5));
         } else if (half) {
           // 6 bit offset, shifted by 1.
-          CHECK_LT(offset, 64);
+          CHECK_LT(offset, (1 << 6));
           CHECK_EQ((offset & 0b1), 0);
           offset >>= 1;
         } else {
           // 7 bit offset, shifted by 2.
-          CHECK_LT(offset, 128);
+          CHECK_LT(offset, (1 << 7));
           CHECK_EQ((offset & 0b11), 0);
           offset >>= 2;
         }
@@ -1344,7 +1344,7 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
     if (ad.GetRegister() == PC) {
        // PC relative literal encoding.
       int32_t offset = ad.GetOffset();
-      if (must_be_32bit || offset < 0 || offset > (1 << 10) || !load) {
+      if (must_be_32bit || offset < 0 || offset >= (1 << 10) || !load) {
         int32_t up = B23;
         if (offset < 0) {
           offset = -offset;
