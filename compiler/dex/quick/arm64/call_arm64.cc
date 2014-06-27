@@ -24,14 +24,6 @@
 
 namespace art {
 
-bool Arm64Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
-                                  const InlineMethod& special) {
-  // TODO(Arm64): re-enable this, once hard-float ABI is implemented.
-  //   (this currently does not work, as GetArgMappingToPhysicalReg returns InvalidReg()).
-  // return Mir2Lir::GenSpecialCase(bb, mir, special);
-  return false;
-}
-
 /*
  * The sparse table in the literal pool is an array of <key,displacement>
  * pairs.  For each set, we'll load them as a pair using ldp.

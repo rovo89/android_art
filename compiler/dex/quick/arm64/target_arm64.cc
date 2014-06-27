@@ -816,7 +816,8 @@ const char* Arm64Mir2Lir::GetTargetInstFmt(int opcode) {
 }
 
 RegStorage Arm64Mir2Lir::InToRegStorageArm64Mapper::GetNextReg(bool is_double_or_float,
-                                                               bool is_wide) {
+                                                               bool is_wide,
+                                                               bool is_ref) {
   const RegStorage coreArgMappingToPhysicalReg[] =
       {rs_x1, rs_x2, rs_x3, rs_x4, rs_x5, rs_x6, rs_x7};
   const int coreArgMappingToPhysicalRegSize =
@@ -829,6 +830,7 @@ RegStorage Arm64Mir2Lir::InToRegStorageArm64Mapper::GetNextReg(bool is_double_or
   RegStorage result = RegStorage::InvalidReg();
   if (is_double_or_float) {
     if (cur_fp_reg_ < fpArgMappingToPhysicalRegSize) {
+      DCHECK(!is_ref);
       result = fpArgMappingToPhysicalReg[cur_fp_reg_++];
       if (result.Valid()) {
         // TODO: switching between widths remains a bit ugly.  Better way?
@@ -842,7 +844,8 @@ RegStorage Arm64Mir2Lir::InToRegStorageArm64Mapper::GetNextReg(bool is_double_or
       if (result.Valid()) {
         // TODO: switching between widths remains a bit ugly.  Better way?
         int res_reg = result.GetReg();
-        result = is_wide ? RegStorage::Solo64(res_reg) : RegStorage::Solo32(res_reg);
+        DCHECK(!(is_wide && is_ref));
+        result = (is_wide || is_ref) ? RegStorage::Solo64(res_reg) : RegStorage::Solo32(res_reg);
       }
     }
   }
@@ -861,14 +864,16 @@ void Arm64Mir2Lir::InToRegStorageMapping::Initialize(RegLocation* arg_locs, int 
   max_mapped_in_ = -1;
   is_there_stack_mapped_ = false;
   for (int in_position = 0; in_position < count; in_position++) {
-     RegStorage reg = mapper->GetNextReg(arg_locs[in_position].fp, arg_locs[in_position].wide);
+     RegStorage reg = mapper->GetNextReg(arg_locs[in_position].fp,
+                                         arg_locs[in_position].wide,
+                                         arg_locs[in_position].ref);
      if (reg.Valid()) {
        mapping_[in_position] = reg;
-       max_mapped_in_ = std::max(max_mapped_in_, in_position);
-       if (reg.Is64BitSolo()) {
+       if (arg_locs[in_position].wide) {
          // We covered 2 args, so skip the next one
          in_position++;
        }
+       max_mapped_in_ = std::max(max_mapped_in_, in_position);
      } else {
        is_there_stack_mapped_ = true;
      }
@@ -1042,16 +1047,14 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
   InToRegStorageMapping in_to_reg_storage_mapping;
   in_to_reg_storage_mapping.Initialize(info->args, info->num_arg_words, &mapper);
   const int last_mapped_in = in_to_reg_storage_mapping.GetMaxMappedIn();
-  const int size_of_the_last_mapped = last_mapped_in == -1 ? 1 :
-          in_to_reg_storage_mapping.Get(last_mapped_in).Is64BitSolo() ? 2 : 1;
-  int regs_left_to_pass_via_stack = info->num_arg_words - (last_mapped_in + size_of_the_last_mapped);
+  int regs_left_to_pass_via_stack = info->num_arg_words - (last_mapped_in + 1);
 
   // Fisrt of all, check whether it make sense to use bulk copying
   // Optimization is aplicable only for range case
   // TODO: make a constant instead of 2
   if (info->is_range && regs_left_to_pass_via_stack >= 2) {
     // Scan the rest of the args - if in phys_reg flush to memory
-    for (int next_arg = last_mapped_in + size_of_the_last_mapped; next_arg < info->num_arg_words;) {
+    for (int next_arg = last_mapped_in + 1; next_arg < info->num_arg_words;) {
       RegLocation loc = info->args[next_arg];
       if (loc.wide) {
         loc = UpdateLocWide(loc);
@@ -1074,8 +1077,8 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     DCHECK_EQ(VRegOffset(static_cast<int>(kVRegMethodPtrBaseReg)), 0);
 
     // The rest can be copied together
-    int start_offset = SRegOffset(info->args[last_mapped_in + size_of_the_last_mapped].s_reg_low);
-    int outs_offset = StackVisitor::GetOutVROffset(last_mapped_in + size_of_the_last_mapped,
+    int start_offset = SRegOffset(info->args[last_mapped_in + 1].s_reg_low);
+    int outs_offset = StackVisitor::GetOutVROffset(last_mapped_in + 1,
                                                    cu_->instruction_set);
 
     int current_src_offset = start_offset;
