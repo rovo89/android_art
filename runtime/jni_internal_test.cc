@@ -380,19 +380,39 @@ TEST_F(JniInternalTest, FromReflectedField_ToReflectedField) {
 
 TEST_F(JniInternalTest, FromReflectedMethod_ToReflectedMethod) {
   jclass jlrMethod = env_->FindClass("java/lang/reflect/Method");
+  ASSERT_NE(jlrMethod, nullptr);
+  jclass jlrConstructor = env_->FindClass("java/lang/reflect/Constructor");
+  ASSERT_NE(jlrConstructor, nullptr);
   jclass c = env_->FindClass("java/lang/String");
   ASSERT_NE(c, nullptr);
-  jmethodID mid = env_->GetMethodID(c, "length", "()I");
+
+  jmethodID mid = env_->GetMethodID(c, "<init>", "()V");
   ASSERT_NE(mid, nullptr);
-  // Turn the mid into a java.lang.reflect.Method...
+  // Turn the mid into a java.lang.reflect.Constructor...
   jobject method = env_->ToReflectedMethod(c, mid, JNI_FALSE);
-  ASSERT_NE(c, nullptr);
-  ASSERT_TRUE(env_->IsInstanceOf(method, jlrMethod));
+  ASSERT_NE(method, nullptr);
+  ASSERT_TRUE(env_->IsInstanceOf(method, jlrConstructor));
   // ...and back again.
   jmethodID mid2 = env_->FromReflectedMethod(method);
   ASSERT_NE(mid2, nullptr);
   // Make sure we can actually use it.
-  jstring s = env_->NewStringUTF("poop");
+  jstring s = reinterpret_cast<jstring>(env_->AllocObject(c));
+  ASSERT_NE(s, nullptr);
+  env_->CallVoidMethod(s, mid2);
+  ASSERT_EQ(JNI_FALSE, env_->ExceptionCheck());
+
+  mid = env_->GetMethodID(c, "length", "()I");
+  ASSERT_NE(mid, nullptr);
+  // Turn the mid into a java.lang.reflect.Method...
+  method = env_->ToReflectedMethod(c, mid, JNI_FALSE);
+  ASSERT_NE(method, nullptr);
+  ASSERT_TRUE(env_->IsInstanceOf(method, jlrMethod));
+  // ...and back again.
+  mid2 = env_->FromReflectedMethod(method);
+  ASSERT_NE(mid2, nullptr);
+  // Make sure we can actually use it.
+  s = env_->NewStringUTF("poop");
+  ASSERT_NE(s, nullptr);
   ASSERT_EQ(4, env_->CallIntMethod(s, mid2));
 
   // Bad arguments.
