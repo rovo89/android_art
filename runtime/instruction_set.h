@@ -33,7 +33,8 @@ enum InstructionSet {
   kThumb2,
   kX86,
   kX86_64,
-  kMips
+  kMips,
+  kMips64
 };
 std::ostream& operator<<(std::ostream& os, const InstructionSet& rhs);
 

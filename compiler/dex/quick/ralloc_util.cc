@@ -359,7 +359,13 @@ RegStorage Mir2Lir::AllocTempBody(GrowableArray<RegisterInfo*> &regs, int* next_
        * NOTE: "wideness" is an attribute of how the container is used, not its physical size.
        * The caller will set wideness as appropriate.
        */
-      info->SetIsWide(false);
+      if (info->IsWide()) {
+        RegisterInfo* partner = GetRegInfo(info->Partner());
+        DCHECK_EQ(info->GetReg().GetRegNum(), partner->Partner().GetRegNum());
+        DCHECK(partner->IsWide());
+        info->SetIsWide(false);
+        partner->SetIsWide(false);
+      }
       *next_temp = next + 1;
       return info->GetReg();
     }
