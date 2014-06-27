@@ -1358,6 +1358,41 @@ TEST(Thumb2AssemblerTest, LoadStoreLiteral) {
   delete assembler;
 }
 
+TEST(Thumb2AssemblerTest, LoadStoreLimits) {
+  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+
+  __ ldr(R0, Address(R4, 124));     // 16 bit.
+  __ ldr(R0, Address(R4, 128));     // 32 bit.
+
+  __ ldrb(R0, Address(R4, 31));     // 16 bit.
+  __ ldrb(R0, Address(R4, 32));     // 32 bit.
+
+  __ ldrh(R0, Address(R4, 62));     // 16 bit.
+  __ ldrh(R0, Address(R4, 64));     // 32 bit.
+
+  __ ldrsb(R0, Address(R4, 31));     // 32 bit.
+  __ ldrsb(R0, Address(R4, 32));     // 32 bit.
+
+  __ ldrsh(R0, Address(R4, 62));     // 32 bit.
+  __ ldrsh(R0, Address(R4, 64));     // 32 bit.
+
+  __ str(R0, Address(R4, 124));     // 16 bit.
+  __ str(R0, Address(R4, 128));     // 32 bit.
+
+  __ strb(R0, Address(R4, 31));     // 16 bit.
+  __ strb(R0, Address(R4, 32));     // 32 bit.
+
+  __ strh(R0, Address(R4, 62));     // 16 bit.
+  __ strh(R0, Address(R4, 64));     // 32 bit.
+
+  size_t cs = __ CodeSize();
+  std::vector<uint8_t> managed_code(cs);
+  MemoryRegion code(&managed_code[0], managed_code.size());
+  __ FinalizeInstructions(code);
+  dump(managed_code, "LoadStoreLimits");
+  delete assembler;
+}
+
 #undef __
 }  // namespace arm
 }  // namespace art
