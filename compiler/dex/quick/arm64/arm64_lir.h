@@ -181,9 +181,9 @@ const RegLocation arm_loc_c_return =
 const RegLocation arm_loc_c_return_wide =
     {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, rs_x0, INVALID_SREG, INVALID_SREG};
 const RegLocation arm_loc_c_return_float =
-    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, rs_f0, INVALID_SREG, INVALID_SREG};
+    {kLocPhysReg, 0, 0, 0, 1, 0, 0, 0, 1, rs_f0, INVALID_SREG, INVALID_SREG};
 const RegLocation arm_loc_c_return_double =
-    {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, rs_d0, INVALID_SREG, INVALID_SREG};
+    {kLocPhysReg, 1, 0, 0, 1, 0, 0, 0, 1, rs_d0, INVALID_SREG, INVALID_SREG};
 
 /**
  * @brief Shift-type to be applied to a register via EncodeShift().
