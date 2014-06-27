@@ -740,10 +740,16 @@ bool Arm64Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
   int dmb_flavor;
   // TODO: revisit Arm barrier kinds
   switch (barrier_kind) {
-    case kLoadStore: dmb_flavor = kISH; break;
-    case kLoadLoad: dmb_flavor = kISH; break;
+    case kAnyStore: dmb_flavor = kISH; break;
+    case kLoadAny: dmb_flavor = kISH; break;
+        // We conjecture that kISHLD is insufficient.  It is documented
+        // to provide LoadLoad | StoreStore ordering.  But if this were used
+        // to implement volatile loads, we suspect that the lack of store
+        // atomicity on ARM would cause us to allow incorrect results for
+        // the canonical IRIW example.  But we're not sure.
+        // We should be using acquire loads instead.
     case kStoreStore: dmb_flavor = kISHST; break;
-    case kStoreLoad: dmb_flavor = kISH; break;
+    case kAnyAny: dmb_flavor = kISH; break;
     default:
       LOG(FATAL) << "Unexpected MemBarrierKind: " << barrier_kind;
       dmb_flavor = kSY;  // quiet gcc.
