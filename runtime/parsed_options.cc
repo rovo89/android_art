@@ -567,8 +567,12 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
       }
     } else if (option == "-Xprofile-type:method") {
       profiler_options_.profile_type_ = kProfilerMethod;
-    } else if (option == "-Xprofile-type:dexpc") {
-      profiler_options_.profile_type_ = kProfilerMethodAndDexPC;
+    } else if (option == "-Xprofile-type:stack") {
+      profiler_options_.profile_type_ = kProfilerBoundedStack;
+    } else if (StartsWith(option, "-Xprofile-max-stack-depth:")) {
+      if (!ParseUnsignedInteger(option, ':', &profiler_options_.max_stack_depth_)) {
+        return false;
+      }
     } else if (StartsWith(option, "-implicit-checks:")) {
       std::string checks;
       if (!ParseStringAfterChar(option, ':', &checks)) {
@@ -812,7 +816,8 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xprofile-start-immediately\n");
   UsageMessage(stream, "  -Xprofile-top-k-threshold:doublevalue\n");
   UsageMessage(stream, "  -Xprofile-top-k-change-threshold:doublevalue\n");
-  UsageMessage(stream, "  -Xprofile-type:{method,dexpc}\n");
+  UsageMessage(stream, "  -Xprofile-type:{method,stack}\n");
+  UsageMessage(stream, "  -Xprofile-max-stack-depth:integervalue\n");
   UsageMessage(stream, "  -Xcompiler:filename\n");
   UsageMessage(stream, "  -Xcompiler-option dex2oat-option\n");
   UsageMessage(stream, "  -Ximage-compiler-option dex2oat-option\n");

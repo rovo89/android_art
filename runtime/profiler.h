@@ -31,6 +31,7 @@
 #include "profiler_options.h"
 #include "os.h"
 #include "safe_map.h"
+#include "method_reference.h"
 
 namespace art {
 
@@ -39,6 +40,57 @@ namespace mirror {
   class Class;
 }  // namespace mirror
 class Thread;
+
+typedef std::pair<mirror::ArtMethod*, uint32_t> InstructionLocation;
+
+// This class stores the sampled bounded stacks in a trie structure. A path of the trie represents
+// a particular context with the method on top of the stack being a leaf or an internal node of the
+// trie rather than the root.
+class StackTrieNode {
+ public:
+  StackTrieNode(MethodReference method, uint32_t dex_pc, uint32_t method_size,
+      StackTrieNode* parent) :
+      parent_(parent), method_(method), dex_pc_(dex_pc),
+      count_(0), method_size_(method_size) {
+  }
+  StackTrieNode() : parent_(nullptr), method_(nullptr, 0),
+      dex_pc_(0), count_(0), method_size_(0) {
+  }
+  StackTrieNode* GetParent() { return parent_; }
+  MethodReference GetMethod() { return method_; }
+  uint32_t GetCount() { return count_; }
+  uint32_t GetDexPC() { return dex_pc_; }
+  uint32_t GetMethodSize() { return method_size_; }
+  void AppendChild(StackTrieNode* child) { children_.insert(child); }
+  StackTrieNode* FindChild(MethodReference method, uint32_t dex_pc);
+  void DeleteChildren();
+  void IncreaseCount() { ++count_; }
+
+ private:
+  // Comparator for stack trie node.
+  struct StackTrieNodeComparator {
+    bool operator()(StackTrieNode* node1, StackTrieNode* node2) const {
+      MethodReference mr1 = node1->GetMethod();
+      MethodReference mr2 = node2->GetMethod();
+      if (mr1.dex_file == mr2.dex_file) {
+        if (mr1.dex_method_index == mr2.dex_method_index) {
+          return node1->GetDexPC() < node2->GetDexPC();
+        } else {
+          return mr1.dex_method_index < mr2.dex_method_index;
+        }
+      } else {
+        return mr1.dex_file < mr2.dex_file;
+      }
+    }
+  };
+
+  std::set<StackTrieNode*, StackTrieNodeComparator> children_;
+  StackTrieNode* parent_;
+  MethodReference method_;
+  uint32_t dex_pc_;
+  uint32_t count_;
+  uint32_t method_size_;
+};
 
 //
 // This class holds all the results for all runs of the profiler.  It also
@@ -53,7 +105,7 @@ class ProfileSampleResults {
   ~ProfileSampleResults();
 
   void Put(mirror::ArtMethod* method);
-  void PutDexPC(mirror::ArtMethod* method, uint32_t pc);
+  void PutStack(const std::vector<InstructionLocation>& stack_dump);
   uint32_t Write(std::ostream &os, ProfileDataType type);
   void ReadPrevious(int fd, ProfileDataType type);
   void Clear();
@@ -72,18 +124,21 @@ class ProfileSampleResults {
   typedef std::map<mirror::ArtMethod*, uint32_t> Map;  // Map of method vs its count.
   Map *table[kHashSize];
 
-  typedef std::map<uint32_t, uint32_t> DexPCCountMap;  // Map of dex pc vs its count
-  // Map of method vs dex pc counts in the method.
-  typedef std::map<mirror::ArtMethod*, DexPCCountMap*> MethodDexPCMap;
-  MethodDexPCMap *dex_table[kHashSize];
+  typedef std::set<StackTrieNode*> TrieNodeSet;
+  // Map of method hit by profiler vs the set of stack trie nodes for this method.
+  typedef std::map<MethodReference, TrieNodeSet*, MethodReferenceComparator> MethodContextMap;
+  MethodContextMap *method_context_table;
+  StackTrieNode* stack_trie_root_;  // Root of the trie that stores sampled stack information.
 
+  // Map from <pc, context> to counts.
+  typedef std::map<std::pair<uint32_t, std::string>, uint32_t> PreviousContextMap;
   struct PreviousValue {
-    PreviousValue() : count_(0), method_size_(0), dex_pc_map_(nullptr) {}
-    PreviousValue(uint32_t count, uint32_t method_size, DexPCCountMap* dex_pc_map)
-      : count_(count), method_size_(method_size), dex_pc_map_(dex_pc_map) {}
+    PreviousValue() : count_(0), method_size_(0), context_map_(nullptr) {}
+    PreviousValue(uint32_t count, uint32_t method_size, PreviousContextMap* context_map)
+      : count_(count), method_size_(method_size), context_map_(context_map) {}
     uint32_t count_;
     uint32_t method_size_;
-    DexPCCountMap* dex_pc_map_;
+    PreviousContextMap* context_map_;
   };
 
   typedef std::map<std::string, PreviousValue> PreviousProfile;
@@ -121,7 +176,10 @@ class BackgroundMethodSamplingProfiler {
   static void Stop() LOCKS_EXCLUDED(Locks::profiler_lock_, wait_lock_);
   static void Shutdown() LOCKS_EXCLUDED(Locks::profiler_lock_);
 
-  void RecordMethod(mirror::ArtMethod *method, uint32_t pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void RecordMethod(mirror::ArtMethod *method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void RecordStack(const std::vector<InstructionLocation>& stack) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool ProcessMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const ProfilerOptions& GetProfilerOptions() const { return options_; }
 
   Barrier& GetBarrier() {
     return *profiler_barrier_;
