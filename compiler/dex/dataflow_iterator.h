@@ -337,16 +337,10 @@ namespace art {
        * @param mir_graph The MIRGraph considered.
        */
       explicit TopologicalSortIterator(MIRGraph* mir_graph)
-          : DataflowIterator(mir_graph, 0, mir_graph->GetTopologicalSortOrder() != nullptr ?
-            mir_graph->GetTopologicalSortOrder()->Size() : 0) {
+          : DataflowIterator(mir_graph, 0, mir_graph->GetTopologicalSortOrder()->Size()) {
         // Extra setup for TopologicalSortIterator.
         idx_ = start_idx_;
         block_id_list_ = mir_graph->GetTopologicalSortOrder();
-
-        if (mir_graph->GetTopologicalSortOrder() == nullptr) {
-          /* Compute the topological order */
-          mir_graph->ComputeTopologicalSortOrder();
-        }
       }
 
       /**
@@ -375,16 +369,10 @@ namespace art {
       * @param mir_graph The MIRGraph considered.
       */
      explicit RepeatingTopologicalSortIterator(MIRGraph* mir_graph)
-         : DataflowIterator(mir_graph, 0, mir_graph->GetTopologicalSortOrder() != nullptr ?
-           mir_graph->GetTopologicalSortOrder()->Size() : 0) {
+         : DataflowIterator(mir_graph, 0, mir_graph->GetTopologicalSortOrder()->Size()) {
        // Extra setup for RepeatingTopologicalSortIterator.
        idx_ = start_idx_;
        block_id_list_ = mir_graph->GetTopologicalSortOrder();
-
-       if (mir_graph->GetTopologicalSortOrder() == nullptr) {
-         /* Compute the topological order */
-         mir_graph->ComputeTopologicalSortOrder();
-       }
      }
 
      /**

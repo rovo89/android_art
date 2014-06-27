@@ -701,6 +701,7 @@ class MIRGraph {
   void BasicBlockOptimization();
 
   GrowableArray<BasicBlockId>* GetTopologicalSortOrder() {
+    DCHECK(topological_order_ != nullptr);
     return topological_order_;
   }
 
