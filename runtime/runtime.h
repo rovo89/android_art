@@ -231,7 +231,7 @@ class Runtime {
   }
 
   static const char* GetVersion() {
-    return "2.0.0";
+    return "2.1.0";
   }
 
   void DisallowNewSystemWeaks() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
