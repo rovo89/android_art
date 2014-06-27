@@ -127,6 +127,23 @@ class BuildDomination : public PassME {
 };
 
 /**
+ * @class TopologicalSortOrders
+ * @brief Compute the topological sort order of the MIR graph
+ */
+class TopologicalSortOrders : public PassME {
+ public:
+  TopologicalSortOrders() : PassME("TopologicalSortOrders") {
+  }
+
+  void Start(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    c_unit->mir_graph.get()->ComputeTopologicalSortOrder();
+  }
+};
+
+/**
  * @class DefBlockMatrix
  * @brief Calculate the matrix of definition per basic block
  */

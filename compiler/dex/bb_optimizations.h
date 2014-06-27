@@ -139,7 +139,7 @@ class CodeLayout : public PassME {
 class NullCheckEliminationAndTypeInference : public PassME {
  public:
   NullCheckEliminationAndTypeInference()
-    : PassME("NCE_TypeInference", kRepeatingPreOrderDFSTraversal, "4_post_nce_cfg") {
+    : PassME("NCE_TypeInference", kRepeatingTopologicalSortTraversal, "4_post_nce_cfg") {
   }
 
   void Start(PassDataHolder* data) const {
@@ -169,7 +169,8 @@ class NullCheckEliminationAndTypeInference : public PassME {
 
 class ClassInitCheckElimination : public PassME {
  public:
-  ClassInitCheckElimination() : PassME("ClInitCheckElimination", kRepeatingPreOrderDFSTraversal) {
+  ClassInitCheckElimination()
+    : PassME("ClInitCheckElimination", kRepeatingTopologicalSortTraversal) {
   }
 
   bool Gate(const PassDataHolder* data) const {

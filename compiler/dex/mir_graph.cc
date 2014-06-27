@@ -27,6 +27,7 @@
 #include "dex/quick/dex_file_method_inliner.h"
 #include "leb128.h"
 #include "pass_driver_me_post_opt.h"
+#include "utils/scoped_arena_containers.h"
 
 namespace art {
 
@@ -1437,22 +1438,24 @@ void MIRGraph::SSATransformationEnd() {
 }
 
 void MIRGraph::ComputeTopologicalSortOrder() {
-  std::queue<BasicBlock*> q;
-  std::map<int, int> visited_cnt_values;
-
   // Clear the nodes.
   ClearAllVisitedFlags();
 
   // Create the topological order if need be.
-  if (topological_order_ != nullptr) {
-    topological_order_ = new (arena_) GrowableArray<BasicBlockId>(arena_, 0);
+  if (topological_order_ == nullptr) {
+    topological_order_ = new (arena_) GrowableArray<BasicBlockId>(arena_, GetNumBlocks());
   }
   topological_order_->Reset();
+
+  ScopedArenaAllocator allocator(&cu_->arena_stack);
+  ScopedArenaQueue<BasicBlock*> q(allocator.Adapter());
+  ScopedArenaVector<size_t> visited_cnt_values(GetNumBlocks(), 0u, allocator.Adapter());
 
   // Set up visitedCntValues map for all BB. The default value for this counters in the map is zero.
   // also fill initial queue.
   GrowableArray<BasicBlock*>::Iterator iterator(&block_list_);
 
+  size_t num_blocks = 0u;
   while (true) {
     BasicBlock* bb = iterator.Next();
 
@@ -1464,7 +1467,8 @@ void MIRGraph::ComputeTopologicalSortOrder() {
       continue;
     }
 
-    visited_cnt_values[bb->id] = bb->predecessors->Size();
+    num_blocks += 1u;
+    size_t unvisited_predecessor_count = bb->predecessors->Size();
 
     GrowableArray<BasicBlockId>::Iterator pred_iterator(bb->predecessors);
     // To process loops we should not wait for dominators.
@@ -1475,53 +1479,75 @@ void MIRGraph::ComputeTopologicalSortOrder() {
         break;
       }
 
-      if (pred_bb->dominators == nullptr || pred_bb->hidden == true) {
-        continue;
-      }
-
-      // Skip the backward branch.
-      if (pred_bb->dominators->IsBitSet(bb->id) != 0) {
-        visited_cnt_values[bb->id]--;
+      // Skip the backward branch or hidden predecessor.
+      if (pred_bb->hidden ||
+          (pred_bb->dominators != nullptr && pred_bb->dominators->IsBitSet(bb->id))) {
+        unvisited_predecessor_count -= 1u;
       }
     }
 
+    visited_cnt_values[bb->id] = unvisited_predecessor_count;
+
     // Add entry block to queue.
-    if (visited_cnt_values[bb->id] == 0) {
+    if (unvisited_predecessor_count == 0) {
       q.push(bb);
     }
   }
 
-  while (q.size() > 0) {
-    // Get top.
-    BasicBlock* bb = q.front();
-    q.pop();
-
-    DCHECK_EQ(bb->hidden, false);
-
-    if (bb->IsExceptionBlock() == true) {
-      continue;
+  // We can theoretically get a cycle where none of the blocks dominates the other. Therefore
+  // don't stop when the queue is empty, continue until we've processed all the blocks.
+  // (In practice, we've seen this for a monitor-exit catch handler that erroneously tries to
+  // handle its own exceptions being broken into two blocks by a jump to to the monitor-exit
+  // from another catch hanler. http://b/15745363 .)
+  AllNodesIterator candidate_iter(this);  // For the empty queue case.
+  while (num_blocks != 0u) {
+    num_blocks -= 1u;
+    BasicBlock* bb = nullptr;
+    if (!q.empty()) {
+      // Get top.
+      bb = q.front();
+      q.pop();
+    } else {
+      // Find some block we didn't visit yet that has at least one visited predecessor.
+      while (bb == nullptr) {
+        BasicBlock* candidate = candidate_iter.Next();
+        DCHECK(candidate != nullptr);
+        if (candidate->visited || candidate->hidden) {
+          continue;
+        }
+        GrowableArray<BasicBlockId>::Iterator iter(candidate->predecessors);
+        for (BasicBlock* pred_bb = GetBasicBlock(iter.Next()); pred_bb != nullptr;
+            pred_bb = GetBasicBlock(iter.Next())) {
+          if (!pred_bb->hidden && pred_bb->visited) {
+            bb = candidate;
+            break;
+          }
+        }
+      }
     }
 
+    DCHECK_EQ(bb->hidden, false);
+    DCHECK_EQ(bb->visited, false);
+
     // We've visited all the predecessors. So, we can visit bb.
-    if (bb->visited == false) {
-      bb->visited = true;
+    bb->visited = true;
 
-      // Now add the basic block.
-      topological_order_->Insert(bb->id);
+    // Now add the basic block.
+    topological_order_->Insert(bb->id);
 
-      // Reduce visitedCnt for all the successors and add into the queue ones with visitedCnt equals to zero.
-      ChildBlockIterator succIter(bb, this);
-      BasicBlock* successor = succIter.Next();
-      while (successor != nullptr) {
-        // one more predecessor was visited.
-        visited_cnt_values[successor->id]--;
+    // Reduce visitedCnt for all the successors and add into the queue ones with visitedCnt equals to zero.
+    ChildBlockIterator succIter(bb, this);
+    BasicBlock* successor = succIter.Next();
+    for ( ; successor != nullptr; successor = succIter.Next()) {
+      if (successor->visited || successor->hidden) {
+        continue;
+      }
 
-        if (visited_cnt_values[successor->id] <= 0 && successor->visited == false && successor->hidden == false) {
-          q.push(successor);
-        }
-
-        // Take next successor.
-        successor = succIter.Next();
+      // one more predecessor was visited.
+      DCHECK_NE(visited_cnt_values[successor->id], 0u);
+      visited_cnt_values[successor->id] -= 1u;
+      if (visited_cnt_values[successor->id] == 0u) {
+        q.push(successor);
       }
     }
   }

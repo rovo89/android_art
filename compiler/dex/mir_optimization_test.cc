@@ -190,10 +190,12 @@ class ClassInitCheckEliminationTest : public testing::Test {
   void PerformClassInitCheckElimination() {
     cu_.mir_graph->SSATransformationStart();
     cu_.mir_graph->ComputeDFSOrders();
+    cu_.mir_graph->ComputeDominators();
+    cu_.mir_graph->ComputeTopologicalSortOrder();
     cu_.mir_graph->SSATransformationEnd();
     bool gate_result = cu_.mir_graph->EliminateClassInitChecksGate();
     ASSERT_TRUE(gate_result);
-    RepeatingPreOrderDfsIterator iterator(cu_.mir_graph.get());
+    RepeatingTopologicalSortIterator iterator(cu_.mir_graph.get());
     bool change = false;
     for (BasicBlock* bb = iterator.Next(change); bb != nullptr; bb = iterator.Next(change)) {
       change = cu_.mir_graph->EliminateClassInitChecks(bb);
