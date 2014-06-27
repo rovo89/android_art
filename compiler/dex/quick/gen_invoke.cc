@@ -153,13 +153,14 @@ void Mir2Lir::CallRuntimeHelperRegLocation(ThreadOffset<pointer_size> helper_off
                                            RegLocation arg0, bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   if (arg0.wide == 0) {
-    LoadValueDirectFixed(arg0, TargetReg(kArg0));
+    LoadValueDirectFixed(arg0, TargetReg(arg0.fp ? kFArg0 : kArg0));
   } else {
     RegStorage r_tmp;
     if (cu_->target64) {
       r_tmp = RegStorage::Solo64(TargetReg(kArg0).GetReg());
     } else {
-      r_tmp = RegStorage::MakeRegPair(TargetReg(kArg0), TargetReg(kArg1));
+      r_tmp = RegStorage::MakeRegPair(TargetReg(arg0.fp ? kFArg0 : kArg0),
+                                      TargetReg(arg0.fp ? kFArg1 : kArg1));
     }
     LoadValueDirectWideFixed(arg0, r_tmp);
   }
@@ -190,7 +191,12 @@ void Mir2Lir::CallRuntimeHelperImmRegLocation(ThreadOffset<pointer_size> helper_
     if (cu_->target64) {
       r_tmp = RegStorage::Solo64(TargetReg(kArg1).GetReg());
     } else {
-      r_tmp = RegStorage::MakeRegPair(TargetReg(kArg1), TargetReg(kArg2));
+      if (cu_->instruction_set == kMips) {
+        // skip kArg1 for stack alignment.
+        r_tmp = RegStorage::MakeRegPair(TargetReg(kArg2), TargetReg(kArg3));
+      } else {
+        r_tmp = RegStorage::MakeRegPair(TargetReg(kArg1), TargetReg(kArg2));
+      }
     }
     LoadValueDirectWideFixed(arg1, r_tmp);
   }
@@ -304,7 +310,8 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(ThreadOffset<pointer_size>
         if (arg1.fp) {
           r_tmp = RegStorage::MakeRegPair(TargetReg(kFArg2), TargetReg(kFArg3));
         } else {
-          r_tmp = RegStorage::MakeRegPair(TargetReg(kArg1), TargetReg(kArg2));
+          // skip kArg1 for stack alignment.
+          r_tmp = RegStorage::MakeRegPair(TargetReg(kArg2), TargetReg(kArg3));
         }
         LoadValueDirectWideFixed(arg1, r_tmp);
       } else {
