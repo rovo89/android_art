@@ -592,7 +592,12 @@ class JNI {
     mirror::ArtMethod* m = soa.DecodeMethod(mid);
     CHECK(!kMovingMethods);
     jobject art_method = soa.AddLocalReference<jobject>(m);
-    jobject reflect_method = env->AllocObject(WellKnownClasses::java_lang_reflect_Method);
+    jobject reflect_method;
+    if (m->IsConstructor()) {
+      reflect_method = env->AllocObject(WellKnownClasses::java_lang_reflect_Constructor);
+    } else {
+      reflect_method = env->AllocObject(WellKnownClasses::java_lang_reflect_Method);
+    }
     if (env->ExceptionCheck()) {
       return nullptr;
     }
