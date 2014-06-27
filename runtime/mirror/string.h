@@ -21,6 +21,7 @@
 
 #include "class.h"
 #include "object_callbacks.h"
+#include "read_barrier.h"
 
 namespace art {
 
@@ -102,9 +103,10 @@ class MANAGED String : public Object {
 
   int32_t CompareTo(String* other) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static Class* GetJavaLangString() {
+  static Class* GetJavaLangString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(java_lang_String_ != NULL);
-    return java_lang_String_;
+    return ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(
+        &java_lang_String_);
   }
 
   static void SetClass(Class* java_lang_String);

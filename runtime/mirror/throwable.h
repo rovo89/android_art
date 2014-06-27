@@ -19,6 +19,7 @@
 
 #include "object.h"
 #include "object_callbacks.h"
+#include "read_barrier.h"
 #include "string.h"
 
 namespace art {
@@ -45,9 +46,10 @@ class MANAGED Throwable : public Object {
   void SetStackState(Object* state) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsCheckedException() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static Class* GetJavaLangThrowable() {
+  static Class* GetJavaLangThrowable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(java_lang_Throwable_ != NULL);
-    return java_lang_Throwable_;
+    return ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(
+        &java_lang_Throwable_);
   }
 
   static void SetClass(Class* java_lang_Throwable);
