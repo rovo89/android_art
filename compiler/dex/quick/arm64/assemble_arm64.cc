@@ -484,7 +484,7 @@ const ArmEncodingMap Arm64Mir2Lir::EncodingMap[kA64Last] = {
                  "sdiv", "!0r, !1r, !2r", kFixupNone),
     ENCODING_MAP(WIDE(kA64Smaddl4xwwx), NO_VARIANTS(0x9b200000),
                  kFmtRegX, 4, 0, kFmtRegW, 9, 5, kFmtRegW, 20, 16,
-                 kFmtRegX, -1, -1, IS_QUAD_OP | REG_DEF0_USE123,
+                 kFmtRegX, 14, 10, IS_QUAD_OP | REG_DEF0_USE123,
                  "smaddl", "!0x, !1w, !2w, !3x", kFixupNone),
     ENCODING_MAP(WIDE(kA64Stp4ffXD), CUSTOM_VARIANTS(0x2d000000, 0x6d000000),
                  kFmtRegF, 4, 0, kFmtRegF, 14, 10, kFmtRegXOrSp, 9, 5,
