@@ -40,7 +40,9 @@ namespace mirror {
 Class* Class::java_lang_Class_ = nullptr;
 
 void Class::SetClassClass(Class* java_lang_Class) {
-  CHECK(java_lang_Class_ == nullptr) << java_lang_Class_ << " " << java_lang_Class;
+  CHECK(java_lang_Class_ == nullptr)
+      << ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(&java_lang_Class_)
+      << " " << java_lang_Class;
   CHECK(java_lang_Class != nullptr);
   java_lang_Class_ = java_lang_Class;
 }

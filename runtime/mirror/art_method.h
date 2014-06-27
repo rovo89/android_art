@@ -24,6 +24,7 @@
 #include "object.h"
 #include "object_callbacks.h"
 #include "quick/quick_method_frame_info.h"
+#include "read_barrier.h"
 
 namespace art {
 
@@ -409,9 +410,11 @@ class MANAGED ArtMethod : public Object {
 
   static void SetClass(Class* java_lang_reflect_ArtMethod);
 
-  static Class* GetJavaLangReflectArtMethod() {
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  static Class* GetJavaLangReflectArtMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(java_lang_reflect_ArtMethod_ != nullptr);
-    return java_lang_reflect_ArtMethod_;
+    return ReadBarrier::BarrierForRoot<mirror::Class, kReadBarrierOption>(
+        &java_lang_reflect_ArtMethod_);
   }
 
   static void ResetClass();

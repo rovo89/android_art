@@ -23,6 +23,7 @@
 #include "modifiers.h"
 #include "object.h"
 #include "object_callbacks.h"
+#include "read_barrier.h"
 
 namespace art {
 
@@ -121,9 +122,11 @@ class MANAGED ArtField : public Object {
   template<bool kTransactionActive>
   void SetObj(Object* object, Object* new_value) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static Class* GetJavaLangReflectArtField() {
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  static Class* GetJavaLangReflectArtField()  SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(java_lang_reflect_ArtField_ != nullptr);
-    return java_lang_reflect_ArtField_;
+    return ReadBarrier::BarrierForRoot<mirror::Class, kReadBarrierOption>(
+        &java_lang_reflect_ArtField_);
   }
 
   static void SetClass(Class* java_lang_reflect_ArtField);
