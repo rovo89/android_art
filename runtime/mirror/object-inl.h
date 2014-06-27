@@ -218,7 +218,8 @@ inline bool Object::IsArrayInstance() {
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Object::IsArtField() {
-  return GetClass<kVerifyFlags, kReadBarrierOption>()->IsArtFieldClass();
+  return GetClass<kVerifyFlags, kReadBarrierOption>()->
+      template IsArtFieldClass<kReadBarrierOption>();
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -229,7 +230,8 @@ inline ArtField* Object::AsArtField() {
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Object::IsArtMethod() {
-  return GetClass<kVerifyFlags, kReadBarrierOption>()->IsArtMethodClass();
+  return GetClass<kVerifyFlags, kReadBarrierOption>()->
+      template IsArtMethodClass<kReadBarrierOption>();
 }
 
 template<VerifyObjectFlags kVerifyFlags>
