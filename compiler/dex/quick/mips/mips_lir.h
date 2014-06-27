@@ -138,6 +138,10 @@ enum MipsResourceEncodingPos {
 #define ENCODE_MIPS_REG_HI           (1ULL << kMipsRegHI)
 #define ENCODE_MIPS_REG_LO           (1ULL << kMipsRegLO)
 
+// Set FR_BIT to 0
+// This bit determines how the CPU access FP registers.
+#define FR_BIT   0
+
 enum MipsNativeRegisterPool {
   rZERO = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  0,
   rAT   = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  1,
@@ -210,6 +214,26 @@ enum MipsNativeRegisterPool {
   rF30 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 30,
   rF31 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 31,
 #endif
+#if (FR_BIT == 0)
+  rD0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  0,
+  rD1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  2,
+  rD2  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  4,
+  rD3  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  6,
+  rD4  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  8,
+  rD5  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 10,
+  rD6  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 12,
+  rD7  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 14,
+#if 0  // TODO: expand resource mask to enable use of all MIPS fp registers.
+  rD8  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 16,
+  rD9  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 18,
+  rD10 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 20,
+  rD11 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 22,
+  rD12 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 24,
+  rD13 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 26,
+  rD14 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 28,
+  rD15 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 30,
+#endif
+#else
   rD0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  0,
   rD1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  1,
   rD2  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  2,
@@ -227,6 +251,7 @@ enum MipsNativeRegisterPool {
   rD13 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 13,
   rD14 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 14,
   rD15 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 15,
+#endif
 #endif
 };
 

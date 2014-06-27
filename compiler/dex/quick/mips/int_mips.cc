@@ -485,8 +485,10 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
   RegLocation rl_result;
-  rl_array = LoadValue(rl_array, kCoreReg);
+  rl_array = LoadValue(rl_array, kRefReg);
   rl_index = LoadValue(rl_index, kCoreReg);
+
+  // FIXME: need to add support for rl_index.is_const.
 
   if (size == k64 || size == kDouble) {
     data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Int32Value();
@@ -558,8 +560,11 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Int32Value();
   }
 
-  rl_array = LoadValue(rl_array, kCoreReg);
+  rl_array = LoadValue(rl_array, kRefReg);
   rl_index = LoadValue(rl_index, kCoreReg);
+
+  // FIXME: need to add support for rl_index.is_const.
+
   RegStorage reg_ptr;
   bool allocated_reg_ptr_temp = false;
   if (IsTemp(rl_array.reg) && !card_mark) {
