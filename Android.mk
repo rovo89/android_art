@@ -133,7 +133,6 @@ include $(art_path)/test/Android.run-test.mk
 test-art-target-sync: $(TEST_ART_TARGET_SYNC_DEPS)
 	adb remount
 	adb sync
-	adb shell mkdir -p $(ART_TARGET_TEST_DIR)
 
 # Undefine variable now its served its purpose.
 TEST_ART_TARGET_SYNC_DEPS :=
