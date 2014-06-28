@@ -752,9 +752,9 @@ void ProfileSampleResults::ReadPrevious(int fd, ProfileDataType type) {
     // Bad summary info.  It should be count/nullcount/bootcount
     return;
   }
-  previous_num_samples_ = atoi(summary_info[0].c_str());
-  previous_num_null_methods_ = atoi(summary_info[1].c_str());
-  previous_num_boot_methods_ = atoi(summary_info[2].c_str());
+  previous_num_samples_ = strtoul(summary_info[0].c_str(), nullptr, 10);
+  previous_num_null_methods_ = strtoul(summary_info[1].c_str(), nullptr, 10);
+  previous_num_boot_methods_ = strtoul(summary_info[2].c_str(), nullptr, 10);
 
   // Now read each line until the end of file.  Each line consists of 3 or 4 fields separated by /
   while (true) {
@@ -768,8 +768,8 @@ void ProfileSampleResults::ReadPrevious(int fd, ProfileDataType type) {
       break;
     }
     std::string methodname = info[0];
-    uint32_t total_count = atoi(info[1].c_str());
-    uint32_t size = atoi(info[2].c_str());
+    uint32_t total_count = strtoul(info[1].c_str(), nullptr, 10);
+    uint32_t size = strtoul(info[2].c_str(), nullptr, 10);
     PreviousContextMap* context_map = nullptr;
     if (type == kProfilerBoundedStack && info.size() == 4) {
       context_map = new PreviousContextMap();
@@ -781,13 +781,13 @@ void ProfileSampleResults::ReadPrevious(int fd, ProfileDataType type) {
         Split(context_count_pairs[i], ':', context_count);
         if (context_count.size() == 2) {
           // Handles the situtation when the profile file doesn't contain context information.
-          uint32_t dexpc = atoi(context_count[0].c_str());
-          uint32_t count = atoi(context_count[1].c_str());
+          uint32_t dexpc = strtoul(context_count[0].c_str(), nullptr, 10);
+          uint32_t count = strtoul(context_count[1].c_str(), nullptr, 10);
           (*context_map)[std::make_pair(dexpc, "")] = count;
         } else {
           // Handles the situtation when the profile file contains context information.
-          uint32_t dexpc = atoi(context_count[0].c_str());
-          uint32_t count = atoi(context_count[1].c_str());
+          uint32_t dexpc = strtoul(context_count[0].c_str(), nullptr, 10);
+          uint32_t count = strtoul(context_count[1].c_str(), nullptr, 10);
           std::string context = context_count[2];
           (*context_map)[std::make_pair(dexpc, context)] = count;
         }
@@ -830,7 +830,7 @@ bool ProfileFile::LoadFile(const std::string& fileName) {
     return false;
   }
   // This is the number of hits in all profiled methods (without nullptr or boot methods)
-  uint32_t total_count = atoi(summary_info[0].c_str());
+  uint32_t total_count = strtoul(summary_info[0].c_str(), nullptr, 10);
 
   // Now read each line until the end of file.  Each line consists of 3 fields separated by '/'.
   // Store the info in descending order given by the most used methods.
@@ -857,7 +857,7 @@ bool ProfileFile::LoadFile(const std::string& fileName) {
   for (ProfileSet::iterator it = countSet.begin(); it != end ; it++) {
     const std::string& methodname = it->second[0];
     uint32_t count = -it->first;
-    uint32_t size = atoi(it->second[2].c_str());
+    uint32_t size = strtoul(it->second[2].c_str(), nullptr, 10);
     double usedPercent = (count * 100.0) / total_count;
 
     curTotalCount += count;
