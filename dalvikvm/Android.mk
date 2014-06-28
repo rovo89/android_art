@@ -56,7 +56,7 @@ LOCAL_MODULE_STEM_64 := dalvikvm64
 include external/libcxx/libcxx.mk
 include $(BUILD_HOST_EXECUTABLE)
 
-ART_HOST_EXECUTABLES += $(HOST_OUT_EXECUTABLES)/$(LOCAL_MODULE)32
-ifneq ($(HOST_PREFER_32_BIT),true)
-  ART_HOST_EXECUTABLES += $(HOST_OUT_EXECUTABLES)/$(LOCAL_MODULE)64
-endif
+# Create symlink for the primary version target.
+include  $(BUILD_SYSTEM)/executable_prefer_symlink.mk
+
+ART_HOST_EXECUTABLES += $(HOST_OUT_EXECUTABLES)/$(LOCAL_MODULE)
