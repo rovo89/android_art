@@ -865,9 +865,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
         (1 << kPromoteCompilerTemps));
   } else if (cu.instruction_set == kX86_64) {
     // TODO(X86_64): enable optimizations once backend is mature enough.
-    cu.disable_opt |= (
-        (1 << kLoadStoreElimination) |
-        (1 << kPromoteRegs));
+    cu.disable_opt |= (1 << kLoadStoreElimination);
   } else if (cu.instruction_set == kArm64) {
     // TODO(Arm64): enable optimizations once backend is mature enough.
     cu.disable_opt = ~(uint32_t)0;
