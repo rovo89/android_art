@@ -241,16 +241,22 @@ struct AbortState {
   }
 
   void DumpAllThreads(std::ostream& os, Thread* self) NO_THREAD_SAFETY_ANALYSIS {
-    bool tll_already_held = Locks::thread_list_lock_->IsExclusiveHeld(self);
-    bool ml_already_held = Locks::mutator_lock_->IsSharedHeld(self);
-    if (!tll_already_held || !ml_already_held) {
-      os << "Dumping all threads without appropriate locks held:"
-          << (!tll_already_held ? " thread list lock" : "")
-          << (!ml_already_held ? " mutator lock" : "")
-          << "\n";
+    Runtime* runtime = Runtime::Current();
+    if (runtime != nullptr) {
+      ThreadList* thread_list = runtime->GetThreadList();
+      if (thread_list != nullptr) {
+        bool tll_already_held = Locks::thread_list_lock_->IsExclusiveHeld(self);
+        bool ml_already_held = Locks::mutator_lock_->IsSharedHeld(self);
+        if (!tll_already_held || !ml_already_held) {
+          os << "Dumping all threads without appropriate locks held:"
+              << (!tll_already_held ? " thread list lock" : "")
+              << (!ml_already_held ? " mutator lock" : "")
+              << "\n";
+        }
+        os << "All threads:\n";
+        thread_list->DumpLocked(os);
+      }
     }
-    os << "All threads:\n";
-    Runtime::Current()->GetThreadList()->DumpLocked(os);
   }
 };
 
