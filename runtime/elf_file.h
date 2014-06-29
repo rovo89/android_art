@@ -41,6 +41,9 @@ extern "C" {
 class ElfFile {
  public:
   static ElfFile* Open(File* file, bool writable, bool program_header_only, std::string* error_msg);
+  // Open with specific mmap flags, Always maps in the whole file, not just the
+  // program header sections.
+  static ElfFile* Open(File* file, int mmap_prot, int mmap_flags, std::string* error_msg);
   ~ElfFile();
 
   // Load segments into memory based on PT_LOAD program headers
@@ -70,17 +73,19 @@ class ElfFile {
   Elf32_Word GetSectionHeaderNum() const;
   Elf32_Shdr& GetSectionHeader(Elf32_Word) const;
   Elf32_Shdr* FindSectionByType(Elf32_Word type) const;
+  Elf32_Shdr* FindSectionByName(const std::string& name) const;
 
   Elf32_Shdr& GetSectionNameStringSection() const;
 
   // Find .dynsym using .hash for more efficient lookup than FindSymbolAddress.
   const byte* FindDynamicSymbolAddress(const std::string& symbol_name) const;
+  const Elf32_Sym* FindDynamicSymbol(const std::string& symbol_name) const;
 
   static bool IsSymbolSectionType(Elf32_Word section_type);
   Elf32_Word GetSymbolNum(Elf32_Shdr&) const;
   Elf32_Sym& GetSymbol(Elf32_Word section_type, Elf32_Word i) const;
 
-  // Find symbol in specified table, returning NULL if it is not found.
+  // Find symbol in specified table, returning nullptr if it is not found.
   //
   // If build_map is true, builds a map to speed repeated access. The
   // map does not included untyped symbol values (aka STT_NOTYPE)
@@ -98,11 +103,11 @@ class ElfFile {
                                const std::string& symbol_name,
                                bool build_map);
 
-  // Lookup a string given string section and offset. Returns NULL for
+  // Lookup a string given string section and offset. Returns nullptr for
   // special 0 offset.
   const char* GetString(Elf32_Shdr&, Elf32_Word) const;
 
-  // Lookup a string by section type. Returns NULL for special 0 offset.
+  // Lookup a string by section type. Returns nullptr for special 0 offset.
   const char* GetString(Elf32_Word section_type, Elf32_Word) const;
 
   Elf32_Word GetDynamicNum() const;
@@ -125,7 +130,7 @@ class ElfFile {
  private:
   ElfFile(File* file, bool writable, bool program_header_only);
 
-  bool Setup(std::string* error_msg);
+  bool Setup(int prot, int flags, std::string* error_msg);
 
   bool SetMap(MemMap* map, std::string* error_msg);
 
@@ -181,9 +186,8 @@ class ElfFile {
   // Support for GDB JIT
   byte* jit_elf_image_;
   JITCodeEntry* jit_gdb_entry_;
+  std::unique_ptr<ElfFile> gdb_file_mapping_;
   void GdbJITSupport();
-  // Is this an OAT file with debug information in it?
-  static constexpr uint32_t kExpectedSectionsInOATFile = 12;
 };
 
 }  // namespace art
