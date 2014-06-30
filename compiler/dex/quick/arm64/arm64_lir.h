@@ -136,23 +136,23 @@ enum A64NativeRegisterPool {
   A64_REGISTER_CODE_LIST(A64_DEFINE_REGISTERS)
 #undef A64_DEFINE_REGISTERS
 
-  rwzr = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 0x3f,
   rxzr = RegStorage::k64BitSolo | RegStorage::kCoreRegister | 0x3f,
-  rwsp = rw31,
+  rwzr = RegStorage::k32BitSolo | RegStorage::kCoreRegister | 0x3f,
   rsp = rx31,
-  rA64_SUSPEND = rx19,
-  rA64_SELF = rx18,
-  rA64_SP = rx31,
-  rA64_LR = rx30,
+  rwsp = rw31,
+
+  // Aliases which are not defined in "ARM Architecture Reference, register names".
+  rxSUSPEND = rx19,
+  rxSELF = rx18,
+  rxLR = rx30,
   /*
    * FIXME: It's a bit awkward to define both 32 and 64-bit views of these - we'll only ever use
    * the 64-bit view. However, for now we'll define a 32-bit view to keep these from being
    * allocated as 32-bit temp registers.
    */
-  rA32_SUSPEND = rw19,
-  rA32_SELF = rw18,
-  rA32_SP = rw31,
-  rA32_LR = rw30
+  rwSUSPEND = rw19,
+  rwSELF = rw18,
+  rwLR = rw30,
 };
 
 #define A64_DEFINE_REGSTORAGES(nr) \
@@ -163,17 +163,18 @@ enum A64NativeRegisterPool {
 A64_REGISTER_CODE_LIST(A64_DEFINE_REGSTORAGES)
 #undef A64_DEFINE_REGSTORAGES
 
-constexpr RegStorage rs_wzr(RegStorage::kValid | rwzr);
 constexpr RegStorage rs_xzr(RegStorage::kValid | rxzr);
-constexpr RegStorage rs_rA64_SUSPEND(RegStorage::kValid | rA64_SUSPEND);
-constexpr RegStorage rs_rA64_SELF(RegStorage::kValid | rA64_SELF);
-constexpr RegStorage rs_rA64_SP(RegStorage::kValid | rA64_SP);
-constexpr RegStorage rs_rA64_LR(RegStorage::kValid | rA64_LR);
+constexpr RegStorage rs_wzr(RegStorage::kValid | rwzr);
+// Reserved registers.
+constexpr RegStorage rs_xSUSPEND(RegStorage::kValid | rxSUSPEND);
+constexpr RegStorage rs_xSELF(RegStorage::kValid | rxSELF);
+constexpr RegStorage rs_sp(RegStorage::kValid | rsp);
+constexpr RegStorage rs_xLR(RegStorage::kValid | rxLR);
 // TODO: eliminate the need for these.
-constexpr RegStorage rs_rA32_SUSPEND(RegStorage::kValid | rA32_SUSPEND);
-constexpr RegStorage rs_rA32_SELF(RegStorage::kValid | rA32_SELF);
-constexpr RegStorage rs_rA32_SP(RegStorage::kValid | rA32_SP);
-constexpr RegStorage rs_rA32_LR(RegStorage::kValid | rA32_LR);
+constexpr RegStorage rs_wSUSPEND(RegStorage::kValid | rwSUSPEND);
+constexpr RegStorage rs_wSELF(RegStorage::kValid | rwSELF);
+constexpr RegStorage rs_wsp(RegStorage::kValid | rwsp);
+constexpr RegStorage rs_wLR(RegStorage::kValid | rwLR);
 
 // RegisterLocation templates return values (following the hard-float calling convention).
 const RegLocation arm_loc_c_return =

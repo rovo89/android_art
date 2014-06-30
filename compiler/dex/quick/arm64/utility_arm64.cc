@@ -554,7 +554,7 @@ LIR* Arm64Mir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2
   /* RegReg operations with SP in first parameter need extended register instruction form.
    * Only CMN and CMP instructions are implemented.
    */
-  if (r_dest_src1 == rs_rA64_SP) {
+  if (r_dest_src1 == rs_sp) {
     return OpRegRegExtend(op, r_dest_src1, r_src2, ENCODE_NO_EXTEND);
   } else {
     return OpRegRegShift(op, r_dest_src1, r_src2, ENCODE_NO_SHIFT);
@@ -1110,7 +1110,7 @@ LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStor
 
   // TODO: in future may need to differentiate Dalvik accesses w/ spills
   if (mem_ref_type_ == ResourceMask::kDalvikReg) {
-    DCHECK(r_base == rs_rA64_SP);
+    DCHECK(r_base == rs_sp);
     AnnotateDalvikRegAccess(load, displacement >> 2, true /* is_load */, r_dest.Is64Bit());
   }
   return load;
@@ -1203,7 +1203,7 @@ LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegSto
 
   // TODO: In future, may need to differentiate Dalvik & spill accesses.
   if (mem_ref_type_ == ResourceMask::kDalvikReg) {
-    DCHECK(r_base == rs_rA64_SP);
+    DCHECK(r_base == rs_sp);
     AnnotateDalvikRegAccess(store, displacement >> 2, false /* is_load */, r_src.Is64Bit());
   }
   return store;
