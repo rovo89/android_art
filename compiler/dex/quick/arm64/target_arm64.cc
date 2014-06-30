@@ -48,9 +48,9 @@ static constexpr RegStorage dp_regs_arr[] =
      rs_d16, rs_d17, rs_d18, rs_d19, rs_d20, rs_d21, rs_d22, rs_d23,
      rs_d24, rs_d25, rs_d26, rs_d27, rs_d28, rs_d29, rs_d30, rs_d31};
 static constexpr RegStorage reserved_regs_arr[] =
-    {rs_rA32_SUSPEND, rs_rA32_SELF, rs_rA32_SP, rs_rA32_LR, rs_wzr};
+    {rs_wSUSPEND, rs_wSELF, rs_wsp, rs_wLR, rs_wzr};
 static constexpr RegStorage reserved64_regs_arr[] =
-    {rs_rA64_SUSPEND, rs_rA64_SELF, rs_rA64_SP, rs_rA64_LR, rs_xzr};
+    {rs_xSUSPEND, rs_xSELF, rs_sp, rs_xLR, rs_xzr};
 // TUNING: Are there too many temp registers and too less promote target?
 // This definition need to be matched with runtime.cc, quick entry assembly and JNI compiler
 // Note: we are not able to call to C function directly if it un-match C ABI.
@@ -107,11 +107,11 @@ RegLocation Arm64Mir2Lir::LocCReturnDouble() {
 RegStorage Arm64Mir2Lir::TargetReg(SpecialTargetRegister reg) {
   RegStorage res_reg = RegStorage::InvalidReg();
   switch (reg) {
-    case kSelf: res_reg = rs_rA64_SELF; break;
-    case kSuspend: res_reg = rs_rA64_SUSPEND; break;
-    case kLr: res_reg =  rs_rA64_LR; break;
+    case kSelf: res_reg = rs_xSELF; break;
+    case kSuspend: res_reg = rs_xSUSPEND; break;
+    case kLr: res_reg =  rs_xLR; break;
     case kPc: res_reg = RegStorage::InvalidReg(); break;
-    case kSp: res_reg =  rs_rA64_SP; break;
+    case kSp: res_reg =  rs_sp; break;
     case kArg0: res_reg = rs_x0; break;
     case kArg1: res_reg = rs_x1; break;
     case kArg2: res_reg = rs_x2; break;
@@ -130,7 +130,7 @@ RegStorage Arm64Mir2Lir::TargetReg(SpecialTargetRegister reg) {
     case kFArg7: res_reg = rs_f7; break;
     case kRet0: res_reg = rs_x0; break;
     case kRet1: res_reg = rs_x1; break;
-    case kInvokeTgt: res_reg = rs_rA64_LR; break;
+    case kInvokeTgt: res_reg = rs_xLR; break;
     case kHiddenArg: res_reg = rs_x12; break;
     case kHiddenFpArg: res_reg = RegStorage::InvalidReg(); break;
     case kCount: res_reg = RegStorage::InvalidReg(); break;
@@ -644,7 +644,7 @@ void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
  */
 
 void Arm64Mir2Lir::AdjustSpillMask() {
-  core_spill_mask_ |= (1 << rs_rA64_LR.GetRegNum());
+  core_spill_mask_ |= (1 << rs_xLR.GetRegNum());
   num_core_spills_++;
 }
 
@@ -789,13 +789,13 @@ RegStorage Arm64Mir2Lir::LoadHelper(ThreadOffset<4> offset) {
 RegStorage Arm64Mir2Lir::LoadHelper(ThreadOffset<8> offset) {
   // TODO(Arm64): use LoadWordDisp instead.
   //   e.g. LoadWordDisp(rs_rA64_SELF, offset.Int32Value(), rs_rA64_LR);
-  LoadBaseDisp(rs_rA64_SELF, offset.Int32Value(), rs_rA64_LR, k64, kNotVolatile);
-  return rs_rA64_LR;
+  LoadBaseDisp(rs_xSELF, offset.Int32Value(), rs_xLR, k64, kNotVolatile);
+  return rs_xLR;
 }
 
 LIR* Arm64Mir2Lir::CheckSuspendUsingLoad() {
   RegStorage tmp = rs_x0;
-  LoadWordDisp(rs_rA64_SELF, Thread::ThreadSuspendTriggerOffset<8>().Int32Value(), tmp);
+  LoadWordDisp(rs_xSELF, Thread::ThreadSuspendTriggerOffset<8>().Int32Value(), tmp);
   LIR* load2 = LoadWordDisp(tmp, 0, tmp);
   return load2;
 }
