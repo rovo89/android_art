@@ -1247,11 +1247,12 @@ DEFINE_FUNCTION art_quick_instrumentation_entry
     PUSH ecx                      // Pass receiver.
     PUSH eax                      // Pass Method*.
     SETUP_GOT_NOSAVE              // clobbers EBX
-    call SYMBOL(artInstrumentationMethodEntryFromCode) // (Method*, Object*, Thread*, SP, LR)
-    addl  LITERAL(28), %esp       // Pop arguments upto saved Method*.
+    call PLT_SYMBOL(artInstrumentationMethodEntryFromCode) // (Method*, Object*, Thread*, SP, LR)
+    addl LITERAL(28), %esp        // Pop arguments upto saved Method*.
     movl 28(%esp), %edi           // Restore edi.
     movl %eax, 28(%esp)           // Place code* over edi, just under return pc.
-    movl LITERAL(SYMBOL(art_quick_instrumentation_exit)), 32(%esp)
+    movl SYMBOL(art_quick_instrumentation_exit)@GOT(%ebx), %ebx
+    movl %ebx, 32(%esp)
                                   // Place instrumentation exit as return pc.
     movl (%esp), %eax             // Restore eax.
     movl 8(%esp), %ecx            // Restore ecx.
