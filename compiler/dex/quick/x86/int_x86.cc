@@ -1006,8 +1006,9 @@ void X86Mir2Lir::GenArrayBoundsCheck(RegStorage index,
 
       RegStorage new_index = index_;
       // Move index out of kArg1, either directly to kArg0, or to kArg2.
-      if (index_.GetReg() == m2l_->TargetReg(kArg1).GetReg()) {
-        if (array_base_.GetReg() == m2l_->TargetReg(kArg0).GetReg()) {
+      // TODO: clean-up to check not a number but with type
+      if (index_.GetRegNum() == m2l_->TargetReg(kArg1).GetRegNum()) {
+        if (array_base_.GetRegNum() == m2l_->TargetReg(kArg0).GetRegNum()) {
           m2l_->OpRegCopy(m2l_->TargetReg(kArg2), index_);
           new_index = m2l_->TargetReg(kArg2);
         } else {
