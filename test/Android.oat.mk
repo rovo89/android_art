@@ -86,7 +86,7 @@ $(3): test-art-target-sync
 	$(hide) adb shell touch $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$(LOCAL_PID)
 	$(hide) adb shell rm $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$(LOCAL_PID)
 	$(hide) $$(call ART_TEST_SKIP,$$@) && \
-	  adb shell sh -c "/system/bin/dalvikvm$($(2)ART_PHONY_TEST_TARGET_SUFFIX) \
+	  adb shell "/system/bin/dalvikvm$($(2)ART_PHONY_TEST_TARGET_SUFFIX) \
 	    $(DALVIKVM_FLAGS) $(4) -XXlib:libartd.so -Ximage:$(ART_TARGET_TEST_DIR)/core.art \
 	    -classpath $(ART_TARGET_TEST_DIR)/art-oat-test-$(1).jar \
 	    -Djava.library.path=$(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH) $(1) \
