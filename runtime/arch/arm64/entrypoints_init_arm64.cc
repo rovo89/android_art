@@ -35,7 +35,7 @@ extern "C" void art_portable_resolution_trampoline(mirror::ArtMethod*);
 extern "C" void art_portable_to_interpreter_bridge(mirror::ArtMethod*);
 
 // Cast entrypoints.
-extern "C" uint32_t artIsAssignableFromCode(const mirror::Class* klass,
+extern "C" uint32_t art_quick_assignable_from_code(const mirror::Class* klass,
                                             const mirror::Class* ref_class);
 extern "C" void art_quick_check_cast(void*, void*);
 
@@ -44,9 +44,6 @@ extern "C" void* art_quick_initialize_static_storage(uint32_t, void*);
 extern "C" void* art_quick_initialize_type(uint32_t, void*);
 extern "C" void* art_quick_initialize_type_and_verify_access(uint32_t, void*);
 extern "C" void* art_quick_resolve_string(void*, uint32_t);
-
-// Exception entrypoints.
-extern "C" void* GetAndClearException(Thread*);
 
 // Field entrypoints.
 extern "C" int art_quick_set32_instance(uint32_t, void*, int32_t);
@@ -96,7 +93,6 @@ extern "C" void art_quick_invoke_super_trampoline_with_access_check(uint32_t, vo
 extern "C" void art_quick_invoke_virtual_trampoline_with_access_check(uint32_t, void*);
 
 // Thread entrypoints.
-extern void CheckSuspendFromCode(Thread* thread);
 extern "C" void art_quick_test_suspend();
 
 // Throw entrypoints.
@@ -129,7 +125,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   ResetQuickAllocEntryPoints(qpoints);
 
   // Cast
-  qpoints->pInstanceofNonTrivial = artIsAssignableFromCode;
+  qpoints->pInstanceofNonTrivial = art_quick_assignable_from_code;
   qpoints->pCheckCast = art_quick_check_cast;
 
   // DexCache
@@ -209,7 +205,6 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pInvokeVirtualTrampolineWithAccessCheck = art_quick_invoke_virtual_trampoline_with_access_check;
 
   // Thread
-  qpoints->pCheckSuspend = CheckSuspendFromCode;
   qpoints->pTestSuspend = art_quick_test_suspend;
 
   // Throws

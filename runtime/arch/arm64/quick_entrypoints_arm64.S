@@ -1632,6 +1632,8 @@ ENTRY art_quick_instrumentation_exit
     ldr   x0, [sp], 16        // Restore integer result, and drop stack area.
     .cfi_adjust_cfa_offset 16
 
+    // Need to restore x18.
+    ldr   xSELF, [sp, #72]
     POP_REF_ONLY_CALLEE_SAVE_FRAME
 
     br    x9                  // Tail-call out.
@@ -1647,6 +1649,7 @@ ENTRY art_quick_deoptimize
     mov    x0, xSELF          // Pass thread.
     mov    x1, sp             // Pass SP.
     bl     artDeoptimize      // artDeoptimize(Thread*, SP)
+    brk 0
 END art_quick_deoptimize
 
 
@@ -1757,7 +1760,7 @@ END art_quick_indexof
      *    x1:   comp object pointer
      *
      */
-    .extern memcmp16_generic_static
+    .extern __memcmp16
 ENTRY art_quick_string_compareto
     mov    x2, x0         // x0 is return, use x2 for first input.
     sub    x0, x2, x1     // Same string object?
@@ -1850,16 +1853,17 @@ ENTRY art_quick_string_compareto
     ret
 
 .Ldo_memcmp16:
-    str x0, [sp,#-16]!           // Save x0
+    mov x14, x0                  // Save x0 and LR. __memcmp16 does not use these temps.
+    mov x15, xLR                 //                 TODO: Codify and check that?
 
     mov x0, x2
     uxtw x2, w3
-    bl memcmp16_generic_static
+    bl __memcmp16
 
-    ldr x1, [sp], #16            // Restore old x0 = length diff
+    mov xLR, x15                 // Restore LR.
 
-    cmp x0, #0                   // Check the memcmp difference
-    csel x0, x0, x1, ne          // x0 := x0 != 0 ? x0 : x1
+    cmp x0, #0                   // Check the memcmp difference.
+    csel x0, x0, x14, ne         // x0 := x0 != 0 ? x14(prev x0=length diff) : x1.
     ret
 END art_quick_string_compareto
 
@@ -1869,11 +1873,9 @@ END art_quick_string_compareto
 .macro NATIVE_DOWNCALL name, entrypoint
     .extern \entrypoint
 ENTRY \name
-    sub    sp, sp, #16
-    stp    xSELF, xLR, [sp]
+    stp    xSELF, xLR, [sp, #-16]!
     bl     \entrypoint
-    ldp    xSELF, xLR, [sp]
-    add    sp, sp, #16
+    ldp    xSELF, xLR, [sp], #16
     ret
 END \name
 .endm
@@ -1881,3 +1883,4 @@ END \name
 NATIVE_DOWNCALL art_quick_fmod fmod
 NATIVE_DOWNCALL art_quick_fmodf fmodf
 NATIVE_DOWNCALL art_quick_memcpy memcpy
+NATIVE_DOWNCALL art_quick_assignable_from_code artIsAssignableFromCode
