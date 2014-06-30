@@ -129,7 +129,6 @@ struct PACKED(4) QuickEntryPoints {
   void (*pInvokeVirtualTrampolineWithAccessCheck)(uint32_t, void*);
 
   // Thread
-  void (*pCheckSuspend)(Thread*);  // Stub that is called when the suspend count is non-zero
   void (*pTestSuspend)();  // Stub that is periodically called to test the suspend count
 
   // Throws
