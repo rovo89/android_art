@@ -2321,7 +2321,7 @@ void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
 
   // For 32-bit, SETcc only works with EAX..EDX.
   RegStorage object_32reg = object.reg.Is64Bit() ? As32BitReg(object.reg) : object.reg;
-  if (result_reg == object_32reg || !IsByteRegister(result_reg)) {
+  if (result_reg.GetRegNum() == object_32reg.GetRegNum() || !IsByteRegister(result_reg)) {
     result_reg = AllocateByteRegister();
   }
 
