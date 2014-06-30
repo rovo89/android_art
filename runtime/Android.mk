@@ -197,7 +197,7 @@ LIBART_COMMON_SRC_FILES += \
 LIBART_GCC_ONLY_SRC_FILES := \
 	interpreter/interpreter_goto_table_impl.cc
 
-LIBART_TARGET_LDFLAGS := -Wl,--no-fatal-warnings
+LIBART_TARGET_LDFLAGS :=
 LIBART_HOST_LDFLAGS :=
 
 LIBART_TARGET_SRC_FILES := \
