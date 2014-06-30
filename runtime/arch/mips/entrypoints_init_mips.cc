@@ -45,9 +45,6 @@ extern "C" void* art_quick_initialize_type(uint32_t, void*);
 extern "C" void* art_quick_initialize_type_and_verify_access(uint32_t, void*);
 extern "C" void* art_quick_resolve_string(void*, uint32_t);
 
-// Exception entrypoints.
-extern "C" void* GetAndClearException(Thread*);
-
 // Field entrypoints.
 extern "C" int art_quick_set32_instance(uint32_t, void*, int32_t);
 extern "C" int art_quick_set32_static(uint32_t, int32_t);
@@ -117,7 +114,6 @@ extern "C" void art_quick_invoke_super_trampoline_with_access_check(uint32_t, vo
 extern "C" void art_quick_invoke_virtual_trampoline_with_access_check(uint32_t, void*);
 
 // Thread entrypoints.
-extern void CheckSuspendFromCode(Thread* thread);
 extern "C" void art_quick_test_suspend();
 
 // Throw entrypoints.
@@ -229,7 +225,6 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pInvokeVirtualTrampolineWithAccessCheck = art_quick_invoke_virtual_trampoline_with_access_check;
 
   // Thread
-  qpoints->pCheckSuspend = CheckSuspendFromCode;
   qpoints->pTestSuspend = art_quick_test_suspend;
 
   // Throws
