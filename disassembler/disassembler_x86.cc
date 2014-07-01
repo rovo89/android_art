@@ -896,6 +896,14 @@ DISASSEMBLER_ENTRY(cmp,
   case 0x99:
     opcode << "cdq";
     break;
+  case 0x9B:
+    if (instr[1] == 0xDF && instr[2] == 0xE0) {
+      opcode << "fstsw\tax";
+      instr += 2;
+    } else {
+      opcode << StringPrintf("unknown opcode '%02X'", *instr);
+    }
+    break;
   case 0xAF:
     opcode << (prefix[2] == 0x66 ? "scasw" : "scasl");
     break;
@@ -942,11 +950,25 @@ DISASSEMBLER_ENTRY(cmp,
     break;
   case 0xCC: opcode << "int 3"; break;
   case 0xD9:
-    static const char* d9_opcodes[] = {"flds", "unknown-d9", "fsts", "fstps", "fldenv", "fldcw", "fnstenv", "fnstcw"};
-    modrm_opcodes = d9_opcodes;
-    store = true;
-    has_modrm = true;
-    reg_is_opcode = true;
+    if (instr[1] == 0xF8) {
+      opcode << "fprem";
+      instr++;
+    } else {
+      static const char* d9_opcodes[] = {"flds", "unknown-d9", "fsts", "fstps", "fldenv", "fldcw",
+                                         "fnstenv", "fnstcw"};
+      modrm_opcodes = d9_opcodes;
+      store = true;
+      has_modrm = true;
+      reg_is_opcode = true;
+    }
+    break;
+  case 0xDA:
+    if (instr[1] == 0xE9) {
+      opcode << "fucompp";
+      instr++;
+    } else {
+      opcode << StringPrintf("unknown opcode '%02X'", *instr);
+    }
     break;
   case 0xDB:
     static const char* db_opcodes[] = {"fildl", "unknown-db", "unknown-db", "unknown-db", "unknown-db", "unknown-db", "unknown-db", "unknown-db"};
