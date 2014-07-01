@@ -420,24 +420,28 @@ RegStorage Mir2Lir::AllocTempWide() {
     RegStorage high_reg = AllocTemp();
     res = RegStorage::MakeRegPair(low_reg, high_reg);
   }
+  CheckRegStorage(res, WidenessCheck::kCheckWide, RefCheck::kIgnoreRef, FPCheck::kCheckNotFP);
   return res;
 }
 
 RegStorage Mir2Lir::AllocTempRef() {
   RegStorage res = AllocTempBody(*reg_pool_->ref_regs_, reg_pool_->next_ref_reg_, true);
   DCHECK(!res.IsPair());
+  CheckRegStorage(res, WidenessCheck::kCheckNotWide, RefCheck::kCheckRef, FPCheck::kCheckNotFP);
   return res;
 }
 
 RegStorage Mir2Lir::AllocTempSingle() {
   RegStorage res = AllocTempBody(reg_pool_->sp_regs_, &reg_pool_->next_sp_reg_, true);
   DCHECK(res.IsSingle()) << "Reg: 0x" << std::hex << res.GetRawBits();
+  CheckRegStorage(res, WidenessCheck::kCheckNotWide, RefCheck::kCheckNotRef, FPCheck::kIgnoreFP);
   return res;
 }
 
 RegStorage Mir2Lir::AllocTempDouble() {
   RegStorage res = AllocTempBody(reg_pool_->dp_regs_, &reg_pool_->next_dp_reg_, true);
   DCHECK(res.IsDouble()) << "Reg: 0x" << std::hex << res.GetRawBits();
+  CheckRegStorage(res, WidenessCheck::kCheckWide, RefCheck::kCheckNotRef, FPCheck::kIgnoreFP);
   return res;
 }
 
@@ -474,13 +478,15 @@ RegStorage Mir2Lir::AllocLiveReg(int s_reg, int reg_class, bool wide) {
   RegStorage reg;
   if (reg_class == kRefReg) {
     reg = FindLiveReg(*reg_pool_->ref_regs_, s_reg);
+    CheckRegStorage(reg, WidenessCheck::kCheckNotWide, RefCheck::kCheckRef, FPCheck::kCheckNotFP);
   }
   if (!reg.Valid() && ((reg_class == kAnyReg) || (reg_class == kFPReg))) {
     reg = FindLiveReg(wide ? reg_pool_->dp_regs_ : reg_pool_->sp_regs_, s_reg);
   }
   if (!reg.Valid() && (reg_class != kFPReg)) {
     if (cu_->target64) {
-      reg = FindLiveReg(wide ? reg_pool_->core64_regs_ : reg_pool_->core_regs_, s_reg);
+      reg = FindLiveReg(wide || reg_class == kRefReg ? reg_pool_->core64_regs_ :
+                                                       reg_pool_->core_regs_, s_reg);
     } else {
       reg = FindLiveReg(reg_pool_->core_regs_, s_reg);
     }
@@ -525,6 +531,9 @@ RegStorage Mir2Lir::AllocLiveReg(int s_reg, int reg_class, bool wide) {
       ClobberSReg(s_reg + 1);
     }
   }
+  CheckRegStorage(reg, WidenessCheck::kIgnoreWide,
+                  reg_class == kRefReg ? RefCheck::kCheckRef : RefCheck::kIgnoreRef,
+                  FPCheck::kIgnoreFP);
   return reg;
 }
 
@@ -996,7 +1005,7 @@ RegLocation Mir2Lir::UpdateLoc(RegLocation loc) {
   if (loc.location != kLocPhysReg) {
     DCHECK((loc.location == kLocDalvikFrame) ||
          (loc.location == kLocCompilerTemp));
-    RegStorage reg = AllocLiveReg(loc.s_reg_low, kAnyReg, false);
+    RegStorage reg = AllocLiveReg(loc.s_reg_low, loc.ref ? kRefReg : kAnyReg, false);
     if (reg.Valid()) {
       bool match = true;
       RegisterInfo* info = GetRegInfo(reg);
@@ -1010,6 +1019,7 @@ RegLocation Mir2Lir::UpdateLoc(RegLocation loc) {
         FreeTemp(reg);
       }
     }
+    CheckRegLocation(loc);
   }
   return loc;
 }
@@ -1044,6 +1054,7 @@ RegLocation Mir2Lir::UpdateLocWide(RegLocation loc) {
         FreeTemp(reg);
       }
     }
+    CheckRegLocation(loc);
   }
   return loc;
 }
@@ -1073,6 +1084,7 @@ RegLocation Mir2Lir::EvalLocWide(RegLocation loc, int reg_class, bool update) {
       MarkWide(loc.reg);
       MarkLive(loc);
     }
+    CheckRegLocation(loc);
     return loc;
   }
 
@@ -1086,10 +1098,16 @@ RegLocation Mir2Lir::EvalLocWide(RegLocation loc, int reg_class, bool update) {
     loc.location = kLocPhysReg;
     MarkLive(loc);
   }
+  CheckRegLocation(loc);
   return loc;
 }
 
 RegLocation Mir2Lir::EvalLoc(RegLocation loc, int reg_class, bool update) {
+  // Narrow reg_class if the loc is a ref.
+  if (loc.ref && reg_class == kAnyReg) {
+    reg_class = kRefReg;
+  }
+
   if (loc.wide) {
     return EvalLocWide(loc, reg_class, update);
   }
@@ -1106,17 +1124,20 @@ RegLocation Mir2Lir::EvalLoc(RegLocation loc, int reg_class, bool update) {
       loc.reg = new_reg;
       MarkLive(loc);
     }
+    CheckRegLocation(loc);
     return loc;
   }
 
   DCHECK_NE(loc.s_reg_low, INVALID_SREG);
 
   loc.reg = AllocTypedTemp(loc.fp, reg_class);
+  CheckRegLocation(loc);
 
   if (update) {
     loc.location = kLocPhysReg;
     MarkLive(loc);
   }
+  CheckRegLocation(loc);
   return loc;
 }
 
@@ -1338,6 +1359,7 @@ RegLocation Mir2Lir::GetReturnWide(RegisterClass reg_class) {
   Clobber(res.reg);
   LockTemp(res.reg);
   MarkWide(res.reg);
+  CheckRegLocation(res);
   return res;
 }
 
@@ -1354,6 +1376,7 @@ RegLocation Mir2Lir::GetReturn(RegisterClass reg_class) {
   } else {
     LockTemp(res.reg);
   }
+  CheckRegLocation(res);
   return res;
 }
 

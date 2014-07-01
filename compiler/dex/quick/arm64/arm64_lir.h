@@ -179,6 +179,8 @@ constexpr RegStorage rs_wLR(RegStorage::kValid | rwLR);
 // RegisterLocation templates return values (following the hard-float calling convention).
 const RegLocation arm_loc_c_return =
     {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, rs_w0, INVALID_SREG, INVALID_SREG};
+const RegLocation arm_loc_c_return_ref =
+    {kLocPhysReg, 0, 0, 0, 0, 0, 1, 0, 1, rs_x0, INVALID_SREG, INVALID_SREG};
 const RegLocation arm_loc_c_return_wide =
     {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, rs_x0, INVALID_SREG, INVALID_SREG};
 const RegLocation arm_loc_c_return_float =

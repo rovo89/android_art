@@ -132,7 +132,7 @@ void Arm64Mir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
 
   // Load the displacement from the switch table
   RegStorage disp_reg = AllocTemp();
-  LoadBaseIndexed(table_base, As64BitReg(key_reg), As64BitReg(disp_reg), 2, k32);
+  LoadBaseIndexed(table_base, As64BitReg(key_reg), disp_reg, 2, k32);
 
   // Get base branch address.
   RegStorage branch_reg = AllocTempWide();
@@ -195,7 +195,7 @@ void Arm64Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
   // TUNING: How much performance we get when we inline this?
   // Since we've already flush all register.
   FlushAllRegs();
-  LoadValueDirectFixed(rl_src, rs_w0);
+  LoadValueDirectFixed(rl_src, rs_x0);  // = TargetRefReg(kArg0)
   LockCallTemps();  // Prepare for explicit register usage
   LIR* null_check_branch = nullptr;
   if ((opt_flags & MIR_IGNORE_NULL_CHECK) && !(cu_->disable_opt & (1 << kNullCheckElimination))) {
@@ -243,7 +243,7 @@ void Arm64Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
   // TUNING: How much performance we get when we inline this?
   // Since we've already flush all register.
   FlushAllRegs();
-  LoadValueDirectFixed(rl_src, rs_w0);  // Get obj
+  LoadValueDirectFixed(rl_src, rs_x0);  // Get obj
   LockCallTemps();  // Prepare for explicit register usage
   LIR* null_check_branch = nullptr;
   if ((opt_flags & MIR_IGNORE_NULL_CHECK) && !(cu_->disable_opt & (1 << kNullCheckElimination))) {
@@ -291,12 +291,12 @@ void Arm64Mir2Lir::GenMoveException(RegLocation rl_dest) {
  */
 void Arm64Mir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
   RegStorage reg_card_base = AllocTempWide();
-  RegStorage reg_card_no = AllocTemp();
+  RegStorage reg_card_no = AllocTempWide();  // Needs to be wide as addr is ref=64b
   LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
   LoadWordDisp(rs_xSELF, Thread::CardTableOffset<8>().Int32Value(), reg_card_base);
   OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, gc::accounting::CardTable::kCardShift);
   // TODO(Arm64): generate "strb wB, [xB, wC, uxtw]" rather than "strb wB, [xB, xC]"?
-  StoreBaseIndexed(reg_card_base, As64BitReg(reg_card_no), As32BitReg(reg_card_base),
+  StoreBaseIndexed(reg_card_base, reg_card_no, As32BitReg(reg_card_base),
                    0, kUnsignedByte);
   LIR* target = NewLIR0(kPseudoTargetLabel);
   branch_over->target = target;
