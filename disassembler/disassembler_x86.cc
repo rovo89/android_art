@@ -125,10 +125,11 @@ static void DumpIndexReg(std::ostream& os, uint8_t rex, uint8_t reg) {
   DumpAddrReg(os, rex, reg_num);
 }
 
-static void DumpOpcodeReg(std::ostream& os, uint8_t rex, uint8_t reg) {
+static void DumpOpcodeReg(std::ostream& os, uint8_t rex, uint8_t reg,
+                          bool byte_operand, uint8_t size_override) {
   bool rex_b = (rex & REX_B) != 0;
   size_t reg_num = rex_b ? (reg + 8) : reg;
-  DumpReg0(os, rex, reg_num, false, 0);
+  DumpReg0(os, rex, reg_num, byte_operand, size_override);
 }
 
 enum SegmentPrefix {
@@ -955,6 +956,7 @@ DISASSEMBLER_ENTRY(cmp,
     immediate_bytes = 1;
     byte_operand = true;
     reg_in_opcode = true;
+    byte_operand = true;
     break;
   case 0xB8: case 0xB9: case 0xBA: case 0xBB: case 0xBC: case 0xBD: case 0xBE: case 0xBF:
     if (rex == 0x48) {
@@ -1079,7 +1081,7 @@ DISASSEMBLER_ENTRY(cmp,
   uint8_t rex_w = (supports_rex_ && target_specific) ? (rex | 0x48) : rex;
   if (reg_in_opcode) {
     DCHECK(!has_modrm);
-    DumpOpcodeReg(args, rex_w, *instr & 0x7);
+    DumpOpcodeReg(args, rex_w, *instr & 0x7, byte_operand, prefix[2]);
   }
   instr++;
   uint32_t address_bits = 0;
