@@ -330,6 +330,11 @@ std::string X86Mir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned char
           case 'd':
             buf += StringPrintf("%d", operand);
             break;
+          case 'q': {
+             int64_t value = static_cast<int64_t>(static_cast<int64_t>(operand) << 32 |
+                             static_cast<uint32_t>(lir->operands[operand_number+1]));
+             buf +=StringPrintf("%" PRId64, value);
+          }
           case 'p': {
             EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(operand));
             buf += StringPrintf("0x%08x", tab_rec->offset);

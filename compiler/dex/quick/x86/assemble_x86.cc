@@ -208,7 +208,8 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86Mov64RM, kRegMem,    IS_LOAD  | IS_TERTIARY_OP | REG_DEF0_USE1,  { REX_W,             0, 0x8B, 0, 0, 0, 0, 0, false }, "Mov64RM", "!0r,[!1r+!2d]" },
   { kX86Mov64RA, kRegArray,  IS_LOAD  | IS_QUIN_OP     | REG_DEF0_USE12, { REX_W,             0, 0x8B, 0, 0, 0, 0, 0, false }, "Mov64RA", "!0r,[!1r+!2r<<!3d+!4d]" },
   { kX86Mov64RT, kRegThread, IS_LOAD  | IS_BINARY_OP   | REG_DEF0,       { THREAD_PREFIX, REX_W, 0x8B, 0, 0, 0, 0, 0, false }, "Mov64RT", "!0r,fs:[!1d]" },
-  { kX86Mov64RI, kMovRegImm,            IS_BINARY_OP   | REG_DEF0,       { REX_W,             0, 0xB8, 0, 0, 0, 0, 8, false }, "Mov64RI", "!0r,!1d" },
+  { kX86Mov64RI32, kRegImm,             IS_BINARY_OP   | REG_DEF0,       { REX_W,             0, 0xC7, 0, 0, 0, 0, 4, false }, "Mov64RI32", "!0r,!1d" },
+  { kX86Mov64RI64, kMovRegQuadImm,      IS_TERTIARY_OP | REG_DEF0,       { REX_W,             0, 0xB8, 0, 0, 0, 0, 8, false }, "Mov64RI64", "!0r,!1q" },
   { kX86Mov64MI, kMemImm,    IS_STORE | IS_TERTIARY_OP | REG_USE0,       { REX_W,             0, 0xC7, 0, 0, 0, 0, 4, false }, "Mov64MI", "[!0r+!1d],!2d" },
   { kX86Mov64AI, kArrayImm,  IS_STORE | IS_QUIN_OP     | REG_USE01,      { REX_W,             0, 0xC7, 0, 0, 0, 0, 4, false }, "Mov64AI", "[!0r+!1r<<!2d+!3d],!4d" },
   { kX86Mov64TI, kThreadImm, IS_STORE | IS_BINARY_OP,                    { THREAD_PREFIX, REX_W, 0xC7, 0, 0, 0, 0, 4, false }, "Mov64TI", "fs:[!0d],!1d" },
@@ -723,6 +724,7 @@ size_t X86Mir2Lir::GetInsnSize(LIR* lir) {
       return ComputeSize(entry, lir->operands[0], lir->operands[2], lir->operands[1],
                          lir->operands[4]);
     case kMovRegImm:  // lir operands - 0: reg, 1: immediate
+    case kMovRegQuadImm:
       return ((entry->skeleton.prefix1 != 0 || NeedsRex(lir->operands[0])) ? 1 : 0) + 1 +
           entry->skeleton.immediate_bytes;
     case kShiftRegImm:  // lir operands - 0: reg, 1: immediate
@@ -1786,6 +1788,12 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
         break;
       case kMovRegImm:  // lir operands - 0: reg, 1: immediate
         EmitMovRegImm(entry, lir->operands[0], lir->operands[1]);
+        break;
+      case kMovRegQuadImm: {
+          int64_t value = static_cast<int64_t>(static_cast<int64_t>(lir->operands[1]) << 32 |
+                          static_cast<uint32_t>(lir->operands[2]));
+          EmitMovRegImm(entry, lir->operands[0], value);
+        }
         break;
       case kShiftRegImm:  // lir operands - 0: reg, 1: immediate
         EmitShiftRegImm(entry, lir->operands[0], lir->operands[1]);
