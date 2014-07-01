@@ -1888,53 +1888,41 @@ void X86Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
    */
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
   for (int i = 0; i < cu_->num_ins; i++) {
-    PromotionMap* v_map = &promotion_map_[start_vreg + i];
-    RegStorage reg = RegStorage::InvalidReg();
     // get reg corresponding to input
-    reg = GetArgMappingToPhysicalReg(i);
+    RegStorage reg = GetArgMappingToPhysicalReg(i);
 
+    RegLocation* t_loc = &ArgLocs[i];
     if (reg.Valid()) {
-      // If arriving in register
-      bool need_flush = true;
-      RegLocation* t_loc = &ArgLocs[i];
-      if ((v_map->core_location == kLocPhysReg) && !t_loc->fp) {
-        OpRegCopy(RegStorage::Solo32(v_map->core_reg), reg);
-        need_flush = false;
-      } else if ((v_map->fp_location == kLocPhysReg) && t_loc->fp) {
-        OpRegCopy(RegStorage::Solo32(v_map->FpReg), reg);
-        need_flush = false;
-      } else {
-        need_flush = true;
-      }
+      // If arriving in register.
 
-      // For wide args, force flush if not fully promoted
-      if (t_loc->wide) {
-        PromotionMap* p_map = v_map + (t_loc->high_word ? -1 : +1);
-        // Is only half promoted?
-        need_flush |= (p_map->core_location != v_map->core_location) ||
-            (p_map->fp_location != v_map->fp_location);
-      }
-      if (need_flush) {
-        if (t_loc->wide && t_loc->fp) {
-          StoreBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i), reg, k64, kNotVolatile);
-          // Increment i to skip the next one
-          i++;
-        } else if (t_loc->wide && !t_loc->fp) {
-          StoreBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i), reg, k64, kNotVolatile);
-          // Increment i to skip the next one
-          i++;
+      // We have already updated the arg location with promoted info
+      // so we can be based on it.
+      if (t_loc->location == kLocPhysReg) {
+        // Just copy it.
+        OpRegCopy(t_loc->reg, reg);
+      } else {
+        // Needs flush.
+        if (t_loc->ref) {
+          StoreRefDisp(TargetReg(kSp), SRegOffset(start_vreg + i), reg, kNotVolatile);
         } else {
-          Store32Disp(TargetReg(kSp), SRegOffset(start_vreg + i), reg);
+          StoreBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i), reg, t_loc->wide ? k64 : k32,
+                        kNotVolatile);
         }
       }
     } else {
-      // If arriving in frame & promoted
-      if (v_map->core_location == kLocPhysReg) {
-        Load32Disp(TargetReg(kSp), SRegOffset(start_vreg + i), RegStorage::Solo32(v_map->core_reg));
+      // If arriving in frame & promoted.
+      if (t_loc->location == kLocPhysReg) {
+        if (t_loc->ref) {
+          LoadRefDisp(TargetReg(kSp), SRegOffset(start_vreg + i), t_loc->reg, kNotVolatile);
+        } else {
+          LoadBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i), t_loc->reg,
+                       t_loc->wide ? k64 : k32, kNotVolatile);
+        }
       }
-      if (v_map->fp_location == kLocPhysReg) {
-        Load32Disp(TargetReg(kSp), SRegOffset(start_vreg + i), RegStorage::Solo32(v_map->FpReg));
-      }
+    }
+    if (t_loc->wide) {
+      // Increment i to skip the next one.
+      i++;
     }
   }
 }
