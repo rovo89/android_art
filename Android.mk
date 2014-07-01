@@ -40,8 +40,6 @@ clean-oat: clean-oat-host clean-oat-target
 
 .PHONY: clean-oat-host
 clean-oat-host:
-	rm -rf $(ART_NATIVETEST_OUT)
-	rm -rf $(ART_TEST_OUT)
 	rm -f $(HOST_CORE_IMG_OUT)
 	rm -f $(HOST_CORE_OAT_OUT)
 	rm -f $(HOST_OUT_JAVA_LIBRARIES)/$(ART_HOST_ARCH)/*.odex
@@ -58,7 +56,10 @@ ifdef TARGET_2ND_ARCH
 endif
 	rm -rf $(DEXPREOPT_PRODUCT_DIR_FULL_PATH)
 	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*.odex
-	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*.oat
+	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*/*.oat
+	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*/*.art
+	rm -f $(TARGET_OUT)/framework/*/*.oat
+	rm -f $(TARGET_OUT)/framework/*/*.art
 	rm -f $(TARGET_OUT_APPS)/*.odex
 	rm -f $(TARGET_OUT_INTERMEDIATES)/JAVA_LIBRARIES/*_intermediates/javalib.odex
 	rm -f $(TARGET_OUT_INTERMEDIATES)/APPS/*_intermediates/*.odex
