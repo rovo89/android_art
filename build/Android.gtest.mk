@@ -228,7 +228,7 @@ define define-art-gtest-rule-host
   gtest_exe := $$(HOST_OUT_EXECUTABLES)/$(1)$$($(2)ART_PHONY_TEST_HOST_SUFFIX)
   # Dependencies for all host gtests.
   gtest_deps := $$(HOST_CORE_DEX_LOCATIONS) \
-    $$($(2)ART_HOST_LIBRARY_PATH)/libjavacore$$(ART_HOST_SHLIB_EXTENSION)
+    $$($(2)ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$$(ART_HOST_SHLIB_EXTENSION)
 
 
 .PHONY: $$(gtest_rule)
