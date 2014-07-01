@@ -1485,33 +1485,34 @@ ENTRY art_quick_generic_jni_trampoline
     mov x1, xFP
     bl artQuickGenericJniTrampoline  // (Thread*, sp)
 
-    // Get the updated pointer. This is the bottom of the frame _with_ handle scope.
-    ldr xFP, [sp]
-    add x9, sp, #8
+    // The C call will have registered the complete save-frame on success.
+    // The result of the call is:
+    // x0: pointer to native code, 0 on error.
+    // x1: pointer to the bottom of the used area of the alloca, can restore stack till there.
 
-    cmp x0, #0
-    b.mi .Lentry_error      // Check for error, negative value.
+    // Check for error = 0.
+    cbz x0, .Lentry_error
 
-    // release part of the alloca.
-    add x9, x9, x0
+    // Release part of the alloca.
+    mov sp, x1
 
-    // Get the code pointer
-    ldr xIP0, [x9, #0]
+    // Save the code pointer
+    mov xIP0, x0
 
     // Load parameters from frame into registers.
     // TODO Check with artQuickGenericJniTrampoline.
     //      Also, check again APPCS64 - the stack arguments are interleaved.
-    ldp x0, x1, [x9, #8]
-    ldp x2, x3, [x9, #24]
-    ldp x4, x5, [x9, #40]
-    ldp x6, x7, [x9, #56]
+    ldp x0, x1, [sp]
+    ldp x2, x3, [sp, #16]
+    ldp x4, x5, [sp, #32]
+    ldp x6, x7, [sp, #48]
 
-    ldp d0, d1, [x9, #72]
-    ldp d2, d3, [x9, #88]
-    ldp d4, d5, [x9, #104]
-    ldp d6, d7, [x9, #120]
+    ldp d0, d1, [sp, #64]
+    ldp d2, d3, [sp, #80]
+    ldp d4, d5, [sp, #96]
+    ldp d6, d7, [sp, #112]
 
-    add sp, x9, #136
+    add sp, sp, #128
 
     blr xIP0           // native call.
 
@@ -1520,13 +1521,11 @@ ENTRY art_quick_generic_jni_trampoline
 
     // result sign extension is handled in C code
     // prepare for artQuickGenericJniEndTrampoline call
-    // (Thread*,  SP, result, result_f)
-    //   x0       x1   x2       x3       <= C calling convention
-    mov x5, x0      // Save return value
+    // (Thread*, result, result_f)
+    //    x0       x1       x2        <= C calling convention
+    mov x1, x0      // Result (from saved)
     mov x0, xSELF   // Thread register
-    mov x1, xFP     // Stack pointer
-    mov x2, x5      // Result (from saved)
-    fmov x3, d0     // d0 will contain floating point result, but needs to go into x3
+    fmov x2, d0     // d0 will contain floating point result, but needs to go into x2
 
     bl artQuickGenericJniEndTrampoline
 
