@@ -1184,7 +1184,7 @@ void Mir2Lir::LoadCodeAddress(const MethodReference& target_method, InvokeType t
     // resolve these invokes to the same method, so we don't care which one we record here.
     data_target->operands[2] = type;
   }
-  LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg), data_target);
+  LIR* load_pc_rel = OpPcRelLoad(TargetRefReg(symbolic_reg), data_target);
   AppendLIR(load_pc_rel);
   DCHECK_NE(cu_->instruction_set, kMips) << reinterpret_cast<void*>(data_target);
 }
@@ -1200,7 +1200,7 @@ void Mir2Lir::LoadMethodAddress(const MethodReference& target_method, InvokeType
     // resolve these invokes to the same method, so we don't care which one we record here.
     data_target->operands[2] = type;
   }
-  LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg), data_target);
+  LIR* load_pc_rel = OpPcRelLoad(TargetRefReg(symbolic_reg), data_target);
   AppendLIR(load_pc_rel);
   DCHECK_NE(cu_->instruction_set, kMips) << reinterpret_cast<void*>(data_target);
 }

@@ -192,7 +192,7 @@ void Mir2Lir::StoreValue(RegLocation rl_dest, RegLocation rl_src) {
       IsPromoted(rl_src.reg) ||
       (rl_dest.location == kLocPhysReg)) {
       // Src is live/promoted or Dest has assigned reg.
-      rl_dest = EvalLoc(rl_dest, kAnyReg, false);
+      rl_dest = EvalLoc(rl_dest, rl_dest.ref || rl_src.ref ? kRefReg : kAnyReg, false);
       OpRegCopy(rl_dest.reg, rl_src.reg);
     } else {
       // Just re-assign the registers.  Dest gets Src's regs
@@ -201,7 +201,7 @@ void Mir2Lir::StoreValue(RegLocation rl_dest, RegLocation rl_src) {
     }
   } else {
     // Load Src either into promoted Dest or temps allocated for Dest
-    rl_dest = EvalLoc(rl_dest, kAnyReg, false);
+    rl_dest = EvalLoc(rl_dest, rl_dest.ref ? kRefReg : kAnyReg, false);
     LoadValueDirect(rl_src, rl_dest.reg);
   }
 

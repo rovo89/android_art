@@ -1267,4 +1267,55 @@ LIR* Mir2Lir::LIRSlowPath::GenerateTargetLabel(int opcode) {
   return target;
 }
 
+
+void Mir2Lir::CheckRegStorageImpl(RegStorage rs, WidenessCheck wide, RefCheck ref, FPCheck fp,
+                                  bool fail, bool report)
+    const  {
+  if (rs.Valid()) {
+    if (ref == RefCheck::kCheckRef) {
+      if (cu_->target64 && !rs.Is64Bit()) {
+        if (fail) {
+          CHECK(false) << "Reg storage not 64b for ref.";
+        } else if (report) {
+          LOG(WARNING) << "Reg storage not 64b for ref.";
+        }
+      }
+    }
+    if (wide == WidenessCheck::kCheckWide) {
+      if (!rs.Is64Bit()) {
+        if (fail) {
+          CHECK(false) << "Reg storage not 64b for wide.";
+        } else if (report) {
+          LOG(WARNING) << "Reg storage not 64b for wide.";
+        }
+      }
+    }
+    // A tighter check would be nice, but for now soft-float will not check float at all.
+    if (fp == FPCheck::kCheckFP && cu_->instruction_set != kArm) {
+      if (!rs.IsFloat()) {
+        if (fail) {
+          CHECK(false) << "Reg storage not float for fp.";
+        } else if (report) {
+          LOG(WARNING) << "Reg storage not float for fp.";
+        }
+      }
+    } else if (fp == FPCheck::kCheckNotFP) {
+      if (rs.IsFloat()) {
+        if (fail) {
+          CHECK(false) << "Reg storage float for not-fp.";
+        } else if (report) {
+          LOG(WARNING) << "Reg storage float for not-fp.";
+        }
+      }
+    }
+  }
+}
+
+void Mir2Lir::CheckRegLocationImpl(RegLocation rl, bool fail, bool report) const {
+  // Regrettably can't use the fp part of rl, as that is not really indicative of where a value
+  // will be stored.
+  CheckRegStorageImpl(rl.reg, rl.wide ? WidenessCheck::kCheckWide : WidenessCheck::kCheckNotWide,
+      rl.ref ? RefCheck::kCheckRef : RefCheck::kCheckNotRef, FPCheck::kIgnoreFP, fail, report);
+}
+
 }  // namespace art

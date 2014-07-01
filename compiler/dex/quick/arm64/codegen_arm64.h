@@ -24,13 +24,8 @@
 
 namespace art {
 
-class Arm64Mir2Lir : public Mir2Lir {
+class Arm64Mir2Lir FINAL : public Mir2Lir {
  protected:
-  // If we detect a size error, FATAL out.
-  static constexpr bool kFailOnSizeError = false && kIsDebugBuild;
-  // If we detect a size error, report to LOG.
-  static constexpr bool kReportSizeError = false && kIsDebugBuild;
-
   // TODO: consolidate 64-bit target support.
   class InToRegStorageMapper {
    public:
@@ -102,7 +97,19 @@ class Arm64Mir2Lir : public Mir2Lir {
                            int offset, int check_value, LIR* target) OVERRIDE;
 
     // Required for target - register utilities.
-    RegStorage TargetReg(SpecialTargetRegister reg);
+    RegStorage TargetReg(SpecialTargetRegister reg) OVERRIDE;
+    RegStorage TargetReg(SpecialTargetRegister symbolic_reg, bool is_wide) OVERRIDE {
+      RegStorage reg = TargetReg(symbolic_reg);
+      if (is_wide) {
+        return (reg.Is64Bit()) ? reg : As64BitReg(reg);
+      } else {
+        return (reg.Is32Bit()) ? reg : As32BitReg(reg);
+      }
+    }
+    RegStorage TargetRefReg(SpecialTargetRegister symbolic_reg) OVERRIDE {
+      RegStorage reg = TargetReg(symbolic_reg);
+      return (reg.Is64Bit() ? reg : As64BitReg(reg));
+    }
     RegStorage GetArgMappingToPhysicalReg(int arg_num);
     RegLocation GetReturnAlt();
     RegLocation GetReturnWideAlt();
