@@ -203,6 +203,19 @@ static inline bool NeedsEscaping(uint16_t ch) {
   return (ch < ' ' || ch > '~');
 }
 
+// Interpret the bit pattern of input (type U) as type V. Requires the size
+// of V >= size of U (compile-time checked).
+template<typename U, typename V>
+static inline V bit_cast(U in) {
+  COMPILE_ASSERT(sizeof(U) <= sizeof(V), size_of_u_not_le_size_of_v);
+  union {
+    U u;
+    V v;
+  } tmp;
+  tmp.u = in;
+  return tmp.v;
+}
+
 std::string PrintableChar(uint16_t ch);
 
 // Returns an ASCII string corresponding to the given UTF-8 string.

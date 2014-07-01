@@ -1127,8 +1127,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     // This also stores the native ArtMethod reference at the bottom of the stack.
 
     movl %esp, %ebp                 // save SP at callee-save frame
-    movl %esp, %edi
-    CFI_DEF_CFA_REGISTER(edi)
+    CFI_DEF_CFA_REGISTER(ebp)
     subl LITERAL(5120), %esp
     // prepare for artQuickGenericJniTrampoline call
     // (Thread*,  SP)
@@ -1141,46 +1140,39 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     pushl %fs:THREAD_SELF_OFFSET  // Pass Thread::Current().
     SETUP_GOT_NOSAVE              // Clobbers ebx.
     call PLT_SYMBOL(artQuickGenericJniTrampoline)  // (Thread*, sp)
-    // Drop call stack.
-    addl LITERAL(16), %esp
 
-    // At the bottom of the alloca we now have the name pointer to the method=bottom of callee-save
-    // get the adjusted frame pointer
-    popl %ebp
+    // The C call will have registered the complete save-frame on success.
+    // The result of the call is:
+    // eax: pointer to native code, 0 on error.
+    // edx: pointer to the bottom of the used area of the alloca, can restore stack till there.
 
-    // Check for error, negative value.
+    // Check for error = 0.
     test %eax, %eax
-    js .Lentry_error
+    jz .Lentry_error
 
-    // release part of the alloca, get the code pointer
-    addl %eax, %esp
-    popl %eax
+    // Release part of the alloca.
+    movl %edx, %esp
 
     // On x86 there are no registers passed, so nothing to pop here.
 
     // Native call.
     call *%eax
 
-    // Pop native stack, but keep the space that was reserved cookie.
-    movl %ebp, %esp
-    subl LITERAL(16), %esp        // Alignment.
-
     // result sign extension is handled in C code
     // prepare for artQuickGenericJniEndTrampoline call
-    // (Thread*,  SP,  result, result_f)
-    //  (esp)   4(esp)  8(esp)  16(esp)    <= C calling convention
-    //  fs:...    ebp  eax:edx   xmm0      <= where they are
+    // (Thread*, result, result_f)
+    //  (esp)    4(esp)  12(esp)    <= C calling convention
+    //  fs:...  eax:edx   xmm0      <= where they are
 
-    subl LITERAL(8), %esp         // Pass float result.
+    subl LITERAL(20), %esp         // Padding & pass float result.
     movsd %xmm0, (%esp)
     pushl %edx                    // Pass int result.
     pushl %eax
-    pushl %ebp                    // Pass SP (to ArtMethod).
     pushl %fs:THREAD_SELF_OFFSET  // Pass Thread::Current().
     call PLT_SYMBOL(artQuickGenericJniEndTrampoline)
 
     // Tear down the alloca.
-    movl %edi, %esp
+    movl %ebp, %esp
     CFI_DEF_CFA_REGISTER(esp)
 
     // Pending exceptions possible.
@@ -1204,7 +1196,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     punpckldq %xmm1, %xmm0
     ret
 .Lentry_error:
-    movl %edi, %esp
+    movl %ebp, %esp
     CFI_DEF_CFA_REGISTER(esp)
 .Lexception_in_native:
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME

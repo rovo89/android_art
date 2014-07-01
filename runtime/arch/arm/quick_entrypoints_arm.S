@@ -127,7 +127,7 @@
 
     // Ugly compile-time check, but we only have the preprocessor.
 #if (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE != 40 + 8)
-#error "REFS_AND_ARGS_CALLEE_SAVE_FRAME(ARM64) size not as expected."
+#error "REFS_AND_ARGS_CALLEE_SAVE_FRAME(ARM) size not as expected."
 #endif
 .endm
 
@@ -1007,7 +1007,92 @@ ENTRY art_quick_resolution_trampoline
     DELIVER_PENDING_EXCEPTION
 END art_quick_resolution_trampoline
 
-UNIMPLEMENTED art_quick_generic_jni_trampoline
+    /*
+     * Called to do a generic JNI down-call
+     */
+ENTRY art_quick_generic_jni_trampoline
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    str r0, [sp, #0]  // Store native ArtMethod* to bottom of stack.
+
+    // Save rSELF
+    mov r11, rSELF
+    // Save SP , so we can have static CFI info. r10 is saved in ref_and_args.
+    mov r10, sp
+    .cfi_def_cfa_register r10
+
+    sub sp, sp, #5120
+
+    // prepare for artQuickGenericJniTrampoline call
+    // (Thread*,  SP)
+    //    r0      r1   <= C calling convention
+    //  rSELF     r10  <= where they are
+
+    mov r0, rSELF   // Thread*
+    mov r1, r10
+    blx artQuickGenericJniTrampoline  // (Thread*, sp)
+
+    // The C call will have registered the complete save-frame on success.
+    // The result of the call is:
+    // r0: pointer to native code, 0 on error.
+    // r1: pointer to the bottom of the used area of the alloca, can restore stack till there.
+
+    // Check for error = 0.
+    cbz r0, .Lentry_error
+
+    // Release part of the alloca.
+    mov sp, r1
+
+    // Save the code pointer
+    mov r12, r0
+
+    // Load parameters from frame into registers.
+    pop {r0-r3}
+
+    // Softfloat.
+    // TODO: Change to hardfloat when supported.
+
+    blx r12           // native call.
+
+    // result sign extension is handled in C code
+    // prepare for artQuickGenericJniEndTrampoline call
+    // (Thread*, result, result_f)
+    //    r0      r1,r2    r3,stack       <= C calling convention
+    //    r11     r0,r1    r0,r1          <= where they are
+    sub sp, sp, #12 // Stack alignment.
+
+    push {r1}
+    mov r3, r0
+    mov r2, r1
+    mov r1, r0
+    mov r0, r11
+
+    blx artQuickGenericJniEndTrampoline
+
+    // Tear down the alloca.
+    mov sp, r10
+    .cfi_def_cfa_register sp
+
+    // Restore self pointer.
+    mov r9, r11
+
+    // Pending exceptions possible.
+    ldr r2, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
+    cbnz r2, .Lexception_in_native
+
+    // Tear down the callee-save frame.
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+
+    bx lr      // ret
+
+.Lentry_error:
+    mov sp, r10
+    .cfi_def_cfa_register sp
+    mov r9, r11
+.Lexception_in_native:
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    DELIVER_PENDING_EXCEPTION
+
+END art_quick_generic_jni_trampoline
 
     .extern artQuickToInterpreterBridge
 ENTRY art_quick_to_interpreter_bridge

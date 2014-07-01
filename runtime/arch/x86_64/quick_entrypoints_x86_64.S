@@ -1167,11 +1167,9 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %xmm5, 56(%rsp)
     movq %xmm6, 64(%rsp)
     movq %xmm7, 72(%rsp)
-    // Store native ArtMethod* to bottom of stack.
-    movq %rdi, 0(%rsp)
-    movq %rsp, %rbp                 // save SP at callee-save frame
-    movq %rsp, %rbx
-    CFI_DEF_CFA_REGISTER(rbx)
+    movq %rdi, 0(%rsp)              // Store native ArtMethod* to bottom of stack.
+    movq %rsp, %rbp                 // save SP at (old) callee-save frame
+    CFI_DEF_CFA_REGISTER(rbp)
     //
     // reserve a lot of space
     //
@@ -1198,17 +1196,17 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %rbp, %rsi
     call PLT_SYMBOL(artQuickGenericJniTrampoline)  // (Thread*, sp)
 
-    // At the bottom of the alloca we now have the name pointer to the method=bottom of callee-save
-    // get the adjusted frame pointer
-    popq %rbp
+    // The C call will have registered the complete save-frame on success.
+    // The result of the call is:
+    // %rax: pointer to native code, 0 on error.
+    // %rdx: pointer to the bottom of the used area of the alloca, can restore stack till there.
 
-    // Check for error, negative value.
+    // Check for error = 0.
     test %rax, %rax
-    js .Lentry_error
+    jz .Lentry_error
 
-    // release part of the alloca, get the code pointer
-    addq %rax, %rsp
-    popq %rax
+    // Release part of the alloca.
+    movq %rdx, %rsp
 
     // pop from the register-passing alloca region
     // what's the right layout?
@@ -1228,21 +1226,22 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq 48(%rsp), %xmm6
     movq 56(%rsp), %xmm7
     addq LITERAL(64), %rsp          // floating-point done
+
     // native call
-    call *%rax                      // Stack should be aligned 16B without the return addr?
+    call *%rax
+
     // result sign extension is handled in C code
     // prepare for artQuickGenericJniEndTrampoline call
-    // (Thread*,  SP, result, result_f)
-    //   rdi      rsi   rdx   rcx       <= C calling convention
-    //  gs:...    rbp   rax   xmm0      <= where they are
+    // (Thread*,  result, result_f)
+    //   rdi      rsi   rdx       <= C calling convention
+    //  gs:...    rax   xmm0      <= where they are
     movq %gs:THREAD_SELF_OFFSET, %rdi
-    movq %rbp, %rsi
-    movq %rax, %rdx
-    movq %xmm0, %rcx
+    movq %rax, %rsi
+    movq %xmm0, %rdx
     call PLT_SYMBOL(artQuickGenericJniEndTrampoline)
 
     // Tear down the alloca.
-    movq %rbx, %rsp
+    movq %rbp, %rsp
     CFI_DEF_CFA_REGISTER(rsp)
 
     // Pending exceptions possible.
@@ -1280,7 +1279,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %rax, %xmm0
     ret
 .Lentry_error:
-    movq %rbx, %rsp
+    movq %rbp, %rsp
     CFI_DEF_CFA_REGISTER(rsp)
 .Lexception_in_native:
     // TODO: the handle scope contains the this pointer which is used by the debugger for exception
