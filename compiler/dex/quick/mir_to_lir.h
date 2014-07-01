@@ -21,6 +21,7 @@
 #include "compiled_method.h"
 #include "dex/compiler_enums.h"
 #include "dex/compiler_ir.h"
+#include "dex/reg_location.h"
 #include "dex/reg_storage.h"
 #include "dex/backend.h"
 #include "dex/quick/resource_mask.h"
@@ -124,7 +125,6 @@ struct CompilationUnit;
 struct InlineMethod;
 struct MIR;
 struct LIR;
-struct RegLocation;
 struct RegisterInfo;
 class DexFileMethodInliner;
 class MIRGraph;
@@ -239,6 +239,9 @@ COMPILE_ASSERT(!IsLargeFrame(kSmallFrameSize, kX86_64),
 
 class Mir2Lir : public Backend {
   public:
+    static constexpr bool kFailOnSizeError = true && kIsDebugBuild;
+    static constexpr bool kReportSizeError = true && kIsDebugBuild;
+
     /*
      * Auxiliary information describing the location of data embedded in the Dalvik
      * byte code stream.
@@ -1173,7 +1176,43 @@ class Mir2Lir : public Backend {
     virtual void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) = 0;
 
     // Required for target - register utilities.
+
+    /**
+     * @brief Portable way of getting special registers from the backend.
+     * @param reg Enumeration describing the purpose of the register.
+     * @return Return the #RegStorage corresponding to the given purpose @p reg.
+     * @note This function is currently allowed to return any suitable view of the registers
+     *   (e.g. this could be 64-bit solo or 32-bit solo for 64-bit backends).
+     */
     virtual RegStorage TargetReg(SpecialTargetRegister reg) = 0;
+
+    /**
+     * @brief Portable way of getting special registers from the backend.
+     * @param reg Enumeration describing the purpose of the register.
+     * @param is_wide Whether the view should be 64-bit (rather than 32-bit).
+     * @return Return the #RegStorage corresponding to the given purpose @p reg.
+     */
+    virtual RegStorage TargetReg(SpecialTargetRegister reg, bool is_wide) {
+      return TargetReg(reg);
+    }
+
+    /**
+     * @brief Portable way of getting a special register for storing a reference.
+     * @see TargetReg()
+     */
+    virtual RegStorage TargetRefReg(SpecialTargetRegister reg) {
+      return TargetReg(reg);
+    }
+
+    // Get a reg storage corresponding to the wide & ref flags of the reg location.
+    virtual RegStorage TargetReg(SpecialTargetRegister reg, RegLocation loc) {
+      if (loc.ref) {
+        return TargetRefReg(reg);
+      } else {
+        return TargetReg(reg, loc.wide);
+      }
+    }
+
     virtual RegStorage GetArgMappingToPhysicalReg(int arg_num) = 0;
     virtual RegLocation GetReturnAlt() = 0;
     virtual RegLocation GetReturnWideAlt() = 0;
@@ -1568,6 +1607,45 @@ class Mir2Lir : public Backend {
      * @param value Constant value
      */
     virtual void GenConst(RegLocation rl_dest, int value);
+
+    enum class WidenessCheck {  // private
+      kIgnoreWide,
+      kCheckWide,
+      kCheckNotWide
+    };
+
+    enum class RefCheck {  // private
+      kIgnoreRef,
+      kCheckRef,
+      kCheckNotRef
+    };
+
+    enum class FPCheck {  // private
+      kIgnoreFP,
+      kCheckFP,
+      kCheckNotFP
+    };
+
+    /**
+     * Check whether a reg storage seems well-formed, that is, if a reg storage is valid,
+     * that it has the expected form for the flags.
+     * A flag value of 0 means ignore. A flag value of -1 means false. A flag value of 1 means true.
+     */
+    void CheckRegStorageImpl(RegStorage rs, WidenessCheck wide, RefCheck ref, FPCheck fp, bool fail,
+                             bool report)
+        const;
+
+    /**
+     * Check whether a reg location seems well-formed, that is, if a reg storage is encoded,
+     * that it has the expected size.
+     */
+    void CheckRegLocationImpl(RegLocation rl, bool fail, bool report) const;
+
+    // See CheckRegStorageImpl. Will print or fail depending on kFailOnSizeError and
+    // kReportSizeError.
+    void CheckRegStorage(RegStorage rs, WidenessCheck wide, RefCheck ref, FPCheck fp) const;
+    // See CheckRegLocationImpl.
+    void CheckRegLocation(RegLocation rl) const;
 
   public:
     // TODO: add accessors for these.

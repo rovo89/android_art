@@ -891,9 +891,8 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
   LIR* load;
   int expected_scale = 0;
   ArmOpcode opcode = kA64Brk1d;
-  DCHECK(r_base.Is64Bit());
-  // TODO: need a cleaner handling of index registers here and throughout.
-  r_index = Check32BitReg(r_index);
+  r_base = Check64BitReg(r_base);
+  r_index = Check64BitReg(r_index);
 
   if (r_dest.IsFloat()) {
     if (r_dest.IsDouble()) {
@@ -928,17 +927,21 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
       expected_scale = 2;
       break;
     case kUnsignedHalf:
+      r_dest = Check32BitReg(r_dest);
       opcode = kA64Ldrh4wXxd;
       expected_scale = 1;
       break;
     case kSignedHalf:
+      r_dest = Check32BitReg(r_dest);
       opcode = kA64Ldrsh4rXxd;
       expected_scale = 1;
       break;
     case kUnsignedByte:
+      r_dest = Check32BitReg(r_dest);
       opcode = kA64Ldrb3wXx;
       break;
     case kSignedByte:
+      r_dest = Check32BitReg(r_dest);
       opcode = kA64Ldrsb3rXx;
       break;
     default:
@@ -968,9 +971,8 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
   LIR* store;
   int expected_scale = 0;
   ArmOpcode opcode = kA64Brk1d;
-  DCHECK(r_base.Is64Bit());
-  // TODO: need a cleaner handling of index registers here and throughout.
-  r_index = Check32BitReg(r_index);
+  r_base = Check64BitReg(r_base);
+  r_index = Check64BitReg(r_index);
 
   if (r_src.IsFloat()) {
     if (r_src.IsDouble()) {
@@ -1006,11 +1008,13 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
       break;
     case kUnsignedHalf:
     case kSignedHalf:
+      r_src = Check32BitReg(r_src);
       opcode = kA64Strh4wXxd;
       expected_scale = 1;
       break;
     case kUnsignedByte:
     case kSignedByte:
+      r_src = Check32BitReg(r_src);
       opcode = kA64Strb3wXx;
       break;
     default:

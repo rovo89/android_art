@@ -181,6 +181,8 @@ LIR* Arm64Mir2Lir::OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) {
 
   if (LIKELY(dest_is_fp == src_is_fp)) {
     if (LIKELY(!dest_is_fp)) {
+      DCHECK_EQ(r_dest.Is64Bit(), r_src.Is64Bit());
+
       // Core/core copy.
       // Copies involving the sp register require a different instruction.
       opcode = UNLIKELY(A64_REG_IS_SP(r_dest.GetReg())) ? kA64Add4RRdT : kA64Mov2rr;
@@ -210,14 +212,14 @@ LIR* Arm64Mir2Lir::OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) {
       if (r_dest.IsDouble()) {
         opcode = kA64Fmov2Sx;
       } else {
-        DCHECK(r_src.IsSingle());
+        r_src = Check32BitReg(r_src);
         opcode = kA64Fmov2sw;
       }
     } else {
       if (r_src.IsDouble()) {
         opcode = kA64Fmov2xS;
       } else {
-        DCHECK(r_dest.Is32Bit());
+        r_dest = Check32BitReg(r_dest);
         opcode = kA64Fmov2ws;
       }
     }
@@ -655,7 +657,7 @@ void Arm64Mir2Lir::GenIntToLong(RegLocation rl_dest, RegLocation rl_src) {
 
   rl_src = LoadValue(rl_src, kCoreReg);
   rl_result = EvalLocWide(rl_dest, kCoreReg, true);
-  NewLIR4(WIDE(kA64Sbfm4rrdd), rl_result.reg.GetReg(), rl_src.reg.GetReg(), 0, 31);
+  NewLIR4(WIDE(kA64Sbfm4rrdd), rl_result.reg.GetReg(), As64BitReg(rl_src.reg).GetReg(), 0, 31);
   StoreValueWide(rl_dest, rl_result);
 }
 
