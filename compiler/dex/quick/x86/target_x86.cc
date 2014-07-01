@@ -158,7 +158,7 @@ RegLocation X86Mir2Lir::LocCReturnRef() {
 }
 
 RegLocation X86Mir2Lir::LocCReturnWide() {
-  return Gen64Bit() ? x86_64_loc_c_return_wide : x86_loc_c_return_wide;
+  return cu_->target64 ? x86_64_loc_c_return_wide : x86_loc_c_return_wide;
 }
 
 RegLocation X86Mir2Lir::LocCReturnFloat() {
@@ -196,7 +196,7 @@ RegStorage X86Mir2Lir::TargetReg(SpecialTargetRegister reg) {
     case kRet1: res_reg = rs_rX86_RET1; break;
     case kInvokeTgt: res_reg = rs_rX86_INVOKE_TGT; break;
     case kHiddenArg: res_reg = rs_rAX; break;
-    case kHiddenFpArg: DCHECK(!Gen64Bit()); res_reg = rs_fr0; break;
+    case kHiddenFpArg: DCHECK(!cu_->target64); res_reg = rs_fr0; break;
     case kCount: res_reg = rs_rX86_COUNT; break;
     default: res_reg = RegStorage::InvalidReg();
   }
@@ -425,14 +425,14 @@ void X86Mir2Lir::MarkPreservedDouble(int v_reg, RegStorage reg) {
 
 RegStorage X86Mir2Lir::AllocateByteRegister() {
   RegStorage reg = AllocTypedTemp(false, kCoreReg);
-  if (!Gen64Bit()) {
+  if (!cu_->target64) {
     DCHECK_LT(reg.GetRegNum(), rs_rX86_SP.GetRegNum());
   }
   return reg;
 }
 
 bool X86Mir2Lir::IsByteRegister(RegStorage reg) {
-  return Gen64Bit() || reg.GetRegNum() < rs_rX86_SP.GetRegNum();
+  return cu_->target64 || reg.GetRegNum() < rs_rX86_SP.GetRegNum();
 }
 
 /* Clobber all regs that might be used by an external C call */
@@ -451,7 +451,7 @@ void X86Mir2Lir::ClobberCallerSave() {
   Clobber(rs_fr6);
   Clobber(rs_fr7);
 
-  if (Gen64Bit()) {
+  if (cu_->target64) {
     Clobber(rs_r8);
     Clobber(rs_r9);
     Clobber(rs_r10);
@@ -494,7 +494,7 @@ void X86Mir2Lir::LockCallTemps() {
   LockTemp(rs_rX86_ARG1);
   LockTemp(rs_rX86_ARG2);
   LockTemp(rs_rX86_ARG3);
-  if (Gen64Bit()) {
+  if (cu_->target64) {
     LockTemp(rs_rX86_ARG4);
     LockTemp(rs_rX86_ARG5);
     LockTemp(rs_rX86_FARG0);
@@ -514,7 +514,7 @@ void X86Mir2Lir::FreeCallTemps() {
   FreeTemp(rs_rX86_ARG1);
   FreeTemp(rs_rX86_ARG2);
   FreeTemp(rs_rX86_ARG3);
-  if (Gen64Bit()) {
+  if (cu_->target64) {
     FreeTemp(rs_rX86_ARG4);
     FreeTemp(rs_rX86_ARG5);
     FreeTemp(rs_rX86_FARG0);
@@ -586,7 +586,7 @@ bool X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 }
 
 void X86Mir2Lir::CompilerInitializeRegAlloc() {
-  if (Gen64Bit()) {
+  if (cu_->target64) {
     reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs_64, core_regs_64q, sp_regs_64,
                                           dp_regs_64, reserved_regs_64, reserved_regs_64q,
                                           core_temps_64, core_temps_64q, sp_temps_64, dp_temps_64);
@@ -599,7 +599,7 @@ void X86Mir2Lir::CompilerInitializeRegAlloc() {
   // Target-specific adjustments.
 
   // Add in XMM registers.
-  const ArrayRef<const RegStorage> *xp_temps = Gen64Bit() ? &xp_temps_64 : &xp_temps_32;
+  const ArrayRef<const RegStorage> *xp_temps = cu_->target64 ? &xp_temps_64 : &xp_temps_32;
   for (RegStorage reg : *xp_temps) {
     RegisterInfo* info = new (arena_) RegisterInfo(reg, GetRegMaskCommon(reg));
     reginfo_map_.Put(reg.GetReg(), info);
@@ -627,7 +627,7 @@ void X86Mir2Lir::CompilerInitializeRegAlloc() {
     DCHECK_EQ(info->StorageMask(), 0x1U);
   }
 
-  if (Gen64Bit()) {
+  if (cu_->target64) {
     // Alias 32bit W registers to corresponding 64bit X registers.
     GrowableArray<RegisterInfo*>::Iterator w_it(&reg_pool_->core_regs_);
     for (RegisterInfo* info = w_it.Next(); info != nullptr; info = w_it.Next()) {
@@ -690,7 +690,7 @@ bool X86Mir2Lir::SupportsVolatileLoadStore(OpSize size) {
 
 RegisterClass X86Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatile) {
   // X86_64 can handle any size.
-  if (Gen64Bit()) {
+  if (cu_->target64) {
     if (size == kReference) {
       return kRefReg;
     }
@@ -707,13 +707,13 @@ RegisterClass X86Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatil
   return RegClassBySize(size);
 }
 
-X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena, bool gen64bit)
+X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : Mir2Lir(cu, mir_graph, arena),
       base_of_code_(nullptr), store_method_addr_(false), store_method_addr_used_(false),
       method_address_insns_(arena, 100, kGrowableArrayMisc),
       class_type_address_insns_(arena, 100, kGrowableArrayMisc),
       call_method_insns_(arena, 100, kGrowableArrayMisc),
-      stack_decrement_(nullptr), stack_increment_(nullptr), gen64bit_(gen64bit),
+      stack_decrement_(nullptr), stack_increment_(nullptr),
       const_vectors_(nullptr) {
   store_method_addr_used_ = false;
   if (kIsDebugBuild) {
@@ -725,7 +725,7 @@ X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator*
       }
     }
   }
-  if (Gen64Bit()) {
+  if (cu_->target64) {
     rs_rX86_SP = rs_rX86_SP_64;
 
     rs_rX86_ARG0 = rs_rDI;
@@ -798,12 +798,7 @@ X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator*
 
 Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
                           ArenaAllocator* const arena) {
-  return new X86Mir2Lir(cu, mir_graph, arena, false);
-}
-
-Mir2Lir* X86_64CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
-                          ArenaAllocator* const arena) {
-  return new X86Mir2Lir(cu, mir_graph, arena, true);
+  return new X86Mir2Lir(cu, mir_graph, arena);
 }
 
 // Not used in x86
@@ -1811,7 +1806,7 @@ void X86Mir2Lir::InToRegStorageMapping::Initialize(RegLocation* arg_locs, int co
 }
 
 RegStorage X86Mir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
-  if (!Gen64Bit()) {
+  if (!cu_->target64) {
     return GetCoreArgMappingToPhysicalReg(arg_num);
   }
 
@@ -1851,7 +1846,7 @@ RegStorage X86Mir2Lir::GetCoreArgMappingToPhysicalReg(int core_arg_num) {
  * with one location record per word of argument.
  */
 void X86Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
-  if (!Gen64Bit()) return Mir2Lir::FlushIns(ArgLocs, rl_method);
+  if (!cu_->target64) return Mir2Lir::FlushIns(ArgLocs, rl_method);
   /*
    * Dummy up a RegLocation for the incoming Method*
    * It will attempt to keep kArg0 live (or copy it to home location
@@ -1951,7 +1946,7 @@ int X86Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
                                   const MethodReference& target_method,
                                   uint32_t vtable_idx, uintptr_t direct_code,
                                   uintptr_t direct_method, InvokeType type, bool skip_this) {
-  if (!Gen64Bit()) {
+  if (!cu_->target64) {
     return Mir2Lir::GenDalvikArgsNoRange(info,
                                   call_state, pcrLabel, next_call_insn,
                                   target_method,
@@ -1985,7 +1980,7 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
                                 const MethodReference& target_method,
                                 uint32_t vtable_idx, uintptr_t direct_code, uintptr_t direct_method,
                                 InvokeType type, bool skip_this) {
-  if (!Gen64Bit()) {
+  if (!cu_->target64) {
     return Mir2Lir::GenDalvikArgsRange(info, call_state,
                                 pcrLabel, next_call_insn,
                                 target_method,

@@ -108,10 +108,9 @@ Backend* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_
       mir_to_lir = MipsCodeGenerator(cu, cu->mir_graph.get(), &cu->arena);
       break;
     case kX86:
-      mir_to_lir = X86CodeGenerator(cu, cu->mir_graph.get(), &cu->arena);
-      break;
+      // Fall-through.
     case kX86_64:
-      mir_to_lir = X86_64CodeGenerator(cu, cu->mir_graph.get(), &cu->arena);
+      mir_to_lir = X86CodeGenerator(cu, cu->mir_graph.get(), &cu->arena);
       break;
     default:
       LOG(FATAL) << "Unexpected instruction set: " << cu->instruction_set;
