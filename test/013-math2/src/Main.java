@@ -26,7 +26,9 @@ public class Main {
 
         // a 16-bit constant
         a += 32000;
-        System.out.println("a:" +a);
+        b -= 32000;
+        System.out.println("a:" + a);
+        System.out.println("b:" + b);
     }
     public static void main(String args[]) {
         math_013();
