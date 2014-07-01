@@ -732,7 +732,7 @@ LIR* Arm64Mir2Lir::OpRegRegImm64(OpKind op, RegStorage r_dest, RegStorage r_src1
         return NewLIR4(opcode | wide, r_dest.GetReg(), r_src1.GetReg(), abs_value >> 12, 1);
       } else {
         log_imm = -1;
-        alt_opcode = (neg) ? kA64Add4RRre : kA64Sub4RRre;
+        alt_opcode = (op == kOpAdd) ? kA64Add4RRre : kA64Sub4RRre;
         info = EncodeExtend(is_wide ? kA64Uxtx : kA64Uxtw, 0);
       }
       break;
