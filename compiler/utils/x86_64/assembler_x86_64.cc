@@ -949,6 +949,14 @@ void X86_64Assembler::andl(CpuRegister dst, const Immediate& imm) {
 }
 
 
+void X86_64Assembler::andq(CpuRegister reg, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  CHECK(imm.is_int32());  // andq only supports 32b immediate.
+  EmitRex64(reg);
+  EmitComplex(4, Operand(reg), imm);
+}
+
+
 void X86_64Assembler::orl(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(dst, src);
@@ -967,6 +975,14 @@ void X86_64Assembler::orl(CpuRegister dst, const Immediate& imm) {
 void X86_64Assembler::xorl(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(dst, src);
+  EmitUint8(0x33);
+  EmitOperand(dst.LowBits(), Operand(src));
+}
+
+
+void X86_64Assembler::xorq(CpuRegister dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(dst, src);
   EmitUint8(0x33);
   EmitOperand(dst.LowBits(), Operand(src));
 }

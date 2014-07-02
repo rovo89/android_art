@@ -90,6 +90,7 @@ class CodeGenerator : public ArenaObject {
   virtual void SetupBlockedRegisters(bool* blocked_registers) const = 0;
   virtual void DumpCoreRegister(std::ostream& stream, int reg) const = 0;
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const = 0;
+  virtual InstructionSet GetInstructionSet() const = 0;
 
   void RecordPcInfo(uint32_t dex_pc) {
     struct PcInfo pc_info;

@@ -905,6 +905,48 @@ void InstructionCodeGeneratorARM::VisitNot(HNot* instruction) {
          locations->InAt(0).AsArm().AsCoreRegister(), ShifterOperand(1));
 }
 
+void LocationsBuilderARM::VisitCompare(HCompare* compare) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(compare);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister());
+  compare->SetLocations(locations);
+}
+
+void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
+  Label greater, done;
+  LocationSummary* locations = compare->GetLocations();
+  switch (compare->InputAt(0)->GetType()) {
+    case Primitive::kPrimLong: {
+      Register output = locations->Out().AsArm().AsCoreRegister();
+      ArmManagedRegister left = locations->InAt(0).AsArm();
+      ArmManagedRegister right = locations->InAt(1).AsArm();
+      Label less, greater, done;
+      __ cmp(left.AsRegisterPairHigh(),
+             ShifterOperand(right.AsRegisterPairHigh()));  // Signed compare.
+      __ b(&less, LT);
+      __ b(&greater, GT);
+      __ cmp(left.AsRegisterPairLow(),
+             ShifterOperand(right.AsRegisterPairLow()));  // Unsigned compare.
+      __ LoadImmediate(output, 0);
+      __ b(&done, EQ);
+      __ b(&less, CC);
+
+      __ Bind(&greater);
+      __ LoadImmediate(output, 1);
+      __ b(&done);
+
+      __ Bind(&less);
+      __ LoadImmediate(output, -1);
+
+      __ Bind(&done);
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unimplemented compare type " << compare->InputAt(0)->GetType();
+  }
+}
+
 void LocationsBuilderARM::VisitPhi(HPhi* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
   for (size_t i = 0, e = instruction->InputCount(); i < e; ++i) {

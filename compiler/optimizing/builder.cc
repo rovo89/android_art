@@ -226,7 +226,7 @@ HBasicBlock* HGraphBuilder::FindBlockStartingAt(int32_t index) const {
 }
 
 template<typename T>
-void HGraphBuilder::Binop_32x(const Instruction& instruction, Primitive::Type type) {
+void HGraphBuilder::Binop_23x(const Instruction& instruction, Primitive::Type type) {
   HInstruction* first = LoadLocal(instruction.VRegB(), type);
   HInstruction* second = LoadLocal(instruction.VRegC(), type);
   current_block_->AddInstruction(new (arena_) T(type, first, second));
@@ -501,22 +501,22 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
     }
 
     case Instruction::ADD_INT: {
-      Binop_32x<HAdd>(instruction, Primitive::kPrimInt);
+      Binop_23x<HAdd>(instruction, Primitive::kPrimInt);
       break;
     }
 
     case Instruction::ADD_LONG: {
-      Binop_32x<HAdd>(instruction, Primitive::kPrimLong);
+      Binop_23x<HAdd>(instruction, Primitive::kPrimLong);
       break;
     }
 
     case Instruction::SUB_INT: {
-      Binop_32x<HSub>(instruction, Primitive::kPrimInt);
+      Binop_23x<HSub>(instruction, Primitive::kPrimInt);
       break;
     }
 
     case Instruction::SUB_LONG: {
-      Binop_32x<HSub>(instruction, Primitive::kPrimLong);
+      Binop_23x<HSub>(instruction, Primitive::kPrimLong);
       break;
     }
 
@@ -572,6 +572,11 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
     case Instruction::MOVE_RESULT_OBJECT:
       UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
       break;
+
+    case Instruction::CMP_LONG: {
+      Binop_23x<HCompare>(instruction, Primitive::kPrimLong);
+      break;
+    }
 
     case Instruction::NOP:
       break;
