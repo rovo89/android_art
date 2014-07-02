@@ -61,9 +61,12 @@ build_output="build-output.txt"
 lib="libartd.so"
 run_args="--quiet"
 
+prebuild_mode="no"
 target_mode="yes"
 dev_mode="no"
 update_mode="no"
+debug_mode="no"
+relocate="yes"
 runtime="art"
 usage="no"
 build_only="no"
@@ -72,13 +75,11 @@ suffix64=""
 while true; do
     if [ "x$1" = "x--host" ]; then
         target_mode="no"
-        RUN="${progdir}/etc/host-run-test-jar"
         DEX_LOCATION=$tmp_dir
         shift
     elif [ "x$1" = "x--jvm" ]; then
         target_mode="no"
         runtime="jvm"
-        RUN="${progdir}/etc/reference-run-test-classes"
         NEED_DEX="false"
         shift
     elif [ "x$1" = "x-O" ]; then
@@ -88,6 +89,18 @@ while true; do
         lib="libdvm.so"
         runtime="dalvik"
         shift
+    elif [ "x$1" = "x--relocate" ]; then
+        relocate="yes"
+        shift
+    elif [ "x$1" = "x--no-relocate" ]; then
+        relocate="no"
+        shift
+    elif [ "x$1" = "x--prebuild" ]; then
+        prebuild_mode="yes"
+        shift;
+    elif [ "x$1" = "x--no-prebuild" ]; then
+        prebuild_mode="no"
+        shift;
     elif [ "x$1" = "x--image" ]; then
         shift
         image="$1"
@@ -174,6 +187,25 @@ while true; do
 done
 mkdir -p $tmp_dir
 
+if [ "$target_mode" = "no" ]; then
+    if [ "$runtime" = "jvm" ]; then
+        RUN="${progdir}/etc/reference-run-test-classes"
+        if [ "$prebuild_mode" = "yes" ]; then
+            echo "--prebuild with --jvm is unsupported";
+            exit 1;
+        fi
+    else
+        RUN="${progdir}/etc/host-run-test-jar"
+        if [ "$prebuild_mode" = "yes" ]; then
+            run_args="${run_args} --prebuild"
+        fi
+    fi
+else
+    if [ "$prebuild_mode" = "yes" ]; then
+        RUN="${progdir}/etc/push-and-run-prebuilt-test-jar"
+    fi
+fi
+
 if [ ! "$runtime" = "jvm" ]; then
   run_args="${run_args} --lib $lib"
 fi
@@ -198,6 +230,11 @@ elif [ "$runtime" = "art" ]; then
         run_args="${run_args} --boot -Ximage:${ANDROID_HOST_OUT}/framework/core.art"
     else
         run_args="${run_args} --boot -Ximage:/data/art-test/core.art"
+    fi
+    if [ "$relocate" = "yes" ]; then
+      run_args="${run_args} --relocate"
+    else
+      run_args="${run_args} --no-relocate"
     fi
 fi
 
@@ -252,6 +289,13 @@ if [ "$usage" = "yes" ]; then
         echo "    --zygote             Spawn the process from the Zygote." \
              "If used, then the"
         echo "                         other runtime options are ignored."
+        echo "    --prebuild           Run dex2oat on the files before starting test."
+        echo "    --no-prebuild        Do not run dex2oat on the files before starting"
+        echo "                         the test. (default)"
+        echo "    --relocate           Force the use of relocating in the test, making"
+        echo "                         the image and oat files be relocated to a random"
+        echo "                         address before running. (default)"
+        echo "    --no-relocate        Force the use of no relocating in the test"
         echo "    --host               Use the host-mode virtual machine."
         echo "    --invoke-with        Pass --invoke-with option to runtime."
         echo "    --dalvik             Use Dalvik (off by default)."
@@ -308,7 +352,7 @@ if echo "$test_dir" | grep 089; then
 elif echo "$test_dir" | grep 083; then
   file_size_limit=5120
 fi
-if ! ulimit "$file_size_limit"; then
+if ! ulimit -S "$file_size_limit"; then
    echo "ulimit file size setting failed"
 fi
 

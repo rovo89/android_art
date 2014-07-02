@@ -79,6 +79,7 @@ class PatchOat {
   // Patches oat in place, modifying the oat_file given to the constructor.
   bool PatchElf();
   bool PatchTextSection();
+  bool PatchOatHeader();
   bool PatchSymbols(Elf32_Shdr* section);
 
   bool PatchImage() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

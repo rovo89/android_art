@@ -87,6 +87,11 @@ OatFile* OatFile::OpenWritable(File* file, const std::string& location, std::str
   return OpenElfFile(file, location, NULL, true, false, error_msg);
 }
 
+OatFile* OatFile::OpenReadable(File* file, const std::string& location, std::string* error_msg) {
+  CheckLocation(location);
+  return OpenElfFile(file, location, NULL, false, false, error_msg);
+}
+
 OatFile* OatFile::OpenDlopen(const std::string& elf_filename,
                              const std::string& location,
                              byte* requested_base,

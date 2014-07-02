@@ -58,6 +58,22 @@ bool ScopedFlock::Init(const char* filename, std::string* error_msg) {
   }
 }
 
+bool ScopedFlock::Init(File* file, std::string* error_msg) {
+  file_.reset(new File(dup(file->Fd())));
+  if (file_->Fd() == -1) {
+    file_.reset();
+    *error_msg = StringPrintf("Failed to duplicate open file '%s': %s",
+                              file->GetPath().c_str(), strerror(errno));
+    return false;
+  }
+  if (0 != TEMP_FAILURE_RETRY(flock(file_->Fd(), LOCK_EX))) {
+    file_.reset();
+    *error_msg = StringPrintf("Failed to lock file '%s': %s", file->GetPath().c_str(), strerror(errno));
+    return false;
+  }
+  return true;
+}
+
 File* ScopedFlock::GetFile() {
   CHECK(file_.get() != NULL);
   return file_.get();

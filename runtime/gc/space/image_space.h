@@ -98,6 +98,20 @@ class ImageSpace : public MemMapSpace {
     return false;
   }
 
+  // Returns the filename of the image corresponding to
+  // requested image_location, or the filename where a new image
+  // should be written if one doesn't exist. Looks for a generated
+  // image in the specified location and then in the dalvik-cache.
+  //
+  // Returns true if an image was found, false otherwise.
+  static bool FindImageFilename(const char* image_location,
+                                InstructionSet image_isa,
+                                std::string* system_location,
+                                bool* has_system,
+                                std::string* data_location,
+                                bool* dalvik_cache_exists,
+                                bool* has_data);
+
  private:
   // Tries to initialize an ImageSpace from the given image path,
   // returning NULL on error.
@@ -110,16 +124,8 @@ class ImageSpace : public MemMapSpace {
                           bool validate_oat_file, std::string* error_msg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Returns the filename of the image corresponding to
-  // requested image_location, or the filename where a new image
-  // should be written if one doesn't exist. Looks for a generated
-  // image in the specified location and then in the dalvik-cache.
-  //
-  // Returns true if an image was found, false otherwise.
-  static bool FindImageFilename(const char* image_location,
-                                InstructionSet image_isa,
-                                std::string* location,
-                                bool* is_system);
+  static bool RelocateImage(const char* image_location, const char* dest_filename,
+                            InstructionSet isa, std::string* error_msg);
 
   OatFile* OpenOatFile(const char* image, std::string* error_msg) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

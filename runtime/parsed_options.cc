@@ -221,6 +221,7 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
 
   compiler_callbacks_ = nullptr;
   is_zygote_ = false;
+  must_relocate_ = kDefaultMustRelocate;
   if (kPoisonHeapReferences) {
     // kPoisonHeapReferences currently works only with the interpreter only.
     // TODO: make it work with the compiler.
@@ -390,6 +391,7 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
       ignore_max_footprint_ = true;
     } else if (option == "-XX:LowMemoryMode") {
       low_memory_mode_ = true;
+      // TODO Might want to turn off must_relocate here.
     } else if (option == "-XX:UseTLAB") {
       use_tlab_ = true;
     } else if (option == "-XX:EnableHSpaceCompactForOOM") {
@@ -408,6 +410,14 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
           reinterpret_cast<const char*>(options[i].second));
     } else if (option == "-Xzygote") {
       is_zygote_ = true;
+    } else if (StartsWith(option, "-Xpatchoat:")) {
+      if (!ParseStringAfterChar(option, ':', &patchoat_executable_)) {
+        return false;
+      }
+    } else if (option == "-Xrelocate") {
+      must_relocate_ = true;
+    } else if (option == "-Xnorelocate") {
+      must_relocate_ = false;
     } else if (option == "-Xint") {
       interpreter_only_ = true;
     } else if (StartsWith(option, "-Xgc:")) {
@@ -758,6 +768,8 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xcompiler:filename\n");
   UsageMessage(stream, "  -Xcompiler-option dex2oat-option\n");
   UsageMessage(stream, "  -Ximage-compiler-option dex2oat-option\n");
+  UsageMessage(stream, "  -Xpatchoat:filename\n");
+  UsageMessage(stream, "  -X[no]relocate\n");
   UsageMessage(stream, "\n");
 
   UsageMessage(stream, "The following previously supported Dalvik options are ignored:\n");

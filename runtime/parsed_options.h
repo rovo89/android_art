@@ -47,6 +47,10 @@ class ParsedOptions {
   std::string jni_trace_;
   CompilerCallbacks* compiler_callbacks_;
   bool is_zygote_;
+  // TODO Change this to true when we want it on by default.
+  static constexpr bool kDefaultMustRelocate = false;
+  bool must_relocate_;
+  std::string patchoat_executable_;
   bool interpreter_only_;
   bool is_explicit_gc_disabled_;
   bool use_tlab_;

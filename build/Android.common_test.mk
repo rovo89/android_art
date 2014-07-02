@@ -45,6 +45,21 @@ ART_TEST_GC_VERIFY ?= $(ART_TEST_FULL)
 # Do you want tests with the GC stress mode enabled run?
 ART_TEST_GC_STRESS ?= $(ART_TEST_FULL)
 
+# Do you want oat tests with relocation enabled?
+ART_TEST_OAT_RELOCATE ?= true
+
+# Do you want oat tests with relocation disabled?
+ART_TEST_OAT_NO_RELOCATE ?= $(ART_TEST_FULL)
+
+# Do you want run-tests with relocation enabled?
+ART_TEST_RUN_TEST_RELOCATE ?= $(ART_TEST_FULL)
+
+# Do you want run-tests with relocation disabled?
+ART_TEST_RUN_TEST_NO_RELOCATE ?= $(ART_TEST_FULL)
+
+# Do you want run-tests with prebuild enabled?
+ART_TEST_RUN_TEST_PREBUILD ?= true
+
 # Define the command run on test failure. $(1) is the name of the test. Executed by the shell.
 define ART_TEST_FAILED
   ( [ -f $(ART_HOST_TEST_DIR)/skipped/$(1) ] || \

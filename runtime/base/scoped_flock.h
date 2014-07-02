@@ -37,6 +37,10 @@ class ScopedFlock {
   // changed (usually due to a new file being created at the same path)
   // between attempts to lock it.
   bool Init(const char* filename, std::string* error_msg);
+  // Attempt to acquire an exclusive file lock (see flock(2)) on 'file'.
+  // Returns true if the lock could be acquired or false if an error
+  // occured.
+  bool Init(File* file, std::string* error_msg);
 
   // Returns the (locked) file associated with this instance.
   File* GetFile();
@@ -45,6 +49,7 @@ class ScopedFlock {
   bool HasFile();
 
   ~ScopedFlock();
+
  private:
   std::unique_ptr<File> file_;
   DISALLOW_COPY_AND_ASSIGN(ScopedFlock);

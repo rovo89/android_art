@@ -83,6 +83,15 @@ while true; do
     elif [ "x$1" = "x--trace" ]; then
         run_args="${run_args} --trace"
         shift
+    elif [ "x$1" = "x--relocate" ]; then
+        run_args="${run_args} --relocate"
+        shift
+    elif [ "x$1" = "x--no-relocate" ]; then
+        run_args="${run_args} --no-relocate"
+        shift
+    elif [ "x$1" = "x--prebuild" ]; then
+        run_args="${run_args} --prebuild"
+        shift;
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
         usage="yes"
@@ -101,7 +110,8 @@ if [ "$usage" = "yes" ]; then
         echo "  Options are all passed to run-test; refer to that for " \
              "further documentation:"
         echo "    --debug --dev --host --interpreter --jvm --no-optimize"
-        echo "    --no-verify -O --update --valgrind --zygote --64"
+        echo "    --no-verify -O --update --valgrind --zygote --64 --relocate"
+        echo "    --prebuild"
         echo "  Specific Runtime Options:"
         echo "    --seq                Run tests one-by-one, avoiding failures caused by busy CPU"
     ) 1>&2

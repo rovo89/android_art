@@ -101,6 +101,7 @@ Runtime::Runtime()
       instruction_set_(kNone),
       compiler_callbacks_(nullptr),
       is_zygote_(false),
+      must_relocate_(false),
       is_concurrent_gc_enabled_(true),
       is_explicit_gc_disabled_(false),
       default_stack_size_(0),
@@ -385,6 +386,15 @@ jobject CreateSystemClassLoader() {
   return env->NewGlobalRef(system_class_loader.get());
 }
 
+std::string Runtime::GetPatchoatExecutable() const {
+  if (!patchoat_executable_.empty()) {
+    return patchoat_executable_;
+  }
+  std::string patchoat_executable_(GetAndroidRoot());
+  patchoat_executable_ += (kIsDebugBuild ? "/bin/patchoatd" : "/bin/patchoat");
+  return patchoat_executable_;
+}
+
 std::string Runtime::GetCompilerExecutable() const {
   if (!compiler_executable_.empty()) {
     return compiler_executable_;
@@ -557,6 +567,8 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   properties_ = options->properties_;
 
   compiler_callbacks_ = options->compiler_callbacks_;
+  patchoat_executable_ = options->patchoat_executable_;
+  must_relocate_ = options->must_relocate_;
   is_zygote_ = options->is_zygote_;
   is_explicit_gc_disabled_ = options->is_explicit_gc_disabled_;
 
