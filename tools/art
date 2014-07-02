@@ -42,6 +42,11 @@ function follow_links() {
   echo "$file"
 }
 
+PROG_NAME="$(follow_links "$BASH_SOURCE")"
+PROG_DIR="$(cd "${PROG_NAME%/*}" ; pwd -P)"
+ANDROID_BUILD_TOP="$(cd "${PROG_DIR}/../../../../" ; pwd -P)/"
+ANDROID_HOST_OUT=$PROG_DIR/..
+ANDROID_DATA=$PWD/android-data$$
 DALVIKVM_EXECUTABLE=$ANDROID_HOST_OUT/bin/dalvikvm
 
 function find_libdir() {
@@ -52,11 +57,6 @@ function find_libdir() {
   fi
 }
 
-PROG_NAME="$(follow_links "$BASH_SOURCE")"
-PROG_DIR="$(cd "${PROG_NAME%/*}" ; pwd -P)"
-ANDROID_BUILD_TOP="$(cd "${PROG_DIR}/../../../../" ; pwd -P)/"
-ANDROID_HOST_OUT=$PROG_DIR/..
-ANDROID_DATA=$PWD/android-data$$
 LD_LIBRARY_PATH=$ANDROID_HOST_OUT/"$(find_libdir)"
 
 mkdir -p $ANDROID_DATA/dalvik-cache/{x86,x86_64}
