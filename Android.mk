@@ -366,7 +366,7 @@ build-art-target: $(ART_TARGET_EXECUTABLES) $(ART_TARGET_GTEST_EXECUTABLES) $(TA
 ifeq ($(HOST_PREFER_32_BIT),true)
 art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm32 $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_CORE_IMG_OUT) $(HOST_OUT)/lib/libjavacore.so $(HOST_OUT)/bin/dalvikvm
 else
-art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm64 $(HOST_OUT)/bin/dalvikvm32 $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_CORE_IMG_OUT) $(HOST_OUT)/lib/libjavacore.so $(HOST_OUT)/bin/dalvikvm
+art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm64 $(HOST_OUT)/bin/dalvikvm32 $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_CORE_IMG_OUT) $(HOST_OUT)/lib/libjavacore.so $(HOST_OUT)/lib64/libjavacore.so $(HOST_OUT)/bin/dalvikvm
 endif
 
 .PHONY: art-host-debug
