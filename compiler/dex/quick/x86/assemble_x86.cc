@@ -608,7 +608,7 @@ size_t X86Mir2Lir::ComputeSize(const X86EncodingMap* entry, int32_t raw_reg, int
       ++size;
     }
   }
-  if (Gen64Bit() || kIsDebugBuild) {
+  if (cu_->target64 || kIsDebugBuild) {
     bool registers_need_rex_prefix = NeedsRex(raw_reg) || NeedsRex(raw_index) || NeedsRex(raw_base);
     if (r8_form) {
       // Do we need an empty REX prefix to normalize byte registers?
@@ -617,7 +617,7 @@ size_t X86Mir2Lir::ComputeSize(const X86EncodingMap* entry, int32_t raw_reg, int
           (modrm_is_reg_reg && (RegStorage::RegNum(raw_base) >= 4));
     }
     if (registers_need_rex_prefix) {
-      DCHECK(Gen64Bit()) << "Attempt to use a 64-bit only addressable register "
+      DCHECK(cu_->target64) << "Attempt to use a 64-bit only addressable register "
           << RegStorage::RegNum(raw_reg) << " with instruction " << entry->name;
       if (entry->skeleton.prefix1 != REX_W && entry->skeleton.prefix2 != REX_W) {
         ++size;  // rex
@@ -636,7 +636,7 @@ size_t X86Mir2Lir::ComputeSize(const X86EncodingMap* entry, int32_t raw_reg, int
   }
   if (!modrm_is_reg_reg) {
     if (has_sib || LowRegisterBits(raw_base) == rs_rX86_SP.GetRegNum()
-        || (Gen64Bit() && entry->skeleton.prefix1 == THREAD_PREFIX)) {
+        || (cu_->target64 && entry->skeleton.prefix1 == THREAD_PREFIX)) {
       // SP requires a SIB byte.
       // GS access also needs a SIB byte for absolute adressing in 64-bit mode.
       ++size;
@@ -812,7 +812,7 @@ size_t X86Mir2Lir::GetInsnSize(LIR* lir) {
     case kMacro:  // lir operands - 0: reg
       DCHECK_EQ(lir->opcode, static_cast<int>(kX86StartOfMethod));
       return 5 /* call opcode + 4 byte displacement */ + 1 /* pop reg */ +
-          ComputeSize(&X86Mir2Lir::EncodingMap[Gen64Bit() ? kX86Sub64RI : kX86Sub32RI],
+          ComputeSize(&X86Mir2Lir::EncodingMap[cu_->target64 ? kX86Sub64RI : kX86Sub32RI],
                       lir->operands[0], NO_REG, NO_REG, 0) -
               // Shorter ax encoding.
               (RegStorage::RegNum(lir->operands[0]) == rs_rAX.GetRegNum()  ? 1 : 0);
@@ -849,7 +849,7 @@ void X86Mir2Lir::CheckValidByteRegister(const X86EncodingMap* entry, int32_t raw
     }
     if (RegStorage::RegNum(raw_reg) >= 4) {
       // ah, bh, ch and dh are not valid registers in 32-bit.
-      CHECK(Gen64Bit() || !entry->skeleton.r8_form)
+      CHECK(cu_->target64 || !entry->skeleton.r8_form)
                << "Invalid register " << static_cast<int>(RegStorage::RegNum(raw_reg))
                << " for instruction " << entry->name << " in "
                << PrettyMethod(cu_->method_idx, *cu_->dex_file);
@@ -893,7 +893,7 @@ void X86Mir2Lir::EmitPrefix(const X86EncodingMap* entry,
     rex |= 0x41;  // REX.000B
   }
   if (entry->skeleton.prefix1 != 0) {
-    if (Gen64Bit() && entry->skeleton.prefix1 == THREAD_PREFIX) {
+    if (cu_->target64 && entry->skeleton.prefix1 == THREAD_PREFIX) {
       // 64 bit addresses by GS, not FS.
       code_buffer_.push_back(THREAD_PREFIX_GS);
     } else {
@@ -918,7 +918,7 @@ void X86Mir2Lir::EmitPrefix(const X86EncodingMap* entry,
     DCHECK_EQ(0, entry->skeleton.prefix2);
   }
   if (rex != 0) {
-    DCHECK(Gen64Bit());
+    DCHECK(cu_->target64);
     code_buffer_.push_back(rex);
   }
 }
@@ -959,7 +959,7 @@ void X86Mir2Lir::EmitDisp(uint8_t base, int32_t disp) {
 }
 
 void X86Mir2Lir::EmitModrmThread(uint8_t reg_or_opcode) {
-  if (Gen64Bit()) {
+  if (cu_->target64) {
     // Absolute adressing for GS access.
     uint8_t modrm = (0 << 6) | (reg_or_opcode << 3) | rs_rX86_SP.GetRegNum();
     code_buffer_.push_back(modrm);
@@ -1553,7 +1553,7 @@ void X86Mir2Lir::EmitMacro(const X86EncodingMap* entry, int32_t raw_reg, int32_t
   uint8_t low_reg = LowRegisterBits(raw_reg);
   code_buffer_.push_back(0x58 + low_reg);  // pop reg
 
-  EmitRegImm(&X86Mir2Lir::EncodingMap[Gen64Bit() ? kX86Sub64RI : kX86Sub32RI],
+  EmitRegImm(&X86Mir2Lir::EncodingMap[cu_->target64 ? kX86Sub64RI : kX86Sub32RI],
              raw_reg, offset + 5 /* size of call +0 */);
 }
 

@@ -59,7 +59,7 @@ class X86Mir2Lir : public Mir2Lir {
   };
 
  public:
-  X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena, bool gen64bit);
+  X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
   // Required for target - codegen helpers.
   bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div, RegLocation rl_src,
@@ -802,8 +802,6 @@ class X86Mir2Lir : public Mir2Lir {
    */
   void AnalyzeInvokeStatic(int opcode, BasicBlock * bb, MIR *mir);
 
-  bool Gen64Bit() const  { return gen64bit_; }
-
   // Information derived from analysis of MIR
 
   // The compiler temporary for the code address of the method.
@@ -832,9 +830,6 @@ class X86Mir2Lir : public Mir2Lir {
 
   // Epilogue increment of stack pointer.
   LIR* stack_increment_;
-
-  // 64-bit mode
-  bool gen64bit_;
 
   // The list of const vector literals.
   LIR *const_vectors_;

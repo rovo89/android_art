@@ -254,7 +254,7 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
       return;
     }
     case Instruction::LONG_TO_DOUBLE:
-      if (Gen64Bit()) {
+      if (cu_->target64) {
         rcSrc = kCoreReg;
         op = kX86Cvtsqi2sdRR;
         break;
@@ -262,7 +262,7 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
       GenLongToFP(rl_dest, rl_src, true /* is_double */);
       return;
     case Instruction::LONG_TO_FLOAT:
-      if (Gen64Bit()) {
+      if (cu_->target64) {
         rcSrc = kCoreReg;
         op = kX86Cvtsqi2ssRR;
        break;
@@ -270,7 +270,7 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
       GenLongToFP(rl_dest, rl_src, false /* is_double */);
       return;
     case Instruction::FLOAT_TO_LONG:
-      if (Gen64Bit()) {
+      if (cu_->target64) {
         rl_src = LoadValue(rl_src, kFPReg);
         // If result vreg is also src vreg, break association to avoid useless copy by EvalLoc()
         ClobberSReg(rl_dest.s_reg_low);
@@ -295,7 +295,7 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
       }
       return;
     case Instruction::DOUBLE_TO_LONG:
-      if (Gen64Bit()) {
+      if (cu_->target64) {
         rl_src = LoadValueWide(rl_src, kFPReg);
         // If result vreg is also src vreg, break association to avoid useless copy by EvalLoc()
         ClobberSReg(rl_dest.s_reg_low);
@@ -569,7 +569,7 @@ void X86Mir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result;
   rl_src = LoadValueWide(rl_src, kCoreReg);
   rl_result = EvalLocWide(rl_dest, kCoreReg, true);
-  if (Gen64Bit()) {
+  if (cu_->target64) {
     OpRegCopy(rl_result.reg, rl_src.reg);
     // Flip sign bit.
     NewLIR2(kX86Rol64RI, rl_result.reg.GetReg(), 1);
