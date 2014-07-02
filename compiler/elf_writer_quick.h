@@ -167,10 +167,10 @@ class ElfWriterQuick FINAL : public ElfWriter {
 
     ElfSymtabBuilder(const std::string& sec_name, Elf32_Word type,
                      const std::string& str_name, Elf32_Word str_type, bool alloc)
-        : ElfSectionBuilder(sec_name, type, ((alloc)?SHF_ALLOC:0), &strtab_, 0,
+        : ElfSectionBuilder(sec_name, type, ((alloc) ? SHF_ALLOC : 0U), &strtab_, 0,
                             sizeof(Elf32_Word), sizeof(Elf32_Sym)),
           str_name_(str_name), str_type_(str_type),
-          strtab_(str_name, str_type, ((alloc) ? SHF_ALLOC : 0), NULL, 0, 1, 1) {}
+          strtab_(str_name, str_type, ((alloc) ? SHF_ALLOC : 0U), NULL, 0, 1, 1) {}
     ~ElfSymtabBuilder() {}
 
    protected:
