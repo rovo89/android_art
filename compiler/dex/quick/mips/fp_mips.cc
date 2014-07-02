@@ -230,7 +230,7 @@ void MipsMir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
   StoreValueWide(rl_dest, rl_result);
 }
 
-bool MipsMir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
+bool MipsMir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
   // TODO: need Mips implementation
   return false;
 }

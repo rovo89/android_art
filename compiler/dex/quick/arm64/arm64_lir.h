@@ -259,6 +259,8 @@ enum ArmOpcode {
   kA64Fcvt2Ss,       // fcvt   [0001111000100010110000] rn[9-5] rd[4-0].
   kA64Fcvt2sS,       // fcvt   [0001111001100010010000] rn[9-5] rd[4-0].
   kA64Fdiv3fff,      // fdiv[000111100s1] rm[20-16] [000110] rn[9-5] rd[4-0].
+  kA64Fmax3fff,      // fmax[000111100s1] rm[20-16] [010010] rn[9-5] rd[4-0].
+  kA64Fmin3fff,      // fmin[000111100s1] rm[20-16] [010110] rn[9-5] rd[4-0].
   kA64Fmov2ff,       // fmov[000111100s100000010000] rn[9-5] rd[4-0].
   kA64Fmov2fI,       // fmov[000111100s1] imm_8[20-13] [10000000] rd[4-0].
   kA64Fmov2sw,       // fmov[0001111000100111000000] rn[9-5] rd[4-0].
@@ -306,6 +308,7 @@ enum ArmOpcode {
   kA64Orr3Rrl,       // orr [s01100100] N[22] imm_r[21-16] imm_s[15-10] rn[9-5] rd[4-0].
   kA64Orr4rrro,      // orr [s0101010] shift[23-22] [0] rm[20-16] imm_6[15-10] rn[9-5] rd[4-0].
   kA64Ret,           // ret [11010110010111110000001111000000].
+  kA64Rbit2rr,       // rbit [s101101011000000000000] rn[9-5] rd[4-0].
   kA64Rev2rr,        // rev [s10110101100000000001x] rn[9-5] rd[4-0].
   kA64Rev162rr,      // rev16[s101101011000000000001] rn[9-5] rd[4-0].
   kA64Ror3rrr,       // ror [s0011010110] rm[20-16] [001011] rn[9-5] rd[4-0].

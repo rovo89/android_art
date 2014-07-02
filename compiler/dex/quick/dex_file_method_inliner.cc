@@ -87,6 +87,7 @@ const char* const DexFileMethodInliner::kClassCacheNames[] = {
 };
 
 const char* const DexFileMethodInliner::kNameCacheNames[] = {
+    "reverse",               // kNameCacheReverse
     "reverseBytes",          // kNameCacheReverseBytes
     "doubleToRawLongBits",   // kNameCacheDoubleToRawLongBits
     "longBitsToDouble",      // kNameCacheLongBitsToDouble
@@ -139,8 +140,12 @@ const DexFileMethodInliner::ProtoDef DexFileMethodInliner::kProtoCacheDefs[] = {
     { kClassCacheShort, 1, { kClassCacheShort } },
     // kProtoCacheD_D
     { kClassCacheDouble, 1, { kClassCacheDouble } },
+    // kProtoCacheDD_D
+    { kClassCacheDouble, 2, { kClassCacheDouble, kClassCacheDouble } },
     // kProtoCacheF_F
     { kClassCacheFloat, 1, { kClassCacheFloat } },
+    // kProtoCacheFF_F
+    { kClassCacheFloat, 2, { kClassCacheFloat, kClassCacheFloat } },
     // kProtoCacheD_J
     { kClassCacheLong, 1, { kClassCacheDouble } },
     // kProtoCacheJ_D
@@ -171,6 +176,8 @@ const DexFileMethodInliner::ProtoDef DexFileMethodInliner::kProtoCacheDefs[] = {
     { kClassCacheVoid, 2, { kClassCacheLong, kClassCacheByte } },
     // kProtoCacheJI_V
     { kClassCacheVoid, 2, { kClassCacheLong, kClassCacheInt } },
+    // kProtoCacheJJ_J
+    { kClassCacheLong, 2, { kClassCacheLong, kClassCacheLong } },
     // kProtoCacheJJ_V
     { kClassCacheVoid, 2, { kClassCacheLong, kClassCacheLong } },
     // kProtoCacheJS_V
@@ -211,6 +218,8 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     INTRINSIC(JavaLangInteger, ReverseBytes, I_I, kIntrinsicReverseBytes, k32),
     INTRINSIC(JavaLangLong, ReverseBytes, J_J, kIntrinsicReverseBytes, k64),
     INTRINSIC(JavaLangShort, ReverseBytes, S_S, kIntrinsicReverseBytes, kSignedHalf),
+    INTRINSIC(JavaLangInteger, Reverse, I_I, kIntrinsicReverseBits, k32),
+    INTRINSIC(JavaLangLong, Reverse, J_J, kIntrinsicReverseBits, k64),
 
     INTRINSIC(JavaLangMath,       Abs, I_I, kIntrinsicAbsInt, 0),
     INTRINSIC(JavaLangStrictMath, Abs, I_I, kIntrinsicAbsInt, 0),
@@ -224,6 +233,19 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     INTRINSIC(JavaLangStrictMath, Min, II_I, kIntrinsicMinMaxInt, kIntrinsicFlagMin),
     INTRINSIC(JavaLangMath,       Max, II_I, kIntrinsicMinMaxInt, kIntrinsicFlagMax),
     INTRINSIC(JavaLangStrictMath, Max, II_I, kIntrinsicMinMaxInt, kIntrinsicFlagMax),
+    INTRINSIC(JavaLangMath,       Min, JJ_J, kIntrinsicMinMaxLong, kIntrinsicFlagMin),
+    INTRINSIC(JavaLangStrictMath, Min, JJ_J, kIntrinsicMinMaxLong, kIntrinsicFlagMin),
+    INTRINSIC(JavaLangMath,       Max, JJ_J, kIntrinsicMinMaxLong, kIntrinsicFlagMax),
+    INTRINSIC(JavaLangStrictMath, Max, JJ_J, kIntrinsicMinMaxLong, kIntrinsicFlagMax),
+    INTRINSIC(JavaLangMath,       Min, FF_F, kIntrinsicMinMaxFloat, kIntrinsicFlagMin),
+    INTRINSIC(JavaLangStrictMath, Min, FF_F, kIntrinsicMinMaxFloat, kIntrinsicFlagMin),
+    INTRINSIC(JavaLangMath,       Max, FF_F, kIntrinsicMinMaxFloat, kIntrinsicFlagMax),
+    INTRINSIC(JavaLangStrictMath, Max, FF_F, kIntrinsicMinMaxFloat, kIntrinsicFlagMax),
+    INTRINSIC(JavaLangMath,       Min, DD_D, kIntrinsicMinMaxDouble, kIntrinsicFlagMin),
+    INTRINSIC(JavaLangStrictMath, Min, DD_D, kIntrinsicMinMaxDouble, kIntrinsicFlagMin),
+    INTRINSIC(JavaLangMath,       Max, DD_D, kIntrinsicMinMaxDouble, kIntrinsicFlagMax),
+    INTRINSIC(JavaLangStrictMath, Max, DD_D, kIntrinsicMinMaxDouble, kIntrinsicFlagMax),
+
     INTRINSIC(JavaLangMath,       Sqrt, D_D, kIntrinsicSqrt, 0),
     INTRINSIC(JavaLangStrictMath, Sqrt, D_D, kIntrinsicSqrt, 0),
 
@@ -319,6 +341,8 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
       return backend->GenInlinedFloatCvt(info);
     case kIntrinsicReverseBytes:
       return backend->GenInlinedReverseBytes(info, static_cast<OpSize>(intrinsic.d.data));
+    case kIntrinsicReverseBits:
+      return backend->GenInlinedReverseBits(info, static_cast<OpSize>(intrinsic.d.data));
     case kIntrinsicAbsInt:
       return backend->GenInlinedAbsInt(info);
     case kIntrinsicAbsLong:
@@ -328,7 +352,13 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
     case kIntrinsicAbsDouble:
       return backend->GenInlinedAbsDouble(info);
     case kIntrinsicMinMaxInt:
-      return backend->GenInlinedMinMaxInt(info, intrinsic.d.data & kIntrinsicFlagMin);
+      return backend->GenInlinedMinMax(info, intrinsic.d.data & kIntrinsicFlagMin, false /* is_long */);
+    case kIntrinsicMinMaxLong:
+      return backend->GenInlinedMinMax(info, intrinsic.d.data & kIntrinsicFlagMin, true /* is_long */);
+    case kIntrinsicMinMaxFloat:
+      return backend->GenInlinedMinMaxFP(info, intrinsic.d.data & kIntrinsicFlagMin, false /* is_double */);
+    case kIntrinsicMinMaxDouble:
+      return backend->GenInlinedMinMaxFP(info, intrinsic.d.data & kIntrinsicFlagMin, true /* is_double */);
     case kIntrinsicSqrt:
       return backend->GenInlinedSqrt(info);
     case kIntrinsicCharAt:
