@@ -81,12 +81,23 @@ ManagedRegister CodeGeneratorX86::AllocateFreeRegister(Primitive::Type type,
                                                        bool* blocked_registers) const {
   switch (type) {
     case Primitive::kPrimLong: {
-      size_t reg = AllocateFreeRegisterInternal(
-          GetBlockedRegisterPairs(blocked_registers), kNumberOfRegisterPairs);
+      bool* blocked_register_pairs = GetBlockedRegisterPairs(blocked_registers);
+      size_t reg = AllocateFreeRegisterInternal(blocked_register_pairs, kNumberOfRegisterPairs);
       X86ManagedRegister pair =
           X86ManagedRegister::FromRegisterPair(static_cast<RegisterPair>(reg));
       blocked_registers[pair.AsRegisterPairLow()] = true;
       blocked_registers[pair.AsRegisterPairHigh()] = true;
+      // Block all other register pairs that share a register with `pair`.
+      for (int i = 0; i < kNumberOfRegisterPairs; i++) {
+        X86ManagedRegister current =
+            X86ManagedRegister::FromRegisterPair(static_cast<RegisterPair>(i));
+        if (current.AsRegisterPairLow() == pair.AsRegisterPairLow()
+            || current.AsRegisterPairLow() == pair.AsRegisterPairHigh()
+            || current.AsRegisterPairHigh() == pair.AsRegisterPairLow()
+            || current.AsRegisterPairHigh() == pair.AsRegisterPairHigh()) {
+          blocked_register_pairs[i] = true;
+        }
+      }
       return pair;
     }
 
@@ -899,6 +910,46 @@ void InstructionCodeGeneratorX86::VisitNot(HNot* instruction) {
   Location out = locations->Out();
   DCHECK_EQ(locations->InAt(0).AsX86().AsCpuRegister(), out.AsX86().AsCpuRegister());
   __ xorl(out.AsX86().AsCpuRegister(), Immediate(1));
+}
+
+void LocationsBuilderX86::VisitCompare(HCompare* compare) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(compare);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister());
+  compare->SetLocations(locations);
+}
+
+void InstructionCodeGeneratorX86::VisitCompare(HCompare* compare) {
+  Label greater, done;
+  LocationSummary* locations = compare->GetLocations();
+  switch (compare->InputAt(0)->GetType()) {
+    case Primitive::kPrimLong: {
+      Label less, greater, done;
+      Register output = locations->Out().AsX86().AsCpuRegister();
+      X86ManagedRegister left = locations->InAt(0).AsX86();
+      X86ManagedRegister right = locations->InAt(1).AsX86();
+      __ cmpl(left.AsRegisterPairHigh(), right.AsRegisterPairHigh());
+      __ j(kLess, &less);  // Signed compare.
+      __ j(kGreater, &greater);  // Signed compare.
+      __ cmpl(left.AsRegisterPairLow(), right.AsRegisterPairLow());
+      __ movl(output, Immediate(0));
+      __ j(kEqual, &done);
+      __ j(kBelow, &less);  // Unsigned compare.
+
+      __ Bind(&greater);
+      __ movl(output, Immediate(1));
+      __ jmp(&done);
+
+      __ Bind(&less);
+      __ movl(output, Immediate(-1));
+
+      __ Bind(&done);
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unimplemented compare type " << compare->InputAt(0)->GetType();
+  }
 }
 
 void LocationsBuilderX86::VisitPhi(HPhi* instruction) {

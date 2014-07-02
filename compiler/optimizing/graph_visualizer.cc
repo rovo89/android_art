@@ -108,9 +108,11 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       } else {
         codegen_.DumpCoreRegister(output_, location.reg().RegId());
       }
-    } else {
-      DCHECK(location.IsStackSlot());
+    } else if (location.IsStackSlot()) {
       output_ << location.GetStackIndex() << "(sp)";
+    } else {
+      DCHECK(location.IsDoubleStackSlot());
+      output_ << "2x" << location.GetStackIndex() << "(sp)";
     }
   }
 

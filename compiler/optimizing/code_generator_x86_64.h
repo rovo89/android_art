@@ -69,8 +69,10 @@ class ParallelMoveResolverX86_64 : public ParallelMoveResolver {
   X86_64Assembler* GetAssembler() const;
 
  private:
-  void Exchange(CpuRegister reg, int mem);
-  void Exchange(int mem1, int mem2);
+  void Exchange32(CpuRegister reg, int mem);
+  void Exchange32(int mem1, int mem2);
+  void Exchange64(CpuRegister reg, int mem);
+  void Exchange64(int mem1, int mem2);
 
   CodeGeneratorX86_64* const codegen_;
 
@@ -169,6 +171,10 @@ class CodeGeneratorX86_64 : public CodeGenerator {
       Primitive::Type type, bool* blocked_registers) const OVERRIDE;
   virtual void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
+
+  virtual InstructionSet GetInstructionSet() const OVERRIDE {
+    return InstructionSet::kX86_64;
+  }
 
  private:
   // Helper method to move a value between two locations.
