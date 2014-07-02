@@ -19,8 +19,8 @@
 
 #include <sys/cdefs.h>
 
-// Explicitly include elf.h from elfutils to avoid Linux and other dependencies.
-#include "../../external/elfutils/0.153/libelf/elf.h"
+// Explicitly include our own elf.h to avoid Linux and other dependencies.
+#include "./elf.h"
 
 // Architecture dependent flags for the ELF header.
 #define EF_ARM_EABI_VER5 0x05000000
