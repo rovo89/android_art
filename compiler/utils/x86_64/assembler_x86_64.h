@@ -391,12 +391,14 @@ class X86_64Assembler FINAL : public Assembler {
 
   void andl(CpuRegister dst, const Immediate& imm);
   void andl(CpuRegister dst, CpuRegister src);
+  void andq(CpuRegister dst, const Immediate& imm);
 
   void orl(CpuRegister dst, const Immediate& imm);
   void orl(CpuRegister dst, CpuRegister src);
 
   void xorl(CpuRegister dst, CpuRegister src);
   void xorq(CpuRegister dst, const Immediate& imm);
+  void xorq(CpuRegister dst, CpuRegister src);
 
   void addl(CpuRegister dst, CpuRegister src);
   void addl(CpuRegister reg, const Immediate& imm);

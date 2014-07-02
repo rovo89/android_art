@@ -173,6 +173,10 @@ class CodeGeneratorX86 : public CodeGenerator {
     return &move_resolver_;
   }
 
+  virtual InstructionSet GetInstructionSet() const OVERRIDE {
+    return InstructionSet::kX86;
+  }
+
  private:
   // Helper method to move a 32bits value between two locations.
   void Move32(Location destination, Location source);

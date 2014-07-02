@@ -55,7 +55,7 @@ bool RegisterAllocator::CanAllocateRegistersFor(const HGraph& graph,
          it.Advance()) {
       HInstruction* current = it.Current();
       if (current->NeedsEnvironment()) return false;
-      if (current->GetType() == Primitive::kPrimLong) return false;
+      if (current->GetType() == Primitive::kPrimLong && instruction_set != kX86_64) return false;
       if (current->GetType() == Primitive::kPrimFloat) return false;
       if (current->GetType() == Primitive::kPrimDouble) return false;
     }
@@ -139,7 +139,7 @@ void RegisterAllocator::AllocateRegistersInternal() {
         current->SetFrom(position + 1);
         current->SetRegister(output.reg().RegId());
         BlockRegister(output, position, position + 1, instruction->GetType());
-      } else if (output.IsStackSlot()) {
+      } else if (output.IsStackSlot() || output.IsDoubleStackSlot()) {
         current->SetSpillSlot(output.GetStackIndex());
       }
       for (size_t i = 0; i < instruction->InputCount(); ++i) {
@@ -430,7 +430,7 @@ bool RegisterAllocator::IsBlocked(int reg) const {
 // we spill `current` instead.
 bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
   size_t first_register_use = current->FirstRegisterUse();
-  if (current->FirstRegisterUse() == kNoLifetime) {
+  if (first_register_use == kNoLifetime) {
     AllocateSpillSlotFor(current);
     return false;
   }
@@ -559,6 +559,10 @@ LiveInterval* RegisterAllocator::Split(LiveInterval* interval, size_t position) 
   }
 }
 
+static bool NeedTwoSpillSlot(Primitive::Type type) {
+  return type == Primitive::kPrimLong || type == Primitive::kPrimDouble;
+}
+
 void RegisterAllocator::AllocateSpillSlotFor(LiveInterval* interval) {
   LiveInterval* parent = interval->GetParent();
 
@@ -581,6 +585,43 @@ void RegisterAllocator::AllocateSpillSlotFor(LiveInterval* interval) {
   }
   size_t end = last_sibling->GetEnd();
 
+  if (NeedTwoSpillSlot(parent->GetType())) {
+    AllocateTwoSpillSlots(parent, end);
+  } else {
+    AllocateOneSpillSlot(parent, end);
+  }
+}
+
+void RegisterAllocator::AllocateTwoSpillSlots(LiveInterval* parent, size_t end) {
+  // Find an available spill slot.
+  size_t slot = 0;
+  for (size_t e = spill_slots_.Size(); slot < e; ++slot) {
+    // We check if it is less rather than less or equal because the parallel move
+    // resolver does not work when a single spill slot needs to be exchanged with
+    // a double spill slot. The strict comparison avoids needing to exchange these
+    // locations at the same lifetime position.
+    if (spill_slots_.Get(slot) < parent->GetStart()
+        && (slot == (e - 1) || spill_slots_.Get(slot + 1) < parent->GetStart())) {
+      break;
+    }
+  }
+
+  if (slot == spill_slots_.Size()) {
+    // We need a new spill slot.
+    spill_slots_.Add(end);
+    spill_slots_.Add(end);
+  } else if (slot == spill_slots_.Size() - 1) {
+    spill_slots_.Put(slot, end);
+    spill_slots_.Add(end);
+  } else {
+    spill_slots_.Put(slot, end);
+    spill_slots_.Put(slot + 1, end);
+  }
+
+  parent->SetSpillSlot(slot * kVRegSize);
+}
+
+void RegisterAllocator::AllocateOneSpillSlot(LiveInterval* parent, size_t end) {
   // Find an available spill slot.
   size_t slot = 0;
   for (size_t e = spill_slots_.Size(); slot < e; ++slot) {
@@ -604,7 +645,11 @@ static Location ConvertToLocation(LiveInterval* interval) {
     return Location::RegisterLocation(ManagedRegister(interval->GetRegister()));
   } else {
     DCHECK(interval->GetParent()->HasSpillSlot());
-    return Location::StackSlot(interval->GetParent()->GetSpillSlot());
+    if (NeedTwoSpillSlot(interval->GetType())) {
+      return Location::DoubleStackSlot(interval->GetParent()->GetSpillSlot());
+    } else {
+      return Location::StackSlot(interval->GetParent()->GetSpillSlot());
+    }
   }
 }
 
@@ -750,7 +795,9 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
     // We spill eagerly, so move must be at definition.
     InsertMoveAfter(interval->GetDefinedBy(),
                     Location::RegisterLocation(ManagedRegister(interval->GetRegister())),
-                    Location::StackSlot(interval->GetParent()->GetSpillSlot()));
+                    NeedTwoSpillSlot(interval->GetType())
+                        ? Location::DoubleStackSlot(interval->GetParent()->GetSpillSlot())
+                        : Location::StackSlot(interval->GetParent()->GetSpillSlot()));
   }
   UsePosition* use = current->GetFirstUse();
 
