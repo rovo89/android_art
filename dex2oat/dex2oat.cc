@@ -998,7 +998,7 @@ static int dex2oat(int argc, char** argv) {
     } else if (option == "--no-profile-file") {
       // No profile
     } else if (option.starts_with("--top-k-profile-threshold=")) {
-      ParseDouble(option.data(), '=', 10.0, 90.0, &top_k_profile_threshold);
+      ParseDouble(option.data(), '=', 0.0, 100.0, &top_k_profile_threshold);
     } else if (option == "--print-pass-names") {
       PassDriverMEOpts::PrintPassNames();
     } else if (option.starts_with("--disable-passes=")) {
