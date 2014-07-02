@@ -492,10 +492,10 @@ LIR* X86Mir2Lir::OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1,
 }
 
 LIR* X86Mir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src, int value) {
-  if (op == kOpMul && !Gen64Bit()) {
+  if (op == kOpMul && !cu_->target64) {
     X86OpCode opcode = IS_SIMM8(value) ? kX86Imul32RRI8 : kX86Imul32RRI;
     return NewLIR3(opcode, r_dest.GetReg(), r_src.GetReg(), value);
-  } else if (op == kOpAnd && !Gen64Bit()) {
+  } else if (op == kOpAnd && !cu_->target64) {
     if (value == 0xFF && r_src.Low4()) {
       return NewLIR2(kX86Movzx8RR, r_dest.GetReg(), r_src.GetReg());
     } else if (value == 0xFFFF) {
@@ -647,7 +647,7 @@ LIR* X86Mir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int 
       DCHECK_EQ((displacement & 0x3), 0);
       break;
     case kWord:
-      if (Gen64Bit()) {
+      if (cu_->target64) {
         opcode = is_array ? kX86Mov64RA  : kX86Mov64RM;
         CHECK_EQ(is_array, false);
         CHECK_EQ(r_dest.IsFloat(), false);
@@ -796,7 +796,7 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
       DCHECK_EQ((displacement & 0x3), 0);
       break;
     case kWord:
-      if (Gen64Bit()) {
+      if (cu_->target64) {
         opcode = is_array ? kX86Mov64AR  : kX86Mov64MR;
         CHECK_EQ(is_array, false);
         CHECK_EQ(r_src.IsFloat(), false);
@@ -906,7 +906,7 @@ void X86Mir2Lir::AnalyzeMIR() {
 
   // Did we need a pointer to the method code?
   if (store_method_addr_) {
-    base_of_code_ = mir_graph_->GetNewCompilerTemp(kCompilerTempVR, Gen64Bit() == true);
+    base_of_code_ = mir_graph_->GetNewCompilerTemp(kCompilerTempVR, cu_->target64 == true);
   } else {
     base_of_code_ = nullptr;
   }
