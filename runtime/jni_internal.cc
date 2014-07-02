@@ -684,6 +684,11 @@ class JNI {
   static void ExceptionDescribe(JNIEnv* env) {
     ScopedObjectAccess soa(env);
 
+    // If we have no exception to describe, pass through.
+    if (!soa.Self()->GetException(nullptr)) {
+      return;
+    }
+
     StackHandleScope<3> hs(soa.Self());
     // TODO: Use nullptr instead of null handles?
     auto old_throw_this_object(hs.NewHandle<mirror::Object>(nullptr));
