@@ -56,14 +56,31 @@ class MemoryRegion {
     return ComputeInternalPointer<T>(offset);
   }
 
+  // Load a single bit in the region. The bit at offset 0 is the least
+  // significant bit in the first byte.
+  bool LoadBit(uintptr_t bit_offset) const {
+    uint8_t bit_mask;
+    uint8_t byte = *ComputeBitPointer(bit_offset, &bit_mask);
+    return byte & bit_mask;
+  }
+
+  void StoreBit(uintptr_t bit_offset, bool value) const {
+    uint8_t bit_mask;
+    uint8_t* byte = ComputeBitPointer(bit_offset, &bit_mask);
+    if (value) {
+      *byte |= bit_mask;
+    } else {
+      *byte &= ~bit_mask;
+    }
+  }
+
   void CopyFrom(size_t offset, const MemoryRegion& from) const;
 
   // Compute a sub memory region based on an existing one.
-  void Subregion(const MemoryRegion& from, uintptr_t offset, uintptr_t size) {
-    CHECK_GE(from.size(), size);
-    CHECK_LE(offset,  from.size() - size);
-    pointer_ = reinterpret_cast<void*>(from.start() + offset);
-    size_ = size;
+  MemoryRegion Subregion(uintptr_t offset, uintptr_t size) const {
+    CHECK_GE(this->size(), size);
+    CHECK_LE(offset,  this->size() - size);
+    return MemoryRegion(reinterpret_cast<void*>(start() + offset), size);
   }
 
   // Compute an extended memory region based on an existing one.
@@ -90,8 +107,6 @@ class MemoryRegion {
 
   void* pointer_;
   size_t size_;
-
-  DISALLOW_COPY_AND_ASSIGN(MemoryRegion);
 };
 
 }  // namespace art
