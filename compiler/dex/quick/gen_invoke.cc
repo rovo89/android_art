@@ -185,11 +185,11 @@ void Mir2Lir::CallRuntimeHelperImmRegLocation(ThreadOffset<pointer_size> helper_
                                               RegLocation arg1, bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
   if (arg1.wide == 0) {
-    LoadValueDirectFixed(arg1, TargetReg(kArg1));
+    LoadValueDirectFixed(arg1, TargetReg(kArg1, arg1));
   } else {
     RegStorage r_tmp;
     if (cu_->target64) {
-      r_tmp = RegStorage::Solo64(TargetReg(kArg1).GetReg());
+      r_tmp = TargetReg(kArg1, true);
     } else {
       if (cu_->instruction_set == kMips) {
         // skip kArg1 for stack alignment.
@@ -211,7 +211,8 @@ template <size_t pointer_size>
 void Mir2Lir::CallRuntimeHelperRegLocationImm(ThreadOffset<pointer_size> helper_offset,
                                               RegLocation arg0, int arg1, bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
-  LoadValueDirectFixed(arg0, TargetReg(kArg0));
+  DCHECK(!arg0.wide);
+  LoadValueDirectFixed(arg0, TargetReg(kArg0, arg0));
   LoadConstant(TargetReg(kArg1), arg1);
   ClobberCallerSave();
   CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);

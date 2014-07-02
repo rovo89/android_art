@@ -1166,7 +1166,6 @@ static int dex2oat(int argc, char** argv) {
   CheckExplicitCheckOptions(instruction_set, &explicit_null_checks, &explicit_so_checks,
                             &explicit_suspend_checks);
 
-  LOG(INFO) << "init compiler options for explicit null: " << explicit_null_checks;
   CompilerOptions compiler_options(compiler_filter,
                                    huge_method_threshold,
                                    large_method_threshold,
