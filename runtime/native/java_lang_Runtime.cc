@@ -38,6 +38,7 @@ static void Runtime_gc(JNIEnv*, jclass) {
 }
 
 static void Runtime_nativeExit(JNIEnv*, jclass, jint status) {
+  LOG(INFO) << "System.exit called, status: " << status;
   Runtime::Current()->CallExitHook(status);
   exit(status);
 }
