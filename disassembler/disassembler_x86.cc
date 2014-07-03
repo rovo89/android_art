@@ -1012,11 +1012,18 @@ DISASSEMBLER_ENTRY(cmp,
     immediate_bytes = ((instr[1] & 0x38) == 0) ? 1 : 0;
     break;
   case 0xFF:
-    static const char* ff_opcodes[] = {"inc", "dec", "call", "call", "jmp", "jmp", "push", "unknown-ff"};
-    modrm_opcodes = ff_opcodes;
-    has_modrm = true;
-    reg_is_opcode = true;
-    load = true;
+    {
+      static const char* ff_opcodes[] = {"inc", "dec", "call", "call", "jmp", "jmp", "push", "unknown-ff"};
+      modrm_opcodes = ff_opcodes;
+      has_modrm = true;
+      reg_is_opcode = true;
+      load = true;
+      const uint8_t opcode_digit = (instr[1] >> 3) & 7;
+      // 'call', 'jmp' and 'push' are target specific instructions
+      if (opcode_digit == 2 || opcode_digit == 4 || opcode_digit == 6) {
+        target_specific = true;
+      }
+    }
     break;
   default:
     opcode << StringPrintf("unknown opcode '%02X'", *instr);
@@ -1026,10 +1033,10 @@ DISASSEMBLER_ENTRY(cmp,
   // We force the REX prefix to be available for 64-bit target
   // in order to dump addr (base/index) registers correctly.
   uint8_t rex64 = supports_rex_ ? (rex | 0x40) : rex;
+  // REX.W should be forced for 64-target and target-specific instructions (i.e., push or pop).
+  uint8_t rex_w = (supports_rex_ && target_specific) ? (rex | 0x48) : rex;
   if (reg_in_opcode) {
     DCHECK(!has_modrm);
-    // REX.W should be forced for 64-target and target-specific instructions (i.e., push or pop).
-    uint8_t rex_w = (supports_rex_ && target_specific) ? (rex | 0x48) : rex;
     DumpOpcodeReg(args, rex_w, *instr & 0x7);
   }
   instr++;
@@ -1090,7 +1097,7 @@ DISASSEMBLER_ENTRY(cmp,
     } else {
       if (mod == 3) {
         if (!no_ops) {
-          DumpRmReg(address, rex, rm, byte_operand, prefix[2], load ? src_reg_file : dst_reg_file);
+          DumpRmReg(address, rex_w, rm, byte_operand, prefix[2], load ? src_reg_file : dst_reg_file);
         }
       } else {
         address << "[";
