@@ -771,7 +771,7 @@ RegStorage ArmMir2Lir::AllocPreservedDouble(int s_reg) {
   int p_map_idx = SRegToPMap(s_reg);
   if (promotion_map_[p_map_idx+1].fp_location == kLocPhysReg) {
     // Upper reg is already allocated.  Can we fit?
-    int high_reg = promotion_map_[p_map_idx+1].FpReg;
+    int high_reg = promotion_map_[p_map_idx+1].fp_reg;
     if ((high_reg & 1) == 0) {
       // High reg is even - fail.
       return res;  // Invalid.
@@ -805,11 +805,30 @@ RegStorage ArmMir2Lir::AllocPreservedDouble(int s_reg) {
   if (res.Valid()) {
     RegisterInfo* info = GetRegInfo(res);
     promotion_map_[p_map_idx].fp_location = kLocPhysReg;
-    promotion_map_[p_map_idx].FpReg =
+    promotion_map_[p_map_idx].fp_reg =
         info->FindMatchingView(RegisterInfo::kLowSingleStorageMask)->GetReg().GetReg();
     promotion_map_[p_map_idx+1].fp_location = kLocPhysReg;
-    promotion_map_[p_map_idx+1].FpReg =
+    promotion_map_[p_map_idx+1].fp_reg =
         info->FindMatchingView(RegisterInfo::kHighSingleStorageMask)->GetReg().GetReg();
+  }
+  return res;
+}
+
+// Reserve a callee-save sp single register.
+RegStorage ArmMir2Lir::AllocPreservedSingle(int s_reg) {
+  RegStorage res;
+  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->sp_regs_);
+  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+    if (!info->IsTemp() && !info->InUse()) {
+      res = info->GetReg();
+      int p_map_idx = SRegToPMap(s_reg);
+      int v_reg = mir_graph_->SRegToVReg(s_reg);
+      GetRegInfo(res)->MarkInUse();
+      MarkPreservedSingle(v_reg, res);
+      promotion_map_[p_map_idx].fp_location = kLocPhysReg;
+      promotion_map_[p_map_idx].fp_reg = res.GetReg();
+      break;
+    }
   }
   return res;
 }

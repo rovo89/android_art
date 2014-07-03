@@ -61,7 +61,7 @@ void Mir2Lir::LockArg(int in_position, bool wide) {
   if (reg_arg_low.Valid()) {
     LockTemp(reg_arg_low);
   }
-  if (reg_arg_high.Valid() && reg_arg_low != reg_arg_high) {
+  if (reg_arg_high.Valid() && reg_arg_low.NotExactlyEquals(reg_arg_high)) {
     LockTemp(reg_arg_high);
   }
 }
@@ -249,7 +249,7 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
     LoadBaseDisp(reg_obj, data.field_offset, r_result, size, data.is_volatile ? kVolatile :
         kNotVolatile);
   }
-  if (r_result != rl_dest.reg) {
+  if (r_result.NotExactlyEquals(rl_dest.reg)) {
     if (wide) {
       OpRegCopyWide(rl_dest.reg, r_result);
     } else {

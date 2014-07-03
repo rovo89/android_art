@@ -64,6 +64,12 @@ class VmapTable {
     const uint8_t* table = table_;
     uint16_t adjusted_vreg = vreg + kEntryAdjustment;
     size_t end = DecodeUnsignedLeb128(&table);
+    bool high_reg = (kind == kLongHiVReg) || (kind == kDoubleHiVReg);
+    bool target64 = (kRuntimeISA == kArm64) || (kRuntimeISA == kX86_64);
+    if (target64 && high_reg) {
+      // Wide promoted registers are associated with the sreg of the low portion.
+      adjusted_vreg--;
+    }
     for (size_t i = 0; i < end; ++i) {
       // Stop if we find what we are are looking for.
       uint16_t adjusted_entry = DecodeUnsignedLeb128(&table);

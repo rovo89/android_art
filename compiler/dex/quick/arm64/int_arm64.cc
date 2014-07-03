@@ -19,6 +19,7 @@
 #include "arm64_lir.h"
 #include "codegen_arm64.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "dex/reg_storage_eq.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "mirror/array.h"
 
@@ -1054,6 +1055,7 @@ void Arm64Mir2Lir::UnSpillCoreRegs(RegStorage base, int offset, uint32_t reg_mas
     if (UNLIKELY(reg2 < 0)) {
       NewLIR3(WIDE(kA64Ldr3rXD), RegStorage::Solo64(reg1).GetReg(), base.GetReg(), offset);
     } else {
+      DCHECK_LE(offset, 63);
       NewLIR4(WIDE(kA64Ldp4rrXD), RegStorage::Solo64(reg2).GetReg(),
               RegStorage::Solo64(reg1).GetReg(), base.GetReg(), offset);
     }
