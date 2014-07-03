@@ -21,6 +21,7 @@
 #include "base/logging.h"
 #include "base/stringprintf.h"
 #include "thread.h"
+#include <inttypes.h>
 
 namespace art {
 namespace x86 {
@@ -914,6 +915,12 @@ DISASSEMBLER_ENTRY(cmp,
     reg_in_opcode = true;
     break;
   case 0xB8: case 0xB9: case 0xBA: case 0xBB: case 0xBC: case 0xBD: case 0xBE: case 0xBF:
+    if (rex == 0x48) {
+      opcode << "movabsq";
+      immediate_bytes = 8;
+      reg_in_opcode = true;
+      break;
+    }
     opcode << "mov";
     immediate_bytes = 4;
     reg_in_opcode = true;
@@ -1144,8 +1151,7 @@ DISASSEMBLER_ENTRY(cmp,
     if (immediate_bytes == 1) {
       args << StringPrintf("%d", *reinterpret_cast<const int8_t*>(instr));
       instr++;
-    } else {
-      CHECK_EQ(immediate_bytes, 4u);
+    } else if (immediate_bytes == 4) {
       if (prefix[2] == 0x66) {  // Operand size override from 32-bit to 16-bit.
         args << StringPrintf("%d", *reinterpret_cast<const int16_t*>(instr));
         instr += 2;
@@ -1153,6 +1159,10 @@ DISASSEMBLER_ENTRY(cmp,
         args << StringPrintf("%d", *reinterpret_cast<const int32_t*>(instr));
         instr += 4;
       }
+    } else {
+      CHECK_EQ(immediate_bytes, 8u);
+      args << StringPrintf("%" PRId64, *reinterpret_cast<const int64_t*>(instr));
+      instr += 8;
     }
   } else if (branch_bytes > 0) {
     DCHECK(!has_modrm);
