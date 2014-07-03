@@ -1202,10 +1202,28 @@ class Mir2Lir : public Backend {
     }
 
     /**
+     * @brief Portable way of getting special register pair from the backend.
+     * @param reg Enumeration describing the purpose of the first register.
+     * @param reg Enumeration describing the purpose of the second register.
+     * @return Return the #RegStorage corresponding to the given purpose @p reg.
+     */
+    virtual RegStorage TargetReg(SpecialTargetRegister reg1, SpecialTargetRegister reg2) {
+      return RegStorage::MakeRegPair(TargetReg(reg1, false), TargetReg(reg2, false));
+    }
+
+    /**
      * @brief Portable way of getting a special register for storing a reference.
      * @see TargetReg()
      */
     virtual RegStorage TargetRefReg(SpecialTargetRegister reg) {
+      return TargetReg(reg);
+    }
+
+    /**
+     * @brief Portable way of getting a special register for storing a pointer.
+     * @see TargetReg()
+     */
+    virtual RegStorage TargetPtrReg(SpecialTargetRegister reg) {
       return TargetReg(reg);
     }
 

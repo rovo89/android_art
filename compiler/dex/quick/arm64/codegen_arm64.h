@@ -110,6 +110,10 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
       RegStorage reg = TargetReg(symbolic_reg);
       return (reg.Is64Bit() ? reg : As64BitReg(reg));
     }
+    RegStorage TargetPtrReg(SpecialTargetRegister symbolic_reg) OVERRIDE {
+      RegStorage reg = TargetReg(symbolic_reg);
+      return (reg.Is64Bit() ? reg : As64BitReg(reg));
+    }
     RegStorage GetArgMappingToPhysicalReg(int arg_num);
     RegLocation GetReturnAlt();
     RegLocation GetReturnWideAlt();
