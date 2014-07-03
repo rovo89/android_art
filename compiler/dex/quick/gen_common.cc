@@ -1122,6 +1122,9 @@ void Mir2Lir::GenThrow(RegLocation rl_src) {
   }
 }
 
+#define IsSameReg(r1, r2) \
+  (GetRegInfo(r1)->Master()->GetReg().GetReg() == GetRegInfo(r2)->Master()->GetReg().GetReg())
+
 // For final classes there are no sub-classes to check and so we can answer the instance-of
 // question with simple comparisons.
 void Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, RegLocation rl_dest,
@@ -1132,8 +1135,9 @@ void Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, Re
   RegLocation object = LoadValue(rl_src, kRefReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   RegStorage result_reg = rl_result.reg;
-  if (result_reg == object.reg) {
+  if (IsSameReg(result_reg, object.reg)) {
     result_reg = AllocTypedTemp(false, kCoreReg);
+    DCHECK(!IsSameReg(result_reg, object.reg));
   }
   LoadConstant(result_reg, 0);     // assume false
   LIR* null_branchover = OpCmpImmBranch(kCondEq, object.reg, 0, NULL);
