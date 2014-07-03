@@ -34,6 +34,56 @@ namespace art {
 
 namespace {  // anonymous namespace
 
+static constexpr bool kIntrinsicIsStatic[] = {
+    true,   // kIntrinsicDoubleCvt
+    true,   // kIntrinsicFloatCvt
+    true,   // kIntrinsicReverseBits
+    true,   // kIntrinsicReverseBytes
+    true,   // kIntrinsicAbsInt
+    true,   // kIntrinsicAbsLong
+    true,   // kIntrinsicAbsFloat
+    true,   // kIntrinsicAbsDouble
+    true,   // kIntrinsicMinMaxInt
+    true,   // kIntrinsicMinMaxLong
+    true,   // kIntrinsicMinMaxFloat
+    true,   // kIntrinsicMinMaxDouble
+    true,   // kIntrinsicSqrt
+    false,  // kIntrinsicCharAt
+    false,  // kIntrinsicCompareTo
+    false,  // kIntrinsicIsEmptyOrLength
+    false,  // kIntrinsicIndexOf
+    true,   // kIntrinsicCurrentThread
+    true,   // kIntrinsicPeek
+    true,   // kIntrinsicPoke
+    false,  // kIntrinsicCas
+    false,  // kIntrinsicUnsafeGet
+    false,  // kIntrinsicUnsafePut
+};
+COMPILE_ASSERT(arraysize(kIntrinsicIsStatic) == kInlineOpNop, check_arraysize_kIntrinsicIsStatic);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicDoubleCvt], DoubleCvt_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicFloatCvt], FloatCvt_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicReverseBits], ReverseBits_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicReverseBytes], ReverseBytes_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicAbsInt], AbsInt_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicAbsLong], AbsLong_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicAbsFloat], AbsFloat_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicAbsDouble], AbsDouble_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxInt], MinMaxInt_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxLong], MinMaxLong_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxFloat], MinMaxFloat_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxDouble], MinMaxDouble_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicSqrt], Sqrt_must_be_static);
+COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCharAt], CharAt_must_not_be_static);
+COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCompareTo], CompareTo_must_not_be_static);
+COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicIsEmptyOrLength], IsEmptyOrLength_must_not_be_static);
+COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicIndexOf], IndexOf_must_not_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicCurrentThread], CurrentThread_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicPeek], Peek_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicPoke],Poke_must_be_static);
+COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCas], Cas_must_not_be_static);
+COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicUnsafeGet], UnsafeGet_must_not_be_static);
+COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicUnsafePut], UnsafePut_must_not_be_static);
+
 MIR* AllocReplacementMIR(MIRGraph* mir_graph, MIR* invoke, MIR* move_return) {
   MIR* insn = mir_graph->NewMIR();
   insn->offset = invoke->offset;
@@ -333,6 +383,10 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
       return false;
     }
     intrinsic = it->second;
+  }
+  if (kIntrinsicIsStatic[intrinsic.opcode] != (info->type == kStatic)) {
+    // Invoke type mismatch.
+    return false;
   }
   switch (intrinsic.opcode) {
     case kIntrinsicDoubleCvt:
