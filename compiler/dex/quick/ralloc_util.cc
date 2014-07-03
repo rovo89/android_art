@@ -757,7 +757,7 @@ void Mir2Lir::FlushRegWide(RegStorage reg) {
       }
       int v_reg = mir_graph_->SRegToVReg(info1->SReg());
       ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-      StoreBaseDisp(TargetReg(kSp), VRegOffset(v_reg), reg, k64, kNotVolatile);
+      StoreBaseDisp(TargetPtrReg(kSp), VRegOffset(v_reg), reg, k64, kNotVolatile);
     }
   } else {
     RegisterInfo* info = GetRegInfo(reg);
@@ -765,7 +765,7 @@ void Mir2Lir::FlushRegWide(RegStorage reg) {
       info->SetIsDirty(false);
       int v_reg = mir_graph_->SRegToVReg(info->SReg());
       ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-      StoreBaseDisp(TargetReg(kSp), VRegOffset(v_reg), reg, k64, kNotVolatile);
+      StoreBaseDisp(TargetPtrReg(kSp), VRegOffset(v_reg), reg, k64, kNotVolatile);
     }
   }
 }
@@ -777,7 +777,7 @@ void Mir2Lir::FlushReg(RegStorage reg) {
     info->SetIsDirty(false);
     int v_reg = mir_graph_->SRegToVReg(info->SReg());
     ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-    StoreBaseDisp(TargetReg(kSp), VRegOffset(v_reg), reg, kWord, kNotVolatile);
+    StoreBaseDisp(TargetPtrReg(kSp), VRegOffset(v_reg), reg, kWord, kNotVolatile);
   }
 }
 
@@ -1313,7 +1313,7 @@ void Mir2Lir::DoPromotion() {
     RegLocation *curr = &mir_graph_->reg_location_[i];
     int p_map_idx = SRegToPMap(curr->s_reg_low);
     int reg_num = curr->fp ? promotion_map_[p_map_idx].fp_reg : promotion_map_[p_map_idx].core_reg;
-    bool wide = curr->wide || (cu_->target64 && curr->ref && cu_->instruction_set != kX86_64);
+    bool wide = curr->wide || (cu_->target64 && curr->ref);
     RegStorage reg = RegStorage::InvalidReg();
     if (curr->fp && promotion_map_[p_map_idx].fp_location == kLocPhysReg) {
       if (wide && cu_->instruction_set == kThumb2) {

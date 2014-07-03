@@ -353,6 +353,12 @@ const RegLocation x86_loc_c_return
 const RegLocation x86_loc_c_return_wide
     {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1,
      RegStorage(RegStorage::k64BitPair, rAX, rDX), INVALID_SREG, INVALID_SREG};
+const RegLocation x86_loc_c_return_ref
+    {kLocPhysReg, 0, 0, 0, 0, 0, 1, 0, 1,
+     RegStorage(RegStorage::k32BitSolo, rAX), INVALID_SREG, INVALID_SREG};
+const RegLocation x86_64_loc_c_return_ref
+    {kLocPhysReg, 0, 0, 0, 0, 0, 1, 0, 1,
+     RegStorage(RegStorage::k64BitSolo, rAX), INVALID_SREG, INVALID_SREG};
 const RegLocation x86_64_loc_c_return_wide
     {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1,
      RegStorage(RegStorage::k64BitSolo, rAX), INVALID_SREG, INVALID_SREG};

@@ -92,7 +92,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide)
     if (!reg_arg.Valid()) {
       RegStorage new_reg =
           wide ?  AllocTypedTempWide(false, reg_class) : AllocTypedTemp(false, reg_class);
-      LoadBaseDisp(TargetReg(kSp), offset, new_reg, wide ? k64 : k32, kNotVolatile);
+      LoadBaseDisp(TargetPtrReg(kSp), offset, new_reg, wide ? k64 : k32, kNotVolatile);
       return new_reg;
     } else {
       // Check if we need to copy the arg to a different reg_class.
@@ -120,7 +120,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide)
     // If the low part is not in a reg, we allocate a pair. Otherwise, we just load to high reg.
     if (!reg_arg_low.Valid()) {
       RegStorage new_regs = AllocTypedTempWide(false, reg_class);
-      LoadBaseDisp(TargetReg(kSp), offset, new_regs, k64, kNotVolatile);
+      LoadBaseDisp(TargetPtrReg(kSp), offset, new_regs, k64, kNotVolatile);
       return new_regs;  // The reg_class is OK, we can return.
     } else {
       // Assume that no ABI allows splitting a wide fp reg between a narrow fp reg and memory,
@@ -128,7 +128,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide)
       DCHECK(!reg_arg_low.IsFloat());
       reg_arg_high = AllocTemp();
       int offset_high = offset + sizeof(uint32_t);
-      Load32Disp(TargetReg(kSp), offset_high, reg_arg_high);
+      Load32Disp(TargetPtrReg(kSp), offset_high, reg_arg_high);
       // Continue below to check the reg_class.
     }
   }
@@ -140,7 +140,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide)
     // conceivably break this assumption but Android supports only little-endian architectures.
     DCHECK(!wide);
     reg_arg_low = AllocTypedTemp(false, reg_class);
-    Load32Disp(TargetReg(kSp), offset, reg_arg_low);
+    Load32Disp(TargetPtrReg(kSp), offset, reg_arg_low);
     return reg_arg_low;  // The reg_class is OK, we can return.
   }
 
@@ -185,7 +185,7 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
     if (reg.Valid()) {
       OpRegCopy(rl_dest.reg, reg);
     } else {
-      Load32Disp(TargetReg(kSp), offset, rl_dest.reg);
+      Load32Disp(TargetPtrReg(kSp), offset, rl_dest.reg);
     }
   } else {
     if (cu_->target64) {
@@ -193,7 +193,7 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
       if (reg.Valid()) {
         OpRegCopy(rl_dest.reg, reg);
       } else {
-        LoadBaseDisp(TargetReg(kSp), offset, rl_dest.reg, k64, kNotVolatile);
+        LoadBaseDisp(TargetPtrReg(kSp), offset, rl_dest.reg, k64, kNotVolatile);
       }
       return;
     }
@@ -206,12 +206,12 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
     } else if (reg_arg_low.Valid() && !reg_arg_high.Valid()) {
       OpRegCopy(rl_dest.reg, reg_arg_low);
       int offset_high = offset + sizeof(uint32_t);
-      Load32Disp(TargetReg(kSp), offset_high, rl_dest.reg.GetHigh());
+      Load32Disp(TargetPtrReg(kSp), offset_high, rl_dest.reg.GetHigh());
     } else if (!reg_arg_low.Valid() && reg_arg_high.Valid()) {
       OpRegCopy(rl_dest.reg.GetHigh(), reg_arg_high);
-      Load32Disp(TargetReg(kSp), offset, rl_dest.reg.GetLow());
+      Load32Disp(TargetPtrReg(kSp), offset, rl_dest.reg.GetLow());
     } else {
-      LoadBaseDisp(TargetReg(kSp), offset, rl_dest.reg, k64, kNotVolatile);
+      LoadBaseDisp(TargetPtrReg(kSp), offset, rl_dest.reg, k64, kNotVolatile);
     }
   }
 }
