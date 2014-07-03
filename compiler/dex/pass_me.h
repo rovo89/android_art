@@ -80,10 +80,51 @@ class PassME: public Pass {
   }
 
   ~PassME() {
+    default_options_.clear();
   }
 
   virtual DataFlowAnalysisMode GetTraversal() const {
     return traversal_type_;
+  }
+
+  /**
+   * @return Returns whether the pass has any configurable options.
+   */
+  bool HasOptions() const {
+    return default_options_.size() != 0;
+  }
+
+  /**
+   * @brief Prints the pass options along with default settings if there are any.
+   * @details The printing is done using LOG(INFO).
+   */
+  void PrintPassDefaultOptions() const {
+    for (auto option_it = default_options_.begin(); option_it != default_options_.end(); option_it++) {
+      LOG(INFO) << "\t" << option_it->first << ":" << std::dec << option_it->second;
+    }
+  }
+
+  /**
+   * @brief Prints the pass options along with either default or overridden setting.
+   * @param overridden_options The overridden settings for this pass.
+   */
+  void PrintPassOptions(SafeMap<const std::string, int>& overridden_options) const {
+    // We walk through the default options only to get the pass names. We use GetPassOption to
+    // also consider the overridden ones.
+    for (auto option_it = default_options_.begin(); option_it != default_options_.end(); option_it++) {
+      LOG(INFO) << "\t" << option_it->first << ":" << std::dec << GetPassOption(option_it->first, overridden_options);
+    }
+  }
+
+  /**
+   * @brief Used to obtain the option for a pass.
+   * @details Will return the overridden option if it exists or default one.
+   * @param option_name The name of option whose setting to look for.
+   * @param c_unit The compilation unit currently being handled.
+   * @return Returns the setting for the pass option.
+   */
+  int GetPassOption(const char* option_name, CompilationUnit* c_unit) const {
+    return GetPassOption(option_name, c_unit->overridden_pass_options);
   }
 
   const char* GetDumpCFGFolder() const {
@@ -95,6 +136,25 @@ class PassME: public Pass {
   }
 
  protected:
+  int GetPassOption(const char* option_name, const SafeMap<const std::string, int>& overridden_options) const {
+    // First check if there are any overridden settings.
+    auto overridden_it = overridden_options.find(std::string(option_name));
+    if (overridden_it != overridden_options.end()) {
+      return overridden_it->second;
+    }
+
+    // Next check the default options.
+    auto default_it = default_options_.find(option_name);
+
+    if (default_it == default_options_.end()) {
+      // An invalid option is being requested.
+      DCHECK(false);
+      return 0;
+    }
+
+    return default_it->second;
+  }
+
   /** @brief Type of traversal: determines the order to execute the pass on the BasicBlocks. */
   const DataFlowAnalysisMode traversal_type_;
 
@@ -103,6 +163,13 @@ class PassME: public Pass {
 
   /** @brief CFG Dump Folder: what sub-folder to use for dumping the CFGs post pass. */
   const char* const dump_cfg_folder_;
+
+  /**
+   * @brief Contains a map of options with the default settings.
+   * @details The constructor of the specific pass instance should fill this
+   * with default options.
+   * */
+  SafeMap<const char*, int> default_options_;
 };
 }  // namespace art
 #endif  // ART_COMPILER_DEX_PASS_ME_H_

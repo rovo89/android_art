@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_DEX_COMPILER_IR_H_
 #define ART_COMPILER_DEX_COMPILER_IR_H_
 
+#include <string>
 #include <vector>
 
 #include "compiler_enums.h"
@@ -91,6 +92,15 @@ struct CompilationUnit {
   std::unique_ptr<Backend> cg;           // Target-specific codegen.
   TimingLogger timings;
   bool print_pass;                 // Do we want to print a pass or not?
+
+  /**
+   * @brief Holds pass options for current pass being applied to compilation unit.
+   * @details This is updated for every pass to contain the overridden pass options
+   * that were specified by user. The pass itself will check this to see if the
+   * default settings have been changed. The key is simply the option string without
+   * the pass name.
+   */
+  SafeMap<const std::string, int> overridden_pass_options;
 };
 
 }  // namespace art
