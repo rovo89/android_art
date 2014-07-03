@@ -439,7 +439,7 @@ enum X86OpCode {
   kX86Lea32RA,
   kX86Mov64MR, kX86Mov64AR, kX86Mov64TR,
   kX86Mov64RR, kX86Mov64RM, kX86Mov64RA, kX86Mov64RT,
-  kX86Mov64RI, kX86Mov64MI, kX86Mov64AI, kX86Mov64TI,
+  kX86Mov64RI32, kX86Mov64RI64, kX86Mov64MI, kX86Mov64AI, kX86Mov64TI,
   kX86Lea64RM,
   kX86Lea64RA,
   // RRC - Register Register ConditionCode - cond_opcode reg1, reg2
@@ -649,6 +649,7 @@ enum X86EncodingKind {
   kRegImm, kMemImm, kArrayImm, kThreadImm,  // RI, MI, AI and TI instruction kinds.
   kRegRegImm, kRegMemImm, kRegArrayImm,     // RRI, RMI and RAI instruction kinds.
   kMovRegImm,                               // Shorter form move RI.
+  kMovRegQuadImm,                           // 64 bit move RI
   kRegRegImmStore,                          // RRI following the store modrm reg-reg encoding rather than the load.
   kMemRegImm,                               // MRI instruction kinds.
   kShiftRegImm, kShiftMemImm, kShiftArrayImm,  // Shift opcode with immediate.
