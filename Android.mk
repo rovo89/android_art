@@ -355,10 +355,10 @@ oat-target-sync: oat-target
 build-art: build-art-host build-art-target
 
 .PHONY: build-art-host
-build-art-host:   $(ART_HOST_EXECUTABLES)   $(ART_HOST_GTEST_EXECUTABLES)   $(HOST_CORE_IMG_OUT)   $(HOST_OUT)/lib/libjavacore.so
+build-art-host:   $(ART_HOST_EXECUTABLES)   $(ART_HOST_GTEST_EXECUTABLES)   $(HOST_CORE_IMG_OUT)   $(ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
 
 .PHONY: build-art-target
-build-art-target: $(ART_TARGET_EXECUTABLES) $(ART_TARGET_GTEST_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(TARGET_OUT)/lib/libjavacore.so
+build-art-target: $(ART_TARGET_EXECUTABLES) $(ART_TARGET_GTEST_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
 
 ########################################################################
 # "m art-host" for just building the files needed to run the art script
