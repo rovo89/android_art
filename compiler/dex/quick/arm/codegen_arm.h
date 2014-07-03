@@ -67,7 +67,6 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     void MarkPreservedSingle(int v_reg, RegStorage reg);
     void MarkPreservedDouble(int v_reg, RegStorage reg);
     void CompilerInitializeRegAlloc();
-    RegStorage AllocPreservedDouble(int s_reg);
 
     // Required for target - miscellaneous.
     void AssembleLIR();
@@ -196,6 +195,8 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     bool InexpensiveConstantFloat(int32_t value);
     bool InexpensiveConstantLong(int64_t value);
     bool InexpensiveConstantDouble(int64_t value);
+    RegStorage AllocPreservedDouble(int s_reg);
+    RegStorage AllocPreservedSingle(int s_reg);
 
   private:
     void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1, int64_t val,

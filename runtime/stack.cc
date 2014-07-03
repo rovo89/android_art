@@ -159,10 +159,21 @@ bool StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind,
       uint32_t reg = vmap_table.ComputeRegister(spill_mask, vmap_offset, kind);
       uintptr_t ptr_val;
       bool success = false;
+      bool target64 = (kRuntimeISA == kArm64) || (kRuntimeISA == kX86_64);
       if (is_float) {
         success = GetFPR(reg, &ptr_val);
       } else {
         success = GetGPR(reg, &ptr_val);
+      }
+      if (success && target64) {
+        bool wide_lo = (kind == kLongLoVReg) || (kind == kDoubleLoVReg);
+        bool wide_hi = (kind == kLongHiVReg) || (kind == kDoubleHiVReg);
+        int64_t value_long = static_cast<int64_t>(ptr_val);
+        if (wide_lo) {
+          ptr_val = static_cast<uintptr_t>(value_long & 0xFFFFFFFF);
+        } else if (wide_hi) {
+          ptr_val = static_cast<uintptr_t>(value_long >> 32);
+        }
       }
       *val = ptr_val;
       return success;
@@ -194,6 +205,28 @@ bool StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_val
       bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
       uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
       const uint32_t reg = vmap_table.ComputeRegister(spill_mask, vmap_offset, kind);
+      bool target64 = (kRuntimeISA == kArm64) || (kRuntimeISA == kX86_64);
+      // Deal with 32 or 64-bit wide registers in a way that builds on all targets.
+      if (target64) {
+        bool wide_lo = (kind == kLongLoVReg) || (kind == kDoubleLoVReg);
+        bool wide_hi = (kind == kLongHiVReg) || (kind == kDoubleHiVReg);
+        if (wide_lo || wide_hi) {
+          uintptr_t old_reg_val;
+          bool success = is_float ? GetFPR(reg, &old_reg_val) : GetGPR(reg, &old_reg_val);
+          if (!success) {
+            return false;
+          }
+          uint64_t new_vreg_portion = static_cast<uint64_t>(new_value);
+          uint64_t old_reg_val_as_wide = static_cast<uint64_t>(old_reg_val);
+          uint64_t mask = 0xffffffff;
+          if (wide_lo) {
+            mask = mask << 32;
+          } else {
+            new_vreg_portion = new_vreg_portion << 32;
+          }
+          new_value = static_cast<uintptr_t>((old_reg_val_as_wide & mask) | new_vreg_portion);
+        }
+      }
       if (is_float) {
         return SetFPR(reg, new_value);
       } else {

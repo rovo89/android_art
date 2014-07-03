@@ -20,6 +20,7 @@
 #include "codegen_x86.h"
 #include "dex/compiler_internals.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "dex/reg_storage_eq.h"
 #include "mirror/array.h"
 #include "mirror/string.h"
 #include "x86_lir.h"
@@ -407,20 +408,6 @@ void X86Mir2Lir::AdjustSpillMask() {
   // Adjustment for LR spilling, x86 has no LR so nothing to do here
   core_spill_mask_ |= (1 << rs_rRET.GetRegNum());
   num_core_spills_++;
-}
-
-/*
- * Mark a callee-save fp register as promoted.  Note that
- * vpush/vpop uses contiguous register lists so we must
- * include any holes in the mask.  Associate holes with
- * Dalvik register INVALID_VREG (0xFFFFU).
- */
-void X86Mir2Lir::MarkPreservedSingle(int v_reg, RegStorage reg) {
-  UNIMPLEMENTED(FATAL) << "MarkPreservedSingle";
-}
-
-void X86Mir2Lir::MarkPreservedDouble(int v_reg, RegStorage reg) {
-  UNIMPLEMENTED(FATAL) << "MarkPreservedDouble";
 }
 
 RegStorage X86Mir2Lir::AllocateByteRegister() {
@@ -2206,4 +2193,3 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
 }
 
 }  // namespace art
-

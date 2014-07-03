@@ -257,11 +257,11 @@ template <size_t pointer_size>
 void Mir2Lir::CallRuntimeHelperRegMethod(ThreadOffset<pointer_size> helper_offset, RegStorage arg0,
                                          bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
-  DCHECK_NE(TargetReg(kArg1).GetReg(), arg0.GetReg());
-  if (TargetReg(kArg0) != arg0) {
-    OpRegCopy(TargetReg(kArg0), arg0);
+  DCHECK(!IsSameReg(TargetReg(kArg1), arg0));
+  if (TargetReg(kArg0, arg0.Is64Bit()).NotExactlyEquals(arg0)) {
+    OpRegCopy(TargetReg(kArg0, arg0.Is64Bit()), arg0);
   }
-  LoadCurrMethodDirect(TargetReg(kArg1));
+  LoadCurrMethodDirect(TargetRefReg(kArg1));
   ClobberCallerSave();
   CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
 }
@@ -272,11 +272,11 @@ void Mir2Lir::CallRuntimeHelperRegMethodRegLocation(ThreadOffset<pointer_size> h
                                                     RegStorage arg0, RegLocation arg2,
                                                     bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(helper_offset);
-  DCHECK_NE(TargetReg(kArg1).GetReg(), arg0.GetReg());
-  if (TargetReg(kArg0) != arg0) {
-    OpRegCopy(TargetReg(kArg0), arg0);
+  DCHECK(!IsSameReg(TargetReg(kArg1), arg0));
+  if (TargetReg(kArg0, arg0.Is64Bit()).NotExactlyEquals(arg0)) {
+    OpRegCopy(TargetReg(kArg0, arg0.Is64Bit()), arg0);
   }
-  LoadCurrMethodDirect(TargetReg(kArg1));
+  LoadCurrMethodDirect(TargetRefReg(kArg1));
   LoadValueDirectFixed(arg2, TargetReg(kArg2, arg2));
   ClobberCallerSave();
   CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
@@ -393,13 +393,6 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(ThreadOffset<pointer_size>
 }
 INSTANTIATE(void Mir2Lir::CallRuntimeHelperRegLocationRegLocation, RegLocation arg0,
             RegLocation arg1, bool safepoint_pc)
-
-// TODO: This is a hack! Reshape the two macros into functions and move them to a better place.
-#define IsSameReg(r1, r2) \
-  (GetRegInfo(r1)->Master()->GetReg().GetReg() == GetRegInfo(r2)->Master()->GetReg().GetReg())
-#define TargetArgReg(arg, is_wide) \
-  (GetRegInfo(TargetReg(arg))->FindMatchingView( \
-     (is_wide) ? RegisterInfo::k64SoloStorageMask : RegisterInfo::k32SoloStorageMask)->GetReg())
 
 void Mir2Lir::CopyToArgumentRegs(RegStorage arg0, RegStorage arg1) {
   if (IsSameReg(arg1, TargetReg(kArg0))) {
@@ -562,7 +555,7 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
         OpRegCopy(RegStorage::Solo32(v_map->core_reg), reg);
         need_flush = false;
       } else if ((v_map->fp_location == kLocPhysReg) && t_loc->fp) {
-        OpRegCopy(RegStorage::Solo32(v_map->FpReg), reg);
+        OpRegCopy(RegStorage::Solo32(v_map->fp_reg), reg);
         need_flush = false;
       } else {
         need_flush = true;
@@ -584,8 +577,8 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
            * halves of the double are promoted.  Make sure they are in a usable form.
            */
           int lowreg_index = start_vreg + i + (t_loc->high_word ? -1 : 0);
-          int low_reg = promotion_map_[lowreg_index].FpReg;
-          int high_reg = promotion_map_[lowreg_index + 1].FpReg;
+          int low_reg = promotion_map_[lowreg_index].fp_reg;
+          int high_reg = promotion_map_[lowreg_index + 1].fp_reg;
           if (((low_reg & 0x1) != 0) || (high_reg != (low_reg + 1))) {
             need_flush = true;
           }
@@ -600,7 +593,7 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
         Load32Disp(TargetReg(kSp), SRegOffset(start_vreg + i), RegStorage::Solo32(v_map->core_reg));
       }
       if (v_map->fp_location == kLocPhysReg) {
-        Load32Disp(TargetReg(kSp), SRegOffset(start_vreg + i), RegStorage::Solo32(v_map->FpReg));
+        Load32Disp(TargetReg(kSp), SRegOffset(start_vreg + i), RegStorage::Solo32(v_map->fp_reg));
       }
     }
   }

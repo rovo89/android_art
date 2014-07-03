@@ -122,11 +122,18 @@ class RegStorage {
   constexpr explicit RegStorage(uint16_t val) : reg_(val) {}
   RegStorage() : reg_(kInvalid) {}
 
-  bool operator==(const RegStorage rhs) const {
+  // We do not provide a general operator overload for equality of reg storage, as this is
+  // dangerous in the case of architectures with multiple views, and the naming ExactEquals
+  // expresses the exact match expressed here. It is more likely that a comparison between the views
+  // is intended in most cases. Such code can be found in, for example, Mir2Lir::IsSameReg.
+  //
+  // If you know what you are doing, include reg_storage_eq.h, which defines == and != for brevity.
+
+  bool ExactlyEquals(const RegStorage& rhs) const {
     return (reg_ == rhs.GetRawBits());
   }
 
-  bool operator!=(const RegStorage rhs) const {
+  bool NotExactlyEquals(const RegStorage& rhs) const {
     return (reg_ != rhs.GetRawBits());
   }
 
