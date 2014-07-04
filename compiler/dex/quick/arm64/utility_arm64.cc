@@ -893,7 +893,14 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
   int expected_scale = 0;
   ArmOpcode opcode = kA64Brk1d;
   r_base = Check64BitReg(r_base);
-  r_index = Check64BitReg(r_index);
+
+  // TODO(Arm64): The sign extension of r_index should be carried out by using an extended
+  //   register offset load (rather than doing the sign extension in a separate instruction).
+  if (r_index.Is32Bit()) {
+    // Assemble: ``sxtw xN, wN''.
+    r_index = As64BitReg(r_index);
+    NewLIR4(WIDE(kA64Sbfm4rrdd), r_index.GetReg(), r_index.GetReg(), 0, 31);
+  }
 
   if (r_dest.IsFloat()) {
     if (r_dest.IsDouble()) {
@@ -920,9 +927,11 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
       opcode = WIDE(kA64Ldr4rXxG);
       expected_scale = 3;
       break;
+    case kReference:
+      // TODO(Arm64): r_dest must be 64-bit below. Remove the hack below.
+      r_dest = (r_dest.Is64Bit()) ? As32BitReg(r_dest) : r_dest;
     case kSingle:
     case k32:
-    case kReference:
       r_dest = Check32BitReg(r_dest);
       opcode = kA64Ldr4rXxG;
       expected_scale = 2;
@@ -973,7 +982,14 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
   int expected_scale = 0;
   ArmOpcode opcode = kA64Brk1d;
   r_base = Check64BitReg(r_base);
-  r_index = Check64BitReg(r_index);
+
+  // TODO(Arm64): The sign extension of r_index should be carried out by using an extended
+  //   register offset store (rather than doing the sign extension in a separate instruction).
+  if (r_index.Is32Bit()) {
+    // Assemble: ``sxtw xN, wN''.
+    r_index = As64BitReg(r_index);
+    NewLIR4(WIDE(kA64Sbfm4rrdd), r_index.GetReg(), r_index.GetReg(), 0, 31);
+  }
 
   if (r_src.IsFloat()) {
     if (r_src.IsDouble()) {
@@ -1000,9 +1016,11 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
       opcode = WIDE(kA64Str4rXxG);
       expected_scale = 3;
       break;
+    case kReference:
+      // TODO(Arm64): r_src must be 64-bit below. Remove the hack below.
+      r_src = (r_src.Is64Bit()) ? As32BitReg(r_src) : r_src;
     case kSingle:     // Intentional fall-trough.
     case k32:         // Intentional fall-trough.
-    case kReference:
       r_src = Check32BitReg(r_src);
       opcode = kA64Str4rXxG;
       expected_scale = 2;
@@ -1066,9 +1084,11 @@ LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStor
         alt_opcode = WIDE(kA64Ldur3rXd);
       }
       break;
+    case kReference:
+      // TODO(Arm64): r_dest must be 64-bit below. Remove the hack below.
+      r_dest = (r_dest.Is64Bit()) ? As32BitReg(r_dest) : r_dest;
     case kSingle:     // Intentional fall-through.
     case k32:         // Intentional fall-trough.
-    case kReference:
       r_dest = Check32BitReg(r_dest);
       scale = 2;
       if (r_dest.IsFloat()) {
@@ -1165,9 +1185,11 @@ LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegSto
         alt_opcode = FWIDE(kA64Stur3rXd);
       }
       break;
+    case kReference:
+      // TODO(Arm64): r_src must be 64-bit below. Remove the hack below.
+      r_src = (r_src.Is64Bit()) ? As32BitReg(r_src) : r_src;
     case kSingle:     // Intentional fall-through.
     case k32:         // Intentional fall-trough.
-    case kReference:
       r_src = Check32BitReg(r_src);
       scale = 2;
       if (r_src.IsFloat()) {

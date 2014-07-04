@@ -177,6 +177,7 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
                   RegLocation rl_src2);
     void GenConversion(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src);
     bool GenInlinedReverseBits(CallInfo* info, OpSize size);
+    bool GenInlinedAbsDouble(CallInfo* info) OVERRIDE;
     bool GenInlinedCas(CallInfo* info, bool is_long, bool is_object);
     bool GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long);
     bool GenInlinedMinMaxFP(CallInfo* info, bool is_min, bool is_double);
