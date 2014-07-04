@@ -192,6 +192,13 @@ class MipsMir2Lir FINAL : public Mir2Lir {
     bool InexpensiveConstantLong(int64_t value);
     bool InexpensiveConstantDouble(int64_t value);
 
+    bool WideGPRsAreAliases() OVERRIDE {
+      return false;  // Wide GPRs are formed by pairing.
+    }
+    bool WideFPRsAreAliases() OVERRIDE {
+      return false;  // Wide FPRs are formed by pairing.
+    }
+
   private:
     void ConvertShortToLongBranch(LIR* lir);
     RegLocation GenDivRem(RegLocation rl_dest, RegLocation rl_src1,

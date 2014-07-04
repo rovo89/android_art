@@ -1635,6 +1635,17 @@ class Mir2Lir : public Backend {
      */
     virtual void GenConst(RegLocation rl_dest, int value);
 
+    /**
+     * Returns true iff wide GPRs are just different views on the same physical register.
+     */
+    virtual bool WideGPRsAreAliases() = 0;
+
+    /**
+     * Returns true iff wide FPRs are just different views on the same physical register.
+     */
+    virtual bool WideFPRsAreAliases() = 0;
+
+
     enum class WidenessCheck {  // private
       kIgnoreWide,
       kCheckWide,
