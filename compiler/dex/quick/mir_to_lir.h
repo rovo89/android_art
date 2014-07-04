@@ -1023,8 +1023,9 @@ class Mir2Lir : public Backend {
       return LoadBaseDisp(r_base, displacement, r_dest, kReference, is_volatile);
     }
     // Load a reference at base + index and decompress into register.
-    virtual LIR* LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest) {
-      return LoadBaseIndexed(r_base, r_index, r_dest, 2, kReference);
+    virtual LIR* LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest,
+                                int scale) {
+      return LoadBaseIndexed(r_base, r_index, r_dest, scale, kReference);
     }
     // Load Dalvik value with 32-bit memory storage.  If compressed object reference, decompress.
     virtual RegLocation LoadValue(RegLocation rl_src, RegisterClass op_kind);
@@ -1050,8 +1051,9 @@ class Mir2Lir : public Backend {
       return StoreBaseDisp(r_base, displacement, r_src, kReference, is_volatile);
     }
     // Store an uncompressed reference into a compressed 32-bit container by index.
-    virtual LIR* StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src) {
-      return StoreBaseIndexed(r_base, r_index, r_src, 2, kReference);
+    virtual LIR* StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
+                                 int scale) {
+      return StoreBaseIndexed(r_base, r_index, r_src, scale, kReference);
     }
     // Store 32 bits, regardless of target.
     virtual LIR* Store32Disp(RegStorage r_base, int displacement, RegStorage r_src) {
