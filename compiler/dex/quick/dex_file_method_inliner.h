@@ -128,7 +128,8 @@ class DexFileMethodInliner {
      */
     enum NameCacheIndex : uint8_t {  // unit8_t to save space, make larger if needed
       kNameCacheFirst = 0,
-      kNameCacheReverseBytes = kNameCacheFirst,
+      kNameCacheReverse =  kNameCacheFirst,
+      kNameCacheReverseBytes,
       kNameCacheDoubleToRawLongBits,
       kNameCacheLongBitsToDouble,
       kNameCacheFloatToRawIntBits,
@@ -183,7 +184,9 @@ class DexFileMethodInliner {
       kProtoCacheJ_J,
       kProtoCacheS_S,
       kProtoCacheD_D,
+      kProtoCacheDD_D,
       kProtoCacheF_F,
+      kProtoCacheFF_F,
       kProtoCacheD_J,
       kProtoCacheJ_D,
       kProtoCacheF_I,
@@ -199,6 +202,7 @@ class DexFileMethodInliner {
       kProtoCacheJ_S,
       kProtoCacheJB_V,
       kProtoCacheJI_V,
+      kProtoCacheJJ_J,
       kProtoCacheJJ_V,
       kProtoCacheJS_V,
       kProtoCacheObjectJII_Z,

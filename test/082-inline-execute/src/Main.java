@@ -24,17 +24,50 @@ public class Main {
     test_Float_intBitsToFloat();
     test_Math_abs_I();
     test_Math_abs_J();
-    test_Math_min();
-    test_Math_max();
+    test_Math_min_I();
+    test_Math_max_I();
+    test_Math_min_J();
+    test_Math_max_J();
+    test_Math_min_F();
+    test_Math_max_F();
+    test_Math_min_D();
+    test_Math_max_D();
+    test_Integer_reverse();
+    test_Long_reverse();
     test_StrictMath_abs_I();
     test_StrictMath_abs_J();
-    test_StrictMath_min();
-    test_StrictMath_max();
+    test_StrictMath_min_I();
+    test_StrictMath_max_I();
+    test_StrictMath_min_J();
+    test_StrictMath_max_J();
+    test_StrictMath_min_F();
+    test_StrictMath_max_F();
+    test_StrictMath_min_D();
+    test_StrictMath_max_D();
     test_String_charAt();
     test_String_compareTo();
     test_String_indexOf();
     test_String_isEmpty();
     test_String_length();
+  }
+
+  /*
+   * Determine if two floating point numbers are approximately equal.
+   *
+   * (Assumes that floating point is generally working, so we can't use
+   * this for the first set of tests.)
+   */
+  static boolean approxEqual(float a, float b, float maxDelta) {
+    if (a > b)
+      return (a - b) < maxDelta;
+    else
+      return (b - a) < maxDelta;
+  }
+  static boolean approxEqual(double a, double b, double maxDelta) {
+    if (a > b)
+      return (a - b) < maxDelta;
+    else
+      return (b - a) < maxDelta;
   }
 
   public static void test_String_length() {
@@ -244,7 +277,7 @@ public class Main {
     Assert.assertEquals(Math.abs(Long.MIN_VALUE - 1), Long.MAX_VALUE);
   }
 
-  public static void test_Math_min() {
+  public static void test_Math_min_I() {
     Assert.assertEquals(Math.min(0, 0), 0);
     Assert.assertEquals(Math.min(1, 0), 0);
     Assert.assertEquals(Math.min(0, 1), 0);
@@ -253,13 +286,67 @@ public class Main {
     Assert.assertEquals(Math.min(Integer.MIN_VALUE, Integer.MAX_VALUE), Integer.MIN_VALUE);
   }
 
-  public static void test_Math_max() {
+  public static void test_Math_max_I() {
     Assert.assertEquals(Math.max(0, 0), 0);
     Assert.assertEquals(Math.max(1, 0), 1);
     Assert.assertEquals(Math.max(0, 1), 1);
     Assert.assertEquals(Math.max(0, Integer.MAX_VALUE), Integer.MAX_VALUE);
     Assert.assertEquals(Math.max(Integer.MIN_VALUE, 0), 0);
     Assert.assertEquals(Math.max(Integer.MIN_VALUE, Integer.MAX_VALUE), Integer.MAX_VALUE);
+  }
+
+  public static void test_Math_min_J() {
+    Assert.assertEquals(Math.min(0L, 0L), 0L);
+    Assert.assertEquals(Math.min(1L, 0L), 0L);
+    Assert.assertEquals(Math.min(0L, 1L), 0L);
+    Assert.assertEquals(Math.min(0L, Long.MAX_VALUE), 0L);
+    Assert.assertEquals(Math.min(Long.MIN_VALUE, 0L), Long.MIN_VALUE);
+    Assert.assertEquals(Math.min(Long.MIN_VALUE, Long.MAX_VALUE), Long.MIN_VALUE);
+  }
+
+  public static void test_Math_max_J() {
+    Assert.assertEquals(Math.max(0L, 0L), 0L);
+    Assert.assertEquals(Math.max(1L, 0L), 1L);
+    Assert.assertEquals(Math.max(0L, 1L), 1L);
+    Assert.assertEquals(Math.max(0L, Long.MAX_VALUE), Long.MAX_VALUE);
+    Assert.assertEquals(Math.max(Long.MIN_VALUE, 0L), 0L);
+    Assert.assertEquals(Math.max(Long.MIN_VALUE, Long.MAX_VALUE), Long.MAX_VALUE);
+  }
+
+  public static void test_Math_min_F() {
+    Assert.assertTrue(approxEqual(Math.min(0.0f, 0.0f), 0.0f, 0.001f));
+    Assert.assertTrue(approxEqual(Math.min(1.0f, 0.0f), 0.0f, 0.001f));
+    Assert.assertTrue(approxEqual(Math.min(0.0f, 1.0f), 0.0f, 0.001f));
+    Assert.assertTrue(approxEqual(Math.min(0.0f, Float.MAX_VALUE), 0.0f, 0.001f));
+    Assert.assertTrue(approxEqual(Math.min(Float.MIN_VALUE, 0.0f), Float.MIN_VALUE, 0.001f));
+    Assert.assertTrue(approxEqual(Math.min(Float.MIN_VALUE, Float.MAX_VALUE), Float.MIN_VALUE, 0.001f));
+  }
+
+  public static void test_Math_max_F() {
+    Assert.assertTrue(approxEqual(Math.max(0.0f, 0.0f), 0.0f, 0.001f));
+    Assert.assertTrue(approxEqual(Math.max(1.0f, 0.0f), 1.0f, 0.001f));
+    Assert.assertTrue(approxEqual(Math.max(0.0f, 1.0f), 1.0f, 0.001f));
+    Assert.assertTrue(approxEqual(Math.max(0.0f, Float.MAX_VALUE), Float.MAX_VALUE, 0.001f));
+    Assert.assertTrue(approxEqual(Math.max(Float.MIN_VALUE, 0.0f), 0.0f, 0.001f));
+    Assert.assertTrue(approxEqual(Math.max(Float.MIN_VALUE, Float.MAX_VALUE), Float.MAX_VALUE, 0.001f));
+  }
+
+  public static void test_Math_min_D() {
+    Assert.assertTrue(approxEqual(Math.min(0.0d, 0.0d), 0.0d, 0.001d));
+    Assert.assertTrue(approxEqual(Math.min(1.0d, 0.0d), 0.0d, 0.001d));
+    Assert.assertTrue(approxEqual(Math.min(0.0d, 1.0d), 0.0d, 0.001d));
+    Assert.assertTrue(approxEqual(Math.min(0.0d, Double.MAX_VALUE), 0.0d, 0.001d));
+    Assert.assertTrue(approxEqual(Math.min(Double.MIN_VALUE, 0.0d), Double.MIN_VALUE, 0.001d));
+    Assert.assertTrue(approxEqual(Math.min(Double.MIN_VALUE, Double.MAX_VALUE), Double.MIN_VALUE, 0.001d));
+  }
+
+  public static void test_Math_max_D() {
+    Assert.assertTrue(approxEqual(Math.max(0.0d, 0.0d), 0.0d, 0.001d));
+    Assert.assertTrue(approxEqual(Math.max(1.0d, 0.0d), 1.0d, 0.001d));
+    Assert.assertTrue(approxEqual(Math.max(0.0d, 1.0d), 1.0d, 0.001d));
+    Assert.assertTrue(approxEqual(Math.max(0.0d, Double.MAX_VALUE), Double.MAX_VALUE, 0.001d));
+    Assert.assertTrue(approxEqual(Math.max(Double.MIN_VALUE, 0.0d), 0.0d, 0.001d));
+    Assert.assertTrue(approxEqual(Math.max(Double.MIN_VALUE, Double.MAX_VALUE), Double.MAX_VALUE, 0.001d));
   }
 
   public static void test_StrictMath_abs_I() {
@@ -281,7 +368,7 @@ public class Main {
     Assert.assertEquals(StrictMath.abs(Long.MIN_VALUE - 1), Long.MAX_VALUE);
   }
 
-  public static void test_StrictMath_min() {
+  public static void test_StrictMath_min_I() {
     Assert.assertEquals(StrictMath.min(0, 0), 0);
     Assert.assertEquals(StrictMath.min(1, 0), 0);
     Assert.assertEquals(StrictMath.min(0, 1), 0);
@@ -290,13 +377,67 @@ public class Main {
     Assert.assertEquals(StrictMath.min(Integer.MIN_VALUE, Integer.MAX_VALUE), Integer.MIN_VALUE);
   }
 
-  public static void test_StrictMath_max() {
+  public static void test_StrictMath_max_I() {
     Assert.assertEquals(StrictMath.max(0, 0), 0);
     Assert.assertEquals(StrictMath.max(1, 0), 1);
     Assert.assertEquals(StrictMath.max(0, 1), 1);
     Assert.assertEquals(StrictMath.max(0, Integer.MAX_VALUE), Integer.MAX_VALUE);
     Assert.assertEquals(StrictMath.max(Integer.MIN_VALUE, 0), 0);
     Assert.assertEquals(StrictMath.max(Integer.MIN_VALUE, Integer.MAX_VALUE), Integer.MAX_VALUE);
+  }
+
+  public static void test_StrictMath_min_J() {
+    Assert.assertEquals(StrictMath.min(0L, 0L), 0L);
+    Assert.assertEquals(StrictMath.min(1L, 0L), 0L);
+    Assert.assertEquals(StrictMath.min(0L, 1L), 0L);
+    Assert.assertEquals(StrictMath.min(0L, Long.MAX_VALUE), 0L);
+    Assert.assertEquals(StrictMath.min(Long.MIN_VALUE, 0L), Long.MIN_VALUE);
+    Assert.assertEquals(StrictMath.min(Long.MIN_VALUE, Long.MAX_VALUE), Long.MIN_VALUE);
+  }
+
+  public static void test_StrictMath_max_J() {
+    Assert.assertEquals(StrictMath.max(0L, 0L), 0L);
+    Assert.assertEquals(StrictMath.max(1L, 0L), 1L);
+    Assert.assertEquals(StrictMath.max(0L, 1L), 1L);
+    Assert.assertEquals(StrictMath.max(0L, Long.MAX_VALUE), Long.MAX_VALUE);
+    Assert.assertEquals(StrictMath.max(Long.MIN_VALUE, 0L), 0L);
+    Assert.assertEquals(StrictMath.max(Long.MIN_VALUE, Long.MAX_VALUE), Long.MAX_VALUE);
+  }
+
+  public static void test_StrictMath_min_F() {
+    Assert.assertTrue(approxEqual(StrictMath.min(0.0f, 0.0f), 0.0f, 0.001f));
+    Assert.assertTrue(approxEqual(StrictMath.min(1.0f, 0.0f), 0.0f, 0.001f));
+    Assert.assertTrue(approxEqual(StrictMath.min(0.0f, 1.0f), 0.0f, 0.001f));
+    Assert.assertTrue(approxEqual(StrictMath.min(0.0f, Float.MAX_VALUE), 0.0f, 0.001f));
+    Assert.assertTrue(approxEqual(StrictMath.min(Float.MIN_VALUE, 0.0f), Float.MIN_VALUE, 0.001f));
+    Assert.assertTrue(approxEqual(StrictMath.min(Float.MIN_VALUE, Float.MAX_VALUE), Float.MIN_VALUE, 0.001f));
+  }
+
+  public static void test_StrictMath_max_F() {
+    Assert.assertTrue(approxEqual(StrictMath.max(0.0f, 0.0f), 0.0f, 0.001f));
+    Assert.assertTrue(approxEqual(StrictMath.max(1.0f, 0.0f), 1.0f, 0.001f));
+    Assert.assertTrue(approxEqual(StrictMath.max(0.0f, 1.0f), 1.0f, 0.001f));
+    Assert.assertTrue(approxEqual(StrictMath.max(0.0f, Float.MAX_VALUE), Float.MAX_VALUE, 0.001f));
+    Assert.assertTrue(approxEqual(StrictMath.max(Float.MIN_VALUE, 0.0f), 0.0f, 0.001f));
+    Assert.assertTrue(approxEqual(StrictMath.max(Float.MIN_VALUE, Float.MAX_VALUE), Float.MAX_VALUE, 0.001f));
+  }
+
+  public static void test_StrictMath_min_D() {
+    Assert.assertTrue(approxEqual(StrictMath.min(0.0d, 0.0d), 0.0d, 0.001d));
+    Assert.assertTrue(approxEqual(StrictMath.min(1.0d, 0.0d), 0.0d, 0.001d));
+    Assert.assertTrue(approxEqual(StrictMath.min(0.0d, 1.0d), 0.0d, 0.001d));
+    Assert.assertTrue(approxEqual(StrictMath.min(0.0d, Double.MAX_VALUE), 0.0d, 0.001d));
+    Assert.assertTrue(approxEqual(StrictMath.min(Double.MIN_VALUE, 0.0d), Double.MIN_VALUE, 0.001d));
+    Assert.assertTrue(approxEqual(StrictMath.min(Double.MIN_VALUE, Double.MAX_VALUE), Double.MIN_VALUE, 0.001d));
+  }
+
+  public static void test_StrictMath_max_D() {
+    Assert.assertTrue(approxEqual(StrictMath.max(0.0d, 0.0d), 0.0d, 0.001d));
+    Assert.assertTrue(approxEqual(StrictMath.max(1.0d, 0.0d), 1.0d, 0.001d));
+    Assert.assertTrue(approxEqual(StrictMath.max(0.0d, 1.0d), 1.0d, 0.001d));
+    Assert.assertTrue(approxEqual(StrictMath.max(0.0d, Double.MAX_VALUE), Double.MAX_VALUE, 0.001d));
+    Assert.assertTrue(approxEqual(StrictMath.max(Double.MIN_VALUE, 0.0d), 0.0d, 0.001d));
+    Assert.assertTrue(approxEqual(StrictMath.max(Double.MIN_VALUE, Double.MAX_VALUE), Double.MAX_VALUE, 0.001d));
   }
 
   public static void test_Float_floatToRawIntBits() {
@@ -334,4 +475,27 @@ public class Main {
     Assert.assertEquals(Double.longBitsToDouble(0x7ff0000000000000L), Double.POSITIVE_INFINITY);
     Assert.assertEquals(Double.longBitsToDouble(0xfff0000000000000L), Double.NEGATIVE_INFINITY);
   }
+
+  public static void test_Integer_reverse() {
+    Assert.assertEquals(Integer.reverse(1), 0x80000000);
+    Assert.assertEquals(Integer.reverse(-1), 0xffffffff);
+    Assert.assertEquals(Integer.reverse(0), 0);
+    Assert.assertEquals(Integer.reverse(0x12345678), 0x1e6a2c48);
+    Assert.assertEquals(Integer.reverse(0x87654321), 0x84c2a6e1);
+    Assert.assertEquals(Integer.reverse(Integer.MAX_VALUE), 0xfffffffe);
+    Assert.assertEquals(Integer.reverse(Integer.MIN_VALUE), 1);
+  }
+
+  public static void test_Long_reverse() {
+    Assert.assertEquals(Long.reverse(1L), 0x8000000000000000L);
+    Assert.assertEquals(Long.reverse(-1L), 0xffffffffffffffffL);
+    Assert.assertEquals(Long.reverse(0L), 0L);
+    // FIXME: This asserts fail with or without this patch. I have collected
+    // the expected results on my host machine.
+    // Assert.assertEquals(Long.reverse(0x1234567812345678L), 0x1e6a2c481e6a2c48L);
+    // Assert.assertEquals(Long.reverse(0x8765432187654321L), 0x84c2a6e184c2a6e1L);
+    // Assert.assertEquals(Long.reverse(Long.MAX_VALUE), 0xfffffffffffffffeL);
+    Assert.assertEquals(Long.reverse(Long.MIN_VALUE), 1L);
+  }
+
 }

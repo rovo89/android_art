@@ -713,8 +713,12 @@ RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
   return rl_result;
 }
 
-bool X86Mir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
+bool X86Mir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
   DCHECK(cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64);
+
+  if (is_long) {
+    return false;
+  }
 
   // Get the two arguments to the invoke and place them in GP registers.
   RegLocation rl_src1 = info->args[0];
