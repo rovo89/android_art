@@ -240,6 +240,7 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   void OpRegCopyWide(RegStorage dest, RegStorage src) OVERRIDE;
 
   bool InexpensiveConstantInt(int32_t value) OVERRIDE;
+  bool InexpensiveConstantInt(int32_t value, Instruction::Code opcode) OVERRIDE;
   bool InexpensiveConstantFloat(int32_t value) OVERRIDE;
   bool InexpensiveConstantLong(int64_t value) OVERRIDE;
   bool InexpensiveConstantDouble(int64_t value) OVERRIDE;

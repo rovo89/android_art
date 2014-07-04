@@ -1171,12 +1171,13 @@ void Mir2Lir::CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num
       } else {
         counts[p_map_idx].count += use_count;
       }
-    } else if (!IsInexpensiveConstant(loc)) {
+    } else {
       if (loc.wide && WideGPRsAreAliases()) {
-        // Longs and doubles can be counted together.
         i++;
       }
-      counts[p_map_idx].count += use_count;
+      if (!IsInexpensiveConstant(loc)) {
+        counts[p_map_idx].count += use_count;
+      }
     }
   }
 }
@@ -1185,9 +1186,10 @@ void Mir2Lir::CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num
 static int SortCounts(const void *val1, const void *val2) {
   const Mir2Lir::RefCounts* op1 = reinterpret_cast<const Mir2Lir::RefCounts*>(val1);
   const Mir2Lir::RefCounts* op2 = reinterpret_cast<const Mir2Lir::RefCounts*>(val2);
-  // Note that we fall back to sorting on reg so we get stable output
-  // on differing qsort implementations (such as on host and target or
-  // between local host and build servers).
+  // Note that we fall back to sorting on reg so we get stable output on differing qsort
+  // implementations (such as on host and target or between local host and build servers).
+  // Note also that if a wide val1 and a non-wide val2 have the same count, then val1 always
+  // ``loses'' (as STARTING_WIDE_SREG is or-ed in val1->s_reg).
   return (op1->count == op2->count)
           ? (op1->s_reg - op2->s_reg)
           : (op1->count < op2->count ? 1 : -1);
@@ -1230,8 +1232,8 @@ void Mir2Lir::DoPromotion() {
    * TUNING: replace with linear scan once we have the ability
    * to describe register live ranges for GC.
    */
-  size_t core_reg_count_size = cu_->target64 ? num_regs * 2 : num_regs;
-  size_t fp_reg_count_size = num_regs * 2;
+  size_t core_reg_count_size = WideGPRsAreAliases() ? num_regs : num_regs * 2;
+  size_t fp_reg_count_size = WideFPRsAreAliases() ? num_regs : num_regs * 2;
   RefCounts *core_regs =
       static_cast<RefCounts*>(arena_->Alloc(sizeof(RefCounts) * core_reg_count_size,
                                             kArenaAllocRegAlloc));
@@ -1260,7 +1262,6 @@ void Mir2Lir::DoPromotion() {
 
   // Sum use counts of SSA regs by original Dalvik vreg.
   CountRefs(core_regs, fp_regs, num_regs);
-
 
   // Sort the count arrays
   qsort(core_regs, core_reg_count_size, sizeof(RefCounts), SortCounts);
