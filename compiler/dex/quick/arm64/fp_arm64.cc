@@ -333,4 +333,19 @@ bool Arm64Mir2Lir::GenInlinedSqrt(CallInfo* info) {
   return true;
 }
 
+bool Arm64Mir2Lir::GenInlinedMinMaxFP(CallInfo* info, bool is_min, bool is_double) {
+  DCHECK_EQ(cu_->instruction_set, kArm64);
+  int op = (is_min) ? kA64Fmin3fff : kA64Fmax3fff;
+  ArmOpcode wide = (is_double) ? FWIDE(0) : FUNWIDE(0);
+  RegLocation rl_src1 = info->args[0];
+  RegLocation rl_src2 = (is_double) ? info->args[2] : info->args[1];
+  rl_src1 = (is_double) ? LoadValueWide(rl_src1, kFPReg) : LoadValue(rl_src1, kFPReg);
+  rl_src2 = (is_double) ? LoadValueWide(rl_src2, kFPReg) : LoadValue(rl_src2, kFPReg);
+  RegLocation rl_dest = (is_double) ? InlineTargetWide(info) : InlineTarget(info);
+  RegLocation rl_result = EvalLoc(rl_dest, kFPReg, true);
+  NewLIR3(op | wide, rl_result.reg.GetReg(), rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
+  (is_double) ?  StoreValueWide(rl_dest, rl_result) : StoreValue(rl_dest, rl_result);
+  return true;
+}
+
 }  // namespace art

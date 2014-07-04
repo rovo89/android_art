@@ -1470,6 +1470,16 @@ bool Mir2Lir::GenInlinedAbsFloat(CallInfo* info) {
   return true;
 }
 
+bool Mir2Lir::GenInlinedReverseBits(CallInfo* info, OpSize size) {
+  // Currently implemented only for ARM64
+  return false;
+}
+
+bool Mir2Lir::GenInlinedMinMaxFP(CallInfo* info, bool is_min, bool is_double) {
+  // Currently implemented only for ARM64
+  return false;
+}
+
 bool Mir2Lir::GenInlinedAbsDouble(CallInfo* info) {
   if (cu_->instruction_set == kMips) {
     // TODO - add Mips implementation

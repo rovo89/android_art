@@ -688,8 +688,11 @@ RegLocation ArmMir2Lir::GenDivRem(RegLocation rl_dest, RegStorage reg1, RegStora
   return rl_result;
 }
 
-bool ArmMir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
+bool ArmMir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
   DCHECK_EQ(cu_->instruction_set, kThumb2);
+  if (is_long) {
+    return false;
+  }
   RegLocation rl_src1 = info->args[0];
   RegLocation rl_src2 = info->args[1];
   rl_src1 = LoadValue(rl_src1, kCoreReg);
