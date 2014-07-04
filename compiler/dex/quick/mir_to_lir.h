@@ -531,7 +531,7 @@ class Mir2Lir : public Backend {
       LIRSlowPath(Mir2Lir* m2l, const DexOffset dexpc, LIR* fromfast,
                   LIR* cont = nullptr) :
         m2l_(m2l), cu_(m2l->cu_), current_dex_pc_(dexpc), fromfast_(fromfast), cont_(cont) {
-          m2l->StartSlowPath(cont);
+          m2l->StartSlowPath(this);
       }
       virtual ~LIRSlowPath() {}
       virtual void Compile() = 0;
@@ -705,17 +705,17 @@ class Mir2Lir : public Backend {
     int AssignLiteralOffset(CodeOffset offset);
     int AssignSwitchTablesOffset(CodeOffset offset);
     int AssignFillArrayDataOffset(CodeOffset offset);
-    LIR* InsertCaseLabel(DexOffset vaddr, int keyVal);
+    virtual LIR* InsertCaseLabel(DexOffset vaddr, int keyVal);
     void MarkPackedCaseLabels(Mir2Lir::SwitchTable* tab_rec);
     void MarkSparseCaseLabels(Mir2Lir::SwitchTable* tab_rec);
 
-    virtual void StartSlowPath(LIR *label) {}
+    virtual void StartSlowPath(LIRSlowPath* slowpath) {}
     virtual void BeginInvoke(CallInfo* info) {}
     virtual void EndInvoke(CallInfo* info) {}
 
 
     // Handle bookkeeping to convert a wide RegLocation to a narrow RegLocation.  No code generated.
-    RegLocation NarrowRegLoc(RegLocation loc);
+    virtual RegLocation NarrowRegLoc(RegLocation loc);
 
     // Shared by all targets - implemented in local_optimizations.cc
     void ConvertMemOpIntoMove(LIR* orig_lir, RegStorage dest, RegStorage src);
@@ -763,7 +763,7 @@ class Mir2Lir : public Backend {
     virtual bool IsTemp(RegStorage reg);
     bool IsPromoted(RegStorage reg);
     bool IsDirty(RegStorage reg);
-    void LockTemp(RegStorage reg);
+    virtual void LockTemp(RegStorage reg);
     void ResetDef(RegStorage reg);
     void NullifyRange(RegStorage reg, int s_reg);
     void MarkDef(RegLocation rl, LIR *start, LIR *finish);
