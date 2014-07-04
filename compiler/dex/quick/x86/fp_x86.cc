@@ -648,6 +648,15 @@ bool X86Mir2Lir::GenInlinedAbsDouble(CallInfo* info) {
     // Result is unused, the code is dead. Inlining successful, no code generated.
     return true;
   }
+  if (cu_->target64) {
+    rl_src = LoadValueWide(rl_src, kCoreReg);
+    RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+    OpRegCopyWide(rl_result.reg, rl_src.reg);
+    OpRegImm(kOpLsl, rl_result.reg, 1);
+    OpRegImm(kOpLsr, rl_result.reg, 1);
+    StoreValueWide(rl_dest, rl_result);
+    return true;
+  }
   int v_src_reg = mir_graph_->SRegToVReg(rl_src.s_reg_low);
   int v_dst_reg = mir_graph_->SRegToVReg(rl_dest.s_reg_low);
   rl_src = UpdateLocWide(rl_src);

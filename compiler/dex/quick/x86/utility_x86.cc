@@ -122,7 +122,7 @@ LIR* X86Mir2Lir::OpReg(OpKind op, RegStorage r_dest_src) {
   switch (op) {
     case kOpNeg: opcode = r_dest_src.Is64Bit() ? kX86Neg64R : kX86Neg32R; break;
     case kOpNot: opcode = r_dest_src.Is64Bit() ? kX86Not64R : kX86Not32R; break;
-    case kOpRev: opcode = kX86Bswap32R; break;
+    case kOpRev: opcode = r_dest_src.Is64Bit() ? kX86Bswap64R : kX86Bswap32R; break;
     case kOpBlx: opcode = kX86CallR; break;
     default:
       LOG(FATAL) << "Bad case in OpReg " << op;
@@ -356,7 +356,9 @@ LIR* X86Mir2Lir::OpMovMemReg(RegStorage r_base, int offset, RegStorage r_src, Mo
 LIR* X86Mir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, RegStorage r_dest, RegStorage r_src) {
   // The only conditional reg to reg operation supported is Cmov
   DCHECK_EQ(op, kOpCmov);
-  return NewLIR3(kX86Cmov32RRC, r_dest.GetReg(), r_src.GetReg(), X86ConditionEncoding(cc));
+  DCHECK_EQ(r_dest.Is64Bit(), r_src.Is64Bit());
+  return NewLIR3(r_dest.Is64Bit() ? kX86Cmov64RRC : kX86Cmov32RRC, r_dest.GetReg(),
+                 r_src.GetReg(), X86ConditionEncoding(cc));
 }
 
 LIR* X86Mir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int offset) {
