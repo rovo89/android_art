@@ -1035,11 +1035,12 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   // ECX: count: number of words to be searched.
   // EDI: String being searched.
   // EDX: temporary during execution.
-  // EBX: temporary during execution.
+  // EBX or R11: temporary during execution (depending on mode).
 
   RegLocation rl_obj = info->args[0];
   RegLocation rl_char = info->args[1];
   RegLocation rl_start;  // Note: only present in III flavor or IndexOf.
+  RegStorage tmpReg = cu_->target64 ? rs_r11 : rs_rBX;
 
   uint32_t char_value =
     rl_char.is_const ? mir_graph_->ConstantValue(rl_char.orig_sreg) : 0;
@@ -1112,9 +1113,9 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
       rl_start = UpdateLocTyped(rl_start, kCoreReg);
       if (rl_start.location == kLocPhysReg) {
         // Handle "start index < 0" case.
-        OpRegReg(kOpXor, rs_rBX, rs_rBX);
-        OpRegReg(kOpCmp, rl_start.reg, rs_rBX);
-        OpCondRegReg(kOpCmov, kCondLt, rl_start.reg, rs_rBX);
+        OpRegReg(kOpXor, tmpReg, tmpReg);
+        OpRegReg(kOpCmp, rl_start.reg, tmpReg);
+        OpCondRegReg(kOpCmov, kCondLt, rl_start.reg, tmpReg);
 
         // The length of the string should be greater than the start index.
         length_compare = OpCmpBranch(kCondLe, rs_rCX, rl_start.reg, nullptr);
@@ -1126,19 +1127,19 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
         }
       } else {
         // Load the start index from stack, remembering that we pushed EDI.
-        int displacement = SRegOffset(rl_start.s_reg_low) + sizeof(uint32_t);
+        int displacement = SRegOffset(rl_start.s_reg_low) + (cu_->target64 ? 2 : 1) * sizeof(uint32_t);
         {
           ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          Load32Disp(rs_rX86_SP, displacement, rs_rBX);
+          Load32Disp(rs_rX86_SP, displacement, tmpReg);
         }
         OpRegReg(kOpXor, rs_rDI, rs_rDI);
-        OpRegReg(kOpCmp, rs_rBX, rs_rDI);
-        OpCondRegReg(kOpCmov, kCondLt, rs_rBX, rs_rDI);
+        OpRegReg(kOpCmp, tmpReg, rs_rDI);
+        OpCondRegReg(kOpCmov, kCondLt, tmpReg, rs_rDI);
 
-        length_compare = OpCmpBranch(kCondLe, rs_rCX, rs_rBX, nullptr);
-        OpRegReg(kOpSub, rs_rCX, rs_rBX);
+        length_compare = OpCmpBranch(kCondLe, rs_rCX, tmpReg, nullptr);
+        OpRegReg(kOpSub, rs_rCX, tmpReg);
         // Put the start index to stack.
-        NewLIR1(kX86Push32R, rs_rBX.GetReg());
+        NewLIR1(kX86Push32R, tmpReg.GetReg());
         is_index_on_stack = true;
       }
     }
@@ -1147,26 +1148,26 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
 
   // ECX now contains the count in words to be searched.
 
-  // Load the address of the string into EBX.
+  // Load the address of the string into R11 or EBX (depending on mode).
   // The string starts at VALUE(String) + 2 * OFFSET(String) + DATA_OFFSET.
   Load32Disp(rs_rDX, value_offset, rs_rDI);
-  Load32Disp(rs_rDX, offset_offset, rs_rBX);
-  OpLea(rs_rBX, rs_rDI, rs_rBX, 1, data_offset);
+  Load32Disp(rs_rDX, offset_offset, tmpReg);
+  OpLea(tmpReg, rs_rDI, tmpReg, 1, data_offset);
 
   // Now compute into EDI where the search will start.
   if (zero_based || rl_start.is_const) {
     if (start_value == 0) {
-      OpRegCopy(rs_rDI, rs_rBX);
+      OpRegCopy(rs_rDI, tmpReg);
     } else {
-      NewLIR3(kX86Lea32RM, rs_rDI.GetReg(), rs_rBX.GetReg(), 2 * start_value);
+      NewLIR3(kX86Lea32RM, rs_rDI.GetReg(), tmpReg.GetReg(), 2 * start_value);
     }
   } else {
     if (is_index_on_stack == true) {
       // Load the start index from stack.
       NewLIR1(kX86Pop32R, rs_rDX.GetReg());
-      OpLea(rs_rDI, rs_rBX, rs_rDX, 1, 0);
+      OpLea(rs_rDI, tmpReg, rs_rDX, 1, 0);
     } else {
-      OpLea(rs_rDI, rs_rBX, rl_start.reg, 1, 0);
+      OpLea(rs_rDI, tmpReg, rl_start.reg, 1, 0);
     }
   }
 
@@ -1179,7 +1180,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
 
   // yes, we matched.  Compute the index of the result.
   // index = ((curr_ptr - orig_ptr) / 2) - 1.
-  OpRegReg(kOpSub, rs_rDI, rs_rBX);
+  OpRegReg(kOpSub, rs_rDI, tmpReg);
   OpRegImm(kOpAsr, rs_rDI, 1);
   NewLIR3(kX86Lea32RM, rl_return.reg.GetReg(), rs_rDI.GetReg(), -1);
   LIR *all_done = NewLIR1(kX86Jmp8, 0);

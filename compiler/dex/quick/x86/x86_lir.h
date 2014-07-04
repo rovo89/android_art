@@ -506,6 +506,7 @@ enum X86OpCode {
   kx86Cdq32Da,
   kx86Cqo64Da,
   kX86Bswap32R,
+  kX86Bswap64R,
   kX86Push32R, kX86Pop32R,
 #undef UnaryOpcode
 #define Binary0fOpCode(opcode) \
@@ -608,7 +609,7 @@ enum X86OpCode {
   Binary0fOpCode(kX86Imul32),   // 32bit multiply
   Binary0fOpCode(kX86Imul64),   // 64bit multiply
   kX86CmpxchgRR, kX86CmpxchgMR, kX86CmpxchgAR,  // compare and exchange
-  kX86LockCmpxchgMR, kX86LockCmpxchgAR,  // locked compare and exchange
+  kX86LockCmpxchgMR, kX86LockCmpxchgAR, kX86LockCmpxchg64AR,  // locked compare and exchange
   kX86LockCmpxchg64M, kX86LockCmpxchg64A,  // locked compare and exchange
   kX86XchgMR,  // exchange memory with register (automatically locked)
   Binary0fOpCode(kX86Movzx8),   // zero-extend 8-bit value
