@@ -323,6 +323,16 @@ void Arm64Mir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
   StoreValueWide(rl_dest, rl_result);
 }
 
+bool Arm64Mir2Lir::GenInlinedAbsDouble(CallInfo* info) {
+  RegLocation rl_src = info->args[0];
+  rl_src = LoadValueWide(rl_src, kCoreReg);
+  RegLocation rl_dest = InlineTargetWide(info);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  NewLIR4(WIDE(kA64Ubfm4rrdd), rl_result.reg.GetReg(), rl_src.reg.GetReg(), 0, 62);
+  StoreValueWide(rl_dest, rl_result);
+  return true;
+}
+
 bool Arm64Mir2Lir::GenInlinedSqrt(CallInfo* info) {
   RegLocation rl_src = info->args[0];
   RegLocation rl_dest = InlineTargetWide(info);  // double place for result
