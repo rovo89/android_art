@@ -432,27 +432,49 @@ static void BogusMethod() {
 TEST_F(JniInternalTest, RegisterAndUnregisterNatives) {
   jclass jlobject = env_->FindClass("java/lang/Object");
   jclass jlnsme = env_->FindClass("java/lang/NoSuchMethodError");
+  void* native_function = reinterpret_cast<void*>(BogusMethod);
 
   // Sanity check that no exceptions are pending.
   ASSERT_FALSE(env_->ExceptionCheck());
 
+  // Check that registering method without name causes a NoSuchMethodError.
+  {
+    JNINativeMethod methods[] = { { nullptr, "()V", native_function } };
+    EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+  }
+  ExpectException(jlnsme);
+
+  // Check that registering method without signature causes a NoSuchMethodError.
+  {
+    JNINativeMethod methods[] = { { "notify", nullptr, native_function } };
+    EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+  }
+  ExpectException(jlnsme);
+
+  // Check that registering method without function causes a NoSuchMethodError.
+  {
+    JNINativeMethod methods[] = { { "notify", "()V", nullptr } };
+    EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+  }
+  ExpectException(jlnsme);
+
   // Check that registering to a non-existent java.lang.Object.foo() causes a NoSuchMethodError.
   {
-    JNINativeMethod methods[] = { { "foo", "()V", nullptr } };
+    JNINativeMethod methods[] = { { "foo", "()V", native_function } };
     EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
   }
   ExpectException(jlnsme);
 
   // Check that registering non-native methods causes a NoSuchMethodError.
   {
-    JNINativeMethod methods[] = { { "equals", "(Ljava/lang/Object;)Z", nullptr } };
+    JNINativeMethod methods[] = { { "equals", "(Ljava/lang/Object;)Z", native_function } };
     EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
   }
   ExpectException(jlnsme);
 
   // Check that registering native methods is successful.
   {
-    JNINativeMethod methods[] = { { "notify", "()V", reinterpret_cast<void*>(BogusMethod) } };
+    JNINativeMethod methods[] = { { "notify", "()V", native_function } };
     EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_OK);
   }
   EXPECT_FALSE(env_->ExceptionCheck());
