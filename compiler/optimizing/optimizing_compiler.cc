@@ -77,6 +77,17 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
                                                uint32_t method_idx,
                                                jobject class_loader,
                                                const DexFile& dex_file) const {
+  InstructionSet instruction_set = GetCompilerDriver()->GetInstructionSet();
+  // The optimizing compiler currently does not have a Thumb2 assembler.
+  if (instruction_set == kThumb2) {
+    instruction_set = kArm;
+  }
+
+  // Do not attempt to compile on architectures we do not support.
+  if (instruction_set != kX86 && instruction_set != kX86_64 && instruction_set != kArm) {
+    return nullptr;
+  }
+
   DexCompilationUnit dex_compilation_unit(
     nullptr, class_loader, art::Runtime::Current()->GetClassLinker(), dex_file, code_item,
     class_def_idx, method_idx, access_flags,
@@ -100,11 +111,6 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     return nullptr;
   }
 
-  InstructionSet instruction_set = GetCompilerDriver()->GetInstructionSet();
-  // The optimizing compiler currently does not have a Thumb2 assembler.
-  if (instruction_set == kThumb2) {
-    instruction_set = kArm;
-  }
   CodeGenerator* codegen = CodeGenerator::Create(&arena, graph, instruction_set);
   if (codegen == nullptr) {
     if (shouldCompile) {
