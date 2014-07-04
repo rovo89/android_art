@@ -434,18 +434,18 @@ bool Arm64Mir2Lir::GenInlinedAbsLong(CallInfo* info) {
   return true;
 }
 
-bool Arm64Mir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
+bool Arm64Mir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
   DCHECK_EQ(cu_->instruction_set, kArm64);
   RegLocation rl_src1 = info->args[0];
-  RegLocation rl_src2 = info->args[1];
-  rl_src1 = LoadValue(rl_src1, kCoreReg);
-  rl_src2 = LoadValue(rl_src2, kCoreReg);
-  RegLocation rl_dest = InlineTarget(info);
+  RegLocation rl_src2 = (is_long) ? info->args[2] : info->args[1];
+  rl_src1 = (is_long) ? LoadValueWide(rl_src1, kCoreReg) : LoadValue(rl_src1, kCoreReg);
+  rl_src2 = (is_long) ? LoadValueWide(rl_src2, kCoreReg) : LoadValue(rl_src2, kCoreReg);
+  RegLocation rl_dest = (is_long) ? InlineTargetWide(info) : InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   OpRegReg(kOpCmp, rl_src1.reg, rl_src2.reg);
-  NewLIR4(kA64Csel4rrrc, rl_result.reg.GetReg(), rl_src1.reg.GetReg(),
-          rl_src2.reg.GetReg(), (is_min) ? kArmCondLt : kArmCondGt);
-  StoreValue(rl_dest, rl_result);
+  NewLIR4((is_long) ? WIDE(kA64Csel4rrrc) : kA64Csel4rrrc, rl_result.reg.GetReg(),
+          rl_src1.reg.GetReg(), rl_src2.reg.GetReg(), (is_min) ? kArmCondLt : kArmCondGt);
+  (is_long) ?  StoreValueWide(rl_dest, rl_result) :StoreValue(rl_dest, rl_result);
   return true;
 }
 
@@ -1106,6 +1106,17 @@ void Arm64Mir2Lir::SpillFPRegs(RegStorage base, int offset, uint32_t reg_mask) {
               RegStorage::FloatSolo64(reg1).GetReg(), base.GetReg(), offset);
     }
   }
+}
+
+bool Arm64Mir2Lir::GenInlinedReverseBits(CallInfo* info, OpSize size) {
+  ArmOpcode wide = (size == k64) ? WIDE(0) : UNWIDE(0);
+  RegLocation rl_src_i = info->args[0];
+  RegLocation rl_dest = (size == k64) ? InlineTargetWide(info) : InlineTarget(info);  // result reg
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  RegLocation rl_i = (size == k64) ? LoadValueWide(rl_src_i, kCoreReg) : LoadValue(rl_src_i, kCoreReg);
+  NewLIR2(kA64Rbit2rr | wide, rl_result.reg.GetReg(), rl_i.reg.GetReg());
+  (size == k64) ? StoreValueWide(rl_dest, rl_result) : StoreValue(rl_dest, rl_result);
+  return true;
 }
 
 }  // namespace art

@@ -984,6 +984,7 @@ class Mir2Lir : public Backend {
 
     bool GenInlinedCharAt(CallInfo* info);
     bool GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty);
+    virtual bool GenInlinedReverseBits(CallInfo* info, OpSize size);
     bool GenInlinedReverseBytes(CallInfo* info, OpSize size);
     bool GenInlinedAbsInt(CallInfo* info);
     virtual bool GenInlinedAbsLong(CallInfo* info);
@@ -1299,9 +1300,11 @@ class Mir2Lir : public Backend {
      * directly into the destination register as specified by the invoke information.
      * @param info Information about the invoke.
      * @param is_min If true generates code that computes minimum. Otherwise computes maximum.
+     * @param is_long If true the value value is Long. Otherwise the value is Int.
      * @return Returns true if successfully generated
      */
-    virtual bool GenInlinedMinMaxInt(CallInfo* info, bool is_min) = 0;
+    virtual bool GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) = 0;
+    virtual bool GenInlinedMinMaxFP(CallInfo* info, bool is_min, bool is_double);
 
     virtual bool GenInlinedSqrt(CallInfo* info) = 0;
     virtual bool GenInlinedPeek(CallInfo* info, OpSize size) = 0;
