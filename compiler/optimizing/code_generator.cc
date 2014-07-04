@@ -39,6 +39,7 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator) {
   DCHECK_EQ(frame_size_, kUninitializedFrameSize);
   ComputeFrameSize(GetGraph()->GetMaximumNumberOfOutVRegs()
                    + GetGraph()->GetNumberOfVRegs()
+                   + GetGraph()->GetNumberOfTemporaries()
                    + 1 /* filler */);
   GenerateFrameEntry();
 
@@ -54,6 +55,7 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator) {
       current->Accept(instruction_visitor);
     }
   }
+  GenerateSlowPaths();
 
   size_t code_size = GetAssembler()->CodeSize();
   uint8_t* buffer = allocator->Allocate(code_size);
@@ -79,11 +81,18 @@ void CodeGenerator::CompileOptimized(CodeAllocator* allocator) {
       current->Accept(instruction_visitor);
     }
   }
+  GenerateSlowPaths();
 
   size_t code_size = GetAssembler()->CodeSize();
   uint8_t* buffer = allocator->Allocate(code_size);
   MemoryRegion code(buffer, code_size);
   GetAssembler()->FinalizeInstructions(code);
+}
+
+void CodeGenerator::GenerateSlowPaths() {
+  for (size_t i = 0, e = slow_paths_.Size(); i < e; ++i) {
+    slow_paths_.Get(i)->EmitNativeCode(this);
+  }
 }
 
 size_t CodeGenerator::AllocateFreeRegisterInternal(
@@ -94,7 +103,6 @@ size_t CodeGenerator::AllocateFreeRegisterInternal(
       return regno;
     }
   }
-  LOG(FATAL) << "Unreachable";
   return -1;
 }
 
@@ -162,13 +170,6 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
       locations->SetTempAt(i, loc);
     }
   }
-
-  // Make all registers available for the return value.
-  for (size_t i = 0, e = GetNumberOfRegisters(); i < e; ++i) {
-    blocked_registers_[i] = false;
-  }
-  SetupBlockedRegisters(blocked_registers_);
-
   Location result_location = locations->Out();
   if (result_location.IsUnallocated()) {
     switch (result_location.GetPolicy()) {
@@ -187,6 +188,12 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
 
 void CodeGenerator::InitLocations(HInstruction* instruction) {
   if (instruction->GetLocations() == nullptr) {
+    if (instruction->IsTemporary()) {
+      HInstruction* previous = instruction->GetPrevious();
+      Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
+      Move(previous, temp_location, instruction);
+      previous->GetLocations()->SetOut(temp_location);
+    }
     return;
   }
   AllocateRegistersLocally(instruction);

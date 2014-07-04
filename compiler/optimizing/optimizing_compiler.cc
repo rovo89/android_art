@@ -101,7 +101,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
 
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  HGraphBuilder builder(&arena, &dex_compilation_unit, &dex_file);
+  HGraphBuilder builder(&arena, &dex_compilation_unit, &dex_file, GetCompilerDriver());
 
   HGraph* graph = builder.BuildGraph(*code_item);
   if (graph == nullptr) {

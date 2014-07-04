@@ -990,10 +990,10 @@ void CompilerDriver::ProcessedInvoke(InvokeType invoke_type, int flags) {
   stats_->ProcessedInvoke(invoke_type, flags);
 }
 
-bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
-                                              bool is_put, MemberOffset* field_offset,
-                                              bool* is_volatile) {
-  ScopedObjectAccess soa(Thread::Current());
+mirror::ArtField* CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx,
+                                                           const DexCompilationUnit* mUnit,
+                                                           bool is_put,
+                                                           const ScopedObjectAccess& soa) {
   // Try to resolve the field and compiling method's class.
   mirror::ArtField* resolved_field;
   mirror::Class* referrer_class;
@@ -1011,20 +1011,34 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
     resolved_field = resolved_field_handle.Get();
     dex_cache = dex_cache_handle.Get();
   }
-  bool result = false;
+  bool can_link = false;
   if (resolved_field != nullptr && referrer_class != nullptr) {
-    *is_volatile = IsFieldVolatile(resolved_field);
     std::pair<bool, bool> fast_path = IsFastInstanceField(
-        dex_cache, referrer_class, resolved_field, field_idx, field_offset);
-    result = is_put ? fast_path.second : fast_path.first;
+        dex_cache, referrer_class, resolved_field, field_idx);
+    can_link = is_put ? fast_path.second : fast_path.first;
   }
-  if (!result) {
+  ProcessedInstanceField(can_link);
+  return can_link ? resolved_field : nullptr;
+}
+
+bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
+                                              bool is_put, MemberOffset* field_offset,
+                                              bool* is_volatile) {
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ArtField> resolved_field =
+      hs.NewHandle(ComputeInstanceFieldInfo(field_idx, mUnit, is_put, soa));
+
+  if (resolved_field.Get() == nullptr) {
     // Conservative defaults.
     *is_volatile = true;
     *field_offset = MemberOffset(static_cast<size_t>(-1));
+    return false;
+  } else {
+    *is_volatile = resolved_field->IsVolatile();
+    *field_offset = resolved_field->GetOffset();
+    return true;
   }
-  ProcessedInstanceField(result);
-  return result;
 }
 
 bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
