@@ -436,6 +436,16 @@ use-art-interpret-only:
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libart.so
 	adb shell start
 
+.PHONY: use-artd-interpret-only
+use-artd-interpret-only:
+	adb root && sleep 3
+	adb shell stop
+	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
+	adb shell setprop dalvik.vm.dex2oat-flags "--compiler-filter=interpret-only"
+	adb shell setprop dalvik.vm.image-dex2oat-flags "--compiler-filter=interpret-only"
+	adb shell setprop persist.sys.dalvik.vm.lib.2 libartd.so
+	adb shell start
+
 .PHONY: use-art-verify-none
 use-art-verify-none:
 	adb root && sleep 3
