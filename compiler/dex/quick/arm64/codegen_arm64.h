@@ -100,17 +100,13 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
 
     // Required for target - register utilities.
     RegStorage TargetReg(SpecialTargetRegister reg) OVERRIDE;
-    RegStorage TargetReg(SpecialTargetRegister symbolic_reg, bool is_wide) OVERRIDE {
+    RegStorage TargetReg(SpecialTargetRegister symbolic_reg, WideKind wide_kind) OVERRIDE {
       RegStorage reg = TargetReg(symbolic_reg);
-      if (is_wide) {
+      if (wide_kind == kWide || wide_kind == kRef) {
         return (reg.Is64Bit()) ? reg : As64BitReg(reg);
       } else {
         return (reg.Is32Bit()) ? reg : As32BitReg(reg);
       }
-    }
-    RegStorage TargetRefReg(SpecialTargetRegister symbolic_reg) OVERRIDE {
-      RegStorage reg = TargetReg(symbolic_reg);
-      return (reg.Is64Bit() ? reg : As64BitReg(reg));
     }
     RegStorage TargetPtrReg(SpecialTargetRegister symbolic_reg) OVERRIDE {
       RegStorage reg = TargetReg(symbolic_reg);

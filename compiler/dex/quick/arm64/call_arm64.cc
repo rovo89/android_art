@@ -195,7 +195,7 @@ void Arm64Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
   // TUNING: How much performance we get when we inline this?
   // Since we've already flush all register.
   FlushAllRegs();
-  LoadValueDirectFixed(rl_src, rs_x0);  // = TargetRefReg(kArg0)
+  LoadValueDirectFixed(rl_src, rs_x0);  // = TargetReg(kArg0, kRef)
   LockCallTemps();  // Prepare for explicit register usage
   LIR* null_check_branch = nullptr;
   if ((opt_flags & MIR_IGNORE_NULL_CHECK) && !(cu_->disable_opt & (1 << kNullCheckElimination))) {

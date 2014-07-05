@@ -1198,29 +1198,28 @@ class Mir2Lir : public Backend {
     /**
      * @brief Portable way of getting special registers from the backend.
      * @param reg Enumeration describing the purpose of the register.
-     * @param is_wide Whether the view should be 64-bit (rather than 32-bit).
+     * @param wide_kind What kind of view of the special register is required.
      * @return Return the #RegStorage corresponding to the given purpose @p reg.
+     *
+     * Note: For 32b system, wide (kWide) views only make sense for the argument registers and the
+     *       return. In that case, this function should return a pair where the first component of
+     *       the result will be the indicated special register.
      */
-    virtual RegStorage TargetReg(SpecialTargetRegister reg, bool is_wide) {
-      return TargetReg(reg);
-    }
-
-    /**
-     * @brief Portable way of getting special register pair from the backend.
-     * @param reg Enumeration describing the purpose of the first register.
-     * @param reg Enumeration describing the purpose of the second register.
-     * @return Return the #RegStorage corresponding to the given purpose @p reg.
-     */
-    virtual RegStorage TargetReg(SpecialTargetRegister reg1, SpecialTargetRegister reg2) {
-      return RegStorage::MakeRegPair(TargetReg(reg1, false), TargetReg(reg2, false));
-    }
-
-    /**
-     * @brief Portable way of getting a special register for storing a reference.
-     * @see TargetReg()
-     */
-    virtual RegStorage TargetRefReg(SpecialTargetRegister reg) {
-      return TargetReg(reg);
+    virtual RegStorage TargetReg(SpecialTargetRegister reg, WideKind wide_kind) {
+      if (wide_kind == kWide) {
+        DCHECK((kArg0 <= reg && reg < kArg7) || (kFArg0 <= reg && reg < kFArg7) || (kRet0 == reg));
+        COMPILE_ASSERT((kArg1 == kArg0 + 1) && (kArg2 == kArg1 + 1) && (kArg3 == kArg2 + 1) &&
+                       (kArg4 == kArg3 + 1) && (kArg5 == kArg4 + 1) && (kArg6 == kArg5 + 1) &&
+                       (kArg7 == kArg6 + 1), kargs_range_unexpected);
+        COMPILE_ASSERT((kFArg1 == kFArg0 + 1) && (kFArg2 == kFArg1 + 1) && (kFArg3 == kFArg2 + 1) &&
+                       (kFArg4 == kFArg3 + 1) && (kFArg5 == kFArg4 + 1) && (kFArg6 == kFArg5 + 1) &&
+                       (kFArg7 == kFArg6 + 1), kfargs_range_unexpected);
+        COMPILE_ASSERT(kRet1 == kRet0 + 1, kret_range_unexpected);
+        return RegStorage::MakeRegPair(TargetReg(reg),
+                                       TargetReg(static_cast<SpecialTargetRegister>(reg + 1)));
+      } else {
+        return TargetReg(reg);
+      }
     }
 
     /**
@@ -1234,9 +1233,9 @@ class Mir2Lir : public Backend {
     // Get a reg storage corresponding to the wide & ref flags of the reg location.
     virtual RegStorage TargetReg(SpecialTargetRegister reg, RegLocation loc) {
       if (loc.ref) {
-        return TargetRefReg(reg);
+        return TargetReg(reg, kRef);
       } else {
-        return TargetReg(reg, loc.wide);
+        return TargetReg(reg, loc.wide ? kWide : kNotWide);
       }
     }
 
