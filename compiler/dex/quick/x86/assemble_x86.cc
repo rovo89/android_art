@@ -429,7 +429,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86Fst64M,   kMem,     IS_STORE   | IS_UNARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xDD, 0x00, 0, 2, 0, 0, false }, "Fstd64M",  "[!0r,!1d]" },
   { kX86Fprem,    kNullary, NO_OPERAND | USE_FP_STACK,                          { 0xD9, 0,    0xF8, 0,    0, 0, 0, 0, false }, "Fprem64",  "" },
   { kX86Fucompp,  kNullary, NO_OPERAND | USE_FP_STACK,                          { 0xDA, 0,    0xE9, 0,    0, 0, 0, 0, false }, "Fucompp",  "" },
-  { kX86Fstsw16R, kNullary, NO_OPERAND | USE_FP_STACK,                          { 0x9B, 0xDF, 0xE0, 0,    0, 0, 0, 0, false }, "Fstsw16R", "ax" },
+  { kX86Fstsw16R, kNullary, NO_OPERAND | REG_DEFA | USE_FP_STACK,               { 0x9B, 0xDF, 0xE0, 0,    0, 0, 0, 0, false }, "Fstsw16R", "ax" },
 
   EXT_0F_ENCODING_MAP(Mova128,    0x66, 0x6F, REG_DEF0),
   { kX86Mova128MR, kMemReg,   IS_STORE | IS_TERTIARY_OP | REG_USE02,  { 0x66, 0, 0x0F, 0x6F, 0, 0, 0, 0, false }, "Mova128MR", "[!0r+!1d],!2r" },
