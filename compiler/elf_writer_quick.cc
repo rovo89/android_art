@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <unordered_set>
+
 #include "elf_writer_quick.h"
 
 #include "base/logging.h"
@@ -803,6 +805,25 @@ bool ElfWriterQuick::Create(File* elf_file,
   return elf_writer.Write(oat_writer, dex_files, android_root, is_host);
 }
 
+// Add patch information to this section. Each patch is a Elf32_Word that
+// identifies an offset from the start of the text section
+void ElfWriterQuick::ReservePatchSpace(std::vector<uint8_t>* buffer, bool debug) {
+  size_t size =
+      compiler_driver_->GetCodeToPatch().size() +
+      compiler_driver_->GetMethodsToPatch().size() +
+      compiler_driver_->GetClassesToPatch().size();
+  if (size == 0) {
+    if (debug) {
+      LOG(INFO) << "No patches to record";
+    }
+    return;
+  }
+  buffer->resize(size * sizeof(uintptr_t));
+  if (debug) {
+    LOG(INFO) << "Patches reserved for " << size;
+  }
+}
+
 bool ElfWriterQuick::Write(OatWriter* oat_writer,
                            const std::vector<const DexFile*>& dex_files_unused,
                            const std::string& android_root_unused,
@@ -834,6 +855,13 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
     builder.RegisterRawSection(debug_abbrev);
     builder.RegisterRawSection(debug_frame);
     builder.RegisterRawSection(debug_str);
+  }
+
+  if (compiler_driver_->GetCompilerOptions().GetIncludePatchInformation()) {
+    ElfRawSectionBuilder oat_patches(".oat_patches", SHT_OAT_PATCH, 0, NULL, 0,
+                                     sizeof(size_t), sizeof(size_t));
+    ReservePatchSpace(oat_patches.GetBuffer(), debug);
+    builder.RegisterRawSection(oat_patches);
   }
 
   return builder.Write();

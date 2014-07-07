@@ -112,6 +112,7 @@ class ElfFile {
 
   Elf32_Word GetDynamicNum() const;
   Elf32_Dyn& GetDynamic(Elf32_Word) const;
+  Elf32_Dyn* FindDynamicByType(Elf32_Sword type) const;
   Elf32_Word FindDynamicValueByType(Elf32_Sword type) const;
 
   Elf32_Word GetRelNum(Elf32_Shdr&) const;

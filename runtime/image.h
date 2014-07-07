@@ -84,6 +84,10 @@ class PACKED(4) ImageHeader {
     return reinterpret_cast<byte*>(oat_file_end_);
   }
 
+  off_t GetPatchDelta() const {
+    return patch_delta_;
+  }
+
   size_t GetBitmapOffset() const {
     return RoundUp(image_size_, kPageSize);
   }
@@ -112,10 +116,11 @@ class PACKED(4) ImageHeader {
 
   mirror::Object* GetImageRoot(ImageRoot image_root) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
- private:
   mirror::ObjectArray<mirror::Object>* GetImageRoots() const;
 
+  void RelocateImage(off_t delta);
+
+ private:
   static const byte kImageMagic[4];
   static const byte kImageVersion[4];
 
@@ -150,11 +155,13 @@ class PACKED(4) ImageHeader {
   // .so files. Used for positioning a following alloc spaces.
   uint32_t oat_file_end_;
 
+  // The total delta that this image has been patched.
+  int32_t patch_delta_;
+
   // Absolute address of an Object[] of objects needed to reinitialize from an image.
   uint32_t image_roots_;
 
   friend class ImageWriter;
-  friend class ImageDumper;  // For GetImageRoots()
 };
 
 }  // namespace art

@@ -22,6 +22,8 @@
 // Explicitly include our own elf.h to avoid Linux and other dependencies.
 #include "./elf.h"
 
+#include "base/logging.h"
+
 // Architecture dependent flags for the ELF header.
 #define EF_ARM_EABI_VER5 0x05000000
 #define EF_MIPS_ABI_O32 0x00001000
@@ -62,8 +64,103 @@
 #define DT_MIPS_HIPAGENO     0x70000014 /* Number of GOT page table entries */
 #define DT_MIPS_RLD_MAP      0x70000016 /* Address of debug map pointer */
 
+// Patching section type
+#define SHT_OAT_PATCH        SHT_LOUSER
+
 inline void SetBindingAndType(Elf32_Sym* sym, unsigned char b, unsigned char t) {
   sym->st_info = (b << 4) + (t & 0x0f);
+}
+
+inline bool IsDynamicSectionPointer(Elf32_Word d_tag, Elf32_Word e_machine) {
+  switch (d_tag) {
+    // case 1: well known d_tag values that imply Elf32_Dyn.d_un contains an address in d_ptr
+    case DT_PLTGOT:
+    case DT_HASH:
+    case DT_STRTAB:
+    case DT_SYMTAB:
+    case DT_RELA:
+    case DT_INIT:
+    case DT_FINI:
+    case DT_REL:
+    case DT_DEBUG:
+    case DT_JMPREL: {
+      return true;
+    }
+    // d_val or ignored values
+    case DT_NULL:
+    case DT_NEEDED:
+    case DT_PLTRELSZ:
+    case DT_RELASZ:
+    case DT_RELAENT:
+    case DT_STRSZ:
+    case DT_SYMENT:
+    case DT_SONAME:
+    case DT_RPATH:
+    case DT_SYMBOLIC:
+    case DT_RELSZ:
+    case DT_RELENT:
+    case DT_PLTREL:
+    case DT_TEXTREL:
+    case DT_BIND_NOW:
+    case DT_INIT_ARRAYSZ:
+    case DT_FINI_ARRAYSZ:
+    case DT_RUNPATH:
+    case DT_FLAGS: {
+      return false;
+    }
+    // boundary values that should not be used
+    case DT_ENCODING:
+    case DT_LOOS:
+    case DT_HIOS:
+    case DT_LOPROC:
+    case DT_HIPROC: {
+      LOG(FATAL) << "Illegal d_tag value 0x" << std::hex << d_tag;
+      return false;
+    }
+    default: {
+      // case 2: "regular" DT_* ranges where even d_tag values imply an address in d_ptr
+      if ((DT_ENCODING  < d_tag && d_tag < DT_LOOS)
+          || (DT_LOOS   < d_tag && d_tag < DT_HIOS)
+          || (DT_LOPROC < d_tag && d_tag < DT_HIPROC)) {
+        // Special case for MIPS which breaks the regular rules between DT_LOPROC and DT_HIPROC
+        if (e_machine == EM_MIPS) {
+          switch (d_tag) {
+            case DT_MIPS_RLD_VERSION:
+            case DT_MIPS_TIME_STAMP:
+            case DT_MIPS_ICHECKSUM:
+            case DT_MIPS_IVERSION:
+            case DT_MIPS_FLAGS:
+            case DT_MIPS_LOCAL_GOTNO:
+            case DT_MIPS_CONFLICTNO:
+            case DT_MIPS_LIBLISTNO:
+            case DT_MIPS_SYMTABNO:
+            case DT_MIPS_UNREFEXTNO:
+            case DT_MIPS_GOTSYM:
+            case DT_MIPS_HIPAGENO: {
+              return false;
+            }
+            case DT_MIPS_BASE_ADDRESS:
+            case DT_MIPS_CONFLICT:
+            case DT_MIPS_LIBLIST:
+            case DT_MIPS_RLD_MAP: {
+              return true;
+            }
+            default: {
+              LOG(FATAL) << "Unknown MIPS d_tag value 0x" << std::hex << d_tag;
+              return false;
+            }
+          }
+        } else if ((d_tag % 2) == 0) {
+          return true;
+        } else {
+          return false;
+        }
+      } else {
+        LOG(FATAL) << "Unknown d_tag value 0x" << std::hex << d_tag;
+        return false;
+      }
+    }
+  }
 }
 
 #endif  // ART_RUNTIME_ELF_UTILS_H_
