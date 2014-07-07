@@ -27,6 +27,8 @@
 #include "compiled_method.h"
 #include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
+#include "elf_file.h"
+#include "elf_utils.h"
 #include "elf_writer.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap.h"
@@ -138,7 +140,8 @@ bool ImageWriter::Write(const std::string& image_filename,
   ElfWriter::GetOatElfInformation(oat_file.get(), oat_loaded_size, oat_data_offset);
   CalculateNewObjectOffsets(oat_loaded_size, oat_data_offset);
   CopyAndFixupObjects();
-  PatchOatCodeAndMethods();
+
+  PatchOatCodeAndMethods(oat_file.get());
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
 
   std::unique_ptr<File> image_file(OS::CreateEmptyFile(image_filename.c_str()));
@@ -782,7 +785,25 @@ static Class* GetTargetType(const CompilerDriver::TypePatchInformation* patch)
   return klass;
 }
 
-void ImageWriter::PatchOatCodeAndMethods() {
+void ImageWriter::PatchOatCodeAndMethods(File* elf_file) {
+  std::vector<uintptr_t> patches;
+  std::set<uintptr_t> patches_set;
+  auto maybe_push = [&patches, &patches_set] (uintptr_t p) {
+    if (patches_set.find(p) == patches_set.end()) {
+      patches.push_back(p);
+      patches_set.insert(p);
+    }
+  };
+  const bool add_patches = compiler_driver_.GetCompilerOptions().GetIncludePatchInformation();
+  if (add_patches) {
+    // TODO if we are adding patches the resulting ELF file might have a
+    // potentially rather large amount of free space where patches might have been
+    // placed. We should adjust the ELF file to get rid of this excess space.
+    patches.reserve(compiler_driver_.GetCodeToPatch().size() +
+                    compiler_driver_.GetMethodsToPatch().size() +
+                    compiler_driver_.GetClassesToPatch().size());
+  }
+  uintptr_t loc = 0;
   Thread* self = Thread::Current();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
@@ -828,14 +849,20 @@ void ImageWriter::PatchOatCodeAndMethods() {
     } else {
       value = PointerToLowMemUInt32(GetOatAddress(code_offset));
     }
-    SetPatchLocation(patch, value);
+    SetPatchLocation(patch, value, &loc);
+    if (add_patches && !patch->AsCall()->IsRelative()) {
+      maybe_push(loc);
+    }
   }
 
   const CallPatches& methods_to_patch = compiler_driver_.GetMethodsToPatch();
   for (size_t i = 0; i < methods_to_patch.size(); i++) {
     const CompilerDriver::CallPatchInformation* patch = methods_to_patch[i];
     ArtMethod* target = GetTargetMethod(patch);
-    SetPatchLocation(patch, PointerToLowMemUInt32(GetImageAddress(target)));
+    SetPatchLocation(patch, PointerToLowMemUInt32(GetImageAddress(target)), &loc);
+    if (add_patches && !patch->AsCall()->IsRelative()) {
+      maybe_push(loc);
+    }
   }
 
   const std::vector<const CompilerDriver::TypePatchInformation*>& classes_to_patch =
@@ -843,16 +870,51 @@ void ImageWriter::PatchOatCodeAndMethods() {
   for (size_t i = 0; i < classes_to_patch.size(); i++) {
     const CompilerDriver::TypePatchInformation* patch = classes_to_patch[i];
     Class* target = GetTargetType(patch);
-    SetPatchLocation(patch, PointerToLowMemUInt32(GetImageAddress(target)));
+    SetPatchLocation(patch, PointerToLowMemUInt32(GetImageAddress(target)), &loc);
+    if (add_patches) {
+      maybe_push(loc);
+    }
   }
 
   // Update the image header with the new checksum after patching
   ImageHeader* image_header = reinterpret_cast<ImageHeader*>(image_->Begin());
   image_header->SetOatChecksum(oat_file_->GetOatHeader().GetChecksum());
   self->EndAssertNoThreadSuspension(old_cause);
+
+  // Update the ElfFiles SHT_OAT_PATCH section to include the patches.
+  if (add_patches) {
+    std::string err;
+    // TODO we are mapping in the contents of this file twice. We should be able
+    // to do it only once, which would be better.
+    std::unique_ptr<ElfFile> file(ElfFile::Open(elf_file, true, false, &err));
+    if (file == nullptr) {
+      LOG(ERROR) << err;
+    }
+    Elf32_Shdr* shdr = file->FindSectionByName(".oat_patches");
+    if (shdr != nullptr) {
+      DCHECK_EQ(shdr, file->FindSectionByType(SHT_OAT_PATCH))
+          << "Incorrect type for .oat_patches section";
+      CHECK_LE(patches.size() * sizeof(uintptr_t), shdr->sh_size)
+          << "We got more patches than anticipated";
+      CHECK_LE(reinterpret_cast<uintptr_t>(file->Begin()) + shdr->sh_offset + shdr->sh_size,
+               reinterpret_cast<uintptr_t>(file->End())) << "section is too large";
+      CHECK(shdr == &file->GetSectionHeader(file->GetSectionHeaderNum() - 1) ||
+            shdr->sh_offset + shdr->sh_size <= (shdr + 1)->sh_offset)
+          << "Section overlaps onto next section";
+      // It's mmap'd so we can just memcpy.
+      memcpy(file->Begin() + shdr->sh_offset, patches.data(), patches.size()*sizeof(uintptr_t));
+      // TODO We should fill in the newly empty space between the last patch and
+      // the start of the next section by moving the following sections down if
+      // possible.
+      shdr->sh_size = patches.size() * sizeof(uintptr_t);
+    } else {
+      LOG(ERROR) << "Unable to find section header for SHT_OAT_PATCH";
+    }
+  }
 }
 
-void ImageWriter::SetPatchLocation(const CompilerDriver::PatchInformation* patch, uint32_t value) {
+void ImageWriter::SetPatchLocation(const CompilerDriver::PatchInformation* patch, uint32_t value,
+                                   uintptr_t* patched_ptr) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const void* quick_oat_code = class_linker->GetQuickOatCodeFor(patch->GetDexFile(),
                                                                 patch->GetReferrerClassDefIdx(),
@@ -885,6 +947,14 @@ void ImageWriter::SetPatchLocation(const CompilerDriver::PatchInformation* patch
   }
   *patch_location = value;
   oat_header.UpdateChecksum(patch_location, sizeof(value));
+
+  uintptr_t loc = reinterpret_cast<uintptr_t>(patch_location) -
+      (reinterpret_cast<uintptr_t>(oat_file_->Begin()) + oat_header.GetExecutableOffset());
+  CHECK_GT(reinterpret_cast<uintptr_t>(patch_location),
+            reinterpret_cast<uintptr_t>(oat_file_->Begin()) + oat_header.GetExecutableOffset());
+  CHECK_LT(loc, oat_file_->Size() - oat_header.GetExecutableOffset());
+
+  *patched_ptr = loc;
 }
 
 }  // namespace art

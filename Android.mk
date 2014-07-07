@@ -99,6 +99,7 @@ include $(art_path)/compiler/Android.mk
 include $(art_path)/dex2oat/Android.mk
 include $(art_path)/disassembler/Android.mk
 include $(art_path)/oatdump/Android.mk
+include $(art_path)/patchoat/Android.mk
 include $(art_path)/dalvikvm/Android.mk
 include $(art_path)/tools/Android.mk
 include $(art_path)/build/Android.oat.mk
@@ -364,13 +365,13 @@ build-art-target: $(ART_TARGET_EXECUTABLES) $(ART_TARGET_GTEST_EXECUTABLES) $(TA
 # "m art-host" for just building the files needed to run the art script
 .PHONY: art-host
 ifeq ($(HOST_PREFER_32_BIT),true)
-art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm32 $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_CORE_IMG_OUT) $(HOST_OUT)/lib/libjavacore.so $(HOST_OUT)/bin/dalvikvm
+art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm32 $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_OUT)/bin/patchoat $(HOST_CORE_IMG_OUT) $(HOST_OUT)/lib/libjavacore.so $(HOST_OUT)/bin/dalvikvm
 else
-art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm64 $(HOST_OUT)/bin/dalvikvm32 $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_CORE_IMG_OUT) $(HOST_OUT)/lib/libjavacore.so $(HOST_OUT)/lib64/libjavacore.so $(HOST_OUT)/bin/dalvikvm
+art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm64 $(HOST_OUT)/bin/dalvikvm32 $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_OUT)/bin/patchoat $(HOST_CORE_IMG_OUT) $(HOST_OUT)/lib/libjavacore.so $(HOST_OUT)/lib64/libjavacore.so $(HOST_OUT)/bin/dalvikvm
 endif
 
 .PHONY: art-host-debug
-art-host-debug:   art-host $(HOST_OUT)/lib/libartd.so $(HOST_OUT)/bin/dex2oatd
+art-host-debug:   art-host $(HOST_OUT)/lib/libartd.so $(HOST_OUT)/bin/dex2oatd $(HOST_OUT)/bin/patchoatd
 
 ########################################################################
 # targets to switch back and forth from libdvm to libart

@@ -150,9 +150,10 @@ class ImageWriter {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Patches references in OatFile to expect runtime addresses.
-  void PatchOatCodeAndMethods()
+  void PatchOatCodeAndMethods(File* elf_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetPatchLocation(const CompilerDriver::PatchInformation* patch, uint32_t value)
+  void SetPatchLocation(const CompilerDriver::PatchInformation* patch, uint32_t value,
+                        uintptr_t* patched_location)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const CompilerDriver& compiler_driver_;

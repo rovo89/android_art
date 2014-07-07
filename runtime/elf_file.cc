@@ -724,14 +724,23 @@ Elf32_Dyn& ElfFile::GetDynamic(Elf32_Word i) const {
   return *(GetDynamicSectionStart() + i);
 }
 
-Elf32_Word ElfFile::FindDynamicValueByType(Elf32_Sword type) const {
+Elf32_Dyn* ElfFile::FindDynamicByType(Elf32_Sword type) const {
   for (Elf32_Word i = 0; i < GetDynamicNum(); i++) {
-    Elf32_Dyn& elf_dyn = GetDynamic(i);
-    if (elf_dyn.d_tag == type) {
-      return elf_dyn.d_un.d_val;
+    Elf32_Dyn* dyn = &GetDynamic(i);
+    if (dyn->d_tag == type) {
+      return dyn;
     }
   }
-  return 0;
+  return NULL;
+}
+
+Elf32_Word ElfFile::FindDynamicValueByType(Elf32_Sword type) const {
+  Elf32_Dyn* dyn = FindDynamicByType(type);
+  if (dyn == NULL) {
+    return 0;
+  } else {
+    return dyn->d_un.d_val;
+  }
 }
 
 Elf32_Rel* ElfFile::GetRelSectionStart(Elf32_Shdr& section_header) const {

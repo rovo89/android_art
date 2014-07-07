@@ -35,7 +35,7 @@ $$($(1)HOST_CORE_IMG_OUT): $$(HOST_CORE_DEX_FILES) $$(DEX2OATD_DEPENDENCY)
 	  --oat-location=$$($(1)HOST_CORE_OAT) --image=$$($(1)HOST_CORE_IMG_OUT) \
 	  --base=$$(LIBART_IMG_HOST_BASE_ADDRESS) --instruction-set=$$($(1)ART_HOST_ARCH) \
 	  --instruction-set-features=$$($(1)HOST_INSTRUCTION_SET_FEATURES) \
-	  --host --android-root=$$(HOST_OUT)
+	  --host --android-root=$$(HOST_OUT) --include-patch-information
 
 # This "renaming" eases declaration in art/Android.mk
 HOST_CORE_IMG_OUT$($(1)ART_PHONY_TEST_HOST_SUFFIX) := $($(1)HOST_CORE_IMG_OUT)
@@ -64,7 +64,7 @@ $$($(1)TARGET_CORE_IMG_OUT): $$($(1)TARGET_CORE_DEX_FILES) $$(DEX2OATD_DEPENDENC
 	  --base=$$(LIBART_IMG_TARGET_BASE_ADDRESS) --instruction-set=$$($(1)TARGET_ARCH) \
 	  --instruction-set-features=$$($(1)TARGET_INSTRUCTION_SET_FEATURES) \
 	  --implicit-checks=$(IMPLICIT_CHECKS_$($(1)TARGET_ARCH)) \
-	  --android-root=$$(PRODUCT_OUT)/system
+	  --android-root=$$(PRODUCT_OUT)/system --include-patch-information
 
 # This "renaming" eases declaration in art/Android.mk
 TARGET_CORE_IMG_OUT$($(1)ART_PHONY_TEST_TARGET_SUFFIX) := $($(1)TARGET_CORE_IMG_OUT)

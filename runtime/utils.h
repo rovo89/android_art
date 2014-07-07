@@ -19,6 +19,7 @@
 
 #include <pthread.h>
 
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -49,6 +50,34 @@ enum TimeUnit {
   kTimeUnitMillisecond,
   kTimeUnitSecond,
 };
+
+template <typename T>
+bool ParseUint(const char *in, T* out) {
+  char* end;
+  unsigned long long int result = strtoull(in, &end, 0);  // NOLINT(runtime/int)
+  if (in == end || *end != '\0') {
+    return false;
+  }
+  if (std::numeric_limits<T>::max() < result) {
+    return false;
+  }
+  *out = static_cast<T>(result);
+  return true;
+}
+
+template <typename T>
+bool ParseInt(const char* in, T* out) {
+  char* end;
+  long long int result = strtoll(in, &end, 0);  // NOLINT(runtime/int)
+  if (in == end || *end != '\0') {
+    return false;
+  }
+  if (result < std::numeric_limits<T>::min() || std::numeric_limits<T>::max() < result) {
+    return false;
+  }
+  *out = static_cast<T>(result);
+  return true;
+}
 
 template<typename T>
 static constexpr bool IsPowerOfTwo(T x) {
