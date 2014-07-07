@@ -24,7 +24,7 @@
 namespace art {
 
 const byte ImageHeader::kImageMagic[] = { 'a', 'r', 't', '\n' };
-const byte ImageHeader::kImageVersion[] = { '0', '0', '7', '\0' };
+const byte ImageHeader::kImageVersion[] = { '0', '0', '8', '\0' };
 
 ImageHeader::ImageHeader(uint32_t image_begin,
                          uint32_t image_size,
@@ -45,6 +45,7 @@ ImageHeader::ImageHeader(uint32_t image_begin,
     oat_data_begin_(oat_data_begin),
     oat_data_end_(oat_data_end),
     oat_file_end_(oat_file_end),
+    patch_delta_(0),
     image_roots_(image_roots) {
   CHECK_EQ(image_begin, RoundUp(image_begin, kPageSize));
   CHECK_EQ(oat_file_begin, RoundUp(oat_file_begin, kPageSize));
@@ -58,11 +59,41 @@ ImageHeader::ImageHeader(uint32_t image_begin,
   memcpy(version_, kImageVersion, sizeof(kImageVersion));
 }
 
+void ImageHeader::RelocateImage(off_t delta) {
+  CHECK_ALIGNED(delta, kPageSize) << " patch delta must be page aligned";
+  image_begin_ += delta;
+  oat_file_begin_ += delta;
+  oat_data_begin_ += delta;
+  oat_data_end_ += delta;
+  oat_file_end_ += delta;
+  image_roots_ += delta;
+  patch_delta_ += delta;
+}
+
 bool ImageHeader::IsValid() const {
   if (memcmp(magic_, kImageMagic, sizeof(kImageMagic)) != 0) {
     return false;
   }
   if (memcmp(version_, kImageVersion, sizeof(kImageVersion)) != 0) {
+    return false;
+  }
+  // Unsigned so wraparound is well defined.
+  if (image_begin_ >= image_begin_ + image_size_) {
+    return false;
+  }
+  if (oat_file_begin_ > oat_file_end_) {
+    return false;
+  }
+  if (oat_data_begin_ > oat_data_end_) {
+    return false;
+  }
+  if (oat_file_begin_ >= oat_data_begin_) {
+    return false;
+  }
+  if (image_roots_ <= image_begin_ || oat_file_begin_ <= image_roots_) {
+    return false;
+  }
+  if (!IsAligned<kPageSize>(patch_delta_)) {
     return false;
   }
   return true;
