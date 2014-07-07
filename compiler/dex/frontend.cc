@@ -869,7 +869,8 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   } else if (cu.instruction_set == kArm64) {
     // TODO(Arm64): enable optimizations once backend is mature enough.
     cu.disable_opt = ~((1 << kSuppressMethodInlining) |
-                       (1 << kNullCheckElimination));
+                       (1 << kNullCheckElimination) |
+                       (1 << kPromoteRegs));
   }
 
   cu.StartTimingSplit("BuildMIRGraph");
