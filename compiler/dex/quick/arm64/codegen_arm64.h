@@ -78,7 +78,8 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
         OVERRIDE;
     LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale,
                          OpSize size) OVERRIDE;
-    LIR* LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest) OVERRIDE;
+    LIR* LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale)
+        OVERRIDE;
     LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
                              RegStorage r_dest, OpSize size) OVERRIDE;
     LIR* LoadConstantNoClobber(RegStorage r_dest, int value);
@@ -89,7 +90,8 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
                       VolatileKind is_volatile) OVERRIDE;
     LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
                           OpSize size) OVERRIDE;
-    LIR* StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src) OVERRIDE;
+    LIR* StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale)
+        OVERRIDE;
     LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
                               RegStorage r_src, OpSize size) OVERRIDE;
     void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) OVERRIDE;

@@ -823,7 +823,7 @@ void Arm64Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       FreeTemp(reg_len);
     }
     if (rl_result.ref) {
-      LoadRefIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_result.reg);
+      LoadRefIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_result.reg, scale);
     } else {
       LoadBaseIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_result.reg, scale, size);
     }
@@ -920,7 +920,7 @@ void Arm64Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
       FreeTemp(reg_len);
     }
     if (rl_src.ref) {
-      StoreRefIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_src.reg);
+      StoreRefIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_src.reg, scale);
     } else {
       StoreBaseIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_src.reg, scale, size);
     }
