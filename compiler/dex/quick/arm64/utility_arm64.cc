@@ -927,11 +927,9 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
       opcode = WIDE(kA64Ldr4rXxG);
       expected_scale = 3;
       break;
+    case kSingle:     // Intentional fall-through.
+    case k32:         // Intentional fall-through.
     case kReference:
-      // TODO(Arm64): r_dest must be 64-bit below. Remove the hack below.
-      r_dest = (r_dest.Is64Bit()) ? As32BitReg(r_dest) : r_dest;
-    case kSingle:
-    case k32:
       r_dest = Check32BitReg(r_dest);
       opcode = kA64Ldr4rXxG;
       expected_scale = 2;
@@ -972,8 +970,9 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
   return load;
 }
 
-LIR* Arm64Mir2Lir::LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest) {
-  return LoadBaseIndexed(r_base, r_index, As32BitReg(r_dest), 2, kReference);
+LIR* Arm64Mir2Lir::LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest,
+                                  int scale) {
+  return LoadBaseIndexed(r_base, r_index, As32BitReg(r_dest), scale, kReference);
 }
 
 LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
@@ -1016,11 +1015,9 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
       opcode = WIDE(kA64Str4rXxG);
       expected_scale = 3;
       break;
-    case kReference:
-      // TODO(Arm64): r_src must be 64-bit below. Remove the hack below.
-      r_src = (r_src.Is64Bit()) ? As32BitReg(r_src) : r_src;
     case kSingle:     // Intentional fall-trough.
     case k32:         // Intentional fall-trough.
+    case kReference:
       r_src = Check32BitReg(r_src);
       opcode = kA64Str4rXxG;
       expected_scale = 2;
@@ -1053,8 +1050,9 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
   return store;
 }
 
-LIR* Arm64Mir2Lir::StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src) {
-  return StoreBaseIndexed(r_base, r_index, As32BitReg(r_src), 2, kReference);
+LIR* Arm64Mir2Lir::StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
+                                   int scale) {
+  return StoreBaseIndexed(r_base, r_index, As32BitReg(r_src), scale, kReference);
 }
 
 /*
@@ -1084,11 +1082,9 @@ LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStor
         alt_opcode = WIDE(kA64Ldur3rXd);
       }
       break;
-    case kReference:
-      // TODO(Arm64): r_dest must be 64-bit below. Remove the hack below.
-      r_dest = (r_dest.Is64Bit()) ? As32BitReg(r_dest) : r_dest;
     case kSingle:     // Intentional fall-through.
     case k32:         // Intentional fall-trough.
+    case kReference:
       r_dest = Check32BitReg(r_dest);
       scale = 2;
       if (r_dest.IsFloat()) {
@@ -1185,11 +1181,9 @@ LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegSto
         alt_opcode = FWIDE(kA64Stur3rXd);
       }
       break;
-    case kReference:
-      // TODO(Arm64): r_src must be 64-bit below. Remove the hack below.
-      r_src = (r_src.Is64Bit()) ? As32BitReg(r_src) : r_src;
     case kSingle:     // Intentional fall-through.
     case k32:         // Intentional fall-trough.
+    case kReference:
       r_src = Check32BitReg(r_src);
       scale = 2;
       if (r_src.IsFloat()) {
