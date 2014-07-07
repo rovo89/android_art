@@ -1056,8 +1056,8 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
   const int last_mapped_in = in_to_reg_storage_mapping.GetMaxMappedIn();
   int regs_left_to_pass_via_stack = info->num_arg_words - (last_mapped_in + 1);
 
-  // Fisrt of all, check whether it make sense to use bulk copying
-  // Optimization is aplicable only for range case
+  // First of all, check whether it makes sense to use bulk copying.
+  // Bulk copying is done only for the range case.
   // TODO: make a constant instead of 2
   if (info->is_range && regs_left_to_pass_via_stack >= 2) {
     // Scan the rest of the args - if in phys_reg flush to memory
@@ -1141,7 +1141,6 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
               LoadValueDirectWideFixed(rl_arg, regWide);
               StoreBaseDisp(TargetReg(kSp), out_offset, regWide, k64, kNotVolatile);
             }
-            i++;
           } else {
             if (rl_arg.location == kLocPhysReg) {
               if (rl_arg.ref) {
@@ -1163,6 +1162,9 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
         call_state = next_call_insn(cu_, info, call_state, target_method,
                                     vtable_idx, direct_code, direct_method, type);
       }
+      if (rl_arg.wide) {
+        i++;
+      }
     }
   }
 
@@ -1174,12 +1176,14 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     if (reg.Valid()) {
       if (rl_arg.wide) {
         LoadValueDirectWideFixed(rl_arg, reg);
-        i++;
       } else {
         LoadValueDirectFixed(rl_arg, reg);
       }
       call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                               direct_code, direct_method, type);
+                                  direct_code, direct_method, type);
+    }
+    if (rl_arg.wide) {
+      i++;
     }
   }
 
