@@ -1461,6 +1461,18 @@ static bool SkipClass(jobject class_loader, const DexFile& dex_file, mirror::Cla
   return false;
 }
 
+static void CheckAndClearResolveException(Thread* self)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  CHECK(self->IsExceptionPending());
+  mirror::Throwable* exception = self->GetException(nullptr);
+  std::string descriptor = exception->GetClass()->GetDescriptor();
+  if (descriptor != "Ljava/lang/IncompatibleClassChangeError;" &&
+      descriptor != "Ljava/lang/NoClassDefFoundError;") {
+    LOG(FATAL) << "Unexpected exeption " << exception->Dump();
+  }
+  self->ClearException();
+}
+
 static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manager,
                                          size_t class_def_index)
     LOCKS_EXCLUDED(Locks::mutator_lock_) {
@@ -1496,8 +1508,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
     if (klass == NULL) {
       // Class couldn't be resolved, for example, super-class is in a different dex file. Don't
       // attempt to resolve methods and fields when there is no declaring class.
-      CHECK(soa.Self()->IsExceptionPending());
-      soa.Self()->ClearException();
+      CheckAndClearResolveException(soa.Self());
       resolve_fields_and_methods = false;
     } else {
       resolve_fields_and_methods = manager->GetCompiler()->IsImage();
@@ -1516,8 +1527,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
           mirror::ArtField* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(),
                                                                dex_cache, class_loader, true);
           if (field == NULL) {
-            CHECK(soa.Self()->IsExceptionPending());
-            soa.Self()->ClearException();
+            CheckAndClearResolveException(soa.Self());
           }
         }
         it.Next();
@@ -1532,8 +1542,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
           mirror::ArtField* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(),
                                                                dex_cache, class_loader, false);
           if (field == NULL) {
-            CHECK(soa.Self()->IsExceptionPending());
-            soa.Self()->ClearException();
+            CheckAndClearResolveException(soa.Self());
           }
         }
         it.Next();
@@ -1545,8 +1554,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
                                                                   NullHandle<mirror::ArtMethod>(),
                                                                   it.GetMethodInvokeType(class_def));
           if (method == NULL) {
-            CHECK(soa.Self()->IsExceptionPending());
-            soa.Self()->ClearException();
+            CheckAndClearResolveException(soa.Self());
           }
           it.Next();
         }
@@ -1556,8 +1564,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
                                                                   NullHandle<mirror::ArtMethod>(),
                                                                   it.GetMethodInvokeType(class_def));
           if (method == NULL) {
-            CHECK(soa.Self()->IsExceptionPending());
-            soa.Self()->ClearException();
+            CheckAndClearResolveException(soa.Self());
           }
           it.Next();
         }
