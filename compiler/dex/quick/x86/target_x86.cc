@@ -1023,6 +1023,123 @@ void X86Mir2Lir::InstallLiteralPools() {
   Mir2Lir::InstallLiteralPools();
 }
 
+bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
+  if (cu_->target64) {
+    // TODO: Implement ArrayCOpy intrinsic for x86_64
+    return false;
+  }
+
+  RegLocation rl_src = info->args[0];
+  RegLocation rl_srcPos = info->args[1];
+  RegLocation rl_dst = info->args[2];
+  RegLocation rl_dstPos = info->args[3];
+  RegLocation rl_length = info->args[4];
+  if (rl_srcPos.is_const && (mir_graph_->ConstantValue(rl_srcPos) < 0)) {
+    return false;
+  }
+  if (rl_dstPos.is_const && (mir_graph_->ConstantValue(rl_dstPos) < 0)) {
+    return false;
+  }
+  ClobberCallerSave();
+  LockCallTemps();  // Using fixed registers
+  LoadValueDirectFixed(rl_src , rs_rAX);
+  LoadValueDirectFixed(rl_dst , rs_rCX);
+  LIR* src_dst_same  = OpCmpBranch(kCondEq, rs_rAX , rs_rCX, nullptr);
+  LIR* src_null_branch = OpCmpImmBranch(kCondEq, rs_rAX , 0, nullptr);
+  LIR* dst_null_branch = OpCmpImmBranch(kCondEq, rs_rCX , 0, nullptr);
+  LoadValueDirectFixed(rl_length , rs_rDX);
+  LIR* len_negative  = OpCmpImmBranch(kCondLt, rs_rDX , 0, nullptr);
+  LIR* len_too_big  = OpCmpImmBranch(kCondGt, rs_rDX , 128, nullptr);
+  LoadValueDirectFixed(rl_src , rs_rAX);
+  LoadWordDisp(rs_rAX , mirror::Array::LengthOffset().Int32Value(), rs_rAX);
+  LIR* src_bad_len  = nullptr;
+  LIR* srcPos_negative  = nullptr;
+  if (!rl_srcPos.is_const) {
+    LoadValueDirectFixed(rl_srcPos , rs_rBX);
+    srcPos_negative  = OpCmpImmBranch(kCondLt, rs_rBX , 0, nullptr);
+    OpRegReg(kOpAdd, rs_rBX, rs_rDX);
+    src_bad_len  = OpCmpBranch(kCondLt, rs_rAX , rs_rBX, nullptr);
+  } else {
+    int pos_val = mir_graph_->ConstantValue(rl_srcPos.orig_sreg);
+    if (pos_val == 0) {
+      src_bad_len  = OpCmpBranch(kCondLt, rs_rAX , rs_rDX, nullptr);
+    } else {
+      OpRegRegImm(kOpAdd, rs_rBX,  rs_rDX, pos_val);
+      src_bad_len  = OpCmpBranch(kCondLt, rs_rAX , rs_rBX, nullptr);
+    }
+  }
+  LIR* dstPos_negative = nullptr;
+  LIR* dst_bad_len = nullptr;
+  LoadValueDirectFixed(rl_dst, rs_rAX);
+  LoadWordDisp(rs_rAX, mirror::Array::LengthOffset().Int32Value(), rs_rAX);
+  if (!rl_dstPos.is_const) {
+    LoadValueDirectFixed(rl_dstPos , rs_rBX);
+    dstPos_negative = OpCmpImmBranch(kCondLt, rs_rBX , 0, nullptr);
+    OpRegRegReg(kOpAdd, rs_rBX, rs_rBX, rs_rDX);
+    dst_bad_len = OpCmpBranch(kCondLt, rs_rAX , rs_rBX, nullptr);
+  } else {
+    int pos_val = mir_graph_->ConstantValue(rl_dstPos.orig_sreg);
+    if (pos_val == 0) {
+      dst_bad_len = OpCmpBranch(kCondLt, rs_rAX , rs_rDX, nullptr);
+    } else {
+      OpRegRegImm(kOpAdd, rs_rBX,  rs_rDX, pos_val);
+      dst_bad_len = OpCmpBranch(kCondLt, rs_rAX , rs_rBX, nullptr);
+    }
+  }
+  // everything is checked now
+  LoadValueDirectFixed(rl_src , rs_rAX);
+  LoadValueDirectFixed(rl_dst , rs_rBX);
+  LoadValueDirectFixed(rl_srcPos , rs_rCX);
+  NewLIR5(kX86Lea32RA, rs_rAX.GetReg(), rs_rAX.GetReg(),
+       rs_rCX.GetReg() , 1, mirror::Array::DataOffset(2).Int32Value());
+  // RAX now holds the address of the first src element to be copied
+
+  LoadValueDirectFixed(rl_dstPos , rs_rCX);
+  NewLIR5(kX86Lea32RA, rs_rBX.GetReg(), rs_rBX.GetReg(),
+       rs_rCX.GetReg() , 1, mirror::Array::DataOffset(2).Int32Value() );
+  // RBX now holds the address of the first dst element to be copied
+
+  // check if the number of elements to be copied is odd or even. If odd
+  // then copy the first element (so that the remaining number of elements
+  // is even).
+  LoadValueDirectFixed(rl_length , rs_rCX);
+  OpRegImm(kOpAnd, rs_rCX, 1);
+  LIR* jmp_to_begin_loop  = OpCmpImmBranch(kCondEq, rs_rCX, 0, nullptr);
+  OpRegImm(kOpSub, rs_rDX, 1);
+  LoadBaseIndexedDisp(rs_rAX, rs_rDX, 1, 0, rs_rCX, kSignedHalf);
+  StoreBaseIndexedDisp(rs_rBX, rs_rDX, 1, 0, rs_rCX, kSignedHalf);
+
+  // since the remaining number of elements is even, we will copy by
+  // two elements at a time.
+  LIR *beginLoop = NewLIR0(kPseudoTargetLabel);
+  LIR* jmp_to_ret  = OpCmpImmBranch(kCondEq, rs_rDX , 0, nullptr);
+  OpRegImm(kOpSub, rs_rDX, 2);
+  LoadBaseIndexedDisp(rs_rAX, rs_rDX, 1, 0, rs_rCX, kSingle);
+  StoreBaseIndexedDisp(rs_rBX, rs_rDX, 1, 0, rs_rCX, kSingle);
+  OpUnconditionalBranch(beginLoop);
+  LIR *check_failed = NewLIR0(kPseudoTargetLabel);
+  LIR* launchpad_branch  = OpUnconditionalBranch(nullptr);
+  LIR *return_point = NewLIR0(kPseudoTargetLabel);
+  jmp_to_ret->target = return_point;
+  jmp_to_begin_loop->target = beginLoop;
+  src_dst_same->target = check_failed;
+  len_negative->target = check_failed;
+  len_too_big->target = check_failed;
+  src_null_branch->target = check_failed;
+  if (srcPos_negative != nullptr)
+    srcPos_negative ->target = check_failed;
+  if (src_bad_len != nullptr)
+    src_bad_len->target = check_failed;
+  dst_null_branch->target = check_failed;
+  if (dstPos_negative != nullptr)
+    dstPos_negative->target = check_failed;
+  if (dst_bad_len != nullptr)
+    dst_bad_len->target = check_failed;
+  AddIntrinsicSlowPath(info, launchpad_branch, return_point);
+  return true;
+}
+
+
 /*
  * Fast string.index_of(I) & (II).  Inline check for simple case of char <= 0xffff,
  * otherwise bails to standard library code.
