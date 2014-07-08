@@ -64,15 +64,14 @@ static InstructionSet ElfISAToInstructionSet(Elf32_Word isa) {
 
 bool PatchOat::Patch(const std::string& image_location, off_t delta,
                      File* output_image, InstructionSet isa,
-                     TimingLogger& timings) {
-  std::string error_msg;
+                     TimingLogger* timings) {
   CHECK(Runtime::Current() == nullptr);
   CHECK(output_image != nullptr);
   CHECK_GE(output_image->Fd(), 0);
   CHECK(!image_location.empty()) << "image file must have a filename.";
   CHECK_NE(isa, kNone);
 
-  TimingLogger::ScopedTiming t("Runtime Setup", &timings);
+  TimingLogger::ScopedTiming t("Runtime Setup", timings);
   const char *isa_name = GetInstructionSetString(isa);
   std::string image_filename(GetSystemImageFilename(image_location.c_str(), isa));
   std::unique_ptr<File> input_image(OS::OpenFileForReading(image_filename.c_str()));
@@ -110,6 +109,7 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
 
   t.NewTiming("Image and oat Patching setup");
   // Create the map where we will write the image patches to.
+  std::string error_msg;
   std::unique_ptr<MemMap> image(MemMap::MapFile(image_len, PROT_READ | PROT_WRITE, MAP_PRIVATE,
                                                 input_image->Fd(), 0,
                                                 input_image->GetPath().c_str(),
@@ -137,8 +137,7 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
 
 bool PatchOat::Patch(const File* input_oat, const std::string& image_location, off_t delta,
                      File* output_oat, File* output_image, InstructionSet isa,
-                     TimingLogger& timings) {
-  std::string error_msg;
+                     TimingLogger* timings) {
   CHECK(Runtime::Current() == nullptr);
   CHECK(output_image != nullptr);
   CHECK_GE(output_image->Fd(), 0);
@@ -148,7 +147,7 @@ bool PatchOat::Patch(const File* input_oat, const std::string& image_location, o
   CHECK_GE(output_oat->Fd(), 0);
   CHECK(!image_location.empty()) << "image file must have a filename.";
 
-  TimingLogger::ScopedTiming t("Runtime Setup", &timings);
+  TimingLogger::ScopedTiming t("Runtime Setup", timings);
 
   if (isa == kNone) {
     Elf32_Ehdr elf_hdr;
@@ -194,6 +193,7 @@ bool PatchOat::Patch(const File* input_oat, const std::string& image_location, o
 
   t.NewTiming("Image and oat Patching setup");
   // Create the map where we will write the image patches to.
+  std::string error_msg;
   std::unique_ptr<MemMap> image(MemMap::MapFile(image_len, PROT_READ | PROT_WRITE, MAP_PRIVATE,
                                                 input_image->Fd(), 0,
                                                 input_image->GetPath().c_str(),
@@ -234,7 +234,7 @@ bool PatchOat::Patch(const File* input_oat, const std::string& image_location, o
 }
 
 bool PatchOat::WriteElf(File* out) {
-  TimingLogger::ScopedTiming t("Writing Elf File", &timings_);
+  TimingLogger::ScopedTiming t("Writing Elf File", timings_);
   CHECK(oat_file_.get() != nullptr);
   CHECK(out != nullptr);
   size_t expect = oat_file_->Size();
@@ -248,7 +248,7 @@ bool PatchOat::WriteElf(File* out) {
 }
 
 bool PatchOat::WriteImage(File* out) {
-  TimingLogger::ScopedTiming t("Writing image File", &timings_);
+  TimingLogger::ScopedTiming t("Writing image File", timings_);
   CHECK(image_ != nullptr);
   CHECK(out != nullptr);
   size_t expect = image_->Size();
@@ -275,7 +275,7 @@ bool PatchOat::PatchImage() {
   }
 
   {
-    TimingLogger::ScopedTiming t("Walk Bitmap", &timings_);
+    TimingLogger::ScopedTiming t("Walk Bitmap", timings_);
     // Walk the bitmap.
     WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
     bitmap_->Walk(PatchOat::BitmapCallback, this);
@@ -348,7 +348,7 @@ void PatchOat::VisitObject(mirror::Object* object) {
 
 void PatchOat::FixupMethod(mirror::ArtMethod* object, mirror::ArtMethod* copy) {
   // Just update the entry points if it looks like we should.
-  // TODO sanity check all the pointers' values
+  // TODO: sanity check all the pointers' values
   uintptr_t portable = reinterpret_cast<uintptr_t>(
       object->GetEntryPointFromPortableCompiledCode<kVerifyNone>());
   if (portable != 0) {
@@ -377,12 +377,12 @@ void PatchOat::FixupMethod(mirror::ArtMethod* object, mirror::ArtMethod* copy) {
   }
 }
 
-bool PatchOat::Patch(File* input_oat, off_t delta, File* output_oat, TimingLogger& timings) {
+bool PatchOat::Patch(File* input_oat, off_t delta, File* output_oat, TimingLogger* timings) {
   CHECK(input_oat != nullptr);
   CHECK(output_oat != nullptr);
   CHECK_GE(input_oat->Fd(), 0);
   CHECK_GE(output_oat->Fd(), 0);
-  TimingLogger::ScopedTiming t("Setup Oat File Patching", &timings);
+  TimingLogger::ScopedTiming t("Setup Oat File Patching", timings);
 
   std::string error_msg;
   std::unique_ptr<ElfFile> elf(ElfFile::Open(const_cast<File*>(input_oat),
@@ -437,7 +437,7 @@ bool PatchOat::CheckOatFile() {
 }
 
 bool PatchOat::PatchElf() {
-  TimingLogger::ScopedTiming t("Fixup Elf Headers", &timings_);
+  TimingLogger::ScopedTiming t("Fixup Elf Headers", timings_);
   // Fixup Phdr's
   for (unsigned int i = 0; i < oat_file_->GetProgramHeaderNum(); i++) {
     Elf32_Phdr& hdr = oat_file_->GetProgramHeader(i);
@@ -623,28 +623,28 @@ static void Usage(const char *fmt, ...) {
   exit(EXIT_FAILURE);
 }
 
-static bool ReadBaseDelta(const char* name, off_t* delta, std::string& error_msg) {
+static bool ReadBaseDelta(const char* name, off_t* delta, std::string* error_msg) {
   CHECK(name != nullptr);
   CHECK(delta != nullptr);
   std::unique_ptr<File> file;
   if (OS::FileExists(name)) {
     file.reset(OS::OpenFileForReading(name));
     if (file.get() == nullptr) {
-      error_msg = "Failed to open file %s for reading";
+      *error_msg = "Failed to open file %s for reading";
       return false;
     }
   } else {
-    error_msg = "File %s does not exist";
+    *error_msg = "File %s does not exist";
     return false;
   }
   CHECK(file.get() != nullptr);
   ImageHeader hdr;
   if (sizeof(hdr) != file->Read(reinterpret_cast<char*>(&hdr), sizeof(hdr), 0)) {
-    error_msg = "Failed to read file %s";
+    *error_msg = "Failed to read file %s";
     return false;
   }
   if (!hdr.IsValid()) {
-    error_msg = "%s does not contain a valid image header.";
+    *error_msg = "%s does not contain a valid image header.";
     return false;
   }
   *delta = hdr.GetPatchDelta();
@@ -661,7 +661,7 @@ static File* CreateOrOpen(const char* name, bool* created) {
   }
 }
 
-int patchoat(int argc, char **argv) {
+static int patchoat(int argc, char **argv) {
   InitLogging(argv);
   const bool debug = kIsDebugBuild;
   orig_argc = argc;
@@ -712,7 +712,7 @@ int patchoat(int argc, char **argv) {
     if (log_options) {
       LOG(INFO) << "patchoat: option[" << i << "]=" << argv[i];
     }
-    // TODO GetInstructionSetFromString shouldn't LOG(FATAL).
+    // TODO: GetInstructionSetFromString shouldn't LOG(FATAL).
     if (option.starts_with("--instruction-set=")) {
       isa_set = true;
       const char* isa_str = option.substr(strlen("--instruction-set=")).data();
@@ -921,7 +921,7 @@ int patchoat(int argc, char **argv) {
     } else if (!patched_image_filename.empty()) {
       base_delta_set = true;
       std::string error_msg;
-      if (!ReadBaseDelta(patched_image_filename.c_str(), &base_delta, error_msg)) {
+      if (!ReadBaseDelta(patched_image_filename.c_str(), &base_delta, &error_msg)) {
         Usage(error_msg.c_str(), patched_image_filename.c_str());
       }
     } else {
@@ -1000,14 +1000,14 @@ int patchoat(int argc, char **argv) {
   if (have_image_files && have_oat_files) {
     TimingLogger::ScopedTiming pt("patch image and oat", &timings);
     ret = PatchOat::Patch(input_oat.get(), input_image_location, base_delta,
-                          output_oat.get(), output_image.get(), isa, timings);
+                          output_oat.get(), output_image.get(), isa, &timings);
   } else if (have_oat_files) {
     TimingLogger::ScopedTiming pt("patch oat", &timings);
-    ret = PatchOat::Patch(input_oat.get(), base_delta, output_oat.get(), timings);
+    ret = PatchOat::Patch(input_oat.get(), base_delta, output_oat.get(), &timings);
   } else {
     TimingLogger::ScopedTiming pt("patch image", &timings);
     CHECK(have_image_files);
-    ret = PatchOat::Patch(input_image_location, base_delta, output_image.get(), isa, timings);
+    ret = PatchOat::Patch(input_image_location, base_delta, output_image.get(), isa, &timings);
   }
   cleanup(ret);
   return (ret) ? EXIT_SUCCESS : EXIT_FAILURE;

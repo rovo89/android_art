@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <unordered_set>
-
 #include "elf_writer_quick.h"
 
 #include "base/logging.h"
