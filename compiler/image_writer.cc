@@ -796,9 +796,9 @@ void ImageWriter::PatchOatCodeAndMethods(File* elf_file) {
   };
   const bool add_patches = compiler_driver_.GetCompilerOptions().GetIncludePatchInformation();
   if (add_patches) {
-    // TODO if we are adding patches the resulting ELF file might have a
-    // potentially rather large amount of free space where patches might have been
-    // placed. We should adjust the ELF file to get rid of this excess space.
+    // TODO if we are adding patches the resulting ELF file might have a potentially rather large
+    // amount of free space where patches might have been placed. We should adjust the ELF file to
+    // get rid of this excess space.
     patches.reserve(compiler_driver_.GetCodeToPatch().size() +
                     compiler_driver_.GetMethodsToPatch().size() +
                     compiler_driver_.GetClassesToPatch().size());
@@ -892,7 +892,7 @@ void ImageWriter::PatchOatCodeAndMethods(File* elf_file) {
     }
     Elf32_Shdr* shdr = file->FindSectionByName(".oat_patches");
     if (shdr != nullptr) {
-      DCHECK_EQ(shdr, file->FindSectionByType(SHT_OAT_PATCH))
+      CHECK_EQ(shdr, file->FindSectionByType(SHT_OAT_PATCH))
           << "Incorrect type for .oat_patches section";
       CHECK_LE(patches.size() * sizeof(uintptr_t), shdr->sh_size)
           << "We got more patches than anticipated";
@@ -903,9 +903,8 @@ void ImageWriter::PatchOatCodeAndMethods(File* elf_file) {
           << "Section overlaps onto next section";
       // It's mmap'd so we can just memcpy.
       memcpy(file->Begin() + shdr->sh_offset, patches.data(), patches.size()*sizeof(uintptr_t));
-      // TODO We should fill in the newly empty space between the last patch and
-      // the start of the next section by moving the following sections down if
-      // possible.
+      // TODO We should fill in the newly empty space between the last patch and the start of the
+      // next section by moving the following sections down if possible.
       shdr->sh_size = patches.size() * sizeof(uintptr_t);
     } else {
       LOG(ERROR) << "Unable to find section header for SHT_OAT_PATCH";
