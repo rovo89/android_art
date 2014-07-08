@@ -1063,6 +1063,7 @@ class MIRGraph {
   BasicBlock* FindBlock(DexOffset code_offset, bool split, bool create,
                         BasicBlock** immed_pred_block_p);
   void ProcessTryCatchBlocks();
+  bool IsBadMonitorExitCatch(NarrowDexOffset monitor_exit_offset, NarrowDexOffset catch_offset);
   BasicBlock* ProcessCanBranch(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset, int width,
                                int flags, const uint16_t* code_ptr, const uint16_t* code_end);
   BasicBlock* ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset, int width,
