@@ -87,7 +87,8 @@ endef
 # $(2): input test directory in art/test, e.g. HelloWorld
 # $(3): target output module path (default module path is used on host)
 # $(4): additional dependencies
-# $(5): a make variable used to collate dependencies
+# $(5): a make variable used to collate target dependencies, e.g ART_TEST_TARGET_OAT_HelloWorld_DEX
+# $(6): a make variable used to collate host dependencies, e.g ART_TEST_HOST_OAT_HelloWorld_DEX
 define build-art-test-dex
   ifeq ($(ART_BUILD_TARGET),true)
     include $(CLEAR_VARS)
@@ -113,7 +114,7 @@ define build-art-test-dex
     LOCAL_JAVA_LIBRARIES := $(HOST_CORE_JARS)
     LOCAL_DEX_PREOPT_IMAGE := $(HOST_CORE_IMG_LOCATION)
     include $(BUILD_HOST_DALVIK_JAVA_LIBRARY)
-    $(5)-host := $$(LOCAL_INSTALLED_MODULE)
+    $(6) := $$(LOCAL_INSTALLED_MODULE)
   endif
 endef
 

@@ -40,7 +40,8 @@ TEST_OAT_DIRECTORIES := \
 
 # Create build rules for each dex file recording the dependency.
 $(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-dex,art-oat-test,$(dir), \
-  $(ART_TARGET_TEST_OUT),$(LOCAL_PATH)/Android.oat.mk,ART_OAT_TEST_$(dir)_DEX)))
+  $(ART_TARGET_TEST_OUT),$(LOCAL_PATH)/Android.oat.mk,ART_TEST_TARGET_OAT_$(dir)_DEX, \
+  ART_TEST_HOST_OAT_$(dir)_DEX)))
 
 ########################################################################
 
@@ -77,7 +78,7 @@ endif
 define define-test-art-oat-rule-target
   # Add the test dependencies to test-art-target-sync, which will be a prerequisite for the test
   # to ensure files are pushed to the device.
-  TEST_ART_TARGET_SYNC_DEPS += $$(ART_OAT_TEST_$(1)_DEX)
+  TEST_ART_TARGET_SYNC_DEPS += $$(ART_TEST_TARGET_OAT_$(1)_DEX)
 
 .PHONY: $(3)
 $(3): test-art-target-sync
@@ -189,7 +190,7 @@ define define-test-art-oat-rule-host
 $(3): PRIVATE_DEX_FILE := /$$(dex_file)
 $(3): PRIVATE_OAT_FILE := $$(oat_file)
 .PHONY: $(3)
-$(3): $$(ART_OAT_TEST_$(1)_DEX) $(ART_TEST_HOST_OAT_DEPENDENCIES)
+$(3): $$(ART_TEST_HOST_OAT_$(1)_DEX) $(ART_TEST_HOST_OAT_DEPENDENCIES)
 	$(hide) mkdir -p $(ART_HOST_TEST_DIR)/android-data-$$@/dalvik-cache/$$($(2)HOST_ARCH)
 	$(hide) cp $$(realpath $$<) $(ART_HOST_TEST_DIR)/android-data-$$@/oat-test-dex-$(1).jar
 	$(hide) $(DEX2OATD) $(DEX2OAT_FLAGS) --runtime-arg -Xms16m --runtime-arg -Xmx16m $(4) \
@@ -447,7 +448,8 @@ ART_TEST_HOST_OAT$(ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_OAT$(2ND_ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_OAT_RULES :=
 ART_TEST_HOST_OAT_DEPENDENCIES :=
-$(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval ART_OAT_TEST_$(dir)_DEX :=))
+$(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval ART_TEST_TARGET_OAT_$(dir)_DEX :=))
+$(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval ART_TEST_HOST_OAT_$(dir)_DEX :=))
 TEST_OAT_DIRECTORIES :=
 LOCAL_PID :=
 LOCAL_PATH :=

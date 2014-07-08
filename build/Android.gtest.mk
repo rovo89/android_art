@@ -42,7 +42,8 @@ GTEST_DEX_DIRECTORIES := \
 
 # Create build rules for each dex file recording the dependency.
 $(foreach dir,$(GTEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,art-gtest,$(dir), \
-  $(ART_TARGET_NATIVETEST_OUT),art/build/Android.gtest.mk,ART_GTEST_$(dir)_DEX)))
+  $(ART_TARGET_NATIVETEST_OUT),art/build/Android.gtest.mk,ART_TEST_TARGET_GTEST_$(dir)_DEX, \
+  ART_TEST_HOST_GTEST_$(dir)_DEX)))
 
 # Dex file dependencies for each gtest.
 ART_GTEST_class_linker_test_DEX_DEPS := Interfaces MyClass Nested Statics StaticsFromCode
@@ -196,7 +197,7 @@ define define-art-gtest-rule-target
   # to ensure files are pushed to the device.
   TEST_ART_TARGET_SYNC_DEPS += \
     $$(ART_GTEST_$(1)_TARGET_DEPS) \
-    $(foreach file,$(ART_GTEST_$(1)_DEX_DEPS),$(ART_GTEST_$(file)_DEX)) \
+    $(foreach file,$(ART_GTEST_$(1)_DEX_DEPS),$(ART_TEST_TARGET_GTEST_$(file)_DEX)) \
     $$(ART_TARGET_NATIVETEST_OUT)/$$(TARGET_$(2)ARCH)/$(1) \
     $$($(2)TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
 
@@ -232,7 +233,7 @@ define define-art-gtest-rule-host
 
 
 .PHONY: $$(gtest_rule)
-$$(gtest_rule): $$(gtest_exe) $$(ART_GTEST_$(1)_HOST_DEPS) $(foreach file,$(ART_GTEST_$(1)_DEX_DEPS),$(ART_GTEST_$(file)_DEX-host)) $$(gtest_deps)
+$$(gtest_rule): $$(gtest_exe) $$(ART_GTEST_$(1)_HOST_DEPS) $(foreach file,$(ART_GTEST_$(1)_DEX_DEPS),$(ART_TEST_HOST_GTEST_$(file)_DEX)) $$(gtest_deps)
 	$(hide) ($$(call ART_TEST_SKIP,$$@) && $$< && $$(call ART_TEST_PASSED,$$@)) \
 	  || $$(call ART_TEST_FAILED,$$@)
 
@@ -241,7 +242,7 @@ $$(gtest_rule): $$(gtest_exe) $$(ART_GTEST_$(1)_HOST_DEPS) $(foreach file,$(ART_
   ART_TEST_HOST_GTEST_$(1)_RULES += $$(gtest_rule)
 
 .PHONY: valgrind-$$(gtest_rule)
-valgrind-$$(gtest_rule): $$(gtest_exe) $$(ART_GTEST_$(1)_HOST_DEPS) $(foreach file,$(ART_GTEST_$(1)_DEX_DEPS),$(ART_GTEST_$(file)_DEX-host)) $$(gtest_deps)
+valgrind-$$(gtest_rule): $$(gtest_exe) $$(ART_GTEST_$(1)_HOST_DEPS) $(foreach file,$(ART_GTEST_$(1)_DEX_DEPS),$(ART_TEST_HOST_GTEST_$(file)_DEX)) $$(gtest_deps)
 	$(hide) $$(call ART_TEST_SKIP,$$@) && \
 	  valgrind --leak-check=full --error-exitcode=1 $$< && $$(call ART_TEST_PASSED,$$@) \
 	    || $$(call ART_TEST_FAILED,$$@)
@@ -459,6 +460,7 @@ ART_GTEST_proxy_test_DEX_DEPS :=
 ART_GTEST_reflection_test_DEX_DEPS :=
 ART_GTEST_stub_test_DEX_DEPS :=
 ART_GTEST_transaction_test_DEX_DEPS :=
-$(foreach dir,$(GTEST_DEX_DIRECTORIES), $(eval ART_GTEST_TEST_$(dir)_DEX :=))
+$(foreach dir,$(GTEST_DEX_DIRECTORIES), $(eval ART_TEST_TARGET_GTEST_$(dir)_DEX :=))
+$(foreach dir,$(GTEST_DEX_DIRECTORIES), $(eval ART_TEST_HOST_GTEST_$(dir)_DEX :=))
 GTEST_DEX_DIRECTORIES :=
 LOCAL_PATH :=
