@@ -761,54 +761,59 @@ bool X86Mir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
 }
 
 bool X86Mir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
-  return false;
-// Turned off until tests available in Art.
-//
-//  RegLocation rl_src_address = info->args[0];  // long address
-//  RegLocation rl_address;
-//  if (!cu_->target64) {
-//    rl_src_address = NarrowRegLoc(rl_src_address);  // ignore high half in info->args[0]
-//    rl_address = LoadValue(rl_src_address, kCoreReg);
-//  } else {
-//    rl_address = LoadValueWide(rl_src_address, kCoreReg);
-//  }
-//  RegLocation rl_dest = size == k64 ? InlineTargetWide(info) : InlineTarget(info);
-//  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-//  // Unaligned access is allowed on x86.
-//  LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size, kNotVolatile);
-//  if (size == k64) {
-//    StoreValueWide(rl_dest, rl_result);
-//  } else {
-//    DCHECK(size == kSignedByte || size == kSignedHalf || size == k32);
-//    StoreValue(rl_dest, rl_result);
-//  }
-//  return true;
+  RegLocation rl_src_address = info->args[0];  // long address
+  RegLocation rl_address;
+  if (!cu_->target64) {
+    rl_src_address = NarrowRegLoc(rl_src_address);  // ignore high half in info->args[0]
+    rl_address = LoadValue(rl_src_address, kCoreReg);
+  } else {
+    rl_address = LoadValueWide(rl_src_address, kCoreReg);
+  }
+  RegLocation rl_dest = size == k64 ? InlineTargetWide(info) : InlineTarget(info);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  // Unaligned access is allowed on x86.
+  LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size, kNotVolatile);
+  if (size == k64) {
+    StoreValueWide(rl_dest, rl_result);
+  } else {
+    DCHECK(size == kSignedByte || size == kSignedHalf || size == k32);
+    StoreValue(rl_dest, rl_result);
+  }
+  return true;
 }
 
 bool X86Mir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
-  return false;
-// Turned off until tests available in Art.
-//
-//  RegLocation rl_src_address = info->args[0];  // long address
-//  RegLocation rl_address;
-//  if (!cu_->target64) {
-//    rl_src_address = NarrowRegLoc(rl_src_address);  // ignore high half in info->args[0]
-//    rl_address = LoadValue(rl_src_address, kCoreReg);
-//  } else {
-//    rl_address = LoadValueWide(rl_src_address, kCoreReg);
-//  }
-//  RegLocation rl_src_value = info->args[2];  // [size] value
-//  if (size == k64) {
-//    // Unaligned access is allowed on x86.
-//    RegLocation rl_value = LoadValueWide(rl_src_value, kCoreReg);
-//    StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size, kNotVolatile);
-//  } else {
-//    DCHECK(size == kSignedByte || size == kSignedHalf || size == k32);
-//    // Unaligned access is allowed on x86.
-//    RegLocation rl_value = LoadValue(rl_src_value, kCoreReg);
-//    StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size, kNotVolatile);
-//  }
-//  return true;
+  RegLocation rl_src_address = info->args[0];  // long address
+  RegLocation rl_address;
+  if (!cu_->target64) {
+    rl_src_address = NarrowRegLoc(rl_src_address);  // ignore high half in info->args[0]
+    rl_address = LoadValue(rl_src_address, kCoreReg);
+  } else {
+    rl_address = LoadValueWide(rl_src_address, kCoreReg);
+  }
+  RegLocation rl_src_value = info->args[2];  // [size] value
+  RegLocation rl_value;
+  if (size == k64) {
+    // Unaligned access is allowed on x86.
+    rl_value = LoadValueWide(rl_src_value, kCoreReg);
+  } else {
+    DCHECK(size == kSignedByte || size == kSignedHalf || size == k32);
+    // In 32-bit mode the only EAX..EDX registers can be used with Mov8MR.
+    if (!cu_->target64 && size == kSignedByte) {
+      rl_src_value = UpdateLocTyped(rl_src_value, kCoreReg);
+      if (rl_src_value.location == kLocPhysReg && !IsByteRegister(rl_src_value.reg)) {
+        RegStorage temp = AllocateByteRegister();
+        OpRegCopy(temp, rl_src_value.reg);
+        rl_value.reg = temp;
+      } else {
+        rl_value = LoadValue(rl_src_value, kCoreReg);
+      }
+    } else {
+      rl_value = LoadValue(rl_src_value, kCoreReg);
+    }
+  }
+  StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size, kNotVolatile);
+  return true;
 }
 
 void X86Mir2Lir::OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int scale, int offset) {
