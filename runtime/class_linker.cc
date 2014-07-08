@@ -1163,7 +1163,9 @@ void ClassLinker::InitFromImage() {
   OatFile& oat_file = GetImageOatFile(space);
   CHECK_EQ(oat_file.GetOatHeader().GetImageFileLocationOatChecksum(), 0U);
   CHECK_EQ(oat_file.GetOatHeader().GetImageFileLocationOatDataBegin(), 0U);
-  CHECK(oat_file.GetOatHeader().GetImageFileLocation().empty());
+  const char* image_file_location = oat_file.GetOatHeader().
+      GetStoreValueByKey(OatHeader::kImageLocationKey);
+  CHECK(image_file_location == nullptr || *image_file_location == 0);
   portable_resolution_trampoline_ = oat_file.GetOatHeader().GetPortableResolutionTrampoline();
   quick_resolution_trampoline_ = oat_file.GetOatHeader().GetQuickResolutionTrampoline();
   portable_imt_conflict_trampoline_ = oat_file.GetOatHeader().GetPortableImtConflictTrampoline();

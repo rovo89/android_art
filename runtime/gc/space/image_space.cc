@@ -348,6 +348,10 @@ bool ImageSpace::ValidateOatFile(std::string* error_msg) const {
   return true;
 }
 
+const OatFile* ImageSpace::GetOatFile() const {
+  return oat_file_.get();
+}
+
 OatFile* ImageSpace::ReleaseOatFile() {
   CHECK(oat_file_.get() != NULL);
   return oat_file_.release();
