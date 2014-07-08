@@ -23,7 +23,7 @@ DEFINE_FUNCTION art_jni_dlsym_lookup_stub
     // Save callee and GPR args, mixed together to agree with core spills bitmap.
     PUSH r9   // Arg.
     PUSH r8   // Arg.
-    PUSH rdi  //
+    PUSH rdi  // JniEnv.
     PUSH rsi  // Arg.
     PUSH rdx  // Arg.
     PUSH rcx  // Arg.
@@ -40,7 +40,7 @@ DEFINE_FUNCTION art_jni_dlsym_lookup_stub
     movq %xmm6, 48(%rsp)
     movq %xmm7, 56(%rsp)
     // prepare call
-    movq %gs:THREAD_SELF_OFFSET, %rsi      // RSI := Thread::Current()
+    movq %gs:THREAD_SELF_OFFSET, %rdi      // RDI := Thread::Current()
     // call
     call PLT_SYMBOL(artFindNativeMethod)  // (Thread*)
     // restore arguments
@@ -57,7 +57,7 @@ DEFINE_FUNCTION art_jni_dlsym_lookup_stub
     POP rcx  // Arg.
     POP rdx  // Arg.
     POP rsi  // Arg.
-    POP rdi  //
+    POP rdi  // JniEnv.
     POP r8   // Arg.
     POP r9   // Arg.
     testq %rax, %rax         // check if returned method code is null
