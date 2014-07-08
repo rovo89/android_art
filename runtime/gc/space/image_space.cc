@@ -61,13 +61,6 @@ static bool GenerateImage(const std::string& image_filename, std::string* error_
   image_option_string += image_filename;
   arg_vector.push_back(image_option_string);
 
-  arg_vector.push_back("--runtime-arg");
-  arg_vector.push_back("-Xms64m");
-
-  arg_vector.push_back("--runtime-arg");
-  arg_vector.push_back("-Xmx64m");
-
-
   for (size_t i = 0; i < boot_class_path.size(); i++) {
     arg_vector.push_back(std::string("--dex-file=") + boot_class_path[i]);
   }

@@ -581,10 +581,6 @@ bool ClassLinker::GenerateOatFile(const char* dex_filename,
   std::vector<std::string> argv;
   argv.push_back(dex2oat);
   argv.push_back("--runtime-arg");
-  argv.push_back("-Xms64m");
-  argv.push_back("--runtime-arg");
-  argv.push_back("-Xmx64m");
-  argv.push_back("--runtime-arg");
   argv.push_back("-classpath");
   argv.push_back("--runtime-arg");
   argv.push_back(Runtime::Current()->GetClassPathString());
