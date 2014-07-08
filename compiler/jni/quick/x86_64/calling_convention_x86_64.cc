@@ -130,11 +130,19 @@ X86_64JniCallingConvention::X86_64JniCallingConvention(bool is_static, bool is_s
   callee_save_regs_.push_back(X86_64ManagedRegister::FromCpuRegister(R13));
   callee_save_regs_.push_back(X86_64ManagedRegister::FromCpuRegister(R14));
   callee_save_regs_.push_back(X86_64ManagedRegister::FromCpuRegister(R15));
+  callee_save_regs_.push_back(X86_64ManagedRegister::FromXmmRegister(XMM12));
+  callee_save_regs_.push_back(X86_64ManagedRegister::FromXmmRegister(XMM13));
+  callee_save_regs_.push_back(X86_64ManagedRegister::FromXmmRegister(XMM14));
+  callee_save_regs_.push_back(X86_64ManagedRegister::FromXmmRegister(XMM15));
 }
 
 uint32_t X86_64JniCallingConvention::CoreSpillMask() const {
   return 1 << RBX | 1 << RBP | 1 << R12 | 1 << R13 | 1 << R14 | 1 << R15 |
       1 << kNumberOfCpuRegisters;
+}
+
+uint32_t X86_64JniCallingConvention::FpSpillMask() const {
+  return 1 << XMM12 | 1 << XMM13 | 1 << XMM14 | 1 << XMM15;
 }
 
 size_t X86_64JniCallingConvention::FrameSize() {

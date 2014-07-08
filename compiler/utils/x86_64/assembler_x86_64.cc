@@ -1671,16 +1671,31 @@ void X86_64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                                  const std::vector<ManagedRegister>& spill_regs,
                                  const ManagedRegisterEntrySpills& entry_spills) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
+  int gpr_count = 0;
   for (int i = spill_regs.size() - 1; i >= 0; --i) {
-    pushq(spill_regs.at(i).AsX86_64().AsCpuRegister());
+    x86_64::X86_64ManagedRegister spill = spill_regs.at(i).AsX86_64();
+    if (spill.IsCpuRegister()) {
+      pushq(spill.AsCpuRegister());
+      gpr_count++;
+    }
   }
   // return address then method on stack
-  addq(CpuRegister(RSP), Immediate(-static_cast<int64_t>(frame_size) + (spill_regs.size() * kFramePointerSize) +
-                                   sizeof(StackReference<mirror::ArtMethod>) /*method*/ +
-                                   kFramePointerSize /*return address*/));
+  int64_t rest_of_frame = static_cast<int64_t>(frame_size)
+                          - (gpr_count * kFramePointerSize)
+                          - kFramePointerSize /*return address*/;
+  subq(CpuRegister(RSP), Immediate(rest_of_frame));
+  // spill xmms
+  int64_t offset = rest_of_frame;
+  for (int i = spill_regs.size() - 1; i >= 0; --i) {
+    x86_64::X86_64ManagedRegister spill = spill_regs.at(i).AsX86_64();
+    if (spill.IsXmmRegister()) {
+      offset -= sizeof(double);
+      movsd(Address(CpuRegister(RSP), offset), spill.AsXmmRegister());
+    }
+  }
 
   DCHECK_EQ(4U, sizeof(StackReference<mirror::ArtMethod>));
-  subq(CpuRegister(RSP), Immediate(4));
+
   movl(Address(CpuRegister(RSP), 0), method_reg.AsX86_64().AsCpuRegister());
 
   for (size_t i = 0; i < entry_spills.size(); ++i) {
@@ -1707,9 +1722,24 @@ void X86_64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 void X86_64Assembler::RemoveFrame(size_t frame_size,
                             const std::vector<ManagedRegister>& spill_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
-  addq(CpuRegister(RSP), Immediate(static_cast<int64_t>(frame_size) - (spill_regs.size() * kFramePointerSize) - kFramePointerSize));
+  int gpr_count = 0;
+  // unspill xmms
+  int64_t offset = static_cast<int64_t>(frame_size) - (spill_regs.size() * kFramePointerSize) - 2 * kFramePointerSize;
   for (size_t i = 0; i < spill_regs.size(); ++i) {
-    popq(spill_regs.at(i).AsX86_64().AsCpuRegister());
+    x86_64::X86_64ManagedRegister spill = spill_regs.at(i).AsX86_64();
+    if (spill.IsXmmRegister()) {
+      offset += sizeof(double);
+      movsd(spill.AsXmmRegister(), Address(CpuRegister(RSP), offset));
+    } else {
+      gpr_count++;
+    }
+  }
+  addq(CpuRegister(RSP), Immediate(static_cast<int64_t>(frame_size) - (gpr_count * kFramePointerSize) - kFramePointerSize));
+  for (size_t i = 0; i < spill_regs.size(); ++i) {
+    x86_64::X86_64ManagedRegister spill = spill_regs.at(i).AsX86_64();
+    if (spill.IsCpuRegister()) {
+      popq(spill.AsCpuRegister());
+    }
   }
   ret();
 }

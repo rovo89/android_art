@@ -34,5 +34,14 @@ std::ostream& operator<<(std::ostream& os, const Register& rhs) {
   return os;
 }
 
+std::ostream& operator<<(std::ostream& os, const FloatRegister& rhs) {
+  if (rhs >= XMM0 && rhs <= XMM15) {
+    os << "xmm" << static_cast<int>(rhs);
+  } else {
+    os << "Register[" << static_cast<int>(rhs) << "]";
+  }
+  return os;
+}
+
 }  // namespace x86_64
 }  // namespace art

@@ -234,8 +234,7 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   NewLIR0(kPseudoMethodEntry);
   /* Spill core callee saves */
   SpillCoreRegs();
-  /* NOTE: promotion of FP regs currently unsupported, thus no FP spill */
-  DCHECK_EQ(num_fp_spills_, 0);
+  SpillFPRegs();
   if (!skip_overflow_check) {
     class StackOverflowSlowPath : public LIRSlowPath {
      public:
@@ -309,6 +308,7 @@ void X86Mir2Lir::GenExitSequence() {
 
   NewLIR0(kPseudoMethodExit);
   UnSpillCoreRegs();
+  UnSpillFPRegs();
   /* Remove frame except for return address */
   stack_increment_ = OpRegImm(kOpAdd, rs_rX86_SP, frame_size_ - GetInstructionSetPointerSize(cu_->instruction_set));
   NewLIR0(kX86Ret);
