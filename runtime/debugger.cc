@@ -74,18 +74,13 @@ class AllocRecordStackTraceElement {
   }
 
   mirror::ArtMethod* Method() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* method = reinterpret_cast<mirror::ArtMethod*>(
-        Thread::Current()->DecodeJObject(method_));
-    return method;
+    ScopedObjectAccessUnchecked soa(Thread::Current());
+    return soa.DecodeMethod(method_);
   }
 
   void SetMethod(mirror::ArtMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ScopedObjectAccessUnchecked soa(Thread::Current());
-    JNIEnv* env = soa.Env();
-    if (method_ != nullptr) {
-      env->DeleteWeakGlobalRef(method_);
-    }
-    method_ = env->NewWeakGlobalRef(soa.AddLocalReference<jobject>(m));
+    method_ = soa.EncodeMethod(m);
   }
 
   uint32_t DexPc() const {
@@ -97,27 +92,46 @@ class AllocRecordStackTraceElement {
   }
 
  private:
-  jobject method_;  // This is a weak global.
+  jmethodID method_;
   uint32_t dex_pc_;
 };
+
+jobject Dbg::TypeCache::Add(mirror::Class* t) {
+  ScopedObjectAccessUnchecked soa(Thread::Current());
+  int32_t hash_code = t->IdentityHashCode();
+  auto range = objects_.equal_range(hash_code);
+  for (auto it = range.first; it != range.second; ++it) {
+    if (soa.Decode<mirror::Class*>(it->second) == t) {
+      // Found a matching weak global, return it.
+      return it->second;
+    }
+  }
+  JNIEnv* env = soa.Env();
+  const jobject local_ref = soa.AddLocalReference<jobject>(t);
+  const jobject weak_global = env->NewWeakGlobalRef(local_ref);
+  env->DeleteLocalRef(local_ref);
+  objects_.insert(std::make_pair(hash_code, weak_global));
+  return weak_global;
+}
+
+void Dbg::TypeCache::Clear() {
+  ScopedObjectAccess soa(Thread::Current());
+  for (const auto& p : objects_) {
+    soa.Vm()->DeleteWeakGlobalRef(soa.Self(), p.second);
+  }
+  objects_.clear();
+}
 
 class AllocRecord {
  public:
   AllocRecord() : type_(nullptr), byte_count_(0), thin_lock_id_(0) {}
 
   mirror::Class* Type() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::Class* type = reinterpret_cast<mirror::Class*>(
-        Thread::Current()->DecodeJObject(type_));
-    return type;
+    return down_cast<mirror::Class*>(Thread::Current()->DecodeJObject(type_));
   }
 
   void SetType(mirror::Class* t) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ScopedObjectAccessUnchecked soa(Thread::Current());
-    JNIEnv* env = soa.Env();
-    if (type_ != nullptr) {
-      env->DeleteWeakGlobalRef(type_);
-    }
-    type_ = env->NewWeakGlobalRef(soa.AddLocalReference<jobject>(t));
+    type_ = Dbg::GetTypeCache().Add(t);
   }
 
   size_t GetDepth() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -274,6 +288,7 @@ AllocRecord* Dbg::recent_allocation_records_ = nullptr;  // TODO: CircularBuffer
 size_t Dbg::alloc_record_max_ = 0;
 size_t Dbg::alloc_record_head_ = 0;
 size_t Dbg::alloc_record_count_ = 0;
+Dbg::TypeCache Dbg::type_cache_;
 
 // Deoptimization support.
 Mutex* Dbg::deoptimization_lock_ = nullptr;
@@ -4253,8 +4268,10 @@ void Dbg::SetAllocTrackingEnabled(bool enabled) {
     Runtime::Current()->GetInstrumentation()->UninstrumentQuickAllocEntryPoints();
     {
       MutexLock mu(Thread::Current(), *alloc_tracker_lock_);
+      LOG(INFO) << "Disabling alloc tracker";
       delete[] recent_allocation_records_;
       recent_allocation_records_ = NULL;
+      type_cache_.Clear();
     }
   }
 }
@@ -4376,8 +4393,12 @@ class StringTable {
   StringTable() {
   }
 
-  void Add(const char* s) {
-    table_.insert(s);
+  void Add(const std::string& str) {
+    table_.insert(str);
+  }
+
+  void Add(const char* str) {
+    table_.insert(str);
   }
 
   size_t IndexOf(const char* s) const {
@@ -4476,9 +4497,7 @@ jbyteArray Dbg::GetRecentAllocations() {
     int idx = HeadIndex();
     while (count--) {
       AllocRecord* record = &recent_allocation_records_[idx];
-
-      class_names.Add(record->Type()->GetDescriptor().c_str());
-
+      class_names.Add(record->Type()->GetDescriptor());
       for (size_t i = 0; i < kMaxAllocRecordStackDepth; i++) {
         mirror::ArtMethod* m = record->StackElement(i)->Method();
         if (m != NULL) {
