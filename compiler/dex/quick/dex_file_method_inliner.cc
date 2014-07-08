@@ -79,7 +79,7 @@ COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicIsEmptyOrLength], IsEmptyOrLength_m
 COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicIndexOf], IndexOf_must_not_be_static);
 COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicCurrentThread], CurrentThread_must_be_static);
 COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicPeek], Peek_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicPoke],Poke_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicPoke], Poke_must_be_static);
 COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCas], Cas_must_not_be_static);
 COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicUnsafeGet], UnsafeGet_must_not_be_static);
 COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicUnsafePut], UnsafePut_must_not_be_static);
