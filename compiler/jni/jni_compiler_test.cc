@@ -61,8 +61,8 @@ class JniCompilerTest : public CommonCompilerTest {
       method = c->FindVirtualMethod(method_name, method_sig);
     }
     ASSERT_TRUE(method != nullptr) << method_name << " " << method_sig;
-    if (method->GetEntryPointFromQuickCompiledCode() == nullptr) {
-      ASSERT_TRUE(method->GetEntryPointFromPortableCompiledCode() == nullptr);
+    if (method->GetEntryPointFromQuickCompiledCode() == nullptr ||
+        method->GetEntryPointFromQuickCompiledCode() == class_linker_->GetQuickGenericJniTrampoline()) {
       CompileMethod(method);
       ASSERT_TRUE(method->GetEntryPointFromQuickCompiledCode() != nullptr)
           << method_name << " " << method_sig;
