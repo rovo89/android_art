@@ -930,7 +930,6 @@ void Runtime::VisitConstantRoots(RootCallback* callback, void* arg) {
 void Runtime::VisitConcurrentRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
   intern_table_->VisitRoots(callback, arg, flags);
   class_linker_->VisitRoots(callback, arg, flags);
-  Dbg::VisitRoots(callback, arg);
   if ((flags & kVisitRootFlagNewRoots) == 0) {
     // Guaranteed to have no new roots in the constant roots.
     VisitConstantRoots(callback, arg);
