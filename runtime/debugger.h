@@ -23,6 +23,7 @@
 
 #include <pthread.h>
 
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -160,6 +161,17 @@ struct DeoptimizationRequest {
 
 class Dbg {
  public:
+  class TypeCache {
+   public:
+    // Returns a weak global for the input type. Deduplicates.
+    jobject Add(mirror::Class* t) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    // Clears the type cache and deletes all the weak global refs.
+    void Clear();
+
+   private:
+    std::multimap<int32_t, jobject> objects_;
+  };
+
   static bool ParseJdwpOptions(const std::string& options);
   static void SetJdwpAllowed(bool allowed);
 
@@ -555,6 +567,10 @@ class Dbg {
   static void DdmSendHeapSegments(bool native)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  static TypeCache& GetTypeCache() {
+    return type_cache_;
+  }
+
  private:
   static void DdmBroadcast(bool connect) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadStartOrStop(Thread*, uint32_t)
@@ -603,6 +619,9 @@ class Dbg {
   static size_t delayed_full_undeoptimization_count_ GUARDED_BY(deoptimization_lock_);
 
   static size_t* GetReferenceCounterForEvent(uint32_t instrumentation_event);
+
+  // Weak global type cache, TODO improve this.
+  static TypeCache type_cache_;
 
   // Instrumentation event reference counters.
   // TODO we could use an array instead of having all these dedicated counters. Instrumentation
