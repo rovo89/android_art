@@ -293,16 +293,12 @@ class CommonCompilerTest : public CommonRuntimeTest {
       ASSERT_LE(instruction_set_features, runtime_features);
 #elif defined(__aarch64__)
       instruction_set = kArm64;
-      // TODO: arm64 compilation support.
-      compiler_options_->SetCompilerFilter(CompilerOptions::kInterpretOnly);
 #elif defined(__mips__)
       instruction_set = kMips;
 #elif defined(__i386__)
       instruction_set = kX86;
 #elif defined(__x86_64__)
       instruction_set = kX86_64;
-      // TODO: x86_64 compilation support.
-      compiler_options_->SetCompilerFilter(CompilerOptions::kInterpretOnly);
 #endif
 
       runtime_->SetInstructionSet(instruction_set);
