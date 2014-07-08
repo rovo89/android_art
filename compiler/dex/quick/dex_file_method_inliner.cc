@@ -58,6 +58,7 @@ static constexpr bool kIntrinsicIsStatic[] = {
     false,  // kIntrinsicCas
     false,  // kIntrinsicUnsafeGet
     false,  // kIntrinsicUnsafePut
+    true,   // kIntrinsicSystemArrayCopyCharArray
 };
 COMPILE_ASSERT(arraysize(kIntrinsicIsStatic) == kInlineOpNop, check_arraysize_kIntrinsicIsStatic);
 COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicDoubleCvt], DoubleCvt_must_be_static);
@@ -83,6 +84,8 @@ COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicPoke], Poke_must_be_static);
 COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCas], Cas_must_not_be_static);
 COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicUnsafeGet], UnsafeGet_must_not_be_static);
 COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicUnsafePut], UnsafePut_must_not_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicSystemArrayCopyCharArray],
+               SystemArrayCopyCharArray_must_not_be_static);
 
 MIR* AllocReplacementMIR(MIRGraph* mir_graph, MIR* invoke, MIR* move_return) {
   MIR* insn = mir_graph->NewMIR();
