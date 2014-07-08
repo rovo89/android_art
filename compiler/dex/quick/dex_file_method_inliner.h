@@ -118,6 +118,8 @@ class DexFileMethodInliner {
       kClassCacheJavaLangThread,
       kClassCacheLibcoreIoMemory,
       kClassCacheSunMiscUnsafe,
+      kClassCacheJavaLangSystem,
+      kClassCacheJavaLangCharArray,
       kClassCacheLast
     };
 
@@ -170,6 +172,7 @@ class DexFileMethodInliner {
       kNameCachePutObject,
       kNameCachePutObjectVolatile,
       kNameCachePutOrderedObject,
+      kNameCacheArrayCopy,
       kNameCacheLast
     };
 
@@ -214,6 +217,7 @@ class DexFileMethodInliner {
       kProtoCacheObjectJJ_V,
       kProtoCacheObjectJ_Object,
       kProtoCacheObjectJObject_V,
+      kProtoCacheCharArrayICharArrayII_V,
       kProtoCacheLast
     };
 
