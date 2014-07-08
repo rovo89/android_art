@@ -51,6 +51,9 @@ class ImageSpace : public MemMapSpace {
   static ImageHeader* ReadImageHeaderOrDie(const char* image_location,
                                            InstructionSet image_isa);
 
+  // Give access to the OatFile.
+  const OatFile* GetOatFile() const;
+
   // Releases the OatFile from the ImageSpace so it can be transfer to
   // the caller, presumably the ClassLinker.
   OatFile* ReleaseOatFile()
