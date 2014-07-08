@@ -192,17 +192,17 @@ JdwpError JdwpState::RegisterEvent(JdwpEvent* pEvent) {
       }
     }
     if (NeedsFullDeoptimization(pEvent->eventKind)) {
-      CHECK_EQ(req.kind, DeoptimizationRequest::kNothing);
-      CHECK(req.method == nullptr);
-      req.kind = DeoptimizationRequest::kFullDeoptimization;
+      CHECK_EQ(req.GetKind(), DeoptimizationRequest::kNothing);
+      CHECK(req.Method() == nullptr);
+      req.SetKind(DeoptimizationRequest::kFullDeoptimization);
     }
     Dbg::RequestDeoptimization(req);
   }
   uint32_t instrumentation_event = GetInstrumentationEventFor(pEvent->eventKind);
   if (instrumentation_event != 0) {
     DeoptimizationRequest req;
-    req.kind = DeoptimizationRequest::kRegisterForEvent;
-    req.instrumentation_event = instrumentation_event;
+    req.SetKind(DeoptimizationRequest::kRegisterForEvent);
+    req.SetInstrumentationEvent(instrumentation_event);
     Dbg::RequestDeoptimization(req);
   }
 
@@ -274,17 +274,17 @@ void JdwpState::UnregisterEvent(JdwpEvent* pEvent) {
       // deoptimization and only the last single-step will trigger a full undeoptimization.
       Dbg::DelayFullUndeoptimization();
     } else if (NeedsFullDeoptimization(pEvent->eventKind)) {
-      CHECK_EQ(req.kind, DeoptimizationRequest::kNothing);
-      CHECK(req.method == nullptr);
-      req.kind = DeoptimizationRequest::kFullUndeoptimization;
+      CHECK_EQ(req.GetKind(), DeoptimizationRequest::kNothing);
+      CHECK(req.Method() == nullptr);
+      req.SetKind(DeoptimizationRequest::kFullUndeoptimization);
     }
     Dbg::RequestDeoptimization(req);
   }
   uint32_t instrumentation_event = GetInstrumentationEventFor(pEvent->eventKind);
   if (instrumentation_event != 0) {
     DeoptimizationRequest req;
-    req.kind = DeoptimizationRequest::kUnregisterForEvent;
-    req.instrumentation_event = instrumentation_event;
+    req.SetKind(DeoptimizationRequest::kUnregisterForEvent);
+    req.SetInstrumentationEvent(instrumentation_event);
     Dbg::RequestDeoptimization(req);
   }
 
