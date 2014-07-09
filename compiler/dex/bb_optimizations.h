@@ -71,26 +71,28 @@ class CacheMethodLoweringInfo : public PassME {
 };
 
 /**
- * @class CallInlining
- * @brief Perform method inlining pass.
+ * @class SpecialMethodInliner
+ * @brief Performs method inlining pass on special kinds of methods.
+ * @details Special methods are methods that fall in one of the following categories:
+ * empty, instance getter, instance setter, argument return, and constant return.
  */
-class CallInlining : public PassME {
+class SpecialMethodInliner : public PassME {
  public:
-  CallInlining() : PassME("CallInlining") {
+  SpecialMethodInliner() : PassME("SpecialMethodInliner") {
   }
 
   bool Gate(const PassDataHolder* data) const {
     DCHECK(data != nullptr);
     CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
     DCHECK(cUnit != nullptr);
-    return cUnit->mir_graph->InlineCallsGate();
+    return cUnit->mir_graph->InlineSpecialMethodsGate();
   }
 
   void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
     CompilationUnit* cUnit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(cUnit != nullptr);
-    cUnit->mir_graph->InlineCallsStart();
+    cUnit->mir_graph->InlineSpecialMethodsStart();
   }
 
   bool Worker(const PassDataHolder* data) const {
@@ -100,7 +102,7 @@ class CallInlining : public PassME {
     DCHECK(cUnit != nullptr);
     BasicBlock* bb = pass_me_data_holder->bb;
     DCHECK(bb != nullptr);
-    cUnit->mir_graph->InlineCalls(bb);
+    cUnit->mir_graph->InlineSpecialMethods(bb);
     // No need of repeating, so just return false.
     return false;
   }
@@ -109,7 +111,7 @@ class CallInlining : public PassME {
     DCHECK(data != nullptr);
     CompilationUnit* cUnit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(cUnit != nullptr);
-    cUnit->mir_graph->InlineCallsEnd();
+    cUnit->mir_graph->InlineSpecialMethodsEnd();
   }
 };
 
