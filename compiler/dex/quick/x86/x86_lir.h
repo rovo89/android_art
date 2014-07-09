@@ -723,7 +723,7 @@ struct X86EncodingMap {
 #define REX_X 0x42
 // Extension of the ModR/M r/m field, SIB base field, or Opcode reg field
 #define REX_B 0x41
-// Extended register set
+// An empty REX prefix used to normalize the byte operations so that they apply to R4 through R15
 #define REX 0x40
 // Mask extracting the least 3 bits of r0..r15
 #define kRegNumMask32 0x07
