@@ -124,6 +124,9 @@ class DlMallocSpace : public MallocSpace {
     return this;
   }
 
+  void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  protected:
   DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin, byte* end,
                 byte* limit, size_t growth_limit, bool can_move_objects, size_t starting_size,

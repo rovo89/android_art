@@ -590,6 +590,8 @@ class RosAlloc {
 
   // Verify for debugging.
   void Verify() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes);
 };
 
 }  // namespace allocator

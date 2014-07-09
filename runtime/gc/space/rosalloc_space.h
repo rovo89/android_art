@@ -120,6 +120,10 @@ class RosAllocSpace : public MallocSpace {
 
   virtual ~RosAllocSpace();
 
+  void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) OVERRIDE {
+    rosalloc_->LogFragmentationAllocFailure(os, failed_alloc_bytes);
+  }
+
  protected:
   RosAllocSpace(const std::string& name, MemMap* mem_map, allocator::RosAlloc* rosalloc,
                 byte* begin, byte* end, byte* limit, size_t growth_limit, bool can_move_objects,
