@@ -49,19 +49,19 @@ namespace art {
 OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
                      uint32_t image_file_location_oat_checksum,
                      uintptr_t image_file_location_oat_begin,
+                     const std::string& image_file_location,
                      const CompilerDriver* compiler,
-                     TimingLogger* timings,
-                     SafeMap<std::string, std::string>* key_value_store)
+                     TimingLogger* timings)
   : compiler_driver_(compiler),
     dex_files_(&dex_files),
     image_file_location_oat_checksum_(image_file_location_oat_checksum),
     image_file_location_oat_begin_(image_file_location_oat_begin),
-    key_value_store_(key_value_store),
+    image_file_location_(image_file_location),
     oat_header_(NULL),
     size_dex_file_alignment_(0),
     size_executable_offset_alignment_(0),
     size_oat_header_(0),
-    size_oat_header_key_value_store_(0),
+    size_oat_header_image_file_location_(0),
     size_dex_file_(0),
     size_interpreter_to_interpreter_bridge_(0),
     size_interpreter_to_compiled_code_bridge_(0),
@@ -89,8 +89,6 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
     size_oat_class_status_(0),
     size_oat_class_method_bitmaps_(0),
     size_oat_class_method_offsets_(0) {
-  CHECK(key_value_store != nullptr);
-
   size_t offset;
   {
     TimingLogger::ScopedTiming split("InitOatHeader", timings);
@@ -123,8 +121,7 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
   size_ = offset;
 
   CHECK_EQ(dex_files_->size(), oat_dex_files_.size());
-  CHECK_EQ(compiler->IsImage(),
-           key_value_store_->find(OatHeader::kImageLocationKey) == key_value_store_->end());
+  CHECK(image_file_location.empty() == compiler->IsImage());
 }
 
 OatWriter::~OatWriter() {
@@ -719,14 +716,16 @@ bool OatWriter::VisitDexMethods(DexMethodVisitor* visitor) {
 }
 
 size_t OatWriter::InitOatHeader() {
-  oat_header_ = OatHeader::Create(compiler_driver_->GetInstructionSet(),
-                                  compiler_driver_->GetInstructionSetFeatures(),
-                                  dex_files_,
-                                  image_file_location_oat_checksum_,
-                                  image_file_location_oat_begin_,
-                                  key_value_store_);
-
-  return oat_header_->GetHeaderSize();
+  // create the OatHeader
+  oat_header_ = new OatHeader(compiler_driver_->GetInstructionSet(),
+                              compiler_driver_->GetInstructionSetFeatures(),
+                              dex_files_,
+                              image_file_location_oat_checksum_,
+                              image_file_location_oat_begin_,
+                              image_file_location_);
+  size_t offset = sizeof(*oat_header_);
+  offset += image_file_location_.size();
+  return offset;
 }
 
 size_t OatWriter::InitOatDexFiles(size_t offset) {
@@ -865,13 +864,17 @@ size_t OatWriter::InitOatCodeDexFiles(size_t offset) {
 bool OatWriter::Write(OutputStream* out) {
   const size_t file_offset = out->Seek(0, kSeekCurrent);
 
-  size_t header_size = oat_header_->GetHeaderSize();
-  if (!out->WriteFully(oat_header_, header_size)) {
+  if (!out->WriteFully(oat_header_, sizeof(*oat_header_))) {
     PLOG(ERROR) << "Failed to write oat header to " << out->GetLocation();
     return false;
   }
-  size_oat_header_ += sizeof(OatHeader);
-  size_oat_header_key_value_store_ += oat_header_->GetHeaderSize() - sizeof(OatHeader);
+  size_oat_header_ += sizeof(*oat_header_);
+
+  if (!out->WriteFully(image_file_location_.data(), image_file_location_.size())) {
+    PLOG(ERROR) << "Failed to write oat header image file location to " << out->GetLocation();
+    return false;
+  }
+  size_oat_header_image_file_location_ += image_file_location_.size();
 
   if (!WriteTables(out, file_offset)) {
     LOG(ERROR) << "Failed to write oat tables to " << out->GetLocation();
@@ -906,7 +909,7 @@ bool OatWriter::Write(OutputStream* out) {
     DO_STAT(size_dex_file_alignment_);
     DO_STAT(size_executable_offset_alignment_);
     DO_STAT(size_oat_header_);
-    DO_STAT(size_oat_header_key_value_store_);
+    DO_STAT(size_oat_header_image_file_location_);
     DO_STAT(size_dex_file_);
     DO_STAT(size_interpreter_to_interpreter_bridge_);
     DO_STAT(size_interpreter_to_compiled_code_bridge_);

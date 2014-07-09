@@ -48,7 +48,6 @@
 #include "gc/space/image_space.h"
 #include "gc/space/space-inl.h"
 #include "image_writer.h"
-#include "implicit_check_options.h"
 #include "leb128.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
@@ -337,10 +336,7 @@ class Dex2Oat {
                                       bool dump_passes,
                                       TimingLogger& timings,
                                       CumulativeLogger& compiler_phases_timings,
-                                      std::string profile_file,
-                                      SafeMap<std::string, std::string>* key_value_store) {
-    CHECK(key_value_store != nullptr);
-
+                                      std::string profile_file) {
     // Handle and ClassLoader creation needs to come after Runtime::Create
     jobject class_loader = nullptr;
     Thread* self = Thread::Current();
@@ -360,18 +356,18 @@ class Dex2Oat {
     }
 
     std::unique_ptr<CompilerDriver> driver(new CompilerDriver(compiler_options_,
-                                                              verification_results_,
-                                                              method_inliner_map_,
-                                                              compiler_kind_,
-                                                              instruction_set_,
-                                                              instruction_set_features_,
-                                                              image,
-                                                              image_classes.release(),
-                                                              thread_count_,
-                                                              dump_stats,
-                                                              dump_passes,
-                                                              &compiler_phases_timings,
-                                                              profile_file));
+                                                        verification_results_,
+                                                        method_inliner_map_,
+                                                        compiler_kind_,
+                                                        instruction_set_,
+                                                        instruction_set_features_,
+                                                        image,
+                                                        image_classes.release(),
+                                                        thread_count_,
+                                                        dump_stats,
+                                                        dump_passes,
+                                                        &compiler_phases_timings,
+                                                        profile_file));
 
     driver->GetCompiler()->SetBitcodeFileName(*driver.get(), bitcode_filename);
 
@@ -390,15 +386,11 @@ class Dex2Oat {
       image_file_location = image_space->GetImageFilename();
     }
 
-    if (!image_file_location.empty()) {
-      key_value_store->Put(OatHeader::kImageLocationKey, image_file_location);
-    }
-
     OatWriter oat_writer(dex_files, image_file_location_oat_checksum,
                          image_file_location_oat_data_begin,
+                         image_file_location,
                          driver.get(),
-                         &timings,
-                         key_value_store);
+                         &timings);
 
     t2.NewTiming("Writing ELF");
     if (!driver->WriteElf(android_root, is_host, dex_files, &oat_writer, oat_file)) {
@@ -1175,8 +1167,8 @@ static int dex2oat(int argc, char** argv) {
     Usage("Unknown --compiler-filter value %s", compiler_filter_string);
   }
 
-  ImplicitCheckOptions::Check(instruction_set, &explicit_null_checks, &explicit_so_checks,
-                              &explicit_suspend_checks);
+  CheckExplicitCheckOptions(instruction_set, &explicit_null_checks, &explicit_so_checks,
+                            &explicit_suspend_checks);
 
   if (!explicit_include_patch_information) {
     include_patch_information =
@@ -1270,14 +1262,23 @@ static int dex2oat(int argc, char** argv) {
   // TODO: Not sure whether it's a good idea to allow anything else but the runtime option in
   // this case at all, as we'll have to throw away produced code for a mismatch.
   if (!has_explicit_checks_options) {
-    if (ImplicitCheckOptions::CheckForCompiling(kRuntimeISA, instruction_set, &explicit_null_checks,
-                                                &explicit_so_checks, &explicit_suspend_checks)) {
-      compiler_options.SetExplicitNullChecks(explicit_null_checks);
-      compiler_options.SetExplicitStackOverflowChecks(explicit_so_checks);
-      compiler_options.SetExplicitSuspendChecks(explicit_suspend_checks);
+    bool cross_compiling = true;
+    switch (kRuntimeISA) {
+      case kArm:
+      case kThumb2:
+        cross_compiling = instruction_set != kArm && instruction_set != kThumb2;
+        break;
+      default:
+        cross_compiling = instruction_set != kRuntimeISA;
+        break;
+    }
+    if (!cross_compiling) {
+      Runtime* runtime = Runtime::Current();
+      compiler_options.SetExplicitNullChecks(runtime->ExplicitNullChecks());
+      compiler_options.SetExplicitStackOverflowChecks(runtime->ExplicitStackOverflowChecks());
+      compiler_options.SetExplicitSuspendChecks(runtime->ExplicitSuspendChecks());
     }
   }
-
 
   // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
   // give it away now so that we don't starve GC.
@@ -1377,43 +1378,19 @@ static int dex2oat(int argc, char** argv) {
     }
   }
 
-  // Fill some values into the key-value store for the oat header.
-  SafeMap<std::string, std::string> key_value_store;
-
-  // Insert implicit check options.
-  key_value_store.Put(ImplicitCheckOptions::kImplicitChecksOatHeaderKey,
-                      ImplicitCheckOptions::Serialize(compiler_options.GetExplicitNullChecks(),
-                                                      compiler_options.
-                                                          GetExplicitStackOverflowChecks(),
-                                                      compiler_options.GetExplicitSuspendChecks()));
-
-  // Insert some compiler things.
-  std::ostringstream oss;
-  for (int i = 0; i < argc; ++i) {
-    if (i > 0) {
-      oss << ' ';
-    }
-    oss << argv[i];
-  }
-  key_value_store.Put(OatHeader::kDex2OatCmdLineKey, oss.str());
-  oss.str("");  // Reset.
-  oss << kRuntimeISA;
-  key_value_store.Put(OatHeader::kDex2OatHostKey, oss.str());
-
   std::unique_ptr<const CompilerDriver> compiler(dex2oat->CreateOatFile(boot_image_option,
-                                                                        android_root,
-                                                                        is_host,
-                                                                        dex_files,
-                                                                        oat_file.get(),
-                                                                        bitcode_filename,
-                                                                        image,
-                                                                        image_classes,
-                                                                        dump_stats,
-                                                                        dump_passes,
-                                                                        timings,
-                                                                        compiler_phases_timings,
-                                                                        profile_file,
-                                                                        &key_value_store));
+                                                                  android_root,
+                                                                  is_host,
+                                                                  dex_files,
+                                                                  oat_file.get(),
+                                                                  bitcode_filename,
+                                                                  image,
+                                                                  image_classes,
+                                                                  dump_stats,
+                                                                  dump_passes,
+                                                                  timings,
+                                                                  compiler_phases_timings,
+                                                                  profile_file));
 
   if (compiler.get() == nullptr) {
     LOG(ERROR) << "Failed to create oat file: " << oat_location;
