@@ -64,7 +64,6 @@ run_args="--quiet"
 target_mode="yes"
 dev_mode="no"
 update_mode="no"
-debug_mode="no"
 runtime="art"
 usage="no"
 build_only="no"
@@ -162,6 +161,9 @@ while true; do
         run_args="${run_args} --64"
         suffix64="64"
         shift
+    elif [ "x$1" = "x--trace" ]; then
+        run_args="${run_args} --runtime-option -Xmethod-trace --runtime-option -Xmethod-trace-file:${DEX_LOCATION}/trace.bin"
+        shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
         usage="yes"
@@ -257,6 +259,7 @@ if [ "$usage" = "yes" ]; then
         echo "    --output-path [path] Location where to store the build" \
              "files."
         echo "    --64                 Run the test in 64-bit mode"
+        echo "    --trace              Run with method tracing"
     ) 1>&2
     exit 1
 fi
