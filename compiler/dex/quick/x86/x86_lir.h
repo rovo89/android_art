@@ -569,6 +569,9 @@ enum X86OpCode {
   kX86PextrbRRI,                // Extract 8 bits from XMM into GPR
   kX86PextrwRRI,                // Extract 16 bits from XMM into GPR
   kX86PextrdRRI,                // Extract 32 bits from XMM into GPR
+  kX86PextrbMRI,                // Extract 8 bits from XMM into memory
+  kX86PextrwMRI,                // Extract 16 bits from XMM into memory
+  kX86PextrdMRI,                // Extract 32 bits from XMM into memory
   kX86PshuflwRRI,               // Shuffle 16 bits in lower 64 bits of XMM.
   kX86PshufdRRI,                // Shuffle 32 bits in XMM.
   kX86ShufpsRRI,                // FP Shuffle 32 bits in XMM.

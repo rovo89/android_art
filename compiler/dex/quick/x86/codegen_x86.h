@@ -118,6 +118,8 @@ class X86Mir2Lir : public Mir2Lir {
   void FreeCallTemps();
   void LockCallTemps();
   void CompilerInitializeRegAlloc();
+  int VectorRegisterSize();
+  int NumReservableVectorRegisters(bool fp_used);
 
   // Required for target - miscellaneous.
   void AssembleLIR();
@@ -503,6 +505,11 @@ class X86Mir2Lir : public Mir2Lir {
   void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
                                 int64_t val, ConditionCode ccode);
   void GenConstWide(RegLocation rl_dest, int64_t value);
+  void GenMultiplyVectorSignedByte(BasicBlock *bb, MIR *mir);
+  void GenShiftByteVector(BasicBlock *bb, MIR *mir);
+  void AndMaskVectorRegister(RegStorage rs_src1, uint32_t m1, uint32_t m2, uint32_t m3, uint32_t m4);
+  void MaskVectorRegister(X86OpCode opcode, RegStorage rs_src1, uint32_t m1, uint32_t m2, uint32_t m3, uint32_t m4);
+  void AppendOpcodeWithConst(X86OpCode opcode, int reg, MIR* mir);
 
   static bool ProvidesFullMemoryBarrier(X86OpCode opcode);
 
@@ -511,6 +518,12 @@ class X86Mir2Lir : public Mir2Lir {
    * @returns a temporary guarenteed to be byte addressable.
    */
   virtual RegStorage AllocateByteRegister();
+
+  /*
+   * @brief Use a wide temporary as a 128-bit register
+   * @returns a 128-bit temporary register.
+   */
+  virtual RegStorage Get128BitRegister(RegStorage reg);
 
   /*
    * @brief Check if a register is byte addressable.
@@ -526,6 +539,22 @@ class X86Mir2Lir : public Mir2Lir {
    * generated.
    */
   bool GenInlinedIndexOf(CallInfo* info, bool zero_based);
+
+  /**
+   * @brief Reserve a fixed number of vector  registers from the register pool
+   * @details The mir->dalvikInsn.vA specifies an N such that vector registers
+   * [0..N-1] are removed from the temporary pool. The caller must call
+   * ReturnVectorRegisters before calling ReserveVectorRegisters again.
+   * Also sets the num_reserved_vector_regs_ to the specified value
+   * @param mir whose vA specifies the number of registers to reserve
+   */
+  void ReserveVectorRegisters(MIR* mir);
+
+  /**
+   * @brief Return all the reserved vector registers to the temp pool
+   * @details Returns [0..num_reserved_vector_regs_]
+   */
+  void ReturnVectorRegisters();
 
   /*
    * @brief Load 128 bit constant into vector register.
@@ -900,6 +929,10 @@ class X86Mir2Lir : public Mir2Lir {
   LIR *AddVectorLiteral(MIR *mir);
 
   InToRegStorageMapping in_to_reg_storage_mapping_;
+
+ private:
+  // The number of vector registers [0..N] reserved by a call to ReserveVectorRegisters
+  int num_reserved_vector_regs_;
 };
 
 }  // namespace art

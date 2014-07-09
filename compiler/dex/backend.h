@@ -28,6 +28,25 @@ class Backend {
     virtual void Materialize() = 0;
     virtual CompiledMethod* GetCompiledMethod() = 0;
 
+    // Queries for backend support for vectors
+    /*
+     * Return the number of bits in a vector register.
+     * @return 0 if vector registers are not supported, or the
+     * number of bits in the vector register if supported.
+     */
+    virtual int VectorRegisterSize() { return 0; }
+
+    /*
+     * Return the number of reservable vector registers supported
+     * @param fp_used  ‘true’ if floating point computations will be
+     * executed while vector registers are reserved.
+     * @return the number of vector registers that are available
+     * @note The backend should ensure that sufficient vector registers
+     * are held back to generate scalar code without exhausting vector
+     * registers, if scalar code also uses the vector registers.
+     */
+    virtual int NumReservableVectorRegisters(bool fp_used) { return 0; }
+
   protected:
     explicit Backend(ArenaAllocator* arena) : arena_(arena) {}
     ArenaAllocator* const arena_;
