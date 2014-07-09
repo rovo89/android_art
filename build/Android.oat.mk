@@ -29,7 +29,7 @@ define create-core-oat-host-rules
 $$($(1)HOST_CORE_IMG_OUT): $$(HOST_CORE_DEX_FILES) $$(DEX2OATD_DEPENDENCY)
 	@echo "host dex2oat: $$@ ($$?)"
 	@mkdir -p $$(dir $$@)
-	$$(hide) $$(DEX2OATD) --runtime-arg -Xms16m --runtime-arg -Xmx16m \
+	$$(hide) $$(DEX2OATD) --runtime-arg $(DEX2OAT_IMAGE_XMS) --runtime-arg $(DEX2OAT_IMAGE_XMX) \
 	  --image-classes=$$(PRELOADED_CLASSES) $$(addprefix --dex-file=,$$(HOST_CORE_DEX_FILES)) \
 	  $$(addprefix --dex-location=,$$(HOST_CORE_DEX_LOCATIONS)) --oat-file=$$($(1)HOST_CORE_OAT_OUT) \
 	  --oat-location=$$($(1)HOST_CORE_OAT) --image=$$($(1)HOST_CORE_IMG_OUT) \
@@ -57,7 +57,7 @@ define create-core-oat-target-rules
 $$($(1)TARGET_CORE_IMG_OUT): $$($(1)TARGET_CORE_DEX_FILES) $$(DEX2OATD_DEPENDENCY)
 	@echo "target dex2oat: $$@ ($$?)"
 	@mkdir -p $$(dir $$@)
-	$$(hide) $$(DEX2OATD) --runtime-arg -Xms16m --runtime-arg -Xmx16m \
+	$$(hide) $$(DEX2OATD) --runtime-arg $(DEX2OAT_XMS) --runtime-arg $(DEX2OAT_XMX) \
 	  --image-classes=$$(PRELOADED_CLASSES) $$(addprefix --dex-file=,$$(TARGET_CORE_DEX_FILES)) \
 	  $$(addprefix --dex-location=,$$(TARGET_CORE_DEX_LOCATIONS)) --oat-file=$$($(1)TARGET_CORE_OAT_OUT) \
 	  --oat-location=$$($(1)TARGET_CORE_OAT) --image=$$($(1)TARGET_CORE_IMG_OUT) \
