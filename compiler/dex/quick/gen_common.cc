@@ -766,8 +766,9 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
 
 // Generate code for all slow paths.
 void Mir2Lir::HandleSlowPaths() {
-  int n = slow_paths_.Size();
-  for (int i = 0; i < n; ++i) {
+  // We should check slow_paths_.Size() every time, because a new slow path
+  // may be created during slowpath->Compile().
+  for (size_t i = 0; i < slow_paths_.Size(); ++i) {
     LIRSlowPath* slowpath = slow_paths_.Get(i);
     slowpath->Compile();
   }
