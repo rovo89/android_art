@@ -488,7 +488,9 @@ LIR* Arm64Mir2Lir::OpRegRegShift(OpKind op, RegStorage r_dest_src1, RegStorage r
       break;
     case kOpRevsh:
       // Binary, but rm is encoded twice.
-      return NewLIR2(kA64Rev162rr | wide, r_dest_src1.GetReg(), r_src2.GetReg());
+      NewLIR2(kA64Rev162rr | wide, r_dest_src1.GetReg(), r_src2.GetReg());
+      // "sxth r1, r2" is "sbfm r1, r2, #0, #15"
+      return NewLIR4(kA64Sbfm4rrdd | wide, r_dest_src1.GetReg(), r_dest_src1.GetReg(), 0, 15);
       break;
     case kOp2Byte:
       DCHECK_EQ(shift, ENCODE_NO_SHIFT);
