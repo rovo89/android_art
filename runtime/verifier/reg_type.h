@@ -209,9 +209,9 @@ class RegType {
                           !IsUnresolvedSuperClass()));
     return descriptor_;
   }
-  mirror::Class* GetClass() const {
+  mirror::Class* GetClass() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(!IsUnresolvedReference());
-    DCHECK(klass_ != NULL);
+    DCHECK(klass_ != NULL) << Dump();
     DCHECK(HasClass());
     return klass_;
   }

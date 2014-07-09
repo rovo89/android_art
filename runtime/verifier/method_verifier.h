@@ -595,9 +595,11 @@ class MethodVerifier {
   /*
   * Control can transfer to "next_insn". Merge the registers from merge_line into the table at
   * next_insn, and set the changed flag on the target address if any of the registers were changed.
+  * In the case of fall-through, update the merge line on a change as its the working line for the
+  * next instruction.
   * Returns "false" if an error is encountered.
   */
-  bool UpdateRegisters(uint32_t next_insn, const RegisterLine* merge_line)
+  bool UpdateRegisters(uint32_t next_insn, RegisterLine* merge_line, bool update_merge_line)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Is the method being verified a constructor?
