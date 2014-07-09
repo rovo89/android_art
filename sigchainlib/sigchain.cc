@@ -101,11 +101,6 @@ void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context) {
   }
 
   const struct sigaction& action = user_sigactions[sig].GetAction();
-
-  // Only deliver the signal if the signal was not masked out.
-  if (sigismember(&action.sa_mask, sig)) {
-     return;
-  }
   if ((action.sa_flags & SA_SIGINFO) == 0) {
     if (action.sa_handler != NULL) {
       action.sa_handler(sig);
