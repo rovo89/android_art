@@ -15,9 +15,11 @@
  */
 
 import junit.framework.Assert;
+import java.util.Arrays;
+import java.lang.reflect.Method;
 
 public class Main {
-  public static void main(String args[]) {
+  public static void main(String args[]) throws Exception {
     test_Double_doubleToRawLongBits();
     test_Double_longBitsToDouble();
     test_Float_floatToRawIntBits();
@@ -50,6 +52,15 @@ public class Main {
     test_String_isEmpty();
     test_String_length();
     test_Thread_currentThread();
+    initSupportMethodsForPeekPoke();
+    test_Memory_peekByte();
+    test_Memory_peekShort();
+    test_Memory_peekInt();
+    test_Memory_peekLong();
+    test_Memory_pokeByte();
+    test_Memory_pokeShort();
+    test_Memory_pokeInt();
+    test_Memory_pokeLong();
   }
 
   /*
@@ -510,4 +521,131 @@ public class Main {
     Assert.assertEquals(Long.reverse(Long.MIN_VALUE), 1L);
   }
 
+  static Object runtime;
+  static Method address_of;
+  static Method peek_byte;
+  static Method peek_short;
+  static Method peek_int;
+  static Method peek_long;
+  static Method poke_byte;
+  static Method poke_short;
+  static Method poke_int;
+  static Method poke_long;
+
+  public static void initSupportMethodsForPeekPoke() throws Exception {
+    Class<?> vm_runtime = Class.forName("dalvik.system.VMRuntime");
+    Method get_runtime = vm_runtime.getDeclaredMethod("getRuntime");
+    runtime = get_runtime.invoke(null);
+    address_of = vm_runtime.getDeclaredMethod("addressOf", Object.class);
+
+    Class<?> io_memory = Class.forName("libcore.io.Memory");
+    peek_byte = io_memory.getDeclaredMethod("peekByte", Long.TYPE);
+    peek_int = io_memory.getDeclaredMethod("peekInt", Long.TYPE, Boolean.TYPE);
+    peek_short = io_memory.getDeclaredMethod("peekShort", Long.TYPE, Boolean.TYPE);
+    peek_long = io_memory.getDeclaredMethod("peekLong", Long.TYPE, Boolean.TYPE);
+    poke_byte = io_memory.getDeclaredMethod("pokeByte", Long.TYPE, Byte.TYPE);
+    poke_short = io_memory.getDeclaredMethod("pokeShort", Long.TYPE, Short.TYPE, Boolean.TYPE);
+    poke_int = io_memory.getDeclaredMethod("pokeInt", Long.TYPE, Integer.TYPE, Boolean.TYPE);
+    poke_long = io_memory.getDeclaredMethod("pokeLong", Long.TYPE, Long.TYPE, Boolean.TYPE);
+  }
+
+  public static void test_Memory_peekByte() throws Exception {
+    byte[] b = new byte [2];
+    b[0] = 0x12;
+    b[1] = 0x11;
+    long address = (long)address_of.invoke(runtime, b);
+    Assert.assertEquals((byte)peek_byte.invoke(null, address), 0x12);
+    Assert.assertEquals((byte)peek_byte.invoke(null, address + 1), 0x11);
+  }
+
+  public static void test_Memory_peekShort() throws Exception {
+    byte[] b = new byte [3];
+    b[0] = 0x13;
+    b[1] = 0x12;
+    b[2] = 0x11;
+    long address = (long)address_of.invoke(runtime, b);
+    Assert.assertEquals((short)peek_short.invoke(null, address, false), 0x1213);  // Aligned read
+    Assert.assertEquals((short)peek_short.invoke(null, address + 1, false), 0x1112);  // Unaligned read
+  }
+
+  public static void test_Memory_peekInt() throws Exception {
+    byte[] b = new byte [5];
+    b[0] = 0x15;
+    b[1] = 0x14;
+    b[2] = 0x13;
+    b[3] = 0x12;
+    b[4] = 0x11;
+    long address = (long)address_of.invoke(runtime, b);
+    Assert.assertEquals((int)peek_int.invoke(null, address, false), 0x12131415);
+    Assert.assertEquals((int)peek_int.invoke(null, address + 1, false), 0x11121314);
+  }
+
+  public static void test_Memory_peekLong() throws Exception {
+    byte[] b = new byte [9];
+    b[0] = 0x19;
+    b[1] = 0x18;
+    b[2] = 0x17;
+    b[3] = 0x16;
+    b[4] = 0x15;
+    b[5] = 0x14;
+    b[6] = 0x13;
+    b[7] = 0x12;
+    b[8] = 0x11;
+    long address = (long)address_of.invoke(runtime, b);
+    Assert.assertEquals((long)peek_long.invoke(null, address, false), 0x1213141516171819L);
+    Assert.assertEquals((long)peek_long.invoke(null, address + 1, false), 0x1112131415161718L);
+  }
+
+  public static void test_Memory_pokeByte() throws Exception {
+    byte[] r = {0x11, 0x12};
+    byte[] b = new byte [2];
+    long address = (long)address_of.invoke(runtime, b);
+    poke_byte.invoke(null, address, (byte)0x11);
+    poke_byte.invoke(null, address + 1, (byte)0x12);
+    Assert.assertTrue(Arrays.equals(r, b));
+  }
+
+  public static void test_Memory_pokeShort() throws Exception {
+    byte[] ra = {0x12, 0x11, 0x13};
+    byte[] ru = {0x12, 0x22, 0x21};
+    byte[] b = new byte [3];
+    long address = (long)address_of.invoke(runtime, b);
+
+    // Aligned write
+    b[2] = 0x13;
+    poke_short.invoke(null, address, (short)0x1112, false);
+    Assert.assertTrue(Arrays.equals(ra, b));
+
+    // Unaligned write
+    poke_short.invoke(null, address + 1, (short)0x2122, false);
+    Assert.assertTrue(Arrays.equals(ru, b));
+  }
+
+  public static void test_Memory_pokeInt() throws Exception {
+    byte[] ra = {0x14, 0x13, 0x12, 0x11, 0x15};
+    byte[] ru = {0x14, 0x24, 0x23, 0x22, 0x21};
+    byte[] b = new byte [5];
+    long address = (long)address_of.invoke(runtime, b);
+
+    b[4] = 0x15;
+    poke_int.invoke(null, address, (int)0x11121314, false);
+    Assert.assertTrue(Arrays.equals(ra, b));
+
+    poke_int.invoke(null, address + 1, (int)0x21222324, false);
+    Assert.assertTrue(Arrays.equals(ru, b));
+  }
+
+  public static void test_Memory_pokeLong() throws Exception {
+    byte[] ra = {0x18, 0x17, 0x16, 0x15, 0x14, 0x13, 0x12, 0x11, 0x19};
+    byte[] ru = {0x18, 0x28, 0x27, 0x26, 0x25, 0x24, 0x23, 0x22, 0x21};
+    byte[] b = new byte [9];
+    long address = (long)address_of.invoke(runtime, b);
+
+    b[8] = 0x19;
+    poke_long.invoke(null, address, (long)0x1112131415161718L, false);
+    Assert.assertTrue(Arrays.equals(ra, b));
+
+    poke_long.invoke(null, address + 1, (long)0x2122232425262728L, false);
+    Assert.assertTrue(Arrays.equals(ru, b));
+  }
 }
