@@ -581,8 +581,7 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, bool is_long_or_double,
   const MirSFieldLoweringInfo& field_info = mir_graph_->GetSFieldLoweringInfo(mir);
   cu_->compiler_driver->ProcessedStaticField(field_info.FastPut(), field_info.IsReferrersClass());
   OpSize store_size = LoadStoreOpSize(is_long_or_double, is_object);
-  if (!SLOW_FIELD_PATH && field_info.FastPut() &&
-      (!field_info.IsVolatile() || SupportsVolatileLoadStore(store_size))) {
+  if (!SLOW_FIELD_PATH && field_info.FastPut()) {
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     RegStorage r_base;
     if (field_info.IsReferrersClass()) {
@@ -682,8 +681,7 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
   const MirSFieldLoweringInfo& field_info = mir_graph_->GetSFieldLoweringInfo(mir);
   cu_->compiler_driver->ProcessedStaticField(field_info.FastGet(), field_info.IsReferrersClass());
   OpSize load_size = LoadStoreOpSize(is_long_or_double, is_object);
-  if (!SLOW_FIELD_PATH && field_info.FastGet() &&
-      (!field_info.IsVolatile() || SupportsVolatileLoadStore(load_size))) {
+  if (!SLOW_FIELD_PATH && field_info.FastGet()) {
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     RegStorage r_base;
     if (field_info.IsReferrersClass()) {
@@ -787,6 +785,8 @@ static void GenIgetCall(Mir2Lir* mir_to_lir, bool is_long_or_double, bool is_obj
       is_long_or_double ? QUICK_ENTRYPOINT_OFFSET(pointer_size, pGet64Instance)
           : (is_object ? QUICK_ENTRYPOINT_OFFSET(pointer_size, pGetObjInstance)
               : QUICK_ENTRYPOINT_OFFSET(pointer_size, pGet32Instance));
+  // Second argument of pGetXXInstance is always a reference.
+  DCHECK_EQ(static_cast<unsigned int>(rl_obj.wide), 0U);
   mir_to_lir->CallRuntimeHelperImmRegLocation(getter_offset, field_info->FieldIndex(), rl_obj,
                                               true);
 }
@@ -797,8 +797,7 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
   const MirIFieldLoweringInfo& field_info = mir_graph_->GetIFieldLoweringInfo(mir);
   cu_->compiler_driver->ProcessedInstanceField(field_info.FastGet());
   OpSize load_size = LoadStoreOpSize(is_long_or_double, is_object);
-  if (!SLOW_FIELD_PATH && field_info.FastGet() &&
-      (!field_info.IsVolatile() || SupportsVolatileLoadStore(load_size))) {
+  if (!SLOW_FIELD_PATH && field_info.FastGet()) {
     RegisterClass reg_class = RegClassForFieldLoadStore(load_size, field_info.IsVolatile());
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     rl_obj = LoadValue(rl_obj, kRefReg);
@@ -854,8 +853,7 @@ void Mir2Lir::GenIPut(MIR* mir, int opt_flags, OpSize size,
   const MirIFieldLoweringInfo& field_info = mir_graph_->GetIFieldLoweringInfo(mir);
   cu_->compiler_driver->ProcessedInstanceField(field_info.FastPut());
   OpSize store_size = LoadStoreOpSize(is_long_or_double, is_object);
-  if (!SLOW_FIELD_PATH && field_info.FastPut() &&
-      (!field_info.IsVolatile() || SupportsVolatileLoadStore(store_size))) {
+  if (!SLOW_FIELD_PATH && field_info.FastPut()) {
     RegisterClass reg_class = RegClassForFieldLoadStore(store_size, field_info.IsVolatile());
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     rl_obj = LoadValue(rl_obj, kRefReg);

@@ -227,9 +227,6 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
   bool wide = (data.op_variant == InlineMethodAnalyser::IGetVariant(Instruction::IGET_WIDE));
   bool ref = (data.op_variant == InlineMethodAnalyser::IGetVariant(Instruction::IGET_OBJECT));
   OpSize size = LoadStoreOpSize(wide, ref);
-  if (data.is_volatile && !SupportsVolatileLoadStore(size)) {
-    return false;
-  }
 
   // Point of no return - no aborts after this
   GenPrintLabel(mir);
@@ -274,9 +271,6 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
   bool wide = (data.op_variant == InlineMethodAnalyser::IPutVariant(Instruction::IPUT_WIDE));
   bool ref = (data.op_variant == InlineMethodAnalyser::IGetVariant(Instruction::IGET_OBJECT));
   OpSize size = LoadStoreOpSize(wide, ref);
-  if (data.is_volatile && !SupportsVolatileLoadStore(size)) {
-    return false;
-  }
 
   // Point of no return - no aborts after this
   GenPrintLabel(mir);

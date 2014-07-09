@@ -1271,8 +1271,6 @@ class Mir2Lir : public Backend {
     virtual size_t GetInsnSize(LIR* lir) = 0;
     virtual bool IsUnconditionalBranch(LIR* lir) = 0;
 
-    // Check support for volatile load/store of a given size.
-    virtual bool SupportsVolatileLoadStore(OpSize size) = 0;
     // Get the register class for load/store of a field.
     virtual RegisterClass RegClassForFieldLoadStore(OpSize size, bool is_volatile) = 0;
 
