@@ -17,20 +17,17 @@
 #include "oat_file.h"
 
 #include <dlfcn.h>
-#include <sstream>
 
 #include "base/bit_vector.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "elf_file.h"
-#include "implicit_check_options.h"
 #include "oat.h"
 #include "mirror/art_method.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class.h"
 #include "mirror/object-inl.h"
 #include "os.h"
-#include "runtime.h"
 #include "utils.h"
 #include "vmap_table.h"
 
@@ -58,71 +55,28 @@ OatFile* OatFile::Open(const std::string& filename,
                        std::string* error_msg) {
   CHECK(!filename.empty()) << location;
   CheckLocation(filename);
-  std::unique_ptr<OatFile> ret;
-  if (kUsePortableCompiler && executable) {
+  if (kUsePortableCompiler) {
     // If we are using PORTABLE, use dlopen to deal with relocations.
     //
     // We use our own ELF loader for Quick to deal with legacy apps that
     // open a generated dex file by name, remove the file, then open
     // another generated dex file with the same name. http://b/10614658
-    ret.reset(OpenDlopen(filename, location, requested_base, error_msg));
-  } else {
-    // If we aren't trying to execute, we just use our own ElfFile loader for a couple reasons:
-    //
-    // On target, dlopen may fail when compiling due to selinux restrictions on installd.
-    //
-    // On host, dlopen is expected to fail when cross compiling, so fall back to OpenElfFile.
-    // This won't work for portable runtime execution because it doesn't process relocations.
-    std::unique_ptr<File> file(OS::OpenFileForReading(filename.c_str()));
-    if (file.get() == NULL) {
-      *error_msg = StringPrintf("Failed to open oat filename for reading: %s", strerror(errno));
-      return nullptr;
+    if (executable) {
+      return OpenDlopen(filename, location, requested_base, error_msg);
     }
-    ret.reset(OpenElfFile(file.get(), location, requested_base, false, executable, error_msg));
   }
-
-  if (ret.get() == nullptr) {
-    return nullptr;
+  // If we aren't trying to execute, we just use our own ElfFile loader for a couple reasons:
+  //
+  // On target, dlopen may fail when compiling due to selinux restrictions on installd.
+  //
+  // On host, dlopen is expected to fail when cross compiling, so fall back to OpenElfFile.
+  // This won't work for portable runtime execution because it doesn't process relocations.
+  std::unique_ptr<File> file(OS::OpenFileForReading(filename.c_str()));
+  if (file.get() == NULL) {
+    *error_msg = StringPrintf("Failed to open oat filename for reading: %s", strerror(errno));
+    return NULL;
   }
-
-  // Embedded options check. Right now only implicit checks.
-  // TODO: Refactor to somewhere else?
-  const char* implicit_checks_value = ret->GetOatHeader().
-      GetStoreValueByKey(ImplicitCheckOptions::kImplicitChecksOatHeaderKey);
-
-  if (implicit_checks_value == nullptr) {
-    *error_msg = "Did not find implicit checks value.";
-    return nullptr;
-  }
-
-  bool explicit_null_checks, explicit_so_checks, explicit_suspend_checks;
-  if (ImplicitCheckOptions::Parse(implicit_checks_value, &explicit_null_checks,
-                                  &explicit_so_checks, &explicit_suspend_checks)) {
-    if (!executable) {
-      // Not meant to be run, i.e., either we are compiling or dumping. Just accept.
-      return ret.release();
-    }
-
-    Runtime* runtime = Runtime::Current();
-    // We really should have a runtime.
-    DCHECK_NE(static_cast<Runtime*>(nullptr), runtime);
-
-    if (runtime->ExplicitNullChecks() != explicit_null_checks ||
-        runtime->ExplicitStackOverflowChecks() != explicit_so_checks ||
-        runtime->ExplicitSuspendChecks() != explicit_suspend_checks) {
-      std::ostringstream os;
-      os << "Explicit check options do not match runtime: " << implicit_checks_value << " -> ";
-      os << runtime->ExplicitNullChecks() << " vs " << explicit_null_checks << " | ";
-      os << runtime->ExplicitStackOverflowChecks() << " vs " << explicit_so_checks << " | ";
-      os << runtime->ExplicitSuspendChecks() << " vs " << explicit_suspend_checks;
-      *error_msg = os.str();
-      return nullptr;
-    }
-    return ret.release();
-  } else {
-    *error_msg = "Failed parsing implicit check options.";
-    return nullptr;
-  }
+  return OpenElfFile(file.get(), location, requested_base, false, executable, error_msg);
 }
 
 OatFile* OatFile::OpenWritable(File* file, const std::string& location, std::string* error_msg) {
@@ -252,11 +206,11 @@ bool OatFile::Setup(std::string* error_msg) {
     return false;
   }
 
-  oat += GetOatHeader().GetKeyValueStoreSize();
+  oat += GetOatHeader().GetImageFileLocationSize();
   if (oat > End()) {
-    *error_msg = StringPrintf("In oat file '%s' found truncated variable-size data: "
+    *error_msg = StringPrintf("In oat file '%s' found truncated image file location: "
                               "%p + %zd + %ud <= %p", GetLocation().c_str(),
-                              Begin(), sizeof(OatHeader), GetOatHeader().GetKeyValueStoreSize(),
+                              Begin(), sizeof(OatHeader), GetOatHeader().GetImageFileLocationSize(),
                               End());
     return false;
   }
