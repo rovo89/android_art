@@ -1867,7 +1867,7 @@ LIR *X86Mir2Lir::AddVectorLiteral(MIR *mir) {
 }
 
 // ------------ ABI support: mapping of args to physical registers -------------
-RegStorage X86Mir2Lir::InToRegStorageX86_64Mapper::GetNextReg(bool is_double_or_float, bool is_wide) {
+RegStorage X86Mir2Lir::InToRegStorageX86_64Mapper::GetNextReg(bool is_double_or_float, bool is_wide, bool is_ref) {
   const SpecialTargetRegister coreArgMappingToPhysicalReg[] = {kArg1, kArg2, kArg3, kArg4, kArg5};
   const int coreArgMappingToPhysicalRegSize = sizeof(coreArgMappingToPhysicalReg) / sizeof(SpecialTargetRegister);
   const SpecialTargetRegister fpArgMappingToPhysicalReg[] = {kFArg0, kFArg1, kFArg2, kFArg3,
@@ -1880,7 +1880,8 @@ RegStorage X86Mir2Lir::InToRegStorageX86_64Mapper::GetNextReg(bool is_double_or_
     }
   } else {
     if (cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
-      return ml_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++], is_wide);
+      return is_ref ? ml_->TargetRefReg(coreArgMappingToPhysicalReg[cur_core_reg_++]) :
+                      ml_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++], is_wide);
     }
   }
   return RegStorage::InvalidReg();
@@ -1897,11 +1898,12 @@ void X86Mir2Lir::InToRegStorageMapping::Initialize(RegLocation* arg_locs, int co
   max_mapped_in_ = -1;
   is_there_stack_mapped_ = false;
   for (int in_position = 0; in_position < count; in_position++) {
-     RegStorage reg = mapper->GetNextReg(arg_locs[in_position].fp, arg_locs[in_position].wide);
+     RegStorage reg = mapper->GetNextReg(arg_locs[in_position].fp,
+             arg_locs[in_position].wide, arg_locs[in_position].ref);
      if (reg.Valid()) {
        mapping_[in_position] = reg;
        max_mapped_in_ = std::max(max_mapped_in_, in_position);
-       if (reg.Is64BitSolo()) {
+       if (arg_locs[in_position].wide) {
          // We covered 2 args, so skip the next one
          in_position++;
        }

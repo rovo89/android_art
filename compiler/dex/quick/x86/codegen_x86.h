@@ -28,7 +28,7 @@ class X86Mir2Lir : public Mir2Lir {
  protected:
   class InToRegStorageMapper {
    public:
-    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide) = 0;
+    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide, bool is_ref) = 0;
     virtual ~InToRegStorageMapper() {}
   };
 
@@ -36,7 +36,7 @@ class X86Mir2Lir : public Mir2Lir {
    public:
     explicit InToRegStorageX86_64Mapper(Mir2Lir* ml) : ml_(ml), cur_core_reg_(0), cur_fp_reg_(0) {}
     virtual ~InToRegStorageX86_64Mapper() {}
-    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide);
+    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide, bool is_ref);
    protected:
     Mir2Lir* ml_;
    private:

@@ -94,13 +94,10 @@ void X86Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
     start_of_method_reg = rl_method.reg;
     store_method_addr_used_ = true;
   } else {
-    if (cu_->target64) {
-      start_of_method_reg = AllocTempWide();
-    } else {
-      start_of_method_reg = AllocTemp();
-    }
+    start_of_method_reg = AllocTempRef();
     NewLIR1(kX86StartOfMethod, start_of_method_reg.GetReg());
   }
+  DCHECK_EQ(start_of_method_reg.Is64Bit(), cu_->target64);
   int low_key = s4FromSwitchData(&table[2]);
   RegStorage keyReg;
   // Remove the bias, if necessary
@@ -111,7 +108,7 @@ void X86Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
     OpRegRegImm(kOpSub, keyReg, rl_src.reg, low_key);
   }
   // Bounds check - if < 0 or >= size continue following switch
-  OpRegImm(kOpCmp, keyReg, size-1);
+  OpRegImm(kOpCmp, keyReg, size - 1);
   LIR* branch_over = OpCondBranch(kCondHi, NULL);
 
   // Load the displacement from the switch table
@@ -119,11 +116,7 @@ void X86Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
   NewLIR5(kX86PcRelLoadRA, disp_reg.GetReg(), start_of_method_reg.GetReg(), keyReg.GetReg(),
           2, WrapPointer(tab_rec));
   // Add displacement to start of method
-  if (cu_->target64) {
-    NewLIR2(kX86Add64RR, start_of_method_reg.GetReg(), disp_reg.GetReg());
-  } else {
-    OpRegReg(kOpAdd, start_of_method_reg, disp_reg);
-  }
+  OpRegReg(kOpAdd, start_of_method_reg, cu_->target64 ? As64BitReg(disp_reg) : disp_reg);
   // ..and go!
   LIR* switch_branch = NewLIR1(kX86JmpR, start_of_method_reg.GetReg());
   tab_rec->anchor = switch_branch;
@@ -174,7 +167,6 @@ void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
     }
     store_method_addr_used_ = true;
   } else {
-    // TODO(64) force to be 64-bit
     NewLIR1(kX86StartOfMethod, method_start.GetReg());
   }
   NewLIR2(kX86PcRelAdr, payload.GetReg(), WrapPointer(tab_rec));
@@ -193,8 +185,8 @@ void X86Mir2Lir::GenMoveException(RegLocation rl_dest) {
       Thread::ExceptionOffset<8>().Int32Value() :
       Thread::ExceptionOffset<4>().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
-  NewLIR2(kX86Mov32RT, rl_result.reg.GetReg(), ex_offset);
-  NewLIR2(kX86Mov32TI, ex_offset, 0);
+  NewLIR2(cu_->target64 ? kX86Mov64RT : kX86Mov32RT, rl_result.reg.GetReg(), ex_offset);
+  NewLIR2(cu_->target64 ? kX86Mov64TI : kX86Mov32TI, ex_offset, 0);
   StoreValue(rl_dest, rl_result);
 }
 
@@ -202,17 +194,15 @@ void X86Mir2Lir::GenMoveException(RegLocation rl_dest) {
  * Mark garbage collection card. Skip if the value we're storing is null.
  */
 void X86Mir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
-  RegStorage reg_card_base = AllocTemp();
-  RegStorage reg_card_no = AllocTemp();
+  DCHECK_EQ(tgt_addr_reg.Is64Bit(), cu_->target64);
+  DCHECK_EQ(val_reg.Is64Bit(), cu_->target64);
+  RegStorage reg_card_base = AllocTempRef();
+  RegStorage reg_card_no = AllocTempRef();
   LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
   int ct_offset = cu_->target64 ?
       Thread::CardTableOffset<8>().Int32Value() :
       Thread::CardTableOffset<4>().Int32Value();
-  if (cu_->target64) {
-    NewLIR2(kX86Mov64RT, reg_card_base.GetReg(), ct_offset);
-  } else {
-    NewLIR2(kX86Mov32RT, reg_card_base.GetReg(), ct_offset);
-  }
+  NewLIR2(cu_->target64 ? kX86Mov64RT : kX86Mov32RT, reg_card_base.GetReg(), ct_offset);
   OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, gc::accounting::CardTable::kCardShift);
   StoreBaseIndexed(reg_card_base, reg_card_no, reg_card_base, 0, kUnsignedByte);
   LIR* target = NewLIR0(kPseudoTargetLabel);
