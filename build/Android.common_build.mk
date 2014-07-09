@@ -207,6 +207,7 @@ ifndef LIBART_IMG_TARGET_BASE_ADDRESS
   $(error LIBART_IMG_TARGET_BASE_ADDRESS unset)
 endif
 ART_TARGET_CFLAGS := $(art_cflags) -DART_TARGET -DART_BASE_ADDRESS=$(LIBART_IMG_TARGET_BASE_ADDRESS)
+ART_TARGET_LDFLAGS :=
 ifeq ($(TARGET_CPU_SMP),true)
   ART_TARGET_CFLAGS += -DANDROID_SMP=1
 else
@@ -219,6 +220,14 @@ else
   endif
 endif
 ART_TARGET_CFLAGS += $(ART_DEFAULT_GC_TYPE_CFLAGS)
+ifdef PGO_GEN
+  ART_TARGET_CFLAGS += -fprofile-generate=$(PGO_GEN)
+  ART_TARGET_LDFLAGS += -fprofile-generate=$(PGO_GEN)
+endif
+ifdef PGO_USE
+  ART_TARGET_CFLAGS += -fprofile-use=$(PGO_USE)
+  ART_TARGET_CFLAGS += -fprofile-correction -Wno-error
+endif
 
 # DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES is set in ../build/core/dex_preopt.mk based on
 # the TARGET_CPU_VARIANT
@@ -277,6 +286,7 @@ ART_TARGET_DEBUG_CFLAGS := $(art_debug_cflags)
 define set-target-local-cflags-vars
   LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
   LOCAL_CFLAGS_x86 += $(ART_TARGET_CFLAGS_x86)
+  LOCAL_LDFLAGS += $(ART_TARGET_LDFLAGS)
   art_target_cflags_ndebug_or_debug := $(1)
   ifeq ($$(art_target_cflags_ndebug_or_debug),debug)
     LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)
