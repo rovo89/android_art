@@ -26,7 +26,7 @@
 #include <fstream>
 #include <memory>
 
-#include "../../external/icu4c/common/unicode/uvernum.h"
+#include "../../external/icu/icu4c/source/common/unicode/uvernum.h"
 #include "base/macros.h"
 #include "base/stl_util.h"
 #include "base/stringprintf.h"
