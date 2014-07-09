@@ -840,6 +840,54 @@ const uint64_t MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
 
   // 113 MIR_SELECT
   DF_DA | DF_UB,
+
+  // 114 MirOpConstVector
+  DF_DA,
+
+  // 115 MirOpMoveVector
+  0,
+
+  // 116 MirOpPackedMultiply
+  0,
+
+  // 117 MirOpPackedAddition
+  0,
+
+  // 118 MirOpPackedSubtract
+  0,
+
+  // 119 MirOpPackedShiftLeft
+  0,
+
+  // 120 MirOpPackedSignedShiftRight
+  0,
+
+  // 121 MirOpPackedUnsignedShiftRight
+  0,
+
+  // 122 MirOpPackedAnd
+  0,
+
+  // 123 MirOpPackedOr
+  0,
+
+  // 124 MirOpPackedXor
+  0,
+
+  // 125 MirOpPackedAddReduce
+  DF_DA | DF_UA,
+
+  // 126 MirOpPackedReduce
+  DF_DA,
+
+  // 127 MirOpPackedSet
+  DF_UB,
+
+  // 128 MirOpReserveVectorRegisters
+  0,
+
+  // 129 MirOpReturnVectorRegisters
+  0,
 };
 
 /* Return the base virtual register for a SSA name */
