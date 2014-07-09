@@ -65,11 +65,14 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
 
   static void Start(const char* trace_filename, int trace_fd, int buffer_size, int flags,
                     bool direct_to_ddms, bool sampling_enabled, int interval_us)
-  LOCKS_EXCLUDED(Locks::mutator_lock_,
-                 Locks::thread_list_lock_,
-                 Locks::thread_suspend_count_lock_,
-                 Locks::trace_lock_);
-  static void Stop() LOCKS_EXCLUDED(Locks::trace_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_,
+                     Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_,
+                     Locks::trace_lock_);
+  static void Stop()
+      LOCKS_EXCLUDED(Locks::mutator_lock_,
+                     Locks::thread_list_lock_,
+                     Locks::trace_lock_);
   static void Shutdown() LOCKS_EXCLUDED(Locks::trace_lock_);
   static TracingMode GetMethodTracingMode() LOCKS_EXCLUDED(Locks::trace_lock_);
 

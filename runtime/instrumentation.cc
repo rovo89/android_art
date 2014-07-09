@@ -137,7 +137,8 @@ void Instrumentation::InstallStubsForMethod(mirror::ArtMethod* method) {
       new_quick_code = GetQuickResolutionTrampoline(class_linker);
     }
   } else {  // !uninstall
-    if ((interpreter_stubs_installed_ || IsDeoptimized(method)) && !method->IsNative()) {
+    if ((interpreter_stubs_installed_ || forced_interpret_only_ || IsDeoptimized(method)) &&
+        !method->IsNative()) {
       new_portable_code = GetPortableToInterpreterBridge();
       new_quick_code = GetQuickToInterpreterBridge();
     } else {
@@ -150,7 +151,9 @@ void Instrumentation::InstallStubsForMethod(mirror::ArtMethod* method) {
         new_quick_code = class_linker->GetQuickOatCodeFor(method);
         DCHECK(new_quick_code != GetQuickToInterpreterBridgeTrampoline(class_linker));
         if (entry_exit_stubs_installed_ && new_quick_code != GetQuickToInterpreterBridge()) {
-          DCHECK(new_portable_code != GetPortableToInterpreterBridge());
+          // TODO: portable to quick bridge. Bug: 8196384. We cannot enable the check below as long
+          // as GetPortableToQuickBridge() == GetPortableToInterpreterBridge().
+          // DCHECK(new_portable_code != GetPortableToInterpreterBridge());
           new_portable_code = GetPortableToInterpreterBridge();
           new_quick_code = GetQuickInstrumentationEntryPoint();
         }
