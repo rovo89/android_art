@@ -318,6 +318,72 @@ void MIRGraph::ProcessTryCatchBlocks() {
   }
 }
 
+bool MIRGraph::IsBadMonitorExitCatch(NarrowDexOffset monitor_exit_offset,
+                                     NarrowDexOffset catch_offset) {
+  // Catches for monitor-exit during stack unwinding have the pattern
+  //   move-exception (move)* (goto)? monitor-exit throw
+  // In the currently generated dex bytecode we see these catching a bytecode range including
+  // either its own or an identical monitor-exit, http://b/15745363 . This function checks if
+  // it's the case for a given monitor-exit and catch block so that we can ignore it.
+  // (We don't want to ignore all monitor-exit catches since one could enclose a synchronized
+  // block in a try-block and catch the NPE, Error or Throwable and we should let it through;
+  // even though a throwing monitor-exit certainly indicates a bytecode error.)
+  const Instruction* monitor_exit = Instruction::At(cu_->code_item->insns_ + monitor_exit_offset);
+  DCHECK(monitor_exit->Opcode() == Instruction::MONITOR_EXIT);
+  int monitor_reg = monitor_exit->VRegA_11x();
+  const Instruction* check_insn = Instruction::At(cu_->code_item->insns_ + catch_offset);
+  DCHECK(check_insn->Opcode() == Instruction::MOVE_EXCEPTION);
+  if (check_insn->VRegA_11x() == monitor_reg) {
+    // Unexpected move-exception to the same register. Probably not the pattern we're looking for.
+    return false;
+  }
+  check_insn = check_insn->Next();
+  while (true) {
+    int dest = -1;
+    bool wide = false;
+    switch (check_insn->Opcode()) {
+      case Instruction::MOVE_WIDE:
+        wide = true;
+        // Intentional fall-through.
+      case Instruction::MOVE_OBJECT:
+      case Instruction::MOVE:
+        dest = check_insn->VRegA_12x();
+        break;
+
+      case Instruction::MOVE_WIDE_FROM16:
+        wide = true;
+        // Intentional fall-through.
+      case Instruction::MOVE_OBJECT_FROM16:
+      case Instruction::MOVE_FROM16:
+        dest = check_insn->VRegA_22x();
+        break;
+
+      case Instruction::MOVE_WIDE_16:
+        wide = true;
+        // Intentional fall-through.
+      case Instruction::MOVE_OBJECT_16:
+      case Instruction::MOVE_16:
+        dest = check_insn->VRegA_32x();
+        break;
+
+      case Instruction::GOTO:
+      case Instruction::GOTO_16:
+      case Instruction::GOTO_32:
+        check_insn = check_insn->RelativeAt(check_insn->GetTargetOffset());
+        // Intentional fall-through.
+      default:
+        return check_insn->Opcode() == Instruction::MONITOR_EXIT &&
+            check_insn->VRegA_11x() == monitor_reg;
+    }
+
+    if (dest == monitor_reg || (wide && dest + 1 == monitor_reg)) {
+      return false;
+    }
+
+    check_insn = check_insn->Next();
+  }
+}
+
 /* Process instructions with the kBranch flag */
 BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset,
                                        int width, int flags, const uint16_t* code_ptr,
@@ -480,13 +546,19 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
                  << static_cast<int>(cur_block->successor_block_list_type);
     }
 
-    cur_block->successor_block_list_type = kCatch;
-    cur_block->successor_blocks =
-        new (arena_) GrowableArray<SuccessorBlockInfo*>(arena_, 2, kGrowableArraySuccessorBlocks);
-
     for (; iterator.HasNext(); iterator.Next()) {
       BasicBlock* catch_block = FindBlock(iterator.GetHandlerAddress(), false /* split*/,
                                          false /* creat */, NULL  /* immed_pred_block_p */);
+      if (insn->dalvikInsn.opcode == Instruction::MONITOR_EXIT &&
+          IsBadMonitorExitCatch(insn->offset, catch_block->start_offset)) {
+        // Don't allow monitor-exit to catch its own exception, http://b/15745363 .
+        continue;
+      }
+      if (cur_block->successor_block_list_type == kNotUsed) {
+        cur_block->successor_block_list_type = kCatch;
+        cur_block->successor_blocks = new (arena_) GrowableArray<SuccessorBlockInfo*>(
+            arena_, 2, kGrowableArraySuccessorBlocks);
+      }
       catch_block->catch_entry = true;
       if (kIsDebugBuild) {
         catches_.insert(catch_block->start_offset);
@@ -498,7 +570,9 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
       cur_block->successor_blocks->Insert(successor_block_info);
       catch_block->predecessors->Insert(cur_block->id);
     }
-  } else if (build_all_edges) {
+    in_try_block = (cur_block->successor_block_list_type != kNotUsed);
+  }
+  if (!in_try_block && build_all_edges) {
     BasicBlock* eh_block = NewMemBB(kExceptionHandling, num_blocks_++);
     cur_block->taken = eh_block->id;
     block_list_.Insert(eh_block);
@@ -1497,11 +1571,8 @@ void MIRGraph::ComputeTopologicalSortOrder() {
     }
   }
 
-  // We can theoretically get a cycle where none of the blocks dominates the other. Therefore
-  // don't stop when the queue is empty, continue until we've processed all the blocks.
-  // (In practice, we've seen this for a monitor-exit catch handler that erroneously tries to
-  // handle its own exceptions being broken into two blocks by a jump to to the monitor-exit
-  // from another catch hanler. http://b/15745363 .)
+  // We can get a cycle where none of the blocks dominates the other. Therefore don't
+  // stop when the queue is empty, continue until we've processed all the blocks.
   AllNodesIterator candidate_iter(this);  // For the empty queue case.
   while (num_blocks != 0u) {
     num_blocks -= 1u;
