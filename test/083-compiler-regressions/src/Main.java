@@ -35,6 +35,7 @@ public class Main {
         b2487514Test();
         b5884080Test();
         b13679511Test();
+        b16177324TestWrapper();
         largeFrameTest();
         largeFrameTestFloat();
         mulBy1Test();
@@ -906,6 +907,24 @@ public class Main {
        System.out.println(4 % 3);
        System.out.println((nn.length % 3) != 1);
        System.out.println("b13679511Test finishing");
+    }
+
+    static void b16177324TestWrapper() {
+      try {
+        b16177324Test();
+      } catch (NullPointerException expected) {
+        System.out.println("b16177324TestWrapper caught NPE as expected.");
+      }
+    }
+
+    static void b16177324Test() {
+      // We need this to be a single BasicBlock. Putting it into a try block would cause it to
+      // be split at each insn that can throw. So we do the try-catch in a wrapper function.
+      int v1 = B16177324Values.values[0];        // Null-check on array element access.
+      int v2 = B16177324ValuesKiller.values[0];  // clinit<>() sets B16177324Values.values to null.
+      int v3 = B16177324Values.values[0];        // Should throw NPE.
+      // If the null-check for v3 was eliminated we should fail with SIGSEGV.
+      System.out.println("Unexpectedly retrieved all values: " + v1 + ", " + v2 + ", " + v3);
     }
 
     static double TooManyArgs(
@@ -9741,5 +9760,16 @@ class LiveFlags {
       show_results(A, B, i);
       A[0] = C[0]; A[1] = C[1];
     }
+  }
+}
+
+class B16177324Values {
+  public static int values[] = { 42 };
+}
+
+class B16177324ValuesKiller {
+  public static int values[] = { 1234 };
+  static {
+    B16177324Values.values = null;
   }
 }
