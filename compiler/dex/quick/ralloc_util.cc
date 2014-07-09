@@ -1276,7 +1276,7 @@ void Mir2Lir::DoPromotion() {
         if (cu_->instruction_set == kThumb2) {
           bool wide = fp_regs[i].s_reg & STARTING_WIDE_SREG;
           if (wide) {
-            if (promotion_map_[p_map_idx + 1].fp_location == kLocPhysReg) {
+            if (promotion_map_[p_map_idx + 1].fp_location != kLocPhysReg) {
               // Ignore result - if can't alloc double may still be able to alloc singles.
               AllocPreservedDouble(low_sreg);
             }
