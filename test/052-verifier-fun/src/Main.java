@@ -24,6 +24,7 @@ public class Main {
         tryBlah(1);
 
         System.out.println("Zorch.");
+        System.out.println("10 == " + instanceOfTest(10));
     }
 
     /*
@@ -119,5 +120,16 @@ public class Main {
         }
 
         feature.doStuff();
+    }
+
+    static int instanceOfTest(Integer x) {
+      Object y = x;
+      if (y instanceof String) {
+        // Bug: 15808277
+        // Non-sensical instance-of to check merging after the branch doesn't result in a verifier
+        // error.
+        ((String)y).charAt(0);
+      }
+      return x.intValue();
     }
 }
