@@ -1466,8 +1466,12 @@ static void CheckAndClearResolveException(Thread* self)
   CHECK(self->IsExceptionPending());
   mirror::Throwable* exception = self->GetException(nullptr);
   std::string descriptor = exception->GetClass()->GetDescriptor();
-  if (descriptor != "Ljava/lang/IncompatibleClassChangeError;" &&
-      descriptor != "Ljava/lang/NoClassDefFoundError;") {
+      if (descriptor != "Ljava/lang/IllegalAccessError;" &&
+          descriptor != "Ljava/lang/IncompatibleClassChangeError;" &&
+          descriptor != "Ljava/lang/InstantiationError;" &&
+          descriptor != "Ljava/lang/NoClassDefFoundError;" &&
+          descriptor != "Ljava/lang/NoSuchFieldError;" &&
+          descriptor != "Ljava/lang/NoSuchMethodError;") {
     LOG(FATAL) << "Unexpected exeption " << exception->Dump();
   }
   self->ClearException();
