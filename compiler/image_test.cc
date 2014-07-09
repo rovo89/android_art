@@ -25,7 +25,6 @@
 #include "compiler/image_writer.h"
 #include "compiler/oat_writer.h"
 #include "gc/space/image_space.h"
-#include "implicit_check_options.h"
 #include "lock_word.h"
 #include "mirror/object-inl.h"
 #include "signal_catcher.h"
@@ -78,11 +77,8 @@ TEST_F(ImageTest, WriteRead) {
 
       t.NewTiming("WriteElf");
       ScopedObjectAccess soa(Thread::Current());
-      SafeMap<std::string, std::string> key_value_store;
-      key_value_store.Put(ImplicitCheckOptions::kImplicitChecksOatHeaderKey,
-                          ImplicitCheckOptions::Serialize(true, true, true));
-      OatWriter oat_writer(class_linker->GetBootClassPath(), 0, 0, compiler_driver_.get(), &timings,
-                           &key_value_store);
+      OatWriter oat_writer(class_linker->GetBootClassPath(),
+                           0, 0, "", compiler_driver_.get(), &timings);
       bool success = compiler_driver_->WriteElf(GetTestAndroidRoot(),
                                                 !kIsTargetBuild,
                                                 class_linker->GetBootClassPath(),
