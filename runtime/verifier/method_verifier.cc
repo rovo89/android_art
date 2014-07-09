@@ -46,7 +46,7 @@
 namespace art {
 namespace verifier {
 
-static const bool gDebugVerify = false;
+static constexpr bool gDebugVerify = false;
 // TODO: Add a constant to method_verifier to turn on verbose logging?
 
 void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InstructionFlags* flags,
@@ -1329,8 +1329,7 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
     work_insn_idx_ = insn_idx;
     if (insn_flags_[insn_idx].IsBranchTarget()) {
       work_line_->CopyFromLine(reg_table_.GetLine(insn_idx));
-    } else {
-#ifndef NDEBUG
+    } else if (kIsDebugBuild) {
       /*
        * Sanity check: retrieve the stored register line (assuming
        * a full table) and make sure it actually matches.
@@ -1346,7 +1345,6 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
                      << "  expected=" << *register_line;
         }
       }
-#endif
     }
     if (!CodeFlowVerifyInstruction(&start_guess)) {
       std::string prepend(PrettyMethod(dex_method_idx_, *dex_file_));
@@ -1958,14 +1956,24 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           (Instruction::INSTANCE_OF == instance_of_inst->Opcode()) &&
           (inst->VRegA_21t() == instance_of_inst->VRegA_22c()) &&
           (instance_of_inst->VRegA_22c() != instance_of_inst->VRegB_22c())) {
-        // Check that the we are not attempting conversion to interface types,
-        // which is not done because of the multiple inheritance implications.
-        // Also don't change the type if it would result in an upcast.
+        // Check the type of the instance-of is different than that of registers type, as if they
+        // are the same there is no work to be done here. Check that the conversion is not to or
+        // from an unresolved type as type information is imprecise. If the instance-of is to an
+        // interface then ignore the type information as interfaces can only be treated as Objects
+        // and we don't want to disallow field and other operations on the object. If the value
+        // being instance-of checked against is known null (zero) then allow the optimization as
+        // we didn't have type information. If the merge of the instance-of type with the original
+        // type is assignable to the original then allow optimization. This check is performed to
+        // ensure that subsequent merges don't lose type information - such as becoming an
+        // interface from a class that would lose information relevant to field checks.
         const RegType& orig_type = work_line_->GetRegisterType(instance_of_inst->VRegB_22c());
         const RegType& cast_type = ResolveClassAndCheckAccess(instance_of_inst->VRegC_22c());
 
-        if (!cast_type.IsUnresolvedTypes() && !orig_type.IsUnresolvedTypes() &&
-            !cast_type.GetClass()->IsInterface() && !cast_type.IsAssignableFrom(orig_type)) {
+        if (!orig_type.Equals(cast_type) &&
+            !cast_type.IsUnresolvedTypes() && !orig_type.IsUnresolvedTypes() &&
+            !cast_type.GetClass()->IsInterface() &&
+            (orig_type.IsZero() ||
+                orig_type.IsStrictlyAssignableFrom(cast_type.Merge(orig_type, &reg_types_)))) {
           RegisterLine* update_line = RegisterLine::Create(code_item_->registers_size_, this);
           if (inst->Opcode() == Instruction::IF_EQZ) {
             fallthrough_line.reset(update_line);
@@ -2699,11 +2707,11 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     }
     /* update branch target, set "changed" if appropriate */
     if (NULL != branch_line.get()) {
-      if (!UpdateRegisters(work_insn_idx_ + branch_target, branch_line.get())) {
+      if (!UpdateRegisters(work_insn_idx_ + branch_target, branch_line.get(), false)) {
         return false;
       }
     } else {
-      if (!UpdateRegisters(work_insn_idx_ + branch_target, work_line_.get())) {
+      if (!UpdateRegisters(work_insn_idx_ + branch_target, work_line_.get(), false)) {
         return false;
       }
     }
@@ -2743,8 +2751,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       if (!CheckNotMoveException(code_item_->insns_, abs_offset)) {
         return false;
       }
-      if (!UpdateRegisters(abs_offset, work_line_.get()))
+      if (!UpdateRegisters(abs_offset, work_line_.get(), false)) {
         return false;
+      }
     }
   }
 
@@ -2765,7 +2774,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
        * "work_regs", because at runtime the exception will be thrown before the instruction
        * modifies any registers.
        */
-      if (!UpdateRegisters(iterator.GetHandlerAddress(), saved_line_.get())) {
+      if (!UpdateRegisters(iterator.GetHandlerAddress(), saved_line_.get(), false)) {
         return false;
       }
     }
@@ -2824,9 +2833,10 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     }
     RegisterLine* next_line = reg_table_.GetLine(next_insn_idx);
     if (next_line != NULL) {
-      // Merge registers into what we have for the next instruction,
-      // and set the "changed" flag if needed.
-      if (!UpdateRegisters(next_insn_idx, work_line_.get())) {
+      // Merge registers into what we have for the next instruction, and set the "changed" flag if
+      // needed. If the merge changes the state of the registers then the work line will be
+      // updated.
+      if (!UpdateRegisters(next_insn_idx, work_line_.get(), true)) {
         return false;
       }
     } else {
@@ -3890,7 +3900,8 @@ bool MethodVerifier::CheckNotMoveException(const uint16_t* insns, int insn_idx) 
   return true;
 }
 
-bool MethodVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* merge_line) {
+bool MethodVerifier::UpdateRegisters(uint32_t next_insn, RegisterLine* merge_line,
+                                     bool update_merge_line) {
   bool changed = true;
   RegisterLine* target_line = reg_table_.GetLine(next_insn);
   if (!insn_flags_[next_insn].IsVisitedOrChanged()) {
@@ -3938,6 +3949,9 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* mer
                       << *copy.get() << "  MERGE\n"
                       << *merge_line << "  ==\n"
                       << *target_line << "\n";
+    }
+    if (update_merge_line && changed) {
+      merge_line->CopyFromLine(target_line);
     }
   }
   if (changed) {
