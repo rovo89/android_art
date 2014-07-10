@@ -343,6 +343,14 @@ class Atomic : public std::atomic<T> {
     return this->fetch_sub(value, std::memory_order_seq_cst);  // Return old value.
   }
 
+  T FetchAndOrSequentiallyConsistent(const T value) {
+    return this->fetch_or(value, std::memory_order_seq_cst);  // Return old_value.
+  }
+
+  T FetchAndAndSequentiallyConsistent(const T value) {
+    return this->fetch_and(value, std::memory_order_seq_cst);  // Return old_value.
+  }
+
   volatile T* Address() {
     return reinterpret_cast<T*>(this);
   }
@@ -518,6 +526,30 @@ class PACKED(sizeof(T)) Atomic {
       return __sync_fetch_and_sub(&value_, value);  // Return old value.
     } else {
       return FetchAndAddSequentiallyConsistent(-value);
+    }
+  }
+
+  T FetchAndOrSequentiallyConsistent(const T value) {
+    if (sizeof(T) <= 4) {
+      return __sync_fetch_and_or(&value_, value);  // Return old value.
+    } else {
+      T expected;
+      do {
+        expected = LoadRelaxed();
+      } while (!CompareExchangeWeakSequentiallyConsistent(expected, expected | value));
+      return expected;
+    }
+  }
+
+  T FetchAndAndSequentiallyConsistent(const T value) {
+    if (sizeof(T) <= 4) {
+      return __sync_fetch_and_and(&value_, value);  // Return old value.
+    } else {
+      T expected;
+      do {
+        expected = LoadRelaxed();
+      } while (!CompareExchangeWeakSequentiallyConsistent(expected, expected & value));
+      return expected;
     }
   }
 
