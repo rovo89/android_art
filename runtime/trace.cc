@@ -629,7 +629,7 @@ void Trace::LogMethodTraceEvent(Thread* thread, mirror::ArtMethod* method,
       overflow_ = true;
       return;
     }
-  } while (cur_offset_.CompareExchangeWeakSequentiallyConsistent(old_offset, new_offset) != 0);
+  } while (!cur_offset_.CompareExchangeWeakSequentiallyConsistent(old_offset, new_offset));
 
   TraceAction action = kTraceMethodEnter;
   switch (event) {
