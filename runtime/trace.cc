@@ -459,7 +459,7 @@ Trace::Trace(File* trace_file, int buffer_size, int flags, bool sampling_enabled
   }
 
   // Update current offset.
-  cur_offset_ = kTraceHeaderLength;
+  cur_offset_.StoreRelaxed(kTraceHeaderLength);
 }
 
 static void DumpBuf(uint8_t* buf, size_t buf_size, ProfilerClockSource clock_source)
@@ -480,7 +480,7 @@ void Trace::FinishTracing() {
   // Compute elapsed time.
   uint64_t elapsed = MicroTime() - start_time_;
 
-  size_t final_offset = cur_offset_;
+  size_t final_offset = cur_offset_.LoadRelaxed();
   uint32_t clock_overhead_ns = GetClockOverheadNanoSeconds(this);
 
   if ((flags_ & kTraceCountAllocs) != 0) {
@@ -623,13 +623,13 @@ void Trace::LogMethodTraceEvent(Thread* thread, mirror::ArtMethod* method,
   int32_t new_offset;
   int32_t old_offset;
   do {
-    old_offset = cur_offset_;
+    old_offset = cur_offset_.LoadRelaxed();
     new_offset = old_offset + GetRecordSize(clock_source_);
     if (new_offset > buffer_size_) {
       overflow_ = true;
       return;
     }
-  } while (android_atomic_release_cas(old_offset, new_offset, &cur_offset_) != 0);
+  } while (cur_offset_.CompareExchangeWeakSequentiallyConsistent(old_offset, new_offset) != 0);
 
   TraceAction action = kTraceMethodEnter;
   switch (event) {

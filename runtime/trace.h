@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+#include "atomic.h"
 #include "base/macros.h"
 #include "globals.h"
 #include "instrumentation.h"
@@ -166,7 +167,7 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   const uint64_t start_time_;
 
   // Offset into buf_.
-  volatile int32_t cur_offset_;
+  AtomicInteger cur_offset_;
 
   // Did we overflow the buffer recording traces?
   bool overflow_;
