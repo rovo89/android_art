@@ -43,9 +43,10 @@ class FaultManager {
   void HandleFault(int sig, siginfo_t* info, void* context);
   void AddHandler(FaultHandler* handler, bool generated_code);
   void RemoveHandler(FaultHandler* handler);
-  void GetMethodAndReturnPCAndSP(void* context, mirror::ArtMethod** out_method,
+  void GetMethodAndReturnPCAndSP(siginfo_t* siginfo, void* context, mirror::ArtMethod** out_method,
                                  uintptr_t* out_return_pc, uintptr_t* out_sp);
-  bool IsInGeneratedCode(void *context, bool check_dex_pc) NO_THREAD_SAFETY_ANALYSIS;
+  bool IsInGeneratedCode(siginfo_t* siginfo, void *context, bool check_dex_pc)
+                         NO_THREAD_SAFETY_ANALYSIS;
 
  private:
   std::vector<FaultHandler*> generated_code_handlers_;

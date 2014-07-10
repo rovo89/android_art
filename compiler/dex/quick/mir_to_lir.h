@@ -838,6 +838,7 @@ class Mir2Lir : public Backend {
     LIR* GenImmedCheck(ConditionCode c_code, RegStorage reg, int imm_val, ThrowKind kind);
     LIR* GenNullCheck(RegStorage m_reg, int opt_flags);
     LIR* GenExplicitNullCheck(RegStorage m_reg, int opt_flags);
+    virtual void GenImplicitNullCheck(RegStorage reg, int opt_flags);
     void GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
                              RegLocation rl_src2, LIR* taken, LIR* fall_through);
     void GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_src,
@@ -1147,10 +1148,12 @@ class Mir2Lir : public Backend {
      * @param base_reg The register holding the base address.
      * @param offset The offset from the base.
      * @param check_value The immediate to compare to.
+     * @param target branch target (or nullptr)
+     * @param compare output for getting LIR for comparison (or nullptr)
      * @returns The branch instruction that was generated.
      */
     virtual LIR* OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,
-                                   int offset, int check_value, LIR* target);
+                                   int offset, int check_value, LIR* target, LIR** compare);
 
     // Required for target - codegen helpers.
     virtual bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div,
