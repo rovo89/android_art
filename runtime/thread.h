@@ -739,9 +739,13 @@ class Thread {
     return (tls32_.state_and_flags.as_struct.flags != 0);
   }
 
-  void AtomicSetFlag(ThreadFlag flag);
+  void AtomicSetFlag(ThreadFlag flag) {
+    tls32_.state_and_flags.as_atomic_int.FetchAndOrSequentiallyConsistent(flag);
+  }
 
-  void AtomicClearFlag(ThreadFlag flag);
+  void AtomicClearFlag(ThreadFlag flag) {
+    tls32_.state_and_flags.as_atomic_int.FetchAndAndSequentiallyConsistent(-1 ^ flag);
+  }
 
   void ResetQuickAllocEntryPointsForThread();
 
