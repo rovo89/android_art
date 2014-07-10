@@ -24,6 +24,7 @@
 #include <memory>
 #include <string>
 
+#include "atomic.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "entrypoints/interpreter/interpreter_entrypoints.h"
@@ -864,6 +865,7 @@ class Thread {
       // change to Runnable as a GC or other operation is in progress.
       volatile uint16_t state;
     } as_struct;
+    AtomicInteger as_atomic_int;
     volatile int32_t as_int;
 
    private:
@@ -871,6 +873,7 @@ class Thread {
     // See http://gcc.gnu.org/bugzilla/show_bug.cgi?id=47409
     DISALLOW_COPY_AND_ASSIGN(StateAndFlags);
   };
+  COMPILE_ASSERT(sizeof(StateAndFlags) == sizeof(int32_t), weird_state_and_flags_size);
 
   static void ThreadExitCallback(void* arg);
 
