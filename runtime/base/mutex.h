@@ -226,7 +226,8 @@ class LOCKABLE Mutex : public BaseMutex {
   }
   void AssertNotHeld(const Thread* self) { AssertNotHeldExclusive(self); }
 
-  // Id associated with exclusive owner.
+  // Id associated with exclusive owner. No memory ordering semantics if called from a thread other
+  // than the owner.
   uint64_t GetExclusiveOwnerTid() const;
 
   // Returns how many times this Mutex has been locked, it is better to use AssertHeld/NotHeld.
@@ -239,7 +240,7 @@ class LOCKABLE Mutex : public BaseMutex {
  private:
 #if ART_USE_FUTEXES
   // 0 is unheld, 1 is held.
-  volatile int32_t state_;
+  AtomicInteger state_;
   // Exclusive owner.
   volatile uint64_t exclusive_owner_;
   // Number of waiting contenders.
@@ -343,7 +344,8 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
     }
   }
 
-  // Id associated with exclusive owner.
+  // Id associated with exclusive owner. No memory ordering semantics if called from a thread other
+  // than the owner.
   uint64_t GetExclusiveOwnerTid() const;
 
   virtual void Dump(std::ostream& os) const;
@@ -351,12 +353,12 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
  private:
 #if ART_USE_FUTEXES
   // -1 implies held exclusive, +ve shared held by state_ many owners.
-  volatile int32_t state_;
-  // Exclusive owner.
+  AtomicInteger state_;
+  // Exclusive owner. Modification guarded by this mutex.
   volatile uint64_t exclusive_owner_;
-  // Pending readers.
-  volatile int32_t num_pending_readers_;
-  // Pending writers.
+  // Number of contenders waiting for a reader share.
+  AtomicInteger num_pending_readers_;
+  // Number of contenders waiting to be the writer.
   AtomicInteger num_pending_writers_;
 #else
   pthread_rwlock_t rwlock_;
