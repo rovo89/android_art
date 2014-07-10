@@ -772,8 +772,13 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     // shadow_frame.GetMethod()->GetDeclaringClass()->GetClassLoader();
     Class* found = Runtime::Current()->GetClassLinker()->FindClass(
         self, descriptor.c_str(), NullHandle<mirror::ClassLoader>());
-    CHECK(found != NULL) << "Class.forName failed in un-started runtime for class: "
-        << PrettyDescriptor(descriptor);
+    if (found == NULL) {
+      if (!self->IsExceptionPending()) {
+        AbortTransaction(self, "Class.forName failed in un-started runtime for class: %s",
+                         PrettyDescriptor(descriptor).c_str());
+      }
+      return;
+    }
     result->SetL(found);
   } else if (name == "java.lang.Class java.lang.Void.lookupType()") {
     result->SetL(Runtime::Current()->GetClassLinker()->FindPrimitiveClass('V'));
