@@ -34,8 +34,6 @@
 #include "base/mutex.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
-#include "cutils/atomic.h"
-#include "cutils/atomic-inline.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
 #include "entrypoints/entrypoint_utils.h"
