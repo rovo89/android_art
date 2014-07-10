@@ -110,6 +110,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/mem_map_test.cc \
   runtime/mirror/dex_cache_test.cc \
   runtime/mirror/object_test.cc \
+  runtime/monitor_pool_test.cc \
   runtime/monitor_test.cc \
   runtime/parsed_options_test.cc \
   runtime/reference_table_test.cc \
