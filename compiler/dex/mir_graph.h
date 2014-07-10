@@ -78,6 +78,7 @@ enum DataFlowAttributePos {
   kSetsConst,
   kFormat35c,
   kFormat3rc,
+  kFormatExtended,       // Extended format for extended MIRs.
   kNullCheckSrc0,        // Null check of uses[0].
   kNullCheckSrc1,        // Null check of uses[1].
   kNullCheckSrc2,        // Null check of uses[2].
@@ -116,6 +117,7 @@ enum DataFlowAttributePos {
 #define DF_SETS_CONST           (UINT64_C(1) << kSetsConst)
 #define DF_FORMAT_35C           (UINT64_C(1) << kFormat35c)
 #define DF_FORMAT_3RC           (UINT64_C(1) << kFormat3rc)
+#define DF_FORMAT_EXTENDED      (UINT64_C(1) << kFormatExtended)
 #define DF_NULL_CHK_0           (UINT64_C(1) << kNullCheckSrc0)
 #define DF_NULL_CHK_1           (UINT64_C(1) << kNullCheckSrc1)
 #define DF_NULL_CHK_2           (UINT64_C(1) << kNullCheckSrc2)
@@ -1054,6 +1056,9 @@ class MIRGraph {
   void HandleLiveInUse(ArenaBitVector* use_v, ArenaBitVector* def_v,
                        ArenaBitVector* live_in_v, int dalvik_reg_id);
   void HandleDef(ArenaBitVector* def_v, int dalvik_reg_id);
+  void HandleExtended(ArenaBitVector* use_v, ArenaBitVector* def_v,
+                      ArenaBitVector* live_in_v,
+                      const MIR::DecodedInstruction& d_insn);
   bool DoSSAConversion(BasicBlock* bb);
   bool InvokeUsesMethodStar(MIR* mir);
   int ParseInsn(const uint16_t* code_ptr, MIR::DecodedInstruction* decoded_instruction);
@@ -1075,6 +1080,7 @@ class MIRGraph {
   void HandleSSAUse(int* uses, int dalvik_reg, int reg_index);
   void DataFlowSSAFormat35C(MIR* mir);
   void DataFlowSSAFormat3RC(MIR* mir);
+  void DataFlowSSAFormatExtended(MIR* mir);
   bool FindLocalLiveIn(BasicBlock* bb);
   bool VerifyPredInfo(BasicBlock* bb);
   BasicBlock* NeedsVisit(BasicBlock* bb);
