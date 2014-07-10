@@ -124,7 +124,9 @@ class Monitor {
 
  private:
   explicit Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  explicit Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code,
+                   MonitorId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Install the monitor into its object, may fail if another thread installs a different monitor
   // first.
@@ -212,8 +214,14 @@ class Monitor {
   // The denser encoded version of this monitor as stored in the lock word.
   MonitorId monitor_id_;
 
+#ifdef __LP64__
+  // Free list for monitor pool.
+  Monitor* next_free_ GUARDED_BY(Locks::allocated_monitor_ids_lock_);
+#endif
+
   friend class MonitorInfo;
   friend class MonitorList;
+  friend class MonitorPool;
   friend class mirror::Object;
   DISALLOW_COPY_AND_ASSIGN(Monitor);
 };

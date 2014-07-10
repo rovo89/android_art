@@ -90,7 +90,33 @@ Monitor::Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_
       hash_code_(hash_code),
       locking_method_(NULL),
       locking_dex_pc_(0),
-      monitor_id_(MonitorPool::CreateMonitorId(self, this)) {
+      monitor_id_(MonitorPool::ComputeMonitorId(this, self)) {
+#ifdef __LP64__
+  DCHECK(false) << "Should not be reached in 64b";
+  next_free_ = nullptr;
+#endif
+  // We should only inflate a lock if the owner is ourselves or suspended. This avoids a race
+  // with the owner unlocking the thin-lock.
+  CHECK(owner == nullptr || owner == self || owner->IsSuspended());
+  // The identity hash code is set for the life time of the monitor.
+}
+
+Monitor::Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code,
+                 MonitorId id)
+    : monitor_lock_("a monitor lock", kMonitorLock),
+      monitor_contenders_("monitor contenders", monitor_lock_),
+      num_waiters_(0),
+      owner_(owner),
+      lock_count_(0),
+      obj_(obj),
+      wait_set_(NULL),
+      hash_code_(hash_code),
+      locking_method_(NULL),
+      locking_dex_pc_(0),
+      monitor_id_(id) {
+#ifdef __LP64__
+  next_free_ = nullptr;
+#endif
   // We should only inflate a lock if the owner is ourselves or suspended. This avoids a race
   // with the owner unlocking the thin-lock.
   CHECK(owner == nullptr || owner == self || owner->IsSuspended());
@@ -146,7 +172,6 @@ bool Monitor::Install(Thread* self) {
 }
 
 Monitor::~Monitor() {
-  MonitorPool::ReleaseMonitorId(monitor_id_);
   // Deflated monitors have a null object.
 }
 
@@ -621,20 +646,23 @@ bool Monitor::Deflate(Thread* self, mirror::Object* obj) {
  * inflating the lock and so the caller should read the monitor following the call.
  */
 void Monitor::Inflate(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code) {
-  DCHECK(self != NULL);
-  DCHECK(obj != NULL);
+  DCHECK(self != nullptr);
+  DCHECK(obj != nullptr);
   // Allocate and acquire a new monitor.
-  std::unique_ptr<Monitor> m(new Monitor(self, owner, obj, hash_code));
+  Monitor* m = MonitorPool::CreateMonitor(self, owner, obj, hash_code);
+  DCHECK(m != nullptr);
   if (m->Install(self)) {
     if (owner != nullptr) {
       VLOG(monitor) << "monitor: thread" << owner->GetThreadId()
-          << " created monitor " << m.get() << " for object " << obj;
+          << " created monitor " << m << " for object " << obj;
     } else {
       VLOG(monitor) << "monitor: Inflate with hashcode " << hash_code
-          << " created monitor " << m.get() << " for object " << obj;
+          << " created monitor " << m << " for object " << obj;
     }
-    Runtime::Current()->GetMonitorList()->Add(m.release());
+    Runtime::Current()->GetMonitorList()->Add(m);
     CHECK_EQ(obj->GetLockWord(true).GetState(), LockWord::kFatLocked);
+  } else {
+    MonitorPool::ReleaseMonitor(self, m);
   }
 }
 
@@ -1071,8 +1099,12 @@ MonitorList::MonitorList()
 }
 
 MonitorList::~MonitorList() {
-  MutexLock mu(Thread::Current(), monitor_list_lock_);
-  STLDeleteElements(&list_);
+  Thread* self = Thread::Current();
+  MutexLock mu(self, monitor_list_lock_);
+  // Release all monitors to the pool.
+  // TODO: Is it an invariant that *all* open monitors are in the list? Then we could
+  // clear faster in the pool.
+  MonitorPool::ReleaseMonitors(self, &list_);
 }
 
 void MonitorList::DisallowNewMonitors() {
@@ -1097,7 +1129,8 @@ void MonitorList::Add(Monitor* m) {
 }
 
 void MonitorList::SweepMonitorList(IsMarkedCallback* callback, void* arg) {
-  MutexLock mu(Thread::Current(), monitor_list_lock_);
+  Thread* self = Thread::Current();
+  MutexLock mu(self, monitor_list_lock_);
   for (auto it = list_.begin(); it != list_.end(); ) {
     Monitor* m = *it;
     // Disable the read barrier in GetObject() as this is called by GC.
@@ -1107,7 +1140,7 @@ void MonitorList::SweepMonitorList(IsMarkedCallback* callback, void* arg) {
     if (new_obj == nullptr) {
       VLOG(monitor) << "freeing monitor " << m << " belonging to unmarked object "
                     << obj;
-      delete m;
+      MonitorPool::ReleaseMonitor(self, m);
       it = list_.erase(it);
     } else {
       m->SetObject(new_obj);
