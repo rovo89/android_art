@@ -113,11 +113,13 @@ class LocalValueNumberingTest : public testing::Test {
     for (size_t i = 0u; i != count; ++i) {
       const SFieldDef* def = &defs[i];
       MirSFieldLoweringInfo field_info(def->field_idx);
+      // Mark even unresolved fields as initialized.
+      field_info.flags_ = MirSFieldLoweringInfo::kFlagIsStatic |
+          MirSFieldLoweringInfo::kFlagIsInitialized;
       if (def->declaring_dex_file != 0u) {
         field_info.declaring_dex_file_ = reinterpret_cast<const DexFile*>(def->declaring_dex_file);
         field_info.declaring_field_idx_ = def->declaring_field_idx;
-        field_info.flags_ = MirSFieldLoweringInfo::kFlagIsStatic |
-            (def->is_volatile ? MirSFieldLoweringInfo::kFlagIsVolatile : 0u);
+        field_info.flags_ |= (def->is_volatile ? MirSFieldLoweringInfo::kFlagIsVolatile : 0u);
       }
       cu_.mir_graph->sfield_lowering_infos_.Insert(field_info);
     }
@@ -166,6 +168,12 @@ class LocalValueNumberingTest : public testing::Test {
   template <size_t count>
   void PrepareMIRs(const MIRDef (&defs)[count]) {
     DoPrepareMIRs(defs, count);
+  }
+
+  void MakeSFieldUninitialized(uint32_t sfield_index) {
+    CHECK_LT(sfield_index, cu_.mir_graph->sfield_lowering_infos_.Size());
+    cu_.mir_graph->sfield_lowering_infos_.GetRawStorage()[sfield_index].flags_ &=
+        ~MirSFieldLoweringInfo::kFlagIsInitialized;
   }
 
   void PerformLVN() {
@@ -595,6 +603,27 @@ TEST_F(LocalValueNumberingTest, StoringSameValueKeepsMemoryVersion) {
         ((i == 6u || i == 7u) ? MIR_IGNORE_RANGE_CHECK : 0u);
     EXPECT_EQ(expected, mirs_[i].optimization_flags) << i;
   }
+}
+
+TEST_F(LocalValueNumberingTest, ClInitOnSget) {
+  static const SFieldDef sfields[] = {
+      { 0u, 1u, 0u, false },
+      { 1u, 2u, 1u, false },
+  };
+  static const MIRDef mirs[] = {
+      DEF_SGET(Instruction::SGET_OBJECT, 0u, 0u),
+      DEF_AGET(Instruction::AGET, 1u, 0u, 100u),
+      DEF_SGET(Instruction::SGET_OBJECT, 2u, 1u),
+      DEF_SGET(Instruction::SGET_OBJECT, 3u, 0u),
+      DEF_AGET(Instruction::AGET, 4u, 3u, 100u),
+  };
+
+  PrepareSFields(sfields);
+  MakeSFieldUninitialized(1u);
+  PrepareMIRs(mirs);
+  PerformLVN();
+  ASSERT_EQ(value_names_.size(), 5u);
+  EXPECT_NE(value_names_[0], value_names_[3]);
 }
 
 }  // namespace art
