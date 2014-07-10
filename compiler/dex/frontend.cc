@@ -42,11 +42,11 @@ extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver* driver) {
 static uint32_t kCompilerOptimizerDisableFlags = 0 |  // Disable specific optimizations
   (1 << kLoadStoreElimination) |  // TODO: this pass has been broken for awhile - fix or delete.
   // (1 << kLoadHoisting) |
-  (1 << kSuppressLoads) |   // TODO:  Temporary workaround, restore when b/15024623 fixed.
+  // (1 << kSuppressLoads) |
   // (1 << kNullCheckElimination) |
   // (1 << kClassInitCheckElimination) |
   // (1 << kPromoteRegs) |
-  (1 << kTrackLiveTemps) |   // TODO: Temporary workaround, restore when b/15024623 fixed.
+  // (1 << kTrackLiveTemps) |
   // (1 << kSafeOptimizations) |
   // (1 << kBBOpt) |
   // (1 << kMatch) |
