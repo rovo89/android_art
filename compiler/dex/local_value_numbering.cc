@@ -534,6 +534,10 @@ void LocalValueNumbering::InPlaceIntersectMaps(Map* work_map, const Map& other_m
          (!cmp(entry, *work_it) && !(work_it->second == entry.second)))) {
       work_it = work_map->erase(work_it);
     }
+    if (work_it == work_end) {
+      return;
+    }
+    ++work_it;
   }
 }
 
@@ -855,13 +859,18 @@ void LocalValueNumbering::Merge(MergeType merge_type) {
   MergeMemoryVersions(merge_type == kCatchMerge);
 
   // Merge non-aliasing maps/sets.
-  MergeSets<IFieldLocToValueMap, &LocalValueNumbering::non_aliasing_ifield_value_map_,
-            &LocalValueNumbering::MergeNonAliasingIFieldValues>();
-  MergeSets<NonAliasingArrayValuesMap, &LocalValueNumbering::non_aliasing_array_value_map_,
-            &LocalValueNumbering::MergeAliasingValues<
-                NonAliasingArrayValuesMap, &LocalValueNumbering::non_aliasing_array_value_map_,
-                NonAliasingArrayVersions>>();
   IntersectSets<ValueNameSet, &LocalValueNumbering::non_aliasing_refs_>();
+  if (!non_aliasing_refs_.empty() && merge_type == kCatchMerge) {
+    PruneNonAliasingRefsForCatch();
+  }
+  if (!non_aliasing_refs_.empty()) {
+    MergeSets<IFieldLocToValueMap, &LocalValueNumbering::non_aliasing_ifield_value_map_,
+              &LocalValueNumbering::MergeNonAliasingIFieldValues>();
+    MergeSets<NonAliasingArrayValuesMap, &LocalValueNumbering::non_aliasing_array_value_map_,
+              &LocalValueNumbering::MergeAliasingValues<
+                  NonAliasingArrayValuesMap, &LocalValueNumbering::non_aliasing_array_value_map_,
+                  NonAliasingArrayVersions>>();
+  }
 
   // We won't do anything complicated for range checks, just calculate the intersection.
   IntersectSets<RangeCheckSet, &LocalValueNumbering::range_checked_>();
@@ -872,7 +881,6 @@ void LocalValueNumbering::Merge(MergeType merge_type) {
 
   if (merge_type == kCatchMerge) {
     // Memory is clobbered. New memory version already created, don't merge aliasing locations.
-    PruneNonAliasingRefsForCatch();
     return;
   }
 
@@ -1361,8 +1369,8 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::MONITOR_EXIT:
       HandleNullCheck(mir, GetOperandValue(mir->ssa_rep->uses[0]));
       // If we're running GVN and CanModify(), uneliminated null check indicates bytecode error.
-      if ((gvn_->cu_->disable_opt & (1 << kGlobalValueNumbering)) == 0 && gvn_->CanModify() &&
-          (mir->optimization_flags & MIR_IGNORE_NULL_CHECK) == 0) {
+      if ((gvn_->GetCompilationUnit()->disable_opt & (1u << kGlobalValueNumbering)) == 0u &&
+          gvn_->CanModify() && (mir->optimization_flags & MIR_IGNORE_NULL_CHECK) == 0) {
         LOG(WARNING) << "Bytecode error: MONITOR_EXIT is still null checked at 0x" << std::hex
             << mir->offset << " in " << PrettyMethod(gvn_->cu_->method_idx, *gvn_->cu_->dex_file);
       }

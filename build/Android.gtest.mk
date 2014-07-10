@@ -127,6 +127,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   runtime/reflection_test.cc \
   compiler/dex/global_value_numbering_test.cc \
   compiler/dex/local_value_numbering_test.cc \
+  compiler/dex/mir_graph_test.cc \
   compiler/dex/mir_optimization_test.cc \
   compiler/driver/compiler_driver_test.cc \
   compiler/elf_writer_test.cc \

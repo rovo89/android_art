@@ -172,7 +172,7 @@ class NullCheckEliminationAndTypeInference : public PassME {
 class ClassInitCheckElimination : public PassME {
  public:
   ClassInitCheckElimination()
-    : PassME("ClInitCheckElimination", kRepeatingTopologicalSortTraversal) {
+    : PassME("ClInitCheckElimination", kLoopRepeatingTopologicalSortTraversal) {
   }
 
   bool Gate(const PassDataHolder* data) const {
@@ -207,17 +207,17 @@ class ClassInitCheckElimination : public PassME {
 class GlobalValueNumberingPass : public PassME {
  public:
   GlobalValueNumberingPass()
-    : PassME("GVN", kRepeatingTopologicalSortTraversal, "4_post_gvn_cfg") {
+    : PassME("GVN", kLoopRepeatingTopologicalSortTraversal, "4_post_gvn_cfg") {
   }
 
-  bool Gate(const PassDataHolder* data) const {
+  bool Gate(const PassDataHolder* data) const OVERRIDE {
     DCHECK(data != nullptr);
     CompilationUnit* cUnit = down_cast<const PassMEDataHolder*>(data)->c_unit;
     DCHECK(cUnit != nullptr);
     return cUnit->mir_graph->ApplyGlobalValueNumberingGate();
   }
 
-  bool Worker(const PassDataHolder* data) const {
+  bool Worker(const PassDataHolder* data) const OVERRIDE {
     DCHECK(data != nullptr);
     const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
     CompilationUnit* cUnit = pass_me_data_holder->c_unit;
@@ -227,7 +227,7 @@ class GlobalValueNumberingPass : public PassME {
     return cUnit->mir_graph->ApplyGlobalValueNumbering(bb);
   }
 
-  void End(PassDataHolder* data) const {
+  void End(PassDataHolder* data) const OVERRIDE {
     DCHECK(data != nullptr);
     CompilationUnit* cUnit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(cUnit != nullptr);
