@@ -99,27 +99,8 @@ class RosAlloc {
       byte* start = reinterpret_cast<byte*>(this);
       size_t byte_size = ByteSize(rosalloc);
       DCHECK_EQ(byte_size % kPageSize, static_cast<size_t>(0));
-      bool release_pages = ShouldReleasePages(rosalloc);
-      if (kIsDebugBuild) {
-        // Exclude the first page that stores the magic number.
-        DCHECK_GE(byte_size, static_cast<size_t>(kPageSize));
-        start += kPageSize;
-        byte_size -= kPageSize;
-        if (byte_size > 0) {
-          if (release_pages) {
-            if (!kMadviseZeroes) {
-              memset(start, 0, byte_size);
-            }
-            madvise(start, byte_size, MADV_DONTNEED);
-          }
-        }
-      } else {
-        if (release_pages) {
-          if (!kMadviseZeroes) {
-            memset(start, 0, byte_size);
-          }
-          madvise(start, byte_size, MADV_DONTNEED);
-        }
+      if (ShouldReleasePages(rosalloc)) {
+        rosalloc->ReleasePageRange(start, start + byte_size);
       }
     }
   };
@@ -462,14 +443,15 @@ class RosAlloc {
   std::string size_bracket_lock_names[kNumOfSizeBrackets];
   // The types of page map entries.
   enum {
-    kPageMapEmpty           = 0,  // Not allocated.
-    kPageMapRun             = 1,  // The beginning of a run.
-    kPageMapRunPart         = 2,  // The non-beginning part of a run.
-    kPageMapLargeObject     = 3,  // The beginning of a large object.
-    kPageMapLargeObjectPart = 4,  // The non-beginning part of a large object.
+    kPageMapReleased = 0,     // Zero and released back to the OS.
+    kPageMapEmpty,            // Zero but probably dirty.
+    kPageMapRun,              // The beginning of a run.
+    kPageMapRunPart,          // The non-beginning part of a run.
+    kPageMapLargeObject,      // The beginning of a large object.
+    kPageMapLargeObjectPart,  // The non-beginning part of a large object.
   };
   // The table that indicates what pages are currently used for.
-  byte* page_map_;  // No GUARDED_BY(lock_) for kReadPageMapEntryWithoutLockInBulkFree.
+  volatile byte* page_map_;  // No GUARDED_BY(lock_) for kReadPageMapEntryWithoutLockInBulkFree.
   size_t page_map_size_;
   size_t max_page_map_size_;
   std::unique_ptr<MemMap> page_map_mem_map_;
@@ -536,6 +518,9 @@ class RosAlloc {
   // Revoke the current runs which share an index with the thread local runs.
   void RevokeThreadUnsafeCurrentRuns();
 
+  // Release a range of pages.
+  size_t ReleasePageRange(byte* start, byte* end) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+
  public:
   RosAlloc(void* base, size_t capacity, size_t max_capacity,
            PageReleaseMode page_release_mode,
@@ -587,6 +572,11 @@ class RosAlloc {
   std::string DumpPageMap() EXCLUSIVE_LOCKS_REQUIRED(lock_);
   static Run* GetDedicatedFullRun() {
     return dedicated_full_run_;
+  }
+  bool IsFreePage(size_t idx) const {
+    DCHECK_LT(idx, capacity_ / kPageSize);
+    byte pm_type = page_map_[idx];
+    return pm_type == kPageMapReleased || pm_type == kPageMapEmpty;
   }
 
   // Callbacks for InspectAll that will count the number of bytes
