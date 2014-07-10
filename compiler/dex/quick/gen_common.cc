@@ -195,7 +195,6 @@ void Mir2Lir::MarkPossibleNullPointerException(int opt_flags) {
     if (!(cu_->disable_opt & (1 << kNullCheckElimination)) && (opt_flags & MIR_IGNORE_NULL_CHECK)) {
       return;
     }
-    // Insert after last instruction.
     MarkSafepointPC(last_lir_insn_);
   }
 }
@@ -623,7 +622,7 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, bool is_long_or_double,
         LockTemp(r_tmp);
         LIR* uninit_branch = OpCmpMemImmBranch(kCondLt, r_tmp, r_base,
                                           mirror::Class::StatusOffset().Int32Value(),
-                                          mirror::Class::kStatusInitialized, nullptr, nullptr);
+                                          mirror::Class::kStatusInitialized, NULL);
         LIR* cont = NewLIR0(kPseudoTargetLabel);
 
         AddSlowPath(new (arena_) StaticFieldSlowPath(this, unresolved_branch, uninit_branch, cont,
@@ -716,7 +715,7 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
         LockTemp(r_tmp);
         LIR* uninit_branch = OpCmpMemImmBranch(kCondLt, r_tmp, r_base,
                                           mirror::Class::StatusOffset().Int32Value(),
-                                          mirror::Class::kStatusInitialized, nullptr, nullptr);
+                                          mirror::Class::kStatusInitialized, NULL);
         LIR* cont = NewLIR0(kPseudoTargetLabel);
 
         AddSlowPath(new (arena_) StaticFieldSlowPath(this, unresolved_branch, uninit_branch, cont,
