@@ -193,7 +193,7 @@ $(3): PRIVATE_OAT_FILE := $$(oat_file)
 $(3): $$(ART_TEST_HOST_OAT_$(1)_DEX) $(ART_TEST_HOST_OAT_DEPENDENCIES)
 	$(hide) mkdir -p $(ART_HOST_TEST_DIR)/android-data-$$@/dalvik-cache/$$($(2)HOST_ARCH)
 	$(hide) cp $$(realpath $$<) $(ART_HOST_TEST_DIR)/android-data-$$@/oat-test-dex-$(1).jar
-	$(hide) $(DEX2OATD) $(DEX2OAT_FLAGS) --runtime-arg $(DEX2OAT_XMS) --runtime-arg $(DEX2OAT_XMX) $(4) \
+	$(hide) $(DEX2OATD) $(DEX2OAT_FLAGS) --runtime-arg -Xms$(DEX2OAT_XMS) --runtime-arg -Xmx$(DEX2OAT_XMX) $(4) \
 	  --boot-image=$$(HOST_CORE_IMG_LOCATION) \
 	  --dex-file=$$(PRIVATE_DEX_FILE) --oat-file=$$(PRIVATE_OAT_FILE) \
 	  --instruction-set=$($(2)ART_HOST_ARCH) --host --android-root=$(HOST_OUT) \
