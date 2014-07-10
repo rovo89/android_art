@@ -998,11 +998,14 @@ bool MIRGraph::EliminateClassInitChecksGate() {
             mir->dalvikInsn.opcode <= Instruction::SPUT_SHORT) {
           const MirSFieldLoweringInfo& field_info = GetSFieldLoweringInfo(mir);
           uint16_t index = 0xffffu;
-          if (field_info.IsResolved() && !field_info.IsInitialized()) {
+          if (!field_info.IsInitialized()) {
             DCHECK_LT(class_to_index_map.size(), 0xffffu);
             MapEntry entry = {
-                field_info.DeclaringDexFile(),
-                field_info.DeclaringClassIndex(),
+                // Treat unresolved fields as if each had its own class.
+                field_info.IsResolved() ? field_info.DeclaringDexFile()
+                                        : nullptr,
+                field_info.IsResolved() ? field_info.DeclaringClassIndex()
+                                        : field_info.FieldIndex(),
                 static_cast<uint16_t>(class_to_index_map.size())
             };
             index = class_to_index_map.insert(entry).first->index;

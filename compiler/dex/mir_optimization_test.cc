@@ -248,7 +248,7 @@ TEST_F(ClassInitCheckEliminationTest, SingleBlock) {
       DEF_MIR(Instruction::SGET, 3u, 4u),
   };
   static const bool expected_ignore_clinit_check[] = {
-      false, false, false, false, false, true, true, true, false, false, true
+      false, false, false, false, true, true, true, true, true, false, true
   };
 
   PrepareSFields(sfields);
@@ -312,7 +312,7 @@ TEST_F(ClassInitCheckEliminationTest, Diamond) {
       DEF_MIR(Instruction::SPUT, 6u, 9u),  // Eliminated (with sfield[8] in block #4).
   };
   static const bool expected_ignore_clinit_check[] = {
-      false, false,         // Unresolved: sfield[10], method[2]
+      false, true,          // Unresolved: sfield[10], method[2]
       false, true,          // sfield[0]
       false, false,         // sfield[1]
       false, true,          // sfield[2]
