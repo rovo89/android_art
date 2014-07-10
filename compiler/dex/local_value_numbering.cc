@@ -356,7 +356,11 @@ void LocalValueNumbering::HandleIPut(MIR* mir, uint16_t opcode) {
 }
 
 uint16_t LocalValueNumbering::HandleSGet(MIR* mir, uint16_t opcode) {
-  const MirFieldInfo& field_info = cu_->mir_graph->GetSFieldLoweringInfo(mir);
+  const MirSFieldLoweringInfo& field_info = cu_->mir_graph->GetSFieldLoweringInfo(mir);
+  if (!field_info.IsInitialized() && (mir->optimization_flags & MIR_IGNORE_CLINIT_CHECK) == 0) {
+    // Class initialization can call arbitrary functions, we need to wipe aliasing values.
+    HandleInvokeOrClInit(mir);
+  }
   uint16_t res;
   if (!field_info.IsResolved() || field_info.IsVolatile()) {
     // Volatile fields always get a new memory version; field id is irrelevant.
@@ -381,8 +385,12 @@ uint16_t LocalValueNumbering::HandleSGet(MIR* mir, uint16_t opcode) {
 }
 
 void LocalValueNumbering::HandleSPut(MIR* mir, uint16_t opcode) {
+  const MirSFieldLoweringInfo& field_info = cu_->mir_graph->GetSFieldLoweringInfo(mir);
+  if (!field_info.IsInitialized() && (mir->optimization_flags & MIR_IGNORE_CLINIT_CHECK) == 0) {
+    // Class initialization can call arbitrary functions, we need to wipe aliasing values.
+    HandleInvokeOrClInit(mir);
+  }
   uint16_t type = opcode - Instruction::SPUT;
-  const MirFieldInfo& field_info = cu_->mir_graph->GetSFieldLoweringInfo(mir);
   if (!field_info.IsResolved()) {
     // Unresolved fields always alias with everything of the same type.
     // Use mir->offset as modifier; without elaborate inlining, it will be unique.
@@ -403,6 +411,15 @@ void LocalValueNumbering::HandleSPut(MIR* mir, uint16_t opcode) {
     StoreValue(kResolvedSFieldOp, field_id,
                unresolved_sfield_version_[type], global_memory_version_, value);
   }
+}
+
+void LocalValueNumbering::HandleInvokeOrClInit(MIR* mir) {
+  // Use mir->offset as modifier; without elaborate inlining, it will be unique.
+  global_memory_version_ = LookupValue(kInvokeMemoryVersionBumpOp, 0u, 0u, mir->offset);
+  // All fields of escaped references need to be treated as potentially modified.
+  non_aliasing_ifields_.clear();
+  // Array elements may also have been modified via escaped array refs.
+  escaped_array_refs_.clear();
 }
 
 uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
@@ -475,17 +492,12 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::INVOKE_STATIC:
     case Instruction::INVOKE_STATIC_RANGE:
       if ((mir->optimization_flags & MIR_INLINED) == 0) {
-        // Use mir->offset as modifier; without elaborate inlining, it will be unique.
-        global_memory_version_ = LookupValue(kInvokeMemoryVersionBumpOp, 0u, 0u, mir->offset);
         // Make ref args aliasing.
         for (size_t i = 0u, count = mir->ssa_rep->num_uses; i != count; ++i) {
           uint16_t reg = GetOperandValue(mir->ssa_rep->uses[i]);
           non_aliasing_refs_.erase(reg);
         }
-        // All fields of escaped references need to be treated as potentially modified.
-        non_aliasing_ifields_.clear();
-        // Array elements may also have been modified via escaped array refs.
-        escaped_array_refs_.clear();
+        HandleInvokeOrClInit(mir);
       }
       break;
 
