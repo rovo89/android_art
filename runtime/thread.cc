@@ -589,14 +589,6 @@ uint64_t Thread::GetCpuMicroTime() const {
 #endif
 }
 
-void Thread::AtomicSetFlag(ThreadFlag flag) {
-  android_atomic_or(flag, &tls32_.state_and_flags.as_int);
-}
-
-void Thread::AtomicClearFlag(ThreadFlag flag) {
-  android_atomic_and(-1 ^ flag, &tls32_.state_and_flags.as_int);
-}
-
 // Attempt to rectify locks so that we dump thread list with required locks before exiting.
 static void UnsafeLogFatalForSuspendCount(Thread* self, Thread* thread) NO_THREAD_SAFETY_ANALYSIS {
   LOG(ERROR) << *thread << " suspend count already zero.";
@@ -702,9 +694,10 @@ bool Thread::RequestCheckpoint(Closure* function) {
   union StateAndFlags new_state_and_flags;
   new_state_and_flags.as_int = old_state_and_flags.as_int;
   new_state_and_flags.as_struct.flags |= kCheckpointRequest;
-  int succeeded = android_atomic_acquire_cas(old_state_and_flags.as_int, new_state_and_flags.as_int,
-                                             &tls32_.state_and_flags.as_int);
-  if (UNLIKELY(succeeded != 0)) {
+  bool success =
+      tls32_.state_and_flags.as_atomic_int.CompareExchangeStrongSequentiallyConsistent(old_state_and_flags.as_int,
+                                                                                       new_state_and_flags.as_int);
+  if (UNLIKELY(!success)) {
     // The thread changed state before the checkpoint was installed.
     CHECK_EQ(tlsPtr_.checkpoint_functions[available_checkpoint], function);
     tlsPtr_.checkpoint_functions[available_checkpoint] = nullptr;
@@ -712,7 +705,7 @@ bool Thread::RequestCheckpoint(Closure* function) {
     CHECK_EQ(ReadFlag(kCheckpointRequest), true);
     TriggerSuspend();
   }
-  return succeeded == 0;
+  return success;
 }
 
 void Thread::FullSuspendCheck() {
