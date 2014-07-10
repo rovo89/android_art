@@ -69,10 +69,10 @@ inline void Object::SetLockWord(LockWord new_val, bool as_volatile) {
   }
 }
 
-inline bool Object::CasLockWord(LockWord old_val, LockWord new_val) {
+inline bool Object::CasLockWordWeakSequentiallyConsistent(LockWord old_val, LockWord new_val) {
   // Force use of non-transactional mode and do not check.
-  return CasField32<false, false>(OFFSET_OF_OBJECT_MEMBER(Object, monitor_), old_val.GetValue(),
-                                  new_val.GetValue());
+  return CasFieldWeakSequentiallyConsistent32<false, false>(
+      OFFSET_OF_OBJECT_MEMBER(Object, monitor_), old_val.GetValue(), new_val.GetValue());
 }
 
 inline uint32_t Object::GetLockOwnerThreadId() {
@@ -131,21 +131,17 @@ inline bool Object::AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object*
   DCHECK(kUseBakerOrBrooksReadBarrier);
   MemberOffset offset = OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_);
   byte* raw_addr = reinterpret_cast<byte*>(this) + offset.SizeValue();
-  HeapReference<Object>* ref = reinterpret_cast<HeapReference<Object>*>(raw_addr);
+  Atomic<uint32_t>* atomic_rb_ptr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);
   HeapReference<Object> expected_ref(HeapReference<Object>::FromMirrorPtr(expected_rb_ptr));
   HeapReference<Object> new_ref(HeapReference<Object>::FromMirrorPtr(rb_ptr));
-  uint32_t expected_val = expected_ref.reference_;
-  uint32_t new_val;
   do {
-    uint32_t old_val = ref->reference_;
-    if (old_val != expected_val) {
+    if (UNLIKELY(atomic_rb_ptr->LoadRelaxed() != expected_ref.reference_)) {
       // Lost the race.
       return false;
     }
-    new_val = new_ref.reference_;
-  } while (!__sync_bool_compare_and_swap(
-      reinterpret_cast<uint32_t*>(raw_addr), expected_val, new_val));
-  DCHECK_EQ(new_val, ref->reference_);
+  } while (!atomic_rb_ptr->CompareExchangeWeakSequentiallyConsistent(expected_ref.reference_,
+                                                                     new_ref.reference_));
+  DCHECK_EQ(new_ref.reference_, atomic_rb_ptr->LoadRelaxed());
   return true;
 #else
   LOG(FATAL) << "Unreachable";
@@ -448,7 +444,8 @@ inline void Object::SetField32Volatile(MemberOffset field_offset, int32_t new_va
 }
 
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
-inline bool Object::CasField32(MemberOffset field_offset, int32_t old_value, int32_t new_value) {
+inline bool Object::CasFieldWeakSequentiallyConsistent32(MemberOffset field_offset,
+                                                         int32_t old_value, int32_t new_value) {
   if (kCheckTransaction) {
     DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
   }
@@ -459,9 +456,9 @@ inline bool Object::CasField32(MemberOffset field_offset, int32_t old_value, int
     VerifyObject(this);
   }
   byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
-  volatile int32_t* addr = reinterpret_cast<volatile int32_t*>(raw_addr);
+  AtomicInteger* atomic_addr = reinterpret_cast<AtomicInteger*>(raw_addr);
 
-  return __sync_bool_compare_and_swap(addr, old_value, new_value);
+  return atomic_addr->CompareExchangeWeakSequentiallyConsistent(old_value, new_value);
 }
 
 template<VerifyObjectFlags kVerifyFlags, bool kIsVolatile>
@@ -513,7 +510,8 @@ inline void Object::SetField64Volatile(MemberOffset field_offset, int64_t new_va
 }
 
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
-inline bool Object::CasField64(MemberOffset field_offset, int64_t old_value, int64_t new_value) {
+inline bool Object::CasFieldWeakSequentiallyConsistent64(MemberOffset field_offset,
+                                                         int64_t old_value, int64_t new_value) {
   if (kCheckTransaction) {
     DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
   }
@@ -524,8 +522,8 @@ inline bool Object::CasField64(MemberOffset field_offset, int64_t old_value, int
     VerifyObject(this);
   }
   byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
-  volatile int64_t* addr = reinterpret_cast<volatile int64_t*>(raw_addr);
-  return QuasiAtomic::Cas64(old_value, new_value, addr);
+  Atomic<int64_t>* atomic_addr = reinterpret_cast<Atomic<int64_t>*>(raw_addr);
+  return atomic_addr->CompareExchangeWeakSequentiallyConsistent(old_value, new_value);
 }
 
 template<class T, VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption,
@@ -615,8 +613,8 @@ inline HeapReference<Object>* Object::GetFieldObjectReferenceAddr(MemberOffset f
 }
 
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
-inline bool Object::CasFieldObject(MemberOffset field_offset, Object* old_value,
-                                   Object* new_value) {
+inline bool Object::CasFieldWeakSequentiallyConsistentObject(MemberOffset field_offset,
+                                                             Object* old_value, Object* new_value) {
   if (kCheckTransaction) {
     DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
   }
@@ -632,11 +630,14 @@ inline bool Object::CasFieldObject(MemberOffset field_offset, Object* old_value,
   if (kTransactionActive) {
     Runtime::Current()->RecordWriteFieldReference(this, field_offset, old_value, true);
   }
-  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
-  volatile int32_t* addr = reinterpret_cast<volatile int32_t*>(raw_addr);
   HeapReference<Object> old_ref(HeapReference<Object>::FromMirrorPtr(old_value));
   HeapReference<Object> new_ref(HeapReference<Object>::FromMirrorPtr(new_value));
-  bool success =  __sync_bool_compare_and_swap(addr, old_ref.reference_, new_ref.reference_);
+  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  Atomic<uint32_t>* atomic_addr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);
+
+  bool success = atomic_addr->CompareExchangeWeakSequentiallyConsistent(old_ref.reference_,
+                                                                        new_ref.reference_);
+
   if (success) {
     Runtime::Current()->GetHeap()->WriteBarrierField(this, field_offset, new_value);
   }

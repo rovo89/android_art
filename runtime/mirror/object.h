@@ -110,7 +110,8 @@ class MANAGED LOCKABLE Object {
   // have C++11 "strong" semantics.
   // TODO: In most, possibly all, cases, these assumptions are too strong.
   // Confirm and weaken the implementation.
-  bool CasLockWord(LockWord old_val, LockWord new_val) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool CasLockWordWeakSequentiallyConsistent(LockWord old_val, LockWord new_val)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   uint32_t GetLockOwnerThreadId();
 
   mirror::Object* MonitorEnter(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
@@ -226,7 +227,8 @@ class MANAGED LOCKABLE Object {
 
   template<bool kTransactionActive, bool kCheckTransaction = true,
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  bool CasFieldObject(MemberOffset field_offset, Object* old_value, Object* new_value)
+  bool CasFieldWeakSequentiallyConsistentObject(MemberOffset field_offset, Object* old_value,
+                                                Object* new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -252,7 +254,8 @@ class MANAGED LOCKABLE Object {
 
   template<bool kTransactionActive, bool kCheckTransaction = true,
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  bool CasField32(MemberOffset field_offset, int32_t old_value, int32_t new_value) ALWAYS_INLINE
+  bool CasFieldWeakSequentiallyConsistent32(MemberOffset field_offset, int32_t old_value,
+                                            int32_t new_value) ALWAYS_INLINE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
@@ -275,7 +278,8 @@ class MANAGED LOCKABLE Object {
 
   template<bool kTransactionActive, bool kCheckTransaction = true,
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  bool CasField64(MemberOffset field_offset, int64_t old_value, int64_t new_value)
+  bool CasFieldWeakSequentiallyConsistent64(MemberOffset field_offset, int64_t old_value,
+                                            int64_t new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<bool kTransactionActive, bool kCheckTransaction = true,
