@@ -354,12 +354,12 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
         bool deduped = false;
 
         // Deduplicate code arrays.
-        auto code_iter = dedupe_map_.find(compiled_method);
-        if (code_iter != dedupe_map_.end()) {
-          quick_code_offset = code_iter->second;
+        auto lb = dedupe_map_.lower_bound(compiled_method);
+        if (lb != dedupe_map_.end() && !dedupe_map_.key_comp()(compiled_method, lb->first)) {
+          quick_code_offset = lb->second;
           deduped = true;
         } else {
-          dedupe_map_.Put(compiled_method, quick_code_offset);
+          dedupe_map_.PutBefore(lb, compiled_method, quick_code_offset);
         }
 
         // Update quick method header.
@@ -386,7 +386,7 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
                                               code_size);
 
         // Update checksum if this wasn't a duplicate.
-        if (code_iter == dedupe_map_.end()) {
+        if (!deduped) {
           writer_->oat_header_->UpdateChecksum(method_header, sizeof(*method_header));
           offset_ += sizeof(*method_header);  // Method header is prepended before code.
           writer_->oat_header_->UpdateChecksum(&(*quick_code)[0], code_size);
@@ -485,12 +485,12 @@ class OatWriter::InitMapMethodVisitor : public OatDexMethodVisitor {
       const std::vector<uint8_t>* map = DataAccess::GetData(compiled_method);
       uint32_t map_size = map->size() * sizeof((*map)[0]);
       if (map_size != 0u) {
-        auto it = dedupe_map_.find(map);
-        if (it != dedupe_map_.end()) {
-          DataAccess::SetOffset(oat_class, method_offsets_index_, it->second);
+        auto lb = dedupe_map_.lower_bound(map);
+        if (lb != dedupe_map_.end() && !dedupe_map_.key_comp()(map, lb->first)) {
+          DataAccess::SetOffset(oat_class, method_offsets_index_, lb->second);
         } else {
           DataAccess::SetOffset(oat_class, method_offsets_index_, offset_);
-          dedupe_map_.Put(map, offset_);
+          dedupe_map_.PutBefore(lb, map, offset_);
           offset_ += map_size;
           writer_->oat_header_->UpdateChecksum(&(*map)[0], map_size);
         }
