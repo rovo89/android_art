@@ -23,7 +23,6 @@
 
 #define ATRACE_TAG ATRACE_TAG_DALVIK
 
-#include "cutils/atomic-inline.h"
 #include "cutils/trace.h"
 
 #include "base/stringprintf.h"
@@ -152,20 +151,20 @@ inline void ReaderWriterMutex::SharedLock(Thread* self) {
 #if ART_USE_FUTEXES
   bool done = false;
   do {
-    int32_t cur_state = state_;
+    int32_t cur_state = state_.LoadRelaxed();
     if (LIKELY(cur_state >= 0)) {
       // Add as an extra reader.
-      done = android_atomic_acquire_cas(cur_state, cur_state + 1, &state_) == 0;
+      done = state_.CompareExchangeWeakAcquire(cur_state, cur_state + 1);
     } else {
       // Owner holds it exclusively, hang up.
       ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
-      android_atomic_inc(&num_pending_readers_);
-      if (futex(&state_, FUTEX_WAIT, cur_state, NULL, NULL, 0) != 0) {
+      ++num_pending_readers_;
+      if (futex(state_.Address(), FUTEX_WAIT, cur_state, NULL, NULL, 0) != 0) {
         if (errno != EAGAIN) {
           PLOG(FATAL) << "futex wait failed for " << name_;
         }
       }
-      android_atomic_dec(&num_pending_readers_);
+      --num_pending_readers_;
     }
   } while (!done);
 #else
@@ -184,14 +183,18 @@ inline void ReaderWriterMutex::SharedUnlock(Thread* self) {
 #if ART_USE_FUTEXES
   bool done = false;
   do {
-    int32_t cur_state = state_;
+    int32_t cur_state = state_.LoadRelaxed();
     if (LIKELY(cur_state > 0)) {
-      // Reduce state by 1.
-      done = android_atomic_release_cas(cur_state, cur_state - 1, &state_) == 0;
-      if (done && (cur_state - 1) == 0) {  // cas may fail due to noise?
-        if (num_pending_writers_.LoadRelaxed() > 0 || num_pending_readers_ > 0) {
+      // Reduce state by 1 and impose lock release load/store ordering.
+      // Note, the relaxed loads below musn't reorder before the CompareExchange.
+      // TODO: the ordering here is non-trivial as state is split across 3 fields, fix by placing
+      // a status bit into the state on contention.
+      done = state_.CompareExchangeWeakSequentiallyConsistent(cur_state, cur_state - 1);
+      if (done && (cur_state - 1) == 0) {  // Weak CAS may fail spuriously.
+        if (num_pending_writers_.LoadRelaxed() > 0 ||
+            num_pending_readers_.LoadRelaxed() > 0) {
           // Wake any exclusive waiters as there are now no readers.
-          futex(&state_, FUTEX_WAKE, -1, NULL, NULL, 0);
+          futex(state_.Address(), FUTEX_WAKE, -1, NULL, NULL, 0);
         }
       }
     } else {
@@ -233,7 +236,7 @@ inline bool ReaderWriterMutex::IsExclusiveHeld(const Thread* self) const {
 
 inline uint64_t ReaderWriterMutex::GetExclusiveOwnerTid() const {
 #if ART_USE_FUTEXES
-  int32_t state = state_;
+  int32_t state = state_.LoadRelaxed();
   if (state == 0) {
     return 0;  // No owner.
   } else if (state > 0) {
