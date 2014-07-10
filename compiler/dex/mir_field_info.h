@@ -137,6 +137,7 @@ class MirIFieldLoweringInfo : public MirFieldInfo {
   // The member offset of the field, 0u if unresolved.
   MemberOffset field_offset_;
 
+  friend class GlobalValueNumberingTest;
   friend class LocalValueNumberingTest;
 };
 
@@ -204,6 +205,7 @@ class MirSFieldLoweringInfo : public MirFieldInfo {
   uint32_t storage_index_;
 
   friend class ClassInitCheckEliminationTest;
+  friend class GlobalValueNumberingTest;
   friend class LocalValueNumberingTest;
 };
 
