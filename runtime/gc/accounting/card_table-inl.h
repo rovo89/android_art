@@ -17,9 +17,9 @@
 #ifndef ART_RUNTIME_GC_ACCOUNTING_CARD_TABLE_INL_H_
 #define ART_RUNTIME_GC_ACCOUNTING_CARD_TABLE_INL_H_
 
+#include "atomic.h"
 #include "base/logging.h"
 #include "card_table.h"
-#include "cutils/atomic-inline.h"
 #include "space_bitmap.h"
 #include "utils.h"
 
@@ -28,18 +28,23 @@ namespace gc {
 namespace accounting {
 
 static inline bool byte_cas(byte old_value, byte new_value, byte* address) {
+#if defined(__i386__) || defined(__x86_64__)
+  Atomic<byte>* byte_atomic = reinterpret_cast<Atomic<byte>*>(address);
+  return byte_atomic->CompareExchangeWeakRelaxed(old_value, new_value);
+#else
   // Little endian means most significant byte is on the left.
   const size_t shift_in_bytes = reinterpret_cast<uintptr_t>(address) % sizeof(uintptr_t);
   // Align the address down.
   address -= shift_in_bytes;
   const size_t shift_in_bits = shift_in_bytes * kBitsPerByte;
-  int32_t* word_address = reinterpret_cast<int32_t*>(address);
+  AtomicInteger* word_atomic = reinterpret_cast<AtomicInteger*>(address);
+
   // Word with the byte we are trying to cas cleared.
-  const int32_t cur_word = *word_address & ~(0xFF << shift_in_bits);
+  const int32_t cur_word = word_atomic->LoadRelaxed() & ~(0xFF << shift_in_bits);
   const int32_t old_word = cur_word | (static_cast<int32_t>(old_value) << shift_in_bits);
   const int32_t new_word = cur_word | (static_cast<int32_t>(new_value) << shift_in_bits);
-  bool success = android_atomic_cas(old_word, new_word, word_address) == 0;
-  return success;
+  return word_atomic->CompareExchangeWeakRelaxed(old_word, new_word);
+#endif
 }
 
 template <typename Visitor>
@@ -174,8 +179,8 @@ inline void CardTable::ModifyCardsAtomic(byte* scan_begin, byte* scan_end, const
       for (size_t i = 0; i < sizeof(uintptr_t); ++i) {
         new_bytes[i] = visitor(expected_bytes[i]);
       }
-      if (LIKELY(android_atomic_cas(expected_word, new_word,
-                                    reinterpret_cast<int32_t*>(word_cur)) == 0)) {
+      Atomic<uintptr_t>* atomic_word = reinterpret_cast<Atomic<uintptr_t>*>(word_cur);
+      if (LIKELY(atomic_word->CompareExchangeWeakRelaxed(expected_word, new_word))) {
         for (size_t i = 0; i < sizeof(uintptr_t); ++i) {
           const byte expected_byte = expected_bytes[i];
           const byte new_byte = new_bytes[i];
