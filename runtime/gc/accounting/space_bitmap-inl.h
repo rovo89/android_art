@@ -21,6 +21,7 @@
 
 #include <memory>
 
+#include "atomic.h"
 #include "base/logging.h"
 #include "dex_file-inl.h"
 #include "heap_bitmap.h"
@@ -43,17 +44,17 @@ inline bool SpaceBitmap<kAlignment>::AtomicTestAndSet(const mirror::Object* obj)
   const uintptr_t offset = addr - heap_begin_;
   const size_t index = OffsetToIndex(offset);
   const uword mask = OffsetToMask(offset);
-  uword* const address = &bitmap_begin_[index];
+  Atomic<uword>* atomic_entry = reinterpret_cast<Atomic<uword>*>(&bitmap_begin_[index]);
   DCHECK_LT(index, bitmap_size_ / kWordSize) << " bitmap_size_ = " << bitmap_size_;
   uword old_word;
   do {
-    old_word = *address;
+    old_word = atomic_entry->LoadRelaxed();
     // Fast path: The bit is already set.
     if ((old_word & mask) != 0) {
       DCHECK(Test(obj));
       return true;
     }
-  } while (!__sync_bool_compare_and_swap(address, old_word, old_word | mask));
+  } while (!atomic_entry->CompareExchangeWeakSequentiallyConsistent(old_word, old_word | mask));
   DCHECK(Test(obj));
   return false;
 }

@@ -123,13 +123,13 @@ void MallocSpace::SetGrowthLimit(size_t growth_limit) {
   growth_limit = RoundUp(growth_limit, kPageSize);
   growth_limit_ = growth_limit;
   if (Size() > growth_limit_) {
-    end_ = begin_ + growth_limit;
+    SetEnd(begin_ + growth_limit);
   }
 }
 
 void* MallocSpace::MoreCore(intptr_t increment) {
   CheckMoreCoreForPrecondition();
-  byte* original_end = end_;
+  byte* original_end = End();
   if (increment != 0) {
     VLOG(heap) << "MallocSpace::MoreCore " << PrettySize(increment);
     byte* new_end = original_end + increment;
@@ -151,8 +151,8 @@ void* MallocSpace::MoreCore(intptr_t increment) {
       CHECK_MEMORY_CALL(madvise, (new_end, size, MADV_DONTNEED), GetName());
       CHECK_MEMORY_CALL(mprotect, (new_end, size, PROT_NONE), GetName());
     }
-    // Update end_
-    end_ = new_end;
+    // Update end_.
+    SetEnd(new_end);
   }
   return original_end;
 }
@@ -163,11 +163,11 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   // alloc space so that we won't mix thread local runs from different
   // alloc spaces.
   RevokeAllThreadLocalBuffers();
-  end_ = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(end_), kPageSize));
+  SetEnd(reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(End()), kPageSize)));
   DCHECK(IsAligned<accounting::CardTable::kCardSize>(begin_));
-  DCHECK(IsAligned<accounting::CardTable::kCardSize>(end_));
+  DCHECK(IsAligned<accounting::CardTable::kCardSize>(End()));
   DCHECK(IsAligned<kPageSize>(begin_));
-  DCHECK(IsAligned<kPageSize>(end_));
+  DCHECK(IsAligned<kPageSize>(End()));
   size_t size = RoundUp(Size(), kPageSize);
   // Trimming the heap should be done by the caller since we may have invalidated the accounting
   // stored in between objects.
@@ -175,7 +175,7 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   const size_t growth_limit = growth_limit_ - size;
   const size_t capacity = Capacity() - size;
   VLOG(heap) << "Begin " << reinterpret_cast<const void*>(begin_) << "\n"
-             << "End " << reinterpret_cast<const void*>(end_) << "\n"
+             << "End " << reinterpret_cast<const void*>(End()) << "\n"
              << "Size " << size << "\n"
              << "GrowthLimit " << growth_limit_ << "\n"
              << "Capacity " << Capacity();
@@ -188,16 +188,17 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   VLOG(heap) << "Capacity " << PrettySize(capacity);
   // Remap the tail.
   std::string error_msg;
-  std::unique_ptr<MemMap> mem_map(GetMemMap()->RemapAtEnd(end_, alloc_space_name,
-                                                    PROT_READ | PROT_WRITE, &error_msg));
+  std::unique_ptr<MemMap> mem_map(GetMemMap()->RemapAtEnd(End(), alloc_space_name,
+                                                          PROT_READ | PROT_WRITE, &error_msg));
   CHECK(mem_map.get() != nullptr) << error_msg;
-  void* allocator = CreateAllocator(end_, starting_size_, initial_size_, capacity, low_memory_mode);
+  void* allocator = CreateAllocator(End(), starting_size_, initial_size_, capacity,
+                                    low_memory_mode);
   // Protect memory beyond the initial size.
   byte* end = mem_map->Begin() + starting_size_;
   if (capacity > initial_size_) {
     CHECK_MEMORY_CALL(mprotect, (end, capacity - initial_size_, PROT_NONE), alloc_space_name);
   }
-  *out_malloc_space = CreateInstance(alloc_space_name, mem_map.release(), allocator, end_, end,
+  *out_malloc_space = CreateInstance(alloc_space_name, mem_map.release(), allocator, End(), end,
                                      limit_, growth_limit, CanMoveObjects());
   SetLimit(End());
   live_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(End()));
