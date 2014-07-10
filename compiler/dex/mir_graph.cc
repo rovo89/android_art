@@ -863,11 +863,17 @@ uint64_t MIRGraph::GetDataFlowAttributes(MIR* mir) {
 /* Dump the CFG into a DOT graph */
 void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suffix) {
   FILE* file;
+  static AtomicInteger cnt(0);
+
+  // Increment counter to get a unique file number.
+  cnt++;
+
   std::string fname(PrettyMethod(cu_->method_idx, *cu_->dex_file));
   ReplaceSpecialChars(fname);
-  fname = StringPrintf("%s%s%x%s.dot", dir_prefix, fname.c_str(),
+  fname = StringPrintf("%s%s%x%s_%d.dot", dir_prefix, fname.c_str(),
                       GetBasicBlock(GetEntryBlock()->fall_through)->start_offset,
-                      suffix == nullptr ? "" : suffix);
+                      suffix == nullptr ? "" : suffix,
+                      cnt.LoadRelaxed());
   file = fopen(fname.c_str(), "w");
   if (file == NULL) {
     return;
@@ -884,6 +890,7 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
     BasicBlock* bb = GetBasicBlock(block_idx);
     if (bb == NULL) continue;
     if (bb->block_type == kDead) continue;
+    if (bb->hidden) continue;
     if (bb->block_type == kEntryBlock) {
       fprintf(file, "  entry_%d [shape=Mdiamond];\n", bb->id);
     } else if (bb->block_type == kExitBlock) {
