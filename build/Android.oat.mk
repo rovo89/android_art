@@ -50,7 +50,7 @@ endif
 
 IMPLICIT_CHECKS_arm := null,stack
 IMPLICIT_CHECKS_arm64 := none
-IMPLICIT_CHECKS_x86 := none
+IMPLICIT_CHECKS_x86 := null,stack
 IMPLICIT_CHECKS_x86_64 := none
 IMPLICIT_CHECKS_mips := none
 define create-core-oat-target-rules

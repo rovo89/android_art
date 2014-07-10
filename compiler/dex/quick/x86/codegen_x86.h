@@ -85,6 +85,7 @@ class X86Mir2Lir : public Mir2Lir {
   LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
                             RegStorage r_src, OpSize size) OVERRIDE;
   void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg);
+  void GenImplicitNullCheck(RegStorage reg, int opt_flags);
 
   // Required for target - register utilities.
   RegStorage TargetReg(SpecialTargetRegister reg) OVERRIDE;
@@ -796,9 +797,11 @@ class X86Mir2Lir : public Mir2Lir {
    * @param base_reg The register holding the base address.
    * @param offset The offset from the base.
    * @param check_value The immediate to compare to.
+   * @param target branch target (or nullptr)
+   * @param compare output for getting LIR for comparison (or nullptr)
    */
   LIR* OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,
-                         int offset, int check_value, LIR* target);
+                         int offset, int check_value, LIR* target, LIR** compare);
 
   /*
    * Can this operation be using core registers without temporaries?

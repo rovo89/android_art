@@ -580,10 +580,41 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
     GetInstrumentation()->ForceInterpretOnly();
   }
 
+  heap_ = new gc::Heap(options->heap_initial_size_,
+                       options->heap_growth_limit_,
+                       options->heap_min_free_,
+                       options->heap_max_free_,
+                       options->heap_target_utilization_,
+                       options->foreground_heap_growth_multiplier_,
+                       options->heap_maximum_size_,
+                       options->image_,
+                       options->image_isa_,
+                       options->collector_type_,
+                       options->background_collector_type_,
+                       options->parallel_gc_threads_,
+                       options->conc_gc_threads_,
+                       options->low_memory_mode_,
+                       options->long_pause_log_threshold_,
+                       options->long_gc_log_threshold_,
+                       options->ignore_max_footprint_,
+                       options->use_tlab_,
+                       options->verify_pre_gc_heap_,
+                       options->verify_pre_sweeping_heap_,
+                       options->verify_post_gc_heap_,
+                       options->verify_pre_gc_rosalloc_,
+                       options->verify_pre_sweeping_rosalloc_,
+                       options->verify_post_gc_rosalloc_);
+
+  dump_gc_performance_on_shutdown_ = options->dump_gc_performance_on_shutdown_;
+
+  BlockSignals();
+  InitPlatformSignalHandlers();
+
   bool implicit_checks_supported = false;
   switch (kRuntimeISA) {
     case kArm:
     case kThumb2:
+    case kX86:
       implicit_checks_supported = true;
       break;
     default:
@@ -614,36 +645,6 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
       new JavaStackTraceHandler(&fault_manager);
     }
   }
-
-  heap_ = new gc::Heap(options->heap_initial_size_,
-                       options->heap_growth_limit_,
-                       options->heap_min_free_,
-                       options->heap_max_free_,
-                       options->heap_target_utilization_,
-                       options->foreground_heap_growth_multiplier_,
-                       options->heap_maximum_size_,
-                       options->image_,
-                       options->image_isa_,
-                       options->collector_type_,
-                       options->background_collector_type_,
-                       options->parallel_gc_threads_,
-                       options->conc_gc_threads_,
-                       options->low_memory_mode_,
-                       options->long_pause_log_threshold_,
-                       options->long_gc_log_threshold_,
-                       options->ignore_max_footprint_,
-                       options->use_tlab_,
-                       options->verify_pre_gc_heap_,
-                       options->verify_pre_sweeping_heap_,
-                       options->verify_post_gc_heap_,
-                       options->verify_pre_gc_rosalloc_,
-                       options->verify_pre_sweeping_rosalloc_,
-                       options->verify_post_gc_rosalloc_);
-
-  dump_gc_performance_on_shutdown_ = options->dump_gc_performance_on_shutdown_;
-
-  BlockSignals();
-  InitPlatformSignalHandlers();
 
   java_vm_ = new JavaVMExt(this, options.get());
 
