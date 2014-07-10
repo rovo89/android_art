@@ -48,11 +48,6 @@ ifneq ($(HOST_PREFER_32_BIT),true)
 $(eval $(call create-core-oat-host-rules,2ND_))
 endif
 
-IMPLICIT_CHECKS_arm := null,stack
-IMPLICIT_CHECKS_arm64 := none
-IMPLICIT_CHECKS_x86 := none
-IMPLICIT_CHECKS_x86_64 := none
-IMPLICIT_CHECKS_mips := none
 define create-core-oat-target-rules
 $$($(1)TARGET_CORE_IMG_OUT): $$($(1)TARGET_CORE_DEX_FILES) $$(DEX2OATD_DEPENDENCY)
 	@echo "target dex2oat: $$@ ($$?)"
@@ -63,7 +58,6 @@ $$($(1)TARGET_CORE_IMG_OUT): $$($(1)TARGET_CORE_DEX_FILES) $$(DEX2OATD_DEPENDENC
 	  --oat-location=$$($(1)TARGET_CORE_OAT) --image=$$($(1)TARGET_CORE_IMG_OUT) \
 	  --base=$$(LIBART_IMG_TARGET_BASE_ADDRESS) --instruction-set=$$($(1)TARGET_ARCH) \
 	  --instruction-set-features=$$($(1)TARGET_INSTRUCTION_SET_FEATURES) \
-	  --implicit-checks=$(IMPLICIT_CHECKS_$($(1)TARGET_ARCH)) \
 	  --android-root=$$(PRODUCT_OUT)/system --include-patch-information
 
 # This "renaming" eases declaration in art/Android.mk
