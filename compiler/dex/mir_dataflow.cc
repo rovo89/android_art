@@ -909,6 +909,16 @@ void MIRGraph::HandleDef(ArenaBitVector* def_v, int dalvik_reg_id) {
   def_v->SetBit(dalvik_reg_id);
 }
 
+void MIRGraph::HandleExtended(ArenaBitVector* use_v, ArenaBitVector* def_v,
+                            ArenaBitVector* live_in_v,
+                            const MIR::DecodedInstruction& d_insn) {
+  switch (static_cast<int>(d_insn.opcode)) {
+    default:
+      LOG(ERROR) << "Unexpected Extended Opcode " << d_insn.opcode;
+      break;
+  }
+}
+
 /*
  * Find out live-in variables for natural loops. Variables that are live-in in
  * the main loop body are considered to be defined in the entry block.
@@ -965,6 +975,9 @@ bool MIRGraph::FindLocalLiveIn(BasicBlock* bb) {
       if (df_attributes & DF_A_WIDE) {
         HandleDef(def_v, d_insn->vA+1);
       }
+    }
+    if (df_attributes & DF_FORMAT_EXTENDED) {
+      HandleExtended(use_v, def_v, live_in_v, mir->dalvikInsn);
     }
   }
   return true;
@@ -1048,6 +1061,14 @@ void MIRGraph::DataFlowSSAFormat3RC(MIR* mir) {
   }
 }
 
+void MIRGraph::DataFlowSSAFormatExtended(MIR* mir) {
+  switch (static_cast<int>(mir->dalvikInsn.opcode)) {
+    default:
+      LOG(ERROR) << "Missing case for extended MIR: " << mir->dalvikInsn.opcode;
+      break;
+  }
+}
+
 /* Entry function to convert a block into SSA representation */
 bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
   MIR* mir;
@@ -1080,6 +1101,11 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
 
     if (df_attributes & DF_FORMAT_3RC) {
       DataFlowSSAFormat3RC(mir);
+      continue;
+    }
+
+    if (df_attributes & DF_FORMAT_EXTENDED) {
+      DataFlowSSAFormatExtended(mir);
       continue;
     }
 
