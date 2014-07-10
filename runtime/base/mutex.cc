@@ -30,6 +30,7 @@
 namespace art {
 
 Mutex* Locks::abort_lock_ = nullptr;
+Mutex* Locks::allocated_monitor_ids_lock_ = nullptr;
 Mutex* Locks::allocated_thread_ids_lock_ = nullptr;
 Mutex* Locks::breakpoint_lock_ = nullptr;
 ReaderWriterMutex* Locks::classlinker_classes_lock_ = nullptr;
@@ -832,6 +833,7 @@ void Locks::Init() {
       DCHECK(modify_ldt_lock_ == nullptr);
     }
     DCHECK(abort_lock_ != nullptr);
+    DCHECK(allocated_monitor_ids_lock_ != nullptr);
     DCHECK(allocated_thread_ids_lock_ != nullptr);
     DCHECK(breakpoint_lock_ != nullptr);
     DCHECK(classlinker_classes_lock_ != nullptr);
@@ -882,6 +884,10 @@ void Locks::Init() {
     DCHECK(classlinker_classes_lock_ == nullptr);
     classlinker_classes_lock_ = new ReaderWriterMutex("ClassLinker classes lock",
                                                       current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kMonitorPoolLock);
+    DCHECK(allocated_monitor_ids_lock_ == nullptr);
+    allocated_monitor_ids_lock_ =  new Mutex("allocated monitor ids lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kAllocatedThreadIdsLock);
     DCHECK(allocated_thread_ids_lock_ == nullptr);

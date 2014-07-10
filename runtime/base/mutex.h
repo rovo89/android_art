@@ -70,7 +70,6 @@ enum LockLevel {
   kMarkSweepMarkStackLock,
   kTransactionLogLock,
   kInternTableLock,
-  kMonitorPoolLock,
   kDefaultMutexLevel,
   kMarkSweepLargeObjectLock,
   kPinTableLock,
@@ -78,6 +77,7 @@ enum LockLevel {
   kJdwpObjectRegistryLock,
   kModifyLdtLock,
   kAllocatedThreadIdsLock,
+  kMonitorPoolLock,
   kClassLinkerClassesLock,
   kBreakpointLock,
   kMonitorLock,
@@ -560,8 +560,10 @@ class Locks {
   // doesn't try to hold a higher level Mutex.
   #define DEFAULT_MUTEX_ACQUIRED_AFTER ACQUIRED_AFTER(Locks::classlinker_classes_lock_)
 
+  static Mutex* allocated_monitor_ids_lock_ ACQUIRED_AFTER(classlinker_classes_lock_);
+
   // Guard the allocation/deallocation of thread ids.
-  static Mutex* allocated_thread_ids_lock_ ACQUIRED_AFTER(classlinker_classes_lock_);
+  static Mutex* allocated_thread_ids_lock_ ACQUIRED_AFTER(allocated_monitor_ids_lock_);
 
   // Guards modification of the LDT on x86.
   static Mutex* modify_ldt_lock_ ACQUIRED_AFTER(allocated_thread_ids_lock_);
