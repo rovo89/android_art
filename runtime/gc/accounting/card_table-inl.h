@@ -50,8 +50,9 @@ static inline bool byte_cas(byte old_value, byte new_value, byte* address) {
 template <typename Visitor>
 inline size_t CardTable::Scan(ContinuousSpaceBitmap* bitmap, byte* scan_begin, byte* scan_end,
                               const Visitor& visitor, const byte minimum_age) const {
-  DCHECK(bitmap->HasAddress(scan_begin));
-  DCHECK(bitmap->HasAddress(scan_end - 1));  // scan_end is the byte after the last byte we scan.
+  DCHECK_GE(scan_begin, reinterpret_cast<byte*>(bitmap->HeapBegin()));
+  // scan_end is the byte after the last byte we scan.
+  DCHECK_LE(scan_end, reinterpret_cast<byte*>(bitmap->HeapLimit()));
   byte* card_cur = CardFromAddr(scan_begin);
   byte* card_end = CardFromAddr(scan_end);
   CheckCardValid(card_cur);

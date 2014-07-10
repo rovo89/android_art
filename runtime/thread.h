@@ -899,7 +899,7 @@ class Thread {
   // first if possible.
   /***********************************************************************************************/
 
-  struct PACKED(4)  tls_32bit_sized_values {
+  struct PACKED(4) tls_32bit_sized_values {
     // We have no control over the size of 'bool', but want our boolean fields
     // to be 4-byte quantities.
     typedef uint32_t bool32_t;

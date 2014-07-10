@@ -197,13 +197,18 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
 #else
 #error "ART default GC type must be set"
 #endif
+  // If we are using homogeneous space compaction then default background compaction to off since
+  // homogeneous space compactions when we transition to not jank perceptible.
+  use_homogeneous_space_compaction_for_oom_ = false;
   // If background_collector_type_ is kCollectorTypeNone, it defaults to the collector_type_ after
-  // parsing options.
+  // parsing options. If you set this to kCollectorTypeHSpaceCompact then we will do an hspace
+  // compaction when we transition to background instead of a normal collector transition.
   background_collector_type_ = gc::kCollectorTypeSS;
   stack_size_ = 0;  // 0 means default.
   max_spins_before_thin_lock_inflation_ = Monitor::kDefaultMaxSpinsBeforeThinLockInflation;
   low_memory_mode_ = false;
   use_tlab_ = false;
+  min_interval_homogeneous_space_compaction_by_oom_ = MsToNs(100 * 1000);  // 100s.
   verify_pre_gc_heap_ = false;
   // Pre sweeping is the one that usually fails if the GC corrupted the heap.
   verify_pre_sweeping_heap_ = kIsDebugBuild;
@@ -416,6 +421,10 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
       low_memory_mode_ = true;
     } else if (option == "-XX:UseTLAB") {
       use_tlab_ = true;
+    } else if (option == "-XX:EnableHSpaceCompactForOOM") {
+      use_homogeneous_space_compaction_for_oom_ = true;
+    } else if (option == "-XX:DisableHSpaceCompactForOOM") {
+      use_homogeneous_space_compaction_for_oom_ = false;
     } else if (StartsWith(option, "-D")) {
       properties_.push_back(option.substr(strlen("-D")));
     } else if (StartsWith(option, "-Xjnitrace:")) {
@@ -439,12 +448,17 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
       if (!ParseStringAfterChar(option, '=', &substring)) {
         return false;
       }
-      gc::CollectorType collector_type = ParseCollectorType(substring);
-      if (collector_type != gc::kCollectorTypeNone) {
-        background_collector_type_ = collector_type;
+      // Special handling for HSpaceCompact since this is only valid as a background GC type.
+      if (substring == "HSpaceCompact") {
+        background_collector_type_ = gc::kCollectorTypeHomogeneousSpaceCompact;
       } else {
-        Usage("Unknown -XX:BackgroundGC option %s\n", substring.c_str());
-        return false;
+        gc::CollectorType collector_type = ParseCollectorType(substring);
+        if (collector_type != gc::kCollectorTypeNone) {
+          background_collector_type_ = collector_type;
+        } else {
+          Usage("Unknown -XX:BackgroundGC option %s\n", substring.c_str());
+          return false;
+        }
       }
     } else if (option == "-XX:+DisableExplicitGC") {
       is_explicit_gc_disabled_ = true;
