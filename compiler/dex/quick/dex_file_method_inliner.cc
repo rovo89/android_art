@@ -96,7 +96,7 @@ MIR* AllocReplacementMIR(MIRGraph* mir_graph, MIR* invoke, MIR* move_return) {
 
 uint32_t GetInvokeReg(MIR* invoke, uint32_t arg) {
   DCHECK_LT(arg, invoke->dalvikInsn.vA);
-  DCHECK(!MIRGraph::IsPseudoMirOp(invoke->dalvikInsn.opcode));
+  DCHECK(!MIR::DecodedInstruction::IsPseudoMirOp(invoke->dalvikInsn.opcode));
   if (Instruction::FormatOf(invoke->dalvikInsn.opcode) == Instruction::k3rc) {
     return invoke->dalvikInsn.vC + arg;  // Non-range invoke.
   } else {
@@ -107,7 +107,7 @@ uint32_t GetInvokeReg(MIR* invoke, uint32_t arg) {
 
 bool WideArgIsInConsecutiveDalvikRegs(MIR* invoke, uint32_t arg) {
   DCHECK_LT(arg + 1, invoke->dalvikInsn.vA);
-  DCHECK(!MIRGraph::IsPseudoMirOp(invoke->dalvikInsn.opcode));
+  DCHECK(!MIR::DecodedInstruction::IsPseudoMirOp(invoke->dalvikInsn.opcode));
   return Instruction::FormatOf(invoke->dalvikInsn.opcode) == Instruction::k3rc ||
       invoke->dalvikInsn.arg[arg + 1u] == invoke->dalvikInsn.arg[arg] + 1u;
 }
