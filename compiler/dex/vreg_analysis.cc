@@ -324,13 +324,15 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
     }
 
     for (int i = 0; ssa_rep->fp_use && i< ssa_rep->num_uses; i++) {
-      if (ssa_rep->fp_use[i])
+      if (ssa_rep->fp_use[i]) {
         changed |= SetFp(uses[i]);
       }
+    }
     for (int i = 0; ssa_rep->fp_def && i< ssa_rep->num_defs; i++) {
-      if (ssa_rep->fp_def[i])
+      if (ssa_rep->fp_def[i]) {
         changed |= SetFp(defs[i]);
       }
+    }
     // Special-case handling for moves & Phi
     if (attrs & (DF_IS_MOVE | DF_NULL_TRANSFER_N)) {
       /*

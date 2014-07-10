@@ -55,6 +55,7 @@ enum DataFlowAnalysisMode {
   kPostOrderDOMTraversal,                  /**< @brief Dominator tree / Post-Order. */
   kTopologicalSortTraversal,               /**< @brief Topological Order traversal. */
   kRepeatingTopologicalSortTraversal,      /**< @brief Repeating Topological Order traversal. */
+  kLoopRepeatingTopologicalSortTraversal,  /**< @brief Loop-repeating Topological Order traversal. */
   kNoNodes,                                /**< @brief Skip BasicBlock traversal. */
 };
 

@@ -388,6 +388,52 @@ namespace art {
      }
   };
 
+  /**
+   * @class LoopRepeatingTopologicalSortIterator
+   * @brief Used to perform a Topological Sort Iteration of a MIRGraph, repeating loops as needed.
+   * @details The iterator uses the visited flags to keep track of the blocks that need
+   * recalculation and keeps a stack of loop heads in the MIRGraph. At the end of the loop
+   * it returns back to the loop head if it needs to be recalculated. Due to the use of
+   * the visited flags and the loop head stack in the MIRGraph, it's not possible to use
+   * two iterators at the same time or modify this data during iteration (though inspection
+   * of this data is allowed and sometimes even expected).
+   *
+   * NOTE: This iterator is not suitable for passes that need to propagate changes to
+   * predecessors, such as type inferrence.
+   */
+  class LoopRepeatingTopologicalSortIterator : public DataflowIterator {
+    public:
+     /**
+      * @brief The constructor, using all of the reachable blocks of the MIRGraph.
+      * @param mir_graph The MIRGraph considered.
+      */
+     explicit LoopRepeatingTopologicalSortIterator(MIRGraph* mir_graph)
+         : DataflowIterator(mir_graph, 0, mir_graph->GetTopologicalSortOrder()->Size()),
+           loop_ends_(mir_graph->GetTopologicalSortOrderLoopEnds()),
+           loop_head_stack_(mir_graph_->GetTopologicalSortOrderLoopHeadStack()) {
+       // Extra setup for RepeatingTopologicalSortIterator.
+       idx_ = start_idx_;
+       block_id_list_ = mir_graph->GetTopologicalSortOrder();
+       // Clear visited flags and check that the loop head stack is empty.
+       mir_graph->ClearAllVisitedFlags();
+       DCHECK_EQ(loop_head_stack_->Size(), 0u);
+     }
+
+     ~LoopRepeatingTopologicalSortIterator() {
+       DCHECK_EQ(loop_head_stack_->Size(), 0u);
+     }
+
+     /**
+      * @brief Get the next BasicBlock depending on iteration order.
+      * @param had_change did the user of the iteration change the previous BasicBlock.
+      * @return the next BasicBlock following the iteration order, 0 if finished.
+      */
+     virtual BasicBlock* Next(bool had_change = false) OVERRIDE;
+
+    private:
+     const GrowableArray<BasicBlockId>* const loop_ends_;
+     GrowableArray<std::pair<uint16_t, bool>>* const loop_head_stack_;
+  };
 
 }  // namespace art
 
