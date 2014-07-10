@@ -23,6 +23,7 @@
 #include "compiler_internals.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
+#include "dex/global_value_numbering.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "leb128.h"
@@ -89,6 +90,7 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       temp_insn_data_(nullptr),
       temp_bit_vector_size_(0u),
       temp_bit_vector_(nullptr),
+      temp_gvn_(),
       block_list_(arena, 100, kGrowableArrayBlockList),
       try_block_addr_(NULL),
       entry_block_(NULL),
