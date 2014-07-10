@@ -175,8 +175,8 @@ class QuickArgumentVisitor {
   static constexpr size_t kNumQuickGprArgs = 5;  // 5 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 8;  // 8 arguments passed in FPRs.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 16;  // Offset of first FPR arg.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 80;  // Offset of first GPR arg.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 168;  // Offset of return address.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 80 + 4*8;  // Offset of first GPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 168 + 4*8;  // Offset of return address.
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     switch (gpr_index) {
       case 0: return (4 * GetBytesPerGprSpillLocation(kRuntimeISA));

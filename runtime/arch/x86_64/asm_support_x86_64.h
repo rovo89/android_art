@@ -35,9 +35,9 @@
 // Offset of field Thread::thin_lock_thread_id_ verified in InitCpu
 #define THREAD_ID_OFFSET 12
 
-#define FRAME_SIZE_SAVE_ALL_CALLEE_SAVE 64
-#define FRAME_SIZE_REFS_ONLY_CALLEE_SAVE 64
-#define FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE 176
+#define FRAME_SIZE_SAVE_ALL_CALLEE_SAVE 64 + 4*8
+#define FRAME_SIZE_REFS_ONLY_CALLEE_SAVE 64 + 4*8
+#define FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE 176 + 4*8
 
 // Expected size of a heap reference
 #define HEAP_REFERENCE_SIZE 4

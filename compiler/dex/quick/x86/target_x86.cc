@@ -52,6 +52,13 @@ static constexpr RegStorage dp_regs_arr_64[] = {
     rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
     rs_dr8, rs_dr9, rs_dr10, rs_dr11, rs_dr12, rs_dr13, rs_dr14, rs_dr15
 };
+static constexpr RegStorage xp_regs_arr_32[] = {
+    rs_xr0, rs_xr1, rs_xr2, rs_xr3, rs_xr4, rs_xr5, rs_xr6, rs_xr7,
+};
+static constexpr RegStorage xp_regs_arr_64[] = {
+    rs_xr0, rs_xr1, rs_xr2, rs_xr3, rs_xr4, rs_xr5, rs_xr6, rs_xr7,
+    rs_xr8, rs_xr9, rs_xr10, rs_xr11, rs_xr12, rs_xr13, rs_xr14, rs_xr15
+};
 static constexpr RegStorage reserved_regs_arr_32[] = {rs_rX86_SP_32};
 static constexpr RegStorage reserved_regs_arr_64[] = {rs_rX86_SP_32};
 static constexpr RegStorage reserved_regs_arr_64q[] = {rs_rX86_SP_64};
@@ -60,6 +67,24 @@ static constexpr RegStorage core_temps_arr_64[] = {
     rs_rAX, rs_rCX, rs_rDX, rs_rSI, rs_rDI,
     rs_r8, rs_r9, rs_r10, rs_r11
 };
+
+// How to add register to be available for promotion:
+// 1) Remove register from array defining temp
+// 2) Update ClobberCallerSave
+// 3) Update JNI compiler ABI:
+// 3.1) add reg in JniCallingConvention method
+// 3.2) update CoreSpillMask/FpSpillMask
+// 4) Update entrypoints
+// 4.1) Update constants in asm_support_x86_64.h for new frame size
+// 4.2) Remove entry in SmashCallerSaves
+// 4.3) Update jni_entrypoints to spill/unspill new callee save reg
+// 4.4) Update quick_entrypoints to spill/unspill new callee save reg
+// 5) Update runtime ABI
+// 5.1) Update quick_method_frame_info with new required spills
+// 5.2) Update QuickArgumentVisitor with new offsets to gprs and xmms
+// Note that you cannot use register corresponding to incoming args
+// according to ABI and QCG needs one additional XMM temp for
+// bulk copy in preparation to call.
 static constexpr RegStorage core_temps_arr_64q[] = {
     rs_r0q, rs_r1q, rs_r2q, rs_r6q, rs_r7q,
     rs_r8q, rs_r9q, rs_r10q, rs_r11q
@@ -69,14 +94,14 @@ static constexpr RegStorage sp_temps_arr_32[] = {
 };
 static constexpr RegStorage sp_temps_arr_64[] = {
     rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
-    rs_fr8, rs_fr9, rs_fr10, rs_fr11, rs_fr12, rs_fr13, rs_fr14, rs_fr15
+    rs_fr8, rs_fr9, rs_fr10, rs_fr11
 };
 static constexpr RegStorage dp_temps_arr_32[] = {
     rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
 };
 static constexpr RegStorage dp_temps_arr_64[] = {
     rs_dr0, rs_dr1, rs_dr2, rs_dr3, rs_dr4, rs_dr5, rs_dr6, rs_dr7,
-    rs_dr8, rs_dr9, rs_dr10, rs_dr11, rs_dr12, rs_dr13, rs_dr14, rs_dr15
+    rs_dr8, rs_dr9, rs_dr10, rs_dr11
 };
 
 static constexpr RegStorage xp_temps_arr_32[] = {
@@ -84,7 +109,7 @@ static constexpr RegStorage xp_temps_arr_32[] = {
 };
 static constexpr RegStorage xp_temps_arr_64[] = {
     rs_xr0, rs_xr1, rs_xr2, rs_xr3, rs_xr4, rs_xr5, rs_xr6, rs_xr7,
-    rs_xr8, rs_xr9, rs_xr10, rs_xr11, rs_xr12, rs_xr13, rs_xr14, rs_xr15
+    rs_xr8, rs_xr9, rs_xr10, rs_xr11
 };
 
 static constexpr ArrayRef<const RegStorage> empty_pool;
@@ -95,6 +120,8 @@ static constexpr ArrayRef<const RegStorage> sp_regs_32(sp_regs_arr_32);
 static constexpr ArrayRef<const RegStorage> sp_regs_64(sp_regs_arr_64);
 static constexpr ArrayRef<const RegStorage> dp_regs_32(dp_regs_arr_32);
 static constexpr ArrayRef<const RegStorage> dp_regs_64(dp_regs_arr_64);
+static constexpr ArrayRef<const RegStorage> xp_regs_32(xp_regs_arr_32);
+static constexpr ArrayRef<const RegStorage> xp_regs_64(xp_regs_arr_64);
 static constexpr ArrayRef<const RegStorage> reserved_regs_32(reserved_regs_arr_32);
 static constexpr ArrayRef<const RegStorage> reserved_regs_64(reserved_regs_arr_64);
 static constexpr ArrayRef<const RegStorage> reserved_regs_64q(reserved_regs_arr_64q);
@@ -437,21 +464,13 @@ bool X86Mir2Lir::IsByteRegister(RegStorage reg) {
 
 /* Clobber all regs that might be used by an external C call */
 void X86Mir2Lir::ClobberCallerSave() {
-  Clobber(rs_rAX);
-  Clobber(rs_rCX);
-  Clobber(rs_rDX);
-  Clobber(rs_rBX);
-
-  Clobber(rs_fr0);
-  Clobber(rs_fr1);
-  Clobber(rs_fr2);
-  Clobber(rs_fr3);
-  Clobber(rs_fr4);
-  Clobber(rs_fr5);
-  Clobber(rs_fr6);
-  Clobber(rs_fr7);
-
   if (cu_->target64) {
+    Clobber(rs_rAX);
+    Clobber(rs_rCX);
+    Clobber(rs_rDX);
+    Clobber(rs_rSI);
+    Clobber(rs_rDI);
+
     Clobber(rs_r8);
     Clobber(rs_r9);
     Clobber(rs_r10);
@@ -461,11 +480,21 @@ void X86Mir2Lir::ClobberCallerSave() {
     Clobber(rs_fr9);
     Clobber(rs_fr10);
     Clobber(rs_fr11);
-    Clobber(rs_fr12);
-    Clobber(rs_fr13);
-    Clobber(rs_fr14);
-    Clobber(rs_fr15);
+  } else {
+    Clobber(rs_rAX);
+    Clobber(rs_rCX);
+    Clobber(rs_rDX);
+    Clobber(rs_rBX);
   }
+
+  Clobber(rs_fr0);
+  Clobber(rs_fr1);
+  Clobber(rs_fr2);
+  Clobber(rs_fr3);
+  Clobber(rs_fr4);
+  Clobber(rs_fr5);
+  Clobber(rs_fr6);
+  Clobber(rs_fr7);
 }
 
 RegLocation X86Mir2Lir::GetReturnWideAlt() {
@@ -599,11 +628,15 @@ void X86Mir2Lir::CompilerInitializeRegAlloc() {
   // Target-specific adjustments.
 
   // Add in XMM registers.
-  const ArrayRef<const RegStorage> *xp_temps = cu_->target64 ? &xp_temps_64 : &xp_temps_32;
-  for (RegStorage reg : *xp_temps) {
+  const ArrayRef<const RegStorage> *xp_regs = cu_->target64 ? &xp_regs_64 : &xp_regs_32;
+  for (RegStorage reg : *xp_regs) {
     RegisterInfo* info = new (arena_) RegisterInfo(reg, GetRegMaskCommon(reg));
     reginfo_map_.Put(reg.GetReg(), info);
-    info->SetIsTemp(true);
+  }
+  const ArrayRef<const RegStorage> *xp_temps = cu_->target64 ? &xp_temps_64 : &xp_temps_32;
+  for (RegStorage reg : *xp_temps) {
+    RegisterInfo* xp_reg_info = GetRegInfo(reg);
+    xp_reg_info->SetIsTemp(true);
   }
 
   // Alias single precision xmm to double xmms.
@@ -665,9 +698,11 @@ void X86Mir2Lir::SpillCoreRegs() {
   // Spill mask not including fake return address register
   uint32_t mask = core_spill_mask_ & ~(1 << rs_rRET.GetRegNum());
   int offset = frame_size_ - (GetInstructionSetPointerSize(cu_->instruction_set) * num_core_spills_);
+  OpSize size = cu_->target64 ? k64 : k32;
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
-      StoreWordDisp(rs_rX86_SP, offset, RegStorage::Solo32(reg));
+      StoreBaseDisp(rs_rX86_SP, offset, cu_->target64 ? RegStorage::Solo64(reg) :  RegStorage::Solo32(reg),
+                   size, kNotVolatile);
       offset += GetInstructionSetPointerSize(cu_->instruction_set);
     }
   }
@@ -680,13 +715,45 @@ void X86Mir2Lir::UnSpillCoreRegs() {
   // Spill mask not including fake return address register
   uint32_t mask = core_spill_mask_ & ~(1 << rs_rRET.GetRegNum());
   int offset = frame_size_ - (GetInstructionSetPointerSize(cu_->instruction_set) * num_core_spills_);
+  OpSize size = cu_->target64 ? k64 : k32;
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
-      LoadWordDisp(rs_rX86_SP, offset, RegStorage::Solo32(reg));
+      LoadBaseDisp(rs_rX86_SP, offset, cu_->target64 ? RegStorage::Solo64(reg) :  RegStorage::Solo32(reg),
+                   size, kNotVolatile);
       offset += GetInstructionSetPointerSize(cu_->instruction_set);
     }
   }
 }
+
+void X86Mir2Lir::SpillFPRegs() {
+  if (num_fp_spills_ == 0) {
+    return;
+  }
+  uint32_t mask = fp_spill_mask_;
+  int offset = frame_size_ - (GetInstructionSetPointerSize(cu_->instruction_set) * (num_fp_spills_ + num_core_spills_));
+  for (int reg = 0; mask; mask >>= 1, reg++) {
+    if (mask & 0x1) {
+      StoreBaseDisp(rs_rX86_SP, offset, RegStorage::FloatSolo64(reg),
+                   k64, kNotVolatile);
+      offset += sizeof(double);
+    }
+  }
+}
+void X86Mir2Lir::UnSpillFPRegs() {
+  if (num_fp_spills_ == 0) {
+    return;
+  }
+  uint32_t mask = fp_spill_mask_;
+  int offset = frame_size_ - (GetInstructionSetPointerSize(cu_->instruction_set) * (num_fp_spills_ + num_core_spills_));
+  for (int reg = 0; mask; mask >>= 1, reg++) {
+    if (mask & 0x1) {
+      LoadBaseDisp(rs_rX86_SP, offset, RegStorage::FloatSolo64(reg),
+                   k64, kNotVolatile);
+      offset += sizeof(double);
+    }
+  }
+}
+
 
 bool X86Mir2Lir::IsUnconditionalBranch(LIR* lir) {
   return (lir->opcode == kX86Jmp8 || lir->opcode == kX86Jmp32);

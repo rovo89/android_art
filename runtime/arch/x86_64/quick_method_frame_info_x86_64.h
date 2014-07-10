@@ -34,6 +34,9 @@ static constexpr uint32_t kX86_64CalleeSaveFpArgSpills =
     (1 << art::x86_64::XMM0) | (1 << art::x86_64::XMM1) | (1 << art::x86_64::XMM2) |
     (1 << art::x86_64::XMM3) | (1 << art::x86_64::XMM4) | (1 << art::x86_64::XMM5) |
     (1 << art::x86_64::XMM6) | (1 << art::x86_64::XMM7);
+static constexpr uint32_t kX86_64CalleeSaveFpSpills =
+    (1 << art::x86_64::XMM12) | (1 << art::x86_64::XMM13) |
+    (1 << art::x86_64::XMM14) | (1 << art::x86_64::XMM15);
 
 constexpr uint32_t X86_64CalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
   return kX86_64CalleeSaveRefSpills |
@@ -42,7 +45,8 @@ constexpr uint32_t X86_64CalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
 }
 
 constexpr uint32_t X86_64CalleeSaveFpSpills(Runtime::CalleeSaveType type) {
-  return (type == Runtime::kRefsAndArgs ? kX86_64CalleeSaveFpArgSpills : 0);
+  return kX86_64CalleeSaveFpSpills |
+      (type == Runtime::kRefsAndArgs ? kX86_64CalleeSaveFpArgSpills : 0);
 }
 
 constexpr uint32_t X86_64CalleeSaveFrameSize(Runtime::CalleeSaveType type) {

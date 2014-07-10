@@ -16,6 +16,26 @@
 
 #include "asm_support_x86_64.S"
 
+MACRO0(SETUP_FP_CALLEE_SAVE_FRAME)
+    // Create space for ART FP callee-saved registers
+    subq LITERAL(4 * 8), %rsp
+    CFI_ADJUST_CFA_OFFSET(4 * 8)
+    movq %xmm12, 0(%rsp)
+    movq %xmm13, 8(%rsp)
+    movq %xmm14, 16(%rsp)
+    movq %xmm15, 24(%rsp)
+END_MACRO
+
+MACRO0(RESTORE_FP_CALLEE_SAVE_FRAME)
+    // Restore ART FP callee-saved registers
+    movq 0(%rsp), %xmm12
+    movq 8(%rsp), %xmm13
+    movq 16(%rsp), %xmm14
+    movq 24(%rsp), %xmm15
+    addq LITERAL(4 * 8), %rsp
+    CFI_ADJUST_CFA_OFFSET(- 4 * 8)
+END_MACRO
+
 // For x86, the CFA is esp+4, the address above the pushed return address on the stack.
 
     /*
@@ -37,6 +57,14 @@ MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
     PUSH r12  // Callee save.
     PUSH rbp  // Callee save.
     PUSH rbx  // Callee save.
+    // Create space for FPR args, plus padding for alignment
+    subq LITERAL(4 * 8), %rsp
+    CFI_ADJUST_CFA_OFFSET(4 * 8)
+    // Save FPRs.
+    movq %xmm12, 0(%rsp)
+    movq %xmm13, 8(%rsp)
+    movq %xmm14, 16(%rsp)
+    movq %xmm15, 24(%rsp)
     subq MACRO_LITERAL(8), %rsp  // Space for Method* (also aligns the frame).
     CFI_ADJUST_CFA_OFFSET(8)
     // R10 := ArtMethod* for save all callee save frame method.
@@ -46,7 +74,7 @@ MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
 
     // Ugly compile-time check, but we only have the preprocessor.
     // Last +8: implicit return address pushed on stack when caller made call.
-#if (FRAME_SIZE_SAVE_ALL_CALLEE_SAVE != 6*8 + 8 + 8)
+#if (FRAME_SIZE_SAVE_ALL_CALLEE_SAVE != 6*8 + 4*8 + 8 + 8)
 #error "SAVE_ALL_CALLEE_SAVE_FRAME(X86_64) size not as expected."
 #endif
 #endif  // __APPLE__
@@ -71,8 +99,14 @@ MACRO0(SETUP_REF_ONLY_CALLEE_SAVE_FRAME)
     PUSH r12  // Callee save.
     PUSH rbp  // Callee save.
     PUSH rbx  // Callee save.
-    subq MACRO_LITERAL(8), %rsp  // Space for Method* (also aligns the frame).
-    CFI_ADJUST_CFA_OFFSET(8)
+    // Create space for FPR args, plus padding for alignment
+    subq LITERAL(8 + 4*8), %rsp
+    CFI_ADJUST_CFA_OFFSET(8 + 4*8)
+    // Save FPRs.
+    movq %xmm12, 8(%rsp)
+    movq %xmm13, 16(%rsp)
+    movq %xmm14, 24(%rsp)
+    movq %xmm15, 32(%rsp)
     // R10 := ArtMethod* for refs only callee save frame method.
     movq RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
     // Store ArtMethod* to bottom of stack.
@@ -80,15 +114,19 @@ MACRO0(SETUP_REF_ONLY_CALLEE_SAVE_FRAME)
 
     // Ugly compile-time check, but we only have the preprocessor.
     // Last +8: implicit return address pushed on stack when caller made call.
-#if (FRAME_SIZE_REFS_ONLY_CALLEE_SAVE != 6*8 + 8 + 8)
+#if (FRAME_SIZE_REFS_ONLY_CALLEE_SAVE != 6*8 + 4*8 + 8 + 8)
 #error "REFS_ONLY_CALLEE_SAVE_FRAME(X86_64) size not as expected."
 #endif
 #endif  // __APPLE__
 END_MACRO
 
 MACRO0(RESTORE_REF_ONLY_CALLEE_SAVE_FRAME)
-    addq MACRO_LITERAL(8), %rsp
-    CFI_ADJUST_CFA_OFFSET(-8)
+    movq 8(%rsp), %xmm12
+    movq 16(%rsp), %xmm13
+    movq 24(%rsp), %xmm14
+    movq 32(%rsp), %xmm15
+    addq LITERAL(8 + 4*8), %rsp
+    CFI_ADJUST_CFA_OFFSET(-8 - 4*8)
     // TODO: optimize by not restoring callee-saves restored by the ABI
     POP rbx
     POP rbp
@@ -123,8 +161,8 @@ MACRO0(SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     PUSH rdx  // Quick arg 2.
     PUSH rcx  // Quick arg 3.
     // Create space for FPR args and create 2 slots, 1 of padding and 1 for the ArtMethod*.
-    subq MACRO_LITERAL(80), %rsp
-    CFI_ADJUST_CFA_OFFSET(80)
+    subq MACRO_LITERAL(80 + 4 * 8), %rsp
+    CFI_ADJUST_CFA_OFFSET(80 + 4 * 8)
     // R10 := ArtMethod* for ref and args callee save frame method.
     movq RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
     // Save FPRs.
@@ -136,12 +174,16 @@ MACRO0(SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     movq %xmm5, 56(%rsp)
     movq %xmm6, 64(%rsp)
     movq %xmm7, 72(%rsp)
+    movq %xmm12, 80(%rsp)
+    movq %xmm13, 88(%rsp)
+    movq %xmm14, 96(%rsp)
+    movq %xmm15, 104(%rsp)
     // Store ArtMethod* to bottom of stack.
     movq %r10, 0(%rsp)
 
     // Ugly compile-time check, but we only have the preprocessor.
     // Last +8: implicit return address pushed on stack when caller made call.
-#if (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE != 11*8 + 80 + 8)
+#if (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE != 11*8 + 4*8 + 80 + 8)
 #error "REFS_AND_ARGS_CALLEE_SAVE_FRAME(X86_64) size not as expected."
 #endif
 #endif  // __APPLE__
@@ -157,8 +199,12 @@ MACRO0(RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     movq 56(%rsp), %xmm5
     movq 64(%rsp), %xmm6
     movq 72(%rsp), %xmm7
-    addq MACRO_LITERAL(80), %rsp
-    CFI_ADJUST_CFA_OFFSET(-80)
+    movq 80(%rsp), %xmm12
+    movq 88(%rsp), %xmm13
+    movq 96(%rsp), %xmm14
+    movq 104(%rsp), %xmm15
+    addq MACRO_LITERAL(80 + 4 * 8), %rsp
+    CFI_ADJUST_CFA_OFFSET(-(80 + 4 * 8))
     // Restore callee and GPR args, mixed together to agree with core spills bitmap.
     POP rcx
     POP rdx
@@ -536,6 +582,58 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
 #endif  // __APPLE__
 END_FUNCTION art_quick_invoke_static_stub
 
+    /*
+     * Long jump stub.
+     * On entry:
+     *   rdi = gprs
+     *   rsi = fprs
+     */
+DEFINE_FUNCTION art_quick_do_long_jump
+#if defined(__APPLE__)
+    int3
+    int3
+#else
+    // Restore FPRs.
+    movq 0(%rsi), %xmm0
+    movq 8(%rsi), %xmm1
+    movq 16(%rsi), %xmm2
+    movq 24(%rsi), %xmm3
+    movq 32(%rsi), %xmm4
+    movq 40(%rsi), %xmm5
+    movq 48(%rsi), %xmm6
+    movq 56(%rsi), %xmm7
+    movq 64(%rsi), %xmm8
+    movq 72(%rsi), %xmm9
+    movq 80(%rsi), %xmm10
+    movq 88(%rsi), %xmm11
+    movq 96(%rsi), %xmm12
+    movq 104(%rsi), %xmm13
+    movq 112(%rsi), %xmm14
+    movq 120(%rsi), %xmm15
+    // Restore FPRs.
+    movq %rdi, %rsp   // RSP points to gprs.
+    // Load all registers except RSP and RIP with values in gprs.
+    popq %r15
+    popq %r14
+    popq %r13
+    popq %r12
+    popq %r11
+    popq %r10
+    popq %r9
+    popq %r8
+    popq %rdi
+    popq %rsi
+    popq %rbp
+    addq LITERAL(8), %rsp   // Skip rsp
+    popq %rbx
+    popq %rdx
+    popq %rcx
+    popq %rax
+    popq %rsp      // Load stack pointer.
+    ret            // From higher in the stack pop rip.
+#endif  // __APPLE__
+END_FUNCTION art_quick_do_long_jump
+
 MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
@@ -820,13 +918,17 @@ END_FUNCTION art_quick_unlock_object
 DEFINE_FUNCTION art_quick_check_cast
     PUSH rdi                          // Save args for exc
     PUSH rsi
+    SETUP_FP_CALLEE_SAVE_FRAME
     call PLT_SYMBOL(artIsAssignableFromCode)  // (Class* klass, Class* ref_klass)
     testq %rax, %rax
     jz 1f                             // jump forward if not assignable
+    RESTORE_FP_CALLEE_SAVE_FRAME
     addq LITERAL(16), %rsp            // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
+
     ret
 1:
+    RESTORE_FP_CALLEE_SAVE_FRAME
     POP rsi                           // Pop arguments
     POP rdi
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
@@ -907,6 +1009,7 @@ DEFINE_FUNCTION art_quick_aput_obj
     PUSH rdx
     subq LITERAL(8), %rsp        // Alignment padding.
     CFI_ADJUST_CFA_OFFSET(8)
+    SETUP_FP_CALLEE_SAVE_FRAME
 
                                   // "Uncompress" = do nothing, as already zero-extended on load.
     movl CLASS_OFFSET(%edx), %esi // Pass arg2 = value's class.
@@ -918,6 +1021,7 @@ DEFINE_FUNCTION art_quick_aput_obj
     testq %rax, %rax
     jz   .Lthrow_array_store_exception
 
+    RESTORE_FP_CALLEE_SAVE_FRAME
     // Restore arguments.
     addq LITERAL(8), %rsp
     CFI_ADJUST_CFA_OFFSET(-8)
@@ -934,6 +1038,7 @@ DEFINE_FUNCTION art_quick_aput_obj
 //  movb %dl, (%rdx, %rdi)
     ret
 .Lthrow_array_store_exception:
+    RESTORE_FP_CALLEE_SAVE_FRAME
     // Restore arguments.
     addq LITERAL(8), %rsp
     CFI_ADJUST_CFA_OFFSET(-8)
@@ -1012,8 +1117,8 @@ DEFINE_FUNCTION art_quick_proxy_invoke_handler
     PUSH rdx  // Quick arg 2.
     PUSH rcx  // Quick arg 3.
     // Create space for FPR args and create 2 slots, 1 of padding and 1 for the ArtMethod*.
-    subq LITERAL(80), %rsp
-    CFI_ADJUST_CFA_OFFSET(80)
+    subq LITERAL(80 + 4*8), %rsp
+    CFI_ADJUST_CFA_OFFSET(80 + 4*8)
     // Save FPRs.
     movq %xmm0, 16(%rsp)
     movq %xmm1, 24(%rsp)
@@ -1023,14 +1128,18 @@ DEFINE_FUNCTION art_quick_proxy_invoke_handler
     movq %xmm5, 56(%rsp)
     movq %xmm6, 64(%rsp)
     movq %xmm7, 72(%rsp)
+    movq %xmm12, 80(%rsp)
+    movq %xmm13, 88(%rsp)
+    movq %xmm14, 96(%rsp)
+    movq %xmm15, 104(%rsp)
     // Store proxy method to bottom of stack.
     movq %rdi, 0(%rsp)
     movq %gs:THREAD_SELF_OFFSET, %rdx  // Pass Thread::Current().
     movq %rsp, %rcx                    // Pass SP.
     call PLT_SYMBOL(artQuickProxyInvokeHandler) // (proxy method, receiver, Thread*, SP)
     movq %rax, %xmm0                   // Copy return value in case of float returns.
-    addq LITERAL(168), %rsp            // Pop arguments.
-    CFI_ADJUST_CFA_OFFSET(-168)
+    addq LITERAL(168 + 4*8), %rsp            // Pop arguments.
+    CFI_ADJUST_CFA_OFFSET(-168 - 4*8)
     RETURN_OR_DELIVER_PENDING_EXCEPTION
 END_FUNCTION art_quick_proxy_invoke_handler
 
@@ -1156,8 +1265,8 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     PUSH rdx  // Quick arg 2.
     PUSH rcx  // Quick arg 3.
     // Create space for FPR args and create 2 slots, 1 of padding and 1 for the ArtMethod*.
-    subq LITERAL(80), %rsp
-    CFI_ADJUST_CFA_OFFSET(80)
+    subq LITERAL(80 + 4*8), %rsp
+    CFI_ADJUST_CFA_OFFSET(80 + 4*8)
     // Save FPRs.
     movq %xmm0, 16(%rsp)
     movq %xmm1, 24(%rsp)
@@ -1167,6 +1276,10 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %xmm5, 56(%rsp)
     movq %xmm6, 64(%rsp)
     movq %xmm7, 72(%rsp)
+    movq %xmm12, 80(%rsp)
+    movq %xmm13, 88(%rsp)
+    movq %xmm14, 96(%rsp)
+    movq %xmm15, 104(%rsp)
     movq %rdi, 0(%rsp)              // Store native ArtMethod* to bottom of stack.
     movq %rsp, %rbp                 // save SP at (old) callee-save frame
     CFI_DEF_CFA_REGISTER(rbp)
@@ -1260,9 +1373,13 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq 56(%rsp), %xmm5
     movq 64(%rsp), %xmm6
     movq 72(%rsp), %xmm7
+    movq 80(%rsp), %xmm12
+    movq 88(%rsp), %xmm13
+    movq 96(%rsp), %xmm14
+    movq 104(%rsp), %xmm15
     // was 80 bytes
-    addq LITERAL(80), %rsp
-    CFI_ADJUST_CFA_OFFSET(-80)
+    addq LITERAL(80 + 4*8), %rsp
+    CFI_ADJUST_CFA_OFFSET(-80 - 4*8)
     // Save callee and GPR args, mixed together to agree with core spills bitmap.
     POP rcx  // Arg.
     POP rdx  // Arg.
@@ -1292,9 +1409,13 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq 56(%rsp), %xmm5
     movq 64(%rsp), %xmm6
     movq 72(%rsp), %xmm7
-    // was 80 bytes
-    addq LITERAL(80), %rsp
-    CFI_ADJUST_CFA_OFFSET(-80)
+    movq 80(%rsp), %xmm12
+    movq 88(%rsp), %xmm13
+    movq 96(%rsp), %xmm14
+    movq 104(%rsp), %xmm15
+    // was 80 + 32 bytes
+    addq LITERAL(80 + 4*8), %rsp
+    CFI_ADJUST_CFA_OFFSET(-80 - 4*8)
     // Save callee and GPR args, mixed together to agree with core spills bitmap.
     POP rcx  // Arg.
     POP rdx  // Arg.
@@ -1450,3 +1571,10 @@ DEFINE_FUNCTION art_quick_string_compareto
 END_FUNCTION art_quick_string_compareto
 
 UNIMPLEMENTED art_quick_memcmp16
+
+DEFINE_FUNCTION art_quick_assignable_from_code
+    SETUP_FP_CALLEE_SAVE_FRAME
+    call PLT_SYMBOL(artIsAssignableFromCode)       // (const mirror::Class*, const mirror::Class*)
+    RESTORE_FP_CALLEE_SAVE_FRAME
+    ret
+END_FUNCTION art_quick_assignable_from_code

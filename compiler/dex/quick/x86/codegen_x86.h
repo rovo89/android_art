@@ -319,6 +319,8 @@ class X86Mir2Lir : public Mir2Lir {
   void OpRegThreadMem(OpKind op, RegStorage r_dest, ThreadOffset<8> thread_offset);
   void SpillCoreRegs();
   void UnSpillCoreRegs();
+  void UnSpillFPRegs();
+  void SpillFPRegs();
   static const X86EncodingMap EncodingMap[kX86Last];
   bool InexpensiveConstantInt(int32_t value);
   bool InexpensiveConstantFloat(int32_t value);
