@@ -293,7 +293,7 @@ void DlMallocSpace::Clear() {
   madvise(GetMemMap()->Begin(), GetMemMap()->Size(), MADV_DONTNEED);
   live_bitmap_->Clear();
   mark_bitmap_->Clear();
-  end_ = Begin() + starting_size_;
+  SetEnd(Begin() + starting_size_);
   mspace_ = CreateMspace(mem_map_->Begin(), starting_size_, initial_size_);
   SetFootprintLimit(footprint_limit);
 }

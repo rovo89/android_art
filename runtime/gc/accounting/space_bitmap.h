@@ -60,17 +60,17 @@ class SpaceBitmap {
   // <offset> is the difference from .base to a pointer address.
   // <index> is the index of .bits that contains the bit representing
   //         <offset>.
-  static size_t OffsetToIndex(size_t offset) ALWAYS_INLINE {
+  static constexpr size_t OffsetToIndex(size_t offset) {
     return offset / kAlignment / kBitsPerWord;
   }
 
   template<typename T>
-  static T IndexToOffset(T index) {
+  static constexpr T IndexToOffset(T index) {
     return static_cast<T>(index * kAlignment * kBitsPerWord);
   }
 
   // Bits are packed in the obvious way.
-  static uword OffsetToMask(uintptr_t offset) ALWAYS_INLINE {
+  static constexpr uword OffsetToMask(uintptr_t offset) {
     return (static_cast<size_t>(1)) << ((offset / kAlignment) % kBitsPerWord);
   }
 
