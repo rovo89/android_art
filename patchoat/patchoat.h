@@ -36,38 +36,29 @@ class Object;
 class Reference;
 class Class;
 class ArtMethod;
-};
-
-int patchoat(int argc, char** argv);
+};  // namespace mirror
 
 class PatchOat {
  public:
-  static bool Patch(File* oat_in, off_t delta, File* oat_out, TimingLogger& timings);
+  static bool Patch(File* oat_in, off_t delta, File* oat_out, TimingLogger* timings);
 
   static bool Patch(const std::string& art_location, off_t delta, File* art_out, InstructionSet isa,
-                    TimingLogger& timings);
+                    TimingLogger* timings);
 
   static bool Patch(const File* oat_in, const std::string& art_location,
                     off_t delta, File* oat_out, File* art_out, InstructionSet isa,
-                    TimingLogger& timings);
+                    TimingLogger* timings);
 
  private:
-  std::unique_ptr<ElfFile> oat_file_;
-  MemMap* image_;
-  gc::accounting::ContinuousSpaceBitmap* bitmap_;
-  MemMap* heap_;
-  off_t delta_;
-  TimingLogger& timings_;
-
   // Takes ownership only of the ElfFile. All other pointers are only borrowed.
-  PatchOat(ElfFile* oat_file, off_t delta, TimingLogger& timings)
+  PatchOat(ElfFile* oat_file, off_t delta, TimingLogger* timings)
       : oat_file_(oat_file), delta_(delta), timings_(timings) {}
   PatchOat(MemMap* image, gc::accounting::ContinuousSpaceBitmap* bitmap,
-           MemMap* heap, off_t delta, TimingLogger& timings)
+           MemMap* heap, off_t delta, TimingLogger* timings)
       : image_(image), bitmap_(bitmap), heap_(heap),
         delta_(delta), timings_(timings) {}
   PatchOat(ElfFile* oat_file, MemMap* image, gc::accounting::ContinuousSpaceBitmap* bitmap,
-           MemMap* heap, off_t delta, TimingLogger& timings)
+           MemMap* heap, off_t delta, TimingLogger* timings)
       : oat_file_(oat_file), image_(image), bitmap_(bitmap), heap_(heap),
         delta_(delta), timings_(timings) {}
   ~PatchOat() {}
@@ -98,6 +89,8 @@ class PatchOat {
   mirror::Object* RelocatedCopyOf(mirror::Object*);
   mirror::Object* RelocatedAddressOf(mirror::Object* obj);
 
+  // Walks through the old image and patches the mmap'd copy of it to the new offset. It does not
+  // change the heap.
   class PatchVisitor {
   public:
     PatchVisitor(PatchOat* patcher, mirror::Object* copy) : patcher_(patcher), copy_(copy) {}
@@ -111,6 +104,18 @@ class PatchOat {
     PatchOat* patcher_;
     mirror::Object* copy_;
   };
+
+  // The elf file we are patching.
+  std::unique_ptr<ElfFile> oat_file_;
+  // A mmap of the image we are patching. This is modified.
+  const MemMap* image_;
+  // The heap we are patching. This is not modified.
+  gc::accounting::ContinuousSpaceBitmap* bitmap_;
+  // The heap we are patching. This is not modified.
+  const MemMap* heap_;
+  // The amount we are changing the offset by.
+  off_t delta_;
+  TimingLogger* timings_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(PatchOat);
 };
