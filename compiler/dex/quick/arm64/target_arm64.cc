@@ -158,7 +158,6 @@ ResourceMask Arm64Mir2Lir::GetRegMaskCommon(const RegStorage& reg) const {
 }
 
 ResourceMask Arm64Mir2Lir::GetPCUseDefEncoding() const {
-  LOG(FATAL) << "Unexpected call to GetPCUseDefEncoding for Arm64";
   return kEncodeNone;
 }
 

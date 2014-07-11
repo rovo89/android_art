@@ -1263,6 +1263,9 @@ class Mir2Lir : public Backend {
     virtual const char* GetTargetInstFmt(int opcode) = 0;
     virtual const char* GetTargetInstName(int opcode) = 0;
     virtual std::string BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr) = 0;
+
+    // Note: This may return kEncodeNone on architectures that do not expose a PC. The caller must
+    //       take care of this.
     virtual ResourceMask GetPCUseDefEncoding() const = 0;
     virtual uint64_t GetTargetInstFlags(int opcode) = 0;
     virtual size_t GetInsnSize(LIR* lir) = 0;
