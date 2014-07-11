@@ -25,6 +25,7 @@
 #include "graph_visualizer.h"
 #include "nodes.h"
 #include "register_allocator.h"
+#include "ssa_phi_elimination.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/arena_allocator.h"
 
@@ -129,8 +130,11 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     graph->BuildDominatorTree();
     graph->TransformToSSA();
     visualizer.DumpGraph("ssa");
-
     graph->FindNaturalLoops();
+
+    SsaRedundantPhiElimination(graph).Run();
+    SsaDeadPhiElimination(graph).Run();
+
     SsaLivenessAnalysis liveness(*graph, codegen);
     liveness.Analyze();
     visualizer.DumpGraph(kLivenessPassName);
