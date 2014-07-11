@@ -93,10 +93,6 @@ class ParsedOptions {
   bool verify_;
   InstructionSet image_isa_;
 
-  static constexpr uint32_t kExplicitNullCheck = 1;
-  static constexpr uint32_t kExplicitSuspendCheck = 2;
-  static constexpr uint32_t kExplicitStackOverflowCheck = 4;
-  uint32_t explicit_checks_;
   // Whether or not we use homogeneous space compaction to avoid OOM errors. If enabled,
   // the heap will attempt to create an extra space which enables compacting from a malloc space to
   // another malloc space when we are about to throw OOM.

@@ -18,12 +18,9 @@
 
 #include <sys/mman.h>
 #include <sys/ucontext.h>
-
 #include "mirror/art_method.h"
 #include "mirror/class.h"
-#ifdef HAVE_ANDROID_OS
 #include "sigchain.h"
-#endif
 #include "thread-inl.h"
 #include "verify_object-inl.h"
 
@@ -40,6 +37,7 @@ void art_sigsegv_fault() {
 
 // Signal handler called on SIGSEGV.
 static void art_fault_handler(int sig, siginfo_t* info, void* context) {
+  // std::cout << "handling fault in ART handler\n";
   fault_manager.HandleFault(sig, info, context);
 }
 
@@ -48,10 +46,6 @@ FaultManager::FaultManager() {
 }
 
 FaultManager::~FaultManager() {
-#ifdef HAVE_ANDROID_OS
-  UnclaimSignalChain(SIGSEGV);
-#endif
-  sigaction(SIGSEGV, &oldaction_, nullptr);   // Restore old handler.
 }
 
 
@@ -65,11 +59,12 @@ void FaultManager::Init() {
 #endif
 
   // Set our signal handler now.
-  sigaction(SIGSEGV, &action, &oldaction_);
-#ifdef HAVE_ANDROID_OS
+  int e = sigaction(SIGSEGV, &action, &oldaction_);
+  if (e != 0) {
+    VLOG(signals) << "Failed to claim SEGV: " << strerror(errno);
+  }
   // Make sure our signal handler is called before any user handlers.
   ClaimSignalChain(SIGSEGV, &oldaction_);
-#endif
 }
 
 void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
@@ -77,8 +72,12 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
   //
   // If malloc calls abort, it will be holding its lock.
   // If the handler tries to call malloc, it will deadlock.
+
+  // Also, there is only an 8K stack available here to logging can cause memory
+  // overwrite issues if you are unlucky.  If you want to enable logging and
+  // are getting crashes, allocate more space for the alternate signal stack.
   VLOG(signals) << "Handling fault";
-  if (IsInGeneratedCode(context, true)) {
+  if (IsInGeneratedCode(info, context, true)) {
     VLOG(signals) << "in generated code, looking for handler";
     for (const auto& handler : generated_code_handlers_) {
       VLOG(signals) << "invoking Action on handler " << handler;
@@ -94,11 +93,8 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
   }
   art_sigsegv_fault();
 
-#ifdef HAVE_ANDROID_OS
+  // Pass this on to the next handler in the chain, or the default if none.
   InvokeUserSignalHandler(sig, info, context);
-#else
-  oldaction_.sa_sigaction(sig, info, context);
-#endif
 }
 
 void FaultManager::AddHandler(FaultHandler* handler, bool generated_code) {
@@ -125,7 +121,7 @@ void FaultManager::RemoveHandler(FaultHandler* handler) {
 
 // This function is called within the signal handler.  It checks that
 // the mutator_lock is held (shared).  No annotalysis is done.
-bool FaultManager::IsInGeneratedCode(void* context, bool check_dex_pc) {
+bool FaultManager::IsInGeneratedCode(siginfo_t* siginfo, void* context, bool check_dex_pc) {
   // We can only be running Java code in the current thread if it
   // is in Runnable state.
   VLOG(signals) << "Checking for generated code";
@@ -154,7 +150,7 @@ bool FaultManager::IsInGeneratedCode(void* context, bool check_dex_pc) {
 
   // Get the architecture specific method address and return address.  These
   // are in architecture specific files in arch/<arch>/fault_handler_<arch>.
-  GetMethodAndReturnPCAndSP(context, &method_obj, &return_pc, &sp);
+  GetMethodAndReturnPCAndSP(siginfo, context, &method_obj, &return_pc, &sp);
 
   // If we don't have a potential method, we're outta here.
   VLOG(signals) << "potential method: " << method_obj;
@@ -235,12 +231,12 @@ JavaStackTraceHandler::JavaStackTraceHandler(FaultManager* manager) : FaultHandl
 
 bool JavaStackTraceHandler::Action(int sig, siginfo_t* siginfo, void* context) {
   // Make sure that we are in the generated code, but we may not have a dex pc.
-  if (manager_->IsInGeneratedCode(context, false)) {
+  if (manager_->IsInGeneratedCode(siginfo, context, false)) {
     LOG(ERROR) << "Dumping java stack trace for crash in generated code";
     mirror::ArtMethod* method = nullptr;
     uintptr_t return_pc = 0;
     uintptr_t sp = 0;
-    manager_->GetMethodAndReturnPCAndSP(context, &method, &return_pc, &sp);
+    manager_->GetMethodAndReturnPCAndSP(siginfo, context, &method, &return_pc, &sp);
     Thread* self = Thread::Current();
     // Inside of generated code, sp[0] is the method, so sp is the frame.
     StackReference<mirror::ArtMethod>* frame =
