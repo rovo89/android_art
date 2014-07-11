@@ -626,6 +626,13 @@ struct ReferenceOffsets : public CheckOffsets<mirror::Reference> {
   };
 };
 
+struct ReferenceClassOffsets : public CheckOffsets<mirror::ReferenceClass> {
+  ReferenceClassOffsets() : CheckOffsets<mirror::ReferenceClass>(true, "Ljava/lang/ref/Reference;") {
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ReferenceClass, disable_intrinsic_), "disableIntrinsic"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ReferenceClass, slow_path_enabled_), "slowPathEnabled"));
+  };
+};
+
 struct FinalizerReferenceOffsets : public CheckOffsets<mirror::FinalizerReference> {
   FinalizerReferenceOffsets() : CheckOffsets<mirror::FinalizerReference>(false, "Ljava/lang/ref/FinalizerReference;") {
     // alphabetical references
@@ -651,6 +658,7 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(ProxyOffsets().Check());
   EXPECT_TRUE(DexCacheOffsets().Check());
   EXPECT_TRUE(ReferenceOffsets().Check());
+  EXPECT_TRUE(ReferenceClassOffsets().Check());
   EXPECT_TRUE(FinalizerReferenceOffsets().Check());
 
   EXPECT_TRUE(ClassClassOffsets().Check());
