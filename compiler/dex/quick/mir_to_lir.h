@@ -982,7 +982,6 @@ class Mir2Lir : public Backend {
      */
     RegLocation InlineTargetWide(CallInfo* info);
 
-    bool GenInlinedGet(CallInfo* info);
     bool GenInlinedCharAt(CallInfo* info);
     bool GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty);
     virtual bool GenInlinedReverseBits(CallInfo* info, OpSize size);
