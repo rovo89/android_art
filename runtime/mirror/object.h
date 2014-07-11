@@ -99,18 +99,13 @@ class MANAGED LOCKABLE Object {
     return OFFSET_OF_OBJECT_MEMBER(Object, monitor_);
   }
 
-  // As volatile can be false if the mutators are suspended. This is an optimization since it
+  // As_volatile can be false if the mutators are suspended. This is an optimization since it
   // avoids the barriers.
   LockWord GetLockWord(bool as_volatile) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetLockWord(LockWord new_val, bool as_volatile) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  // All Cas operations defined here have C++11 memory_order_seq_cst ordering
-  // semantics: Preceding memory operations become visible to other threads
-  // before the CAS, and subsequent operations become visible after the CAS.
-  // The Cas operations defined here do not fail spuriously, i.e. they
-  // have C++11 "strong" semantics.
-  // TODO: In most, possibly all, cases, these assumptions are too strong.
-  // Confirm and weaken the implementation.
   bool CasLockWordWeakSequentiallyConsistent(LockWord old_val, LockWord new_val)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool CasLockWordWeakRelaxed(LockWord old_val, LockWord new_val)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   uint32_t GetLockOwnerThreadId();
 
@@ -231,6 +226,12 @@ class MANAGED LOCKABLE Object {
                                                 Object* new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  template<bool kTransactionActive, bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool CasFieldStrongSequentiallyConsistentObject(MemberOffset field_offset, Object* old_value,
+                                                  Object* new_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   HeapReference<Object>* GetFieldObjectReferenceAddr(MemberOffset field_offset);
 
@@ -258,6 +259,18 @@ class MANAGED LOCKABLE Object {
                                             int32_t new_value) ALWAYS_INLINE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  template<bool kTransactionActive, bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool CasFieldWeakRelaxed32(MemberOffset field_offset, int32_t old_value,
+                             int32_t new_value) ALWAYS_INLINE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template<bool kTransactionActive, bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool CasFieldStrongSequentiallyConsistent32(MemberOffset field_offset, int32_t old_value,
+                                              int32_t new_value) ALWAYS_INLINE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
   int64_t GetField64(MemberOffset field_offset) ALWAYS_INLINE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -280,6 +293,12 @@ class MANAGED LOCKABLE Object {
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool CasFieldWeakSequentiallyConsistent64(MemberOffset field_offset, int64_t old_value,
                                             int64_t new_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template<bool kTransactionActive, bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool CasFieldStrongSequentiallyConsistent64(MemberOffset field_offset, int64_t old_value,
+                                              int64_t new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<bool kTransactionActive, bool kCheckTransaction = true,

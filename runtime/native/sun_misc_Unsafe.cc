@@ -28,8 +28,8 @@ static jboolean Unsafe_compareAndSwapInt(JNIEnv* env, jobject, jobject javaObj, 
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   // JNI must use non transactional mode.
-  bool success = obj->CasFieldWeakSequentiallyConsistent32<false>(MemberOffset(offset),
-                                                                  expectedValue, newValue);
+  bool success = obj->CasFieldStrongSequentiallyConsistent32<false>(MemberOffset(offset),
+                                                                    expectedValue, newValue);
   return success ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -38,8 +38,8 @@ static jboolean Unsafe_compareAndSwapLong(JNIEnv* env, jobject, jobject javaObj,
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   // JNI must use non transactional mode.
-  bool success = obj->CasFieldWeakSequentiallyConsistent64<false>(MemberOffset(offset),
-                                                                  expectedValue, newValue);
+  bool success = obj->CasFieldStrongSequentiallyConsistent64<false>(MemberOffset(offset),
+                                                                    expectedValue, newValue);
   return success ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -50,8 +50,8 @@ static jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaOb
   mirror::Object* expectedValue = soa.Decode<mirror::Object*>(javaExpectedValue);
   mirror::Object* newValue = soa.Decode<mirror::Object*>(javaNewValue);
   // JNI must use non transactional mode.
-  bool success = obj->CasFieldWeakSequentiallyConsistentObject<false>(MemberOffset(offset),
-                                                                      expectedValue, newValue);
+  bool success = obj->CasFieldStrongSequentiallyConsistentObject<false>(MemberOffset(offset),
+                                                                        expectedValue, newValue);
   return success ? JNI_TRUE : JNI_FALSE;
 }
 
