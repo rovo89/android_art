@@ -79,9 +79,9 @@ class OatWriter {
   OatWriter(const std::vector<const DexFile*>& dex_files,
             uint32_t image_file_location_oat_checksum,
             uintptr_t image_file_location_oat_begin,
-            const std::string& image_file_location,
             const CompilerDriver* compiler,
-            TimingLogger* timings);
+            TimingLogger* timings,
+            SafeMap<std::string, std::string>* key_value_store);
 
   const OatHeader& GetOatHeader() const {
     return *oat_header_;
@@ -253,9 +253,9 @@ class OatWriter {
   // dependencies on the image.
   uint32_t image_file_location_oat_checksum_;
   uintptr_t image_file_location_oat_begin_;
-  std::string image_file_location_;
 
   // data to write
+  SafeMap<std::string, std::string>* key_value_store_;
   OatHeader* oat_header_;
   std::vector<OatDexFile*> oat_dex_files_;
   std::vector<OatClass*> oat_classes_;
@@ -274,7 +274,7 @@ class OatWriter {
   uint32_t size_dex_file_alignment_;
   uint32_t size_executable_offset_alignment_;
   uint32_t size_oat_header_;
-  uint32_t size_oat_header_image_file_location_;
+  uint32_t size_oat_header_key_value_store_;
   uint32_t size_dex_file_;
   uint32_t size_interpreter_to_interpreter_bridge_;
   uint32_t size_interpreter_to_compiled_code_bridge_;

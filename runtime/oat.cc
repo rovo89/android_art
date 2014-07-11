@@ -17,15 +17,46 @@
 #include "oat.h"
 #include "utils.h"
 
+#include <string.h>
 #include <zlib.h>
 
 namespace art {
 
 const uint8_t OatHeader::kOatMagic[] = { 'o', 'a', 't', '\n' };
-const uint8_t OatHeader::kOatVersion[] = { '0', '3', '6', '\0' };
+const uint8_t OatHeader::kOatVersion[] = { '0', '3', '7', '\0' };
 
-OatHeader::OatHeader() {
-  memset(this, 0, sizeof(*this));
+static size_t ComputeOatHeaderSize(const SafeMap<std::string, std::string>* variable_data) {
+  size_t estimate = 0U;
+  if (variable_data != nullptr) {
+    SafeMap<std::string, std::string>::const_iterator it = variable_data->begin();
+    SafeMap<std::string, std::string>::const_iterator end = variable_data->end();
+    for ( ; it != end; ++it) {
+      estimate += it->first.length() + 1;
+      estimate += it->second.length() + 1;
+    }
+  }
+  return sizeof(OatHeader) + estimate;
+}
+
+OatHeader* OatHeader::Create(InstructionSet instruction_set,
+                             const InstructionSetFeatures& instruction_set_features,
+                             const std::vector<const DexFile*>* dex_files,
+                             uint32_t image_file_location_oat_checksum,
+                             uint32_t image_file_location_oat_data_begin,
+                             const SafeMap<std::string, std::string>* variable_data) {
+  // Estimate size of optional data.
+  size_t needed_size = ComputeOatHeaderSize(variable_data);
+
+  // Reserve enough memory.
+  void* memory = operator new (needed_size);
+
+  // Create the OatHeader in-place.
+  return new (memory) OatHeader(instruction_set,
+                                instruction_set_features,
+                                dex_files,
+                                image_file_location_oat_checksum,
+                                image_file_location_oat_data_begin,
+                                variable_data);
 }
 
 OatHeader::OatHeader(InstructionSet instruction_set,
@@ -33,7 +64,7 @@ OatHeader::OatHeader(InstructionSet instruction_set,
                      const std::vector<const DexFile*>* dex_files,
                      uint32_t image_file_location_oat_checksum,
                      uint32_t image_file_location_oat_data_begin,
-                     const std::string& image_file_location) {
+                     const SafeMap<std::string, std::string>* variable_data) {
   memcpy(magic_, kOatMagic, sizeof(kOatMagic));
   memcpy(version_, kOatVersion, sizeof(kOatVersion));
 
@@ -56,9 +87,16 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   image_file_location_oat_data_begin_ = image_file_location_oat_data_begin;
   UpdateChecksum(&image_file_location_oat_data_begin_, sizeof(image_file_location_oat_data_begin_));
 
-  image_file_location_size_ = image_file_location.size();
-  UpdateChecksum(&image_file_location_size_, sizeof(image_file_location_size_));
-  UpdateChecksum(image_file_location.data(), image_file_location_size_);
+  // Flatten the map. Will also update variable_size_data_size_.
+  Flatten(variable_data);
+
+  // Update checksum for variable data size.
+  UpdateChecksum(&key_value_store_size_, sizeof(key_value_store_size_));
+
+  // Update for data, if existing.
+  if (key_value_store_size_ > 0U) {
+    UpdateChecksum(&key_value_store_, key_value_store_size_);
+  }
 
   executable_offset_ = 0;
   interpreter_to_interpreter_bridge_offset_ = 0;
@@ -327,20 +365,97 @@ uint32_t OatHeader::GetImageFileLocationOatDataBegin() const {
   return image_file_location_oat_data_begin_;
 }
 
-uint32_t OatHeader::GetImageFileLocationSize() const {
+uint32_t OatHeader::GetKeyValueStoreSize() const {
   CHECK(IsValid());
-  return image_file_location_size_;
+  return key_value_store_size_;
 }
 
-const uint8_t* OatHeader::GetImageFileLocationData() const {
+const uint8_t* OatHeader::GetKeyValueStore() const {
   CHECK(IsValid());
-  return image_file_location_data_;
+  return key_value_store_;
 }
 
-std::string OatHeader::GetImageFileLocation() const {
-  CHECK(IsValid());
-  return std::string(reinterpret_cast<const char*>(GetImageFileLocationData()),
-                     GetImageFileLocationSize());
+// Advance start until it is either end or \0.
+static const char* ParseString(const char* start, const char* end) {
+  while (start < end && *start != 0) {
+    start++;
+  }
+  return start;
+}
+
+const char* OatHeader::GetStoreValueByKey(const char* key) const {
+  const char* ptr = reinterpret_cast<const char*>(&key_value_store_);
+  const char* end = ptr + key_value_store_size_;
+
+  while (ptr < end) {
+    // Scan for a closing zero.
+    const char* str_end = ParseString(ptr, end);
+    if (str_end < end) {
+      if (strcmp(key, ptr) == 0) {
+        // Same as key. Check if value is OK.
+        if (ParseString(str_end + 1, end) < end) {
+          return str_end + 1;
+        }
+      } else {
+        // Different from key. Advance over the value.
+        ptr = ParseString(str_end + 1, end) + 1;
+      }
+    } else {
+      break;
+    }
+  }
+  // Not found.
+  return nullptr;
+}
+
+bool OatHeader::GetStoreKeyValuePairByIndex(size_t index, const char** key,
+                                            const char** value) const {
+  const char* ptr = reinterpret_cast<const char*>(&key_value_store_);
+  const char* end = ptr + key_value_store_size_;
+  ssize_t counter = static_cast<ssize_t>(index);
+
+  while (ptr < end && counter >= 0) {
+    // Scan for a closing zero.
+    const char* str_end = ParseString(ptr, end);
+    if (str_end < end) {
+      const char* maybe_key = ptr;
+      ptr = ParseString(str_end + 1, end) + 1;
+      if (ptr <= end) {
+        if (counter == 0) {
+          *key = maybe_key;
+          *value = str_end + 1;
+          return true;
+        } else {
+          counter--;
+        }
+      } else {
+        return false;
+      }
+    } else {
+      break;
+    }
+  }
+  // Not found.
+  return false;
+}
+
+size_t OatHeader::GetHeaderSize() const {
+  return sizeof(OatHeader) + key_value_store_size_;
+}
+
+void OatHeader::Flatten(const SafeMap<std::string, std::string>* key_value_store) {
+  char* data_ptr = reinterpret_cast<char*>(&key_value_store_);
+  if (key_value_store != nullptr) {
+    SafeMap<std::string, std::string>::const_iterator it = key_value_store->begin();
+    SafeMap<std::string, std::string>::const_iterator end = key_value_store->end();
+    for ( ; it != end; ++it) {
+      strcpy(data_ptr, it->first.c_str());
+      data_ptr += it->first.length() + 1;
+      strcpy(data_ptr, it->second.c_str());
+      data_ptr += it->second.length() + 1;
+    }
+  }
+  key_value_store_size_ = data_ptr - reinterpret_cast<char*>(&key_value_store_);
 }
 
 OatMethodOffsets::OatMethodOffsets()
