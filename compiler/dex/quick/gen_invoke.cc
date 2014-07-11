@@ -1711,10 +1711,7 @@ bool Mir2Lir::GenInlinedUnsafeGet(CallInfo* info,
   }
 
   if (is_volatile) {
-    // Without context sensitive analysis, we must issue the most conservative barriers.
-    // In this case, either a load or store may follow so we issue both barriers.
-    GenMemBarrier(kLoadLoad);
-    GenMemBarrier(kLoadStore);
+    GenMemBarrier(kLoadAny);
   }
 
   if (is_long) {
@@ -1737,8 +1734,7 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
   rl_src_offset = NarrowRegLoc(rl_src_offset);  // ignore high half in info->args[3]
   RegLocation rl_src_value = info->args[4];  // value to store
   if (is_volatile || is_ordered) {
-    // There might have been a store before this volatile one so insert StoreStore barrier.
-    GenMemBarrier(kStoreStore);
+    GenMemBarrier(kAnyStore);
   }
   RegLocation rl_object = LoadValue(rl_src_obj, kRefReg);
   RegLocation rl_offset = LoadValue(rl_src_offset, kCoreReg);
@@ -1767,8 +1763,9 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
   FreeTemp(rl_offset.reg);
 
   if (is_volatile) {
-    // A load might follow the volatile store so insert a StoreLoad barrier.
-    GenMemBarrier(kStoreLoad);
+    // Prevent reordering with a subsequent volatile load.
+    // May also be needed to address store atomicity issues.
+    GenMemBarrier(kAnyAny);
   }
   if (is_object) {
     MarkGCCard(rl_value.reg, rl_object.reg);

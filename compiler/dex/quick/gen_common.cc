@@ -629,8 +629,12 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, bool is_long_or_double,
                                                      field_info.StorageIndex(), r_base));
 
         FreeTemp(r_tmp);
-        // Ensure load of status and load of value don't re-order.
-        GenMemBarrier(kLoadLoad);
+        // Ensure load of status and store of value don't re-order.
+        // TODO: Presumably the actual value store is control-dependent on the status load,
+        // and will thus not be reordered in any case, since stores are never speculated.
+        // Does later code "know" that the class is now initialized?  If so, we still
+        // need the barrier to guard later static loads.
+        GenMemBarrier(kLoadAny);
       }
       FreeTemp(r_method);
     }
@@ -723,7 +727,7 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
 
         FreeTemp(r_tmp);
         // Ensure load of status and load of value don't re-order.
-        GenMemBarrier(kLoadLoad);
+        GenMemBarrier(kLoadAny);
       }
       FreeTemp(r_method);
     }

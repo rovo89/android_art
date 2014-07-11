@@ -986,10 +986,7 @@ LIR* ArmMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_
   }
 
   if (UNLIKELY(is_volatile == kVolatile)) {
-    // Without context sensitive analysis, we must issue the most conservative barriers.
-    // In this case, either a load or store may follow so we issue both barriers.
-    GenMemBarrier(kLoadLoad);
-    GenMemBarrier(kLoadStore);
+    GenMemBarrier(kLoadAny);
   }
 
   return load;
@@ -1091,8 +1088,8 @@ LIR* ArmMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStora
 LIR* ArmMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
                                OpSize size, VolatileKind is_volatile) {
   if (UNLIKELY(is_volatile == kVolatile)) {
-    // There might have been a store before this volatile one so insert StoreStore barrier.
-    GenMemBarrier(kStoreStore);
+    // Ensure that prior accesses become visible to other threads first.
+    GenMemBarrier(kAnyStore);
   }
 
   LIR* store;
@@ -1135,8 +1132,9 @@ LIR* ArmMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r
   }
 
   if (UNLIKELY(is_volatile == kVolatile)) {
-    // A load might follow the volatile store so insert a StoreLoad barrier.
-    GenMemBarrier(kStoreLoad);
+    // Preserve order with respect to any subsequent volatile loads.
+    // We need StoreLoad, but that generally requires the most expensive barrier.
+    GenMemBarrier(kAnyAny);
   }
 
   return store;

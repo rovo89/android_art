@@ -440,19 +440,23 @@ std::ostream& operator<<(std::ostream& os, const DividePattern& pattern);
 
 /**
  * @brief Memory barrier types (see "The JSR-133 Cookbook for Compiler Writers").
- * @details Without context sensitive analysis, the most conservative set of barriers
- * must be issued to ensure the Java Memory Model. Thus the recipe is as follows:
- * -# Use StoreStore barrier before volatile store.
- * -# Use StoreLoad barrier after volatile store.
- * -# Use LoadLoad and LoadStore barrier after each volatile load.
+ * @details We define the combined barrier types that are actually required
+ * by the Java Memory Model, rather than using exactly the terminology from
+ * the JSR-133 cookbook.  These should, in many cases, be replaced by acquire/release
+ * primitives.  Note that the JSR-133 cookbook generally does not deal with
+ * store atomicity issues, and the recipes there are not always entirely sufficient.
+ * The current recipe is as follows:
+ * -# Use AnyStore ~= (LoadStore | StoreStore) ~= release barrier before volatile store.
+ * -# Use AnyAny barrier after volatile store.  (StoreLoad is as expensive.)
+ * -# Use LoadAny barrier ~= (LoadLoad | LoadStore) ~= acquire barrierafter each volatile load.
  * -# Use StoreStore barrier after all stores but before return from any constructor whose
- * class has final fields.
+ *    class has final fields.
  */
 enum MemBarrierKind {
-  kLoadStore,
-  kLoadLoad,
+  kAnyStore,
+  kLoadAny,
   kStoreStore,
-  kStoreLoad
+  kAnyAny
 };
 
 std::ostream& operator<<(std::ostream& os, const MemBarrierKind& kind);
