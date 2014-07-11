@@ -309,10 +309,10 @@ ifeq ($(ART_USE_PORTABLE_COMPILER),true)
   LIBART_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
 
-ifeq ($(MALLOC_IMPL),jemalloc)
-  LIBART_CFLAGS += -DUSE_JEMALLOC
-else
+ifeq ($(MALLOC_IMPL),dlmalloc)
   LIBART_CFLAGS += -DUSE_DLMALLOC
+else
+  LIBART_CFLAGS += -DUSE_JEMALLOC
 endif
 
 # $(1): target or host
