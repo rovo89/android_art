@@ -261,7 +261,7 @@ class MANAGED Class FINAL : public Object {
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  bool IsReferenceClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool IsTypeOfReferenceClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags<kVerifyFlags>() & kAccClassIsReference) != 0;
   }
 
@@ -418,6 +418,9 @@ class MANAGED Class FINAL : public Object {
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsArtMethodClass() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  bool IsReferenceClass() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static MemberOffset ComponentTypeOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Class, component_type_);
@@ -975,6 +978,12 @@ class MANAGED Class FINAL : public Object {
 
   // For proxy class only.
   ObjectArray<ObjectArray<Class>>* GetThrows() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // For reference class only.
+  MemberOffset GetDisableIntrinsicFlagOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  MemberOffset GetSlowPathFlagOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool GetSlowPathEnabled() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetSlowPath(bool enabled) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Used to initialize a class in the allocation code path to ensure it is guarded by a StoreStore
   // fence.

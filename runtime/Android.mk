@@ -97,6 +97,7 @@ LIBART_COMMON_SRC_FILES := \
 	mirror/class.cc \
 	mirror/dex_cache.cc \
 	mirror/object.cc \
+	mirror/reference.cc \
 	mirror/stack_trace_element.cc \
 	mirror/string.cc \
 	mirror/throwable.cc \
