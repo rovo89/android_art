@@ -619,7 +619,8 @@ bool Thumb2Assembler::Is32BitDataProcessing(Condition cond,
     return true;
   }
 
-  bool can_contain_high_register = opcode == MOV || opcode == ADD || opcode == SUB;
+  bool can_contain_high_register = (opcode == MOV)
+      || ((opcode == ADD || opcode == SUB) && (rn == rd));
 
   if (IsHighRegister(rd) || IsHighRegister(rn)) {
     if (can_contain_high_register) {
@@ -757,23 +758,21 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond,
   int32_t encoding = 0;
   if (so.IsImmediate()) {
     // Check special cases.
-    if ((opcode == SUB || opcode == ADD) && rn == SP) {
-      // There are special ADD/SUB rd, SP, #imm12 instructions.
+    if ((opcode == SUB || opcode == ADD) && (so.GetImmediate() < (1u << 12))) {
       if (opcode == SUB) {
         thumb_opcode = 0b0101;
       } else {
         thumb_opcode = 0;
       }
       uint32_t imm = so.GetImmediate();
-      CHECK_LT(imm, (1u << 12));
 
       uint32_t i = (imm >> 11) & 1;
       uint32_t imm3 = (imm >> 8) & 0b111;
       uint32_t imm8 = imm & 0xff;
 
       encoding = B31 | B30 | B29 | B28 | B25 |
-           B19 | B18 | B16 |
            thumb_opcode << 21 |
+           rn << 16 |
            rd << 8 |
            i << 26 |
            imm3 << 12 |
@@ -882,7 +881,12 @@ void Thumb2Assembler::Emit16BitDataProcessing(Condition cond,
         }
 
         break;
-      case CMN: thumb_opcode = 0b1011; rn = so.GetRegister(); break;
+      case CMN: {
+        thumb_opcode = 0b1011;
+        rd = rn;
+        rn = so.GetRegister();
+        break;
+      }
       case ORR: thumb_opcode = 0b1100; break;
       case MOV:
         dp_opcode = 0;
