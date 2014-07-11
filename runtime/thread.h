@@ -781,7 +781,7 @@ class Thread {
   void RevokeThreadLocalAllocationStack();
 
   size_t GetThreadLocalBytesAllocated() const {
-    return tlsPtr_.thread_local_pos - tlsPtr_.thread_local_start;
+    return tlsPtr_.thread_local_end - tlsPtr_.thread_local_start;
   }
 
   size_t GetThreadLocalObjectsAllocated() const {
