@@ -373,30 +373,47 @@ TEST_F(ClassInitCheckEliminationTest, Catch) {
   static const SFieldDef sfields[] = {
       { 0u, 1u, 0u, 0u },
       { 1u, 1u, 1u, 1u },
+      { 2u, 1u, 2u, 2u },
+      { 3u, 1u, 3u, 3u },
   };
   static const BBDef bbs[] = {
       DEF_BB(kNullBlock, DEF_SUCC0(), DEF_PRED0()),
       DEF_BB(kEntryBlock, DEF_SUCC1(3), DEF_PRED0()),
-      DEF_BB(kExitBlock, DEF_SUCC0(), DEF_PRED1(5)),
-      DEF_BB(kDalvikByteCode, DEF_SUCC2(5, 4), DEF_PRED1(1)),
-      DEF_BB(kDalvikByteCode, DEF_SUCC1(5), DEF_PRED1(3)),  // Catch handler.
-      DEF_BB(kDalvikByteCode, DEF_SUCC1(2), DEF_PRED2(3, 4)),
+      DEF_BB(kExitBlock, DEF_SUCC0(), DEF_PRED1(6)),
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(4), DEF_PRED1(1)),     // The top.
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(6), DEF_PRED1(3)),     // The throwing insn.
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(6), DEF_PRED1(3)),     // Catch handler.
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(2), DEF_PRED2(4, 5)),  // The merged block.
   };
   static const MIRDef mirs[] = {
-      DEF_MIR(Instruction::SGET, 3u, 0u),
-      DEF_MIR(Instruction::SGET, 3u, 1u),
-      DEF_MIR(Instruction::SGET, 4u, 1u),
-      DEF_MIR(Instruction::SGET, 5u, 0u),  // Not eliminated.
-      DEF_MIR(Instruction::SGET, 5u, 1u),  // Eliminated.
+      DEF_MIR(Instruction::SGET, 3u, 0u),  // Before the exception edge.
+      DEF_MIR(Instruction::SGET, 3u, 1u),  // Before the exception edge.
+      DEF_MIR(Instruction::SGET, 4u, 2u),  // After the exception edge.
+      DEF_MIR(Instruction::SGET, 4u, 3u),  // After the exception edge.
+      DEF_MIR(Instruction::SGET, 5u, 0u),  // In catch handler; class init check eliminated.
+      DEF_MIR(Instruction::SGET, 5u, 2u),  // In catch handler; class init check not eliminated.
+      DEF_MIR(Instruction::SGET, 6u, 0u),  // Class init check eliminated.
+      DEF_MIR(Instruction::SGET, 6u, 1u),  // Class init check eliminated.
+      DEF_MIR(Instruction::SGET, 6u, 2u),  // Class init check eliminated.
+      DEF_MIR(Instruction::SGET, 6u, 3u),  // Class init check not eliminated.
   };
   static const bool expected_ignore_clinit_check[] = {
-      false, false, false, false, true
+      false, false, false, false, true, false, true, true, true, false
   };
 
   PrepareSFields(sfields);
   PrepareBasicBlocks(bbs);
-  BasicBlock* catch_handler = cu_.mir_graph->GetBasicBlock(4u);
+  BasicBlock* catch_handler = cu_.mir_graph->GetBasicBlock(5u);
   catch_handler->catch_entry = true;
+  // Add successor block info to the check block.
+  BasicBlock* check_bb = cu_.mir_graph->GetBasicBlock(3u);
+  check_bb->successor_block_list_type = kCatch;
+  check_bb->successor_blocks = new (&cu_.arena) GrowableArray<SuccessorBlockInfo*>(
+      &cu_.arena, 2, kGrowableArraySuccessorBlocks);
+  SuccessorBlockInfo* successor_block_info = reinterpret_cast<SuccessorBlockInfo*>
+      (cu_.arena.Alloc(sizeof(SuccessorBlockInfo), kArenaAllocSuccessor));
+  successor_block_info->block = catch_handler->id;
+  check_bb->successor_blocks->Insert(successor_block_info);
   PrepareMIRs(mirs);
   PerformClassInitCheckElimination();
   ASSERT_EQ(arraysize(expected_ignore_clinit_check), mir_count_);
