@@ -29,6 +29,7 @@ public class Main {
         testShortMethod();
         testBooleanMethod();
         testCharMethod();
+        testIsAssignableFromOnPrimitiveTypes();
     }
 
     private static native void testFindClassOnAttachedNativeThread();
@@ -151,4 +152,19 @@ public class Main {
         }
       }
     }
+
+    // http://b/16531674
+    private static void testIsAssignableFromOnPrimitiveTypes() {
+      if (!nativeIsAssignableFrom(int.class, Integer.TYPE)) {
+        System.out.println("IsAssignableFrom(int.class, Integer.TYPE) returned false, expected true");
+        throw new AssertionError();
+      }
+
+      if (!nativeIsAssignableFrom(Integer.TYPE, int.class)) {
+        System.out.println("IsAssignableFrom(Integer.TYPE, int.class) returned false, expected true");
+        throw new AssertionError();
+      }
+    }
+
+    native static boolean nativeIsAssignableFrom(Class<?> from, Class<?> to);
 }
