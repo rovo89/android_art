@@ -63,6 +63,11 @@ class ResourceMask {
   ResourceMask(const ResourceMask& other) = default;
   ResourceMask& operator=(const ResourceMask& other) = default;
 
+  // Comparable by content.
+  bool operator==(const ResourceMask& other) {
+    return masks_[0] == other.masks_[0] && masks_[1] == other.masks_[1];
+  }
+
   static constexpr ResourceMask RawMask(uint64_t mask1, uint64_t mask2) {
     return ResourceMask(mask1, mask2);
   }
