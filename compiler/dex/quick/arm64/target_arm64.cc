@@ -1193,8 +1193,8 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
   call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                            direct_code, direct_method, type);
   if (pcrLabel) {
-    if (cu_->compiler_driver->GetCompilerOptions().GetExplicitNullChecks()) {
-      *pcrLabel = GenExplicitNullCheck(TargetReg(kArg1), info->opt_flags);
+    if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitNullChecks()) {
+      *pcrLabel = GenExplicitNullCheck(TargetReg(kArg1, kRef), info->opt_flags);
     } else {
       *pcrLabel = nullptr;
       // In lieu of generating a check for kArg1 being null, we need to

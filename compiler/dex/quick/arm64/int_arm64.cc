@@ -285,7 +285,8 @@ LIR* Arm64Mir2Lir::OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_
 
 LIR* Arm64Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg,
                                      RegStorage base_reg, int offset, int check_value,
-                                     LIR* target) {
+                                     LIR* target, LIR** compare) {
+  DCHECK(compare == nullptr);
   // It is possible that temp register is 64-bit. (ArgReg or RefReg)
   // Always compare 32-bit value no matter what temp_reg is.
   if (temp_reg.Is64Bit()) {
