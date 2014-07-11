@@ -546,6 +546,14 @@ inline bool Class::DescriptorEquals(const char* match) {
   }
 }
 
+inline void Class::AssertInitializedOrInitializingInThread(Thread* self) {
+  if (kIsDebugBuild && !IsInitialized()) {
+    CHECK(IsInitializing()) << PrettyClass(this) << " is not initializing: " << GetStatus();
+    CHECK_EQ(GetClinitThreadId(), self->GetTid()) << PrettyClass(this)
+                                                  << " is initializing in a different thread";
+  }
+}
+
 }  // namespace mirror
 }  // namespace art
 

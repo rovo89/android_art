@@ -880,6 +880,10 @@ class MANAGED Class : public Object {
   const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const DexFile::TypeList* GetInterfaceTypeList() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Asserts we are initialized or initializing in the given thread.
+  void AssertInitializedOrInitializingInThread(Thread* self)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   void SetVerifyErrorClass(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

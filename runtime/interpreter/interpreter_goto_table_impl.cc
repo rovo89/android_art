@@ -536,6 +536,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (UNLIKELY(obj == NULL)) {
       HANDLE_PENDING_EXCEPTION();
     } else {
+      obj->GetClass()->AssertInitializedOrInitializingInThread(self);
       // Don't allow finalizable objects to be allocated during a transaction since these can't be
       // finalized without a started runtime.
       if (transaction_active && obj->GetClass()->IsFinalizable()) {
