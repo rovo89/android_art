@@ -1565,7 +1565,11 @@ void BuildGenericJniFrameVisitor::FinalizeHandleScope(Thread* self) {
   self->PushHandleScope(handle_scope_);
 }
 
+#if defined(__arm__) || defined(__aarch64__)
 extern "C" void* artFindNativeMethod();
+#else
+extern "C" void* artFindNativeMethod(Thread* self);
+#endif
 
 uint64_t artQuickGenericJniEndJNIRef(Thread* self, uint32_t cookie, jobject l, jobject lock) {
   if (lock != nullptr) {
@@ -1638,7 +1642,11 @@ extern "C" TwoWordReturn artQuickGenericJniTrampoline(Thread* self,
   // pointer.
   DCHECK(nativeCode != nullptr);
   if (nativeCode == GetJniDlsymLookupStub()) {
+#if defined(__arm__) || defined(__aarch64__)
     nativeCode = artFindNativeMethod();
+#else
+    nativeCode = artFindNativeMethod(self);
+#endif
 
     if (nativeCode == nullptr) {
       DCHECK(self->IsExceptionPending());    // There should be an exception pending now.
