@@ -246,11 +246,6 @@ ResourceMask X86Mir2Lir::GetRegMaskCommon(const RegStorage& reg) const {
 }
 
 ResourceMask X86Mir2Lir::GetPCUseDefEncoding() const {
-  /*
-   * FIXME: might make sense to use a virtual resource encoding bit for pc.  Might be
-   * able to clean up some of the x86/Arm_Mips differences
-   */
-  LOG(FATAL) << "Unexpected call to GetPCUseDefEncoding for x86";
   return kEncodeNone;
 }
 
