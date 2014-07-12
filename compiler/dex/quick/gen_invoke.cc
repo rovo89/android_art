@@ -1363,8 +1363,8 @@ bool Mir2Lir::GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty) {
 }
 
 bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {
-  if (cu_->instruction_set == kMips || cu_->instruction_set == kArm64) {
-    // TODO - add Mips implementation; Enable Arm64.
+  if (cu_->instruction_set == kMips) {
+    // TODO - add Mips implementation.
     return false;
   }
   RegLocation rl_src_i = info->args[0];
