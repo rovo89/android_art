@@ -319,6 +319,7 @@ enum ArmOpcode {
   kA64Scvtf2fx,      // scvtf  [100111100s100010000000] rn[9-5] rd[4-0].
   kA64Sdiv3rrr,      // sdiv[s0011010110] rm[20-16] [000011] rn[9-5] rd[4-0].
   kA64Smaddl4xwwx,   // smaddl [10011011001] rm[20-16] [0] ra[14-10] rn[9-5] rd[4-0].
+  kA64Smulh3xxx,     // smulh [10011011010] rm[20-16] [011111] rn[9-5] rd[4-0].
   kA64Stp4ffXD,      // stp [0s10110100] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64Stp4rrXD,      // stp [s010100100] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64StpPost4rrXD,  // stp [s010100010] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
