@@ -222,15 +222,27 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   LockTemp(rs_rX86_ARG1);
   LockTemp(rs_rX86_ARG2);
 
-  /* Build frame, return address already on stack */
-  stack_decrement_ = OpRegImm(kOpSub, rs_rX86_SP, frame_size_ - GetInstructionSetPointerSize(cu_->instruction_set));
-
   /*
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  const bool skip_overflow_check = mir_graph_->MethodIsLeaf() &&
-      !IsLargeFrame(frame_size_, cu_->target64 ? kX86_64 : kX86);
+  InstructionSet isa =  cu_->target64 ? kX86_64 : kX86;
+  const bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !IsLargeFrame(frame_size_, isa);
+
+  // If we doing an implicit stack overflow check, perform the load immediately
+  // before the stack pointer is decremented and anything is saved.
+  if (!skip_overflow_check && !Runtime::Current()->ExplicitStackOverflowChecks()) {
+    // Implicit stack overflow check.
+    // test eax,[esp + -overflow]
+    int overflow = GetStackOverflowReservedBytes(isa);
+    NewLIR3(kX86Test32RM, rs_rAX.GetReg(), rs_rX86_SP.GetReg(), -overflow);
+    MarkPossibleStackOverflowException();
+  }
+
+  /* Build frame, return address already on stack */
+  stack_decrement_ = OpRegImm(kOpSub, rs_rX86_SP, frame_size_ -
+                              GetInstructionSetPointerSize(cu_->instruction_set));
+
   NewLIR0(kPseudoMethodEntry);
   /* Spill core callee saves */
   SpillCoreRegs();
@@ -261,25 +273,27 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
      private:
       const size_t sp_displace_;
     };
-    // TODO: for large frames we should do something like:
-    // spill ebp
-    // lea ebp, [esp + frame_size]
-    // cmp ebp, fs:[stack_end_]
-    // jcc stack_overflow_exception
-    // mov esp, ebp
-    // in case a signal comes in that's not using an alternate signal stack and the large frame may
-    // have moved us outside of the reserved area at the end of the stack.
-    // cmp rs_rX86_SP, fs:[stack_end_]; jcc throw_slowpath
-    if (cu_->target64) {
-      OpRegThreadMem(kOpCmp, rs_rX86_SP, Thread::StackEndOffset<8>());
-    } else {
-      OpRegThreadMem(kOpCmp, rs_rX86_SP, Thread::StackEndOffset<4>());
-    }
-    LIR* branch = OpCondBranch(kCondUlt, nullptr);
-    AddSlowPath(
+    if (Runtime::Current()->ExplicitStackOverflowChecks()) {
+      // TODO: for large frames we should do something like:
+      // spill ebp
+      // lea ebp, [esp + frame_size]
+      // cmp ebp, fs:[stack_end_]
+      // jcc stack_overflow_exception
+      // mov esp, ebp
+      // in case a signal comes in that's not using an alternate signal stack and the large frame
+      // may have moved us outside of the reserved area at the end of the stack.
+      // cmp rs_rX86_SP, fs:[stack_end_]; jcc throw_slowpath
+      if (cu_->target64) {
+        OpRegThreadMem(kOpCmp, rs_rX86_SP, Thread::StackEndOffset<8>());
+      } else {
+        OpRegThreadMem(kOpCmp, rs_rX86_SP, Thread::StackEndOffset<4>());
+      }
+      LIR* branch = OpCondBranch(kCondUlt, nullptr);
+      AddSlowPath(
         new(arena_)StackOverflowSlowPath(this, branch,
                                          frame_size_ -
                                          GetInstructionSetPointerSize(cu_->instruction_set)));
+    }
   }
 
   FlushIns(ArgLocs, rl_method);
@@ -316,6 +330,16 @@ void X86Mir2Lir::GenExitSequence() {
 
 void X86Mir2Lir::GenSpecialExitSequence() {
   NewLIR0(kX86Ret);
+}
+
+void X86Mir2Lir::GenImplicitNullCheck(RegStorage reg, int opt_flags) {
+  if (!(cu_->disable_opt & (1 << kNullCheckElimination)) && (opt_flags & MIR_IGNORE_NULL_CHECK)) {
+    return;
+  }
+  // Implicit null pointer check.
+  // test eax,[arg1+0]
+  NewLIR3(kX86Test32RM, rs_rAX.GetReg(), reg.GetReg(), 0);
+  MarkPossibleNullPointerException(opt_flags);
 }
 
 }  // namespace art
