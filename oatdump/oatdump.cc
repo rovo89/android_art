@@ -171,10 +171,18 @@ class OatDumper {
     os << "IMAGE FILE LOCATION OAT BEGIN:\n";
     os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationOatDataBegin());
 
-    os << "IMAGE FILE LOCATION:\n";
-    const std::string image_file_location(oat_header.GetImageFileLocation());
-    os << image_file_location;
-    os << "\n\n";
+    // Print the key-value store.
+    {
+      os << "KEY VALUE STORE:\n";
+      size_t index = 0;
+      const char* key;
+      const char* value;
+      while (oat_header.GetStoreKeyValuePairByIndex(index, &key, &value)) {
+        os << key << " = " << value << "\n";
+        index++;
+      }
+      os << "\n";
+    }
 
     os << "BEGIN:\n";
     os << reinterpret_cast<const void*>(oat_file_.Begin()) << "\n\n";
