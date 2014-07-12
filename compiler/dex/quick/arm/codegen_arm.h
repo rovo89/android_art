@@ -198,6 +198,13 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     RegStorage AllocPreservedDouble(int s_reg);
     RegStorage AllocPreservedSingle(int s_reg);
 
+    bool WideGPRsAreAliases() OVERRIDE {
+      return false;  // Wide GPRs are formed by pairing.
+    }
+    bool WideFPRsAreAliases() OVERRIDE {
+      return false;  // Wide FPRs are formed by pairing.
+    }
+
   private:
     void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1, int64_t val,
                                   ConditionCode ccode);
