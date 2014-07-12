@@ -89,19 +89,26 @@ class X86Mir2Lir : public Mir2Lir {
   // Required for target - register utilities.
   RegStorage TargetReg(SpecialTargetRegister reg) OVERRIDE;
   RegStorage TargetReg32(SpecialTargetRegister reg);
-  RegStorage TargetReg(SpecialTargetRegister symbolic_reg, bool is_wide) OVERRIDE {
-    RegStorage reg = TargetReg32(symbolic_reg);
-    if (is_wide) {
-      return (reg.Is64Bit()) ? reg : As64BitReg(reg);
+  RegStorage TargetReg(SpecialTargetRegister symbolic_reg, WideKind wide_kind) OVERRIDE {
+    if (wide_kind == kWide) {
+      if (cu_->target64) {
+        return As64BitReg(TargetReg32(symbolic_reg));
+      } else {
+        // x86: construct a pair.
+        DCHECK((kArg0 <= symbolic_reg && symbolic_reg < kArg3) ||
+               (kFArg0 <= symbolic_reg && symbolic_reg < kFArg3) ||
+               (kRet0 == symbolic_reg));
+        return RegStorage::MakeRegPair(TargetReg32(symbolic_reg),
+                                 TargetReg32(static_cast<SpecialTargetRegister>(symbolic_reg + 1)));
+      }
+    } else if (wide_kind == kRef && cu_->target64) {
+      return As64BitReg(TargetReg32(symbolic_reg));
     } else {
-      return (reg.Is32Bit()) ? reg : As32BitReg(reg);
+      return TargetReg32(symbolic_reg);
     }
   }
-  RegStorage TargetRefReg(SpecialTargetRegister symbolic_reg) OVERRIDE {
-    return TargetReg(symbolic_reg, cu_->target64);
-  }
   RegStorage TargetPtrReg(SpecialTargetRegister symbolic_reg) OVERRIDE {
-    return TargetReg(symbolic_reg, cu_->target64);
+    return TargetReg(symbolic_reg, cu_->target64 ? kWide : kNotWide);
   }
   RegStorage GetArgMappingToPhysicalReg(int arg_num);
   RegStorage GetCoreArgMappingToPhysicalReg(int core_arg_num);

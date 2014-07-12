@@ -1212,7 +1212,7 @@ void Mir2Lir::LoadMethodAddress(const MethodReference& target_method, InvokeType
     data_target->operands[2] = type;
   }
   // Loads an ArtMethod pointer, which is a reference as it lives in the heap.
-  LIR* load_pc_rel = OpPcRelLoad(TargetRefReg(symbolic_reg), data_target);
+  LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg, kRef), data_target);
   AppendLIR(load_pc_rel);
   DCHECK_NE(cu_->instruction_set, kMips) << reinterpret_cast<void*>(data_target);
 }
@@ -1224,7 +1224,7 @@ void Mir2Lir::LoadClassType(uint32_t type_idx, SpecialTargetRegister symbolic_re
     data_target = AddWordData(&class_literal_list_, type_idx);
   }
   // Loads a Class pointer, which is a reference as it lives in the heap.
-  LIR* load_pc_rel = OpPcRelLoad(TargetRefReg(symbolic_reg), data_target);
+  LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg, kRef), data_target);
   AppendLIR(load_pc_rel);
 }
 
