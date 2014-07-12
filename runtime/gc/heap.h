@@ -769,8 +769,8 @@ class Heap {
   Mutex* heap_trim_request_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   // When we want to perform the next heap trim (nano seconds).
   uint64_t last_trim_time_ GUARDED_BY(heap_trim_request_lock_);
-  // When we want to perform the next heap transition (nano seconds).
-  uint64_t heap_transition_target_time_ GUARDED_BY(heap_trim_request_lock_);
+  // When we want to perform the next heap transition (nano seconds) or heap trim.
+  uint64_t heap_transition_or_trim_target_time_ GUARDED_BY(heap_trim_request_lock_);
   // If we have a heap trim request pending.
   bool heap_trim_request_pending_ GUARDED_BY(heap_trim_request_lock_);
 
