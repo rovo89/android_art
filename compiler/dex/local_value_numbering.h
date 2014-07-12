@@ -269,6 +269,7 @@ class LocalValueNumbering {
   void HandleIPut(MIR* mir, uint16_t opcode);
   uint16_t HandleSGet(MIR* mir, uint16_t opcode);
   void HandleSPut(MIR* mir, uint16_t opcode);
+  void HandleInvokeOrClInit(MIR* mir);
 
   CompilationUnit* const cu_;
 
