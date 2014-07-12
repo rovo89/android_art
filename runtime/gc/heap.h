@@ -981,6 +981,7 @@ class Heap {
   friend class VerifyReferenceCardVisitor;
   friend class VerifyReferenceVisitor;
   friend class VerifyObjectVisitor;
+  friend class ScopedHeapFill;
   friend class ScopedHeapLock;
   friend class space::SpaceTest;
 
@@ -995,6 +996,25 @@ class Heap {
   };
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Heap);
+};
+
+// ScopedHeapFill changes the bytes allocated counter to be equal to the growth limit. This
+// causes the next allocation to perform a GC and possibly an OOM. It can be used to ensure that a
+// GC happens in specific methods such as ThrowIllegalMonitorStateExceptionF in Monitor::Wait.
+class ScopedHeapFill {
+ public:
+  explicit ScopedHeapFill(Heap* heap)
+      : heap_(heap),
+        delta_(heap_->GetMaxMemory() - heap_->GetBytesAllocated()) {
+    heap_->num_bytes_allocated_.FetchAndAddSequentiallyConsistent(delta_);
+  }
+  ~ScopedHeapFill() {
+    heap_->num_bytes_allocated_.FetchAndSubSequentiallyConsistent(delta_);
+  }
+
+ private:
+  Heap* const heap_;
+  const int64_t delta_;
 };
 
 }  // namespace gc
