@@ -9638,6 +9638,7 @@ class MirOpSelectTests {
     private static int ifGezThen7Else4(int i) { return (i >= 0) ? 7 : 4; }
     private static int ifGtzThen2Else9(int i) { return (i > 0) ? 2 : 9; }
     private static int ifLezThen8Else0(int i) { return (i <= 0) ? 8 : 0; }
+    private static int ifGtzThen8Else9(int i) { return (i > 0) ? 8 : 9; }
 
     private static int ifEqz(int src, int thn, int els) { return (src == 0) ? thn : els; }
     private static int ifNez(int src, int thn, int els) { return (src != 0) ? thn : els; }
@@ -9714,6 +9715,8 @@ class MirOpSelectTests {
             ifLez(-1, 116, 216), 116,
             ifLez(0, 117, 217), 117,
             ifLez(1, 118, 218), 218,
+            ifGtzThen8Else9(0), 9,
+            ifGtzThen8Else9(1), 8
         };
 
         boolean success = true;

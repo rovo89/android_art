@@ -168,6 +168,19 @@ void Arm64Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
       left_op = rl_result.reg.GetReg();
       right_op = zero_reg;
       opcode = is_wide ? WIDE(kA64Csinv4rrrc) : kA64Csinv4rrrc;
+    } else if ((true_val + 1 == false_val) || (false_val + 1 == true_val)) {
+      // Load a constant and use CSinc. Use rl_result.
+      if (false_val + 1 == true_val) {
+        // Negate.
+        code = ArmConditionEncoding(NegateComparison(mir->meta.ccode));
+        true_val = false_val;
+      }
+
+      rl_result = EvalLoc(rl_dest, result_reg_class, true);
+      rl_result_evaled = true;
+      LoadConstantNoClobber(rl_result.reg, true_val);
+      left_op = right_op = rl_result.reg.GetReg();
+      opcode = is_wide ? WIDE(kA64Csinc4rrrc) : kA64Csinc4rrrc;
     } else {
       // Csel. The rest. Use rl_result and a temp.
       // TODO: To minimize the constants being loaded, check whether one can be inexpensively
