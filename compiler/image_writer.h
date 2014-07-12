@@ -149,6 +149,13 @@ class ImageWriter {
   void FixupObject(mirror::Object* orig, mirror::Object* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Get quick code for non-resolution/imt_conflict/abstract method.
+  const byte* GetQuickCode(mirror::ArtMethod* method, bool* quick_is_interpreted)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  const byte* GetQuickEntryPoint(mirror::ArtMethod* method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Patches references in OatFile to expect runtime addresses.
   void PatchOatCodeAndMethods(File* elf_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -192,6 +199,7 @@ class ImageWriter {
   uint32_t quick_to_interpreter_bridge_offset_;
 
   friend class FixupVisitor;
+  friend class FixupClassVisitor;
   DISALLOW_COPY_AND_ASSIGN(ImageWriter);
 };
 

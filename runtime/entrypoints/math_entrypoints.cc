@@ -16,7 +16,7 @@
 
 #include "math_entrypoints.h"
 
-#include "entrypoint_utils.h"
+#include "entrypoint_utils-inl.h"
 
 namespace art {
 

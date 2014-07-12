@@ -15,7 +15,7 @@
  */
 
 #include "dex_instruction.h"
-#include "entrypoints/entrypoint_utils.h"
+#include "entrypoints/entrypoint_utils-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
 

@@ -17,21 +17,19 @@
 #ifndef ART_RUNTIME_MIRROR_ART_METHOD_H_
 #define ART_RUNTIME_MIRROR_ART_METHOD_H_
 
-#include "class.h"
 #include "dex_file.h"
 #include "invoke_type.h"
 #include "modifiers.h"
 #include "object.h"
 #include "object_callbacks.h"
 #include "quick/quick_method_frame_info.h"
-#include "read_barrier.h"
+#include "read_barrier_option.h"
 
 namespace art {
 
 struct ArtMethodOffsets;
 struct ConstructorMethodOffsets;
 union JValue;
-struct MethodClassOffsets;
 class MethodHelper;
 class ScopedObjectAccessAlreadyRunnable;
 class StringPiece;
@@ -39,14 +37,20 @@ class ShadowFrame;
 
 namespace mirror {
 
-class StaticStorageBase;
-
 typedef void (EntryPointFromInterpreter)(Thread* self, MethodHelper& mh,
     const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame, JValue* result);
 
-// C++ mirror of java.lang.reflect.Method and java.lang.reflect.Constructor
-class MANAGED ArtMethod : public Object {
+// C++ mirror of java.lang.reflect.ArtMethod.
+class MANAGED ArtMethod FINAL : public Object {
  public:
+  // Size of java.lang.reflect.ArtMethod.class.
+  static uint32_t ClassSize();
+
+  // Size of an instance of java.lang.reflect.ArtMethod not including its value array.
+  static constexpr uint32_t InstanceSize() {
+    return sizeof(ArtMethod);
+  }
+
   static ArtMethod* FromReflectedMethod(const ScopedObjectAccessAlreadyRunnable& soa,
                                         jobject jlr_method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -357,8 +361,6 @@ class MANAGED ArtMethod : public Object {
     return kPointerSize;
   }
 
-  bool IsRegistered() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   void RegisterNative(Thread* self, const void* native_method, bool is_fast)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -411,11 +413,7 @@ class MANAGED ArtMethod : public Object {
   static void SetClass(Class* java_lang_reflect_ArtMethod);
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  static Class* GetJavaLangReflectArtMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(java_lang_reflect_ArtMethod_ != nullptr);
-    return ReadBarrier::BarrierForRoot<mirror::Class, kReadBarrierOption>(
-        &java_lang_reflect_ArtMethod_);
-  }
+  static Class* GetJavaLangReflectArtMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void ResetClass();
 
@@ -423,27 +421,45 @@ class MANAGED ArtMethod : public Object {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const DexFile* GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const char* GetDeclaringClassDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const char* GetShorty() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t unused_length;
     return GetShorty(&unused_length);
   }
+
   const char* GetShorty(uint32_t* out_length) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const Signature GetSignature() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const char* GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const DexFile::CodeItem* GetCodeItem() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   bool IsResolvedTypeIdx(uint16_t type_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   int32_t GetLineNumFromDexPC(uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const DexFile::ProtoId& GetPrototype() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const DexFile::TypeList* GetParameterTypeList() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const char* GetDeclaringClassSourceFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   uint16_t GetClassDefIndex() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const DexFile::ClassDef& GetClassDef() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const char* GetReturnTypeDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const char* GetTypeDescriptorFromTypeIdx(uint16_t type_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   mirror::ClassLoader* GetClassLoader() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   ArtMethod* GetInterfaceMethodIfProxy() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  protected:
@@ -503,11 +519,6 @@ class MANAGED ArtMethod : public Object {
  private:
   friend struct art::ArtMethodOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ArtMethod);
-};
-
-class MANAGED ArtMethodClass : public Class {
- private:
-  DISALLOW_IMPLICIT_CONSTRUCTORS(ArtMethodClass);
 };
 
 }  // namespace mirror

@@ -15,6 +15,7 @@
  */
 
 #include "compilers.h"
+
 #include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir.h"
 #include "elf_writer_quick.h"

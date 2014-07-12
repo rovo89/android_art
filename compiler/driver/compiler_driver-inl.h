@@ -18,6 +18,7 @@
 #define ART_COMPILER_DRIVER_COMPILER_DRIVER_INL_H_
 
 #include "compiler_driver.h"
+
 #include "dex/compiler_ir.h"
 #include "mirror/art_field.h"
 #include "mirror/art_field-inl.h"

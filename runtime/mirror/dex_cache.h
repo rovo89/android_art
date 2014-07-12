@@ -18,10 +18,8 @@
 #define ART_RUNTIME_MIRROR_DEX_CACHE_H_
 
 #include "art_method.h"
-#include "class.h"
 #include "object.h"
 #include "object_array.h"
-#include "string.h"
 
 namespace art {
 
@@ -33,15 +31,21 @@ union JValue;
 namespace mirror {
 
 class ArtField;
+class ArtMethod;
 class Class;
+class String;
 
-class MANAGED DexCacheClass : public Class {
- private:
-  DISALLOW_IMPLICIT_CONSTRUCTORS(DexCacheClass);
-};
-
-class MANAGED DexCache : public Object {
+// C++ mirror of java.lang.DexCache.
+class MANAGED DexCache FINAL : public Object {
  public:
+  // Size of java.lang.DexCache.class.
+  static uint32_t ClassSize();
+
+  // Size of an instance of java.lang.DexCache not including referenced values.
+  static constexpr uint32_t InstanceSize() {
+    return sizeof(DexCache);
+  }
+
   void Init(const DexFile* dex_file,
             String* location,
             ObjectArray<String>* strings,

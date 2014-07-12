@@ -19,8 +19,8 @@
 
 #include "class.h"
 
-#include "art_field.h"
-#include "art_method.h"
+#include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "class_linker-inl.h"
 #include "class_loader.h"
 #include "common_throws.h"
@@ -29,6 +29,7 @@
 #include "gc/heap-inl.h"
 #include "iftable.h"
 #include "object_array-inl.h"
+#include "read_barrier-inl.h"
 #include "runtime.h"
 #include "string.h"
 
@@ -146,6 +147,23 @@ inline ObjectArray<ArtMethod>* Class::GetImTable() {
 
 inline void Class::SetImTable(ObjectArray<ArtMethod>* new_imtable) {
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, imtable_), new_imtable);
+}
+
+inline ArtMethod* Class::GetEmbeddedImTableEntry(uint32_t i) {
+  uint32_t offset = EmbeddedImTableOffset().Uint32Value() + i * sizeof(ImTableEntry);
+  return GetFieldObject<mirror::ArtMethod>(MemberOffset(offset));
+}
+
+inline void Class::SetEmbeddedImTableEntry(uint32_t i, ArtMethod* method) {
+  uint32_t offset = EmbeddedImTableOffset().Uint32Value() + i * sizeof(ImTableEntry);
+  SetFieldObject<false>(MemberOffset(offset), method);
+  CHECK(method == GetImTable()->Get(i));
+}
+
+inline void Class::SetEmbeddedVTableEntry(uint32_t i, ArtMethod* method) {
+  uint32_t offset = EmbeddedVTableOffset().Uint32Value() + i * sizeof(VTableEntry);
+  SetFieldObject<false>(MemberOffset(offset), method);
+  CHECK(method == GetVTableDuringLinking()->Get(i));
 }
 
 inline bool Class::Implements(Class* klass) {
@@ -373,7 +391,8 @@ inline ObjectArray<ArtField>* Class::GetSFields() {
 
 inline void Class::SetSFields(ObjectArray<ArtField>* new_sfields)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  DCHECK(NULL == GetFieldObject<ObjectArray<ArtField>>(OFFSET_OF_OBJECT_MEMBER(Class, sfields_)));
+  DCHECK((IsRetired() && new_sfields == nullptr) ||
+         (NULL == GetFieldObject<ObjectArray<ArtField>>(OFFSET_OF_OBJECT_MEMBER(Class, sfields_))));
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, sfields_), new_sfields);
 }
 
@@ -435,9 +454,9 @@ inline void Class::SetVerifyErrorClass(Class* klass) {
 
 template<VerifyObjectFlags kVerifyFlags>
 inline uint32_t Class::GetAccessFlags() {
-  // Check class is loaded or this is java.lang.String that has a
+  // Check class is loaded/retired or this is java.lang.String that has a
   // circularity issue during loading the names of its members
-  DCHECK(IsLoaded<kVerifyFlags>() ||
+  DCHECK(IsIdxLoaded<kVerifyFlags>() || IsRetired<kVerifyFlags>() ||
          IsErroneous<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis)>() ||
          this == String::GetJavaLangString() ||
          this == ArtField::GetJavaLangReflectArtField() ||
@@ -503,12 +522,63 @@ inline Object* Class::AllocNonMovableObject(Thread* self) {
   return Alloc<true>(self, Runtime::Current()->GetHeap()->GetCurrentNonMovingAllocator());
 }
 
+inline uint32_t Class::ComputeClassSize(bool has_embedded_tables,
+                                        uint32_t num_vtable_entries,
+                                        uint32_t num_32bit_static_fields,
+                                        uint32_t num_64bit_static_fields,
+                                        uint32_t num_ref_static_fields) {
+  // Space used by java.lang.Class and its instance fields.
+  uint32_t size = sizeof(Class);
+  // Space used by embedded tables.
+  if (has_embedded_tables) {
+    uint32_t embedded_imt_size = kImtSize * sizeof(ImTableEntry);
+    uint32_t embedded_vtable_size = num_vtable_entries * sizeof(VTableEntry);
+    size += embedded_imt_size + embedded_vtable_size;
+  }
+  // Space used by reference statics.
+  size +=  num_ref_static_fields * sizeof(HeapReference<Object>);
+  // Possible pad for alignment.
+  if (((size & 7) != 0) && (num_64bit_static_fields > 0) && (num_32bit_static_fields == 0)) {
+    size += sizeof(uint32_t);
+  }
+  // Space used for primitive static fields.
+  size += (num_32bit_static_fields * sizeof(uint32_t)) +
+      (num_64bit_static_fields * sizeof(uint64_t));
+  return size;
+}
+
 template <bool kVisitClass, typename Visitor>
 inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor) {
   // Visit the static fields first so that we don't overwrite the SFields / IFields instance
   // fields.
-  VisitStaticFieldsReferences<kVisitClass>(this, visitor);
   VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
+  if (!IsTemp()) {
+    // Temp classes don't ever populate imt/vtable or static fields and they are not even
+    // allocated with the right size for those.
+    VisitStaticFieldsReferences<kVisitClass>(this, visitor);
+    if (ShouldHaveEmbeddedImtAndVTable()) {
+      VisitEmbeddedImtAndVTable(visitor);
+    }
+  }
+}
+
+template<typename Visitor>
+inline void Class::VisitEmbeddedImtAndVTable(const Visitor& visitor) {
+  uint32_t pos = sizeof(mirror::Class);
+
+  size_t count = kImtSize;
+  for (size_t i = 0; i < count; ++i) {
+    MemberOffset offset = MemberOffset(pos);
+    visitor(this, offset, true);
+    pos += sizeof(ImTableEntry);
+  }
+
+  count = ((GetVTable() != NULL) ? GetVTable()->GetLength() : 0);
+  for (size_t i = 0; i < count; ++i) {
+    MemberOffset offset = MemberOffset(pos);
+    visitor(this, offset, true);
+    pos += sizeof(VTableEntry);
+  }
 }
 
 template<ReadBarrierOption kReadBarrierOption>
@@ -552,6 +622,36 @@ inline void Class::AssertInitializedOrInitializingInThread(Thread* self) {
     CHECK_EQ(GetClinitThreadId(), self->GetTid()) << PrettyClass(this)
                                                   << " is initializing in a different thread";
   }
+}
+
+inline ObjectArray<Class>* Class::GetInterfaces() {
+  CHECK(IsProxyClass());
+  // First static field.
+  DCHECK(GetSFields()->Get(0)->IsArtField());
+  DCHECK_STREQ(GetSFields()->Get(0)->GetName(), "interfaces");
+  MemberOffset field_offset = GetSFields()->Get(0)->GetOffset();
+  return GetFieldObject<ObjectArray<Class>>(field_offset);
+}
+
+inline ObjectArray<ObjectArray<Class>>* Class::GetThrows() {
+  CHECK(IsProxyClass());
+  // Second static field.
+  DCHECK(GetSFields()->Get(1)->IsArtField());
+  DCHECK_STREQ(GetSFields()->Get(1)->GetName(), "throws");
+  MemberOffset field_offset = GetSFields()->Get(1)->GetOffset();
+  return GetFieldObject<ObjectArray<ObjectArray<Class>>>(field_offset);
+}
+
+inline void Class::InitializeClassVisitor::operator()(
+    mirror::Object* obj, size_t usable_size) const {
+  DCHECK_LE(class_size_, usable_size);
+  // Avoid AsClass as object is not yet in live bitmap or allocation stack.
+  mirror::Class* klass = down_cast<mirror::Class*>(obj);
+  // DCHECK(klass->IsClass());
+  klass->SetClassSize(class_size_);
+  klass->SetPrimitiveType(Primitive::kPrimNot);  // Default to not being primitive.
+  klass->SetDexClassDefIndex(DexFile::kDexNoIndex16);  // Default to no valid class def index.
+  klass->SetDexTypeIndex(DexFile::kDexNoIndex16);  // Default to no valid type index.
 }
 
 }  // namespace mirror

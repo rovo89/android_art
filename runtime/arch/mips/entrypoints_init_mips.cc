@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "entrypoints/interpreter/interpreter_entrypoints.h"
+#include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/portable/portable_entrypoints.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"

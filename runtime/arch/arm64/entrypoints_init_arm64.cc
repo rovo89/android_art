@@ -15,6 +15,7 @@
  */
 
 #include "entrypoints/interpreter/interpreter_entrypoints.h"
+#include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/portable/portable_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/entrypoint_utils.h"

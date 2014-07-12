@@ -21,13 +21,28 @@
 
 #include "dex_file.h"
 #include "entrypoints/entrypoint_utils.h"
+#include "object-inl.h"
 #include "object_array.h"
+#include "object_utils.h"
 #include "oat.h"
 #include "quick/quick_method_frame_info.h"
+#include "read_barrier-inl.h"
 #include "runtime-inl.h"
 
 namespace art {
 namespace mirror {
+
+inline uint32_t ArtMethod::ClassSize() {
+  uint32_t vtable_entries = Object::kVTableLength + 8;
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0);
+}
+
+template<ReadBarrierOption kReadBarrierOption>
+inline Class* ArtMethod::GetJavaLangReflectArtMethod() {
+  DCHECK(java_lang_reflect_ArtMethod_ != nullptr);
+  return ReadBarrier::BarrierForRoot<mirror::Class, kReadBarrierOption>(
+      &java_lang_reflect_ArtMethod_);
+}
 
 inline Class* ArtMethod::GetDeclaringClass() {
   Class* result = GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, declaring_class_));
@@ -122,8 +137,8 @@ inline void ArtMethod::AssertPcIsWithinQuickCode(uintptr_t pc) {
     return;
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  if (code == GetQuickResolutionTrampoline(class_linker) ||
-      code == GetQuickToInterpreterBridgeTrampoline(class_linker)) {
+  if (code == class_linker->GetQuickResolutionTrampoline() ||
+      code == class_linker->GetQuickToInterpreterBridgeTrampoline()) {
     return;
   }
   DCHECK(IsWithinQuickCode(pc))
@@ -162,7 +177,7 @@ inline const void* ArtMethod::GetQuickOatEntryPoint() {
   // On failure, instead of nullptr we get the quick-generic-jni-trampoline for native method
   // indicating the generic JNI, or the quick-to-interpreter-bridge (but not the trampoline)
   // for non-native methods.
-  DCHECK(entry_point != GetQuickToInterpreterBridgeTrampoline(runtime->GetClassLinker()));
+  DCHECK(entry_point != runtime->GetClassLinker()->GetQuickToInterpreterBridgeTrampoline());
   if (UNLIKELY(entry_point == GetQuickToInterpreterBridge()) ||
       UNLIKELY(entry_point == runtime->GetClassLinker()->GetQuickGenericJniTrampoline())) {
     return nullptr;
@@ -289,7 +304,7 @@ inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
   // On failure, instead of nullptr we get the quick-generic-jni-trampoline for native method
   // indicating the generic JNI, or the quick-to-interpreter-bridge (but not the trampoline)
   // for non-native methods. And we really shouldn't see a failure for non-native methods here.
-  DCHECK(entry_point != GetQuickToInterpreterBridgeTrampoline(runtime->GetClassLinker()));
+  DCHECK(entry_point != runtime->GetClassLinker()->GetQuickToInterpreterBridgeTrampoline());
   CHECK(entry_point != GetQuickToInterpreterBridge());
 
   if (UNLIKELY(entry_point == runtime->GetClassLinker()->GetQuickGenericJniTrampoline())) {

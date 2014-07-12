@@ -16,6 +16,7 @@
 
 #include "entrypoints/entrypoint_utils.h"
 
+#include "base/mutex.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
@@ -25,7 +26,6 @@
 #include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "mirror/object_array-inl.h"
-#include "mirror/proxy.h"
 #include "reflection.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
@@ -219,8 +219,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
     mirror::Throwable* exception = soa.Self()->GetException(NULL);
     if (exception->IsCheckedException()) {
       mirror::Object* rcvr = soa.Decode<mirror::Object*>(rcvr_jobj);
-      mirror::SynthesizedProxyClass* proxy_class =
-          down_cast<mirror::SynthesizedProxyClass*>(rcvr->GetClass());
+      mirror::Class* proxy_class = rcvr->GetClass();
       mirror::ArtMethod* interface_method =
           soa.Decode<mirror::ArtMethod*>(interface_method_jobj);
       mirror::ArtMethod* proxy_method =

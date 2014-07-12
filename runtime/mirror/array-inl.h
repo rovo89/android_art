@@ -27,6 +27,11 @@
 namespace art {
 namespace mirror {
 
+inline uint32_t Array::ClassSize() {
+  uint32_t vtable_entries = Object::kVTableLength;
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0);
+}
+
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline size_t Array::SizeOf() {
   // This is safe from overflow because the array was already allocated, so we know it's sane.

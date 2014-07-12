@@ -31,6 +31,7 @@
 #include "read_barrier.h"
 
 namespace art {
+
 namespace gc {
 namespace space {
   class ImageSpace;
@@ -56,11 +57,6 @@ enum VisitRootFlags : uint8_t;
 
 class ClassLinker {
  public:
-  // Interface method table size. Increasing this value reduces the chance of two interface methods
-  // colliding in the interface method table but increases the size of classes that implement
-  // (non-marker) interfaces.
-  static constexpr size_t kImtSize = 64;
-
   explicit ClassLinker(InternTable* intern_table);
   ~ClassLinker();
 
@@ -385,6 +381,14 @@ class ClassLinker {
   // Special code to allocate an art method, use this instead of class->AllocObject.
   mirror::ArtMethod* AllocArtMethod(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  mirror::ObjectArray<mirror::Class>* GetClassRoots() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::ObjectArray<mirror::Class>* class_roots =
+        ReadBarrier::BarrierForRoot<mirror::ObjectArray<mirror::Class>, kWithReadBarrier>(
+            &class_roots_);
+    DCHECK(class_roots != NULL);
+    return class_roots;
+  }
+
  private:
   const OatFile::OatMethod GetOatMethodFor(mirror::ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -427,8 +431,10 @@ class ClassLinker {
                          mirror::Class* c, SafeMap<uint32_t, mirror::ArtField*>& field_map)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  uint32_t SizeOfClass(const DexFile& dex_file,
-                     const DexFile::ClassDef& dex_class_def);
+  // Precomputes size needed for Class, in the case of a non-temporary class this size must be
+  // sufficient to hold all static fields.
+  uint32_t SizeOfClassWithoutEmbeddedTables(const DexFile& dex_file,
+                                            const DexFile::ClassDef& dex_class_def);
 
   void LoadClass(const DexFile& dex_file,
                  const DexFile::ClassDef& dex_class_def,
@@ -481,8 +487,9 @@ class ClassLinker {
                                                      mirror::Class* klass2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool LinkClass(Thread* self, Handle<mirror::Class> klass,
-                 Handle<mirror::ObjectArray<mirror::Class>> interfaces)
+  bool LinkClass(Thread* self, const char* descriptor, Handle<mirror::Class> klass,
+                 Handle<mirror::ObjectArray<mirror::Class>> interfaces,
+                 mirror::Class** new_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkSuperClass(Handle<mirror::Class> klass)
@@ -502,16 +509,15 @@ class ClassLinker {
                             Handle<mirror::ObjectArray<mirror::Class>> interfaces)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool LinkStaticFields(Handle<mirror::Class> klass)
+  bool LinkStaticFields(Handle<mirror::Class> klass, size_t* class_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool LinkInstanceFields(Handle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool LinkFields(Handle<mirror::Class> klass, bool is_static)
+  bool LinkFields(Handle<mirror::Class> klass, bool is_static, size_t* class_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void LinkCode(Handle<mirror::ArtMethod> method, const OatFile::OatClass* oat_class,
                 const DexFile& dex_file, uint32_t dex_method_index, uint32_t method_index)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
 
   void CreateReferenceInstanceOffsets(Handle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -612,9 +618,25 @@ class ClassLinker {
                                             size_t hash)
       SHARED_LOCKS_REQUIRED(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
 
+  mirror::Class* UpdateClass(const char* descriptor, mirror::Class* klass, size_t hash)
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   void MoveImageClassesToClassTable() LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::Class* LookupClassFromImage(const char* descriptor)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // EnsureResolved is called to make sure that a class in the class_table_ has been resolved
+  // before returning it to the caller. Its the responsibility of the thread that placed the class
+  // in the table to make it resolved. The thread doing resolution must notify on the class' lock
+  // when resolution has occurred. This happens in mirror::Class::SetStatus. As resolution may
+  // retire a class, the version of the class in the table is returned and this may differ from
+  // the class passed in.
+  mirror::Class* EnsureResolved(Thread* self, const char* descriptor, mirror::Class* klass)
+      __attribute__((warn_unused_result)) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void FixupTemporaryDeclaringClass(mirror::Class* temp_class, mirror::Class* new_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // indexes into class_roots_.
@@ -664,14 +686,6 @@ class ClassLinker {
   void SetClassRoot(ClassRoot class_root, mirror::Class* klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::ObjectArray<mirror::Class>* GetClassRoots() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ObjectArray<mirror::Class>* class_roots =
-        ReadBarrier::BarrierForRoot<mirror::ObjectArray<mirror::Class>, kWithReadBarrier>(
-            &class_roots_);
-    DCHECK(class_roots != NULL);
-    return class_roots;
-  }
-
   static const char* class_roots_descriptors_[];
 
   const char* GetClassRootDescriptor(ClassRoot class_root) {
@@ -695,6 +709,8 @@ class ClassLinker {
 
   InternTable* intern_table_;
 
+  // Trampolines within the image the bounce to runtime entrypoints. Done so that there is a single
+  // patch point within the image. TODO: make these proper relocations.
   const void* portable_resolution_trampoline_;
   const void* quick_resolution_trampoline_;
   const void* portable_imt_conflict_trampoline_;

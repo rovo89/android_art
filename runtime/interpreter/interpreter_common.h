@@ -27,7 +27,7 @@
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "dex_instruction.h"
-#include "entrypoints/entrypoint_utils.h"
+#include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "handle_scope-inl.h"
 #include "nth_caller_visitor.h"

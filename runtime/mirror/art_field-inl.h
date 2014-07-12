@@ -29,6 +29,11 @@
 namespace art {
 namespace mirror {
 
+inline uint32_t ArtField::ClassSize() {
+  uint32_t vtable_entries = Object::kVTableLength + 6;
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0);
+}
+
 inline Class* ArtField::GetDeclaringClass() {
   Class* result = GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(ArtField, declaring_class_));
   DCHECK(result != NULL);

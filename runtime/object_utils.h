@@ -25,7 +25,6 @@
 #include "mirror/class.h"
 #include "mirror/dex_cache.h"
 #include "mirror/iftable.h"
-#include "mirror/proxy.h"
 #include "mirror/string.h"
 
 #include "runtime.h"

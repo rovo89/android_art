@@ -18,7 +18,7 @@
 #include "common_throws.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
-#include "entrypoints/entrypoint_utils.h"
+#include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "instruction_set.h"
 #include "interpreter/interpreter.h"

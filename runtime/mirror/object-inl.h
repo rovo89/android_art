@@ -35,6 +35,11 @@
 namespace art {
 namespace mirror {
 
+inline uint32_t Object::ClassSize() {
+  uint32_t vtable_entries = kVTableLength;
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0);
+}
+
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline Class* Object::GetClass() {
   return GetFieldObject<Class, kVerifyFlags, kReadBarrierOption>(
@@ -687,6 +692,7 @@ inline void Object::VisitInstanceFieldsReferences(mirror::Class* klass, const Vi
 
 template<bool kVisitClass, typename Visitor>
 inline void Object::VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor) {
+  DCHECK(!klass->IsTemp());
   klass->VisitFieldsReferences<kVisitClass, true>(
       klass->GetReferenceStaticOffsets<kVerifyNone>(), visitor);
 }

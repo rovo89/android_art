@@ -630,9 +630,31 @@ class FixupVisitor {
         mirror::Reference::ReferentOffset(), image_writer_->GetImageAddress(ref->GetReferent()));
   }
 
- private:
+ protected:
   ImageWriter* const image_writer_;
   mirror::Object* const copy_;
+};
+
+class FixupClassVisitor FINAL : public FixupVisitor {
+ public:
+  FixupClassVisitor(ImageWriter* image_writer, Object* copy) : FixupVisitor(image_writer, copy) {
+  }
+
+  void operator()(Object* obj, MemberOffset offset, bool /*is_static*/) const
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+    DCHECK(obj->IsClass());
+    FixupVisitor::operator()(obj, offset, false);
+
+    if (offset.Uint32Value() < mirror::Class::EmbeddedVTableOffset().Uint32Value()) {
+      return;
+    }
+  }
+
+  void operator()(mirror::Class* /*klass*/, mirror::Reference* ref) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    LOG(FATAL) << "Reference not expected here.";
+  }
 };
 
 void ImageWriter::FixupObject(Object* orig, Object* copy) {
@@ -646,10 +668,65 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
       DCHECK_EQ(copy->GetReadBarrierPointer(), GetImageAddress(orig));
     }
   }
-  FixupVisitor visitor(this, copy);
-  orig->VisitReferences<true /*visit class*/>(visitor, visitor);
+  if (orig->IsClass() && orig->AsClass()->ShouldHaveEmbeddedImtAndVTable()) {
+    FixupClassVisitor visitor(this, copy);
+    orig->VisitReferences<true /*visit class*/>(visitor, visitor);
+  } else {
+    FixupVisitor visitor(this, copy);
+    orig->VisitReferences<true /*visit class*/>(visitor, visitor);
+  }
   if (orig->IsArtMethod<kVerifyNone>()) {
     FixupMethod(orig->AsArtMethod<kVerifyNone>(), down_cast<ArtMethod*>(copy));
+  }
+}
+
+const byte* ImageWriter::GetQuickCode(mirror::ArtMethod* method, bool* quick_is_interpreted) {
+  DCHECK(!method->IsResolutionMethod() && !method->IsImtConflictMethod() &&
+         !method->IsAbstract()) << PrettyMethod(method);
+
+  // Use original code if it exists. Otherwise, set the code pointer to the resolution
+  // trampoline.
+
+  // Quick entrypoint:
+  const byte* quick_code = GetOatAddress(method->GetQuickOatCodeOffset());
+  *quick_is_interpreted = false;
+  if (quick_code != nullptr &&
+      (!method->IsStatic() || method->IsConstructor() || method->GetDeclaringClass()->IsInitialized())) {
+    // We have code for a non-static or initialized method, just use the code.
+  } else if (quick_code == nullptr && method->IsNative() &&
+      (!method->IsStatic() || method->GetDeclaringClass()->IsInitialized())) {
+    // Non-static or initialized native method missing compiled code, use generic JNI version.
+    quick_code = GetOatAddress(quick_generic_jni_trampoline_offset_);
+  } else if (quick_code == nullptr && !method->IsNative()) {
+    // We don't have code at all for a non-native method, use the interpreter.
+    quick_code = GetOatAddress(quick_to_interpreter_bridge_offset_);
+    *quick_is_interpreted = true;
+  } else {
+    CHECK(!method->GetDeclaringClass()->IsInitialized());
+    // We have code for a static method, but need to go through the resolution stub for class
+    // initialization.
+    quick_code = GetOatAddress(quick_resolution_trampoline_offset_);
+  }
+  return quick_code;
+}
+
+const byte* ImageWriter::GetQuickEntryPoint(mirror::ArtMethod* method) {
+  // Calculate the quick entry point following the same logic as FixupMethod() below.
+  // The resolution method has a special trampoline to call.
+  if (UNLIKELY(method == Runtime::Current()->GetResolutionMethod())) {
+    return GetOatAddress(quick_resolution_trampoline_offset_);
+  } else if (UNLIKELY(method == Runtime::Current()->GetImtConflictMethod())) {
+    return GetOatAddress(quick_imt_conflict_trampoline_offset_);
+  } else {
+    // We assume all methods have code. If they don't currently then we set them to the use the
+    // resolution trampoline. Abstract methods never have code and so we need to make sure their
+    // use results in an AbstractMethodError. We use the interpreter to achieve this.
+    if (UNLIKELY(method->IsAbstract())) {
+      return GetOatAddress(quick_to_interpreter_bridge_offset_);
+    } else {
+      bool quick_is_interpreted;
+      return GetQuickCode(method, &quick_is_interpreted);
+    }
   }
 }
 
@@ -674,29 +751,8 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
       copy->SetEntryPointFromInterpreter<kVerifyNone>(reinterpret_cast<EntryPointFromInterpreter*>
           (const_cast<byte*>(GetOatAddress(interpreter_to_interpreter_bridge_offset_))));
     } else {
-      // Use original code if it exists. Otherwise, set the code pointer to the resolution
-      // trampoline.
-
-      // Quick entrypoint:
-      const byte* quick_code = GetOatAddress(orig->GetQuickOatCodeOffset());
-      bool quick_is_interpreted = false;
-      if (quick_code != nullptr &&
-          (!orig->IsStatic() || orig->IsConstructor() || orig->GetDeclaringClass()->IsInitialized())) {
-        // We have code for a non-static or initialized method, just use the code.
-      } else if (quick_code == nullptr && orig->IsNative() &&
-          (!orig->IsStatic() || orig->GetDeclaringClass()->IsInitialized())) {
-        // Non-static or initialized native method missing compiled code, use generic JNI version.
-        quick_code = GetOatAddress(quick_generic_jni_trampoline_offset_);
-      } else if (quick_code == nullptr && !orig->IsNative()) {
-        // We don't have code at all for a non-native method, use the interpreter.
-        quick_code = GetOatAddress(quick_to_interpreter_bridge_offset_);
-        quick_is_interpreted = true;
-      } else {
-        CHECK(!orig->GetDeclaringClass()->IsInitialized());
-        // We have code for a static method, but need to go through the resolution stub for class
-        // initialization.
-        quick_code = GetOatAddress(quick_resolution_trampoline_offset_);
-      }
+      bool quick_is_interpreted;
+      const byte* quick_code = GetQuickCode(orig, &quick_is_interpreted);
       copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(quick_code);
 
       // Portable entrypoint:
