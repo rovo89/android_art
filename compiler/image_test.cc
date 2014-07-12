@@ -25,6 +25,7 @@
 #include "compiler/image_writer.h"
 #include "compiler/oat_writer.h"
 #include "gc/space/image_space.h"
+#include "implicit_check_options.h"
 #include "lock_word.h"
 #include "mirror/object-inl.h"
 #include "signal_catcher.h"
@@ -77,8 +78,11 @@ TEST_F(ImageTest, WriteRead) {
 
       t.NewTiming("WriteElf");
       ScopedObjectAccess soa(Thread::Current());
-      OatWriter oat_writer(class_linker->GetBootClassPath(),
-                           0, 0, "", compiler_driver_.get(), &timings);
+      SafeMap<std::string, std::string> key_value_store;
+      key_value_store.Put(ImplicitCheckOptions::kImplicitChecksOatHeaderKey,
+                          ImplicitCheckOptions::Serialize(true, true, true));
+      OatWriter oat_writer(class_linker->GetBootClassPath(), 0, 0, compiler_driver_.get(), &timings,
+                           &key_value_store);
       bool success = compiler_driver_->WriteElf(GetTestAndroidRoot(),
                                                 !kIsTargetBuild,
                                                 class_linker->GetBootClassPath(),
@@ -138,6 +142,9 @@ TEST_F(ImageTest, WriteRead) {
   std::string image("-Ximage:");
   image.append(image_location.GetFilename());
   options.push_back(std::make_pair(image.c_str(), reinterpret_cast<void*>(NULL)));
+  // Turn off implicit checks for this runtime, as we compiled the image with them off.
+  std::string explicit_checks("-implicit-checks:none");
+  options.push_back(std::make_pair(explicit_checks.c_str(), reinterpret_cast<void*>(NULL)));
 
   if (!Runtime::Create(options, false)) {
     LOG(FATAL) << "Failed to create runtime";
