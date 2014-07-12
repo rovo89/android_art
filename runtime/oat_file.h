@@ -24,7 +24,7 @@
 #include "dex_file.h"
 #include "invoke_type.h"
 #include "mem_map.h"
-#include "mirror/art_method.h"
+#include "mirror/class.h"
 #include "oat.h"
 #include "os.h"
 

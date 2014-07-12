@@ -23,7 +23,7 @@
 namespace art {
 namespace mirror {
 
-class MANAGED IfTable : public ObjectArray<Object> {
+class MANAGED IfTable FINAL : public ObjectArray<Object> {
  public:
   Class* GetInterface(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Class* interface = Get((i * kMax) + kInterface)->AsClass();

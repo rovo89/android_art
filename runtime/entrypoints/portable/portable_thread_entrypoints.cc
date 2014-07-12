@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "entrypoints/entrypoint_utils.h"
+#include "entrypoints/entrypoint_utils-inl.h"
 #include "mirror/art_method.h"
 #include "mirror/object-inl.h"
 #include "verifier/dex_gc_map.h"
