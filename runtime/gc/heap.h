@@ -194,7 +194,6 @@ class Heap {
 
   void CheckPreconditionsForAllocObject(mirror::Class* c, size_t byte_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void ThrowOutOfMemoryError(size_t byte_count, bool large_object_allocation);
 
   void RegisterNativeAllocation(JNIEnv* env, int bytes);
   void RegisterNativeFree(JNIEnv* env, int bytes);
@@ -628,7 +627,7 @@ class Heap {
                                               size_t* usable_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void ThrowOutOfMemoryError(Thread* self, size_t byte_count, bool large_object_allocation)
+  void ThrowOutOfMemoryError(Thread* self, size_t byte_count, AllocatorType allocator_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template <bool kGrow>
