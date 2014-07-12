@@ -151,7 +151,7 @@ void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
 
   // Making a call - use explicit registers
   FlushAllRegs();   /* Everything to home location */
-  RegStorage array_ptr = TargetRefReg(kArg0);
+  RegStorage array_ptr = TargetReg(kArg0, kRef);
   RegStorage payload = TargetPtrReg(kArg1);
   RegStorage method_start = TargetPtrReg(kArg2);
 

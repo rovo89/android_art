@@ -18,6 +18,7 @@
 #define ART_COMPILER_DEX_REG_STORAGE_H_
 
 #include "base/logging.h"
+#include "compiler_enums.h"  // For WideKind
 
 namespace art {
 
@@ -147,6 +148,10 @@ class RegStorage {
 
   constexpr bool Is64Bit() const {
     return ((reg_ & k64BitMask) == k64Bits);
+  }
+
+  constexpr WideKind GetWideKind() const {
+    return Is64Bit() ? kWide : kNotWide;
   }
 
   constexpr bool Is64BitSolo() const {

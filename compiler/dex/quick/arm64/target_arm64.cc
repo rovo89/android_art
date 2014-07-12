@@ -1111,7 +1111,7 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
 
       // Instead of allocating a new temp, simply reuse one of the registers being used
       // for argument passing.
-      RegStorage temp = TargetReg(kArg3, false);
+      RegStorage temp = TargetReg(kArg3, kNotWide);
 
       // Now load the argument VR and store to the outs.
       Load32Disp(TargetReg(kSp), current_src_offset, temp);

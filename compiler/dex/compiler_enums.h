@@ -548,6 +548,14 @@ enum VolatileKind {
 
 std::ostream& operator<<(std::ostream& os, const VolatileKind& kind);
 
+enum WideKind {
+  kNotWide,      // Non-wide view
+  kWide,         // Wide view
+  kRef           // Ref width
+};
+
+std::ostream& operator<<(std::ostream& os, const WideKind& kind);
+
 }  // namespace art
 
 #endif  // ART_COMPILER_DEX_COMPILER_ENUMS_H_
