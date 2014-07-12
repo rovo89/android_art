@@ -18,7 +18,7 @@
 
 MACRO0(SETUP_FP_CALLEE_SAVE_FRAME)
     // Create space for ART FP callee-saved registers
-    subq LITERAL(4 * 8), %rsp
+    subq MACRO_LITERAL(4 * 8), %rsp
     CFI_ADJUST_CFA_OFFSET(4 * 8)
     movq %xmm12, 0(%rsp)
     movq %xmm13, 8(%rsp)
@@ -32,7 +32,7 @@ MACRO0(RESTORE_FP_CALLEE_SAVE_FRAME)
     movq 8(%rsp), %xmm13
     movq 16(%rsp), %xmm14
     movq 24(%rsp), %xmm15
-    addq LITERAL(4 * 8), %rsp
+    addq MACRO_LITERAL(4 * 8), %rsp
     CFI_ADJUST_CFA_OFFSET(- 4 * 8)
 END_MACRO
 
