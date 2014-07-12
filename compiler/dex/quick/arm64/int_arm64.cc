@@ -131,7 +131,7 @@ void Arm64Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
       }
 
       left_op = right_op = zero_reg;
-      opcode = is_wide ? WIDE(kA64Csneg4rrrc) : kA64Csneg4rrrc;
+      opcode = is_wide ? WIDE(kA64Csinv4rrrc) : kA64Csinv4rrrc;
     } else if (true_val == 0 || false_val == 0) {
       // Csel half cheap based on wzr.
       rl_result = EvalLoc(rl_dest, result_reg_class, true);
@@ -167,7 +167,7 @@ void Arm64Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
       LoadConstantNoClobber(rl_result.reg, true_val == 0xFFFFFFFF ? false_val : true_val);
       left_op = rl_result.reg.GetReg();
       right_op = zero_reg;
-      opcode = is_wide ? WIDE(kA64Csneg4rrrc) : kA64Csneg4rrrc;
+      opcode = is_wide ? WIDE(kA64Csinv4rrrc) : kA64Csinv4rrrc;
     } else {
       // Csel. The rest. Use rl_result and a temp.
       // TODO: To minimize the constants being loaded, check whether one can be inexpensively
