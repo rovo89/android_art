@@ -34,6 +34,9 @@ public class Main {
     test_Math_max_F();
     test_Math_min_D();
     test_Math_max_D();
+    test_Short_reverseBytes();
+    test_Integer_reverseBytes();
+    test_Long_reverseBytes();
     test_Integer_reverse();
     test_Long_reverse();
     test_StrictMath_abs_I();
@@ -499,6 +502,34 @@ public class Main {
     Assert.assertEquals(Double.longBitsToDouble(0xfff0000000000000L), Double.NEGATIVE_INFINITY);
   }
 
+  public static void test_Short_reverseBytes() {
+      Assert.assertEquals(Short.reverseBytes((short)0x0000), (short)0x0000);
+      Assert.assertEquals(Short.reverseBytes((short)0xffff), (short)0xffff);
+      Assert.assertEquals(Short.reverseBytes((short)0x8000), (short)0x0080);
+      Assert.assertEquals(Short.reverseBytes((short)0x0080), (short)0x8000);
+      Assert.assertEquals(Short.reverseBytes((short)0x0123), (short)0x2301);
+      Assert.assertEquals(Short.reverseBytes((short)0x4567), (short)0x6745);
+      Assert.assertEquals(Short.reverseBytes((short)0x89ab), (short)0xab89);
+      Assert.assertEquals(Short.reverseBytes((short)0xcdef), (short)0xefcd);
+  }
+
+  public static void test_Integer_reverseBytes() {
+      Assert.assertEquals(Integer.reverseBytes(0x00000000), 0x00000000);
+      Assert.assertEquals(Integer.reverseBytes(0xffffffff), 0xffffffff);
+      Assert.assertEquals(Integer.reverseBytes(0x80000000), 0x00000080);
+      Assert.assertEquals(Integer.reverseBytes(0x00000080), 0x80000000);
+      Assert.assertEquals(Integer.reverseBytes(0x01234567), 0x67452301);
+      Assert.assertEquals(Integer.reverseBytes(0x89abcdef), 0xefcdab89);
+  }
+
+  public static void test_Long_reverseBytes() {
+      Assert.assertEquals(Long.reverseBytes(0x0000000000000000L), 0x0000000000000000L);
+      Assert.assertEquals(Long.reverseBytes(0xffffffffffffffffL), 0xffffffffffffffffL);
+      Assert.assertEquals(Long.reverseBytes(0x8000000000000000L), 0x0000000000000080L);
+      Assert.assertEquals(Long.reverseBytes(0x0000000000000080L), 0x8000000000000000L);
+      Assert.assertEquals(Long.reverseBytes(0x0123456789abcdefL), 0xefcdab8967452301L);
+  }
+
   public static void test_Integer_reverse() {
     Assert.assertEquals(Integer.reverse(1), 0x80000000);
     Assert.assertEquals(Integer.reverse(-1), 0xffffffff);
@@ -513,11 +544,9 @@ public class Main {
     Assert.assertEquals(Long.reverse(1L), 0x8000000000000000L);
     Assert.assertEquals(Long.reverse(-1L), 0xffffffffffffffffL);
     Assert.assertEquals(Long.reverse(0L), 0L);
-    // FIXME: This asserts fail with or without this patch. I have collected
-    // the expected results on my host machine.
-    // Assert.assertEquals(Long.reverse(0x1234567812345678L), 0x1e6a2c481e6a2c48L);
-    // Assert.assertEquals(Long.reverse(0x8765432187654321L), 0x84c2a6e184c2a6e1L);
-    // Assert.assertEquals(Long.reverse(Long.MAX_VALUE), 0xfffffffffffffffeL);
+    Assert.assertEquals(Long.reverse(0x1234567812345678L), 0x1e6a2c481e6a2c48L);
+    Assert.assertEquals(Long.reverse(0x8765432187654321L), 0x84c2a6e184c2a6e1L);
+    Assert.assertEquals(Long.reverse(Long.MAX_VALUE), 0xfffffffffffffffeL);
     Assert.assertEquals(Long.reverse(Long.MIN_VALUE), 1L);
   }
 
