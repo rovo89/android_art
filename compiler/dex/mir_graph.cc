@@ -224,7 +224,7 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
   DCHECK(insn == bottom_block->first_mir_insn);
   DCHECK_EQ(insn->offset, bottom_block->start_offset);
   DCHECK(static_cast<int>(insn->dalvikInsn.opcode) == kMirOpCheck ||
-         !IsPseudoMirOp(insn->dalvikInsn.opcode));
+         !MIR::DecodedInstruction::IsPseudoMirOp(insn->dalvikInsn.opcode));
   DCHECK_EQ(dex_pc_to_block_map_.Get(insn->offset), orig_block->id);
   MIR* p = insn;
   dex_pc_to_block_map_.Put(p->offset, bottom_block->id);
@@ -239,7 +239,7 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
      * CHECK and work portions. Since the 2nd half of a split operation is always
      * the first in a BasicBlock, we can't hit it here.
      */
-    if ((opcode == kMirOpCheck) || !IsPseudoMirOp(opcode)) {
+    if ((opcode == kMirOpCheck) || !MIR::DecodedInstruction::IsPseudoMirOp(opcode)) {
       DCHECK_EQ(dex_pc_to_block_map_.Get(p->offset), orig_block->id);
       dex_pc_to_block_map_.Put(p->offset, bottom_block->id);
     }
@@ -918,7 +918,8 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
             } else {
               fprintf(file, "    {%04x %s %s %s %s\\l}%s\\\n", mir->offset,
                       mir->ssa_rep ? GetDalvikDisassembly(mir) :
-                      !IsPseudoMirOp(opcode) ? Instruction::Name(mir->dalvikInsn.opcode) :
+                      !MIR::DecodedInstruction::IsPseudoMirOp(opcode) ?
+                        Instruction::Name(mir->dalvikInsn.opcode) :
                         extended_mir_op_names_[opcode - kMirOpFirst],
                       (mir->optimization_flags & MIR_IGNORE_RANGE_CHECK) != 0 ? " no_rangecheck" : " ",
                       (mir->optimization_flags & MIR_IGNORE_NULL_CHECK) != 0 ? " no_nullcheck" : " ",
@@ -1224,7 +1225,7 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
     nop = true;
   }
 
-  if (IsPseudoMirOp(opcode)) {
+  if (MIR::DecodedInstruction::IsPseudoMirOp(opcode)) {
     str.append(extended_mir_op_names_[opcode - kMirOpFirst]);
   } else {
     dalvik_format = Instruction::FormatOf(insn.opcode);
