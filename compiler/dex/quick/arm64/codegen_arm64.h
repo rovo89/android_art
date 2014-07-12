@@ -298,6 +298,13 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
                            bool skip_this);
     InToRegStorageMapping in_to_reg_storage_mapping_;
 
+    bool WideGPRsAreAliases() OVERRIDE {
+      return true;  // 64b architecture.
+    }
+    bool WideFPRsAreAliases() OVERRIDE {
+      return true;  // 64b architecture.
+    }
+
   private:
     /**
      * @brief Given register xNN (dNN), returns register wNN (sNN).

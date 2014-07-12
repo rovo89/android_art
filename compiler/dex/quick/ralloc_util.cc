@@ -1157,20 +1157,23 @@ void Mir2Lir::CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num
     int use_count = mir_graph_->GetUseCount(i);
     if (loc.fp) {
       if (loc.wide) {
-        // Treat doubles as a unit, using upper half of fp_counts array.
-        counts[p_map_idx + num_regs].count += use_count;
+        if (WideFPRsAreAliases()) {
+          // Floats and doubles can be counted together.
+          counts[p_map_idx].count += use_count;
+        } else {
+          // Treat doubles as a unit, using upper half of fp_counts array.
+          counts[p_map_idx + num_regs].count += use_count;
+        }
         i++;
       } else {
         counts[p_map_idx].count += use_count;
       }
     } else if (!IsInexpensiveConstant(loc)) {
-      if (loc.wide && cu_->target64) {
-        // Treat long as a unit, using upper half of core_counts array.
-        counts[p_map_idx + num_regs].count += use_count;
+      if (loc.wide && WideGPRsAreAliases()) {
+        // Longs and doubles can be counted together.
         i++;
-      } else {
-        counts[p_map_idx].count += use_count;
       }
+      counts[p_map_idx].count += use_count;
     }
   }
 }
