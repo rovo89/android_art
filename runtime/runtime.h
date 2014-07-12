@@ -596,6 +596,11 @@ class Runtime {
   // Specifies target SDK version to allow workarounds for certain API levels.
   int32_t target_sdk_version_;
 
+  // Implicit checks flags.
+  bool implicit_null_checks_;       // NullPointer checks are implicit.
+  bool implicit_so_checks_;         // StackOverflow checks are implicit.
+  bool implicit_suspend_checks_;    // Thread suspension checks are implicit.
+
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
 

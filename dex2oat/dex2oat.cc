@@ -733,20 +733,6 @@ void ParseDouble(const std::string& option, char after_char,
   *parsed_value = value;
 }
 
-void CheckExplicitCheckOptions(InstructionSet isa, bool* explicit_null_checks,
-                               bool* explicit_so_checks, bool* explicit_suspend_checks) {
-  switch (isa) {
-    case kArm:
-    case kThumb2:
-      break;  // All checks implemented, leave as is.
-
-    default:  // No checks implemented, reset all to explicit checks.
-      *explicit_null_checks = true;
-      *explicit_so_checks = true;
-      *explicit_suspend_checks = true;
-  }
-}
-
 static int dex2oat(int argc, char** argv) {
 #if defined(__linux__) && defined(__arm__)
   int major, minor;
@@ -830,10 +816,10 @@ static int dex2oat(int argc, char** argv) {
   bool watch_dog_enabled = !kIsTargetBuild;
   bool generate_gdb_information = kIsDebugBuild;
 
-  bool explicit_null_checks = true;
-  bool explicit_so_checks = true;
-  bool explicit_suspend_checks = true;
-  bool has_explicit_checks_options = false;
+  // Checks are all explicit until we know the architecture.
+  bool implicit_null_checks = false;
+  bool implicit_so_checks = false;
+  bool implicit_suspend_checks = false;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -1010,31 +996,6 @@ static int dex2oat(int argc, char** argv) {
     } else if (option.starts_with("--dump-cfg-passes=")) {
       std::string dump_passes = option.substr(strlen("--dump-cfg-passes=")).data();
       PassDriverMEOpts::SetDumpPassList(dump_passes);
-    } else if (option.starts_with("--implicit-checks=")) {
-      std::string checks = option.substr(strlen("--implicit-checks=")).data();
-      std::vector<std::string> checkvec;
-      Split(checks, ',', checkvec);
-      for (auto& str : checkvec) {
-        std::string val = Trim(str);
-        if (val == "none") {
-          explicit_null_checks = true;
-          explicit_so_checks = true;
-          explicit_suspend_checks = true;
-        } else if (val == "null") {
-          explicit_null_checks = false;
-        } else if (val == "suspend") {
-          explicit_suspend_checks = false;
-        } else if (val == "stack") {
-          explicit_so_checks = false;
-        } else if (val == "all") {
-          explicit_null_checks = false;
-          explicit_so_checks = false;
-          explicit_suspend_checks = false;
-        } else {
-          Usage("--implicit-checks passed non-recognized value %s", val.c_str());
-        }
-      }
-      has_explicit_checks_options = true;
     } else if (option == "--include-patch-information") {
       include_patch_information = true;
       explicit_include_patch_information = true;
@@ -1167,12 +1128,23 @@ static int dex2oat(int argc, char** argv) {
     Usage("Unknown --compiler-filter value %s", compiler_filter_string);
   }
 
-  CheckExplicitCheckOptions(instruction_set, &explicit_null_checks, &explicit_so_checks,
-                            &explicit_suspend_checks);
-
   if (!explicit_include_patch_information) {
     include_patch_information =
         (compiler_kind == Compiler::kQuick && CompilerOptions::kDefaultIncludePatchInformation);
+  }
+
+  // Set the compilation target's implicit checks options.
+  switch (instruction_set) {
+    case kArm:
+    case kThumb2:
+    case kX86:
+      implicit_null_checks = true;
+      implicit_so_checks = true;
+      break;
+
+    default:
+      // Defaults are correct.
+      break;
   }
 
   CompilerOptions compiler_options(compiler_filter,
@@ -1185,9 +1157,9 @@ static int dex2oat(int argc, char** argv) {
                                    include_patch_information,
                                    top_k_profile_threshold,
                                    include_debug_symbols,
-                                   explicit_null_checks,
-                                   explicit_so_checks,
-                                   explicit_suspend_checks
+                                   implicit_null_checks,
+                                   implicit_so_checks,
+                                   implicit_suspend_checks
 #ifdef ART_SEA_IR_MODE
                                    , compiler_options.sea_ir_ = true;
 #endif
@@ -1259,26 +1231,8 @@ static int dex2oat(int argc, char** argv) {
   }
   std::unique_ptr<Dex2Oat> dex2oat(p_dex2oat);
 
-  // TODO: Not sure whether it's a good idea to allow anything else but the runtime option in
-  // this case at all, as we'll have to throw away produced code for a mismatch.
-  if (!has_explicit_checks_options) {
-    bool cross_compiling = true;
-    switch (kRuntimeISA) {
-      case kArm:
-      case kThumb2:
-        cross_compiling = instruction_set != kArm && instruction_set != kThumb2;
-        break;
-      default:
-        cross_compiling = instruction_set != kRuntimeISA;
-        break;
-    }
-    if (!cross_compiling) {
-      Runtime* runtime = Runtime::Current();
-      compiler_options.SetExplicitNullChecks(runtime->ExplicitNullChecks());
-      compiler_options.SetExplicitStackOverflowChecks(runtime->ExplicitStackOverflowChecks());
-      compiler_options.SetExplicitSuspendChecks(runtime->ExplicitSuspendChecks());
-    }
-  }
+
+
 
   // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
   // give it away now so that we don't starve GC.
