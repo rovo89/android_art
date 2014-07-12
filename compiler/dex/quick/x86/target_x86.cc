@@ -582,11 +582,11 @@ bool X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 
   bool ret = false;
   /*
-   * According to the JSR-133 Cookbook, for x86 only StoreLoad barriers need memory fence. All other barriers
-   * (LoadLoad, LoadStore, StoreStore) are nops due to the x86 memory model. For those cases, all we need
-   * to ensure is that there is a scheduling barrier in place.
+   * According to the JSR-133 Cookbook, for x86 only StoreLoad/AnyAny barriers need memory fence.
+   * All other barriers (LoadAny, AnyStore, StoreStore) are nops due to the x86 memory model.
+   * For those cases, all we need to ensure is that there is a scheduling barrier in place.
    */
-  if (barrier_kind == kStoreLoad) {
+  if (barrier_kind == kAnyAny) {
     // If no LIR exists already that can be used a barrier, then generate an mfence.
     if (mem_barrier == nullptr) {
       mem_barrier = NewLIR0(kX86Mfence);

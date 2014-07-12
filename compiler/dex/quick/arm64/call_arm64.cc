@@ -228,7 +228,7 @@ void Arm64Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
 
   LIR* success_target = NewLIR0(kPseudoTargetLabel);
   lock_success_branch->target = success_target;
-  GenMemBarrier(kLoadLoad);
+  GenMemBarrier(kLoadAny);
 }
 
 /*
@@ -258,7 +258,7 @@ void Arm64Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
   Load32Disp(rs_x0, mirror::Object::MonitorOffset().Int32Value(), rs_w2);
   MarkPossibleNullPointerException(opt_flags);
   LIR* slow_unlock_branch = OpCmpBranch(kCondNe, rs_w1, rs_w2, NULL);
-  GenMemBarrier(kStoreLoad);
+  GenMemBarrier(kAnyStore);
   Store32Disp(rs_x0, mirror::Object::MonitorOffset().Int32Value(), rs_wzr);
   LIR* unlock_success_branch = OpUnconditionalBranch(NULL);
 

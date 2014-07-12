@@ -764,6 +764,7 @@ void ArmMir2Lir::OpTlsCmp(ThreadOffset<8> offset, int val) {
   UNIMPLEMENTED(FATAL) << "Should not be called.";
 }
 
+// Generate a CAS with memory_order_seq_cst semantics.
 bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   DCHECK_EQ(cu_->instruction_set, kThumb2);
   // Unused - RegLocation rl_src_unsafe = info->args[0];
@@ -818,8 +819,8 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
     }
   }
 
-  // Release store semantics, get the barrier out of the way.  TODO: revisit
-  GenMemBarrier(kStoreLoad);
+  // Prevent reordering with prior memory operations.
+  GenMemBarrier(kAnyStore);
 
   RegLocation rl_object = LoadValue(rl_src_obj, kRefReg);
   RegLocation rl_new_value;
@@ -908,6 +909,9 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
     FreeTemp(rl_expected.reg);  // Now unneeded.
   }
 
+  // Prevent reordering with subsequent memory operations.
+  GenMemBarrier(kLoadAny);
+
   // result := (tmp1 != 0) ? 0 : 1;
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   OpRegRegImm(kOpRsub, rl_result.reg, r_tmp, 1);
@@ -987,10 +991,10 @@ bool ArmMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
   int dmb_flavor;
   // TODO: revisit Arm barrier kinds
   switch (barrier_kind) {
-    case kLoadStore: dmb_flavor = kISH; break;
-    case kLoadLoad: dmb_flavor = kISH; break;
+    case kAnyStore: dmb_flavor = kISH; break;
+    case kLoadAny: dmb_flavor = kISH; break;
     case kStoreStore: dmb_flavor = kISHST; break;
-    case kStoreLoad: dmb_flavor = kISH; break;
+    case kAnyAny: dmb_flavor = kISH; break;
     default:
       LOG(FATAL) << "Unexpected MemBarrierKind: " << barrier_kind;
       dmb_flavor = kSY;  // quiet gcc.

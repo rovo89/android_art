@@ -376,6 +376,7 @@ enum ArmOpDmbOptions {
   kST = 0xe,
   kISH = 0xb,
   kISHST = 0xa,
+  kISHLD = 0x9,
   kNSH = 0x7,
   kNSHST = 0x6
 };
