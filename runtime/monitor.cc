@@ -163,7 +163,7 @@ bool Monitor::Install(Thread* self) {
   }
   LockWord fat(this);
   // Publish the updated lock word, which may race with other threads.
-  bool success = GetObject()->CasLockWord(lw, fat);
+  bool success = GetObject()->CasLockWordWeakSequentiallyConsistent(lw, fat);
   // Lock profiling.
   if (success && owner_ != nullptr && lock_profiling_threshold_ != 0) {
     locking_method_ = owner_->GetCurrentMethod(&locking_dex_pc_);
@@ -722,7 +722,7 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
     switch (lock_word.GetState()) {
       case LockWord::kUnlocked: {
         LockWord thin_locked(LockWord::FromThinLockId(thread_id, 0));
-        if (h_obj->CasLockWord(lock_word, thin_locked)) {
+        if (h_obj->CasLockWordWeakSequentiallyConsistent(lock_word, thin_locked)) {
           // CasLockWord enforces more than the acquire ordering we need here.
           return h_obj.Get();  // Success!
         }
