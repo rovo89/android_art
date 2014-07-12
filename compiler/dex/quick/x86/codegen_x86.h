@@ -933,6 +933,13 @@ class X86Mir2Lir : public Mir2Lir {
 
   InToRegStorageMapping in_to_reg_storage_mapping_;
 
+  bool WideGPRsAreAliases() OVERRIDE {
+    return cu_->target64;  // On 64b, we have 64b GPRs.
+  }
+  bool WideFPRsAreAliases() OVERRIDE {
+    return true;  // xmm registers have 64b views even on x86.
+  }
+
  private:
   // The number of vector registers [0..N] reserved by a call to ReserveVectorRegisters
   int num_reserved_vector_regs_;
