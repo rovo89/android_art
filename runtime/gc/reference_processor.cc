@@ -17,9 +17,7 @@
 #include "reference_processor.h"
 
 #include "mirror/object-inl.h"
-#include "mirror/reference.h"
 #include "mirror/reference-inl.h"
-#include "reference_processor-inl.h"
 #include "reflection.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
@@ -29,17 +27,18 @@ namespace art {
 namespace gc {
 
 ReferenceProcessor::ReferenceProcessor()
-    : process_references_args_(nullptr, nullptr, nullptr),
+    : process_references_args_(nullptr, nullptr, nullptr), slow_path_enabled_(false),
       preserving_references_(false), lock_("reference processor lock", kReferenceProcessorLock),
       condition_("reference processor condition", lock_) {
 }
 
 void ReferenceProcessor::EnableSlowPath() {
-  mirror::Reference::GetJavaLangRefReference()->SetSlowPathEnabled(true);
+  Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
+  slow_path_enabled_ = true;
 }
 
 void ReferenceProcessor::DisableSlowPath(Thread* self) {
-  mirror::Reference::GetJavaLangRefReference()->SetSlowPathEnabled(false);
+  slow_path_enabled_ = false;
   condition_.Broadcast(self);
 }
 
@@ -47,11 +46,11 @@ mirror::Object* ReferenceProcessor::GetReferent(Thread* self, mirror::Reference*
   mirror::Object* const referent = reference->GetReferent();
   // If the referent is null then it is already cleared, we can just return null since there is no
   // scenario where it becomes non-null during the reference processing phase.
-  if (UNLIKELY(!SlowPathEnabled()) || referent == nullptr) {
+  if (LIKELY(!slow_path_enabled_) || referent == nullptr) {
     return referent;
   }
   MutexLock mu(self, lock_);
-  while (SlowPathEnabled()) {
+  while (slow_path_enabled_) {
     mirror::HeapReference<mirror::Object>* const referent_addr =
         reference->GetReferentReferenceAddr();
     // If the referent became cleared, return it. Don't need barrier since thread roots can't get
@@ -118,7 +117,7 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
     process_references_args_.is_marked_callback_ = is_marked_callback;
     process_references_args_.mark_callback_ = mark_object_callback;
     process_references_args_.arg_ = arg;
-    CHECK_EQ(SlowPathEnabled(), concurrent) << "Slow path must be enabled iff concurrent";
+    CHECK_EQ(slow_path_enabled_, concurrent) << "Slow path must be enabled iff concurrent";
   }
   // Unless required to clear soft references with white references, preserve some white referents.
   if (!clear_soft_references) {
