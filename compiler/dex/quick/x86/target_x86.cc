@@ -204,7 +204,8 @@ RegStorage X86Mir2Lir::TargetReg32(SpecialTargetRegister reg) {
     case kSuspend: res_reg =  RegStorage::InvalidReg(); break;
     case kLr: res_reg =  RegStorage::InvalidReg(); break;
     case kPc: res_reg =  RegStorage::InvalidReg(); break;
-    case kSp: res_reg =  rs_rX86_SP; break;
+    case kSp: res_reg =  rs_rX86_SP_32; break;  // This must be the concrete one, as _SP is target-
+                                                // specific size.
     case kArg0: res_reg = rs_rX86_ARG0; break;
     case kArg1: res_reg = rs_rX86_ARG1; break;
     case kArg2: res_reg = rs_rX86_ARG2; break;
@@ -968,7 +969,8 @@ void X86Mir2Lir::LoadMethodAddress(const MethodReference& target_method, InvokeT
   uintptr_t target_method_id_ptr = reinterpret_cast<uintptr_t>(&target_method_id);
 
   // Generate the move instruction with the unique pointer and save index, dex_file, and type.
-  LIR *move = RawLIR(current_dalvik_offset_, kX86Mov32RI, TargetReg(symbolic_reg, false).GetReg(),
+  LIR *move = RawLIR(current_dalvik_offset_, kX86Mov32RI,
+                     TargetReg(symbolic_reg, kNotWide).GetReg(),
                      static_cast<int>(target_method_id_ptr), target_method_idx,
                      WrapPointer(const_cast<DexFile*>(target_dex_file)), type);
   AppendLIR(move);
@@ -985,7 +987,8 @@ void X86Mir2Lir::LoadClassType(uint32_t type_idx, SpecialTargetRegister symbolic
   uintptr_t ptr = reinterpret_cast<uintptr_t>(&id);
 
   // Generate the move instruction with the unique pointer and save index and type.
-  LIR *move = RawLIR(current_dalvik_offset_, kX86Mov32RI, TargetReg(symbolic_reg, false).GetReg(),
+  LIR *move = RawLIR(current_dalvik_offset_, kX86Mov32RI,
+                     TargetReg(symbolic_reg, kNotWide).GetReg(),
                      static_cast<int>(ptr), type_idx);
   AppendLIR(move);
   class_type_address_insns_.Insert(move);
@@ -1321,7 +1324,8 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
         }
       } else {
         // Load the start index from stack, remembering that we pushed EDI.
-        int displacement = SRegOffset(rl_start.s_reg_low) + (cu_->target64 ? 2 : 1) * sizeof(uint32_t);
+        int displacement = SRegOffset(rl_start.s_reg_low) +
+                           (cu_->target64 ? 2 : 1) * sizeof(uint32_t);
         {
           ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
           Load32Disp(rs_rX86_SP, displacement, tmpReg);
@@ -2241,21 +2245,24 @@ LIR *X86Mir2Lir::AddVectorLiteral(MIR *mir) {
 }
 
 // ------------ ABI support: mapping of args to physical registers -------------
-RegStorage X86Mir2Lir::InToRegStorageX86_64Mapper::GetNextReg(bool is_double_or_float, bool is_wide, bool is_ref) {
+RegStorage X86Mir2Lir::InToRegStorageX86_64Mapper::GetNextReg(bool is_double_or_float, bool is_wide,
+                                                              bool is_ref) {
   const SpecialTargetRegister coreArgMappingToPhysicalReg[] = {kArg1, kArg2, kArg3, kArg4, kArg5};
-  const int coreArgMappingToPhysicalRegSize = sizeof(coreArgMappingToPhysicalReg) / sizeof(SpecialTargetRegister);
+  const int coreArgMappingToPhysicalRegSize = sizeof(coreArgMappingToPhysicalReg) /
+      sizeof(SpecialTargetRegister);
   const SpecialTargetRegister fpArgMappingToPhysicalReg[] = {kFArg0, kFArg1, kFArg2, kFArg3,
-                                                  kFArg4, kFArg5, kFArg6, kFArg7};
-  const int fpArgMappingToPhysicalRegSize = sizeof(fpArgMappingToPhysicalReg) / sizeof(SpecialTargetRegister);
+                                                             kFArg4, kFArg5, kFArg6, kFArg7};
+  const int fpArgMappingToPhysicalRegSize = sizeof(fpArgMappingToPhysicalReg) /
+      sizeof(SpecialTargetRegister);
 
   if (is_double_or_float) {
     if (cur_fp_reg_ < fpArgMappingToPhysicalRegSize) {
-      return ml_->TargetReg(fpArgMappingToPhysicalReg[cur_fp_reg_++], is_wide);
+      return ml_->TargetReg(fpArgMappingToPhysicalReg[cur_fp_reg_++], is_wide ? kWide : kNotWide);
     }
   } else {
     if (cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
-      return is_ref ? ml_->TargetRefReg(coreArgMappingToPhysicalReg[cur_core_reg_++]) :
-                      ml_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++], is_wide);
+      return ml_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++],
+                            is_ref ? kRef : (is_wide ? kWide : kNotWide));
     }
   }
   return RegStorage::InvalidReg();
@@ -2267,7 +2274,8 @@ RegStorage X86Mir2Lir::InToRegStorageMapping::Get(int in_position) {
   return res != mapping_.end() ? res->second : RegStorage::InvalidReg();
 }
 
-void X86Mir2Lir::InToRegStorageMapping::Initialize(RegLocation* arg_locs, int count, InToRegStorageMapper* mapper) {
+void X86Mir2Lir::InToRegStorageMapping::Initialize(RegLocation* arg_locs, int count,
+                                                   InToRegStorageMapper* mapper) {
   DCHECK(mapper != nullptr);
   max_mapped_in_ = -1;
   is_there_stack_mapped_ = false;
@@ -2338,13 +2346,13 @@ void X86Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
 
   RegLocation rl_src = rl_method;
   rl_src.location = kLocPhysReg;
-  rl_src.reg = TargetRefReg(kArg0);
+  rl_src.reg = TargetReg(kArg0, kRef);
   rl_src.home = false;
   MarkLive(rl_src);
   StoreValue(rl_method, rl_src);
   // If Method* has been promoted, explicitly flush
   if (rl_method.location == kLocPhysReg) {
-    StoreRefDisp(rs_rX86_SP, 0, As32BitReg(TargetRefReg(kArg0)), kNotVolatile);
+    StoreRefDisp(rs_rX86_SP, 0, As32BitReg(TargetReg(kArg0, kRef)), kNotVolatile);
   }
 
   if (cu_->num_ins == 0) {
@@ -2502,7 +2510,8 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
 
     // The rest can be copied together
     int start_offset = SRegOffset(info->args[last_mapped_in + size_of_the_last_mapped].s_reg_low);
-    int outs_offset = StackVisitor::GetOutVROffset(last_mapped_in + size_of_the_last_mapped, cu_->instruction_set);
+    int outs_offset = StackVisitor::GetOutVROffset(last_mapped_in + size_of_the_last_mapped,
+                                                   cu_->instruction_set);
 
     int current_src_offset = start_offset;
     int current_dest_offset = outs_offset;
@@ -2598,7 +2607,7 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
 
         // Instead of allocating a new temp, simply reuse one of the registers being used
         // for argument passing.
-        RegStorage temp = TargetReg(kArg3, false);
+        RegStorage temp = TargetReg(kArg3, kNotWide);
 
         // Now load the argument VR and store to the outs.
         Load32Disp(rs_rX86_SP, current_src_offset, temp);
@@ -2614,8 +2623,8 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
 
   // Now handle rest not registers if they are
   if (in_to_reg_storage_mapping.IsThereStackMapped()) {
-    RegStorage regSingle = TargetReg(kArg2, false);
-    RegStorage regWide = TargetReg(kArg3, true);
+    RegStorage regSingle = TargetReg(kArg2, kNotWide);
+    RegStorage regWide = TargetReg(kArg3, kWide);
     for (int i = start_index;
          i < last_mapped_in + size_of_the_last_mapped + regs_left_to_pass_via_stack; i++) {
       RegLocation rl_arg = info->args[i];
@@ -2674,13 +2683,13 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
                            direct_code, direct_method, type);
   if (pcrLabel) {
     if (cu_->compiler_driver->GetCompilerOptions().GetExplicitNullChecks()) {
-      *pcrLabel = GenExplicitNullCheck(TargetRefReg(kArg1), info->opt_flags);
+      *pcrLabel = GenExplicitNullCheck(TargetReg(kArg1, kRef), info->opt_flags);
     } else {
       *pcrLabel = nullptr;
       // In lieu of generating a check for kArg1 being null, we need to
       // perform a load when doing implicit checks.
       RegStorage tmp = AllocTemp();
-      Load32Disp(TargetRefReg(kArg1), 0, tmp);
+      Load32Disp(TargetReg(kArg1, kRef), 0, tmp);
       MarkPossibleNullPointerException(info->opt_flags);
       FreeTemp(tmp);
     }

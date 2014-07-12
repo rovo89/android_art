@@ -858,7 +858,8 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
     RegLocation rl_new_value = LoadValueWide(rl_src_new_value, kCoreReg);
     RegLocation rl_offset = LoadValueWide(rl_src_offset, kCoreReg);
     LoadValueDirectWide(rl_src_expected, rs_r0q);
-    NewLIR5(kX86LockCmpxchg64AR, rl_object.reg.GetReg(), rl_offset.reg.GetReg(), 0, 0, rl_new_value.reg.GetReg());
+    NewLIR5(kX86LockCmpxchg64AR, rl_object.reg.GetReg(), rl_offset.reg.GetReg(), 0, 0,
+            rl_new_value.reg.GetReg());
 
     // After a store we need to insert barrier in case of potential load. Since the
     // locked cmpxchg has full barrier semantics, only a scheduling barrier will be generated.
@@ -954,7 +955,8 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
       rl_offset = LoadValue(rl_src_offset, kCoreReg);
     }
     LoadValueDirect(rl_src_expected, rs_r0);
-    NewLIR5(kX86LockCmpxchgAR, rl_object.reg.GetReg(), rl_offset.reg.GetReg(), 0, 0, rl_new_value.reg.GetReg());
+    NewLIR5(kX86LockCmpxchgAR, rl_object.reg.GetReg(), rl_offset.reg.GetReg(), 0, 0,
+            rl_new_value.reg.GetReg());
 
     // After a store we need to insert barrier to prevent reordering with either
     // earlier or later memory accesses.  Since
@@ -1069,23 +1071,23 @@ void X86Mir2Lir::GenArrayBoundsCheck(RegStorage index,
       RegStorage new_index = index_;
       // Move index out of kArg1, either directly to kArg0, or to kArg2.
       // TODO: clean-up to check not a number but with type
-      if (index_ == m2l_->TargetReg(kArg1, false)) {
-        if (array_base_ == m2l_->TargetRefReg(kArg0)) {
-          m2l_->OpRegCopy(m2l_->TargetReg(kArg2, false), index_);
-          new_index = m2l_->TargetReg(kArg2, false);
+      if (index_ == m2l_->TargetReg(kArg1, kNotWide)) {
+        if (array_base_ == m2l_->TargetReg(kArg0, kRef)) {
+          m2l_->OpRegCopy(m2l_->TargetReg(kArg2, kNotWide), index_);
+          new_index = m2l_->TargetReg(kArg2, kNotWide);
         } else {
-          m2l_->OpRegCopy(m2l_->TargetReg(kArg0, false), index_);
-          new_index = m2l_->TargetReg(kArg0, false);
+          m2l_->OpRegCopy(m2l_->TargetReg(kArg0, kNotWide), index_);
+          new_index = m2l_->TargetReg(kArg0, kNotWide);
         }
       }
       // Load array length to kArg1.
-      m2l_->OpRegMem(kOpMov, m2l_->TargetReg(kArg1, false), array_base_, len_offset_);
+      m2l_->OpRegMem(kOpMov, m2l_->TargetReg(kArg1, kNotWide), array_base_, len_offset_);
       if (cu_->target64) {
         m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pThrowArrayBounds),
-                                      new_index, m2l_->TargetReg(kArg1, false), true);
+                                      new_index, m2l_->TargetReg(kArg1, kNotWide), true);
       } else {
         m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pThrowArrayBounds),
-                                      new_index, m2l_->TargetReg(kArg1, false), true);
+                                      new_index, m2l_->TargetReg(kArg1, kNotWide), true);
       }
     }
 
@@ -1118,14 +1120,16 @@ void X86Mir2Lir::GenArrayBoundsCheck(int32_t index,
       GenerateTargetLabel(kPseudoThrowTarget);
 
       // Load array length to kArg1.
-      m2l_->OpRegMem(kOpMov, m2l_->TargetReg(kArg1, false), array_base_, len_offset_);
-      m2l_->LoadConstant(m2l_->TargetReg(kArg0, false), index_);
+      m2l_->OpRegMem(kOpMov, m2l_->TargetReg(kArg1, kNotWide), array_base_, len_offset_);
+      m2l_->LoadConstant(m2l_->TargetReg(kArg0, kNotWide), index_);
       if (cu_->target64) {
         m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pThrowArrayBounds),
-                                      m2l_->TargetReg(kArg0, false), m2l_->TargetReg(kArg1, false), true);
+                                      m2l_->TargetReg(kArg0, kNotWide),
+                                      m2l_->TargetReg(kArg1, kNotWide), true);
       } else {
         m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pThrowArrayBounds),
-                                      m2l_->TargetReg(kArg0, false), m2l_->TargetReg(kArg1, false), true);
+                                      m2l_->TargetReg(kArg0, kNotWide),
+                                      m2l_->TargetReg(kArg1, kNotWide), true);
       }
     }
 
@@ -1471,7 +1475,8 @@ void X86Mir2Lir::GenLongRegOrMemOp(RegLocation rl_dest, RegLocation rl_src,
   int displacement = SRegOffset(rl_src.s_reg_low);
 
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-  LIR *lir = NewLIR3(x86op, cu_->target64 ? rl_dest.reg.GetReg() : rl_dest.reg.GetLowReg(), r_base, displacement + LOWORD_OFFSET);
+  LIR *lir = NewLIR3(x86op, cu_->target64 ? rl_dest.reg.GetReg() : rl_dest.reg.GetLowReg(),
+                     r_base, displacement + LOWORD_OFFSET);
   AnnotateDalvikRegAccess(lir, (displacement + LOWORD_OFFSET) >> 2,
                           true /* is_load */, true /* is64bit */);
   if (!cu_->target64) {
@@ -2350,8 +2355,9 @@ void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
 
   // If Method* is already in a register, we can save a copy.
   RegLocation rl_method = mir_graph_->GetMethodLoc();
-  int32_t offset_of_type = mirror::Array::DataOffset(sizeof(mirror::HeapReference<mirror::Class*>)).Int32Value() +
-    (sizeof(mirror::HeapReference<mirror::Class*>) * type_idx);
+  int32_t offset_of_type = mirror::Array::DataOffset(
+      sizeof(mirror::HeapReference<mirror::Class*>)).Int32Value() +
+      (sizeof(mirror::HeapReference<mirror::Class*>) * type_idx);
 
   if (rl_method.location == kLocPhysReg) {
     if (use_declaring_class) {
@@ -2399,10 +2405,10 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
   FlushAllRegs();
   // May generate a call - use explicit registers.
   LockCallTemps();
-  RegStorage method_reg = TargetRefReg(kArg1);  // kArg1 gets current Method*.
+  RegStorage method_reg = TargetReg(kArg1, kRef);  // kArg1 gets current Method*.
   LoadCurrMethodDirect(method_reg);
-  RegStorage class_reg = TargetRefReg(kArg2);  // kArg2 will hold the Class*.
-  RegStorage ref_reg = TargetRefReg(kArg0);  // kArg2 will hold the ref.
+  RegStorage class_reg = TargetReg(kArg2, kRef);  // kArg2 will hold the Class*.
+  RegStorage ref_reg = TargetReg(kArg0, kRef);  // kArg2 will hold the ref.
   // Reference must end up in kArg0.
   if (needs_access_check) {
     // Check we have access to type_idx and if not throw IllegalAccessError,
@@ -2414,7 +2420,7 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
       CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(4, pInitializeTypeAndVerifyAccess),
                            type_idx, true);
     }
-    OpRegCopy(class_reg, TargetRefReg(kRet0));
+    OpRegCopy(class_reg, TargetReg(kRet0, kRef));
     LoadValueDirectFixed(rl_src, ref_reg);
   } else if (use_declaring_class) {
     LoadValueDirectFixed(rl_src, ref_reg);
@@ -2438,7 +2444,7 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
       } else {
         CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(4, pInitializeType), type_idx, true);
       }
-      OpRegCopy(class_reg, TargetRefReg(kRet0));  // Align usage with fast path.
+      OpRegCopy(class_reg, TargetReg(kRet0, kRef));  // Align usage with fast path.
       LoadValueDirectFixed(rl_src, ref_reg);  /* Reload Ref. */
       // Rejoin code paths
       LIR* hop_target = NewLIR0(kPseudoTargetLabel);
@@ -2459,7 +2465,7 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
   // Is the class NULL?
   LIR* branch1 = OpCmpImmBranch(kCondEq, ref_reg, 0, NULL);
 
-  RegStorage ref_class_reg = TargetRefReg(kArg1);  // kArg2 will hold the Class*.
+  RegStorage ref_class_reg = TargetReg(kArg1, kRef);  // kArg2 will hold the Class*.
   /* Load object->klass_. */
   DCHECK_EQ(mirror::Object::ClassOffset().Int32Value(), 0);
   LoadRefDisp(ref_reg,  mirror::Object::ClassOffset().Int32Value(), ref_class_reg,
@@ -2477,7 +2483,7 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
       LoadConstant(rl_result.reg, 1);     // Assume result succeeds.
       branchover = OpCmpBranch(kCondEq, ref_class_reg, class_reg, NULL);
     }
-    OpRegCopy(TargetRefReg(kArg0), class_reg);
+    OpRegCopy(TargetReg(kArg0, kRef), class_reg);
     if (cu_->target64) {
       OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(8, pInstanceofNonTrivial));
     } else {
@@ -2617,7 +2623,7 @@ void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
   } else {
     if (shift_op) {
       // X86 doesn't require masking and must use ECX.
-      RegStorage t_reg = TargetReg(kCount, false);  // rCX
+      RegStorage t_reg = TargetReg(kCount, kNotWide);  // rCX
       LoadValueDirectFixed(rl_rhs, t_reg);
       if (is_two_addr) {
         // Can we do this directly into memory?
@@ -2805,7 +2811,7 @@ void X86Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
   }
 
   // X86 doesn't require masking and must use ECX.
-  RegStorage t_reg = TargetReg(kCount, false);  // rCX
+  RegStorage t_reg = TargetReg(kCount, kNotWide);  // rCX
   LoadValueDirectFixed(rl_shift, t_reg);
   if (is_two_addr) {
     // Can we do this directly into memory?
