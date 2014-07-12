@@ -35,7 +35,7 @@ extern "C" void art_portable_resolution_trampoline(mirror::ArtMethod*);
 extern "C" void art_portable_to_interpreter_bridge(mirror::ArtMethod*);
 
 // Cast entrypoints.
-extern "C" uint32_t artIsAssignableFromCode(const mirror::Class* klass,
+extern "C" uint32_t art_quick_assignable_from_code(const mirror::Class* klass,
                                             const mirror::Class* ref_class);
 extern "C" void art_quick_check_cast(void*, void*);
 
@@ -129,7 +129,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   ResetQuickAllocEntryPoints(qpoints);
 
   // Cast
-  qpoints->pInstanceofNonTrivial = artIsAssignableFromCode;
+  qpoints->pInstanceofNonTrivial = art_quick_assignable_from_code;
   qpoints->pCheckCast = art_quick_check_cast;
 
   // DexCache
