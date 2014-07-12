@@ -41,11 +41,12 @@ inline mirror::Object* BumpPointerSpace::AllocThreadUnsafe(Thread* self, size_t 
                                                            size_t* usable_size) {
   Locks::mutator_lock_->AssertExclusiveHeld(self);
   num_bytes = RoundUp(num_bytes, kAlignment);
-  if (end_ + num_bytes > growth_end_) {
+  byte* end = end_.LoadRelaxed();
+  if (end + num_bytes > growth_end_) {
     return nullptr;
   }
-  mirror::Object* obj = reinterpret_cast<mirror::Object*>(end_);
-  end_ += num_bytes;
+  mirror::Object* obj = reinterpret_cast<mirror::Object*>(end);
+  end_.StoreRelaxed(end + num_bytes);
   *bytes_allocated = num_bytes;
   // Use the CAS free versions as an optimization.
   objects_allocated_.StoreRelaxed(objects_allocated_.LoadRelaxed() + 1);
@@ -61,15 +62,13 @@ inline mirror::Object* BumpPointerSpace::AllocNonvirtualWithoutAccounting(size_t
   byte* old_end;
   byte* new_end;
   do {
-    old_end = end_;
+    old_end = end_.LoadRelaxed();
     new_end = old_end + num_bytes;
     // If there is no more room in the region, we are out of memory.
     if (UNLIKELY(new_end > growth_end_)) {
       return nullptr;
     }
-  } while (!__sync_bool_compare_and_swap(reinterpret_cast<volatile intptr_t*>(&end_),
-                                         reinterpret_cast<intptr_t>(old_end),
-                                         reinterpret_cast<intptr_t>(new_end)));
+  } while (!end_.CompareExchangeWeakSequentiallyConsistent(old_end, new_end));
   return reinterpret_cast<mirror::Object*>(old_end);
 }
 

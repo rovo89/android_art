@@ -20,6 +20,7 @@
 #include <memory>
 #include <string>
 
+#include "atomic.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "gc/accounting/space_bitmap.h"
@@ -249,7 +250,7 @@ class ContinuousSpace : public Space {
 
   // Current address at which the space ends, which may vary as the space is filled.
   byte* End() const {
-    return end_;
+    return end_.LoadRelaxed();
   }
 
   // The end of the address range covered by the space.
@@ -260,7 +261,7 @@ class ContinuousSpace : public Space {
   // Change the end of the space. Be careful with use since changing the end of a space to an
   // invalid value may break the GC.
   void SetEnd(byte* end) {
-    end_ = end;
+    end_.StoreRelaxed(end);
   }
 
   void SetLimit(byte* limit) {
@@ -307,7 +308,7 @@ class ContinuousSpace : public Space {
   byte* begin_;
 
   // Current end of the space.
-  byte* volatile end_;
+  Atomic<byte*> end_;
 
   // Limit of the space.
   byte* limit_;
