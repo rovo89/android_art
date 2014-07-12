@@ -121,20 +121,22 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
     }
 
     ResourceMask stop_def_reg_mask = this_lir->u.m.def_mask->Without(kEncodeMem);
-    ResourceMask stop_use_reg_mask;
-    if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
+
+    /*
+     * Add pc to the resource mask to prevent this instruction
+     * from sinking past branch instructions. Also take out the memory
+     * region bits since stop_mask is used to check data/control
+     * dependencies.
+     *
+     * Note: on x86(-64) and Arm64 we use the IsBranch bit, as the PC is not exposed.
+     */
+    ResourceMask pc_encoding = GetPCUseDefEncoding();
+    if (pc_encoding == kEncodeNone) {
       // TODO: Stop the abuse of kIsBranch as a bit specification for ResourceMask.
-      stop_use_reg_mask = ResourceMask::Bit(kIsBranch).Union(*this_lir->u.m.use_mask).Without(
-          kEncodeMem);
-    } else {
-      /*
-       * Add pc to the resource mask to prevent this instruction
-       * from sinking past branch instructions. Also take out the memory
-       * region bits since stop_mask is used to check data/control
-       * dependencies.
-       */
-      stop_use_reg_mask = GetPCUseDefEncoding().Union(*this_lir->u.m.use_mask).Without(kEncodeMem);
+      pc_encoding = ResourceMask::Bit(kIsBranch);
     }
+    ResourceMask  stop_use_reg_mask = pc_encoding.Union(*this_lir->u.m.use_mask).
+        Without(kEncodeMem);
 
     for (check_lir = NEXT_LIR(this_lir); check_lir != tail_lir; check_lir = NEXT_LIR(check_lir)) {
       /*
@@ -310,16 +312,17 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
 
     ResourceMask stop_use_all_mask = *this_lir->u.m.use_mask;
 
-    if (cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64) {
-      /*
-       * Branches for null/range checks are marked with the true resource
-       * bits, and loads to Dalvik registers, constant pools, and non-alias
-       * locations are safe to be hoisted. So only mark the heap references
-       * conservatively here.
-       */
-      if (stop_use_all_mask.HasBit(ResourceMask::kHeapRef)) {
-        stop_use_all_mask.SetBits(GetPCUseDefEncoding());
-      }
+    /*
+     * Branches for null/range checks are marked with the true resource
+     * bits, and loads to Dalvik registers, constant pools, and non-alias
+     * locations are safe to be hoisted. So only mark the heap references
+     * conservatively here.
+     *
+     * Note: on x86(-64) and Arm64 this will add kEncodeNone.
+     * TODO: Sanity check. LoadStoreElimination uses kBranchBit to fake a PC.
+     */
+    if (stop_use_all_mask.HasBit(ResourceMask::kHeapRef)) {
+      stop_use_all_mask.SetBits(GetPCUseDefEncoding());
     }
 
     /* Similar as above, but just check for pure register dependency */
