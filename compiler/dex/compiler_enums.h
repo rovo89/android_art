@@ -133,90 +133,100 @@ enum ExtendedMIROpcode {
   // could be supported by using a bit in TypeSize and arg[0] where needed.
 
   // @brief MIR to move constant data to a vector register
-  // vA: number of bits in register
-  // vB: destination
+  // vA: destination
+  // vB: number of bits in register
   // args[0]~args[3]: up to 128 bits of data for initialization
   kMirOpConstVector,
 
   // @brief MIR to move a vectorized register to another
-  // vA: TypeSize
-  // vB: destination
-  // vC: source
+  // vA: destination
+  // vB: source
+  // vC: TypeSize
   kMirOpMoveVector,
 
   // @brief Packed multiply of units in two vector registers: vB = vB .* vC using vA to know the type of the vector.
-  // vA: TypeSize
-  // vB: destination and source
-  // vC: source
+  // vA: destination and source
+  // vB: source
+  // vC: TypeSize
   kMirOpPackedMultiply,
 
   // @brief Packed addition of units in two vector registers: vB = vB .+ vC using vA to know the type of the vector.
-  // vA: TypeSize
-  // vB: destination and source
-  // vC: source
+  // vA: destination and source
+  // vB: source
+  // vC: TypeSize
   kMirOpPackedAddition,
 
   // @brief Packed subtraction of units in two vector registers: vB = vB .- vC using vA to know the type of the vector.
-  // vA: TypeSize
-  // vB: destination and source
-  // vC: source
+  // vA: destination and source
+  // vB: source
+  // vC: TypeSize
   kMirOpPackedSubtract,
 
   // @brief Packed shift left of units in two vector registers: vB = vB .<< vC using vA to know the type of the vector.
-  // vA: TypeSize
-  // vB: destination and source
-  // vC: immediate
+  // vA: destination and source
+  // vB: amount to shift
+  // vC: TypeSize
   kMirOpPackedShiftLeft,
 
   // @brief Packed signed shift right of units in two vector registers: vB = vB .>> vC using vA to know the type of the vector.
-  // vA: TypeSize
-  // vB: destination and source
-  // vC: immediate
+  // vA: destination and source
+  // vB: amount to shift
+  // vC: TypeSize
   kMirOpPackedSignedShiftRight,
 
   // @brief Packed unsigned shift right of units in two vector registers: vB = vB .>>> vC using vA to know the type of the vector.
-  // vA: TypeSize
-  // vB: destination and source
-  // vC: immediate
+  // vA: destination and source
+  // vB: amount to shift
+  // vC: TypeSize
   kMirOpPackedUnsignedShiftRight,
 
   // @brief Packed bitwise and of units in two vector registers: vB = vB .& vC using vA to know the type of the vector.
-  // vA: TypeSize
-  // vB: destination and source
-  // vC: source
+  // vA: destination and source
+  // vB: source
+  // vC: TypeSize
   kMirOpPackedAnd,
 
   // @brief Packed bitwise or of units in two vector registers: vB = vB .| vC using vA to know the type of the vector.
-  // vA: TypeSize
-  // vB: destination and source
-  // vC: source
+  // vA: destination and source
+  // vB: source
+  // vC: TypeSize
   kMirOpPackedOr,
 
   // @brief Packed bitwise xor of units in two vector registers: vB = vB .^ vC using vA to know the type of the vector.
-  // vA: TypeSize
-  // vB: destination and source
-  // vC: source
+  // vA: destination and source
+  // vB: source
+  // vC: TypeSize
   kMirOpPackedXor,
 
   // @brief Reduce a 128-bit packed element into a single VR by taking lower bits
   // @details Instruction does a horizontal addition of the packed elements and then adds it to VR
-  // vA: TypeSize
-  // vB: destination and source VR (not vector register)
-  // vC: source (vector register)
+  // vA: destination and source VR (not vector register)
+  // vB: source (vector register)
+  // vC: TypeSize
   kMirOpPackedAddReduce,
 
   // @brief Extract a packed element into a single VR.
-  // vA: TypeSize
-  // vB: destination VR (not vector register)
-  // vC: source (vector register)
+  // vA: destination VR (not vector register)
+  // vB: source (vector register)
+  // vC: TypeSize
   // arg[0]: The index to use for extraction from vector register (which packed element)
   kMirOpPackedReduce,
 
   // @brief Create a vector value, with all TypeSize values equal to vC
-  // vA: TypeSize
-  // vB: destination vector register
-  // vC: source VR (not vector register)
+  // vA: destination vector register
+  // vB: source VR (not vector register)
+  // vC: TypeSize
   kMirOpPackedSet,
+
+  // @brief Reserve N vector registers (named 0..N-1)
+  // vA: Number of registers
+  // @note: The backend may choose to map vector numbers used in vector opcodes.
+  //  Reserved registers are removed from the list of backend temporary pool.
+  kMirOpReserveVectorRegisters,
+
+  // @brief Free Reserved vector registers
+  // @note: All currently reserved vector registers are returned to the temporary pool.
+  kMirOpReturnVectorRegisters,
 
   kMirOpLast,
 };
