@@ -48,7 +48,6 @@ enum InlineMethodOpcode : uint16_t {
   kIntrinsicMinMaxFloat,
   kIntrinsicMinMaxDouble,
   kIntrinsicSqrt,
-  kIntrinsicGet,
   kIntrinsicCharAt,
   kIntrinsicCompareTo,
   kIntrinsicIsEmptyOrLength,
