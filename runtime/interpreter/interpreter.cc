@@ -95,11 +95,11 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
     jint newValue = args[4];
     bool success;
     if (Runtime::Current()->IsActiveTransaction()) {
-      success = obj->CasFieldWeakSequentiallyConsistent32<true>(MemberOffset(offset),
-                                                                expectedValue, newValue);
+      success = obj->CasFieldStrongSequentiallyConsistent32<true>(MemberOffset(offset),
+                                                                  expectedValue, newValue);
     } else {
-      success = obj->CasFieldWeakSequentiallyConsistent32<false>(MemberOffset(offset),
-                                                                 expectedValue, newValue);
+      success = obj->CasFieldStrongSequentiallyConsistent32<false>(MemberOffset(offset),
+                                                                   expectedValue, newValue);
     }
     result->SetZ(success ? JNI_TRUE : JNI_FALSE);
   } else if (name == "void sun.misc.Unsafe.putObject(java.lang.Object, long, java.lang.Object)") {
