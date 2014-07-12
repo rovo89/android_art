@@ -35,6 +35,7 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
     CHECK(self->IsExceptionPending());
     return false;
   }
+  f->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
   Object* obj;
   if (is_static) {
     obj = f->GetDeclaringClass();
@@ -210,6 +211,7 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
     CHECK(self->IsExceptionPending());
     return false;
   }
+  f->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
   Object* obj;
   if (is_static) {
     obj = f->GetDeclaringClass();
@@ -757,40 +759,64 @@ void RecordArrayElementsInTransaction(mirror::Array* array, int32_t count)
   }
 }
 
+// Helper function to deal with class loading in an unstarted runtime.
+static void UnstartedRuntimeFindClass(Thread* self, Handle<mirror::String> className,
+                                      Handle<mirror::ClassLoader> class_loader, JValue* result,
+                                      const std::string& method_name, bool initialize_class,
+                                      bool abort_if_not_found)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  CHECK(className.Get() != nullptr);
+  std::string descriptor(DotToDescriptor(className->ToModifiedUtf8().c_str()));
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+
+  Class* found = class_linker->FindClass(self, descriptor.c_str(), class_loader);
+  if (found == nullptr && abort_if_not_found) {
+    if (!self->IsExceptionPending()) {
+      AbortTransaction(self, "%s failed in un-started runtime for class: %s",
+                       method_name.c_str(), PrettyDescriptor(descriptor).c_str());
+    }
+    return;
+  }
+  if (found != nullptr && initialize_class) {
+    StackHandleScope<1> hs(self);
+    Handle<mirror::Class> h_class(hs.NewHandle(found));
+    if (!class_linker->EnsureInitialized(h_class, true, true)) {
+      CHECK(self->IsExceptionPending());
+      return;
+    }
+  }
+  result->SetL(found);
+}
+
 static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
                                    const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame,
                                    JValue* result, size_t arg_offset) {
   // In a runtime that's not started we intercept certain methods to avoid complicated dependency
   // problems in core libraries.
   std::string name(PrettyMethod(shadow_frame->GetMethod()));
-  if (name == "java.lang.Class java.lang.Class.forName(java.lang.String)"
-      || name == "java.lang.Class java.lang.VMClassLoader.loadClass(java.lang.String, boolean)") {
-    // TODO Class#forName should actually call Class::EnsureInitialized always. Support for the
-    // other variants that take more arguments should also be added.
-    std::string descriptor(DotToDescriptor(shadow_frame->GetVRegReference(arg_offset)->AsString()->ToModifiedUtf8().c_str()));
-
-    // shadow_frame.GetMethod()->GetDeclaringClass()->GetClassLoader();
-    Class* found = Runtime::Current()->GetClassLinker()->FindClass(
-        self, descriptor.c_str(), NullHandle<mirror::ClassLoader>());
-    if (found == NULL) {
-      if (!self->IsExceptionPending()) {
-        AbortTransaction(self, "Class.forName failed in un-started runtime for class: %s",
-                         PrettyDescriptor(descriptor).c_str());
-      }
-      return;
-    }
-    result->SetL(found);
+  if (name == "java.lang.Class java.lang.Class.forName(java.lang.String)") {
+    // TODO: Support for the other variants that take more arguments should also be added.
+    mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset)->AsString();
+    StackHandleScope<1> hs(self);
+    Handle<mirror::String> h_class_name(hs.NewHandle(class_name));
+    UnstartedRuntimeFindClass(self, h_class_name, NullHandle<mirror::ClassLoader>(), result, name,
+                              true, true);
+  } else if (name == "java.lang.Class java.lang.VMClassLoader.loadClass(java.lang.String, boolean)") {
+    mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset)->AsString();
+    StackHandleScope<1> hs(self);
+    Handle<mirror::String> h_class_name(hs.NewHandle(class_name));
+    UnstartedRuntimeFindClass(self, h_class_name, NullHandle<mirror::ClassLoader>(), result, name,
+                              false, true);
+  } else if (name == "java.lang.Class java.lang.VMClassLoader.findLoadedClass(java.lang.ClassLoader, java.lang.String)") {
+    mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
+    mirror::ClassLoader* class_loader =
+        down_cast<mirror::ClassLoader*>(shadow_frame->GetVRegReference(arg_offset));
+    StackHandleScope<2> hs(self);
+    Handle<mirror::String> h_class_name(hs.NewHandle(class_name));
+    Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(class_loader));
+    UnstartedRuntimeFindClass(self, h_class_name, h_class_loader, result, name, false, false);
   } else if (name == "java.lang.Class java.lang.Void.lookupType()") {
     result->SetL(Runtime::Current()->GetClassLinker()->FindPrimitiveClass('V'));
-  } else if (name == "java.lang.Class java.lang.VMClassLoader.findLoadedClass(java.lang.ClassLoader, java.lang.String)") {
-    StackHandleScope<1> hs(self);
-    Handle<ClassLoader> class_loader(
-        hs.NewHandle(down_cast<mirror::ClassLoader*>(shadow_frame->GetVRegReference(arg_offset))));
-    std::string descriptor(DotToDescriptor(shadow_frame->GetVRegReference(arg_offset + 1)->AsString()->ToModifiedUtf8().c_str()));
-
-    Class* found = Runtime::Current()->GetClassLinker()->FindClass(self, descriptor.c_str(),
-                                                                   class_loader);
-    result->SetL(found);
   } else if (name == "java.lang.Object java.lang.Class.newInstance()") {
     Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
     ArtMethod* c = klass->FindDeclaredDirectMethod("<init>", "()V");
