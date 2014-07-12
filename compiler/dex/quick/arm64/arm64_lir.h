@@ -245,6 +245,7 @@ enum ArmOpcode {
   kA64Cmp3RdT,       // cmp [01110001] shift[23-22] imm_12[21-10] rn[9-5] [11111].
   kA64Csel4rrrc,     // csel[s0011010100] rm[20-16] cond[15-12] [00] rn[9-5] rd[4-0].
   kA64Csinc4rrrc,    // csinc [s0011010100] rm[20-16] cond[15-12] [01] rn[9-5] rd[4-0].
+  kA64Csinv4rrrc,    // csinv [s1011010100] rm[20-16] cond[15-12] [00] rn[9-5] rd[4-0].
   kA64Csneg4rrrc,    // csneg [s1011010100] rm[20-16] cond[15-12] [01] rn[9-5] rd[4-0].
   kA64Dmb1B,         // dmb [11010101000000110011] CRm[11-8] [10111111].
   kA64Eor3Rrl,       // eor [s10100100] N[22] imm_r[21-16] imm_s[15-10] rn[9-5] rd[4-0].
