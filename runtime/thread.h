@@ -47,7 +47,7 @@ namespace art {
 
 namespace gc {
 namespace collector {
-class SemiSpace;
+  class SemiSpace;
 }  // namespace collector
 }  // namespace gc
 
@@ -61,7 +61,6 @@ namespace mirror {
   template<class T> class PrimitiveArray;
   typedef PrimitiveArray<int32_t> IntArray;
   class StackTraceElement;
-  class StaticStorageBase;
   class Throwable;
 }  // namespace mirror
 class BaseMutex;

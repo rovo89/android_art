@@ -19,22 +19,33 @@
 
 #include <jni.h>
 
-#include "class.h"
 #include "modifiers.h"
 #include "object.h"
 #include "object_callbacks.h"
+#include "primitive.h"
 #include "read_barrier.h"
 
 namespace art {
 
 struct ArtFieldOffsets;
+class DexFile;
 class ScopedObjectAccessAlreadyRunnable;
 
 namespace mirror {
 
+class DexCache;
+
 // C++ mirror of java.lang.reflect.ArtField
-class MANAGED ArtField : public Object {
+class MANAGED ArtField FINAL : public Object {
  public:
+  // Size of java.lang.reflect.ArtField.class.
+  static uint32_t ClassSize();
+
+  // Size of an instance of java.lang.reflect.ArtField not including its value array.
+  static constexpr uint32_t InstanceSize() {
+    return sizeof(ArtField);
+  }
+
   static ArtField* FromReflectedField(const ScopedObjectAccessAlreadyRunnable& soa,
                                       jobject jlr_field)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -143,11 +154,17 @@ class MANAGED ArtField : public Object {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const char* GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const char* GetTypeDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   Primitive::Type GetTypeAsPrimitiveType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   bool IsPrimitiveType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   size_t FieldSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const DexFile* GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
@@ -167,11 +184,6 @@ class MANAGED ArtField : public Object {
 
   friend struct art::ArtFieldOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ArtField);
-};
-
-class MANAGED ArtFieldClass : public Class {
- private:
-  DISALLOW_IMPLICIT_CONSTRUCTORS(ArtFieldClass);
 };
 
 }  // namespace mirror

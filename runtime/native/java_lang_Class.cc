@@ -21,7 +21,6 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
-#include "mirror/proxy.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
 #include "scoped_fast_native_object_access.h"
@@ -91,8 +90,7 @@ static jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
 
 static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::SynthesizedProxyClass* c =
-      down_cast<mirror::SynthesizedProxyClass*>(DecodeClass(soa, javaThis));
+  mirror::Class* c = DecodeClass(soa, javaThis);
   return soa.AddLocalReference<jobjectArray>(c->GetInterfaces()->Clone(soa.Self()));
 }
 

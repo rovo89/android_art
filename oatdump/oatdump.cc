@@ -976,7 +976,7 @@ class ImageDumper {
   const void* GetQuickOatCodeBegin(mirror::ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const void* quick_code = m->GetEntryPointFromQuickCompiledCode();
-    if (quick_code == GetQuickResolutionTrampoline(Runtime::Current()->GetClassLinker())) {
+    if (quick_code == Runtime::Current()->GetClassLinker()->GetQuickResolutionTrampoline()) {
       quick_code = oat_dumper_->GetQuickOatCode(m);
     }
     if (oat_dumper_->GetInstructionSet() == kThumb2) {

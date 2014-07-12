@@ -23,8 +23,13 @@ namespace art {
 namespace mirror {
 
 template<class T>
-class MANAGED ObjectArray : public Array {
+class MANAGED ObjectArray: public Array {
  public:
+  // The size of Object[].class.
+  static uint32_t ClassSize() {
+    return Array::ClassSize();
+  }
+
   static ObjectArray<T>* Alloc(Thread* self, Class* object_array_class, int32_t length,
                                gc::AllocatorType allocator_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

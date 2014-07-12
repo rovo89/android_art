@@ -22,7 +22,7 @@
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"
-#include "entrypoints/entrypoint_utils.h"
+#include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/heap.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method.h"
@@ -34,6 +34,7 @@
 #include "mirror/proxy.h"
 #include "mirror/reference.h"
 #include "mirror/stack_trace_element.h"
+#include "mirror/string-inl.h"
 #include "handle_scope-inl.h"
 
 namespace art {
@@ -572,37 +573,6 @@ struct ProxyOffsets : public CheckOffsets<mirror::Proxy> {
   };
 };
 
-struct ClassClassOffsets : public CheckOffsets<mirror::ClassClass> {
-  ClassClassOffsets() : CheckOffsets<mirror::ClassClass>(true, "Ljava/lang/Class;") {
-    // alphabetical 64-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ClassClass, serialVersionUID_), "serialVersionUID"));
-  };
-};
-
-struct StringClassOffsets : public CheckOffsets<mirror::StringClass> {
-  StringClassOffsets() : CheckOffsets<mirror::StringClass>(true, "Ljava/lang/String;") {
-    // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, ASCII_),                  "ASCII"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, CASE_INSENSITIVE_ORDER_), "CASE_INSENSITIVE_ORDER"));
-
-    // alphabetical 32-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, REPLACEMENT_CHAR_),       "REPLACEMENT_CHAR"));
-
-    // alphabetical 64-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, serialVersionUID_),       "serialVersionUID"));
-  };
-};
-
-struct ArtFieldClassOffsets : public CheckOffsets<mirror::ArtFieldClass> {
-  ArtFieldClassOffsets() : CheckOffsets<mirror::ArtFieldClass>(true, "Ljava/lang/reflect/ArtField;") {
-  };
-};
-
-struct ArtMethodClassOffsets : public CheckOffsets<mirror::ArtMethodClass> {
-  ArtMethodClassOffsets() : CheckOffsets<mirror::ArtMethodClass>(true, "Ljava/lang/reflect/ArtMethod;") {
-  };
-};
-
 struct DexCacheOffsets : public CheckOffsets<mirror::DexCache> {
   DexCacheOffsets() : CheckOffsets<mirror::DexCache>(false, "Ljava/lang/DexCache;") {
     // alphabetical references
@@ -652,11 +622,6 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(DexCacheOffsets().Check());
   EXPECT_TRUE(ReferenceOffsets().Check());
   EXPECT_TRUE(FinalizerReferenceOffsets().Check());
-
-  EXPECT_TRUE(ClassClassOffsets().Check());
-  EXPECT_TRUE(StringClassOffsets().Check());
-  EXPECT_TRUE(ArtFieldClassOffsets().Check());
-  EXPECT_TRUE(ArtMethodClassOffsets().Check());
 }
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {
@@ -1089,6 +1054,30 @@ TEST_F(ClassLinkerTest, ClassRootDescriptors) {
     EXPECT_STREQ(klass->GetDescriptor().c_str(),
                  class_linker_->GetClassRootDescriptor(ClassLinker::ClassRoot(i))) << " i = " << i;
   }
+}
+
+TEST_F(ClassLinkerTest, ValidatePredefinedClassSizes) {
+  ScopedObjectAccess soa(Thread::Current());
+  NullHandle<mirror::ClassLoader> class_loader;
+  mirror::Class* c;
+
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Class;", class_loader);
+  EXPECT_EQ(c->GetClassSize(), mirror::Class::ClassClassSize());
+
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Object;", class_loader);
+  EXPECT_EQ(c->GetClassSize(), mirror::Object::ClassSize());
+
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/String;", class_loader);
+  EXPECT_EQ(c->GetClassSize(), mirror::String::ClassSize());
+
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/DexCache;", class_loader);
+  EXPECT_EQ(c->GetClassSize(), mirror::DexCache::ClassSize());
+
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/reflect/ArtField;", class_loader);
+  EXPECT_EQ(c->GetClassSize(), mirror::ArtField::ClassSize());
+
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/reflect/ArtMethod;", class_loader);
+  EXPECT_EQ(c->GetClassSize(), mirror::ArtMethod::ClassSize());
 }
 
 }  // namespace art

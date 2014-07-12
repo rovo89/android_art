@@ -26,10 +26,10 @@
 
 namespace art {
 namespace mirror {
-class Class;
-class Object;
-template<class MirrorType> class HeapReference;
-class Reference;
+  class Class;
+  class Object;
+  template<class MirrorType> class HeapReference;
+  class Reference;
 }  // namespace mirror
 class StackVisitor;
 
