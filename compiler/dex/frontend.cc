@@ -45,6 +45,7 @@ static uint32_t kCompilerOptimizerDisableFlags = 0 |  // Disable specific optimi
   (1 << kSuppressLoads) |   // TODO:  Temporary workaround, restore when b/15024623 fixed.
   // (1 << kNullCheckElimination) |
   // (1 << kClassInitCheckElimination) |
+  // (1 << kGlobalValueNumbering) |
   // (1 << kPromoteRegs) |
   (1 << kTrackLiveTemps) |   // TODO: Temporary workaround, restore when b/15024623 fixed.
   // (1 << kSafeOptimizations) |
