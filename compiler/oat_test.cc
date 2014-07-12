@@ -18,6 +18,7 @@
 #include "compiler/compiler.h"
 #include "compiler/oat_writer.h"
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "implicit_check_options.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
@@ -111,12 +112,16 @@ TEST_F(OatTest, WriteRead) {
 
   ScopedObjectAccess soa(Thread::Current());
   ScratchFile tmp;
+  SafeMap<std::string, std::string> key_value_store;
+  key_value_store.Put(OatHeader::kImageLocationKey, "lue.art");
+  key_value_store.Put(ImplicitCheckOptions::kImplicitChecksOatHeaderKey,
+                      ImplicitCheckOptions::Serialize(true, true, true));
   OatWriter oat_writer(class_linker->GetBootClassPath(),
                        42U,
                        4096U,
-                       "lue.art",
                        compiler_driver_.get(),
-                       &timings);
+                       &timings,
+                       &key_value_store);
   bool success = compiler_driver_->WriteElf(GetTestAndroidRoot(),
                                             !kIsTargetBuild,
                                             class_linker->GetBootClassPath(),
@@ -136,7 +141,7 @@ TEST_F(OatTest, WriteRead) {
   ASSERT_EQ(1U, oat_header.GetDexFileCount());  // core
   ASSERT_EQ(42U, oat_header.GetImageFileLocationOatChecksum());
   ASSERT_EQ(4096U, oat_header.GetImageFileLocationOatDataBegin());
-  ASSERT_EQ("lue.art", oat_header.GetImageFileLocation());
+  ASSERT_EQ("lue.art", std::string(oat_header.GetStoreValueByKey(OatHeader::kImageLocationKey)));
 
   const DexFile* dex_file = java_lang_dex_file_;
   uint32_t dex_file_checksum = dex_file->GetLocationChecksum();
@@ -189,20 +194,20 @@ TEST_F(OatTest, OatHeaderIsValid) {
     std::vector<const DexFile*> dex_files;
     uint32_t image_file_location_oat_checksum = 0;
     uint32_t image_file_location_oat_begin = 0;
-    const std::string image_file_location;
-    OatHeader oat_header(instruction_set,
-                         instruction_set_features,
-                         &dex_files,
-                         image_file_location_oat_checksum,
-                         image_file_location_oat_begin,
-                         image_file_location);
-    ASSERT_TRUE(oat_header.IsValid());
+    OatHeader* oat_header = OatHeader::Create(instruction_set,
+                                              instruction_set_features,
+                                              &dex_files,
+                                              image_file_location_oat_checksum,
+                                              image_file_location_oat_begin,
+                                              nullptr);
+    ASSERT_NE(oat_header, nullptr);
+    ASSERT_TRUE(oat_header->IsValid());
 
-    char* magic = const_cast<char*>(oat_header.GetMagic());
+    char* magic = const_cast<char*>(oat_header->GetMagic());
     strcpy(magic, "");  // bad magic
-    ASSERT_FALSE(oat_header.IsValid());
+    ASSERT_FALSE(oat_header->IsValid());
     strcpy(magic, "oat\n000");  // bad version
-    ASSERT_FALSE(oat_header.IsValid());
+    ASSERT_FALSE(oat_header->IsValid());
 }
 
 }  // namespace art
