@@ -246,11 +246,9 @@ std::string buildframe_test_fn(x86_64::X86_64Assembler* assembler) {
   str << "pushq %rsi\n";
   str << "pushq %r10\n";
   // 2) Move down the stack pointer.
-  ssize_t displacement = -static_cast<ssize_t>(frame_size) + spill_regs.size() * 8 +
-      sizeof(StackReference<mirror::ArtMethod>) + 8;
-  str << "addq $" << displacement << ", %rsp\n";
-  // 3) Make space for method reference, and store it.
-  str << "subq $4, %rsp\n";
+  ssize_t displacement = static_cast<ssize_t>(frame_size) - (spill_regs.size() * 8 + 8);
+  str << "subq $" << displacement << ", %rsp\n";
+  // 3) Store method reference.
   str << "movl %edi, (%rsp)\n";
   // 4) Entry spills.
   str << "movq %rax, " << frame_size + 0 << "(%rsp)\n";

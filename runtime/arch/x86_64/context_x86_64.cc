@@ -78,6 +78,18 @@ void X86_64Context::SmashCallerSaves() {
   gprs_[R9] = nullptr;
   gprs_[R10] = nullptr;
   gprs_[R11] = nullptr;
+  fprs_[XMM0] = nullptr;
+  fprs_[XMM1] = nullptr;
+  fprs_[XMM2] = nullptr;
+  fprs_[XMM3] = nullptr;
+  fprs_[XMM4] = nullptr;
+  fprs_[XMM5] = nullptr;
+  fprs_[XMM6] = nullptr;
+  fprs_[XMM7] = nullptr;
+  fprs_[XMM8] = nullptr;
+  fprs_[XMM9] = nullptr;
+  fprs_[XMM10] = nullptr;
+  fprs_[XMM11] = nullptr;
 }
 
 bool X86_64Context::SetGPR(uint32_t reg, uintptr_t value) {
@@ -102,41 +114,26 @@ bool X86_64Context::SetFPR(uint32_t reg, uintptr_t value) {
   }
 }
 
+extern "C" void art_quick_do_long_jump(uintptr_t*, uintptr_t*);
+
 void X86_64Context::DoLongJump() {
 #if defined(__x86_64__)
-  // Array of GPR values, filled from the context backward for the long jump pop. We add a slot at
-  // the top for the stack pointer that doesn't get popped in a pop-all.
-  volatile uintptr_t gprs[kNumberOfCpuRegisters + 1];
+  uintptr_t gprs[kNumberOfCpuRegisters + 1];
+  uintptr_t fprs[kNumberOfFloatRegisters];
+
   for (size_t i = 0; i < kNumberOfCpuRegisters; ++i) {
     gprs[kNumberOfCpuRegisters - i - 1] = gprs_[i] != nullptr ? *gprs_[i] : X86_64Context::kBadGprBase + i;
   }
+  for (size_t i = 0; i < kNumberOfFloatRegisters; ++i) {
+    fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : X86_64Context::kBadFprBase + i;
+  }
+
   // We want to load the stack pointer one slot below so that the ret will pop eip.
   uintptr_t rsp = gprs[kNumberOfCpuRegisters - RSP - 1] - kWordSize;
   gprs[kNumberOfCpuRegisters] = rsp;
   *(reinterpret_cast<uintptr_t*>(rsp)) = rip_;
-  __asm__ __volatile__(
-      "movq %0, %%rsp\n\t"  // RSP points to gprs.
-      "popq %%r15\n\t"       // Load all registers except RSP and RIP with values in gprs.
-      "popq %%r14\n\t"
-      "popq %%r13\n\t"
-      "popq %%r12\n\t"
-      "popq %%r11\n\t"
-      "popq %%r10\n\t"
-      "popq %%r9\n\t"
-      "popq %%r8\n\t"
-      "popq %%rdi\n\t"
-      "popq %%rsi\n\t"
-      "popq %%rbp\n\t"
-      "addq $8, %%rsp\n\t"
-      "popq %%rbx\n\t"
-      "popq %%rdx\n\t"
-      "popq %%rcx\n\t"
-      "popq %%rax\n\t"
-      "popq %%rsp\n\t"      // Load stack pointer.
-      "ret\n\t"             // From higher in the stack pop rip.
-      :  // output.
-      : "g"(&gprs[0])  // input.
-      :);  // clobber.
+
+  art_quick_do_long_jump(gprs, fprs);
 #else
   UNIMPLEMENTED(FATAL);
 #endif

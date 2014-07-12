@@ -61,9 +61,7 @@ class X86_64JniCallingConvention FINAL : public JniCallingConvention {
   }
   ManagedRegister ReturnScratchRegister() const OVERRIDE;
   uint32_t CoreSpillMask() const OVERRIDE;
-  uint32_t FpSpillMask() const OVERRIDE {
-    return 0;
-  }
+  uint32_t FpSpillMask() const OVERRIDE;
   bool IsCurrentParamInRegister() OVERRIDE;
   bool IsCurrentParamOnStack() OVERRIDE;
   ManagedRegister CurrentParamRegister() OVERRIDE;
