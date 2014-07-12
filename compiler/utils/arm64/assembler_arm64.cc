@@ -595,8 +595,7 @@ void Arm64Assembler::LoadReferenceFromHandleScope(ManagedRegister m_out_reg,
     // FIXME: Who sets the flags here?
     LoadImmediate(out_reg.AsCoreRegister(), 0, EQ);
   }
-  ___ Cmp(reg_x(in_reg.AsCoreRegister()), 0);
-  ___ B(&exit, COND_OP(EQ));
+  ___ Cbz(reg_x(in_reg.AsCoreRegister()), &exit);
   LoadFromOffset(out_reg.AsCoreRegister(), in_reg.AsCoreRegister(), 0);
   ___ Bind(&exit);
 }
@@ -607,8 +606,7 @@ void Arm64Assembler::ExceptionPoll(ManagedRegister m_scratch, size_t stack_adjus
   Arm64Exception *current_exception = new Arm64Exception(scratch, stack_adjust);
   exception_blocks_.push_back(current_exception);
   LoadFromOffset(scratch.AsCoreRegister(), ETR, Thread::ExceptionOffset<8>().Int32Value());
-  ___ Cmp(reg_x(scratch.AsCoreRegister()), 0);
-  ___ B(current_exception->Entry(), COND_OP(NE));
+  ___ Cbnz(reg_x(scratch.AsCoreRegister()), current_exception->Entry());
 }
 
 void Arm64Assembler::EmitExceptionPoll(Arm64Exception *exception) {
