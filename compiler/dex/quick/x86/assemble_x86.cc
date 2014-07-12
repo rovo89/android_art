@@ -327,20 +327,10 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
 { kX86 ## opname ## RM, kRegMem,   IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE1,  { prefix, 0, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RM", "!0r,[!1r+!2d]" }, \
 { kX86 ## opname ## RA, kRegArray, IS_LOAD | IS_QUIN_OP     | reg_def | REG_USE12, { prefix, 0, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RA", "!0r,[!1r+!2r<<!3d+!4d]" }
 
-#define EXT_0F_REX_NO_PREFIX_ENCODING_MAP(opname, opcode, reg_def) \
-{ kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE1,  { REX, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RR", "!0r,!1r" }, \
-{ kX86 ## opname ## RM, kRegMem,   IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE1,  { REX, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RM", "!0r,[!1r+!2d]" }, \
-{ kX86 ## opname ## RA, kRegArray, IS_LOAD | IS_QUIN_OP     | reg_def | REG_USE12, { REX, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RA", "!0r,[!1r+!2r<<!3d+!4d]" }
-
 #define EXT_0F_REX_W_ENCODING_MAP(opname, prefix, opcode, reg_def) \
 { kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE1,  { prefix, REX_W, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RR", "!0r,!1r" }, \
 { kX86 ## opname ## RM, kRegMem,   IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE1,  { prefix, REX_W, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RM", "!0r,[!1r+!2d]" }, \
 { kX86 ## opname ## RA, kRegArray, IS_LOAD | IS_QUIN_OP     | reg_def | REG_USE12, { prefix, REX_W, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RA", "!0r,[!1r+!2r<<!3d+!4d]" }
-
-#define EXT_0F_REX_W_NO_PREFIX_ENCODING_MAP(opname, opcode, reg_def) \
-{ kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE1,  { REX_W, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RR", "!0r,!1r" }, \
-{ kX86 ## opname ## RM, kRegMem,   IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE1,  { REX_W, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RM", "!0r,[!1r+!2d]" }, \
-{ kX86 ## opname ## RA, kRegArray, IS_LOAD | IS_QUIN_OP     | reg_def | REG_USE12, { REX_W, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RA", "!0r,[!1r+!2r<<!3d+!4d]" }
 
 #define EXT_0F_ENCODING2_MAP(opname, prefix, opcode, opcode2, reg_def) \
 { kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE1,  { prefix, 0, 0x0F, opcode, opcode2, 0, 0, 0, false }, #opname "RR", "!0r,!1r" }, \
@@ -499,10 +489,10 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   EXT_0F_ENCODING_MAP(Movzx16, 0x00, 0xB7, REG_DEF0),
   EXT_0F_ENCODING_MAP(Movsx8,  0x00, 0xBE, REG_DEF0),
   EXT_0F_ENCODING_MAP(Movsx16, 0x00, 0xBF, REG_DEF0),
-  EXT_0F_REX_NO_PREFIX_ENCODING_MAP(Movzx8q, 0xB6, REG_DEF0),
-  EXT_0F_REX_W_NO_PREFIX_ENCODING_MAP(Movzx16q, 0xB7, REG_DEF0),
-  EXT_0F_REX_NO_PREFIX_ENCODING_MAP(Movsx8q, 0xBE, REG_DEF0),
-  EXT_0F_REX_W_NO_PREFIX_ENCODING_MAP(Movsx16q, 0xBF, REG_DEF0),
+  EXT_0F_ENCODING_MAP(Movzx8q,  REX_W, 0xB6, REG_DEF0),
+  EXT_0F_ENCODING_MAP(Movzx16q, REX_W, 0xB7, REG_DEF0),
+  EXT_0F_ENCODING_MAP(Movsx8q,  REX, 0xBE, REG_DEF0),
+  EXT_0F_ENCODING_MAP(Movsx16q, REX_W, 0xBF, REG_DEF0),
 #undef EXT_0F_ENCODING_MAP
 
   { kX86Jcc8,  kJcc,  IS_BINARY_OP | IS_BRANCH | NEEDS_FIXUP | USES_CCODES, { 0,             0, 0x70, 0,    0, 0, 0, 0, false }, "Jcc8",  "!1c !0t" },
@@ -627,7 +617,8 @@ size_t X86Mir2Lir::ComputeSize(const X86EncodingMap* entry, int32_t raw_reg, int
     if (registers_need_rex_prefix) {
       DCHECK(cu_->target64) << "Attempt to use a 64-bit only addressable register "
           << RegStorage::RegNum(raw_reg) << " with instruction " << entry->name;
-      if (entry->skeleton.prefix1 != REX_W && entry->skeleton.prefix2 != REX_W) {
+      if (entry->skeleton.prefix1 != REX_W && entry->skeleton.prefix2 != REX_W
+         && entry->skeleton.prefix1 != REX && entry->skeleton.prefix2 != REX) {
         ++size;  // rex
       }
     }
@@ -906,7 +897,8 @@ void X86Mir2Lir::EmitPrefix(const X86EncodingMap* entry,
       // 64 bit addresses by GS, not FS.
       code_buffer_.push_back(THREAD_PREFIX_GS);
     } else {
-      if (entry->skeleton.prefix1 == REX_W) {
+      if (entry->skeleton.prefix1 == REX_W || entry->skeleton.prefix1 == REX) {
+        DCHECK(cu_->target64);
         rex |= entry->skeleton.prefix1;
         code_buffer_.push_back(rex);
         rex = 0;
@@ -915,7 +907,8 @@ void X86Mir2Lir::EmitPrefix(const X86EncodingMap* entry,
       }
     }
     if (entry->skeleton.prefix2 != 0) {
-      if (entry->skeleton.prefix2 == REX_W) {
+      if (entry->skeleton.prefix2 == REX_W || entry->skeleton.prefix1 == REX) {
+        DCHECK(cu_->target64);
         rex |= entry->skeleton.prefix2;
         code_buffer_.push_back(rex);
         rex = 0;
