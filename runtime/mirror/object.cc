@@ -156,7 +156,7 @@ int32_t Object::IdentityHashCode() const {
         // loop iteration.
         LockWord hash_word(LockWord::FromHashCode(GenerateIdentityHashCode()));
         DCHECK_EQ(hash_word.GetState(), LockWord::kHashCode);
-        if (const_cast<Object*>(this)->CasLockWordWeakSequentiallyConsistent(lw, hash_word)) {
+        if (const_cast<Object*>(this)->CasLockWordWeakRelaxed(lw, hash_word)) {
           return hash_word.GetHashCode();
         }
         break;
