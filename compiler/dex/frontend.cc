@@ -97,7 +97,6 @@ static constexpr uint32_t kDisabledOptimizationsPerISA[] = {
     // 2 = kArm64.     TODO(Arm64): enable optimizations once backend is mature enough.
     (1 << kLoadStoreElimination) |
     (1 << kLoadHoisting) |
-    (1 << kBBOpt) |
     0,
     // 3 = kThumb2.
     0,
