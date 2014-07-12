@@ -1638,6 +1638,12 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
 
 bool Mir2Lir::GenInlinedCurrentThread(CallInfo* info) {
   RegLocation rl_dest = InlineTarget(info);
+
+  // Early exit if the result is unused.
+  if (rl_dest.orig_sreg < 0) {
+    return true;
+  }
+
   RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
 
   switch (cu_->instruction_set) {

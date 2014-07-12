@@ -49,6 +49,7 @@ public class Main {
     test_String_indexOf();
     test_String_isEmpty();
     test_String_length();
+    test_Thread_currentThread();
   }
 
   /*
@@ -68,6 +69,17 @@ public class Main {
       return (a - b) < maxDelta;
     else
       return (b - a) < maxDelta;
+  }
+
+  /**
+   * Will test inlining Thread.currentThread().
+   */
+  public static void test_Thread_currentThread() {
+    // 1. Do not use result.
+    Thread.currentThread();
+
+    // 2. Result should not be null.
+    Assert.assertNotNull(Thread.currentThread());
   }
 
   public static void test_String_length() {
