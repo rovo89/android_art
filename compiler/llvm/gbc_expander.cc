@@ -1648,7 +1648,7 @@ llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
     field_value = SignOrZeroExtendCat1Types(field_value, field_jty);
 
     if (is_volatile) {
-      irb_.CreateMemoryBarrier(art::kLoadLoad);
+      irb_.CreateMemoryBarrier(art::kLoadAny);
     }
   }
 
@@ -1702,7 +1702,7 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
     DCHECK_GE(field_offset.Int32Value(), 0);
 
     if (is_volatile) {
-      irb_.CreateMemoryBarrier(art::kStoreStore);
+      irb_.CreateMemoryBarrier(art::kAnyStore);
     }
 
     llvm::PointerType* field_type =
@@ -1717,7 +1717,7 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
     irb_.CreateStore(new_value, field_addr, kTBAAHeapInstance, field_jty);
 
     if (is_volatile) {
-      irb_.CreateMemoryBarrier(art::kLoadLoad);
+      irb_.CreateMemoryBarrier(art::kAnyAny);
     }
 
     if (field_jty == kObject) {  // If put an object, mark the GC card table.
@@ -1870,7 +1870,7 @@ llvm::Value* GBCExpanderPass::EmitLoadStaticStorage(uint32_t dex_pc,
   phi->addIncoming(loaded_storage_object_addr, block_after_load_static);
 
   // Ensure load of status and load of value don't re-order.
-  irb_.CreateMemoryBarrier(art::kLoadLoad);
+  irb_.CreateMemoryBarrier(art::kLoadAny);
 
   return phi;
 }
@@ -1948,7 +1948,7 @@ llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
     static_field_value = SignOrZeroExtendCat1Types(static_field_value, field_jty);
 
     if (is_volatile) {
-      irb_.CreateMemoryBarrier(art::kLoadLoad);
+      irb_.CreateMemoryBarrier(art::kLoadAny);
     }
   }
 
@@ -2025,7 +2025,7 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
     }
 
     if (is_volatile) {
-      irb_.CreateMemoryBarrier(art::kStoreStore);
+      irb_.CreateMemoryBarrier(art::kAnyStore);
     }
 
     llvm::Value* static_field_offset_value = irb_.getPtrEquivInt(field_offset.Int32Value());
@@ -2038,7 +2038,7 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
     irb_.CreateStore(new_value, static_field_addr, kTBAAHeapStatic, field_jty);
 
     if (is_volatile) {
-      irb_.CreateMemoryBarrier(art::kStoreLoad);
+      irb_.CreateMemoryBarrier(art::kAnyAny);
     }
 
     if (field_jty == kObject) {  // If put an object, mark the GC card table.

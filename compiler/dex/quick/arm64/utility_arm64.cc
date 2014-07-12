@@ -1145,10 +1145,8 @@ LIR* Arm64Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage 
   LIR* load = LoadBaseDispBody(r_base, displacement, r_dest, size);
 
   if (UNLIKELY(is_volatile == kVolatile)) {
-    // Without context sensitive analysis, we must issue the most conservative barriers.
-    // In this case, either a load or store may follow so we issue both barriers.
-    GenMemBarrier(kLoadLoad);
-    GenMemBarrier(kLoadStore);
+    // TODO: This should generate an acquire load instead of the barrier.
+    GenMemBarrier(kLoadAny);
   }
 
   return load;
@@ -1232,9 +1230,10 @@ LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegSto
 
 LIR* Arm64Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
                                  OpSize size, VolatileKind is_volatile) {
+  // TODO: This should generate a release store and no barriers.
   if (UNLIKELY(is_volatile == kVolatile)) {
-    // There might have been a store before this volatile one so insert StoreStore barrier.
-    GenMemBarrier(kStoreStore);
+    // Ensure that prior accesses become visible to other threads first.
+    GenMemBarrier(kAnyStore);
   }
 
   // StoreBaseDisp() will emit correct insn for atomic store on arm64
@@ -1243,8 +1242,9 @@ LIR* Arm64Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage
   LIR* store = StoreBaseDispBody(r_base, displacement, r_src, size);
 
   if (UNLIKELY(is_volatile == kVolatile)) {
-    // A load might follow the volatile store so insert a StoreLoad barrier.
-    GenMemBarrier(kStoreLoad);
+    // Preserve order with respect to any subsequent volatile loads.
+    // We need StoreLoad, but that generally requires the most expensive barrier.
+    GenMemBarrier(kAnyAny);
   }
 
   return store;

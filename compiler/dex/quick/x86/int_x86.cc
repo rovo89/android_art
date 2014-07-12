@@ -861,7 +861,7 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
 
     // After a store we need to insert barrier in case of potential load. Since the
     // locked cmpxchg has full barrier semantics, only a scheduling barrier will be generated.
-    GenMemBarrier(kStoreLoad);
+    GenMemBarrier(kAnyAny);
 
     FreeTemp(rs_r0q);
   } else if (is_long) {
@@ -913,10 +913,11 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
     }
     NewLIR4(kX86LockCmpxchg64A, rs_obj.GetReg(), rs_off.GetReg(), 0, 0);
 
-    // After a store we need to insert barrier in case of potential load. Since the
-    // locked cmpxchg has full barrier semantics, only a scheduling barrier will be generated.
-    GenMemBarrier(kStoreLoad);
-
+    // After a store we need to insert barrier to prevent reordering with either
+    // earlier or later memory accesses.  Since
+    // locked cmpxchg has full barrier semantics, only a scheduling barrier will be generated,
+    // and it will be associated with the cmpxchg instruction, preventing both.
+    GenMemBarrier(kAnyAny);
 
     if (push_si) {
       FreeTemp(rs_rSI);
@@ -954,9 +955,11 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
     LoadValueDirect(rl_src_expected, rs_r0);
     NewLIR5(kX86LockCmpxchgAR, rl_object.reg.GetReg(), rl_offset.reg.GetReg(), 0, 0, rl_new_value.reg.GetReg());
 
-    // After a store we need to insert barrier in case of potential load. Since the
-    // locked cmpxchg has full barrier semantics, only a scheduling barrier will be generated.
-    GenMemBarrier(kStoreLoad);
+    // After a store we need to insert barrier to prevent reordering with either
+    // earlier or later memory accesses.  Since
+    // locked cmpxchg has full barrier semantics, only a scheduling barrier will be generated,
+    // and it will be associated with the cmpxchg instruction, preventing both.
+    GenMemBarrier(kAnyAny);
 
     FreeTemp(rs_r0);
   }

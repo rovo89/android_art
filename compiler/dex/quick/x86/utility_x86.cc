@@ -762,10 +762,7 @@ LIR* X86Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_
                                   size);
 
   if (UNLIKELY(is_volatile == kVolatile)) {
-    // Without context sensitive analysis, we must issue the most conservative barriers.
-    // In this case, either a load or store may follow so we issue both barriers.
-    GenMemBarrier(kLoadLoad);
-    GenMemBarrier(kLoadStore);
+    GenMemBarrier(kLoadAny);  // Only a scheduling barrier.
   }
 
   return load;
@@ -863,8 +860,7 @@ LIR* X86Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStor
 LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src, OpSize size,
                                VolatileKind is_volatile) {
   if (UNLIKELY(is_volatile == kVolatile)) {
-    // There might have been a store before this volatile one so insert StoreStore barrier.
-    GenMemBarrier(kStoreStore);
+    GenMemBarrier(kAnyStore);  // Only a scheduling barrier.
   }
 
   // StoreBaseDisp() will emit correct insn for atomic store on x86
@@ -873,8 +869,9 @@ LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r
   LIR* store = StoreBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_src, size);
 
   if (UNLIKELY(is_volatile == kVolatile)) {
-    // A load might follow the volatile store so insert a StoreLoad barrier.
-    GenMemBarrier(kStoreLoad);
+    // A volatile load might follow the volatile store so insert a StoreLoad barrier.
+    // This does require a fence, even on x86.
+    GenMemBarrier(kAnyAny);
   }
 
   return store;
