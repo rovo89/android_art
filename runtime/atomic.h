@@ -415,7 +415,7 @@ template<class T> struct AtomicHelper<8, T> {
 };
 
 template<typename T>
-class Atomic {
+class PACKED(sizeof(T)) Atomic {
  private:
   COMPILE_ASSERT(sizeof(T) <= 4 || sizeof(T) == 8, bad_atomic_arg);
 
