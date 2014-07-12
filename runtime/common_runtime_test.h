@@ -206,6 +206,7 @@ class CommonRuntimeTest : public testing::Test {
     runtime_.reset(Runtime::Current());
     class_linker_ = runtime_->GetClassLinker();
     class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
+    class_linker_->RunRootClinits();
 
     // Runtime::Create acquired the mutator_lock_ that is normally given away when we
     // Runtime::Start, give it away now and then switch to a more managable ScopedObjectAccess.
