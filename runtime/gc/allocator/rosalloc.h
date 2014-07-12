@@ -440,7 +440,7 @@ class RosAlloc {
   // The mutexes, one per size bracket.
   Mutex* size_bracket_locks_[kNumOfSizeBrackets];
   // Bracket lock names (since locks only have char* names).
-  std::string size_bracket_lock_names[kNumOfSizeBrackets];
+  std::string size_bracket_lock_names_[kNumOfSizeBrackets];
   // The types of page map entries.
   enum {
     kPageMapReleased = 0,     // Zero and released back to the OS.

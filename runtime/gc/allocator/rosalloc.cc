@@ -68,9 +68,9 @@ RosAlloc::RosAlloc(void* base, size_t capacity, size_t max_capacity,
              << ", capacity=" << std::dec << capacity_
              << ", max_capacity=" << std::dec << max_capacity_;
   for (size_t i = 0; i < kNumOfSizeBrackets; i++) {
-    size_bracket_lock_names[i] =
+    size_bracket_lock_names_[i] =
         StringPrintf("an rosalloc size bracket %d lock", static_cast<int>(i));
-    size_bracket_locks_[i] = new Mutex(size_bracket_lock_names[i].c_str(), kRosAllocBracketLock);
+    size_bracket_locks_[i] = new Mutex(size_bracket_lock_names_[i].c_str(), kRosAllocBracketLock);
     current_runs_[i] = dedicated_full_run_;
   }
   DCHECK_EQ(footprint_, capacity_);

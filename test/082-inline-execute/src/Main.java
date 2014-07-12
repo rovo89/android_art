@@ -61,9 +61,6 @@ public class Main {
     test_Memory_pokeShort();
     test_Memory_pokeInt();
     test_Memory_pokeLong();
-    test_AtomicBoolean_compareAndSet();
-    test_AtomicInteger_compareAndSet();
-    test_AtomicLong_compareAndSet();
   }
 
   /*
@@ -94,60 +91,6 @@ public class Main {
 
     // 2. Result should not be null.
     Assert.assertNotNull(Thread.currentThread());
-  }
-
-  /**
-   * Will test inlining CAS, by inclusion of AtomicBoolean in core.oat.
-   */
-  public static void test_AtomicBoolean_compareAndSet() {
-    java.util.concurrent.atomic.AtomicBoolean ab = new java.util.concurrent.atomic.AtomicBoolean();
-    Assert.assertEquals(ab.compareAndSet(false, false), true);
-    Assert.assertEquals(ab.compareAndSet(true, false), false);
-    Assert.assertEquals(ab.compareAndSet(true, true), false);
-    Assert.assertEquals(ab.compareAndSet(false, true), true);
-    Assert.assertEquals(ab.compareAndSet(false, true), false);
-    Assert.assertEquals(ab.compareAndSet(false, false), false);
-    Assert.assertEquals(ab.compareAndSet(true, true), true);
-    Assert.assertEquals(ab.compareAndSet(true, false), true);
-    Assert.assertEquals(ab.compareAndSet(true, false), false);
-    Assert.assertEquals(ab.compareAndSet(true, true), false);
-    Assert.assertEquals(ab.compareAndSet(false, false), true);
-  }
-
-  /**
-   * Will test inlining CAS, by inclusion of AtomicInteger in core.oat.
-   */
-  public static void test_AtomicInteger_compareAndSet() {
-    java.util.concurrent.atomic.AtomicInteger ab = new java.util.concurrent.atomic.AtomicInteger();
-    Assert.assertEquals(ab.compareAndSet(0, 0), true);
-    Assert.assertEquals(ab.compareAndSet(0x12345678, 0), false);
-    Assert.assertEquals(ab.compareAndSet(0x12345678, 0x12345678), false);
-    Assert.assertEquals(ab.compareAndSet(0, 0x12345678), true);
-    Assert.assertEquals(ab.compareAndSet(0, 0x12345678), false);
-    Assert.assertEquals(ab.compareAndSet(0, 0), false);
-    Assert.assertEquals(ab.compareAndSet(0x12345678, 0x12345678), true);
-    Assert.assertEquals(ab.compareAndSet(0x12345678, 0), true);
-    Assert.assertEquals(ab.compareAndSet(0x12345678, 0), false);
-    Assert.assertEquals(ab.compareAndSet(0x12345678, 0x12345678), false);
-    Assert.assertEquals(ab.compareAndSet(0, 0), true);
-  }
-
-  /**
-   * Will test inlining CAS, by inclusion of AtomicLong in core.oat.
-   */
-  public static void test_AtomicLong_compareAndSet() {
-    java.util.concurrent.atomic.AtomicLong ab = new java.util.concurrent.atomic.AtomicLong();
-    Assert.assertEquals(ab.compareAndSet(0l, 0l), true);
-    Assert.assertEquals(ab.compareAndSet(0x1234567890l, 0l), false);
-    Assert.assertEquals(ab.compareAndSet(0x1234567890l, 0x1234567890l), false);
-    Assert.assertEquals(ab.compareAndSet(0l, 0x1234567890l), true);
-    Assert.assertEquals(ab.compareAndSet(0l, 0x1234567890l), false);
-    Assert.assertEquals(ab.compareAndSet(0l, 0l), false);
-    Assert.assertEquals(ab.compareAndSet(0x1234567890l, 0x1234567890l), true);
-    Assert.assertEquals(ab.compareAndSet(0x1234567890l, 0l), true);
-    Assert.assertEquals(ab.compareAndSet(0x1234567890l, 0l), false);
-    Assert.assertEquals(ab.compareAndSet(0x1234567890l, 0x1234567890l), false);
-    Assert.assertEquals(ab.compareAndSet(0l, 0l), true);
   }
 
   public static void test_String_length() {
@@ -580,6 +523,7 @@ public class Main {
 
   static Object runtime;
   static Method address_of;
+  static Method new_non_movable_array;
   static Method peek_byte;
   static Method peek_short;
   static Method peek_int;
@@ -594,6 +538,7 @@ public class Main {
     Method get_runtime = vm_runtime.getDeclaredMethod("getRuntime");
     runtime = get_runtime.invoke(null);
     address_of = vm_runtime.getDeclaredMethod("addressOf", Object.class);
+    new_non_movable_array = vm_runtime.getDeclaredMethod("newNonMovableArray", Class.class, Integer.TYPE);
 
     Class<?> io_memory = Class.forName("libcore.io.Memory");
     peek_byte = io_memory.getDeclaredMethod("peekByte", Long.TYPE);
@@ -607,7 +552,7 @@ public class Main {
   }
 
   public static void test_Memory_peekByte() throws Exception {
-    byte[] b = new byte [2];
+    byte[] b = (byte[])new_non_movable_array.invoke(runtime, Byte.TYPE, 2);
     b[0] = 0x12;
     b[1] = 0x11;
     long address = (long)address_of.invoke(runtime, b);
@@ -616,7 +561,7 @@ public class Main {
   }
 
   public static void test_Memory_peekShort() throws Exception {
-    byte[] b = new byte [3];
+    byte[] b = (byte[])new_non_movable_array.invoke(runtime, Byte.TYPE, 3);
     b[0] = 0x13;
     b[1] = 0x12;
     b[2] = 0x11;
@@ -626,7 +571,7 @@ public class Main {
   }
 
   public static void test_Memory_peekInt() throws Exception {
-    byte[] b = new byte [5];
+    byte[] b = (byte[])new_non_movable_array.invoke(runtime, Byte.TYPE, 5);
     b[0] = 0x15;
     b[1] = 0x14;
     b[2] = 0x13;
@@ -638,7 +583,7 @@ public class Main {
   }
 
   public static void test_Memory_peekLong() throws Exception {
-    byte[] b = new byte [9];
+    byte[] b = (byte[])new_non_movable_array.invoke(runtime, Byte.TYPE, 9);
     b[0] = 0x19;
     b[1] = 0x18;
     b[2] = 0x17;
@@ -655,7 +600,7 @@ public class Main {
 
   public static void test_Memory_pokeByte() throws Exception {
     byte[] r = {0x11, 0x12};
-    byte[] b = new byte [2];
+    byte[] b = (byte[])new_non_movable_array.invoke(runtime, Byte.TYPE, 2);
     long address = (long)address_of.invoke(runtime, b);
     poke_byte.invoke(null, address, (byte)0x11);
     poke_byte.invoke(null, address + 1, (byte)0x12);
@@ -665,7 +610,7 @@ public class Main {
   public static void test_Memory_pokeShort() throws Exception {
     byte[] ra = {0x12, 0x11, 0x13};
     byte[] ru = {0x12, 0x22, 0x21};
-    byte[] b = new byte [3];
+    byte[] b = (byte[])new_non_movable_array.invoke(runtime, Byte.TYPE, 3);
     long address = (long)address_of.invoke(runtime, b);
 
     // Aligned write
@@ -681,7 +626,7 @@ public class Main {
   public static void test_Memory_pokeInt() throws Exception {
     byte[] ra = {0x14, 0x13, 0x12, 0x11, 0x15};
     byte[] ru = {0x14, 0x24, 0x23, 0x22, 0x21};
-    byte[] b = new byte [5];
+    byte[] b = (byte[])new_non_movable_array.invoke(runtime, Byte.TYPE, 5);
     long address = (long)address_of.invoke(runtime, b);
 
     b[4] = 0x15;
@@ -695,7 +640,7 @@ public class Main {
   public static void test_Memory_pokeLong() throws Exception {
     byte[] ra = {0x18, 0x17, 0x16, 0x15, 0x14, 0x13, 0x12, 0x11, 0x19};
     byte[] ru = {0x18, 0x28, 0x27, 0x26, 0x25, 0x24, 0x23, 0x22, 0x21};
-    byte[] b = new byte [9];
+    byte[] b = (byte[])new_non_movable_array.invoke(runtime, Byte.TYPE, 9);
     long address = (long)address_of.invoke(runtime, b);
 
     b[8] = 0x19;
