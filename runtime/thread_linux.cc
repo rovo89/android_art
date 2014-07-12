@@ -35,8 +35,8 @@ static void SigAltStack(stack_t* new_stack, stack_t* old_stack) {
 void Thread::SetUpAlternateSignalStack() {
   // Create and set an alternate signal stack.
   stack_t ss;
-  ss.ss_sp = new uint8_t[SIGSTKSZ];
-  ss.ss_size = SIGSTKSZ;
+  ss.ss_sp = new uint8_t[SIGSTKSZ * 2];   // NB. this is 16K.
+  ss.ss_size = SIGSTKSZ * 2;
   ss.ss_flags = 0;
   CHECK(ss.ss_sp != NULL);
   SigAltStack(&ss, NULL);
@@ -56,7 +56,7 @@ void Thread::TearDownAlternateSignalStack() {
   // Tell the kernel to stop using it.
   ss.ss_sp = NULL;
   ss.ss_flags = SS_DISABLE;
-  ss.ss_size = SIGSTKSZ;  // Avoid ENOMEM failure with Mac OS' buggy libc.
+  ss.ss_size = SIGSTKSZ * 2;  // Avoid ENOMEM failure with Mac OS' buggy libc.
   SigAltStack(&ss, NULL);
 
   // Free it.

@@ -84,11 +84,6 @@ class ParsedOptions {
   bool verify_;
   InstructionSet image_isa_;
 
-  static constexpr uint32_t kExplicitNullCheck = 1;
-  static constexpr uint32_t kExplicitSuspendCheck = 2;
-  static constexpr uint32_t kExplicitStackOverflowCheck = 4;
-  uint32_t explicit_checks_;
-
  private:
   ParsedOptions() {}
 
