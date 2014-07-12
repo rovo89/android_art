@@ -88,6 +88,12 @@ class ParsedOptions {
   static constexpr uint32_t kExplicitSuspendCheck = 2;
   static constexpr uint32_t kExplicitStackOverflowCheck = 4;
   uint32_t explicit_checks_;
+  // Whether or not we use homogeneous space compaction to avoid OOM errors. If enabled,
+  // the heap will attempt to create an extra space which enables compacting from a malloc space to
+  // another malloc space when we are about to throw OOM.
+  bool use_homogeneous_space_compaction_for_oom_;
+  // Minimal interval allowed between two homogeneous space compactions caused by OOM.
+  uint64_t min_interval_homogeneous_space_compaction_by_oom_;
 
  private:
   ParsedOptions() {}

@@ -227,7 +227,7 @@ size_t RosAllocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** p
 // Callback from rosalloc when it needs to increase the footprint
 extern "C" void* art_heap_rosalloc_morecore(allocator::RosAlloc* rosalloc, intptr_t increment) {
   Heap* heap = Runtime::Current()->GetHeap();
-  RosAllocSpace* rosalloc_space = heap->GetRosAllocSpace();
+  RosAllocSpace* rosalloc_space = heap->GetRosAllocSpace(rosalloc);
   DCHECK(rosalloc_space != nullptr);
   DCHECK_EQ(rosalloc_space->GetRosAlloc(), rosalloc);
   return rosalloc_space->MoreCore(increment);

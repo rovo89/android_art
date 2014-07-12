@@ -40,6 +40,9 @@ enum CollectorType {
   kCollectorTypeHeapTrim,
   // A (mostly) concurrent copying collector.
   kCollectorTypeCC,
+  // A homogeneous space compaction collector used in background transition
+  // when both foreground and background collector are CMS.
+  kCollectorTypeHomogeneousSpaceCompact,
 };
 std::ostream& operator<<(std::ostream& os, const CollectorType& collector_type);
 
