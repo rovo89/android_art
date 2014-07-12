@@ -26,6 +26,16 @@
 #include "thread.h"
 #include "thread-inl.h"
 
+#if defined(__APPLE__)
+#define ucontext __darwin_ucontext
+#define CTX_ESP uc_mcontext->__ss.__esp
+#define CTX_EIP uc_mcontext->__ss.__eip
+#define CTX_EAX uc_mcontext->__ss.__eax
+#else
+#define CTX_ESP uc_mcontext.gregs[REG_ESP]
+#define CTX_EIP uc_mcontext.gregs[REG_EIP]
+#define CTX_EAX uc_mcontext.gregs[REG_EAX]
+#endif
 
 //
 // X86 specific fault handler functions.
@@ -163,7 +173,7 @@ void FaultManager::GetMethodAndReturnPCAndSP(siginfo_t* siginfo, void* context,
                                              mirror::ArtMethod** out_method,
                                              uintptr_t* out_return_pc, uintptr_t* out_sp) {
   struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  *out_sp = static_cast<uintptr_t>(uc->uc_mcontext.gregs[REG_ESP]);
+  *out_sp = static_cast<uintptr_t>(uc->CTX_ESP);
   VLOG(signals) << "sp: " << std::hex << *out_sp;
   if (*out_sp == 0) {
     return;
@@ -175,13 +185,13 @@ void FaultManager::GetMethodAndReturnPCAndSP(siginfo_t* siginfo, void* context,
   uintptr_t* overflow_addr = reinterpret_cast<uintptr_t*>(
       reinterpret_cast<uint8_t*>(*out_sp) - GetStackOverflowReservedBytes(kX86));
   if (overflow_addr == fault_addr) {
-    *out_method = reinterpret_cast<mirror::ArtMethod*>(uc->uc_mcontext.gregs[REG_EAX]);
+    *out_method = reinterpret_cast<mirror::ArtMethod*>(uc->CTX_EAX);
   } else {
     // The method is at the top of the stack.
     *out_method = reinterpret_cast<mirror::ArtMethod*>(reinterpret_cast<uintptr_t*>(*out_sp)[0]);
   }
 
-  uint8_t* pc = reinterpret_cast<uint8_t*>(uc->uc_mcontext.gregs[REG_EIP]);
+  uint8_t* pc = reinterpret_cast<uint8_t*>(uc->CTX_EIP);
   VLOG(signals) << HexDump(pc, 32, true, "PC ");
 
   uint32_t instr_size = GetInstructionSize(pc);
@@ -190,8 +200,8 @@ void FaultManager::GetMethodAndReturnPCAndSP(siginfo_t* siginfo, void* context,
 
 bool NullPointerHandler::Action(int sig, siginfo_t* info, void* context) {
   struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
-  uint8_t* pc = reinterpret_cast<uint8_t*>(uc->uc_mcontext.gregs[REG_EIP]);
-  uint8_t* sp = reinterpret_cast<uint8_t*>(uc->uc_mcontext.gregs[REG_ESP]);
+  uint8_t* pc = reinterpret_cast<uint8_t*>(uc->CTX_EIP);
+  uint8_t* sp = reinterpret_cast<uint8_t*>(uc->CTX_ESP);
 
   uint32_t instr_size = GetInstructionSize(pc);
   // We need to arrange for the signal handler to return to the null pointer
@@ -203,10 +213,9 @@ bool NullPointerHandler::Action(int sig, siginfo_t* info, void* context) {
   uint32_t retaddr = reinterpret_cast<uint32_t>(pc + instr_size);
   uint32_t* next_sp = reinterpret_cast<uint32_t*>(sp - 4);
   *next_sp = retaddr;
-  uc->uc_mcontext.gregs[REG_ESP] = reinterpret_cast<uint32_t>(next_sp);
+  uc->CTX_ESP = reinterpret_cast<uint32_t>(next_sp);
 
-  uc->uc_mcontext.gregs[REG_EIP] =
-        reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception);
+  uc->CTX_EIP = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception);
   VLOG(signals) << "Generating null pointer exception";
   return true;
 }
@@ -230,8 +239,8 @@ bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
   uint8_t checkinst2[] = {0x85, 0x00};
 
   struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
-  uint8_t* pc = reinterpret_cast<uint8_t*>(uc->uc_mcontext.gregs[REG_EIP]);
-  uint8_t* sp = reinterpret_cast<uint8_t*>(uc->uc_mcontext.gregs[REG_ESP]);
+  uint8_t* pc = reinterpret_cast<uint8_t*>(uc->CTX_EIP);
+  uint8_t* sp = reinterpret_cast<uint8_t*>(uc->CTX_ESP);
 
   if (pc[0] != checkinst2[0] || pc[1] != checkinst2[1]) {
     // Second instruction is not correct (test eax,[eax]).
@@ -264,9 +273,9 @@ bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
     uint32_t retaddr = reinterpret_cast<uint32_t>(pc + 2);
     uint32_t* next_sp = reinterpret_cast<uint32_t*>(sp - 4);
     *next_sp = retaddr;
-    uc->uc_mcontext.gregs[REG_ESP] = reinterpret_cast<uint32_t>(next_sp);
+    uc->CTX_ESP = reinterpret_cast<uint32_t>(next_sp);
 
-    uc->uc_mcontext.gregs[REG_EIP] = reinterpret_cast<uintptr_t>(art_quick_test_suspend);
+    uc->CTX_EIP = reinterpret_cast<uintptr_t>(art_quick_test_suspend);
 
     // Now remove the suspend trigger that caused this fault.
     Thread::Current()->RemoveSuspendTrigger();
@@ -286,7 +295,7 @@ bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
 
 bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
   struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
-  uintptr_t sp = static_cast<uintptr_t>(uc->uc_mcontext.gregs[REG_ESP]);
+  uintptr_t sp = static_cast<uintptr_t>(uc->CTX_ESP);
 
   uintptr_t fault_addr = reinterpret_cast<uintptr_t>(info->si_addr);
   VLOG(signals) << "fault_addr: " << std::hex << fault_addr;
@@ -315,11 +324,10 @@ bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
   // the previous frame.
 
   // Tell the stack overflow code where the new stack pointer should be.
-  uc->uc_mcontext.gregs[REG_EAX] = pregion;
+  uc->CTX_EAX = pregion;
 
   // Now arrange for the signal handler to return to art_quick_throw_stack_overflow_from_signal.
-  uc->uc_mcontext.gregs[REG_EIP] = reinterpret_cast<uintptr_t>(
-    art_quick_throw_stack_overflow_from_signal);
+  uc->CTX_EIP = reinterpret_cast<uintptr_t>(art_quick_throw_stack_overflow_from_signal);
 
   return true;
 }
