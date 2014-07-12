@@ -805,37 +805,23 @@ space::ImageSpace* Heap::GetImageSpace() const {
   return NULL;
 }
 
-static void MSpaceChunkCallback(void* start, void* end, size_t used_bytes, void* arg) {
-  size_t chunk_size = reinterpret_cast<uint8_t*>(end) - reinterpret_cast<uint8_t*>(start);
-  if (used_bytes < chunk_size) {
-    size_t chunk_free_bytes = chunk_size - used_bytes;
-    size_t& max_contiguous_allocation = *reinterpret_cast<size_t*>(arg);
-    max_contiguous_allocation = std::max(max_contiguous_allocation, chunk_free_bytes);
-  }
-}
-
-void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, bool large_object_allocation) {
+void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, AllocatorType allocator_type) {
   std::ostringstream oss;
   size_t total_bytes_free = GetFreeMemory();
   oss << "Failed to allocate a " << byte_count << " byte allocation with " << total_bytes_free
       << " free bytes";
   // If the allocation failed due to fragmentation, print out the largest continuous allocation.
-  if (!large_object_allocation && total_bytes_free >= byte_count) {
-    size_t max_contiguous_allocation = 0;
-    for (const auto& space : continuous_spaces_) {
-      if (space->IsMallocSpace()) {
-        // To allow the Walk/InspectAll() to exclusively-lock the mutator
-        // lock, temporarily release the shared access to the mutator
-        // lock here by transitioning to the suspended state.
-        Locks::mutator_lock_->AssertSharedHeld(self);
-        self->TransitionFromRunnableToSuspended(kSuspended);
-        space->AsMallocSpace()->Walk(MSpaceChunkCallback, &max_contiguous_allocation);
-        self->TransitionFromSuspendedToRunnable();
-        Locks::mutator_lock_->AssertSharedHeld(self);
-      }
+  if (allocator_type != kAllocatorTypeLOS && total_bytes_free >= byte_count) {
+    space::MallocSpace* space = nullptr;
+    if (allocator_type == kAllocatorTypeNonMoving) {
+      space = non_moving_space_;
+    } else if (allocator_type == kAllocatorTypeRosAlloc ||
+               allocator_type == kAllocatorTypeDlMalloc) {
+      space = main_space_;
     }
-    oss << "; failed due to fragmentation (largest possible contiguous allocation "
-        <<  max_contiguous_allocation << " bytes)";
+    if (space != nullptr) {
+      space->LogFragmentationAllocFailure(oss, byte_count);
+    }
   }
   self->ThrowOutOfMemoryError(oss.str().c_str());
 }
@@ -1188,7 +1174,7 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
   }
   ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated, usable_size);
   if (ptr == nullptr) {
-    ThrowOutOfMemoryError(self, alloc_size, allocator == kAllocatorTypeLOS);
+    ThrowOutOfMemoryError(self, alloc_size, allocator);
   }
   return ptr;
 }

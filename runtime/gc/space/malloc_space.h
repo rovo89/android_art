@@ -19,6 +19,7 @@
 
 #include "space.h"
 
+#include <iostream>
 #include <valgrind.h>
 #include <memcheck/memcheck.h>
 
@@ -131,6 +132,8 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   bool CanMoveObjects() const OVERRIDE {
     return can_move_objects_;
   }
+
+  virtual void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) = 0;
 
  protected:
   MallocSpace(const std::string& name, MemMap* mem_map, byte* begin, byte* end,

@@ -2175,6 +2175,34 @@ size_t RosAlloc::ReleasePageRange(byte* start, byte* end) {
   return reclaimed_bytes;
 }
 
+void RosAlloc::LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) {
+  Thread* self = Thread::Current();
+  size_t largest_continuous_free_pages = 0;
+  WriterMutexLock wmu(self, bulk_free_lock_);
+  MutexLock mu(self, lock_);
+  for (FreePageRun* fpr : free_page_runs_) {
+    largest_continuous_free_pages = std::max(largest_continuous_free_pages,
+                                             fpr->ByteSize(this));
+  }
+  if (failed_alloc_bytes > kLargeSizeThreshold) {
+    // Large allocation.
+    size_t required_bytes = RoundUp(failed_alloc_bytes, kPageSize);
+    if (required_bytes > largest_continuous_free_pages) {
+      os << "; failed due to fragmentation (required continguous free "
+         << required_bytes << " bytes where largest contiguous free "
+         <<  largest_continuous_free_pages << " bytes)";
+    }
+  } else {
+    // Non-large allocation.
+    size_t required_bytes = numOfPages[SizeToIndex(failed_alloc_bytes)] * kPageSize;
+    if (required_bytes > largest_continuous_free_pages) {
+      os << "; failed due to fragmentation (required continguous free "
+         << required_bytes << " bytes for a new buffer where largest contiguous free "
+         <<  largest_continuous_free_pages << " bytes)";
+    }
+  }
+}
+
 }  // namespace allocator
 }  // namespace gc
 }  // namespace art
