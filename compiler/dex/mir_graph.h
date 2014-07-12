@@ -286,34 +286,46 @@ struct MIR {
      */
     bool GetConstant(int64_t* ptr_value, bool* wide) const;
 
+    static bool IsPseudoMirOp(Instruction::Code opcode) {
+      return static_cast<int>(opcode) >= static_cast<int>(kMirOpFirst);
+    }
+
+    static bool IsPseudoMirOp(int opcode) {
+      return opcode >= static_cast<int>(kMirOpFirst);
+    }
+
+    bool IsInvoke() const {
+      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kInvoke) == Instruction::kInvoke);
+    }
+
     bool IsStore() const {
-      return ((Instruction::FlagsOf(opcode) & Instruction::kStore) == Instruction::kStore);
+      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kStore) == Instruction::kStore);
     }
 
     bool IsLoad() const {
-      return ((Instruction::FlagsOf(opcode) & Instruction::kLoad) == Instruction::kLoad);
+      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kLoad) == Instruction::kLoad);
     }
 
     bool IsConditionalBranch() const {
-      return (Instruction::FlagsOf(opcode) == (Instruction::kContinue | Instruction::kBranch));
+      return !IsPseudoMirOp(opcode) && (Instruction::FlagsOf(opcode) == (Instruction::kContinue | Instruction::kBranch));
     }
 
     /**
      * @brief Is the register C component of the decoded instruction a constant?
      */
     bool IsCFieldOrConstant() const {
-      return ((Instruction::FlagsOf(opcode) & Instruction::kRegCFieldOrConstant) == Instruction::kRegCFieldOrConstant);
+      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kRegCFieldOrConstant) == Instruction::kRegCFieldOrConstant);
     }
 
     /**
      * @brief Is the register C component of the decoded instruction a constant?
      */
     bool IsBFieldOrConstant() const {
-      return ((Instruction::FlagsOf(opcode) & Instruction::kRegBFieldOrConstant) == Instruction::kRegBFieldOrConstant);
+      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kRegBFieldOrConstant) == Instruction::kRegBFieldOrConstant);
     }
 
     bool IsCast() const {
-      return ((Instruction::FlagsOf(opcode) & Instruction::kCast) == Instruction::kCast);
+      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kCast) == Instruction::kCast);
     }
 
     /**
@@ -323,11 +335,11 @@ struct MIR {
      *            when crossing such an instruction.
      */
     bool Clobbers() const {
-      return ((Instruction::FlagsOf(opcode) & Instruction::kClobber) == Instruction::kClobber);
+      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kClobber) == Instruction::kClobber);
     }
 
     bool IsLinear() const {
-      return (Instruction::FlagsOf(opcode) & (Instruction::kAdd | Instruction::kSubtract)) != 0;
+      return !IsPseudoMirOp(opcode) && (Instruction::FlagsOf(opcode) & (Instruction::kAdd | Instruction::kSubtract)) != 0;
     }
   } dalvikInsn;
 
@@ -877,14 +889,6 @@ class MIRGraph {
 
   int GetBranchCount() {
     return backward_branches_ + forward_branches_;
-  }
-
-  static bool IsPseudoMirOp(Instruction::Code opcode) {
-    return static_cast<int>(opcode) >= static_cast<int>(kMirOpFirst);
-  }
-
-  static bool IsPseudoMirOp(int opcode) {
-    return opcode >= static_cast<int>(kMirOpFirst);
   }
 
   // Is this vreg in the in set?
