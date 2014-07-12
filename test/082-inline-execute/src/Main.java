@@ -61,6 +61,9 @@ public class Main {
     test_Memory_pokeShort();
     test_Memory_pokeInt();
     test_Memory_pokeLong();
+    test_AtomicBoolean_compareAndSet();
+    test_AtomicInteger_compareAndSet();
+    test_AtomicLong_compareAndSet();
   }
 
   /*
@@ -91,6 +94,60 @@ public class Main {
 
     // 2. Result should not be null.
     Assert.assertNotNull(Thread.currentThread());
+  }
+
+  /**
+   * Will test inlining CAS, by inclusion of AtomicBoolean in core.oat.
+   */
+  public static void test_AtomicBoolean_compareAndSet() {
+    java.util.concurrent.atomic.AtomicBoolean ab = new java.util.concurrent.atomic.AtomicBoolean();
+    Assert.assertEquals(ab.compareAndSet(false, false), true);
+    Assert.assertEquals(ab.compareAndSet(true, false), false);
+    Assert.assertEquals(ab.compareAndSet(true, true), false);
+    Assert.assertEquals(ab.compareAndSet(false, true), true);
+    Assert.assertEquals(ab.compareAndSet(false, true), false);
+    Assert.assertEquals(ab.compareAndSet(false, false), false);
+    Assert.assertEquals(ab.compareAndSet(true, true), true);
+    Assert.assertEquals(ab.compareAndSet(true, false), true);
+    Assert.assertEquals(ab.compareAndSet(true, false), false);
+    Assert.assertEquals(ab.compareAndSet(true, true), false);
+    Assert.assertEquals(ab.compareAndSet(false, false), true);
+  }
+
+  /**
+   * Will test inlining CAS, by inclusion of AtomicInteger in core.oat.
+   */
+  public static void test_AtomicInteger_compareAndSet() {
+    java.util.concurrent.atomic.AtomicInteger ab = new java.util.concurrent.atomic.AtomicInteger();
+    Assert.assertEquals(ab.compareAndSet(0, 0), true);
+    Assert.assertEquals(ab.compareAndSet(0x12345678, 0), false);
+    Assert.assertEquals(ab.compareAndSet(0x12345678, 0x12345678), false);
+    Assert.assertEquals(ab.compareAndSet(0, 0x12345678), true);
+    Assert.assertEquals(ab.compareAndSet(0, 0x12345678), false);
+    Assert.assertEquals(ab.compareAndSet(0, 0), false);
+    Assert.assertEquals(ab.compareAndSet(0x12345678, 0x12345678), true);
+    Assert.assertEquals(ab.compareAndSet(0x12345678, 0), true);
+    Assert.assertEquals(ab.compareAndSet(0x12345678, 0), false);
+    Assert.assertEquals(ab.compareAndSet(0x12345678, 0x12345678), false);
+    Assert.assertEquals(ab.compareAndSet(0, 0), true);
+  }
+
+  /**
+   * Will test inlining CAS, by inclusion of AtomicLong in core.oat.
+   */
+  public static void test_AtomicLong_compareAndSet() {
+    java.util.concurrent.atomic.AtomicLong ab = new java.util.concurrent.atomic.AtomicLong();
+    Assert.assertEquals(ab.compareAndSet(0l, 0l), true);
+    Assert.assertEquals(ab.compareAndSet(0x1234567890l, 0l), false);
+    Assert.assertEquals(ab.compareAndSet(0x1234567890l, 0x1234567890l), false);
+    Assert.assertEquals(ab.compareAndSet(0l, 0x1234567890l), true);
+    Assert.assertEquals(ab.compareAndSet(0l, 0x1234567890l), false);
+    Assert.assertEquals(ab.compareAndSet(0l, 0l), false);
+    Assert.assertEquals(ab.compareAndSet(0x1234567890l, 0x1234567890l), true);
+    Assert.assertEquals(ab.compareAndSet(0x1234567890l, 0l), true);
+    Assert.assertEquals(ab.compareAndSet(0x1234567890l, 0l), false);
+    Assert.assertEquals(ab.compareAndSet(0x1234567890l, 0x1234567890l), false);
+    Assert.assertEquals(ab.compareAndSet(0l, 0l), true);
   }
 
   public static void test_String_length() {
