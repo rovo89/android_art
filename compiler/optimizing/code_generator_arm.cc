@@ -24,8 +24,6 @@
 #include "utils/arm/assembler_arm.h"
 #include "utils/arm/managed_register_arm.h"
 
-#define __ reinterpret_cast<ArmAssembler*>(GetAssembler())->
-
 namespace art {
 
 arm::ArmManagedRegister Location::AsArm() const {
@@ -34,6 +32,27 @@ arm::ArmManagedRegister Location::AsArm() const {
 
 namespace arm {
 
+#define __ reinterpret_cast<ArmAssembler*>(codegen->GetAssembler())->
+
+class NullCheckSlowPathARM : public SlowPathCode {
+ public:
+  explicit NullCheckSlowPathARM(uint32_t dex_pc) : dex_pc_(dex_pc) {}
+
+  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    __ Bind(GetEntryLabel());
+    int32_t offset = QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pThrowNullPointer).Int32Value();
+    __ ldr(LR, Address(TR, offset));
+    __ blx(LR);
+    codegen->RecordPcInfo(dex_pc_);
+  }
+
+ private:
+  const uint32_t dex_pc_;
+  DISALLOW_COPY_AND_ASSIGN(NullCheckSlowPathARM);
+};
+
+#undef __
+#define __ reinterpret_cast<ArmAssembler*>(GetAssembler())->
 
 inline Condition ARMCondition(IfCondition cond) {
   switch (cond) {
@@ -63,7 +82,7 @@ inline Condition ARMOppositeCondition(IfCondition cond) {
   return EQ;        // Unreachable.
 }
 
-static constexpr int kNumberOfPushedRegistersAtEntry = 1;
+static constexpr int kNumberOfPushedRegistersAtEntry = 1 + 2;  // LR, R6, R7
 static constexpr int kCurrentMethodStackOffset = 0;
 
 void CodeGeneratorARM::DumpCoreRegister(std::ostream& stream, int reg) const {
@@ -88,12 +107,23 @@ ManagedRegister CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type,
                                                        bool* blocked_registers) const {
   switch (type) {
     case Primitive::kPrimLong: {
-      size_t reg = AllocateFreeRegisterInternal(
-          GetBlockedRegisterPairs(blocked_registers), kNumberOfRegisterPairs);
+      bool* blocked_register_pairs = GetBlockedRegisterPairs(blocked_registers);
+      size_t reg = AllocateFreeRegisterInternal(blocked_register_pairs, kNumberOfRegisterPairs);
       ArmManagedRegister pair =
           ArmManagedRegister::FromRegisterPair(static_cast<RegisterPair>(reg));
       blocked_registers[pair.AsRegisterPairLow()] = true;
       blocked_registers[pair.AsRegisterPairHigh()] = true;
+       // Block all other register pairs that share a register with `pair`.
+      for (int i = 0; i < kNumberOfRegisterPairs; i++) {
+        ArmManagedRegister current =
+            ArmManagedRegister::FromRegisterPair(static_cast<RegisterPair>(i));
+        if (current.AsRegisterPairLow() == pair.AsRegisterPairLow()
+            || current.AsRegisterPairLow() == pair.AsRegisterPairHigh()
+            || current.AsRegisterPairHigh() == pair.AsRegisterPairLow()
+            || current.AsRegisterPairHigh() == pair.AsRegisterPairHigh()) {
+          blocked_register_pairs[i] = true;
+        }
+      }
       return pair;
     }
 
@@ -103,7 +133,16 @@ ManagedRegister CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type,
     case Primitive::kPrimShort:
     case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
-      size_t reg = AllocateFreeRegisterInternal(blocked_registers, kNumberOfCoreRegisters);
+      int reg = AllocateFreeRegisterInternal(blocked_registers, kNumberOfCoreRegisters);
+      // Block all register pairs that contain `reg`.
+      bool* blocked_register_pairs = GetBlockedRegisterPairs(blocked_registers);
+      for (int i = 0; i < kNumberOfRegisterPairs; i++) {
+        ArmManagedRegister current =
+            ArmManagedRegister::FromRegisterPair(static_cast<RegisterPair>(i));
+        if (current.AsRegisterPairLow() == reg || current.AsRegisterPairHigh() == reg) {
+          blocked_register_pairs[i] = true;
+        }
+      }
       return ArmManagedRegister::FromCoreRegister(static_cast<Register>(reg));
     }
 
@@ -140,13 +179,12 @@ void CodeGeneratorARM::SetupBlockedRegisters(bool* blocked_registers) const {
   blocked_registers[IP] = true;
 
   // TODO: We currently don't use Quick's callee saved registers.
+  // We always save and restore R6 and R7 to make sure we can use three
+  // register pairs for long operations.
   blocked_registers[R5] = true;
-  blocked_registers[R6] = true;
-  blocked_registers[R7] = true;
   blocked_registers[R8] = true;
   blocked_registers[R10] = true;
   blocked_registers[R11] = true;
-  blocked_register_pairs[R6_R7] = true;
 }
 
 size_t CodeGeneratorARM::GetNumberOfRegisters() const {
@@ -171,8 +209,8 @@ void CodeGeneratorARM::ComputeFrameSize(size_t number_of_spill_slots) {
 }
 
 void CodeGeneratorARM::GenerateFrameEntry() {
-  core_spill_mask_ |= (1 << LR);
-  __ PushList((1 << LR));
+  core_spill_mask_ |= (1 << LR | 1 << R6 | 1 << R7);
+  __ PushList(1 << LR | 1 << R6 | 1 << R7);
 
   // The return PC has already been pushed on the stack.
   __ AddConstant(SP, -(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kArmWordSize));
@@ -181,11 +219,21 @@ void CodeGeneratorARM::GenerateFrameEntry() {
 
 void CodeGeneratorARM::GenerateFrameExit() {
   __ AddConstant(SP, GetFrameSize() - kNumberOfPushedRegistersAtEntry * kArmWordSize);
-  __ PopList((1 << PC));
+  __ PopList(1 << PC | 1 << R6 | 1 << R7);
 }
 
 void CodeGeneratorARM::Bind(Label* label) {
   __ Bind(label);
+}
+
+Location CodeGeneratorARM::GetTemporaryLocation(HTemporary* temp) const {
+  uint16_t number_of_vregs = GetGraph()->GetNumberOfVRegs();
+  // Use the temporary region (right below the dex registers).
+  int32_t slot = GetFrameSize() - (kNumberOfPushedRegistersAtEntry * kArmWordSize)
+                                - kVRegSize  // filler
+                                - (number_of_vregs * kVRegSize)
+                                - ((1 + temp->GetIndex()) * kVRegSize);
+  return Location::StackSlot(slot);
 }
 
 int32_t CodeGeneratorARM::GetStackSlot(HLocal* local) const {
@@ -399,9 +447,7 @@ void CodeGeneratorARM::Move(HInstruction* instruction, Location location, HInstr
         LOG(FATAL) << "Unimplemented type " << instruction->GetType();
     }
   } else {
-    // This can currently only happen when the instruction that requests the move
-    // is the next to be compiled.
-    DCHECK_EQ(instruction->GetNext(), move_for);
+    DCHECK((instruction->GetNext() == move_for) || instruction->GetNext()->IsTemporary());
     switch (instruction->GetType()) {
       case Primitive::kPrimBoolean:
       case Primitive::kPrimByte:
@@ -448,7 +494,12 @@ void InstructionCodeGeneratorARM::VisitExit(HExit* exit) {
 
 void LocationsBuilderARM::VisitIf(HIf* if_instr) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(if_instr);
-  locations->SetInAt(0, Location::Any());
+  HInstruction* cond = if_instr->InputAt(0);
+  DCHECK(cond->IsCondition());
+  HCondition* condition = cond->AsCondition();
+  if (condition->NeedsMaterialization()) {
+    locations->SetInAt(0, Location::Any());
+  }
   if_instr->SetLocations(locations);
 }
 
@@ -482,7 +533,9 @@ void LocationsBuilderARM::VisitCondition(HCondition* comp) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(comp);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister());
+  if (comp->NeedsMaterialization()) {
+    locations->SetOut(Location::RequiresRegister());
+  }
   comp->SetLocations(locations);
 }
 
@@ -958,6 +1011,147 @@ void LocationsBuilderARM::VisitPhi(HPhi* instruction) {
 
 void InstructionCodeGeneratorARM::VisitPhi(HPhi* instruction) {
   LOG(FATAL) << "Unreachable";
+}
+
+void LocationsBuilderARM::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  instruction->SetLocations(locations);
+}
+
+void InstructionCodeGeneratorARM::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  Register obj = locations->InAt(0).AsArm().AsCoreRegister();
+  uint32_t offset = instruction->GetFieldOffset().Uint32Value();
+  Primitive::Type field_type = instruction->InputAt(1)->GetType();
+
+  switch (field_type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte: {
+      Register value = locations->InAt(1).AsArm().AsCoreRegister();
+      __ StoreToOffset(kStoreByte, value, obj, offset);
+      break;
+    }
+
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar: {
+      Register value = locations->InAt(1).AsArm().AsCoreRegister();
+      __ StoreToOffset(kStoreHalfword, value, obj, offset);
+      break;
+    }
+
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot: {
+      Register value = locations->InAt(1).AsArm().AsCoreRegister();
+      __ StoreToOffset(kStoreWord, value, obj, offset);
+      break;
+    }
+
+    case Primitive::kPrimLong: {
+      ArmManagedRegister value = locations->InAt(1).AsArm();
+      __ StoreToOffset(kStoreWordPair, value.AsRegisterPairLow(), obj, offset);
+      break;
+    }
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      LOG(FATAL) << "Unimplemented register type " << field_type;
+
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unreachable type " << field_type;
+  }
+}
+
+void LocationsBuilderARM::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister());
+  instruction->SetLocations(locations);
+}
+
+void InstructionCodeGeneratorARM::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  Register obj = locations->InAt(0).AsArm().AsCoreRegister();
+  uint32_t offset = instruction->GetFieldOffset().Uint32Value();
+
+  switch (instruction->GetType()) {
+    case Primitive::kPrimBoolean: {
+      Register out = locations->Out().AsArm().AsCoreRegister();
+      __ LoadFromOffset(kLoadUnsignedByte, out, obj, offset);
+      break;
+    }
+
+    case Primitive::kPrimByte: {
+      Register out = locations->Out().AsArm().AsCoreRegister();
+      __ LoadFromOffset(kLoadSignedByte, out, obj, offset);
+      break;
+    }
+
+    case Primitive::kPrimShort: {
+      Register out = locations->Out().AsArm().AsCoreRegister();
+      __ LoadFromOffset(kLoadSignedHalfword, out, obj, offset);
+      break;
+    }
+
+    case Primitive::kPrimChar: {
+      Register out = locations->Out().AsArm().AsCoreRegister();
+      __ LoadFromOffset(kLoadUnsignedHalfword, out, obj, offset);
+      break;
+    }
+
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot: {
+      Register out = locations->Out().AsArm().AsCoreRegister();
+      __ LoadFromOffset(kLoadWord, out, obj, offset);
+      break;
+    }
+
+    case Primitive::kPrimLong: {
+      // TODO: support volatile.
+      ArmManagedRegister out = locations->Out().AsArm();
+      __ LoadFromOffset(kLoadWordPair, out.AsRegisterPairLow(), obj, offset);
+      break;
+    }
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      LOG(FATAL) << "Unimplemented register type " << instruction->GetType();
+
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unreachable type " << instruction->GetType();
+  }
+}
+
+void LocationsBuilderARM::VisitNullCheck(HNullCheck* instruction) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
+  locations->SetInAt(0, Location::RequiresRegister());
+  // TODO: Have a normalization phase that makes this instruction never used.
+  locations->SetOut(Location::SameAsFirstInput());
+  instruction->SetLocations(locations);
+}
+
+void InstructionCodeGeneratorARM::VisitNullCheck(HNullCheck* instruction) {
+  SlowPathCode* slow_path =
+      new (GetGraph()->GetArena()) NullCheckSlowPathARM(instruction->GetDexPc());
+  codegen_->AddSlowPath(slow_path);
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location obj = locations->InAt(0);
+  DCHECK(obj.Equals(locations->Out()));
+
+  if (obj.IsRegister()) {
+    __ cmp(obj.AsArm().AsCoreRegister(), ShifterOperand(0));
+  }
+  __ b(slow_path->GetEntryLabel(), EQ);
+}
+
+void LocationsBuilderARM::VisitTemporary(HTemporary* temp) {
+  temp->SetLocations(nullptr);
+}
+
+void InstructionCodeGeneratorARM::VisitTemporary(HTemporary* temp) {
+  // Nothing to do, this is driven by the code generator.
 }
 
 void LocationsBuilderARM::VisitParallelMove(HParallelMove* instruction) {

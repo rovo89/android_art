@@ -222,14 +222,14 @@ class CompilerDriver {
 
   // Resolve compiling method's class. Returns nullptr on failure.
   mirror::Class* ResolveCompilingMethodsClass(
-      ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+      const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a field. Returns nullptr on failure, including incompatible class change.
   // NOTE: Unlike ClassLinker's ResolveField(), this method enforces is_static.
   mirror::ArtField* ResolveField(
-      ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+      const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
       uint32_t field_idx, bool is_static)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -245,7 +245,7 @@ class CompilerDriver {
   // Can we fast-path an IGET/IPUT access to an instance field? If yes, compute the field offset.
   std::pair<bool, bool> IsFastInstanceField(
       mirror::DexCache* dex_cache, mirror::Class* referrer_class,
-      mirror::ArtField* resolved_field, uint16_t field_idx, MemberOffset* field_offset)
+      mirror::ArtField* resolved_field, uint16_t field_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Can we fast-path an SGET/SPUT access to a static field? If yes, compute the field offset,
@@ -297,6 +297,13 @@ class CompilerDriver {
   bool ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit, bool is_put,
                                 MemberOffset* field_offset, bool* is_volatile)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
+
+  mirror::ArtField* ComputeInstanceFieldInfo(uint32_t field_idx,
+                                             const DexCompilationUnit* mUnit,
+                                             bool is_put,
+                                             const ScopedObjectAccess& soa)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
 
   // Can we fastpath static field access? Computes field's offset, volatility and whether the
   // field is within the referrer (which can avoid checking class initialization).
