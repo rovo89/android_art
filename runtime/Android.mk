@@ -238,6 +238,7 @@ LIBART_SRC_FILES_x86 := \
   arch/x86/context_x86.cc \
   arch/x86/entrypoints_init_x86.cc \
   arch/x86/jni_entrypoints_x86.S \
+  arch/x86/memcmp16_x86.S \
   arch/x86/portable_entrypoints_x86.S \
   arch/x86/quick_entrypoints_x86.S \
   arch/x86/thread_x86.cc \
