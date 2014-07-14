@@ -63,6 +63,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   // If we have a thread local allocation we don't need to update bytes allocated.
   if (allocator == kAllocatorTypeTLAB && byte_count <= self->TlabSize()) {
     obj = self->AllocTlab(byte_count);
+    DCHECK(obj != nullptr) << "AllocTlab can't fail";
     obj->SetClass(klass);
     if (kUseBakerOrBrooksReadBarrier) {
       if (kUseBrooksReadBarrier) {
@@ -71,7 +72,8 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
       obj->AssertReadBarrierPointer();
     }
     bytes_allocated = byte_count;
-    pre_fence_visitor(obj, bytes_allocated);
+    usable_size = bytes_allocated;
+    pre_fence_visitor(obj, usable_size);
     QuasiAtomic::ThreadFenceForConstructor();
   } else {
     obj = TryToAllocate<kInstrumented, false>(self, allocator, byte_count, &bytes_allocated,
@@ -111,12 +113,12 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
       WriteBarrierField(obj, mirror::Object::ClassOffset(), klass);
     }
     pre_fence_visitor(obj, usable_size);
-    if (kIsDebugBuild && Runtime::Current()->IsStarted()) {
-      CHECK_LE(obj->SizeOf(), usable_size);
-    }
     new_num_bytes_allocated =
         static_cast<size_t>(num_bytes_allocated_.FetchAndAddSequentiallyConsistent(bytes_allocated))
         + bytes_allocated;
+  }
+  if (kIsDebugBuild && Runtime::Current()->IsStarted()) {
+    CHECK_LE(obj->SizeOf(), usable_size);
   }
   // TODO: Deprecate.
   if (kInstrumented) {

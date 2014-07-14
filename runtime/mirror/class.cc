@@ -88,18 +88,22 @@ void Class::SetStatus(Status new_status, Thread* self) {
     Handle<mirror::ArtMethod> old_throw_method(hs.NewHandle(old_throw_location.GetMethod()));
     uint32_t old_throw_dex_pc = old_throw_location.GetDexPc();
     bool is_exception_reported = self->IsExceptionReportedToInstrumentation();
-    // clear exception to call FindSystemClass
-    self->ClearException();
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    Class* eiie_class = class_linker->FindSystemClass(self,
-                                                      "Ljava/lang/ExceptionInInitializerError;");
-    CHECK(!self->IsExceptionPending());
-
-    // Only verification errors, not initialization problems, should set a verify error.
-    // This is to ensure that ThrowEarlierClassFailure will throw NoClassDefFoundError in that case.
-    Class* exception_class = old_exception->GetClass();
-    if (!eiie_class->IsAssignableFrom(exception_class)) {
-      SetVerifyErrorClass(exception_class);
+    Class* eiie_class;
+    // Do't attempt to use FindClass if we have an OOM error since this can try to do more
+    // allocations and may cause infinite loops.
+    if (old_exception.Get() == nullptr ||
+        old_exception->GetClass()->GetDescriptor() != "Ljava/lang/OutOfMemoryError;") {
+      // Clear exception to call FindSystemClass.
+      self->ClearException();
+      eiie_class = Runtime::Current()->GetClassLinker()->FindSystemClass(
+          self, "Ljava/lang/ExceptionInInitializerError;");
+      CHECK(!self->IsExceptionPending());
+      // Only verification errors, not initialization problems, should set a verify error.
+      // This is to ensure that ThrowEarlierClassFailure will throw NoClassDefFoundError in that case.
+      Class* exception_class = old_exception->GetClass();
+      if (!eiie_class->IsAssignableFrom(exception_class)) {
+        SetVerifyErrorClass(exception_class);
+      }
     }
 
     // Restore exception.
