@@ -153,6 +153,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
 
   int32_t GetStackSlot(HLocal* local) const;
   virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
+  virtual Location GetTemporaryLocation(HTemporary* temp) const OVERRIDE;
 
   virtual size_t GetNumberOfRegisters() const OVERRIDE {
     return kNumberOfRegIds;

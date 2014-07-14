@@ -43,7 +43,7 @@ inline mirror::ClassLoader* CompilerDriver::GetClassLoader(ScopedObjectAccess& s
 }
 
 inline mirror::Class* CompilerDriver::ResolveCompilingMethodsClass(
-    ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+    const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
     Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit) {
   DCHECK_EQ(dex_cache->GetDexFile(), mUnit->GetDexFile());
   DCHECK_EQ(class_loader.Get(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
@@ -60,7 +60,7 @@ inline mirror::Class* CompilerDriver::ResolveCompilingMethodsClass(
 }
 
 inline mirror::ArtField* CompilerDriver::ResolveField(
-    ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+    const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
     Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
     uint32_t field_idx, bool is_static) {
   DCHECK_EQ(dex_cache->GetDexFile(), mUnit->GetDexFile());
@@ -96,14 +96,13 @@ inline bool CompilerDriver::IsFieldVolatile(mirror::ArtField* field) {
 
 inline std::pair<bool, bool> CompilerDriver::IsFastInstanceField(
     mirror::DexCache* dex_cache, mirror::Class* referrer_class,
-    mirror::ArtField* resolved_field, uint16_t field_idx, MemberOffset* field_offset) {
+    mirror::ArtField* resolved_field, uint16_t field_idx) {
   DCHECK(!resolved_field->IsStatic());
   mirror::Class* fields_class = resolved_field->GetDeclaringClass();
   bool fast_get = referrer_class != nullptr &&
       referrer_class->CanAccessResolvedField(fields_class, resolved_field,
                                              dex_cache, field_idx);
   bool fast_put = fast_get && (!resolved_field->IsFinal() || fields_class == referrer_class);
-  *field_offset = fast_get ? resolved_field->GetOffset() : MemberOffset(0u);
   return std::make_pair(fast_get, fast_put);
 }
 

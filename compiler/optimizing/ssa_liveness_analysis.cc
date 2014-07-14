@@ -204,9 +204,12 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
       // All inputs of an instruction must be live.
       for (size_t i = 0, e = current->InputCount(); i < e; ++i) {
         HInstruction* input = current->InputAt(i);
-        DCHECK(input->HasSsaIndex());
-        live_in->SetBit(input->GetSsaIndex());
-        input->GetLiveInterval()->AddUse(current, i, false);
+        // Some instructions 'inline' their inputs, that is they do not need
+        // to be materialized.
+        if (input->HasSsaIndex()) {
+          live_in->SetBit(input->GetSsaIndex());
+          input->GetLiveInterval()->AddUse(current, i, false);
+        }
       }
 
       if (current->HasEnvironment()) {

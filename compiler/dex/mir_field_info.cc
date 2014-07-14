@@ -62,9 +62,9 @@ void MirIFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     compiler_driver->GetResolvedFieldDexFileLocation(resolved_field,
         &it->declaring_dex_file_, &it->declaring_class_idx_, &it->declaring_field_idx_);
     bool is_volatile = compiler_driver->IsFieldVolatile(resolved_field);
-
+    it->field_offset_ = resolved_field->GetOffset();
     std::pair<bool, bool> fast_path = compiler_driver->IsFastInstanceField(
-        dex_cache.Get(), referrer_class.Get(), resolved_field, field_idx, &it->field_offset_);
+        dex_cache.Get(), referrer_class.Get(), resolved_field, field_idx);
     it->flags_ = 0u |  // Without kFlagIsStatic.
         (is_volatile ? kFlagIsVolatile : 0u) |
         (fast_path.first ? kFlagFastGet : 0u) |

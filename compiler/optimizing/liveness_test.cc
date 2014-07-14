@@ -152,32 +152,32 @@ TEST(LivenessTest, CFG4) {
   // return a;
   //
   // Bitsets are made of:
-  // (constant0, constant4, constant5, phi, equal test)
+  // (constant0, constant4, constant5, phi)
   const char* expected =
     "Block 0\n"  // entry block
-    "  live in: (00000)\n"
-    "  live out: (11100)\n"
-    "  kill: (11100)\n"
+    "  live in: (0000)\n"
+    "  live out: (1110)\n"
+    "  kill: (1110)\n"
     "Block 1\n"  // block with if
-    "  live in: (11100)\n"
-    "  live out: (01100)\n"
-    "  kill: (00010)\n"
+    "  live in: (1110)\n"
+    "  live out: (0110)\n"
+    "  kill: (0000)\n"
     "Block 2\n"  // else block
-    "  live in: (01000)\n"
-    "  live out: (00000)\n"
-    "  kill: (00000)\n"
+    "  live in: (0100)\n"
+    "  live out: (0000)\n"
+    "  kill: (0000)\n"
     "Block 3\n"  // then block
-    "  live in: (00100)\n"
-    "  live out: (00000)\n"
-    "  kill: (00000)\n"
+    "  live in: (0010)\n"
+    "  live out: (0000)\n"
+    "  kill: (0000)\n"
     "Block 4\n"  // return block
-    "  live in: (00000)\n"
-    "  live out: (00000)\n"
-    "  kill: (00001)\n"
+    "  live in: (0000)\n"
+    "  live out: (0000)\n"
+    "  kill: (0001)\n"
     "Block 5\n"  // exit block
-    "  live in: (00000)\n"
-    "  live out: (00000)\n"
-    "  kill: (00000)\n";
+    "  live in: (0000)\n"
+    "  live out: (0000)\n"
+    "  kill: (0000)\n";
 
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
@@ -197,31 +197,34 @@ TEST(LivenessTest, CFG5) {
   //   a = 4;
   // }
   // return a;
+  //
+  // Bitsets are made of:
+  // (constant0, constant4, phi)
   const char* expected =
     "Block 0\n"  // entry block
-    "  live in: (0000)\n"
-    "  live out: (1100)\n"
-    "  kill: (1100)\n"
+    "  live in: (000)\n"
+    "  live out: (110)\n"
+    "  kill: (110)\n"
     "Block 1\n"  // block with if
-    "  live in: (1100)\n"
-    "  live out: (1100)\n"
-    "  kill: (0010)\n"
+    "  live in: (110)\n"
+    "  live out: (110)\n"
+    "  kill: (000)\n"
     "Block 2\n"  // else block
-    "  live in: (0100)\n"
-    "  live out: (0000)\n"
-    "  kill: (0000)\n"
+    "  live in: (010)\n"
+    "  live out: (000)\n"
+    "  kill: (000)\n"
     "Block 3\n"  // return block
-    "  live in: (0000)\n"
-    "  live out: (0000)\n"
-    "  kill: (0001)\n"
+    "  live in: (000)\n"
+    "  live out: (000)\n"
+    "  kill: (001)\n"
     "Block 4\n"  // exit block
-    "  live in: (0000)\n"
-    "  live out: (0000)\n"
-    "  kill: (0000)\n"
+    "  live in: (000)\n"
+    "  live out: (000)\n"
+    "  kill: (000)\n"
     "Block 5\n"  // block to avoid critical edge. Predecessor is 1, successor is 3.
-    "  live in: (1000)\n"
-    "  live out: (0000)\n"
-    "  kill: (0000)\n";
+    "  live in: (100)\n"
+    "  live out: (000)\n"
+    "  kill: (000)\n";
 
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
@@ -239,31 +242,33 @@ TEST(LivenessTest, Loop1) {
   //   a = 4;
   // }
   // return;
+  // Bitsets are made of:
+  // (constant0, constant4, phi)
   const char* expected =
     "Block 0\n"  // entry block
-    "  live in: (0000)\n"
-    "  live out: (1100)\n"
-    "  kill: (1100)\n"
+    "  live in: (000)\n"
+    "  live out: (110)\n"
+    "  kill: (110)\n"
     "Block 1\n"  // pre header
-    "  live in: (1100)\n"
-    "  live out: (0100)\n"
-    "  kill: (0000)\n"
+    "  live in: (110)\n"
+    "  live out: (010)\n"
+    "  kill: (000)\n"
     "Block 2\n"  // loop header
-    "  live in: (0100)\n"
-    "  live out: (0100)\n"
-    "  kill: (0011)\n"
+    "  live in: (010)\n"
+    "  live out: (010)\n"
+    "  kill: (001)\n"
     "Block 3\n"  // back edge
-    "  live in: (0100)\n"
-    "  live out: (0100)\n"
-    "  kill: (0000)\n"
+    "  live in: (010)\n"
+    "  live out: (010)\n"
+    "  kill: (000)\n"
     "Block 4\n"  // return block
-    "  live in: (0000)\n"
-    "  live out: (0000)\n"
-    "  kill: (0000)\n"
+    "  live in: (000)\n"
+    "  live out: (000)\n"
+    "  kill: (000)\n"
     "Block 5\n"  // exit block
-    "  live in: (0000)\n"
-    "  live out: (0000)\n"
-    "  kill: (0000)\n";
+    "  live in: (000)\n"
+    "  live out: (000)\n"
+    "  kill: (000)\n";
 
 
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
@@ -283,31 +288,33 @@ TEST(LivenessTest, Loop3) {
   //   a = 4;
   // }
   // return 5;
+  // Bitsets are made of:
+  // (constant0, constant4, constant5, phi)
   const char* expected =
     "Block 0\n"
-    "  live in: (00000)\n"
-    "  live out: (11100)\n"
-    "  kill: (11100)\n"
+    "  live in: (0000)\n"
+    "  live out: (1110)\n"
+    "  kill: (1110)\n"
     "Block 1\n"
-    "  live in: (11100)\n"
-    "  live out: (01100)\n"
-    "  kill: (00000)\n"
+    "  live in: (1110)\n"
+    "  live out: (0110)\n"
+    "  kill: (0000)\n"
     "Block 2\n"  // loop header
-    "  live in: (01100)\n"
-    "  live out: (01100)\n"
-    "  kill: (00011)\n"
+    "  live in: (0110)\n"
+    "  live out: (0110)\n"
+    "  kill: (0001)\n"
     "Block 3\n"  // back edge
-    "  live in: (01100)\n"
-    "  live out: (01100)\n"
-    "  kill: (00000)\n"
+    "  live in: (0110)\n"
+    "  live out: (0110)\n"
+    "  kill: (0000)\n"
     "Block 4\n"  // return block
-    "  live in: (00100)\n"
-    "  live out: (00000)\n"
-    "  kill: (00000)\n"
+    "  live in: (0010)\n"
+    "  live out: (0000)\n"
+    "  kill: (0000)\n"
     "Block 5\n"  // exit block
-    "  live in: (00000)\n"
-    "  live out: (00000)\n"
-    "  kill: (00000)\n";
+    "  live in: (0000)\n"
+    "  live out: (0000)\n"
+    "  kill: (0000)\n";
 
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
@@ -330,36 +337,36 @@ TEST(LivenessTest, Loop4) {
   // }
   // return a;
   // Bitsets are made of:
-  // (constant0, constant4, phi, equal test)
+  // (constant0, constant4, phi)
   const char* expected =
     "Block 0\n"
-    "  live in: (0000)\n"
-    "  live out: (1100)\n"
-    "  kill: (1100)\n"
+    "  live in: (000)\n"
+    "  live out: (110)\n"
+    "  kill: (110)\n"
     "Block 1\n"
-    "  live in: (1100)\n"
-    "  live out: (1100)\n"
-    "  kill: (0000)\n"
+    "  live in: (110)\n"
+    "  live out: (110)\n"
+    "  kill: (000)\n"
     "Block 2\n"  // loop header
-    "  live in: (0100)\n"
-    "  live out: (0110)\n"
-    "  kill: (0011)\n"
+    "  live in: (010)\n"
+    "  live out: (011)\n"
+    "  kill: (001)\n"
     "Block 3\n"  // back edge
-    "  live in: (0100)\n"
-    "  live out: (0100)\n"
-    "  kill: (0000)\n"
+    "  live in: (010)\n"
+    "  live out: (010)\n"
+    "  kill: (000)\n"
     "Block 4\n"  // pre loop header
-    "  live in: (1100)\n"
-    "  live out: (0100)\n"
-    "  kill: (0000)\n"
+    "  live in: (110)\n"
+    "  live out: (010)\n"
+    "  kill: (000)\n"
     "Block 5\n"  // return block
-    "  live in: (0010)\n"
-    "  live out: (0000)\n"
-    "  kill: (0000)\n"
+    "  live in: (001)\n"
+    "  live out: (000)\n"
+    "  kill: (000)\n"
     "Block 6\n"  // exit block
-    "  live in: (0000)\n"
-    "  live out: (0000)\n"
-    "  kill: (0000)\n";
+    "  live in: (000)\n"
+    "  live out: (000)\n"
+    "  kill: (000)\n";
 
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
@@ -377,45 +384,44 @@ TEST(LivenessTest, Loop5) {
   // Make sure we create a preheader of a loop when a header originally has two
   // incoming blocks and one back edge.
   // Bitsets are made of:
-  // (constant0, constant4, constant5, equal in block 1, phi in block 8, phi in block 4,
-  //  equal in block 4)
+  // (constant0, constant4, constant5, phi in block 8, phi in block 4)
   const char* expected =
     "Block 0\n"
-    "  live in: (0000000)\n"
-    "  live out: (1110000)\n"
-    "  kill: (1110000)\n"
+    "  live in: (00000)\n"
+    "  live out: (11100)\n"
+    "  kill: (11100)\n"
     "Block 1\n"
-    "  live in: (1110000)\n"
-    "  live out: (0110000)\n"
-    "  kill: (0001000)\n"
+    "  live in: (11100)\n"
+    "  live out: (01100)\n"
+    "  kill: (00000)\n"
     "Block 2\n"
-    "  live in: (0100000)\n"
-    "  live out: (0000000)\n"
-    "  kill: (0000000)\n"
+    "  live in: (01000)\n"
+    "  live out: (00000)\n"
+    "  kill: (00000)\n"
     "Block 3\n"
-    "  live in: (0010000)\n"
-    "  live out: (0000000)\n"
-    "  kill: (0000000)\n"
+    "  live in: (00100)\n"
+    "  live out: (00000)\n"
+    "  kill: (00000)\n"
     "Block 4\n"  // loop header
-    "  live in: (0000000)\n"
-    "  live out: (0000010)\n"
-    "  kill: (0000011)\n"
+    "  live in: (00000)\n"
+    "  live out: (00001)\n"
+    "  kill: (00001)\n"
     "Block 5\n"  // back edge
-    "  live in: (0000010)\n"
-    "  live out: (0000000)\n"
-    "  kill: (0000000)\n"
+    "  live in: (00001)\n"
+    "  live out: (00000)\n"
+    "  kill: (00000)\n"
     "Block 6\n"  // return block
-    "  live in: (0000010)\n"
-    "  live out: (0000000)\n"
-    "  kill: (0000000)\n"
+    "  live in: (00001)\n"
+    "  live out: (00000)\n"
+    "  kill: (00000)\n"
     "Block 7\n"  // exit block
-    "  live in: (0000000)\n"
-    "  live out: (0000000)\n"
-    "  kill: (0000000)\n"
+    "  live in: (00000)\n"
+    "  live out: (00000)\n"
+    "  kill: (00000)\n"
     "Block 8\n"  // synthesized pre header
-    "  live in: (0000000)\n"
-    "  live out: (0000000)\n"
-    "  kill: (0000100)\n";
+    "  live in: (00000)\n"
+    "  live out: (00000)\n"
+    "  kill: (00010)\n";
 
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
@@ -432,45 +438,44 @@ TEST(LivenessTest, Loop5) {
 
 TEST(LivenessTest, Loop6) {
   // Bitsets are made of:
-  // (constant0, constant4, constant5, phi in block 2, equal in block 2, equal in block 3,
-  //  phi in block 8)
+  // (constant0, constant4, constant5, phi in block 2, phi in block 8)
   const char* expected =
     "Block 0\n"
-    "  live in: (0000000)\n"
-    "  live out: (1110000)\n"
-    "  kill: (1110000)\n"
+    "  live in: (00000)\n"
+    "  live out: (11100)\n"
+    "  kill: (11100)\n"
     "Block 1\n"
-    "  live in: (1110000)\n"
-    "  live out: (0110000)\n"
-    "  kill: (0000000)\n"
+    "  live in: (11100)\n"
+    "  live out: (01100)\n"
+    "  kill: (00000)\n"
     "Block 2\n"  // loop header
-    "  live in: (0110000)\n"
-    "  live out: (0111000)\n"
-    "  kill: (0001100)\n"
+    "  live in: (01100)\n"
+    "  live out: (01110)\n"
+    "  kill: (00010)\n"
     "Block 3\n"
-    "  live in: (0110000)\n"
-    "  live out: (0110000)\n"
-    "  kill: (0000010)\n"
+    "  live in: (01100)\n"
+    "  live out: (01100)\n"
+    "  kill: (00000)\n"
     "Block 4\n"  // original back edge
-    "  live in: (0110000)\n"
-    "  live out: (0110000)\n"
-    "  kill: (0000000)\n"
+    "  live in: (01100)\n"
+    "  live out: (01100)\n"
+    "  kill: (00000)\n"
     "Block 5\n"  // original back edge
-    "  live in: (0110000)\n"
-    "  live out: (0110000)\n"
-    "  kill: (0000000)\n"
+    "  live in: (01100)\n"
+    "  live out: (01100)\n"
+    "  kill: (00000)\n"
     "Block 6\n"  // return block
-    "  live in: (0001000)\n"
-    "  live out: (0000000)\n"
-    "  kill: (0000000)\n"
+    "  live in: (00010)\n"
+    "  live out: (00000)\n"
+    "  kill: (00000)\n"
     "Block 7\n"  // exit block
-    "  live in: (0000000)\n"
-    "  live out: (0000000)\n"
-    "  kill: (0000000)\n"
+    "  live in: (00000)\n"
+    "  live out: (00000)\n"
+    "  kill: (00000)\n"
     "Block 8\n"  // synthesized back edge
-    "  live in: (0110000)\n"
-    "  live out: (0110000)\n"
-    "  kill: (0000001)\n";
+    "  live in: (01100)\n"
+    "  live out: (01100)\n"
+    "  kill: (00001)\n";
 
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
@@ -488,45 +493,44 @@ TEST(LivenessTest, Loop6) {
 
 TEST(LivenessTest, Loop7) {
   // Bitsets are made of:
-  // (constant0, constant4, constant5, phi in block 2, equal in block 2, equal in block 3,
-  //  phi in block 6)
+  // (constant0, constant4, constant5, phi in block 2, phi in block 6)
   const char* expected =
     "Block 0\n"
-    "  live in: (0000000)\n"
-    "  live out: (1110000)\n"
-    "  kill: (1110000)\n"
+    "  live in: (00000)\n"
+    "  live out: (11100)\n"
+    "  kill: (11100)\n"
     "Block 1\n"
-    "  live in: (1110000)\n"
-    "  live out: (0110000)\n"
-    "  kill: (0000000)\n"
+    "  live in: (11100)\n"
+    "  live out: (01100)\n"
+    "  kill: (00000)\n"
     "Block 2\n"  // loop header
-    "  live in: (0110000)\n"
-    "  live out: (0111000)\n"
-    "  kill: (0001100)\n"
+    "  live in: (01100)\n"
+    "  live out: (01110)\n"
+    "  kill: (00010)\n"
     "Block 3\n"
-    "  live in: (0110000)\n"
-    "  live out: (0110000)\n"
-    "  kill: (0000010)\n"
+    "  live in: (01100)\n"
+    "  live out: (01100)\n"
+    "  kill: (00000)\n"
     "Block 4\n"  // loop exit
-    "  live in: (0010000)\n"
-    "  live out: (0000000)\n"
-    "  kill: (0000000)\n"
+    "  live in: (00100)\n"
+    "  live out: (00000)\n"
+    "  kill: (00000)\n"
     "Block 5\n"  // back edge
-    "  live in: (0110000)\n"
-    "  live out: (0110000)\n"
-    "  kill: (0000000)\n"
+    "  live in: (01100)\n"
+    "  live out: (01100)\n"
+    "  kill: (00000)\n"
     "Block 6\n"  // return block
-    "  live in: (0000000)\n"
-    "  live out: (0000000)\n"
-    "  kill: (0000001)\n"
+    "  live in: (00000)\n"
+    "  live out: (00000)\n"
+    "  kill: (00001)\n"
     "Block 7\n"  // exit block
-    "  live in: (0000000)\n"
-    "  live out: (0000000)\n"
-    "  kill: (0000000)\n"
+    "  live in: (00000)\n"
+    "  live out: (00000)\n"
+    "  kill: (00000)\n"
     "Block 8\n"  // synthesized block to avoid critical edge.
-    "  live in: (0001000)\n"
-    "  live out: (0000000)\n"
-    "  kill: (0000000)\n";
+    "  live in: (00010)\n"
+    "  live out: (00000)\n"
+    "  kill: (00000)\n";
 
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
