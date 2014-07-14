@@ -335,8 +335,8 @@ public class IntMath {
                        special = (start+i) / 15;
                        break;
                }
+               Main.assertTrue(normal == special);
            }
-           Main.assertTrue(normal == special);
        }
     }
 

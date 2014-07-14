@@ -1568,16 +1568,6 @@ bool Mir2Lir::GenInlinedCurrentThread(CallInfo* info) {
                   kNotVolatile);
       break;
 
-    case kX86:
-      reinterpret_cast<X86Mir2Lir*>(this)->OpRegThreadMem(kOpMov, rl_result.reg,
-                                                          Thread::PeerOffset<4>());
-      break;
-
-    case kX86_64:
-      reinterpret_cast<X86Mir2Lir*>(this)->OpRegThreadMem(kOpMov, rl_result.reg,
-                                                          Thread::PeerOffset<8>());
-      break;
-
     default:
       LOG(FATAL) << "Unexpected isa " << cu_->instruction_set;
   }

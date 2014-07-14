@@ -968,7 +968,7 @@ class Mir2Lir : public Backend {
     virtual bool GenInlinedArrayCopyCharArray(CallInfo* info);
     virtual bool GenInlinedIndexOf(CallInfo* info, bool zero_based);
     bool GenInlinedStringCompareTo(CallInfo* info);
-    bool GenInlinedCurrentThread(CallInfo* info);
+    virtual bool GenInlinedCurrentThread(CallInfo* info);
     bool GenInlinedUnsafeGet(CallInfo* info, bool is_long, bool is_volatile);
     bool GenInlinedUnsafePut(CallInfo* info, bool is_long, bool is_object,
                              bool is_volatile, bool is_ordered);
