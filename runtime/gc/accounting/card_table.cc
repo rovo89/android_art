@@ -83,8 +83,6 @@ CardTable* CardTable::Create(const byte* heap_begin, size_t heap_capacity) {
 
 CardTable::CardTable(MemMap* mem_map, byte* biased_begin, size_t offset)
     : mem_map_(mem_map), biased_begin_(biased_begin), offset_(offset) {
-  byte* __attribute__((unused)) begin = mem_map_->Begin() + offset_;
-  byte* __attribute__((unused)) end = mem_map_->End();
 }
 
 void CardTable::ClearSpaceCards(space::ContinuousSpace* space) {
