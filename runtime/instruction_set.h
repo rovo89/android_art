@@ -181,7 +181,7 @@ static constexpr size_t kArm64StackOverflowReservedBytes = 32 * KB;
 // TODO: Bumped to workaround regression (http://b/14982147) Specifically to fix:
 // test-art-host-run-test-interpreter-018-stack-overflow
 // test-art-host-run-test-interpreter-107-int-math2
-static constexpr size_t kX86StackOverflowReservedBytes = 24 * KB;
+static constexpr size_t kX86StackOverflowReservedBytes = (kIsDebugBuild ? 32 : 24) * KB;
 static constexpr size_t kX86_64StackOverflowReservedBytes = 32 * KB;
 
 static constexpr size_t GetStackOverflowReservedBytes(InstructionSet isa) {
