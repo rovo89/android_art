@@ -47,6 +47,8 @@ jclass WellKnownClasses::java_lang_Thread$UncaughtExceptionHandler;
 jclass WellKnownClasses::java_lang_ThreadGroup;
 jclass WellKnownClasses::java_lang_Throwable;
 jclass WellKnownClasses::java_nio_DirectByteBuffer;
+jclass WellKnownClasses::java_util_Collections;
+jclass WellKnownClasses::libcore_util_EmptyArray;
 jclass WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk;
 jclass WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer;
 
@@ -150,6 +152,8 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_ThreadGroup = CacheClass(env, "java/lang/ThreadGroup");
   java_lang_Throwable = CacheClass(env, "java/lang/Throwable");
   java_nio_DirectByteBuffer = CacheClass(env, "java/nio/DirectByteBuffer");
+  java_util_Collections = CacheClass(env, "java/util/Collections");
+  libcore_util_EmptyArray = CacheClass(env, "libcore/util/EmptyArray");
   org_apache_harmony_dalvik_ddmc_Chunk = CacheClass(env, "org/apache/harmony/dalvik/ddmc/Chunk");
   org_apache_harmony_dalvik_ddmc_DdmServer = CacheClass(env, "org/apache/harmony/dalvik/ddmc/DdmServer");
 

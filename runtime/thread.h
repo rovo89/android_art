@@ -103,8 +103,7 @@ class Thread {
   // is protected against reads and the lower is available for use while
   // throwing the StackOverflow exception.
   static constexpr size_t kStackOverflowProtectedSize = 16 * KB;
-  static constexpr size_t kStackOverflowImplicitCheckSize = kStackOverflowProtectedSize +
-      kRuntimeStackOverflowReservedBytes;
+  static const size_t kStackOverflowImplicitCheckSize;
 
   // Creates a new native thread corresponding to the given managed peer.
   // Used to implement Thread.start.
@@ -566,7 +565,7 @@ class Thread {
       // overflow region.
       tlsPtr_.stack_end = tlsPtr_.stack_begin + kStackOverflowImplicitCheckSize;
     } else {
-      tlsPtr_.stack_end = tlsPtr_.stack_begin + kRuntimeStackOverflowReservedBytes;
+      tlsPtr_.stack_end = tlsPtr_.stack_begin + GetStackOverflowReservedBytes(kRuntimeISA);
     }
   }
 
