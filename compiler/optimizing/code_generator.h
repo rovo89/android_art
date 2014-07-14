@@ -30,12 +30,13 @@ namespace art {
 static size_t constexpr kVRegSize = 4;
 static size_t constexpr kUninitializedFrameSize = 0;
 
+class CodeGenerator;
 class DexCompilationUnit;
 
 class CodeAllocator {
  public:
-  CodeAllocator() { }
-  virtual ~CodeAllocator() { }
+  CodeAllocator() {}
+  virtual ~CodeAllocator() {}
 
   virtual uint8_t* Allocate(size_t size) = 0;
 
@@ -46,6 +47,23 @@ class CodeAllocator {
 struct PcInfo {
   uint32_t dex_pc;
   uintptr_t native_pc;
+};
+
+class SlowPathCode : public ArenaObject {
+ public:
+  SlowPathCode() : entry_label_(), exit_label_() {}
+  virtual ~SlowPathCode() {}
+
+  Label* GetEntryLabel() { return &entry_label_; }
+  Label* GetExitLabel() { return &exit_label_; }
+
+  virtual void EmitNativeCode(CodeGenerator* codegen) = 0;
+
+ private:
+  Label entry_label_;
+  Label exit_label_;
+
+  DISALLOW_COPY_AND_ASSIGN(SlowPathCode);
 };
 
 class CodeGenerator : public ArenaObject {
@@ -99,6 +117,12 @@ class CodeGenerator : public ArenaObject {
     pc_infos_.Add(pc_info);
   }
 
+  void AddSlowPath(SlowPathCode* slow_path) {
+    slow_paths_.Add(slow_path);
+  }
+
+  void GenerateSlowPaths();
+
   void BuildMappingTable(std::vector<uint8_t>* vector) const;
   void BuildVMapTable(std::vector<uint8_t>* vector) const;
   void BuildNativeGCMap(
@@ -110,6 +134,7 @@ class CodeGenerator : public ArenaObject {
         graph_(graph),
         block_labels_(graph->GetArena(), 0),
         pc_infos_(graph->GetArena(), 32),
+        slow_paths_(graph->GetArena(), 8),
         blocked_registers_(graph->GetArena()->AllocArray<bool>(number_of_registers)) {}
   ~CodeGenerator() {}
 
@@ -125,6 +150,7 @@ class CodeGenerator : public ArenaObject {
   size_t AllocateFreeRegisterInternal(bool* blocked_registers, size_t number_of_registers) const;
 
   virtual Location GetStackLocation(HLoadLocal* load) const = 0;
+  virtual Location GetTemporaryLocation(HTemporary* temp) const = 0;
 
   // Frame size required for this method.
   uint32_t frame_size_;
@@ -138,6 +164,7 @@ class CodeGenerator : public ArenaObject {
   // Labels for each block that will be compiled.
   GrowableArray<Label> block_labels_;
   GrowableArray<PcInfo> pc_infos_;
+  GrowableArray<SlowPathCode*> slow_paths_;
 
   // Temporary data structure used when doing register allocation.
   bool* const blocked_registers_;

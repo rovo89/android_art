@@ -182,9 +182,9 @@ TEST(LiveRangesTest, CFG3) {
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the phi.
-  interval = liveness.GetInstructionFromSsaIndex(3)->GetLiveInterval();
+  interval = liveness.GetInstructionFromSsaIndex(2)->GetLiveInterval();
   range = interval->GetFirstRange();
-  ASSERT_EQ(22u, liveness.GetInstructionFromSsaIndex(3)->GetLifetimePosition());
+  ASSERT_EQ(22u, liveness.GetInstructionFromSsaIndex(2)->GetLifetimePosition());
   ASSERT_EQ(22u, range->GetStart());
   ASSERT_EQ(25u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);

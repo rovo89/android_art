@@ -155,6 +155,7 @@ class CodeGeneratorARM : public CodeGenerator {
 
   int32_t GetStackSlot(HLocal* local) const;
   virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
+  virtual Location GetTemporaryLocation(HTemporary* temp) const OVERRIDE;
 
   virtual size_t GetNumberOfCoreRegisters() const OVERRIDE {
     return kNumberOfCoreRegisters;
