@@ -1,3 +1,10 @@
-caught SOE in testSelfRecursion
+libartd run.
+caught SOE3 in testSelfRecursion
+caught SOE10 in testSelfRecursion
+caught SOE in testMutualRecursion
+SOE test done
+libart run.
+caught SOE3 in testSelfRecursion
+caught SOE10 in testSelfRecursion
 caught SOE in testMutualRecursion
 SOE test done
