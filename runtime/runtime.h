@@ -32,6 +32,7 @@
 #include "offsets.h"
 #include "profiler_options.h"
 #include "quick/quick_method_frame_info.h"
+#include "read_barrier-inl.h"
 #include "runtime_stats.h"
 #include "safe_map.h"
 
@@ -219,8 +220,7 @@ class Runtime {
     return monitor_pool_;
   }
 
-  mirror::Throwable* GetPreAllocatedOutOfMemoryError() const
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Throwable* GetPreAllocatedOutOfMemoryError() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const std::vector<std::string>& GetProperties() const {
     return properties_;
@@ -266,9 +266,9 @@ class Runtime {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns a special method that calls into a trampoline for runtime method resolution
-  mirror::ArtMethod* GetResolutionMethod() const {
+  mirror::ArtMethod* GetResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(HasResolutionMethod());
-    return resolution_method_;
+    return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(&resolution_method_);
   }
 
   bool HasResolutionMethod() const {
@@ -282,9 +282,9 @@ class Runtime {
   mirror::ArtMethod* CreateResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns a special method that calls into a trampoline for runtime imt conflicts
-  mirror::ArtMethod* GetImtConflictMethod() const {
+  mirror::ArtMethod* GetImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(HasImtConflictMethod());
-    return imt_conflict_method_;
+    return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(&imt_conflict_method_);
   }
 
   bool HasImtConflictMethod() const {
@@ -298,9 +298,11 @@ class Runtime {
   mirror::ArtMethod* CreateImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns an imt with every entry set to conflict, used as default imt for all classes.
-  mirror::ObjectArray<mirror::ArtMethod>* GetDefaultImt() const {
+  mirror::ObjectArray<mirror::ArtMethod>* GetDefaultImt()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(HasDefaultImt());
-    return default_imt_;
+    return ReadBarrier::BarrierForRoot<mirror::ObjectArray<mirror::ArtMethod>, kWithReadBarrier>(
+        &default_imt_);
   }
 
   bool HasDefaultImt() const {
@@ -326,16 +328,25 @@ class Runtime {
     return callee_save_methods_[type] != NULL;
   }
 
-  mirror::ArtMethod* GetCalleeSaveMethod(CalleeSaveType type) const {
+  mirror::ArtMethod* GetCalleeSaveMethod(CalleeSaveType type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(HasCalleeSaveMethod(type));
-    return callee_save_methods_[type];
+    return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(
+        &callee_save_methods_[type]);
+  }
+
+  mirror::ArtMethod* GetCalleeSaveMethodUnchecked(CalleeSaveType type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(
+        &callee_save_methods_[type]);
   }
 
   QuickMethodFrameInfo GetCalleeSaveMethodFrameInfo(CalleeSaveType type) const {
     return callee_save_method_frame_infos_[type];
   }
 
-  QuickMethodFrameInfo GetRuntimeMethodFrameInfo(mirror::ArtMethod* method) const;
+  QuickMethodFrameInfo GetRuntimeMethodFrameInfo(mirror::ArtMethod* method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static size_t GetCalleeSaveMethodOffset(CalleeSaveType type) {
     return OFFSETOF_MEMBER(Runtime, callee_save_methods_[type]);

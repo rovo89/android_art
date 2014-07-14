@@ -910,11 +910,13 @@ void Runtime::DetachCurrentThread() {
   thread_list_->Unregister(self);
 }
 
-  mirror::Throwable* Runtime::GetPreAllocatedOutOfMemoryError() const {
-  if (pre_allocated_OutOfMemoryError_ == NULL) {
+mirror::Throwable* Runtime::GetPreAllocatedOutOfMemoryError() {
+  mirror::Throwable* oome = ReadBarrier::BarrierForRoot<mirror::Throwable, kWithReadBarrier>(
+      &pre_allocated_OutOfMemoryError_);
+  if (oome == NULL) {
     LOG(ERROR) << "Failed to return pre-allocated OOME";
   }
-  return pre_allocated_OutOfMemoryError_;
+  return oome;
 }
 
 void Runtime::VisitConstantRoots(RootCallback* callback, void* arg) {

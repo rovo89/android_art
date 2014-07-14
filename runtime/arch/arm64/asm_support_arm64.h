@@ -21,6 +21,7 @@
 
 // TODO Thread offsets need to be checked when on Aarch64.
 
+// Note: these callee save methods loads require read barriers.
 // Offset of field Runtime::callee_save_methods_[kSaveAll]
 #define RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET 0
 // Offset of field Runtime::callee_save_methods_[kRefsOnly]

@@ -31,6 +31,7 @@
     ldr x9,[x9]  // x9 = & (art::Runtime * art::Runtime.instance_) .
 
     // x9 = (ArtMethod*) Runtime.instance_.callee_save_methods[kRefAndArgs]  .
+    THIS_LOAD_REQUIRES_READ_BARRIER
     ldr x9, [x9, RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET ]
 
     sub sp, sp, #368
@@ -109,6 +110,7 @@
     ldr x9,[x9]  // x9 = & (art::Runtime * art::Runtime.instance_) .
 
     // x9 = (ArtMethod*) Runtime.instance_.callee_save_methods[kRefAndArgs]  .
+    THIS_LOAD_REQUIRES_READ_BARRIER
     ldr x9, [x9, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET ]
 
     sub sp, sp, #176
@@ -280,6 +282,7 @@
     ldr x9,[x9]  // x9 = & (art::Runtime * art::Runtime.instance_) .
 
     // x9 = (ArtMethod*) Runtime.instance_.callee_save_methods[kRefAndArgs]  .
+    THIS_LOAD_REQUIRES_READ_BARRIER
     ldr x9, [x9, RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET ]
 
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME_INTERNAL

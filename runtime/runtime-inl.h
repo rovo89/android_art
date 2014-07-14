@@ -21,18 +21,18 @@
 
 namespace art {
 
-inline QuickMethodFrameInfo Runtime::GetRuntimeMethodFrameInfo(mirror::ArtMethod* method) const {
+inline QuickMethodFrameInfo Runtime::GetRuntimeMethodFrameInfo(mirror::ArtMethod* method) {
   DCHECK(method != nullptr);
   // Cannot be imt-conflict-method or resolution-method.
   DCHECK(method != GetImtConflictMethod());
   DCHECK(method != GetResolutionMethod());
   // Don't use GetCalleeSaveMethod(), some tests don't set all callee save methods.
-  if (method == callee_save_methods_[Runtime::kRefsAndArgs]) {
+  if (method == GetCalleeSaveMethodUnchecked(Runtime::kRefsAndArgs)) {
     return GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
-  } else if (method == callee_save_methods_[Runtime::kSaveAll]) {
+  } else if (method == GetCalleeSaveMethodUnchecked(Runtime::kSaveAll)) {
     return GetCalleeSaveMethodFrameInfo(Runtime::kSaveAll);
   } else {
-    DCHECK(method == callee_save_methods_[Runtime::kRefsOnly]);
+    DCHECK(method == GetCalleeSaveMethodUnchecked(Runtime::kRefsOnly));
     return GetCalleeSaveMethodFrameInfo(Runtime::kRefsOnly);
   }
 }
