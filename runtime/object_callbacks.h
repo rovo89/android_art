@@ -24,6 +24,8 @@
 // For size_t.
 #include <stdlib.h>
 
+#include "base/macros.h"
+
 namespace art {
 namespace mirror {
   class Class;
@@ -57,8 +59,7 @@ typedef void (RootCallback)(mirror::Object** root, void* arg, uint32_t thread_id
 // A callback for visiting an object in the heap.
 typedef void (ObjectCallback)(mirror::Object* obj, void* arg);
 // A callback used for marking an object, returns the new address of the object if the object moved.
-typedef mirror::Object* (MarkObjectCallback)(mirror::Object* obj, void* arg)
-    __attribute__((warn_unused_result));
+typedef mirror::Object* (MarkObjectCallback)(mirror::Object* obj, void* arg) WARN_UNUSED;
 // A callback for verifying roots.
 typedef void (VerifyRootCallback)(const mirror::Object* root, void* arg, size_t vreg,
     const StackVisitor* visitor, RootType root_type);
@@ -68,13 +69,12 @@ typedef void (DelayReferenceReferentCallback)(mirror::Class* klass, mirror::Refe
 
 // A callback for testing if an object is marked, returns nullptr if not marked, otherwise the new
 // address the object (if the object didn't move, returns the object input parameter).
-typedef mirror::Object* (IsMarkedCallback)(mirror::Object* object, void* arg)
-    __attribute__((warn_unused_result));
+typedef mirror::Object* (IsMarkedCallback)(mirror::Object* object, void* arg) WARN_UNUSED;
 
 // Returns true if the object in the heap reference is marked, if it is marked and has moved the
 // callback updates the heap reference contain the new value.
 typedef bool (IsHeapReferenceMarkedCallback)(mirror::HeapReference<mirror::Object>* object,
-    void* arg) __attribute__((warn_unused_result));
+    void* arg) WARN_UNUSED;
 typedef void (ProcessMarkStackCallback)(void* arg);
 
 }  // namespace art
