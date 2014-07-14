@@ -68,6 +68,7 @@ MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
     subq MACRO_LITERAL(8), %rsp  // Space for Method* (also aligns the frame).
     CFI_ADJUST_CFA_OFFSET(8)
     // R10 := ArtMethod* for save all callee save frame method.
+    THIS_LOAD_REQUIRES_READ_BARRIER
     movq RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
     // Store ArtMethod* to bottom of stack.
     movq %r10, 0(%rsp)
@@ -108,6 +109,7 @@ MACRO0(SETUP_REF_ONLY_CALLEE_SAVE_FRAME)
     movq %xmm14, 24(%rsp)
     movq %xmm15, 32(%rsp)
     // R10 := ArtMethod* for refs only callee save frame method.
+    THIS_LOAD_REQUIRES_READ_BARRIER
     movq RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
     // Store ArtMethod* to bottom of stack.
     movq %r10, 0(%rsp)
@@ -164,6 +166,7 @@ MACRO0(SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     subq MACRO_LITERAL(80 + 4 * 8), %rsp
     CFI_ADJUST_CFA_OFFSET(80 + 4 * 8)
     // R10 := ArtMethod* for ref and args callee save frame method.
+    THIS_LOAD_REQUIRES_READ_BARRIER
     movq RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
     // Save FPRs.
     movq %xmm0, 16(%rsp)
