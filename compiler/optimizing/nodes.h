@@ -377,6 +377,8 @@ class HBasicBlock : public ArenaObject {
     }
   }
 
+  bool IsInLoop() const { return loop_information_ != nullptr; }
+
   // Returns wheter this block dominates the blocked passed as parameter.
   bool Dominates(HBasicBlock* block) const;
 
@@ -485,6 +487,8 @@ class HInstruction : public ArenaObject {
 
   HBasicBlock* GetBlock() const { return block_; }
   void SetBlock(HBasicBlock* block) { block_ = block; }
+  bool IsInBlock() const { return block_ != nullptr; }
+  bool IsInLoop() const { return block_->IsInLoop(); }
 
   virtual size_t InputCount() const  = 0;
   virtual HInstruction* InputAt(size_t i) const = 0;
@@ -513,6 +517,7 @@ class HInstruction : public ArenaObject {
   HUseListNode<HEnvironment>* GetEnvUses() const { return env_uses_; }
 
   bool HasUses() const { return uses_ != nullptr || env_uses_ != nullptr; }
+  bool HasEnvironmentUses() const { return env_uses_ != nullptr; }
 
   size_t NumberOfUses() const {
     // TODO: Optimize this method if it is used outside of the HGraphVisualizer.
@@ -1242,7 +1247,8 @@ class HPhi : public HInstruction {
   HPhi(ArenaAllocator* arena, uint32_t reg_number, size_t number_of_inputs, Primitive::Type type)
       : inputs_(arena, number_of_inputs),
         reg_number_(reg_number),
-        type_(type) {
+        type_(type),
+        is_live_(false) {
     inputs_.SetSize(number_of_inputs);
   }
 
@@ -1260,12 +1266,18 @@ class HPhi : public HInstruction {
 
   uint32_t GetRegNumber() const { return reg_number_; }
 
+  void SetDead() { is_live_ = false; }
+  void SetLive() { is_live_ = true; }
+  bool IsDead() const { return !is_live_; }
+  bool IsLive() const { return is_live_; }
+
   DECLARE_INSTRUCTION(Phi);
 
  protected:
   GrowableArray<HInstruction*> inputs_;
   const uint32_t reg_number_;
   Primitive::Type type_;
+  bool is_live_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HPhi);
