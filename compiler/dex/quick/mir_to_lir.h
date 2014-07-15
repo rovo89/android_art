@@ -1201,7 +1201,7 @@ class Mir2Lir : public Backend {
      * @param wide_kind What kind of view of the special register is required.
      * @return Return the #RegStorage corresponding to the given purpose @p reg.
      *
-     * Note: For 32b system, wide (kWide) views only make sense for the argument registers and the
+     * @note For 32b system, wide (kWide) views only make sense for the argument registers and the
      *       return. In that case, this function should return a pair where the first component of
      *       the result will be the indicated special register.
      */
