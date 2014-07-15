@@ -91,6 +91,10 @@ CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph)
         instruction_visitor_(graph, this),
         move_resolver_(graph->GetArena(), this) {}
 
+size_t CodeGeneratorX86_64::FrameEntrySpillSize() const {
+  return kNumberOfPushedRegistersAtEntry * kX86_64WordSize;
+}
+
 InstructionCodeGeneratorX86_64::InstructionCodeGeneratorX86_64(HGraph* graph, CodeGeneratorX86_64* codegen)
       : HGraphVisitor(graph),
         assembler_(codegen->GetAssembler()),
@@ -137,16 +141,6 @@ void CodeGeneratorX86_64::SetupBlockedRegisters(bool* blocked_registers) const {
   blocked_registers[R15] = true;
 }
 
-void CodeGeneratorX86_64::ComputeFrameSize(size_t number_of_spill_slots) {
-  // Add the current ART method to the frame size, the return PC, and the filler.
-  SetFrameSize(RoundUp(
-      number_of_spill_slots * kVRegSize
-      + kVRegSize  // filler
-      + kVRegSize  // Art method
-      + kNumberOfPushedRegistersAtEntry * kX86_64WordSize,
-      kStackAlignment));
-}
-
 void CodeGeneratorX86_64::GenerateFrameEntry() {
   // Create a fake register to mimic Quick.
   static const int kFakeReturnRegister = 16;
@@ -168,33 +162,6 @@ void CodeGeneratorX86_64::Bind(Label* label) {
 
 void InstructionCodeGeneratorX86_64::LoadCurrentMethod(CpuRegister reg) {
   __ movl(reg, Address(CpuRegister(RSP), kCurrentMethodStackOffset));
-}
-
-Location CodeGeneratorX86_64::GetTemporaryLocation(HTemporary* temp) const {
-  uint16_t number_of_vregs = GetGraph()->GetNumberOfVRegs();
-  // Use the temporary region (right below the dex registers).
-  int32_t slot = GetFrameSize() - (kNumberOfPushedRegistersAtEntry * kX86_64WordSize)
-                                - kVRegSize  // filler
-                                - (number_of_vregs * kVRegSize)
-                                - ((1 + temp->GetIndex()) * kVRegSize);
-  return Location::StackSlot(slot);
-}
-
-int32_t CodeGeneratorX86_64::GetStackSlot(HLocal* local) const {
-  uint16_t reg_number = local->GetRegNumber();
-  uint16_t number_of_vregs = GetGraph()->GetNumberOfVRegs();
-  uint16_t number_of_in_vregs = GetGraph()->GetNumberOfInVRegs();
-  if (reg_number >= number_of_vregs - number_of_in_vregs) {
-    // Local is a parameter of the method. It is stored in the caller's frame.
-    return GetFrameSize() + kVRegSize  // ART method
-                          + (reg_number - number_of_vregs + number_of_in_vregs) * kVRegSize;
-  } else {
-    // Local is a temporary in this method. It is stored in this method's frame.
-    return GetFrameSize() - (kNumberOfPushedRegistersAtEntry * kX86_64WordSize)
-                          - kVRegSize  // filler
-                          - (number_of_vregs * kVRegSize)
-                          + (reg_number * kVRegSize);
-  }
 }
 
 Location CodeGeneratorX86_64::GetStackLocation(HLoadLocal* load) const {

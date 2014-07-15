@@ -71,6 +71,10 @@ public class Main {
     if (m.$opt$TestOtherParameter(new Main()) == m) {
       throw new Error("Unexpected value returned");
     }
+
+    if (m.$opt$TestReturnNewObject(m) == m) {
+      throw new Error("Unexpected value returned");
+    }
   }
 
   static int $opt$TestInvokeIntParameter(int param) {
@@ -106,6 +110,12 @@ public class Main {
   Object $opt$TestOtherParameter(Object other) {
     forceGCStaticMethod();
     return other;
+  }
+
+  Object $opt$TestReturnNewObject(Object other) {
+    Object o = new Object();
+    forceGCStaticMethod();
+    return o;
   }
 
   public static void $opt$TestInvokeStatic() {
