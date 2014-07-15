@@ -341,7 +341,7 @@ void ArmMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
  * is responsible for setting branch target field.
  */
 LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_value, LIR* target) {
-  LIR* branch;
+  LIR* branch = nullptr;
   ArmConditionCode arm_cond = ArmConditionEncoding(cond);
   /*
    * A common use of OpCmpImmBranch is for null checks, and using the Thumb 16-bit
@@ -354,14 +354,22 @@ LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_va
    */
   bool skip = ((target != NULL) && (target->opcode == kPseudoThrowTarget));
   skip &= ((cu_->code_item->insns_size_in_code_units_ - current_dalvik_offset_) > 64);
-  if (!skip && reg.Low8() && (check_value == 0) &&
-     ((arm_cond == kArmCondEq) || (arm_cond == kArmCondNe))) {
-    branch = NewLIR2((arm_cond == kArmCondEq) ? kThumb2Cbz : kThumb2Cbnz,
-                     reg.GetReg(), 0);
-  } else {
+  if (!skip && reg.Low8() && (check_value == 0)) {
+    if (arm_cond == kArmCondEq || arm_cond == kArmCondNe) {
+      branch = NewLIR2((arm_cond == kArmCondEq) ? kThumb2Cbz : kThumb2Cbnz,
+                       reg.GetReg(), 0);
+    } else if (arm_cond == kArmCondLs) {
+      // kArmCondLs is an unsigned less or equal. A comparison r <= 0 is then the same as cbz.
+      // This case happens for a bounds check of array[0].
+      branch = NewLIR2(kThumb2Cbz, reg.GetReg(), 0);
+    }
+  }
+
+  if (branch == nullptr) {
     OpRegImm(kOpCmp, reg, check_value);
     branch = NewLIR2(kThumbBCond, 0, arm_cond);
   }
+
   branch->target = target;
   return branch;
 }
