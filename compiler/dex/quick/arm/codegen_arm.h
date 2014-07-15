@@ -208,6 +208,8 @@ class ArmMir2Lir FINAL : public Mir2Lir {
       return false;  // Wide FPRs are formed by pairing.
     }
 
+    size_t GetInstructionOffset(LIR* lir);
+
   private:
     void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1, int64_t val,
                                   ConditionCode ccode);

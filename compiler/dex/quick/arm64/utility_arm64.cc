@@ -87,6 +87,26 @@ static int32_t EncodeImmDouble(uint64_t bits) {
   return (bit7 | bit6 | bit5_to_0);
 }
 
+size_t Arm64Mir2Lir::GetLoadStoreSize(LIR* lir) {
+  bool opcode_is_wide = IS_WIDE(lir->opcode);
+  ArmOpcode opcode = UNWIDE(lir->opcode);
+  DCHECK(!IsPseudoLirOp(opcode));
+  const ArmEncodingMap *encoder = &EncodingMap[opcode];
+  uint32_t bits = opcode_is_wide ? encoder->xskeleton : encoder->wskeleton;
+  return (bits >> 30);
+}
+
+size_t Arm64Mir2Lir::GetInstructionOffset(LIR* lir) {
+  size_t offset = lir->operands[2];
+  uint64_t check_flags = GetTargetInstFlags(lir->opcode);
+  DCHECK((check_flags & IS_LOAD) || (check_flags & IS_STORE));
+  if (check_flags & SCALED_OFFSET_X0) {
+    DCHECK(check_flags & IS_TERTIARY_OP);
+    offset = offset * (1 << GetLoadStoreSize(lir));
+  }
+  return offset;
+}
+
 LIR* Arm64Mir2Lir::LoadFPConstantValue(RegStorage r_dest, int32_t value) {
   DCHECK(r_dest.IsSingle());
   if (value == 0) {
