@@ -655,10 +655,10 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
             if (kIsDebugBuild && (kFailOnSizeError || kReportSizeError)) {
               // Register usage checks: First establish register usage requirements based on the
               // format in `kind'.
-              bool want_float = false;
-              bool want_64_bit = false;
-              bool want_var_size = true;
-              bool want_zero = false;
+              bool want_float = false;     // Want a float (rather than core) register.
+              bool want_64_bit = false;    // Want a 64-bit (rather than 32-bit) register.
+              bool want_var_size = true;   // Want register with variable size (kFmtReg{R,F}).
+              bool want_zero = false;      // Want the zero (rather than sp) register.
               switch (kind) {
                 case kFmtRegX:
                   want_64_bit = true;
@@ -717,9 +717,6 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
                 }
               }
 
-              // TODO(Arm64): if !want_size_match, then we still should compare the size of the
-              //   register with the size required by the instruction width (kA64Wide).
-
               // Fail, if `expected' contains an unsatisfied requirement.
               if (expected != nullptr) {
                 LOG(WARNING) << "Method: " << PrettyMethod(cu_->method_idx, *cu_->dex_file)
@@ -734,11 +731,12 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
               }
             }
 
-            // TODO(Arm64): this may or may not be necessary, depending on how wzr, xzr are
-            //   defined.
-            if (is_zero) {
-              operand = 31;
-            }
+            // In the lines below, we rely on (operand & 0x1f) == 31 to be true for register sp
+            // and zr. This means that these two registers do not need any special treatment, as
+            // their bottom 5 bits are correctly set to 31 == 0b11111, which is the right
+            // value for encoding both sp and zr.
+            COMPILE_ASSERT((rxzr & 0x1f) == 0x1f, rzr_register_number_must_be_31);
+            COMPILE_ASSERT((rsp & 0x1f) == 0x1f, rsp_register_number_must_be_31);
           }
 
           value = (operand << encoder->field_loc[i].start) &
