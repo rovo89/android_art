@@ -83,12 +83,8 @@ CodeGeneratorX86::CodeGeneratorX86(HGraph* graph)
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this) {}
 
-void CodeGeneratorX86::ComputeFrameSize(size_t number_of_spill_slots) {
-  SetFrameSize(RoundUp(
-      number_of_spill_slots * kVRegSize
-      + kVRegSize  // Art method
-      + kNumberOfPushedRegistersAtEntry * kX86WordSize,
-      kStackAlignment));
+size_t CodeGeneratorX86::FrameEntrySpillSize() const {
+  return kNumberOfPushedRegistersAtEntry * kX86WordSize;
 }
 
 static bool* GetBlockedRegisterPairs(bool* blocked_registers) {
@@ -203,34 +199,6 @@ void CodeGeneratorX86::Bind(Label* label) {
 void InstructionCodeGeneratorX86::LoadCurrentMethod(Register reg) {
   __ movl(reg, Address(ESP, kCurrentMethodStackOffset));
 }
-
-Location CodeGeneratorX86::GetTemporaryLocation(HTemporary* temp) const {
-  uint16_t number_of_vregs = GetGraph()->GetNumberOfVRegs();
-  // Use the temporary region (right below the dex registers).
-  int32_t slot = GetFrameSize() - (kNumberOfPushedRegistersAtEntry * kX86WordSize)
-                                - kVRegSize  // filler
-                                - (number_of_vregs * kVRegSize)
-                                - ((1 + temp->GetIndex()) * kVRegSize);
-  return Location::StackSlot(slot);
-}
-
-int32_t CodeGeneratorX86::GetStackSlot(HLocal* local) const {
-  uint16_t reg_number = local->GetRegNumber();
-  uint16_t number_of_vregs = GetGraph()->GetNumberOfVRegs();
-  uint16_t number_of_in_vregs = GetGraph()->GetNumberOfInVRegs();
-  if (reg_number >= number_of_vregs - number_of_in_vregs) {
-    // Local is a parameter of the method. It is stored in the caller's frame.
-    return GetFrameSize() + kVRegSize  // ART method
-                          + (reg_number - number_of_vregs + number_of_in_vregs) * kVRegSize;
-  } else {
-    // Local is a temporary in this method. It is stored in this method's frame.
-    return GetFrameSize() - (kNumberOfPushedRegistersAtEntry * kX86WordSize)
-                          - kVRegSize  // filler.
-                          - (number_of_vregs * kVRegSize)
-                          + (reg_number * kVRegSize);
-  }
-}
-
 
 Location CodeGeneratorX86::GetStackLocation(HLoadLocal* load) const {
   switch (load->GetType()) {

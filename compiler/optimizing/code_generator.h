@@ -96,7 +96,10 @@ class CodeGenerator : public ArenaObject {
   virtual HGraphVisitor* GetInstructionVisitor() = 0;
   virtual Assembler* GetAssembler() = 0;
   virtual size_t GetWordSize() const = 0;
-  virtual void ComputeFrameSize(size_t number_of_spill_slots) = 0;
+  void ComputeFrameSize(size_t number_of_spill_slots);
+  virtual size_t FrameEntrySpillSize() const = 0;
+  int32_t GetStackSlot(HLocal* local) const;
+  Location GetTemporaryLocation(HTemporary* temp) const;
 
   uint32_t GetFrameSize() const { return frame_size_; }
   void SetFrameSize(uint32_t size) { frame_size_ = size; }
@@ -150,7 +153,6 @@ class CodeGenerator : public ArenaObject {
   size_t AllocateFreeRegisterInternal(bool* blocked_registers, size_t number_of_registers) const;
 
   virtual Location GetStackLocation(HLoadLocal* load) const = 0;
-  virtual Location GetTemporaryLocation(HTemporary* temp) const = 0;
 
   // Frame size required for this method.
   uint32_t frame_size_;

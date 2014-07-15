@@ -138,6 +138,10 @@ class HGraph : public ArenaObject {
     return number_of_in_vregs_;
   }
 
+  uint16_t GetNumberOfLocalVRegs() const {
+    return number_of_vregs_ - number_of_in_vregs_;
+  }
+
   const GrowableArray<HBasicBlock*>& GetReversePostOrder() const {
     return reverse_post_order_;
   }
