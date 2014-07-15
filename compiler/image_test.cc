@@ -20,14 +20,16 @@
 #include <string>
 #include <vector>
 
+#include "base/unix_file/fd_file.h"
 #include "common_compiler_test.h"
-#include "compiler/elf_fixup.h"
-#include "compiler/image_writer.h"
-#include "compiler/oat_writer.h"
+#include "elf_fixup.h"
 #include "gc/space/image_space.h"
+#include "image_writer.h"
 #include "implicit_check_options.h"
 #include "lock_word.h"
 #include "mirror/object-inl.h"
+#include "oat_writer.h"
+#include "scoped_thread_state_change.h"
 #include "signal_catcher.h"
 #include "utils.h"
 #include "vector_output_stream.h"
@@ -138,7 +140,7 @@ TEST_F(ImageTest, WriteRead) {
   // Remove the reservation of the memory for use to load the image.
   UnreserveImageSpace();
 
-  Runtime::Options options;
+  RuntimeOptions options;
   std::string image("-Ximage:");
   image.append(image_location.GetFilename());
   options.push_back(std::make_pair(image.c_str(), reinterpret_cast<void*>(NULL)));

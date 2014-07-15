@@ -16,11 +16,15 @@
 
 #include "dex_file_verifier.h"
 
-#include <memory>
+#include "sys/mman.h"
 #include "zlib.h"
+#include <memory>
 
-#include "common_runtime_test.h"
+#include "base/unix_file/fd_file.h"
 #include "base/macros.h"
+#include "common_runtime_test.h"
+#include "scoped_thread_state_change.h"
+#include "thread-inl.h"
 
 namespace art {
 

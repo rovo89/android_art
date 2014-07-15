@@ -32,7 +32,6 @@
 #include "offsets.h"
 #include "profiler_options.h"
 #include "quick/quick_method_frame_info.h"
-#include "read_barrier-inl.h"
 #include "runtime_stats.h"
 #include "safe_map.h"
 
@@ -69,6 +68,8 @@ class ThreadList;
 class Trace;
 class Transaction;
 
+typedef std::vector<std::pair<std::string, const void*>> RuntimeOptions;
+
 // Not all combinations of flags are valid. You may not visit all roots as well as the new roots
 // (no logical reason to do this). You also may not start logging new roots and stop logging new
 // roots (also no logical reason to do this).
@@ -82,10 +83,8 @@ enum VisitRootFlags : uint8_t {
 
 class Runtime {
  public:
-  typedef std::vector<std::pair<std::string, const void*>> Options;
-
   // Creates and initializes a new runtime.
-  static bool Create(const Options& options, bool ignore_unrecognized)
+  static bool Create(const RuntimeOptions& options, bool ignore_unrecognized)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_);
 
   bool IsCompiler() const {
@@ -266,13 +265,10 @@ class Runtime {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns a special method that calls into a trampoline for runtime method resolution
-  mirror::ArtMethod* GetResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CHECK(HasResolutionMethod());
-    return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(&resolution_method_);
-  }
+  mirror::ArtMethod* GetResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasResolutionMethod() const {
-    return resolution_method_ != NULL;
+    return resolution_method_ != nullptr;
   }
 
   void SetResolutionMethod(mirror::ArtMethod* method) {
@@ -281,14 +277,11 @@ class Runtime {
 
   mirror::ArtMethod* CreateResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Returns a special method that calls into a trampoline for runtime imt conflicts
-  mirror::ArtMethod* GetImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CHECK(HasImtConflictMethod());
-    return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(&imt_conflict_method_);
-  }
+  // Returns a special method that calls into a trampoline for runtime imt conflicts.
+  mirror::ArtMethod* GetImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasImtConflictMethod() const {
-    return imt_conflict_method_ != NULL;
+    return imt_conflict_method_ != nullptr;
   }
 
   void SetImtConflictMethod(mirror::ArtMethod* method) {
@@ -299,14 +292,10 @@ class Runtime {
 
   // Returns an imt with every entry set to conflict, used as default imt for all classes.
   mirror::ObjectArray<mirror::ArtMethod>* GetDefaultImt()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CHECK(HasDefaultImt());
-    return ReadBarrier::BarrierForRoot<mirror::ObjectArray<mirror::ArtMethod>, kWithReadBarrier>(
-        &default_imt_);
-  }
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasDefaultImt() const {
-    return default_imt_ != NULL;
+    return default_imt_ != nullptr;
   }
 
   void SetDefaultImt(mirror::ObjectArray<mirror::ArtMethod>* imt) {
@@ -329,17 +318,10 @@ class Runtime {
   }
 
   mirror::ArtMethod* GetCalleeSaveMethod(CalleeSaveType type)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(HasCalleeSaveMethod(type));
-    return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(
-        &callee_save_methods_[type]);
-  }
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::ArtMethod* GetCalleeSaveMethodUnchecked(CalleeSaveType type)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(
-        &callee_save_methods_[type]);
-  }
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   QuickMethodFrameInfo GetCalleeSaveMethodFrameInfo(CalleeSaveType type) const {
     return callee_save_method_frame_infos_[type];
@@ -474,7 +456,7 @@ class Runtime {
 
   void BlockSignals();
 
-  bool Init(const Options& options, bool ignore_unrecognized)
+  bool Init(const RuntimeOptions& options, bool ignore_unrecognized)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_);
   void InitNativeMethods() LOCKS_EXCLUDED(Locks::mutator_lock_);
   void InitThreadGroups(Thread* self);

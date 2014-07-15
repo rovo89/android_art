@@ -26,6 +26,7 @@
 #include "base/stringprintf.h"
 #include "elf_utils.h"
 #include "elf_file.h"
+#include "gc/space/image_space.h"
 #include "image.h"
 #include "instruction_set.h"
 #include "mirror/art_field.h"
@@ -92,7 +93,7 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
   }
 
   // Set up the runtime
-  Runtime::Options options;
+  RuntimeOptions options;
   NoopCompilerCallbacks callbacks;
   options.push_back(std::make_pair("compilercallbacks", &callbacks));
   std::string img = "-Ximage:" + image_location;
@@ -176,7 +177,7 @@ bool PatchOat::Patch(const File* input_oat, const std::string& image_location, o
   }
 
   // Set up the runtime
-  Runtime::Options options;
+  RuntimeOptions options;
   NoopCompilerCallbacks callbacks;
   options.push_back(std::make_pair("compilercallbacks", &callbacks));
   std::string img = "-Ximage:" + image_location;

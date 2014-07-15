@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
+#include <cstdio>
+
 #include "common_runtime_test.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/string-inl.h"
-
-#include <cstdio>
+#include "scoped_thread_state_change.h"
 
 namespace art {
 
@@ -45,7 +46,7 @@ class StubTest : public CommonRuntimeTest {
     }
   }
 
-  void SetUpRuntimeOptions(Runtime::Options *options) OVERRIDE {
+  void SetUpRuntimeOptions(RuntimeOptions *options) OVERRIDE {
     // Use a smaller heap
     for (std::pair<std::string, const void*>& pair : *options) {
       if (pair.first.find("-Xmx") == 0) {

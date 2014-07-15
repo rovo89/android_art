@@ -25,10 +25,15 @@ class NoopCompilerCallbacks FINAL : public CompilerCallbacks {
  public:
   NoopCompilerCallbacks() {}
   ~NoopCompilerCallbacks() {}
+
   bool MethodVerified(verifier::MethodVerifier* verifier) OVERRIDE {
     return true;
   }
+
   void ClassRejected(ClassReference ref) OVERRIDE {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(NoopCompilerCallbacks);
 };
 
 }  // namespace art

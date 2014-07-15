@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_REGISTER_ALLOCATOR_H_
 
 #include "base/macros.h"
+#include "primitive.h"
 #include "utils/growable_array.h"
 
 namespace art {
