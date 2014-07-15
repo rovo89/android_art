@@ -2478,7 +2478,7 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
   in_to_reg_storage_mapping.Initialize(info->args, info->num_arg_words, &mapper);
   const int last_mapped_in = in_to_reg_storage_mapping.GetMaxMappedIn();
   const int size_of_the_last_mapped = last_mapped_in == -1 ? 1 :
-          in_to_reg_storage_mapping.Get(last_mapped_in).Is64BitSolo() ? 2 : 1;
+          info->args[last_mapped_in].wide ? 2 : 1;
   int regs_left_to_pass_via_stack = info->num_arg_words - (last_mapped_in + size_of_the_last_mapped);
 
   // Fisrt of all, check whether it make sense to use bulk copying
