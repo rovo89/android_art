@@ -1050,6 +1050,7 @@ void X86Mir2Lir::AnalyzeInvokeStatic(int opcode, BasicBlock * bb, MIR *mir) {
         ->IsIntrinsic(index, &method)) {
       switch (method.opcode) {
         case kIntrinsicAbsDouble:
+        case kIntrinsicMinMaxDouble:
           store_method_addr_ = true;
           break;
         default:

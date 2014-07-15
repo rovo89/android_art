@@ -173,6 +173,7 @@ class X86Mir2Lir : public Mir2Lir {
   void GenConversion(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src);
   bool GenInlinedCas(CallInfo* info, bool is_long, bool is_object);
   bool GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long);
+  bool GenInlinedMinMaxFP(CallInfo* info, bool is_min, bool is_double);
   bool GenInlinedSqrt(CallInfo* info);
   bool GenInlinedAbsFloat(CallInfo* info) OVERRIDE;
   bool GenInlinedAbsDouble(CallInfo* info) OVERRIDE;
