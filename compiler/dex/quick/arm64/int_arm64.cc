@@ -262,18 +262,18 @@ LIR* Arm64Mir2Lir::OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_
   ArmConditionCode arm_cond = ArmConditionEncoding(cond);
   if (check_value == 0) {
     if (arm_cond == kArmCondEq || arm_cond == kArmCondNe) {
-      ArmOpcode opcode = (arm_cond == kArmCondEq) ? kA64Cbz2rt : kA64Cbnz2rt;
-      ArmOpcode wide = reg.Is64Bit() ? WIDE(0) : UNWIDE(0);
+      A64Opcode opcode = (arm_cond == kArmCondEq) ? kA64Cbz2rt : kA64Cbnz2rt;
+      A64Opcode wide = reg.Is64Bit() ? WIDE(0) : UNWIDE(0);
       branch = NewLIR2(opcode | wide, reg.GetReg(), 0);
     } else if (arm_cond == kArmCondLs) {
       // kArmCondLs is an unsigned less or equal. A comparison r <= 0 is then the same as cbz.
       // This case happens for a bounds check of array[0].
-      ArmOpcode opcode = kA64Cbz2rt;
-      ArmOpcode wide = reg.Is64Bit() ? WIDE(0) : UNWIDE(0);
+      A64Opcode opcode = kA64Cbz2rt;
+      A64Opcode wide = reg.Is64Bit() ? WIDE(0) : UNWIDE(0);
       branch = NewLIR2(opcode | wide, reg.GetReg(), 0);
     } else if (arm_cond == kArmCondLt || arm_cond == kArmCondGe) {
-      ArmOpcode opcode = (arm_cond == kArmCondLt) ? kA64Tbnz3rht : kA64Tbz3rht;
-      ArmOpcode wide = reg.Is64Bit() ? WIDE(0) : UNWIDE(0);
+      A64Opcode opcode = (arm_cond == kArmCondLt) ? kA64Tbnz3rht : kA64Tbz3rht;
+      A64Opcode wide = reg.Is64Bit() ? WIDE(0) : UNWIDE(0);
       int value = reg.Is64Bit() ? 63 : 31;
       branch = NewLIR3(opcode | wide, reg.GetReg(), value, 0);
     }
@@ -305,7 +305,7 @@ LIR* Arm64Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg,
 LIR* Arm64Mir2Lir::OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) {
   bool dest_is_fp = r_dest.IsFloat();
   bool src_is_fp = r_src.IsFloat();
-  ArmOpcode opcode = kA64Brk1d;
+  A64Opcode opcode = kA64Brk1d;
   LIR* res;
 
   if (LIKELY(dest_is_fp == src_is_fp)) {
@@ -333,7 +333,7 @@ LIR* Arm64Mir2Lir::OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) {
       DCHECK_EQ(dest_is_double, src_is_double);
 
       // Homogeneous float/float copy.
-      opcode = (dest_is_double) ? FWIDE(kA64Fmov2ff) : kA64Fmov2ff;
+      opcode = (dest_is_double) ? WIDE(kA64Fmov2ff) : kA64Fmov2ff;
     }
   } else {
     // Inhomogeneous register copy.
@@ -630,7 +630,7 @@ RegLocation Arm64Mir2Lir::GenDivRem(RegLocation rl_dest, RegStorage r_src1, RegS
     // temp = r_src1 / r_src2
     // dest = r_src1 - temp * r_src2
     RegStorage temp;
-    ArmOpcode wide;
+    A64Opcode wide;
     if (rl_result.reg.Is64Bit()) {
       temp = AllocTempWide();
       wide = WIDE(0);
@@ -770,7 +770,7 @@ bool Arm64Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   RegStorage r_tmp;
   RegStorage r_tmp_stored;
   RegStorage rl_new_value_stored = rl_new_value.reg;
-  ArmOpcode wide = UNWIDE(0);
+  A64Opcode wide = UNWIDE(0);
   if (is_long) {
     r_tmp_stored = r_tmp = AllocTempWide();
     wide = WIDE(0);
@@ -962,7 +962,7 @@ LIR* Arm64Mir2Lir::OpDecAndBranch(ConditionCode c_code, RegStorage reg, LIR* tar
   // Combine sub & test using sub setflags encoding here.  We need to make sure a
   // subtract form that sets carry is used, so generate explicitly.
   // TODO: might be best to add a new op, kOpSubs, and handle it generically.
-  ArmOpcode opcode = reg.Is64Bit() ? WIDE(kA64Subs3rRd) : UNWIDE(kA64Subs3rRd);
+  A64Opcode opcode = reg.Is64Bit() ? WIDE(kA64Subs3rRd) : UNWIDE(kA64Subs3rRd);
   NewLIR3(opcode, reg.GetReg(), reg.GetReg(), 1);  // For value == 1, this should set flags.
   DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
   return OpCondBranch(c_code, target);
@@ -1459,7 +1459,7 @@ static void SpillFPRegs(Arm64Mir2Lir* m2l, RegStorage base, int offset, uint32_t
   for (offset = (offset >> reg_log2_size); reg_mask; offset += 2) {
     reg_mask = GenPairWise(reg_mask, & reg1, & reg2);
     if (UNLIKELY(reg2 < 0)) {
-      m2l->NewLIR3(FWIDE(kA64Str3fXD), RegStorage::FloatSolo64(reg1).GetReg(), base.GetReg(),
+      m2l->NewLIR3(WIDE(kA64Str3fXD), RegStorage::FloatSolo64(reg1).GetReg(), base.GetReg(),
                    offset);
     } else {
       m2l->NewLIR4(WIDE(kA64Stp4ffXD), RegStorage::FloatSolo64(reg2).GetReg(),
@@ -1570,7 +1570,7 @@ static int SpillRegsPreIndexed(Arm64Mir2Lir* m2l, RegStorage base, uint32_t core
       // Have some FP regs to do.
       fp_reg_mask = GenPairWise(fp_reg_mask, &reg1, &reg2);
       if (UNLIKELY(reg2 < 0)) {
-        m2l->NewLIR3(FWIDE(kA64Str3fXD), RegStorage::FloatSolo64(reg1).GetReg(), base.GetReg(),
+        m2l->NewLIR3(WIDE(kA64Str3fXD), RegStorage::FloatSolo64(reg1).GetReg(), base.GetReg(),
                      cur_offset);
         // Do not increment offset here, as the second half will be filled by a core reg.
       } else {
@@ -1643,7 +1643,7 @@ static void UnSpillFPRegs(Arm64Mir2Lir* m2l, RegStorage base, int offset, uint32
   for (offset = (offset >> reg_log2_size); reg_mask; offset += 2) {
      reg_mask = GenPairWise(reg_mask, & reg1, & reg2);
     if (UNLIKELY(reg2 < 0)) {
-      m2l->NewLIR3(FWIDE(kA64Ldr3fXD), RegStorage::FloatSolo64(reg1).GetReg(), base.GetReg(),
+      m2l->NewLIR3(WIDE(kA64Ldr3fXD), RegStorage::FloatSolo64(reg1).GetReg(), base.GetReg(),
                    offset);
     } else {
       m2l->NewLIR4(WIDE(kA64Ldp4ffXD), RegStorage::FloatSolo64(reg2).GetReg(),
@@ -1705,7 +1705,7 @@ void Arm64Mir2Lir::UnspillRegs(RegStorage base, uint32_t core_reg_mask, uint32_t
 }
 
 bool Arm64Mir2Lir::GenInlinedReverseBits(CallInfo* info, OpSize size) {
-  ArmOpcode wide = IsWide(size) ? WIDE(0) : UNWIDE(0);
+  A64Opcode wide = IsWide(size) ? WIDE(0) : UNWIDE(0);
   RegLocation rl_src_i = info->args[0];
   RegLocation rl_dest = IsWide(size) ? InlineTargetWide(info) : InlineTarget(info);  // result reg
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
