@@ -841,6 +841,23 @@ class DexFile {
     return size_;
   }
 
+  static std::string GetMultiDexClassesDexName(size_t number, const char* dex_location);
+
+  // Returns the canonical form of the given dex location.
+  //
+  // There are different flavors of "dex locations" as follows:
+  // the file name of a dex file:
+  //     The actual file path that the dex file has on disk.
+  // dex_location:
+  //     This acts as a key for the class linker to know which dex file to load.
+  //     It may correspond to either an old odex file or a particular dex file
+  //     inside an oat file. In the first case it will also match the file name
+  //     of the dex file. In the second case (oat) it will include the file name
+  //     and possibly some multidex annotation to uniquely identify it.
+  // canonical_dex_location:
+  //     the dex_location where it's file name part has been made canonical.
+  static std::string GetDexCanonicalLocation(const char* dex_location);
+
  private:
   // Opens a .dex file
   static const DexFile* OpenFile(int fd, const char* location, bool verify, std::string* error_msg);
