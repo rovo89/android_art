@@ -128,7 +128,6 @@ class CodeGeneratorX86 : public CodeGenerator {
   explicit CodeGeneratorX86(HGraph* graph);
   virtual ~CodeGeneratorX86() { }
 
-  virtual void ComputeFrameSize(size_t number_of_spill_slots) OVERRIDE;
   virtual void GenerateFrameEntry() OVERRIDE;
   virtual void GenerateFrameExit() OVERRIDE;
   virtual void Bind(Label* label) OVERRIDE;
@@ -137,6 +136,8 @@ class CodeGeneratorX86 : public CodeGenerator {
   virtual size_t GetWordSize() const OVERRIDE {
     return kX86WordSize;
   }
+
+  virtual size_t FrameEntrySpillSize() const OVERRIDE;
 
   virtual HGraphVisitor* GetLocationBuilder() OVERRIDE {
     return &location_builder_;
@@ -155,9 +156,7 @@ class CodeGeneratorX86 : public CodeGenerator {
   virtual ManagedRegister AllocateFreeRegister(
       Primitive::Type type, bool* blocked_registers) const OVERRIDE;
 
-  int32_t GetStackSlot(HLocal* local) const;
   virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
-  virtual Location GetTemporaryLocation(HTemporary* temp) const OVERRIDE;
 
   virtual size_t GetNumberOfCoreRegisters() const OVERRIDE {
     return kNumberOfCpuRegisters;

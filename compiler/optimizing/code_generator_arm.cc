@@ -99,6 +99,10 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph)
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this) {}
 
+size_t CodeGeneratorARM::FrameEntrySpillSize() const {
+  return kNumberOfPushedRegistersAtEntry * kArmWordSize;
+}
+
 static bool* GetBlockedRegisterPairs(bool* blocked_registers) {
   return blocked_registers + kNumberOfAllocIds;
 }
@@ -200,14 +204,6 @@ InstructionCodeGeneratorARM::InstructionCodeGeneratorARM(HGraph* graph, CodeGene
         assembler_(codegen->GetAssembler()),
         codegen_(codegen) {}
 
-void CodeGeneratorARM::ComputeFrameSize(size_t number_of_spill_slots) {
-  SetFrameSize(RoundUp(
-      number_of_spill_slots * kVRegSize
-      + kVRegSize  // Art method
-      + kNumberOfPushedRegistersAtEntry * kArmWordSize,
-      kStackAlignment));
-}
-
 void CodeGeneratorARM::GenerateFrameEntry() {
   core_spill_mask_ |= (1 << LR | 1 << R6 | 1 << R7);
   __ PushList(1 << LR | 1 << R6 | 1 << R7);
@@ -224,33 +220,6 @@ void CodeGeneratorARM::GenerateFrameExit() {
 
 void CodeGeneratorARM::Bind(Label* label) {
   __ Bind(label);
-}
-
-Location CodeGeneratorARM::GetTemporaryLocation(HTemporary* temp) const {
-  uint16_t number_of_vregs = GetGraph()->GetNumberOfVRegs();
-  // Use the temporary region (right below the dex registers).
-  int32_t slot = GetFrameSize() - (kNumberOfPushedRegistersAtEntry * kArmWordSize)
-                                - kVRegSize  // filler
-                                - (number_of_vregs * kVRegSize)
-                                - ((1 + temp->GetIndex()) * kVRegSize);
-  return Location::StackSlot(slot);
-}
-
-int32_t CodeGeneratorARM::GetStackSlot(HLocal* local) const {
-  uint16_t reg_number = local->GetRegNumber();
-  uint16_t number_of_vregs = GetGraph()->GetNumberOfVRegs();
-  uint16_t number_of_in_vregs = GetGraph()->GetNumberOfInVRegs();
-  if (reg_number >= number_of_vregs - number_of_in_vregs) {
-    // Local is a parameter of the method. It is stored in the caller's frame.
-    return GetFrameSize() + kVRegSize  // ART method
-                          + (reg_number - number_of_vregs + number_of_in_vregs) * kVRegSize;
-  } else {
-    // Local is a temporary in this method. It is stored in this method's frame.
-    return GetFrameSize() - (kNumberOfPushedRegistersAtEntry * kArmWordSize)
-                          - kVRegSize  // filler.
-                          - (number_of_vregs * kVRegSize)
-                          + (reg_number * kVRegSize);
-  }
 }
 
 Location CodeGeneratorARM::GetStackLocation(HLoadLocal* load) const {
