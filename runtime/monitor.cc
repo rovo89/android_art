@@ -746,7 +746,11 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
           contention_count++;
           Runtime* runtime = Runtime::Current();
           if (contention_count <= runtime->GetMaxSpinsBeforeThinkLockInflation()) {
-            NanoSleep(1000);  // Sleep for 1us and re-attempt.
+            // TODO: Consider switch thread state to kBlocked when we are yielding.
+            // Use sched_yield instead of NanoSleep since NanoSleep can wait much longer than the
+            // parameter you pass in. This can cause thread suspension to take excessively long
+            // make long pauses. See b/16307460.
+            sched_yield();
           } else {
             contention_count = 0;
             InflateThinLocked(self, h_obj, lock_word, 0);
