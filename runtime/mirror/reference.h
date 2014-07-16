@@ -17,7 +17,11 @@
 #ifndef ART_RUNTIME_MIRROR_REFERENCE_H_
 #define ART_RUNTIME_MIRROR_REFERENCE_H_
 
+#include "class.h"
 #include "object.h"
+#include "object_callbacks.h"
+#include "read_barrier.h"
+#include "thread.h"
 
 namespace art {
 
@@ -36,6 +40,14 @@ namespace mirror {
 // C++ mirror of java.lang.ref.Reference
 class MANAGED Reference : public Object {
  public:
+  // Size of java.lang.ref.Reference.class.
+  static uint32_t ClassSize();
+
+  // Size of an instance of java.lang.ref.Reference.
+  static constexpr uint32_t InstanceSize() {
+    return sizeof(Reference);
+  }
+
   static MemberOffset PendingNextOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Reference, pending_next_);
   }
@@ -80,6 +92,16 @@ class MANAGED Reference : public Object {
 
   bool IsEnqueuable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  static Class* GetJavaLangRefReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(java_lang_ref_Reference_ != nullptr);
+    return ReadBarrier::BarrierForRoot<mirror::Class, kReadBarrierOption>(
+        &java_lang_ref_Reference_);
+  }
+  static void SetClass(Class* klass);
+  static void ResetClass(void);
+  static void VisitRoots(RootCallback* callback, void* arg);
+
  private:
   // Note: This avoids a read barrier, it should only be used by the GC.
   HeapReference<Object>* GetReferentReferenceAddr() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -91,6 +113,8 @@ class MANAGED Reference : public Object {
   HeapReference<Object> queue_;  // Note this is Java volatile:
   HeapReference<Reference> queue_next_;  // Note this is Java volatile:
   HeapReference<Object> referent_;  // Note this is Java volatile:
+
+  static Class* java_lang_ref_Reference_;
 
   friend struct art::ReferenceOffsets;  // for verifying offset information
   friend class gc::ReferenceProcessor;
