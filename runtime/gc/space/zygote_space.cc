@@ -77,23 +77,28 @@ void ZygoteSpace::Dump(std::ostream& os) const {
 
 mirror::Object* ZygoteSpace::Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
                                    size_t* usable_size) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return nullptr;
 }
 
 size_t ZygoteSpace::AllocationSize(mirror::Object* obj, size_t* usable_size) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 size_t ZygoteSpace::Free(Thread* self, mirror::Object* ptr) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 size_t ZygoteSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
+}
+
+void ZygoteSpace::LogFragmentationAllocFailure(std::ostream& /*os*/,
+                                               size_t /*failed_alloc_bytes*/) {
+  UNIMPLEMENTED(FATAL);
 }
 
 void ZygoteSpace::SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg) {

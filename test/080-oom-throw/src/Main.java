@@ -21,7 +21,7 @@ public class Main {
         static void blowup(char[][] holder) {
             try {
                 for (int i = 0; i < holder.length; ++i) {
-                    holder[i] = new char[128 * 1024];
+                    holder[i] = new char[1024 * 1024];
                 }
             } catch (OutOfMemoryError oome) {
                 ArrayMemEater.sawOome = true;
@@ -49,7 +49,7 @@ public class Main {
     }
 
     static boolean triggerArrayOOM() {
-        ArrayMemEater.blowup(new char[1 * 1024 * 1024][]);
+        ArrayMemEater.blowup(new char[128 * 1024][]);
         return ArrayMemEater.sawOome;
     }
 

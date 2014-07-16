@@ -173,7 +173,7 @@ class Runtime {
   void DetachCurrentThread() LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   void DumpForSigQuit(std::ostream& os)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DumpLockHolders(std::ostream& os);
 
   ~Runtime();
