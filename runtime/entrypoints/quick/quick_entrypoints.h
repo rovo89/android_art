@@ -138,6 +138,10 @@ struct PACKED(4) QuickEntryPoints {
   void (*pThrowNoSuchMethod)(int32_t);
   void (*pThrowNullPointer)();
   void (*pThrowStackOverflow)(void*);
+
+  // Atomic 64-bit load/store
+  int64_t (*pA64Load)(volatile const int64_t *);
+  void (*pA64Store)(volatile int64_t *, int64_t);
 };
 
 

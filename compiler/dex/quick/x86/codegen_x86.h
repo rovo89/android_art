@@ -145,8 +145,6 @@ class X86Mir2Lir : public Mir2Lir {
   size_t GetInsnSize(LIR* lir) OVERRIDE;
   bool IsUnconditionalBranch(LIR* lir);
 
-  // Check support for volatile load/store of a given size.
-  bool SupportsVolatileLoadStore(OpSize size) OVERRIDE;
   // Get the register class for load/store of a field.
   RegisterClass RegClassForFieldLoadStore(OpSize size, bool is_volatile) OVERRIDE;
 
