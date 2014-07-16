@@ -15,23 +15,16 @@
  */
 
 #include "fault_handler.h"
+
 #include <sys/mman.h>
 #include <sys/ucontext.h>
-#include "base/macros.h"
-#include "globals.h"
-#include "base/logging.h"
-#include "base/hex_dump.h"
-#include "thread.h"
-#include "mirror/art_method-inl.h"
-#include "mirror/class-inl.h"
-#include "mirror/dex_cache.h"
-#include "mirror/object_array-inl.h"
-#include "mirror/object-inl.h"
-#include "object_utils.h"
-#include "scoped_thread_state_change.h"
+
+#include "mirror/art_method.h"
+#include "mirror/class.h"
 #ifdef HAVE_ANDROID_OS
 #include "sigchain.h"
 #endif
+#include "thread-inl.h"
 #include "verify_object-inl.h"
 
 namespace art {

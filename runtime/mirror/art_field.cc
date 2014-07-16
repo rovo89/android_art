@@ -20,7 +20,6 @@
 #include "gc/accounting/card_table-inl.h"
 #include "object-inl.h"
 #include "object_array-inl.h"
-#include "object_utils.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "utils.h"

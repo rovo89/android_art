@@ -21,7 +21,6 @@
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
-#include "object_utils.h"
 #include "stack.h"
 #include "thread.h"
 #include "verifier/method_verifier.h"

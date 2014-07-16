@@ -57,7 +57,6 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "oat_writer.h"
-#include "object_utils.h"
 #include "os.h"
 #include "runtime.h"
 #include "ScopedLocalRef.h"

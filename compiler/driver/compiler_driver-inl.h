@@ -20,12 +20,10 @@
 #include "compiler_driver.h"
 
 #include "dex/compiler_ir.h"
-#include "mirror/art_field.h"
+#include "field_helper.h"
 #include "mirror/art_field-inl.h"
-#include "mirror/art_method.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class_loader.h"
-#include "mirror/dex_cache.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/art_field-inl.h"
 #include "scoped_thread_state_change.h"
