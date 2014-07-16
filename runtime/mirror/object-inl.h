@@ -249,7 +249,7 @@ inline ArtMethod* Object::AsArtMethod() {
 
 template<VerifyObjectFlags kVerifyFlags>
 inline bool Object::IsReferenceInstance() {
-  return GetClass<kVerifyFlags>()->IsReferenceClass();
+  return GetClass<kVerifyFlags>()->IsTypeOfReferenceClass();
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -806,7 +806,7 @@ inline void Object::VisitReferences(const Visitor& visitor,
   } else {
     DCHECK(!klass->IsVariableSize());
     VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
-    if (UNLIKELY(klass->IsReferenceClass<kVerifyNone>())) {
+    if (UNLIKELY(klass->IsTypeOfReferenceClass<kVerifyNone>())) {
       ref_visitor(klass, AsReference());
     }
   }

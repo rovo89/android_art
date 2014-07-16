@@ -30,6 +30,7 @@
 #include "iftable.h"
 #include "object_array-inl.h"
 #include "read_barrier-inl.h"
+#include "reference-inl.h"
 #include "runtime.h"
 #include "string.h"
 
@@ -591,6 +592,11 @@ inline bool Class::IsArtMethodClass() const {
   return this == ArtMethod::GetJavaLangReflectArtMethod<kReadBarrierOption>();
 }
 
+template<ReadBarrierOption kReadBarrierOption>
+inline bool Class::IsReferenceClass() const {
+  return this == Reference::GetJavaLangRefReference<kReadBarrierOption>();
+}
+
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Class::IsClassClass() {
   Class* java_lang_Class = GetClass<kVerifyFlags, kReadBarrierOption>()->
@@ -640,6 +646,30 @@ inline ObjectArray<ObjectArray<Class>>* Class::GetThrows() {
   DCHECK_STREQ(GetSFields()->Get(1)->GetName(), "throws");
   MemberOffset field_offset = GetSFields()->Get(1)->GetOffset();
   return GetFieldObject<ObjectArray<ObjectArray<Class>>>(field_offset);
+}
+
+inline MemberOffset Class::GetDisableIntrinsicFlagOffset() {
+  CHECK(IsReferenceClass());
+  // First static field
+  DCHECK(GetSFields()->Get(0)->IsArtField());
+  DCHECK_STREQ(GetSFields()->Get(0)->GetName(), "disableIntrinsic");
+  return GetSFields()->Get(0)->GetOffset();
+}
+
+inline MemberOffset Class::GetSlowPathFlagOffset() {
+  CHECK(IsReferenceClass());
+  // Second static field
+  DCHECK(GetSFields()->Get(1)->IsArtField());
+  DCHECK_STREQ(GetSFields()->Get(1)->GetName(), "slowPathEnabled");
+  return GetSFields()->Get(1)->GetOffset();
+}
+
+inline bool Class::GetSlowPathEnabled() {
+  return GetField32(GetSlowPathFlagOffset());
+}
+
+inline void Class::SetSlowPath(bool enabled) {
+  SetField32<false>(GetSlowPathFlagOffset(), enabled);
 }
 
 inline void Class::InitializeClassVisitor::operator()(
