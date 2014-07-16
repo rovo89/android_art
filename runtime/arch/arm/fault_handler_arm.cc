@@ -46,9 +46,10 @@ static uint32_t GetInstructionSize(uint8_t* pc) {
   return instr_size;
 }
 
-void FaultManager::GetMethodAndReturnPCAndSP(void* context, mirror::ArtMethod** out_method,
+void FaultManager::GetMethodAndReturnPCAndSP(siginfo_t* siginfo, void* context,
+                                             mirror::ArtMethod** out_method,
                                              uintptr_t* out_return_pc, uintptr_t* out_sp) {
-  struct ucontext *uc = (struct ucontext *)context;
+  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
   *out_sp = static_cast<uintptr_t>(sc->arm_sp);
   VLOG(signals) << "sp: " << *out_sp;
@@ -114,7 +115,7 @@ bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
   uint32_t checkinst1 = 0xf8d90000 + Thread::ThreadSuspendTriggerOffset<4>().Int32Value();
   uint16_t checkinst2 = 0x6800;
 
-  struct ucontext *uc = (struct ucontext *)context;
+  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
   uint8_t* ptr2 = reinterpret_cast<uint8_t*>(sc->arm_pc);
   uint8_t* ptr1 = ptr2 - 4;
@@ -178,7 +179,7 @@ bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
 // to the overflow region below the protected region.
 
 bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
-  struct ucontext *uc = (struct ucontext *)context;
+  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
   VLOG(signals) << "stack overflow handler with sp at " << std::hex << &uc;
   VLOG(signals) << "sigcontext: " << std::hex << sc;
@@ -205,7 +206,7 @@ bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
   }
 
   // We know this is a stack overflow.  We need to move the sp to the overflow region
-  // the exists below the protected region.  Determine the address of the next
+  // that exists below the protected region.  Determine the address of the next
   // available valid address below the protected region.
   uintptr_t prevsp = sp;
   sp = pregion;

@@ -20,7 +20,6 @@
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/quick_compiler_callbacks.h"
 #include "entrypoints/quick/quick_entrypoints.h"
-#include "implicit_check_options.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
@@ -118,8 +117,6 @@ TEST_F(OatTest, WriteRead) {
   ScratchFile tmp;
   SafeMap<std::string, std::string> key_value_store;
   key_value_store.Put(OatHeader::kImageLocationKey, "lue.art");
-  key_value_store.Put(ImplicitCheckOptions::kImplicitChecksOatHeaderKey,
-                      ImplicitCheckOptions::Serialize(true, true, true));
   OatWriter oat_writer(class_linker->GetBootClassPath(),
                        42U,
                        4096U,

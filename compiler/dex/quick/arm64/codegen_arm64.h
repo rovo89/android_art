@@ -100,7 +100,7 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
                               RegStorage r_src, OpSize size) OVERRIDE;
     void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) OVERRIDE;
     LIR* OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,
-                           int offset, int check_value, LIR* target) OVERRIDE;
+                           int offset, int check_value, LIR* target, LIR** compare) OVERRIDE;
 
     // Required for target - register utilities.
     RegStorage TargetReg(SpecialTargetRegister reg) OVERRIDE;

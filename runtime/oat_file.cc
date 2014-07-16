@@ -23,7 +23,6 @@
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "elf_file.h"
-#include "implicit_check_options.h"
 #include "oat.h"
 #include "mirror/art_method.h"
 #include "mirror/art_method-inl.h"
@@ -80,36 +79,7 @@ OatFile* OatFile::Open(const std::string& filename,
     }
     ret.reset(OpenElfFile(file.get(), location, requested_base, false, executable, error_msg));
   }
-
-  if (ret.get() == nullptr) {
-    return nullptr;
-  }
-
-  // Embedded options check. Right now only implicit checks.
-  // TODO: Refactor to somewhere else?
-  const char* implicit_checks_value = ret->GetOatHeader().
-      GetStoreValueByKey(ImplicitCheckOptions::kImplicitChecksOatHeaderKey);
-
-  if (implicit_checks_value == nullptr) {
-    *error_msg = "Did not find implicit checks value.";
-    return nullptr;
-  }
-
-  bool explicit_null_checks, explicit_so_checks, explicit_suspend_checks;
-  if (ImplicitCheckOptions::Parse(implicit_checks_value, &explicit_null_checks,
-                                  &explicit_so_checks, &explicit_suspend_checks)) {
-    // Check whether the runtime agrees with the recorded checks.
-    if (ImplicitCheckOptions::CheckRuntimeSupport(executable, explicit_null_checks,
-                                                  explicit_so_checks, explicit_suspend_checks,
-                                                  error_msg)) {
-      return ret.release();
-    } else {
-      return nullptr;
-    }
-  } else {
-    *error_msg = "Failed parsing implicit check options.";
-    return nullptr;
-  }
+  return ret.release();
 }
 
 OatFile* OatFile::OpenWritable(File* file, const std::string& location, std::string* error_msg) {
