@@ -39,6 +39,8 @@
 
 namespace art {
 
+static constexpr uint64_t kLongThreadSuspendThreshold = MsToNs(5);
+
 ThreadList::ThreadList()
     : suspend_all_count_(0), debug_suspend_all_count_(0),
       thread_exit_cond_("thread exit condition variable", *Locks::thread_list_lock_) {
@@ -304,8 +306,8 @@ void ThreadList::SuspendAll() {
   DCHECK(self != nullptr);
 
   VLOG(threads) << *self << " SuspendAll starting...";
-
   ATRACE_BEGIN("Suspending mutator threads");
+  uint64_t start_time = NanoTime();
 
   Locks::mutator_lock_->AssertNotHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
@@ -337,6 +339,11 @@ void ThreadList::SuspendAll() {
 #else
   Locks::mutator_lock_->ExclusiveLock(self);
 #endif
+
+  uint64_t end_time = NanoTime();
+  if (end_time - start_time > kLongThreadSuspendThreshold) {
+    LOG(WARNING) << "Suspending all threads took: " << PrettyDuration(end_time - start_time);
+  }
 
   if (kDebugLocking) {
     // Debug check that all threads are suspended.
