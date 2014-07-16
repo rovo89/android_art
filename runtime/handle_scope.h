@@ -27,6 +27,7 @@ namespace art {
 namespace mirror {
 class Object;
 }
+
 class Thread;
 
 // HandleScopes can be allocated within the bridge frame between managed and native code backed by

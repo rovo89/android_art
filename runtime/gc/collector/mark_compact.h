@@ -49,6 +49,7 @@ namespace accounting {
 }  // namespace accounting
 
 namespace space {
+  class BumpPointerSpace;
   class ContinuousMemMapAllocSpace;
   class ContinuousSpace;
 }  // namespace space

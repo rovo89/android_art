@@ -17,19 +17,15 @@
 #ifndef ART_RUNTIME_STACK_H_
 #define ART_RUNTIME_STACK_H_
 
-#include "dex_file.h"
-#include "instrumentation.h"
-#include "arch/context.h"
-#include "base/casts.h"
-#include "base/macros.h"
-#include "instruction_set.h"
-#include "mirror/object.h"
-#include "mirror/object_reference.h"
-#include "utils.h"
-#include "verify_object.h"
-
 #include <stdint.h>
 #include <string>
+
+#include "dex_file.h"
+#include "instruction_set.h"
+#include "mirror/object_reference.h"
+#include "throw_location.h"
+#include "utils.h"
+#include "verify_object.h"
 
 namespace art {
 
@@ -710,8 +706,6 @@ class StackVisitor {
   bool SetGPR(uint32_t reg, uintptr_t value);
   bool GetFPR(uint32_t reg, uintptr_t* val) const;
   bool SetFPR(uint32_t reg, uintptr_t value);
-
-  instrumentation::InstrumentationStackFrame& GetInstrumentationStackFrame(uint32_t depth) const;
 
   void SanityCheckFrame() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

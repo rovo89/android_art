@@ -49,6 +49,7 @@
 #include "fault_handler.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
+#include "gc/space/image_space.h"
 #include "gc/space/space.h"
 #include "image.h"
 #include "instrumentation.h"
@@ -324,7 +325,7 @@ void Runtime::SweepSystemWeaks(IsMarkedCallback* visitor, void* arg) {
   GetJavaVM()->SweepJniWeakGlobals(visitor, arg);
 }
 
-bool Runtime::Create(const Options& options, bool ignore_unrecognized) {
+bool Runtime::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
   // TODO: acquire a static mutex on Runtime to avoid racing.
   if (Runtime::instance_ != NULL) {
     return false;
@@ -534,7 +535,7 @@ void Runtime::StartDaemonThreads() {
   VLOG(startup) << "Runtime::StartDaemonThreads exiting";
 }
 
-bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
+bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) {
   CHECK_EQ(sysconf(_SC_PAGE_SIZE), kPageSize);
 
   std::unique_ptr<ParsedOptions> options(ParsedOptions::Create(raw_options, ignore_unrecognized));

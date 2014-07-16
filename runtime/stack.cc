@@ -16,6 +16,7 @@
 
 #include "stack.h"
 
+#include "arch/context.h"
 #include "base/hex_dump.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
@@ -366,9 +367,10 @@ std::string StackVisitor::DescribeLocation() const {
   return result;
 }
 
-instrumentation::InstrumentationStackFrame& StackVisitor::GetInstrumentationStackFrame(uint32_t depth) const {
-  CHECK_LT(depth, thread_->GetInstrumentationStack()->size());
-  return thread_->GetInstrumentationStack()->at(depth);
+static instrumentation::InstrumentationStackFrame& GetInstrumentationStackFrame(Thread* thread,
+                                                                                uint32_t depth) {
+  CHECK_LT(depth, thread->GetInstrumentationStack()->size());
+  return thread->GetInstrumentationStack()->at(depth);
 }
 
 void StackVisitor::SanityCheckFrame() const {
@@ -431,7 +433,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
           // the stack for an exception where the side stack will be unwound in VisitFrame.
           if (GetQuickInstrumentationExitPc() == return_pc) {
             const instrumentation::InstrumentationStackFrame& instrumentation_frame =
-                GetInstrumentationStackFrame(instrumentation_stack_depth);
+                GetInstrumentationStackFrame(thread_, instrumentation_stack_depth);
             instrumentation_stack_depth++;
             if (GetMethod() == Runtime::Current()->GetCalleeSaveMethod(Runtime::kSaveAll)) {
               // Skip runtime save all callee frames which are used to deliver exceptions.

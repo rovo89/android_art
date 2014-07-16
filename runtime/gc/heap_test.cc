@@ -17,10 +17,11 @@
 #include "common_runtime_test.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/space_bitmap-inl.h"
+#include "handle_scope-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
-#include "handle_scope-inl.h"
+#include "scoped_thread_state_change.h"
 
 namespace art {
 namespace gc {

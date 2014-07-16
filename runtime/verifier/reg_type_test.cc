@@ -21,6 +21,8 @@
 #include "base/casts.h"
 #include "common_runtime_test.h"
 #include "reg_type_cache-inl.h"
+#include "scoped_thread_state_change.h"
+#include "thread-inl.h"
 
 namespace art {
 namespace verifier {

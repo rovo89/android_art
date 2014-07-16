@@ -15,6 +15,7 @@
  */
 
 #include "space_test.h"
+
 #include "dlmalloc_space.h"
 
 namespace art {

@@ -14,48 +14,38 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DRIVER_COMPILER_CALLBACKS_IMPL_H_
-#define ART_COMPILER_DRIVER_COMPILER_CALLBACKS_IMPL_H_
+#ifndef ART_COMPILER_DEX_QUICK_COMPILER_CALLBACKS_H_
+#define ART_COMPILER_DEX_QUICK_COMPILER_CALLBACKS_H_
 
 #include "compiler_callbacks.h"
-#include "dex/quick/dex_file_to_method_inliner_map.h"
-#include "verifier/method_verifier-inl.h"
 
 namespace art {
 
-class CompilerCallbacksImpl FINAL : public CompilerCallbacks {
+class VerificationResults;
+class DexFileToMethodInlinerMap;
+
+class QuickCompilerCallbacks FINAL : public CompilerCallbacks {
   public:
-    CompilerCallbacksImpl(VerificationResults* verification_results,
-                          DexFileToMethodInlinerMap* method_inliner_map)
+    QuickCompilerCallbacks(VerificationResults* verification_results,
+                           DexFileToMethodInlinerMap* method_inliner_map)
         : verification_results_(verification_results),
           method_inliner_map_(method_inliner_map) {
       CHECK(verification_results != nullptr);
       CHECK(method_inliner_map != nullptr);
     }
 
-    ~CompilerCallbacksImpl() { }
+    ~QuickCompilerCallbacks() { }
 
     bool MethodVerified(verifier::MethodVerifier* verifier)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
-    void ClassRejected(ClassReference ref) OVERRIDE {
-      verification_results_->AddRejectedClass(ref);
-    }
+
+    void ClassRejected(ClassReference ref) OVERRIDE;
 
   private:
     VerificationResults* const verification_results_;
     DexFileToMethodInlinerMap* const method_inliner_map_;
 };
 
-inline bool CompilerCallbacksImpl::MethodVerified(verifier::MethodVerifier* verifier) {
-  bool result = verification_results_->ProcessVerifiedMethod(verifier);
-  if (result) {
-    MethodReference ref = verifier->GetMethodReference();
-    method_inliner_map_->GetMethodInliner(ref.dex_file)
-        ->AnalyseMethodCode(verifier);
-  }
-  return result;
-}
-
 }  // namespace art
 
-#endif  // ART_COMPILER_DRIVER_COMPILER_CALLBACKS_IMPL_H_
+#endif  // ART_COMPILER_DEX_QUICK_COMPILER_CALLBACKS_H_

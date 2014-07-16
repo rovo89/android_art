@@ -20,6 +20,7 @@
 #include "mirror/array-inl.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
+#include "scoped_thread_state_change.h"
 
 namespace art {
 

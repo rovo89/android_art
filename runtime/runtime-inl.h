@@ -19,6 +19,8 @@
 
 #include "runtime.h"
 
+#include "read_barrier-inl.h"
+
 namespace art {
 
 inline QuickMethodFrameInfo Runtime::GetRuntimeMethodFrameInfo(mirror::ArtMethod* method) {
@@ -35,6 +37,36 @@ inline QuickMethodFrameInfo Runtime::GetRuntimeMethodFrameInfo(mirror::ArtMethod
     DCHECK(method == GetCalleeSaveMethodUnchecked(Runtime::kRefsOnly));
     return GetCalleeSaveMethodFrameInfo(Runtime::kRefsOnly);
   }
+}
+
+inline mirror::ArtMethod* Runtime::GetResolutionMethod() {
+  CHECK(HasResolutionMethod());
+  return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(&resolution_method_);
+}
+
+inline mirror::ArtMethod* Runtime::GetImtConflictMethod() {
+  CHECK(HasImtConflictMethod());
+  return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(&imt_conflict_method_);
+}
+
+inline mirror::ObjectArray<mirror::ArtMethod>* Runtime::GetDefaultImt()
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  CHECK(HasDefaultImt());
+  return ReadBarrier::BarrierForRoot<mirror::ObjectArray<mirror::ArtMethod>, kWithReadBarrier>(
+      &default_imt_);
+}
+
+inline mirror::ArtMethod* Runtime::GetCalleeSaveMethod(CalleeSaveType type)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK(HasCalleeSaveMethod(type));
+  return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(
+      &callee_save_methods_[type]);
+}
+
+inline mirror::ArtMethod* Runtime::GetCalleeSaveMethodUnchecked(CalleeSaveType type)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(
+      &callee_save_methods_[type]);
 }
 
 }  // namespace art

@@ -17,8 +17,6 @@
 #ifndef ART_RUNTIME_GC_SPACE_SPACE_TEST_H_
 #define ART_RUNTIME_GC_SPACE_SPACE_TEST_H_
 
-#include "zygote_space.h"
-
 #include <stdint.h>
 #include <memory>
 
@@ -26,6 +24,8 @@
 #include "globals.h"
 #include "mirror/array-inl.h"
 #include "mirror/object-inl.h"
+#include "scoped_thread_state_change.h"
+#include "zygote_space.h"
 
 namespace art {
 namespace gc {

@@ -72,6 +72,7 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/verification_results.cc \
 	dex/vreg_analysis.cc \
 	dex/ssa_transformation.cc \
+	dex/quick_compiler_callbacks.cc \
 	driver/compiler_driver.cc \
 	driver/dex_compilation_unit.cc \
 	jni/quick/arm/calling_convention_arm.cc \

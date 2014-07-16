@@ -19,7 +19,6 @@
 
 #include "base/macros.h"
 #include "base/mutex.h"
-#include "gc/space/space-inl.h"
 
 namespace art {
 namespace mirror {
