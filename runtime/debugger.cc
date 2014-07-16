@@ -2450,12 +2450,9 @@ JDWP::JdwpError Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame
         }
         case JDWP::JT_DOUBLE: {
           CHECK_EQ(width_, 8U);
-          uint32_t lo;
-          uint32_t hi;
-          if (GetVReg(m, reg, kDoubleLoVReg, &lo) && GetVReg(m, reg + 1, kDoubleHiVReg, &hi)) {
-            uint64_t longVal = (static_cast<uint64_t>(hi) << 32) | lo;
-            VLOG(jdwp) << "get double local " << reg << " = "
-                       << hi << ":" << lo << " = " << longVal;
+          uint64_t longVal;
+          if (GetVRegPair(m, reg, kDoubleLoVReg, kDoubleHiVReg, &longVal)) {
+            VLOG(jdwp) << "get double local " << reg << " = " << longVal;
             JDWP::Set8BE(buf_+1, longVal);
           } else {
             VLOG(jdwp) << "failed to get double local " << reg;
@@ -2465,12 +2462,9 @@ JDWP::JdwpError Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame
         }
         case JDWP::JT_LONG: {
           CHECK_EQ(width_, 8U);
-          uint32_t lo;
-          uint32_t hi;
-          if (GetVReg(m, reg, kLongLoVReg, &lo) && GetVReg(m, reg + 1, kLongHiVReg, &hi)) {
-            uint64_t longVal = (static_cast<uint64_t>(hi) << 32) | lo;
-            VLOG(jdwp) << "get long local " << reg << " = "
-                       << hi << ":" << lo << " = " << longVal;
+          uint64_t longVal;
+          if (GetVRegPair(m, reg, kLongLoVReg, kLongHiVReg, &longVal)) {
+            VLOG(jdwp) << "get long local " << reg << " = " << longVal;
             JDWP::Set8BE(buf_+1, longVal);
           } else {
             VLOG(jdwp) << "failed to get long local " << reg;
@@ -2593,28 +2587,18 @@ JDWP::JdwpError Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame
         }
         case JDWP::JT_DOUBLE: {
           CHECK_EQ(width_, 8U);
-          const uint32_t lo = static_cast<uint32_t>(value_);
-          const uint32_t hi = static_cast<uint32_t>(value_ >> 32);
-          bool success = SetVReg(m, reg, lo, kDoubleLoVReg);
-          success &= SetVReg(m, reg + 1, hi, kDoubleHiVReg);
+          bool success = SetVRegPair(m, reg, value_, kDoubleLoVReg, kDoubleHiVReg);
           if (!success) {
-            uint64_t longVal = (static_cast<uint64_t>(hi) << 32) | lo;
-            VLOG(jdwp) << "failed to set double local " << reg << " = "
-                       << hi << ":" << lo << " = " << longVal;
+            VLOG(jdwp) << "failed to set double local " << reg << " = " << value_;
             error_ = kFailureErrorCode;
           }
           break;
         }
         case JDWP::JT_LONG: {
           CHECK_EQ(width_, 8U);
-          const uint32_t lo = static_cast<uint32_t>(value_);
-          const uint32_t hi = static_cast<uint32_t>(value_ >> 32);
-          bool success = SetVReg(m, reg, lo, kLongLoVReg);
-          success &= SetVReg(m, reg + 1, hi, kLongHiVReg);
+          bool success = SetVRegPair(m, reg, value_, kLongLoVReg, kLongHiVReg);
           if (!success) {
-            uint64_t longVal = (static_cast<uint64_t>(hi) << 32) | lo;
-            VLOG(jdwp) << "failed to set double local " << reg << " = "
-                       << hi << ":" << lo << " = " << longVal;
+            VLOG(jdwp) << "failed to set double local " << reg << " = " << value_;
             error_ = kFailureErrorCode;
           }
           break;
