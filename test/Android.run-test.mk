@@ -21,25 +21,61 @@ include art/build/Android.common_test.mk
 TEST_ART_RUN_TESTS := $(wildcard $(LOCAL_PATH)/[0-9]*)
 TEST_ART_RUN_TESTS := $(subst $(LOCAL_PATH)/,, $(TEST_ART_RUN_TESTS))
 
+# List all the test names for host and target excluding the -trace suffix
+# $(1): test name, e.g. 003-omnibus-opcodes
+# $(2): undefined or -trace
+define all-run-test-names
+  test-art-host-run-test$(2)-default-$(1)32 \
+  test-art-host-run-test$(2)-optimizing-$(1)32 \
+  test-art-host-run-test$(2)-interpreter-$(1)32 \
+  test-art-host-run-test$(2)-default-$(1)64 \
+  test-art-host-run-test$(2)-optimizing-$(1)64 \
+  test-art-host-run-test$(2)-interpreter-$(1)64 \
+  test-art-target-run-test$(2)-default-$(1)32 \
+  test-art-target-run-test$(2)-optimizing-$(1)32 \
+  test-art-target-run-test$(2)-interpreter-$(1)32 \
+  test-art-target-run-test$(2)-default-$(1)64 \
+  test-art-target-run-test$(2)-optimizing-$(1)64 \
+  test-art-target-run-test$(2)-interpreter-$(1)64
+endef  # all-run-test-names
+
 # Tests that are timing sensitive and flaky on heavily loaded systems.
 TEST_ART_TIMING_SENSITIVE_RUN_TESTS := \
-  test-art-host-run-test-default-053-wait-some32 \
-  test-art-host-run-test-default-053-wait-some64 \
-  test-art-host-run-test-interpreter-053-wait-some32 \
-  test-art-host-run-test-interpreter-053-wait-some64 \
-  test-art-host-run-test-optimizing-053-wait-some32 \
-  test-art-host-run-test-optimizing-053-wait-some64 \
-  test-art-host-run-test-default-055-enum-performance32 \
-  test-art-host-run-test-default-055-enum-performance64 \
-  test-art-host-run-test-interpreter-055-enum-performance32 \
-  test-art-host-run-test-interpreter-055-enum-performance64 \
-  test-art-host-run-test-optimizing-055-enum-performance32 \
-  test-art-host-run-test-optimizing-055-enum-performance64
+  053-wait-some \
+  055-enum-performance
 
  # disable timing sensitive tests on "dist" builds.
 ifdef dist_goal
-  ART_TEST_KNOWN_BROKEN += $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS)
+  ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(call all-run-test-names,$(test),))
+  ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(call all-run-test-names,$(test),-trace))
 endif
+
+# Tests that are broken in --trace mode.
+TEST_ART_BROKEN_TRACE_RUN_TESTS := \
+  003-omnibus-opcodes \
+  004-annotations \
+  018-stack-overflow \
+  023-many-interfaces \
+  031-class-attributes \
+  037-inherit \
+  044-proxy \
+  046-reflect \
+  051-thread \
+  055-enum-performance \
+  064-field-access \
+  078-polymorphic-virtual \
+  080-oom-throw \
+  082-inline-execute \
+  083-compiler-regressions \
+  097-duplicate-method \
+  100-reflect2 \
+  102-concurrent-gc \
+  103-string-append \
+  107-int-math2 \
+  112-double-math \
+  701-easy-div-rem
+
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_TRACE_RUN_TESTS), $(call all-run-test-names,$(test),-trace))
 
 # The path where build only targets will be output, e.g.
 # out/target/product/generic_x86_64/obj/PACKAGING/art-run-tests_intermediates/DATA
@@ -96,9 +132,11 @@ ART_TEST_HOST_RUN_TEST_ALL_RULES :=
 ART_TEST_HOST_RUN_TEST_DEFAULT_RULES :=
 ART_TEST_HOST_RUN_TEST_INTERPRETER_RULES :=
 ART_TEST_HOST_RUN_TEST_OPTIMIZING_RULES :=
+ART_TEST_HOST_RUN_TEST_ALL$(ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_RUN_TEST_DEFAULT$(ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_RUN_TEST_INTERPRETER$(ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_RUN_TEST_OPTIMIZING$(ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
+ART_TEST_HOST_RUN_TEST_ALL$(2ND_ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_RUN_TEST_DEFAULT$(2ND_ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_RUN_TEST_INTERPRETER$(2ND_ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_RUN_TEST_OPTIMIZING$(2ND_ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
@@ -124,8 +162,10 @@ endif
 # $(2): host or target
 # $(3): default, optimizing or interpreter
 # $(4): 32 or 64
+# $(5): run tests with tracing enabled or not: trace or undefined
 define define-test-art-run-test
   run_test_options := $(addprefix --runtime-option ,$(DALVIKVM_FLAGS))
+  run_test_rule_name := test-art-$(2)-run-test-$(3)-$(1)$(4)
   uc_host_or_target :=
   prereq_rule :=
   ifeq ($(2),host)
@@ -163,7 +203,14 @@ define define-test-art-run-test
       $$(error found $(4) expected 32 or 64)
     endif
   endif
-  run_test_rule_name := test-art-$(2)-run-test-$(3)-$(1)$(4)
+  ifeq ($(5),trace)
+    run_test_options += --trace
+    run_test_rule_name := test-art-$(2)-run-test-trace-$(3)-$(1)$(4)
+  else
+    ifneq (,$(5))
+      $$(error found $(5) expected undefined or -trace)
+    endif
+  endif
   run_test_options := --output-path $(ART_HOST_TEST_DIR)/run-test-output/$$(run_test_rule_name) \
     $$(run_test_options)
 $$(run_test_rule_name): PRIVATE_RUN_TEST_OPTIONS := $$(run_test_options)
@@ -222,9 +269,13 @@ define define-test-art-run-test-group
   ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_INTERPRETER_$(1)_RULES :=
   ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_OPTIMIZING_$(1)_RULES :=
   ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_$(1)_RULES :=
-  $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX)))
-  $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX)))
-  $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX)))
+  $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),))
+  $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),))
+  $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),))
+  ifeq ($(2),host)
+    # For now just test tracing on the host with default.
+    $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),trace))
+  endif
   do_second := false
   ifeq ($(2),host)
     ifneq ($$(HOST_PREFER_32_BIT),true)
@@ -236,9 +287,13 @@ define define-test-art-run-test-group
     endif
   endif
   ifeq (true,$$(do_second))
-    $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX)))
-    $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX)))
-    $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX)))
+    $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),))
+    $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),))
+    $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),))
+    ifeq ($(2),host)
+      # For now just test tracing on the host with default.
+      $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),trace))
+    endif
   endif
 
   $$(eval $$(call define-test-art-run-test-group-rule,test-art-$(2)-run-test-default-$(1), \
@@ -319,6 +374,7 @@ endif
 define-test-art-run-test :=
 define-test-art-run-test-group-rule :=
 define-test-art-run-test-group :=
+all-run-test-names :=
 ART_TEST_TARGET_RUN_TEST_ALL_RULES :=
 ART_TEST_TARGET_RUN_TEST_DEFAULT_RULES :=
 ART_TEST_TARGET_RUN_TEST_INTERPRETER_RULES :=
@@ -335,9 +391,11 @@ ART_TEST_HOST_RUN_TEST_ALL_RULES :=
 ART_TEST_HOST_RUN_TEST_DEFAULT_RULES :=
 ART_TEST_HOST_RUN_TEST_INTERPRETER_RULES :=
 ART_TEST_HOST_RUN_TEST_OPTIMIZING_RULES :=
+ART_TEST_HOST_RUN_TEST_ALL$(ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_RUN_TEST_DEFAULT$(ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_RUN_TEST_INTERPRETER$(ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_RUN_TEST_OPTIMIZING$(ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
+ART_TEST_HOST_RUN_TEST_ALL$(2ND_ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_RUN_TEST_DEFAULT$(2ND_ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_RUN_TEST_INTERPRETER$(2ND_ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_RUN_TEST_OPTIMIZING$(2ND_ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
