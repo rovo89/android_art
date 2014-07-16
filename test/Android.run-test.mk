@@ -67,6 +67,7 @@ TEST_ART_BROKEN_TRACE_RUN_TESTS := \
   080-oom-throw \
   082-inline-execute \
   083-compiler-regressions \
+  093-serialization \
   097-duplicate-method \
   100-reflect2 \
   102-concurrent-gc \
