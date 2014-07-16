@@ -193,6 +193,10 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
   }
 
  private:
+  static VRegKind GetVRegKind(uint16_t reg, const std::vector<int32_t>& kinds) {
+    return static_cast<VRegKind>(kinds.at(reg * 2));
+  }
+
   bool HandleDeoptimization(mirror::ArtMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile::CodeItem* code_item = m->GetCodeItem();
     CHECK(code_item != nullptr);
@@ -209,9 +213,9 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
                                       &m->GetClassDef(), code_item, m->GetDexMethodIndex(), m,
                                       m->GetAccessFlags(), false, true, true);
     verifier.Verify();
-    std::vector<int32_t> kinds = verifier.DescribeVRegs(dex_pc);
+    const std::vector<int32_t> kinds(verifier.DescribeVRegs(dex_pc));
     for (uint16_t reg = 0; reg < num_regs; ++reg) {
-      VRegKind kind = static_cast<VRegKind>(kinds.at(reg * 2));
+      VRegKind kind = GetVRegKind(reg, kinds);
       switch (kind) {
         case kUndefined:
           new_frame->SetVReg(reg, 0xEBADDE09);
@@ -222,6 +226,36 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
         case kReferenceVReg:
           new_frame->SetVRegReference(reg,
                                       reinterpret_cast<mirror::Object*>(GetVReg(m, reg, kind)));
+          break;
+        case kLongLoVReg:
+          if (GetVRegKind(reg + 1, kinds), kLongHiVReg) {
+            // Treat it as a "long" register pair.
+            new_frame->SetVRegLong(reg, GetVRegPair(m, reg, kLongLoVReg, kLongHiVReg));
+          } else {
+            new_frame->SetVReg(reg, GetVReg(m, reg, kind));
+          }
+          break;
+        case kLongHiVReg:
+          if (GetVRegKind(reg - 1, kinds), kLongLoVReg) {
+            // Nothing to do: we treated it as a "long" register pair.
+          } else {
+            new_frame->SetVReg(reg, GetVReg(m, reg, kind));
+          }
+          break;
+        case kDoubleLoVReg:
+          if (GetVRegKind(reg + 1, kinds), kDoubleHiVReg) {
+            // Treat it as a "double" register pair.
+            new_frame->SetVRegLong(reg, GetVRegPair(m, reg, kDoubleLoVReg, kDoubleHiVReg));
+          } else {
+            new_frame->SetVReg(reg, GetVReg(m, reg, kind));
+          }
+          break;
+        case kDoubleHiVReg:
+          if (GetVRegKind(reg - 1, kinds), kDoubleLoVReg) {
+            // Nothing to do: we treated it as a "double" register pair.
+          } else {
+            new_frame->SetVReg(reg, GetVReg(m, reg, kind));
+          }
           break;
         default:
           new_frame->SetVReg(reg, GetVReg(m, reg, kind));

@@ -572,7 +572,24 @@ class StackVisitor {
     return val;
   }
 
+  bool GetVRegPair(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind_lo, VRegKind kind_hi,
+                   uint64_t* val) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  uint64_t GetVRegPair(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
+                       VRegKind kind_hi) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    uint64_t val;
+    bool success = GetVRegPair(m, vreg, kind_lo, kind_hi, &val);
+    CHECK(success) << "Failed to read vreg pair " << vreg
+                   << " of kind [" << kind_lo << "," << kind_hi << "]";
+    return val;
+  }
+
   bool SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool SetVRegPair(mirror::ArtMethod* m, uint16_t vreg, uint64_t new_value,
+                   VRegKind kind_lo, VRegKind kind_hi)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uintptr_t* GetGPRAddress(uint32_t reg) const;
