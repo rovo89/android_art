@@ -30,7 +30,7 @@
 #include "indenter.h"
 #include "intern_table.h"
 #include "leb128.h"
-#include "method_helper.h"
+#include "method_helper-inl.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class.h"
