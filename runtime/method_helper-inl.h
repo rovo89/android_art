@@ -1,0 +1,50 @@
+/*
+ * Copyright (C) 2011 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef ART_RUNTIME_METHOD_HELPER_INL_H_
+#define ART_RUNTIME_METHOD_HELPER_INL_H_
+
+#include "method_helper.h"
+
+#include "runtime.h"
+
+namespace art {
+
+inline mirror::Class* MethodHelper::GetClassFromTypeIdx(uint16_t type_idx, bool resolve) {
+  mirror::ArtMethod* method = GetMethod();
+  mirror::Class* type = method->GetDexCacheResolvedTypes()->Get(type_idx);
+  if (type == nullptr && resolve) {
+    type = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
+    CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
+  }
+  return type;
+}
+
+inline mirror::String* MethodHelper::ResolveString(uint32_t string_idx) {
+  mirror::ArtMethod* method = GetMethod();
+  mirror::String* s = method->GetDexCacheStrings()->Get(string_idx);
+  if (UNLIKELY(s == nullptr)) {
+    StackHandleScope<1> hs(Thread::Current());
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
+    s = Runtime::Current()->GetClassLinker()->ResolveString(*method->GetDexFile(), string_idx,
+                                                            dex_cache);
+  }
+  return s;
+}
+
+}  // namespace art
+
+#endif  // ART_RUNTIME_METHOD_HELPER_INL_H_

@@ -41,7 +41,6 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
 #include "mirror/throwable.h"
-#include "object_utils.h"
 #include "parsed_options.h"
 #include "reflection.h"
 #include "runtime.h"

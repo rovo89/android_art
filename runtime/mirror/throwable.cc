@@ -23,7 +23,6 @@
 #include "object-inl.h"
 #include "object_array.h"
 #include "object_array-inl.h"
-#include "object_utils.h"
 #include "stack_trace_element.h"
 #include "utils.h"
 #include "well_known_classes.h"

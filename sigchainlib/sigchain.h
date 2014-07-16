@@ -18,10 +18,13 @@
 #define ART_SIGCHAINLIB_SIGCHAIN_H_
 
 #include <signal.h>
+
 namespace art {
 
 void ClaimSignalChain(int signal, struct sigaction* oldaction);
+
 void UnclaimSignalChain(int signal);
+
 void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context);
 
 }   // namespace art

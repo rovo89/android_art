@@ -35,7 +35,7 @@
 #include "dex/quick/dex_file_method_inliner.h"
 #include "driver/compiler_options.h"
 #include "jni_internal.h"
-#include "object_utils.h"
+#include "object_lock.h"
 #include "profiler.h"
 #include "runtime.h"
 #include "gc/accounting/card_table-inl.h"
