@@ -185,7 +185,7 @@ class CheckReferenceVisitor {
           << from_space->GetGcRetentionPolicy();
       LOG(INFO) << "ToSpace " << to_space->GetName() << " type "
           << to_space->GetGcRetentionPolicy();
-      heap->DumpSpaces();
+      heap->DumpSpaces(LOG(INFO));
       LOG(FATAL) << "FATAL ERROR";
     }
   }
