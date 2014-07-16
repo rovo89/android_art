@@ -105,6 +105,19 @@ static constexpr bool kUseBakerOrBrooksReadBarrier = kUseBakerReadBarrier || kUs
 // If true, references within the heap are poisoned (negated).
 static constexpr bool kPoisonHeapReferences = false;
 
+// Kinds of tracing clocks.
+enum TraceClockSource {
+  kTraceClockSourceThreadCpu,
+  kTraceClockSourceWall,
+  kTraceClockSourceDual,  // Both wall and thread CPU clocks.
+};
+
+#if defined(HAVE_POSIX_CLOCKS)
+static constexpr TraceClockSource kDefaultTraceClockSource = kTraceClockSourceDual;
+#else
+static constexpr TraceClockSource kDefaultTraceClockSource = kTraceClockSourceWall;
+#endif
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_GLOBALS_H_

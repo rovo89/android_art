@@ -17,6 +17,7 @@
 #include "file_output_stream.h"
 #include "vector_output_stream.h"
 
+#include "base/unix_file/fd_file.h"
 #include "base/logging.h"
 #include "buffered_output_stream.h"
 #include "common_runtime_test.h"

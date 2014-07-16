@@ -567,6 +567,11 @@ bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c) {
   return true;
 }
 
+static std::string PrettyDescriptor(Primitive::Type type) {
+  std::string descriptor_string(Primitive::Descriptor(type));
+  return PrettyDescriptor(descriptor_string);
+}
+
 bool ConvertPrimitiveValue(const ThrowLocation* throw_location, bool unbox_for_result,
                            Primitive::Type srcType, Primitive::Type dstType,
                            const JValue& src, JValue* dst) {

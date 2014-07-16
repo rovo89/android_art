@@ -40,6 +40,7 @@
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "gc_map.h"
 #include "gc/accounting/card_table-inl.h"
+#include "gc/allocator/rosalloc.h"
 #include "gc/heap.h"
 #include "gc/space/space.h"
 #include "handle_scope.h"
@@ -1055,7 +1056,7 @@ Thread::Thread(bool daemon) : tls32_(daemon), wait_monitor_(nullptr), interrupte
   tls32_.state_and_flags.as_struct.state = kNative;
   memset(&tlsPtr_.held_mutexes[0], 0, sizeof(tlsPtr_.held_mutexes));
   std::fill(tlsPtr_.rosalloc_runs,
-            tlsPtr_.rosalloc_runs + gc::allocator::RosAlloc::kNumThreadLocalSizeBrackets,
+            tlsPtr_.rosalloc_runs + kNumRosAllocThreadLocalSizeBrackets,
             gc::allocator::RosAlloc::GetDedicatedFullRun());
   for (uint32_t i = 0; i < kMaxCheckpoints; ++i) {
     tlsPtr_.checkpoint_functions[i] = nullptr;

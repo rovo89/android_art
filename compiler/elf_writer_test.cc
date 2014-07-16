@@ -16,8 +16,10 @@
 
 #include "elf_file.h"
 
+#include "base/stringprintf.h"
 #include "common_compiler_test.h"
 #include "oat.h"
+#include "utils.h"
 
 namespace art {
 

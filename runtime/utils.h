@@ -26,7 +26,7 @@
 #include "base/logging.h"
 #include "globals.h"
 #include "instruction_set.h"
-#include "primitive.h"
+#include "base/mutex.h"
 
 #ifdef HAVE_ANDROID_OS
 #include "cutils/properties.h"
@@ -279,7 +279,6 @@ bool EndsWith(const std::string& s, const char* suffix);
 std::string PrettyDescriptor(mirror::String* descriptor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 std::string PrettyDescriptor(const std::string& descriptor);
-std::string PrettyDescriptor(Primitive::Type type);
 std::string PrettyDescriptor(mirror::Class* klass)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

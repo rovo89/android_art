@@ -18,6 +18,7 @@
 
 #include <sys/uio.h>
 
+#include "arch/context.h"
 #include "atomic.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"

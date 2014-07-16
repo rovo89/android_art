@@ -36,6 +36,8 @@
 #include "mirror/stack_trace_element.h"
 #include "mirror/string-inl.h"
 #include "handle_scope-inl.h"
+#include "scoped_thread_state_change.h"
+#include "thread-inl.h"
 
 namespace art {
 

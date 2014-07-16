@@ -19,6 +19,7 @@
 
 #include <gtest/gtest.h>
 
+#include "object.h"
 #include "object_callbacks.h"
 #include "read_barrier.h"
 

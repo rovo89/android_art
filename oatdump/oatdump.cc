@@ -1548,7 +1548,7 @@ static int oatdump(int argc, char** argv) {
     return EXIT_SUCCESS;
   }
 
-  Runtime::Options options;
+  RuntimeOptions options;
   std::string image_option;
   std::string oat_option;
   std::string boot_image_option;
