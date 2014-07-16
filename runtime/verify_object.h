@@ -52,10 +52,10 @@ static constexpr VerifyObjectFlags kDefaultVerifyFlags = kVerifyNone;
 static constexpr VerifyObjectMode kVerifyObjectSupport =
     kDefaultVerifyFlags != 0 ? kVerifyObjectModeFast : kVerifyObjectModeDisabled;
 
-void VerifyObject(mirror::Object* obj) ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS;
+ALWAYS_INLINE void VerifyObject(mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS;
 
 // Check that c.getClass() == c.getClass().getClass().
-bool VerifyClassClass(mirror::Class* c) ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS;
+ALWAYS_INLINE bool VerifyClassClass(mirror::Class* c) NO_THREAD_SAFETY_ANALYSIS;
 
 }  // namespace art
 

@@ -16,6 +16,13 @@
 
 #include "space_bitmap-inl.h"
 
+#include "base/stringprintf.h"
+#include "mem_map.h"
+#include "mirror/object-inl.h"
+#include "mirror/class.h"
+#include "mirror/art_field.h"
+#include "mirror/object_array.h"
+
 namespace art {
 namespace gc {
 namespace accounting {
@@ -44,6 +51,9 @@ SpaceBitmap<kAlignment>::SpaceBitmap(const std::string& name, MemMap* mem_map, u
   CHECK(bitmap_begin_ != nullptr);
   CHECK_NE(bitmap_size, 0U);
 }
+
+template<size_t kAlignment>
+SpaceBitmap<kAlignment>::~SpaceBitmap() {}
 
 template<size_t kAlignment>
 SpaceBitmap<kAlignment>* SpaceBitmap<kAlignment>::Create(

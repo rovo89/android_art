@@ -25,12 +25,12 @@
 #include "indirect_reference_table.h"
 #include "invoke_type.h"
 #include "jni_internal.h"
+#include "method_helper.h"
 #include "mirror/art_method.h"
 #include "mirror/array.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/throwable.h"
-#include "object_utils.h"
 #include "handle_scope-inl.h"
 #include "thread.h"
 
