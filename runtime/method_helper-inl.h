@@ -19,7 +19,10 @@
 
 #include "method_helper.h"
 
+#include "class_linker.h"
+#include "mirror/object_array.h"
 #include "runtime.h"
+#include "thread-inl.h"
 
 namespace art {
 
@@ -31,6 +34,15 @@ inline mirror::Class* MethodHelper::GetClassFromTypeIdx(uint16_t type_idx, bool 
     CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
   }
   return type;
+}
+
+inline mirror::Class* MethodHelper::GetReturnType(bool resolve) {
+  mirror::ArtMethod* method = GetMethod();
+  const DexFile* dex_file = method->GetDexFile();
+  const DexFile::MethodId& method_id = dex_file->GetMethodId(method->GetDexMethodIndex());
+  const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
+  uint16_t return_type_idx = proto_id.return_type_idx_;
+  return GetClassFromTypeIdx(return_type_idx, resolve);
 }
 
 inline mirror::String* MethodHelper::ResolveString(uint32_t string_idx) {

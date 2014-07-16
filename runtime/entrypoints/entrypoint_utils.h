@@ -45,12 +45,12 @@ template <const bool kAccessCheck>
 ALWAYS_INLINE static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
                                                             mirror::ArtMethod* method,
                                                             Thread* self, bool* slow_path)
-    NO_THREAD_SAFETY_ANALYSIS;
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // TODO: Fix no thread safety analysis when annotalysis is smarter.
 ALWAYS_INLINE static inline mirror::Class* CheckClassInitializedForObjectAlloc(mirror::Class* klass,
                                                                                Thread* self, bool* slow_path)
-    NO_THREAD_SAFETY_ANALYSIS;
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it
 // cannot be resolved, throw an error. If it can, use it to create an instance.
@@ -61,7 +61,8 @@ template <bool kAccessCheck, bool kInstrumented>
 ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx,
                                                                 mirror::ArtMethod* method,
                                                                 Thread* self,
-                                                                gc::AllocatorType allocator_type);
+                                                                gc::AllocatorType allocator_type)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Given the context of a calling Method and a resolved class, create an instance.
 // TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
@@ -70,7 +71,7 @@ ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeResolved(mirror::
                                                                         mirror::ArtMethod* method,
                                                                         Thread* self,
                                                                         gc::AllocatorType allocator_type)
-    NO_THREAD_SAFETY_ANALYSIS;
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Given the context of a calling Method and an initialized class, create an instance.
 // TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
@@ -78,7 +79,8 @@ template <bool kInstrumented>
 ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeInitialized(mirror::Class* klass,
                                                                            mirror::ArtMethod* method,
                                                                            Thread* self,
-                                                                           gc::AllocatorType allocator_type);
+                                                                           gc::AllocatorType allocator_type)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 
 // TODO: Fix no thread safety analysis when GCC can handle template specialization.
@@ -87,7 +89,7 @@ ALWAYS_INLINE static inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
                                                            mirror::ArtMethod* method,
                                                            int32_t component_count,
                                                            bool* slow_path)
-    NO_THREAD_SAFETY_ANALYSIS;
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Given the context of a calling Method, use its DexCache to resolve a type to an array Class. If
 // it cannot be resolved, throw an error. If it can, use it to create an array.
@@ -100,7 +102,7 @@ ALWAYS_INLINE static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
                                                               int32_t component_count,
                                                               Thread* self,
                                                               gc::AllocatorType allocator_type)
-    NO_THREAD_SAFETY_ANALYSIS;
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 template <bool kAccessCheck, bool kInstrumented>
 ALWAYS_INLINE static inline mirror::Array* AllocArrayFromCodeResolved(mirror::Class* klass,
@@ -108,7 +110,7 @@ ALWAYS_INLINE static inline mirror::Array* AllocArrayFromCodeResolved(mirror::Cl
                                                                       int32_t component_count,
                                                                       Thread* self,
                                                                       gc::AllocatorType allocator_type)
-    NO_THREAD_SAFETY_ANALYSIS;
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 extern mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* method,
                                                  int32_t component_count, Thread* self,
@@ -171,10 +173,11 @@ static inline mirror::String* ResolveStringFromCode(mirror::ArtMethod* referrer,
                                                     uint32_t string_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+// TODO: annotalysis disabled as monitor semantics are maintained in Java code.
 static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    NO_THREAD_SAFETY_ANALYSIS;
 
-static inline void CheckReferenceResult(mirror::Object* o, Thread* self)
+void CheckReferenceResult(mirror::Object* o, Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 static inline void CheckSuspend(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
