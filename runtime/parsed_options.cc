@@ -24,11 +24,13 @@
 #include "debugger.h"
 #include "gc/heap.h"
 #include "monitor.h"
+#include "runtime.h"
+#include "trace.h"
 #include "utils.h"
 
 namespace art {
 
-ParsedOptions* ParsedOptions::Create(const Runtime::Options& options, bool ignore_unrecognized) {
+ParsedOptions* ParsedOptions::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
   std::unique_ptr<ParsedOptions> parsed(new ParsedOptions());
   if (parsed->Parse(options, ignore_unrecognized)) {
     return parsed.release();
@@ -164,7 +166,7 @@ bool ParsedOptions::ParseXGcOption(const std::string& option) {
   return true;
 }
 
-bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecognized) {
+bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognized) {
   const char* boot_class_path_string = getenv("BOOTCLASSPATH");
   if (boot_class_path_string != NULL) {
     boot_class_path_string_ = boot_class_path_string;
@@ -258,7 +260,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
   method_trace_file_ = "/data/method-trace-file.bin";
   method_trace_file_size_ = 10 * MB;
 
-  profile_clock_source_ = kDefaultProfilerClockSource;
+  profile_clock_source_ = kDefaultTraceClockSource;
 
   verify_ = true;
   image_isa_ = kRuntimeISA;
@@ -542,11 +544,11 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
         return false;
       }
     } else if (option == "-Xprofile:threadcpuclock") {
-      Trace::SetDefaultClockSource(kProfilerClockSourceThreadCpu);
+      Trace::SetDefaultClockSource(kTraceClockSourceThreadCpu);
     } else if (option == "-Xprofile:wallclock") {
-      Trace::SetDefaultClockSource(kProfilerClockSourceWall);
+      Trace::SetDefaultClockSource(kTraceClockSourceWall);
     } else if (option == "-Xprofile:dualclock") {
-      Trace::SetDefaultClockSource(kProfilerClockSourceDual);
+      Trace::SetDefaultClockSource(kTraceClockSourceDual);
     } else if (option == "-Xenable-profiler") {
       profiler_options_.enabled_ = true;
     } else if (StartsWith(option, "-Xprofile-filename:")) {

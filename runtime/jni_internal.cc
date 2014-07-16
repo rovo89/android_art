@@ -3002,7 +3002,7 @@ extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, JNIEnv** p_env, void* vm_args) {
     LOG(ERROR) << "Bad JNI version passed to CreateJavaVM: " << args->version;
     return JNI_EVERSION;
   }
-  Runtime::Options options;
+  RuntimeOptions options;
   for (int i = 0; i < args->nOptions; ++i) {
     JavaVMOption* option = &args->options[i];
     options.push_back(std::make_pair(std::string(option->optionString), option->extraInfo));

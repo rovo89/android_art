@@ -24,6 +24,7 @@
 #include "handle_scope-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/string-inl.h"  // Strings are easiest to allocate
+#include "scoped_thread_state_change.h"
 #include "thread_pool.h"
 #include "utils.h"
 
@@ -31,7 +32,7 @@ namespace art {
 
 class MonitorTest : public CommonRuntimeTest {
  protected:
-  void SetUpRuntimeOptions(Runtime::Options *options) OVERRIDE {
+  void SetUpRuntimeOptions(RuntimeOptions *options) OVERRIDE {
     // Use a smaller heap
     for (std::pair<std::string, const void*>& pair : *options) {
       if (pair.first.find("-Xmx") == 0) {

@@ -16,6 +16,7 @@
 
 #include "object_registry.h"
 
+#include "mirror/class.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {

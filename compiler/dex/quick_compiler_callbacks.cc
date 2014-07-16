@@ -14,23 +14,26 @@
  * limitations under the License.
  */
 
-#include "space_test.h"
+#include "quick_compiler_callbacks.h"
 
-#include "dlmalloc_space.h"
-#include "scoped_thread_state_change.h"
+#include "quick/dex_file_to_method_inliner_map.h"
+#include "verifier/method_verifier-inl.h"
+#include "verification_results.h"
 
 namespace art {
-namespace gc {
-namespace space {
 
-MallocSpace* CreateDlMallocSpace(const std::string& name, size_t initial_size, size_t growth_limit,
-                                 size_t capacity, byte* requested_begin) {
-  return DlMallocSpace::Create(name, initial_size, growth_limit, capacity, requested_begin, false);
+bool QuickCompilerCallbacks::MethodVerified(verifier::MethodVerifier* verifier) {
+  bool result = verification_results_->ProcessVerifiedMethod(verifier);
+  if (result) {
+    MethodReference ref = verifier->GetMethodReference();
+    method_inliner_map_->GetMethodInliner(ref.dex_file)
+        ->AnalyseMethodCode(verifier);
+  }
+  return result;
 }
 
-TEST_SPACE_CREATE_FN_BASE(DlMallocSpace, CreateDlMallocSpace)
+void QuickCompilerCallbacks::ClassRejected(ClassReference ref) {
+  verification_results_->AddRejectedClass(ref);
+}
 
-
-}  // namespace space
-}  // namespace gc
 }  // namespace art

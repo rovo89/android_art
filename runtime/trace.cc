@@ -115,7 +115,7 @@ static const uint16_t kTraceVersionDualClock      = 3;
 static const uint16_t kTraceRecordSizeSingleClock = 10;  // using v2
 static const uint16_t kTraceRecordSizeDualClock   = 14;  // using v3 with two timestamps
 
-ProfilerClockSource Trace::default_clock_source_ = kDefaultProfilerClockSource;
+TraceClockSource Trace::default_clock_source_ = kDefaultTraceClockSource;
 
 Trace* volatile Trace::the_trace_ = NULL;
 pthread_t Trace::sampling_pthread_ = 0U;
@@ -149,34 +149,34 @@ void Trace::FreeStackTrace(std::vector<mirror::ArtMethod*>* stack_trace) {
   temp_stack_trace_.reset(stack_trace);
 }
 
-void Trace::SetDefaultClockSource(ProfilerClockSource clock_source) {
+void Trace::SetDefaultClockSource(TraceClockSource clock_source) {
 #if defined(HAVE_POSIX_CLOCKS)
   default_clock_source_ = clock_source;
 #else
-  if (clock_source != kProfilerClockSourceWall) {
+  if (clock_source != kTraceClockSourceWall) {
     LOG(WARNING) << "Ignoring tracing request to use CPU time.";
   }
 #endif
 }
 
-static uint16_t GetTraceVersion(ProfilerClockSource clock_source) {
-  return (clock_source == kProfilerClockSourceDual) ? kTraceVersionDualClock
+static uint16_t GetTraceVersion(TraceClockSource clock_source) {
+  return (clock_source == kTraceClockSourceDual) ? kTraceVersionDualClock
                                                     : kTraceVersionSingleClock;
 }
 
-static uint16_t GetRecordSize(ProfilerClockSource clock_source) {
-  return (clock_source == kProfilerClockSourceDual) ? kTraceRecordSizeDualClock
+static uint16_t GetRecordSize(TraceClockSource clock_source) {
+  return (clock_source == kTraceClockSourceDual) ? kTraceRecordSizeDualClock
                                                     : kTraceRecordSizeSingleClock;
 }
 
 bool Trace::UseThreadCpuClock() {
-  return (clock_source_ == kProfilerClockSourceThreadCpu) ||
-      (clock_source_ == kProfilerClockSourceDual);
+  return (clock_source_ == kTraceClockSourceThreadCpu) ||
+      (clock_source_ == kTraceClockSourceDual);
 }
 
 bool Trace::UseWallClock() {
-  return (clock_source_ == kProfilerClockSourceWall) ||
-      (clock_source_ == kProfilerClockSourceDual);
+  return (clock_source_ == kTraceClockSourceWall) ||
+      (clock_source_ == kTraceClockSourceDual);
 }
 
 static void MeasureClockOverhead(Trace* trace) {
@@ -462,7 +462,7 @@ Trace::Trace(File* trace_file, int buffer_size, int flags, bool sampling_enabled
   cur_offset_.StoreRelaxed(kTraceHeaderLength);
 }
 
-static void DumpBuf(uint8_t* buf, size_t buf_size, ProfilerClockSource clock_source)
+static void DumpBuf(uint8_t* buf, size_t buf_size, TraceClockSource clock_source)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint8_t* ptr = buf + kTraceHeaderLength;
   uint8_t* end = buf + buf_size;

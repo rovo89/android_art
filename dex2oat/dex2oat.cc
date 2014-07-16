@@ -40,7 +40,8 @@
 #include "dex_file-inl.h"
 #include "dex/pass_driver_me_opts.h"
 #include "dex/verification_results.h"
-#include "driver/compiler_callbacks_impl.h"
+#include "dex/quick_compiler_callbacks.h"
+#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "elf_fixup.h"
@@ -233,7 +234,7 @@ static void Usage(const char* fmt, ...) {
 class Dex2Oat {
  public:
   static bool Create(Dex2Oat** p_dex2oat,
-                     const Runtime::Options& runtime_options,
+                     const RuntimeOptions& runtime_options,
                      const CompilerOptions& compiler_options,
                      Compiler::Kind compiler_kind,
                      InstructionSet instruction_set,
@@ -460,7 +461,7 @@ class Dex2Oat {
     CHECK(method_inliner_map != nullptr);
   }
 
-  bool CreateRuntime(const Runtime::Options& runtime_options, InstructionSet instruction_set)
+  bool CreateRuntime(const RuntimeOptions& runtime_options, InstructionSet instruction_set)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
     if (!Runtime::Create(runtime_options, false)) {
       LOG(ERROR) << "Failed to create runtime";
@@ -1230,7 +1231,7 @@ static int dex2oat(int argc, char** argv) {
   timings.StartTiming("dex2oat Setup");
   LOG(INFO) << CommandLine();
 
-  Runtime::Options runtime_options;
+  RuntimeOptions runtime_options;
   std::vector<const DexFile*> boot_class_path;
   if (boot_image_option.empty()) {
     size_t failure_count = OpenDexFiles(dex_filenames, dex_locations, boot_class_path);
@@ -1249,7 +1250,7 @@ static int dex2oat(int argc, char** argv) {
   std::unique_ptr<VerificationResults> verification_results(new VerificationResults(
                                                                compiler_options.get()));
   DexFileToMethodInlinerMap method_inliner_map;
-  CompilerCallbacksImpl callbacks(verification_results.get(), &method_inliner_map);
+  QuickCompilerCallbacks callbacks(verification_results.get(), &method_inliner_map);
   runtime_options.push_back(std::make_pair("compilercallbacks", &callbacks));
   runtime_options.push_back(
       std::make_pair("imageinstructionset",

@@ -36,19 +36,8 @@ namespace mirror {
   class ArtField;
   class ArtMethod;
 }  // namespace mirror
+
 class Thread;
-
-enum ProfilerClockSource {
-  kProfilerClockSourceThreadCpu,
-  kProfilerClockSourceWall,
-  kProfilerClockSourceDual,  // Both wall and thread CPU clocks.
-};
-
-#if defined(HAVE_POSIX_CLOCKS)
-const ProfilerClockSource kDefaultProfilerClockSource = kProfilerClockSourceDual;
-#else
-const ProfilerClockSource kDefaultProfilerClockSource = kProfilerClockSourceWall;
-#endif
 
 enum TracingMode {
   kTracingInactive,
@@ -62,7 +51,7 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
     kTraceCountAllocs = 1,
   };
 
-  static void SetDefaultClockSource(ProfilerClockSource clock_source);
+  static void SetDefaultClockSource(TraceClockSource clock_source);
 
   static void Start(const char* trace_filename, int trace_fd, int buffer_size, int flags,
                     bool direct_to_ddms, bool sampling_enabled, int interval_us)
@@ -138,7 +127,7 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   static Trace* volatile the_trace_ GUARDED_BY(Locks::trace_lock_);
 
   // The default profiler clock source.
-  static ProfilerClockSource default_clock_source_;
+  static TraceClockSource default_clock_source_;
 
   // Sampling thread, non-zero when sampling.
   static pthread_t sampling_pthread_;
@@ -158,7 +147,7 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   // True if traceview should sample instead of instrumenting method entry/exit.
   const bool sampling_enabled_;
 
-  const ProfilerClockSource clock_source_;
+  const TraceClockSource clock_source_;
 
   // Size of buf_.
   const int buffer_size_;
