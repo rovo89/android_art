@@ -1167,7 +1167,6 @@ void Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, Re
     LoadRefDisp(check_class, offset_of_type, check_class, kNotVolatile);
   }
 
-  LIR* ne_branchover = NULL;
   // FIXME: what should we be comparing here? compressed or decompressed references?
   if (cu_->instruction_set == kThumb2) {
     OpRegReg(kOpCmp, check_class, object_class);  // Same?
@@ -1175,14 +1174,10 @@ void Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, Re
     LoadConstant(result_reg, 1);     // .eq case - load true
     OpEndIT(it);
   } else {
-    ne_branchover = OpCmpBranch(kCondNe, check_class, object_class, NULL);
-    LoadConstant(result_reg, 1);     // eq case - load true
+    GenSelectConst32(check_class, object_class, kCondEq, 1, 0, result_reg, kCoreReg);
   }
   LIR* target = NewLIR0(kPseudoTargetLabel);
   null_branchover->target = target;
-  if (ne_branchover != NULL) {
-    ne_branchover->target = target;
-  }
   FreeTemp(object_class);
   FreeTemp(check_class);
   if (IsTemp(result_reg)) {
@@ -1223,27 +1218,54 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
     LoadRefDisp(method_reg, mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
                 class_reg, kNotVolatile);
   } else {
+    if (can_assume_type_is_in_dex_cache) {
+      // Conditionally, as in the other case we will also load it.
+      LoadValueDirectFixed(rl_src, TargetReg(kArg0, kRef));  // kArg0 <= ref
+    }
+
     // Load dex cache entry into class_reg (kArg2)
-    LoadValueDirectFixed(rl_src, TargetReg(kArg0, kRef));  // kArg0 <= ref
     LoadRefDisp(method_reg, mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
                 class_reg, kNotVolatile);
     int32_t offset_of_type = ClassArray::OffsetOfElement(type_idx).Int32Value();
     LoadRefDisp(class_reg, offset_of_type, class_reg, kNotVolatile);
     if (!can_assume_type_is_in_dex_cache) {
-      // Need to test presence of type in dex cache at runtime
-      LIR* hop_branch = OpCmpImmBranch(kCondNe, class_reg, 0, NULL);
-      // Not resolved
-      // Call out to helper, which will return resolved type in kRet0
-      if (cu_->target64) {
-        CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(8, pInitializeType), type_idx, true);
-      } else {
-        CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(4, pInitializeType), type_idx, true);
-      }
-      OpRegCopy(TargetReg(kArg2, kRef), TargetReg(kRet0, kRef));  // Align usage with fast path
-      LoadValueDirectFixed(rl_src, TargetReg(kArg0, kRef));  /* reload Ref */
-      // Rejoin code paths
-      LIR* hop_target = NewLIR0(kPseudoTargetLabel);
-      hop_branch->target = hop_target;
+      LIR* slow_path_branch = OpCmpImmBranch(kCondEq, class_reg, 0, NULL);
+      LIR* slow_path_target = NewLIR0(kPseudoTargetLabel);
+
+      // Should load value here.
+      LoadValueDirectFixed(rl_src, TargetReg(kArg0, kRef));  // kArg0 <= ref
+
+      class InitTypeSlowPath : public Mir2Lir::LIRSlowPath {
+       public:
+        InitTypeSlowPath(Mir2Lir* m2l, LIR* branch, LIR* cont, uint32_t type_idx,
+                         RegLocation rl_src)
+            : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch, cont), type_idx_(type_idx),
+              rl_src_(rl_src) {
+        }
+
+        void Compile() OVERRIDE {
+          GenerateTargetLabel();
+
+          if (cu_->target64) {
+            m2l_->CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(8, pInitializeType), type_idx_,
+                                       true);
+          } else {
+            m2l_->CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(4, pInitializeType), type_idx_,
+                                       true);
+          }
+          m2l_->OpRegCopy(m2l_->TargetReg(kArg2, kRef),
+                          m2l_->TargetReg(kRet0, kRef));  // Align usage with fast path
+
+          m2l_->OpUnconditionalBranch(cont_);
+        }
+
+       private:
+        uint32_t type_idx_;
+        RegLocation rl_src_;
+      };
+
+      AddSlowPath(new (arena_) InitTypeSlowPath(this, slow_path_branch, slow_path_target,
+                                                type_idx, rl_src));
     }
   }
   /* kArg0 is ref, kArg2 is class. If ref==null, use directly as bool result */
@@ -1262,17 +1284,8 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
   LIR* branchover = NULL;
   if (type_known_final) {
     // rl_result == ref == null == 0.
-    if (cu_->instruction_set == kThumb2) {
-      OpRegReg(kOpCmp, TargetReg(kArg1, kRef), TargetReg(kArg2, kRef));  // Same?
-      LIR* it = OpIT(kCondEq, "E");   // if-convert the test
-      LoadConstant(rl_result.reg, 1);     // .eq case - load true
-      LoadConstant(rl_result.reg, 0);     // .ne case - load false
-      OpEndIT(it);
-    } else {
-      LoadConstant(rl_result.reg, 0);     // ne case - load false
-      branchover = OpCmpBranch(kCondNe, TargetReg(kArg1, kRef), TargetReg(kArg2, kRef), NULL);
-      LoadConstant(rl_result.reg, 1);     // eq case - load true
-    }
+    GenSelectConst32(TargetReg(kArg1, kRef), TargetReg(kArg2, kRef), kCondEq, 1, 0, rl_result.reg,
+                     kCoreReg);
   } else {
     if (cu_->instruction_set == kThumb2) {
       RegStorage r_tgt = cu_->target64 ?
@@ -1297,12 +1310,13 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
         LoadConstant(rl_result.reg, 1);     // assume true
         branchover = OpCmpBranch(kCondEq, TargetReg(kArg1, kRef), TargetReg(kArg2, kRef), NULL);
       }
-      RegStorage r_tgt = cu_->target64 ?
-          LoadHelper(QUICK_ENTRYPOINT_OFFSET(8, pInstanceofNonTrivial)) :
-          LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pInstanceofNonTrivial));
+
       OpRegCopy(TargetReg(kArg0, kRef), TargetReg(kArg2, kRef));    // .ne case - arg0 <= class
-      OpReg(kOpBlx, r_tgt);    // .ne case: helper(class, ref->class)
-      FreeTemp(r_tgt);
+      if (cu_->target64) {
+        CallRuntimeHelper(QUICK_ENTRYPOINT_OFFSET(8, pInstanceofNonTrivial), false);
+      } else {
+        CallRuntimeHelper(QUICK_ENTRYPOINT_OFFSET(4, pInstanceofNonTrivial), false);
+      }
     }
   }
   // TODO: only clobber when type isn't final?

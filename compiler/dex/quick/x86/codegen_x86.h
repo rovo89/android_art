@@ -203,6 +203,12 @@ class X86Mir2Lir : public Mir2Lir {
   void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double);
   void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir);
   void GenSelect(BasicBlock* bb, MIR* mir);
+  void GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
+                        int32_t true_val, int32_t false_val, RegStorage rs_dest,
+                        int dest_reg_class) OVERRIDE;
+  // Optimized version for selection of 0 and 1.
+  void GenSelectConst01(RegStorage left_op, RegStorage right_op, ConditionCode code, bool true_val,
+                        RegStorage rs_dest);
   bool GenMemBarrier(MemBarrierKind barrier_kind);
   void GenMoveException(RegLocation rl_dest);
   void GenMultiplyByTwoBitMultiplier(RegLocation rl_src, RegLocation rl_result, int lit,

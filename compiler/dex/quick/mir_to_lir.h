@@ -1380,6 +1380,14 @@ class Mir2Lir : public Backend {
     virtual void GenSelect(BasicBlock* bb, MIR* mir) = 0;
 
     /**
+     * @brief Generates code to select one of the given constants depending on the given opcode.
+     * @note Will neither call EvalLoc nor StoreValue for rl_dest.
+     */
+    virtual void GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
+                                  int32_t true_val, int32_t false_val, RegStorage rs_dest,
+                                  int dest_reg_class) = 0;
+
+    /**
      * @brief Used to generate a memory barrier in an architecture specific way.
      * @details The last generated LIR will be considered for use as barrier. Namely,
      * if the last LIR can be updated in a way where it will serve the semantics of

@@ -203,6 +203,30 @@ void ArmMir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
   OpCmpImmBranch(ccode, low_reg, val_lo, taken);
 }
 
+void ArmMir2Lir::GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
+                                  int32_t true_val, int32_t false_val, RegStorage rs_dest,
+                                  int dest_reg_class) {
+  // TODO: Generalize the IT below to accept more than one-instruction loads.
+  DCHECK(InexpensiveConstantInt(true_val));
+  DCHECK(InexpensiveConstantInt(false_val));
+
+  if ((true_val == 0 && code == kCondEq) ||
+      (false_val == 0 && code == kCondNe)) {
+    OpRegRegReg(kOpSub, rs_dest, left_op, right_op);
+    DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
+    LIR* it = OpIT(kCondNe, "");
+    LoadConstant(rs_dest, code == kCondEq ? false_val : true_val);
+    OpEndIT(it);
+    return;
+  }
+
+  OpRegReg(kOpCmp, left_op, right_op);  // Same?
+  LIR* it = OpIT(code, "E");   // if-convert the test
+  LoadConstant(rs_dest, true_val);      // .eq case - load true
+  LoadConstant(rs_dest, false_val);     // .eq case - load true
+  OpEndIT(it);
+}
+
 void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   RegLocation rl_result;
   RegLocation rl_src = mir_graph_->GetSrc(mir, 0);

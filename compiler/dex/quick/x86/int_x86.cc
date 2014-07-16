@@ -206,6 +206,38 @@ void X86Mir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
   }
 }
 
+// Set rs_dest to 0 or 1 depending on the comparison between left_op and right_op.
+// rs_dest := (left_op <code> right_op) ? [true_val] : [!true_val]
+//
+// Implemented as:
+//         true_val = true =>  rs_dest := 0;
+//                             rs_dest := (left_op <code> right_op) ? 1 : rs_dest;
+//         true_val = false => rs_dest := 0;
+//                             rs_dest := (left_op <~code> right_op) ? 1 : rs_dest;
+void X86Mir2Lir::GenSelectConst01(RegStorage left_op, RegStorage right_op, ConditionCode code,
+                                  bool true_val, RegStorage rs_dest) {
+  LoadConstant(rs_dest, 0);
+  OpRegReg(kOpCmp, left_op, right_op);
+  // Set the low byte of the result to 0 or 1 from the compare condition code.
+  NewLIR2(kX86Set8R, rs_dest.GetReg(),
+          X86ConditionEncoding(true_val ? code : FlipComparisonOrder(code)));
+}
+
+void X86Mir2Lir::GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
+                                  int32_t true_val, int32_t false_val, RegStorage rs_dest,
+                                  int dest_reg_class) {
+  if ((true_val == 0 && false_val == 1) || (true_val == 1 && false_val == 0)) {
+    // Can we use Setcc?
+    if (rs_dest.Is64Bit() || rs_dest.GetRegNum() < 4) {
+      GenSelectConst01(left_op, right_op, code, true_val == 1, rs_dest);
+      return;
+    }
+  }
+
+  // TODO: Refactor the code below to make this more general.
+  UNIMPLEMENTED(FATAL) << "General GenSelectConst32 not implemented for x86.";
+}
+
 void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   RegLocation rl_result;
   RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
@@ -2459,9 +2491,6 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
     OpRegCopy(rl_result.reg, ref_reg);
   }
 
-  // For 32-bit, SETcc only works with EAX..EDX.
-  DCHECK_LT(rl_result.reg.GetRegNum(), 4);
-
   // Is the class NULL?
   LIR* branch1 = OpCmpImmBranch(kCondEq, ref_reg, 0, NULL);
 
@@ -2473,11 +2502,7 @@ void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_k
   /* kArg0 is ref, kArg1 is ref->klass_, kArg2 is class. */
   LIR* branchover = nullptr;
   if (type_known_final) {
-    // Ensure top 3 bytes of result are 0.
-    LoadConstant(rl_result.reg, 0);
-    OpRegReg(kOpCmp, ref_class_reg, class_reg);
-    // Set the low byte of the result to 0 or 1 from the compare condition code.
-    NewLIR2(kX86Set8R, rl_result.reg.GetReg(), kX86CondEq);
+    GenSelectConst32(ref_class_reg, class_reg, kCondEq, 1, 0, rl_result.reg, kCoreReg);
   } else {
     if (!type_known_abstract) {
       LoadConstant(rl_result.reg, 1);     // Assume result succeeds.

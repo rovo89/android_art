@@ -215,6 +215,18 @@ void MipsMir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
   }
 }
 
+void MipsMir2Lir::GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
+                                   int32_t true_val, int32_t false_val, RegStorage rs_dest,
+                                   int dest_reg_class) {
+  // Implement as a branch-over.
+  // TODO: Conditional move?
+  LoadConstant(rs_dest, false_val);  // Favors false.
+  LIR* ne_branchover = OpCmpBranch(code, left_op, right_op, NULL);
+  LoadConstant(rs_dest, true_val);
+  LIR* target_label = NewLIR0(kPseudoTargetLabel);
+  ne_branchover->target = target_label;
+}
+
 void MipsMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   UNIMPLEMENTED(FATAL) << "Need codegen for select";
 }
