@@ -23,14 +23,6 @@
 
 #include "atomic.h"
 #include "base/logging.h"
-#include "dex_file-inl.h"
-#include "heap_bitmap.h"
-#include "mirror/art_field-inl.h"
-#include "mirror/class-inl.h"
-#include "mirror/object-inl.h"
-#include "mirror/object_array-inl.h"
-#include "object_utils.h"
-#include "space_bitmap-inl.h"
 #include "utils.h"
 
 namespace art {

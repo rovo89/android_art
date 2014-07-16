@@ -32,7 +32,6 @@
 #include "mirror/dex_cache.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
-#include "object_utils.h"
 #include "os.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"

@@ -80,7 +80,6 @@ extern "C" int32_t art_portable_find_catch_block_from_code(mirror::ArtMethod* cu
   }
   mirror::Class* exception_type = exception->GetClass();
   StackHandleScope<1> hs(self);
-  MethodHelper mh(hs.NewHandle(current_method));
   const DexFile::CodeItem* code_item = current_method->GetCodeItem();
   DCHECK_LT(ti_offset, code_item->tries_size_);
   const DexFile::TryItem* try_item = DexFile::GetTryItems(*code_item, ti_offset);
@@ -98,7 +97,8 @@ extern "C" int32_t art_portable_find_catch_block_from_code(mirror::ArtMethod* cu
       break;
     }
     // Does this catch exception type apply?
-    mirror::Class* iter_exception_type = mh.GetDexCacheResolvedType(iter_type_idx);
+    mirror::Class* iter_exception_type =
+        current_method->GetDexCacheResolvedTypes()->Get(iter_type_idx);
     if (UNLIKELY(iter_exception_type == NULL)) {
       // TODO: check, the verifier (class linker?) should take care of resolving all exception
       //       classes early.

@@ -20,10 +20,10 @@
 #include "art_field.h"
 
 #include "base/logging.h"
+#include "dex_cache.h"
 #include "gc/accounting/card_table-inl.h"
 #include "jvalue.h"
 #include "object-inl.h"
-#include "object_utils.h"
 #include "primitive.h"
 
 namespace art {

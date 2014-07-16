@@ -18,11 +18,11 @@
 #include "class_linker-inl.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
+#include "field_helper.h"
 #include "jni_internal.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
-#include "object_utils.h"
 #include "reflection.h"
 #include "scoped_fast_native_object_access.h"
 

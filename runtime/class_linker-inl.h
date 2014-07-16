@@ -24,7 +24,6 @@
 #include "mirror/dex_cache-inl.h"
 #include "mirror/iftable.h"
 #include "mirror/object_array.h"
-#include "object_utils.h"
 #include "handle_scope-inl.h"
 
 namespace art {

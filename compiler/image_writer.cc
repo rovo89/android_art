@@ -51,7 +51,6 @@
 #include "mirror/string-inl.h"
 #include "oat.h"
 #include "oat_file.h"
-#include "object_utils.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "handle_scope-inl.h"

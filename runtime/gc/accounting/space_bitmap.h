@@ -54,8 +54,7 @@ class SpaceBitmap {
   static SpaceBitmap* CreateFromMemMap(const std::string& name, MemMap* mem_map,
                                        byte* heap_begin, size_t heap_capacity);
 
-  ~SpaceBitmap() {
-  }
+  ~SpaceBitmap();
 
   // <offset> is the difference from .base to a pointer address.
   // <index> is the index of .bits that contains the bit representing

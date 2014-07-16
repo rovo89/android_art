@@ -27,12 +27,12 @@
 #include "interpreter/interpreter.h"
 #include "jni_internal.h"
 #include "mapping_table.h"
-#include "object-inl.h"
-#include "object_array.h"
+#include "method_helper.h"
 #include "object_array-inl.h"
+#include "object_array.h"
+#include "object-inl.h"
 #include "scoped_thread_state_change.h"
 #include "string.h"
-#include "object_utils.h"
 #include "well_known_classes.h"
 
 namespace art {

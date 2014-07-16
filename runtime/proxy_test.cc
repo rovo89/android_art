@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "common_compiler_test.h"
+#include "field_helper.h"
 #include "mirror/art_field-inl.h"
 #include "scoped_thread_state_change.h"
 
