@@ -499,6 +499,7 @@ enum X86OpCode {
   UnaryOpcode(kX86Test, RI, MI, AI),
   kX86Test32RR,
   kX86Test64RR,
+  kX86Test32RM,
   UnaryOpcode(kX86Not, R, M, A),
   UnaryOpcode(kX86Neg, R, M, A),
   UnaryOpcode(kX86Mul,  DaR, DaM, DaA),
