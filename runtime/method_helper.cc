@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "method_helper.h"
+#include "method_helper-inl.h"
 
 #include "class_linker.h"
 #include "dex_file-inl.h"
@@ -51,6 +51,32 @@ bool MethodHelper::HasSameNameAndSignature(MethodHelper* other) {
     return false;  // Name mismatch.
   }
   return dex_file->GetMethodSignature(mid) == other_dex_file->GetMethodSignature(other_mid);
+}
+
+bool MethodHelper::HasSameSignatureWithDifferentClassLoaders(MethodHelper* other) {
+  if (UNLIKELY(GetReturnType() != other->GetReturnType())) {
+    return false;
+  }
+  const DexFile::TypeList* types = method_->GetParameterTypeList();
+  const DexFile::TypeList* other_types = other->method_->GetParameterTypeList();
+  if (types == nullptr) {
+    return (other_types == nullptr) || (other_types->Size() == 0);
+  } else if (UNLIKELY(other_types == nullptr)) {
+    return types->Size() == 0;
+  }
+  uint32_t num_types = types->Size();
+  if (UNLIKELY(num_types != other_types->Size())) {
+    return false;
+  }
+  for (uint32_t i = 0; i < num_types; ++i) {
+    mirror::Class* param_type = GetClassFromTypeIdx(types->GetTypeItem(i).type_idx_);
+    mirror::Class* other_param_type =
+        other->GetClassFromTypeIdx(other_types->GetTypeItem(i).type_idx_);
+    if (UNLIKELY(param_type != other_param_type)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 uint32_t MethodHelper::FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfile)

@@ -75,14 +75,7 @@ class MethodHelper {
 
   // May cause thread suspension due to GetClassFromTypeIdx calling ResolveType this caused a large
   // number of bugs at call sites.
-  mirror::Class* GetReturnType(bool resolve = true) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* method = GetMethod();
-    const DexFile* dex_file = method->GetDexFile();
-    const DexFile::MethodId& method_id = dex_file->GetMethodId(method->GetDexMethodIndex());
-    const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
-    uint16_t return_type_idx = proto_id.return_type_idx_;
-    return GetClassFromTypeIdx(return_type_idx, resolve);
-  }
+  mirror::Class* GetReturnType(bool resolve = true) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   size_t NumArgs() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // "1 +" because the first in Args is the receiver.
@@ -115,31 +108,7 @@ class MethodHelper {
   bool HasSameNameAndSignature(MethodHelper* other) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasSameSignatureWithDifferentClassLoaders(MethodHelper* other)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (UNLIKELY(GetReturnType() != other->GetReturnType())) {
-      return false;
-    }
-    const DexFile::TypeList* types = method_->GetParameterTypeList();
-    const DexFile::TypeList* other_types = other->method_->GetParameterTypeList();
-    if (types == nullptr) {
-      return (other_types == nullptr) || (other_types->Size() == 0);
-    } else if (UNLIKELY(other_types == nullptr)) {
-      return types->Size() == 0;
-    }
-    uint32_t num_types = types->Size();
-    if (UNLIKELY(num_types != other_types->Size())) {
-      return false;
-    }
-    for (uint32_t i = 0; i < num_types; ++i) {
-      mirror::Class* param_type = GetClassFromTypeIdx(types->GetTypeItem(i).type_idx_);
-      mirror::Class* other_param_type =
-          other->GetClassFromTypeIdx(other_types->GetTypeItem(i).type_idx_);
-      if (UNLIKELY(param_type != other_param_type)) {
-        return false;
-      }
-    }
-    return true;
-  }
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::Class* GetClassFromTypeIdx(uint16_t type_idx, bool resolve = true)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
