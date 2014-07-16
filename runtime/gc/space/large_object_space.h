@@ -89,6 +89,9 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
     return end_;
   }
 
+  void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  protected:
   explicit LargeObjectSpace(const std::string& name, byte* begin, byte* end);
 

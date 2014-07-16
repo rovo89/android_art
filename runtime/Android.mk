@@ -293,6 +293,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   dex_file.h \
   dex_instruction.h \
   gc/collector/gc_type.h \
+  gc/collector_type.h \
   gc/space/space.h \
   gc/heap.h \
   indirect_reference_table.h \

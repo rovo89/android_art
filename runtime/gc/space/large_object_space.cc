@@ -431,6 +431,11 @@ collector::ObjectBytePair LargeObjectSpace::Sweep(bool swap_bitmaps) {
   return scc.freed;
 }
 
+void LargeObjectSpace::LogFragmentationAllocFailure(std::ostream& /*os*/,
+                                                    size_t /*failed_alloc_bytes*/) {
+  UNIMPLEMENTED(FATAL);
+}
+
 }  // namespace space
 }  // namespace gc
 }  // namespace art
