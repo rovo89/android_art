@@ -496,6 +496,39 @@ LIR* MipsMir2Lir::CheckSuspendUsingLoad() {
   return inst;
 }
 
+LIR* MipsMir2Lir::GenAtomic64Load(RegStorage r_base, int displacement, RegStorage r_dest) {
+  DCHECK(!r_dest.IsFloat());  // See RegClassForFieldLoadStore().
+  DCHECK(r_dest.IsPair());
+  ClobberCallerSave();
+  LockCallTemps();  // Using fixed registers
+  RegStorage reg_ptr = TargetReg(kArg0);
+  OpRegRegImm(kOpAdd, reg_ptr, r_base, displacement);
+  RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pA64Load));
+  LIR *ret = OpReg(kOpBlx, r_tgt);
+  RegStorage reg_ret = RegStorage::MakeRegPair(TargetReg(kRet0), TargetReg(kRet1));
+  OpRegCopyWide(r_dest, reg_ret);
+  return ret;
+}
+
+LIR* MipsMir2Lir::GenAtomic64Store(RegStorage r_base, int displacement, RegStorage r_src) {
+  DCHECK(!r_src.IsFloat());  // See RegClassForFieldLoadStore().
+  DCHECK(r_src.IsPair());
+  ClobberCallerSave();
+  LockCallTemps();  // Using fixed registers
+  RegStorage temp_ptr = AllocTemp();
+  OpRegRegImm(kOpAdd, temp_ptr, r_base, displacement);
+  RegStorage temp_value = AllocTempWide();
+  OpRegCopyWide(temp_value, r_src);
+  RegStorage reg_ptr = TargetReg(kArg0);
+  OpRegCopy(reg_ptr, temp_ptr);
+  RegStorage reg_value = RegStorage::MakeRegPair(TargetReg(kArg2), TargetReg(kArg3));
+  OpRegCopyWide(reg_value, temp_value);
+  FreeTemp(temp_ptr);
+  FreeTemp(temp_value);
+  RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pA64Store));
+  return OpReg(kOpBlx, r_tgt);
+}
+
 void MipsMir2Lir::SpillCoreRegs() {
   if (num_core_spills_ == 0) {
     return;
@@ -530,17 +563,12 @@ bool MipsMir2Lir::IsUnconditionalBranch(LIR* lir) {
   return (lir->opcode == kMipsB);
 }
 
-bool MipsMir2Lir::SupportsVolatileLoadStore(OpSize size) {
-  // No support for 64-bit atomic load/store on mips.
-  return size != k64 && size != kDouble;
-}
-
 RegisterClass MipsMir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatile) {
   if (UNLIKELY(is_volatile)) {
-    // On Mips, atomic 64-bit load/store requires an fp register.
+    // On Mips, atomic 64-bit load/store requires a core register.
     // Smaller aligned load/store is atomic for both core and fp registers.
     if (size == k64 || size == kDouble) {
-      return kFPReg;
+      return kCoreReg;
     }
   }
   // TODO: Verify that both core and fp registers are suitable for smaller sizes.
