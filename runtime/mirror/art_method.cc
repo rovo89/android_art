@@ -130,12 +130,11 @@ ArtMethod* ArtMethod::FindOverriddenMethod() {
   Class* declaring_class = GetDeclaringClass();
   Class* super_class = declaring_class->GetSuperClass();
   uint16_t method_index = GetMethodIndex();
-  ObjectArray<ArtMethod>* super_class_vtable = super_class->GetVTable();
   ArtMethod* result = NULL;
   // Did this method override a super class method? If so load the result from the super class'
   // vtable
-  if (super_class_vtable != NULL && method_index < super_class_vtable->GetLength()) {
-    result = super_class_vtable->Get(method_index);
+  if (super_class->HasVTable() && method_index < super_class->GetVTableLength()) {
+    result = super_class->GetVTableEntry(method_index);
   } else {
     // Method didn't override superclass method so search interfaces
     if (IsProxyMethod()) {

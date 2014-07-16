@@ -3570,9 +3570,9 @@ bool ClassLinker::ValidateSuperClassDescriptors(Handle<mirror::Class> klass) {
   MethodHelper super_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
   if (klass->HasSuperClass() &&
       klass->GetClassLoader() != klass->GetSuperClass()->GetClassLoader()) {
-    for (int i = klass->GetSuperClass()->GetVTable()->GetLength() - 1; i >= 0; --i) {
-      mh.ChangeMethod(klass->GetVTable()->GetWithoutChecks(i));
-      super_mh.ChangeMethod(klass->GetSuperClass()->GetVTable()->GetWithoutChecks(i));
+    for (int i = klass->GetSuperClass()->GetVTableLength() - 1; i >= 0; --i) {
+      mh.ChangeMethod(klass->GetVTableEntry(i));
+      super_mh.ChangeMethod(klass->GetSuperClass()->GetVTableEntry(i));
       if (mh.GetMethod() != super_mh.GetMethod() &&
           !mh.HasSameSignatureWithDifferentClassLoaders(&super_mh)) {
         ThrowLinkageError(klass.Get(),
@@ -3730,10 +3730,6 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror:
     // This will notify waiters on new_class that saw the not yet resolved
     // class in the class_table_ during EnsureResolved.
     new_class_h->SetStatus(mirror::Class::kStatusResolved, self);
-
-    // Only embedded imt should be used from this point.
-    new_class_h->SetImTable(NULL);
-    // TODO: remove vtable and only use embedded vtable.
   }
   return true;
 }
@@ -3866,17 +3862,31 @@ bool ClassLinker::LinkMethods(Thread* self, Handle<mirror::Class> klass,
 bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) {
   if (klass->HasSuperClass()) {
     uint32_t max_count = klass->NumVirtualMethods() +
-        klass->GetSuperClass()->GetVTable()->GetLength();
-    size_t actual_count = klass->GetSuperClass()->GetVTable()->GetLength();
+        klass->GetSuperClass()->GetVTableLength();
+    size_t actual_count = klass->GetSuperClass()->GetVTableLength();
     CHECK_LE(actual_count, max_count);
-    // TODO: do not assign to the vtable field until it is fully constructed.
     StackHandleScope<3> hs(self);
-    Handle<mirror::ObjectArray<mirror::ArtMethod>> vtable(
-        hs.NewHandle(klass->GetSuperClass()->GetVTable()->CopyOf(self, max_count)));
-    if (UNLIKELY(vtable.Get() == NULL)) {
-      CHECK(self->IsExceptionPending());  // OOME.
-      return false;
+    Handle<mirror::ObjectArray<mirror::ArtMethod>> vtable;
+    mirror::Class* super_class = klass->GetSuperClass();
+    if (super_class->ShouldHaveEmbeddedImtAndVTable()) {
+      vtable = hs.NewHandle(AllocArtMethodArray(self, max_count));
+      if (UNLIKELY(vtable.Get() == nullptr)) {
+        CHECK(self->IsExceptionPending());  // OOME.
+        return false;
+      }
+      int len = super_class->GetVTableLength();
+      for (int i=0; i<len; i++) {
+        vtable->Set<false>(i, super_class->GetVTableEntry(i));
+      }
+    } else {
+      CHECK(super_class->GetVTable() != nullptr) << PrettyClass(super_class);
+      vtable = hs.NewHandle(super_class->GetVTable()->CopyOf(self, max_count));
+      if (UNLIKELY(vtable.Get() == nullptr)) {
+        CHECK(self->IsExceptionPending());  // OOME.
+        return false;
+      }
     }
+
     // See if any of our virtual methods override the superclass.
     MethodHelper local_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
     MethodHelper super_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
