@@ -811,9 +811,20 @@ bool ClassLinker::OpenDexFilesFromOat(const char* dex_location, const char* oat_
       }
     } else {
       // TODO: What to lock here?
+      bool obsolete_file_cleanup_failed;
       open_oat_file.reset(FindOatFileContainingDexFileFromDexLocation(dex_location,
                                                                       dex_location_checksum_pointer,
-                                                                      kRuntimeISA, error_msgs));
+                                                                      kRuntimeISA, error_msgs,
+                                                                      &obsolete_file_cleanup_failed));
+      // There's no point in going forward and eventually try to regenerate the
+      // file if we couldn't remove the obsolete one. Mostly likely we will fail
+      // with the same error when trying to write the new file.
+      // In case the clean up failure is due to permission issues it's *mandatory*
+      // to stop to avoid regenerating under the wrong user.
+      // TODO: should we maybe do this only when we get permission issues? (i.e. EACCESS).
+      if (obsolete_file_cleanup_failed) {
+        return false;
+      }
     }
     needs_registering = true;
   }
@@ -1071,7 +1082,9 @@ const OatFile* ClassLinker::FindOatFileContainingDexFileFromDexLocation(
     const char* dex_location,
     const uint32_t* const dex_location_checksum,
     InstructionSet isa,
-    std::vector<std::string>* error_msgs) {
+    std::vector<std::string>* error_msgs,
+    bool* obsolete_file_cleanup_failed) {
+  *obsolete_file_cleanup_failed = false;
   // Look for an existing file next to dex. for example, for
   // /foo/bar/baz.jar, look for /foo/bar/<isa>/baz.odex.
   std::string odex_filename(DexFilenameToOdexFilename(dex_location, isa));
@@ -1098,9 +1111,18 @@ const OatFile* ClassLinker::FindOatFileContainingDexFileFromDexLocation(
   if (oat_file != nullptr) {
     return oat_file;
   }
+
   if (!open_failed && TEMP_FAILURE_RETRY(unlink(cache_location.c_str())) != 0) {
-    PLOG(FATAL) << "Failed to remove obsolete oat file from " << cache_location;
+    std::string error_msg = StringPrintf("Failed to remove obsolete file from %s when searching"
+                                         "for dex file %s: %s",
+                                         cache_location.c_str(), dex_location, strerror(errno));
+    error_msgs->push_back(error_msg);
+    VLOG(class_linker) << error_msg;
+    // Let the caller know that we couldn't remove the obsolete file.
+    // This is a good indication that further writes may fail as well.
+    *obsolete_file_cleanup_failed = true;
   }
+
   std::string compound_msg = StringPrintf("Failed to open oat file from %s (error '%s') or %s "
                                           "(error '%s').", odex_filename.c_str(), error_msg.c_str(),
                                           cache_location.c_str(), cache_error_msg.c_str());
