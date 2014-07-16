@@ -85,141 +85,129 @@ void Arm64Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
   StoreValueWide(rl_dest, rl_result);
 }
 
-void Arm64Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
-  RegLocation rl_result;
-  RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
-  RegLocation rl_dest = mir_graph_->GetDest(mir);
-  RegisterClass src_reg_class = rl_src.ref ? kRefReg : kCoreReg;
-  RegisterClass result_reg_class = rl_dest.ref ? kRefReg : kCoreReg;
+static constexpr bool kUseDeltaEncodingInGenSelect = false;
 
-  rl_src = LoadValue(rl_src, src_reg_class);
+void Arm64Mir2Lir::GenSelect(int32_t true_val, int32_t false_val, ConditionCode ccode,
+                             RegStorage rs_dest, int result_reg_class) {
+  if (false_val == 0 ||               // 0 is better as first operand.
+      true_val == 1 ||                // Potentially Csinc.
+      true_val == -1 ||               // Potentially Csinv.
+      true_val == false_val + 1) {    // Potentially Csinc.
+    ccode = NegateComparison(ccode);
+    std::swap(true_val, false_val);
+  }
+
+  ArmConditionCode code = ArmConditionEncoding(ccode);
+
+  int opcode;                                      // The opcode.
+  RegStorage left_op = RegStorage::InvalidReg();   // The operands.
+  RegStorage right_op = RegStorage::InvalidReg();  // The operands.
+
+  bool is_wide = rs_dest.Is64Bit();
+
+  RegStorage zero_reg = is_wide ? rs_xzr : rs_wzr;
+
+  if (true_val == 0) {
+    left_op = zero_reg;
+  } else {
+    left_op = rs_dest;
+    LoadConstantNoClobber(rs_dest, true_val);
+  }
+  if (false_val == 1) {
+    right_op = zero_reg;
+    opcode = kA64Csinc4rrrc;
+  } else if (false_val == -1) {
+    right_op = zero_reg;
+    opcode = kA64Csinv4rrrc;
+  } else if (false_val == true_val + 1) {
+    right_op = left_op;
+    opcode = kA64Csinc4rrrc;
+  } else if (false_val == -true_val) {
+    right_op = left_op;
+    opcode = kA64Csneg4rrrc;
+  } else if (false_val == ~true_val) {
+    right_op = left_op;
+    opcode = kA64Csinv4rrrc;
+  } else if (true_val == 0) {
+    // left_op is zero_reg.
+    right_op = rs_dest;
+    LoadConstantNoClobber(rs_dest, false_val);
+    opcode = kA64Csel4rrrc;
+  } else {
+    // Generic case.
+    RegStorage t_reg2 = AllocTypedTemp(false, result_reg_class);
+    if (is_wide) {
+      if (t_reg2.Is32Bit()) {
+        t_reg2 = As64BitReg(t_reg2);
+      }
+    } else {
+      if (t_reg2.Is64Bit()) {
+        t_reg2 = As32BitReg(t_reg2);
+      }
+    }
+
+    if (kUseDeltaEncodingInGenSelect) {
+      int32_t delta = false_val - true_val;
+      uint32_t abs_val = delta < 0 ? -delta : delta;
+
+      if (abs_val < 0x1000) {  // TODO: Replace with InexpensiveConstant with opcode.
+        // Can encode as immediate to an add.
+        right_op = t_reg2;
+        OpRegRegImm(kOpAdd, t_reg2, left_op, delta);
+      }
+    }
+
+    // Load as constant.
+    if (!right_op.Valid()) {
+      LoadConstantNoClobber(t_reg2, false_val);
+      right_op = t_reg2;
+    }
+
+    opcode = kA64Csel4rrrc;
+  }
+
+  DCHECK(left_op.Valid() && right_op.Valid());
+  NewLIR4(is_wide ? WIDE(opcode) : opcode, rs_dest.GetReg(), left_op.GetReg(), right_op.GetReg(),
+      code);
+}
+
+void Arm64Mir2Lir::GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
+                                    int32_t true_val, int32_t false_val, RegStorage rs_dest,
+                                    int dest_reg_class) {
+  DCHECK(rs_dest.Valid());
+  OpRegReg(kOpCmp, left_op, right_op);
+  GenSelect(true_val, false_val, code, rs_dest, dest_reg_class);
+}
+
+void Arm64Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
+  RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
+  rl_src = LoadValue(rl_src, rl_src.ref ? kRefReg : kCoreReg);
   // rl_src may be aliased with rl_result/rl_dest, so do compare early.
   OpRegImm(kOpCmp, rl_src.reg, 0);
 
-  ArmConditionCode code = ArmConditionEncoding(mir->meta.ccode);
+  RegLocation rl_dest = mir_graph_->GetDest(mir);
 
   // The kMirOpSelect has two variants, one for constants and one for moves.
-  bool is_wide = rl_dest.ref || rl_dest.wide;
-
   if (mir->ssa_rep->num_uses == 1) {
-    uint32_t true_val = mir->dalvikInsn.vB;
-    uint32_t false_val = mir->dalvikInsn.vC;
-
-    int opcode;             // The opcode.
-    int left_op, right_op;  // The operands.
-    bool rl_result_evaled = false;
-
-    // Check some simple cases.
-    // TODO: Improve this.
-    int zero_reg = (is_wide ? rs_xzr : rs_wzr).GetReg();
-
-    if ((true_val == 0 && false_val == 1) || (true_val == 1 && false_val == 0)) {
-      // CSInc cheap based on wzr.
-      if (true_val == 1) {
-        // Negate.
-        code = ArmConditionEncoding(NegateComparison(mir->meta.ccode));
-      }
-
-      left_op = right_op = zero_reg;
-      opcode = is_wide ? WIDE(kA64Csinc4rrrc) : kA64Csinc4rrrc;
-    } else if ((true_val == 0 && false_val == 0xFFFFFFFF) ||
-               (true_val == 0xFFFFFFFF && false_val == 0)) {
-      // CSneg cheap based on wzr.
-      if (true_val == 0xFFFFFFFF) {
-        // Negate.
-        code = ArmConditionEncoding(NegateComparison(mir->meta.ccode));
-      }
-
-      left_op = right_op = zero_reg;
-      opcode = is_wide ? WIDE(kA64Csinv4rrrc) : kA64Csinv4rrrc;
-    } else if (true_val == 0 || false_val == 0) {
-      // Csel half cheap based on wzr.
-      rl_result = EvalLoc(rl_dest, result_reg_class, true);
-      rl_result_evaled = true;
-      if (false_val == 0) {
-        // Negate.
-        code = ArmConditionEncoding(NegateComparison(mir->meta.ccode));
-      }
-      LoadConstantNoClobber(rl_result.reg, true_val == 0 ? false_val : true_val);
-      left_op = zero_reg;
-      right_op = rl_result.reg.GetReg();
-      opcode = is_wide ? WIDE(kA64Csel4rrrc) : kA64Csel4rrrc;
-    } else if (true_val == 1 || false_val == 1) {
-      // CSInc half cheap based on wzr.
-      rl_result = EvalLoc(rl_dest, result_reg_class, true);
-      rl_result_evaled = true;
-      if (true_val == 1) {
-        // Negate.
-        code = ArmConditionEncoding(NegateComparison(mir->meta.ccode));
-      }
-      LoadConstantNoClobber(rl_result.reg, true_val == 1 ? false_val : true_val);
-      left_op = rl_result.reg.GetReg();
-      right_op = zero_reg;
-      opcode = is_wide ? WIDE(kA64Csinc4rrrc) : kA64Csinc4rrrc;
-    } else if (true_val == 0xFFFFFFFF || false_val == 0xFFFFFFFF) {
-      // CSneg half cheap based on wzr.
-      rl_result = EvalLoc(rl_dest, result_reg_class, true);
-      rl_result_evaled = true;
-      if (true_val == 0xFFFFFFFF) {
-        // Negate.
-        code = ArmConditionEncoding(NegateComparison(mir->meta.ccode));
-      }
-      LoadConstantNoClobber(rl_result.reg, true_val == 0xFFFFFFFF ? false_val : true_val);
-      left_op = rl_result.reg.GetReg();
-      right_op = zero_reg;
-      opcode = is_wide ? WIDE(kA64Csinv4rrrc) : kA64Csinv4rrrc;
-    } else if ((true_val + 1 == false_val) || (false_val + 1 == true_val)) {
-      // Load a constant and use CSinc. Use rl_result.
-      if (false_val + 1 == true_val) {
-        // Negate.
-        code = ArmConditionEncoding(NegateComparison(mir->meta.ccode));
-        true_val = false_val;
-      }
-
-      rl_result = EvalLoc(rl_dest, result_reg_class, true);
-      rl_result_evaled = true;
-      LoadConstantNoClobber(rl_result.reg, true_val);
-      left_op = right_op = rl_result.reg.GetReg();
-      opcode = is_wide ? WIDE(kA64Csinc4rrrc) : kA64Csinc4rrrc;
-    } else {
-      // Csel. The rest. Use rl_result and a temp.
-      // TODO: To minimize the constants being loaded, check whether one can be inexpensively
-      //       loaded as n - 1 or ~n.
-      rl_result = EvalLoc(rl_dest, result_reg_class, true);
-      rl_result_evaled = true;
-      LoadConstantNoClobber(rl_result.reg, true_val);
-      RegStorage t_reg2 = AllocTypedTemp(false, result_reg_class);
-      if (rl_dest.wide) {
-        if (t_reg2.Is32Bit()) {
-          t_reg2 = As64BitReg(t_reg2);
-        }
-      }
-      LoadConstantNoClobber(t_reg2, false_val);
-
-      // Use csel.
-      left_op = rl_result.reg.GetReg();
-      right_op = t_reg2.GetReg();
-      opcode = is_wide ? WIDE(kA64Csel4rrrc) : kA64Csel4rrrc;
-    }
-
-    if (!rl_result_evaled) {
-      rl_result = EvalLoc(rl_dest, result_reg_class, true);
-    }
-
-    NewLIR4(opcode, rl_result.reg.GetReg(), left_op, right_op, code);
+    RegLocation rl_result = EvalLoc(rl_dest, rl_dest.ref ? kRefReg : kCoreReg, true);
+    GenSelect(mir->dalvikInsn.vB, mir->dalvikInsn.vC, mir->meta.ccode, rl_result.reg,
+              rl_dest.ref ? kRefReg : kCoreReg);
+    StoreValue(rl_dest, rl_result);
   } else {
     RegLocation rl_true = mir_graph_->reg_location_[mir->ssa_rep->uses[1]];
     RegLocation rl_false = mir_graph_->reg_location_[mir->ssa_rep->uses[2]];
 
+    RegisterClass result_reg_class = rl_dest.ref ? kRefReg : kCoreReg;
     rl_true = LoadValue(rl_true, result_reg_class);
     rl_false = LoadValue(rl_false, result_reg_class);
-    rl_result = EvalLoc(rl_dest, result_reg_class, true);
+    RegLocation rl_result = EvalLoc(rl_dest, result_reg_class, true);
 
+    bool is_wide = rl_dest.ref || rl_dest.wide;
     int opcode = is_wide ? WIDE(kA64Csel4rrrc) : kA64Csel4rrrc;
     NewLIR4(opcode, rl_result.reg.GetReg(),
-            rl_true.reg.GetReg(), rl_false.reg.GetReg(), code);
+            rl_true.reg.GetReg(), rl_false.reg.GetReg(), ArmConditionEncoding(mir->meta.ccode));
+    StoreValue(rl_dest, rl_result);
   }
-  StoreValue(rl_dest, rl_result);
 }
 
 void Arm64Mir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
