@@ -635,7 +635,7 @@ class ClassLinker {
   // retire a class, the version of the class in the table is returned and this may differ from
   // the class passed in.
   mirror::Class* EnsureResolved(Thread* self, const char* descriptor, mirror::Class* klass)
-      __attribute__((warn_unused_result)) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      WARN_UNUSED SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void FixupTemporaryDeclaringClass(mirror::Class* temp_class, mirror::Class* new_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

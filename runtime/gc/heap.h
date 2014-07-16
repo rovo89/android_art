@@ -539,7 +539,8 @@ class Heap {
     }
   }
 
-  void DumpSpaces(std::ostream& stream = LOG(INFO));
+  std::string DumpSpaces() const WARN_UNUSED;
+  void DumpSpaces(std::ostream& stream) const;
 
   // Dump object should only be used by the signal handler.
   void DumpObject(std::ostream& stream, mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS;
