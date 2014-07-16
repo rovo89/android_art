@@ -35,7 +35,6 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
     CHECK(self->IsExceptionPending());
     return false;
   }
-  f->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
   Object* obj;
   if (is_static) {
     obj = f->GetDeclaringClass();
@@ -46,6 +45,7 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
       return false;
     }
   }
+  f->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
   // Report this field access to instrumentation if needed.
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   if (UNLIKELY(instrumentation->HasFieldReadListeners())) {
@@ -211,7 +211,6 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
     CHECK(self->IsExceptionPending());
     return false;
   }
-  f->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
   Object* obj;
   if (is_static) {
     obj = f->GetDeclaringClass();
@@ -223,6 +222,7 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
       return false;
     }
   }
+  f->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
   uint32_t vregA = is_static ? inst->VRegA_21c(inst_data) : inst->VRegA_22c(inst_data);
   // Report this field access to instrumentation if needed. Since we only have the offset of
   // the field from the base of the object, we need to look for it first.
