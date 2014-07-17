@@ -2090,4 +2090,28 @@ TEST_F(GlobalValueNumberingTestTwoNestedLoops, DISABLED_IFieldAndPhi) {
   EXPECT_EQ(value_names_[3], value_names_[14]);
 }
 
+TEST_F(GlobalValueNumberingTest, NormalPathToCatchEntry) {
+  // When there's an empty catch block, all the exception paths lead to the next block in
+  // the normal path and we can also have normal "taken" or "fall-through" branches to that
+  // path. Check that LocalValueNumbering::PruneNonAliasingRefsForCatch() can handle it.
+  static const BBDef bbs[] = {
+      DEF_BB(kNullBlock, DEF_SUCC0(), DEF_PRED0()),
+      DEF_BB(kEntryBlock, DEF_SUCC1(3), DEF_PRED0()),
+      DEF_BB(kExitBlock, DEF_SUCC0(), DEF_PRED1(4)),
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(4), DEF_PRED1(1)),
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(5), DEF_PRED1(3)),
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(2), DEF_PRED2(3, 4)),
+  };
+  static const MIRDef mirs[] = {
+      DEF_INVOKE1(4, Instruction::INVOKE_STATIC, 100u),
+  };
+  PrepareBasicBlocks(bbs);
+  BasicBlock* catch_handler = cu_.mir_graph->GetBasicBlock(5u);
+  catch_handler->catch_entry = true;
+  BasicBlock* merge_block = cu_.mir_graph->GetBasicBlock(4u);
+  std::swap(merge_block->taken, merge_block->fall_through);
+  PrepareMIRs(mirs);
+  PerformGVN();
+}
+
 }  // namespace art
