@@ -161,16 +161,10 @@ void BaseMutex::CheckSafeToWait(Thread* self) {
   }
 }
 
-inline void BaseMutex::ContentionLogData::AddToWaitTime(uint64_t value) {
+void BaseMutex::ContentionLogData::AddToWaitTime(uint64_t value) {
   if (kLogLockContentions) {
     // Atomically add value to wait_time.
-    uint64_t new_val, old_val;
-    volatile int64_t* addr = reinterpret_cast<volatile int64_t*>(&wait_time);
-    volatile const int64_t* caddr = const_cast<volatile const int64_t*>(addr);
-    do {
-      old_val = static_cast<uint64_t>(QuasiAtomic::Read64(caddr));
-      new_val = old_val + value;
-    } while (!QuasiAtomic::Cas64(static_cast<int64_t>(old_val), static_cast<int64_t>(new_val), addr));
+    wait_time.FetchAndAddSequentiallyConsistent(value);
   }
 }
 
@@ -204,7 +198,7 @@ void BaseMutex::DumpContention(std::ostream& os) const {
   if (kLogLockContentions) {
     const ContentionLogData* data = contention_log_data_;
     const ContentionLogEntry* log = data->contention_log;
-    uint64_t wait_time = data->wait_time;
+    uint64_t wait_time = data->wait_time.LoadRelaxed();
     uint32_t contention_count = data->contention_count.LoadRelaxed();
     if (contention_count == 0) {
       os << "never contended";
