@@ -755,10 +755,6 @@ bool X86Mir2Lir::IsUnconditionalBranch(LIR* lir) {
   return (lir->opcode == kX86Jmp8 || lir->opcode == kX86Jmp32);
 }
 
-bool X86Mir2Lir::SupportsVolatileLoadStore(OpSize size) {
-  return true;
-}
-
 RegisterClass X86Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatile) {
   // X86_64 can handle any size.
   if (cu_->target64) {

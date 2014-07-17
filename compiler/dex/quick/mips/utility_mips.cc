@@ -551,8 +551,9 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
 
 LIR* MipsMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
                                OpSize size, VolatileKind is_volatile) {
-  if (is_volatile == kVolatile) {
-    DCHECK(size != k64 && size != kDouble);
+  if (UNLIKELY(is_volatile == kVolatile && (size == k64 || size == kDouble))) {
+    // Do atomic 64-bit load.
+    return GenAtomic64Load(r_base, displacement, r_dest);
   }
 
   // TODO: base this on target.
@@ -654,17 +655,21 @@ LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement,
 LIR* MipsMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
                                 OpSize size, VolatileKind is_volatile) {
   if (is_volatile == kVolatile) {
-    DCHECK(size != k64 && size != kDouble);
     // Ensure that prior accesses become visible to other threads first.
     GenMemBarrier(kAnyStore);
   }
 
-  // TODO: base this on target.
-  if (size == kWord) {
-    size = k32;
-  }
   LIR* store;
-  store = StoreBaseDispBody(r_base, displacement, r_src, size);
+  if (UNLIKELY(is_volatile == kVolatile && (size == k64 || size == kDouble))) {
+    // Do atomic 64-bit load.
+    store = GenAtomic64Store(r_base, displacement, r_src);
+  } else {
+    // TODO: base this on target.
+    if (size == kWord) {
+      size = k32;
+    }
+    store = StoreBaseDispBody(r_base, displacement, r_src, size);
+  }
 
   if (UNLIKELY(is_volatile == kVolatile)) {
     // Preserve order with respect to any subsequent volatile loads.
