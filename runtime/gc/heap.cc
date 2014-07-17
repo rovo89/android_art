@@ -1145,6 +1145,10 @@ void Heap::DumpSpaces(std::ostream& stream) const {
 }
 
 void Heap::VerifyObjectBody(mirror::Object* obj) {
+  if (verify_object_mode_ == kVerifyObjectModeDisabled) {
+    return;
+  }
+
   // Ignore early dawn of the universe verifications.
   if (UNLIKELY(static_cast<size_t>(num_bytes_allocated_.LoadRelaxed()) < 10 * KB)) {
     return;
