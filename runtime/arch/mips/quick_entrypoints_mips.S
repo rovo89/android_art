@@ -1076,14 +1076,15 @@ art_quick_instrumentation_exit:
     .cfi_startproc
     addiu    $t9, $ra, 4    # put current address into $t9 to rebuild $gp
     GENERATE_GLOBAL_POINTER
-    move     $t0, $sp       # remember bottom of caller's frame
+    move     $ra, $zero     # link register is to here, so clobber with 0 for later checks
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+    move     $t0, $sp       # remember bottom of caller's frame
     addiu    $sp, $sp, -48  # save return values and set up args
     .cfi_adjust_cfa_offset 48
     sw       $v0, 32($sp)
-    .cfi_rel_offset 2, 0
+    .cfi_rel_offset 2, 32
     sw       $v1, 36($sp)
-    .cfi_rel_offset 3, 4
+    .cfi_rel_offset 3, 36 
     s.s      $f0, 40($sp)
     s.s      $f1, 44($sp)
     s.s      $f0, 16($sp)   # pass fpr result
