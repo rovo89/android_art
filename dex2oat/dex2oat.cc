@@ -836,7 +836,7 @@ static int dex2oat(int argc, char** argv) {
   bool explicit_include_patch_information = false;
   bool include_debug_symbols = kIsDebugBuild;
   bool dump_slow_timing = kIsDebugBuild;
-  bool watch_dog_enabled = !kIsTargetBuild;
+  bool watch_dog_enabled = true;
   bool generate_gdb_information = kIsDebugBuild;
 
   bool explicit_null_checks = true;
