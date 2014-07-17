@@ -708,7 +708,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   self->ClearException();
 
   // Look for a native bridge.
-  NativeBridge::SetNativeBridgeLibraryString(options->native_bridge_library_string_);
+  SetNativeBridgeLibraryString(options->native_bridge_library_string_);
 
   VLOG(startup) << "Runtime::Init exiting";
   return true;

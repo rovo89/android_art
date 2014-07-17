@@ -32,9 +32,9 @@
 
 struct NativeBridgeArtCallbacks {
   const char* (*getMethodShorty)(JNIEnv* env, jmethodID mid);
-  int (*getNativeMethodCount)(JNIEnv* env, jclass clazz);
-  int (*getNativeMethods)(JNIEnv* env, jclass clazz, JNINativeMethod* methods,
-       uint32_t method_count);
+  uint32_t (*getNativeMethodCount)(JNIEnv* env, jclass clazz);
+  uint32_t (*getNativeMethods)(JNIEnv* env, jclass clazz, JNINativeMethod* methods,
+                               uint32_t method_count);
 };
 
 struct NativeBridgeCallbacks {
