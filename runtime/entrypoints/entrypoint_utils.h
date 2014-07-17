@@ -40,7 +40,6 @@ namespace mirror {
 class ScopedObjectAccessAlreadyRunnable;
 class Thread;
 
-// TODO: Fix no thread safety analysis when GCC can handle template specialization.
 template <const bool kAccessCheck>
 ALWAYS_INLINE static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
                                                             mirror::ArtMethod* method,
@@ -56,7 +55,6 @@ ALWAYS_INLINE static inline mirror::Class* CheckClassInitializedForObjectAlloc(m
 // cannot be resolved, throw an error. If it can, use it to create an instance.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
-// TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
 template <bool kAccessCheck, bool kInstrumented>
 ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx,
                                                                 mirror::ArtMethod* method,
@@ -65,7 +63,6 @@ ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCode(uint32_t type_id
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Given the context of a calling Method and a resolved class, create an instance.
-// TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
 template <bool kInstrumented>
 ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeResolved(mirror::Class* klass,
                                                                         mirror::ArtMethod* method,
@@ -74,7 +71,6 @@ ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeResolved(mirror::
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Given the context of a calling Method and an initialized class, create an instance.
-// TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
 template <bool kInstrumented>
 ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeInitialized(mirror::Class* klass,
                                                                            mirror::ArtMethod* method,
@@ -83,7 +79,6 @@ ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeInitialized(mirro
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 
-// TODO: Fix no thread safety analysis when GCC can handle template specialization.
 template <bool kAccessCheck>
 ALWAYS_INLINE static inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
                                                            mirror::ArtMethod* method,
@@ -95,7 +90,6 @@ ALWAYS_INLINE static inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
 // it cannot be resolved, throw an error. If it can, use it to create an array.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
-// TODO: Fix no thread safety analysis when GCC can handle template specialization.
 template <bool kAccessCheck, bool kInstrumented>
 ALWAYS_INLINE static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
                                                               mirror::ArtMethod* method,
