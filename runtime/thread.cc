@@ -1970,6 +1970,8 @@ Context* Thread::GetLongJumpContext() {
   return result;
 }
 
+// Note: this visitor may return with a method set, but dex_pc_ being DexFile:kDexNoIndex. This is
+//       so we don't abort in a special situation (thinlocked monitor) when dumping the Java stack.
 struct CurrentMethodVisitor FINAL : public StackVisitor {
   CurrentMethodVisitor(Thread* thread, Context* context)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
@@ -1984,7 +1986,7 @@ struct CurrentMethodVisitor FINAL : public StackVisitor {
       this_object_ = GetThisObject();
     }
     method_ = m;
-    dex_pc_ = GetDexPc();
+    dex_pc_ = GetDexPc(false);  // We may not have a valid PC. Let the caller deal with it.
     return false;
   }
   mirror::Object* this_object_;
@@ -2005,6 +2007,7 @@ ThrowLocation Thread::GetCurrentLocationForThrow() {
   Context* context = GetLongJumpContext();
   CurrentMethodVisitor visitor(this, context);
   visitor.WalkStack(false);
+  CHECK_NE(visitor.dex_pc_, DexFile::kDexNoIndex);  // TODO: Can we relax this?
   ReleaseLongJumpContext(context);
   return ThrowLocation(visitor.this_object_, visitor.method_, visitor.dex_pc_);
 }
