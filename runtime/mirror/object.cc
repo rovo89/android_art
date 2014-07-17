@@ -65,8 +65,8 @@ class CopyReferenceFieldsWithReadBarrierVisitor {
   Object* const dest_obj_;
 };
 
-static Object* CopyObject(Thread* self, mirror::Object* dest, mirror::Object* src, size_t num_bytes)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+Object* Object::CopyObject(Thread* self, mirror::Object* dest, mirror::Object* src,
+                           size_t num_bytes) {
   // Copy instance data.  We assume memcpy copies by words.
   // TODO: expose and use move32.
   byte* src_bytes = reinterpret_cast<byte*>(src);
@@ -107,7 +107,7 @@ class CopyObjectVisitor {
   void operator()(Object* obj, size_t usable_size) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     UNUSED(usable_size);
-    CopyObject(self_, obj, orig_->Get(), num_bytes_);
+    Object::CopyObject(self_, obj, orig_->Get(), num_bytes_);
   }
 
  private:

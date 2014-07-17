@@ -834,13 +834,42 @@ void Class::PopulateEmbeddedImtAndVTable() SHARED_LOCKS_REQUIRED(Locks::mutator_
   }
 }
 
+// The pre-fence visitor for Class::CopyOf().
+class CopyClassVisitor {
+ public:
+  explicit CopyClassVisitor(Thread* self, Handle<mirror::Class>* orig,
+                            size_t new_length, size_t copy_bytes)
+      : self_(self), orig_(orig), new_length_(new_length),
+        copy_bytes_(copy_bytes) {
+  }
+
+  void operator()(Object* obj, size_t usable_size) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    UNUSED(usable_size);
+    mirror::Class* new_class_obj = obj->AsClass();
+    mirror::Object::CopyObject(self_, new_class_obj, orig_->Get(), copy_bytes_);
+    new_class_obj->SetStatus(Class::kStatusResolving, self_);
+    new_class_obj->PopulateEmbeddedImtAndVTable();
+    new_class_obj->SetClassSize(new_length_);
+  }
+
+ private:
+  Thread* const self_;
+  Handle<mirror::Class>* const orig_;
+  const size_t new_length_;
+  const size_t copy_bytes_;
+  DISALLOW_COPY_AND_ASSIGN(CopyClassVisitor);
+};
+
 Class* Class::CopyOf(Thread* self, int32_t new_length) {
   DCHECK_GE(new_length, static_cast<int32_t>(sizeof(Class)));
   // We may get copied by a compacting GC.
   StackHandleScope<1> hs(self);
   Handle<mirror::Class> h_this(hs.NewHandle(this));
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  InitializeClassVisitor visitor(new_length);
+  // The num_bytes (3rd param) is sizeof(Class) as opposed to SizeOf()
+  // to skip copying the tail part that we will overwrite here.
+  CopyClassVisitor visitor(self, &h_this, new_length, sizeof(Class));
 
   mirror::Object* new_class =
       kMovingClasses ? heap->AllocObject<true>(self, java_lang_Class_, new_length, visitor)
@@ -850,17 +879,7 @@ Class* Class::CopyOf(Thread* self, int32_t new_length) {
     return NULL;
   }
 
-  mirror::Class* new_class_obj = new_class->AsClass();
-  memcpy(new_class_obj, h_this.Get(), sizeof(Class));
-
-  new_class_obj->SetStatus(kStatusResolving, self);
-  new_class_obj->PopulateEmbeddedImtAndVTable();
-  // Correct some fields.
-  new_class_obj->SetLockWord(LockWord(), false);
-  new_class_obj->SetClassSize(new_length);
-
-  Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(new_class_obj);
-  return new_class_obj;
+  return new_class->AsClass();
 }
 
 }  // namespace mirror
