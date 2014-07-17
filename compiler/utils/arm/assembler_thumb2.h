@@ -31,7 +31,7 @@ namespace arm {
 
 class Thumb2Assembler FINAL : public ArmAssembler {
  public:
-  Thumb2Assembler(bool force_32bit_branches = false)
+  explicit Thumb2Assembler(bool force_32bit_branches = false)
       : force_32bit_branches_(force_32bit_branches),
         force_32bit_(false),
         it_cond_index_(kNoItCondition),
@@ -419,8 +419,8 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void EmitShift(Register rd, Register rm, Shift shift, uint8_t amount, bool setcc = false);
   void EmitShift(Register rd, Register rn, Shift shift, Register rm, bool setcc = false);
 
-  bool force_32bit_branches_; // Force the assembler to use 32 bit branch instructions.
-  bool force_32bit_;          // Force the assembler to use 32 bit thumb2 instructions.
+  bool force_32bit_branches_;  // Force the assembler to use 32 bit branch instructions.
+  bool force_32bit_;           // Force the assembler to use 32 bit thumb2 instructions.
 
   // IfThen conditions.  Used to check that conditional instructions match the preceding IT.
   Condition it_conditions_[4];
