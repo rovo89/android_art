@@ -291,6 +291,16 @@ bool MipsMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   return false;
 }
 
+bool MipsMir2Lir::GenInlinedAbsFloat(CallInfo* info) {
+  // TODO - add Mips implementation
+  return false;
+}
+
+bool MipsMir2Lir::GenInlinedAbsDouble(CallInfo* info) {
+  // TODO - add Mips implementation
+  return false;
+}
+
 bool MipsMir2Lir::GenInlinedSqrt(CallInfo* info) {
   DCHECK_NE(cu_->instruction_set, kThumb2);
   return false;
