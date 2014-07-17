@@ -445,6 +445,11 @@ void LocalValueNumbering::MergeMemoryVersions(bool clobbered_catch) {
 void LocalValueNumbering::PruneNonAliasingRefsForCatch() {
   for (const LocalValueNumbering* lvn : gvn_->merge_lvns_) {
     const BasicBlock* bb = gvn_->GetBasicBlock(lvn->Id());
+    if (UNLIKELY(bb->taken == id_) || UNLIKELY(bb->fall_through == id_)) {
+      // Non-exceptional path to a catch handler means that the catch block was actually
+      // empty and all exceptional paths lead to the shared path after that empty block.
+      continue;
+    }
     DCHECK_EQ(bb->taken, kNullBlock);
     DCHECK_NE(bb->fall_through, kNullBlock);
     const BasicBlock* fall_through_bb = gvn_->GetBasicBlock(bb->fall_through);
