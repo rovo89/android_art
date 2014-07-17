@@ -877,6 +877,7 @@ void Thumb2Assembler::Emit16BitDataProcessing(Condition cond,
            rn_shift = 8;
         } else {
           thumb_opcode = 0b1010;
+          rd = rn;
           rn = so.GetRegister();
         }
 
@@ -1470,6 +1471,7 @@ void Thumb2Assembler::EmitBranch(Condition cond, Label* label, bool link, bool x
     // branch the size may change if it so happens that other branches change size that change
     // the distance to the target and that distance puts this branch over the limit for 16 bits.
     if (size == Branch::k16Bit) {
+      DCHECK(!force_32bit_branches_);
       Emit16(0);          // Space for a 16 bit branch.
     } else {
       Emit32(0);            // Space for a 32 bit branch.
@@ -1477,7 +1479,7 @@ void Thumb2Assembler::EmitBranch(Condition cond, Label* label, bool link, bool x
   } else {
     // Branch is to an unbound label.  Emit space for it.
     uint16_t branch_id = AddBranch(branch_type, pc, cond);    // Unresolved branch.
-    if (force_32bit_) {
+    if (force_32bit_branches_ || force_32bit_) {
       Emit16(static_cast<uint16_t>(label->position_));    // Emit current label link.
       Emit16(0);                   // another 16 bits.
     } else {
@@ -2073,6 +2075,7 @@ void Thumb2Assembler::Bind(Label* label) {
     uint32_t branch_location = branch->GetLocation();
     uint16_t next = buffer_.Load<uint16_t>(branch_location);       // Get next in chain.
     if (changed) {
+      DCHECK(!force_32bit_branches_);
       MakeHoleForBranch(branch->GetLocation(), 2);
       if (branch->IsCompareAndBranch()) {
         // A cbz/cbnz instruction has changed size.  There is no valid encoding for
