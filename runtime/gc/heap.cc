@@ -771,15 +771,11 @@ void Heap::RemoveSpace(space::Space* space) {
 }
 
 void Heap::RegisterGCAllocation(size_t bytes) {
-  if (this != nullptr) {
-    gc_memory_overhead_.FetchAndAddSequentiallyConsistent(bytes);
-  }
+  gc_memory_overhead_.FetchAndAddSequentiallyConsistent(bytes);
 }
 
 void Heap::RegisterGCDeAllocation(size_t bytes) {
-  if (this != nullptr) {
-    gc_memory_overhead_.FetchAndSubSequentiallyConsistent(bytes);
-  }
+  gc_memory_overhead_.FetchAndSubSequentiallyConsistent(bytes);
 }
 
 void Heap::DumpGcPerformanceInfo(std::ostream& os) {
@@ -1149,9 +1145,6 @@ void Heap::DumpSpaces(std::ostream& stream) const {
 }
 
 void Heap::VerifyObjectBody(mirror::Object* obj) {
-  if (this == nullptr && verify_object_mode_ == kVerifyObjectModeDisabled) {
-    return;
-  }
   // Ignore early dawn of the universe verifications.
   if (UNLIKELY(static_cast<size_t>(num_bytes_allocated_.LoadRelaxed()) < 10 * KB)) {
     return;
