@@ -832,8 +832,6 @@ bool ClassLinker::OpenDexFilesFromOat(const char* dex_location, const char* oat_
       // There's no point in going forward and eventually try to regenerate the
       // file if we couldn't remove the obsolete one. Mostly likely we will fail
       // with the same error when trying to write the new file.
-      // In case the clean up failure is due to permission issues it's *mandatory*
-      // to stop to avoid regenerating under the wrong user.
       // TODO: should we maybe do this only when we get permission issues? (i.e. EACCESS).
       if (obsolete_file_cleanup_failed) {
         return false;
