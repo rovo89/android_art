@@ -176,7 +176,7 @@ LIR* Mir2Lir::GenNullCheck(RegStorage reg) {
 
 /* Perform null-check on a register.  */
 LIR* Mir2Lir::GenNullCheck(RegStorage m_reg, int opt_flags) {
-  if (cu_->compiler_driver->GetCompilerOptions().GetExplicitNullChecks()) {
+  if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitNullChecks()) {
     return GenExplicitNullCheck(m_reg, opt_flags);
   }
   return nullptr;
@@ -191,16 +191,17 @@ LIR* Mir2Lir::GenExplicitNullCheck(RegStorage m_reg, int opt_flags) {
 }
 
 void Mir2Lir::MarkPossibleNullPointerException(int opt_flags) {
-  if (!cu_->compiler_driver->GetCompilerOptions().GetExplicitNullChecks()) {
+  if (cu_->compiler_driver->GetCompilerOptions().GetImplicitNullChecks()) {
     if (!(cu_->disable_opt & (1 << kNullCheckElimination)) && (opt_flags & MIR_IGNORE_NULL_CHECK)) {
       return;
     }
+    // Insert after last instruction.
     MarkSafepointPC(last_lir_insn_);
   }
 }
 
 void Mir2Lir::MarkPossibleNullPointerExceptionAfter(int opt_flags, LIR* after) {
-  if (!cu_->compiler_driver->GetCompilerOptions().GetExplicitNullChecks()) {
+  if (cu_->compiler_driver->GetCompilerOptions().GetImplicitNullChecks()) {
     if (!(cu_->disable_opt & (1 << kNullCheckElimination)) && (opt_flags & MIR_IGNORE_NULL_CHECK)) {
       return;
     }
@@ -209,13 +210,13 @@ void Mir2Lir::MarkPossibleNullPointerExceptionAfter(int opt_flags, LIR* after) {
 }
 
 void Mir2Lir::MarkPossibleStackOverflowException() {
-  if (!cu_->compiler_driver->GetCompilerOptions().GetExplicitStackOverflowChecks()) {
+  if (cu_->compiler_driver->GetCompilerOptions().GetImplicitStackOverflowChecks()) {
     MarkSafepointPC(last_lir_insn_);
   }
 }
 
 void Mir2Lir::ForceImplicitNullCheck(RegStorage reg, int opt_flags) {
-  if (!cu_->compiler_driver->GetCompilerOptions().GetExplicitNullChecks()) {
+  if (cu_->compiler_driver->GetCompilerOptions().GetImplicitNullChecks()) {
     if (!(cu_->disable_opt & (1 << kNullCheckElimination)) && (opt_flags & MIR_IGNORE_NULL_CHECK)) {
       return;
     }
@@ -623,7 +624,7 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, bool is_long_or_double,
         LockTemp(r_tmp);
         LIR* uninit_branch = OpCmpMemImmBranch(kCondLt, r_tmp, r_base,
                                           mirror::Class::StatusOffset().Int32Value(),
-                                          mirror::Class::kStatusInitialized, NULL);
+                                          mirror::Class::kStatusInitialized, nullptr, nullptr);
         LIR* cont = NewLIR0(kPseudoTargetLabel);
 
         AddSlowPath(new (arena_) StaticFieldSlowPath(this, unresolved_branch, uninit_branch, cont,
@@ -720,7 +721,7 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
         LockTemp(r_tmp);
         LIR* uninit_branch = OpCmpMemImmBranch(kCondLt, r_tmp, r_base,
                                           mirror::Class::StatusOffset().Int32Value(),
-                                          mirror::Class::kStatusInitialized, NULL);
+                                          mirror::Class::kStatusInitialized, nullptr, nullptr);
         LIR* cont = NewLIR0(kPseudoTargetLabel);
 
         AddSlowPath(new (arena_) StaticFieldSlowPath(this, unresolved_branch, uninit_branch, cont,
@@ -2198,7 +2199,7 @@ class SuspendCheckSlowPath : public Mir2Lir::LIRSlowPath {
 
 /* Check if we need to check for pending suspend request */
 void Mir2Lir::GenSuspendTest(int opt_flags) {
-  if (cu_->compiler_driver->GetCompilerOptions().GetExplicitSuspendChecks()) {
+  if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitSuspendChecks()) {
     if (NO_SUSPEND || (opt_flags & MIR_IGNORE_SUSPEND_CHECK)) {
       return;
     }
@@ -2218,7 +2219,7 @@ void Mir2Lir::GenSuspendTest(int opt_flags) {
 
 /* Check if we need to check for pending suspend request */
 void Mir2Lir::GenSuspendTestAndBranch(int opt_flags, LIR* target) {
-  if (cu_->compiler_driver->GetCompilerOptions().GetExplicitSuspendChecks()) {
+  if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitSuspendChecks()) {
     if (NO_SUSPEND || (opt_flags & MIR_IGNORE_SUSPEND_CHECK)) {
       OpUnconditionalBranch(target);
       return;

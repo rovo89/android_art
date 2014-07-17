@@ -265,38 +265,6 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
   verify_ = true;
   image_isa_ = kRuntimeISA;
 
-  // Default to explicit checks.  Switch off with -implicit-checks:.
-  // or setprop dalvik.vm.implicit_checks check1,check2,...
-#ifdef HAVE_ANDROID_OS
-  {
-    char buf[PROP_VALUE_MAX];
-    property_get("dalvik.vm.implicit_checks", buf, "null,stack");
-    std::string checks(buf);
-    std::vector<std::string> checkvec;
-    Split(checks, ',', checkvec);
-    explicit_checks_ = kExplicitNullCheck | kExplicitSuspendCheck |
-        kExplicitStackOverflowCheck;
-    for (auto& str : checkvec) {
-      std::string val = Trim(str);
-      if (val == "none") {
-        explicit_checks_ = kExplicitNullCheck | kExplicitSuspendCheck |
-          kExplicitStackOverflowCheck;
-      } else if (val == "null") {
-        explicit_checks_ &= ~kExplicitNullCheck;
-      } else if (val == "suspend") {
-        explicit_checks_ &= ~kExplicitSuspendCheck;
-      } else if (val == "stack") {
-        explicit_checks_ &= ~kExplicitStackOverflowCheck;
-      } else if (val == "all") {
-        explicit_checks_ = 0;
-      }
-    }
-  }
-#else
-  explicit_checks_ = kExplicitNullCheck | kExplicitSuspendCheck |
-    kExplicitStackOverflowCheck;
-#endif
-
   for (size_t i = 0; i < options.size(); ++i) {
     if (true && options[0].first == "-Xzygote") {
       LOG(INFO) << "option[" << i << "]=" << options[i].first;
@@ -312,6 +280,7 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
       Exit(0);
     } else if (StartsWith(option, "-Xbootclasspath:")) {
       boot_class_path_string_ = option.substr(strlen("-Xbootclasspath:")).data();
+      LOG(INFO) << "setting boot class path to " << boot_class_path_string_;
     } else if (option == "-classpath" || option == "-cp") {
       // TODO: support -Djava.class.path
       i++;
@@ -588,54 +557,6 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
     } else if (StartsWith(option, "-Xprofile-max-stack-depth:")) {
       if (!ParseUnsignedInteger(option, ':', &profiler_options_.max_stack_depth_)) {
         return false;
-      }
-    } else if (StartsWith(option, "-implicit-checks:")) {
-      std::string checks;
-      if (!ParseStringAfterChar(option, ':', &checks)) {
-        return false;
-      }
-      std::vector<std::string> checkvec;
-      Split(checks, ',', checkvec);
-      for (auto& str : checkvec) {
-        std::string val = Trim(str);
-        if (val == "none") {
-          explicit_checks_ = kExplicitNullCheck | kExplicitSuspendCheck |
-            kExplicitStackOverflowCheck;
-        } else if (val == "null") {
-          explicit_checks_ &= ~kExplicitNullCheck;
-        } else if (val == "suspend") {
-          explicit_checks_ &= ~kExplicitSuspendCheck;
-        } else if (val == "stack") {
-          explicit_checks_ &= ~kExplicitStackOverflowCheck;
-        } else if (val == "all") {
-          explicit_checks_ = 0;
-        } else {
-            return false;
-        }
-      }
-    } else if (StartsWith(option, "-explicit-checks:")) {
-      std::string checks;
-      if (!ParseStringAfterChar(option, ':', &checks)) {
-        return false;
-      }
-      std::vector<std::string> checkvec;
-      Split(checks, ',', checkvec);
-      for (auto& str : checkvec) {
-        std::string val = Trim(str);
-        if (val == "none") {
-          explicit_checks_ = 0;
-        } else if (val == "null") {
-          explicit_checks_ |= kExplicitNullCheck;
-        } else if (val == "suspend") {
-          explicit_checks_ |= kExplicitSuspendCheck;
-        } else if (val == "stack") {
-          explicit_checks_ |= kExplicitStackOverflowCheck;
-        } else if (val == "all") {
-          explicit_checks_ = kExplicitNullCheck | kExplicitSuspendCheck |
-            kExplicitStackOverflowCheck;
-        } else {
-          return false;
-        }
       }
     } else if (StartsWith(option, "-Xcompiler:")) {
       if (!ParseStringAfterChar(option, ':', &compiler_executable_)) {

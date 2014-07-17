@@ -14,11 +14,21 @@
  * limitations under the License.
  */
 
+#ifdef HAVE_ANDROID_OS
 #include <android/log.h>
+#else
+#include <stdarg.h>
+#include <iostream>
+#endif
+
 #include <dlfcn.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#if defined(__APPLE__)
+#define _NSIG NSIG
+#endif
 
 namespace art {
 
@@ -67,7 +77,11 @@ static void log(const char* format, ...) {
   va_list ap;
   va_start(ap, format);
   vsnprintf(buf, sizeof(buf), format, ap);
+#ifdef HAVE_ANDROID_OS
   __android_log_write(ANDROID_LOG_ERROR, "libsigchain", buf);
+#else
+  std::cout << buf << "\n";
+#endif
   va_end(ap);
 }
 
@@ -104,10 +118,16 @@ void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context) {
   if ((action.sa_flags & SA_SIGINFO) == 0) {
     if (action.sa_handler != NULL) {
       action.sa_handler(sig);
+    } else {
+       signal(sig, SIG_DFL);
+       raise(sig);
     }
   } else {
     if (action.sa_sigaction != NULL) {
       action.sa_sigaction(sig, info, context);
+    } else {
+       signal(sig, SIG_DFL);
+       raise(sig);
     }
   }
 }
