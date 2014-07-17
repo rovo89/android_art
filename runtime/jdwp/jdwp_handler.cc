@@ -1671,7 +1671,7 @@ size_t JdwpState::ProcessRequest(Request& request, ExpandBuf* pReply) {
      * so waitForDebugger() doesn't return if we stall for a bit here.
      */
     Dbg::GoActive();
-    QuasiAtomic::Write64(&last_activity_time_ms_, 0);
+    last_activity_time_ms_.StoreSequentiallyConsistent(0);
   }
 
   /*
@@ -1751,7 +1751,7 @@ size_t JdwpState::ProcessRequest(Request& request, ExpandBuf* pReply) {
    * the initial setup.  Only update if this is a non-DDMS packet.
    */
   if (request.GetCommandSet() != kJDWPDdmCmdSet) {
-    QuasiAtomic::Write64(&last_activity_time_ms_, MilliTime());
+    last_activity_time_ms_.StoreSequentiallyConsistent(MilliTime());
   }
 
   /* tell the VM that GC is okay again */

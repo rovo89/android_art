@@ -339,7 +339,7 @@ struct JdwpState {
   ConditionVariable attach_cond_ GUARDED_BY(attach_lock_);
 
   // Time of last debugger activity, in milliseconds.
-  int64_t last_activity_time_ms_;
+  Atomic<int64_t> last_activity_time_ms_;
 
   // Global counters and a mutex to protect them.
   AtomicInteger request_serial_;
