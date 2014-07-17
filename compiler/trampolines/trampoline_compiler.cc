@@ -16,7 +16,7 @@
 
 #include "trampoline_compiler.h"
 
-#include "jni_internal.h"
+#include "jni_env_ext.h"
 #include "utils/arm/assembler_arm.h"
 #include "utils/arm64/assembler_arm64.h"
 #include "utils/mips/assembler_mips.h"

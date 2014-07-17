@@ -455,6 +455,7 @@ class Heap {
   void RevokeThreadLocalBuffers(Thread* thread);
   void RevokeRosAllocThreadLocalBuffers(Thread* thread);
   void RevokeAllThreadLocalBuffers();
+  void AssertThreadLocalBuffersAreRevoked(Thread* thread);
   void AssertAllBumpPointerSpaceThreadLocalBuffersAreRevoked();
   void RosAllocVerification(TimingLogger* timings, const char* name)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);

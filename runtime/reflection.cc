@@ -347,7 +347,7 @@ class ArgArray {
   std::unique_ptr<uint32_t[]> large_arg_array_;
 };
 
-static void CheckMethodArguments(mirror::ArtMethod* m, uint32_t* args)
+static void CheckMethodArguments(JavaVMExt* vm, mirror::ArtMethod* m, uint32_t* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const DexFile::TypeList* params = m->GetParameterTypeList();
   if (params == nullptr) {
@@ -375,11 +375,11 @@ static void CheckMethodArguments(mirror::ArtMethod* m, uint32_t* args)
       self->ClearException();
       ++error_count;
     } else if (!param_type->IsPrimitive()) {
-      // TODO: check primitives are in range.
       // TODO: There is a compaction bug here since GetClassFromTypeIdx can cause thread suspension,
       // this is a hard to fix problem since the args can contain Object*, we need to save and
       // restore them by using a visitor similar to the ones used in the trampoline entrypoints.
-      mirror::Object* argument = reinterpret_cast<mirror::Object*>(args[i + offset]);
+      mirror::Object* argument =
+          (reinterpret_cast<StackReference<mirror::Object>*>(&args[i + offset]))->AsMirrorPtr();
       if (argument != nullptr && !argument->InstanceOf(param_type)) {
         LOG(ERROR) << "JNI ERROR (app bug): attempt to pass an instance of "
                    << PrettyTypeOf(argument) << " as argument " << (i + 1)
@@ -388,13 +388,40 @@ static void CheckMethodArguments(mirror::ArtMethod* m, uint32_t* args)
       }
     } else if (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble()) {
       offset++;
+    } else {
+      int32_t arg = static_cast<int32_t>(args[i + offset]);
+      if (param_type->IsPrimitiveBoolean()) {
+        if (arg != JNI_TRUE && arg != JNI_FALSE) {
+          LOG(ERROR) << "JNI ERROR (app bug): expected jboolean (0/1) but got value of "
+              << arg << " as argument " << (i + 1) << " to " << PrettyMethod(h_m.Get());
+          ++error_count;
+        }
+      } else if (param_type->IsPrimitiveByte()) {
+        if (arg < -128 || arg > 127) {
+          LOG(ERROR) << "JNI ERROR (app bug): expected jbyte but got value of "
+              << arg << " as argument " << (i + 1) << " to " << PrettyMethod(h_m.Get());
+          ++error_count;
+        }
+      } else if (param_type->IsPrimitiveChar()) {
+        if (args[i + offset] > 0xFFFF) {
+          LOG(ERROR) << "JNI ERROR (app bug): expected jchar but got value of "
+              << arg << " as argument " << (i + 1) << " to " << PrettyMethod(h_m.Get());
+          ++error_count;
+        }
+      } else if (param_type->IsPrimitiveShort()) {
+        if (arg < -32768 || arg > 0x7FFF) {
+          LOG(ERROR) << "JNI ERROR (app bug): expected jshort but got value of "
+              << arg << " as argument " << (i + 1) << " to " << PrettyMethod(h_m.Get());
+          ++error_count;
+        }
+      }
     }
   }
-  if (error_count > 0) {
+  if (UNLIKELY(error_count > 0)) {
     // TODO: pass the JNI function name (such as "CallVoidMethodV") through so we can call JniAbort
     // with an argument.
-    JniAbortF(nullptr, "bad arguments passed to %s (see above for details)",
-              PrettyMethod(h_m.Get()).c_str());
+    vm->JniAbortF(nullptr, "bad arguments passed to %s (see above for details)",
+                  PrettyMethod(h_m.Get()).c_str());
   }
 }
 
@@ -411,7 +438,7 @@ static void InvokeWithArgArray(const ScopedObjectAccessAlreadyRunnable& soa,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint32_t* args = arg_array->GetArray();
   if (UNLIKELY(soa.Env()->check_jni)) {
-    CheckMethodArguments(method, args);
+    CheckMethodArguments(soa.Vm(), method, args);
   }
   method->Invoke(soa.Self(), args, arg_array->GetNumBytes(), result, shorty);
 }
@@ -565,11 +592,6 @@ bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c) {
     return false;
   }
   return true;
-}
-
-static std::string PrettyDescriptor(Primitive::Type type) {
-  std::string descriptor_string(Primitive::Descriptor(type));
-  return PrettyDescriptor(descriptor_string);
 }
 
 bool ConvertPrimitiveValue(const ThrowLocation* throw_location, bool unbox_for_result,

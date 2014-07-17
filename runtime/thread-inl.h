@@ -24,7 +24,7 @@
 #include "base/casts.h"
 #include "base/mutex-inl.h"
 #include "gc/heap.h"
-#include "jni_internal.h"
+#include "jni_env_ext.h"
 
 namespace art {
 

@@ -81,6 +81,7 @@ LIBART_COMMON_SRC_FILES := \
   interpreter/interpreter.cc \
   interpreter/interpreter_common.cc \
   interpreter/interpreter_switch_impl.cc \
+  java_vm_ext.cc \
   jdwp/jdwp_event.cc \
   jdwp/jdwp_expand_buf.cc \
   jdwp/jdwp_handler.cc \
@@ -88,6 +89,7 @@ LIBART_COMMON_SRC_FILES := \
   jdwp/jdwp_request.cc \
   jdwp/jdwp_socket.cc \
   jdwp/object_registry.cc \
+  jni_env_ext.cc \
   jni_internal.cc \
   jobject_comparator.cc \
   mem_map.cc \
