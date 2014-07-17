@@ -1261,7 +1261,9 @@ bool Mir2Lir::GenInlinedGet(CallInfo* info) {
   bool is_finalizable;
   const DexFile* old_dex = cu_->dex_file;
   cu_->dex_file = ref_dex_file;
-  RegStorage reg_class = TargetPtrReg(kArg1);
+  RegStorage reg_class = TargetReg(kArg1, kRef);
+  Clobber(reg_class);
+  LockTemp(reg_class);
   if (!cu_->compiler_driver->CanEmbedTypeInCode(*ref_dex_file, type_idx, &unused_type_initialized,
                                                 &use_direct_type_ptr, &direct_type_ptr,
                                                 &is_finalizable) || is_finalizable) {
@@ -1296,11 +1298,19 @@ bool Mir2Lir::GenInlinedGet(CallInfo* info) {
   RegStorage reg_disabled = AllocTemp();
   Load32Disp(reg_class, slow_path_flag_offset, reg_slow_path);
   Load32Disp(reg_class, disable_flag_offset, reg_disabled);
-  OpRegRegReg(kOpOr, reg_slow_path, reg_slow_path, reg_disabled);
+  FreeTemp(reg_class);
+  LIR* or_inst = OpRegRegReg(kOpOr, reg_slow_path, reg_slow_path, reg_disabled);
   FreeTemp(reg_disabled);
 
   // if slow path, jump to JNI path target
-  LIR* slow_path_branch = OpCmpImmBranch(kCondNe, reg_slow_path, 0, nullptr);
+  LIR* slow_path_branch;
+  if (or_inst->u.m.def_mask->HasBit(ResourceMask::kCCode)) {
+    // Generate conditional branch only, as the OR set a condition state (we are interested in a 'Z' flag).
+    slow_path_branch = OpCondBranch(kCondNe, nullptr);
+  } else {
+    // Generate compare and branch.
+    slow_path_branch = OpCmpImmBranch(kCondNe, reg_slow_path, 0, nullptr);
+  }
   FreeTemp(reg_slow_path);
 
   // slow path not enabled, simply load the referent of the reference object
