@@ -950,6 +950,14 @@ void X86_64Assembler::testl(CpuRegister reg, const Immediate& immediate) {
 }
 
 
+void X86_64Assembler::testq(CpuRegister reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(reg);
+  EmitUint8(0x85);
+  EmitOperand(reg.LowBits(), address);
+}
+
+
 void X86_64Assembler::andl(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(dst, src);

@@ -85,6 +85,27 @@ public class Main {
         Object o = new byte[1024];
       }
     }
+
+    // Test that we do NPE checks on invokedirect.
+    Exception exception = null;
+    try {
+      invokePrivate();
+    } catch (NullPointerException e) {
+      exception = e;
+    }
+
+    if (exception == null) {
+      throw new Error("Missing NullPointerException");
+    }
+  }
+
+  public static void invokePrivate() {
+    Main m = null;
+    m.privateMethod();
+  }
+
+  private void privateMethod() {
+    Object o = new Object();
   }
 
   static int $opt$TestInvokeIntParameter(int param) {

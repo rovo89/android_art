@@ -126,7 +126,7 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
 class CodeGeneratorX86 : public CodeGenerator {
  public:
   explicit CodeGeneratorX86(HGraph* graph);
-  virtual ~CodeGeneratorX86() { }
+  virtual ~CodeGeneratorX86() {}
 
   virtual void GenerateFrameEntry() OVERRIDE;
   virtual void GenerateFrameExit() OVERRIDE;
