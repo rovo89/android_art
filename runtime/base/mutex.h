@@ -160,7 +160,7 @@ class BaseMutex {
     // Number of times the Mutex has been contended.
     AtomicInteger contention_count;
     // Sum of time waited by all contenders in ns.
-    volatile uint64_t wait_time;
+    Atomic<uint64_t> wait_time;
     void AddToWaitTime(uint64_t value);
     ContentionLogData() : wait_time(0) {}
   };

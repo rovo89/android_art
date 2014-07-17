@@ -577,7 +577,7 @@ int64_t JdwpState::LastDebuggerActivity() {
     return -1;
   }
 
-  int64_t last = QuasiAtomic::Read64(&last_activity_time_ms_);
+  int64_t last = last_activity_time_ms_.LoadSequentiallyConsistent();
 
   /* initializing or in the middle of something? */
   if (last == 0) {
