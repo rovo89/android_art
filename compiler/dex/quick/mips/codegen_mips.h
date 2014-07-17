@@ -110,6 +110,8 @@ class MipsMir2Lir FINAL : public Mir2Lir {
     void GenCmpFP(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                   RegLocation rl_src2);
     void GenConversion(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src);
+    bool GenInlinedAbsFloat(CallInfo* info) OVERRIDE;
+    bool GenInlinedAbsDouble(CallInfo* info) OVERRIDE;
     bool GenInlinedCas(CallInfo* info, bool is_long, bool is_object);
     bool GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long);
     bool GenInlinedSqrt(CallInfo* info);
