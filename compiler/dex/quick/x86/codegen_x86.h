@@ -206,9 +206,6 @@ class X86Mir2Lir : public Mir2Lir {
   void GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
                         int32_t true_val, int32_t false_val, RegStorage rs_dest,
                         int dest_reg_class) OVERRIDE;
-  // Optimized version for selection of 0 and 1.
-  void GenSelectConst01(RegStorage left_op, RegStorage right_op, ConditionCode code, bool true_val,
-                        RegStorage rs_dest);
   bool GenMemBarrier(MemBarrierKind barrier_kind);
   void GenMoveException(RegLocation rl_dest);
   void GenMultiplyByTwoBitMultiplier(RegLocation rl_src, RegLocation rl_result, int lit,
@@ -274,22 +271,6 @@ class X86Mir2Lir : public Mir2Lir {
    */
   void GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, RegLocation rl_dest,
                           RegLocation rl_src);
-  /*
-   *
-   * @brief Implement Set up instanceof a class with x86 specific code.
-   * @param needs_access_check 'true' if we must check the access.
-   * @param type_known_final 'true' if the type is known to be a final class.
-   * @param type_known_abstract 'true' if the type is known to be an abstract class.
-   * @param use_declaring_class 'true' if the type can be loaded off the current Method*.
-   * @param can_assume_type_is_in_dex_cache 'true' if the type is known to be in the cache.
-   * @param type_idx Type index to use if use_declaring_class is 'false'.
-   * @param rl_dest Result to be set to 0 or 1.
-   * @param rl_src Object to be tested.
-   */
-  void GenInstanceofCallingHelper(bool needs_access_check, bool type_known_final,
-                                  bool type_known_abstract, bool use_declaring_class,
-                                  bool can_assume_type_is_in_dex_cache,
-                                  uint32_t type_idx, RegLocation rl_dest, RegLocation rl_src);
 
   void GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
                       RegLocation rl_src1, RegLocation rl_shift);

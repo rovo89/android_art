@@ -1107,7 +1107,7 @@ LIR* ArmMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r
     // take 4, we can't directly allocate 2 more for LDREXD temps. In that case clobber r_ptr
     // in LDREXD and recalculate it from r_base.
     RegStorage r_temp = AllocTemp();
-    RegStorage r_temp_high = AllocFreeTemp();  // We may not have another temp.
+    RegStorage r_temp_high = AllocTemp(false);  // We may not have another temp.
     if (r_temp_high.Valid()) {
       NewLIR3(kThumb2Ldrexd, r_temp.GetReg(), r_temp_high.GetReg(), r_ptr.GetReg());
       FreeTemp(r_temp_high);
