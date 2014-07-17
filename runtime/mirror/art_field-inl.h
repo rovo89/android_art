@@ -31,7 +31,7 @@ namespace mirror {
 
 inline uint32_t ArtField::ClassSize() {
   uint32_t vtable_entries = Object::kVTableLength + 6;
-  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0);
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0);
 }
 
 inline Class* ArtField::GetDeclaringClass() {
@@ -120,49 +120,63 @@ inline void ArtField::SetObj(Object* object, Object* new_value) {
   }
 }
 
-inline bool ArtField::GetBoolean(Object* object) {
-  DCHECK_EQ(Primitive::kPrimBoolean, GetTypeAsPrimitiveType()) << PrettyField(this);
-  return Get32(object);
+#define FIELD_GET(object, type) \
+  DCHECK_EQ(Primitive::kPrim ## type, GetTypeAsPrimitiveType()) << PrettyField(this); \
+  DCHECK(object != nullptr) << PrettyField(this); \
+  DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted()); \
+  if (UNLIKELY(IsVolatile())) { \
+    return object->GetField ## type ## Volatile(GetOffset()); \
+  } \
+  return object->GetField ## type(GetOffset());
+
+#define FIELD_SET(object, type, value) \
+  DCHECK_EQ(Primitive::kPrim ## type, GetTypeAsPrimitiveType()) << PrettyField(this); \
+  DCHECK(object != nullptr) << PrettyField(this); \
+  DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted()); \
+  if (UNLIKELY(IsVolatile())) { \
+    object->SetField ## type ## Volatile<kTransactionActive>(GetOffset(), value); \
+  } else { \
+    object->SetField ## type<kTransactionActive>(GetOffset(), value); \
+  }
+
+inline uint8_t ArtField::GetBoolean(Object* object) {
+  FIELD_GET(object, Boolean);
 }
 
 template<bool kTransactionActive>
-inline void ArtField::SetBoolean(Object* object, bool z) {
-  DCHECK_EQ(Primitive::kPrimBoolean, GetTypeAsPrimitiveType()) << PrettyField(this);
-  Set32<kTransactionActive>(object, z);
+inline void ArtField::SetBoolean(Object* object, uint8_t z) {
+  FIELD_SET(object, Boolean, z);
 }
 
 inline int8_t ArtField::GetByte(Object* object) {
-  DCHECK_EQ(Primitive::kPrimByte, GetTypeAsPrimitiveType()) << PrettyField(this);
-  return Get32(object);
+  FIELD_GET(object, Byte);
 }
 
 template<bool kTransactionActive>
 inline void ArtField::SetByte(Object* object, int8_t b) {
-  DCHECK_EQ(Primitive::kPrimByte, GetTypeAsPrimitiveType()) << PrettyField(this);
-  Set32<kTransactionActive>(object, b);
+  FIELD_SET(object, Byte, b);
 }
 
 inline uint16_t ArtField::GetChar(Object* object) {
-  DCHECK_EQ(Primitive::kPrimChar, GetTypeAsPrimitiveType()) << PrettyField(this);
-  return Get32(object);
+  FIELD_GET(object, Char);
 }
 
 template<bool kTransactionActive>
 inline void ArtField::SetChar(Object* object, uint16_t c) {
-  DCHECK_EQ(Primitive::kPrimChar, GetTypeAsPrimitiveType()) << PrettyField(this);
-  Set32<kTransactionActive>(object, c);
+  FIELD_SET(object, Char, c);
 }
 
 inline int16_t ArtField::GetShort(Object* object) {
-  DCHECK_EQ(Primitive::kPrimShort, GetTypeAsPrimitiveType()) << PrettyField(this);
-  return Get32(object);
+  FIELD_GET(object, Short);
 }
 
 template<bool kTransactionActive>
 inline void ArtField::SetShort(Object* object, int16_t s) {
-  DCHECK_EQ(Primitive::kPrimShort, GetTypeAsPrimitiveType()) << PrettyField(this);
-  Set32<kTransactionActive>(object, s);
+  FIELD_SET(object, Short, s);
 }
+
+#undef FIELD_GET
+#undef FIELD_SET
 
 inline int32_t ArtField::GetInt(Object* object) {
   if (kIsDebugBuild) {
@@ -273,7 +287,7 @@ inline bool ArtField::IsPrimitiveType() SHARED_LOCKS_REQUIRED(Locks::mutator_loc
 }
 
 inline size_t ArtField::FieldSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return Primitive::FieldSize(GetTypeAsPrimitiveType());
+  return Primitive::ComponentSize(GetTypeAsPrimitiveType());
 }
 
 inline mirror::DexCache* ArtField::GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

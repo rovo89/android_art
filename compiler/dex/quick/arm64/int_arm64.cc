@@ -1704,13 +1704,13 @@ void Arm64Mir2Lir::UnspillRegs(RegStorage base, uint32_t core_reg_mask, uint32_t
 }
 
 bool Arm64Mir2Lir::GenInlinedReverseBits(CallInfo* info, OpSize size) {
-  ArmOpcode wide = (size == k64) ? WIDE(0) : UNWIDE(0);
+  ArmOpcode wide = IsWide(size) ? WIDE(0) : UNWIDE(0);
   RegLocation rl_src_i = info->args[0];
-  RegLocation rl_dest = (size == k64) ? InlineTargetWide(info) : InlineTarget(info);  // result reg
+  RegLocation rl_dest = IsWide(size) ? InlineTargetWide(info) : InlineTarget(info);  // result reg
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  RegLocation rl_i = (size == k64) ? LoadValueWide(rl_src_i, kCoreReg) : LoadValue(rl_src_i, kCoreReg);
+  RegLocation rl_i = IsWide(size) ? LoadValueWide(rl_src_i, kCoreReg) : LoadValue(rl_src_i, kCoreReg);
   NewLIR2(kA64Rbit2rr | wide, rl_result.reg.GetReg(), rl_i.reg.GetReg());
-  (size == k64) ? StoreValueWide(rl_dest, rl_result) : StoreValue(rl_dest, rl_result);
+  IsWide(size) ? StoreValueWide(rl_dest, rl_result) : StoreValue(rl_dest, rl_result);
   return true;
 }
 

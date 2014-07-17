@@ -524,11 +524,9 @@ class StaticFieldSlowPath : public Mir2Lir::LIRSlowPath {
   const RegStorage r_base_;
 };
 
-void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, bool is_long_or_double,
-                      bool is_object) {
+void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, OpSize size) {
   const MirSFieldLoweringInfo& field_info = mir_graph_->GetSFieldLoweringInfo(mir);
   cu_->compiler_driver->ProcessedStaticField(field_info.FastPut(), field_info.IsReferrersClass());
-  OpSize store_size = LoadStoreOpSize(is_long_or_double, is_object);
   if (!SLOW_FIELD_PATH && field_info.FastPut()) {
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     RegStorage r_base;
@@ -587,37 +585,59 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, bool is_long_or_double,
       FreeTemp(r_method);
     }
     // rBase now holds static storage base
-    RegisterClass reg_class = RegClassForFieldLoadStore(store_size, field_info.IsVolatile());
-    if (is_long_or_double) {
+    RegisterClass reg_class = RegClassForFieldLoadStore(size, field_info.IsVolatile());
+    if (IsWide(size)) {
       rl_src = LoadValueWide(rl_src, reg_class);
     } else {
       rl_src = LoadValue(rl_src, reg_class);
     }
-    if (is_object) {
+    if (IsRef(size)) {
       StoreRefDisp(r_base, field_info.FieldOffset().Int32Value(), rl_src.reg,
                    field_info.IsVolatile() ? kVolatile : kNotVolatile);
     } else {
-      StoreBaseDisp(r_base, field_info.FieldOffset().Int32Value(), rl_src.reg, store_size,
+      StoreBaseDisp(r_base, field_info.FieldOffset().Int32Value(), rl_src.reg, size,
                     field_info.IsVolatile() ? kVolatile : kNotVolatile);
     }
-    if (is_object && !mir_graph_->IsConstantNullRef(rl_src)) {
+    if (IsRef(size) && !mir_graph_->IsConstantNullRef(rl_src)) {
       MarkGCCard(rl_src.reg, r_base);
     }
     FreeTemp(r_base);
   } else {
     FlushAllRegs();  // Everything to home locations
-    QuickEntrypointEnum target =
-        is_long_or_double ? kQuickSet64Static
-            : (is_object ? kQuickSetObjStatic : kQuickSet32Static);
+    QuickEntrypointEnum target;
+    switch (size) {
+      case kReference:
+        target = kQuickSetObjStatic;
+        break;
+      case k64:
+      case kDouble:
+        target = kQuickSet64Static;
+        break;
+      case k32:
+      case kSingle:
+        target = kQuickSet32Static;
+        break;
+      case kSignedHalf:
+      case kUnsignedHalf:
+        target = kQuickSet16Static;
+        break;
+      case kSignedByte:
+      case kUnsignedByte:
+        target = kQuickSet8Static;
+        break;
+      case kWord:  // Intentional fallthrough.
+      default:
+        LOG(FATAL) << "Can't determine entrypoint for: " << size;
+        target = kQuickSet32Static;
+    }
     CallRuntimeHelperImmRegLocation(target, field_info.FieldIndex(), rl_src, true);
   }
 }
 
-void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
-                      bool is_long_or_double, bool is_object) {
+void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest, OpSize size, Primitive::Type type) {
   const MirSFieldLoweringInfo& field_info = mir_graph_->GetSFieldLoweringInfo(mir);
   cu_->compiler_driver->ProcessedStaticField(field_info.FastGet(), field_info.IsReferrersClass());
-  OpSize load_size = LoadStoreOpSize(is_long_or_double, is_object);
+
   if (!SLOW_FIELD_PATH && field_info.FastGet()) {
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     RegStorage r_base;
@@ -668,33 +688,62 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
       FreeTemp(r_method);
     }
     // r_base now holds static storage base
-    RegisterClass reg_class = RegClassForFieldLoadStore(load_size, field_info.IsVolatile());
+    RegisterClass reg_class = RegClassForFieldLoadStore(size, field_info.IsVolatile());
     RegLocation rl_result = EvalLoc(rl_dest, reg_class, true);
 
     int field_offset = field_info.FieldOffset().Int32Value();
-    if (is_object) {
+    if (IsRef(size)) {
+      // TODO: DCHECK?
       LoadRefDisp(r_base, field_offset, rl_result.reg, field_info.IsVolatile() ? kVolatile :
           kNotVolatile);
     } else {
-      LoadBaseDisp(r_base, field_offset, rl_result.reg, load_size, field_info.IsVolatile() ?
+      LoadBaseDisp(r_base, field_offset, rl_result.reg, size, field_info.IsVolatile() ?
           kVolatile : kNotVolatile);
     }
     FreeTemp(r_base);
 
-    if (is_long_or_double) {
+    if (IsWide(size)) {
       StoreValueWide(rl_dest, rl_result);
     } else {
       StoreValue(rl_dest, rl_result);
     }
   } else {
+    DCHECK(SizeMatchesTypeForEntrypoint(size, type));
     FlushAllRegs();  // Everything to home locations
-    QuickEntrypointEnum target =
-        is_long_or_double ? kQuickGet64Static
-            : (is_object ? kQuickGetObjStatic : kQuickGet32Static);
+    QuickEntrypointEnum target;
+    switch (type) {
+      case Primitive::kPrimNot:
+        target = kQuickGetObjStatic;
+        break;
+      case Primitive::kPrimLong:
+      case Primitive::kPrimDouble:
+        target = kQuickGet64Static;
+        break;
+      case Primitive::kPrimInt:
+      case Primitive::kPrimFloat:
+        target = kQuickGet32Static;
+        break;
+      case Primitive::kPrimShort:
+        target = kQuickGetShortStatic;
+        break;
+      case Primitive::kPrimChar:
+        target = kQuickGetCharStatic;
+        break;
+      case Primitive::kPrimByte:
+        target = kQuickGetByteStatic;
+        break;
+      case Primitive::kPrimBoolean:
+        target = kQuickGetBooleanStatic;
+        break;
+      case Primitive::kPrimVoid:  // Intentional fallthrough.
+      default:
+        LOG(FATAL) << "Can't determine entrypoint for: " << type;
+        target = kQuickGet32Static;
+    }
     CallRuntimeHelperImm(target, field_info.FieldIndex(), true);
 
     // FIXME: pGetXXStatic always return an int or int64 regardless of rl_dest.fp.
-    if (is_long_or_double) {
+    if (IsWide(size)) {
       RegLocation rl_result = GetReturnWide(kCoreReg);
       StoreValueWide(rl_dest, rl_result);
     } else {
@@ -715,14 +764,12 @@ void Mir2Lir::HandleSlowPaths() {
   slow_paths_.Reset();
 }
 
-void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
-                      RegLocation rl_dest, RegLocation rl_obj, bool is_long_or_double,
-                      bool is_object) {
+void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size, Primitive::Type type,
+                      RegLocation rl_dest, RegLocation rl_obj) {
   const MirIFieldLoweringInfo& field_info = mir_graph_->GetIFieldLoweringInfo(mir);
   cu_->compiler_driver->ProcessedInstanceField(field_info.FastGet());
-  OpSize load_size = LoadStoreOpSize(is_long_or_double, is_object);
   if (!SLOW_FIELD_PATH && field_info.FastGet()) {
-    RegisterClass reg_class = RegClassForFieldLoadStore(load_size, field_info.IsVolatile());
+    RegisterClass reg_class = RegClassForFieldLoadStore(size, field_info.IsVolatile());
     // A load of the class will lead to an iget with offset 0.
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     rl_obj = LoadValue(rl_obj, kRefReg);
@@ -730,29 +777,57 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
     RegLocation rl_result = EvalLoc(rl_dest, reg_class, true);
     int field_offset = field_info.FieldOffset().Int32Value();
     LIR* load_lir;
-    if (is_object) {
+    if (IsRef(size)) {
       load_lir = LoadRefDisp(rl_obj.reg, field_offset, rl_result.reg, field_info.IsVolatile() ?
           kVolatile : kNotVolatile);
     } else {
-      load_lir = LoadBaseDisp(rl_obj.reg, field_offset, rl_result.reg, load_size,
+      load_lir = LoadBaseDisp(rl_obj.reg, field_offset, rl_result.reg, size,
                               field_info.IsVolatile() ? kVolatile : kNotVolatile);
     }
     MarkPossibleNullPointerExceptionAfter(opt_flags, load_lir);
-    if (is_long_or_double) {
+    if (IsWide(size)) {
       StoreValueWide(rl_dest, rl_result);
     } else {
       StoreValue(rl_dest, rl_result);
     }
   } else {
-    QuickEntrypointEnum target =
-        is_long_or_double ? kQuickGet64Instance
-            : (is_object ? kQuickGetObjInstance : kQuickGet32Instance);
+    DCHECK(SizeMatchesTypeForEntrypoint(size, type));
+    QuickEntrypointEnum target;
+    switch (type) {
+      case Primitive::kPrimNot:
+        target = kQuickGetObjInstance;
+        break;
+      case Primitive::kPrimLong:
+      case Primitive::kPrimDouble:
+        target = kQuickGet64Instance;
+        break;
+      case Primitive::kPrimFloat:
+      case Primitive::kPrimInt:
+        target = kQuickGet32Instance;
+        break;
+      case Primitive::kPrimShort:
+        target = kQuickGetShortInstance;
+        break;
+      case Primitive::kPrimChar:
+        target = kQuickGetCharInstance;
+        break;
+      case Primitive::kPrimByte:
+        target = kQuickGetByteInstance;
+        break;
+      case Primitive::kPrimBoolean:
+        target = kQuickGetBooleanInstance;
+        break;
+      case Primitive::kPrimVoid:  // Intentional fallthrough.
+      default:
+        LOG(FATAL) << "Can't determine entrypoint for: " << type;
+        target = kQuickGet32Instance;
+    }
     // Second argument of pGetXXInstance is always a reference.
     DCHECK_EQ(static_cast<unsigned int>(rl_obj.wide), 0U);
     CallRuntimeHelperImmRegLocation(target, field_info.FieldIndex(), rl_obj, true);
 
     // FIXME: pGetXXInstance always return an int or int64 regardless of rl_dest.fp.
-    if (is_long_or_double) {
+    if (IsWide(size)) {
       RegLocation rl_result = GetReturnWide(kCoreReg);
       StoreValueWide(rl_dest, rl_result);
     } else {
@@ -763,18 +838,16 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
 }
 
 void Mir2Lir::GenIPut(MIR* mir, int opt_flags, OpSize size,
-                      RegLocation rl_src, RegLocation rl_obj, bool is_long_or_double,
-                      bool is_object) {
+                      RegLocation rl_src, RegLocation rl_obj) {
   const MirIFieldLoweringInfo& field_info = mir_graph_->GetIFieldLoweringInfo(mir);
   cu_->compiler_driver->ProcessedInstanceField(field_info.FastPut());
-  OpSize store_size = LoadStoreOpSize(is_long_or_double, is_object);
   if (!SLOW_FIELD_PATH && field_info.FastPut()) {
-    RegisterClass reg_class = RegClassForFieldLoadStore(store_size, field_info.IsVolatile());
+    RegisterClass reg_class = RegClassForFieldLoadStore(size, field_info.IsVolatile());
     // Dex code never writes to the class field.
     DCHECK_GE(static_cast<uint32_t>(field_info.FieldOffset().Int32Value()),
               sizeof(mirror::HeapReference<mirror::Class>));
     rl_obj = LoadValue(rl_obj, kRefReg);
-    if (is_long_or_double) {
+    if (IsWide(size)) {
       rl_src = LoadValueWide(rl_src, reg_class);
     } else {
       rl_src = LoadValue(rl_src, reg_class);
@@ -782,21 +855,44 @@ void Mir2Lir::GenIPut(MIR* mir, int opt_flags, OpSize size,
     GenNullCheck(rl_obj.reg, opt_flags);
     int field_offset = field_info.FieldOffset().Int32Value();
     LIR* store;
-    if (is_object) {
+    if (IsRef(size)) {
       store = StoreRefDisp(rl_obj.reg, field_offset, rl_src.reg, field_info.IsVolatile() ?
           kVolatile : kNotVolatile);
     } else {
-      store = StoreBaseDisp(rl_obj.reg, field_offset, rl_src.reg, store_size,
+      store = StoreBaseDisp(rl_obj.reg, field_offset, rl_src.reg, size,
                             field_info.IsVolatile() ? kVolatile : kNotVolatile);
     }
     MarkPossibleNullPointerExceptionAfter(opt_flags, store);
-    if (is_object && !mir_graph_->IsConstantNullRef(rl_src)) {
+    if (IsRef(size) && !mir_graph_->IsConstantNullRef(rl_src)) {
       MarkGCCard(rl_src.reg, rl_obj.reg);
     }
   } else {
-    QuickEntrypointEnum target =
-        is_long_or_double ? kQuickSet64Instance
-            : (is_object ? kQuickSetObjInstance : kQuickSet32Instance);
+    QuickEntrypointEnum target;
+    switch (size) {
+      case kReference:
+        target = kQuickSetObjInstance;
+        break;
+      case k64:
+      case kDouble:
+        target = kQuickSet64Instance;
+        break;
+      case k32:
+      case kSingle:
+        target = kQuickSet32Instance;
+        break;
+      case kSignedHalf:
+      case kUnsignedHalf:
+        target = kQuickSet16Instance;
+        break;
+      case kSignedByte:
+      case kUnsignedByte:
+        target = kQuickSet8Instance;
+        break;
+      case kWord:  // Intentional fallthrough.
+      default:
+        LOG(FATAL) << "Can't determine entrypoint for: " << size;
+        target = kQuickSet32Instance;
+    }
     CallRuntimeHelperImmRegLocationRegLocation(target, field_info.FieldIndex(), rl_obj, rl_src,
                                                true);
   }
@@ -2093,6 +2189,30 @@ void Mir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_s
   } else {
     // Use the backend-specific implementation.
     GenLargeSparseSwitch(mir, table_offset, rl_src);
+  }
+}
+
+bool Mir2Lir::SizeMatchesTypeForEntrypoint(OpSize size, Primitive::Type type) {
+  switch (size) {
+    case kReference:
+      return type == Primitive::kPrimNot;
+    case k64:
+    case kDouble:
+      return type == Primitive::kPrimLong || type == Primitive::kPrimDouble;
+    case k32:
+    case kSingle:
+      return type == Primitive::kPrimInt || type == Primitive::kPrimFloat;
+    case kSignedHalf:
+      return type == Primitive::kPrimShort;
+    case kUnsignedHalf:
+      return type == Primitive::kPrimChar;
+    case kSignedByte:
+      return type == Primitive::kPrimByte;
+    case kUnsignedByte:
+      return type == Primitive::kPrimBoolean;
+    case kWord:  // Intentional fallthrough.
+    default:
+      return false;  // There are no sane types with this op size.
   }
 }
 

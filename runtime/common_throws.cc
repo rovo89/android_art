@@ -449,6 +449,10 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
       break;
     }
     case Instruction::IPUT_QUICK:
+    case Instruction::IPUT_BOOLEAN_QUICK:
+    case Instruction::IPUT_BYTE_QUICK:
+    case Instruction::IPUT_CHAR_QUICK:
+    case Instruction::IPUT_SHORT_QUICK:
     case Instruction::IPUT_WIDE_QUICK:
     case Instruction::IPUT_OBJECT_QUICK: {
       // Since we replaced the field index, we ask the verifier to tell us which

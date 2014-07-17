@@ -95,9 +95,9 @@ class MANAGED ArtField FINAL : public Object {
   void SetOffset(MemberOffset num_bytes) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // field access, null object for static fields
-  bool GetBoolean(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uint8_t GetBoolean(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   template<bool kTransactionActive>
-  void SetBoolean(Object* object, bool z) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetBoolean(Object* object, uint8_t z) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   int8_t GetByte(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   template<bool kTransactionActive>
   void SetByte(Object* object, int8_t b) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
