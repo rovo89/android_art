@@ -1728,6 +1728,15 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       const uint32_t type_idx = (is_checkcast) ? inst->VRegB_21c() : inst->VRegC_22c();
       const RegType& res_type = ResolveClassAndCheckAccess(type_idx);
       if (res_type.IsConflict()) {
+        // If this is a primitive type, fail HARD.
+        mirror::Class* klass = (*dex_cache_)->GetResolvedType(type_idx);
+        if (klass != nullptr && klass->IsPrimitive()) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "using primitive type "
+              << dex_file_->StringByTypeIdx(type_idx) << " in instanceof in "
+              << GetDeclaringClass();
+          break;
+        }
+
         DCHECK_NE(failures_.size(), 0U);
         if (!is_checkcast) {
           work_line_->SetRegisterType(inst->VRegA_22c(), reg_types_.Boolean());
@@ -1972,6 +1981,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 
         if (!orig_type.Equals(cast_type) &&
             !cast_type.IsUnresolvedTypes() && !orig_type.IsUnresolvedTypes() &&
+            cast_type.HasClass() &&             // Could be conflict type, make sure it has a class.
             !cast_type.GetClass()->IsInterface() &&
             (orig_type.IsZero() ||
                 orig_type.IsStrictlyAssignableFrom(cast_type.Merge(orig_type, &reg_types_)))) {
