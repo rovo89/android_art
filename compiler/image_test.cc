@@ -141,6 +141,8 @@ TEST_F(ImageTest, WriteRead) {
   std::string image("-Ximage:");
   image.append(image_location.GetFilename());
   options.push_back(std::make_pair(image.c_str(), reinterpret_cast<void*>(NULL)));
+  // By default the compiler this creates will not include patch information.
+  options.push_back(std::make_pair("-Xnorelocate", nullptr));
 
   if (!Runtime::Create(options, false)) {
     LOG(FATAL) << "Failed to create runtime";

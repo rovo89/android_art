@@ -316,7 +316,8 @@ $$(OUT_OAT_FILE): $(PRODUCT_OUT)/$(1) $(DEFAULT_DEX_PREOPT_BUILT_IMAGE) $(DEX2OA
 		--dex-location=/$(1) --oat-file=$$@ \
 		--instruction-set=$(DEX2OAT_TARGET_ARCH) \
 		--instruction-set-features=$(DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES) \
-		--android-root=$(PRODUCT_OUT)/system --include-patch-information
+		--android-root=$(PRODUCT_OUT)/system --include-patch-information \
+		--runtime-arg -Xnorelocate
 
 endif
 

@@ -933,13 +933,13 @@ bool CompilerDriver::CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_i
   }
   *out_is_finalizable = resolved_class->IsFinalizable();
   const bool compiling_boot = Runtime::Current()->GetHeap()->IsCompilingBoot();
+  const bool support_boot_image_fixup = GetSupportBootImageFixup();
   if (compiling_boot) {
     // boot -> boot class pointers.
     // True if the class is in the image at boot compiling time.
     const bool is_image_class = IsImage() && IsImageClass(
         dex_file.StringDataByIdx(dex_file.GetTypeId(type_idx).descriptor_idx_));
     // True if pc relative load works.
-    const bool support_boot_image_fixup = GetSupportBootImageFixup();
     if (is_image_class && support_boot_image_fixup) {
       *is_type_initialized = resolved_class->IsInitialized();
       *use_direct_type_ptr = false;
@@ -952,7 +952,7 @@ bool CompilerDriver::CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_i
     // True if the class is in the image at app compiling time.
     const bool class_in_image =
         Runtime::Current()->GetHeap()->FindSpaceFromObject(resolved_class, false)->IsImageSpace();
-    if (class_in_image) {
+    if (class_in_image && support_boot_image_fixup) {
       // boot -> app class pointers.
       *is_type_initialized = resolved_class->IsInitialized();
       // TODO This is somewhat hacky. We should refactor all of this invoke codepath.

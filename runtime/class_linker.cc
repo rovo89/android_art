@@ -615,6 +615,14 @@ bool ClassLinker::GenerateOatFile(const char* dex_filename,
     argv.push_back("--compiler-filter=verify-none");
   }
 
+  if (Runtime::Current()->MustRelocateIfPossible()) {
+    argv.push_back("--runtime-arg");
+    argv.push_back("-Xrelocate");
+  } else {
+    argv.push_back("--runtime-arg");
+    argv.push_back("-Xnorelocate");
+  }
+
   if (!kIsTargetBuild) {
     argv.push_back("--host");
   }
@@ -986,11 +994,25 @@ const OatFile* ClassLinker::CreateOatFileForDexLocation(const char* dex_location
   return oat_file.release();
 }
 
-bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
-                                         const char* dex_location,
-                                         uint32_t dex_location_checksum,
-                                         const InstructionSet instruction_set,
-                                         std::string* error_msg) {
+bool ClassLinker::VerifyOatImageChecksum(const OatFile* oat_file,
+                                         const InstructionSet instruction_set) {
+  Runtime* runtime = Runtime::Current();
+  const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+  uint32_t image_oat_checksum = 0;
+  if (instruction_set == kRuntimeISA) {
+    const ImageHeader& image_header = image_space->GetImageHeader();
+    image_oat_checksum = image_header.GetOatChecksum();
+  } else {
+    std::unique_ptr<ImageHeader> image_header(gc::space::ImageSpace::ReadImageHeaderOrDie(
+        image_space->GetImageLocation().c_str(), instruction_set));
+    image_oat_checksum = image_header->GetOatChecksum();
+  }
+  return oat_file->GetOatHeader().GetImageFileLocationOatChecksum() == image_oat_checksum;
+}
+
+bool ClassLinker::VerifyOatChecksums(const OatFile* oat_file,
+                                     const InstructionSet instruction_set,
+                                     std::string* error_msg) {
   Runtime* runtime = Runtime::Current();
   const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
 
@@ -1013,9 +1035,28 @@ bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
     image_patch_delta = image_header->GetPatchDelta();
   }
   const OatHeader& oat_header = oat_file->GetOatHeader();
-  bool image_check = ((oat_header.GetImageFileLocationOatChecksum() == image_oat_checksum)
-                      && (oat_header.GetImageFileLocationOatDataBegin() == image_oat_data_begin)
-                      && (oat_header.GetImagePatchDelta() == image_patch_delta));
+  bool ret = ((oat_header.GetImageFileLocationOatChecksum() == image_oat_checksum)
+              && (oat_header.GetImagePatchDelta() == image_patch_delta)
+              && (oat_header.GetImageFileLocationOatDataBegin() == image_oat_data_begin));
+  if (!ret) {
+    *error_msg = StringPrintf("oat file '%s' mismatch (0x%x, %d, %d) with (0x%x, %" PRIdPTR ", %d)",
+                              oat_file->GetLocation().c_str(),
+                              oat_file->GetOatHeader().GetImageFileLocationOatChecksum(),
+                              oat_file->GetOatHeader().GetImageFileLocationOatDataBegin(),
+                              oat_file->GetOatHeader().GetImagePatchDelta(),
+                              image_oat_checksum, image_oat_data_begin, image_patch_delta);
+  }
+  return ret;
+}
+
+bool ClassLinker::VerifyOatAndDexFileChecksums(const OatFile* oat_file,
+                                               const char* dex_location,
+                                               uint32_t dex_location_checksum,
+                                               const InstructionSet instruction_set,
+                                               std::string* error_msg) {
+  if (!VerifyOatChecksums(oat_file, instruction_set, error_msg)) {
+    return false;
+  }
 
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location,
                                                                     &dex_location_checksum);
@@ -1031,27 +1072,15 @@ bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
     }
     return false;
   }
-  bool dex_check = dex_location_checksum == oat_dex_file->GetDexFileLocationChecksum();
 
-  if (image_check && dex_check) {
-    return true;
-  }
-
-  if (!image_check) {
-    ScopedObjectAccess soa(Thread::Current());
-    *error_msg = StringPrintf("oat file '%s' mismatch (0x%x, %d) with (0x%x, %" PRIdPTR ")",
-                              oat_file->GetLocation().c_str(),
-                              oat_file->GetOatHeader().GetImageFileLocationOatChecksum(),
-                              oat_file->GetOatHeader().GetImageFileLocationOatDataBegin(),
-                              image_oat_checksum, image_oat_data_begin);
-  }
-  if (!dex_check) {
+  if (dex_location_checksum != oat_dex_file->GetDexFileLocationChecksum()) {
     *error_msg = StringPrintf("oat file '%s' mismatch (0x%x) with '%s' (0x%x)",
                               oat_file->GetLocation().c_str(),
                               oat_dex_file->GetDexFileLocationChecksum(),
                               dex_location, dex_location_checksum);
+    return false;
   }
-  return false;
+  return true;
 }
 
 bool ClassLinker::VerifyOatWithDexFile(const OatFile* oat_file,
@@ -1074,8 +1103,8 @@ bool ClassLinker::VerifyOatWithDexFile(const OatFile* oat_file,
     }
     dex_file.reset(oat_dex_file->OpenDexFile(error_msg));
   } else {
-    bool verified = VerifyOatFileChecksums(oat_file, dex_location, dex_location_checksum,
-                                           kRuntimeISA, error_msg);
+    bool verified = VerifyOatAndDexFileChecksums(oat_file, dex_location, dex_location_checksum,
+                                                 kRuntimeISA, error_msg);
     if (!verified) {
       return false;
     }

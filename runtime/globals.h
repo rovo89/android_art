@@ -118,6 +118,8 @@ static constexpr TraceClockSource kDefaultTraceClockSource = kTraceClockSourceDu
 static constexpr TraceClockSource kDefaultTraceClockSource = kTraceClockSourceWall;
 #endif
 
+static constexpr bool kDefaultMustRelocate = true;
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_GLOBALS_H_

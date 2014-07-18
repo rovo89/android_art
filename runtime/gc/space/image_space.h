@@ -124,9 +124,6 @@ class ImageSpace : public MemMapSpace {
                           bool validate_oat_file, std::string* error_msg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static bool RelocateImage(const char* image_location, const char* dest_filename,
-                            InstructionSet isa, std::string* error_msg);
-
   OatFile* OpenOatFile(const char* image, std::string* error_msg) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
