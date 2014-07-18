@@ -116,18 +116,25 @@ static void Thread_nativeInterrupt(JNIEnv* env, jobject java_thread) {
 
 static void Thread_nativeSetName(JNIEnv* env, jobject peer, jstring java_name) {
   ScopedUtfChars name(env, java_name);
+  Thread* self;
   {
     ScopedObjectAccess soa(env);
     if (soa.Decode<mirror::Object*>(peer) == soa.Self()->GetPeer()) {
       soa.Self()->SetThreadName(name.c_str());
       return;
     }
+    self = soa.Self();
   }
   // Suspend thread to avoid it from killing itself while we set its name. We don't just hold the
   // thread list lock to avoid this, as setting the thread name causes mutator to lock/unlock
   // in the DDMS send code.
   bool timed_out;
-  Thread* thread = ThreadList::SuspendThreadByPeer(peer, true, false, &timed_out);
+  // Take suspend thread lock to avoid races with threads trying to suspend this one.
+  Thread* thread;
+  {
+    MutexLock mu(self, *Locks::thread_list_suspend_thread_lock_);
+    thread = ThreadList::SuspendThreadByPeer(peer, true, false, &timed_out);
+  }
   if (thread != NULL) {
     {
       ScopedObjectAccess soa(env);
