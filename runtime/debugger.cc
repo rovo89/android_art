@@ -3048,7 +3048,7 @@ static const Breakpoint* FindFirstBreakpointForMethod(mirror::ArtMethod* m)
 
 // Sanity checks all existing breakpoints on the same method.
 static void SanityCheckExistingBreakpoints(mirror::ArtMethod* m, bool need_full_deoptimization)
-    EXCLUSIVE_LOCKS_REQUIRED(Locks::breakpoint_lock_)  {
+    EXCLUSIVE_LOCKS_REQUIRED(Locks::breakpoint_lock_) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (kIsDebugBuild) {
     for (const Breakpoint& breakpoint : gBreakpoints) {
       CHECK_EQ(need_full_deoptimization, breakpoint.NeedFullDeoptimization());
