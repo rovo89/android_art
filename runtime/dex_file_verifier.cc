@@ -170,25 +170,35 @@ bool DexFileVerifier::CheckShortyDescriptorMatch(char shorty_char, const char* d
   return true;
 }
 
-bool DexFileVerifier::CheckPointerRange(const void* start, const void* end, const char* label) {
+bool DexFileVerifier::CheckListSize(const void* start, size_t count, size_t elem_size,
+                                        const char* label) {
+  // Check that size is not 0.
+  CHECK_NE(elem_size, 0U);
+
   const byte* range_start = reinterpret_cast<const byte*>(start);
-  const byte* range_end = reinterpret_cast<const byte*>(end);
   const byte* file_start = reinterpret_cast<const byte*>(begin_);
+
+  // Check for overflow.
+  uintptr_t max = 0 - 1;
+  size_t available_bytes_till_end_of_mem = max - reinterpret_cast<uintptr_t>(start);
+  size_t max_count = available_bytes_till_end_of_mem / elem_size;
+  if (max_count < count) {
+    ErrorStringPrintf("Overflow in range for %s: %zx for %zu@%zu", label,
+                      static_cast<size_t>(range_start - file_start),
+                      count, elem_size);
+    return false;
+  }
+
+  const byte* range_end = range_start + count * elem_size;
   const byte* file_end = file_start + size_;
-  if (UNLIKELY((range_start < file_start) || (range_start > file_end) ||
-               (range_end < file_start) || (range_end > file_end))) {
+  if (UNLIKELY((range_start < file_start) || (range_end > file_end))) {
+    // Note: these two tests are enough as we make sure above that there's no overflow.
     ErrorStringPrintf("Bad range for %s: %zx to %zx", label,
                       static_cast<size_t>(range_start - file_start),
                       static_cast<size_t>(range_end - file_start));
     return false;
   }
   return true;
-}
-
-bool DexFileVerifier::CheckListSize(const void* start, uint32_t count,
-                                    uint32_t element_size, const char* label) {
-  const byte* list_start = reinterpret_cast<const byte*>(start);
-  return CheckPointerRange(list_start, list_start + (count * element_size), label);
 }
 
 bool DexFileVerifier::CheckIndex(uint32_t field, uint32_t limit, const char* label) {
@@ -329,7 +339,7 @@ bool DexFileVerifier::CheckMap() {
 
 uint32_t DexFileVerifier::ReadUnsignedLittleEndian(uint32_t size) {
   uint32_t result = 0;
-  if (LIKELY(CheckPointerRange(ptr_, ptr_ + size, "encoded_value"))) {
+  if (LIKELY(CheckListSize(ptr_, size, sizeof(byte), "encoded_value"))) {
     for (uint32_t i = 0; i < size; i++) {
       result |= ((uint32_t) *(ptr_++)) << (i * 8);
     }
@@ -447,7 +457,7 @@ bool DexFileVerifier::CheckClassDataItemMethod(uint32_t idx, uint32_t access_fla
 
 bool DexFileVerifier::CheckPadding(size_t offset, uint32_t aligned_offset) {
   if (offset < aligned_offset) {
-    if (!CheckPointerRange(begin_ + offset, begin_ + aligned_offset, "section")) {
+    if (!CheckListSize(begin_ + offset, aligned_offset - offset, sizeof(byte), "section")) {
       return false;
     }
     while (offset < aligned_offset) {
@@ -463,7 +473,7 @@ bool DexFileVerifier::CheckPadding(size_t offset, uint32_t aligned_offset) {
 }
 
 bool DexFileVerifier::CheckEncodedValue() {
-  if (!CheckPointerRange(ptr_, ptr_ + 1, "encoded_value header")) {
+  if (!CheckListSize(ptr_, 1, sizeof(byte), "encoded_value header")) {
     return false;
   }
 
@@ -656,7 +666,7 @@ bool DexFileVerifier::CheckIntraClassDataItem() {
 
 bool DexFileVerifier::CheckIntraCodeItem() {
   const DexFile::CodeItem* code_item = reinterpret_cast<const DexFile::CodeItem*>(ptr_);
-  if (!CheckPointerRange(code_item, code_item + 1, "code")) {
+  if (!CheckListSize(code_item, 1, sizeof(DexFile::CodeItem), "code")) {
     return false;
   }
 
@@ -945,7 +955,7 @@ bool DexFileVerifier::CheckIntraDebugInfoItem() {
 }
 
 bool DexFileVerifier::CheckIntraAnnotationItem() {
-  if (!CheckPointerRange(ptr_, ptr_ + 1, "annotation visibility")) {
+  if (!CheckListSize(ptr_, 1, sizeof(byte), "annotation visibility")) {
     return false;
   }
 
@@ -970,7 +980,7 @@ bool DexFileVerifier::CheckIntraAnnotationItem() {
 bool DexFileVerifier::CheckIntraAnnotationsDirectoryItem() {
   const DexFile::AnnotationsDirectoryItem* item =
       reinterpret_cast<const DexFile::AnnotationsDirectoryItem*>(ptr_);
-  if (!CheckPointerRange(item, item + 1, "annotations_directory")) {
+  if (!CheckListSize(item, 1, sizeof(DexFile::AnnotationsDirectoryItem), "annotations_directory")) {
     return false;
   }
 
@@ -1064,42 +1074,42 @@ bool DexFileVerifier::CheckIntraSectionIterate(size_t offset, uint32_t count, ui
     // Check depending on the section type.
     switch (type) {
       case DexFile::kDexTypeStringIdItem: {
-        if (!CheckPointerRange(ptr_, ptr_ + sizeof(DexFile::StringId), "string_ids")) {
+        if (!CheckListSize(ptr_, 1, sizeof(DexFile::StringId), "string_ids")) {
           return false;
         }
         ptr_ += sizeof(DexFile::StringId);
         break;
       }
       case DexFile::kDexTypeTypeIdItem: {
-        if (!CheckPointerRange(ptr_, ptr_ + sizeof(DexFile::TypeId), "type_ids")) {
+        if (!CheckListSize(ptr_, 1, sizeof(DexFile::TypeId), "type_ids")) {
           return false;
         }
         ptr_ += sizeof(DexFile::TypeId);
         break;
       }
       case DexFile::kDexTypeProtoIdItem: {
-        if (!CheckPointerRange(ptr_, ptr_ + sizeof(DexFile::ProtoId), "proto_ids")) {
+        if (!CheckListSize(ptr_, 1, sizeof(DexFile::ProtoId), "proto_ids")) {
           return false;
         }
         ptr_ += sizeof(DexFile::ProtoId);
         break;
       }
       case DexFile::kDexTypeFieldIdItem: {
-        if (!CheckPointerRange(ptr_, ptr_ + sizeof(DexFile::FieldId), "field_ids")) {
+        if (!CheckListSize(ptr_, 1, sizeof(DexFile::FieldId), "field_ids")) {
           return false;
         }
         ptr_ += sizeof(DexFile::FieldId);
         break;
       }
       case DexFile::kDexTypeMethodIdItem: {
-        if (!CheckPointerRange(ptr_, ptr_ + sizeof(DexFile::MethodId), "method_ids")) {
+        if (!CheckListSize(ptr_, 1, sizeof(DexFile::MethodId), "method_ids")) {
           return false;
         }
         ptr_ += sizeof(DexFile::MethodId);
         break;
       }
       case DexFile::kDexTypeClassDefItem: {
-        if (!CheckPointerRange(ptr_, ptr_ + sizeof(DexFile::ClassDef), "class_defs")) {
+        if (!CheckListSize(ptr_, 1, sizeof(DexFile::ClassDef), "class_defs")) {
           return false;
         }
         ptr_ += sizeof(DexFile::ClassDef);
@@ -1110,7 +1120,7 @@ bool DexFileVerifier::CheckIntraSectionIterate(size_t offset, uint32_t count, ui
         const DexFile::TypeItem* item = &list->GetTypeItem(0);
         uint32_t count = list->Size();
 
-        if (!CheckPointerRange(list, list + 1, "type_list") ||
+        if (!CheckListSize(list, 1, sizeof(DexFile::TypeList), "type_list") ||
             !CheckListSize(item, count, sizeof(DexFile::TypeItem), "type_list size")) {
           return false;
         }
@@ -1123,7 +1133,8 @@ bool DexFileVerifier::CheckIntraSectionIterate(size_t offset, uint32_t count, ui
         const DexFile::AnnotationSetRefItem* item = list->list_;
         uint32_t count = list->size_;
 
-        if (!CheckPointerRange(list, list + 1, "annotation_set_ref_list") ||
+        if (!CheckListSize(list, 1, sizeof(DexFile::AnnotationSetRefList),
+                               "annotation_set_ref_list") ||
             !CheckListSize(item, count, sizeof(DexFile::AnnotationSetRefItem),
                            "annotation_set_ref_list size")) {
           return false;
@@ -1137,7 +1148,7 @@ bool DexFileVerifier::CheckIntraSectionIterate(size_t offset, uint32_t count, ui
         const uint32_t* item = set->entries_;
         uint32_t count = set->size_;
 
-        if (!CheckPointerRange(set, set + 1, "annotation_set_item") ||
+        if (!CheckListSize(set, 1, sizeof(DexFile::AnnotationSetItem), "annotation_set_item") ||
             !CheckListSize(item, count, sizeof(uint32_t), "annotation_set_item size")) {
           return false;
         }
