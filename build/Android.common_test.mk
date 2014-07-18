@@ -33,6 +33,15 @@ ART_TEST_KNOWN_FAILING :=
 # Keep going after encountering a test failure?
 ART_TEST_KEEP_GOING ?= false
 
+# Do you want all tests, even those that are time consuming?
+ART_TEST_FULL ?= true
+
+# Do you want optimizing compiler tests run?
+ART_TEST_OPTIMIZING ?= $(ART_TEST_FULL)
+
+# Do you want tracing tests run?
+ART_TEST_TRACE ?= $(ART_TEST_FULL)
+
 # Define the command run on test failure. $(1) is the name of the test. Executed by the shell.
 define ART_TEST_FAILED
   ( [ -f $(ART_HOST_TEST_DIR)/skipped/$(1) ] || \
