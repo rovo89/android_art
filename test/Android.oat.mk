@@ -248,6 +248,19 @@ $$(gcverify_test_rule):
   ART_TEST_HOST_OAT_DEFAULT_RULES += $$(gcverify_test_rule)
   ART_TEST_HOST_OAT_DEFAULT_$(1)_RULES += $$(gcverify_test_rule)
 
+  gcstress_test_rule := test-art-host-oat-gcstress-default-$(1)$$($(2)ART_PHONY_TEST_HOST_SUFFIX)
+  ifeq ($$(ART_TEST_GC_STRESS),true)
+    $(call define-test-art-oat-rule-host,$(1),$(2),$$(gcstress_test_rule),,-Xgc:SS -Xms2m -Xmx2m -Xgc:preverify -Xgc:postverify)
+  else
+    .PHONY: $$(gcstress_test_rule)
+$$(gcstress_test_rule):
+
+  endif
+
+  ART_TEST_HOST_OAT_DEFAULT$$($(2)ART_PHONY_TEST_HOST_SUFFIX)_RULES += $$(gcstress_test_rule)
+  ART_TEST_HOST_OAT_DEFAULT_RULES += $$(gcstress_test_rule)
+  ART_TEST_HOST_OAT_DEFAULT_$(1)_RULES += $$(gcstress_test_rule)
+
   # Create a rule to run the host oat test with the optimizing compiler.
   optimizing_test_rule := test-art-host-oat-optimizing-$(1)$$($(2)ART_PHONY_TEST_HOST_SUFFIX)
   ifeq ($$(ART_TEST_OPTIMIZING),true)
@@ -273,7 +286,7 @@ $$(optimizing_test_rule):
   # Define a phony rule to run both the default and interpreter variants.
   all_test_rule :=  test-art-host-oat-$(1)$$($(2)ART_PHONY_TEST_HOST_SUFFIX)
 .PHONY: $$(all_test_rule)
-$$(all_test_rule): $$(default_test_rule) $$(gcverify_test_rule) $$(interpreter_test_rule) $$(optimizing_test_rule)
+$$(all_test_rule): $$(default_test_rule) $$(gcverify_test_rule) $$(gcstress_test_rule) $$(interpreter_test_rule) $$(optimizing_test_rule)
 	$(hide) $$(call ART_TEST_PREREQ_FINISHED,$$@)
 
   ART_TEST_HOST_OAT$$($(2)ART_PHONY_TEST_HOST_SUFFIX)_RULES += $$(all_test_rule)
