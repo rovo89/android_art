@@ -30,6 +30,12 @@
 #include "ScopedUtfChars.h"
 #include "verify_object-inl.h"
 
+#include <sstream>
+#ifdef HAVE_ANDROID_OS
+// This function is provided by android linker.
+extern "C" void android_update_LD_LIBRARY_PATH(const char* ld_library_path);
+#endif  // HAVE_ANDROID_OS
+
 namespace art {
 
 static void Runtime_gc(JNIEnv*, jclass) {
@@ -46,29 +52,52 @@ NO_RETURN static void Runtime_nativeExit(JNIEnv*, jclass, jint status) {
   exit(status);
 }
 
-static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, jobject javaLoader,
-                                  jstring javaLdLibraryPath) {
-  // TODO: returns NULL on success or an error message describing the failure on failure. This
-  // should be refactored in terms of suppressed exceptions.
-  ScopedUtfChars filename(env, javaFilename);
-  if (filename.c_str() == NULL) {
-    return NULL;
+static void SetLdLibraryPath(JNIEnv* env, jstring javaLdLibraryPathJstr, jstring javaDexPathJstr) {
+#ifdef HAVE_ANDROID_OS
+  std::stringstream ss;
+  if (javaLdLibraryPathJstr != nullptr) {
+    ScopedUtfChars javaLdLibraryPath(env, javaLdLibraryPathJstr);
+    if (javaLdLibraryPath.c_str() != nullptr) {
+      ss << javaLdLibraryPath.c_str();
+    }
   }
 
-  if (javaLdLibraryPath != NULL) {
-    ScopedUtfChars ldLibraryPath(env, javaLdLibraryPath);
-    if (ldLibraryPath.c_str() == NULL) {
-      return NULL;
-    }
-    void* sym = dlsym(RTLD_DEFAULT, "android_update_LD_LIBRARY_PATH");
-    if (sym != NULL) {
-      typedef void (*Fn)(const char*);
-      Fn android_update_LD_LIBRARY_PATH = reinterpret_cast<Fn>(sym);
-      (*android_update_LD_LIBRARY_PATH)(ldLibraryPath.c_str());
-    } else {
-      LOG(WARNING) << "android_update_LD_LIBRARY_PATH not found; .so dependencies will not work!";
+  if (javaDexPathJstr != nullptr) {
+    ScopedUtfChars javaDexPath(env, javaDexPathJstr);
+    if (javaDexPath.c_str() != nullptr) {
+      std::vector<std::string> dexPathVector;
+      Split(javaDexPath.c_str(), ':', &dexPathVector);
+
+      for (auto abi : art::Runtime::Current()->GetCpuAbilist()) {
+        for (auto zip_path : dexPathVector) {
+          // Native libraries live under lib/<abi>/ inside .apk file.
+          ss << ":" << zip_path << "!" << "lib/" << abi;
+        }
+      }
     }
   }
+
+  std::string ldLibraryPathStr = ss.str();
+  const char* ldLibraryPath = ldLibraryPathStr.c_str();
+  if (*ldLibraryPath == ':') {
+    ++ldLibraryPath;
+  }
+
+  android_update_LD_LIBRARY_PATH(ldLibraryPath);
+#else
+  LOG(WARNING) << "android_update_LD_LIBRARY_PATH not found; .so dependencies will not work!";
+  UNUSED(javaLdLibraryPathJstr, javaDexPathJstr, env);
+#endif
+}
+
+static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, jobject javaLoader,
+                                  jstring javaLdLibraryPathJstr, jstring javaDexPathJstr) {
+  ScopedUtfChars filename(env, javaFilename);
+  if (filename.c_str() == nullptr) {
+    return nullptr;
+  }
+
+  SetLdLibraryPath(env, javaLdLibraryPathJstr, javaDexPathJstr);
 
   std::string error_msg;
   {
@@ -101,7 +130,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Runtime, gc, "()V"),
   NATIVE_METHOD(Runtime, maxMemory, "!()J"),
   NATIVE_METHOD(Runtime, nativeExit, "(I)V"),
-  NATIVE_METHOD(Runtime, nativeLoad, "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/String;)Ljava/lang/String;"),
+  NATIVE_METHOD(Runtime, nativeLoad, "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"),
   NATIVE_METHOD(Runtime, totalMemory, "!()J"),
 };
 

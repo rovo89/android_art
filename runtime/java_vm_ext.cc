@@ -644,7 +644,7 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject 
 
   if (handle == nullptr) {
     *error_msg = dlerror();
-    LOG(ERROR) << "dlopen(\"" << path << "\", RTLD_LAZY) failed: " << *error_msg;
+    VLOG(jni) << "dlopen(\"" << path << "\", RTLD_LAZY) failed: " << *error_msg;
     return false;
   }
 

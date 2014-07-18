@@ -104,6 +104,7 @@ RUNTIME_OPTIONS_KEY (std::vector<std::string>, \
                                           ImageCompilerOptions)  // -Ximage-compiler-option ...
 RUNTIME_OPTIONS_KEY (bool,                Verify,                         true)
 RUNTIME_OPTIONS_KEY (std::string,         NativeBridge)
+RUNTIME_OPTIONS_KEY (std::string,         CpuAbiList)
 
 // Not parse-able from command line, but can be provided explicitly.
 RUNTIME_OPTIONS_KEY (const std::vector<const DexFile*>*, \

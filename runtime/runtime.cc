@@ -792,6 +792,8 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   verify_ = runtime_options.GetOrDefault(Opt::Verify);
   allow_dex_file_fallback_ = !runtime_options.Exists(Opt::NoDexFileFallback);
 
+  Split(runtime_options.GetOrDefault(Opt::CpuAbiList), ',', &cpu_abilist_);
+
   if (runtime_options.GetOrDefault(Opt::Interpret)) {
     GetInstrumentation()->ForceInterpretOnly();
   }
