@@ -169,6 +169,7 @@ define define-test-art-run-test
   run_test_rule_name := test-art-$(2)-run-test-$(3)-$(1)$(4)
   uc_host_or_target :=
   prereq_rule :=
+  skip_test := false
   ifeq ($(2),host)
     uc_host_or_target := HOST
     run_test_options += --host
@@ -185,6 +186,9 @@ define define-test-art-run-test
   ifeq ($(3),optimizing)
     uc_compiler := OPTIMIZING
     run_test_options += -Xcompiler-option --compiler-backend=Optimizing
+    ifneq ($$(ART_TEST_OPTIMIZING),true)
+      skip_test := true
+    endif
   else
     ifeq ($(3),interpreter)
       uc_compiler := INTERPRETER
@@ -207,13 +211,17 @@ define define-test-art-run-test
   ifeq ($(5),trace)
     run_test_options += --trace
     run_test_rule_name := test-art-$(2)-run-test-trace-$(3)-$(1)$(4)
+    ifneq ($$(ART_TEST_TRACE),true)
+      skip_test := true
+    endif
   else
     ifneq (,$(5))
       $$(error found $(5) expected undefined or -trace)
     endif
   endif
-  run_test_options := --output-path $(ART_HOST_TEST_DIR)/run-test-output/$$(run_test_rule_name) \
-    $$(run_test_options)
+  ifeq ($$(skip_test),false)
+    run_test_options := --output-path $(ART_HOST_TEST_DIR)/run-test-output/$$(run_test_rule_name) \
+      $$(run_test_options)
 $$(run_test_rule_name): PRIVATE_RUN_TEST_OPTIONS := $$(run_test_options)
 .PHONY: $$(run_test_rule_name)
 $$(run_test_rule_name): $(DX) $(HOST_OUT_EXECUTABLES)/jasmin $$(prereq_rule)
@@ -224,6 +232,10 @@ $$(run_test_rule_name): $(DX) $(HOST_OUT_EXECUTABLES)/jasmin $$(prereq_rule)
 	$$(hide) (echo $(MAKECMDGOALS) | grep -q $$@ && \
 	  echo "run-test run as top-level target, removing test directory $(ART_HOST_TEST_DIR)" && \
 	  rm -r $(ART_HOST_TEST_DIR)) || true
+  else
+    .PHONY: $$(run_test_rule_name)
+$$(run_test_rule_name):
+  endif
 
   ART_TEST_$$(uc_host_or_target)_RUN_TEST_$$(uc_compiler)$(4)_RULES += $$(run_test_rule_name)
   ART_TEST_$$(uc_host_or_target)_RUN_TEST_$$(uc_compiler)_RULES += $$(run_test_rule_name)
@@ -234,6 +246,7 @@ $$(run_test_rule_name): $(DX) $(HOST_OUT_EXECUTABLES)/jasmin $$(prereq_rule)
   ART_TEST_$$(uc_host_or_target)_RUN_TEST_ALL$(4)_RULES += $$(run_test_rule_name)
 
   # Clear locally defined variables.
+  skip_test :=
   run_test_options :=
   run_test_rule_name :=
   uc_host_or_target :=
@@ -273,10 +286,9 @@ define define-test-art-run-test-group
   $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),))
   $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),))
   $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),))
-  ifeq ($(2),host)
-    # For now just test tracing on the host with default.
-    $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),trace))
-  endif
+  $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),trace))
+  $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),trace))
+  $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),trace))
   do_second := false
   ifeq ($(2),host)
     ifneq ($$(HOST_PREFER_32_BIT),true)
@@ -291,10 +303,9 @@ define define-test-art-run-test-group
     $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),))
     $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),))
     $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),))
-    ifeq ($(2),host)
-      # For now just test tracing on the host with default.
-      $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),trace))
-    endif
+    $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),trace))
+    $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),trace))
+    $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),trace))
   endif
 
   $$(eval $$(call define-test-art-run-test-group-rule,test-art-$(2)-run-test-default-$(1), \
