@@ -81,6 +81,8 @@
     #define CFI_DEF_CFA_REGISTER(reg) .cfi_def_cfa_register reg
     #define CFI_RESTORE(reg) .cfi_restore reg
     #define CFI_REL_OFFSET(reg,size) .cfi_rel_offset reg,size
+    #define CFI_RESTORE_STATE .cfi_restore_state
+    #define CFI_REMEMBER_STATE .cfi_remember_state
 #else
     // Mac OS' doesn't like cfi_* directives.
     #define CFI_STARTPROC
@@ -90,6 +92,8 @@
     #define CFI_DEF_CFA_REGISTER(reg)
     #define CFI_RESTORE(reg)
     #define CFI_REL_OFFSET(reg,size)
+    #define CFI_RESTORE_STATE
+    #define CFI_REMEMBER_STATE
 #endif
 
     // Symbols.
