@@ -126,7 +126,6 @@ all-run-test-names :=
 art_run_tests_dir :=
 define-build-art-run-test :=
 TEST_ART_RUN_TEST_BUILD_RULES :=
-TEST_ART_RUN_TESTS :=
 TEST_ART_TIMING_SENSITIVE_RUN_TESTS :=
 TEST_ART_BROKEN_TRACE_RUN_TESTS :=
 TEST_ART_BROKEN_GCSTRESS_RUN_TESTS :=
@@ -185,7 +184,7 @@ define define-test-art-run-test
   run_test_rule_name := test-art-$(2)-run-test-$(3)-$(1)$(4)
   uc_host_or_target :=
   prereq_rule :=
-  skip_test := true
+  skip_test := false
   ifeq ($(2),host)
     uc_host_or_target := HOST
     run_test_options += --host
@@ -432,6 +431,7 @@ endif
 define-test-art-run-test :=
 define-test-art-run-test-group-rule :=
 define-test-art-run-test-group :=
+TEST_ART_RUN_TESTS :=
 ART_TEST_TARGET_RUN_TEST_ALL_RULES :=
 ART_TEST_TARGET_RUN_TEST_DEFAULT_RULES :=
 ART_TEST_TARGET_RUN_TEST_INTERPRETER_RULES :=
