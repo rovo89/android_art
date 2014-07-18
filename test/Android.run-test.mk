@@ -54,6 +54,7 @@ endif
 TEST_ART_BROKEN_TRACE_RUN_TESTS := \
   003-omnibus-opcodes \
   004-annotations \
+  012-math \
   018-stack-overflow \
   023-many-interfaces \
   031-class-attributes \
@@ -77,6 +78,16 @@ TEST_ART_BROKEN_TRACE_RUN_TESTS := \
   701-easy-div-rem
 
 ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_TRACE_RUN_TESTS), $(call all-run-test-names,$(test),-trace))
+
+# Tests that need more than 2MB of RAM or are running into other corner cases in GC stress related
+# to OOMEs.
+TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
+  074-gc-thrash \
+  080-oom-throw \
+  096-array-copy-concurrent
+
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_GCSTRESS_RUN_TESTS), $(call all-run-test-names,$(test),-gcstress))
+
 
 # The path where build only targets will be output, e.g.
 # out/target/product/generic_x86_64/obj/PACKAGING/art-run-tests_intermediates/DATA
@@ -111,9 +122,14 @@ LOCAL_PICKUP_FILES := $(art_run_tests_dir)
 include $(BUILD_PHONY_PACKAGE)
 
 # Clear temp vars.
-TEST_ART_RUN_TEST_BUILD_RULES :=
+all-run-test-names :=
 art_run_tests_dir :=
 define-build-art-run-test :=
+TEST_ART_RUN_TEST_BUILD_RULES :=
+TEST_ART_RUN_TESTS :=
+TEST_ART_TIMING_SENSITIVE_RUN_TESTS :=
+TEST_ART_BROKEN_TRACE_RUN_TESTS :=
+TEST_ART_BROKEN_GCSTRESS_RUN_TESTS :=
 
 ########################################################################
 
@@ -169,7 +185,7 @@ define define-test-art-run-test
   run_test_rule_name := test-art-$(2)-run-test-$(3)-$(1)$(4)
   uc_host_or_target :=
   prereq_rule :=
-  skip_test := false
+  skip_test := true
   ifeq ($(2),host)
     uc_host_or_target := HOST
     run_test_options += --host
@@ -223,8 +239,17 @@ define define-test-art-run-test
         skip_test := true
       endif
     else
-      ifneq (,$(5))
-        $$(error found $(5) expected undefined or -trace)
+      ifeq ($(5),gcstress)
+        run_test_options += --runtime-option -Xgc:SS --runtime-option -Xms2m \
+          --runtime-option -Xmx2m --runtime-option -Xgc:preverify --runtime-option -Xgc:postverify
+        run_test_rule_name := test-art-$(2)-run-test-gcstress-$(3)-$(1)$(4)
+        ifneq ($$(ART_TEST_GC_STRESS),true)
+          skip_test := true
+        endif
+      else
+        ifneq (,$(5))
+          $$(error found $(5) expected undefined or gcverify, gcstress or trace)
+        endif
       endif
     endif
   endif
@@ -301,6 +326,9 @@ define define-test-art-run-test-group
   $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcverify))
   $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcverify))
   $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcverify))
+  $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcstress))
+  $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcstress))
+  $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcstress))
   do_second := false
   ifeq ($(2),host)
     ifneq ($$(HOST_PREFER_32_BIT),true)
@@ -321,6 +349,9 @@ define define-test-art-run-test-group
     $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcverify))
     $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcverify))
     $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcverify))
+    $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcstress))
+    $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcstress))
+    $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcstress))
   endif
 
   $$(eval $$(call define-test-art-run-test-group-rule,test-art-$(2)-run-test-default-$(1), \
@@ -401,7 +432,6 @@ endif
 define-test-art-run-test :=
 define-test-art-run-test-group-rule :=
 define-test-art-run-test-group :=
-all-run-test-names :=
 ART_TEST_TARGET_RUN_TEST_ALL_RULES :=
 ART_TEST_TARGET_RUN_TEST_DEFAULT_RULES :=
 ART_TEST_TARGET_RUN_TEST_INTERPRETER_RULES :=
