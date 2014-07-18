@@ -41,6 +41,7 @@ Mutex* Locks::modify_ldt_lock_ = nullptr;
 ReaderWriterMutex* Locks::mutator_lock_ = nullptr;
 Mutex* Locks::runtime_shutdown_lock_ = nullptr;
 Mutex* Locks::thread_list_lock_ = nullptr;
+Mutex* Locks::thread_list_suspend_thread_lock_ = nullptr;
 Mutex* Locks::thread_suspend_count_lock_ = nullptr;
 Mutex* Locks::trace_lock_ = nullptr;
 Mutex* Locks::profiler_lock_ = nullptr;
@@ -149,7 +150,8 @@ void BaseMutex::CheckSafeToWait(Thread* self) {
     for (int i = kLockLevelCount - 1; i >= 0; --i) {
       if (i != level_) {
         BaseMutex* held_mutex = self->GetHeldMutex(static_cast<LockLevel>(i));
-        if (held_mutex != NULL) {
+        // We expect waits to happen while holding the thread list suspend thread lock.
+        if (held_mutex != NULL && i != kThreadListSuspendThreadLock) {
           LOG(ERROR) << "Holding \"" << held_mutex->name_ << "\" "
                      << "(level " << LockLevel(i) << ") while performing wait on "
                      << "\"" << name_ << "\" (level " << level_ << ")";
@@ -835,6 +837,7 @@ void Locks::Init() {
     DCHECK(logging_lock_ != nullptr);
     DCHECK(mutator_lock_ != nullptr);
     DCHECK(thread_list_lock_ != nullptr);
+    DCHECK(thread_list_suspend_thread_lock_ != nullptr);
     DCHECK(thread_suspend_count_lock_ != nullptr);
     DCHECK(trace_lock_ != nullptr);
     DCHECK(profiler_lock_ != nullptr);
@@ -842,13 +845,18 @@ void Locks::Init() {
     DCHECK(intern_table_lock_ != nullptr);
   } else {
     // Create global locks in level order from highest lock level to lowest.
-    LockLevel current_lock_level = kMutatorLock;
-    DCHECK(mutator_lock_ == nullptr);
-    mutator_lock_ = new ReaderWriterMutex("mutator lock", current_lock_level);
+    LockLevel current_lock_level = kThreadListSuspendThreadLock;
+    DCHECK(thread_list_suspend_thread_lock_ == nullptr);
+    thread_list_suspend_thread_lock_ =
+        new Mutex("thread list suspend thread by .. lock", current_lock_level);
 
     #define UPDATE_CURRENT_LOCK_LEVEL(new_level) \
-        DCHECK_LT(new_level, current_lock_level); \
-        current_lock_level = new_level;
+      DCHECK_LT(new_level, current_lock_level); \
+      current_lock_level = new_level;
+
+    UPDATE_CURRENT_LOCK_LEVEL(kMutatorLock);
+    DCHECK(mutator_lock_ == nullptr);
+    mutator_lock_ = new ReaderWriterMutex("mutator lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kHeapBitmapLock);
     DCHECK(heap_bitmap_lock_ == nullptr);
