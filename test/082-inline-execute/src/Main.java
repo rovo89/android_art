@@ -66,25 +66,6 @@ public class Main {
     test_Memory_pokeLong();
   }
 
-  /*
-   * Determine if two floating point numbers are approximately equal.
-   *
-   * (Assumes that floating point is generally working, so we can't use
-   * this for the first set of tests.)
-   */
-  static boolean approxEqual(float a, float b, float maxDelta) {
-    if (a > b)
-      return (a - b) < maxDelta;
-    else
-      return (b - a) < maxDelta;
-  }
-  static boolean approxEqual(double a, double b, double maxDelta) {
-    if (a > b)
-      return (a - b) < maxDelta;
-    else
-      return (b - a) < maxDelta;
-  }
-
   /**
    * Will test inlining Thread.currentThread().
    */
@@ -340,39 +321,59 @@ public class Main {
   }
 
   public static void test_Math_min_F() {
-    Assert.assertTrue(approxEqual(Math.min(0.0f, 0.0f), 0.0f, 0.001f));
-    Assert.assertTrue(approxEqual(Math.min(1.0f, 0.0f), 0.0f, 0.001f));
-    Assert.assertTrue(approxEqual(Math.min(0.0f, 1.0f), 0.0f, 0.001f));
-    Assert.assertTrue(approxEqual(Math.min(0.0f, Float.MAX_VALUE), 0.0f, 0.001f));
-    Assert.assertTrue(approxEqual(Math.min(Float.MIN_VALUE, 0.0f), Float.MIN_VALUE, 0.001f));
-    Assert.assertTrue(approxEqual(Math.min(Float.MIN_VALUE, Float.MAX_VALUE), Float.MIN_VALUE, 0.001f));
+    Assert.assertTrue(Float.isNaN(Math.min(1.0f, Float.NaN)));
+    Assert.assertTrue(Float.isNaN(Math.min(Float.NaN, 1.0f)));
+    Assert.assertEquals(Math.min(-0.0f, 0.0f), -0.0f);
+    Assert.assertEquals(Math.min(0.0f, -0.0f), -0.0f);
+    Assert.assertEquals(Math.min(-0.0f, -0.0f), -0.0f);
+    Assert.assertEquals(Math.min(0.0f, 0.0f), 0.0f);
+    Assert.assertEquals(Math.min(1.0f, 0.0f), 0.0f);
+    Assert.assertEquals(Math.min(0.0f, 1.0f), 0.0f);
+    Assert.assertEquals(Math.min(0.0f, Float.MAX_VALUE), 0.0f);
+    Assert.assertEquals(Math.min(Float.MIN_VALUE, 0.0f), 0.0f);
+    Assert.assertEquals(Math.min(Float.MIN_VALUE, Float.MAX_VALUE), Float.MIN_VALUE);
   }
 
   public static void test_Math_max_F() {
-    Assert.assertTrue(approxEqual(Math.max(0.0f, 0.0f), 0.0f, 0.001f));
-    Assert.assertTrue(approxEqual(Math.max(1.0f, 0.0f), 1.0f, 0.001f));
-    Assert.assertTrue(approxEqual(Math.max(0.0f, 1.0f), 1.0f, 0.001f));
-    Assert.assertTrue(approxEqual(Math.max(0.0f, Float.MAX_VALUE), Float.MAX_VALUE, 0.001f));
-    Assert.assertTrue(approxEqual(Math.max(Float.MIN_VALUE, 0.0f), 0.0f, 0.001f));
-    Assert.assertTrue(approxEqual(Math.max(Float.MIN_VALUE, Float.MAX_VALUE), Float.MAX_VALUE, 0.001f));
+    Assert.assertTrue(Float.isNaN(Math.max(1.0f, Float.NaN)));
+    Assert.assertTrue(Float.isNaN(Math.max(Float.NaN, 1.0f)));
+    Assert.assertEquals(Math.max(-0.0f, 0.0f), 0.0f);
+    Assert.assertEquals(Math.max(0.0f, -0.0f), 0.0f);
+    Assert.assertEquals(Math.max(-0.0f, -0.0f), -0.0f);
+    Assert.assertEquals(Math.max(0.0f, 0.0f), 0.0f);
+    Assert.assertEquals(Math.max(1.0f, 0.0f), 1.0f);
+    Assert.assertEquals(Math.max(0.0f, 1.0f), 1.0f);
+    Assert.assertEquals(Math.max(0.0f, Float.MAX_VALUE), Float.MAX_VALUE);
+    Assert.assertEquals(Math.max(Float.MIN_VALUE, 0.0f), Float.MIN_VALUE);
+    Assert.assertEquals(Math.max(Float.MIN_VALUE, Float.MAX_VALUE), Float.MAX_VALUE);
   }
 
   public static void test_Math_min_D() {
-    Assert.assertTrue(approxEqual(Math.min(0.0d, 0.0d), 0.0d, 0.001d));
-    Assert.assertTrue(approxEqual(Math.min(1.0d, 0.0d), 0.0d, 0.001d));
-    Assert.assertTrue(approxEqual(Math.min(0.0d, 1.0d), 0.0d, 0.001d));
-    Assert.assertTrue(approxEqual(Math.min(0.0d, Double.MAX_VALUE), 0.0d, 0.001d));
-    Assert.assertTrue(approxEqual(Math.min(Double.MIN_VALUE, 0.0d), Double.MIN_VALUE, 0.001d));
-    Assert.assertTrue(approxEqual(Math.min(Double.MIN_VALUE, Double.MAX_VALUE), Double.MIN_VALUE, 0.001d));
+    Assert.assertTrue(Double.isNaN(Math.min(1.0d, Double.NaN)));
+    Assert.assertTrue(Double.isNaN(Math.min(Double.NaN, 1.0d)));
+    Assert.assertEquals(Math.min(-0.0d, 0.0d), -0.0d);
+    Assert.assertEquals(Math.min(0.0d, -0.0d), -0.0d);
+    Assert.assertEquals(Math.min(-0.0d, -0.0d), -0.0d);
+    Assert.assertEquals(Math.min(0.0d, 0.0d), 0.0d);
+    Assert.assertEquals(Math.min(1.0d, 0.0d), 0.0d);
+    Assert.assertEquals(Math.min(0.0d, 1.0d), 0.0d);
+    Assert.assertEquals(Math.min(0.0d, Double.MAX_VALUE), 0.0d);
+    Assert.assertEquals(Math.min(Double.MIN_VALUE, 0.0d), 0.0d);
+    Assert.assertEquals(Math.min(Double.MIN_VALUE, Double.MAX_VALUE), Double.MIN_VALUE);
   }
 
   public static void test_Math_max_D() {
-    Assert.assertTrue(approxEqual(Math.max(0.0d, 0.0d), 0.0d, 0.001d));
-    Assert.assertTrue(approxEqual(Math.max(1.0d, 0.0d), 1.0d, 0.001d));
-    Assert.assertTrue(approxEqual(Math.max(0.0d, 1.0d), 1.0d, 0.001d));
-    Assert.assertTrue(approxEqual(Math.max(0.0d, Double.MAX_VALUE), Double.MAX_VALUE, 0.001d));
-    Assert.assertTrue(approxEqual(Math.max(Double.MIN_VALUE, 0.0d), 0.0d, 0.001d));
-    Assert.assertTrue(approxEqual(Math.max(Double.MIN_VALUE, Double.MAX_VALUE), Double.MAX_VALUE, 0.001d));
+    Assert.assertTrue(Double.isNaN(Math.max(1.0d, Double.NaN)));
+    Assert.assertTrue(Double.isNaN(Math.max(Double.NaN, 1.0d)));
+    Assert.assertEquals(Math.max(-0.0d, 0.0d), 0.0d);
+    Assert.assertEquals(Math.max(0.0d, -0.0d), 0.0d);
+    Assert.assertEquals(Math.max(-0.0d, -0.0d), -0.0d);
+    Assert.assertEquals(Math.max(0.0d, 0.0d), 0.0d);
+    Assert.assertEquals(Math.max(1.0d, 0.0d), 1.0d);
+    Assert.assertEquals(Math.max(0.0d, 1.0d), 1.0d);
+    Assert.assertEquals(Math.max(0.0d, Double.MAX_VALUE), Double.MAX_VALUE);
+    Assert.assertEquals(Math.max(Double.MIN_VALUE, 0.0d), Double.MIN_VALUE);
+    Assert.assertEquals(Math.max(Double.MIN_VALUE, Double.MAX_VALUE), Double.MAX_VALUE);
   }
 
   public static void test_StrictMath_abs_I() {
@@ -431,39 +432,59 @@ public class Main {
   }
 
   public static void test_StrictMath_min_F() {
-    Assert.assertTrue(approxEqual(StrictMath.min(0.0f, 0.0f), 0.0f, 0.001f));
-    Assert.assertTrue(approxEqual(StrictMath.min(1.0f, 0.0f), 0.0f, 0.001f));
-    Assert.assertTrue(approxEqual(StrictMath.min(0.0f, 1.0f), 0.0f, 0.001f));
-    Assert.assertTrue(approxEqual(StrictMath.min(0.0f, Float.MAX_VALUE), 0.0f, 0.001f));
-    Assert.assertTrue(approxEqual(StrictMath.min(Float.MIN_VALUE, 0.0f), Float.MIN_VALUE, 0.001f));
-    Assert.assertTrue(approxEqual(StrictMath.min(Float.MIN_VALUE, Float.MAX_VALUE), Float.MIN_VALUE, 0.001f));
+    Assert.assertTrue(Float.isNaN(StrictMath.min(1.0f, Float.NaN)));
+    Assert.assertTrue(Float.isNaN(StrictMath.min(Float.NaN, 1.0f)));
+    Assert.assertEquals(StrictMath.min(-0.0f, 0.0f), -0.0f);
+    Assert.assertEquals(StrictMath.min(0.0f, -0.0f), -0.0f);
+    Assert.assertEquals(StrictMath.min(-0.0f, -0.0f), -0.0f);
+    Assert.assertEquals(StrictMath.min(0.0f, 0.0f), 0.0f);
+    Assert.assertEquals(StrictMath.min(1.0f, 0.0f), 0.0f);
+    Assert.assertEquals(StrictMath.min(0.0f, 1.0f), 0.0f);
+    Assert.assertEquals(StrictMath.min(0.0f, Float.MAX_VALUE), 0.0f);
+    Assert.assertEquals(StrictMath.min(Float.MIN_VALUE, 0.0f), 0.0f);
+    Assert.assertEquals(StrictMath.min(Float.MIN_VALUE, Float.MAX_VALUE), Float.MIN_VALUE);
   }
 
   public static void test_StrictMath_max_F() {
-    Assert.assertTrue(approxEqual(StrictMath.max(0.0f, 0.0f), 0.0f, 0.001f));
-    Assert.assertTrue(approxEqual(StrictMath.max(1.0f, 0.0f), 1.0f, 0.001f));
-    Assert.assertTrue(approxEqual(StrictMath.max(0.0f, 1.0f), 1.0f, 0.001f));
-    Assert.assertTrue(approxEqual(StrictMath.max(0.0f, Float.MAX_VALUE), Float.MAX_VALUE, 0.001f));
-    Assert.assertTrue(approxEqual(StrictMath.max(Float.MIN_VALUE, 0.0f), 0.0f, 0.001f));
-    Assert.assertTrue(approxEqual(StrictMath.max(Float.MIN_VALUE, Float.MAX_VALUE), Float.MAX_VALUE, 0.001f));
+    Assert.assertTrue(Float.isNaN(StrictMath.max(1.0f, Float.NaN)));
+    Assert.assertTrue(Float.isNaN(StrictMath.max(Float.NaN, 1.0f)));
+    Assert.assertEquals(StrictMath.max(-0.0f, 0.0f), 0.0f);
+    Assert.assertEquals(StrictMath.max(0.0f, -0.0f), 0.0f);
+    Assert.assertEquals(StrictMath.max(-0.0f, -0.0f), -0.0f);
+    Assert.assertEquals(StrictMath.max(0.0f, 0.0f), 0.0f);
+    Assert.assertEquals(StrictMath.max(1.0f, 0.0f), 1.0f);
+    Assert.assertEquals(StrictMath.max(0.0f, 1.0f), 1.0f);
+    Assert.assertEquals(StrictMath.max(0.0f, Float.MAX_VALUE), Float.MAX_VALUE);
+    Assert.assertEquals(StrictMath.max(Float.MIN_VALUE, 0.0f), Float.MIN_VALUE);
+    Assert.assertEquals(StrictMath.max(Float.MIN_VALUE, Float.MAX_VALUE), Float.MAX_VALUE);
   }
 
   public static void test_StrictMath_min_D() {
-    Assert.assertTrue(approxEqual(StrictMath.min(0.0d, 0.0d), 0.0d, 0.001d));
-    Assert.assertTrue(approxEqual(StrictMath.min(1.0d, 0.0d), 0.0d, 0.001d));
-    Assert.assertTrue(approxEqual(StrictMath.min(0.0d, 1.0d), 0.0d, 0.001d));
-    Assert.assertTrue(approxEqual(StrictMath.min(0.0d, Double.MAX_VALUE), 0.0d, 0.001d));
-    Assert.assertTrue(approxEqual(StrictMath.min(Double.MIN_VALUE, 0.0d), Double.MIN_VALUE, 0.001d));
-    Assert.assertTrue(approxEqual(StrictMath.min(Double.MIN_VALUE, Double.MAX_VALUE), Double.MIN_VALUE, 0.001d));
+    Assert.assertTrue(Double.isNaN(StrictMath.min(1.0d, Double.NaN)));
+    Assert.assertTrue(Double.isNaN(StrictMath.min(Double.NaN, 1.0d)));
+    Assert.assertEquals(StrictMath.min(-0.0d, 0.0d), -0.0d);
+    Assert.assertEquals(StrictMath.min(0.0d, -0.0d), -0.0d);
+    Assert.assertEquals(StrictMath.min(-0.0d, -0.0d), -0.0d);
+    Assert.assertEquals(StrictMath.min(0.0d, 0.0d), 0.0d);
+    Assert.assertEquals(StrictMath.min(1.0d, 0.0d), 0.0d);
+    Assert.assertEquals(StrictMath.min(0.0d, 1.0d), 0.0d);
+    Assert.assertEquals(StrictMath.min(0.0d, Double.MAX_VALUE), 0.0d);
+    Assert.assertEquals(StrictMath.min(Double.MIN_VALUE, 0.0d), 0.0d);
+    Assert.assertEquals(StrictMath.min(Double.MIN_VALUE, Double.MAX_VALUE), Double.MIN_VALUE);
   }
 
   public static void test_StrictMath_max_D() {
-    Assert.assertTrue(approxEqual(StrictMath.max(0.0d, 0.0d), 0.0d, 0.001d));
-    Assert.assertTrue(approxEqual(StrictMath.max(1.0d, 0.0d), 1.0d, 0.001d));
-    Assert.assertTrue(approxEqual(StrictMath.max(0.0d, 1.0d), 1.0d, 0.001d));
-    Assert.assertTrue(approxEqual(StrictMath.max(0.0d, Double.MAX_VALUE), Double.MAX_VALUE, 0.001d));
-    Assert.assertTrue(approxEqual(StrictMath.max(Double.MIN_VALUE, 0.0d), 0.0d, 0.001d));
-    Assert.assertTrue(approxEqual(StrictMath.max(Double.MIN_VALUE, Double.MAX_VALUE), Double.MAX_VALUE, 0.001d));
+    Assert.assertTrue(Double.isNaN(StrictMath.max(1.0d, Double.NaN)));
+    Assert.assertTrue(Double.isNaN(StrictMath.max(Double.NaN, 1.0d)));
+    Assert.assertEquals(StrictMath.max(-0.0d, 0.0d), 0.0d);
+    Assert.assertEquals(StrictMath.max(0.0d, -0.0d), 0.0d);
+    Assert.assertEquals(StrictMath.max(-0.0d, -0.0d), -0.0d);
+    Assert.assertEquals(StrictMath.max(0.0d, 0.0d), 0.0d);
+    Assert.assertEquals(StrictMath.max(1.0d, 0.0d), 1.0d);
+    Assert.assertEquals(StrictMath.max(0.0d, 1.0d), 1.0d);
+    Assert.assertEquals(StrictMath.max(0.0d, Double.MAX_VALUE), Double.MAX_VALUE);
+    Assert.assertEquals(StrictMath.max(Double.MIN_VALUE, 0.0d), Double.MIN_VALUE);
+    Assert.assertEquals(StrictMath.max(Double.MIN_VALUE, Double.MAX_VALUE), Double.MAX_VALUE);
   }
 
   public static void test_Float_floatToRawIntBits() {
