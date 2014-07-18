@@ -57,26 +57,24 @@ inline ThreadState Thread::SetState(ThreadState new_state) {
 }
 
 inline void Thread::AssertThreadSuspensionIsAllowable(bool check_locks) const {
-#ifdef NDEBUG
-  UNUSED(check_locks);  // Keep GCC happy about unused parameters.
-#else
-  CHECK_EQ(0u, tls32_.no_thread_suspension) << tlsPtr_.last_no_thread_suspension_cause;
-  if (check_locks) {
-    bool bad_mutexes_held = false;
-    for (int i = kLockLevelCount - 1; i >= 0; --i) {
-      // We expect no locks except the mutator_lock_.
-      if (i != kMutatorLock) {
-        BaseMutex* held_mutex = GetHeldMutex(static_cast<LockLevel>(i));
-        if (held_mutex != NULL) {
-          LOG(ERROR) << "holding \"" << held_mutex->GetName()
-                  << "\" at point where thread suspension is expected";
-          bad_mutexes_held = true;
+  if (kIsDebugBuild) {
+    CHECK_EQ(0u, tls32_.no_thread_suspension) << tlsPtr_.last_no_thread_suspension_cause;
+    if (check_locks) {
+      bool bad_mutexes_held = false;
+      for (int i = kLockLevelCount - 1; i >= 0; --i) {
+        // We expect no locks except the mutator_lock_ or thread list suspend thread lock.
+        if (i != kMutatorLock && i != kThreadListSuspendThreadLock) {
+          BaseMutex* held_mutex = GetHeldMutex(static_cast<LockLevel>(i));
+          if (held_mutex != NULL) {
+            LOG(ERROR) << "holding \"" << held_mutex->GetName()
+                      << "\" at point where thread suspension is expected";
+            bad_mutexes_held = true;
+          }
         }
       }
+      CHECK(!bad_mutexes_held);
     }
-    CHECK(!bad_mutexes_held);
   }
-#endif
 }
 
 inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
