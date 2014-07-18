@@ -1650,6 +1650,12 @@ bool DexFileVerifier::CheckInterClassDefItem() {
     return false;
   }
 
+  // Only allow non-runtime modifiers.
+  if ((item->access_flags_ & ~kAccJavaFlagsMask) != 0) {
+    ErrorStringPrintf("Invalid class flags: '%d'", item->access_flags_);
+    return false;
+  }
+
   if (item->interfaces_off_ != 0 &&
       !CheckOffsetToTypeMap(item->interfaces_off_, DexFile::kDexTypeTypeList)) {
     return false;
