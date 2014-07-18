@@ -2772,12 +2772,30 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
    * "try" block when they throw, control transfers out of the method.)
    */
   if ((opcode_flags & Instruction::kThrow) != 0 && insn_flags_[work_insn_idx_].IsInTry()) {
-    bool within_catch_all = false;
+    bool has_catch_all_handler = false;
     CatchHandlerIterator iterator(*code_item_, work_insn_idx_);
 
+    // Need the linker to try and resolve the handled class to check if it's Throwable.
+    ClassLinker* linker = Runtime::Current()->GetClassLinker();
+
     for (; iterator.HasNext(); iterator.Next()) {
-      if (iterator.GetHandlerTypeIndex() == DexFile::kDexNoIndex16) {
-        within_catch_all = true;
+      uint16_t handler_type_idx = iterator.GetHandlerTypeIndex();
+      if (handler_type_idx == DexFile::kDexNoIndex16) {
+        has_catch_all_handler = true;
+      } else {
+        // It is also a catch-all if it is java.lang.Throwable.
+        mirror::Class* klass = linker->ResolveType(*dex_file_, handler_type_idx, *dex_cache_,
+                                                   *class_loader_);
+        if (klass != nullptr) {
+          if (klass == mirror::Throwable::GetJavaLangThrowable()) {
+            has_catch_all_handler = true;
+          }
+        } else {
+          // Clear exception.
+          Thread* self = Thread::Current();
+          DCHECK(self->IsExceptionPending());
+          self->ClearException();
+        }
       }
       /*
        * Merge registers into the "catch" block. We want to use the "savedRegs" rather than
@@ -2793,7 +2811,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
      * If the monitor stack depth is nonzero, there must be a "catch all" handler for this
      * instruction. This does apply to monitor-exit because of async exception handling.
      */
-    if (work_line_->MonitorStackDepth() > 0 && !within_catch_all) {
+    if (work_line_->MonitorStackDepth() > 0 && !has_catch_all_handler) {
       /*
        * The state in work_line reflects the post-execution state. If the current instruction is a
        * monitor-enter and the monitor stack was empty, we don't need a catch-all (if it throws,
