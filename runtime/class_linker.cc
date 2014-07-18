@@ -2603,8 +2603,9 @@ mirror::Class* ClassLinker::UpdateClass(const char* descriptor, mirror::Class* k
 
   for (auto it = class_table_.lower_bound(hash), end = class_table_.end(); it != end && it->first == hash;
        ++it) {
-    mirror::Class* entry = it->second;
-    if (entry == existing) {
+    mirror::Class** root = &it->second;
+    mirror::Class* klass = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
+    if (klass == existing) {
       class_table_.erase(it);
       break;
     }

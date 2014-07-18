@@ -370,6 +370,13 @@ class MANAGED LOCKABLE Object {
   // Generate an identity hash code.
   static int32_t GenerateIdentityHashCode();
 
+  // A utility function that copies an object in a read barrier and
+  // write barrier-aware way. This is internally used by Clone() and
+  // Class::CopyOf().
+  static Object* CopyObject(Thread* self, mirror::Object* dest, mirror::Object* src,
+                            size_t num_bytes)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // The Class representing the type of the object.
   HeapReference<Class> klass_;
   // Monitor and hash code information.
@@ -386,6 +393,8 @@ class MANAGED LOCKABLE Object {
   friend class art::ImageWriter;
   friend class art::Monitor;
   friend struct art::ObjectOffsets;  // for verifying offset information
+  friend class CopyObjectVisitor;  // for CopyObject().
+  friend class CopyClassVisitor;   // for CopyObject().
   DISALLOW_IMPLICIT_CONSTRUCTORS(Object);
 };
 
