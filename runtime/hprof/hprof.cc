@@ -634,8 +634,12 @@ class Hprof {
     // U1: NUL-terminated magic string.
     fwrite(magic, 1, sizeof(magic), header_fp_);
 
-    // U4: size of identifiers.  We're using addresses as IDs, so make sure a pointer fits.
-    U4_TO_BUF_BE(buf, 0, sizeof(void*));
+    // U4: size of identifiers.  We're using addresses as IDs and our heap references are stored
+    // as uint32_t.
+    // Note of warning: hprof-conv hard-codes the size of identifiers to 4.
+    COMPILE_ASSERT(sizeof(mirror::HeapReference<mirror::Object>) == sizeof(uint32_t),
+      UnexpectedHeapReferenceSize);
+    U4_TO_BUF_BE(buf, 0, sizeof(uint32_t));
     fwrite(buf, 1, sizeof(uint32_t), header_fp_);
 
     // The current time, in milliseconds since 0:00 GMT, 1/1/70.
