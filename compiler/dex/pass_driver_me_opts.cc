@@ -70,19 +70,27 @@ template<>
 bool PassDriver<PassDriverMEOpts>::default_print_passes_ = false;
 
 void PassDriverMEOpts::ApplyPass(PassDataHolder* data, const Pass* pass) {
-  // First call the base class' version.
-  PassDriver::ApplyPass(data, pass);
-
   const PassME* pass_me = down_cast<const PassME*> (pass);
   DCHECK(pass_me != nullptr);
 
   PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
+
+  // Set to dirty.
+  pass_me_data_holder->dirty = true;
+
+  // First call the base class' version.
+  PassDriver::ApplyPass(data, pass);
 
   // Now we care about flags.
   if ((pass_me->GetFlag(kOptimizationBasicBlockChange) == true) ||
       (pass_me->GetFlag(kOptimizationDefUsesChange) == true)) {
     CompilationUnit* c_unit = pass_me_data_holder->c_unit;
     c_unit->mir_graph.get()->CalculateBasicBlockInformation();
+
+    // Is it dirty at least?
+    if (pass_me_data_holder->dirty == true) {
+      c_unit->mir_graph.get()->CalculateBasicBlockInformation();
+    }
   }
 }
 
