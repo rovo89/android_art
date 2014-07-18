@@ -1225,19 +1225,12 @@ bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
  * otherwise bails to standard library code.
  */
 bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
-  ClobberCallerSave();
-  LockCallTemps();  // Using fixed registers
-
-  // EAX: 16 bit character being searched.
-  // ECX: count: number of words to be searched.
-  // EDI: String being searched.
-  // EDX: temporary during execution.
-  // EBX or R11: temporary during execution (depending on mode).
-
   RegLocation rl_obj = info->args[0];
   RegLocation rl_char = info->args[1];
   RegLocation rl_start;  // Note: only present in III flavor or IndexOf.
-  RegStorage tmpReg = cu_->target64 ? rs_r11 : rs_rBX;
+  // RBX is callee-save register in 64-bit mode.
+  RegStorage rs_tmp = cu_->target64 ? rs_r11 : rs_rBX;
+  int start_value = -1;
 
   uint32_t char_value =
     rl_char.is_const ? mir_graph_->ConstantValue(rl_char.orig_sreg) : 0;
@@ -1248,22 +1241,46 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   }
 
   // Okay, we are commited to inlining this.
+  // EAX: 16 bit character being searched.
+  // ECX: count: number of words to be searched.
+  // EDI: String being searched.
+  // EDX: temporary during execution.
+  // EBX or R11: temporary during execution (depending on mode).
+  // REP SCASW: search instruction.
+
+  FlushReg(rs_rAX);
+  Clobber(rs_rAX);
+  LockTemp(rs_rAX);
+  FlushReg(rs_rCX);
+  Clobber(rs_rCX);
+  LockTemp(rs_rCX);
+  FlushReg(rs_rDX);
+  Clobber(rs_rDX);
+  LockTemp(rs_rDX);
+  FlushReg(rs_tmp);
+  Clobber(rs_tmp);
+  LockTemp(rs_tmp);
+  if (cu_->target64) {
+    FlushReg(rs_rDI);
+    Clobber(rs_rDI);
+    LockTemp(rs_rDI);
+  }
+
   RegLocation rl_return = GetReturn(kCoreReg);
   RegLocation rl_dest = InlineTarget(info);
 
   // Is the string non-NULL?
   LoadValueDirectFixed(rl_obj, rs_rDX);
   GenNullCheck(rs_rDX, info->opt_flags);
-  // uint32_t opt_flags = info->opt_flags;
   info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've null checked.
 
-  // Does the character fit in 16 bits?
-  LIR* slowpath_branch = nullptr;
+  LIR *slowpath_branch = nullptr, *length_compare = nullptr;
+
+  // We need the value in EAX.
   if (rl_char.is_const) {
-    // We need the value in EAX.
     LoadConstantNoClobber(rs_rAX, char_value);
   } else {
-    // Character is not a constant; compare at runtime.
+    // Does the character fit in 16 bits? Compare it at runtime.
     LoadValueDirectFixed(rl_char, rs_rAX);
     slowpath_branch = OpCmpImmBranch(kCondGt, rs_rAX, 0xFFFF, nullptr);
   }
@@ -1278,31 +1295,33 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   // Start of char data with array_.
   int data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Int32Value();
 
-  // Character is in EAX.
-  // Object pointer is in EDX.
-
   // Compute the number of words to search in to rCX.
   Load32Disp(rs_rDX, count_offset, rs_rCX);
 
-  // Possible signal here due to null pointer dereference.
-  // Note that the signal handler will expect the top word of
-  // the stack to be the ArtMethod*.  If the PUSH edi instruction
-  // below is ahead of the load above then this will not be true
-  // and the signal handler will not work.
-  MarkPossibleNullPointerException(0);
+  if (!cu_->target64) {
+    // Possible signal here due to null pointer dereference.
+    // Note that the signal handler will expect the top word of
+    // the stack to be the ArtMethod*.  If the PUSH edi instruction
+    // below is ahead of the load above then this will not be true
+    // and the signal handler will not work.
+    MarkPossibleNullPointerException(0);
 
-  // We need to preserve EDI, but have no spare registers, so push it on the stack.
-  // We have to remember that all stack addresses after this are offset by sizeof(EDI).
-  NewLIR1(kX86Push32R, rs_rDI.GetReg());
+    // EDI is callee-save register in 32-bit mode.
+    NewLIR1(kX86Push32R, rs_rDI.GetReg());
+  }
 
-  LIR *length_compare = nullptr;
-  int start_value = 0;
-  bool is_index_on_stack = false;
   if (zero_based) {
+    // Start index is not present.
     // We have to handle an empty string.  Use special instruction JECXZ.
     length_compare = NewLIR0(kX86Jecxz8);
+
+    // Copy the number of words to search in a temporary register.
+    // We will use the register at the end to calculate result.
+    OpRegReg(kOpMov, rs_tmp, rs_rCX);
   } else {
+    // Start index is present.
     rl_start = info->args[2];
+
     // We have to offset by the start index.
     if (rl_start.is_const) {
       start_value = mir_graph_->ConstantValue(rl_start.orig_sreg);
@@ -1310,73 +1329,55 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
 
       // Is the start > count?
       length_compare = OpCmpImmBranch(kCondLe, rs_rCX, start_value, nullptr);
+      OpRegImm(kOpMov, rs_rDI, start_value);
+
+      // Copy the number of words to search in a temporary register.
+      // We will use the register at the end to calculate result.
+      OpRegReg(kOpMov, rs_tmp, rs_rCX);
 
       if (start_value != 0) {
+        // Decrease the number of words to search by the start index.
         OpRegImm(kOpSub, rs_rCX, start_value);
       }
     } else {
-      // Runtime start index.
-      rl_start = UpdateLocTyped(rl_start, kCoreReg);
-      if (rl_start.location == kLocPhysReg) {
-        // Handle "start index < 0" case.
-        OpRegReg(kOpXor, tmpReg, tmpReg);
-        OpRegReg(kOpCmp, rl_start.reg, tmpReg);
-        OpCondRegReg(kOpCmov, kCondLt, rl_start.reg, tmpReg);
-
-        // The length of the string should be greater than the start index.
-        length_compare = OpCmpBranch(kCondLe, rs_rCX, rl_start.reg, nullptr);
-        OpRegReg(kOpSub, rs_rCX, rl_start.reg);
-        if (rl_start.reg == rs_rDI) {
-          // The special case. We will use EDI further, so lets put start index to stack.
-          NewLIR1(kX86Push32R, rs_rDI.GetReg());
-          is_index_on_stack = true;
-        }
-      } else {
+      // Handle "start index < 0" case.
+      if (!cu_->target64 && rl_start.location != kLocPhysReg) {
         // Load the start index from stack, remembering that we pushed EDI.
-        int displacement = SRegOffset(rl_start.s_reg_low) +
-                           (cu_->target64 ? 2 : 1) * sizeof(uint32_t);
+        int displacement = SRegOffset(rl_start.s_reg_low) + sizeof(uint32_t);
         {
           ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          Load32Disp(rs_rX86_SP, displacement, tmpReg);
+          Load32Disp(rs_rX86_SP, displacement, rs_rDI);
         }
-        OpRegReg(kOpXor, rs_rDI, rs_rDI);
-        OpRegReg(kOpCmp, tmpReg, rs_rDI);
-        OpCondRegReg(kOpCmov, kCondLt, tmpReg, rs_rDI);
-
-        length_compare = OpCmpBranch(kCondLe, rs_rCX, tmpReg, nullptr);
-        OpRegReg(kOpSub, rs_rCX, tmpReg);
-        // Put the start index to stack.
-        NewLIR1(kX86Push32R, tmpReg.GetReg());
-        is_index_on_stack = true;
+      } else {
+        LoadValueDirectFixed(rl_start, rs_rDI);
       }
+      OpRegReg(kOpXor, rs_tmp, rs_tmp);
+      OpRegReg(kOpCmp, rs_rDI, rs_tmp);
+      OpCondRegReg(kOpCmov, kCondLt, rs_rDI, rs_tmp);
+
+      // The length of the string should be greater than the start index.
+      length_compare = OpCmpBranch(kCondLe, rs_rCX, rs_rDI, nullptr);
+
+      // Copy the number of words to search in a temporary register.
+      // We will use the register at the end to calculate result.
+      OpRegReg(kOpMov, rs_tmp, rs_rCX);
+
+      // Decrease the number of words to search by the start index.
+      OpRegReg(kOpSub, rs_rCX, rs_rDI);
     }
   }
-  DCHECK(length_compare != nullptr);
 
-  // ECX now contains the count in words to be searched.
-
-  // Load the address of the string into R11 or EBX (depending on mode).
+  // Load the address of the string into EDI.
+  // In case of start index we have to add the address to existing value in EDI.
   // The string starts at VALUE(String) + 2 * OFFSET(String) + DATA_OFFSET.
-  Load32Disp(rs_rDX, value_offset, rs_rDI);
-  Load32Disp(rs_rDX, offset_offset, tmpReg);
-  OpLea(tmpReg, rs_rDI, tmpReg, 1, data_offset);
-
-  // Now compute into EDI where the search will start.
-  if (zero_based || rl_start.is_const) {
-    if (start_value == 0) {
-      OpRegCopy(rs_rDI, tmpReg);
-    } else {
-      NewLIR3(kX86Lea32RM, rs_rDI.GetReg(), tmpReg.GetReg(), 2 * start_value);
-    }
+  if (zero_based || (!zero_based && rl_start.is_const && start_value == 0)) {
+    Load32Disp(rs_rDX, offset_offset, rs_rDI);
   } else {
-    if (is_index_on_stack == true) {
-      // Load the start index from stack.
-      NewLIR1(kX86Pop32R, rs_rDX.GetReg());
-      OpLea(rs_rDI, tmpReg, rs_rDX, 1, 0);
-    } else {
-      OpLea(rs_rDI, tmpReg, rl_start.reg, 1, 0);
-    }
+    OpRegMem(kOpAdd, rs_rDI, rs_rDX, offset_offset);
   }
+  OpRegImm(kOpLsl, rs_rDI, 1);
+  OpRegMem(kOpAdd, rs_rDI, rs_rDX, value_offset);
+  OpRegImm(kOpAdd, rs_rDI, data_offset);
 
   // EDI now contains the start of the string to be searched.
   // We are all prepared to do the search for the character.
@@ -1386,10 +1387,9 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   LIR* failed_branch = OpCondBranch(kCondNe, nullptr);
 
   // yes, we matched.  Compute the index of the result.
-  // index = ((curr_ptr - orig_ptr) / 2) - 1.
-  OpRegReg(kOpSub, rs_rDI, tmpReg);
-  OpRegImm(kOpAsr, rs_rDI, 1);
-  NewLIR3(kX86Lea32RM, rl_return.reg.GetReg(), rs_rDI.GetReg(), -1);
+  OpRegReg(kOpSub, rs_tmp, rs_rCX);
+  NewLIR3(kX86Lea32RM, rl_return.reg.GetReg(), rs_tmp.GetReg(), -1);
+
   LIR *all_done = NewLIR1(kX86Jmp8, 0);
 
   // Failed to match; return -1.
@@ -1400,8 +1400,9 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
 
   // And join up at the end.
   all_done->target = NewLIR0(kPseudoTargetLabel);
-  // Restore EDI from the stack.
-  NewLIR1(kX86Pop32R, rs_rDI.GetReg());
+
+  if (!cu_->target64)
+    NewLIR1(kX86Pop32R, rs_rDI.GetReg());
 
   // Out of line code returns here.
   if (slowpath_branch != nullptr) {
@@ -1410,6 +1411,15 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   }
 
   StoreValue(rl_dest, rl_return);
+
+  FreeTemp(rs_rAX);
+  FreeTemp(rs_rCX);
+  FreeTemp(rs_rDX);
+  FreeTemp(rs_tmp);
+  if (cu_->target64) {
+    FreeTemp(rs_rDI);
+  }
+
   return true;
 }
 
