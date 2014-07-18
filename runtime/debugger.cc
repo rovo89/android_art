@@ -2250,15 +2250,18 @@ void Dbg::ResumeVM() {
 }
 
 JDWP::JdwpError Dbg::SuspendThread(JDWP::ObjectId thread_id, bool request_suspension) {
-  ScopedLocalRef<jobject> peer(Thread::Current()->GetJniEnv(), NULL);
+  Thread* self = Thread::Current();
+  ScopedLocalRef<jobject> peer(self->GetJniEnv(), NULL);
   {
-    ScopedObjectAccess soa(Thread::Current());
+    ScopedObjectAccess soa(self);
     peer.reset(soa.AddLocalReference<jobject>(gRegistry->Get<mirror::Object*>(thread_id)));
   }
   if (peer.get() == NULL) {
     return JDWP::ERR_THREAD_NOT_ALIVE;
   }
-  // Suspend thread to build stack trace.
+  // Suspend thread to build stack trace. Take suspend thread lock to avoid races with threads
+  // trying to suspend this one.
+  MutexLock mu(self, *Locks::thread_list_suspend_thread_lock_);
   bool timed_out;
   Thread* thread = ThreadList::SuspendThreadByPeer(peer.get(), request_suspension, true,
                                                    &timed_out);
@@ -3144,7 +3147,7 @@ class ScopedThreadSuspension {
   ScopedThreadSuspension(Thread* self, JDWP::ObjectId thread_id)
       LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
-      thread_(NULL),
+      thread_(nullptr),
       error_(JDWP::ERR_NONE),
       self_suspend_(false),
       other_suspend_(false) {
@@ -3160,10 +3163,15 @@ class ScopedThreadSuspension {
         soa.Self()->TransitionFromRunnableToSuspended(kWaitingForDebuggerSuspension);
         jobject thread_peer = gRegistry->GetJObject(thread_id);
         bool timed_out;
-        Thread* suspended_thread = ThreadList::SuspendThreadByPeer(thread_peer, true, true,
-                                                                   &timed_out);
+        Thread* suspended_thread;
+        {
+          // Take suspend thread lock to avoid races with threads trying to suspend this one.
+          MutexLock mu(soa.Self(), *Locks::thread_list_suspend_thread_lock_);
+          suspended_thread = ThreadList::SuspendThreadByPeer(thread_peer, true, true,
+                                                             &timed_out);
+        }
         CHECK_EQ(soa.Self()->TransitionFromSuspendedToRunnable(), kWaitingForDebuggerSuspension);
-        if (suspended_thread == NULL) {
+        if (suspended_thread == nullptr) {
           // Thread terminated from under us while suspending.
           error_ = JDWP::ERR_INVALID_THREAD;
         } else {
