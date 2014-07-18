@@ -120,6 +120,7 @@ void ElfPatcher::AddPatch(uintptr_t p) {
 
 uint32_t* ElfPatcher::GetPatchLocation(uintptr_t patch_ptr) {
   CHECK_GE(patch_ptr, reinterpret_cast<uintptr_t>(oat_file_->Begin()));
+  CHECK_LE(patch_ptr, reinterpret_cast<uintptr_t>(oat_file_->End()));
   uintptr_t off = patch_ptr - reinterpret_cast<uintptr_t>(oat_file_->Begin());
   uintptr_t ret = reinterpret_cast<uintptr_t>(oat_header_) + off;
 
@@ -144,20 +145,20 @@ void ElfPatcher::SetPatchLocation(const CompilerDriver::PatchInformation* patch,
           cpatch->GetTargetDexFile()->GetMethodId(cpatch->GetTargetMethodIdx());
       uint32_t expected = reinterpret_cast<uintptr_t>(&id) & 0xFFFFFFFF;
       uint32_t actual = *patch_location;
-      CHECK(actual == expected || actual == value) << std::hex
-          << "actual=" << actual
-          << "expected=" << expected
-          << "value=" << value;
+      CHECK(actual == expected || actual == value) << "Patching call failed: " << std::hex
+          << " actual=" << actual
+          << " expected=" << expected
+          << " value=" << value;
     }
     if (patch->IsType()) {
       const CompilerDriver::TypePatchInformation* tpatch = patch->AsType();
       const DexFile::TypeId& id = tpatch->GetDexFile().GetTypeId(tpatch->GetTargetTypeIdx());
       uint32_t expected = reinterpret_cast<uintptr_t>(&id) & 0xFFFFFFFF;
       uint32_t actual = *patch_location;
-      CHECK(actual == expected || actual == value) << std::hex
-          << "actual=" << actual
-          << "expected=" << expected
-          << "value=" << value;
+      CHECK(actual == expected || actual == value) << "Patching type failed: " << std::hex
+          << " actual=" << actual
+          << " expected=" << expected
+          << " value=" << value;
     }
   }
   *patch_location = value;
