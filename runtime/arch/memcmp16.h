@@ -30,7 +30,7 @@
 //
 // In both cases, MemCmp16 is declared.
 
-#if defined(__aarch64__) || defined(__arm__) || defined(__mips)
+#if defined(__aarch64__) || defined(__arm__) || defined(__mips) || defined(__i386__)
 
 extern "C" uint32_t __memcmp16(const uint16_t* s0, const uint16_t* s1, size_t count);
 #define MemCmp16 __memcmp16
