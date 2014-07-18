@@ -40,8 +40,7 @@ class DexFileVerifier {
   bool Verify();
 
   bool CheckShortyDescriptorMatch(char shorty_char, const char* descriptor, bool is_return_type);
-  bool CheckPointerRange(const void* start, const void* end, const char* label);
-  bool CheckListSize(const void* start, uint32_t count, uint32_t element_size, const char* label);
+  bool CheckListSize(const void* start, size_t count, size_t element_size, const char* label);
   bool CheckIndex(uint32_t field, uint32_t limit, const char* label);
 
   bool CheckHeader();
