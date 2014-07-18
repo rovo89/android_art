@@ -116,8 +116,14 @@ define define-test-art-oat-rules-target
   ART_TEST_TARGET_OAT_DEFAULT_$(1)_RULES += $$(default_test_rule)
 
   optimizing_test_rule := test-art-target-oat-optimizing-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX)
-  $(call define-test-art-oat-rule-target,$(1),$(2),$$(optimizing_test_rule), \
-    -Xcompiler-option --compiler-backend=Optimizing)
+  ifeq ($$(ART_TEST_OPTIMIZING),true)
+    $(call define-test-art-oat-rule-target,$(1),$(2),$$(optimizing_test_rule), \
+      -Xcompiler-option --compiler-backend=Optimizing)
+  else
+    .PHONY: $$(optimizing_test_rule)
+$$(optimizing_test_rule):
+
+  endif
 
   ART_TEST_TARGET_OAT_OPTIMIZING$$($(2)ART_PHONY_TEST_TARGET_SUFFIX)_RULES += $$(optimizing_test_rule)
   ART_TEST_TARGET_OAT_OPTIMIZING_RULES += $$(optimizing_test_rule)
@@ -231,7 +237,13 @@ define define-test-art-oat-rules-host
 
   # Create a rule to run the host oat test with the optimizing compiler.
   optimizing_test_rule := test-art-host-oat-optimizing-$(1)$$($(2)ART_PHONY_TEST_HOST_SUFFIX)
-  $(call define-test-art-oat-rule-host,$(1),$(2),$$(optimizing_test_rule),--compiler-backend=Optimizing,)
+  ifeq ($$(ART_TEST_OPTIMIZING),true)
+    $(call define-test-art-oat-rule-host,$(1),$(2),$$(optimizing_test_rule),--compiler-backend=Optimizing,)
+  else
+    .PHONY: $$(optimizing_test_rule)
+$$(optimizing_test_rule):
+
+  endif
 
   ART_TEST_HOST_OAT_OPTIMIZING$$($(2)ART_PHONY_TEST_HOST_SUFFIX)_RULES += $$(optimizing_test_rule)
   ART_TEST_HOST_OAT_OPTIMIZING_RULES += $$(optimizing_test_rule)
