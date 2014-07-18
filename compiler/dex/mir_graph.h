@@ -727,7 +727,7 @@ class MIRGraph {
       * would be filtered out with current settings.  When orig_sreg field is removed
       * from RegLocation, expand s_reg_low to handle all possible cases and remove DCHECK().
       */
-    DCHECK_EQ(new_num, static_cast<int16_t>(new_num));
+    CHECK_EQ(new_num, static_cast<int16_t>(new_num));
     num_ssa_regs_ = new_num;
   }
 
