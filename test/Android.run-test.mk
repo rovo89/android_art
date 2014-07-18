@@ -163,7 +163,7 @@ endif
 # $(2): host or target
 # $(3): default, optimizing or interpreter
 # $(4): 32 or 64
-# $(5): run tests with tracing enabled or not: trace or undefined
+# $(5): run tests with tracing or GC verification enabled or not: trace, gcverify or undefined
 define define-test-art-run-test
   run_test_options := $(addprefix --runtime-option ,$(DALVIKVM_FLAGS))
   run_test_rule_name := test-art-$(2)-run-test-$(3)-$(1)$(4)
@@ -215,8 +215,17 @@ define define-test-art-run-test
       skip_test := true
     endif
   else
-    ifneq (,$(5))
-      $$(error found $(5) expected undefined or -trace)
+    ifeq ($(5),gcverify)
+      run_test_options += --runtime-option -Xgc:preverify --runtime-option -Xgc:postverify \
+        --runtime-option -Xgc:preverify_rosalloc --runtime-option -Xgc:postverify_rosalloc
+      run_test_rule_name := test-art-$(2)-run-test-gcverify-$(3)-$(1)$(4)
+      ifneq ($$(ART_TEST_GC_VERIFY),true)
+        skip_test := true
+      endif
+    else
+      ifneq (,$(5))
+        $$(error found $(5) expected undefined or -trace)
+      endif
     endif
   endif
   ifeq ($$(skip_test),false)
@@ -289,6 +298,9 @@ define define-test-art-run-test-group
   $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),trace))
   $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),trace))
   $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),trace))
+  $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcverify))
+  $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcverify))
+  $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcverify))
   do_second := false
   ifeq ($(2),host)
     ifneq ($$(HOST_PREFER_32_BIT),true)
@@ -306,6 +318,9 @@ define define-test-art-run-test-group
     $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),trace))
     $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),trace))
     $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),trace))
+    $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcverify))
+    $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcverify))
+    $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),gcverify))
   endif
 
   $$(eval $$(call define-test-art-run-test-group-rule,test-art-$(2)-run-test-default-$(1), \

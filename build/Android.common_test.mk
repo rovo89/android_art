@@ -42,6 +42,9 @@ ART_TEST_OPTIMIZING ?= $(ART_TEST_FULL)
 # Do you want tracing tests run?
 ART_TEST_TRACE ?= $(ART_TEST_FULL)
 
+# Do you want tests with GC verification enabled run?
+ART_TEST_GC_VERIFY ?= $(ART_TEST_FULL)
+
 # Define the command run on test failure. $(1) is the name of the test. Executed by the shell.
 define ART_TEST_FAILED
   ( [ -f $(ART_HOST_TEST_DIR)/skipped/$(1) ] || \
