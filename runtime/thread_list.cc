@@ -170,16 +170,7 @@ static void UnsafeLogFatalForThreadSuspendAllTimeout() {
 // individual thread requires polling. delay_us is the requested sleep and total_delay_us
 // accumulates the total time spent sleeping for timeouts. The first sleep is just a yield,
 // subsequently sleeps increase delay_us from 1ms to 500ms by doubling.
-static void ThreadSuspendSleep(Thread* self, useconds_t* delay_us, useconds_t* total_delay_us,
-                               bool holding_locks) {
-  if (!holding_locks) {
-    for (int i = kLockLevelCount - 1; i >= 0; --i) {
-      BaseMutex* held_mutex = self->GetHeldMutex(static_cast<LockLevel>(i));
-      if (held_mutex != NULL) {
-        LOG(FATAL) << "Holding " << held_mutex->GetName() << " while sleeping for thread suspension";
-      }
-    }
-  }
+static void ThreadSuspendSleep(Thread* self, useconds_t* delay_us, useconds_t* total_delay_us) {
   useconds_t new_delay_us = (*delay_us) * 2;
   CHECK_GE(new_delay_us, *delay_us);
   if (new_delay_us < 500000) {  // Don't allow sleeping to be more than 0.5s.
@@ -244,7 +235,7 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
       useconds_t total_delay_us = 0;
       do {
         useconds_t delay_us = 100;
-        ThreadSuspendSleep(self, &delay_us, &total_delay_us, true);
+        ThreadSuspendSleep(self, &delay_us, &total_delay_us);
       } while (!thread->IsSuspended());
       // Shouldn't need to wait for longer than 1000 microseconds.
       constexpr useconds_t kLongWaitThresholdUS = 1000;
@@ -444,6 +435,11 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
   while (true) {
     Thread* thread;
     {
+      // Note: this will transition to runnable and potentially suspend. We ensure only one thread
+      // is requesting another suspend, to avoid deadlock, by requiring this function be called
+      // holding Locks::thread_list_suspend_thread_lock_. Its important this thread suspend rather
+      // than request thread suspension, to avoid potential cycles in threads requesting each other
+      // suspend.
       ScopedObjectAccess soa(self);
       MutexLock mu(self, *Locks::thread_list_lock_);
       thread = Thread::FromManagedThread(soa, peer);
@@ -483,7 +479,7 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
       }
       // Release locks and come out of runnable state.
     }
-    ThreadSuspendSleep(self, &delay_us, &total_delay_us, false);
+    ThreadSuspendSleep(self, &delay_us, &total_delay_us);
   }
 }
 
@@ -502,9 +498,14 @@ Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspe
   CHECK_NE(thread_id, kInvalidThreadId);
   while (true) {
     {
-      Thread* thread = NULL;
+      // Note: this will transition to runnable and potentially suspend. We ensure only one thread
+      // is requesting another suspend, to avoid deadlock, by requiring this function be called
+      // holding Locks::thread_list_suspend_thread_lock_. Its important this thread suspend rather
+      // than request thread suspension, to avoid potential cycles in threads requesting each other
+      // suspend.
       ScopedObjectAccess soa(self);
       MutexLock mu(self, *Locks::thread_list_lock_);
+      Thread* thread = nullptr;
       for (const auto& it : list_) {
         if (it->GetThreadId() == thread_id) {
           thread = it;
@@ -550,7 +551,7 @@ Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspe
       }
       // Release locks and come out of runnable state.
     }
-    ThreadSuspendSleep(self, &delay_us, &total_delay_us, false);
+    ThreadSuspendSleep(self, &delay_us, &total_delay_us);
   }
 }
 
