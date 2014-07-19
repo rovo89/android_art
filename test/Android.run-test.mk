@@ -21,9 +21,9 @@ include art/build/Android.common_test.mk
 TEST_ART_RUN_TESTS := $(wildcard $(LOCAL_PATH)/[0-9]*)
 TEST_ART_RUN_TESTS := $(subst $(LOCAL_PATH)/,, $(TEST_ART_RUN_TESTS))
 
-# List all the test names for host and target excluding the -trace suffix
+# List all the test names for host and target and compiler variants.
 # $(1): test name, e.g. 003-omnibus-opcodes
-# $(2): undefined or -trace
+# $(2): undefined, -trace, -gcverify or -gcstress
 define all-run-test-names
   test-art-host-run-test$(2)-default-$(1)32 \
   test-art-host-run-test$(2)-optimizing-$(1)32 \
@@ -48,6 +48,8 @@ TEST_ART_TIMING_SENSITIVE_RUN_TESTS := \
 ifdef dist_goal
   ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(call all-run-test-names,$(test),))
   ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(call all-run-test-names,$(test),-trace))
+  ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(call all-run-test-names,$(test),-gcverify))
+  ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(call all-run-test-names,$(test),-gcstress))
 endif
 
 # Tests that are broken in --trace mode.
