@@ -151,7 +151,8 @@ enum HprofHeapTag {
 enum HprofHeapId {
   HPROF_HEAP_DEFAULT = 0,
   HPROF_HEAP_ZYGOTE = 'Z',
-  HPROF_HEAP_APP = 'A'
+  HPROF_HEAP_APP = 'A',
+  HPROF_HEAP_IMAGE = 'I',
 };
 
 enum HprofBasicType {
@@ -846,25 +847,36 @@ static int StackTraceSerialNumber(const mirror::Object* /*obj*/) {
 
 int Hprof::DumpHeapObject(mirror::Object* obj) {
   HprofRecord* rec = &current_record_;
-  HprofHeapId desiredHeap = false ? HPROF_HEAP_ZYGOTE : HPROF_HEAP_APP;  // TODO: zygote objects?
-
+  gc::space::ContinuousSpace* space =
+      Runtime::Current()->GetHeap()->FindContinuousSpaceFromObject(obj, true);
+  HprofHeapId heap_type = HPROF_HEAP_APP;
+  if (space != nullptr) {
+    if (space->IsZygoteSpace()) {
+      heap_type = HPROF_HEAP_ZYGOTE;
+    } else if (space->IsImageSpace()) {
+      heap_type = HPROF_HEAP_IMAGE;
+    }
+  }
   if (objects_in_segment_ >= OBJECTS_PER_SEGMENT || rec->Size() >= BYTES_PER_SEGMENT) {
     StartNewHeapDumpSegment();
   }
 
-  if (desiredHeap != current_heap_) {
+  if (heap_type != current_heap_) {
     HprofStringId nameId;
 
     // This object is in a different heap than the current one.
     // Emit a HEAP_DUMP_INFO tag to change heaps.
     rec->AddU1(HPROF_HEAP_DUMP_INFO);
-    rec->AddU4((uint32_t)desiredHeap);   // uint32_t: heap id
-    switch (desiredHeap) {
+    rec->AddU4(static_cast<uint32_t>(heap_type));   // uint32_t: heap type
+    switch (heap_type) {
     case HPROF_HEAP_APP:
       nameId = LookupStringId("app");
       break;
     case HPROF_HEAP_ZYGOTE:
       nameId = LookupStringId("zygote");
+      break;
+    case HPROF_HEAP_IMAGE:
+      nameId = LookupStringId("image");
       break;
     default:
       // Internal error
@@ -873,7 +885,7 @@ int Hprof::DumpHeapObject(mirror::Object* obj) {
       break;
     }
     rec->AddStringId(nameId);
-    current_heap_ = desiredHeap;
+    current_heap_ = heap_type;
   }
 
   mirror::Class* c = obj->GetClass();
