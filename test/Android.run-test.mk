@@ -90,7 +90,7 @@ ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_TRACE_RUN_TESTS), $(c
 TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
   074-gc-thrash \
   080-oom-throw \
-  096-array-copy-concurrent
+  096-array-copy-concurrent-gc
 
 ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_GCSTRESS_RUN_TESTS), $(call all-run-test-names,$(test),-gcstress))
 
