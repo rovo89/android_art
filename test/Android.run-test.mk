@@ -57,13 +57,16 @@ TEST_ART_BROKEN_TRACE_RUN_TESTS := \
   012-math \
   018-stack-overflow \
   023-many-interfaces \
+  027-arithmetic \
   031-class-attributes \
   037-inherit \
   044-proxy \
   046-reflect \
   051-thread \
   055-enum-performance \
+  062-character-encodings \
   064-field-access \
+  074-gc-thrash \
   078-polymorphic-virtual \
   080-oom-throw \
   082-inline-execute \
@@ -75,6 +78,7 @@ TEST_ART_BROKEN_TRACE_RUN_TESTS := \
   103-string-append \
   107-int-math2 \
   112-double-math \
+  700-LoadArgRegs \
   701-easy-div-rem
 
 ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_TRACE_RUN_TESTS), $(call all-run-test-names,$(test),-trace))
