@@ -87,7 +87,7 @@ class LocationsBuilderX86_64 : public HGraphVisitor {
 #define DECLARE_VISIT_INSTRUCTION(name)     \
   virtual void Visit##name(H##name* instr);
 
-  FOR_EACH_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
 
@@ -105,7 +105,7 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
 #define DECLARE_VISIT_INSTRUCTION(name)     \
   virtual void Visit##name(H##name* instr);
 
-  FOR_EACH_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
 

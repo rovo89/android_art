@@ -48,8 +48,8 @@ const char* DataProcessingRegisterResults[] = {
 const char* DataProcessingImmediateResults[] = {
   "   0:	2055      	movs	r0, #85	; 0x55\n",
   "   2:	f06f 0055 	mvn.w	r0, #85	; 0x55\n",
-  "   6:	f101 0055 	add.w	r0, r1, #85	; 0x55\n",
-  "   a:	f1a1 0055 	sub.w	r0, r1, #85	; 0x55\n",
+  "   6:	f201 0055 	addw	r0, r1, #85	; 0x55\n",
+  "   a:	f2a1 0055 	subw	r0, r1, #85	; 0x55\n",
   "   e:	f001 0055 	and.w	r0, r1, #85	; 0x55\n",
   "  12:	f041 0055 	orr.w	r0, r1, #85	; 0x55\n",
   "  16:	f081 0055 	eor.w	r0, r1, #85	; 0x55\n",

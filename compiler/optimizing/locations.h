@@ -24,6 +24,7 @@
 
 namespace art {
 
+class HConstant;
 class HInstruction;
 
 /**
@@ -34,23 +35,33 @@ class Location : public ValueObject {
  public:
   enum Kind {
     kInvalid = 0,
-    kStackSlot = 1,  // Word size slot.
-    kDoubleStackSlot = 2,  // 64bit stack slot.
-    kRegister = 3,
+    kConstant = 1,
+    kStackSlot = 2,  // Word size slot.
+    kDoubleStackSlot = 3,  // 64bit stack slot.
+    kRegister = 4,
     // On 32bits architectures, quick can pass a long where the
     // low bits are in the last parameter register, and the high
     // bits are in a stack slot. The kQuickParameter kind is for
     // handling this special case.
-    kQuickParameter = 4,
+    kQuickParameter = 5,
 
     // Unallocated location represents a location that is not fixed and can be
     // allocated by a register allocator.  Each unallocated location has
     // a policy that specifies what kind of location is suitable. Payload
     // contains register allocation policy.
-    kUnallocated = 5,
+    kUnallocated = 6,
   };
 
   Location() : value_(kInvalid) {
+    // Verify that non-tagged location kinds do not interfere with kConstantTag.
+    COMPILE_ASSERT((kInvalid & kLocationTagMask) != kConstant, TagError);
+    COMPILE_ASSERT((kUnallocated & kLocationTagMask) != kConstant, TagError);
+    COMPILE_ASSERT((kStackSlot & kLocationTagMask) != kConstant, TagError);
+    COMPILE_ASSERT((kDoubleStackSlot & kLocationTagMask) != kConstant, TagError);
+    COMPILE_ASSERT((kRegister & kLocationTagMask) != kConstant, TagError);
+    COMPILE_ASSERT((kConstant & kLocationTagMask) == kConstant, TagError);
+    COMPILE_ASSERT((kQuickParameter & kLocationTagMask) == kConstant, TagError);
+
     DCHECK(!IsValid());
   }
 
@@ -61,17 +72,26 @@ class Location : public ValueObject {
     return *this;
   }
 
+  bool IsConstant() const {
+    return (value_ & kLocationTagMask) == kConstant;
+  }
+
+  static Location ConstantLocation(HConstant* constant) {
+    DCHECK(constant != nullptr);
+    return Location(kConstant | reinterpret_cast<uword>(constant));
+  }
+
+  HConstant* GetConstant() const {
+    DCHECK(IsConstant());
+    return reinterpret_cast<HConstant*>(value_ & ~kLocationTagMask);
+  }
+
   bool IsValid() const {
     return value_ != kInvalid;
   }
 
   bool IsInvalid() const {
     return !IsValid();
-  }
-
-  bool IsConstant() const {
-    // TODO: support constants.
-    return false;
   }
 
   // Empty location. Used if there the location should be ignored.
@@ -162,12 +182,13 @@ class Location : public ValueObject {
 
   const char* DebugString() const {
     switch (GetKind()) {
-      case kInvalid: return "?";
+      case kInvalid: return "I";
       case kRegister: return "R";
       case kStackSlot: return "S";
       case kDoubleStackSlot: return "DS";
       case kQuickParameter: return "Q";
       case kUnallocated: return "U";
+      case kConstant: return "C";
     }
     return "?";
   }
@@ -196,6 +217,8 @@ class Location : public ValueObject {
     return UnallocatedLocation(kRequiresRegister);
   }
 
+  static Location RegisterOrConstant(HInstruction* instruction);
+
   // The location of the first input to the instruction will be
   // used to replace this unallocated location.
   static Location SameAsFirstInput() {
@@ -215,6 +238,7 @@ class Location : public ValueObject {
   // Number of bits required to encode Kind value.
   static constexpr uint32_t kBitsForKind = 4;
   static constexpr uint32_t kBitsForPayload = kWordSize * kBitsPerByte - kBitsForKind;
+  static constexpr uword kLocationTagMask = 0x3;
 
   explicit Location(uword value) : value_(value) {}
 

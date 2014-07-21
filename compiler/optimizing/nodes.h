@@ -408,7 +408,7 @@ class HBasicBlock : public ArenaObject {
   DISALLOW_COPY_AND_ASSIGN(HBasicBlock);
 };
 
-#define FOR_EACH_INSTRUCTION(M)                            \
+#define FOR_EACH_CONCRETE_INSTRUCTION(M)                   \
   M(Add)                                                   \
   M(Condition)                                             \
   M(Equal)                                                 \
@@ -440,6 +440,9 @@ class HBasicBlock : public ArenaObject {
   M(NullCheck)                                             \
   M(Temporary)                                             \
 
+#define FOR_EACH_INSTRUCTION(M)                            \
+  FOR_EACH_CONCRETE_INSTRUCTION(M)                         \
+  M(Constant)
 
 #define FORWARD_DECLARATION(type) class H##type;
 FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
@@ -1078,11 +1081,21 @@ class HStoreLocal : public HTemplateInstruction<2> {
   DISALLOW_COPY_AND_ASSIGN(HStoreLocal);
 };
 
+class HConstant : public HExpression<0> {
+ public:
+  explicit HConstant(Primitive::Type type) : HExpression(type) {}
+
+  DECLARE_INSTRUCTION(Constant);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HConstant);
+};
+
 // Constants of the type int. Those can be from Dex instructions, or
 // synthesized (for example with the if-eqz instruction).
-class HIntConstant : public HExpression<0> {
+class HIntConstant : public HConstant {
  public:
-  explicit HIntConstant(int32_t value) : HExpression(Primitive::kPrimInt), value_(value) {}
+  explicit HIntConstant(int32_t value) : HConstant(Primitive::kPrimInt), value_(value) {}
 
   int32_t GetValue() const { return value_; }
 
@@ -1094,13 +1107,11 @@ class HIntConstant : public HExpression<0> {
   DISALLOW_COPY_AND_ASSIGN(HIntConstant);
 };
 
-class HLongConstant : public HExpression<0> {
+class HLongConstant : public HConstant {
  public:
-  explicit HLongConstant(int64_t value) : HExpression(Primitive::kPrimLong), value_(value) {}
+  explicit HLongConstant(int64_t value) : HConstant(Primitive::kPrimLong), value_(value) {}
 
   int64_t GetValue() const { return value_; }
-
-  virtual Primitive::Type GetType() const { return Primitive::kPrimLong; }
 
   DECLARE_INSTRUCTION(LongConstant);
 
@@ -1278,13 +1289,12 @@ class HPhi : public HInstruction {
 
   DECLARE_INSTRUCTION(Phi);
 
- protected:
+ private:
   GrowableArray<HInstruction*> inputs_;
   const uint32_t reg_number_;
   Primitive::Type type_;
   bool is_live_;
 
- private:
   DISALLOW_COPY_AND_ASSIGN(HPhi);
 };
 

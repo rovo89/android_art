@@ -95,8 +95,8 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/register_allocator.cc \
 	optimizing/ssa_builder.cc \
 	optimizing/ssa_liveness_analysis.cc \
-	optimizing/ssa_type_propagation.cc \
 	optimizing/ssa_phi_elimination.cc \
+	optimizing/ssa_type_propagation.cc \
 	trampolines/trampoline_compiler.cc \
 	utils/arena_allocator.cc \
 	utils/arena_bit_vector.cc \
