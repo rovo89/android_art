@@ -1138,7 +1138,7 @@ void Thread::AssertNoPendingExceptionForNewException(const char* msg) const {
   if (UNLIKELY(IsExceptionPending())) {
     ScopedObjectAccess soa(Thread::Current());
     mirror::Throwable* exception = GetException(nullptr);
-    LOG(FATAL) << "Throwing new exception " << msg << " with unexpected pending exception: "
+    LOG(FATAL) << "Throwing new exception '" << msg << "' with unexpected pending exception: "
         << exception->Dump();
   }
 }
