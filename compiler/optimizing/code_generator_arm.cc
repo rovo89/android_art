@@ -378,11 +378,17 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
 }
 
 void CodeGeneratorARM::Move(HInstruction* instruction, Location location, HInstruction* move_for) {
+  LocationSummary* locations = instruction->GetLocations();
+  if (locations != nullptr && locations->Out().Equals(location)) {
+    return;
+  }
+
   if (instruction->AsIntConstant() != nullptr) {
     int32_t value = instruction->AsIntConstant()->GetValue();
     if (location.IsRegister()) {
       __ LoadImmediate(location.AsArm().AsCoreRegister(), value);
     } else {
+      DCHECK(location.IsStackSlot());
       __ LoadImmediate(IP, value);
       __ str(IP, Address(SP, location.GetStackIndex()));
     }
@@ -392,6 +398,7 @@ void CodeGeneratorARM::Move(HInstruction* instruction, Location location, HInstr
       __ LoadImmediate(location.AsArm().AsRegisterPairLow(), Low32Bits(value));
       __ LoadImmediate(location.AsArm().AsRegisterPairHigh(), High32Bits(value));
     } else {
+      DCHECK(location.IsDoubleStackSlot());
       __ LoadImmediate(IP, Low32Bits(value));
       __ str(IP, Address(SP, location.GetStackIndex()));
       __ LoadImmediate(IP, High32Bits(value));
@@ -425,11 +432,11 @@ void CodeGeneratorARM::Move(HInstruction* instruction, Location location, HInstr
       case Primitive::kPrimShort:
       case Primitive::kPrimNot:
       case Primitive::kPrimInt:
-        Move32(location, instruction->GetLocations()->Out());
+        Move32(location, locations->Out());
         break;
 
       case Primitive::kPrimLong:
-        Move64(location, instruction->GetLocations()->Out());
+        Move64(location, locations->Out());
         break;
 
       default:
@@ -479,20 +486,33 @@ void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
   HCondition* condition = cond->AsCondition();
   if (condition->NeedsMaterialization()) {
     // Condition has been materialized, compare the output to 0
-    if (!if_instr->GetLocations()->InAt(0).IsRegister()) {
-      LOG(FATAL) << "Materialized condition is not in an ARM register";
-    }
+    DCHECK(if_instr->GetLocations()->InAt(0).IsRegister());
     __ cmp(if_instr->GetLocations()->InAt(0).AsArm().AsCoreRegister(),
            ShifterOperand(0));
     __ b(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()), EQ);
   } else {
     // Condition has not been materialized, use its inputs as the comparison and its
     // condition as the branch condition.
-    __ cmp(condition->GetLocations()->InAt(0).AsArm().AsCoreRegister(),
-           ShifterOperand(condition->GetLocations()->InAt(1).AsArm().AsCoreRegister()));
+    LocationSummary* locations = condition->GetLocations();
+    if (locations->InAt(1).IsRegister()) {
+      __ cmp(locations->InAt(0).AsArm().AsCoreRegister(),
+             ShifterOperand(locations->InAt(1).AsArm().AsCoreRegister()));
+    } else {
+      DCHECK(locations->InAt(1).IsConstant());
+      int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
+      ShifterOperand operand;
+      if (ShifterOperand::CanHoldArm(value, &operand)) {
+        __ cmp(locations->InAt(0).AsArm().AsCoreRegister(), ShifterOperand(value));
+      } else {
+        Register temp = IP;
+        __ LoadImmediate(temp, value);
+        __ cmp(locations->InAt(0).AsArm().AsCoreRegister(), ShifterOperand(temp));
+      }
+    }
     __ b(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()),
          ARMCondition(condition->GetCondition()));
   }
+
   if (!codegen_->GoesToNextBlock(if_instr->GetBlock(), if_instr->IfFalseSuccessor())) {
     __ b(codegen_->GetLabelOf(if_instr->IfFalseSuccessor()));
   }
@@ -502,7 +522,7 @@ void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
 void LocationsBuilderARM::VisitCondition(HCondition* comp) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(comp);
   locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(comp->InputAt(1)));
   if (comp->NeedsMaterialization()) {
     locations->SetOut(Location::RequiresRegister());
   }
@@ -510,16 +530,29 @@ void LocationsBuilderARM::VisitCondition(HCondition* comp) {
 }
 
 void InstructionCodeGeneratorARM::VisitCondition(HCondition* comp) {
-  if (comp->NeedsMaterialization()) {
-    LocationSummary* locations = comp->GetLocations();
+  if (!comp->NeedsMaterialization()) return;
+
+  LocationSummary* locations = comp->GetLocations();
+  if (locations->InAt(1).IsRegister()) {
     __ cmp(locations->InAt(0).AsArm().AsCoreRegister(),
            ShifterOperand(locations->InAt(1).AsArm().AsCoreRegister()));
-    __ it(ARMCondition(comp->GetCondition()), kItElse);
-    __ mov(locations->Out().AsArm().AsCoreRegister(), ShifterOperand(1),
-           ARMCondition(comp->GetCondition()));
-    __ mov(locations->Out().AsArm().AsCoreRegister(), ShifterOperand(0),
-           ARMOppositeCondition(comp->GetCondition()));
+  } else {
+    DCHECK(locations->InAt(1).IsConstant());
+    int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
+    ShifterOperand operand;
+    if (ShifterOperand::CanHoldArm(value, &operand)) {
+      __ cmp(locations->InAt(0).AsArm().AsCoreRegister(), ShifterOperand(value));
+    } else {
+      Register temp = IP;
+      __ LoadImmediate(temp, value);
+      __ cmp(locations->InAt(0).AsArm().AsCoreRegister(), ShifterOperand(temp));
+    }
   }
+  __ it(ARMCondition(comp->GetCondition()), kItElse);
+  __ mov(locations->Out().AsArm().AsCoreRegister(), ShifterOperand(1),
+         ARMCondition(comp->GetCondition()));
+  __ mov(locations->Out().AsArm().AsCoreRegister(), ShifterOperand(0),
+         ARMOppositeCondition(comp->GetCondition()));
 }
 
 void LocationsBuilderARM::VisitEqual(HEqual* comp) {
@@ -612,20 +645,17 @@ void InstructionCodeGeneratorARM::VisitStoreLocal(HStoreLocal* store) {
 }
 
 void LocationsBuilderARM::VisitIntConstant(HIntConstant* constant) {
-  // TODO: Support constant locations.
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(constant);
-  locations->SetOut(Location::RequiresRegister());
+  locations->SetOut(Location::ConstantLocation(constant));
   constant->SetLocations(locations);
 }
 
 void InstructionCodeGeneratorARM::VisitIntConstant(HIntConstant* constant) {
-  codegen_->Move(constant, constant->GetLocations()->Out(), nullptr);
 }
 
 void LocationsBuilderARM::VisitLongConstant(HLongConstant* constant) {
-  // TODO: Support constant locations.
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(constant);
-  locations->SetOut(Location::RequiresRegister());
+  locations->SetOut(Location::ConstantLocation(constant));
   constant->SetLocations(locations);
 }
 
@@ -762,7 +792,7 @@ void LocationsBuilderARM::VisitAdd(HAdd* add) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(add->InputAt(1)));
       locations->SetOut(Location::RequiresRegister());
       break;
     }
@@ -784,9 +814,15 @@ void InstructionCodeGeneratorARM::VisitAdd(HAdd* add) {
   LocationSummary* locations = add->GetLocations();
   switch (add->GetResultType()) {
     case Primitive::kPrimInt:
-      __ add(locations->Out().AsArm().AsCoreRegister(),
-             locations->InAt(0).AsArm().AsCoreRegister(),
-             ShifterOperand(locations->InAt(1).AsArm().AsCoreRegister()));
+      if (locations->InAt(1).IsRegister()) {
+        __ add(locations->Out().AsArm().AsCoreRegister(),
+               locations->InAt(0).AsArm().AsCoreRegister(),
+               ShifterOperand(locations->InAt(1).AsArm().AsCoreRegister()));
+      } else {
+        __ AddConstant(locations->Out().AsArm().AsCoreRegister(),
+                       locations->InAt(0).AsArm().AsCoreRegister(),
+                       locations->InAt(1).GetConstant()->AsIntConstant()->GetValue());
+      }
       break;
 
     case Primitive::kPrimLong:
@@ -816,7 +852,7 @@ void LocationsBuilderARM::VisitSub(HSub* sub) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(sub->InputAt(1)));
       locations->SetOut(Location::RequiresRegister());
       break;
     }
@@ -837,11 +873,18 @@ void LocationsBuilderARM::VisitSub(HSub* sub) {
 void InstructionCodeGeneratorARM::VisitSub(HSub* sub) {
   LocationSummary* locations = sub->GetLocations();
   switch (sub->GetResultType()) {
-    case Primitive::kPrimInt:
-      __ sub(locations->Out().AsArm().AsCoreRegister(),
-             locations->InAt(0).AsArm().AsCoreRegister(),
-             ShifterOperand(locations->InAt(1).AsArm().AsCoreRegister()));
+    case Primitive::kPrimInt: {
+      if (locations->InAt(1).IsRegister()) {
+        __ sub(locations->Out().AsArm().AsCoreRegister(),
+               locations->InAt(0).AsArm().AsCoreRegister(),
+               ShifterOperand(locations->InAt(1).AsArm().AsCoreRegister()));
+      } else {
+        __ AddConstant(locations->Out().AsArm().AsCoreRegister(),
+                       locations->InAt(0).AsArm().AsCoreRegister(),
+                       -locations->InAt(1).GetConstant()->AsIntConstant()->GetValue());
+      }
       break;
+    }
 
     case Primitive::kPrimLong:
       __ subs(locations->Out().AsArm().AsRegisterPairLow(),
@@ -1161,7 +1204,16 @@ void ParallelMoveResolverARM::EmitMove(size_t index) {
       __ StoreToOffset(kStoreWord, IP, SP, destination.GetStackIndex());
     }
   } else {
-    LOG(FATAL) << "Unimplemented";
+    DCHECK(source.IsConstant());
+    DCHECK(source.GetConstant()->AsIntConstant() != nullptr);
+    int32_t value = source.GetConstant()->AsIntConstant()->GetValue();
+    if (destination.IsRegister()) {
+      __ LoadImmediate(destination.AsArm().AsCoreRegister(), value);
+    } else {
+      DCHECK(destination.IsStackSlot());
+      __ LoadImmediate(IP, value);
+      __ str(IP, Address(SP, destination.GetStackIndex()));
+    }
   }
 }
 

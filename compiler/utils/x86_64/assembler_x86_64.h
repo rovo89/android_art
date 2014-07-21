@@ -385,6 +385,8 @@ class X86_64Assembler FINAL : public Assembler {
   void cmpl(const Address& address, const Immediate& imm);
 
   void cmpq(CpuRegister reg0, CpuRegister reg1);
+  void cmpq(CpuRegister reg0, const Immediate& imm);
+  void cmpq(CpuRegister reg0, const Address& address);
 
   void testl(CpuRegister reg1, CpuRegister reg2);
   void testl(CpuRegister reg, const Immediate& imm);
@@ -408,6 +410,7 @@ class X86_64Assembler FINAL : public Assembler {
 
   void addq(CpuRegister reg, const Immediate& imm);
   void addq(CpuRegister dst, CpuRegister src);
+  void addq(CpuRegister dst, const Address& address);
 
   void subl(CpuRegister dst, CpuRegister src);
   void subl(CpuRegister reg, const Immediate& imm);
@@ -415,6 +418,7 @@ class X86_64Assembler FINAL : public Assembler {
 
   void subq(CpuRegister reg, const Immediate& imm);
   void subq(CpuRegister dst, CpuRegister src);
+  void subq(CpuRegister dst, const Address& address);
 
   void cdq();
 

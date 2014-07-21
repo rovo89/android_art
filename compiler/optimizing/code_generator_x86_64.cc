@@ -329,7 +329,14 @@ void InstructionCodeGeneratorX86_64::VisitIf(HIf* if_instr) {
   } else {
     Location lhs = condition->GetLocations()->InAt(0);
     Location rhs = condition->GetLocations()->InAt(1);
-    __ cmpl(lhs.AsX86_64().AsCpuRegister(), rhs.AsX86_64().AsCpuRegister());
+    if (rhs.IsRegister()) {
+      __ cmpl(lhs.AsX86_64().AsCpuRegister(), rhs.AsX86_64().AsCpuRegister());
+    } else if (rhs.IsConstant()) {
+      __ cmpl(lhs.AsX86_64().AsCpuRegister(),
+              Immediate(rhs.GetConstant()->AsIntConstant()->GetValue()));
+    } else {
+      __ cmpl(lhs.AsX86_64().AsCpuRegister(), Address(CpuRegister(RSP), rhs.GetStackIndex()));
+    }
     __ j(X86_64Condition(condition->GetCondition()),
          codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
   }
@@ -382,7 +389,7 @@ void InstructionCodeGeneratorX86_64::VisitStoreLocal(HStoreLocal* store) {
 void LocationsBuilderX86_64::VisitCondition(HCondition* comp) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(comp);
   locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(1, Location::Any());
   if (comp->NeedsMaterialization()) {
     locations->SetOut(Location::RequiresRegister());
   }
@@ -391,8 +398,17 @@ void LocationsBuilderX86_64::VisitCondition(HCondition* comp) {
 
 void InstructionCodeGeneratorX86_64::VisitCondition(HCondition* comp) {
   if (comp->NeedsMaterialization()) {
-    __ cmpq(comp->GetLocations()->InAt(0).AsX86_64().AsCpuRegister(),
-            comp->GetLocations()->InAt(1).AsX86_64().AsCpuRegister());
+    LocationSummary* locations = comp->GetLocations();
+    if (locations->InAt(1).IsRegister()) {
+      __ cmpq(locations->InAt(0).AsX86_64().AsCpuRegister(),
+              locations->InAt(1).AsX86_64().AsCpuRegister());
+    } else if (locations->InAt(1).IsConstant()) {
+      __ cmpq(locations->InAt(0).AsX86_64().AsCpuRegister(),
+              Immediate(locations->InAt(1).GetConstant()->AsIntConstant()->GetValue()));
+    } else {
+      __ cmpq(locations->InAt(0).AsX86_64().AsCpuRegister(),
+              Address(CpuRegister(RSP), locations->InAt(1).GetStackIndex()));
+    }
     __ setcc(X86_64Condition(comp->GetCondition()),
              comp->GetLocations()->Out().AsX86_64().AsCpuRegister());
   }
@@ -480,25 +496,21 @@ void InstructionCodeGeneratorX86_64::VisitCompare(HCompare* compare) {
 }
 
 void LocationsBuilderX86_64::VisitIntConstant(HIntConstant* constant) {
-  // TODO: Support constant locations.
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(constant);
-  locations->SetOut(Location::RequiresRegister());
+  locations->SetOut(Location::ConstantLocation(constant));
   constant->SetLocations(locations);
 }
 
 void InstructionCodeGeneratorX86_64::VisitIntConstant(HIntConstant* constant) {
-  codegen_->Move(constant, constant->GetLocations()->Out(), nullptr);
 }
 
 void LocationsBuilderX86_64::VisitLongConstant(HLongConstant* constant) {
-  // TODO: Support constant locations.
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(constant);
-  locations->SetOut(Location::RequiresRegister());
+  locations->SetOut(Location::ConstantLocation(constant));
   constant->SetLocations(locations);
 }
 
 void InstructionCodeGeneratorX86_64::VisitLongConstant(HLongConstant* constant) {
-  codegen_->Move(constant, constant->GetLocations()->Out(), nullptr);
 }
 
 void LocationsBuilderX86_64::VisitReturnVoid(HReturnVoid* ret) {
@@ -666,7 +678,12 @@ void InstructionCodeGeneratorX86_64::VisitInvokeStatic(HInvokeStatic* invoke) {
 void LocationsBuilderX86_64::VisitAdd(HAdd* add) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(add);
   switch (add->GetResultType()) {
-    case Primitive::kPrimInt:
+    case Primitive::kPrimInt: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::Any());
+      locations->SetOut(Location::SameAsFirstInput());
+      break;
+    }
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RequiresRegister());
@@ -693,8 +710,17 @@ void InstructionCodeGeneratorX86_64::VisitAdd(HAdd* add) {
             locations->Out().AsX86_64().AsCpuRegister().AsRegister());
   switch (add->GetResultType()) {
     case Primitive::kPrimInt: {
-      __ addl(locations->InAt(0).AsX86_64().AsCpuRegister(),
-              locations->InAt(1).AsX86_64().AsCpuRegister());
+      if (locations->InAt(1).IsRegister()) {
+        __ addl(locations->InAt(0).AsX86_64().AsCpuRegister(),
+                locations->InAt(1).AsX86_64().AsCpuRegister());
+      } else if (locations->InAt(1).IsConstant()) {
+        HConstant* instruction = locations->InAt(1).GetConstant();
+        Immediate imm(instruction->AsIntConstant()->GetValue());
+        __ addl(locations->InAt(0).AsX86_64().AsCpuRegister(), imm);
+      } else {
+        __ addl(locations->InAt(0).AsX86_64().AsCpuRegister(),
+                Address(CpuRegister(RSP), locations->InAt(1).GetStackIndex()));
+      }
       break;
     }
     case Primitive::kPrimLong: {
@@ -718,7 +744,12 @@ void InstructionCodeGeneratorX86_64::VisitAdd(HAdd* add) {
 void LocationsBuilderX86_64::VisitSub(HSub* sub) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(sub);
   switch (sub->GetResultType()) {
-    case Primitive::kPrimInt:
+    case Primitive::kPrimInt: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::Any());
+      locations->SetOut(Location::SameAsFirstInput());
+      break;
+    }
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RequiresRegister());
@@ -745,8 +776,17 @@ void InstructionCodeGeneratorX86_64::VisitSub(HSub* sub) {
             locations->Out().AsX86_64().AsCpuRegister().AsRegister());
   switch (sub->GetResultType()) {
     case Primitive::kPrimInt: {
-      __ subl(locations->InAt(0).AsX86_64().AsCpuRegister(),
-              locations->InAt(1).AsX86_64().AsCpuRegister());
+      if (locations->InAt(1).IsRegister()) {
+        __ subl(locations->InAt(0).AsX86_64().AsCpuRegister(),
+                locations->InAt(1).AsX86_64().AsCpuRegister());
+      } else if (locations->InAt(1).IsConstant()) {
+        HConstant* instruction = locations->InAt(1).GetConstant();
+        Immediate imm(instruction->AsIntConstant()->GetValue());
+        __ subl(locations->InAt(0).AsX86_64().AsCpuRegister(), imm);
+      } else {
+        __ subl(locations->InAt(0).AsX86_64().AsCpuRegister(),
+                Address(CpuRegister(RSP), locations->InAt(1).GetStackIndex()));
+      }
       break;
     }
     case Primitive::kPrimLong: {
@@ -1007,6 +1047,26 @@ void ParallelMoveResolverX86_64::EmitMove(size_t index) {
       DCHECK(destination.IsDoubleStackSlot());
       __ movq(CpuRegister(TMP), Address(CpuRegister(RSP), source.GetStackIndex()));
       __ movq(Address(CpuRegister(RSP), destination.GetStackIndex()), CpuRegister(TMP));
+    }
+  } else if (source.IsConstant()) {
+    HConstant* constant = source.GetConstant();
+    if (constant->IsIntConstant()) {
+      Immediate imm(constant->AsIntConstant()->GetValue());
+      if (destination.IsRegister()) {
+        __ movl(destination.AsX86_64().AsCpuRegister(), imm);
+      } else {
+        __ movl(Address(CpuRegister(RSP), destination.GetStackIndex()), imm);
+      }
+    } else if (constant->IsLongConstant()) {
+      int64_t value = constant->AsLongConstant()->GetValue();
+      if (destination.IsRegister()) {
+        __ movq(destination.AsX86_64().AsCpuRegister(), Immediate(value));
+      } else {
+        __ movq(CpuRegister(TMP), Immediate(value));
+        __ movq(Address(CpuRegister(RSP), destination.GetStackIndex()), CpuRegister(TMP));
+      }
+    } else {
+      LOG(FATAL) << "Unimplemented constant type";
     }
   } else {
     LOG(FATAL) << "Unimplemented";
