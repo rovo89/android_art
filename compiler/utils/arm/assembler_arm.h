@@ -35,9 +35,7 @@ class ShifterOperand {
       is_rotate_(false), is_shift_(false), shift_(kNoShift), rotate_(0), immed_(0) {
   }
 
-  explicit ShifterOperand(uint32_t immed) : type_(kImmediate), rm_(kNoRegister), rs_(kNoRegister),
-      is_rotate_(false), is_shift_(false), shift_(kNoShift), rotate_(0), immed_(immed) {
-  }
+  explicit ShifterOperand(uint32_t immed);
 
   // Data-processing operands - Register
   explicit ShifterOperand(Register rm) : type_(kRegister), rm_(rm), rs_(kNoRegister),

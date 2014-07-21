@@ -29,4 +29,11 @@ LocationSummary::LocationSummary(HInstruction* instruction)
   }
 }
 
+
+Location Location::RegisterOrConstant(HInstruction* instruction) {
+  return instruction->IsConstant()
+      ? Location::ConstantLocation(instruction->AsConstant())
+      : Location::RequiresRegister();
+}
+
 }  // namespace art

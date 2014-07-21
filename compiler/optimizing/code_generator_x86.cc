@@ -473,6 +473,10 @@ void InstructionCodeGeneratorX86::VisitIf(HIf* if_instr) {
     // LHS is guaranteed to be in a register (see LocationsBuilderX86::VisitCondition).
     if (rhs.IsRegister()) {
       __ cmpl(lhs.AsX86().AsCpuRegister(), rhs.AsX86().AsCpuRegister());
+    } else if (rhs.IsConstant()) {
+      HIntConstant* instruction = rhs.GetConstant()->AsIntConstant();
+      Immediate imm(instruction->AsIntConstant()->GetValue());
+      __ cmpl(lhs.AsX86().AsCpuRegister(), imm);
     } else {
       __ cmpl(lhs.AsX86().AsCpuRegister(), Address(ESP, rhs.GetStackIndex()));
     }
@@ -530,7 +534,7 @@ void LocationsBuilderX86::VisitCondition(HCondition* comp) {
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::Any());
   if (comp->NeedsMaterialization()) {
-    locations->SetOut(Location::SameAsFirstInput());
+    locations->SetOut(Location::RequiresRegister());
   }
   comp->SetLocations(locations);
 }
@@ -541,6 +545,10 @@ void InstructionCodeGeneratorX86::VisitCondition(HCondition* comp) {
     if (locations->InAt(1).IsRegister()) {
       __ cmpl(locations->InAt(0).AsX86().AsCpuRegister(),
               locations->InAt(1).AsX86().AsCpuRegister());
+    } else if (locations->InAt(1).IsConstant()) {
+      HConstant* instruction = locations->InAt(1).GetConstant();
+      Immediate imm(instruction->AsIntConstant()->GetValue());
+      __ cmpl(locations->InAt(0).AsX86().AsCpuRegister(), imm);
     } else {
       __ cmpl(locations->InAt(0).AsX86().AsCpuRegister(),
               Address(ESP, locations->InAt(1).GetStackIndex()));
@@ -598,20 +606,17 @@ void InstructionCodeGeneratorX86::VisitGreaterThanOrEqual(HGreaterThanOrEqual* c
 }
 
 void LocationsBuilderX86::VisitIntConstant(HIntConstant* constant) {
-  // TODO: Support constant locations.
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(constant);
-  locations->SetOut(Location::RequiresRegister());
+  locations->SetOut(Location::ConstantLocation(constant));
   constant->SetLocations(locations);
 }
 
 void InstructionCodeGeneratorX86::VisitIntConstant(HIntConstant* constant) {
-  codegen_->Move(constant, constant->GetLocations()->Out(), nullptr);
 }
 
 void LocationsBuilderX86::VisitLongConstant(HLongConstant* constant) {
-  // TODO: Support constant locations.
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(constant);
-  locations->SetOut(Location::RequiresRegister());
+  locations->SetOut(Location::ConstantLocation(constant));
   constant->SetLocations(locations);
 }
 
@@ -769,6 +774,10 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
       if (locations->InAt(1).IsRegister()) {
         __ addl(locations->InAt(0).AsX86().AsCpuRegister(),
                 locations->InAt(1).AsX86().AsCpuRegister());
+      } else if (locations->InAt(1).IsConstant()) {
+        HConstant* instruction = locations->InAt(1).GetConstant();
+        Immediate imm(instruction->AsIntConstant()->GetValue());
+        __ addl(locations->InAt(0).AsX86().AsCpuRegister(), imm);
       } else {
         __ addl(locations->InAt(0).AsX86().AsCpuRegister(),
                 Address(ESP, locations->InAt(1).GetStackIndex()));
@@ -838,6 +847,10 @@ void InstructionCodeGeneratorX86::VisitSub(HSub* sub) {
       if (locations->InAt(1).IsRegister()) {
         __ subl(locations->InAt(0).AsX86().AsCpuRegister(),
                 locations->InAt(1).AsX86().AsCpuRegister());
+      } else if (locations->InAt(1).IsConstant()) {
+        HConstant* instruction = locations->InAt(1).GetConstant();
+        Immediate imm(instruction->AsIntConstant()->GetValue());
+        __ subl(locations->InAt(0).AsX86().AsCpuRegister(), imm);
       } else {
         __ subl(locations->InAt(0).AsX86().AsCpuRegister(),
                 Address(ESP, locations->InAt(1).GetStackIndex()));
@@ -1177,6 +1190,14 @@ void ParallelMoveResolverX86::EmitMove(size_t index) {
       DCHECK(destination.IsStackSlot());
       MoveMemoryToMemory(destination.GetStackIndex(),
                          source.GetStackIndex());
+    }
+  } else if (source.IsConstant()) {
+    HIntConstant* instruction = source.GetConstant()->AsIntConstant();
+    Immediate imm(instruction->AsIntConstant()->GetValue());
+    if (destination.IsRegister()) {
+      __ movl(destination.AsX86().AsCpuRegister(), imm);
+    } else {
+      __ movl(Address(ESP, destination.GetStackIndex()), imm);
     }
   } else {
     LOG(FATAL) << "Unimplemented";

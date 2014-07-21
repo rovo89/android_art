@@ -869,6 +869,22 @@ void X86_64Assembler::cmpq(CpuRegister reg0, CpuRegister reg1) {
 }
 
 
+void X86_64Assembler::cmpq(CpuRegister reg, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  CHECK(imm.is_int32());  // cmpq only supports 32b immediate.
+  EmitRex64(reg);
+  EmitComplex(7, Operand(reg), imm);
+}
+
+
+void X86_64Assembler::cmpq(CpuRegister reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(reg);
+  EmitUint8(0x3B);
+  EmitOperand(reg.LowBits(), address);
+}
+
+
 void X86_64Assembler::addl(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(dst, src);
@@ -1063,6 +1079,14 @@ void X86_64Assembler::addq(CpuRegister reg, const Immediate& imm) {
 }
 
 
+void X86_64Assembler::addq(CpuRegister dst, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(dst);
+  EmitUint8(0x03);
+  EmitOperand(dst.LowBits(), address);
+}
+
+
 void X86_64Assembler::addq(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   // 0x01 is addq r/m64 <- r/m64 + r64, with op1 in r/m and op2 in reg: so reverse EmitRex64
@@ -1115,6 +1139,14 @@ void X86_64Assembler::subq(CpuRegister dst, CpuRegister src) {
   EmitRex64(dst, src);
   EmitUint8(0x2B);
   EmitRegisterOperand(dst.LowBits(), src.LowBits());
+}
+
+
+void X86_64Assembler::subq(CpuRegister reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(reg);
+  EmitUint8(0x2B);
+  EmitOperand(reg.LowBits() & 7, address);
 }
 
 
