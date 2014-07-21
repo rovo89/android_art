@@ -75,6 +75,16 @@ public class Main {
     if (m.$opt$TestReturnNewObject(m) == m) {
       throw new Error("Unexpected value returned");
     }
+
+    // Loop enough iterations to hope for a crash if no write barrier
+    // is emitted.
+    for (int j = 0; j < 3; j++) {
+      Main m1 = new Main();
+      $opt$SetFieldInOldObject(m1);
+      for (int i = 0; i < 1000; ++i) {
+        Object o = new byte[1024];
+      }
+    }
   }
 
   static int $opt$TestInvokeIntParameter(int param) {
@@ -169,4 +179,10 @@ public class Main {
   public static void throwStaticMethod() {
     throw new Error("Error");
   }
+
+  public static void $opt$SetFieldInOldObject(Main m) {
+    m.o = new Main();
+  }
+
+  Object o;
 }

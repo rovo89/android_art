@@ -1376,13 +1376,23 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
       }
 
       if (must_be_32bit) {
-        int32_t encoding = 0x1f << 27 | B22 | (load ? B20 : 0) | static_cast<uint32_t>(rd) << 12 |
+        int32_t encoding = 0x1f << 27 | (load ? B20 : 0) | static_cast<uint32_t>(rd) << 12 |
             ad.encodingThumb(true);
+        if (half) {
+          encoding |= B21;
+        } else if (!byte) {
+          encoding |= B22;
+        }
         Emit32(encoding);
       } else {
         // 16 bit register offset.
         int32_t encoding = B14 | B12 | (load ? B11 : 0) | static_cast<uint32_t>(rd) |
             ad.encodingThumb(false);
+        if (byte) {
+          encoding |= B10;
+        } else if (half) {
+          encoding |= B9;
+        }
         Emit16(encoding);
       }
     }
@@ -2513,12 +2523,22 @@ void Thumb2Assembler::MemoryBarrier(ManagedRegister mscratch) {
 
 
 void Thumb2Assembler::CompareAndBranchIfZero(Register r, Label* label) {
-  cbz(r, label);
+  if (force_32bit_branches_) {
+    cmp(r, ShifterOperand(0));
+    b(label, EQ);
+  } else {
+    cbz(r, label);
+  }
 }
 
 
 void Thumb2Assembler::CompareAndBranchIfNonZero(Register r, Label* label) {
-  cbnz(r, label);
+  if (force_32bit_branches_) {
+    cmp(r, ShifterOperand(0));
+    b(label, NE);
+  } else {
+    cbnz(r, label);
+  }
 }
 }  // namespace arm
 }  // namespace art
