@@ -21,6 +21,7 @@
 #include <stdio.h>
 
 #include <iosfwd>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
