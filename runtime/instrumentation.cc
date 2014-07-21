@@ -519,7 +519,7 @@ void Instrumentation::ConfigureStubs(bool require_entry_exit_stubs, bool require
     bool empty;
     {
       ReaderMutexLock mu(self, deoptimized_methods_lock_);
-      empty = deoptimized_methods_.empty();  // Avoid lock violation.
+      empty = IsDeoptimizedMethodsEmpty();  // Avoid lock violation.
     }
     if (empty) {
       instrumentation_stubs_installed_ = false;
@@ -580,7 +580,7 @@ void Instrumentation::ResetQuickAllocEntryPoints() {
 }
 
 void Instrumentation::UpdateMethodsCode(mirror::ArtMethod* method, const void* quick_code,
-                                        const void* portable_code, bool have_portable_code) const {
+                                        const void* portable_code, bool have_portable_code) {
   const void* new_portable_code;
   const void* new_quick_code;
   bool new_have_portable_code;
@@ -617,20 +617,77 @@ void Instrumentation::UpdateMethodsCode(mirror::ArtMethod* method, const void* q
   UpdateEntrypoints(method, new_quick_code, new_portable_code, new_have_portable_code);
 }
 
+bool Instrumentation::AddDeoptimizedMethod(mirror::ArtMethod* method) {
+  // Note that the insert() below isn't read barrier-aware. So, this
+  // FindDeoptimizedMethod() call is necessary or else we would end up
+  // storing the same method twice in the map (the from-space and the
+  // to-space ones).
+  if (FindDeoptimizedMethod(method)) {
+    // Already in the map. Return.
+    return false;
+  }
+  // Not found. Add it.
+  int32_t hash_code = method->IdentityHashCode();
+  deoptimized_methods_.insert(std::make_pair(hash_code, method));
+  return true;
+}
+
+bool Instrumentation::FindDeoptimizedMethod(mirror::ArtMethod* method) {
+  int32_t hash_code = method->IdentityHashCode();
+  auto range = deoptimized_methods_.equal_range(hash_code);
+  for (auto it = range.first; it != range.second; ++it) {
+    mirror::ArtMethod** root = &it->second;
+    mirror::ArtMethod* m = ReadBarrier::BarrierForRoot<mirror::ArtMethod>(root);
+    if (m == method) {
+      // Found.
+      return true;
+    }
+  }
+  // Not found.
+  return false;
+}
+
+mirror::ArtMethod* Instrumentation::BeginDeoptimizedMethod() {
+  auto it = deoptimized_methods_.begin();
+  if (it == deoptimized_methods_.end()) {
+    // Empty.
+    return nullptr;
+  }
+  mirror::ArtMethod** root = &it->second;
+  return ReadBarrier::BarrierForRoot<mirror::ArtMethod>(root);
+}
+
+bool Instrumentation::RemoveDeoptimizedMethod(mirror::ArtMethod* method) {
+  int32_t hash_code = method->IdentityHashCode();
+  auto range = deoptimized_methods_.equal_range(hash_code);
+  for (auto it = range.first; it != range.second; ++it) {
+    mirror::ArtMethod** root = &it->second;
+    mirror::ArtMethod* m = ReadBarrier::BarrierForRoot<mirror::ArtMethod>(root);
+    if (m == method) {
+      // Found. Erase and return.
+      deoptimized_methods_.erase(it);
+      return true;
+    }
+  }
+  // Not found.
+  return false;
+}
+
+bool Instrumentation::IsDeoptimizedMethodsEmpty() const {
+  return deoptimized_methods_.empty();
+}
+
 void Instrumentation::Deoptimize(mirror::ArtMethod* method) {
   CHECK(!method->IsNative());
   CHECK(!method->IsProxyMethod());
   CHECK(!method->IsAbstract());
 
   Thread* self = Thread::Current();
-  std::pair<std::set<mirror::ArtMethod*>::iterator, bool> pair;
   {
     WriterMutexLock mu(self, deoptimized_methods_lock_);
-    pair = deoptimized_methods_.insert(method);
+    bool has_not_been_deoptimized = AddDeoptimizedMethod(method);
+    CHECK(has_not_been_deoptimized) << "Method " << PrettyMethod(method) << " is already deoptimized";
   }
-  bool already_deoptimized = !pair.second;
-  CHECK(!already_deoptimized) << "Method " << PrettyMethod(method) << " is already deoptimized";
-
   if (!interpreter_stubs_installed_) {
     UpdateEntrypoints(method, GetQuickInstrumentationEntryPoint(), GetPortableToInterpreterBridge(),
                       false);
@@ -652,11 +709,10 @@ void Instrumentation::Undeoptimize(mirror::ArtMethod* method) {
   bool empty;
   {
     WriterMutexLock mu(self, deoptimized_methods_lock_);
-    auto it = deoptimized_methods_.find(method);
-    CHECK(it != deoptimized_methods_.end()) << "Method " << PrettyMethod(method)
+    bool found_and_erased = RemoveDeoptimizedMethod(method);
+    CHECK(found_and_erased) << "Method " << PrettyMethod(method)
         << " is not deoptimized";
-    deoptimized_methods_.erase(it);
-    empty = deoptimized_methods_.empty();
+    empty = IsDeoptimizedMethodsEmpty();
   }
 
   // Restore code and possibly stack only if we did not deoptimize everything.
@@ -684,15 +740,15 @@ void Instrumentation::Undeoptimize(mirror::ArtMethod* method) {
   }
 }
 
-bool Instrumentation::IsDeoptimized(mirror::ArtMethod* method) const {
-  ReaderMutexLock mu(Thread::Current(), deoptimized_methods_lock_);
+bool Instrumentation::IsDeoptimized(mirror::ArtMethod* method) {
   DCHECK(method != nullptr);
-  return deoptimized_methods_.find(method) != deoptimized_methods_.end();
+  ReaderMutexLock mu(Thread::Current(), deoptimized_methods_lock_);
+  return FindDeoptimizedMethod(method);
 }
 
 void Instrumentation::EnableDeoptimization() {
   ReaderMutexLock mu(Thread::Current(), deoptimized_methods_lock_);
-  CHECK(deoptimized_methods_.empty());
+  CHECK(IsDeoptimizedMethodsEmpty());
   CHECK_EQ(deoptimization_enabled_, false);
   deoptimization_enabled_ = true;
 }
@@ -708,10 +764,11 @@ void Instrumentation::DisableDeoptimization() {
     mirror::ArtMethod* method;
     {
       ReaderMutexLock mu(Thread::Current(), deoptimized_methods_lock_);
-      if (deoptimized_methods_.empty()) {
+      if (IsDeoptimizedMethodsEmpty()) {
         break;
       }
-      method = *deoptimized_methods_.begin();
+      method = BeginDeoptimizedMethod();
+      CHECK(method != nullptr);
     }
     Undeoptimize(method);
   }
@@ -963,16 +1020,13 @@ void Instrumentation::PopMethodForUnwind(Thread* self, bool is_deoptimization) c
 
 void Instrumentation::VisitRoots(RootCallback* callback, void* arg) {
   WriterMutexLock mu(Thread::Current(), deoptimized_methods_lock_);
-  if (deoptimized_methods_.empty()) {
+  if (IsDeoptimizedMethodsEmpty()) {
     return;
   }
-  std::set<mirror::ArtMethod*> new_deoptimized_methods;
-  for (mirror::ArtMethod* method : deoptimized_methods_) {
-    DCHECK(method != nullptr);
-    callback(reinterpret_cast<mirror::Object**>(&method), arg, 0, kRootVMInternal);
-    new_deoptimized_methods.insert(method);
+  for (auto pair : deoptimized_methods_) {
+    mirror::ArtMethod** root = &pair.second;
+    callback(reinterpret_cast<mirror::Object**>(root), arg, 0, kRootVMInternal);
   }
-  deoptimized_methods_ = new_deoptimized_methods;
 }
 
 std::string InstrumentationStackFrame::Dump() const {
