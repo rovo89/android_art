@@ -71,7 +71,10 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
     jthrowable cnfe = reinterpret_cast<jthrowable>(env->NewObject(WellKnownClasses::java_lang_ClassNotFoundException,
                                                                   WellKnownClasses::java_lang_ClassNotFoundException_init,
                                                                   javaName, cause.get()));
-    env->Throw(cnfe);
+    if (cnfe != nullptr) {
+      // Make sure allocation didn't fail with an OOME.
+      env->Throw(cnfe);
+    }
     return nullptr;
   }
   if (initialize) {
