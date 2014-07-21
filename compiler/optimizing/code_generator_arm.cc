@@ -17,6 +17,7 @@
 #include "code_generator_arm.h"
 
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "gc/accounting/card_table.h"
 #include "mirror/array.h"
 #include "mirror/art_method.h"
 #include "thread.h"
@@ -1032,6 +1033,11 @@ void LocationsBuilderARM::VisitInstanceFieldSet(HInstanceFieldSet* instruction) 
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
+  // Temporary registers for the write barrier.
+  if (instruction->InputAt(1)->GetType() == Primitive::kPrimNot) {
+    locations->AddTemp(Location::RequiresRegister());
+    locations->AddTemp(Location::RequiresRegister());
+  }
   instruction->SetLocations(locations);
 }
 
@@ -1056,10 +1062,24 @@ void InstructionCodeGeneratorARM::VisitInstanceFieldSet(HInstanceFieldSet* instr
       break;
     }
 
-    case Primitive::kPrimInt:
+    case Primitive::kPrimInt: {
+      Register value = locations->InAt(1).AsArm().AsCoreRegister();
+      __ StoreToOffset(kStoreWord, value, obj, offset);
+      break;
+    }
+
     case Primitive::kPrimNot: {
       Register value = locations->InAt(1).AsArm().AsCoreRegister();
       __ StoreToOffset(kStoreWord, value, obj, offset);
+
+      Register temp = locations->GetTemp(0).AsArm().AsCoreRegister();
+      Register card = locations->GetTemp(1).AsArm().AsCoreRegister();
+      Label is_null;
+      __ CompareAndBranchIfZero(value, &is_null);
+      __ LoadFromOffset(kLoadWord, card, TR, Thread::CardTableOffset<kArmWordSize>().Int32Value());
+      __ Lsr(temp, obj, gc::accounting::CardTable::kCardShift);
+      __ strb(card, Address(card, temp));
+      __ Bind(&is_null);
       break;
     }
 
