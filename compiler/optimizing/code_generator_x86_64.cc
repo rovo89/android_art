@@ -17,6 +17,7 @@
 #include "code_generator_x86_64.h"
 
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "gc/accounting/card_table.h"
 #include "mirror/array.h"
 #include "mirror/art_method.h"
 #include "mirror/object_reference.h"
@@ -871,6 +872,11 @@ void LocationsBuilderX86_64::VisitInstanceFieldSet(HInstanceFieldSet* instructio
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
+  // Temporary registers for the write barrier.
+  if (instruction->InputAt(1)->GetType() == Primitive::kPrimNot) {
+    locations->AddTemp(Location::RequiresRegister());
+    locations->AddTemp(Location::RequiresRegister());
+  }
   instruction->SetLocations(locations);
 }
 
@@ -894,9 +900,24 @@ void InstructionCodeGeneratorX86_64::VisitInstanceFieldSet(HInstanceFieldSet* in
       break;
     }
 
-    case Primitive::kPrimInt:
+    case Primitive::kPrimInt: {
+      __ movl(Address(obj, offset), value);
+      break;
+    }
+
     case Primitive::kPrimNot: {
       __ movl(Address(obj, offset), value);
+      Label is_null;
+      CpuRegister temp = locations->GetTemp(0).AsX86_64().AsCpuRegister();
+      CpuRegister card = locations->GetTemp(1).AsX86_64().AsCpuRegister();
+      __ testl(value, value);
+      __ j(kEqual, &is_null);
+      __ gs()->movq(card, Address::Absolute(
+          Thread::CardTableOffset<kX86_64WordSize>().Int32Value(), true));
+      __ movq(temp, obj);
+      __ shrq(temp, Immediate(gc::accounting::CardTable::kCardShift));
+      __ movb(Address(temp, card, TIMES_1, 0),  card);
+      __ Bind(&is_null);
       break;
     }
 

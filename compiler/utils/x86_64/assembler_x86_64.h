@@ -441,6 +441,8 @@ class X86_64Assembler FINAL : public Assembler {
   void sarl(CpuRegister reg, const Immediate& imm);
   void sarl(CpuRegister operand, CpuRegister shifter);
 
+  void shrq(CpuRegister reg, const Immediate& imm);
+
   void negl(CpuRegister reg);
   void notl(CpuRegister reg);
 
@@ -626,7 +628,7 @@ class X86_64Assembler FINAL : public Assembler {
   void EmitLabelLink(Label* label);
   void EmitNearLabelLink(Label* label);
 
-  void EmitGenericShift(int rm, CpuRegister reg, const Immediate& imm);
+  void EmitGenericShift(bool wide, int rm, CpuRegister reg, const Immediate& imm);
   void EmitGenericShift(int rm, CpuRegister operand, CpuRegister shifter);
 
   // If any input is not false, output the necessary rex prefix.

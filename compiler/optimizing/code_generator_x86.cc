@@ -15,6 +15,7 @@
  */
 
 #include "code_generator_x86.h"
+#include "gc/accounting/card_table.h"
 #include "utils/assembler.h"
 #include "utils/x86/assembler_x86.h"
 #include "utils/x86/managed_register_x86.h"
@@ -1009,6 +1010,12 @@ void LocationsBuilderX86::VisitInstanceFieldSet(HInstanceFieldSet* instruction) 
   } else {
     locations->SetInAt(1, Location::RequiresRegister());
   }
+  // Temporary registers for the write barrier.
+  if (instruction->InputAt(1)->GetType() == Primitive::kPrimNot) {
+    locations->AddTemp(Location::RequiresRegister());
+    // Ensure the card is in a byte register.
+    locations->AddTemp(X86CpuLocation(ECX));
+  }
   instruction->SetLocations(locations);
 }
 
@@ -1033,10 +1040,25 @@ void InstructionCodeGeneratorX86::VisitInstanceFieldSet(HInstanceFieldSet* instr
       break;
     }
 
-    case Primitive::kPrimInt:
+    case Primitive::kPrimInt: {
+      Register value = locations->InAt(1).AsX86().AsCpuRegister();
+      __ movl(Address(obj, offset), value);
+      break;
+    }
+
     case Primitive::kPrimNot: {
       Register value = locations->InAt(1).AsX86().AsCpuRegister();
       __ movl(Address(obj, offset), value);
+      Label is_null;
+      Register temp = locations->GetTemp(0).AsX86().AsCpuRegister();
+      Register card = locations->GetTemp(1).AsX86().AsCpuRegister();
+      __ testl(value, value);
+      __ j(kEqual, &is_null);
+      __ fs()->movl(card, Address::Absolute(Thread::CardTableOffset<kX86WordSize>().Int32Value()));
+      __ movl(temp, obj);
+      __ shrl(temp, Immediate(gc::accounting::CardTable::kCardShift));
+      __ movb(Address(temp, card, TIMES_1, 0),  locations->GetTemp(1).AsX86().AsByteRegister());
+      __ Bind(&is_null);
       break;
     }
 
