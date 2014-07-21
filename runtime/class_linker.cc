@@ -1658,23 +1658,24 @@ mirror::Class* ClassLinker::DefineClass(const char* descriptor,
     // size when the class becomes resolved.
     klass.Assign(AllocClass(self, SizeOfClassWithoutEmbeddedTables(dex_file, dex_class_def)));
   }
-  if (UNLIKELY(klass.Get() == NULL)) {
+  if (UNLIKELY(klass.Get() == nullptr)) {
     CHECK(self->IsExceptionPending());  // Expect an OOME.
-    return NULL;
+    return nullptr;
   }
   klass->SetDexCache(FindDexCache(dex_file));
   LoadClass(dex_file, dex_class_def, klass, class_loader.Get());
-  // Check for a pending exception during load
-  if (self->IsExceptionPending()) {
-    klass->SetStatus(mirror::Class::kStatusError, self);
-    return NULL;
-  }
   ObjectLock<mirror::Class> lock(self, klass);
+  if (self->IsExceptionPending()) {
+    // An exception occured during load, set status to erroneous while holding klass' lock in case
+    // notification is necessary.
+    klass->SetStatus(mirror::Class::kStatusError, self);
+    return nullptr;
+  }
   klass->SetClinitThreadId(self->GetTid());
 
   // Add the newly loaded class to the loaded classes table.
   mirror::Class* existing = InsertClass(descriptor, klass.Get(), Hash(descriptor));
-  if (existing != NULL) {
+  if (existing != nullptr) {
     // We failed to insert because we raced with another thread. Calling EnsureResolved may cause
     // this thread to block.
     return EnsureResolved(self, descriptor, existing);
@@ -1685,7 +1686,7 @@ mirror::Class* ClassLinker::DefineClass(const char* descriptor,
   if (!LoadSuperAndInterfaces(klass, dex_file)) {
     // Loading failed.
     klass->SetStatus(mirror::Class::kStatusError, self);
-    return NULL;
+    return nullptr;
   }
   CHECK(klass->IsLoaded());
   // Link the class (if necessary)
@@ -1697,7 +1698,7 @@ mirror::Class* ClassLinker::DefineClass(const char* descriptor,
   if (!LinkClass(self, descriptor, klass, interfaces, &new_class)) {
     // Linking failed.
     klass->SetStatus(mirror::Class::kStatusError, self);
-    return NULL;
+    return nullptr;
   }
   CHECK(new_class != nullptr) << descriptor;
   CHECK(new_class->IsResolved()) << descriptor;
