@@ -571,7 +571,8 @@ class ClassLinker {
   const OatFile* FindOatFileContainingDexFileFromDexLocation(const char* location,
                                                              const uint32_t* const location_checksum,
                                                              InstructionSet isa,
-                                                             std::vector<std::string>* error_msgs)
+                                                             std::vector<std::string>* error_msgs,
+                                                             bool* obsolete_file_cleanup_failed)
       LOCKS_EXCLUDED(dex_lock_, Locks::mutator_lock_);
 
   // Find a verify an oat file with the given dex file. Will return nullptr when the oat file
