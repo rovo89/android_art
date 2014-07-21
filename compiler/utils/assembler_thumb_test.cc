@@ -116,7 +116,7 @@ std::string GetAndroidToolsDir() {
     std::string subdir = toolsdir + std::string("/") + std::string(entry->d_name);
     size_t eabi = subdir.find(TOOL_PREFIX);
     if (eabi != std::string::npos) {
-      std::string suffix = subdir.substr(eabi + sizeof(TOOL_PREFIX));
+      std::string suffix = subdir.substr(eabi + strlen(TOOL_PREFIX));
       double version = strtod(suffix.c_str(), nullptr);
       if (version > maxversion) {
         maxversion = version;
