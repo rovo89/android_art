@@ -80,7 +80,7 @@ define ART_TEST_PREREQ_FINISHED
         && (echo -e "\e[93mSKIPPED TESTS\e[0m" && ls -1 $(ART_HOST_TEST_DIR)/skipped/) \
         || (echo -e "\e[92mNO TESTS SKIPPED\e[0m")) && \
       ([ -d $(ART_HOST_TEST_DIR)/failed/ ] \
-        && (echo -e "\e[91mFAILING TESTS\e[0m" && ls -1 $(ART_HOST_TEST_DIR)/failed/) \
+        && (echo -e "\e[91mFAILING TESTS\e[0m" >&2 && ls -1 $(ART_HOST_TEST_DIR)/failed/ >&2) \
         || (echo -e "\e[92mNO TESTS FAILED\e[0m")) \
       && ([ ! -d $(ART_HOST_TEST_DIR)/failed/ ] && rm -r $(ART_HOST_TEST_DIR) \
           || (rm -r $(ART_HOST_TEST_DIR) && false)))))
