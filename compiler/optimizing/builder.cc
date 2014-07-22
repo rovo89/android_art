@@ -34,6 +34,37 @@
 
 namespace art {
 
+/**
+ * Helper class to add HTemporary instructions. This class is used when
+ * converting a DEX instruction to multiple HInstruction, and where those
+ * instructions do not die at the following instruction, but instead spans
+ * multiple instructions.
+ */
+class Temporaries : public ValueObject {
+ public:
+  Temporaries(HGraph* graph, size_t count) : graph_(graph), count_(count), index_(0) {
+    graph_->UpdateNumberOfTemporaries(count_);
+  }
+
+  void Add(HInstruction* instruction) {
+    // We currently only support vreg size temps.
+    DCHECK(instruction->GetType() != Primitive::kPrimLong
+           && instruction->GetType() != Primitive::kPrimDouble);
+    HInstruction* temp = new (graph_->GetArena()) HTemporary(index_++);
+    instruction->GetBlock()->AddInstruction(temp);
+    DCHECK(temp->GetPrevious() == instruction);
+  }
+
+ private:
+  HGraph* const graph_;
+
+  // The total number of temporaries that will be used.
+  const size_t count_;
+
+  // Current index in the temporary stack, updated by `Add`.
+  size_t index_;
+};
+
 static bool IsTypeSupported(Primitive::Type type) {
   return type != Primitive::kPrimFloat && type != Primitive::kPrimDouble;
 }
@@ -308,9 +339,13 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
       arena_, number_of_arguments, return_type, dex_offset, method_idx);
 
   size_t start_index = 0;
+  Temporaries temps(graph_, is_instance_call ? 1 : 0);
   if (is_instance_call) {
     HInstruction* arg = LoadLocal(is_range ? register_index : args[0], Primitive::kPrimNot);
-    invoke->SetArgumentAt(0, arg);
+    HNullCheck* null_check = new (arena_) HNullCheck(arg, dex_offset);
+    current_block_->AddInstruction(null_check);
+    temps.Add(null_check);
+    invoke->SetArgumentAt(0, null_check);
     start_index = 1;
   }
 
@@ -342,37 +377,6 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   current_block_->AddInstruction(invoke);
   return true;
 }
-
-/**
- * Helper class to add HTemporary instructions. This class is used when
- * converting a DEX instruction to multiple HInstruction, and where those
- * instructions do not die at the following instruction, but instead spans
- * multiple instructions.
- */
-class Temporaries : public ValueObject {
- public:
-  Temporaries(HGraph* graph, size_t count) : graph_(graph), count_(count), index_(0) {
-    graph_->UpdateNumberOfTemporaries(count_);
-  }
-
-  void Add(HInstruction* instruction) {
-    // We currently only support vreg size temps.
-    DCHECK(instruction->GetType() != Primitive::kPrimLong
-           && instruction->GetType() != Primitive::kPrimDouble);
-    HInstruction* temp = new (graph_->GetArena()) HTemporary(index_++);
-    instruction->GetBlock()->AddInstruction(temp);
-    DCHECK(temp->GetPrevious() == instruction);
-  }
-
- private:
-  HGraph* const graph_;
-
-  // The total number of temporaries that will be used.
-  const size_t count_;
-
-  // Current index in the temporary stack, updated by `Add`.
-  size_t index_;
-};
 
 bool HGraphBuilder::BuildFieldAccess(const Instruction& instruction,
                                      uint32_t dex_offset,

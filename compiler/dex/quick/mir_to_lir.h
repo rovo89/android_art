@@ -32,6 +32,7 @@
 #include "utils/array_ref.h"
 #include "utils/arena_allocator.h"
 #include "utils/growable_array.h"
+#include "utils/stack_checks.h"
 
 namespace art {
 
@@ -205,28 +206,10 @@ Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 #define SLOW_TYPE_PATH (cu_->enable_debug & (1 << kDebugSlowTypePath))
 #define EXERCISE_SLOWEST_STRING_PATH (cu_->enable_debug & (1 << kDebugSlowestStringPath))
 
-// Size of a frame that we definitely consider large. Anything larger than this should
-// definitely get a stack overflow check.
-static constexpr size_t kLargeFrameSize = 2 * KB;
-
-// Size of a frame that should be small. Anything leaf method smaller than this should run
-// without a stack overflow check.
-// The constant is from experience with frameworks code.
-static constexpr size_t kSmallFrameSize = 1 * KB;
-
 class Mir2Lir : public Backend {
   public:
     static constexpr bool kFailOnSizeError = true && kIsDebugBuild;
     static constexpr bool kReportSizeError = true && kIsDebugBuild;
-
-    // Determine whether a frame is small or large, used in the decision on whether to elide a
-    // stack overflow check on method entry.
-    //
-    // A frame is considered large when it's either above kLargeFrameSize, or a quarter of the
-    // overflow-usable stack space.
-    static bool IsLargeFrame(size_t size, InstructionSet isa) {
-      return size >= kLargeFrameSize || size >= GetStackOverflowReservedBytes(isa) / 4;
-    }
 
     /*
      * Auxiliary information describing the location of data embedded in the Dalvik

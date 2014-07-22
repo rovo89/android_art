@@ -37,6 +37,9 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator) {
   block_labels_.SetSize(blocks.Size());
 
   DCHECK_EQ(frame_size_, kUninitializedFrameSize);
+  // The baseline compiler does not do graph analysis prior to generating
+  // code.
+  MarkNotLeaf();
   ComputeFrameSize(GetGraph()->GetMaximumNumberOfOutVRegs()
                    + GetGraph()->GetNumberOfLocalVRegs()
                    + GetGraph()->GetNumberOfTemporaries()
