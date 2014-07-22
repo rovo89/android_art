@@ -25,16 +25,38 @@ public class Main {
     }
 
     private static void testSelfRecursion() {
+//        try {
+//            stackOverflowTestSub0();
+//        }
+//        catch (StackOverflowError soe) {
+//            System.out.println("caught SOE0 in testSelfRecursion");
+//        }
         try {
-            stackOverflowTestSub(0.0, 0.0, 0.0);
+            stackOverflowTestSub3(0.0, 1.0, 2.0);
         }
         catch (StackOverflowError soe) {
-            System.out.println("caught SOE in testSelfRecursion");
+            System.out.println("caught SOE3 in testSelfRecursion");
+        }
+        try {
+            stackOverflowTestSub10(0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0);
+        }
+        catch (StackOverflowError soe) {
+            System.out.println("caught SOE10 in testSelfRecursion");
         }
     }
 
-    private static void stackOverflowTestSub(double pad1, double pad2, double pad3) {
-        stackOverflowTestSub(pad1, pad2, pad3);
+    private static void stackOverflowTestSub0() {
+        stackOverflowTestSub0();
+    }
+
+    private static void stackOverflowTestSub3(double pad1, double pad2, double pad3) {
+        stackOverflowTestSub3(pad1, pad2, pad3);
+    }
+
+    private static void stackOverflowTestSub10(double pad1, double pad2, double pad3, double pad4,
+                                               double pad5, double pad6, double pad7, double pad8,
+                                               double pad9, double pad10) {
+        stackOverflowTestSub10(pad1, pad2, pad3, pad4, pad5, pad6, pad7, pad8, pad9, pad10);
     }
 
     private static void testMutualRecursion() {

@@ -60,7 +60,9 @@ struct WellKnownClasses {
   static jclass java_lang_ThreadGroup;
   static jclass java_lang_Thread$UncaughtExceptionHandler;
   static jclass java_lang_Throwable;
+  static jclass java_util_Collections;
   static jclass java_nio_DirectByteBuffer;
+  static jclass libcore_util_EmptyArray;
   static jclass org_apache_harmony_dalvik_ddmc_Chunk;
   static jclass org_apache_harmony_dalvik_ddmc_DdmServer;
 

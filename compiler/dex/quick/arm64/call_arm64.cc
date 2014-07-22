@@ -330,8 +330,8 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
 
   NewLIR0(kPseudoMethodEntry);
 
-  constexpr size_t kStackOverflowReservedUsableBytes = kArm64StackOverflowReservedBytes -
-        Thread::kStackOverflowSignalReservedBytes;
+  const size_t kStackOverflowReservedUsableBytes = GetStackOverflowReservedBytes(kArm64) -
+      Thread::kStackOverflowSignalReservedBytes;
   const bool large_frame = static_cast<size_t>(frame_size_) > kStackOverflowReservedUsableBytes;
   const int spill_count = num_core_spills_ + num_fp_spills_;
   const int spill_size = (spill_count * kArm64PointerSize + 15) & ~0xf;  // SP 16 byte alignment.

@@ -61,7 +61,7 @@ void FaultManager::GetMethodAndReturnPCAndSP(siginfo_t* siginfo, void* context,
   // get the method from the top of the stack.  However it's in r0.
   uintptr_t* fault_addr = reinterpret_cast<uintptr_t*>(sc->fault_address);
   uintptr_t* overflow_addr = reinterpret_cast<uintptr_t*>(
-      reinterpret_cast<uint8_t*>(*out_sp) - kArmStackOverflowReservedBytes);
+      reinterpret_cast<uint8_t*>(*out_sp) - GetStackOverflowReservedBytes(kArm));
   if (overflow_addr == fault_addr) {
     *out_method = reinterpret_cast<mirror::ArtMethod*>(sc->arm_r0);
   } else {
@@ -192,7 +192,7 @@ bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
   VLOG(signals) << "checking for stack overflow, sp: " << std::hex << sp <<
     ", fault_addr: " << fault_addr;
 
-  uintptr_t overflow_addr = sp - kArmStackOverflowReservedBytes;
+  uintptr_t overflow_addr = sp - GetStackOverflowReservedBytes(kArm);
 
   Thread* self = reinterpret_cast<Thread*>(sc->arm_r9);
   CHECK_EQ(self, Thread::Current());
