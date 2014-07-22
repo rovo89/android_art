@@ -214,31 +214,19 @@ static constexpr size_t kLargeFrameSize = 2 * KB;
 // The constant is from experience with frameworks code.
 static constexpr size_t kSmallFrameSize = 1 * KB;
 
-// Determine whether a frame is small or large, used in the decision on whether to elide a
-// stack overflow check on method entry.
-//
-// A frame is considered large when it's either above kLargeFrameSize, or a quarter of the
-// overflow-usable stack space.
-static constexpr bool IsLargeFrame(size_t size, InstructionSet isa) {
-  return size >= kLargeFrameSize || size >= GetStackOverflowReservedBytes(isa) / 4;
-}
-
-// We want to ensure that on all systems kSmallFrameSize will lead to false in IsLargeFrame.
-COMPILE_ASSERT(!IsLargeFrame(kSmallFrameSize, kArm),
-               kSmallFrameSize_is_not_a_small_frame_arm);
-COMPILE_ASSERT(!IsLargeFrame(kSmallFrameSize, kArm64),
-               kSmallFrameSize_is_not_a_small_frame_arm64);
-COMPILE_ASSERT(!IsLargeFrame(kSmallFrameSize, kMips),
-               kSmallFrameSize_is_not_a_small_frame_mips);
-COMPILE_ASSERT(!IsLargeFrame(kSmallFrameSize, kX86),
-               kSmallFrameSize_is_not_a_small_frame_x86);
-COMPILE_ASSERT(!IsLargeFrame(kSmallFrameSize, kX86_64),
-               kSmallFrameSize_is_not_a_small_frame_x64_64);
-
 class Mir2Lir : public Backend {
   public:
     static constexpr bool kFailOnSizeError = true && kIsDebugBuild;
     static constexpr bool kReportSizeError = true && kIsDebugBuild;
+
+    // Determine whether a frame is small or large, used in the decision on whether to elide a
+    // stack overflow check on method entry.
+    //
+    // A frame is considered large when it's either above kLargeFrameSize, or a quarter of the
+    // overflow-usable stack space.
+    static bool IsLargeFrame(size_t size, InstructionSet isa) {
+      return size >= kLargeFrameSize || size >= GetStackOverflowReservedBytes(isa) / 4;
+    }
 
     /*
      * Auxiliary information describing the location of data embedded in the Dalvik
