@@ -1126,13 +1126,7 @@ bool Heap::IsLiveObjectLocked(mirror::Object* obj, bool search_allocation_stack,
   return false;
 }
 
-std::string Heap::DumpSpaces() const {
-  std::ostringstream oss;
-  DumpSpaces(oss);
-  return oss.str();
-}
-
-void Heap::DumpSpaces(std::ostream& stream) const {
+void Heap::DumpSpaces(std::ostream& stream) {
   for (const auto& space : continuous_spaces_) {
     accounting::ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
     accounting::ContinuousSpaceBitmap* mark_bitmap = space->GetMarkBitmap();
@@ -1165,7 +1159,10 @@ void Heap::VerifyObjectBody(mirror::Object* obj) {
 
   if (verify_object_mode_ > kVerifyObjectModeFast) {
     // Note: the bitmap tests below are racy since we don't hold the heap bitmap lock.
-    CHECK(IsLiveObjectLocked(obj)) << "Object is dead " << obj << "\n" << DumpSpaces();
+    if (!IsLiveObjectLocked(obj)) {
+      DumpSpaces();
+      LOG(FATAL) << "Object is dead: " << obj;
+    }
   }
 }
 
@@ -2357,7 +2354,7 @@ size_t Heap::VerifyHeapReferences(bool verify_referents) {
       accounting::RememberedSet* remembered_set = table_pair.second;
       remembered_set->Dump(LOG(ERROR) << remembered_set->GetName() << ": ");
     }
-    DumpSpaces(LOG(ERROR));
+    DumpSpaces();
   }
   return visitor.GetFailureCount();
 }
@@ -2474,7 +2471,12 @@ bool Heap::VerifyMissingCardMarks() {
       visitor(*it);
     }
   }
-  return !visitor.Failed();
+
+  if (visitor.Failed()) {
+    DumpSpaces();
+    return false;
+  }
+  return true;
 }
 
 void Heap::SwapStacks(Thread* self) {
@@ -2572,8 +2574,9 @@ void Heap::PreGcVerificationPaused(collector::GarbageCollector* gc) {
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     SwapStacks(self);
     // Sort the live stack so that we can quickly binary search it later.
-    CHECK(VerifyMissingCardMarks()) << "Pre " << gc->GetName()
-                                    << " missing card mark verification failed\n" << DumpSpaces();
+    if (!VerifyMissingCardMarks()) {
+      LOG(FATAL) << "Pre " << gc->GetName() << " missing card mark verification failed";
+    }
     SwapStacks(self);
   }
   if (verify_mod_union_table_) {
