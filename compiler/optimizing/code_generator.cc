@@ -30,16 +30,16 @@
 
 namespace art {
 
-void CodeGenerator::CompileBaseline(CodeAllocator* allocator) {
+void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
   const GrowableArray<HBasicBlock*>& blocks = GetGraph()->GetBlocks();
   DCHECK(blocks.Get(0) == GetGraph()->GetEntryBlock());
   DCHECK(GoesToNextBlock(GetGraph()->GetEntryBlock(), blocks.Get(1)));
   block_labels_.SetSize(blocks.Size());
 
   DCHECK_EQ(frame_size_, kUninitializedFrameSize);
-  // The baseline compiler does not do graph analysis prior to generating
-  // code.
-  MarkNotLeaf();
+  if (!is_leaf) {
+    MarkNotLeaf();
+  }
   ComputeFrameSize(GetGraph()->GetMaximumNumberOfOutVRegs()
                    + GetGraph()->GetNumberOfLocalVRegs()
                    + GetGraph()->GetNumberOfTemporaries()
