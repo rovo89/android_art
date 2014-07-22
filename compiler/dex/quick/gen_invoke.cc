@@ -1553,20 +1553,6 @@ bool Mir2Lir::GenInlinedAbsLong(CallInfo* info) {
   return true;
 }
 
-bool Mir2Lir::GenInlinedAbsFloat(CallInfo* info) {
-  if (cu_->instruction_set == kMips) {
-    // TODO - add Mips implementation
-    return false;
-  }
-  RegLocation rl_src = info->args[0];
-  rl_src = LoadValue(rl_src, kCoreReg);
-  RegLocation rl_dest = InlineTarget(info);
-  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  OpRegRegImm(kOpAnd, rl_result.reg, rl_src.reg, 0x7fffffff);
-  StoreValue(rl_dest, rl_result);
-  return true;
-}
-
 bool Mir2Lir::GenInlinedReverseBits(CallInfo* info, OpSize size) {
   // Currently implemented only for ARM64
   return false;
@@ -1575,22 +1561,6 @@ bool Mir2Lir::GenInlinedReverseBits(CallInfo* info, OpSize size) {
 bool Mir2Lir::GenInlinedMinMaxFP(CallInfo* info, bool is_min, bool is_double) {
   // Currently implemented only for ARM64
   return false;
-}
-
-bool Mir2Lir::GenInlinedAbsDouble(CallInfo* info) {
-  if (cu_->instruction_set == kMips) {
-    // TODO - add Mips implementation
-    return false;
-  }
-  RegLocation rl_src = info->args[0];
-  rl_src = LoadValueWide(rl_src, kCoreReg);
-  RegLocation rl_dest = InlineTargetWide(info);
-  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-
-  OpRegCopyWide(rl_result.reg, rl_src.reg);
-  OpRegImm(kOpAnd, rl_result.reg.GetHigh(), 0x7fffffff);
-  StoreValueWide(rl_dest, rl_result);
-  return true;
 }
 
 bool Mir2Lir::GenInlinedFloatCvt(CallInfo* info) {

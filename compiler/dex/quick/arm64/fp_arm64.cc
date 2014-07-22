@@ -323,12 +323,57 @@ void Arm64Mir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
   StoreValueWide(rl_dest, rl_result);
 }
 
+static RegisterClass RegClassForAbsFP(RegLocation rl_src, RegLocation rl_dest) {
+  // If src is in a core reg or, unlikely, dest has been promoted to a core reg, use core reg.
+  if ((rl_src.location == kLocPhysReg && !rl_src.reg.IsFloat()) ||
+      (rl_dest.location == kLocPhysReg && !rl_dest.reg.IsFloat())) {
+    return kCoreReg;
+  }
+  // If src is in an fp reg or dest has been promoted to an fp reg, use fp reg.
+  if (rl_src.location == kLocPhysReg || rl_dest.location == kLocPhysReg) {
+    return kFPReg;
+  }
+  // With both src and dest in the stack frame we have to perform load+abs+store. Whether this
+  // is faster using a core reg or fp reg depends on the particular CPU. For example, on A53
+  // it's faster using core reg while on A57 it's faster with fp reg, the difference being
+  // bigger on the A53. Without further investigation and testing we prefer core register.
+  // (If the result is subsequently used in another fp operation, the dalvik reg will probably
+  // get promoted and that should be handled by the cases above.)
+  return kCoreReg;
+}
+
+bool Arm64Mir2Lir::GenInlinedAbsFloat(CallInfo* info) {
+  if (info->result.location == kLocInvalid) {
+    return true;  // Result is unused: inlining successful, no code generated.
+  }
+  RegLocation rl_dest = info->result;
+  RegLocation rl_src = UpdateLoc(info->args[0]);
+  RegisterClass reg_class = RegClassForAbsFP(rl_src, rl_dest);
+  rl_src = LoadValue(rl_src, reg_class);
+  RegLocation rl_result = EvalLoc(rl_dest, reg_class, true);
+  if (reg_class == kFPReg) {
+    NewLIR2(kA64Fabs2ff, rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  } else {
+    NewLIR4(kA64Ubfm4rrdd, rl_result.reg.GetReg(), rl_src.reg.GetReg(), 0, 30);
+  }
+  StoreValue(rl_dest, rl_result);
+  return true;
+}
+
 bool Arm64Mir2Lir::GenInlinedAbsDouble(CallInfo* info) {
-  RegLocation rl_src = info->args[0];
-  rl_src = LoadValueWide(rl_src, kCoreReg);
-  RegLocation rl_dest = InlineTargetWide(info);
-  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  NewLIR4(WIDE(kA64Ubfm4rrdd), rl_result.reg.GetReg(), rl_src.reg.GetReg(), 0, 62);
+  if (info->result.location == kLocInvalid) {
+    return true;  // Result is unused: inlining successful, no code generated.
+  }
+  RegLocation rl_dest = info->result;
+  RegLocation rl_src = UpdateLocWide(info->args[0]);
+  RegisterClass reg_class = RegClassForAbsFP(rl_src, rl_dest);
+  rl_src = LoadValueWide(rl_src, reg_class);
+  RegLocation rl_result = EvalLoc(rl_dest, reg_class, true);
+  if (reg_class == kFPReg) {
+    NewLIR2(FWIDE(kA64Fabs2ff), rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  } else {
+    NewLIR4(WIDE(kA64Ubfm4rrdd), rl_result.reg.GetReg(), rl_src.reg.GetReg(), 0, 62);
+  }
   StoreValueWide(rl_dest, rl_result);
   return true;
 }
