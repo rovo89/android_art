@@ -24,6 +24,7 @@
 #include "utils/assembler.h"
 #include "utils/arm/assembler_arm.h"
 #include "utils/arm/managed_register_arm.h"
+#include "utils/stack_checks.h"
 
 namespace art {
 
@@ -32,6 +33,11 @@ arm::ArmManagedRegister Location::AsArm() const {
 }
 
 namespace arm {
+
+static constexpr bool kExplicitStackOverflowCheck = false;
+
+static constexpr int kNumberOfPushedRegistersAtEntry = 1 + 2;  // LR, R6, R7
+static constexpr int kCurrentMethodStackOffset = 0;
 
 #define __ reinterpret_cast<ArmAssembler*>(codegen->GetAssembler())->
 
@@ -50,6 +56,20 @@ class NullCheckSlowPathARM : public SlowPathCode {
  private:
   const uint32_t dex_pc_;
   DISALLOW_COPY_AND_ASSIGN(NullCheckSlowPathARM);
+};
+
+class StackOverflowCheckSlowPathARM : public SlowPathCode {
+ public:
+  StackOverflowCheckSlowPathARM() {}
+
+  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    __ Bind(GetEntryLabel());
+    __ LoadFromOffset(kLoadWord, PC, TR,
+        QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pThrowStackOverflow).Int32Value());
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(StackOverflowCheckSlowPathARM);
 };
 
 #undef __
@@ -82,9 +102,6 @@ inline Condition ARMOppositeCondition(IfCondition cond) {
   }
   return EQ;        // Unreachable.
 }
-
-static constexpr int kNumberOfPushedRegistersAtEntry = 1 + 2;  // LR, R6, R7
-static constexpr int kCurrentMethodStackOffset = 0;
 
 void CodeGeneratorARM::DumpCoreRegister(std::ostream& stream, int reg) const {
   stream << ArmManagedRegister::FromCoreRegister(Register(reg));
@@ -207,6 +224,22 @@ InstructionCodeGeneratorARM::InstructionCodeGeneratorARM(HGraph* graph, CodeGene
         codegen_(codegen) {}
 
 void CodeGeneratorARM::GenerateFrameEntry() {
+  bool skip_overflow_check = IsLeafMethod() && !IsLargeFrame(GetFrameSize(), InstructionSet::kArm);
+  if (!skip_overflow_check) {
+    if (kExplicitStackOverflowCheck) {
+      SlowPathCode* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathARM();
+      AddSlowPath(slow_path);
+
+      __ LoadFromOffset(kLoadWord, IP, TR, Thread::StackEndOffset<kArmWordSize>().Int32Value());
+      __ cmp(SP, ShifterOperand(IP));
+      __ b(slow_path->GetEntryLabel(), CC);
+    } else {
+      __ AddConstant(IP, SP, -static_cast<int32_t>(GetStackOverflowReservedBytes(kArm)));
+      __ ldr(IP, Address(IP, 0));
+      RecordPcInfo(0);
+    }
+  }
+
   core_spill_mask_ |= (1 << LR | 1 << R6 | 1 << R7);
   __ PushList(1 << LR | 1 << R6 | 1 << R7);
 
@@ -720,6 +753,7 @@ void InstructionCodeGeneratorARM::VisitReturn(HReturn* ret) {
 }
 
 void LocationsBuilderARM::VisitInvokeStatic(HInvokeStatic* invoke) {
+  codegen_->MarkNotLeaf();
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(invoke);
   locations->AddTemp(ArmCoreLocation(R0));
 
@@ -785,6 +819,7 @@ void InstructionCodeGeneratorARM::VisitInvokeStatic(HInvokeStatic* invoke) {
   __ blx(LR);
 
   codegen_->RecordPcInfo(invoke->GetDexPc());
+  DCHECK(!codegen_->IsLeafMethod());
 }
 
 void LocationsBuilderARM::VisitAdd(HAdd* add) {
@@ -923,6 +958,7 @@ class InvokeRuntimeCallingConvention : public CallingConvention<Register> {
 };
 
 void LocationsBuilderARM::VisitNewInstance(HNewInstance* instruction) {
+  codegen_->MarkNotLeaf();
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
   InvokeRuntimeCallingConvention calling_convention;
   locations->AddTemp(ArmCoreLocation(calling_convention.GetRegisterAt(0)));
@@ -941,6 +977,7 @@ void InstructionCodeGeneratorARM::VisitNewInstance(HNewInstance* instruction) {
   __ blx(LR);
 
   codegen_->RecordPcInfo(instruction->GetDexPc());
+  DCHECK(!codegen_->IsLeafMethod());
 }
 
 void LocationsBuilderARM::VisitParameterValue(HParameterValue* instruction) {

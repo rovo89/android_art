@@ -21,10 +21,7 @@ include art/build/Android.common_path.mk
 
 # List of known broken tests that we won't attempt to execute. The test name must be the full
 # rule name such as test-art-host-oat-optimizing-HelloWorld64.
-ART_TEST_KNOWN_BROKEN := \
-  test-art-host-oat-optimizing-SignalTest64 \
-  test-art-host-oat-optimizing-SignalTest32 \
-  test-art-target-oat-optimizing-SignalTest32
+ART_TEST_KNOWN_BROKEN :=
 
 # List of known failing tests that when executed won't cause test execution to not finish.
 # The test name must be the full rule name such as test-art-host-oat-optimizing-HelloWorld64.

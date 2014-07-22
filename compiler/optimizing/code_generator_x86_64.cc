@@ -23,6 +23,7 @@
 #include "mirror/object_reference.h"
 #include "thread.h"
 #include "utils/assembler.h"
+#include "utils/stack_checks.h"
 #include "utils/x86_64/assembler_x86_64.h"
 #include "utils/x86_64/managed_register_x86_64.h"
 
@@ -34,6 +35,15 @@ x86_64::X86_64ManagedRegister Location::AsX86_64() const {
 
 namespace x86_64 {
 
+static constexpr bool kExplicitStackOverflowCheck = true;
+
+// Some x86_64 instructions require a register to be available as temp.
+static constexpr Register TMP = R11;
+
+static constexpr int kNumberOfPushedRegistersAtEntry = 1;
+static constexpr int kCurrentMethodStackOffset = 0;
+
+
 #define __ reinterpret_cast<X86_64Assembler*>(codegen->GetAssembler())->
 
 class NullCheckSlowPathX86_64 : public SlowPathCode {
@@ -42,13 +52,30 @@ class NullCheckSlowPathX86_64 : public SlowPathCode {
 
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
-    __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pThrowNullPointer), true));
+    __ gs()->call(
+        Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pThrowNullPointer), true));
     codegen->RecordPcInfo(dex_pc_);
   }
 
  private:
   const uint32_t dex_pc_;
   DISALLOW_COPY_AND_ASSIGN(NullCheckSlowPathX86_64);
+};
+
+class StackOverflowCheckSlowPathX86_64 : public SlowPathCode {
+ public:
+  StackOverflowCheckSlowPathX86_64() {}
+
+  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    __ Bind(GetEntryLabel());
+    __ addq(CpuRegister(RSP),
+            Immediate(codegen->GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86_64WordSize));
+    __ gs()->jmp(
+        Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pThrowStackOverflow), true));
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(StackOverflowCheckSlowPathX86_64);
 };
 
 #undef __
@@ -67,12 +94,6 @@ inline Condition X86_64Condition(IfCondition cond) {
   }
   return kEqual;
 }
-
-// Some x86_64 instructions require a register to be available as temp.
-static constexpr Register TMP = R11;
-
-static constexpr int kNumberOfPushedRegistersAtEntry = 1;
-static constexpr int kCurrentMethodStackOffset = 0;
 
 void CodeGeneratorX86_64::DumpCoreRegister(std::ostream& stream, int reg) const {
   stream << X86_64ManagedRegister::FromCpuRegister(Register(reg));
@@ -148,7 +169,26 @@ void CodeGeneratorX86_64::GenerateFrameEntry() {
   core_spill_mask_ |= (1 << kFakeReturnRegister);
 
   // The return PC has already been pushed on the stack.
-  __ subq(CpuRegister(RSP), Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86_64WordSize));
+  __ subq(CpuRegister(RSP),
+          Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86_64WordSize));
+
+  bool skip_overflow_check = IsLeafMethod()
+      && !IsLargeFrame(GetFrameSize(), InstructionSet::kX86_64);
+
+  if (!skip_overflow_check) {
+    if (kExplicitStackOverflowCheck) {
+      SlowPathCode* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathX86_64();
+      AddSlowPath(slow_path);
+
+      __ gs()->cmpq(CpuRegister(RSP),
+                    Address::Absolute(Thread::StackEndOffset<kX86_64WordSize>(), true));
+      __ j(kLess, slow_path->GetEntryLabel());
+    } else {
+      __ testq(CpuRegister(RAX), Address(
+          CpuRegister(RSP), -static_cast<int32_t>(GetStackOverflowReservedBytes(kX86_64))));
+    }
+  }
+
   __ movl(Address(CpuRegister(RSP), kCurrentMethodStackOffset), CpuRegister(RDI));
 }
 
@@ -619,6 +659,7 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
 }
 
 void LocationsBuilderX86_64::VisitInvokeStatic(HInvokeStatic* invoke) {
+  codegen_->MarkNotLeaf();
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(invoke);
   locations->AddTemp(X86_64CpuLocation(RDI));
 
@@ -673,6 +714,7 @@ void InstructionCodeGeneratorX86_64::VisitInvokeStatic(HInvokeStatic* invoke) {
   // (temp + offset_of_quick_compiled_code)()
   __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().SizeValue()));
 
+  DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke->GetDexPc());
 }
 
@@ -809,6 +851,7 @@ void InstructionCodeGeneratorX86_64::VisitSub(HSub* sub) {
 }
 
 void LocationsBuilderX86_64::VisitNewInstance(HNewInstance* instruction) {
+  codegen_->MarkNotLeaf();
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
   locations->SetOut(X86_64CpuLocation(RAX));
   instruction->SetLocations(locations);
@@ -822,6 +865,7 @@ void InstructionCodeGeneratorX86_64::VisitNewInstance(HNewInstance* instruction)
   __ gs()->call(Address::Absolute(
       QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pAllocObjectWithAccessCheck), true));
 
+  DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(instruction->GetDexPc());
 }
 
