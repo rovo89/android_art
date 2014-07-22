@@ -159,8 +159,8 @@ static int32_t ChooseRelocationOffsetDelta(int32_t min_delta, int32_t max_delta)
   } else {
     r = RoundDown(r, kPageSize);
   }
-  CHECK_LT(min_delta, r);
-  CHECK_GT(max_delta, r);
+  CHECK_LE(min_delta, r);
+  CHECK_GE(max_delta, r);
   CHECK_ALIGNED(r, kPageSize);
   return r;
 }
