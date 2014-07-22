@@ -106,19 +106,21 @@ endef  # define-test-art-oat-rule-target
 # Define rules to run oat tests on the target.
 # $(1): directory - the name of the test we're building such as HelloWorld.
 # $(2): 2ND_ or undefined - used to differentiate between the primary and secondary architecture.
+# $(3): additional options
+# $(4): name-addition
 define define-test-art-oat-rules-target
   # Define a phony rule to run a target oat test using the default compiler.
-  default_test_rule := test-art-target-oat-default-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX)
-  $(call define-test-art-oat-rule-target,$(1),$(2),$$(default_test_rule),)
+  default_test_rule := test-art-target-oat-default$(4)-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX)
+  $(call define-test-art-oat-rule-target,$(1),$(2),$$(default_test_rule),$(3))
 
   ART_TEST_TARGET_OAT_DEFAULT$$($(2)ART_PHONY_TEST_TARGET_SUFFIX)_RULES += $$(default_test_rule)
   ART_TEST_TARGET_OAT_DEFAULT_RULES += $$(default_test_rule)
   ART_TEST_TARGET_OAT_DEFAULT_$(1)_RULES += $$(default_test_rule)
 
-  optimizing_test_rule := test-art-target-oat-optimizing-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX)
+  optimizing_test_rule := test-art-target-oat-optimizing$(4)-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX)
   ifeq ($$(ART_TEST_OPTIMIZING),true)
     $(call define-test-art-oat-rule-target,$(1),$(2),$$(optimizing_test_rule), \
-      -Xcompiler-option --compiler-backend=Optimizing)
+      -Xcompiler-option --compiler-backend=Optimizing $(3))
   else
     .PHONY: $$(optimizing_test_rule)
 $$(optimizing_test_rule):
@@ -130,15 +132,15 @@ $$(optimizing_test_rule):
   ART_TEST_TARGET_OAT_OPTIMIZING_$(1)_RULES += $$(optimizing_test_rule)
 
   # Define a phony rule to run a target oat test using the interpeter.
-  interpreter_test_rule := test-art-target-oat-interpreter-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX)
-  $(call define-test-art-oat-rule-target,$(1),$(2),$$(interpreter_test_rule),-Xint)
+  interpreter_test_rule := test-art-target-oat-interpreter$(4)-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX)
+  $(call define-test-art-oat-rule-target,$(1),$(2),$$(interpreter_test_rule),-Xint $(3))
 
   ART_TEST_TARGET_OAT_INTERPRETER$$($(2)ART_PHONY_TEST_TARGET_SUFFIX)_RULES += $$(interpreter_test_rule)
   ART_TEST_TARGET_OAT_INTERPRETER_RULES += $$(interpreter_test_rule)
   ART_TEST_TARGET_OAT_INTERPRETER_$(1)_RULES += $$(interpreter_test_rule)
 
   # Define a phony rule to run both the default and interpreter variants.
-  all_test_rule :=  test-art-target-oat-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX)
+  all_test_rule :=  test-art-target-oat$(4)-$(1)$($(2)ART_PHONY_TEST_TARGET_SUFFIX)
 .PHONY: $$(all_test_rule)
 $$(all_test_rule): $$(default_test_rule) $$(optimizing_test_rule) $$(interpreter_test_rule)
 	$(hide) $$(call ART_TEST_PREREQ_FINISHED,$$@)
@@ -200,7 +202,7 @@ $(3): $$(ART_TEST_HOST_OAT_$(1)_DEX) $(ART_TEST_HOST_OAT_DEPENDENCIES)
 	$(hide) mkdir -p $(ART_HOST_TEST_DIR)/android-data-$$@/dalvik-cache/$$($(2)HOST_ARCH)
 	$(hide) cp $$(realpath $$<) $(ART_HOST_TEST_DIR)/android-data-$$@/oat-test-dex-$(1).jar
 	$(hide) $(DEX2OATD) $(DEX2OAT_FLAGS) --runtime-arg -Xms$(DEX2OAT_XMS) --runtime-arg -Xmx$(DEX2OAT_XMX) $(4) \
-	  --boot-image=$$(HOST_CORE_IMG_LOCATION) \
+	  --boot-image=$$(HOST_CORE_IMG_LOCATION) --include-patch-information \
 	  --dex-file=$$(PRIVATE_DEX_FILE) --oat-file=$$(PRIVATE_OAT_FILE) \
 	  --instruction-set=$($(2)ART_HOST_ARCH) --host --android-root=$(HOST_OUT) \
 	  || $$(call ART_TEST_FAILED,$$@)
@@ -351,9 +353,21 @@ define define-test-art-oat-rules
   ART_TEST_TARGET_OAT_OPTIMIZING_$(1)_RULES :=
   ART_TEST_TARGET_OAT_INTERPRETER_$(1)_RULES :=
   ART_TEST_TARGET_OAT_$(1)_RULES :=
-  $(call define-test-art-oat-rules-target,$(1),)
-  ifdef TARGET_2ND_ARCH
-    $(call define-test-art-oat-rules-target,$(1),2ND_)
+  ifeq ($(ART_TEST_OAT_NO_RELOCATE),true)
+    $(call define-test-art-oat-rules-target,$(1),, \
+          -Xnorelocate -Xcompiler-option --no-include-patch-information,-norelocate)
+    ifdef TARGET_2ND_ARCH
+      $(call define-test-art-oat-rules-target,$(1),2ND_, \
+          -Xnorelocate -Xcompiler-option --no-include-patch-information,-norelocate)
+    endif
+  endif
+  ifeq ($(ART_TEST_OAT_RELOCATE),true)
+    $(call define-test-art-oat-rules-target,$(1),, \
+          -Xrelocate -Xcompiler-option --include-patch-information,-relocate)
+    ifdef TARGET_2ND_ARCH
+      $(call define-test-art-oat-rules-target,$(1),2ND_, \
+          -Xrelocate -Xcompiler-option --include-patch-information,-relocate)
+    endif
   endif
   $(call define-test-art-oat-combination-for-test,$(1),target,TARGET,,))
   $(call define-test-art-oat-combination-for-test,$(1),target,TARGET,-default,_DEFAULT))

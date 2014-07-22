@@ -10,19 +10,27 @@ msg() {
 }
 
 DEBUGGER="n"
+PREBUILD="n"
 GDB="n"
+ISA="x86"
 INTERPRETER="n"
 VERIFY="y"
+RELOCATE="y"
 OPTIMIZE="y"
 INVOKE_WITH=""
 DEV_MODE="n"
 QUIET="n"
 FLAGS=""
+COMPILER_FLAGS=""
+BUILD_BOOT_OPT=""
 exe="${ANDROID_HOST_OUT}/bin/dalvikvm32"
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
         QUIET="y"
+        shift
+    elif [ "x$1" = "x--prebuild" ]; then
+        PREBUILD="y"
         shift
     elif [ "x$1" = "x--lib" ]; then
         shift
@@ -37,7 +45,9 @@ while true; do
         shift
     elif [ "x$1" = "x--boot" ]; then
         shift
-        BOOT_OPT="$1"
+        option="$1"
+        BOOT_OPT="$option"
+        BUILD_BOOT_OPT="--boot-image=${option#-Ximage:}"
         shift
     elif [ "x$1" = "x--debug" ]; then
         DEBUGGER="y"
@@ -65,6 +75,7 @@ while true; do
         INTERPRETER="y"
         shift
     elif [ "x$1" = "x--64" ]; then
+        ISA="x64"
         exe="${ANDROID_HOST_OUT}/bin/dalvikvm64"
         shift
     elif [ "x$1" = "x--no-verify" ]; then
@@ -73,15 +84,23 @@ while true; do
     elif [ "x$1" = "x--no-optimize" ]; then
         OPTIMIZE="n"
         shift
+    elif [ "x$1" = "x--no-relocate" ]; then
+        RELOCATE="n"
+        shift
+    elif [ "x$1" = "x--relocate" ]; then
+        RELOCATE="y"
+        shift
     elif [ "x$1" = "x-Xcompiler-option" ]; then
         shift
         option="$1"
         FLAGS="${FLAGS} -Xcompiler-option $option"
+        COMPILER_FLAGS="${COMPILER_FLAGS} $option"
         shift
     elif [ "x$1" = "x--runtime-option" ]; then
         shift
         option="$1"
         FLAGS="${FLAGS} $option"
+        COMPILER_FLAGS="${COMPILER_FLAGS} --runtime-arg $option"
         shift
     elif [ "x$1" = "x--" ]; then
         shift
@@ -129,13 +148,40 @@ fi
 
 if [ "$INTERPRETER" = "y" ]; then
     INT_OPTS="-Xint"
+    COMPILER_FLAGS="${COMPILER_FLAGS} --compiler-filter=interpret-only"
+fi
+
+if [ "$RELOCATE" = "y" ]; then
+  FLAGS="${FLAGS} -Xrelocate"
+  COMPILER_FLAGS="${COMPILER_FLAGS} --runtime-arg -Xnorelocate --include-patch-information"
+  # Run test sets a fairly draconian ulimit that we will likely blow right over
+  # since we are relocating. Get the total size of the /system/framework directory
+  # in 512 byte blocks and set it as the ulimit. This should be more than enough
+  # room.
+  ulimit -S $(du -c -B512 ${ANDROID_ROOT}/framework | tail -1 | cut -f1) || exit 1
+else
+  FLAGS="${FLAGS} -Xnorelocate"
+  COMPILER_FLAGS="${COMPILER_FLAGS} --runtime-arg -Xnorelocate --no-include-patch-information"
+fi
+
+mkdir_cmd="mkdir -p ${DEX_LOCATION}/dalvik-cache/$ISA"
+if [ "$PREBUILD" = "y" ]; then
+  prebuild_cmd="${ANDROID_HOST_OUT}/bin/dex2oatd $COMPILER_FLAGS --instruction-set=$ISA $BUILD_BOOT_OPT --dex-file=$DEX_LOCATION/$TEST_NAME.jar --oat-file=$DEX_LOCATION/dalvik-cache/$ISA/$(echo $DEX_LOCATION/$TEST_NAME.jar/classes.dex | cut -d/ -f 2- | sed "s:/:@:g")"
+else
+  prebuild_cmd="true"
 fi
 
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
-
+cmdline="$INVOKE_WITH $gdb $exe $gdbargs -XXlib:$LIB $JNI_OPTS $FLAGS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar Main"
 if [ "$DEV_MODE" = "y" ]; then
-  echo $cmdline "$@"
+  if [ "$PREBUILD" = "y" ]; then
+    echo "$mkdir_cmd && $prebuild_cmd && $cmdline"
+  elif [ "$RELOCATE" = "y" ]; then
+    echo "$mkdir_cmd && $cmdline"
+  else
+    echo $cmdline
+  fi
 fi
 
 cd $ANDROID_BUILD_TOP
-$INVOKE_WITH $gdb $exe $gdbargs -XXlib:$LIB $JNI_OPTS $FLAGS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar Main "$@"
+$mkdir_cmd && $prebuild_cmd && $cmdline "$@"

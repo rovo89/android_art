@@ -81,6 +81,8 @@ class CommonRuntimeTest : public testing::Test {
   // Allow subclases such as CommonCompilerTest to add extra options.
   virtual void SetUpRuntimeOptions(RuntimeOptions* options) {}
 
+  void ClearDirectory(const char* dirpath);
+
   virtual void TearDown();
 
   std::string GetLibCoreDexFileName();
