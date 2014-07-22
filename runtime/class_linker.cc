@@ -1668,7 +1668,9 @@ mirror::Class* ClassLinker::DefineClass(const char* descriptor,
   if (self->IsExceptionPending()) {
     // An exception occured during load, set status to erroneous while holding klass' lock in case
     // notification is necessary.
-    klass->SetStatus(mirror::Class::kStatusError, self);
+    if (!klass->IsErroneous()) {
+      klass->SetStatus(mirror::Class::kStatusError, self);
+    }
     return nullptr;
   }
   klass->SetClinitThreadId(self->GetTid());
@@ -1685,7 +1687,9 @@ mirror::Class* ClassLinker::DefineClass(const char* descriptor,
   CHECK(!klass->IsLoaded());
   if (!LoadSuperAndInterfaces(klass, dex_file)) {
     // Loading failed.
-    klass->SetStatus(mirror::Class::kStatusError, self);
+    if (!klass->IsErroneous()) {
+      klass->SetStatus(mirror::Class::kStatusError, self);
+    }
     return nullptr;
   }
   CHECK(klass->IsLoaded());
@@ -1697,7 +1701,9 @@ mirror::Class* ClassLinker::DefineClass(const char* descriptor,
   mirror::Class* new_class = nullptr;
   if (!LinkClass(self, descriptor, klass, interfaces, &new_class)) {
     // Linking failed.
-    klass->SetStatus(mirror::Class::kStatusError, self);
+    if (!klass->IsErroneous()) {
+      klass->SetStatus(mirror::Class::kStatusError, self);
+    }
     return nullptr;
   }
   CHECK(new_class != nullptr) << descriptor;
