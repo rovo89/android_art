@@ -70,7 +70,7 @@ class CodeGenerator : public ArenaObject {
  public:
   // Compiles the graph to executable instructions. Returns whether the compilation
   // succeeded.
-  void CompileBaseline(CodeAllocator* allocator);
+  void CompileBaseline(CodeAllocator* allocator, bool is_leaf = false);
   void CompileOptimized(CodeAllocator* allocator);
   static CodeGenerator* Create(ArenaAllocator* allocator,
                                HGraph* graph,
