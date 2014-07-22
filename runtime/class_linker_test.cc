@@ -91,7 +91,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_EQ(0U, primitive->NumInstanceFields());
     EXPECT_EQ(0U, primitive->NumStaticFields());
     EXPECT_EQ(0U, primitive->NumDirectInterfaces());
-    EXPECT_TRUE(primitive->GetVTable() == NULL);
+    EXPECT_FALSE(primitive->HasVTable());
     EXPECT_EQ(0, primitive->GetIfTableCount());
     EXPECT_TRUE(primitive->GetIfTable() == NULL);
     EXPECT_EQ(kAccPublic | kAccFinal | kAccAbstract, primitive->GetAccessFlags());
@@ -143,7 +143,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_EQ(0U, array->NumInstanceFields());
     EXPECT_EQ(0U, array->NumStaticFields());
     EXPECT_EQ(2U, array->NumDirectInterfaces());
-    EXPECT_TRUE(array->GetVTable() != NULL);
+    EXPECT_TRUE(array->ShouldHaveEmbeddedImtAndVTable());
     EXPECT_EQ(2, array->GetIfTableCount());
     ASSERT_TRUE(array->GetIfTable() != NULL);
     mirror::Class* direct_interface0 = mirror::Class::GetDirectInterface(self, array, 0);
@@ -216,7 +216,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
         EXPECT_NE(0U, klass->NumDirectMethods());
       }
     }
-    EXPECT_EQ(klass->IsInterface(), klass->GetVTable() == NULL);
+    EXPECT_EQ(klass->IsInterface(), !klass->HasVTable());
     mirror::IfTable* iftable = klass->GetIfTable();
     for (int i = 0; i < klass->GetIfTableCount(); i++) {
       mirror::Class* interface = iftable->GetInterface(i);
