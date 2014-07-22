@@ -96,7 +96,7 @@ $(3): test-art-target-sync
 	  (adb pull $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$(LOCAL_PID) $(ART_HOST_TEST_DIR)/android-data-$$@ \
 	    && $$(call ART_TEST_PASSED,$$@)) \
 	    || (([ ! -f $(ART_HOST_TEST_DIR)/android-data-$$@/output.txt ] || \
-	         cat $(ART_HOST_TEST_DIR)/android-data-$$@/output.txt) && $$(call ART_TEST_FAILED,$$@))
+	         cat $(ART_HOST_TEST_DIR)/android-data-$$@/output.txt >&2 ) && $$(call ART_TEST_FAILED,$$@))
 	$$(hide) (echo $(MAKECMDGOALS) | grep -q $$@ && \
 	  echo "run-test run as top-level target, removing test directory $(ART_HOST_TEST_DIR)" && \
 	  rm -r $(ART_HOST_TEST_DIR)) || true
@@ -219,7 +219,7 @@ $(3): $$(ART_TEST_HOST_OAT_$(1)_DEX) $(ART_TEST_HOST_OAT_DEPENDENCIES)
 	      > $(ART_HOST_TEST_DIR)/android-data-$$@/output.txt 2>&1 \
 	  && $$(call ART_TEST_PASSED,$$@) \
 	  || (([ ! -f $(ART_HOST_TEST_DIR)/android-data-$$@/output.txt ] || \
-	       cat $(ART_HOST_TEST_DIR)/android-data-$$@/output.txt) && $$(call ART_TEST_FAILED,$$@))
+	       cat $(ART_HOST_TEST_DIR)/android-data-$$@/output.txt >&2 ) && $$(call ART_TEST_FAILED,$$@))
 	$$(hide) (echo $(MAKECMDGOALS) | grep -q $$@ && \
 	  echo "run-test run as top-level target, removing test directory $(ART_HOST_TEST_DIR)" && \
 	  rm -r $(ART_HOST_TEST_DIR)) || true
