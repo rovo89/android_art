@@ -1101,6 +1101,12 @@ bool Thread::IsStillStarting() const {
       (*tlsPtr_.name == kThreadNameDuringStartup);
 }
 
+void Thread::AssertPendingException() const {
+  if (UNLIKELY(!IsExceptionPending())) {
+    LOG(FATAL) << "Pending exception expected.";
+  }
+}
+
 void Thread::AssertNoPendingException() const {
   if (UNLIKELY(IsExceptionPending())) {
     ScopedObjectAccess soa(Thread::Current());
