@@ -313,8 +313,10 @@ void MarkSweep::FindDefaultSpaceBitmap() {
       }
     }
   }
-  CHECK(current_space_bitmap_ != nullptr) << "Could not find a default mark bitmap\n"
-      << heap_->DumpSpaces();
+  if (current_space_bitmap_ == nullptr) {
+    heap_->DumpSpaces();
+    LOG(FATAL) << "Could not find a default mark bitmap";
+  }
 }
 
 void MarkSweep::ExpandMarkStack() {
@@ -941,9 +943,12 @@ mirror::Object* MarkSweep::VerifySystemWeakIsLiveCallback(Object* obj, void* arg
 
 void MarkSweep::VerifyIsLive(const Object* obj) {
   if (!heap_->GetLiveBitmap()->Test(obj)) {
-    accounting::ObjectStack* allocation_stack = heap_->allocation_stack_.get();
-    CHECK(std::find(allocation_stack->Begin(), allocation_stack->End(), obj) !=
-        allocation_stack->End()) << "Found dead object " << obj << "\n" << heap_->DumpSpaces();
+    if (std::find(heap_->allocation_stack_->Begin(), heap_->allocation_stack_->End(), obj) ==
+        heap_->allocation_stack_->End()) {
+      // Object not found!
+      heap_->DumpSpaces();
+      LOG(FATAL) << "Found dead object " << obj;
+    }
   }
 }
 

@@ -176,7 +176,6 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #endif
 
 #define PURE __attribute__ ((__pure__))
-#define WARN_UNUSED __attribute__((warn_unused_result))
 
 template<typename T> void UNUSED(const T&) {}
 

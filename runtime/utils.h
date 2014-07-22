@@ -167,7 +167,8 @@ struct TypeIdentity {
 
 // For rounding integers.
 template<typename T>
-static constexpr T RoundDown(T x, typename TypeIdentity<T>::type n) WARN_UNUSED;
+static constexpr T RoundDown(T x, typename TypeIdentity<T>::type n)
+    __attribute__((warn_unused_result));
 
 template<typename T>
 static constexpr T RoundDown(T x, typename TypeIdentity<T>::type n) {
@@ -177,7 +178,8 @@ static constexpr T RoundDown(T x, typename TypeIdentity<T>::type n) {
 }
 
 template<typename T>
-static constexpr T RoundUp(T x, typename TypeIdentity<T>::type n) WARN_UNUSED;
+static constexpr T RoundUp(T x, typename TypeIdentity<T>::type n)
+    __attribute__((warn_unused_result));
 
 template<typename T>
 static constexpr T RoundUp(T x, typename TypeIdentity<T>::type n) {
@@ -186,7 +188,7 @@ static constexpr T RoundUp(T x, typename TypeIdentity<T>::type n) {
 
 // For aligning pointers.
 template<typename T>
-static inline T* AlignDown(T* x, uintptr_t n) WARN_UNUSED;
+static inline T* AlignDown(T* x, uintptr_t n) __attribute__((warn_unused_result));
 
 template<typename T>
 static inline T* AlignDown(T* x, uintptr_t n) {
@@ -194,7 +196,7 @@ static inline T* AlignDown(T* x, uintptr_t n) {
 }
 
 template<typename T>
-static inline T* AlignUp(T* x, uintptr_t n) WARN_UNUSED;
+static inline T* AlignUp(T* x, uintptr_t n) __attribute__((warn_unused_result));
 
 template<typename T>
 static inline T* AlignUp(T* x, uintptr_t n) {
