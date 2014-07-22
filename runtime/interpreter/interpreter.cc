@@ -397,7 +397,8 @@ static inline JValue Execute(Thread* self, MethodHelper& mh, const DexFile::Code
 void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receiver,
                                 uint32_t* args, JValue* result) {
   DCHECK_EQ(self, Thread::Current());
-  if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEnd())) {
+  bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
+  if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEndForInterpreter(implicit_check))) {
     ThrowStackOverflowError(self);
     return;
   }
@@ -509,7 +510,8 @@ void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JVa
 JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                                 ShadowFrame& shadow_frame) {
   DCHECK_EQ(self, Thread::Current());
-  if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEnd())) {
+  bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
+  if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEndForInterpreter(implicit_check))) {
     ThrowStackOverflowError(self);
     return JValue();
   }
@@ -520,7 +522,8 @@ JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh, const DexFile::C
 extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh,
                                                   const DexFile::CodeItem* code_item,
                                                   ShadowFrame* shadow_frame, JValue* result) {
-  if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEnd())) {
+  bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
+  if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEndForInterpreter(implicit_check))) {
     ThrowStackOverflowError(self);
     return;
   }
