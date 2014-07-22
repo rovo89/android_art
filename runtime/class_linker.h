@@ -265,10 +265,6 @@ class ClassLinker {
                        std::string* error_msg)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  const OatFile* FindOatFileFromOatLocation(const std::string& location,
-                                            std::string* error_msg)
-      LOCKS_EXCLUDED(dex_lock_);
-
   // Find or create the oat file holding dex_location. Then load all corresponding dex files
   // (if multidex) into the given vector.
   bool OpenDexFilesFromOat(const char* dex_location, const char* oat_location,
@@ -546,8 +542,30 @@ class ClassLinker {
   const OatFile* FindOpenedOatFile(const char* oat_location, const char* dex_location,
                                    const uint32_t* const dex_location_checksum)
       LOCKS_EXCLUDED(dex_lock_);
+
+  // Will open the oat file directly without relocating, even if we could/should do relocation.
+  const OatFile* FindOatFileFromOatLocation(const std::string& oat_location,
+                                            std::string* error_msg)
+      LOCKS_EXCLUDED(dex_lock_);
+
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location)
       LOCKS_EXCLUDED(dex_lock_);
+
+  const OatFile* OpenOatFileFromDexLocation(const std::string& dex_location,
+                                            InstructionSet isa,
+                                            bool* already_opened,
+                                            bool* obsolete_file_cleanup_failed,
+                                            std::vector<std::string>* error_msg)
+      LOCKS_EXCLUDED(dex_lock_, Locks::mutator_lock_);
+
+  const OatFile* PatchAndRetrieveOat(const std::string& input, const std::string& output,
+                                     const std::string& image_location, InstructionSet isa,
+                                     std::string* error_msg)
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
+
+  bool CheckOatFile(const OatFile* oat_file, InstructionSet isa,
+                    bool* checksum_verified, std::string* error_msg);
+  int32_t GetRequiredDelta(const OatFile* oat_file, InstructionSet isa);
 
   // Note: will not register the oat file.
   const OatFile* FindOatFileInOatLocationForDexFile(const char* dex_location,
@@ -575,14 +593,10 @@ class ClassLinker {
                                                              bool* obsolete_file_cleanup_failed)
       LOCKS_EXCLUDED(dex_lock_, Locks::mutator_lock_);
 
-  // Find a verify an oat file with the given dex file. Will return nullptr when the oat file
-  // was not found or the dex file could not be verified.
-  // Note: Does not register the oat file.
-  const OatFile* LoadOatFileAndVerifyDexFile(const std::string& oat_file_location,
-                                             const char* dex_location,
-                                             std::string* error_msg,
-                                             bool* open_failed)
-      LOCKS_EXCLUDED(dex_lock_);
+  // verify an oat file with the given dex file. Will return false when the dex file could not be
+  // verified. Will return true otherwise.
+  bool VerifyOatWithDexFile(const OatFile* oat_file, const char* dex_location,
+                            std::string* error_msg);
 
   mirror::ArtMethod* CreateProxyConstructor(Thread* self, Handle<mirror::Class> klass,
                                             mirror::Class* proxy_class)
@@ -720,6 +734,8 @@ class ClassLinker {
   const void* quick_to_interpreter_bridge_trampoline_;
 
   friend class ImageWriter;  // for GetClassRoots
+  friend class ImageDumper;  // for FindOpenedOatFileFromOatLocation
+  friend class ElfPatcher;  // for FindOpenedOatFileForDexFile & FindOpenedOatFileFromOatLocation
   FRIEND_TEST(ClassLinkerTest, ClassRootDescriptors);
   FRIEND_TEST(mirror::DexCacheTest, Open);
   FRIEND_TEST(ExceptionTest, FindExceptionHandler);

@@ -814,6 +814,7 @@ bool ClassLinker::OpenDexFilesFromOat(const char* dex_location, const char* oat_
         return false;
       }
 
+      // TODO Caller specifically asks for this oat_location. We should honor it. Probably?
       open_oat_file.reset(FindOatFileInOatLocationForDexFile(dex_location, dex_location_checksum,
                                                              oat_location, &error_msg));
 
@@ -938,6 +939,13 @@ const OatFile* ClassLinker::FindOatFileInOatLocationForDexFile(const char* dex_l
                               actual_image_oat_offset);
     return nullptr;
   }
+  int32_t expected_patch_delta = image_header.GetPatchDelta();
+  int32_t actual_patch_delta = oat_file->GetOatHeader().GetImagePatchDelta();
+  if (expected_patch_delta != actual_patch_delta) {
+    *error_msg = StringPrintf("Failed to find oat file at '%s' with expected patch delta %d, "
+                              " found %d", oat_location, expected_patch_delta, actual_patch_delta);
+    return nullptr;
+  }
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location,
                                                                     &dex_location_checksum);
   if (oat_dex_file == nullptr) {
@@ -998,19 +1006,23 @@ bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
   // image header from the image for the right instruction set.
   uint32_t image_oat_checksum = 0;
   uintptr_t image_oat_data_begin = 0;
-  if (instruction_set == kRuntimeISA) {
+  int32_t image_patch_delta = 0;
+  if (instruction_set == Runtime::Current()->GetInstructionSet()) {
     const ImageHeader& image_header = image_space->GetImageHeader();
     image_oat_checksum = image_header.GetOatChecksum();
     image_oat_data_begin = reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin());
+    image_patch_delta = image_header.GetPatchDelta();
   } else {
     std::unique_ptr<ImageHeader> image_header(gc::space::ImageSpace::ReadImageHeaderOrDie(
         image_space->GetImageLocation().c_str(), instruction_set));
     image_oat_checksum = image_header->GetOatChecksum();
     image_oat_data_begin = reinterpret_cast<uintptr_t>(image_header->GetOatDataBegin());
+    image_patch_delta = image_header->GetPatchDelta();
   }
   const OatHeader& oat_header = oat_file->GetOatHeader();
   bool image_check = ((oat_header.GetImageFileLocationOatChecksum() == image_oat_checksum)
-                      && (oat_header.GetImageFileLocationOatDataBegin() == image_oat_data_begin));
+                      && (oat_header.GetImageFileLocationOatDataBegin() == image_oat_data_begin)
+                      && (oat_header.GetImagePatchDelta() == image_patch_delta));
 
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location,
                                                                     &dex_location_checksum);
@@ -1049,16 +1061,11 @@ bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
   return false;
 }
 
-const OatFile* ClassLinker::LoadOatFileAndVerifyDexFile(const std::string& oat_file_location,
-                                                        const char* dex_location,
-                                                        std::string* error_msg,
-                                                        bool* open_failed) {
-  std::unique_ptr<const OatFile> oat_file(FindOatFileFromOatLocation(oat_file_location, error_msg));
-  if (oat_file.get() == nullptr) {
-    *open_failed = true;
-    return nullptr;
-  }
-  *open_failed = false;
+bool ClassLinker::VerifyOatWithDexFile(const OatFile* oat_file,
+                                       const char* dex_location,
+                                       std::string* error_msg) {
+  CHECK(oat_file != nullptr);
+  CHECK(dex_location != nullptr);
   std::unique_ptr<const DexFile> dex_file;
   uint32_t dex_location_checksum;
   if (!DexFile::GetChecksum(dex_location, &dex_location_checksum, error_msg)) {
@@ -1068,26 +1075,21 @@ const OatFile* ClassLinker::LoadOatFileAndVerifyDexFile(const std::string& oat_f
     const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location, NULL);
     if (oat_dex_file == nullptr) {
       *error_msg = StringPrintf("Dex checksum mismatch for location '%s' and failed to find oat "
-                                "dex file '%s': %s", oat_file_location.c_str(), dex_location,
+                                "dex file '%s': %s", oat_file->GetLocation().c_str(), dex_location,
                                 error_msg->c_str());
-      return nullptr;
+      return false;
     }
     dex_file.reset(oat_dex_file->OpenDexFile(error_msg));
   } else {
-    bool verified = VerifyOatFileChecksums(oat_file.get(), dex_location, dex_location_checksum,
+    bool verified = VerifyOatFileChecksums(oat_file, dex_location, dex_location_checksum,
                                            kRuntimeISA, error_msg);
     if (!verified) {
-      return nullptr;
+      return false;
     }
     dex_file.reset(oat_file->GetOatDexFile(dex_location,
                                            &dex_location_checksum)->OpenDexFile(error_msg));
   }
-
-  if (dex_file.get() != nullptr) {
-    return oat_file.release();
-  } else {
-    return nullptr;
-  }
+  return dex_file.get() != nullptr;
 }
 
 const OatFile* ClassLinker::FindOatFileContainingDexFileFromDexLocation(
@@ -1097,51 +1099,25 @@ const OatFile* ClassLinker::FindOatFileContainingDexFileFromDexLocation(
     std::vector<std::string>* error_msgs,
     bool* obsolete_file_cleanup_failed) {
   *obsolete_file_cleanup_failed = false;
-  // Look for an existing file next to dex. for example, for
-  // /foo/bar/baz.jar, look for /foo/bar/<isa>/baz.odex.
-  std::string odex_filename(DexFilenameToOdexFilename(dex_location, isa));
-  bool open_failed;
+  bool already_opened = false;
+  std::string dex_location_str(dex_location);
+  std::unique_ptr<const OatFile> oat_file(OpenOatFileFromDexLocation(dex_location_str, isa,
+                                                                     &already_opened,
+                                                                     obsolete_file_cleanup_failed,
+                                                                     error_msgs));
   std::string error_msg;
-  const OatFile* oat_file = LoadOatFileAndVerifyDexFile(odex_filename, dex_location, &error_msg,
-                                                        &open_failed);
-  if (oat_file != nullptr) {
-    return oat_file;
-  }
-  if (dex_location_checksum == nullptr) {
-    error_msgs->push_back(StringPrintf("Failed to open oat file from %s and no classes.dex found in"
-                                      "%s: %s", odex_filename.c_str(), dex_location,
+  if (oat_file.get() == nullptr) {
+    error_msgs->push_back(StringPrintf("Failed to open oat file from dex location '%s'",
+                                       dex_location));
+    return nullptr;
+  } else if (!VerifyOatWithDexFile(oat_file.get(), dex_location, &error_msg)) {
+    error_msgs->push_back(StringPrintf("Failed to verify oat file '%s' found for dex location "
+                                       "'%s': %s", oat_file->GetLocation().c_str(), dex_location,
                                        error_msg.c_str()));
     return nullptr;
+  } else {
+    return oat_file.release();
   }
-
-  std::string cache_error_msg;
-  const std::string dalvik_cache(GetDalvikCacheOrDie(GetInstructionSetString(kRuntimeISA)));
-  std::string cache_location(GetDalvikCacheFilenameOrDie(dex_location,
-                                                         dalvik_cache.c_str()));
-  oat_file = LoadOatFileAndVerifyDexFile(cache_location, dex_location, &cache_error_msg,
-                                         &open_failed);
-  if (oat_file != nullptr) {
-    return oat_file;
-  }
-
-  if (!open_failed && TEMP_FAILURE_RETRY(unlink(cache_location.c_str())) != 0) {
-    std::string error_msg = StringPrintf("Failed to remove obsolete file from %s when searching"
-                                         "for dex file %s: %s",
-                                         cache_location.c_str(), dex_location, strerror(errno));
-    error_msgs->push_back(error_msg);
-    VLOG(class_linker) << error_msg;
-    // Let the caller know that we couldn't remove the obsolete file.
-    // This is a good indication that further writes may fail as well.
-    *obsolete_file_cleanup_failed = true;
-  }
-
-  std::string compound_msg = StringPrintf("Failed to open oat file from %s (error '%s') or %s "
-                                          "(error '%s').", odex_filename.c_str(), error_msg.c_str(),
-                                          cache_location.c_str(), cache_error_msg.c_str());
-  VLOG(class_linker) << compound_msg;
-  error_msgs->push_back(compound_msg);
-
-  return nullptr;
 }
 
 const OatFile* ClassLinker::FindOpenedOatFileFromOatLocation(const std::string& oat_location) {
@@ -1154,6 +1130,277 @@ const OatFile* ClassLinker::FindOpenedOatFileFromOatLocation(const std::string& 
     }
   }
   return nullptr;
+}
+
+const OatFile* ClassLinker::OpenOatFileFromDexLocation(const std::string& dex_location,
+                                                       InstructionSet isa,
+                                                       bool *already_opened,
+                                                       bool *obsolete_file_cleanup_failed,
+                                                       std::vector<std::string>* error_msgs) {
+  // Find out if we've already opened the file
+  const OatFile* ret = nullptr;
+  std::string odex_filename(DexFilenameToOdexFilename(dex_location, isa));
+  ret = FindOpenedOatFileFromOatLocation(odex_filename);
+  if (ret != nullptr) {
+    *already_opened = true;
+    return ret;
+  }
+
+  std::string dalvik_cache;
+  bool have_android_data = false;
+  bool have_dalvik_cache = false;
+  GetDalvikCache(GetInstructionSetString(kRuntimeISA), false, &dalvik_cache,
+                 &have_android_data, &have_dalvik_cache);
+  std::string cache_filename;
+  if (have_dalvik_cache) {
+    cache_filename = GetDalvikCacheFilenameOrDie(dex_location.c_str(), dalvik_cache.c_str());
+    ret = FindOpenedOatFileFromOatLocation(cache_filename);
+    if (ret != nullptr) {
+      *already_opened = true;
+      return ret;
+    }
+  } else {
+    // If we need to relocate we should just place odex back where it started.
+    cache_filename = odex_filename;
+  }
+
+  ret = nullptr;
+
+  // We know that neither the odex nor the cache'd version is already in use, if it even exists.
+  //
+  // Now we do the following:
+  // 1) Try and open the odex version
+  // 2) If present, checksum-verified & relocated correctly return it
+  // 3) Close the odex version to free up its address space.
+  // 4) Try and open the cache version
+  // 5) If present, checksum-verified & relocated correctly return it
+  // 6) Close the cache version to free up its address space.
+  // 7) If we should relocate:
+  //   a) If we have opened and checksum-verified the odex version relocate it to
+  //      'cache_filename' and return it
+  //   b) If we have opened and checksum-verified the cache version relocate it in place and return
+  //      it. This should not happen often (I think only the run-test's will hit this case).
+  // 8) If the cache-version was present we should delete it since it must be obsolete if we get to
+  //    this point.
+  // 9) Return nullptr
+
+  *already_opened = false;
+  const Runtime* runtime = Runtime::Current();
+  CHECK(runtime != nullptr);
+  bool executable = !runtime->IsCompiler();
+
+  std::string odex_error_msg;
+  bool should_patch_system = false;
+  bool odex_checksum_verified = false;
+  {
+    // There is a high probability that these both these oat files map similar/the same address
+    // spaces so we must scope them like this so they each gets its turn.
+    std::unique_ptr<OatFile> odex_oat_file(OatFile::Open(odex_filename, odex_filename, NULL,
+                                                         executable, &odex_error_msg));
+    if (odex_oat_file.get() != nullptr && CheckOatFile(odex_oat_file.get(), isa,
+                                                       &odex_checksum_verified,
+                                                       &odex_error_msg)) {
+      error_msgs->push_back(odex_error_msg);
+      return odex_oat_file.release();
+    } else if (odex_checksum_verified) {
+      // We can just relocate
+      should_patch_system = true;
+      odex_error_msg = "Image Patches are incorrect";
+    }
+  }
+
+
+  std::string cache_error_msg;
+  bool should_patch_cache = false;
+  bool cache_checksum_verified = false;
+  if (have_dalvik_cache) {
+    std::unique_ptr<OatFile> cache_oat_file(OatFile::Open(cache_filename, cache_filename, NULL,
+                                                          executable, &cache_error_msg));
+    if (cache_oat_file.get() != nullptr && CheckOatFile(cache_oat_file.get(), isa,
+                                                        &cache_checksum_verified,
+                                                        &cache_error_msg)) {
+      error_msgs->push_back(cache_error_msg);
+      return cache_oat_file.release();
+    } else if (cache_checksum_verified) {
+      // We can just relocate
+      should_patch_cache = true;
+      cache_error_msg = "Image Patches are incorrect";
+    }
+  } else if (have_android_data) {
+    // dalvik_cache does not exist but android data does. This means we should be able to create
+    // it, so we should try.
+    GetDalvikCacheOrDie(GetInstructionSetString(kRuntimeISA), true);
+  }
+
+  ret = nullptr;
+  std::string error_msg;
+  if (runtime->CanRelocate()) {
+    // Run relocation
+    const std::string& image_location =
+        Runtime::Current()->GetHeap()->GetImageSpace()->GetImageLocation();
+    if (odex_checksum_verified && should_patch_system) {
+      ret = PatchAndRetrieveOat(odex_filename, cache_filename, image_location, isa, &error_msg);
+    } else if (cache_checksum_verified && should_patch_cache) {
+      CHECK(have_dalvik_cache);
+      ret = PatchAndRetrieveOat(cache_filename, cache_filename, image_location, isa, &error_msg);
+    }
+  }
+  if (ret == nullptr && have_dalvik_cache && OS::FileExists(cache_filename.c_str())) {
+    // implicitly: were able to fine where the cached version is but we were unable to use it,
+    // either as a destination for relocation or to open a file. We should delete it if it is
+    // there.
+    if (TEMP_FAILURE_RETRY(unlink(cache_filename.c_str())) != 0) {
+      std::string rm_error_msg = StringPrintf("Failed to remove obsolete file from %s when "
+                                              "searching for dex file %s: %s",
+                                              cache_filename.c_str(), dex_location.c_str(),
+                                              strerror(errno));
+      error_msgs->push_back(rm_error_msg);
+      VLOG(class_linker) << rm_error_msg;
+      // Let the caller know that we couldn't remove the obsolete file.
+      // This is a good indication that further writes may fail as well.
+      *obsolete_file_cleanup_failed = true;
+    }
+  }
+  if (ret == nullptr) {
+    VLOG(class_linker) << error_msg;
+    error_msgs->push_back(error_msg);
+    std::string relocation_msg;
+    if (runtime->CanRelocate()) {
+      relocation_msg = StringPrintf(" and relocation failed");
+    }
+    if (have_dalvik_cache && cache_checksum_verified) {
+      error_msg = StringPrintf("Failed to open oat file from %s (error %s) or %s "
+                                "(error %s)%s.", odex_filename.c_str(), odex_error_msg.c_str(),
+                                cache_filename.c_str(), cache_error_msg.c_str(),
+                                relocation_msg.c_str());
+    } else {
+      error_msg = StringPrintf("Failed to open oat file from %s (error %s) (no "
+                               "dalvik_cache availible)%s.", odex_filename.c_str(),
+                               odex_error_msg.c_str(), relocation_msg.c_str());
+    }
+    VLOG(class_linker) << error_msg;
+    error_msgs->push_back(error_msg);
+  }
+  return ret;
+}
+
+const OatFile* ClassLinker::PatchAndRetrieveOat(const std::string& input_oat,
+                                                const std::string& output_oat,
+                                                const std::string& image_location,
+                                                InstructionSet isa,
+                                                std::string* error_msg) {
+  Locks::mutator_lock_->AssertNotHeld(Thread::Current());  // Avoid starving GC.
+  std::string patchoat(Runtime::Current()->GetPatchoatExecutable());
+
+  std::string isa_arg("--instruction-set=");
+  isa_arg += GetInstructionSetString(isa);
+  std::string input_oat_filename_arg("--input-oat-file=");
+  input_oat_filename_arg += input_oat;
+  std::string output_oat_filename_arg("--output-oat-file=");
+  output_oat_filename_arg += output_oat;
+  std::string patched_image_arg("--patched-image-location=");
+  patched_image_arg += image_location;
+
+  std::vector<std::string> argv;
+  argv.push_back(patchoat);
+  argv.push_back(isa_arg);
+  argv.push_back(input_oat_filename_arg);
+  argv.push_back(output_oat_filename_arg);
+  argv.push_back(patched_image_arg);
+
+  std::string command_line(Join(argv, ' '));
+  LOG(INFO) << "Relocate Oat File: " << command_line;
+  bool success = Exec(argv, error_msg);
+  if (success) {
+    std::unique_ptr<OatFile> output(OatFile::Open(output_oat, output_oat, NULL,
+                                                  !Runtime::Current()->IsCompiler(), error_msg));
+    bool checksum_verified = false;
+    if (output.get() != nullptr && CheckOatFile(output.get(), isa, &checksum_verified, error_msg)) {
+      return output.release();
+    } else if (output.get() != nullptr) {
+      *error_msg = StringPrintf("Patching of oat file '%s' succeeded "
+                                "but output file '%s' failed verifcation: %s",
+                                input_oat.c_str(), output_oat.c_str(), error_msg->c_str());
+    } else {
+      *error_msg = StringPrintf("Patching of oat file '%s' succeeded "
+                                "but was unable to open output file '%s': %s",
+                                input_oat.c_str(), output_oat.c_str(), error_msg->c_str());
+    }
+  } else {
+    *error_msg = StringPrintf("Patching of oat file '%s to '%s' "
+                              "failed: %s", input_oat.c_str(), output_oat.c_str(),
+                              error_msg->c_str());
+  }
+  return nullptr;
+}
+
+int32_t ClassLinker::GetRequiredDelta(const OatFile* oat_file, InstructionSet isa) {
+  Runtime* runtime = Runtime::Current();
+  int32_t real_patch_delta;
+  const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+  if (isa == Runtime::Current()->GetInstructionSet()) {
+    const ImageHeader& image_header = image_space->GetImageHeader();
+    real_patch_delta = image_header.GetPatchDelta();
+  } else {
+    std::unique_ptr<ImageHeader> image_header(gc::space::ImageSpace::ReadImageHeaderOrDie(
+        image_space->GetImageLocation().c_str(), isa));
+    real_patch_delta = image_header->GetPatchDelta();
+  }
+  const OatHeader& oat_header = oat_file->GetOatHeader();
+  return real_patch_delta - oat_header.GetImagePatchDelta();
+}
+
+bool ClassLinker::CheckOatFile(const OatFile* oat_file, InstructionSet isa,
+                               bool* checksum_verified,
+                               std::string* error_msg) {
+  std::string compound_msg("Oat file failed to verify: ");
+  Runtime* runtime = Runtime::Current();
+  uint32_t real_image_checksum;
+  void* real_image_oat_offset;
+  int32_t real_patch_delta;
+  const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+  if (isa == Runtime::Current()->GetInstructionSet()) {
+    const ImageHeader& image_header = image_space->GetImageHeader();
+    real_image_checksum = image_header.GetOatChecksum();
+    real_image_oat_offset = image_header.GetOatDataBegin();
+    real_patch_delta = image_header.GetPatchDelta();
+  } else {
+    std::unique_ptr<ImageHeader> image_header(gc::space::ImageSpace::ReadImageHeaderOrDie(
+        image_space->GetImageLocation().c_str(), isa));
+    real_image_checksum = image_header->GetOatChecksum();
+    real_image_oat_offset = image_header->GetOatDataBegin();
+    real_patch_delta = image_header->GetPatchDelta();
+  }
+
+  const OatHeader& oat_header = oat_file->GetOatHeader();
+
+  uint32_t oat_image_checksum = oat_header.GetImageFileLocationOatChecksum();
+  *checksum_verified = oat_image_checksum == real_image_checksum;
+  if (!*checksum_verified) {
+    compound_msg += StringPrintf(" Oat Image Checksum Incorrect (expected 0x%x, recieved 0x%x)",
+                                 real_image_checksum, oat_image_checksum);
+  }
+
+  void* oat_image_oat_offset =
+      reinterpret_cast<void*>(oat_header.GetImageFileLocationOatDataBegin());
+  bool offset_verified = oat_image_oat_offset == real_image_oat_offset;
+  if (!offset_verified) {
+    compound_msg += StringPrintf(" Oat Image oat offset incorrect (expected 0x%p, recieved 0x%p)",
+                                 real_image_oat_offset, oat_image_oat_offset);
+  }
+
+  int32_t oat_patch_delta = oat_header.GetImagePatchDelta();
+  bool patch_delta_verified = oat_patch_delta == real_patch_delta;
+  if (!patch_delta_verified) {
+    compound_msg += StringPrintf(" Oat image patch delta incorrect (expected 0x%x, recieved 0x%x)",
+                                 real_patch_delta, oat_patch_delta);
+  }
+
+  bool ret = (*checksum_verified && offset_verified && patch_delta_verified);
+  if (ret) {
+    *error_msg = compound_msg;
+  }
+  return ret;
 }
 
 const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_location,

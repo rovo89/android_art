@@ -439,11 +439,22 @@ const char* GetAndroidRoot();
 
 // Find $ANDROID_DATA, /data, or abort.
 const char* GetAndroidData();
+// Find $ANDROID_DATA, /data, or return nullptr.
+const char* GetAndroidDataSafe(std::string* error_msg);
 
 // Returns the dalvik-cache location, or dies trying. subdir will be
 // appended to the cache location.
 std::string GetDalvikCacheOrDie(const char* subdir, bool create_if_absent = true);
+// Return true if we found the dalvik cache and stored it in the dalvik_cache argument.
+// have_android_data will be set to true if we have an ANDROID_DATA that exists,
+// dalvik_cache_exists will be true if there is a dalvik-cache directory that is present.
+void GetDalvikCache(const char* subdir, bool create_if_absent, std::string* dalvik_cache,
+                    bool* have_android_data, bool* dalvik_cache_exists);
 
+// Returns the absolute dalvik-cache path for a DexFile or OatFile. The path returned will be
+// rooted at cache_location.
+bool GetDalvikCacheFilename(const char* file_location, const char* cache_location,
+                            std::string* filename, std::string* error_msg);
 // Returns the absolute dalvik-cache path for a DexFile or OatFile, or
 // dies trying. The path returned will be rooted at cache_location.
 std::string GetDalvikCacheFilenameOrDie(const char* file_location,

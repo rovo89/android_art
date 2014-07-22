@@ -36,6 +36,10 @@ class CompilerCallbacks {
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
     virtual void ClassRejected(ClassReference ref) = 0;
 
+    // Return true if we should attempt to relocate to a random base address if we have not already
+    // done so. Return false if relocating in this way would be problematic.
+    virtual bool IsRelocationPossible() = 0;
+
   protected:
     CompilerCallbacks() { }
 };

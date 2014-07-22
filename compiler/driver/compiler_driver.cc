@@ -955,7 +955,8 @@ bool CompilerDriver::CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_i
     if (class_in_image) {
       // boot -> app class pointers.
       *is_type_initialized = resolved_class->IsInitialized();
-      *use_direct_type_ptr = true;
+      // TODO This is somewhat hacky. We should refactor all of this invoke codepath.
+      *use_direct_type_ptr = !GetCompilerOptions().GetIncludePatchInformation();
       *direct_type_ptr = reinterpret_cast<uintptr_t>(resolved_class);
       return true;
     } else {
@@ -1099,6 +1100,9 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   *direct_method = 0;
   bool use_dex_cache = false;
   const bool compiling_boot = Runtime::Current()->GetHeap()->IsCompilingBoot();
+  // TODO This is somewhat hacky. We should refactor all of this invoke codepath.
+  const bool force_relocations = (compiling_boot ||
+                                  GetCompilerOptions().GetIncludePatchInformation());
   if (compiler_->IsPortable()) {
     if (sharp_type != kStatic && sharp_type != kDirect) {
       return;
@@ -1109,7 +1113,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       return;
     }
     // TODO: support patching on all architectures.
-    use_dex_cache = compiling_boot && !support_boot_image_fixup_;
+    use_dex_cache = force_relocations && !support_boot_image_fixup_;
   }
   bool method_code_in_boot = (method->GetDeclaringClass()->GetClassLoader() == nullptr);
   if (!use_dex_cache) {
@@ -1128,8 +1132,8 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   if (method_code_in_boot) {
     *stats_flags |= kFlagDirectCallToBoot | kFlagDirectMethodToBoot;
   }
-  if (!use_dex_cache && compiling_boot) {
-    if (!IsImageClass(method->GetDeclaringClassDescriptor())) {
+  if (!use_dex_cache && force_relocations) {
+    if (!IsImage() || !IsImageClass(method->GetDeclaringClassDescriptor())) {
       // We can only branch directly to Methods that are resolved in the DexCache.
       // Otherwise we won't invoke the resolution trampoline.
       use_dex_cache = true;
@@ -1150,7 +1154,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       if (dex_method_idx != DexFile::kDexNoIndex) {
         target_method->dex_method_index = dex_method_idx;
       } else {
-        if (compiling_boot && !use_dex_cache) {
+        if (force_relocations && !use_dex_cache) {
           target_method->dex_method_index = method->GetDexMethodIndex();
           target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
         }
@@ -1167,19 +1171,26 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       *type = sharp_type;
     }
   } else {
-    bool method_in_image = compiling_boot ||
+    bool method_in_image =
         Runtime::Current()->GetHeap()->FindSpaceFromObject(method, false)->IsImageSpace();
-    if (method_in_image) {
+    if (method_in_image || compiling_boot) {
+      // We know we must be able to get to the method in the image, so use that pointer.
       CHECK(!method->IsAbstract());
       *type = sharp_type;
-      *direct_method = compiling_boot ? -1 : reinterpret_cast<uintptr_t>(method);
-      *direct_code = compiling_boot ? -1 : compiler_->GetEntryPointOf(method);
+      *direct_method = force_relocations ? -1 : reinterpret_cast<uintptr_t>(method);
+      *direct_code = force_relocations ? -1 : compiler_->GetEntryPointOf(method);
       target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
       target_method->dex_method_index = method->GetDexMethodIndex();
     } else if (!must_use_direct_pointers) {
       // Set the code and rely on the dex cache for the method.
       *type = sharp_type;
-      *direct_code = compiler_->GetEntryPointOf(method);
+      if (force_relocations) {
+        *direct_code = -1;
+        target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
+        target_method->dex_method_index = method->GetDexMethodIndex();
+      } else {
+        *direct_code = compiler_->GetEntryPointOf(method);
+      }
     } else {
       // Direct pointers were required but none were available.
       VLOG(compiler) << "Dex cache devirtualization failed for: " << PrettyMethod(method);

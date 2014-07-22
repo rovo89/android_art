@@ -165,6 +165,8 @@ class OatDumper {
                            GetQuickToInterpreterBridgeOffset);
 #undef DUMP_OAT_HEADER_OFFSET
 
+    os << "IMAGE PATCH DELTA:\n" << oat_header.GetImagePatchDelta();
+
     os << "IMAGE FILE LOCATION OAT CHECKSUM:\n";
     os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationOatChecksum());
 
@@ -771,6 +773,8 @@ class ImageDumper {
 
     os << "OAT FILE END:" << reinterpret_cast<void*>(image_header_.GetOatFileEnd()) << "\n\n";
 
+    os << "PATCH DELTA:" << image_header_.GetPatchDelta() << "\n\n";
+
     {
       os << "ROOTS: " << reinterpret_cast<void*>(image_header_.GetImageRoots()) << "\n";
       Indenter indent1_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
@@ -819,10 +823,13 @@ class ImageDumper {
     os << "OAT LOCATION: " << oat_location;
     os << "\n";
     std::string error_msg;
-    const OatFile* oat_file = class_linker->FindOatFileFromOatLocation(oat_location, &error_msg);
-    if (oat_file == NULL) {
-      os << "NOT FOUND: " << error_msg << "\n";
-      return;
+    const OatFile* oat_file = class_linker->FindOpenedOatFileFromOatLocation(oat_location);
+    if (oat_file == nullptr) {
+      oat_file = OatFile::Open(oat_location, oat_location, NULL, false, &error_msg);
+      if (oat_file == nullptr) {
+        os << "NOT FOUND: " << error_msg << "\n";
+        return;
+      }
     }
     os << "\n";
 
