@@ -550,6 +550,16 @@ class Thread {
     return tlsPtr_.stack_size - (tlsPtr_.stack_end - tlsPtr_.stack_begin);
   }
 
+  byte* GetStackEndForInterpreter(bool implicit_overflow_check) const {
+    if (implicit_overflow_check) {
+      // The interpreter needs the extra overflow bytes that stack_end does
+      // not include.
+      return tlsPtr_.stack_end + GetStackOverflowReservedBytes(kRuntimeISA);
+    } else {
+      return tlsPtr_.stack_end;
+    }
+  }
+
   byte* GetStackEnd() const {
     return tlsPtr_.stack_end;
   }
