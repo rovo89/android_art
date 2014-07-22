@@ -3253,7 +3253,7 @@ mirror::ArtMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* inst,
       return nullptr;
     }
     mirror::Class* super_klass = super.GetClass();
-    if (res_method->GetMethodIndex() >= super_klass->GetVTable()->GetLength()) {
+    if (res_method->GetMethodIndex() >= super_klass->GetVTableLength()) {
       Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from "
                                    << PrettyMethod(dex_method_idx_, *dex_file_)
                                    << " to super " << super
@@ -3278,20 +3278,21 @@ mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst
     VLOG(verifier) << "Failed to get mirror::Class* from '" << actual_arg_type << "'";
     return nullptr;
   }
-  mirror::ObjectArray<mirror::ArtMethod>* vtable = nullptr;
   mirror::Class* klass = actual_arg_type.GetClass();
+  mirror::Class* dispatch_class;
   if (klass->IsInterface()) {
     // Derive Object.class from Class.class.getSuperclass().
     mirror::Class* object_klass = klass->GetClass()->GetSuperClass();
     CHECK(object_klass->IsObjectClass());
-    vtable = object_klass->GetVTable();
+    dispatch_class = object_klass;
   } else {
-    vtable = klass->GetVTable();
+    dispatch_class = klass;
   }
-  CHECK(vtable != nullptr) << PrettyDescriptor(klass);
+  CHECK(dispatch_class->HasVTable()) << PrettyDescriptor(dispatch_class);
   uint16_t vtable_index = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
-  CHECK_LT(static_cast<int32_t>(vtable_index), vtable->GetLength()) << PrettyDescriptor(klass);
-  mirror::ArtMethod* res_method = vtable->Get(vtable_index);
+  CHECK_LT(static_cast<int32_t>(vtable_index), dispatch_class->GetVTableLength())
+      << PrettyDescriptor(klass);
+  mirror::ArtMethod* res_method = dispatch_class->GetVTableEntry(vtable_index);
   CHECK(!Thread::Current()->IsExceptionPending());
   return res_method;
 }
