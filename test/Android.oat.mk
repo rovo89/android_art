@@ -470,6 +470,22 @@ $(eval $(call define-test-art-oat-combination,host,HOST,-optimizing,_OPTIMIZING,
 $(eval $(call define-test-art-oat-combination,host,HOST,-interpreter,_INTERPRETER,$(2ND_ART_PHONY_TEST_HOST_SUFFIX)))
 endif
 
+# List -relocate version on the target as broken.
+
+# List all the test names for target and compiler variants.
+# $(1): test name, e.g. Main
+# $(2): -relocate, -norelocate, -prebuild, or undefined.
+define all-oat-test-target-names
+  test-art-target-oat-default$(2)-$(1)32 \
+  test-art-target-oat-optimizing$(2)-$(1)32 \
+  test-art-target-oat-interpreter$(2)-$(1)32 \
+  test-art-target-oat-default$(2)-$(1)64 \
+  test-art-target-oat-optimizing$(2)-$(1)64 \
+  test-art-target-oat-interpreter$(2)-$(1)64
+endef  # all-oat-test-target-names
+
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_OAT_DIRECTORIES), $(call all-oat-test-target-names,$(test),-relocate))
+
 # Clear locally defined variables.
 define-test-art-oat-rule-target :=
 define-test-art-oat-rules-target :=
