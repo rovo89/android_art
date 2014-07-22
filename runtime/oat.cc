@@ -23,7 +23,7 @@
 namespace art {
 
 const uint8_t OatHeader::kOatMagic[] = { 'o', 'a', 't', '\n' };
-const uint8_t OatHeader::kOatVersion[] = { '0', '3', '7', '\0' };
+const uint8_t OatHeader::kOatVersion[] = { '0', '3', '8', '\0' };
 
 static size_t ComputeOatHeaderSize(const SafeMap<std::string, std::string>* variable_data) {
   size_t estimate = 0U;
@@ -67,6 +67,8 @@ OatHeader::OatHeader(InstructionSet instruction_set,
                      const SafeMap<std::string, std::string>* variable_data) {
   memcpy(magic_, kOatMagic, sizeof(kOatMagic));
   memcpy(version_, kOatVersion, sizeof(kOatVersion));
+  executable_offset_ = 0;
+  image_patch_delta_ = 0;
 
   adler32_checksum_ = adler32(0L, Z_NULL, 0);
 
@@ -98,7 +100,6 @@ OatHeader::OatHeader(InstructionSet instruction_set,
     UpdateChecksum(&key_value_store_, key_value_store_size_);
   }
 
-  executable_offset_ = 0;
   interpreter_to_interpreter_bridge_offset_ = 0;
   interpreter_to_compiled_code_bridge_offset_ = 0;
   jni_dlsym_lookup_offset_ = 0;
@@ -116,6 +117,12 @@ bool OatHeader::IsValid() const {
     return false;
   }
   if (memcmp(version_, kOatVersion, sizeof(kOatVersion)) != 0) {
+    return false;
+  }
+  if (!IsAligned<kPageSize>(executable_offset_)) {
+    return false;
+  }
+  if (!IsAligned<kPageSize>(image_patch_delta_)) {
     return false;
   }
   return true;
@@ -353,6 +360,26 @@ void OatHeader::SetQuickToInterpreterBridgeOffset(uint32_t offset) {
 
   quick_to_interpreter_bridge_offset_ = offset;
   UpdateChecksum(&quick_to_interpreter_bridge_offset_, sizeof(offset));
+}
+
+int32_t OatHeader::GetImagePatchDelta() const {
+  CHECK(IsValid());
+  return image_patch_delta_;
+}
+
+void OatHeader::RelocateOat(off_t delta) {
+  CHECK(IsValid());
+  CHECK_ALIGNED(delta, kPageSize);
+  image_patch_delta_ += delta;
+  if (image_file_location_oat_data_begin_ != 0) {
+    image_file_location_oat_data_begin_ += delta;
+  }
+}
+
+void OatHeader::SetImagePatchDelta(int32_t off) {
+  CHECK(IsValid());
+  CHECK_ALIGNED(off, kPageSize);
+  image_patch_delta_ = off;
 }
 
 uint32_t OatHeader::GetImageFileLocationOatChecksum() const {

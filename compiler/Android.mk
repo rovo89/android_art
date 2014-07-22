@@ -118,6 +118,7 @@ LIBART_COMPILER_SRC_FILES := \
 	compilers.cc \
 	compiler.cc \
 	elf_fixup.cc \
+	elf_patcher.cc \
 	elf_stripper.cc \
 	elf_writer.cc \
 	elf_writer_quick.cc \

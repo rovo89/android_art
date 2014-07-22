@@ -120,6 +120,7 @@ TEST_F(OatTest, WriteRead) {
   OatWriter oat_writer(class_linker->GetBootClassPath(),
                        42U,
                        4096U,
+                       0,
                        compiler_driver_.get(),
                        &timings,
                        &key_value_store);
@@ -183,7 +184,7 @@ TEST_F(OatTest, WriteRead) {
 TEST_F(OatTest, OatHeaderSizeCheck) {
   // If this test is failing and you have to update these constants,
   // it is time to update OatHeader::kOatVersion
-  EXPECT_EQ(80U, sizeof(OatHeader));
+  EXPECT_EQ(84U, sizeof(OatHeader));
   EXPECT_EQ(8U, sizeof(OatMethodOffsets));
   EXPECT_EQ(24U, sizeof(OatQuickMethodHeader));
   EXPECT_EQ(79 * GetInstructionSetPointerSize(kRuntimeISA), sizeof(QuickEntryPoints));

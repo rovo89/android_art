@@ -80,7 +80,7 @@ TEST_F(ImageTest, WriteRead) {
       t.NewTiming("WriteElf");
       ScopedObjectAccess soa(Thread::Current());
       SafeMap<std::string, std::string> key_value_store;
-      OatWriter oat_writer(class_linker->GetBootClassPath(), 0, 0, compiler_driver_.get(), &timings,
+      OatWriter oat_writer(class_linker->GetBootClassPath(), 0, 0, 0, compiler_driver_.get(), &timings,
                            &key_value_store);
       bool success = compiler_driver_->WriteElf(GetTestAndroidRoot(),
                                                 !kIsTargetBuild,

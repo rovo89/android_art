@@ -74,6 +74,7 @@ IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,
   table_mem_map_.reset(MemMap::MapAnonymous("indirect ref table", nullptr, table_bytes,
                                             PROT_READ | PROT_WRITE, false, &error_str));
   CHECK(table_mem_map_.get() != nullptr) << error_str;
+  CHECK_EQ(table_mem_map_->Size(), table_bytes);
 
   table_ = reinterpret_cast<mirror::Object**>(table_mem_map_->Begin());
   CHECK(table_ != nullptr);

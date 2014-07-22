@@ -41,6 +41,11 @@ class QuickCompilerCallbacks FINAL : public CompilerCallbacks {
 
     void ClassRejected(ClassReference ref) OVERRIDE;
 
+    // We are running in an environment where we can call patchoat safely so we should.
+    bool IsRelocationPossible() OVERRIDE {
+      return true;
+    }
+
   private:
     VerificationResults* const verification_results_;
     DexFileToMethodInlinerMap* const method_inliner_map_;

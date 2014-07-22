@@ -50,6 +50,7 @@ namespace art {
 OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
                      uint32_t image_file_location_oat_checksum,
                      uintptr_t image_file_location_oat_begin,
+                     int32_t image_patch_delta,
                      const CompilerDriver* compiler,
                      TimingLogger* timings,
                      SafeMap<std::string, std::string>* key_value_store)
@@ -57,6 +58,7 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
     dex_files_(&dex_files),
     image_file_location_oat_checksum_(image_file_location_oat_checksum),
     image_file_location_oat_begin_(image_file_location_oat_begin),
+    image_patch_delta_(image_patch_delta),
     key_value_store_(key_value_store),
     oat_header_(NULL),
     size_dex_file_alignment_(0),
@@ -126,6 +128,7 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
   CHECK_EQ(dex_files_->size(), oat_dex_files_.size());
   CHECK_EQ(compiler->IsImage(),
            key_value_store_->find(OatHeader::kImageLocationKey) == key_value_store_->end());
+  CHECK_ALIGNED(image_patch_delta_, kPageSize);
 }
 
 OatWriter::~OatWriter() {
@@ -808,6 +811,7 @@ size_t OatWriter::InitOatCode(size_t offset) {
   oat_header_->SetExecutableOffset(offset);
   size_executable_offset_alignment_ = offset - old_offset;
   if (compiler_driver_->IsImage()) {
+    CHECK_EQ(image_patch_delta_, 0);
     InstructionSet instruction_set = compiler_driver_->GetInstructionSet();
 
     #define DO_TRAMPOLINE(field, fn_name) \
@@ -840,6 +844,7 @@ size_t OatWriter::InitOatCode(size_t offset) {
     oat_header_->SetQuickImtConflictTrampolineOffset(0);
     oat_header_->SetQuickResolutionTrampolineOffset(0);
     oat_header_->SetQuickToInterpreterBridgeOffset(0);
+    oat_header_->SetImagePatchDelta(image_patch_delta_);
   }
   return offset;
 }

@@ -70,6 +70,11 @@ class ImageWriter {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   size_t GetImageOffset(mirror::Object* object) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  static void* GetImageAddressCallback(void* writer, mirror::Object* obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return reinterpret_cast<ImageWriter*>(writer)->GetImageAddress(obj);
+  }
+
   mirror::Object* GetImageAddress(mirror::Object* object) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (object == NULL) {
@@ -158,9 +163,6 @@ class ImageWriter {
 
   // Patches references in OatFile to expect runtime addresses.
   void PatchOatCodeAndMethods(File* elf_file)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetPatchLocation(const CompilerDriver::PatchInformation* patch, uint32_t value,
-                        uintptr_t* patched_location)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const CompilerDriver& compiler_driver_;
