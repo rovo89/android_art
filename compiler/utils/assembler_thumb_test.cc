@@ -171,7 +171,7 @@ void dump(std::vector<uint8_t>& code, const char* testname) {
   }
   out.close();
 
-  char cmd[256];
+  char cmd[1024];
 
   // Assemble the .S
   snprintf(cmd, sizeof(cmd), "%s%sas %s -o %s.o", toolsdir.c_str(), TOOL_PREFIX, filename, filename);
