@@ -692,17 +692,33 @@ class MANAGED Class FINAL : public Object {
     return MemberOffset(sizeof(Class));
   }
 
-  static MemberOffset EmbeddedVTableOffset() {
+  static MemberOffset EmbeddedVTableLengthOffset() {
     return MemberOffset(sizeof(Class) + kImtSize * sizeof(mirror::Class::ImTableEntry));
+  }
+
+  static MemberOffset EmbeddedVTableOffset() {
+    return MemberOffset(sizeof(Class) + kImtSize * sizeof(mirror::Class::ImTableEntry) + sizeof(int32_t));
   }
 
   bool ShouldHaveEmbeddedImtAndVTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return IsInstantiable();
   }
 
+  bool HasVTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   ArtMethod* GetEmbeddedImTableEntry(uint32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetEmbeddedImTableEntry(uint32_t i, ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  int32_t GetVTableLength() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  ArtMethod* GetVTableEntry(uint32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  int32_t GetEmbeddedVTableLength() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void SetEmbeddedVTableLength(int32_t len) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  ArtMethod* GetEmbeddedVTableEntry(uint32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetEmbeddedVTableEntry(uint32_t i, ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
