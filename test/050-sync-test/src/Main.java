@@ -50,13 +50,14 @@ public class Main {
         one = new CpuThread(1);
         two = new CpuThread(2);
 
-        one.start();
-
-        try {
-            Thread.sleep(100);
-        } catch (InterruptedException ie) {
-            System.out.println("INTERRUPT!");
-            ie.printStackTrace();
+        synchronized (one) {
+            one.start();
+            try {
+                one.wait();
+            } catch (InterruptedException ie) {
+                System.out.println("INTERRUPT!");
+                ie.printStackTrace();
+            }
         }
 
         two.start();
@@ -101,6 +102,9 @@ class CpuThread extends Thread {
         //System.out.println(Thread.currentThread().getName());
 
         synchronized (mSyncable) {
+            synchronized (this) {
+                this.notify();
+            }
             for (int i = 0; i < 10; i++) {
                 output(mNumber);
             }
