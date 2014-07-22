@@ -358,7 +358,7 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
    */
   bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !IsLargeFrame(frame_size_, kArm);
   NewLIR0(kPseudoMethodEntry);
-  constexpr size_t kStackOverflowReservedUsableBytes = kArmStackOverflowReservedBytes -
+  const size_t kStackOverflowReservedUsableBytes = GetStackOverflowReservedBytes(kArm) -
       Thread::kStackOverflowSignalReservedBytes;
   bool large_frame = (static_cast<size_t>(frame_size_) > kStackOverflowReservedUsableBytes);
   if (!skip_overflow_check) {
@@ -381,7 +381,7 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
       // This is done before the callee save instructions to avoid any possibility
       // of these overflowing.  This uses r12 and that's never saved in a callee
       // save.
-      OpRegRegImm(kOpSub, rs_r12, rs_rARM_SP, kArmStackOverflowReservedBytes);
+      OpRegRegImm(kOpSub, rs_r12, rs_rARM_SP, GetStackOverflowReservedBytes(kArm));
       Load32Disp(rs_r12, 0, rs_r12);
       MarkPossibleStackOverflowException();
     }
