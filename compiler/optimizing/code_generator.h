@@ -131,6 +131,14 @@ class CodeGenerator : public ArenaObject {
   void BuildNativeGCMap(
       std::vector<uint8_t>* vector, const DexCompilationUnit& dex_compilation_unit) const;
 
+  bool IsLeafMethod() const {
+    return is_leaf_;
+  }
+
+  void MarkNotLeaf() {
+    is_leaf_ = false;
+  }
+
  protected:
   CodeGenerator(HGraph* graph, size_t number_of_registers)
       : frame_size_(kUninitializedFrameSize),
@@ -138,7 +146,8 @@ class CodeGenerator : public ArenaObject {
         block_labels_(graph->GetArena(), 0),
         pc_infos_(graph->GetArena(), 32),
         slow_paths_(graph->GetArena(), 8),
-        blocked_registers_(graph->GetArena()->AllocArray<bool>(number_of_registers)) {}
+        blocked_registers_(graph->GetArena()->AllocArray<bool>(number_of_registers)),
+        is_leaf_(true) {}
   ~CodeGenerator() {}
 
   // Register allocation logic.
@@ -170,6 +179,8 @@ class CodeGenerator : public ArenaObject {
 
   // Temporary data structure used when doing register allocation.
   bool* const blocked_registers_;
+
+  bool is_leaf_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGenerator);
 };
