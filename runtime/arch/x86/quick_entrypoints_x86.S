@@ -1277,12 +1277,12 @@ DEFINE_FUNCTION art_quick_instrumentation_exit
     mov  %esp, %ecx               // Remember SP
     subl LITERAL(8), %esp         // Save float return value.
     CFI_ADJUST_CFA_OFFSET(8)
-    movsd %xmm0, (%esp)
+    movq %xmm0, (%esp)
     PUSH edx                      // Save gpr return value.
     PUSH eax
     subl LITERAL(16), %esp        // Align stack
     CFI_ADJUST_CFA_OFFSET(16)
-    movsd %xmm0, (%esp)           // Pass float return value.
+    movq %xmm0, (%esp)            // Pass float return value.
     PUSH edx                      // Pass gpr return value.
     PUSH eax
     PUSH ecx                      // Pass SP.
@@ -1297,7 +1297,7 @@ DEFINE_FUNCTION art_quick_instrumentation_exit
                                   // (ebx is pretending to be our LR).
     POP eax                       // Restore gpr return value.
     POP edx
-    movsd (%esp), %xmm0           // Restore fpr return value.
+    movq (%esp), %xmm0            // Restore fpr return value.
     addl LITERAL(8), %esp
     CFI_ADJUST_CFA_OFFSET(-8)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME

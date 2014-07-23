@@ -1495,7 +1495,7 @@ DEFINE_FUNCTION art_quick_instrumentation_exit
     PUSH rax                  // Save integer result.
     subq LITERAL(8), %rsp     // Save floating-point result.
     CFI_ADJUST_CFA_OFFSET(8)
-    movd %xmm0, (%rsp)
+    movq %xmm0, (%rsp)
 
     movq  %gs:THREAD_SELF_OFFSET, %rdi        // Pass Thread.
     movq  %rax, %rdx                          // Pass integer result.
@@ -1506,7 +1506,7 @@ DEFINE_FUNCTION art_quick_instrumentation_exit
     movq  %rax, %rdi          // Store return PC
     movq  %rdx, %rsi          // Store second return PC in hidden arg.
 
-    movd (%rsp), %xmm0        // Restore floating-point result.
+    movq (%rsp), %xmm0        // Restore floating-point result.
     addq LITERAL(8), %rsp
     CFI_ADJUST_CFA_OFFSET(-8)
     POP rax                   // Restore integer result.
