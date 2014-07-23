@@ -74,6 +74,9 @@ class ZygoteSpace FINAL : public ContinuousMemMapAllocSpace {
     return false;
   }
 
+  void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  protected:
   virtual accounting::ContinuousSpaceBitmap::SweepCallback* GetSweepCallback() {
     return &SweepCallback;

@@ -444,8 +444,7 @@ class Heap {
                                                               bool fail_ok) const;
   space::Space* FindSpaceFromObject(const mirror::Object*, bool fail_ok) const;
 
-  void DumpForSigQuit(std::ostream& os);
-
+  void DumpForSigQuit(std::ostream& os) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Do a pending heap transition or trim.
   void DoPendingTransitionOrTrim() LOCKS_EXCLUDED(heap_trim_request_lock_);
@@ -594,8 +593,13 @@ class Heap {
 
   void FinishGC(Thread* self, collector::GcType gc_type) LOCKS_EXCLUDED(gc_complete_lock_);
 
+  // Create a mem map with a preferred base address.
+  static MemMap* MapAnonymousPreferredAddress(const char* name, byte* request_begin,
+                                              size_t capacity, int prot_flags,
+                                              std::string* out_error_str);
+
   bool SupportHSpaceCompaction() const {
-    // Returns true if we can do hspace compaction.
+    // Returns true if we can do hspace compaction
     return main_space_backup_ != nullptr;
   }
 
@@ -1007,7 +1011,8 @@ class Heap {
   const bool use_tlab_;
 
   // Pointer to the space which becomes the new main space when we do homogeneous space compaction.
-  space::MallocSpace* main_space_backup_;
+  // Use unique_ptr since the space is only added during the homogeneous compaction phase.
+  std::unique_ptr<space::MallocSpace> main_space_backup_;
 
   // Minimal interval allowed between two homogeneous space compactions caused by OOM.
   uint64_t min_interval_homogeneous_space_compaction_by_oom_;
