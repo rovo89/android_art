@@ -737,11 +737,9 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
   ArenaBitVector* ssa_regs_to_check = temp_bit_vector_;
   if (do_nce) {
     /*
-     * Set initial state.  Be conservative with catch
-     * blocks and start with no assumptions about null check
-     * status (except for "this").
+     * Set initial state. Catch blocks don't need any special treatment.
      */
-    if ((bb->block_type == kEntryBlock) | bb->catch_entry) {
+    if (bb->block_type == kEntryBlock) {
       ssa_regs_to_check->ClearAllBits();
       // Assume all ins are objects.
       for (uint16_t in_reg = cu_->num_dalvik_registers - cu_->num_ins;
@@ -1047,12 +1045,11 @@ bool MIRGraph::EliminateClassInitChecks(BasicBlock* bb) {
   }
 
   /*
-   * Set initial state.  Be conservative with catch
-   * blocks and start with no assumptions about class init check status.
+   * Set initial state.  Catch blocks don't need any special treatment.
    */
   ArenaBitVector* classes_to_check = temp_bit_vector_;
   DCHECK(classes_to_check != nullptr);
-  if ((bb->block_type == kEntryBlock) | bb->catch_entry) {
+  if (bb->block_type == kEntryBlock) {
     classes_to_check->SetInitialBits(temp_bit_vector_size_);
   } else if (bb->predecessors->Size() == 1) {
     BasicBlock* pred_bb = GetBasicBlock(bb->predecessors->Get(0));
