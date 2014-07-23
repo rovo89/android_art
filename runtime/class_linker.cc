@@ -4128,7 +4128,7 @@ bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) 
         return false;
       }
       int len = super_class->GetVTableLength();
-      for (int i=0; i<len; i++) {
+      for (int i = 0; i < len; i++) {
         vtable->Set<false>(i, super_class->GetVTableEntry(i));
       }
     } else {
