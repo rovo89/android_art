@@ -48,7 +48,6 @@ while true; do
         shift
         option="$1"
         FLAGS="${FLAGS} $option"
-        COMPILE_FLAGS="${COMPILE_FLAGS} --runtime-arg $option"
         shift
     elif [ "x$1" = "x--boot" ]; then
         shift

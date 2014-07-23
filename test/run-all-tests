@@ -89,6 +89,9 @@ while true; do
     elif [ "x$1" = "x--no-relocate" ]; then
         run_args="${run_args} --no-relocate"
         shift
+    elif [ "x$1" = "x--no-prebuild" ]; then
+        run_args="${run_args} --no-prebuild"
+        shift;
     elif [ "x$1" = "x--prebuild" ]; then
         run_args="${run_args} --prebuild"
         shift;
