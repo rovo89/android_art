@@ -151,6 +151,9 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
     bytes_allocated_.FetchAndSubSequentiallyConsistent(bytes);
   }
 
+  void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Object alignment within the space.
   static constexpr size_t kAlignment = 8;
 

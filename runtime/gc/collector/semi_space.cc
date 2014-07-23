@@ -69,9 +69,9 @@ void SemiSpace::BindBitmaps() {
     } else if (space->GetLiveBitmap() != nullptr) {
       if (space == to_space_ || collect_from_space_only_) {
         if (collect_from_space_only_) {
-          // Bind the main free list space and the non-moving space to the immune space if a bump
-          // pointer space only collection.
-          CHECK(space == to_space_ || space == GetHeap()->GetPrimaryFreeListSpace() ||
+          // Bind the bitmaps of the main free list space and the non-moving space we are doing a
+          // bump pointer space only collection.
+          CHECK(space == GetHeap()->GetPrimaryFreeListSpace() ||
                 space == GetHeap()->GetNonMovingSpace());
         }
         CHECK(space->IsContinuousMemMapAllocSpace());
@@ -222,7 +222,6 @@ void SemiSpace::MarkingPhase() {
   heap_->GetCardTable()->ClearCardTable();
   // Need to do this before the checkpoint since we don't want any threads to add references to
   // the live stack during the recursive mark.
-  t.NewTiming("SwapStacks");
   if (kUseThreadLocalAllocationStack) {
     TimingLogger::ScopedTiming t("RevokeAllThreadLocalAllocationStacks", GetTimings());
     heap_->RevokeAllThreadLocalAllocationStacks(self_);
@@ -492,7 +491,7 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
       // If out of space, fall back to the to-space.
       forward_address = to_space_->AllocThreadUnsafe(self_, object_size, &bytes_allocated, nullptr);
       // No logic for marking the bitmap, so it must be null.
-      DCHECK(to_space_->GetLiveBitmap() == nullptr);
+      DCHECK(to_space_live_bitmap_ == nullptr);
     } else {
       bytes_promoted_ += bytes_allocated;
       // Dirty the card at the destionation as it may contain

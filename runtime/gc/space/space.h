@@ -223,6 +223,8 @@ class AllocSpace {
   // threads, if the alloc space implementation uses any.
   virtual void RevokeAllThreadLocalBuffers() = 0;
 
+  virtual void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) = 0;
+
  protected:
   struct SweepCallbackContext {
     SweepCallbackContext(bool swap_bitmaps, space::Space* space);
