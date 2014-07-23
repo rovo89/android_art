@@ -26,6 +26,8 @@ FLAGS=""
 TARGET_SUFFIX=""
 COMPILE_FLAGS=""
 
+echo "$@"
+
 while true; do
     if [ "x$1" = "x--quiet" ]; then
         QUIET="y"

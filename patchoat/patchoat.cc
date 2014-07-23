@@ -1024,6 +1024,9 @@ static int patchoat(int argc, char **argv) {
     } else {
       CHECK(!input_oat_filename.empty());
       input_oat.reset(OS::OpenFileForReading(input_oat_filename.c_str()));
+      if (input_oat.get() == nullptr) {
+        LOG(ERROR) << "Could not open input oat file: " << strerror(errno);
+      }
     }
 
     if (output_oat_fd != -1) {

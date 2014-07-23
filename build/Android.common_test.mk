@@ -21,7 +21,27 @@ include art/build/Android.common_path.mk
 
 # List of known broken tests that we won't attempt to execute. The test name must be the full
 # rule name such as test-art-host-oat-optimizing-HelloWorld64.
-ART_TEST_KNOWN_BROKEN :=
+ART_TEST_KNOWN_BROKEN := \
+  test-art-host-run-test-gcstress-optimizing-no-prebuild-004-SignalTest32 \
+  test-art-host-run-test-gcstress-optimizing-prebuild-004-SignalTest32 \
+  test-art-host-run-test-gcstress-optimizing-norelocate-004-SignalTest32 \
+  test-art-host-run-test-gcstress-optimizing-relocate-004-SignalTest32 \
+  test-art-host-run-test-gcverify-optimizing-no-prebuild-004-SignalTest32 \
+  test-art-host-run-test-gcverify-optimizing-prebuild-004-SignalTest32 \
+  test-art-host-run-test-gcverify-optimizing-norelocate-004-SignalTest32 \
+  test-art-host-run-test-gcverify-optimizing-relocate-004-SignalTest32 \
+  test-art-host-run-test-optimizing-no-prebuild-004-SignalTest32 \
+  test-art-host-run-test-optimizing-prebuild-004-SignalTest32 \
+  test-art-host-run-test-optimizing-norelocate-004-SignalTest32 \
+  test-art-host-run-test-optimizing-relocate-004-SignalTest32 \
+  test-art-target-run-test-gcstress-optimizing-prebuild-004-SignalTest32 \
+  test-art-target-run-test-gcstress-optimizing-norelocate-004-SignalTest32 \
+  test-art-target-run-test-gcstress-default-prebuild-004-SignalTest32 \
+  test-art-target-run-test-gcstress-default-norelocate-004-SignalTest32 \
+  test-art-target-run-test-gcstress-optimizing-relocate-004-SignalTest32 \
+  test-art-target-run-test-gcstress-default-relocate-004-SignalTest32 \
+  test-art-target-run-test-gcstress-optimizing-no-prebuild-004-SignalTest32 \
+  test-art-target-run-test-gcstress-default-no-prebuild-004-SignalTest32
 
 # List of known failing tests that when executed won't cause test execution to not finish.
 # The test name must be the full rule name such as test-art-host-oat-optimizing-HelloWorld64.

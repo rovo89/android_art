@@ -56,6 +56,7 @@ info="info.txt"
 build="build"
 run="run"
 expected="expected.txt"
+check_cmd="check"
 output="output.txt"
 build_output="build-output.txt"
 lib="libartd.so"
@@ -187,6 +188,18 @@ while true; do
 done
 mkdir -p $tmp_dir
 
+# Most interesting target architecture variables are Makefile variables, not environment variables.
+# Try to map the suffix64 flag and what we find in ${OUT}/data/art-test to an architecture name.
+function guess_arch_name() {
+    grep32bit=`ls ${OUT}/data/art-test | grep -E '^(arm|x86|mips)$'`
+    grep64bit=`ls ${OUT}/data/art-test | grep -E '^(arm64|x86_64)$'`
+    if [ "x${suffix64}" = "x64" ]; then
+        target_arch_name=${grep64bit}
+    else
+        target_arch_name=${grep32bit}
+    fi
+}
+
 if [ "$target_mode" = "no" ]; then
     if [ "$runtime" = "jvm" ]; then
         RUN="${progdir}/etc/reference-run-test-classes"
@@ -228,7 +241,10 @@ elif [ "$runtime" = "art" ]; then
 	    export ANDROID_HOST_OUT=$ANDROID_BUILD_TOP/out/host/linux-x86
         fi
         run_args="${run_args} --boot -Ximage:${ANDROID_HOST_OUT}/framework/core.art"
+        run_args="${run_args} --runtime-option -Djava.library.path=${ANDROID_HOST_OUT}/lib${suffix64}"
     else
+        guess_arch_name
+        run_args="${run_args} --runtime-option -Djava.library.path=/data/art-test/${target_arch_name}"
         run_args="${run_args} --boot -Ximage:/data/art-test/core.art"
     fi
     if [ "$relocate" = "yes" ]; then
@@ -340,8 +356,13 @@ if [ '!' -r "$run" ]; then
     cp "${progdir}/etc/default-run" run
 fi
 
+if [ '!' -r "$check_cmd" ]; then
+    cp "${progdir}/etc/default-check" check
+fi
+
 chmod 755 "$build"
 chmod 755 "$run"
+chmod 755 "$check_cmd"
 
 export TEST_NAME=`basename ${test_dir}`
 
@@ -408,7 +429,7 @@ else
         cp "$build_output" "$output"
         echo "build exit status: $build_exit" >>"$output"
     fi
-    diff --strip-trailing-cr -q "$expected" "$output" >/dev/null
+    ./$check_cmd "$expected" "$output"
     if [ "$?" = "0" ]; then
         # output == expected
         good="yes"
