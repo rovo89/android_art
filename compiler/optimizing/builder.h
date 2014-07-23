@@ -93,6 +93,10 @@ class HGraphBuilder : public ValueObject {
   void BuildReturn(const Instruction& instruction, Primitive::Type type);
 
   bool BuildFieldAccess(const Instruction& instruction, uint32_t dex_offset, bool is_get);
+  void BuildArrayAccess(const Instruction& instruction,
+                        uint32_t dex_offset,
+                        bool is_get,
+                        Primitive::Type anticipated_type);
 
   // Builds an invocation node and returns whether the instruction is supported.
   bool BuildInvoke(const Instruction& instruction,

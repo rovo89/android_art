@@ -177,12 +177,15 @@ class CodeGeneratorX86 : public CodeGenerator {
     return InstructionSet::kX86;
   }
 
- private:
   // Helper method to move a 32bits value between two locations.
   void Move32(Location destination, Location source);
   // Helper method to move a 64bits value between two locations.
   void Move64(Location destination, Location source);
 
+  // Emit a write barrier.
+  void MarkGCCard(Register temp, Register card, Register object, Register value);
+
+ private:
   LocationsBuilderX86 location_builder_;
   InstructionCodeGeneratorX86 instruction_visitor_;
   ParallelMoveResolverX86 move_resolver_;

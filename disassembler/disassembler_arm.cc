@@ -1262,7 +1262,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
     case 3:
       switch (op2) {
         case 0x00: case 0x02: case 0x04: case 0x06:  // 000xxx0
-        case 0x08: case 0x0A: case 0x0C: case 0x0E: {
+        case 0x08: case 0x09: case 0x0A: case 0x0C: case 0x0E: {
           // Store single data item
           // |111|11|100|000|0|0000|1111|110000|000000|
           // |5 3|21|098|765|4|3  0|5  2|10   6|5    0|
@@ -1275,12 +1275,40 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           // uint32_t op4 = (instr >> 6) & 0x3F;
           switch (op3) {
             case 0x0: case 0x4: {
-              // STRB Rt,[Rn,#+/-imm8]     - 111 11 00 0 0 00 0 nnnn tttt 1 PUWii ii iiii
-              // STRB Rt,[Rn,Rm,lsl #imm2] - 111 11 00 0 0 00 0 nnnn tttt 0 00000 ii mmmm
+              // {ST,LD}RB Rt,[Rn,#+/-imm12]    - 111 11 00 0 1 00 0 nnnn tttt 1 PUWii ii iiii
+              // {ST,LD}RB Rt,[Rn,#+/-imm8]     - 111 11 00 0 0 00 0 nnnn tttt 1 PUWii ii iiii
+              // {ST,LD}RB Rt,[Rn,Rm,lsl #imm2] - 111 11 00 0 0 00 0 nnnn tttt 0 00000 ii mmmm
               ArmRegister Rn(instr, 16);
               ArmRegister Rt(instr, 12);
-              opcode << "strb";
-              if ((instr & 0x800) != 0) {
+              opcode << (HasBitSet(instr, 20) ? "ldrb" : "strb");
+              if (HasBitSet(instr, 23)) {
+                uint32_t imm12 = instr & 0xFFF;
+                args << Rt << ", [" << Rn << ",#" << imm12 << "]";
+              } else if ((instr & 0x800) != 0) {
+                uint32_t imm8 = instr & 0xFF;
+                args << Rt << ", [" << Rn << ",#" << imm8 << "]";
+              } else {
+                uint32_t imm2 = (instr >> 4) & 3;
+                ArmRegister Rm(instr, 0);
+                args << Rt << ", [" << Rn << ", " << Rm;
+                if (imm2 != 0) {
+                  args << ", " << "lsl #" << imm2;
+                }
+                args << "]";
+              }
+              break;
+            }
+            case 0x1: case 0x5: {
+              // STRH Rt,[Rn,#+/-imm12]    - 111 11 00 0 1 01 0 nnnn tttt 1 PUWii ii iiii
+              // STRH Rt,[Rn,#+/-imm8]     - 111 11 00 0 0 01 0 nnnn tttt 1 PUWii ii iiii
+              // STRH Rt,[Rn,Rm,lsl #imm2] - 111 11 00 0 0 01 0 nnnn tttt 0 00000 ii mmmm
+              ArmRegister Rn(instr, 16);
+              ArmRegister Rt(instr, 12);
+              opcode << "strh";
+              if (HasBitSet(instr, 23)) {
+                uint32_t imm12 = instr & 0xFFF;
+                args << Rt << ", [" << Rn << ",#" << imm12 << "]";
+              } else if ((instr & 0x800) != 0) {
                 uint32_t imm8 = instr & 0xFF;
                 args << Rt << ", [" << Rn << ",#" << imm8 << "]";
               } else {
@@ -1351,8 +1379,8 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
 
           break;
         }
-        case 0x03: case 0x0B: case 0x13: case 0x1B: {  // 00xx011
-          // Load halfword
+        case 0x03: case 0x0B: case 0x11: case 0x13: case 0x19: case 0x1B: {  // 00xx011
+          // Load byte/halfword
           // |111|11|10|0 0|00|0|0000|1111|110000|000000|
           // |5 3|21|09|8 7|65|4|3  0|5  2|10   6|5    0|
           // |---|--|--|---|--|-|----|----|------|------|
@@ -1380,8 +1408,9 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               }
             } else if (op3 == 3) {
               // LDRSH.W Rt, [Rn, #imm12]      - 111 11 00 11 011 nnnn tttt iiiiiiiiiiii
+              // LDRSB.W Rt, [Rn, #imm12]      - 111 11 00 11 001 nnnn tttt iiiiiiiiiiii
               uint32_t imm12 = instr & 0xFFF;
-              opcode << "ldrsh.w";
+              opcode << (HasBitSet(instr, 20) ? "ldrsb.w" : "ldrsh.w");
               args << Rt << ", [" << Rn << ", #" << imm12 << "]";
               if (Rn.r == 9) {
                 args << "  ; ";
@@ -1574,6 +1603,9 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
   if (!it_conditions_.empty()) {
     opcode << it_conditions_.back();
     it_conditions_.pop_back();
+  }
+  if (opcode.str().size() == 0) {
+    opcode << "UNKNOWN " << op2;
   }
 
   os << StringPrintf("%p: %08x\t%-7s ", instr_ptr, instr, opcode.str().c_str()) << args.str() << '\n';
