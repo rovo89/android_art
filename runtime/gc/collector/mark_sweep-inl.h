@@ -32,10 +32,7 @@ namespace collector {
 template<typename MarkVisitor, typename ReferenceVisitor>
 inline void MarkSweep::ScanObjectVisit(mirror::Object* obj, const MarkVisitor& visitor,
                                        const ReferenceVisitor& ref_visitor) {
-  if (kIsDebugBuild && !IsMarked(obj)) {
-    heap_->DumpSpaces();
-    LOG(FATAL) << "Scanning unmarked object " << obj;
-  }
+  DCHECK(IsMarked(obj)) << "Scanning unmarked object " << obj << "\n" << heap_->DumpSpaces();
   obj->VisitReferences<false>(visitor, ref_visitor);
   if (kCountScannedTypes) {
     mirror::Class* klass = obj->GetClass<kVerifyNone>();

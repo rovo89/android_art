@@ -243,9 +243,14 @@ class SemiSpace : public GarbageCollector {
   // large objects were allocated at the last whole heap collection.
   uint64_t large_object_bytes_allocated_at_last_whole_heap_collection_;
 
-  // Used for the generational mode. When true, collect the whole
-  // heap. When false, collect only the bump pointer spaces.
-  bool whole_heap_collection_;
+  // Used for generational mode. When true, we only collect the from_space_.
+  bool collect_from_space_only_;
+
+  // The space which we are promoting into, only used for GSS.
+  space::ContinuousMemMapAllocSpace* promo_dest_space_;
+
+  // The space which we copy to if the to_space_ is full.
+  space::ContinuousMemMapAllocSpace* fallback_space_;
 
   // How many objects and bytes we moved, used so that we don't need to Get the size of the
   // to_space_ when calculating how many objects and bytes we freed.
