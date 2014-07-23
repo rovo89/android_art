@@ -36,6 +36,7 @@ public class Main {
         b5884080Test();
         b13679511Test();
         b16177324TestWrapper();
+        b16230771TestWrapper();
         largeFrameTest();
         largeFrameTestFloat();
         mulBy1Test();
@@ -925,6 +926,28 @@ public class Main {
       int v3 = B16177324Values.values[0];        // Should throw NPE.
       // If the null-check for v3 was eliminated we should fail with SIGSEGV.
       System.out.println("Unexpectedly retrieved all values: " + v1 + ", " + v2 + ", " + v3);
+    }
+
+    static void b16230771TestWrapper() {
+      try {
+        b16230771Test();
+      } catch (NullPointerException expected) {
+        System.out.println("b16230771TestWrapper caught NPE as expected.");
+      }
+    }
+
+    static void b16230771Test() {
+      Integer[] array = { null };
+      for (Integer i : array) {
+        try {
+          int value = i;  // Null check on unboxing should fail.
+          System.out.println("Unexpectedly retrieved value " + value);
+        } catch (NullPointerException e) {
+          int value = i;  // Null check on unboxing should fail.
+          // The bug was a missing null check, so this would actually cause SIGSEGV.
+          System.out.println("Unexpectedly retrieved value " + value + " in NPE catch handler");
+        }
+      }
     }
 
     static double TooManyArgs(
