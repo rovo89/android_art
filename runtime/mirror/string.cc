@@ -31,7 +31,7 @@ namespace art {
 namespace mirror {
 
 // TODO: get global references for these
-Class* String::java_lang_String_ = NULL;
+GcRoot<Class> String::java_lang_String_;
 
 int32_t String::FastIndexOf(int32_t ch, int32_t start) {
   int32_t count = GetLength();
@@ -52,14 +52,14 @@ int32_t String::FastIndexOf(int32_t ch, int32_t start) {
 }
 
 void String::SetClass(Class* java_lang_String) {
-  CHECK(java_lang_String_ == NULL);
+  CHECK(java_lang_String_.IsNull());
   CHECK(java_lang_String != NULL);
-  java_lang_String_ = java_lang_String;
+  java_lang_String_ = GcRoot<Class>(java_lang_String);
 }
 
 void String::ResetClass() {
-  CHECK(java_lang_String_ != NULL);
-  java_lang_String_ = NULL;
+  CHECK(!java_lang_String_.IsNull());
+  java_lang_String_ = GcRoot<Class>(nullptr);
 }
 
 int32_t String::GetHashCode() {
@@ -233,8 +233,8 @@ int32_t String::CompareTo(String* rhs) {
 }
 
 void String::VisitRoots(RootCallback* callback, void* arg) {
-  if (java_lang_String_ != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&java_lang_String_), arg, 0, kRootStickyClass);
+  if (!java_lang_String_.IsNull()) {
+    java_lang_String_.VisitRoot(callback, arg, 0, kRootStickyClass);
   }
 }
 

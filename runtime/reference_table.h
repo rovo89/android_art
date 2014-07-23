@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "base/mutex.h"
+#include "gc_root.h"
 #include "object_callbacks.h"
 
 namespace art {
@@ -50,7 +51,7 @@ class ReferenceTable {
   void VisitRoots(RootCallback* visitor, void* arg, uint32_t tid, RootType root_type);
 
  private:
-  typedef std::vector<mirror::Object*> Table;
+  typedef std::vector<GcRoot<mirror::Object>> Table;
   static void Dump(std::ostream& os, Table& entries)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   friend class IndirectReferenceTable;  // For Dump.

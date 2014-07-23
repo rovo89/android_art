@@ -17,9 +17,9 @@
 #ifndef ART_RUNTIME_MIRROR_STACK_TRACE_ELEMENT_H_
 #define ART_RUNTIME_MIRROR_STACK_TRACE_ELEMENT_H_
 
+#include "gc_root.h"
 #include "object.h"
 #include "object_callbacks.h"
-#include "read_barrier.h"
 
 namespace art {
 
@@ -57,9 +57,8 @@ class MANAGED StackTraceElement FINAL : public Object {
   static void VisitRoots(RootCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static Class* GetStackTraceElement() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(java_lang_StackTraceElement_ != NULL);
-    return ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(
-        &java_lang_StackTraceElement_);
+    DCHECK(!java_lang_StackTraceElement_.IsNull());
+    return java_lang_StackTraceElement_.Read();
   }
 
  private:
@@ -74,7 +73,7 @@ class MANAGED StackTraceElement FINAL : public Object {
             int32_t line_number)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static Class* java_lang_StackTraceElement_;
+  static GcRoot<Class> java_lang_StackTraceElement_;
 
   friend struct art::StackTraceElementOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(StackTraceElement);

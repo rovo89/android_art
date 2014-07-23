@@ -29,7 +29,7 @@ namespace art {
 namespace mirror {
 
 // TODO: Get global references for these
-Class* ArtField::java_lang_reflect_ArtField_ = NULL;
+GcRoot<Class> ArtField::java_lang_reflect_ArtField_;
 
 ArtField* ArtField::FromReflectedField(const ScopedObjectAccessAlreadyRunnable& soa,
                                        jobject jlr_field) {
@@ -40,14 +40,14 @@ ArtField* ArtField::FromReflectedField(const ScopedObjectAccessAlreadyRunnable& 
 }
 
 void ArtField::SetClass(Class* java_lang_reflect_ArtField) {
-  CHECK(java_lang_reflect_ArtField_ == NULL);
+  CHECK(java_lang_reflect_ArtField_.IsNull());
   CHECK(java_lang_reflect_ArtField != NULL);
-  java_lang_reflect_ArtField_ = java_lang_reflect_ArtField;
+  java_lang_reflect_ArtField_ = GcRoot<Class>(java_lang_reflect_ArtField);
 }
 
 void ArtField::ResetClass() {
-  CHECK(java_lang_reflect_ArtField_ != NULL);
-  java_lang_reflect_ArtField_ = NULL;
+  CHECK(!java_lang_reflect_ArtField_.IsNull());
+  java_lang_reflect_ArtField_ = GcRoot<Class>(nullptr);
 }
 
 void ArtField::SetOffset(MemberOffset num_bytes) {
@@ -64,9 +64,8 @@ void ArtField::SetOffset(MemberOffset num_bytes) {
 }
 
 void ArtField::VisitRoots(RootCallback* callback, void* arg) {
-  if (java_lang_reflect_ArtField_ != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&java_lang_reflect_ArtField_), arg, 0,
-             kRootStickyClass);
+  if (!java_lang_reflect_ArtField_.IsNull()) {
+    java_lang_reflect_ArtField_.VisitRoot(callback, arg, 0, kRootStickyClass);
   }
 }
 

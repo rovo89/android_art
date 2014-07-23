@@ -18,6 +18,7 @@
 #define ART_RUNTIME_CLASS_LINKER_INL_H_
 
 #include "class_linker.h"
+#include "gc_root-inl.h"
 #include "gc/heap-inl.h"
 #include "mirror/art_field.h"
 #include "mirror/class_loader.h"
@@ -40,8 +41,7 @@ inline mirror::Class* ClassLinker::FindSystemClass(Thread* self, const char* des
 inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class** element_class) {
   for (size_t i = 0; i < kFindArrayCacheSize; ++i) {
     // Read the cached array class once to avoid races with other threads setting it.
-    mirror::Class* array_class = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(
-        &find_array_class_cache_[i]);
+    mirror::Class* array_class = find_array_class_cache_[i].Read();
     if (array_class != nullptr && array_class->GetComponentType() == *element_class) {
       return array_class;
     }
@@ -54,7 +54,7 @@ inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class** 
   mirror::Class* array_class = FindClass(self, descriptor.c_str(), class_loader);
   // Benign races in storing array class and incrementing index.
   size_t victim_index = find_array_class_cache_next_victim_;
-  find_array_class_cache_[victim_index] = array_class;
+  find_array_class_cache_[victim_index] = GcRoot<mirror::Class>(array_class);
   find_array_class_cache_next_victim_ = (victim_index + 1) % kFindArrayCacheSize;
   return array_class;
 }
@@ -204,10 +204,8 @@ inline mirror::ObjectArray<mirror::ArtField>* ClassLinker::AllocArtFieldArray(Th
 
 inline mirror::Class* ClassLinker::GetClassRoot(ClassRoot class_root)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  DCHECK(class_roots_ != NULL);
-  mirror::ObjectArray<mirror::Class>* class_roots =
-      ReadBarrier::BarrierForRoot<mirror::ObjectArray<mirror::Class>, kWithReadBarrier>(
-          &class_roots_);
+  DCHECK(!class_roots_.IsNull());
+  mirror::ObjectArray<mirror::Class>* class_roots = class_roots_.Read();
   mirror::Class* klass = class_roots->Get(class_root);
   DCHECK(klass != NULL);
   return klass;
@@ -216,7 +214,7 @@ inline mirror::Class* ClassLinker::GetClassRoot(ClassRoot class_root)
 inline mirror::DexCache* ClassLinker::GetDexCache(size_t idx) {
   dex_lock_.AssertSharedHeld(Thread::Current());
   DCHECK(idx < dex_caches_.size());
-  return ReadBarrier::BarrierForRoot<mirror::DexCache, kWithReadBarrier>(&dex_caches_[idx]);
+  return dex_caches_[idx].Read();
 }
 
 }  // namespace art

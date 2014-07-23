@@ -30,6 +30,7 @@
 #include "class_linker.h"
 #include "compiler_callbacks.h"
 #include "dex_file.h"
+#include "gc_root-inl.h"
 #include "gc/heap.h"
 #include "gtest/gtest.h"
 #include "jni_internal.h"

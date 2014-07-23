@@ -26,8 +26,9 @@
 
 #include "atomic.h"
 #include "base/mutex.h"
+#include "gc_root.h"
 #include "object_callbacks.h"
-#include "read_barrier.h"
+#include "read_barrier_option.h"
 #include "thread_state.h"
 
 namespace art {
@@ -95,7 +96,7 @@ class Monitor {
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   mirror::Object* GetObject() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return ReadBarrier::BarrierForRoot<mirror::Object, kReadBarrierOption>(&obj_);
+    return obj_.Read<kReadBarrierOption>();
   }
 
   void SetObject(mirror::Object* object);
@@ -197,7 +198,7 @@ class Monitor {
   // What object are we part of. This is a weak root. Do not access
   // this directly, use GetObject() to read it so it will be guarded
   // by a read barrier.
-  mirror::Object* obj_;
+  GcRoot<mirror::Object> obj_;
 
   // Threads currently waiting on this monitor.
   Thread* wait_set_ GUARDED_BY(monitor_lock_);

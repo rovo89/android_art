@@ -41,32 +41,29 @@ inline QuickMethodFrameInfo Runtime::GetRuntimeMethodFrameInfo(mirror::ArtMethod
 
 inline mirror::ArtMethod* Runtime::GetResolutionMethod() {
   CHECK(HasResolutionMethod());
-  return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(&resolution_method_);
+  return resolution_method_.Read();
 }
 
 inline mirror::ArtMethod* Runtime::GetImtConflictMethod() {
   CHECK(HasImtConflictMethod());
-  return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(&imt_conflict_method_);
+  return imt_conflict_method_.Read();
 }
 
 inline mirror::ObjectArray<mirror::ArtMethod>* Runtime::GetDefaultImt()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CHECK(HasDefaultImt());
-  return ReadBarrier::BarrierForRoot<mirror::ObjectArray<mirror::ArtMethod>, kWithReadBarrier>(
-      &default_imt_);
+  return default_imt_.Read();
 }
 
 inline mirror::ArtMethod* Runtime::GetCalleeSaveMethod(CalleeSaveType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(HasCalleeSaveMethod(type));
-  return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(
-      &callee_save_methods_[type]);
+  return callee_save_methods_[type].Read();
 }
 
 inline mirror::ArtMethod* Runtime::GetCalleeSaveMethodUnchecked(CalleeSaveType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(
-      &callee_save_methods_[type]);
+  return callee_save_methods_[type].Read();
 }
 
 }  // namespace art
