@@ -437,6 +437,7 @@ $$(run_test_rule_name):
   ART_TEST_$$(uc_host_or_target)_RUN_TEST_$$(uc_compiler)_$(1)_RULES += $$(run_test_rule_name)
   ART_TEST_$$(uc_host_or_target)_RUN_TEST_$$(uc_compiler)_$$(uc_reloc_type)_RULES += $$(run_test_rule_name)
   ART_TEST_$$(uc_host_or_target)_RUN_TEST_$(1)_RULES += $$(run_test_rule_name)
+  ART_TEST_$$(uc_host_or_target)_RUN_TEST_$(1)$(4)_RULES += $$(run_test_rule_name)
   ART_TEST_$$(uc_host_or_target)_RUN_TEST_ALL_RULES += $$(run_test_rule_name)
   ART_TEST_$$(uc_host_or_target)_RUN_TEST_$$(uc_reloc_type)_RULES += $$(run_test_rule_name)
   ART_TEST_$$(uc_host_or_target)_RUN_TEST_ALL$(4)_RULES += $$(run_test_rule_name)
@@ -529,10 +530,24 @@ define define-test-art-run-test-group
       $$(error found $(2) expected host or target)
     endif
   endif
+  do_second := false
+  ifeq ($(2),host)
+    ifneq ($$(HOST_PREFER_32_BIT),true)
+      do_second := true
+    endif
+  else
+    ifdef TARGET_2ND_ARCH
+      do_second := true
+    endif
+  endif
   ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_DEFAULT_$(1)_RULES :=
   ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_INTERPRETER_$(1)_RULES :=
   ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_OPTIMIZING_$(1)_RULES :=
   ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_$(1)_RULES :=
+  ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_$(1)$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX)_RULES :=
+  ifeq ($$(do_second),true)
+    ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_$(1)$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX)_RULES :=
+  endif
   $$(eval $$(call define-test-art-run-test-group-type,$(1),$(2),prebuild))
   $$(eval $$(call define-test-art-run-test-group-type,$(1),$(2),norelocate))
   $$(eval $$(call define-test-art-run-test-group-type,$(1),$(2),relocate))
@@ -545,12 +560,22 @@ define define-test-art-run-test-group
     $$(ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_OPTIMIZING_$(1)_RULES)))
   $$(eval $$(call define-test-art-run-test-group-rule,test-art-$(2)-run-test-$(1), \
     $$(ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_$(1)_RULES)))
+  $$(eval $$(call define-test-art-run-test-group-rule,test-art-$(2)-run-test-$(1)$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX), \
+    $$(ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_$(1)$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX)_RULES)))
+  ifeq ($$(do_second),true)
+    $$(eval $$(call define-test-art-run-test-group-rule,test-art-$(2)-run-test-$(1)$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX), \
+      $$(ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_$(1)$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX)_RULES)))
+  endif
 
   # Clear locally defined variables.
   ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_DEFAULT_$(1)_RULES :=
   ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_INTERPRETER_$(1)_RULES :=
   ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_OPTIMIZING_$(1)_RULES :=
   ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_$(1)_RULES :=
+  ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_$(1)$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX)_RULES :=
+  ifeq ($$(do_second),true)
+    ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_$(1)$$(2ND_ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX)_RULES :=
+  endif
   group_uc_host_or_target :=
   do_second :=
 endef  # define-test-art-run-test-group
