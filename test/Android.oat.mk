@@ -194,12 +194,12 @@ endif
 define define-test-art-oat-rule-host
   # Remove the leading / from /tmp for the test directory.
   dex_file := $$(subst /tmp,tmp,$(ART_HOST_TEST_DIR))/android-data-$(3)/oat-test-dex-$(1).jar
-  oat_file := $(ART_HOST_TEST_DIR)/android-data-$(3)/dalvik-cache/$$($(2)HOST_ARCH)/$$(subst /,@,$$(dex_file))@classes.dex
+  oat_file := $(ART_HOST_TEST_DIR)/android-data-$(3)/dalvik-cache/$$($(2)ART_HOST_ARCH)/$$(subst /,@,$$(dex_file))@classes.dex
 $(3): PRIVATE_DEX_FILE := /$$(dex_file)
 $(3): PRIVATE_OAT_FILE := $$(oat_file)
 .PHONY: $(3)
 $(3): $$(ART_TEST_HOST_OAT_$(1)_DEX) $(ART_TEST_HOST_OAT_DEPENDENCIES)
-	$(hide) mkdir -p $(ART_HOST_TEST_DIR)/android-data-$$@/dalvik-cache/$$($(2)HOST_ARCH)
+	$(hide) mkdir -p $(ART_HOST_TEST_DIR)/android-data-$$@/dalvik-cache/$$($(2)ART_HOST_ARCH)
 	$(hide) cp $$(realpath $$<) $(ART_HOST_TEST_DIR)/android-data-$$@/oat-test-dex-$(1).jar
 	$(hide) $(DEX2OATD) $(DEX2OAT_FLAGS) --runtime-arg -Xms$(DEX2OAT_XMS) --runtime-arg -Xmx$(DEX2OAT_XMX) $(4) \
 	  --boot-image=$$(HOST_CORE_IMG_LOCATION) --include-patch-information \
