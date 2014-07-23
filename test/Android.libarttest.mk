@@ -19,11 +19,11 @@ LOCAL_PATH := $(call my-dir)
 include art/build/Android.common_build.mk
 
 LIBARTTEST_COMMON_SRC_FILES := \
-  JniTest/jni_test.cc \
-  SignalTest/signaltest.cc \
-  ReferenceMap/stack_walk_refmap_jni.cc \
-  StackWalk/stack_walk_jni.cc \
-  UnsafeTest/unsafe_test.cc
+  004-JniTest/jni_test.cc \
+  004-SignalTest/signaltest.cc \
+  004-ReferenceMap/stack_walk_refmap_jni.cc \
+  004-StackWalk/stack_walk_jni.cc \
+  004-UnsafeTest/unsafe_test.cc
 
 ART_TARGET_LIBARTTEST_$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttest.so
 ifdef TARGET_2ND_ARCH

@@ -1,0 +1,5 @@
+init signal test
+Caught NullPointerException
+Caught StackOverflowError
+signal caught
+Signal test OK
