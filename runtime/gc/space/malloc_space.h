@@ -133,8 +133,6 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
     return can_move_objects_;
   }
 
-  virtual void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) = 0;
-
  protected:
   MallocSpace(const std::string& name, MemMap* mem_map, byte* begin, byte* end,
               byte* limit, size_t growth_limit, bool create_bitmaps, bool can_move_objects,
