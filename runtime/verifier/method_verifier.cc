@@ -3496,10 +3496,12 @@ void MethodVerifier::VerifyPrimitivePut(const RegType& target_type, const RegTyp
     value_compatible = value_type.IsFloatTypes();
   } else if (target_type.IsLong()) {
     instruction_compatible = insn_type.IsLong();
-    value_compatible = value_type.IsLongTypes();
+    const RegType& value_type_hi = work_line_->GetRegisterType(vregA + 1);
+    value_compatible = value_type.IsLongTypes() && value_type.CheckWidePair(value_type_hi);
   } else if (target_type.IsDouble()) {
     instruction_compatible = insn_type.IsLong();  // no put-double, so expect put-long
-    value_compatible = value_type.IsDoubleTypes();
+    const RegType& value_type_hi = work_line_->GetRegisterType(vregA + 1);
+    value_compatible = value_type.IsDoubleTypes() && value_type.CheckWidePair(value_type_hi);
   } else {
     instruction_compatible = false;  // reference with primitive store
     value_compatible = false;  // unused
