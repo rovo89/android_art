@@ -27,6 +27,7 @@
 #include "mir_method_info.h"
 #include "utils/arena_bit_vector.h"
 #include "utils/growable_array.h"
+#include "utils/scoped_arena_containers.h"
 #include "reg_location.h"
 #include "reg_storage.h"
 
@@ -689,6 +690,21 @@ class MIRGraph {
     return topological_order_;
   }
 
+  GrowableArray<BasicBlockId>* GetTopologicalSortOrderLoopEnds() {
+    DCHECK(topological_order_loop_ends_ != nullptr);
+    return topological_order_loop_ends_;
+  }
+
+  GrowableArray<BasicBlockId>* GetTopologicalSortOrderIndexes() {
+    DCHECK(topological_order_indexes_ != nullptr);
+    return topological_order_indexes_;
+  }
+
+  GrowableArray<std::pair<uint16_t, bool>>* GetTopologicalSortOrderLoopHeadStack() {
+    DCHECK(topological_order_loop_head_stack_ != nullptr);
+    return topological_order_loop_head_stack_;
+  }
+
   bool IsConst(int32_t s_reg) const {
     return is_constant_v_->IsBitSet(s_reg);
   }
@@ -1132,6 +1148,14 @@ class MIRGraph {
   GrowableArray<BasicBlockId>* dfs_post_order_;
   GrowableArray<BasicBlockId>* dom_post_order_traversal_;
   GrowableArray<BasicBlockId>* topological_order_;
+  // Indexes in topological_order_ need to be only as big as the BasicBlockId.
+  COMPILE_ASSERT(sizeof(BasicBlockId) == sizeof(uint16_t), assuming_16_bit_BasicBlockId);
+  // For each loop head, remember the past-the-end index of the end of the loop. 0 if not loop head.
+  GrowableArray<uint16_t>* topological_order_loop_ends_;
+  // Map BB ids to topological_order_ indexes. 0xffff if not included (hidden or null block).
+  GrowableArray<uint16_t>* topological_order_indexes_;
+  // Stack of the loop head indexes and recalculation flags for RepeatingTopologicalSortIterator.
+  GrowableArray<std::pair<uint16_t, bool>>* topological_order_loop_head_stack_;
   int* i_dom_list_;
   ArenaBitVector** def_block_matrix_;    // num_dalvik_register x num_blocks.
   std::unique_ptr<ScopedArenaAllocator> temp_scoped_alloc_;
@@ -1177,6 +1201,7 @@ class MIRGraph {
   friend class ClassInitCheckEliminationTest;
   friend class GlobalValueNumberingTest;
   friend class LocalValueNumberingTest;
+  friend class TopologicalSortOrderTest;
 };
 
 }  // namespace art
