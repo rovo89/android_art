@@ -194,10 +194,10 @@ if [ "$trace" = "true" ]; then
 fi
 
 # Most interesting target architecture variables are Makefile variables, not environment variables.
-# Try to map the suffix64 flag and what we find in ${OUT}/data/art-test to an architecture name.
+# Try to map the suffix64 flag and what we find in ${ANDROID_PRODUCT_OUT}/data/art-test to an architecture name.
 function guess_arch_name() {
-    grep32bit=`ls ${OUT}/data/art-test | grep -E '^(arm|x86|mips)$'`
-    grep64bit=`ls ${OUT}/data/art-test | grep -E '^(arm64|x86_64)$'`
+    grep32bit=`ls ${ANDROID_PRODUCT_OUT}/data/art-test | grep -E '^(arm|x86|mips)$'`
+    grep64bit=`ls ${ANDROID_PRODUCT_OUT}/data/art-test | grep -E '^(arm64|x86_64)$'`
     if [ "x${suffix64}" = "x64" ]; then
         target_arch_name=${grep64bit}
     else
@@ -230,7 +230,7 @@ fi
 
 if [ "$runtime" = "dalvik" ]; then
     if [ "$target_mode" = "no" ]; then
-        framework="${OUT}/system/framework"
+        framework="${ANDROID_PRODUCT_OUT}/system/framework"
         bpath="${framework}/core.jar:${framework}/conscrypt.jar:${framework}/okhttp.jar:${framework}/core-junit.jar:${framework}/bouncycastle.jar:${framework}/ext.jar"
         run_args="${run_args} --boot -Xbootclasspath:${bpath}"
     else
