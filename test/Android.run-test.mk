@@ -72,7 +72,10 @@ endif
 # Tests that are broken in --trace mode.
 TEST_ART_BROKEN_TRACE_RUN_TESTS := \
   003-omnibus-opcodes \
-  004-annotations \
+  004-InterfaceTest \
+  004-SignalTest \
+  004-ThreadStress \
+  005-annotations \
   012-math \
   018-stack-overflow \
   023-many-interfaces \
@@ -97,6 +100,7 @@ TEST_ART_BROKEN_TRACE_RUN_TESTS := \
   103-string-append \
   107-int-math2 \
   112-double-math \
+  114-ParallelGC \
   700-LoadArgRegs \
   701-easy-div-rem
 
@@ -108,7 +112,8 @@ ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_TRACE_RUN_TESTS), $(c
 
 # Tests that need more than 2MB of RAM or are running into other corner cases in GC stress related
 # to OOMEs.
-TEST_ART_BROKEN_GCSTRESS_RUN_TESTS :=
+TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
+  114-ParallelGC
 
 ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_GCSTRESS_RUN_TESTS), $(call all-run-test-names,$(test),-gcstress,-relocate))
 ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_GCSTRESS_RUN_TESTS), $(call all-run-test-names,$(test),-gcstress,-no-prebuild))
@@ -280,14 +285,22 @@ ART_TEST_HOST_RUN_TEST_OPTIMIZING_PREBUILD$(2ND_ART_PHONY_TEST_HOST_SUFFIX)_RULE
 # We need dex2oat and dalvikvm on the target as well as the core image.
 TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(2ND_TARGET_CORE_IMG_OUT)
 
+# Also need libarttest.
+TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttest.so
+ifdef TARGET_2ND_ARCH
+TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_TEST_OUT)/$(TARGET_2ND_ARCH)/libarttest.so
+endif
+
 # All tests require the host executables and the core images.
 ART_TEST_HOST_RUN_TEST_DEPENDENCIES := \
   $(ART_HOST_EXECUTABLES) \
+  $(ART_HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION) \
   $(ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION) \
   $(HOST_CORE_IMG_OUT)
 
 ifneq ($(HOST_PREFER_32_BIT),true)
 ART_TEST_HOST_RUN_TEST_DEPENDENCIES += \
+  $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION) \
   $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION) \
   $(2ND_HOST_CORE_IMG_OUT)
 endif
@@ -464,10 +477,6 @@ define define-test-art-run-test-group-type
     endif
   endif
 
-  ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_DEFAULT_$(1)_RULES :=
-  ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_INTERPRETER_$(1)_RULES :=
-  ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_OPTIMIZING_$(1)_RULES :=
-  ART_TEST_$$(group_uc_host_or_target)_RUN_TEST_$(1)_RULES :=
   $$(eval $$(call define-test-art-run-test,$(1),$(2),default,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),,$(3)))
   $$(eval $$(call define-test-art-run-test,$(1),$(2),interpreter,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),,$(3)))
   $$(eval $$(call define-test-art-run-test,$(1),$(2),optimizing,$$(ART_PHONY_TEST_$$(group_uc_host_or_target)_SUFFIX),,$(3)))
@@ -794,6 +803,9 @@ ifneq ($(HOST_PREFER_32_BIT),true)
   $(eval $(call define-test-art-run-test-group-rule,test-art-host-run-test-optimizing-relocate$(2ND_ART_PHONY_TEST_HOST_SUFFIX), \
     $(ART_TEST_HOST_RUN_TEST_OPTIMIZING_RELOCATE$(2ND_ART_PHONY_TEST_HOST_SUFFIX)_RULES)))
 endif
+
+# include libarttest build rules.
+include $(LOCAL_PATH)/Android.libarttest.mk
 
 define-test-art-run-test :=
 define-test-art-run-test-group-rule :=
