@@ -202,20 +202,21 @@ void CodeGeneratorX86::GenerateFrameEntry() {
   static const int kFakeReturnRegister = 8;
   core_spill_mask_ |= (1 << kFakeReturnRegister);
 
+  bool skip_overflow_check = IsLeafMethod() && !IsLargeFrame(GetFrameSize(), InstructionSet::kX86);
+  if (!skip_overflow_check && !kExplicitStackOverflowCheck) {
+    __ testl(EAX, Address(ESP, -static_cast<int32_t>(GetStackOverflowReservedBytes(kX86))));
+    RecordPcInfo(0);
+  }
+
   // The return PC has already been pushed on the stack.
   __ subl(ESP, Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86WordSize));
 
-  bool skip_overflow_check = IsLeafMethod() && !IsLargeFrame(GetFrameSize(), InstructionSet::kX86);
-  if (!skip_overflow_check) {
-    if (kExplicitStackOverflowCheck) {
-      SlowPathCode* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathX86();
-      AddSlowPath(slow_path);
+  if (!skip_overflow_check && kExplicitStackOverflowCheck) {
+    SlowPathCode* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathX86();
+    AddSlowPath(slow_path);
 
-      __ fs()->cmpl(ESP, Address::Absolute(Thread::StackEndOffset<kX86WordSize>()));
-      __ j(kLess, slow_path->GetEntryLabel());
-    } else {
-      __ testl(EAX, Address(ESP, -static_cast<int32_t>(GetStackOverflowReservedBytes(kX86))));
-    }
+    __ fs()->cmpl(ESP, Address::Absolute(Thread::StackEndOffset<kX86WordSize>()));
+    __ j(kLess, slow_path->GetEntryLabel());
   }
 
   __ movl(Address(ESP, kCurrentMethodStackOffset), EAX);
