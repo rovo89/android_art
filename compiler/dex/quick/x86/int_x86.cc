@@ -206,36 +206,65 @@ void X86Mir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
   }
 }
 
-// Set rs_dest to 0 or 1 depending on the comparison between left_op and right_op.
-// rs_dest := (left_op <code> right_op) ? [true_val] : [!true_val]
-//
-// Implemented as:
-//         true_val = true =>  rs_dest := 0;
-//                             rs_dest := (left_op <code> right_op) ? 1 : rs_dest;
-//         true_val = false => rs_dest := 0;
-//                             rs_dest := (left_op <~code> right_op) ? 1 : rs_dest;
-void X86Mir2Lir::GenSelectConst01(RegStorage left_op, RegStorage right_op, ConditionCode code,
-                                  bool true_val, RegStorage rs_dest) {
-  LoadConstant(rs_dest, 0);
-  OpRegReg(kOpCmp, left_op, right_op);
-  // Set the low byte of the result to 0 or 1 from the compare condition code.
-  NewLIR2(kX86Set8R, rs_dest.GetReg(),
-          X86ConditionEncoding(true_val ? code : FlipComparisonOrder(code)));
-}
-
 void X86Mir2Lir::GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
                                   int32_t true_val, int32_t false_val, RegStorage rs_dest,
                                   int dest_reg_class) {
-  if ((true_val == 0 && false_val == 1) || (true_val == 1 && false_val == 0)) {
-    // Can we use Setcc?
-    if (rs_dest.Is64Bit() || rs_dest.GetRegNum() < 4) {
-      GenSelectConst01(left_op, right_op, code, true_val == 1, rs_dest);
-      return;
-    }
+  DCHECK(!left_op.IsPair() && !right_op.IsPair() && !rs_dest.IsPair());
+  DCHECK(!left_op.IsFloat() && !right_op.IsFloat() && !rs_dest.IsFloat());
+
+  // We really need this check for correctness, otherwise we will need to do more checks in
+  // non zero/one case
+  if (true_val == false_val) {
+    LoadConstantNoClobber(rs_dest, true_val);
+    return;
   }
 
-  // TODO: Refactor the code below to make this more general.
-  UNIMPLEMENTED(FATAL) << "General GenSelectConst32 not implemented for x86.";
+  const bool dest_intersect = IsSameReg(rs_dest, left_op) || IsSameReg(rs_dest, right_op);
+
+  const bool zero_one_case = (true_val == 0 && false_val == 1) || (true_val == 1 && false_val == 0);
+  if (zero_one_case && IsByteRegister(rs_dest)) {
+    if (!dest_intersect) {
+      LoadConstantNoClobber(rs_dest, 0);
+    }
+    OpRegReg(kOpCmp, left_op, right_op);
+    // Set the low byte of the result to 0 or 1 from the compare condition code.
+    NewLIR2(kX86Set8R, rs_dest.GetReg(),
+            X86ConditionEncoding(true_val == 1 ? code : FlipComparisonOrder(code)));
+    if (dest_intersect) {
+      NewLIR2(rs_dest.Is64Bit() ? kX86Movzx8qRR : kX86Movzx8RR, rs_dest.GetReg(), rs_dest.GetReg());
+    }
+  } else {
+    // Be careful rs_dest can be changed only after cmp because it can be the same as one of ops
+    // and it cannot use xor because it makes cc flags to be dirty
+    RegStorage temp_reg = AllocTypedTemp(false, dest_reg_class, false);
+    if (temp_reg.Valid()) {
+      if (false_val == 0 && dest_intersect) {
+        code = FlipComparisonOrder(code);
+        std::swap(true_val, false_val);
+      }
+      if (!dest_intersect) {
+        LoadConstantNoClobber(rs_dest, false_val);
+      }
+      LoadConstantNoClobber(temp_reg, true_val);
+      OpRegReg(kOpCmp, left_op, right_op);
+      if (dest_intersect) {
+        LoadConstantNoClobber(rs_dest, false_val);
+        DCHECK(!last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
+      }
+      OpCondRegReg(kOpCmov, code, rs_dest, temp_reg);
+      FreeTemp(temp_reg);
+    } else {
+      // slow path
+      LIR* cmp_branch = OpCmpBranch(code, left_op, right_op, nullptr);
+      LoadConstantNoClobber(rs_dest, false_val);
+      LIR* that_is_it = NewLIR1(kX86Jmp8, 0);
+      LIR* true_case = NewLIR0(kPseudoTargetLabel);
+      cmp_branch->target = true_case;
+      LoadConstantNoClobber(rs_dest, true_val);
+      LIR* end = NewLIR0(kPseudoTargetLabel);
+      that_is_it->target = end;
+    }
+  }
 }
 
 void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
@@ -2429,103 +2458,6 @@ void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
     FreeTemp(result_reg);
   }
   StoreValue(rl_dest, rl_result);
-}
-
-void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_known_final,
-                                            bool type_known_abstract, bool use_declaring_class,
-                                            bool can_assume_type_is_in_dex_cache,
-                                            uint32_t type_idx, RegLocation rl_dest,
-                                            RegLocation rl_src) {
-  FlushAllRegs();
-  // May generate a call - use explicit registers.
-  LockCallTemps();
-  RegStorage method_reg = TargetReg(kArg1, kRef);  // kArg1 gets current Method*.
-  LoadCurrMethodDirect(method_reg);
-  RegStorage class_reg = TargetReg(kArg2, kRef);  // kArg2 will hold the Class*.
-  RegStorage ref_reg = TargetReg(kArg0, kRef);  // kArg2 will hold the ref.
-  // Reference must end up in kArg0.
-  if (needs_access_check) {
-    // Check we have access to type_idx and if not throw IllegalAccessError,
-    // Caller function returns Class* in kArg0.
-    if (cu_->target64) {
-      CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(8, pInitializeTypeAndVerifyAccess),
-                           type_idx, true);
-    } else {
-      CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(4, pInitializeTypeAndVerifyAccess),
-                           type_idx, true);
-    }
-    OpRegCopy(class_reg, TargetReg(kRet0, kRef));
-    LoadValueDirectFixed(rl_src, ref_reg);
-  } else if (use_declaring_class) {
-    LoadValueDirectFixed(rl_src, ref_reg);
-    LoadRefDisp(method_reg, mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
-                class_reg, kNotVolatile);
-  } else {
-    // Load dex cache entry into class_reg (kArg2).
-    LoadValueDirectFixed(rl_src, ref_reg);
-    LoadRefDisp(method_reg, mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
-                class_reg, kNotVolatile);
-    int32_t offset_of_type =
-        mirror::Array::DataOffset(sizeof(mirror::HeapReference<mirror::Class*>)).Int32Value() +
-        (sizeof(mirror::HeapReference<mirror::Class*>) * type_idx);
-    LoadRefDisp(class_reg, offset_of_type, class_reg, kNotVolatile);
-    if (!can_assume_type_is_in_dex_cache) {
-      // Need to test presence of type in dex cache at runtime.
-      LIR* hop_branch = OpCmpImmBranch(kCondNe, class_reg, 0, NULL);
-      // Type is not resolved. Call out to helper, which will return resolved type in kRet0/kArg0.
-      if (cu_->target64) {
-        CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(8, pInitializeType), type_idx, true);
-      } else {
-        CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(4, pInitializeType), type_idx, true);
-      }
-      OpRegCopy(class_reg, TargetReg(kRet0, kRef));  // Align usage with fast path.
-      LoadValueDirectFixed(rl_src, ref_reg);  /* Reload Ref. */
-      // Rejoin code paths
-      LIR* hop_target = NewLIR0(kPseudoTargetLabel);
-      hop_branch->target = hop_target;
-    }
-  }
-  /* kArg0 is ref, kArg2 is class. If ref==null, use directly as bool result. */
-  RegLocation rl_result = GetReturn(kRefReg);
-
-  // On x86-64 kArg0 is not EAX, so we have to copy ref from kArg0 to EAX.
-  if (cu_->target64) {
-    OpRegCopy(rl_result.reg, ref_reg);
-  }
-
-  // Is the class NULL?
-  LIR* branch1 = OpCmpImmBranch(kCondEq, ref_reg, 0, NULL);
-
-  RegStorage ref_class_reg = TargetReg(kArg1, kRef);  // kArg2 will hold the Class*.
-  /* Load object->klass_. */
-  DCHECK_EQ(mirror::Object::ClassOffset().Int32Value(), 0);
-  LoadRefDisp(ref_reg,  mirror::Object::ClassOffset().Int32Value(), ref_class_reg,
-              kNotVolatile);
-  /* kArg0 is ref, kArg1 is ref->klass_, kArg2 is class. */
-  LIR* branchover = nullptr;
-  if (type_known_final) {
-    GenSelectConst32(ref_class_reg, class_reg, kCondEq, 1, 0, rl_result.reg, kCoreReg);
-  } else {
-    if (!type_known_abstract) {
-      LoadConstant(rl_result.reg, 1);     // Assume result succeeds.
-      branchover = OpCmpBranch(kCondEq, ref_class_reg, class_reg, NULL);
-    }
-    OpRegCopy(TargetReg(kArg0, kRef), class_reg);
-    if (cu_->target64) {
-      OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(8, pInstanceofNonTrivial));
-    } else {
-      OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(4, pInstanceofNonTrivial));
-    }
-  }
-  // TODO: only clobber when type isn't final?
-  ClobberCallerSave();
-  /* Branch targets here. */
-  LIR* target = NewLIR0(kPseudoTargetLabel);
-  StoreValue(rl_dest, rl_result);
-  branch1->target = target;
-  if (branchover != nullptr) {
-    branchover->target = target;
-  }
 }
 
 void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
