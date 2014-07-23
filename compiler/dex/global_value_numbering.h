@@ -31,7 +31,10 @@ class GlobalValueNumbering {
   GlobalValueNumbering(CompilationUnit* cu, ScopedArenaAllocator* allocator);
   ~GlobalValueNumbering();
 
+  // Prepare LVN for the basic block.
   LocalValueNumbering* PrepareBasicBlock(BasicBlock* bb);
+
+  // Finish processing the basic block.
   bool FinishBasicBlock(BasicBlock* bb);
 
   // Checks that the value names didn't overflow.
@@ -42,7 +45,6 @@ class GlobalValueNumbering {
   // Allow modifications.
   void AllowModifications() {
     DCHECK(Good());
-    cu_->mir_graph->ClearAllVisitedFlags();
     modifications_allowed_ = true;
   }
 
@@ -182,7 +184,7 @@ class GlobalValueNumbering {
   }
 
   const BasicBlock* GetBasicBlock(uint16_t bb_id) const {
-    return cu_->mir_graph->GetBasicBlock(bb_id);
+    return mir_graph_->GetBasicBlock(bb_id);
   }
 
   static bool HasNullCheckLastInsn(const BasicBlock* pred_bb, BasicBlockId succ_id);
@@ -194,7 +196,7 @@ class GlobalValueNumbering {
   }
 
   MIRGraph* GetMirGraph() const {
-    return cu_->mir_graph.get();
+    return mir_graph_;
   }
 
   ScopedArenaAllocator* Allocator() const {
@@ -202,12 +204,16 @@ class GlobalValueNumbering {
   }
 
   CompilationUnit* const cu_;
+  MIRGraph* mir_graph_;
   ScopedArenaAllocator* const allocator_;
 
-  static constexpr uint32_t kMaxRepeatCount = 10u;
+  // The number of BBs that we need to process grows exponentially with the number
+  // of nested loops. Don't allow excessive processing for too many nested loops or
+  // otherwise expensive methods.
+  static constexpr uint32_t kMaxBbsToProcessMultiplyFactor = 20u;
 
-  // Track the repeat count to make sure the GVN converges quickly and abort the GVN otherwise.
-  uint32_t repeat_count_;
+  uint32_t bbs_processed_;
+  uint32_t max_bbs_to_process_;
 
   // We have 32-bit last_value_ so that we can detect when we run out of value names, see Good().
   // We usually don't check Good() until the end of LVN unless we're about to modify code.
