@@ -2398,7 +2398,14 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
   Handle<mirror::Class> component_type(hs.NewHandle(FindClass(self, descriptor + 1, class_loader)));
   if (component_type.Get() == nullptr) {
     DCHECK(self->IsExceptionPending());
-    return nullptr;
+    // We need to accept erroneous classes as component types.
+    component_type.Assign(LookupClass(descriptor + 1, class_loader.Get()));
+    if (component_type.Get() == nullptr) {
+      DCHECK(self->IsExceptionPending());
+      return nullptr;
+    } else {
+      self->ClearException();
+    }
   }
   if (UNLIKELY(component_type->IsPrimitiveVoid())) {
     ThrowNoClassDefFoundError("Attempt to create array of void primitive type");
