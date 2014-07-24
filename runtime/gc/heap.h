@@ -572,6 +572,7 @@ class Heap {
 
   accounting::RememberedSet* FindRememberedSetFromSpace(space::Space* space);
   void AddRememberedSet(accounting::RememberedSet* remembered_set);
+  // Also deletes the remebered set.
   void RemoveRememberedSet(space::Space* space);
 
   bool IsCompilingBoot() const;
