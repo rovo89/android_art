@@ -3118,6 +3118,7 @@ void Heap::RemoveRememberedSet(space::Space* space) {
   CHECK(space != nullptr);
   auto it = remembered_sets_.find(space);
   CHECK(it != remembered_sets_.end());
+  delete it->second;
   remembered_sets_.erase(it);
   CHECK(remembered_sets_.find(space) == remembered_sets_.end());
 }
