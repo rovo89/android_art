@@ -39,7 +39,7 @@ public class Main implements Runnable {
 
     public void run() {
         List l = new ArrayList();
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 500; i++) {
             l.add(new ArrayList(i));
         }
     }
