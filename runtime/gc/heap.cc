@@ -1605,6 +1605,10 @@ void Heap::TransitionCollector(CollectorType collector_type) {
         // Remove the main space so that we don't try to trim it, this doens't work for debug
         // builds since RosAlloc attempts to read the magic number from a protected page.
         RemoveSpace(main_space_);
+        RemoveRememberedSet(main_space_);
+        RemoveRememberedSet(main_space_backup_.get());
+        main_space_backup_.reset(nullptr);
+        main_space_ = nullptr;
         temp_space_ = space::BumpPointerSpace::CreateFromMemMap("Bump pointer space 2",
                                                                 mem_map.release());
         AddSpace(temp_space_);
