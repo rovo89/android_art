@@ -62,25 +62,28 @@ static jint VMClassLoader_getBootClassPathSize(JNIEnv*, jclass) {
  */
 static jstring VMClassLoader_getBootClassPathResource(JNIEnv* env, jclass, jstring javaName, jint index) {
   ScopedUtfChars name(env, javaName);
-  if (name.c_str() == NULL) {
-    return NULL;
+  if (name.c_str() == nullptr) {
+    return nullptr;
   }
 
   const std::vector<const DexFile*>& path = Runtime::Current()->GetClassLinker()->GetBootClassPath();
   if (index < 0 || size_t(index) >= path.size()) {
-    return NULL;
+    return nullptr;
   }
   const DexFile* dex_file = path[index];
-  const std::string& location(dex_file->GetLocation());
+
+  // For multidex locations, e.g., x.jar:classes2.dex, we want to look into x.jar.
+  const std::string& location(dex_file->GetBaseLocation());
+
   std::string error_msg;
   std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(location.c_str(), &error_msg));
   if (zip_archive.get() == nullptr) {
     LOG(WARNING) << "Failed to open zip archive '" << location << "': " << error_msg;
-    return NULL;
+    return nullptr;
   }
   std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find(name.c_str(), &error_msg));
-  if (zip_entry.get() == NULL) {
-    return NULL;
+  if (zip_entry.get() == nullptr) {
+    return nullptr;
   }
 
   std::string url;
