@@ -104,6 +104,7 @@ LIBART_COMMON_SRC_FILES := \
   mirror/string.cc \
   mirror/throwable.cc \
   monitor.cc \
+  native_bridge.cc \
   native/dalvik_system_DexFile.cc \
   native/dalvik_system_VMDebug.cc \
   native/dalvik_system_VMRuntime.cc \
