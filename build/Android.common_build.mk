@@ -183,8 +183,16 @@ endif
 art_non_debug_cflags := \
   -O3
 
+art_host_non_debug_cflags := \
+  $(art_non_debug_cflags)
+
+art_target_non_debug_cflags := \
+  $(art_non_debug_cflags)
+
 ifeq ($(HOST_OS),linux)
-  art_non_debug_cflags += -Wframe-larger-than=1728
+  # Larger frame-size for host clang builds today
+  art_host_non_debug_cflags += -Wframe-larger-than=2440
+  art_target_non_debug_cflags += -Wframe-larger-than=1728
 endif
 
 # FIXME: upstream LLVM has a vectorizer bug that needs to be fixed
@@ -285,8 +293,8 @@ ifeq ($(TARGET_ARCH),arm)
   endif
 endif
 
-ART_HOST_NON_DEBUG_CFLAGS := $(art_non_debug_cflags)
-ART_TARGET_NON_DEBUG_CFLAGS := $(art_non_debug_cflags)
+ART_HOST_NON_DEBUG_CFLAGS := $(art_host_non_debug_cflags)
+ART_TARGET_NON_DEBUG_CFLAGS := $(art_target_non_debug_cflags)
 
 # TODO: move -fkeep-inline-functions to art_debug_cflags when target gcc > 4.4 (and -lsupc++)
 ART_HOST_DEBUG_CFLAGS := $(art_debug_cflags) -fkeep-inline-functions
@@ -348,5 +356,8 @@ endif
 ART_DEFAULT_GC_TYPE :=
 ART_DEFAULT_GC_TYPE_CFLAGS :=
 art_cflags :=
+art_target_non_debug_cflags :=
+art_host_non_debug_cflags :=
+art_non_debug_cflags :=
 
 endif # ANDROID_COMMON_BUILD_MK
