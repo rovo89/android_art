@@ -247,14 +247,6 @@ else
   endif
 endif
 ART_TARGET_CFLAGS += $(ART_DEFAULT_GC_TYPE_CFLAGS)
-ifdef PGO_GEN
-  ART_TARGET_CFLAGS += -fprofile-generate=$(PGO_GEN)
-  ART_TARGET_LDFLAGS += -fprofile-generate=$(PGO_GEN)
-endif
-ifdef PGO_USE
-  ART_TARGET_CFLAGS += -fprofile-use=$(PGO_USE)
-  ART_TARGET_CFLAGS += -fprofile-correction -Wno-error
-endif
 
 # DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES is set in ../build/core/dex_preopt.mk based on
 # the TARGET_CPU_VARIANT
