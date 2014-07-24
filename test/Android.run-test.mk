@@ -112,8 +112,7 @@ ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_TRACE_RUN_TESTS), $(c
 
 # Tests that need more than 2MB of RAM or are running into other corner cases in GC stress related
 # to OOMEs.
-TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
-  114-ParallelGC
+TEST_ART_BROKEN_GCSTRESS_RUN_TESTS :=
 
 ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_GCSTRESS_RUN_TESTS), $(call all-run-test-names,$(test),-gcstress,-relocate))
 ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_GCSTRESS_RUN_TESTS), $(call all-run-test-names,$(test),-gcstress,-no-prebuild))
