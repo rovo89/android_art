@@ -35,12 +35,19 @@ public class Main implements Runnable {
 
     private Main(int id) {
         this.id = id;
+        // Allocate this early so it's independent of how the threads are scheduled on startup.
+        this.l = new ArrayList<Object>();
     }
 
     public void run() {
-        List l = new ArrayList();
-        for (int i = 0; i < 400; i++) {
-            l.add(new ArrayList(i));
+        for (int i = 0; i < 1000; i++) {
+            try {
+                l.add(new ArrayList<Object>(i));
+            } catch (OutOfMemoryError oom) {
+                // Ignore.
+            }
         }
     }
+
+    private List<Object> l;
 }
