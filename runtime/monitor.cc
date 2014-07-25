@@ -166,7 +166,9 @@ bool Monitor::Install(Thread* self) {
   bool success = GetObject()->CasLockWordWeakSequentiallyConsistent(lw, fat);
   // Lock profiling.
   if (success && owner_ != nullptr && lock_profiling_threshold_ != 0) {
-    locking_method_ = owner_->GetCurrentMethod(&locking_dex_pc_);
+    // Do not abort on dex pc errors. This can easily happen when we want to dump a stack trace on
+    // abort.
+    locking_method_ = owner_->GetCurrentMethod(&locking_dex_pc_, false);
   }
   return success;
 }

@@ -321,7 +321,9 @@ class Thread {
     tlsPtr_.long_jump_context = context;
   }
 
-  mirror::ArtMethod* GetCurrentMethod(uint32_t* dex_pc) const
+  // Get the current method and dex pc. If there are errors in retrieving the dex pc, this will
+  // abort the runtime iff abort_on_error is true.
+  mirror::ArtMethod* GetCurrentMethod(uint32_t* dex_pc, bool abort_on_error = true) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ThrowLocation GetCurrentLocationForThrow() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
