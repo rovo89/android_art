@@ -2011,7 +2011,6 @@ ThrowLocation Thread::GetCurrentLocationForThrow() {
   Context* context = GetLongJumpContext();
   CurrentMethodVisitor visitor(this, context, true);
   visitor.WalkStack(false);
-  CHECK_NE(visitor.dex_pc_, DexFile::kDexNoIndex);  // TODO: Can we relax this?
   ReleaseLongJumpContext(context);
   return ThrowLocation(visitor.this_object_, visitor.method_, visitor.dex_pc_);
 }
