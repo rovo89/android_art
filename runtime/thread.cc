@@ -1975,10 +1975,10 @@ Context* Thread::GetLongJumpContext() {
 // Note: this visitor may return with a method set, but dex_pc_ being DexFile:kDexNoIndex. This is
 //       so we don't abort in a special situation (thinlocked monitor) when dumping the Java stack.
 struct CurrentMethodVisitor FINAL : public StackVisitor {
-  CurrentMethodVisitor(Thread* thread, Context* context, bool fail_on_error)
+  CurrentMethodVisitor(Thread* thread, Context* context, bool abort_on_error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(thread, context), this_object_(nullptr), method_(nullptr), dex_pc_(0),
-        fail_on_error_(fail_on_error) {}
+        abort_on_error_(abort_on_error) {}
   bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ArtMethod* m = GetMethod();
     if (m->IsRuntimeMethod()) {
@@ -1989,17 +1989,17 @@ struct CurrentMethodVisitor FINAL : public StackVisitor {
       this_object_ = GetThisObject();
     }
     method_ = m;
-    dex_pc_ = GetDexPc(fail_on_error_);
+    dex_pc_ = GetDexPc(abort_on_error_);
     return false;
   }
   mirror::Object* this_object_;
   mirror::ArtMethod* method_;
   uint32_t dex_pc_;
-  const bool fail_on_error_;
+  const bool abort_on_error_;
 };
 
-mirror::ArtMethod* Thread::GetCurrentMethod(uint32_t* dex_pc) const {
-  CurrentMethodVisitor visitor(const_cast<Thread*>(this), nullptr, false);
+mirror::ArtMethod* Thread::GetCurrentMethod(uint32_t* dex_pc, bool abort_on_error) const {
+  CurrentMethodVisitor visitor(const_cast<Thread*>(this), nullptr, abort_on_error);
   visitor.WalkStack(false);
   if (dex_pc != nullptr) {
     *dex_pc = visitor.dex_pc_;
