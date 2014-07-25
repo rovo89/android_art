@@ -45,6 +45,7 @@ class ParsedOptions {
   std::string image_;
   bool check_jni_;
   std::string jni_trace_;
+  std::string native_bridge_library_string_;
   CompilerCallbacks* compiler_callbacks_;
   bool is_zygote_;
   // TODO Change this to true when we want it on by default.
