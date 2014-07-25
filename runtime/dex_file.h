@@ -382,6 +382,20 @@ class DexFile {
     return location_;
   }
 
+  // For normal dex files, location and base location coincide. If a dex file is part of a multidex
+  // archive, the base location is the name of the originating jar/apk, stripped of any internal
+  // classes*.dex path.
+  const std::string GetBaseLocation() const {
+    if (IsMultiDexLocation(location_.c_str())) {
+      std::pair<const char*, const char*> pair = SplitMultiDexLocation(location_.c_str());
+      std::string res(pair.first);
+      delete[] pair.first;
+      return res;
+    } else {
+      return location_;
+    }
+  }
+
   // For DexFiles directly from .dex files, this is the checksum from the DexFile::Header.
   // For DexFiles opened from a zip files, this will be the ZipEntry CRC32 of classes.dex.
   uint32_t GetLocationChecksum() const {
