@@ -57,7 +57,7 @@ enum Register {
   X30 = 30,
   X31 = 31,
   TR  = 18,     // ART Thread Register - Managed Runtime (Caller Saved Reg)
-  ETR = 19,     // ART Thread Register - External Calls  (Callee Saved Reg)
+  ETR = 21,     // ART Thread Register - External Calls  (Callee Saved Reg)
   IP0 = 16,     // Used as scratch by VIXL.
   IP1 = 17,     // Used as scratch by ART JNI Assembler.
   FP  = 29,

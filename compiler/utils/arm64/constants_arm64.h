@@ -29,12 +29,12 @@
 namespace art {
 namespace arm64 {
 
-constexpr unsigned int kCalleeSavedRegsSize = 20;
+constexpr unsigned int kJniRefSpillRegsSize = 11;
 
 // Vixl buffer size.
 constexpr size_t kBufferSizeArm64 = 4096*2;
 
-}  // arm64
-}  // art
+}  // namespace arm64
+}  // namespace art
 
 #endif  // ART_COMPILER_UTILS_ARM64_CONSTANTS_ARM64_H_
