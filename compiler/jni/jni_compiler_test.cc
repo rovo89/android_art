@@ -720,10 +720,33 @@ TEST_F(JniCompilerTest, GetText) {
   EXPECT_EQ(result, 42);
 }
 
+int gJava_MyClassNatives_GetSinkProperties_calls = 0;
+jarray Java_MyClassNatives_GetSinkProperties(JNIEnv* env, jobject thisObj, jstring s) {
+  // 1 = thisObj
+  Thread* self = Thread::Current();
+  EXPECT_EQ(kNative, self->GetState());
+  Locks::mutator_lock_->AssertNotHeld(self);
+  EXPECT_EQ(self->GetJniEnv(), env);
+  EXPECT_TRUE(thisObj != nullptr);
+  EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
+  EXPECT_EQ(s, nullptr);
+  gJava_MyClassNatives_GetSinkProperties_calls++;
+  ScopedObjectAccess soa(self);
+  EXPECT_EQ(2U, self->NumStackReferences());
+  EXPECT_TRUE(self->HoldsLock(soa.Decode<mirror::Object*>(thisObj)));
+  return nullptr;
+}
+
 TEST_F(JniCompilerTest, GetSinkPropertiesNative) {
   TEST_DISABLED_FOR_PORTABLE();
-  SetUpForTest(false, "getSinkPropertiesNative", "(Ljava/lang/String;)[Ljava/lang/Object;", nullptr);
-  // This space intentionally left blank. Just testing compilation succeeds.
+  SetUpForTest(false, "getSinkPropertiesNative", "(Ljava/lang/String;)[Ljava/lang/Object;",
+               reinterpret_cast<void*>(&Java_MyClassNatives_GetSinkProperties));
+
+  EXPECT_EQ(0, gJava_MyClassNatives_GetSinkProperties_calls);
+  jarray result = down_cast<jarray>(
+      env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, nullptr));
+  EXPECT_EQ(nullptr, result);
+  EXPECT_EQ(1, gJava_MyClassNatives_GetSinkProperties_calls);
 }
 
 // This should return jclass, but we're imitating a bug pattern.
