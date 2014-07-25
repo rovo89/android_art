@@ -33,10 +33,9 @@ static constexpr size_t kSmallFrameSize = 1 * KB;
 // Determine whether a frame is small or large, used in the decision on whether to elide a
 // stack overflow check on method entry.
 //
-// A frame is considered large when it's either above kLargeFrameSize, or a quarter of the
-// overflow-usable stack space.
-static inline bool IsLargeFrame(size_t size, InstructionSet isa) {
-  return size >= kLargeFrameSize || size >= GetStackOverflowReservedBytes(isa) / 4;
+// A frame is considered large when it's above kLargeFrameSize.
+static inline bool FrameNeedsStackCheck(size_t size, InstructionSet isa) {
+  return size >= kLargeFrameSize;
 }
 
 }  // namespace art

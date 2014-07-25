@@ -446,6 +446,14 @@ static void InvokeWithArgArray(const ScopedObjectAccessAlreadyRunnable& soa,
 JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject obj, jmethodID mid,
                          va_list args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // We want to make sure that the stack is not within a small distance from the
+  // protected region in case we are calling into a leaf function whose stack
+  // check has been elided.
+  if (UNLIKELY(__builtin_frame_address(0) < soa.Self()->GetStackEnd())) {
+    ThrowStackOverflowError(soa.Self());
+    return JValue();
+  }
+
   mirror::ArtMethod* method = soa.DecodeMethod(mid);
   mirror::Object* receiver = method->IsStatic() ? nullptr : soa.Decode<mirror::Object*>(obj);
   uint32_t shorty_len = 0;
@@ -459,6 +467,14 @@ JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
 
 JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, mirror::Object* receiver,
                          jmethodID mid, jvalue* args) {
+  // We want to make sure that the stack is not within a small distance from the
+  // protected region in case we are calling into a leaf function whose stack
+  // check has been elided.
+  if (UNLIKELY(__builtin_frame_address(0) < soa.Self()->GetStackEnd())) {
+    ThrowStackOverflowError(soa.Self());
+    return JValue();
+  }
+
   mirror::ArtMethod* method = soa.DecodeMethod(mid);
   uint32_t shorty_len = 0;
   const char* shorty = method->GetShorty(&shorty_len);
@@ -471,6 +487,14 @@ JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, mirror::O
 
 JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccessAlreadyRunnable& soa,
                                            mirror::Object* receiver, jmethodID mid, jvalue* args) {
+  // We want to make sure that the stack is not within a small distance from the
+  // protected region in case we are calling into a leaf function whose stack
+  // check has been elided.
+  if (UNLIKELY(__builtin_frame_address(0) < soa.Self()->GetStackEnd())) {
+    ThrowStackOverflowError(soa.Self());
+    return JValue();
+  }
+
   mirror::ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   uint32_t shorty_len = 0;
   const char* shorty = method->GetShorty(&shorty_len);
@@ -483,6 +507,14 @@ JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccessAlreadyRunnab
 
 JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa,
                                            jobject obj, jmethodID mid, va_list args) {
+  // We want to make sure that the stack is not within a small distance from the
+  // protected region in case we are calling into a leaf function whose stack
+  // check has been elided.
+  if (UNLIKELY(__builtin_frame_address(0) < soa.Self()->GetStackEnd())) {
+    ThrowStackOverflowError(soa.Self());
+    return JValue();
+  }
+
   mirror::Object* receiver = soa.Decode<mirror::Object*>(obj);
   mirror::ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   uint32_t shorty_len = 0;
@@ -496,6 +528,14 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnab
 
 void InvokeWithShadowFrame(Thread* self, ShadowFrame* shadow_frame, uint16_t arg_offset,
                            MethodHelper& mh, JValue* result) {
+  // We want to make sure that the stack is not within a small distance from the
+  // protected region in case we are calling into a leaf function whose stack
+  // check has been elided.
+  if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEnd())) {
+    ThrowStackOverflowError(self);
+    return;
+  }
+
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArrayFromFrame(shadow_frame, arg_offset);
   shadow_frame->GetMethod()->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), result,
@@ -504,6 +544,15 @@ void InvokeWithShadowFrame(Thread* self, ShadowFrame* shadow_frame, uint16_t arg
 
 jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaMethod,
                      jobject javaReceiver, jobject javaArgs, bool accessible) {
+  // We want to make sure that the stack is not within a small distance from the
+  // protected region in case we are calling into a leaf function whose stack
+  // check has been elided.
+  if (UNLIKELY(__builtin_frame_address(0) <
+               soa.Self()->GetStackEndForInterpreter(true))) {
+    ThrowStackOverflowError(soa.Self());
+    return nullptr;
+  }
+
   mirror::ArtMethod* m = mirror::ArtMethod::FromReflectedMethod(soa, javaMethod);
 
   mirror::Class* declaring_class = m->GetDeclaringClass();
