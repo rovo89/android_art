@@ -28,11 +28,11 @@
 #define RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET 16
 
 // Offset of field Thread::self_ verified in InitCpu
-#define THREAD_SELF_OFFSET 184
+#define THREAD_SELF_OFFSET 192
 // Offset of field Thread::card_table_ verified in InitCpu
-#define THREAD_CARD_TABLE_OFFSET 112
+#define THREAD_CARD_TABLE_OFFSET 120
 // Offset of field Thread::exception_ verified in InitCpu
-#define THREAD_EXCEPTION_OFFSET 120
+#define THREAD_EXCEPTION_OFFSET 128
 // Offset of field Thread::thin_lock_thread_id_ verified in InitCpu
 #define THREAD_ID_OFFSET 12
 

@@ -283,6 +283,11 @@ uint32_t ArtMethod::FindCatchBlock(Handle<ArtMethod> h_this, Handle<Class> excep
 
 void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result,
                        const char* shorty) {
+  if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEnd())) {
+    ThrowStackOverflowError(self);
+    return;
+  }
+
   if (kIsDebugBuild) {
     self->AssertThreadSuspensionIsAllowable();
     CHECK_EQ(kRunnable, self->GetState());
