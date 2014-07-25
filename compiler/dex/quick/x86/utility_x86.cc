@@ -779,15 +779,20 @@ LIR* X86Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_
 }
 
 LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                      int displacement, RegStorage r_src, OpSize size) {
+                                      int displacement, RegStorage r_src, OpSize size,
+                                      int opt_flags) {
   LIR *store = NULL;
   LIR *store2 = NULL;
   bool is_array = r_index.Valid();
   bool pair = r_src.IsPair();
   bool is64bit = (size == k64) || (size == kDouble);
+  bool consider_non_temporal = false;
+
   X86OpCode opcode = kX86Nop;
   switch (size) {
     case k64:
+      consider_non_temporal = true;
+      // Fall through!
     case kDouble:
       if (r_src.IsFloat()) {
         opcode = is_array ? kX86MovsdAR : kX86MovsdMR;
@@ -804,6 +809,7 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
         opcode = is_array ? kX86Mov64AR  : kX86Mov64MR;
         CHECK_EQ(is_array, false);
         CHECK_EQ(r_src.IsFloat(), false);
+        consider_non_temporal = true;
         break;
       }  // else fall-through to k32 case
     case k32:
@@ -815,6 +821,7 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
         DCHECK(r_src.IsSingle());
       }
       DCHECK_EQ((displacement & 0x3), 0);
+      consider_non_temporal = true;
       break;
     case kUnsignedHalf:
     case kSignedHalf:
@@ -827,6 +834,28 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
       break;
     default:
       LOG(FATAL) << "Bad case in StoreBaseIndexedDispBody";
+  }
+
+  // Handle non temporal hint here.
+  if (consider_non_temporal && ((opt_flags & MIR_STORE_NON_TEMPORAL) != 0)) {
+    switch (opcode) {
+      // We currently only handle 32/64 bit moves here.
+      case kX86Mov64AR:
+        opcode = kX86Movnti64AR;
+        break;
+      case kX86Mov64MR:
+        opcode = kX86Movnti64MR;
+        break;
+      case kX86Mov32AR:
+        opcode = kX86Movnti32AR;
+        break;
+      case kX86Mov32MR:
+        opcode = kX86Movnti32MR;
+        break;
+      default:
+        // Do nothing here.
+        break;
+    }
   }
 
   if (!is_array) {

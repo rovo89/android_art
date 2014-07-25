@@ -2324,9 +2324,9 @@ void X86Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   if ((size == kSignedByte || size == kUnsignedByte) && !IsByteRegister(rl_src.reg)) {
     RegStorage temp = AllocTemp();
     OpRegCopy(temp, rl_src.reg);
-    StoreBaseIndexedDisp(rl_array.reg, rl_index.reg, scale, data_offset, temp, size);
+    StoreBaseIndexedDisp(rl_array.reg, rl_index.reg, scale, data_offset, temp, size, opt_flags);
   } else {
-    StoreBaseIndexedDisp(rl_array.reg, rl_index.reg, scale, data_offset, rl_src.reg, size);
+    StoreBaseIndexedDisp(rl_array.reg, rl_index.reg, scale, data_offset, rl_src.reg, size, opt_flags);
   }
   if (card_mark) {
     // Free rl_index if its a temp. Ensures there are 2 free regs for card mark.

@@ -888,6 +888,9 @@ const uint64_t MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
 
   // 129 MirOpReturnVectorRegisters
   0,
+
+  // 130 MirOpMemBarrier
+  0,
 };
 
 /* Return the base virtual register for a SSA name */
