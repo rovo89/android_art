@@ -693,7 +693,7 @@ void Heap::AddSpace(space::Space* space) {
     accounting::ContinuousSpaceBitmap* live_bitmap = continuous_space->GetLiveBitmap();
     accounting::ContinuousSpaceBitmap* mark_bitmap = continuous_space->GetMarkBitmap();
     if (live_bitmap != nullptr) {
-      DCHECK(mark_bitmap != nullptr);
+      CHECK(mark_bitmap != nullptr);
       live_bitmap_->AddContinuousSpaceBitmap(live_bitmap);
       mark_bitmap_->AddContinuousSpaceBitmap(mark_bitmap);
     }
@@ -704,7 +704,7 @@ void Heap::AddSpace(space::Space* space) {
       return a->Begin() < b->Begin();
     });
   } else {
-    DCHECK(space->IsDiscontinuousSpace());
+    CHECK(space->IsDiscontinuousSpace());
     space::DiscontinuousSpace* discontinuous_space = space->AsDiscontinuousSpace();
     live_bitmap_->AddLargeObjectBitmap(discontinuous_space->GetLiveBitmap());
     mark_bitmap_->AddLargeObjectBitmap(discontinuous_space->GetMarkBitmap());
@@ -1596,19 +1596,20 @@ void Heap::TransitionCollector(CollectorType collector_type) {
         Compact(bump_pointer_space_, main_space_, kGcCauseCollectorTransition);
         // Use the now empty main space mem map for the bump pointer temp space.
         mem_map.reset(main_space_->ReleaseMemMap());
-        // Remove the main space so that we don't try to trim it, this doens't work for debug
-        // builds since RosAlloc attempts to read the magic number from a protected page.
-        RemoveSpace(main_space_);
         // Unset the pointers just in case.
         if (dlmalloc_space_ == main_space_) {
           dlmalloc_space_ = nullptr;
         } else if (rosalloc_space_ == main_space_) {
           rosalloc_space_ = nullptr;
         }
+        // Remove the main space so that we don't try to trim it, this doens't work for debug
+        // builds since RosAlloc attempts to read the magic number from a protected page.
+        RemoveSpace(main_space_);
         RemoveRememberedSet(main_space_);
-        RemoveRememberedSet(main_space_backup_.get());
-        main_space_backup_.reset(nullptr);
+        delete main_space_;  // Delete the space since it has been removed.
         main_space_ = nullptr;
+        RemoveRememberedSet(main_space_backup_.get());
+        main_space_backup_.reset(nullptr);  // Deletes the space.
         temp_space_ = space::BumpPointerSpace::CreateFromMemMap("Bump pointer space 2",
                                                                 mem_map.release());
         AddSpace(temp_space_);
