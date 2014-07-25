@@ -670,18 +670,11 @@ void Heap::VisitObjects(ObjectCallback callback, void* arg) {
 }
 
 void Heap::MarkAllocStackAsLive(accounting::ObjectStack* stack) {
-  space::ContinuousSpace* space1 = rosalloc_space_ != nullptr ? rosalloc_space_ : non_moving_space_;
-  space::ContinuousSpace* space2 = dlmalloc_space_ != nullptr ? dlmalloc_space_ : non_moving_space_;
-  // This is just logic to handle a case of either not having a rosalloc or dlmalloc space.
+  space::ContinuousSpace* space1 = main_space_ != nullptr ? main_space_ : non_moving_space_;
+  space::ContinuousSpace* space2 = non_moving_space_;
   // TODO: Generalize this to n bitmaps?
-  if (space1 == nullptr) {
-    DCHECK(space2 != nullptr);
-    space1 = space2;
-  }
-  if (space2 == nullptr) {
-    DCHECK(space1 != nullptr);
-    space2 = space1;
-  }
+  CHECK(space1 != nullptr);
+  CHECK(space2 != nullptr);
   MarkAllocStack(space1->GetLiveBitmap(), space2->GetLiveBitmap(),
                  large_object_space_->GetLiveBitmap(), stack);
 }
@@ -1606,6 +1599,12 @@ void Heap::TransitionCollector(CollectorType collector_type) {
         // Remove the main space so that we don't try to trim it, this doens't work for debug
         // builds since RosAlloc attempts to read the magic number from a protected page.
         RemoveSpace(main_space_);
+        // Unset the pointers just in case.
+        if (dlmalloc_space_ == main_space_) {
+          dlmalloc_space_ = nullptr;
+        } else if (rosalloc_space_ == main_space_) {
+          rosalloc_space_ = nullptr;
+        }
         RemoveRememberedSet(main_space_);
         RemoveRememberedSet(main_space_backup_.get());
         main_space_backup_.reset(nullptr);
