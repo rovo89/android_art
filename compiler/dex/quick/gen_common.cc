@@ -273,13 +273,25 @@ void Mir2Lir::GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
   if (rl_src2.is_const) {
     // If it's already live in a register or not easily materialized, just keep going
     RegLocation rl_temp = UpdateLoc(rl_src2);
+    int32_t constant_value = mir_graph_->ConstantValue(rl_src2);
     if ((rl_temp.location == kLocDalvikFrame) &&
-        InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src2))) {
+        InexpensiveConstantInt(constant_value)) {
       // OK - convert this to a compare immediate and branch
       OpCmpImmBranch(cond, rl_src1.reg, mir_graph_->ConstantValue(rl_src2), taken);
       return;
     }
+
+    // It's also commonly more efficient to have a test against zero with Eq/Ne. This is not worse
+    // for x86, and allows a cbz/cbnz for Arm and Mips. At the same time, it works around a register
+    // mismatch for 64b systems, where a reference is compared against null, as dex bytecode uses
+    // the 32b literal 0 for null.
+    if (constant_value == 0 && (cond == kCondEq || cond == kCondNe)) {
+      // Use the OpCmpImmBranch and ignore the value in the register.
+      OpCmpImmBranch(cond, rl_src1.reg, 0, taken);
+      return;
+    }
   }
+
   rl_src2 = LoadValue(rl_src2);
   OpCmpBranch(cond, rl_src1.reg, rl_src2.reg, taken);
 }
