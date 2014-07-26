@@ -849,7 +849,6 @@ static int dex2oat(int argc, char** argv) {
   bool dump_timing = false;
   bool dump_passes = false;
   bool include_patch_information = CompilerOptions::kDefaultIncludePatchInformation;
-  bool explicit_include_patch_information = false;
   bool include_debug_symbols = kIsDebugBuild;
   bool dump_slow_timing = kIsDebugBuild;
   bool watch_dog_enabled = !kIsTargetBuild;
@@ -1037,10 +1036,8 @@ static int dex2oat(int argc, char** argv) {
       PassDriverMEOpts::SetDumpPassList(dump_passes);
     } else if (option == "--include-patch-information") {
       include_patch_information = true;
-      explicit_include_patch_information = true;
     } else if (option == "--no-include-patch-information") {
       include_patch_information = false;
-      explicit_include_patch_information = true;
     } else {
       Usage("Unknown argument %s", option.data());
     }
@@ -1165,11 +1162,6 @@ static int dex2oat(int argc, char** argv) {
     compiler_filter = CompilerOptions::kEverything;
   } else {
     Usage("Unknown --compiler-filter value %s", compiler_filter_string);
-  }
-
-  if (!explicit_include_patch_information) {
-    include_patch_information =
-        (compiler_kind == Compiler::kQuick && CompilerOptions::kDefaultIncludePatchInformation);
   }
 
   // Set the compilation target's implicit checks options.
