@@ -45,6 +45,26 @@ ImageSpace::ImageSpace(const std::string& image_filename, const char* image_loca
   live_bitmap_.reset(live_bitmap);
 }
 
+static int32_t ChooseRelocationOffsetDelta(int32_t min_delta, int32_t max_delta) {
+  CHECK_ALIGNED(min_delta, kPageSize);
+  CHECK_ALIGNED(max_delta, kPageSize);
+  CHECK_LT(min_delta, max_delta);
+
+  std::default_random_engine generator;
+  generator.seed(NanoTime() * getpid());
+  std::uniform_int_distribution<int32_t> distribution(min_delta, max_delta);
+  int32_t r = distribution(generator);
+  if (r % 2 == 0) {
+    r = RoundUp(r, kPageSize);
+  } else {
+    r = RoundDown(r, kPageSize);
+  }
+  CHECK_LE(min_delta, r);
+  CHECK_GE(max_delta, r);
+  CHECK_ALIGNED(r, kPageSize);
+  return r;
+}
+
 static bool GenerateImage(const std::string& image_filename, std::string* error_msg) {
   const std::string boot_class_path_string(Runtime::Current()->GetBootClassPathString());
   std::vector<std::string> boot_class_path;
@@ -75,7 +95,11 @@ static bool GenerateImage(const std::string& image_filename, std::string* error_
 
   Runtime::Current()->AddCurrentRuntimeFeaturesAsDex2OatArguments(&arg_vector);
 
-  arg_vector.push_back(StringPrintf("--base=0x%x", ART_BASE_ADDRESS));
+  int32_t base_offset = ChooseRelocationOffsetDelta(ART_BASE_ADDRESS_MIN_DELTA,
+                                                    ART_BASE_ADDRESS_MAX_DELTA);
+  LOG(INFO) << "Using an offset of 0x" << std::hex << base_offset << " from default "
+            << "art base address of 0x" << std::hex << ART_BASE_ADDRESS;
+  arg_vector.push_back(StringPrintf("--base=0x%x", ART_BASE_ADDRESS + base_offset));
 
   if (kIsTargetBuild) {
     arg_vector.push_back("--image-classes-zip=/system/framework/framework.jar");
@@ -143,26 +167,6 @@ static bool ReadSpecificImageHeader(const char* filename, ImageHeader* image_hea
       return false;
     }
     return true;
-}
-
-static int32_t ChooseRelocationOffsetDelta(int32_t min_delta, int32_t max_delta) {
-  CHECK_ALIGNED(min_delta, kPageSize);
-  CHECK_ALIGNED(max_delta, kPageSize);
-  CHECK_LT(min_delta, max_delta);
-
-  std::default_random_engine generator;
-  generator.seed(NanoTime() * getpid());
-  std::uniform_int_distribution<int32_t> distribution(min_delta, max_delta);
-  int32_t r = distribution(generator);
-  if (r % 2 == 0) {
-    r = RoundUp(r, kPageSize);
-  } else {
-    r = RoundDown(r, kPageSize);
-  }
-  CHECK_LE(min_delta, r);
-  CHECK_GE(max_delta, r);
-  CHECK_ALIGNED(r, kPageSize);
-  return r;
 }
 
 bool ImageSpace::RelocateImage(const char* image_location, const char* dest_filename,
@@ -376,13 +380,6 @@ ImageSpace* ImageSpace::Create(const char* image_location,
   CHECK(dalvik_cache_exists) << "No place to put generated image.";
   CHECK(GenerateImage(cache_filename, &error_msg))
       << "Failed to generate image '" << cache_filename << "': " << error_msg;
-  // TODO Should I relocate this image? Sure
-  if (relocate) {
-    if (!RelocateImage(cache_filename.c_str(), cache_filename.c_str(), image_isa, &error_msg)) {
-      LOG(FATAL) << "Failed to relocate newly created image " << cache_filename.c_str();
-      return nullptr;
-    }
-  }
   {
     // Note that we must not use the file descriptor associated with
     // ScopedFlock::GetFile to Init the image file. We want the file
