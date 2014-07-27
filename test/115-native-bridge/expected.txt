@@ -1,0 +1,13 @@
+Ready for native bridge tests.
+Native bridge initialized.
+Checking for support.
+Getting trampoline.
+Getting trampoline.
+Getting trampoline.
+Getting trampoline.
+Getting trampoline.
+Getting trampoline.
+Getting trampoline.
+Getting trampoline.
+Getting trampoline.
+Getting trampoline.
