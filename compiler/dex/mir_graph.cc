@@ -795,7 +795,8 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     } else if (flags & Instruction::kSwitch) {
       cur_block = ProcessCanSwitch(cur_block, insn, current_offset_, width, flags);
     }
-    if (verify_flags & Instruction::kVerifyVarArgRange) {
+    if (verify_flags & Instruction::kVerifyVarArgRange ||
+        verify_flags & Instruction::kVerifyVarArgRangeNonZero) {
       /*
        * The Quick backend's runtime model includes a gap between a method's
        * argument ("in") vregs and the rest of its vregs.  Handling a range instruction
