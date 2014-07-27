@@ -1192,4 +1192,21 @@ LIR* ArmMir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int 
   return NULL;
 }
 
+size_t ArmMir2Lir::GetInstructionOffset(LIR* lir) {
+  size_t offset = lir->operands[2];
+  uint64_t check_flags = GetTargetInstFlags(lir->opcode);
+  CHECK((check_flags & IS_LOAD) || (check_flags & IS_STORE));
+  if (!(check_flags & IS_TERTIARY_OP)) {
+    DumpLIRInsn(lir, 0);
+    CHECK(false);
+  }
+
+  if (check_flags & SCALED_OFFSET_X2) {
+    offset = offset * 2;
+  } else if (check_flags & SCALED_OFFSET_X4) {
+    offset = offset * 4;
+  }
+  return offset;
+}
+
 }  // namespace art

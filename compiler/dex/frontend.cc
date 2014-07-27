@@ -42,7 +42,7 @@ extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver* driver) {
 
 /* Default optimizer/debug setting for the compiler. */
 static uint32_t kCompilerOptimizerDisableFlags = 0 |  // Disable specific optimizations
-  (1 << kLoadStoreElimination) |  // TODO: this pass has been broken for awhile - fix or delete.
+  // (1 << kLoadStoreElimination) |
   // (1 << kLoadHoisting) |
   // (1 << kSuppressLoads) |
   // (1 << kNullCheckElimination) |
@@ -96,12 +96,12 @@ static constexpr uint32_t kDisabledOptimizationsPerISA[] = {
     ~0U,
     // 1 = kArm, unused (will use kThumb2).
     ~0U,
-    // 2 = kArm64.     TODO(Arm64): enable optimizations once backend is mature enough.
-    (1 << kLoadStoreElimination) |
+    // 2 = kArm64.
     0,
     // 3 = kThumb2.
     0,
     // 4 = kX86.
+    (1 << kLoadStoreElimination) |
     0,
     // 5 = kX86_64.
     (1 << kLoadStoreElimination) |
