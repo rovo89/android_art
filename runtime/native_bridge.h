@@ -19,23 +19,38 @@
 
 #include "base/mutex.h"
 
+#include <string>
+
 namespace art {
 
 struct NativeBridgeCallbacks;
 
 class NativeBridge {
  public:
+  // Initialize the native bridge, if any. Should be called by Runtime::Init(). An empty string
+  // signals that we do not want to load a native bridge.
+  static void SetNativeBridgeLibraryString(std::string& native_bridge_library_string);
+
   // Load a shared library that is supported by the native-bridge.
   static void* LoadLibrary(const char* libpath, int flag);
   // Get a native-bridge trampoline for specified native method.
   static void* GetTrampoline(void* handle, const char* name, const char* shorty, uint32_t len);
   // True if native library is valid and is for an ABI that is supported by native-bridge.
-  static bool  IsSupported(const char* libpath);
+  static bool IsSupported(const char* libpath);
 
  private:
-  static bool  Init();
-  static bool  initialized_ GUARDED_BY(lock_);
+  static bool Initialize();
+
+  // The library name we are supposed to load.
+  static std::string native_bridge_library_string_;
+
+  // Whether we have already initialized (or tried to).
+  static bool initialized_ GUARDED_BY(lock_);
   static Mutex lock_;
+
+  // Whether a native bridge is available (loaded and ready).
+  static bool available_;
+
   static NativeBridgeCallbacks* callbacks_;
 };
 

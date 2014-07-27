@@ -24,6 +24,7 @@ FLAGS=""
 COMPILER_FLAGS=""
 BUILD_BOOT_OPT=""
 exe="${ANDROID_HOST_OUT}/bin/dalvikvm32"
+main="Main"
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -112,6 +113,12 @@ while true; do
     fi
 done
 
+if [ "x$1" = "x" ] ; then
+  main="Main"
+else
+  main="$1"
+fi
+
 msg "------------------------------"
 
 export ANDROID_PRINTF_LOG=brief
@@ -171,7 +178,7 @@ else
 fi
 
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
-cmdline="$INVOKE_WITH $gdb $exe $gdbargs -XXlib:$LIB $JNI_OPTS $FLAGS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar Main"
+cmdline="$INVOKE_WITH $gdb $exe $gdbargs -XXlib:$LIB $JNI_OPTS $FLAGS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar $main"
 if [ "$DEV_MODE" = "y" ]; then
   if [ "$PREBUILD" = "y" ]; then
     echo "$mkdir_cmd && $prebuild_cmd && $cmdline"

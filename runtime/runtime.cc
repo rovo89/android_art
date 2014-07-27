@@ -63,6 +63,7 @@
 #include "mirror/stack_trace_element.h"
 #include "mirror/throwable.h"
 #include "monitor.h"
+#include "native_bridge.h"
 #include "parsed_options.h"
 #include "oat_file.h"
 #include "quick/quick_method_frame_info.h"
@@ -717,6 +718,9 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
                           "no stack available");
   pre_allocated_OutOfMemoryError_ = self->GetException(NULL);
   self->ClearException();
+
+  // Look for a native bridge.
+  NativeBridge::SetNativeBridgeLibraryString(options->native_bridge_library_string_);
 
   VLOG(startup) << "Runtime::Init exiting";
   return true;

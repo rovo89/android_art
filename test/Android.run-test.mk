@@ -40,6 +40,16 @@ define all-run-test-names
   test-art-target-run-test$(2)-interpreter$(3)-$(1)64
 endef  # all-run-test-names
 
+# Subset of the above for target only.
+define all-run-test-target-names
+  test-art-target-run-test$(2)-default$(3)-$(1)32 \
+  test-art-target-run-test$(2)-optimizing$(3)-$(1)32 \
+  test-art-target-run-test$(2)-interpreter$(3)-$(1)32 \
+  test-art-target-run-test$(2)-default$(3)-$(1)64 \
+  test-art-target-run-test$(2)-optimizing$(3)-$(1)64 \
+  test-art-target-run-test$(2)-interpreter$(3)-$(1)64
+endef  # all-run-test-target-names
+
 # Tests that are timing sensitive and flaky on heavily loaded systems.
 TEST_ART_TIMING_SENSITIVE_RUN_TESTS := \
   053-wait-some \
@@ -120,6 +130,27 @@ ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_GCSTRESS_RUN_TESTS), 
 ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_GCSTRESS_RUN_TESTS), $(call all-run-test-names,$(test),-gcstress,-norelocate))
 ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_GCSTRESS_RUN_TESTS), $(call all-run-test-names,$(test),-gcstress,))
 
+# 115-native-bridge setup is complicated. Need to implement it correctly for the target.
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,,)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-trace,)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-gcverify,)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-gcstress,)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,,-relocate)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-trace,-relocate)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-gcverify,-relocate)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-gcstress,-relocate)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,,-norelocate)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-trace,-norelocate)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-gcverify,-norelocate)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-gcstress,-norelocate)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,,-prebuild)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-trace,-prebuild)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-gcverify,-prebuild)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-gcstress,-prebuild)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,,-no-prebuild)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-trace,-no-prebuild)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-gcverify,-no-prebuild)
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-gcstress,-no-prebuild)
 
 # The path where build only targets will be output, e.g.
 # out/target/product/generic_x86_64/obj/PACKAGING/art-run-tests_intermediates/DATA
@@ -290,16 +321,24 @@ ifdef TARGET_2ND_ARCH
 TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_TEST_OUT)/$(TARGET_2ND_ARCH)/libarttest.so
 endif
 
+# Also need libnativebridgetest.
+TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libnativebridgetest.so
+ifdef TARGET_2ND_ARCH
+TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_TEST_OUT)/$(TARGET_2ND_ARCH)/libnativebridgetest.so
+endif
+
 # All tests require the host executables and the core images.
 ART_TEST_HOST_RUN_TEST_DEPENDENCIES := \
   $(ART_HOST_EXECUTABLES) \
   $(ART_HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION) \
+  $(ART_HOST_OUT_SHARED_LIBRARIES)/libnativebridgetest$(ART_HOST_SHLIB_EXTENSION) \
   $(ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION) \
   $(HOST_CORE_IMG_OUT)
 
 ifneq ($(HOST_PREFER_32_BIT),true)
 ART_TEST_HOST_RUN_TEST_DEPENDENCIES += \
   $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION) \
+  $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libnativebridgetest$(ART_HOST_SHLIB_EXTENSION) \
   $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION) \
   $(2ND_HOST_CORE_IMG_OUT)
 endif
@@ -830,6 +869,9 @@ endif
 
 # include libarttest build rules.
 include $(LOCAL_PATH)/Android.libarttest.mk
+
+# Include libnativebridgetest build rules.
+include art/test/Android.libnativebridgetest.mk
 
 define-test-art-run-test :=
 define-test-art-run-test-group-rule :=
