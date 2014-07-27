@@ -308,7 +308,6 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
     bool WideFPRsAreAliases() OVERRIDE {
       return true;  // 64b architecture.
     }
-    size_t GetInstructionOffset(LIR* lir);
 
   private:
     /**
@@ -391,7 +390,6 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
     RegLocation GenDivRem(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
                           bool is_div, bool check_zero);
     RegLocation GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit, bool is_div);
-    size_t GetLoadStoreSize(LIR* lir);
 };
 
 }  // namespace art
