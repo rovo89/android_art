@@ -23,7 +23,11 @@ include art/build/Android.common.mk
 ART_TARGET_DALVIK_CACHE_DIR := /data/dalvik-cache
 
 # Directory used for gtests on device.
-ART_TARGET_NATIVETEST_DIR := /data/nativetest/art
+# $(TARGET_OUT_DATA_NATIVE_TESTS) will evaluate to the nativetest directory in the target part on
+# the host, so we can strip everything but the directory to find out whether it is "nativetest" or
+# "nativetest64."
+ART_TARGET_NATIVETEST_DIR := /data/$(notdir $(TARGET_OUT_DATA_NATIVE_TESTS))/art
+
 ART_TARGET_NATIVETEST_OUT := $(TARGET_OUT_DATA_NATIVE_TESTS)/art
 
 # Directory used for oat tests on device.

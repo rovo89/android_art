@@ -22,6 +22,7 @@
 #include <ScopedLocalRef.h>
 
 #include "../../external/icu/icu4c/source/common/unicode/uvernum.h"
+#include "base/macros.h"
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "base/stringprintf.h"
@@ -272,6 +273,17 @@ std::string CommonRuntimeTest::GetTestAndroidRoot() {
   return GetAndroidRoot();
 }
 
+// Check that for target builds we have ART_TARGET_NATIVETEST_DIR set.
+#ifdef ART_TARGET
+#ifndef ART_TARGET_NATIVETEST_DIR
+#error "ART_TARGET_NATIVETEST_DIR not set."
+#endif
+// Wrap it as a string literal.
+#define ART_TARGET_NATIVETEST_DIR_STRING STRINGIFY(ART_TARGET_NATIVETEST_DIR) "/"
+#else
+#define ART_TARGET_NATIVETEST_DIR_STRING ""
+#endif
+
 std::vector<const DexFile*> CommonRuntimeTest::OpenTestDexFiles(const char* name) {
   CHECK(name != nullptr);
   std::string filename;
@@ -279,7 +291,7 @@ std::vector<const DexFile*> CommonRuntimeTest::OpenTestDexFiles(const char* name
     filename += getenv("ANDROID_HOST_OUT");
     filename += "/framework/";
   } else {
-    filename += "/data/nativetest/art/";
+    filename += ART_TARGET_NATIVETEST_DIR_STRING;
   }
   filename += "art-gtest-";
   filename += name;
