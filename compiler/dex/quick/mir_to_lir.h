@@ -50,6 +50,7 @@ typedef uint32_t CodeOffset;         // Native code offset in bytes.
 #define IS_BINARY_OP         (1ULL << kIsBinaryOp)
 #define IS_BRANCH            (1ULL << kIsBranch)
 #define IS_IT                (1ULL << kIsIT)
+#define IS_MOVE              (1ULL << kIsMoveOp)
 #define IS_LOAD              (1ULL << kMemLoad)
 #define IS_QUAD_OP           (1ULL << kIsQuadOp)
 #define IS_QUIN_OP           (1ULL << kIsQuinOp)
@@ -57,6 +58,7 @@ typedef uint32_t CodeOffset;         // Native code offset in bytes.
 #define IS_STORE             (1ULL << kMemStore)
 #define IS_TERTIARY_OP       (1ULL << kIsTertiaryOp)
 #define IS_UNARY_OP          (1ULL << kIsUnaryOp)
+#define IS_VOLATILE          (1ULL << kMemVolatile)
 #define NEEDS_FIXUP          (1ULL << kPCRelFixup)
 #define NO_OPERAND           (1ULL << kNoOperand)
 #define REG_DEF0             (1ULL << kRegDef0)
@@ -93,6 +95,20 @@ typedef uint32_t CodeOffset;         // Native code offset in bytes.
 #define REG_USE_HI           (1ULL << kUseHi)
 #define REG_DEF_LO           (1ULL << kDefLo)
 #define REG_DEF_HI           (1ULL << kDefHi)
+#define SCALED_OFFSET_X0     (1ULL << kMemScaledx0)
+#define SCALED_OFFSET_X2     (1ULL << kMemScaledx2)
+#define SCALED_OFFSET_X4     (1ULL << kMemScaledx4)
+
+// Special load/stores
+#define IS_LOADX             (IS_LOAD | IS_VOLATILE)
+#define IS_LOAD_OFF          (IS_LOAD | SCALED_OFFSET_X0)
+#define IS_LOAD_OFF2         (IS_LOAD | SCALED_OFFSET_X2)
+#define IS_LOAD_OFF4         (IS_LOAD | SCALED_OFFSET_X4)
+
+#define IS_STOREX            (IS_STORE | IS_VOLATILE)
+#define IS_STORE_OFF         (IS_STORE | SCALED_OFFSET_X0)
+#define IS_STORE_OFF2        (IS_STORE | SCALED_OFFSET_X2)
+#define IS_STORE_OFF4        (IS_STORE | SCALED_OFFSET_X4)
 
 // Common combo register usage patterns.
 #define REG_DEF01            (REG_DEF0 | REG_DEF1)
@@ -551,6 +567,12 @@ class Mir2Lir : public Backend {
 
     virtual ~Mir2Lir() {}
 
+    /**
+     * @brief Decodes the LIR offset.
+     * @return Returns the scaled offset of LIR.
+     */
+    virtual size_t GetInstructionOffset(LIR* lir);
+
     int32_t s4FromSwitchData(const void* switch_data) {
       return *reinterpret_cast<const int32_t*>(switch_data);
     }
@@ -640,7 +662,10 @@ class Mir2Lir : public Backend {
     void SetMemRefType(LIR* lir, bool is_load, int mem_type);
     void AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load, bool is64bit);
     void SetupRegMask(ResourceMask* mask, int reg);
+    void ClearRegMask(ResourceMask* mask, int reg);
     void DumpLIRInsn(LIR* arg, unsigned char* base_addr);
+    void EliminateLoad(LIR* lir, int reg_id);
+    void DumpDependentInsnPair(LIR* check_lir, LIR* this_lir, const char* type);
     void DumpPromotionMap();
     void CodegenDump();
     LIR* RawLIR(DexOffset dalvik_offset, int opcode, int op0 = 0, int op1 = 0,

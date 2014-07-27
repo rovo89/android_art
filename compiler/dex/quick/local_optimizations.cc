@@ -15,14 +15,36 @@
  */
 
 #include "dex/compiler_internals.h"
+#include "dex/quick/mir_to_lir-inl.h"
 
 namespace art {
 
 #define DEBUG_OPT(X)
 
+#define LOAD_STORE_CHECK_REG_DEP(mask, check) (mask.Intersects(*check->u.m.def_mask))
+
 /* Check RAW, WAR, and RAW dependency on the register operands */
 #define CHECK_REG_DEP(use, def, check) (def.Intersects(*check->u.m.use_mask)) || \
                                        (use.Union(def).Intersects(*check->u.m.def_mask))
+
+/* Load Store Elimination filter:
+ *  - Wide Load/Store
+ *  - Exclusive Load/Store
+ *  - Quad operand Load/Store
+ *  - List Load/Store
+ *  - IT blocks
+ *  - Branch
+ *  - Dmb
+ */
+#define LOAD_STORE_FILTER(flags) ((flags & (IS_QUAD_OP|IS_STORE)) == (IS_QUAD_OP|IS_STORE) || \
+                                 (flags & (IS_QUAD_OP|IS_LOAD)) == (IS_QUAD_OP|IS_LOAD) || \
+                                 (flags & REG_USE012) == REG_USE012 || \
+                                 (flags & REG_DEF01) == REG_DEF01 || \
+                                 (flags & REG_DEF_LIST0) || \
+                                 (flags & REG_USE_LIST0) || \
+                                 (flags & IS_VOLATILE) || \
+                                 (flags & IS_BRANCH) || \
+                                 (flags & IS_IT))
 
 /* Scheduler heuristics */
 #define MAX_HOIST_DISTANCE 20
@@ -43,6 +65,7 @@ void Mir2Lir::ConvertMemOpIntoMove(LIR* orig_lir, RegStorage dest, RegStorage sr
   /* Insert a move to replace the load */
   LIR* move_lir;
   move_lir = OpRegCopyNoInsert(dest, src);
+  move_lir->dalvik_offset = orig_lir->dalvik_offset;
   /*
    * Insert the converted instruction after the original since the
    * optimization is scannng in the top-down order and the new instruction
@@ -52,8 +75,53 @@ void Mir2Lir::ConvertMemOpIntoMove(LIR* orig_lir, RegStorage dest, RegStorage sr
   InsertLIRAfter(orig_lir, move_lir);
 }
 
+void Mir2Lir::DumpDependentInsnPair(LIR* check_lir, LIR* this_lir, const char* type) {
+  LOG(INFO) << type;
+  LOG(INFO) << "Check LIR:";
+  DumpLIRInsn(check_lir, 0);
+  LOG(INFO) << "This LIR:";
+  DumpLIRInsn(this_lir, 0);
+}
+
+inline void Mir2Lir::EliminateLoad(LIR* lir, int reg_id) {
+  CHECK(RegStorage::SameRegType(lir->operands[0], reg_id));
+  RegStorage dest_reg, src_reg;
+
+  /* Same Register - Nop */
+  if (lir->operands[0] == reg_id) {
+    NopLIR(lir);
+    return;
+  }
+
+  /* different Regsister - Move + Nop */
+  switch (reg_id & RegStorage::kShapeTypeMask) {
+    case RegStorage::k32BitSolo | RegStorage::kCoreRegister:
+      dest_reg = RegStorage::Solo32(lir->operands[0]);
+      src_reg = RegStorage::Solo32(reg_id);
+      break;
+    case RegStorage::k64BitSolo | RegStorage::kCoreRegister:
+      dest_reg = RegStorage::Solo64(lir->operands[0]);
+      src_reg = RegStorage::Solo64(reg_id);
+      break;
+    case RegStorage::k32BitSolo | RegStorage::kFloatingPoint:
+      dest_reg = RegStorage::FloatSolo32(lir->operands[0]);
+      src_reg = RegStorage::FloatSolo32(reg_id);
+      break;
+    case RegStorage::k64BitSolo | RegStorage::kFloatingPoint:
+      dest_reg = RegStorage::FloatSolo64(lir->operands[0]);
+      src_reg = RegStorage::FloatSolo64(reg_id);
+      break;
+    default:
+      LOG(INFO) << "Load Store: Unsuported register type!";
+      return;
+  }
+  ConvertMemOpIntoMove(lir, dest_reg, src_reg);
+  NopLIR(lir);
+  return;
+}
+
 /*
- * Perform a pass of top-down walk, from the second-last instruction in the
+ * Perform a pass of top-down walk, from the first to the last instruction in the
  * superblock, to eliminate redundant loads and stores.
  *
  * An earlier load can eliminate a later load iff
@@ -66,213 +134,172 @@ void Mir2Lir::ConvertMemOpIntoMove(LIR* orig_lir, RegStorage dest, RegStorage sr
  *   2) The native register is not clobbered in between
  *   3) The memory location is not written to in between
  *
- * A later store can be eliminated by an earlier store iff
+ * An earlier store can eliminate a later store iff
  *   1) They are must-aliases
  *   2) The memory location is not written to in between
  */
 void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
-  LIR* this_lir;
+  LIR* this_lir, *check_lir;
+  std::vector<int> alias_list;
 
   if (head_lir == tail_lir) {
     return;
   }
 
-  for (this_lir = PREV_LIR(tail_lir); this_lir != head_lir; this_lir = PREV_LIR(this_lir)) {
-    if (IsPseudoLirOp(this_lir->opcode)) {
+  for (this_lir = head_lir; this_lir != tail_lir; this_lir = NEXT_LIR(this_lir)) {
+    if (this_lir->flags.is_nop || IsPseudoLirOp(this_lir->opcode)) {
       continue;
     }
-
-    int sink_distance = 0;
 
     uint64_t target_flags = GetTargetInstFlags(this_lir->opcode);
+    /* Target LIR - skip if instr is:
+     *  - NOP
+     *  - Branch
+     *  - Load and store
+     *  - Wide load
+     *  - Wide store
+     *  - Exclusive load/store
+     */
+    if (LOAD_STORE_FILTER(target_flags) ||
+        ((target_flags & (IS_LOAD | IS_STORE)) == (IS_LOAD | IS_STORE)) ||
+        !(target_flags & (IS_LOAD | IS_STORE))) {
+      continue;
+    }
+    int native_reg_id = this_lir->operands[0];
+    int dest_reg_id = this_lir->operands[1];
+    bool is_this_lir_load = target_flags & IS_LOAD;
+    ResourceMask this_mem_mask = kEncodeMem.Intersection(this_lir->u.m.use_mask->Union(
+                                                        *this_lir->u.m.def_mask));
 
-    /* Skip non-interesting instructions */
-    if ((this_lir->flags.is_nop == true) ||
-        (target_flags & IS_BRANCH) ||
-        ((target_flags & (REG_DEF0 | REG_DEF1)) == (REG_DEF0 | REG_DEF1)) ||  // Skip wide loads.
-        ((target_flags & (REG_USE0 | REG_USE1 | REG_USE2)) ==
-         (REG_USE0 | REG_USE1 | REG_USE2)) ||  // Skip wide stores.
-        // Skip instructions that are neither loads or stores.
-        !(target_flags & (IS_LOAD | IS_STORE)) ||
-        // Skip instructions that do both load and store.
-        ((target_flags & (IS_STORE | IS_LOAD)) == (IS_STORE | IS_LOAD))) {
+    /* Memory region */
+    if (!this_mem_mask.Intersects(kEncodeLiteral.Union(kEncodeDalvikReg)) &&
+      (!this_mem_mask.Intersects(kEncodeLiteral.Union(kEncodeHeapRef)))) {
       continue;
     }
 
-    int native_reg_id;
-    if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
-      // If x86, location differs depending on whether memory/reg operation.
-      native_reg_id = (target_flags & IS_STORE) ? this_lir->operands[2] : this_lir->operands[0];
-    } else {
-      native_reg_id = this_lir->operands[0];
-    }
-    bool is_this_lir_load = target_flags & IS_LOAD;
-    LIR* check_lir;
-    /* Use the mem mask to determine the rough memory location */
-    ResourceMask this_mem_mask = kEncodeMem.Intersection(
-        this_lir->u.m.use_mask->Union(*this_lir->u.m.def_mask));
-
-    /*
-     * Currently only eliminate redundant ld/st for constant and Dalvik
-     * register accesses.
-     */
-    if (!this_mem_mask.Intersects(kEncodeLiteral.Union(kEncodeDalvikReg))) {
+    /* Does not redefine the address */
+    if (this_lir->u.m.def_mask->Intersects(*this_lir->u.m.use_mask)) {
       continue;
     }
 
     ResourceMask stop_def_reg_mask = this_lir->u.m.def_mask->Without(kEncodeMem);
+    ResourceMask stop_use_reg_mask = this_lir->u.m.use_mask->Without(kEncodeMem);
 
-    /*
-     * Add pc to the resource mask to prevent this instruction
-     * from sinking past branch instructions. Also take out the memory
-     * region bits since stop_mask is used to check data/control
-     * dependencies.
-     *
-     * Note: on x86(-64) and Arm64 we use the IsBranch bit, as the PC is not exposed.
-     */
-    ResourceMask pc_encoding = GetPCUseDefEncoding();
-    if (pc_encoding == kEncodeNone) {
-      // TODO: Stop the abuse of kIsBranch as a bit specification for ResourceMask.
-      pc_encoding = ResourceMask::Bit(kIsBranch);
+    /* The ARM backend can load/store PC */
+    ResourceMask uses_pc = GetPCUseDefEncoding();
+    if (uses_pc.Intersects(this_lir->u.m.use_mask->Union(*this_lir->u.m.def_mask))) {
+      continue;
     }
-    ResourceMask  stop_use_reg_mask = pc_encoding.Union(*this_lir->u.m.use_mask).
-        Without(kEncodeMem);
 
+    /* Initialize alias list */
+    alias_list.clear();
+    ResourceMask alias_reg_list_mask = kEncodeNone;
+    if (!this_mem_mask.Intersects(kEncodeLiteral)) {
+      alias_list.push_back(dest_reg_id);
+      SetupRegMask(&alias_reg_list_mask, dest_reg_id);
+    }
+
+    /* Scan through the BB for posible elimination candidates */
     for (check_lir = NEXT_LIR(this_lir); check_lir != tail_lir; check_lir = NEXT_LIR(check_lir)) {
-      /*
-       * Skip already dead instructions (whose dataflow information is
-       * outdated and misleading).
-       */
       if (check_lir->flags.is_nop || IsPseudoLirOp(check_lir->opcode)) {
         continue;
       }
 
-      ResourceMask check_mem_mask = kEncodeMem.Intersection(
-          check_lir->u.m.use_mask->Union(*check_lir->u.m.def_mask));
-      ResourceMask alias_condition = this_mem_mask.Intersection(check_mem_mask);
-      bool stop_here = false;
+      if (uses_pc.Intersects(check_lir->u.m.use_mask->Union(*check_lir->u.m.def_mask))) {
+        break;
+      }
 
-      /*
-       * Potential aliases seen - check the alias relations
-       */
+      ResourceMask check_mem_mask = kEncodeMem.Intersection(check_lir->u.m.use_mask->Union(
+                                                          *check_lir->u.m.def_mask));
+      ResourceMask alias_mem_mask = this_mem_mask.Intersection(check_mem_mask);
       uint64_t check_flags = GetTargetInstFlags(check_lir->opcode);
-      // TUNING: Support instructions with multiple register targets.
-      if ((check_flags & (REG_DEF0 | REG_DEF1)) == (REG_DEF0 | REG_DEF1)) {
+      bool stop_here = false;
+      bool pass_over = false;
+
+      /* Check LIR - skip if instr is:
+       *  - Wide Load
+       *  - Wide Store
+       *  - Branch
+       *  - Dmb
+       *  - Exclusive load/store
+       *  - IT blocks
+       *  - Quad loads
+       */
+      if (LOAD_STORE_FILTER(check_flags)) {
         stop_here = true;
-      } else if (!check_mem_mask.Equals(kEncodeMem) && !alias_condition.Equals(kEncodeNone)) {
-        bool is_check_lir_load = check_flags & IS_LOAD;
-        if  (alias_condition.Equals(kEncodeLiteral)) {
-          /*
-           * Should only see literal loads in the instruction
-           * stream.
-           */
-          DCHECK(!(check_flags & IS_STORE));
-          /* Same value && same register type */
-          if (check_lir->flags.alias_info == this_lir->flags.alias_info &&
-              RegStorage::SameRegType(check_lir->operands[0], native_reg_id)) {
-            /*
-             * Different destination register - insert
-             * a move
-             */
-            if (check_lir->operands[0] != native_reg_id) {
-              // TODO: update for 64-bit regs.
-              ConvertMemOpIntoMove(check_lir, RegStorage::Solo32(check_lir->operands[0]),
-                                   RegStorage::Solo32(native_reg_id));
-            }
-            NopLIR(check_lir);
-          }
-        } else if (alias_condition.Equals(kEncodeDalvikReg)) {
-          /* Must alias */
-          if (check_lir->flags.alias_info == this_lir->flags.alias_info) {
-            /* Only optimize compatible registers */
-            bool reg_compatible = RegStorage::SameRegType(check_lir->operands[0], native_reg_id);
-            if ((is_this_lir_load && is_check_lir_load) ||
-                (!is_this_lir_load && is_check_lir_load)) {
-              /* RAR or RAW */
-              if (reg_compatible) {
-                /*
-                 * Different destination register -
-                 * insert a move
-                 */
-                if (check_lir->operands[0] != native_reg_id) {
-                  // TODO: update for 64-bit regs.
-                  ConvertMemOpIntoMove(check_lir, RegStorage::Solo32(check_lir->operands[0]),
-                                       RegStorage::Solo32(native_reg_id));
-                }
-                NopLIR(check_lir);
-              } else {
-                /*
-                 * Destinaions are of different types -
-                 * something complicated going on so
-                 * stop looking now.
-                 */
-                stop_here = true;
-              }
-            } else if (is_this_lir_load && !is_check_lir_load) {
-              /* WAR - register value is killed */
-              stop_here = true;
-            } else if (!is_this_lir_load && !is_check_lir_load) {
-              /* WAW - nuke the earlier store */
-              NopLIR(this_lir);
-              stop_here = true;
-            }
-          /* Partial overlap */
-          } else if (IsDalvikRegisterClobbered(this_lir, check_lir)) {
-            /*
-             * It is actually ok to continue if check_lir
-             * is a read. But it is hard to make a test
-             * case for this so we just stop here to be
-             * conservative.
-             */
-            stop_here = true;
+        /* Possible alias or result of earlier pass */
+      } else if (check_flags & IS_MOVE) {
+        for (auto &reg : alias_list) {
+          if (RegStorage::RegNum(check_lir->operands[1]) == RegStorage::RegNum(reg)) {
+            pass_over = true;
+            alias_list.push_back(check_lir->operands[0]);
+            SetupRegMask(&alias_reg_list_mask, check_lir->operands[0]);
           }
         }
-        /* Memory content may be updated. Stop looking now. */
+      /* Memory regions */
+      } else if (!alias_mem_mask.Equals(kEncodeNone)) {
+        DCHECK((check_flags & IS_LOAD) || (check_flags & IS_STORE));
+        bool is_check_lir_load = check_flags & IS_LOAD;
+        bool reg_compatible = RegStorage::SameRegType(check_lir->operands[0], native_reg_id);
+
+        if (alias_mem_mask.Equals(kEncodeLiteral)) {
+          CHECK(check_flags & IS_LOAD);
+          /* Same value && same register type */
+          if (reg_compatible && (this_lir->target == check_lir->target)) {
+            DEBUG_OPT(DumpDependentInsnPair(check_lir, this_lir, "LITERAL"));
+            EliminateLoad(check_lir, native_reg_id);
+          }
+        } else if (((alias_mem_mask.Equals(kEncodeDalvikReg)) || (alias_mem_mask.Equals(kEncodeHeapRef))) &&
+                   alias_reg_list_mask.Intersects((check_lir->u.m.use_mask)->Without(kEncodeMem))) {
+          bool same_offset = (GetInstructionOffset(this_lir) == GetInstructionOffset(check_lir));
+          if (same_offset && !is_check_lir_load) {
+            if (check_lir->operands[0] != native_reg_id) {
+              DEBUG_OPT(DumpDependentInsnPair(check_lir, this_lir, "STORE STOP"));
+              stop_here = true;
+              break;
+            }
+          }
+
+          if (reg_compatible && same_offset &&
+              ((is_this_lir_load && is_check_lir_load)  /* LDR - LDR */ ||
+              (!is_this_lir_load && is_check_lir_load)  /* STR - LDR */ ||
+              (!is_this_lir_load && !is_check_lir_load) /* STR - STR */)) {
+            DEBUG_OPT(DumpDependentInsnPair(check_lir, this_lir, "LOAD STORE"));
+            EliminateLoad(check_lir, native_reg_id);
+          }
+        } else {
+          /* Unsupported memory region */
+        }
+      }
+
+      if (pass_over) {
+        continue;
+      }
+
+      if (stop_here == false) {
+        bool stop_alias = LOAD_STORE_CHECK_REG_DEP(alias_reg_list_mask, check_lir);
+        if (stop_alias) {
+          /* Scan through alias list and if alias remove from alias list. */
+          for (auto &reg : alias_list) {
+            stop_alias = false;
+            ResourceMask alias_reg_mask = kEncodeNone;
+            SetupRegMask(&alias_reg_mask, reg);
+            stop_alias = LOAD_STORE_CHECK_REG_DEP(alias_reg_mask, check_lir);
+            if (stop_alias) {
+              ClearRegMask(&alias_reg_list_mask, reg);
+              alias_list.erase(std::remove(alias_list.begin(), alias_list.end(),
+                                           reg), alias_list.end());
+            }
+          }
+        }
+        ResourceMask stop_search_mask = stop_def_reg_mask.Union(stop_use_reg_mask);
+        stop_search_mask = stop_search_mask.Union(alias_reg_list_mask);
+        stop_here = LOAD_STORE_CHECK_REG_DEP(stop_search_mask, check_lir);
         if (stop_here) {
           break;
-        /* The check_lir has been transformed - check the next one */
-        } else if (check_lir->flags.is_nop) {
-          continue;
         }
-      }
-
-
-      /*
-       * this and check LIRs have no memory dependency. Now check if
-       * their register operands have any RAW, WAR, and WAW
-       * dependencies. If so, stop looking.
-       */
-      if (stop_here == false) {
-        stop_here = CHECK_REG_DEP(stop_use_reg_mask, stop_def_reg_mask, check_lir);
-      }
-
-      if (stop_here == true) {
-        if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
-          // Prevent stores from being sunk between ops that generate ccodes and
-          // ops that use them.
-          uint64_t flags = GetTargetInstFlags(check_lir->opcode);
-          if (sink_distance > 0 && (flags & IS_BRANCH) && (flags & USES_CCODES)) {
-            check_lir = PREV_LIR(check_lir);
-            sink_distance--;
-          }
-        }
-        DEBUG_OPT(dump_dependent_insn_pair(this_lir, check_lir, "REG CLOBBERED"));
-        /* Only sink store instructions */
-        if (sink_distance && !is_this_lir_load) {
-          LIR* new_store_lir =
-              static_cast<LIR*>(arena_->Alloc(sizeof(LIR), kArenaAllocLIR));
-          *new_store_lir = *this_lir;
-          /*
-           * Stop point found - insert *before* the check_lir
-           * since the instruction list is scanned in the
-           * top-down order.
-           */
-          InsertLIRBefore(check_lir, new_store_lir);
-          NopLIR(this_lir);
-        }
+      } else {
         break;
-      } else if (!check_lir->flags.is_nop) {
-        sink_distance++;
       }
     }
   }
@@ -385,7 +412,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
 
       /* Found a new place to put the load - move it here */
       if (stop_here == true) {
-        DEBUG_OPT(dump_dependent_insn_pair(check_lir, this_lir "HOIST STOP"));
+        DEBUG_OPT(DumpDependentInsnPair(check_lir, this_lir, "HOIST STOP"));
         break;
       }
     }

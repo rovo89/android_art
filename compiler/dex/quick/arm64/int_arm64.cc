@@ -800,6 +800,7 @@ bool Arm64Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
 }
 
 LIR* Arm64Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
   return RawLIR(current_dalvik_offset_, WIDE(kA64Ldr2rp), reg.GetReg(), 0, 0, 0, 0, target);
 }
 

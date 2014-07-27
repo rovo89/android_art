@@ -147,6 +147,15 @@ inline void Mir2Lir::SetupRegMask(ResourceMask* mask, int reg) {
 }
 
 /*
+ * Clear the corresponding bit(s).
+ */
+inline void Mir2Lir::ClearRegMask(ResourceMask* mask, int reg) {
+  CHECK_EQ((reg & ~RegStorage::kRegValMask), 0);
+  CHECK(reginfo_map_.Get(reg) != nullptr) << "No info for 0x" << reg;
+  *mask = mask->ClearBits(reginfo_map_.Get(reg)->DefUseMask());
+}
+
+/*
  * Set up the proper fields in the resource mask
  */
 inline void Mir2Lir::SetupResourceMasks(LIR* lir) {
