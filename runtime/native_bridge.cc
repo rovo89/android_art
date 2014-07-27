@@ -35,7 +35,7 @@
 namespace art {
 
 // Is native-bridge support enabled?
-static constexpr bool kNativeBridgeEnabled = false;
+static constexpr bool kNativeBridgeEnabled = true;
 
 // Default library name for native-bridge.
 static constexpr const char* kDefaultNativeBridge = "libnativebridge.so";
@@ -55,9 +55,6 @@ static constexpr const char* kNativeBridgeInterfaceSymbol = "NativeBridgeItf";
 
 // ART interfaces to native-bridge.
 struct NativeBridgeArtCallbacks {
-  // Log utility, reserve unused.
-  int (*logger)(int prio, const char* tag, const char* fmt, ...);
-
   // Get shorty of a Java method. The shorty is supposed to be persistent in memory.
   //
   // Parameters:
@@ -190,71 +187,96 @@ static int GetNativeMethods(JNIEnv* env, jclass clazz, JNINativeMethod* methods,
 }
 
 NativeBridgeArtCallbacks NativeBridgeArtItf = {
-  nullptr,
   GetMethodShorty,
   GetNativeMethodCount,
   GetNativeMethods
 };
 
-bool NativeBridge::Init() {
+void NativeBridge::SetNativeBridgeLibraryString(std::string& native_bridge_library_string) {
+  native_bridge_library_string_ = native_bridge_library_string;
+  // TODO: when given an empty string, set initialized_ to true and available_ to false. This
+  //       change is dependent on the property removal in Initialize().
+}
+
+bool NativeBridge::Initialize() {
   if (!kNativeBridgeEnabled) {
     return false;
   }
 
   MutexLock mu(Thread::Current(), lock_);
 
-  if (!initialized_) {
-    const char* libnb_path = kDefaultNativeBridge;
+  if (initialized_) {
+    // Somebody did it before.
+    return available_;
+  }
+
+  available_ = false;
+
+  const char* libnb_path;
+
+  if (!native_bridge_library_string_.empty()) {
+    libnb_path = native_bridge_library_string_.c_str();
+  } else {
+    // TODO: Remove this once the frameworks side is completely implemented.
+
+    libnb_path = kDefaultNativeBridge;
 #ifdef HAVE_ANDROID_OS
     char prop_buf[PROP_VALUE_MAX];
     property_get(kPropEnableNativeBridge, prop_buf, "false");
-    if (strcmp(prop_buf, "true") != 0)
+    if (strcmp(prop_buf, "true") != 0) {
+      initialized_ = true;
       return false;
+    }
 
     // If prop persist.native.bridge set, overwrite the default name.
     int name_len = property_get(kPropNativeBridge, prop_buf, kDefaultNativeBridge);
     if (name_len > 0)
       libnb_path = prop_buf;
 #endif
-    void* handle = dlopen(libnb_path, RTLD_LAZY);
-    if (handle == nullptr)
-      return false;
-
-    callbacks_ = reinterpret_cast<NativeBridgeCallbacks*>(dlsym(handle,
-                                                                kNativeBridgeInterfaceSymbol));
-    if (callbacks_ == nullptr) {
-      dlclose(handle);
-      return false;
-    }
-
-    callbacks_->initialize(&NativeBridgeArtItf);
-    initialized_ = true;
   }
 
-  return initialized_;
+  void* handle = dlopen(libnb_path, RTLD_LAZY);
+  if (handle != nullptr) {
+    callbacks_ = reinterpret_cast<NativeBridgeCallbacks*>(dlsym(handle,
+                                                                kNativeBridgeInterfaceSymbol));
+
+    if (callbacks_ != nullptr) {
+      available_ = callbacks_->initialize(&NativeBridgeArtItf);
+    }
+
+    if (!available_) {
+      dlclose(handle);
+    }
+  }
+
+  initialized_ = true;
+
+  return available_;
 }
 
 void* NativeBridge::LoadLibrary(const char* libpath, int flag) {
-  if (Init())
+  if (Initialize())
     return callbacks_->loadLibrary(libpath, flag);
   return nullptr;
 }
 
 void* NativeBridge::GetTrampoline(void* handle, const char* name, const char* shorty,
                                   uint32_t len) {
-  if (Init())
+  if (Initialize())
     return callbacks_->getTrampoline(handle, name, shorty, len);
   return nullptr;
 }
 
 bool NativeBridge::IsSupported(const char* libpath) {
-  if (Init())
+  if (Initialize())
     return callbacks_->isSupported(libpath);
   return false;
 }
 
+bool NativeBridge::available_ = false;
 bool NativeBridge::initialized_ = false;
 Mutex NativeBridge::lock_("native bridge lock");
+std::string NativeBridge::native_bridge_library_string_ = "";
 NativeBridgeCallbacks* NativeBridge::callbacks_ = nullptr;
 
 };  // namespace art
