@@ -471,8 +471,13 @@ enum OpFeatureFlags {
   kIsQuinOp,
   kIsSextupleOp,
   kIsIT,
+  kIsMoveOp,
   kMemLoad,
   kMemStore,
+  kMemVolatile,
+  kMemScaledx0,
+  kMemScaledx2,
+  kMemScaledx4,
   kPCRelFixup,  // x86 FIXME: add NEEDS_FIXUP to instruction attributes.
   kRegDef0,
   kRegDef1,

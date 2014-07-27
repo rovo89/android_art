@@ -1311,4 +1311,9 @@ void Mir2Lir::CheckRegLocationImpl(RegLocation rl, bool fail, bool report) const
       rl.ref ? RefCheck::kCheckRef : RefCheck::kCheckNotRef, FPCheck::kIgnoreFP, fail, report);
 }
 
+size_t Mir2Lir::GetInstructionOffset(LIR* lir) {
+  UNIMPLEMENTED(FATAL) << "Unsuppored GetInstructionOffset()";
+  return 0;
+}
+
 }  // namespace art
