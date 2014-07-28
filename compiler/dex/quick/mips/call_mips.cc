@@ -245,7 +245,7 @@ void MipsMir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
   GenBarrier();
   NewLIR0(kMipsCurrPC);  // Really a jal to .+8
   // Now, fill the branch delay slot with the helper load
-  RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pHandleFillArrayData));
+  RegStorage r_tgt = LoadHelper(kQuickHandleFillArrayData);
   GenBarrier();  // Scheduling barrier
 
   // Construct BaseLabel and set up table base register
@@ -332,9 +332,9 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
         m2l_->Load32Disp(rs_rMIPS_SP, 0, rs_rRA);
         m2l_->OpRegImm(kOpAdd, rs_rMIPS_SP, sp_displace_);
         m2l_->ClobberCallerSave();
-        ThreadOffset<4> func_offset = QUICK_ENTRYPOINT_OFFSET(4, pThrowStackOverflow);
-        RegStorage r_tgt = m2l_->CallHelperSetup(func_offset);  // Doesn't clobber LR.
-        m2l_->CallHelper(r_tgt, func_offset, false /* MarkSafepointPC */, false /* UseLink */);
+        RegStorage r_tgt = m2l_->CallHelperSetup(kQuickThrowStackOverflow);  // Doesn't clobber LR.
+        m2l_->CallHelper(r_tgt, kQuickThrowStackOverflow, false /* MarkSafepointPC */,
+                         false /* UseLink */);
       }
 
      private:

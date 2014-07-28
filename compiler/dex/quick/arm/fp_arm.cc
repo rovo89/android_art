@@ -49,8 +49,7 @@ void ArmMir2Lir::GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest,
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmodf), rl_src1, rl_src2,
-                                              false);
+      CallRuntimeHelperRegLocationRegLocation(kQuickFmodf, rl_src1, rl_src2, false);
       rl_result = GetReturn(kFPReg);
       StoreValue(rl_dest, rl_result);
       return;
@@ -92,8 +91,7 @@ void ArmMir2Lir::GenArithOpDouble(Instruction::Code opcode,
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmod), rl_src1, rl_src2,
-                                              false);
+      CallRuntimeHelperRegLocationRegLocation(kQuickFmod, rl_src1, rl_src2, false);
       rl_result = GetReturnWide(kFPReg);
       StoreValueWide(rl_dest, rl_result);
       return;
@@ -160,7 +158,7 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest, Re
       return;
     }
     case Instruction::FLOAT_TO_LONG:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pF2l), rl_dest, rl_src);
+      GenConversionCall(kQuickF2l, rl_dest, rl_src);
       return;
     case Instruction::LONG_TO_FLOAT: {
       rl_src = LoadValueWide(rl_src, kFPReg);
@@ -190,7 +188,7 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest, Re
       return;
     }
     case Instruction::DOUBLE_TO_LONG:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pD2l), rl_dest, rl_src);
+      GenConversionCall(kQuickD2l, rl_dest, rl_src);
       return;
     default:
       LOG(FATAL) << "Unexpected opcode: " << opcode;

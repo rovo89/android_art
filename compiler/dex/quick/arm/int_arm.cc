@@ -784,18 +784,6 @@ bool ArmMir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
   return true;
 }
 
-void ArmMir2Lir::OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int scale, int offset) {
-  LOG(FATAL) << "Unexpected use of OpLea for Arm";
-}
-
-void ArmMir2Lir::OpTlsCmp(ThreadOffset<4> offset, int val) {
-  LOG(FATAL) << "Unexpected use of OpTlsCmp for Arm";
-}
-
-void ArmMir2Lir::OpTlsCmp(ThreadOffset<8> offset, int val) {
-  UNIMPLEMENTED(FATAL) << "Should not be called.";
-}
-
 // Generate a CAS with memory_order_seq_cst semantics.
 bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   DCHECK_EQ(cu_->instruction_set, kThumb2);
@@ -1097,9 +1085,8 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
      */
     RegLocation rl_result;
     if (BadOverlap(rl_src1, rl_dest) || (BadOverlap(rl_src2, rl_dest))) {
-      ThreadOffset<4> func_offset = QUICK_ENTRYPOINT_OFFSET(4, pLmul);
       FlushAllRegs();
-      CallRuntimeHelperRegLocationRegLocation(func_offset, rl_src1, rl_src2, false);
+      CallRuntimeHelperRegLocationRegLocation(kQuickLmul, rl_src1, rl_src2, false);
       rl_result = GetReturnWide(kCoreReg);
       StoreValueWide(rl_dest, rl_result);
       return;
