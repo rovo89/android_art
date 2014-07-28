@@ -437,6 +437,10 @@ class HBasicBlock : public ArenaObject {
   M(Compare)                                               \
   M(InstanceFieldGet)                                      \
   M(InstanceFieldSet)                                      \
+  M(ArrayGet)                                              \
+  M(ArraySet)                                              \
+  M(ArrayLength)                                           \
+  M(BoundsCheck)                                           \
   M(NullCheck)                                             \
   M(Temporary)                                             \
 
@@ -1365,6 +1369,80 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
   const FieldInfo field_info_;
 
   DISALLOW_COPY_AND_ASSIGN(HInstanceFieldSet);
+};
+
+class HArrayGet : public HExpression<2> {
+ public:
+  HArrayGet(HInstruction* array, HInstruction* index, Primitive::Type type)
+      : HExpression(type) {
+    SetRawInputAt(0, array);
+    SetRawInputAt(1, index);
+  }
+
+  DECLARE_INSTRUCTION(ArrayGet);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HArrayGet);
+};
+
+class HArraySet : public HTemplateInstruction<3> {
+ public:
+  HArraySet(HInstruction* array,
+            HInstruction* index,
+            HInstruction* value,
+            uint32_t dex_pc) : dex_pc_(dex_pc) {
+    SetRawInputAt(0, array);
+    SetRawInputAt(1, index);
+    SetRawInputAt(2, value);
+  }
+
+  virtual bool NeedsEnvironment() const {
+    // We currently always call a runtime method to catch array store
+    // exceptions.
+    return InputAt(2)->GetType() == Primitive::kPrimNot;
+  }
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  DECLARE_INSTRUCTION(ArraySet);
+
+ private:
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HArraySet);
+};
+
+class HArrayLength : public HExpression<1> {
+ public:
+  explicit HArrayLength(HInstruction* array) : HExpression(Primitive::kPrimInt) {
+    SetRawInputAt(0, array);
+  }
+
+  DECLARE_INSTRUCTION(ArrayLength);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HArrayLength);
+};
+
+class HBoundsCheck : public HExpression<2> {
+ public:
+  HBoundsCheck(HInstruction* index, HInstruction* length, uint32_t dex_pc)
+      : HExpression(index->GetType()), dex_pc_(dex_pc) {
+    DCHECK(index->GetType() == Primitive::kPrimInt);
+    SetRawInputAt(0, index);
+    SetRawInputAt(1, length);
+  }
+
+  virtual bool NeedsEnvironment() const { return true; }
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  DECLARE_INSTRUCTION(BoundsCheck);
+
+ private:
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HBoundsCheck);
 };
 
 /**

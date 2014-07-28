@@ -175,12 +175,15 @@ class CodeGeneratorARM : public CodeGenerator {
     return InstructionSet::kThumb2;
   }
 
- private:
   // Helper method to move a 32bits value between two locations.
   void Move32(Location destination, Location source);
   // Helper method to move a 64bits value between two locations.
   void Move64(Location destination, Location source);
 
+  // Emit a write barrier.
+  void MarkGCCard(Register temp, Register card, Register object, Register value);
+
+ private:
   LocationsBuilderARM location_builder_;
   InstructionCodeGeneratorARM instruction_visitor_;
   ParallelMoveResolverARM move_resolver_;

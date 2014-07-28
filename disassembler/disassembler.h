@@ -43,6 +43,10 @@ class Disassembler {
   DISALLOW_COPY_AND_ASSIGN(Disassembler);
 };
 
+static inline bool HasBitSet(uint32_t value, uint32_t bit) {
+  return (value & (1 << bit)) != 0;
+}
+
 }  // namespace art
 
 #endif  // ART_DISASSEMBLER_DISASSEMBLER_H_
