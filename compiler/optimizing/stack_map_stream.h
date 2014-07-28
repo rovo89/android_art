@@ -35,7 +35,8 @@ class StackMapStream : public ValueObject {
       : stack_maps_(allocator, 10),
         dex_register_maps_(allocator, 10 * 4),
         inline_infos_(allocator, 2),
-        stack_mask_max_(-1) {}
+        stack_mask_max_(-1),
+        number_of_stack_maps_with_inline_info_(0) {}
 
   // Compute bytes needed to encode a mask with the given maximum element.
   static uint32_t StackMaskEncodingSize(int max_element) {
