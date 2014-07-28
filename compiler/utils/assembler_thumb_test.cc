@@ -312,6 +312,9 @@ TEST(Thumb2AssemblerTest, DataProcessingRegister) {
   __ movs(R0, ShifterOperand(R1));
   __ mvns(R0, ShifterOperand(R1));
 
+  // 32 bit variants.
+  __ add(R12, R1, ShifterOperand(R0));
+
   size_t cs = __ CodeSize();
   std::vector<uint8_t> managed_code(cs);
   MemoryRegion code(&managed_code[0], managed_code.size());
@@ -868,6 +871,9 @@ TEST(Thumb2AssemblerTest, StoreToOffset) {
 
   __ StoreToOffset(kStoreWord, R2, R4, 12);     // Simple
   __ StoreToOffset(kStoreWord, R2, R4, 0x2000);     // Offset too big.
+  __ StoreToOffset(kStoreWord, R0, R12, 12);
+  __ StoreToOffset(kStoreHalfword, R0, R12, 12);
+  __ StoreToOffset(kStoreByte, R2, R12, 12);
 
   size_t cs = __ CodeSize();
   std::vector<uint8_t> managed_code(cs);

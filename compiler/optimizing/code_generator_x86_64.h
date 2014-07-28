@@ -176,10 +176,13 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return InstructionSet::kX86_64;
   }
 
- private:
+  // Emit a write barrier.
+  void MarkGCCard(CpuRegister temp, CpuRegister card, CpuRegister object, CpuRegister value);
+
   // Helper method to move a value between two locations.
   void Move(Location destination, Location source);
 
+ private:
   LocationsBuilderX86_64 location_builder_;
   InstructionCodeGeneratorX86_64 instruction_visitor_;
   ParallelMoveResolverX86_64 move_resolver_;

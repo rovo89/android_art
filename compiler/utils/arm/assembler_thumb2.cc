@@ -659,6 +659,10 @@ bool Thumb2Assembler::Is32BitDataProcessing(Condition cond,
     if (so.IsImmediate()) {
       return true;
     }
+
+    if (!can_contain_high_register) {
+      return true;
+    }
   }
 
   if (so.IsRegister() && IsHighRegister(so.GetRegister()) && !can_contain_high_register) {
