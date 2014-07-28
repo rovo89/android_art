@@ -43,6 +43,7 @@ const char* DataProcessingRegisterResults[] = {
   "  3e:	42c8      	cmn	r0, r1\n",
   "  40:	0008      	movs	r0, r1\n",
   "  42:	43c8      	mvns	r0, r1\n",
+  "  44:	eb01 0c00   add.w	ip, r1, r0\n",
   nullptr
 };
 const char* DataProcessingImmediateResults[] = {
@@ -355,6 +356,9 @@ const char* StoreToOffsetResults[] = {
   "   2:	f44f 5c00 	mov.w	ip, #8192	; 0x2000\n",
   "   6:	44a4      	add	ip, r4\n",
   "   8:	f8cc 2000 	str.w	r2, [ip]\n",
+  "   c:	f8cc 000c 	str.w	r0, [ip, #12]\n",
+  "   10:	f8ac 000c 	strh.w	r0, [ip, #12]\n",
+  "   14:	f88c 200c 	strb.w	r2, [ip, #12]\n",
   nullptr
 };
 const char* IfThenResults[] = {
