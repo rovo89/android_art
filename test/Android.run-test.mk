@@ -393,6 +393,8 @@ define define-test-art-run-test
       else
         uc_reloc_type := PREBUILD
         run_test_options += --relocate --prebuild
+        ifneq ($(ART_TEST_RUN_TEST_PREBUILD),true)
+          skip_test := true
       endif
     endif
   endif
