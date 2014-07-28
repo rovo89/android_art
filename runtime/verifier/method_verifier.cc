@@ -1774,6 +1774,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         } else {
           work_line_->SetRegisterType(inst->VRegA_12x(), reg_types_.Integer());
         }
+      } else {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "array-length on non-array " << res_type;
       }
       break;
     }
