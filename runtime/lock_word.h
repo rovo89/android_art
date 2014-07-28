@@ -63,6 +63,7 @@ class LockWord {
 
     kThinLockOwnerShift = 0,
     kThinLockOwnerMask = (1 << kThinLockOwnerSize) - 1,
+    kThinLockMaxOwner = kThinLockOwnerMask,
     // Count in higher bits.
     kThinLockCountShift = kThinLockOwnerSize + kThinLockOwnerShift,
     kThinLockCountMask = (1 << kThinLockCountSize) - 1,
@@ -80,10 +81,13 @@ class LockWord {
     kHashShift = 0,
     kHashSize = 32 - kStateSize,
     kHashMask = (1 << kHashSize) - 1,
+    kMaxHash = kHashMask,
+    kMaxMonitorId = kMaxHash
   };
 
   static LockWord FromThinLockId(uint32_t thread_id, uint32_t count) {
-    CHECK_LE(thread_id, static_cast<uint32_t>(kThinLockOwnerMask));
+    CHECK_LE(thread_id, static_cast<uint32_t>(kThinLockMaxOwner));
+    CHECK_LE(count, static_cast<uint32_t>(kThinLockMaxCount));
     return LockWord((thread_id << kThinLockOwnerShift) | (count << kThinLockCountShift) |
                      (kStateThinOrUnlocked << kStateShift));
   }
@@ -94,7 +98,7 @@ class LockWord {
   }
 
   static LockWord FromHashCode(uint32_t hash_code) {
-    CHECK_LE(hash_code, static_cast<uint32_t>(kHashMask));
+    CHECK_LE(hash_code, static_cast<uint32_t>(kMaxHash));
     return LockWord((hash_code << kHashShift) | (kStateHash << kStateShift));
   }
 
