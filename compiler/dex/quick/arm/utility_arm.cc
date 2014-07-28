@@ -1160,36 +1160,13 @@ LIR* ArmMir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
   return res;
 }
 
-LIR* ArmMir2Lir::OpThreadMem(OpKind op, ThreadOffset<4> thread_offset) {
-  LOG(FATAL) << "Unexpected use of OpThreadMem for Arm";
-  return NULL;
-}
-
-LIR* ArmMir2Lir::OpThreadMem(OpKind op, ThreadOffset<8> thread_offset) {
-  UNIMPLEMENTED(FATAL) << "Should not be called.";
-  return nullptr;
-}
-
 LIR* ArmMir2Lir::OpMem(OpKind op, RegStorage r_base, int disp) {
   LOG(FATAL) << "Unexpected use of OpMem for Arm";
   return NULL;
 }
 
-LIR* ArmMir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                      int displacement, RegStorage r_src, OpSize size) {
-  LOG(FATAL) << "Unexpected use of StoreBaseIndexedDisp for Arm";
-  return NULL;
-}
-
-LIR* ArmMir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int offset) {
-  LOG(FATAL) << "Unexpected use of OpRegMem for Arm";
-  return NULL;
-}
-
-LIR* ArmMir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                     int displacement, RegStorage r_dest, OpSize size) {
-  LOG(FATAL) << "Unexpected use of LoadBaseIndexedDisp for Arm";
-  return NULL;
+LIR* ArmMir2Lir::InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) {
+  return OpReg(op, r_tgt);
 }
 
 }  // namespace art

@@ -67,13 +67,6 @@ void Mir2Lir::AddIntrinsicSlowPath(CallInfo* info, LIR* branch, LIR* resume) {
   AddSlowPath(new (arena_) IntrinsicSlowPathPath(this, info, branch, resume));
 }
 
-// Macro to help instantiate.
-// TODO: This might be used to only instantiate <4> on pure 32b systems.
-#define INSTANTIATE(sig_part1, ...) \
-  template sig_part1(ThreadOffset<4>, __VA_ARGS__); \
-  template sig_part1(ThreadOffset<8>, __VA_ARGS__); \
-
-
 /*
  * To save scheduling time, helper calls are broken into two parts: generation of
  * the helper target address, and the actual call to the helper.  Because x86
@@ -81,107 +74,73 @@ void Mir2Lir::AddIntrinsicSlowPath(CallInfo* info, LIR* branch, LIR* resume) {
  * load arguments between the two parts.
  */
 // template <size_t pointer_size>
-RegStorage Mir2Lir::CallHelperSetup(ThreadOffset<4> helper_offset) {
-  // All CallRuntimeHelperXXX call this first. So make a central check here.
-  DCHECK_EQ(4U, GetInstructionSetPointerSize(cu_->instruction_set));
-
+RegStorage Mir2Lir::CallHelperSetup(QuickEntrypointEnum trampoline) {
   if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
     return RegStorage::InvalidReg();
   } else {
-    return LoadHelper(helper_offset);
+    return LoadHelper(trampoline);
   }
 }
 
-RegStorage Mir2Lir::CallHelperSetup(ThreadOffset<8> helper_offset) {
-  // All CallRuntimeHelperXXX call this first. So make a central check here.
-  DCHECK_EQ(8U, GetInstructionSetPointerSize(cu_->instruction_set));
+LIR* Mir2Lir::CallHelper(RegStorage r_tgt, QuickEntrypointEnum trampoline, bool safepoint_pc,
+                         bool use_link) {
+  LIR* call_inst = InvokeTrampoline(use_link ? kOpBlx : kOpBx, r_tgt, trampoline);
 
-  if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
-    return RegStorage::InvalidReg();
-  } else {
-    return LoadHelper(helper_offset);
-  }
-}
-
-/* NOTE: if r_tgt is a temp, it will be freed following use */
-template <size_t pointer_size>
-LIR* Mir2Lir::CallHelper(RegStorage r_tgt, ThreadOffset<pointer_size> helper_offset,
-                         bool safepoint_pc, bool use_link) {
-  LIR* call_inst;
-  OpKind op = use_link ? kOpBlx : kOpBx;
-  if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
-    call_inst = OpThreadMem(op, helper_offset);
-  } else {
-    call_inst = OpReg(op, r_tgt);
+  if (r_tgt.Valid()) {
     FreeTemp(r_tgt);
   }
+
   if (safepoint_pc) {
     MarkSafepointPC(call_inst);
   }
   return call_inst;
 }
-template LIR* Mir2Lir::CallHelper(RegStorage r_tgt, ThreadOffset<4> helper_offset,
-                                        bool safepoint_pc, bool use_link);
-template LIR* Mir2Lir::CallHelper(RegStorage r_tgt, ThreadOffset<8> helper_offset,
-                                        bool safepoint_pc, bool use_link);
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelper(ThreadOffset<pointer_size> helper_offset, bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+void Mir2Lir::CallRuntimeHelper(QuickEntrypointEnum trampoline, bool safepoint_pc) {
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelper, bool safepoint_pc)
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperImm(ThreadOffset<pointer_size> helper_offset, int arg0,
-                                   bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+void Mir2Lir::CallRuntimeHelperImm(QuickEntrypointEnum trampoline, int arg0, bool safepoint_pc) {
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   LoadConstant(TargetReg(kArg0, kNotWide), arg0);
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperImm, int arg0, bool safepoint_pc)
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperReg(ThreadOffset<pointer_size> helper_offset, RegStorage arg0,
+void Mir2Lir::CallRuntimeHelperReg(QuickEntrypointEnum trampoline, RegStorage arg0,
                                    bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   OpRegCopy(TargetReg(kArg0, arg0.GetWideKind()), arg0);
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperReg, RegStorage arg0, bool safepoint_pc)
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperRegLocation(ThreadOffset<pointer_size> helper_offset,
-                                           RegLocation arg0, bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+void Mir2Lir::CallRuntimeHelperRegLocation(QuickEntrypointEnum trampoline, RegLocation arg0,
+                                           bool safepoint_pc) {
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   if (arg0.wide == 0) {
     LoadValueDirectFixed(arg0, TargetReg(arg0.fp ? kFArg0 : kArg0, arg0));
   } else {
     LoadValueDirectWideFixed(arg0, TargetReg(arg0.fp ? kFArg0 : kArg0, kWide));
   }
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperRegLocation, RegLocation arg0, bool safepoint_pc)
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperImmImm(ThreadOffset<pointer_size> helper_offset, int arg0, int arg1,
+void Mir2Lir::CallRuntimeHelperImmImm(QuickEntrypointEnum trampoline, int arg0, int arg1,
                                       bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   LoadConstant(TargetReg(kArg0, kNotWide), arg0);
   LoadConstant(TargetReg(kArg1, kNotWide), arg1);
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperImmImm, int arg0, int arg1, bool safepoint_pc)
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperImmRegLocation(ThreadOffset<pointer_size> helper_offset, int arg0,
+void Mir2Lir::CallRuntimeHelperImmRegLocation(QuickEntrypointEnum trampoline, int arg0,
                                               RegLocation arg1, bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   DCHECK(!arg1.fp);
   if (arg1.wide == 0) {
     LoadValueDirectFixed(arg1, TargetReg(kArg1, arg1));
@@ -191,61 +150,49 @@ void Mir2Lir::CallRuntimeHelperImmRegLocation(ThreadOffset<pointer_size> helper_
   }
   LoadConstant(TargetReg(kArg0, kNotWide), arg0);
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperImmRegLocation, int arg0, RegLocation arg1,
-            bool safepoint_pc)
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperRegLocationImm(ThreadOffset<pointer_size> helper_offset,
-                                              RegLocation arg0, int arg1, bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+void Mir2Lir::CallRuntimeHelperRegLocationImm(QuickEntrypointEnum trampoline, RegLocation arg0,
+                                              int arg1, bool safepoint_pc) {
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   DCHECK(!arg0.wide);
   LoadValueDirectFixed(arg0, TargetReg(kArg0, arg0));
   LoadConstant(TargetReg(kArg1, kNotWide), arg1);
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperRegLocationImm, RegLocation arg0, int arg1,
-            bool safepoint_pc)
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperImmReg(ThreadOffset<pointer_size> helper_offset, int arg0,
-                                      RegStorage arg1, bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+void Mir2Lir::CallRuntimeHelperImmReg(QuickEntrypointEnum trampoline, int arg0, RegStorage arg1,
+                                      bool safepoint_pc) {
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   OpRegCopy(TargetReg(kArg1, arg1.GetWideKind()), arg1);
   LoadConstant(TargetReg(kArg0, kNotWide), arg0);
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperImmReg, int arg0, RegStorage arg1, bool safepoint_pc)
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperRegImm(ThreadOffset<pointer_size> helper_offset, RegStorage arg0,
-                                      int arg1, bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+void Mir2Lir::CallRuntimeHelperRegImm(QuickEntrypointEnum trampoline, RegStorage arg0, int arg1,
+                                      bool safepoint_pc) {
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   OpRegCopy(TargetReg(kArg0, arg0.GetWideKind()), arg0);
   LoadConstant(TargetReg(kArg1, kNotWide), arg1);
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperRegImm, RegStorage arg0, int arg1, bool safepoint_pc)
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperImmMethod(ThreadOffset<pointer_size> helper_offset, int arg0,
+void Mir2Lir::CallRuntimeHelperImmMethod(QuickEntrypointEnum trampoline, int arg0,
                                          bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   LoadCurrMethodDirect(TargetReg(kArg1, kRef));
   LoadConstant(TargetReg(kArg0, kNotWide), arg0);
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperImmMethod, int arg0, bool safepoint_pc)
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperRegMethod(ThreadOffset<pointer_size> helper_offset, RegStorage arg0,
+void Mir2Lir::CallRuntimeHelperRegMethod(QuickEntrypointEnum trampoline, RegStorage arg0,
                                          bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   DCHECK(!IsSameReg(TargetReg(kArg1, arg0.GetWideKind()), arg0));
   RegStorage r_tmp = TargetReg(kArg0, arg0.GetWideKind());
   if (r_tmp.NotExactlyEquals(arg0)) {
@@ -253,15 +200,12 @@ void Mir2Lir::CallRuntimeHelperRegMethod(ThreadOffset<pointer_size> helper_offse
   }
   LoadCurrMethodDirect(TargetReg(kArg1, kRef));
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperRegMethod, RegStorage arg0, bool safepoint_pc)
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperRegMethodRegLocation(ThreadOffset<pointer_size> helper_offset,
-                                                    RegStorage arg0, RegLocation arg2,
-                                                    bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+void Mir2Lir::CallRuntimeHelperRegMethodRegLocation(QuickEntrypointEnum trampoline, RegStorage arg0,
+                                                    RegLocation arg2, bool safepoint_pc) {
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   DCHECK(!IsSameReg(TargetReg(kArg1, arg0.GetWideKind()), arg0));
   RegStorage r_tmp = TargetReg(kArg0, arg0.GetWideKind());
   if (r_tmp.NotExactlyEquals(arg0)) {
@@ -270,16 +214,13 @@ void Mir2Lir::CallRuntimeHelperRegMethodRegLocation(ThreadOffset<pointer_size> h
   LoadCurrMethodDirect(TargetReg(kArg1, kRef));
   LoadValueDirectFixed(arg2, TargetReg(kArg2, arg2));
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperRegMethodRegLocation, RegStorage arg0, RegLocation arg2,
-            bool safepoint_pc)
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(ThreadOffset<pointer_size> helper_offset,
+void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(QuickEntrypointEnum trampoline,
                                                       RegLocation arg0, RegLocation arg1,
                                                       bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   if (cu_->instruction_set == kArm64 || cu_->instruction_set == kX86_64) {
     RegStorage arg0_reg = TargetReg((arg0.fp) ? kFArg0 : kArg0, arg0);
 
@@ -328,10 +269,8 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(ThreadOffset<pointer_size>
     }
   }
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperRegLocationRegLocation, RegLocation arg0,
-            RegLocation arg1, bool safepoint_pc)
 
 void Mir2Lir::CopyToArgumentRegs(RegStorage arg0, RegStorage arg1) {
   WideKind arg0_kind = arg0.GetWideKind();
@@ -352,59 +291,47 @@ void Mir2Lir::CopyToArgumentRegs(RegStorage arg0, RegStorage arg1) {
   }
 }
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperRegReg(ThreadOffset<pointer_size> helper_offset, RegStorage arg0,
+void Mir2Lir::CallRuntimeHelperRegReg(QuickEntrypointEnum trampoline, RegStorage arg0,
                                       RegStorage arg1, bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   CopyToArgumentRegs(arg0, arg1);
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperRegReg, RegStorage arg0, RegStorage arg1,
-            bool safepoint_pc)
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperRegRegImm(ThreadOffset<pointer_size> helper_offset, RegStorage arg0,
+void Mir2Lir::CallRuntimeHelperRegRegImm(QuickEntrypointEnum trampoline, RegStorage arg0,
                                          RegStorage arg1, int arg2, bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   CopyToArgumentRegs(arg0, arg1);
   LoadConstant(TargetReg(kArg2, kNotWide), arg2);
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperRegRegImm, RegStorage arg0, RegStorage arg1, int arg2,
-            bool safepoint_pc)
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperImmMethodRegLocation(ThreadOffset<pointer_size> helper_offset,
-                                                    int arg0, RegLocation arg2, bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+void Mir2Lir::CallRuntimeHelperImmMethodRegLocation(QuickEntrypointEnum trampoline, int arg0,
+                                                    RegLocation arg2, bool safepoint_pc) {
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   LoadValueDirectFixed(arg2, TargetReg(kArg2, arg2));
   LoadCurrMethodDirect(TargetReg(kArg1, kRef));
   LoadConstant(TargetReg(kArg0, kNotWide), arg0);
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperImmMethodRegLocation, int arg0, RegLocation arg2,
-            bool safepoint_pc)
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperImmMethodImm(ThreadOffset<pointer_size> helper_offset, int arg0,
-                                            int arg2, bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+void Mir2Lir::CallRuntimeHelperImmMethodImm(QuickEntrypointEnum trampoline, int arg0, int arg2,
+                                            bool safepoint_pc) {
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   LoadCurrMethodDirect(TargetReg(kArg1, kRef));
   LoadConstant(TargetReg(kArg2, kNotWide), arg2);
   LoadConstant(TargetReg(kArg0, kNotWide), arg0);
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperImmMethodImm, int arg0, int arg2, bool safepoint_pc)
 
-template <size_t pointer_size>
-void Mir2Lir::CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset<pointer_size> helper_offset,
-                                                         int arg0, RegLocation arg1,
+void Mir2Lir::CallRuntimeHelperImmRegLocationRegLocation(QuickEntrypointEnum trampoline, int arg0,
+                                                         RegLocation arg1,
                                                          RegLocation arg2, bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   DCHECK_EQ(static_cast<unsigned int>(arg1.wide), 0U);  // The static_cast works around an
                                                         // instantiation bug in GCC.
   LoadValueDirectFixed(arg1, TargetReg(kArg1, arg1));
@@ -415,27 +342,22 @@ void Mir2Lir::CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset<pointer_si
   }
   LoadConstant(TargetReg(kArg0, kNotWide), arg0);
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperImmRegLocationRegLocation, int arg0, RegLocation arg1,
-            RegLocation arg2, bool safepoint_pc)
 
-template <size_t pointer_size>
 void Mir2Lir::CallRuntimeHelperRegLocationRegLocationRegLocation(
-    ThreadOffset<pointer_size> helper_offset,
+    QuickEntrypointEnum trampoline,
     RegLocation arg0,
     RegLocation arg1,
     RegLocation arg2,
     bool safepoint_pc) {
-  RegStorage r_tgt = CallHelperSetup(helper_offset);
+  RegStorage r_tgt = CallHelperSetup(trampoline);
   LoadValueDirectFixed(arg0, TargetReg(kArg0, arg0));
   LoadValueDirectFixed(arg1, TargetReg(kArg1, arg1));
   LoadValueDirectFixed(arg2, TargetReg(kArg2, arg2));
   ClobberCallerSave();
-  CallHelper<pointer_size>(r_tgt, helper_offset, safepoint_pc);
+  CallHelper(r_tgt, trampoline, safepoint_pc);
 }
-INSTANTIATE(void Mir2Lir::CallRuntimeHelperRegLocationRegLocationRegLocation, RegLocation arg0,
-            RegLocation arg1, RegLocation arg2, bool safepoint_pc)
 
 /*
  * If there are any ins passed in registers that have not been promoted
@@ -727,11 +649,12 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
   return state + 1;
 }
 
-template <size_t pointer_size>
 static int NextInvokeInsnSP(CompilationUnit* cu, CallInfo* info,
-                            ThreadOffset<pointer_size> trampoline, int state,
+                            QuickEntrypointEnum trampoline, int state,
                             const MethodReference& target_method, uint32_t method_idx) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
+
+
   /*
    * This handles the case in which the base method is not fully
    * resolved at compile time, we bail to a runtime helper.
@@ -739,8 +662,13 @@ static int NextInvokeInsnSP(CompilationUnit* cu, CallInfo* info,
   if (state == 0) {
     if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
       // Load trampoline target
-      cg->LoadWordDisp(cg->TargetPtrReg(kSelf), trampoline.Int32Value(),
-                       cg->TargetPtrReg(kInvokeTgt));
+      int32_t disp;
+      if (cu->target64) {
+        disp = GetThreadOffset<8>(trampoline).Int32Value();
+      } else {
+        disp = GetThreadOffset<4>(trampoline).Int32Value();
+      }
+      cg->LoadWordDisp(cg->TargetPtrReg(kSelf), disp, cg->TargetPtrReg(kInvokeTgt));
     }
     // Load kArg0 with method index
     CHECK_EQ(cu->dex_file, target_method.dex_file);
@@ -755,54 +683,32 @@ static int NextStaticCallInsnSP(CompilationUnit* cu, CallInfo* info,
                                 const MethodReference& target_method,
                                 uint32_t unused, uintptr_t unused2,
                                 uintptr_t unused3, InvokeType unused4) {
-  if (cu->target64) {
-    ThreadOffset<8> trampoline = QUICK_ENTRYPOINT_OFFSET(8, pInvokeStaticTrampolineWithAccessCheck);
-    return NextInvokeInsnSP<8>(cu, info, trampoline, state, target_method, 0);
-  } else {
-    ThreadOffset<4> trampoline = QUICK_ENTRYPOINT_OFFSET(4, pInvokeStaticTrampolineWithAccessCheck);
-    return NextInvokeInsnSP<4>(cu, info, trampoline, state, target_method, 0);
-  }
+  return NextInvokeInsnSP(cu, info, kQuickInvokeStaticTrampolineWithAccessCheck, state,
+                          target_method, 0);
 }
 
 static int NextDirectCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                                 const MethodReference& target_method,
                                 uint32_t unused, uintptr_t unused2,
                                 uintptr_t unused3, InvokeType unused4) {
-  if (cu->target64) {
-    ThreadOffset<8> trampoline = QUICK_ENTRYPOINT_OFFSET(8, pInvokeDirectTrampolineWithAccessCheck);
-    return NextInvokeInsnSP<8>(cu, info, trampoline, state, target_method, 0);
-  } else {
-    ThreadOffset<4> trampoline = QUICK_ENTRYPOINT_OFFSET(4, pInvokeDirectTrampolineWithAccessCheck);
-    return NextInvokeInsnSP<4>(cu, info, trampoline, state, target_method, 0);
-  }
+  return NextInvokeInsnSP(cu, info, kQuickInvokeDirectTrampolineWithAccessCheck, state,
+                          target_method, 0);
 }
 
 static int NextSuperCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                                const MethodReference& target_method,
                                uint32_t unused, uintptr_t unused2,
                                uintptr_t unused3, InvokeType unused4) {
-  if (cu->target64) {
-    ThreadOffset<8> trampoline = QUICK_ENTRYPOINT_OFFSET(8, pInvokeSuperTrampolineWithAccessCheck);
-    return NextInvokeInsnSP<8>(cu, info, trampoline, state, target_method, 0);
-  } else {
-    ThreadOffset<4> trampoline = QUICK_ENTRYPOINT_OFFSET(4, pInvokeSuperTrampolineWithAccessCheck);
-    return NextInvokeInsnSP<4>(cu, info, trampoline, state, target_method, 0);
-  }
+  return NextInvokeInsnSP(cu, info, kQuickInvokeSuperTrampolineWithAccessCheck, state,
+                          target_method, 0);
 }
 
 static int NextVCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                            const MethodReference& target_method,
                            uint32_t unused, uintptr_t unused2,
                            uintptr_t unused3, InvokeType unused4) {
-  if (cu->target64) {
-    ThreadOffset<8> trampoline = QUICK_ENTRYPOINT_OFFSET(8,
-        pInvokeVirtualTrampolineWithAccessCheck);
-    return NextInvokeInsnSP<8>(cu, info, trampoline, state, target_method, 0);
-  } else {
-    ThreadOffset<4> trampoline = QUICK_ENTRYPOINT_OFFSET(4,
-        pInvokeVirtualTrampolineWithAccessCheck);
-    return NextInvokeInsnSP<4>(cu, info, trampoline, state, target_method, 0);
-  }
+  return NextInvokeInsnSP(cu, info, kQuickInvokeVirtualTrampolineWithAccessCheck, state,
+                          target_method, 0);
 }
 
 static int NextInterfaceCallInsnWithAccessCheck(CompilationUnit* cu,
@@ -810,15 +716,8 @@ static int NextInterfaceCallInsnWithAccessCheck(CompilationUnit* cu,
                                                 const MethodReference& target_method,
                                                 uint32_t unused, uintptr_t unused2,
                                                 uintptr_t unused3, InvokeType unused4) {
-  if (cu->target64) {
-      ThreadOffset<8> trampoline = QUICK_ENTRYPOINT_OFFSET(8,
-          pInvokeInterfaceTrampolineWithAccessCheck);
-      return NextInvokeInsnSP<8>(cu, info, trampoline, state, target_method, 0);
-    } else {
-      ThreadOffset<4> trampoline = QUICK_ENTRYPOINT_OFFSET(4,
-          pInvokeInterfaceTrampolineWithAccessCheck);
-      return NextInvokeInsnSP<4>(cu, info, trampoline, state, target_method, 0);
-    }
+  return NextInvokeInsnSP(cu, info, kQuickInvokeInterfaceTrampolineWithAccessCheck, state,
+                          target_method, 0);
 }
 
 int Mir2Lir::LoadArgRegs(CallInfo* info, int call_state,
@@ -1184,13 +1083,8 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     // Generate memcpy
     OpRegRegImm(kOpAdd, TargetReg(kArg0, kRef), TargetPtrReg(kSp), outs_offset);
     OpRegRegImm(kOpAdd, TargetReg(kArg1, kRef), TargetPtrReg(kSp), start_offset);
-    if (cu_->target64) {
-      CallRuntimeHelperRegRegImm(QUICK_ENTRYPOINT_OFFSET(8, pMemcpy), TargetReg(kArg0, kRef),
-                                 TargetReg(kArg1, kRef), (info->num_arg_words - 3) * 4, false);
-    } else {
-      CallRuntimeHelperRegRegImm(QUICK_ENTRYPOINT_OFFSET(4, pMemcpy), TargetReg(kArg0, kRef),
-                                 TargetReg(kArg1, kRef), (info->num_arg_words - 3) * 4, false);
-    }
+    CallRuntimeHelperRegRegImm(kQuickMemcpy, TargetReg(kArg0, kRef), TargetReg(kArg1, kRef),
+                               (info->num_arg_words - 3) * 4, false);
   }
 
   call_state = LoadArgRegs(info, call_state, next_call_insn,
@@ -1345,55 +1239,30 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
   RegLocation rl_obj = info->args[0];
   RegLocation rl_idx = info->args[1];
   rl_obj = LoadValue(rl_obj, kRefReg);
-  // X86 wants to avoid putting a constant index into a register.
-  if (!((cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64)&& rl_idx.is_const)) {
-    rl_idx = LoadValue(rl_idx, kCoreReg);
-  }
+  rl_idx = LoadValue(rl_idx, kCoreReg);
   RegStorage reg_max;
   GenNullCheck(rl_obj.reg, info->opt_flags);
   bool range_check = (!(info->opt_flags & MIR_IGNORE_RANGE_CHECK));
   LIR* range_check_branch = nullptr;
   RegStorage reg_off;
   RegStorage reg_ptr;
-  if (cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64) {
-    reg_off = AllocTemp();
-    reg_ptr = AllocTempRef();
-    if (range_check) {
-      reg_max = AllocTemp();
-      Load32Disp(rl_obj.reg, count_offset, reg_max);
-      MarkPossibleNullPointerException(info->opt_flags);
-    }
-    Load32Disp(rl_obj.reg, offset_offset, reg_off);
+  reg_off = AllocTemp();
+  reg_ptr = AllocTempRef();
+  if (range_check) {
+    reg_max = AllocTemp();
+    Load32Disp(rl_obj.reg, count_offset, reg_max);
     MarkPossibleNullPointerException(info->opt_flags);
-    LoadRefDisp(rl_obj.reg, value_offset, reg_ptr, kNotVolatile);
-    if (range_check) {
-      // Set up a slow path to allow retry in case of bounds violation */
-      OpRegReg(kOpCmp, rl_idx.reg, reg_max);
-      FreeTemp(reg_max);
-      range_check_branch = OpCondBranch(kCondUge, nullptr);
-    }
-    OpRegImm(kOpAdd, reg_ptr, data_offset);
-  } else {
-    if (range_check) {
-      // On x86, we can compare to memory directly
-      // Set up a launch pad to allow retry in case of bounds violation */
-      if (rl_idx.is_const) {
-        LIR* comparison;
-        range_check_branch = OpCmpMemImmBranch(
-            kCondUlt, RegStorage::InvalidReg(), rl_obj.reg, count_offset,
-            mir_graph_->ConstantValue(rl_idx.orig_sreg), nullptr, &comparison);
-        MarkPossibleNullPointerExceptionAfter(0, comparison);
-     } else {
-        OpRegMem(kOpCmp, rl_idx.reg, rl_obj.reg, count_offset);
-        MarkPossibleNullPointerException(0);
-        range_check_branch = OpCondBranch(kCondUge, nullptr);
-      }
-    }
-    reg_off = AllocTemp();
-    reg_ptr = AllocTempRef();
-    Load32Disp(rl_obj.reg, offset_offset, reg_off);
-    LoadRefDisp(rl_obj.reg, value_offset, reg_ptr, kNotVolatile);
   }
+  Load32Disp(rl_obj.reg, offset_offset, reg_off);
+  MarkPossibleNullPointerException(info->opt_flags);
+  LoadRefDisp(rl_obj.reg, value_offset, reg_ptr, kNotVolatile);
+  if (range_check) {
+    // Set up a slow path to allow retry in case of bounds violation */
+    OpRegReg(kOpCmp, rl_idx.reg, reg_max);
+    FreeTemp(reg_max);
+    range_check_branch = OpCondBranch(kCondUge, nullptr);
+  }
+  OpRegImm(kOpAdd, reg_ptr, data_offset);
   if (rl_idx.is_const) {
     OpRegImm(kOpAdd, reg_off, mir_graph_->ConstantValue(rl_idx.orig_sreg));
   } else {
@@ -1405,11 +1274,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
   }
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  if (cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64) {
-    LoadBaseIndexed(reg_ptr, reg_off, rl_result.reg, 1, kUnsignedHalf);
-  } else {
-    LoadBaseIndexedDisp(reg_ptr, reg_off, 1, data_offset, rl_result.reg, kUnsignedHalf);
-  }
+  LoadBaseIndexed(reg_ptr, reg_off, rl_result.reg, 1, kUnsignedHalf);
   FreeTemp(reg_off);
   FreeTemp(reg_ptr);
   StoreValue(rl_dest, rl_result);
@@ -1624,9 +1489,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
     RegLocation rl_start = info->args[2];     // 3rd arg only present in III flavor of IndexOf.
     LoadValueDirectFixed(rl_start, reg_start);
   }
-  RegStorage r_tgt = cu_->target64 ?
-      LoadHelper(QUICK_ENTRYPOINT_OFFSET(8, pIndexOf)) :
-      LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pIndexOf));
+  RegStorage r_tgt = LoadHelper(kQuickIndexOf);
   GenExplicitNullCheck(reg_ptr, info->opt_flags);
   LIR* high_code_point_branch =
       rl_char.is_const ? nullptr : OpCmpImmBranch(kCondGt, reg_char, 0xFFFF, nullptr);
@@ -1665,11 +1528,7 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
   LoadValueDirectFixed(rl_cmp, reg_cmp);
   RegStorage r_tgt;
   if (cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64) {
-    if (cu_->target64) {
-      r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(8, pStringCompareTo));
-    } else {
-      r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pStringCompareTo));
-    }
+    r_tgt = LoadHelper(kQuickStringCompareTo);
   } else {
     r_tgt = RegStorage::InvalidReg();
   }
@@ -1679,15 +1538,7 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
   LIR* cmp_null_check_branch = OpCmpImmBranch(kCondEq, reg_cmp, 0, nullptr);
   AddIntrinsicSlowPath(info, cmp_null_check_branch);
   // NOTE: not a safepoint
-  if (cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64) {
-    OpReg(kOpBlx, r_tgt);
-  } else {
-    if (cu_->target64) {
-      OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(8, pStringCompareTo));
-    } else {
-      OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(4, pStringCompareTo));
-    }
-  }
+  CallHelper(r_tgt, kQuickStringCompareTo, false, true);
   RegLocation rl_return = GetReturn(kCoreReg);
   RegLocation rl_dest = InlineTarget(info);
   StoreValue(rl_dest, rl_return);
@@ -1850,29 +1701,29 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
   GenInvokeNoInline(info);
 }
 
-template <size_t pointer_size>
 static LIR* GenInvokeNoInlineCall(Mir2Lir* mir_to_lir, InvokeType type) {
-  ThreadOffset<pointer_size> trampoline(-1);
+  QuickEntrypointEnum trampoline;
   switch (type) {
     case kInterface:
-      trampoline = QUICK_ENTRYPOINT_OFFSET(pointer_size, pInvokeInterfaceTrampolineWithAccessCheck);
+      trampoline = kQuickInvokeInterfaceTrampolineWithAccessCheck;
       break;
     case kDirect:
-      trampoline = QUICK_ENTRYPOINT_OFFSET(pointer_size, pInvokeDirectTrampolineWithAccessCheck);
+      trampoline = kQuickInvokeDirectTrampolineWithAccessCheck;
       break;
     case kStatic:
-      trampoline = QUICK_ENTRYPOINT_OFFSET(pointer_size, pInvokeStaticTrampolineWithAccessCheck);
+      trampoline = kQuickInvokeStaticTrampolineWithAccessCheck;
       break;
     case kSuper:
-      trampoline = QUICK_ENTRYPOINT_OFFSET(pointer_size, pInvokeSuperTrampolineWithAccessCheck);
+      trampoline = kQuickInvokeSuperTrampolineWithAccessCheck;
       break;
     case kVirtual:
-      trampoline = QUICK_ENTRYPOINT_OFFSET(pointer_size, pInvokeVirtualTrampolineWithAccessCheck);
+      trampoline = kQuickInvokeVirtualTrampolineWithAccessCheck;
       break;
     default:
       LOG(FATAL) << "Unexpected invoke type";
+      trampoline = kQuickInvokeInterfaceTrampolineWithAccessCheck;
   }
-  return mir_to_lir->OpThreadMem(kOpBlx, trampoline);
+  return mir_to_lir->InvokeTrampoline(kOpBlx, RegStorage::InvalidReg(), trampoline);
 }
 
 void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
@@ -1943,12 +1794,7 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
                           mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
       }
     } else {
-      // TODO: Extract?
-      if (cu_->target64) {
-        call_inst = GenInvokeNoInlineCall<8>(this, info->type);
-      } else {
-        call_inst = GenInvokeNoInlineCall<4>(this, info->type);
-      }
+      call_inst = GenInvokeNoInlineCall(this, info->type);
     }
   }
   EndInvoke(info);

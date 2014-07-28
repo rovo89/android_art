@@ -1059,4 +1059,13 @@ void X86Mir2Lir::AnalyzeInvokeStatic(int opcode, BasicBlock * bb, MIR *mir) {
     }
   }
 }
+
+LIR* X86Mir2Lir::InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) {
+  if (cu_->target64) {
+    return OpThreadMem(op, GetThreadOffset<8>(trampoline));
+  } else {
+    return OpThreadMem(op, GetThreadOffset<4>(trampoline));
+  }
+}
+
 }  // namespace art
