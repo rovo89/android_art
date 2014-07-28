@@ -68,14 +68,13 @@ class X86Mir2Lir : public Mir2Lir {
                           RegLocation rl_dest, int lit);
   bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) OVERRIDE;
   LIR* CheckSuspendUsingLoad() OVERRIDE;
-  RegStorage LoadHelper(ThreadOffset<4> offset) OVERRIDE;
-  RegStorage LoadHelper(ThreadOffset<8> offset) OVERRIDE;
+  RegStorage LoadHelper(QuickEntrypointEnum trampoline) OVERRIDE;
   LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
                     OpSize size, VolatileKind is_volatile) OVERRIDE;
   LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale,
                        OpSize size) OVERRIDE;
   LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
-                           RegStorage r_dest, OpSize size) OVERRIDE;
+                           RegStorage r_dest, OpSize size);
   LIR* LoadConstantNoClobber(RegStorage r_dest, int value);
   LIR* LoadConstantWide(RegStorage r_dest, int64_t value);
   LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
@@ -83,7 +82,7 @@ class X86Mir2Lir : public Mir2Lir {
   LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
                         OpSize size) OVERRIDE;
   LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
-                            RegStorage r_src, OpSize size) OVERRIDE;
+                            RegStorage r_src, OpSize size);
   void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg);
   void GenImplicitNullCheck(RegStorage reg, int opt_flags);
 
@@ -179,6 +178,7 @@ class X86Mir2Lir : public Mir2Lir {
   bool GenInlinedAbsDouble(CallInfo* info) OVERRIDE;
   bool GenInlinedPeek(CallInfo* info, OpSize size);
   bool GenInlinedPoke(CallInfo* info, OpSize size);
+  bool GenInlinedCharAt(CallInfo* info) OVERRIDE;
   void GenNotLong(RegLocation rl_dest, RegLocation rl_src);
   void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
   void GenOrLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
@@ -300,14 +300,14 @@ class X86Mir2Lir : public Mir2Lir {
   LIR* OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, int value);
   LIR* OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2);
   LIR* OpTestSuspend(LIR* target);
-  LIR* OpThreadMem(OpKind op, ThreadOffset<4> thread_offset) OVERRIDE;
-  LIR* OpThreadMem(OpKind op, ThreadOffset<8> thread_offset) OVERRIDE;
+  LIR* OpThreadMem(OpKind op, ThreadOffset<4> thread_offset);
+  LIR* OpThreadMem(OpKind op, ThreadOffset<8> thread_offset);
   LIR* OpVldm(RegStorage r_base, int count);
   LIR* OpVstm(RegStorage r_base, int count);
   void OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int scale, int offset);
   void OpRegCopyWide(RegStorage dest, RegStorage src);
-  void OpTlsCmp(ThreadOffset<4> offset, int val) OVERRIDE;
-  void OpTlsCmp(ThreadOffset<8> offset, int val) OVERRIDE;
+  void OpTlsCmp(ThreadOffset<4> offset, int val);
+  void OpTlsCmp(ThreadOffset<8> offset, int val);
 
   void OpRegThreadMem(OpKind op, RegStorage r_dest, ThreadOffset<4> thread_offset);
   void OpRegThreadMem(OpKind op, RegStorage r_dest, ThreadOffset<8> thread_offset);
@@ -401,6 +401,8 @@ class X86Mir2Lir : public Mir2Lir {
    * @returns pointer to vector containing CFE information
    */
   std::vector<uint8_t>* ReturnCallFrameInformation();
+
+  LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) OVERRIDE;
 
  protected:
   // Casting of RegStorage

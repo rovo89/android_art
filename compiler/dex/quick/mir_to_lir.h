@@ -28,6 +28,7 @@
 #include "driver/compiler_driver.h"
 #include "instruction_set.h"
 #include "leb128.h"
+#include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "safe_map.h"
 #include "utils/array_ref.h"
 #include "utils/arena_allocator.h"
@@ -805,7 +806,6 @@ class Mir2Lir : public Backend {
     void MarkPossibleNullPointerExceptionAfter(int opt_flags, LIR* after);
     void MarkPossibleStackOverflowException();
     void ForceImplicitNullCheck(RegStorage reg, int opt_flags);
-    LIR* GenImmedCheck(ConditionCode c_code, RegStorage reg, int imm_val, ThrowKind kind);
     LIR* GenNullCheck(RegStorage m_reg, int opt_flags);
     LIR* GenExplicitNullCheck(RegStorage m_reg, int opt_flags);
     virtual void GenImplicitNullCheck(RegStorage reg, int opt_flags);
@@ -844,9 +844,7 @@ class Mir2Lir : public Backend {
                           RegLocation rl_src, int lit);
     void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
                         RegLocation rl_src1, RegLocation rl_src2);
-    template <size_t pointer_size>
-    void GenConversionCall(ThreadOffset<pointer_size> func_offset, RegLocation rl_dest,
-                           RegLocation rl_src);
+    void GenConversionCall(QuickEntrypointEnum trampoline, RegLocation rl_dest, RegLocation rl_src);
     virtual void GenSuspendTest(int opt_flags);
     virtual void GenSuspendTestAndBranch(int opt_flags, LIR* target);
 
@@ -856,66 +854,44 @@ class Mir2Lir : public Backend {
                        RegLocation rl_src1, RegLocation rl_src2);
 
     // Shared by all targets - implemented in gen_invoke.cc.
-    template <size_t pointer_size>
-    LIR* CallHelper(RegStorage r_tgt, ThreadOffset<pointer_size> helper_offset, bool safepoint_pc,
+    LIR* CallHelper(RegStorage r_tgt, QuickEntrypointEnum trampoline, bool safepoint_pc,
                     bool use_link = true);
-    RegStorage CallHelperSetup(ThreadOffset<4> helper_offset);
-    RegStorage CallHelperSetup(ThreadOffset<8> helper_offset);
-    template <size_t pointer_size>
-    void CallRuntimeHelper(ThreadOffset<pointer_size> helper_offset, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperImm(ThreadOffset<pointer_size> helper_offset, int arg0, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperReg(ThreadOffset<pointer_size> helper_offset, RegStorage arg0, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegLocation(ThreadOffset<pointer_size> helper_offset, RegLocation arg0,
+    RegStorage CallHelperSetup(QuickEntrypointEnum trampoline);
+
+    void CallRuntimeHelper(QuickEntrypointEnum trampoline, bool safepoint_pc);
+    void CallRuntimeHelperImm(QuickEntrypointEnum trampoline, int arg0, bool safepoint_pc);
+    void CallRuntimeHelperReg(QuickEntrypointEnum trampoline, RegStorage arg0, bool safepoint_pc);
+    void CallRuntimeHelperRegLocation(QuickEntrypointEnum trampoline, RegLocation arg0,
                                       bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperImmImm(ThreadOffset<pointer_size> helper_offset, int arg0, int arg1,
+    void CallRuntimeHelperImmImm(QuickEntrypointEnum trampoline, int arg0, int arg1,
                                  bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperImmRegLocation(ThreadOffset<pointer_size> helper_offset, int arg0,
-                                         RegLocation arg1, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegLocationImm(ThreadOffset<pointer_size> helper_offset, RegLocation arg0,
-                                         int arg1, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperImmReg(ThreadOffset<pointer_size> helper_offset, int arg0, RegStorage arg1,
+    void CallRuntimeHelperImmRegLocation(QuickEntrypointEnum trampoline, int arg0, RegLocation arg1,
+                                         bool safepoint_pc);
+    void CallRuntimeHelperRegLocationImm(QuickEntrypointEnum trampoline, RegLocation arg0, int arg1,
+                                         bool safepoint_pc);
+    void CallRuntimeHelperImmReg(QuickEntrypointEnum trampoline, int arg0, RegStorage arg1,
                                  bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegImm(ThreadOffset<pointer_size> helper_offset, RegStorage arg0, int arg1,
+    void CallRuntimeHelperRegImm(QuickEntrypointEnum trampoline, RegStorage arg0, int arg1,
                                  bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperImmMethod(ThreadOffset<pointer_size> helper_offset, int arg0,
+    void CallRuntimeHelperImmMethod(QuickEntrypointEnum trampoline, int arg0, bool safepoint_pc);
+    void CallRuntimeHelperRegMethod(QuickEntrypointEnum trampoline, RegStorage arg0,
                                     bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegMethod(ThreadOffset<pointer_size> helper_offset, RegStorage arg0,
-                                    bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegMethodRegLocation(ThreadOffset<pointer_size> helper_offset,
-                                               RegStorage arg0, RegLocation arg2, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegLocationRegLocation(ThreadOffset<pointer_size> helper_offset,
-                                                 RegLocation arg0, RegLocation arg1,
-                                                 bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegReg(ThreadOffset<pointer_size> helper_offset, RegStorage arg0,
-                                 RegStorage arg1, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegRegImm(ThreadOffset<pointer_size> helper_offset, RegStorage arg0,
-                                    RegStorage arg1, int arg2, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperImmMethodRegLocation(ThreadOffset<pointer_size> helper_offset, int arg0,
+    void CallRuntimeHelperRegMethodRegLocation(QuickEntrypointEnum trampoline, RegStorage arg0,
                                                RegLocation arg2, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperImmMethodImm(ThreadOffset<pointer_size> helper_offset, int arg0, int arg2,
+    void CallRuntimeHelperRegLocationRegLocation(QuickEntrypointEnum trampoline, RegLocation arg0,
+                                                 RegLocation arg1, bool safepoint_pc);
+    void CallRuntimeHelperRegReg(QuickEntrypointEnum trampoline, RegStorage arg0, RegStorage arg1,
+                                 bool safepoint_pc);
+    void CallRuntimeHelperRegRegImm(QuickEntrypointEnum trampoline, RegStorage arg0,
+                                    RegStorage arg1, int arg2, bool safepoint_pc);
+    void CallRuntimeHelperImmMethodRegLocation(QuickEntrypointEnum trampoline, int arg0,
+                                               RegLocation arg2, bool safepoint_pc);
+    void CallRuntimeHelperImmMethodImm(QuickEntrypointEnum trampoline, int arg0, int arg2,
                                        bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset<pointer_size> helper_offset,
-                                                    int arg0, RegLocation arg1, RegLocation arg2,
+    void CallRuntimeHelperImmRegLocationRegLocation(QuickEntrypointEnum trampoline, int arg0,
+                                                    RegLocation arg1, RegLocation arg2,
                                                     bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegLocationRegLocationRegLocation(ThreadOffset<pointer_size> helper_offset,
+    void CallRuntimeHelperRegLocationRegLocationRegLocation(QuickEntrypointEnum trampoline,
                                                             RegLocation arg0, RegLocation arg1,
                                                             RegLocation arg2,
                                                             bool safepoint_pc);
@@ -954,7 +930,7 @@ class Mir2Lir : public Backend {
     RegLocation InlineTargetWide(CallInfo* info);
 
     bool GenInlinedGet(CallInfo* info);
-    bool GenInlinedCharAt(CallInfo* info);
+    virtual bool GenInlinedCharAt(CallInfo* info);
     bool GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty);
     virtual bool GenInlinedReverseBits(CallInfo* info, OpSize size);
     bool GenInlinedReverseBytes(CallInfo* info, OpSize size);
@@ -1132,23 +1108,18 @@ class Mir2Lir : public Backend {
     virtual bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) = 0;
     virtual LIR* CheckSuspendUsingLoad() = 0;
 
-    virtual RegStorage LoadHelper(ThreadOffset<4> offset) = 0;
-    virtual RegStorage LoadHelper(ThreadOffset<8> offset) = 0;
+    virtual RegStorage LoadHelper(QuickEntrypointEnum trampoline) = 0;
 
     virtual LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
                               OpSize size, VolatileKind is_volatile) = 0;
     virtual LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest,
                                  int scale, OpSize size) = 0;
-    virtual LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                     int displacement, RegStorage r_dest, OpSize size) = 0;
     virtual LIR* LoadConstantNoClobber(RegStorage r_dest, int value) = 0;
     virtual LIR* LoadConstantWide(RegStorage r_dest, int64_t value) = 0;
     virtual LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
                                OpSize size, VolatileKind is_volatile) = 0;
     virtual LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
                                   int scale, OpSize size) = 0;
-    virtual LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                      int displacement, RegStorage r_src, OpSize size) = 0;
     virtual void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) = 0;
 
     // Required for target - register utilities.
@@ -1399,7 +1370,6 @@ class Mir2Lir : public Backend {
     virtual void OpRegCopy(RegStorage r_dest, RegStorage r_src) = 0;
     virtual LIR* OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) = 0;
     virtual LIR* OpRegImm(OpKind op, RegStorage r_dest_src1, int value) = 0;
-    virtual LIR* OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int offset) = 0;
     virtual LIR* OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2) = 0;
 
     /**
@@ -1439,15 +1409,9 @@ class Mir2Lir : public Backend {
     virtual LIR* OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1,
                              RegStorage r_src2) = 0;
     virtual LIR* OpTestSuspend(LIR* target) = 0;
-    virtual LIR* OpThreadMem(OpKind op, ThreadOffset<4> thread_offset) = 0;
-    virtual LIR* OpThreadMem(OpKind op, ThreadOffset<8> thread_offset) = 0;
     virtual LIR* OpVldm(RegStorage r_base, int count) = 0;
     virtual LIR* OpVstm(RegStorage r_base, int count) = 0;
-    virtual void OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int scale,
-                       int offset) = 0;
     virtual void OpRegCopyWide(RegStorage dest, RegStorage src) = 0;
-    virtual void OpTlsCmp(ThreadOffset<4> offset, int val) = 0;
-    virtual void OpTlsCmp(ThreadOffset<8> offset, int val) = 0;
     virtual bool InexpensiveConstantInt(int32_t value) = 0;
     virtual bool InexpensiveConstantFloat(int32_t value) = 0;
     virtual bool InexpensiveConstantLong(int64_t value) = 0;
@@ -1459,6 +1423,8 @@ class Mir2Lir : public Backend {
 
     // Temp workaround
     void Workaround7250540(RegLocation rl_dest, RegStorage zero_reg);
+
+    virtual LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) = 0;
 
   protected:
     Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
