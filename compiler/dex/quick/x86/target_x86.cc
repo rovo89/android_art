@@ -871,14 +871,8 @@ Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
   return new X86Mir2Lir(cu, mir_graph, arena);
 }
 
-// Not used in x86
-RegStorage X86Mir2Lir::LoadHelper(ThreadOffset<4> offset) {
-  LOG(FATAL) << "Unexpected use of LoadHelper in x86";
-  return RegStorage::InvalidReg();
-}
-
-// Not used in x86
-RegStorage X86Mir2Lir::LoadHelper(ThreadOffset<8> offset) {
+// Not used in x86(-64)
+RegStorage X86Mir2Lir::LoadHelper(QuickEntrypointEnum trampoline) {
   LOG(FATAL) << "Unexpected use of LoadHelper in x86";
   return RegStorage::InvalidReg();
 }
@@ -2714,6 +2708,71 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     }
   }
   return call_state;
+}
+
+bool X86Mir2Lir::GenInlinedCharAt(CallInfo* info) {
+  // Location of reference to data array
+  int value_offset = mirror::String::ValueOffset().Int32Value();
+  // Location of count
+  int count_offset = mirror::String::CountOffset().Int32Value();
+  // Starting offset within data array
+  int offset_offset = mirror::String::OffsetOffset().Int32Value();
+  // Start of char data with array_
+  int data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Int32Value();
+
+  RegLocation rl_obj = info->args[0];
+  RegLocation rl_idx = info->args[1];
+  rl_obj = LoadValue(rl_obj, kRefReg);
+  // X86 wants to avoid putting a constant index into a register.
+  if (!rl_idx.is_const) {
+    rl_idx = LoadValue(rl_idx, kCoreReg);
+  }
+  RegStorage reg_max;
+  GenNullCheck(rl_obj.reg, info->opt_flags);
+  bool range_check = (!(info->opt_flags & MIR_IGNORE_RANGE_CHECK));
+  LIR* range_check_branch = nullptr;
+  RegStorage reg_off;
+  RegStorage reg_ptr;
+  if (range_check) {
+    // On x86, we can compare to memory directly
+    // Set up a launch pad to allow retry in case of bounds violation */
+    if (rl_idx.is_const) {
+      LIR* comparison;
+      range_check_branch = OpCmpMemImmBranch(
+          kCondUlt, RegStorage::InvalidReg(), rl_obj.reg, count_offset,
+          mir_graph_->ConstantValue(rl_idx.orig_sreg), nullptr, &comparison);
+      MarkPossibleNullPointerExceptionAfter(0, comparison);
+    } else {
+      OpRegMem(kOpCmp, rl_idx.reg, rl_obj.reg, count_offset);
+      MarkPossibleNullPointerException(0);
+      range_check_branch = OpCondBranch(kCondUge, nullptr);
+    }
+  }
+  reg_off = AllocTemp();
+  reg_ptr = AllocTempRef();
+  Load32Disp(rl_obj.reg, offset_offset, reg_off);
+  LoadRefDisp(rl_obj.reg, value_offset, reg_ptr, kNotVolatile);
+  if (rl_idx.is_const) {
+    OpRegImm(kOpAdd, reg_off, mir_graph_->ConstantValue(rl_idx.orig_sreg));
+  } else {
+    OpRegReg(kOpAdd, reg_off, rl_idx.reg);
+  }
+  FreeTemp(rl_obj.reg);
+  if (rl_idx.location == kLocPhysReg) {
+    FreeTemp(rl_idx.reg);
+  }
+  RegLocation rl_dest = InlineTarget(info);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  LoadBaseIndexedDisp(reg_ptr, reg_off, 1, data_offset, rl_result.reg, kUnsignedHalf);
+  FreeTemp(reg_off);
+  FreeTemp(reg_ptr);
+  StoreValue(rl_dest, rl_result);
+  if (range_check) {
+    DCHECK(range_check_branch != nullptr);
+    info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've already null checked.
+    AddIntrinsicSlowPath(info, range_check_branch);
+  }
+  return true;
 }
 
 }  // namespace art

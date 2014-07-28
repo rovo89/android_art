@@ -476,15 +476,10 @@ void MipsMir2Lir::CompilerInitializeRegAlloc() {
  * ensure that all branch instructions can be restarted if
  * there is a trap in the shadow.  Allocate a temp register.
  */
-RegStorage MipsMir2Lir::LoadHelper(ThreadOffset<4> offset) {
+RegStorage MipsMir2Lir::LoadHelper(QuickEntrypointEnum trampoline) {
   // NOTE: native pointer.
-  LoadWordDisp(rs_rMIPS_SELF, offset.Int32Value(), rs_rT9);
+  LoadWordDisp(rs_rMIPS_SELF, GetThreadOffset<4>(trampoline).Int32Value(), rs_rT9);
   return rs_rT9;
-}
-
-RegStorage MipsMir2Lir::LoadHelper(ThreadOffset<8> offset) {
-  UNIMPLEMENTED(FATAL) << "Should not be called.";
-  return RegStorage::InvalidReg();
 }
 
 LIR* MipsMir2Lir::CheckSuspendUsingLoad() {
@@ -503,7 +498,7 @@ LIR* MipsMir2Lir::GenAtomic64Load(RegStorage r_base, int displacement, RegStorag
   LockCallTemps();  // Using fixed registers
   RegStorage reg_ptr = TargetReg(kArg0);
   OpRegRegImm(kOpAdd, reg_ptr, r_base, displacement);
-  RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pA64Load));
+  RegStorage r_tgt = LoadHelper(kQuickA64Load);
   LIR *ret = OpReg(kOpBlx, r_tgt);
   RegStorage reg_ret = RegStorage::MakeRegPair(TargetReg(kRet0), TargetReg(kRet1));
   OpRegCopyWide(r_dest, reg_ret);
@@ -525,7 +520,7 @@ LIR* MipsMir2Lir::GenAtomic64Store(RegStorage r_base, int displacement, RegStora
   OpRegCopyWide(reg_value, temp_value);
   FreeTemp(temp_ptr);
   FreeTemp(temp_value);
-  RegStorage r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(4, pA64Store));
+  RegStorage r_tgt = LoadHelper(kQuickA64Store);
   return OpReg(kOpBlx, r_tgt);
 }
 

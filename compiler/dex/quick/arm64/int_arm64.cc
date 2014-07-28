@@ -701,18 +701,6 @@ bool Arm64Mir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
   return true;
 }
 
-void Arm64Mir2Lir::OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int scale, int offset) {
-  LOG(FATAL) << "Unexpected use of OpLea for Arm64";
-}
-
-void Arm64Mir2Lir::OpTlsCmp(ThreadOffset<4> offset, int val) {
-  UNIMPLEMENTED(FATAL) << "Should not be used.";
-}
-
-void Arm64Mir2Lir::OpTlsCmp(ThreadOffset<8> offset, int val) {
-  LOG(FATAL) << "Unexpected use of OpTlsCmp for Arm64";
-}
-
 bool Arm64Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   DCHECK_EQ(cu_->instruction_set, kArm64);
   // Unused - RegLocation rl_src_unsafe = info->args[0];

@@ -758,15 +758,10 @@ void Arm64Mir2Lir::FreeCallTemps() {
   FreeTemp(rs_f7);
 }
 
-RegStorage Arm64Mir2Lir::LoadHelper(ThreadOffset<4> offset) {
-  UNIMPLEMENTED(FATAL) << "Should not be called.";
-  return RegStorage::InvalidReg();
-}
-
-RegStorage Arm64Mir2Lir::LoadHelper(ThreadOffset<8> offset) {
+RegStorage Arm64Mir2Lir::LoadHelper(QuickEntrypointEnum trampoline) {
   // TODO(Arm64): use LoadWordDisp instead.
   //   e.g. LoadWordDisp(rs_rA64_SELF, offset.Int32Value(), rs_rA64_LR);
-  LoadBaseDisp(rs_xSELF, offset.Int32Value(), rs_xLR, k64, kNotVolatile);
+  LoadBaseDisp(rs_xSELF, GetThreadOffset<8>(trampoline).Int32Value(), rs_xLR, k64, kNotVolatile);
   return rs_xLR;
 }
 

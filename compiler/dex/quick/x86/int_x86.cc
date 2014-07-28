@@ -1142,14 +1142,10 @@ void X86Mir2Lir::GenArrayBoundsCheck(RegStorage index,
         }
       }
       // Load array length to kArg1.
-      m2l_->OpRegMem(kOpMov, m2l_->TargetReg(kArg1, kNotWide), array_base_, len_offset_);
-      if (cu_->target64) {
-        m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pThrowArrayBounds),
-                                      new_index, m2l_->TargetReg(kArg1, kNotWide), true);
-      } else {
-        m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pThrowArrayBounds),
-                                      new_index, m2l_->TargetReg(kArg1, kNotWide), true);
-      }
+      X86Mir2Lir* x86_m2l = static_cast<X86Mir2Lir*>(m2l_);
+      x86_m2l->OpRegMem(kOpMov, m2l_->TargetReg(kArg1, kNotWide), array_base_, len_offset_);
+      x86_m2l->CallRuntimeHelperRegReg(kQuickThrowArrayBounds, new_index,
+                                       m2l_->TargetReg(kArg1, kNotWide), true);
     }
 
    private:
@@ -1182,17 +1178,11 @@ void X86Mir2Lir::GenArrayBoundsCheck(int32_t index,
       GenerateTargetLabel(kPseudoThrowTarget);
 
       // Load array length to kArg1.
-      m2l_->OpRegMem(kOpMov, m2l_->TargetReg(kArg1, kNotWide), array_base_, len_offset_);
-      m2l_->LoadConstant(m2l_->TargetReg(kArg0, kNotWide), index_);
-      if (cu_->target64) {
-        m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pThrowArrayBounds),
-                                      m2l_->TargetReg(kArg0, kNotWide),
-                                      m2l_->TargetReg(kArg1, kNotWide), true);
-      } else {
-        m2l_->CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pThrowArrayBounds),
-                                      m2l_->TargetReg(kArg0, kNotWide),
-                                      m2l_->TargetReg(kArg1, kNotWide), true);
-      }
+      X86Mir2Lir* x86_m2l = static_cast<X86Mir2Lir*>(m2l_);
+      x86_m2l->OpRegMem(kOpMov, m2l_->TargetReg(kArg1, kNotWide), array_base_, len_offset_);
+      x86_m2l->LoadConstant(m2l_->TargetReg(kArg0, kNotWide), index_);
+      x86_m2l->CallRuntimeHelperRegReg(kQuickThrowArrayBounds, m2l_->TargetReg(kArg0, kNotWide),
+                                       m2l_->TargetReg(kArg1, kNotWide), true);
     }
 
    private:
