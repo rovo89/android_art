@@ -294,16 +294,19 @@ size_t ThreadList::RunCheckpointOnRunnableThreads(Closure* checkpoint_function) 
 
 void ThreadList::SuspendAll() {
   Thread* self = Thread::Current();
-  DCHECK(self != nullptr);
 
-  VLOG(threads) << *self << " SuspendAll starting...";
+  if (self != nullptr) {
+    VLOG(threads) << *self << " SuspendAll starting...";
+  } else {
+    VLOG(threads) << "Thread[null] SuspendAll starting...";
+  }
   ATRACE_BEGIN("Suspending mutator threads");
   uint64_t start_time = NanoTime();
 
   Locks::mutator_lock_->AssertNotHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
   Locks::thread_suspend_count_lock_->AssertNotHeld(self);
-  if (kDebugLocking) {
+  if (kDebugLocking && self != nullptr) {
     CHECK_NE(self->GetState(), kRunnable);
   }
   {
@@ -344,14 +347,21 @@ void ThreadList::SuspendAll() {
   ATRACE_END();
   ATRACE_BEGIN("Mutator threads suspended");
 
-  VLOG(threads) << *self << " SuspendAll complete";
+  if (self != nullptr) {
+    VLOG(threads) << *self << " SuspendAll complete";
+  } else {
+    VLOG(threads) << "Thread[null] SuspendAll complete";
+  }
 }
 
 void ThreadList::ResumeAll() {
   Thread* self = Thread::Current();
-  DCHECK(self != nullptr);
 
-  VLOG(threads) << *self << " ResumeAll starting";
+  if (self != nullptr) {
+    VLOG(threads) << *self << " ResumeAll starting";
+  } else {
+    VLOG(threads) << "Thread[null] ResumeAll starting";
+  }
 
   ATRACE_END();
   ATRACE_BEGIN("Resuming mutator threads");
@@ -377,11 +387,20 @@ void ThreadList::ResumeAll() {
 
     // Broadcast a notification to all suspended threads, some or all of
     // which may choose to wake up.  No need to wait for them.
-    VLOG(threads) << *self << " ResumeAll waking others";
+    if (self != nullptr) {
+      VLOG(threads) << *self << " ResumeAll waking others";
+    } else {
+      VLOG(threads) << "Thread[null] ResumeAll waking others";
+    }
     Thread::resume_cond_->Broadcast(self);
   }
   ATRACE_END();
-  VLOG(threads) << *self << " ResumeAll complete";
+
+  if (self != nullptr) {
+    VLOG(threads) << *self << " ResumeAll complete";
+  } else {
+    VLOG(threads) << "Thread[null] ResumeAll complete";
+  }
 }
 
 void ThreadList::Resume(Thread* thread, bool for_debugger) {

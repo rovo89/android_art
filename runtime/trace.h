@@ -68,6 +68,8 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
 
   bool UseWallClock();
   bool UseThreadCpuClock();
+  void MeasureClockOverhead();
+  uint32_t GetClockOverheadNanoSeconds();
 
   void CompareAndUpdateStackTrace(Thread* thread, std::vector<mirror::ArtMethod*>* stack_trace)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -154,6 +156,9 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
 
   // Time trace was created.
   const uint64_t start_time_;
+
+  // Clock overhead.
+  const uint32_t clock_overhead_ns_;
 
   // Offset into buf_.
   AtomicInteger cur_offset_;
