@@ -48,14 +48,12 @@ static constexpr RegStorage dp_regs_arr[] =
      rs_d8, rs_d9, rs_d10, rs_d11, rs_d12, rs_d13, rs_d14, rs_d15,
      rs_d16, rs_d17, rs_d18, rs_d19, rs_d20, rs_d21, rs_d22, rs_d23,
      rs_d24, rs_d25, rs_d26, rs_d27, rs_d28, rs_d29, rs_d30, rs_d31};
+// Note: we are not able to call to C function since rs_xSELF is a special register need to be
+// preserved but would be scratched by native functions follow aapcs64.
 static constexpr RegStorage reserved_regs_arr[] =
     {rs_wSUSPEND, rs_wSELF, rs_wsp, rs_wLR, rs_wzr};
 static constexpr RegStorage reserved64_regs_arr[] =
     {rs_xSUSPEND, rs_xSELF, rs_sp, rs_xLR, rs_xzr};
-// TUNING: Are there too many temp registers and too less promote target?
-// This definition need to be matched with runtime.cc, quick entry assembly and JNI compiler
-// Note: we are not able to call to C function directly if it un-match C ABI.
-// Currently, rs_rA64_SELF is not a callee save register which does not match C ABI.
 static constexpr RegStorage core_temps_arr[] =
     {rs_w0, rs_w1, rs_w2, rs_w3, rs_w4, rs_w5, rs_w6, rs_w7,
      rs_w8, rs_w9, rs_w10, rs_w11, rs_w12, rs_w13, rs_w14, rs_w15, rs_w16,
@@ -132,7 +130,7 @@ RegStorage Arm64Mir2Lir::TargetReg(SpecialTargetRegister reg) {
     case kRet0: res_reg = rs_w0; break;
     case kRet1: res_reg = rs_w1; break;
     case kInvokeTgt: res_reg = rs_wLR; break;
-    case kHiddenArg: res_reg = rs_w12; break;
+    case kHiddenArg: res_reg = rs_wIP1; break;
     case kHiddenFpArg: res_reg = RegStorage::InvalidReg(); break;
     case kCount: res_reg = RegStorage::InvalidReg(); break;
     default: res_reg = RegStorage::InvalidReg();
