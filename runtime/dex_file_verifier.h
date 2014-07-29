@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_DEX_FILE_VERIFIER_H_
 #define ART_RUNTIME_DEX_FILE_VERIFIER_H_
 
+#include <unordered_set>
+
 #include "dex_file.h"
 #include "safe_map.h"
 
@@ -114,6 +116,9 @@ class DexFileVerifier {
   const void* previous_item_;
 
   std::string failure_reason_;
+
+  // Set of type ids for which there are ClassDef elements in the dex file.
+  std::unordered_set<decltype(DexFile::ClassDef::class_idx_)> defined_classes_;
 };
 
 }  // namespace art
