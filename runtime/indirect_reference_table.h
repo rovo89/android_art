@@ -24,10 +24,11 @@
 
 #include "base/logging.h"
 #include "base/mutex.h"
+#include "gc_root.h"
 #include "mem_map.h"
 #include "object_callbacks.h"
 #include "offsets.h"
-#include "read_barrier.h"
+#include "read_barrier_option.h"
 
 namespace art {
 namespace mirror {
@@ -204,12 +205,13 @@ union IRTSegmentState {
 
 class IrtIterator {
  public:
-  explicit IrtIterator(mirror::Object** table, size_t i, size_t capacity)
+  explicit IrtIterator(GcRoot<mirror::Object>* table, size_t i, size_t capacity)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : table_(table), i_(i), capacity_(capacity) {
     SkipNullsAndTombstones();
   }
 
-  IrtIterator& operator++() {
+  IrtIterator& operator++() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ++i_;
     SkipNullsAndTombstones();
     return *this;
@@ -217,7 +219,7 @@ class IrtIterator {
 
   mirror::Object** operator*() {
     // This does not have a read barrier as this is used to visit roots.
-    return &table_[i_];
+    return table_[i_].AddressWithoutBarrier();
   }
 
   bool equals(const IrtIterator& rhs) const {
@@ -225,14 +227,16 @@ class IrtIterator {
   }
 
  private:
-  void SkipNullsAndTombstones() {
+  void SkipNullsAndTombstones() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // We skip NULLs and tombstones. Clients don't want to see implementation details.
-    while (i_ < capacity_ && (table_[i_] == NULL || table_[i_] == kClearedJniWeakGlobal)) {
+    while (i_ < capacity_ &&
+           (table_[i_].IsNull() ||
+            table_[i_].Read<kWithoutReadBarrier>() == kClearedJniWeakGlobal)) {
       ++i_;
     }
   }
 
-  mirror::Object** const table_;
+  GcRoot<mirror::Object>* const table_;
   size_t i_;
   size_t capacity_;
 };
@@ -309,7 +313,8 @@ class IndirectReferenceTable {
     return IrtIterator(table_, Capacity(), Capacity());
   }
 
-  void VisitRoots(RootCallback* callback, void* arg, uint32_t tid, RootType root_type);
+  void VisitRoots(RootCallback* callback, void* arg, uint32_t tid, RootType root_type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uint32_t GetSegmentState() const {
     return segment_state_.all;
@@ -373,7 +378,7 @@ class IndirectReferenceTable {
   std::unique_ptr<MemMap> slot_mem_map_;
   // bottom of the stack. Do not directly access the object references
   // in this as they are roots. Use Get() that has a read barrier.
-  mirror::Object** table_;
+  GcRoot<mirror::Object>* table_;
   /* bit mask, ORed into all irefs */
   IndirectRefKind kind_;
   /* extended debugging info */

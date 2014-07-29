@@ -85,7 +85,8 @@ class JavaVMExt : public JavaVM {
 
   void SetCheckJniEnabled(bool enabled);
 
-  void VisitRoots(RootCallback* callback, void* arg);
+  void VisitRoots(RootCallback* callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DisallowNewWeakGlobals() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   void AllowNewWeakGlobals() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -93,7 +94,8 @@ class JavaVMExt : public JavaVM {
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DeleteWeakGlobalRef(Thread* self, jweak obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SweepJniWeakGlobals(IsMarkedCallback* callback, void* arg);
+  void SweepJniWeakGlobals(IsMarkedCallback* callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::Object* DecodeWeakGlobal(Thread* self, IndirectRef ref)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
