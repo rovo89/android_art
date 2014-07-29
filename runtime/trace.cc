@@ -178,29 +178,29 @@ bool Trace::UseWallClock() {
       (clock_source_ == kTraceClockSourceDual);
 }
 
-static void MeasureClockOverhead(Trace* trace) {
-  if (trace->UseThreadCpuClock()) {
+void Trace::MeasureClockOverhead() {
+  if (UseThreadCpuClock()) {
     Thread::Current()->GetCpuMicroTime();
   }
-  if (trace->UseWallClock()) {
+  if (UseWallClock()) {
     MicroTime();
   }
 }
 
 // Compute an average time taken to measure clocks.
-static uint32_t GetClockOverheadNanoSeconds(Trace* trace) {
+uint32_t Trace::GetClockOverheadNanoSeconds() {
   Thread* self = Thread::Current();
   uint64_t start = self->GetCpuMicroTime();
 
   for (int i = 4000; i > 0; i--) {
-    MeasureClockOverhead(trace);
-    MeasureClockOverhead(trace);
-    MeasureClockOverhead(trace);
-    MeasureClockOverhead(trace);
-    MeasureClockOverhead(trace);
-    MeasureClockOverhead(trace);
-    MeasureClockOverhead(trace);
-    MeasureClockOverhead(trace);
+    MeasureClockOverhead();
+    MeasureClockOverhead();
+    MeasureClockOverhead();
+    MeasureClockOverhead();
+    MeasureClockOverhead();
+    MeasureClockOverhead();
+    MeasureClockOverhead();
+    MeasureClockOverhead();
   }
 
   uint64_t elapsed_us = self->GetCpuMicroTime() - start;
@@ -444,7 +444,8 @@ TracingMode Trace::GetMethodTracingMode() {
 Trace::Trace(File* trace_file, int buffer_size, int flags, bool sampling_enabled)
     : trace_file_(trace_file), buf_(new uint8_t[buffer_size]()), flags_(flags),
       sampling_enabled_(sampling_enabled), clock_source_(default_clock_source_),
-      buffer_size_(buffer_size), start_time_(MicroTime()), cur_offset_(0),  overflow_(false) {
+      buffer_size_(buffer_size), start_time_(MicroTime()),
+      clock_overhead_ns_(GetClockOverheadNanoSeconds()), cur_offset_(0), overflow_(false) {
   // Set up the beginning of the trace.
   uint16_t trace_version = GetTraceVersion(clock_source_);
   memset(buf_.get(), 0, kTraceHeaderLength);
@@ -480,7 +481,6 @@ void Trace::FinishTracing() {
   uint64_t elapsed = MicroTime() - start_time_;
 
   size_t final_offset = cur_offset_.LoadRelaxed();
-  uint32_t clock_overhead_ns = GetClockOverheadNanoSeconds(this);
 
   if ((flags_ & kTraceCountAllocs) != 0) {
     Runtime::Current()->SetStatsEnabled(false);
@@ -506,7 +506,7 @@ void Trace::FinishTracing() {
   os << StringPrintf("elapsed-time-usec=%" PRIu64 "\n", elapsed);
   size_t num_records = (final_offset - kTraceHeaderLength) / GetRecordSize(clock_source_);
   os << StringPrintf("num-method-calls=%zd\n", num_records);
-  os << StringPrintf("clock-call-overhead-nsec=%d\n", clock_overhead_ns);
+  os << StringPrintf("clock-call-overhead-nsec=%d\n", clock_overhead_ns_);
   os << StringPrintf("vm=art\n");
   if ((flags_ & kTraceCountAllocs) != 0) {
     os << StringPrintf("alloc-count=%d\n", Runtime::Current()->GetStat(KIND_ALLOCATED_OBJECTS));
