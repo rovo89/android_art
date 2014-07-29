@@ -63,6 +63,22 @@ constexpr QuickMethodFrameInfo ArmCalleeSaveMethodFrameInfo(Runtime::CalleeSaveT
                               ArmCalleeSaveFpSpills(type));
 }
 
+constexpr size_t ArmCalleeSaveFpr1Offset(Runtime::CalleeSaveType type) {
+  return ArmCalleeSaveFrameSize(type) -
+         (POPCOUNT(ArmCalleeSaveCoreSpills(type)) +
+          POPCOUNT(ArmCalleeSaveFpSpills(type))) * kArmPointerSize;
+}
+
+constexpr size_t ArmCalleeSaveGpr1Offset(Runtime::CalleeSaveType type) {
+  return ArmCalleeSaveFrameSize(type) -
+         POPCOUNT(ArmCalleeSaveCoreSpills(type)) * kArmPointerSize;
+}
+
+constexpr size_t ArmCalleeSaveLrOffset(Runtime::CalleeSaveType type) {
+  return ArmCalleeSaveFrameSize(type) -
+      POPCOUNT(ArmCalleeSaveCoreSpills(type) & (-(1 << LR))) * kArmPointerSize;
+}
+
 }  // namespace arm
 }  // namespace art
 
