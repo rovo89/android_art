@@ -142,6 +142,8 @@ enum A64NativeRegisterPool {
   rwsp = rw31,
 
   // Aliases which are not defined in "ARM Architecture Reference, register names".
+  rxIP0 = rx16,
+  rxIP1 = rx17,
   rxSUSPEND = rx19,
   rxSELF = rx18,
   rxLR = rx30,
@@ -150,6 +152,8 @@ enum A64NativeRegisterPool {
    * the 64-bit view. However, for now we'll define a 32-bit view to keep these from being
    * allocated as 32-bit temp registers.
    */
+  rwIP0 = rw16,
+  rwIP1 = rw17,
   rwSUSPEND = rw19,
   rwSELF = rw18,
   rwLR = rw30,
@@ -165,6 +169,10 @@ A64_REGISTER_CODE_LIST(A64_DEFINE_REGSTORAGES)
 
 constexpr RegStorage rs_xzr(RegStorage::kValid | rxzr);
 constexpr RegStorage rs_wzr(RegStorage::kValid | rwzr);
+constexpr RegStorage rs_xIP0(RegStorage::kValid | rxIP0);
+constexpr RegStorage rs_wIP0(RegStorage::kValid | rwIP0);
+constexpr RegStorage rs_xIP1(RegStorage::kValid | rxIP1);
+constexpr RegStorage rs_wIP1(RegStorage::kValid | rwIP1);
 // Reserved registers.
 constexpr RegStorage rs_xSUSPEND(RegStorage::kValid | rxSUSPEND);
 constexpr RegStorage rs_xSELF(RegStorage::kValid | rxSELF);

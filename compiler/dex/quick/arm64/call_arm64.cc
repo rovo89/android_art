@@ -319,8 +319,8 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
   LockTemp(rs_x5);
   LockTemp(rs_x6);
   LockTemp(rs_x7);
-  LockTemp(rs_x8);
-  LockTemp(rs_x9);
+  LockTemp(rs_xIP0);
+  LockTemp(rs_xIP1);
 
   /*
    * We can safely skip the stack overflow check if we're
@@ -341,7 +341,7 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
     if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitStackOverflowChecks()) {
       if (!large_frame) {
         // Load stack limit
-        LoadWordDisp(rs_xSELF, Thread::StackEndOffset<8>().Int32Value(), rs_x9);
+        LoadWordDisp(rs_xSELF, Thread::StackEndOffset<8>().Int32Value(), rs_xIP1);
       }
     } else {
       // TODO(Arm64) Implement implicit checks.
@@ -386,10 +386,10 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
           m2l_->OpRegImm(kOpAdd, rs_sp, sp_displace_);
           m2l_->ClobberCallerSave();
           ThreadOffset<8> func_offset = QUICK_ENTRYPOINT_OFFSET(8, pThrowStackOverflow);
-          m2l_->LockTemp(rs_x8);
-          m2l_->LoadWordDisp(rs_xSELF, func_offset.Int32Value(), rs_x8);
-          m2l_->NewLIR1(kA64Br1x, rs_x8.GetReg());
-          m2l_->FreeTemp(rs_x8);
+          m2l_->LockTemp(rs_xIP0);
+          m2l_->LoadWordDisp(rs_xSELF, func_offset.Int32Value(), rs_xIP0);
+          m2l_->NewLIR1(kA64Br1x, rs_xIP0.GetReg());
+          m2l_->FreeTemp(rs_xIP0);
         }
 
       private:
@@ -399,11 +399,11 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
       if (large_frame) {
         // Compare Expected SP against bottom of stack.
         // Branch to throw target if there is not enough room.
-        OpRegRegImm(kOpSub, rs_x9, rs_sp, frame_size_without_spills);
-        LoadWordDisp(rs_xSELF, Thread::StackEndOffset<8>().Int32Value(), rs_x8);
-        LIR* branch = OpCmpBranch(kCondUlt, rs_x9, rs_x8, nullptr);
+        OpRegRegImm(kOpSub, rs_xIP1, rs_sp, frame_size_without_spills);
+        LoadWordDisp(rs_xSELF, Thread::StackEndOffset<8>().Int32Value(), rs_xIP0);
+        LIR* branch = OpCmpBranch(kCondUlt, rs_xIP1, rs_xIP0, nullptr);
         AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, spill_size));
-        OpRegCopy(rs_sp, rs_x9);  // Establish stack after checks.
+        OpRegCopy(rs_sp, rs_xIP1);  // Establish stack after checks.
       } else {
         /*
          * If the frame is small enough we are guaranteed to have enough space that remains to
@@ -411,7 +411,7 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
          * Establishes stack before checks.
          */
         OpRegRegImm(kOpSub, rs_sp, rs_sp, frame_size_without_spills);
-        LIR* branch = OpCmpBranch(kCondUlt, rs_sp, rs_x9, nullptr);
+        LIR* branch = OpCmpBranch(kCondUlt, rs_sp, rs_xIP1, nullptr);
         AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, frame_size_));
       }
     } else {
@@ -431,8 +431,8 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
   FreeTemp(rs_x5);
   FreeTemp(rs_x6);
   FreeTemp(rs_x7);
-  FreeTemp(rs_x8);
-  FreeTemp(rs_x9);
+  FreeTemp(rs_xIP0);
+  FreeTemp(rs_xIP1);
 }
 
 void Arm64Mir2Lir::GenExitSequence() {
