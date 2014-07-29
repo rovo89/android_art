@@ -36,24 +36,24 @@
 namespace art {
 namespace mirror {
 
-Class* Class::java_lang_Class_ = nullptr;
+GcRoot<Class> Class::java_lang_Class_;
 
 void Class::SetClassClass(Class* java_lang_Class) {
-  CHECK(java_lang_Class_ == nullptr)
-      << ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(&java_lang_Class_)
+  CHECK(java_lang_Class_.IsNull())
+      << java_lang_Class_.Read()
       << " " << java_lang_Class;
   CHECK(java_lang_Class != nullptr);
-  java_lang_Class_ = java_lang_Class;
+  java_lang_Class_ = GcRoot<Class>(java_lang_Class);
 }
 
 void Class::ResetClass() {
-  CHECK(java_lang_Class_ != nullptr);
-  java_lang_Class_ = nullptr;
+  CHECK(!java_lang_Class_.IsNull());
+  java_lang_Class_ = GcRoot<Class>(nullptr);
 }
 
 void Class::VisitRoots(RootCallback* callback, void* arg) {
-  if (java_lang_Class_ != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&java_lang_Class_), arg, 0, kRootStickyClass);
+  if (!java_lang_Class_.IsNull()) {
+    java_lang_Class_.VisitRoot(callback, arg, 0, kRootStickyClass);
   }
 }
 
@@ -879,8 +879,9 @@ Class* Class::CopyOf(Thread* self, int32_t new_length) {
   CopyClassVisitor visitor(self, &h_this, new_length, sizeof(Class));
 
   mirror::Object* new_class =
-      kMovingClasses ? heap->AllocObject<true>(self, java_lang_Class_, new_length, visitor)
-                     : heap->AllocNonMovableObject<true>(self, java_lang_Class_, new_length, visitor);
+      kMovingClasses
+         ? heap->AllocObject<true>(self, java_lang_Class_.Read(), new_length, visitor)
+         : heap->AllocNonMovableObject<true>(self, java_lang_Class_.Read(), new_length, visitor);
   if (UNLIKELY(new_class == nullptr)) {
     CHECK(self->IsExceptionPending());  // Expect an OOME.
     return NULL;

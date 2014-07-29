@@ -19,9 +19,9 @@
 
 #include <gtest/gtest.h>
 
+#include "gc_root.h"
 #include "object.h"
 #include "object_callbacks.h"
-#include "read_barrier.h"
 
 namespace art {
 
@@ -111,9 +111,8 @@ class MANAGED String FINAL : public Object {
   int32_t CompareTo(String* other) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Class* GetJavaLangString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(java_lang_String_ != NULL);
-    return ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(
-        &java_lang_String_);
+    DCHECK(!java_lang_String_.IsNull());
+    return java_lang_String_.Read();
   }
 
   static void SetClass(Class* java_lang_String);
@@ -160,7 +159,7 @@ class MANAGED String FINAL : public Object {
 
   int32_t offset_;
 
-  static Class* java_lang_String_;
+  static GcRoot<Class> java_lang_String_;
 
   friend struct art::StringOffsets;  // for verifying offset information
   FRIEND_TEST(ObjectTest, StringLength);  // for SetOffset and SetCount

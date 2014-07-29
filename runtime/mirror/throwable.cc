@@ -30,7 +30,7 @@
 namespace art {
 namespace mirror {
 
-Class* Throwable::java_lang_Throwable_ = NULL;
+GcRoot<Class> Throwable::java_lang_Throwable_;
 
 void Throwable::SetDetailMessage(String* new_detail_message) {
   if (Runtime::Current()->IsActiveTransaction()) {
@@ -127,19 +127,19 @@ std::string Throwable::Dump() {
 }
 
 void Throwable::SetClass(Class* java_lang_Throwable) {
-  CHECK(java_lang_Throwable_ == NULL);
+  CHECK(java_lang_Throwable_.IsNull());
   CHECK(java_lang_Throwable != NULL);
-  java_lang_Throwable_ = java_lang_Throwable;
+  java_lang_Throwable_ = GcRoot<Class>(java_lang_Throwable);
 }
 
 void Throwable::ResetClass() {
-  CHECK(java_lang_Throwable_ != NULL);
-  java_lang_Throwable_ = NULL;
+  CHECK(!java_lang_Throwable_.IsNull());
+  java_lang_Throwable_ = GcRoot<Class>(nullptr);
 }
 
 void Throwable::VisitRoots(RootCallback* callback, void* arg) {
-  if (java_lang_Throwable_ != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&java_lang_Throwable_), arg, 0, kRootStickyClass);
+  if (!java_lang_Throwable_.IsNull()) {
+    java_lang_Throwable_.VisitRoot(callback, arg, 0, kRootStickyClass);
   }
 }
 

@@ -26,17 +26,17 @@
 namespace art {
 namespace mirror {
 
-Class* StackTraceElement::java_lang_StackTraceElement_ = NULL;
+GcRoot<Class> StackTraceElement::java_lang_StackTraceElement_;
 
 void StackTraceElement::SetClass(Class* java_lang_StackTraceElement) {
-  CHECK(java_lang_StackTraceElement_ == NULL);
+  CHECK(java_lang_StackTraceElement_.IsNull());
   CHECK(java_lang_StackTraceElement != NULL);
-  java_lang_StackTraceElement_ = java_lang_StackTraceElement;
+  java_lang_StackTraceElement_ = GcRoot<Class>(java_lang_StackTraceElement);
 }
 
 void StackTraceElement::ResetClass() {
-  CHECK(java_lang_StackTraceElement_ != NULL);
-  java_lang_StackTraceElement_ = NULL;
+  CHECK(!java_lang_StackTraceElement_.IsNull());
+  java_lang_StackTraceElement_ = GcRoot<Class>(nullptr);
 }
 
 StackTraceElement* StackTraceElement::Alloc(Thread* self, Handle<String> declaring_class,
@@ -68,9 +68,8 @@ void StackTraceElement::Init(Handle<String> declaring_class, Handle<String> meth
 }
 
 void StackTraceElement::VisitRoots(RootCallback* callback, void* arg) {
-  if (java_lang_StackTraceElement_ != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&java_lang_StackTraceElement_), arg, 0,
-             kRootStickyClass);
+  if (!java_lang_StackTraceElement_.IsNull()) {
+    java_lang_StackTraceElement_.VisitRoot(callback, arg, 0, kRootStickyClass);
   }
 }
 

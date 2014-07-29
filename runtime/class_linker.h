@@ -24,11 +24,11 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "dex_file.h"
+#include "gc_root.h"
 #include "gtest/gtest.h"
 #include "jni.h"
 #include "oat_file.h"
 #include "object_callbacks.h"
-#include "read_barrier.h"
 
 namespace art {
 
@@ -245,9 +245,11 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void VisitClassRoots(RootCallback* callback, void* arg, VisitRootFlags flags)
-      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_);
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags)
-      LOCKS_EXCLUDED(dex_lock_);
+      LOCKS_EXCLUDED(dex_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::DexCache* FindDexCache(const DexFile& dex_file)
       LOCKS_EXCLUDED(dex_lock_)
@@ -378,9 +380,7 @@ class ClassLinker {
   mirror::ArtMethod* AllocArtMethod(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::ObjectArray<mirror::Class>* GetClassRoots() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ObjectArray<mirror::Class>* class_roots =
-        ReadBarrier::BarrierForRoot<mirror::ObjectArray<mirror::Class>, kWithReadBarrier>(
-            &class_roots_);
+    mirror::ObjectArray<mirror::Class>* class_roots = class_roots_.Read();
     DCHECK(class_roots != NULL);
     return class_roots;
   }
@@ -609,18 +609,18 @@ class ClassLinker {
 
   mutable ReaderWriterMutex dex_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::vector<size_t> new_dex_cache_roots_ GUARDED_BY(dex_lock_);;
-  std::vector<mirror::DexCache*> dex_caches_ GUARDED_BY(dex_lock_);
+  std::vector<GcRoot<mirror::DexCache>> dex_caches_ GUARDED_BY(dex_lock_);
   std::vector<const OatFile*> oat_files_ GUARDED_BY(dex_lock_);
 
 
   // multimap from a string hash code of a class descriptor to
   // mirror::Class* instances. Results should be compared for a matching
   // Class::descriptor_ and Class::class_loader_.
-  typedef std::multimap<size_t, mirror::Class*> Table;
+  typedef std::multimap<size_t, GcRoot<mirror::Class>> Table;
   // This contains strong roots. To enable concurrent root scanning of
   // the class table, be careful to use a read barrier when accessing this.
   Table class_table_ GUARDED_BY(Locks::classlinker_classes_lock_);
-  std::vector<std::pair<size_t, mirror::Class*>> new_class_roots_;
+  std::vector<std::pair<size_t, GcRoot<mirror::Class>>> new_class_roots_;
 
   // Do we need to search dex caches to find image classes?
   bool dex_cache_image_class_lookup_required_;
@@ -694,7 +694,7 @@ class ClassLinker {
     kJavaLangStackTraceElementArrayClass,
     kClassRootsMax,
   };
-  mirror::ObjectArray<mirror::Class>* class_roots_;
+  GcRoot<mirror::ObjectArray<mirror::Class>> class_roots_;
 
   mirror::Class* GetClassRoot(ClassRoot class_root) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -710,12 +710,12 @@ class ClassLinker {
   }
 
   // The interface table used by all arrays.
-  mirror::IfTable* array_iftable_;
+  GcRoot<mirror::IfTable> array_iftable_;
 
   // A cache of the last FindArrayClass results. The cache serves to avoid creating array class
   // descriptors for the sake of performing FindClass.
   static constexpr size_t kFindArrayCacheSize = 16;
-  mirror::Class* find_array_class_cache_[kFindArrayCacheSize];
+  GcRoot<mirror::Class> find_array_class_cache_[kFindArrayCacheSize];
   size_t find_array_class_cache_next_victim_;
 
   bool init_done_;

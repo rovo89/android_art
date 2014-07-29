@@ -41,9 +41,8 @@ inline uint32_t ArtMethod::ClassSize() {
 
 template<ReadBarrierOption kReadBarrierOption>
 inline Class* ArtMethod::GetJavaLangReflectArtMethod() {
-  DCHECK(java_lang_reflect_ArtMethod_ != nullptr);
-  return ReadBarrier::BarrierForRoot<mirror::Class, kReadBarrierOption>(
-      &java_lang_reflect_ArtMethod_);
+  DCHECK(!java_lang_reflect_ArtMethod_.IsNull());
+  return java_lang_reflect_ArtMethod_.Read<kReadBarrierOption>();
 }
 
 inline Class* ArtMethod::GetDeclaringClass() {

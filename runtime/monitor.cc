@@ -84,7 +84,7 @@ Monitor::Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_
       num_waiters_(0),
       owner_(owner),
       lock_count_(0),
-      obj_(obj),
+      obj_(GcRoot<mirror::Object>(obj)),
       wait_set_(NULL),
       hash_code_(hash_code),
       locking_method_(NULL),
@@ -107,7 +107,7 @@ Monitor::Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_
       num_waiters_(0),
       owner_(owner),
       lock_count_(0),
-      obj_(obj),
+      obj_(GcRoot<mirror::Object>(obj)),
       wait_set_(NULL),
       hash_code_(hash_code),
       locking_method_(NULL),
@@ -225,7 +225,7 @@ void Monitor::RemoveFromWaitSet(Thread *thread) {
 }
 
 void Monitor::SetObject(mirror::Object* object) {
-  obj_ = object;
+  obj_ = GcRoot<mirror::Object>(object);
 }
 
 void Monitor::Lock(Thread* self) {
@@ -636,7 +636,7 @@ bool Monitor::Deflate(Thread* self, mirror::Object* obj) {
     }
     // The monitor is deflated, mark the object as nullptr so that we know to delete it during the
     // next GC.
-    monitor->obj_ = nullptr;
+    monitor->obj_ = GcRoot<mirror::Object>(nullptr);
   }
   return true;
 }

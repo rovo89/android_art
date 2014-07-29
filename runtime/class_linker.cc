@@ -34,6 +34,7 @@
 #include "compiler_callbacks.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
+#include "gc_root-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "gc/heap.h"
@@ -267,9 +268,10 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   java_lang_ref_Reference->SetStatus(mirror::Class::kStatusResolved, self);
 
   // Create storage for root classes, save away our work so far (requires descriptors).
-  class_roots_ = mirror::ObjectArray<mirror::Class>::Alloc(self, object_array_class.Get(),
-                                                           kClassRootsMax);
-  CHECK(class_roots_ != NULL);
+  class_roots_ = GcRoot<mirror::ObjectArray<mirror::Class> >(
+      mirror::ObjectArray<mirror::Class>::Alloc(self, object_array_class.Get(),
+                                                kClassRootsMax));
+  CHECK(!class_roots_.IsNull());
   SetClassRoot(kJavaLangClass, java_lang_Class.Get());
   SetClassRoot(kJavaLangObject, java_lang_Object.Get());
   SetClassRoot(kClassArrayClass, class_array_class.Get());
@@ -289,7 +291,7 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   SetClassRoot(kPrimitiveVoid, CreatePrimitiveClass(self, Primitive::kPrimVoid));
 
   // Create array interface entries to populate once we can load system classes.
-  array_iftable_ = AllocIfTable(self, 2);
+  array_iftable_ = GcRoot<mirror::IfTable>(AllocIfTable(self, 2));
 
   // Create int array type for AllocDexCache (done in AppendToBootClassPath).
   Handle<mirror::Class> int_array_class(hs.NewHandle(
@@ -428,8 +430,7 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   // We assume that Cloneable/Serializable don't have superinterfaces -- normally we'd have to
   // crawl up and explicitly list all of the supers as well.
   {
-    mirror::IfTable* array_iftable =
-        ReadBarrier::BarrierForRoot<mirror::IfTable, kWithReadBarrier>(&array_iftable_);
+    mirror::IfTable* array_iftable = array_iftable_.Read();
     array_iftable->SetInterface(0, java_lang_Cloneable);
     array_iftable->SetInterface(1, java_io_Serializable);
   }
@@ -559,7 +560,7 @@ void ClassLinker::FinishInit(Thread* self) {
     // if possible add new checks there to catch errors early
   }
 
-  CHECK(array_iftable_ != NULL);
+  CHECK(!array_iftable_.IsNull());
 
   // disable the slow paths in FindClass and CreatePrimitiveClass now
   // that Object, Class, and Object[] are setup
@@ -1466,7 +1467,7 @@ void ClassLinker::InitFromImage() {
   Handle<mirror::ObjectArray<mirror::Class>> class_roots(hs.NewHandle(
           space->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots)->
           AsObjectArray<mirror::Class>()));
-  class_roots_ = class_roots.Get();
+  class_roots_ = GcRoot<mirror::ObjectArray<mirror::Class>>(class_roots.Get());
 
   // Special case of setting up the String class early so that we can test arbitrary objects
   // as being Strings or not
@@ -1506,11 +1507,11 @@ void ClassLinker::InitFromImage() {
 
   // reinit class_roots_
   mirror::Class::SetClassClass(class_roots->Get(kJavaLangClass));
-  class_roots_ = class_roots.Get();
+  class_roots_ = GcRoot<mirror::ObjectArray<mirror::Class>>(class_roots.Get());
 
   // reinit array_iftable_ from any array class instance, they should be ==
-  array_iftable_ = GetClassRoot(kObjectArrayClass)->GetIfTable();
-  DCHECK(array_iftable_ == GetClassRoot(kBooleanArrayClass)->GetIfTable());
+  array_iftable_ = GcRoot<mirror::IfTable>(GetClassRoot(kObjectArrayClass)->GetIfTable());
+  DCHECK(array_iftable_.Read() == GetClassRoot(kBooleanArrayClass)->GetIfTable());
   // String class root was set above
   mirror::Reference::SetClass(GetClassRoot(kJavaLangRefReference));
   mirror::ArtField::SetClass(GetClassRoot(kJavaLangReflectArtField));
@@ -1533,22 +1534,23 @@ void ClassLinker::InitFromImage() {
 void ClassLinker::VisitClassRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   if ((flags & kVisitRootFlagAllRoots) != 0) {
-    for (std::pair<const size_t, mirror::Class*>& it : class_table_) {
-      callback(reinterpret_cast<mirror::Object**>(&it.second), arg, 0, kRootStickyClass);
+    for (std::pair<const size_t, GcRoot<mirror::Class> >& it : class_table_) {
+      it.second.VisitRoot(callback, arg, 0, kRootStickyClass);
     }
   } else if ((flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& pair : new_class_roots_) {
-      mirror::Object* old_ref = pair.second;
-      callback(reinterpret_cast<mirror::Object**>(&pair.second), arg, 0, kRootStickyClass);
-      if (UNLIKELY(pair.second != old_ref)) {
+      mirror::Class* old_ref = pair.second.Read<kWithoutReadBarrier>();
+      pair.second.VisitRoot(callback, arg, 0, kRootStickyClass);
+      mirror::Class* new_ref = pair.second.Read<kWithoutReadBarrier>();
+      if (UNLIKELY(new_ref != old_ref)) {
         // Uh ohes, GC moved a root in the log. Need to search the class_table and update the
         // corresponding object. This is slow, but luckily for us, this may only happen with a
         // concurrent moving GC.
         for (auto it = class_table_.lower_bound(pair.first), end = class_table_.end();
             it != end && it->first == pair.first; ++it) {
           // If the class stored matches the old class, update it to the new value.
-          if (old_ref == it->second) {
-            it->second = pair.second;
+          if (old_ref == it->second.Read<kWithoutReadBarrier>()) {
+            it->second = GcRoot<mirror::Class>(new_ref);
           }
         }
       }
@@ -1570,17 +1572,17 @@ void ClassLinker::VisitClassRoots(RootCallback* callback, void* arg, VisitRootFl
 // reinit references to when reinitializing a ClassLinker from a
 // mapped image.
 void ClassLinker::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
-  callback(reinterpret_cast<mirror::Object**>(&class_roots_), arg, 0, kRootVMInternal);
+  class_roots_.VisitRoot(callback, arg, 0, kRootVMInternal);
   Thread* self = Thread::Current();
   {
     ReaderMutexLock mu(self, dex_lock_);
     if ((flags & kVisitRootFlagAllRoots) != 0) {
-      for (mirror::DexCache*& dex_cache : dex_caches_) {
-        callback(reinterpret_cast<mirror::Object**>(&dex_cache), arg, 0, kRootVMInternal);
+      for (GcRoot<mirror::DexCache>& dex_cache : dex_caches_) {
+        dex_cache.VisitRoot(callback, arg, 0, kRootVMInternal);
       }
     } else if ((flags & kVisitRootFlagNewRoots) != 0) {
       for (size_t index : new_dex_cache_roots_) {
-        callback(reinterpret_cast<mirror::Object**>(&dex_caches_[index]), arg, 0, kRootVMInternal);
+        dex_caches_[index].VisitRoot(callback, arg, 0, kRootVMInternal);
       }
     }
     if ((flags & kVisitRootFlagClearRootLog) != 0) {
@@ -1593,12 +1595,11 @@ void ClassLinker::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags f
     }
   }
   VisitClassRoots(callback, arg, flags);
-  callback(reinterpret_cast<mirror::Object**>(&array_iftable_), arg, 0, kRootVMInternal);
-  DCHECK(array_iftable_ != nullptr);
+  array_iftable_.VisitRoot(callback, arg, 0, kRootVMInternal);
+  DCHECK(!array_iftable_.IsNull());
   for (size_t i = 0; i < kFindArrayCacheSize; ++i) {
-    if (find_array_class_cache_[i] != nullptr) {
-      callback(reinterpret_cast<mirror::Object**>(&find_array_class_cache_[i]), arg, 0,
-               kRootVMInternal);
+    if (!find_array_class_cache_[i].IsNull()) {
+      find_array_class_cache_[i].VisitRoot(callback, arg, 0, kRootVMInternal);
     }
   }
 }
@@ -1608,9 +1609,8 @@ void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) {
     MoveImageClassesToClassTable();
   }
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  for (std::pair<const size_t, mirror::Class*>& it : class_table_) {
-    mirror::Class** root = &it.second;
-    mirror::Class* c = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
+  for (std::pair<const size_t, GcRoot<mirror::Class> >& it : class_table_) {
+    mirror::Class* c = it.second.Read();
     if (!visitor(c, arg)) {
       return;
     }
@@ -2536,7 +2536,7 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
   CHECK(dex_cache.Get() != NULL) << dex_file.GetLocation();
   CHECK(dex_cache->GetLocation()->Equals(dex_file.GetLocation()))
       << dex_cache->GetLocation()->ToModifiedUtf8() << " " << dex_file.GetLocation();
-  dex_caches_.push_back(dex_cache.Get());
+  dex_caches_.push_back(GcRoot<mirror::DexCache>(dex_cache.Get()));
   dex_cache->SetDexFile(&dex_file);
   if (log_new_dex_caches_roots_) {
     // TODO: This is not safe if we can remove dex caches.
@@ -2753,8 +2753,7 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
   // Use the single, global copies of "interfaces" and "iftable"
   // (remember not to free them for arrays).
   {
-    mirror::IfTable* array_iftable =
-        ReadBarrier::BarrierForRoot<mirror::IfTable, kWithReadBarrier>(&array_iftable_);
+    mirror::IfTable* array_iftable = array_iftable_.Read();
     CHECK(array_iftable != nullptr);
     new_class->SetIfTable(array_iftable);
   }
@@ -2838,9 +2837,9 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, mirror::Class* k
     }
   }
   VerifyObject(klass);
-  class_table_.insert(std::make_pair(hash, klass));
+  class_table_.insert(std::make_pair(hash, GcRoot<mirror::Class>(klass)));
   if (log_new_class_table_roots_) {
-    new_class_roots_.push_back(std::make_pair(hash, klass));
+    new_class_roots_.push_back(std::make_pair(hash, GcRoot<mirror::Class>(klass)));
   }
   return NULL;
 }
@@ -2862,8 +2861,7 @@ mirror::Class* ClassLinker::UpdateClass(const char* descriptor, mirror::Class* k
 
   for (auto it = class_table_.lower_bound(hash), end = class_table_.end(); it != end && it->first == hash;
        ++it) {
-    mirror::Class** root = &it->second;
-    mirror::Class* klass = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
+    mirror::Class* klass = it->second.Read();
     if (klass == existing) {
       class_table_.erase(it);
       break;
@@ -2882,9 +2880,9 @@ mirror::Class* ClassLinker::UpdateClass(const char* descriptor, mirror::Class* k
   }
   VerifyObject(klass);
 
-  class_table_.insert(std::make_pair(hash, klass));
+  class_table_.insert(std::make_pair(hash, GcRoot<mirror::Class>(klass)));
   if (log_new_class_table_roots_) {
-    new_class_roots_.push_back(std::make_pair(hash, klass));
+    new_class_roots_.push_back(std::make_pair(hash, GcRoot<mirror::Class>(klass)));
   }
 
   return existing;
@@ -2896,8 +2894,7 @@ bool ClassLinker::RemoveClass(const char* descriptor, const mirror::ClassLoader*
   for (auto it = class_table_.lower_bound(hash), end = class_table_.end();
        it != end && it->first == hash;
        ++it) {
-    mirror::Class** root = &it->second;
-    mirror::Class* klass = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
+    mirror::Class* klass = it->second.Read();
     if (klass->GetClassLoader() == class_loader && klass->DescriptorEquals(descriptor)) {
       class_table_.erase(it);
       return true;
@@ -2941,14 +2938,12 @@ mirror::Class* ClassLinker::LookupClassFromTableLocked(const char* descriptor,
                                                        size_t hash) {
   auto end = class_table_.end();
   for (auto it = class_table_.lower_bound(hash); it != end && it->first == hash; ++it) {
-    mirror::Class** root = &it->second;
-    mirror::Class* klass = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
+    mirror::Class* klass = it->second.Read();
     if (klass->GetClassLoader() == class_loader && klass->DescriptorEquals(descriptor)) {
       if (kIsDebugBuild) {
         // Check for duplicates in the table.
         for (++it; it != end && it->first == hash; ++it) {
-          mirror::Class** root2 = &it->second;
-          mirror::Class* klass2 = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root2);
+          mirror::Class* klass2 = it->second.Read();
           CHECK(!(klass2->GetClassLoader() == class_loader &&
               klass2->DescriptorEquals(descriptor)))
               << PrettyClass(klass) << " " << klass << " " << klass->GetClassLoader() << " "
@@ -2992,9 +2987,9 @@ void ClassLinker::MoveImageClassesToClassTable() {
           CHECK(existing == klass) << PrettyClassAndClassLoader(existing) << " != "
               << PrettyClassAndClassLoader(klass);
         } else {
-          class_table_.insert(std::make_pair(hash, klass));
+          class_table_.insert(std::make_pair(hash, GcRoot<mirror::Class>(klass)));
           if (log_new_class_table_roots_) {
-            new_class_roots_.push_back(std::make_pair(hash, klass));
+            new_class_roots_.push_back(std::make_pair(hash, GcRoot<mirror::Class>(klass)));
           }
         }
       }
@@ -3040,8 +3035,7 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<mirror::Clas
   ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   for (auto it = class_table_.lower_bound(hash), end = class_table_.end();
       it != end && it->first == hash; ++it) {
-    mirror::Class** root = &it->second;
-    mirror::Class* klass = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
+    mirror::Class* klass = it->second.Read();
     if (klass->DescriptorEquals(descriptor)) {
       result.push_back(klass);
     }
@@ -5017,9 +5011,8 @@ void ClassLinker::DumpAllClasses(int flags) {
   std::vector<mirror::Class*> all_classes;
   {
     ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-    for (std::pair<const size_t, mirror::Class*>& it : class_table_) {
-      mirror::Class** root = &it.second;
-      mirror::Class* klass = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
+    for (std::pair<const size_t, GcRoot<mirror::Class> >& it : class_table_) {
+      mirror::Class* klass = it.second.Read();
       all_classes.push_back(klass);
     }
   }
@@ -5059,9 +5052,7 @@ void ClassLinker::SetClassRoot(ClassRoot class_root, mirror::Class* klass) {
   DCHECK(klass != NULL);
   DCHECK(klass->GetClassLoader() == NULL);
 
-  mirror::ObjectArray<mirror::Class>* class_roots =
-      ReadBarrier::BarrierForRoot<mirror::ObjectArray<mirror::Class>, kWithReadBarrier>(
-          &class_roots_);
+  mirror::ObjectArray<mirror::Class>* class_roots = class_roots_.Read();
   DCHECK(class_roots != NULL);
   DCHECK(class_roots->Get(class_root) == NULL);
   class_roots->Set<false>(class_root, klass);
