@@ -32,7 +32,8 @@ class GlobalValueNumbering {
   ~GlobalValueNumbering();
 
   // Prepare LVN for the basic block.
-  LocalValueNumbering* PrepareBasicBlock(BasicBlock* bb);
+  LocalValueNumbering* PrepareBasicBlock(BasicBlock* bb,
+                                         ScopedArenaAllocator* allocator = nullptr);
 
   // Finish processing the basic block.
   bool FinishBasicBlock(BasicBlock* bb);
@@ -55,7 +56,7 @@ class GlobalValueNumbering {
 
   // GlobalValueNumbering should be allocated on the ArenaStack (or the native stack).
   static void* operator new(size_t size, ScopedArenaAllocator* allocator) {
-    return allocator->Alloc(sizeof(GlobalValueNumbering), kArenaAllocMIR);
+    return allocator->Alloc(sizeof(GlobalValueNumbering), kArenaAllocMisc);
   }
 
   // Allow delete-expression to destroy a GlobalValueNumbering object without deallocation.
