@@ -18,6 +18,7 @@
 #define ART_RUNTIME_MIRROR_ART_METHOD_H_
 
 #include "dex_file.h"
+#include "gc_root.h"
 #include "invoke_type.h"
 #include "modifiers.h"
 #include "object.h"
@@ -514,7 +515,7 @@ class MANAGED ArtMethod FINAL : public Object {
   // ifTable.
   uint32_t method_index_;
 
-  static Class* java_lang_reflect_ArtMethod_;
+  static GcRoot<Class> java_lang_reflect_ArtMethod_;
 
  private:
   friend struct art::ArtMethodOffsets;  // for verifying offset information

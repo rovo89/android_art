@@ -25,6 +25,7 @@
 #include "instruction_set.h"
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "gc_root.h"
 #include "object_callbacks.h"
 
 namespace art {
@@ -440,7 +441,8 @@ class Instrumentation {
   // The set of methods being deoptimized (by the debugger) which must be executed with interpreter
   // only.
   mutable ReaderWriterMutex deoptimized_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  std::multimap<int32_t, mirror::ArtMethod*> deoptimized_methods_ GUARDED_BY(deoptimized_methods_lock_);
+  std::multimap<int32_t, GcRoot<mirror::ArtMethod>> deoptimized_methods_
+      GUARDED_BY(deoptimized_methods_lock_);
   bool deoptimization_enabled_;
 
   // Current interpreter handler table. This is updated each time the thread state flags are

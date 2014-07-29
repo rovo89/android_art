@@ -95,11 +95,7 @@ const char* Runtime::kDefaultInstructionSetFeatures =
 Runtime* Runtime::instance_ = NULL;
 
 Runtime::Runtime()
-    : pre_allocated_OutOfMemoryError_(nullptr),
-      resolution_method_(nullptr),
-      imt_conflict_method_(nullptr),
-      default_imt_(nullptr),
-      instruction_set_(kNone),
+    : instruction_set_(kNone),
       compiler_callbacks_(nullptr),
       is_zygote_(false),
       must_relocate_(false),
@@ -147,9 +143,6 @@ Runtime::Runtime()
       implicit_null_checks_(false),
       implicit_so_checks_(false),
       implicit_suspend_checks_(false) {
-  for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
-    callee_save_methods_[i] = nullptr;
-  }
 }
 
 Runtime::~Runtime() {
@@ -716,7 +709,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   self->ThrowNewException(ThrowLocation(), "Ljava/lang/OutOfMemoryError;",
                           "OutOfMemoryError thrown while trying to throw OutOfMemoryError; "
                           "no stack available");
-  pre_allocated_OutOfMemoryError_ = self->GetException(NULL);
+  pre_allocated_OutOfMemoryError_ = GcRoot<mirror::Throwable>(self->GetException(NULL));
   self->ClearException();
 
   // Look for a native bridge.
@@ -931,8 +924,7 @@ void Runtime::DetachCurrentThread() {
 }
 
 mirror::Throwable* Runtime::GetPreAllocatedOutOfMemoryError() {
-  mirror::Throwable* oome = ReadBarrier::BarrierForRoot<mirror::Throwable, kWithReadBarrier>(
-      &pre_allocated_OutOfMemoryError_);
+  mirror::Throwable* oome = pre_allocated_OutOfMemoryError_.Read();
   if (oome == NULL) {
     LOG(ERROR) << "Failed to return pre-allocated OOME";
   }
@@ -971,23 +963,21 @@ void Runtime::VisitConcurrentRoots(RootCallback* callback, void* arg, VisitRootF
 
 void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
   java_vm_->VisitRoots(callback, arg);
-  if (pre_allocated_OutOfMemoryError_ != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&pre_allocated_OutOfMemoryError_), arg, 0,
-             kRootVMInternal);
-    DCHECK(pre_allocated_OutOfMemoryError_ != nullptr);
+  if (!pre_allocated_OutOfMemoryError_.IsNull()) {
+    pre_allocated_OutOfMemoryError_.VisitRoot(callback, arg, 0, kRootVMInternal);
+    DCHECK(!pre_allocated_OutOfMemoryError_.IsNull());
   }
-  callback(reinterpret_cast<mirror::Object**>(&resolution_method_), arg, 0, kRootVMInternal);
-  DCHECK(resolution_method_ != nullptr);
+  resolution_method_.VisitRoot(callback, arg, 0, kRootVMInternal);
+  DCHECK(!resolution_method_.IsNull());
   if (HasImtConflictMethod()) {
-    callback(reinterpret_cast<mirror::Object**>(&imt_conflict_method_), arg, 0, kRootVMInternal);
+    imt_conflict_method_.VisitRoot(callback, arg, 0, kRootVMInternal);
   }
   if (HasDefaultImt()) {
-    callback(reinterpret_cast<mirror::Object**>(&default_imt_), arg, 0, kRootVMInternal);
+    default_imt_.VisitRoot(callback, arg, 0, kRootVMInternal);
   }
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
-    if (callee_save_methods_[i] != nullptr) {
-      callback(reinterpret_cast<mirror::Object**>(&callee_save_methods_[i]), arg, 0,
-               kRootVMInternal);
+    if (!callee_save_methods_[i].IsNull()) {
+      callee_save_methods_[i].VisitRoot(callback, arg, 0, kRootVMInternal);
     }
   }
   {
@@ -1125,7 +1115,7 @@ void Runtime::SetInstructionSet(InstructionSet instruction_set) {
 
 void Runtime::SetCalleeSaveMethod(mirror::ArtMethod* method, CalleeSaveType type) {
   DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastCalleeSaveType));
-  callee_save_methods_[type] = method;
+  callee_save_methods_[type] = GcRoot<mirror::ArtMethod>(method);
 }
 
 const std::vector<const DexFile*>& Runtime::GetCompileTimeClassPath(jobject class_loader) {

@@ -25,6 +25,7 @@
 #include "debugger.h"
 #include "dex_file-inl.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
+#include "gc_root-inl.h"
 #include "interpreter/interpreter.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
@@ -628,7 +629,7 @@ bool Instrumentation::AddDeoptimizedMethod(mirror::ArtMethod* method) {
   }
   // Not found. Add it.
   int32_t hash_code = method->IdentityHashCode();
-  deoptimized_methods_.insert(std::make_pair(hash_code, method));
+  deoptimized_methods_.insert(std::make_pair(hash_code, GcRoot<mirror::ArtMethod>(method)));
   return true;
 }
 
@@ -636,8 +637,7 @@ bool Instrumentation::FindDeoptimizedMethod(mirror::ArtMethod* method) {
   int32_t hash_code = method->IdentityHashCode();
   auto range = deoptimized_methods_.equal_range(hash_code);
   for (auto it = range.first; it != range.second; ++it) {
-    mirror::ArtMethod** root = &it->second;
-    mirror::ArtMethod* m = ReadBarrier::BarrierForRoot<mirror::ArtMethod>(root);
+    mirror::ArtMethod* m = it->second.Read();
     if (m == method) {
       // Found.
       return true;
@@ -653,16 +653,14 @@ mirror::ArtMethod* Instrumentation::BeginDeoptimizedMethod() {
     // Empty.
     return nullptr;
   }
-  mirror::ArtMethod** root = &it->second;
-  return ReadBarrier::BarrierForRoot<mirror::ArtMethod>(root);
+  return it->second.Read();
 }
 
 bool Instrumentation::RemoveDeoptimizedMethod(mirror::ArtMethod* method) {
   int32_t hash_code = method->IdentityHashCode();
   auto range = deoptimized_methods_.equal_range(hash_code);
   for (auto it = range.first; it != range.second; ++it) {
-    mirror::ArtMethod** root = &it->second;
-    mirror::ArtMethod* m = ReadBarrier::BarrierForRoot<mirror::ArtMethod>(root);
+    mirror::ArtMethod* m = it->second.Read();
     if (m == method) {
       // Found. Erase and return.
       deoptimized_methods_.erase(it);
@@ -1024,8 +1022,7 @@ void Instrumentation::VisitRoots(RootCallback* callback, void* arg) {
     return;
   }
   for (auto pair : deoptimized_methods_) {
-    mirror::ArtMethod** root = &pair.second;
-    callback(reinterpret_cast<mirror::Object**>(root), arg, 0, kRootVMInternal);
+    pair.second.VisitRoot(callback, arg, 0, kRootVMInternal);
   }
 }
 

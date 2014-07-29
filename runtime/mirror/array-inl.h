@@ -166,8 +166,8 @@ inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_c
 
 template<class T>
 inline void PrimitiveArray<T>::VisitRoots(RootCallback* callback, void* arg) {
-  if (array_class_ != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&array_class_), arg, 0, kRootStickyClass);
+  if (!array_class_.IsNull()) {
+    array_class_.VisitRoot(callback, arg, 0, kRootStickyClass);
   }
 }
 

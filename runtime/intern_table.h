@@ -20,6 +20,7 @@
 #include <map>
 
 #include "base/mutex.h"
+#include "gc_root.h"
 #include "object_callbacks.h"
 
 namespace art {
@@ -59,7 +60,8 @@ class InternTable {
   // Interns a potentially new string in the 'weak' table. (See above.)
   mirror::String* InternWeak(mirror::String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SweepInternTableWeaks(IsMarkedCallback* callback, void* arg);
+  void SweepInternTableWeaks(IsMarkedCallback* callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool ContainsWeak(mirror::String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -67,7 +69,8 @@ class InternTable {
   size_t StrongSize() const;
   size_t WeakSize() const;
 
-  void VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags);
+  void VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DumpForSigQuit(std::ostream& os) const;
 
@@ -75,7 +78,7 @@ class InternTable {
   void AllowNewInterns() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  typedef std::multimap<int32_t, mirror::String*> Table;
+  typedef std::multimap<int32_t, GcRoot<mirror::String>> Table;
 
   mirror::String* Insert(mirror::String* s, bool is_strong)
       LOCKS_EXCLUDED(Locks::intern_table_lock_)
@@ -122,7 +125,7 @@ class InternTable {
   // directly access the strings in it. Use functions that contain
   // read barriers.
   Table strong_interns_ GUARDED_BY(Locks::intern_table_lock_);
-  std::vector<std::pair<int32_t, mirror::String*>> new_strong_intern_roots_
+  std::vector<std::pair<int32_t, GcRoot<mirror::String>>> new_strong_intern_roots_
       GUARDED_BY(Locks::intern_table_lock_);
   // Since this contains (weak) roots, they need a read barrier. Do
   // not directly access the strings in it. Use functions that contain

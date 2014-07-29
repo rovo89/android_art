@@ -76,7 +76,7 @@ IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,
   CHECK(table_mem_map_.get() != nullptr) << error_str;
   CHECK_EQ(table_mem_map_->Size(), table_bytes);
 
-  table_ = reinterpret_cast<mirror::Object**>(table_mem_map_->Begin());
+  table_ = reinterpret_cast<GcRoot<mirror::Object>*>(table_mem_map_->Begin());
   CHECK(table_ != nullptr);
   memset(table_, 0xd1, initial_bytes);
 
@@ -132,20 +132,22 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {
   if (numHoles > 0) {
     DCHECK_GT(topIndex, 1U);
     // Find the first hole; likely to be near the end of the list.
-    mirror::Object** pScan = &table_[topIndex - 1];
-    DCHECK(*pScan != NULL);
-    while (*--pScan != NULL) {
+    GcRoot<mirror::Object>* pScan = &table_[topIndex - 1];
+    DCHECK(!pScan->IsNull());
+    --pScan;
+    while (!pScan->IsNull()) {
       DCHECK_GE(pScan, table_ + prevState.parts.topIndex);
+      --pScan;
     }
     UpdateSlotAdd(obj, pScan - table_);
     result = ToIndirectRef(pScan - table_);
-    *pScan = obj;
+    *pScan = GcRoot<mirror::Object>(obj);
     segment_state_.parts.numHoles--;
   } else {
     // Add to the end.
     UpdateSlotAdd(obj, topIndex);
     result = ToIndirectRef(topIndex);
-    table_[topIndex++] = obj;
+    table_[topIndex++] = GcRoot<mirror::Object>(obj);
     segment_state_.parts.topIndex = topIndex;
   }
   if (false) {
@@ -211,15 +213,16 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
       return false;
     }
 
-    table_[idx] = NULL;
+    table_[idx] = GcRoot<mirror::Object>(nullptr);
     int numHoles = segment_state_.parts.numHoles - prevState.parts.numHoles;
     if (numHoles != 0) {
       while (--topIndex > bottomIndex && numHoles != 0) {
         if (false) {
           LOG(INFO) << "+++ checking for hole at " << topIndex-1
-                    << " (cookie=" << cookie << ") val=" << table_[topIndex - 1];
+                    << " (cookie=" << cookie << ") val="
+                    << table_[topIndex - 1].Read<kWithoutReadBarrier>();
         }
-        if (table_[topIndex-1] != NULL) {
+        if (!table_[topIndex-1].IsNull()) {
           break;
         }
         if (false) {
@@ -239,7 +242,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
     // Not the top-most entry.  This creates a hole.  We NULL out the
     // entry to prevent somebody from deleting it twice and screwing up
     // the hole count.
-    if (table_[idx] == NULL) {
+    if (table_[idx].IsNull()) {
       LOG(INFO) << "--- WEIRD: removing null entry " << idx;
       return false;
     }
@@ -247,7 +250,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
       return false;
     }
 
-    table_[idx] = NULL;
+    table_[idx] = GcRoot<mirror::Object>(nullptr);
     segment_state_.parts.numHoles++;
     if (false) {
       LOG(INFO) << "+++ left hole at " << idx << ", holes=" << segment_state_.parts.numHoles;
@@ -269,17 +272,16 @@ void IndirectReferenceTable::Dump(std::ostream& os) const {
   os << kind_ << " table dump:\n";
   ReferenceTable::Table entries;
   for (size_t i = 0; i < Capacity(); ++i) {
-    mirror::Object** root = &table_[i];
-    mirror::Object* obj = *root;
+    mirror::Object* obj = table_[i].Read<kWithoutReadBarrier>();
     if (UNLIKELY(obj == nullptr)) {
       // Remove NULLs.
     } else if (UNLIKELY(obj == kClearedJniWeakGlobal)) {
       // ReferenceTable::Dump() will handle kClearedJniWeakGlobal
       // while the read barrier won't.
-      entries.push_back(obj);
+      entries.push_back(GcRoot<mirror::Object>(obj));
     } else {
-      obj = ReadBarrier::BarrierForRoot<mirror::Object, kWithReadBarrier>(root);
-      entries.push_back(obj);
+      obj = table_[i].Read();
+      entries.push_back(GcRoot<mirror::Object>(obj));
     }
   }
   ReferenceTable::Dump(os, entries);

@@ -24,7 +24,6 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/string-inl.h"
-#include "read_barrier.h"
 #include "thread.h"
 #include "utils.h"
 
@@ -46,14 +45,13 @@ void ReferenceTable::Add(mirror::Object* obj) {
     LOG(FATAL) << "ReferenceTable '" << name_ << "' "
                << "overflowed (" << max_size_ << " entries)";
   }
-  entries_.push_back(obj);
+  entries_.push_back(GcRoot<mirror::Object>(obj));
 }
 
 void ReferenceTable::Remove(mirror::Object* obj) {
   // We iterate backwards on the assumption that references are LIFO.
   for (int i = entries_.size() - 1; i >= 0; --i) {
-    mirror::Object* entry =
-        ReadBarrier::BarrierForRoot<mirror::Object, kWithReadBarrier>(&entries_[i]);
+    mirror::Object* entry = entries_[i].Read();
     if (entry == obj) {
       entries_.erase(entries_.begin() + i);
       return;
@@ -71,10 +69,12 @@ static size_t GetElementCount(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::
 }
 
 struct ObjectComparator {
-  bool operator()(mirror::Object* obj1, mirror::Object* obj2)
+  bool operator()(GcRoot<mirror::Object> root1, GcRoot<mirror::Object> root2)
     // TODO: enable analysis when analysis can work with the STL.
       NO_THREAD_SAFETY_ANALYSIS {
     Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
+    mirror::Object* obj1 = root1.Read<kWithoutReadBarrier>();
+    mirror::Object* obj2 = root2.Read<kWithoutReadBarrier>();
     // Ensure null references and cleared jweaks appear at the end.
     if (obj1 == NULL) {
       return true;
@@ -163,8 +163,7 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
   }
   os << "  Last " << (count - first) << " entries (of " << count << "):\n";
   for (int idx = count - 1; idx >= first; --idx) {
-    mirror::Object* ref =
-        ReadBarrier::BarrierForRoot<mirror::Object, kWithReadBarrier>(&entries[idx]);
+    mirror::Object* ref = entries[idx].Read();
     if (ref == NULL) {
       continue;
     }
@@ -200,17 +199,17 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
   // Make a copy of the table and sort it.
   Table sorted_entries;
   for (size_t i = 0; i < entries.size(); ++i) {
-    mirror::Object* entry =
-        ReadBarrier::BarrierForRoot<mirror::Object, kWithReadBarrier>(&entries[i]);
-    sorted_entries.push_back(entry);
+    mirror::Object* entry = entries[i].Read();
+    sorted_entries.push_back(GcRoot<mirror::Object>(entry));
   }
   std::sort(sorted_entries.begin(), sorted_entries.end(), ObjectComparator());
 
   // Remove any uninteresting stuff from the list. The sort moved them all to the end.
-  while (!sorted_entries.empty() && sorted_entries.back() == NULL) {
+  while (!sorted_entries.empty() && sorted_entries.back().IsNull()) {
     sorted_entries.pop_back();
   }
-  while (!sorted_entries.empty() && sorted_entries.back() == kClearedJniWeakGlobal) {
+  while (!sorted_entries.empty() &&
+         sorted_entries.back().Read<kWithoutReadBarrier>() == kClearedJniWeakGlobal) {
     sorted_entries.pop_back();
   }
   if (sorted_entries.empty()) {
@@ -222,8 +221,8 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
   size_t equiv = 0;
   size_t identical = 0;
   for (size_t idx = 1; idx < count; idx++) {
-    mirror::Object* prev = sorted_entries[idx-1];
-    mirror::Object* current = sorted_entries[idx];
+    mirror::Object* prev = sorted_entries[idx-1].Read<kWithoutReadBarrier>();
+    mirror::Object* current = sorted_entries[idx].Read<kWithoutReadBarrier>();
     size_t element_count = GetElementCount(prev);
     if (current == prev) {
       // Same reference, added more than once.
@@ -238,13 +237,15 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
     }
   }
   // Handle the last entry.
-  DumpSummaryLine(os, sorted_entries.back(), GetElementCount(sorted_entries.back()), identical, equiv);
+  DumpSummaryLine(os, sorted_entries.back().Read<kWithoutReadBarrier>(),
+                  GetElementCount(sorted_entries.back().Read<kWithoutReadBarrier>()),
+                  identical, equiv);
 }
 
 void ReferenceTable::VisitRoots(RootCallback* visitor, void* arg, uint32_t tid,
                                 RootType root_type) {
-  for (auto& ref : entries_) {
-    visitor(&ref, arg, tid, root_type);
+  for (GcRoot<mirror::Object>& root : entries_) {
+    root.VisitRoot(visitor, arg, tid, root_type);
   }
 }
 

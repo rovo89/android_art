@@ -17,9 +17,9 @@
 #ifndef ART_RUNTIME_MIRROR_THROWABLE_H_
 #define ART_RUNTIME_MIRROR_THROWABLE_H_
 
+#include "gc_root.h"
 #include "object.h"
 #include "object_callbacks.h"
-#include "read_barrier.h"
 #include "string.h"
 
 namespace art {
@@ -47,9 +47,8 @@ class MANAGED Throwable : public Object {
   bool IsCheckedException() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Class* GetJavaLangThrowable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(java_lang_Throwable_ != NULL);
-    return ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(
-        &java_lang_Throwable_);
+    DCHECK(!java_lang_Throwable_.IsNull());
+    return java_lang_Throwable_.Read();
   }
 
   static void SetClass(Class* java_lang_Throwable);
@@ -72,7 +71,7 @@ class MANAGED Throwable : public Object {
   HeapReference<Object> stack_trace_;
   HeapReference<Object> suppressed_exceptions_;
 
-  static Class* java_lang_Throwable_;
+  static GcRoot<Class> java_lang_Throwable_;
 
   friend struct art::ThrowableOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(Throwable);
