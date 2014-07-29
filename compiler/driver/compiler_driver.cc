@@ -597,7 +597,7 @@ void CompilerDriver::Resolve(jobject class_loader, const std::vector<const DexFi
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != nullptr);
-    ResolveDexFile(class_loader, *dex_file, thread_pool, timings);
+    ResolveDexFile(class_loader, *dex_file, dex_files, thread_pool, timings);
   }
 }
 
@@ -1361,12 +1361,14 @@ class ParallelCompilationManager {
                              jobject class_loader,
                              CompilerDriver* compiler,
                              const DexFile* dex_file,
+                             const std::vector<const DexFile*>& dex_files,
                              ThreadPool* thread_pool)
     : index_(0),
       class_linker_(class_linker),
       class_loader_(class_loader),
       compiler_(compiler),
       dex_file_(dex_file),
+      dex_files_(dex_files),
       thread_pool_(thread_pool) {}
 
   ClassLinker* GetClassLinker() const {
@@ -1386,6 +1388,10 @@ class ParallelCompilationManager {
   const DexFile* GetDexFile() const {
     CHECK(dex_file_ != NULL);
     return dex_file_;
+  }
+
+  const std::vector<const DexFile*>& GetDexFiles() const {
+    return dex_files_;
   }
 
   void ForAll(size_t begin, size_t end, Callback callback, size_t work_units) {
@@ -1445,10 +1451,23 @@ class ParallelCompilationManager {
   const jobject class_loader_;
   CompilerDriver* const compiler_;
   const DexFile* const dex_file_;
+  const std::vector<const DexFile*>& dex_files_;
   ThreadPool* const thread_pool_;
 
   DISALLOW_COPY_AND_ASSIGN(ParallelCompilationManager);
 };
+
+static bool SkipClassCheckClassPath(const char* descriptor, const DexFile& dex_file,
+                                    const std::vector<const DexFile*>& classpath) {
+  DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, classpath);
+  CHECK(pair.second != NULL);
+  if (pair.first != &dex_file) {
+    LOG(WARNING) << "Skipping class " << descriptor << " from " << dex_file.GetLocation()
+                 << " previously found in " << pair.first->GetLocation();
+    return true;
+  }
+  return false;
+}
 
 // Return true if the class should be skipped during compilation.
 //
@@ -1458,20 +1477,23 @@ class ParallelCompilationManager {
 // The second case where we skip is when an app bundles classes found
 // in the boot classpath. Since at runtime we will select the class from
 // the boot classpath, we ignore the one from the app.
+//
+// The third case is if the app itself has the class defined in multiple dex files. Then we skip
+// it if it is not the first occurrence.
 static bool SkipClass(ClassLinker* class_linker, jobject class_loader, const DexFile& dex_file,
+                      const std::vector<const DexFile*>& dex_files,
                       const DexFile::ClassDef& class_def) {
   const char* descriptor = dex_file.GetClassDescriptor(class_def);
+
   if (class_loader == NULL) {
-    DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, class_linker->GetBootClassPath());
-    CHECK(pair.second != NULL);
-    if (pair.first != &dex_file) {
-      LOG(WARNING) << "Skipping class " << descriptor << " from " << dex_file.GetLocation()
-                   << " previously found in " << pair.first->GetLocation();
-      return true;
-    }
-    return false;
+    return SkipClassCheckClassPath(descriptor, dex_file, class_linker->GetBootClassPath());
   }
-  return class_linker->IsInBootClassPath(descriptor);
+
+  if (class_linker->IsInBootClassPath(descriptor)) {
+    return true;
+  }
+
+  return SkipClassCheckClassPath(descriptor, dex_file, dex_files);
 }
 
 // A fast version of SkipClass above if the class pointer is available
@@ -1529,7 +1551,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
   // definitions, since many of them many never be referenced by
   // generated code.
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
-  if (!SkipClass(class_linker, jclass_loader, dex_file, class_def)) {
+  if (!SkipClass(class_linker, jclass_loader, dex_file, manager->GetDexFiles(), class_def)) {
     ScopedObjectAccess soa(self);
     StackHandleScope<2> hs(soa.Self());
     Handle<mirror::ClassLoader> class_loader(
@@ -1636,13 +1658,15 @@ static void ResolveType(const ParallelCompilationManager* manager, size_t type_i
 }
 
 void CompilerDriver::ResolveDexFile(jobject class_loader, const DexFile& dex_file,
+                                    const std::vector<const DexFile*>& dex_files,
                                     ThreadPool* thread_pool, TimingLogger* timings) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   // TODO: we could resolve strings here, although the string table is largely filled with class
   //       and method names.
 
-  ParallelCompilationManager context(class_linker, class_loader, this, &dex_file, thread_pool);
+  ParallelCompilationManager context(class_linker, class_loader, this, &dex_file, dex_files,
+                                     thread_pool);
   if (IsImage()) {
     // For images we resolve all types, such as array, whereas for applications just those with
     // classdefs are resolved by ResolveClassFieldsAndMethods.
@@ -1659,7 +1683,7 @@ void CompilerDriver::Verify(jobject class_loader, const std::vector<const DexFil
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
-    VerifyDexFile(class_loader, *dex_file, thread_pool, timings);
+    VerifyDexFile(class_loader, *dex_file, dex_files, thread_pool, timings);
   }
 }
 
@@ -1711,10 +1735,12 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
 }
 
 void CompilerDriver::VerifyDexFile(jobject class_loader, const DexFile& dex_file,
+                                   const std::vector<const DexFile*>& dex_files,
                                    ThreadPool* thread_pool, TimingLogger* timings) {
   TimingLogger::ScopedTiming t("Verify Dex File", timings);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  ParallelCompilationManager context(class_linker, class_loader, this, &dex_file, thread_pool);
+  ParallelCompilationManager context(class_linker, class_loader, this, &dex_file, dex_files,
+                                     thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), VerifyClass, thread_count_);
 }
 
@@ -1804,10 +1830,12 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
 }
 
 void CompilerDriver::InitializeClasses(jobject jni_class_loader, const DexFile& dex_file,
+                                       const std::vector<const DexFile*>& dex_files,
                                        ThreadPool* thread_pool, TimingLogger* timings) {
   TimingLogger::ScopedTiming t("InitializeNoClinit", timings);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  ParallelCompilationManager context(class_linker, jni_class_loader, this, &dex_file, thread_pool);
+  ParallelCompilationManager context(class_linker, jni_class_loader, this, &dex_file, dex_files,
+                                     thread_pool);
   size_t thread_count;
   if (IsImage()) {
     // TODO: remove this when transactional mode supports multithreading.
@@ -1828,7 +1856,7 @@ void CompilerDriver::InitializeClasses(jobject class_loader,
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
-    InitializeClasses(class_loader, *dex_file, thread_pool, timings);
+    InitializeClasses(class_loader, *dex_file, dex_files, thread_pool, timings);
   }
 }
 
@@ -1837,7 +1865,7 @@ void CompilerDriver::Compile(jobject class_loader, const std::vector<const DexFi
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
-    CompileDexFile(class_loader, *dex_file, thread_pool, timings);
+    CompileDexFile(class_loader, *dex_file, dex_files, thread_pool, timings);
   }
 }
 
@@ -1847,7 +1875,7 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
   const DexFile& dex_file = *manager->GetDexFile();
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
   ClassLinker* class_linker = manager->GetClassLinker();
-  if (SkipClass(class_linker, jclass_loader, dex_file, class_def)) {
+  if (SkipClass(class_linker, jclass_loader, dex_file, manager->GetDexFiles(), class_def)) {
     return;
   }
   ClassReference ref(&dex_file, class_def_index);
@@ -1916,10 +1944,11 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
 }
 
 void CompilerDriver::CompileDexFile(jobject class_loader, const DexFile& dex_file,
+                                    const std::vector<const DexFile*>& dex_files,
                                     ThreadPool* thread_pool, TimingLogger* timings) {
   TimingLogger::ScopedTiming t("Compile Dex File", timings);
   ParallelCompilationManager context(Runtime::Current()->GetClassLinker(), class_loader, this,
-                                     &dex_file, thread_pool);
+                                     &dex_file, dex_files, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), CompilerDriver::CompileClass, thread_count_);
 }
 
