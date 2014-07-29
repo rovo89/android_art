@@ -1655,6 +1655,13 @@ bool DexFileVerifier::CheckInterMethodIdItem() {
 bool DexFileVerifier::CheckInterClassDefItem() {
   const DexFile::ClassDef* item = reinterpret_cast<const DexFile::ClassDef*>(ptr_);
 
+  // Check for duplicate class def.
+  if (defined_classes_.find(item->class_idx_) != defined_classes_.end()) {
+    ErrorStringPrintf("Redefinition of class with type idx: '%d'", item->class_idx_);
+    return false;
+  }
+  defined_classes_.insert(item->class_idx_);
+
   LOAD_STRING_BY_TYPE(class_descriptor, item->class_idx_, "inter_class_def_item class_idx")
   if (UNLIKELY(!IsValidDescriptor(class_descriptor) || class_descriptor[0] != 'L')) {
     ErrorStringPrintf("Invalid class descriptor: '%s'", class_descriptor);
