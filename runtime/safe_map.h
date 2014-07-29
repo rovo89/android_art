@@ -52,6 +52,7 @@ class SafeMap {
     return *this;
   }
 
+  allocator_type get_allocator() const { return map_.get_allocator(); }
   key_compare key_comp() const { return map_.key_comp(); }
   value_compare value_comp() const { return map_.value_comp(); }
 
