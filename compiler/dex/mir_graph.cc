@@ -739,7 +739,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
       opcode_count_[static_cast<int>(opcode)]++;
     }
 
-    int flags = Instruction::FlagsOf(insn->dalvikInsn.opcode);
+    int flags = insn->dalvikInsn.FlagsOf();
     int verify_flags = Instruction::VerifyFlagsOf(insn->dalvikInsn.opcode);
 
     uint64_t df_flags = GetDataFlowAttributes(insn);
@@ -1251,7 +1251,7 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
     str.append(extended_mir_op_names_[opcode - kMirOpFirst]);
   } else {
     dalvik_format = Instruction::FormatOf(insn.opcode);
-    flags = Instruction::FlagsOf(insn.opcode);
+    flags = insn.FlagsOf();
     str.append(Instruction::Name(insn.opcode));
   }
 
@@ -2191,4 +2191,80 @@ void MIRGraph::InitializeBasicBlockData() {
   num_blocks_ = block_list_.Size();
 }
 
+int MIR::DecodedInstruction::FlagsOf() const {
+  // Calculate new index.
+  int idx = static_cast<int>(opcode) - kNumPackedOpcodes;
+
+  // Check if it is an extended or not.
+  if (idx < 0) {
+    return Instruction::FlagsOf(opcode);
+  }
+
+  // For extended, we use a switch.
+  switch (static_cast<int>(opcode)) {
+    case kMirOpPhi:
+      return Instruction::kContinue;
+    case kMirOpCopy:
+      return Instruction::kContinue;
+    case kMirOpFusedCmplFloat:
+      return Instruction::kContinue | Instruction::kBranch;
+    case kMirOpFusedCmpgFloat:
+      return Instruction::kContinue | Instruction::kBranch;
+    case kMirOpFusedCmplDouble:
+      return Instruction::kContinue | Instruction::kBranch;
+    case kMirOpFusedCmpgDouble:
+      return Instruction::kContinue | Instruction::kBranch;
+    case kMirOpFusedCmpLong:
+      return Instruction::kContinue | Instruction::kBranch;
+    case kMirOpNop:
+      return Instruction::kContinue;
+    case kMirOpNullCheck:
+      return Instruction::kContinue | Instruction::kThrow;
+    case kMirOpRangeCheck:
+      return Instruction::kContinue | Instruction::kThrow;
+    case kMirOpDivZeroCheck:
+      return Instruction::kContinue | Instruction::kThrow;
+    case kMirOpCheck:
+      return 0;
+    case kMirOpCheckPart2:
+      return 0;
+    case kMirOpSelect:
+      return Instruction::kContinue;
+    case kMirOpConstVector:
+      return Instruction::kContinue;
+    case kMirOpMoveVector:
+      return Instruction::kContinue;
+    case kMirOpPackedMultiply:
+      return Instruction::kContinue;
+    case kMirOpPackedAddition:
+      return Instruction::kContinue;
+    case kMirOpPackedSubtract:
+      return Instruction::kContinue;
+    case kMirOpPackedShiftLeft:
+      return Instruction::kContinue;
+    case kMirOpPackedSignedShiftRight:
+      return Instruction::kContinue;
+    case kMirOpPackedUnsignedShiftRight:
+      return Instruction::kContinue;
+    case kMirOpPackedAnd:
+      return Instruction::kContinue;
+    case kMirOpPackedOr:
+      return Instruction::kContinue;
+    case kMirOpPackedXor:
+      return Instruction::kContinue;
+    case kMirOpPackedAddReduce:
+      return Instruction::kContinue;
+    case kMirOpPackedReduce:
+      return Instruction::kContinue;
+    case kMirOpPackedSet:
+      return Instruction::kContinue;
+    case kMirOpReserveVectorRegisters:
+      return Instruction::kContinue;
+    case kMirOpReturnVectorRegisters:
+      return Instruction::kContinue;
+    default:
+      LOG(WARNING) << "ExtendedFlagsOf: Unhandled case: " << static_cast<int> (opcode);
+      return 0;
+  }
+}
 }  // namespace art
