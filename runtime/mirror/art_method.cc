@@ -158,12 +158,12 @@ ArtMethod* ArtMethod::FindOverriddenMethod() {
       }
     }
   }
-  if (kIsDebugBuild) {
-    StackHandleScope<2> hs(Thread::Current());
-    MethodHelper result_mh(hs.NewHandle(result));
-    MethodHelper this_mh(hs.NewHandle(this));
-    DCHECK(result == nullptr || this_mh.HasSameNameAndSignature(&result_mh));
-  }
+#ifndef NDEBUG
+  StackHandleScope<2> hs(Thread::Current());
+  MethodHelper result_mh(hs.NewHandle(result));
+  MethodHelper this_mh(hs.NewHandle(this));
+  DCHECK(result == NULL || this_mh.HasSameNameAndSignature(&result_mh));
+#endif
   return result;
 }
 
