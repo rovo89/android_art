@@ -20,7 +20,8 @@ QUIET="n"
 DEV_MODE="n"
 INVOKE_WITH=""
 FLAGS=""
-TARGET_SUFFIX=""
+TARGET_SUFFIX="32"
+GDB_TARGET_SUFFIX=""
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -94,6 +95,7 @@ while true; do
         break
     elif [ "x$1" = "x--64" ]; then
         TARGET_SUFFIX="64"
+        GDB_TARGET_SUFFIX="64"
         shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
@@ -152,7 +154,7 @@ if [ "$DEBUGGER" = "y" ]; then
 fi
 
 if [ "$GDB" = "y" ]; then
-    gdb="gdbserver$TARGET_SUFFIX :5039"
+    gdb="gdbserver$GDB_TARGET_SUFFIX :5039"
     gdbargs="$exe"
 fi
 
