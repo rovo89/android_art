@@ -141,7 +141,6 @@ void Mir2Lir::CallRuntimeHelperImmImm(QuickEntrypointEnum trampoline, int arg0, 
 void Mir2Lir::CallRuntimeHelperImmRegLocation(QuickEntrypointEnum trampoline, int arg0,
                                               RegLocation arg1, bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(trampoline);
-  DCHECK(!arg1.fp);
   if (arg1.wide == 0) {
     LoadValueDirectFixed(arg1, TargetReg(kArg1, arg1));
   } else {
