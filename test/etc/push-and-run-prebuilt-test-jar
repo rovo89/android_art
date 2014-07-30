@@ -23,7 +23,8 @@ QUIET="n"
 DEV_MODE="n"
 INVOKE_WITH=""
 FLAGS=""
-TARGET_SUFFIX=""
+TARGET_SUFFIX="32"
+GDB_TARGET_SUFFIX=""
 COMPILE_FLAGS=""
 
 while true; do
@@ -100,6 +101,7 @@ while true; do
         break
     elif [ "x$1" = "x--64" ]; then
         TARGET_SUFFIX="64"
+        GDB_TARGET_SUFFIX="64"
         ARCHITECTURES_PATTERN="${ARCHITECTURES_64}"
         shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
@@ -165,7 +167,7 @@ if [ "$DEBUGGER" = "y" ]; then
 fi
 
 if [ "$GDB" = "y" ]; then
-    gdb="gdbserver$TARGET_SUFFIX :5039"
+    gdb="gdbserver$GDB_TARGET_SUFFIX :5039"
     gdbargs="$exe"
 fi
 
