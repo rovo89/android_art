@@ -95,6 +95,8 @@ while true; do
     elif [ "x$1" = "x--prebuild" ]; then
         run_args="${run_args} --prebuild"
         shift;
+    elif [ "x$1" = "x--always-clean" ]; then
+        run_args="${run_args} --always-clean"
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
         usage="yes"
@@ -114,7 +116,7 @@ if [ "$usage" = "yes" ]; then
              "further documentation:"
         echo "    --debug --dev --host --interpreter --jvm --no-optimize"
         echo "    --no-verify -O --update --valgrind --zygote --64 --relocate"
-        echo "    --prebuild"
+        echo "    --prebuild --always-clean"
         echo "  Specific Runtime Options:"
         echo "    --seq                Run tests one-by-one, avoiding failures caused by busy CPU"
     ) 1>&2
