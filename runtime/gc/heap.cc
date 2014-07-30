@@ -1624,12 +1624,12 @@ void Heap::TransitionCollector(CollectorType collector_type) {
         std::unique_ptr<MemMap> mem_map(temp_space_->ReleaseMemMap());
         RemoveSpace(temp_space_);
         temp_space_ = nullptr;
+        mem_map->Protect(PROT_READ | PROT_WRITE);
         CreateMainMallocSpace(mem_map.get(), kDefaultInitialSize, mem_map->Size(),
                               mem_map->Size());
         mem_map.release();
         // Compact to the main space from the bump pointer space, don't need to swap semispaces.
         AddSpace(main_space_);
-        main_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
         Compact(main_space_, bump_pointer_space_, kGcCauseCollectorTransition);
         mem_map.reset(bump_pointer_space_->ReleaseMemMap());
         RemoveSpace(bump_pointer_space_);

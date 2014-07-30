@@ -3948,7 +3948,8 @@ class HeapChunkContext {
   HeapChunkContext(bool merge, bool native)
       : buf_(16384 - 16),
         type_(0),
-        merge_(merge) {
+        merge_(merge),
+        chunk_overhead_(0) {
     Reset();
     if (native) {
       type_ = CHUNK_TYPE("NHSG");
@@ -3961,6 +3962,14 @@ class HeapChunkContext {
     if (p_ > &buf_[0]) {
       Flush();
     }
+  }
+
+  void SetChunkOverhead(size_t chunk_overhead) {
+    chunk_overhead_ = chunk_overhead;
+  }
+
+  void ResetStartOfNextChunk() {
+    startOfNextMemoryChunk_ = nullptr;
   }
 
   void EnsureHeader(const void* chunk_ptr) {
@@ -4007,7 +4016,7 @@ class HeapChunkContext {
 
   void Reset() {
     p_ = &buf_[0];
-    startOfNextMemoryChunk_ = NULL;
+    ResetStartOfNextChunk();
     totalAllocationUnits_ = 0;
     needHeader_ = true;
     pieceLenField_ = NULL;
@@ -4034,6 +4043,8 @@ class HeapChunkContext {
      */
     bool native = type_ == CHUNK_TYPE("NHSG");
 
+    // TODO: I'm not sure using start of next chunk works well with multiple spaces. We shouldn't
+    // count gaps inbetween spaces as free memory.
     if (startOfNextMemoryChunk_ != NULL) {
         // Transmit any pending free memory. Native free memory of
         // over kMaxFreeLen could be because of the use of mmaps, so
@@ -4060,11 +4071,8 @@ class HeapChunkContext {
     // OLD-TODO: if context.merge, see if this chunk is different from the last chunk.
     // If it's the same, we should combine them.
     uint8_t state = ExamineObject(obj, native);
-    // dlmalloc's chunk header is 2 * sizeof(size_t), but if the previous chunk is in use for an
-    // allocation then the first sizeof(size_t) may belong to it.
-    const size_t dlMallocOverhead = sizeof(size_t);
-    AppendChunk(state, start, used_bytes + dlMallocOverhead);
-    startOfNextMemoryChunk_ = reinterpret_cast<char*>(start) + used_bytes + dlMallocOverhead;
+    AppendChunk(state, start, used_bytes + chunk_overhead_);
+    startOfNextMemoryChunk_ = reinterpret_cast<char*>(start) + used_bytes + chunk_overhead_;
   }
 
   void AppendChunk(uint8_t state, void* ptr, size_t length)
@@ -4153,9 +4161,17 @@ class HeapChunkContext {
   uint32_t type_;
   bool merge_;
   bool needHeader_;
+  size_t chunk_overhead_;
 
   DISALLOW_COPY_AND_ASSIGN(HeapChunkContext);
 };
+
+static void BumpPointerSpaceCallback(mirror::Object* obj, void* arg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+  const size_t size = RoundUp(obj->SizeOf(), kObjectAlignment);
+  HeapChunkContext::HeapChunkCallback(
+      obj, reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(obj) + size), size, arg);
+}
 
 void Dbg::DdmSendHeapSegments(bool native) {
   Dbg::HpsgWhen when;
@@ -4197,14 +4213,27 @@ void Dbg::DdmSendHeapSegments(bool native) {
 #endif
   } else {
     gc::Heap* heap = Runtime::Current()->GetHeap();
-    const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
-    typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
-    for (It cur = spaces.begin(), end = spaces.end(); cur != end; ++cur) {
-      if ((*cur)->IsMallocSpace()) {
-        (*cur)->AsMallocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+    for (const auto& space : heap->GetContinuousSpaces()) {
+      if (space->IsDlMallocSpace()) {
+        // dlmalloc's chunk header is 2 * sizeof(size_t), but if the previous chunk is in use for an
+        // allocation then the first sizeof(size_t) may belong to it.
+        context.SetChunkOverhead(sizeof(size_t));
+        space->AsDlMallocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+      } else if (space->IsRosAllocSpace()) {
+        context.SetChunkOverhead(0);
+        space->AsRosAllocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+      } else if (space->IsBumpPointerSpace()) {
+        context.SetChunkOverhead(0);
+        ReaderMutexLock mu(self, *Locks::mutator_lock_);
+        WriterMutexLock mu2(self, *Locks::heap_bitmap_lock_);
+        space->AsBumpPointerSpace()->Walk(BumpPointerSpaceCallback, &context);
+      } else {
+        UNIMPLEMENTED(WARNING) << "Not counting objects in space " << *space;
       }
+      context.ResetStartOfNextChunk();
     }
     // Walk the large objects, these are not in the AllocSpace.
+    context.SetChunkOverhead(0);
     heap->GetLargeObjectsSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
   }
 
