@@ -58,6 +58,21 @@ public class Main {
         ManyFloatArgs();
         atomicLong();
         LiveFlags.test();
+        minDoubleWith3ConstsTest();
+    }
+
+    public static double minDouble(double a, double b, double c) {
+        return Math.min(Math.min(a, b), c);
+    }
+
+    public static void minDoubleWith3ConstsTest() {
+        double result = minDouble(1.2, 2.5, Double.NaN);
+        if (Double.isNaN(result)) {
+            System.out.println("minDoubleWith3ConstsTest passes");
+        } else {
+            System.out.println("minDoubleWith3ConstsTest fails: " + result +
+                               " (expecting NaN)");
+        }
     }
 
     public static void atomicLong() {
