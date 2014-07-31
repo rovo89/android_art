@@ -337,9 +337,11 @@ ImageSpace* ImageSpace::Create(const char* image_location,
           relocated_version_used = true;
         } else {
           image_filename = &system_filename;
+          is_system = true;
         }
       } else if (has_system) {
         image_filename = &system_filename;
+        is_system = true;
       } else {
         CHECK(has_cache);
         image_filename = &cache_filename;
@@ -355,7 +357,7 @@ ImageSpace* ImageSpace::Create(const char* image_location,
       LOG(INFO) << "Using image file " << image_filename->c_str() << " for image location "
                 << image_location;
       space = ImageSpace::Init(image_filename->c_str(), image_location,
-                               false, &error_msg);
+                               !is_system, &error_msg);
     }
     if (space != nullptr) {
       return space;
