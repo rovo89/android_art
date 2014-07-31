@@ -36,7 +36,7 @@ class LocalValueNumbering {
   static constexpr uint16_t kNoValue = GlobalValueNumbering::kNoValue;
 
  public:
-  LocalValueNumbering(GlobalValueNumbering* gvn, BasicBlockId id);
+  LocalValueNumbering(GlobalValueNumbering* gvn, BasicBlockId id, ScopedArenaAllocator* allocator);
 
   BasicBlockId Id() const {
     return id_;
@@ -44,9 +44,11 @@ class LocalValueNumbering {
 
   bool Equals(const LocalValueNumbering& other) const;
 
-  // Set non-static method's "this".
-  void SetSRegNullChecked(uint16_t s_reg) {
-    uint16_t value_name = GetOperandValue(s_reg);
+  uint16_t GetSRegValueName(uint16_t s_reg) const {
+    return GetOperandValue(s_reg);
+  }
+
+  void SetValueNameNullChecked(uint16_t value_name) {
     null_checked_.insert(value_name);
   }
 
@@ -76,7 +78,7 @@ class LocalValueNumbering {
 
   // LocalValueNumbering should be allocated on the ArenaStack (or the native stack).
   static void* operator new(size_t size, ScopedArenaAllocator* allocator) {
-    return allocator->Alloc(sizeof(LocalValueNumbering), kArenaAllocMIR);
+    return allocator->Alloc(sizeof(LocalValueNumbering), kArenaAllocMisc);
   }
 
   // Allow delete-expression to destroy a LocalValueNumbering object without deallocation.
@@ -225,12 +227,12 @@ class LocalValueNumbering {
   // store or because they contained the last_stored_value before the store and thus could not
   // have changed as a result.
   struct AliasingValues {
-    explicit AliasingValues(ScopedArenaAllocator* allocator)
+    explicit AliasingValues(LocalValueNumbering* lvn)
         : memory_version_before_stores(kNoValue),
           last_stored_value(kNoValue),
-          store_loc_set(std::less<uint16_t>(), allocator->Adapter()),
+          store_loc_set(std::less<uint16_t>(), lvn->null_checked_.get_allocator()),
           last_load_memory_version(kNoValue),
-          load_value_map(std::less<uint16_t>(), allocator->Adapter()) {
+          load_value_map(std::less<uint16_t>(), lvn->null_checked_.get_allocator()) {
     }
 
     uint16_t memory_version_before_stores;  // kNoValue if start version for the field.
@@ -286,6 +288,10 @@ class LocalValueNumbering {
   bool HandleAliasingValuesPut(Map* map, const typename Map::key_type& key,
                                uint16_t location, uint16_t value);
 
+  template <typename K>
+  void CopyAliasingValuesMap(ScopedArenaSafeMap<K, AliasingValues>* dest,
+                             const ScopedArenaSafeMap<K, AliasingValues>& src);
+
   uint16_t MarkNonAliasingNonNull(MIR* mir);
   bool IsNonAliasing(uint16_t reg) const;
   bool IsNonAliasingIField(uint16_t reg, uint16_t field_id, uint16_t type) const;
@@ -314,9 +320,11 @@ class LocalValueNumbering {
   template <typename Set, Set LocalValueNumbering::* set_ptr>
   void IntersectSets();
 
+  void CopyLiveSregValues(SregValueMap* dest, const SregValueMap& src);
+
   // Intersect maps as sets. The value type must be equality-comparable.
-  template <typename Map, Map LocalValueNumbering::* map_ptr>
-  void IntersectMaps();
+  template <SregValueMap LocalValueNumbering::* map_ptr>
+  void IntersectSregValueMaps();
 
   // Intersect maps as sets. The value type must be equality-comparable.
   template <typename Map>

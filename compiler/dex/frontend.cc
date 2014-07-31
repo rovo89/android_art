@@ -747,7 +747,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
 
   /* Free Arenas from the cu.arena_stack for reuse by the cu.arena in the codegen. */
   if (cu.enable_debug & (1 << kDebugShowMemoryUsage)) {
-    if (cu.arena_stack.PeakBytesAllocated() > 256 * 1024) {
+    if (cu.arena_stack.PeakBytesAllocated() > 1 * 1024 * 1024) {
       MemStats stack_stats(cu.arena_stack.GetPeakStats());
       LOG(INFO) << method_name << " " << Dumpable<MemStats>(stack_stats);
     }

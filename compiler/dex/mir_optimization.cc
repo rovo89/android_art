@@ -329,7 +329,8 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
   if (use_lvn) {
     allocator.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
     global_valnum.reset(new (allocator.get()) GlobalValueNumbering(cu_, allocator.get()));
-    local_valnum.reset(new (allocator.get()) LocalValueNumbering(global_valnum.get(), bb->id));
+    local_valnum.reset(new (allocator.get()) LocalValueNumbering(global_valnum.get(), bb->id,
+                                                                 allocator.get()));
   }
   while (bb != NULL) {
     for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
@@ -1170,7 +1171,8 @@ void MIRGraph::ApplyGlobalValueNumberingEnd() {
     temp_gvn_->AllowModifications();
     PreOrderDfsIterator iter(this);
     for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
-      LocalValueNumbering* lvn = temp_gvn_->PrepareBasicBlock(bb);
+      ScopedArenaAllocator allocator(&cu_->arena_stack);  // Reclaim memory after each LVN.
+      LocalValueNumbering* lvn = temp_gvn_->PrepareBasicBlock(bb, &allocator);
       if (lvn != nullptr) {
         for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
           lvn->GetValueNumber(mir);
