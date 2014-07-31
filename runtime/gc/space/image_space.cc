@@ -356,8 +356,12 @@ ImageSpace* ImageSpace::Create(const char* image_location,
       image_lock.Init(image_filename->c_str(), &error_msg);
       LOG(INFO) << "Using image file " << image_filename->c_str() << " for image location "
                 << image_location;
+      // If we are in /system we can assume the image is good. We can also
+      // assume this if we are using a relocated image (i.e. image checksum
+      // matches) since this is only different by the offset. We need this to
+      // make sure that host tests continue to work.
       space = ImageSpace::Init(image_filename->c_str(), image_location,
-                               !is_system, &error_msg);
+                               !(is_system || relocated_version_used), &error_msg);
     }
     if (space != nullptr) {
       return space;
