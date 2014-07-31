@@ -197,11 +197,7 @@ LocalValueNumbering::AliasingValues* LocalValueNumbering::GetAliasingValues(
     Map* map, const typename Map::key_type& key) {
   auto lb = map->lower_bound(key);
   if (lb == map->end() || map->key_comp()(key, lb->first)) {
-    map->PutBefore(lb, key, AliasingValues(gvn_->allocator_));
-    // The new entry was inserted before lb.
-    DCHECK(lb != map->begin());
-    --lb;
-    DCHECK(!map->key_comp()(lb->first, key) && !map->key_comp()(key, lb->first));
+    lb = map->PutBefore(lb, key, AliasingValues(this));
   }
   return &lb->second;
 }
@@ -308,25 +304,37 @@ bool LocalValueNumbering::HandleAliasingValuesPut(Map* map, const typename Map::
   return true;
 }
 
-LocalValueNumbering::LocalValueNumbering(GlobalValueNumbering* gvn, uint16_t id)
+template <typename K>
+void LocalValueNumbering::CopyAliasingValuesMap(ScopedArenaSafeMap<K, AliasingValues>* dest,
+                                                const ScopedArenaSafeMap<K, AliasingValues>& src) {
+  // We need each new AliasingValues (or rather its map members) to be constructed
+  // with our allocator, rather than the allocator of the source.
+  for (const auto& entry : src) {
+    auto it = dest->PutBefore(dest->end(), entry.first, AliasingValues(this));
+    it->second = entry.second;  // Map assignments preserve current allocator.
+  }
+}
+
+LocalValueNumbering::LocalValueNumbering(GlobalValueNumbering* gvn, uint16_t id,
+                                         ScopedArenaAllocator* allocator)
     : gvn_(gvn),
       id_(id),
-      sreg_value_map_(std::less<uint16_t>(), gvn->Allocator()->Adapter()),
-      sreg_wide_value_map_(std::less<uint16_t>(), gvn->Allocator()->Adapter()),
-      sfield_value_map_(std::less<uint16_t>(), gvn->Allocator()->Adapter()),
-      non_aliasing_ifield_value_map_(std::less<uint16_t>(), gvn->Allocator()->Adapter()),
-      aliasing_ifield_value_map_(std::less<uint16_t>(), gvn->Allocator()->Adapter()),
-      non_aliasing_array_value_map_(std::less<uint16_t>(), gvn->Allocator()->Adapter()),
-      aliasing_array_value_map_(std::less<uint16_t>(), gvn->Allocator()->Adapter()),
+      sreg_value_map_(std::less<uint16_t>(), allocator->Adapter()),
+      sreg_wide_value_map_(std::less<uint16_t>(), allocator->Adapter()),
+      sfield_value_map_(std::less<uint16_t>(), allocator->Adapter()),
+      non_aliasing_ifield_value_map_(std::less<uint16_t>(), allocator->Adapter()),
+      aliasing_ifield_value_map_(std::less<uint16_t>(), allocator->Adapter()),
+      non_aliasing_array_value_map_(std::less<uint16_t>(), allocator->Adapter()),
+      aliasing_array_value_map_(std::less<uint16_t>(), allocator->Adapter()),
       global_memory_version_(0u),
-      non_aliasing_refs_(std::less<uint16_t>(), gvn->Allocator()->Adapter()),
-      escaped_refs_(std::less<uint16_t>(), gvn->Allocator()->Adapter()),
-      escaped_ifield_clobber_set_(EscapedIFieldClobberKeyComparator(), gvn->Allocator()->Adapter()),
-      escaped_array_clobber_set_(EscapedArrayClobberKeyComparator(), gvn->Allocator()->Adapter()),
-      range_checked_(RangeCheckKeyComparator() , gvn->Allocator()->Adapter()),
-      null_checked_(std::less<uint16_t>(), gvn->Allocator()->Adapter()),
-      merge_names_(gvn->Allocator()->Adapter()),
-      merge_map_(std::less<ScopedArenaVector<BasicBlockId>>(), gvn->Allocator()->Adapter()),
+      non_aliasing_refs_(std::less<uint16_t>(), allocator->Adapter()),
+      escaped_refs_(std::less<uint16_t>(), allocator->Adapter()),
+      escaped_ifield_clobber_set_(EscapedIFieldClobberKeyComparator(), allocator->Adapter()),
+      escaped_array_clobber_set_(EscapedArrayClobberKeyComparator(), allocator->Adapter()),
+      range_checked_(RangeCheckKeyComparator() , allocator->Adapter()),
+      null_checked_(std::less<uint16_t>(), allocator->Adapter()),
+      merge_names_(allocator->Adapter()),
+      merge_map_(std::less<ScopedArenaVector<BasicBlockId>>(), allocator->Adapter()),
       merge_new_memory_version_(kNoValue) {
   std::fill_n(unresolved_sfield_version_, kFieldTypeCount, 0u);
   std::fill_n(unresolved_ifield_version_, kFieldTypeCount, 0u);
@@ -352,8 +360,8 @@ bool LocalValueNumbering::Equals(const LocalValueNumbering& other) const {
 }
 
 void LocalValueNumbering::MergeOne(const LocalValueNumbering& other, MergeType merge_type) {
-  sreg_value_map_ = other.sreg_value_map_;
-  sreg_wide_value_map_ = other.sreg_wide_value_map_;
+  CopyLiveSregValues(&sreg_value_map_, other.sreg_value_map_);
+  CopyLiveSregValues(&sreg_wide_value_map_, other.sreg_wide_value_map_);
 
   if (merge_type == kReturnMerge) {
     // RETURN or PHI+RETURN. We need only sreg value maps.
@@ -361,7 +369,7 @@ void LocalValueNumbering::MergeOne(const LocalValueNumbering& other, MergeType m
   }
 
   non_aliasing_ifield_value_map_ = other.non_aliasing_ifield_value_map_;
-  non_aliasing_array_value_map_ = other.non_aliasing_array_value_map_;
+  CopyAliasingValuesMap(&non_aliasing_array_value_map_, other.non_aliasing_array_value_map_);
   non_aliasing_refs_ = other.non_aliasing_refs_;
   range_checked_ = other.range_checked_;
   null_checked_ = other.null_checked_;
@@ -380,8 +388,8 @@ void LocalValueNumbering::MergeOne(const LocalValueNumbering& other, MergeType m
   std::copy_n(other.unresolved_ifield_version_, kFieldTypeCount, unresolved_ifield_version_);
   std::copy_n(other.unresolved_sfield_version_, kFieldTypeCount, unresolved_sfield_version_);
   sfield_value_map_ = other.sfield_value_map_;
-  aliasing_ifield_value_map_ = other.aliasing_ifield_value_map_;
-  aliasing_array_value_map_ = other.aliasing_array_value_map_;
+  CopyAliasingValuesMap(&aliasing_ifield_value_map_, other.aliasing_ifield_value_map_);
+  CopyAliasingValuesMap(&aliasing_array_value_map_, other.aliasing_array_value_map_);
   escaped_refs_ = other.escaped_refs_;
   escaped_ifield_clobber_set_ = other.escaped_ifield_clobber_set_;
   escaped_array_clobber_set_ = other.escaped_array_clobber_set_;
@@ -493,8 +501,20 @@ void LocalValueNumbering::IntersectSets() {
   }
 }
 
-template <typename Map, Map LocalValueNumbering::* map_ptr>
-void LocalValueNumbering::IntersectMaps() {
+void LocalValueNumbering::CopyLiveSregValues(SregValueMap* dest, const SregValueMap& src) {
+  auto dest_end = dest->end();
+  ArenaBitVector* live_in_v = gvn_->GetMirGraph()->GetBasicBlock(id_)->data_flow_info->live_in_v;
+  DCHECK(live_in_v != nullptr);
+  for (const auto& entry : src) {
+    bool live = live_in_v->IsBitSet(gvn_->GetMirGraph()->SRegToVReg(entry.first));
+    if (live) {
+      dest->PutBefore(dest_end, entry.first, entry.second);
+    }
+  }
+}
+
+template <LocalValueNumbering::SregValueMap LocalValueNumbering::* map_ptr>
+void LocalValueNumbering::IntersectSregValueMaps() {
   DCHECK_GE(gvn_->merge_lvns_.size(), 2u);
 
   // Find the LVN with the least entries in the set.
@@ -506,18 +526,22 @@ void LocalValueNumbering::IntersectMaps() {
   }
 
   // For each key check if it's in all the LVNs.
+  ArenaBitVector* live_in_v = gvn_->GetMirGraph()->GetBasicBlock(id_)->data_flow_info->live_in_v;
+  DCHECK(live_in_v != nullptr);
   for (const auto& entry : least_entries_lvn->*map_ptr) {
-    bool checked = true;
-    for (const LocalValueNumbering* lvn : gvn_->merge_lvns_) {
-      if (lvn != least_entries_lvn) {
-        auto it = (lvn->*map_ptr).find(entry.first);
-        if (it == (lvn->*map_ptr).end() || !(it->second == entry.second)) {
-          checked = false;
-          break;
+    bool live_and_same = live_in_v->IsBitSet(gvn_->GetMirGraph()->SRegToVReg(entry.first));
+    if (live_and_same) {
+      for (const LocalValueNumbering* lvn : gvn_->merge_lvns_) {
+        if (lvn != least_entries_lvn) {
+          auto it = (lvn->*map_ptr).find(entry.first);
+          if (it == (lvn->*map_ptr).end() || !(it->second == entry.second)) {
+            live_and_same = false;
+            break;
+          }
         }
       }
     }
-    if (checked) {
+    if (live_and_same) {
       (this->*map_ptr).PutBefore((this->*map_ptr).end(), entry.first, entry.second);
     }
   }
@@ -721,11 +745,7 @@ void LocalValueNumbering::MergeAliasingValues(const typename Map::value_type& en
                                               typename Map::iterator hint) {
   const typename Map::key_type& key = entry.first;
 
-  (this->*map_ptr).PutBefore(hint, key, AliasingValues(gvn_->allocator_));
-  DCHECK(hint != (this->*map_ptr).begin());
-  AliasingIFieldValuesMap::iterator it = hint;
-  --it;
-  DCHECK_EQ(it->first, key);
+  auto it = (this->*map_ptr).PutBefore(hint, key, AliasingValues(this));
   AliasingValues* my_values = &it->second;
 
   const AliasingValues* cmp_values = nullptr;
@@ -849,8 +869,8 @@ void LocalValueNumbering::MergeAliasingValues(const typename Map::value_type& en
 void LocalValueNumbering::Merge(MergeType merge_type) {
   DCHECK_GE(gvn_->merge_lvns_.size(), 2u);
 
-  IntersectMaps<SregValueMap, &LocalValueNumbering::sreg_value_map_>();
-  IntersectMaps<SregValueMap, &LocalValueNumbering::sreg_wide_value_map_>();
+  IntersectSregValueMaps<&LocalValueNumbering::sreg_value_map_>();
+  IntersectSregValueMaps<&LocalValueNumbering::sreg_wide_value_map_>();
   if (merge_type == kReturnMerge) {
     // RETURN or PHI+RETURN. We need only sreg value maps.
     return;
@@ -1385,7 +1405,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
         if (kLocalValueNumberingEnableFilledNewArrayTracking && mir->ssa_rep->num_uses != 0u) {
           AliasingValues* values = GetAliasingValues(&non_aliasing_array_value_map_, array);
           // Clear the value if we got a merged version in a loop.
-          *values = AliasingValues(gvn_->allocator_);
+          *values = AliasingValues(this);
           for (size_t i = 0u, count = mir->ssa_rep->num_uses; i != count; ++i) {
             DCHECK_EQ(High16Bits(i), 0u);
             uint16_t index = gvn_->LookupValue(Instruction::CONST, i, 0u, 0);
