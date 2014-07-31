@@ -19,6 +19,8 @@
 
 #include "art_method.h"
 
+#include "art_field.h"
+#include "class.h"
 #include "class_linker.h"
 #include "dex_cache.h"
 #include "dex_file.h"
@@ -87,9 +89,58 @@ inline ObjectArray<ArtMethod>* ArtMethod::GetDexCacheResolvedMethods() {
       OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_methods_));
 }
 
+inline ArtMethod* ArtMethod::GetDexCacheResolvedMethod(uint16_t method_index) {
+  ArtMethod* method = GetDexCacheResolvedMethods()->Get(method_index);
+  if (method != nullptr && !method->GetDeclaringClass()->IsErroneous()) {
+    return method;
+  } else {
+    return nullptr;
+  }
+}
+
+inline void ArtMethod::SetDexCacheResolvedMethod(uint16_t method_idx, ArtMethod* new_method) {
+  GetDexCacheResolvedMethods()->Set<false>(method_idx, new_method);
+}
+
+inline bool ArtMethod::HasDexCacheResolvedMethods() {
+  return GetDexCacheResolvedMethods() != nullptr;
+}
+
+inline bool ArtMethod::HasSameDexCacheResolvedMethods(ObjectArray<ArtMethod>* other_cache) {
+  return GetDexCacheResolvedMethods() == other_cache;
+}
+
+inline bool ArtMethod::HasSameDexCacheResolvedMethods(ArtMethod* other) {
+  return GetDexCacheResolvedMethods() == other->GetDexCacheResolvedMethods();
+}
+
+
 inline ObjectArray<Class>* ArtMethod::GetDexCacheResolvedTypes() {
   return GetFieldObject<ObjectArray<Class>>(
       OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_));
+}
+
+template <bool kWithCheck>
+inline Class* ArtMethod::GetDexCacheResolvedType(uint32_t type_index) {
+  Class* klass;
+  if (kWithCheck) {
+    klass = GetDexCacheResolvedTypes()->Get(type_index);
+  } else {
+    klass = GetDexCacheResolvedTypes()->GetWithoutChecks(type_index);
+  }
+  return (klass != nullptr && !klass->IsErroneous()) ? klass : nullptr;
+}
+
+inline bool ArtMethod::HasDexCacheResolvedTypes() {
+  return GetDexCacheResolvedTypes() != nullptr;
+}
+
+inline bool ArtMethod::HasSameDexCacheResolvedTypes(ObjectArray<Class>* other_cache) {
+  return GetDexCacheResolvedTypes() == other_cache;
+}
+
+inline bool ArtMethod::HasSameDexCacheResolvedTypes(ArtMethod* other) {
+  return GetDexCacheResolvedTypes() == other->GetDexCacheResolvedTypes();
 }
 
 inline uint32_t ArtMethod::GetCodeSize() {
@@ -396,7 +447,7 @@ inline const DexFile::CodeItem* ArtMethod::GetCodeItem() {
 
 inline bool ArtMethod::IsResolvedTypeIdx(uint16_t type_idx) {
   mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
-  return method->GetDexCacheResolvedTypes()->Get(type_idx) != nullptr;
+  return method->GetDexCacheResolvedType(type_idx) != nullptr;
 }
 
 inline int32_t ArtMethod::GetLineNumFromDexPC(uint32_t dex_pc) {
