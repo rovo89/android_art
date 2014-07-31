@@ -154,6 +154,8 @@ class RegTypeCache {
   const ConstantType& FromCat1NonSmallConstant(int32_t value, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void AddEntry(RegType* new_entry);
+
   template <class Type>
   static Type* CreatePrimitiveTypeInstance(const std::string& descriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

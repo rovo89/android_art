@@ -21,6 +21,7 @@
 #include "mirror/array.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/object_reference.h"
 #include "verifier/method_verifier.h"
 #include <functional>
 
@@ -722,6 +723,7 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
   OpSize load_size = LoadStoreOpSize(is_long_or_double, is_object);
   if (!SLOW_FIELD_PATH && field_info.FastGet()) {
     RegisterClass reg_class = RegClassForFieldLoadStore(load_size, field_info.IsVolatile());
+    // A load of the class will lead to an iget with offset 0.
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     rl_obj = LoadValue(rl_obj, kRefReg);
     GenNullCheck(rl_obj.reg, opt_flags);
@@ -768,7 +770,9 @@ void Mir2Lir::GenIPut(MIR* mir, int opt_flags, OpSize size,
   OpSize store_size = LoadStoreOpSize(is_long_or_double, is_object);
   if (!SLOW_FIELD_PATH && field_info.FastPut()) {
     RegisterClass reg_class = RegClassForFieldLoadStore(store_size, field_info.IsVolatile());
-    DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
+    // Dex code never writes to the class field.
+    DCHECK_GE(static_cast<uint32_t>(field_info.FieldOffset().Int32Value()),
+              sizeof(mirror::HeapReference<mirror::Class>));
     rl_obj = LoadValue(rl_obj, kRefReg);
     if (is_long_or_double) {
       rl_src = LoadValueWide(rl_src, reg_class);
