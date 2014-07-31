@@ -212,6 +212,7 @@ class GlobalValueNumberingTest : public testing::Test {
       if (def->type == kDalvikByteCode || def->type == kEntryBlock || def->type == kExitBlock) {
         bb->data_flow_info = static_cast<BasicBlockDataFlow*>(
             cu_.arena.Alloc(sizeof(BasicBlockDataFlow), kArenaAllocDFInfo));
+        bb->data_flow_info->live_in_v = live_in_v_;
       }
     }
     cu_.mir_graph->num_blocks_ = count;
@@ -333,11 +334,22 @@ class GlobalValueNumberingTest : public testing::Test {
         ssa_reps_(),
         allocator_(),
         gvn_(),
-        value_names_() {
+        value_names_(),
+        live_in_v_(new (&cu_.arena) ArenaBitVector(&cu_.arena, kMaxSsaRegs, false, kBitMapMisc)) {
     cu_.mir_graph.reset(new MIRGraph(&cu_, &cu_.arena));
     cu_.access_flags = kAccStatic;  // Don't let "this" interfere with this test.
     allocator_.reset(ScopedArenaAllocator::Create(&cu_.arena_stack));
+    // Bind all possible sregs to live vregs for test purposes.
+    live_in_v_->SetInitialBits(kMaxSsaRegs);
+    cu_.mir_graph->ssa_base_vregs_ = new (&cu_.arena) GrowableArray<int>(&cu_.arena, kMaxSsaRegs);
+    cu_.mir_graph->ssa_subscripts_ = new (&cu_.arena) GrowableArray<int>(&cu_.arena, kMaxSsaRegs);
+    for (unsigned int i = 0; i < kMaxSsaRegs; i++) {
+      cu_.mir_graph->ssa_base_vregs_->Insert(i);
+      cu_.mir_graph->ssa_subscripts_->Insert(0);
+    }
   }
+
+  static constexpr size_t kMaxSsaRegs = 16384u;
 
   ArenaPool pool_;
   CompilationUnit cu_;
@@ -347,6 +359,7 @@ class GlobalValueNumberingTest : public testing::Test {
   std::unique_ptr<ScopedArenaAllocator> allocator_;
   std::unique_ptr<GlobalValueNumbering> gvn_;
   std::vector<uint16_t> value_names_;
+  ArenaBitVector* live_in_v_;
 };
 
 class GlobalValueNumberingTestDiamond : public GlobalValueNumberingTest {

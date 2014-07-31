@@ -222,11 +222,11 @@ class ScopedArenaAllocatorAdapter : private DebugStackReference, private DebugSt
   }
 
   void construct(pointer p, const_reference val) {
-    DebugStackIndirectTopRef::CheckTop();
+    // Don't CheckTop(), allow reusing existing capacity of a vector/deque below the top.
     new (static_cast<void*>(p)) value_type(val);
   }
   void destroy(pointer p) {
-    DebugStackIndirectTopRef::CheckTop();
+    // Don't CheckTop(), allow reusing existing capacity of a vector/deque below the top.
     p->~value_type();
   }
 
