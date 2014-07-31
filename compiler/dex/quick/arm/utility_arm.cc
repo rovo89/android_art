@@ -1169,4 +1169,17 @@ LIR* ArmMir2Lir::InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEn
   return OpReg(op, r_tgt);
 }
 
+size_t ArmMir2Lir::GetInstructionOffset(LIR* lir) {
+  uint64_t check_flags = GetTargetInstFlags(lir->opcode);
+  DCHECK((check_flags & IS_LOAD) || (check_flags & IS_STORE));
+  size_t offset = (check_flags & IS_TERTIARY_OP) ? lir->operands[2] : 0;
+
+  if (check_flags & SCALED_OFFSET_X2) {
+    offset = offset * 2;
+  } else if (check_flags & SCALED_OFFSET_X4) {
+    offset = offset * 4;
+  }
+  return offset;
+}
+
 }  // namespace art
