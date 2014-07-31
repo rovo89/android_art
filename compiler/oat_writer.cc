@@ -410,8 +410,16 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
             int cur_offset = cfi_info->size();
             cfi_info->insert(cfi_info->end(), fde->begin(), fde->end());
 
+            // Set the 'CIE_pointer' field to cur_offset+4.
+            uint32_t CIE_pointer = cur_offset + 4;
+            uint32_t offset_to_update = cur_offset + sizeof(uint32_t);
+            (*cfi_info)[offset_to_update+0] = CIE_pointer;
+            (*cfi_info)[offset_to_update+1] = CIE_pointer >> 8;
+            (*cfi_info)[offset_to_update+2] = CIE_pointer >> 16;
+            (*cfi_info)[offset_to_update+3] = CIE_pointer >> 24;
+
             // Set the 'initial_location' field to address the start of the method.
-            uint32_t offset_to_update = cur_offset + 2*sizeof(uint32_t);
+            offset_to_update = cur_offset + 2*sizeof(uint32_t);
             (*cfi_info)[offset_to_update+0] = quick_code_start;
             (*cfi_info)[offset_to_update+1] = quick_code_start >> 8;
             (*cfi_info)[offset_to_update+2] = quick_code_start >> 16;
