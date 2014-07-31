@@ -983,6 +983,8 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       estimated_native_code_size_(0),
       reg_pool_(NULL),
       live_sreg_(0),
+      core_vmap_table_(mir_graph->GetArena()->Adapter()),
+      fp_vmap_table_(mir_graph->GetArena()->Adapter()),
       num_core_spills_(0),
       num_fp_spills_(0),
       frame_size_(0),
