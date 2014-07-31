@@ -19,6 +19,8 @@
 
 #include "dex_cache.h"
 
+#include "base/logging.h"
+#include "mirror/class.h"
 #include "runtime.h"
 
 namespace art {
@@ -39,6 +41,12 @@ inline ArtMethod* DexCache::GetResolvedMethod(uint32_t method_idx)
   } else {
     return method;
   }
+}
+
+inline void DexCache::SetResolvedType(uint32_t type_idx, Class* resolved) {
+  // TODO default transaction support.
+  DCHECK(resolved == nullptr || !resolved->IsErroneous());
+  GetResolvedTypes()->Set(type_idx, resolved);
 }
 
 }  // namespace mirror
