@@ -106,14 +106,14 @@ bool ElfWriterQuick::ElfBuilder::Write() {
   // | .strtab\0               |  (Optional)
   // | .debug_str\0            |  (Optional)
   // | .debug_info\0           |  (Optional)
-  // | .debug_frame\0          |  (Optional)
+  // | .eh_frame\0             |  (Optional)
   // | .debug_abbrev\0         |  (Optional)
   // +-------------------------+  (Optional)
   // | .debug_str              |  (Optional)
   // +-------------------------+  (Optional)
   // | .debug_info             |  (Optional)
   // +-------------------------+  (Optional)
-  // | .debug_frame            |  (Optional)
+  // | .eh_frame               |  (Optional)
   // +-------------------------+  (Optional)
   // | .debug_abbrev           |  (Optional)
   // +-------------------------+
@@ -127,7 +127,7 @@ bool ElfWriterQuick::ElfBuilder::Write() {
   // | Elf32_Shdr .shstrtab    |
   // | Elf32_Shdr .debug_str   |  (Optional)
   // | Elf32_Shdr .debug_info  |  (Optional)
-  // | Elf32_Shdr .debug_frame |  (Optional)
+  // | Elf32_Shdr .eh_frame    |  (Optional)
   // | Elf32_Shdr .debug_abbrev|  (Optional)
   // +-------------------------+
 
@@ -844,14 +844,14 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
     ElfRawSectionBuilder debug_info(".debug_info",   SHT_PROGBITS, 0, nullptr, 0, 1, 0);
     ElfRawSectionBuilder debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
     ElfRawSectionBuilder debug_str(".debug_str",    SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-    ElfRawSectionBuilder debug_frame(".debug_frame",  SHT_PROGBITS, 0, nullptr, 0, 4, 0);
-    debug_frame.SetBuffer(*compiler_driver_->GetCallFrameInformation());
+    ElfRawSectionBuilder eh_frame(".eh_frame",  SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0);
+    eh_frame.SetBuffer(*compiler_driver_->GetCallFrameInformation());
 
     FillInCFIInformation(oat_writer, debug_info.GetBuffer(),
                          debug_abbrev.GetBuffer(), debug_str.GetBuffer());
     builder.RegisterRawSection(debug_info);
     builder.RegisterRawSection(debug_abbrev);
-    builder.RegisterRawSection(debug_frame);
+    builder.RegisterRawSection(eh_frame);
     builder.RegisterRawSection(debug_str);
   }
 
