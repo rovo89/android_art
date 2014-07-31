@@ -17,6 +17,7 @@
 #include "arm64_lir.h"
 #include "codegen_arm64.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "utils.h"
 
 namespace art {
 
@@ -383,6 +384,52 @@ bool Arm64Mir2Lir::GenInlinedSqrt(CallInfo* info) {
   RegLocation rl_result = EvalLoc(rl_dest, kFPReg, true);
   NewLIR2(FWIDE(kA64Fsqrt2ff), rl_result.reg.GetReg(), rl_src.reg.GetReg());
   StoreValueWide(rl_dest, rl_result);
+  return true;
+}
+
+bool Arm64Mir2Lir::GenInlinedCeil(CallInfo* info) {
+  RegLocation rl_src = info->args[0];
+  RegLocation rl_dest = InlineTargetWide(info);
+  rl_src = LoadValueWide(rl_src, kFPReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kFPReg, true);
+  NewLIR2(FWIDE(kA64Frintp2ff), rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  StoreValueWide(rl_dest, rl_result);
+  return true;
+}
+
+bool Arm64Mir2Lir::GenInlinedFloor(CallInfo* info) {
+  RegLocation rl_src = info->args[0];
+  RegLocation rl_dest = InlineTargetWide(info);
+  rl_src = LoadValueWide(rl_src, kFPReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kFPReg, true);
+  NewLIR2(FWIDE(kA64Frintm2ff), rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  StoreValueWide(rl_dest, rl_result);
+  return true;
+}
+
+bool Arm64Mir2Lir::GenInlinedRint(CallInfo* info) {
+  RegLocation rl_src = info->args[0];
+  RegLocation rl_dest = InlineTargetWide(info);
+  rl_src = LoadValueWide(rl_src, kFPReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kFPReg, true);
+  NewLIR2(FWIDE(kA64Frintn2ff), rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  StoreValueWide(rl_dest, rl_result);
+  return true;
+}
+
+bool Arm64Mir2Lir::GenInlinedRound(CallInfo* info, bool is_double) {
+  int32_t encoded_imm = EncodeImmSingle(bit_cast<float, uint32_t>(0.5f));
+  ArmOpcode wide = (is_double) ? FWIDE(0) : FUNWIDE(0);
+  RegLocation rl_src = info->args[0];
+  RegLocation rl_dest = (is_double) ? InlineTargetWide(info) : InlineTarget(info);
+  rl_src = (is_double) ? LoadValueWide(rl_src, kFPReg) : LoadValue(rl_src, kFPReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  RegStorage r_tmp = (is_double) ? AllocTempDouble() : AllocTempSingle();
+  // 0.5f and 0.5d are encoded in the same way.
+  NewLIR2(kA64Fmov2fI | wide, r_tmp.GetReg(), encoded_imm);
+  NewLIR3(kA64Fadd3fff | wide, rl_src.reg.GetReg(), rl_src.reg.GetReg(), r_tmp.GetReg());
+  NewLIR2((is_double) ? kA64Fcvtms2xS : kA64Fcvtms2ws, rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  (is_double) ? StoreValueWide(rl_dest, rl_result) : StoreValue(rl_dest, rl_result);
   return true;
 }
 
