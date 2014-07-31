@@ -1544,21 +1544,21 @@ std::vector<uint8_t>* X86Mir2Lir::ReturnCommonCallFrameInformation(bool is_x86_6
 static bool ARTRegIDToDWARFRegID(bool is_x86_64, int art_reg_id, int* dwarf_reg_id) {
   if (is_x86_64) {
     switch (art_reg_id) {
-    case 3 : *dwarf_reg_id =  3; return true; // %rbx
+    case 3 : *dwarf_reg_id =  3; return true;  // %rbx
     // This is the only discrepancy between ART & DWARF register numbering.
-    case 5 : *dwarf_reg_id =  6; return true; // %rbp
-    case 12: *dwarf_reg_id = 12; return true; // %r12
-    case 13: *dwarf_reg_id = 13; return true; // %r13
-    case 14: *dwarf_reg_id = 14; return true; // %r14
-    case 15: *dwarf_reg_id = 15; return true; // %r15
-    default: return false; // Should not get here
+    case 5 : *dwarf_reg_id =  6; return true;  // %rbp
+    case 12: *dwarf_reg_id = 12; return true;  // %r12
+    case 13: *dwarf_reg_id = 13; return true;  // %r13
+    case 14: *dwarf_reg_id = 14; return true;  // %r14
+    case 15: *dwarf_reg_id = 15; return true;  // %r15
+    default: return false;  // Should not get here
     }
   } else {
     switch (art_reg_id) {
-    case 5: *dwarf_reg_id = 5; return true; // %ebp
-    case 6: *dwarf_reg_id = 6; return true; // %esi
-    case 7: *dwarf_reg_id = 7; return true; // %edi
-    default: return false; // Should not get here
+    case 5: *dwarf_reg_id = 5; return true;  // %ebp
+    case 6: *dwarf_reg_id = 6; return true;  // %esi
+    case 7: *dwarf_reg_id = 7; return true;  // %edi
+    default: return false;  // Should not get here
     }
   }
 }
