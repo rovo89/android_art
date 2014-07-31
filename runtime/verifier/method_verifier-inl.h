@@ -66,9 +66,9 @@ inline bool MethodVerifier::HasFailures() const {
   return !failure_messages_.empty();
 }
 
-inline const RegType& MethodVerifier::ResolveCheckedClass(uint32_t class_idx) {
+inline RegType& MethodVerifier::ResolveCheckedClass(uint32_t class_idx) {
   DCHECK(!HasFailures());
-  const RegType& result = ResolveClassAndCheckAccess(class_idx);
+  RegType& result = ResolveClassAndCheckAccess(class_idx);
   DCHECK(!HasFailures());
   return result;
 }
