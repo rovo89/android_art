@@ -40,7 +40,7 @@ template <const bool kAccessCheck>
 static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
                                               mirror::ArtMethod* method,
                                               Thread* self, bool* slow_path) {
-  mirror::Class* klass = method->GetDexCacheResolvedTypes()->GetWithoutChecks(type_idx);
+  mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx);
   if (UNLIKELY(klass == NULL)) {
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
     *slow_path = true;
@@ -178,7 +178,7 @@ static inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
     *slow_path = true;
     return nullptr;  // Failure
   }
-  mirror::Class* klass = method->GetDexCacheResolvedTypes()->GetWithoutChecks(type_idx);
+  mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx);
   if (UNLIKELY(klass == nullptr)) {  // Not in dex cache so try to resolve
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
     *slow_path = true;

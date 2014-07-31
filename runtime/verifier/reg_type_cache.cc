@@ -209,7 +209,7 @@ RegType& RegTypeCache::From(mirror::ClassLoader* loader, const char* descriptor,
 }
 
 RegType& RegTypeCache::FromClass(const char* descriptor, mirror::Class* klass, bool precise) {
-  DCHECK(klass != nullptr && !klass->IsErroneous());
+  DCHECK(klass != nullptr);
   if (klass->IsPrimitive()) {
     // Note: precise isn't used for primitive classes. A char is assignable to an int. All
     // primitive classes are final.

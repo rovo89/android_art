@@ -41,7 +41,7 @@ static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx, mirror:
     ThrowNegativeArraySizeException(component_count);
     return nullptr;  // Failure
   }
-  mirror::Class* klass = referrer->GetDexCacheResolvedTypes()->GetWithoutChecks(type_idx);
+  mirror::Class* klass = referrer->GetDexCacheResolvedType<false>(type_idx);
   if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, referrer);
     if (klass == NULL) {  // Error

@@ -3488,22 +3488,21 @@ mirror::ArtMethod* ClassLinker::FindMethodForProxy(mirror::Class* proxy_class,
   DCHECK(proxy_class->IsProxyClass());
   DCHECK(proxy_method->IsProxyMethod());
   // Locate the dex cache of the original interface/Object
-  mirror::DexCache* dex_cache = NULL;
+  mirror::DexCache* dex_cache = nullptr;
   {
-    mirror::ObjectArray<mirror::Class>* resolved_types = proxy_method->GetDexCacheResolvedTypes();
     ReaderMutexLock mu(Thread::Current(), dex_lock_);
     for (size_t i = 0; i != dex_caches_.size(); ++i) {
       mirror::DexCache* a_dex_cache = GetDexCache(i);
-      if (a_dex_cache->GetResolvedTypes() == resolved_types) {
+      if (proxy_method->HasSameDexCacheResolvedTypes(a_dex_cache->GetResolvedTypes())) {
         dex_cache = a_dex_cache;
         break;
       }
     }
   }
-  CHECK(dex_cache != NULL);
+  CHECK(dex_cache != nullptr);
   uint32_t method_idx = proxy_method->GetDexMethodIndex();
   mirror::ArtMethod* resolved_method = dex_cache->GetResolvedMethod(method_idx);
-  CHECK(resolved_method != NULL);
+  CHECK(resolved_method != nullptr);
   return resolved_method;
 }
 
@@ -3583,8 +3582,8 @@ static void CheckProxyMethod(Handle<mirror::ArtMethod> method, Handle<mirror::Ar
   // The proxy method doesn't have its own dex cache or dex file and so it steals those of its
   // interface prototype. The exception to this are Constructors and the Class of the Proxy itself.
   CHECK_EQ(prototype->GetDexCacheStrings(), method->GetDexCacheStrings());
-  CHECK_EQ(prototype->GetDexCacheResolvedMethods(), method->GetDexCacheResolvedMethods());
-  CHECK_EQ(prototype->GetDexCacheResolvedTypes(), method->GetDexCacheResolvedTypes());
+  CHECK(prototype->HasSameDexCacheResolvedMethods(method.Get()));
+  CHECK(prototype->HasSameDexCacheResolvedTypes(method.Get()));
   CHECK_EQ(prototype->GetDexMethodIndex(), method->GetDexMethodIndex());
 
   MethodHelper mh(method);
@@ -4952,7 +4951,7 @@ mirror::ArtField* ClassLinker::ResolveField(const DexFile& dex_file, uint32_t fi
                                             bool is_static) {
   DCHECK(dex_cache.Get() != nullptr);
   mirror::ArtField* resolved = dex_cache->GetResolvedField(field_idx);
-  if (resolved != NULL) {
+  if (resolved != nullptr) {
     return resolved;
   }
   const DexFile::FieldId& field_id = dex_file.GetFieldId(field_idx);
@@ -4960,9 +4959,9 @@ mirror::ArtField* ClassLinker::ResolveField(const DexFile& dex_file, uint32_t fi
   StackHandleScope<1> hs(self);
   Handle<mirror::Class> klass(
       hs.NewHandle(ResolveType(dex_file, field_id.class_idx_, dex_cache, class_loader)));
-  if (klass.Get() == NULL) {
+  if (klass.Get() == nullptr) {
     DCHECK(Thread::Current()->IsExceptionPending());
-    return NULL;
+    return nullptr;
   }
 
   if (is_static) {
@@ -4971,7 +4970,7 @@ mirror::ArtField* ClassLinker::ResolveField(const DexFile& dex_file, uint32_t fi
     resolved = klass->FindInstanceField(dex_cache.Get(), field_idx);
   }
 
-  if (resolved == NULL) {
+  if (resolved == nullptr) {
     const char* name = dex_file.GetFieldName(field_id);
     const char* type = dex_file.GetFieldTypeDescriptor(field_id);
     if (is_static) {
@@ -4979,7 +4978,7 @@ mirror::ArtField* ClassLinker::ResolveField(const DexFile& dex_file, uint32_t fi
     } else {
       resolved = klass->FindInstanceField(name, type);
     }
-    if (resolved == NULL) {
+    if (resolved == nullptr) {
       ThrowNoSuchFieldError(is_static ? "static " : "instance ", klass.Get(), type, name);
       return NULL;
     }
@@ -4994,7 +4993,7 @@ mirror::ArtField* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
                                                Handle<mirror::ClassLoader> class_loader) {
   DCHECK(dex_cache.Get() != nullptr);
   mirror::ArtField* resolved = dex_cache->GetResolvedField(field_idx);
-  if (resolved != NULL) {
+  if (resolved != nullptr) {
     return resolved;
   }
   const DexFile::FieldId& field_id = dex_file.GetFieldId(field_idx);
