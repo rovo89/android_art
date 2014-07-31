@@ -186,7 +186,7 @@ const RegType& RegTypeCache::From(mirror::ClassLoader* loader, const char* descr
     } else {
       entry = new ReferenceType(klass, descriptor, entries_.size());
     }
-    entries_.push_back(entry);
+    AddEntry(entry);
     return *entry;
   } else {  // Class not resolved.
     // We tried loading the class and failed, this might get an exception raised
@@ -199,7 +199,7 @@ const RegType& RegTypeCache::From(mirror::ClassLoader* loader, const char* descr
     }
     if (IsValidDescriptor(descriptor)) {
       RegType* entry = new UnresolvedReferenceType(descriptor, entries_.size());
-      entries_.push_back(entry);
+      AddEntry(entry);
       return *entry;
     } else {
       // The descriptor is broken return the unknown type as there's nothing sensible that
@@ -210,7 +210,7 @@ const RegType& RegTypeCache::From(mirror::ClassLoader* loader, const char* descr
 }
 
 const RegType& RegTypeCache::FromClass(const char* descriptor, mirror::Class* klass, bool precise) {
-  DCHECK(klass != nullptr);
+  DCHECK(klass != nullptr && !klass->IsErroneous());
   if (klass->IsPrimitive()) {
     // Note: precise isn't used for primitive classes. A char is assignable to an int. All
     // primitive classes are final.
@@ -230,7 +230,7 @@ const RegType& RegTypeCache::FromClass(const char* descriptor, mirror::Class* kl
     } else {
       entry = new ReferenceType(klass, descriptor, entries_.size());
     }
-    entries_.push_back(entry);
+    AddEntry(entry);
     return *entry;
   }
 }
@@ -340,7 +340,7 @@ const RegType& RegTypeCache::FromUnresolvedMerge(const RegType& left, const RegT
   }
   // Create entry.
   RegType* entry = new UnresolvedMergedType(left.GetId(), right.GetId(), this, entries_.size());
-  entries_.push_back(entry);
+  AddEntry(entry);
   if (kIsDebugBuild) {
     UnresolvedMergedType* tmp_entry = down_cast<UnresolvedMergedType*>(entry);
     std::set<uint16_t> check_types = tmp_entry->GetMergedTypes();
@@ -364,7 +364,7 @@ const RegType& RegTypeCache::FromUnresolvedSuperClass(const RegType& child) {
     }
   }
   RegType* entry = new UnresolvedSuperClass(child.GetId(), this, entries_.size());
-  entries_.push_back(entry);
+  AddEntry(entry);
   return *entry;
 }
 
@@ -394,7 +394,7 @@ const UninitializedType& RegTypeCache::Uninitialized(const RegType& type, uint32
     }
     entry = new UninitializedReferenceType(klass, descriptor, allocation_pc, entries_.size());
   }
-  entries_.push_back(entry);
+  AddEntry(entry);
   return *entry;
 }
 
@@ -436,7 +436,7 @@ const RegType& RegTypeCache::FromUninitialized(const RegType& uninit_type) {
       return Conflict();
     }
   }
-  entries_.push_back(entry);
+  AddEntry(entry);
   return *entry;
 }
 
@@ -499,7 +499,7 @@ const UninitializedType& RegTypeCache::UninitializedThisArgument(const RegType& 
     }
     entry = new UninitializedThisReferenceType(klass, descriptor, entries_.size());
   }
-  entries_.push_back(entry);
+  AddEntry(entry);
   return *entry;
 }
 
@@ -518,7 +518,7 @@ const ConstantType& RegTypeCache::FromCat1NonSmallConstant(int32_t value, bool p
   } else {
     entry = new ImpreciseConstType(value, entries_.size());
   }
-  entries_.push_back(entry);
+  AddEntry(entry);
   return *entry;
 }
 
@@ -536,7 +536,7 @@ const ConstantType& RegTypeCache::FromCat2ConstLo(int32_t value, bool precise) {
   } else {
     entry = new ImpreciseConstLoType(value, entries_.size());
   }
-  entries_.push_back(entry);
+  AddEntry(entry);
   return *entry;
 }
 
@@ -554,7 +554,7 @@ const ConstantType& RegTypeCache::FromCat2ConstHi(int32_t value, bool precise) {
   } else {
     entry = new ImpreciseConstHiType(value, entries_.size());
   }
-  entries_.push_back(entry);
+  AddEntry(entry);
   return *entry;
 }
 
@@ -567,8 +567,15 @@ const RegType& RegTypeCache::GetComponentType(const RegType& array, mirror::Clas
     return FromDescriptor(loader, component.c_str(), false);
   } else {
     mirror::Class* klass = array.GetClass()->GetComponentType();
-    return FromClass(klass->GetDescriptor().c_str(), klass,
-                     klass->CannotBeAssignedFromOtherTypes());
+    if (klass->IsErroneous()) {
+      // Arrays may have erroneous component types, use unresolved in that case.
+      // We assume that the primitive classes are not erroneous, so we know it is a
+      // reference type.
+      return FromDescriptor(loader, klass->GetDescriptor().c_str(), false);
+    } else {
+      return FromClass(klass->GetDescriptor().c_str(), klass,
+                       klass->CannotBeAssignedFromOtherTypes());
+    }
   }
 }
 
@@ -585,6 +592,10 @@ void RegTypeCache::VisitRoots(RootCallback* callback, void* arg) {
   for (RegType* entry : entries_) {
     entry->VisitRoots(callback, arg);
   }
+}
+
+void RegTypeCache::AddEntry(RegType* new_entry) {
+  entries_.push_back(new_entry);
 }
 
 }  // namespace verifier
