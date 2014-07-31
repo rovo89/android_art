@@ -192,6 +192,18 @@ class RegStorage {
     return (reg & (kFloatingPoint | k64BitMask)) == kFloatingPoint;
   }
 
+  static constexpr bool Is32Bit(uint16_t reg) {
+    return ((reg & kShapeMask) == k32BitSolo);
+  }
+
+  static constexpr bool Is64Bit(uint16_t reg) {
+    return ((reg & k64BitMask) == k64Bits);
+  }
+
+  static constexpr bool Is64BitSolo(uint16_t reg) {
+    return ((reg & kShapeMask) == k64BitSolo);
+  }
+
   // Used to retrieve either the low register of a pair, or the only register.
   int GetReg() const {
     DCHECK(!IsPair()) << "reg_ = 0x" << std::hex << reg_;
@@ -265,11 +277,11 @@ class RegStorage {
   }
 
   static constexpr bool SameRegType(RegStorage reg1, RegStorage reg2) {
-    return (reg1.IsDouble() == reg2.IsDouble()) && (reg1.IsSingle() == reg2.IsSingle());
+    return ((reg1.reg_ & kShapeTypeMask) == (reg2.reg_ & kShapeTypeMask));
   }
 
   static constexpr bool SameRegType(int reg1, int reg2) {
-    return (IsDouble(reg1) == IsDouble(reg2)) && (IsSingle(reg1) == IsSingle(reg2));
+    return ((reg1 & kShapeTypeMask) == (reg2 & kShapeTypeMask));
   }
 
   // Create a 32-bit solo.
