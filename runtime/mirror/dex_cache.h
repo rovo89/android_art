@@ -103,11 +103,8 @@ class MANAGED DexCache FINAL : public Object {
     return GetResolvedTypes()->Get(type_idx);
   }
 
-  void SetResolvedType(uint32_t type_idx, Class* resolved) ALWAYS_INLINE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // TODO default transaction support.
-    GetResolvedTypes()->Set(type_idx, resolved);
-  }
+  void SetResolvedType(uint32_t type_idx, Class* resolved)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ArtMethod* GetResolvedMethod(uint32_t method_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
