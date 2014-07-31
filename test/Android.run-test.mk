@@ -358,6 +358,9 @@ define define-test-art-run-test
   prereq_rule :=
   skip_test := false
   uc_reloc_type :=
+  ifeq ($(ART_TEST_RUN_TEST_ALWAYS_CLEAN),true)
+    run_test_options += --always-clean
+  endif
   ifeq ($(2),host)
     uc_host_or_target := HOST
     run_test_options += --host
