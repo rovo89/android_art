@@ -62,6 +62,8 @@ TEST_F(ImageTest, WriteRead) {
   oat_filename += "oat";
   ScratchFile oat_file(OS::CreateEmptyFile(oat_filename.c_str()));
 
+  const uintptr_t requested_image_base = ART_BASE_ADDRESS;
+  ImageWriter writer(*compiler_driver_, requested_image_base);
   {
     {
       jobject class_loader = NULL;
@@ -79,15 +81,15 @@ TEST_F(ImageTest, WriteRead) {
       compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
 
       t.NewTiming("WriteElf");
-      ScopedObjectAccess soa(Thread::Current());
       SafeMap<std::string, std::string> key_value_store;
-      OatWriter oat_writer(class_linker->GetBootClassPath(), 0, 0, 0, compiler_driver_.get(), &timings,
-                           &key_value_store);
-      bool success = compiler_driver_->WriteElf(GetTestAndroidRoot(),
-                                                !kIsTargetBuild,
-                                                class_linker->GetBootClassPath(),
-                                                &oat_writer,
-                                                oat_file.GetFile());
+      OatWriter oat_writer(class_linker->GetBootClassPath(), 0, 0, 0, compiler_driver_.get(),
+                           &writer, &timings, &key_value_store);
+      bool success = writer.PrepareImageAddressSpace() &&
+          compiler_driver_->WriteElf(GetTestAndroidRoot(),
+                                     !kIsTargetBuild,
+                                     class_linker->GetBootClassPath(),
+                                     &oat_writer,
+                                     oat_file.GetFile());
       ASSERT_TRUE(success);
     }
   }
@@ -95,11 +97,9 @@ TEST_F(ImageTest, WriteRead) {
   std::unique_ptr<File> dup_oat(OS::OpenFileReadWrite(oat_file.GetFilename().c_str()));
   ASSERT_TRUE(dup_oat.get() != NULL);
 
-  const uintptr_t requested_image_base = ART_BASE_ADDRESS;
   {
-    ImageWriter writer(*compiler_driver_.get());
-    bool success_image = writer.Write(image_file.GetFilename(), requested_image_base,
-                                      dup_oat->GetPath(), dup_oat->GetPath());
+    bool success_image =
+        writer.Write(image_file.GetFilename(), dup_oat->GetPath(), dup_oat->GetPath());
     ASSERT_TRUE(success_image);
     bool success_fixup = ElfFixup::Fixup(dup_oat.get(), writer.GetOatDataBegin());
     ASSERT_TRUE(success_fixup);

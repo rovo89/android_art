@@ -29,7 +29,6 @@
 #include "driver/compiler_driver.h"
 #include "elf_file.h"
 #include "elf_utils.h"
-#include "elf_patcher.h"
 #include "elf_writer.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap.h"
@@ -68,14 +67,37 @@ using ::art::mirror::String;
 
 namespace art {
 
+bool ImageWriter::PrepareImageAddressSpace() {
+  {
+    Thread::Current()->TransitionFromSuspendedToRunnable();
+    PruneNonImageClasses();  // Remove junk
+    ComputeLazyFieldsForImageClasses();  // Add useful information
+    ComputeEagerResolvedStrings();
+    Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+  }
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  heap->CollectGarbage(false);  // Remove garbage.
+
+  if (!AllocMemory()) {
+    return false;
+  }
+
+  if (kIsDebugBuild) {
+    ScopedObjectAccess soa(Thread::Current());
+    CheckNonImageClassesRemoved();
+  }
+
+  Thread::Current()->TransitionFromSuspendedToRunnable();
+  CalculateNewObjectOffsets();
+  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+
+  return true;
+}
+
 bool ImageWriter::Write(const std::string& image_filename,
-                        uintptr_t image_begin,
                         const std::string& oat_filename,
                         const std::string& oat_location) {
   CHECK(!image_filename.empty());
-
-  CHECK_NE(image_begin, 0U);
-  image_begin_ = reinterpret_cast<byte*>(image_begin);
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
@@ -115,34 +137,17 @@ bool ImageWriter::Write(const std::string& image_filename,
       oat_file_->GetOatHeader().GetQuickResolutionTrampolineOffset();
   quick_to_interpreter_bridge_offset_ =
       oat_file_->GetOatHeader().GetQuickToInterpreterBridgeOffset();
-  {
-    Thread::Current()->TransitionFromSuspendedToRunnable();
-    PruneNonImageClasses();  // Remove junk
-    ComputeLazyFieldsForImageClasses();  // Add useful information
-    ComputeEagerResolvedStrings();
-    Thread::Current()->TransitionFromRunnableToSuspended(kNative);
-  }
-  gc::Heap* heap = Runtime::Current()->GetHeap();
-  heap->CollectGarbage(false);  // Remove garbage.
 
-  if (!AllocMemory()) {
-    return false;
-  }
-
-  if (kIsDebugBuild) {
-    ScopedObjectAccess soa(Thread::Current());
-    CheckNonImageClassesRemoved();
-  }
-
-  Thread::Current()->TransitionFromSuspendedToRunnable();
   size_t oat_loaded_size = 0;
   size_t oat_data_offset = 0;
   ElfWriter::GetOatElfInformation(oat_file.get(), oat_loaded_size, oat_data_offset);
-  CalculateNewObjectOffsets(oat_loaded_size, oat_data_offset);
-  CopyAndFixupObjects();
 
-  PatchOatCodeAndMethods(oat_file.get());
+  Thread::Current()->TransitionFromSuspendedToRunnable();
+  CreateHeader(oat_loaded_size, oat_data_offset);
+  CopyAndFixupObjects();
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+
+  SetOatChecksumFromElfFile(oat_file.get());
 
   std::unique_ptr<File> image_file(OS::CreateEmptyFile(image_filename.c_str()));
   ImageHeader* image_header = reinterpret_cast<ImageHeader*>(image_->Begin());
@@ -527,8 +532,7 @@ void ImageWriter::WalkFieldsCallback(mirror::Object* obj, void* arg) {
   writer->WalkFieldsInOrder(obj);
 }
 
-void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_data_offset) {
-  CHECK_NE(0U, oat_loaded_size);
+void ImageWriter::CalculateNewObjectOffsets() {
   Thread* self = Thread::Current();
   StackHandleScope<1> hs(self);
   Handle<ObjectArray<Object>> image_roots(hs.NewHandle(CreateImageRoots()));
@@ -548,7 +552,14 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
     heap->VisitObjects(WalkFieldsCallback, this);
   }
 
-  const byte* oat_file_begin = image_begin_ + RoundUp(image_end_, kPageSize);
+  image_roots_address_ = PointerToLowMemUInt32(GetImageAddress(image_roots.Get()));
+
+  // Note that image_end_ is left at end of used space
+}
+
+void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
+  CHECK_NE(0U, oat_loaded_size);
+  const byte* oat_file_begin = GetOatFileBegin();
   const byte* oat_file_end = oat_file_begin + oat_loaded_size;
   oat_data_begin_ = oat_file_begin + oat_data_offset;
   const byte* oat_data_end = oat_data_begin_ + oat_file_->Size();
@@ -558,20 +569,18 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
   const size_t heap_bytes_per_bitmap_byte = kBitsPerByte * kObjectAlignment;
   const size_t bitmap_bytes = RoundUp(image_end_, heap_bytes_per_bitmap_byte) /
       heap_bytes_per_bitmap_byte;
-  ImageHeader image_header(PointerToLowMemUInt32(image_begin_),
-                           static_cast<uint32_t>(image_end_),
-                           RoundUp(image_end_, kPageSize),
-                           RoundUp(bitmap_bytes, kPageSize),
-                           PointerToLowMemUInt32(GetImageAddress(image_roots.Get())),
-                           oat_file_->GetOatHeader().GetChecksum(),
-                           PointerToLowMemUInt32(oat_file_begin),
-                           PointerToLowMemUInt32(oat_data_begin_),
-                           PointerToLowMemUInt32(oat_data_end),
-                           PointerToLowMemUInt32(oat_file_end));
-  memcpy(image_->Begin(), &image_header, sizeof(image_header));
-
-  // Note that image_end_ is left at end of used space
+  new (image_->Begin()) ImageHeader(PointerToLowMemUInt32(image_begin_),
+                                    static_cast<uint32_t>(image_end_),
+                                    RoundUp(image_end_, kPageSize),
+                                    RoundUp(bitmap_bytes, kPageSize),
+                                    image_roots_address_,
+                                    oat_file_->GetOatHeader().GetChecksum(),
+                                    PointerToLowMemUInt32(oat_file_begin),
+                                    PointerToLowMemUInt32(oat_data_begin_),
+                                    PointerToLowMemUInt32(oat_data_end),
+                                    PointerToLowMemUInt32(oat_file_end));
 }
+
 
 void ImageWriter::CopyAndFixupObjects()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -809,19 +818,12 @@ static OatHeader* GetOatHeaderFromElf(ElfFile* elf) {
   return reinterpret_cast<OatHeader*>(elf->Begin() + data_sec->sh_offset);
 }
 
-void ImageWriter::PatchOatCodeAndMethods(File* elf_file) {
+void ImageWriter::SetOatChecksumFromElfFile(File* elf_file) {
   std::string error_msg;
   std::unique_ptr<ElfFile> elf(ElfFile::Open(elf_file, PROT_READ|PROT_WRITE,
                                              MAP_SHARED, &error_msg));
   if (elf.get() == nullptr) {
-    LOG(FATAL) << "Unable patch oat file: " << error_msg;
-    return;
-  }
-  if (!ElfPatcher::Patch(&compiler_driver_, elf.get(), oat_file_,
-                         reinterpret_cast<uintptr_t>(oat_data_begin_),
-                         GetImageAddressCallback, reinterpret_cast<void*>(this),
-                         &error_msg)) {
-    LOG(FATAL) << "unable to patch oat file: " << error_msg;
+    LOG(FATAL) << "Unable open oat file: " << error_msg;
     return;
   }
   OatHeader* oat_header = GetOatHeaderFromElf(elf.get());
