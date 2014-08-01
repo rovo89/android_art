@@ -1216,7 +1216,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   RegLocation rl_obj = info->args[0];
   RegLocation rl_char = info->args[1];
   RegLocation rl_start;  // Note: only present in III flavor or IndexOf.
-  // RBX is callee-save register in 64-bit mode.
+  // RBX is promotable in 64-bit mode.
   RegStorage rs_tmp = cu_->target64 ? rs_r11 : rs_rBX;
   int start_value = -1;
 
@@ -1236,23 +1236,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   // EBX or R11: temporary during execution (depending on mode).
   // REP SCASW: search instruction.
 
-  FlushReg(rs_rAX);
-  Clobber(rs_rAX);
-  LockTemp(rs_rAX);
-  FlushReg(rs_rCX);
-  Clobber(rs_rCX);
-  LockTemp(rs_rCX);
-  FlushReg(rs_rDX);
-  Clobber(rs_rDX);
-  LockTemp(rs_rDX);
-  FlushReg(rs_tmp);
-  Clobber(rs_tmp);
-  LockTemp(rs_tmp);
-  if (cu_->target64) {
-    FlushReg(rs_rDI);
-    Clobber(rs_rDI);
-    LockTemp(rs_rDI);
-  }
+  FlushAllRegs();
 
   RegLocation rl_return = GetReturn(kCoreReg);
   RegLocation rl_dest = InlineTarget(info);
@@ -1294,7 +1278,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   MarkPossibleNullPointerException(0);
 
   if (!cu_->target64) {
-    // EDI is callee-save register in 32-bit mode.
+    // EDI is promotable in 32-bit mode.
     NewLIR1(kX86Push32R, rs_rDI.GetReg());
   }
 
@@ -1399,15 +1383,6 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   }
 
   StoreValue(rl_dest, rl_return);
-
-  FreeTemp(rs_rAX);
-  FreeTemp(rs_rCX);
-  FreeTemp(rs_rDX);
-  FreeTemp(rs_tmp);
-  if (cu_->target64) {
-    FreeTemp(rs_rDI);
-  }
-
   return true;
 }
 
