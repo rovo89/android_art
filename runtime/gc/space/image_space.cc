@@ -101,10 +101,7 @@ static bool GenerateImage(const std::string& image_filename, std::string* error_
             << "art base address of 0x" << std::hex << ART_BASE_ADDRESS;
   arg_vector.push_back(StringPrintf("--base=0x%x", ART_BASE_ADDRESS + base_offset));
 
-  if (kIsTargetBuild) {
-    arg_vector.push_back("--image-classes-zip=/system/framework/framework.jar");
-    arg_vector.push_back("--image-classes=preloaded-classes");
-  } else {
+  if (!kIsTargetBuild) {
     arg_vector.push_back("--host");
   }
 
