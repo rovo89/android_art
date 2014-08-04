@@ -23,7 +23,7 @@ namespace art {
 
 /* This file contains codegen for the A64 ISA. */
 
-static int32_t EncodeImmSingle(uint32_t bits) {
+int32_t Arm64Mir2Lir::EncodeImmSingle(uint32_t bits) {
   /*
    * Valid values will have the form:
    *
@@ -55,7 +55,7 @@ static int32_t EncodeImmSingle(uint32_t bits) {
   return (bit7 | bit6 | bit5_to_0);
 }
 
-static int32_t EncodeImmDouble(uint64_t bits) {
+int32_t Arm64Mir2Lir::EncodeImmDouble(uint64_t bits) {
   /*
    * Valid values will have the form:
    *
