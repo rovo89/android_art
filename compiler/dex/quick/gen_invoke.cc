@@ -1427,6 +1427,22 @@ bool Mir2Lir::GenInlinedMinMaxFP(CallInfo* info, bool is_min, bool is_double) {
   return false;
 }
 
+bool Mir2Lir::GenInlinedCeil(CallInfo* info) {
+  return false;
+}
+
+bool Mir2Lir::GenInlinedFloor(CallInfo* info) {
+  return false;
+}
+
+bool Mir2Lir::GenInlinedRint(CallInfo* info) {
+  return false;
+}
+
+bool Mir2Lir::GenInlinedRound(CallInfo* info, bool is_double) {
+  return false;
+}
+
 bool Mir2Lir::GenInlinedFloatCvt(CallInfo* info) {
   if (cu_->instruction_set == kMips) {
     // TODO - add Mips implementation
