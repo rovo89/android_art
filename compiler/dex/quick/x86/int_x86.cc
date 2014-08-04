@@ -513,7 +513,7 @@ void X86Mir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
   OpCondBranch(ccode, taken);
 }
 
-void X86Mir2Lir::CalculateMagicAndShift(int divisor, int& magic, int& shift) {
+void X86Mir2Lir::CalculateMagicAndShift(int64_t divisor, int64_t& magic, int& shift, bool is_long) {
   // It does not make sense to calculate magic and shift for zero divisor.
   DCHECK_NE(divisor, 0);
 
@@ -525,8 +525,8 @@ void X86Mir2Lir::CalculateMagicAndShift(int divisor, int& magic, int& shift) {
    * Let nc be the most negative value of numerator(n) such that nc = kd + 1,
    * where divisor(d) <= -2.
    * Thus nc can be calculated like:
-   * nc = 2^31 + 2^31 % d - 1, where d >= 2
-   * nc = -2^31 + (2^31 + 1) % d, where d >= 2.
+   * nc = exp + exp % d - 1, where d >= 2 and exp = 2^31 for int or 2^63 for long
+   * nc = -exp + (exp + 1) % d, where d >= 2 and exp = 2^31 for int or 2^63 for long
    *
    * So the shift p is the smallest p satisfying
    * 2^p > nc * (d - 2^p % d), where d >= 2
@@ -536,27 +536,28 @@ void X86Mir2Lir::CalculateMagicAndShift(int divisor, int& magic, int& shift) {
    * M = (2^p + d - 2^p % d) / d, where d >= 2
    * M = (2^p - d - 2^p % d) / d, where d <= -2.
    *
-   * Notice that p is always bigger than or equal to 32, so we just return 32-p as
+   * Notice that p is always bigger than or equal to 32/64, so we just return 32-p/64-p as
    * the shift number S.
    */
 
-  int32_t p = 31;
-  const uint32_t two31 = 0x80000000U;
+  int64_t p = (is_long) ? 63 : 31;
+  const uint64_t exp = (is_long) ? 0x8000000000000000ULL : 0x80000000U;
 
   // Initialize the computations.
-  uint32_t abs_d = (divisor >= 0) ? divisor : -divisor;
-  uint32_t tmp = two31 + (static_cast<uint32_t>(divisor) >> 31);
-  uint32_t abs_nc = tmp - 1 - tmp % abs_d;
-  uint32_t quotient1 = two31 / abs_nc;
-  uint32_t remainder1 = two31 % abs_nc;
-  uint32_t quotient2 = two31 / abs_d;
-  uint32_t remainder2 = two31 % abs_d;
+  uint64_t abs_d = (divisor >= 0) ? divisor : -divisor;
+  uint64_t tmp = exp + ((is_long) ? static_cast<uint64_t>(divisor) >> 63 :
+                                    static_cast<uint32_t>(divisor) >> 31);
+  uint64_t abs_nc = tmp - 1 - tmp % abs_d;
+  uint64_t quotient1 = exp / abs_nc;
+  uint64_t remainder1 = exp % abs_nc;
+  uint64_t quotient2 = exp / abs_d;
+  uint64_t remainder2 = exp % abs_d;
 
   /*
    * To avoid handling both positive and negative divisor, Hacker's Delight
    * introduces a method to handle these 2 cases together to avoid duplication.
    */
-  uint32_t delta;
+  uint64_t delta;
   do {
     p++;
     quotient1 = 2 * quotient1;
@@ -575,7 +576,12 @@ void X86Mir2Lir::CalculateMagicAndShift(int divisor, int& magic, int& shift) {
   } while (quotient1 < delta || (quotient1 == delta && remainder1 == 0));
 
   magic = (divisor > 0) ? (quotient2 + 1) : (-quotient2 - 1);
-  shift = p - 32;
+
+  if (!is_long) {
+    magic = static_cast<int>(magic);
+  }
+
+  shift = (is_long) ? p - 64 : p - 32;
 }
 
 RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int lit, bool is_div) {
@@ -586,52 +592,57 @@ RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int
 RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src,
                                      int imm, bool is_div) {
   // Use a multiply (and fixup) to perform an int div/rem by a constant.
+  RegLocation rl_result;
 
-  // We have to use fixed registers, so flush all the temps.
-  FlushAllRegs();
-  LockCallTemps();  // Prepare for explicit register usage.
-
-  // Assume that the result will be in EDX.
-  RegLocation rl_result = {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, rs_r2, INVALID_SREG, INVALID_SREG};
-
-  // handle div/rem by 1 special case.
   if (imm == 1) {
+    rl_result = EvalLoc(rl_dest, kCoreReg, true);
     if (is_div) {
       // x / 1 == x.
-      StoreValue(rl_result, rl_src);
+      LoadValueDirectFixed(rl_src, rl_result.reg);
     } else {
       // x % 1 == 0.
-      LoadConstantNoClobber(rs_r0, 0);
-      // For this case, return the result in EAX.
-      rl_result.reg.SetReg(r0);
+      LoadConstantNoClobber(rl_result.reg, 0);
     }
   } else if (imm == -1) {  // handle 0x80000000 / -1 special case.
+    rl_result = EvalLoc(rl_dest, kCoreReg, true);
     if (is_div) {
-      LIR *minint_branch = 0;
-      LoadValueDirectFixed(rl_src, rs_r0);
-      OpRegImm(kOpCmp, rs_r0, 0x80000000);
-      minint_branch = NewLIR2(kX86Jcc8, 0, kX86CondEq);
+      LoadValueDirectFixed(rl_src, rl_result.reg);
+      OpRegImm(kOpCmp, rl_result.reg, 0x80000000);
+      LIR *minint_branch = NewLIR2(kX86Jcc8, 0, kX86CondEq);
 
       // for x != MIN_INT, x / -1 == -x.
-      NewLIR1(kX86Neg32R, r0);
+      NewLIR1(kX86Neg32R, rl_result.reg.GetReg());
 
-      LIR* branch_around = NewLIR1(kX86Jmp8, 0);
-      // The target for cmp/jmp above.
-      minint_branch->target = NewLIR0(kPseudoTargetLabel);
       // EAX already contains the right value (0x80000000),
-      branch_around->target = NewLIR0(kPseudoTargetLabel);
+      minint_branch->target = NewLIR0(kPseudoTargetLabel);
     } else {
       // x % -1 == 0.
-      LoadConstantNoClobber(rs_r0, 0);
+      LoadConstantNoClobber(rl_result.reg, 0);
     }
-    // For this case, return the result in EAX.
-    rl_result.reg.SetReg(r0);
+  } else if (is_div && IsPowerOfTwo(std::abs(imm))) {
+    // Division using shifting.
+    rl_src = LoadValue(rl_src, kCoreReg);
+    rl_result = EvalLoc(rl_dest, kCoreReg, true);
+    if (IsSameReg(rl_result.reg, rl_src.reg)) {
+      RegStorage rs_temp = AllocTypedTemp(false, kCoreReg);
+      rl_result.reg.SetReg(rs_temp.GetReg());
+    }
+    NewLIR3(kX86Lea32RM, rl_result.reg.GetReg(), rl_src.reg.GetReg(), std::abs(imm) - 1);
+    NewLIR2(kX86Test32RR, rl_src.reg.GetReg(), rl_src.reg.GetReg());
+    OpCondRegReg(kOpCmov, kCondPl, rl_result.reg, rl_src.reg);
+    int shift_amount = LowestSetBit(imm);
+    OpRegImm(kOpAsr, rl_result.reg, shift_amount);
+    if (imm < 0) {
+      OpReg(kOpNeg, rl_result.reg);
+    }
   } else {
     CHECK(imm <= -2 || imm >= 2);
+
     // Use H.S.Warren's Hacker's Delight Chapter 10 and
     // T,Grablund, P.L.Montogomery's Division by invariant integers using multiplication.
-    int magic, shift;
-    CalculateMagicAndShift(imm, magic, shift);
+    int64_t magic;
+    int shift;
+    CalculateMagicAndShift((int64_t)imm, magic, shift, false /* is_long */);
 
     /*
      * For imm >= 2,
@@ -649,18 +660,22 @@ RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src,
      * 5. Thus, EDX is the quotient
      */
 
+    FlushReg(rs_r0);
+    Clobber(rs_r0);
+    LockTemp(rs_r0);
+    FlushReg(rs_r2);
+    Clobber(rs_r2);
+    LockTemp(rs_r2);
+
+    // Assume that the result will be in EDX.
+    rl_result = {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, rs_r2, INVALID_SREG, INVALID_SREG};
+
     // Numerator into EAX.
     RegStorage numerator_reg;
     if (!is_div || (imm > 0 && magic < 0) || (imm < 0 && magic > 0)) {
       // We will need the value later.
-      if (rl_src.location == kLocPhysReg) {
-        // We can use it directly.
-        DCHECK(rl_src.reg.GetReg() != rs_r0.GetReg() && rl_src.reg.GetReg() != rs_r2.GetReg());
-        numerator_reg = rl_src.reg;
-      } else {
-        numerator_reg = rs_r1;
-        LoadValueDirectFixed(rl_src, numerator_reg);
-      }
+      rl_src = LoadValue(rl_src, kCoreReg);
+      numerator_reg = rl_src.reg;
       OpRegCopy(rs_r0, numerator_reg);
     } else {
       // Only need this once.  Just put it into EAX.
@@ -1704,10 +1719,188 @@ void X86Mir2Lir::GenNotLong(RegLocation rl_dest, RegLocation rl_src) {
   }
 }
 
+void X86Mir2Lir::GenDivRemLongLit(RegLocation rl_dest, RegLocation rl_src,
+                                  int64_t imm, bool is_div) {
+  if (imm == 0) {
+    GenDivZeroException();
+  } else if (imm == 1) {
+    if (is_div) {
+      // x / 1 == x.
+      StoreValueWide(rl_dest, rl_src);
+    } else {
+      // x % 1 == 0.
+      RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+      LoadConstantWide(rl_result.reg, 0);
+      StoreValueWide(rl_dest, rl_result);
+    }
+  } else if (imm == -1) {  // handle 0x8000000000000000 / -1 special case.
+    if (is_div) {
+      rl_src = LoadValueWide(rl_src, kCoreReg);
+      RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+      RegStorage rs_temp = AllocTempWide();
+
+      OpRegCopy(rl_result.reg, rl_src.reg);
+      LoadConstantWide(rs_temp, 0x8000000000000000);
+
+      // If x == MIN_LONG, return MIN_LONG.
+      OpRegReg(kOpCmp, rl_src.reg, rs_temp);
+      LIR *minint_branch = NewLIR2(kX86Jcc8, 0, kX86CondEq);
+
+      // For x != MIN_LONG, x / -1 == -x.
+      OpReg(kOpNeg, rl_result.reg);
+
+      minint_branch->target = NewLIR0(kPseudoTargetLabel);
+      FreeTemp(rs_temp);
+      StoreValueWide(rl_dest, rl_result);
+    } else {
+      // x % -1 == 0.
+      RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+      LoadConstantWide(rl_result.reg, 0);
+      StoreValueWide(rl_dest, rl_result);
+    }
+  } else if (is_div && IsPowerOfTwo(std::abs(imm))) {
+    // Division using shifting.
+    rl_src = LoadValueWide(rl_src, kCoreReg);
+    RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+    if (IsSameReg(rl_result.reg, rl_src.reg)) {
+      RegStorage rs_temp = AllocTypedTempWide(false, kCoreReg);
+      rl_result.reg.SetReg(rs_temp.GetReg());
+    }
+    LoadConstantWide(rl_result.reg, std::abs(imm) - 1);
+    OpRegReg(kOpAdd, rl_result.reg, rl_src.reg);
+    NewLIR2(kX86Test64RR, rl_src.reg.GetReg(), rl_src.reg.GetReg());
+    OpCondRegReg(kOpCmov, kCondPl, rl_result.reg, rl_src.reg);
+    int shift_amount = LowestSetBit(imm);
+    OpRegImm(kOpAsr, rl_result.reg, shift_amount);
+    if (imm < 0) {
+      OpReg(kOpNeg, rl_result.reg);
+    }
+    StoreValueWide(rl_dest, rl_result);
+  } else {
+    CHECK(imm <= -2 || imm >= 2);
+
+    FlushReg(rs_r0q);
+    Clobber(rs_r0q);
+    LockTemp(rs_r0q);
+    FlushReg(rs_r2q);
+    Clobber(rs_r2q);
+    LockTemp(rs_r2q);
+
+    RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, rs_r2q, INVALID_SREG, INVALID_SREG};
+
+    // Use H.S.Warren's Hacker's Delight Chapter 10 and
+    // T,Grablund, P.L.Montogomery's Division by invariant integers using multiplication.
+    int64_t magic;
+    int shift;
+    CalculateMagicAndShift(imm, magic, shift, true /* is_long */);
+
+    /*
+     * For imm >= 2,
+     *     int(n/imm) = floor(n/imm) = floor(M*n/2^S), while n > 0
+     *     int(n/imm) = ceil(n/imm) = floor(M*n/2^S) +1, while n < 0.
+     * For imm <= -2,
+     *     int(n/imm) = ceil(n/imm) = floor(M*n/2^S) +1 , while n > 0
+     *     int(n/imm) = floor(n/imm) = floor(M*n/2^S), while n < 0.
+     * We implement this algorithm in the following way:
+     * 1. multiply magic number m and numerator n, get the higher 64bit result in RDX
+     * 2. if imm > 0 and magic < 0, add numerator to RDX
+     *    if imm < 0 and magic > 0, sub numerator from RDX
+     * 3. if S !=0, SAR S bits for RDX
+     * 4. add 1 to RDX if RDX < 0
+     * 5. Thus, RDX is the quotient
+     */
+
+    // Numerator into RAX.
+    RegStorage numerator_reg;
+    if (!is_div || (imm > 0 && magic < 0) || (imm < 0 && magic > 0)) {
+      // We will need the value later.
+      rl_src = LoadValueWide(rl_src, kCoreReg);
+      numerator_reg = rl_src.reg;
+      OpRegCopyWide(rs_r0q, numerator_reg);
+    } else {
+      // Only need this once.  Just put it into RAX.
+      LoadValueDirectWideFixed(rl_src, rs_r0q);
+    }
+
+    // RDX = magic.
+    LoadConstantWide(rs_r2q, magic);
+
+    // RDX:RAX = magic & dividend.
+    NewLIR1(kX86Imul64DaR, rs_r2q.GetReg());
+
+    if (imm > 0 && magic < 0) {
+      // Add numerator to RDX.
+      DCHECK(numerator_reg.Valid());
+      OpRegReg(kOpAdd, rs_r2q, numerator_reg);
+    } else if (imm < 0 && magic > 0) {
+      DCHECK(numerator_reg.Valid());
+      OpRegReg(kOpSub, rs_r2q, numerator_reg);
+    }
+
+    // Do we need the shift?
+    if (shift != 0) {
+      // Shift RDX by 'shift' bits.
+      OpRegImm(kOpAsr, rs_r2q, shift);
+    }
+
+    // Move RDX to RAX.
+    OpRegCopyWide(rs_r0q, rs_r2q);
+
+    // Move sign bit to bit 0, zeroing the rest.
+    OpRegImm(kOpLsr, rs_r2q, 63);
+
+    // RDX = RDX + RAX.
+    OpRegReg(kOpAdd, rs_r2q, rs_r0q);
+
+    // Quotient is in RDX.
+    if (!is_div) {
+      // We need to compute the remainder.
+      // Remainder is divisor - (quotient * imm).
+      DCHECK(numerator_reg.Valid());
+      OpRegCopyWide(rs_r0q, numerator_reg);
+
+      // Imul doesn't support 64-bit imms.
+      if (imm > std::numeric_limits<int32_t>::max() ||
+          imm < std::numeric_limits<int32_t>::min()) {
+        RegStorage rs_temp = AllocTempWide();
+        LoadConstantWide(rs_temp, imm);
+
+        // RAX = numerator * imm.
+        NewLIR2(kX86Imul64RR, rs_r2q.GetReg(), rs_temp.GetReg());
+
+        FreeTemp(rs_temp);
+      } else {
+        // RAX = numerator * imm.
+        int short_imm = static_cast<int>(imm);
+        NewLIR3(kX86Imul64RRI, rs_r2q.GetReg(), rs_r2q.GetReg(), short_imm);
+      }
+
+      // RDX -= RAX.
+      OpRegReg(kOpSub, rs_r0q, rs_r2q);
+
+      // Store result.
+      OpRegCopyWide(rl_result.reg, rs_r0q);
+    } else {
+      // Store result.
+      OpRegCopyWide(rl_result.reg, rs_r2q);
+    }
+    StoreValueWide(rl_dest, rl_result);
+    FreeTemp(rs_r0q);
+    FreeTemp(rs_r2q);
+  }
+}
+
 void X86Mir2Lir::GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                           RegLocation rl_src2, bool is_div) {
+                               RegLocation rl_src2, bool is_div) {
   if (!cu_->target64) {
     LOG(FATAL) << "Unexpected use GenDivRemLong()";
+    return;
+  }
+
+  if (rl_src2.is_const) {
+    DCHECK(rl_src2.wide);
+    int64_t imm = mir_graph_->ConstantValueWide(rl_src2);
+    GenDivRemLongLit(rl_dest, rl_src1, imm, is_div);
     return;
   }
 
@@ -1734,7 +1927,7 @@ void X86Mir2Lir::GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocati
   // RHS is -1.
   LoadConstantWide(rs_r6q, 0x8000000000000000);
   NewLIR2(kX86Cmp64RR, rs_r0q.GetReg(), rs_r6q.GetReg());
-  LIR * minint_branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
+  LIR *minint_branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
 
   // In 0x8000000000000000/-1 case.
   if (!is_div) {
