@@ -3110,7 +3110,7 @@ mirror::ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(T* it, const
       } else {
         // Check whether the name of the called method is "<init>"
         const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
-        if (strcmp(dex_file_->GetMethodName(dex_file_->GetMethodId(method_idx)), "init") != 0) {
+        if (strcmp(dex_file_->GetMethodName(dex_file_->GetMethodId(method_idx)), "<init>") != 0) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "'this' arg must be initialized";
           return nullptr;
         }
