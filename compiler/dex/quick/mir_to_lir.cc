@@ -1077,9 +1077,17 @@ void Mir2Lir::HandleExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
     case kMirOpSelect:
       GenSelect(bb, mir);
       break;
+    case kMirOpNullCheck: {
+      RegLocation rl_obj = mir_graph_->GetSrc(mir, 0);
+      rl_obj = LoadValue(rl_obj, kRefReg);
+      // An explicit check is done because it is not expected that when this is used,
+      // that it will actually trip up the implicit checks (since an invalid access
+      // is needed on the null object).
+      GenExplicitNullCheck(rl_obj.reg, mir->optimization_flags);
+      break;
+    }
     case kMirOpPhi:
     case kMirOpNop:
-    case kMirOpNullCheck:
     case kMirOpRangeCheck:
     case kMirOpDivZeroCheck:
     case kMirOpCheck:

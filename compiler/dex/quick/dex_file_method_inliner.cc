@@ -561,9 +561,25 @@ bool DexFileMethodInliner::GenInline(MIRGraph* mir_graph, BasicBlock* bb, MIR* i
       break;
     default:
       LOG(FATAL) << "Unexpected inline op: " << method.opcode;
+      break;
   }
   if (result) {
     invoke->optimization_flags |= MIR_INLINED;
+    // If the invoke has not been eliminated yet, check now whether we should do it.
+    // This is done so that dataflow analysis does not get tripped up seeing nop invoke.
+    if (static_cast<int>(invoke->dalvikInsn.opcode) != kMirOpNop) {
+      bool is_static = invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC ||
+          invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC_RANGE;
+      if (is_static || (invoke->optimization_flags & MIR_IGNORE_NULL_CHECK) != 0) {
+        // No null object register involved here so we can eliminate the invoke.
+        invoke->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+      } else {
+        // Invoke was kept around because null check needed to be done.
+        invoke->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNullCheck);
+        // For invokes, the object register is in vC. For null check mir, it is in vA.
+        invoke->dalvikInsn.vA = invoke->dalvikInsn.vC;
+      }
+    }
     if (move_result != nullptr) {
       move_result->optimization_flags |= MIR_INLINED;
       move_result->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
