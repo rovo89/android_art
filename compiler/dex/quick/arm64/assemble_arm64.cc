@@ -518,6 +518,10 @@ const ArmEncodingMap Arm64Mir2Lir::EncodingMap[kA64Last] = {
                  kFmtRegR, 4, 0, kFmtRegR, 14, 10, kFmtRegXOrSp, 9, 5,
                  kFmtBitBlt, 21, 15, IS_QUAD_OP | REG_DEF2 | REG_USE012 | IS_STORE,
                  "stp", "!0r, !1r, [!2X], #!3D", kFixupNone),
+    ENCODING_MAP(WIDE(kA64StpPre4ffXD), CUSTOM_VARIANTS(0x2d800000, 0x6d800000),
+                 kFmtRegF, 4, 0, kFmtRegF, 14, 10, kFmtRegXOrSp, 9, 5,
+                 kFmtBitBlt, 21, 15, IS_QUAD_OP | REG_DEF2 | REG_USE012 | IS_STORE,
+                 "stp", "!0r, !1f, [!2X, #!3D]!!", kFixupNone),
     ENCODING_MAP(WIDE(kA64StpPre4rrXD), CUSTOM_VARIANTS(0x29800000, 0xa9800000),
                  kFmtRegR, 4, 0, kFmtRegR, 14, 10, kFmtRegXOrSp, 9, 5,
                  kFmtBitBlt, 21, 15, IS_QUAD_OP | REG_DEF2 | REG_USE012 | IS_STORE,
@@ -723,6 +727,7 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
                              << " @ 0x" << std::hex << lir->dalvik_offset;
                 if (kFailOnSizeError) {
                   LOG(FATAL) << "Bad argument n. " << i << " of " << encoder->name
+                             << "(" << UNWIDE(encoder->opcode) << ", " << encoder->fmt << ")"
                              << ". Expected " << expected << ", got 0x" << std::hex << operand;
                 } else {
                   LOG(WARNING) << "Bad argument n. " << i << " of " << encoder->name

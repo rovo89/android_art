@@ -331,6 +331,7 @@ enum ArmOpcode {
   kA64Stp4ffXD,      // stp [0s10110100] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64Stp4rrXD,      // stp [s010100100] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64StpPost4rrXD,  // stp [s010100010] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
+  kA64StpPre4ffXD,   // stp [0s10110110] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64StpPre4rrXD,   // stp [s010100110] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64Str3fXD,       // str [1s11110100] imm_12[21-10] rn[9-5] rt[4-0].
   kA64Str4fXxG,      // str [1s111100001] rm[20-16] [011] S[12] [10] rn[9-5] rt[4-0].
