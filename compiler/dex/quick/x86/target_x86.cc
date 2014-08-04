@@ -2868,4 +2868,24 @@ bool X86Mir2Lir::GenInlinedCharAt(CallInfo* info) {
   return true;
 }
 
+bool X86Mir2Lir::GenInlinedCurrentThread(CallInfo* info) {
+  RegLocation rl_dest = InlineTarget(info);
+
+  // Early exit if the result is unused.
+  if (rl_dest.orig_sreg < 0) {
+    return true;
+  }
+
+  RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
+
+  if (cu_->target64) {
+    OpRegThreadMem(kOpMov, rl_result.reg, Thread::PeerOffset<8>());
+  } else {
+    OpRegThreadMem(kOpMov, rl_result.reg, Thread::PeerOffset<4>());
+  }
+
+  StoreValue(rl_dest, rl_result);
+  return true;
+}
+
 }  // namespace art
