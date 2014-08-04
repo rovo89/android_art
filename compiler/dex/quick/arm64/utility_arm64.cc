@@ -269,8 +269,47 @@ int Arm64Mir2Lir::EncodeLogicalImmediate(bool is_wide, uint64_t value) {
   return (n << 12 | imm_r << 6 | imm_s);
 }
 
+// Maximum number of instructions to use for encoding the immediate.
+static const int max_num_ops_per_const_load = 2;
+
+/**
+ * @brief Return the number of fast halfwords in the given uint64_t integer.
+ * @details The input integer is split into 4 halfwords (bits 0-15, 16-31, 32-47, 48-63). The
+ *   number of fast halfwords (halfwords that are either 0 or 0xffff) is returned. See below for
+ *   a more accurate description.
+ * @param value The input 64-bit integer.
+ * @return Return @c retval such that (retval & 0x7) is the maximum between n and m, where n is
+ *   the number of halfwords with all bits unset (0) and m is the number of halfwords with all bits
+ *   set (0xffff). Additionally (retval & 0x8) is set when m > n.
+ */
+static int GetNumFastHalfWords(uint64_t value) {
+  unsigned int num_0000_halfwords = 0;
+  unsigned int num_ffff_halfwords = 0;
+  for (int shift = 0; shift < 64; shift += 16) {
+    uint16_t halfword = static_cast<uint16_t>(value >> shift);
+    if (halfword == 0)
+      num_0000_halfwords++;
+    else if (halfword == UINT16_C(0xffff))
+      num_ffff_halfwords++;
+  }
+  if (num_0000_halfwords >= num_ffff_halfwords) {
+    DCHECK_LE(num_0000_halfwords, 4U);
+    return num_0000_halfwords;
+  } else {
+    DCHECK_LE(num_ffff_halfwords, 4U);
+    return num_ffff_halfwords | 0x8;
+  }
+}
+
+// The InexpensiveConstantXXX variants below are used in the promotion algorithm to determine how a
+// constant is considered for promotion. If the constant is "inexpensive" then the promotion
+// algorithm will give it a low priority for promotion, even when it is referenced many times in
+// the code.
+
 bool Arm64Mir2Lir::InexpensiveConstantInt(int32_t value) {
-  return false;  // (ModifiedImmediate(value) >= 0) || (ModifiedImmediate(~value) >= 0);
+  // A 32-bit int can always be loaded with 2 instructions (and without using the literal pool).
+  // We therefore return true and give it a low priority for promotion.
+  return true;
 }
 
 bool Arm64Mir2Lir::InexpensiveConstantFloat(int32_t value) {
@@ -278,11 +317,68 @@ bool Arm64Mir2Lir::InexpensiveConstantFloat(int32_t value) {
 }
 
 bool Arm64Mir2Lir::InexpensiveConstantLong(int64_t value) {
-  return InexpensiveConstantInt(High32Bits(value)) && InexpensiveConstantInt(Low32Bits(value));
+  int num_slow_halfwords = 4 - (GetNumFastHalfWords(value) & 0x7);
+  if (num_slow_halfwords <= max_num_ops_per_const_load) {
+    return true;
+  }
+  return (EncodeLogicalImmediate(/*is_wide=*/true, value) >= 0);
 }
 
 bool Arm64Mir2Lir::InexpensiveConstantDouble(int64_t value) {
   return EncodeImmDouble(value) >= 0;
+}
+
+// The InexpensiveConstantXXX variants below are used to determine which A64 instructions to use
+// when one of the operands is an immediate (e.g. register version or immediate version of add).
+
+bool Arm64Mir2Lir::InexpensiveConstantInt(int32_t value, Instruction::Code opcode) {
+  switch (opcode) {
+  case Instruction::IF_EQ:
+  case Instruction::IF_NE:
+  case Instruction::IF_LT:
+  case Instruction::IF_GE:
+  case Instruction::IF_GT:
+  case Instruction::IF_LE:
+  case Instruction::ADD_INT:
+  case Instruction::ADD_INT_2ADDR:
+  case Instruction::SUB_INT:
+  case Instruction::SUB_INT_2ADDR:
+    // The code below is consistent with the implementation of OpRegRegImm().
+    {
+      int32_t abs_value = std::abs(value);
+      if (abs_value < 0x1000) {
+        return true;
+      } else if ((abs_value & UINT64_C(0xfff)) == 0 && ((abs_value >> 12) < 0x1000)) {
+        return true;
+      }
+      return false;
+    }
+  case Instruction::SHL_INT:
+  case Instruction::SHL_INT_2ADDR:
+  case Instruction::SHR_INT:
+  case Instruction::SHR_INT_2ADDR:
+  case Instruction::USHR_INT:
+  case Instruction::USHR_INT_2ADDR:
+    return true;
+  case Instruction::AND_INT:
+  case Instruction::AND_INT_2ADDR:
+  case Instruction::AND_INT_LIT16:
+  case Instruction::AND_INT_LIT8:
+  case Instruction::OR_INT:
+  case Instruction::OR_INT_2ADDR:
+  case Instruction::OR_INT_LIT16:
+  case Instruction::OR_INT_LIT8:
+  case Instruction::XOR_INT:
+  case Instruction::XOR_INT_2ADDR:
+  case Instruction::XOR_INT_LIT16:
+  case Instruction::XOR_INT_LIT8:
+    if (value == 0 || value == INT32_C(-1)) {
+      return true;
+    }
+    return (EncodeLogicalImmediate(/*is_wide=*/false, value) >= 0);
+  default:
+    return false;
+  }
 }
 
 /*
@@ -358,9 +454,6 @@ LIR* Arm64Mir2Lir::LoadConstantNoClobber(RegStorage r_dest, int value) {
 
 // TODO: clean up the names. LoadConstantWide() should really be LoadConstantNoClobberWide().
 LIR* Arm64Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
-  // Maximum number of instructions to use for encoding the immediate.
-  const int max_num_ops = 2;
-
   if (r_dest.IsFloat()) {
     return LoadFPConstantValueWide(r_dest, value);
   }
@@ -378,19 +471,12 @@ LIR* Arm64Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
   }
 
   // At least one in value's halfwords is not 0x0, nor 0xffff: find out how many.
-  int num_0000_halfwords = 0;
-  int num_ffff_halfwords = 0;
   uint64_t uvalue = static_cast<uint64_t>(value);
-  for (int shift = 0; shift < 64; shift += 16) {
-    uint16_t halfword = static_cast<uint16_t>(uvalue >> shift);
-    if (halfword == 0)
-      num_0000_halfwords++;
-    else if (halfword == UINT16_C(0xffff))
-      num_ffff_halfwords++;
-  }
-  int num_fast_halfwords = std::max(num_0000_halfwords, num_ffff_halfwords);
+  int num_fast_halfwords = GetNumFastHalfWords(uvalue);
+  int num_slow_halfwords = 4 - (num_fast_halfwords & 0x7);
+  bool more_ffff_halfwords = (num_fast_halfwords & 0x8) != 0;
 
-  if (num_fast_halfwords < 3) {
+  if (num_slow_halfwords > 1) {
     // A single movz/movn is not enough. Try the logical immediate route.
     int log_imm = EncodeLogicalImmediate(/*is_wide=*/true, value);
     if (log_imm >= 0) {
@@ -398,19 +484,19 @@ LIR* Arm64Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
     }
   }
 
-  if (num_fast_halfwords >= 4 - max_num_ops) {
+  if (num_slow_halfwords <= max_num_ops_per_const_load) {
     // We can encode the number using a movz/movn followed by one or more movk.
     ArmOpcode op;
     uint16_t background;
     LIR* res = nullptr;
 
     // Decide whether to use a movz or a movn.
-    if (num_0000_halfwords >= num_ffff_halfwords) {
-      op = WIDE(kA64Movz3rdM);
-      background = 0;
-    } else {
+    if (more_ffff_halfwords) {
       op = WIDE(kA64Movn3rdM);
       background = 0xffff;
+    } else {
+      op = WIDE(kA64Movz3rdM);
+      background = 0;
     }
 
     // Emit the first instruction (movz, movn).
@@ -726,7 +812,7 @@ LIR* Arm64Mir2Lir::OpRegRegImm64(OpKind op, RegStorage r_dest, RegStorage r_src1
   int64_t abs_value = (neg) ? -value : value;
   ArmOpcode opcode = kA64Brk1d;
   ArmOpcode alt_opcode = kA64Brk1d;
-  int32_t log_imm = -1;
+  bool is_logical = false;
   bool is_wide = r_dest.Is64Bit();
   ArmOpcode wide = (is_wide) ? WIDE(0) : UNWIDE(0);
   int info = 0;
@@ -761,65 +847,89 @@ LIR* Arm64Mir2Lir::OpRegRegImm64(OpKind op, RegStorage r_dest, RegStorage r_src1
         opcode = (neg) ? kA64Add4RRdT : kA64Sub4RRdT;
         return NewLIR4(opcode | wide, r_dest.GetReg(), r_src1.GetReg(), abs_value >> 12, 1);
       } else {
-        log_imm = -1;
         alt_opcode = (op == kOpAdd) ? kA64Add4RRre : kA64Sub4RRre;
         info = EncodeExtend(is_wide ? kA64Uxtx : kA64Uxtw, 0);
       }
       break;
-    // case kOpRsub:
-    //   opcode = kThumb2RsubRRI8M;
-    //   alt_opcode = kThumb2RsubRRR;
-    //   break;
     case kOpAdc:
-      log_imm = -1;
       alt_opcode = kA64Adc3rrr;
       break;
     case kOpSbc:
-      log_imm = -1;
       alt_opcode = kA64Sbc3rrr;
       break;
     case kOpOr:
-      log_imm = EncodeLogicalImmediate(is_wide, value);
+      is_logical = true;
       opcode = kA64Orr3Rrl;
       alt_opcode = kA64Orr4rrro;
       break;
     case kOpAnd:
-      log_imm = EncodeLogicalImmediate(is_wide, value);
+      is_logical = true;
       opcode = kA64And3Rrl;
       alt_opcode = kA64And4rrro;
       break;
     case kOpXor:
-      log_imm = EncodeLogicalImmediate(is_wide, value);
+      is_logical = true;
       opcode = kA64Eor3Rrl;
       alt_opcode = kA64Eor4rrro;
       break;
     case kOpMul:
       // TUNING: power of 2, shift & add
-      log_imm = -1;
       alt_opcode = kA64Mul3rrr;
       break;
     default:
       LOG(FATAL) << "Bad opcode: " << op;
   }
 
-  if (log_imm >= 0) {
-    return NewLIR3(opcode | wide, r_dest.GetReg(), r_src1.GetReg(), log_imm);
-  } else {
-    RegStorage r_scratch;
-    if (is_wide) {
-      r_scratch = AllocTempWide();
-      LoadConstantWide(r_scratch, value);
+  if (is_logical) {
+    int log_imm = EncodeLogicalImmediate(is_wide, value);
+    if (log_imm >= 0) {
+      return NewLIR3(opcode | wide, r_dest.GetReg(), r_src1.GetReg(), log_imm);
     } else {
-      r_scratch = AllocTemp();
-      LoadConstant(r_scratch, value);
+      // When the immediate is either 0 or ~0, the logical operation can be trivially reduced
+      // to a - possibly negated - assignment.
+      if (value == 0) {
+        switch (op) {
+          case kOpOr:
+          case kOpXor:
+            // Or/Xor by zero reduces to an assignment.
+            return NewLIR2(kA64Mov2rr | wide, r_dest.GetReg(), r_src1.GetReg());
+          default:
+            // And by zero reduces to a `mov rdest, xzr'.
+            DCHECK(op == kOpAnd);
+            return NewLIR2(kA64Mov2rr | wide, r_dest.GetReg(), (is_wide) ? rxzr : rwzr);
+        }
+      } else if (value == INT64_C(-1)
+                 || (!is_wide && static_cast<uint32_t>(value) == ~UINT32_C(0))) {
+        switch (op) {
+          case kOpAnd:
+            // And by -1 reduces to an assignment.
+            return NewLIR2(kA64Mov2rr | wide, r_dest.GetReg(), r_src1.GetReg());
+          case kOpXor:
+            // Xor by -1 reduces to an `mvn rdest, rsrc'.
+            return NewLIR2(kA64Mvn2rr | wide, r_dest.GetReg(), r_src1.GetReg());
+          default:
+            // Or by -1 reduces to a `mvn rdest, xzr'.
+            DCHECK(op == kOpOr);
+            return NewLIR2(kA64Mvn2rr | wide, r_dest.GetReg(), (is_wide) ? rxzr : rwzr);
+        }
+      }
     }
-    if (EncodingMap[alt_opcode].flags & IS_QUAD_OP)
-      res = NewLIR4(alt_opcode | wide, r_dest.GetReg(), r_src1.GetReg(), r_scratch.GetReg(), info);
-    else
-      res = NewLIR3(alt_opcode | wide, r_dest.GetReg(), r_src1.GetReg(), r_scratch.GetReg());
-    FreeTemp(r_scratch);
-    return res;
   }
+
+  RegStorage r_scratch;
+  if (is_wide) {
+    r_scratch = AllocTempWide();
+    LoadConstantWide(r_scratch, value);
+  } else {
+    r_scratch = AllocTemp();
+    LoadConstant(r_scratch, value);
+  }
+  if (EncodingMap[alt_opcode].flags & IS_QUAD_OP)
+    res = NewLIR4(alt_opcode | wide, r_dest.GetReg(), r_src1.GetReg(), r_scratch.GetReg(), info);
+  else
+    res = NewLIR3(alt_opcode | wide, r_dest.GetReg(), r_src1.GetReg(), r_scratch.GetReg());
+  FreeTemp(r_scratch);
+  return res;
 }
 
 LIR* Arm64Mir2Lir::OpRegImm(OpKind op, RegStorage r_dest_src1, int value) {

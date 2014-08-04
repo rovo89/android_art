@@ -926,11 +926,11 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::XOR_INT:
     case Instruction::XOR_INT_2ADDR:
       if (rl_src[0].is_const &&
-          InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src[0]))) {
+          InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src[0]), opcode)) {
         GenArithOpIntLit(opcode, rl_dest, rl_src[1],
                              mir_graph_->ConstantValue(rl_src[0].orig_sreg));
       } else if (rl_src[1].is_const &&
-          InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src[1]))) {
+                 InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src[1]), opcode)) {
         GenArithOpIntLit(opcode, rl_dest, rl_src[0],
                              mir_graph_->ConstantValue(rl_src[1].orig_sreg));
       } else {
@@ -951,7 +951,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::USHR_INT:
     case Instruction::USHR_INT_2ADDR:
       if (rl_src[1].is_const &&
-          InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src[1]))) {
+          InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src[1]), opcode)) {
         GenArithOpIntLit(opcode, rl_dest, rl_src[0], mir_graph_->ConstantValue(rl_src[1]));
       } else {
         GenArithOpInt(opcode, rl_dest, rl_src[0], rl_src[1]);
