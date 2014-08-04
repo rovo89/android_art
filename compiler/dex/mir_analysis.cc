@@ -841,6 +841,54 @@ const uint32_t MIRGraph::analysis_attributes_[kMirOpLast] = {
 
   // 113 MIR_SELECT
   AN_NONE,
+
+  // 114 MirOpConstVector
+  AN_NONE,
+
+  // 115 MirOpMoveVector
+  AN_NONE,
+
+  // 116 MirOpPackedMultiply
+  AN_NONE,
+
+  // 117 MirOpPackedAddition
+  AN_NONE,
+
+  // 118 MirOpPackedSubtract
+  AN_NONE,
+
+  // 119 MirOpPackedShiftLeft
+  AN_NONE,
+
+  // 120 MirOpPackedSignedShiftRight
+  AN_NONE,
+
+  // 121 MirOpPackedUnsignedShiftRight
+  AN_NONE,
+
+  // 122 MirOpPackedAnd
+  AN_NONE,
+
+  // 123 MirOpPackedOr
+  AN_NONE,
+
+  // 124 MirOpPackedXor
+  AN_NONE,
+
+  // 125 MirOpPackedAddReduce
+  AN_NONE,
+
+  // 126 MirOpPackedReduce
+  AN_NONE,
+
+  // 127 MirOpPackedSet
+  AN_NONE,
+
+  // 128 MirOpReserveVectorRegisters
+  AN_NONE,
+
+  // 129 MirOpReturnVectorRegisters
+  AN_NONE,
 };
 
 struct MethodStats {
