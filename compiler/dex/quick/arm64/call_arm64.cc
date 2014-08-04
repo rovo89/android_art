@@ -330,19 +330,14 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
 
   NewLIR0(kPseudoMethodEntry);
 
-  const size_t kStackOverflowReservedUsableBytes = GetStackOverflowReservedBytes(kArm64) -
-      Thread::kStackOverflowSignalReservedBytes;
-  const bool large_frame = static_cast<size_t>(frame_size_) > kStackOverflowReservedUsableBytes;
   const int spill_count = num_core_spills_ + num_fp_spills_;
   const int spill_size = (spill_count * kArm64PointerSize + 15) & ~0xf;  // SP 16 byte alignment.
   const int frame_size_without_spills = frame_size_ - spill_size;
 
   if (!skip_overflow_check) {
     if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitStackOverflowChecks()) {
-      if (!large_frame) {
-        // Load stack limit
-        LoadWordDisp(rs_xSELF, Thread::StackEndOffset<8>().Int32Value(), rs_xIP1);
-      }
+      // Load stack limit
+      LoadWordDisp(rs_xSELF, Thread::StackEndOffset<8>().Int32Value(), rs_xIP1);
     } else {
       // TODO(Arm64) Implement implicit checks.
       // Implicit stack overflow check.
@@ -350,24 +345,21 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
       // redzone we will get a segmentation fault.
       // Load32Disp(rs_wSP, -Thread::kStackOverflowReservedBytes, rs_wzr);
       // MarkPossibleStackOverflowException();
+      //
+      // TODO: If the frame size is small enough, is it possible to make this a pre-indexed load,
+      //       so that we can avoid the following "sub sp" when spilling?
       LOG(FATAL) << "Implicit stack overflow checks not implemented.";
     }
   }
 
-  if (frame_size_ > 0) {
-    OpRegImm64(kOpSub, rs_sp, spill_size);
+  int spilled_already = 0;
+  if (spill_size > 0) {
+    spilled_already = SpillRegs(rs_sp, core_spill_mask_, fp_spill_mask_, frame_size_);
+    DCHECK(spill_size == spilled_already || frame_size_ == spilled_already);
   }
 
-  /* Need to spill any FP regs? */
-  if (fp_spill_mask_) {
-    int spill_offset = spill_size - kArm64PointerSize*(num_fp_spills_ + num_core_spills_);
-    SpillFPRegs(rs_sp, spill_offset, fp_spill_mask_);
-  }
-
-  /* Spill core callee saves. */
-  if (core_spill_mask_) {
-    int spill_offset = spill_size - kArm64PointerSize*num_core_spills_;
-    SpillCoreRegs(rs_sp, spill_offset, core_spill_mask_);
+  if (spilled_already != frame_size_) {
+    OpRegImm(kOpSub, rs_sp, frame_size_without_spills);
   }
 
   if (!skip_overflow_check) {
@@ -396,29 +388,9 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
         const size_t sp_displace_;
       };
 
-      if (large_frame) {
-        // Compare Expected SP against bottom of stack.
-        // Branch to throw target if there is not enough room.
-        OpRegRegImm(kOpSub, rs_xIP1, rs_sp, frame_size_without_spills);
-        LoadWordDisp(rs_xSELF, Thread::StackEndOffset<8>().Int32Value(), rs_xIP0);
-        LIR* branch = OpCmpBranch(kCondUlt, rs_xIP1, rs_xIP0, nullptr);
-        AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, spill_size));
-        OpRegCopy(rs_sp, rs_xIP1);  // Establish stack after checks.
-      } else {
-        /*
-         * If the frame is small enough we are guaranteed to have enough space that remains to
-         * handle signals on the user stack.
-         * Establishes stack before checks.
-         */
-        OpRegRegImm(kOpSub, rs_sp, rs_sp, frame_size_without_spills);
-        LIR* branch = OpCmpBranch(kCondUlt, rs_sp, rs_xIP1, nullptr);
-        AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, frame_size_));
-      }
-    } else {
-      OpRegImm(kOpSub, rs_sp, frame_size_without_spills);
+      LIR* branch = OpCmpBranch(kCondUlt, rs_sp, rs_xIP1, nullptr);
+      AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, frame_size_));
     }
-  } else {
-    OpRegImm(kOpSub, rs_sp, frame_size_without_spills);
   }
 
   FlushIns(ArgLocs, rl_method);
@@ -445,57 +417,7 @@ void Arm64Mir2Lir::GenExitSequence() {
 
   NewLIR0(kPseudoMethodExit);
 
-  // Restore saves and drop stack frame.
-  // 2 versions:
-  //
-  // 1. (Original): Try to address directly, then drop the whole frame.
-  //                Limitation: ldp is a 7b signed immediate. There should have been a DCHECK!
-  //
-  // 2. (New): Drop the non-save-part. Then do similar to original, which is now guaranteed to be
-  //           in range. Then drop the rest.
-  //
-  // TODO: In methods with few spills but huge frame, it would be better to do non-immediate loads
-  //       in variant 1.
-
-  if (frame_size_ <= 504) {
-    // "Magic" constant, 63 (max signed 7b) * 8. Do variant 1.
-    // Could be tighter, as the last load is below frame_size_ offset.
-    if (fp_spill_mask_) {
-      int spill_offset = frame_size_ - kArm64PointerSize * (num_fp_spills_ + num_core_spills_);
-      UnSpillFPRegs(rs_sp, spill_offset, fp_spill_mask_);
-    }
-    if (core_spill_mask_) {
-      int spill_offset = frame_size_ - kArm64PointerSize * num_core_spills_;
-      UnSpillCoreRegs(rs_sp, spill_offset, core_spill_mask_);
-    }
-
-    OpRegImm64(kOpAdd, rs_sp, frame_size_);
-  } else {
-    // Second variant. Drop the frame part.
-    int drop = 0;
-    // TODO: Always use the first formula, as num_fp_spills would be zero?
-    if (fp_spill_mask_) {
-      drop = frame_size_ - kArm64PointerSize * (num_fp_spills_ + num_core_spills_);
-    } else {
-      drop = frame_size_ - kArm64PointerSize * num_core_spills_;
-    }
-
-    // Drop needs to be 16B aligned, so that SP keeps aligned.
-    drop = RoundDown(drop, 16);
-
-    OpRegImm64(kOpAdd, rs_sp, drop);
-
-    if (fp_spill_mask_) {
-      int offset = frame_size_ - drop - kArm64PointerSize * (num_fp_spills_ + num_core_spills_);
-      UnSpillFPRegs(rs_sp, offset, fp_spill_mask_);
-    }
-    if (core_spill_mask_) {
-      int offset = frame_size_ - drop - kArm64PointerSize * num_core_spills_;
-      UnSpillCoreRegs(rs_sp, offset, core_spill_mask_);
-    }
-
-    OpRegImm64(kOpAdd, rs_sp, frame_size_ - drop);
-  }
+  UnspillRegs(rs_sp, core_spill_mask_, fp_spill_mask_, frame_size_);
 
   // Finally return.
   NewLIR0(kA64Ret);
