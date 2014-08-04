@@ -867,8 +867,8 @@ class Mir2Lir : public Backend {
                         RegLocation rl_src1, RegLocation rl_shift);
     void GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest,
                           RegLocation rl_src, int lit);
-    void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                        RegLocation rl_src1, RegLocation rl_src2);
+    virtual void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
+                                RegLocation rl_src1, RegLocation rl_src2);
     void GenConversionCall(QuickEntrypointEnum trampoline, RegLocation rl_dest, RegLocation rl_src);
     virtual void GenSuspendTest(int opt_flags);
     virtual void GenSuspendTestAndBranch(int opt_flags, LIR* target);
@@ -1250,15 +1250,6 @@ class Mir2Lir : public Backend {
     // Required for target - Dalvik-level generators.
     virtual void GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                                    RegLocation rl_src1, RegLocation rl_src2) = 0;
-    virtual void GenMulLong(Instruction::Code,
-                            RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) = 0;
-    virtual void GenAddLong(Instruction::Code,
-                            RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) = 0;
-    virtual void GenAndLong(Instruction::Code,
-                            RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) = 0;
     virtual void GenArithOpDouble(Instruction::Code opcode,
                                   RegLocation rl_dest, RegLocation rl_src1,
                                   RegLocation rl_src2) = 0;
@@ -1286,16 +1277,6 @@ class Mir2Lir : public Backend {
     virtual bool GenInlinedSqrt(CallInfo* info) = 0;
     virtual bool GenInlinedPeek(CallInfo* info, OpSize size) = 0;
     virtual bool GenInlinedPoke(CallInfo* info, OpSize size) = 0;
-    virtual void GenNotLong(RegLocation rl_dest, RegLocation rl_src) = 0;
-    virtual void GenNegLong(RegLocation rl_dest, RegLocation rl_src) = 0;
-    virtual void GenOrLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                           RegLocation rl_src2) = 0;
-    virtual void GenSubLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) = 0;
-    virtual void GenXorLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) = 0;
-    virtual void GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2, bool is_div) = 0;
     virtual RegLocation GenDivRem(RegLocation rl_dest, RegStorage reg_lo, RegStorage reg_hi,
                                   bool is_div) = 0;
     virtual RegLocation GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int lit,

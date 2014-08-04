@@ -1039,15 +1039,6 @@ bool ArmMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 #endif
 }
 
-void ArmMir2Lir::GenNotLong(RegLocation rl_dest, RegLocation rl_src) {
-  LOG(FATAL) << "Unexpected use GenNotLong()";
-}
-
-void ArmMir2Lir::GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                           RegLocation rl_src2, bool is_div) {
-  LOG(FATAL) << "Unexpected use GenDivRemLong()";
-}
-
 void ArmMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   rl_src = LoadValueWide(rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
@@ -1173,29 +1164,23 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
     StoreValueWide(rl_dest, rl_result);
 }
 
-void ArmMir2Lir::GenAddLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) {
-  LOG(FATAL) << "Unexpected use of GenAddLong for Arm";
-}
+void ArmMir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                                RegLocation rl_src2) {
+  switch (opcode) {
+    case Instruction::MUL_LONG:
+    case Instruction::MUL_LONG_2ADDR:
+      GenMulLong(opcode, rl_dest, rl_src1, rl_src2);
+      return;
+    case Instruction::NEG_LONG:
+      GenNegLong(rl_dest, rl_src2);
+      return;
 
-void ArmMir2Lir::GenSubLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) {
-  LOG(FATAL) << "Unexpected use of GenSubLong for Arm";
-}
+    default:
+      break;
+  }
 
-void ArmMir2Lir::GenAndLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) {
-  LOG(FATAL) << "Unexpected use of GenAndLong for Arm";
-}
-
-void ArmMir2Lir::GenOrLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                           RegLocation rl_src2) {
-  LOG(FATAL) << "Unexpected use of GenOrLong for Arm";
-}
-
-void ArmMir2Lir::GenXorLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) {
-  LOG(FATAL) << "Unexpected use of genXoLong for Arm";
+  // Fallback for all other ops.
+  Mir2Lir::GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
 }
 
 /*
