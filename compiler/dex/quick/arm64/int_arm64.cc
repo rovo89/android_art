@@ -1192,22 +1192,7 @@ void Arm64Mir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
 
 void Arm64Mir2Lir::GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                                      RegLocation rl_src1, RegLocation rl_src2) {
-  if ((opcode == Instruction::SUB_LONG) || (opcode == Instruction::SUB_LONG_2ADDR)) {
-    if (!rl_src2.is_const) {
-      return GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
-    }
-  } else {
-    // Associativity.
-    if (!rl_src2.is_const) {
-      DCHECK(rl_src1.is_const);
-      std::swap(rl_src1, rl_src2);
-    }
-  }
-  DCHECK(rl_src2.is_const);
-
   OpKind op = kOpBkpt;
-  int64_t val = mir_graph_->ConstantValueWide(rl_src2);
-
   switch (opcode) {
     case Instruction::ADD_LONG:
     case Instruction::ADD_LONG_2ADDR:
@@ -1232,6 +1217,20 @@ void Arm64Mir2Lir::GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_de
     default:
       LOG(FATAL) << "Unexpected opcode";
   }
+
+  if (op == kOpSub) {
+    if (!rl_src2.is_const) {
+      return GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
+    }
+  } else {
+    // Associativity.
+    if (!rl_src2.is_const) {
+      DCHECK(rl_src1.is_const);
+      std::swap(rl_src1, rl_src2);
+    }
+  }
+  DCHECK(rl_src2.is_const);
+  int64_t val = mir_graph_->ConstantValueWide(rl_src2);
 
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);

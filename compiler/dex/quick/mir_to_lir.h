@@ -1445,6 +1445,9 @@ class Mir2Lir : public Backend {
     virtual bool InexpensiveConstantFloat(int32_t value) = 0;
     virtual bool InexpensiveConstantLong(int64_t value) = 0;
     virtual bool InexpensiveConstantDouble(int64_t value) = 0;
+    virtual bool InexpensiveConstantInt(int32_t value, Instruction::Code opcode) {
+      return InexpensiveConstantInt(value);
+    }
 
     // May be optimized by targets.
     virtual void GenMonitorEnter(int opt_flags, RegLocation rl_src);
