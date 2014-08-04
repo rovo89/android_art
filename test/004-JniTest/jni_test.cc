@@ -286,3 +286,8 @@ extern "C" jchar JNICALL Java_Main_charMethod(JNIEnv* env, jclass klacc, jchar c
 
   return char_returns[c1];
 }
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_nativeIsAssignableFrom(JNIEnv* env, jclass,
+                                                                       jclass from, jclass to) {
+  return env->IsAssignableFrom(from, to);
+}
