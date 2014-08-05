@@ -35,7 +35,7 @@ const X86EncodingMap X86Mir2Lir::EncodingMap[kX86Last] = {
                      rm32_i32, rm32_i32_modrm, \
                      rm32_i8, rm32_i8_modrm) \
 { kX86 ## opname ## 8MR, kMemReg,    mem_use | IS_TERTIARY_OP |           REG_USE02  | SETS_CCODES | uses_ccodes, { 0,             0, rm8_r8, 0, 0, 0,            0,      0, true }, #opname "8MR", "[!0r+!1d],!2r" }, \
-{ kX86 ## opname ## 8AR, kArrayReg,  mem_use | IS_QUIN_OP     |           REG_USE014 | SETS_CCODES | uses_ccodes, { 0,             0, rm8_r8, 0, 0, 0,            0,      0, true}, #opname "8AR", "[!0r+!1r<<!2d+!3d],!4r" }, \
+{ kX86 ## opname ## 8AR, kArrayReg,  mem_use | IS_QUIN_OP     |           REG_USE014 | SETS_CCODES | uses_ccodes, { 0,             0, rm8_r8, 0, 0, 0,            0,      0, true }, #opname "8AR", "[!0r+!1r<<!2d+!3d],!4r" }, \
 { kX86 ## opname ## 8TR, kThreadReg, mem_use | IS_BINARY_OP   |           REG_USE1   | SETS_CCODES | uses_ccodes, { THREAD_PREFIX, 0, rm8_r8, 0, 0, 0,            0,      0, true }, #opname "8TR", "fs:[!0d],!1r" }, \
 { kX86 ## opname ## 8RR, kRegReg,              IS_BINARY_OP   | reg_def | REG_USE01  | SETS_CCODES | uses_ccodes, { 0,             0, r8_rm8, 0, 0, 0,            0,      0, true }, #opname "8RR", "!0r,!1r" }, \
 { kX86 ## opname ## 8RM, kRegMem,    IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE01  | SETS_CCODES | uses_ccodes, { 0,             0, r8_rm8, 0, 0, 0,            0,      0, true }, #opname "8RM", "!0r,[!1r+!2d]" }, \
@@ -478,7 +478,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86MovsxdRM, kRegMem,      IS_LOAD | IS_TERTIARY_OP | REG_DEF0 | REG_USE1,  { REX_W, 0, 0x63, 0, 0, 0, 0, 0, false }, "MovsxdRM", "!0r,[!1r+!2d]" },
   { kX86MovsxdRA, kRegArray,    IS_LOAD | IS_QUIN_OP     | REG_DEF0 | REG_USE12, { REX_W, 0, 0x63, 0, 0, 0, 0, 0, false }, "MovsxdRA", "!0r,[!1r+!2r<<!3d+!4d]" },
 
-  { kX86Set8R, kRegCond,              IS_BINARY_OP   | REG_DEF0  | USES_CCODES, { 0, 0, 0x0F, 0x90, 0, 0, 0, 0, true }, "Set8R", "!1c !0r" },
+  { kX86Set8R, kRegCond,   IS_BINARY_OP | REG_DEF0   | REG_USE0  | USES_CCODES, { 0, 0, 0x0F, 0x90, 0, 0, 0, 0, true  }, "Set8R", "!1c !0r" },
   { kX86Set8M, kMemCond,   IS_STORE | IS_TERTIARY_OP | REG_USE0  | USES_CCODES, { 0, 0, 0x0F, 0x90, 0, 0, 0, 0, false }, "Set8M", "!2c [!0r+!1d]" },
   { kX86Set8A, kArrayCond, IS_STORE | IS_QUIN_OP     | REG_USE01 | USES_CCODES, { 0, 0, 0x0F, 0x90, 0, 0, 0, 0, false }, "Set8A", "!4c [!0r+!1r<<!2d+!3d]" },
 
