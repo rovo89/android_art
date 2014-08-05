@@ -24,6 +24,7 @@
 #include "mirror/array.h"
 #include "mirror/string.h"
 #include "x86_lir.h"
+#include "utils/dwarf_cfi.h"
 
 namespace art {
 
@@ -1009,19 +1010,6 @@ LIR *X86Mir2Lir::CallWithLinkerFixup(const MethodReference& target_method, Invok
   return call;
 }
 
-/*
- * @brief Enter a 32 bit quantity into a buffer
- * @param buf buffer.
- * @param data Data value.
- */
-
-static void PushWord(std::vector<uint8_t>&buf, int32_t data) {
-  buf.push_back(data & 0xff);
-  buf.push_back((data >> 8) & 0xff);
-  buf.push_back((data >> 16) & 0xff);
-  buf.push_back((data >> 24) & 0xff);
-}
-
 void X86Mir2Lir::InstallLiteralPools() {
   // These are handled differently for x86.
   DCHECK(code_literal_list_ == nullptr);
@@ -1042,10 +1030,10 @@ void X86Mir2Lir::InstallLiteralPools() {
       align_size--;
     }
     for (LIR *p = const_vectors_; p != nullptr; p = p->next) {
-      PushWord(code_buffer_, p->operands[0]);
-      PushWord(code_buffer_, p->operands[1]);
-      PushWord(code_buffer_, p->operands[2]);
-      PushWord(code_buffer_, p->operands[3]);
+      PushWord(&code_buffer_, p->operands[0]);
+      PushWord(&code_buffer_, p->operands[1]);
+      PushWord(&code_buffer_, p->operands[2]);
+      PushWord(&code_buffer_, p->operands[3]);
     }
   }
 
@@ -1418,47 +1406,6 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   return true;
 }
 
-/*
- * @brief Enter an 'advance LOC' into the FDE buffer
- * @param buf FDE buffer.
- * @param increment Amount by which to increase the current location.
- */
-static void AdvanceLoc(std::vector<uint8_t>&buf, uint32_t increment) {
-  if (increment < 64) {
-    // Encoding in opcode.
-    buf.push_back(0x1 << 6 | increment);
-  } else if (increment < 256) {
-    // Single byte delta.
-    buf.push_back(0x02);
-    buf.push_back(increment);
-  } else if (increment < 256 * 256) {
-    // Two byte delta.
-    buf.push_back(0x03);
-    buf.push_back(increment & 0xff);
-    buf.push_back((increment >> 8) & 0xff);
-  } else {
-    // Four byte delta.
-    buf.push_back(0x04);
-    PushWord(buf, increment);
-  }
-}
-
-static void EncodeUnsignedLeb128(std::vector<uint8_t>& buf, uint32_t value) {
-  uint8_t buffer[12];
-  uint8_t *ptr = EncodeUnsignedLeb128(buffer, value);
-  for (uint8_t *p = buffer; p < ptr; p++) {
-    buf.push_back(*p);
-  }
-}
-
-static void EncodeSignedLeb128(std::vector<uint8_t>& buf, int32_t value) {
-  uint8_t buffer[12];
-  uint8_t *ptr = EncodeSignedLeb128(buffer, value);
-  for (uint8_t *p = buffer; p < ptr; p++) {
-    buf.push_back(*p);
-  }
-}
-
 static bool ARTRegIDToDWARFRegID(bool is_x86_64, int art_reg_id, int* dwarf_reg_id) {
   if (is_x86_64) {
     switch (art_reg_id) {
@@ -1481,36 +1428,23 @@ static bool ARTRegIDToDWARFRegID(bool is_x86_64, int art_reg_id, int* dwarf_reg_
   }
 }
 
-std::vector<uint8_t>* X86Mir2Lir::ReturnCallFrameInformation() {
-  std::vector<uint8_t>*cfi_info = new std::vector<uint8_t>;
+std::vector<uint8_t>* X86Mir2Lir::ReturnFrameDescriptionEntry() {
+  std::vector<uint8_t>* cfi_info = new std::vector<uint8_t>;
 
   // Generate the FDE for the method.
   DCHECK_NE(data_offset_, 0U);
 
-  // Length (will be filled in later in this routine).
-  PushWord(*cfi_info, 0);
-
-  // 'CIE_pointer' (filled in by linker).
-  PushWord(*cfi_info, 0);
-
-  // 'initial_location' (filled in by linker).
-  PushWord(*cfi_info, 0);
-
-  // 'address_range' (number of bytes in the method).
-  PushWord(*cfi_info, data_offset_);
-
-  // Augmentation length: 0
-  cfi_info->push_back(0);
+  WriteFDEHeader(cfi_info);
+  WriteFDEAddressRange(cfi_info, data_offset_);
 
   // The instructions in the FDE.
   if (stack_decrement_ != nullptr) {
     // Advance LOC to just past the stack decrement.
     uint32_t pc = NEXT_LIR(stack_decrement_)->offset;
-    AdvanceLoc(*cfi_info, pc);
+    DW_CFA_advance_loc(cfi_info, pc);
 
     // Now update the offset to the call frame: DW_CFA_def_cfa_offset frame_size.
-    cfi_info->push_back(0x0e);
-    EncodeUnsignedLeb128(*cfi_info, frame_size_);
+    DW_CFA_def_cfa_offset(cfi_info, frame_size_);
 
     // Handle register spills
     const uint32_t kSpillInstLen = (cu_->target64) ? 5 : 4;
@@ -1522,14 +1456,12 @@ std::vector<uint8_t>* X86Mir2Lir::ReturnCallFrameInformation() {
         pc += kSpillInstLen;
 
         // Advance LOC to pass this instruction
-        AdvanceLoc(*cfi_info, kSpillInstLen);
+        DW_CFA_advance_loc(cfi_info, kSpillInstLen);
 
         int dwarf_reg_id;
         if (ARTRegIDToDWARFRegID(cu_->target64, reg, &dwarf_reg_id)) {
-          // DW_CFA_offset_extended_sf reg_no offset
-          cfi_info->push_back(0x11);
-          EncodeUnsignedLeb128(*cfi_info, dwarf_reg_id);
-          EncodeSignedLeb128(*cfi_info, offset / kDataAlignmentFactor);
+          // DW_CFA_offset_extended_sf reg offset
+          DW_CFA_offset_extended_sf(cfi_info, dwarf_reg_id, offset / kDataAlignmentFactor);
         }
 
         offset += GetInstructionSetPointerSize(cu_->instruction_set);
@@ -1539,16 +1471,15 @@ std::vector<uint8_t>* X86Mir2Lir::ReturnCallFrameInformation() {
     // We continue with that stack until the epilogue.
     if (stack_increment_ != nullptr) {
       uint32_t new_pc = NEXT_LIR(stack_increment_)->offset;
-      AdvanceLoc(*cfi_info, new_pc - pc);
+      DW_CFA_advance_loc(cfi_info, new_pc - pc);
 
       // We probably have code snippets after the epilogue, so save the
       // current state: DW_CFA_remember_state.
-      cfi_info->push_back(0x0a);
+      DW_CFA_remember_state(cfi_info);
 
       // We have now popped the stack: DW_CFA_def_cfa_offset 4/8.
       // There is only the return PC on the stack now.
-      cfi_info->push_back(0x0e);
-      EncodeUnsignedLeb128(*cfi_info, GetInstructionSetPointerSize(cu_->instruction_set));
+      DW_CFA_def_cfa_offset(cfi_info, GetInstructionSetPointerSize(cu_->instruction_set));
 
       // Everything after that is the same as before the epilogue.
       // Stack bump was followed by RET instruction.
@@ -1556,25 +1487,16 @@ std::vector<uint8_t>* X86Mir2Lir::ReturnCallFrameInformation() {
       if (post_ret_insn != nullptr) {
         pc = new_pc;
         new_pc = post_ret_insn->offset;
-        AdvanceLoc(*cfi_info, new_pc - pc);
+        DW_CFA_advance_loc(cfi_info, new_pc - pc);
         // Restore the state: DW_CFA_restore_state.
-        cfi_info->push_back(0x0b);
+        DW_CFA_restore_state(cfi_info);
       }
     }
   }
 
-  // Padding to a multiple of 4
-  while ((cfi_info->size() & 3) != 0) {
-    // DW_CFA_nop is encoded as 0.
-    cfi_info->push_back(0);
-  }
+  PadCFI(cfi_info);
+  WriteCFILength(cfi_info);
 
-  // Set the length of the FDE inside the generated bytes.
-  uint32_t length = cfi_info->size() - 4;
-  (*cfi_info)[0] = length;
-  (*cfi_info)[1] = length >> 8;
-  (*cfi_info)[2] = length >> 16;
-  (*cfi_info)[3] = length >> 24;
   return cfi_info;
 }
 

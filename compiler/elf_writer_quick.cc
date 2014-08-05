@@ -46,13 +46,6 @@ static void UpdateWord(std::vector<uint8_t>* buf, int offset, int data) {
   (*buf)[offset+3] = data >> 24;
 }
 
-static void PushWord(std::vector<uint8_t>* buf, int data) {
-  buf->push_back(data & 0xff);
-  buf->push_back((data >> 8) & 0xff);
-  buf->push_back((data >> 16) & 0xff);
-  buf->push_back((data >> 24) & 0xff);
-}
-
 static void PushHalf(std::vector<uint8_t>* buf, int data) {
   buf->push_back(data & 0xff);
   buf->push_back((data >> 8) & 0xff);
@@ -840,24 +833,6 @@ void ElfWriterQuick::ReservePatchSpace(std::vector<uint8_t>* buffer, bool debug)
   if (debug) {
     LOG(INFO) << "Patches reserved for " << size;
   }
-}
-
-static void EncodeUnsignedLeb128(uint32_t data, std::vector<uint8_t>* dst) {
-  size_t encoded_size = UnsignedLeb128Size(data);
-  size_t cur_index = dst->size();
-  dst->resize(dst->size() + encoded_size);
-  uint8_t* write_pos = &((*dst)[cur_index]);
-  uint8_t* write_pos_after = EncodeUnsignedLeb128(write_pos, data);
-  DCHECK_EQ(static_cast<size_t>(write_pos_after - write_pos), encoded_size);
-}
-
-static void EncodeSignedLeb128(int32_t data, std::vector<uint8_t>* dst) {
-  size_t encoded_size = SignedLeb128Size(data);
-  size_t cur_index = dst->size();
-  dst->resize(dst->size() + encoded_size);
-  uint8_t* write_pos = &((*dst)[cur_index]);
-  uint8_t* write_pos_after = EncodeSignedLeb128(write_pos, data);
-  DCHECK_EQ(static_cast<size_t>(write_pos_after - write_pos), encoded_size);
 }
 
 std::vector<uint8_t>* ConstructCIEFrameX86(bool is_x86_64) {
