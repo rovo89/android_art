@@ -73,7 +73,9 @@ class MemMap {
 
   // Map part of a file, taking care of non-page aligned offsets.  The
   // "start" offset is absolute, not relative. This version allows
-  // requesting a specific address for the base of the mapping.
+  // requesting a specific address for the base of the
+  // mapping. "reuse" allows us to create a view into an existing
+  // mapping where we do not take ownership of the memory.
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
   static MemMap* MapFileAtAddress(byte* addr, size_t byte_count, int prot, int flags, int fd,
@@ -134,7 +136,7 @@ class MemMap {
 
  private:
   MemMap(const std::string& name, byte* begin, size_t size, void* base_begin, size_t base_size,
-         int prot) LOCKS_EXCLUDED(Locks::mem_maps_lock_);
+         int prot, bool reuse) LOCKS_EXCLUDED(Locks::mem_maps_lock_);
 
   static void DumpMaps(std::ostream& os, const std::multimap<void*, MemMap*>& mem_maps)
       LOCKS_EXCLUDED(Locks::mem_maps_lock_);
@@ -145,13 +147,18 @@ class MemMap {
   static MemMap* GetLargestMemMapAt(void* address)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mem_maps_lock_);
 
-  std::string name_;
+  const std::string name_;
   byte* const begin_;  // Start of data.
   size_t size_;  // Length of data.
 
   void* const base_begin_;  // Page-aligned base address.
   size_t base_size_;  // Length of mapping. May be changed by RemapAtEnd (ie Zygote).
   int prot_;  // Protection of the map.
+
+  // When reuse_ is true, this is just a view of an existing mapping
+  // and we do not take ownership and are not responsible for
+  // unmapping.
+  const bool reuse_;
 
 #if USE_ART_LOW_4G_ALLOCATOR
   static uintptr_t next_mem_pos_;   // Next memory location to check for low_4g extent.
