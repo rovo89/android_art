@@ -42,9 +42,9 @@ const X86EncodingMap X86Mir2Lir::EncodingMap[kX86Last] = {
 { kX86 ## opname ## 8RA, kRegArray,  IS_LOAD | IS_QUIN_OP     | reg_def | REG_USE012 | SETS_CCODES | uses_ccodes, { 0,             0, r8_rm8, 0, 0, 0,            0,      0, true }, #opname "8RA", "!0r,[!1r+!2r<<!3d+!4d]" }, \
 { kX86 ## opname ## 8RT, kRegThread, IS_LOAD | IS_BINARY_OP   | reg_def | REG_USE0   | SETS_CCODES | uses_ccodes, { THREAD_PREFIX, 0, r8_rm8, 0, 0, 0,            0,      0, true }, #opname "8RT", "!0r,fs:[!1d]" }, \
 { kX86 ## opname ## 8RI, kRegImm,              IS_BINARY_OP   | reg_def | REG_USE0   | SETS_CCODES | uses_ccodes, { 0,             0, rm8_i8, 0, 0, rm8_i8_modrm, ax8_i8, 1, true }, #opname "8RI", "!0r,!1d" }, \
-{ kX86 ## opname ## 8MI, kMemImm,    mem_use | IS_TERTIARY_OP |           REG_USE0   | SETS_CCODES | uses_ccodes, { 0,             0, rm8_i8, 0, 0, rm8_i8_modrm, 0,      1, true }, #opname "8MI", "[!0r+!1d],!2d" }, \
-{ kX86 ## opname ## 8AI, kArrayImm,  mem_use | IS_QUIN_OP     |           REG_USE01  | SETS_CCODES | uses_ccodes, { 0,             0, rm8_i8, 0, 0, rm8_i8_modrm, 0,      1, true }, #opname "8AI", "[!0r+!1r<<!2d+!3d],!4d" }, \
-{ kX86 ## opname ## 8TI, kThreadImm, mem_use | IS_BINARY_OP   |                        SETS_CCODES | uses_ccodes, { THREAD_PREFIX, 0, rm8_i8, 0, 0, rm8_i8_modrm, 0,      1, true }, #opname "8TI", "fs:[!0d],!1d" }, \
+{ kX86 ## opname ## 8MI, kMemImm,    mem_use | IS_TERTIARY_OP |           REG_USE0   | SETS_CCODES | uses_ccodes, { 0,             0, rm8_i8, 0, 0, rm8_i8_modrm, 0,      1, false}, #opname "8MI", "[!0r+!1d],!2d" }, \
+{ kX86 ## opname ## 8AI, kArrayImm,  mem_use | IS_QUIN_OP     |           REG_USE01  | SETS_CCODES | uses_ccodes, { 0,             0, rm8_i8, 0, 0, rm8_i8_modrm, 0,      1, false}, #opname "8AI", "[!0r+!1r<<!2d+!3d],!4d" }, \
+{ kX86 ## opname ## 8TI, kThreadImm, mem_use | IS_BINARY_OP   |                        SETS_CCODES | uses_ccodes, { THREAD_PREFIX, 0, rm8_i8, 0, 0, rm8_i8_modrm, 0,      1, false}, #opname "8TI", "fs:[!0d],!1d" }, \
   \
 { kX86 ## opname ## 16MR,  kMemReg,    mem_use | IS_TERTIARY_OP |           REG_USE02  | SETS_CCODES | uses_ccodes, { 0x66,          0,    rm32_r32, 0, 0, 0,              0,        0, false }, #opname "16MR", "[!0r+!1d],!2r" }, \
 { kX86 ## opname ## 16AR,  kArrayReg,  mem_use | IS_QUIN_OP     |           REG_USE014 | SETS_CCODES | uses_ccodes, { 0x66,          0,    rm32_r32, 0, 0, 0,              0,        0, false }, #opname "16AR", "[!0r+!1r<<!2d+!3d],!4r" }, \
@@ -170,9 +170,9 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86Mov8RA, kRegArray,  IS_LOAD  | IS_QUIN_OP     | REG_DEF0_USE12, { 0,             0, 0x8A, 0, 0, 0, 0, 0, true }, "Mov8RA", "!0r,[!1r+!2r<<!3d+!4d]" },
   { kX86Mov8RT, kRegThread, IS_LOAD  | IS_BINARY_OP   | REG_DEF0,       { THREAD_PREFIX, 0, 0x8A, 0, 0, 0, 0, 0, true }, "Mov8RT", "!0r,fs:[!1d]" },
   { kX86Mov8RI, kMovRegImm,            IS_BINARY_OP   | REG_DEF0,       { 0,             0, 0xB0, 0, 0, 0, 0, 1, true }, "Mov8RI", "!0r,!1d" },
-  { kX86Mov8MI, kMemImm,    IS_STORE | IS_TERTIARY_OP | REG_USE0,       { 0,             0, 0xC6, 0, 0, 0, 0, 1, true }, "Mov8MI", "[!0r+!1d],!2d" },
-  { kX86Mov8AI, kArrayImm,  IS_STORE | IS_QUIN_OP     | REG_USE01,      { 0,             0, 0xC6, 0, 0, 0, 0, 1, true }, "Mov8AI", "[!0r+!1r<<!2d+!3d],!4d" },
-  { kX86Mov8TI, kThreadImm, IS_STORE | IS_BINARY_OP,                    { THREAD_PREFIX, 0, 0xC6, 0, 0, 0, 0, 1, true }, "Mov8TI", "fs:[!0d],!1d" },
+  { kX86Mov8MI, kMemImm,    IS_STORE | IS_TERTIARY_OP | REG_USE0,       { 0,             0, 0xC6, 0, 0, 0, 0, 1, false}, "Mov8MI", "[!0r+!1d],!2d" },
+  { kX86Mov8AI, kArrayImm,  IS_STORE | IS_QUIN_OP     | REG_USE01,      { 0,             0, 0xC6, 0, 0, 0, 0, 1, false}, "Mov8AI", "[!0r+!1r<<!2d+!3d],!4d" },
+  { kX86Mov8TI, kThreadImm, IS_STORE | IS_BINARY_OP,                    { THREAD_PREFIX, 0, 0xC6, 0, 0, 0, 0, 1, false}, "Mov8TI", "fs:[!0d],!1d" },
 
   { kX86Mov16MR, kMemReg,    IS_STORE | IS_TERTIARY_OP | REG_USE02,      { 0x66,          0,    0x89, 0, 0, 0, 0, 0, false }, "Mov16MR", "[!0r+!1d],!2r" },
   { kX86Mov16AR, kArrayReg,  IS_STORE | IS_QUIN_OP     | REG_USE014,     { 0x66,          0,    0x89, 0, 0, 0, 0, 0, false }, "Mov16AR", "[!0r+!1r<<!2d+!3d],!4r" },
