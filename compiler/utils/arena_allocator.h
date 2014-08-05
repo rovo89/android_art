@@ -24,6 +24,7 @@
 #include "base/mutex.h"
 #include "mem_map.h"
 #include "utils.h"
+#include "utils/debug_stack.h"
 
 namespace art {
 
@@ -33,6 +34,9 @@ class ArenaAllocator;
 class ArenaStack;
 class ScopedArenaAllocator;
 class MemStats;
+
+template <typename T>
+class ArenaAllocatorAdapter;
 
 static constexpr bool kArenaAllocatorCountAllocations = false;
 
@@ -147,10 +151,13 @@ class ArenaPool {
   DISALLOW_COPY_AND_ASSIGN(ArenaPool);
 };
 
-class ArenaAllocator : private ArenaAllocatorStats {
+class ArenaAllocator : private DebugStackRefCounter, private ArenaAllocatorStats {
  public:
   explicit ArenaAllocator(ArenaPool* pool);
   ~ArenaAllocator();
+
+  // Get adapter for use in STL containers. See arena_containers.h .
+  ArenaAllocatorAdapter<void> Adapter(ArenaAllocKind kind = kArenaAllocSTL);
 
   // Returns zeroed memory.
   void* Alloc(size_t bytes, ArenaAllocKind kind) ALWAYS_INLINE {
@@ -189,6 +196,9 @@ class ArenaAllocator : private ArenaAllocatorStats {
   uint8_t* ptr_;
   Arena* arena_head_;
   bool running_on_valgrind_;
+
+  template <typename U>
+  friend class ArenaAllocatorAdapter;
 
   DISALLOW_COPY_AND_ASSIGN(ArenaAllocator);
 };  // ArenaAllocator

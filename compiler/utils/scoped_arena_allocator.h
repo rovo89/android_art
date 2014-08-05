@@ -120,8 +120,8 @@ class ScopedArenaAllocator
     return arena_stack_->Alloc(bytes, kind);
   }
 
-  // ScopedArenaAllocatorAdapter is incomplete here, we need to define this later.
-  ScopedArenaAllocatorAdapter<void> Adapter();
+  // Get adapter for use in STL containers. See scoped_arena_containers.h .
+  ScopedArenaAllocatorAdapter<void> Adapter(ArenaAllocKind kind = kArenaAllocSTL);
 
   // Allow a delete-expression to destroy but not deallocate allocators created by Create().
   static void operator delete(void* ptr) { UNUSED(ptr); }
@@ -137,125 +137,6 @@ class ScopedArenaAllocator
 
   DISALLOW_COPY_AND_ASSIGN(ScopedArenaAllocator);
 };
-
-template <>
-class ScopedArenaAllocatorAdapter<void>
-    : private DebugStackReference, private DebugStackIndirectTopRef {
- public:
-  typedef void value_type;
-  typedef void* pointer;
-  typedef const void* const_pointer;
-
-  template <typename U>
-  struct rebind {
-    typedef ScopedArenaAllocatorAdapter<U> other;
-  };
-
-  explicit ScopedArenaAllocatorAdapter(ScopedArenaAllocator* arena_allocator)
-      : DebugStackReference(arena_allocator),
-        DebugStackIndirectTopRef(arena_allocator),
-        arena_stack_(arena_allocator->arena_stack_) {
-  }
-  template <typename U>
-  ScopedArenaAllocatorAdapter(const ScopedArenaAllocatorAdapter<U>& other)
-      : DebugStackReference(other),
-        DebugStackIndirectTopRef(other),
-        arena_stack_(other.arena_stack_) {
-  }
-  ScopedArenaAllocatorAdapter(const ScopedArenaAllocatorAdapter& other) = default;
-  ScopedArenaAllocatorAdapter& operator=(const ScopedArenaAllocatorAdapter& other) = default;
-  ~ScopedArenaAllocatorAdapter() = default;
-
- private:
-  ArenaStack* arena_stack_;
-
-  template <typename U>
-  friend class ScopedArenaAllocatorAdapter;
-};
-
-// Adapter for use of ScopedArenaAllocator in STL containers.
-template <typename T>
-class ScopedArenaAllocatorAdapter : private DebugStackReference, private DebugStackIndirectTopRef {
- public:
-  typedef T value_type;
-  typedef T* pointer;
-  typedef T& reference;
-  typedef const T* const_pointer;
-  typedef const T& const_reference;
-  typedef size_t size_type;
-  typedef ptrdiff_t difference_type;
-
-  template <typename U>
-  struct rebind {
-    typedef ScopedArenaAllocatorAdapter<U> other;
-  };
-
-  explicit ScopedArenaAllocatorAdapter(ScopedArenaAllocator* arena_allocator)
-      : DebugStackReference(arena_allocator),
-        DebugStackIndirectTopRef(arena_allocator),
-        arena_stack_(arena_allocator->arena_stack_) {
-  }
-  template <typename U>
-  ScopedArenaAllocatorAdapter(const ScopedArenaAllocatorAdapter<U>& other)
-      : DebugStackReference(other),
-        DebugStackIndirectTopRef(other),
-        arena_stack_(other.arena_stack_) {
-  }
-  ScopedArenaAllocatorAdapter(const ScopedArenaAllocatorAdapter& other) = default;
-  ScopedArenaAllocatorAdapter& operator=(const ScopedArenaAllocatorAdapter& other) = default;
-  ~ScopedArenaAllocatorAdapter() = default;
-
-  size_type max_size() const {
-    return static_cast<size_type>(-1) / sizeof(T);
-  }
-
-  pointer address(reference x) const { return &x; }
-  const_pointer address(const_reference x) const { return &x; }
-
-  pointer allocate(size_type n, ScopedArenaAllocatorAdapter<void>::pointer hint = nullptr) {
-    DCHECK_LE(n, max_size());
-    DebugStackIndirectTopRef::CheckTop();
-    return reinterpret_cast<T*>(arena_stack_->Alloc(n * sizeof(T), kArenaAllocSTL));
-  }
-  void deallocate(pointer p, size_type n) {
-    DebugStackIndirectTopRef::CheckTop();
-  }
-
-  void construct(pointer p, const_reference val) {
-    // Don't CheckTop(), allow reusing existing capacity of a vector/deque below the top.
-    new (static_cast<void*>(p)) value_type(val);
-  }
-  void destroy(pointer p) {
-    // Don't CheckTop(), allow reusing existing capacity of a vector/deque below the top.
-    p->~value_type();
-  }
-
- private:
-  ArenaStack* arena_stack_;
-
-  template <typename U>
-  friend class ScopedArenaAllocatorAdapter;
-
-  template <typename U>
-  friend bool operator==(const ScopedArenaAllocatorAdapter<U>& lhs,
-                         const ScopedArenaAllocatorAdapter<U>& rhs);
-};
-
-template <typename T>
-inline bool operator==(const ScopedArenaAllocatorAdapter<T>& lhs,
-                       const ScopedArenaAllocatorAdapter<T>& rhs) {
-  return lhs.arena_stack_ == rhs.arena_stack_;
-}
-
-template <typename T>
-inline bool operator!=(const ScopedArenaAllocatorAdapter<T>& lhs,
-                       const ScopedArenaAllocatorAdapter<T>& rhs) {
-  return !(lhs == rhs);
-}
-
-inline ScopedArenaAllocatorAdapter<void> ScopedArenaAllocator::Adapter() {
-  return ScopedArenaAllocatorAdapter<void>(this);
-}
 
 }  // namespace art
 
