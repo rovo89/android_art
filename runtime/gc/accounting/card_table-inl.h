@@ -37,12 +37,13 @@ static inline bool byte_cas(byte old_value, byte new_value, byte* address) {
   // Align the address down.
   address -= shift_in_bytes;
   const size_t shift_in_bits = shift_in_bytes * kBitsPerByte;
-  AtomicInteger* word_atomic = reinterpret_cast<AtomicInteger*>(address);
+  Atomic<uintptr_t>* word_atomic = reinterpret_cast<Atomic<uintptr_t>*>(address);
 
   // Word with the byte we are trying to cas cleared.
-  const int32_t cur_word = word_atomic->LoadRelaxed() & ~(0xFF << shift_in_bits);
-  const int32_t old_word = cur_word | (static_cast<int32_t>(old_value) << shift_in_bits);
-  const int32_t new_word = cur_word | (static_cast<int32_t>(new_value) << shift_in_bits);
+  const uintptr_t cur_word = word_atomic->LoadRelaxed() &
+      ~(static_cast<uintptr_t>(0xFF) << shift_in_bits);
+  const uintptr_t old_word = cur_word | (static_cast<uintptr_t>(old_value) << shift_in_bits);
+  const uintptr_t new_word = cur_word | (static_cast<uintptr_t>(new_value) << shift_in_bits);
   return word_atomic->CompareExchangeWeakRelaxed(old_word, new_word);
 #endif
 }
