@@ -350,6 +350,8 @@ TEST_F(UtilsTest, GetDalvikCacheFilenameOrDie) {
                GetDalvikCacheFilenameOrDie("/system/framework/core.jar", "/foo").c_str());
   EXPECT_STREQ("/foo/system@framework@boot.art",
                GetDalvikCacheFilenameOrDie("/system/framework/boot.art", "/foo").c_str());
+  EXPECT_STREQ("/foo/system@framework@boot.oat",
+               GetDalvikCacheFilenameOrDie("/system/framework/boot.oat", "/foo").c_str());
 }
 
 TEST_F(UtilsTest, GetSystemImageFilename) {

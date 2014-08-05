@@ -274,12 +274,18 @@ class ClassLinker {
                            std::vector<const DexFile*>* dex_files)
       LOCKS_EXCLUDED(dex_lock_, Locks::mutator_lock_);
 
+  // Returns true if the given oat file has the same image checksum as the image it is paired with.
+  static bool VerifyOatImageChecksum(const OatFile* oat_file, const InstructionSet instruction_set);
+  // Returns true if the oat file checksums match with the image and the offsets are such that it
+  // could be loaded with it.
+  static bool VerifyOatChecksums(const OatFile* oat_file, const InstructionSet instruction_set,
+                                 std::string* error_msg);
   // Returns true if oat file contains the dex file with the given location and checksum.
-  static bool VerifyOatFileChecksums(const OatFile* oat_file,
-                                     const char* dex_location,
-                                     uint32_t dex_location_checksum,
-                                     InstructionSet instruction_set,
-                                     std::string* error_msg);
+  static bool VerifyOatAndDexFileChecksums(const OatFile* oat_file,
+                                           const char* dex_location,
+                                           uint32_t dex_location_checksum,
+                                           InstructionSet instruction_set,
+                                           std::string* error_msg);
 
   // TODO: replace this with multiple methods that allocate the correct managed type.
   template <class T>

@@ -1236,7 +1236,7 @@ bool GetDalvikCacheFilename(const char* location, const char* cache_location,
     return false;
   }
   std::string cache_file(&location[1]);  // skip leading slash
-  if (!EndsWith(location, ".dex") && !EndsWith(location, ".art")) {
+  if (!EndsWith(location, ".dex") && !EndsWith(location, ".art") && !EndsWith(location, ".oat")) {
     cache_file += "/";
     cache_file += DexFile::kClassesDex;
   }
