@@ -931,34 +931,52 @@ void Arm64Mir2Lir::GenNotLong(RegLocation rl_dest, RegLocation rl_src) {
   StoreValueWide(rl_dest, rl_result);
 }
 
-void Arm64Mir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
-                              RegLocation rl_src1, RegLocation rl_src2) {
-  GenLongOp(kOpMul, rl_dest, rl_src1, rl_src2);
-}
-
-void Arm64Mir2Lir::GenAddLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                              RegLocation rl_src2) {
-  GenLongOp(kOpAdd, rl_dest, rl_src1, rl_src2);
-}
-
-void Arm64Mir2Lir::GenSubLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) {
-  GenLongOp(kOpSub, rl_dest, rl_src1, rl_src2);
-}
-
-void Arm64Mir2Lir::GenAndLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) {
-  GenLongOp(kOpAnd, rl_dest, rl_src1, rl_src2);
-}
-
-void Arm64Mir2Lir::GenOrLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                           RegLocation rl_src2) {
-  GenLongOp(kOpOr, rl_dest, rl_src1, rl_src2);
-}
-
-void Arm64Mir2Lir::GenXorLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) {
-  GenLongOp(kOpXor, rl_dest, rl_src1, rl_src2);
+void Arm64Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
+                                  RegLocation rl_src1, RegLocation rl_src2) {
+  switch (opcode) {
+    case Instruction::NOT_LONG:
+      GenNotLong(rl_dest, rl_src2);
+      return;
+    case Instruction::ADD_LONG:
+    case Instruction::ADD_LONG_2ADDR:
+      GenLongOp(kOpAdd, rl_dest, rl_src1, rl_src2);
+      return;
+    case Instruction::SUB_LONG:
+    case Instruction::SUB_LONG_2ADDR:
+      GenLongOp(kOpSub, rl_dest, rl_src1, rl_src2);
+      return;
+    case Instruction::MUL_LONG:
+    case Instruction::MUL_LONG_2ADDR:
+      GenLongOp(kOpMul, rl_dest, rl_src1, rl_src2);
+      return;
+    case Instruction::DIV_LONG:
+    case Instruction::DIV_LONG_2ADDR:
+      GenDivRemLong(opcode, rl_dest, rl_src1, rl_src2, /*is_div*/ true);
+      return;
+    case Instruction::REM_LONG:
+    case Instruction::REM_LONG_2ADDR:
+      GenDivRemLong(opcode, rl_dest, rl_src1, rl_src2, /*is_div*/ false);
+      return;
+    case Instruction::AND_LONG_2ADDR:
+    case Instruction::AND_LONG:
+      GenLongOp(kOpAnd, rl_dest, rl_src1, rl_src2);
+      return;
+    case Instruction::OR_LONG:
+    case Instruction::OR_LONG_2ADDR:
+      GenLongOp(kOpOr, rl_dest, rl_src1, rl_src2);
+      return;
+    case Instruction::XOR_LONG:
+    case Instruction::XOR_LONG_2ADDR:
+      GenLongOp(kOpXor, rl_dest, rl_src1, rl_src2);
+      return;
+    case Instruction::NEG_LONG: {
+      GenNegLong(rl_dest, rl_src2);
+      return;
+    }
+    default:
+      LOG(FATAL) << "Invalid long arith op";
+      return;
+  }
 }
 
 /*

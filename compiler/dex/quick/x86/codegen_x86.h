@@ -167,26 +167,12 @@ class X86Mir2Lir : public Mir2Lir {
   bool GenInlinedCharAt(CallInfo* info) OVERRIDE;
 
   // Long instructions.
+  void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                      RegLocation rl_src2) OVERRIDE;
   void GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                          RegLocation rl_src2) OVERRIDE;
   void GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                          RegLocation rl_src1, RegLocation rl_shift) OVERRIDE;
-  void GenMulLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                  RegLocation rl_src2) OVERRIDE;
-  void GenAddLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                  RegLocation rl_src2) OVERRIDE;
-  void GenAndLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                  RegLocation rl_src2) OVERRIDE;
-  void GenNotLong(RegLocation rl_dest, RegLocation rl_src) OVERRIDE;
-  void GenNegLong(RegLocation rl_dest, RegLocation rl_src) OVERRIDE;
-  void GenOrLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                 RegLocation rl_src2) OVERRIDE;
-  void GenSubLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                  RegLocation rl_src2) OVERRIDE;
-  void GenXorLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                  RegLocation rl_src2) OVERRIDE;
-  void GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                     RegLocation rl_src2, bool is_div) OVERRIDE;
   void GenCmpLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) OVERRIDE;
   void GenIntToLong(RegLocation rl_dest, RegLocation rl_src) OVERRIDE;
   void GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
@@ -826,6 +812,16 @@ class X86Mir2Lir : public Mir2Lir {
   void OpTlsCmp(ThreadOffset<8> offset, int val);
 
   void OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int scale, int offset);
+
+  // Try to do a long multiplication where rl_src2 is a constant. This simplified setup might fail,
+  // in which case false will be returned.
+  bool GenMulLongConst(RegLocation rl_dest, RegLocation rl_src1, int64_t val);
+  void GenMulLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                  RegLocation rl_src2);
+  void GenNotLong(RegLocation rl_dest, RegLocation rl_src);
+  void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
+  void GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
+                     RegLocation rl_src2, bool is_div);
 
   void SpillCoreRegs();
   void UnSpillCoreRegs();

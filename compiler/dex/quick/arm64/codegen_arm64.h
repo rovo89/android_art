@@ -147,12 +147,6 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
                    RegLocation rl_src, int scale, bool card_mark) OVERRIDE;
   void GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                          RegLocation rl_shift) OVERRIDE;
-  void GenMulLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                  RegLocation rl_src2) OVERRIDE;
-  void GenAddLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                  RegLocation rl_src2) OVERRIDE;
-  void GenAndLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                  RegLocation rl_src2) OVERRIDE;
   void GenArithOpDouble(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                         RegLocation rl_src2) OVERRIDE;
   void GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
@@ -175,16 +169,8 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   bool GenInlinedPoke(CallInfo* info, OpSize size) OVERRIDE;
   bool GenInlinedAbsLong(CallInfo* info) OVERRIDE;
   void GenIntToLong(RegLocation rl_dest, RegLocation rl_src) OVERRIDE;
-  void GenNotLong(RegLocation rl_dest, RegLocation rl_src) OVERRIDE;
-  void GenNegLong(RegLocation rl_dest, RegLocation rl_src) OVERRIDE;
-  void GenOrLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                 RegLocation rl_src2) OVERRIDE;
-  void GenSubLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                  RegLocation rl_src2) OVERRIDE;
-  void GenXorLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                  RegLocation rl_src2) OVERRIDE;
-  void GenDivRemLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                     RegLocation rl_src2, bool is_div) OVERRIDE;
+  void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                      RegLocation rl_src2) OVERRIDE;
   RegLocation GenDivRem(RegLocation rl_dest, RegStorage reg_lo, RegStorage reg_hi, bool is_div)
       OVERRIDE;
   RegLocation GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int lit, bool is_div)
@@ -399,6 +385,11 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   // Helper used in the two GenSelect variants.
   void GenSelect(int32_t left, int32_t right, ConditionCode code, RegStorage rs_dest,
                  int result_reg_class);
+
+  void GenNotLong(RegLocation rl_dest, RegLocation rl_src);
+  void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
+  void GenDivRemLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                     RegLocation rl_src2, bool is_div);
 
   InToRegStorageMapping in_to_reg_storage_mapping_;
   static const ArmEncodingMap EncodingMap[kA64Last];

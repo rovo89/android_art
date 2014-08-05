@@ -1808,10 +1808,6 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
 
   switch (opcode) {
     case Instruction::NOT_LONG:
-      if (cu_->instruction_set == kArm64 || cu_->instruction_set == kX86_64) {
-        GenNotLong(rl_dest, rl_src2);
-        return;
-      }
       rl_src2 = LoadValueWide(rl_src2, kCoreReg);
       rl_result = EvalLoc(rl_dest, kCoreReg, true);
       // Check for destructive overlap
@@ -1829,39 +1825,22 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
       return;
     case Instruction::ADD_LONG:
     case Instruction::ADD_LONG_2ADDR:
-      if (cu_->instruction_set != kThumb2) {
-        GenAddLong(opcode, rl_dest, rl_src1, rl_src2);
-        return;
-      }
       first_op = kOpAdd;
       second_op = kOpAdc;
       break;
     case Instruction::SUB_LONG:
     case Instruction::SUB_LONG_2ADDR:
-      if (cu_->instruction_set != kThumb2) {
-        GenSubLong(opcode, rl_dest, rl_src1, rl_src2);
-        return;
-      }
       first_op = kOpSub;
       second_op = kOpSbc;
       break;
     case Instruction::MUL_LONG:
     case Instruction::MUL_LONG_2ADDR:
-      if (cu_->instruction_set != kMips) {
-        GenMulLong(opcode, rl_dest, rl_src1, rl_src2);
-        return;
-      } else {
-        call_out = true;
-        TargetReg(kRet0, kNotWide).GetReg();
-        target = kQuickLmul;
-      }
+      call_out = true;
+      ret_reg = TargetReg(kRet0, kNotWide).GetReg();
+      target = kQuickLmul;
       break;
     case Instruction::DIV_LONG:
     case Instruction::DIV_LONG_2ADDR:
-      if (cu_->instruction_set == kArm64 || cu_->instruction_set == kX86_64) {
-        GenDivRemLong(opcode, rl_dest, rl_src1, rl_src2, /*is_div*/ true);
-        return;
-      }
       call_out = true;
       check_zero = true;
       ret_reg = TargetReg(kRet0, kNotWide).GetReg();
@@ -1869,10 +1848,6 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
       break;
     case Instruction::REM_LONG:
     case Instruction::REM_LONG_2ADDR:
-      if (cu_->instruction_set == kArm64 || cu_->instruction_set == kX86_64) {
-        GenDivRemLong(opcode, rl_dest, rl_src1, rl_src2, /*is_div*/ false);
-        return;
-      }
       call_out = true;
       check_zero = true;
       target = kQuickLmod;
@@ -1882,37 +1857,19 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
       break;
     case Instruction::AND_LONG_2ADDR:
     case Instruction::AND_LONG:
-      if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64 ||
-          cu_->instruction_set == kArm64) {
-        return GenAndLong(opcode, rl_dest, rl_src1, rl_src2);
-      }
       first_op = kOpAnd;
       second_op = kOpAnd;
       break;
     case Instruction::OR_LONG:
     case Instruction::OR_LONG_2ADDR:
-      if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64 ||
-          cu_->instruction_set == kArm64) {
-        GenOrLong(opcode, rl_dest, rl_src1, rl_src2);
-        return;
-      }
       first_op = kOpOr;
       second_op = kOpOr;
       break;
     case Instruction::XOR_LONG:
     case Instruction::XOR_LONG_2ADDR:
-      if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64 ||
-          cu_->instruction_set == kArm64) {
-        GenXorLong(opcode, rl_dest, rl_src1, rl_src2);
-        return;
-      }
       first_op = kOpXor;
       second_op = kOpXor;
       break;
-    case Instruction::NEG_LONG: {
-      GenNegLong(rl_dest, rl_src2);
-      return;
-    }
     default:
       LOG(FATAL) << "Invalid long arith op";
   }
