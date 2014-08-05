@@ -1166,8 +1166,14 @@ bool Mir2Lir::GenInlinedGet(CallInfo* info) {
   }
   if (use_direct_type_ptr) {
     LoadConstant(reg_class, direct_type_ptr);
-  } else {
+  } else if (cu_->dex_file == old_dex) {
+    // TODO: Bug 16656190 If cu_->dex_file != old_dex the patching could retrieve the wrong class
+    // since the load class is indexed only by the type_idx. We should include which dex file a
+    // class is from in the LoadClassType LIR.
     LoadClassType(type_idx, kArg1);
+  } else {
+    cu_->dex_file = old_dex;
+    return false;
   }
   cu_->dex_file = old_dex;
 
