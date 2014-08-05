@@ -84,6 +84,8 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     RegisterClass RegClassForFieldLoadStore(OpSize size, bool is_volatile) OVERRIDE;
 
     // Required for target - Dalvik-level generators.
+    void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                        RegLocation rl_src2) OVERRIDE;
     void GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                            RegLocation rl_src1, RegLocation rl_src2);
     void GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
@@ -92,12 +94,6 @@ class ArmMir2Lir FINAL : public Mir2Lir {
                      RegLocation rl_src, int scale, bool card_mark);
     void GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                            RegLocation rl_src1, RegLocation rl_shift);
-    void GenMulLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                    RegLocation rl_src2);
-    void GenAddLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                    RegLocation rl_src2);
-    void GenAndLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                    RegLocation rl_src2);
     void GenArithOpDouble(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                           RegLocation rl_src2);
     void GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
@@ -112,16 +108,6 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     bool GenInlinedSqrt(CallInfo* info);
     bool GenInlinedPeek(CallInfo* info, OpSize size);
     bool GenInlinedPoke(CallInfo* info, OpSize size);
-    void GenNotLong(RegLocation rl_dest, RegLocation rl_src);
-    void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
-    void GenOrLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                   RegLocation rl_src2);
-    void GenSubLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                    RegLocation rl_src2);
-    void GenXorLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                    RegLocation rl_src2);
-    void GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                       RegLocation rl_src2, bool is_div);
     RegLocation GenDivRem(RegLocation rl_dest, RegStorage reg_lo, RegStorage reg_hi, bool is_div);
     RegLocation GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int lit, bool is_div);
     void GenCmpLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
@@ -201,6 +187,9 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     size_t GetInstructionOffset(LIR* lir);
 
   private:
+    void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
+    void GenMulLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                    RegLocation rl_src2);
     void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1, int64_t val,
                                   ConditionCode ccode);
     LIR* LoadFPConstantValue(int r_dest, int value);

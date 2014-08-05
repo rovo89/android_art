@@ -1283,91 +1283,113 @@ void X86Mir2Lir::GenImulMemImm(RegStorage dest, int sreg, int displacement, int 
   }
 }
 
-void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) {
+void X86Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                                RegLocation rl_src2) {
+  if (!cu_->target64) {
+    // Some x86 32b ops are fallback.
+    switch (opcode) {
+      case Instruction::NOT_LONG:
+      case Instruction::DIV_LONG:
+      case Instruction::DIV_LONG_2ADDR:
+      case Instruction::REM_LONG:
+      case Instruction::REM_LONG_2ADDR:
+        Mir2Lir::GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
+        return;
+
+      default:
+        // Everything else we can handle.
+        break;
+    }
+  }
+
+  switch (opcode) {
+    case Instruction::NOT_LONG:
+      GenNotLong(rl_dest, rl_src2);
+      return;
+
+    case Instruction::ADD_LONG:
+    case Instruction::ADD_LONG_2ADDR:
+      GenLongArith(rl_dest, rl_src1, rl_src2, opcode, true);
+      return;
+
+    case Instruction::SUB_LONG:
+    case Instruction::SUB_LONG_2ADDR:
+      GenLongArith(rl_dest, rl_src1, rl_src2, opcode, false);
+      return;
+
+    case Instruction::MUL_LONG:
+    case Instruction::MUL_LONG_2ADDR:
+      GenMulLong(opcode, rl_dest, rl_src1, rl_src2);
+      return;
+
+    case Instruction::DIV_LONG:
+    case Instruction::DIV_LONG_2ADDR:
+      GenDivRemLong(opcode, rl_dest, rl_src1, rl_src2, /*is_div*/ true);
+      return;
+
+    case Instruction::REM_LONG:
+    case Instruction::REM_LONG_2ADDR:
+      GenDivRemLong(opcode, rl_dest, rl_src1, rl_src2, /*is_div*/ false);
+      return;
+
+    case Instruction::AND_LONG_2ADDR:
+    case Instruction::AND_LONG:
+      GenLongArith(rl_dest, rl_src1, rl_src2, opcode, true);
+      return;
+
+    case Instruction::OR_LONG:
+    case Instruction::OR_LONG_2ADDR:
+      GenLongArith(rl_dest, rl_src1, rl_src2, opcode, true);
+      return;
+
+    case Instruction::XOR_LONG:
+    case Instruction::XOR_LONG_2ADDR:
+      GenLongArith(rl_dest, rl_src1, rl_src2, opcode, true);
+      return;
+
+    case Instruction::NEG_LONG:
+      GenNegLong(rl_dest, rl_src2);
+      return;
+
+    default:
+      LOG(FATAL) << "Invalid long arith op";
+      return;
+  }
+}
+
+bool X86Mir2Lir::GenMulLongConst(RegLocation rl_dest, RegLocation rl_src1, int64_t val) {
   // All memory accesses below reference dalvik regs.
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
 
-  if (cu_->target64) {
-    if (rl_src1.is_const) {
-      std::swap(rl_src1, rl_src2);
-    }
-    // Are we multiplying by a constant?
-    if (rl_src2.is_const) {
-      int64_t val = mir_graph_->ConstantValueWide(rl_src2);
-      if (val == 0) {
-        RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
-        OpRegReg(kOpXor, rl_result.reg, rl_result.reg);
-        StoreValueWide(rl_dest, rl_result);
-        return;
-      } else if (val == 1) {
-        StoreValueWide(rl_dest, rl_src1);
-        return;
-      } else if (val == 2) {
-        GenAddLong(Instruction::ADD_LONG, rl_dest, rl_src1, rl_src1);
-        return;
-      } else if (IsPowerOfTwo(val)) {
-        int shift_amount = LowestSetBit(val);
-        if (!BadOverlap(rl_src1, rl_dest)) {
-          rl_src1 = LoadValueWide(rl_src1, kCoreReg);
-          RegLocation rl_result = GenShiftImmOpLong(Instruction::SHL_LONG, rl_dest,
-                                                    rl_src1, shift_amount);
-          StoreValueWide(rl_dest, rl_result);
-          return;
-        }
-      }
-    }
-    rl_src1 = LoadValueWide(rl_src1, kCoreReg);
-    rl_src2 = LoadValueWide(rl_src2, kCoreReg);
+  if (val == 0) {
     RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
-    if (rl_result.reg.GetReg() == rl_src1.reg.GetReg() &&
-        rl_result.reg.GetReg() == rl_src2.reg.GetReg()) {
-      NewLIR2(kX86Imul64RR, rl_result.reg.GetReg(), rl_result.reg.GetReg());
-    } else if (rl_result.reg.GetReg() != rl_src1.reg.GetReg() &&
-               rl_result.reg.GetReg() == rl_src2.reg.GetReg()) {
-      NewLIR2(kX86Imul64RR, rl_result.reg.GetReg(), rl_src1.reg.GetReg());
-    } else if (rl_result.reg.GetReg() == rl_src1.reg.GetReg() &&
-               rl_result.reg.GetReg() != rl_src2.reg.GetReg()) {
-      NewLIR2(kX86Imul64RR, rl_result.reg.GetReg(), rl_src2.reg.GetReg());
+    if (cu_->target64) {
+      OpRegReg(kOpXor, rl_result.reg, rl_result.reg);
     } else {
-      OpRegCopy(rl_result.reg, rl_src1.reg);
-      NewLIR2(kX86Imul64RR, rl_result.reg.GetReg(), rl_src2.reg.GetReg());
-    }
-    StoreValueWide(rl_dest, rl_result);
-    return;
-  }
-
-  if (rl_src1.is_const) {
-    std::swap(rl_src1, rl_src2);
-  }
-  // Are we multiplying by a constant?
-  if (rl_src2.is_const) {
-    // Do special compare/branch against simple const operand
-    int64_t val = mir_graph_->ConstantValueWide(rl_src2);
-    if (val == 0) {
-      RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
       OpRegReg(kOpXor, rl_result.reg.GetLow(), rl_result.reg.GetLow());
       OpRegReg(kOpXor, rl_result.reg.GetHigh(), rl_result.reg.GetHigh());
-      StoreValueWide(rl_dest, rl_result);
-      return;
-    } else if (val == 1) {
-      StoreValueWide(rl_dest, rl_src1);
-      return;
-    } else if (val == 2) {
-      GenAddLong(Instruction::ADD_LONG, rl_dest, rl_src1, rl_src1);
-      return;
-    } else if (IsPowerOfTwo(val)) {
-      int shift_amount = LowestSetBit(val);
-      if (!BadOverlap(rl_src1, rl_dest)) {
-        rl_src1 = LoadValueWide(rl_src1, kCoreReg);
-        RegLocation rl_result = GenShiftImmOpLong(Instruction::SHL_LONG, rl_dest,
-                                                  rl_src1, shift_amount);
-        StoreValueWide(rl_dest, rl_result);
-        return;
-      }
     }
+    StoreValueWide(rl_dest, rl_result);
+    return true;
+  } else if (val == 1) {
+    StoreValueWide(rl_dest, rl_src1);
+    return true;
+  } else if (val == 2) {
+    GenArithOpLong(Instruction::ADD_LONG, rl_dest, rl_src1, rl_src1);
+    return true;
+  } else if (IsPowerOfTwo(val)) {
+    int shift_amount = LowestSetBit(val);
+    if (!BadOverlap(rl_src1, rl_dest)) {
+      rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+      RegLocation rl_result = GenShiftImmOpLong(Instruction::SHL_LONG, rl_dest, rl_src1,
+                                                shift_amount);
+      StoreValueWide(rl_dest, rl_result);
+      return true;
+    }
+  }
 
-    // Okay, just bite the bullet and do it.
+  // Okay, on 32b just bite the bullet and do it, still better than the general case.
+  if (!cu_->target64) {
     int32_t val_lo = Low32Bits(val);
     int32_t val_hi = High32Bits(val);
     FlushAllRegs();
@@ -1408,10 +1430,48 @@ void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation 
     RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1,
                              RegStorage::MakeRegPair(rs_r0, rs_r2), INVALID_SREG, INVALID_SREG};
     StoreValueWide(rl_dest, rl_result);
+    return true;
+  }
+  return false;
+}
+
+void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
+                            RegLocation rl_src2) {
+  if (rl_src1.is_const) {
+    std::swap(rl_src1, rl_src2);
+  }
+
+  if (rl_src2.is_const) {
+    if (GenMulLongConst(rl_dest, rl_src1, mir_graph_->ConstantValueWide(rl_src2))) {
+      return;
+    }
+  }
+
+  // All memory accesses below reference dalvik regs.
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+
+  if (cu_->target64) {
+    rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+    rl_src2 = LoadValueWide(rl_src2, kCoreReg);
+    RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+    if (rl_result.reg.GetReg() == rl_src1.reg.GetReg() &&
+        rl_result.reg.GetReg() == rl_src2.reg.GetReg()) {
+      NewLIR2(kX86Imul64RR, rl_result.reg.GetReg(), rl_result.reg.GetReg());
+    } else if (rl_result.reg.GetReg() != rl_src1.reg.GetReg() &&
+               rl_result.reg.GetReg() == rl_src2.reg.GetReg()) {
+      NewLIR2(kX86Imul64RR, rl_result.reg.GetReg(), rl_src1.reg.GetReg());
+    } else if (rl_result.reg.GetReg() == rl_src1.reg.GetReg() &&
+               rl_result.reg.GetReg() != rl_src2.reg.GetReg()) {
+      NewLIR2(kX86Imul64RR, rl_result.reg.GetReg(), rl_src2.reg.GetReg());
+    } else {
+      OpRegCopy(rl_result.reg, rl_src1.reg);
+      NewLIR2(kX86Imul64RR, rl_result.reg.GetReg(), rl_src2.reg.GetReg());
+    }
+    StoreValueWide(rl_dest, rl_result);
     return;
   }
 
-  // Nope.  Do it the hard way
+  // Not multiplying by a constant. Do it the hard way
   // Check for V*V.  We can eliminate a multiply in that case, as 2L*1H == 2H*1L.
   bool is_square = mir_graph_->SRegToVReg(rl_src1.s_reg_low) ==
                    mir_graph_->SRegToVReg(rl_src2.s_reg_low);
@@ -1679,31 +1739,6 @@ void X86Mir2Lir::GenLongArith(RegLocation rl_dest, RegLocation rl_src1,
   }
 
   StoreFinalValueWide(rl_dest, rl_src1);
-}
-
-void X86Mir2Lir::GenAddLong(Instruction::Code opcode, RegLocation rl_dest,
-                            RegLocation rl_src1, RegLocation rl_src2) {
-  GenLongArith(rl_dest, rl_src1, rl_src2, opcode, true);
-}
-
-void X86Mir2Lir::GenSubLong(Instruction::Code opcode, RegLocation rl_dest,
-                            RegLocation rl_src1, RegLocation rl_src2) {
-  GenLongArith(rl_dest, rl_src1, rl_src2, opcode, false);
-}
-
-void X86Mir2Lir::GenAndLong(Instruction::Code opcode, RegLocation rl_dest,
-                            RegLocation rl_src1, RegLocation rl_src2) {
-  GenLongArith(rl_dest, rl_src1, rl_src2, opcode, true);
-}
-
-void X86Mir2Lir::GenOrLong(Instruction::Code opcode, RegLocation rl_dest,
-                           RegLocation rl_src1, RegLocation rl_src2) {
-  GenLongArith(rl_dest, rl_src1, rl_src2, opcode, true);
-}
-
-void X86Mir2Lir::GenXorLong(Instruction::Code opcode, RegLocation rl_dest,
-                            RegLocation rl_src1, RegLocation rl_src2) {
-  GenLongArith(rl_dest, rl_src1, rl_src2, opcode, true);
 }
 
 void X86Mir2Lir::GenNotLong(RegLocation rl_dest, RegLocation rl_src) {
@@ -2214,7 +2249,7 @@ void X86Mir2Lir::GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest
   } else if (shift_amount == 1 &&
             (opcode ==  Instruction::SHL_LONG || opcode == Instruction::SHL_LONG_2ADDR)) {
     // Need to handle this here to avoid calling StoreValueWide twice.
-    GenAddLong(Instruction::ADD_LONG, rl_dest, rl_src, rl_src);
+    GenArithOpLong(Instruction::ADD_LONG, rl_dest, rl_src, rl_src);
     return;
   }
   if (BadOverlap(rl_src, rl_dest)) {
@@ -2246,7 +2281,7 @@ void X86Mir2Lir::GenArithImmOpLong(Instruction::Code opcode,
       if (rl_src2.is_const) {
         isConstSuccess = GenLongLongImm(rl_dest, rl_src1, rl_src2, opcode);
       } else {
-        GenSubLong(opcode, rl_dest, rl_src1, rl_src2);
+        GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
         isConstSuccess = true;
       }
       break;
