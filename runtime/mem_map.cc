@@ -153,9 +153,9 @@ static bool CheckMapRequest(byte* expected_ptr, void* actual_ptr, size_t byte_co
   uintptr_t expected = reinterpret_cast<uintptr_t>(expected_ptr);
   uintptr_t limit = expected + byte_count;
 
-  std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(getpid()));
-  if (!map->Build()) {
-    *error_msg << StringPrintf("Failed to build process map to determine why mmap returned "
+  std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(getpid(), true));
+  if (map.get() == NULL) {
+    *error_msg << StringPrintf("Failed to create process map to determine why mmap returned "
                                "0x%08" PRIxPTR " instead of 0x%08" PRIxPTR, actual, expected);
 
     return false;
