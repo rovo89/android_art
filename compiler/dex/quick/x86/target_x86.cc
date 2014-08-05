@@ -1098,11 +1098,6 @@ void X86Mir2Lir::InstallLiteralPools() {
 }
 
 bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
-  if (cu_->target64) {
-    // TODO: Implement ArrayCOpy intrinsic for x86_64
-    return false;
-  }
-
   RegLocation rl_src = info->args[0];
   RegLocation rl_srcPos = info->args[1];
   RegLocation rl_dst = info->args[2];
@@ -1115,31 +1110,32 @@ bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
     return false;
   }
   ClobberCallerSave();
-  LockCallTemps();  // Using fixed registers
-  LoadValueDirectFixed(rl_src , rs_rAX);
-  LoadValueDirectFixed(rl_dst , rs_rCX);
-  LIR* src_dst_same  = OpCmpBranch(kCondEq, rs_rAX , rs_rCX, nullptr);
-  LIR* src_null_branch = OpCmpImmBranch(kCondEq, rs_rAX , 0, nullptr);
-  LIR* dst_null_branch = OpCmpImmBranch(kCondEq, rs_rCX , 0, nullptr);
-  LoadValueDirectFixed(rl_length , rs_rDX);
-  LIR* len_negative  = OpCmpImmBranch(kCondLt, rs_rDX , 0, nullptr);
-  LIR* len_too_big  = OpCmpImmBranch(kCondGt, rs_rDX , 128, nullptr);
-  LoadValueDirectFixed(rl_src , rs_rAX);
-  LoadWordDisp(rs_rAX , mirror::Array::LengthOffset().Int32Value(), rs_rAX);
+  LockCallTemps();  // Using fixed registers.
+  RegStorage tmp_reg = cu_->target64 ? rs_r11 : rs_rBX;
+  LoadValueDirectFixed(rl_src, rs_rAX);
+  LoadValueDirectFixed(rl_dst, rs_rCX);
+  LIR* src_dst_same  = OpCmpBranch(kCondEq, rs_rAX, rs_rCX, nullptr);
+  LIR* src_null_branch = OpCmpImmBranch(kCondEq, rs_rAX, 0, nullptr);
+  LIR* dst_null_branch = OpCmpImmBranch(kCondEq, rs_rCX, 0, nullptr);
+  LoadValueDirectFixed(rl_length, rs_rDX);
+  // If the length of the copy is > 128 characters (256 bytes) or negative then go slow path.
+  LIR* len_too_big  = OpCmpImmBranch(kCondHi, rs_rDX, 128, nullptr);
+  LoadValueDirectFixed(rl_src, rs_rAX);
+  LoadWordDisp(rs_rAX, mirror::Array::LengthOffset().Int32Value(), rs_rAX);
   LIR* src_bad_len  = nullptr;
   LIR* srcPos_negative  = nullptr;
   if (!rl_srcPos.is_const) {
-    LoadValueDirectFixed(rl_srcPos , rs_rBX);
-    srcPos_negative  = OpCmpImmBranch(kCondLt, rs_rBX , 0, nullptr);
-    OpRegReg(kOpAdd, rs_rBX, rs_rDX);
-    src_bad_len  = OpCmpBranch(kCondLt, rs_rAX , rs_rBX, nullptr);
+    LoadValueDirectFixed(rl_srcPos, tmp_reg);
+    srcPos_negative  = OpCmpImmBranch(kCondLt, tmp_reg, 0, nullptr);
+    OpRegReg(kOpAdd, tmp_reg, rs_rDX);
+    src_bad_len  = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
   } else {
-    int pos_val = mir_graph_->ConstantValue(rl_srcPos.orig_sreg);
+    int32_t pos_val = mir_graph_->ConstantValue(rl_srcPos.orig_sreg);
     if (pos_val == 0) {
-      src_bad_len  = OpCmpBranch(kCondLt, rs_rAX , rs_rDX, nullptr);
+      src_bad_len  = OpCmpBranch(kCondLt, rs_rAX, rs_rDX, nullptr);
     } else {
-      OpRegRegImm(kOpAdd, rs_rBX,  rs_rDX, pos_val);
-      src_bad_len  = OpCmpBranch(kCondLt, rs_rAX , rs_rBX, nullptr);
+      OpRegRegImm(kOpAdd, tmp_reg,  rs_rDX, pos_val);
+      src_bad_len  = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
     }
   }
   LIR* dstPos_negative = nullptr;
@@ -1147,49 +1143,49 @@ bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
   LoadValueDirectFixed(rl_dst, rs_rAX);
   LoadWordDisp(rs_rAX, mirror::Array::LengthOffset().Int32Value(), rs_rAX);
   if (!rl_dstPos.is_const) {
-    LoadValueDirectFixed(rl_dstPos , rs_rBX);
-    dstPos_negative = OpCmpImmBranch(kCondLt, rs_rBX , 0, nullptr);
-    OpRegRegReg(kOpAdd, rs_rBX, rs_rBX, rs_rDX);
-    dst_bad_len = OpCmpBranch(kCondLt, rs_rAX , rs_rBX, nullptr);
+    LoadValueDirectFixed(rl_dstPos, tmp_reg);
+    dstPos_negative = OpCmpImmBranch(kCondLt, tmp_reg, 0, nullptr);
+    OpRegRegReg(kOpAdd, tmp_reg, tmp_reg, rs_rDX);
+    dst_bad_len = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
   } else {
-    int pos_val = mir_graph_->ConstantValue(rl_dstPos.orig_sreg);
+    int32_t pos_val = mir_graph_->ConstantValue(rl_dstPos.orig_sreg);
     if (pos_val == 0) {
-      dst_bad_len = OpCmpBranch(kCondLt, rs_rAX , rs_rDX, nullptr);
+      dst_bad_len = OpCmpBranch(kCondLt, rs_rAX, rs_rDX, nullptr);
     } else {
-      OpRegRegImm(kOpAdd, rs_rBX,  rs_rDX, pos_val);
-      dst_bad_len = OpCmpBranch(kCondLt, rs_rAX , rs_rBX, nullptr);
+      OpRegRegImm(kOpAdd, tmp_reg,  rs_rDX, pos_val);
+      dst_bad_len = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
     }
   }
-  // everything is checked now
-  LoadValueDirectFixed(rl_src , rs_rAX);
-  LoadValueDirectFixed(rl_dst , rs_rBX);
-  LoadValueDirectFixed(rl_srcPos , rs_rCX);
+  // Everything is checked now.
+  LoadValueDirectFixed(rl_src, rs_rAX);
+  LoadValueDirectFixed(rl_dst, tmp_reg);
+  LoadValueDirectFixed(rl_srcPos, rs_rCX);
   NewLIR5(kX86Lea32RA, rs_rAX.GetReg(), rs_rAX.GetReg(),
-       rs_rCX.GetReg() , 1, mirror::Array::DataOffset(2).Int32Value());
-  // RAX now holds the address of the first src element to be copied
+       rs_rCX.GetReg(), 1, mirror::Array::DataOffset(2).Int32Value());
+  // RAX now holds the address of the first src element to be copied.
 
-  LoadValueDirectFixed(rl_dstPos , rs_rCX);
-  NewLIR5(kX86Lea32RA, rs_rBX.GetReg(), rs_rBX.GetReg(),
-       rs_rCX.GetReg() , 1, mirror::Array::DataOffset(2).Int32Value() );
-  // RBX now holds the address of the first dst element to be copied
+  LoadValueDirectFixed(rl_dstPos, rs_rCX);
+  NewLIR5(kX86Lea32RA, tmp_reg.GetReg(), tmp_reg.GetReg(),
+       rs_rCX.GetReg(), 1, mirror::Array::DataOffset(2).Int32Value() );
+  // RBX now holds the address of the first dst element to be copied.
 
-  // check if the number of elements to be copied is odd or even. If odd
+  // Check if the number of elements to be copied is odd or even. If odd
   // then copy the first element (so that the remaining number of elements
   // is even).
-  LoadValueDirectFixed(rl_length , rs_rCX);
+  LoadValueDirectFixed(rl_length, rs_rCX);
   OpRegImm(kOpAnd, rs_rCX, 1);
   LIR* jmp_to_begin_loop  = OpCmpImmBranch(kCondEq, rs_rCX, 0, nullptr);
   OpRegImm(kOpSub, rs_rDX, 1);
   LoadBaseIndexedDisp(rs_rAX, rs_rDX, 1, 0, rs_rCX, kSignedHalf);
-  StoreBaseIndexedDisp(rs_rBX, rs_rDX, 1, 0, rs_rCX, kSignedHalf);
+  StoreBaseIndexedDisp(tmp_reg, rs_rDX, 1, 0, rs_rCX, kSignedHalf);
 
-  // since the remaining number of elements is even, we will copy by
+  // Since the remaining number of elements is even, we will copy by
   // two elements at a time.
-  LIR *beginLoop = NewLIR0(kPseudoTargetLabel);
-  LIR* jmp_to_ret  = OpCmpImmBranch(kCondEq, rs_rDX , 0, nullptr);
+  LIR* beginLoop = NewLIR0(kPseudoTargetLabel);
+  LIR* jmp_to_ret  = OpCmpImmBranch(kCondEq, rs_rDX, 0, nullptr);
   OpRegImm(kOpSub, rs_rDX, 2);
   LoadBaseIndexedDisp(rs_rAX, rs_rDX, 1, 0, rs_rCX, kSingle);
-  StoreBaseIndexedDisp(rs_rBX, rs_rDX, 1, 0, rs_rCX, kSingle);
+  StoreBaseIndexedDisp(tmp_reg, rs_rDX, 1, 0, rs_rCX, kSingle);
   OpUnconditionalBranch(beginLoop);
   LIR *check_failed = NewLIR0(kPseudoTargetLabel);
   LIR* launchpad_branch  = OpUnconditionalBranch(nullptr);
@@ -1197,7 +1193,6 @@ bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
   jmp_to_ret->target = return_point;
   jmp_to_begin_loop->target = beginLoop;
   src_dst_same->target = check_failed;
-  len_negative->target = check_failed;
   len_too_big->target = check_failed;
   src_null_branch->target = check_failed;
   if (srcPos_negative != nullptr)
