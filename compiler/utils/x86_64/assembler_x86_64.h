@@ -124,8 +124,8 @@ class Operand {
     if (index.NeedsRex()) {
       rex_ |= 0x42;  // REX.00X0
     }
-    encoding_[1] = (scale << 6) | (static_cast<uint8_t>(index.AsRegister()) << 3) |
-        static_cast<uint8_t>(base.AsRegister());
+    encoding_[1] = (scale << 6) | (static_cast<uint8_t>(index.LowBits()) << 3) |
+        static_cast<uint8_t>(base.LowBits());
     length_ = 2;
   }
 
