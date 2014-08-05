@@ -268,7 +268,7 @@ DISASSEMBLER_ENTRY(cmp,
     target_specific = true;
     break;
   case 0x63:
-    if (rex == 0x48) {
+    if ((rex & REX_W) != 0) {
       opcode << "movsxd";
       has_modrm = true;
       load = true;
@@ -959,7 +959,7 @@ DISASSEMBLER_ENTRY(cmp,
     byte_operand = true;
     break;
   case 0xB8: case 0xB9: case 0xBA: case 0xBB: case 0xBC: case 0xBD: case 0xBE: case 0xBF:
-    if (rex == 0x48) {
+    if ((rex & REX_W) != 0) {
       opcode << "movabsq";
       immediate_bytes = 8;
       reg_in_opcode = true;
