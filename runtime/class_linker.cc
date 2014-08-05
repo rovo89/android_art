@@ -680,14 +680,6 @@ const OatFile* ClassLinker::FindOpenedOatFile(const char* oat_location, const ch
   return NULL;
 }
 
-static std::string GetMultiDexClassesDexName(size_t number, const char* dex_location) {
-  if (number == 0) {
-    return dex_location;
-  } else {
-    return StringPrintf("%s" kMultiDexSeparatorString "classes%zu.dex", dex_location, number + 1);
-  }
-}
-
 static bool LoadMultiDexFilesFromOatFile(const OatFile* oat_file, const char* dex_location,
                                          bool generated,
                                          std::vector<std::string>* error_msgs,
@@ -700,7 +692,7 @@ static bool LoadMultiDexFilesFromOatFile(const OatFile* oat_file, const char* de
 
   bool success = true;
   for (size_t i = 0; success; ++i) {
-    std::string next_name_str = GetMultiDexClassesDexName(i, dex_location);
+    std::string next_name_str = DexFile::GetMultiDexClassesDexName(i, dex_location);
     const char* next_name = next_name_str.c_str();
 
     uint32_t dex_location_checksum;

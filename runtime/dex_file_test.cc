@@ -345,4 +345,31 @@ TEST_F(DexFileTest, FindFieldId) {
   }
 }
 
+TEST_F(DexFileTest, GetMultiDexClassesDexName) {
+  std::string dex_location_str = "/system/app/framework.jar";
+  const char* dex_location = dex_location_str.c_str();
+  ASSERT_EQ("/system/app/framework.jar", DexFile::GetMultiDexClassesDexName(0, dex_location));
+  ASSERT_EQ("/system/app/framework.jar:classes2.dex", DexFile::GetMultiDexClassesDexName(1, dex_location));
+  ASSERT_EQ("/system/app/framework.jar:classes101.dex", DexFile::GetMultiDexClassesDexName(100, dex_location));
+}
+
+TEST_F(DexFileTest, GetDexCanonicalLocation) {
+  ScratchFile file;
+  std::string dex_location = file.GetFilename();
+
+  ASSERT_EQ(file.GetFilename(), DexFile::GetDexCanonicalLocation(dex_location.c_str()));
+  std::string multidex_location = DexFile::GetMultiDexClassesDexName(1, dex_location.c_str());
+  ASSERT_EQ(multidex_location, DexFile::GetDexCanonicalLocation(multidex_location.c_str()));
+
+  std::string dex_location_sym = dex_location + "symlink";
+  ASSERT_EQ(0, symlink(dex_location.c_str(), dex_location_sym.c_str()));
+
+  ASSERT_EQ(dex_location, DexFile::GetDexCanonicalLocation(dex_location_sym.c_str()));
+
+  std::string multidex_location_sym = DexFile::GetMultiDexClassesDexName(1, dex_location_sym.c_str());
+  ASSERT_EQ(multidex_location, DexFile::GetDexCanonicalLocation(multidex_location_sym.c_str()));
+
+  ASSERT_EQ(0, unlink(dex_location_sym.c_str()));
+}
+
 }  // namespace art
