@@ -283,8 +283,8 @@ void X86_64Assembler::movw(CpuRegister /*dst*/, const Address& /*src*/) {
 
 void X86_64Assembler::movw(const Address& dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitOptionalRex32(src, dst);
   EmitOperandSizeOverride();
+  EmitOptionalRex32(src, dst);
   EmitUint8(0x89);
   EmitOperand(src.LowBits(), dst);
 }
