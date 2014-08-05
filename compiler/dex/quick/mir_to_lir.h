@@ -32,6 +32,7 @@
 #include "safe_map.h"
 #include "utils/array_ref.h"
 #include "utils/arena_allocator.h"
+#include "utils/arena_containers.h"
 #include "utils/growable_array.h"
 #include "utils/stack_checks.h"
 
@@ -1699,8 +1700,8 @@ class Mir2Lir : public Backend {
     CodeBuffer code_buffer_;
     // The encoding mapping table data (dex -> pc offset and pc offset -> dex) with a size prefix.
     std::vector<uint8_t> encoded_mapping_table_;
-    std::vector<uint32_t> core_vmap_table_;
-    std::vector<uint32_t> fp_vmap_table_;
+    ArenaVector<uint32_t> core_vmap_table_;
+    ArenaVector<uint32_t> fp_vmap_table_;
     std::vector<uint8_t> native_gc_map_;
     int num_core_spills_;
     int num_fp_spills_;

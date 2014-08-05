@@ -27,6 +27,7 @@
 #include "mir_method_info.h"
 #include "utils/arena_bit_vector.h"
 #include "utils/growable_array.h"
+#include "utils/arena_containers.h"
 #include "utils/scoped_arena_containers.h"
 #include "reg_location.h"
 #include "reg_storage.h"
@@ -1051,8 +1052,8 @@ class MIRGraph {
   std::set<uint32_t> catches_;
 
   // TODO: make these private.
-  RegLocation* reg_location_;                         // Map SSA names to location.
-  SafeMap<unsigned int, unsigned int> block_id_map_;  // Block collapse lookup cache.
+  RegLocation* reg_location_;                               // Map SSA names to location.
+  ArenaSafeMap<unsigned int, unsigned int> block_id_map_;   // Block collapse lookup cache.
 
   static const char* extended_mir_op_names_[kMirOpLast - kMirOpFirst];
   static const uint32_t analysis_attributes_[kMirOpLast];
@@ -1171,15 +1172,15 @@ class MIRGraph {
   unsigned int num_blocks_;
   const DexFile::CodeItem* current_code_item_;
   GrowableArray<uint16_t> dex_pc_to_block_map_;  // FindBlock lookup cache.
-  std::vector<DexCompilationUnit*> m_units_;     // List of methods included in this graph
+  ArenaVector<DexCompilationUnit*> m_units_;     // List of methods included in this graph
   typedef std::pair<int, int> MIRLocation;       // Insert point, (m_unit_ index, offset)
-  std::vector<MIRLocation> method_stack_;        // Include stack
+  ArenaVector<MIRLocation> method_stack_;        // Include stack
   int current_method_;
   DexOffset current_offset_;                     // Offset in code units
   int def_count_;                                // Used to estimate size of ssa name storage.
   int* opcode_count_;                            // Dex opcode coverage stats.
   int num_ssa_regs_;                             // Number of names following SSA transformation.
-  std::vector<BasicBlockId> extended_basic_blocks_;  // Heads of block "traces".
+  ArenaVector<BasicBlockId> extended_basic_blocks_;  // Heads of block "traces".
   int method_sreg_;
   unsigned int attributes_;
   Checkstats* checkstats_;
