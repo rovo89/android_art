@@ -53,8 +53,9 @@ void SsaDeadPhiElimination::Run() {
     }
   }
 
-  // Remove phis that are not live. Visit in post order to ensure
-  // we only remove phis with no users (dead phis might use dead phis).
+  // Remove phis that are not live. Visit in post order so that phis
+  // that are not inputs of loop phis can be removed when they have
+  // no users left (dead phis might use dead phis).
   for (HPostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     HInstruction* current = block->GetFirstPhi();
@@ -62,6 +63,17 @@ void SsaDeadPhiElimination::Run() {
     while (current != nullptr) {
       next = current->GetNext();
       if (current->AsPhi()->IsDead()) {
+        if (current->HasUses()) {
+          for (HUseIterator<HInstruction> it(current->GetUses()); !it.Done(); it.Advance()) {
+            HUseListNode<HInstruction>* user_node = it.Current();
+            HInstruction* user = user_node->GetUser();
+            DCHECK(user->IsLoopHeaderPhi());
+            DCHECK(user->AsPhi()->IsDead());
+            // Just put itself as an input. The phi will be removed in this loop anyway.
+            user->SetRawInputAt(user_node->GetIndex(), user);
+            current->RemoveUser(user, user_node->GetIndex());
+          }
+        }
         block->RemovePhi(current->AsPhi());
       }
       current = next;
