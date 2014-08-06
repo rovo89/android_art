@@ -48,9 +48,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
   ~ElfWriterQuick() {}
 
   class ElfBuilder;
-  void AddDebugSymbols(ElfBuilder& builder,
-                       OatWriter* oat_writer,
-                       bool debug);
+  void WriteDebugSymbols(ElfBuilder& builder, OatWriter* oat_writer);
   void ReservePatchSpace(std::vector<uint8_t>* buffer, bool debug);
 
   class ElfSectionBuilder {
@@ -126,7 +124,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
         : ElfSectionBuilder(sec_name, type, flags, link, info, align, entsize) {}
     ~ElfRawSectionBuilder() {}
     std::vector<uint8_t>* GetBuffer() { return &buf_; }
-    void SetBuffer(std::vector<uint8_t> buf) { buf_ = buf; }
+    void SetBuffer(std::vector<uint8_t>&& buf) { buf_ = buf; }
 
    protected:
     std::vector<uint8_t> buf_;

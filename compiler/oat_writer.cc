@@ -357,7 +357,6 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
         uint32_t thumb_offset = compiled_method->CodeDelta();
         quick_code_offset = offset_ + sizeof(OatQuickMethodHeader) + thumb_offset;
 
-        bool force_debug_capture = false;
         bool deduped = false;
 
         // Deduplicate code arrays.
@@ -400,47 +399,22 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
           offset_ += code_size;
         }
 
-        uint32_t quick_code_start = quick_code_offset - writer_->oat_header_->GetExecutableOffset();
-        std::vector<uint8_t>* cfi_info = writer_->compiler_driver_->GetCallFrameInformation();
-        if (cfi_info != nullptr) {
-          // Copy in the FDE, if present
-          const std::vector<uint8_t>* fde = compiled_method->GetCFIInfo();
-          if (fde != nullptr) {
-            // Copy the information into cfi_info and then fix the address in the new copy.
-            int cur_offset = cfi_info->size();
-            cfi_info->insert(cfi_info->end(), fde->begin(), fde->end());
+        if (writer_->compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols()) {
+          // Record debug information for this function if we are doing that.
 
-            // Set the 'CIE_pointer' field to cur_offset+4.
-            uint32_t CIE_pointer = cur_offset + 4;
-            uint32_t offset_to_update = cur_offset + sizeof(uint32_t);
-            (*cfi_info)[offset_to_update+0] = CIE_pointer;
-            (*cfi_info)[offset_to_update+1] = CIE_pointer >> 8;
-            (*cfi_info)[offset_to_update+2] = CIE_pointer >> 16;
-            (*cfi_info)[offset_to_update+3] = CIE_pointer >> 24;
-
-            // Set the 'initial_location' field to address the start of the method.
-            offset_to_update = cur_offset + 2*sizeof(uint32_t);
-            (*cfi_info)[offset_to_update+0] = quick_code_start;
-            (*cfi_info)[offset_to_update+1] = quick_code_start >> 8;
-            (*cfi_info)[offset_to_update+2] = quick_code_start >> 16;
-            (*cfi_info)[offset_to_update+3] = quick_code_start >> 24;
-            force_debug_capture = true;
-          }
-        }
-
-
-        if (writer_->compiler_driver_->DidIncludeDebugSymbols() || force_debug_capture) {
-          // Record debug information for this function if we are doing that or
-          // we have CFI and so need it.
           std::string name = PrettyMethod(it.GetMemberIndex(), *dex_file_, true);
           if (deduped) {
-            // TODO We should place the DEDUPED tag on the first instance of a
-            // deduplicated symbol so that it will show up in a debuggerd crash
-            // report.
+            // TODO We should place the DEDUPED tag on the first instance of a deduplicated symbol
+            // so that it will show up in a debuggerd crash report.
             name += " [ DEDUPED ]";
           }
-          writer_->method_info_.push_back(DebugInfo(name, quick_code_start,
-                                                    quick_code_start + code_size));
+
+          const uint32_t quick_code_start = quick_code_offset -
+              writer_->oat_header_->GetExecutableOffset();
+          writer_->method_info_.push_back(DebugInfo(name,
+                                                    quick_code_start,
+                                                    quick_code_start + code_size,
+                                                    compiled_method));
         }
       }
 
