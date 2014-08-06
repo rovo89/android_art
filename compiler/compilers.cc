@@ -38,9 +38,6 @@ extern "C" art::CompiledMethod* ArtQuickJniCompileMethod(art::CompilerDriver* dr
                                                          uint32_t access_flags, uint32_t method_idx,
                                                          const art::DexFile& dex_file);
 
-// Hack for CFI CIE initialization
-extern std::vector<uint8_t>* X86CFIInitialization(bool is_x86_64);
-
 void QuickCompiler::Init() const {
   ArtInitQuickCompilerContext(GetCompilerDriver());
 }
@@ -124,17 +121,6 @@ Backend* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_
     CHECK(set_max);
   }
   return mir_to_lir;
-}
-
-std::vector<uint8_t>* QuickCompiler::GetCallFrameInformationInitialization(
-    const CompilerDriver& driver) const {
-  if (driver.GetInstructionSet() == kX86) {
-    return X86CFIInitialization(false);
-  }
-  if (driver.GetInstructionSet() == kX86_64) {
-    return X86CFIInitialization(true);
-  }
-  return nullptr;
 }
 
 CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
