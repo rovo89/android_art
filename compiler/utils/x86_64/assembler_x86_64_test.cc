@@ -135,6 +135,13 @@ TEST_F(AssemblerX86_64Test, Movl) {
   DriverStr(expected, "movl");
 }
 
+TEST_F(AssemblerX86_64Test, Movw) {
+  GetAssembler()->movw(x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0),
+                       x86_64::CpuRegister(x86_64::R9));
+  const char* expected = "movw %R9w, 0(%RAX)\n";
+  DriverStr(expected, "movw");
+}
+
 
 std::string setcc_test_fn(x86_64::X86_64Assembler* assembler) {
   // From Condition
