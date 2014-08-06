@@ -77,7 +77,7 @@ inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx,
 
 inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx,
                                                mirror::ArtMethod* referrer) {
-  mirror::Class* resolved_type = referrer->GetDexCacheResolvedTypes()->Get(type_idx);
+  mirror::Class* resolved_type = referrer->GetDexCacheResolvedType(type_idx);
   if (UNLIKELY(resolved_type == nullptr)) {
     mirror::Class* declaring_class = referrer->GetDeclaringClass();
     StackHandleScope<2> hs(Thread::Current());
@@ -85,9 +85,8 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx,
     Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
-    if (resolved_type != nullptr) {
-      DCHECK_EQ(dex_cache->GetResolvedType(type_idx), resolved_type);
-    }
+    // Note: We cannot check here to see whether we added the type to the cache. The type
+    //       might be an erroneous class, which results in it being hidden from us.
   }
   return resolved_type;
 }
@@ -102,9 +101,8 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, mirror::ArtFie
     Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
-    if (resolved_type != nullptr) {
-      DCHECK_EQ(dex_cache->GetResolvedType(type_idx), resolved_type);
-    }
+    // Note: We cannot check here to see whether we added the type to the cache. The type
+    //       might be an erroneous class, which results in it being hidden from us.
   }
   return resolved_type;
 }
@@ -112,8 +110,7 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, mirror::ArtFie
 inline mirror::ArtMethod* ClassLinker::GetResolvedMethod(uint32_t method_idx,
                                                          mirror::ArtMethod* referrer,
                                                          InvokeType type) {
-  mirror::ArtMethod* resolved_method =
-      referrer->GetDexCacheResolvedMethods()->Get(method_idx);
+  mirror::ArtMethod* resolved_method = referrer->GetDexCacheResolvedMethod(method_idx);
   if (resolved_method == nullptr || resolved_method->IsRuntimeMethod()) {
     return nullptr;
   }
@@ -135,9 +132,8 @@ inline mirror::ArtMethod* ClassLinker::ResolveMethod(Thread* self, uint32_t meth
   const DexFile* dex_file = h_dex_cache->GetDexFile();
   resolved_method = ResolveMethod(*dex_file, method_idx, h_dex_cache, h_class_loader, h_referrer,
                                   type);
-  if (resolved_method != nullptr) {
-    DCHECK_EQ(h_dex_cache->GetResolvedMethod(method_idx), resolved_method);
-  }
+  // Note: We cannot check here to see whether we added the method to the cache. It
+  //       might be an erroneous class, which results in it being hidden from us.
   return resolved_method;
 }
 
@@ -156,9 +152,8 @@ inline mirror::ArtField* ClassLinker::ResolveField(uint32_t field_idx, mirror::A
     Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_field = ResolveField(dex_file, field_idx, dex_cache, class_loader, is_static);
-    if (resolved_field != nullptr) {
-      DCHECK_EQ(dex_cache->GetResolvedField(field_idx), resolved_field);
-    }
+    // Note: We cannot check here to see whether we added the field to the cache. The type
+    //       might be an erroneous class, which results in it being hidden from us.
   }
   return resolved_field;
 }

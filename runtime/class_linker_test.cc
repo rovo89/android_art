@@ -156,20 +156,20 @@ class ClassLinkerTest : public CommonRuntimeTest {
   }
 
   void AssertMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    EXPECT_TRUE(method != NULL);
-    EXPECT_TRUE(method->GetClass() != NULL);
-    EXPECT_TRUE(method->GetName() != NULL);
+    EXPECT_TRUE(method != nullptr);
+    EXPECT_TRUE(method->GetClass() != nullptr);
+    EXPECT_TRUE(method->GetName() != nullptr);
     EXPECT_TRUE(method->GetSignature() != Signature::NoSignature());
 
-    EXPECT_TRUE(method->GetDexCacheStrings() != NULL);
-    EXPECT_TRUE(method->GetDexCacheResolvedMethods() != NULL);
-    EXPECT_TRUE(method->GetDexCacheResolvedTypes() != NULL);
+    EXPECT_TRUE(method->GetDexCacheStrings() != nullptr);
+    EXPECT_TRUE(method->HasDexCacheResolvedMethods());
+    EXPECT_TRUE(method->HasDexCacheResolvedTypes());
     EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetStrings(),
               method->GetDexCacheStrings());
-    EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetResolvedMethods(),
-              method->GetDexCacheResolvedMethods());
-    EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetResolvedTypes(),
-              method->GetDexCacheResolvedTypes());
+    EXPECT_TRUE(method->HasSameDexCacheResolvedMethods(
+        method->GetDeclaringClass()->GetDexCache()->GetResolvedMethods()));
+    EXPECT_TRUE(method->HasSameDexCacheResolvedTypes(
+        method->GetDeclaringClass()->GetDexCache()->GetResolvedTypes()));
   }
 
   void AssertField(mirror::Class* klass, mirror::ArtField* field)
