@@ -971,19 +971,21 @@ void X86Mir2Lir::LoadMethodAddress(const MethodReference& target_method, InvokeT
   method_address_insns_.Insert(move);
 }
 
-void X86Mir2Lir::LoadClassType(uint32_t type_idx, SpecialTargetRegister symbolic_reg) {
+void X86Mir2Lir::LoadClassType(const DexFile& dex_file, uint32_t type_idx,
+                               SpecialTargetRegister symbolic_reg) {
   /*
    * For x86, just generate a 32 bit move immediate instruction, that will be filled
    * in at 'link time'.  For now, put a unique value based on target to ensure that
    * code deduplication works.
    */
-  const DexFile::TypeId& id = cu_->dex_file->GetTypeId(type_idx);
+  const DexFile::TypeId& id = dex_file.GetTypeId(type_idx);
   uintptr_t ptr = reinterpret_cast<uintptr_t>(&id);
 
   // Generate the move instruction with the unique pointer and save index and type.
   LIR *move = RawLIR(current_dalvik_offset_, kX86Mov32RI,
                      TargetReg(symbolic_reg, kNotWide).GetReg(),
-                     static_cast<int>(ptr), type_idx);
+                     static_cast<int>(ptr), type_idx,
+                     WrapPointer(const_cast<DexFile*>(&dex_file)));
   AppendLIR(move);
   class_type_address_insns_.Insert(move);
 }
@@ -1068,12 +1070,16 @@ void X86Mir2Lir::InstallLiteralPools() {
   for (uint32_t i = 0; i < class_type_address_insns_.Size(); i++) {
       LIR* p = class_type_address_insns_.Get(i);
       DCHECK_EQ(p->opcode, kX86Mov32RI);
+
+      const DexFile* class_dex_file =
+        reinterpret_cast<const DexFile*>(UnwrapPointer(p->operands[3]));
       uint32_t target_method_idx = p->operands[2];
 
       // The offset to patch is the last 4 bytes of the instruction.
       int patch_offset = p->offset + p->flags.size - 4;
       cu_->compiler_driver->AddClassPatch(cu_->dex_file, cu_->class_def_idx,
-                                          cu_->method_idx, target_method_idx, patch_offset);
+                                          cu_->method_idx, target_method_idx, class_dex_file,
+                                          patch_offset);
   }
 
   // And now the PC-relative calls to methods.

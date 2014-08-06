@@ -969,6 +969,43 @@ bool CompilerDriver::CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_i
   }
 }
 
+bool CompilerDriver::CanEmbedReferenceTypeInCode(ClassReference* ref,
+                                                 bool* use_direct_ptr,
+                                                 uintptr_t* direct_type_ptr) {
+  CHECK(ref != nullptr);
+  CHECK(use_direct_ptr != nullptr);
+  CHECK(direct_type_ptr != nullptr);
+
+  ScopedObjectAccess soa(Thread::Current());
+  mirror::Class* reference_class = mirror::Reference::GetJavaLangRefReference();
+  bool is_initialized;
+  bool unused_finalizable;
+  // Make sure we have a finished Reference class object before attempting to use it.
+  if (!CanEmbedTypeInCode(*reference_class->GetDexCache()->GetDexFile(),
+                          reference_class->GetDexTypeIndex(), &is_initialized,
+                          use_direct_ptr, direct_type_ptr, &unused_finalizable) ||
+      !is_initialized) {
+    return false;
+  }
+  ref->first = &reference_class->GetDexFile();
+  ref->second = reference_class->GetDexClassDefIndex();
+  return true;
+}
+
+uint32_t CompilerDriver::GetReferenceSlowFlagOffset() const {
+  ScopedObjectAccess soa(Thread::Current());
+  mirror::Class* klass = mirror::Reference::GetJavaLangRefReference();
+  DCHECK(klass->IsInitialized());
+  return klass->GetSlowPathFlagOffset().Uint32Value();
+}
+
+uint32_t CompilerDriver::GetReferenceDisableFlagOffset() const {
+  ScopedObjectAccess soa(Thread::Current());
+  mirror::Class* klass = mirror::Reference::GetJavaLangRefReference();
+  DCHECK(klass->IsInitialized());
+  return klass->GetDisableIntrinsicFlagOffset().Uint32Value();
+}
+
 void CompilerDriver::ProcessedInstanceField(bool resolved) {
   if (!resolved) {
     stats_->UnresolvedInstanceField();
@@ -1340,12 +1377,14 @@ void CompilerDriver::AddClassPatch(const DexFile* dex_file,
                                     uint16_t referrer_class_def_idx,
                                     uint32_t referrer_method_idx,
                                     uint32_t target_type_idx,
+                                    const DexFile* target_type_dex_file,
                                     size_t literal_offset) {
   MutexLock mu(Thread::Current(), compiled_methods_lock_);
   classes_to_patch_.push_back(new TypePatchInformation(dex_file,
                                                        referrer_class_def_idx,
                                                        referrer_method_idx,
                                                        target_type_idx,
+                                                       target_type_dex_file,
                                                        literal_offset));
 }
 

@@ -682,6 +682,7 @@ class Mir2Lir : public Backend {
     LIR* ScanLiteralPool(LIR* data_target, int value, unsigned int delta);
     LIR* ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi);
     LIR* ScanLiteralPoolMethod(LIR* data_target, const MethodReference& method);
+    LIR* ScanLiteralPoolClass(LIR* data_target, const DexFile& dex_file, uint32_t type_idx);
     LIR* AddWordData(LIR* *constant_list_p, int value);
     LIR* AddWideData(LIR* *constant_list_p, int val_lo, int val_hi);
     void ProcessSwitchTables();
@@ -955,7 +956,7 @@ class Mir2Lir : public Backend {
      */
     RegLocation InlineTargetWide(CallInfo* info);
 
-    bool GenInlinedGet(CallInfo* info);
+    bool GenInlinedReferenceGet(CallInfo* info);
     virtual bool GenInlinedCharAt(CallInfo* info);
     bool GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty);
     virtual bool GenInlinedReverseBits(CallInfo* info, OpSize size);
@@ -1110,11 +1111,13 @@ class Mir2Lir : public Backend {
 
     /*
      * @brief Load the Class* of a Dex Class type into the register.
+     * @param dex DexFile that contains the class type.
      * @param type How the method will be invoked.
      * @param register that will contain the code address.
      * @note register will be passed to TargetReg to get physical register.
      */
-    virtual void LoadClassType(uint32_t type_idx, SpecialTargetRegister symbolic_reg);
+    virtual void LoadClassType(const DexFile& dex_file, uint32_t type_idx,
+                               SpecialTargetRegister symbolic_reg);
 
     // Routines that work for the generic case, but may be overriden by target.
     /*

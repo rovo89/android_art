@@ -25,10 +25,8 @@
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
 #include "mirror/object_array-inl.h"
-#include "mirror/reference-inl.h"
 #include "mirror/string.h"
 #include "mir_to_lir-inl.h"
-#include "scoped_thread_state_change.h"
 #include "x86/codegen_x86.h"
 
 namespace art {
@@ -1129,57 +1127,32 @@ RegLocation Mir2Lir::InlineTargetWide(CallInfo* info) {
   return res;
 }
 
-bool Mir2Lir::GenInlinedGet(CallInfo* info) {
+bool Mir2Lir::GenInlinedReferenceGet(CallInfo* info) {
   if (cu_->instruction_set == kMips) {
     // TODO - add Mips implementation
     return false;
   }
 
-  // the refrence class is stored in the image dex file which might not be the same as the cu's
-  // dex file. Query the reference class for the image dex file then reset to starting dex file
-  // in after loading class type.
-  uint16_t type_idx = 0;
-  const DexFile* ref_dex_file = nullptr;
-  {
-    ScopedObjectAccess soa(Thread::Current());
-    type_idx = mirror::Reference::GetJavaLangRefReference()->GetDexTypeIndex();
-    ref_dex_file = mirror::Reference::GetJavaLangRefReference()->GetDexCache()->GetDexFile();
-  }
-  CHECK(LIKELY(ref_dex_file != nullptr));
-
-  // address is either static within the image file, or needs to be patched up after compilation.
-  bool unused_type_initialized;
   bool use_direct_type_ptr;
   uintptr_t direct_type_ptr;
-  bool is_finalizable;
-  const DexFile* old_dex = cu_->dex_file;
-  cu_->dex_file = ref_dex_file;
+  ClassReference ref;
+  if (!cu_->compiler_driver->CanEmbedReferenceTypeInCode(&ref,
+        &use_direct_type_ptr, &direct_type_ptr)) {
+    return false;
+  }
+
   RegStorage reg_class = TargetReg(kArg1, kRef);
   Clobber(reg_class);
   LockTemp(reg_class);
-  if (!cu_->compiler_driver->CanEmbedTypeInCode(*ref_dex_file, type_idx, &unused_type_initialized,
-                                                &use_direct_type_ptr, &direct_type_ptr,
-                                                &is_finalizable) || is_finalizable) {
-    cu_->dex_file = old_dex;
-    // address is not known and post-compile patch is not possible, cannot insert intrinsic.
-    return false;
-  }
   if (use_direct_type_ptr) {
     LoadConstant(reg_class, direct_type_ptr);
   } else {
-    LoadClassType(type_idx, kArg1);
+    uint16_t type_idx = ref.first->GetClassDef(ref.second).class_idx_;
+    LoadClassType(*ref.first, type_idx, kArg1);
   }
-  cu_->dex_file = old_dex;
 
-  // get the offset for flags in reference class.
-  uint32_t slow_path_flag_offset = 0;
-  uint32_t disable_flag_offset = 0;
-  {
-    ScopedObjectAccess soa(Thread::Current());
-    mirror::Class* reference_class = mirror::Reference::GetJavaLangRefReference();
-    slow_path_flag_offset = reference_class->GetSlowPathFlagOffset().Uint32Value();
-    disable_flag_offset = reference_class->GetDisableIntrinsicFlagOffset().Uint32Value();
-  }
+  uint32_t slow_path_flag_offset = cu_->compiler_driver->GetReferenceSlowFlagOffset();
+  uint32_t disable_flag_offset = cu_->compiler_driver->GetReferenceDisableFlagOffset();
   CHECK(slow_path_flag_offset && disable_flag_offset &&
         (slow_path_flag_offset != disable_flag_offset));
 

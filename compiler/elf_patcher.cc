@@ -99,11 +99,13 @@ mirror::ArtMethod* ElfPatcher::GetTargetMethod(const CompilerDriver::CallPatchIn
 mirror::Class* ElfPatcher::GetTargetType(const CompilerDriver::TypePatchInformation* patch) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   StackHandleScope<2> hs(Thread::Current());
-  Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(patch->GetDexFile())));
-  mirror::Class* klass = class_linker->ResolveType(patch->GetDexFile(), patch->GetTargetTypeIdx(),
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(
+          patch->GetTargetTypeDexFile())));
+  mirror::Class* klass = class_linker->ResolveType(patch->GetTargetTypeDexFile(),
+                                                   patch->GetTargetTypeIdx(),
                                                    dex_cache, NullHandle<mirror::ClassLoader>());
   CHECK(klass != NULL)
-    << patch->GetDexFile().GetLocation() << " " << patch->GetTargetTypeIdx();
+    << patch->GetTargetTypeDexFile().GetLocation() << " " << patch->GetTargetTypeIdx();
   CHECK(dex_cache->GetResolvedTypes()->Get(patch->GetTargetTypeIdx()) == klass)
     << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx() << " "
     << PrettyClass(dex_cache->GetResolvedTypes()->Get(patch->GetTargetTypeIdx())) << " "
@@ -152,7 +154,7 @@ void ElfPatcher::SetPatchLocation(const CompilerDriver::PatchInformation* patch,
     }
     if (patch->IsType()) {
       const CompilerDriver::TypePatchInformation* tpatch = patch->AsType();
-      const DexFile::TypeId& id = tpatch->GetDexFile().GetTypeId(tpatch->GetTargetTypeIdx());
+      const DexFile::TypeId& id = tpatch->GetTargetTypeDexFile().GetTypeId(tpatch->GetTargetTypeIdx());
       uint32_t expected = reinterpret_cast<uintptr_t>(&id) & 0xFFFFFFFF;
       uint32_t actual = *patch_location;
       CHECK(actual == expected || actual == value) << "Patching type failed: " << std::hex
