@@ -37,6 +37,7 @@ namespace art {
 
 // TODO: Fix no thread safety analysis when GCC can handle template specialization.
 template <const bool kAccessCheck>
+ALWAYS_INLINE
 static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
                                               mirror::ArtMethod* method,
                                               Thread* self, bool* slow_path) {
@@ -86,6 +87,7 @@ static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
 }
 
 // TODO: Fix no thread safety analysis when annotalysis is smarter.
+ALWAYS_INLINE
 static inline mirror::Class* CheckClassInitializedForObjectAlloc(mirror::Class* klass,
                                                                  Thread* self,
                                                                  bool* slow_path) {
@@ -116,6 +118,7 @@ static inline mirror::Class* CheckClassInitializedForObjectAlloc(mirror::Class* 
 // check.
 // TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
 template <bool kAccessCheck, bool kInstrumented>
+ALWAYS_INLINE
 static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx,
                                                   mirror::ArtMethod* method,
                                                   Thread* self,
@@ -135,6 +138,7 @@ static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx,
 // Given the context of a calling Method and a resolved class, create an instance.
 // TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
 template <bool kInstrumented>
+ALWAYS_INLINE
 static inline mirror::Object* AllocObjectFromCodeResolved(mirror::Class* klass,
                                                           mirror::ArtMethod* method,
                                                           Thread* self,
@@ -157,6 +161,7 @@ static inline mirror::Object* AllocObjectFromCodeResolved(mirror::Class* klass,
 // Given the context of a calling Method and an initialized class, create an instance.
 // TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
 template <bool kInstrumented>
+ALWAYS_INLINE
 static inline mirror::Object* AllocObjectFromCodeInitialized(mirror::Class* klass,
                                                              mirror::ArtMethod* method,
                                                              Thread* self,
@@ -169,6 +174,7 @@ static inline mirror::Object* AllocObjectFromCodeInitialized(mirror::Class* klas
 
 // TODO: Fix no thread safety analysis when GCC can handle template specialization.
 template <bool kAccessCheck>
+ALWAYS_INLINE
 static inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
                                              mirror::ArtMethod* method,
                                              int32_t component_count,
@@ -205,6 +211,7 @@ static inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
 // check.
 // TODO: Fix no thread safety analysis when GCC can handle template specialization.
 template <bool kAccessCheck, bool kInstrumented>
+ALWAYS_INLINE
 static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
                                                 mirror::ArtMethod* method,
                                                 int32_t component_count,
@@ -227,6 +234,7 @@ static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
 }
 
 template <bool kAccessCheck, bool kInstrumented>
+ALWAYS_INLINE
 static inline mirror::Array* AllocArrayFromCodeResolved(mirror::Class* klass,
                                                         mirror::ArtMethod* method,
                                                         int32_t component_count,
