@@ -101,5 +101,15 @@ public class Main {
             case 100: System.out.print("CORRECT big sparse / last\n"); break;
             default: System.out.print("blah!\n"); break;
         }
+
+        for (a = 253; a <= 258; a++) {
+          switch (a) {
+            case 254: System.out.println("254"); break;
+            case 255: System.out.println("255"); break;
+            case 256: System.out.println("256"); break;
+            case 257: System.out.println("257"); break;
+            default: System.out.println("default"); break;
+          }
+        }
     }
 }

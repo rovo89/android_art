@@ -27,8 +27,7 @@ namespace art {
  * The sparse table in the literal pool is an array of <key,displacement>
  * pairs.
  */
-void X86Mir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset,
-                                 RegLocation rl_src) {
+void X86Mir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpSparseSwitchTable(table);
@@ -61,8 +60,7 @@ void X86Mir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset,
  * jmp  r_start_of_method
  * done:
  */
-void X86Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
-                                 RegLocation rl_src) {
+void X86Mir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpPackedSwitchTable(table);
