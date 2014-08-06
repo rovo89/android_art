@@ -662,7 +662,7 @@ class Heap {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template <bool kGrow>
-  bool IsOutOfMemoryOnAllocation(AllocatorType allocator_type, size_t alloc_size);
+  ALWAYS_INLINE bool IsOutOfMemoryOnAllocation(AllocatorType allocator_type, size_t alloc_size);
 
   // Returns true if the address passed in is within the address range of a continuous space.
   bool IsValidContinuousSpaceObjectAddress(const mirror::Object* obj) const

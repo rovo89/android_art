@@ -25,11 +25,34 @@
 
 namespace art {
 
+static constexpr bool kUseTlabFastPath = true;
+
 #define GENERATE_ENTRYPOINTS_FOR_ALLOCATOR_INST(suffix, suffix2, instrumented_bool, allocator_type) \
 extern "C" mirror::Object* artAllocObjectFromCode ##suffix##suffix2( \
     uint32_t type_idx, mirror::ArtMethod* method, Thread* self, \
     StackReference<mirror::ArtMethod>* sp) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
+  if (kUseTlabFastPath && !instrumented_bool && allocator_type == gc::kAllocatorTypeTLAB) { \
+    mirror::Class* klass = method->GetDexCacheResolvedTypes()->GetWithoutChecks(type_idx); \
+    if (LIKELY(klass != nullptr && klass->IsInitialized() && !klass->IsFinalizable())) { \
+      size_t byte_count = klass->GetObjectSize(); \
+      byte_count = RoundUp(byte_count, gc::space::BumpPointerSpace::kAlignment); \
+      mirror::Object* obj; \
+      if (LIKELY(byte_count < self->TlabSize())) { \
+        obj = self->AllocTlab(byte_count); \
+        DCHECK(obj != nullptr) << "AllocTlab can't fail"; \
+        obj->SetClass(klass); \
+        if (kUseBakerOrBrooksReadBarrier) { \
+          if (kUseBrooksReadBarrier) { \
+            obj->SetReadBarrierPointer(obj); \
+          } \
+          obj->AssertReadBarrierPointer(); \
+        } \
+        QuasiAtomic::ThreadFenceForConstructor(); \
+        return obj; \
+      } \
+    } \
+  } \
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
   return AllocObjectFromCode<false, instrumented_bool>(type_idx, method, self, allocator_type); \
 } \
@@ -37,6 +60,26 @@ extern "C" mirror::Object* artAllocObjectFromCodeResolved##suffix##suffix2( \
     mirror::Class* klass, mirror::ArtMethod* method, Thread* self, \
     StackReference<mirror::ArtMethod>* sp) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
+  if (kUseTlabFastPath && !instrumented_bool && allocator_type == gc::kAllocatorTypeTLAB) { \
+    if (LIKELY(klass->IsInitialized())) { \
+      size_t byte_count = klass->GetObjectSize(); \
+      byte_count = RoundUp(byte_count, gc::space::BumpPointerSpace::kAlignment); \
+      mirror::Object* obj; \
+      if (LIKELY(byte_count < self->TlabSize())) { \
+        obj = self->AllocTlab(byte_count); \
+        DCHECK(obj != nullptr) << "AllocTlab can't fail"; \
+        obj->SetClass(klass); \
+        if (kUseBakerOrBrooksReadBarrier) { \
+          if (kUseBrooksReadBarrier) { \
+            obj->SetReadBarrierPointer(obj); \
+          } \
+          obj->AssertReadBarrierPointer(); \
+        } \
+        QuasiAtomic::ThreadFenceForConstructor(); \
+        return obj; \
+      } \
+    } \
+  } \
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
   return AllocObjectFromCodeResolved<instrumented_bool>(klass, method, self, allocator_type); \
 } \
@@ -44,6 +87,24 @@ extern "C" mirror::Object* artAllocObjectFromCodeInitialized##suffix##suffix2( \
     mirror::Class* klass, mirror::ArtMethod* method, Thread* self, \
     StackReference<mirror::ArtMethod>* sp) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
+  if (kUseTlabFastPath && !instrumented_bool && allocator_type == gc::kAllocatorTypeTLAB) { \
+    size_t byte_count = klass->GetObjectSize(); \
+    byte_count = RoundUp(byte_count, gc::space::BumpPointerSpace::kAlignment); \
+    mirror::Object* obj; \
+    if (LIKELY(byte_count < self->TlabSize())) { \
+      obj = self->AllocTlab(byte_count); \
+      DCHECK(obj != nullptr) << "AllocTlab can't fail"; \
+      obj->SetClass(klass); \
+      if (kUseBakerOrBrooksReadBarrier) { \
+        if (kUseBrooksReadBarrier) { \
+          obj->SetReadBarrierPointer(obj); \
+        } \
+        obj->AssertReadBarrierPointer(); \
+      } \
+      QuasiAtomic::ThreadFenceForConstructor(); \
+      return obj; \
+    } \
+  } \
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
   return AllocObjectFromCodeInitialized<instrumented_bool>(klass, method, self, allocator_type); \
 } \
