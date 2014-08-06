@@ -365,8 +365,9 @@ END art_quick_invoke_stub
 ARM_ENTRY art_quick_do_long_jump
     vldm r1, {s0-s31}     @ load all fprs from argument fprs_
     ldr  r2, [r0, #60]    @ r2 = r15 (PC from gprs_ 60=4*15)
+    ldr  r14, [r0, #56]   @ (LR from gprs_ 56=4*14)
     add  r0, r0, #12      @ increment r0 to skip gprs_[0..2] 12=4*3
-    ldm  r0, {r3-r14}     @ load remaining gprs from argument gprs_
+    ldm  r0, {r3-r13}     @ load remaining gprs from argument gprs_
     mov  r0, #0           @ clear result registers r0 and r1
     mov  r1, #0
     bx   r2               @ do long jump
