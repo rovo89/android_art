@@ -319,11 +319,13 @@ class X86Mir2Lir : public Mir2Lir {
 
   /*
    * @brief Load the Class* of a Dex Class type into the register.
+   * @param dex DexFile that contains the class type.
    * @param type How the method will be invoked.
    * @param register that will contain the code address.
    * @note register will be passed to TargetReg to get physical register.
    */
-  void LoadClassType(uint32_t type_idx, SpecialTargetRegister symbolic_reg) OVERRIDE;
+  void LoadClassType(const DexFile& dex_file, uint32_t type_idx,
+                     SpecialTargetRegister symbolic_reg) OVERRIDE;
 
   void FlushIns(RegLocation* ArgLocs, RegLocation rl_method) OVERRIDE;
 

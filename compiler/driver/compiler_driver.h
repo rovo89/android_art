@@ -213,6 +213,12 @@ class CompilerDriver {
                           bool* is_type_initialized, bool* use_direct_type_ptr,
                           uintptr_t* direct_type_ptr, bool* out_is_finalizable);
 
+  // Query methods for the java.lang.ref.Reference class.
+  bool CanEmbedReferenceTypeInCode(ClassReference* ref,
+                                   bool* use_direct_type_ptr, uintptr_t* direct_type_ptr);
+  uint32_t GetReferenceSlowFlagOffset() const;
+  uint32_t GetReferenceDisableFlagOffset() const;
+
   // Get the DexCache for the
   mirror::DexCache* GetDexCache(const DexCompilationUnit* mUnit)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -356,6 +362,7 @@ class CompilerDriver {
                      uint16_t referrer_class_def_idx,
                      uint32_t referrer_method_idx,
                      uint32_t target_method_idx,
+                     const DexFile* target_dex_file,
                      size_t literal_offset)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
@@ -545,6 +552,10 @@ class CompilerDriver {
 
   class TypePatchInformation : public PatchInformation {
    public:
+    const DexFile& GetTargetTypeDexFile() const {
+      return *target_type_dex_file_;
+    }
+
     uint32_t GetTargetTypeIdx() const {
       return target_type_idx_;
     }
@@ -561,13 +572,15 @@ class CompilerDriver {
                          uint16_t referrer_class_def_idx,
                          uint32_t referrer_method_idx,
                          uint32_t target_type_idx,
+                         const DexFile* target_type_dex_file,
                          size_t literal_offset)
         : PatchInformation(dex_file, referrer_class_def_idx,
                            referrer_method_idx, literal_offset),
-          target_type_idx_(target_type_idx) {
+          target_type_idx_(target_type_idx), target_type_dex_file_(target_type_dex_file) {
     }
 
     const uint32_t target_type_idx_;
+    const DexFile* target_type_dex_file_;
 
     friend class CompilerDriver;
     DISALLOW_COPY_AND_ASSIGN(TypePatchInformation);

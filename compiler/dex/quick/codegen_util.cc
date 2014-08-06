@@ -394,6 +394,18 @@ LIR* Mir2Lir::ScanLiteralPoolMethod(LIR* data_target, const MethodReference& met
   return nullptr;
 }
 
+/* Search the existing constants in the literal pool for an exact class match */
+LIR* Mir2Lir::ScanLiteralPoolClass(LIR* data_target, const DexFile& dex_file, uint32_t type_idx) {
+  while (data_target) {
+    if (static_cast<uint32_t>(data_target->operands[0]) == type_idx &&
+        UnwrapPointer(data_target->operands[1]) == &dex_file) {
+      return data_target;
+    }
+    data_target = data_target->next;
+  }
+  return nullptr;
+}
+
 /*
  * The following are building blocks to insert constants into the pool or
  * instruction streams.
@@ -492,10 +504,13 @@ void Mir2Lir::InstallLiteralPools() {
   data_lir = class_literal_list_;
   while (data_lir != NULL) {
     uint32_t target_method_idx = data_lir->operands[0];
+    const DexFile* class_dex_file =
+      reinterpret_cast<const DexFile*>(UnwrapPointer(data_lir->operands[1]));
     cu_->compiler_driver->AddClassPatch(cu_->dex_file,
                                         cu_->class_def_idx,
                                         cu_->method_idx,
                                         target_method_idx,
+                                        class_dex_file,
                                         code_buffer_.size());
     const DexFile::TypeId& target_method_id = cu_->dex_file->GetTypeId(target_method_idx);
     // unique value based on target to ensure code deduplication works
@@ -1222,12 +1237,14 @@ void Mir2Lir::LoadMethodAddress(const MethodReference& target_method, InvokeType
   DCHECK_NE(cu_->instruction_set, kMips) << reinterpret_cast<void*>(data_target);
 }
 
-void Mir2Lir::LoadClassType(uint32_t type_idx, SpecialTargetRegister symbolic_reg) {
+void Mir2Lir::LoadClassType(const DexFile& dex_file, uint32_t type_idx,
+                            SpecialTargetRegister symbolic_reg) {
   // Use the literal pool and a PC-relative load from a data word.
-  LIR* data_target = ScanLiteralPool(class_literal_list_, type_idx, 0);
+  LIR* data_target = ScanLiteralPoolClass(class_literal_list_, dex_file, type_idx);
   if (data_target == nullptr) {
     data_target = AddWordData(&class_literal_list_, type_idx);
   }
+  data_target->operands[1] = WrapPointer(const_cast<DexFile*>(&dex_file));
   // Loads a Class pointer, which is a reference as it lives in the heap.
   LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg, kRef), data_target);
   AppendLIR(load_pc_rel);
