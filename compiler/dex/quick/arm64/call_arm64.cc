@@ -43,8 +43,7 @@ namespace art {
  *   br    r_base
  * quit:
  */
-void Arm64Mir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
-                                   RegLocation rl_src) {
+void Arm64Mir2Lir::GenLargeSparseSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpSparseSwitchTable(table);
@@ -96,8 +95,7 @@ void Arm64Mir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
 }
 
 
-void Arm64Mir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
-                                   RegLocation rl_src) {
+void Arm64Mir2Lir::GenLargePackedSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpPackedSwitchTable(table);
