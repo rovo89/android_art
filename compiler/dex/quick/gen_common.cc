@@ -2008,4 +2008,92 @@ void Mir2Lir::GenConstWide(RegLocation rl_dest, int64_t value) {
   StoreValueWide(rl_dest, rl_result);
 }
 
+void Mir2Lir::GenSmallPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
+  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+  const uint16_t entries = table[1];
+  // Chained cmp-and-branch.
+  const int32_t* as_int32 = reinterpret_cast<const int32_t*>(&table[2]);
+  int32_t current_key = as_int32[0];
+  const int32_t* targets = &as_int32[1];
+  rl_src = LoadValue(rl_src, kCoreReg);
+  int i = 0;
+  for (; i < entries; i++, current_key++) {
+    if (!InexpensiveConstantInt(current_key, Instruction::Code::IF_EQ)) {
+      // Switch to using a temp and add.
+      break;
+    }
+    BasicBlock* case_block =
+        mir_graph_->FindBlock(current_dalvik_offset_ + targets[i]);
+    OpCmpImmBranch(kCondEq, rl_src.reg, current_key, &block_label_list_[case_block->id]);
+  }
+  if (i < entries) {
+    // The rest do not seem to be inexpensive. Try to allocate a temp and use add.
+    RegStorage key_temp = AllocTypedTemp(false, kCoreReg, false);
+    if (key_temp.Valid()) {
+      LoadConstantNoClobber(key_temp, current_key);
+      for (; i < entries - 1; i++, current_key++) {
+        BasicBlock* case_block =
+            mir_graph_->FindBlock(current_dalvik_offset_ + targets[i]);
+        OpCmpBranch(kCondEq, rl_src.reg, key_temp, &block_label_list_[case_block->id]);
+        OpRegImm(kOpAdd, key_temp, 1);  // Increment key.
+      }
+      BasicBlock* case_block =
+          mir_graph_->FindBlock(current_dalvik_offset_ + targets[i]);
+      OpCmpBranch(kCondEq, rl_src.reg, key_temp, &block_label_list_[case_block->id]);
+    } else {
+      // No free temp, just finish the old loop.
+      for (; i < entries; i++, current_key++) {
+        BasicBlock* case_block =
+            mir_graph_->FindBlock(current_dalvik_offset_ + targets[i]);
+        OpCmpImmBranch(kCondEq, rl_src.reg, current_key, &block_label_list_[case_block->id]);
+      }
+    }
+  }
+}
+
+void Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
+  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+  if (cu_->verbose) {
+    DumpSparseSwitchTable(table);
+  }
+
+  const uint16_t entries = table[1];
+  if (entries <= kSmallSwitchThreshold) {
+    GenSmallPackedSwitch(mir, table_offset, rl_src);
+  } else {
+    // Use the backend-specific implementation.
+    GenLargePackedSwitch(mir, table_offset, rl_src);
+  }
+}
+
+void Mir2Lir::GenSmallSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
+  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+  const uint16_t entries = table[1];
+  // Chained cmp-and-branch.
+  const int32_t* keys = reinterpret_cast<const int32_t*>(&table[2]);
+  const int32_t* targets = &keys[entries];
+  rl_src = LoadValue(rl_src, kCoreReg);
+  for (int i = 0; i < entries; i++) {
+    int key = keys[i];
+    BasicBlock* case_block =
+        mir_graph_->FindBlock(current_dalvik_offset_ + targets[i]);
+    OpCmpImmBranch(kCondEq, rl_src.reg, key, &block_label_list_[case_block->id]);
+  }
+}
+
+void Mir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
+  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+  if (cu_->verbose) {
+    DumpSparseSwitchTable(table);
+  }
+
+  const uint16_t entries = table[1];
+  if (entries <= kSmallSwitchThreshold) {
+    GenSmallSparseSwitch(mir, table_offset, rl_src);
+  } else {
+    // Use the backend-specific implementation.
+    GenLargeSparseSwitch(mir, table_offset, rl_src);
+  }
+}
+
 }  // namespace art
