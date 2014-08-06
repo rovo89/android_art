@@ -212,7 +212,7 @@ void CommonRuntimeTest::ClearDirectory(const char* dirpath) {
     if ((strcmp(e->d_name, ".") == 0) || (strcmp(e->d_name, "..") == 0)) {
       continue;
     }
-    std::string filename(dalvik_cache_);
+    std::string filename(dirpath);
     filename.push_back('/');
     filename.append(e->d_name);
     int stat_result = lstat(filename.c_str(), &s);
@@ -263,6 +263,19 @@ std::string CommonRuntimeTest::GetDexFileName(const std::string& jar_prefix) {
     return StringPrintf("%s/framework/%s-hostdex.jar", host_dir, jar_prefix.c_str());
   }
   return StringPrintf("%s/framework/%s.jar", GetAndroidRoot(), jar_prefix.c_str());
+}
+
+std::string CommonRuntimeTest::GetLibCoreOatFileName() {
+  return GetOatFileName("core");
+}
+
+std::string CommonRuntimeTest::GetOatFileName(const std::string& oat_prefix) {
+  if (IsHost()) {
+    const char* host_dir = getenv("ANDROID_HOST_OUT");
+    CHECK(host_dir != nullptr);
+    return StringPrintf("%s/framework/%s.art", host_dir, oat_prefix.c_str());
+  }
+  return StringPrintf("%s/framework/%s.art", GetAndroidRoot(), oat_prefix.c_str());
 }
 
 std::string CommonRuntimeTest::GetTestAndroidRoot() {

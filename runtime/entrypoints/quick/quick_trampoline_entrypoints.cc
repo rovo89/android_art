@@ -592,8 +592,7 @@ extern "C" uint64_t artQuickProxyInvokeHandler(mirror::ArtMethod* proxy_method,
   const char* old_cause =
       self->StartAssertNoThreadSuspension("Adding to IRT proxy object arguments");
   // Register the top of the managed stack, making stack crawlable.
-  DCHECK_EQ(sp->AsMirrorPtr(), proxy_method)
-  << PrettyMethod(proxy_method);
+  DCHECK_EQ(sp->AsMirrorPtr(), proxy_method) << PrettyMethod(proxy_method);
   self->SetTopOfStack(sp, 0);
   DCHECK_EQ(proxy_method->GetFrameSizeInBytes(),
             Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes())
