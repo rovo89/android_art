@@ -97,7 +97,7 @@ class NullableScopedUtfChars {
   void operator=(const NullableScopedUtfChars&);
 };
 
-static jlong DexFile_openDexFile(JNIEnv* env, jclass, jstring javaSourceName, jstring javaOutputName, jint) {
+static jlong DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceName, jstring javaOutputName, jint) {
   ScopedUtfChars sourceName(env, javaSourceName);
   if (sourceName.c_str() == NULL) {
     return 0;
@@ -571,7 +571,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, getClassNameList, "(J)[Ljava/lang/String;"),
   NATIVE_METHOD(DexFile, isDexOptNeeded, "(Ljava/lang/String;)Z"),
   NATIVE_METHOD(DexFile, isDexOptNeededInternal, "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)B"),
-  NATIVE_METHOD(DexFile, openDexFile, "(Ljava/lang/String;Ljava/lang/String;I)J"),
+  NATIVE_METHOD(DexFile, openDexFileNative, "(Ljava/lang/String;Ljava/lang/String;I)J"),
 };
 
 void register_dalvik_system_DexFile(JNIEnv* env) {
