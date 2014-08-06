@@ -61,8 +61,7 @@ bool MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
  * done:
  *
  */
-void MipsMir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset,
-                                  RegLocation rl_src) {
+void MipsMir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpSparseSwitchTable(table);
@@ -139,8 +138,7 @@ void MipsMir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset,
  *   jr    rRA
  * done:
  */
-void MipsMir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
-                                  RegLocation rl_src) {
+void MipsMir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpPackedSwitchTable(table);

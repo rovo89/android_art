@@ -130,8 +130,8 @@ class ArmMir2Lir FINAL : public Mir2Lir {
                                        int first_bit, int second_bit);
     void GenNegDouble(RegLocation rl_dest, RegLocation rl_src);
     void GenNegFloat(RegLocation rl_dest, RegLocation rl_src);
-    void GenPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
-    void GenSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
+    void GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
+    void GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
 
     // Required for target - single operation generators.
     LIR* OpUnconditionalBranch(LIR* target);
