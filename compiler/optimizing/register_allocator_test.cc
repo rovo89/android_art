@@ -22,6 +22,7 @@
 #include "optimizing_unit_test.h"
 #include "register_allocator.h"
 #include "ssa_liveness_analysis.h"
+#include "ssa_phi_elimination.h"
 #include "utils/arena_allocator.h"
 
 #include "gtest/gtest.h"
@@ -354,6 +355,40 @@ TEST(RegisterAllocatorTest, FirstRegisterUse) {
   ASSERT_EQ(interval->FirstRegisterUse(), kNoLifetime);
   // And the new interval has it for the last add.
   ASSERT_EQ(new_interval->FirstRegisterUse(), last_add->GetLifetimePosition() + 1);
+}
+
+TEST(RegisterAllocatorTest, DeadPhi) {
+  /* Test for a dead loop phi taking as back-edge input a phi that also has
+   * this loop phi as input. Walking backwards in SsaDeadPhiElimination
+   * does not solve the problem because the loop phi will be visited last.
+   *
+   * Test the following snippet:
+   *  int a = 0
+   *  do {
+   *    if (true) {
+   *      a = 2;
+   *    }
+   *  } while (true);
+   */
+
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::CONST_4 | 1 << 8 | 0,
+    Instruction::IF_NE | 1 << 8 | 1 << 12, 3,
+    Instruction::CONST_4 | 2 << 12 | 0 << 8,
+    Instruction::GOTO | 0xFD00,
+    Instruction::RETURN_VOID);
+
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+  HGraph* graph = BuildSSAGraph(data, &allocator);
+  SsaDeadPhiElimination(graph).Run();
+  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, kX86);
+  SsaLivenessAnalysis liveness(*graph, codegen);
+  liveness.Analyze();
+  RegisterAllocator register_allocator(&allocator, codegen, liveness);
+  register_allocator.AllocateRegisters();
+  ASSERT_TRUE(register_allocator.Validate(false));
 }
 
 }  // namespace art

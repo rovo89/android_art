@@ -501,6 +501,7 @@ class HInstruction : public ArenaObject {
   void SetBlock(HBasicBlock* block) { block_ = block; }
   bool IsInBlock() const { return block_ != nullptr; }
   bool IsInLoop() const { return block_->IsInLoop(); }
+  bool IsLoopHeaderPhi() { return IsPhi() && block_->IsLoopHeader(); }
 
   virtual size_t InputCount() const  = 0;
   virtual HInstruction* InputAt(size_t i) const = 0;
