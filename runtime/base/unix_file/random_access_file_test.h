@@ -35,7 +35,11 @@ class RandomAccessFileTest : public testing::Test {
   virtual RandomAccessFile* MakeTestFile() = 0;
 
   virtual void SetUp() {
-    art::CommonRuntimeTest::SetEnvironmentVariables(android_data_);
+    art::CommonRuntimeTest::SetUpAndroidData(android_data_);
+  }
+
+  virtual void TearDown() {
+    art::CommonRuntimeTest::TearDownAndroidData(android_data_, true);
   }
 
   std::string GetTmpPath(const std::string& name) {
