@@ -857,7 +857,7 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
 
   if (compiler_driver_->GetCompilerOptions().GetIncludePatchInformation()) {
     ElfRawSectionBuilder oat_patches(".oat_patches", SHT_OAT_PATCH, 0, NULL, 0,
-                                     sizeof(size_t), sizeof(size_t));
+                                     sizeof(uintptr_t), sizeof(uintptr_t));
     ReservePatchSpace(oat_patches.GetBuffer(), debug);
     builder.RegisterRawSection(oat_patches);
   }
