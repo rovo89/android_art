@@ -208,10 +208,15 @@ class AssemblerTest : public testing::Test {
     assembler_.reset(new Ass());
 
     // Fake a runtime test for ScratchFile
-    std::string android_data;
-    CommonRuntimeTest::SetEnvironmentVariables(android_data);
+    CommonRuntimeTest::SetUpAndroidData(android_data_);
 
     SetUpHelpers();
+  }
+
+  void TearDown() OVERRIDE {
+    // We leave temporaries in case this failed so we can debug issues.
+    CommonRuntimeTest::TearDownAndroidData(android_data_, false);
+    tmpnam_ = "";
   }
 
   // Override this to set up any architecture-specific things, e.g., register vectors.
@@ -689,6 +694,8 @@ class AssemblerTest : public testing::Test {
   std::string resolved_assembler_cmd_;
   std::string resolved_objdump_cmd_;
   std::string resolved_disassemble_cmd_;
+
+  std::string android_data_;
 
   static constexpr size_t OBJDUMP_SECTION_LINE_MIN_TOKENS = 6;
 };

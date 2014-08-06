@@ -64,7 +64,13 @@ class ScratchFile {
 
 class CommonRuntimeTest : public testing::Test {
  public:
-  static void SetEnvironmentVariables(std::string& android_data);
+  static void SetUpAndroidRoot();
+
+  // Note: setting up ANDROID_DATA may create a temporary directory. If this is used in a
+  // non-derived class, be sure to also call the corresponding tear-down below.
+  static void SetUpAndroidData(std::string& android_data);
+
+  static void TearDownAndroidData(const std::string& android_data, bool fail_on_error);
 
   CommonRuntimeTest();
   ~CommonRuntimeTest();
