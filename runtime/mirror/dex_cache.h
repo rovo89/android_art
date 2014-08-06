@@ -17,7 +17,9 @@
 #ifndef ART_RUNTIME_MIRROR_DEX_CACHE_H_
 #define ART_RUNTIME_MIRROR_DEX_CACHE_H_
 
+#include "art_field.h"
 #include "art_method.h"
+#include "class.h"
 #include "object.h"
 #include "object_array.h"
 
@@ -30,9 +32,6 @@ union JValue;
 
 namespace mirror {
 
-class ArtField;
-class ArtMethod;
-class Class;
 class String;
 
 // C++ mirror of java.lang.DexCache.
@@ -115,7 +114,12 @@ class MANAGED DexCache FINAL : public Object {
 
   ArtField* GetResolvedField(uint32_t field_idx) ALWAYS_INLINE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetResolvedFields()->Get(field_idx);
+    ArtField* field = GetResolvedFields()->Get(field_idx);
+    if (UNLIKELY(field == nullptr || field->GetDeclaringClass()->IsErroneous())) {
+      return nullptr;
+    } else {
+      return field;
+    }
   }
 
   void SetResolvedField(uint32_t field_idx, ArtField* resolved) ALWAYS_INLINE

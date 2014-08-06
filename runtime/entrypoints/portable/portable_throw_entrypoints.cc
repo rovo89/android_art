@@ -98,7 +98,7 @@ extern "C" int32_t art_portable_find_catch_block_from_code(mirror::ArtMethod* cu
     }
     // Does this catch exception type apply?
     mirror::Class* iter_exception_type =
-        current_method->GetDexCacheResolvedTypes()->Get(iter_type_idx);
+        current_method->GetDexCacheResolvedType(iter_type_idx);
     if (UNLIKELY(iter_exception_type == NULL)) {
       // TODO: check, the verifier (class linker?) should take care of resolving all exception
       //       classes early.
