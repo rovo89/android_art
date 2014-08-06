@@ -137,7 +137,17 @@ void CommonRuntimeTest::SetEnvironmentVariables(std::string& android_data) {
   }
 
   // On target, Cannot use /mnt/sdcard because it is mounted noexec, so use subdir of dalvik-cache
-  android_data = (IsHost() ? "/tmp/art-data-XXXXXX" : "/data/dalvik-cache/art-data-XXXXXX");
+  if (IsHost()) {
+    const char* tmpdir = getenv("TMPDIR");
+    if (tmpdir != nullptr && tmpdir[0] != 0) {
+      android_data = tmpdir;
+    } else {
+      android_data = "/tmp";
+    }
+  } else {
+    android_data = "/data/dalvik-cache";
+  }
+  android_data += "/art-data-XXXXXX";
   if (mkdtemp(&android_data[0]) == nullptr) {
     PLOG(FATAL) << "mkdtemp(\"" << &android_data[0] << "\") failed";
   }
