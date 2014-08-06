@@ -229,6 +229,9 @@ class Mir2Lir : public Backend {
     static constexpr bool kFailOnSizeError = true && kIsDebugBuild;
     static constexpr bool kReportSizeError = true && kIsDebugBuild;
 
+    // TODO: If necessary, this could be made target-dependent.
+    static constexpr uint16_t kSmallSwitchThreshold = 5;
+
     /*
      * Auxiliary information describing the location of data embedded in the Dalvik
      * byte code stream.
@@ -1355,8 +1358,19 @@ class Mir2Lir : public Backend {
                                                int first_bit, int second_bit) = 0;
     virtual void GenNegDouble(RegLocation rl_dest, RegLocation rl_src) = 0;
     virtual void GenNegFloat(RegLocation rl_dest, RegLocation rl_src) = 0;
-    virtual void GenPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) = 0;
-    virtual void GenSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) = 0;
+
+    // Create code for switch statements. Will decide between short and long versions below.
+    void GenPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
+    void GenSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
+
+    // Potentially backend-specific versions of switch instructions for shorter switch statements.
+    // The default implementation will create a chained compare-and-branch.
+    virtual void GenSmallPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
+    virtual void GenSmallSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
+    // Backend-specific versions of switch instructions for longer switch statements.
+    virtual void GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) = 0;
+    virtual void GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) = 0;
+
     virtual void GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_dest, int scale) = 0;
     virtual void GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,

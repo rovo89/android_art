@@ -246,8 +246,8 @@ class X86Mir2Lir : public Mir2Lir {
                                      int first_bit, int second_bit) OVERRIDE;
   void GenNegDouble(RegLocation rl_dest, RegLocation rl_src) OVERRIDE;
   void GenNegFloat(RegLocation rl_dest, RegLocation rl_src) OVERRIDE;
-  void GenPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) OVERRIDE;
-  void GenSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) OVERRIDE;
+  void GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) OVERRIDE;
+  void GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) OVERRIDE;
 
   /**
    * @brief Implement instanceof a final class with x86 specific code.

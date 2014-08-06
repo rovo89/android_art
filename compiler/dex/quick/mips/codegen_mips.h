@@ -128,8 +128,8 @@ class MipsMir2Lir FINAL : public Mir2Lir {
                                        int first_bit, int second_bit);
     void GenNegDouble(RegLocation rl_dest, RegLocation rl_src);
     void GenNegFloat(RegLocation rl_dest, RegLocation rl_src);
-    void GenPackedSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src);
-    void GenSparseSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src);
+    void GenLargePackedSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src);
+    void GenLargeSparseSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src);
     bool GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& special);
 
     // Required for target - single operation generators.
