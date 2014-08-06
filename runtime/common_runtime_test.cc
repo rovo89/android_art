@@ -95,7 +95,7 @@ void ScratchFile::Unlink() {
 CommonRuntimeTest::CommonRuntimeTest() {}
 CommonRuntimeTest::~CommonRuntimeTest() {}
 
-void CommonRuntimeTest::SetEnvironmentVariables(std::string& android_data) {
+void CommonRuntimeTest::SetUpAndroidRoot() {
   if (IsHost()) {
     // $ANDROID_ROOT is set on the device, but not necessarily on the host.
     // But it needs to be set so that icu4c can find its locale data.
@@ -135,7 +135,9 @@ void CommonRuntimeTest::SetEnvironmentVariables(std::string& android_data) {
       setenv("ANDROID_HOST_OUT", getenv("ANDROID_ROOT"), 1);
     }
   }
+}
 
+void CommonRuntimeTest::SetUpAndroidData(std::string& android_data) {
   // On target, Cannot use /mnt/sdcard because it is mounted noexec, so use subdir of dalvik-cache
   if (IsHost()) {
     const char* tmpdir = getenv("TMPDIR");
@@ -154,6 +156,15 @@ void CommonRuntimeTest::SetEnvironmentVariables(std::string& android_data) {
   setenv("ANDROID_DATA", android_data.c_str(), 1);
 }
 
+void CommonRuntimeTest::TearDownAndroidData(const std::string& android_data, bool fail_on_error) {
+  if (fail_on_error) {
+    ASSERT_EQ(rmdir(android_data.c_str()), 0);
+  } else {
+    rmdir(android_data.c_str());
+  }
+}
+
+
 const DexFile* CommonRuntimeTest::LoadExpectSingleDexFile(const char* location) {
   std::vector<const DexFile*> dex_files;
   std::string error_msg;
@@ -167,7 +178,8 @@ const DexFile* CommonRuntimeTest::LoadExpectSingleDexFile(const char* location) 
 }
 
 void CommonRuntimeTest::SetUp() {
-  SetEnvironmentVariables(android_data_);
+  SetUpAndroidRoot();
+  SetUpAndroidData(android_data_);
   dalvik_cache_.append(android_data_.c_str());
   dalvik_cache_.append("/dalvik-cache");
   int mkdir_result = mkdir(dalvik_cache_.c_str(), 0700);
@@ -211,7 +223,6 @@ void CommonRuntimeTest::SetUp() {
   runtime_->GetHeap()->VerifyHeap();  // Check for heap corruption before the test
 }
 
-
 void CommonRuntimeTest::ClearDirectory(const char* dirpath) {
   ASSERT_TRUE(dirpath != nullptr);
   DIR* dir = opendir(dirpath);
@@ -245,8 +256,7 @@ void CommonRuntimeTest::TearDown() {
   ClearDirectory(dalvik_cache_.c_str());
   int rmdir_cache_result = rmdir(dalvik_cache_.c_str());
   ASSERT_EQ(0, rmdir_cache_result);
-  int rmdir_data_result = rmdir(android_data_.c_str());
-  ASSERT_EQ(0, rmdir_data_result);
+  TearDownAndroidData(android_data_, true);
 
   // icu4c has a fixed 10-element array "gCommonICUDataArray".
   // If we run > 10 tests, we fill that array and u_setCommonData fails.

@@ -59,6 +59,9 @@ TEST_F(FdFileTest, OpenClose) {
   EXPECT_TRUE(file.Open(good_path,  O_RDONLY));
   EXPECT_GE(file.Fd(), 0);
   EXPECT_TRUE(file.IsOpened());
+
+  file.Close();
+  ASSERT_EQ(unlink(good_path.c_str()), 0);
 }
 
 TEST_F(FdFileTest, ReadFullyEmptyFile) {
