@@ -361,7 +361,7 @@ void Mir2Lir::GenNewArray(uint32_t type_idx, RegLocation rl_dest,
                                    &direct_type_ptr, &is_finalizable)) {
       // The fast path.
       if (!use_direct_type_ptr) {
-        LoadClassType(type_idx, kArg0);
+        LoadClassType(*dex_file, type_idx, kArg0);
         CallRuntimeHelperRegMethodRegLocation(kQuickAllocArrayResolved, TargetReg(kArg0, kNotWide),
                                               rl_src, true);
       } else {
@@ -961,7 +961,7 @@ void Mir2Lir::GenNewInstance(uint32_t type_idx, RegLocation rl_dest) {
                                    !is_finalizable) {
       // The fast path.
       if (!use_direct_type_ptr) {
-        LoadClassType(type_idx, kArg0);
+        LoadClassType(*dex_file, type_idx, kArg0);
         if (!is_type_initialized) {
           CallRuntimeHelperRegMethod(kQuickAllocObjectResolved, TargetReg(kArg0, kRef), true);
         } else {
