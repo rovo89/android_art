@@ -91,6 +91,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/entrypoints/quick/quick_trampoline_entrypoints_test.cc \
   runtime/entrypoints_order_test.cc \
   runtime/exception_test.cc \
+  runtime/gc/accounting/card_table_test.cc \
   runtime/gc/accounting/space_bitmap_test.cc \
   runtime/gc/heap_test.cc \
   runtime/gc/space/dlmalloc_space_base_test.cc \

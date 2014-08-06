@@ -52,7 +52,7 @@ void MonitorPool::AllocateChunk() {
       monitor_chunks_.StoreRelaxed(new_backing);
       capacity_ = new_capacity;
       old_chunk_arrays_.push_back(old_backing);
-      LOG(INFO) << "Resizing to capacity " << capacity_;
+      VLOG(monitor) << "Resizing to capacity " << capacity_;
     }
   }
 
@@ -64,7 +64,7 @@ void MonitorPool::AllocateChunk() {
   CHECK_EQ(0U, reinterpret_cast<uintptr_t>(chunk) % kMonitorAlignment);
 
   // Add the chunk.
-  *(monitor_chunks_.LoadRelaxed()+num_chunks_) = reinterpret_cast<uintptr_t>(chunk);
+  *(monitor_chunks_.LoadRelaxed() + num_chunks_) = reinterpret_cast<uintptr_t>(chunk);
   num_chunks_++;
 
   // Set up the free list
@@ -96,7 +96,7 @@ Monitor* MonitorPool::CreateMonitorInPool(Thread* self, Thread* owner, mirror::O
 
   // Enough space, or need to resize?
   if (first_free_ == nullptr) {
-    LOG(INFO) << "Allocating a new chunk.";
+    VLOG(monitor) << "Allocating a new chunk.";
     AllocateChunk();
   }
 
