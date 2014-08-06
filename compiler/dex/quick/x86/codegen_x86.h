@@ -355,12 +355,6 @@ class X86Mir2Lir : public Mir2Lir {
   void InstallLiteralPools() OVERRIDE;
 
   /*
-   * @brief Generate the debug_frame CFI information.
-   * @returns pointer to vector containing CFE information
-   */
-  static std::vector<uint8_t>* ReturnCommonCallFrameInformation(bool is_x86_64);
-
-  /*
    * @brief Generate the debug_frame FDE information.
    * @returns pointer to vector containing CFE information
    */

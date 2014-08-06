@@ -353,7 +353,6 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
       compiler_enable_auto_elf_loading_(NULL),
       compiler_get_method_code_addr_(NULL),
       support_boot_image_fixup_(instruction_set != kMips),
-      cfi_info_(nullptr),
       dedupe_code_("dedupe code"),
       dedupe_mapping_table_("dedupe mapping table"),
       dedupe_vmap_table_("dedupe vmap table"),
@@ -374,11 +373,6 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
     CHECK(image_classes_.get() != nullptr);
   } else {
     CHECK(image_classes_.get() == nullptr);
-  }
-
-  // Are we generating CFI information?
-  if (compiler_options->GetGenerateGDBInformation()) {
-    cfi_info_.reset(compiler_->GetCallFrameInformationInitialization(*this));
   }
 
   // Read the profile file if one is provided.

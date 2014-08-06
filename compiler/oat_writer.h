@@ -30,6 +30,7 @@
 namespace art {
 
 class BitVector;
+class CompiledMethod;
 class OutputStream;
 
 // OatHeader         variable length with count of D OatDexFiles
@@ -97,20 +98,19 @@ class OatWriter {
   ~OatWriter();
 
   struct DebugInfo {
-    DebugInfo(const std::string& method_name, uint32_t low_pc, uint32_t high_pc)
-      : method_name_(method_name), low_pc_(low_pc), high_pc_(high_pc) {
+    DebugInfo(const std::string& method_name, uint32_t low_pc, uint32_t high_pc,
+              CompiledMethod* compiled_method)
+      : method_name_(method_name), low_pc_(low_pc), high_pc_(high_pc),
+        compiled_method_(compiled_method) {
     }
-    std::string method_name_;
+    std::string method_name_;  // Note: this name is a pretty-printed name.
     uint32_t    low_pc_;
     uint32_t    high_pc_;
+    CompiledMethod* compiled_method_;
   };
 
   const std::vector<DebugInfo>& GetCFIMethodInfo() const {
     return method_info_;
-  }
-
-  bool DidAddSymbols() const {
-    return compiler_driver_->DidIncludeDebugSymbols();
   }
 
  private:

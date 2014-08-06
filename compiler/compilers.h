@@ -56,17 +56,6 @@ class QuickCompiler : public Compiler {
 
   void InitCompilationUnit(CompilationUnit& cu) const OVERRIDE {}
 
-  /*
-   * @brief Generate and return Dwarf CFI initialization, if supported by the
-   * backend.
-   * @param driver CompilerDriver for this compile.
-   * @returns nullptr if not supported by backend or a vector of bytes for CFI DWARF
-   * information.
-   * @note This is used for backtrace information in generated code.
-   */
-  std::vector<uint8_t>* GetCallFrameInformationInitialization(const CompilerDriver& driver) const
-      OVERRIDE;
-
  private:
   DISALLOW_COPY_AND_ASSIGN(QuickCompiler);
 };
