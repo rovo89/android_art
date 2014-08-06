@@ -466,16 +466,13 @@ bool PatchOat::Patch(File* input_oat, off_t delta, File* output_oat, TimingLogge
   return true;
 }
 
-bool PatchOat::CheckOatFile() {
-  Elf32_Shdr* patches_sec = oat_file_->FindSectionByName(".oat_patches");
-  if (patches_sec == nullptr) {
+template <typename ptr_t>
+bool PatchOat::CheckOatFile(const Elf32_Shdr& patches_sec) {
+  if (patches_sec.sh_type != SHT_OAT_PATCH) {
     return false;
   }
-  if (patches_sec->sh_type != SHT_OAT_PATCH) {
-    return false;
-  }
-  uintptr_t* patches = reinterpret_cast<uintptr_t*>(oat_file_->Begin() + patches_sec->sh_offset);
-  uintptr_t* patches_end = patches + (patches_sec->sh_size/sizeof(uintptr_t));
+  ptr_t* patches = reinterpret_cast<ptr_t*>(oat_file_->Begin() + patches_sec.sh_offset);
+  ptr_t* patches_end = patches + (patches_sec.sh_size / sizeof(ptr_t));
   Elf32_Shdr* oat_data_sec = oat_file_->FindSectionByName(".rodata");
   Elf32_Shdr* oat_text_sec = oat_file_->FindSectionByName(".text");
   if (oat_data_sec == nullptr) {
@@ -599,10 +596,28 @@ bool PatchOat::PatchTextSection() {
     LOG(ERROR) << ".oat_patches section not found. Aborting patch";
     return false;
   }
-  DCHECK(CheckOatFile()) << "Oat file invalid";
-  CHECK_EQ(patches_sec->sh_type, SHT_OAT_PATCH) << "Unexpected type of .oat_patches";
-  uintptr_t* patches = reinterpret_cast<uintptr_t*>(oat_file_->Begin() + patches_sec->sh_offset);
-  uintptr_t* patches_end = patches + (patches_sec->sh_size/sizeof(uintptr_t));
+  if (patches_sec->sh_type != SHT_OAT_PATCH) {
+    LOG(ERROR) << "Unexpected type of .oat_patches";
+    return false;
+  }
+
+  switch (patches_sec->sh_entsize) {
+    case sizeof(uint32_t):
+      return PatchTextSection<uint32_t>(*patches_sec);
+    case sizeof(uint64_t):
+      return PatchTextSection<uint64_t>(*patches_sec);
+    default:
+      LOG(ERROR) << ".oat_patches Entsize of " << patches_sec->sh_entsize << "bits "
+                 << "is not valid";
+      return false;
+  }
+}
+
+template <typename ptr_t>
+bool PatchOat::PatchTextSection(const Elf32_Shdr& patches_sec) {
+  DCHECK(CheckOatFile<ptr_t>(patches_sec)) << "Oat file invalid";
+  ptr_t* patches = reinterpret_cast<ptr_t*>(oat_file_->Begin() + patches_sec.sh_offset);
+  ptr_t* patches_end = patches + (patches_sec.sh_size / sizeof(ptr_t));
   Elf32_Shdr* oat_text_sec = oat_file_->FindSectionByName(".text");
   CHECK(oat_text_sec != nullptr);
   byte* to_patch = oat_file_->Begin() + oat_text_sec->sh_offset;
@@ -614,7 +629,6 @@ bool PatchOat::PatchTextSection() {
     CHECK_LT(reinterpret_cast<uintptr_t>(patch_loc), to_patch_end);
     *patch_loc += delta_;
   }
-
   return true;
 }
 
