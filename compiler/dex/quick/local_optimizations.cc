@@ -200,7 +200,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
     /* Initialize alias list */
     alias_list.clear();
     ResourceMask alias_reg_list_mask = kEncodeNone;
-    if (!this_mem_mask.Intersects(kEncodeLiteral)) {
+    if (!this_mem_mask.Intersects(kEncodeMem) && !this_mem_mask.Intersects(kEncodeLiteral)) {
       alias_list.push_back(dest_reg_id);
       SetupRegMask(&alias_reg_list_mask, dest_reg_id);
     }
@@ -248,7 +248,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
         bool is_check_lir_load = check_flags & IS_LOAD;
         bool reg_compatible = RegStorage::SameRegType(check_lir->operands[0], native_reg_id);
 
-        if (alias_mem_mask.Equals(kEncodeLiteral)) {
+        if (!alias_mem_mask.Intersects(kEncodeMem) && alias_mem_mask.Equals(kEncodeLiteral)) {
           DCHECK(check_flags & IS_LOAD);
           /* Same value && same register type */
           if (reg_compatible && (this_lir->target == check_lir->target)) {
