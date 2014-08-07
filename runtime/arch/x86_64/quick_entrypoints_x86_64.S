@@ -284,6 +284,18 @@ NO_ARG_RUNTIME_EXCEPTION art_quick_throw_div_zero, artThrowDivZeroFromCode
      */
 NO_ARG_RUNTIME_EXCEPTION art_quick_throw_stack_overflow, artThrowStackOverflowFromCode
 
+// On entry to this function, RAX contains the ESP value for the overflow region.
+DEFINE_FUNCTION art_quick_throw_stack_overflow_from_signal
+    // Here, the RSP is above the protected region.  We need to create a
+    // callee save frame and then move RSP down to the overflow region.
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
+    mov %rsp, %rsi                    // get current stack pointer, pass SP as second arg
+    mov %rax, %rsp                    // move RSP to the overflow region.
+    mov %gs:THREAD_SELF_OFFSET, %rdi  // pass Thread::Current() as first arg
+    call PLT_SYMBOL(artThrowStackOverflowFromCode)    // artThrowStackOverflowFromCode(Thread*, SP)
+    int3                              // unreached
+END_FUNCTION art_quick_throw_stack_overflow_from_signal
+
     /*
      * Called by managed code, saves callee saves and then calls artThrowException
      * that will place a mock Method* at the bottom of the stack. Arg1 holds the exception.
