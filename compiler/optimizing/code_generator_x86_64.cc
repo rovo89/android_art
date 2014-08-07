@@ -25,8 +25,6 @@
 #include "utils/x86_64/assembler_x86_64.h"
 #include "utils/x86_64/managed_register_x86_64.h"
 
-#define __ reinterpret_cast<X86_64Assembler*>(GetAssembler())->
-
 namespace art {
 
 x86_64::X86_64ManagedRegister Location::AsX86_64() const {
@@ -34,6 +32,26 @@ x86_64::X86_64ManagedRegister Location::AsX86_64() const {
 }
 
 namespace x86_64 {
+
+#define __ reinterpret_cast<X86_64Assembler*>(codegen->GetAssembler())->
+
+class NullCheckSlowPathX86_64 : public SlowPathCode {
+ public:
+  explicit NullCheckSlowPathX86_64(uint32_t dex_pc) : dex_pc_(dex_pc) {}
+
+  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    __ Bind(GetEntryLabel());
+    __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pThrowNullPointer), true));
+    codegen->RecordPcInfo(dex_pc_);
+  }
+
+ private:
+  const uint32_t dex_pc_;
+  DISALLOW_COPY_AND_ASSIGN(NullCheckSlowPathX86_64);
+};
+
+#undef __
+#define __ reinterpret_cast<X86_64Assembler*>(GetAssembler())->
 
 inline Condition X86_64Condition(IfCondition cond) {
   switch (cond) {
@@ -152,6 +170,16 @@ void InstructionCodeGeneratorX86_64::LoadCurrentMethod(CpuRegister reg) {
   __ movl(reg, Address(CpuRegister(RSP), kCurrentMethodStackOffset));
 }
 
+Location CodeGeneratorX86_64::GetTemporaryLocation(HTemporary* temp) const {
+  uint16_t number_of_vregs = GetGraph()->GetNumberOfVRegs();
+  // Use the temporary region (right below the dex registers).
+  int32_t slot = GetFrameSize() - (kNumberOfPushedRegistersAtEntry * kX86_64WordSize)
+                                - kVRegSize  // filler
+                                - (number_of_vregs * kVRegSize)
+                                - ((1 + temp->GetIndex()) * kVRegSize);
+  return Location::StackSlot(slot);
+}
+
 int32_t CodeGeneratorX86_64::GetStackSlot(HLocal* local) const {
   uint16_t reg_number = local->GetRegNumber();
   uint16_t number_of_vregs = GetGraph()->GetNumberOfVRegs();
@@ -163,7 +191,7 @@ int32_t CodeGeneratorX86_64::GetStackSlot(HLocal* local) const {
   } else {
     // Local is a temporary in this method. It is stored in this method's frame.
     return GetFrameSize() - (kNumberOfPushedRegistersAtEntry * kX86_64WordSize)
-                          - kVRegSize
+                          - kVRegSize  // filler
                           - (number_of_vregs * kVRegSize)
                           + (reg_number * kVRegSize);
   }
@@ -265,9 +293,7 @@ void CodeGeneratorX86_64::Move(HInstruction* instruction,
         LOG(FATAL) << "Unimplemented local type " << instruction->GetType();
     }
   } else {
-    // This can currently only happen when the instruction that requests the move
-    // is the next to be compiled.
-    DCHECK_EQ(instruction->GetNext(), move_for);
+    DCHECK((instruction->GetNext() == move_for) || instruction->GetNext()->IsTemporary());
     switch (instruction->GetType()) {
       case Primitive::kPrimBoolean:
       case Primitive::kPrimByte:
@@ -311,7 +337,12 @@ void InstructionCodeGeneratorX86_64::VisitExit(HExit* exit) {
 
 void LocationsBuilderX86_64::VisitIf(HIf* if_instr) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(if_instr);
-  locations->SetInAt(0, Location::Any());
+  HInstruction* cond = if_instr->InputAt(0);
+  DCHECK(cond->IsCondition());
+  HCondition* condition = cond->AsCondition();
+  if (condition->NeedsMaterialization()) {
+    locations->SetInAt(0, Location::Any());
+  }
   if_instr->SetLocations(locations);
 }
 
@@ -385,7 +416,9 @@ void LocationsBuilderX86_64::VisitCondition(HCondition* comp) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(comp);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister());
+  if (comp->NeedsMaterialization()) {
+    locations->SetOut(Location::RequiresRegister());
+  }
   comp->SetLocations(locations);
 }
 
@@ -825,6 +858,141 @@ void LocationsBuilderX86_64::VisitPhi(HPhi* instruction) {
 
 void InstructionCodeGeneratorX86_64::VisitPhi(HPhi* instruction) {
   LOG(FATAL) << "Unimplemented";
+}
+
+void LocationsBuilderX86_64::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  instruction->SetLocations(locations);
+}
+
+void InstructionCodeGeneratorX86_64::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  CpuRegister obj = locations->InAt(0).AsX86_64().AsCpuRegister();
+  CpuRegister value = locations->InAt(1).AsX86_64().AsCpuRegister();
+  size_t offset = instruction->GetFieldOffset().SizeValue();
+  Primitive::Type field_type = instruction->InputAt(1)->GetType();
+
+  switch (field_type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte: {
+      __ movb(Address(obj, offset), value);
+      break;
+    }
+
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar: {
+      __ movw(Address(obj, offset), value);
+      break;
+    }
+
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot: {
+      __ movl(Address(obj, offset), value);
+      break;
+    }
+
+    case Primitive::kPrimLong: {
+      __ movq(Address(obj, offset), value);
+      break;
+    }
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      LOG(FATAL) << "Unimplemented register type " << field_type;
+
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unreachable type " << field_type;
+  }
+}
+
+void LocationsBuilderX86_64::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister());
+  instruction->SetLocations(locations);
+}
+
+void InstructionCodeGeneratorX86_64::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  CpuRegister obj = locations->InAt(0).AsX86_64().AsCpuRegister();
+  CpuRegister out = locations->Out().AsX86_64().AsCpuRegister();
+  size_t offset = instruction->GetFieldOffset().SizeValue();
+
+  switch (instruction->GetType()) {
+    case Primitive::kPrimBoolean: {
+      __ movzxb(out, Address(obj, offset));
+      break;
+    }
+
+    case Primitive::kPrimByte: {
+      __ movsxb(out, Address(obj, offset));
+      break;
+    }
+
+    case Primitive::kPrimShort: {
+      __ movsxw(out, Address(obj, offset));
+      break;
+    }
+
+    case Primitive::kPrimChar: {
+      __ movzxw(out, Address(obj, offset));
+      break;
+    }
+
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot: {
+      __ movl(out, Address(obj, offset));
+      break;
+    }
+
+    case Primitive::kPrimLong: {
+      __ movq(out, Address(obj, offset));
+      break;
+    }
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      LOG(FATAL) << "Unimplemented register type " << instruction->GetType();
+
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unreachable type " << instruction->GetType();
+  }
+}
+
+void LocationsBuilderX86_64::VisitNullCheck(HNullCheck* instruction) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
+  locations->SetInAt(0, Location::Any());
+  // TODO: Have a normalization phase that makes this instruction never used.
+  locations->SetOut(Location::SameAsFirstInput());
+  instruction->SetLocations(locations);
+}
+
+void InstructionCodeGeneratorX86_64::VisitNullCheck(HNullCheck* instruction) {
+  SlowPathCode* slow_path =
+      new (GetGraph()->GetArena()) NullCheckSlowPathX86_64(instruction->GetDexPc());
+  codegen_->AddSlowPath(slow_path);
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location obj = locations->InAt(0);
+  DCHECK(obj.Equals(locations->Out()));
+
+  if (obj.IsRegister()) {
+    __ cmpl(obj.AsX86_64().AsCpuRegister(), Immediate(0));
+  } else {
+    DCHECK(locations->InAt(0).IsStackSlot());
+    __ cmpl(Address(CpuRegister(RSP), obj.GetStackIndex()), Immediate(0));
+  }
+  __ j(kEqual, slow_path->GetEntryLabel());
+}
+
+void LocationsBuilderX86_64::VisitTemporary(HTemporary* temp) {
+  temp->SetLocations(nullptr);
+}
+
+void InstructionCodeGeneratorX86_64::VisitTemporary(HTemporary* temp) {
+  // Nothing to do, this is driven by the code generator.
 }
 
 void LocationsBuilderX86_64::VisitParallelMove(HParallelMove* instruction) {

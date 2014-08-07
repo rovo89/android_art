@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_NODES_H_
 
 #include "locations.h"
+#include "offsets.h"
 #include "utils/allocation.h"
 #include "utils/arena_bit_vector.h"
 #include "utils/growable_array.h"
@@ -75,6 +76,7 @@ class HGraph : public ArenaObject {
         maximum_number_of_out_vregs_(0),
         number_of_vregs_(0),
         number_of_in_vregs_(0),
+        number_of_temporaries_(0),
         current_instruction_id_(0) {}
 
   ArenaAllocator* GetArena() const { return arena_; }
@@ -110,6 +112,14 @@ class HGraph : public ArenaObject {
 
   void UpdateMaximumNumberOfOutVRegs(uint16_t new_value) {
     maximum_number_of_out_vregs_ = std::max(new_value, maximum_number_of_out_vregs_);
+  }
+
+  void UpdateNumberOfTemporaries(size_t count) {
+    number_of_temporaries_ = std::max(count, number_of_temporaries_);
+  }
+
+  size_t GetNumberOfTemporaries() const {
+    return number_of_temporaries_;
   }
 
   void SetNumberOfVRegs(uint16_t number_of_vregs) {
@@ -162,6 +172,9 @@ class HGraph : public ArenaObject {
 
   // The number of virtual registers used by parameters of this method.
   uint16_t number_of_in_vregs_;
+
+  // The number of temporaries that will be needed for the baseline compiler.
+  size_t number_of_temporaries_;
 
   // The current id to assign to a newly added instruction. See HInstruction.id_.
   int current_instruction_id_;
@@ -415,6 +428,10 @@ class HBasicBlock : public ArenaObject {
   M(StoreLocal)                                            \
   M(Sub)                                                   \
   M(Compare)                                               \
+  M(InstanceFieldGet)                                      \
+  M(InstanceFieldSet)                                      \
+  M(NullCheck)                                             \
+  M(Temporary)                                             \
 
 
 #define FORWARD_DECLARATION(type) class H##type;
@@ -1252,6 +1269,96 @@ class HPhi : public HInstruction {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HPhi);
+};
+
+class HNullCheck : public HExpression<1> {
+ public:
+  HNullCheck(HInstruction* value, uint32_t dex_pc)
+      : HExpression(value->GetType()), dex_pc_(dex_pc) {
+    SetRawInputAt(0, value);
+  }
+
+  virtual bool NeedsEnvironment() const { return true; }
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  DECLARE_INSTRUCTION(NullCheck);
+
+ private:
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HNullCheck);
+};
+
+class FieldInfo : public ValueObject {
+ public:
+  explicit FieldInfo(MemberOffset field_offset)
+      : field_offset_(field_offset) {}
+
+  MemberOffset GetFieldOffset() const { return field_offset_; }
+
+ private:
+  const MemberOffset field_offset_;
+};
+
+class HInstanceFieldGet : public HExpression<1> {
+ public:
+  HInstanceFieldGet(HInstruction* value,
+                    Primitive::Type field_type,
+                    MemberOffset field_offset)
+      : HExpression(field_type), field_info_(field_offset) {
+    SetRawInputAt(0, value);
+  }
+
+  MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
+
+  DECLARE_INSTRUCTION(InstanceFieldGet);
+
+ private:
+  const FieldInfo field_info_;
+
+  DISALLOW_COPY_AND_ASSIGN(HInstanceFieldGet);
+};
+
+class HInstanceFieldSet : public HTemplateInstruction<2> {
+ public:
+  HInstanceFieldSet(HInstruction* object,
+                    HInstruction* value,
+                    MemberOffset field_offset)
+      : field_info_(field_offset) {
+    SetRawInputAt(0, object);
+    SetRawInputAt(1, value);
+  }
+
+  MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
+
+  DECLARE_INSTRUCTION(InstanceFieldSet);
+
+ private:
+  const FieldInfo field_info_;
+
+  DISALLOW_COPY_AND_ASSIGN(HInstanceFieldSet);
+};
+
+/**
+ * Some DEX instructions are folded into multiple HInstructions that need
+ * to stay live until the last HInstruction. This class
+ * is used as a marker for the baseline compiler to ensure its preceding
+ * HInstruction stays live. `index` is the temporary number that is used
+ * for knowing the stack offset where to store the instruction.
+ */
+class HTemporary : public HTemplateInstruction<0> {
+ public:
+  explicit HTemporary(size_t index) : index_(index) {}
+
+  size_t GetIndex() const { return index_; }
+
+  DECLARE_INSTRUCTION(Temporary);
+
+ private:
+  const size_t index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HTemporary);
 };
 
 class MoveOperands : public ArenaObject {

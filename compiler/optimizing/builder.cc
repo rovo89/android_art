@@ -15,13 +15,22 @@
  * limitations under the License.
  */
 
+#include "builder.h"
+
+#include "class_linker.h"
 #include "dex_file.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "dex_instruction-inl.h"
-#include "builder.h"
+#include "driver/compiler_driver-inl.h"
+#include "mirror/art_field.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/class_loader.h"
+#include "mirror/dex_cache.h"
 #include "nodes.h"
 #include "primitive.h"
+#include "scoped_thread_state_change.h"
+#include "thread.h"
 
 namespace art {
 
@@ -93,7 +102,7 @@ static bool CanHandleCodeItem(const DexFile::CodeItem& code_item) {
 }
 
 template<typename T>
-void HGraphBuilder::If_22t(const Instruction& instruction, int32_t dex_offset) {
+void HGraphBuilder::If_22t(const Instruction& instruction, uint32_t dex_offset) {
   HInstruction* first = LoadLocal(instruction.VRegA(), Primitive::kPrimInt);
   HInstruction* second = LoadLocal(instruction.VRegB(), Primitive::kPrimInt);
   T* comparison = new (arena_) T(first, second);
@@ -110,7 +119,7 @@ void HGraphBuilder::If_22t(const Instruction& instruction, int32_t dex_offset) {
 }
 
 template<typename T>
-void HGraphBuilder::If_21t(const Instruction& instruction, int32_t dex_offset) {
+void HGraphBuilder::If_21t(const Instruction& instruction, uint32_t dex_offset) {
   HInstruction* value = LoadLocal(instruction.VRegA(), Primitive::kPrimInt);
   T* comparison = new (arena_) T(value, GetIntConstant(0));
   current_block_->AddInstruction(comparison);
@@ -332,6 +341,79 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
 
   DCHECK_EQ(argument_index, number_of_arguments);
   current_block_->AddInstruction(invoke);
+  return true;
+}
+
+/**
+ * Helper class to add HTemporary instructions. This class is used when
+ * converting a DEX instruction to multiple HInstruction, and where those
+ * instructions do not die at the following instruction, but instead spans
+ * multiple instructions.
+ */
+class Temporaries : public ValueObject {
+ public:
+  Temporaries(HGraph* graph, size_t count) : graph_(graph), count_(count), index_(0) {
+    graph_->UpdateNumberOfTemporaries(count_);
+  }
+
+  void Add(HInstruction* instruction) {
+    // We currently only support vreg size temps.
+    DCHECK(instruction->GetType() != Primitive::kPrimLong
+           && instruction->GetType() != Primitive::kPrimDouble);
+    HInstruction* temp = new (graph_->GetArena()) HTemporary(index_++);
+    instruction->GetBlock()->AddInstruction(temp);
+    DCHECK(temp->GetPrevious() == instruction);
+  }
+
+ private:
+  HGraph* const graph_;
+
+  // The total number of temporaries that will be used.
+  const size_t count_;
+
+  // Current index in the temporary stack, updated by `Add`.
+  size_t index_;
+};
+
+bool HGraphBuilder::BuildFieldAccess(const Instruction& instruction,
+                                     uint32_t dex_offset,
+                                     bool is_put) {
+  uint32_t source_or_dest_reg = instruction.VRegA_22c();
+  uint32_t obj_reg = instruction.VRegB_22c();
+  uint16_t field_index = instruction.VRegC_22c();
+
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ArtField> resolved_field(hs.NewHandle(
+      compiler_driver_->ComputeInstanceFieldInfo(field_index, dex_compilation_unit_, is_put, soa)));
+
+  if (resolved_field.Get() == nullptr) {
+    return false;
+  }
+  if (resolved_field->IsVolatile()) {
+    return false;
+  }
+
+  HInstruction* object = LoadLocal(obj_reg, Primitive::kPrimNot);
+  current_block_->AddInstruction(new (arena_) HNullCheck(object, dex_offset));
+  if (is_put) {
+    Temporaries temps(graph_, 1);
+    HInstruction* null_check = current_block_->GetLastInstruction();
+    // We need one temporary for the null check.
+    temps.Add(null_check);
+    HInstruction* value = LoadLocal(source_or_dest_reg, resolved_field->GetTypeAsPrimitiveType());
+    current_block_->AddInstruction(new (arena_) HInstanceFieldSet(
+        null_check,
+        value,
+        resolved_field->GetOffset()));
+  } else {
+    current_block_->AddInstruction(new (arena_) HInstanceFieldGet(
+        current_block_->GetLastInstruction(),
+        resolved_field->GetTypeAsPrimitiveType(),
+        resolved_field->GetOffset()));
+
+    UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction());
+  }
   return true;
 }
 
@@ -580,6 +662,32 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
 
     case Instruction::NOP:
       break;
+
+    case Instruction::IGET:
+    case Instruction::IGET_WIDE:
+    case Instruction::IGET_OBJECT:
+    case Instruction::IGET_BOOLEAN:
+    case Instruction::IGET_BYTE:
+    case Instruction::IGET_CHAR:
+    case Instruction::IGET_SHORT: {
+      if (!BuildFieldAccess(instruction, dex_offset, false)) {
+        return false;
+      }
+      break;
+    }
+
+    case Instruction::IPUT:
+    case Instruction::IPUT_WIDE:
+    case Instruction::IPUT_OBJECT:
+    case Instruction::IPUT_BOOLEAN:
+    case Instruction::IPUT_BYTE:
+    case Instruction::IPUT_CHAR:
+    case Instruction::IPUT_SHORT: {
+      if (!BuildFieldAccess(instruction, dex_offset, true)) {
+        return false;
+      }
+      break;
+    }
 
     default:
       return false;
