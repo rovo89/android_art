@@ -502,20 +502,22 @@ END art_quick_check_cast
      */
 ENTRY art_quick_aput_obj_with_null_and_bound_check
     tst r0, r0
-    bne art_quick_aput_obj_with_bound_check
+    bne art_quick_aput_obj_with_bound_check_local
     b art_quick_throw_null_pointer_exception
 END art_quick_aput_obj_with_null_and_bound_check
 
 ENTRY art_quick_aput_obj_with_bound_check
+art_quick_aput_obj_with_bound_check_local:
     ldr r3, [r0, #ARRAY_LENGTH_OFFSET]
     cmp r3, r1
-    bhi art_quick_aput_obj
+    bhi art_quick_aput_obj_local
     mov r0, r1
     mov r1, r3
     b art_quick_throw_array_bounds
 END art_quick_aput_obj_with_bound_check
 
 ENTRY art_quick_aput_obj
+art_quick_aput_obj_local:
     cbz r2, .Ldo_aput_null
     ldr r3, [r0, #CLASS_OFFSET]
     ldr ip, [r2, #CLASS_OFFSET]
