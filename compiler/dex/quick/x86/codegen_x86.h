@@ -360,7 +360,7 @@ class X86Mir2Lir : public Mir2Lir {
    * @brief Generate the debug_frame FDE information.
    * @returns pointer to vector containing CFE information
    */
-  std::vector<uint8_t>* ReturnCallFrameInformation() OVERRIDE;
+  std::vector<uint8_t>* ReturnFrameDescriptionEntry() OVERRIDE;
 
   LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) OVERRIDE;
 
