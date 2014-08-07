@@ -512,7 +512,7 @@ void Mir2Lir::InstallLiteralPools() {
                                         target_method_idx,
                                         class_dex_file,
                                         code_buffer_.size());
-    const DexFile::TypeId& target_method_id = cu_->dex_file->GetTypeId(target_method_idx);
+    const DexFile::TypeId& target_method_id = class_dex_file->GetTypeId(target_method_idx);
     // unique value based on target to ensure code deduplication works
     PushPointer(code_buffer_, &target_method_id, cu_->target64);
     data_lir = NEXT_LIR(data_lir);
@@ -1243,8 +1243,8 @@ void Mir2Lir::LoadClassType(const DexFile& dex_file, uint32_t type_idx,
   LIR* data_target = ScanLiteralPoolClass(class_literal_list_, dex_file, type_idx);
   if (data_target == nullptr) {
     data_target = AddWordData(&class_literal_list_, type_idx);
+    data_target->operands[1] = WrapPointer(const_cast<DexFile*>(&dex_file));
   }
-  data_target->operands[1] = WrapPointer(const_cast<DexFile*>(&dex_file));
   // Loads a Class pointer, which is a reference as it lives in the heap.
   LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg, kRef), data_target);
   AppendLIR(load_pc_rel);
