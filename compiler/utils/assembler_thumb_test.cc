@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
+#include <dirent.h>
 #include <fstream>
+#include <sys/types.h>
+#include <map>
 
 #include "gtest/gtest.h"
 #include "utils/arm/assembler_thumb2.h"
@@ -39,6 +42,8 @@ namespace arm {
 // in the .cc.inc file.
 static constexpr bool kPrintResults = false;
 #endif
+
+static const char* TOOL_PREFIX = "arm-linux-androideabi-";
 
 void SetAndroidData() {
   const char* data = getenv("ANDROID_DATA");
@@ -109,9 +114,9 @@ std::string GetAndroidToolsDir() {
   // Suffix on toolsdir will be something like "arm-eabi-4.8"
   while ((entry = readdir(dir)) != nullptr) {
     std::string subdir = toolsdir + std::string("/") + std::string(entry->d_name);
-    size_t eabi = subdir.find("arm-eabi-");
+    size_t eabi = subdir.find(TOOL_PREFIX);
     if (eabi != std::string::npos) {
-      std::string suffix = subdir.substr(eabi + sizeof("arm-eabi-"));
+      std::string suffix = subdir.substr(eabi + strlen(TOOL_PREFIX));
       double version = strtod(suffix.c_str(), nullptr);
       if (version > maxversion) {
         maxversion = version;
@@ -166,22 +171,22 @@ void dump(std::vector<uint8_t>& code, const char* testname) {
   }
   out.close();
 
-  char cmd[256];
+  char cmd[1024];
 
   // Assemble the .S
-  snprintf(cmd, sizeof(cmd), "%sarm-eabi-as %s -o %s.o", toolsdir.c_str(), filename, filename);
+  snprintf(cmd, sizeof(cmd), "%s%sas %s -o %s.o", toolsdir.c_str(), TOOL_PREFIX, filename, filename);
   system(cmd);
 
   // Remove the $d symbols to prevent the disassembler dumping the instructions
   // as .word
-  snprintf(cmd, sizeof(cmd), "%sarm-eabi-objcopy -N '$d' %s.o %s.oo", toolsdir.c_str(),
+  snprintf(cmd, sizeof(cmd), "%s%sobjcopy -N '$d' %s.o %s.oo", toolsdir.c_str(), TOOL_PREFIX,
     filename, filename);
   system(cmd);
 
   // Disassemble.
 
-  snprintf(cmd, sizeof(cmd), "%sarm-eabi-objdump -d %s.oo | grep '^  *[0-9a-f][0-9a-f]*:'",
-    toolsdir.c_str(), filename);
+  snprintf(cmd, sizeof(cmd), "%s%sobjdump -d %s.oo | grep '^  *[0-9a-f][0-9a-f]*:'",
+    toolsdir.c_str(), TOOL_PREFIX, filename);
   if (kPrintResults) {
     // Print the results only, don't check. This is used to generate new output for inserting
     // into the .inc file.
@@ -306,6 +311,9 @@ TEST(Thumb2AssemblerTest, DataProcessingRegister) {
 
   __ movs(R0, ShifterOperand(R1));
   __ mvns(R0, ShifterOperand(R1));
+
+  // 32 bit variants.
+  __ add(R12, R1, ShifterOperand(R0));
 
   size_t cs = __ CodeSize();
   std::vector<uint8_t> managed_code(cs);
@@ -863,6 +871,9 @@ TEST(Thumb2AssemblerTest, StoreToOffset) {
 
   __ StoreToOffset(kStoreWord, R2, R4, 12);     // Simple
   __ StoreToOffset(kStoreWord, R2, R4, 0x2000);     // Offset too big.
+  __ StoreToOffset(kStoreWord, R0, R12, 12);
+  __ StoreToOffset(kStoreHalfword, R0, R12, 12);
+  __ StoreToOffset(kStoreByte, R2, R12, 12);
 
   size_t cs = __ CodeSize();
   std::vector<uint8_t> managed_code(cs);

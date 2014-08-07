@@ -72,6 +72,7 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/verification_results.cc \
 	dex/vreg_analysis.cc \
 	dex/ssa_transformation.cc \
+	dex/quick_compiler_callbacks.cc \
 	driver/compiler_driver.cc \
 	driver/dex_compilation_unit.cc \
 	jni/quick/arm/calling_convention_arm.cc \
@@ -94,8 +95,8 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/register_allocator.cc \
 	optimizing/ssa_builder.cc \
 	optimizing/ssa_liveness_analysis.cc \
-	optimizing/ssa_type_propagation.cc \
 	optimizing/ssa_phi_elimination.cc \
+	optimizing/ssa_type_propagation.cc \
 	trampolines/trampoline_compiler.cc \
 	utils/arena_allocator.cc \
 	utils/arena_bit_vector.cc \
@@ -117,6 +118,7 @@ LIBART_COMPILER_SRC_FILES := \
 	compilers.cc \
 	compiler.cc \
 	elf_fixup.cc \
+	elf_patcher.cc \
 	elf_stripper.cc \
 	elf_writer.cc \
 	elf_writer_quick.cc \
@@ -185,6 +187,7 @@ define build-libart-compiler
   ifeq ($$(art_ndebug_or_debug),ndebug)
     LOCAL_MODULE := libart-compiler
     LOCAL_SHARED_LIBRARIES += libart
+    LOCAL_FDO_SUPPORT := true
   else # debug
     LOCAL_MODULE := libartd-compiler
     LOCAL_SHARED_LIBRARIES += libartd

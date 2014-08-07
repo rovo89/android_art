@@ -19,23 +19,22 @@
 namespace art {
 namespace mirror {
 
-Class* Reference::java_lang_ref_Reference_ = nullptr;
+GcRoot<Class> Reference::java_lang_ref_Reference_;
 
 void Reference::SetClass(Class* java_lang_ref_Reference) {
-  CHECK(java_lang_ref_Reference_ == nullptr);
+  CHECK(java_lang_ref_Reference_.IsNull());
   CHECK(java_lang_ref_Reference != nullptr);
-  java_lang_ref_Reference_ = java_lang_ref_Reference;
+  java_lang_ref_Reference_ = GcRoot<Class>(java_lang_ref_Reference);
 }
 
 void Reference::ResetClass() {
-  CHECK(java_lang_ref_Reference_ != nullptr);
-  java_lang_ref_Reference_ = nullptr;
+  CHECK(!java_lang_ref_Reference_.IsNull());
+  java_lang_ref_Reference_ = GcRoot<Class>(nullptr);
 }
 
 void Reference::VisitRoots(RootCallback* callback, void* arg) {
-  if (java_lang_ref_Reference_ != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&java_lang_ref_Reference_),
-             arg, 0, kRootStickyClass);
+  if (!java_lang_ref_Reference_.IsNull()) {
+    java_lang_ref_Reference_.VisitRoot(callback, arg, 0, kRootStickyClass);
   }
 }
 

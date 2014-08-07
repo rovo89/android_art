@@ -90,7 +90,7 @@ class LocationsBuilderX86 : public HGraphVisitor {
 #define DECLARE_VISIT_INSTRUCTION(name)     \
   virtual void Visit##name(H##name* instr);
 
-  FOR_EACH_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
 
@@ -108,7 +108,7 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
 #define DECLARE_VISIT_INSTRUCTION(name)     \
   virtual void Visit##name(H##name* instr);
 
-  FOR_EACH_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
 
@@ -126,9 +126,8 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
 class CodeGeneratorX86 : public CodeGenerator {
  public:
   explicit CodeGeneratorX86(HGraph* graph);
-  virtual ~CodeGeneratorX86() { }
+  virtual ~CodeGeneratorX86() {}
 
-  virtual void ComputeFrameSize(size_t number_of_spill_slots) OVERRIDE;
   virtual void GenerateFrameEntry() OVERRIDE;
   virtual void GenerateFrameExit() OVERRIDE;
   virtual void Bind(Label* label) OVERRIDE;
@@ -137,6 +136,8 @@ class CodeGeneratorX86 : public CodeGenerator {
   virtual size_t GetWordSize() const OVERRIDE {
     return kX86WordSize;
   }
+
+  virtual size_t FrameEntrySpillSize() const OVERRIDE;
 
   virtual HGraphVisitor* GetLocationBuilder() OVERRIDE {
     return &location_builder_;
@@ -155,9 +156,7 @@ class CodeGeneratorX86 : public CodeGenerator {
   virtual ManagedRegister AllocateFreeRegister(
       Primitive::Type type, bool* blocked_registers) const OVERRIDE;
 
-  int32_t GetStackSlot(HLocal* local) const;
   virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
-  virtual Location GetTemporaryLocation(HTemporary* temp) const OVERRIDE;
 
   virtual size_t GetNumberOfCoreRegisters() const OVERRIDE {
     return kNumberOfCpuRegisters;
@@ -178,12 +177,15 @@ class CodeGeneratorX86 : public CodeGenerator {
     return InstructionSet::kX86;
   }
 
- private:
   // Helper method to move a 32bits value between two locations.
   void Move32(Location destination, Location source);
   // Helper method to move a 64bits value between two locations.
   void Move64(Location destination, Location source);
 
+  // Emit a write barrier.
+  void MarkGCCard(Register temp, Register card, Register object, Register value);
+
+ private:
   LocationsBuilderX86 location_builder_;
   InstructionCodeGeneratorX86 instruction_visitor_;
   ParallelMoveResolverX86 move_resolver_;

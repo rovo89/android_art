@@ -37,107 +37,11 @@ class Thread;
 
 // Pointers to functions that are called by quick compiler generated code via thread-local storage.
 struct PACKED(4) QuickEntryPoints {
-  // Alloc
-  void* (*pAllocArray)(uint32_t, void*, int32_t);
-  void* (*pAllocArrayResolved)(void*, void*, int32_t);
-  void* (*pAllocArrayWithAccessCheck)(uint32_t, void*, int32_t);
-  void* (*pAllocObject)(uint32_t, void*);
-  void* (*pAllocObjectResolved)(void*, void*);
-  void* (*pAllocObjectInitialized)(void*, void*);
-  void* (*pAllocObjectWithAccessCheck)(uint32_t, void*);
-  void* (*pCheckAndAllocArray)(uint32_t, void*, int32_t);
-  void* (*pCheckAndAllocArrayWithAccessCheck)(uint32_t, void*, int32_t);
-
-  // Cast
-  uint32_t (*pInstanceofNonTrivial)(const mirror::Class*, const mirror::Class*);
-  void (*pCheckCast)(void*, void*);
-
-  // DexCache
-  void* (*pInitializeStaticStorage)(uint32_t, void*);
-  void* (*pInitializeTypeAndVerifyAccess)(uint32_t, void*);
-  void* (*pInitializeType)(uint32_t, void*);
-  void* (*pResolveString)(void*, uint32_t);
-
-  // Field
-  int (*pSet32Instance)(uint32_t, void*, int32_t);  // field_idx, obj, src
-  int (*pSet32Static)(uint32_t, int32_t);
-  int (*pSet64Instance)(uint32_t, void*, int64_t);
-  int (*pSet64Static)(uint32_t, int64_t);
-  int (*pSetObjInstance)(uint32_t, void*, void*);
-  int (*pSetObjStatic)(uint32_t, void*);
-  int32_t (*pGet32Instance)(uint32_t, void*);
-  int32_t (*pGet32Static)(uint32_t);
-  int64_t (*pGet64Instance)(uint32_t, void*);
-  int64_t (*pGet64Static)(uint32_t);
-  void* (*pGetObjInstance)(uint32_t, void*);
-  void* (*pGetObjStatic)(uint32_t);
-
-  // Array
-  void (*pAputObjectWithNullAndBoundCheck)(void*, uint32_t, void*);  // array, index, src
-  void (*pAputObjectWithBoundCheck)(void*, uint32_t, void*);  // array, index, src
-  void (*pAputObject)(void*, uint32_t, void*);  // array, index, src
-  void (*pHandleFillArrayData)(void*, void*);
-
-  // JNI
-  uint32_t (*pJniMethodStart)(Thread*);
-  uint32_t (*pJniMethodStartSynchronized)(jobject to_lock, Thread* self);
-  void (*pJniMethodEnd)(uint32_t cookie, Thread* self);
-  void (*pJniMethodEndSynchronized)(uint32_t cookie, jobject locked, Thread* self);
-  mirror::Object* (*pJniMethodEndWithReference)(jobject result, uint32_t cookie, Thread* self);
-  mirror::Object* (*pJniMethodEndWithReferenceSynchronized)(jobject result, uint32_t cookie,
-                                                    jobject locked, Thread* self);
-  void (*pQuickGenericJniTrampoline)(mirror::ArtMethod*);
-
-  // Locks
-  void (*pLockObject)(void*);
-  void (*pUnlockObject)(void*);
-
-  // Math
-  int32_t (*pCmpgDouble)(double, double);
-  int32_t (*pCmpgFloat)(float, float);
-  int32_t (*pCmplDouble)(double, double);
-  int32_t (*pCmplFloat)(float, float);
-  double (*pFmod)(double, double);
-  double (*pL2d)(int64_t);
-  float (*pFmodf)(float, float);
-  float (*pL2f)(int64_t);
-  int32_t (*pD2iz)(double);
-  int32_t (*pF2iz)(float);
-  int32_t (*pIdivmod)(int32_t, int32_t);
-  int64_t (*pD2l)(double);
-  int64_t (*pF2l)(float);
-  int64_t (*pLdiv)(int64_t, int64_t);
-  int64_t (*pLmod)(int64_t, int64_t);
-  int64_t (*pLmul)(int64_t, int64_t);
-  uint64_t (*pShlLong)(uint64_t, uint32_t);
-  uint64_t (*pShrLong)(uint64_t, uint32_t);
-  uint64_t (*pUshrLong)(uint64_t, uint32_t);
-
-  // Intrinsics
-  int32_t (*pIndexOf)(void*, uint32_t, uint32_t, uint32_t);
-  int32_t (*pStringCompareTo)(void*, void*);
-  void* (*pMemcpy)(void*, const void*, size_t);
-
-  // Invocation
-  void (*pQuickImtConflictTrampoline)(mirror::ArtMethod*);
-  void (*pQuickResolutionTrampoline)(mirror::ArtMethod*);
-  void (*pQuickToInterpreterBridge)(mirror::ArtMethod*);
-  void (*pInvokeDirectTrampolineWithAccessCheck)(uint32_t, void*);
-  void (*pInvokeInterfaceTrampolineWithAccessCheck)(uint32_t, void*);
-  void (*pInvokeStaticTrampolineWithAccessCheck)(uint32_t, void*);
-  void (*pInvokeSuperTrampolineWithAccessCheck)(uint32_t, void*);
-  void (*pInvokeVirtualTrampolineWithAccessCheck)(uint32_t, void*);
-
-  // Thread
-  void (*pTestSuspend)();  // Stub that is periodically called to test the suspend count
-
-  // Throws
-  void (*pDeliverException)(void*);
-  void (*pThrowArrayBounds)(int32_t, int32_t);
-  void (*pThrowDivZero)();
-  void (*pThrowNoSuchMethod)(int32_t);
-  void (*pThrowNullPointer)();
-  void (*pThrowStackOverflow)(void*);
+#define ENTRYPOINT_ENUM(name, rettype, ...) rettype ( * p ## name )( __VA_ARGS__ );
+#include "quick_entrypoints_list.h"
+  QUICK_ENTRYPOINT_LIST(ENTRYPOINT_ENUM)
+#undef QUICK_ENTRYPOINT_LIST
+#undef ENTRYPOINT_ENUM
 };
 
 

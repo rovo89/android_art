@@ -19,18 +19,70 @@ ANDROID_COMMON_TEST_MK = true
 
 include art/build/Android.common_path.mk
 
+# We need to set a define for the nativetest dir so that common_runtime_test will know the right
+# path. (The problem is being a 32b test on 64b device, which is still located in nativetest64).
+ART_TARGET_CFLAGS += -DART_TARGET_NATIVETEST_DIR=${ART_TARGET_NATIVETEST_DIR}
+
 # List of known broken tests that we won't attempt to execute. The test name must be the full
 # rule name such as test-art-host-oat-optimizing-HelloWorld64.
 ART_TEST_KNOWN_BROKEN := \
-  test-art-host-oat-optimizing-SignalTest64 \
-  test-art-host-oat-optimizing-SignalTest32
+  test-art-host-run-test-gcstress-optimizing-no-prebuild-004-SignalTest32 \
+  test-art-host-run-test-gcstress-optimizing-prebuild-004-SignalTest32 \
+  test-art-host-run-test-gcstress-optimizing-norelocate-004-SignalTest32 \
+  test-art-host-run-test-gcstress-optimizing-relocate-004-SignalTest32 \
+  test-art-host-run-test-gcverify-optimizing-no-prebuild-004-SignalTest32 \
+  test-art-host-run-test-gcverify-optimizing-prebuild-004-SignalTest32 \
+  test-art-host-run-test-gcverify-optimizing-norelocate-004-SignalTest32 \
+  test-art-host-run-test-gcverify-optimizing-relocate-004-SignalTest32 \
+  test-art-host-run-test-optimizing-no-prebuild-004-SignalTest32 \
+  test-art-host-run-test-optimizing-prebuild-004-SignalTest32 \
+  test-art-host-run-test-optimizing-norelocate-004-SignalTest32 \
+  test-art-host-run-test-optimizing-relocate-004-SignalTest32 \
+  test-art-target-run-test-gcstress-optimizing-prebuild-004-SignalTest32 \
+  test-art-target-run-test-gcstress-optimizing-norelocate-004-SignalTest32 \
+  test-art-target-run-test-gcstress-default-prebuild-004-SignalTest32 \
+  test-art-target-run-test-gcstress-default-norelocate-004-SignalTest32 \
+  test-art-target-run-test-gcstress-optimizing-relocate-004-SignalTest32 \
+  test-art-target-run-test-gcstress-default-relocate-004-SignalTest32 \
+  test-art-target-run-test-gcstress-optimizing-no-prebuild-004-SignalTest32 \
+  test-art-target-run-test-gcstress-default-no-prebuild-004-SignalTest32
 
 # List of known failing tests that when executed won't cause test execution to not finish.
 # The test name must be the full rule name such as test-art-host-oat-optimizing-HelloWorld64.
 ART_TEST_KNOWN_FAILING :=
 
 # Keep going after encountering a test failure?
-ART_TEST_KEEP_GOING ?= false
+ART_TEST_KEEP_GOING ?= true
+
+# Do you want all tests, even those that are time consuming?
+ART_TEST_FULL ?= true
+
+# Do you want optimizing compiler tests run?
+ART_TEST_OPTIMIZING ?= $(ART_TEST_FULL)
+
+# Do you want tracing tests run?
+ART_TEST_TRACE ?= $(ART_TEST_FULL)
+
+# Do you want tests with GC verification enabled run?
+ART_TEST_GC_VERIFY ?= $(ART_TEST_FULL)
+
+# Do you want tests with the GC stress mode enabled run?
+ART_TEST_GC_STRESS ?= $(ART_TEST_FULL)
+
+# Do you want run-tests with relocation enabled?
+ART_TEST_RUN_TEST_RELOCATE ?= $(ART_TEST_FULL)
+
+# Do you want run-tests with relocation disabled?
+ART_TEST_RUN_TEST_NO_RELOCATE ?= $(ART_TEST_FULL)
+
+# Do you want run-tests with prebuild disabled?
+ART_TEST_RUN_TEST_NO_PREBUILD ?= $(ART_TEST_FULL)
+
+# Do you want run-tests with prebuild enabled?
+ART_TEST_RUN_TEST_PREBUILD ?= true
+
+# Do you want failed tests to have their artifacts cleaned up?
+ART_TEST_RUN_TEST_ALWAYS_CLEAN ?= true
 
 # Define the command run on test failure. $(1) is the name of the test. Executed by the shell.
 define ART_TEST_FAILED
@@ -38,7 +90,7 @@ define ART_TEST_FAILED
     (mkdir -p $(ART_HOST_TEST_DIR)/failed/ && touch $(ART_HOST_TEST_DIR)/failed/$(1) && \
       echo $(ART_TEST_KNOWN_FAILING) | grep -q $(1) \
         && (echo -e "$(1) \e[91mKNOWN FAILURE\e[0m") \
-        || (echo -e "$(1) \e[91mFAILED\e[0m")))
+        || (echo -e "$(1) \e[91mFAILED\e[0m" >&2 )))
 endef
 
 # Define the command run on test success. $(1) is the name of the test. Executed by the shell.
@@ -64,7 +116,7 @@ define ART_TEST_PREREQ_FINISHED
         && (echo -e "\e[93mSKIPPED TESTS\e[0m" && ls -1 $(ART_HOST_TEST_DIR)/skipped/) \
         || (echo -e "\e[92mNO TESTS SKIPPED\e[0m")) && \
       ([ -d $(ART_HOST_TEST_DIR)/failed/ ] \
-        && (echo -e "\e[91mFAILING TESTS\e[0m" && ls -1 $(ART_HOST_TEST_DIR)/failed/) \
+        && (echo -e "\e[91mFAILING TESTS\e[0m" >&2 && ls -1 $(ART_HOST_TEST_DIR)/failed/ >&2) \
         || (echo -e "\e[92mNO TESTS FAILED\e[0m")) \
       && ([ ! -d $(ART_HOST_TEST_DIR)/failed/ ] && rm -r $(ART_HOST_TEST_DIR) \
           || (rm -r $(ART_HOST_TEST_DIR) && false)))))

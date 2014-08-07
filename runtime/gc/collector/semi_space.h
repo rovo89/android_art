@@ -25,6 +25,7 @@
 #include "garbage_collector.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "immune_region.h"
+#include "mirror/object_reference.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 

@@ -31,22 +31,17 @@ class ArmMir2Lir FINAL : public Mir2Lir {
                             RegLocation rl_dest, int lit);
     bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) OVERRIDE;
     LIR* CheckSuspendUsingLoad() OVERRIDE;
-    RegStorage LoadHelper(ThreadOffset<4> offset) OVERRIDE;
-    RegStorage LoadHelper(ThreadOffset<8> offset) OVERRIDE;
+    RegStorage LoadHelper(QuickEntrypointEnum trampoline) OVERRIDE;
     LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
                       OpSize size, VolatileKind is_volatile) OVERRIDE;
     LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale,
                          OpSize size) OVERRIDE;
-    LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
-                             RegStorage r_dest, OpSize size) OVERRIDE;
     LIR* LoadConstantNoClobber(RegStorage r_dest, int value);
     LIR* LoadConstantWide(RegStorage r_dest, int64_t value);
     LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
                        OpSize size, VolatileKind is_volatile) OVERRIDE;
     LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
                           OpSize size) OVERRIDE;
-    LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
-                              RegStorage r_src, OpSize size) OVERRIDE;
     void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg);
 
     // Required for target - register utilities.
@@ -85,12 +80,12 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     size_t GetInsnSize(LIR* lir) OVERRIDE;
     bool IsUnconditionalBranch(LIR* lir);
 
-    // Check support for volatile load/store of a given size.
-    bool SupportsVolatileLoadStore(OpSize size) OVERRIDE;
     // Get the register class for load/store of a field.
     RegisterClass RegClassForFieldLoadStore(OpSize size, bool is_volatile) OVERRIDE;
 
     // Required for target - Dalvik-level generators.
+    void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                        RegLocation rl_src2) OVERRIDE;
     void GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                            RegLocation rl_src1, RegLocation rl_src2);
     void GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
@@ -99,12 +94,6 @@ class ArmMir2Lir FINAL : public Mir2Lir {
                      RegLocation rl_src, int scale, bool card_mark);
     void GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                            RegLocation rl_src1, RegLocation rl_shift);
-    void GenMulLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                    RegLocation rl_src2);
-    void GenAddLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                    RegLocation rl_src2);
-    void GenAndLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                    RegLocation rl_src2);
     void GenArithOpDouble(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                           RegLocation rl_src2);
     void GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
@@ -119,16 +108,6 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     bool GenInlinedSqrt(CallInfo* info);
     bool GenInlinedPeek(CallInfo* info, OpSize size);
     bool GenInlinedPoke(CallInfo* info, OpSize size);
-    void GenNotLong(RegLocation rl_dest, RegLocation rl_src);
-    void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
-    void GenOrLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                   RegLocation rl_src2);
-    void GenSubLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                    RegLocation rl_src2);
-    void GenXorLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                    RegLocation rl_src2);
-    void GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                       RegLocation rl_src2, bool is_div);
     RegLocation GenDivRem(RegLocation rl_dest, RegStorage reg_lo, RegStorage reg_hi, bool is_div);
     RegLocation GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int lit, bool is_div);
     void GenCmpLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
@@ -170,7 +149,6 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     void OpRegCopy(RegStorage r_dest, RegStorage r_src);
     LIR* OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src);
     LIR* OpRegImm(OpKind op, RegStorage r_dest_src1, int value);
-    LIR* OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int offset);
     LIR* OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2);
     LIR* OpMovRegMem(RegStorage r_dest, RegStorage r_base, int offset, MoveType move_type);
     LIR* OpMovMemReg(RegStorage r_base, int offset, RegStorage r_src, MoveType move_type);
@@ -178,14 +156,9 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     LIR* OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, int value);
     LIR* OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2);
     LIR* OpTestSuspend(LIR* target);
-    LIR* OpThreadMem(OpKind op, ThreadOffset<4> thread_offset) OVERRIDE;
-    LIR* OpThreadMem(OpKind op, ThreadOffset<8> thread_offset) OVERRIDE;
     LIR* OpVldm(RegStorage r_base, int count);
     LIR* OpVstm(RegStorage r_base, int count);
-    void OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int scale, int offset);
     void OpRegCopyWide(RegStorage dest, RegStorage src);
-    void OpTlsCmp(ThreadOffset<4> offset, int val) OVERRIDE;
-    void OpTlsCmp(ThreadOffset<8> offset, int val) OVERRIDE;
 
     LIR* LoadBaseDispBody(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size);
     LIR* StoreBaseDispBody(RegStorage r_base, int displacement, RegStorage r_src, OpSize size);
@@ -210,7 +183,13 @@ class ArmMir2Lir FINAL : public Mir2Lir {
       return false;  // Wide FPRs are formed by pairing.
     }
 
+    LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) OVERRIDE;
+    size_t GetInstructionOffset(LIR* lir);
+
   private:
+    void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
+    void GenMulLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                    RegLocation rl_src2);
     void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1, int64_t val,
                                   ConditionCode ccode);
     LIR* LoadFPConstantValue(int r_dest, int value);

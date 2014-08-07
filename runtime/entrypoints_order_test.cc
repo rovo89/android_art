@@ -121,7 +121,7 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_end, thread_local_objects, kPointerSize);
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_objects, rosalloc_runs, kPointerSize);
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, rosalloc_runs, thread_local_alloc_stack_top,
-                        kPointerSize * gc::allocator::RosAlloc::kNumThreadLocalSizeBrackets);
+                        kPointerSize * kNumRosAllocThreadLocalSizeBrackets);
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_alloc_stack_top, thread_local_alloc_stack_end,
                         kPointerSize);
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_alloc_stack_end, held_mutexes, kPointerSize);
@@ -259,8 +259,10 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pThrowDivZero, pThrowNoSuchMethod, kPointerSize);
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pThrowNoSuchMethod, pThrowNullPointer, kPointerSize);
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pThrowNullPointer, pThrowStackOverflow, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pThrowStackOverflow, pA64Load, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pA64Load, pA64Store, kPointerSize);
 
-    CHECKED(OFFSETOF_MEMBER(QuickEntryPoints, pThrowStackOverflow)
+    CHECKED(OFFSETOF_MEMBER(QuickEntryPoints, pA64Store)
             + kPointerSize == sizeof(QuickEntryPoints), QuickEntryPoints_all);
   }
 };

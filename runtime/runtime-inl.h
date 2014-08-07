@@ -19,22 +19,51 @@
 
 #include "runtime.h"
 
+#include "read_barrier-inl.h"
+
 namespace art {
 
-inline QuickMethodFrameInfo Runtime::GetRuntimeMethodFrameInfo(mirror::ArtMethod* method) const {
+inline QuickMethodFrameInfo Runtime::GetRuntimeMethodFrameInfo(mirror::ArtMethod* method) {
   DCHECK(method != nullptr);
   // Cannot be imt-conflict-method or resolution-method.
   DCHECK(method != GetImtConflictMethod());
   DCHECK(method != GetResolutionMethod());
   // Don't use GetCalleeSaveMethod(), some tests don't set all callee save methods.
-  if (method == callee_save_methods_[Runtime::kRefsAndArgs]) {
+  if (method == GetCalleeSaveMethodUnchecked(Runtime::kRefsAndArgs)) {
     return GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
-  } else if (method == callee_save_methods_[Runtime::kSaveAll]) {
+  } else if (method == GetCalleeSaveMethodUnchecked(Runtime::kSaveAll)) {
     return GetCalleeSaveMethodFrameInfo(Runtime::kSaveAll);
   } else {
-    DCHECK(method == callee_save_methods_[Runtime::kRefsOnly]);
+    DCHECK(method == GetCalleeSaveMethodUnchecked(Runtime::kRefsOnly));
     return GetCalleeSaveMethodFrameInfo(Runtime::kRefsOnly);
   }
+}
+
+inline mirror::ArtMethod* Runtime::GetResolutionMethod() {
+  CHECK(HasResolutionMethod());
+  return resolution_method_.Read();
+}
+
+inline mirror::ArtMethod* Runtime::GetImtConflictMethod() {
+  CHECK(HasImtConflictMethod());
+  return imt_conflict_method_.Read();
+}
+
+inline mirror::ObjectArray<mirror::ArtMethod>* Runtime::GetDefaultImt()
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  CHECK(HasDefaultImt());
+  return default_imt_.Read();
+}
+
+inline mirror::ArtMethod* Runtime::GetCalleeSaveMethod(CalleeSaveType type)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK(HasCalleeSaveMethod(type));
+  return callee_save_methods_[type].Read();
+}
+
+inline mirror::ArtMethod* Runtime::GetCalleeSaveMethodUnchecked(CalleeSaveType type)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return callee_save_methods_[type].Read();
 }
 
 }  // namespace art

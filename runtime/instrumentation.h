@@ -18,13 +18,14 @@
 #define ART_RUNTIME_INSTRUMENTATION_H_
 
 #include <stdint.h>
-#include <set>
 #include <list>
+#include <map>
 
 #include "atomic.h"
 #include "instruction_set.h"
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "gc_root.h"
 #include "object_callbacks.h"
 
 namespace art {
@@ -162,7 +163,9 @@ class Instrumentation {
       LOCKS_EXCLUDED(Locks::thread_list_lock_, deoptimized_methods_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsDeoptimized(mirror::ArtMethod* method) const LOCKS_EXCLUDED(deoptimized_methods_lock_);
+  bool IsDeoptimized(mirror::ArtMethod* method)
+      LOCKS_EXCLUDED(deoptimized_methods_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Enable method tracing by installing instrumentation entry/exit stubs.
   void EnableMethodTracing()
@@ -186,7 +189,7 @@ class Instrumentation {
 
   // Update the code of a method respecting any installed stubs.
   void UpdateMethodsCode(mirror::ArtMethod* method, const void* quick_code,
-                         const void* portable_code, bool have_portable_code) const
+                         const void* portable_code, bool have_portable_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get the quick code for the given method. More efficient than asking the class linker as it
@@ -367,6 +370,23 @@ class Instrumentation {
                            mirror::ArtField* field, const JValue& field_value) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Read barrier-aware utility functions for accessing deoptimized_methods_
+  bool AddDeoptimizedMethod(mirror::ArtMethod* method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(deoptimized_methods_lock_);
+  bool FindDeoptimizedMethod(mirror::ArtMethod* method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(deoptimized_methods_lock_);
+  bool RemoveDeoptimizedMethod(mirror::ArtMethod* method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(deoptimized_methods_lock_);
+  mirror::ArtMethod* BeginDeoptimizedMethod()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(deoptimized_methods_lock_);
+  bool IsDeoptimizedMethodsEmpty() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(deoptimized_methods_lock_);
+
   // Have we hijacked ArtMethod::code_ so that it calls instrumentation/interpreter code?
   bool instrumentation_stubs_installed_;
 
@@ -421,7 +441,8 @@ class Instrumentation {
   // The set of methods being deoptimized (by the debugger) which must be executed with interpreter
   // only.
   mutable ReaderWriterMutex deoptimized_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  std::set<mirror::ArtMethod*> deoptimized_methods_ GUARDED_BY(deoptimized_methods_lock_);
+  std::multimap<int32_t, GcRoot<mirror::ArtMethod>> deoptimized_methods_
+      GUARDED_BY(deoptimized_methods_lock_);
   bool deoptimization_enabled_;
 
   // Current interpreter handler table. This is updated each time the thread state flags are

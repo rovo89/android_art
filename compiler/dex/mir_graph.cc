@@ -69,6 +69,7 @@ const char* MIRGraph::extended_mir_op_names_[kMirOpLast - kMirOpFirst] = {
 
 MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
     : reg_location_(NULL),
+      block_id_map_(std::less<unsigned int>(), arena->Adapter()),
       cu_(cu),
       ssa_base_vregs_(NULL),
       ssa_subscripts_(NULL),
@@ -101,11 +102,14 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       num_blocks_(0),
       current_code_item_(NULL),
       dex_pc_to_block_map_(arena, 0, kGrowableArrayMisc),
+      m_units_(arena->Adapter()),
+      method_stack_(arena->Adapter()),
       current_method_(kInvalidEntry),
       current_offset_(kInvalidEntry),
       def_count_(0),
       opcode_count_(NULL),
       num_ssa_regs_(0),
+      extended_basic_blocks_(arena->Adapter()),
       method_sreg_(0),
       attributes_(METHOD_IS_LEAF),  // Start with leaf assumption, change on encountering invoke.
       checkstats_(NULL),
@@ -795,7 +799,8 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     } else if (flags & Instruction::kSwitch) {
       cur_block = ProcessCanSwitch(cur_block, insn, current_offset_, width, flags);
     }
-    if (verify_flags & Instruction::kVerifyVarArgRange) {
+    if (verify_flags & Instruction::kVerifyVarArgRange ||
+        verify_flags & Instruction::kVerifyVarArgRangeNonZero) {
       /*
        * The Quick backend's runtime model includes a gap between a method's
        * argument ("in") vregs and the rest of its vregs.  Handling a range instruction

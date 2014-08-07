@@ -124,8 +124,8 @@ class Operand {
     if (index.NeedsRex()) {
       rex_ |= 0x42;  // REX.00X0
     }
-    encoding_[1] = (scale << 6) | (static_cast<uint8_t>(index.AsRegister()) << 3) |
-        static_cast<uint8_t>(base.AsRegister());
+    encoding_[1] = (scale << 6) | (static_cast<uint8_t>(index.LowBits()) << 3) |
+        static_cast<uint8_t>(base.LowBits());
     length_ = 2;
   }
 
@@ -385,9 +385,13 @@ class X86_64Assembler FINAL : public Assembler {
   void cmpl(const Address& address, const Immediate& imm);
 
   void cmpq(CpuRegister reg0, CpuRegister reg1);
+  void cmpq(CpuRegister reg0, const Immediate& imm);
+  void cmpq(CpuRegister reg0, const Address& address);
 
   void testl(CpuRegister reg1, CpuRegister reg2);
   void testl(CpuRegister reg, const Immediate& imm);
+
+  void testq(CpuRegister reg, const Address& address);
 
   void andl(CpuRegister dst, const Immediate& imm);
   void andl(CpuRegister dst, CpuRegister src);
@@ -408,6 +412,7 @@ class X86_64Assembler FINAL : public Assembler {
 
   void addq(CpuRegister reg, const Immediate& imm);
   void addq(CpuRegister dst, CpuRegister src);
+  void addq(CpuRegister dst, const Address& address);
 
   void subl(CpuRegister dst, CpuRegister src);
   void subl(CpuRegister reg, const Immediate& imm);
@@ -415,6 +420,7 @@ class X86_64Assembler FINAL : public Assembler {
 
   void subq(CpuRegister reg, const Immediate& imm);
   void subq(CpuRegister dst, CpuRegister src);
+  void subq(CpuRegister dst, const Address& address);
 
   void cdq();
 
@@ -436,6 +442,8 @@ class X86_64Assembler FINAL : public Assembler {
   void shrl(CpuRegister operand, CpuRegister shifter);
   void sarl(CpuRegister reg, const Immediate& imm);
   void sarl(CpuRegister operand, CpuRegister shifter);
+
+  void shrq(CpuRegister reg, const Immediate& imm);
 
   void negl(CpuRegister reg);
   void notl(CpuRegister reg);
@@ -622,7 +630,7 @@ class X86_64Assembler FINAL : public Assembler {
   void EmitLabelLink(Label* label);
   void EmitNearLabelLink(Label* label);
 
-  void EmitGenericShift(int rm, CpuRegister reg, const Immediate& imm);
+  void EmitGenericShift(bool wide, int rm, CpuRegister reg, const Immediate& imm);
   void EmitGenericShift(int rm, CpuRegister operand, CpuRegister shifter);
 
   // If any input is not false, output the necessary rex prefix.

@@ -28,10 +28,13 @@
 #include "driver/compiler_driver.h"
 #include "instruction_set.h"
 #include "leb128.h"
+#include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "safe_map.h"
 #include "utils/array_ref.h"
 #include "utils/arena_allocator.h"
+#include "utils/arena_containers.h"
 #include "utils/growable_array.h"
+#include "utils/stack_checks.h"
 
 namespace art {
 
@@ -49,6 +52,7 @@ typedef uint32_t CodeOffset;         // Native code offset in bytes.
 #define IS_BINARY_OP         (1ULL << kIsBinaryOp)
 #define IS_BRANCH            (1ULL << kIsBranch)
 #define IS_IT                (1ULL << kIsIT)
+#define IS_MOVE              (1ULL << kIsMoveOp)
 #define IS_LOAD              (1ULL << kMemLoad)
 #define IS_QUAD_OP           (1ULL << kIsQuadOp)
 #define IS_QUIN_OP           (1ULL << kIsQuinOp)
@@ -56,6 +60,7 @@ typedef uint32_t CodeOffset;         // Native code offset in bytes.
 #define IS_STORE             (1ULL << kMemStore)
 #define IS_TERTIARY_OP       (1ULL << kIsTertiaryOp)
 #define IS_UNARY_OP          (1ULL << kIsUnaryOp)
+#define IS_VOLATILE          (1ULL << kMemVolatile)
 #define NEEDS_FIXUP          (1ULL << kPCRelFixup)
 #define NO_OPERAND           (1ULL << kNoOperand)
 #define REG_DEF0             (1ULL << kRegDef0)
@@ -92,6 +97,20 @@ typedef uint32_t CodeOffset;         // Native code offset in bytes.
 #define REG_USE_HI           (1ULL << kUseHi)
 #define REG_DEF_LO           (1ULL << kDefLo)
 #define REG_DEF_HI           (1ULL << kDefHi)
+#define SCALED_OFFSET_X0     (1ULL << kMemScaledx0)
+#define SCALED_OFFSET_X2     (1ULL << kMemScaledx2)
+#define SCALED_OFFSET_X4     (1ULL << kMemScaledx4)
+
+// Special load/stores
+#define IS_LOADX             (IS_LOAD | IS_VOLATILE)
+#define IS_LOAD_OFF          (IS_LOAD | SCALED_OFFSET_X0)
+#define IS_LOAD_OFF2         (IS_LOAD | SCALED_OFFSET_X2)
+#define IS_LOAD_OFF4         (IS_LOAD | SCALED_OFFSET_X4)
+
+#define IS_STOREX            (IS_STORE | IS_VOLATILE)
+#define IS_STORE_OFF         (IS_STORE | SCALED_OFFSET_X0)
+#define IS_STORE_OFF2        (IS_STORE | SCALED_OFFSET_X2)
+#define IS_STORE_OFF4        (IS_STORE | SCALED_OFFSET_X4)
 
 // Common combo register usage patterns.
 #define REG_DEF01            (REG_DEF0 | REG_DEF1)
@@ -205,28 +224,10 @@ Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 #define SLOW_TYPE_PATH (cu_->enable_debug & (1 << kDebugSlowTypePath))
 #define EXERCISE_SLOWEST_STRING_PATH (cu_->enable_debug & (1 << kDebugSlowestStringPath))
 
-// Size of a frame that we definitely consider large. Anything larger than this should
-// definitely get a stack overflow check.
-static constexpr size_t kLargeFrameSize = 2 * KB;
-
-// Size of a frame that should be small. Anything leaf method smaller than this should run
-// without a stack overflow check.
-// The constant is from experience with frameworks code.
-static constexpr size_t kSmallFrameSize = 1 * KB;
-
 class Mir2Lir : public Backend {
   public:
     static constexpr bool kFailOnSizeError = true && kIsDebugBuild;
     static constexpr bool kReportSizeError = true && kIsDebugBuild;
-
-    // Determine whether a frame is small or large, used in the decision on whether to elide a
-    // stack overflow check on method entry.
-    //
-    // A frame is considered large when it's either above kLargeFrameSize, or a quarter of the
-    // overflow-usable stack space.
-    static bool IsLargeFrame(size_t size, InstructionSet isa) {
-      return size >= kLargeFrameSize || size >= GetStackOverflowReservedBytes(isa) / 4;
-    }
 
     /*
      * Auxiliary information describing the location of data embedded in the Dalvik
@@ -568,6 +569,12 @@ class Mir2Lir : public Backend {
 
     virtual ~Mir2Lir() {}
 
+    /**
+     * @brief Decodes the LIR offset.
+     * @return Returns the scaled offset of LIR.
+     */
+    virtual size_t GetInstructionOffset(LIR* lir);
+
     int32_t s4FromSwitchData(const void* switch_data) {
       return *reinterpret_cast<const int32_t*>(switch_data);
     }
@@ -657,7 +664,10 @@ class Mir2Lir : public Backend {
     void SetMemRefType(LIR* lir, bool is_load, int mem_type);
     void AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load, bool is64bit);
     void SetupRegMask(ResourceMask* mask, int reg);
+    void ClearRegMask(ResourceMask* mask, int reg);
     void DumpLIRInsn(LIR* arg, unsigned char* base_addr);
+    void EliminateLoad(LIR* lir, int reg_id);
+    void DumpDependentInsnPair(LIR* check_lir, LIR* this_lir, const char* type);
     void DumpPromotionMap();
     void CodegenDump();
     LIR* RawLIR(DexOffset dalvik_offset, int opcode, int op0 = 0, int op1 = 0,
@@ -733,14 +743,13 @@ class Mir2Lir : public Backend {
     virtual RegStorage AllocPreservedSingle(int s_reg);
     virtual RegStorage AllocPreservedDouble(int s_reg);
     RegStorage AllocTempBody(GrowableArray<RegisterInfo*> &regs, int* next_temp, bool required);
-    virtual RegStorage AllocFreeTemp();
-    virtual RegStorage AllocTemp();
-    virtual RegStorage AllocTempWide();
-    virtual RegStorage AllocTempRef();
-    virtual RegStorage AllocTempSingle();
-    virtual RegStorage AllocTempDouble();
-    virtual RegStorage AllocTypedTemp(bool fp_hint, int reg_class);
-    virtual RegStorage AllocTypedTempWide(bool fp_hint, int reg_class);
+    virtual RegStorage AllocTemp(bool required = true);
+    virtual RegStorage AllocTempWide(bool required = true);
+    virtual RegStorage AllocTempRef(bool required = true);
+    virtual RegStorage AllocTempSingle(bool required = true);
+    virtual RegStorage AllocTempDouble(bool required = true);
+    virtual RegStorage AllocTypedTemp(bool fp_hint, int reg_class, bool required = true);
+    virtual RegStorage AllocTypedTempWide(bool fp_hint, int reg_class, bool required = true);
     void FlushReg(RegStorage reg);
     void FlushRegWide(RegStorage reg);
     RegStorage AllocLiveReg(int s_reg, int reg_class, bool wide);
@@ -823,7 +832,6 @@ class Mir2Lir : public Backend {
     void MarkPossibleNullPointerExceptionAfter(int opt_flags, LIR* after);
     void MarkPossibleStackOverflowException();
     void ForceImplicitNullCheck(RegStorage reg, int opt_flags);
-    LIR* GenImmedCheck(ConditionCode c_code, RegStorage reg, int imm_val, ThrowKind kind);
     LIR* GenNullCheck(RegStorage m_reg, int opt_flags);
     LIR* GenExplicitNullCheck(RegStorage m_reg, int opt_flags);
     virtual void GenImplicitNullCheck(RegStorage reg, int opt_flags);
@@ -860,11 +868,9 @@ class Mir2Lir : public Backend {
                         RegLocation rl_src1, RegLocation rl_shift);
     void GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest,
                           RegLocation rl_src, int lit);
-    void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                        RegLocation rl_src1, RegLocation rl_src2);
-    template <size_t pointer_size>
-    void GenConversionCall(ThreadOffset<pointer_size> func_offset, RegLocation rl_dest,
-                           RegLocation rl_src);
+    virtual void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
+                                RegLocation rl_src1, RegLocation rl_src2);
+    void GenConversionCall(QuickEntrypointEnum trampoline, RegLocation rl_dest, RegLocation rl_src);
     virtual void GenSuspendTest(int opt_flags);
     virtual void GenSuspendTestAndBranch(int opt_flags, LIR* target);
 
@@ -874,66 +880,44 @@ class Mir2Lir : public Backend {
                        RegLocation rl_src1, RegLocation rl_src2);
 
     // Shared by all targets - implemented in gen_invoke.cc.
-    template <size_t pointer_size>
-    LIR* CallHelper(RegStorage r_tgt, ThreadOffset<pointer_size> helper_offset, bool safepoint_pc,
+    LIR* CallHelper(RegStorage r_tgt, QuickEntrypointEnum trampoline, bool safepoint_pc,
                     bool use_link = true);
-    RegStorage CallHelperSetup(ThreadOffset<4> helper_offset);
-    RegStorage CallHelperSetup(ThreadOffset<8> helper_offset);
-    template <size_t pointer_size>
-    void CallRuntimeHelper(ThreadOffset<pointer_size> helper_offset, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperImm(ThreadOffset<pointer_size> helper_offset, int arg0, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperReg(ThreadOffset<pointer_size> helper_offset, RegStorage arg0, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegLocation(ThreadOffset<pointer_size> helper_offset, RegLocation arg0,
+    RegStorage CallHelperSetup(QuickEntrypointEnum trampoline);
+
+    void CallRuntimeHelper(QuickEntrypointEnum trampoline, bool safepoint_pc);
+    void CallRuntimeHelperImm(QuickEntrypointEnum trampoline, int arg0, bool safepoint_pc);
+    void CallRuntimeHelperReg(QuickEntrypointEnum trampoline, RegStorage arg0, bool safepoint_pc);
+    void CallRuntimeHelperRegLocation(QuickEntrypointEnum trampoline, RegLocation arg0,
                                       bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperImmImm(ThreadOffset<pointer_size> helper_offset, int arg0, int arg1,
+    void CallRuntimeHelperImmImm(QuickEntrypointEnum trampoline, int arg0, int arg1,
                                  bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperImmRegLocation(ThreadOffset<pointer_size> helper_offset, int arg0,
-                                         RegLocation arg1, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegLocationImm(ThreadOffset<pointer_size> helper_offset, RegLocation arg0,
-                                         int arg1, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperImmReg(ThreadOffset<pointer_size> helper_offset, int arg0, RegStorage arg1,
+    void CallRuntimeHelperImmRegLocation(QuickEntrypointEnum trampoline, int arg0, RegLocation arg1,
+                                         bool safepoint_pc);
+    void CallRuntimeHelperRegLocationImm(QuickEntrypointEnum trampoline, RegLocation arg0, int arg1,
+                                         bool safepoint_pc);
+    void CallRuntimeHelperImmReg(QuickEntrypointEnum trampoline, int arg0, RegStorage arg1,
                                  bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegImm(ThreadOffset<pointer_size> helper_offset, RegStorage arg0, int arg1,
+    void CallRuntimeHelperRegImm(QuickEntrypointEnum trampoline, RegStorage arg0, int arg1,
                                  bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperImmMethod(ThreadOffset<pointer_size> helper_offset, int arg0,
+    void CallRuntimeHelperImmMethod(QuickEntrypointEnum trampoline, int arg0, bool safepoint_pc);
+    void CallRuntimeHelperRegMethod(QuickEntrypointEnum trampoline, RegStorage arg0,
                                     bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegMethod(ThreadOffset<pointer_size> helper_offset, RegStorage arg0,
-                                    bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegMethodRegLocation(ThreadOffset<pointer_size> helper_offset,
-                                               RegStorage arg0, RegLocation arg2, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegLocationRegLocation(ThreadOffset<pointer_size> helper_offset,
-                                                 RegLocation arg0, RegLocation arg1,
-                                                 bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegReg(ThreadOffset<pointer_size> helper_offset, RegStorage arg0,
-                                 RegStorage arg1, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegRegImm(ThreadOffset<pointer_size> helper_offset, RegStorage arg0,
-                                    RegStorage arg1, int arg2, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperImmMethodRegLocation(ThreadOffset<pointer_size> helper_offset, int arg0,
+    void CallRuntimeHelperRegMethodRegLocation(QuickEntrypointEnum trampoline, RegStorage arg0,
                                                RegLocation arg2, bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperImmMethodImm(ThreadOffset<pointer_size> helper_offset, int arg0, int arg2,
+    void CallRuntimeHelperRegLocationRegLocation(QuickEntrypointEnum trampoline, RegLocation arg0,
+                                                 RegLocation arg1, bool safepoint_pc);
+    void CallRuntimeHelperRegReg(QuickEntrypointEnum trampoline, RegStorage arg0, RegStorage arg1,
+                                 bool safepoint_pc);
+    void CallRuntimeHelperRegRegImm(QuickEntrypointEnum trampoline, RegStorage arg0,
+                                    RegStorage arg1, int arg2, bool safepoint_pc);
+    void CallRuntimeHelperImmMethodRegLocation(QuickEntrypointEnum trampoline, int arg0,
+                                               RegLocation arg2, bool safepoint_pc);
+    void CallRuntimeHelperImmMethodImm(QuickEntrypointEnum trampoline, int arg0, int arg2,
                                        bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset<pointer_size> helper_offset,
-                                                    int arg0, RegLocation arg1, RegLocation arg2,
+    void CallRuntimeHelperImmRegLocationRegLocation(QuickEntrypointEnum trampoline, int arg0,
+                                                    RegLocation arg1, RegLocation arg2,
                                                     bool safepoint_pc);
-    template <size_t pointer_size>
-    void CallRuntimeHelperRegLocationRegLocationRegLocation(ThreadOffset<pointer_size> helper_offset,
+    void CallRuntimeHelperRegLocationRegLocationRegLocation(QuickEntrypointEnum trampoline,
                                                             RegLocation arg0, RegLocation arg1,
                                                             RegLocation arg2,
                                                             bool safepoint_pc);
@@ -972,7 +956,7 @@ class Mir2Lir : public Backend {
     RegLocation InlineTargetWide(CallInfo* info);
 
     bool GenInlinedGet(CallInfo* info);
-    bool GenInlinedCharAt(CallInfo* info);
+    virtual bool GenInlinedCharAt(CallInfo* info);
     bool GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty);
     virtual bool GenInlinedReverseBits(CallInfo* info, OpSize size);
     bool GenInlinedReverseBytes(CallInfo* info, OpSize size);
@@ -982,10 +966,14 @@ class Mir2Lir : public Backend {
     virtual bool GenInlinedAbsDouble(CallInfo* info) = 0;
     bool GenInlinedFloatCvt(CallInfo* info);
     bool GenInlinedDoubleCvt(CallInfo* info);
+    virtual bool GenInlinedCeil(CallInfo* info);
+    virtual bool GenInlinedFloor(CallInfo* info);
+    virtual bool GenInlinedRint(CallInfo* info);
+    virtual bool GenInlinedRound(CallInfo* info, bool is_double);
     virtual bool GenInlinedArrayCopyCharArray(CallInfo* info);
     virtual bool GenInlinedIndexOf(CallInfo* info, bool zero_based);
     bool GenInlinedStringCompareTo(CallInfo* info);
-    bool GenInlinedCurrentThread(CallInfo* info);
+    virtual bool GenInlinedCurrentThread(CallInfo* info);
     bool GenInlinedUnsafeGet(CallInfo* info, bool is_long, bool is_volatile);
     bool GenInlinedUnsafePut(CallInfo* info, bool is_long, bool is_object,
                              bool is_volatile, bool is_ordered);
@@ -1150,23 +1138,18 @@ class Mir2Lir : public Backend {
     virtual bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) = 0;
     virtual LIR* CheckSuspendUsingLoad() = 0;
 
-    virtual RegStorage LoadHelper(ThreadOffset<4> offset) = 0;
-    virtual RegStorage LoadHelper(ThreadOffset<8> offset) = 0;
+    virtual RegStorage LoadHelper(QuickEntrypointEnum trampoline) = 0;
 
     virtual LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
                               OpSize size, VolatileKind is_volatile) = 0;
     virtual LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest,
                                  int scale, OpSize size) = 0;
-    virtual LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                     int displacement, RegStorage r_dest, OpSize size) = 0;
     virtual LIR* LoadConstantNoClobber(RegStorage r_dest, int value) = 0;
     virtual LIR* LoadConstantWide(RegStorage r_dest, int64_t value) = 0;
     virtual LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
                                OpSize size, VolatileKind is_volatile) = 0;
     virtual LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
                                   int scale, OpSize size) = 0;
-    virtual LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                      int displacement, RegStorage r_src, OpSize size) = 0;
     virtual void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) = 0;
 
     // Required for target - register utilities.
@@ -1193,7 +1176,7 @@ class Mir2Lir : public Backend {
      * @param wide_kind What kind of view of the special register is required.
      * @return Return the #RegStorage corresponding to the given purpose @p reg.
      *
-     * Note: For 32b system, wide (kWide) views only make sense for the argument registers and the
+     * @note For 32b system, wide (kWide) views only make sense for the argument registers and the
      *       return. In that case, this function should return a pair where the first component of
      *       the result will be the indicated special register.
      */
@@ -1262,23 +1245,12 @@ class Mir2Lir : public Backend {
     virtual size_t GetInsnSize(LIR* lir) = 0;
     virtual bool IsUnconditionalBranch(LIR* lir) = 0;
 
-    // Check support for volatile load/store of a given size.
-    virtual bool SupportsVolatileLoadStore(OpSize size) = 0;
     // Get the register class for load/store of a field.
     virtual RegisterClass RegClassForFieldLoadStore(OpSize size, bool is_volatile) = 0;
 
     // Required for target - Dalvik-level generators.
     virtual void GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                                    RegLocation rl_src1, RegLocation rl_src2) = 0;
-    virtual void GenMulLong(Instruction::Code,
-                            RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) = 0;
-    virtual void GenAddLong(Instruction::Code,
-                            RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) = 0;
-    virtual void GenAndLong(Instruction::Code,
-                            RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) = 0;
     virtual void GenArithOpDouble(Instruction::Code opcode,
                                   RegLocation rl_dest, RegLocation rl_src1,
                                   RegLocation rl_src2) = 0;
@@ -1306,16 +1278,6 @@ class Mir2Lir : public Backend {
     virtual bool GenInlinedSqrt(CallInfo* info) = 0;
     virtual bool GenInlinedPeek(CallInfo* info, OpSize size) = 0;
     virtual bool GenInlinedPoke(CallInfo* info, OpSize size) = 0;
-    virtual void GenNotLong(RegLocation rl_dest, RegLocation rl_src) = 0;
-    virtual void GenNegLong(RegLocation rl_dest, RegLocation rl_src) = 0;
-    virtual void GenOrLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                           RegLocation rl_src2) = 0;
-    virtual void GenSubLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) = 0;
-    virtual void GenXorLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) = 0;
-    virtual void GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2, bool is_div) = 0;
     virtual RegLocation GenDivRem(RegLocation rl_dest, RegStorage reg_lo, RegStorage reg_hi,
                                   bool is_div) = 0;
     virtual RegLocation GenDivRemLit(RegLocation rl_dest, RegStorage reg_lo, int lit,
@@ -1372,7 +1334,6 @@ class Mir2Lir : public Backend {
 
     /**
      * @brief Generates code to select one of the given constants depending on the given opcode.
-     * @note Will neither call EvalLoc nor StoreValue for rl_dest.
      */
     virtual void GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
                                   int32_t true_val, int32_t false_val, RegStorage rs_dest,
@@ -1420,7 +1381,6 @@ class Mir2Lir : public Backend {
     virtual void OpRegCopy(RegStorage r_dest, RegStorage r_src) = 0;
     virtual LIR* OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) = 0;
     virtual LIR* OpRegImm(OpKind op, RegStorage r_dest_src1, int value) = 0;
-    virtual LIR* OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int offset) = 0;
     virtual LIR* OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2) = 0;
 
     /**
@@ -1460,19 +1420,16 @@ class Mir2Lir : public Backend {
     virtual LIR* OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1,
                              RegStorage r_src2) = 0;
     virtual LIR* OpTestSuspend(LIR* target) = 0;
-    virtual LIR* OpThreadMem(OpKind op, ThreadOffset<4> thread_offset) = 0;
-    virtual LIR* OpThreadMem(OpKind op, ThreadOffset<8> thread_offset) = 0;
     virtual LIR* OpVldm(RegStorage r_base, int count) = 0;
     virtual LIR* OpVstm(RegStorage r_base, int count) = 0;
-    virtual void OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int scale,
-                       int offset) = 0;
     virtual void OpRegCopyWide(RegStorage dest, RegStorage src) = 0;
-    virtual void OpTlsCmp(ThreadOffset<4> offset, int val) = 0;
-    virtual void OpTlsCmp(ThreadOffset<8> offset, int val) = 0;
     virtual bool InexpensiveConstantInt(int32_t value) = 0;
     virtual bool InexpensiveConstantFloat(int32_t value) = 0;
     virtual bool InexpensiveConstantLong(int64_t value) = 0;
     virtual bool InexpensiveConstantDouble(int64_t value) = 0;
+    virtual bool InexpensiveConstantInt(int32_t value, Instruction::Code opcode) {
+      return InexpensiveConstantInt(value);
+    }
 
     // May be optimized by targets.
     virtual void GenMonitorEnter(int opt_flags, RegLocation rl_src);
@@ -1480,6 +1437,8 @@ class Mir2Lir : public Backend {
 
     // Temp workaround
     void Workaround7250540(RegLocation rl_dest, RegStorage zero_reg);
+
+    virtual LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) = 0;
 
   protected:
     Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
@@ -1534,11 +1493,23 @@ class Mir2Lir : public Backend {
 
     void AddSlowPath(LIRSlowPath* slowpath);
 
-    virtual void GenInstanceofCallingHelper(bool needs_access_check, bool type_known_final,
-                                            bool type_known_abstract, bool use_declaring_class,
-                                            bool can_assume_type_is_in_dex_cache,
-                                            uint32_t type_idx, RegLocation rl_dest,
-                                            RegLocation rl_src);
+    /*
+     *
+     * @brief Implement Set up instanceof a class.
+     * @param needs_access_check 'true' if we must check the access.
+     * @param type_known_final 'true' if the type is known to be a final class.
+     * @param type_known_abstract 'true' if the type is known to be an abstract class.
+     * @param use_declaring_class 'true' if the type can be loaded off the current Method*.
+     * @param can_assume_type_is_in_dex_cache 'true' if the type is known to be in the cache.
+     * @param type_idx Type index to use if use_declaring_class is 'false'.
+     * @param rl_dest Result to be set to 0 or 1.
+     * @param rl_src Object to be tested.
+     */
+    void GenInstanceofCallingHelper(bool needs_access_check, bool type_known_final,
+                                    bool type_known_abstract, bool use_declaring_class,
+                                    bool can_assume_type_is_in_dex_cache,
+                                    uint32_t type_idx, RegLocation rl_dest,
+                                    RegLocation rl_src);
     /*
      * @brief Generate the debug_frame FDE information if possible.
      * @returns pointer to vector containg CFE information, or NULL.
@@ -1729,8 +1700,8 @@ class Mir2Lir : public Backend {
     CodeBuffer code_buffer_;
     // The encoding mapping table data (dex -> pc offset and pc offset -> dex) with a size prefix.
     std::vector<uint8_t> encoded_mapping_table_;
-    std::vector<uint32_t> core_vmap_table_;
-    std::vector<uint32_t> fp_vmap_table_;
+    ArenaVector<uint32_t> core_vmap_table_;
+    ArenaVector<uint32_t> fp_vmap_table_;
     std::vector<uint8_t> native_gc_map_;
     int num_core_spills_;
     int num_fp_spills_;

@@ -292,7 +292,7 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
         branch_normal->target = NewLIR0(kPseudoTargetLabel);
         StoreValueWide(rl_dest, rl_result);
       } else {
-        GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pF2l), rl_dest, rl_src);
+        GenConversionCall(kQuickF2l, rl_dest, rl_src);
       }
       return;
     case Instruction::DOUBLE_TO_LONG:
@@ -317,7 +317,7 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
         branch_normal->target = NewLIR0(kPseudoTargetLabel);
         StoreValueWide(rl_dest, rl_result);
       } else {
-        GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pD2l), rl_dest, rl_src);
+        GenConversionCall(kQuickD2l, rl_dest, rl_src);
       }
       return;
     default:
@@ -703,6 +703,79 @@ bool X86Mir2Lir::GenInlinedAbsDouble(CallInfo* info) {
     StoreValueWide(rl_dest, rl_result);
     return true;
   }
+}
+
+bool X86Mir2Lir::GenInlinedMinMaxFP(CallInfo* info, bool is_min, bool is_double) {
+  if (is_double) {
+    RegLocation rl_src1 = LoadValueWide(info->args[0], kFPReg);
+    RegLocation rl_src2 = LoadValueWide(info->args[2], kFPReg);
+    RegLocation rl_dest = InlineTargetWide(info);
+    RegLocation rl_result = EvalLocWide(rl_dest, kFPReg, true);
+
+    // Avoid src2 corruption by OpRegCopyWide.
+    if (rl_result.reg == rl_src2.reg) {
+        std::swap(rl_src2.reg, rl_src1.reg);
+    }
+
+    OpRegCopyWide(rl_result.reg, rl_src1.reg);
+    NewLIR2(kX86UcomisdRR, rl_result.reg.GetReg(), rl_src2.reg.GetReg());
+    // If either arg is NaN, return NaN.
+    LIR* branch_nan = NewLIR2(kX86Jcc8, 0, kX86CondP);
+    // Min/Max branches.
+    LIR* branch_cond1 = NewLIR2(kX86Jcc8, 0, (is_min) ? kX86CondA : kX86CondB);
+    LIR* branch_cond2 = NewLIR2(kX86Jcc8, 0, (is_min) ? kX86CondB : kX86CondA);
+    // If equal, we need to resolve situations like min/max(0.0, -0.0) == -0.0/0.0.
+    NewLIR2((is_min) ? kX86OrpdRR : kX86AndpdRR, rl_result.reg.GetReg(), rl_src2.reg.GetReg());
+    LIR* branch_exit_equal = NewLIR1(kX86Jmp8, 0);
+    // Handle NaN.
+    branch_nan->target = NewLIR0(kPseudoTargetLabel);
+    LoadConstantWide(rl_result.reg, INT64_C(0x7ff8000000000000));
+    LIR* branch_exit_nan = NewLIR1(kX86Jmp8, 0);
+    // Handle Min/Max. Copy greater/lesser value from src2.
+    branch_cond1->target = NewLIR0(kPseudoTargetLabel);
+    OpRegCopyWide(rl_result.reg, rl_src2.reg);
+    // Right operand is already in result reg.
+    branch_cond2->target = NewLIR0(kPseudoTargetLabel);
+    // Exit.
+    branch_exit_nan->target = NewLIR0(kPseudoTargetLabel);
+    branch_exit_equal->target = NewLIR0(kPseudoTargetLabel);
+    StoreValueWide(rl_dest, rl_result);
+  } else {
+    RegLocation rl_src1 = LoadValue(info->args[0], kFPReg);
+    RegLocation rl_src2 = LoadValue(info->args[1], kFPReg);
+    RegLocation rl_dest = InlineTarget(info);
+    RegLocation rl_result = EvalLoc(rl_dest, kFPReg, true);
+
+    // Avoid src2 corruption by OpRegCopyWide.
+    if (rl_result.reg == rl_src2.reg) {
+        std::swap(rl_src2.reg, rl_src1.reg);
+    }
+
+    OpRegCopy(rl_result.reg, rl_src1.reg);
+    NewLIR2(kX86UcomissRR, rl_result.reg.GetReg(), rl_src2.reg.GetReg());
+    // If either arg is NaN, return NaN.
+    LIR* branch_nan = NewLIR2(kX86Jcc8, 0, kX86CondP);
+    // Min/Max branches.
+    LIR* branch_cond1 = NewLIR2(kX86Jcc8, 0, (is_min) ? kX86CondA : kX86CondB);
+    LIR* branch_cond2 = NewLIR2(kX86Jcc8, 0, (is_min) ? kX86CondB : kX86CondA);
+    // If equal, we need to resolve situations like min/max(0.0, -0.0) == -0.0/0.0.
+    NewLIR2((is_min) ? kX86OrpsRR : kX86AndpsRR, rl_result.reg.GetReg(), rl_src2.reg.GetReg());
+    LIR* branch_exit_equal = NewLIR1(kX86Jmp8, 0);
+    // Handle NaN.
+    branch_nan->target = NewLIR0(kPseudoTargetLabel);
+    LoadConstantNoClobber(rl_result.reg, 0x7fc00000);
+    LIR* branch_exit_nan = NewLIR1(kX86Jmp8, 0);
+    // Handle Min/Max. Copy greater/lesser value from src2.
+    branch_cond1->target = NewLIR0(kPseudoTargetLabel);
+    OpRegCopy(rl_result.reg, rl_src2.reg);
+    // Right operand is already in result reg.
+    branch_cond2->target = NewLIR0(kPseudoTargetLabel);
+    // Exit.
+    branch_exit_nan->target = NewLIR0(kPseudoTargetLabel);
+    branch_exit_equal->target = NewLIR0(kPseudoTargetLabel);
+    StoreValue(rl_dest, rl_result);
+  }
+  return true;
 }
 
 }  // namespace art

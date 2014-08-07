@@ -29,10 +29,13 @@
 namespace art {
 namespace arm {
 
-
 class Thumb2Assembler FINAL : public ArmAssembler {
  public:
-  Thumb2Assembler() : force_32bit_(false), it_cond_index_(kNoItCondition), next_condition_(AL) {
+  explicit Thumb2Assembler(bool force_32bit_branches = false)
+      : force_32bit_branches_(force_32bit_branches),
+        force_32bit_(false),
+        it_cond_index_(kNoItCondition),
+        next_condition_(AL) {
   }
 
   virtual ~Thumb2Assembler() {
@@ -47,6 +50,10 @@ class Thumb2Assembler FINAL : public ArmAssembler {
 
   bool IsForced32Bit() const {
     return force_32bit_;
+  }
+
+  bool IsForced32BitBranches() const {
+    return force_32bit_branches_;
   }
 
   void FinalizeInstructions(const MemoryRegion& region) OVERRIDE {
@@ -412,7 +419,8 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void EmitShift(Register rd, Register rm, Shift shift, uint8_t amount, bool setcc = false);
   void EmitShift(Register rd, Register rn, Shift shift, Register rm, bool setcc = false);
 
-  bool force_32bit_;      // Force the assembler to use 32 bit thumb2 instructions.
+  bool force_32bit_branches_;  // Force the assembler to use 32 bit branch instructions.
+  bool force_32bit_;           // Force the assembler to use 32 bit thumb2 instructions.
 
   // IfThen conditions.  Used to check that conditional instructions match the preceding IT.
   Condition it_conditions_[4];
@@ -605,6 +613,9 @@ class Thumb2Assembler FINAL : public ArmAssembler {
    private:
     // Calculate the size of the branch instruction based on its type and offset.
     Size CalculateSize() const {
+      if (assembler_->IsForced32BitBranches()) {
+        return k32Bit;
+      }
       if (target_ == kUnresolved) {
         if (assembler_->IsForced32Bit() && (type_ == kUnconditional || type_ == kConditional)) {
           return k32Bit;

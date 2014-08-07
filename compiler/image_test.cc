@@ -20,14 +20,15 @@
 #include <string>
 #include <vector>
 
+#include "base/unix_file/fd_file.h"
 #include "common_compiler_test.h"
-#include "compiler/elf_fixup.h"
-#include "compiler/image_writer.h"
-#include "compiler/oat_writer.h"
+#include "elf_fixup.h"
 #include "gc/space/image_space.h"
 #include "image_writer.h"
 #include "lock_word.h"
 #include "mirror/object-inl.h"
+#include "oat_writer.h"
+#include "scoped_thread_state_change.h"
 #include "signal_catcher.h"
 #include "utils.h"
 #include "vector_output_stream.h"
@@ -79,7 +80,7 @@ TEST_F(ImageTest, WriteRead) {
       t.NewTiming("WriteElf");
       ScopedObjectAccess soa(Thread::Current());
       SafeMap<std::string, std::string> key_value_store;
-      OatWriter oat_writer(class_linker->GetBootClassPath(), 0, 0, compiler_driver_.get(), &timings,
+      OatWriter oat_writer(class_linker->GetBootClassPath(), 0, 0, 0, compiler_driver_.get(), &timings,
                            &key_value_store);
       bool success = compiler_driver_->WriteElf(GetTestAndroidRoot(),
                                                 !kIsTargetBuild,
@@ -136,10 +137,12 @@ TEST_F(ImageTest, WriteRead) {
   // Remove the reservation of the memory for use to load the image.
   UnreserveImageSpace();
 
-  Runtime::Options options;
+  RuntimeOptions options;
   std::string image("-Ximage:");
   image.append(image_location.GetFilename());
   options.push_back(std::make_pair(image.c_str(), reinterpret_cast<void*>(NULL)));
+  // By default the compiler this creates will not include patch information.
+  options.push_back(std::make_pair("-Xnorelocate", nullptr));
 
   if (!Runtime::Create(options, false)) {
     LOG(FATAL) << "Failed to create runtime";

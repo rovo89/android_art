@@ -15,7 +15,9 @@
  */
 
 #include "space_test.h"
+
 #include "dlmalloc_space.h"
+#include "scoped_thread_state_change.h"
 
 namespace art {
 namespace gc {

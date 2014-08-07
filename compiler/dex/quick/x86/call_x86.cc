@@ -171,13 +171,7 @@ void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
   }
   NewLIR2(kX86PcRelAdr, payload.GetReg(), WrapPointer(tab_rec));
   OpRegReg(kOpAdd, payload, method_start);
-  if (cu_->target64) {
-    CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pHandleFillArrayData), array_ptr,
-                            payload, true);
-  } else {
-    CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pHandleFillArrayData), array_ptr,
-                            payload, true);
-  }
+  CallRuntimeHelperRegReg(kQuickHandleFillArrayData, array_ptr, payload, true);
 }
 
 void X86Mir2Lir::GenMoveException(RegLocation rl_dest) {
@@ -261,13 +255,8 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
         m2l_->OpRegImm(kOpAdd, rs_rX86_SP, sp_displace_);
         m2l_->ClobberCallerSave();
         // Assumes codegen and target are in thumb2 mode.
-        if (cu_->target64) {
-          m2l_->CallHelper(RegStorage::InvalidReg(), QUICK_ENTRYPOINT_OFFSET(8, pThrowStackOverflow),
-                           false /* MarkSafepointPC */, false /* UseLink */);
-        } else {
-          m2l_->CallHelper(RegStorage::InvalidReg(), QUICK_ENTRYPOINT_OFFSET(4, pThrowStackOverflow),
-                           false /* MarkSafepointPC */, false /* UseLink */);
-        }
+        m2l_->CallHelper(RegStorage::InvalidReg(), kQuickThrowStackOverflow,
+                         false /* MarkSafepointPC */, false /* UseLink */);
       }
 
      private:

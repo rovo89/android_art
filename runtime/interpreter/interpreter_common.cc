@@ -15,6 +15,8 @@
  */
 
 #include "interpreter_common.h"
+
+#include "field_helper.h"
 #include "mirror/array-inl.h"
 
 namespace art {

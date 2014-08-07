@@ -16,6 +16,7 @@
 
 #include "quick_exception_handler.h"
 
+#include "arch/context.h"
 #include "dex_instruction.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "handle_scope-inl.h"

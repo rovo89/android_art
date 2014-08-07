@@ -40,10 +40,12 @@
 #include "dex_file-inl.h"
 #include "dex/pass_driver_me_opts.h"
 #include "dex/verification_results.h"
-#include "driver/compiler_callbacks_impl.h"
+#include "dex/quick_compiler_callbacks.h"
+#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "elf_fixup.h"
+#include "elf_patcher.h"
 #include "elf_stripper.h"
 #include "gc/space/image_space.h"
 #include "gc/space/space-inl.h"
@@ -55,7 +57,6 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "oat_writer.h"
-#include "object_utils.h"
 #include "os.h"
 #include "runtime.h"
 #include "ScopedLocalRef.h"
@@ -232,7 +233,7 @@ static void Usage(const char* fmt, ...) {
 class Dex2Oat {
  public:
   static bool Create(Dex2Oat** p_dex2oat,
-                     const Runtime::Options& runtime_options,
+                     const RuntimeOptions& runtime_options,
                      const CompilerOptions& compiler_options,
                      Compiler::Kind compiler_kind,
                      InstructionSet instruction_set,
@@ -324,11 +325,28 @@ class Dex2Oat {
     return ReadImageClasses(image_classes_stream);
   }
 
+  bool PatchOatCode(const CompilerDriver* compiler_driver, File* oat_file,
+                    const std::string& oat_location, std::string* error_msg) {
+    // We asked to include patch information but we are not making an image. We need to fix
+    // everything up manually.
+    std::unique_ptr<ElfFile> elf_file(ElfFile::Open(oat_file, PROT_READ|PROT_WRITE,
+                                                    MAP_SHARED, error_msg));
+    if (elf_file.get() == NULL) {
+      LOG(ERROR) << error_msg;
+      return false;
+    }
+    {
+      ReaderMutexLock mu(Thread::Current(), *Locks::mutator_lock_);
+      return ElfPatcher::Patch(compiler_driver, elf_file.get(), oat_location, error_msg);
+    }
+  }
+
   const CompilerDriver* CreateOatFile(const std::string& boot_image_option,
                                       const std::string& android_root,
                                       bool is_host,
                                       const std::vector<const DexFile*>& dex_files,
                                       File* oat_file,
+                                      const std::string& oat_location,
                                       const std::string& bitcode_filename,
                                       bool image,
                                       std::unique_ptr<CompilerDriver::DescriptorSet>& image_classes,
@@ -380,6 +398,7 @@ class Dex2Oat {
     std::string image_file_location;
     uint32_t image_file_location_oat_checksum = 0;
     uintptr_t image_file_location_oat_data_begin = 0;
+    int32_t image_patch_delta = 0;
     if (!driver->IsImage()) {
       TimingLogger::ScopedTiming t3("Loading image checksum", &timings);
       gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
@@ -387,6 +406,7 @@ class Dex2Oat {
       image_file_location_oat_data_begin =
           reinterpret_cast<uintptr_t>(image_space->GetImageHeader().GetOatDataBegin());
       image_file_location = image_space->GetImageFilename();
+      image_patch_delta = image_space->GetImageHeader().GetPatchDelta();
     }
 
     if (!image_file_location.empty()) {
@@ -395,6 +415,7 @@ class Dex2Oat {
 
     OatWriter oat_writer(dex_files, image_file_location_oat_checksum,
                          image_file_location_oat_data_begin,
+                         image_patch_delta,
                          driver.get(),
                          &timings,
                          key_value_store);
@@ -403,6 +424,15 @@ class Dex2Oat {
     if (!driver->WriteElf(android_root, is_host, dex_files, &oat_writer, oat_file)) {
       LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
       return nullptr;
+    }
+
+    if (!driver->IsImage() && driver->GetCompilerOptions().GetIncludePatchInformation()) {
+      t2.NewTiming("Patching ELF");
+      std::string error_msg;
+      if (!PatchOatCode(driver.get(), oat_file, oat_location, &error_msg)) {
+        LOG(ERROR) << "Failed to fixup ELF file " << oat_file->GetPath() << ": " << error_msg;
+        return nullptr;
+      }
     }
 
     return driver.release();
@@ -459,7 +489,7 @@ class Dex2Oat {
     CHECK(method_inliner_map != nullptr);
   }
 
-  bool CreateRuntime(const Runtime::Options& runtime_options, InstructionSet instruction_set)
+  bool CreateRuntime(const RuntimeOptions& runtime_options, InstructionSet instruction_set)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
     if (!Runtime::Create(runtime_options, false)) {
       LOG(ERROR) << "Failed to create runtime";
@@ -818,7 +848,6 @@ static int dex2oat(int argc, char** argv) {
   bool dump_timing = false;
   bool dump_passes = false;
   bool include_patch_information = CompilerOptions::kDefaultIncludePatchInformation;
-  bool explicit_include_patch_information = false;
   bool include_debug_symbols = kIsDebugBuild;
   bool dump_slow_timing = kIsDebugBuild;
   bool watch_dog_enabled = !kIsTargetBuild;
@@ -1006,10 +1035,8 @@ static int dex2oat(int argc, char** argv) {
       PassDriverMEOpts::SetDumpPassList(dump_passes);
     } else if (option == "--include-patch-information") {
       include_patch_information = true;
-      explicit_include_patch_information = true;
     } else if (option == "--no-include-patch-information") {
       include_patch_information = false;
-      explicit_include_patch_information = true;
     } else {
       Usage("Unknown argument %s", option.data());
     }
@@ -1136,11 +1163,6 @@ static int dex2oat(int argc, char** argv) {
     Usage("Unknown --compiler-filter value %s", compiler_filter_string);
   }
 
-  if (!explicit_include_patch_information) {
-    include_patch_information =
-        (compiler_kind == Compiler::kQuick && CompilerOptions::kDefaultIncludePatchInformation);
-  }
-
   // Set the compilation target's implicit checks options.
   switch (instruction_set) {
     case kArm:
@@ -1201,7 +1223,7 @@ static int dex2oat(int argc, char** argv) {
   timings.StartTiming("dex2oat Setup");
   LOG(INFO) << CommandLine();
 
-  Runtime::Options runtime_options;
+  RuntimeOptions runtime_options;
   std::vector<const DexFile*> boot_class_path;
   if (boot_image_option.empty()) {
     size_t failure_count = OpenDexFiles(dex_filenames, dex_locations, boot_class_path);
@@ -1220,7 +1242,7 @@ static int dex2oat(int argc, char** argv) {
   std::unique_ptr<VerificationResults> verification_results(new VerificationResults(
                                                             compiler_options.get()));
   DexFileToMethodInlinerMap method_inliner_map;
-  CompilerCallbacksImpl callbacks(verification_results.get(), &method_inliner_map);
+  QuickCompilerCallbacks callbacks(verification_results.get(), &method_inliner_map);
   runtime_options.push_back(std::make_pair("compilercallbacks", &callbacks));
   runtime_options.push_back(
       std::make_pair("imageinstructionset",
@@ -1361,6 +1383,7 @@ static int dex2oat(int argc, char** argv) {
                                                                         is_host,
                                                                         dex_files,
                                                                         oat_file.get(),
+                                                                        oat_location,
                                                                         bitcode_filename,
                                                                         image,
                                                                         image_classes,
@@ -1370,7 +1393,6 @@ static int dex2oat(int argc, char** argv) {
                                                                         compiler_phases_timings,
                                                                         profile_file,
                                                                         key_value_store.get()));
-
   if (compiler.get() == nullptr) {
     LOG(ERROR) << "Failed to create oat file: " << oat_location;
     return EXIT_FAILURE;
@@ -1420,9 +1442,9 @@ static int dex2oat(int argc, char** argv) {
   // memory mapped so we could predict where its contents were based
   // on the file size. Now that it is an ELF file, we need to inspect
   // the ELF file to understand the in memory segment layout including
-  // where the oat header is located within. ImageWriter's
-  // PatchOatCodeAndMethods uses the PatchInformation from the
-  // Compiler to touch up absolute references in the oat file.
+  // where the oat header is located within. ElfPatcher's Patch method
+  // uses the PatchInformation from the Compiler to touch up absolute
+  // references in the oat file.
   //
   // 3. We fixup the ELF program headers so that dlopen will try to
   // load the .so at the desired location at runtime by offsetting the

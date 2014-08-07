@@ -18,9 +18,10 @@
 #define ART_RUNTIME_MIRROR_REFERENCE_H_
 
 #include "class.h"
+#include "gc_root.h"
 #include "object.h"
 #include "object_callbacks.h"
-#include "read_barrier.h"
+#include "read_barrier_option.h"
 #include "thread.h"
 
 namespace art {
@@ -94,9 +95,8 @@ class MANAGED Reference : public Object {
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   static Class* GetJavaLangRefReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(java_lang_ref_Reference_ != nullptr);
-    return ReadBarrier::BarrierForRoot<mirror::Class, kReadBarrierOption>(
-        &java_lang_ref_Reference_);
+    DCHECK(!java_lang_ref_Reference_.IsNull());
+    return java_lang_ref_Reference_.Read<kReadBarrierOption>();
   }
   static void SetClass(Class* klass);
   static void ResetClass(void);
@@ -114,7 +114,7 @@ class MANAGED Reference : public Object {
   HeapReference<Reference> queue_next_;  // Note this is Java volatile:
   HeapReference<Object> referent_;  // Note this is Java volatile:
 
-  static Class* java_lang_ref_Reference_;
+  static GcRoot<Class> java_lang_ref_Reference_;
 
   friend struct art::ReferenceOffsets;  // for verifying offset information
   friend class gc::ReferenceProcessor;

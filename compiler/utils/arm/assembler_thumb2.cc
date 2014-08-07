@@ -619,7 +619,8 @@ bool Thumb2Assembler::Is32BitDataProcessing(Condition cond,
     return true;
   }
 
-  bool can_contain_high_register = opcode == MOV || opcode == ADD || opcode == SUB;
+  bool can_contain_high_register = (opcode == MOV)
+      || ((opcode == ADD || opcode == SUB) && (rn == rd));
 
   if (IsHighRegister(rd) || IsHighRegister(rn)) {
     if (can_contain_high_register) {
@@ -656,6 +657,10 @@ bool Thumb2Assembler::Is32BitDataProcessing(Condition cond,
     // The ADD,SUB and MOV instructions that work with high registers don't have
     // immediate variants.
     if (so.IsImmediate()) {
+      return true;
+    }
+
+    if (!can_contain_high_register) {
       return true;
     }
   }
@@ -757,23 +762,21 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond,
   int32_t encoding = 0;
   if (so.IsImmediate()) {
     // Check special cases.
-    if ((opcode == SUB || opcode == ADD) && rn == SP) {
-      // There are special ADD/SUB rd, SP, #imm12 instructions.
+    if ((opcode == SUB || opcode == ADD) && (so.GetImmediate() < (1u << 12))) {
       if (opcode == SUB) {
         thumb_opcode = 0b0101;
       } else {
         thumb_opcode = 0;
       }
       uint32_t imm = so.GetImmediate();
-      CHECK_LT(imm, (1u << 12));
 
       uint32_t i = (imm >> 11) & 1;
       uint32_t imm3 = (imm >> 8) & 0b111;
       uint32_t imm8 = imm & 0xff;
 
       encoding = B31 | B30 | B29 | B28 | B25 |
-           B19 | B18 | B16 |
            thumb_opcode << 21 |
+           rn << 16 |
            rd << 8 |
            i << 26 |
            imm3 << 12 |
@@ -877,11 +880,17 @@ void Thumb2Assembler::Emit16BitDataProcessing(Condition cond,
            rn_shift = 8;
         } else {
           thumb_opcode = 0b1010;
+          rd = rn;
           rn = so.GetRegister();
         }
 
         break;
-      case CMN: thumb_opcode = 0b1011; rn = so.GetRegister(); break;
+      case CMN: {
+        thumb_opcode = 0b1011;
+        rd = rn;
+        rn = so.GetRegister();
+        break;
+      }
       case ORR: thumb_opcode = 0b1100; break;
       case MOV:
         dp_opcode = 0;
@@ -1371,13 +1380,23 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
       }
 
       if (must_be_32bit) {
-        int32_t encoding = 0x1f << 27 | B22 | (load ? B20 : 0) | static_cast<uint32_t>(rd) << 12 |
+        int32_t encoding = 0x1f << 27 | (load ? B20 : 0) | static_cast<uint32_t>(rd) << 12 |
             ad.encodingThumb(true);
+        if (half) {
+          encoding |= B21;
+        } else if (!byte) {
+          encoding |= B22;
+        }
         Emit32(encoding);
       } else {
         // 16 bit register offset.
         int32_t encoding = B14 | B12 | (load ? B11 : 0) | static_cast<uint32_t>(rd) |
             ad.encodingThumb(false);
+        if (byte) {
+          encoding |= B10;
+        } else if (half) {
+          encoding |= B9;
+        }
         Emit16(encoding);
       }
     }
@@ -1470,6 +1489,7 @@ void Thumb2Assembler::EmitBranch(Condition cond, Label* label, bool link, bool x
     // branch the size may change if it so happens that other branches change size that change
     // the distance to the target and that distance puts this branch over the limit for 16 bits.
     if (size == Branch::k16Bit) {
+      DCHECK(!force_32bit_branches_);
       Emit16(0);          // Space for a 16 bit branch.
     } else {
       Emit32(0);            // Space for a 32 bit branch.
@@ -1477,7 +1497,7 @@ void Thumb2Assembler::EmitBranch(Condition cond, Label* label, bool link, bool x
   } else {
     // Branch is to an unbound label.  Emit space for it.
     uint16_t branch_id = AddBranch(branch_type, pc, cond);    // Unresolved branch.
-    if (force_32bit_) {
+    if (force_32bit_branches_ || force_32bit_) {
       Emit16(static_cast<uint16_t>(label->position_));    // Emit current label link.
       Emit16(0);                   // another 16 bits.
     } else {
@@ -2073,6 +2093,7 @@ void Thumb2Assembler::Bind(Label* label) {
     uint32_t branch_location = branch->GetLocation();
     uint16_t next = buffer_.Load<uint16_t>(branch_location);       // Get next in chain.
     if (changed) {
+      DCHECK(!force_32bit_branches_);
       MakeHoleForBranch(branch->GetLocation(), 2);
       if (branch->IsCompareAndBranch()) {
         // A cbz/cbnz instruction has changed size.  There is no valid encoding for
@@ -2506,12 +2527,22 @@ void Thumb2Assembler::MemoryBarrier(ManagedRegister mscratch) {
 
 
 void Thumb2Assembler::CompareAndBranchIfZero(Register r, Label* label) {
-  cbz(r, label);
+  if (force_32bit_branches_) {
+    cmp(r, ShifterOperand(0));
+    b(label, EQ);
+  } else {
+    cbz(r, label);
+  }
 }
 
 
 void Thumb2Assembler::CompareAndBranchIfNonZero(Register r, Label* label) {
-  cbnz(r, label);
+  if (force_32bit_branches_) {
+    cmp(r, ShifterOperand(0));
+    b(label, NE);
+  } else {
+    cbnz(r, label);
+  }
 }
 }  // namespace arm
 }  // namespace art

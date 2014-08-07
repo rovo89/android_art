@@ -27,10 +27,12 @@ namespace art {
 namespace mirror {
 class Object;
 }
+
 class Thread;
 
-// HandleScopes can be allocated within the bridge frame between managed and native code backed by
-// stack storage or manually allocated in native.
+// HandleScopes are scoped objects containing a number of Handles. They are used to allocate
+// handles, for these handles (and the objects contained within them) to be visible/roots for the
+// GC. It is most common to stack allocate HandleScopes using StackHandleScope.
 class PACKED(4) HandleScope {
  public:
   ~HandleScope() {}
@@ -130,6 +132,7 @@ class PACKED(4) HandleScope {
 
  private:
   template<size_t kNumReferences> friend class StackHandleScope;
+
   DISALLOW_COPY_AND_ASSIGN(HandleScope);
 };
 
@@ -152,7 +155,7 @@ class HandleWrapper : public Handle<T> {
 
 // Scoped handle storage of a fixed size that is usually stack allocated.
 template<size_t kNumReferences>
-class PACKED(4) StackHandleScope : public HandleScope {
+class PACKED(4) StackHandleScope FINAL : public HandleScope {
  public:
   explicit StackHandleScope(Thread* self);
   ~StackHandleScope();
@@ -181,20 +184,29 @@ class PACKED(4) StackHandleScope : public HandleScope {
   template<class T>
   Handle<T> NewHandle(T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     SetReference(pos_, object);
-    return Handle<T>(GetHandle(pos_++));
+    Handle<T> h(GetHandle(pos_));
+    pos_++;
+    return h;
   }
 
   template<class T>
   HandleWrapper<T> NewHandleWrapper(T** object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     SetReference(pos_, *object);
-    Handle<T> h(GetHandle(pos_++));
+    Handle<T> h(GetHandle(pos_));
+    pos_++;
     return HandleWrapper<T>(object, h);
   }
 
  private:
-  // references_storage_ needs to be first so that it matches the address of references_.
+  // References_storage_ needs to be first so that it appears in the same location as
+  // HandleScope::references_.
   StackReference<mirror::Object> references_storage_[kNumReferences];
+
+  // The thread that the stack handle scope is a linked list upon. The stack handle scope will
+  // push and pop itself from this thread.
   Thread* const self_;
+
+  // Position new handles will be created.
   size_t pos_;
 
   template<size_t kNumRefs> friend class StackHandleScope;

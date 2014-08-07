@@ -20,6 +20,7 @@
 
 #include "atomic.h"
 #include "common_runtime_test.h"
+#include "thread-inl.h"
 
 namespace art {
 

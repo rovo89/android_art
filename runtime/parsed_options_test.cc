@@ -36,7 +36,7 @@ TEST_F(ParsedOptionsTest, ParsedOptions) {
   boot_class_path += "-Xbootclasspath:";
   boot_class_path += lib_core;
 
-  Runtime::Options options;
+  RuntimeOptions options;
   options.push_back(std::make_pair(boot_class_path.c_str(), null));
   options.push_back(std::make_pair("-classpath", null));
   options.push_back(std::make_pair(lib_core.c_str(), null));

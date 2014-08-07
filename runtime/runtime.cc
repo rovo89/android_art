@@ -49,6 +49,7 @@
 #include "fault_handler.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
+#include "gc/space/image_space.h"
 #include "gc/space/space.h"
 #include "image.h"
 #include "instrumentation.h"
@@ -62,6 +63,7 @@
 #include "mirror/stack_trace_element.h"
 #include "mirror/throwable.h"
 #include "monitor.h"
+#include "native_bridge.h"
 #include "parsed_options.h"
 #include "oat_file.h"
 #include "quick/quick_method_frame_info.h"
@@ -93,13 +95,10 @@ const char* Runtime::kDefaultInstructionSetFeatures =
 Runtime* Runtime::instance_ = NULL;
 
 Runtime::Runtime()
-    : pre_allocated_OutOfMemoryError_(nullptr),
-      resolution_method_(nullptr),
-      imt_conflict_method_(nullptr),
-      default_imt_(nullptr),
-      instruction_set_(kNone),
+    : instruction_set_(kNone),
       compiler_callbacks_(nullptr),
       is_zygote_(false),
+      must_relocate_(false),
       is_concurrent_gc_enabled_(true),
       is_explicit_gc_disabled_(false),
       default_stack_size_(0),
@@ -144,9 +143,6 @@ Runtime::Runtime()
       implicit_null_checks_(false),
       implicit_so_checks_(false),
       implicit_suspend_checks_(false) {
-  for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
-    callee_save_methods_[i] = nullptr;
-  }
 }
 
 Runtime::~Runtime() {
@@ -320,7 +316,7 @@ void Runtime::SweepSystemWeaks(IsMarkedCallback* visitor, void* arg) {
   GetJavaVM()->SweepJniWeakGlobals(visitor, arg);
 }
 
-bool Runtime::Create(const Options& options, bool ignore_unrecognized) {
+bool Runtime::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
   // TODO: acquire a static mutex on Runtime to avoid racing.
   if (Runtime::instance_ != NULL) {
     return false;
@@ -375,6 +371,15 @@ jobject CreateSystemClassLoader() {
   contextClassLoader->SetObject<false>(soa.Self()->GetPeer(), class_loader.Get());
 
   return env->NewGlobalRef(system_class_loader.get());
+}
+
+std::string Runtime::GetPatchoatExecutable() const {
+  if (!patchoat_executable_.empty()) {
+    return patchoat_executable_;
+  }
+  std::string patchoat_executable_(GetAndroidRoot());
+  patchoat_executable_ += (kIsDebugBuild ? "/bin/patchoatd" : "/bin/patchoat");
+  return patchoat_executable_;
 }
 
 std::string Runtime::GetCompilerExecutable() const {
@@ -530,7 +535,7 @@ void Runtime::StartDaemonThreads() {
   VLOG(startup) << "Runtime::StartDaemonThreads exiting";
 }
 
-bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
+bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) {
   CHECK_EQ(sysconf(_SC_PAGE_SIZE), kPageSize);
 
   std::unique_ptr<ParsedOptions> options(ParsedOptions::Create(raw_options, ignore_unrecognized));
@@ -549,6 +554,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   properties_ = options->properties_;
 
   compiler_callbacks_ = options->compiler_callbacks_;
+  patchoat_executable_ = options->patchoat_executable_;
+  must_relocate_ = options->must_relocate_;
   is_zygote_ = options->is_zygote_;
   is_explicit_gc_disabled_ = options->is_explicit_gc_disabled_;
 
@@ -621,8 +628,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
       break;
   }
 
-  if (!options->interpreter_only_ &&
-    (implicit_null_checks_ || implicit_so_checks_ || implicit_suspend_checks_)) {
+  if (implicit_null_checks_ || implicit_so_checks_ || implicit_suspend_checks_) {
     fault_manager.Init();
 
     // These need to be in a specific order.  The null point check handler must be
@@ -696,8 +702,11 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   self->ThrowNewException(ThrowLocation(), "Ljava/lang/OutOfMemoryError;",
                           "OutOfMemoryError thrown while trying to throw OutOfMemoryError; "
                           "no stack available");
-  pre_allocated_OutOfMemoryError_ = self->GetException(NULL);
+  pre_allocated_OutOfMemoryError_ = GcRoot<mirror::Throwable>(self->GetException(NULL));
   self->ClearException();
+
+  // Look for a native bridge.
+  NativeBridge::SetNativeBridgeLibraryString(options->native_bridge_library_string_);
 
   VLOG(startup) << "Runtime::Init exiting";
   return true;
@@ -907,11 +916,12 @@ void Runtime::DetachCurrentThread() {
   thread_list_->Unregister(self);
 }
 
-  mirror::Throwable* Runtime::GetPreAllocatedOutOfMemoryError() const {
-  if (pre_allocated_OutOfMemoryError_ == NULL) {
+mirror::Throwable* Runtime::GetPreAllocatedOutOfMemoryError() {
+  mirror::Throwable* oome = pre_allocated_OutOfMemoryError_.Read();
+  if (oome == NULL) {
     LOG(ERROR) << "Failed to return pre-allocated OOME";
   }
-  return pre_allocated_OutOfMemoryError_;
+  return oome;
 }
 
 void Runtime::VisitConstantRoots(RootCallback* callback, void* arg) {
@@ -946,23 +956,21 @@ void Runtime::VisitConcurrentRoots(RootCallback* callback, void* arg, VisitRootF
 
 void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
   java_vm_->VisitRoots(callback, arg);
-  if (pre_allocated_OutOfMemoryError_ != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&pre_allocated_OutOfMemoryError_), arg, 0,
-             kRootVMInternal);
-    DCHECK(pre_allocated_OutOfMemoryError_ != nullptr);
+  if (!pre_allocated_OutOfMemoryError_.IsNull()) {
+    pre_allocated_OutOfMemoryError_.VisitRoot(callback, arg, 0, kRootVMInternal);
+    DCHECK(!pre_allocated_OutOfMemoryError_.IsNull());
   }
-  callback(reinterpret_cast<mirror::Object**>(&resolution_method_), arg, 0, kRootVMInternal);
-  DCHECK(resolution_method_ != nullptr);
+  resolution_method_.VisitRoot(callback, arg, 0, kRootVMInternal);
+  DCHECK(!resolution_method_.IsNull());
   if (HasImtConflictMethod()) {
-    callback(reinterpret_cast<mirror::Object**>(&imt_conflict_method_), arg, 0, kRootVMInternal);
+    imt_conflict_method_.VisitRoot(callback, arg, 0, kRootVMInternal);
   }
   if (HasDefaultImt()) {
-    callback(reinterpret_cast<mirror::Object**>(&default_imt_), arg, 0, kRootVMInternal);
+    default_imt_.VisitRoot(callback, arg, 0, kRootVMInternal);
   }
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
-    if (callee_save_methods_[i] != nullptr) {
-      callback(reinterpret_cast<mirror::Object**>(&callee_save_methods_[i]), arg, 0,
-               kRootVMInternal);
+    if (!callee_save_methods_[i].IsNull()) {
+      callee_save_methods_[i].VisitRoot(callback, arg, 0, kRootVMInternal);
     }
   }
   {
@@ -1100,7 +1108,7 @@ void Runtime::SetInstructionSet(InstructionSet instruction_set) {
 
 void Runtime::SetCalleeSaveMethod(mirror::ArtMethod* method, CalleeSaveType type) {
   DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastCalleeSaveType));
-  callee_save_methods_[type] = method;
+  callee_save_methods_[type] = GcRoot<mirror::ArtMethod>(method);
 }
 
 const std::vector<const DexFile*>& Runtime::GetCompileTimeClassPath(jobject class_loader) {

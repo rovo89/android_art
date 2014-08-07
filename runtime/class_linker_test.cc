@@ -23,6 +23,7 @@
 #include "common_runtime_test.h"
 #include "dex_file.h"
 #include "entrypoints/entrypoint_utils-inl.h"
+#include "field_helper.h"
 #include "gc/heap.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method.h"
@@ -36,6 +37,8 @@
 #include "mirror/stack_trace_element.h"
 #include "mirror/string-inl.h"
 #include "handle_scope-inl.h"
+#include "scoped_thread_state_change.h"
+#include "thread-inl.h"
 
 namespace art {
 

@@ -79,6 +79,7 @@ class OatWriter {
   OatWriter(const std::vector<const DexFile*>& dex_files,
             uint32_t image_file_location_oat_checksum,
             uintptr_t image_file_location_oat_begin,
+            int32_t image_patch_delta,
             const CompilerDriver* compiler,
             TimingLogger* timings,
             SafeMap<std::string, std::string>* key_value_store);
@@ -253,6 +254,7 @@ class OatWriter {
   // dependencies on the image.
   uint32_t image_file_location_oat_checksum_;
   uintptr_t image_file_location_oat_begin_;
+  int32_t image_patch_delta_;
 
   // data to write
   SafeMap<std::string, std::string>* key_value_store_;

@@ -18,7 +18,6 @@
 #include "dex/dataflow_iterator-inl.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "mir_to_lir-inl.h"
-#include "object_utils.h"
 #include "thread-inl.h"
 
 namespace art {
@@ -227,9 +226,6 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
   bool wide = (data.op_variant == InlineMethodAnalyser::IGetVariant(Instruction::IGET_WIDE));
   bool ref = (data.op_variant == InlineMethodAnalyser::IGetVariant(Instruction::IGET_OBJECT));
   OpSize size = LoadStoreOpSize(wide, ref);
-  if (data.is_volatile && !SupportsVolatileLoadStore(size)) {
-    return false;
-  }
 
   // Point of no return - no aborts after this
   GenPrintLabel(mir);
@@ -274,9 +270,6 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
   bool wide = (data.op_variant == InlineMethodAnalyser::IPutVariant(Instruction::IPUT_WIDE));
   bool ref = (data.op_variant == InlineMethodAnalyser::IGetVariant(Instruction::IGET_OBJECT));
   OpSize size = LoadStoreOpSize(wide, ref);
-  if (data.is_volatile && !SupportsVolatileLoadStore(size)) {
-    return false;
-  }
 
   // Point of no return - no aborts after this
   GenPrintLabel(mir);
@@ -933,11 +926,11 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::XOR_INT:
     case Instruction::XOR_INT_2ADDR:
       if (rl_src[0].is_const &&
-          InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src[0]))) {
+          InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src[0]), opcode)) {
         GenArithOpIntLit(opcode, rl_dest, rl_src[1],
                              mir_graph_->ConstantValue(rl_src[0].orig_sreg));
       } else if (rl_src[1].is_const &&
-          InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src[1]))) {
+                 InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src[1]), opcode)) {
         GenArithOpIntLit(opcode, rl_dest, rl_src[0],
                              mir_graph_->ConstantValue(rl_src[1].orig_sreg));
       } else {
@@ -958,7 +951,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::USHR_INT:
     case Instruction::USHR_INT_2ADDR:
       if (rl_src[1].is_const &&
-          InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src[1]))) {
+          InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src[1]), opcode)) {
         GenArithOpIntLit(opcode, rl_dest, rl_src[0], mir_graph_->ConstantValue(rl_src[1]));
       } else {
         GenArithOpInt(opcode, rl_dest, rl_src[0], rl_src[1]);
@@ -1316,6 +1309,11 @@ void Mir2Lir::CheckRegLocationImpl(RegLocation rl, bool fail, bool report) const
   // will be stored.
   CheckRegStorageImpl(rl.reg, rl.wide ? WidenessCheck::kCheckWide : WidenessCheck::kCheckNotWide,
       rl.ref ? RefCheck::kCheckRef : RefCheck::kCheckNotRef, FPCheck::kIgnoreFP, fail, report);
+}
+
+size_t Mir2Lir::GetInstructionOffset(LIR* lir) {
+  UNIMPLEMENTED(FATAL) << "Unsuppored GetInstructionOffset()";
+  return 0;
 }
 
 }  // namespace art

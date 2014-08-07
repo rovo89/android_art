@@ -20,14 +20,14 @@
 #include "common_throws.h"
 #include "dex_file-inl.h"
 #include "jni_internal.h"
+#include "method_helper-inl.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
-#include "mirror/class.h"
 #include "mirror/class-inl.h"
-#include "mirror/object_array.h"
+#include "mirror/class.h"
 #include "mirror/object_array-inl.h"
+#include "mirror/object_array.h"
 #include "nth_caller_visitor.h"
-#include "object_utils.h"
 #include "scoped_thread_state_change.h"
 #include "stack.h"
 #include "well_known_classes.h"
@@ -565,6 +565,11 @@ bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c) {
     return false;
   }
   return true;
+}
+
+static std::string PrettyDescriptor(Primitive::Type type) {
+  std::string descriptor_string(Primitive::Descriptor(type));
+  return PrettyDescriptor(descriptor_string);
 }
 
 bool ConvertPrimitiveValue(const ThrowLocation* throw_location, bool unbox_for_result,

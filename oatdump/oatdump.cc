@@ -29,6 +29,7 @@
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "disassembler.h"
+#include "field_helper.h"
 #include "gc_map.h"
 #include "gc/space/image_space.h"
 #include "gc/space/large_object_space.h"
@@ -45,7 +46,6 @@
 #include "noop_compiler_callbacks.h"
 #include "oat.h"
 #include "oat_file-inl.h"
-#include "object_utils.h"
 #include "os.h"
 #include "runtime.h"
 #include "safe_map.h"
@@ -164,6 +164,8 @@ class OatDumper {
     DUMP_OAT_HEADER_OFFSET("QUICK TO INTERPRETER BRIDGE",
                            GetQuickToInterpreterBridgeOffset);
 #undef DUMP_OAT_HEADER_OFFSET
+
+    os << "IMAGE PATCH DELTA:\n" << oat_header.GetImagePatchDelta();
 
     os << "IMAGE FILE LOCATION OAT CHECKSUM:\n";
     os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationOatChecksum());
@@ -771,6 +773,8 @@ class ImageDumper {
 
     os << "OAT FILE END:" << reinterpret_cast<void*>(image_header_.GetOatFileEnd()) << "\n\n";
 
+    os << "PATCH DELTA:" << image_header_.GetPatchDelta() << "\n\n";
+
     {
       os << "ROOTS: " << reinterpret_cast<void*>(image_header_.GetImageRoots()) << "\n";
       Indenter indent1_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
@@ -819,10 +823,13 @@ class ImageDumper {
     os << "OAT LOCATION: " << oat_location;
     os << "\n";
     std::string error_msg;
-    const OatFile* oat_file = class_linker->FindOatFileFromOatLocation(oat_location, &error_msg);
-    if (oat_file == NULL) {
-      os << "NOT FOUND: " << error_msg << "\n";
-      return;
+    const OatFile* oat_file = class_linker->FindOpenedOatFileFromOatLocation(oat_location);
+    if (oat_file == nullptr) {
+      oat_file = OatFile::Open(oat_location, oat_location, NULL, false, &error_msg);
+      if (oat_file == nullptr) {
+        os << "NOT FOUND: " << error_msg << "\n";
+        return;
+      }
     }
     os << "\n";
 
@@ -1548,7 +1555,7 @@ static int oatdump(int argc, char** argv) {
     return EXIT_SUCCESS;
   }
 
-  Runtime::Options options;
+  RuntimeOptions options;
   std::string image_option;
   std::string oat_option;
   std::string boot_image_option;

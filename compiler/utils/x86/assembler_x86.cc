@@ -806,6 +806,13 @@ void X86Assembler::testl(Register reg1, Register reg2) {
 }
 
 
+void X86Assembler::testl(Register reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x85);
+  EmitOperand(reg, address);
+}
+
+
 void X86Assembler::testl(Register reg, const Immediate& immediate) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   // For registers that have a byte variant (EAX, EBX, ECX, and EDX)

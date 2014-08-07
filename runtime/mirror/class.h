@@ -18,6 +18,7 @@
 #define ART_RUNTIME_MIRROR_CLASS_H_
 
 #include "dex_file.h"
+#include "gc_root.h"
 #include "gc/allocator_type.h"
 #include "invoke_type.h"
 #include "modifiers.h"
@@ -25,7 +26,7 @@
 #include "object_array.h"
 #include "object_callbacks.h"
 #include "primitive.h"
-#include "read_barrier.h"
+#include "read_barrier_option.h"
 
 /*
  * A magic value for refOffsets. Ignore the bits and walk the super
@@ -936,9 +937,8 @@ class MANAGED Class FINAL : public Object {
   }
 
   static Class* GetJavaLangClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(java_lang_Class_ != NULL);
-    return ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(
-        &java_lang_Class_);
+    DCHECK(!java_lang_Class_.IsNull());
+    return java_lang_Class_.Read();
   }
 
   // Can't call this SetClass or else gets called instead of Object::SetClass in places.
@@ -1156,7 +1156,7 @@ class MANAGED Class FINAL : public Object {
   uint32_t fields_[0];
 
   // java.lang.Class
-  static Class* java_lang_Class_;
+  static GcRoot<Class> java_lang_Class_;
 
   friend struct art::ClassOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(Class);

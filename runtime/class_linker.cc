@@ -34,6 +34,7 @@
 #include "compiler_callbacks.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
+#include "gc_root-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "gc/heap.h"
@@ -42,8 +43,10 @@
 #include "intern_table.h"
 #include "interpreter/interpreter.h"
 #include "leb128.h"
+#include "method_helper.h"
 #include "oat.h"
 #include "oat_file.h"
+#include "object_lock.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class.h"
@@ -57,7 +60,6 @@
 #include "mirror/reference-inl.h"
 #include "mirror/stack_trace_element.h"
 #include "mirror/string-inl.h"
-#include "object_utils.h"
 #include "os.h"
 #include "runtime.h"
 #include "entrypoints/entrypoint_utils.h"
@@ -266,9 +268,10 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   java_lang_ref_Reference->SetStatus(mirror::Class::kStatusResolved, self);
 
   // Create storage for root classes, save away our work so far (requires descriptors).
-  class_roots_ = mirror::ObjectArray<mirror::Class>::Alloc(self, object_array_class.Get(),
-                                                           kClassRootsMax);
-  CHECK(class_roots_ != NULL);
+  class_roots_ = GcRoot<mirror::ObjectArray<mirror::Class> >(
+      mirror::ObjectArray<mirror::Class>::Alloc(self, object_array_class.Get(),
+                                                kClassRootsMax));
+  CHECK(!class_roots_.IsNull());
   SetClassRoot(kJavaLangClass, java_lang_Class.Get());
   SetClassRoot(kJavaLangObject, java_lang_Object.Get());
   SetClassRoot(kClassArrayClass, class_array_class.Get());
@@ -288,7 +291,7 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   SetClassRoot(kPrimitiveVoid, CreatePrimitiveClass(self, Primitive::kPrimVoid));
 
   // Create array interface entries to populate once we can load system classes.
-  array_iftable_ = AllocIfTable(self, 2);
+  array_iftable_ = GcRoot<mirror::IfTable>(AllocIfTable(self, 2));
 
   // Create int array type for AllocDexCache (done in AppendToBootClassPath).
   Handle<mirror::Class> int_array_class(hs.NewHandle(
@@ -427,8 +430,7 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   // We assume that Cloneable/Serializable don't have superinterfaces -- normally we'd have to
   // crawl up and explicitly list all of the supers as well.
   {
-    mirror::IfTable* array_iftable =
-        ReadBarrier::BarrierForRoot<mirror::IfTable, kWithReadBarrier>(&array_iftable_);
+    mirror::IfTable* array_iftable = array_iftable_.Read();
     array_iftable->SetInterface(0, java_lang_Cloneable);
     array_iftable->SetInterface(1, java_io_Serializable);
   }
@@ -558,7 +560,7 @@ void ClassLinker::FinishInit(Thread* self) {
     // if possible add new checks there to catch errors early
   }
 
-  CHECK(array_iftable_ != NULL);
+  CHECK(!array_iftable_.IsNull());
 
   // disable the slow paths in FindClass and CreatePrimitiveClass now
   // that Object, Class, and Object[] are setup
@@ -611,6 +613,14 @@ bool ClassLinker::GenerateOatFile(const char* dex_filename,
 
   if (!Runtime::Current()->IsVerificationEnabled()) {
     argv.push_back("--compiler-filter=verify-none");
+  }
+
+  if (Runtime::Current()->MustRelocateIfPossible()) {
+    argv.push_back("--runtime-arg");
+    argv.push_back("-Xrelocate");
+  } else {
+    argv.push_back("--runtime-arg");
+    argv.push_back("-Xnorelocate");
   }
 
   if (!kIsTargetBuild) {
@@ -805,6 +815,7 @@ bool ClassLinker::OpenDexFilesFromOat(const char* dex_location, const char* oat_
         return false;
       }
 
+      // TODO Caller specifically asks for this oat_location. We should honor it. Probably?
       open_oat_file.reset(FindOatFileInOatLocationForDexFile(dex_location, dex_location_checksum,
                                                              oat_location, &error_msg));
 
@@ -929,6 +940,13 @@ const OatFile* ClassLinker::FindOatFileInOatLocationForDexFile(const char* dex_l
                               actual_image_oat_offset);
     return nullptr;
   }
+  int32_t expected_patch_delta = image_header.GetPatchDelta();
+  int32_t actual_patch_delta = oat_file->GetOatHeader().GetImagePatchDelta();
+  if (expected_patch_delta != actual_patch_delta) {
+    *error_msg = StringPrintf("Failed to find oat file at '%s' with expected patch delta %d, "
+                              " found %d", oat_location, expected_patch_delta, actual_patch_delta);
+    return nullptr;
+  }
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location,
                                                                     &dex_location_checksum);
   if (oat_dex_file == nullptr) {
@@ -976,11 +994,25 @@ const OatFile* ClassLinker::CreateOatFileForDexLocation(const char* dex_location
   return oat_file.release();
 }
 
-bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
-                                         const char* dex_location,
-                                         uint32_t dex_location_checksum,
-                                         const InstructionSet instruction_set,
-                                         std::string* error_msg) {
+bool ClassLinker::VerifyOatImageChecksum(const OatFile* oat_file,
+                                         const InstructionSet instruction_set) {
+  Runtime* runtime = Runtime::Current();
+  const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+  uint32_t image_oat_checksum = 0;
+  if (instruction_set == kRuntimeISA) {
+    const ImageHeader& image_header = image_space->GetImageHeader();
+    image_oat_checksum = image_header.GetOatChecksum();
+  } else {
+    std::unique_ptr<ImageHeader> image_header(gc::space::ImageSpace::ReadImageHeaderOrDie(
+        image_space->GetImageLocation().c_str(), instruction_set));
+    image_oat_checksum = image_header->GetOatChecksum();
+  }
+  return oat_file->GetOatHeader().GetImageFileLocationOatChecksum() == image_oat_checksum;
+}
+
+bool ClassLinker::VerifyOatChecksums(const OatFile* oat_file,
+                                     const InstructionSet instruction_set,
+                                     std::string* error_msg) {
   Runtime* runtime = Runtime::Current();
   const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
 
@@ -989,19 +1021,42 @@ bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
   // image header from the image for the right instruction set.
   uint32_t image_oat_checksum = 0;
   uintptr_t image_oat_data_begin = 0;
-  if (instruction_set == kRuntimeISA) {
+  int32_t image_patch_delta = 0;
+  if (instruction_set == Runtime::Current()->GetInstructionSet()) {
     const ImageHeader& image_header = image_space->GetImageHeader();
     image_oat_checksum = image_header.GetOatChecksum();
     image_oat_data_begin = reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin());
+    image_patch_delta = image_header.GetPatchDelta();
   } else {
     std::unique_ptr<ImageHeader> image_header(gc::space::ImageSpace::ReadImageHeaderOrDie(
         image_space->GetImageLocation().c_str(), instruction_set));
     image_oat_checksum = image_header->GetOatChecksum();
     image_oat_data_begin = reinterpret_cast<uintptr_t>(image_header->GetOatDataBegin());
+    image_patch_delta = image_header->GetPatchDelta();
   }
   const OatHeader& oat_header = oat_file->GetOatHeader();
-  bool image_check = ((oat_header.GetImageFileLocationOatChecksum() == image_oat_checksum)
-                      && (oat_header.GetImageFileLocationOatDataBegin() == image_oat_data_begin));
+  bool ret = ((oat_header.GetImageFileLocationOatChecksum() == image_oat_checksum)
+              && (oat_header.GetImagePatchDelta() == image_patch_delta)
+              && (oat_header.GetImageFileLocationOatDataBegin() == image_oat_data_begin));
+  if (!ret) {
+    *error_msg = StringPrintf("oat file '%s' mismatch (0x%x, %d, %d) with (0x%x, %" PRIdPTR ", %d)",
+                              oat_file->GetLocation().c_str(),
+                              oat_file->GetOatHeader().GetImageFileLocationOatChecksum(),
+                              oat_file->GetOatHeader().GetImageFileLocationOatDataBegin(),
+                              oat_file->GetOatHeader().GetImagePatchDelta(),
+                              image_oat_checksum, image_oat_data_begin, image_patch_delta);
+  }
+  return ret;
+}
+
+bool ClassLinker::VerifyOatAndDexFileChecksums(const OatFile* oat_file,
+                                               const char* dex_location,
+                                               uint32_t dex_location_checksum,
+                                               const InstructionSet instruction_set,
+                                               std::string* error_msg) {
+  if (!VerifyOatChecksums(oat_file, instruction_set, error_msg)) {
+    return false;
+  }
 
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location,
                                                                     &dex_location_checksum);
@@ -1017,39 +1072,22 @@ bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
     }
     return false;
   }
-  bool dex_check = dex_location_checksum == oat_dex_file->GetDexFileLocationChecksum();
 
-  if (image_check && dex_check) {
-    return true;
-  }
-
-  if (!image_check) {
-    ScopedObjectAccess soa(Thread::Current());
-    *error_msg = StringPrintf("oat file '%s' mismatch (0x%x, %d) with (0x%x, %" PRIdPTR ")",
-                              oat_file->GetLocation().c_str(),
-                              oat_file->GetOatHeader().GetImageFileLocationOatChecksum(),
-                              oat_file->GetOatHeader().GetImageFileLocationOatDataBegin(),
-                              image_oat_checksum, image_oat_data_begin);
-  }
-  if (!dex_check) {
+  if (dex_location_checksum != oat_dex_file->GetDexFileLocationChecksum()) {
     *error_msg = StringPrintf("oat file '%s' mismatch (0x%x) with '%s' (0x%x)",
                               oat_file->GetLocation().c_str(),
                               oat_dex_file->GetDexFileLocationChecksum(),
                               dex_location, dex_location_checksum);
+    return false;
   }
-  return false;
+  return true;
 }
 
-const OatFile* ClassLinker::LoadOatFileAndVerifyDexFile(const std::string& oat_file_location,
-                                                        const char* dex_location,
-                                                        std::string* error_msg,
-                                                        bool* open_failed) {
-  std::unique_ptr<const OatFile> oat_file(FindOatFileFromOatLocation(oat_file_location, error_msg));
-  if (oat_file.get() == nullptr) {
-    *open_failed = true;
-    return nullptr;
-  }
-  *open_failed = false;
+bool ClassLinker::VerifyOatWithDexFile(const OatFile* oat_file,
+                                       const char* dex_location,
+                                       std::string* error_msg) {
+  CHECK(oat_file != nullptr);
+  CHECK(dex_location != nullptr);
   std::unique_ptr<const DexFile> dex_file;
   uint32_t dex_location_checksum;
   if (!DexFile::GetChecksum(dex_location, &dex_location_checksum, error_msg)) {
@@ -1059,26 +1097,21 @@ const OatFile* ClassLinker::LoadOatFileAndVerifyDexFile(const std::string& oat_f
     const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location, NULL);
     if (oat_dex_file == nullptr) {
       *error_msg = StringPrintf("Dex checksum mismatch for location '%s' and failed to find oat "
-                                "dex file '%s': %s", oat_file_location.c_str(), dex_location,
+                                "dex file '%s': %s", oat_file->GetLocation().c_str(), dex_location,
                                 error_msg->c_str());
-      return nullptr;
+      return false;
     }
     dex_file.reset(oat_dex_file->OpenDexFile(error_msg));
   } else {
-    bool verified = VerifyOatFileChecksums(oat_file.get(), dex_location, dex_location_checksum,
-                                           kRuntimeISA, error_msg);
+    bool verified = VerifyOatAndDexFileChecksums(oat_file, dex_location, dex_location_checksum,
+                                                 kRuntimeISA, error_msg);
     if (!verified) {
-      return nullptr;
+      return false;
     }
     dex_file.reset(oat_file->GetOatDexFile(dex_location,
                                            &dex_location_checksum)->OpenDexFile(error_msg));
   }
-
-  if (dex_file.get() != nullptr) {
-    return oat_file.release();
-  } else {
-    return nullptr;
-  }
+  return dex_file.get() != nullptr;
 }
 
 const OatFile* ClassLinker::FindOatFileContainingDexFileFromDexLocation(
@@ -1088,51 +1121,25 @@ const OatFile* ClassLinker::FindOatFileContainingDexFileFromDexLocation(
     std::vector<std::string>* error_msgs,
     bool* obsolete_file_cleanup_failed) {
   *obsolete_file_cleanup_failed = false;
-  // Look for an existing file next to dex. for example, for
-  // /foo/bar/baz.jar, look for /foo/bar/<isa>/baz.odex.
-  std::string odex_filename(DexFilenameToOdexFilename(dex_location, isa));
-  bool open_failed;
+  bool already_opened = false;
+  std::string dex_location_str(dex_location);
+  std::unique_ptr<const OatFile> oat_file(OpenOatFileFromDexLocation(dex_location_str, isa,
+                                                                     &already_opened,
+                                                                     obsolete_file_cleanup_failed,
+                                                                     error_msgs));
   std::string error_msg;
-  const OatFile* oat_file = LoadOatFileAndVerifyDexFile(odex_filename, dex_location, &error_msg,
-                                                        &open_failed);
-  if (oat_file != nullptr) {
-    return oat_file;
-  }
-  if (dex_location_checksum == nullptr) {
-    error_msgs->push_back(StringPrintf("Failed to open oat file from %s and no classes.dex found in"
-                                      "%s: %s", odex_filename.c_str(), dex_location,
+  if (oat_file.get() == nullptr) {
+    error_msgs->push_back(StringPrintf("Failed to open oat file from dex location '%s'",
+                                       dex_location));
+    return nullptr;
+  } else if (!VerifyOatWithDexFile(oat_file.get(), dex_location, &error_msg)) {
+    error_msgs->push_back(StringPrintf("Failed to verify oat file '%s' found for dex location "
+                                       "'%s': %s", oat_file->GetLocation().c_str(), dex_location,
                                        error_msg.c_str()));
     return nullptr;
+  } else {
+    return oat_file.release();
   }
-
-  std::string cache_error_msg;
-  const std::string dalvik_cache(GetDalvikCacheOrDie(GetInstructionSetString(kRuntimeISA)));
-  std::string cache_location(GetDalvikCacheFilenameOrDie(dex_location,
-                                                         dalvik_cache.c_str()));
-  oat_file = LoadOatFileAndVerifyDexFile(cache_location, dex_location, &cache_error_msg,
-                                         &open_failed);
-  if (oat_file != nullptr) {
-    return oat_file;
-  }
-
-  if (!open_failed && TEMP_FAILURE_RETRY(unlink(cache_location.c_str())) != 0) {
-    std::string error_msg = StringPrintf("Failed to remove obsolete file from %s when searching"
-                                         "for dex file %s: %s",
-                                         cache_location.c_str(), dex_location, strerror(errno));
-    error_msgs->push_back(error_msg);
-    VLOG(class_linker) << error_msg;
-    // Let the caller know that we couldn't remove the obsolete file.
-    // This is a good indication that further writes may fail as well.
-    *obsolete_file_cleanup_failed = true;
-  }
-
-  std::string compound_msg = StringPrintf("Failed to open oat file from %s (error '%s') or %s "
-                                          "(error '%s').", odex_filename.c_str(), error_msg.c_str(),
-                                          cache_location.c_str(), cache_error_msg.c_str());
-  VLOG(class_linker) << compound_msg;
-  error_msgs->push_back(compound_msg);
-
-  return nullptr;
 }
 
 const OatFile* ClassLinker::FindOpenedOatFileFromOatLocation(const std::string& oat_location) {
@@ -1145,6 +1152,277 @@ const OatFile* ClassLinker::FindOpenedOatFileFromOatLocation(const std::string& 
     }
   }
   return nullptr;
+}
+
+const OatFile* ClassLinker::OpenOatFileFromDexLocation(const std::string& dex_location,
+                                                       InstructionSet isa,
+                                                       bool *already_opened,
+                                                       bool *obsolete_file_cleanup_failed,
+                                                       std::vector<std::string>* error_msgs) {
+  // Find out if we've already opened the file
+  const OatFile* ret = nullptr;
+  std::string odex_filename(DexFilenameToOdexFilename(dex_location, isa));
+  ret = FindOpenedOatFileFromOatLocation(odex_filename);
+  if (ret != nullptr) {
+    *already_opened = true;
+    return ret;
+  }
+
+  std::string dalvik_cache;
+  bool have_android_data = false;
+  bool have_dalvik_cache = false;
+  GetDalvikCache(GetInstructionSetString(kRuntimeISA), false, &dalvik_cache,
+                 &have_android_data, &have_dalvik_cache);
+  std::string cache_filename;
+  if (have_dalvik_cache) {
+    cache_filename = GetDalvikCacheFilenameOrDie(dex_location.c_str(), dalvik_cache.c_str());
+    ret = FindOpenedOatFileFromOatLocation(cache_filename);
+    if (ret != nullptr) {
+      *already_opened = true;
+      return ret;
+    }
+  } else {
+    // If we need to relocate we should just place odex back where it started.
+    cache_filename = odex_filename;
+  }
+
+  ret = nullptr;
+
+  // We know that neither the odex nor the cache'd version is already in use, if it even exists.
+  //
+  // Now we do the following:
+  // 1) Try and open the odex version
+  // 2) If present, checksum-verified & relocated correctly return it
+  // 3) Close the odex version to free up its address space.
+  // 4) Try and open the cache version
+  // 5) If present, checksum-verified & relocated correctly return it
+  // 6) Close the cache version to free up its address space.
+  // 7) If we should relocate:
+  //   a) If we have opened and checksum-verified the odex version relocate it to
+  //      'cache_filename' and return it
+  //   b) If we have opened and checksum-verified the cache version relocate it in place and return
+  //      it. This should not happen often (I think only the run-test's will hit this case).
+  // 8) If the cache-version was present we should delete it since it must be obsolete if we get to
+  //    this point.
+  // 9) Return nullptr
+
+  *already_opened = false;
+  const Runtime* runtime = Runtime::Current();
+  CHECK(runtime != nullptr);
+  bool executable = !runtime->IsCompiler();
+
+  std::string odex_error_msg;
+  bool should_patch_system = false;
+  bool odex_checksum_verified = false;
+  {
+    // There is a high probability that these both these oat files map similar/the same address
+    // spaces so we must scope them like this so they each gets its turn.
+    std::unique_ptr<OatFile> odex_oat_file(OatFile::Open(odex_filename, odex_filename, NULL,
+                                                         executable, &odex_error_msg));
+    if (odex_oat_file.get() != nullptr && CheckOatFile(odex_oat_file.get(), isa,
+                                                       &odex_checksum_verified,
+                                                       &odex_error_msg)) {
+      error_msgs->push_back(odex_error_msg);
+      return odex_oat_file.release();
+    } else if (odex_checksum_verified) {
+      // We can just relocate
+      should_patch_system = true;
+      odex_error_msg = "Image Patches are incorrect";
+    }
+  }
+
+
+  std::string cache_error_msg;
+  bool should_patch_cache = false;
+  bool cache_checksum_verified = false;
+  if (have_dalvik_cache) {
+    std::unique_ptr<OatFile> cache_oat_file(OatFile::Open(cache_filename, cache_filename, NULL,
+                                                          executable, &cache_error_msg));
+    if (cache_oat_file.get() != nullptr && CheckOatFile(cache_oat_file.get(), isa,
+                                                        &cache_checksum_verified,
+                                                        &cache_error_msg)) {
+      error_msgs->push_back(cache_error_msg);
+      return cache_oat_file.release();
+    } else if (cache_checksum_verified) {
+      // We can just relocate
+      should_patch_cache = true;
+      cache_error_msg = "Image Patches are incorrect";
+    }
+  } else if (have_android_data) {
+    // dalvik_cache does not exist but android data does. This means we should be able to create
+    // it, so we should try.
+    GetDalvikCacheOrDie(GetInstructionSetString(kRuntimeISA), true);
+  }
+
+  ret = nullptr;
+  std::string error_msg;
+  if (runtime->CanRelocate()) {
+    // Run relocation
+    const std::string& image_location =
+        Runtime::Current()->GetHeap()->GetImageSpace()->GetImageLocation();
+    if (odex_checksum_verified && should_patch_system) {
+      ret = PatchAndRetrieveOat(odex_filename, cache_filename, image_location, isa, &error_msg);
+    } else if (cache_checksum_verified && should_patch_cache) {
+      CHECK(have_dalvik_cache);
+      ret = PatchAndRetrieveOat(cache_filename, cache_filename, image_location, isa, &error_msg);
+    }
+  }
+  if (ret == nullptr && have_dalvik_cache && OS::FileExists(cache_filename.c_str())) {
+    // implicitly: were able to fine where the cached version is but we were unable to use it,
+    // either as a destination for relocation or to open a file. We should delete it if it is
+    // there.
+    if (TEMP_FAILURE_RETRY(unlink(cache_filename.c_str())) != 0) {
+      std::string rm_error_msg = StringPrintf("Failed to remove obsolete file from %s when "
+                                              "searching for dex file %s: %s",
+                                              cache_filename.c_str(), dex_location.c_str(),
+                                              strerror(errno));
+      error_msgs->push_back(rm_error_msg);
+      VLOG(class_linker) << rm_error_msg;
+      // Let the caller know that we couldn't remove the obsolete file.
+      // This is a good indication that further writes may fail as well.
+      *obsolete_file_cleanup_failed = true;
+    }
+  }
+  if (ret == nullptr) {
+    VLOG(class_linker) << error_msg;
+    error_msgs->push_back(error_msg);
+    std::string relocation_msg;
+    if (runtime->CanRelocate()) {
+      relocation_msg = StringPrintf(" and relocation failed");
+    }
+    if (have_dalvik_cache && cache_checksum_verified) {
+      error_msg = StringPrintf("Failed to open oat file from %s (error %s) or %s "
+                                "(error %s)%s.", odex_filename.c_str(), odex_error_msg.c_str(),
+                                cache_filename.c_str(), cache_error_msg.c_str(),
+                                relocation_msg.c_str());
+    } else {
+      error_msg = StringPrintf("Failed to open oat file from %s (error %s) (no "
+                               "dalvik_cache availible)%s.", odex_filename.c_str(),
+                               odex_error_msg.c_str(), relocation_msg.c_str());
+    }
+    VLOG(class_linker) << error_msg;
+    error_msgs->push_back(error_msg);
+  }
+  return ret;
+}
+
+const OatFile* ClassLinker::PatchAndRetrieveOat(const std::string& input_oat,
+                                                const std::string& output_oat,
+                                                const std::string& image_location,
+                                                InstructionSet isa,
+                                                std::string* error_msg) {
+  Locks::mutator_lock_->AssertNotHeld(Thread::Current());  // Avoid starving GC.
+  std::string patchoat(Runtime::Current()->GetPatchoatExecutable());
+
+  std::string isa_arg("--instruction-set=");
+  isa_arg += GetInstructionSetString(isa);
+  std::string input_oat_filename_arg("--input-oat-file=");
+  input_oat_filename_arg += input_oat;
+  std::string output_oat_filename_arg("--output-oat-file=");
+  output_oat_filename_arg += output_oat;
+  std::string patched_image_arg("--patched-image-location=");
+  patched_image_arg += image_location;
+
+  std::vector<std::string> argv;
+  argv.push_back(patchoat);
+  argv.push_back(isa_arg);
+  argv.push_back(input_oat_filename_arg);
+  argv.push_back(output_oat_filename_arg);
+  argv.push_back(patched_image_arg);
+
+  std::string command_line(Join(argv, ' '));
+  LOG(INFO) << "Relocate Oat File: " << command_line;
+  bool success = Exec(argv, error_msg);
+  if (success) {
+    std::unique_ptr<OatFile> output(OatFile::Open(output_oat, output_oat, NULL,
+                                                  !Runtime::Current()->IsCompiler(), error_msg));
+    bool checksum_verified = false;
+    if (output.get() != nullptr && CheckOatFile(output.get(), isa, &checksum_verified, error_msg)) {
+      return output.release();
+    } else if (output.get() != nullptr) {
+      *error_msg = StringPrintf("Patching of oat file '%s' succeeded "
+                                "but output file '%s' failed verifcation: %s",
+                                input_oat.c_str(), output_oat.c_str(), error_msg->c_str());
+    } else {
+      *error_msg = StringPrintf("Patching of oat file '%s' succeeded "
+                                "but was unable to open output file '%s': %s",
+                                input_oat.c_str(), output_oat.c_str(), error_msg->c_str());
+    }
+  } else {
+    *error_msg = StringPrintf("Patching of oat file '%s to '%s' "
+                              "failed: %s", input_oat.c_str(), output_oat.c_str(),
+                              error_msg->c_str());
+  }
+  return nullptr;
+}
+
+int32_t ClassLinker::GetRequiredDelta(const OatFile* oat_file, InstructionSet isa) {
+  Runtime* runtime = Runtime::Current();
+  int32_t real_patch_delta;
+  const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+  if (isa == Runtime::Current()->GetInstructionSet()) {
+    const ImageHeader& image_header = image_space->GetImageHeader();
+    real_patch_delta = image_header.GetPatchDelta();
+  } else {
+    std::unique_ptr<ImageHeader> image_header(gc::space::ImageSpace::ReadImageHeaderOrDie(
+        image_space->GetImageLocation().c_str(), isa));
+    real_patch_delta = image_header->GetPatchDelta();
+  }
+  const OatHeader& oat_header = oat_file->GetOatHeader();
+  return real_patch_delta - oat_header.GetImagePatchDelta();
+}
+
+bool ClassLinker::CheckOatFile(const OatFile* oat_file, InstructionSet isa,
+                               bool* checksum_verified,
+                               std::string* error_msg) {
+  std::string compound_msg("Oat file failed to verify: ");
+  Runtime* runtime = Runtime::Current();
+  uint32_t real_image_checksum;
+  void* real_image_oat_offset;
+  int32_t real_patch_delta;
+  const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+  if (isa == Runtime::Current()->GetInstructionSet()) {
+    const ImageHeader& image_header = image_space->GetImageHeader();
+    real_image_checksum = image_header.GetOatChecksum();
+    real_image_oat_offset = image_header.GetOatDataBegin();
+    real_patch_delta = image_header.GetPatchDelta();
+  } else {
+    std::unique_ptr<ImageHeader> image_header(gc::space::ImageSpace::ReadImageHeaderOrDie(
+        image_space->GetImageLocation().c_str(), isa));
+    real_image_checksum = image_header->GetOatChecksum();
+    real_image_oat_offset = image_header->GetOatDataBegin();
+    real_patch_delta = image_header->GetPatchDelta();
+  }
+
+  const OatHeader& oat_header = oat_file->GetOatHeader();
+
+  uint32_t oat_image_checksum = oat_header.GetImageFileLocationOatChecksum();
+  *checksum_verified = oat_image_checksum == real_image_checksum;
+  if (!*checksum_verified) {
+    compound_msg += StringPrintf(" Oat Image Checksum Incorrect (expected 0x%x, recieved 0x%x)",
+                                 real_image_checksum, oat_image_checksum);
+  }
+
+  void* oat_image_oat_offset =
+      reinterpret_cast<void*>(oat_header.GetImageFileLocationOatDataBegin());
+  bool offset_verified = oat_image_oat_offset == real_image_oat_offset;
+  if (!offset_verified) {
+    compound_msg += StringPrintf(" Oat Image oat offset incorrect (expected 0x%p, recieved 0x%p)",
+                                 real_image_oat_offset, oat_image_oat_offset);
+  }
+
+  int32_t oat_patch_delta = oat_header.GetImagePatchDelta();
+  bool patch_delta_verified = oat_patch_delta == real_patch_delta;
+  if (!patch_delta_verified) {
+    compound_msg += StringPrintf(" Oat image patch delta incorrect (expected 0x%x, recieved 0x%x)",
+                                 real_patch_delta, oat_patch_delta);
+  }
+
+  bool ret = (*checksum_verified && offset_verified && patch_delta_verified);
+  if (ret) {
+    *error_msg = compound_msg;
+  }
+  return ret;
 }
 
 const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_location,
@@ -1210,7 +1488,7 @@ void ClassLinker::InitFromImage() {
   Handle<mirror::ObjectArray<mirror::Class>> class_roots(hs.NewHandle(
           space->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots)->
           AsObjectArray<mirror::Class>()));
-  class_roots_ = class_roots.Get();
+  class_roots_ = GcRoot<mirror::ObjectArray<mirror::Class>>(class_roots.Get());
 
   // Special case of setting up the String class early so that we can test arbitrary objects
   // as being Strings or not
@@ -1250,11 +1528,11 @@ void ClassLinker::InitFromImage() {
 
   // reinit class_roots_
   mirror::Class::SetClassClass(class_roots->Get(kJavaLangClass));
-  class_roots_ = class_roots.Get();
+  class_roots_ = GcRoot<mirror::ObjectArray<mirror::Class>>(class_roots.Get());
 
   // reinit array_iftable_ from any array class instance, they should be ==
-  array_iftable_ = GetClassRoot(kObjectArrayClass)->GetIfTable();
-  DCHECK(array_iftable_ == GetClassRoot(kBooleanArrayClass)->GetIfTable());
+  array_iftable_ = GcRoot<mirror::IfTable>(GetClassRoot(kObjectArrayClass)->GetIfTable());
+  DCHECK(array_iftable_.Read() == GetClassRoot(kBooleanArrayClass)->GetIfTable());
   // String class root was set above
   mirror::Reference::SetClass(GetClassRoot(kJavaLangRefReference));
   mirror::ArtField::SetClass(GetClassRoot(kJavaLangReflectArtField));
@@ -1277,22 +1555,23 @@ void ClassLinker::InitFromImage() {
 void ClassLinker::VisitClassRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   if ((flags & kVisitRootFlagAllRoots) != 0) {
-    for (std::pair<const size_t, mirror::Class*>& it : class_table_) {
-      callback(reinterpret_cast<mirror::Object**>(&it.second), arg, 0, kRootStickyClass);
+    for (std::pair<const size_t, GcRoot<mirror::Class> >& it : class_table_) {
+      it.second.VisitRoot(callback, arg, 0, kRootStickyClass);
     }
   } else if ((flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& pair : new_class_roots_) {
-      mirror::Object* old_ref = pair.second;
-      callback(reinterpret_cast<mirror::Object**>(&pair.second), arg, 0, kRootStickyClass);
-      if (UNLIKELY(pair.second != old_ref)) {
+      mirror::Class* old_ref = pair.second.Read<kWithoutReadBarrier>();
+      pair.second.VisitRoot(callback, arg, 0, kRootStickyClass);
+      mirror::Class* new_ref = pair.second.Read<kWithoutReadBarrier>();
+      if (UNLIKELY(new_ref != old_ref)) {
         // Uh ohes, GC moved a root in the log. Need to search the class_table and update the
         // corresponding object. This is slow, but luckily for us, this may only happen with a
         // concurrent moving GC.
         for (auto it = class_table_.lower_bound(pair.first), end = class_table_.end();
             it != end && it->first == pair.first; ++it) {
           // If the class stored matches the old class, update it to the new value.
-          if (old_ref == it->second) {
-            it->second = pair.second;
+          if (old_ref == it->second.Read<kWithoutReadBarrier>()) {
+            it->second = GcRoot<mirror::Class>(new_ref);
           }
         }
       }
@@ -1314,17 +1593,17 @@ void ClassLinker::VisitClassRoots(RootCallback* callback, void* arg, VisitRootFl
 // reinit references to when reinitializing a ClassLinker from a
 // mapped image.
 void ClassLinker::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
-  callback(reinterpret_cast<mirror::Object**>(&class_roots_), arg, 0, kRootVMInternal);
+  class_roots_.VisitRoot(callback, arg, 0, kRootVMInternal);
   Thread* self = Thread::Current();
   {
     ReaderMutexLock mu(self, dex_lock_);
     if ((flags & kVisitRootFlagAllRoots) != 0) {
-      for (mirror::DexCache*& dex_cache : dex_caches_) {
-        callback(reinterpret_cast<mirror::Object**>(&dex_cache), arg, 0, kRootVMInternal);
+      for (GcRoot<mirror::DexCache>& dex_cache : dex_caches_) {
+        dex_cache.VisitRoot(callback, arg, 0, kRootVMInternal);
       }
     } else if ((flags & kVisitRootFlagNewRoots) != 0) {
       for (size_t index : new_dex_cache_roots_) {
-        callback(reinterpret_cast<mirror::Object**>(&dex_caches_[index]), arg, 0, kRootVMInternal);
+        dex_caches_[index].VisitRoot(callback, arg, 0, kRootVMInternal);
       }
     }
     if ((flags & kVisitRootFlagClearRootLog) != 0) {
@@ -1337,12 +1616,11 @@ void ClassLinker::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags f
     }
   }
   VisitClassRoots(callback, arg, flags);
-  callback(reinterpret_cast<mirror::Object**>(&array_iftable_), arg, 0, kRootVMInternal);
-  DCHECK(array_iftable_ != nullptr);
+  array_iftable_.VisitRoot(callback, arg, 0, kRootVMInternal);
+  DCHECK(!array_iftable_.IsNull());
   for (size_t i = 0; i < kFindArrayCacheSize; ++i) {
-    if (find_array_class_cache_[i] != nullptr) {
-      callback(reinterpret_cast<mirror::Object**>(&find_array_class_cache_[i]), arg, 0,
-               kRootVMInternal);
+    if (!find_array_class_cache_[i].IsNull()) {
+      find_array_class_cache_[i].VisitRoot(callback, arg, 0, kRootVMInternal);
     }
   }
 }
@@ -1352,9 +1630,8 @@ void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) {
     MoveImageClassesToClassTable();
   }
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  for (std::pair<const size_t, mirror::Class*>& it : class_table_) {
-    mirror::Class** root = &it.second;
-    mirror::Class* c = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
+  for (std::pair<const size_t, GcRoot<mirror::Class> >& it : class_table_) {
+    mirror::Class* c = it.second.Read();
     if (!visitor(c, arg)) {
       return;
     }
@@ -1649,23 +1926,26 @@ mirror::Class* ClassLinker::DefineClass(const char* descriptor,
     // size when the class becomes resolved.
     klass.Assign(AllocClass(self, SizeOfClassWithoutEmbeddedTables(dex_file, dex_class_def)));
   }
-  if (UNLIKELY(klass.Get() == NULL)) {
+  if (UNLIKELY(klass.Get() == nullptr)) {
     CHECK(self->IsExceptionPending());  // Expect an OOME.
-    return NULL;
+    return nullptr;
   }
   klass->SetDexCache(FindDexCache(dex_file));
   LoadClass(dex_file, dex_class_def, klass, class_loader.Get());
-  // Check for a pending exception during load
-  if (self->IsExceptionPending()) {
-    klass->SetStatus(mirror::Class::kStatusError, self);
-    return NULL;
-  }
   ObjectLock<mirror::Class> lock(self, klass);
+  if (self->IsExceptionPending()) {
+    // An exception occured during load, set status to erroneous while holding klass' lock in case
+    // notification is necessary.
+    if (!klass->IsErroneous()) {
+      klass->SetStatus(mirror::Class::kStatusError, self);
+    }
+    return nullptr;
+  }
   klass->SetClinitThreadId(self->GetTid());
 
   // Add the newly loaded class to the loaded classes table.
   mirror::Class* existing = InsertClass(descriptor, klass.Get(), Hash(descriptor));
-  if (existing != NULL) {
+  if (existing != nullptr) {
     // We failed to insert because we raced with another thread. Calling EnsureResolved may cause
     // this thread to block.
     return EnsureResolved(self, descriptor, existing);
@@ -1675,8 +1955,10 @@ mirror::Class* ClassLinker::DefineClass(const char* descriptor,
   CHECK(!klass->IsLoaded());
   if (!LoadSuperAndInterfaces(klass, dex_file)) {
     // Loading failed.
-    klass->SetStatus(mirror::Class::kStatusError, self);
-    return NULL;
+    if (!klass->IsErroneous()) {
+      klass->SetStatus(mirror::Class::kStatusError, self);
+    }
+    return nullptr;
   }
   CHECK(klass->IsLoaded());
   // Link the class (if necessary)
@@ -1687,8 +1969,10 @@ mirror::Class* ClassLinker::DefineClass(const char* descriptor,
   mirror::Class* new_class = nullptr;
   if (!LinkClass(self, descriptor, klass, interfaces, &new_class)) {
     // Linking failed.
-    klass->SetStatus(mirror::Class::kStatusError, self);
-    return NULL;
+    if (!klass->IsErroneous()) {
+      klass->SetStatus(mirror::Class::kStatusError, self);
+    }
+    return nullptr;
   }
   CHECK(new_class != nullptr) << descriptor;
   CHECK(new_class->IsResolved()) << descriptor;
@@ -2273,7 +2557,7 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
   CHECK(dex_cache.Get() != NULL) << dex_file.GetLocation();
   CHECK(dex_cache->GetLocation()->Equals(dex_file.GetLocation()))
       << dex_cache->GetLocation()->ToModifiedUtf8() << " " << dex_file.GetLocation();
-  dex_caches_.push_back(dex_cache.Get());
+  dex_caches_.push_back(GcRoot<mirror::DexCache>(dex_cache.Get()));
   dex_cache->SetDexFile(&dex_file);
   if (log_new_dex_caches_roots_) {
     // TODO: This is not safe if we can remove dex caches.
@@ -2490,8 +2774,7 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
   // Use the single, global copies of "interfaces" and "iftable"
   // (remember not to free them for arrays).
   {
-    mirror::IfTable* array_iftable =
-        ReadBarrier::BarrierForRoot<mirror::IfTable, kWithReadBarrier>(&array_iftable_);
+    mirror::IfTable* array_iftable = array_iftable_.Read();
     CHECK(array_iftable != nullptr);
     new_class->SetIfTable(array_iftable);
   }
@@ -2575,9 +2858,9 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, mirror::Class* k
     }
   }
   VerifyObject(klass);
-  class_table_.insert(std::make_pair(hash, klass));
+  class_table_.insert(std::make_pair(hash, GcRoot<mirror::Class>(klass)));
   if (log_new_class_table_roots_) {
-    new_class_roots_.push_back(std::make_pair(hash, klass));
+    new_class_roots_.push_back(std::make_pair(hash, GcRoot<mirror::Class>(klass)));
   }
   return NULL;
 }
@@ -2599,8 +2882,8 @@ mirror::Class* ClassLinker::UpdateClass(const char* descriptor, mirror::Class* k
 
   for (auto it = class_table_.lower_bound(hash), end = class_table_.end(); it != end && it->first == hash;
        ++it) {
-    mirror::Class* entry = it->second;
-    if (entry == existing) {
+    mirror::Class* klass = it->second.Read();
+    if (klass == existing) {
       class_table_.erase(it);
       break;
     }
@@ -2618,9 +2901,9 @@ mirror::Class* ClassLinker::UpdateClass(const char* descriptor, mirror::Class* k
   }
   VerifyObject(klass);
 
-  class_table_.insert(std::make_pair(hash, klass));
+  class_table_.insert(std::make_pair(hash, GcRoot<mirror::Class>(klass)));
   if (log_new_class_table_roots_) {
-    new_class_roots_.push_back(std::make_pair(hash, klass));
+    new_class_roots_.push_back(std::make_pair(hash, GcRoot<mirror::Class>(klass)));
   }
 
   return existing;
@@ -2632,8 +2915,7 @@ bool ClassLinker::RemoveClass(const char* descriptor, const mirror::ClassLoader*
   for (auto it = class_table_.lower_bound(hash), end = class_table_.end();
        it != end && it->first == hash;
        ++it) {
-    mirror::Class** root = &it->second;
-    mirror::Class* klass = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
+    mirror::Class* klass = it->second.Read();
     if (klass->GetClassLoader() == class_loader && klass->DescriptorEquals(descriptor)) {
       class_table_.erase(it);
       return true;
@@ -2677,14 +2959,12 @@ mirror::Class* ClassLinker::LookupClassFromTableLocked(const char* descriptor,
                                                        size_t hash) {
   auto end = class_table_.end();
   for (auto it = class_table_.lower_bound(hash); it != end && it->first == hash; ++it) {
-    mirror::Class** root = &it->second;
-    mirror::Class* klass = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
+    mirror::Class* klass = it->second.Read();
     if (klass->GetClassLoader() == class_loader && klass->DescriptorEquals(descriptor)) {
       if (kIsDebugBuild) {
         // Check for duplicates in the table.
         for (++it; it != end && it->first == hash; ++it) {
-          mirror::Class** root2 = &it->second;
-          mirror::Class* klass2 = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root2);
+          mirror::Class* klass2 = it->second.Read();
           CHECK(!(klass2->GetClassLoader() == class_loader &&
               klass2->DescriptorEquals(descriptor)))
               << PrettyClass(klass) << " " << klass << " " << klass->GetClassLoader() << " "
@@ -2728,9 +3008,9 @@ void ClassLinker::MoveImageClassesToClassTable() {
           CHECK(existing == klass) << PrettyClassAndClassLoader(existing) << " != "
               << PrettyClassAndClassLoader(klass);
         } else {
-          class_table_.insert(std::make_pair(hash, klass));
+          class_table_.insert(std::make_pair(hash, GcRoot<mirror::Class>(klass)));
           if (log_new_class_table_roots_) {
-            new_class_roots_.push_back(std::make_pair(hash, klass));
+            new_class_roots_.push_back(std::make_pair(hash, GcRoot<mirror::Class>(klass)));
           }
         }
       }
@@ -2776,8 +3056,7 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<mirror::Clas
   ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   for (auto it = class_table_.lower_bound(hash), end = class_table_.end();
       it != end && it->first == hash; ++it) {
-    mirror::Class** root = &it->second;
-    mirror::Class* klass = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
+    mirror::Class* klass = it->second.Read();
     if (klass->DescriptorEquals(descriptor)) {
       result.push_back(klass);
     }
@@ -4753,9 +5032,8 @@ void ClassLinker::DumpAllClasses(int flags) {
   std::vector<mirror::Class*> all_classes;
   {
     ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-    for (std::pair<const size_t, mirror::Class*>& it : class_table_) {
-      mirror::Class** root = &it.second;
-      mirror::Class* klass = ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(root);
+    for (std::pair<const size_t, GcRoot<mirror::Class> >& it : class_table_) {
+      mirror::Class* klass = it.second.Read();
       all_classes.push_back(klass);
     }
   }
@@ -4795,9 +5073,7 @@ void ClassLinker::SetClassRoot(ClassRoot class_root, mirror::Class* klass) {
   DCHECK(klass != NULL);
   DCHECK(klass->GetClassLoader() == NULL);
 
-  mirror::ObjectArray<mirror::Class>* class_roots =
-      ReadBarrier::BarrierForRoot<mirror::ObjectArray<mirror::Class>, kWithReadBarrier>(
-          &class_roots_);
+  mirror::ObjectArray<mirror::Class>* class_roots = class_roots_.Read();
   DCHECK(class_roots != NULL);
   DCHECK(class_roots->Get(class_root) == NULL);
   class_roots->Set<false>(class_root, klass);

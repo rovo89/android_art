@@ -19,11 +19,13 @@
 
 #include "art_method.h"
 
+#include "class_linker.h"
+#include "dex_cache.h"
 #include "dex_file.h"
 #include "entrypoints/entrypoint_utils.h"
+#include "method_helper.h"
 #include "object-inl.h"
 #include "object_array.h"
-#include "object_utils.h"
 #include "oat.h"
 #include "quick/quick_method_frame_info.h"
 #include "read_barrier-inl.h"
@@ -39,9 +41,8 @@ inline uint32_t ArtMethod::ClassSize() {
 
 template<ReadBarrierOption kReadBarrierOption>
 inline Class* ArtMethod::GetJavaLangReflectArtMethod() {
-  DCHECK(java_lang_reflect_ArtMethod_ != nullptr);
-  return ReadBarrier::BarrierForRoot<mirror::Class, kReadBarrierOption>(
-      &java_lang_reflect_ArtMethod_);
+  DCHECK(!java_lang_reflect_ArtMethod_.IsNull());
+  return java_lang_reflect_ArtMethod_.Read<kReadBarrierOption>();
 }
 
 inline Class* ArtMethod::GetDeclaringClass() {

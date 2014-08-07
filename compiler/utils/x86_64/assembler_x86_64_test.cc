@@ -128,11 +128,27 @@ TEST_F(AssemblerX86_64Test, XorqImm) {
 TEST_F(AssemblerX86_64Test, Movl) {
   GetAssembler()->movl(x86_64::CpuRegister(x86_64::R8), x86_64::CpuRegister(x86_64::R11));
   GetAssembler()->movl(x86_64::CpuRegister(x86_64::RAX), x86_64::CpuRegister(x86_64::R11));
+  GetAssembler()->movl(x86_64::CpuRegister(x86_64::RAX), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));
+  GetAssembler()->movl(x86_64::CpuRegister(x86_64::RAX), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12));
+  GetAssembler()->movl(x86_64::CpuRegister(x86_64::R8), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12));
   const char* expected =
     "movl %R11d, %R8d\n"
-    "movl %R11d, %EAX\n";
+    "movl %R11d, %EAX\n"
+    "movl 0xc(%RDI,%RBX,4), %EAX\n"
+    "movl 0xc(%RDI,%R9,4), %EAX\n"
+    "movl 0xc(%RDI,%R9,4), %R8d\n";
 
   DriverStr(expected, "movl");
+}
+
+TEST_F(AssemblerX86_64Test, Movw) {
+  GetAssembler()->movw(x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0),
+                       x86_64::CpuRegister(x86_64::R9));
+  const char* expected = "movw %R9w, 0(%RAX)\n";
+  DriverStr(expected, "movw");
 }
 
 

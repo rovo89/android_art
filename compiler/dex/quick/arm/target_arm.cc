@@ -538,10 +538,6 @@ bool ArmMir2Lir::IsUnconditionalBranch(LIR* lir) {
   return ((lir->opcode == kThumbBUncond) || (lir->opcode == kThumb2BUncond));
 }
 
-bool ArmMir2Lir::SupportsVolatileLoadStore(OpSize size) {
-  return true;
-}
-
 RegisterClass ArmMir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatile) {
   if (UNLIKELY(is_volatile)) {
     // On arm, atomic 64-bit load/store requires a core register pair.
@@ -724,14 +720,9 @@ void ArmMir2Lir::FreeCallTemps() {
   FreeTemp(rs_r3);
 }
 
-RegStorage ArmMir2Lir::LoadHelper(ThreadOffset<4> offset) {
-  LoadWordDisp(rs_rARM_SELF, offset.Int32Value(), rs_rARM_LR);
+RegStorage ArmMir2Lir::LoadHelper(QuickEntrypointEnum trampoline) {
+  LoadWordDisp(rs_rARM_SELF, GetThreadOffset<4>(trampoline).Int32Value(), rs_rARM_LR);
   return rs_rARM_LR;
-}
-
-RegStorage ArmMir2Lir::LoadHelper(ThreadOffset<8> offset) {
-  UNIMPLEMENTED(FATAL) << "Should not be called.";
-  return RegStorage::InvalidReg();
 }
 
 LIR* ArmMir2Lir::CheckSuspendUsingLoad() {

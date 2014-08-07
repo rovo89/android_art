@@ -58,7 +58,6 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/reference-inl.h"
-#include "object_utils.h"
 #include "os.h"
 #include "reflection.h"
 #include "runtime.h"
@@ -3119,6 +3118,7 @@ void Heap::RemoveRememberedSet(space::Space* space) {
   CHECK(space != nullptr);
   auto it = remembered_sets_.find(space);
   CHECK(it != remembered_sets_.end());
+  delete it->second;
   remembered_sets_.erase(it);
   CHECK(remembered_sets_.find(space) == remembered_sets_.end());
 }

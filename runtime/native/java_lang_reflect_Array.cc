@@ -20,7 +20,6 @@
 #include "jni_internal.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
-#include "object_utils.h"
 #include "scoped_fast_native_object_access.h"
 #include "handle_scope-inl.h"
 

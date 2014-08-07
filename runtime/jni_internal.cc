@@ -29,6 +29,7 @@
 #include "base/stl_util.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
+#include "gc_root.h"
 #include "gc/accounting/card_table-inl.h"
 #include "indirect_reference_table-inl.h"
 #include "interpreter/interpreter.h"
@@ -41,7 +42,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
 #include "mirror/throwable.h"
-#include "object_utils.h"
+#include "native_bridge.h"
 #include "parsed_options.h"
 #include "reflection.h"
 #include "runtime.h"
@@ -363,7 +364,8 @@ class SharedLibrary {
   SharedLibrary(const std::string& path, void* handle, mirror::Object* class_loader)
       : path_(path),
         handle_(handle),
-        class_loader_(class_loader),
+        needs_native_bridge_(false),
+        class_loader_(GcRoot<mirror::Object>(class_loader)),
         jni_on_load_lock_("JNI_OnLoad lock"),
         jni_on_load_cond_("JNI_OnLoad condition variable", jni_on_load_lock_),
         jni_on_load_thread_id_(Thread::Current()->GetThreadId()),
@@ -371,8 +373,7 @@ class SharedLibrary {
   }
 
   mirror::Object* GetClassLoader() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::Object** root = &class_loader_;
-    return ReadBarrier::BarrierForRoot<mirror::Object, kWithReadBarrier>(root);
+    return class_loader_.Read();
   }
 
   std::string GetPath() {
@@ -423,13 +424,33 @@ class SharedLibrary {
     jni_on_load_cond_.Broadcast(self);
   }
 
+  void SetNeedsNativeBridge() {
+    needs_native_bridge_ = true;
+  }
+
+  bool NeedsNativeBridge() const {
+    return needs_native_bridge_;
+  }
+
   void* FindSymbol(const std::string& symbol_name) {
     return dlsym(handle_, symbol_name.c_str());
   }
 
+  void* FindSymbolWithNativeBridge(const std::string& symbol_name, mirror::ArtMethod* m)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    CHECK(NeedsNativeBridge());
+
+    uint32_t len = 0;
+    const char* shorty = nullptr;
+    if (m != nullptr) {
+      shorty = m->GetShorty(&len);
+    }
+    return NativeBridge::GetTrampoline(handle_, symbol_name.c_str(), shorty, len);
+  }
+
   void VisitRoots(RootCallback* visitor, void* arg) {
-    if (class_loader_ != nullptr) {
-      visitor(&class_loader_, arg, 0, kRootVMInternal);
+    if (!class_loader_.IsNull()) {
+      class_loader_.VisitRoot(visitor, arg, 0, kRootVMInternal);
     }
   }
 
@@ -446,8 +467,11 @@ class SharedLibrary {
   // The void* returned by dlopen(3).
   void* handle_;
 
+  // True if a native bridge is required.
+  bool needs_native_bridge_;
+
   // The ClassLoader this library is associated with.
-  mirror::Object* class_loader_;
+  GcRoot<mirror::Object> class_loader_;
 
   // Guards remaining items.
   Mutex jni_on_load_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
@@ -506,9 +530,17 @@ class Libraries {
         continue;
       }
       // Try the short name then the long name...
-      void* fn = library->FindSymbol(jni_short_name);
-      if (fn == nullptr) {
-        fn = library->FindSymbol(jni_long_name);
+      void* fn = nullptr;
+      if (UNLIKELY(library->NeedsNativeBridge())) {
+        fn = library->FindSymbolWithNativeBridge(jni_short_name, m);
+        if (fn == nullptr) {
+          fn = library->FindSymbolWithNativeBridge(jni_long_name, m);
+        }
+      } else {
+        fn = library->FindSymbol(jni_short_name);
+        if (fn == nullptr) {
+          fn = library->FindSymbol(jni_long_name);
+        }
       }
       if (fn != nullptr) {
         VLOG(jni) << "[Found native code for " << PrettyMethod(m)
@@ -3004,7 +3036,7 @@ extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, JNIEnv** p_env, void* vm_args) {
     LOG(ERROR) << "Bad JNI version passed to CreateJavaVM: " << args->version;
     return JNI_EVERSION;
   }
-  Runtime::Options options;
+  RuntimeOptions options;
   for (int i = 0; i < args->nOptions; ++i) {
     JavaVMOption* option = &args->options[i];
     options.push_back(std::make_pair(std::string(option->optionString), option->extraInfo));
@@ -3270,7 +3302,15 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path,
   // This can execute slowly for a large library on a busy system, so we
   // want to switch from kRunnable while it executes.  This allows the GC to ignore us.
   self->TransitionFromRunnableToSuspended(kWaitingForJniOnLoad);
-  void* handle = dlopen(path.empty() ? nullptr : path.c_str(), RTLD_LAZY);
+  const char* path_str = path.empty() ? nullptr : path.c_str();
+  void* handle = dlopen(path_str, RTLD_LAZY);
+  bool needs_native_bridge = false;
+  if (handle == nullptr) {
+    if (NativeBridge::IsSupported(path_str)) {
+      handle = NativeBridge::LoadLibrary(path_str, RTLD_LAZY);
+      needs_native_bridge = true;
+    }
+  }
   self->TransitionFromSuspendedToRunnable();
 
   VLOG(jni) << "[Call to dlopen(\"" << path << "\", RTLD_LAZY) returned " << handle << "]";
@@ -3303,7 +3343,14 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path,
       << "]";
 
   bool was_successful = false;
-  void* sym = dlsym(handle, "JNI_OnLoad");
+  void* sym = nullptr;
+  if (UNLIKELY(needs_native_bridge)) {
+    library->SetNeedsNativeBridge();
+    sym = library->FindSymbolWithNativeBridge("JNI_OnLoad", nullptr);
+  } else {
+    sym = dlsym(handle, "JNI_OnLoad");
+  }
+
   if (sym == nullptr) {
     VLOG(jni) << "[No JNI_OnLoad found in \"" << path << "\"]";
     was_successful = true;

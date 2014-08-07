@@ -24,11 +24,13 @@
 #include "debugger.h"
 #include "gc/heap.h"
 #include "monitor.h"
+#include "runtime.h"
+#include "trace.h"
 #include "utils.h"
 
 namespace art {
 
-ParsedOptions* ParsedOptions::Create(const Runtime::Options& options, bool ignore_unrecognized) {
+ParsedOptions* ParsedOptions::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
   std::unique_ptr<ParsedOptions> parsed(new ParsedOptions());
   if (parsed->Parse(options, ignore_unrecognized)) {
     return parsed.release();
@@ -164,7 +166,7 @@ bool ParsedOptions::ParseXGcOption(const std::string& option) {
   return true;
 }
 
-bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecognized) {
+bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognized) {
   const char* boot_class_path_string = getenv("BOOTCLASSPATH");
   if (boot_class_path_string != NULL) {
     boot_class_path_string_ = boot_class_path_string;
@@ -219,6 +221,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
 
   compiler_callbacks_ = nullptr;
   is_zygote_ = false;
+  must_relocate_ = kDefaultMustRelocate;
   if (kPoisonHeapReferences) {
     // kPoisonHeapReferences currently works only with the interpreter only.
     // TODO: make it work with the compiler.
@@ -258,7 +261,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
   method_trace_file_ = "/data/method-trace-file.bin";
   method_trace_file_size_ = 10 * MB;
 
-  profile_clock_source_ = kDefaultProfilerClockSource;
+  profile_clock_source_ = kDefaultTraceClockSource;
 
   verify_ = true;
   image_isa_ = kRuntimeISA;
@@ -388,6 +391,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
       ignore_max_footprint_ = true;
     } else if (option == "-XX:LowMemoryMode") {
       low_memory_mode_ = true;
+      // TODO Might want to turn off must_relocate here.
     } else if (option == "-XX:UseTLAB") {
       use_tlab_ = true;
     } else if (option == "-XX:EnableHSpaceCompactForOOM") {
@@ -406,6 +410,14 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
           reinterpret_cast<const char*>(options[i].second));
     } else if (option == "-Xzygote") {
       is_zygote_ = true;
+    } else if (StartsWith(option, "-Xpatchoat:")) {
+      if (!ParseStringAfterChar(option, ':', &patchoat_executable_)) {
+        return false;
+      }
+    } else if (option == "-Xrelocate") {
+      must_relocate_ = true;
+    } else if (option == "-Xnorelocate") {
+      must_relocate_ = false;
     } else if (option == "-Xint") {
       interpreter_only_ = true;
     } else if (StartsWith(option, "-Xgc:")) {
@@ -511,11 +523,11 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
         return false;
       }
     } else if (option == "-Xprofile:threadcpuclock") {
-      Trace::SetDefaultClockSource(kProfilerClockSourceThreadCpu);
+      Trace::SetDefaultClockSource(kTraceClockSourceThreadCpu);
     } else if (option == "-Xprofile:wallclock") {
-      Trace::SetDefaultClockSource(kProfilerClockSourceWall);
+      Trace::SetDefaultClockSource(kTraceClockSourceWall);
     } else if (option == "-Xprofile:dualclock") {
-      Trace::SetDefaultClockSource(kProfilerClockSourceDual);
+      Trace::SetDefaultClockSource(kTraceClockSourceDual);
     } else if (option == "-Xenable-profiler") {
       profiler_options_.enabled_ = true;
     } else if (StartsWith(option, "-Xprofile-filename:")) {
@@ -582,6 +594,10 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
         verify_ = true;
       } else {
         Usage("Unknown -Xverify option %s\n", verify_mode.c_str());
+        return false;
+      }
+    } else if (StartsWith(option, "-XX:NativeBridge=")) {
+      if (!ParseStringAfterChar(option, '=', &native_bridge_library_string_)) {
         return false;
       }
     } else if (StartsWith(option, "-ea") ||
@@ -756,6 +772,8 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xcompiler:filename\n");
   UsageMessage(stream, "  -Xcompiler-option dex2oat-option\n");
   UsageMessage(stream, "  -Ximage-compiler-option dex2oat-option\n");
+  UsageMessage(stream, "  -Xpatchoat:filename\n");
+  UsageMessage(stream, "  -X[no]relocate\n");
   UsageMessage(stream, "\n");
 
   UsageMessage(stream, "The following previously supported Dalvik options are ignored:\n");

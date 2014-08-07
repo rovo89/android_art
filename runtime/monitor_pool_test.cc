@@ -17,6 +17,8 @@
 #include "monitor_pool.h"
 
 #include "common_runtime_test.h"
+#include "scoped_thread_state_change.h"
+#include "thread-inl.h"
 
 namespace art {
 

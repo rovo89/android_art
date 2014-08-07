@@ -30,7 +30,6 @@
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
-#include "object_utils.h"
 #include "runtime.h"
 #include "scoped_fast_native_object_access.h"
 #include "scoped_thread_state_change.h"

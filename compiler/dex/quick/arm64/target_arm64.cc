@@ -48,14 +48,12 @@ static constexpr RegStorage dp_regs_arr[] =
      rs_d8, rs_d9, rs_d10, rs_d11, rs_d12, rs_d13, rs_d14, rs_d15,
      rs_d16, rs_d17, rs_d18, rs_d19, rs_d20, rs_d21, rs_d22, rs_d23,
      rs_d24, rs_d25, rs_d26, rs_d27, rs_d28, rs_d29, rs_d30, rs_d31};
+// Note: we are not able to call to C function since rs_xSELF is a special register need to be
+// preserved but would be scratched by native functions follow aapcs64.
 static constexpr RegStorage reserved_regs_arr[] =
     {rs_wSUSPEND, rs_wSELF, rs_wsp, rs_wLR, rs_wzr};
 static constexpr RegStorage reserved64_regs_arr[] =
     {rs_xSUSPEND, rs_xSELF, rs_sp, rs_xLR, rs_xzr};
-// TUNING: Are there too many temp registers and too less promote target?
-// This definition need to be matched with runtime.cc, quick entry assembly and JNI compiler
-// Note: we are not able to call to C function directly if it un-match C ABI.
-// Currently, rs_rA64_SELF is not a callee save register which does not match C ABI.
 static constexpr RegStorage core_temps_arr[] =
     {rs_w0, rs_w1, rs_w2, rs_w3, rs_w4, rs_w5, rs_w6, rs_w7,
      rs_w8, rs_w9, rs_w10, rs_w11, rs_w12, rs_w13, rs_w14, rs_w15, rs_w16,
@@ -108,19 +106,19 @@ RegLocation Arm64Mir2Lir::LocCReturnDouble() {
 RegStorage Arm64Mir2Lir::TargetReg(SpecialTargetRegister reg) {
   RegStorage res_reg = RegStorage::InvalidReg();
   switch (reg) {
-    case kSelf: res_reg = rs_xSELF; break;
-    case kSuspend: res_reg = rs_xSUSPEND; break;
-    case kLr: res_reg =  rs_xLR; break;
+    case kSelf: res_reg = rs_wSELF; break;
+    case kSuspend: res_reg = rs_wSUSPEND; break;
+    case kLr: res_reg =  rs_wLR; break;
     case kPc: res_reg = RegStorage::InvalidReg(); break;
-    case kSp: res_reg =  rs_sp; break;
-    case kArg0: res_reg = rs_x0; break;
-    case kArg1: res_reg = rs_x1; break;
-    case kArg2: res_reg = rs_x2; break;
-    case kArg3: res_reg = rs_x3; break;
-    case kArg4: res_reg = rs_x4; break;
-    case kArg5: res_reg = rs_x5; break;
-    case kArg6: res_reg = rs_x6; break;
-    case kArg7: res_reg = rs_x7; break;
+    case kSp: res_reg =  rs_wsp; break;
+    case kArg0: res_reg = rs_w0; break;
+    case kArg1: res_reg = rs_w1; break;
+    case kArg2: res_reg = rs_w2; break;
+    case kArg3: res_reg = rs_w3; break;
+    case kArg4: res_reg = rs_w4; break;
+    case kArg5: res_reg = rs_w5; break;
+    case kArg6: res_reg = rs_w6; break;
+    case kArg7: res_reg = rs_w7; break;
     case kFArg0: res_reg = rs_f0; break;
     case kFArg1: res_reg = rs_f1; break;
     case kFArg2: res_reg = rs_f2; break;
@@ -129,10 +127,10 @@ RegStorage Arm64Mir2Lir::TargetReg(SpecialTargetRegister reg) {
     case kFArg5: res_reg = rs_f5; break;
     case kFArg6: res_reg = rs_f6; break;
     case kFArg7: res_reg = rs_f7; break;
-    case kRet0: res_reg = rs_x0; break;
-    case kRet1: res_reg = rs_x1; break;
-    case kInvokeTgt: res_reg = rs_xLR; break;
-    case kHiddenArg: res_reg = rs_x12; break;
+    case kRet0: res_reg = rs_w0; break;
+    case kRet1: res_reg = rs_w1; break;
+    case kInvokeTgt: res_reg = rs_wLR; break;
+    case kHiddenArg: res_reg = rs_wIP1; break;
     case kHiddenFpArg: res_reg = RegStorage::InvalidReg(); break;
     case kCount: res_reg = RegStorage::InvalidReg(); break;
     default: res_reg = RegStorage::InvalidReg();
@@ -569,10 +567,6 @@ bool Arm64Mir2Lir::IsUnconditionalBranch(LIR* lir) {
   return (lir->opcode == kA64B1t);
 }
 
-bool Arm64Mir2Lir::SupportsVolatileLoadStore(OpSize size) {
-  return true;
-}
-
 RegisterClass Arm64Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatile) {
   if (UNLIKELY(is_volatile)) {
     // On arm64, fp register load/store is atomic only for single bytes.
@@ -762,15 +756,10 @@ void Arm64Mir2Lir::FreeCallTemps() {
   FreeTemp(rs_f7);
 }
 
-RegStorage Arm64Mir2Lir::LoadHelper(ThreadOffset<4> offset) {
-  UNIMPLEMENTED(FATAL) << "Should not be called.";
-  return RegStorage::InvalidReg();
-}
-
-RegStorage Arm64Mir2Lir::LoadHelper(ThreadOffset<8> offset) {
+RegStorage Arm64Mir2Lir::LoadHelper(QuickEntrypointEnum trampoline) {
   // TODO(Arm64): use LoadWordDisp instead.
   //   e.g. LoadWordDisp(rs_rA64_SELF, offset.Int32Value(), rs_rA64_LR);
-  LoadBaseDisp(rs_xSELF, offset.Int32Value(), rs_xLR, k64, kNotVolatile);
+  LoadBaseDisp(rs_xSELF, GetThreadOffset<8>(trampoline).Int32Value(), rs_xLR, k64, kNotVolatile);
   return rs_xLR;
 }
 
@@ -929,13 +918,13 @@ void Arm64Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
    */
   RegLocation rl_src = rl_method;
   rl_src.location = kLocPhysReg;
-  rl_src.reg = TargetReg(kArg0);
+  rl_src.reg = TargetReg(kArg0, kRef);
   rl_src.home = false;
   MarkLive(rl_src);
   StoreValue(rl_method, rl_src);
   // If Method* has been promoted, explicitly flush
   if (rl_method.location == kLocPhysReg) {
-    StoreRefDisp(TargetReg(kSp), 0, TargetReg(kArg0), kNotVolatile);
+    StoreRefDisp(TargetPtrReg(kSp), 0, rl_src.reg, kNotVolatile);
   }
 
   if (cu_->num_ins == 0) {
@@ -961,9 +950,9 @@ void Arm64Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
       } else {
         // Needs flush.
         if (t_loc->ref) {
-          StoreRefDisp(TargetReg(kSp), SRegOffset(start_vreg + i), reg, kNotVolatile);
+          StoreRefDisp(TargetPtrReg(kSp), SRegOffset(start_vreg + i), reg, kNotVolatile);
         } else {
-          StoreBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i), reg, t_loc->wide ? k64 : k32,
+          StoreBaseDisp(TargetPtrReg(kSp), SRegOffset(start_vreg + i), reg, t_loc->wide ? k64 : k32,
               kNotVolatile);
         }
       }
@@ -971,9 +960,9 @@ void Arm64Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
       // If arriving in frame & promoted.
       if (t_loc->location == kLocPhysReg) {
         if (t_loc->ref) {
-          LoadRefDisp(TargetReg(kSp), SRegOffset(start_vreg + i), t_loc->reg, kNotVolatile);
+          LoadRefDisp(TargetPtrReg(kSp), SRegOffset(start_vreg + i), t_loc->reg, kNotVolatile);
         } else {
-          LoadBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i), t_loc->reg,
+          LoadBaseDisp(TargetPtrReg(kSp), SRegOffset(start_vreg + i), t_loc->reg,
                        t_loc->wide ? k64 : k32, kNotVolatile);
         }
       }
@@ -1070,7 +1059,7 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
         loc = UpdateLocWide(loc);
         if (loc.location == kLocPhysReg) {
           ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k64, kNotVolatile);
+          StoreBaseDisp(TargetPtrReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k64, kNotVolatile);
         }
         next_arg += 2;
       } else {
@@ -1078,9 +1067,10 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
         if (loc.location == kLocPhysReg) {
           ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
           if (loc.ref) {
-            StoreRefDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, kNotVolatile);
+            StoreRefDisp(TargetPtrReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, kNotVolatile);
           } else {
-            StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k32, kNotVolatile);
+            StoreBaseDisp(TargetPtrReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k32,
+                          kNotVolatile);
           }
         }
         next_arg++;
@@ -1114,8 +1104,8 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
       RegStorage temp = TargetReg(kArg3, kNotWide);
 
       // Now load the argument VR and store to the outs.
-      Load32Disp(TargetReg(kSp), current_src_offset, temp);
-      Store32Disp(TargetReg(kSp), current_dest_offset, temp);
+      Load32Disp(TargetPtrReg(kSp), current_src_offset, temp);
+      Store32Disp(TargetPtrReg(kSp), current_dest_offset, temp);
 
       current_src_offset += bytes_to_move;
       current_dest_offset += bytes_to_move;
@@ -1126,8 +1116,7 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
 
   // Now handle rest not registers if they are
   if (in_to_reg_storage_mapping.IsThereStackMapped()) {
-    RegStorage regSingle = TargetReg(kArg2);
-    RegStorage regWide = RegStorage::Solo64(TargetReg(kArg3).GetReg());
+    RegStorage regWide = TargetReg(kArg3, kWide);
     for (int i = start_index; i <= last_mapped_in + regs_left_to_pass_via_stack; i++) {
       RegLocation rl_arg = info->args[i];
       rl_arg = UpdateRawLoc(rl_arg);
@@ -1139,25 +1128,27 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
           ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
           if (rl_arg.wide) {
             if (rl_arg.location == kLocPhysReg) {
-              StoreBaseDisp(TargetReg(kSp), out_offset, rl_arg.reg, k64, kNotVolatile);
+              StoreBaseDisp(TargetPtrReg(kSp), out_offset, rl_arg.reg, k64, kNotVolatile);
             } else {
               LoadValueDirectWideFixed(rl_arg, regWide);
-              StoreBaseDisp(TargetReg(kSp), out_offset, regWide, k64, kNotVolatile);
+              StoreBaseDisp(TargetPtrReg(kSp), out_offset, regWide, k64, kNotVolatile);
             }
           } else {
             if (rl_arg.location == kLocPhysReg) {
               if (rl_arg.ref) {
-                StoreRefDisp(TargetReg(kSp), out_offset, rl_arg.reg, kNotVolatile);
+                StoreRefDisp(TargetPtrReg(kSp), out_offset, rl_arg.reg, kNotVolatile);
               } else {
-                StoreBaseDisp(TargetReg(kSp), out_offset, rl_arg.reg, k32, kNotVolatile);
+                StoreBaseDisp(TargetPtrReg(kSp), out_offset, rl_arg.reg, k32, kNotVolatile);
               }
             } else {
               if (rl_arg.ref) {
+                RegStorage regSingle = TargetReg(kArg2, kRef);
                 LoadValueDirectFixed(rl_arg, regSingle);
-                StoreRefDisp(TargetReg(kSp), out_offset, regSingle, kNotVolatile);
+                StoreRefDisp(TargetPtrReg(kSp), out_offset, regSingle, kNotVolatile);
               } else {
-                LoadValueDirectFixed(rl_arg, As32BitReg(regSingle));
-                StoreBaseDisp(TargetReg(kSp), out_offset, As32BitReg(regSingle), k32, kNotVolatile);
+                RegStorage regSingle = TargetReg(kArg2, kNotWide);
+                LoadValueDirectFixed(rl_arg, regSingle);
+                StoreBaseDisp(TargetPtrReg(kSp), out_offset, regSingle, k32, kNotVolatile);
               }
             }
           }
@@ -1200,7 +1191,7 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
       // In lieu of generating a check for kArg1 being null, we need to
       // perform a load when doing implicit checks.
       RegStorage tmp = AllocTemp();
-      Load32Disp(TargetReg(kArg1), 0, tmp);
+      Load32Disp(TargetReg(kArg1, kRef), 0, tmp);
       MarkPossibleNullPointerException(info->opt_flags);
       FreeTemp(tmp);
     }

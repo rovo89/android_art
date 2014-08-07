@@ -21,10 +21,13 @@
 #include <stdio.h>
 
 #include <iosfwd>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "compiler_callbacks.h"
+#include "gc_root.h"
 #include "instrumentation.h"
 #include "instruction_set.h"
 #include "jobject_comparator.h"
@@ -54,7 +57,6 @@ namespace verifier {
 class MethodVerifier;
 }
 class ClassLinker;
-class CompilerCallbacks;
 class DexFile;
 class InternTable;
 class JavaVMExt;
@@ -67,6 +69,8 @@ class SuspensionHandler;
 class ThreadList;
 class Trace;
 class Transaction;
+
+typedef std::vector<std::pair<std::string, const void*>> RuntimeOptions;
 
 // Not all combinations of flags are valid. You may not visit all roots as well as the new roots
 // (no logical reason to do this). You also may not start logging new roots and stop logging new
@@ -81,14 +85,24 @@ enum VisitRootFlags : uint8_t {
 
 class Runtime {
  public:
-  typedef std::vector<std::pair<std::string, const void*>> Options;
-
   // Creates and initializes a new runtime.
-  static bool Create(const Options& options, bool ignore_unrecognized)
+  static bool Create(const RuntimeOptions& options, bool ignore_unrecognized)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_);
 
   bool IsCompiler() const {
     return compiler_callbacks_ != nullptr;
+  }
+
+  bool CanRelocate() const {
+    return !IsCompiler() || compiler_callbacks_->IsRelocationPossible();
+  }
+
+  bool ShouldRelocate() const {
+    return must_relocate_ && CanRelocate();
+  }
+
+  bool MustRelocateIfPossible() const {
+    return must_relocate_;
   }
 
   CompilerCallbacks* GetCompilerCallbacks() {
@@ -104,6 +118,7 @@ class Runtime {
   }
 
   std::string GetCompilerExecutable() const;
+  std::string GetPatchoatExecutable() const;
 
   const std::vector<std::string>& GetCompilerOptions() const {
     return compiler_options_;
@@ -219,8 +234,7 @@ class Runtime {
     return monitor_pool_;
   }
 
-  mirror::Throwable* GetPreAllocatedOutOfMemoryError() const
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Throwable* GetPreAllocatedOutOfMemoryError() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const std::vector<std::string>& GetProperties() const {
     return properties_;
@@ -266,49 +280,41 @@ class Runtime {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns a special method that calls into a trampoline for runtime method resolution
-  mirror::ArtMethod* GetResolutionMethod() const {
-    CHECK(HasResolutionMethod());
-    return resolution_method_;
-  }
+  mirror::ArtMethod* GetResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasResolutionMethod() const {
-    return resolution_method_ != NULL;
+    return !resolution_method_.IsNull();
   }
 
   void SetResolutionMethod(mirror::ArtMethod* method) {
-    resolution_method_ = method;
+    resolution_method_ = GcRoot<mirror::ArtMethod>(method);
   }
 
   mirror::ArtMethod* CreateResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Returns a special method that calls into a trampoline for runtime imt conflicts
-  mirror::ArtMethod* GetImtConflictMethod() const {
-    CHECK(HasImtConflictMethod());
-    return imt_conflict_method_;
-  }
+  // Returns a special method that calls into a trampoline for runtime imt conflicts.
+  mirror::ArtMethod* GetImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasImtConflictMethod() const {
-    return imt_conflict_method_ != NULL;
+    return !imt_conflict_method_.IsNull();
   }
 
   void SetImtConflictMethod(mirror::ArtMethod* method) {
-    imt_conflict_method_ = method;
+    imt_conflict_method_ = GcRoot<mirror::ArtMethod>(method);
   }
 
   mirror::ArtMethod* CreateImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns an imt with every entry set to conflict, used as default imt for all classes.
-  mirror::ObjectArray<mirror::ArtMethod>* GetDefaultImt() const {
-    CHECK(HasDefaultImt());
-    return default_imt_;
-  }
+  mirror::ObjectArray<mirror::ArtMethod>* GetDefaultImt()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasDefaultImt() const {
-    return default_imt_ != NULL;
+    return !default_imt_.IsNull();
   }
 
   void SetDefaultImt(mirror::ObjectArray<mirror::ArtMethod>* imt) {
-    default_imt_ = imt;
+    default_imt_ = GcRoot<mirror::ObjectArray<mirror::ArtMethod>>(imt);
   }
 
   mirror::ObjectArray<mirror::ArtMethod>* CreateDefaultImt(ClassLinker* cl)
@@ -323,19 +329,21 @@ class Runtime {
   };
 
   bool HasCalleeSaveMethod(CalleeSaveType type) const {
-    return callee_save_methods_[type] != NULL;
+    return !callee_save_methods_[type].IsNull();
   }
 
-  mirror::ArtMethod* GetCalleeSaveMethod(CalleeSaveType type) const {
-    DCHECK(HasCalleeSaveMethod(type));
-    return callee_save_methods_[type];
-  }
+  mirror::ArtMethod* GetCalleeSaveMethod(CalleeSaveType type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  mirror::ArtMethod* GetCalleeSaveMethodUnchecked(CalleeSaveType type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   QuickMethodFrameInfo GetCalleeSaveMethodFrameInfo(CalleeSaveType type) const {
     return callee_save_method_frame_infos_[type];
   }
 
-  QuickMethodFrameInfo GetRuntimeMethodFrameInfo(mirror::ArtMethod* method) const;
+  QuickMethodFrameInfo GetRuntimeMethodFrameInfo(mirror::ArtMethod* method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static size_t GetCalleeSaveMethodOffset(CalleeSaveType type) {
     return OFFSETOF_MEMBER(Runtime, callee_save_methods_[type]);
@@ -463,7 +471,7 @@ class Runtime {
 
   void BlockSignals();
 
-  bool Init(const Options& options, bool ignore_unrecognized)
+  bool Init(const RuntimeOptions& options, bool ignore_unrecognized)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_);
   void InitNativeMethods() LOCKS_EXCLUDED(Locks::mutator_lock_);
   void InitThreadGroups(Thread* self);
@@ -481,21 +489,23 @@ class Runtime {
   static constexpr int kProfileForground = 0;
   static constexpr int kProfileBackgrouud = 1;
 
-  mirror::ArtMethod* callee_save_methods_[kLastCalleeSaveType];
-  mirror::Throwable* pre_allocated_OutOfMemoryError_;
-  mirror::ArtMethod* resolution_method_;
-  mirror::ArtMethod* imt_conflict_method_;
-  mirror::ObjectArray<mirror::ArtMethod>* default_imt_;
+  GcRoot<mirror::ArtMethod> callee_save_methods_[kLastCalleeSaveType];
+  GcRoot<mirror::Throwable> pre_allocated_OutOfMemoryError_;
+  GcRoot<mirror::ArtMethod> resolution_method_;
+  GcRoot<mirror::ArtMethod> imt_conflict_method_;
+  GcRoot<mirror::ObjectArray<mirror::ArtMethod>> default_imt_;
 
   InstructionSet instruction_set_;
   QuickMethodFrameInfo callee_save_method_frame_infos_[kLastCalleeSaveType];
 
   CompilerCallbacks* compiler_callbacks_;
   bool is_zygote_;
+  bool must_relocate_;
   bool is_concurrent_gc_enabled_;
   bool is_explicit_gc_disabled_;
 
   std::string compiler_executable_;
+  std::string patchoat_executable_;
   std::vector<std::string> compiler_options_;
   std::vector<std::string> image_compiler_options_;
 

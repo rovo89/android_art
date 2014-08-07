@@ -19,6 +19,7 @@
 
 #include <vector>
 #include "handle_scope.h"
+#include "primitive.h"
 #include "thread.h"
 #include "utils/managed_register.h"
 

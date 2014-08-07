@@ -88,6 +88,10 @@ class PACKED(4) OatHeader {
   uint32_t GetQuickToInterpreterBridgeOffset() const;
   void SetQuickToInterpreterBridgeOffset(uint32_t offset);
 
+  int32_t GetImagePatchDelta() const;
+  void RelocateOat(off_t delta);
+  void SetImagePatchDelta(int32_t off);
+
   InstructionSet GetInstructionSet() const;
   const InstructionSetFeatures& GetInstructionSetFeatures() const;
   uint32_t GetImageFileLocationOatChecksum() const;
@@ -128,6 +132,9 @@ class PACKED(4) OatHeader {
   uint32_t quick_imt_conflict_trampoline_offset_;
   uint32_t quick_resolution_trampoline_offset_;
   uint32_t quick_to_interpreter_bridge_offset_;
+
+  // The amount that the image this oat is associated with has been patched.
+  int32_t image_patch_delta_;
 
   uint32_t image_file_location_oat_checksum_;
   uint32_t image_file_location_oat_data_begin_;

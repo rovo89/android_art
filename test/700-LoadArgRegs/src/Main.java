@@ -274,6 +274,14 @@ public class Main {
     System.out.println(i1+", "+d1+", "+d2+", "+d3+", "+d4+", "+d5+", "+d6+", "+d7+", "+d8+", "+d9+", "+i2+", "+i3+", "+i4+", "+i5+", "+i6);
   }
 
+  static void testRefs1(Object o1, Object o2, Object o3, Object o4, Object o5, long l1, long l2, long l3) {
+    System.out.println(l1 + ", " + l2 + ", " + l3);
+  }
+
+  static void testRefs(Object o1, Object o2, Object o3, Object o4, Object o5, long l1, long l2, long l3) {
+    testRefs1(o1, o2, o3, o4, o5, l1, l2, l3);
+  }
+
   static public void main(String[] args) throws Exception {
     testI();
     testB();
@@ -288,5 +296,8 @@ public class Main {
     testLL();
 
     testMore(1, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 2, 3, 4, 5, 6);
+
+    Object obj = new Object();
+    testRefs(obj, obj, obj, obj, obj, 0x1122334455667788L, 0x8877665544332211L, 0x1122334455667788L);
   }
 }

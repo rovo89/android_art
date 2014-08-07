@@ -17,19 +17,20 @@
 #ifndef ART_RUNTIME_JDWP_OBJECT_REGISTRY_H_
 #define ART_RUNTIME_JDWP_OBJECT_REGISTRY_H_
 
+#include <jni.h>
 #include <stdint.h>
 
 #include <map>
 
 #include "jdwp/jdwp.h"
-#include "mirror/art_field-inl.h"
-#include "mirror/class.h"
-#include "mirror/class-inl.h"
-#include "mirror/object-inl.h"
-#include "object_callbacks.h"
 #include "safe_map.h"
 
 namespace art {
+
+namespace mirror {
+  class Object;
+  class Class;
+}  // namespace mirror
 
 struct ObjectRegistryEntry {
   // Is jni_reference a weak global or a regular global reference?

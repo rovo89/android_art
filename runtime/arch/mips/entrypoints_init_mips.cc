@@ -21,6 +21,7 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "entrypoints/math_entrypoints.h"
+#include "atomic.h"
 
 namespace art {
 
@@ -196,11 +197,11 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pCmplDouble = CmplDouble;
   qpoints->pCmplFloat = CmplFloat;
   qpoints->pFmod = fmod;
-  qpoints->pL2d = __floatdidf;
+  qpoints->pL2d = art_l2d;
   qpoints->pFmodf = fmodf;
-  qpoints->pL2f = __floatdisf;
-  qpoints->pD2iz = __fixdfsi;
-  qpoints->pF2iz = __fixsfsi;
+  qpoints->pL2f = art_l2f;
+  qpoints->pD2iz = art_d2i;
+  qpoints->pF2iz = art_f2i;
   qpoints->pIdivmod = NULL;
   qpoints->pD2l = art_d2l;
   qpoints->pF2l = art_f2l;
@@ -236,6 +237,10 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pThrowNoSuchMethod = art_quick_throw_no_such_method;
   qpoints->pThrowNullPointer = art_quick_throw_null_pointer_exception;
   qpoints->pThrowStackOverflow = art_quick_throw_stack_overflow;
+
+  // Atomic 64-bit load/store
+  qpoints->pA64Load = QuasiAtomic::Read64;
+  qpoints->pA64Store = QuasiAtomic::Write64;
 };
 
 }  // namespace art

@@ -19,6 +19,7 @@
 
 #include "base/casts.h"
 #include "jni_internal-inl.h"
+#include "read_barrier.h"
 #include "thread-inl.h"
 #include "verify_object.h"
 

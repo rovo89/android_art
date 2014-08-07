@@ -20,7 +20,7 @@
 #include "code_generator.h"
 #include "nodes.h"
 #include "parallel_move_resolver.h"
-#include "utils/arm/assembler_arm32.h"
+#include "utils/arm/assembler_thumb2.h"
 
 namespace art {
 namespace arm {
@@ -89,7 +89,7 @@ class LocationsBuilderARM : public HGraphVisitor {
 #define DECLARE_VISIT_INSTRUCTION(name)     \
   virtual void Visit##name(H##name* instr);
 
-  FOR_EACH_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
 
@@ -107,7 +107,7 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
 #define DECLARE_VISIT_INSTRUCTION(name)     \
   virtual void Visit##name(H##name* instr);
 
-  FOR_EACH_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
 
@@ -126,7 +126,6 @@ class CodeGeneratorARM : public CodeGenerator {
   explicit CodeGeneratorARM(HGraph* graph);
   virtual ~CodeGeneratorARM() { }
 
-  virtual void ComputeFrameSize(size_t number_of_spill_slots) OVERRIDE;
   virtual void GenerateFrameEntry() OVERRIDE;
   virtual void GenerateFrameExit() OVERRIDE;
   virtual void Bind(Label* label) OVERRIDE;
@@ -135,6 +134,8 @@ class CodeGeneratorARM : public CodeGenerator {
   virtual size_t GetWordSize() const OVERRIDE {
     return kArmWordSize;
   }
+
+  virtual size_t FrameEntrySpillSize() const OVERRIDE;
 
   virtual HGraphVisitor* GetLocationBuilder() OVERRIDE {
     return &location_builder_;
@@ -153,9 +154,7 @@ class CodeGeneratorARM : public CodeGenerator {
       Primitive::Type type, bool* blocked_registers) const OVERRIDE;
   virtual size_t GetNumberOfRegisters() const OVERRIDE;
 
-  int32_t GetStackSlot(HLocal* local) const;
   virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
-  virtual Location GetTemporaryLocation(HTemporary* temp) const OVERRIDE;
 
   virtual size_t GetNumberOfCoreRegisters() const OVERRIDE {
     return kNumberOfCoreRegisters;
@@ -173,19 +172,22 @@ class CodeGeneratorARM : public CodeGenerator {
   }
 
   virtual InstructionSet GetInstructionSet() const OVERRIDE {
-    return InstructionSet::kArm;
+    return InstructionSet::kThumb2;
   }
 
- private:
   // Helper method to move a 32bits value between two locations.
   void Move32(Location destination, Location source);
   // Helper method to move a 64bits value between two locations.
   void Move64(Location destination, Location source);
 
+  // Emit a write barrier.
+  void MarkGCCard(Register temp, Register card, Register object, Register value);
+
+ private:
   LocationsBuilderARM location_builder_;
   InstructionCodeGeneratorARM instruction_visitor_;
   ParallelMoveResolverARM move_resolver_;
-  Arm32Assembler assembler_;
+  Thumb2Assembler assembler_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM);
 };

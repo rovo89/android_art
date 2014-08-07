@@ -71,6 +71,41 @@ public class Main {
     if (m.$opt$TestOtherParameter(new Main()) == m) {
       throw new Error("Unexpected value returned");
     }
+
+    if (m.$opt$TestReturnNewObject(m) == m) {
+      throw new Error("Unexpected value returned");
+    }
+
+    // Loop enough iterations to hope for a crash if no write barrier
+    // is emitted.
+    for (int j = 0; j < 3; j++) {
+      Main m1 = new Main();
+      $opt$SetFieldInOldObject(m1);
+      for (int i = 0; i < 1000; ++i) {
+        Object o = new byte[1024];
+      }
+    }
+
+    // Test that we do NPE checks on invokedirect.
+    Exception exception = null;
+    try {
+      invokePrivate();
+    } catch (NullPointerException e) {
+      exception = e;
+    }
+
+    if (exception == null) {
+      throw new Error("Missing NullPointerException");
+    }
+  }
+
+  public static void invokePrivate() {
+    Main m = null;
+    m.privateMethod();
+  }
+
+  private void privateMethod() {
+    Object o = new Object();
   }
 
   static int $opt$TestInvokeIntParameter(int param) {
@@ -106,6 +141,12 @@ public class Main {
   Object $opt$TestOtherParameter(Object other) {
     forceGCStaticMethod();
     return other;
+  }
+
+  Object $opt$TestReturnNewObject(Object other) {
+    Object o = new Object();
+    forceGCStaticMethod();
+    return o;
   }
 
   public static void $opt$TestInvokeStatic() {
@@ -159,4 +200,10 @@ public class Main {
   public static void throwStaticMethod() {
     throw new Error("Error");
   }
+
+  public static void $opt$SetFieldInOldObject(Main m) {
+    m.o = new Main();
+  }
+
+  Object o;
 }

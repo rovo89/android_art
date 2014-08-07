@@ -30,7 +30,6 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/throwable.h"
-#include "object_utils.h"
 #include "handle_scope-inl.h"
 #include "thread.h"
 
@@ -38,10 +37,9 @@ namespace art {
 
 // TODO: Fix no thread safety analysis when GCC can handle template specialization.
 template <const bool kAccessCheck>
-ALWAYS_INLINE static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
-                                                            mirror::ArtMethod* method,
-                                                            Thread* self, bool* slow_path)
-    NO_THREAD_SAFETY_ANALYSIS {
+static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
+                                              mirror::ArtMethod* method,
+                                              Thread* self, bool* slow_path) {
   mirror::Class* klass = method->GetDexCacheResolvedTypes()->GetWithoutChecks(type_idx);
   if (UNLIKELY(klass == NULL)) {
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
@@ -88,9 +86,9 @@ ALWAYS_INLINE static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
 }
 
 // TODO: Fix no thread safety analysis when annotalysis is smarter.
-ALWAYS_INLINE static inline mirror::Class* CheckClassInitializedForObjectAlloc(mirror::Class* klass,
-                                                                               Thread* self, bool* slow_path)
-    NO_THREAD_SAFETY_ANALYSIS {
+static inline mirror::Class* CheckClassInitializedForObjectAlloc(mirror::Class* klass,
+                                                                 Thread* self,
+                                                                 bool* slow_path) {
   if (UNLIKELY(!klass->IsInitialized())) {
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> h_class(hs.NewHandle(klass));
@@ -118,11 +116,10 @@ ALWAYS_INLINE static inline mirror::Class* CheckClassInitializedForObjectAlloc(m
 // check.
 // TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
 template <bool kAccessCheck, bool kInstrumented>
-ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx,
-                                                                mirror::ArtMethod* method,
-                                                                Thread* self,
-                                                                gc::AllocatorType allocator_type)
-    NO_THREAD_SAFETY_ANALYSIS {
+static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx,
+                                                  mirror::ArtMethod* method,
+                                                  Thread* self,
+                                                  gc::AllocatorType allocator_type) {
   bool slow_path = false;
   mirror::Class* klass = CheckObjectAlloc<kAccessCheck>(type_idx, method, self, &slow_path);
   if (UNLIKELY(slow_path)) {
@@ -138,11 +135,10 @@ ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCode(uint32_t type_id
 // Given the context of a calling Method and a resolved class, create an instance.
 // TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
 template <bool kInstrumented>
-ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeResolved(mirror::Class* klass,
-                                                                        mirror::ArtMethod* method,
-                                                                        Thread* self,
-                                                                        gc::AllocatorType allocator_type)
-    NO_THREAD_SAFETY_ANALYSIS {
+static inline mirror::Object* AllocObjectFromCodeResolved(mirror::Class* klass,
+                                                          mirror::ArtMethod* method,
+                                                          Thread* self,
+                                                          gc::AllocatorType allocator_type) {
   DCHECK(klass != nullptr);
   bool slow_path = false;
   klass = CheckClassInitializedForObjectAlloc(klass, self, &slow_path);
@@ -161,11 +157,10 @@ ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeResolved(mirror::
 // Given the context of a calling Method and an initialized class, create an instance.
 // TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
 template <bool kInstrumented>
-ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeInitialized(mirror::Class* klass,
-                                                                           mirror::ArtMethod* method,
-                                                                           Thread* self,
-                                                                           gc::AllocatorType allocator_type)
-    NO_THREAD_SAFETY_ANALYSIS {
+static inline mirror::Object* AllocObjectFromCodeInitialized(mirror::Class* klass,
+                                                             mirror::ArtMethod* method,
+                                                             Thread* self,
+                                                             gc::AllocatorType allocator_type) {
   DCHECK(klass != nullptr);
   // Pass in false since the object can not be finalizable.
   return klass->Alloc<kInstrumented, false>(self, allocator_type);
@@ -174,11 +169,10 @@ ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeInitialized(mirro
 
 // TODO: Fix no thread safety analysis when GCC can handle template specialization.
 template <bool kAccessCheck>
-ALWAYS_INLINE static inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
-                                                           mirror::ArtMethod* method,
-                                                           int32_t component_count,
-                                                           bool* slow_path)
-    NO_THREAD_SAFETY_ANALYSIS {
+static inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
+                                             mirror::ArtMethod* method,
+                                             int32_t component_count,
+                                             bool* slow_path) {
   if (UNLIKELY(component_count < 0)) {
     ThrowNegativeArraySizeException(component_count);
     *slow_path = true;
@@ -211,12 +205,11 @@ ALWAYS_INLINE static inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
 // check.
 // TODO: Fix no thread safety analysis when GCC can handle template specialization.
 template <bool kAccessCheck, bool kInstrumented>
-ALWAYS_INLINE static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
-                                                              mirror::ArtMethod* method,
-                                                              int32_t component_count,
-                                                              Thread* self,
-                                                              gc::AllocatorType allocator_type)
-    NO_THREAD_SAFETY_ANALYSIS {
+static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
+                                                mirror::ArtMethod* method,
+                                                int32_t component_count,
+                                                Thread* self,
+                                                gc::AllocatorType allocator_type) {
   bool slow_path = false;
   mirror::Class* klass = CheckArrayAlloc<kAccessCheck>(type_idx, method, component_count,
                                                        &slow_path);
@@ -234,12 +227,11 @@ ALWAYS_INLINE static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
 }
 
 template <bool kAccessCheck, bool kInstrumented>
-ALWAYS_INLINE static inline mirror::Array* AllocArrayFromCodeResolved(mirror::Class* klass,
-                                                                      mirror::ArtMethod* method,
-                                                                      int32_t component_count,
-                                                                      Thread* self,
-                                                                      gc::AllocatorType allocator_type)
-    NO_THREAD_SAFETY_ANALYSIS {
+static inline mirror::Array* AllocArrayFromCodeResolved(mirror::Class* klass,
+                                                        mirror::ArtMethod* method,
+                                                        int32_t component_count,
+                                                        Thread* self,
+                                                        gc::AllocatorType allocator_type) {
   DCHECK(klass != nullptr);
   if (UNLIKELY(component_count < 0)) {
     ThrowNegativeArraySizeException(component_count);
@@ -475,8 +467,7 @@ EXPLICIT_FIND_METHOD_FROM_CODE_TYPED_TEMPLATE_DECL(kInterface);
 // Fast path field resolution that can't initialize classes or throw exceptions.
 static inline mirror::ArtField* FindFieldFast(uint32_t field_idx,
                                               mirror::ArtMethod* referrer,
-                                              FindFieldType type, size_t expected_size)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+                                              FindFieldType type, size_t expected_size) {
   mirror::ArtField* resolved_field =
       referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
   if (UNLIKELY(resolved_field == nullptr)) {
@@ -533,8 +524,7 @@ static inline mirror::ArtField* FindFieldFast(uint32_t field_idx,
 static inline mirror::ArtMethod* FindMethodFast(uint32_t method_idx,
                                                 mirror::Object* this_object,
                                                 mirror::ArtMethod* referrer,
-                                                bool access_check, InvokeType type)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+                                                bool access_check, InvokeType type) {
   bool is_direct = type == kStatic || type == kDirect;
   if (UNLIKELY(this_object == NULL && !is_direct)) {
     return NULL;
@@ -575,8 +565,7 @@ static inline mirror::ArtMethod* FindMethodFast(uint32_t method_idx,
 static inline mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx,
                                                     mirror::ArtMethod* referrer,
                                                     Thread* self, bool can_run_clinit,
-                                                    bool verify_access)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+                                                    bool verify_access) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   mirror::Class* klass = class_linker->ResolveType(type_idx, referrer);
   if (UNLIKELY(klass == nullptr)) {
@@ -610,14 +599,12 @@ static inline mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx,
 }
 
 static inline mirror::String* ResolveStringFromCode(mirror::ArtMethod* referrer,
-                                                    uint32_t string_idx)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+                                                    uint32_t string_idx) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   return class_linker->ResolveString(string_idx, referrer);
 }
 
-static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
-    NO_THREAD_SAFETY_ANALYSIS /* SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) */ {
+static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self) {
   // Save any pending exception over monitor exit call.
   mirror::Throwable* saved_exception = NULL;
   ThrowLocation saved_throw_location;
@@ -641,27 +628,7 @@ static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
   }
 }
 
-static inline void CheckReferenceResult(mirror::Object* o, Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (o == NULL) {
-    return;
-  }
-  mirror::ArtMethod* m = self->GetCurrentMethod(NULL);
-  if (o == kInvalidIndirectRefObject) {
-    JniAbortF(NULL, "invalid reference returned from %s", PrettyMethod(m).c_str());
-  }
-  // Make sure that the result is an instance of the type this method was expected to return.
-  StackHandleScope<1> hs(self);
-  Handle<mirror::ArtMethod> h_m(hs.NewHandle(m));
-  mirror::Class* return_type = MethodHelper(h_m).GetReturnType();
-
-  if (!o->InstanceOf(return_type)) {
-    JniAbortF(NULL, "attempt to return an instance of %s from %s", PrettyTypeOf(o).c_str(),
-              PrettyMethod(h_m.Get()).c_str());
-  }
-}
-
-static inline void CheckSuspend(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static inline void CheckSuspend(Thread* thread) {
   for (;;) {
     if (thread->ReadFlag(kCheckpointRequest)) {
       thread->RunCheckpointFunction();

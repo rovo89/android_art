@@ -16,6 +16,7 @@
 
 #include "art_method.h"
 
+#include "arch/context.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/stringpiece.h"
@@ -26,12 +27,12 @@
 #include "interpreter/interpreter.h"
 #include "jni_internal.h"
 #include "mapping_table.h"
-#include "object-inl.h"
-#include "object_array.h"
+#include "method_helper.h"
 #include "object_array-inl.h"
+#include "object_array.h"
+#include "object-inl.h"
 #include "scoped_thread_state_change.h"
 #include "string.h"
-#include "object_utils.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -46,7 +47,7 @@ extern "C" void art_quick_invoke_static_stub(ArtMethod*, uint32_t*, uint32_t, Th
 #endif
 
 // TODO: get global references for these
-Class* ArtMethod::java_lang_reflect_ArtMethod_ = NULL;
+GcRoot<Class> ArtMethod::java_lang_reflect_ArtMethod_;
 
 ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnable& soa,
                                           jobject jlr_method) {
@@ -59,9 +60,8 @@ ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnabl
 
 
 void ArtMethod::VisitRoots(RootCallback* callback, void* arg) {
-  if (java_lang_reflect_ArtMethod_ != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&java_lang_reflect_ArtMethod_), arg, 0,
-             kRootStickyClass);
+  if (!java_lang_reflect_ArtMethod_.IsNull()) {
+    java_lang_reflect_ArtMethod_.VisitRoot(callback, arg, 0, kRootStickyClass);
   }
 }
 
@@ -79,14 +79,14 @@ InvokeType ArtMethod::GetInvokeType() {
 }
 
 void ArtMethod::SetClass(Class* java_lang_reflect_ArtMethod) {
-  CHECK(java_lang_reflect_ArtMethod_ == NULL);
+  CHECK(java_lang_reflect_ArtMethod_.IsNull());
   CHECK(java_lang_reflect_ArtMethod != NULL);
-  java_lang_reflect_ArtMethod_ = java_lang_reflect_ArtMethod;
+  java_lang_reflect_ArtMethod_ = GcRoot<Class>(java_lang_reflect_ArtMethod);
 }
 
 void ArtMethod::ResetClass() {
-  CHECK(java_lang_reflect_ArtMethod_ != NULL);
-  java_lang_reflect_ArtMethod_ = NULL;
+  CHECK(!java_lang_reflect_ArtMethod_.IsNull());
+  java_lang_reflect_ArtMethod_ = GcRoot<Class>(nullptr);
 }
 
 void ArtMethod::SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings) {

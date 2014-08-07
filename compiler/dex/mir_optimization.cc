@@ -37,6 +37,7 @@ void MIRGraph::SetConstant(int32_t ssa_reg, int value) {
 
 void MIRGraph::SetConstantWide(int ssa_reg, int64_t value) {
   is_constant_v_->SetBit(ssa_reg);
+  is_constant_v_->SetBit(ssa_reg + 1);
   constant_values_[ssa_reg] = Low32Bits(value);
   constant_values_[ssa_reg + 1] = High32Bits(value);
 }

@@ -19,11 +19,12 @@
 
 #include <jni.h>
 
+#include "gc_root.h"
 #include "modifiers.h"
 #include "object.h"
 #include "object_callbacks.h"
 #include "primitive.h"
-#include "read_barrier.h"
+#include "read_barrier_option.h"
 
 namespace art {
 
@@ -135,9 +136,8 @@ class MANAGED ArtField FINAL : public Object {
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   static Class* GetJavaLangReflectArtField()  SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(java_lang_reflect_ArtField_ != nullptr);
-    return ReadBarrier::BarrierForRoot<mirror::Class, kReadBarrierOption>(
-        &java_lang_reflect_ArtField_);
+    DCHECK(!java_lang_reflect_ArtField_.IsNull());
+    return java_lang_reflect_ArtField_.Read<kReadBarrierOption>();
   }
 
   static void SetClass(Class* java_lang_reflect_ArtField);
@@ -180,7 +180,7 @@ class MANAGED ArtField FINAL : public Object {
   // Offset of field within an instance or in the Class' static fields
   uint32_t offset_;
 
-  static Class* java_lang_reflect_ArtField_;
+  static GcRoot<Class> java_lang_reflect_ArtField_;
 
   friend struct art::ArtFieldOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ArtField);

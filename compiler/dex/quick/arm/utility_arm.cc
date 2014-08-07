@@ -1107,7 +1107,7 @@ LIR* ArmMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r
     // take 4, we can't directly allocate 2 more for LDREXD temps. In that case clobber r_ptr
     // in LDREXD and recalculate it from r_base.
     RegStorage r_temp = AllocTemp();
-    RegStorage r_temp_high = AllocFreeTemp();  // We may not have another temp.
+    RegStorage r_temp_high = AllocTemp(false);  // We may not have another temp.
     if (r_temp_high.Valid()) {
       NewLIR3(kThumb2Ldrexd, r_temp.GetReg(), r_temp_high.GetReg(), r_ptr.GetReg());
       FreeTemp(r_temp_high);
@@ -1160,36 +1160,26 @@ LIR* ArmMir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
   return res;
 }
 
-LIR* ArmMir2Lir::OpThreadMem(OpKind op, ThreadOffset<4> thread_offset) {
-  LOG(FATAL) << "Unexpected use of OpThreadMem for Arm";
-  return NULL;
-}
-
-LIR* ArmMir2Lir::OpThreadMem(OpKind op, ThreadOffset<8> thread_offset) {
-  UNIMPLEMENTED(FATAL) << "Should not be called.";
-  return nullptr;
-}
-
 LIR* ArmMir2Lir::OpMem(OpKind op, RegStorage r_base, int disp) {
   LOG(FATAL) << "Unexpected use of OpMem for Arm";
   return NULL;
 }
 
-LIR* ArmMir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                      int displacement, RegStorage r_src, OpSize size) {
-  LOG(FATAL) << "Unexpected use of StoreBaseIndexedDisp for Arm";
-  return NULL;
+LIR* ArmMir2Lir::InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) {
+  return OpReg(op, r_tgt);
 }
 
-LIR* ArmMir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int offset) {
-  LOG(FATAL) << "Unexpected use of OpRegMem for Arm";
-  return NULL;
-}
+size_t ArmMir2Lir::GetInstructionOffset(LIR* lir) {
+  uint64_t check_flags = GetTargetInstFlags(lir->opcode);
+  DCHECK((check_flags & IS_LOAD) || (check_flags & IS_STORE));
+  size_t offset = (check_flags & IS_TERTIARY_OP) ? lir->operands[2] : 0;
 
-LIR* ArmMir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                     int displacement, RegStorage r_dest, OpSize size) {
-  LOG(FATAL) << "Unexpected use of LoadBaseIndexedDisp for Arm";
-  return NULL;
+  if (check_flags & SCALED_OFFSET_X2) {
+    offset = offset * 2;
+  } else if (check_flags & SCALED_OFFSET_X4) {
+    offset = offset * 4;
+  }
+  return offset;
 }
 
 }  // namespace art

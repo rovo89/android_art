@@ -65,7 +65,7 @@ class LockWord {
     kThinLockOwnerMask = (1 << kThinLockOwnerSize) - 1,
     // Count in higher bits.
     kThinLockCountShift = kThinLockOwnerSize + kThinLockOwnerShift,
-    kThinLockCountMask = (1 << kThinLockCountShift) - 1,
+    kThinLockCountMask = (1 << kThinLockCountSize) - 1,
     kThinLockMaxCount = kThinLockCountMask,
 
     // State in the highest bits.

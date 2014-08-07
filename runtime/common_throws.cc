@@ -16,6 +16,8 @@
 
 #include "common_throws.h"
 
+#include <sstream>
+
 #include "base/logging.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
@@ -25,11 +27,8 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
-#include "object_utils.h"
 #include "thread.h"
 #include "verifier/method_verifier.h"
-
-#include <sstream>
 
 namespace art {
 

@@ -153,13 +153,13 @@ void RegisterAllocator::AllocateRegistersInternal() {
       if (current->HasRegister()) {
         DCHECK(instruction->IsParameterValue());
         inactive_.Add(current);
-      } else if (current->HasSpillSlot()) {
-        DCHECK(instruction->IsParameterValue());
+      } else if (current->HasSpillSlot() || instruction->IsConstant()) {
         // Split before first register use.
         size_t first_register_use = current->FirstRegisterUse();
         if (first_register_use != kNoLifetime) {
           LiveInterval* split = Split(current, first_register_use - 1);
-          // The new interval may start at a late
+          // Don't add direclty to `unhandled_`, it needs to be sorted and the start
+          // of this new interval might be after intervals already in the list.
           AddToUnhandled(split);
         } else {
           // Nothing to do, we won't allocate a register for this value.
@@ -579,6 +579,11 @@ void RegisterAllocator::AllocateSpillSlotFor(LiveInterval* interval) {
     return;
   }
 
+  if (defined_by->IsConstant()) {
+    // Constants don't need a spill slot.
+    return;
+  }
+
   LiveInterval* last_sibling = interval;
   while (last_sibling->GetNextSibling() != nullptr) {
     last_sibling = last_sibling->GetNextSibling();
@@ -644,11 +649,16 @@ static Location ConvertToLocation(LiveInterval* interval) {
   if (interval->HasRegister()) {
     return Location::RegisterLocation(ManagedRegister(interval->GetRegister()));
   } else {
-    DCHECK(interval->GetParent()->HasSpillSlot());
-    if (NeedTwoSpillSlot(interval->GetType())) {
-      return Location::DoubleStackSlot(interval->GetParent()->GetSpillSlot());
+    HInstruction* defined_by = interval->GetParent()->GetDefinedBy();
+    if (defined_by->IsConstant()) {
+      return defined_by->GetLocations()->Out();
     } else {
-      return Location::StackSlot(interval->GetParent()->GetSpillSlot());
+      DCHECK(interval->GetParent()->HasSpillSlot());
+      if (NeedTwoSpillSlot(interval->GetType())) {
+        return Location::DoubleStackSlot(interval->GetParent()->GetSpillSlot());
+      } else {
+        return Location::StackSlot(interval->GetParent()->GetSpillSlot());
+      }
     }
   }
 }

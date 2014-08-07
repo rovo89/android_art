@@ -19,6 +19,7 @@
 #include "common_compiler_test.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/string-inl.h"
+#include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 
 namespace art {

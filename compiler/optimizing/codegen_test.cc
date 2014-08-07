@@ -48,10 +48,17 @@ class InternalCodeAllocator : public CodeAllocator {
 };
 
 #if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
-static void Run(const InternalCodeAllocator& allocator, bool has_result, int32_t expected) {
+static void Run(const InternalCodeAllocator& allocator,
+                const CodeGenerator& codegen,
+                bool has_result,
+                int32_t expected) {
   typedef int32_t (*fptr)();
   CommonCompilerTest::MakeExecutable(allocator.GetMemory(), allocator.GetSize());
   fptr f = reinterpret_cast<fptr>(allocator.GetMemory());
+  if (codegen.GetInstructionSet() == kThumb2) {
+    // For thumb we need the bottom bit set.
+    f = reinterpret_cast<fptr>(reinterpret_cast<uintptr_t>(f) + 1);
+  }
   int32_t result = f();
   if (has_result) {
     CHECK_EQ(result, expected);
@@ -69,21 +76,23 @@ static void TestCode(const uint16_t* data, bool has_result = false, int32_t expe
   InternalCodeAllocator allocator;
 
   CodeGenerator* codegen = CodeGenerator::Create(&arena, graph, kX86);
-  codegen->CompileBaseline(&allocator);
+  // We avoid doing a stack overflow check that requires the runtime being setup,
+  // by making sure the compiler knows the methods we are running are leaf methods.
+  codegen->CompileBaseline(&allocator, true);
 #if defined(__i386__)
-  Run(allocator, has_result, expected);
+  Run(allocator, *codegen, has_result, expected);
 #endif
 
   codegen = CodeGenerator::Create(&arena, graph, kArm);
-  codegen->CompileBaseline(&allocator);
+  codegen->CompileBaseline(&allocator, true);
 #if defined(__arm__)
-  Run(allocator, has_result, expected);
+  Run(allocator, *codegen, has_result, expected);
 #endif
 
   codegen = CodeGenerator::Create(&arena, graph, kX86_64);
-  codegen->CompileBaseline(&allocator);
+  codegen->CompileBaseline(&allocator, true);
 #if defined(__x86_64__)
-  Run(allocator, has_result, expected);
+  Run(allocator, *codegen, has_result, expected);
 #endif
 }
 

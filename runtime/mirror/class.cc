@@ -18,17 +18,16 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
-#include "class-inl.h"
 #include "class_linker.h"
 #include "class_loader.h"
+#include "class-inl.h"
 #include "dex_cache.h"
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
-#include "object-inl.h"
-#include "object_array-inl.h"
-#include "object_utils.h"
-#include "runtime.h"
 #include "handle_scope-inl.h"
+#include "object_array-inl.h"
+#include "object-inl.h"
+#include "runtime.h"
 #include "thread.h"
 #include "throwable.h"
 #include "utils.h"
@@ -37,24 +36,24 @@
 namespace art {
 namespace mirror {
 
-Class* Class::java_lang_Class_ = nullptr;
+GcRoot<Class> Class::java_lang_Class_;
 
 void Class::SetClassClass(Class* java_lang_Class) {
-  CHECK(java_lang_Class_ == nullptr)
-      << ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(&java_lang_Class_)
+  CHECK(java_lang_Class_.IsNull())
+      << java_lang_Class_.Read()
       << " " << java_lang_Class;
   CHECK(java_lang_Class != nullptr);
-  java_lang_Class_ = java_lang_Class;
+  java_lang_Class_ = GcRoot<Class>(java_lang_Class);
 }
 
 void Class::ResetClass() {
-  CHECK(java_lang_Class_ != nullptr);
-  java_lang_Class_ = nullptr;
+  CHECK(!java_lang_Class_.IsNull());
+  java_lang_Class_ = GcRoot<Class>(nullptr);
 }
 
 void Class::VisitRoots(RootCallback* callback, void* arg) {
-  if (java_lang_Class_ != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&java_lang_Class_), arg, 0, kRootStickyClass);
+  if (!java_lang_Class_.IsNull()) {
+    java_lang_Class_.VisitRoot(callback, arg, 0, kRootStickyClass);
   }
 }
 
@@ -842,33 +841,53 @@ void Class::PopulateEmbeddedImtAndVTable() SHARED_LOCKS_REQUIRED(Locks::mutator_
   }
 }
 
+// The pre-fence visitor for Class::CopyOf().
+class CopyClassVisitor {
+ public:
+  explicit CopyClassVisitor(Thread* self, Handle<mirror::Class>* orig,
+                            size_t new_length, size_t copy_bytes)
+      : self_(self), orig_(orig), new_length_(new_length),
+        copy_bytes_(copy_bytes) {
+  }
+
+  void operator()(Object* obj, size_t usable_size) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    UNUSED(usable_size);
+    mirror::Class* new_class_obj = obj->AsClass();
+    mirror::Object::CopyObject(self_, new_class_obj, orig_->Get(), copy_bytes_);
+    new_class_obj->SetStatus(Class::kStatusResolving, self_);
+    new_class_obj->PopulateEmbeddedImtAndVTable();
+    new_class_obj->SetClassSize(new_length_);
+  }
+
+ private:
+  Thread* const self_;
+  Handle<mirror::Class>* const orig_;
+  const size_t new_length_;
+  const size_t copy_bytes_;
+  DISALLOW_COPY_AND_ASSIGN(CopyClassVisitor);
+};
+
 Class* Class::CopyOf(Thread* self, int32_t new_length) {
   DCHECK_GE(new_length, static_cast<int32_t>(sizeof(Class)));
   // We may get copied by a compacting GC.
   StackHandleScope<1> hs(self);
   Handle<mirror::Class> h_this(hs.NewHandle(this));
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  InitializeClassVisitor visitor(new_length);
+  // The num_bytes (3rd param) is sizeof(Class) as opposed to SizeOf()
+  // to skip copying the tail part that we will overwrite here.
+  CopyClassVisitor visitor(self, &h_this, new_length, sizeof(Class));
 
   mirror::Object* new_class =
-      kMovingClasses ? heap->AllocObject<true>(self, java_lang_Class_, new_length, visitor)
-                     : heap->AllocNonMovableObject<true>(self, java_lang_Class_, new_length, visitor);
+      kMovingClasses
+         ? heap->AllocObject<true>(self, java_lang_Class_.Read(), new_length, visitor)
+         : heap->AllocNonMovableObject<true>(self, java_lang_Class_.Read(), new_length, visitor);
   if (UNLIKELY(new_class == nullptr)) {
     CHECK(self->IsExceptionPending());  // Expect an OOME.
     return NULL;
   }
 
-  mirror::Class* new_class_obj = new_class->AsClass();
-  memcpy(new_class_obj, h_this.Get(), sizeof(Class));
-
-  new_class_obj->SetStatus(kStatusResolving, self);
-  new_class_obj->PopulateEmbeddedImtAndVTable();
-  // Correct some fields.
-  new_class_obj->SetLockWord(LockWord(), false);
-  new_class_obj->SetClassSize(new_length);
-
-  Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(new_class_obj);
-  return new_class_obj;
+  return new_class->AsClass();
 }
 
 }  // namespace mirror

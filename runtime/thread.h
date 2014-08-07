@@ -31,7 +31,6 @@
 #include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/portable/portable_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"
-#include "gc/allocator/rosalloc.h"
 #include "globals.h"
 #include "handle_scope.h"
 #include "instruction_set.h"
@@ -92,6 +91,8 @@ enum ThreadFlag {
                           // safepoint handler.
   kCheckpointRequest = 2  // Request that the thread do some checkpoint work and then continue.
 };
+
+static constexpr size_t kNumRosAllocThreadLocalSizeBrackets = 34;
 
 class Thread {
  public:
@@ -549,6 +550,16 @@ class Thread {
   // Size of stack less any space reserved for stack overflow
   size_t GetStackSize() const {
     return tlsPtr_.stack_size - (tlsPtr_.stack_end - tlsPtr_.stack_begin);
+  }
+
+  byte* GetStackEndForInterpreter(bool implicit_overflow_check) const {
+    if (implicit_overflow_check) {
+      // The interpreter needs the extra overflow bytes that stack_end does
+      // not include.
+      return tlsPtr_.stack_end + GetStackOverflowReservedBytes(kRuntimeISA);
+    } else {
+      return tlsPtr_.stack_end;
+    }
   }
 
   byte* GetStackEnd() const {
@@ -1077,7 +1088,7 @@ class Thread {
     size_t thread_local_objects;
 
     // There are RosAlloc::kNumThreadLocalSizeBrackets thread-local size brackets per thread.
-    void* rosalloc_runs[gc::allocator::RosAlloc::kNumThreadLocalSizeBrackets];
+    void* rosalloc_runs[kNumRosAllocThreadLocalSizeBrackets];
 
     // Thread-local allocation stack data/routines.
     mirror::Object** thread_local_alloc_stack_top;

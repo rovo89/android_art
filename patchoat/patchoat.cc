@@ -17,15 +17,19 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/file.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <string>
 #include <vector>
 
+#include "base/scoped_flock.h"
 #include "base/stringpiece.h"
 #include "base/stringprintf.h"
 #include "elf_utils.h"
 #include "elf_file.h"
+#include "gc/space/image_space.h"
 #include "image.h"
 #include "instruction_set.h"
 #include "mirror/art_field.h"
@@ -62,6 +66,47 @@ static InstructionSet ElfISAToInstructionSet(Elf32_Word isa) {
   }
 }
 
+static bool LocationToFilename(const std::string& location, InstructionSet isa,
+                               std::string* filename) {
+  bool has_system = false;
+  bool has_cache = false;
+  // image_location = /system/framework/boot.art
+  // system_image_location = /system/framework/<image_isa>/boot.art
+  std::string system_filename(GetSystemImageFilename(location.c_str(), isa));
+  if (OS::FileExists(system_filename.c_str())) {
+    has_system = true;
+  }
+
+  bool have_android_data = false;
+  bool dalvik_cache_exists = false;
+  std::string dalvik_cache;
+  GetDalvikCache(GetInstructionSetString(isa), false, &dalvik_cache,
+                 &have_android_data, &dalvik_cache_exists);
+
+  std::string cache_filename;
+  if (have_android_data && dalvik_cache_exists) {
+    // Always set output location even if it does not exist,
+    // so that the caller knows where to create the image.
+    //
+    // image_location = /system/framework/boot.art
+    // *image_filename = /data/dalvik-cache/<image_isa>/boot.art
+    std::string error_msg;
+    if (GetDalvikCacheFilename(location.c_str(), dalvik_cache.c_str(),
+                               &cache_filename, &error_msg)) {
+      has_cache = true;
+    }
+  }
+  if (has_system) {
+    *filename = system_filename;
+    return true;
+  } else if (has_cache) {
+    *filename = cache_filename;
+    return true;
+  } else {
+    return false;
+  }
+}
+
 bool PatchOat::Patch(const std::string& image_location, off_t delta,
                      File* output_image, InstructionSet isa,
                      TimingLogger* timings) {
@@ -73,10 +118,15 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
 
   TimingLogger::ScopedTiming t("Runtime Setup", timings);
   const char *isa_name = GetInstructionSetString(isa);
-  std::string image_filename(GetSystemImageFilename(image_location.c_str(), isa));
+  std::string image_filename;
+  if (!LocationToFilename(image_location, isa, &image_filename)) {
+    LOG(ERROR) << "Unable to find image at location " << image_location;
+    return false;
+  }
   std::unique_ptr<File> input_image(OS::OpenFileForReading(image_filename.c_str()));
   if (input_image.get() == nullptr) {
-    LOG(ERROR) << "unable to open input image file.";
+    LOG(ERROR) << "unable to open input image file at " << image_filename
+               << " for location " << image_location;
     return false;
   }
   int64_t image_len = input_image->GetLength();
@@ -92,7 +142,7 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
   }
 
   // Set up the runtime
-  Runtime::Options options;
+  RuntimeOptions options;
   NoopCompilerCallbacks callbacks;
   options.push_back(std::make_pair("compilercallbacks", &callbacks));
   std::string img = "-Ximage:" + image_location;
@@ -124,7 +174,7 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
              delta, timings);
   t.NewTiming("Patching files");
   if (!p.PatchImage()) {
-    LOG(INFO) << "Failed to patch image file " << input_image->GetPath();
+    LOG(ERROR) << "Failed to patch image file " << input_image->GetPath();
     return false;
   }
 
@@ -158,10 +208,15 @@ bool PatchOat::Patch(const File* input_oat, const std::string& image_location, o
     isa = ElfISAToInstructionSet(elf_hdr.e_machine);
   }
   const char* isa_name = GetInstructionSetString(isa);
-  std::string image_filename(GetSystemImageFilename(image_location.c_str(), isa));
+  std::string image_filename;
+  if (!LocationToFilename(image_location, isa, &image_filename)) {
+    LOG(ERROR) << "Unable to find image at location " << image_location;
+    return false;
+  }
   std::unique_ptr<File> input_image(OS::OpenFileForReading(image_filename.c_str()));
   if (input_image.get() == nullptr) {
-    LOG(ERROR) << "unable to open input image file.";
+    LOG(ERROR) << "unable to open input image file at " << image_filename
+               << " for location " << image_location;
     return false;
   }
   int64_t image_len = input_image->GetLength();
@@ -176,7 +231,7 @@ bool PatchOat::Patch(const File* input_oat, const std::string& image_location, o
   }
 
   // Set up the runtime
-  Runtime::Options options;
+  RuntimeOptions options;
   NoopCompilerCallbacks callbacks;
   options.push_back(std::make_pair("compilercallbacks", &callbacks));
   std::string img = "-Ximage:" + image_location;
@@ -215,11 +270,11 @@ bool PatchOat::Patch(const File* input_oat, const std::string& image_location, o
              delta, timings);
   t.NewTiming("Patching files");
   if (!p.PatchElf()) {
-    LOG(INFO) << "Failed to patch oat file " << input_oat->GetPath();
+    LOG(ERROR) << "Failed to patch oat file " << input_oat->GetPath();
     return false;
   }
   if (!p.PatchImage()) {
-    LOG(INFO) << "Failed to patch image file " << input_image->GetPath();
+    LOG(ERROR) << "Failed to patch image file " << input_image->GetPath();
     return false;
   }
 
@@ -235,6 +290,7 @@ bool PatchOat::Patch(const File* input_oat, const std::string& image_location, o
 
 bool PatchOat::WriteElf(File* out) {
   TimingLogger::ScopedTiming t("Writing Elf File", timings_);
+
   CHECK(oat_file_.get() != nullptr);
   CHECK(out != nullptr);
   size_t expect = oat_file_->Size();
@@ -249,6 +305,11 @@ bool PatchOat::WriteElf(File* out) {
 
 bool PatchOat::WriteImage(File* out) {
   TimingLogger::ScopedTiming t("Writing image File", timings_);
+  std::string error_msg;
+
+  ScopedFlock img_flock;
+  img_flock.Init(out, &error_msg);
+
   CHECK(image_ != nullptr);
   CHECK(out != nullptr);
   size_t expect = image_->Size();
@@ -436,19 +497,50 @@ bool PatchOat::CheckOatFile() {
   return true;
 }
 
+bool PatchOat::PatchOatHeader() {
+  Elf32_Shdr *rodata_sec = oat_file_->FindSectionByName(".rodata");
+  if (rodata_sec == nullptr) {
+    return false;
+  }
+  OatHeader* oat_header = reinterpret_cast<OatHeader*>(oat_file_->Begin() + rodata_sec->sh_offset);
+  if (!oat_header->IsValid()) {
+    LOG(ERROR) << "Elf file " << oat_file_->GetFile().GetPath() << " has an invalid oat header";
+    return false;
+  }
+  oat_header->RelocateOat(delta_);
+  return true;
+}
+
 bool PatchOat::PatchElf() {
-  TimingLogger::ScopedTiming t("Fixup Elf Headers", timings_);
+  TimingLogger::ScopedTiming t("Fixup Elf Text Section", timings_);
+  if (!PatchTextSection()) {
+    return false;
+  }
+
+  if (!PatchOatHeader()) {
+    return false;
+  }
+
+  bool need_fixup = false;
+  t.NewTiming("Fixup Elf Headers");
   // Fixup Phdr's
   for (unsigned int i = 0; i < oat_file_->GetProgramHeaderNum(); i++) {
     Elf32_Phdr& hdr = oat_file_->GetProgramHeader(i);
-    if (hdr.p_vaddr != 0) {
+    if (hdr.p_vaddr != 0 && hdr.p_vaddr != hdr.p_offset) {
+      need_fixup = true;
       hdr.p_vaddr += delta_;
     }
-    if (hdr.p_paddr != 0) {
+    if (hdr.p_paddr != 0 && hdr.p_paddr != hdr.p_offset) {
+      need_fixup = true;
       hdr.p_paddr += delta_;
     }
   }
-  // Fixup Shdr's
+  if (!need_fixup) {
+    // This was never passed through ElfFixup so all headers/symbols just have their offset as
+    // their addr. Therefore we do not need to update these parts.
+    return true;
+  }
+  t.NewTiming("Fixup Section Headers");
   for (unsigned int i = 0; i < oat_file_->GetSectionHeaderNum(); i++) {
     Elf32_Shdr& hdr = oat_file_->GetSectionHeader(i);
     if (hdr.sh_addr != 0) {
@@ -456,7 +548,7 @@ bool PatchOat::PatchElf() {
     }
   }
 
-  // Fixup Dynamics.
+  t.NewTiming("Fixup Dynamics");
   for (Elf32_Word i = 0; i < oat_file_->GetDynamicNum(); i++) {
     Elf32_Dyn& dyn = oat_file_->GetDynamic(i);
     if (IsDynamicSectionPointer(dyn.d_tag, oat_file_->GetHeader().e_machine)) {
@@ -478,12 +570,6 @@ bool PatchOat::PatchElf() {
     if (!PatchSymbols(symtab_sec)) {
       return false;
     }
-  }
-
-  t.NewTiming("Fixup Elf Text Section");
-  // Fixup text
-  if (!PatchTextSection()) {
-    return false;
   }
 
   return true;
@@ -510,7 +596,7 @@ bool PatchOat::PatchSymbols(Elf32_Shdr* section) {
 bool PatchOat::PatchTextSection() {
   Elf32_Shdr* patches_sec = oat_file_->FindSectionByName(".oat_patches");
   if (patches_sec == nullptr) {
-    LOG(INFO) << ".oat_patches section not found. Aborting patch";
+    LOG(ERROR) << ".oat_patches section not found. Aborting patch";
     return false;
   }
   DCHECK(CheckOatFile()) << "Oat file invalid";
@@ -584,9 +670,6 @@ static void Usage(const char *fmt, ...) {
   UsageError("  --output-oat-file=<file.oat>: Specifies the exact file to write the patched oat");
   UsageError("      file to.");
   UsageError("");
-  UsageError("  --output-oat-location=<file.oat>: Specifies the 'location' to write the patched");
-  UsageError("      oat file to. If used one must also specify the --instruction-set");
-  UsageError("");
   UsageError("  --output-oat-fd=<file-descriptor>: Specifies the file-descriptor to write the");
   UsageError("      the patched oat file to.");
   UsageError("");
@@ -595,9 +678,6 @@ static void Usage(const char *fmt, ...) {
   UsageError("");
   UsageError("  --output-image-fd=<file-descriptor>: Specifies the file-descriptor to write the");
   UsageError("      the patched image file to.");
-  UsageError("");
-  UsageError("  --output-image-location=<file.art>: Specifies the 'location' to write the patched");
-  UsageError("      image file to. If used one must also specify the --instruction-set");
   UsageError("");
   UsageError("  --orig-base-offset=<original-base-offset>: Specify the base offset the input file");
   UsageError("      was compiled with. This is needed if one is specifying a --base-offset");
@@ -613,7 +693,12 @@ static void Usage(const char *fmt, ...) {
   UsageError("");
   UsageError("  --patched-image-location=<file.art>: Use the same patch delta as was used to");
   UsageError("      patch the given image location. If used one must also specify the");
-  UsageError("      --instruction-set flag.");
+  UsageError("      --instruction-set flag. It will search for this image in the same way that");
+  UsageError("      is done when loading one.");
+  UsageError("");
+  UsageError("  --lock-output: Obtain a flock on output oat file before starting.");
+  UsageError("");
+  UsageError("  --no-lock-output: Do not attempt to obtain a flock on output oat file.");
   UsageError("");
   UsageError("  --dump-timings: dump out patch timing information");
   UsageError("");
@@ -657,7 +742,15 @@ static File* CreateOrOpen(const char* name, bool* created) {
     return OS::OpenFileReadWrite(name);
   } else {
     *created = true;
-    return OS::CreateEmptyFile(name);
+    std::unique_ptr<File> f(OS::CreateEmptyFile(name));
+    if (f.get() != nullptr) {
+      if (fchmod(f->Fd(), 0644) != 0) {
+        PLOG(ERROR) << "Unable to make " << name << " world readable";
+        unlink(name);
+        return nullptr;
+      }
+    }
+    return f.release();
   }
 }
 
@@ -689,11 +782,9 @@ static int patchoat(int argc, char **argv) {
   bool have_input_oat = false;
   std::string input_image_location;
   std::string output_oat_filename;
-  std::string output_oat_location;
   int output_oat_fd = -1;
   bool have_output_oat = false;
   std::string output_image_filename;
-  std::string output_image_location;
   int output_image_fd = -1;
   bool have_output_image = false;
   uintptr_t base_offset = 0;
@@ -705,6 +796,7 @@ static int patchoat(int argc, char **argv) {
   std::string patched_image_filename;
   std::string patched_image_location;
   bool dump_timings = kIsDebugBuild;
+  bool lock_output = true;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -755,24 +847,15 @@ static int patchoat(int argc, char **argv) {
       }
     } else if (option.starts_with("--input-image-location=")) {
       input_image_location = option.substr(strlen("--input-image-location=")).data();
-    } else if (option.starts_with("--output-oat-location=")) {
-      if (have_output_oat) {
-        Usage("Only one of --output-oat-file, --output-oat-location and --output-oat-fd may "
-              "be used.");
-      }
-      have_output_oat = true;
-      output_oat_location = option.substr(strlen("--output-oat-location=")).data();
     } else if (option.starts_with("--output-oat-file=")) {
       if (have_output_oat) {
-        Usage("Only one of --output-oat-file, --output-oat-location and --output-oat-fd may "
-              "be used.");
+        Usage("Only one of --output-oat-file, and --output-oat-fd may be used.");
       }
       have_output_oat = true;
       output_oat_filename = option.substr(strlen("--output-oat-file=")).data();
     } else if (option.starts_with("--output-oat-fd=")) {
       if (have_output_oat) {
-        Usage("Only one of --output-oat-file, --output-oat-location and --output-oat-fd may "
-              "be used.");
+        Usage("Only one of --output-oat-file, --output-oat-fd may be used.");
       }
       have_output_oat = true;
       const char* oat_fd_str = option.substr(strlen("--output-oat-fd=")).data();
@@ -782,24 +865,15 @@ static int patchoat(int argc, char **argv) {
       if (output_oat_fd < 0) {
         Usage("--output-oat-fd pass a negative value %d", output_oat_fd);
       }
-    } else if (option.starts_with("--output-image-location=")) {
-      if (have_output_image) {
-        Usage("Only one of --output-image-file, --output-image-location and --output-image-fd may "
-              "be used.");
-      }
-      have_output_image = true;
-      output_image_location= option.substr(strlen("--output-image-location=")).data();
     } else if (option.starts_with("--output-image-file=")) {
       if (have_output_image) {
-        Usage("Only one of --output-image-file, --output-image-location and --output-image-fd may "
-              "be used.");
+        Usage("Only one of --output-image-file, and --output-image-fd may be used.");
       }
       have_output_image = true;
       output_image_filename = option.substr(strlen("--output-image-file=")).data();
     } else if (option.starts_with("--output-image-fd=")) {
       if (have_output_image) {
-        Usage("Only one of --output-image-file, --output-image-location and --output-image-fd "
-              "may be used.");
+        Usage("Only one of --output-image-file, and --output-image-fd may be used.");
       }
       have_output_image = true;
       const char* image_fd_str = option.substr(strlen("--output-image-fd=")).data();
@@ -832,6 +906,10 @@ static int patchoat(int argc, char **argv) {
       patched_image_location = option.substr(strlen("--patched-image-location=")).data();
     } else if (option.starts_with("--patched-image-file=")) {
       patched_image_filename = option.substr(strlen("--patched-image-file=")).data();
+    } else if (option == "--lock-output") {
+      lock_output = true;
+    } else if (option == "--no-lock-output") {
+      lock_output = false;
     } else if (option == "--dump-timings") {
       dump_timings = true;
     } else if (option == "--no-dump-timings") {
@@ -881,34 +959,36 @@ static int patchoat(int argc, char **argv) {
     if (!isa_set) {
       Usage("specifying a location requires specifying an instruction set");
     }
-    input_oat_filename = GetSystemImageFilename(input_oat_location.c_str(), isa);
+    if (!LocationToFilename(input_oat_location, isa, &input_oat_filename)) {
+      Usage("Unable to find filename for input oat location %s", input_oat_location.c_str());
+    }
     if (debug) {
       LOG(INFO) << "Using input-oat-file " << input_oat_filename;
-    }
-  }
-  if (!output_oat_location.empty()) {
-    if (!isa_set) {
-      Usage("specifying a location requires specifying an instruction set");
-    }
-    output_oat_filename = GetSystemImageFilename(output_oat_location.c_str(), isa);
-    if (debug) {
-      LOG(INFO) << "Using output-oat-file " << output_oat_filename;
-    }
-  }
-  if (!output_image_location.empty()) {
-    if (!isa_set) {
-      Usage("specifying a location requires specifying an instruction set");
-    }
-    output_image_filename = GetSystemImageFilename(output_image_location.c_str(), isa);
-    if (debug) {
-      LOG(INFO) << "Using output-image-file " << output_image_filename;
     }
   }
   if (!patched_image_location.empty()) {
     if (!isa_set) {
       Usage("specifying a location requires specifying an instruction set");
     }
-    patched_image_filename = GetSystemImageFilename(patched_image_location.c_str(), isa);
+    std::string system_filename;
+    bool has_system = false;
+    std::string cache_filename;
+    bool has_cache = false;
+    bool has_android_data_unused = false;
+    if (!gc::space::ImageSpace::FindImageFilename(patched_image_location.c_str(), isa,
+                                                  &system_filename, &has_system, &cache_filename,
+                                                  &has_android_data_unused, &has_cache)) {
+      Usage("Unable to determine image file for location %s", patched_image_location.c_str());
+    }
+    if (has_cache) {
+      patched_image_filename = cache_filename;
+    } else if (has_system) {
+      LOG(WARNING) << "Only image file found was in /system for image location "
+                   << patched_image_location;
+      patched_image_filename = system_filename;
+    } else {
+      Usage("Unable to determine image file for location %s", patched_image_location.c_str());
+    }
     if (debug) {
       LOG(INFO) << "Using patched-image-file " << patched_image_filename;
     }
@@ -949,6 +1029,9 @@ static int patchoat(int argc, char **argv) {
     CHECK(!input_image_location.empty());
 
     if (output_image_fd != -1) {
+      if (output_image_filename.empty()) {
+        output_image_filename = "output-image-file";
+      }
       output_image.reset(new File(output_image_fd, output_image_filename));
     } else {
       CHECK(!output_image_filename.empty());
@@ -960,13 +1043,22 @@ static int patchoat(int argc, char **argv) {
 
   if (have_oat_files) {
     if (input_oat_fd != -1) {
+      if (input_oat_filename.empty()) {
+        input_oat_filename = "input-oat-file";
+      }
       input_oat.reset(new File(input_oat_fd, input_oat_filename));
     } else {
       CHECK(!input_oat_filename.empty());
       input_oat.reset(OS::OpenFileForReading(input_oat_filename.c_str()));
+      if (input_oat.get() == nullptr) {
+        LOG(ERROR) << "Could not open input oat file: " << strerror(errno);
+      }
     }
 
     if (output_oat_fd != -1) {
+      if (output_oat_filename.empty()) {
+        output_oat_filename = "output-oat-file";
+      }
       output_oat.reset(new File(output_oat_fd, output_oat_filename));
     } else {
       CHECK(!output_oat_filename.empty());
@@ -992,8 +1084,26 @@ static int patchoat(int argc, char **argv) {
     }
   };
 
+  if ((have_oat_files && (input_oat.get() == nullptr || output_oat.get() == nullptr)) ||
+      (have_image_files && output_image.get() == nullptr)) {
+    cleanup(false);
+    return EXIT_FAILURE;
+  }
+
+  ScopedFlock output_oat_lock;
+  if (lock_output) {
+    std::string error_msg;
+    if (have_oat_files && !output_oat_lock.Init(output_oat.get(), &error_msg)) {
+      LOG(ERROR) << "Unable to lock output oat " << output_image->GetPath() << ": " << error_msg;
+      cleanup(false);
+      return EXIT_FAILURE;
+    }
+  }
+
   if (debug) {
-    LOG(INFO) << "moving offset by " << base_delta << " (0x" << std::hex << base_delta << ") bytes";
+    LOG(INFO) << "moving offset by " << base_delta
+              << " (0x" << std::hex << base_delta << ") bytes or "
+              << std::dec << (base_delta/kPageSize) << " pages.";
   }
 
   bool ret;

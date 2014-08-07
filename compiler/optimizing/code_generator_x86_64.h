@@ -87,7 +87,7 @@ class LocationsBuilderX86_64 : public HGraphVisitor {
 #define DECLARE_VISIT_INSTRUCTION(name)     \
   virtual void Visit##name(H##name* instr);
 
-  FOR_EACH_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
 
@@ -105,7 +105,7 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
 #define DECLARE_VISIT_INSTRUCTION(name)     \
   virtual void Visit##name(H##name* instr);
 
-  FOR_EACH_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
 
@@ -125,7 +125,6 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   explicit CodeGeneratorX86_64(HGraph* graph);
   virtual ~CodeGeneratorX86_64() {}
 
-  virtual void ComputeFrameSize(size_t number_of_spill_slots) OVERRIDE;
   virtual void GenerateFrameEntry() OVERRIDE;
   virtual void GenerateFrameExit() OVERRIDE;
   virtual void Bind(Label* label) OVERRIDE;
@@ -134,6 +133,8 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   virtual size_t GetWordSize() const OVERRIDE {
     return kX86_64WordSize;
   }
+
+  virtual size_t FrameEntrySpillSize() const OVERRIDE;
 
   virtual HGraphVisitor* GetLocationBuilder() OVERRIDE {
     return &location_builder_;
@@ -151,9 +152,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return &move_resolver_;
   }
 
-  int32_t GetStackSlot(HLocal* local) const;
   virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
-  virtual Location GetTemporaryLocation(HTemporary* temp) const OVERRIDE;
 
   virtual size_t GetNumberOfRegisters() const OVERRIDE {
     return kNumberOfRegIds;
@@ -177,10 +176,13 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return InstructionSet::kX86_64;
   }
 
- private:
+  // Emit a write barrier.
+  void MarkGCCard(CpuRegister temp, CpuRegister card, CpuRegister object, CpuRegister value);
+
   // Helper method to move a value between two locations.
   void Move(Location destination, Location source);
 
+ private:
   LocationsBuilderX86_64 location_builder_;
   InstructionCodeGeneratorX86_64 instruction_visitor_;
   ParallelMoveResolverX86_64 move_resolver_;

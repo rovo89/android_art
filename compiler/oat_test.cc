@@ -15,14 +15,18 @@
  */
 
 #include "common_compiler_test.h"
-#include "compiler/compiler.h"
-#include "compiler/oat_writer.h"
+#include "compiler.h"
+#include "dex/verification_results.h"
+#include "dex/quick/dex_file_to_method_inliner_map.h"
+#include "dex/quick_compiler_callbacks.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
-#include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
+#include "mirror/object-inl.h"
 #include "oat_file-inl.h"
+#include "oat_writer.h"
+#include "scoped_thread_state_change.h"
 #include "vector_output_stream.h"
 
 namespace art {
@@ -94,8 +98,8 @@ TEST_F(OatTest, WriteRead) {
   compiler_options_.reset(new CompilerOptions);
   verification_results_.reset(new VerificationResults(compiler_options_.get()));
   method_inliner_map_.reset(new DexFileToMethodInlinerMap);
-  callbacks_.reset(new CompilerCallbacksImpl(verification_results_.get(),
-                                             method_inliner_map_.get()));
+  callbacks_.reset(new QuickCompilerCallbacks(verification_results_.get(),
+                                              method_inliner_map_.get()));
   timer_.reset(new CumulativeLogger("Compilation times"));
   compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
                                             verification_results_.get(),
@@ -116,6 +120,7 @@ TEST_F(OatTest, WriteRead) {
   OatWriter oat_writer(class_linker->GetBootClassPath(),
                        42U,
                        4096U,
+                       0,
                        compiler_driver_.get(),
                        &timings,
                        &key_value_store);
@@ -179,10 +184,10 @@ TEST_F(OatTest, WriteRead) {
 TEST_F(OatTest, OatHeaderSizeCheck) {
   // If this test is failing and you have to update these constants,
   // it is time to update OatHeader::kOatVersion
-  EXPECT_EQ(80U, sizeof(OatHeader));
+  EXPECT_EQ(84U, sizeof(OatHeader));
   EXPECT_EQ(8U, sizeof(OatMethodOffsets));
   EXPECT_EQ(24U, sizeof(OatQuickMethodHeader));
-  EXPECT_EQ(77 * GetInstructionSetPointerSize(kRuntimeISA), sizeof(QuickEntryPoints));
+  EXPECT_EQ(79 * GetInstructionSetPointerSize(kRuntimeISA), sizeof(QuickEntryPoints));
 }
 
 TEST_F(OatTest, OatHeaderIsValid) {

@@ -19,6 +19,7 @@
 
 #include "locations.h"
 #include "offsets.h"
+#include "primitive.h"
 #include "utils/allocation.h"
 #include "utils/arena_bit_vector.h"
 #include "utils/growable_array.h"
@@ -136,6 +137,10 @@ class HGraph : public ArenaObject {
 
   uint16_t GetNumberOfInVRegs() const {
     return number_of_in_vregs_;
+  }
+
+  uint16_t GetNumberOfLocalVRegs() const {
+    return number_of_vregs_ - number_of_in_vregs_;
   }
 
   const GrowableArray<HBasicBlock*>& GetReversePostOrder() const {
@@ -403,7 +408,7 @@ class HBasicBlock : public ArenaObject {
   DISALLOW_COPY_AND_ASSIGN(HBasicBlock);
 };
 
-#define FOR_EACH_INSTRUCTION(M)                            \
+#define FOR_EACH_CONCRETE_INSTRUCTION(M)                   \
   M(Add)                                                   \
   M(Condition)                                             \
   M(Equal)                                                 \
@@ -432,9 +437,16 @@ class HBasicBlock : public ArenaObject {
   M(Compare)                                               \
   M(InstanceFieldGet)                                      \
   M(InstanceFieldSet)                                      \
+  M(ArrayGet)                                              \
+  M(ArraySet)                                              \
+  M(ArrayLength)                                           \
+  M(BoundsCheck)                                           \
   M(NullCheck)                                             \
   M(Temporary)                                             \
 
+#define FOR_EACH_INSTRUCTION(M)                            \
+  FOR_EACH_CONCRETE_INSTRUCTION(M)                         \
+  M(Constant)
 
 #define FORWARD_DECLARATION(type) class H##type;
 FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
@@ -1073,11 +1085,21 @@ class HStoreLocal : public HTemplateInstruction<2> {
   DISALLOW_COPY_AND_ASSIGN(HStoreLocal);
 };
 
+class HConstant : public HExpression<0> {
+ public:
+  explicit HConstant(Primitive::Type type) : HExpression(type) {}
+
+  DECLARE_INSTRUCTION(Constant);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HConstant);
+};
+
 // Constants of the type int. Those can be from Dex instructions, or
 // synthesized (for example with the if-eqz instruction).
-class HIntConstant : public HExpression<0> {
+class HIntConstant : public HConstant {
  public:
-  explicit HIntConstant(int32_t value) : HExpression(Primitive::kPrimInt), value_(value) {}
+  explicit HIntConstant(int32_t value) : HConstant(Primitive::kPrimInt), value_(value) {}
 
   int32_t GetValue() const { return value_; }
 
@@ -1089,13 +1111,11 @@ class HIntConstant : public HExpression<0> {
   DISALLOW_COPY_AND_ASSIGN(HIntConstant);
 };
 
-class HLongConstant : public HExpression<0> {
+class HLongConstant : public HConstant {
  public:
-  explicit HLongConstant(int64_t value) : HExpression(Primitive::kPrimLong), value_(value) {}
+  explicit HLongConstant(int64_t value) : HConstant(Primitive::kPrimLong), value_(value) {}
 
   int64_t GetValue() const { return value_; }
-
-  virtual Primitive::Type GetType() const { return Primitive::kPrimLong; }
 
   DECLARE_INSTRUCTION(LongConstant);
 
@@ -1273,13 +1293,12 @@ class HPhi : public HInstruction {
 
   DECLARE_INSTRUCTION(Phi);
 
- protected:
+ private:
   GrowableArray<HInstruction*> inputs_;
   const uint32_t reg_number_;
   Primitive::Type type_;
   bool is_live_;
 
- private:
   DISALLOW_COPY_AND_ASSIGN(HPhi);
 };
 
@@ -1350,6 +1369,80 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
   const FieldInfo field_info_;
 
   DISALLOW_COPY_AND_ASSIGN(HInstanceFieldSet);
+};
+
+class HArrayGet : public HExpression<2> {
+ public:
+  HArrayGet(HInstruction* array, HInstruction* index, Primitive::Type type)
+      : HExpression(type) {
+    SetRawInputAt(0, array);
+    SetRawInputAt(1, index);
+  }
+
+  DECLARE_INSTRUCTION(ArrayGet);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HArrayGet);
+};
+
+class HArraySet : public HTemplateInstruction<3> {
+ public:
+  HArraySet(HInstruction* array,
+            HInstruction* index,
+            HInstruction* value,
+            uint32_t dex_pc) : dex_pc_(dex_pc) {
+    SetRawInputAt(0, array);
+    SetRawInputAt(1, index);
+    SetRawInputAt(2, value);
+  }
+
+  virtual bool NeedsEnvironment() const {
+    // We currently always call a runtime method to catch array store
+    // exceptions.
+    return InputAt(2)->GetType() == Primitive::kPrimNot;
+  }
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  DECLARE_INSTRUCTION(ArraySet);
+
+ private:
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HArraySet);
+};
+
+class HArrayLength : public HExpression<1> {
+ public:
+  explicit HArrayLength(HInstruction* array) : HExpression(Primitive::kPrimInt) {
+    SetRawInputAt(0, array);
+  }
+
+  DECLARE_INSTRUCTION(ArrayLength);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HArrayLength);
+};
+
+class HBoundsCheck : public HExpression<2> {
+ public:
+  HBoundsCheck(HInstruction* index, HInstruction* length, uint32_t dex_pc)
+      : HExpression(index->GetType()), dex_pc_(dex_pc) {
+    DCHECK(index->GetType() == Primitive::kPrimInt);
+    SetRawInputAt(0, index);
+    SetRawInputAt(1, length);
+  }
+
+  virtual bool NeedsEnvironment() const { return true; }
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  DECLARE_INSTRUCTION(BoundsCheck);
+
+ private:
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HBoundsCheck);
 };
 
 /**

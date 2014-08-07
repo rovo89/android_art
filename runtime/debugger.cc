@@ -25,11 +25,13 @@
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
+#include "field_helper.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
 #include "handle_scope.h"
 #include "jdwp/object_registry.h"
+#include "method_helper.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class.h"
@@ -39,7 +41,6 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
 #include "mirror/throwable.h"
-#include "object_utils.h"
 #include "quick/inline_method_analyser.h"
 #include "reflection.h"
 #include "safe_map.h"
@@ -3034,7 +3035,7 @@ static const Breakpoint* FindFirstBreakpointForMethod(mirror::ArtMethod* m)
 
 // Sanity checks all existing breakpoints on the same method.
 static void SanityCheckExistingBreakpoints(mirror::ArtMethod* m, bool need_full_deoptimization)
-    EXCLUSIVE_LOCKS_REQUIRED(Locks::breakpoint_lock_)  {
+    EXCLUSIVE_LOCKS_REQUIRED(Locks::breakpoint_lock_) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (kIsDebugBuild) {
     for (const Breakpoint& breakpoint : gBreakpoints) {
       CHECK_EQ(need_full_deoptimization, breakpoint.NeedFullDeoptimization());

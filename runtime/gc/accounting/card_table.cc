@@ -28,6 +28,11 @@ namespace art {
 namespace gc {
 namespace accounting {
 
+constexpr size_t CardTable::kCardShift;
+constexpr size_t CardTable::kCardSize;
+constexpr uint8_t CardTable::kCardClean;
+constexpr uint8_t CardTable::kCardDirty;
+
 /*
  * Maintain a card table from the write barrier. All writes of
  * non-NULL values to heap addresses should go through an entry in
@@ -55,9 +60,9 @@ CardTable* CardTable::Create(const byte* heap_begin, size_t heap_capacity) {
   size_t capacity = heap_capacity / kCardSize;
   /* Allocate an extra 256 bytes to allow fixed low-byte of base */
   std::string error_msg;
-  std::unique_ptr<MemMap> mem_map(MemMap::MapAnonymous("card table", NULL,
-                                                 capacity + 256, PROT_READ | PROT_WRITE,
-                                                 false, &error_msg));
+  std::unique_ptr<MemMap> mem_map(
+      MemMap::MapAnonymous("card table", nullptr, capacity + 256, PROT_READ | PROT_WRITE,
+                           false, &error_msg));
   CHECK(mem_map.get() != NULL) << "couldn't allocate card table: " << error_msg;
   // All zeros is the correct initial value; all clean. Anonymous mmaps are initialized to zero, we
   // don't clear the card table to avoid unnecessary pages being allocated
@@ -67,17 +72,17 @@ CardTable* CardTable::Create(const byte* heap_begin, size_t heap_capacity) {
   CHECK(cardtable_begin != NULL);
 
   // We allocated up to a bytes worth of extra space to allow biased_begin's byte value to equal
-  // GC_CARD_DIRTY, compute a offset value to make this the case
+  // kCardDirty, compute a offset value to make this the case
   size_t offset = 0;
   byte* biased_begin = reinterpret_cast<byte*>(reinterpret_cast<uintptr_t>(cardtable_begin) -
       (reinterpret_cast<uintptr_t>(heap_begin) >> kCardShift));
-  if (((uintptr_t)biased_begin & 0xff) != kCardDirty) {
-    int delta = kCardDirty - (reinterpret_cast<uintptr_t>(biased_begin) & 0xff);
+  uintptr_t biased_byte = reinterpret_cast<uintptr_t>(biased_begin) & 0xff;
+  if (biased_byte != kCardDirty) {
+    int delta = kCardDirty - biased_byte;
     offset = delta + (delta < 0 ? 0x100 : 0);
     biased_begin += offset;
   }
   CHECK_EQ(reinterpret_cast<uintptr_t>(biased_begin) & 0xff, kCardDirty);
-
   return new CardTable(mem_map.release(), biased_begin, offset);
 }
 

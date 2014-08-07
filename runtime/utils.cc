@@ -28,6 +28,7 @@
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "dex_file-inl.h"
+#include "field_helper.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
@@ -35,7 +36,6 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string.h"
-#include "object_utils.h"
 #include "os.h"
 #include "scoped_thread_state_change.h"
 #include "utf-inl.h"
@@ -279,11 +279,6 @@ std::string PrettyDescriptor(const std::string& descriptor) {
     result += "[]";
   }
   return result;
-}
-
-std::string PrettyDescriptor(Primitive::Type type) {
-  std::string descriptor_string(Primitive::Descriptor(type));
-  return PrettyDescriptor(descriptor_string);
 }
 
 std::string PrettyField(mirror::ArtField* f, bool with_type) {
@@ -1159,20 +1154,53 @@ const char* GetAndroidRoot() {
 }
 
 const char* GetAndroidData() {
+  std::string error_msg;
+  const char* dir = GetAndroidDataSafe(&error_msg);
+  if (dir != nullptr) {
+    return dir;
+  } else {
+    LOG(FATAL) << error_msg;
+    return "";
+  }
+}
+
+const char* GetAndroidDataSafe(std::string* error_msg) {
   const char* android_data = getenv("ANDROID_DATA");
   if (android_data == NULL) {
     if (OS::DirectoryExists("/data")) {
       android_data = "/data";
     } else {
-      LOG(FATAL) << "ANDROID_DATA not set and /data does not exist";
-      return "";
+      *error_msg = "ANDROID_DATA not set and /data does not exist";
+      return nullptr;
     }
   }
   if (!OS::DirectoryExists(android_data)) {
-    LOG(FATAL) << "Failed to find ANDROID_DATA directory " << android_data;
-    return "";
+    *error_msg = StringPrintf("Failed to find ANDROID_DATA directory %s", android_data);
+    return nullptr;
   }
   return android_data;
+}
+
+void GetDalvikCache(const char* subdir, const bool create_if_absent, std::string* dalvik_cache,
+                    bool* have_android_data, bool* dalvik_cache_exists) {
+  CHECK(subdir != nullptr);
+  std::string error_msg;
+  const char* android_data = GetAndroidDataSafe(&error_msg);
+  if (android_data == nullptr) {
+    *have_android_data = false;
+    *dalvik_cache_exists = false;
+    return;
+  } else {
+    *have_android_data = true;
+  }
+  const std::string dalvik_cache_root(StringPrintf("%s/dalvik-cache/", android_data));
+  *dalvik_cache = dalvik_cache_root + subdir;
+  *dalvik_cache_exists = OS::DirectoryExists(dalvik_cache->c_str());
+  if (create_if_absent && !*dalvik_cache_exists && strcmp(android_data, "/data") != 0) {
+    // Don't create the system's /data/dalvik-cache/... because it needs special permissions.
+    *dalvik_cache_exists = ((mkdir(dalvik_cache_root.c_str(), 0700) == 0 || errno == EEXIST) &&
+                            (mkdir(dalvik_cache->c_str(), 0700) == 0 || errno == EEXIST));
+  }
 }
 
 std::string GetDalvikCacheOrDie(const char* subdir, const bool create_if_absent) {
@@ -1201,17 +1229,29 @@ std::string GetDalvikCacheOrDie(const char* subdir, const bool create_if_absent)
   return dalvik_cache;
 }
 
-std::string GetDalvikCacheFilenameOrDie(const char* location, const char* cache_location) {
+bool GetDalvikCacheFilename(const char* location, const char* cache_location,
+                            std::string* filename, std::string* error_msg) {
   if (location[0] != '/') {
-    LOG(FATAL) << "Expected path in location to be absolute: "<< location;
+    *error_msg = StringPrintf("Expected path in location to be absolute: %s", location);
+    return false;
   }
   std::string cache_file(&location[1]);  // skip leading slash
-  if (!EndsWith(location, ".dex") && !EndsWith(location, ".art")) {
+  if (!EndsWith(location, ".dex") && !EndsWith(location, ".art") && !EndsWith(location, ".oat")) {
     cache_file += "/";
     cache_file += DexFile::kClassesDex;
   }
   std::replace(cache_file.begin(), cache_file.end(), '/', '@');
-  return StringPrintf("%s/%s", cache_location, cache_file.c_str());
+  *filename = StringPrintf("%s/%s", cache_location, cache_file.c_str());
+  return true;
+}
+
+std::string GetDalvikCacheFilenameOrDie(const char* location, const char* cache_location) {
+  std::string ret;
+  std::string error_msg;
+  if (!GetDalvikCacheFilename(location, cache_location, &ret, &error_msg)) {
+    LOG(FATAL) << error_msg;
+  }
+  return ret;
 }
 
 static void InsertIsaDirectory(const InstructionSet isa, std::string* filename) {

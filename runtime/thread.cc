@@ -32,27 +32,29 @@
 
 #include "arch/context.h"
 #include "base/mutex.h"
-#include "class_linker.h"
 #include "class_linker-inl.h"
+#include "class_linker.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "gc_map.h"
 #include "gc/accounting/card_table-inl.h"
+#include "gc/allocator/rosalloc.h"
 #include "gc/heap.h"
 #include "gc/space/space.h"
+#include "handle_scope-inl.h"
 #include "handle_scope.h"
 #include "indirect_reference_table-inl.h"
 #include "jni_internal.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
-#include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
+#include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/stack_trace_element.h"
 #include "monitor.h"
-#include "object_utils.h"
+#include "object_lock.h"
 #include "quick_exception_handler.h"
 #include "quick/quick_method_frame_info.h"
 #include "reflection.h"
@@ -60,10 +62,9 @@
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
-#include "handle_scope-inl.h"
 #include "stack.h"
-#include "thread-inl.h"
 #include "thread_list.h"
+#include "thread-inl.h"
 #include "utils.h"
 #include "verifier/dex_gc_map.h"
 #include "verify_object-inl.h"
@@ -1109,7 +1110,7 @@ Thread::Thread(bool daemon) : tls32_(daemon), wait_monitor_(nullptr), interrupte
   tls32_.state_and_flags.as_struct.state = kNative;
   memset(&tlsPtr_.held_mutexes[0], 0, sizeof(tlsPtr_.held_mutexes));
   std::fill(tlsPtr_.rosalloc_runs,
-            tlsPtr_.rosalloc_runs + gc::allocator::RosAlloc::kNumThreadLocalSizeBrackets,
+            tlsPtr_.rosalloc_runs + kNumRosAllocThreadLocalSizeBrackets,
             gc::allocator::RosAlloc::GetDedicatedFullRun());
   for (uint32_t i = 0; i < kMaxCheckpoints; ++i) {
     tlsPtr_.checkpoint_functions[i] = nullptr;
@@ -1139,7 +1140,7 @@ void Thread::AssertNoPendingExceptionForNewException(const char* msg) const {
   if (UNLIKELY(IsExceptionPending())) {
     ScopedObjectAccess soa(Thread::Current());
     mirror::Throwable* exception = GetException(nullptr);
-    LOG(FATAL) << "Throwing new exception " << msg << " with unexpected pending exception: "
+    LOG(FATAL) << "Throwing new exception '" << msg << "' with unexpected pending exception: "
         << exception->Dump();
   }
 }
@@ -1932,6 +1933,8 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
   QUICK_ENTRY_POINT_INFO(pThrowNoSuchMethod)
   QUICK_ENTRY_POINT_INFO(pThrowNullPointer)
   QUICK_ENTRY_POINT_INFO(pThrowStackOverflow)
+  QUICK_ENTRY_POINT_INFO(pA64Load)
+  QUICK_ENTRY_POINT_INFO(pA64Store)
 #undef QUICK_ENTRY_POINT_INFO
 
   os << offset;

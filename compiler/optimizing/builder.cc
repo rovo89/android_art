@@ -34,6 +34,37 @@
 
 namespace art {
 
+/**
+ * Helper class to add HTemporary instructions. This class is used when
+ * converting a DEX instruction to multiple HInstruction, and where those
+ * instructions do not die at the following instruction, but instead spans
+ * multiple instructions.
+ */
+class Temporaries : public ValueObject {
+ public:
+  Temporaries(HGraph* graph, size_t count) : graph_(graph), count_(count), index_(0) {
+    graph_->UpdateNumberOfTemporaries(count_);
+  }
+
+  void Add(HInstruction* instruction) {
+    // We currently only support vreg size temps.
+    DCHECK(instruction->GetType() != Primitive::kPrimLong
+           && instruction->GetType() != Primitive::kPrimDouble);
+    HInstruction* temp = new (graph_->GetArena()) HTemporary(index_++);
+    instruction->GetBlock()->AddInstruction(temp);
+    DCHECK(temp->GetPrevious() == instruction);
+  }
+
+ private:
+  HGraph* const graph_;
+
+  // The total number of temporaries that will be used.
+  const size_t count_;
+
+  // Current index in the temporary stack, updated by `Add`.
+  size_t index_;
+};
+
 static bool IsTypeSupported(Primitive::Type type) {
   return type != Primitive::kPrimFloat && type != Primitive::kPrimDouble;
 }
@@ -308,9 +339,13 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
       arena_, number_of_arguments, return_type, dex_offset, method_idx);
 
   size_t start_index = 0;
+  Temporaries temps(graph_, is_instance_call ? 1 : 0);
   if (is_instance_call) {
     HInstruction* arg = LoadLocal(is_range ? register_index : args[0], Primitive::kPrimNot);
-    invoke->SetArgumentAt(0, arg);
+    HNullCheck* null_check = new (arena_) HNullCheck(arg, dex_offset);
+    current_block_->AddInstruction(null_check);
+    temps.Add(null_check);
+    invoke->SetArgumentAt(0, null_check);
     start_index = 1;
   }
 
@@ -342,37 +377,6 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   current_block_->AddInstruction(invoke);
   return true;
 }
-
-/**
- * Helper class to add HTemporary instructions. This class is used when
- * converting a DEX instruction to multiple HInstruction, and where those
- * instructions do not die at the following instruction, but instead spans
- * multiple instructions.
- */
-class Temporaries : public ValueObject {
- public:
-  Temporaries(HGraph* graph, size_t count) : graph_(graph), count_(count), index_(0) {
-    graph_->UpdateNumberOfTemporaries(count_);
-  }
-
-  void Add(HInstruction* instruction) {
-    // We currently only support vreg size temps.
-    DCHECK(instruction->GetType() != Primitive::kPrimLong
-           && instruction->GetType() != Primitive::kPrimDouble);
-    HInstruction* temp = new (graph_->GetArena()) HTemporary(index_++);
-    instruction->GetBlock()->AddInstruction(temp);
-    DCHECK(temp->GetPrevious() == instruction);
-  }
-
- private:
-  HGraph* const graph_;
-
-  // The total number of temporaries that will be used.
-  const size_t count_;
-
-  // Current index in the temporary stack, updated by `Add`.
-  size_t index_;
-};
 
 bool HGraphBuilder::BuildFieldAccess(const Instruction& instruction,
                                      uint32_t dex_offset,
@@ -419,6 +423,41 @@ bool HGraphBuilder::BuildFieldAccess(const Instruction& instruction,
     UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction());
   }
   return true;
+}
+
+void HGraphBuilder::BuildArrayAccess(const Instruction& instruction,
+                                     uint32_t dex_offset,
+                                     bool is_put,
+                                     Primitive::Type anticipated_type) {
+  uint8_t source_or_dest_reg = instruction.VRegA_23x();
+  uint8_t array_reg = instruction.VRegB_23x();
+  uint8_t index_reg = instruction.VRegC_23x();
+
+  DCHECK(IsTypeSupported(anticipated_type));
+
+  // We need one temporary for the null check, one for the index, and one for the length.
+  Temporaries temps(graph_, 3);
+
+  HInstruction* object = LoadLocal(array_reg, Primitive::kPrimNot);
+  object = new (arena_) HNullCheck(object, dex_offset);
+  current_block_->AddInstruction(object);
+  temps.Add(object);
+
+  HInstruction* length = new (arena_) HArrayLength(object);
+  current_block_->AddInstruction(length);
+  temps.Add(length);
+  HInstruction* index = LoadLocal(index_reg, Primitive::kPrimInt);
+  index = new (arena_) HBoundsCheck(index, length, dex_offset);
+  current_block_->AddInstruction(index);
+  temps.Add(index);
+  if (is_put) {
+    HInstruction* value = LoadLocal(source_or_dest_reg, anticipated_type);
+    // TODO: Insert a type check node if the type is Object.
+    current_block_->AddInstruction(new (arena_) HArraySet(object, index, value, dex_offset));
+  } else {
+    current_block_->AddInstruction(new (arena_) HArrayGet(object, index, anticipated_type));
+    UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction());
+  }
 }
 
 bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_t dex_offset) {
@@ -692,6 +731,24 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
       }
       break;
     }
+
+#define ARRAY_XX(kind, anticipated_type)                                          \
+    case Instruction::AGET##kind: {                                               \
+      BuildArrayAccess(instruction, dex_offset, false, anticipated_type);         \
+      break;                                                                      \
+    }                                                                             \
+    case Instruction::APUT##kind: {                                               \
+      BuildArrayAccess(instruction, dex_offset, true, anticipated_type);          \
+      break;                                                                      \
+    }
+
+    ARRAY_XX(, Primitive::kPrimInt);
+    ARRAY_XX(_WIDE, Primitive::kPrimLong);
+    ARRAY_XX(_OBJECT, Primitive::kPrimNot);
+    ARRAY_XX(_BOOLEAN, Primitive::kPrimBoolean);
+    ARRAY_XX(_BYTE, Primitive::kPrimByte);
+    ARRAY_XX(_CHAR, Primitive::kPrimChar);
+    ARRAY_XX(_SHORT, Primitive::kPrimShort);
 
     default:
       return false;

@@ -365,7 +365,7 @@ void ArmMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
  * is responsible for setting branch target field.
  */
 LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_value, LIR* target) {
-  LIR* branch;
+  LIR* branch = nullptr;
   ArmConditionCode arm_cond = ArmConditionEncoding(cond);
   /*
    * A common use of OpCmpImmBranch is for null checks, and using the Thumb 16-bit
@@ -378,14 +378,22 @@ LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_va
    */
   bool skip = ((target != NULL) && (target->opcode == kPseudoThrowTarget));
   skip &= ((cu_->code_item->insns_size_in_code_units_ - current_dalvik_offset_) > 64);
-  if (!skip && reg.Low8() && (check_value == 0) &&
-     ((arm_cond == kArmCondEq) || (arm_cond == kArmCondNe))) {
-    branch = NewLIR2((arm_cond == kArmCondEq) ? kThumb2Cbz : kThumb2Cbnz,
-                     reg.GetReg(), 0);
-  } else {
+  if (!skip && reg.Low8() && (check_value == 0)) {
+    if (arm_cond == kArmCondEq || arm_cond == kArmCondNe) {
+      branch = NewLIR2((arm_cond == kArmCondEq) ? kThumb2Cbz : kThumb2Cbnz,
+                       reg.GetReg(), 0);
+    } else if (arm_cond == kArmCondLs) {
+      // kArmCondLs is an unsigned less or equal. A comparison r <= 0 is then the same as cbz.
+      // This case happens for a bounds check of array[0].
+      branch = NewLIR2(kThumb2Cbz, reg.GetReg(), 0);
+    }
+  }
+
+  if (branch == nullptr) {
     OpRegImm(kOpCmp, reg, check_value);
     branch = NewLIR2(kThumbBCond, 0, arm_cond);
   }
+
   branch->target = target;
   return branch;
 }
@@ -776,18 +784,6 @@ bool ArmMir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
   return true;
 }
 
-void ArmMir2Lir::OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int scale, int offset) {
-  LOG(FATAL) << "Unexpected use of OpLea for Arm";
-}
-
-void ArmMir2Lir::OpTlsCmp(ThreadOffset<4> offset, int val) {
-  LOG(FATAL) << "Unexpected use of OpTlsCmp for Arm";
-}
-
-void ArmMir2Lir::OpTlsCmp(ThreadOffset<8> offset, int val) {
-  UNIMPLEMENTED(FATAL) << "Should not be called.";
-}
-
 // Generate a CAS with memory_order_seq_cst semantics.
 bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   DCHECK_EQ(cu_->instruction_set, kThumb2);
@@ -1043,15 +1039,6 @@ bool ArmMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 #endif
 }
 
-void ArmMir2Lir::GenNotLong(RegLocation rl_dest, RegLocation rl_src) {
-  LOG(FATAL) << "Unexpected use GenNotLong()";
-}
-
-void ArmMir2Lir::GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                           RegLocation rl_src2, bool is_div) {
-  LOG(FATAL) << "Unexpected use GenDivRemLong()";
-}
-
 void ArmMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   rl_src = LoadValueWide(rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
@@ -1089,9 +1076,8 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
      */
     RegLocation rl_result;
     if (BadOverlap(rl_src1, rl_dest) || (BadOverlap(rl_src2, rl_dest))) {
-      ThreadOffset<4> func_offset = QUICK_ENTRYPOINT_OFFSET(4, pLmul);
       FlushAllRegs();
-      CallRuntimeHelperRegLocationRegLocation(func_offset, rl_src1, rl_src2, false);
+      CallRuntimeHelperRegLocationRegLocation(kQuickLmul, rl_src1, rl_src2, false);
       rl_result = GetReturnWide(kCoreReg);
       StoreValueWide(rl_dest, rl_result);
       return;
@@ -1178,29 +1164,23 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
     StoreValueWide(rl_dest, rl_result);
 }
 
-void ArmMir2Lir::GenAddLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) {
-  LOG(FATAL) << "Unexpected use of GenAddLong for Arm";
-}
+void ArmMir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                                RegLocation rl_src2) {
+  switch (opcode) {
+    case Instruction::MUL_LONG:
+    case Instruction::MUL_LONG_2ADDR:
+      GenMulLong(opcode, rl_dest, rl_src1, rl_src2);
+      return;
+    case Instruction::NEG_LONG:
+      GenNegLong(rl_dest, rl_src2);
+      return;
 
-void ArmMir2Lir::GenSubLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) {
-  LOG(FATAL) << "Unexpected use of GenSubLong for Arm";
-}
+    default:
+      break;
+  }
 
-void ArmMir2Lir::GenAndLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) {
-  LOG(FATAL) << "Unexpected use of GenAndLong for Arm";
-}
-
-void ArmMir2Lir::GenOrLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                           RegLocation rl_src2) {
-  LOG(FATAL) << "Unexpected use of GenOrLong for Arm";
-}
-
-void ArmMir2Lir::GenXorLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) {
-  LOG(FATAL) << "Unexpected use of genXoLong for Arm";
+  // Fallback for all other ops.
+  Mir2Lir::GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
 }
 
 /*

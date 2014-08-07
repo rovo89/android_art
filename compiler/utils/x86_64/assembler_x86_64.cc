@@ -283,8 +283,8 @@ void X86_64Assembler::movw(CpuRegister /*dst*/, const Address& /*src*/) {
 
 void X86_64Assembler::movw(const Address& dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitOptionalRex32(src, dst);
   EmitOperandSizeOverride();
+  EmitOptionalRex32(src, dst);
   EmitUint8(0x89);
   EmitOperand(src.LowBits(), dst);
 }
@@ -869,6 +869,22 @@ void X86_64Assembler::cmpq(CpuRegister reg0, CpuRegister reg1) {
 }
 
 
+void X86_64Assembler::cmpq(CpuRegister reg, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  CHECK(imm.is_int32());  // cmpq only supports 32b immediate.
+  EmitRex64(reg);
+  EmitComplex(7, Operand(reg), imm);
+}
+
+
+void X86_64Assembler::cmpq(CpuRegister reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(reg);
+  EmitUint8(0x3B);
+  EmitOperand(reg.LowBits(), address);
+}
+
+
 void X86_64Assembler::addl(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(dst, src);
@@ -931,6 +947,14 @@ void X86_64Assembler::testl(CpuRegister reg, const Immediate& immediate) {
     EmitOperand(0, Operand(reg));
     EmitImmediate(immediate);
   }
+}
+
+
+void X86_64Assembler::testq(CpuRegister reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(reg);
+  EmitUint8(0x85);
+  EmitOperand(reg.LowBits(), address);
 }
 
 
@@ -1063,6 +1087,14 @@ void X86_64Assembler::addq(CpuRegister reg, const Immediate& imm) {
 }
 
 
+void X86_64Assembler::addq(CpuRegister dst, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(dst);
+  EmitUint8(0x03);
+  EmitOperand(dst.LowBits(), address);
+}
+
+
 void X86_64Assembler::addq(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   // 0x01 is addq r/m64 <- r/m64 + r64, with op1 in r/m and op2 in reg: so reverse EmitRex64
@@ -1115,6 +1147,14 @@ void X86_64Assembler::subq(CpuRegister dst, CpuRegister src) {
   EmitRex64(dst, src);
   EmitUint8(0x2B);
   EmitRegisterOperand(dst.LowBits(), src.LowBits());
+}
+
+
+void X86_64Assembler::subq(CpuRegister reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(reg);
+  EmitUint8(0x2B);
+  EmitOperand(reg.LowBits() & 7, address);
 }
 
 
@@ -1201,7 +1241,7 @@ void X86_64Assembler::mull(const Address& address) {
 
 
 void X86_64Assembler::shll(CpuRegister reg, const Immediate& imm) {
-  EmitGenericShift(4, reg, imm);
+  EmitGenericShift(false, 4, reg, imm);
 }
 
 
@@ -1211,7 +1251,12 @@ void X86_64Assembler::shll(CpuRegister operand, CpuRegister shifter) {
 
 
 void X86_64Assembler::shrl(CpuRegister reg, const Immediate& imm) {
-  EmitGenericShift(5, reg, imm);
+  EmitGenericShift(false, 5, reg, imm);
+}
+
+
+void X86_64Assembler::shrq(CpuRegister reg, const Immediate& imm) {
+  EmitGenericShift(true, 5, reg, imm);
 }
 
 
@@ -1221,7 +1266,7 @@ void X86_64Assembler::shrl(CpuRegister operand, CpuRegister shifter) {
 
 
 void X86_64Assembler::sarl(CpuRegister reg, const Immediate& imm) {
-  EmitGenericShift(7, reg, imm);
+  EmitGenericShift(false, 7, reg, imm);
 }
 
 
@@ -1537,11 +1582,15 @@ void X86_64Assembler::EmitLabelLink(Label* label) {
 }
 
 
-void X86_64Assembler::EmitGenericShift(int reg_or_opcode,
-                                    CpuRegister reg,
-                                    const Immediate& imm) {
+void X86_64Assembler::EmitGenericShift(bool wide,
+                                       int reg_or_opcode,
+                                       CpuRegister reg,
+                                       const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   CHECK(imm.is_int8());
+  if (wide) {
+    EmitRex64(reg);
+  }
   if (imm.value() == 1) {
     EmitUint8(0xD1);
     EmitOperand(reg_or_opcode, Operand(reg));
@@ -1554,8 +1603,8 @@ void X86_64Assembler::EmitGenericShift(int reg_or_opcode,
 
 
 void X86_64Assembler::EmitGenericShift(int reg_or_opcode,
-                                    CpuRegister operand,
-                                    CpuRegister shifter) {
+                                       CpuRegister operand,
+                                       CpuRegister shifter) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   CHECK_EQ(shifter.AsRegister(), RCX);
   EmitUint8(0xD3);

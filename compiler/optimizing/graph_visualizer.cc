@@ -108,6 +108,10 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       } else {
         codegen_.DumpCoreRegister(output_, location.reg().RegId());
       }
+    } else if (location.IsConstant()) {
+      output_ << "constant";
+    } else if (location.IsInvalid()) {
+      output_ << "invalid";
     } else if (location.IsStackSlot()) {
       output_ << location.GetStackIndex() << "(sp)";
     } else {

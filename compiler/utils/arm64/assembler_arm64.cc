@@ -626,7 +626,7 @@ void Arm64Assembler::EmitExceptionPoll(Arm64Exception *exception) {
 
   // Move ETR(Callee saved) back to TR(Caller saved) reg. We use ETR on calls
   // to external functions that might trash TR. We do not need the original
-  // X19 saved in BuildFrame().
+  // ETR(X21) saved in BuildFrame().
   ___ Mov(reg_x(TR), reg_x(ETR));
 
   ___ Blr(temp);
@@ -644,20 +644,43 @@ void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 
   // TODO: *create APCS FP - end of FP chain;
   //       *add support for saving a different set of callee regs.
-  // For now we check that the size of callee regs vector is 20
-  // equivalent to the APCS callee saved regs [X19, x30] [D8, D15].
-  CHECK_EQ(callee_save_regs.size(), kCalleeSavedRegsSize);
-  ___ PushCalleeSavedRegisters();
-
-  // Move TR(Caller saved) to ETR(Callee saved). The original X19 has been
-  // saved by PushCalleeSavedRegisters(). This way we make sure that TR is not
-  // trashed by native code.
-  ___ Mov(reg_x(ETR), reg_x(TR));
-
+  // For now we check that the size of callee regs vector is 11.
+  CHECK_EQ(callee_save_regs.size(), kJniRefSpillRegsSize);
   // Increase frame to required size - must be at least space to push StackReference<Method>.
-  CHECK_GT(frame_size, kCalleeSavedRegsSize * kFramePointerSize);
-  size_t adjust = frame_size - (kCalleeSavedRegsSize * kFramePointerSize);
-  IncreaseFrameSize(adjust);
+  CHECK_GT(frame_size, kJniRefSpillRegsSize * kFramePointerSize);
+  IncreaseFrameSize(frame_size);
+
+  // TODO: Ugly hard code...
+  // Should generate these according to the spill mask automatically.
+  // TUNING: Use stp.
+  // Note: Must match Arm64JniCallingConvention::CoreSpillMask().
+  size_t reg_offset = frame_size;
+  reg_offset -= 8;
+  StoreToOffset(LR, SP, reg_offset);
+  reg_offset -= 8;
+  StoreToOffset(X29, SP, reg_offset);
+  reg_offset -= 8;
+  StoreToOffset(X28, SP, reg_offset);
+  reg_offset -= 8;
+  StoreToOffset(X27, SP, reg_offset);
+  reg_offset -= 8;
+  StoreToOffset(X26, SP, reg_offset);
+  reg_offset -= 8;
+  StoreToOffset(X25, SP, reg_offset);
+  reg_offset -= 8;
+  StoreToOffset(X24, SP, reg_offset);
+  reg_offset -= 8;
+  StoreToOffset(X23, SP, reg_offset);
+  reg_offset -= 8;
+  StoreToOffset(X22, SP, reg_offset);
+  reg_offset -= 8;
+  StoreToOffset(X21, SP, reg_offset);
+  reg_offset -= 8;
+  StoreToOffset(X20, SP, reg_offset);
+
+  // Move TR(Caller saved) to ETR(Callee saved). The original (ETR)X21 has been saved on stack.
+  // This way we make sure that TR is not trashed by native code.
+  ___ Mov(reg_x(ETR), reg_x(TR));
 
   // Write StackReference<Method>.
   DCHECK_EQ(4U, sizeof(StackReference<mirror::ArtMethod>));
@@ -690,22 +713,46 @@ void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 void Arm64Assembler::RemoveFrame(size_t frame_size, const std::vector<ManagedRegister>& callee_save_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
 
-  // For now we only check that the size of the frame is greater than the
-  // no of APCS callee saved regs [X19, X30] [D8, D15].
-  CHECK_EQ(callee_save_regs.size(), kCalleeSavedRegsSize);
-  CHECK_GT(frame_size, kCalleeSavedRegsSize * kFramePointerSize);
+  // For now we only check that the size of the frame is greater than the spill size.
+  CHECK_EQ(callee_save_regs.size(), kJniRefSpillRegsSize);
+  CHECK_GT(frame_size, kJniRefSpillRegsSize * kFramePointerSize);
 
-  // Decrease frame size to start of callee saved regs.
-  size_t adjust = frame_size - (kCalleeSavedRegsSize * kFramePointerSize);
-  DecreaseFrameSize(adjust);
-
-  // We move ETR (Callee Saved) back to TR (Caller Saved) which might have
-  // been trashed in the native call. The original X19 (ETR) is restored as
-  // part of PopCalleeSavedRegisters().
+  // We move ETR(aapcs64 callee saved) back to TR(aapcs64 caller saved) which might have
+  // been trashed in the native call. The original ETR(X21) is restored from stack.
   ___ Mov(reg_x(TR), reg_x(ETR));
 
+  // TODO: Ugly hard code...
+  // Should generate these according to the spill mask automatically.
+  // TUNING: Use ldp.
+  // Note: Must match Arm64JniCallingConvention::CoreSpillMask().
+  size_t reg_offset = frame_size;
+  reg_offset -= 8;
+  LoadFromOffset(LR, SP, reg_offset);
+  reg_offset -= 8;
+  LoadFromOffset(X29, SP, reg_offset);
+  reg_offset -= 8;
+  LoadFromOffset(X28, SP, reg_offset);
+  reg_offset -= 8;
+  LoadFromOffset(X27, SP, reg_offset);
+  reg_offset -= 8;
+  LoadFromOffset(X26, SP, reg_offset);
+  reg_offset -= 8;
+  LoadFromOffset(X25, SP, reg_offset);
+  reg_offset -= 8;
+  LoadFromOffset(X24, SP, reg_offset);
+  reg_offset -= 8;
+  LoadFromOffset(X23, SP, reg_offset);
+  reg_offset -= 8;
+  LoadFromOffset(X22, SP, reg_offset);
+  reg_offset -= 8;
+  LoadFromOffset(X21, SP, reg_offset);
+  reg_offset -= 8;
+  LoadFromOffset(X20, SP, reg_offset);
+
+  // Decrease frame size to start of callee saved regs.
+  DecreaseFrameSize(frame_size);
+
   // Pop callee saved and return to LR.
-  ___ PopCalleeSavedRegisters();
   ___ Ret();
 }
 

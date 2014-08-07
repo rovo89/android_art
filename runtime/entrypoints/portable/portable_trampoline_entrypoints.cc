@@ -22,7 +22,6 @@
 #include "interpreter/interpreter.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
-#include "object_utils.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {

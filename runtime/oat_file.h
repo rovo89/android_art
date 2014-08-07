@@ -52,6 +52,8 @@ class OatFile {
   // ImageWriter which wants to open a writable version from an existing
   // file descriptor for patching.
   static OatFile* OpenWritable(File* file, const std::string& location, std::string* error_msg);
+  // Opens an oat file from an already opened File. Maps it PROT_READ, MAP_PRIVATE.
+  static OatFile* OpenReadable(File* file, const std::string& location, std::string* error_msg);
 
   // Open an oat file backed by a std::vector with the given location.
   static OatFile* OpenMemory(std::vector<uint8_t>& oat_contents,

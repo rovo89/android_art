@@ -25,7 +25,6 @@
 #include "object-inl.h"
 #include "object_array.h"
 #include "object_array-inl.h"
-#include "object_utils.h"
 #include "handle_scope-inl.h"
 #include "thread.h"
 #include "utils.h"
@@ -125,7 +124,7 @@ void Array::ThrowArrayStoreException(Object* object) {
   art::ThrowArrayStoreException(object->GetClass(), this->GetClass());
 }
 
-template <typename T> Class* PrimitiveArray<T>::array_class_ = NULL;
+template <typename T> GcRoot<Class> PrimitiveArray<T>::array_class_;
 
 // Explicitly instantiate all the primitive array types.
 template class PrimitiveArray<uint8_t>;   // BooleanArray

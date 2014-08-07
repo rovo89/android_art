@@ -56,29 +56,33 @@ info="info.txt"
 build="build"
 run="run"
 expected="expected.txt"
+check_cmd="check"
 output="output.txt"
 build_output="build-output.txt"
 lib="libartd.so"
 run_args="--quiet"
 
+prebuild_mode="yes"
 target_mode="yes"
 dev_mode="no"
 update_mode="no"
+debug_mode="no"
+relocate="yes"
 runtime="art"
 usage="no"
 build_only="no"
 suffix64=""
+trace="false"
+always_clean="no"
 
 while true; do
     if [ "x$1" = "x--host" ]; then
         target_mode="no"
-        RUN="${progdir}/etc/host-run-test-jar"
         DEX_LOCATION=$tmp_dir
         shift
     elif [ "x$1" = "x--jvm" ]; then
         target_mode="no"
         runtime="jvm"
-        RUN="${progdir}/etc/reference-run-test-classes"
         NEED_DEX="false"
         shift
     elif [ "x$1" = "x-O" ]; then
@@ -88,6 +92,18 @@ while true; do
         lib="libdvm.so"
         runtime="dalvik"
         shift
+    elif [ "x$1" = "x--relocate" ]; then
+        relocate="yes"
+        shift
+    elif [ "x$1" = "x--no-relocate" ]; then
+        relocate="no"
+        shift
+    elif [ "x$1" = "x--prebuild" ]; then
+        prebuild_mode="yes"
+        shift;
+    elif [ "x$1" = "x--no-prebuild" ]; then
+        prebuild_mode="no"
+        shift;
     elif [ "x$1" = "x--image" ]; then
         shift
         image="$1"
@@ -162,7 +178,10 @@ while true; do
         suffix64="64"
         shift
     elif [ "x$1" = "x--trace" ]; then
-        run_args="${run_args} --runtime-option -Xmethod-trace --runtime-option -Xmethod-trace-file:${DEX_LOCATION}/trace.bin --runtime-option -Xmethod-trace-file-size:2000000"
+        trace="true"
+        shift
+    elif [ "x$1" = "x--always-clean" ]; then
+        always_clean="yes"
         shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
@@ -174,13 +193,48 @@ while true; do
 done
 mkdir -p $tmp_dir
 
+if [ "$trace" = "true" ]; then
+    run_args="${run_args} --runtime-option -Xmethod-trace --runtime-option -Xmethod-trace-file:${DEX_LOCATION}/trace.bin --runtime-option -Xmethod-trace-file-size:2000000"
+fi
+
+# Most interesting target architecture variables are Makefile variables, not environment variables.
+# Try to map the suffix64 flag and what we find in ${ANDROID_PRODUCT_OUT}/data/art-test to an architecture name.
+function guess_arch_name() {
+    grep32bit=`ls ${ANDROID_PRODUCT_OUT}/data/art-test | grep -E '^(arm|x86|mips)$'`
+    grep64bit=`ls ${ANDROID_PRODUCT_OUT}/data/art-test | grep -E '^(arm64|x86_64)$'`
+    if [ "x${suffix64}" = "x64" ]; then
+        target_arch_name=${grep64bit}
+    else
+        target_arch_name=${grep32bit}
+    fi
+}
+
+if [ "$target_mode" = "no" ]; then
+    if [ "$runtime" = "jvm" ]; then
+        RUN="${progdir}/etc/reference-run-test-classes"
+        if [ "$prebuild_mode" = "yes" ]; then
+            echo "--prebuild with --jvm is unsupported";
+            exit 1;
+        fi
+    else
+        RUN="${progdir}/etc/host-run-test-jar"
+        if [ "$prebuild_mode" = "yes" ]; then
+            run_args="${run_args} --prebuild"
+        fi
+    fi
+else
+    if [ "$prebuild_mode" = "yes" ]; then
+        RUN="${progdir}/etc/push-and-run-prebuilt-test-jar"
+    fi
+fi
+
 if [ ! "$runtime" = "jvm" ]; then
   run_args="${run_args} --lib $lib"
 fi
 
 if [ "$runtime" = "dalvik" ]; then
     if [ "$target_mode" = "no" ]; then
-        framework="${OUT}/system/framework"
+        framework="${ANDROID_PRODUCT_OUT}/system/framework"
         bpath="${framework}/core.jar:${framework}/conscrypt.jar:${framework}/okhttp.jar:${framework}/core-junit.jar:${framework}/bouncycastle.jar:${framework}/ext.jar"
         run_args="${run_args} --boot -Xbootclasspath:${bpath}"
     else
@@ -196,8 +250,16 @@ elif [ "$runtime" = "art" ]; then
 	    export ANDROID_HOST_OUT=$ANDROID_BUILD_TOP/out/host/linux-x86
         fi
         run_args="${run_args} --boot -Ximage:${ANDROID_HOST_OUT}/framework/core.art"
+        run_args="${run_args} --runtime-option -Djava.library.path=${ANDROID_HOST_OUT}/lib${suffix64}"
     else
+        guess_arch_name
+        run_args="${run_args} --runtime-option -Djava.library.path=/data/art-test/${target_arch_name}"
         run_args="${run_args} --boot -Ximage:/data/art-test/core.art"
+    fi
+    if [ "$relocate" = "yes" ]; then
+      run_args="${run_args} --relocate"
+    else
+      run_args="${run_args} --no-relocate"
     fi
 fi
 
@@ -241,7 +303,7 @@ if [ "$usage" = "yes" ]; then
         echo "  Runtime Options:"
         echo "    -O                   Run non-debug rather than debug build (off by default)."
         echo "    -Xcompiler-option    Pass an option to the compiler."
-        echo "    -runtime-option      Pass an option to the runtime."
+        echo "    --runtime-option     Pass an option to the runtime."
         echo "    --debug              Wait for a debugger to attach."
         echo "    --gdb                Run under gdb; incompatible with some tests."
         echo "    --build-only         Build test files only (off by default)."
@@ -252,6 +314,13 @@ if [ "$usage" = "yes" ]; then
         echo "    --zygote             Spawn the process from the Zygote." \
              "If used, then the"
         echo "                         other runtime options are ignored."
+        echo "    --prebuild           Run dex2oat on the files before starting test. (default)"
+        echo "    --no-prebuild        Do not run dex2oat on the files before starting"
+        echo "                         the test."
+        echo "    --relocate           Force the use of relocating in the test, making"
+        echo "                         the image and oat files be relocated to a random"
+        echo "                         address before running. (default)"
+        echo "    --no-relocate        Force the use of no relocating in the test"
         echo "    --host               Use the host-mode virtual machine."
         echo "    --invoke-with        Pass --invoke-with option to runtime."
         echo "    --dalvik             Use Dalvik (off by default)."
@@ -260,6 +329,7 @@ if [ "$usage" = "yes" ]; then
              "files."
         echo "    --64                 Run the test in 64-bit mode"
         echo "    --trace              Run with method tracing"
+        echo "    --always-clean       Delete the test files even if the test fails."
     ) 1>&2
     exit 1
 fi
@@ -296,8 +366,13 @@ if [ '!' -r "$run" ]; then
     cp "${progdir}/etc/default-run" run
 fi
 
+if [ '!' -r "$check_cmd" ]; then
+    cp "${progdir}/etc/default-check" check
+fi
+
 chmod 755 "$build"
 chmod 755 "$run"
+chmod 755 "$check_cmd"
 
 export TEST_NAME=`basename ${test_dir}`
 
@@ -307,8 +382,11 @@ if echo "$test_dir" | grep 089; then
   file_size_limit=5120
 elif echo "$test_dir" | grep 083; then
   file_size_limit=5120
+elif echo "$test_dir" | grep 115; then
+# Native bridge test copies libarttest.so into its directory, which needs 2MB already.
+  file_size_limit=5120
 fi
-if ! ulimit "$file_size_limit"; then
+if ! ulimit -S "$file_size_limit"; then
    echo "ulimit file size setting failed"
 fi
 
@@ -364,7 +442,7 @@ else
         cp "$build_output" "$output"
         echo "build exit status: $build_exit" >>"$output"
     fi
-    diff --strip-trailing-cr -q "$expected" "$output" >/dev/null
+    ./$check_cmd "$expected" "$output"
     if [ "$?" = "0" ]; then
         # output == expected
         good="yes"
@@ -372,19 +450,8 @@ else
     fi
 fi
 
-# Clean up test files.
-if [ "$good" == "yes" ]; then
-    cd "$oldwd"
-    rm -rf "$tmp_dir"
-    if [ "$target_mode" = "yes" -a "$build_exit" = "0" ]; then
-        adb shell rm -rf $DEX_LOCATION
-    fi
-    exit 0
-fi
-
-
 (
-    if [ "$update_mode" != "yes" ]; then
+    if [ "$good" != "yes" -a "$update_mode" != "yes" ]; then
         echo "${test_dir}: FAILED!"
         echo ' '
         echo '#################### info'
@@ -394,9 +461,33 @@ fi
         echo '####################'
         echo ' '
     fi
-    echo "${TEST_NAME} files left in ${tmp_dir} on host"
-    if [ "$target_mode" == "yes" ]; then
-        echo "and in ${DEX_LOCATION} on target"
+
+) 1>&2
+
+# Clean up test files.
+if [ "$always_clean" = "yes" -o "$good" = "yes" ]; then
+    cd "$oldwd"
+    rm -rf "$tmp_dir"
+    if [ "$target_mode" = "yes" -a "$build_exit" = "0" ]; then
+        adb shell rm -rf $DEX_LOCATION
+    fi
+    if [ "$good" = "yes" ]; then
+        exit 0
+    fi
+fi
+
+
+(
+    if [ "$always_clean" = "yes" ]; then
+        echo "${TEST_NAME} files deleted from host "
+        if [ "$target_mode" == "yes" ]; then
+            echo "and from target"
+        fi
+    else
+        echo "${TEST_NAME} files left in ${tmp_dir} on host"
+        if [ "$target_mode" == "yes" ]; then
+            echo "and in ${DEX_LOCATION} on target"
+        fi
     fi
 
 ) 1>&2

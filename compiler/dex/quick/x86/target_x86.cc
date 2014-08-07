@@ -755,10 +755,6 @@ bool X86Mir2Lir::IsUnconditionalBranch(LIR* lir) {
   return (lir->opcode == kX86Jmp8 || lir->opcode == kX86Jmp32);
 }
 
-bool X86Mir2Lir::SupportsVolatileLoadStore(OpSize size) {
-  return true;
-}
-
 RegisterClass X86Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatile) {
   // X86_64 can handle any size.
   if (cu_->target64) {
@@ -875,14 +871,8 @@ Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
   return new X86Mir2Lir(cu, mir_graph, arena);
 }
 
-// Not used in x86
-RegStorage X86Mir2Lir::LoadHelper(ThreadOffset<4> offset) {
-  LOG(FATAL) << "Unexpected use of LoadHelper in x86";
-  return RegStorage::InvalidReg();
-}
-
-// Not used in x86
-RegStorage X86Mir2Lir::LoadHelper(ThreadOffset<8> offset) {
+// Not used in x86(-64)
+RegStorage X86Mir2Lir::LoadHelper(QuickEntrypointEnum trampoline) {
   LOG(FATAL) << "Unexpected use of LoadHelper in x86";
   return RegStorage::InvalidReg();
 }
@@ -1108,11 +1098,6 @@ void X86Mir2Lir::InstallLiteralPools() {
 }
 
 bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
-  if (cu_->target64) {
-    // TODO: Implement ArrayCOpy intrinsic for x86_64
-    return false;
-  }
-
   RegLocation rl_src = info->args[0];
   RegLocation rl_srcPos = info->args[1];
   RegLocation rl_dst = info->args[2];
@@ -1125,31 +1110,32 @@ bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
     return false;
   }
   ClobberCallerSave();
-  LockCallTemps();  // Using fixed registers
-  LoadValueDirectFixed(rl_src , rs_rAX);
-  LoadValueDirectFixed(rl_dst , rs_rCX);
-  LIR* src_dst_same  = OpCmpBranch(kCondEq, rs_rAX , rs_rCX, nullptr);
-  LIR* src_null_branch = OpCmpImmBranch(kCondEq, rs_rAX , 0, nullptr);
-  LIR* dst_null_branch = OpCmpImmBranch(kCondEq, rs_rCX , 0, nullptr);
-  LoadValueDirectFixed(rl_length , rs_rDX);
-  LIR* len_negative  = OpCmpImmBranch(kCondLt, rs_rDX , 0, nullptr);
-  LIR* len_too_big  = OpCmpImmBranch(kCondGt, rs_rDX , 128, nullptr);
-  LoadValueDirectFixed(rl_src , rs_rAX);
-  LoadWordDisp(rs_rAX , mirror::Array::LengthOffset().Int32Value(), rs_rAX);
+  LockCallTemps();  // Using fixed registers.
+  RegStorage tmp_reg = cu_->target64 ? rs_r11 : rs_rBX;
+  LoadValueDirectFixed(rl_src, rs_rAX);
+  LoadValueDirectFixed(rl_dst, rs_rCX);
+  LIR* src_dst_same  = OpCmpBranch(kCondEq, rs_rAX, rs_rCX, nullptr);
+  LIR* src_null_branch = OpCmpImmBranch(kCondEq, rs_rAX, 0, nullptr);
+  LIR* dst_null_branch = OpCmpImmBranch(kCondEq, rs_rCX, 0, nullptr);
+  LoadValueDirectFixed(rl_length, rs_rDX);
+  // If the length of the copy is > 128 characters (256 bytes) or negative then go slow path.
+  LIR* len_too_big  = OpCmpImmBranch(kCondHi, rs_rDX, 128, nullptr);
+  LoadValueDirectFixed(rl_src, rs_rAX);
+  LoadWordDisp(rs_rAX, mirror::Array::LengthOffset().Int32Value(), rs_rAX);
   LIR* src_bad_len  = nullptr;
   LIR* srcPos_negative  = nullptr;
   if (!rl_srcPos.is_const) {
-    LoadValueDirectFixed(rl_srcPos , rs_rBX);
-    srcPos_negative  = OpCmpImmBranch(kCondLt, rs_rBX , 0, nullptr);
-    OpRegReg(kOpAdd, rs_rBX, rs_rDX);
-    src_bad_len  = OpCmpBranch(kCondLt, rs_rAX , rs_rBX, nullptr);
+    LoadValueDirectFixed(rl_srcPos, tmp_reg);
+    srcPos_negative  = OpCmpImmBranch(kCondLt, tmp_reg, 0, nullptr);
+    OpRegReg(kOpAdd, tmp_reg, rs_rDX);
+    src_bad_len  = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
   } else {
-    int pos_val = mir_graph_->ConstantValue(rl_srcPos.orig_sreg);
+    int32_t pos_val = mir_graph_->ConstantValue(rl_srcPos.orig_sreg);
     if (pos_val == 0) {
-      src_bad_len  = OpCmpBranch(kCondLt, rs_rAX , rs_rDX, nullptr);
+      src_bad_len  = OpCmpBranch(kCondLt, rs_rAX, rs_rDX, nullptr);
     } else {
-      OpRegRegImm(kOpAdd, rs_rBX,  rs_rDX, pos_val);
-      src_bad_len  = OpCmpBranch(kCondLt, rs_rAX , rs_rBX, nullptr);
+      OpRegRegImm(kOpAdd, tmp_reg,  rs_rDX, pos_val);
+      src_bad_len  = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
     }
   }
   LIR* dstPos_negative = nullptr;
@@ -1157,49 +1143,49 @@ bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
   LoadValueDirectFixed(rl_dst, rs_rAX);
   LoadWordDisp(rs_rAX, mirror::Array::LengthOffset().Int32Value(), rs_rAX);
   if (!rl_dstPos.is_const) {
-    LoadValueDirectFixed(rl_dstPos , rs_rBX);
-    dstPos_negative = OpCmpImmBranch(kCondLt, rs_rBX , 0, nullptr);
-    OpRegRegReg(kOpAdd, rs_rBX, rs_rBX, rs_rDX);
-    dst_bad_len = OpCmpBranch(kCondLt, rs_rAX , rs_rBX, nullptr);
+    LoadValueDirectFixed(rl_dstPos, tmp_reg);
+    dstPos_negative = OpCmpImmBranch(kCondLt, tmp_reg, 0, nullptr);
+    OpRegRegReg(kOpAdd, tmp_reg, tmp_reg, rs_rDX);
+    dst_bad_len = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
   } else {
-    int pos_val = mir_graph_->ConstantValue(rl_dstPos.orig_sreg);
+    int32_t pos_val = mir_graph_->ConstantValue(rl_dstPos.orig_sreg);
     if (pos_val == 0) {
-      dst_bad_len = OpCmpBranch(kCondLt, rs_rAX , rs_rDX, nullptr);
+      dst_bad_len = OpCmpBranch(kCondLt, rs_rAX, rs_rDX, nullptr);
     } else {
-      OpRegRegImm(kOpAdd, rs_rBX,  rs_rDX, pos_val);
-      dst_bad_len = OpCmpBranch(kCondLt, rs_rAX , rs_rBX, nullptr);
+      OpRegRegImm(kOpAdd, tmp_reg,  rs_rDX, pos_val);
+      dst_bad_len = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
     }
   }
-  // everything is checked now
-  LoadValueDirectFixed(rl_src , rs_rAX);
-  LoadValueDirectFixed(rl_dst , rs_rBX);
-  LoadValueDirectFixed(rl_srcPos , rs_rCX);
+  // Everything is checked now.
+  LoadValueDirectFixed(rl_src, rs_rAX);
+  LoadValueDirectFixed(rl_dst, tmp_reg);
+  LoadValueDirectFixed(rl_srcPos, rs_rCX);
   NewLIR5(kX86Lea32RA, rs_rAX.GetReg(), rs_rAX.GetReg(),
-       rs_rCX.GetReg() , 1, mirror::Array::DataOffset(2).Int32Value());
-  // RAX now holds the address of the first src element to be copied
+       rs_rCX.GetReg(), 1, mirror::Array::DataOffset(2).Int32Value());
+  // RAX now holds the address of the first src element to be copied.
 
-  LoadValueDirectFixed(rl_dstPos , rs_rCX);
-  NewLIR5(kX86Lea32RA, rs_rBX.GetReg(), rs_rBX.GetReg(),
-       rs_rCX.GetReg() , 1, mirror::Array::DataOffset(2).Int32Value() );
-  // RBX now holds the address of the first dst element to be copied
+  LoadValueDirectFixed(rl_dstPos, rs_rCX);
+  NewLIR5(kX86Lea32RA, tmp_reg.GetReg(), tmp_reg.GetReg(),
+       rs_rCX.GetReg(), 1, mirror::Array::DataOffset(2).Int32Value() );
+  // RBX now holds the address of the first dst element to be copied.
 
-  // check if the number of elements to be copied is odd or even. If odd
+  // Check if the number of elements to be copied is odd or even. If odd
   // then copy the first element (so that the remaining number of elements
   // is even).
-  LoadValueDirectFixed(rl_length , rs_rCX);
+  LoadValueDirectFixed(rl_length, rs_rCX);
   OpRegImm(kOpAnd, rs_rCX, 1);
   LIR* jmp_to_begin_loop  = OpCmpImmBranch(kCondEq, rs_rCX, 0, nullptr);
   OpRegImm(kOpSub, rs_rDX, 1);
   LoadBaseIndexedDisp(rs_rAX, rs_rDX, 1, 0, rs_rCX, kSignedHalf);
-  StoreBaseIndexedDisp(rs_rBX, rs_rDX, 1, 0, rs_rCX, kSignedHalf);
+  StoreBaseIndexedDisp(tmp_reg, rs_rDX, 1, 0, rs_rCX, kSignedHalf);
 
-  // since the remaining number of elements is even, we will copy by
+  // Since the remaining number of elements is even, we will copy by
   // two elements at a time.
-  LIR *beginLoop = NewLIR0(kPseudoTargetLabel);
-  LIR* jmp_to_ret  = OpCmpImmBranch(kCondEq, rs_rDX , 0, nullptr);
+  LIR* beginLoop = NewLIR0(kPseudoTargetLabel);
+  LIR* jmp_to_ret  = OpCmpImmBranch(kCondEq, rs_rDX, 0, nullptr);
   OpRegImm(kOpSub, rs_rDX, 2);
   LoadBaseIndexedDisp(rs_rAX, rs_rDX, 1, 0, rs_rCX, kSingle);
-  StoreBaseIndexedDisp(rs_rBX, rs_rDX, 1, 0, rs_rCX, kSingle);
+  StoreBaseIndexedDisp(tmp_reg, rs_rDX, 1, 0, rs_rCX, kSingle);
   OpUnconditionalBranch(beginLoop);
   LIR *check_failed = NewLIR0(kPseudoTargetLabel);
   LIR* launchpad_branch  = OpUnconditionalBranch(nullptr);
@@ -1207,7 +1193,6 @@ bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
   jmp_to_ret->target = return_point;
   jmp_to_begin_loop->target = beginLoop;
   src_dst_same->target = check_failed;
-  len_negative->target = check_failed;
   len_too_big->target = check_failed;
   src_null_branch->target = check_failed;
   if (srcPos_negative != nullptr)
@@ -1229,19 +1214,12 @@ bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
  * otherwise bails to standard library code.
  */
 bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
-  ClobberCallerSave();
-  LockCallTemps();  // Using fixed registers
-
-  // EAX: 16 bit character being searched.
-  // ECX: count: number of words to be searched.
-  // EDI: String being searched.
-  // EDX: temporary during execution.
-  // EBX or R11: temporary during execution (depending on mode).
-
   RegLocation rl_obj = info->args[0];
   RegLocation rl_char = info->args[1];
   RegLocation rl_start;  // Note: only present in III flavor or IndexOf.
-  RegStorage tmpReg = cu_->target64 ? rs_r11 : rs_rBX;
+  // RBX is callee-save register in 64-bit mode.
+  RegStorage rs_tmp = cu_->target64 ? rs_r11 : rs_rBX;
+  int start_value = -1;
 
   uint32_t char_value =
     rl_char.is_const ? mir_graph_->ConstantValue(rl_char.orig_sreg) : 0;
@@ -1252,22 +1230,46 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   }
 
   // Okay, we are commited to inlining this.
+  // EAX: 16 bit character being searched.
+  // ECX: count: number of words to be searched.
+  // EDI: String being searched.
+  // EDX: temporary during execution.
+  // EBX or R11: temporary during execution (depending on mode).
+  // REP SCASW: search instruction.
+
+  FlushReg(rs_rAX);
+  Clobber(rs_rAX);
+  LockTemp(rs_rAX);
+  FlushReg(rs_rCX);
+  Clobber(rs_rCX);
+  LockTemp(rs_rCX);
+  FlushReg(rs_rDX);
+  Clobber(rs_rDX);
+  LockTemp(rs_rDX);
+  FlushReg(rs_tmp);
+  Clobber(rs_tmp);
+  LockTemp(rs_tmp);
+  if (cu_->target64) {
+    FlushReg(rs_rDI);
+    Clobber(rs_rDI);
+    LockTemp(rs_rDI);
+  }
+
   RegLocation rl_return = GetReturn(kCoreReg);
   RegLocation rl_dest = InlineTarget(info);
 
   // Is the string non-NULL?
   LoadValueDirectFixed(rl_obj, rs_rDX);
   GenNullCheck(rs_rDX, info->opt_flags);
-  // uint32_t opt_flags = info->opt_flags;
   info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've null checked.
 
-  // Does the character fit in 16 bits?
-  LIR* slowpath_branch = nullptr;
+  LIR *slowpath_branch = nullptr, *length_compare = nullptr;
+
+  // We need the value in EAX.
   if (rl_char.is_const) {
-    // We need the value in EAX.
     LoadConstantNoClobber(rs_rAX, char_value);
   } else {
-    // Character is not a constant; compare at runtime.
+    // Does the character fit in 16 bits? Compare it at runtime.
     LoadValueDirectFixed(rl_char, rs_rAX);
     slowpath_branch = OpCmpImmBranch(kCondGt, rs_rAX, 0xFFFF, nullptr);
   }
@@ -1282,31 +1284,33 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   // Start of char data with array_.
   int data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Int32Value();
 
-  // Character is in EAX.
-  // Object pointer is in EDX.
-
   // Compute the number of words to search in to rCX.
   Load32Disp(rs_rDX, count_offset, rs_rCX);
 
-  // Possible signal here due to null pointer dereference.
-  // Note that the signal handler will expect the top word of
-  // the stack to be the ArtMethod*.  If the PUSH edi instruction
-  // below is ahead of the load above then this will not be true
-  // and the signal handler will not work.
-  MarkPossibleNullPointerException(0);
+  if (!cu_->target64) {
+    // Possible signal here due to null pointer dereference.
+    // Note that the signal handler will expect the top word of
+    // the stack to be the ArtMethod*.  If the PUSH edi instruction
+    // below is ahead of the load above then this will not be true
+    // and the signal handler will not work.
+    MarkPossibleNullPointerException(0);
 
-  // We need to preserve EDI, but have no spare registers, so push it on the stack.
-  // We have to remember that all stack addresses after this are offset by sizeof(EDI).
-  NewLIR1(kX86Push32R, rs_rDI.GetReg());
+    // EDI is callee-save register in 32-bit mode.
+    NewLIR1(kX86Push32R, rs_rDI.GetReg());
+  }
 
-  LIR *length_compare = nullptr;
-  int start_value = 0;
-  bool is_index_on_stack = false;
   if (zero_based) {
+    // Start index is not present.
     // We have to handle an empty string.  Use special instruction JECXZ.
     length_compare = NewLIR0(kX86Jecxz8);
+
+    // Copy the number of words to search in a temporary register.
+    // We will use the register at the end to calculate result.
+    OpRegReg(kOpMov, rs_tmp, rs_rCX);
   } else {
+    // Start index is present.
     rl_start = info->args[2];
+
     // We have to offset by the start index.
     if (rl_start.is_const) {
       start_value = mir_graph_->ConstantValue(rl_start.orig_sreg);
@@ -1314,73 +1318,55 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
 
       // Is the start > count?
       length_compare = OpCmpImmBranch(kCondLe, rs_rCX, start_value, nullptr);
+      OpRegImm(kOpMov, rs_rDI, start_value);
+
+      // Copy the number of words to search in a temporary register.
+      // We will use the register at the end to calculate result.
+      OpRegReg(kOpMov, rs_tmp, rs_rCX);
 
       if (start_value != 0) {
+        // Decrease the number of words to search by the start index.
         OpRegImm(kOpSub, rs_rCX, start_value);
       }
     } else {
-      // Runtime start index.
-      rl_start = UpdateLocTyped(rl_start, kCoreReg);
-      if (rl_start.location == kLocPhysReg) {
-        // Handle "start index < 0" case.
-        OpRegReg(kOpXor, tmpReg, tmpReg);
-        OpRegReg(kOpCmp, rl_start.reg, tmpReg);
-        OpCondRegReg(kOpCmov, kCondLt, rl_start.reg, tmpReg);
-
-        // The length of the string should be greater than the start index.
-        length_compare = OpCmpBranch(kCondLe, rs_rCX, rl_start.reg, nullptr);
-        OpRegReg(kOpSub, rs_rCX, rl_start.reg);
-        if (rl_start.reg == rs_rDI) {
-          // The special case. We will use EDI further, so lets put start index to stack.
-          NewLIR1(kX86Push32R, rs_rDI.GetReg());
-          is_index_on_stack = true;
-        }
-      } else {
+      // Handle "start index < 0" case.
+      if (!cu_->target64 && rl_start.location != kLocPhysReg) {
         // Load the start index from stack, remembering that we pushed EDI.
-        int displacement = SRegOffset(rl_start.s_reg_low) +
-                           (cu_->target64 ? 2 : 1) * sizeof(uint32_t);
+        int displacement = SRegOffset(rl_start.s_reg_low) + sizeof(uint32_t);
         {
           ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          Load32Disp(rs_rX86_SP, displacement, tmpReg);
+          Load32Disp(rs_rX86_SP, displacement, rs_rDI);
         }
-        OpRegReg(kOpXor, rs_rDI, rs_rDI);
-        OpRegReg(kOpCmp, tmpReg, rs_rDI);
-        OpCondRegReg(kOpCmov, kCondLt, tmpReg, rs_rDI);
-
-        length_compare = OpCmpBranch(kCondLe, rs_rCX, tmpReg, nullptr);
-        OpRegReg(kOpSub, rs_rCX, tmpReg);
-        // Put the start index to stack.
-        NewLIR1(kX86Push32R, tmpReg.GetReg());
-        is_index_on_stack = true;
+      } else {
+        LoadValueDirectFixed(rl_start, rs_rDI);
       }
+      OpRegReg(kOpXor, rs_tmp, rs_tmp);
+      OpRegReg(kOpCmp, rs_rDI, rs_tmp);
+      OpCondRegReg(kOpCmov, kCondLt, rs_rDI, rs_tmp);
+
+      // The length of the string should be greater than the start index.
+      length_compare = OpCmpBranch(kCondLe, rs_rCX, rs_rDI, nullptr);
+
+      // Copy the number of words to search in a temporary register.
+      // We will use the register at the end to calculate result.
+      OpRegReg(kOpMov, rs_tmp, rs_rCX);
+
+      // Decrease the number of words to search by the start index.
+      OpRegReg(kOpSub, rs_rCX, rs_rDI);
     }
   }
-  DCHECK(length_compare != nullptr);
 
-  // ECX now contains the count in words to be searched.
-
-  // Load the address of the string into R11 or EBX (depending on mode).
+  // Load the address of the string into EDI.
+  // In case of start index we have to add the address to existing value in EDI.
   // The string starts at VALUE(String) + 2 * OFFSET(String) + DATA_OFFSET.
-  Load32Disp(rs_rDX, value_offset, rs_rDI);
-  Load32Disp(rs_rDX, offset_offset, tmpReg);
-  OpLea(tmpReg, rs_rDI, tmpReg, 1, data_offset);
-
-  // Now compute into EDI where the search will start.
-  if (zero_based || rl_start.is_const) {
-    if (start_value == 0) {
-      OpRegCopy(rs_rDI, tmpReg);
-    } else {
-      NewLIR3(kX86Lea32RM, rs_rDI.GetReg(), tmpReg.GetReg(), 2 * start_value);
-    }
+  if (zero_based || (!zero_based && rl_start.is_const && start_value == 0)) {
+    Load32Disp(rs_rDX, offset_offset, rs_rDI);
   } else {
-    if (is_index_on_stack == true) {
-      // Load the start index from stack.
-      NewLIR1(kX86Pop32R, rs_rDX.GetReg());
-      OpLea(rs_rDI, tmpReg, rs_rDX, 1, 0);
-    } else {
-      OpLea(rs_rDI, tmpReg, rl_start.reg, 1, 0);
-    }
+    OpRegMem(kOpAdd, rs_rDI, rs_rDX, offset_offset);
   }
+  OpRegImm(kOpLsl, rs_rDI, 1);
+  OpRegMem(kOpAdd, rs_rDI, rs_rDX, value_offset);
+  OpRegImm(kOpAdd, rs_rDI, data_offset);
 
   // EDI now contains the start of the string to be searched.
   // We are all prepared to do the search for the character.
@@ -1390,10 +1376,9 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   LIR* failed_branch = OpCondBranch(kCondNe, nullptr);
 
   // yes, we matched.  Compute the index of the result.
-  // index = ((curr_ptr - orig_ptr) / 2) - 1.
-  OpRegReg(kOpSub, rs_rDI, tmpReg);
-  OpRegImm(kOpAsr, rs_rDI, 1);
-  NewLIR3(kX86Lea32RM, rl_return.reg.GetReg(), rs_rDI.GetReg(), -1);
+  OpRegReg(kOpSub, rs_tmp, rs_rCX);
+  NewLIR3(kX86Lea32RM, rl_return.reg.GetReg(), rs_tmp.GetReg(), -1);
+
   LIR *all_done = NewLIR1(kX86Jmp8, 0);
 
   // Failed to match; return -1.
@@ -1404,8 +1389,9 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
 
   // And join up at the end.
   all_done->target = NewLIR0(kPseudoTargetLabel);
-  // Restore EDI from the stack.
-  NewLIR1(kX86Pop32R, rs_rDI.GetReg());
+
+  if (!cu_->target64)
+    NewLIR1(kX86Pop32R, rs_rDI.GetReg());
 
   // Out of line code returns here.
   if (slowpath_branch != nullptr) {
@@ -1414,6 +1400,15 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   }
 
   StoreValue(rl_dest, rl_return);
+
+  FreeTemp(rs_rAX);
+  FreeTemp(rs_rCX);
+  FreeTemp(rs_rDX);
+  FreeTemp(rs_tmp);
+  if (cu_->target64) {
+    FreeTemp(rs_rDI);
+  }
+
   return true;
 }
 
@@ -1443,49 +1438,8 @@ static void AdvanceLoc(std::vector<uint8_t>&buf, uint32_t increment) {
 }
 
 
-std::vector<uint8_t>* X86CFIInitialization() {
-  return X86Mir2Lir::ReturnCommonCallFrameInformation();
-}
-
-std::vector<uint8_t>* X86Mir2Lir::ReturnCommonCallFrameInformation() {
-  std::vector<uint8_t>*cfi_info = new std::vector<uint8_t>;
-
-  // Length of the CIE (except for this field).
-  PushWord(*cfi_info, 16);
-
-  // CIE id.
-  PushWord(*cfi_info, 0xFFFFFFFFU);
-
-  // Version: 3.
-  cfi_info->push_back(0x03);
-
-  // Augmentation: empty string.
-  cfi_info->push_back(0x0);
-
-  // Code alignment: 1.
-  cfi_info->push_back(0x01);
-
-  // Data alignment: -4.
-  cfi_info->push_back(0x7C);
-
-  // Return address register (R8).
-  cfi_info->push_back(0x08);
-
-  // Initial return PC is 4(ESP): DW_CFA_def_cfa R4 4.
-  cfi_info->push_back(0x0C);
-  cfi_info->push_back(0x04);
-  cfi_info->push_back(0x04);
-
-  // Return address location: 0(SP): DW_CFA_offset R8 1 (* -4);.
-  cfi_info->push_back(0x2 << 6 | 0x08);
-  cfi_info->push_back(0x01);
-
-  // And 2 Noops to align to 4 byte boundary.
-  cfi_info->push_back(0x0);
-  cfi_info->push_back(0x0);
-
-  DCHECK_EQ(cfi_info->size() & 3, 0U);
-  return cfi_info;
+std::vector<uint8_t>* X86CFIInitialization(bool is_x86_64) {
+  return X86Mir2Lir::ReturnCommonCallFrameInformation(is_x86_64);
 }
 
 static void EncodeUnsignedLeb128(std::vector<uint8_t>& buf, uint32_t value) {
@@ -1493,6 +1447,114 @@ static void EncodeUnsignedLeb128(std::vector<uint8_t>& buf, uint32_t value) {
   uint8_t *ptr = EncodeUnsignedLeb128(buffer, value);
   for (uint8_t *p = buffer; p < ptr; p++) {
     buf.push_back(*p);
+  }
+}
+
+static void EncodeSignedLeb128(std::vector<uint8_t>& buf, int32_t value) {
+  uint8_t buffer[12];
+  uint8_t *ptr = EncodeSignedLeb128(buffer, value);
+  for (uint8_t *p = buffer; p < ptr; p++) {
+    buf.push_back(*p);
+  }
+}
+
+std::vector<uint8_t>* X86Mir2Lir::ReturnCommonCallFrameInformation(bool is_x86_64) {
+  std::vector<uint8_t>*cfi_info = new std::vector<uint8_t>;
+
+  // Length (will be filled in later in this routine).
+  PushWord(*cfi_info, 0);
+
+  // CIE id: always 0.
+  PushWord(*cfi_info, 0);
+
+  // Version: always 1.
+  cfi_info->push_back(0x01);
+
+  // Augmentation: 'zR\0'
+  cfi_info->push_back(0x7a);
+  cfi_info->push_back(0x52);
+  cfi_info->push_back(0x0);
+
+  // Code alignment: 1.
+  EncodeUnsignedLeb128(*cfi_info, 1);
+
+  // Data alignment.
+  if (is_x86_64) {
+    EncodeSignedLeb128(*cfi_info, -8);
+  } else {
+    EncodeSignedLeb128(*cfi_info, -4);
+  }
+
+  // Return address register.
+  if (is_x86_64) {
+    // R16(RIP)
+    cfi_info->push_back(0x10);
+  } else {
+    // R8(EIP)
+    cfi_info->push_back(0x08);
+  }
+
+  // Augmentation length: 1.
+  cfi_info->push_back(1);
+
+  // Augmentation data: 0x03 ((DW_EH_PE_absptr << 4) | DW_EH_PE_udata4).
+  cfi_info->push_back(0x03);
+
+  // Initial instructions.
+  if (is_x86_64) {
+    // DW_CFA_def_cfa R7(RSP) 8.
+    cfi_info->push_back(0x0c);
+    cfi_info->push_back(0x07);
+    cfi_info->push_back(0x08);
+
+    // DW_CFA_offset R16(RIP) 1 (* -8).
+    cfi_info->push_back(0x90);
+    cfi_info->push_back(0x01);
+  } else {
+    // DW_CFA_def_cfa R4(ESP) 4.
+    cfi_info->push_back(0x0c);
+    cfi_info->push_back(0x04);
+    cfi_info->push_back(0x04);
+
+    // DW_CFA_offset R8(EIP) 1 (* -4).
+    cfi_info->push_back(0x88);
+    cfi_info->push_back(0x01);
+  }
+
+  // Padding to a multiple of 4
+  while ((cfi_info->size() & 3) != 0) {
+    // DW_CFA_nop is encoded as 0.
+    cfi_info->push_back(0);
+  }
+
+  // Set the length of the CIE inside the generated bytes.
+  uint32_t length = cfi_info->size() - 4;
+  (*cfi_info)[0] = length;
+  (*cfi_info)[1] = length >> 8;
+  (*cfi_info)[2] = length >> 16;
+  (*cfi_info)[3] = length >> 24;
+  return cfi_info;
+}
+
+static bool ARTRegIDToDWARFRegID(bool is_x86_64, int art_reg_id, int* dwarf_reg_id) {
+  if (is_x86_64) {
+    switch (art_reg_id) {
+    case 3 : *dwarf_reg_id =  3; return true;  // %rbx
+    // This is the only discrepancy between ART & DWARF register numbering.
+    case 5 : *dwarf_reg_id =  6; return true;  // %rbp
+    case 12: *dwarf_reg_id = 12; return true;  // %r12
+    case 13: *dwarf_reg_id = 13; return true;  // %r13
+    case 14: *dwarf_reg_id = 14; return true;  // %r14
+    case 15: *dwarf_reg_id = 15; return true;  // %r15
+    default: return false;  // Should not get here
+    }
+  } else {
+    switch (art_reg_id) {
+    case 5: *dwarf_reg_id = 5; return true;  // %ebp
+    case 6: *dwarf_reg_id = 6; return true;  // %esi
+    case 7: *dwarf_reg_id = 7; return true;  // %edi
+    default: return false;  // Should not get here
+    }
   }
 }
 
@@ -1505,8 +1567,7 @@ std::vector<uint8_t>* X86Mir2Lir::ReturnCallFrameInformation() {
   // Length (will be filled in later in this routine).
   PushWord(*cfi_info, 0);
 
-  // CIE_pointer (can be filled in by linker); might be left at 0 if there is only
-  // one CIE for the whole debug_frame section.
+  // 'CIE_pointer' (filled in by linker).
   PushWord(*cfi_info, 0);
 
   // 'initial_location' (filled in by linker).
@@ -1514,6 +1575,9 @@ std::vector<uint8_t>* X86Mir2Lir::ReturnCallFrameInformation() {
 
   // 'address_range' (number of bytes in the method).
   PushWord(*cfi_info, data_offset_);
+
+  // Augmentation length: 0
+  cfi_info->push_back(0);
 
   // The instructions in the FDE.
   if (stack_decrement_ != nullptr) {
@@ -1525,6 +1589,30 @@ std::vector<uint8_t>* X86Mir2Lir::ReturnCallFrameInformation() {
     cfi_info->push_back(0x0e);
     EncodeUnsignedLeb128(*cfi_info, frame_size_);
 
+    // Handle register spills
+    const uint32_t kSpillInstLen = (cu_->target64) ? 5 : 4;
+    const int kDataAlignmentFactor = (cu_->target64) ? -8 : -4;
+    uint32_t mask = core_spill_mask_ & ~(1 << rs_rRET.GetRegNum());
+    int offset = -(GetInstructionSetPointerSize(cu_->instruction_set) * num_core_spills_);
+    for (int reg = 0; mask; mask >>= 1, reg++) {
+      if (mask & 0x1) {
+        pc += kSpillInstLen;
+
+        // Advance LOC to pass this instruction
+        AdvanceLoc(*cfi_info, kSpillInstLen);
+
+        int dwarf_reg_id;
+        if (ARTRegIDToDWARFRegID(cu_->target64, reg, &dwarf_reg_id)) {
+          // DW_CFA_offset_extended_sf reg_no offset
+          cfi_info->push_back(0x11);
+          EncodeUnsignedLeb128(*cfi_info, dwarf_reg_id);
+          EncodeSignedLeb128(*cfi_info, offset / kDataAlignmentFactor);
+        }
+
+        offset += GetInstructionSetPointerSize(cu_->instruction_set);
+      }
+    }
+
     // We continue with that stack until the epilogue.
     if (stack_increment_ != nullptr) {
       uint32_t new_pc = NEXT_LIR(stack_increment_)->offset;
@@ -1534,10 +1622,10 @@ std::vector<uint8_t>* X86Mir2Lir::ReturnCallFrameInformation() {
       // current state: DW_CFA_remember_state.
       cfi_info->push_back(0x0a);
 
-      // We have now popped the stack: DW_CFA_def_cfa_offset 4.  There is only the return
-      // PC on the stack now.
+      // We have now popped the stack: DW_CFA_def_cfa_offset 4/8.
+      // There is only the return PC on the stack now.
       cfi_info->push_back(0x0e);
-      EncodeUnsignedLeb128(*cfi_info, 4);
+      EncodeUnsignedLeb128(*cfi_info, GetInstructionSetPointerSize(cu_->instruction_set));
 
       // Everything after that is the same as before the epilogue.
       // Stack bump was followed by RET instruction.
@@ -2491,7 +2579,7 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
   in_to_reg_storage_mapping.Initialize(info->args, info->num_arg_words, &mapper);
   const int last_mapped_in = in_to_reg_storage_mapping.GetMaxMappedIn();
   const int size_of_the_last_mapped = last_mapped_in == -1 ? 1 :
-          in_to_reg_storage_mapping.Get(last_mapped_in).Is64BitSolo() ? 2 : 1;
+          info->args[last_mapped_in].wide ? 2 : 1;
   int regs_left_to_pass_via_stack = info->num_arg_words - (last_mapped_in + size_of_the_last_mapped);
 
   // Fisrt of all, check whether it make sense to use bulk copying
@@ -2708,6 +2796,91 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     }
   }
   return call_state;
+}
+
+bool X86Mir2Lir::GenInlinedCharAt(CallInfo* info) {
+  // Location of reference to data array
+  int value_offset = mirror::String::ValueOffset().Int32Value();
+  // Location of count
+  int count_offset = mirror::String::CountOffset().Int32Value();
+  // Starting offset within data array
+  int offset_offset = mirror::String::OffsetOffset().Int32Value();
+  // Start of char data with array_
+  int data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Int32Value();
+
+  RegLocation rl_obj = info->args[0];
+  RegLocation rl_idx = info->args[1];
+  rl_obj = LoadValue(rl_obj, kRefReg);
+  // X86 wants to avoid putting a constant index into a register.
+  if (!rl_idx.is_const) {
+    rl_idx = LoadValue(rl_idx, kCoreReg);
+  }
+  RegStorage reg_max;
+  GenNullCheck(rl_obj.reg, info->opt_flags);
+  bool range_check = (!(info->opt_flags & MIR_IGNORE_RANGE_CHECK));
+  LIR* range_check_branch = nullptr;
+  RegStorage reg_off;
+  RegStorage reg_ptr;
+  if (range_check) {
+    // On x86, we can compare to memory directly
+    // Set up a launch pad to allow retry in case of bounds violation */
+    if (rl_idx.is_const) {
+      LIR* comparison;
+      range_check_branch = OpCmpMemImmBranch(
+          kCondUlt, RegStorage::InvalidReg(), rl_obj.reg, count_offset,
+          mir_graph_->ConstantValue(rl_idx.orig_sreg), nullptr, &comparison);
+      MarkPossibleNullPointerExceptionAfter(0, comparison);
+    } else {
+      OpRegMem(kOpCmp, rl_idx.reg, rl_obj.reg, count_offset);
+      MarkPossibleNullPointerException(0);
+      range_check_branch = OpCondBranch(kCondUge, nullptr);
+    }
+  }
+  reg_off = AllocTemp();
+  reg_ptr = AllocTempRef();
+  Load32Disp(rl_obj.reg, offset_offset, reg_off);
+  LoadRefDisp(rl_obj.reg, value_offset, reg_ptr, kNotVolatile);
+  if (rl_idx.is_const) {
+    OpRegImm(kOpAdd, reg_off, mir_graph_->ConstantValue(rl_idx.orig_sreg));
+  } else {
+    OpRegReg(kOpAdd, reg_off, rl_idx.reg);
+  }
+  FreeTemp(rl_obj.reg);
+  if (rl_idx.location == kLocPhysReg) {
+    FreeTemp(rl_idx.reg);
+  }
+  RegLocation rl_dest = InlineTarget(info);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  LoadBaseIndexedDisp(reg_ptr, reg_off, 1, data_offset, rl_result.reg, kUnsignedHalf);
+  FreeTemp(reg_off);
+  FreeTemp(reg_ptr);
+  StoreValue(rl_dest, rl_result);
+  if (range_check) {
+    DCHECK(range_check_branch != nullptr);
+    info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've already null checked.
+    AddIntrinsicSlowPath(info, range_check_branch);
+  }
+  return true;
+}
+
+bool X86Mir2Lir::GenInlinedCurrentThread(CallInfo* info) {
+  RegLocation rl_dest = InlineTarget(info);
+
+  // Early exit if the result is unused.
+  if (rl_dest.orig_sreg < 0) {
+    return true;
+  }
+
+  RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
+
+  if (cu_->target64) {
+    OpRegThreadMem(kOpMov, rl_result.reg, Thread::PeerOffset<8>());
+  } else {
+    OpRegThreadMem(kOpMov, rl_result.reg, Thread::PeerOffset<4>());
+  }
+
+  StoreValue(rl_dest, rl_result);
+  return true;
 }
 
 }  // namespace art
