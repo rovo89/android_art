@@ -880,9 +880,13 @@ RegStorage X86Mir2Lir::LoadHelper(QuickEntrypointEnum trampoline) {
 LIR* X86Mir2Lir::CheckSuspendUsingLoad() {
   // First load the pointer in fs:[suspend-trigger] into eax
   // Then use a test instruction to indirect via that address.
-  NewLIR2(kX86Mov32RT, rs_rAX.GetReg(),   cu_->target64 ?
-      Thread::ThreadSuspendTriggerOffset<8>().Int32Value() :
-      Thread::ThreadSuspendTriggerOffset<4>().Int32Value());
+  if (cu_->target64) {
+    NewLIR2(kX86Mov64RT, rs_rAX.GetReg(),
+        Thread::ThreadSuspendTriggerOffset<8>().Int32Value());
+  } else {
+    NewLIR2(kX86Mov32RT, rs_rAX.GetReg(),
+        Thread::ThreadSuspendTriggerOffset<4>().Int32Value());
+  }
   return NewLIR3(kX86Test32RM, rs_rAX.GetReg(), rs_rAX.GetReg(), 0);
 }
 
@@ -1293,14 +1297,14 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   // Compute the number of words to search in to rCX.
   Load32Disp(rs_rDX, count_offset, rs_rCX);
 
-  if (!cu_->target64) {
-    // Possible signal here due to null pointer dereference.
-    // Note that the signal handler will expect the top word of
-    // the stack to be the ArtMethod*.  If the PUSH edi instruction
-    // below is ahead of the load above then this will not be true
-    // and the signal handler will not work.
-    MarkPossibleNullPointerException(0);
+  // Possible signal here due to null pointer dereference.
+  // Note that the signal handler will expect the top word of
+  // the stack to be the ArtMethod*.  If the PUSH edi instruction
+  // below is ahead of the load above then this will not be true
+  // and the signal handler will not work.
+  MarkPossibleNullPointerException(0);
 
+  if (!cu_->target64) {
     // EDI is callee-save register in 32-bit mode.
     NewLIR1(kX86Push32R, rs_rDI.GetReg());
   }
