@@ -35,7 +35,7 @@ x86_64::X86_64ManagedRegister Location::AsX86_64() const {
 
 namespace x86_64 {
 
-static constexpr bool kExplicitStackOverflowCheck = true;
+static constexpr bool kExplicitStackOverflowCheck = false;
 
 // Some x86_64 instructions require a register to be available as temp.
 static constexpr Register TMP = R11;
@@ -208,25 +208,26 @@ void CodeGeneratorX86_64::GenerateFrameEntry() {
   static const int kFakeReturnRegister = 16;
   core_spill_mask_ |= (1 << kFakeReturnRegister);
 
+  bool skip_overflow_check = IsLeafMethod()
+      && !IsLargeFrame(GetFrameSize(), InstructionSet::kX86_64);
+
+  if (!skip_overflow_check && !kExplicitStackOverflowCheck) {
+    __ testq(CpuRegister(RAX), Address(
+        CpuRegister(RSP), -static_cast<int32_t>(GetStackOverflowReservedBytes(kX86_64))));
+    RecordPcInfo(0);
+  }
+
   // The return PC has already been pushed on the stack.
   __ subq(CpuRegister(RSP),
           Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86_64WordSize));
 
-  bool skip_overflow_check = IsLeafMethod()
-      && !IsLargeFrame(GetFrameSize(), InstructionSet::kX86_64);
+  if (!skip_overflow_check && kExplicitStackOverflowCheck) {
+    SlowPathCode* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathX86_64();
+    AddSlowPath(slow_path);
 
-  if (!skip_overflow_check) {
-    if (kExplicitStackOverflowCheck) {
-      SlowPathCode* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathX86_64();
-      AddSlowPath(slow_path);
-
-      __ gs()->cmpq(CpuRegister(RSP),
-                    Address::Absolute(Thread::StackEndOffset<kX86_64WordSize>(), true));
-      __ j(kLess, slow_path->GetEntryLabel());
-    } else {
-      __ testq(CpuRegister(RAX), Address(
-          CpuRegister(RSP), -static_cast<int32_t>(GetStackOverflowReservedBytes(kX86_64))));
-    }
+    __ gs()->cmpq(CpuRegister(RSP),
+                  Address::Absolute(Thread::StackEndOffset<kX86_64WordSize>(), true));
+    __ j(kLess, slow_path->GetEntryLabel());
   }
 
   __ movl(Address(CpuRegister(RSP), kCurrentMethodStackOffset), CpuRegister(RDI));
