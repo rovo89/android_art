@@ -61,6 +61,9 @@ ART_GTEST_transaction_test_DEX_DEPS := Transaction
 # The elf writer test has dependencies on core.oat.
 ART_GTEST_elf_writer_test_HOST_DEPS := $(HOST_CORE_OAT_OUT) $(2ND_HOST_CORE_OAT_OUT)
 ART_GTEST_elf_writer_test_TARGET_DEPS := $(TARGET_CORE_OAT_OUT) $(2ND_TARGET_CORE_OAT_OUT)
+ART_GTEST_jni_internal_test_TARGET_DEPS := $(TARGET_CORE_JARS)
+ART_GTEST_proxy_test_TARGET_DEPS := $(TARGET_CORE_JARS)
+ART_GTEST_proxy_test_HOST_DEPS := $(HOST_CORE_OAT_OUT) $(2ND_HOST_CORE_OAT_OUT)
 
 # The path for which all the source files are relative, not actually the current directory.
 LOCAL_PATH := art
