@@ -34,6 +34,10 @@
 
 namespace art {
 
+static bool IsTypeSupported(Primitive::Type type) {
+  return type != Primitive::kPrimFloat && type != Primitive::kPrimDouble;
+}
+
 void HGraphBuilder::InitializeLocals(uint16_t count) {
   graph_->SetNumberOfVRegs(count);
   locals_.SetSize(count);
@@ -314,28 +318,23 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   uint32_t argument_index = start_index;
   for (size_t i = start_index; i < number_of_vreg_arguments; i++, argument_index++) {
     Primitive::Type type = Primitive::GetType(descriptor[descriptor_index++]);
-    switch (type) {
-      case Primitive::kPrimFloat:
-      case Primitive::kPrimDouble:
-        return false;
-
-      default: {
-        if (!is_range && type == Primitive::kPrimLong && args[i] + 1 != args[i + 1]) {
-          LOG(WARNING) << "Non sequential register pair in " << dex_compilation_unit_->GetSymbol()
-                       << " at " << dex_offset;
-          // We do not implement non sequential register pair.
-          return false;
-        }
-        HInstruction* arg = LoadLocal(is_range ? register_index + i : args[i], type);
-        invoke->SetArgumentAt(argument_index, arg);
-        if (type == Primitive::kPrimLong) {
-          i++;
-        }
-      }
+    if (!IsTypeSupported(type)) {
+      return false;
+    }
+    if (!is_range && type == Primitive::kPrimLong && args[i] + 1 != args[i + 1]) {
+      LOG(WARNING) << "Non sequential register pair in " << dex_compilation_unit_->GetSymbol()
+                   << " at " << dex_offset;
+      // We do not implement non sequential register pair.
+      return false;
+    }
+    HInstruction* arg = LoadLocal(is_range ? register_index + i : args[i], type);
+    invoke->SetArgumentAt(argument_index, arg);
+    if (type == Primitive::kPrimLong) {
+      i++;
     }
   }
 
-  if (return_type == Primitive::kPrimDouble || return_type == Primitive::kPrimFloat) {
+  if (!IsTypeSupported(return_type)) {
     return false;
   }
 
@@ -394,6 +393,11 @@ bool HGraphBuilder::BuildFieldAccess(const Instruction& instruction,
     return false;
   }
 
+  Primitive::Type field_type = resolved_field->GetTypeAsPrimitiveType();
+  if (!IsTypeSupported(field_type)) {
+    return false;
+  }
+
   HInstruction* object = LoadLocal(obj_reg, Primitive::kPrimNot);
   current_block_->AddInstruction(new (arena_) HNullCheck(object, dex_offset));
   if (is_put) {
@@ -401,7 +405,7 @@ bool HGraphBuilder::BuildFieldAccess(const Instruction& instruction,
     HInstruction* null_check = current_block_->GetLastInstruction();
     // We need one temporary for the null check.
     temps.Add(null_check);
-    HInstruction* value = LoadLocal(source_or_dest_reg, resolved_field->GetTypeAsPrimitiveType());
+    HInstruction* value = LoadLocal(source_or_dest_reg, field_type);
     current_block_->AddInstruction(new (arena_) HInstanceFieldSet(
         null_check,
         value,
@@ -409,7 +413,7 @@ bool HGraphBuilder::BuildFieldAccess(const Instruction& instruction,
   } else {
     current_block_->AddInstruction(new (arena_) HInstanceFieldGet(
         current_block_->GetLastInstruction(),
-        resolved_field->GetTypeAsPrimitiveType(),
+        field_type,
         resolved_field->GetOffset()));
 
     UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction());
