@@ -272,6 +272,7 @@ LIR* Arm64Mir2Lir::OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_
       ArmOpcode wide = reg.Is64Bit() ? WIDE(0) : UNWIDE(0);
       branch = NewLIR2(opcode | wide, reg.GetReg(), 0);
     }
+    // TODO: Use tbz/tbnz for < 0 or >= 0.
   }
 
   if (branch == nullptr) {
@@ -784,6 +785,121 @@ bool Arm64Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   FreeTemp(r_ptr);  // Now unneeded.
 
   StoreValue(rl_dest, rl_result);
+
+  return true;
+}
+
+bool Arm64Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
+  constexpr int kLargeArrayThreshold = 512;
+
+  RegLocation rl_src = info->args[0];
+  RegLocation rl_src_pos = info->args[1];
+  RegLocation rl_dst = info->args[2];
+  RegLocation rl_dst_pos = info->args[3];
+  RegLocation rl_length = info->args[4];
+  // Compile time check, handle exception by non-inline method to reduce related meta-data.
+  if ((rl_src_pos.is_const && (mir_graph_->ConstantValue(rl_src_pos) < 0)) ||
+      (rl_dst_pos.is_const && (mir_graph_->ConstantValue(rl_dst_pos) < 0)) ||
+      (rl_length.is_const && (mir_graph_->ConstantValue(rl_length) < 0))) {
+    return false;
+  }
+
+  ClobberCallerSave();
+  LockCallTemps();  // Prepare for explicit register usage.
+  RegStorage rs_src = rs_x0;
+  RegStorage rs_dst = rs_x1;
+  LoadValueDirectFixed(rl_src, rs_src);
+  LoadValueDirectFixed(rl_dst, rs_dst);
+
+  // Handle null pointer exception in slow-path.
+  LIR* src_check_branch = OpCmpImmBranch(kCondEq, rs_src, 0, nullptr);
+  LIR* dst_check_branch = OpCmpImmBranch(kCondEq, rs_dst, 0, nullptr);
+  // Handle potential overlapping in slow-path.
+  // TUNING: Support overlapping cases.
+  LIR* src_dst_same = OpCmpBranch(kCondEq, rs_src, rs_dst, nullptr);
+  // Handle exception or big length in slow-path.
+  RegStorage rs_length = rs_w2;
+  LoadValueDirectFixed(rl_length, rs_length);
+  LIR* len_neg_or_too_big = OpCmpImmBranch(kCondHi, rs_length, kLargeArrayThreshold, nullptr);
+  // Src bounds check.
+  RegStorage rs_src_pos = rs_w3;
+  RegStorage rs_arr_length = rs_w4;
+  LoadValueDirectFixed(rl_src_pos, rs_src_pos);
+  LIR* src_pos_negative = OpCmpImmBranch(kCondLt, rs_src_pos, 0, nullptr);
+  Load32Disp(rs_src, mirror::Array::LengthOffset().Int32Value(), rs_arr_length);
+  OpRegReg(kOpSub, rs_arr_length, rs_src_pos);
+  LIR* src_bad_len = OpCmpBranch(kCondLt, rs_arr_length, rs_length, nullptr);
+  // Dst bounds check.
+  RegStorage rs_dst_pos = rs_w5;
+  LoadValueDirectFixed(rl_dst_pos, rs_dst_pos);
+  LIR* dst_pos_negative = OpCmpImmBranch(kCondLt, rs_dst_pos, 0, nullptr);
+  Load32Disp(rs_dst, mirror::Array::LengthOffset().Int32Value(), rs_arr_length);
+  OpRegReg(kOpSub, rs_arr_length, rs_dst_pos);
+  LIR* dst_bad_len = OpCmpBranch(kCondLt, rs_arr_length, rs_length, nullptr);
+
+  // Everything is checked now.
+  // Set rs_src to the address of the first element to be copied.
+  rs_src_pos = As64BitReg(rs_src_pos);
+  OpRegImm(kOpAdd, rs_src, mirror::Array::DataOffset(2).Int32Value());
+  OpRegRegImm(kOpLsl, rs_src_pos, rs_src_pos, 1);
+  OpRegReg(kOpAdd, rs_src, rs_src_pos);
+  // Set rs_src to the address of the first element to be copied.
+  rs_dst_pos = As64BitReg(rs_dst_pos);
+  OpRegImm(kOpAdd, rs_dst, mirror::Array::DataOffset(2).Int32Value());
+  OpRegRegImm(kOpLsl, rs_dst_pos, rs_dst_pos, 1);
+  OpRegReg(kOpAdd, rs_dst, rs_dst_pos);
+
+  // rs_arr_length won't be not used anymore.
+  RegStorage rs_tmp = rs_arr_length;
+  // Use 64-bit view since rs_length will be used as index.
+  rs_length = As64BitReg(rs_length);
+  OpRegRegImm(kOpLsl, rs_length, rs_length, 1);
+
+  // Copy one element.
+  OpRegRegImm(kOpAnd, rs_tmp, As32BitReg(rs_length), 2);
+  LIR* jmp_to_copy_two = OpCmpImmBranch(kCondEq, rs_tmp, 0, nullptr);
+  OpRegImm(kOpSub, rs_length, 2);
+  LoadBaseIndexed(rs_src, rs_length, rs_tmp, 0, kSignedHalf);
+  StoreBaseIndexed(rs_dst, rs_length, rs_tmp, 0, kSignedHalf);
+
+  // Copy two elements.
+  LIR *copy_two = NewLIR0(kPseudoTargetLabel);
+  OpRegRegImm(kOpAnd, rs_tmp, As32BitReg(rs_length), 4);
+  LIR* jmp_to_copy_four = OpCmpImmBranch(kCondEq, rs_tmp, 0, nullptr);
+  OpRegImm(kOpSub, rs_length, 4);
+  LoadBaseIndexed(rs_src, rs_length, rs_tmp, 0, k32);
+  StoreBaseIndexed(rs_dst, rs_length, rs_tmp, 0, k32);
+
+  // Copy four elements.
+  LIR *copy_four = NewLIR0(kPseudoTargetLabel);
+  LIR* jmp_to_ret = OpCmpImmBranch(kCondEq, rs_length, 0, nullptr);
+  LIR *begin_loop = NewLIR0(kPseudoTargetLabel);
+  OpRegImm(kOpSub, rs_length, 8);
+  rs_tmp = As64BitReg(rs_tmp);
+  LoadBaseIndexed(rs_src, rs_length, rs_tmp, 0, k64);
+  StoreBaseIndexed(rs_dst, rs_length, rs_tmp, 0, k64);
+  LIR* jmp_to_loop = OpCmpImmBranch(kCondNe, rs_length, 0, nullptr);
+  LIR* loop_finished = OpUnconditionalBranch(nullptr);
+
+  LIR *check_failed = NewLIR0(kPseudoTargetLabel);
+  LIR* launchpad_branch = OpUnconditionalBranch(nullptr);
+  LIR* return_point = NewLIR0(kPseudoTargetLabel);
+
+  src_check_branch->target = check_failed;
+  dst_check_branch->target = check_failed;
+  src_dst_same->target = check_failed;
+  len_neg_or_too_big->target = check_failed;
+  src_pos_negative->target = check_failed;
+  src_bad_len->target = check_failed;
+  dst_pos_negative->target = check_failed;
+  dst_bad_len->target = check_failed;
+  jmp_to_copy_two->target = copy_two;
+  jmp_to_copy_four->target = copy_four;
+  jmp_to_ret->target = return_point;
+  jmp_to_loop->target = begin_loop;
+  loop_finished->target = return_point;
+
+  AddIntrinsicSlowPath(info, launchpad_branch, return_point);
 
   return true;
 }

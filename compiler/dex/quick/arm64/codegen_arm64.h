@@ -168,6 +168,7 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   bool GenInlinedPeek(CallInfo* info, OpSize size) OVERRIDE;
   bool GenInlinedPoke(CallInfo* info, OpSize size) OVERRIDE;
   bool GenInlinedAbsLong(CallInfo* info) OVERRIDE;
+  bool GenInlinedArrayCopyCharArray(CallInfo* info) OVERRIDE;
   void GenIntToLong(RegLocation rl_dest, RegLocation rl_src) OVERRIDE;
   void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                       RegLocation rl_src2) OVERRIDE;
