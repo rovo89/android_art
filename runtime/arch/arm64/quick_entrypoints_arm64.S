@@ -435,6 +435,31 @@ NO_ARG_RUNTIME_EXCEPTION art_quick_throw_stack_overflow, artThrowStackOverflowFr
      */
 ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_no_such_method, artThrowNoSuchMethodFromCode
 
+  /*
+   * Invoke stack overflow exception from signal handler.
+   * On entry:
+   * xSELF: thread
+   * SP: address of last known frame
+   * IP0: address of next valid SP below protected region in stack
+   *
+   * This is deceptively simple but hides some complexity.  It is called in the case of
+   * a stack overflow condition during implicit checks.  The signal handler has been
+   * called by the kernel due to a load from the protected stack region.  The handler
+   * works out the address of the previous frame and passes this in SP.  However there
+   * is a piece of memory somewhere below the current SP that is not accessible (the
+   * memory that caused the signal).  The signal handler works out the next
+   * accessible value of SP and passes this in x16/IP0.  This code then sets up the SP
+   * to be this new value and calls the code to create and throw the stack overflow
+   * exception.
+   */
+ENTRY art_quick_throw_stack_overflow_from_signal
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
+    mov x0, xSELF                   // pass Thread::Current
+    mov x1, sp                      // pass SP
+    mov sp, xIP0                    // move SP down to below protected region.
+    b   artThrowStackOverflowFromCode                  // artThrowStackOverflowFromCode(Thread*, SP)
+END art_quick_throw_stack_overflow_from_signal
+
     /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
      * as usual - except instead of loading arg0/x0 with the target Method*, arg0/x0 will contain
@@ -1322,6 +1347,14 @@ ENTRY art_quick_test_suspend
     bl     artTestSuspendFromCode             // (Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
 END art_quick_test_suspend
+
+ENTRY art_quick_implicit_suspend
+    mov    x0, xSELF
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME          // save callee saves for stack crawl
+    mov    x1, sp
+    bl     artTestSuspendFromCode             // (Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+END art_quick_implicit_suspend
 
      /*
      * Called by managed code that is attempting to call a method on a proxy class. On entry
