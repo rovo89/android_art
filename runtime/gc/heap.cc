@@ -772,28 +772,9 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   // Dump cumulative loggers for each GC type.
   uint64_t total_paused_time = 0;
   for (auto& collector : garbage_collectors_) {
-    const CumulativeLogger& logger = collector->GetCumulativeTimings();
-    const size_t iterations = logger.GetIterations();
-    const Histogram<uint64_t>& pause_histogram = collector->GetPauseHistogram();
-    if (iterations != 0 && pause_histogram.SampleSize() != 0) {
-      os << ConstDumpable<CumulativeLogger>(logger);
-      const uint64_t total_ns = logger.GetTotalNs();
-      const uint64_t total_pause_ns = collector->GetTotalPausedTimeNs();
-      double seconds = NsToMs(logger.GetTotalNs()) / 1000.0;
-      const uint64_t freed_bytes = collector->GetTotalFreedBytes();
-      const uint64_t freed_objects = collector->GetTotalFreedObjects();
-      Histogram<uint64_t>::CumulativeData cumulative_data;
-      pause_histogram.CreateHistogram(&cumulative_data);
-      pause_histogram.PrintConfidenceIntervals(os, 0.99, cumulative_data);
-      os << collector->GetName() << " total time: " << PrettyDuration(total_ns)
-         << " mean time: " << PrettyDuration(total_ns / iterations) << "\n"
-         << collector->GetName() << " freed: " << freed_objects
-         << " objects with total size " << PrettySize(freed_bytes) << "\n"
-         << collector->GetName() << " throughput: " << freed_objects / seconds << "/s / "
-         << PrettySize(freed_bytes / seconds) << "/s\n";
-      total_duration += total_ns;
-      total_paused_time += total_pause_ns;
-    }
+    total_duration += collector->GetCumulativeTimings().GetTotalNs();
+    total_paused_time += collector->GetTotalPausedTimeNs();
+    collector->DumpPerformanceInfo(os);
     collector->ResetMeasurements();
   }
   uint64_t allocation_time =

@@ -55,7 +55,8 @@ GarbageCollector::GarbageCollector(Heap* heap, const std::string& name)
     : heap_(heap),
       name_(name),
       pause_histogram_((name_ + " paused").c_str(), kPauseBucketSize, kPauseBucketCount),
-      cumulative_timings_(name) {
+      cumulative_timings_(name),
+      pause_histogram_lock_("pause histogram lock", kDefaultMutexLevel, true) {
   ResetCumulativeStatistics();
 }
 
@@ -65,10 +66,11 @@ void GarbageCollector::RegisterPause(uint64_t nano_length) {
 
 void GarbageCollector::ResetCumulativeStatistics() {
   cumulative_timings_.Reset();
-  pause_histogram_.Reset();
   total_time_ns_ = 0;
   total_freed_objects_ = 0;
   total_freed_bytes_ = 0;
+  MutexLock mu(Thread::Current(), pause_histogram_lock_);
+  pause_histogram_.Reset();
 }
 
 void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
@@ -95,6 +97,7 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
   }
   total_time_ns_ += current_iteration->GetDurationNs();
   for (uint64_t pause_time : current_iteration->GetPauseTimes()) {
+    MutexLock mu(self, pause_histogram_lock_);
     pause_histogram_.AddValue(pause_time / 1000);
   }
   ATRACE_END();
@@ -137,8 +140,11 @@ uint64_t GarbageCollector::GetEstimatedMeanThroughput() const {
 }
 
 void GarbageCollector::ResetMeasurements() {
+  {
+    MutexLock mu(Thread::Current(), pause_histogram_lock_);
+    pause_histogram_.Reset();
+  }
   cumulative_timings_.Reset();
-  pause_histogram_.Reset();
   total_time_ns_ = 0;
   total_freed_objects_ = 0;
   total_freed_bytes_ = 0;
@@ -169,6 +175,36 @@ void GarbageCollector::RecordFree(const ObjectBytePair& freed) {
 void GarbageCollector::RecordFreeLOS(const ObjectBytePair& freed) {
   GetCurrentIteration()->freed_los_.Add(freed);
   heap_->RecordFree(freed.objects, freed.bytes);
+}
+
+uint64_t GarbageCollector::GetTotalPausedTimeNs() {
+  MutexLock mu(Thread::Current(), pause_histogram_lock_);
+  return pause_histogram_.AdjustedSum();
+}
+
+void GarbageCollector::DumpPerformanceInfo(std::ostream& os) {
+  const CumulativeLogger& logger = GetCumulativeTimings();
+  const size_t iterations = logger.GetIterations();
+  if (iterations == 0) {
+    return;
+  }
+  os << ConstDumpable<CumulativeLogger>(logger);
+  const uint64_t total_ns = logger.GetTotalNs();
+  double seconds = NsToMs(logger.GetTotalNs()) / 1000.0;
+  const uint64_t freed_bytes = GetTotalFreedBytes();
+  const uint64_t freed_objects = GetTotalFreedObjects();
+  {
+    MutexLock mu(Thread::Current(), pause_histogram_lock_);
+    Histogram<uint64_t>::CumulativeData cumulative_data;
+    pause_histogram_.CreateHistogram(&cumulative_data);
+    pause_histogram_.PrintConfidenceIntervals(os, 0.99, cumulative_data);
+  }
+  os << GetName() << " total time: " << PrettyDuration(total_ns)
+     << " mean time: " << PrettyDuration(total_ns / iterations) << "\n"
+     << GetName() << " freed: " << freed_objects
+     << " objects with total size " << PrettySize(freed_bytes) << "\n"
+     << GetName() << " throughput: " << freed_objects / seconds << "/s / "
+     << PrettySize(freed_bytes / seconds) << "/s\n";
 }
 
 }  // namespace collector
