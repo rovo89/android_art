@@ -123,3 +123,17 @@ fields are unique
 fields are .equals
 methods are unique
 methods are .equals
+type1 is a ParameterizedType
+type2 is a ParameterizedType
+type3 is a ParameterizedType
+type1(java.util.Set<java.lang.String>) equals type2(java.util.Set<java.lang.String>)
+type1(java.util.Set<java.lang.String>) equals type3(java.util.Set<java.lang.String>)
+type1(java.util.Set<java.lang.String>) hashCode equals type2(java.util.Set<java.lang.String>) hashCode
+type1(java.util.Set<java.lang.String>) hashCode equals type3(java.util.Set<java.lang.String>) hashCode
+type1 is a GenericArrayType
+type2 is a GenericArrayType
+type3 is a GenericArrayType
+type1(T[]) equals type2(T[])
+type1(T[]) equals type3(T[])
+type1(T[]) hashCode equals type2(T[]) hashCode
+type1(T[]) hashCode equals type3(T[]) hashCode
