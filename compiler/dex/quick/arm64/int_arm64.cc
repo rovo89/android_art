@@ -642,16 +642,32 @@ RegLocation Arm64Mir2Lir::GenDivRem(RegLocation rl_dest, RegStorage r_src1, RegS
   return rl_result;
 }
 
+bool Arm64Mir2Lir::GenInlinedAbsInt(CallInfo* info) {
+  RegLocation rl_src = info->args[0];
+  rl_src = LoadValue(rl_src, kCoreReg);
+  RegLocation rl_dest = InlineTarget(info);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+
+  // Compare the source value with zero. Write the negated value to the result if
+  // negative, otherwise write the original value.
+  OpRegImm(kOpCmp, rl_src.reg, 0);
+  NewLIR4(kA64Csneg4rrrc, rl_result.reg.GetReg(), rl_src.reg.GetReg(), rl_src.reg.GetReg(),
+          kArmCondPl);
+  StoreValue(rl_dest, rl_result);
+  return true;
+}
+
 bool Arm64Mir2Lir::GenInlinedAbsLong(CallInfo* info) {
   RegLocation rl_src = info->args[0];
   rl_src = LoadValueWide(rl_src, kCoreReg);
   RegLocation rl_dest = InlineTargetWide(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  RegStorage sign_reg = AllocTempWide();
-  // abs(x) = y<=x>>63, (x+y)^y.
-  OpRegRegImm(kOpAsr, sign_reg, rl_src.reg, 63);
-  OpRegRegReg(kOpAdd, rl_result.reg, rl_src.reg, sign_reg);
-  OpRegReg(kOpXor, rl_result.reg, sign_reg);
+
+  // Compare the source value with zero. Write the negated value to the result if
+  // negative, otherwise write the original value.
+  OpRegImm(kOpCmp, rl_src.reg, 0);
+  NewLIR4(WIDE(kA64Csneg4rrrc), rl_result.reg.GetReg(), rl_src.reg.GetReg(),
+          rl_src.reg.GetReg(), kArmCondPl);
   StoreValueWide(rl_dest, rl_result);
   return true;
 }
