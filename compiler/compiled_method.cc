@@ -165,14 +165,15 @@ CompiledMethod::CompiledMethod(CompilerDriver* driver,
                                const std::vector<uint8_t>& code,
                                const size_t frame_size_in_bytes,
                                const uint32_t core_spill_mask,
-                               const uint32_t fp_spill_mask)
+                               const uint32_t fp_spill_mask,
+                               const std::vector<uint8_t>* cfi_info)
     : CompiledCode(driver, instruction_set, code),
       frame_size_in_bytes_(frame_size_in_bytes),
       core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask),
       mapping_table_(driver->DeduplicateMappingTable(std::vector<uint8_t>())),
       vmap_table_(driver->DeduplicateVMapTable(std::vector<uint8_t>())),
       gc_map_(driver->DeduplicateGCMap(std::vector<uint8_t>())),
-      cfi_info_(nullptr) {
+      cfi_info_(driver->DeduplicateCFIInfo(cfi_info)) {
 }
 
 // Constructs a CompiledMethod for the Portable compiler.

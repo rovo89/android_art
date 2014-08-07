@@ -1085,7 +1085,7 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
     vmap_encoder.PushBackUnsigned(0u);  // Size is 0.
   }
 
-  std::unique_ptr<std::vector<uint8_t>> cfi_info(ReturnCallFrameInformation());
+  std::unique_ptr<std::vector<uint8_t>> cfi_info(ReturnFrameDescriptionEntry());
   CompiledMethod* result =
       new CompiledMethod(cu_->compiler_driver, cu_->instruction_set, code_buffer_, frame_size_,
                          core_spill_mask_, fp_spill_mask_, encoded_mapping_table_,
@@ -1250,7 +1250,7 @@ void Mir2Lir::LoadClassType(const DexFile& dex_file, uint32_t type_idx,
   AppendLIR(load_pc_rel);
 }
 
-std::vector<uint8_t>* Mir2Lir::ReturnCallFrameInformation() {
+std::vector<uint8_t>* Mir2Lir::ReturnFrameDescriptionEntry() {
   // Default case is to do nothing.
   return nullptr;
 }

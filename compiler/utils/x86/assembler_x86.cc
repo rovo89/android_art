@@ -20,6 +20,7 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "memory_region.h"
 #include "thread.h"
+#include "utils/dwarf_cfi.h"
 
 namespace art {
 namespace x86 {
@@ -1407,20 +1408,61 @@ void X86Assembler::EmitGenericShift(int reg_or_opcode,
   EmitOperand(reg_or_opcode, Operand(operand));
 }
 
+void X86Assembler::InitializeFrameDescriptionEntry() {
+  WriteFDEHeader(&cfi_info_);
+}
+
+void X86Assembler::FinalizeFrameDescriptionEntry() {
+  WriteFDEAddressRange(&cfi_info_, buffer_.Size());
+  PadCFI(&cfi_info_);
+  WriteCFILength(&cfi_info_);
+}
+
 constexpr size_t kFramePointerSize = 4;
 
 void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                               const std::vector<ManagedRegister>& spill_regs,
                               const ManagedRegisterEntrySpills& entry_spills) {
+  cfi_cfa_offset_ = kFramePointerSize;  // Only return address on stack
+  cfi_pc_ = buffer_.Size();  // Nothing emitted yet
+  DCHECK_EQ(cfi_pc_, 0U);
+
+  uint32_t reg_offset = 1;
   CHECK_ALIGNED(frame_size, kStackAlignment);
   for (int i = spill_regs.size() - 1; i >= 0; --i) {
     pushl(spill_regs.at(i).AsX86().AsCpuRegister());
+
+    // DW_CFA_advance_loc
+    DW_CFA_advance_loc(&cfi_info_, buffer_.Size() - cfi_pc_);
+    cfi_pc_ = buffer_.Size();
+    // DW_CFA_def_cfa_offset
+    cfi_cfa_offset_ += kFramePointerSize;
+    DW_CFA_def_cfa_offset(&cfi_info_, cfi_cfa_offset_);
+    // DW_CFA_offset reg offset
+    reg_offset++;
+    DW_CFA_offset(&cfi_info_, spill_regs.at(i).AsX86().DWARFRegId(), reg_offset);
   }
+
   // return address then method on stack
-  addl(ESP, Immediate(-frame_size + (spill_regs.size() * kFramePointerSize) +
-                      sizeof(StackReference<mirror::ArtMethod>) /*method*/ +
-                      kFramePointerSize /*return address*/));
+  int32_t adjust = frame_size - (spill_regs.size() * kFramePointerSize) -
+                   sizeof(StackReference<mirror::ArtMethod>) /*method*/ -
+                   kFramePointerSize /*return address*/;
+  addl(ESP, Immediate(-adjust));
+  // DW_CFA_advance_loc
+  DW_CFA_advance_loc(&cfi_info_, buffer_.Size() - cfi_pc_);
+  cfi_pc_ = buffer_.Size();
+  // DW_CFA_def_cfa_offset
+  cfi_cfa_offset_ += adjust;
+  DW_CFA_def_cfa_offset(&cfi_info_, cfi_cfa_offset_);
+
   pushl(method_reg.AsX86().AsCpuRegister());
+  // DW_CFA_advance_loc
+  DW_CFA_advance_loc(&cfi_info_, buffer_.Size() - cfi_pc_);
+  cfi_pc_ = buffer_.Size();
+  // DW_CFA_def_cfa_offset
+  cfi_cfa_offset_ += kFramePointerSize;
+  DW_CFA_def_cfa_offset(&cfi_info_, cfi_cfa_offset_);
+
   for (size_t i = 0; i < entry_spills.size(); ++i) {
     movl(Address(ESP, frame_size + sizeof(StackReference<mirror::ArtMethod>) +
                  (i * kFramePointerSize)),
@@ -1442,6 +1484,12 @@ void X86Assembler::RemoveFrame(size_t frame_size,
 void X86Assembler::IncreaseFrameSize(size_t adjust) {
   CHECK_ALIGNED(adjust, kStackAlignment);
   addl(ESP, Immediate(-adjust));
+  // DW_CFA_advance_loc
+  DW_CFA_advance_loc(&cfi_info_, buffer_.Size() - cfi_pc_);
+  cfi_pc_ = buffer_.Size();
+  // DW_CFA_def_cfa_offset
+  cfi_cfa_offset_ += adjust;
+  DW_CFA_def_cfa_offset(&cfi_info_, cfi_cfa_offset_);
 }
 
 void X86Assembler::DecreaseFrameSize(size_t adjust) {
