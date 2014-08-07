@@ -15,16 +15,16 @@
  */
 
 #include "code_generator_x86.h"
+
+#include "entrypoints/quick/quick_entrypoints.h"
 #include "gc/accounting/card_table.h"
+#include "mirror/array.h"
+#include "mirror/art_method.h"
+#include "thread.h"
 #include "utils/assembler.h"
 #include "utils/stack_checks.h"
 #include "utils/x86/assembler_x86.h"
 #include "utils/x86/managed_register_x86.h"
-
-#include "entrypoints/quick/quick_entrypoints.h"
-#include "mirror/array.h"
-#include "mirror/art_method.h"
-#include "thread.h"
 
 namespace art {
 
