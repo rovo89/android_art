@@ -949,6 +949,100 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   return true;
 }
 
+bool ArmMir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
+  constexpr int kLargeArrayThreshold = 256;
+
+  RegLocation rl_src = info->args[0];
+  RegLocation rl_src_pos = info->args[1];
+  RegLocation rl_dst = info->args[2];
+  RegLocation rl_dst_pos = info->args[3];
+  RegLocation rl_length = info->args[4];
+  // Compile time check, handle exception by non-inline method to reduce related meta-data.
+  if ((rl_src_pos.is_const && (mir_graph_->ConstantValue(rl_src_pos) < 0)) ||
+      (rl_dst_pos.is_const && (mir_graph_->ConstantValue(rl_dst_pos) < 0)) ||
+      (rl_length.is_const && (mir_graph_->ConstantValue(rl_length) < 0))) {
+    return false;
+  }
+
+  ClobberCallerSave();
+  LockCallTemps();  // Prepare for explicit register usage.
+  LockTemp(rs_r12);
+  RegStorage rs_src = rs_r0;
+  RegStorage rs_dst = rs_r1;
+  LoadValueDirectFixed(rl_src, rs_src);
+  LoadValueDirectFixed(rl_dst, rs_dst);
+
+  // Handle null pointer exception in slow-path.
+  LIR* src_check_branch = OpCmpImmBranch(kCondEq, rs_src, 0, nullptr);
+  LIR* dst_check_branch = OpCmpImmBranch(kCondEq, rs_dst, 0, nullptr);
+  // Handle potential overlapping in slow-path.
+  LIR* src_dst_same = OpCmpBranch(kCondEq, rs_src, rs_dst, nullptr);
+  // Handle exception or big length in slow-path.
+  RegStorage rs_length = rs_r2;
+  LoadValueDirectFixed(rl_length, rs_length);
+  LIR* len_neg_or_too_big = OpCmpImmBranch(kCondHi, rs_length, kLargeArrayThreshold, nullptr);
+  // Src bounds check.
+  RegStorage rs_pos = rs_r3;
+  RegStorage rs_arr_length = rs_r12;
+  LoadValueDirectFixed(rl_src_pos, rs_pos);
+  LIR* src_pos_negative = OpCmpImmBranch(kCondLt, rs_pos, 0, nullptr);
+  Load32Disp(rs_src, mirror::Array::LengthOffset().Int32Value(), rs_arr_length);
+  OpRegReg(kOpSub, rs_arr_length, rs_pos);
+  LIR* src_bad_len = OpCmpBranch(kCondLt, rs_arr_length, rs_length, nullptr);
+  // Dst bounds check.
+  LoadValueDirectFixed(rl_dst_pos, rs_pos);
+  LIR* dst_pos_negative = OpCmpImmBranch(kCondLt, rs_pos, 0, nullptr);
+  Load32Disp(rs_dst, mirror::Array::LengthOffset().Int32Value(), rs_arr_length);
+  OpRegReg(kOpSub, rs_arr_length, rs_pos);
+  LIR* dst_bad_len = OpCmpBranch(kCondLt, rs_arr_length, rs_length, nullptr);
+
+  // Everything is checked now.
+  OpRegImm(kOpAdd, rs_dst, mirror::Array::DataOffset(2).Int32Value());
+  OpRegReg(kOpAdd, rs_dst, rs_pos);
+  OpRegReg(kOpAdd, rs_dst, rs_pos);
+  OpRegImm(kOpAdd, rs_src, mirror::Array::DataOffset(2).Int32Value());
+  LoadValueDirectFixed(rl_src_pos, rs_pos);
+  OpRegReg(kOpAdd, rs_src, rs_pos);
+  OpRegReg(kOpAdd, rs_src, rs_pos);
+
+  RegStorage rs_tmp = rs_pos;
+  OpRegRegImm(kOpLsl, rs_length, rs_length, 1);
+
+  // Copy one element.
+  OpRegRegImm(kOpAnd, rs_tmp, rs_length, 2);
+  LIR* jmp_to_begin_loop = OpCmpImmBranch(kCondEq, rs_tmp, 0, nullptr);
+  OpRegImm(kOpSub, rs_length, 2);
+  LoadBaseIndexed(rs_src, rs_length, rs_tmp, 0, kSignedHalf);
+  StoreBaseIndexed(rs_dst, rs_length, rs_tmp, 0, kSignedHalf);
+
+  // Copy two elements.
+  LIR *begin_loop = NewLIR0(kPseudoTargetLabel);
+  LIR* jmp_to_ret = OpCmpImmBranch(kCondEq, rs_length, 0, nullptr);
+  OpRegImm(kOpSub, rs_length, 4);
+  LoadBaseIndexed(rs_src, rs_length, rs_tmp, 0, k32);
+  StoreBaseIndexed(rs_dst, rs_length, rs_tmp, 0, k32);
+  OpUnconditionalBranch(begin_loop);
+
+  LIR *check_failed = NewLIR0(kPseudoTargetLabel);
+  LIR* launchpad_branch = OpUnconditionalBranch(nullptr);
+  LIR* return_point = NewLIR0(kPseudoTargetLabel);
+
+  src_check_branch->target = check_failed;
+  dst_check_branch->target = check_failed;
+  src_dst_same->target = check_failed;
+  len_neg_or_too_big->target = check_failed;
+  src_pos_negative->target = check_failed;
+  src_bad_len->target = check_failed;
+  dst_pos_negative->target = check_failed;
+  dst_bad_len->target = check_failed;
+  jmp_to_begin_loop->target = begin_loop;
+  jmp_to_ret->target = return_point;
+
+  AddIntrinsicSlowPath(info, launchpad_branch, return_point);
+
+  return true;
+}
+
 LIR* ArmMir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
   return RawLIR(current_dalvik_offset_, kThumb2LdrPcRel12, reg.GetReg(), 0, 0, 0, 0, target);
 }
