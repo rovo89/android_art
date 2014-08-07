@@ -18,8 +18,10 @@ import java.lang.reflect.*;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Reflection test.
@@ -579,6 +581,118 @@ public class Main {
         }
     }
 
+    public static void checkParametrizedTypeEqualsAndHashCode() {
+        Method method1;
+        Method method2;
+        Method method3;
+        try {
+            method1 = ParametrizedTypeTest.class.getDeclaredMethod("aMethod", Set.class);
+            method2 = ParametrizedTypeTest.class.getDeclaredMethod("aMethod", Set.class);
+            method3 = ParametrizedTypeTest.class.getDeclaredMethod("aMethodIdentical", Set.class);
+        } catch (NoSuchMethodException nsme) {
+            throw new RuntimeException(nsme);
+        }
+
+        List<Type> types1 = Arrays.asList(method1.getGenericParameterTypes());
+        List<Type> types2 = Arrays.asList(method2.getGenericParameterTypes());
+        List<Type> types3 = Arrays.asList(method3.getGenericParameterTypes());
+
+        Type type1 = types1.get(0);
+        Type type2 = types2.get(0);
+        Type type3 = types3.get(0);
+
+        if (type1 instanceof ParameterizedType) {
+            System.out.println("type1 is a ParameterizedType");
+        }
+        if (type2 instanceof ParameterizedType) {
+            System.out.println("type2 is a ParameterizedType");
+        }
+        if (type3 instanceof ParameterizedType) {
+            System.out.println("type3 is a ParameterizedType");
+        }
+
+        if (type1.equals(type2)) {
+            System.out.println("type1("+type1+") equals type2("+type2+")");
+        } else {
+            System.out.println("type1("+type1+") does not equal type2("+type2+")");
+        }
+
+        if (type1.equals(type3)) {
+            System.out.println("type1("+type1+") equals type3("+type3+")");
+        } else {
+            System.out.println("type1("+type1+") does not equal type3("+type3+")");
+        }
+        if (type1.hashCode() == type2.hashCode()) {
+            System.out.println("type1("+type1+") hashCode equals type2("+type2+") hashCode");
+        } else {
+            System.out.println(
+                   "type1("+type1+") hashCode does not equal type2("+type2+") hashCode");
+        }
+
+        if (type1.hashCode() == type3.hashCode()) {
+            System.out.println("type1("+type1+") hashCode equals type3("+type3+") hashCode");
+        } else {
+            System.out.println(
+                    "type1("+type1+") hashCode does not equal type3("+type3+") hashCode");
+        }
+    }
+
+    public static void checkGenericArrayTypeEqualsAndHashCode() {
+        Method method1;
+        Method method2;
+        Method method3;
+        try {
+            method1 = GenericArrayTypeTest.class.getDeclaredMethod("aMethod", Object[].class);
+            method2 = GenericArrayTypeTest.class.getDeclaredMethod("aMethod", Object[].class);
+            method3 = GenericArrayTypeTest.class.getDeclaredMethod("aMethodIdentical", Object[].class);
+        } catch (NoSuchMethodException nsme) {
+            throw new RuntimeException(nsme);
+        }
+
+        List<Type> types1 = Arrays.asList(method1.getGenericParameterTypes());
+        List<Type> types2 = Arrays.asList(method2.getGenericParameterTypes());
+        List<Type> types3 = Arrays.asList(method3.getGenericParameterTypes());
+
+        Type type1 = types1.get(0);
+        Type type2 = types2.get(0);
+        Type type3 = types3.get(0);
+
+        if (type1 instanceof GenericArrayType) {
+            System.out.println("type1 is a GenericArrayType");
+        }
+        if (type2 instanceof GenericArrayType) {
+            System.out.println("type2 is a GenericArrayType");
+        }
+        if (type3 instanceof GenericArrayType) {
+            System.out.println("type3 is a GenericArrayType");
+        }
+
+        if (type1.equals(type2)) {
+            System.out.println("type1("+type1+") equals type2("+type2+")");
+        } else {
+            System.out.println("type1("+type1+") does not equal type2("+type2+")");
+        }
+
+        if (type1.equals(type3)) {
+            System.out.println("type1("+type1+") equals type3("+type3+")");
+        } else {
+            System.out.println("type1("+type1+") does not equal type3("+type3+")");
+        }
+        if (type1.hashCode() == type2.hashCode()) {
+            System.out.println("type1("+type1+") hashCode equals type2("+type2+") hashCode");
+        } else {
+            System.out.println(
+                   "type1("+type1+") hashCode does not equal type2("+type2+") hashCode");
+        }
+
+        if (type1.hashCode() == type3.hashCode()) {
+            System.out.println("type1("+type1+") hashCode equals type3("+type3+") hashCode");
+        } else {
+            System.out.println(
+                    "type1("+type1+") hashCode does not equal type3("+type3+") hashCode");
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         Main test = new Main();
         test.run();
@@ -589,6 +703,8 @@ public class Main {
         checkClinitForMethods();
         checkGeneric();
         checkUnique();
+        checkParametrizedTypeEqualsAndHashCode();
+        checkGenericArrayTypeEqualsAndHashCode();
     }
 }
 
@@ -695,4 +811,14 @@ class Thrower {
   public Thrower() throws UnsupportedOperationException {
     throw new UnsupportedOperationException();
   }
+}
+
+class ParametrizedTypeTest {
+    public void aMethod(Set<String> names) {}
+    public void aMethodIdentical(Set<String> names) {}
+}
+
+class GenericArrayTypeTest<T> {
+    public void aMethod(T[] names) {}
+    public void aMethodIdentical(T[] names) {}
 }
