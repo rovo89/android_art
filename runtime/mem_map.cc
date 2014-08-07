@@ -135,7 +135,7 @@ static bool CheckOverlapping(uintptr_t begin,
                              uintptr_t end,
                              std::string* error_msg) {
   std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(getpid(), true));
-  if (!map->Build()) {
+  if (map.get() == nullptr) {
     *error_msg = StringPrintf("Failed to build process map");
     return false;
   }
@@ -158,7 +158,7 @@ static bool CheckNonOverlapping(uintptr_t begin,
                                 uintptr_t end,
                                 std::string* error_msg) {
   std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(getpid(), true));
-  if (!map->Build()) {
+  if (map.get() == nullptr) {
     *error_msg = StringPrintf("Failed to build process map");
     return false;
   }
