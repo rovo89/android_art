@@ -614,6 +614,12 @@ class X86_64Assembler FINAL : public Assembler {
   // and branch to a ExceptionSlowPath if it is.
   void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust) OVERRIDE;
 
+  void InitializeFrameDescriptionEntry() OVERRIDE;
+  void FinalizeFrameDescriptionEntry() OVERRIDE;
+  std::vector<uint8_t>* GetFrameDescriptionEntry() OVERRIDE {
+    return &cfi_info_;
+  }
+
  private:
   void EmitUint8(uint8_t value);
   void EmitInt32(int32_t value);
@@ -654,6 +660,9 @@ class X86_64Assembler FINAL : public Assembler {
   // Emit a REX prefix to normalize byte registers plus necessary register bit encodings.
   void EmitOptionalByteRegNormalizingRex32(CpuRegister dst, CpuRegister src);
   void EmitOptionalByteRegNormalizingRex32(CpuRegister dst, const Operand& operand);
+
+  std::vector<uint8_t> cfi_info_;
+  uint32_t cfi_cfa_offset_, cfi_pc_;
 
   DISALLOW_COPY_AND_ASSIGN(X86_64Assembler);
 };

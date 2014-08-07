@@ -499,6 +499,10 @@ class Assembler {
   // and branch to a ExceptionSlowPath if it is.
   virtual void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust) = 0;
 
+  virtual void InitializeFrameDescriptionEntry() {}
+  virtual void FinalizeFrameDescriptionEntry() {}
+  virtual std::vector<uint8_t>* GetFrameDescriptionEntry() { return nullptr; }
+
   virtual ~Assembler() {}
 
  protected:

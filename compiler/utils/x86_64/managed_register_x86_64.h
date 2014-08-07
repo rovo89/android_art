@@ -87,6 +87,21 @@ const int kNumberOfAllocIds = kNumberOfCpuAllocIds + kNumberOfXmmAllocIds +
 // There is a one-to-one mapping between ManagedRegister and register id.
 class X86_64ManagedRegister : public ManagedRegister {
  public:
+  int DWARFRegId() const {
+    CHECK(IsCpuRegister());
+    switch (id_) {
+      case RAX: return  0;
+      case RDX: return  1;
+      case RCX: return  2;
+      case RBX: return  3;
+      case RSI: return  4;
+      case RDI: return  5;
+      case RBP: return  6;
+      case RSP: return  7;
+      default: return static_cast<int>(id_);  // R8 ~ R15
+    }
+  }
+
   CpuRegister AsCpuRegister() const {
     CHECK(IsCpuRegister());
     return CpuRegister(static_cast<Register>(id_));

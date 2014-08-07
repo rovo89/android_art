@@ -20,6 +20,7 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "memory_region.h"
 #include "thread.h"
+#include "utils/dwarf_cfi.h"
 
 namespace art {
 namespace x86_64 {
@@ -1714,11 +1715,26 @@ void X86_64Assembler::EmitOptionalByteRegNormalizingRex32(CpuRegister dst, const
   }
 }
 
+void X86_64Assembler::InitializeFrameDescriptionEntry() {
+  WriteFDEHeader(&cfi_info_);
+}
+
+void X86_64Assembler::FinalizeFrameDescriptionEntry() {
+  WriteFDEAddressRange(&cfi_info_, buffer_.Size());
+  PadCFI(&cfi_info_);
+  WriteCFILength(&cfi_info_);
+}
+
 constexpr size_t kFramePointerSize = 8;
 
 void X86_64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                                  const std::vector<ManagedRegister>& spill_regs,
                                  const ManagedRegisterEntrySpills& entry_spills) {
+  cfi_cfa_offset_ = kFramePointerSize;  // Only return address on stack
+  cfi_pc_ = buffer_.Size();  // Nothing emitted yet
+  DCHECK_EQ(cfi_pc_, 0U);
+
+  uint32_t reg_offset = 1;
   CHECK_ALIGNED(frame_size, kStackAlignment);
   int gpr_count = 0;
   for (int i = spill_regs.size() - 1; i >= 0; --i) {
@@ -1726,6 +1742,16 @@ void X86_64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
     if (spill.IsCpuRegister()) {
       pushq(spill.AsCpuRegister());
       gpr_count++;
+
+      // DW_CFA_advance_loc
+      DW_CFA_advance_loc(&cfi_info_, buffer_.Size() - cfi_pc_);
+      cfi_pc_ = buffer_.Size();
+      // DW_CFA_def_cfa_offset
+      cfi_cfa_offset_ += kFramePointerSize;
+      DW_CFA_def_cfa_offset(&cfi_info_, cfi_cfa_offset_);
+      // DW_CFA_offset reg offset
+      reg_offset++;
+      DW_CFA_offset(&cfi_info_, spill.DWARFRegId(), reg_offset);
     }
   }
   // return address then method on stack
@@ -1733,6 +1759,13 @@ void X86_64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                           - (gpr_count * kFramePointerSize)
                           - kFramePointerSize /*return address*/;
   subq(CpuRegister(RSP), Immediate(rest_of_frame));
+  // DW_CFA_advance_loc
+  DW_CFA_advance_loc(&cfi_info_, buffer_.Size() - cfi_pc_);
+  cfi_pc_ = buffer_.Size();
+  // DW_CFA_def_cfa_offset
+  cfi_cfa_offset_ += rest_of_frame;
+  DW_CFA_def_cfa_offset(&cfi_info_, cfi_cfa_offset_);
+
   // spill xmms
   int64_t offset = rest_of_frame;
   for (int i = spill_regs.size() - 1; i >= 0; --i) {
@@ -1796,6 +1829,12 @@ void X86_64Assembler::RemoveFrame(size_t frame_size,
 void X86_64Assembler::IncreaseFrameSize(size_t adjust) {
   CHECK_ALIGNED(adjust, kStackAlignment);
   addq(CpuRegister(RSP), Immediate(-static_cast<int64_t>(adjust)));
+  // DW_CFA_advance_loc
+  DW_CFA_advance_loc(&cfi_info_, buffer_.Size() - cfi_pc_);
+  cfi_pc_ = buffer_.Size();
+  // DW_CFA_def_cfa_offset
+  cfi_cfa_offset_ += adjust;
+  DW_CFA_def_cfa_offset(&cfi_info_, cfi_cfa_offset_);
 }
 
 void X86_64Assembler::DecreaseFrameSize(size_t adjust) {

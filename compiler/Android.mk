@@ -107,6 +107,7 @@ LIBART_COMPILER_SRC_FILES := \
 	utils/arm64/assembler_arm64.cc \
 	utils/arm64/managed_register_arm64.cc \
 	utils/assembler.cc \
+	utils/dwarf_cfi.cc \
 	utils/mips/assembler_mips.cc \
 	utils/mips/managed_register_mips.cc \
 	utils/x86/assembler_x86.cc \
