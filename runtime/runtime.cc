@@ -620,6 +620,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     case kArm:
     case kThumb2:
     case kX86:
+    case kArm64:
       implicit_null_checks_ = true;
       implicit_so_checks_ = true;
       break;
