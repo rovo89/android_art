@@ -1634,9 +1634,16 @@ void Heap::TransitionCollector(CollectorType collector_type) {
         RemoveSpace(bump_pointer_space_);
         bump_pointer_space_ = nullptr;
         const char* name = kUseRosAlloc ? kRosAllocSpaceName[1] : kDlMallocSpaceName[1];
+        // Temporarily unprotect the backup mem map so rosalloc can write the debug magic number.
+        if (kIsDebugBuild && kUseRosAlloc) {
+          mem_map->Protect(PROT_READ | PROT_WRITE);
+        }
         main_space_backup_.reset(CreateMallocSpaceFromMemMap(mem_map.get(), kDefaultInitialSize,
                                                              mem_map->Size(), mem_map->Size(),
                                                              name, true));
+        if (kIsDebugBuild && kUseRosAlloc) {
+          mem_map->Protect(PROT_NONE);
+        }
         mem_map.release();
       }
       break;
