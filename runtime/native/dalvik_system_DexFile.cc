@@ -510,14 +510,14 @@ static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
 
   bool should_relocate_if_possible = Runtime::Current()->ShouldRelocate();
 
-  InstructionSet isa = Runtime::Current()->GetInstructionSet();
   jbyte dalvik_cache_decision = -1;
   // Lets try the cache first (since we want to load from there since thats where the relocated
   // versions will be).
   if (have_cache_filename && !force_system_only) {
     // We can use the dalvik-cache if we find a good file.
     dalvik_cache_decision =
-        IsDexOptNeededForFile<kVerboseLogging, kReasonLogging>(cache_filename, filename, isa);
+        IsDexOptNeededForFile<kVerboseLogging, kReasonLogging>(cache_filename, filename,
+                                                               target_instruction_set);
     // We will only return DexOptNeeded if both the cache and system return it.
     if (dalvik_cache_decision != kDexoptNeeded && !require_system_version) {
       CHECK(!(dalvik_cache_decision == kPatchoatNeeded && !should_relocate_if_possible))
@@ -528,7 +528,8 @@ static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
   }
 
   jbyte system_decision =
-      IsDexOptNeededForFile<kVerboseLogging, kReasonLogging>(odex_filename, filename, isa);
+      IsDexOptNeededForFile<kVerboseLogging, kReasonLogging>(odex_filename, filename,
+                                                             target_instruction_set);
   CHECK(!(system_decision == kPatchoatNeeded && !should_relocate_if_possible))
       << "May not return PatchoatNeeded when patching is disabled.";
 
