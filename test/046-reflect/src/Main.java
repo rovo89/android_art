@@ -693,10 +693,35 @@ public class Main {
         }
     }
 
+    private static void checkGetDeclaredConstructor() {
+        try {
+            Method.class.getDeclaredConstructor().setAccessible(true);
+            System.out.print("Didn't get an exception from method getDeclaredConstructor");
+        } catch (NoSuchMethodException e) {
+        } catch (Exception e) {
+            System.out.print(e);
+        }
+        try {
+            Field.class.getDeclaredConstructor().setAccessible(true);
+            System.out.print("Didn't get an exception from field getDeclaredConstructor");
+        } catch (NoSuchMethodException e) {
+        } catch (Exception e) {
+            System.out.print(e);
+        }
+        try {
+            Class.class.getDeclaredConstructor().setAccessible(true);
+            System.out.print("Didn't get an exception from class getDeclaredConstructor()");
+        } catch (SecurityException e) {
+        } catch (Exception e) {
+            System.out.print(e);
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         Main test = new Main();
         test.run();
 
+        checkGetDeclaredConstructor();
         checkAccess();
         checkType();
         checkClinitForFields();
