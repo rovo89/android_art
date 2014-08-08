@@ -431,12 +431,11 @@ class Thread {
     tlsPtr_.wait_next = next;
   }
 
-  mirror::ClassLoader* GetClassLoaderOverride() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  jobject GetClassLoaderOverride() {
     return tlsPtr_.class_loader_override;
   }
 
-  void SetClassLoaderOverride(mirror::ClassLoader* class_loader_override)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetClassLoaderOverride(jobject class_loader_override);
 
   // Create the internal representation of a stack trace, that is more time
   // and space efficient to compute than the StackTraceElement[].
@@ -1040,7 +1039,7 @@ class Thread {
 
     // Needed to get the right ClassLoader in JNI_OnLoad, but also
     // useful for testing.
-    mirror::ClassLoader* class_loader_override;
+    jobject class_loader_override;
 
     // Thread local, lazily allocated, long jump context. Used to deliver exceptions.
     Context* long_jump_context;

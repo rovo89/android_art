@@ -449,8 +449,14 @@ class MANAGED Class FINAL : public Object {
   bool IsObjectClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return !IsPrimitive() && GetSuperClass() == NULL;
   }
+
+  bool IsInstantiableNonArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return !IsPrimitive() && !IsInterface() && !IsAbstract() && !IsArrayClass();
+  }
+
   bool IsInstantiable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return (!IsPrimitive() && !IsInterface() && !IsAbstract()) || ((IsAbstract()) && IsArrayClass());
+    return (!IsPrimitive() && !IsInterface() && !IsAbstract()) ||
+        ((IsAbstract()) && IsArrayClass());
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>

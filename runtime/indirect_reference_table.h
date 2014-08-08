@@ -25,15 +25,17 @@
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "gc_root.h"
-#include "mem_map.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "read_barrier_option.h"
 
 namespace art {
+
 namespace mirror {
 class Object;
 }  // namespace mirror
+
+class MemMap;
 
 /*
  * Maintain a table of indirect references.  Used for local/global JNI

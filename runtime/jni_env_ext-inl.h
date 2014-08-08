@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_JNI_INTERNAL_INL_H_
-#define ART_RUNTIME_JNI_INTERNAL_INL_H_
+#ifndef ART_RUNTIME_JNI_ENV_EXT_INL_H_
+#define ART_RUNTIME_JNI_ENV_EXT_INL_H_
 
-#include "jni_internal.h"
+#include "jni_env_ext.h"
 
 #include "utils.h"
 
@@ -44,4 +44,4 @@ inline T JNIEnvExt::AddLocalReference(mirror::Object* obj) {
 
 }  // namespace art
 
-#endif  // ART_RUNTIME_JNI_INTERNAL_INL_H_
+#endif  // ART_RUNTIME_JNI_ENV_EXT_INL_H_

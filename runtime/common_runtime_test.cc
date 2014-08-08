@@ -354,23 +354,22 @@ jobject CommonRuntimeTest::LoadDex(const char* dex_name) {
   for (const DexFile* dex_file : dex_files) {
     class_linker_->RegisterDexFile(*dex_file);
   }
-  ScopedObjectAccessUnchecked soa(Thread::Current());
-  ScopedLocalRef<jobject> class_loader_local(soa.Env(),
-      soa.Env()->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader));
-  jobject class_loader = soa.Env()->NewGlobalRef(class_loader_local.get());
-  soa.Self()->SetClassLoaderOverride(soa.Decode<mirror::ClassLoader*>(class_loader_local.get()));
+  Thread* self = Thread::Current();
+  JNIEnvExt* env = self->GetJniEnv();
+  ScopedLocalRef<jobject> class_loader_local(env,
+      env->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader));
+  jobject class_loader = env->NewGlobalRef(class_loader_local.get());
+  self->SetClassLoaderOverride(class_loader_local.get());
   Runtime::Current()->SetCompileTimeClassPath(class_loader, dex_files);
   return class_loader;
 }
 
 CheckJniAbortCatcher::CheckJniAbortCatcher() : vm_(Runtime::Current()->GetJavaVM()) {
-  vm_->check_jni_abort_hook = Hook;
-  vm_->check_jni_abort_hook_data = &actual_;
+  vm_->SetCheckJniAbortHook(Hook, &actual_);
 }
 
 CheckJniAbortCatcher::~CheckJniAbortCatcher() {
-  vm_->check_jni_abort_hook = nullptr;
-  vm_->check_jni_abort_hook_data = nullptr;
+  vm_->SetCheckJniAbortHook(nullptr, nullptr);
   EXPECT_TRUE(actual_.empty()) << actual_;
 }
 

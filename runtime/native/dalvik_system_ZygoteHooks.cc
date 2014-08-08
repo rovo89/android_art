@@ -17,6 +17,7 @@
 #include <stdlib.h>
 
 #include "debugger.h"
+#include "java_vm_ext.h"
 #include "jni_internal.h"
 #include "JNIHelp.h"
 #include "thread-inl.h"
@@ -47,7 +48,7 @@ static void EnableDebugger() {
 }
 
 static void EnableDebugFeatures(uint32_t debug_flags) {
-  // Must match values in dalvik.system.Zygote.
+  // Must match values in com.android.internal.os.Zygote.
   enum {
     DEBUG_ENABLE_DEBUGGER           = 1,
     DEBUG_ENABLE_CHECKJNI           = 1 << 1,
@@ -59,7 +60,7 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
   if ((debug_flags & DEBUG_ENABLE_CHECKJNI) != 0) {
     Runtime* runtime = Runtime::Current();
     JavaVMExt* vm = runtime->GetJavaVM();
-    if (!vm->check_jni) {
+    if (!vm->IsCheckJniEnabled()) {
       LOG(INFO) << "Late-enabling -Xcheck:jni";
       vm->SetCheckJniEnabled(true);
       // There's only one thread running at this point, so only one JNIEnv to fix up.

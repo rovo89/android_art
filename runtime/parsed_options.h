@@ -44,6 +44,7 @@ class ParsedOptions {
   std::string class_path_string_;
   std::string image_;
   bool check_jni_;
+  bool force_copy_;
   std::string jni_trace_;
   std::string native_bridge_library_string_;
   CompilerCallbacks* compiler_callbacks_;

@@ -21,12 +21,10 @@
 
 #include "base/logging.h"
 #include "base/macros.h"
-#include "mirror/object_reference.h"
 
 namespace art {
-namespace mirror {
-class Object;
-}  // namespace mirror
+
+static constexpr size_t kObjectReferenceSize = 4;
 
 class Primitive {
  public:
@@ -79,7 +77,7 @@ class Primitive {
       case kPrimFloat:   return 4;
       case kPrimLong:
       case kPrimDouble:  return 8;
-      case kPrimNot:     return sizeof(mirror::HeapReference<mirror::Object>);
+      case kPrimNot:     return kObjectReferenceSize;
       default:
         LOG(FATAL) << "Invalid type " << static_cast<int>(type);
         return 0;

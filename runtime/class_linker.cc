@@ -16,9 +16,6 @@
 
 #include "class_linker.h"
 
-#include <fcntl.h>
-#include <sys/file.h>
-#include <sys/stat.h>
 #include <deque>
 #include <memory>
 #include <string>

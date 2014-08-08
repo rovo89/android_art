@@ -101,6 +101,7 @@ class RosAllocSpace : public MallocSpace {
 
   void RevokeThreadLocalBuffers(Thread* thread);
   void RevokeAllThreadLocalBuffers();
+  void AssertThreadLocalBuffersAreRevoked(Thread* thread);
   void AssertAllThreadLocalBuffersAreRevoked();
 
   // Returns the class of a recently freed object.

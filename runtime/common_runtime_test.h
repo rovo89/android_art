@@ -138,7 +138,7 @@ class CheckJniAbortCatcher {
  private:
   static void Hook(void* data, const std::string& reason);
 
-  JavaVMExt* vm_;
+  JavaVMExt* const vm_;
   std::string actual_;
 
   DISALLOW_COPY_AND_ASSIGN(CheckJniAbortCatcher);
