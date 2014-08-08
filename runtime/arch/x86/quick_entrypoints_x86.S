@@ -668,17 +668,17 @@ END_FUNCTION art_quick_check_cast
      */
 DEFINE_FUNCTION art_quick_aput_obj_with_null_and_bound_check
     testl %eax, %eax
-    jnz SYMBOL(art_quick_aput_obj_with_bound_check)
-    jmp SYMBOL(art_quick_throw_null_pointer_exception)
+    jnz PLT_SYMBOL(art_quick_aput_obj_with_bound_check)
+    jmp PLT_SYMBOL(art_quick_throw_null_pointer_exception)
 END_FUNCTION art_quick_aput_obj_with_null_and_bound_check
 
 DEFINE_FUNCTION art_quick_aput_obj_with_bound_check
     movl ARRAY_LENGTH_OFFSET(%eax), %ebx
     cmpl %ebx, %ecx
-    jb SYMBOL(art_quick_aput_obj)
+    jb PLT_SYMBOL(art_quick_aput_obj)
     mov %ecx, %eax
     mov %ebx, %ecx
-    jmp SYMBOL(art_quick_throw_array_bounds)
+    jmp PLT_SYMBOL(art_quick_throw_array_bounds)
 END_FUNCTION art_quick_aput_obj_with_bound_check
 
 DEFINE_FUNCTION art_quick_aput_obj
@@ -1108,7 +1108,7 @@ DEFINE_FUNCTION art_quick_imt_conflict_trampoline
     movd %xmm0, %ecx              // get target method index stored in xmm0
     movl OBJECT_ARRAY_DATA_OFFSET(%eax, %ecx, 4), %eax  // load the target method
     POP ecx
-    jmp SYMBOL(art_quick_invoke_interface_trampoline)
+    jmp PLT_SYMBOL(art_quick_invoke_interface_trampoline)
 END_FUNCTION art_quick_imt_conflict_trampoline
 
 DEFINE_FUNCTION art_quick_resolution_trampoline
