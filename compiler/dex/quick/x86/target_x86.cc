@@ -1439,8 +1439,8 @@ std::vector<uint8_t>* X86Mir2Lir::ReturnFrameDescriptionEntry() {
   // Generate the FDE for the method.
   DCHECK_NE(data_offset_, 0U);
 
-  WriteFDEHeader(cfi_info);
-  WriteFDEAddressRange(cfi_info, data_offset_);
+  WriteFDEHeader(cfi_info, cu_->target64);
+  WriteFDEAddressRange(cfi_info, data_offset_, cu_->target64);
 
   // The instructions in the FDE.
   if (stack_decrement_ != nullptr) {
@@ -1500,7 +1500,7 @@ std::vector<uint8_t>* X86Mir2Lir::ReturnFrameDescriptionEntry() {
   }
 
   PadCFI(cfi_info);
-  WriteCFILength(cfi_info);
+  WriteCFILength(cfi_info, cu_->target64);
 
   return cfi_info;
 }

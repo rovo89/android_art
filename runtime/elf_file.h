@@ -128,6 +128,8 @@ class ElfFile {
   // executable is true at run time, false at compile time.
   bool Load(bool executable, std::string* error_msg);
 
+  bool FixupDebugSections(off_t base_address_delta);
+
  private:
   ElfFile(File* file, bool writable, bool program_header_only);
 

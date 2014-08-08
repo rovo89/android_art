@@ -38,28 +38,32 @@ bool ElfFixup::Fixup(File* file, uintptr_t oat_data_begin) {
   Elf32_Off base_address = oat_data_begin - oatdata_address;
 
   if (!FixupDynamic(*elf_file.get(), base_address)) {
-      LOG(WARNING) << "Failed fo fixup .dynamic in " << file->GetPath();
-      return false;
+    LOG(WARNING) << "Failed to fixup .dynamic in " << file->GetPath();
+    return false;
   }
   if (!FixupSectionHeaders(*elf_file.get(), base_address)) {
-      LOG(WARNING) << "Failed fo fixup section headers in " << file->GetPath();
-      return false;
+    LOG(WARNING) << "Failed to fixup section headers in " << file->GetPath();
+    return false;
   }
   if (!FixupProgramHeaders(*elf_file.get(), base_address)) {
-      LOG(WARNING) << "Failed fo fixup program headers in " << file->GetPath();
-      return false;
+    LOG(WARNING) << "Failed to fixup program headers in " << file->GetPath();
+    return false;
   }
   if (!FixupSymbols(*elf_file.get(), base_address, true)) {
-      LOG(WARNING) << "Failed fo fixup .dynsym in " << file->GetPath();
-      return false;
+    LOG(WARNING) << "Failed to fixup .dynsym in " << file->GetPath();
+    return false;
   }
   if (!FixupSymbols(*elf_file.get(), base_address, false)) {
-      LOG(WARNING) << "Failed fo fixup .symtab in " << file->GetPath();
-      return false;
+    LOG(WARNING) << "Failed to fixup .symtab in " << file->GetPath();
+    return false;
   }
   if (!FixupRelocations(*elf_file.get(), base_address)) {
-      LOG(WARNING) << "Failed fo fixup .rel.dyn in " << file->GetPath();
-      return false;
+    LOG(WARNING) << "Failed to fixup .rel.dyn in " << file->GetPath();
+    return false;
+  }
+  if (!elf_file->FixupDebugSections(base_address)) {
+    LOG(WARNING) << "Failed to fixup debug sections in " << file->GetPath();
+    return false;
   }
   return true;
 }
