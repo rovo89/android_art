@@ -17,9 +17,11 @@
 #ifndef ART_RUNTIME_OAT_FILE_H_
 #define ART_RUNTIME_OAT_FILE_H_
 
+#include <list>
 #include <string>
 #include <vector>
 
+#include "base/mutex.h"
 #include "base/stringpiece.h"
 #include "dex_file.h"
 #include "invoke_type.h"
@@ -227,7 +229,8 @@ class OatFile {
 
   const OatDexFile* GetOatDexFile(const char* dex_location,
                                   const uint32_t* const dex_location_checksum,
-                                  bool exception_if_not_found = true) const;
+                                  bool exception_if_not_found = true) const
+      LOCKS_EXCLUDED(secondary_lookup_lock_);
 
   std::vector<const OatDexFile*> GetOatDexFiles() const;
 
@@ -279,10 +282,38 @@ class OatFile {
   // dlopen handle during runtime.
   void* dlopen_handle_;
 
-  // NOTE: We use a StringPiece as the key type to avoid a memory allocation on every lookup
-  // with a const char* key.
+  // NOTE: We use a StringPiece as the key type to avoid a memory allocation on every
+  // lookup with a const char* key. The StringPiece doesn't own its backing storage,
+  // therefore we're using the OatDexFile::dex_file_location_ as the backing storage
+  // for keys in oat_dex_files_ and the string_cache_ entries for the backing storage
+  // of keys in secondary_oat_dex_files_ and oat_dex_files_by_canonical_location_.
   typedef SafeMap<StringPiece, const OatDexFile*> Table;
-  Table oat_dex_files_;
+
+  // Map each plain dex file location retrieved from the oat file to its OatDexFile.
+  // This map doesn't change after it's constructed in Setup() and therefore doesn't
+  // need any locking and provides the cheapest dex file lookup for GetOatDexFile()
+  // for a very frequent use case. Never contains a nullptr value.
+  Table oat_dex_files_;                         // Owns the OatDexFile* values.
+
+  // Lock guarding all members needed for secondary lookup in GetOatDexFile().
+  mutable Mutex secondary_lookup_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+
+  // If the primary oat_dex_files_ lookup fails, use a secondary map. This map stores
+  // the results of all previous secondary lookups, whether successful (non-null) or
+  // failed (null). If it doesn't contain an entry we need to calculate the canonical
+  // location and use oat_dex_files_by_canonical_location_.
+  mutable Table secondary_oat_dex_files_ GUARDED_BY(secondary_lookup_lock_);
+
+  // Map the canonical location to an OatDexFile. This lazily constructed map is used
+  // when we're doing the secondary lookup for a given location for the first time.
+  mutable Table oat_dex_files_by_canonical_location_ GUARDED_BY(secondary_lookup_lock_);
+
+  // Cache of strings. Contains the backing storage for keys in the secondary_oat_dex_files_
+  // and the lazily initialized oat_dex_files_by_canonical_location_.
+  // NOTE: We're keeping references to contained strings in form of StringPiece and adding
+  // new strings to the end. The adding of a new element must not touch any previously stored
+  // elements. std::list<> and std::deque<> satisfy this requirement, std::vector<> doesn't.
+  mutable std::list<std::string> string_cache_ GUARDED_BY(secondary_lookup_lock_);
 
   friend class OatClass;
   friend class OatDexFile;
