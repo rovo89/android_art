@@ -43,7 +43,10 @@ static void Runtime_nativeExit(JNIEnv*, jclass, jint status) {
   exit(status);
 }
 
-static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, jobject javaLoader, jstring javaLdLibraryPath) {
+static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, jobject javaLoader,
+                                  jstring javaLdLibraryPath) {
+  // TODO: returns NULL on success or an error message describing the failure on failure. This
+  // should be refactored in terms of suppressed exceptions.
   ScopedUtfChars filename(env, javaFilename);
   if (filename.c_str() == NULL) {
     return NULL;
@@ -64,14 +67,10 @@ static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, job
     }
   }
 
-  std::string detail;
+  std::string error_msg;
   {
-    ScopedObjectAccess soa(env);
-    StackHandleScope<1> hs(soa.Self());
-    Handle<mirror::ClassLoader> classLoader(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(javaLoader)));
     JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-    bool success = vm->LoadNativeLibrary(filename.c_str(), classLoader, &detail);
+    bool success = vm->LoadNativeLibrary(env, filename.c_str(), javaLoader, &error_msg);
     if (success) {
       return nullptr;
     }
@@ -79,7 +78,7 @@ static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, job
 
   // Don't let a pending exception from JNI_OnLoad cause a CheckJNI issue with NewStringUTF.
   env->ExceptionClear();
-  return env->NewStringUTF(detail.c_str());
+  return env->NewStringUTF(error_msg.c_str());
 }
 
 static jlong Runtime_maxMemory(JNIEnv*, jclass) {

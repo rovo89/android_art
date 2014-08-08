@@ -73,7 +73,12 @@ class ObjectTest : public CommonRuntimeTest {
   }
 };
 
-// Keep the assembly code in sync
+// Keep constants in sync.
+TEST_F(ObjectTest, Constants) {
+  EXPECT_EQ(kObjectReferenceSize, sizeof(mirror::HeapReference<mirror::Object>));
+}
+
+// Keep the assembly code constats in sync.
 TEST_F(ObjectTest, AsmConstants) {
   EXPECT_EQ(CLASS_OFFSET, Object::ClassOffset().Int32Value());
   EXPECT_EQ(LOCK_WORD_OFFSET, Object::MonitorOffset().Int32Value());

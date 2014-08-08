@@ -27,7 +27,7 @@
 #include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
 #include "entrypoints/quick/quick_entrypoints.h"
-#include "jni_internal.h"
+#include "jni_env_ext.h"
 #include "mirror/art_method.h"
 #include "utils/assembler.h"
 #include "utils/managed_register.h"

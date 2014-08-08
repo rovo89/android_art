@@ -339,7 +339,7 @@ jobject CreateSystemClassLoader() {
   ScopedObjectAccess soa(Thread::Current());
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
 
-  StackHandleScope<3> hs(soa.Self());
+  StackHandleScope<2> hs(soa.Self());
   Handle<mirror::Class> class_loader_class(
       hs.NewHandle(soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ClassLoader)));
   CHECK(cl->EnsureInitialized(class_loader_class, true, true));
@@ -349,15 +349,12 @@ jobject CreateSystemClassLoader() {
   CHECK(getSystemClassLoader != NULL);
 
   JValue result = InvokeWithJValues(soa, nullptr, soa.EncodeMethod(getSystemClassLoader), nullptr);
-  Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(down_cast<mirror::ClassLoader*>(result.GetL())));
-  CHECK(class_loader.Get() != nullptr);
   JNIEnv* env = soa.Self()->GetJniEnv();
   ScopedLocalRef<jobject> system_class_loader(env,
-                                              soa.AddLocalReference<jobject>(class_loader.Get()));
+                                              soa.AddLocalReference<jobject>(result.GetL()));
   CHECK(system_class_loader.get() != nullptr);
 
-  soa.Self()->SetClassLoaderOverride(class_loader.Get());
+  soa.Self()->SetClassLoaderOverride(system_class_loader.get());
 
   Handle<mirror::Class> thread_class(
       hs.NewHandle(soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread)));
@@ -368,7 +365,8 @@ jobject CreateSystemClassLoader() {
   CHECK(contextClassLoader != NULL);
 
   // We can't run in a transaction yet.
-  contextClassLoader->SetObject<false>(soa.Self()->GetPeer(), class_loader.Get());
+  contextClassLoader->SetObject<false>(soa.Self()->GetPeer(),
+                                       soa.Decode<mirror::ClassLoader*>(system_class_loader.get()));
 
   return env->NewGlobalRef(system_class_loader.get());
 }
@@ -708,7 +706,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   self->ClearException();
 
   // Look for a native bridge.
-  NativeBridge::SetNativeBridgeLibraryString(options->native_bridge_library_string_);
+  SetNativeBridgeLibraryString(options->native_bridge_library_string_);
 
   VLOG(startup) << "Runtime::Init exiting";
   return true;
@@ -736,13 +734,9 @@ void Runtime::InitNativeMethods() {
   {
     std::string mapped_name(StringPrintf(OS_SHARED_LIB_FORMAT_STR, "javacore"));
     std::string reason;
-    self->TransitionFromSuspendedToRunnable();
-    StackHandleScope<1> hs(self);
-    auto class_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
-    if (!instance_->java_vm_->LoadNativeLibrary(mapped_name, class_loader, &reason)) {
+    if (!instance_->java_vm_->LoadNativeLibrary(env, mapped_name, nullptr, &reason)) {
       LOG(FATAL) << "LoadNativeLibrary failed for \"" << mapped_name << "\": " << reason;
     }
-    self->TransitionFromRunnableToSuspended(kNative);
   }
 
   // Initialize well known classes that may invoke runtime native methods.
