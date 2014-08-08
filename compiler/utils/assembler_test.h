@@ -361,12 +361,15 @@ class AssemblerTest : public testing::Test {
     } else {
       if (DisassembleBinaries(*data, *res.code, test_name)) {
         if (data->size() > res.code->size()) {
-          LOG(WARNING) << "Assembly code is not identical, but disassembly of machine code is "
-              "equal: this implies sub-optimal encoding! Our code size=" << data->size() <<
+          // Fail this test with a fancy colored warning being printed.
+          EXPECT_TRUE(false) << "Assembly code is not identical, but disassembly of machine code "
+              "is equal: this implies sub-optimal encoding! Our code size=" << data->size() <<
               ", gcc size=" << res.code->size();
         } else {
+          // Otherwise just print an info message and clean up.
           LOG(INFO) << "GCC chose a different encoding than ours, but the overall length is the "
               "same.";
+          Clean(&res);
         }
       } else {
         // This will output the assembly.
