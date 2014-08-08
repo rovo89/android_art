@@ -121,14 +121,12 @@ OatFile* OatFile::OpenElfFile(File* file,
 }
 
 OatFile::OatFile(const std::string& location)
-    : location_(location), begin_(NULL), end_(NULL), dlopen_handle_(NULL) {
+    : location_(location), begin_(NULL), end_(NULL), dlopen_handle_(NULL),
+      secondary_lookup_lock_("OatFile secondary lookup lock", kOatFileSecondaryLookupLock) {
   CHECK(!location_.empty());
 }
 
 OatFile::~OatFile() {
-  for (auto it : oat_dex_files_) {
-     delete it.first.data();
-  }
   STLDeleteValues(&oat_dex_files_);
   if (dlopen_handle_ != NULL) {
     dlclose(dlopen_handle_);
@@ -304,19 +302,13 @@ bool OatFile::Setup(std::string* error_msg) {
       return false;
     }
 
+    // Create the OatDexFile and add it to the owning map indexed by the dex file location.
     OatDexFile* oat_dex_file = new OatDexFile(this,
                                               dex_file_location,
                                               dex_file_checksum,
                                               dex_file_pointer,
                                               methods_offsets_pointer);
-
-    std::string dex_canonical_location_str = DexFile::GetDexCanonicalLocation(dex_file_location.c_str());
-    // make a copy since we need to persist it as a key in the object's field.
-    int location_size = dex_canonical_location_str.size() + 1;
-    char* dex_canonical_location = new char[location_size ];
-    strncpy(dex_canonical_location, dex_canonical_location_str.c_str(), location_size);
-
-    StringPiece key(dex_canonical_location);
+    StringPiece key(oat_dex_file->GetDexFileLocation());
     oat_dex_files_.Put(key, oat_dex_file);
   }
   return true;
@@ -339,18 +331,62 @@ const byte* OatFile::End() const {
 const OatFile::OatDexFile* OatFile::GetOatDexFile(const char* dex_location,
                                                   const uint32_t* dex_location_checksum,
                                                   bool warn_if_not_found) const {
-  std::string dex_canonical_location = DexFile::GetDexCanonicalLocation(dex_location);
+  // NOTE: We assume here that the canonical location for a given dex_location never
+  // changes. If it does (i.e. some symlink used by the filename changes) we may return
+  // an incorrect OatDexFile. As long as we have a checksum to check, we shall return
+  // an identical file or fail; otherwise we may see some unpredictable failures.
 
-  Table::const_iterator it = oat_dex_files_.find(dex_canonical_location);
-  if (it != oat_dex_files_.end()) {
-    const OatFile::OatDexFile* oat_dex_file = it->second;
-    if (dex_location_checksum == NULL ||
-        oat_dex_file->GetDexFileLocationChecksum() == *dex_location_checksum) {
-      return oat_dex_file;
+  // TODO: Additional analysis of usage patterns to see if this can be simplified
+  // without any performance loss, for example by not doing the first lock-free lookup.
+
+  const OatFile::OatDexFile* oat_dex_file = nullptr;
+  StringPiece key(dex_location);
+  // Try to find the key cheaply in the oat_dex_files_ map which holds dex locations
+  // directly mentioned in the oat file and doesn't require locking.
+  auto primary_it = oat_dex_files_.find(key);
+  if (primary_it != oat_dex_files_.end()) {
+    oat_dex_file = primary_it->second;
+    DCHECK(oat_dex_file != nullptr);
+  } else {
+    // This dex_location is not one of the dex locations directly mentioned in the
+    // oat file. The correct lookup is via the canonical location but first see in
+    // the secondary_oat_dex_files_ whether we've looked up this location before.
+    MutexLock mu(Thread::Current(), secondary_lookup_lock_);
+    auto secondary_lb = secondary_oat_dex_files_.lower_bound(key);
+    if (secondary_lb != secondary_oat_dex_files_.end() && key == secondary_lb->first) {
+      oat_dex_file = secondary_lb->second;  // May be nullptr.
+    } else {
+      // We haven't seen this dex_location before, we must check the canonical location.
+      if (UNLIKELY(oat_dex_files_by_canonical_location_.empty())) {
+        // Lazily fill in the oat_dex_files_by_canonical_location_.
+        for (const auto& entry : oat_dex_files_) {
+          const std::string& dex_location = entry.second->GetDexFileLocation();
+          string_cache_.emplace_back(DexFile::GetDexCanonicalLocation(dex_location.c_str()));
+          StringPiece canonical_location_key(string_cache_.back());
+          oat_dex_files_by_canonical_location_.Put(canonical_location_key, entry.second);
+        }
+      }
+      std::string dex_canonical_location = DexFile::GetDexCanonicalLocation(dex_location);
+      StringPiece canonical_key(dex_canonical_location);
+      auto canonical_it = oat_dex_files_by_canonical_location_.find(canonical_key);
+      if (canonical_it != oat_dex_files_by_canonical_location_.end()) {
+        oat_dex_file = canonical_it->second;
+      }  // else keep nullptr.
+
+      // Copy the key to the string_cache_ and store the result in secondary map.
+      string_cache_.emplace_back(key.data(), key.length());
+      StringPiece key_copy(string_cache_.back());
+      secondary_oat_dex_files_.PutBefore(secondary_lb, key_copy, oat_dex_file);
     }
+  }
+  if (oat_dex_file != nullptr &&
+      (dex_location_checksum == nullptr ||
+       oat_dex_file->GetDexFileLocationChecksum() == *dex_location_checksum)) {
+    return oat_dex_file;
   }
 
   if (warn_if_not_found) {
+    std::string dex_canonical_location = DexFile::GetDexCanonicalLocation(dex_location);
     std::string checksum("<unspecified>");
     if (dex_location_checksum != NULL) {
       checksum = StringPrintf("0x%08x", *dex_location_checksum);
