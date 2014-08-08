@@ -70,6 +70,7 @@ enum LockLevel {
   kMarkSweepMarkStackLock,
   kTransactionLogLock,
   kInternTableLock,
+  kOatFileSecondaryLookupLock,
   kDefaultMutexLevel,
   kMarkSweepLargeObjectLock,
   kPinTableLock,
