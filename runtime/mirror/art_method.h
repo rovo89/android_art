@@ -216,12 +216,24 @@ class MANAGED ArtMethod FINAL : public Object {
     return OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_);
   }
 
-  ObjectArray<ArtMethod>* GetDexCacheResolvedMethods() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ArtMethod* GetDexCacheResolvedMethod(uint16_t method_idx)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetDexCacheResolvedMethod(uint16_t method_idx, ArtMethod* new_method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetDexCacheResolvedMethods(ObjectArray<ArtMethod>* new_dex_cache_methods)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool HasDexCacheResolvedMethods() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool HasSameDexCacheResolvedMethods(ArtMethod* other) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool HasSameDexCacheResolvedMethods(ObjectArray<ArtMethod>* other_cache)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ObjectArray<Class>* GetDexCacheResolvedTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template <bool kWithCheck = true>
+  Class* GetDexCacheResolvedType(uint32_t type_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_types)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool HasDexCacheResolvedTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool HasSameDexCacheResolvedTypes(ArtMethod* other) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool HasSameDexCacheResolvedTypes(ObjectArray<Class>* other_cache)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Find the method that this method overrides
@@ -518,6 +530,10 @@ class MANAGED ArtMethod FINAL : public Object {
   static GcRoot<Class> java_lang_reflect_ArtMethod_;
 
  private:
+  ObjectArray<ArtMethod>* GetDexCacheResolvedMethods() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  ObjectArray<Class>* GetDexCacheResolvedTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   friend struct art::ArtMethodOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ArtMethod);
 };

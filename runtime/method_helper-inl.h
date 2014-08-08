@@ -28,7 +28,7 @@ namespace art {
 
 inline mirror::Class* MethodHelper::GetClassFromTypeIdx(uint16_t type_idx, bool resolve) {
   mirror::ArtMethod* method = GetMethod();
-  mirror::Class* type = method->GetDexCacheResolvedTypes()->Get(type_idx);
+  mirror::Class* type = method->GetDexCacheResolvedType(type_idx);
   if (type == nullptr && resolve) {
     type = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
     CHECK(type != nullptr || Thread::Current()->IsExceptionPending());

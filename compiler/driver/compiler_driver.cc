@@ -811,11 +811,15 @@ void CompilerDriver::UpdateImageClasses(TimingLogger* timings) {
 bool CompilerDriver::CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file, uint32_t type_idx) {
   if (IsImage() &&
       IsImageClass(dex_file.StringDataByIdx(dex_file.GetTypeId(type_idx).descriptor_idx_))) {
-    if (kIsDebugBuild) {
+    {
       ScopedObjectAccess soa(Thread::Current());
       mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
       mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
-      CHECK(resolved_class != NULL);
+      if (resolved_class == nullptr) {
+        // Erroneous class.
+        stats_->TypeNotInDexCache();
+        return false;
+      }
     }
     stats_->TypeInDexCache();
     return true;
