@@ -801,6 +801,8 @@ void ThreadList::Register(Thread* self) {
 
 void ThreadList::Unregister(Thread* self) {
   DCHECK_EQ(self, Thread::Current());
+  CHECK_NE(self->GetState(), kRunnable);
+  Locks::mutator_lock_->AssertNotHeld(self);
 
   VLOG(threads) << "ThreadList::Unregister() " << *self;
 
@@ -815,14 +817,18 @@ void ThreadList::Unregister(Thread* self) {
     // Note: deliberately not using MutexLock that could hold a stale self pointer.
     Locks::thread_list_lock_->ExclusiveLock(self);
     CHECK(Contains(self));
-    // Note: we don't take the thread_suspend_count_lock_ here as to be suspending a thread other
-    // than yourself you need to hold the thread_list_lock_ (see Thread::ModifySuspendCount).
+    Locks::thread_suspend_count_lock_->ExclusiveLock(self);
+    bool removed = false;
     if (!self->IsSuspended()) {
       list_.remove(self);
+      removed = true;
+    }
+    Locks::thread_suspend_count_lock_->ExclusiveUnlock(self);
+    Locks::thread_list_lock_->ExclusiveUnlock(self);
+    if (removed) {
       delete self;
       self = nullptr;
     }
-    Locks::thread_list_lock_->ExclusiveUnlock(self);
   }
   // Release the thread ID after the thread is finished and deleted to avoid cases where we can
   // temporarily have multiple threads with the same thread id. When this occurs, it causes

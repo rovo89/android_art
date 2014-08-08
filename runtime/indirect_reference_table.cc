@@ -56,7 +56,8 @@ std::ostream& operator<<(std::ostream& os, const MutatorLockedDumpable<T>& rhs)
 
 void IndirectReferenceTable::AbortIfNoCheckJNI() {
   // If -Xcheck:jni is on, it'll give a more detailed error before aborting.
-  if (!Runtime::Current()->GetJavaVM()->check_jni) {
+  JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+  if (!vm->IsCheckJniEnabled()) {
     // Otherwise, we want to abort rather than hand back a bad reference.
     LOG(FATAL) << "JNI ERROR (app bug): see above.";
   }

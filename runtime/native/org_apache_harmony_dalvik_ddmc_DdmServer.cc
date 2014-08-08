@@ -16,6 +16,7 @@
 
 #include "base/logging.h"
 #include "debugger.h"
+#include "jni_internal.h"
 #include "scoped_fast_native_object_access.h"
 #include "ScopedPrimitiveArray.h"
 

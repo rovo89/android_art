@@ -177,6 +177,7 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
   }
   // -Xcheck:jni is off by default for regular builds but on by default in debug builds.
   check_jni_ = kIsDebugBuild;
+  force_copy_ = false;
 
   heap_initial_size_ = gc::Heap::kDefaultInitialSize;
   heap_maximum_size_ = gc::Heap::kDefaultMaximumSize;
@@ -300,6 +301,8 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
       }
     } else if (StartsWith(option, "-Xcheck:jni")) {
       check_jni_ = true;
+    } else if (StartsWith(option, "-Xjniopts:forcecopy")) {
+      force_copy_ = true;
     } else if (StartsWith(option, "-Xrunjdwp:") || StartsWith(option, "-agentlib:jdwp=")) {
       std::string tail(option.substr(option[1] == 'X' ? 10 : 15));
       // TODO: move parsing logic out of Dbg
@@ -613,7 +616,6 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
                StartsWith(option, "-Xint:") ||
                StartsWith(option, "-Xdexopt:") ||
                (option == "-Xnoquithandler") ||
-               StartsWith(option, "-Xjniopts:") ||
                StartsWith(option, "-Xjnigreflimit:") ||
                (option == "-Xgenregmap") ||
                (option == "-Xnogenregmap") ||

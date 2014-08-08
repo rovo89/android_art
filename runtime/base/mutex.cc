@@ -35,6 +35,7 @@ Mutex* Locks::allocated_thread_ids_lock_ = nullptr;
 Mutex* Locks::breakpoint_lock_ = nullptr;
 ReaderWriterMutex* Locks::classlinker_classes_lock_ = nullptr;
 ReaderWriterMutex* Locks::heap_bitmap_lock_ = nullptr;
+Mutex* Locks::jni_libraries_lock_ = nullptr;
 Mutex* Locks::logging_lock_ = nullptr;
 Mutex* Locks::mem_maps_lock_ = nullptr;
 Mutex* Locks::modify_ldt_lock_ = nullptr;
@@ -834,6 +835,7 @@ void Locks::Init() {
     DCHECK(breakpoint_lock_ != nullptr);
     DCHECK(classlinker_classes_lock_ != nullptr);
     DCHECK(heap_bitmap_lock_ != nullptr);
+    DCHECK(jni_libraries_lock_ != nullptr);
     DCHECK(logging_lock_ != nullptr);
     DCHECK(mutator_lock_ != nullptr);
     DCHECK(thread_list_lock_ != nullptr);
@@ -877,6 +879,10 @@ void Locks::Init() {
     UPDATE_CURRENT_LOCK_LEVEL(kThreadListLock);
     DCHECK(thread_list_lock_ == nullptr);
     thread_list_lock_ = new Mutex("thread list lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kJniLoadLibraryLock);
+    DCHECK(jni_libraries_lock_ == nullptr);
+    jni_libraries_lock_ = new Mutex("JNI shared libraries map lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kBreakpointLock);
     DCHECK(breakpoint_lock_ == nullptr);

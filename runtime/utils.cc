@@ -281,6 +281,11 @@ std::string PrettyDescriptor(const std::string& descriptor) {
   return result;
 }
 
+std::string PrettyDescriptor(Primitive::Type type) {
+  std::string descriptor_string(Primitive::Descriptor(type));
+  return PrettyDescriptor(descriptor_string);
+}
+
 std::string PrettyField(mirror::ArtField* f, bool with_type) {
   if (f == NULL) {
     return "null";

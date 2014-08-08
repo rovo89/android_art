@@ -338,6 +338,12 @@ void RosAllocSpace::RevokeAllThreadLocalBuffers() {
   rosalloc_->RevokeAllThreadLocalRuns();
 }
 
+void RosAllocSpace::AssertThreadLocalBuffersAreRevoked(Thread* thread) {
+  if (kIsDebugBuild) {
+    rosalloc_->AssertThreadLocalRunsAreRevoked(thread);
+  }
+}
+
 void RosAllocSpace::AssertAllThreadLocalBuffersAreRevoked() {
   if (kIsDebugBuild) {
     rosalloc_->AssertAllThreadLocalRunsAreRevoked();

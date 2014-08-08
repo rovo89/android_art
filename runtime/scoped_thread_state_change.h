@@ -18,7 +18,8 @@
 #define ART_RUNTIME_SCOPED_THREAD_STATE_CHANGE_H_
 
 #include "base/casts.h"
-#include "jni_internal-inl.h"
+#include "java_vm_ext.h"
+#include "jni_env_ext-inl.h"
 #include "read_barrier.h"
 #include "thread-inl.h"
 #include "verify_object.h"
@@ -112,6 +113,10 @@ class ScopedObjectAccessAlreadyRunnable {
 
   JavaVMExt* Vm() const {
     return vm_;
+  }
+
+  bool ForceCopy() const {
+    return vm_->ForceCopy();
   }
 
   /*

@@ -1163,6 +1163,21 @@ void Thread::Destroy() {
   Thread* self = this;
   DCHECK_EQ(self, Thread::Current());
 
+  if (tlsPtr_.jni_env != nullptr) {
+    // On thread detach, all monitors entered with JNI MonitorEnter are automatically exited.
+    tlsPtr_.jni_env->monitors.VisitRoots(MonitorExitVisitor, self, 0, kRootVMInternal);
+    // Release locally held global references which releasing may require the mutator lock.
+    if (tlsPtr_.jpeer != nullptr) {
+      // If pthread_create fails we don't have a jni env here.
+      tlsPtr_.jni_env->DeleteGlobalRef(tlsPtr_.jpeer);
+      tlsPtr_.jpeer = nullptr;
+    }
+    if (tlsPtr_.class_loader_override != nullptr) {
+      tlsPtr_.jni_env->DeleteGlobalRef(tlsPtr_.class_loader_override);
+      tlsPtr_.class_loader_override = nullptr;
+    }
+  }
+
   if (tlsPtr_.opeer != nullptr) {
     ScopedObjectAccess soa(self);
     // We may need to call user-supplied managed code, do this before final clean-up.
@@ -1190,22 +1205,16 @@ void Thread::Destroy() {
       ObjectLock<mirror::Object> locker(self, h_obj);
       locker.NotifyAll();
     }
+    tlsPtr_.opeer = nullptr;
   }
 
-  // On thread detach, all monitors entered with JNI MonitorEnter are automatically exited.
-  if (tlsPtr_.jni_env != nullptr) {
-    tlsPtr_.jni_env->monitors.VisitRoots(MonitorExitVisitor, self, 0, kRootVMInternal);
-  }
+  Runtime::Current()->GetHeap()->RevokeThreadLocalBuffers(this);
 }
 
 Thread::~Thread() {
-  if (tlsPtr_.jni_env != nullptr && tlsPtr_.jpeer != nullptr) {
-    // If pthread_create fails we don't have a jni env here.
-    tlsPtr_.jni_env->DeleteGlobalRef(tlsPtr_.jpeer);
-    tlsPtr_.jpeer = nullptr;
-  }
-  tlsPtr_.opeer = nullptr;
-
+  CHECK(tlsPtr_.class_loader_override == nullptr);
+  CHECK(tlsPtr_.jpeer == nullptr);
+  CHECK(tlsPtr_.opeer == nullptr);
   bool initialized = (tlsPtr_.jni_env != nullptr);  // Did Thread::Init run?
   if (initialized) {
     delete tlsPtr_.jni_env;
@@ -1237,7 +1246,7 @@ Thread::~Thread() {
   delete tlsPtr_.name;
   delete tlsPtr_.stack_trace_sample;
 
-  Runtime::Current()->GetHeap()->RevokeThreadLocalBuffers(this);
+  Runtime::Current()->GetHeap()->AssertThreadLocalBuffersAreRevoked(this);
 
   TearDownAlternateSignalStack();
 }
@@ -1347,11 +1356,10 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
       result = kInvalidIndirectRefObject;
     }
   } else if (kind == kGlobal) {
-    JavaVMExt* const vm = Runtime::Current()->GetJavaVM();
-    result = vm->globals.SynchronizedGet(const_cast<Thread*>(this), &vm->globals_lock, ref);
+    result = tlsPtr_.jni_env->vm->DecodeGlobal(const_cast<Thread*>(this), ref);
   } else {
     DCHECK_EQ(kind, kWeakGlobal);
-    result = Runtime::Current()->GetJavaVM()->DecodeWeakGlobal(const_cast<Thread*>(this), ref);
+    result = tlsPtr_.jni_env->vm->DecodeWeakGlobal(const_cast<Thread*>(this), ref);
     if (result == kClearedJniWeakGlobal) {
       // This is a special case where it's okay to return nullptr.
       return nullptr;
@@ -1359,7 +1367,8 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
   }
 
   if (UNLIKELY(result == nullptr)) {
-    JniAbortF(nullptr, "use of deleted %s %p", ToStr<IndirectRefKind>(kind).c_str(), obj);
+    tlsPtr_.jni_env->vm->JniAbortF(nullptr, "use of deleted %s %p",
+                                   ToStr<IndirectRefKind>(kind).c_str(), obj);
   }
   return result;
 }
@@ -1397,6 +1406,13 @@ void Thread::NotifyLocked(Thread* self) {
   if (wait_monitor_ != nullptr) {
     wait_cond_->Signal(self);
   }
+}
+
+void Thread::SetClassLoaderOverride(jobject class_loader_override) {
+  if (tlsPtr_.class_loader_override != nullptr) {
+    GetJniEnv()->DeleteGlobalRef(tlsPtr_.class_loader_override);
+  }
+  tlsPtr_.class_loader_override = GetJniEnv()->NewGlobalRef(class_loader_override);
 }
 
 class CountStackDepthVisitor : public StackVisitor {
@@ -2173,11 +2189,6 @@ class RootCallbackVisitor {
   const uint32_t tid_;
 };
 
-void Thread::SetClassLoaderOverride(mirror::ClassLoader* class_loader_override) {
-  VerifyObject(class_loader_override);
-  tlsPtr_.class_loader_override = class_loader_override;
-}
-
 void Thread::VisitRoots(RootCallback* visitor, void* arg) {
   uint32_t thread_id = GetThreadId();
   if (tlsPtr_.opeer != nullptr) {
@@ -2187,10 +2198,6 @@ void Thread::VisitRoots(RootCallback* visitor, void* arg) {
     visitor(reinterpret_cast<mirror::Object**>(&tlsPtr_.exception), arg, thread_id, kRootNativeStack);
   }
   tlsPtr_.throw_location.VisitRoots(visitor, arg);
-  if (tlsPtr_.class_loader_override != nullptr) {
-    visitor(reinterpret_cast<mirror::Object**>(&tlsPtr_.class_loader_override), arg, thread_id,
-            kRootNativeStack);
-  }
   if (tlsPtr_.monitor_enter_object != nullptr) {
     visitor(&tlsPtr_.monitor_enter_object, arg, thread_id, kRootNativeStack);
   }
