@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006 The Android Open Source Project
+ * Copyright (C) 2014 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,12 @@
  * limitations under the License.
  */
 
-import otherpackage.PublicAccess;
+/**
+ * Another interface.
+ */
+public interface Iface2 extends Iface {
+    public final static int Y = Iface.X + 1;
 
-public class Main {
-    public static void main(String[] args) {
-        System.out.println("access test");
-
-        PublicAccess pa = new PublicAccess();
-        pa.main();
-
-        System.out.println(Iface.X);
-        System.out.println(Iface2.Y);
-        System.out.println(Iface2.A);
-        System.out.println(Iface2.B);
-    }
+    public final static int A = new Unrelated(3).instance_x;
+    public final static int B = Unrelated.static_x;
 }
