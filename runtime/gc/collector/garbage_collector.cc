@@ -195,9 +195,11 @@ void GarbageCollector::DumpPerformanceInfo(std::ostream& os) {
   const uint64_t freed_objects = GetTotalFreedObjects();
   {
     MutexLock mu(Thread::Current(), pause_histogram_lock_);
-    Histogram<uint64_t>::CumulativeData cumulative_data;
-    pause_histogram_.CreateHistogram(&cumulative_data);
-    pause_histogram_.PrintConfidenceIntervals(os, 0.99, cumulative_data);
+    if (pause_histogram_.SampleSize() > 0) {
+      Histogram<uint64_t>::CumulativeData cumulative_data;
+      pause_histogram_.CreateHistogram(&cumulative_data);
+      pause_histogram_.PrintConfidenceIntervals(os, 0.99, cumulative_data);
+    }
   }
   os << GetName() << " total time: " << PrettyDuration(total_ns)
      << " mean time: " << PrettyDuration(total_ns / iterations) << "\n"
