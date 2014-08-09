@@ -549,7 +549,7 @@ class MANAGED Class FINAL : public Object {
     }
     // Check for protected access from a sub-class, which may or may not be in the same package.
     if (member_flags & kAccProtected) {
-      if (this->IsSubClass(access_to)) {
+      if (!this->IsInterface() && this->IsSubClass(access_to)) {
         return true;
       }
     }
