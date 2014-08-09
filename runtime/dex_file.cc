@@ -386,7 +386,6 @@ bool DexFile::Init(std::string* error_msg) {
 }
 
 bool DexFile::CheckMagicAndVersion(std::string* error_msg) const {
-  CHECK(header_->magic_ != NULL) << GetLocation();
   if (!IsMagicValid(header_->magic_)) {
     std::ostringstream oss;
     oss << "Unrecognized magic number in "  << GetLocation() << ":"
