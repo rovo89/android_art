@@ -33,7 +33,11 @@ cd "${progdir}"
 progdir=`pwd`
 prog="${progdir}"/`basename "${prog}"`
 test_dir="test-$$"
-tmp_dir="/tmp/$USER/${test_dir}"
+if [ -z "$TMPDIR" ]; then
+  tmp_dir="/tmp/$USER/${test_dir}"
+else
+  tmp_dir="${TMPDIR}/$USER/${test_dir}"
+fi
 
 export JAVA="java"
 export JAVAC="javac -g"
