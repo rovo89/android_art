@@ -506,6 +506,7 @@ ENTRY art_quick_aput_obj_with_null_and_bound_check
     b art_quick_throw_null_pointer_exception
 END art_quick_aput_obj_with_null_and_bound_check
 
+    .hidden art_quick_aput_obj_with_bound_check
 ENTRY art_quick_aput_obj_with_bound_check
     ldr r3, [r0, #ARRAY_LENGTH_OFFSET]
     cmp r3, r1
@@ -515,6 +516,7 @@ ENTRY art_quick_aput_obj_with_bound_check
     b art_quick_throw_array_bounds
 END art_quick_aput_obj_with_bound_check
 
+    .hidden art_quick_aput_obj
 ENTRY art_quick_aput_obj
     cbz r2, .Ldo_aput_null
     ldr r3, [r0, #CLASS_OFFSET]
