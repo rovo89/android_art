@@ -112,6 +112,12 @@
     #define PLT_SYMBOL(name) _ ## name
 #endif
 
+#if defined(__APPLE__)
+    #define ASM_HIDDEN .private_extern
+#else
+    #define ASM_HIDDEN .hidden
+#endif
+
     /* Cache alignment for function entry */
 MACRO0(ALIGN_FUNCTION_ENTRY)
     .balign 16
