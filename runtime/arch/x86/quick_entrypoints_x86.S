@@ -161,6 +161,7 @@ END_MACRO
     /*
      * Called by managed code to create and deliver a NullPointerException.
      */
+    .hidden art_quick_throw_null_pointer_exception
 NO_ARG_RUNTIME_EXCEPTION art_quick_throw_null_pointer_exception, artThrowNullPointerExceptionFromCode
 
     /*
@@ -203,6 +204,7 @@ ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_no_such_method, artThrowNoSuchMethodFr
      * Called by managed code to create and deliver an ArrayIndexOutOfBoundsException. Arg1 holds
      * index, arg2 holds limit.
      */
+    .hidden art_quick_throw_array_bounds
 TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_array_bounds, artThrowArrayBoundsFromCode
 
     /*
@@ -266,6 +268,7 @@ MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
     END_FUNCTION RAW_VAR(c_name, 0)
 END_MACRO
 
+    .hidden art_quick_invoke_interface_trampoline
 INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline, artInvokeInterfaceTrampoline
 INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline_with_access_check, artInvokeInterfaceTrampolineWithAccessCheck
 
@@ -672,6 +675,7 @@ DEFINE_FUNCTION art_quick_aput_obj_with_null_and_bound_check
     jmp SYMBOL(art_quick_throw_null_pointer_exception)
 END_FUNCTION art_quick_aput_obj_with_null_and_bound_check
 
+    .hidden art_quick_aput_obj_with_bound_check
 DEFINE_FUNCTION art_quick_aput_obj_with_bound_check
     movl ARRAY_LENGTH_OFFSET(%eax), %ebx
     cmpl %ebx, %ecx
@@ -681,6 +685,7 @@ DEFINE_FUNCTION art_quick_aput_obj_with_bound_check
     jmp SYMBOL(art_quick_throw_array_bounds)
 END_FUNCTION art_quick_aput_obj_with_bound_check
 
+    .hidden art_quick_aput_obj
 DEFINE_FUNCTION art_quick_aput_obj
     test %edx, %edx              // store of null
     jz .Ldo_aput_null
