@@ -379,9 +379,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_GENERATED_SOURCES += $$(ENUM_OPERATOR_OUT_GEN)
 
   LOCAL_CFLAGS := $$(LIBART_CFLAGS)
-  # TODO(danalbert): Work around the test failures caused by removing -Bsymbolic
-  # by turning it back on for libart until I get a chance to look at them.
-  LOCAL_LDFLAGS := $$(LIBART_LDFLAGS) -Wl,-Bsymbolic
+  LOCAL_LDFLAGS := $$(LIBART_LDFLAGS)
   ifeq ($$(art_target_or_host),target)
     LOCAL_LDFLAGS += $$(LIBART_TARGET_LDFLAGS)
   else
