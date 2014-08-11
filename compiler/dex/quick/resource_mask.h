@@ -85,6 +85,14 @@ class ResourceMask {
                      start_bit >= 64u ? UINT64_C(3) << (start_bit - 64u) : 0u);
   }
 
+  // Four consecutive bits. The start_bit must be even.
+  static constexpr ResourceMask FourBits(size_t start_bit) {
+    return
+        DCHECK_CONSTEXPR((start_bit & 1u) == 0u, << start_bit << " isn't even", Bit(0))
+        ResourceMask(start_bit >= 64u ? 0u : UINT64_C(0xf) << start_bit,
+                     start_bit >= 64u ? UINT64_C(0xf) << (start_bit - 64u) : 0u);
+  }
+
   static constexpr ResourceMask NoBits() {
     return ResourceMask(UINT64_C(0), UINT64_C(0));
   }

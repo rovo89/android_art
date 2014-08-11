@@ -166,7 +166,6 @@ class GrowableArray {
       }
       // We should either have found the element, or it was the last (unscanned) element.
       DCHECK(found || (element == elem_list_[num_used_ - 1]));
-      num_used_--;
     };
 
     void DeleteAt(size_t index) {

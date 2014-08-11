@@ -21,6 +21,12 @@
 #include "pass.h"
 #include "safe_map.h"
 
+#ifdef QC_STRONG
+#define QC_WEAK
+#else
+#define QC_WEAK __attribute__((weak))
+#endif
+
 // Forward Declarations.
 class Pass;
 class PassDriver;
@@ -34,6 +40,8 @@ const Pass* GetPassInstance() {
   static const PassType pass;
   return &pass;
 }
+
+const Pass* GetMorePassInstance() QC_WEAK;
 
 // Empty holder for the constructor.
 class PassDriverDataHolder {

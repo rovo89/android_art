@@ -20,8 +20,15 @@
 #include "arm_lir.h"
 #include "dex/compiler_internals.h"
 
+#ifdef QC_STRONG
+#define QC_WEAK
+#else
+#define QC_WEAK __attribute__((weak))
+#endif
+
 namespace art {
 
+class QCArmMir2Lir;
 class ArmMir2Lir FINAL : public Mir2Lir {
   public:
     ArmMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
@@ -147,6 +154,7 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     LIR* OpMem(OpKind op, RegStorage r_base, int disp);
     LIR* OpPcRelLoad(RegStorage reg, LIR* target);
     LIR* OpReg(OpKind op, RegStorage r_dest_src);
+    LIR* OpBkpt();
     void OpRegCopy(RegStorage r_dest, RegStorage r_src);
     LIR* OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src);
     LIR* OpRegImm(OpKind op, RegStorage r_dest_src1, int value);
@@ -186,6 +194,9 @@ class ArmMir2Lir FINAL : public Mir2Lir {
 
     LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) OVERRIDE;
     size_t GetInstructionOffset(LIR* lir);
+    void GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir);
+    void GenMoreMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) QC_WEAK;
+    //void MachineSpecificPreprocessMIR(BasicBlock* bb, MIR* mir);
 
   private:
     void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
@@ -211,9 +222,26 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     bool GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops);
     void GenEasyMultiplyTwoOps(RegStorage r_dest, RegStorage r_src, EasyMultiplyOp* ops);
 
+
+
+    static uint32_t ProcessMoreEncodings(const ArmEncodingMap* encoder, int i, uint32_t operand) QC_WEAK;
+
+    static const ArmEncodingMap * GetEncoder(int opcode) QC_WEAK;
+
     static constexpr ResourceMask GetRegMaskArm(RegStorage reg);
     static constexpr ResourceMask EncodeArmRegList(int reg_list);
     static constexpr ResourceMask EncodeArmRegFpcsList(int reg_list);
+
+    virtual void ApplyArchOptimizations(LIR* head_lir, LIR* tail_lir, BasicBlock* bb) QC_WEAK;
+
+    void CompilerPostInitializeRegAlloc() QC_WEAK;
+    void ArmMir2LirPostInit(ArmMir2Lir* mir_to_lir) QC_WEAK;
+
+    friend class QCArmMir2Lir;
+
+    public:
+    QCArmMir2Lir * qcm2l ;
+
 };
 
 }  // namespace art

@@ -241,6 +241,7 @@ enum MIROptimizationFlagPositions {
   kMIRInlinedPred,                    // Invoke is inlined via prediction.
   kMIRCallee,                         // Instruction is inlined from callee.
   kMIRIgnoreSuspendCheck,
+  kMIRIgnoreZeroDivCheck,
   kMIRDup,
   kMIRMark,                           // Temporary node mark.
   kMIRLastMIRFlag,

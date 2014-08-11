@@ -32,6 +32,12 @@
 #include "reg_location.h"
 #include "reg_storage.h"
 
+#ifdef QC_STRONG
+#define QC_WEAK
+#else
+#define QC_WEAK __attribute__((weak))
+#endif
+
 namespace art {
 
 class GlobalValueNumbering;
@@ -107,6 +113,7 @@ enum DataFlowAttributePos {
   kUsesIField,           // Accesses an instance field (IGET/IPUT).
   kUsesSField,           // Accesses a static field (SGET/SPUT).
   kDoLVN,                // Worth computing local value numbers.
+  kZeroDivCheck,         // check for zero divider
 };
 
 #define DF_NOP                  UINT64_C(0)
@@ -146,6 +153,7 @@ enum DataFlowAttributePos {
 #define DF_IFIELD               (UINT64_C(1) << kUsesIField)
 #define DF_SFIELD               (UINT64_C(1) << kUsesSField)
 #define DF_LVN                  (UINT64_C(1) << kDoLVN)
+#define DF_ZERO_DIV_CHECK       (UINT64_C(1) << kZeroDivCheck)
 
 #define DF_HAS_USES             (DF_UA | DF_UB | DF_UC)
 
@@ -193,6 +201,7 @@ enum OatMethodAttributes {
 #define MIR_INLINED_PRED                (1 << kMIRInlinedPred)
 #define MIR_CALLEE                      (1 << kMIRCallee)
 #define MIR_IGNORE_SUSPEND_CHECK        (1 << kMIRIgnoreSuspendCheck)
+#define MIR_IGNORE_ZERO_DIV_CHECK       (1 << kMIRIgnoreZeroDivCheck)
 #define MIR_DUP                         (1 << kMIRDup)
 
 #define BLOCK_NAME_LEN 80
@@ -260,6 +269,8 @@ struct SSARepresentation {
 
   static uint32_t GetStartUseIndex(Instruction::Code opcode);
 };
+
+struct ExtendedMIR;
 
 /*
  * The Midlevel Intermediate Representation node, which may be largely considered a
@@ -369,7 +380,7 @@ struct MIR {
   } meta;
 
   explicit MIR():offset(0), optimization_flags(0), m_unit_index(0), bb(NullBasicBlockId),
-                 next(nullptr), ssa_rep(nullptr) {
+                 next(nullptr), ssa_rep(nullptr) , extraData(nullptr){
     memset(&meta, 0, sizeof(meta));
   }
 
@@ -384,6 +395,9 @@ struct MIR {
     return arena->Alloc(sizeof(MIR), kArenaAllocMIR);
   }
   static void operator delete(void* p) {}  // Nop.
+
+    ExtendedMIR* extraData;
+
 };
 
 struct SuccessorBlockInfo;
@@ -535,6 +549,9 @@ struct CallInfo {
 
 const RegLocation bad_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0, RegStorage(), INVALID_SREG,
                              INVALID_SREG};
+
+
+class QCMIRGraph;
 
 class MIRGraph {
  public:
@@ -730,6 +747,12 @@ class MIRGraph {
     DCHECK_LT(loc.orig_sreg + 1, GetNumSSARegs());
     return (static_cast<int64_t>(constant_values_[loc.orig_sreg + 1]) << 32) |
         Low32Bits(static_cast<int64_t>(constant_values_[loc.orig_sreg]));
+  }
+
+  int64_t ConstantValueWide(int32_t s_reg) const {
+    DCHECK(IsConst(s_reg));
+    return (static_cast<int64_t>(constant_values_[s_reg + 1]) << 32) |
+        Low32Bits(static_cast<int64_t>(constant_values_[s_reg]));
   }
 
   bool IsConstantNullRef(RegLocation loc) const {
@@ -1025,7 +1048,7 @@ class MIRGraph {
    */
   void CountUses(struct BasicBlock* bb);
 
-  static uint64_t GetDataFlowAttributes(Instruction::Code opcode);
+  static uint64_t GetDataFlowAttributes(Instruction::Code opcode) QC_WEAK;
   static uint64_t GetDataFlowAttributes(MIR* mir);
 
   /**
@@ -1060,6 +1083,7 @@ class MIRGraph {
   static const char* extended_mir_op_names_[kMirOpLast - kMirOpFirst];
   static const uint32_t analysis_attributes_[kMirOpLast];
 
+  static const char * GetExtendedMirOpName(int index) QC_WEAK;
   void HandleSSADef(int* defs, int dalvik_reg, int reg_index);
   bool InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed);
 
@@ -1205,6 +1229,12 @@ class MIRGraph {
   friend class GlobalValueNumberingTest;
   friend class LocalValueNumberingTest;
   friend class TopologicalSortOrderTest;
+
+  friend class QCMIRGraph;
+
+  public:
+  QCMIRGraph* qcm;
+
 };
 
 }  // namespace art

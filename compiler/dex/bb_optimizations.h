@@ -273,6 +273,17 @@ class BBOptimizations : public PassME {
   void Start(PassDataHolder* data) const;
 };
 
+// dummy pass, for placeholder only
+class DummyPass : public PassME {
+    public:
+     DummyPass() : PassME("DummyPass", kNoNodes, "") {
+     }
+
+     bool Gate(const PassDataHolder* data) const {
+        return false;
+     }
+};
+
 }  // namespace art
 
 #endif  // ART_COMPILER_DEX_BB_OPTIMIZATIONS_H_

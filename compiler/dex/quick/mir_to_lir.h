@@ -149,6 +149,7 @@ class DexFileMethodInliner;
 class MIRGraph;
 class Mir2Lir;
 
+
 typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int,
                             const MethodReference& target_method,
                             uint32_t method_idx, uintptr_t direct_code,
@@ -348,6 +349,8 @@ class Mir2Lir : public Backend {
       static const uint32_t kLowSingleStorageMask  = 0x00000001;
       static const uint32_t kHighSingleStorageMask = 0x00000002;
       static const uint32_t k64SoloStorageMask     = 0x00000003;
+      static const uint32_t kLowDoubleStorageMask  = 0x00000003;
+      static const uint32_t kHighDoubleStorageMask = 0x0000000c;
       static const uint32_t k128SoloStorageMask    = 0x0000000f;
       static const uint32_t k256SoloStorageMask    = 0x000000ff;
       static const uint32_t k512SoloStorageMask    = 0x0000ffff;
@@ -723,11 +726,13 @@ class Mir2Lir : public Backend {
     void ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir);
     void ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir);
     virtual void ApplyLocalOptimizations(LIR* head_lir, LIR* tail_lir);
+    virtual void ApplyArchOptimizations(LIR* head_lir, LIR* tail_lir, BasicBlock* bb) { return; };
 
     // Shared by all targets - implemented in ralloc_util.cc
     int GetSRegHi(int lowSreg);
     bool LiveOut(int s_reg);
     void SimpleRegAlloc();
+    void Cleanup();
     void ResetRegPool();
     void CompilerInitPool(RegisterInfo* info, RegStorage* regs, int num);
     void DumpRegPool(GrowableArray<RegisterInfo*>* regs);
@@ -783,6 +788,8 @@ class Mir2Lir : public Backend {
     void MarkClean(RegLocation loc);
     void MarkDirty(RegLocation loc);
     void MarkInUse(RegStorage reg);
+    void MarkFree(RegStorage reg);
+    void MarkDead(RegStorage reg);
     bool CheckCorePoolSanity();
     virtual RegLocation UpdateLoc(RegLocation loc);
     virtual RegLocation UpdateLocWide(RegLocation loc);
@@ -880,7 +887,7 @@ class Mir2Lir : public Backend {
     // This will be overridden by x86 implementation.
     virtual void GenConstWide(RegLocation rl_dest, int64_t value);
     virtual void GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
-                       RegLocation rl_src1, RegLocation rl_src2);
+                       RegLocation rl_src1, RegLocation rl_src2, int opt_flags);
 
     // Shared by all targets - implemented in gen_invoke.cc.
     LIR* CallHelper(RegStorage r_tgt, QuickEntrypointEnum trampoline, bool safepoint_pc,
@@ -980,6 +987,7 @@ class Mir2Lir : public Backend {
     bool GenInlinedUnsafeGet(CallInfo* info, bool is_long, bool is_volatile);
     bool GenInlinedUnsafePut(CallInfo* info, bool is_long, bool is_object,
                              bool is_volatile, bool is_ordered);
+
     virtual int LoadArgRegs(CallInfo* info, int call_state,
                     NextCallInsn next_call_insn,
                     const MethodReference& target_method,
@@ -1328,6 +1336,9 @@ class Mir2Lir : public Backend {
      */
     virtual void GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir);
 
+    /* non virtual so it doesn't have to be implemented */
+    virtual void MachineSpecificPreprocessMIR(BasicBlock* bb, MIR* mir) { };
+
     /**
      * @brief Lowers the kMirOpSelect MIR into LIR.
      * @param bb The basic block in which the MIR is from.
@@ -1392,6 +1403,9 @@ class Mir2Lir : public Backend {
     virtual LIR* OpMem(OpKind op, RegStorage r_base, int disp) = 0;
     virtual LIR* OpPcRelLoad(RegStorage reg, LIR* target) = 0;
     virtual LIR* OpReg(OpKind op, RegStorage r_dest_src) = 0;
+    virtual LIR* OpBkpt() { // not abstract so it doesn't have to be implemeted for other platforms
+                            return NULL;
+                          };
     virtual void OpRegCopy(RegStorage r_dest, RegStorage r_src) = 0;
     virtual LIR* OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) = 0;
     virtual LIR* OpRegImm(OpKind op, RegStorage r_dest_src1, int value) = 0;

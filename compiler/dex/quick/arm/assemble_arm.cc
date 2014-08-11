@@ -1035,6 +1035,10 @@ const ArmEncodingMap ArmMir2Lir::EncodingMap[kArmLast] = {
                  kFmtBitBlt, 7, 0,
                  IS_QUAD_OP | REG_USE0 | REG_USE1 | REG_USE2 | IS_STORE_OFF4,
                  "strd", "!0C, !1C, [!2C, #!3E]", 4, kFixupNone),
+    ENCODING_MAP(kThumb2Mls, 0xfb000010,
+                 kFmtBitBlt, 11, 8, kFmtBitBlt, 19, 16, kFmtBitBlt, 3, 0,
+                 kFmtBitBlt, 15, 12, IS_QUAD_OP | REG_DEF0 | REG_USE1 | REG_USE2 | REG_USE3,
+                 "mls", "!0C, !1C, !2C, !3C", 4, kFixupNone),
 };
 
 // new_lir replaces orig_lir in the pcrel_fixup list.
@@ -1067,6 +1071,17 @@ void ArmMir2Lir::InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir) {
  */
 #define PADDING_MOV_R5_R5               0x1C2D
 
+uint32_t ArmMir2Lir::ProcessMoreEncodings(const ArmEncodingMap* encoder, int i, uint32_t operand) {
+    LOG(FATAL) << "Bad fmt:" << encoder->field_loc[i].kind;
+    uint32_t value=0;
+    return value;
+}
+
+const ArmEncodingMap * ArmMir2Lir::GetEncoder(int opcode) {
+    const ArmEncodingMap *encoder = &EncodingMap[opcode];
+    return encoder;
+}
+
 uint8_t* ArmMir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
   for (; lir != NULL; lir = NEXT_LIR(lir)) {
     if (!lir->flags.is_nop) {
@@ -1081,7 +1096,7 @@ uint8_t* ArmMir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
           }
         }
       } else if (LIKELY(!lir->flags.is_nop)) {
-        const ArmEncodingMap *encoder = &EncodingMap[lir->opcode];
+        const ArmEncodingMap *encoder = GetEncoder(lir->opcode);
         uint32_t bits = encoder->skeleton;
         for (int i = 0; i < 4; i++) {
           uint32_t operand;
@@ -1184,7 +1199,8 @@ uint8_t* ArmMir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
                 }
                 break;
               default:
-                LOG(FATAL) << "Bad fmt:" << encoder->field_loc[i].kind;
+                bits |= ProcessMoreEncodings(encoder, i, operand);
+                break;
             }
           }
         }
@@ -1294,7 +1310,7 @@ void ArmMir2Lir::AssembleLIR() {
                        base_reg, 0, 0, 0, 0, lir->target);
             new_adr->offset = lir->offset;
             new_adr->flags.fixup = kFixupAdr;
-            new_adr->flags.size = EncodingMap[kThumb2Adr].size;
+            new_adr->flags.size = GetEncoder(kThumb2Adr)->size;
             InsertLIRBefore(lir, new_adr);
             lir->offset += new_adr->flags.size;
             offset_adjustment += new_adr->flags.size;
@@ -1309,7 +1325,7 @@ void ArmMir2Lir::AssembleLIR() {
             } else if (lir->opcode == kThumb2LdrdPcRel8) {
               lir->opcode = kThumb2LdrdI8;
             }
-            lir->flags.size = EncodingMap[lir->opcode].size;
+            lir->flags.size = GetEncoder(lir->opcode)->size;
             offset_adjustment += lir->flags.size;
             // Change the load to be relative to the new Adr base.
             if (lir->opcode == kThumb2LdrdI8) {
@@ -1359,13 +1375,13 @@ void ArmMir2Lir::AssembleLIR() {
             /* operand[0] is src1 in both cb[n]z & CmpRI8 */
             lir->operands[1] = 0;
             lir->target = 0;
-            lir->flags.size = EncodingMap[lir->opcode].size;
+            lir->flags.size = GetEncoder(lir->opcode)->size;
             // Add back the new size.
             offset_adjustment += lir->flags.size;
             // Set up the new following inst.
             new_inst->offset = lir->offset + lir->flags.size;
             new_inst->flags.fixup = kFixupCondBranch;
-            new_inst->flags.size = EncodingMap[new_inst->opcode].size;
+            new_inst->flags.size = GetEncoder(new_inst->opcode)->size;
             offset_adjustment += new_inst->flags.size;
 
             // lir no longer pcrel, unlink and link in new_inst.
@@ -1415,7 +1431,7 @@ void ArmMir2Lir::AssembleLIR() {
           if ((lir->opcode == kThumbBCond) && (delta > 254 || delta < -256)) {
             offset_adjustment -= lir->flags.size;
             lir->opcode = kThumb2BCond;
-            lir->flags.size = EncodingMap[lir->opcode].size;
+            lir->flags.size = GetEncoder(lir->opcode)->size;
             // Fixup kind remains the same.
             offset_adjustment += lir->flags.size;
             res = kRetryAll;
@@ -1451,7 +1467,7 @@ void ArmMir2Lir::AssembleLIR() {
             offset_adjustment -= lir->flags.size;
             lir->opcode = kThumb2BUncond;
             lir->operands[0] = 0;
-            lir->flags.size = EncodingMap[lir->opcode].size;
+            lir->flags.size = GetEncoder(lir->opcode)->size;
             lir->flags.fixup = kFixupT2Branch;
             offset_adjustment += lir->flags.size;
             res = kRetryAll;
@@ -1513,7 +1529,7 @@ void ArmMir2Lir::AssembleLIR() {
             LIR *new_mov16L =
                 RawLIR(lir->dalvik_offset, kThumb2MovImm16LST, lir->operands[0], 0,
                        WrapPointer(lir), WrapPointer(tab_rec), 0, lir->target);
-            new_mov16L->flags.size = EncodingMap[new_mov16L->opcode].size;
+            new_mov16L->flags.size = GetEncoder(new_mov16L->opcode)->size;
             new_mov16L->flags.fixup = kFixupMovImmLST;
             new_mov16L->offset = lir->offset;
             // Link the new instruction, retaining lir.
@@ -1525,7 +1541,7 @@ void ArmMir2Lir::AssembleLIR() {
             LIR *new_mov16H =
                 RawLIR(lir->dalvik_offset, kThumb2MovImm16HST, lir->operands[0], 0,
                        WrapPointer(lir), WrapPointer(tab_rec), 0, lir->target);
-            new_mov16H->flags.size = EncodingMap[new_mov16H->opcode].size;
+            new_mov16H->flags.size = GetEncoder(new_mov16H->opcode)->size;
             new_mov16H->flags.fixup = kFixupMovImmHST;
             new_mov16H->offset = lir->offset;
             // Link the new instruction, retaining lir.
@@ -1542,7 +1558,7 @@ void ArmMir2Lir::AssembleLIR() {
               lir->opcode = kThumbAddRRHH;
             }
             lir->operands[1] = rs_rARM_PC.GetReg();
-            lir->flags.size = EncodingMap[lir->opcode].size;
+            lir->flags.size = GetEncoder(lir->opcode)->size;
             offset_adjustment += lir->flags.size;
             // Must stay in fixup list and have offset updated; will be used by LST/HSP pair.
             lir->flags.fixup = kFixupNone;
@@ -1630,7 +1646,7 @@ void ArmMir2Lir::AssembleLIR() {
 
 size_t ArmMir2Lir::GetInsnSize(LIR* lir) {
   DCHECK(!IsPseudoLirOp(lir->opcode));
-  return EncodingMap[lir->opcode].size;
+  return GetEncoder(lir->opcode)->size;
 }
 
 // Encode instruction bit pattern and assign offsets.
@@ -1642,8 +1658,8 @@ uint32_t ArmMir2Lir::LinkFixupInsns(LIR* head_lir, LIR* tail_lir, uint32_t offse
     if (!lir->flags.is_nop) {
       if (lir->flags.fixup != kFixupNone) {
         if (!IsPseudoLirOp(lir->opcode)) {
-          lir->flags.size = EncodingMap[lir->opcode].size;
-          lir->flags.fixup = EncodingMap[lir->opcode].fixup;
+          lir->flags.size = GetEncoder(lir->opcode)->size;
+          lir->flags.fixup = GetEncoder(lir->opcode)->fixup;
         } else if (UNLIKELY(lir->opcode == kPseudoPseudoAlign4)) {
           lir->flags.size = (offset & 0x2);
           lir->flags.fixup = kFixupAlign4;

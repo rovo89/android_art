@@ -426,6 +426,9 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libcutils libdl libselinux libutils libsigchain
     LOCAL_STATIC_LIBRARIES := libziparchive libz
+    ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+	  LOCAL_WHOLE_STATIC_LIBRARIES += libqc-art
+    endif
   else # host
     LOCAL_STATIC_LIBRARIES += libcutils libziparchive-host libz libutils
     LOCAL_SHARED_LIBRARIES += libsigchain
