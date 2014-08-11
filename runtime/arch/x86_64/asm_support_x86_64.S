@@ -112,6 +112,8 @@ MACRO0(ALIGN_FUNCTION_ENTRY)
     .balign 16
 END_MACRO
 
+// TODO: we might need to use SYMBOL() here to add the underscore prefix
+// for mac builds.
 MACRO1(DEFINE_FUNCTION, c_name)
     FUNCTION_TYPE(\c_name, 0)
     .globl VAR(c_name, 0)

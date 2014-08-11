@@ -28,16 +28,29 @@
 
 #if defined(__APPLE__)
 #define ucontext __darwin_ucontext
+
+#if defined(__x86_64__)
+// 64 bit mac build.
+#define CTX_ESP uc_mcontext->__ss.__rsp
+#define CTX_EIP uc_mcontext->__ss.__rip
+#define CTX_EAX uc_mcontext->__ss.__rax
+#define CTX_METHOD uc_mcontext->__ss.__rax
+#else
+// 32 bit mac build.
 #define CTX_ESP uc_mcontext->__ss.__esp
 #define CTX_EIP uc_mcontext->__ss.__eip
 #define CTX_EAX uc_mcontext->__ss.__eax
 #define CTX_METHOD uc_mcontext->__ss.__eax
+#endif
+
 #elif defined(__x86_64__)
+// 64 bit linux build.
 #define CTX_ESP uc_mcontext.gregs[REG_RSP]
 #define CTX_EIP uc_mcontext.gregs[REG_RIP]
 #define CTX_EAX uc_mcontext.gregs[REG_RAX]
 #define CTX_METHOD uc_mcontext.gregs[REG_RDI]
 #else
+// 32 bit linux build.
 #define CTX_ESP uc_mcontext.gregs[REG_ESP]
 #define CTX_EIP uc_mcontext.gregs[REG_EIP]
 #define CTX_EAX uc_mcontext.gregs[REG_EAX]
@@ -50,9 +63,18 @@
 
 namespace art {
 
+#if defined(__APPLE__) && defined(__x86_64__)
+// mac symbols have a prefix of _ on x86_64
+extern "C" void _art_quick_throw_null_pointer_exception();
+extern "C" void _art_quick_throw_stack_overflow_from_signal();
+extern "C" void _art_quick_test_suspend();
+#define EXT_SYM(sym) _ ## sym
+#else
 extern "C" void art_quick_throw_null_pointer_exception();
 extern "C" void art_quick_throw_stack_overflow_from_signal();
 extern "C" void art_quick_test_suspend();
+#define EXT_SYM(sym) sym
+#endif
 
 // Get the size of an instruction in bytes.
 // Return 0 if the instruction is not handled.
@@ -253,7 +275,7 @@ bool NullPointerHandler::Action(int sig, siginfo_t* info, void* context) {
   *next_sp = retaddr;
   uc->CTX_ESP = reinterpret_cast<uintptr_t>(next_sp);
 
-  uc->CTX_EIP = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception);
+  uc->CTX_EIP = reinterpret_cast<uintptr_t>(EXT_SYM(art_quick_throw_null_pointer_exception));
   VLOG(signals) << "Generating null pointer exception";
   return true;
 }
@@ -327,7 +349,7 @@ bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
     *next_sp = retaddr;
     uc->CTX_ESP = reinterpret_cast<uintptr_t>(next_sp);
 
-    uc->CTX_EIP = reinterpret_cast<uintptr_t>(art_quick_test_suspend);
+    uc->CTX_EIP = reinterpret_cast<uintptr_t>(EXT_SYM(art_quick_test_suspend));
 
     // Now remove the suspend trigger that caused this fault.
     Thread::Current()->RemoveSuspendTrigger();
@@ -383,7 +405,7 @@ bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
   uc->CTX_EAX = pregion;
 
   // Now arrange for the signal handler to return to art_quick_throw_stack_overflow_from_signal.
-  uc->CTX_EIP = reinterpret_cast<uintptr_t>(art_quick_throw_stack_overflow_from_signal);
+  uc->CTX_EIP = reinterpret_cast<uintptr_t>(EXT_SYM(art_quick_throw_stack_overflow_from_signal));
 
   return true;
 }
