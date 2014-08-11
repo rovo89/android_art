@@ -1877,10 +1877,6 @@ void CompilerDriver::InitializeClasses(jobject jni_class_loader, const DexFile& 
     thread_count = thread_count_;
   }
   context.ForAll(0, dex_file.NumClassDefs(), InitializeClass, thread_count);
-  if (IsImage()) {
-    // Prune garbage objects created during aborted transactions.
-    Runtime::Current()->GetHeap()->CollectGarbage(true);
-  }
 }
 
 void CompilerDriver::InitializeClasses(jobject class_loader,
@@ -1890,6 +1886,10 @@ void CompilerDriver::InitializeClasses(jobject class_loader,
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
     InitializeClasses(class_loader, *dex_file, dex_files, thread_pool, timings);
+  }
+  if (IsImage()) {
+    // Prune garbage objects created during aborted transactions.
+    Runtime::Current()->GetHeap()->CollectGarbage(true);
   }
 }
 
