@@ -168,6 +168,7 @@ TEST_ART_BROKEN_GCSTRESS_RUN_TESTS :=
 ########################################################################
 
 ART_TEST_TARGET_RUN_TEST_ALL_RULES :=
+ART_TEST_TARGET_RUN_TEST_GCSTRESS_RULES :=
 ART_TEST_TARGET_RUN_TEST_DEFAULT_RULES :=
 ART_TEST_TARGET_RUN_TEST_INTERPRETER_RULES :=
 ART_TEST_TARGET_RUN_TEST_OPTIMIZING_RULES :=
@@ -188,6 +189,7 @@ ART_TEST_TARGET_RUN_TEST_INTERPRETER_PREBUILD_RULES :=
 ART_TEST_TARGET_RUN_TEST_OPTIMIZING_NO_PREBUILD_RULES :=
 ART_TEST_TARGET_RUN_TEST_OPTIMIZING_PREBUILD_RULES :=
 ART_TEST_TARGET_RUN_TEST_ALL$(ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
+ART_TEST_TARGET_RUN_TEST_GCSTRESS$(ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_RUN_TEST_DEFAULT$(ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_RUN_TEST_INTERPRETER$(ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_RUN_TEST_OPTIMIZING$(ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
@@ -226,6 +228,7 @@ ART_TEST_TARGET_RUN_TEST_INTERPRETER_PREBUILD$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)
 ART_TEST_TARGET_RUN_TEST_OPTIMIZING_NO_PREBUILD$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_RUN_TEST_OPTIMIZING_PREBUILD$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_HOST_RUN_TEST_ALL_RULES :=
+ART_TEST_HOST_RUN_TEST_GCSTRESS_RULES :=
 ART_TEST_HOST_RUN_TEST_DEFAULT_RULES :=
 ART_TEST_HOST_RUN_TEST_INTERPRETER_RULES :=
 ART_TEST_HOST_RUN_TEST_OPTIMIZING_RULES :=
@@ -246,6 +249,7 @@ ART_TEST_HOST_RUN_TEST_INTERPRETER_PREBUILD_RULES :=
 ART_TEST_HOST_RUN_TEST_OPTIMIZING_NO_PREBUILD_RULES :=
 ART_TEST_HOST_RUN_TEST_OPTIMIZING_PREBUILD_RULES :=
 ART_TEST_HOST_RUN_TEST_ALL$(ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
+ART_TEST_HOST_RUN_TEST_GCSTRESS$(ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_RUN_TEST_DEFAULT$(ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_RUN_TEST_INTERPRETER$(ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_RUN_TEST_OPTIMIZING$(ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
@@ -330,6 +334,7 @@ define define-test-art-run-test
   prereq_rule :=
   skip_test := false
   uc_reloc_type :=
+  uc_run_type :=
   ifeq ($(ART_TEST_RUN_TEST_ALWAYS_CLEAN),true)
     run_test_options += --always-clean
   endif
@@ -401,6 +406,7 @@ define define-test-art-run-test
     endif
   endif
   ifeq ($(5),trace)
+    uc_run_type := TRACE
     run_test_options += --trace
     run_test_rule_name := test-art-$(2)-run-test-trace-$(3)-$(6)-$(1)$(4)
     ifneq ($$(ART_TEST_TRACE),true)
@@ -408,6 +414,7 @@ define define-test-art-run-test
     endif
   else
     ifeq ($(5),gcverify)
+      uc_run_type := GCVERIFY
       run_test_options += --runtime-option -Xgc:preverify --runtime-option -Xgc:postverify \
         --runtime-option -Xgc:preverify_rosalloc --runtime-option -Xgc:postverify_rosalloc
       run_test_rule_name := test-art-$(2)-run-test-gcverify-$(3)-$(6)-$(1)$(4)
@@ -416,6 +423,7 @@ define define-test-art-run-test
       endif
     else
       ifeq ($(5),gcstress)
+        uc_run_type := GCSTRESS
         run_test_options += --runtime-option -Xgc:SS --runtime-option -Xms2m \
           --runtime-option -Xmx2m --runtime-option -Xgc:preverify --runtime-option -Xgc:postverify
         run_test_rule_name := test-art-$(2)-run-test-gcstress-$(3)-$(6)-$(1)$(4)
@@ -457,6 +465,7 @@ $$(run_test_rule_name):
   ART_TEST_$$(uc_host_or_target)_RUN_TEST_ALL_RULES += $$(run_test_rule_name)
   ART_TEST_$$(uc_host_or_target)_RUN_TEST_$$(uc_reloc_type)_RULES += $$(run_test_rule_name)
   ART_TEST_$$(uc_host_or_target)_RUN_TEST_ALL$(4)_RULES += $$(run_test_rule_name)
+  ART_TEST_$$(uc_host_or_target)_RUN_TEST_$$(uc_run_type)_RULES += $$(run_test_rule_name)
 
   # Clear locally defined variables.
   skip_test :=
@@ -609,6 +618,8 @@ $(eval $(call define-test-art-run-test-group-rule,test-art-target-run-test-reloc
   $(ART_TEST_TARGET_RUN_TEST_RELOCATE_RULES)))
 $(eval $(call define-test-art-run-test-group-rule,test-art-target-run-test, \
   $(ART_TEST_TARGET_RUN_TEST_ALL_RULES)))
+$(eval $(call define-test-art-run-test-group-rule,test-art-target-run-test-gcstress, \
+  $(ART_TEST_TARGET_RUN_TEST_GCSTRESS_RULES)))
 $(eval $(call define-test-art-run-test-group-rule,test-art-target-run-test-default, \
   $(ART_TEST_TARGET_RUN_TEST_DEFAULT_RULES)))
 $(eval $(call define-test-art-run-test-group-rule,test-art-target-run-test-interpreter, \
@@ -682,6 +693,8 @@ $(eval $(call define-test-art-run-test-group-rule,test-art-target-run-test-optim
 ifdef TARGET_2ND_ARCH
   $(eval $(call define-test-art-run-test-group-rule,test-art-target-run-test$(2ND_ART_PHONY_TEST_TARGET_SUFFIX), \
     $(ART_TEST_TARGET_RUN_TEST_ALL$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)_RULES)))
+  $(eval $(call define-test-art-run-test-group-rule,test-art-target-run-test-gcstress$(2ND_ART_PHONY_TEST_TARGET_SUFFIX), \
+    $(ART_TEST_TARGET_RUN_TEST_GCSTRESS$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)_RULES)))
   $(eval $(call define-test-art-run-test-group-rule,test-art-target-run-test-default$(2ND_ART_PHONY_TEST_TARGET_SUFFIX), \
     $(ART_TEST_TARGET_RUN_TEST_DEFAULT$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)_RULES)))
   $(eval $(call define-test-art-run-test-group-rule,test-art-target-run-test-interpreter$(2ND_ART_PHONY_TEST_TARGET_SUFFIX), \
@@ -732,6 +745,8 @@ $(eval $(call define-test-art-run-test-group-rule,test-art-host-run-test-relocat
   $(ART_TEST_HOST_RUN_TEST_RELOCATE_RULES)))
 $(eval $(call define-test-art-run-test-group-rule,test-art-host-run-test, \
   $(ART_TEST_HOST_RUN_TEST_ALL_RULES)))
+$(eval $(call define-test-art-run-test-group-rule,test-art-host-run-test-gcstress, \
+  $(ART_TEST_HOST_RUN_TEST_GCSTRESS_RULES)))
 $(eval $(call define-test-art-run-test-group-rule,test-art-host-run-test-default, \
   $(ART_TEST_HOST_RUN_TEST_DEFAULT_RULES)))
 $(eval $(call define-test-art-run-test-group-rule,test-art-host-run-test-interpreter, \
@@ -805,6 +820,8 @@ $(eval $(call define-test-art-run-test-group-rule,test-art-host-run-test-optimiz
 ifneq ($(HOST_PREFER_32_BIT),true)
   $(eval $(call define-test-art-run-test-group-rule,test-art-host-run-test$(2ND_ART_PHONY_TEST_HOST_SUFFIX), \
     $(ART_TEST_HOST_RUN_TEST_ALL$(2ND_ART_PHONY_TEST_HOST_SUFFIX)_RULES)))
+  $(eval $(call define-test-art-run-test-group-rule,test-art-host-run-test-gcstress$(2ND_ART_PHONY_TEST_HOST_SUFFIX), \
+    $(ART_TEST_HOST_RUN_TEST_GCSTRESS$(2ND_ART_PHONY_TEST_HOST_SUFFIX)_RULES)))
   $(eval $(call define-test-art-run-test-group-rule,test-art-host-run-test-default$(2ND_ART_PHONY_TEST_HOST_SUFFIX), \
     $(ART_TEST_HOST_RUN_TEST_DEFAULT$(2ND_ART_PHONY_TEST_HOST_SUFFIX)_RULES)))
   $(eval $(call define-test-art-run-test-group-rule,test-art-host-run-test-interpreter$(2ND_ART_PHONY_TEST_HOST_SUFFIX), \
