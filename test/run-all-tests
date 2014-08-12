@@ -80,6 +80,12 @@ while true; do
     elif [ "x$1" = "x--64" ]; then
         run_args="${run_args} --64"
         shift
+    elif [ "x$1" = "x--gcstress" ]; then
+        run_args="${run_args} --gcstress"
+        shift
+    elif [ "x$1" = "x--gcverify" ]; then
+        run_args="${run_args} --gcverify"
+        shift
     elif [ "x$1" = "x--trace" ]; then
         run_args="${run_args} --trace"
         shift
@@ -116,7 +122,7 @@ if [ "$usage" = "yes" ]; then
              "further documentation:"
         echo "    --debug --dev --host --interpreter --jvm --no-optimize"
         echo "    --no-verify -O --update --valgrind --zygote --64 --relocate"
-        echo "    --prebuild --always-clean"
+        echo "    --prebuild --always-clean --gcstress --gcverify --trace"
         echo "  Specific Runtime Options:"
         echo "    --seq                Run tests one-by-one, avoiding failures caused by busy CPU"
     ) 1>&2

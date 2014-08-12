@@ -415,8 +415,7 @@ define define-test-art-run-test
   else
     ifeq ($(5),gcverify)
       uc_run_type := GCVERIFY
-      run_test_options += --runtime-option -Xgc:preverify --runtime-option -Xgc:postverify \
-        --runtime-option -Xgc:preverify_rosalloc --runtime-option -Xgc:postverify_rosalloc
+      run_test_options += --gcverify
       run_test_rule_name := test-art-$(2)-run-test-gcverify-$(3)-$(6)-$(1)$(4)
       ifneq ($$(ART_TEST_GC_VERIFY),true)
         skip_test := true
@@ -424,8 +423,7 @@ define define-test-art-run-test
     else
       ifeq ($(5),gcstress)
         uc_run_type := GCSTRESS
-        run_test_options += --runtime-option -Xgc:SS --runtime-option -Xms2m \
-          --runtime-option -Xmx2m --runtime-option -Xgc:preverify --runtime-option -Xgc:postverify
+        run_test_options += --gcstress
         run_test_rule_name := test-art-$(2)-run-test-gcstress-$(3)-$(6)-$(1)$(4)
         ifneq ($$(ART_TEST_GC_STRESS),true)
           skip_test := true

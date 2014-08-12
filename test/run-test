@@ -77,6 +77,9 @@ usage="no"
 build_only="no"
 suffix64=""
 trace="false"
+basic_verify="false"
+gc_verify="false"
+gc_stress="false"
 always_clean="no"
 
 while true; do
@@ -108,6 +111,14 @@ while true; do
     elif [ "x$1" = "x--no-prebuild" ]; then
         prebuild_mode="no"
         shift;
+    elif [ "x$1" = "x--gcverify" ]; then
+        basic_verify="true"
+        gc_verify="true"
+        shift
+    elif [ "x$1" = "x--gcstress" ]; then
+        basic_verify="true"
+        gc_stress="true"
+        shift
     elif [ "x$1" = "x--image" ]; then
         shift
         image="$1"
@@ -197,6 +208,15 @@ while true; do
 done
 mkdir -p $tmp_dir
 
+if [ "$basic_verify" = "true" ]; then
+  run_args="${run_args} --runtime-option -Xgc:preverify --runtime-option -Xgc:postverify"
+fi
+if [ "$gc_verify" = "true" ]; then
+  run_args="${run_args} --runtime-option -Xgc:preverify_rosalloc --runtime-option -Xgc:postverify_rosalloc"
+fi
+if [ "$gc_stress" = "true" ]; then
+  run_args="${run_args} --runtime-option -Xgc:SS --runtime-option -Xms2m --runtime-option -Xmx2m"
+fi
 if [ "$trace" = "true" ]; then
     run_args="${run_args} --runtime-option -Xmethod-trace --runtime-option -Xmethod-trace-file:${DEX_LOCATION}/trace.bin --runtime-option -Xmethod-trace-file-size:2000000"
 fi
@@ -333,6 +353,8 @@ if [ "$usage" = "yes" ]; then
              "files."
         echo "    --64                 Run the test in 64-bit mode"
         echo "    --trace              Run with method tracing"
+        echo "    --gcstress           Run with gc stress testing"
+        echo "    --gcverify           Run with gc verification"
         echo "    --always-clean       Delete the test files even if the test fails."
     ) 1>&2
     exit 1
