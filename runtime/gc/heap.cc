@@ -788,14 +788,14 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
        << (GetObjectsFreedEver() / total_seconds) << " objects/s\n";
   }
   uint64_t total_objects_allocated = GetObjectsAllocatedEver();
-  os << "Total number of allocations: " << total_objects_allocated << "\n";
+  os << "Total number of allocations " << total_objects_allocated << "\n";
   uint64_t total_bytes_allocated = GetBytesAllocatedEver();
   os << "Total bytes allocated " << PrettySize(total_bytes_allocated) << "\n";
-  os << "Free memory" << PrettySize(GetFreeMemoryUntilGC()) << "\n";
+  os << "Free memory " << PrettySize(GetFreeMemory()) << "\n";
   os << "Free memory until GC " << PrettySize(GetFreeMemoryUntilGC()) << "\n";
   os << "Free memory until OOME " << PrettySize(GetFreeMemoryUntilOOME()) << "\n";
-  os << "Total memory" << PrettySize(GetTotalMemory()) << "\n";
-  os << "Max memory" << PrettySize(GetMaxMemory()) << "\n";
+  os << "Total memory " << PrettySize(GetTotalMemory()) << "\n";
+  os << "Max memory " << PrettySize(GetMaxMemory()) << "\n";
   if (kMeasureAllocationTime) {
     os << "Total time spent allocating: " << PrettyDuration(allocation_time) << "\n";
     os << "Mean allocation time: " << PrettyDuration(allocation_time / total_objects_allocated)
