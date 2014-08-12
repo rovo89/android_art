@@ -50,7 +50,7 @@ const bool kVerboseInstrumentation = false;
 // Do we want to deoptimize for method entry and exit listeners or just try to intercept
 // invocations? Deoptimization forces all code to run in the interpreter and considerably hurts the
 // application's performance.
-static constexpr bool kDeoptimizeForAccurateMethodEntryExitListeners = false;
+static constexpr bool kDeoptimizeForAccurateMethodEntryExitListeners = true;
 
 static bool InstallStubsClassVisitor(mirror::Class* klass, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
