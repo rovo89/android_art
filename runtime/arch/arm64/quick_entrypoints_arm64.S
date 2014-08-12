@@ -1843,17 +1843,17 @@ ENTRY art_quick_string_compareto
     ret
 
 .Ldo_memcmp16:
-    mov xIP0, x0                  // Save x0 and LR. __memcmp16 does not use these temps.
-    mov xIP1, xLR                 //                 TODO: Codify and check that?
+    mov x14, x0                  // Save x0 and LR. __memcmp16 does not use these temps.
+    mov x15, xLR                 //                 TODO: Codify and check that?
 
     mov x0, x2
     uxtw x2, w3
     bl __memcmp16
 
-    mov xLR, xIP1                 // Restore LR.
+    mov xLR, x15                 // Restore LR.
 
     cmp x0, #0                   // Check the memcmp difference.
-    csel x0, x0, xIP0, ne         // x0 := x0 != 0 ? xIP0(prev x0=length diff) : x1.
+    csel x0, x0, x14, ne         // x0 := x0 != 0 ? x14(prev x0=length diff) : x1.
     ret
 END art_quick_string_compareto
 
