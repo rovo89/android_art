@@ -401,18 +401,18 @@ class Heap {
   size_t GetObjectsAllocated() const LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   // Returns the total number of objects allocated since the heap was created.
-  size_t GetObjectsAllocatedEver() const;
+  uint64_t GetObjectsAllocatedEver() const;
 
   // Returns the total number of bytes allocated since the heap was created.
-  size_t GetBytesAllocatedEver() const;
+  uint64_t GetBytesAllocatedEver() const;
 
   // Returns the total number of objects freed since the heap was created.
-  size_t GetObjectsFreedEver() const {
+  uint64_t GetObjectsFreedEver() const {
     return total_objects_freed_ever_;
   }
 
   // Returns the total number of bytes freed since the heap was created.
-  size_t GetBytesFreedEver() const {
+  uint64_t GetBytesFreedEver() const {
     return total_bytes_freed_ever_;
   }
 
@@ -421,19 +421,32 @@ class Heap {
   // were specified. Android apps start with a growth limit (small heap size) which is
   // cleared/extended for large apps.
   size_t GetMaxMemory() const {
-    return growth_limit_;
+    // There is some race conditions in the allocation code that can cause bytes allocated to
+    // become larger than growth_limit_ in rare cases.
+    return std::max(GetBytesAllocated(), growth_limit_);
   }
 
-  // Implements java.lang.Runtime.totalMemory, returning the amount of memory consumed by an
-  // application.
+  // Implements java.lang.Runtime.totalMemory, returning approximate amount of memory currently
+  // consumed by an application.
   size_t GetTotalMemory() const;
 
-  // Implements java.lang.Runtime.freeMemory.
+  // Returns approximately how much free memory we have until the next GC happens.
+  size_t GetFreeMemoryUntilGC() const {
+    return max_allowed_footprint_ - GetBytesAllocated();
+  }
+
+  // Returns approximately how much free memory we have until the next OOME happens.
+  size_t GetFreeMemoryUntilOOME() const {
+    return growth_limit_ - GetBytesAllocated();
+  }
+
+  // Returns how much free memory we have until we need to grow the heap to perform an allocation.
+  // Similar to GetFreeMemoryUntilGC. Implements java.lang.Runtime.freeMemory.
   size_t GetFreeMemory() const {
     size_t byte_allocated = num_bytes_allocated_.LoadSequentiallyConsistent();
-    // Make sure we don't get a negative number since the max allowed footprint is only updated
-    // after the GC. But we can still allocate even if bytes_allocated > max_allowed_footprint_.
-    return std::max(max_allowed_footprint_, byte_allocated) - byte_allocated;
+    size_t total_memory = GetTotalMemory();
+    // Make sure we don't get a negative number.
+    return total_memory - std::min(total_memory, byte_allocated);
   }
 
   // get the space that corresponds to an object's address. Current implementation searches all
@@ -885,10 +898,10 @@ class Heap {
   size_t concurrent_start_bytes_;
 
   // Since the heap was created, how many bytes have been freed.
-  size_t total_bytes_freed_ever_;
+  uint64_t total_bytes_freed_ever_;
 
   // Since the heap was created, how many objects have been freed.
-  size_t total_objects_freed_ever_;
+  uint64_t total_objects_freed_ever_;
 
   // Number of bytes allocated.  Adjusted after each allocation and free.
   Atomic<size_t> num_bytes_allocated_;
