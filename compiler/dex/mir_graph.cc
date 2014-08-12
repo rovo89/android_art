@@ -172,9 +172,17 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
   bottom_block->first_mir_insn = insn;
   bottom_block->last_mir_insn = orig_block->last_mir_insn;
 
-  /* If this block was terminated by a return, the flag needs to go with the bottom block */
+  /* If this block was terminated by a return, conditional branch or throw,
+   * the flag needs to go with the bottom block
+   */
   bottom_block->terminated_by_return = orig_block->terminated_by_return;
   orig_block->terminated_by_return = false;
+
+  bottom_block->conditional_branch = orig_block->conditional_branch;
+  orig_block->conditional_branch = false;
+
+  bottom_block->explicit_throw = orig_block->explicit_throw;
+  orig_block->explicit_throw = false;
 
   /* Handle the taken path */
   bottom_block->taken = orig_block->taken;
