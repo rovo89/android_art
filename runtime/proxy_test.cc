@@ -139,8 +139,9 @@ TEST_F(ProxyTest, ProxyClassHelper) {
   EXPECT_EQ(2U, proxy_class->NumDirectInterfaces());  // Interfaces$I and Interfaces$J.
   EXPECT_EQ(I.Get(), mirror::Class::GetDirectInterface(soa.Self(), proxy_class, 0));
   EXPECT_EQ(J.Get(), mirror::Class::GetDirectInterface(soa.Self(), proxy_class, 1));
-  std::string proxy_class_descriptor(proxy_class->GetDescriptor());
-  EXPECT_STREQ("L$Proxy1234;", proxy_class_descriptor.c_str());
+  std::string temp;
+  const char* proxy_class_descriptor = proxy_class->GetDescriptor(&temp);
+  EXPECT_STREQ("L$Proxy1234;", proxy_class_descriptor);
   EXPECT_EQ(nullptr, proxy_class->GetSourceFile());
 }
 

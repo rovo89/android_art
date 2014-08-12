@@ -92,8 +92,6 @@ class CompilerTls {
 
 class CompilerDriver {
  public:
-  typedef std::set<std::string> DescriptorSet;
-
   // Create a compiler targeting the requested "instruction_set".
   // "image" should be true if image specific optimizations should be
   // enabled.  "image_classes" lets the compiler know what classes it
@@ -105,7 +103,7 @@ class CompilerDriver {
                           Compiler::Kind compiler_kind,
                           InstructionSet instruction_set,
                           InstructionSetFeatures instruction_set_features,
-                          bool image, DescriptorSet* image_classes,
+                          bool image, std::set<std::string>* image_classes,
                           size_t thread_count, bool dump_stats, bool dump_passes,
                           CumulativeLogger* timer, std::string profile_file = "");
 
@@ -152,7 +150,7 @@ class CompilerDriver {
     return image_;
   }
 
-  DescriptorSet* GetImageClasses() const {
+  const std::set<std::string>* GetImageClasses() const {
     return image_classes_.get();
   }
 
@@ -729,7 +727,7 @@ class CompilerDriver {
   // If image_ is true, specifies the classes that will be included in
   // the image. Note if image_classes_ is NULL, all classes are
   // included in the image.
-  std::unique_ptr<DescriptorSet> image_classes_;
+  std::unique_ptr<std::set<std::string>> image_classes_;
 
   size_t thread_count_;
   uint64_t start_ns_;

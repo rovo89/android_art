@@ -273,7 +273,7 @@ bool EndsWith(const std::string& s, const char* suffix);
 // "java.lang.String[]", and so forth.
 std::string PrettyDescriptor(mirror::String* descriptor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-std::string PrettyDescriptor(const std::string& descriptor);
+std::string PrettyDescriptor(const char* descriptor);
 std::string PrettyDescriptor(mirror::Class* klass)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 std::string PrettyDescriptor(Primitive::Type type);
@@ -335,10 +335,12 @@ std::string MangleForJni(const std::string& s);
 // Turn "java.lang.String" into "Ljava/lang/String;".
 std::string DotToDescriptor(const char* class_name);
 
-// Turn "Ljava/lang/String;" into "java.lang.String".
+// Turn "Ljava/lang/String;" into "java.lang.String" using the conventions of
+// java.lang.Class.getName().
 std::string DescriptorToDot(const char* descriptor);
 
-// Turn "Ljava/lang/String;" into "java/lang/String".
+// Turn "Ljava/lang/String;" into "java/lang/String" using the opposite conventions of
+// java.lang.Class.getName().
 std::string DescriptorToName(const char* descriptor);
 
 // Tests for whether 's' is a valid class name in the three common forms:

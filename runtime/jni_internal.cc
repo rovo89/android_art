@@ -84,9 +84,10 @@ static void ThrowNoSuchMethodError(ScopedObjectAccess& soa, mirror::Class* c,
                                    const char* name, const char* sig, const char* kind)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+  std::string temp;
   soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchMethodError;",
                                  "no %s method \"%s.%s%s\"",
-                                 kind, c->GetDescriptor().c_str(), name, sig);
+                                 kind, c->GetDescriptor(&temp), name, sig);
 }
 
 static void ReportInvalidJNINativeMethod(const ScopedObjectAccess& soa, mirror::Class* c,
@@ -193,24 +194,26 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::Throwable> cause(hs.NewHandle(soa.Self()->GetException(&throw_location)));
     soa.Self()->ClearException();
+    std::string temp;
     soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
                                    "no type \"%s\" found and so no field \"%s\" "
                                    "could be found in class \"%s\" or its superclasses", sig, name,
-                                   c->GetDescriptor().c_str());
+                                   c->GetDescriptor(&temp));
     soa.Self()->GetException(nullptr)->SetCause(cause.Get());
     return nullptr;
   }
+  std::string temp;
   if (is_static) {
     field = mirror::Class::FindStaticField(soa.Self(), c, name,
-                                           field_type->GetDescriptor().c_str());
+                                           field_type->GetDescriptor(&temp));
   } else {
-    field = c->FindInstanceField(name, field_type->GetDescriptor().c_str());
+    field = c->FindInstanceField(name, field_type->GetDescriptor(&temp));
   }
   if (field == nullptr) {
     ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
     soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
                                    "no \"%s\" field \"%s\" in class \"%s\" or its superclasses",
-                                   sig, name, c->GetDescriptor().c_str());
+                                   sig, name, c->GetDescriptor(&temp));
     return nullptr;
   }
   return soa.EncodeField(field);

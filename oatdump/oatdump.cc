@@ -1165,7 +1165,8 @@ class ImageDumper {
         state->stats_.ComputeOutliers(total_size, expansion, method);
       }
     }
-    state->stats_.Update(obj_class->GetDescriptor().c_str(), object_bytes);
+    std::string temp;
+    state->stats_.Update(obj_class->GetDescriptor(&temp), object_bytes);
   }
 
   std::set<const void*> already_seen_;

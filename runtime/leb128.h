@@ -28,7 +28,7 @@ namespace art {
 static inline uint32_t DecodeUnsignedLeb128(const uint8_t** data) {
   const uint8_t* ptr = *data;
   int result = *(ptr++);
-  if (result > 0x7f) {
+  if (UNLIKELY(result > 0x7f)) {
     int cur = *(ptr++);
     result = (result & 0x7f) | ((cur & 0x7f) << 7);
     if (cur > 0x7f) {
