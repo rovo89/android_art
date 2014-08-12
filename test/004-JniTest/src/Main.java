@@ -30,6 +30,7 @@ public class Main {
         testBooleanMethod();
         testCharMethod();
         testIsAssignableFromOnPrimitiveTypes();
+        testShallowGetCallingClassLoader();
     }
 
     private static native void testFindClassOnAttachedNativeThread();
@@ -167,4 +168,10 @@ public class Main {
     }
 
     native static boolean nativeIsAssignableFrom(Class<?> from, Class<?> to);
+
+    static void testShallowGetCallingClassLoader() {
+        nativeTestShallowGetCallingClassLoader();
+    }
+
+    native static void nativeTestShallowGetCallingClassLoader();
 }
