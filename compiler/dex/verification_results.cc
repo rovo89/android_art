@@ -30,7 +30,8 @@
 namespace art {
 
 VerificationResults::VerificationResults(const CompilerOptions* compiler_options)
-    : verified_methods_lock_("compiler verified methods lock"),
+    : compiler_options_(compiler_options),
+      verified_methods_lock_("compiler verified methods lock"),
       verified_methods_(),
       rejected_classes_lock_("compiler rejected classes lock"),
       rejected_classes_() {
@@ -106,6 +107,9 @@ bool VerificationResults::IsCandidateForCompilation(MethodReference& method_ref,
     return true;
   }
 #endif
+  if (!compiler_options_->IsCompilationEnabled()) {
+    return false;
+  }
   // Don't compile class initializers, ever.
   if (((access_flags & kAccConstructor) != 0) && ((access_flags & kAccStatic) != 0)) {
     return false;

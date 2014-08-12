@@ -90,15 +90,21 @@ void Class::SetStatus(Status new_status, Thread* self) {
     Class* eiie_class;
     // Do't attempt to use FindClass if we have an OOM error since this can try to do more
     // allocations and may cause infinite loops.
-    if (old_exception.Get() == nullptr ||
-        old_exception->GetClass()->GetDescriptor() != "Ljava/lang/OutOfMemoryError;") {
+    bool throw_eiie = (old_exception.Get() == nullptr);
+    if (!throw_eiie) {
+      std::string temp;
+      const char* old_exception_descriptor = old_exception->GetClass()->GetDescriptor(&temp);
+      throw_eiie = (strcmp(old_exception_descriptor, "Ljava/lang/OutOfMemoryError;") != 0);
+    }
+    if (throw_eiie) {
       // Clear exception to call FindSystemClass.
       self->ClearException();
       eiie_class = Runtime::Current()->GetClassLinker()->FindSystemClass(
           self, "Ljava/lang/ExceptionInInitializerError;");
       CHECK(!self->IsExceptionPending());
       // Only verification errors, not initialization problems, should set a verify error.
-      // This is to ensure that ThrowEarlierClassFailure will throw NoClassDefFoundError in that case.
+      // This is to ensure that ThrowEarlierClassFailure will throw NoClassDefFoundError in that
+      // case.
       Class* exception_class = old_exception->GetClass();
       if (!eiie_class->IsAssignableFrom(exception_class)) {
         SetVerifyErrorClass(exception_class);
@@ -163,7 +169,8 @@ String* Class::ComputeName(Handle<Class> h_this) {
   if (name != nullptr) {
     return name;
   }
-  std::string descriptor(h_this->GetDescriptor());
+  std::string temp;
+  const char* descriptor = h_this->GetDescriptor(&temp);
   Thread* self = Thread::Current();
   if ((descriptor[0] != 'L') && (descriptor[0] != '[')) {
     // The descriptor indicates that this is the class for
@@ -186,12 +193,7 @@ String* Class::ComputeName(Handle<Class> h_this) {
   } else {
     // Convert the UTF-8 name to a java.lang.String. The name must use '.' to separate package
     // components.
-    if (descriptor.size() > 2 && descriptor[0] == 'L' && descriptor[descriptor.size() - 1] == ';') {
-      descriptor.erase(0, 1);
-      descriptor.erase(descriptor.size() - 1);
-    }
-    std::replace(descriptor.begin(), descriptor.end(), '/', '.');
-    name = String::AllocFromModifiedUtf8(self, descriptor.c_str());
+    name = String::AllocFromModifiedUtf8(self, DescriptorToDot(descriptor).c_str());
   }
   h_this->SetName(name);
   return name;
@@ -215,8 +217,9 @@ void Class::DumpClass(std::ostream& os, int flags) {
   Handle<mirror::Class> h_this(hs.NewHandle(this));
   Handle<mirror::Class> h_super(hs.NewHandle(GetSuperClass()));
 
+  std::string temp;
   os << "----- " << (IsInterface() ? "interface" : "class") << " "
-     << "'" << GetDescriptor() << "' cl=" << GetClassLoader() << " -----\n",
+     << "'" << GetDescriptor(&temp) << "' cl=" << GetClassLoader() << " -----\n",
   os << "  objectSize=" << SizeOf() << " "
      << "(" << (h_super.Get() != nullptr ? h_super->SizeOf() : -1) << " from super)\n",
   os << StringPrintf("  access=0x%04x.%04x\n",
@@ -336,7 +339,8 @@ bool Class::IsInSamePackage(Class* that) {
     return true;
   }
   // Compare the package part of the descriptor string.
-  return IsInSamePackage(klass1->GetDescriptor().c_str(), klass2->GetDescriptor().c_str());
+  std::string temp1, temp2;
+  return IsInSamePackage(klass1->GetDescriptor(&temp1), klass2->GetDescriptor(&temp2));
 }
 
 bool Class::IsStringClass() const {
@@ -713,13 +717,14 @@ void Class::SetPreverifiedFlagOnAllMethods() {
   SetPreverifiedFlagOnMethods(GetVirtualMethods());
 }
 
-std::string Class::GetDescriptor() {
-  if (UNLIKELY(IsArrayClass())) {
-    return GetArrayDescriptor();
-  } else if (UNLIKELY(IsPrimitive())) {
+const char* Class::GetDescriptor(std::string* storage) {
+  if (IsPrimitive()) {
     return Primitive::Descriptor(GetPrimitiveType());
-  } else if (UNLIKELY(IsProxyClass())) {
-    return Runtime::Current()->GetClassLinker()->GetDescriptorForProxy(this);
+  } else if (IsArrayClass()) {
+    return GetArrayDescriptor(storage);
+  } else if (IsProxyClass()) {
+    *storage = Runtime::Current()->GetClassLinker()->GetDescriptorForProxy(this);
+    return storage->c_str();
   } else {
     const DexFile& dex_file = GetDexFile();
     const DexFile::TypeId& type_id = dex_file.GetTypeId(GetClassDef()->class_idx_);
@@ -727,8 +732,12 @@ std::string Class::GetDescriptor() {
   }
 }
 
-std::string Class::GetArrayDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return "[" + GetComponentType()->GetDescriptor();
+const char* Class::GetArrayDescriptor(std::string* storage) {
+  std::string temp;
+  const char* elem_desc = GetComponentType()->GetDescriptor(&temp);
+  *storage = "[";
+  *storage += elem_desc;
+  return storage->c_str();
 }
 
 const DexFile::ClassDef* Class::GetClassDef() {
@@ -791,7 +800,6 @@ mirror::Class* Class::GetDirectInterface(Thread* self, Handle<mirror::Class> kla
 }
 
 const char* Class::GetSourceFile() {
-  std::string descriptor(GetDescriptor());
   const DexFile& dex_file = GetDexFile();
   const DexFile::ClassDef* dex_class_def = GetClassDef();
   if (dex_class_def == nullptr) {

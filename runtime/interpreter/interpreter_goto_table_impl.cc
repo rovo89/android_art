@@ -341,11 +341,12 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       }
       if (!obj_result->VerifierInstanceOf(return_type)) {
         // This should never happen.
+        std::string temp1, temp2;
         self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
                                  "Ljava/lang/VirtualMachineError;",
                                  "Returning '%s' that is not instance of return type '%s'",
-                                 obj_result->GetClass()->GetDescriptor().c_str(),
-                                 return_type->GetDescriptor().c_str());
+                                 obj_result->GetClass()->GetDescriptor(&temp1),
+                                 return_type->GetDescriptor(&temp2));
         HANDLE_PENDING_EXCEPTION();
       }
     }
@@ -615,10 +616,11 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       ThrowNullPointerException(NULL, "throw with null exception");
     } else if (do_assignability_check && !exception->GetClass()->IsThrowableClass()) {
       // This should never happen.
+      std::string temp;
       self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
                                "Ljava/lang/VirtualMachineError;",
                                "Throwing '%s' that is not instance of Throwable",
-                               exception->GetClass()->GetDescriptor().c_str());
+                               exception->GetClass()->GetDescriptor(&temp));
     } else {
       self->SetException(shadow_frame.GetCurrentLocationForThrow(), exception->AsThrowable());
     }
