@@ -692,10 +692,13 @@ void MIRGraph::CombineBlocks(struct BasicBlock* bb) {
     // Include the rest of the instructions
     bb->last_mir_insn = bb_next->last_mir_insn;
     /*
-     * If lower-half of pair of blocks to combine contained a return, move the flag
-     * to the newly combined block.
+     * If lower-half of pair of blocks to combine contained
+     * a return or a conditional branch or an explicit throw,
+     * move the flag to the newly combined block.
      */
     bb->terminated_by_return = bb_next->terminated_by_return;
+    bb->conditional_branch = bb_next->conditional_branch;
+    bb->explicit_throw = bb_next->explicit_throw;
 
     /*
      * NOTE: we aren't updating all dataflow info here.  Should either make sure this pass
