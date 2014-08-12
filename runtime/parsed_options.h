@@ -46,7 +46,7 @@ class ParsedOptions {
   bool check_jni_;
   bool force_copy_;
   std::string jni_trace_;
-  std::string native_bridge_library_string_;
+  std::string native_bridge_library_path_;
   CompilerCallbacks* compiler_callbacks_;
   bool is_zygote_;
   bool must_relocate_;

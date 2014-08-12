@@ -31,6 +31,7 @@
 #include "instrumentation.h"
 #include "instruction_set.h"
 #include "jobject_comparator.h"
+#include "nativebridge/native_bridge.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "profiler_options.h"
@@ -610,6 +611,25 @@ class Runtime {
   bool implicit_null_checks_;       // NullPointer checks are implicit.
   bool implicit_so_checks_;         // StackOverflow checks are implicit.
   bool implicit_suspend_checks_;    // Thread suspension checks are implicit.
+
+  // The path to the native bridge library. If this is not empty the native bridge will be
+  // initialized and loaded from the pointed path.
+  //
+  // The native bridge allows running native code compiled for a foreign ISA. The way it works is,
+  // if standard dlopen fails to load native library associated with native activity, it calls to
+  // the native bridge to load it and then gets the trampoline for the entry to native activity.
+  std::string native_bridge_library_path_;
+
+  // Native bridge library runtime callbacks. They represent the runtime interface to native bridge.
+  //
+  // The interface is expected to expose the following methods:
+  // getMethodShorty(): in the case of native method calling JNI native function CallXXXXMethodY(),
+  //   native bridge calls back to VM for the shorty of the method so that it can prepare based on
+  //   host calling convention.
+  // getNativeMethodCount() and getNativeMethods(): in case of JNI function UnregisterNatives(),
+  //   native bridge can call back to get all native methods of specified class so that all
+  //   corresponding trampolines can be destroyed.
+  android::NativeBridgeRuntimeCallbacks native_bridge_art_callbacks_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
