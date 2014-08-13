@@ -270,12 +270,13 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
         }
         if (!reg->VerifierInstanceOf(field_class)) {
           // This should never happen.
+          std::string temp1, temp2, temp3;
           self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
                                    "Ljava/lang/VirtualMachineError;",
                                    "Put '%s' that is not instance of field '%s' in '%s'",
-                                   reg->GetClass()->GetDescriptor().c_str(),
-                                   field_class->GetDescriptor().c_str(),
-                                   f->GetDeclaringClass()->GetDescriptor().c_str());
+                                   reg->GetClass()->GetDescriptor(&temp1),
+                                   field_class->GetDescriptor(&temp2),
+                                   f->GetDeclaringClass()->GetDescriptor(&temp3));
           return false;
         }
       }
@@ -588,12 +589,13 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
             }
             if (!o->VerifierInstanceOf(arg_type)) {
               // This should never happen.
+              std::string temp1, temp2;
               self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
                                        "Ljava/lang/VirtualMachineError;",
                                        "Invoking %s with bad arg %d, type '%s' not instance of '%s'",
                                        method->GetName(), shorty_pos,
-                                       o->GetClass()->GetDescriptor().c_str(),
-                                       arg_type->GetDescriptor().c_str());
+                                       o->GetClass()->GetDescriptor(&temp1),
+                                       arg_type->GetDescriptor(&temp2));
               return false;
             }
           }
@@ -775,7 +777,7 @@ static void UnstartedRuntimeFindClass(Thread* self, Handle<mirror::String> class
   if (found == nullptr && abort_if_not_found) {
     if (!self->IsExceptionPending()) {
       AbortTransaction(self, "%s failed in un-started runtime for class: %s",
-                       method_name.c_str(), PrettyDescriptor(descriptor).c_str());
+                       method_name.c_str(), PrettyDescriptor(descriptor.c_str()).c_str());
     }
     return;
   }

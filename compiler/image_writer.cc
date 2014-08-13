@@ -294,7 +294,8 @@ void ImageWriter::ComputeEagerResolvedStrings() SHARED_LOCKS_REQUIRED(Locks::mut
 }
 
 bool ImageWriter::IsImageClass(Class* klass) {
-  return compiler_driver_.IsImageClass(klass->GetDescriptor().c_str());
+  std::string temp;
+  return compiler_driver_.IsImageClass(klass->GetDescriptor(&temp));
 }
 
 struct NonImageClasses {
@@ -351,7 +352,8 @@ void ImageWriter::PruneNonImageClasses() {
 bool ImageWriter::NonImageClassesVisitor(Class* klass, void* arg) {
   NonImageClasses* context = reinterpret_cast<NonImageClasses*>(arg);
   if (!context->image_writer->IsImageClass(klass)) {
-    context->non_image_classes->insert(klass->GetDescriptor());
+    std::string temp;
+    context->non_image_classes->insert(klass->GetDescriptor(&temp));
   }
   return true;
 }
@@ -371,14 +373,15 @@ void ImageWriter::CheckNonImageClassesRemovedCallback(Object* obj, void* arg) {
     Class* klass = obj->AsClass();
     if (!image_writer->IsImageClass(klass)) {
       image_writer->DumpImageClasses();
-      CHECK(image_writer->IsImageClass(klass)) << klass->GetDescriptor()
+      std::string temp;
+      CHECK(image_writer->IsImageClass(klass)) << klass->GetDescriptor(&temp)
                                                << " " << PrettyDescriptor(klass);
     }
   }
 }
 
 void ImageWriter::DumpImageClasses() {
-  CompilerDriver::DescriptorSet* image_classes = compiler_driver_.GetImageClasses();
+  const std::set<std::string>* image_classes = compiler_driver_.GetImageClasses();
   CHECK(image_classes != NULL);
   for (const std::string& image_class : *image_classes) {
     LOG(INFO) << " " << image_class;

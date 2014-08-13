@@ -211,11 +211,11 @@ class ArgArray {
   }
 
   static void ThrowIllegalPrimitiveArgumentException(const char* expected,
-                                                     const StringPiece& found_descriptor)
+                                                     const char* found_descriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ThrowIllegalArgumentException(nullptr,
         StringPrintf("Invalid primitive conversion from %s to %s", expected,
-                     PrettyDescriptor(found_descriptor.as_string()).c_str()).c_str());
+                     PrettyDescriptor(found_descriptor).c_str()).c_str());
   }
 
   bool BuildArgArrayFromObjectArray(const ScopedObjectAccessAlreadyRunnable& soa,
@@ -257,8 +257,9 @@ class ArgArray {
 #define DO_FAIL(expected) \
           } else { \
             if (arg->GetClass<>()->IsPrimitive()) { \
+              std::string temp; \
               ThrowIllegalPrimitiveArgumentException(expected, \
-                                                     arg->GetClass<>()->GetDescriptor().c_str()); \
+                                                     arg->GetClass<>()->GetDescriptor(&temp)); \
             } else { \
               ThrowIllegalArgumentException(nullptr, \
                   StringPrintf("method %s argument %zd has type %s, got %s", \
@@ -815,11 +816,11 @@ static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* 
     src_class = class_linker->FindPrimitiveClass('S');
     boxed_value.SetS(primitive_field->GetShort(o));
   } else {
+    std::string temp;
     ThrowIllegalArgumentException(throw_location,
-                                  StringPrintf("%s has type %s, got %s",
-                                               UnboxingFailureKind(f).c_str(),
-                                               PrettyDescriptor(dst_class).c_str(),
-                                               PrettyDescriptor(o->GetClass()->GetDescriptor()).c_str()).c_str());
+        StringPrintf("%s has type %s, got %s", UnboxingFailureKind(f).c_str(),
+            PrettyDescriptor(dst_class).c_str(),
+            PrettyDescriptor(o->GetClass()->GetDescriptor(&temp)).c_str()).c_str());
     return false;
   }
 

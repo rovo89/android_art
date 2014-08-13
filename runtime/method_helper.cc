@@ -36,23 +36,6 @@ mirror::String* MethodHelper::GetNameAsString(Thread* self) {
                                                              dex_cache);
 }
 
-bool MethodHelper::HasSameNameAndSignature(MethodHelper* other) {
-  const DexFile* dex_file = method_->GetDexFile();
-  const DexFile::MethodId& mid = dex_file->GetMethodId(GetMethod()->GetDexMethodIndex());
-  if (method_->GetDexCache() == other->method_->GetDexCache()) {
-    const DexFile::MethodId& other_mid =
-        dex_file->GetMethodId(other->GetMethod()->GetDexMethodIndex());
-    return mid.name_idx_ == other_mid.name_idx_ && mid.proto_idx_ == other_mid.proto_idx_;
-  }
-  const DexFile* other_dex_file = other->method_->GetDexFile();
-  const DexFile::MethodId& other_mid =
-      other_dex_file->GetMethodId(other->GetMethod()->GetDexMethodIndex());
-  if (!DexFileStringEquals(dex_file, mid.name_idx_, other_dex_file, other_mid.name_idx_)) {
-    return false;  // Name mismatch.
-  }
-  return dex_file->GetMethodSignature(mid) == other_dex_file->GetMethodSignature(other_mid);
-}
-
 bool MethodHelper::HasSameSignatureWithDifferentClassLoaders(MethodHelper* other) {
   if (UNLIKELY(GetReturnType() != other->GetReturnType())) {
     return false;

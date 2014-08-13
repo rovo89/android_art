@@ -965,11 +965,15 @@ class MANAGED Class FINAL : public Object {
   template<typename Visitor>
   void VisitEmbeddedImtAndVTable(const Visitor& visitor) NO_THREAD_SAFETY_ANALYSIS;
 
-  std::string GetDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // Get the descriptor of the class. In a few cases a std::string is required, rather than
+  // always create one the storage argument is populated and its internal c_str() returned. We do
+  // this to avoid memory allocation in the common case.
+  const char* GetDescriptor(std::string* storage) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  const char* GetArrayDescriptor(std::string* storage) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool DescriptorEquals(const char* match) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  std::string GetArrayDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const DexFile::ClassDef* GetClassDef() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

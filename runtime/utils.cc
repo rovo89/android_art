@@ -222,19 +222,20 @@ std::string PrettyDescriptor(mirror::String* java_descriptor) {
   if (java_descriptor == NULL) {
     return "null";
   }
-  return PrettyDescriptor(java_descriptor->ToModifiedUtf8());
+  return PrettyDescriptor(java_descriptor->ToModifiedUtf8().c_str());
 }
 
 std::string PrettyDescriptor(mirror::Class* klass) {
   if (klass == NULL) {
     return "null";
   }
-  return PrettyDescriptor(klass->GetDescriptor());
+  std::string temp;
+  return PrettyDescriptor(klass->GetDescriptor(&temp));
 }
 
-std::string PrettyDescriptor(const std::string& descriptor) {
+std::string PrettyDescriptor(const char* descriptor) {
   // Count the number of '['s to get the dimensionality.
-  const char* c = descriptor.c_str();
+  const char* c = descriptor;
   size_t dim = 0;
   while (*c == '[') {
     dim++;
@@ -275,15 +276,14 @@ std::string PrettyDescriptor(const std::string& descriptor) {
     result.push_back(ch);
   }
   // ...and replace the semicolon with 'dim' "[]" pairs:
-  while (dim--) {
+  for (size_t i = 0; i < dim; ++i) {
     result += "[]";
   }
   return result;
 }
 
 std::string PrettyDescriptor(Primitive::Type type) {
-  std::string descriptor_string(Primitive::Descriptor(type));
-  return PrettyDescriptor(descriptor_string);
+  return PrettyDescriptor(Primitive::Descriptor(type));
 }
 
 std::string PrettyField(mirror::ArtField* f, bool with_type) {
@@ -341,8 +341,10 @@ std::string PrettyArguments(const char* signature) {
     } else {
       ++argument_length;
     }
-    std::string argument_descriptor(signature, argument_length);
-    result += PrettyDescriptor(argument_descriptor);
+    {
+      std::string argument_descriptor(signature, argument_length);
+      result += PrettyDescriptor(argument_descriptor.c_str());
+    }
     if (signature[argument_length] != ')') {
       result += ", ";
     }
@@ -410,9 +412,10 @@ std::string PrettyTypeOf(mirror::Object* obj) {
   if (obj->GetClass() == NULL) {
     return "(raw)";
   }
-  std::string result(PrettyDescriptor(obj->GetClass()->GetDescriptor()));
+  std::string temp;
+  std::string result(PrettyDescriptor(obj->GetClass()->GetDescriptor(&temp)));
   if (obj->IsClass()) {
-    result += "<" + PrettyDescriptor(obj->AsClass()->GetDescriptor()) + ">";
+    result += "<" + PrettyDescriptor(obj->AsClass()->GetDescriptor(&temp)) + ">";
   }
   return result;
 }
@@ -622,11 +625,20 @@ std::string DotToDescriptor(const char* class_name) {
 
 std::string DescriptorToDot(const char* descriptor) {
   size_t length = strlen(descriptor);
-  if (descriptor[0] == 'L' && descriptor[length - 1] == ';') {
-    std::string result(descriptor + 1, length - 2);
-    std::replace(result.begin(), result.end(), '/', '.');
-    return result;
+  if (length > 1) {
+    if (descriptor[0] == 'L' && descriptor[length - 1] == ';') {
+      // Descriptors have the leading 'L' and trailing ';' stripped.
+      std::string result(descriptor + 1, length - 2);
+      std::replace(result.begin(), result.end(), '/', '.');
+      return result;
+    } else {
+      // For arrays the 'L' and ';' remain intact.
+      std::string result(descriptor);
+      std::replace(result.begin(), result.end(), '/', '.');
+      return result;
+    }
   }
+  // Do nothing for non-class/array descriptors.
   return descriptor;
 }
 
