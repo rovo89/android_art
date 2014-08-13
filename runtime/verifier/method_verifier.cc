@@ -97,7 +97,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(mirror::Class* klass,
   const DexFile& dex_file = klass->GetDexFile();
   const DexFile::ClassDef* class_def = klass->GetClassDef();
   mirror::Class* super = klass->GetSuperClass();
-  if (super == NULL && "Ljava/lang/Object;" != klass->GetDescriptor()) {
+  std::string temp;
+  if (super == NULL && strcmp("Ljava/lang/Object;", klass->GetDescriptor(&temp)) != 0) {
     early_failure = true;
     failure_message = " that has no super class";
   } else if (super != NULL && super->IsFinal()) {
@@ -1457,10 +1458,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
    */
   if ((opcode_flags & Instruction::kThrow) != 0 && CurrentInsnFlags()->IsInTry()) {
     saved_line_->CopyFromLine(work_line_.get());
-  } else {
-#ifndef NDEBUG
+  } else if (kIsDebugBuild) {
     saved_line_->FillWithGarbage();
-#endif
   }
 
 
@@ -2221,6 +2220,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
                                                                    is_range, false);
       const char* return_type_descriptor;
       bool is_constructor;
+      RegType* return_type = nullptr;
       if (called_method == NULL) {
         uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
         const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
@@ -2230,6 +2230,19 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       } else {
         is_constructor = called_method->IsConstructor();
         return_type_descriptor = called_method->GetReturnTypeDescriptor();
+        Thread* self = Thread::Current();
+        StackHandleScope<1> hs(self);
+        Handle<mirror::ArtMethod> h_called_method(hs.NewHandle(called_method));
+        MethodHelper mh(h_called_method);
+        mirror::Class* return_type_class = mh.GetReturnType(can_load_classes_);
+        if (return_type_class != nullptr) {
+          return_type = &reg_types_.FromClass(return_type_descriptor,
+                                              return_type_class,
+                                              return_type_class->CannotBeAssignedFromOtherTypes());
+        } else {
+          DCHECK(!can_load_classes_ || self->IsExceptionPending());
+          self->ClearException();
+        }
       }
       if (is_constructor) {
         /*
@@ -2271,12 +2284,14 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
          */
         work_line_->MarkRefsAsInitialized(this_type);
       }
-      RegType& return_type = reg_types_.FromDescriptor(class_loader_->Get(),
-                                                             return_type_descriptor, false);
-      if (!return_type.IsLowHalf()) {
-        work_line_->SetResultRegisterType(return_type);
+      if (return_type == nullptr) {
+        return_type = &reg_types_.FromDescriptor(class_loader_->Get(),
+                                                 return_type_descriptor, false);
+      }
+      if (!return_type->IsLowHalf()) {
+        work_line_->SetResultRegisterType(*return_type);
       } else {
-        work_line_->SetResultRegisterTypeWide(return_type, return_type.HighHalf(&reg_types_));
+        work_line_->SetResultRegisterTypeWide(*return_type, return_type->HighHalf(&reg_types_));
       }
       just_set_result = true;
       break;
@@ -3121,7 +3136,8 @@ mirror::ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(T* it, const
       RegType* res_method_class;
       if (res_method != nullptr) {
         mirror::Class* klass = res_method->GetDeclaringClass();
-        res_method_class = &reg_types_.FromClass(klass->GetDescriptor().c_str(), klass,
+        std::string temp;
+        res_method_class = &reg_types_.FromClass(klass->GetDescriptor(&temp), klass,
                                                  klass->CannotBeAssignedFromOtherTypes());
       } else {
         const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
@@ -3337,8 +3353,9 @@ mirror::ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instructio
   }
   if (!actual_arg_type.IsZero()) {
     mirror::Class* klass = res_method->GetDeclaringClass();
+    std::string temp;
     RegType& res_method_class =
-        reg_types_.FromClass(klass->GetDescriptor().c_str(), klass,
+        reg_types_.FromClass(klass->GetDescriptor(&temp), klass,
                              klass->CannotBeAssignedFromOtherTypes());
     if (!res_method_class.IsAssignableFrom(actual_arg_type)) {
       Fail(actual_arg_type.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS :

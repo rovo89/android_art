@@ -47,7 +47,9 @@ inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class** 
     }
   }
   DCHECK(!(*element_class)->IsPrimitiveVoid());
-  std::string descriptor = "[" + (*element_class)->GetDescriptor();
+  std::string descriptor = "[";
+  std::string temp;
+  descriptor += (*element_class)->GetDescriptor(&temp);
   StackHandleScope<2> hs(Thread::Current());
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle((*element_class)->GetClassLoader()));
   HandleWrapper<mirror::Class> h_element_class(hs.NewHandleWrapper(element_class));

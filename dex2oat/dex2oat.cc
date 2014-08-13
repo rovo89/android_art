@@ -271,20 +271,20 @@ class Dex2Oat {
 
 
   // Reads the class names (java.lang.Object) and returns a set of descriptors (Ljava/lang/Object;)
-  CompilerDriver::DescriptorSet* ReadImageClassesFromFile(const char* image_classes_filename) {
+  std::set<std::string>* ReadImageClassesFromFile(const char* image_classes_filename) {
     std::unique_ptr<std::ifstream> image_classes_file(new std::ifstream(image_classes_filename,
                                                                   std::ifstream::in));
     if (image_classes_file.get() == nullptr) {
       LOG(ERROR) << "Failed to open image classes file " << image_classes_filename;
       return nullptr;
     }
-    std::unique_ptr<CompilerDriver::DescriptorSet> result(ReadImageClasses(*image_classes_file));
+    std::unique_ptr<std::set<std::string>> result(ReadImageClasses(*image_classes_file));
     image_classes_file->close();
     return result.release();
   }
 
-  CompilerDriver::DescriptorSet* ReadImageClasses(std::istream& image_classes_stream) {
-    std::unique_ptr<CompilerDriver::DescriptorSet> image_classes(new CompilerDriver::DescriptorSet);
+  std::set<std::string>* ReadImageClasses(std::istream& image_classes_stream) {
+    std::unique_ptr<std::set<std::string>> image_classes(new std::set<std::string>);
     while (image_classes_stream.good()) {
       std::string dot;
       std::getline(image_classes_stream, dot);
@@ -298,7 +298,7 @@ class Dex2Oat {
   }
 
   // Reads the class names (java.lang.Object) and returns a set of descriptors (Ljava/lang/Object;)
-  CompilerDriver::DescriptorSet* ReadImageClassesFromZip(const char* zip_filename,
+  std::set<std::string>* ReadImageClassesFromZip(const char* zip_filename,
                                                          const char* image_classes_filename,
                                                          std::string* error_msg) {
     std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(zip_filename, error_msg));
@@ -349,7 +349,7 @@ class Dex2Oat {
                                       const std::string& oat_location,
                                       const std::string& bitcode_filename,
                                       bool image,
-                                      std::unique_ptr<CompilerDriver::DescriptorSet>& image_classes,
+                                      std::unique_ptr<std::set<std::string>>& image_classes,
                                       bool dump_stats,
                                       bool dump_passes,
                                       TimingLogger& timings,
@@ -1276,7 +1276,7 @@ static int dex2oat(int argc, char** argv) {
   WellKnownClasses::Init(self->GetJniEnv());
 
   // If --image-classes was specified, calculate the full list of classes to include in the image
-  std::unique_ptr<CompilerDriver::DescriptorSet> image_classes(nullptr);
+  std::unique_ptr<std::set<std::string>> image_classes(nullptr);
   if (image_classes_filename != nullptr) {
     std::string error_msg;
     if (image_classes_zip_filename != nullptr) {
@@ -1292,7 +1292,7 @@ static int dex2oat(int argc, char** argv) {
       return EXIT_FAILURE;
     }
   } else if (image) {
-    image_classes.reset(new CompilerDriver::DescriptorSet);
+    image_classes.reset(new std::set<std::string>);
   }
 
   std::vector<const DexFile*> dex_files;
