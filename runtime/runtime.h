@@ -105,6 +105,10 @@ class Runtime {
     return must_relocate_;
   }
 
+  bool IsDex2OatEnabled() const {
+    return dex2oat_enabled_;
+  }
+
   CompilerCallbacks* GetCompilerCallbacks() {
     return compiler_callbacks_;
   }
@@ -503,6 +507,7 @@ class Runtime {
   bool must_relocate_;
   bool is_concurrent_gc_enabled_;
   bool is_explicit_gc_disabled_;
+  bool dex2oat_enabled_;
 
   std::string compiler_executable_;
   std::string patchoat_executable_;
