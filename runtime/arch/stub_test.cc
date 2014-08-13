@@ -17,6 +17,7 @@
 #include <cstdio>
 
 #include "common_runtime_test.h"
+#include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
@@ -543,14 +544,20 @@ class StubTest : public CommonRuntimeTest {
 #endif
   }
 
+  static uintptr_t GetEntrypoint(Thread* self, QuickEntrypointEnum entrypoint) {
+    int32_t offset;
+#ifdef __LP64__
+    offset = GetThreadOffset<8>(entrypoint).Int32Value();
+#else
+    offset = GetThreadOffset<4>(entrypoint).Int32Value();
+#endif
+    return *reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(self) + offset);
+  }
+
  protected:
   size_t fp_result;
 };
 
-
-#if defined(__i386__) || (defined(__x86_64__) && !defined(__APPLE__))
-extern "C" void art_quick_memcpy(void);
-#endif
 
 TEST_F(StubTest, Memcpy) {
 #if defined(__i386__) || (defined(__x86_64__) && !defined(__APPLE__))
@@ -564,7 +571,7 @@ TEST_F(StubTest, Memcpy) {
   }
 
   Invoke3(reinterpret_cast<size_t>(&trg[4]), reinterpret_cast<size_t>(&orig[4]),
-          10 * sizeof(uint32_t), reinterpret_cast<uintptr_t>(&art_quick_memcpy), self);
+          10 * sizeof(uint32_t), StubTest::GetEntrypoint(self, kQuickMemcpy), self);
 
   EXPECT_EQ(orig[0], trg[0]);
 
@@ -589,15 +596,14 @@ TEST_F(StubTest, Memcpy) {
 #endif
 }
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-extern "C" void art_quick_lock_object(void);
-#endif
-
 TEST_F(StubTest, LockObject) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   static constexpr size_t kThinLockLoops = 100;
 
   Thread* self = Thread::Current();
+
+  const uintptr_t art_quick_lock_object = StubTest::GetEntrypoint(self, kQuickLockObject);
+
   // Create an object
   ScopedObjectAccess soa(self);
   // garbage is created during ClassLinker::Init
@@ -609,8 +615,7 @@ TEST_F(StubTest, LockObject) {
   LockWord::LockState old_state = lock.GetState();
   EXPECT_EQ(LockWord::LockState::kUnlocked, old_state);
 
-  Invoke3(reinterpret_cast<size_t>(obj.Get()), 0U, 0U,
-          reinterpret_cast<uintptr_t>(&art_quick_lock_object), self);
+  Invoke3(reinterpret_cast<size_t>(obj.Get()), 0U, 0U, art_quick_lock_object, self);
 
   LockWord lock_after = obj->GetLockWord(false);
   LockWord::LockState new_state = lock_after.GetState();
@@ -618,8 +623,7 @@ TEST_F(StubTest, LockObject) {
   EXPECT_EQ(lock_after.ThinLockCount(), 0U);  // Thin lock starts count at zero
 
   for (size_t i = 1; i < kThinLockLoops; ++i) {
-    Invoke3(reinterpret_cast<size_t>(obj.Get()), 0U, 0U,
-              reinterpret_cast<uintptr_t>(&art_quick_lock_object), self);
+    Invoke3(reinterpret_cast<size_t>(obj.Get()), 0U, 0U, art_quick_lock_object, self);
 
     // Check we're at lock count i
 
@@ -635,8 +639,7 @@ TEST_F(StubTest, LockObject) {
 
   obj2->IdentityHashCode();
 
-  Invoke3(reinterpret_cast<size_t>(obj2.Get()), 0U, 0U,
-          reinterpret_cast<uintptr_t>(&art_quick_lock_object), self);
+  Invoke3(reinterpret_cast<size_t>(obj2.Get()), 0U, 0U, art_quick_lock_object, self);
 
   LockWord lock_after2 = obj2->GetLockWord(false);
   LockWord::LockState new_state2 = lock_after2.GetState();
@@ -665,17 +668,15 @@ class RandGen {
 };
 
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-extern "C" void art_quick_lock_object(void);
-extern "C" void art_quick_unlock_object(void);
-#endif
-
 // NO_THREAD_SAFETY_ANALYSIS as we do not want to grab exclusive mutator lock for MonitorInfo.
 static void TestUnlockObject(StubTest* test) NO_THREAD_SAFETY_ANALYSIS {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   static constexpr size_t kThinLockLoops = 100;
 
   Thread* self = Thread::Current();
+
+  const uintptr_t art_quick_lock_object = StubTest::GetEntrypoint(self, kQuickLockObject);
+  const uintptr_t art_quick_unlock_object = StubTest::GetEntrypoint(self, kQuickUnlockObject);
   // Create an object
   ScopedObjectAccess soa(self);
   // garbage is created during ClassLinker::Init
@@ -687,8 +688,7 @@ static void TestUnlockObject(StubTest* test) NO_THREAD_SAFETY_ANALYSIS {
   LockWord::LockState old_state = lock.GetState();
   EXPECT_EQ(LockWord::LockState::kUnlocked, old_state);
 
-  test->Invoke3(reinterpret_cast<size_t>(obj.Get()), 0U, 0U,
-                reinterpret_cast<uintptr_t>(&art_quick_unlock_object), self);
+  test->Invoke3(reinterpret_cast<size_t>(obj.Get()), 0U, 0U, art_quick_unlock_object, self);
   // This should be an illegal monitor state.
   EXPECT_TRUE(self->IsExceptionPending());
   self->ClearException();
@@ -697,15 +697,13 @@ static void TestUnlockObject(StubTest* test) NO_THREAD_SAFETY_ANALYSIS {
   LockWord::LockState new_state = lock_after.GetState();
   EXPECT_EQ(LockWord::LockState::kUnlocked, new_state);
 
-  test->Invoke3(reinterpret_cast<size_t>(obj.Get()), 0U, 0U,
-                reinterpret_cast<uintptr_t>(&art_quick_lock_object), self);
+  test->Invoke3(reinterpret_cast<size_t>(obj.Get()), 0U, 0U, art_quick_lock_object, self);
 
   LockWord lock_after2 = obj->GetLockWord(false);
   LockWord::LockState new_state2 = lock_after2.GetState();
   EXPECT_EQ(LockWord::LockState::kThinLocked, new_state2);
 
-  test->Invoke3(reinterpret_cast<size_t>(obj.Get()), 0U, 0U,
-                reinterpret_cast<uintptr_t>(&art_quick_unlock_object), self);
+  test->Invoke3(reinterpret_cast<size_t>(obj.Get()), 0U, 0U, art_quick_unlock_object, self);
 
   LockWord lock_after3 = obj->GetLockWord(false);
   LockWord::LockState new_state3 = lock_after3.GetState();
@@ -759,12 +757,12 @@ static void TestUnlockObject(StubTest* test) NO_THREAD_SAFETY_ANALYSIS {
       }
 
       if (lock) {
-        test->Invoke3(reinterpret_cast<size_t>(objects[index].Get()), 0U, 0U,
-                       reinterpret_cast<uintptr_t>(&art_quick_lock_object), self);
+        test->Invoke3(reinterpret_cast<size_t>(objects[index].Get()), 0U, 0U, art_quick_lock_object,
+                      self);
         counts[index]++;
       } else {
         test->Invoke3(reinterpret_cast<size_t>(objects[index].Get()), 0U, 0U,
-                      reinterpret_cast<uintptr_t>(&art_quick_unlock_object), self);
+                      art_quick_unlock_object, self);
         counts[index]--;
       }
 
@@ -795,8 +793,8 @@ static void TestUnlockObject(StubTest* test) NO_THREAD_SAFETY_ANALYSIS {
     size_t index = kNumberOfLocks - 1 - i;
     size_t count = counts[index];
     while (count > 0) {
-      test->Invoke3(reinterpret_cast<size_t>(objects[index].Get()), 0U, 0U,
-                    reinterpret_cast<uintptr_t>(&art_quick_unlock_object), self);
+      test->Invoke3(reinterpret_cast<size_t>(objects[index].Get()), 0U, 0U, art_quick_unlock_object,
+                    self);
       count--;
     }
 
@@ -825,6 +823,9 @@ extern "C" void art_quick_check_cast(void);
 TEST_F(StubTest, CheckCast) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   Thread* self = Thread::Current();
+
+  const uintptr_t art_quick_check_cast = StubTest::GetEntrypoint(self, kQuickCheckCast);
+
   // Find some classes.
   ScopedObjectAccess soa(self);
   // garbage is created during ClassLinker::Init
@@ -838,24 +839,24 @@ TEST_F(StubTest, CheckCast) {
   EXPECT_FALSE(self->IsExceptionPending());
 
   Invoke3(reinterpret_cast<size_t>(c.Get()), reinterpret_cast<size_t>(c.Get()), 0U,
-          reinterpret_cast<uintptr_t>(&art_quick_check_cast), self);
+          art_quick_check_cast, self);
 
   EXPECT_FALSE(self->IsExceptionPending());
 
   Invoke3(reinterpret_cast<size_t>(c2.Get()), reinterpret_cast<size_t>(c2.Get()), 0U,
-          reinterpret_cast<uintptr_t>(&art_quick_check_cast), self);
+          art_quick_check_cast, self);
 
   EXPECT_FALSE(self->IsExceptionPending());
 
   Invoke3(reinterpret_cast<size_t>(c.Get()), reinterpret_cast<size_t>(c2.Get()), 0U,
-          reinterpret_cast<uintptr_t>(&art_quick_check_cast), self);
+          art_quick_check_cast, self);
 
   EXPECT_FALSE(self->IsExceptionPending());
 
   // TODO: Make the following work. But that would require correct managed frames.
 
   Invoke3(reinterpret_cast<size_t>(c2.Get()), reinterpret_cast<size_t>(c.Get()), 0U,
-          reinterpret_cast<uintptr_t>(&art_quick_check_cast), self);
+          art_quick_check_cast, self);
 
   EXPECT_TRUE(self->IsExceptionPending());
   self->ClearException();
@@ -868,16 +869,16 @@ TEST_F(StubTest, CheckCast) {
 }
 
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-extern "C" void art_quick_aput_obj_with_null_and_bound_check(void);
-// Do not check non-checked ones, we'd need handlers and stuff...
-#endif
-
 TEST_F(StubTest, APutObj) {
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
 
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   Thread* self = Thread::Current();
+
+  // Do not check non-checked ones, we'd need handlers and stuff...
+  const uintptr_t art_quick_aput_obj_with_null_and_bound_check =
+      StubTest::GetEntrypoint(self, kQuickAputObjectWithNullAndBoundCheck);
+
   // Create an object
   ScopedObjectAccess soa(self);
   // garbage is created during ClassLinker::Init
@@ -907,25 +908,25 @@ TEST_F(StubTest, APutObj) {
   EXPECT_FALSE(self->IsExceptionPending());
 
   Invoke3(reinterpret_cast<size_t>(array.Get()), 0U, reinterpret_cast<size_t>(str_obj.Get()),
-          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+          art_quick_aput_obj_with_null_and_bound_check, self);
 
   EXPECT_FALSE(self->IsExceptionPending());
   EXPECT_EQ(str_obj.Get(), array->Get(0));
 
   Invoke3(reinterpret_cast<size_t>(array.Get()), 1U, reinterpret_cast<size_t>(str_obj.Get()),
-          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+          art_quick_aput_obj_with_null_and_bound_check, self);
 
   EXPECT_FALSE(self->IsExceptionPending());
   EXPECT_EQ(str_obj.Get(), array->Get(1));
 
   Invoke3(reinterpret_cast<size_t>(array.Get()), 2U, reinterpret_cast<size_t>(str_obj.Get()),
-          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+          art_quick_aput_obj_with_null_and_bound_check, self);
 
   EXPECT_FALSE(self->IsExceptionPending());
   EXPECT_EQ(str_obj.Get(), array->Get(2));
 
   Invoke3(reinterpret_cast<size_t>(array.Get()), 3U, reinterpret_cast<size_t>(str_obj.Get()),
-          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+          art_quick_aput_obj_with_null_and_bound_check, self);
 
   EXPECT_FALSE(self->IsExceptionPending());
   EXPECT_EQ(str_obj.Get(), array->Get(3));
@@ -933,25 +934,25 @@ TEST_F(StubTest, APutObj) {
   // 1.2) Assign null to array[0..3]
 
   Invoke3(reinterpret_cast<size_t>(array.Get()), 0U, reinterpret_cast<size_t>(nullptr),
-          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+          art_quick_aput_obj_with_null_and_bound_check, self);
 
   EXPECT_FALSE(self->IsExceptionPending());
   EXPECT_EQ(nullptr, array->Get(0));
 
   Invoke3(reinterpret_cast<size_t>(array.Get()), 1U, reinterpret_cast<size_t>(nullptr),
-          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+          art_quick_aput_obj_with_null_and_bound_check, self);
 
   EXPECT_FALSE(self->IsExceptionPending());
   EXPECT_EQ(nullptr, array->Get(1));
 
   Invoke3(reinterpret_cast<size_t>(array.Get()), 2U, reinterpret_cast<size_t>(nullptr),
-          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+          art_quick_aput_obj_with_null_and_bound_check, self);
 
   EXPECT_FALSE(self->IsExceptionPending());
   EXPECT_EQ(nullptr, array->Get(2));
 
   Invoke3(reinterpret_cast<size_t>(array.Get()), 3U, reinterpret_cast<size_t>(nullptr),
-          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+          art_quick_aput_obj_with_null_and_bound_check, self);
 
   EXPECT_FALSE(self->IsExceptionPending());
   EXPECT_EQ(nullptr, array->Get(3));
@@ -972,7 +973,7 @@ TEST_F(StubTest, APutObj) {
 
   Invoke3(reinterpret_cast<size_t>(array.Get()), static_cast<size_t>(-1),
           reinterpret_cast<size_t>(str_obj.Get()),
-          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+          art_quick_aput_obj_with_null_and_bound_check, self);
 
   EXPECT_TRUE(self->IsExceptionPending());
   self->ClearException();
@@ -980,7 +981,7 @@ TEST_F(StubTest, APutObj) {
   // 2.3) Index > 0
 
   Invoke3(reinterpret_cast<size_t>(array.Get()), 10U, reinterpret_cast<size_t>(str_obj.Get()),
-          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+          art_quick_aput_obj_with_null_and_bound_check, self);
 
   EXPECT_TRUE(self->IsExceptionPending());
   self->ClearException();
@@ -988,7 +989,7 @@ TEST_F(StubTest, APutObj) {
   // 3) Failure cases (obj into str[])
 
   Invoke3(reinterpret_cast<size_t>(array.Get()), 0U, reinterpret_cast<size_t>(obj_obj.Get()),
-          reinterpret_cast<uintptr_t>(&art_quick_aput_obj_with_null_and_bound_check), self);
+          art_quick_aput_obj_with_null_and_bound_check, self);
 
   EXPECT_TRUE(self->IsExceptionPending());
   self->ClearException();
@@ -1024,7 +1025,7 @@ TEST_F(StubTest, AllocObject) {
     size_t result = Invoke3(static_cast<size_t>(c->GetDexTypeIndex()),    // type_idx
                             reinterpret_cast<size_t>(c->GetVirtualMethod(0)),  // arbitrary
                             0U,
-                            reinterpret_cast<uintptr_t>(GetTlsPtr(self)->quick_entrypoints.pAllocObject),
+                            StubTest::GetEntrypoint(self, kQuickAllocObject),
                             self);
 
     EXPECT_FALSE(self->IsExceptionPending());
@@ -1038,7 +1039,7 @@ TEST_F(StubTest, AllocObject) {
     // We can use nullptr in the second argument as we do not need a method here (not used in
     // resolved/initialized cases)
     size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), reinterpret_cast<size_t>(nullptr), 0U,
-                            reinterpret_cast<uintptr_t>(GetTlsPtr(self)->quick_entrypoints.pAllocObjectResolved),
+                            StubTest::GetEntrypoint(self, kQuickAllocObjectResolved),
                             self);
 
     EXPECT_FALSE(self->IsExceptionPending());
@@ -1052,7 +1053,7 @@ TEST_F(StubTest, AllocObject) {
     // We can use nullptr in the second argument as we do not need a method here (not used in
     // resolved/initialized cases)
     size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), reinterpret_cast<size_t>(nullptr), 0U,
-                            reinterpret_cast<uintptr_t>(GetTlsPtr(self)->quick_entrypoints.pAllocObjectInitialized),
+                            StubTest::GetEntrypoint(self, kQuickAllocObjectInitialized),
                             self);
 
     EXPECT_FALSE(self->IsExceptionPending());
@@ -1108,7 +1109,7 @@ TEST_F(StubTest, AllocObject) {
     self->ClearException();
 
     size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), reinterpret_cast<size_t>(nullptr), 0U,
-                            reinterpret_cast<uintptr_t>(GetTlsPtr(self)->quick_entrypoints.pAllocObjectInitialized),
+                            StubTest::GetEntrypoint(self, kQuickAllocObjectInitialized),
                             self);
     EXPECT_TRUE(self->IsExceptionPending());
     self->ClearException();
@@ -1154,7 +1155,7 @@ TEST_F(StubTest, AllocObjectArray) {
     size_t result = Invoke3(static_cast<size_t>(c->GetDexTypeIndex()),    // type_idx
                             reinterpret_cast<size_t>(c_obj->GetVirtualMethod(0)),  // arbitrary
                             10U,
-                            reinterpret_cast<uintptr_t>(GetTlsPtr(self)->quick_entrypoints.pAllocArray),
+                            StubTest::GetEntrypoint(self, kQuickAllocArray),
                             self);
 
     EXPECT_FALSE(self->IsExceptionPending());
@@ -1169,7 +1170,7 @@ TEST_F(StubTest, AllocObjectArray) {
     // We can use nullptr in the second argument as we do not need a method here (not used in
     // resolved/initialized cases)
     size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), reinterpret_cast<size_t>(nullptr), 10U,
-                            reinterpret_cast<uintptr_t>(GetTlsPtr(self)->quick_entrypoints.pAllocArrayResolved),
+                            StubTest::GetEntrypoint(self, kQuickAllocArrayResolved),
                             self);
     EXPECT_FALSE(self->IsExceptionPending()) << PrettyTypeOf(self->GetException(nullptr));
     EXPECT_NE(reinterpret_cast<size_t>(nullptr), result);
@@ -1188,7 +1189,7 @@ TEST_F(StubTest, AllocObjectArray) {
   {
     size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), reinterpret_cast<size_t>(nullptr),
                             GB,  // that should fail...
-                            reinterpret_cast<uintptr_t>(GetTlsPtr(self)->quick_entrypoints.pAllocArrayResolved),
+                            StubTest::GetEntrypoint(self, kQuickAllocArrayResolved),
                             self);
 
     EXPECT_TRUE(self->IsExceptionPending());
@@ -1205,10 +1206,6 @@ TEST_F(StubTest, AllocObjectArray) {
 }
 
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-extern "C" void art_quick_string_compareto(void);
-#endif
-
 TEST_F(StubTest, StringCompareTo) {
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
 
@@ -1216,6 +1213,9 @@ TEST_F(StubTest, StringCompareTo) {
   // TODO: Check the "Unresolved" allocation stubs
 
   Thread* self = Thread::Current();
+
+  const uintptr_t art_quick_string_compareto = StubTest::GetEntrypoint(self, kQuickStringCompareTo);
+
   ScopedObjectAccess soa(self);
   // garbage is created during ClassLinker::Init
 
@@ -1274,7 +1274,7 @@ TEST_F(StubTest, StringCompareTo) {
       // Test string_compareto x y
       size_t result = Invoke3(reinterpret_cast<size_t>(s[x].Get()),
                               reinterpret_cast<size_t>(s[y].Get()), 0U,
-                              reinterpret_cast<uintptr_t>(&art_quick_string_compareto), self);
+                              art_quick_string_compareto, self);
 
       EXPECT_FALSE(self->IsExceptionPending());
 
@@ -1306,11 +1306,6 @@ TEST_F(StubTest, StringCompareTo) {
 }
 
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-extern "C" void art_quick_set32_static(void);
-extern "C" void art_quick_get32_static(void);
-#endif
-
 static void GetSet32Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
                            mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -1322,13 +1317,13 @@ static void GetSet32Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>
     test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                               static_cast<size_t>(values[i]),
                               0U,
-                              reinterpret_cast<uintptr_t>(&art_quick_set32_static),
+                              StubTest::GetEntrypoint(self, kQuickSet32Static),
                               self,
                               referrer);
 
     size_t res = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                                            0U, 0U,
-                                           reinterpret_cast<uintptr_t>(&art_quick_get32_static),
+                                           StubTest::GetEntrypoint(self, kQuickGet32Static),
                                            self,
                                            referrer);
 
@@ -1342,11 +1337,6 @@ static void GetSet32Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>
 }
 
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-extern "C" void art_quick_set32_instance(void);
-extern "C" void art_quick_get32_instance(void);
-#endif
-
 static void GetSet32Instance(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f,
                              Thread* self, mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -1358,7 +1348,7 @@ static void GetSet32Instance(Handle<mirror::Object>* obj, Handle<mirror::ArtFiel
     test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                               reinterpret_cast<size_t>(obj->Get()),
                               static_cast<size_t>(values[i]),
-                              reinterpret_cast<uintptr_t>(&art_quick_set32_instance),
+                              StubTest::GetEntrypoint(self, kQuickSet32Instance),
                               self,
                               referrer);
 
@@ -1371,7 +1361,7 @@ static void GetSet32Instance(Handle<mirror::Object>* obj, Handle<mirror::ArtFiel
     size_t res2 = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                                             reinterpret_cast<size_t>(obj->Get()),
                                             0U,
-                                            reinterpret_cast<uintptr_t>(&art_quick_get32_instance),
+                                            StubTest::GetEntrypoint(self, kQuickGet32Instance),
                                             self,
                                             referrer);
     EXPECT_EQ(res, static_cast<int32_t>(res2));
@@ -1385,8 +1375,6 @@ static void GetSet32Instance(Handle<mirror::Object>* obj, Handle<mirror::ArtFiel
 
 
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-extern "C" void art_quick_set_obj_static(void);
-extern "C" void art_quick_get_obj_static(void);
 
 static void set_and_check_static(uint32_t f_idx, mirror::Object* val, Thread* self,
                                  mirror::ArtMethod* referrer, StubTest* test)
@@ -1394,13 +1382,13 @@ static void set_and_check_static(uint32_t f_idx, mirror::Object* val, Thread* se
   test->Invoke3WithReferrer(static_cast<size_t>(f_idx),
                             reinterpret_cast<size_t>(val),
                             0U,
-                            reinterpret_cast<uintptr_t>(&art_quick_set_obj_static),
+                            StubTest::GetEntrypoint(self, kQuickSetObjStatic),
                             self,
                             referrer);
 
   size_t res = test->Invoke3WithReferrer(static_cast<size_t>(f_idx),
                                          0U, 0U,
-                                         reinterpret_cast<uintptr_t>(&art_quick_get_obj_static),
+                                         StubTest::GetEntrypoint(self, kQuickGetObjStatic),
                                          self,
                                          referrer);
 
@@ -1428,9 +1416,6 @@ static void GetSetObjStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtField
 
 
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-extern "C" void art_quick_set_obj_instance(void);
-extern "C" void art_quick_get_obj_instance(void);
-
 static void set_and_check_instance(Handle<mirror::ArtField>* f, mirror::Object* trg,
                                    mirror::Object* val, Thread* self, mirror::ArtMethod* referrer,
                                    StubTest* test)
@@ -1438,14 +1423,14 @@ static void set_and_check_instance(Handle<mirror::ArtField>* f, mirror::Object* 
   test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                             reinterpret_cast<size_t>(trg),
                             reinterpret_cast<size_t>(val),
-                            reinterpret_cast<uintptr_t>(&art_quick_set_obj_instance),
+                            StubTest::GetEntrypoint(self, kQuickSetObjInstance),
                             self,
                             referrer);
 
   size_t res = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                                          reinterpret_cast<size_t>(trg),
                                          0U,
-                                         reinterpret_cast<uintptr_t>(&art_quick_get_obj_instance),
+                                         StubTest::GetEntrypoint(self, kQuickGetObjInstance),
                                          self,
                                          referrer);
 
@@ -1476,11 +1461,6 @@ static void GetSetObjInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtFie
 
 // TODO: Complete these tests for 32b architectures.
 
-#if (defined(__x86_64__) && !defined(__APPLE__)) || defined(__aarch64__)
-extern "C" void art_quick_set64_static(void);
-extern "C" void art_quick_get64_static(void);
-#endif
-
 static void GetSet64Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
                            mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -1491,13 +1471,13 @@ static void GetSet64Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>
   for (size_t i = 0; i < num_values; ++i) {
     test->Invoke3UWithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                                values[i],
-                               reinterpret_cast<uintptr_t>(&art_quick_set64_static),
+                               StubTest::GetEntrypoint(self, kQuickSet64Static),
                                self,
                                referrer);
 
     size_t res = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                                            0U, 0U,
-                                           reinterpret_cast<uintptr_t>(&art_quick_get64_static),
+                                           StubTest::GetEntrypoint(self, kQuickGet64Static),
                                            self,
                                            referrer);
 
@@ -1511,11 +1491,6 @@ static void GetSet64Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>
 }
 
 
-#if (defined(__x86_64__) && !defined(__APPLE__)) || defined(__aarch64__)
-extern "C" void art_quick_set64_instance(void);
-extern "C" void art_quick_get64_instance(void);
-#endif
-
 static void GetSet64Instance(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f,
                              Thread* self, mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -1527,7 +1502,7 @@ static void GetSet64Instance(Handle<mirror::Object>* obj, Handle<mirror::ArtFiel
     test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                               reinterpret_cast<size_t>(obj->Get()),
                               static_cast<size_t>(values[i]),
-                              reinterpret_cast<uintptr_t>(&art_quick_set64_instance),
+                              StubTest::GetEntrypoint(self, kQuickSet64Instance),
                               self,
                               referrer);
 
@@ -1540,7 +1515,7 @@ static void GetSet64Instance(Handle<mirror::Object>* obj, Handle<mirror::ArtFiel
     size_t res2 = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                                             reinterpret_cast<size_t>(obj->Get()),
                                             0U,
-                                            reinterpret_cast<uintptr_t>(&art_quick_get64_instance),
+                                            StubTest::GetEntrypoint(self, kQuickGet64Instance),
                                             self,
                                             referrer);
     EXPECT_EQ(res, static_cast<int64_t>(res2));
@@ -1683,9 +1658,6 @@ TEST_F(StubTest, Fields64) {
   TestFields(self, this, Primitive::Type::kPrimLong);
 }
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-extern "C" void art_quick_imt_conflict_trampoline(void);
-#endif
 
 TEST_F(StubTest, IMT) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
@@ -1716,7 +1688,7 @@ TEST_F(StubTest, IMT) {
   // Patch up ArrayList.contains.
   if (contains_amethod.Get()->GetEntryPointFromQuickCompiledCode() == nullptr) {
     contains_amethod.Get()->SetEntryPointFromQuickCompiledCode(reinterpret_cast<void*>(
-        GetTlsPtr(self)->quick_entrypoints.pQuickToInterpreterBridge));
+        StubTest::GetEntrypoint(self, kQuickQuickToInterpreterBridge)));
   }
 
   // List
@@ -1765,7 +1737,7 @@ TEST_F(StubTest, IMT) {
   size_t result =
       Invoke3WithReferrerAndHidden(0U, reinterpret_cast<size_t>(array_list.Get()),
                                    reinterpret_cast<size_t>(obj.Get()),
-                                   reinterpret_cast<uintptr_t>(&art_quick_imt_conflict_trampoline),
+                                   StubTest::GetEntrypoint(self, kQuickQuickImtConflictTrampoline),
                                    self, contains_amethod.Get(),
                                    static_cast<size_t>(inf_contains.Get()->GetDexMethodIndex()));
 
@@ -1782,7 +1754,7 @@ TEST_F(StubTest, IMT) {
 
   result = Invoke3WithReferrerAndHidden(0U, reinterpret_cast<size_t>(array_list.Get()),
                                         reinterpret_cast<size_t>(obj.Get()),
-                                        reinterpret_cast<uintptr_t>(&art_quick_imt_conflict_trampoline),
+                                        StubTest::GetEntrypoint(self, kQuickQuickImtConflictTrampoline),
                                         self, contains_amethod.Get(),
                                         static_cast<size_t>(inf_contains.Get()->GetDexMethodIndex()));
 
@@ -1794,10 +1766,6 @@ TEST_F(StubTest, IMT) {
   std::cout << "Skipping imt as I don't know how to do that on " << kRuntimeISA << std::endl;
 #endif
 }
-
-#if defined(__arm__) || defined(__aarch64__)
-extern "C" void art_quick_indexof(void);
-#endif
 
 TEST_F(StubTest, StringIndexOf) {
 #if defined(__arm__) || defined(__aarch64__)
@@ -1848,7 +1816,7 @@ TEST_F(StubTest, StringIndexOf) {
 
         // Test string_compareto x y
         size_t result = Invoke3(reinterpret_cast<size_t>(s[x].Get()), c_char[y], start,
-                                reinterpret_cast<uintptr_t>(&art_quick_indexof), self);
+                                StubTest::GetEntrypoint(self, kQuickIndexOf), self);
 
         EXPECT_FALSE(self->IsExceptionPending());
 
