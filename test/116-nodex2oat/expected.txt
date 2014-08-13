@@ -1,0 +1,6 @@
+Run -Xnodex2oat
+Has oat is false, is dex2oat enabled is false.
+Run -Xdex2oat
+Has oat is true, is dex2oat enabled is true.
+Run default
+Has oat is true, is dex2oat enabled is true.

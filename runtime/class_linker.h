@@ -392,7 +392,7 @@ class ClassLinker {
   }
 
  private:
-  const OatFile::OatMethod GetOatMethodFor(mirror::ArtMethod* method)
+  bool FindOatMethodFor(mirror::ArtMethod* method, OatFile::OatMethod* oat_method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   OatFile& GetImageOatFile(gc::space::ImageSpace* space)
@@ -461,8 +461,9 @@ class ClassLinker {
 
   void FixupStaticTrampolines(mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Finds the associated oat class for a dex_file and descriptor
-  OatFile::OatClass GetOatClass(const DexFile& dex_file, uint16_t class_def_idx)
+  // Finds the associated oat class for a dex_file and descriptor. Returns whether the class
+  // was found, and sets the data in oat_class.
+  bool FindOatClass(const DexFile& dex_file, uint16_t class_def_idx, OatFile::OatClass* oat_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void RegisterDexFileLocked(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
@@ -742,6 +743,7 @@ class ClassLinker {
   friend class ImageWriter;  // for GetClassRoots
   friend class ImageDumper;  // for FindOpenedOatFileFromOatLocation
   friend class ElfPatcher;  // for FindOpenedOatFileForDexFile & FindOpenedOatFileFromOatLocation
+  friend class NoDex2OatTest;  // for FindOpenedOatFileForDexFile
   FRIEND_TEST(ClassLinkerTest, ClassRootDescriptors);
   FRIEND_TEST(mirror::DexCacheTest, Open);
   FRIEND_TEST(ExceptionTest, FindExceptionHandler);
