@@ -414,20 +414,22 @@ std::string UnresolvedSuperClass::Dump() {
 
 std::string UnresolvedReferenceType::Dump() {
   std::stringstream result;
-  result << "Unresolved Reference" << ": " << PrettyDescriptor(GetDescriptor());
+  result << "Unresolved Reference" << ": " << PrettyDescriptor(GetDescriptor().c_str());
   return result.str();
 }
 
 std::string UnresolvedUninitializedRefType::Dump() {
   std::stringstream result;
-  result << "Unresolved And Uninitialized Reference" << ": " << PrettyDescriptor(GetDescriptor());
-  result << " Allocation PC: " << GetAllocationPc();
+  result << "Unresolved And Uninitialized Reference" << ": "
+      << PrettyDescriptor(GetDescriptor().c_str())
+      << " Allocation PC: " << GetAllocationPc();
   return result.str();
 }
 
 std::string UnresolvedUninitializedThisRefType::Dump() {
   std::stringstream result;
-  result << "Unresolved And Uninitialized This Reference" << PrettyDescriptor(GetDescriptor());
+  result << "Unresolved And Uninitialized This Reference"
+      << PrettyDescriptor(GetDescriptor().c_str());
   return result.str();
 }
 
@@ -618,7 +620,8 @@ RegType& RegType::GetSuperClass(RegTypeCache* cache) {
     if (super_klass != NULL) {
       // A super class of a precise type isn't precise as a precise type indicates the register
       // holds exactly that type.
-      return cache->FromClass(super_klass->GetDescriptor().c_str(), super_klass, false);
+      std::string temp;
+      return cache->FromClass(super_klass->GetDescriptor(&temp), super_klass, false);
     } else {
       return cache->Zero();
     }
@@ -896,7 +899,8 @@ RegType& RegType::Merge(RegType& incoming_type, RegTypeCache* reg_types) {
       } else if (c2 == join_class && !incoming_type.IsPreciseReference()) {
         return incoming_type;
       } else {
-        return reg_types->FromClass(join_class->GetDescriptor().c_str(), join_class, false);
+        std::string temp;
+        return reg_types->FromClass(join_class->GetDescriptor(&temp), join_class, false);
       }
     }
   } else {

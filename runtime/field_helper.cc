@@ -41,17 +41,7 @@ mirror::Class* FieldHelper::GetType(bool resolve) {
 }
 
 const char* FieldHelper::GetDeclaringClassDescriptor() {
-  uint32_t field_index = field_->GetDexFieldIndex();
-  if (UNLIKELY(field_->GetDeclaringClass()->IsProxyClass())) {
-    DCHECK(field_->IsStatic());
-    DCHECK_LT(field_index, 2U);
-    // 0 == Class[] interfaces; 1 == Class[][] throws;
-    declaring_class_descriptor_ = field_->GetDeclaringClass()->GetDescriptor();
-    return declaring_class_descriptor_.c_str();
-  }
-  const DexFile* dex_file = field_->GetDexFile();
-  const DexFile::FieldId& field_id = dex_file->GetFieldId(field_index);
-  return dex_file->GetFieldDeclaringClassDescriptor(field_id);
+  return field_->GetDeclaringClass()->GetDescriptor(&declaring_class_descriptor_);
 }
 
 }  // namespace art

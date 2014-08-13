@@ -22,6 +22,7 @@
 
 #include "array-inl.h"
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "asm_support.h"
 #include "class-inl.h"
 #include "class_linker.h"
@@ -31,11 +32,11 @@
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
+#include "handle_scope-inl.h"
 #include "iftable-inl.h"
-#include "art_method-inl.h"
+#include "method_helper-inl.h"
 #include "object-inl.h"
 #include "object_array-inl.h"
-#include "handle_scope-inl.h"
 #include "scoped_thread_state_change.h"
 #include "string-inl.h"
 

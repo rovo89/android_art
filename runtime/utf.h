@@ -55,7 +55,8 @@ void ConvertModifiedUtf8ToUtf16(uint16_t* utf16_out, const char* utf8_in);
 /*
  * Compare two modified UTF-8 strings as UTF-16 code point values in a non-locale sensitive manner
  */
-int CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(const char* utf8_1, const char* utf8_2);
+ALWAYS_INLINE int CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(const char* utf8_1,
+                                                                          const char* utf8_2);
 
 /*
  * Compare a modified UTF-8 string with a UTF-16 string as code point values in a non-locale
