@@ -2095,6 +2095,11 @@ void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>
         // query all threads, so it's easier if we just don't tell them about this thread.
         return;
       }
+      if (t->IsStillStarting()) {
+        // This thread is being started (and has been registered in the thread list). However, it is
+        // not completely started yet so we must ignore it.
+        return;
+      }
       mirror::Object* peer = t->GetPeer();
       if (IsInDesiredThreadGroup(peer)) {
         thread_ids_.push_back(gRegistry->Add(peer));
