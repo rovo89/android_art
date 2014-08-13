@@ -14,54 +14,29 @@
  * limitations under the License.
  */
 
-#include <stdio.h>
-#include <memory>
-
-#include "class_linker.h"
-#include "gc_map.h"
-#include "mirror/art_method-inl.h"
-#include "mirror/class-inl.h"
-#include "mirror/object_array-inl.h"
-#include "mirror/object-inl.h"
+#include "check_reference_map_visitor.h"
 #include "jni.h"
-#include "scoped_thread_state_change.h"
 
 namespace art {
 
-#define REG(reg_bitmap, reg) \
-    (((reg) < m->GetCodeItem()->registers_size_) && \
-     ((*((reg_bitmap) + (reg)/8) >> ((reg) % 8) ) & 0x01))
-
-#define CHECK_REGS(...) if (!IsShadowFrame()) { \
-    int t[] = {__VA_ARGS__}; \
-    int t_size = sizeof(t) / sizeof(*t); \
-    for (int i = 0; i < t_size; ++i) \
-      CHECK(REG(reg_bitmap, t[i])) << "Error: Reg " << i << " is not in RegisterMap"; \
-  }
+#define CHECK_REGS(...) do { \
+  int t[] = {__VA_ARGS__}; \
+  int t_size = sizeof(t) / sizeof(*t); \
+  CheckReferences(t, t_size, GetNativePcOffset()); \
+} while (false);
 
 static int gJava_StackWalk_refmap_calls = 0;
 
-struct TestReferenceMapVisitor : public StackVisitor {
-  explicit TestReferenceMapVisitor(Thread* thread)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(thread, NULL) {
-  }
+class TestReferenceMapVisitor : public CheckReferenceMapVisitor {
+ public:
+  explicit TestReferenceMapVisitor(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : CheckReferenceMapVisitor(thread) {}
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* m = GetMethod();
-    CHECK(m != NULL);
-    LOG(INFO) << "At " << PrettyMethod(m, false);
-
-    if (m->IsCalleeSaveMethod() || m->IsNative()) {
-      LOG(WARNING) << "no PC for " << PrettyMethod(m);
-      CHECK_EQ(GetDexPc(), DexFile::kDexNoIndex);
+    if (CheckReferenceMapVisitor::VisitFrame()) {
       return true;
     }
-    const uint8_t* reg_bitmap = NULL;
-    if (!IsShadowFrame()) {
-      NativePcOffsetToReferenceMap map(m->GetNativeGcMap());
-      reg_bitmap = map.FindBitMap(GetNativePcOffset());
-    }
+    mirror::ArtMethod* m = GetMethod();
     StringPiece m_name(m->GetName());
 
     // Given the method name and the number of times the method has been called,
