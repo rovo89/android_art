@@ -27,7 +27,7 @@
 #include "interpreter/interpreter.h"
 #include "jni_internal.h"
 #include "mapping_table.h"
-#include "method_helper.h"
+#include "method_helper-inl.h"
 #include "object_array-inl.h"
 #include "object_array.h"
 #include "object-inl.h"

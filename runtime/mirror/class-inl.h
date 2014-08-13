@@ -649,11 +649,11 @@ inline const DexFile& Class::GetDexFile() {
 }
 
 inline bool Class::DescriptorEquals(const char* match) {
-  if (UNLIKELY(IsArrayClass())) {
+  if (IsArrayClass()) {
     return match[0] == '[' && GetComponentType()->DescriptorEquals(match + 1);
-  } else if (UNLIKELY(IsPrimitive())) {
+  } else if (IsPrimitive()) {
     return strcmp(Primitive::Descriptor(GetPrimitiveType()), match) == 0;
-  } else if (UNLIKELY(IsProxyClass())) {
+  } else if (IsProxyClass()) {
     return Runtime::Current()->GetClassLinker()->GetDescriptorForProxy(this) == match;
   } else {
     const DexFile& dex_file = GetDexFile();

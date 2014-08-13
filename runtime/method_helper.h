@@ -105,7 +105,8 @@ class MethodHelper {
     return GetParamPrimitiveType(param) == Primitive::kPrimNot;
   }
 
-  bool HasSameNameAndSignature(MethodHelper* other) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE bool HasSameNameAndSignature(MethodHelper* other)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasSameSignatureWithDifferentClassLoaders(MethodHelper* other)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

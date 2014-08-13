@@ -328,7 +328,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
                                Compiler::Kind compiler_kind,
                                InstructionSet instruction_set,
                                InstructionSetFeatures instruction_set_features,
-                               bool image, DescriptorSet* image_classes, size_t thread_count,
+                               bool image, std::set<std::string>* image_classes, size_t thread_count,
                                bool dump_stats, bool dump_passes, CumulativeLogger* timer,
                                std::string profile_file)
     : profile_present_(false), compiler_options_(compiler_options),
@@ -684,9 +684,9 @@ static bool ResolveCatchBlockExceptionsClassVisitor(mirror::Class* c, void* arg)
 
 static bool RecordImageClassesVisitor(mirror::Class* klass, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  CompilerDriver::DescriptorSet* image_classes =
-      reinterpret_cast<CompilerDriver::DescriptorSet*>(arg);
-  image_classes->insert(klass->GetDescriptor());
+  std::set<std::string>* image_classes = reinterpret_cast<std::set<std::string>*>(arg);
+  std::string temp;
+  image_classes->insert(klass->GetDescriptor(&temp));
   return true;
 }
 
@@ -756,22 +756,20 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings)
   CHECK_NE(image_classes_->size(), 0U);
 }
 
-static void MaybeAddToImageClasses(Handle<mirror::Class> c,
-                                   CompilerDriver::DescriptorSet* image_classes)
+static void MaybeAddToImageClasses(Handle<mirror::Class> c, std::set<std::string>* image_classes)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* self = Thread::Current();
   StackHandleScope<1> hs(self);
   // Make a copy of the handle so that we don't clobber it doing Assign.
   Handle<mirror::Class> klass(hs.NewHandle(c.Get()));
+  std::string temp;
   while (!klass->IsObjectClass()) {
-    std::string descriptor(klass->GetDescriptor());
-    std::pair<CompilerDriver::DescriptorSet::iterator, bool> result =
-        image_classes->insert(descriptor);
-    if (result.second) {
-        VLOG(compiler) << "Adding " << descriptor << " to image classes";
-    } else {
-      return;
+    const char* descriptor = klass->GetDescriptor(&temp);
+    std::pair<std::set<std::string>::iterator, bool> result = image_classes->insert(descriptor);
+    if (!result.second) {  // Previously inserted.
+      break;
     }
+    VLOG(compiler) << "Adding " << descriptor << " to image classes";
     for (size_t i = 0; i < klass->NumDirectInterfaces(); ++i) {
       StackHandleScope<1> hs(self);
       MaybeAddToImageClasses(hs.NewHandle(mirror::Class::GetDirectInterface(self, klass, i)),
@@ -1517,13 +1515,23 @@ static void CheckAndClearResolveException(Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CHECK(self->IsExceptionPending());
   mirror::Throwable* exception = self->GetException(nullptr);
-  std::string descriptor = exception->GetClass()->GetDescriptor();
-      if (descriptor != "Ljava/lang/IllegalAccessError;" &&
-          descriptor != "Ljava/lang/IncompatibleClassChangeError;" &&
-          descriptor != "Ljava/lang/InstantiationError;" &&
-          descriptor != "Ljava/lang/NoClassDefFoundError;" &&
-          descriptor != "Ljava/lang/NoSuchFieldError;" &&
-          descriptor != "Ljava/lang/NoSuchMethodError;") {
+  std::string temp;
+  const char* descriptor = exception->GetClass()->GetDescriptor(&temp);
+  const char* expected_exceptions[] = {
+      "Ljava/lang/IllegalAccessError;",
+      "Ljava/lang/IncompatibleClassChangeError;",
+      "Ljava/lang/InstantiationError;",
+      "Ljava/lang/NoClassDefFoundError;",
+      "Ljava/lang/NoSuchFieldError;",
+      "Ljava/lang/NoSuchMethodError;"
+  };
+  bool found = false;
+  for (size_t i = 0; (found == false) && (i < arraysize(expected_exceptions)); ++i) {
+    if (strcmp(descriptor, expected_exceptions[i]) == 0) {
+      found = true;
+    }
+  }
+  if (!found) {
     LOG(FATAL) << "Unexpected exeption " << exception->Dump();
   }
   self->ClearException();
@@ -1871,12 +1879,25 @@ void CompilerDriver::Compile(jobject class_loader, const std::vector<const DexFi
 
 void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, size_t class_def_index) {
   ATRACE_CALL();
-  jobject jclass_loader = manager->GetClassLoader();
   const DexFile& dex_file = *manager->GetDexFile();
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
   ClassLinker* class_linker = manager->GetClassLinker();
-  if (SkipClass(class_linker, jclass_loader, dex_file, manager->GetDexFiles(), class_def)) {
-    return;
+  jobject jclass_loader = manager->GetClassLoader();
+  {
+    // Use a scoped object access to perform to the quick SkipClass check.
+    const char* descriptor = dex_file.GetClassDescriptor(class_def);
+    ScopedObjectAccess soa(Thread::Current());
+    StackHandleScope<3> hs(soa.Self());
+    Handle<mirror::ClassLoader> class_loader(
+        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+    Handle<mirror::Class> klass(
+        hs.NewHandle(class_linker->FindClass(soa.Self(), descriptor, class_loader)));
+    if (klass.Get() == nullptr) {
+      CHECK(soa.Self()->IsExceptionPending());
+      soa.Self()->ClearException();
+    } else if (SkipClass(jclass_loader, dex_file, klass.Get())) {
+      return;
+    }
   }
   ClassReference ref(&dex_file, class_def_index);
   // Skip compiling classes with generic verifier failures since they will still fail at runtime

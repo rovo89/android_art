@@ -417,7 +417,7 @@ inline const Signature ArtMethod::GetSignature() {
   return Signature::NoSignature();
 }
 
-inline const char* ArtMethod::GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+inline const char* ArtMethod::GetName() {
   mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
   uint32_t dex_method_idx = method->GetDexMethodIndex();
   if (LIKELY(dex_method_idx != DexFile::kDexNoIndex)) {
