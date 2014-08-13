@@ -159,6 +159,7 @@ class X86Mir2Lir : public Mir2Lir {
   bool GenInlinedCas(CallInfo* info, bool is_long, bool is_object) OVERRIDE;
   bool GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) OVERRIDE;
   bool GenInlinedMinMaxFP(CallInfo* info, bool is_min, bool is_double) OVERRIDE;
+  bool GenInlinedReverseBits(CallInfo* info, OpSize size) OVERRIDE;
   bool GenInlinedSqrt(CallInfo* info) OVERRIDE;
   bool GenInlinedAbsFloat(CallInfo* info) OVERRIDE;
   bool GenInlinedAbsDouble(CallInfo* info) OVERRIDE;
@@ -957,6 +958,9 @@ class X86Mir2Lir : public Mir2Lir {
  private:
   // The number of vector registers [0..N] reserved by a call to ReserveVectorRegisters
   int num_reserved_vector_regs_;
+
+  void SwapBits(RegStorage result_reg, int shift, int32_t value);
+  void SwapBits64(RegStorage result_reg, int shift, int64_t value);
 };
 
 }  // namespace art

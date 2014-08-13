@@ -1061,6 +1061,83 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   return true;
 }
 
+void X86Mir2Lir::SwapBits(RegStorage result_reg, int shift, int32_t value) {
+  RegStorage r_temp = AllocTemp();
+  OpRegCopy(r_temp, result_reg);
+  OpRegImm(kOpLsr, result_reg, shift);
+  OpRegImm(kOpAnd, r_temp, value);
+  OpRegImm(kOpAnd, result_reg, value);
+  OpRegImm(kOpLsl, r_temp, shift);
+  OpRegReg(kOpOr, result_reg, r_temp);
+  FreeTemp(r_temp);
+}
+
+void X86Mir2Lir::SwapBits64(RegStorage result_reg, int shift, int64_t value) {
+  RegStorage r_temp = AllocTempWide();
+  OpRegCopy(r_temp, result_reg);
+  OpRegImm(kOpLsr, result_reg, shift);
+  RegStorage r_value = AllocTempWide();
+  LoadConstantWide(r_value, value);
+  OpRegReg(kOpAnd, r_temp, r_value);
+  OpRegReg(kOpAnd, result_reg, r_value);
+  OpRegImm(kOpLsl, r_temp, shift);
+  OpRegReg(kOpOr, result_reg, r_temp);
+  FreeTemp(r_temp);
+  FreeTemp(r_value);
+}
+
+bool X86Mir2Lir::GenInlinedReverseBits(CallInfo* info, OpSize size) {
+  RegLocation rl_src_i = info->args[0];
+  RegLocation rl_i = (size == k64) ? LoadValueWide(rl_src_i, kCoreReg)
+                                   : LoadValue(rl_src_i, kCoreReg);
+  RegLocation rl_dest = (size == k64) ? InlineTargetWide(info) : InlineTarget(info);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  if (size == k64) {
+    if (cu_->instruction_set == kX86_64) {
+      /* Use one bswap instruction to reverse byte order first and then use 3 rounds of
+         swapping bits to reverse bits in a long number x. Using bswap to save instructions
+         compared to generic luni implementation which has 5 rounds of swapping bits.
+         x = bswap x
+         x = (x & 0x5555555555555555) << 1 | (x >> 1) & 0x5555555555555555;
+         x = (x & 0x3333333333333333) << 2 | (x >> 2) & 0x3333333333333333;
+         x = (x & 0x0F0F0F0F0F0F0F0F) << 4 | (x >> 4) & 0x0F0F0F0F0F0F0F0F;
+      */
+      OpRegReg(kOpRev, rl_result.reg, rl_i.reg);
+      SwapBits64(rl_result.reg, 1, 0x5555555555555555);
+      SwapBits64(rl_result.reg, 2, 0x3333333333333333);
+      SwapBits64(rl_result.reg, 4, 0x0f0f0f0f0f0f0f0f);
+      StoreValueWide(rl_dest, rl_result);
+      return true;
+    }
+    RegStorage r_i_low = rl_i.reg.GetLow();
+    if (rl_i.reg.GetLowReg() == rl_result.reg.GetLowReg()) {
+      // First REV shall clobber rl_result.reg.GetLowReg(), save the value in a temp for the second
+      // REV.
+      r_i_low = AllocTemp();
+      OpRegCopy(r_i_low, rl_i.reg);
+    }
+    OpRegReg(kOpRev, rl_result.reg.GetLow(), rl_i.reg.GetHigh());
+    OpRegReg(kOpRev, rl_result.reg.GetHigh(), r_i_low);
+    if (rl_i.reg.GetLowReg() == rl_result.reg.GetLowReg()) {
+      FreeTemp(r_i_low);
+    }
+    SwapBits(rl_result.reg.GetLow(), 1, 0x55555555);
+    SwapBits(rl_result.reg.GetLow(), 2, 0x33333333);
+    SwapBits(rl_result.reg.GetLow(), 4, 0x0f0f0f0f);
+    SwapBits(rl_result.reg.GetHigh(), 1, 0x55555555);
+    SwapBits(rl_result.reg.GetHigh(), 2, 0x33333333);
+    SwapBits(rl_result.reg.GetHigh(), 4, 0x0f0f0f0f);
+    StoreValueWide(rl_dest, rl_result);
+  } else {
+    OpRegReg(kOpRev, rl_result.reg, rl_i.reg);
+    SwapBits(rl_result.reg, 1, 0x55555555);
+    SwapBits(rl_result.reg, 2, 0x33333333);
+    SwapBits(rl_result.reg, 4, 0x0f0f0f0f);
+    StoreValue(rl_dest, rl_result);
+  }
+  return true;
+}
+
 LIR* X86Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
   CHECK(base_of_code_ != nullptr);
 
