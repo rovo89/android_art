@@ -553,6 +553,10 @@ class StackVisitor {
     return num_frames_;
   }
 
+  size_t GetFrameDepth() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return cur_depth_;
+  }
+
   // Get the method and dex pc immediately after the one that's currently being visited.
   bool GetNextMethodAndDexPc(mirror::ArtMethod** next_method, uint32_t* next_dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
