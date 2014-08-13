@@ -404,30 +404,15 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
 static const char* storage_name[] = {" Frame ", "PhysReg", " Spill "};
 
 void MIRGraph::DumpRegLocTable(RegLocation* table, int count) {
-  // FIXME: Quick-specific.  Move to Quick (and make a generic version for MIRGraph?
-  Mir2Lir* cg = static_cast<Mir2Lir*>(cu_->cg.get());
-  if (cg != NULL) {
-    for (int i = 0; i < count; i++) {
-      LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c 0x%04x S%d",
-          table[i].orig_sreg, storage_name[table[i].location],
-          table[i].wide ? 'W' : 'N', table[i].defined ? 'D' : 'U',
-          table[i].fp ? 'F' : table[i].ref ? 'R' :'C',
-          table[i].is_const ? 'c' : 'n',
-          table[i].high_word ? 'H' : 'L', table[i].home ? 'h' : 't',
-          table[i].reg.GetRawBits(),
-          table[i].s_reg_low);
-    }
-  } else {
-    // Either pre-regalloc or Portable.
-    for (int i = 0; i < count; i++) {
-      LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c S%d",
-          table[i].orig_sreg, storage_name[table[i].location],
-          table[i].wide ? 'W' : 'N', table[i].defined ? 'D' : 'U',
-          table[i].fp ? 'F' : table[i].ref ? 'R' :'C',
-          table[i].is_const ? 'c' : 'n',
-          table[i].high_word ? 'H' : 'L', table[i].home ? 'h' : 't',
-          table[i].s_reg_low);
-    }
+  for (int i = 0; i < count; i++) {
+    LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c 0x%04x S%d",
+                              table[i].orig_sreg, storage_name[table[i].location],
+                              table[i].wide ? 'W' : 'N', table[i].defined ? 'D' : 'U',
+                              table[i].fp ? 'F' : table[i].ref ? 'R' :'C',
+                              table[i].is_const ? 'c' : 'n',
+                              table[i].high_word ? 'H' : 'L', table[i].home ? 'h' : 't',
+                              table[i].reg.GetRawBits(),
+                              table[i].s_reg_low);
   }
 }
 

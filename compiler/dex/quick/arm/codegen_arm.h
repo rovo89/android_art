@@ -19,6 +19,7 @@
 
 #include "arm_lir.h"
 #include "dex/compiler_internals.h"
+#include "dex/quick/mir_to_lir.h"
 
 namespace art {
 

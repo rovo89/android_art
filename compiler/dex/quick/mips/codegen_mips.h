@@ -18,6 +18,7 @@
 #define ART_COMPILER_DEX_QUICK_MIPS_CODEGEN_MIPS_H_
 
 #include "dex/compiler_internals.h"
+#include "dex/quick/mir_to_lir.h"
 #include "mips_lir.h"
 
 namespace art {

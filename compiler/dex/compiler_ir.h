@@ -20,22 +20,24 @@
 #include <vector>
 
 #include "compiler_enums.h"
-#include "dex/quick/mir_to_lir.h"
-#include "dex_instruction.h"
 #include "driver/compiler_driver.h"
-#include "driver/dex_compilation_unit.h"
-#include "safe_map.h"
 #include "utils/scoped_arena_allocator.h"
 #include "base/timing_logger.h"
 #include "utils/arena_allocator.h"
 
 namespace art {
 
-struct ArenaMemBlock;
 class Backend;
-struct Memstats;
+class ClassLinker;
 class MIRGraph;
-class Mir2Lir;
+
+/*
+ * TODO: refactoring pass to move these (and other) typedefs towards usage style of runtime to
+ * add type safety (see runtime/offsets.h).
+ */
+typedef uint32_t DexOffset;          // Dex offset in code units.
+typedef uint16_t NarrowDexOffset;    // For use in structs, Dex offsets range from 0 .. 0xffff.
+typedef uint32_t CodeOffset;         // Native code offset in bytes.
 
 struct CompilationUnit {
   explicit CompilationUnit(ArenaPool* pool);

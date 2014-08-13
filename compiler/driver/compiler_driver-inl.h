@@ -20,6 +20,7 @@
 #include "compiler_driver.h"
 
 #include "dex/compiler_ir.h"
+#include "dex_compilation_unit.h"
 #include "field_helper.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"

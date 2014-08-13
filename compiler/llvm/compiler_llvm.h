@@ -95,6 +95,19 @@ class CompilerLLVM {
   DISALLOW_COPY_AND_ASSIGN(CompilerLLVM);
 };
 
+void ArtInitCompilerContext(CompilerDriver* driver);
+
+void ArtUnInitCompilerContext(CompilerDriver* driver);
+
+CompiledMethod* ArtCompileMethod(CompilerDriver* driver, const DexFile::CodeItem* code_item,
+                                 uint32_t access_flags, InvokeType invoke_type,
+                                 uint16_t class_def_idx, uint32_t method_idx, jobject class_loader,
+                                 const DexFile& dex_file);
+
+CompiledMethod* ArtLLVMJniCompileMethod(CompilerDriver* driver, uint32_t access_flags,
+                                        uint32_t method_idx, const DexFile& dex_file);
+
+void compilerLLVMSetBitcodeFileName(const CompilerDriver& driver, const std::string& filename);
 
 }  // namespace llvm
 }  // namespace art

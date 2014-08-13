@@ -25,8 +25,10 @@
 #include "thread.h"
 #include "thread-inl.h"
 #include "dex/mir_graph.h"
+#include "dex/quick/mir_to_lir.h"
 #include "dex_instruction.h"
 #include "dex_instruction-inl.h"
+#include "driver/dex_compilation_unit.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
 

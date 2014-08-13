@@ -32,7 +32,45 @@
 #include "llvm/llvm_compilation_unit.h"
 #include "safe_map.h"
 
+namespace llvm {
+  class Module;
+  class LLVMContext;
+}
+
 namespace art {
+
+namespace llvm {
+  class IntrinsicHelper;
+  class IRBuilder;
+}
+
+class LLVMInfo {
+  public:
+    LLVMInfo();
+    ~LLVMInfo();
+
+    ::llvm::LLVMContext* GetLLVMContext() {
+      return llvm_context_.get();
+    }
+
+    ::llvm::Module* GetLLVMModule() {
+      return llvm_module_;
+    }
+
+    art::llvm::IntrinsicHelper* GetIntrinsicHelper() {
+      return intrinsic_helper_.get();
+    }
+
+    art::llvm::IRBuilder* GetIRBuilder() {
+      return ir_builder_.get();
+    }
+
+  private:
+    std::unique_ptr< ::llvm::LLVMContext> llvm_context_;
+    ::llvm::Module* llvm_module_;  // Managed by context_.
+    std::unique_ptr<art::llvm::IntrinsicHelper> intrinsic_helper_;
+    std::unique_ptr<art::llvm::IRBuilder> ir_builder_;
+};
 
 struct BasicBlock;
 struct CallInfo;

@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_DEX_BB_OPTIMIZATIONS_H_
 #define ART_COMPILER_DEX_BB_OPTIMIZATIONS_H_
 
+#include "base/casts.h"
 #include "compiler_internals.h"
 #include "pass_me.h"
 

@@ -444,7 +444,7 @@ CompilerTls* CompilerDriver::GetTls() {
   // Lazily create thread-local storage
   CompilerTls* res = static_cast<CompilerTls*>(pthread_getspecific(tls_key_));
   if (res == NULL) {
-    res = new CompilerTls();
+    res = compiler_->CreateNewCompilerTls();
     CHECK_PTHREAD_CALL(pthread_setspecific, (tls_key_, res), "compiler tls");
   }
   return res;
