@@ -29,9 +29,11 @@
 
 namespace art {
 namespace mirror {
-class Class;
-class ClassLoader;
+  class Class;
+  class ClassLoader;
 }  // namespace mirror
+class StringPiece;
+
 namespace verifier {
 
 class RegType;
@@ -149,7 +151,7 @@ class RegTypeCache {
   void FillPrimitiveAndSmallConstantTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::Class* ResolveClass(const char* descriptor, mirror::ClassLoader* loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool MatchDescriptor(size_t idx, const char* descriptor, bool precise)
+  bool MatchDescriptor(size_t idx, const StringPiece& descriptor, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   ConstantType& FromCat1NonSmallConstant(int32_t value, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

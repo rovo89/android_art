@@ -451,6 +451,13 @@ static JDWP::JdwpTag BasicTagFromDescriptor(const char* descriptor) {
   return static_cast<JDWP::JdwpTag>(descriptor[0]);
 }
 
+static JDWP::JdwpTag BasicTagFromClass(mirror::Class* klass)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  std::string temp;
+  const char* descriptor = klass->GetDescriptor(&temp);
+  return BasicTagFromDescriptor(descriptor);
+}
+
 static JDWP::JdwpTag TagFromClass(const ScopedObjectAccessUnchecked& soa, mirror::Class* c)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CHECK(c != NULL);
@@ -824,7 +831,8 @@ std::string Dbg::GetClassName(JDWP::RefTypeId class_id) {
   if (!o->IsClass()) {
     return StringPrintf("non-class %p", o);  // This is only used for debugging output anyway.
   }
-  return DescriptorToName(o->AsClass()->GetDescriptor().c_str());
+  std::string temp;
+  return DescriptorToName(o->AsClass()->GetDescriptor(&temp));
 }
 
 JDWP::JdwpError Dbg::GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& class_object_id) {
@@ -1140,7 +1148,8 @@ void Dbg::GetClassList(std::vector<JDWP::RefTypeId>& classes) {
   Runtime::Current()->GetClassLinker()->VisitClasses(ClassListCreator::Visit, &clc);
 }
 
-JDWP::JdwpError Dbg::GetClassInfo(JDWP::RefTypeId class_id, JDWP::JdwpTypeTag* pTypeTag, uint32_t* pStatus, std::string* pDescriptor) {
+JDWP::JdwpError Dbg::GetClassInfo(JDWP::RefTypeId class_id, JDWP::JdwpTypeTag* pTypeTag,
+                                  uint32_t* pStatus, std::string* pDescriptor) {
   JDWP::JdwpError status;
   mirror::Class* c = DecodeClass(class_id, status);
   if (c == NULL) {
@@ -1160,7 +1169,8 @@ JDWP::JdwpError Dbg::GetClassInfo(JDWP::RefTypeId class_id, JDWP::JdwpTypeTag* p
   }
 
   if (pDescriptor != NULL) {
-    *pDescriptor = c->GetDescriptor();
+    std::string temp;
+    *pDescriptor = c->GetDescriptor(&temp);
   }
   return JDWP::ERR_NONE;
 }
@@ -1196,7 +1206,8 @@ JDWP::JdwpError Dbg::GetSignature(JDWP::RefTypeId class_id, std::string* signatu
   if (c == NULL) {
     return status;
   }
-  *signature = c->GetDescriptor();
+  std::string temp;
+  *signature = c->GetDescriptor(&temp);
   return JDWP::ERR_NONE;
 }
 
@@ -1275,14 +1286,12 @@ JDWP::JdwpError Dbg::OutputArray(JDWP::ObjectId array_id, int offset, int count,
     LOG(WARNING) << __FUNCTION__ << " access out of bounds: offset=" << offset << "; count=" << count;
     return JDWP::ERR_INVALID_LENGTH;
   }
-  std::string descriptor(a->GetClass()->GetDescriptor());
-  JDWP::JdwpTag tag = BasicTagFromDescriptor(descriptor.c_str() + 1);
-
-  expandBufAdd1(pReply, tag);
+  JDWP::JdwpTag element_tag = BasicTagFromClass(a->GetClass()->GetComponentType());
+  expandBufAdd1(pReply, element_tag);
   expandBufAdd4BE(pReply, count);
 
-  if (IsPrimitiveTag(tag)) {
-    size_t width = GetTagWidth(tag);
+  if (IsPrimitiveTag(element_tag)) {
+    size_t width = GetTagWidth(element_tag);
     uint8_t* dst = expandBufAddSpace(pReply, count * width);
     if (width == 8) {
       const uint64_t* src8 = reinterpret_cast<uint64_t*>(a->GetRawData(sizeof(uint64_t), 0));
@@ -1303,7 +1312,7 @@ JDWP::JdwpError Dbg::OutputArray(JDWP::ObjectId array_id, int offset, int count,
     for (int i = 0; i < count; ++i) {
       mirror::Object* element = oa->Get(offset + i);
       JDWP::JdwpTag specific_tag = (element != nullptr) ? TagFromObject(soa, element)
-                                                        : tag;
+                                                        : element_tag;
       expandBufAdd1(pReply, specific_tag);
       expandBufAddObjectId(pReply, gRegistry->Add(element));
     }
@@ -1337,11 +1346,10 @@ JDWP::JdwpError Dbg::SetArrayElements(JDWP::ObjectId array_id, int offset, int c
     LOG(WARNING) << __FUNCTION__ << " access out of bounds: offset=" << offset << "; count=" << count;
     return JDWP::ERR_INVALID_LENGTH;
   }
-  std::string descriptor = dst->GetClass()->GetDescriptor();
-  JDWP::JdwpTag tag = BasicTagFromDescriptor(descriptor.c_str() + 1);
+  JDWP::JdwpTag element_tag = BasicTagFromClass(dst->GetClass()->GetComponentType());
 
-  if (IsPrimitiveTag(tag)) {
-    size_t width = GetTagWidth(tag);
+  if (IsPrimitiveTag(element_tag)) {
+    size_t width = GetTagWidth(element_tag);
     if (width == 8) {
       CopyArrayData<uint64_t>(dst, request, offset, count);
     } else if (width == 4) {
@@ -2729,7 +2737,8 @@ void Dbg::PostClassPrepare(mirror::Class* c) {
   // since the class may not yet be verified.
   int state = JDWP::CS_VERIFIED | JDWP::CS_PREPARED;
   JDWP::JdwpTypeTag tag = GetTypeTag(c);
-  gJdwpState->PostClassPrepare(tag, gRegistry->Add(c), c->GetDescriptor(), state);
+  std::string temp;
+  gJdwpState->PostClassPrepare(tag, gRegistry->Add(c), c->GetDescriptor(&temp), state);
 }
 
 void Dbg::UpdateDebugger(Thread* thread, mirror::Object* this_object,
@@ -4518,7 +4527,8 @@ jbyteArray Dbg::GetRecentAllocations() {
     int idx = HeadIndex();
     while (count--) {
       AllocRecord* record = &recent_allocation_records_[idx];
-      class_names.Add(record->Type()->GetDescriptor());
+      std::string temp;
+      class_names.Add(record->Type()->GetDescriptor(&temp));
       for (size_t i = 0; i < kMaxAllocRecordStackDepth; i++) {
         mirror::ArtMethod* m = record->StackElement(i)->Method();
         if (m != NULL) {
@@ -4559,9 +4569,9 @@ jbyteArray Dbg::GetRecentAllocations() {
     JDWP::Append2BE(bytes, method_names.Size());
     JDWP::Append2BE(bytes, filenames.Size());
 
-    count = alloc_record_count_;
     idx = HeadIndex();
-    while (count--) {
+    std::string temp;
+    for (count = alloc_record_count_; count != 0; --count) {
       // For each entry:
       // (4b) total allocation size
       // (2b) thread id
@@ -4570,7 +4580,7 @@ jbyteArray Dbg::GetRecentAllocations() {
       AllocRecord* record = &recent_allocation_records_[idx];
       size_t stack_depth = record->GetDepth();
       size_t allocated_object_class_name_index =
-          class_names.IndexOf(record->Type()->GetDescriptor().c_str());
+          class_names.IndexOf(record->Type()->GetDescriptor(&temp));
       JDWP::Append4BE(bytes, record->ByteCount());
       JDWP::Append2BE(bytes, record->ThinLockId());
       JDWP::Append2BE(bytes, allocated_object_class_name_index);
@@ -4591,7 +4601,6 @@ jbyteArray Dbg::GetRecentAllocations() {
         JDWP::Append2BE(bytes, file_name_index);
         JDWP::Append2BE(bytes, record->StackElement(stack_frame)->LineNumber());
       }
-
       idx = (idx + 1) & (alloc_record_max_ - 1);
     }
 

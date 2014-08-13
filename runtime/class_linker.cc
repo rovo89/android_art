@@ -40,7 +40,7 @@
 #include "intern_table.h"
 #include "interpreter/interpreter.h"
 #include "leb128.h"
-#include "method_helper.h"
+#include "method_helper-inl.h"
 #include "oat.h"
 #include "oat_file.h"
 #include "object_lock.h"
@@ -97,7 +97,8 @@ static void ThrowEarlierClassFailure(mirror::Class* c)
   ThrowLocation throw_location = self->GetCurrentLocationForThrow();
   if (c->GetVerifyErrorClass() != NULL) {
     // TODO: change the verifier to store an _instance_, with a useful detail message?
-    self->ThrowNewException(throw_location, c->GetVerifyErrorClass()->GetDescriptor().c_str(),
+    std::string temp;
+    self->ThrowNewException(throw_location, c->GetVerifyErrorClass()->GetDescriptor(&temp),
                             PrettyDescriptor(c).c_str());
   } else {
     self->ThrowNewException(throw_location, "Ljava/lang/NoClassDefFoundError;",
@@ -2482,17 +2483,18 @@ mirror::ArtMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file
     // Set finalizable flag on declaring class.
     if (strcmp("V", dex_file.GetShorty(method_id.proto_idx_)) == 0) {
       // Void return type.
-      if (klass->GetClassLoader() != NULL) {  // All non-boot finalizer methods are flagged
+      if (klass->GetClassLoader() != NULL) {  // All non-boot finalizer methods are flagged.
         klass->SetFinalizable();
       } else {
-        std::string klass_descriptor = klass->GetDescriptor();
+        std::string temp;
+        const char* klass_descriptor = klass->GetDescriptor(&temp);
         // The Enum class declares a "final" finalize() method to prevent subclasses from
         // introducing a finalizer. We don't want to set the finalizable flag for Enum or its
         // subclasses, so we exclude it here.
         // We also want to avoid setting the flag on Object, where we know that finalize() is
         // empty.
-        if (klass_descriptor.compare("Ljava/lang/Object;") != 0 &&
-            klass_descriptor.compare("Ljava/lang/Enum;") != 0) {
+        if (strcmp(klass_descriptor, "Ljava/lang/Object;") != 0 &&
+            strcmp(klass_descriptor, "Ljava/lang/Enum;") != 0) {
           klass->SetFinalizable();
         }
       }
@@ -2991,6 +2993,7 @@ void ClassLinker::MoveImageClassesToClassTable() {
   const char* old_no_suspend_cause =
       self->StartAssertNoThreadSuspension("Moving image classes to class table");
   mirror::ObjectArray<mirror::DexCache>* dex_caches = GetImageDexCaches();
+  std::string temp;
   for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
     mirror::DexCache* dex_cache = dex_caches->Get(i);
     mirror::ObjectArray<mirror::Class>* types = dex_cache->GetResolvedTypes();
@@ -2998,9 +3001,9 @@ void ClassLinker::MoveImageClassesToClassTable() {
       mirror::Class* klass = types->Get(j);
       if (klass != NULL) {
         DCHECK(klass->GetClassLoader() == NULL);
-        std::string descriptor = klass->GetDescriptor();
-        size_t hash = Hash(descriptor.c_str());
-        mirror::Class* existing = LookupClassFromTableLocked(descriptor.c_str(), NULL, hash);
+        const char* descriptor = klass->GetDescriptor(&temp);
+        size_t hash = Hash(descriptor);
+        mirror::Class* existing = LookupClassFromTableLocked(descriptor, NULL, hash);
         if (existing != NULL) {
           CHECK(existing == klass) << PrettyClassAndClassLoader(existing) << " != "
               << PrettyClassAndClassLoader(klass);
@@ -3265,9 +3268,10 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class
     // isn't a problem and this case shouldn't occur
     return false;
   }
+  std::string temp;
   LOG(FATAL) << "Unexpected class status: " << oat_file_class_status
              << " " << dex_file.GetLocation() << " " << PrettyClass(klass) << " "
-             << klass->GetDescriptor();
+             << klass->GetDescriptor(&temp);
 
   return false;
 }
@@ -3786,7 +3790,8 @@ bool ClassLinker::InitializeClass(Handle<mirror::Class> klass, bool can_init_sta
       // Set the class as initialized except if failed to initialize static fields.
       klass->SetStatus(mirror::Class::kStatusInitialized, self);
       if (VLOG_IS_ON(class_linker)) {
-        LOG(INFO) << "Initialized class " << klass->GetDescriptor() << " from " <<
+        std::string temp;
+        LOG(INFO) << "Initialized class " << klass->GetDescriptor(&temp) << " from " <<
             klass->GetLocation();
       }
       // Opportunistically set static method trampolines to their destination.
@@ -4301,9 +4306,10 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
             interfaces->Get(i);
     DCHECK(interface != NULL);
     if (!interface->IsInterface()) {
+      std::string temp;
       ThrowIncompatibleClassChangeError(klass.Get(), "Class %s implements non-interface class %s",
                                         PrettyDescriptor(klass.Get()).c_str(),
-                                        PrettyDescriptor(interface->GetDescriptor()).c_str());
+                                        PrettyDescriptor(interface->GetDescriptor(&temp)).c_str());
       return false;
     }
     // Check if interface is already in iftable
@@ -4677,11 +4683,12 @@ bool ClassLinker::LinkFields(Handle<mirror::Class> klass, bool is_static, size_t
   } else {
     klass->SetNumReferenceInstanceFields(num_reference_fields);
     if (!klass->IsVariableSize()) {
-      DCHECK_GE(size, sizeof(mirror::Object)) << klass->GetDescriptor();
+      std::string temp;
+      DCHECK_GE(size, sizeof(mirror::Object)) << klass->GetDescriptor(&temp);
       size_t previous_size = klass->GetObjectSize();
       if (previous_size != 0) {
         // Make sure that we didn't originally have an incorrect size.
-        CHECK_EQ(previous_size, size) << klass->GetDescriptor();
+        CHECK_EQ(previous_size, size) << klass->GetDescriptor(&temp);
       }
       klass->SetObjectSize(size);
     }

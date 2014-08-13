@@ -122,9 +122,9 @@ RegType& RegTypeCache::RegTypeFromPrimitiveType(Primitive::Type prim_type) const
   }
 }
 
-bool RegTypeCache::MatchDescriptor(size_t idx, const char* descriptor, bool precise) {
+bool RegTypeCache::MatchDescriptor(size_t idx, const StringPiece& descriptor, bool precise) {
   RegType* entry = entries_[idx];
-  if (entry->descriptor_ != descriptor) {
+  if (descriptor != entry->descriptor_) {
     return false;
   }
   if (entry->HasClass()) {
@@ -158,9 +158,11 @@ mirror::Class* RegTypeCache::ResolveClass(const char* descriptor, mirror::ClassL
 
 RegType& RegTypeCache::From(mirror::ClassLoader* loader, const char* descriptor,
                             bool precise) {
-  // Try looking up the class in the cache first.
+  // Try looking up the class in the cache first. We use a StringPiece to avoid continual strlen
+  // operations on the descriptor.
+  StringPiece descriptor_sp(descriptor);
   for (size_t i = primitive_count_; i < entries_.size(); i++) {
-    if (MatchDescriptor(i, descriptor, precise)) {
+    if (MatchDescriptor(i, descriptor_sp, precise)) {
       return *(entries_[i]);
     }
   }
@@ -181,9 +183,9 @@ RegType& RegTypeCache::From(mirror::ClassLoader* loader, const char* descriptor,
     if (klass->CannotBeAssignedFromOtherTypes() || precise) {
       DCHECK(!(klass->IsAbstract()) || klass->IsArrayClass());
       DCHECK(!klass->IsInterface());
-      entry = new PreciseReferenceType(klass, descriptor, entries_.size());
+      entry = new PreciseReferenceType(klass, descriptor_sp.as_string(), entries_.size());
     } else {
-      entry = new ReferenceType(klass, descriptor, entries_.size());
+      entry = new ReferenceType(klass, descriptor_sp.as_string(), entries_.size());
     }
     AddEntry(entry);
     return *entry;
@@ -197,7 +199,7 @@ RegType& RegTypeCache::From(mirror::ClassLoader* loader, const char* descriptor,
       DCHECK(!Thread::Current()->IsExceptionPending());
     }
     if (IsValidDescriptor(descriptor)) {
-      RegType* entry = new UnresolvedReferenceType(descriptor, entries_.size());
+      RegType* entry = new UnresolvedReferenceType(descriptor_sp.as_string(), entries_.size());
       AddEntry(entry);
       return *entry;
     } else {
@@ -407,7 +409,7 @@ RegType& RegTypeCache::FromUninitialized(RegType& uninit_type) {
         return *cur_entry;
       }
     }
-    entry = new UnresolvedReferenceType(descriptor.c_str(), entries_.size());
+    entry = new UnresolvedReferenceType(descriptor, entries_.size());
   } else {
     mirror::Class* klass = uninit_type.GetClass();
     if (uninit_type.IsUninitializedThisReference() && !klass->IsFinal()) {
@@ -564,13 +566,14 @@ RegType& RegTypeCache::GetComponentType(RegType& array, mirror::ClassLoader* loa
     return FromDescriptor(loader, component.c_str(), false);
   } else {
     mirror::Class* klass = array.GetClass()->GetComponentType();
+    std::string temp;
     if (klass->IsErroneous()) {
       // Arrays may have erroneous component types, use unresolved in that case.
       // We assume that the primitive classes are not erroneous, so we know it is a
       // reference type.
-      return FromDescriptor(loader, klass->GetDescriptor().c_str(), false);
+      return FromDescriptor(loader, klass->GetDescriptor(&temp), false);
     } else {
-      return FromClass(klass->GetDescriptor().c_str(), klass,
+      return FromClass(klass->GetDescriptor(&temp), klass,
                        klass->CannotBeAssignedFromOtherTypes());
     }
   }
