@@ -1183,10 +1183,10 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     // prepare for artQuickGenericJniEndTrampoline call
     // (Thread*, result, result_f)
     //  (esp)    4(esp)  12(esp)    <= C calling convention
-    //  fs:...  eax:edx   xmm0      <= where they are
+    //  fs:...  eax:edx   fp0      <= where they are
 
     subl LITERAL(20), %esp         // Padding & pass float result.
-    movsd %xmm0, (%esp)
+    fstpl (%esp)
     pushl %edx                    // Pass int result.
     pushl %eax
     pushl %fs:THREAD_SELF_OFFSET  // Pass Thread::Current().
@@ -1211,7 +1211,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     POP ebp  // Restore callee saves
     POP esi
     POP edi
-    // store into fpr, for when it's a fpr return...
+    // Quick expects the return value to be in xmm0.
     movd %eax, %xmm0
     movd %edx, %xmm1
     punpckldq %xmm1, %xmm0

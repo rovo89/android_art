@@ -1059,14 +1059,13 @@ ENTRY art_quick_generic_jni_trampoline
     // result sign extension is handled in C code
     // prepare for artQuickGenericJniEndTrampoline call
     // (Thread*, result, result_f)
-    //    r0      r1,r2    r3,stack       <= C calling convention
+    //    r0      r2,r3    stack       <= C calling convention
     //    r11     r0,r1    r0,r1          <= where they are
-    sub sp, sp, #12 // Stack alignment.
+    sub sp, sp, #8 // Stack alignment.
 
-    push {r1}
-    mov r3, r0
-    mov r2, r1
-    mov r1, r0
+    push {r0-r1}
+    mov r3, r1
+    mov r2, r0
     mov r0, r11
 
     blx artQuickGenericJniEndTrampoline
@@ -1083,7 +1082,18 @@ ENTRY art_quick_generic_jni_trampoline
     cbnz r2, .Lexception_in_native
 
     // Tear down the callee-save frame.
-    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    add  sp, #12                      @ rewind sp
+    // Do not pop r0 and r1, they contain the return value.
+    pop {r2-r3, r5-r8, r10-r11, lr}  @ 9 words of callee saves
+    .cfi_restore r2
+    .cfi_restore r3
+    .cfi_restore r5
+    .cfi_restore r6
+    .cfi_restore r7
+    .cfi_restore r8
+    .cfi_restore r10
+    .cfi_restore r11
+    .cfi_adjust_cfa_offset -48
 
     bx lr      // ret
 
