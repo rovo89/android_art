@@ -174,21 +174,6 @@ NO_ARG_RUNTIME_EXCEPTION art_quick_throw_div_zero, artThrowDivZeroFromCode
      */
 NO_ARG_RUNTIME_EXCEPTION art_quick_throw_stack_overflow, artThrowStackOverflowFromCode
 
-// On entry to this function, EAX contains the ESP value for the overflow region.
-DEFINE_FUNCTION art_quick_throw_stack_overflow_from_signal
-    // Here, the ESP is above the protected region.  We need to create a
-    // callee save frame and then move ESP down to the overflow region.
-    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
-    mov %esp, %ecx                // get current stack pointer
-    mov %eax, %esp                // move ESP to the overflow region.
-    PUSH ecx                      // pass SP
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    CFI_ADJUST_CFA_OFFSET(4)
-    SETUP_GOT_NOSAVE              // clobbers ebx (harmless here)
-    call PLT_SYMBOL(artThrowStackOverflowFromCode)    // artThrowStackOverflowFromCode(Thread*, SP)
-    int3                          // unreached
-END_FUNCTION art_quick_throw_stack_overflow_from_signal
-
     /*
      * Called by managed code, saves callee saves and then calls artThrowException
      * that will place a mock Method* at the bottom of the stack. Arg1 holds the exception.

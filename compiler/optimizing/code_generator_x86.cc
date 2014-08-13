@@ -241,7 +241,7 @@ void CodeGeneratorX86::GenerateFrameEntry() {
   static const int kFakeReturnRegister = 8;
   core_spill_mask_ |= (1 << kFakeReturnRegister);
 
-  bool skip_overflow_check = IsLeafMethod() && !IsLargeFrame(GetFrameSize(), InstructionSet::kX86);
+  bool skip_overflow_check = IsLeafMethod() && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kX86);
   if (!skip_overflow_check && !kExplicitStackOverflowCheck) {
     __ testl(EAX, Address(ESP, -static_cast<int32_t>(GetStackOverflowReservedBytes(kX86))));
     RecordPcInfo(0);
