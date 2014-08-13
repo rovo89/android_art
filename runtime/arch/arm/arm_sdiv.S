@@ -9,7 +9,7 @@
 #include "asm_support_arm.S"
 
 .section .text
-ENTRY CheckForARMSDIVInstruction
+ENTRY_NO_HIDE CheckForARMSDIVInstruction
   mov r1,#1
   // depending on the architecture, the assembler will not allow an
   // sdiv instruction, so we will have to output the bytes directly.

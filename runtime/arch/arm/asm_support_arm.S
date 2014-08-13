@@ -33,6 +33,7 @@
 .macro ENTRY name
     .thumb_func
     .type \name, #function
+    .hidden \name  // Hide this as a global symbol, so we do not incur plt calls.
     .global \name
     /* Cache alignment for function entry */
     .balign 16
@@ -41,7 +42,33 @@
     .fnstart
 .endm
 
+.macro ENTRY_NO_HIDE name
+    .thumb_func
+    .type \name, #function
+    .global \name
+    /* Cache alignment for function entry */
+    .balign 16
+\name:
+    .cfi_startproc
+    .fnstart
+.endm
+
+
 .macro ARM_ENTRY name
+    .arm
+    .type \name, #function
+    .hidden \name  // Hide this as a global symbol, so we do not incur plt calls.
+    .global \name
+    /* Cache alignment for function entry */
+    .balign 16
+\name:
+    .cfi_startproc
+     /* Ensure we get a sane starting CFA. */
+    .cfi_def_cfa sp,0
+    .fnstart
+.endm
+
+.macro ARM_ENTRY_NO_HIDE name
     .arm
     .type \name, #function
     .global \name
