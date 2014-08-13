@@ -76,6 +76,7 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
   // Also, there is only an 8K stack available here to logging can cause memory
   // overwrite issues if you are unlucky.  If you want to enable logging and
   // are getting crashes, allocate more space for the alternate signal stack.
+
   VLOG(signals) << "Handling fault";
   if (IsInGeneratedCode(info, context, true)) {
     VLOG(signals) << "in generated code, looking for handler";
@@ -91,6 +92,7 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
       return;
     }
   }
+
   art_sigsegv_fault();
 
   // Pass this on to the next handler in the chain, or the default if none.
@@ -150,7 +152,7 @@ bool FaultManager::IsInGeneratedCode(siginfo_t* siginfo, void* context, bool che
 
   // Get the architecture specific method address and return address.  These
   // are in architecture specific files in arch/<arch>/fault_handler_<arch>.
-  GetMethodAndReturnPCAndSP(siginfo, context, &method_obj, &return_pc, &sp);
+  GetMethodAndReturnPcAndSp(siginfo, context, &method_obj, &return_pc, &sp);
 
   // If we don't have a potential method, we're outta here.
   VLOG(signals) << "potential method: " << method_obj;
@@ -236,7 +238,7 @@ bool JavaStackTraceHandler::Action(int sig, siginfo_t* siginfo, void* context) {
     mirror::ArtMethod* method = nullptr;
     uintptr_t return_pc = 0;
     uintptr_t sp = 0;
-    manager_->GetMethodAndReturnPCAndSP(siginfo, context, &method, &return_pc, &sp);
+    manager_->GetMethodAndReturnPcAndSp(siginfo, context, &method, &return_pc, &sp);
     Thread* self = Thread::Current();
     // Inside of generated code, sp[0] is the method, so sp is the frame.
     StackReference<mirror::ArtMethod>* frame =

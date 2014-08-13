@@ -248,6 +248,8 @@ LIBART_SRC_FILES_x86 := \
 LIBART_TARGET_SRC_FILES_x86 := \
   $(LIBART_SRC_FILES_x86)
 
+# Note that the fault_handler_x86.cc is not a mistake.  This file is
+# shared between the x86 and x86_64 architectures.
 LIBART_SRC_FILES_x86_64 := \
   arch/x86_64/context_x86_64.cc \
   arch/x86_64/entrypoints_init_x86_64.cc \
@@ -257,7 +259,7 @@ LIBART_SRC_FILES_x86_64 := \
   arch/x86_64/quick_entrypoints_x86_64.S \
   arch/x86_64/thread_x86_64.cc \
   monitor_pool.cc \
-  arch/x86_64/fault_handler_x86_64.cc
+  arch/x86/fault_handler_x86.cc
 
 LIBART_TARGET_SRC_FILES_x86_64 := \
   $(LIBART_SRC_FILES_x86_64) \
