@@ -77,8 +77,8 @@ class QuickExceptionHandler {
     clear_exception_ = clear_exception;
   }
 
-  void SetHandlerFrameId(size_t frame_id) {
-    handler_frame_id_ = frame_id;
+  void SetHandlerFrameDepth(size_t frame_depth) {
+    handler_frame_depth_ = frame_depth;
   }
 
  private:
@@ -97,8 +97,8 @@ class QuickExceptionHandler {
   uint32_t handler_dex_pc_;
   // Should the exception be cleared as the catch block has no move-exception?
   bool clear_exception_;
-  // Frame id of the catch handler or the upcall.
-  size_t handler_frame_id_;
+  // Frame depth of the catch handler or the upcall.
+  size_t handler_frame_depth_;
 
   DISALLOW_COPY_AND_ASSIGN(QuickExceptionHandler);
 };
