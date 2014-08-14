@@ -35,7 +35,7 @@
 namespace art {
 
 extern "C" void art_quick_throw_null_pointer_exception();
-extern "C" void art_quick_throw_stack_overflow_from_signal();
+extern "C" void art_quick_throw_stack_overflow();
 extern "C" void art_quick_implicit_suspend();
 
 // Get the size of a thumb2 instruction in bytes.
@@ -194,40 +194,19 @@ bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
 
   uintptr_t overflow_addr = sp - GetStackOverflowReservedBytes(kArm);
 
-  Thread* self = reinterpret_cast<Thread*>(sc->arm_r9);
-  CHECK_EQ(self, Thread::Current());
-  uintptr_t pregion = reinterpret_cast<uintptr_t>(self->GetStackEnd()) -
-      Thread::kStackOverflowProtectedSize;
-
   // Check that the fault address is the value expected for a stack overflow.
   if (fault_addr != overflow_addr) {
     VLOG(signals) << "Not a stack overflow";
     return false;
   }
 
-  // We know this is a stack overflow.  We need to move the sp to the overflow region
-  // that exists below the protected region.  Determine the address of the next
-  // available valid address below the protected region.
-  uintptr_t prevsp = sp;
-  sp = pregion;
-  VLOG(signals) << "setting sp to overflow region at " << std::hex << sp;
+  VLOG(signals) << "Stack overflow found";
 
-  // Since the compiler puts the implicit overflow
-  // check before the callee save instructions, the SP is already pointing to
-  // the previous frame.
-  VLOG(signals) << "previous frame: " << std::hex << prevsp;
-
-  // Now establish the stack pointer for the signal return.
-  sc->arm_sp = prevsp;
-
-  // Tell the stack overflow code where the new stack pointer should be.
-  sc->arm_ip = sp;      // aka r12
-
-  // Now arrange for the signal handler to return to art_quick_throw_stack_overflow_from_signal.
+  // Now arrange for the signal handler to return to art_quick_throw_stack_overflow_from.
   // The value of LR must be the same as it was when we entered the code that
   // caused this fault.  This will be inserted into a callee save frame by
-  // the function to which this handler returns (art_quick_throw_stack_overflow_from_signal).
-  sc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_throw_stack_overflow_from_signal);
+  // the function to which this handler returns (art_quick_throw_stack_overflow).
+  sc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_throw_stack_overflow);
 
   // The kernel will now return to the address in sc->arm_pc.
   return true;
