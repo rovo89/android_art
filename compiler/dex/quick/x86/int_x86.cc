@@ -793,8 +793,115 @@ RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
 bool X86Mir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
   DCHECK(cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64);
 
-  if (is_long && cu_->instruction_set == kX86) {
-    return false;
+  if (is_long && !cu_->target64) {
+   /*
+    * We want to implement the following algorithm
+    * mov eax, low part of arg1
+    * mov edx, high part of arg1
+    * mov ebx, low part of arg2
+    * mov ecx, high part of arg2
+    * mov edi, eax
+    * sub edi, ebx
+    * mov edi, edx
+    * sbb edi, ecx
+    * is_min ? "cmovgel eax, ebx" : "cmovll eax, ebx"
+    * is_min ? "cmovgel edx, ecx" : "cmovll edx, ecx"
+    *
+    * The algorithm above needs 5 registers: a pair for the first operand
+    * (which later will be used as result), a pair for the second operand
+    * and a temp register (e.g. 'edi') for intermediate calculations.
+    * Ideally we have 6 GP caller-save registers in 32-bit mode. They are:
+    * 'eax', 'ebx', 'ecx', 'edx', 'esi' and 'edi'. So there should be
+    * always enough registers to operate on. Practically, there is a pair
+    * of registers 'edi' and 'esi' which holds promoted values and
+    * sometimes should be treated as 'callee save'. If one of the operands
+    * is in the promoted registers then we have enough register to
+    * operate on. Otherwise there is lack of resources and we have to
+    * save 'edi' before calculations and restore after.
+    */
+
+    RegLocation rl_src1 = info->args[0];
+    RegLocation rl_src2 = info->args[2];
+    RegLocation rl_dest = InlineTargetWide(info);
+    int res_vreg, src1_vreg, src2_vreg;
+
+    /*
+     * If the result register is the same as the second element, then we
+     * need to be careful. The reason is that the first copy will
+     * inadvertently clobber the second element with the first one thus
+     * yielding the wrong result. Thus we do a swap in that case.
+     */
+    res_vreg = mir_graph_->SRegToVReg(rl_dest.s_reg_low);
+    src2_vreg = mir_graph_->SRegToVReg(rl_src2.s_reg_low);
+    if (res_vreg == src2_vreg) {
+      std::swap(rl_src1, rl_src2);
+    }
+
+    rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+    RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+
+    // Pick the first integer as min/max.
+    OpRegCopyWide(rl_result.reg, rl_src1.reg);
+
+    /*
+     * If the integers are both in the same register, then there is
+     * nothing else to do because they are equal and we have already
+     * moved one into the result.
+     */
+    src1_vreg = mir_graph_->SRegToVReg(rl_src1.s_reg_low);
+    src2_vreg = mir_graph_->SRegToVReg(rl_src2.s_reg_low);
+    if (src1_vreg == src2_vreg) {
+      StoreValueWide(rl_dest, rl_result);
+      return true;
+    }
+
+    // Free registers to make some room for the second operand.
+    // But don't try to free ourselves or promoted registers.
+    if (res_vreg != src1_vreg &&
+        IsTemp(rl_src1.reg.GetLow()) && IsTemp(rl_src1.reg.GetHigh())) {
+      FreeTemp(rl_src1.reg);
+    }
+    rl_src2 = LoadValueWide(rl_src2, kCoreReg);
+
+    // Do we have a free register for intermediate calculations?
+    RegStorage tmp = AllocTemp(false);
+    if (tmp == RegStorage::InvalidReg()) {
+       /*
+        * No, will use 'edi'.
+        *
+        * As mentioned above we have 4 temporary and 2 promotable
+        * caller-save registers. Therefore, we assume that a free
+        * register can be allocated only if 'esi' and 'edi' are
+        * already used as operands. If number of promotable registers
+        * increases from 2 to 4 then our assumption fails and operand
+        * data is corrupted.
+        * Let's DCHECK it.
+        */
+       DCHECK(IsTemp(rl_src2.reg.GetLow()) &&
+              IsTemp(rl_src2.reg.GetHigh()) &&
+              IsTemp(rl_result.reg.GetLow()) &&
+              IsTemp(rl_result.reg.GetHigh()));
+       tmp = rs_rDI;
+       NewLIR1(kX86Push32R, tmp.GetReg());
+    }
+
+    // Now we are ready to do calculations.
+    OpRegReg(kOpMov, tmp, rl_result.reg.GetLow());
+    OpRegReg(kOpSub, tmp, rl_src2.reg.GetLow());
+    OpRegReg(kOpMov, tmp, rl_result.reg.GetHigh());
+    OpRegReg(kOpSbc, tmp, rl_src2.reg.GetHigh());
+
+    // Let's put pop 'edi' here to break a bit the dependency chain.
+    if (tmp == rs_rDI) {
+      NewLIR1(kX86Pop32R, tmp.GetReg());
+    }
+
+    // Conditionally move the other integer into the destination register.
+    ConditionCode cc = is_min ? kCondGe : kCondLt;
+    OpCondRegReg(kOpCmov, cc, rl_result.reg.GetLow(), rl_src2.reg.GetLow());
+    OpCondRegReg(kOpCmov, cc, rl_result.reg.GetHigh(), rl_src2.reg.GetHigh());
+    StoreValueWide(rl_dest, rl_result);
+    return true;
   }
 
   // Get the two arguments to the invoke and place them in GP registers.
