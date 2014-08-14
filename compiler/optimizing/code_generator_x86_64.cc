@@ -213,7 +213,7 @@ void CodeGeneratorX86_64::GenerateFrameEntry() {
           Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86_64WordSize));
 
   bool skip_overflow_check = IsLeafMethod()
-      && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kX86_64);
+      && !IsLargeFrame(GetFrameSize(), InstructionSet::kX86_64);
 
   if (!skip_overflow_check) {
     if (kExplicitStackOverflowCheck) {
