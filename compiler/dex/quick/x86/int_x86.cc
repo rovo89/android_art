@@ -3140,7 +3140,53 @@ void X86Mir2Lir::GenIntToLong(RegLocation rl_dest, RegLocation rl_src) {
 void X86Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
                         RegLocation rl_src1, RegLocation rl_shift) {
   if (!cu_->target64) {
-    Mir2Lir::GenShiftOpLong(opcode, rl_dest, rl_src1, rl_shift);
+    // Long shift operations in 32-bit. Use shld or shrd to create a 32-bit register filled from
+    // the other half, shift the other half, if the shift amount is less than 32 we're done,
+    // otherwise move one register to the other and place zero or sign bits in the other.
+    LIR* branch;
+    FlushAllRegs();
+    LockCallTemps();
+    LoadValueDirectFixed(rl_shift, rs_rCX);
+    RegStorage r_tmp = RegStorage::MakeRegPair(rs_rAX, rs_rDX);
+    LoadValueDirectWideFixed(rl_src1, r_tmp);
+    switch (opcode) {
+      case Instruction::SHL_LONG:
+      case Instruction::SHL_LONG_2ADDR:
+        NewLIR3(kX86Shld32RRC, r_tmp.GetHighReg(), r_tmp.GetLowReg(), rs_rCX.GetReg());
+        NewLIR2(kX86Sal32RC, r_tmp.GetLowReg(), rs_rCX.GetReg());
+        NewLIR2(kX86Test8RI, rs_rCX.GetReg(), 32);
+        branch = NewLIR2(kX86Jcc8, 0, kX86CondZ);
+        OpRegCopy(r_tmp.GetHigh(), r_tmp.GetLow());
+        LoadConstant(r_tmp.GetLow(), 0);
+        branch->target = NewLIR0(kPseudoTargetLabel);
+        break;
+      case Instruction::SHR_LONG:
+      case Instruction::SHR_LONG_2ADDR:
+        NewLIR3(kX86Shrd32RRC, r_tmp.GetLowReg(), r_tmp.GetHighReg(), rs_rCX.GetReg());
+        NewLIR2(kX86Sar32RC, r_tmp.GetHighReg(), rs_rCX.GetReg());
+        NewLIR2(kX86Test8RI, rs_rCX.GetReg(), 32);
+        branch = NewLIR2(kX86Jcc8, 0, kX86CondZ);
+        OpRegCopy(r_tmp.GetLow(), r_tmp.GetHigh());
+        NewLIR2(kX86Sar32RI, r_tmp.GetHighReg(), 31);
+        branch->target = NewLIR0(kPseudoTargetLabel);
+        break;
+      case Instruction::USHR_LONG:
+      case Instruction::USHR_LONG_2ADDR:
+        NewLIR3(kX86Shrd32RRC, r_tmp.GetLowReg(), r_tmp.GetHighReg(),
+               rs_rCX.GetReg());
+        NewLIR2(kX86Shr32RC, r_tmp.GetHighReg(), rs_rCX.GetReg());
+        NewLIR2(kX86Test8RI, rs_rCX.GetReg(), 32);
+        branch = NewLIR2(kX86Jcc8, 0, kX86CondZ);
+        OpRegCopy(r_tmp.GetLow(), r_tmp.GetHigh());
+        LoadConstant(r_tmp.GetHigh(), 0);
+        branch->target = NewLIR0(kPseudoTargetLabel);
+        break;
+      default:
+        LOG(FATAL) << "Unexpected case: " << opcode;
+        return;
+    }
+    RegLocation rl_result = LocCReturnWide();
+    StoreValueWide(rl_dest, rl_result);
     return;
   }
 
