@@ -1699,7 +1699,15 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, jvalue result,
     artQuickGenericJniEndJNINonRef(self, cookie, lock);
 
     switch (return_shorty_char) {
-      case 'F':  // Fall-through.
+      case 'F': {
+        if (kRuntimeISA == kX86) {
+          // Convert back the result to float.
+          double d = bit_cast<uint64_t, double>(result_f);
+          return bit_cast<float, uint32_t>(static_cast<float>(d));
+        } else {
+          return result_f;
+        }
+      }
       case 'D':
         return result_f;
       case 'Z':
