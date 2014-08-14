@@ -354,14 +354,13 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !FrameNeedsStackCheck(frame_size_, kArm);
+  bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !IsLargeFrame(frame_size_, kArm);
   NewLIR0(kPseudoMethodEntry);
-  const size_t kStackOverflowReservedUsableBytes = GetStackOverflowReservedBytes(kArm);
+  const size_t kStackOverflowReservedUsableBytes = GetStackOverflowReservedBytes(kArm) -
+      Thread::kStackOverflowSignalReservedBytes;
   bool large_frame = (static_cast<size_t>(frame_size_) > kStackOverflowReservedUsableBytes);
-  bool generate_explicit_stack_overflow_check = large_frame ||
-    !cu_->compiler_driver->GetCompilerOptions().GetImplicitStackOverflowChecks();
   if (!skip_overflow_check) {
-    if (generate_explicit_stack_overflow_check) {
+    if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitStackOverflowChecks()) {
       if (!large_frame) {
         /* Load stack limit */
         LockTemp(rs_r12);
@@ -400,7 +399,7 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   const int spill_size = spill_count * 4;
   const int frame_size_without_spills = frame_size_ - spill_size;
   if (!skip_overflow_check) {
-    if (generate_explicit_stack_overflow_check) {
+    if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitStackOverflowChecks()) {
       class StackOverflowSlowPath : public LIRSlowPath {
        public:
         StackOverflowSlowPath(Mir2Lir* m2l, LIR* branch, bool restore_lr, size_t sp_displace)
