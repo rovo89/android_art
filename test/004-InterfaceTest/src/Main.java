@@ -23,7 +23,7 @@ public class Main {
     Integer intobj = new Integer(0);
     String s = "asdf";
     long start = System.currentTimeMillis();
-    for (int i = 0; i < 1000000; i++) {
+    for (int i = 0; i < 10000; i++) {
         map.put(intobj, s);
     }
     long end = System.currentTimeMillis();
@@ -34,7 +34,7 @@ public class Main {
     Integer intobj = new Integer(0);
     String s = "asdf";
     long start = System.currentTimeMillis();
-    for (int i = 0; i < 1000000; i++) {
+    for (int i = 0; i < 10000; i++) {
         map.put(intobj, s);
     }
     long end = System.currentTimeMillis();

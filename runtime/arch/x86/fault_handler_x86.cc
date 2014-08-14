@@ -34,7 +34,7 @@
 #define CTX_ESP uc_mcontext->__ss.__rsp
 #define CTX_EIP uc_mcontext->__ss.__rip
 #define CTX_EAX uc_mcontext->__ss.__rax
-#define CTX_METHOD uc_mcontext->__ss.__rax
+#define CTX_METHOD uc_mcontext->__ss.__rdi
 #else
 // 32 bit mac build.
 #define CTX_ESP uc_mcontext->__ss.__esp
@@ -71,7 +71,7 @@ extern "C" void _art_quick_test_suspend();
 #define EXT_SYM(sym) _ ## sym
 #else
 extern "C" void art_quick_throw_null_pointer_exception();
-extern "C" void art_quick_throw_stack_overflow_from_signal();
+extern "C" void art_quick_throw_stack_overflow();
 extern "C" void art_quick_test_suspend();
 #define EXT_SYM(sym) sym
 #endif
@@ -382,30 +382,20 @@ bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
   uintptr_t overflow_addr = sp - GetStackOverflowReservedBytes(kX86);
 #endif
 
-  Thread* self = Thread::Current();
-  uintptr_t pregion = reinterpret_cast<uintptr_t>(self->GetStackEnd()) -
-      Thread::kStackOverflowProtectedSize;
-
   // Check that the fault address is the value expected for a stack overflow.
   if (fault_addr != overflow_addr) {
     VLOG(signals) << "Not a stack overflow";
     return false;
   }
 
-  // We know this is a stack overflow.  We need to move the sp to the overflow region
-  // that exists below the protected region.  Determine the address of the next
-  // available valid address below the protected region.
-  VLOG(signals) << "setting sp to overflow region at " << std::hex << pregion;
+  VLOG(signals) << "Stack overflow found";
 
   // Since the compiler puts the implicit overflow
   // check before the callee save instructions, the SP is already pointing to
   // the previous frame.
 
-  // Tell the stack overflow code where the new stack pointer should be.
-  uc->CTX_EAX = pregion;
-
-  // Now arrange for the signal handler to return to art_quick_throw_stack_overflow_from_signal.
-  uc->CTX_EIP = reinterpret_cast<uintptr_t>(EXT_SYM(art_quick_throw_stack_overflow_from_signal));
+  // Now arrange for the signal handler to return to art_quick_throw_stack_overflow.
+  uc->CTX_EIP = reinterpret_cast<uintptr_t>(art_quick_throw_stack_overflow);
 
   return true;
 }
