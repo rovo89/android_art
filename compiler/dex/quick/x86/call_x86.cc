@@ -219,7 +219,7 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
    * a leaf *and* our frame size < fudge factor.
    */
   InstructionSet isa =  cu_->target64 ? kX86_64 : kX86;
-  const bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !IsLargeFrame(frame_size_, isa);
+  bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !FrameNeedsStackCheck(frame_size_, isa);
 
   // If we doing an implicit stack overflow check, perform the load immediately
   // before the stack pointer is decremented and anything is saved.

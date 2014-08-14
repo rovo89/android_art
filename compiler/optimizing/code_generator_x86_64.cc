@@ -209,7 +209,7 @@ void CodeGeneratorX86_64::GenerateFrameEntry() {
   core_spill_mask_ |= (1 << kFakeReturnRegister);
 
   bool skip_overflow_check = IsLeafMethod()
-      && !IsLargeFrame(GetFrameSize(), InstructionSet::kX86_64);
+      && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kX86_64);
 
   if (!skip_overflow_check && !kExplicitStackOverflowCheck) {
     __ testq(CpuRegister(RAX), Address(

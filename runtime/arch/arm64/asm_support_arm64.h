@@ -30,9 +30,9 @@
 // Offset of field Thread::suspend_count_
 #define THREAD_FLAGS_OFFSET 0
 // Offset of field Thread::card_table_
-#define THREAD_CARD_TABLE_OFFSET 112
+#define THREAD_CARD_TABLE_OFFSET 120
 // Offset of field Thread::exception_
-#define THREAD_EXCEPTION_OFFSET 120
+#define THREAD_EXCEPTION_OFFSET 128
 // Offset of field Thread::thin_lock_thread_id_
 #define THREAD_ID_OFFSET 12
 

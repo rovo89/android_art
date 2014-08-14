@@ -16,6 +16,7 @@
 
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include "jni.h"
@@ -24,8 +25,15 @@
 #include <sys/ucontext.h>
 #endif
 
+static int signal_count;
+static const int kMaxSignal = 2;
+
 static void signalhandler(int sig, siginfo_t* info, void* context) {
   printf("signal caught\n");
+  ++signal_count;
+  if (signal_count > kMaxSignal) {
+     abort();
+  }
 #ifdef __arm__
   // On ARM we do a more exhaustive test to make sure the signal
   // context is OK.
