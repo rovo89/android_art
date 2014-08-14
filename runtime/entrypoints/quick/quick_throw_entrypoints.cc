@@ -58,10 +58,8 @@ extern "C" void artThrowNullPointerExceptionFromCode(Thread* self,
                                                      StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
-  self->NoteSignalBeingHandled();
   ThrowLocation throw_location = self->GetCurrentLocationForThrow();
   ThrowNullPointerExceptionFromDexPC(throw_location);
-  self->NoteSignalHandlerDone();
   self->QuickDeliverException();
 }
 
@@ -85,9 +83,7 @@ extern "C" void artThrowArrayBoundsFromCode(int index, int length, Thread* self,
 extern "C" void artThrowStackOverflowFromCode(Thread* self, StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
-  self->NoteSignalBeingHandled();
   ThrowStackOverflowError(self);
-  self->NoteSignalHandlerDone();
   self->QuickDeliverException();
 }
 
