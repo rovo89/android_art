@@ -126,14 +126,19 @@ class OatFile {
     const uint8_t* GetMappingTable() const;
     const uint8_t* GetVmapTable() const;
 
-    ~OatMethod();
-
     // Create an OatMethod with offsets relative to the given base address
-    OatMethod(const byte* base,
-              const uint32_t code_offset,
-              const uint32_t gc_map_offset);
+    OatMethod(const byte* base, const uint32_t code_offset, const uint32_t gc_map_offset)
+      : begin_(base),
+        code_offset_(code_offset),
+        native_gc_map_offset_(gc_map_offset) {
+    }
+    ~OatMethod() {}
 
-    OatMethod() {}
+    // A representation of an invalid OatMethod, used when an OatMethod or OatClass can't be found.
+    // See ClassLinker::FindOatMethodFor.
+    static const OatMethod Invalid() {
+      return OatMethod(nullptr, -1, -1);
+    }
 
    private:
     template<class T>
@@ -144,10 +149,10 @@ class OatFile {
       return reinterpret_cast<T>(begin_ + offset);
     }
 
-    const byte* begin_;
+    const byte* const begin_;
 
-    uint32_t code_offset_;
-    uint32_t native_gc_map_offset_;
+    const uint32_t code_offset_;
+    const uint32_t native_gc_map_offset_;
 
     friend class OatClass;
   };
@@ -168,7 +173,12 @@ class OatFile {
     // methods are not included.
     const OatMethod GetOatMethod(uint32_t method_index) const;
 
-    OatClass() {}
+    // A representation of an invalid OatClass, used when an OatClass can't be found.
+    // See ClassLinker::FindOatClass.
+    static OatClass Invalid() {
+      return OatClass(nullptr, mirror::Class::kStatusError, kOatClassNoneCompiled, 0, nullptr,
+                      nullptr);
+    }
 
    private:
     OatClass(const OatFile* oat_file,
@@ -178,15 +188,15 @@ class OatFile {
              const uint32_t* bitmap_pointer,
              const OatMethodOffsets* methods_pointer);
 
-    const OatFile* oat_file_;
+    const OatFile* const oat_file_;
 
-    mirror::Class::Status status_;
+    const mirror::Class::Status status_;
 
-    OatClassType type_;
+    const OatClassType type_;
 
-    const uint32_t* bitmap_;
+    const uint32_t* const bitmap_;
 
-    const OatMethodOffsets* methods_pointer_;
+    const OatMethodOffsets* const methods_pointer_;
 
     friend class OatDexFile;
   };
