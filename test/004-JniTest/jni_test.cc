@@ -316,3 +316,40 @@ extern "C" JNIEXPORT void JNICALL Java_Main_nativeTestShallowGetCallingClassLoad
                                                                                    jclass) {
   PthreadHelper(&testShallowGetCallingClassLoader);
 }
+
+static void testShallowGetStackClass2(JNIEnv* env) {
+  jclass vmstack_clazz = env->FindClass("dalvik/system/VMStack");
+  assert(vmstack_clazz != nullptr);
+  assert(!env->ExceptionCheck());
+
+  // Test direct call.
+  {
+    jmethodID getStackClass2MethodId = env->GetStaticMethodID(vmstack_clazz, "getStackClass2",
+                                                              "()Ljava/lang/Class;");
+    assert(getStackClass2MethodId != nullptr);
+    assert(!env->ExceptionCheck());
+
+    jobject caller_class = env->CallStaticObjectMethod(vmstack_clazz, getStackClass2MethodId);
+    assert(caller_class == nullptr);
+    assert(!env->ExceptionCheck());
+  }
+
+  // Test one-level call. Use VMStack.getStackClass1().
+  {
+    jmethodID getStackClass1MethodId = env->GetStaticMethodID(vmstack_clazz, "getStackClass1",
+                                                              "()Ljava/lang/Class;");
+    assert(getStackClass1MethodId != nullptr);
+    assert(!env->ExceptionCheck());
+
+    jobject caller_class = env->CallStaticObjectMethod(vmstack_clazz, getStackClass1MethodId);
+    assert(caller_class == nullptr);
+    assert(!env->ExceptionCheck());
+  }
+
+  // For better testing we would need to compile against libcore and have a two-deep stack
+  // ourselves.
+}
+
+extern "C" JNIEXPORT void JNICALL Java_Main_nativeTestShallowGetStackClass2(JNIEnv* env, jclass) {
+  PthreadHelper(&testShallowGetStackClass2);
+}
