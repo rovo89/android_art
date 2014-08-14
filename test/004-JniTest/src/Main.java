@@ -31,6 +31,7 @@ public class Main {
         testCharMethod();
         testIsAssignableFromOnPrimitiveTypes();
         testShallowGetCallingClassLoader();
+        testShallowGetStackClass2();
     }
 
     private static native void testFindClassOnAttachedNativeThread();
@@ -174,4 +175,10 @@ public class Main {
     }
 
     native static void nativeTestShallowGetCallingClassLoader();
+
+    static void testShallowGetStackClass2() {
+        nativeTestShallowGetStackClass2();
+    }
+
+    native static void nativeTestShallowGetStackClass2();
 }
