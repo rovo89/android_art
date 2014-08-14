@@ -460,15 +460,17 @@ OatFile::OatClass OatFile::OatDexFile::GetOatClass(uint16_t class_def_index) con
   uint32_t bitmap_size = 0;
   const byte* bitmap_pointer = nullptr;
   const byte* methods_pointer = nullptr;
-  if (type == kOatClassSomeCompiled) {
-    bitmap_size = static_cast<uint32_t>(*reinterpret_cast<const uint32_t*>(after_type_pointer));
-    bitmap_pointer = after_type_pointer + sizeof(bitmap_size);
-    CHECK_LE(bitmap_pointer, oat_file_->End()) << oat_file_->GetLocation();
-    methods_pointer = bitmap_pointer + bitmap_size;
-  } else {
-    methods_pointer = after_type_pointer;
+  if (type != kOatClassNoneCompiled) {
+    if (type == kOatClassSomeCompiled) {
+      bitmap_size = static_cast<uint32_t>(*reinterpret_cast<const uint32_t*>(after_type_pointer));
+      bitmap_pointer = after_type_pointer + sizeof(bitmap_size);
+      CHECK_LE(bitmap_pointer, oat_file_->End()) << oat_file_->GetLocation();
+      methods_pointer = bitmap_pointer + bitmap_size;
+    } else {
+      methods_pointer = after_type_pointer;
+    }
+    CHECK_LE(methods_pointer, oat_file_->End()) << oat_file_->GetLocation();
   }
-  CHECK_LE(methods_pointer, oat_file_->End()) << oat_file_->GetLocation();
 
   return OatClass(oat_file_,
                   status,
@@ -486,22 +488,23 @@ OatFile::OatClass::OatClass(const OatFile* oat_file,
                             const OatMethodOffsets* methods_pointer)
     : oat_file_(oat_file), status_(status), type_(type),
       bitmap_(bitmap_pointer), methods_pointer_(methods_pointer) {
-    CHECK(methods_pointer != nullptr);
     switch (type_) {
       case kOatClassAllCompiled: {
         CHECK_EQ(0U, bitmap_size);
         CHECK(bitmap_pointer == nullptr);
+        CHECK(methods_pointer != nullptr);
         break;
       }
       case kOatClassSomeCompiled: {
         CHECK_NE(0U, bitmap_size);
         CHECK(bitmap_pointer != nullptr);
+        CHECK(methods_pointer != nullptr);
         break;
       }
       case kOatClassNoneCompiled: {
         CHECK_EQ(0U, bitmap_size);
         CHECK(bitmap_pointer == nullptr);
-        methods_pointer_ = nullptr;
+        CHECK(methods_pointer_ == nullptr);
         break;
       }
       case kOatClassMax: {
@@ -535,16 +538,6 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
       oat_method_offsets.code_offset_,
       oat_method_offsets.gc_map_offset_);
 }
-
-OatFile::OatMethod::OatMethod(const byte* base,
-                              const uint32_t code_offset,
-                              const uint32_t gc_map_offset)
-  : begin_(base),
-    code_offset_(code_offset),
-    native_gc_map_offset_(gc_map_offset) {
-}
-
-OatFile::OatMethod::~OatMethod() {}
 
 
 uint32_t OatFile::OatMethod::GetQuickCodeSize() const {
