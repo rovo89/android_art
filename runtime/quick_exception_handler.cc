@@ -29,14 +29,14 @@
 namespace art {
 
 static constexpr bool kDebugExceptionDelivery = false;
-static constexpr size_t kInvalidFrameId = 0xffffffff;
+static constexpr size_t kInvalidFrameDepth = 0xffffffff;
 
 QuickExceptionHandler::QuickExceptionHandler(Thread* self, bool is_deoptimization)
   : self_(self), context_(self->GetLongJumpContext()), is_deoptimization_(is_deoptimization),
     method_tracing_active_(is_deoptimization ||
                            Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()),
     handler_quick_frame_(nullptr), handler_quick_frame_pc_(0), handler_method_(nullptr),
-    handler_dex_pc_(0), clear_exception_(false), handler_frame_id_(kInvalidFrameId) {
+    handler_dex_pc_(0), clear_exception_(false), handler_frame_depth_(kInvalidFrameDepth) {
 }
 
 // Finds catch handler or prepares for deoptimization.
@@ -51,7 +51,7 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
 
   bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ArtMethod* method = GetMethod();
-    exception_handler_->SetHandlerFrameId(GetFrameId());
+    exception_handler_->SetHandlerFrameDepth(GetFrameDepth());
     if (method == nullptr) {
       // This is the upcall, we remember the frame and last pc so that we may long jump to them.
       exception_handler_->SetHandlerQuickFramePc(GetCurrentQuickFramePc());
@@ -177,7 +177,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
   }
 
   bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    exception_handler_->SetHandlerFrameId(GetFrameId());
+    exception_handler_->SetHandlerFrameDepth(GetFrameDepth());
     mirror::ArtMethod* method = GetMethod();
     if (method == nullptr) {
       // This is the upcall, we remember the frame and last pc so that we may long jump to them.
@@ -295,17 +295,17 @@ void QuickExceptionHandler::DeoptimizeStack() {
 // Unwinds all instrumentation stack frame prior to catch handler or upcall.
 class InstrumentationStackVisitor : public StackVisitor {
  public:
-  InstrumentationStackVisitor(Thread* self, bool is_deoptimization, size_t frame_id)
+  InstrumentationStackVisitor(Thread* self, bool is_deoptimization, size_t frame_depth)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(self, nullptr),
-        self_(self), frame_id_(frame_id),
+        self_(self), frame_depth_(frame_depth),
         instrumentation_frames_to_pop_(0) {
-    CHECK_NE(frame_id_, kInvalidFrameId);
+    CHECK_NE(frame_depth_, kInvalidFrameDepth);
   }
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    size_t current_frame_id = GetFrameId();
-    if (current_frame_id > frame_id_) {
+    size_t current_frame_depth = GetFrameDepth();
+    if (current_frame_depth < frame_depth_) {
       CHECK(GetMethod() != nullptr);
       if (UNLIKELY(GetQuickInstrumentationExitPc() == GetReturnPc())) {
         ++instrumentation_frames_to_pop_;
@@ -323,7 +323,7 @@ class InstrumentationStackVisitor : public StackVisitor {
 
  private:
   Thread* const self_;
-  const size_t frame_id_;
+  const size_t frame_depth_;
   size_t instrumentation_frames_to_pop_;
 
   DISALLOW_COPY_AND_ASSIGN(InstrumentationStackVisitor);
@@ -331,7 +331,7 @@ class InstrumentationStackVisitor : public StackVisitor {
 
 void QuickExceptionHandler::UpdateInstrumentationStack() {
   if (method_tracing_active_) {
-    InstrumentationStackVisitor visitor(self_, is_deoptimization_, handler_frame_id_);
+    InstrumentationStackVisitor visitor(self_, is_deoptimization_, handler_frame_depth_);
     visitor.WalkStack(true);
 
     size_t instrumentation_frames_to_pop = visitor.GetInstrumentationFramesToPop();
