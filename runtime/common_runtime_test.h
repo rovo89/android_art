@@ -161,6 +161,12 @@ class CheckJniAbortCatcher {
     return; \
   }
 
+#define TEST_DISABLED_FOR_MIPS() \
+  if (kRuntimeISA == kMips || kRuntimeISA == kMips64) { \
+    printf("WARNING: TEST DISABLED FOR MIPS\n"); \
+    return; \
+  }
+
 }  // namespace art
 
 namespace std {
