@@ -33,7 +33,13 @@ ART_TEST_KNOWN_BROKEN := \
   test-art-target-run-test-gcstress-optimizing-relocate-004-SignalTest32 \
   test-art-target-run-test-gcstress-default-relocate-004-SignalTest32 \
   test-art-target-run-test-gcstress-optimizing-no-prebuild-004-SignalTest32 \
-  test-art-target-run-test-gcstress-default-no-prebuild-004-SignalTest32
+  test-art-target-run-test-gcstress-default-no-prebuild-004-SignalTest32 \
+  test-art-host-run-test-gcstress-default-prebuild-114-ParallelGC32 \
+  test-art-host-run-test-gcstress-interpreter-prebuild-114-ParallelGC32 \
+  test-art-host-run-test-gcstress-optimizing-prebuild-114-ParallelGC32 \
+  test-art-host-run-test-gcstress-default-prebuild-114-ParallelGC64 \
+  test-art-host-run-test-gcstress-interpreter-prebuild-114-ParallelGC64 \
+  test-art-host-run-test-gcstress-optimizing-prebuild-114-ParallelGC64
 
 # List of known failing tests that when executed won't cause test execution to not finish.
 # The test name must be the full rule name such as test-art-host-oat-optimizing-HelloWorld64.
