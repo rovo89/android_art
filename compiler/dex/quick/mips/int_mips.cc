@@ -220,9 +220,9 @@ void MipsMir2Lir::GenSelectConst32(RegStorage left_op, RegStorage right_op, Cond
                                    int dest_reg_class) {
   // Implement as a branch-over.
   // TODO: Conditional move?
-  LoadConstant(rs_dest, false_val);  // Favors false.
-  LIR* ne_branchover = OpCmpBranch(code, left_op, right_op, NULL);
   LoadConstant(rs_dest, true_val);
+  LIR* ne_branchover = OpCmpBranch(code, left_op, right_op, NULL);
+  LoadConstant(rs_dest, false_val);
   LIR* target_label = NewLIR0(kPseudoTargetLabel);
   ne_branchover->target = target_label;
 }
