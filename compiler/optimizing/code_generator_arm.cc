@@ -265,7 +265,7 @@ InstructionCodeGeneratorARM::InstructionCodeGeneratorARM(HGraph* graph, CodeGene
         codegen_(codegen) {}
 
 void CodeGeneratorARM::GenerateFrameEntry() {
-  bool skip_overflow_check = IsLeafMethod() && !IsLargeFrame(GetFrameSize(), InstructionSet::kArm);
+  bool skip_overflow_check = IsLeafMethod() && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kArm);
   if (!skip_overflow_check) {
     if (kExplicitStackOverflowCheck) {
       SlowPathCode* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathARM();

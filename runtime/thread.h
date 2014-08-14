@@ -94,16 +94,41 @@ enum ThreadFlag {
 
 static constexpr size_t kNumRosAllocThreadLocalSizeBrackets = 34;
 
+// Thread's stack layout for implicit stack overflow checks:
+//
+//   +---------------------+  <- highest address of stack memory
+//   |                     |
+//   .                     .  <- SP
+//   |                     |
+//   |                     |
+//   +---------------------+  <- stack_end
+//   |                     |
+//   |  Gap                |
+//   |                     |
+//   +---------------------+  <- stack_begin
+//   |                     |
+//   | Protected region    |
+//   |                     |
+//   +---------------------+  <- lowest address of stack memory
+//
+// The stack always grows down in memory.  At the lowest address is a region of memory
+// that is set mprotect(PROT_NONE).  Any attempt to read/write to this region will
+// result in a segmentation fault signal.  At any point, the thread's SP will be somewhere
+// between the stack_end and the highest address in stack memory.  An implicit stack
+// overflow check is a read of memory at a certain offset below the current SP (4K typically).
+// If the thread's SP is below the stack_end address this will be a read into the protected
+// region.  If the SP is above the stack_end address, the thread is guaranteed to have
+// at least 4K of space.  Because stack overflow checks are only performed in generated code,
+// if the thread makes a call out to a native function (through JNI), that native function
+// might only have 4K of memory (if the SP is adjacent to stack_end).
+
 class Thread {
  public:
-  // How much of the reserved bytes is reserved for incoming signals.
-  static constexpr size_t kStackOverflowSignalReservedBytes = 2 * KB;
-
   // For implicit overflow checks we reserve an extra piece of memory at the bottom
   // of the stack (lowest memory).  The higher portion of the memory
   // is protected against reads and the lower is available for use while
   // throwing the StackOverflow exception.
-  static constexpr size_t kStackOverflowProtectedSize = 16 * KB;
+  static constexpr size_t kStackOverflowProtectedSize = 4 * KB;
   static const size_t kStackOverflowImplicitCheckSize;
 
   // Creates a new native thread corresponding to the given managed peer.
@@ -570,20 +595,14 @@ class Thread {
   void SetStackEndForStackOverflow() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Set the stack end to that to be used during regular execution
-  void ResetDefaultStackEnd(bool implicit_overflow_check) {
+  void ResetDefaultStackEnd() {
     // Our stacks grow down, so we want stack_end_ to be near there, but reserving enough room
     // to throw a StackOverflowError.
-    if (implicit_overflow_check) {
-      // For implicit checks we also need to add in the protected region above the
-      // overflow region.
-      tlsPtr_.stack_end = tlsPtr_.stack_begin + kStackOverflowImplicitCheckSize;
-    } else {
-      tlsPtr_.stack_end = tlsPtr_.stack_begin + GetStackOverflowReservedBytes(kRuntimeISA);
-    }
+    tlsPtr_.stack_end = tlsPtr_.stack_begin + GetStackOverflowReservedBytes(kRuntimeISA);
   }
 
   // Install the protected region for implicit stack checks.
-  void InstallImplicitProtection(bool is_main_stack);
+  void InstallImplicitProtection();
 
   bool IsHandlingStackOverflow() const {
     return tlsPtr_.stack_end == tlsPtr_.stack_begin;
@@ -815,6 +834,20 @@ class Thread {
     tls32_.is_exception_reported_to_instrumentation_ = reported;
   }
 
+  void ProtectStack();
+  bool UnprotectStack();
+
+  void NoteSignalBeingHandled() {
+    if (tls32_.handling_signal_) {
+      LOG(FATAL) << "Detected signal while processing a signal";
+    }
+    tls32_.handling_signal_ = true;
+  }
+
+  void NoteSignalHandlerDone() {
+    tls32_.handling_signal_ = false;
+  }
+
  private:
   explicit Thread(bool daemon);
   ~Thread() LOCKS_EXCLUDED(Locks::mutator_lock_,
@@ -919,7 +952,8 @@ class Thread {
     explicit tls_32bit_sized_values(bool is_daemon) :
       suspend_count(0), debug_suspend_count(0), thin_lock_thread_id(0), tid(0),
       daemon(is_daemon), throwing_OutOfMemoryError(false), no_thread_suspension(0),
-      thread_exit_check_count(0), is_exception_reported_to_instrumentation_(false) {
+      thread_exit_check_count(0), is_exception_reported_to_instrumentation_(false),
+      handling_signal_(false), padding_(0) {
     }
 
     union StateAndFlags state_and_flags;
@@ -959,6 +993,12 @@ class Thread {
     // When true this field indicates that the exception associated with this thread has already
     // been reported to instrumentation.
     bool32_t is_exception_reported_to_instrumentation_;
+
+    // True if signal is being handled by this thread.
+    bool32_t handling_signal_;
+
+    // Padding to make the size aligned to 8.  Remove this if we add another 32 bit field.
+    int32_t padding_;
   } tls32_;
 
   struct PACKED(8) tls_64bit_sized_values {

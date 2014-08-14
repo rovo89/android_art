@@ -211,7 +211,12 @@ void ThrowStackOverflowError(Thread* self) {
   }
 
   bool explicit_overflow_check = Runtime::Current()->ExplicitStackOverflowChecks();
-  self->ResetDefaultStackEnd(!explicit_overflow_check);  // Return to default stack size.
+  self->ResetDefaultStackEnd();  // Return to default stack size.
+
+  // And restore protection if implicit checks are on.
+  if (!explicit_overflow_check) {
+    self->ProtectStack();
+  }
 }
 
 void CheckReferenceResult(mirror::Object* o, Thread* self) {
