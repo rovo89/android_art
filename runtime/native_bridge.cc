@@ -53,6 +53,17 @@ static constexpr const char* kPropEnableNativeBridge = "persist.enable.native.br
 // The symbol name exposed by native-bridge with the type of NativeBridgeCallbacks.
 static constexpr const char* kNativeBridgeInterfaceSymbol = "NativeBridgeItf";
 
+// The library name we are supposed to load.
+static std::string native_bridge_library_string = "";
+
+// Whether a native bridge is available (loaded and ready).
+static bool available = false;
+// Whether we have already initialized (or tried to).
+static bool initialized = false;
+
+struct NativeBridgeCallbacks;
+static NativeBridgeCallbacks* callbacks = nullptr;
+
 // ART interfaces to native-bridge.
 struct NativeBridgeArtCallbacks {
   // Get shorty of a Java method. The shorty is supposed to be persistent in memory.
@@ -71,7 +82,7 @@ struct NativeBridgeArtCallbacks {
   //   clazz [IN] Java class object.
   // Returns:
   //   number of native methods.
-  int (*getNativeMethodCount)(JNIEnv* env, jclass clazz);
+  uint32_t (*getNativeMethodCount)(JNIEnv* env, jclass clazz);
 
   // Get at most 'method_count' native methods for specified class 'clazz'. Results are outputed
   // via 'methods' [OUT]. The signature pointer in JNINativeMethod is reused as the method shorty.
@@ -83,7 +94,8 @@ struct NativeBridgeArtCallbacks {
   //   method_count [IN] max number of elements in methods.
   // Returns:
   //   number of method it actually wrote to methods.
-  int (*getNativeMethods)(JNIEnv* env, jclass clazz, JNINativeMethod* methods, uint32_t method_count);
+  uint32_t (*getNativeMethods)(JNIEnv* env, jclass clazz, JNINativeMethod* methods,
+                               uint32_t method_count);
 };
 
 // Native-bridge interfaces to ART
@@ -135,52 +147,62 @@ static const char* GetMethodShorty(JNIEnv* env, jmethodID mid) {
   return mh.GetShorty();
 }
 
-static int GetNativeMethodCount(JNIEnv* env, jclass clazz) {
+static uint32_t GetNativeMethodCount(JNIEnv* env, jclass clazz) {
   if (clazz == nullptr)
     return 0;
 
   ScopedObjectAccess soa(env);
   mirror::Class* c = soa.Decode<mirror::Class*>(clazz);
 
-  size_t method_count = 0;
-  for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
+  uint32_t native_method_count = 0;
+  for (uint32_t i = 0; i < c->NumDirectMethods(); ++i) {
     mirror::ArtMethod* m = c->GetDirectMethod(i);
-    if (m->IsNative())
-      method_count++;
+    if (m->IsNative()) {
+      native_method_count++;
+    }
   }
-  for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
+  for (uint32_t i = 0; i < c->NumVirtualMethods(); ++i) {
     mirror::ArtMethod* m = c->GetVirtualMethod(i);
-    if (m->IsNative())
-      method_count++;
+    if (m->IsNative()) {
+      native_method_count++;
+    }
   }
-  return method_count;
+  return native_method_count;
 }
 
-static int GetNativeMethods(JNIEnv* env, jclass clazz, JNINativeMethod* methods,
-                            uint32_t method_count) {
-  if ((clazz == nullptr) || (methods == nullptr))
+static uint32_t GetNativeMethods(JNIEnv* env, jclass clazz, JNINativeMethod* methods,
+                               uint32_t method_count) {
+  if ((clazz == nullptr) || (methods == nullptr)) {
     return 0;
-
+  }
   ScopedObjectAccess soa(env);
   mirror::Class* c = soa.Decode<mirror::Class*>(clazz);
 
-  size_t count = 0;
-  for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
+  uint32_t count = 0;
+  for (uint32_t i = 0; i < c->NumDirectMethods(); ++i) {
     mirror::ArtMethod* m = c->GetDirectMethod(i);
-    if (m->IsNative() && count < method_count) {
-      methods[count].name = m->GetName();
-      methods[count].signature = m->GetShorty();
-      methods[count].fnPtr = const_cast<void*>(m->GetNativeMethod());
-      count++;
+    if (m->IsNative()) {
+      if (count < method_count) {
+        methods[count].name = m->GetName();
+        methods[count].signature = m->GetShorty();
+        methods[count].fnPtr = const_cast<void*>(m->GetNativeMethod());
+        count++;
+      } else {
+        LOG(WARNING) << "Output native method array too small. Skipping " << PrettyMethod(m);
+      }
     }
   }
-  for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
+  for (uint32_t i = 0; i < c->NumVirtualMethods(); ++i) {
     mirror::ArtMethod* m = c->GetVirtualMethod(i);
-    if (m->IsNative() && count < method_count) {
-      methods[count].name = m->GetName();
-      methods[count].signature = m->GetShorty();
-      methods[count].fnPtr = const_cast<void*>(m->GetNativeMethod());
-      count++;
+    if (m->IsNative()) {
+      if (count < method_count) {
+        methods[count].name = m->GetName();
+        methods[count].signature = m->GetShorty();
+        methods[count].fnPtr = const_cast<void*>(m->GetNativeMethod());
+        count++;
+      } else {
+        LOG(WARNING) << "Output native method array too small. Skipping " << PrettyMethod(m);
+      }
     }
   }
   return count;
@@ -192,30 +214,32 @@ NativeBridgeArtCallbacks NativeBridgeArtItf = {
   GetNativeMethods
 };
 
-void NativeBridge::SetNativeBridgeLibraryString(std::string& native_bridge_library_string) {
-  native_bridge_library_string_ = native_bridge_library_string;
+void SetNativeBridgeLibraryString(const std::string& nb_library_string) {
+  native_bridge_library_string = nb_library_string;
   // TODO: when given an empty string, set initialized_ to true and available_ to false. This
   //       change is dependent on the property removal in Initialize().
 }
 
-bool NativeBridge::Initialize() {
+bool NativeBridgeInitialize() {
   if (!kNativeBridgeEnabled) {
     return false;
   }
+  // TODO: Missing annotalysis static lock ordering of DEFAULT_MUTEX_ACQUIRED, place lock into
+  // global order or remove.
+  static Mutex lock("native bridge lock");
+  MutexLock mu(Thread::Current(), lock);
 
-  MutexLock mu(Thread::Current(), lock_);
-
-  if (initialized_) {
+  if (initialized) {
     // Somebody did it before.
-    return available_;
+    return available;
   }
 
-  available_ = false;
+  available = false;
 
   const char* libnb_path;
 
-  if (!native_bridge_library_string_.empty()) {
-    libnb_path = native_bridge_library_string_.c_str();
+  if (!native_bridge_library_string.empty()) {
+    libnb_path = native_bridge_library_string.c_str();
   } else {
     // TODO: Remove this once the frameworks side is completely implemented.
 
@@ -224,7 +248,7 @@ bool NativeBridge::Initialize() {
     char prop_buf[PROP_VALUE_MAX];
     property_get(kPropEnableNativeBridge, prop_buf, "false");
     if (strcmp(prop_buf, "true") != 0) {
-      initialized_ = true;
+      initialized = true;
       return false;
     }
 
@@ -237,46 +261,43 @@ bool NativeBridge::Initialize() {
 
   void* handle = dlopen(libnb_path, RTLD_LAZY);
   if (handle != nullptr) {
-    callbacks_ = reinterpret_cast<NativeBridgeCallbacks*>(dlsym(handle,
-                                                                kNativeBridgeInterfaceSymbol));
+    callbacks = reinterpret_cast<NativeBridgeCallbacks*>(dlsym(handle,
+                                                               kNativeBridgeInterfaceSymbol));
 
-    if (callbacks_ != nullptr) {
-      available_ = callbacks_->initialize(&NativeBridgeArtItf);
+    if (callbacks != nullptr) {
+      available = callbacks->initialize(&NativeBridgeArtItf);
     }
 
-    if (!available_) {
+    if (!available) {
       dlclose(handle);
     }
   }
 
-  initialized_ = true;
+  initialized = true;
 
-  return available_;
+  return available;
 }
 
-void* NativeBridge::LoadLibrary(const char* libpath, int flag) {
-  if (Initialize())
-    return callbacks_->loadLibrary(libpath, flag);
+void* NativeBridgeLoadLibrary(const char* libpath, int flag) {
+  if (NativeBridgeInitialize()) {
+    return callbacks->loadLibrary(libpath, flag);
+  }
   return nullptr;
 }
 
-void* NativeBridge::GetTrampoline(void* handle, const char* name, const char* shorty,
+void* NativeBridgeGetTrampoline(void* handle, const char* name, const char* shorty,
                                   uint32_t len) {
-  if (Initialize())
-    return callbacks_->getTrampoline(handle, name, shorty, len);
+  if (NativeBridgeInitialize()) {
+    return callbacks->getTrampoline(handle, name, shorty, len);
+  }
   return nullptr;
 }
 
-bool NativeBridge::IsSupported(const char* libpath) {
-  if (Initialize())
-    return callbacks_->isSupported(libpath);
+bool NativeBridgeIsSupported(const char* libpath) {
+  if (NativeBridgeInitialize()) {
+    return callbacks->isSupported(libpath);
+  }
   return false;
 }
-
-bool NativeBridge::available_ = false;
-bool NativeBridge::initialized_ = false;
-Mutex NativeBridge::lock_("native bridge lock");
-std::string NativeBridge::native_bridge_library_string_ = "";
-NativeBridgeCallbacks* NativeBridge::callbacks_ = nullptr;
 
 };  // namespace art

@@ -448,7 +448,7 @@ class SharedLibrary {
     if (m != nullptr) {
       shorty = m->GetShorty(&len);
     }
-    return NativeBridge::GetTrampoline(handle_, symbol_name.c_str(), shorty, len);
+    return NativeBridgeGetTrampoline(handle_, symbol_name.c_str(), shorty, len);
   }
 
   void VisitRoots(RootCallback* visitor, void* arg) {
@@ -3309,8 +3309,8 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path,
   void* handle = dlopen(path_str, RTLD_LAZY);
   bool needs_native_bridge = false;
   if (handle == nullptr) {
-    if (NativeBridge::IsSupported(path_str)) {
-      handle = NativeBridge::LoadLibrary(path_str, RTLD_LAZY);
+    if (NativeBridgeIsSupported(path_str)) {
+      handle = NativeBridgeLoadLibrary(path_str, RTLD_LAZY);
       needs_native_bridge = true;
     }
   }
