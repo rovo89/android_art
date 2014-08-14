@@ -392,7 +392,7 @@ class ClassLinker {
   }
 
  private:
-  bool FindOatMethodFor(mirror::ArtMethod* method, OatFile::OatMethod* oat_method)
+  const OatFile::OatMethod FindOatMethodFor(mirror::ArtMethod* method, bool* found)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   OatFile& GetImageOatFile(gc::space::ImageSpace* space)
@@ -461,9 +461,9 @@ class ClassLinker {
 
   void FixupStaticTrampolines(mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Finds the associated oat class for a dex_file and descriptor. Returns whether the class
-  // was found, and sets the data in oat_class.
-  bool FindOatClass(const DexFile& dex_file, uint16_t class_def_idx, OatFile::OatClass* oat_class)
+  // Finds the associated oat class for a dex_file and descriptor. Returns an invalid OatClass on
+  // error and sets found to false.
+  OatFile::OatClass FindOatClass(const DexFile& dex_file, uint16_t class_def_idx, bool* found)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void RegisterDexFileLocked(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
