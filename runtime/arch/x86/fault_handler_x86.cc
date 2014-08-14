@@ -395,7 +395,7 @@ bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
   // the previous frame.
 
   // Now arrange for the signal handler to return to art_quick_throw_stack_overflow.
-  uc->CTX_EIP = reinterpret_cast<uintptr_t>(art_quick_throw_stack_overflow);
+  uc->CTX_EIP = reinterpret_cast<uintptr_t>(EXT_SYM(art_quick_throw_stack_overflow));
 
   return true;
 }
