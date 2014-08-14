@@ -232,7 +232,7 @@ bool ImageWriter::AllocMemory() {
   size_t length = RoundUp(Runtime::Current()->GetHeap()->GetTotalMemory(), kPageSize);
   std::string error_msg;
   image_.reset(MemMap::MapAnonymous("image writer image", NULL, length, PROT_READ | PROT_WRITE,
-                                    true, &error_msg));
+                                    false, &error_msg));
   if (UNLIKELY(image_.get() == nullptr)) {
     LOG(ERROR) << "Failed to allocate memory for image file generation: " << error_msg;
     return false;
