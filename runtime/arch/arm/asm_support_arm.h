@@ -24,9 +24,9 @@
 // Offset of field Thread::tls32_.thin_lock_thread_id verified in InitCpu
 #define THREAD_ID_OFFSET 12
 // Offset of field Thread::tlsPtr_.card_table verified in InitCpu
-#define THREAD_CARD_TABLE_OFFSET 112
+#define THREAD_CARD_TABLE_OFFSET 120
 // Offset of field Thread::tlsPtr_.exception verified in InitCpu
-#define THREAD_EXCEPTION_OFFSET 116
+#define THREAD_EXCEPTION_OFFSET 124
 
 #define FRAME_SIZE_SAVE_ALL_CALLEE_SAVE 176
 #define FRAME_SIZE_REFS_ONLY_CALLEE_SAVE 32
