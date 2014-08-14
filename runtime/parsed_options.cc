@@ -596,7 +596,7 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
         Usage("Unknown -Xverify option %s\n", verify_mode.c_str());
         return false;
       }
-    } else if (StartsWith(option, "-XX:NativeBridge=")) {
+    } else if (StartsWith(option, "-XX:NativeBridgeLibrary=")) {
       if (!ParseStringAfterChar(option, '=', &native_bridge_library_string_)) {
         return false;
       }
