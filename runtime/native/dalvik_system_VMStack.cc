@@ -76,6 +76,10 @@ static jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
   ScopedFastNativeObjectAccess soa(env);
   NthCallerVisitor visitor(soa.Self(), 2);
   visitor.WalkStack();
+  if (UNLIKELY(visitor.caller == nullptr)) {
+    // The caller is an attached native thread.
+    return nullptr;
+  }
   return soa.AddLocalReference<jobject>(visitor.caller->GetDeclaringClass()->GetClassLoader());
 }
 
