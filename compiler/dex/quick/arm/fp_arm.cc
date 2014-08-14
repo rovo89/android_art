@@ -383,8 +383,17 @@ bool ArmMir2Lir::GenInlinedAbsDouble(CallInfo* info) {
   RegLocation rl_result = EvalLoc(rl_dest, reg_class, true);
   if (reg_class == kFPReg) {
     NewLIR2(kThumb2Vabsd, rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  } else if (rl_result.reg.GetLow().GetReg() != rl_src.reg.GetHigh().GetReg()) {
+    // No inconvenient overlap.
+    OpRegCopy(rl_result.reg.GetLow(), rl_src.reg.GetLow());
+    OpRegRegImm(kOpAnd, rl_result.reg.GetHigh(), rl_src.reg.GetHigh(), 0x7fffffff);
   } else {
-    OpRegImm(kOpAnd, rl_result.reg.GetHigh(), 0x7fffffff);
+    // Inconvenient overlap, use a temp register to preserve the high word of the source.
+    RegStorage rs_tmp = AllocTemp();
+    OpRegCopy(rs_tmp, rl_src.reg.GetHigh());
+    OpRegCopy(rl_result.reg.GetLow(), rl_src.reg.GetLow());
+    OpRegRegImm(kOpAnd, rl_result.reg.GetHigh(), rs_tmp, 0x7fffffff);
+    FreeTemp(rs_tmp);
   }
   StoreValueWide(rl_dest, rl_result);
   return true;
