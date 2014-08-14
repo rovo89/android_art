@@ -484,8 +484,10 @@ enum X86OpCode {
 #undef BinaryShiftOpcode
   kX86Cmc,
   kX86Shld32RRI,
+  kX86Shld32RRC,
   kX86Shld32MRI,
   kX86Shrd32RRI,
+  kX86Shrd32RRC,
   kX86Shrd32MRI,
   kX86Shld64RRI,
   kX86Shld64MRI,
@@ -675,6 +677,7 @@ enum X86EncodingKind {
   kMemRegImm,                               // MRI instruction kinds.
   kShiftRegImm, kShiftMemImm, kShiftArrayImm,  // Shift opcode with immediate.
   kShiftRegCl, kShiftMemCl, kShiftArrayCl,     // Shift opcode with register CL.
+  kShiftRegRegCl,
   // kRegRegReg, kRegRegMem, kRegRegArray,    // RRR, RRM, RRA instruction kinds.
   kRegCond, kMemCond, kArrayCond,          // R, M, A instruction kinds following by a condition.
   kRegRegCond,                             // RR instruction kind followed by a condition.
