@@ -263,8 +263,10 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
 
   { kX86Cmc, kNullary, NO_OPERAND, { 0, 0, 0xF5, 0, 0, 0, 0, 0, false }, "Cmc", "" },
   { kX86Shld32RRI,  kRegRegImmStore, IS_TERTIARY_OP | REG_DEF0_USE01  | SETS_CCODES,            { 0,    0, 0x0F, 0xA4, 0, 0, 0, 1, false }, "Shld32RRI", "!0r,!1r,!2d" },
+  { kX86Shld32RRC,  kShiftRegRegCl,  IS_TERTIARY_OP | REG_DEF0_USE01  | REG_USEC | SETS_CCODES, { 0,    0, 0x0F, 0xA5, 0, 0, 0, 0, false }, "Shld32RRC", "!0r,!1r,cl" },
   { kX86Shld32MRI,  kMemRegImm,      IS_QUAD_OP | REG_USE02 | IS_LOAD | IS_STORE | SETS_CCODES, { 0,    0, 0x0F, 0xA4, 0, 0, 0, 1, false }, "Shld32MRI", "[!0r+!1d],!2r,!3d" },
   { kX86Shrd32RRI,  kRegRegImmStore, IS_TERTIARY_OP | REG_DEF0_USE01  | SETS_CCODES,            { 0,    0, 0x0F, 0xAC, 0, 0, 0, 1, false }, "Shrd32RRI", "!0r,!1r,!2d" },
+  { kX86Shrd32RRC,  kShiftRegRegCl,  IS_TERTIARY_OP | REG_DEF0_USE01  | REG_USEC | SETS_CCODES, { 0,    0, 0x0F, 0xAD, 0, 0, 0, 0, false }, "Shrd32RRC", "!0r,!1r,cl" },
   { kX86Shrd32MRI,  kMemRegImm,      IS_QUAD_OP | REG_USE02 | IS_LOAD | IS_STORE | SETS_CCODES, { 0,    0, 0x0F, 0xAC, 0, 0, 0, 1, false }, "Shrd32MRI", "[!0r+!1d],!2r,!3d" },
   { kX86Shld64RRI,  kRegRegImmStore, IS_TERTIARY_OP | REG_DEF0_USE01  | SETS_CCODES,            { REX_W,    0, 0x0F, 0xA4, 0, 0, 0, 1, false }, "Shld64RRI", "!0r,!1r,!2d" },
   { kX86Shld64MRI,  kMemRegImm,      IS_QUAD_OP | REG_USE02 | IS_LOAD | IS_STORE | SETS_CCODES, { REX_W,    0, 0x0F, 0xA4, 0, 0, 0, 1, false }, "Shld64MRI", "[!0r+!1d],!2r,!3d" },
@@ -591,6 +593,7 @@ static bool ModrmIsRegReg(const X86EncodingMap* entry) {
     case kShiftRegCl: return true;
     case kRegCond: return true;
     case kRegRegCond: return true;
+    case kShiftRegRegCl: return true;
     case kJmp:
       switch (entry->opcode) {
         case kX86JmpR: return true;
@@ -768,6 +771,9 @@ size_t X86Mir2Lir::GetInsnSize(LIR* lir) {
       DCHECK_EQ(rs_rCX.GetRegNum(), RegStorage::RegNum(lir->operands[4]));
       return ComputeSize(entry, lir->operands[4], lir->operands[1], lir->operands[0],
                          lir->operands[3]);
+    case kShiftRegRegCl:  // lir operands - 0: reg1, 1: reg2, 2: cl
+      DCHECK_EQ(rs_rCX.GetRegNum(), RegStorage::RegNum(lir->operands[2]));
+      return ComputeSize(entry, lir->operands[0], NO_REG, lir->operands[1], 0);
     case kRegCond:  // lir operands - 0: reg, 1: cond
       return ComputeSize(entry, NO_REG, NO_REG, lir->operands[0], 0);
     case kMemCond:  // lir operands - 0: base, 1: disp, 2: cond
@@ -1336,6 +1342,19 @@ void X86Mir2Lir::EmitShiftMemCl(const X86EncodingMap* entry, int32_t raw_base,
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
+void X86Mir2Lir::EmitShiftRegRegCl(const X86EncodingMap* entry, int32_t raw_reg1, int32_t raw_reg2, int32_t raw_cl) {
+  DCHECK_EQ(false, entry->skeleton.r8_form);
+  DCHECK_EQ(rs_rCX.GetRegNum(), RegStorage::RegNum(raw_cl));
+  EmitPrefixAndOpcode(entry, raw_reg1, NO_REG, raw_reg2);
+  uint8_t low_reg1 = LowRegisterBits(raw_reg1);
+  uint8_t low_reg2 = LowRegisterBits(raw_reg2);
+  uint8_t modrm = (3 << 6) | (low_reg1 << 3) | low_reg2;
+  code_buffer_.push_back(modrm);
+  DCHECK_EQ(0, entry->skeleton.modrm_opcode);
+  DCHECK_EQ(0, entry->skeleton.ax_opcode);
+  DCHECK_EQ(0, entry->skeleton.immediate_bytes);
+}
+
 void X86Mir2Lir::EmitShiftMemImm(const X86EncodingMap* entry, int32_t raw_base, int32_t disp,
                                  int32_t imm) {
   DCHECK_EQ(false, entry->skeleton.r8_form);
@@ -1828,6 +1847,9 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
         break;
       case kShiftMemCl:  // lir operands - 0: base, 1:displacement, 2: cl
         EmitShiftMemCl(entry, lir->operands[0], lir->operands[1], lir->operands[2]);
+        break;
+      case kShiftRegRegCl:  // lir operands - 0: reg1, 1: reg2, 2: cl
+        EmitShiftRegRegCl(entry, lir->operands[1], lir->operands[0], lir->operands[2]);
         break;
       case kRegCond:  // lir operands - 0: reg, 1: condition
         EmitRegCond(entry, lir->operands[0], lir->operands[1]);

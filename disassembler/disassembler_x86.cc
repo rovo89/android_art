@@ -702,11 +702,23 @@ DISASSEMBLER_ENTRY(cmp,
         load = true;
         immediate_bytes = 1;
         break;
+      case 0xA5:
+        opcode << "shld";
+        has_modrm = true;
+        load = true;
+        cx = true;
+        break;
       case 0xAC:
         opcode << "shrd";
         has_modrm = true;
         load = true;
         immediate_bytes = 1;
+        break;
+      case 0xAD:
+        opcode << "shrd";
+        has_modrm = true;
+        load = true;
+        cx = true;
         break;
       case 0xAE:
         if (prefix[0] == 0xF3) {
