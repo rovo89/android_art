@@ -4806,7 +4806,7 @@ mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file, uint32_t 
                                               Handle<mirror::ClassLoader> class_loader,
                                               Handle<mirror::ArtMethod> referrer,
                                               InvokeType type) {
-  DCHECK(dex_cache.Get() != NULL);
+  DCHECK(dex_cache.Get() != nullptr);
   // Check for hit in the dex cache.
   mirror::ArtMethod* resolved = dex_cache->GetResolvedMethod(method_idx);
   if (resolved != nullptr && !resolved->IsRuntimeMethod()) {
@@ -4815,9 +4815,9 @@ mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file, uint32_t 
   // Fail, get the declaring class.
   const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
   mirror::Class* klass = ResolveType(dex_file, method_id.class_idx_, dex_cache, class_loader);
-  if (klass == NULL) {
+  if (klass == nullptr) {
     DCHECK(Thread::Current()->IsExceptionPending());
-    return NULL;
+    return nullptr;
   }
   // Scan using method_idx, this saves string compares but will only hit for matching dex
   // caches/files.
@@ -4828,7 +4828,7 @@ mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file, uint32_t 
       break;
     case kInterface:
       resolved = klass->FindInterfaceMethod(dex_cache.Get(), method_idx);
-      DCHECK(resolved == NULL || resolved->GetDeclaringClass()->IsInterface());
+      DCHECK(resolved == nullptr || resolved->GetDeclaringClass()->IsInterface());
       break;
     case kSuper:  // Fall-through.
     case kVirtual:
@@ -4837,7 +4837,7 @@ mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file, uint32_t 
     default:
       LOG(FATAL) << "Unreachable - invocation type: " << type;
   }
-  if (resolved == NULL) {
+  if (resolved == nullptr) {
     // Search by name, which works across dex files.
     const char* name = dex_file.StringDataByIdx(method_id.name_idx_);
     const Signature signature = dex_file.GetMethodSignature(method_id);
@@ -4848,7 +4848,7 @@ mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file, uint32_t 
         break;
       case kInterface:
         resolved = klass->FindInterfaceMethod(name, signature);
-        DCHECK(resolved == NULL || resolved->GetDeclaringClass()->IsInterface());
+        DCHECK(resolved == nullptr || resolved->GetDeclaringClass()->IsInterface());
         break;
       case kSuper:  // Fall-through.
       case kVirtual:
@@ -4856,94 +4856,97 @@ mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file, uint32_t 
         break;
     }
   }
-  if (resolved != NULL) {
-    // We found a method, check for incompatible class changes.
-    if (resolved->CheckIncompatibleClassChange(type)) {
-      resolved = NULL;
-    }
-  }
-  if (resolved != NULL) {
+  // If we found a method, check for incompatible class changes.
+  if (LIKELY(resolved != nullptr && !resolved->CheckIncompatibleClassChange(type))) {
     // Be a good citizen and update the dex cache to speed subsequent calls.
     dex_cache->SetResolvedMethod(method_idx, resolved);
     return resolved;
   } else {
-    // We failed to find the method which means either an access error, an incompatible class
-    // change, or no such method. First try to find the method among direct and virtual methods.
-    const char* name = dex_file.StringDataByIdx(method_id.name_idx_);
-    const Signature signature = dex_file.GetMethodSignature(method_id);
-    switch (type) {
-      case kDirect:
-      case kStatic:
-        resolved = klass->FindVirtualMethod(name, signature);
-        break;
-      case kInterface:
-      case kVirtual:
-      case kSuper:
-        resolved = klass->FindDirectMethod(name, signature);
-        break;
-    }
-
-    // If we found something, check that it can be accessed by the referrer.
-    if (resolved != NULL && referrer.Get() != NULL) {
-      mirror::Class* methods_class = resolved->GetDeclaringClass();
-      mirror::Class* referring_class = referrer->GetDeclaringClass();
-      if (!referring_class->CanAccess(methods_class)) {
-        ThrowIllegalAccessErrorClassForMethodDispatch(referring_class, methods_class,
-                                                      resolved, type);
-        return NULL;
-      } else if (!referring_class->CanAccessMember(methods_class,
-                                                   resolved->GetAccessFlags())) {
-        ThrowIllegalAccessErrorMethod(referring_class, resolved);
-        return NULL;
-      }
-    }
-
-    // Otherwise, throw an IncompatibleClassChangeError if we found something, and check interface
-    // methods and throw if we find the method there. If we find nothing, throw a NoSuchMethodError.
-    switch (type) {
-      case kDirect:
-      case kStatic:
-        if (resolved != NULL) {
-          ThrowIncompatibleClassChangeError(type, kVirtual, resolved, referrer.Get());
-        } else {
-          resolved = klass->FindInterfaceMethod(name, signature);
-          if (resolved != NULL) {
-            ThrowIncompatibleClassChangeError(type, kInterface, resolved, referrer.Get());
-          } else {
-            ThrowNoSuchMethodError(type, klass, name, signature);
-          }
-        }
-        break;
-      case kInterface:
-        if (resolved != NULL) {
-          ThrowIncompatibleClassChangeError(type, kDirect, resolved, referrer.Get());
-        } else {
+    // If we had a method, it's an incompatible-class-change error.
+    if (resolved != nullptr) {
+      ThrowIncompatibleClassChangeError(type, resolved->GetInvokeType(), resolved, referrer.Get());
+    } else {
+      // We failed to find the method which means either an access error, an incompatible class
+      // change, or no such method. First try to find the method among direct and virtual methods.
+      const char* name = dex_file.StringDataByIdx(method_id.name_idx_);
+      const Signature signature = dex_file.GetMethodSignature(method_id);
+      switch (type) {
+        case kDirect:
+        case kStatic:
           resolved = klass->FindVirtualMethod(name, signature);
-          if (resolved != NULL) {
+          // Note: kDirect and kStatic are also mutually exclusive, but in that case we would
+          //       have had a resolved method before, which triggers the "true" branch above.
+          break;
+        case kInterface:
+        case kVirtual:
+        case kSuper:
+          resolved = klass->FindDirectMethod(name, signature);
+          break;
+      }
+
+      // If we found something, check that it can be accessed by the referrer.
+      if (resolved != nullptr && referrer.Get() != nullptr) {
+        mirror::Class* methods_class = resolved->GetDeclaringClass();
+        mirror::Class* referring_class = referrer->GetDeclaringClass();
+        if (!referring_class->CanAccess(methods_class)) {
+          ThrowIllegalAccessErrorClassForMethodDispatch(referring_class, methods_class,
+                                                        resolved, type);
+          return nullptr;
+        } else if (!referring_class->CanAccessMember(methods_class,
+                                                     resolved->GetAccessFlags())) {
+          ThrowIllegalAccessErrorMethod(referring_class, resolved);
+          return nullptr;
+        }
+      }
+
+      // Otherwise, throw an IncompatibleClassChangeError if we found something, and check interface
+      // methods and throw if we find the method there. If we find nothing, throw a
+      // NoSuchMethodError.
+      switch (type) {
+        case kDirect:
+        case kStatic:
+          if (resolved != nullptr) {
             ThrowIncompatibleClassChangeError(type, kVirtual, resolved, referrer.Get());
           } else {
-            ThrowNoSuchMethodError(type, klass, name, signature);
+            resolved = klass->FindInterfaceMethod(name, signature);
+            if (resolved != nullptr) {
+              ThrowIncompatibleClassChangeError(type, kInterface, resolved, referrer.Get());
+            } else {
+              ThrowNoSuchMethodError(type, klass, name, signature);
+            }
           }
-        }
-        break;
-      case kSuper:
-        ThrowNoSuchMethodError(type, klass, name, signature);
-        break;
-      case kVirtual:
-        if (resolved != NULL) {
-          ThrowIncompatibleClassChangeError(type, kDirect, resolved, referrer.Get());
-        } else {
-          resolved = klass->FindInterfaceMethod(name, signature);
-          if (resolved != NULL) {
-            ThrowIncompatibleClassChangeError(type, kInterface, resolved, referrer.Get());
+          break;
+        case kInterface:
+          if (resolved != nullptr) {
+            ThrowIncompatibleClassChangeError(type, kDirect, resolved, referrer.Get());
           } else {
-            ThrowNoSuchMethodError(type, klass, name, signature);
+            resolved = klass->FindVirtualMethod(name, signature);
+            if (resolved != nullptr) {
+              ThrowIncompatibleClassChangeError(type, kVirtual, resolved, referrer.Get());
+            } else {
+              ThrowNoSuchMethodError(type, klass, name, signature);
+            }
           }
-        }
-        break;
+          break;
+        case kSuper:
+          ThrowNoSuchMethodError(type, klass, name, signature);
+          break;
+        case kVirtual:
+          if (resolved != nullptr) {
+            ThrowIncompatibleClassChangeError(type, kDirect, resolved, referrer.Get());
+          } else {
+            resolved = klass->FindInterfaceMethod(name, signature);
+            if (resolved != nullptr) {
+              ThrowIncompatibleClassChangeError(type, kInterface, resolved, referrer.Get());
+            } else {
+              ThrowNoSuchMethodError(type, klass, name, signature);
+            }
+          }
+          break;
+      }
     }
     DCHECK(Thread::Current()->IsExceptionPending());
-    return NULL;
+    return nullptr;
   }
 }
 
