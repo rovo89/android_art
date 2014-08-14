@@ -565,6 +565,10 @@ class ClassLinker {
                                             std::vector<std::string>* error_msg)
       LOCKS_EXCLUDED(dex_lock_, Locks::mutator_lock_);
 
+  const OatFile* GetInterpretedOnlyOat(const std::string& oat_path,
+                                       InstructionSet isa,
+                                       std::string* error_msg);
+
   const OatFile* PatchAndRetrieveOat(const std::string& input, const std::string& output,
                                      const std::string& image_location, InstructionSet isa,
                                      std::string* error_msg)
@@ -744,6 +748,7 @@ class ClassLinker {
   friend class ImageDumper;  // for FindOpenedOatFileFromOatLocation
   friend class ElfPatcher;  // for FindOpenedOatFileForDexFile & FindOpenedOatFileFromOatLocation
   friend class NoDex2OatTest;  // for FindOpenedOatFileForDexFile
+  friend class NoPatchoatTest;  // for FindOpenedOatFileForDexFile
   FRIEND_TEST(ClassLinkerTest, ClassRootDescriptors);
   FRIEND_TEST(mirror::DexCacheTest, Open);
   FRIEND_TEST(ExceptionTest, FindExceptionHandler);
