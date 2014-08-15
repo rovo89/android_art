@@ -206,7 +206,11 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
   // If background_collector_type_ is kCollectorTypeNone, it defaults to the collector_type_ after
   // parsing options. If you set this to kCollectorTypeHSpaceCompact then we will do an hspace
   // compaction when we transition to background instead of a normal collector transition.
+#ifdef ART_USE_HSPACE_COMPACT
   background_collector_type_ = gc::kCollectorTypeHomogeneousSpaceCompact;
+#else
+  background_collector_type_ = gc::kCollectorTypeSS;
+#endif
   stack_size_ = 0;  // 0 means default.
   max_spins_before_thin_lock_inflation_ = Monitor::kDefaultMaxSpinsBeforeThinLockInflation;
   low_memory_mode_ = false;
