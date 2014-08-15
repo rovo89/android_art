@@ -4143,9 +4143,9 @@ bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) 
         klass->GetSuperClass()->GetVTableLength();
     size_t actual_count = klass->GetSuperClass()->GetVTableLength();
     CHECK_LE(actual_count, max_count);
-    StackHandleScope<3> hs(self);
+    StackHandleScope<4> hs(self);
+    Handle<mirror::Class> super_class(hs.NewHandle(klass->GetSuperClass()));
     Handle<mirror::ObjectArray<mirror::ArtMethod>> vtable;
-    mirror::Class* super_class = klass->GetSuperClass();
     if (super_class->ShouldHaveEmbeddedImtAndVTable()) {
       vtable = hs.NewHandle(AllocArtMethodArray(self, max_count));
       if (UNLIKELY(vtable.Get() == nullptr)) {
@@ -4157,7 +4157,7 @@ bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) 
         vtable->Set<false>(i, super_class->GetVTableEntry(i));
       }
     } else {
-      CHECK(super_class->GetVTable() != nullptr) << PrettyClass(super_class);
+      CHECK(super_class->GetVTable() != nullptr) << PrettyClass(super_class.Get());
       vtable = hs.NewHandle(super_class->GetVTable()->CopyOf(self, max_count));
       if (UNLIKELY(vtable.Get() == nullptr)) {
         CHECK(self->IsExceptionPending());  // OOME.
