@@ -106,7 +106,7 @@ LIBART_COMMON_SRC_FILES := \
   mirror/string.cc \
   mirror/throwable.cc \
   monitor.cc \
-  native_bridge.cc \
+  native_bridge_art_interface.cc \
   native/dalvik_system_DexFile.cc \
   native/dalvik_system_VMDebug.cc \
   native/dalvik_system_VMRuntime.cc \
@@ -417,7 +417,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_C_INCLUDES += $$(ART_C_INCLUDES)
   LOCAL_C_INCLUDES += art/sigchainlib
 
-  LOCAL_SHARED_LIBRARIES += liblog libnativehelper
+  LOCAL_SHARED_LIBRARIES += liblog libnativehelper libnativebridge
   include external/libcxx/libcxx.mk
   LOCAL_SHARED_LIBRARIES += libbacktrace_libc++
   ifeq ($$(art_target_or_host),target)
