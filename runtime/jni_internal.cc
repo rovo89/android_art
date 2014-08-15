@@ -42,7 +42,6 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
 #include "mirror/throwable.h"
-#include "native_bridge.h"
 #include "parsed_options.h"
 #include "reflection.h"
 #include "runtime.h"
@@ -448,7 +447,7 @@ class SharedLibrary {
     if (m != nullptr) {
       shorty = m->GetShorty(&len);
     }
-    return NativeBridgeGetTrampoline(handle_, symbol_name.c_str(), shorty, len);
+    return android::NativeBridgeGetTrampoline(handle_, symbol_name.c_str(), shorty, len);
   }
 
   void VisitRoots(RootCallback* visitor, void* arg) {
@@ -3309,8 +3308,8 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path,
   void* handle = dlopen(path_str, RTLD_LAZY);
   bool needs_native_bridge = false;
   if (handle == nullptr) {
-    if (NativeBridgeIsSupported(path_str)) {
-      handle = NativeBridgeLoadLibrary(path_str, RTLD_LAZY);
+    if (android::NativeBridgeIsSupported(path_str)) {
+      handle = android::NativeBridgeLoadLibrary(path_str, RTLD_LAZY);
       needs_native_bridge = true;
     }
   }
