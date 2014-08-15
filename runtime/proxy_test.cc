@@ -17,14 +17,14 @@
 #include <jni.h>
 #include <vector>
 
-#include "common_compiler_test.h"
+#include "common_runtime_test.h"
 #include "field_helper.h"
 #include "mirror/art_field-inl.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {
 
-class ProxyTest : public CommonCompilerTest {
+class ProxyTest : public CommonRuntimeTest {
  public:
   // Generate a proxy class with the given name and interfaces. This is a simplification from what
   // libcore does to fit to our test needs. We do not check for duplicated interfaces or methods and
@@ -102,6 +102,12 @@ class ProxyTest : public CommonCompilerTest {
                                                                 proxyClassMethods, proxyClassThrows);
     soa.Self()->AssertNoPendingException();
     return proxyClass;
+  }
+
+ protected:
+  void SetUpRuntimeOptions(RuntimeOptions *options) OVERRIDE {
+    options->push_back(std::make_pair(StringPrintf("-Ximage:%s", GetLibCoreOatFileName().c_str()),
+                                      nullptr));
   }
 };
 
