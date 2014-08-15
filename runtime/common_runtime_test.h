@@ -97,12 +97,6 @@ class CommonRuntimeTest : public testing::Test {
   // Gets the path of the specified dex file for host or target.
   std::string GetDexFileName(const std::string& jar_prefix);
 
-  // Gets the path of the libcore oat file.
-  std::string GetLibCoreOatFileName();
-
-  // Gets the path of the specified oat file for host or target.
-  std::string GetOatFileName(const std::string& oat_prefix);
-
   std::string GetTestAndroidRoot();
 
   std::vector<const DexFile*> OpenTestDexFiles(const char* name)

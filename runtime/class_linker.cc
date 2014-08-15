@@ -3567,19 +3567,13 @@ mirror::ArtMethod* ClassLinker::CreateProxyConstructor(Thread* self,
       proxy_class->GetDirectMethods();
   CHECK_EQ(proxy_direct_methods->GetLength(), 16);
   mirror::ArtMethod* proxy_constructor = proxy_direct_methods->Get(2);
+  // Clone the existing constructor of Proxy (our constructor would just invoke it so steal its
+  // code_ too)
   mirror::ArtMethod* constructor = down_cast<mirror::ArtMethod*>(proxy_constructor->Clone(self));
   if (constructor == nullptr) {
     CHECK(self->IsExceptionPending());  // OOME.
     return nullptr;
   }
-  // Make the proxy constructor's code always point to the uninstrumented code. This avoids
-  // getting a method enter event for the proxy constructor as the proxy constructor doesn't
-  // have an activation.
-  bool have_portable_code;
-  constructor->SetEntryPointFromQuickCompiledCode(GetQuickOatCodeFor(proxy_constructor));
-  constructor->SetEntryPointFromPortableCompiledCode(GetPortableOatCodeFor(proxy_constructor,
-                                                                           &have_portable_code));
-
   // Make this constructor public and fix the class to be our Proxy version
   constructor->SetAccessFlags((constructor->GetAccessFlags() & ~kAccProtected) | kAccPublic);
   constructor->SetDeclaringClass(klass.Get());
