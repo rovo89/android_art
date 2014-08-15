@@ -1716,13 +1716,13 @@ void X86_64Assembler::EmitOptionalByteRegNormalizingRex32(CpuRegister dst, const
 }
 
 void X86_64Assembler::InitializeFrameDescriptionEntry() {
-  WriteFDEHeader(&cfi_info_);
+  WriteFDEHeader(&cfi_info_, true /* is_64bit */);
 }
 
 void X86_64Assembler::FinalizeFrameDescriptionEntry() {
-  WriteFDEAddressRange(&cfi_info_, buffer_.Size());
+  WriteFDEAddressRange(&cfi_info_, buffer_.Size(), true /* is_64bit */);
   PadCFI(&cfi_info_);
-  WriteCFILength(&cfi_info_);
+  WriteCFILength(&cfi_info_, true /* is_64bit */);
 }
 
 constexpr size_t kFramePointerSize = 8;

@@ -1409,13 +1409,13 @@ void X86Assembler::EmitGenericShift(int reg_or_opcode,
 }
 
 void X86Assembler::InitializeFrameDescriptionEntry() {
-  WriteFDEHeader(&cfi_info_);
+  WriteFDEHeader(&cfi_info_, false /* is_64bit */);
 }
 
 void X86Assembler::FinalizeFrameDescriptionEntry() {
-  WriteFDEAddressRange(&cfi_info_, buffer_.Size());
+  WriteFDEAddressRange(&cfi_info_, buffer_.Size(), false /* is_64bit */);
   PadCFI(&cfi_info_);
-  WriteCFILength(&cfi_info_);
+  WriteCFILength(&cfi_info_, false /* is_64bit */);
 }
 
 constexpr size_t kFramePointerSize = 4;

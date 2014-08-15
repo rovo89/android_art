@@ -1020,7 +1020,7 @@ Elf32_Shdr* ElfFile::FindSectionByName(const std::string& name) const {
   return nullptr;
 }
 
-struct PACKED(1) FDE {
+struct PACKED(1) FDE32 {
   uint32_t raw_length_;
   uint32_t GetLength() {
     return raw_length_ + sizeof(raw_length_);
@@ -1031,25 +1031,186 @@ struct PACKED(1) FDE {
   uint8_t instructions[0];
 };
 
-static FDE* NextFDE(FDE* frame) {
+static FDE32* NextFDE(FDE32* frame) {
   byte* fde_bytes = reinterpret_cast<byte*>(frame);
   fde_bytes += frame->GetLength();
-  return reinterpret_cast<FDE*>(fde_bytes);
+  return reinterpret_cast<FDE32*>(fde_bytes);
 }
 
-static bool IsFDE(FDE* frame) {
+static bool IsFDE(FDE32* frame) {
   return frame->CIE_pointer != 0;
 }
 
-// TODO This only works for 32-bit Elf Files.
-static bool FixupEHFrame(uintptr_t text_start, byte* eh_frame, size_t eh_frame_size) {
-  FDE* last_frame = reinterpret_cast<FDE*>(eh_frame + eh_frame_size);
-  FDE* frame = NextFDE(reinterpret_cast<FDE*>(eh_frame));
-  for (; frame < last_frame; frame = NextFDE(frame)) {
-    if (!IsFDE(frame)) {
+struct PACKED(1) FDE64 {
+  uint32_t raw_length_;
+  uint64_t extended_length_;
+  uint64_t GetLength() {
+    return extended_length_ + sizeof(raw_length_) + sizeof(extended_length_);
+  }
+  uint64_t CIE_pointer;
+  uint64_t initial_location;
+  uint64_t address_range;
+  uint8_t instructions[0];
+};
+
+static FDE64* NextFDE(FDE64* frame) {
+  byte* fde_bytes = reinterpret_cast<byte*>(frame);
+  fde_bytes += frame->GetLength();
+  return reinterpret_cast<FDE64*>(fde_bytes);
+}
+
+static bool IsFDE(FDE64* frame) {
+  return frame->CIE_pointer != 0;
+}
+
+static bool FixupEHFrame(off_t base_address_delta,
+                           byte* eh_frame, size_t eh_frame_size) {
+  if (*(reinterpret_cast<uint32_t*>(eh_frame)) == 0xffffffff) {
+    FDE64* last_frame = reinterpret_cast<FDE64*>(eh_frame + eh_frame_size);
+    FDE64* frame = NextFDE(reinterpret_cast<FDE64*>(eh_frame));
+    for (; frame < last_frame; frame = NextFDE(frame)) {
+      if (!IsFDE(frame)) {
+        return false;
+      }
+      frame->initial_location += base_address_delta;
+    }
+    return true;
+  } else {
+    FDE32* last_frame = reinterpret_cast<FDE32*>(eh_frame + eh_frame_size);
+    FDE32* frame = NextFDE(reinterpret_cast<FDE32*>(eh_frame));
+    for (; frame < last_frame; frame = NextFDE(frame)) {
+      if (!IsFDE(frame)) {
+        return false;
+      }
+      frame->initial_location += base_address_delta;
+    }
+    return true;
+  }
+}
+
+static uint8_t* NextLeb128(uint8_t* current) {
+  DecodeUnsignedLeb128(const_cast<const uint8_t**>(&current));
+  return current;
+}
+
+struct PACKED(1) DebugLineHeader {
+  uint32_t unit_length_;  // TODO 32-bit specific size
+  uint16_t version_;
+  uint32_t header_length_;  // TODO 32-bit specific size
+  uint8_t minimum_instruction_lenght_;
+  uint8_t maximum_operations_per_instruction_;
+  uint8_t default_is_stmt_;
+  int8_t line_base_;
+  uint8_t line_range_;
+  uint8_t opcode_base_;
+  uint8_t remaining_[0];
+
+  bool IsStandardOpcode(const uint8_t* op) const {
+    return *op != 0 && *op < opcode_base_;
+  }
+
+  bool IsExtendedOpcode(const uint8_t* op) const {
+    return *op == 0;
+  }
+
+  const uint8_t* GetStandardOpcodeLengths() const {
+    return remaining_;
+  }
+
+  uint8_t* GetNextOpcode(uint8_t* op) const {
+    if (IsExtendedOpcode(op)) {
+      uint8_t* length_field = op + 1;
+      uint32_t length = DecodeUnsignedLeb128(const_cast<const uint8_t**>(&length_field));
+      return length_field + length;
+    } else if (!IsStandardOpcode(op)) {
+      return op + 1;
+    } else if (*op == DW_LNS_fixed_advance_pc) {
+      return op + 1 + sizeof(uint16_t);
+    } else {
+      uint8_t num_args = GetStandardOpcodeLengths()[*op - 1];
+      op += 1;
+      for (int i = 0; i < num_args; i++) {
+        op = NextLeb128(op);
+      }
+      return op;
+    }
+  }
+
+  uint8_t* GetDebugLineData() const {
+    const uint8_t* hdr_start =
+        reinterpret_cast<const uint8_t*>(&header_length_) + sizeof(header_length_);
+    return const_cast<uint8_t*>(hdr_start + header_length_);
+  }
+};
+
+class DebugLineInstructionIterator {
+ public:
+  static DebugLineInstructionIterator* Create(DebugLineHeader* header, size_t section_size) {
+    std::unique_ptr<DebugLineInstructionIterator> line_iter(
+        new DebugLineInstructionIterator(header, section_size));
+    if (line_iter.get() == nullptr) {
+      return nullptr;
+    } else {
+      return line_iter.release();
+    }
+  }
+
+  ~DebugLineInstructionIterator() {}
+
+  bool Next() {
+    if (current_instruction_ == nullptr) {
       return false;
     }
-    frame->initial_location += text_start;
+    current_instruction_ = header_->GetNextOpcode(current_instruction_);
+    if (current_instruction_ >= last_instruction_) {
+      current_instruction_ = nullptr;
+      return false;
+    } else {
+      return true;
+    }
+  }
+
+  uint8_t* GetInstruction() {
+    return current_instruction_;
+  }
+
+  bool IsExtendedOpcode() {
+    return header_->IsExtendedOpcode(current_instruction_);
+  }
+
+  uint8_t GetOpcode() {
+    if (!IsExtendedOpcode()) {
+      return *current_instruction_;
+    } else {
+      uint8_t* len_ptr = current_instruction_ + 1;
+      return *NextLeb128(len_ptr);
+    }
+  }
+
+  uint8_t* GetArguments() {
+    if (!IsExtendedOpcode()) {
+      return current_instruction_ + 1;
+    } else {
+      uint8_t* len_ptr = current_instruction_ + 1;
+      return NextLeb128(len_ptr) + 1;
+    }
+  }
+
+ private:
+  DebugLineInstructionIterator(DebugLineHeader* header, size_t size)
+    : header_(header), last_instruction_(reinterpret_cast<uint8_t*>(header) + size),
+      current_instruction_(header->GetDebugLineData()) {}
+
+  DebugLineHeader* header_;
+  uint8_t* last_instruction_;
+  uint8_t* current_instruction_;
+};
+
+static bool FixupDebugLine(off_t base_offset_delta, DebugLineInstructionIterator* iter) {
+  while (iter->Next()) {
+    if (iter->IsExtendedOpcode() && iter->GetOpcode() == DW_LNE_set_address) {
+      *reinterpret_cast<uint32_t*>(iter->GetArguments()) += base_offset_delta;
+    }
   }
   return true;
 }
@@ -1312,38 +1473,71 @@ class DebugInfoIterator {
   DebugTag* current_tag_;
 };
 
-static bool FixupDebugInfo(uint32_t text_start, DebugInfoIterator* iter) {
+static bool FixupDebugInfo(off_t base_address_delta, DebugInfoIterator* iter) {
   do {
     if (iter->GetCurrentTag()->GetAttrSize(DW_AT_low_pc) != sizeof(int32_t) ||
         iter->GetCurrentTag()->GetAttrSize(DW_AT_high_pc) != sizeof(int32_t)) {
+      LOG(ERROR) << "DWARF information with 64 bit pointers is not supported yet.";
       return false;
     }
     uint32_t* PC_low = reinterpret_cast<uint32_t*>(iter->GetPointerToField(DW_AT_low_pc));
     uint32_t* PC_high = reinterpret_cast<uint32_t*>(iter->GetPointerToField(DW_AT_high_pc));
     if (PC_low != nullptr && PC_high != nullptr) {
-      *PC_low  += text_start;
-      *PC_high += text_start;
+      *PC_low  += base_address_delta;
+      *PC_high += base_address_delta;
     }
   } while (iter->next());
   return true;
 }
 
-static bool FixupDebugSections(const byte* dbg_abbrev, size_t dbg_abbrev_size,
-                               uintptr_t text_start,
-                               byte* dbg_info, size_t dbg_info_size,
-                               byte* eh_frame, size_t eh_frame_size) {
-  std::unique_ptr<DebugAbbrev> abbrev(DebugAbbrev::Create(dbg_abbrev, dbg_abbrev_size));
+bool ElfFile::FixupDebugSections(off_t base_address_delta) {
+  const Elf32_Shdr* debug_info = FindSectionByName(".debug_info");
+  const Elf32_Shdr* debug_abbrev = FindSectionByName(".debug_abbrev");
+  const Elf32_Shdr* eh_frame = FindSectionByName(".eh_frame");
+  const Elf32_Shdr* debug_str = FindSectionByName(".debug_str");
+  const Elf32_Shdr* debug_line = FindSectionByName(".debug_line");
+  const Elf32_Shdr* strtab_sec = FindSectionByName(".strtab");
+  const Elf32_Shdr* symtab_sec = FindSectionByName(".symtab");
+
+  if (debug_info == nullptr || debug_abbrev == nullptr ||
+      debug_str == nullptr || strtab_sec == nullptr || symtab_sec == nullptr) {
+    // Release version of ART does not generate debug info.
+    return true;
+  }
+  if (base_address_delta == 0) {
+    return true;
+  }
+  if (eh_frame != nullptr &&
+      !FixupEHFrame(base_address_delta, Begin() + eh_frame->sh_offset, eh_frame->sh_size)) {
+    return false;
+  }
+
+  std::unique_ptr<DebugAbbrev> abbrev(DebugAbbrev::Create(Begin() + debug_abbrev->sh_offset,
+                                                          debug_abbrev->sh_size));
   if (abbrev.get() == nullptr) {
     return false;
   }
-  std::unique_ptr<DebugInfoIterator> iter(
-      DebugInfoIterator::Create(reinterpret_cast<DebugInfoHeader*>(dbg_info),
-                                dbg_info_size, abbrev.get()));
-  if (iter.get() == nullptr) {
+  DebugInfoHeader* info_header =
+      reinterpret_cast<DebugInfoHeader*>(Begin() + debug_info->sh_offset);
+  std::unique_ptr<DebugInfoIterator> info_iter(DebugInfoIterator::Create(info_header,
+                                                                         debug_info->sh_size,
+                                                                         abbrev.get()));
+  if (info_iter.get() == nullptr) {
     return false;
   }
-  return FixupDebugInfo(text_start, iter.get())
-      && FixupEHFrame(text_start, eh_frame, eh_frame_size);
+  if (debug_line != nullptr) {
+    DebugLineHeader* line_header =
+        reinterpret_cast<DebugLineHeader*>(Begin() + debug_line->sh_offset);
+    std::unique_ptr<DebugLineInstructionIterator> line_iter(
+        DebugLineInstructionIterator::Create(line_header, debug_line->sh_size));
+    if (line_iter.get() == nullptr) {
+      return false;
+    }
+    if (!FixupDebugLine(base_address_delta, line_iter.get())) {
+      return false;
+    }
+  }
+  return FixupDebugInfo(base_address_delta, info_iter.get());
 }
 
 void ElfFile::GdbJITSupport() {
@@ -1361,19 +1555,13 @@ void ElfFile::GdbJITSupport() {
   }
   ElfFile& all = *all_ptr;
 
-  // Do we have interesting sections?
-  const Elf32_Shdr* debug_info = all.FindSectionByName(".debug_info");
-  const Elf32_Shdr* debug_abbrev = all.FindSectionByName(".debug_abbrev");
+  // We need the eh_frame for gdb but debug info might be present without it.
   const Elf32_Shdr* eh_frame = all.FindSectionByName(".eh_frame");
-  const Elf32_Shdr* debug_str = all.FindSectionByName(".debug_str");
-  const Elf32_Shdr* strtab_sec = all.FindSectionByName(".strtab");
-  const Elf32_Shdr* symtab_sec = all.FindSectionByName(".symtab");
-  Elf32_Shdr* text_sec = all.FindSectionByName(".text");
-  if (debug_info == nullptr || debug_abbrev == nullptr || eh_frame == nullptr ||
-      debug_str == nullptr || text_sec == nullptr || strtab_sec == nullptr ||
-      symtab_sec == nullptr) {
+  if (eh_frame == nullptr) {
     return;
   }
+
+  // Do we have interesting sections?
   // We need to add in a strtab and symtab to the image.
   // all is MAP_PRIVATE so it can be written to freely.
   // We also already have strtab and symtab so we are fine there.
@@ -1384,13 +1572,9 @@ void ElfFile::GdbJITSupport() {
   elf_hdr.e_phentsize = 0;
   elf_hdr.e_type = ET_EXEC;
 
-  text_sec->sh_type = SHT_NOBITS;
-  text_sec->sh_offset = 0;
-
-  if (!FixupDebugSections(
-        all.Begin() + debug_abbrev->sh_offset, debug_abbrev->sh_size, text_sec->sh_addr,
-        all.Begin() + debug_info->sh_offset, debug_info->sh_size,
-        all.Begin() + eh_frame->sh_offset, eh_frame->sh_size)) {
+  // Since base_address_ is 0 if we are actually loaded at a known address (i.e. this is boot.oat)
+  // and the actual address stuff starts at in regular files this is good.
+  if (!all.FixupDebugSections(reinterpret_cast<intptr_t>(base_address_))) {
     LOG(ERROR) << "Failed to load GDB data";
     return;
   }

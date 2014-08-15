@@ -15,6 +15,7 @@
  */
 
 #include "dex/compiler_internals.h"
+#include "driver/compiler_options.h"
 #include "dex_file-inl.h"
 #include "gc_map.h"
 #include "gc_map_builder.h"
@@ -648,15 +649,19 @@ bool Mir2Lir::VerifyCatchEntries() {
 
 
 void Mir2Lir::CreateMappingTables() {
+  bool generate_src_map = cu_->compiler_driver->GetCompilerOptions().GetIncludeDebugSymbols();
+
   uint32_t pc2dex_data_size = 0u;
   uint32_t pc2dex_entries = 0u;
   uint32_t pc2dex_offset = 0u;
   uint32_t pc2dex_dalvik_offset = 0u;
+  uint32_t pc2dex_src_entries = 0u;
   uint32_t dex2pc_data_size = 0u;
   uint32_t dex2pc_entries = 0u;
   uint32_t dex2pc_offset = 0u;
   uint32_t dex2pc_dalvik_offset = 0u;
   for (LIR* tgt_lir = first_lir_insn_; tgt_lir != NULL; tgt_lir = NEXT_LIR(tgt_lir)) {
+    pc2dex_src_entries++;
     if (!tgt_lir->flags.is_nop && (tgt_lir->opcode == kPseudoSafepointPC)) {
       pc2dex_entries += 1;
       DCHECK(pc2dex_offset <= tgt_lir->offset);
@@ -677,6 +682,10 @@ void Mir2Lir::CreateMappingTables() {
     }
   }
 
+  if (generate_src_map) {
+    src_mapping_table_.reserve(pc2dex_src_entries);
+  }
+
   uint32_t total_entries = pc2dex_entries + dex2pc_entries;
   uint32_t hdr_data_size = UnsignedLeb128Size(total_entries) + UnsignedLeb128Size(pc2dex_entries);
   uint32_t data_size = hdr_data_size + pc2dex_data_size + dex2pc_data_size;
@@ -692,6 +701,10 @@ void Mir2Lir::CreateMappingTables() {
   dex2pc_offset = 0u;
   dex2pc_dalvik_offset = 0u;
   for (LIR* tgt_lir = first_lir_insn_; tgt_lir != NULL; tgt_lir = NEXT_LIR(tgt_lir)) {
+    if (generate_src_map && !tgt_lir->flags.is_nop) {
+      src_mapping_table_.push_back(SrcMapElem({tgt_lir->offset,
+              static_cast<int32_t>(tgt_lir->dalvik_offset)}));
+    }
     if (!tgt_lir->flags.is_nop && (tgt_lir->opcode == kPseudoSafepointPC)) {
       DCHECK(pc2dex_offset <= tgt_lir->offset);
       write_pos = EncodeUnsignedLeb128(write_pos, tgt_lir->offset - pc2dex_offset);
@@ -1088,7 +1101,7 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
   std::unique_ptr<std::vector<uint8_t>> cfi_info(ReturnFrameDescriptionEntry());
   CompiledMethod* result =
       new CompiledMethod(cu_->compiler_driver, cu_->instruction_set, code_buffer_, frame_size_,
-                         core_spill_mask_, fp_spill_mask_, encoded_mapping_table_,
+                         core_spill_mask_, fp_spill_mask_, &src_mapping_table_, encoded_mapping_table_,
                          vmap_encoder.GetData(), native_gc_map_, cfi_info.get());
   return result;
 }
