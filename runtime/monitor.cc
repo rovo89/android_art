@@ -641,11 +641,6 @@ bool Monitor::Deflate(Thread* self, mirror::Object* obj) {
   return true;
 }
 
-/*
- * Changes the shape of a monitor from thin to fat, preserving the internal lock state. The calling
- * thread must own the lock or the owner must be suspended. There's a race with other threads
- * inflating the lock and so the caller should read the monitor following the call.
- */
 void Monitor::Inflate(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code) {
   DCHECK(self != nullptr);
   DCHECK(obj != nullptr);
@@ -831,30 +826,32 @@ void Monitor::Wait(Thread* self, mirror::Object *obj, int64_t ms, int32_t ns,
   DCHECK(self != nullptr);
   DCHECK(obj != nullptr);
   LockWord lock_word = obj->GetLockWord(true);
-  switch (lock_word.GetState()) {
-    case LockWord::kHashCode:
-      // Fall-through.
-    case LockWord::kUnlocked:
-      ThrowIllegalMonitorStateExceptionF("object not locked by thread before wait()");
-      return;  // Failure.
-    case LockWord::kThinLocked: {
-      uint32_t thread_id = self->GetThreadId();
-      uint32_t owner_thread_id = lock_word.ThinLockOwner();
-      if (owner_thread_id != thread_id) {
+  while (lock_word.GetState() != LockWord::kFatLocked) {
+    switch (lock_word.GetState()) {
+      case LockWord::kHashCode:
+        // Fall-through.
+      case LockWord::kUnlocked:
         ThrowIllegalMonitorStateExceptionF("object not locked by thread before wait()");
         return;  // Failure.
-      } else {
-        // We own the lock, inflate to enqueue ourself on the Monitor.
-        Inflate(self, self, obj, 0);
-        lock_word = obj->GetLockWord(true);
+      case LockWord::kThinLocked: {
+        uint32_t thread_id = self->GetThreadId();
+        uint32_t owner_thread_id = lock_word.ThinLockOwner();
+        if (owner_thread_id != thread_id) {
+          ThrowIllegalMonitorStateExceptionF("object not locked by thread before wait()");
+          return;  // Failure.
+        } else {
+          // We own the lock, inflate to enqueue ourself on the Monitor. May fail spuriously so
+          // re-load.
+          Inflate(self, self, obj, 0);
+          lock_word = obj->GetLockWord(true);
+        }
+        break;
       }
-      break;
-    }
-    case LockWord::kFatLocked:
-      break;  // Already set for a wait.
-    default: {
-      LOG(FATAL) << "Invalid monitor state " << lock_word.GetState();
-      return;
+      case LockWord::kFatLocked:  // Unreachable given the loop condition above. Fall-through.
+      default: {
+        LOG(FATAL) << "Invalid monitor state " << lock_word.GetState();
+        return;
+      }
     }
   }
   Monitor* mon = lock_word.FatLockMonitor();
