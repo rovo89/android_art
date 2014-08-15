@@ -49,6 +49,7 @@ class ParsedOptions {
   CompilerCallbacks* compiler_callbacks_;
   bool is_zygote_;
   bool must_relocate_;
+  bool dex2oat_enabled_;
   std::string patchoat_executable_;
   bool interpreter_only_;
   bool is_explicit_gc_disabled_;

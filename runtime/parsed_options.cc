@@ -226,6 +226,7 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
   compiler_callbacks_ = nullptr;
   is_zygote_ = false;
   must_relocate_ = kDefaultMustRelocate;
+  dex2oat_enabled_ = true;
   if (kPoisonHeapReferences) {
     // kPoisonHeapReferences currently works only with the interpreter only.
     // TODO: make it work with the compiler.
@@ -426,6 +427,10 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
       must_relocate_ = true;
     } else if (option == "-Xnorelocate") {
       must_relocate_ = false;
+    } else if (option == "-Xnodex2oat") {
+      dex2oat_enabled_ = false;
+    } else if (option == "-Xdex2oat") {
+      dex2oat_enabled_ = true;
     } else if (option == "-Xint") {
       interpreter_only_ = true;
     } else if (StartsWith(option, "-Xgc:")) {
@@ -716,7 +721,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "The following standard options are supported:\n");
   UsageMessage(stream, "  -classpath classpath (-cp classpath)\n");
   UsageMessage(stream, "  -Dproperty=value\n");
-  UsageMessage(stream, "  -verbose:tag  ('gc', 'jni', or 'class')\n");
+  UsageMessage(stream, "  -verbose:tag ('gc', 'jni', or 'class')\n");
   UsageMessage(stream, "  -showversion\n");
   UsageMessage(stream, "  -help\n");
   UsageMessage(stream, "  -agentlib:jdwp=options\n");
@@ -726,9 +731,9 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xrunjdwp:<options>\n");
   UsageMessage(stream, "  -Xbootclasspath:bootclasspath\n");
   UsageMessage(stream, "  -Xcheck:tag  (e.g. 'jni')\n");
-  UsageMessage(stream, "  -XmsN  (min heap, must be multiple of 1K, >= 1MB)\n");
-  UsageMessage(stream, "  -XmxN  (max heap, must be multiple of 1K, >= 2MB)\n");
-  UsageMessage(stream, "  -XssN  (stack size)\n");
+  UsageMessage(stream, "  -XmsN (min heap, must be multiple of 1K, >= 1MB)\n");
+  UsageMessage(stream, "  -XmxN (max heap, must be multiple of 1K, >= 2MB)\n");
+  UsageMessage(stream, "  -XssN (stack size)\n");
   UsageMessage(stream, "  -Xint\n");
   UsageMessage(stream, "\n");
 
@@ -782,6 +787,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Ximage-compiler-option dex2oat-option\n");
   UsageMessage(stream, "  -Xpatchoat:filename\n");
   UsageMessage(stream, "  -X[no]relocate\n");
+  UsageMessage(stream, "  -X[no]dex2oat (Whether to invoke dex2oat on the application)\n");
   UsageMessage(stream, "\n");
 
   UsageMessage(stream, "The following previously supported Dalvik options are ignored:\n");
