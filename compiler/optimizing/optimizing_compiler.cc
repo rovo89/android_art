@@ -161,7 +161,10 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   }
 
   std::vector<uint8_t> mapping_table;
-  codegen->BuildMappingTable(&mapping_table);
+  SrcMap src_mapping_table;
+  codegen->BuildMappingTable(&mapping_table,
+          GetCompilerDriver()->GetCompilerOptions().GetIncludeDebugSymbols() ?
+               &src_mapping_table : nullptr);
   std::vector<uint8_t> vmap_table;
   codegen->BuildVMapTable(&vmap_table);
   std::vector<uint8_t> gc_map;
@@ -173,6 +176,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
                             codegen->GetFrameSize(),
                             codegen->GetCoreSpillMask(),
                             0, /* FPR spill mask, unused */
+                            &src_mapping_table,
                             mapping_table,
                             vmap_table,
                             gc_map,

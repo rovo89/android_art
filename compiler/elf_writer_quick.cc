@@ -16,11 +16,14 @@
 
 #include "elf_writer_quick.h"
 
+#include <unordered_map>
+
 #include "base/logging.h"
 #include "base/unix_file/fd_file.h"
 #include "buffered_output_stream.h"
 #include "driver/compiler_driver.h"
 #include "dwarf.h"
+#include "elf_file.h"
 #include "elf_utils.h"
 #include "file_output_stream.h"
 #include "globals.h"
@@ -39,6 +42,30 @@ static uint8_t MakeStInfo(uint8_t binding, uint8_t type) {
   return ((binding) << 4) + ((type) & 0xf);
 }
 
+static void PushByte(std::vector<uint8_t>* buf, int data) {
+  buf->push_back(data & 0xff);
+}
+
+static uint32_t PushStr(std::vector<uint8_t>* buf, const char* str, const char* def = nullptr) {
+  if (str == nullptr) {
+    str = def;
+  }
+
+  uint32_t offset = buf->size();
+  for (size_t i = 0; str[i] != '\0'; ++i) {
+    buf->push_back(str[i]);
+  }
+  buf->push_back('\0');
+  return offset;
+}
+
+static uint32_t PushStr(std::vector<uint8_t>* buf, const std::string &str) {
+  uint32_t offset = buf->size();
+  buf->insert(buf->end(), str.begin(), str.end());
+  buf->push_back('\0');
+  return offset;
+}
+
 static void UpdateWord(std::vector<uint8_t>* buf, int offset, int data) {
   (*buf)[offset+0] = data;
   (*buf)[offset+1] = data >> 8;
@@ -51,7 +78,7 @@ static void PushHalf(std::vector<uint8_t>* buf, int data) {
   buf->push_back((data >> 8) & 0xff);
 }
 
-bool ElfWriterQuick::ElfBuilder::Write() {
+bool ElfWriterQuick::ElfBuilder::Init() {
   // The basic layout of the elf file. Order may be different in final output.
   // +-------------------------+
   // | Elf32_Ehdr              |
@@ -120,16 +147,19 @@ bool ElfWriterQuick::ElfBuilder::Write() {
   // | .debug_str\0            |  (Optional)
   // | .debug_info\0           |  (Optional)
   // | .eh_frame\0             |  (Optional)
+  // | .debug_line\0           |  (Optional)
   // | .debug_abbrev\0         |  (Optional)
-  // +-------------------------+  (Optional)
-  // | .debug_str              |  (Optional)
   // +-------------------------+  (Optional)
   // | .debug_info             |  (Optional)
   // +-------------------------+  (Optional)
+  // | .debug_abbrev           |  (Optional)
+  // +-------------------------+  (Optional)
   // | .eh_frame               |  (Optional)
   // +-------------------------+  (Optional)
-  // | .debug_abbrev           |  (Optional)
-  // +-------------------------+
+  // | .debug_line             |  (Optional)
+  // +-------------------------+  (Optional)
+  // | .debug_str              |  (Optional)
+  // +-------------------------+  (Optional)
   // | Elf32_Shdr NULL         |
   // | Elf32_Shdr .dynsym      |
   // | Elf32_Shdr .dynstr      |
@@ -138,173 +168,117 @@ bool ElfWriterQuick::ElfBuilder::Write() {
   // | Elf32_Shdr .rodata      |
   // | Elf32_Shdr .dynamic     |
   // | Elf32_Shdr .shstrtab    |
-  // | Elf32_Shdr .debug_str   |  (Optional)
   // | Elf32_Shdr .debug_info  |  (Optional)
-  // | Elf32_Shdr .eh_frame    |  (Optional)
   // | Elf32_Shdr .debug_abbrev|  (Optional)
+  // | Elf32_Shdr .eh_frame    |  (Optional)
+  // | Elf32_Shdr .debug_line  |  (Optional)
+  // | Elf32_Shdr .debug_str   |  (Optional)
   // +-------------------------+
-
 
   if (fatal_error_) {
     return false;
   }
   // Step 1. Figure out all the offsets.
 
-  // What phdr is.
-  uint32_t phdr_offset = sizeof(Elf32_Ehdr);
-  const uint8_t PH_PHDR     = 0;
-  const uint8_t PH_LOAD_R__ = 1;
-  const uint8_t PH_LOAD_R_X = 2;
-  const uint8_t PH_LOAD_RW_ = 3;
-  const uint8_t PH_DYNAMIC  = 4;
-  const uint8_t PH_NUM      = 5;
-  uint32_t phdr_size = sizeof(Elf32_Phdr) * PH_NUM;
   if (debug_logging_) {
-    LOG(INFO) << "phdr_offset=" << phdr_offset << std::hex << " " << phdr_offset;
-    LOG(INFO) << "phdr_size=" << phdr_size << std::hex << " " << phdr_size;
+    LOG(INFO) << "phdr_offset=" << PHDR_OFFSET << std::hex << " " << PHDR_OFFSET;
+    LOG(INFO) << "phdr_size=" << PHDR_SIZE << std::hex << " " << PHDR_SIZE;
   }
-  Elf32_Phdr program_headers[PH_NUM];
-  memset(&program_headers, 0, sizeof(program_headers));
-  program_headers[PH_PHDR].p_type    = PT_PHDR;
-  program_headers[PH_PHDR].p_offset  = phdr_offset;
-  program_headers[PH_PHDR].p_vaddr   = phdr_offset;
-  program_headers[PH_PHDR].p_paddr   = phdr_offset;
-  program_headers[PH_PHDR].p_filesz  = sizeof(program_headers);
-  program_headers[PH_PHDR].p_memsz   = sizeof(program_headers);
-  program_headers[PH_PHDR].p_flags   = PF_R;
-  program_headers[PH_PHDR].p_align   = sizeof(Elf32_Word);
 
-  program_headers[PH_LOAD_R__].p_type    = PT_LOAD;
-  program_headers[PH_LOAD_R__].p_offset  = 0;
-  program_headers[PH_LOAD_R__].p_vaddr   = 0;
-  program_headers[PH_LOAD_R__].p_paddr   = 0;
-  program_headers[PH_LOAD_R__].p_flags   = PF_R;
+  memset(&program_headers_, 0, sizeof(program_headers_));
+  program_headers_[PH_PHDR].p_type    = PT_PHDR;
+  program_headers_[PH_PHDR].p_offset  = PHDR_OFFSET;
+  program_headers_[PH_PHDR].p_vaddr   = PHDR_OFFSET;
+  program_headers_[PH_PHDR].p_paddr   = PHDR_OFFSET;
+  program_headers_[PH_PHDR].p_filesz  = sizeof(program_headers_);
+  program_headers_[PH_PHDR].p_memsz   = sizeof(program_headers_);
+  program_headers_[PH_PHDR].p_flags   = PF_R;
+  program_headers_[PH_PHDR].p_align   = sizeof(Elf32_Word);
 
-  program_headers[PH_LOAD_R_X].p_type    = PT_LOAD;
-  program_headers[PH_LOAD_R_X].p_flags   = PF_R | PF_X;
+  program_headers_[PH_LOAD_R__].p_type    = PT_LOAD;
+  program_headers_[PH_LOAD_R__].p_offset  = 0;
+  program_headers_[PH_LOAD_R__].p_vaddr   = 0;
+  program_headers_[PH_LOAD_R__].p_paddr   = 0;
+  program_headers_[PH_LOAD_R__].p_flags   = PF_R;
 
-  program_headers[PH_LOAD_RW_].p_type    = PT_LOAD;
-  program_headers[PH_LOAD_RW_].p_flags   = PF_R | PF_W;
+  program_headers_[PH_LOAD_R_X].p_type    = PT_LOAD;
+  program_headers_[PH_LOAD_R_X].p_flags   = PF_R | PF_X;
 
-  program_headers[PH_DYNAMIC].p_type    = PT_DYNAMIC;
-  program_headers[PH_DYNAMIC].p_flags   = PF_R | PF_W;
+  program_headers_[PH_LOAD_RW_].p_type    = PT_LOAD;
+  program_headers_[PH_LOAD_RW_].p_flags   = PF_R | PF_W;
+
+  program_headers_[PH_DYNAMIC].p_type    = PT_DYNAMIC;
+  program_headers_[PH_DYNAMIC].p_flags   = PF_R | PF_W;
 
   // Get the dynstr string.
-  std::string dynstr(dynsym_builder_.GenerateStrtab());
+  dynstr_ = dynsym_builder_.GenerateStrtab();
 
   // Add the SONAME to the dynstr.
-  uint32_t dynstr_soname_offset = dynstr.size();
+  dynstr_soname_offset_ = dynstr_.size();
   std::string file_name(elf_file_->GetPath());
   size_t directory_separator_pos = file_name.rfind('/');
   if (directory_separator_pos != std::string::npos) {
     file_name = file_name.substr(directory_separator_pos + 1);
   }
-  dynstr += file_name;
-  dynstr += '\0';
+  dynstr_ += file_name;
+  dynstr_ += '\0';
   if (debug_logging_) {
-    LOG(INFO) << "dynstr size (bytes)   =" << dynstr.size()
-              << std::hex << " " << dynstr.size();
+    LOG(INFO) << "dynstr size (bytes)   =" << dynstr_.size()
+              << std::hex << " " << dynstr_.size();
     LOG(INFO) << "dynsym size (elements)=" << dynsym_builder_.GetSize()
               << std::hex << " " << dynsym_builder_.GetSize();
   }
 
-  // get the strtab
-  std::string strtab;
-  if (IncludingDebugSymbols()) {
-    strtab = symtab_builder_.GenerateStrtab();
-    if (debug_logging_) {
-      LOG(INFO) << "strtab size (bytes)    =" << strtab.size()
-                << std::hex << " " << strtab.size();
-      LOG(INFO) << "symtab size (elements) =" << symtab_builder_.GetSize()
-                << std::hex << " " << symtab_builder_.GetSize();
-    }
-  }
-
   // Get the section header string table.
-  std::vector<Elf32_Shdr*> section_ptrs;
-  std::string shstrtab;
-  shstrtab += '\0';
+  shstrtab_ += '\0';
 
   // Setup sym_undef
-  Elf32_Shdr null_hdr;
-  memset(&null_hdr, 0, sizeof(null_hdr));
-  null_hdr.sh_type = SHT_NULL;
-  null_hdr.sh_link = SHN_UNDEF;
-  section_ptrs.push_back(&null_hdr);
+  memset(&null_hdr_, 0, sizeof(null_hdr_));
+  null_hdr_.sh_type = SHT_NULL;
+  null_hdr_.sh_link = SHN_UNDEF;
+  section_ptrs_.push_back(&null_hdr_);
 
-  uint32_t section_index = 1;
+  section_index_ = 1;
 
   // setup .dynsym
-  section_ptrs.push_back(&dynsym_builder_.section_);
-  AssignSectionStr(&dynsym_builder_, &shstrtab);
-  dynsym_builder_.section_index_ = section_index++;
+  section_ptrs_.push_back(&dynsym_builder_.section_);
+  AssignSectionStr(&dynsym_builder_, &shstrtab_);
+  dynsym_builder_.section_index_ = section_index_++;
 
   // Setup .dynstr
-  section_ptrs.push_back(&dynsym_builder_.strtab_.section_);
-  AssignSectionStr(&dynsym_builder_.strtab_, &shstrtab);
-  dynsym_builder_.strtab_.section_index_ = section_index++;
+  section_ptrs_.push_back(&dynsym_builder_.strtab_.section_);
+  AssignSectionStr(&dynsym_builder_.strtab_, &shstrtab_);
+  dynsym_builder_.strtab_.section_index_ = section_index_++;
 
   // Setup .hash
-  section_ptrs.push_back(&hash_builder_.section_);
-  AssignSectionStr(&hash_builder_, &shstrtab);
-  hash_builder_.section_index_ = section_index++;
+  section_ptrs_.push_back(&hash_builder_.section_);
+  AssignSectionStr(&hash_builder_, &shstrtab_);
+  hash_builder_.section_index_ = section_index_++;
 
   // Setup .rodata
-  section_ptrs.push_back(&rodata_builder_.section_);
-  AssignSectionStr(&rodata_builder_, &shstrtab);
-  rodata_builder_.section_index_ = section_index++;
+  section_ptrs_.push_back(&rodata_builder_.section_);
+  AssignSectionStr(&rodata_builder_, &shstrtab_);
+  rodata_builder_.section_index_ = section_index_++;
 
   // Setup .text
-  section_ptrs.push_back(&text_builder_.section_);
-  AssignSectionStr(&text_builder_, &shstrtab);
-  text_builder_.section_index_ = section_index++;
+  section_ptrs_.push_back(&text_builder_.section_);
+  AssignSectionStr(&text_builder_, &shstrtab_);
+  text_builder_.section_index_ = section_index_++;
 
   // Setup .dynamic
-  section_ptrs.push_back(&dynamic_builder_.section_);
-  AssignSectionStr(&dynamic_builder_, &shstrtab);
-  dynamic_builder_.section_index_ = section_index++;
-
-  if (IncludingDebugSymbols()) {
-    // Setup .symtab
-    section_ptrs.push_back(&symtab_builder_.section_);
-    AssignSectionStr(&symtab_builder_, &shstrtab);
-    symtab_builder_.section_index_ = section_index++;
-
-    // Setup .strtab
-    section_ptrs.push_back(&symtab_builder_.strtab_.section_);
-    AssignSectionStr(&symtab_builder_.strtab_, &shstrtab);
-    symtab_builder_.strtab_.section_index_ = section_index++;
-  }
-  ElfRawSectionBuilder* it = other_builders_.data();
-  for (uint32_t cnt = 0; cnt < other_builders_.size(); ++it, ++cnt) {
-    // Setup all the other sections.
-    section_ptrs.push_back(&it->section_);
-    AssignSectionStr(it, &shstrtab);
-    it->section_index_ = section_index++;
-  }
-
-  // Setup shstrtab
-  section_ptrs.push_back(&shstrtab_builder_.section_);
-  AssignSectionStr(&shstrtab_builder_, &shstrtab);
-  shstrtab_builder_.section_index_ = section_index++;
-
-  if (debug_logging_) {
-    LOG(INFO) << ".shstrtab size    (bytes)   =" << shstrtab.size()
-              << std::hex << " " << shstrtab.size();
-    LOG(INFO) << "section list size (elements)=" << section_ptrs.size()
-              << std::hex << " " << section_ptrs.size();
-  }
+  section_ptrs_.push_back(&dynamic_builder_.section_);
+  AssignSectionStr(&dynamic_builder_, &shstrtab_);
+  dynamic_builder_.section_index_ = section_index_++;
 
   // Fill in the hash section.
-  std::vector<Elf32_Word> hash = dynsym_builder_.GenerateHashContents();
+  hash_ = dynsym_builder_.GenerateHashContents();
 
   if (debug_logging_) {
-    LOG(INFO) << ".hash size (bytes)=" << hash.size() * sizeof(Elf32_Word)
-              << std::hex << " " << hash.size() * sizeof(Elf32_Word);
+    LOG(INFO) << ".hash size (bytes)=" << hash_.size() * sizeof(Elf32_Word)
+              << std::hex << " " << hash_.size() * sizeof(Elf32_Word);
   }
 
-  Elf32_Word base_offset = sizeof(Elf32_Ehdr) + sizeof(program_headers);
-  std::vector<ElfFilePiece> pieces;
+  Elf32_Word base_offset = sizeof(Elf32_Ehdr) + sizeof(program_headers_);
 
   // Get the layout in the sections.
   //
@@ -318,14 +292,14 @@ bool ElfWriterQuick::ElfBuilder::Write() {
   dynsym_builder_.strtab_.section_.sh_offset = NextOffset(dynsym_builder_.strtab_.section_,
                                                           dynsym_builder_.section_);
   dynsym_builder_.strtab_.section_.sh_addr = dynsym_builder_.strtab_.section_.sh_offset;
-  dynsym_builder_.strtab_.section_.sh_size = dynstr.size();
+  dynsym_builder_.strtab_.section_.sh_size = dynstr_.size();
   dynsym_builder_.strtab_.section_.sh_link = dynsym_builder_.strtab_.GetLink();
 
   // Get the layout of the hash section
   hash_builder_.section_.sh_offset = NextOffset(hash_builder_.section_,
                                                 dynsym_builder_.strtab_.section_);
   hash_builder_.section_.sh_addr = hash_builder_.section_.sh_offset;
-  hash_builder_.section_.sh_size = hash.size() * sizeof(Elf32_Word);
+  hash_builder_.section_.sh_size = hash_.size() * sizeof(Elf32_Word);
   hash_builder_.section_.sh_link = hash_builder_.GetLink();
 
   // Get the layout of the rodata section.
@@ -349,7 +323,70 @@ bool ElfWriterQuick::ElfBuilder::Write() {
   dynamic_builder_.section_.sh_size = dynamic_builder_.GetSize() * sizeof(Elf32_Dyn);
   dynamic_builder_.section_.sh_link = dynamic_builder_.GetLink();
 
+  if (debug_logging_) {
+    LOG(INFO) << "dynsym off=" << dynsym_builder_.section_.sh_offset
+              << " dynsym size=" << dynsym_builder_.section_.sh_size;
+    LOG(INFO) << "dynstr off=" << dynsym_builder_.strtab_.section_.sh_offset
+              << " dynstr size=" << dynsym_builder_.strtab_.section_.sh_size;
+    LOG(INFO) << "hash off=" << hash_builder_.section_.sh_offset
+              << " hash size=" << hash_builder_.section_.sh_size;
+    LOG(INFO) << "rodata off=" << rodata_builder_.section_.sh_offset
+              << " rodata size=" << rodata_builder_.section_.sh_size;
+    LOG(INFO) << "text off=" << text_builder_.section_.sh_offset
+              << " text size=" << text_builder_.section_.sh_size;
+    LOG(INFO) << "dynamic off=" << dynamic_builder_.section_.sh_offset
+              << " dynamic size=" << dynamic_builder_.section_.sh_size;
+  }
+
+  return true;
+}
+
+bool ElfWriterQuick::ElfBuilder::Write() {
+  std::vector<ElfFilePiece> pieces;
   Elf32_Shdr prev = dynamic_builder_.section_;
+  std::string strtab;
+
+  if (IncludingDebugSymbols()) {
+    // Setup .symtab
+    section_ptrs_.push_back(&symtab_builder_.section_);
+    AssignSectionStr(&symtab_builder_, &shstrtab_);
+    symtab_builder_.section_index_ = section_index_++;
+
+    // Setup .strtab
+    section_ptrs_.push_back(&symtab_builder_.strtab_.section_);
+    AssignSectionStr(&symtab_builder_.strtab_, &shstrtab_);
+    symtab_builder_.strtab_.section_index_ = section_index_++;
+
+    strtab = symtab_builder_.GenerateStrtab();
+    if (debug_logging_) {
+      LOG(INFO) << "strtab size (bytes)    =" << strtab.size()
+                << std::hex << " " << strtab.size();
+      LOG(INFO) << "symtab size (elements) =" << symtab_builder_.GetSize()
+                << std::hex << " " << symtab_builder_.GetSize();
+    }
+  }
+
+  // Setup all the other sections.
+  for (ElfRawSectionBuilder *builder = other_builders_.data(),
+                            *end = builder + other_builders_.size();
+       builder != end; ++builder) {
+    section_ptrs_.push_back(&builder->section_);
+    AssignSectionStr(builder, &shstrtab_);
+    builder->section_index_ = section_index_++;
+  }
+
+  // Setup shstrtab
+  section_ptrs_.push_back(&shstrtab_builder_.section_);
+  AssignSectionStr(&shstrtab_builder_, &shstrtab_);
+  shstrtab_builder_.section_index_ = section_index_++;
+
+  if (debug_logging_) {
+    LOG(INFO) << ".shstrtab size    (bytes)   =" << shstrtab_.size()
+              << std::hex << " " << shstrtab_.size();
+    LOG(INFO) << "section list size (elements)=" << section_ptrs_.size()
+              << std::hex << " " << section_ptrs_.size();
+  }
+
   if (IncludingDebugSymbols()) {
     // Get the layout of the symtab section.
     symtab_builder_.section_.sh_offset = NextOffset(symtab_builder_.section_,
@@ -367,27 +404,14 @@ bool ElfWriterQuick::ElfBuilder::Write() {
     symtab_builder_.strtab_.section_.sh_link = symtab_builder_.strtab_.GetLink();
 
     prev = symtab_builder_.strtab_.section_;
-  }
-  if (debug_logging_) {
-    LOG(INFO) << "dynsym off=" << dynsym_builder_.section_.sh_offset
-              << " dynsym size=" << dynsym_builder_.section_.sh_size;
-    LOG(INFO) << "dynstr off=" << dynsym_builder_.strtab_.section_.sh_offset
-              << " dynstr size=" << dynsym_builder_.strtab_.section_.sh_size;
-    LOG(INFO) << "hash off=" << hash_builder_.section_.sh_offset
-              << " hash size=" << hash_builder_.section_.sh_size;
-    LOG(INFO) << "rodata off=" << rodata_builder_.section_.sh_offset
-              << " rodata size=" << rodata_builder_.section_.sh_size;
-    LOG(INFO) << "text off=" << text_builder_.section_.sh_offset
-              << " text size=" << text_builder_.section_.sh_size;
-    LOG(INFO) << "dynamic off=" << dynamic_builder_.section_.sh_offset
-              << " dynamic size=" << dynamic_builder_.section_.sh_size;
-    if (IncludingDebugSymbols()) {
+    if (debug_logging_) {
       LOG(INFO) << "symtab off=" << symtab_builder_.section_.sh_offset
                 << " symtab size=" << symtab_builder_.section_.sh_size;
       LOG(INFO) << "strtab off=" << symtab_builder_.strtab_.section_.sh_offset
                 << " strtab size=" << symtab_builder_.strtab_.section_.sh_size;
     }
   }
+
   // Get the layout of the extra sections. (This will deal with the debug
   // sections if they are there)
   for (auto it = other_builders_.begin(); it != other_builders_.end(); ++it) {
@@ -403,10 +427,11 @@ bool ElfWriterQuick::ElfBuilder::Write() {
                 << " " << it->name_ << " size=" << it->section_.sh_size;
     }
   }
+
   // Get the layout of the shstrtab section
   shstrtab_builder_.section_.sh_offset = NextOffset(shstrtab_builder_.section_, prev);
   shstrtab_builder_.section_.sh_addr = 0;
-  shstrtab_builder_.section_.sh_size = shstrtab.size();
+  shstrtab_builder_.section_.sh_size = shstrtab_.size();
   shstrtab_builder_.section_.sh_link = shstrtab_builder_.GetLink();
   if (debug_logging_) {
       LOG(INFO) << "shstrtab off=" << shstrtab_builder_.section_.sh_offset
@@ -430,58 +455,58 @@ bool ElfWriterQuick::ElfBuilder::Write() {
   // Setup the dynamic section.
   // This will add the 2 values we cannot know until now time, namely the size
   // and the soname_offset.
-  std::vector<Elf32_Dyn> dynamic = dynamic_builder_.GetDynamics(dynstr.size(),
-                                                                dynstr_soname_offset);
+  std::vector<Elf32_Dyn> dynamic = dynamic_builder_.GetDynamics(dynstr_.size(),
+                                                                dynstr_soname_offset_);
   CHECK_EQ(dynamic.size() * sizeof(Elf32_Dyn), dynamic_builder_.section_.sh_size);
 
   // Finish setup of the program headers now that we know the layout of the
   // whole file.
   Elf32_Word load_r_size = rodata_builder_.section_.sh_offset + rodata_builder_.section_.sh_size;
-  program_headers[PH_LOAD_R__].p_filesz = load_r_size;
-  program_headers[PH_LOAD_R__].p_memsz =  load_r_size;
-  program_headers[PH_LOAD_R__].p_align =  rodata_builder_.section_.sh_addralign;
+  program_headers_[PH_LOAD_R__].p_filesz = load_r_size;
+  program_headers_[PH_LOAD_R__].p_memsz =  load_r_size;
+  program_headers_[PH_LOAD_R__].p_align =  rodata_builder_.section_.sh_addralign;
 
   Elf32_Word load_rx_size = text_builder_.section_.sh_size;
-  program_headers[PH_LOAD_R_X].p_offset = text_builder_.section_.sh_offset;
-  program_headers[PH_LOAD_R_X].p_vaddr  = text_builder_.section_.sh_offset;
-  program_headers[PH_LOAD_R_X].p_paddr  = text_builder_.section_.sh_offset;
-  program_headers[PH_LOAD_R_X].p_filesz = load_rx_size;
-  program_headers[PH_LOAD_R_X].p_memsz  = load_rx_size;
-  program_headers[PH_LOAD_R_X].p_align  = text_builder_.section_.sh_addralign;
+  program_headers_[PH_LOAD_R_X].p_offset = text_builder_.section_.sh_offset;
+  program_headers_[PH_LOAD_R_X].p_vaddr  = text_builder_.section_.sh_offset;
+  program_headers_[PH_LOAD_R_X].p_paddr  = text_builder_.section_.sh_offset;
+  program_headers_[PH_LOAD_R_X].p_filesz = load_rx_size;
+  program_headers_[PH_LOAD_R_X].p_memsz  = load_rx_size;
+  program_headers_[PH_LOAD_R_X].p_align  = text_builder_.section_.sh_addralign;
 
-  program_headers[PH_LOAD_RW_].p_offset = dynamic_builder_.section_.sh_offset;
-  program_headers[PH_LOAD_RW_].p_vaddr  = dynamic_builder_.section_.sh_offset;
-  program_headers[PH_LOAD_RW_].p_paddr  = dynamic_builder_.section_.sh_offset;
-  program_headers[PH_LOAD_RW_].p_filesz = dynamic_builder_.section_.sh_size;
-  program_headers[PH_LOAD_RW_].p_memsz  = dynamic_builder_.section_.sh_size;
-  program_headers[PH_LOAD_RW_].p_align  = dynamic_builder_.section_.sh_addralign;
+  program_headers_[PH_LOAD_RW_].p_offset = dynamic_builder_.section_.sh_offset;
+  program_headers_[PH_LOAD_RW_].p_vaddr  = dynamic_builder_.section_.sh_offset;
+  program_headers_[PH_LOAD_RW_].p_paddr  = dynamic_builder_.section_.sh_offset;
+  program_headers_[PH_LOAD_RW_].p_filesz = dynamic_builder_.section_.sh_size;
+  program_headers_[PH_LOAD_RW_].p_memsz  = dynamic_builder_.section_.sh_size;
+  program_headers_[PH_LOAD_RW_].p_align  = dynamic_builder_.section_.sh_addralign;
 
-  program_headers[PH_DYNAMIC].p_offset = dynamic_builder_.section_.sh_offset;
-  program_headers[PH_DYNAMIC].p_vaddr  = dynamic_builder_.section_.sh_offset;
-  program_headers[PH_DYNAMIC].p_paddr  = dynamic_builder_.section_.sh_offset;
-  program_headers[PH_DYNAMIC].p_filesz = dynamic_builder_.section_.sh_size;
-  program_headers[PH_DYNAMIC].p_memsz  = dynamic_builder_.section_.sh_size;
-  program_headers[PH_DYNAMIC].p_align  = dynamic_builder_.section_.sh_addralign;
+  program_headers_[PH_DYNAMIC].p_offset = dynamic_builder_.section_.sh_offset;
+  program_headers_[PH_DYNAMIC].p_vaddr  = dynamic_builder_.section_.sh_offset;
+  program_headers_[PH_DYNAMIC].p_paddr  = dynamic_builder_.section_.sh_offset;
+  program_headers_[PH_DYNAMIC].p_filesz = dynamic_builder_.section_.sh_size;
+  program_headers_[PH_DYNAMIC].p_memsz  = dynamic_builder_.section_.sh_size;
+  program_headers_[PH_DYNAMIC].p_align  = dynamic_builder_.section_.sh_addralign;
 
   // Finish setup of the Ehdr values.
-  elf_header_.e_phoff = phdr_offset;
+  elf_header_.e_phoff = PHDR_OFFSET;
   elf_header_.e_shoff = sections_offset;
   elf_header_.e_phnum = PH_NUM;
-  elf_header_.e_shnum = section_ptrs.size();
+  elf_header_.e_shnum = section_ptrs_.size();
   elf_header_.e_shstrndx = shstrtab_builder_.section_index_;
 
   // Add the rest of the pieces to the list.
   pieces.push_back(ElfFilePiece("Elf Header", 0, &elf_header_, sizeof(elf_header_)));
-  pieces.push_back(ElfFilePiece("Program headers", phdr_offset,
-                                &program_headers, sizeof(program_headers)));
+  pieces.push_back(ElfFilePiece("Program headers", PHDR_OFFSET,
+                                &program_headers_, sizeof(program_headers_)));
   pieces.push_back(ElfFilePiece(".dynamic", dynamic_builder_.section_.sh_offset,
                                 dynamic.data(), dynamic_builder_.section_.sh_size));
   pieces.push_back(ElfFilePiece(".dynsym", dynsym_builder_.section_.sh_offset,
                                 dynsym.data(), dynsym.size() * sizeof(Elf32_Sym)));
   pieces.push_back(ElfFilePiece(".dynstr", dynsym_builder_.strtab_.section_.sh_offset,
-                                dynstr.c_str(), dynstr.size()));
+                                dynstr_.c_str(), dynstr_.size()));
   pieces.push_back(ElfFilePiece(".hash", hash_builder_.section_.sh_offset,
-                                hash.data(), hash.size() * sizeof(Elf32_Word)));
+                                hash_.data(), hash_.size() * sizeof(Elf32_Word)));
   pieces.push_back(ElfFilePiece(".rodata", rodata_builder_.section_.sh_offset,
                                 nullptr, rodata_builder_.section_.sh_size));
   pieces.push_back(ElfFilePiece(".text", text_builder_.section_.sh_offset,
@@ -493,13 +518,13 @@ bool ElfWriterQuick::ElfBuilder::Write() {
                                   strtab.c_str(), strtab.size()));
   }
   pieces.push_back(ElfFilePiece(".shstrtab", shstrtab_builder_.section_.sh_offset,
-                                &shstrtab[0], shstrtab.size()));
-  for (uint32_t i = 0; i < section_ptrs.size(); ++i) {
+                                &shstrtab_[0], shstrtab_.size()));
+  for (uint32_t i = 0; i < section_ptrs_.size(); ++i) {
     // Just add all the sections in induvidually since they are all over the
     // place on the heap/stack.
     Elf32_Word cur_off = sections_offset + i * sizeof(Elf32_Shdr);
     pieces.push_back(ElfFilePiece("section table piece", cur_off,
-                                  section_ptrs[i], sizeof(Elf32_Shdr)));
+                                  section_ptrs_[i], sizeof(Elf32_Shdr)));
   }
 
   if (!WriteOutFile(pieces)) {
@@ -664,7 +689,7 @@ std::vector<Elf32_Word> ElfWriterQuick::ElfSymtabBuilder::GenerateHashContents()
   // Lets say the state is something like this.
   // +--------+       +--------+      +-----------+
   // | symtab |       | bucket |      |   chain   |
-  // |  nullptr  |       | 1      |      | STN_UNDEF |
+  // |  null  |       | 1      |      | STN_UNDEF |
   // | <sym1> |       | 4      |      | 2         |
   // | <sym2> |       |        |      | 5         |
   // | <sym3> |       |        |      | STN_UNDEF |
@@ -836,13 +861,24 @@ void ElfWriterQuick::ReservePatchSpace(std::vector<uint8_t>* buffer, bool debug)
 }
 
 std::vector<uint8_t>* ConstructCIEFrameX86(bool is_x86_64) {
-  std::vector<uint8_t>*cfi_info = new std::vector<uint8_t>;
+  std::vector<uint8_t>* cfi_info = new std::vector<uint8_t>;
 
   // Length (will be filled in later in this routine).
-  PushWord(cfi_info, 0);
+  if (is_x86_64) {
+    PushWord(cfi_info, 0xffffffff);  // Indicates 64bit
+    PushWord(cfi_info, 0);
+    PushWord(cfi_info, 0);
+  } else {
+    PushWord(cfi_info, 0);
+  }
 
   // CIE id: always 0.
-  PushWord(cfi_info, 0);
+  if (is_x86_64) {
+    PushWord(cfi_info, 0);
+    PushWord(cfi_info, 0);
+  } else {
+    PushWord(cfi_info, 0);
+  }
 
   // Version: always 1.
   cfi_info->push_back(0x01);
@@ -874,8 +910,14 @@ std::vector<uint8_t>* ConstructCIEFrameX86(bool is_x86_64) {
   // Augmentation length: 1.
   cfi_info->push_back(1);
 
-  // Augmentation data: 0x03 ((DW_EH_PE_absptr << 4) | DW_EH_PE_udata4).
-  cfi_info->push_back(0x03);
+  // Augmentation data.
+  if (is_x86_64) {
+    // 0x04 ((DW_EH_PE_absptr << 4) | DW_EH_PE_udata8).
+    cfi_info->push_back(0x04);
+  } else {
+    // 0x03 ((DW_EH_PE_absptr << 4) | DW_EH_PE_udata4).
+    cfi_info->push_back(0x03);
+  }
 
   // Initial instructions.
   if (is_x86_64) {
@@ -905,11 +947,13 @@ std::vector<uint8_t>* ConstructCIEFrameX86(bool is_x86_64) {
   }
 
   // Set the length of the CIE inside the generated bytes.
-  uint32_t length = cfi_info->size() - 4;
-  (*cfi_info)[0] = length;
-  (*cfi_info)[1] = length >> 8;
-  (*cfi_info)[2] = length >> 16;
-  (*cfi_info)[3] = length >> 24;
+  if (is_x86_64) {
+    uint32_t length = cfi_info->size() - 12;
+    UpdateWord(cfi_info, 4, length);
+  } else {
+    uint32_t length = cfi_info->size() - 4;
+    UpdateWord(cfi_info, 0, length);
+  }
   return cfi_info;
 }
 
@@ -940,8 +984,12 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
                      compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols(),
                      debug);
 
+  if (!builder.Init()) {
+    return false;
+  }
+
   if (compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols()) {
-    WriteDebugSymbols(builder, oat_writer);
+    WriteDebugSymbols(&builder, oat_writer);
   }
 
   if (compiler_driver_->GetCompilerOptions().GetIncludePatchInformation()) {
@@ -954,15 +1002,17 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
   return builder.Write();
 }
 
-void ElfWriterQuick::WriteDebugSymbols(ElfBuilder& builder, OatWriter* oat_writer) {
+void ElfWriterQuick::WriteDebugSymbols(ElfBuilder* builder, OatWriter* oat_writer) {
   std::unique_ptr<std::vector<uint8_t>> cfi_info(
       ConstructCIEFrame(compiler_driver_->GetInstructionSet()));
 
+  Elf32_Addr text_section_address = builder->text_builder_.section_.sh_addr;
+
   // Iterate over the compiled methods.
   const std::vector<OatWriter::DebugInfo>& method_info = oat_writer->GetCFIMethodInfo();
-  ElfSymtabBuilder* symtab = &builder.symtab_builder_;
+  ElfSymtabBuilder* symtab = &builder->symtab_builder_;
   for (auto it = method_info.begin(); it != method_info.end(); ++it) {
-    symtab->AddSymbol(it->method_name_, &builder.text_builder_, it->low_pc_, true,
+    symtab->AddSymbol(it->method_name_, &builder->text_builder_, it->low_pc_, true,
                       it->high_pc_ - it->low_pc_, STB_GLOBAL, STT_FUNC);
 
     // Include CFI for compiled method, if possible.
@@ -976,96 +1026,314 @@ void ElfWriterQuick::WriteDebugSymbols(ElfBuilder& builder, OatWriter* oat_write
         int cur_offset = cfi_info->size();
         cfi_info->insert(cfi_info->end(), fde->begin(), fde->end());
 
-        // Set the 'CIE_pointer' field to cur_offset+4.
-        uint32_t CIE_pointer = cur_offset + 4;
-        uint32_t offset_to_update = cur_offset + sizeof(uint32_t);
-        (*cfi_info)[offset_to_update+0] = CIE_pointer;
-        (*cfi_info)[offset_to_update+1] = CIE_pointer >> 8;
-        (*cfi_info)[offset_to_update+2] = CIE_pointer >> 16;
-        (*cfi_info)[offset_to_update+3] = CIE_pointer >> 24;
+        bool is_64bit = *(reinterpret_cast<const uint32_t*>(fde->data())) == 0xffffffff;
 
-        // Set the 'initial_location' field to address the start of the method.
-        offset_to_update = cur_offset + 2*sizeof(uint32_t);
-        const uint32_t quick_code_start = it->low_pc_;
-        (*cfi_info)[offset_to_update+0] = quick_code_start;
-        (*cfi_info)[offset_to_update+1] = quick_code_start >> 8;
-        (*cfi_info)[offset_to_update+2] = quick_code_start >> 16;
-        (*cfi_info)[offset_to_update+3] = quick_code_start >> 24;
+        // Set the 'CIE_pointer' field.
+        uint64_t CIE_pointer = cur_offset + (is_64bit ? 12 : 4);
+        uint64_t offset_to_update = CIE_pointer;
+        if (is_64bit) {
+          (*cfi_info)[offset_to_update+0] = CIE_pointer;
+          (*cfi_info)[offset_to_update+1] = CIE_pointer >> 8;
+          (*cfi_info)[offset_to_update+2] = CIE_pointer >> 16;
+          (*cfi_info)[offset_to_update+3] = CIE_pointer >> 24;
+          (*cfi_info)[offset_to_update+4] = CIE_pointer >> 32;
+          (*cfi_info)[offset_to_update+5] = CIE_pointer >> 40;
+          (*cfi_info)[offset_to_update+6] = CIE_pointer >> 48;
+          (*cfi_info)[offset_to_update+7] = CIE_pointer >> 56;
+        } else {
+          (*cfi_info)[offset_to_update+0] = CIE_pointer;
+          (*cfi_info)[offset_to_update+1] = CIE_pointer >> 8;
+          (*cfi_info)[offset_to_update+2] = CIE_pointer >> 16;
+          (*cfi_info)[offset_to_update+3] = CIE_pointer >> 24;
+        }
+
+        // Set the 'initial_location' field.
+        offset_to_update += is_64bit ? 8 : 4;
+        if (is_64bit) {
+          const uint64_t quick_code_start = it->low_pc_ + text_section_address;
+          (*cfi_info)[offset_to_update+0] = quick_code_start;
+          (*cfi_info)[offset_to_update+1] = quick_code_start >> 8;
+          (*cfi_info)[offset_to_update+2] = quick_code_start >> 16;
+          (*cfi_info)[offset_to_update+3] = quick_code_start >> 24;
+          (*cfi_info)[offset_to_update+4] = quick_code_start >> 32;
+          (*cfi_info)[offset_to_update+5] = quick_code_start >> 40;
+          (*cfi_info)[offset_to_update+6] = quick_code_start >> 48;
+          (*cfi_info)[offset_to_update+7] = quick_code_start >> 56;
+        } else {
+          const uint32_t quick_code_start = it->low_pc_ + text_section_address;
+          (*cfi_info)[offset_to_update+0] = quick_code_start;
+          (*cfi_info)[offset_to_update+1] = quick_code_start >> 8;
+          (*cfi_info)[offset_to_update+2] = quick_code_start >> 16;
+          (*cfi_info)[offset_to_update+3] = quick_code_start >> 24;
+        }
       }
     }
   }
 
-  if (cfi_info.get() != nullptr) {
-    // Now lay down the Elf sections.
-    ElfRawSectionBuilder debug_info(".debug_info",   SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-    ElfRawSectionBuilder debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-    ElfRawSectionBuilder debug_str(".debug_str",    SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-    ElfRawSectionBuilder eh_frame(".eh_frame",  SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0);
-    eh_frame.SetBuffer(std::move(*cfi_info.get()));
+  bool hasCFI = (cfi_info.get() != nullptr);
+  bool hasLineInfo = false;
+  for (auto& dbg_info : oat_writer->GetCFIMethodInfo()) {
+    if (dbg_info.dbgstream_ != nullptr &&
+        !dbg_info.compiled_method_->GetSrcMappingTable().empty()) {
+      hasLineInfo = true;
+      break;
+    }
+  }
 
-    FillInCFIInformation(oat_writer, debug_info.GetBuffer(), debug_abbrev.GetBuffer(),
-                         debug_str.GetBuffer());
-    builder.RegisterRawSection(debug_info);
-    builder.RegisterRawSection(debug_abbrev);
-    builder.RegisterRawSection(eh_frame);
-    builder.RegisterRawSection(debug_str);
+  if (hasLineInfo || hasCFI) {
+    ElfRawSectionBuilder debug_info(".debug_info",     SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+    ElfRawSectionBuilder debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+    ElfRawSectionBuilder debug_str(".debug_str",       SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+    ElfRawSectionBuilder debug_line(".debug_line",     SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+
+    FillInCFIInformation(oat_writer, debug_info.GetBuffer(),
+                         debug_abbrev.GetBuffer(), debug_str.GetBuffer(),
+                         hasLineInfo ? debug_line.GetBuffer() : nullptr,
+                         text_section_address);
+
+    builder->RegisterRawSection(debug_info);
+    builder->RegisterRawSection(debug_abbrev);
+
+    if (hasCFI) {
+      ElfRawSectionBuilder eh_frame(".eh_frame",  SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0);
+      eh_frame.SetBuffer(std::move(*cfi_info.get()));
+      builder->RegisterRawSection(eh_frame);
+    }
+
+    if (hasLineInfo) {
+      builder->RegisterRawSection(debug_line);
+    }
+
+    builder->RegisterRawSection(debug_str);
+  }
+}
+
+class LineTableGenerator FINAL : public Leb128Encoder {
+ public:
+  LineTableGenerator(int line_base, int line_range, int opcode_base,
+                     std::vector<uint8_t>* data, uintptr_t current_address,
+                     size_t current_line)
+    : Leb128Encoder(data), line_base_(line_base), line_range_(line_range),
+      opcode_base_(opcode_base), current_address_(current_address),
+      current_line_(current_line) {}
+
+  void PutDelta(unsigned delta_addr, int delta_line) {
+    current_line_ += delta_line;
+    current_address_ += delta_addr;
+
+    if (delta_line >= line_base_ && delta_line < line_base_ + line_range_) {
+      unsigned special_opcode = (delta_line - line_base_) +
+                                (line_range_ * delta_addr) + opcode_base_;
+      if (special_opcode <= 255) {
+        PushByte(data_, special_opcode);
+        return;
+      }
+    }
+
+    // generate standart opcode for address advance
+    if (delta_addr != 0) {
+      PushByte(data_, DW_LNS_advance_pc);
+      PushBackUnsigned(delta_addr);
+    }
+
+    // generate standart opcode for line delta
+    if (delta_line != 0) {
+      PushByte(data_, DW_LNS_advance_line);
+      PushBackSigned(delta_line);
+    }
+
+    // generate standart opcode for new LTN entry
+    PushByte(data_, DW_LNS_copy);
+  }
+
+  void SetAddr(uintptr_t addr) {
+    if (current_address_ == addr) {
+      return;
+    }
+
+    current_address_ = addr;
+
+    PushByte(data_, 0);  // extended opcode:
+    PushByte(data_, 1 + 4);  // length: opcode_size + address_size
+    PushByte(data_, DW_LNE_set_address);
+    PushWord(data_, addr);
+  }
+
+  void SetLine(unsigned line) {
+    int delta_line = line - current_line_;
+    if (delta_line) {
+      current_line_ = line;
+      PushByte(data_, DW_LNS_advance_line);
+      PushBackSigned(delta_line);
+    }
+  }
+
+  void SetFile(unsigned file_index) {
+    PushByte(data_, DW_LNS_set_file);
+    PushBackUnsigned(file_index);
+  }
+
+  void EndSequence() {
+    // End of Line Table Program
+    // 0(=ext), 1(len), DW_LNE_end_sequence
+    PushByte(data_, 0);
+    PushByte(data_, 1);
+    PushByte(data_, DW_LNE_end_sequence);
+  }
+
+ private:
+  const int line_base_;
+  const int line_range_;
+  const int opcode_base_;
+  uintptr_t current_address_;
+  size_t current_line_;
+
+  DISALLOW_COPY_AND_ASSIGN(LineTableGenerator);
+};
+
+// TODO: rewriting it using DexFile::DecodeDebugInfo needs unneeded stuff.
+static void GetLineInfoForJava(const uint8_t* dbgstream, const SrcMap& pc2dex,
+                               SrcMap* result, uint32_t start_pc = 0) {
+  if (dbgstream == nullptr) {
+    return;
+  }
+
+  int adjopcode;
+  uint32_t dex_offset = 0;
+  uint32_t java_line = DecodeUnsignedLeb128(&dbgstream);
+
+  // skip parameters
+  for (uint32_t param_count = DecodeUnsignedLeb128(&dbgstream); param_count != 0; --param_count) {
+    DecodeUnsignedLeb128(&dbgstream);
+  }
+
+  for (bool is_end = false; is_end == false; ) {
+    uint8_t opcode = *dbgstream;
+    dbgstream++;
+    switch (opcode) {
+    case DexFile::DBG_END_SEQUENCE:
+      is_end = true;
+      break;
+
+    case DexFile::DBG_ADVANCE_PC:
+      dex_offset += DecodeUnsignedLeb128(&dbgstream);
+      break;
+
+    case DexFile::DBG_ADVANCE_LINE:
+      java_line += DecodeSignedLeb128(&dbgstream);
+      break;
+
+    case DexFile::DBG_START_LOCAL:
+    case DexFile::DBG_START_LOCAL_EXTENDED:
+      DecodeUnsignedLeb128(&dbgstream);
+      DecodeUnsignedLeb128(&dbgstream);
+      DecodeUnsignedLeb128(&dbgstream);
+
+      if (opcode == DexFile::DBG_START_LOCAL_EXTENDED) {
+        DecodeUnsignedLeb128(&dbgstream);
+      }
+      break;
+
+    case DexFile::DBG_END_LOCAL:
+    case DexFile::DBG_RESTART_LOCAL:
+      DecodeUnsignedLeb128(&dbgstream);
+      break;
+
+    case DexFile::DBG_SET_PROLOGUE_END:
+    case DexFile::DBG_SET_EPILOGUE_BEGIN:
+    case DexFile::DBG_SET_FILE:
+      break;
+
+    default:
+      adjopcode = opcode - DexFile::DBG_FIRST_SPECIAL;
+      dex_offset += adjopcode / DexFile::DBG_LINE_RANGE;
+      java_line += DexFile::DBG_LINE_BASE + (adjopcode % DexFile::DBG_LINE_RANGE);
+
+      for (SrcMap::const_iterator found = pc2dex.FindByTo(dex_offset);
+          found != pc2dex.end() && found->to_ == static_cast<int32_t>(dex_offset);
+          found++) {
+        result->push_back({found->from_ + start_pc, static_cast<int32_t>(java_line)});
+      }
+      break;
+    }
   }
 }
 
 void ElfWriterQuick::FillInCFIInformation(OatWriter* oat_writer,
                                           std::vector<uint8_t>* dbg_info,
                                           std::vector<uint8_t>* dbg_abbrev,
-                                          std::vector<uint8_t>* dbg_str) {
+                                          std::vector<uint8_t>* dbg_str,
+                                          std::vector<uint8_t>* dbg_line,
+                                          uint32_t text_section_offset) {
+  const std::vector<OatWriter::DebugInfo>& method_info = oat_writer->GetCFIMethodInfo();
+
+  uint32_t producer_str_offset = PushStr(dbg_str, "Android dex2oat");
+
   // Create the debug_abbrev section with boilerplate information.
   // We only care about low_pc and high_pc right now for the compilation
   // unit and methods.
 
   // Tag 1: Compilation unit: DW_TAG_compile_unit.
-  dbg_abbrev->push_back(1);
-  dbg_abbrev->push_back(DW_TAG_compile_unit);
+  PushByte(dbg_abbrev, 1);
+  PushByte(dbg_abbrev, DW_TAG_compile_unit);
 
   // There are children (the methods).
-  dbg_abbrev->push_back(DW_CHILDREN_yes);
+  PushByte(dbg_abbrev, DW_CHILDREN_yes);
+
+  // DW_AT_producer DW_FORM_data1.
+  // REVIEW: we can get rid of dbg_str section if
+  // DW_FORM_string (immediate string) was used everywhere instead of
+  // DW_FORM_strp (ref to string from .debug_str section).
+  // DW_FORM_strp makes sense only if we reuse the strings.
+  PushByte(dbg_abbrev, DW_AT_producer);
+  PushByte(dbg_abbrev, DW_FORM_strp);
 
   // DW_LANG_Java DW_FORM_data1.
-  dbg_abbrev->push_back(DW_AT_language);
-  dbg_abbrev->push_back(DW_FORM_data1);
+  PushByte(dbg_abbrev, DW_AT_language);
+  PushByte(dbg_abbrev, DW_FORM_data1);
 
   // DW_AT_low_pc DW_FORM_addr.
-  dbg_abbrev->push_back(DW_AT_low_pc);
-  dbg_abbrev->push_back(DW_FORM_addr);
+  PushByte(dbg_abbrev, DW_AT_low_pc);
+  PushByte(dbg_abbrev, DW_FORM_addr);
 
   // DW_AT_high_pc DW_FORM_addr.
-  dbg_abbrev->push_back(DW_AT_high_pc);
-  dbg_abbrev->push_back(DW_FORM_addr);
+  PushByte(dbg_abbrev, DW_AT_high_pc);
+  PushByte(dbg_abbrev, DW_FORM_addr);
+
+  if (dbg_line != nullptr) {
+    // DW_AT_stmt_list DW_FORM_sec_offset.
+    PushByte(dbg_abbrev, DW_AT_stmt_list);
+    PushByte(dbg_abbrev, DW_FORM_sec_offset);
+  }
 
   // End of DW_TAG_compile_unit.
   PushHalf(dbg_abbrev, 0);
 
   // Tag 2: Compilation unit: DW_TAG_subprogram.
-  dbg_abbrev->push_back(2);
-  dbg_abbrev->push_back(DW_TAG_subprogram);
+  PushByte(dbg_abbrev, 2);
+  PushByte(dbg_abbrev, DW_TAG_subprogram);
 
   // There are no children.
-  dbg_abbrev->push_back(DW_CHILDREN_no);
+  PushByte(dbg_abbrev, DW_CHILDREN_no);
 
   // Name of the method.
-  dbg_abbrev->push_back(DW_AT_name);
-  dbg_abbrev->push_back(DW_FORM_strp);
+  PushByte(dbg_abbrev, DW_AT_name);
+  PushByte(dbg_abbrev, DW_FORM_strp);
 
   // DW_AT_low_pc DW_FORM_addr.
-  dbg_abbrev->push_back(DW_AT_low_pc);
-  dbg_abbrev->push_back(DW_FORM_addr);
+  PushByte(dbg_abbrev, DW_AT_low_pc);
+  PushByte(dbg_abbrev, DW_FORM_addr);
 
   // DW_AT_high_pc DW_FORM_addr.
-  dbg_abbrev->push_back(DW_AT_high_pc);
-  dbg_abbrev->push_back(DW_FORM_addr);
+  PushByte(dbg_abbrev, DW_AT_high_pc);
+  PushByte(dbg_abbrev, DW_FORM_addr);
 
   // End of DW_TAG_subprogram.
   PushHalf(dbg_abbrev, 0);
 
   // Start the debug_info section with the header information
   // 'unit_length' will be filled in later.
+  int cunit_length = dbg_info->size();
   PushWord(dbg_info, 0);
 
   // 'version' - 3.
@@ -1075,55 +1343,153 @@ void ElfWriterQuick::FillInCFIInformation(OatWriter* oat_writer,
   PushWord(dbg_info, 0);
 
   // Address size: 4.
-  dbg_info->push_back(4);
+  PushByte(dbg_info, 4);
 
   // Start the description for the compilation unit.
   // This uses tag 1.
-  dbg_info->push_back(1);
+  PushByte(dbg_info, 1);
+
+  // The producer is Android dex2oat.
+  PushWord(dbg_info, producer_str_offset);
 
   // The language is Java.
-  dbg_info->push_back(DW_LANG_Java);
+  PushByte(dbg_info, DW_LANG_Java);
 
-  // Leave space for low_pc and high_pc.
-  int low_pc_offset = dbg_info->size();
+  // low_pc and high_pc.
+  uint32_t cunit_low_pc = 0 - 1;
+  uint32_t cunit_high_pc = 0;
+  int cunit_low_pc_pos = dbg_info->size();
   PushWord(dbg_info, 0);
   PushWord(dbg_info, 0);
 
-  // Walk through the information in the method table, and enter into dbg_info.
-  const std::vector<OatWriter::DebugInfo>& dbg = oat_writer->GetCFIMethodInfo();
-  uint32_t low_pc = 0xFFFFFFFFU;
-  uint32_t high_pc = 0;
+  if (dbg_line == nullptr) {
+    for (size_t i = 0; i < method_info.size(); ++i) {
+      const OatWriter::DebugInfo &dbg = method_info[i];
 
-  for (uint32_t i = 0; i < dbg.size(); i++) {
-    const OatWriter::DebugInfo& info = dbg[i];
-    if (info.low_pc_ < low_pc) {
-      low_pc = info.low_pc_;
+      cunit_low_pc = std::min(cunit_low_pc, dbg.low_pc_);
+      cunit_high_pc = std::max(cunit_high_pc, dbg.high_pc_);
+
+      // Start a new TAG: subroutine (2).
+      PushByte(dbg_info, 2);
+
+      // Enter name, low_pc, high_pc.
+      PushWord(dbg_info, PushStr(dbg_str, dbg.method_name_));
+      PushWord(dbg_info, dbg.low_pc_ + text_section_offset);
+      PushWord(dbg_info, dbg.high_pc_ + text_section_offset);
     }
-    if (info.high_pc_ > high_pc) {
-      high_pc = info.high_pc_;
+  } else {
+    // TODO: in gdb info functions <regexp> - reports Java functions, but
+    // source file is <unknown> because .debug_line is formed as one
+    // compilation unit. To fix this it is possible to generate
+    // a separate compilation unit for every distinct Java source.
+    // Each of the these compilation units can have several non-adjacent
+    // method ranges.
+
+    // Line number table offset
+    PushWord(dbg_info, dbg_line->size());
+
+    size_t lnt_length = dbg_line->size();
+    PushWord(dbg_line, 0);
+
+    PushHalf(dbg_line, 4);  // LNT Version DWARF v4 => 4
+
+    size_t lnt_hdr_length = dbg_line->size();
+    PushWord(dbg_line, 0);  // TODO: 64-bit uses 8-byte here
+
+    PushByte(dbg_line, 1);  // minimum_instruction_length (ubyte)
+    PushByte(dbg_line, 1);  // maximum_operations_per_instruction (ubyte) = always 1
+    PushByte(dbg_line, 1);  // default_is_stmt (ubyte)
+
+    const int8_t LINE_BASE = -5;
+    PushByte(dbg_line, LINE_BASE);  // line_base (sbyte)
+
+    const uint8_t LINE_RANGE = 14;
+    PushByte(dbg_line, LINE_RANGE);  // line_range (ubyte)
+
+    const uint8_t OPCODE_BASE = 13;
+    PushByte(dbg_line, OPCODE_BASE);  // opcode_base (ubyte)
+
+    // Standard_opcode_lengths (array of ubyte).
+    PushByte(dbg_line, 0); PushByte(dbg_line, 1); PushByte(dbg_line, 1);
+    PushByte(dbg_line, 1); PushByte(dbg_line, 1); PushByte(dbg_line, 0);
+    PushByte(dbg_line, 0); PushByte(dbg_line, 0); PushByte(dbg_line, 1);
+    PushByte(dbg_line, 0); PushByte(dbg_line, 0); PushByte(dbg_line, 1);
+
+    PushByte(dbg_line, 0);  // include_directories (sequence of path names) = EMPTY
+
+    // File_names (sequence of file entries).
+    std::unordered_map<const char*, size_t> files;
+    for (size_t i = 0; i < method_info.size(); ++i) {
+      const OatWriter::DebugInfo &dbg = method_info[i];
+      // TODO: add package directory to the file name
+      const char* file_name = dbg.src_file_name_ == nullptr ? "null" : dbg.src_file_name_;
+      auto found = files.find(file_name);
+      if (found == files.end()) {
+        size_t file_index = 1 + files.size();
+        files[file_name] = file_index;
+        PushStr(dbg_line, file_name);
+        PushByte(dbg_line, 0);  // include directory index = LEB128(0) - no directory
+        PushByte(dbg_line, 0);  // modification time = LEB128(0) - NA
+        PushByte(dbg_line, 0);  // file length = LEB128(0) - NA
+      }
+    }
+    PushByte(dbg_line, 0);  // End of file_names.
+
+    // Set lnt header length.
+    UpdateWord(dbg_line, lnt_hdr_length, dbg_line->size() - lnt_hdr_length - 4);
+
+    // Generate Line Number Program code, one long program for all methods.
+    LineTableGenerator line_table_generator(LINE_BASE, LINE_RANGE, OPCODE_BASE,
+                                            dbg_line, 0, 1);
+
+    SrcMap pc2java_map;
+    for (size_t i = 0; i < method_info.size(); ++i) {
+      const OatWriter::DebugInfo &dbg = method_info[i];
+      const char* file_name = (dbg.src_file_name_ == nullptr) ? "null" : dbg.src_file_name_;
+      size_t file_index = files[file_name];
+      DCHECK_NE(file_index, 0U) << file_name;
+
+      cunit_low_pc = std::min(cunit_low_pc, dbg.low_pc_);
+      cunit_high_pc = std::max(cunit_high_pc, dbg.high_pc_);
+
+      // Start a new TAG: subroutine (2).
+      PushByte(dbg_info, 2);
+
+      // Enter name, low_pc, high_pc.
+      PushWord(dbg_info, PushStr(dbg_str, dbg.method_name_));
+      PushWord(dbg_info, dbg.low_pc_ + text_section_offset);
+      PushWord(dbg_info, dbg.high_pc_ + text_section_offset);
+
+      pc2java_map.clear();
+      GetLineInfoForJava(dbg.dbgstream_, dbg.compiled_method_->GetSrcMappingTable(),
+                         &pc2java_map, dbg.low_pc_);
+      pc2java_map.DeltaFormat({dbg.low_pc_, 1}, dbg.high_pc_);
+
+      line_table_generator.SetFile(file_index);
+      line_table_generator.SetAddr(dbg.low_pc_ + text_section_offset);
+      line_table_generator.SetLine(1);
+      for (auto& src_map_elem : pc2java_map) {
+        line_table_generator.PutDelta(src_map_elem.from_, src_map_elem.to_);
+      }
     }
 
-    // Start a new TAG: subroutine (2).
-    dbg_info->push_back(2);
+    // End Sequence should have the highest address set.
+    line_table_generator.SetAddr(cunit_high_pc + text_section_offset);
+    line_table_generator.EndSequence();
 
-    // Enter the name into the string table (and NUL terminate).
-    uint32_t str_offset = dbg_str->size();
-    dbg_str->insert(dbg_str->end(), info.method_name_.begin(), info.method_name_.end());
-    dbg_str->push_back('\0');
-
-    // Enter name, low_pc, high_pc.
-    PushWord(dbg_info, str_offset);
-    PushWord(dbg_info, info.low_pc_);
-    PushWord(dbg_info, info.high_pc_);
+    // set lnt length
+    UpdateWord(dbg_line, lnt_length, dbg_line->size() - lnt_length - 4);
   }
 
   // One byte terminator
-  dbg_info->push_back(0);
+  PushByte(dbg_info, 0);
 
-  // We have now walked all the methods.  Fill in lengths and low/high PCs.
-  UpdateWord(dbg_info, 0, dbg_info->size() - 4);
-  UpdateWord(dbg_info, low_pc_offset, low_pc);
-  UpdateWord(dbg_info, low_pc_offset + 4, high_pc);
+  // Fill in cunit's low_pc and high_pc.
+  UpdateWord(dbg_info, cunit_low_pc_pos, cunit_low_pc + text_section_offset);
+  UpdateWord(dbg_info, cunit_low_pc_pos + 4, cunit_high_pc + text_section_offset);
+
+  // We have now walked all the methods.  Fill in lengths.
+  UpdateWord(dbg_info, cunit_length, dbg_info->size() - cunit_length - 4);
 }
 
 }  // namespace art

@@ -411,10 +411,12 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
 
           const uint32_t quick_code_start = quick_code_offset -
               writer_->oat_header_->GetExecutableOffset();
+          const DexFile::CodeItem *code_item = it.GetMethodCodeItem();
           writer_->method_info_.push_back(DebugInfo(name,
-                                                    quick_code_start,
-                                                    quick_code_start + code_size,
-                                                    compiled_method));
+                dex_file_->GetSourceFile(dex_file_->GetClassDef(class_def_index_)),
+                quick_code_start, quick_code_start + code_size,
+                code_item == nullptr ? nullptr : dex_file_->GetDebugInfoStream(code_item),
+                compiled_method));
         }
       }
 
