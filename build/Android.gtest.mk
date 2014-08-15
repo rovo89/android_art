@@ -117,7 +117,6 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/monitor_pool_test.cc \
   runtime/monitor_test.cc \
   runtime/parsed_options_test.cc \
-  runtime/proxy_test.cc \
   runtime/reference_table_test.cc \
   runtime/thread_pool_test.cc \
   runtime/transaction_test.cc \
@@ -128,6 +127,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
 
 COMPILER_GTEST_COMMON_SRC_FILES := \
   runtime/jni_internal_test.cc \
+  runtime/proxy_test.cc \
   runtime/reflection_test.cc \
   compiler/dex/global_value_numbering_test.cc \
   compiler/dex/local_value_numbering_test.cc \

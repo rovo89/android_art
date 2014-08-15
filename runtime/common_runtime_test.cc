@@ -285,19 +285,6 @@ std::string CommonRuntimeTest::GetDexFileName(const std::string& jar_prefix) {
   return StringPrintf("%s/framework/%s.jar", GetAndroidRoot(), jar_prefix.c_str());
 }
 
-std::string CommonRuntimeTest::GetLibCoreOatFileName() {
-  return GetOatFileName("core");
-}
-
-std::string CommonRuntimeTest::GetOatFileName(const std::string& oat_prefix) {
-  if (IsHost()) {
-    const char* host_dir = getenv("ANDROID_HOST_OUT");
-    CHECK(host_dir != nullptr);
-    return StringPrintf("%s/framework/%s.art", host_dir, oat_prefix.c_str());
-  }
-  return StringPrintf("%s/framework/%s.art", GetAndroidRoot(), oat_prefix.c_str());
-}
-
 std::string CommonRuntimeTest::GetTestAndroidRoot() {
   if (IsHost()) {
     const char* host_dir = getenv("ANDROID_HOST_OUT");
