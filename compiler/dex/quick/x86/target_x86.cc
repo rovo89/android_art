@@ -760,10 +760,7 @@ bool X86Mir2Lir::IsUnconditionalBranch(LIR* lir) {
 RegisterClass X86Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatile) {
   // X86_64 can handle any size.
   if (cu_->target64) {
-    if (size == kReference) {
-      return kRefReg;
-    }
-    return kCoreReg;
+    return RegClassBySize(size);
   }
 
   if (UNLIKELY(is_volatile)) {
