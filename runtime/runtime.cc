@@ -714,6 +714,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     android::SetupNativeBridge(native_bridge_library_path_.c_str(), &native_bridge_art_callbacks_);
     VLOG(startup) << "Runtime::Setup native bridge library: " << native_bridge_library_path_;
   }
+
   VLOG(startup) << "Runtime::Init exiting";
   return true;
 }
