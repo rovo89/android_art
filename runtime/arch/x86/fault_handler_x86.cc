@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2008 The Android Open Source Project
- *
+* Copyright (C) 2008 The Android Open Source Project
+*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -28,29 +28,16 @@
 
 #if defined(__APPLE__)
 #define ucontext __darwin_ucontext
-
-#if defined(__x86_64__)
-// 64 bit mac build.
-#define CTX_ESP uc_mcontext->__ss.__rsp
-#define CTX_EIP uc_mcontext->__ss.__rip
-#define CTX_EAX uc_mcontext->__ss.__rax
-#define CTX_METHOD uc_mcontext->__ss.__rdi
-#else
-// 32 bit mac build.
 #define CTX_ESP uc_mcontext->__ss.__esp
 #define CTX_EIP uc_mcontext->__ss.__eip
 #define CTX_EAX uc_mcontext->__ss.__eax
 #define CTX_METHOD uc_mcontext->__ss.__eax
-#endif
-
 #elif defined(__x86_64__)
-// 64 bit linux build.
 #define CTX_ESP uc_mcontext.gregs[REG_RSP]
 #define CTX_EIP uc_mcontext.gregs[REG_RIP]
 #define CTX_EAX uc_mcontext.gregs[REG_RAX]
 #define CTX_METHOD uc_mcontext.gregs[REG_RDI]
 #else
-// 32 bit linux build.
 #define CTX_ESP uc_mcontext.gregs[REG_ESP]
 #define CTX_EIP uc_mcontext.gregs[REG_EIP]
 #define CTX_EAX uc_mcontext.gregs[REG_EAX]
@@ -275,7 +262,7 @@ bool NullPointerHandler::Action(int sig, siginfo_t* info, void* context) {
   *next_sp = retaddr;
   uc->CTX_ESP = reinterpret_cast<uintptr_t>(next_sp);
 
-  uc->CTX_EIP = reinterpret_cast<uintptr_t>(EXT_SYM(art_quick_throw_null_pointer_exception));
+  uc->CTX_EIP = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception);
   VLOG(signals) << "Generating null pointer exception";
   return true;
 }
@@ -349,7 +336,7 @@ bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
     *next_sp = retaddr;
     uc->CTX_ESP = reinterpret_cast<uintptr_t>(next_sp);
 
-    uc->CTX_EIP = reinterpret_cast<uintptr_t>(EXT_SYM(art_quick_test_suspend));
+    uc->CTX_EIP = reinterpret_cast<uintptr_t>(art_quick_test_suspend);
 
     // Now remove the suspend trigger that caused this fault.
     Thread::Current()->RemoveSuspendTrigger();
@@ -382,13 +369,20 @@ bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
   uintptr_t overflow_addr = sp - GetStackOverflowReservedBytes(kX86);
 #endif
 
+  Thread* self = Thread::Current();
+  uintptr_t pregion = reinterpret_cast<uintptr_t>(self->GetStackEnd()) -
+      Thread::kStackOverflowProtectedSize;
+
   // Check that the fault address is the value expected for a stack overflow.
   if (fault_addr != overflow_addr) {
     VLOG(signals) << "Not a stack overflow";
     return false;
   }
 
-  VLOG(signals) << "Stack overflow found";
+  // We know this is a stack overflow.  We need to move the sp to the overflow region
+  // that exists below the protected region.  Determine the address of the next
+  // available valid address below the protected region.
+  VLOG(signals) << "setting sp to overflow region at " << std::hex << pregion;
 
   // Since the compiler puts the implicit overflow
   // check before the callee save instructions, the SP is already pointing to

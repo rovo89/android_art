@@ -20,11 +20,11 @@
 #include "asm_support.h"
 
 // Offset of field Thread::self_ verified in InitCpu
-#define THREAD_SELF_OFFSET 156
+#define THREAD_SELF_OFFSET 148
 // Offset of field Thread::card_table_ verified in InitCpu
-#define THREAD_CARD_TABLE_OFFSET 120
+#define THREAD_CARD_TABLE_OFFSET 112
 // Offset of field Thread::exception_ verified in InitCpu
-#define THREAD_EXCEPTION_OFFSET 124
+#define THREAD_EXCEPTION_OFFSET 116
 // Offset of field Thread::thin_lock_thread_id_ verified in InitCpu
 #define THREAD_ID_OFFSET 12
 

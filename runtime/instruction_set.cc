@@ -87,10 +87,11 @@ size_t GetInstructionSetAlignment(InstructionSet isa) {
 static constexpr size_t kDefaultStackOverflowReservedBytes = 16 * KB;
 static constexpr size_t kMipsStackOverflowReservedBytes = kDefaultStackOverflowReservedBytes;
 
-static constexpr size_t kArmStackOverflowReservedBytes =    8 * KB;
-static constexpr size_t kArm64StackOverflowReservedBytes =  8 * KB;
-static constexpr size_t kX86StackOverflowReservedBytes =    8 * KB;
-static constexpr size_t kX86_64StackOverflowReservedBytes = 8 * KB;
+// TODO: Lower once implicit stack-overflow checks can work with less than 16K.
+static constexpr size_t kArmStackOverflowReservedBytes =    (kIsDebugBuild ? 16 : 16) * KB;
+static constexpr size_t kArm64StackOverflowReservedBytes =  (kIsDebugBuild ? 16 : 16) * KB;
+static constexpr size_t kX86StackOverflowReservedBytes =    (kIsDebugBuild ? 16 : 16) * KB;
+static constexpr size_t kX86_64StackOverflowReservedBytes = (kIsDebugBuild ? 16 : 16) * KB;
 
 size_t GetStackOverflowReservedBytes(InstructionSet isa) {
   switch (isa) {
