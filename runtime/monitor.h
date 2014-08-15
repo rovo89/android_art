@@ -117,6 +117,7 @@ class Monitor {
     return monitor_id_;
   }
 
+  // Inflate the lock on obj. May fail to inflate for spurious reasons, always re-check.
   static void InflateThinLocked(Thread* self, Handle<mirror::Object> obj, LockWord lock_word,
                                 uint32_t hash_code) NO_THREAD_SAFETY_ANALYSIS;
 
@@ -138,6 +139,12 @@ class Monitor {
   void AppendToWaitSet(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_);
   void RemoveFromWaitSet(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_);
 
+  /*
+   * Changes the shape of a monitor from thin to fat, preserving the internal lock state. The
+   * calling thread must own the lock or the owner must be suspended. There's a race with other
+   * threads inflating the lock, installing hash codes and spurious failures. The caller should
+   * re-read the lock word following the call.
+   */
   static void Inflate(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
