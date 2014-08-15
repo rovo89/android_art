@@ -74,6 +74,8 @@ class Monitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DoNotify(self, obj, true);
   }
+
+  // Object.wait().  Also called for class init.
   static void Wait(Thread* self, mirror::Object* obj, int64_t ms, int32_t ns,
                    bool interruptShouldThrow, ThreadState why)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -136,15 +138,18 @@ class Monitor {
       LOCKS_EXCLUDED(monitor_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Links a thread into a monitor's wait set.  The monitor lock must be held by the caller of this
+  // routine.
   void AppendToWaitSet(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_);
+
+  // Unlinks a thread from a monitor's wait set.  The monitor lock must be held by the caller of
+  // this routine.
   void RemoveFromWaitSet(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_);
 
-  /*
-   * Changes the shape of a monitor from thin to fat, preserving the internal lock state. The
-   * calling thread must own the lock or the owner must be suspended. There's a race with other
-   * threads inflating the lock, installing hash codes and spurious failures. The caller should
-   * re-read the lock word following the call.
-   */
+  // Changes the shape of a monitor from thin to fat, preserving the internal lock state. The
+  // calling thread must own the lock or the owner must be suspended. There's a race with other
+  // threads inflating the lock, installing hash codes and spurious failures. The caller should
+  // re-read the lock word following the call.
   static void Inflate(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -175,6 +180,25 @@ class Monitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 
+  // Wait on a monitor until timeout, interrupt, or notification.  Used for Object.wait() and
+  // (somewhat indirectly) Thread.sleep() and Thread.join().
+  //
+  // If another thread calls Thread.interrupt(), we throw InterruptedException and return
+  // immediately if one of the following are true:
+  //  - blocked in wait(), wait(long), or wait(long, int) methods of Object
+  //  - blocked in join(), join(long), or join(long, int) methods of Thread
+  //  - blocked in sleep(long), or sleep(long, int) methods of Thread
+  // Otherwise, we set the "interrupted" flag.
+  //
+  // Checks to make sure that "ns" is in the range 0-999999 (i.e. fractions of a millisecond) and
+  // throws the appropriate exception if it isn't.
+  //
+  // The spec allows "spurious wakeups", and recommends that all code using Object.wait() do so in
+  // a loop.  This appears to derive from concerns about pthread_cond_wait() on multiprocessor
+  // systems.  Some commentary on the web casts doubt on whether these can/should occur.
+  //
+  // Since we're allowed to wake up "early", we clamp extremely long durations to return at the end
+  // of the 32-bit time epoch.
   void Wait(Thread* self, int64_t msec, int32_t nsec, bool interruptShouldThrow, ThreadState why)
       LOCKS_EXCLUDED(monitor_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
