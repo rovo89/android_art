@@ -1189,18 +1189,27 @@ class DebugAbbrev {
  public:
   ~DebugAbbrev() {}
   static DebugAbbrev* Create(const byte* dbg_abbrev, size_t dbg_abbrev_size) {
-    std::unique_ptr<DebugAbbrev> abbrev(new DebugAbbrev);
-    const byte* last = dbg_abbrev + dbg_abbrev_size;
-    while (dbg_abbrev < last) {
-      std::unique_ptr<DebugTag> tag(DebugTag::Create(&dbg_abbrev));
-      if (tag.get() == nullptr) {
-        return nullptr;
-      } else {
-        abbrev->tags_.insert(std::pair<uint32_t, uint32_t>(tag->index_, abbrev->tag_list_.size()));
-        abbrev->tag_list_.push_back(std::move(tag));
-      }
+    std::unique_ptr<DebugAbbrev> abbrev(new DebugAbbrev(dbg_abbrev, dbg_abbrev + dbg_abbrev_size));
+    if (!abbrev->ReadAtOffset(0)) {
+      return nullptr;
     }
     return abbrev.release();
+  }
+
+  bool ReadAtOffset(uint32_t abbrev_offset) {
+    tags_.clear();
+    tag_list_.clear();
+    const byte* dbg_abbrev = begin_ + abbrev_offset;
+    while (dbg_abbrev < end_ && *dbg_abbrev != 0) {
+      std::unique_ptr<DebugTag> tag(DebugTag::Create(&dbg_abbrev));
+      if (tag.get() == nullptr) {
+        return false;
+      } else {
+        tags_.insert(std::pair<uint32_t, uint32_t>(tag->index_, tag_list_.size()));
+        tag_list_.push_back(std::move(tag));
+      }
+    }
+    return true;
   }
 
   DebugTag* ReadTag(const byte* entry) {
@@ -1215,7 +1224,9 @@ class DebugAbbrev {
   }
 
  private:
-  DebugAbbrev() {}
+  DebugAbbrev(const byte* begin, const byte* end) : begin_(begin), end_(end) {}
+  const byte* begin_;
+  const byte* end_;
   std::map<uint32_t, uint32_t> tags_;
   std::vector<std::unique_ptr<DebugTag>> tag_list_;
 };
@@ -1239,10 +1250,20 @@ class DebugInfoIterator {
     if (current_entry_ == nullptr || current_tag_ == nullptr) {
       return false;
     }
+    bool reread_abbrev = false;
     current_entry_ += current_tag_->GetSize();
+    if (reinterpret_cast<DebugInfoHeader*>(current_entry_) >= next_cu_) {
+      current_cu_ = next_cu_;
+      next_cu_ = GetNextCu(current_cu_);
+      current_entry_ = reinterpret_cast<byte*>(current_cu_) + sizeof(DebugInfoHeader);
+      reread_abbrev = true;
+    }
     if (current_entry_ >= last_entry_) {
       current_entry_ = nullptr;
       return false;
+    }
+    if (reread_abbrev) {
+      abbrev_->ReadAtOffset(current_cu_->debug_abbrev_offset);
     }
     current_tag_ = abbrev_->ReadTag(current_entry_);
     if (current_tag_ == nullptr) {
@@ -1271,12 +1292,21 @@ class DebugInfoIterator {
   }
 
  private:
+  static DebugInfoHeader* GetNextCu(DebugInfoHeader* hdr) {
+    byte* hdr_byte = reinterpret_cast<byte*>(hdr);
+    return reinterpret_cast<DebugInfoHeader*>(hdr_byte + sizeof(uint32_t) + hdr->unit_length);
+  }
+
   DebugInfoIterator(DebugInfoHeader* header, size_t frame_size, DebugAbbrev* abbrev)
       : abbrev_(abbrev),
+        current_cu_(header),
+        next_cu_(GetNextCu(header)),
         last_entry_(reinterpret_cast<byte*>(header) + frame_size),
         current_entry_(reinterpret_cast<byte*>(header) + sizeof(DebugInfoHeader)),
         current_tag_(abbrev_->ReadTag(current_entry_)) {}
   DebugAbbrev* abbrev_;
+  DebugInfoHeader* current_cu_;
+  DebugInfoHeader* next_cu_;
   byte* last_entry_;
   byte* current_entry_;
   DebugTag* current_tag_;
