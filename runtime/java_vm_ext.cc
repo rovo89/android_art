@@ -25,7 +25,7 @@
 #include "mirror/art_method.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
-#include "native_bridge.h"
+#include "nativebridge/native_bridge.h"
 #include "java_vm_ext.h"
 #include "parsed_options.h"
 #include "ScopedLocalRef.h"
@@ -135,7 +135,7 @@ class SharedLibrary {
     CHECK(NeedsNativeBridge());
 
     uint32_t len = 0;
-    return NativeBridgeGetTrampoline(handle_, symbol_name.c_str(), shorty, len);
+    return android::NativeBridgeGetTrampoline(handle_, symbol_name.c_str(), shorty, len);
   }
 
  private:
@@ -645,8 +645,8 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject 
   void* handle = dlopen(path_str, RTLD_LAZY);
   bool needs_native_bridge = false;
   if (handle == nullptr) {
-    if (NativeBridgeIsSupported(path_str)) {
-      handle = NativeBridgeLoadLibrary(path_str, RTLD_LAZY);
+    if (android::NativeBridgeIsSupported(path_str)) {
+      handle = android::NativeBridgeLoadLibrary(path_str, RTLD_LAZY);
       needs_native_bridge = true;
     }
   }
