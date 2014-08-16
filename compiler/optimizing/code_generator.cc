@@ -19,6 +19,7 @@
 #include "code_generator_arm.h"
 #include "code_generator_x86.h"
 #include "code_generator_x86_64.h"
+#include "compiled_method.h"
 #include "dex/verified_method.h"
 #include "driver/dex_compilation_unit.h"
 #include "gc_map_builder.h"
@@ -297,13 +298,17 @@ void CodeGenerator::BuildNativeGCMap(
   }
 }
 
-void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data) const {
+void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data, SrcMap* src_map) const {
   uint32_t pc2dex_data_size = 0u;
   uint32_t pc2dex_entries = pc_infos_.Size();
   uint32_t pc2dex_offset = 0u;
   int32_t pc2dex_dalvik_offset = 0;
   uint32_t dex2pc_data_size = 0u;
   uint32_t dex2pc_entries = 0u;
+
+  if (src_map != nullptr) {
+    src_map->reserve(pc2dex_entries);
+  }
 
   // We currently only have pc2dex entries.
   for (size_t i = 0; i < pc2dex_entries; i++) {
@@ -312,6 +317,9 @@ void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data) const {
     pc2dex_data_size += SignedLeb128Size(pc_info.dex_pc - pc2dex_dalvik_offset);
     pc2dex_offset = pc_info.native_pc;
     pc2dex_dalvik_offset = pc_info.dex_pc;
+    if (src_map != nullptr) {
+      src_map->push_back(SrcMapElem({pc2dex_offset, pc2dex_dalvik_offset}));
+    }
   }
 
   uint32_t total_entries = pc2dex_entries + dex2pc_entries;

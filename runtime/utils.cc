@@ -1372,21 +1372,11 @@ bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg) {
 }
 
 void EncodeUnsignedLeb128(uint32_t data, std::vector<uint8_t>* dst) {
-  size_t encoded_size = UnsignedLeb128Size(data);
-  size_t cur_index = dst->size();
-  dst->resize(dst->size() + encoded_size);
-  uint8_t* write_pos = &((*dst)[cur_index]);
-  uint8_t* write_pos_after = EncodeUnsignedLeb128(write_pos, data);
-  DCHECK_EQ(static_cast<size_t>(write_pos_after - write_pos), encoded_size);
+  Leb128Encoder(dst).PushBackUnsigned(data);
 }
 
 void EncodeSignedLeb128(int32_t data, std::vector<uint8_t>* dst) {
-  size_t encoded_size = SignedLeb128Size(data);
-  size_t cur_index = dst->size();
-  dst->resize(dst->size() + encoded_size);
-  uint8_t* write_pos = &((*dst)[cur_index]);
-  uint8_t* write_pos_after = EncodeSignedLeb128(write_pos, data);
-  DCHECK_EQ(static_cast<size_t>(write_pos_after - write_pos), encoded_size);
+  Leb128Encoder(dst).PushBackSigned(data);
 }
 
 void PushWord(std::vector<uint8_t>* buf, int data) {

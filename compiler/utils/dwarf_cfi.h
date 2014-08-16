@@ -66,20 +66,24 @@ void DW_CFA_restore_state(std::vector<uint8_t>* buf);
 /**
  * @brief Write FDE header into an FDE buffer
  * @param buf FDE buffer.
+ * @param is_64bit If FDE is for 64bit application.
  */
-void WriteFDEHeader(std::vector<uint8_t>* buf);
+void WriteFDEHeader(std::vector<uint8_t>* buf, bool is_64bit);
 
 /**
  * @brief Set 'address_range' field of an FDE buffer
  * @param buf FDE buffer.
+ * @param data Data value.
+ * @param is_64bit If FDE is for 64bit application.
  */
-void WriteFDEAddressRange(std::vector<uint8_t>* buf, uint32_t data);
+void WriteFDEAddressRange(std::vector<uint8_t>* buf, uint64_t data, bool is_64bit);
 
 /**
  * @brief Set 'length' field of an FDE buffer
  * @param buf FDE buffer.
+ * @param is_64bit If FDE is for 64bit application.
  */
-void WriteCFILength(std::vector<uint8_t>* buf);
+void WriteCFILength(std::vector<uint8_t>* buf, bool is_64bit);
 
 /**
  * @brief Pad an FDE buffer with 0 until its size is a multiple of 4

@@ -48,7 +48,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
   ~ElfWriterQuick() {}
 
   class ElfBuilder;
-  void WriteDebugSymbols(ElfBuilder& builder, OatWriter* oat_writer);
+  void WriteDebugSymbols(ElfBuilder* builder, OatWriter* oat_writer);
   void ReservePatchSpace(std::vector<uint8_t>* buffer, bool debug);
 
   class ElfSectionBuilder {
@@ -237,6 +237,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
     }
     ~ElfBuilder() {}
 
+    bool Init();
     bool Write();
 
     // Adds the given raw section to the builder. This will copy it. The caller
@@ -253,7 +254,28 @@ class ElfWriterQuick FINAL : public ElfWriter {
 
     bool fatal_error_ = false;
 
+    // What phdr is.
+    static const uint32_t PHDR_OFFSET = sizeof(Elf32_Ehdr);
+    enum : uint8_t {
+      PH_PHDR     = 0,
+      PH_LOAD_R__ = 1,
+      PH_LOAD_R_X = 2,
+      PH_LOAD_RW_ = 3,
+      PH_DYNAMIC  = 4,
+      PH_NUM      = 5,
+    };
+    static const uint32_t PHDR_SIZE = sizeof(Elf32_Phdr) * PH_NUM;
+    Elf32_Phdr program_headers_[PH_NUM];
+
     Elf32_Ehdr elf_header_;
+
+    Elf32_Shdr null_hdr_;
+    std::string shstrtab_;
+    uint32_t section_index_;
+    std::string dynstr_;
+    uint32_t dynstr_soname_offset_;
+    std::vector<Elf32_Shdr*> section_ptrs_;
+    std::vector<Elf32_Word> hash_;
 
    public:
     ElfOatSectionBuilder text_builder_;
@@ -316,7 +338,8 @@ class ElfWriterQuick FINAL : public ElfWriter {
    * @param dbg_str Debug strings.
    */
   void FillInCFIInformation(OatWriter* oat_writer, std::vector<uint8_t>* dbg_info,
-                            std::vector<uint8_t>* dbg_abbrev, std::vector<uint8_t>* dbg_str);
+                            std::vector<uint8_t>* dbg_abbrev, std::vector<uint8_t>* dbg_str,
+                            std::vector<uint8_t>* dbg_line, uint32_t text_section_offset);
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(ElfWriterQuick);
 };
