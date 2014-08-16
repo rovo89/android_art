@@ -982,7 +982,7 @@ mirror::Object* Monitor::GetContendedMonitor(Thread* thread) {
 }
 
 void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::Object*, void*),
-                         void* callback_context) {
+                         void* callback_context, bool abort_on_failure) {
   mirror::ArtMethod* m = stack_visitor->GetMethod();
   CHECK(m != NULL);
 
@@ -1015,10 +1015,19 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
     return;  // No "tries" implies no synchronization, so no held locks to report.
   }
 
+  // Get the dex pc. If abort_on_failure is false, GetDexPc will not abort in the case it cannot
+  // find the dex pc, and instead return kDexNoIndex. Then bail out, as it indicates we have an
+  // inconsistent stack anyways.
+  uint32_t dex_pc = stack_visitor->GetDexPc(abort_on_failure);
+  if (!abort_on_failure && dex_pc == DexFile::kDexNoIndex) {
+    LOG(ERROR) << "Could not find dex_pc for " << PrettyMethod(m);
+    return;
+  }
+
   // Ask the verifier for the dex pcs of all the monitor-enter instructions corresponding to
   // the locks held in this stack frame.
   std::vector<uint32_t> monitor_enter_dex_pcs;
-  verifier::MethodVerifier::FindLocksAtDexPc(m, stack_visitor->GetDexPc(), &monitor_enter_dex_pcs);
+  verifier::MethodVerifier::FindLocksAtDexPc(m, dex_pc, &monitor_enter_dex_pcs);
   if (monitor_enter_dex_pcs.empty()) {
     return;
   }
