@@ -344,6 +344,14 @@ class ClassLinker {
   const void* GetPortableOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx, uint32_t method_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Get compiled code for a method, return null if no code
+  // exists. This is unlike Get..OatCodeFor which will return a bridge
+  // or interpreter entrypoint.
+  const void* GetOatMethodQuickCodeFor(mirror::ArtMethod* method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const void* GetOatMethodPortableCodeFor(mirror::ArtMethod* method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   pid_t GetClassesLockOwner();  // For SignalCatcher.
   pid_t GetDexLockOwner();  // For SignalCatcher.
 
