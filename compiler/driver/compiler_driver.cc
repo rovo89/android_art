@@ -1491,7 +1491,13 @@ static bool SkipClass(ClassLinker* class_linker, jobject class_loader, const Dex
     return true;
   }
 
-  return SkipClassCheckClassPath(descriptor, dex_file, dex_files);
+  if (dex_files.size() > 1) {
+    // Multi-dex compilation, only take first class.
+    return SkipClassCheckClassPath(descriptor, dex_file, dex_files);
+  } else {
+    // Single dex, take everything.
+    return false;
+  }
 }
 
 // A fast version of SkipClass above if the class pointer is available
