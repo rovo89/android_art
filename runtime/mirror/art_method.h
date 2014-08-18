@@ -309,6 +309,11 @@ class MANAGED ArtMethod FINAL : public Object {
 
   void AssertPcIsWithinQuickCode(uintptr_t pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Returns true if the entrypoint points to the interpreter, as
+  // opposed to the compiled code, that is, this method will be
+  // interpretered on invocation.
+  bool IsEntrypointInterpreter() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   uint32_t GetQuickOatCodeOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   uint32_t GetPortableOatCodeOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetQuickOatCodeOffset(uint32_t code_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
