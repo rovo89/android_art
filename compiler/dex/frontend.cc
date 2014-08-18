@@ -42,7 +42,7 @@ extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver* driver) {
 
 /* Default optimizer/debug setting for the compiler. */
 static uint32_t kCompilerOptimizerDisableFlags = 0 |  // Disable specific optimizations
-  // (1 << kLoadStoreElimination) |
+  (1 << kLoadStoreElimination) |
   // (1 << kLoadHoisting) |
   // (1 << kSuppressLoads) |
   // (1 << kNullCheckElimination) |
