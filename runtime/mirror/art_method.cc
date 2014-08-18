@@ -281,6 +281,19 @@ uint32_t ArtMethod::FindCatchBlock(Handle<ArtMethod> h_this, Handle<Class> excep
   return found_dex_pc;
 }
 
+bool ArtMethod::IsEntrypointInterpreter() {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const void* oat_quick_code = class_linker->GetOatMethodQuickCodeFor(this);
+  const void* oat_portable_code = class_linker->GetOatMethodPortableCodeFor(this);
+  if (!IsPortableCompiled()) {  // Quick.
+    return oat_quick_code == nullptr ||
+        oat_quick_code != GetEntryPointFromQuickCompiledCode();
+  } else {  // Portable.
+    return oat_portable_code == nullptr ||
+        oat_portable_code != GetEntryPointFromPortableCompiledCode();
+  }
+}
+
 void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result,
                        const char* shorty) {
   if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEnd())) {
@@ -318,6 +331,13 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
                                   have_quick_code ? GetEntryPointFromQuickCompiledCode()
                                                   : GetEntryPointFromPortableCompiledCode());
       }
+
+      // Ensure that we won't be accidentally calling quick/portable compiled code when -Xint.
+      if (kIsDebugBuild && Runtime::Current()->GetInstrumentation()->IsForcedInterpretOnly()) {
+        CHECK(IsEntrypointInterpreter())
+            << "Don't call compiled code when -Xint " << PrettyMethod(this);
+      }
+
       if (!IsPortableCompiled()) {
 #ifdef __LP64__
         if (!IsStatic()) {
