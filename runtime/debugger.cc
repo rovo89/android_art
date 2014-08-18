@@ -664,6 +664,11 @@ void Dbg::StartJdwp() {
 }
 
 void Dbg::StopJdwp() {
+  // Post VM_DEATH event before the JDWP connection is closed (either by the JDWP thread or the
+  // destruction of gJdwpState).
+  if (gJdwpState != nullptr && gJdwpState->IsActive()) {
+    gJdwpState->PostVMDeath();
+  }
   // Prevent the JDWP thread from processing JDWP incoming packets after we close the connection.
   Disposed();
   delete gJdwpState;
