@@ -550,6 +550,17 @@ void Thread::InitStackHwm() {
     // The thread might have protected region at the bottom.  We need
     // to install our own region so we need to move the limits
     // of the stack to make room for it.
+
+#if defined(__i386__) || defined(__x86_64__)
+    // Work around issue trying to read last page of stack on Intel.
+    // The bug for this is b/17111575.  The problem is that we are
+    // unable to read the page just above the guard page on the
+    // main stack on an intel target.  When the bug is fixed
+    // this can be removed.
+    if (::art::GetTid() == getpid()) {
+      guardsize += 4 * KB;
+    }
+#endif
     tlsPtr_.stack_begin += guardsize + kStackOverflowProtectedSize;
     tlsPtr_.stack_end += guardsize + kStackOverflowProtectedSize;
     tlsPtr_.stack_size -= guardsize;
