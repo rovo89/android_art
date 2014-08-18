@@ -2503,7 +2503,6 @@ class VerifyLiveStackReferences {
 bool Heap::VerifyMissingCardMarks() {
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertExclusiveHeld(self);
-
   // We need to sort the live stack since we binary search it.
   live_stack_->Sort();
   // Since we sorted the allocation stack content, need to revoke all
@@ -2511,7 +2510,6 @@ bool Heap::VerifyMissingCardMarks() {
   RevokeAllThreadLocalAllocationStacks(self);
   VerifyLiveStackReferences visitor(this);
   GetLiveBitmap()->Visit(visitor);
-
   // We can verify objects in the live stack since none of these should reference dead objects.
   for (mirror::Object** it = live_stack_->Begin(); it != live_stack_->End(); ++it) {
     if (!kUseThreadLocalAllocationStack || *it != nullptr) {
@@ -2698,7 +2696,7 @@ void Heap::PostGcVerificationPaused(collector::GarbageCollector* gc) {
 void Heap::PostGcVerification(collector::GarbageCollector* gc) {
   if (verify_system_weaks_ || verify_post_gc_rosalloc_ || verify_post_gc_heap_) {
     collector::GarbageCollector::ScopedPause pause(gc);
-    PreGcVerificationPaused(gc);
+    PostGcVerificationPaused(gc);
   }
 }
 
