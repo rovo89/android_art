@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include <string>
+#include <cstdarg>
 #include <inttypes.h>
+#include <string>
 
 #include "backend_x86.h"
 #include "codegen_x86.h"
@@ -2917,6 +2918,48 @@ bool X86Mir2Lir::GenInlinedCurrentThread(CallInfo* info) {
 
   StoreValue(rl_dest, rl_result);
   return true;
+}
+
+/**
+ * Lock temp registers for explicit usage. Registers will be freed in destructor.
+ */
+X86Mir2Lir::ExplicitTempRegisterLock::ExplicitTempRegisterLock(X86Mir2Lir* mir_to_lir,
+                                                               int n_regs, ...) :
+    temp_regs_(n_regs),
+    mir_to_lir_(mir_to_lir) {
+  va_list regs;
+  va_start(regs, n_regs);
+  for (int i = 0; i < n_regs; i++) {
+    RegStorage reg = *(va_arg(regs, RegStorage*));
+    RegisterInfo* info = mir_to_lir_->GetRegInfo(reg);
+
+    // Make sure we don't have promoted register here.
+    DCHECK(info->IsTemp());
+
+    temp_regs_.push_back(reg);
+    mir_to_lir_->FlushReg(reg);
+
+    if (reg.IsPair()) {
+      RegStorage partner = info->Partner();
+      temp_regs_.push_back(partner);
+      mir_to_lir_->FlushReg(partner);
+    }
+
+    mir_to_lir_->Clobber(reg);
+    mir_to_lir_->LockTemp(reg);
+  }
+
+  va_end(regs);
+}
+
+/*
+ * Free all locked registers.
+ */
+X86Mir2Lir::ExplicitTempRegisterLock::~ExplicitTempRegisterLock() {
+  // Free all locked temps.
+  for (auto it : temp_regs_) {
+    mir_to_lir_->FreeTemp(it);
+  }
 }
 
 }  // namespace art
