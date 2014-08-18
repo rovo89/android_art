@@ -55,7 +55,7 @@ inline size_t CardTable::Scan(ContinuousSpaceBitmap* bitmap, byte* scan_begin, b
   // scan_end is the byte after the last byte we scan.
   DCHECK_LE(scan_end, reinterpret_cast<byte*>(bitmap->HeapLimit()));
   byte* card_cur = CardFromAddr(scan_begin);
-  byte* card_end = CardFromAddr(scan_end);
+  byte* card_end = CardFromAddr(AlignUp(scan_end, kCardSize));
   CheckCardValid(card_cur);
   CheckCardValid(card_end);
   size_t cards_scanned = 0;
