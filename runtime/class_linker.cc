@@ -2167,6 +2167,24 @@ const void* ClassLinker::GetPortableOatCodeFor(mirror::ArtMethod* method,
   return result;
 }
 
+const void* ClassLinker::GetOatMethodQuickCodeFor(mirror::ArtMethod* method) {
+  if (method->IsNative() || method->IsAbstract() || method->IsProxyMethod()) {
+    return nullptr;
+  }
+  bool found;
+  OatFile::OatMethod oat_method = FindOatMethodFor(method, &found);
+  return found ? oat_method.GetQuickCode() : nullptr;
+}
+
+const void* ClassLinker::GetOatMethodPortableCodeFor(mirror::ArtMethod* method) {
+  if (method->IsNative() || method->IsAbstract() || method->IsProxyMethod()) {
+    return nullptr;
+  }
+  bool found;
+  OatFile::OatMethod oat_method = FindOatMethodFor(method, &found);
+  return found ? oat_method.GetPortableCode() : nullptr;
+}
+
 const void* ClassLinker::GetQuickOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx,
                                             uint32_t method_idx) {
   bool found;
