@@ -210,7 +210,8 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
             LOG(INFO) << "  Handling quick to interpreter transition. Frame " << GetFrameId();
           }
           CHECK_LT(instrumentation_stack_depth_, instrumentation_stack_->size());
-          const InstrumentationStackFrame& frame = instrumentation_stack_->at(instrumentation_stack_depth_);
+          const InstrumentationStackFrame& frame =
+              instrumentation_stack_->at(instrumentation_stack_depth_);
           CHECK(frame.interpreter_entry_);
           // This is an interpreter frame so method enter event must have been reported. However we
           // need to push a DEX pc into the dex_pcs_ list to match size of instrumentation stack.
@@ -236,7 +237,8 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
         reached_existing_instrumentation_frames_ = true;
 
         CHECK_LT(instrumentation_stack_depth_, instrumentation_stack_->size());
-        const InstrumentationStackFrame& frame = instrumentation_stack_->at(instrumentation_stack_depth_);
+        const InstrumentationStackFrame& frame =
+            instrumentation_stack_->at(instrumentation_stack_depth_);
         CHECK_EQ(m, frame.method_) << "Expected " << PrettyMethod(m)
                                    << ", Found " << PrettyMethod(frame.method_);
         return_pc = frame.return_pc_;
@@ -329,7 +331,8 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
       mirror::ArtMethod* m = GetMethod();
       if (GetCurrentQuickFrame() == NULL) {
         if (kVerboseInstrumentation) {
-          LOG(INFO) << "  Ignoring a shadow frame. Frame " << GetFrameId() << " Method=" << PrettyMethod(m);
+          LOG(INFO) << "  Ignoring a shadow frame. Frame " << GetFrameId()
+              << " Method=" << PrettyMethod(m);
         }
         return true;  // Ignore shadow frames.
       }
@@ -410,19 +413,47 @@ void Instrumentation::AddListener(InstrumentationListener* listener, uint32_t ev
     have_method_unwind_listeners_ = true;
   }
   if ((events & kDexPcMoved) != 0) {
-    dex_pc_listeners_.push_back(listener);
+    std::list<InstrumentationListener*>* modified;
+    if (have_dex_pc_listeners_) {
+      modified = new std::list<InstrumentationListener*>(*dex_pc_listeners_.get());
+    } else {
+      modified = new std::list<InstrumentationListener*>();
+    }
+    modified->push_back(listener);
+    dex_pc_listeners_.reset(modified);
     have_dex_pc_listeners_ = true;
   }
   if ((events & kFieldRead) != 0) {
-    field_read_listeners_.push_back(listener);
+    std::list<InstrumentationListener*>* modified;
+    if (have_field_read_listeners_) {
+      modified = new std::list<InstrumentationListener*>(*field_read_listeners_.get());
+    } else {
+      modified = new std::list<InstrumentationListener*>();
+    }
+    modified->push_back(listener);
+    field_read_listeners_.reset(modified);
     have_field_read_listeners_ = true;
   }
   if ((events & kFieldWritten) != 0) {
-    field_write_listeners_.push_back(listener);
+    std::list<InstrumentationListener*>* modified;
+    if (have_field_write_listeners_) {
+      modified = new std::list<InstrumentationListener*>(*field_write_listeners_.get());
+    } else {
+      modified = new std::list<InstrumentationListener*>();
+    }
+    modified->push_back(listener);
+    field_write_listeners_.reset(modified);
     have_field_write_listeners_ = true;
   }
   if ((events & kExceptionCaught) != 0) {
-    exception_caught_listeners_.push_back(listener);
+    std::list<InstrumentationListener*>* modified;
+    if (have_exception_caught_listeners_) {
+      modified = new std::list<InstrumentationListener*>(*exception_caught_listeners_.get());
+    } else {
+      modified = new std::list<InstrumentationListener*>();
+    }
+    modified->push_back(listener);
+    exception_caught_listeners_.reset(modified);
     have_exception_caught_listeners_ = true;
   }
   UpdateInterpreterHandlerTable();
@@ -432,51 +463,78 @@ void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t
   Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
 
   if ((events & kMethodEntered) != 0) {
-    bool contains = std::find(method_entry_listeners_.begin(), method_entry_listeners_.end(),
-                              listener) != method_entry_listeners_.end();
-    if (contains) {
+    if (have_method_entry_listeners_) {
       method_entry_listeners_.remove(listener);
+      have_method_entry_listeners_ = !method_entry_listeners_.empty();
     }
-    have_method_entry_listeners_ = method_entry_listeners_.size() > 0;
   }
   if ((events & kMethodExited) != 0) {
-    bool contains = std::find(method_exit_listeners_.begin(), method_exit_listeners_.end(),
-                              listener) != method_exit_listeners_.end();
-    if (contains) {
+    if (have_method_exit_listeners_) {
       method_exit_listeners_.remove(listener);
+      have_method_exit_listeners_ = !method_exit_listeners_.empty();
     }
-    have_method_exit_listeners_ = method_exit_listeners_.size() > 0;
   }
   if ((events & kMethodUnwind) != 0) {
-    method_unwind_listeners_.remove(listener);
+    if (have_method_unwind_listeners_) {
+      method_unwind_listeners_.remove(listener);
+      have_method_unwind_listeners_ = !method_unwind_listeners_.empty();
+    }
   }
   if ((events & kDexPcMoved) != 0) {
-    bool contains = std::find(dex_pc_listeners_.begin(), dex_pc_listeners_.end(),
-                              listener) != dex_pc_listeners_.end();
-    if (contains) {
-      dex_pc_listeners_.remove(listener);
+    if (have_dex_pc_listeners_) {
+      std::list<InstrumentationListener*>* modified =
+          new std::list<InstrumentationListener*>(*dex_pc_listeners_.get());
+      modified->remove(listener);
+      have_dex_pc_listeners_ = !modified->empty();
+      if (have_dex_pc_listeners_) {
+        dex_pc_listeners_.reset(modified);
+      } else {
+        dex_pc_listeners_.reset();
+        delete modified;
+      }
     }
-    have_dex_pc_listeners_ = dex_pc_listeners_.size() > 0;
   }
   if ((events & kFieldRead) != 0) {
-    bool contains = std::find(field_read_listeners_.begin(), field_read_listeners_.end(),
-                              listener) != field_read_listeners_.end();
-    if (contains) {
-      field_read_listeners_.remove(listener);
+    if (have_dex_pc_listeners_) {
+      std::list<InstrumentationListener*>* modified =
+          new std::list<InstrumentationListener*>(*field_read_listeners_.get());
+      modified->remove(listener);
+      have_field_read_listeners_ = !modified->empty();
+      if (have_field_read_listeners_) {
+        field_read_listeners_.reset(modified);
+      } else {
+        field_read_listeners_.reset();
+        delete modified;
+      }
     }
-    have_field_read_listeners_ = field_read_listeners_.size() > 0;
   }
   if ((events & kFieldWritten) != 0) {
-    bool contains = std::find(field_write_listeners_.begin(), field_write_listeners_.end(),
-                              listener) != field_write_listeners_.end();
-    if (contains) {
-      field_write_listeners_.remove(listener);
+    if (have_field_write_listeners_) {
+      std::list<InstrumentationListener*>* modified =
+          new std::list<InstrumentationListener*>(*field_write_listeners_.get());
+      modified->remove(listener);
+      have_field_write_listeners_ = !modified->empty();
+      if (have_field_write_listeners_) {
+        field_write_listeners_.reset(modified);
+      } else {
+        field_write_listeners_.reset();
+        delete modified;
+      }
     }
-    have_field_write_listeners_ = field_write_listeners_.size() > 0;
   }
   if ((events & kExceptionCaught) != 0) {
-    exception_caught_listeners_.remove(listener);
-    have_exception_caught_listeners_ = exception_caught_listeners_.size() > 0;
+    if (have_exception_caught_listeners_) {
+      std::list<InstrumentationListener*>* modified =
+          new std::list<InstrumentationListener*>(*exception_caught_listeners_.get());
+      modified->remove(listener);
+      have_exception_caught_listeners_ = !modified->empty();
+      if (have_exception_caught_listeners_) {
+        exception_caught_listeners_.reset(modified);
+      } else {
+        exception_caught_listeners_.reset();
+        delete modified;
+      }
+    }
   }
   UpdateInterpreterHandlerTable();
 }
@@ -689,7 +747,8 @@ void Instrumentation::Deoptimize(mirror::ArtMethod* method) {
   {
     WriterMutexLock mu(self, deoptimized_methods_lock_);
     bool has_not_been_deoptimized = AddDeoptimizedMethod(method);
-    CHECK(has_not_been_deoptimized) << "Method " << PrettyMethod(method) << " is already deoptimized";
+    CHECK(has_not_been_deoptimized) << "Method " << PrettyMethod(method)
+        << " is already deoptimized";
   }
   if (!interpreter_stubs_installed_) {
     UpdateEntrypoints(method, GetQuickInstrumentationEntryPoint(), GetPortableToInterpreterBridge(),
@@ -858,33 +917,33 @@ void Instrumentation::MethodUnwindEvent(Thread* thread, mirror::Object* this_obj
 void Instrumentation::DexPcMovedEventImpl(Thread* thread, mirror::Object* this_object,
                                           mirror::ArtMethod* method,
                                           uint32_t dex_pc) const {
-  // TODO: STL copy-on-write collection? The copy below is due to the debug listener having an
-  // action where it can remove itself as a listener and break the iterator. The copy only works
-  // around the problem and in general we may have to move to something like reference counting to
-  // ensure listeners are deleted correctly.
-  std::list<InstrumentationListener*> copy(dex_pc_listeners_);
-  for (InstrumentationListener* listener : copy) {
-    listener->DexPcMoved(thread, this_object, method, dex_pc);
+  if (HasDexPcListeners()) {
+    std::shared_ptr<std::list<InstrumentationListener*>> original(dex_pc_listeners_);
+    for (InstrumentationListener* listener : *original.get()) {
+      listener->DexPcMoved(thread, this_object, method, dex_pc);
+    }
   }
 }
 
 void Instrumentation::FieldReadEventImpl(Thread* thread, mirror::Object* this_object,
                                          mirror::ArtMethod* method, uint32_t dex_pc,
                                          mirror::ArtField* field) const {
-  // TODO: same comment than DexPcMovedEventImpl.
-  std::list<InstrumentationListener*> copy(field_read_listeners_);
-  for (InstrumentationListener* listener : copy) {
-    listener->FieldRead(thread, this_object, method, dex_pc, field);
+  if (HasFieldReadListeners()) {
+    std::shared_ptr<std::list<InstrumentationListener*>> original(field_read_listeners_);
+    for (InstrumentationListener* listener : *original.get()) {
+      listener->FieldRead(thread, this_object, method, dex_pc, field);
+    }
   }
 }
 
 void Instrumentation::FieldWriteEventImpl(Thread* thread, mirror::Object* this_object,
                                          mirror::ArtMethod* method, uint32_t dex_pc,
                                          mirror::ArtField* field, const JValue& field_value) const {
-  // TODO: same comment than DexPcMovedEventImpl.
-  std::list<InstrumentationListener*> copy(field_write_listeners_);
-  for (InstrumentationListener* listener : copy) {
-    listener->FieldWritten(thread, this_object, method, dex_pc, field, field_value);
+  if (HasFieldWriteListeners()) {
+    std::shared_ptr<std::list<InstrumentationListener*>> original(field_write_listeners_);
+    for (InstrumentationListener* listener : *original.get()) {
+      listener->FieldWritten(thread, this_object, method, dex_pc, field, field_value);
+    }
   }
 }
 
@@ -896,11 +955,10 @@ void Instrumentation::ExceptionCaughtEvent(Thread* thread, const ThrowLocation& 
     DCHECK_EQ(thread->GetException(nullptr), exception_object);
     bool is_exception_reported = thread->IsExceptionReportedToInstrumentation();
     thread->ClearException();
-    // TODO: The copy below is due to the debug listener having an action where it can remove
-    // itself as a listener and break the iterator. The copy only works around the problem.
-    std::list<InstrumentationListener*> copy(exception_caught_listeners_);
-    for (InstrumentationListener* listener : copy) {
-      listener->ExceptionCaught(thread, throw_location, catch_method, catch_dex_pc, exception_object);
+    std::shared_ptr<std::list<InstrumentationListener*>> original(exception_caught_listeners_);
+    for (InstrumentationListener* listener : *original.get()) {
+      listener->ExceptionCaught(thread, throw_location, catch_method, catch_dex_pc,
+                                exception_object);
     }
     thread->SetException(throw_location, exception_object);
     thread->SetExceptionReportedToInstrumentation(is_exception_reported);
