@@ -88,8 +88,10 @@ class Monitor {
 
   // Calls 'callback' once for each lock held in the single stack frame represented by
   // the current state of 'stack_visitor'.
+  // The abort_on_failure flag allows to not die when the state of the runtime is unorderly. This
+  // is necessary when we have already aborted but want to dump the stack as much as we can.
   static void VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::Object*, void*),
-                         void* callback_context)
+                         void* callback_context, bool abort_on_failure = true)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static bool IsValidLockWord(LockWord lock_word);
