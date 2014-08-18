@@ -433,10 +433,14 @@ class Instrumentation {
   std::list<InstrumentationListener*> method_entry_listeners_ GUARDED_BY(Locks::mutator_lock_);
   std::list<InstrumentationListener*> method_exit_listeners_ GUARDED_BY(Locks::mutator_lock_);
   std::list<InstrumentationListener*> method_unwind_listeners_ GUARDED_BY(Locks::mutator_lock_);
-  std::list<InstrumentationListener*> dex_pc_listeners_ GUARDED_BY(Locks::mutator_lock_);
-  std::list<InstrumentationListener*> field_read_listeners_ GUARDED_BY(Locks::mutator_lock_);
-  std::list<InstrumentationListener*> field_write_listeners_ GUARDED_BY(Locks::mutator_lock_);
-  std::list<InstrumentationListener*> exception_caught_listeners_ GUARDED_BY(Locks::mutator_lock_);
+  std::shared_ptr<std::list<InstrumentationListener*>> dex_pc_listeners_
+      GUARDED_BY(Locks::mutator_lock_);
+  std::shared_ptr<std::list<InstrumentationListener*>> field_read_listeners_
+      GUARDED_BY(Locks::mutator_lock_);
+  std::shared_ptr<std::list<InstrumentationListener*>> field_write_listeners_
+      GUARDED_BY(Locks::mutator_lock_);
+  std::shared_ptr<std::list<InstrumentationListener*>> exception_caught_listeners_
+      GUARDED_BY(Locks::mutator_lock_);
 
   // The set of methods being deoptimized (by the debugger) which must be executed with interpreter
   // only.
