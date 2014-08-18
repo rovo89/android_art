@@ -906,7 +906,8 @@ struct StackDumpVisitor : public StackVisitor {
         Monitor::DescribeWait(os, thread);
       }
       if (can_allocate) {
-        Monitor::VisitLocks(this, DumpLockedObject, &os);
+        // Visit locks, but do not abort on errors. This would trigger a nested abort.
+        Monitor::VisitLocks(this, DumpLockedObject, &os, false);
       }
     }
 
