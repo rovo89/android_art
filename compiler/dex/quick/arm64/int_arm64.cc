@@ -271,8 +271,12 @@ LIR* Arm64Mir2Lir::OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_
       ArmOpcode opcode = kA64Cbz2rt;
       ArmOpcode wide = reg.Is64Bit() ? WIDE(0) : UNWIDE(0);
       branch = NewLIR2(opcode | wide, reg.GetReg(), 0);
+    } else if (arm_cond == kArmCondLt || arm_cond == kArmCondGe) {
+      ArmOpcode opcode = (arm_cond == kArmCondLt) ? kA64Tbnz3rht : kA64Tbz3rht;
+      ArmOpcode wide = reg.Is64Bit() ? WIDE(0) : UNWIDE(0);
+      int value = reg.Is64Bit() ? 63 : 31;
+      branch = NewLIR3(opcode | wide, reg.GetReg(), value, 0);
     }
-    // TODO: Use tbz/tbnz for < 0 or >= 0.
   }
 
   if (branch == nullptr) {
@@ -856,16 +860,14 @@ bool Arm64Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
   OpRegRegImm(kOpLsl, rs_length, rs_length, 1);
 
   // Copy one element.
-  OpRegRegImm(kOpAnd, rs_tmp, As32BitReg(rs_length), 2);
-  LIR* jmp_to_copy_two = OpCmpImmBranch(kCondEq, rs_tmp, 0, nullptr);
+  LIR* jmp_to_copy_two = NewLIR3(WIDE(kA64Tbz3rht), rs_length.GetReg(), 1, 0);
   OpRegImm(kOpSub, rs_length, 2);
   LoadBaseIndexed(rs_src, rs_length, rs_tmp, 0, kSignedHalf);
   StoreBaseIndexed(rs_dst, rs_length, rs_tmp, 0, kSignedHalf);
 
   // Copy two elements.
   LIR *copy_two = NewLIR0(kPseudoTargetLabel);
-  OpRegRegImm(kOpAnd, rs_tmp, As32BitReg(rs_length), 4);
-  LIR* jmp_to_copy_four = OpCmpImmBranch(kCondEq, rs_tmp, 0, nullptr);
+  LIR* jmp_to_copy_four = NewLIR3(WIDE(kA64Tbz3rht), rs_length.GetReg(), 2, 0);
   OpRegImm(kOpSub, rs_length, 4);
   LoadBaseIndexed(rs_src, rs_length, rs_tmp, 0, k32);
   StoreBaseIndexed(rs_dst, rs_length, rs_tmp, 0, k32);
