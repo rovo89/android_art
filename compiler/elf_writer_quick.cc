@@ -1115,7 +1115,7 @@ class LineTableGenerator FINAL : public Leb128Encoder {
                      size_t current_line)
     : Leb128Encoder(data), line_base_(line_base), line_range_(line_range),
       opcode_base_(opcode_base), current_address_(current_address),
-      current_line_(current_line) {}
+      current_line_(current_line), current_file_index_(0) {}
 
   void PutDelta(unsigned delta_addr, int delta_line) {
     current_line_ += delta_line;
@@ -1169,8 +1169,11 @@ class LineTableGenerator FINAL : public Leb128Encoder {
   }
 
   void SetFile(unsigned file_index) {
-    PushByte(data_, DW_LNS_set_file);
-    PushBackUnsigned(file_index);
+    if (current_file_index_ != file_index) {
+      current_file_index_ = file_index;
+      PushByte(data_, DW_LNS_set_file);
+      PushBackUnsigned(file_index);
+    }
   }
 
   void EndSequence() {
@@ -1187,6 +1190,7 @@ class LineTableGenerator FINAL : public Leb128Encoder {
   const int opcode_base_;
   uintptr_t current_address_;
   size_t current_line_;
+  unsigned current_file_index_;
 
   DISALLOW_COPY_AND_ASSIGN(LineTableGenerator);
 };
@@ -1460,16 +1464,17 @@ void ElfWriterQuick::FillInCFIInformation(OatWriter* oat_writer,
       PushWord(dbg_info, dbg.low_pc_ + text_section_offset);
       PushWord(dbg_info, dbg.high_pc_ + text_section_offset);
 
-      pc2java_map.clear();
       GetLineInfoForJava(dbg.dbgstream_, dbg.compiled_method_->GetSrcMappingTable(),
                          &pc2java_map, dbg.low_pc_);
       pc2java_map.DeltaFormat({dbg.low_pc_, 1}, dbg.high_pc_);
-
-      line_table_generator.SetFile(file_index);
-      line_table_generator.SetAddr(dbg.low_pc_ + text_section_offset);
-      line_table_generator.SetLine(1);
-      for (auto& src_map_elem : pc2java_map) {
-        line_table_generator.PutDelta(src_map_elem.from_, src_map_elem.to_);
+      if (!pc2java_map.empty()) {
+        line_table_generator.SetFile(file_index);
+        line_table_generator.SetAddr(dbg.low_pc_ + text_section_offset);
+        line_table_generator.SetLine(1);
+        for (auto& src_map_elem : pc2java_map) {
+          line_table_generator.PutDelta(src_map_elem.from_, src_map_elem.to_);
+        }
+        pc2java_map.clear();
       }
     }
 

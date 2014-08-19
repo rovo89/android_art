@@ -766,7 +766,7 @@ class CompilerDriver {
       size_t hash = 0x811c9dc5;
       if (array.size() <= kSmallArrayThreshold) {
         for (auto b : array) {
-          hash = (hash * 16777619) ^ b;
+          hash = (hash * 16777619) ^ static_cast<uint8_t>(b);
         }
       } else {
         // For larger arrays use the 2 bytes at 6 bytes (the location of a push registers
@@ -774,12 +774,12 @@ class CompilerDriver {
         // values at random.
         static const size_t kRandomHashCount = 16;
         for (size_t i = 0; i < 2; ++i) {
-          uint8_t b = array[i + 6];
+          uint8_t b = static_cast<uint8_t>(array[i + 6]);
           hash = (hash * 16777619) ^ b;
         }
         for (size_t i = 2; i < kRandomHashCount; ++i) {
           size_t r = i * 1103515245 + 12345;
-          uint8_t b = array[r % array.size()];
+          uint8_t b = static_cast<uint8_t>(array[r % array.size()]);
           hash = (hash * 16777619) ^ b;
         }
       }

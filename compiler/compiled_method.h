@@ -105,59 +105,40 @@ class SrcMapElem {
   uint32_t from_;
   int32_t to_;
 
-  bool operator<(const SrcMapElem& sme) const {
-    uint64_t lhs = (static_cast<uint64_t>(from_) << 32) + to_;
-    uint64_t rhs = (static_cast<uint64_t>(sme.from_) << 32) + sme.to_;
-    return lhs < rhs;
+  explicit operator int64_t() const {
+    return (static_cast<int64_t>(to_) << 32) | from_;
   }
 
-  operator uint8_t() const {
+  bool operator<(const SrcMapElem& sme) const {
+    return int64_t(*this) < int64_t(sme);
+  }
+
+  bool operator==(const SrcMapElem& sme) const {
+    return int64_t(*this) == int64_t(sme);
+  }
+
+  explicit operator uint8_t() const {
     return static_cast<uint8_t>(from_ + to_);
   }
 };
 
 class SrcMap FINAL : public std::vector<SrcMapElem> {
  public:
-  struct CompareByTo {
-    bool operator()(const SrcMapElem& lhs, const SrcMapElem& rhs) {
-      return lhs.to_ < rhs.to_;
-    }
-  };
-
-  struct CompareByFrom {
-    bool operator()(const SrcMapElem& lhs, const SrcMapElem& rhs) {
-      return lhs.from_ < rhs.from_;
-    }
-  };
-
-  void SortByTo() {
-    std::sort(begin(), end(), CompareByTo());
-  }
-
   void SortByFrom() {
-    std::sort(begin(), end(), CompareByFrom());
+    std::sort(begin(), end(), [] (const SrcMapElem& lhs, const SrcMapElem& rhs) -> bool {
+      return lhs.from_ < rhs.from_;
+    });
   }
 
   const_iterator FindByTo(int32_t to) const {
-    return std::lower_bound(begin(), end(), SrcMapElem({0, to}), CompareByTo());
+    return std::lower_bound(begin(), end(), SrcMapElem({0, to}));
   }
 
   SrcMap& Arrange() {
-    SortByTo();
-
-    // Remove duplicate pairs.
     if (!empty()) {
-      SrcMap tmp;
-      tmp.swap(*this);
-      iterator it = tmp.begin();
-      iterator prev = it;
-      it++;
-      push_back(*prev);
-      for (; it != tmp.end(); it++) {
-        if (prev->from_ != it->from_ || prev->to_ != it->to_) {
-          push_back(*(prev = it));
-        }
-      }
+      std::sort(begin(), end());
+      resize(std::unique(begin(), end()) - begin());
+      shrink_to_fit();
     }
     return *this;
   }
