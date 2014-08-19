@@ -851,7 +851,8 @@ bool ClassLinker::OpenDexFilesFromOat(const char* dex_location, const char* oat_
       // We opened the oat file, so we must register it.
       RegisterOatFile(oat_file);
     }
-    return true;
+    // If the file isn't executable we failed patchoat but did manage to get the dex files.
+    return oat_file->IsExecutable();
   } else {
     if (needs_registering) {
       // We opened it, delete it.
@@ -1136,10 +1137,17 @@ const OatFile* ClassLinker::FindOatFileContainingDexFileFromDexLocation(
     error_msgs->push_back(StringPrintf("Failed to open oat file from dex location '%s'",
                                        dex_location));
     return nullptr;
-  } else if (!VerifyOatWithDexFile(oat_file.get(), dex_location, &error_msg)) {
+  } else if (oat_file->IsExecutable() &&
+             !VerifyOatWithDexFile(oat_file.get(), dex_location, &error_msg)) {
     error_msgs->push_back(StringPrintf("Failed to verify oat file '%s' found for dex location "
                                        "'%s': %s", oat_file->GetLocation().c_str(), dex_location,
                                        error_msg.c_str()));
+    return nullptr;
+  } else if (!oat_file->IsExecutable() &&
+             !VerifyOatImageChecksum(oat_file.get(), isa)) {
+    error_msgs->push_back(StringPrintf("Failed to verify non-executable oat file '%s' found for "
+                                       "dex location '%s'. Image checksum incorrect.",
+                                       oat_file->GetLocation().c_str(), dex_location));
     return nullptr;
   } else {
     return oat_file.release();
@@ -1310,11 +1318,35 @@ const OatFile* ClassLinker::OpenOatFileFromDexLocation(const std::string& dex_lo
   return ret;
 }
 
+const OatFile* ClassLinker::GetInterpretedOnlyOat(const std::string& oat_path,
+                                                  InstructionSet isa,
+                                                  std::string* error_msg) {
+  // We open it non-executable
+  std::unique_ptr<OatFile> output(OatFile::Open(oat_path, oat_path, NULL, false, error_msg));
+  if (output.get() == nullptr) {
+    return nullptr;
+  }
+  if (VerifyOatImageChecksum(output.get(), isa)) {
+    return output.release();
+  } else {
+    *error_msg = StringPrintf("Could not use oat file '%s', image checksum failed to verify.",
+                              oat_path.c_str());
+    return nullptr;
+  }
+}
+
 const OatFile* ClassLinker::PatchAndRetrieveOat(const std::string& input_oat,
                                                 const std::string& output_oat,
                                                 const std::string& image_location,
                                                 InstructionSet isa,
                                                 std::string* error_msg) {
+  if (!Runtime::Current()->IsDex2OatEnabled()) {
+    // We don't have dex2oat so we can assume we don't have patchoat either. We should just use the
+    // input_oat but make sure we only do interpretation on it's dex files.
+    LOG(WARNING) << "Patching of oat file '" << input_oat << "' not attempted due to dex2oat being "
+                 << "disabled. Attempting to use oat file for interpretation";
+    return GetInterpretedOnlyOat(input_oat, isa, error_msg);
+  }
   Locks::mutator_lock_->AssertNotHeld(Thread::Current());  // Avoid starving GC.
   std::string patchoat(Runtime::Current()->GetPatchoatExecutable());
 
@@ -1352,6 +1384,12 @@ const OatFile* ClassLinker::PatchAndRetrieveOat(const std::string& input_oat,
                                 "but was unable to open output file '%s': %s",
                                 input_oat.c_str(), output_oat.c_str(), error_msg->c_str());
     }
+  } else if (!Runtime::Current()->IsCompiler()) {
+    // patchoat failed which means we probably don't have enough room to place the output oat file,
+    // instead of failing we should just run the interpreter from the dex files in the input oat.
+    LOG(WARNING) << "Patching of oat file '" << input_oat << "' failed. Attempting to use oat file "
+                 << "for interpretation. patchoat failure was: " << *error_msg;
+    return GetInterpretedOnlyOat(input_oat, isa, error_msg);
   } else {
     *error_msg = StringPrintf("Patching of oat file '%s to '%s' "
                               "failed: %s", input_oat.c_str(), output_oat.c_str(),
