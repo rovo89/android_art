@@ -209,7 +209,7 @@ class Breakpoint {
   bool need_full_deoptimization_;
 };
 
-static std::ostream& operator<<(std::ostream& os, Breakpoint& rhs)
+static std::ostream& operator<<(std::ostream& os, const Breakpoint& rhs)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   os << StringPrintf("Breakpoint[%s @%#x]", PrettyMethod(rhs.Method()).c_str(), rhs.DexPc());
   return os;
@@ -373,7 +373,7 @@ void SingleStepControl::Clear() {
 static bool IsBreakpoint(const mirror::ArtMethod* m, uint32_t dex_pc)
     LOCKS_EXCLUDED(Locks::breakpoint_lock_)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
+  ReaderMutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
   for (size_t i = 0, e = gBreakpoints.size(); i < e; ++i) {
     if (gBreakpoints[i].DexPc() == dex_pc && gBreakpoints[i].Method() == m) {
       VLOG(jdwp) << "Hit breakpoint #" << i << ": " << gBreakpoints[i];
@@ -740,7 +740,7 @@ void Dbg::GoActive() {
 
   {
     // TODO: dalvik only warned if there were breakpoints left over. clear in Dbg::Disconnected?
-    MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
+    ReaderMutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
     CHECK_EQ(gBreakpoints.size(), 0U);
   }
 
@@ -3045,7 +3045,7 @@ static bool IsMethodPossiblyInlined(Thread* self, mirror::ArtMethod* m)
 }
 
 static const Breakpoint* FindFirstBreakpointForMethod(mirror::ArtMethod* m)
-    EXCLUSIVE_LOCKS_REQUIRED(Locks::breakpoint_lock_) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::breakpoint_lock_) {
   for (Breakpoint& breakpoint : gBreakpoints) {
     if (breakpoint.Method() == m) {
       return &breakpoint;
@@ -3056,7 +3056,7 @@ static const Breakpoint* FindFirstBreakpointForMethod(mirror::ArtMethod* m)
 
 // Sanity checks all existing breakpoints on the same method.
 static void SanityCheckExistingBreakpoints(mirror::ArtMethod* m, bool need_full_deoptimization)
-    EXCLUSIVE_LOCKS_REQUIRED(Locks::breakpoint_lock_) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::breakpoint_lock_) {
   if (kIsDebugBuild) {
     for (const Breakpoint& breakpoint : gBreakpoints) {
       CHECK_EQ(need_full_deoptimization, breakpoint.NeedFullDeoptimization());
@@ -3081,7 +3081,7 @@ void Dbg::WatchLocation(const JDWP::JdwpLocation* location, DeoptimizationReques
   mirror::ArtMethod* m = FromMethodId(location->method_id);
   DCHECK(m != nullptr) << "No method for method id " << location->method_id;
 
-  MutexLock mu(self, *Locks::breakpoint_lock_);
+  WriterMutexLock mu(self, *Locks::breakpoint_lock_);
   const Breakpoint* const existing_breakpoint = FindFirstBreakpointForMethod(m);
   bool need_full_deoptimization;
   if (existing_breakpoint == nullptr) {
@@ -3112,7 +3112,7 @@ void Dbg::WatchLocation(const JDWP::JdwpLocation* location, DeoptimizationReques
 // Uninstalls a breakpoint at the specified location. Also indicates through the deoptimization
 // request if we need to undeoptimize.
 void Dbg::UnwatchLocation(const JDWP::JdwpLocation* location, DeoptimizationRequest* req) {
-  MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
+  WriterMutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
   mirror::ArtMethod* m = FromMethodId(location->method_id);
   DCHECK(m != nullptr) << "No method for method id " << location->method_id;
   bool need_full_deoptimization = false;
