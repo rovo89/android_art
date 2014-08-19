@@ -44,6 +44,16 @@
 
 .macro ENTRY name
     .type \name, #function
+    .hidden \name  // Hide this as a global symbol, so we do not incur plt calls.
+    .global \name
+    /* Cache alignment for function entry */
+    .balign 16
+\name:
+    .cfi_startproc
+.endm
+
+.macro ENTRY_NO_HIDE name
+    .type \name, #function
     .global \name
     /* Cache alignment for function entry */
     .balign 16
@@ -58,6 +68,12 @@
 
 .macro UNIMPLEMENTED name
     ENTRY \name
+    brk 0
+    END \name
+.endm
+
+.macro UNIMPLEMENTED_NO_HIDE name
+    ENTRY_NO_HIDE \name
     brk 0
     END \name
 .endm

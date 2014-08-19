@@ -107,6 +107,13 @@
     #define PLT_SYMBOL(name) _ ## name
 #endif
 
+// Directive to hide a function symbol.
+#if defined(__APPLE__)
+    #define ASM_HIDDEN .private_extern
+#else
+    #define ASM_HIDDEN .hidden
+#endif
+
     /* Cache alignment for function entry */
 MACRO0(ALIGN_FUNCTION_ENTRY)
     .balign 16
@@ -116,13 +123,20 @@ END_MACRO
 // for mac builds.
 MACRO1(DEFINE_FUNCTION, c_name)
     FUNCTION_TYPE(\c_name, 0)
+    ASM_HIDDEN VAR(c_name, 0)
     .globl VAR(c_name, 0)
     ALIGN_FUNCTION_ENTRY
 VAR(c_name, 0):
-#if !defined(__APPLE__)
-    // Have a local entrypoint that's not globl
-VAR(c_name, 0)_local:
-#endif
+    CFI_STARTPROC
+    // Ensure we get a sane starting CFA.
+    CFI_DEF_CFA(rsp, 8)
+END_MACRO
+
+MACRO1(DEFINE_FUNCTION_NO_HIDE, c_name)
+    FUNCTION_TYPE(\c_name, 0)
+    .globl VAR(c_name, 0)
+    ALIGN_FUNCTION_ENTRY
+VAR(c_name, 0):
     CFI_STARTPROC
     // Ensure we get a sane starting CFA.
     CFI_DEF_CFA(rsp, 8)
@@ -146,6 +160,19 @@ MACRO1(POP, reg)
 END_MACRO
 
 MACRO1(UNIMPLEMENTED,name)
+    FUNCTION_TYPE(\name, 0)
+    ASM_HIDDEN VAR(c_name, 0)
+    .globl VAR(name, 0)
+    ALIGN_FUNCTION_ENTRY
+VAR(name, 0):
+    CFI_STARTPROC
+    int3
+    int3
+    CFI_ENDPROC
+    SIZE(\name, 0)
+END_MACRO
+
+MACRO1(UNIMPLEMENTED_NO_HIDE,name)
     FUNCTION_TYPE(\name, 0)
     .globl VAR(name, 0)
     ALIGN_FUNCTION_ENTRY

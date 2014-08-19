@@ -50,4 +50,17 @@ static inline int32_t MemCmp16(const uint16_t* s0, const uint16_t* s1, size_t co
 extern "C" int32_t memcmp16_generic_static(const uint16_t* s0, const uint16_t* s1, size_t count);
 #endif
 
+namespace art {
+
+namespace testing {
+
+// A version that is exposed and relatively "close to the metal," so that memcmp16_test can do
+// some reasonable testing. Without this, as __memcmp16 is hidden, the test cannot access the
+// implementation.
+int32_t MemCmp16Testing(const uint16_t* s0, const uint16_t* s1, size_t count);
+
+}
+
+}  // namespace art
+
 #endif  // ART_RUNTIME_ARCH_MEMCMP16_H_
