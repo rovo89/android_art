@@ -404,6 +404,8 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_g
     if (thread_name != nullptr) {
       self->tlsPtr_.name->assign(thread_name);
       ::art::SetThreadName(thread_name);
+    } else if (self->GetJniEnv()->check_jni) {
+      LOG(WARNING) << *Thread::Current() << " attached without supplying a name";
     }
   }
 
