@@ -41,6 +41,11 @@ class MethodHelper {
     return method_->GetInterfaceMethodIfProxy();
   }
 
+  // GetMethod() != Get() for proxy methods.
+  mirror::ArtMethod* Get() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return method_.Get();
+  }
+
   mirror::String* GetNameAsString(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const char* GetShorty() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
