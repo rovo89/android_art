@@ -177,7 +177,8 @@ class Instrumentation {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_);
 
-  InterpreterHandlerTable GetInterpreterHandlerTable() const {
+  InterpreterHandlerTable GetInterpreterHandlerTable() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return interpreter_handler_table_;
   }
 
@@ -220,31 +221,31 @@ class Instrumentation {
     return instrumentation_stubs_installed_;
   }
 
-  bool HasMethodEntryListeners() const {
+  bool HasMethodEntryListeners() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return have_method_entry_listeners_;
   }
 
-  bool HasMethodExitListeners() const {
+  bool HasMethodExitListeners() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return have_method_exit_listeners_;
   }
 
-  bool HasDexPcListeners() const {
+  bool HasDexPcListeners() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return have_dex_pc_listeners_;
   }
 
-  bool HasFieldReadListeners() const {
+  bool HasFieldReadListeners() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return have_field_read_listeners_;
   }
 
-  bool HasFieldWriteListeners() const {
+  bool HasFieldWriteListeners() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return have_field_write_listeners_;
   }
 
-  bool HasExceptionCaughtListeners() const {
+  bool HasExceptionCaughtListeners() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return have_exception_caught_listeners_;
   }
 
-  bool IsActive() const {
+  bool IsActive() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return have_dex_pc_listeners_ || have_method_entry_listeners_ || have_method_exit_listeners_ ||
         have_field_read_listeners_ || have_field_write_listeners_ ||
         have_exception_caught_listeners_ || have_method_unwind_listeners_;
@@ -343,7 +344,7 @@ class Instrumentation {
       LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_,
                      deoptimized_methods_lock_);
 
-  void UpdateInterpreterHandlerTable() {
+  void UpdateInterpreterHandlerTable() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
     interpreter_handler_table_ = IsActive() ? kAlternativeHandlerTable : kMainHandlerTable;
   }
 
@@ -404,30 +405,30 @@ class Instrumentation {
 
   // Do we have any listeners for method entry events? Short-cut to avoid taking the
   // instrumentation_lock_.
-  bool have_method_entry_listeners_;
+  bool have_method_entry_listeners_ GUARDED_BY(Locks::mutator_lock_);
 
   // Do we have any listeners for method exit events? Short-cut to avoid taking the
   // instrumentation_lock_.
-  bool have_method_exit_listeners_;
+  bool have_method_exit_listeners_ GUARDED_BY(Locks::mutator_lock_);
 
   // Do we have any listeners for method unwind events? Short-cut to avoid taking the
   // instrumentation_lock_.
-  bool have_method_unwind_listeners_;
+  bool have_method_unwind_listeners_ GUARDED_BY(Locks::mutator_lock_);
 
   // Do we have any listeners for dex move events? Short-cut to avoid taking the
   // instrumentation_lock_.
-  bool have_dex_pc_listeners_;
+  bool have_dex_pc_listeners_ GUARDED_BY(Locks::mutator_lock_);
 
   // Do we have any listeners for field read events? Short-cut to avoid taking the
   // instrumentation_lock_.
-  bool have_field_read_listeners_;
+  bool have_field_read_listeners_ GUARDED_BY(Locks::mutator_lock_);
 
   // Do we have any listeners for field write events? Short-cut to avoid taking the
   // instrumentation_lock_.
-  bool have_field_write_listeners_;
+  bool have_field_write_listeners_ GUARDED_BY(Locks::mutator_lock_);
 
   // Do we have any exception caught listeners? Short-cut to avoid taking the instrumentation_lock_.
-  bool have_exception_caught_listeners_;
+  bool have_exception_caught_listeners_ GUARDED_BY(Locks::mutator_lock_);
 
   // The event listeners, written to with the mutator_lock_ exclusively held.
   std::list<InstrumentationListener*> method_entry_listeners_ GUARDED_BY(Locks::mutator_lock_);
@@ -451,7 +452,7 @@ class Instrumentation {
 
   // Current interpreter handler table. This is updated each time the thread state flags are
   // modified.
-  InterpreterHandlerTable interpreter_handler_table_;
+  InterpreterHandlerTable interpreter_handler_table_ GUARDED_BY(Locks::mutator_lock_);
 
   // Greater than 0 if quick alloc entry points instrumented.
   // TODO: The access and changes to this is racy and should be guarded by a lock.
