@@ -504,6 +504,9 @@ std::string Arm64Mir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned ch
              else
                strcpy(tbuf, ", DecodeError3");
              break;
+           case 'h':
+             snprintf(tbuf, arraysize(tbuf), "%d", operand);
+             break;
            default:
              strcpy(tbuf, "DecodeError1");
              break;

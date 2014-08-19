@@ -89,6 +89,7 @@ namespace art {
  *     M -> 16-bit shift expression ("" or ", lsl #16" or ", lsl #32"...)
  *     B -> dmb option string (sy, st, ish, ishst, nsh, hshst)
  *     H -> operand shift
+ *     h -> 6-bit shift immediate
  *     T -> register shift (either ", lsl #0" or ", lsl #12")
  *     e -> register extend (e.g. uxtb #1)
  *     o -> register shift (e.g. lsl #1) for Word registers
@@ -614,10 +615,24 @@ const ArmEncodingMap Arm64Mir2Lir::EncodingMap[kA64Last] = {
                  kFmtRegR, 4, 0, kFmtRegROrSp, 9, 5, kFmtBitBlt, 21, 10,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1 | SETS_CCODES,
                  "subs", "!0r, !1R, #!2d", kFixupNone),
-    ENCODING_MAP(WIDE(kA64Tst3rro), SF_VARIANTS(0x6a000000),
+    ENCODING_MAP(WIDE(kA64Tst2rl), SF_VARIANTS(0x7200001f),
+                 kFmtRegR, 9, 5, kFmtBitBlt, 22, 10, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_USE0 | SETS_CCODES,
+                 "tst", "!0r, !1l", kFixupNone),
+    ENCODING_MAP(WIDE(kA64Tst3rro), SF_VARIANTS(0x6a00001f),
                  kFmtRegR, 9, 5, kFmtRegR, 20, 16, kFmtShift, -1, -1,
-                 kFmtUnused, -1, -1, IS_QUAD_OP | REG_USE01 | SETS_CCODES,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_USE01 | SETS_CCODES,
                  "tst", "!0r, !1r!2o", kFixupNone),
+    // NOTE: Tbz/Tbnz does not require SETS_CCODES, but it may be replaced by some other LIRs
+    // which require SETS_CCODES in the fix-up stage.
+    ENCODING_MAP(WIDE(kA64Tbnz3rht), CUSTOM_VARIANTS(0x37000000, 0x37000000),
+                 kFmtRegR, 4, 0, kFmtImm6Shift, -1, -1, kFmtBitBlt, 18, 5, kFmtUnused, -1, -1,
+                 IS_TERTIARY_OP | REG_USE0 | IS_BRANCH | NEEDS_FIXUP | SETS_CCODES,
+                 "tbnz", "!0r, #!1h, !2t", kFixupTBxZ),
+    ENCODING_MAP(WIDE(kA64Tbz3rht), CUSTOM_VARIANTS(0x36000000, 0x36000000),
+                 kFmtRegR, 4, 0, kFmtImm6Shift, -1, -1, kFmtBitBlt, 18, 5, kFmtUnused, -1, -1,
+                 IS_TERTIARY_OP | REG_USE0 | IS_BRANCH | NEEDS_FIXUP | SETS_CCODES,
+                 "tbz", "!0r, #!1h, !2t", kFixupTBxZ),
     ENCODING_MAP(WIDE(kA64Ubfm4rrdd), SF_N_VARIANTS(0x53000000),
                  kFmtRegR, 4, 0, kFmtRegR, 9, 5, kFmtBitBlt, 21, 16,
                  kFmtBitBlt, 15, 10, IS_QUAD_OP | REG_DEF0_USE1,
@@ -787,6 +802,11 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
               value |= ((operand & 0x1ffffc) >> 2) << 5;
               bits |= value;
               break;
+            case kFmtImm6Shift:
+              value = (operand & 0x1f) << 19;
+              value |= ((operand & 0x20) >> 5) << 31;
+              bits |= value;
+              break;
             default:
               LOG(FATAL) << "Bad fmt for arg. " << i << " in " << encoder->name
                          << " (" << kind << ")";
@@ -827,11 +847,6 @@ void Arm64Mir2Lir::AssembleLIR() {
    */
   int generation = 0;
   while (true) {
-    // TODO(Arm64): check whether passes and offset adjustments are really necessary.
-    //   Currently they aren't, as - in the fixups below - LIR are never inserted.
-    //   Things can be different if jump ranges above 1 MB need to be supported.
-    //   If they are not, then we can get rid of the assembler retry logic.
-
     offset_adjustment = 0;
     AssemblerStatus res = kSuccess;  // Assume success
     generation ^= 1;
@@ -839,13 +854,9 @@ void Arm64Mir2Lir::AssembleLIR() {
     lir = first_fixup_;
     prev_lir = NULL;
     while (lir != NULL) {
-      /*
-       * NOTE: the lir being considered here will be encoded following the switch (so long as
-       * we're not in a retry situation).  However, any new non-pc_rel instructions inserted
-       * due to retry must be explicitly encoded at the time of insertion.  Note that
-       * inserted instructions don't need use/def flags, but do need size and pc-rel status
-       * properly updated.
-       */
+      // NOTE: Any new non-pc_rel instructions inserted due to retry must be explicitly encoded at
+      // the time of insertion.  Note that inserted instructions don't need use/def flags, but do
+      // need size and pc-rel status properly updated.
       lir->offset += offset_adjustment;
       // During pass, allows us to tell whether a node has been updated with offset_adjustment yet.
       lir->flags.generation = generation;
@@ -861,7 +872,8 @@ void Arm64Mir2Lir::AssembleLIR() {
           CodeOffset target = target_lir->offset +
               ((target_lir->flags.generation == lir->flags.generation) ? 0 : offset_adjustment);
           int32_t delta = target - pc;
-          if (!((delta & 0x3) == 0 && IS_SIGNED_IMM19(delta >> 2))) {
+          DCHECK_EQ(delta & 0x3, 0);
+          if (!IS_SIGNED_IMM19(delta >> 2)) {
             LOG(FATAL) << "Invalid jump range in kFixupT1Branch";
           }
           lir->operands[0] = delta >> 2;
@@ -876,10 +888,73 @@ void Arm64Mir2Lir::AssembleLIR() {
           CodeOffset target = target_lir->offset +
             ((target_lir->flags.generation == lir->flags.generation) ? 0 : offset_adjustment);
           int32_t delta = target - pc;
-          if (!((delta & 0x3) == 0 && IS_SIGNED_IMM19(delta >> 2))) {
+          DCHECK_EQ(delta & 0x3, 0);
+          if (!IS_SIGNED_IMM19(delta >> 2)) {
             LOG(FATAL) << "Invalid jump range in kFixupLoad";
           }
           lir->operands[1] = delta >> 2;
+          break;
+        }
+        case kFixupTBxZ: {
+          int16_t opcode = lir->opcode;
+          RegStorage reg(lir->operands[0] | RegStorage::kValid);
+          int32_t imm = lir->operands[1];
+          DCHECK_EQ(IS_WIDE(opcode), reg.Is64Bit());
+          DCHECK_LT(imm, 64);
+          if (imm >= 32) {
+            DCHECK(IS_WIDE(opcode));
+          } else if (kIsDebugBuild && IS_WIDE(opcode)) {
+            // "tbz/tbnz x0, #imm(<32)" is the same with "tbz/tbnz w0, #imm(<32)", but GCC/oatdump
+            // will disassemble it as "tbz/tbnz w0, #imm(<32)". So unwide the LIR to make the
+            // compiler log behave the same with those disassembler in debug build.
+            // This will also affect tst instruction if it need to be replaced, but there is no
+            // performance difference between "tst Xt" and "tst Wt".
+            lir->opcode = UNWIDE(opcode);
+            lir->operands[0] = As32BitReg(reg).GetReg();
+          }
+
+          // Fix-up branch offset.
+          LIR *target_lir = lir->target;
+          DCHECK(target_lir);
+          CodeOffset pc = lir->offset;
+          CodeOffset target = target_lir->offset +
+              ((target_lir->flags.generation == lir->flags.generation) ? 0 : offset_adjustment);
+          int32_t delta = target - pc;
+          DCHECK_EQ(delta & 0x3, 0);
+          // Check if branch offset can be encoded in tbz/tbnz.
+          if (!IS_SIGNED_IMM14(delta >> 2)) {
+            DexOffset dalvik_offset = lir->dalvik_offset;
+            int16_t opcode = lir->opcode;
+            LIR* target = lir->target;
+            // "tbz/tbnz Rt, #imm, label" -> "tst Rt, #(1<<imm)".
+            offset_adjustment -= lir->flags.size;
+            int32_t imm = EncodeLogicalImmediate(IS_WIDE(opcode), 1 << lir->operands[1]);
+            DCHECK_NE(imm, -1);
+            lir->opcode = IS_WIDE(opcode) ? WIDE(kA64Tst2rl) : kA64Tst2rl;
+            lir->operands[1] = imm;
+            lir->target = nullptr;
+            lir->flags.fixup = EncodingMap[kA64Tst2rl].fixup;
+            lir->flags.size = EncodingMap[kA64Tst2rl].size;
+            offset_adjustment += lir->flags.size;
+            // Insert "beq/bneq label".
+            opcode = UNWIDE(opcode);
+            DCHECK(opcode == kA64Tbz3rht || opcode == kA64Tbnz3rht);
+            LIR* new_lir = RawLIR(dalvik_offset, kA64B2ct,
+                opcode == kA64Tbz3rht ? kArmCondEq : kArmCondNe, 0, 0, 0, 0, target);
+            InsertLIRAfter(lir, new_lir);
+            new_lir->offset = lir->offset + lir->flags.size;
+            new_lir->flags.generation = generation;
+            new_lir->flags.fixup = EncodingMap[kA64B2ct].fixup;
+            new_lir->flags.size = EncodingMap[kA64B2ct].size;
+            offset_adjustment += new_lir->flags.size;
+            // lir no longer pcrel, unlink and link in new_lir.
+            ReplaceFixup(prev_lir, lir, new_lir);
+            prev_lir = new_lir;  // Continue with the new instruction.
+            lir = new_lir->u.a.pcrel_next;
+            res = kRetryAll;
+            continue;
+          }
+          lir->operands[2] = delta >> 2;
           break;
         }
         case kFixupAdr: {
@@ -910,6 +985,7 @@ void Arm64Mir2Lir::AssembleLIR() {
     }
 
     if (res == kSuccess) {
+      DCHECK_EQ(offset_adjustment, 0);
       break;
     } else {
       assembler_retries++;
