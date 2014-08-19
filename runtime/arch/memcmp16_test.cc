@@ -139,7 +139,7 @@ static void CheckSeparate(size_t max_length, size_t min_length) {
     size_t mod_min = c1_mod < c2_mod ? c1_mod : c2_mod;
 
     int32_t expected = memcmp16_compare(s1_pot_unaligned, s2_pot_unaligned, mod_min);
-    int32_t computed = MemCmp16(s1_pot_unaligned, s2_pot_unaligned, mod_min);
+    int32_t computed = art::testing::MemCmp16Testing(s1_pot_unaligned, s2_pot_unaligned, mod_min);
 
     ASSERT_EQ(expected, computed) << "Run " << round << ", c1=" << count1 << " c2=" << count2;
 
