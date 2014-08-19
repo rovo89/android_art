@@ -212,6 +212,7 @@ done
 # Cannot use realpath, as it does not exist on Mac.
 # Cannot us a simple "cd", as the path might not be created yet.
 # Use -m option of readlink: canonicalizes, but allows non-existing components.
+noncanonical_tmp_dir=$tmp_dir
 tmp_dir="`cd $oldwd ; readlink -m $tmp_dir`"
 
 mkdir -p $tmp_dir
@@ -474,6 +475,8 @@ else
         "./${run}" $run_args "$@" >"$output" 2>&1
     else
         cp "$build_output" "$output"
+        echo "Failed to build in tmpdir=${tmp_dir} from oldwd=${oldwd} and cwd=`pwd`"
+        echo "Non-canonical tmpdir was ${noncanonical_tmp_dir}"
         echo "build exit status: $build_exit" >>"$output"
     fi
     ./$check_cmd "$expected" "$output"
