@@ -61,6 +61,8 @@
 
 namespace art {
 
+static constexpr bool kTimeCompileMethod = !kIsDebugBuild;
+
 static double Percentage(size_t x, size_t y) {
   return 100.0 * (static_cast<double>(x)) / (static_cast<double>(x + y));
 }
@@ -2024,7 +2026,7 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
                                    const DexFile& dex_file,
                                    DexToDexCompilationLevel dex_to_dex_compilation_level) {
   CompiledMethod* compiled_method = NULL;
-  uint64_t start_ns = NanoTime();
+  uint64_t start_ns = kTimeCompileMethod ? NanoTime() : 0;
 
   if ((access_flags & kAccNative) != 0) {
     // Are we interpreting only and have support for generic JNI down calls?
@@ -2052,10 +2054,12 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
                               dex_to_dex_compilation_level);
     }
   }
-  uint64_t duration_ns = NanoTime() - start_ns;
-  if (duration_ns > MsToNs(compiler_->GetMaximumCompilationTimeBeforeWarning()) && !kIsDebugBuild) {
-    LOG(WARNING) << "Compilation of " << PrettyMethod(method_idx, dex_file)
-                 << " took " << PrettyDuration(duration_ns);
+  if (kTimeCompileMethod) {
+    uint64_t duration_ns = NanoTime() - start_ns;
+    if (duration_ns > MsToNs(compiler_->GetMaximumCompilationTimeBeforeWarning())) {
+      LOG(WARNING) << "Compilation of " << PrettyMethod(method_idx, dex_file)
+                   << " took " << PrettyDuration(duration_ns);
+    }
   }
 
   Thread* self = Thread::Current();
