@@ -64,6 +64,10 @@ class OatFile {
 
   ~OatFile();
 
+  bool IsExecutable() const {
+    return is_executable_;
+  }
+
   ElfFile* GetElfFile() const {
     CHECK_NE(reinterpret_cast<uintptr_t>(elf_file_.get()), reinterpret_cast<uintptr_t>(nullptr))
         << "Cannot get an elf file from " << GetLocation();
@@ -260,7 +264,7 @@ class OatFile {
                               bool executable,
                               std::string* error_msg);
 
-  explicit OatFile(const std::string& filename);
+  explicit OatFile(const std::string& filename, bool executable);
   bool Dlopen(const std::string& elf_filename, byte* requested_base, std::string* error_msg);
   bool ElfFileOpen(File* file, byte* requested_base, bool writable, bool executable,
                    std::string* error_msg);
@@ -276,6 +280,9 @@ class OatFile {
 
   // Pointer to end of oat region for bounds checking.
   const byte* end_;
+
+  // Was this oat_file loaded executable?
+  const bool is_executable_;
 
   // Backing memory map for oat file during when opened by ElfWriter during initial compilation.
   std::unique_ptr<MemMap> mem_map_;
