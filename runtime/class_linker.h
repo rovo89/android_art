@@ -60,8 +60,8 @@ class ClassLinker {
   explicit ClassLinker(InternTable* intern_table);
   ~ClassLinker();
 
-  // Initialize class linker by bootstraping from dex files
-  void InitFromCompiler(const std::vector<const DexFile*>& boot_class_path)
+  // Initialize class linker by bootstraping from dex files.
+  void InitWithoutImage(const std::vector<const DexFile*>& boot_class_path)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Initialize class linker from one or more images.
