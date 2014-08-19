@@ -25,4 +25,4 @@ UNIMPLEMENTED art_portable_proxy_invoke_handler
 
 UNIMPLEMENTED art_portable_resolution_trampoline
 
-UNIMPLEMENTED art_portable_to_interpreter_bridge
+UNIMPLEMENTED_NO_HIDE art_portable_to_interpreter_bridge

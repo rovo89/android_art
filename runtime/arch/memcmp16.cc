@@ -28,4 +28,16 @@ int32_t memcmp16_generic_static(const uint16_t* s0, const uint16_t* s1, size_t c
   return 0;
 }
 
+namespace art {
+
+namespace testing {
+
+int32_t MemCmp16Testing(const uint16_t* s0, const uint16_t* s1, size_t count) {
+  return MemCmp16(s0, s1, count);
+}
+
+}
+
+}  // namespace art
+
 #pragma GCC diagnostic warning "-Wunused-function"
