@@ -283,7 +283,9 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
     {
       ScopedThreadStateChange tsc(self, kWaitingForDebuggerToAttach);
       MutexLock attach_locker(self, state->attach_lock_);
-      state->attach_cond_.Wait(self);
+      while (state->debug_thread_id_ == 0) {
+        state->attach_cond_.Wait(self);
+      }
     }
     if (!state->IsActive()) {
       LOG(ERROR) << "JDWP connection failed";
@@ -335,10 +337,6 @@ void JdwpState::ResetState() {
  */
 JdwpState::~JdwpState() {
   if (netState != NULL) {
-    if (IsConnected()) {
-      PostVMDeath();
-    }
-
     /*
      * Close down the network to inspire the thread to halt.
      */
@@ -458,6 +456,7 @@ void JdwpState::Run() {
       if (!netState->Establish(options_)) {
         /* wake anybody who was waiting for us to succeed */
         MutexLock mu(thread_, attach_lock_);
+        debug_thread_id_ = static_cast<ObjectId>(-1);
         attach_cond_.Broadcast(thread_);
         break;
       }
