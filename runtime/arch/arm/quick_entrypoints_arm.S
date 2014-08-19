@@ -308,9 +308,12 @@ ENTRY art_quick_invoke_stub
 #ifdef ARM_R4_SUSPEND_FLAG
     mov    r4, #SUSPEND_CHECK_INTERVAL     @ reset r4 to suspend check interval
 #endif
-    add    r5, r2, #16                     @ create space for method pointer in frame
-    and    r5, #0xFFFFFFF0                 @ align frame size to 16 bytes
-    sub    sp, r5                          @ reserve stack space for argument array
+    add    r5, r2, #4                      @ create space for method pointer in frame
+
+    sub    r5, sp, r5                      @ reserve & align *stack* to 16 bytes: native calling
+    and    r5, #0xFFFFFFF0                 @ convention only aligns to 8B, so we have to ensure ART
+    mov    sp, r5                          @ 16B alignment ourselves.
+
     add    r0, sp, #4                      @ pass stack pointer + method ptr as dest for memcpy
     bl     memcpy                          @ memcpy (dest, src, bytes)
     ldr    r0, [r11]                       @ restore method*
