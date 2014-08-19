@@ -656,13 +656,37 @@ void LocalValueNumbering::MergeEscapedArrayClobberSets(
   }
 }
 
-void LocalValueNumbering::MergeNullChecked(const ValueNameSet::value_type& entry,
-                                           ValueNameSet::iterator hint) {
-  // Merge null_checked_ for this ref.
-  merge_names_.clear();
-  merge_names_.resize(gvn_->merge_lvns_.size(), entry);
-  if (gvn_->NullCheckedInAllPredecessors(merge_names_)) {
-    null_checked_.insert(hint, entry);
+void LocalValueNumbering::MergeNullChecked() {
+  DCHECK_GE(gvn_->merge_lvns_.size(), 2u);
+
+  // Find the LVN with the least entries in the set.
+  const LocalValueNumbering* least_entries_lvn = gvn_->merge_lvns_[0];
+  for (const LocalValueNumbering* lvn : gvn_->merge_lvns_) {
+    if (lvn->null_checked_.size() < least_entries_lvn->null_checked_.size()) {
+      least_entries_lvn = lvn;
+    }
+  }
+
+  // For each null-checked value name check if it's null-checked in all the LVNs.
+  for (const auto& value_name : least_entries_lvn->null_checked_) {
+    // Merge null_checked_ for this ref.
+    merge_names_.clear();
+    merge_names_.resize(gvn_->merge_lvns_.size(), value_name);
+    if (gvn_->NullCheckedInAllPredecessors(merge_names_)) {
+      null_checked_.insert(null_checked_.end(), value_name);
+    }
+  }
+
+  // Now check if the least_entries_lvn has a null-check as the last insn.
+  const BasicBlock* least_entries_bb = gvn_->GetBasicBlock(least_entries_lvn->Id());
+  if (gvn_->HasNullCheckLastInsn(least_entries_bb, id_)) {
+    int s_reg = least_entries_bb->last_mir_insn->ssa_rep->uses[0];
+    uint32_t value_name = least_entries_lvn->GetSRegValueName(s_reg);
+    merge_names_.clear();
+    merge_names_.resize(gvn_->merge_lvns_.size(), value_name);
+    if (gvn_->NullCheckedInAllPredecessors(merge_names_)) {
+      null_checked_.insert(value_name);
+    }
   }
 }
 
@@ -896,8 +920,7 @@ void LocalValueNumbering::Merge(MergeType merge_type) {
   IntersectSets<RangeCheckSet, &LocalValueNumbering::range_checked_>();
 
   // Merge null_checked_. We may later insert more, such as merged object field values.
-  MergeSets<ValueNameSet, &LocalValueNumbering::null_checked_,
-            &LocalValueNumbering::MergeNullChecked>();
+  MergeNullChecked();
 
   if (merge_type == kCatchMerge) {
     // Memory is clobbered. New memory version already created, don't merge aliasing locations.
