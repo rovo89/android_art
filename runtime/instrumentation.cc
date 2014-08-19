@@ -121,11 +121,9 @@ void Instrumentation::InstallStubsForMethod(mirror::ArtMethod* method) {
     // Do not change stubs for these methods.
     return;
   }
-  std::string temp;
-  // Note that the Proxy class itself is not a proxy class.
-  if (strcmp(method->GetDeclaringClass()->GetDescriptor(&temp), "Ljava/lang/reflect/Proxy;") == 0 &&
-      method->IsConstructor()) {
-    // Do not stub Proxy.<init>.
+  // Don't stub Proxy.<init>. Note that the Proxy class itself is not a proxy class.
+  if (method->IsConstructor() &&
+      method->GetDeclaringClass()->DescriptorEquals("Ljava/lang/reflect/Proxy;")) {
     return;
   }
   const void* new_portable_code;
