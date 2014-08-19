@@ -115,7 +115,7 @@ DEFINE_FUNCTION art_portable_resolution_trampoline
   ret
 END_FUNCTION art_portable_resolution_trampoline
 
-DEFINE_FUNCTION art_portable_to_interpreter_bridge
+DEFINE_FUNCTION_NO_HIDE art_portable_to_interpreter_bridge
   PUSH ebp                        // Set up frame.
   movl %esp, %ebp
   CFI_DEF_CFA_REGISTER(%ebp)
