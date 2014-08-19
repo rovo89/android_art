@@ -45,7 +45,7 @@ OatFile* OatFile::OpenMemory(std::vector<uint8_t>& oat_contents,
                              std::string* error_msg) {
   CHECK(!oat_contents.empty()) << location;
   CheckLocation(location);
-  std::unique_ptr<OatFile> oat_file(new OatFile(location));
+  std::unique_ptr<OatFile> oat_file(new OatFile(location, false));
   oat_file->begin_ = &oat_contents[0];
   oat_file->end_ = &oat_contents[oat_contents.size()];
   return oat_file->Setup(error_msg) ? oat_file.release() : nullptr;
@@ -97,7 +97,7 @@ OatFile* OatFile::OpenDlopen(const std::string& elf_filename,
                              const std::string& location,
                              byte* requested_base,
                              std::string* error_msg) {
-  std::unique_ptr<OatFile> oat_file(new OatFile(location));
+  std::unique_ptr<OatFile> oat_file(new OatFile(location, true));
   bool success = oat_file->Dlopen(elf_filename, requested_base, error_msg);
   if (!success) {
     return nullptr;
@@ -111,7 +111,7 @@ OatFile* OatFile::OpenElfFile(File* file,
                               bool writable,
                               bool executable,
                               std::string* error_msg) {
-  std::unique_ptr<OatFile> oat_file(new OatFile(location));
+  std::unique_ptr<OatFile> oat_file(new OatFile(location, executable));
   bool success = oat_file->ElfFileOpen(file, requested_base, writable, executable, error_msg);
   if (!success) {
     CHECK(!error_msg->empty());
@@ -120,8 +120,9 @@ OatFile* OatFile::OpenElfFile(File* file,
   return oat_file.release();
 }
 
-OatFile::OatFile(const std::string& location)
-    : location_(location), begin_(NULL), end_(NULL), dlopen_handle_(NULL),
+OatFile::OatFile(const std::string& location, bool is_executable)
+    : location_(location), begin_(NULL), end_(NULL), is_executable_(is_executable),
+      dlopen_handle_(NULL),
       secondary_lookup_lock_("OatFile secondary lookup lock", kOatFileSecondaryLookupLock) {
   CHECK(!location_.empty());
 }
@@ -533,10 +534,15 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
     methods_pointer_index = num_set_bits;
   }
   const OatMethodOffsets& oat_method_offsets = methods_pointer_[methods_pointer_index];
-  return OatMethod(
-      oat_file_->Begin(),
-      oat_method_offsets.code_offset_,
-      oat_method_offsets.gc_map_offset_);
+  if (oat_file_->IsExecutable() || Runtime::Current()->IsCompiler()) {
+    return OatMethod(
+        oat_file_->Begin(),
+        oat_method_offsets.code_offset_,
+        oat_method_offsets.gc_map_offset_);
+  } else {
+    // We aren't allowed to use the compiled code. We just force it down the interpreted version.
+    return OatMethod(oat_file_->Begin(), 0, 0);
+  }
 }
 
 
