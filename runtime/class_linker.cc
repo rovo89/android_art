@@ -4386,7 +4386,7 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
       return true;
     }
   }
-  StackHandleScope<4> hs(self);
+  StackHandleScope<5> hs(self);
   Handle<mirror::IfTable> iftable(hs.NewHandle(AllocIfTable(self, ifcount)));
   if (UNLIKELY(iftable.Get() == NULL)) {
     CHECK(self->IsExceptionPending());  // OOME.
@@ -4469,7 +4469,13 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
   }
   MethodHelper interface_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
   MethodHelper vtable_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
-  std::vector<mirror::ArtMethod*> miranda_list;
+  size_t max_miranda_methods = 0;  // The max size of miranda_list.
+  for (size_t i = 0; i < ifcount; ++i) {
+    max_miranda_methods += iftable->GetInterface(i)->NumVirtualMethods();
+  }
+  Handle<mirror::ObjectArray<mirror::ArtMethod>>
+      miranda_list(hs.NewHandle(AllocArtMethodArray(self, max_miranda_methods)));
+  size_t miranda_list_size = 0;  // The current size of miranda_list.
   for (size_t i = 0; i < ifcount; ++i) {
     size_t num_methods = iftable->GetInterface(i)->NumVirtualMethods();
     if (num_methods > 0) {
@@ -4484,8 +4490,7 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
       Handle<mirror::ObjectArray<mirror::ArtMethod>> vtable(
           hs.NewHandle(klass->GetVTableDuringLinking()));
       for (size_t j = 0; j < num_methods; ++j) {
-        mirror::ArtMethod* interface_method = iftable->GetInterface(i)->GetVirtualMethod(j);
-        interface_mh.ChangeMethod(interface_method);
+        interface_mh.ChangeMethod(iftable->GetInterface(i)->GetVirtualMethod(j));
         int32_t k;
         // For each method listed in the interface's method list, find the
         // matching method in our class's method list.  We want to favor the
@@ -4496,22 +4501,21 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
         // those don't end up in the virtual method table, so it shouldn't
         // matter which direction we go.  We walk it backward anyway.)
         for (k = vtable->GetLength() - 1; k >= 0; --k) {
-          mirror::ArtMethod* vtable_method = vtable->Get(k);
-          vtable_mh.ChangeMethod(vtable_method);
+          vtable_mh.ChangeMethod(vtable->Get(k));
           if (interface_mh.HasSameNameAndSignature(&vtable_mh)) {
-            if (!vtable_method->IsAbstract() && !vtable_method->IsPublic()) {
+            if (!vtable_mh.Get()->IsAbstract() && !vtable_mh.Get()->IsPublic()) {
               ThrowIllegalAccessError(
                   klass.Get(),
                   "Method '%s' implementing interface method '%s' is not public",
-                  PrettyMethod(vtable_method).c_str(),
-                  PrettyMethod(interface_method).c_str());
+                  PrettyMethod(vtable_mh.Get()).c_str(),
+                  PrettyMethod(interface_mh.Get()).c_str());
               return false;
             }
-            method_array->Set<false>(j, vtable_method);
+            method_array->Set<false>(j, vtable_mh.Get());
             // Place method in imt if entry is empty, place conflict otherwise.
-            uint32_t imt_index = interface_method->GetDexMethodIndex() % mirror::Class::kImtSize;
+            uint32_t imt_index = interface_mh.Get()->GetDexMethodIndex() % mirror::Class::kImtSize;
             if (imtable->Get(imt_index) == NULL) {
-              imtable->Set<false>(imt_index, vtable_method);
+              imtable->Set<false>(imt_index, vtable_mh.Get());
               imtable_changed = true;
             } else {
               imtable->Set<false>(imt_index, runtime->GetImtConflictMethod());
@@ -4522,7 +4526,9 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
         if (k < 0) {
           StackHandleScope<1> hs(self);
           auto miranda_method = hs.NewHandle<mirror::ArtMethod>(nullptr);
-          for (mirror::ArtMethod* mir_method : miranda_list) {
+          for (size_t l = 0; l < miranda_list_size; ++l) {
+            mirror::ArtMethod* mir_method = miranda_list->Get(l);
+            DCHECK(mir_method != nullptr);
             vtable_mh.ChangeMethod(mir_method);
             if (interface_mh.HasSameNameAndSignature(&vtable_mh)) {
               miranda_method.Assign(mir_method);
@@ -4531,13 +4537,13 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
           }
           if (miranda_method.Get() == NULL) {
             // Point the interface table at a phantom slot.
-            miranda_method.Assign(down_cast<mirror::ArtMethod*>(interface_method->Clone(self)));
+            miranda_method.Assign(down_cast<mirror::ArtMethod*>(interface_mh.Get()->Clone(self)));
             if (UNLIKELY(miranda_method.Get() == NULL)) {
               CHECK(self->IsExceptionPending());  // OOME.
               return false;
             }
-            // TODO: If a methods move then the miranda_list may hold stale references.
-            miranda_list.push_back(miranda_method.Get());
+            DCHECK_LT(miranda_list_size, max_miranda_methods);
+            miranda_list->Set<false>(miranda_list_size++, miranda_method.Get());
           }
           method_array->Set<false>(j, miranda_method.Get());
         }
@@ -4554,9 +4560,9 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
     }
     klass->SetImTable(imtable.Get());
   }
-  if (!miranda_list.empty()) {
+  if (miranda_list_size > 0) {
     int old_method_count = klass->NumVirtualMethods();
-    int new_method_count = old_method_count + miranda_list.size();
+    int new_method_count = old_method_count + miranda_list_size;
     mirror::ObjectArray<mirror::ArtMethod>* virtuals;
     if (old_method_count == 0) {
       virtuals = AllocArtMethodArray(self, new_method_count);
@@ -4574,14 +4580,14 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
         hs.NewHandle(klass->GetVTableDuringLinking()));
     CHECK(vtable.Get() != NULL);
     int old_vtable_count = vtable->GetLength();
-    int new_vtable_count = old_vtable_count + miranda_list.size();
+    int new_vtable_count = old_vtable_count + miranda_list_size;
     vtable.Assign(vtable->CopyOf(self, new_vtable_count));
     if (UNLIKELY(vtable.Get() == NULL)) {
       CHECK(self->IsExceptionPending());  // OOME.
       return false;
     }
-    for (size_t i = 0; i < miranda_list.size(); ++i) {
-      mirror::ArtMethod* method = miranda_list[i];
+    for (size_t i = 0; i < miranda_list_size; ++i) {
+      mirror::ArtMethod* method = miranda_list->Get(i);
       // Leave the declaring class alone as type indices are relative to it
       method->SetAccessFlags(method->GetAccessFlags() | kAccMiranda);
       method->SetMethodIndex(0xFFFF & (old_vtable_count + i));
