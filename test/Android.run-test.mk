@@ -124,6 +124,42 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-tra
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-gcverify,-no-prebuild)
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-target-names,115-native-bridge,-gcstress,-no-prebuild)
 
+# NB 116-nodex2oat is not broken per-se it just doesn't (and isn't meant to) work with --prebuild.
+# On host this is patched around by changing a run flag but we cannot do this on the target due to
+# a different run-script.
+TEST_ART_TARGET_BROKEN_PREBUILD_RUN_TESTS := \
+  116-nodex2oat
+
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_TARGET_PREBUILD_RUN_TESTS), $(call all-run-test-target-names,$(test),,-prebuild))
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_TARGET_PREBUILD_RUN_TESTS), $(call all-run-test-target-names,$(test),-trace,-prebuild))
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_TARGET_PREBUILD_RUN_TESTS), $(call all-run-test-target-names,$(test),-gcverify,-prebuild))
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_TARGET_PREBUILD_RUN_TESTS), $(call all-run-test-target-names,$(test),-gcstress,-prebuild))
+
+# NB 117-nopatchoat is not broken per-se it just doesn't work (and isn't meant to) without --prebuild --relocate
+TEST_ART_BROKEN_RELOCATE_TESTS := \
+  117-nopatchoat
+
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_RELOCATE_TESTS), $(call all-run-test-names,$(test),,-relocate))
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_RELOCATE_TESTS), $(call all-run-test-names,$(test),-trace,-relocate))
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_RELOCATE_TESTS), $(call all-run-test-names,$(test),-gcverify,-relocate))
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_RELOCATE_TESTS), $(call all-run-test-names,$(test),-gcstress,-relocate))
+
+TEST_ART_BROKEN_NORELOCATE_TESTS := \
+  117-nopatchoat
+
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_NORELOCATE_TESTS), $(call all-run-test-names,$(test),,-norelocate))
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_NORELOCATE_TESTS), $(call all-run-test-names,$(test),-trace,-norelocate))
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_NORELOCATE_TESTS), $(call all-run-test-names,$(test),-gcverify,-norelocate))
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_NORELOCATE_TESTS), $(call all-run-test-names,$(test),-gcstress,-norelocate))
+
+TEST_ART_BROKEN_NO_PREBUILD_TESTS := \
+  117-nopatchoat
+
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_NO_PREBUILD_TESTS), $(call all-run-test-names,$(test),,-no-prebuild))
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_NO_PREBUILD_TESTS), $(call all-run-test-names,$(test),-trace,-no-prebuild))
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_NO_PREBUILD_TESTS), $(call all-run-test-names,$(test),-gcverify,-no-prebuild))
+ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_NO_PREBUILD_TESTS), $(call all-run-test-names,$(test),-gcstress,-no-prebuild))
+
 # The path where build only targets will be output, e.g.
 # out/target/product/generic_x86_64/obj/PACKAGING/art-run-tests_intermediates/DATA
 art_run_tests_dir := $(call intermediates-dir-for,PACKAGING,art-run-tests)/DATA

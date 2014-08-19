@@ -1,0 +1,9 @@
+Run without dex2oat/patchoat
+dex2oat & patchoat are disabled, has oat is true, has executable oat is false.
+This is a function call
+Run with dexoat/patchoat
+dex2oat & patchoat are enabled, has oat is true, has executable oat is true.
+This is a function call
+Run default
+dex2oat & patchoat are enabled, has oat is true, has executable oat is true.
+This is a function call
