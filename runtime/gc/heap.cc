@@ -202,15 +202,21 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   // Requested begin for the alloc space, to follow the mapped image and oat files
   byte* requested_alloc_space_begin = nullptr;
   if (!image_file_name.empty()) {
+    std::string error_msg;
     space::ImageSpace* image_space = space::ImageSpace::Create(image_file_name.c_str(),
-                                                               image_instruction_set);
-    CHECK(image_space != nullptr) << "Failed to create space for " << image_file_name;
-    AddSpace(image_space);
-    // Oat files referenced by image files immediately follow them in memory, ensure alloc space
-    // isn't going to get in the middle
-    byte* oat_file_end_addr = image_space->GetImageHeader().GetOatFileEnd();
-    CHECK_GT(oat_file_end_addr, image_space->End());
-    requested_alloc_space_begin = AlignUp(oat_file_end_addr, kPageSize);
+                                                               image_instruction_set,
+                                                               &error_msg);
+    if (image_space != nullptr) {
+      AddSpace(image_space);
+      // Oat files referenced by image files immediately follow them in memory, ensure alloc space
+      // isn't going to get in the middle
+      byte* oat_file_end_addr = image_space->GetImageHeader().GetOatFileEnd();
+      CHECK_GT(oat_file_end_addr, image_space->End());
+      requested_alloc_space_begin = AlignUp(oat_file_end_addr, kPageSize);
+    } else {
+      LOG(WARNING) << "Could not create image space with image file '" << image_file_name << "'. "
+                   << "Attempting to fall back to imageless running. Error was: " << error_msg;
+    }
   }
   /*
   requested_alloc_space_begin ->     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
@@ -579,6 +585,9 @@ void Heap::DumpObject(std::ostream& stream, mirror::Object* obj) {
 }
 
 bool Heap::IsCompilingBoot() const {
+  if (!Runtime::Current()->IsCompiler()) {
+    return false;
+  }
   for (const auto& space : continuous_spaces_) {
     if (space->IsImageSpace() || space->IsZygoteSpace()) {
       return false;

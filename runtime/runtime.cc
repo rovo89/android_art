@@ -102,6 +102,7 @@ Runtime::Runtime()
       is_concurrent_gc_enabled_(true),
       is_explicit_gc_disabled_(false),
       dex2oat_enabled_(true),
+      image_dex2oat_enabled_(true),
       default_stack_size_(0),
       heap_(nullptr),
       max_spins_before_thin_lock_inflation_(Monitor::kDefaultMaxSpinsBeforeThinLockInflation),
@@ -396,9 +397,17 @@ bool Runtime::Start() {
 
   // Restore main thread state to kNative as expected by native code.
   Thread* self = Thread::Current();
+
   self->TransitionFromRunnableToSuspended(kNative);
 
   started_ = true;
+
+  if (!IsImageDex2OatEnabled() || !Runtime::Current()->GetHeap()->HasImageSpace()) {
+    ScopedObjectAccess soa(Thread::Current());
+    StackHandleScope<1> hs(soa.Self());
+    auto klass(hs.NewHandle<mirror::Class>(mirror::Class::GetJavaLangClass()));
+    class_linker_->EnsureInitialized(klass, true, true);
+  }
 
   // InitNativeMethods needs to be after started_ so that the classes
   // it touches will have methods linked to the oat file if necessary.
@@ -535,6 +544,24 @@ void Runtime::StartDaemonThreads() {
   VLOG(startup) << "Runtime::StartDaemonThreads exiting";
 }
 
+static size_t OpenDexFiles(const std::vector<std::string>& dex_filenames,
+                           std::vector<const DexFile*>& dex_files) {
+  size_t failure_count = 0;
+  for (size_t i = 0; i < dex_filenames.size(); i++) {
+    const char* dex_filename = dex_filenames[i].c_str();
+    std::string error_msg;
+    if (!OS::FileExists(dex_filename)) {
+      LOG(WARNING) << "Skipping non-existent dex file '" << dex_filename << "'";
+      continue;
+    }
+    if (!DexFile::Open(dex_filename, dex_filename, &error_msg, &dex_files)) {
+      LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "': " << error_msg;
+      ++failure_count;
+    }
+  }
+  return failure_count;
+}
+
 bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) {
   CHECK_EQ(sysconf(_SC_PAGE_SIZE), kPageSize);
 
@@ -559,6 +586,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   is_zygote_ = options->is_zygote_;
   is_explicit_gc_disabled_ = options->is_explicit_gc_disabled_;
   dex2oat_enabled_ = options->dex2oat_enabled_;
+  image_dex2oat_enabled_ = options->image_dex2oat_enabled_;
 
   vfprintf_ = options->hook_vfprintf_;
   exit_ = options->hook_exit_;
@@ -677,10 +705,24 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     if (kIsDebugBuild) {
       GetHeap()->GetImageSpace()->VerifyImageAllocations();
     }
+  } else if (!IsCompiler() || !image_dex2oat_enabled_) {
+    std::vector<std::string> dex_filenames;
+    Split(boot_class_path_string_, ':', dex_filenames);
+    std::vector<const DexFile*> boot_class_path;
+    OpenDexFiles(dex_filenames, boot_class_path);
+    class_linker_->InitWithoutImage(boot_class_path);
+    // TODO: Should we move the following to InitWithoutImage?
+    SetInstructionSet(kRuntimeISA);
+    for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
+      Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
+      if (!HasCalleeSaveMethod(type)) {
+        SetCalleeSaveMethod(CreateCalleeSaveMethod(type), type);
+      }
+    }
   } else {
     CHECK(options->boot_class_path_ != NULL);
     CHECK_NE(options->boot_class_path_->size(), 0U);
-    class_linker_->InitFromCompiler(*options->boot_class_path_);
+    class_linker_->InitWithoutImage(*options->boot_class_path_);
   }
   CHECK(class_linker_ != NULL);
   verifier::MethodVerifier::Init();
