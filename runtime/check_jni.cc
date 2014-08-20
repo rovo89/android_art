@@ -353,7 +353,9 @@ class ScopedCheck {
       return;
     }
     mirror::Object* o = soa_.Decode<mirror::Object*>(java_object);
-    if (!o->InstanceOf(m->GetDeclaringClass())) {
+    if (o == nullptr) {
+      JniAbortF(function_name_, "can't call %s on null object", PrettyMethod(m).c_str());
+    } else if (!o->InstanceOf(m->GetDeclaringClass())) {
       JniAbortF(function_name_, "can't call %s on instance of %s",
                 PrettyMethod(m).c_str(), PrettyTypeOf(o).c_str());
     }
