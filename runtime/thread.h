@@ -594,16 +594,10 @@ class Thread {
   void SetStackEndForStackOverflow() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Set the stack end to that to be used during regular execution
-  void ResetDefaultStackEnd(bool implicit_overflow_check) {
+  void ResetDefaultStackEnd() {
     // Our stacks grow down, so we want stack_end_ to be near there, but reserving enough room
     // to throw a StackOverflowError.
-    if (implicit_overflow_check) {
-      // For implicit checks we also need to add in the protected region above the
-      // overflow region.
-      tlsPtr_.stack_end = tlsPtr_.stack_begin + kStackOverflowImplicitCheckSize;
-    } else {
-      tlsPtr_.stack_end = tlsPtr_.stack_begin + GetStackOverflowReservedBytes(kRuntimeISA);
-    }
+    tlsPtr_.stack_end = tlsPtr_.stack_begin + GetStackOverflowReservedBytes(kRuntimeISA);
   }
 
   // Install the protected region for implicit stack checks.

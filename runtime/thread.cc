@@ -224,7 +224,8 @@ static size_t FixStackSize(size_t stack_size) {
   } else {
     // If we are going to use implicit stack checks, allocate space for the protected
     // region at the bottom of the stack.
-    stack_size += Thread::kStackOverflowImplicitCheckSize;
+    stack_size += Thread::kStackOverflowImplicitCheckSize +
+        GetStackOverflowReservedBytes(kRuntimeISA);
   }
 
   // Some systems require the stack size to be a multiple of the system page size, so round up.
@@ -264,7 +265,7 @@ void Thread::InstallImplicitProtection() {
   // a segv.
 
   // Read every page from the high address to the low.
-  for (byte* p = stack_top; p > pregion; p -= kPageSize) {
+  for (byte* p = stack_top; p >= pregion; p -= kPageSize) {
     dont_optimize_this = *p;
   }
 
@@ -539,7 +540,7 @@ void Thread::InitStackHwm() {
 
   // Set stack_end_ to the bottom of the stack saving space of stack overflows
   bool implicit_stack_check = !Runtime::Current()->ExplicitStackOverflowChecks();
-  ResetDefaultStackEnd(implicit_stack_check);
+  ResetDefaultStackEnd();
 
   // Install the protected region if we are doing implicit overflow checks.
   if (implicit_stack_check) {
@@ -551,8 +552,8 @@ void Thread::InitStackHwm() {
     // The thread might have protected region at the bottom.  We need
     // to install our own region so we need to move the limits
     // of the stack to make room for it.
-    tlsPtr_.stack_begin += guardsize;
-    tlsPtr_.stack_end += guardsize;
+    tlsPtr_.stack_begin += guardsize + kStackOverflowProtectedSize;
+    tlsPtr_.stack_end += guardsize + kStackOverflowProtectedSize;
     tlsPtr_.stack_size -= guardsize;
 
     InstallImplicitProtection();
