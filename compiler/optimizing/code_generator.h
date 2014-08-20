@@ -143,7 +143,7 @@ class CodeGenerator : public ArenaObject {
  protected:
   CodeGenerator(HGraph* graph, size_t number_of_registers)
       : frame_size_(kUninitializedFrameSize),
-        core_spill_mask_(-1),
+        core_spill_mask_(0),
         graph_(graph),
         block_labels_(graph->GetArena(), 0),
         pc_infos_(graph->GetArena(), 32),
