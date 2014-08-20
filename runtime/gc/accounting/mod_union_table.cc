@@ -72,9 +72,11 @@ class ModUnionClearCardVisitor {
 
 class ModUnionUpdateObjectReferencesVisitor {
  public:
-  ModUnionUpdateObjectReferencesVisitor(MarkHeapReferenceCallback* callback, void* arg)
-    : callback_(callback),
-      arg_(arg) {
+  ModUnionUpdateObjectReferencesVisitor(MarkHeapReferenceCallback* callback, void* arg,
+                                        space::ContinuousSpace* from_space,
+                                        bool* contains_reference_to_other_space)
+    : callback_(callback), arg_(arg), from_space_(from_space),
+      contains_reference_to_other_space_(contains_reference_to_other_space) {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
@@ -82,7 +84,9 @@ class ModUnionUpdateObjectReferencesVisitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Only add the reference if it is non null and fits our criteria.
     mirror::HeapReference<Object>* obj_ptr = obj->GetFieldObjectReferenceAddr(offset);
-    if (obj_ptr->AsMirrorPtr() != nullptr) {
+    mirror::Object* ref = obj_ptr->AsMirrorPtr();
+    if (ref != nullptr && !from_space_->HasAddress(ref)) {
+      *contains_reference_to_other_space_ = true;
       callback_(obj_ptr, arg_);
     }
   }
@@ -90,24 +94,36 @@ class ModUnionUpdateObjectReferencesVisitor {
  private:
   MarkHeapReferenceCallback* const callback_;
   void* arg_;
+  // Space which we are scanning
+  space::ContinuousSpace* const from_space_;
+  // Set if we have any references to another space.
+  bool* const contains_reference_to_other_space_;
 };
 
 class ModUnionScanImageRootVisitor {
  public:
-  ModUnionScanImageRootVisitor(MarkHeapReferenceCallback* callback, void* arg)
-      : callback_(callback), arg_(arg) {}
+  ModUnionScanImageRootVisitor(MarkHeapReferenceCallback* callback, void* arg,
+                               space::ContinuousSpace* from_space,
+                               bool* contains_reference_to_other_space)
+      : callback_(callback), arg_(arg), from_space_(from_space),
+        contains_reference_to_other_space_(contains_reference_to_other_space) {}
 
   void operator()(Object* root) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(root != NULL);
-    ModUnionUpdateObjectReferencesVisitor ref_visitor(callback_, arg_);
+    ModUnionUpdateObjectReferencesVisitor ref_visitor(callback_, arg_, from_space_,
+                                                      contains_reference_to_other_space_);
     root->VisitReferences<kMovingClasses>(ref_visitor, VoidFunctor());
   }
 
  private:
   MarkHeapReferenceCallback* const callback_;
   void* const arg_;
+  // Space which we are scanning
+  space::ContinuousSpace* const from_space_;
+  // Set if we have any references to another space.
+  bool* const contains_reference_to_other_space_;
 };
 
 void ModUnionTableReferenceCache::ClearCards() {
@@ -313,12 +329,20 @@ void ModUnionTableCardCache::ClearCards() {
 void ModUnionTableCardCache::UpdateAndMarkReferences(MarkHeapReferenceCallback* callback,
                                                      void* arg) {
   CardTable* card_table = heap_->GetCardTable();
-  ModUnionScanImageRootVisitor scan_visitor(callback, arg);
   ContinuousSpaceBitmap* bitmap = space_->GetLiveBitmap();
-  for (const byte* card_addr : cleared_cards_) {
-    uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card_addr));
+  bool reference_to_other_space = false;
+  ModUnionScanImageRootVisitor scan_visitor(callback, arg, space_, &reference_to_other_space);
+  for (auto it = cleared_cards_.begin(), end = cleared_cards_.end(); it != end; ) {
+    uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(*it));
     DCHECK(space_->HasAddress(reinterpret_cast<Object*>(start)));
+    reference_to_other_space = false;
     bitmap->VisitMarkedRange(start, start + CardTable::kCardSize, scan_visitor);
+    if (!reference_to_other_space) {
+      // No non null reference to another space, remove the card.
+      it = cleared_cards_.erase(it);
+    } else {
+      ++it;
+    }
   }
 }
 
@@ -331,6 +355,17 @@ void ModUnionTableCardCache::Dump(std::ostream& os) {
     os << reinterpret_cast<void*>(start) << "-" << reinterpret_cast<void*>(end) << "\n";
   }
   os << "]";
+}
+
+void ModUnionTableCardCache::SetCards() {
+  CardTable* card_table = heap_->GetCardTable();
+  for (byte* addr = space_->Begin(); addr < AlignUp(space_->End(), CardTable::kCardSize);
+       addr += CardTable::kCardSize) {
+    cleared_cards_.insert(card_table->CardFromAddr(addr));
+  }
+}
+
+void ModUnionTableReferenceCache::SetCards() {
 }
 
 }  // namespace accounting

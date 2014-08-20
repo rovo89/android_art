@@ -128,8 +128,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       long_gc_log_threshold_(long_gc_log_threshold),
       ignore_max_footprint_(ignore_max_footprint),
       zygote_creation_lock_("zygote creation lock", kZygoteCreationLock),
-      have_zygote_space_(false),
-      large_object_threshold_(std::numeric_limits<size_t>::max()),  // Starts out disabled.
+      zygote_space_(nullptr),
+      large_object_threshold_(kDefaultLargeObjectThreshold),  // Starts out disabled.
       collector_type_running_(kCollectorTypeNone),
       last_gc_type_(collector::kGcTypeNone),
       next_gc_type_(collector::kGcTypePartial),
@@ -190,7 +190,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   // If we aren't the zygote, switch to the default non zygote allocator. This may update the
   // entrypoints.
   if (!Runtime::Current()->IsZygote()) {
-    large_object_threshold_ = kDefaultLargeObjectThreshold;
     // Background compaction is currently not supported for command line runs.
     if (background_collector_type_ != foreground_collector_type_) {
       VLOG(heap) << "Disabling background compaction for non zygote";
@@ -468,7 +467,7 @@ void Heap::CreateMainMallocSpace(MemMap* mem_map, size_t initial_size, size_t gr
     // After the zygote we want this to be false if we don't have background compaction enabled so
     // that getting primitive array elements is faster.
     // We never have homogeneous compaction with GSS and don't need a space with movable objects.
-    can_move_objects = !have_zygote_space_ && foreground_collector_type_ != kCollectorTypeGSS;
+    can_move_objects = !HasZygoteSpace() && foreground_collector_type_ != kCollectorTypeGSS;
   }
   if (collector::SemiSpace::kUseRememberedSet && main_space_ != nullptr) {
     RemoveRememberedSet(main_space_);
@@ -800,6 +799,9 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
     os << "Total time spent allocating: " << PrettyDuration(allocation_time) << "\n";
     os << "Mean allocation time: " << PrettyDuration(allocation_time / total_objects_allocated)
        << "\n";
+  }
+  if (HasZygoteSpace()) {
+    os << "Zygote space size " << PrettySize(zygote_space_->Size()) << "\n";
   }
   os << "Total mutator paused time: " << PrettyDuration(total_paused_time) << "\n";
   os << "Total time waiting for GC to complete: " << PrettyDuration(total_wait_time_) << "\n";
@@ -1823,7 +1825,8 @@ void Heap::PreZygoteFork() {
   Thread* self = Thread::Current();
   MutexLock mu(self, zygote_creation_lock_);
   // Try to see if we have any Zygote spaces.
-  if (have_zygote_space_) {
+  if (HasZygoteSpace()) {
+    LOG(WARNING) << __FUNCTION__ << " called when we already have a zygote space.";
     return;
   }
   VLOG(heap) << "Starting PreZygoteFork";
@@ -1897,26 +1900,26 @@ void Heap::PreZygoteFork() {
     // from this point on.
     RemoveRememberedSet(old_alloc_space);
   }
-  space::ZygoteSpace* zygote_space = old_alloc_space->CreateZygoteSpace("alloc space",
-                                                                        low_memory_mode_,
-                                                                        &non_moving_space_);
+  zygote_space_ = old_alloc_space->CreateZygoteSpace("alloc space", low_memory_mode_,
+                                                     &non_moving_space_);
   CHECK(!non_moving_space_->CanMoveObjects());
   if (same_space) {
     main_space_ = non_moving_space_;
     SetSpaceAsDefault(main_space_);
   }
   delete old_alloc_space;
-  CHECK(zygote_space != nullptr) << "Failed creating zygote space";
-  AddSpace(zygote_space);
+  CHECK(HasZygoteSpace()) << "Failed creating zygote space";
+  AddSpace(zygote_space_);
   non_moving_space_->SetFootprintLimit(non_moving_space_->Capacity());
   AddSpace(non_moving_space_);
-  have_zygote_space_ = true;
-  // Enable large object space allocations.
-  large_object_threshold_ = kDefaultLargeObjectThreshold;
   // Create the zygote space mod union table.
   accounting::ModUnionTable* mod_union_table =
-      new accounting::ModUnionTableCardCache("zygote space mod-union table", this, zygote_space);
+      new accounting::ModUnionTableCardCache("zygote space mod-union table", this,
+                                             zygote_space_);
   CHECK(mod_union_table != nullptr) << "Failed to create zygote space mod-union table";
+  // Set all the cards in the mod-union table since we don't know which objects contain references
+  // to large objects.
+  mod_union_table->SetCards();
   AddModUnionTable(mod_union_table);
   if (collector::SemiSpace::kUseRememberedSet) {
     // Add a new remembered set for the post-zygote non-moving space.
@@ -1986,7 +1989,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   // If the heap can't run the GC, silently fail and return that no GC was run.
   switch (gc_type) {
     case collector::kGcTypePartial: {
-      if (!have_zygote_space_) {
+      if (!HasZygoteSpace()) {
         return collector::kGcTypeNone;
       }
       break;
@@ -2811,7 +2814,7 @@ void Heap::GrowForUtilization(collector::GarbageCollector* collector_ran) {
     next_gc_type_ = collector::kGcTypeSticky;
   } else {
     collector::GcType non_sticky_gc_type =
-        have_zygote_space_ ? collector::kGcTypePartial : collector::kGcTypeFull;
+        HasZygoteSpace() ? collector::kGcTypePartial : collector::kGcTypeFull;
     // Find what the next non sticky collector will be.
     collector::GarbageCollector* non_sticky_collector = FindCollectorByGcType(non_sticky_gc_type);
     // If the throughput of the current sticky GC >= throughput of the non sticky collector, then
@@ -3034,7 +3037,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
   size_t new_native_bytes_allocated = native_bytes_allocated_.FetchAndAddSequentiallyConsistent(bytes);
   new_native_bytes_allocated += bytes;
   if (new_native_bytes_allocated > native_footprint_gc_watermark_) {
-    collector::GcType gc_type = have_zygote_space_ ? collector::kGcTypePartial :
+    collector::GcType gc_type = HasZygoteSpace() ? collector::kGcTypePartial :
         collector::kGcTypeFull;
 
     // The second watermark is higher than the gc watermark. If you hit this it means you are
