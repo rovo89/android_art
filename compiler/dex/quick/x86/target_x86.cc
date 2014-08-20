@@ -1329,10 +1329,12 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
       if (!cu_->target64 && rl_start.location != kLocPhysReg) {
         // Load the start index from stack, remembering that we pushed EDI.
         int displacement = SRegOffset(rl_start.s_reg_low) + sizeof(uint32_t);
-        {
-          ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          Load32Disp(rs_rX86_SP, displacement, rs_rDI);
-        }
+        ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+        Load32Disp(rs_rX86_SP, displacement, rs_rDI);
+        // Dalvik register annotation in LoadBaseIndexedDisp() used wrong offset. Fix it.
+        DCHECK(!DECODE_ALIAS_INFO_WIDE(last_lir_insn_->flags.alias_info));
+        int reg_id = DECODE_ALIAS_INFO_REG(last_lir_insn_->flags.alias_info) - 1;
+        AnnotateDalvikRegAccess(last_lir_insn_, reg_id, true, false);
       } else {
         LoadValueDirectFixed(rl_start, rs_rDI);
       }
