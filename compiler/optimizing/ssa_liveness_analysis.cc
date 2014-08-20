@@ -16,6 +16,7 @@
 
 #include "ssa_liveness_analysis.h"
 
+#include "base/bit_vector-inl.h"
 #include "code_generator.h"
 #include "nodes.h"
 

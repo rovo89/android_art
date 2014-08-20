@@ -16,7 +16,8 @@
 
 #include <memory>
 
-#include "bit_vector.h"
+#include "allocator.h"
+#include "bit_vector-inl.h"
 #include "gtest/gtest.h"
 
 namespace art {

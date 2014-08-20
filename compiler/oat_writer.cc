@@ -18,6 +18,7 @@
 
 #include <zlib.h>
 
+#include "base/allocator.h"
 #include "base/bit_vector.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"

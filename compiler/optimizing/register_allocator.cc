@@ -16,6 +16,7 @@
 
 #include "register_allocator.h"
 
+#include "base/bit_vector-inl.h"
 #include "code_generator.h"
 #include "ssa_liveness_analysis.h"
 
