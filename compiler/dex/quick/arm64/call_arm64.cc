@@ -208,9 +208,9 @@ void Arm64Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
   OpRegRegImm(kOpAdd, rs_x2, rs_x0, mirror::Object::MonitorOffset().Int32Value());
   NewLIR2(kA64Ldxr2rX, rw3, rx2);
   MarkPossibleNullPointerException(opt_flags);
-  LIR* not_unlocked_branch = OpCmpImmBranch(kCondNe, rs_x1, 0, NULL);
+  LIR* not_unlocked_branch = OpCmpImmBranch(kCondNe, rs_w3, 0, NULL);
   NewLIR3(kA64Stxr3wrX, rw3, rw1, rx2);
-  LIR* lock_success_branch = OpCmpImmBranch(kCondEq, rs_x1, 0, NULL);
+  LIR* lock_success_branch = OpCmpImmBranch(kCondEq, rs_w3, 0, NULL);
 
   LIR* slow_path_target = NewLIR0(kPseudoTargetLabel);
   not_unlocked_branch->target = slow_path_target;
