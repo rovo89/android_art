@@ -79,6 +79,7 @@ namespace allocator {
 namespace space {
   class AllocSpace;
   class BumpPointerSpace;
+  class ContinuousMemMapAllocSpace;
   class DiscontinuousSpace;
   class DlMallocSpace;
   class ImageSpace;
@@ -87,7 +88,7 @@ namespace space {
   class RosAllocSpace;
   class Space;
   class SpaceTest;
-  class ContinuousMemMapAllocSpace;
+  class ZygoteSpace;
 }  // namespace space
 
 class AgeCardVisitor {
@@ -599,6 +600,10 @@ class Heap {
     return &reference_processor_;
   }
 
+  bool HasZygoteSpace() const {
+    return zygote_space_ != nullptr;
+  }
+
  private:
   // Compact source space to target space.
   void Compact(space::ContinuousMemMapAllocSpace* target_space,
@@ -849,8 +854,9 @@ class Heap {
   // Lock which guards zygote space creation.
   Mutex zygote_creation_lock_;
 
-  // If we have a zygote space.
-  bool have_zygote_space_;
+  // Non-null iff we have a zygote space. Doesn't contain the large objects allocated before
+  // zygote space creation.
+  space::ZygoteSpace* zygote_space_;
 
   // Minimum allocation size of large object.
   size_t large_object_threshold_;
