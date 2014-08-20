@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "base/bit_vector-inl.h"
 #include "compiler_internals.h"
 #include "dataflow_iterator-inl.h"
 #include "utils/scoped_arena_containers.h"
