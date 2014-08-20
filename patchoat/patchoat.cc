@@ -804,22 +804,12 @@ static int patchoat(int argc, char **argv) {
     if (log_options) {
       LOG(INFO) << "patchoat: option[" << i << "]=" << argv[i];
     }
-    // TODO: GetInstructionSetFromString shouldn't LOG(FATAL).
     if (option.starts_with("--instruction-set=")) {
       isa_set = true;
       const char* isa_str = option.substr(strlen("--instruction-set=")).data();
-      if (!strcmp("arm", isa_str)) {
-        isa = kArm;
-      } else if (!strcmp("arm64", isa_str)) {
-        isa = kArm64;
-      } else if (!strcmp("x86", isa_str)) {
-        isa = kX86;
-      } else if (!strcmp("x86_64", isa_str)) {
-        isa = kX86_64;
-      } else if (!strcmp("mips", isa_str)) {
-        isa = kMips;
-      } else {
-        Usage("Unknown instruction set %s", isa_str);
+      isa = GetInstructionSetFromString(isa_str);
+      if (isa == kNone) {
+        Usage("Unknown or invalid instruction set %s", isa_str);
       }
     } else if (option.starts_with("--input-oat-location=")) {
       if (have_input_oat) {
