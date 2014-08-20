@@ -214,7 +214,7 @@ class GlobalValueNumbering {
   static constexpr uint32_t kMaxBbsToProcessMultiplyFactor = 20u;
 
   uint32_t bbs_processed_;
-  uint32_t max_bbs_to_process_;
+  uint32_t max_bbs_to_process_;  // Doesn't apply after the main GVN has converged.
 
   // We have 32-bit last_value_ so that we can detect when we run out of value names, see Good().
   // We usually don't check Good() until the end of LVN unless we're about to modify code.
