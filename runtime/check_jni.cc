@@ -228,7 +228,10 @@ class ScopedCheck {
     }
     if (invoke != kStatic) {
       mirror::Object* o = soa.Decode<mirror::Object*>(jobj);
-      if (!o->InstanceOf(m->GetDeclaringClass())) {
+      if (o == nullptr) {
+        AbortF("can't call %s on null object", PrettyMethod(m).c_str());
+        return false;
+      } else if (!o->InstanceOf(m->GetDeclaringClass())) {
         AbortF("can't call %s on instance of %s", PrettyMethod(m).c_str(), PrettyTypeOf(o).c_str());
         return false;
       }
@@ -292,7 +295,10 @@ class ScopedCheck {
       return false;
     }
     mirror::Object* o = soa.Decode<mirror::Object*>(java_object);
-    if (!o->InstanceOf(m->GetDeclaringClass())) {
+    if (o == nullptr) {
+      AbortF("can't call %s on null object", PrettyMethod(m).c_str());
+      return false;
+    } else if (!o->InstanceOf(m->GetDeclaringClass())) {
       AbortF("can't call %s on instance of %s", PrettyMethod(m).c_str(), PrettyTypeOf(o).c_str());
       return false;
     }
