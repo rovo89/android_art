@@ -314,6 +314,22 @@ TEST_F(JniInternalTest, GetMethodID) {
   check_jni_abort_catcher.Check("sig == null");
 }
 
+TEST_F(JniInternalTest, CallVoidMethodNullReceiver) {
+  jclass jlobject = env_->FindClass("java/lang/Object");
+  jmethodID method;
+
+  // Check that GetMethodID for java.lang.NoSuchMethodError.<init>(String) finds the constructor.
+  method = env_->GetMethodID(jlobject, "<init>", "()V");
+  EXPECT_NE(nullptr, method);
+  EXPECT_FALSE(env_->ExceptionCheck());
+
+  // Null object to CallVoidMethod.
+  CheckJniAbortCatcher check_jni_abort_catcher;
+  method = env_->GetMethodID(nullptr, "<init>", "(Ljava/lang/String;)V");
+  env_->CallVoidMethod(nullptr, method);
+  check_jni_abort_catcher.Check("null");
+}
+
 TEST_F(JniInternalTest, GetStaticMethodID) {
   jclass jlobject = env_->FindClass("java/lang/Object");
   jclass jlnsme = env_->FindClass("java/lang/NoSuchMethodError");
