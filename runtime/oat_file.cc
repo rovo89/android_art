@@ -534,7 +534,9 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
     methods_pointer_index = num_set_bits;
   }
   const OatMethodOffsets& oat_method_offsets = methods_pointer_[methods_pointer_index];
-  if (oat_file_->IsExecutable() || Runtime::Current()->IsCompiler()) {
+  if (oat_file_->IsExecutable()
+      || (Runtime::Current() == nullptr)
+      || Runtime::Current()->IsCompiler()) {
     return OatMethod(
         oat_file_->Begin(),
         oat_method_offsets.code_offset_,
