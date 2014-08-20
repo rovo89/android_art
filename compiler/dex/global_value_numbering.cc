@@ -56,8 +56,11 @@ LocalValueNumbering* GlobalValueNumbering::PrepareBasicBlock(BasicBlock* bb,
     return nullptr;
   }
   if (UNLIKELY(bbs_processed_ == max_bbs_to_process_)) {
-    last_value_ = kNoValue;  // Make bad.
-    return nullptr;
+    // If we're still trying to converge, stop now. Otherwise, proceed to apply optimizations.
+    if (!modifications_allowed_) {
+      last_value_ = kNoValue;  // Make bad.
+      return nullptr;
+    }
   }
   if (allocator == nullptr) {
     allocator = allocator_;
