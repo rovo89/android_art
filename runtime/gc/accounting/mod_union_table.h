@@ -65,6 +65,9 @@ class ModUnionTable {
   // determining references to track.
   virtual void ClearCards() = 0;
 
+  // Set all the cards.
+  virtual void SetCards() = 0;
+
   // Update the mod-union table using data stored by ClearCards. There may be multiple ClearCards
   // before a call to update, for example, back-to-back sticky GCs. Also mark references to other
   // spaces which are stored in the mod-union table.
@@ -120,6 +123,8 @@ class ModUnionTableReferenceCache : public ModUnionTable {
 
   void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void SetCards() OVERRIDE;
+
  protected:
   // Cleared card array, used to update the mod-union table.
   ModUnionTable::CardSet cleared_cards_;
@@ -149,6 +154,8 @@ class ModUnionTableCardCache : public ModUnionTable {
   void Verify() {}
 
   void Dump(std::ostream& os);
+
+  void SetCards() OVERRIDE;
 
  protected:
   // Cleared card array, used to update the mod-union table.
