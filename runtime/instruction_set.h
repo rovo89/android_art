@@ -75,6 +75,8 @@ static constexpr size_t kX86Alignment = 16;
 
 
 const char* GetInstructionSetString(InstructionSet isa);
+
+// Note: Returns kNone when the string cannot be parsed to a known value.
 InstructionSet GetInstructionSetFromString(const char* instruction_set);
 
 static inline size_t GetInstructionSetPointerSize(InstructionSet isa) {
