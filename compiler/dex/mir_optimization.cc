@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "base/bit_vector-inl.h"
 #include "compiler_internals.h"
 #include "global_value_numbering.h"
 #include "local_value_numbering.h"
