@@ -343,11 +343,11 @@ class LocalValueNumbering {
                                      EscapedIFieldClobberSet::iterator hint);
   void MergeEscapedArrayClobberSets(const EscapedArrayClobberSet::value_type& entry,
                                     EscapedArrayClobberSet::iterator hint);
-  void MergeNullChecked(const ValueNameSet::value_type& entry, ValueNameSet::iterator hint);
   void MergeSFieldValues(const SFieldToValueMap::value_type& entry,
                          SFieldToValueMap::iterator hint);
   void MergeNonAliasingIFieldValues(const IFieldLocToValueMap::value_type& entry,
                                     IFieldLocToValueMap::iterator hint);
+  void MergeNullChecked();
 
   template <typename Map, Map LocalValueNumbering::*map_ptr, typename Versions>
   void MergeAliasingValues(const typename Map::value_type& entry, typename Map::iterator hint);
