@@ -80,7 +80,7 @@ ParsedOptions::ParsedOptions()
     gc::kCollectorTypeCMS),
 #error "ART default GC type must be set"
 #endif
-    background_collector_type_(gc::kCollectorTypeHomogeneousSpaceCompact),
+    background_collector_type_(gc::kCollectorTypeNone),
                                                     // If background_collector_type_ is
                                                     // kCollectorTypeNone, it defaults to the
                                                     // collector_type_ after parsing options. If
@@ -695,6 +695,12 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
       Usage("Unrecognized option %s\n", option.c_str());
       return false;
     }
+  }
+  // If not set, background collector type defaults to homogeneous compaction
+  // if not low memory mode, semispace otherwise.
+  if (background_collector_type_ == gc::kCollectorTypeNone) {
+    background_collector_type_ = low_memory_mode_ ?
+        gc::kCollectorTypeSS : gc::kCollectorTypeHomogeneousSpaceCompact;
   }
 
   // If a reference to the dalvik core.jar snuck in, replace it with
