@@ -206,9 +206,11 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
   // If background_collector_type_ is kCollectorTypeNone, it defaults to the collector_type_ after
   // parsing options. If you set this to kCollectorTypeHSpaceCompact then we will do an hspace
   // compaction when we transition to background instead of a normal collector transition.
+  background_collector_type_ = gc::kCollectorTypeNone;
 #ifdef ART_USE_HSPACE_COMPACT
   background_collector_type_ = gc::kCollectorTypeHomogeneousSpaceCompact;
-#else
+#endif
+#ifdef ART_USE_BACKGROUND_COMPACT
   background_collector_type_ = gc::kCollectorTypeSS;
 #endif
   stack_size_ = 0;  // 0 means default.
@@ -659,6 +661,12 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
       Usage("Unrecognized option %s\n", option.c_str());
       return false;
     }
+  }
+  // If not set, background collector type defaults to homogeneous compaction
+  // if not low memory mode, semispace otherwise.
+  if (background_collector_type_ == gc::kCollectorTypeNone) {
+    background_collector_type_ = low_memory_mode_ ?
+        gc::kCollectorTypeSS : gc::kCollectorTypeHomogeneousSpaceCompact;
   }
 
   // If a reference to the dalvik core.jar snuck in, replace it with
