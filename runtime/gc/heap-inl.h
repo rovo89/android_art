@@ -84,7 +84,9 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
                                    &klass);
       if (obj == nullptr) {
         bool after_is_current_allocator = allocator == GetCurrentAllocator();
-        if (is_current_allocator && !after_is_current_allocator) {
+        // If there is a pending exception, fail the allocation right away since the next one
+        // could cause OOM and abort the runtime.
+        if (!self->IsExceptionPending() && is_current_allocator && !after_is_current_allocator) {
           // If the allocator changed, we need to restart the allocation.
           return AllocObject<kInstrumented>(self, klass, byte_count, pre_fence_visitor);
         }
