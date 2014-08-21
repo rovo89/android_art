@@ -1000,7 +1000,7 @@ void SetThreadName(const char* thread_name) {
   } else {
     s = thread_name + len - 15;
   }
-#if defined(HAVE_ANDROID_PTHREAD_SETNAME_NP)
+#if defined(__BIONIC__)
   // pthread_setname_np fails rather than truncating long strings.
   char buf[16];       // MAX_TASK_COMM_LEN=16 is hard-coded into bionic
   strncpy(buf, s, sizeof(buf)-1);
