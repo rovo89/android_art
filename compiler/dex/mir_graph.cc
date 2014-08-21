@@ -1227,8 +1227,6 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
   bool nop = false;
   SSARepresentation* ssa_rep = mir->ssa_rep;
   Instruction::Format dalvik_format = Instruction::k10x;  // Default to no-operand format.
-  int defs = (ssa_rep != NULL) ? ssa_rep->num_defs : 0;
-  int uses = (ssa_rep != NULL) ? ssa_rep->num_uses : 0;
 
   // Handle special cases.
   if ((opcode == kMirOpCheck) || (opcode == kMirOpCheckPart2)) {
@@ -1237,8 +1235,6 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
     // Recover the original Dex instruction.
     insn = mir->meta.throw_insn->dalvikInsn;
     ssa_rep = mir->meta.throw_insn->ssa_rep;
-    defs = ssa_rep->num_defs;
-    uses = ssa_rep->num_uses;
     opcode = insn.opcode;
   } else if (opcode == kMirOpNop) {
     str.append("[");
@@ -1247,6 +1243,8 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
     opcode = insn.opcode;
     nop = true;
   }
+  int defs = (ssa_rep != NULL) ? ssa_rep->num_defs : 0;
+  int uses = (ssa_rep != NULL) ? ssa_rep->num_uses : 0;
 
   if (MIR::DecodedInstruction::IsPseudoMirOp(opcode)) {
     str.append(extended_mir_op_names_[opcode - kMirOpFirst]);
@@ -1258,40 +1256,21 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
 
   if (opcode == kMirOpPhi) {
     BasicBlockId* incoming = mir->meta.phi_incoming;
-    str.append(StringPrintf(" %s = (%s",
-               GetSSANameWithConst(ssa_rep->defs[0], true).c_str(),
-               GetSSANameWithConst(ssa_rep->uses[0], true).c_str()));
-    str.append(StringPrintf(":%d", incoming[0]));
-    int i;
-    for (i = 1; i < uses; i++) {
-      str.append(StringPrintf(", %s:%d",
-                              GetSSANameWithConst(ssa_rep->uses[i], true).c_str(),
-                              incoming[i]));
+    if (defs > 0 && uses > 0) {
+      str.append(StringPrintf(" %s = (%s",
+                 GetSSANameWithConst(ssa_rep->defs[0], true).c_str(),
+                 GetSSANameWithConst(ssa_rep->uses[0], true).c_str()));
+      str.append(StringPrintf(":%d", incoming[0]));
+      int i;
+      for (i = 1; i < uses; i++) {
+        str.append(StringPrintf(", %s:%d",
+                                GetSSANameWithConst(ssa_rep->uses[i], true).c_str(),
+                                incoming[i]));
+      }
+      str.append(")");
+    } else {
+      str.append(StringPrintf(" v%d", mir->dalvikInsn.vA));
     }
-    str.append(")");
-  } else if ((flags & Instruction::kBranch) != 0) {
-    // For branches, decode the instructions to print out the branch targets.
-    int offset = 0;
-    switch (dalvik_format) {
-      case Instruction::k21t:
-        str.append(StringPrintf(" %s,", GetSSANameWithConst(ssa_rep->uses[0], false).c_str()));
-        offset = insn.vB;
-        break;
-      case Instruction::k22t:
-        str.append(StringPrintf(" %s, %s,", GetSSANameWithConst(ssa_rep->uses[0], false).c_str(),
-                   GetSSANameWithConst(ssa_rep->uses[1], false).c_str()));
-        offset = insn.vC;
-        break;
-      case Instruction::k10t:
-      case Instruction::k20t:
-      case Instruction::k30t:
-        offset = insn.vA;
-        break;
-      default:
-        LOG(FATAL) << "Unexpected branch format " << dalvik_format << " from " << insn.opcode;
-    }
-    str.append(StringPrintf(" 0x%x (%c%x)", mir->offset + offset,
-                            offset > 0 ? '+' : '-', offset > 0 ? offset : -offset));
   } else {
     // For invokes-style formats, treat wide regs as a pair of singles.
     bool show_singles = ((dalvik_format == Instruction::k35c) ||
@@ -1337,6 +1316,27 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
       default: {
         // Nothing left to print.
       }
+    }
+    if ((flags & Instruction::kBranch) != 0) {
+      // For branches, decode the instructions to print out the branch targets.
+      int offset = 0;
+      switch (dalvik_format) {
+        case Instruction::k21t:
+          offset = insn.vB;
+          break;
+        case Instruction::k22t:
+          offset = insn.vC;
+          break;
+        case Instruction::k10t:
+        case Instruction::k20t:
+        case Instruction::k30t:
+          offset = insn.vA;
+          break;
+        default:
+          LOG(FATAL) << "Unexpected branch format " << dalvik_format << " from " << insn.opcode;
+      }
+      str.append(StringPrintf(" 0x%x (%c%x)", mir->offset + offset,
+                              offset > 0 ? '+' : '-', offset > 0 ? offset : -offset));
     }
   }
   if (nop) {
