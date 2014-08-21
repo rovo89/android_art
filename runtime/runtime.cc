@@ -169,6 +169,9 @@ Runtime::~Runtime() {
     BackgroundMethodSamplingProfiler::Shutdown();
   }
 
+  // Shutdown the fault manager if it was initialized.
+  fault_manager.Shutdown();
+
   Trace::Shutdown();
 
   // Make sure to let the GC complete if it is running.
