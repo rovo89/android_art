@@ -20,18 +20,13 @@
      * Jni dlsym lookup stub.
      */
 DEFINE_FUNCTION art_jni_dlsym_lookup_stub
-    subl LITERAL(4), %esp         // align stack
-    CFI_ADJUST_CFA_OFFSET(4)
-    SETUP_GOT                     // pushes ebx
+    subl LITERAL(8), %esp         // align stack
+    CFI_ADJUST_CFA_OFFSET(8)
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    CFI_ADJUST_CFA_OFFSET(4)
-    call PLT_SYMBOL(artFindNativeMethod)  // (Thread*)
-    addl LITERAL(4), %esp         // remove argument
-    CFI_ADJUST_CFA_OFFSET(-4)
-    UNDO_SETUP_GOT                // pop ebx
-    addl LITERAL(4), %esp         // remove padding
-    CFI_ADJUST_CFA_OFFSET(-4)
-    testl %eax, %eax         // check if returned method code is null
+    call SYMBOL(artFindNativeMethod)  // (Thread*)
+    addl LITERAL(12), %esp        // remove argument & padding
+    CFI_ADJUST_CFA_OFFSET(-12)
+    testl %eax, %eax              // check if returned method code is null
     jz .Lno_native_code_found     // if null, jump to return to handle
     jmp *%eax                     // otherwise, tail call to intended method
 .Lno_native_code_found:
