@@ -21,12 +21,33 @@
 
 #include "jni.h"
 
-#ifdef __arm__
+#if defined(__arm__) || defined(__aarch64__)
 #include <sys/ucontext.h>
 #endif
 
 static int signal_count;
 static const int kMaxSignal = 2;
+
+#if defined(__i386__) || defined(__x86_64__)
+#if defined(__APPLE__)
+#define ucontext __darwin_ucontext
+
+#if defined(__x86_64__)
+// 64 bit mac build.
+#define CTX_EIP uc_mcontext->__ss.__rip
+#else
+// 32 bit mac build.
+#define CTX_EIP uc_mcontext->__ss.__eip
+#endif
+
+#elif defined(__x86_64__)
+// 64 bit linux build.
+#define CTX_EIP uc_mcontext.gregs[REG_RIP]
+#else
+// 32 bit linux build.
+#define CTX_EIP uc_mcontext.gregs[REG_EIP]
+#endif
+#endif
 
 static void signalhandler(int sig, siginfo_t* info, void* context) {
   printf("signal caught\n");
@@ -34,16 +55,17 @@ static void signalhandler(int sig, siginfo_t* info, void* context) {
   if (signal_count > kMaxSignal) {
      abort();
   }
-#ifdef __arm__
-  // On ARM we do a more exhaustive test to make sure the signal
-  // context is OK.
-  // We can do this because we know that the instruction causing
-  // the signal is 2 bytes long (thumb mov instruction).  On
-  // other architectures this is more difficult.
-  // TODO: we could do this on other architectures too if necessary, it's just harder.
+#if defined(__arm__)
   struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
   sc->arm_pc += 2;          // Skip instruction causing segv.
+#elif defined(__aarch64__)
+  struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
+  struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
+  sc->pc += 4;          // Skip instruction causing segv.
+#elif defined(__i386__) || defined(__x86_64__)
+  struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
+  uc->CTX_EIP += 3;
 #endif
 }
 
@@ -70,8 +92,8 @@ extern "C" JNIEXPORT void JNICALL Java_Main_terminateSignalTest(JNIEnv*, jclass)
 char *p = nullptr;
 
 extern "C" JNIEXPORT jint JNICALL Java_Main_testSignal(JNIEnv*, jclass) {
-#ifdef __arm__
-  // On ARM we cause a real SEGV.
+#if defined(__arm__) || defined(__i386__) || defined(__x86_64__) || defined(__aarch64__)
+  // On supported architectures we cause a real SEGV.
   *p = 'a';
 #else
   // On other architectures we simulate SEGV.
