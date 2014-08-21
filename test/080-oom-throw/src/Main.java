@@ -31,6 +31,7 @@ public class Main {
 
     static class InstanceMemEater {
         static boolean sawOome;
+        static InstanceMemEater hook;
 
         InstanceMemEater next;
         double d1, d2, d3, d4, d5, d6, d7, d8; // Bloat this object so we fill the heap faster.
@@ -45,6 +46,7 @@ public class Main {
         }
 
         static void confuseCompilerOptimization(InstanceMemEater instance) {
+          hook = instance;
         }
     }
 
@@ -61,6 +63,7 @@ public class Main {
             lastMemEater = lastMemEater.next;
         } while (lastMemEater != null);
         memEater.confuseCompilerOptimization(memEater);
+        InstanceMemEater.hook = null;
         return InstanceMemEater.sawOome;
     }
 
