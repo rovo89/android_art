@@ -114,7 +114,13 @@ enum ExtendedMIROpcode {
   kMirOpFusedCmpgDouble,
   kMirOpFusedCmpLong,
   kMirOpNop,
+
+  // @brief Do a null check on the object register.
+  // @details The backends may implement this implicitly or explicitly. This MIR is guaranteed
+  // to have the correct offset as an exception thrower.
+  // vA: object register
   kMirOpNullCheck,
+
   kMirOpRangeCheck,
   kMirOpDivZeroCheck,
   kMirOpCheck,
