@@ -27,6 +27,7 @@
 
 #include "base/logging.h"
 #include "base/stl_util.h"
+#include "base/stringprintf.h"
 #include "class_linker.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
@@ -490,6 +491,12 @@ static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
   }
 
   const InstructionSet target_instruction_set = GetInstructionSetFromString(instruction_set);
+  if (target_instruction_set == kNone) {
+    ScopedLocalRef<jclass> iae(env, env->FindClass("java/lang/IllegalArgumentException"));
+    std::string message(StringPrintf("Instruction set %s is invalid.", instruction_set));
+    env->ThrowNew(iae.get(), message.c_str());
+    return 0;
+  }
 
   // Get the filename for odex file next to the dex file.
   std::string odex_filename(DexFilenameToOdexFilename(filename, target_instruction_set));
@@ -551,8 +558,16 @@ static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
 static jbyte DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring javaFilename,
     jstring javaPkgname, jstring javaInstructionSet, jboolean defer) {
   ScopedUtfChars filename(env, javaFilename);
+  if (env->ExceptionCheck()) {
+    return 0;
+  }
+
   NullableScopedUtfChars pkgname(env, javaPkgname);
+
   ScopedUtfChars instruction_set(env, javaInstructionSet);
+  if (env->ExceptionCheck()) {
+    return 0;
+  }
 
   return IsDexOptNeededInternal(env, filename.c_str(), pkgname.c_str(),
                                 instruction_set.c_str(), defer);

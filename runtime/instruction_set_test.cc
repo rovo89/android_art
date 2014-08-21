@@ -29,6 +29,7 @@ TEST_F(InstructionSetTest, GetInstructionSetFromString) {
   EXPECT_EQ(kX86_64, GetInstructionSetFromString("x86_64"));
   EXPECT_EQ(kMips, GetInstructionSetFromString("mips"));
   EXPECT_EQ(kNone, GetInstructionSetFromString("none"));
+  EXPECT_EQ(kNone, GetInstructionSetFromString("random-string"));
 }
 
 TEST_F(InstructionSetTest, GetInstructionSetString) {
