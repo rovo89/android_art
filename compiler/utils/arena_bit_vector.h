@@ -51,23 +51,23 @@ std::ostream& operator<<(std::ostream& os, const OatBitMapKind& kind);
  * A BitVector implementation that uses Arena allocation.
  */
 class ArenaBitVector : public BitVector {
-  public:
-    ArenaBitVector(ArenaAllocator* arena, uint32_t start_bits, bool expandable,
-                   OatBitMapKind kind = kBitMapMisc);
-    ArenaBitVector(ScopedArenaAllocator* arena, uint32_t start_bits, bool expandable,
-                   OatBitMapKind kind = kBitMapMisc);
-    ~ArenaBitVector() {}
+ public:
+  ArenaBitVector(ArenaAllocator* arena, uint32_t start_bits, bool expandable,
+                 OatBitMapKind kind = kBitMapMisc);
+  ArenaBitVector(ScopedArenaAllocator* arena, uint32_t start_bits, bool expandable,
+                 OatBitMapKind kind = kBitMapMisc);
+  ~ArenaBitVector() {}
 
   static void* operator new(size_t size, ArenaAllocator* arena) {
-     return arena->Alloc(sizeof(ArenaBitVector), kArenaAllocGrowableBitMap);
+    return arena->Alloc(sizeof(ArenaBitVector), kArenaAllocGrowableBitMap);
   }
   static void* operator new(size_t size, ScopedArenaAllocator* arena) {
-     return arena->Alloc(sizeof(ArenaBitVector), kArenaAllocGrowableBitMap);
+    return arena->Alloc(sizeof(ArenaBitVector), kArenaAllocGrowableBitMap);
   }
   static void operator delete(void* p) {}  // Nop.
 
-  private:
-    const OatBitMapKind kind_;      // for memory use tuning. TODO: currently unused.
+ private:
+  const OatBitMapKind kind_;      // for memory use tuning. TODO: currently unused.
 };
 
 

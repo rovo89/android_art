@@ -19,6 +19,7 @@
 #include <inttypes.h>
 #include <queue>
 
+#include "base/bit_vector-inl.h"
 #include "base/stl_util.h"
 #include "compiler_internals.h"
 #include "dex_file-inl.h"
