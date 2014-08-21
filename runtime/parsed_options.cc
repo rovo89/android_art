@@ -418,8 +418,12 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
       compiler_callbacks_ =
           reinterpret_cast<CompilerCallbacks*>(const_cast<void*>(options[i].second));
     } else if (option == "imageinstructionset") {
-      image_isa_ = GetInstructionSetFromString(
-          reinterpret_cast<const char*>(options[i].second));
+      const char* isa_str = reinterpret_cast<const char*>(options[i].second);
+      image_isa_ = GetInstructionSetFromString(isa_str);
+      if (image_isa_ == kNone) {
+        Usage("%s is not a valid instruction set.", isa_str);
+        return false;
+      }
     } else if (option == "-Xzygote") {
       is_zygote_ = true;
     } else if (StartsWith(option, "-Xpatchoat:")) {
