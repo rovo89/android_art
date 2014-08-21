@@ -42,21 +42,18 @@ const char* GetInstructionSetString(const InstructionSet isa) {
 InstructionSet GetInstructionSetFromString(const char* isa_str) {
   CHECK(isa_str != nullptr);
 
-  if (!strcmp("arm", isa_str)) {
+  if (strcmp("arm", isa_str) == 0) {
     return kArm;
-  } else if (!strcmp("arm64", isa_str)) {
+  } else if (strcmp("arm64", isa_str) == 0) {
     return kArm64;
-  } else if (!strcmp("x86", isa_str)) {
+  } else if (strcmp("x86", isa_str) == 0) {
     return kX86;
-  } else if (!strcmp("x86_64", isa_str)) {
+  } else if (strcmp("x86_64", isa_str) == 0) {
     return kX86_64;
-  } else if (!strcmp("mips", isa_str)) {
+  } else if (strcmp("mips", isa_str) == 0) {
     return kMips;
-  } else if (!strcmp("none", isa_str)) {
-    return kNone;
   }
 
-  LOG(FATAL) << "Unknown ISA " << isa_str;
   return kNone;
 }
 
