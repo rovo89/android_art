@@ -45,8 +45,8 @@ class SignalAction {
 
   // Unclaim the signal and restore the old action.
   void Unclaim(int signal) {
-    claimed_ = false;
     sigaction(signal, &action_, NULL);        // Restore old action.
+    claimed_ = false;
   }
 
   // Get the action associated with this signal.
@@ -163,7 +163,6 @@ int sigaction(int signal, const struct sigaction* new_action, struct sigaction* 
   SigAction linked_sigaction = reinterpret_cast<SigAction>(linked_sigaction_sym);
   return linked_sigaction(signal, new_action, old_action);
 }
-
 
 int sigprocmask(int how, const sigset_t* bionic_new_set, sigset_t* bionic_old_set) {
   const sigset_t* new_set_ptr = bionic_new_set;
