@@ -77,7 +77,8 @@ class MemMap {
   // mapping. "reuse" allows us to create a view into an existing
   // mapping where we do not take ownership of the memory.
   //
-  // On success, returns returns a MemMap instance.  On failure, returns a NULL;
+  // On success, returns returns a MemMap instance.  On failure, returns a
+  // nullptr;
   static MemMap* MapFileAtAddress(byte* addr, size_t byte_count, int prot, int flags, int fd,
                                   off_t start, bool reuse, const char* filename,
                                   std::string* error_msg);
