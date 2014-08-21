@@ -327,7 +327,6 @@ uint32_t BackgroundMethodSamplingProfiler::WriteProfile() {
 bool BackgroundMethodSamplingProfiler::Start(
     const std::string& output_filename, const ProfilerOptions& options) {
   if (!options.IsEnabled()) {
-    LOG(INFO) << "Profiler disabled. To enable setprop dalvik.vm.profiler 1.";
     return false;
   }
 
