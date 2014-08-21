@@ -41,7 +41,7 @@ static void art_fault_handler(int sig, siginfo_t* info, void* context) {
   fault_manager.HandleFault(sig, info, context);
 }
 
-FaultManager::FaultManager() {
+FaultManager::FaultManager() : initialized_(false) {
   sigaction(SIGSEGV, nullptr, &oldaction_);
 }
 
@@ -50,6 +50,7 @@ FaultManager::~FaultManager() {
 
 
 void FaultManager::Init() {
+  CHECK(!initialized_);
   struct sigaction action;
   action.sa_sigaction = art_fault_handler;
   sigemptyset(&action.sa_mask);
@@ -65,6 +66,14 @@ void FaultManager::Init() {
   }
   // Make sure our signal handler is called before any user handlers.
   ClaimSignalChain(SIGSEGV, &oldaction_);
+  initialized_ = true;
+}
+
+void FaultManager::Shutdown() {
+  if (initialized_) {
+    UnclaimSignalChain(SIGSEGV);
+    initialized_ = false;
+  }
 }
 
 void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
