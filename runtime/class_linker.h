@@ -437,8 +437,8 @@ class ClassLinker {
   void AppendToBootClassPath(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void ConstructFieldMap(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
-                         mirror::Class* c, SafeMap<uint32_t, mirror::ArtField*>& field_map)
+  void ConstructFieldArray(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
+                           mirror::Class* c, Handle<mirror::ObjectArray<mirror::ArtField>> field_array)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Precomputes size needed for Class, in the case of a non-temporary class this size must be
