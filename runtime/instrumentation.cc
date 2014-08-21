@@ -495,7 +495,7 @@ void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t
     }
   }
   if ((events & kFieldRead) != 0) {
-    if (have_dex_pc_listeners_) {
+    if (have_field_read_listeners_) {
       std::list<InstrumentationListener*>* modified =
           new std::list<InstrumentationListener*>(*field_read_listeners_.get());
       modified->remove(listener);
