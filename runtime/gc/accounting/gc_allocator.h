@@ -30,7 +30,7 @@ namespace accounting {
 void* RegisterGcAllocation(size_t bytes);
 void RegisterGcDeallocation(void* p, size_t bytes);
 
-static const bool kMeasureGcMemoryOverhead = false;
+static constexpr bool kMeasureGcMemoryOverhead = false;
 
 template <typename T>
 class GcAllocatorImpl : public std::allocator<T> {

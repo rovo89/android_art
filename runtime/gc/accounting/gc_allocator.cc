@@ -24,12 +24,18 @@ namespace gc {
 namespace accounting {
 
 void* RegisterGcAllocation(size_t bytes) {
-  Runtime::Current()->GetHeap()->RegisterGCAllocation(bytes);
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  if (heap != nullptr) {
+    heap->RegisterGCAllocation(bytes);
+  }
   return malloc(bytes);
 }
 
 void RegisterGcDeallocation(void* p, size_t bytes) {
-  Runtime::Current()->GetHeap()->RegisterGCDeAllocation(bytes);
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  if (heap != nullptr) {
+    heap->RegisterGCDeAllocation(bytes);
+  }
   free(p);
 }
 
