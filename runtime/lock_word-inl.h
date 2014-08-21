@@ -50,6 +50,7 @@ inline LockWord::LockWord() : value_(0) {
 inline LockWord::LockWord(Monitor* mon)
     : value_(mon->GetMonitorId() | (kStateFat << kStateShift)) {
   DCHECK_EQ(FatLockMonitor(), mon);
+  DCHECK_LE(mon->GetMonitorId(), static_cast<uint32_t>(kMaxMonitorId));
 }
 
 inline int32_t LockWord::GetHashCode() const {
