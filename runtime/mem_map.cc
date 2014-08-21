@@ -131,9 +131,9 @@ uintptr_t MemMap::next_mem_pos_ = GenerateNextMemPos();
 #endif
 
 // Return true if the address range is contained in a single /proc/self/map entry.
-static bool CheckOverlapping(uintptr_t begin,
-                             uintptr_t end,
-                             std::string* error_msg) {
+static bool ContainedWithinExistingMap(uintptr_t begin,
+                                       uintptr_t end,
+                                       std::string* error_msg) {
   std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(getpid(), true));
   if (map.get() == nullptr) {
     *error_msg = StringPrintf("Failed to build process map");
@@ -212,12 +212,25 @@ static bool CheckMapRequest(byte* expected_ptr, void* actual_ptr, size_t byte_co
     PLOG(WARNING) << StringPrintf("munmap(%p, %zd) failed", actual_ptr, byte_count);
   }
 
-  if (!CheckNonOverlapping(expected, limit, error_msg)) {
-    return false;
+  // We call this here so that we can try and generate a full error
+  // message with the overlapping mapping. There's no guarantee that
+  // that there will be an overlap though, since
+  // - The kernel is not *required* to honour expected_ptr unless MAP_FIXED is
+  //   true, even if there is no overlap
+  // - There might have been an overlap at the point of mmap, but the
+  //   overlapping region has since been unmapped.
+  std::string error_detail;
+  CheckNonOverlapping(expected, limit, &error_detail);
+
+  std::ostringstream os;
+  os <<  StringPrintf("Failed to mmap at expected address, mapped at "
+                      "0x%08" PRIxPTR " instead of 0x%08" PRIxPTR,
+                      actual, expected);
+  if (!error_detail.empty()) {
+    os << " : " << error_detail;
   }
 
-  *error_msg = StringPrintf("Failed to mmap at expected address, mapped at "
-                            "0x%08" PRIxPTR " instead of 0x%08" PRIxPTR, actual, expected);
+  *error_msg = os.str();
   return false;
 }
 
@@ -375,19 +388,20 @@ MemMap* MemMap::MapFileAtAddress(byte* expected_ptr, size_t byte_count, int prot
   CHECK_NE(0, flags & (MAP_SHARED | MAP_PRIVATE));
   uintptr_t expected = reinterpret_cast<uintptr_t>(expected_ptr);
   uintptr_t limit = expected + byte_count;
+
+  // Note that we do not allow MAP_FIXED unless reuse == true, i.e we
+  // expect his mapping to be contained within an existing map.
   if (reuse) {
     // reuse means it is okay that it overlaps an existing page mapping.
     // Only use this if you actually made the page reservation yourself.
     CHECK(expected_ptr != nullptr);
-    if (!CheckOverlapping(expected, limit, error_msg)) {
-      return nullptr;
-    }
+
+    DCHECK(ContainedWithinExistingMap(expected, limit, error_msg));
     flags |= MAP_FIXED;
   } else {
     CHECK_EQ(0, flags & MAP_FIXED);
-    if (expected_ptr != nullptr && !CheckNonOverlapping(expected, limit, error_msg)) {
-      return nullptr;
-    }
+    // Don't bother checking for an overlapping region here. We'll
+    // check this if required after the fact inside CheckMapRequest.
   }
 
   if (byte_count == 0) {
