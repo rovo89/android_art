@@ -307,7 +307,6 @@ static JDWP::JdwpOptions gJdwpOptions;
 // Runtime JDWP state.
 static JDWP::JdwpState* gJdwpState = nullptr;
 static bool gDebuggerConnected;  // debugger or DDMS is connected.
-static bool gDebuggerActive;     // debugger is making requests.
 static bool gDisposed;           // debugger called VirtualMachine.Dispose, so we should drop the connection.
 
 static bool gDdmThreadNotification = false;
@@ -319,6 +318,7 @@ static Dbg::HpsgWhat gDdmHpsgWhat;
 static Dbg::HpsgWhen gDdmNhsgWhen = Dbg::HPSG_WHEN_NEVER;
 static Dbg::HpsgWhat gDdmNhsgWhat;
 
+bool Dbg::gDebuggerActive = false;
 ObjectRegistry* Dbg::gRegistry = nullptr;
 
 // Recent allocation tracking.
@@ -331,7 +331,6 @@ Dbg::TypeCache Dbg::type_cache_;
 // Deoptimization support.
 std::vector<DeoptimizationRequest> Dbg::deoptimization_requests_;
 size_t Dbg::full_deoptimization_event_count_ = 0;
-size_t Dbg::delayed_full_undeoptimization_count_ = 0;
 
 // Instrumentation event reference counters.
 size_t Dbg::dex_pc_change_event_ref_count_ = 0;
@@ -620,7 +619,7 @@ void Dbg::GoActive() {
   // Enable all debugging features, including scans for breakpoints.
   // This is a no-op if we're already active.
   // Only called from the JDWP handler thread.
-  if (gDebuggerActive) {
+  if (IsDebuggerActive()) {
     return;
   }
 
@@ -634,7 +633,6 @@ void Dbg::GoActive() {
     MutexLock mu(Thread::Current(), *Locks::deoptimization_lock_);
     CHECK_EQ(deoptimization_requests_.size(), 0U);
     CHECK_EQ(full_deoptimization_event_count_, 0U);
-    CHECK_EQ(delayed_full_undeoptimization_count_, 0U);
     CHECK_EQ(dex_pc_change_event_ref_count_, 0U);
     CHECK_EQ(method_enter_event_ref_count_, 0U);
     CHECK_EQ(method_exit_event_ref_count_, 0U);
@@ -673,7 +671,7 @@ void Dbg::Disconnected() {
   ThreadState old_state = self->SetStateUnsafe(kRunnable);
 
   // Debugger may not be active at this point.
-  if (gDebuggerActive) {
+  if (IsDebuggerActive()) {
     {
       // Since we're going to disable deoptimization, we clear the deoptimization requests queue.
       // This prevents us from having any pending deoptimization request when the debugger attaches
@@ -681,7 +679,6 @@ void Dbg::Disconnected() {
       MutexLock mu(Thread::Current(), *Locks::deoptimization_lock_);
       deoptimization_requests_.clear();
       full_deoptimization_event_count_ = 0U;
-      delayed_full_undeoptimization_count_ = 0U;
     }
     if (instrumentation_events_ != 0) {
       runtime->GetInstrumentation()->RemoveListener(&gDebugInstrumentationListener,
@@ -702,10 +699,6 @@ void Dbg::Disconnected() {
   }
 
   gDebuggerConnected = false;
-}
-
-bool Dbg::IsDebuggerActive() {
-  return gDebuggerActive;
 }
 
 void Dbg::ConfigureJdwp(const JDWP::JdwpOptions& jdwp_options) {
@@ -3020,29 +3013,6 @@ void Dbg::ProcessDeoptimizationRequest(const DeoptimizationRequest& request) {
   }
 }
 
-void Dbg::DelayFullUndeoptimization() {
-  if (RequiresDeoptimization()) {
-    MutexLock mu(Thread::Current(), *Locks::deoptimization_lock_);
-    ++delayed_full_undeoptimization_count_;
-    DCHECK_LE(delayed_full_undeoptimization_count_, full_deoptimization_event_count_);
-  }
-}
-
-void Dbg::ProcessDelayedFullUndeoptimizations() {
-  // TODO: avoid taking the lock twice (once here and once in ManageDeoptimization).
-  {
-    MutexLock mu(Thread::Current(), *Locks::deoptimization_lock_);
-    while (delayed_full_undeoptimization_count_ > 0) {
-      DeoptimizationRequest req;
-      req.SetKind(DeoptimizationRequest::kFullUndeoptimization);
-      req.SetMethod(nullptr);
-      RequestDeoptimizationLocked(req);
-      --delayed_full_undeoptimization_count_;
-    }
-  }
-  ManageDeoptimization();
-}
-
 void Dbg::RequestDeoptimization(const DeoptimizationRequest& req) {
   if (req.GetKind() == DeoptimizationRequest::kNothing) {
     // Nothing to do.
@@ -3350,6 +3320,125 @@ void Dbg::UnwatchLocation(const JDWP::JdwpLocation* location, DeoptimizationRequ
       SanityCheckExistingBreakpoints(m, deoptimization_kind);
     }
   }
+}
+
+bool Dbg::IsForcedInterpreterNeededForCallingImpl(Thread* thread, mirror::ArtMethod* m) {
+  const SingleStepControl* const ssc = thread->GetSingleStepControl();
+  if (ssc == nullptr) {
+    // If we are not single-stepping, then we don't have to force interpreter.
+    return false;
+  }
+  if (Runtime::Current()->GetInstrumentation()->InterpretOnly()) {
+    // If we are in interpreter only mode, then we don't have to force interpreter.
+    return false;
+  }
+
+  if (!m->IsNative() && !m->IsProxyMethod()) {
+    // If we want to step into a method, then we have to force interpreter on that call.
+    if (ssc->GetStepDepth() == JDWP::SD_INTO) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool Dbg::IsForcedInterpreterNeededForResolutionImpl(Thread* thread, mirror::ArtMethod* m) {
+  instrumentation::Instrumentation* const instrumentation =
+      Runtime::Current()->GetInstrumentation();
+  // If we are in interpreter only mode, then we don't have to force interpreter.
+  if (instrumentation->InterpretOnly()) {
+    return false;
+  }
+  // We can only interpret pure Java method.
+  if (m->IsNative() || m->IsProxyMethod()) {
+    return false;
+  }
+  const SingleStepControl* const ssc = thread->GetSingleStepControl();
+  if (ssc != nullptr) {
+    // If we want to step into a method, then we have to force interpreter on that call.
+    if (ssc->GetStepDepth() == JDWP::SD_INTO) {
+      return true;
+    }
+    // If we are stepping out from a static initializer, by issuing a step
+    // in or step over, that was implicitly invoked by calling a static method,
+    // then we need to step into that method. Having a lower stack depth than
+    // the one the single step control has indicates that the step originates
+    // from the static initializer.
+    if (ssc->GetStepDepth() != JDWP::SD_OUT &&
+        ssc->GetStackDepth() > GetStackDepth(thread)) {
+      return true;
+    }
+  }
+  // There are cases where we have to force interpreter on deoptimized methods,
+  // because in some cases the call will not be performed by invoking an entry
+  // point that has been replaced by the deoptimization, but instead by directly
+  // invoking the compiled code of the method, for example.
+  return instrumentation->IsDeoptimized(m);
+}
+
+bool Dbg::IsForcedInstrumentationNeededForResolutionImpl(Thread* thread, mirror::ArtMethod* m) {
+  // The upcall can be nullptr and in that case we don't need to do anything.
+  if (m == nullptr) {
+    return false;
+  }
+  instrumentation::Instrumentation* const instrumentation =
+      Runtime::Current()->GetInstrumentation();
+  // If we are in interpreter only mode, then we don't have to force interpreter.
+  if (instrumentation->InterpretOnly()) {
+    return false;
+  }
+  // We can only interpret pure Java method.
+  if (m->IsNative() || m->IsProxyMethod()) {
+    return false;
+  }
+  const SingleStepControl* const ssc = thread->GetSingleStepControl();
+  if (ssc != nullptr) {
+    // If we are stepping out from a static initializer, by issuing a step
+    // out, that was implicitly invoked by calling a static method, then we
+    // need to step into the caller of that method. Having a lower stack
+    // depth than the one the single step control has indicates that the
+    // step originates from the static initializer.
+    if (ssc->GetStepDepth() == JDWP::SD_OUT &&
+        ssc->GetStackDepth() > GetStackDepth(thread)) {
+      return true;
+    }
+  }
+  // If we are returning from a static intializer, that was implicitly
+  // invoked by calling a static method and the caller is deoptimized,
+  // then we have to deoptimize the stack without forcing interpreter
+  // on the static method that was called originally. This problem can
+  // be solved easily by forcing instrumentation on the called method,
+  // because the instrumentation exit hook will recognise the need of
+  // stack deoptimization by calling IsForcedInterpreterNeededForUpcall.
+  return instrumentation->IsDeoptimized(m);
+}
+
+bool Dbg::IsForcedInterpreterNeededForUpcallImpl(Thread* thread, mirror::ArtMethod* m) {
+  // The upcall can be nullptr and in that case we don't need to do anything.
+  if (m == nullptr) {
+    return false;
+  }
+  instrumentation::Instrumentation* const instrumentation =
+      Runtime::Current()->GetInstrumentation();
+  // If we are in interpreter only mode, then we don't have to force interpreter.
+  if (instrumentation->InterpretOnly()) {
+    return false;
+  }
+  // We can only interpret pure Java method.
+  if (m->IsNative() || m->IsProxyMethod()) {
+    return false;
+  }
+  const SingleStepControl* const ssc = thread->GetSingleStepControl();
+  if (ssc != nullptr) {
+    // The debugger is not interested in what is happening under the level
+    // of the step, thus we only force interpreter when we are not below of
+    // the step.
+    if (ssc->GetStackDepth() >= GetStackDepth(thread)) {
+      return true;
+    }
+  }
+  // We have to require stack deoptimization if the upcall is deoptimized.
+  return instrumentation->IsDeoptimized(m);
 }
 
 // Scoped utility class to suspend a thread so that we may do tasks such as walk its stack. Doesn't
