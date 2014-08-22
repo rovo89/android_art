@@ -1200,7 +1200,7 @@ void EncodedStaticFieldValueIterator::Next() {
 }
 
 template<bool kTransactionActive>
-void EncodedStaticFieldValueIterator::ReadValueToField(mirror::ArtField* field) const {
+void EncodedStaticFieldValueIterator::ReadValueToField(Handle<mirror::ArtField> field) const {
   switch (type_) {
     case kBoolean: field->SetBoolean<kTransactionActive>(field->GetDeclaringClass(), jval_.z); break;
     case kByte:    field->SetByte<kTransactionActive>(field->GetDeclaringClass(), jval_.b); break;
@@ -1227,8 +1227,8 @@ void EncodedStaticFieldValueIterator::ReadValueToField(mirror::ArtField* field) 
     default: UNIMPLEMENTED(FATAL) << ": type " << type_;
   }
 }
-template void EncodedStaticFieldValueIterator::ReadValueToField<true>(mirror::ArtField* field) const;
-template void EncodedStaticFieldValueIterator::ReadValueToField<false>(mirror::ArtField* field) const;
+template void EncodedStaticFieldValueIterator::ReadValueToField<true>(Handle<mirror::ArtField> field) const;
+template void EncodedStaticFieldValueIterator::ReadValueToField<false>(Handle<mirror::ArtField> field) const;
 
 CatchHandlerIterator::CatchHandlerIterator(const DexFile::CodeItem& code_item, uint32_t address) {
   handler_.address_ = -1;
