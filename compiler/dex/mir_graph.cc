@@ -274,7 +274,7 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
  */
 BasicBlock* MIRGraph::FindBlock(DexOffset code_offset, bool split, bool create,
                                 BasicBlock** immed_pred_block_p) {
-  if (code_offset >= cu_->code_item->insns_size_in_code_units_) {
+  if (code_offset >= current_code_item_->insns_size_in_code_units_) {
     return NULL;
   }
 
@@ -348,10 +348,10 @@ bool MIRGraph::IsBadMonitorExitCatch(NarrowDexOffset monitor_exit_offset,
   // (We don't want to ignore all monitor-exit catches since one could enclose a synchronized
   // block in a try-block and catch the NPE, Error or Throwable and we should let it through;
   // even though a throwing monitor-exit certainly indicates a bytecode error.)
-  const Instruction* monitor_exit = Instruction::At(cu_->code_item->insns_ + monitor_exit_offset);
+  const Instruction* monitor_exit = Instruction::At(current_code_item_->insns_ + monitor_exit_offset);
   DCHECK(monitor_exit->Opcode() == Instruction::MONITOR_EXIT);
   int monitor_reg = monitor_exit->VRegA_11x();
-  const Instruction* check_insn = Instruction::At(cu_->code_item->insns_ + catch_offset);
+  const Instruction* check_insn = Instruction::At(current_code_item_->insns_ + catch_offset);
   DCHECK(check_insn->Opcode() == Instruction::MOVE_EXCEPTION);
   if (check_insn->VRegA_11x() == monitor_reg) {
     // Unexpected move-exception to the same register. Probably not the pattern we're looking for.
