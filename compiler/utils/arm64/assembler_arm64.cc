@@ -21,6 +21,8 @@
 #include "thread.h"
 #include "utils.h"
 
+using namespace vixl;  // NOLINT(build/namespaces)
+
 namespace art {
 namespace arm64 {
 
@@ -75,7 +77,7 @@ void Arm64Assembler::AddConstant(Register rd, int32_t value, Condition cond) {
 
 void Arm64Assembler::AddConstant(Register rd, Register rn, int32_t value,
                                  Condition cond) {
-  if ((cond == AL) || (cond == NV)) {
+  if ((cond == al) || (cond == nv)) {
     // VIXL macro-assembler handles all variants.
     ___ Add(reg_x(rd), reg_x(rn), value);
   } else {
@@ -85,7 +87,7 @@ void Arm64Assembler::AddConstant(Register rd, Register rn, int32_t value,
     temps.Exclude(reg_x(rd), reg_x(rn));
     vixl::Register temp = temps.AcquireX();
     ___ Add(temp, reg_x(rn), value);
-    ___ Csel(reg_x(rd), temp, reg_x(rd), COND_OP(cond));
+    ___ Csel(reg_x(rd), temp, reg_x(rd), cond);
   }
 }
 
@@ -195,7 +197,7 @@ void Arm64Assembler::StoreSpanning(FrameOffset dest_off, ManagedRegister m_sourc
 // Load routines.
 void Arm64Assembler::LoadImmediate(Register dest, int32_t value,
                                    Condition cond) {
-  if ((cond == AL) || (cond == NV)) {
+  if ((cond == al) || (cond == nv)) {
     ___ Mov(reg_x(dest), value);
   } else {
     // temp = value
@@ -205,9 +207,9 @@ void Arm64Assembler::LoadImmediate(Register dest, int32_t value,
       temps.Exclude(reg_x(dest));
       vixl::Register temp = temps.AcquireX();
       ___ Mov(temp, value);
-      ___ Csel(reg_x(dest), temp, reg_x(dest), COND_OP(cond));
+      ___ Csel(reg_x(dest), temp, reg_x(dest), cond);
     } else {
-      ___ Csel(reg_x(dest), reg_x(XZR), reg_x(dest), COND_OP(cond));
+      ___ Csel(reg_x(dest), reg_x(XZR), reg_x(dest), cond);
     }
   }
 }
@@ -557,11 +559,11 @@ void Arm64Assembler::CreateHandleScopeEntry(ManagedRegister m_out_reg, FrameOffs
     }
     ___ Cmp(reg_w(in_reg.AsOverlappingCoreRegisterLow()), 0);
     if (!out_reg.Equals(in_reg)) {
-      LoadImmediate(out_reg.AsCoreRegister(), 0, EQ);
+      LoadImmediate(out_reg.AsCoreRegister(), 0, eq);
     }
-    AddConstant(out_reg.AsCoreRegister(), SP, handle_scope_offs.Int32Value(), NE);
+    AddConstant(out_reg.AsCoreRegister(), SP, handle_scope_offs.Int32Value(), ne);
   } else {
-    AddConstant(out_reg.AsCoreRegister(), SP, handle_scope_offs.Int32Value(), AL);
+    AddConstant(out_reg.AsCoreRegister(), SP, handle_scope_offs.Int32Value(), al);
   }
 }
 
@@ -577,9 +579,9 @@ void Arm64Assembler::CreateHandleScopeEntry(FrameOffset out_off, FrameOffset han
     // e.g. scratch = (scratch == 0) ? 0 : (SP+handle_scope_offset)
     ___ Cmp(reg_w(scratch.AsOverlappingCoreRegisterLow()), 0);
     // Move this logic in add constants with flags.
-    AddConstant(scratch.AsCoreRegister(), SP, handle_scope_offset.Int32Value(), NE);
+    AddConstant(scratch.AsCoreRegister(), SP, handle_scope_offset.Int32Value(), ne);
   } else {
-    AddConstant(scratch.AsCoreRegister(), SP, handle_scope_offset.Int32Value(), AL);
+    AddConstant(scratch.AsCoreRegister(), SP, handle_scope_offset.Int32Value(), al);
   }
   StoreToOffset(scratch.AsCoreRegister(), SP, out_off.Int32Value());
 }
@@ -593,7 +595,7 @@ void Arm64Assembler::LoadReferenceFromHandleScope(ManagedRegister m_out_reg,
   vixl::Label exit;
   if (!out_reg.Equals(in_reg)) {
     // FIXME: Who sets the flags here?
-    LoadImmediate(out_reg.AsCoreRegister(), 0, EQ);
+    LoadImmediate(out_reg.AsCoreRegister(), 0, eq);
   }
   ___ Cbz(reg_x(in_reg.AsCoreRegister()), &exit);
   LoadFromOffset(out_reg.AsCoreRegister(), in_reg.AsCoreRegister(), 0);
