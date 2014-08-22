@@ -21,9 +21,7 @@
 
 #include "jni.h"
 
-#if defined(__arm__) || defined(__aarch64__)
 #include <sys/ucontext.h>
-#endif
 
 static int signal_count;
 static const int kMaxSignal = 2;
