@@ -238,7 +238,7 @@ void Monitor::Lock(Thread* self) {
     }
     // Contended.
     const bool log_contention = (lock_profiling_threshold_ != 0);
-    uint64_t wait_start_ms = log_contention ? 0 : MilliTime();
+    uint64_t wait_start_ms = log_contention ? MilliTime() : 0;
     mirror::ArtMethod* owners_method = locking_method_;
     uint32_t owners_dex_pc = locking_dex_pc_;
     // Do this before releasing the lock so that we don't get deflated.
