@@ -353,7 +353,8 @@ bool Arm64Mir2Lir::GenInlinedAbsFloat(CallInfo* info) {
   if (reg_class == kFPReg) {
     NewLIR2(kA64Fabs2ff, rl_result.reg.GetReg(), rl_src.reg.GetReg());
   } else {
-    NewLIR4(kA64Ubfm4rrdd, rl_result.reg.GetReg(), rl_src.reg.GetReg(), 0, 30);
+    // Clear the sign bit in an integer register.
+    OpRegRegImm(kOpAnd, rl_result.reg, rl_src.reg, 0x7fffffff);
   }
   StoreValue(rl_dest, rl_result);
   return true;
@@ -371,7 +372,8 @@ bool Arm64Mir2Lir::GenInlinedAbsDouble(CallInfo* info) {
   if (reg_class == kFPReg) {
     NewLIR2(FWIDE(kA64Fabs2ff), rl_result.reg.GetReg(), rl_src.reg.GetReg());
   } else {
-    NewLIR4(WIDE(kA64Ubfm4rrdd), rl_result.reg.GetReg(), rl_src.reg.GetReg(), 0, 62);
+    // Clear the sign bit in an integer register.
+    OpRegRegImm64(kOpAnd, rl_result.reg, rl_src.reg, 0x7fffffffffffffff);
   }
   StoreValueWide(rl_dest, rl_result);
   return true;
