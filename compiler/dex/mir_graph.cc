@@ -2069,6 +2069,11 @@ void BasicBlock::Hide(CompilationUnit* c_unit) {
     // Replace child with null child.
     childPtr->predecessors->Delete(id);
   }
+
+  // Remove link to children.
+  taken = NullBasicBlockId;
+  fall_through = NullBasicBlockId;
+  successor_block_list_type = kNotUsed;
 }
 
 bool BasicBlock::IsSSALiveOut(const CompilationUnit* c_unit, int ssa_reg) {
