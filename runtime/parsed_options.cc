@@ -615,7 +615,7 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
         return false;
       }
     } else if (StartsWith(option, "-XX:NativeBridge=")) {
-      if (!ParseStringAfterChar(option, '=', &native_bridge_library_path_)) {
+      if (!ParseStringAfterChar(option, '=', &native_bridge_library_filename_)) {
         return false;
       }
     } else if (StartsWith(option, "-ea") ||
