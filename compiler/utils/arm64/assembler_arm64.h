@@ -34,28 +34,6 @@ namespace art {
 namespace arm64 {
 
 #define MEM_OP(x...)      vixl::MemOperand(x)
-#define COND_OP(x)        static_cast<vixl::Condition>(x)
-
-enum Condition {
-  kNoCondition = -1,
-  EQ = 0,
-  NE = 1,
-  HS = 2,
-  LO = 3,
-  MI = 4,
-  PL = 5,
-  VS = 6,
-  VC = 7,
-  HI = 8,
-  LS = 9,
-  GE = 10,
-  LT = 11,
-  GT = 12,
-  LE = 13,
-  AL = 14,    // Always.
-  NV = 15,    // Behaves as always/al.
-  kMaxCondition = 16,
-};
 
 enum LoadOperandType {
   kLoadSignedByte,
@@ -225,15 +203,15 @@ class Arm64Assembler FINAL : public Assembler {
   void StoreSToOffset(SRegister source, Register base, int32_t offset);
   void StoreDToOffset(DRegister source, Register base, int32_t offset);
 
-  void LoadImmediate(Register dest, int32_t value, Condition cond = AL);
+  void LoadImmediate(Register dest, int32_t value, vixl::Condition cond = vixl::al);
   void Load(Arm64ManagedRegister dst, Register src, int32_t src_offset, size_t size);
   void LoadWFromOffset(LoadOperandType type, WRegister dest,
                       Register base, int32_t offset);
   void LoadFromOffset(Register dest, Register base, int32_t offset);
   void LoadSFromOffset(SRegister dest, Register base, int32_t offset);
   void LoadDFromOffset(DRegister dest, Register base, int32_t offset);
-  void AddConstant(Register rd, int32_t value, Condition cond = AL);
-  void AddConstant(Register rd, Register rn, int32_t value, Condition cond = AL);
+  void AddConstant(Register rd, int32_t value, vixl::Condition cond = vixl::al);
+  void AddConstant(Register rd, Register rn, int32_t value, vixl::Condition cond = vixl::al);
 
   // Vixl buffer.
   byte* vixl_buf_;
