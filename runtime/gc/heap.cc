@@ -86,7 +86,6 @@ static constexpr double kStickyGcThroughputAdjustment = 1.0;
 static constexpr bool kUseFreeListSpaceForLOS = false;
 // Whether or not we compact the zygote in PreZygoteFork.
 static constexpr bool kCompactZygote = kMovingCollector;
-static constexpr size_t kNonMovingSpaceCapacity = 64 * MB;
 // How many reserve entries are at the end of the allocation stack, these are only needed if the
 // allocation stack overflows.
 static constexpr size_t kAllocationStackReserveSize = 1024;
@@ -99,10 +98,11 @@ static const char* kMemMapSpaceName[2] = {"main space", "main space 1"};
 static constexpr size_t kGSSBumpPointerSpaceCapacity = 32 * MB;
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
-           double target_utilization, double foreground_heap_growth_multiplier, size_t capacity,
-           const std::string& image_file_name, const InstructionSet image_instruction_set,
-           CollectorType foreground_collector_type, CollectorType background_collector_type,
-           size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
+           double target_utilization, double foreground_heap_growth_multiplier,
+           size_t capacity, size_t non_moving_space_capacity, const std::string& image_file_name,
+           const InstructionSet image_instruction_set, CollectorType foreground_collector_type,
+           CollectorType background_collector_type, size_t parallel_gc_threads,
+           size_t conc_gc_threads, bool low_memory_mode,
            size_t long_pause_log_threshold, size_t long_gc_log_threshold,
            bool ignore_max_footprint, bool use_tlab,
            bool verify_pre_gc_heap, bool verify_pre_sweeping_heap, bool verify_post_gc_heap,
@@ -214,7 +214,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   }
   /*
   requested_alloc_space_begin ->     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
-                                     +-  nonmoving space (kNonMovingSpaceCapacity) +-
+                                     +-  nonmoving space (non_moving_space_capacity)+-
                                      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
                                      +-main alloc space / bump space 1 (capacity_) +-
                                      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
@@ -241,7 +241,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   std::unique_ptr<MemMap> main_mem_map_2;
   byte* request_begin = requested_alloc_space_begin;
   if (request_begin != nullptr && separate_non_moving_space) {
-    request_begin += kNonMovingSpaceCapacity;
+    request_begin += non_moving_space_capacity;
   }
   std::string error_str;
   std::unique_ptr<MemMap> non_moving_space_mem_map;
@@ -250,7 +250,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     // address.
     non_moving_space_mem_map.reset(
         MemMap::MapAnonymous("non moving space", requested_alloc_space_begin,
-                             kNonMovingSpaceCapacity, PROT_READ | PROT_WRITE, true, &error_str));
+                             non_moving_space_capacity, PROT_READ | PROT_WRITE, true, &error_str));
     CHECK(non_moving_space_mem_map != nullptr) << error_str;
   }
   // Attempt to create 2 mem maps at or after the requested begin.
@@ -271,7 +271,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     // active rosalloc spaces.
     const size_t size = non_moving_space_mem_map->Size();
     non_moving_space_ = space::DlMallocSpace::CreateFromMemMap(
-        non_moving_space_mem_map.release(), "zygote / non moving space", initial_size,
+        non_moving_space_mem_map.release(), "zygote / non moving space", kDefaultStartingSize,
         initial_size, size, size, false);
     non_moving_space_->SetFootprintLimit(non_moving_space_->Capacity());
     CHECK(non_moving_space_ != nullptr) << "Failed creating non moving space "
@@ -491,14 +491,33 @@ void Heap::ChangeAllocator(AllocatorType allocator) {
   }
 }
 
-void Heap::DisableCompaction() {
+void Heap::DisableMovingGc() {
   if (IsMovingGc(foreground_collector_type_)) {
-    foreground_collector_type_  = kCollectorTypeCMS;
+    foreground_collector_type_ = kCollectorTypeCMS;
   }
   if (IsMovingGc(background_collector_type_)) {
     background_collector_type_ = foreground_collector_type_;
   }
   TransitionCollector(foreground_collector_type_);
+  ThreadList* tl = Runtime::Current()->GetThreadList();
+  Thread* self = Thread::Current();
+  ScopedThreadStateChange tsc(self, kSuspended);
+  tl->SuspendAll();
+  // Something may have caused the transition to fail.
+  if (!IsMovingGc(foreground_collector_type_) && non_moving_space_ != main_space_) {
+    CHECK(main_space_ != nullptr);
+    // The allocation stack may have non movable objects in it. We need to flush it since the GC
+    // can't only handle marking allocation stack objects of one non moving space and one main
+    // space.
+    {
+      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+      FlushAllocStack();
+    }
+    main_space_->DisableMovingObjects();
+    non_moving_space_ = main_space_;
+    CHECK(!non_moving_space_->CanMoveObjects());
+  }
+  tl->ResumeAll();
 }
 
 std::string Heap::SafeGetClassDescriptor(mirror::Class* klass) {
@@ -1262,41 +1281,73 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
     return nullptr;
   }
   ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated, usable_size);
-  if (ptr == nullptr && use_homogeneous_space_compaction_for_oom_) {
+  if (ptr == nullptr) {
     const uint64_t current_time = NanoTime();
-    if ((allocator == kAllocatorTypeRosAlloc || allocator == kAllocatorTypeDlMalloc) &&
-        current_time - last_time_homogeneous_space_compaction_by_oom_ >
-        min_interval_homogeneous_space_compaction_by_oom_) {
-      last_time_homogeneous_space_compaction_by_oom_ = current_time;
-      HomogeneousSpaceCompactResult result = PerformHomogeneousSpaceCompact();
-      switch (result) {
-        case HomogeneousSpaceCompactResult::kSuccess:
-          // If the allocation succeeded, we delayed an oom.
-          ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated, usable_size);
-          if (ptr != nullptr) {
-            count_delayed_oom_++;
+    switch (allocator) {
+      case kAllocatorTypeRosAlloc:
+        // Fall-through.
+      case kAllocatorTypeDlMalloc: {
+        if (use_homogeneous_space_compaction_for_oom_ &&
+            current_time - last_time_homogeneous_space_compaction_by_oom_ >
+            min_interval_homogeneous_space_compaction_by_oom_) {
+          last_time_homogeneous_space_compaction_by_oom_ = current_time;
+          HomogeneousSpaceCompactResult result = PerformHomogeneousSpaceCompact();
+          switch (result) {
+            case HomogeneousSpaceCompactResult::kSuccess:
+              // If the allocation succeeded, we delayed an oom.
+              ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated,
+                                              usable_size);
+              if (ptr != nullptr) {
+                count_delayed_oom_++;
+              }
+              break;
+            case HomogeneousSpaceCompactResult::kErrorReject:
+              // Reject due to disabled moving GC.
+              break;
+            case HomogeneousSpaceCompactResult::kErrorVMShuttingDown:
+              // Throw OOM by default.
+              break;
+            default: {
+              LOG(FATAL) << "Unimplemented homogeneous space compaction result "
+                         << static_cast<size_t>(result);
+            }
           }
-          break;
-        case HomogeneousSpaceCompactResult::kErrorReject:
-          // Reject due to disabled moving GC.
-          break;
-        case HomogeneousSpaceCompactResult::kErrorVMShuttingDown:
-          // Throw OOM by default.
-          break;
-        default: {
-          LOG(FATAL) << "Unimplemented homogeneous space compaction result " << static_cast<size_t>(result);
+          // Always print that we ran homogeneous space compation since this can cause jank.
+          VLOG(heap) << "Ran heap homogeneous space compaction, "
+                    << " requested defragmentation "
+                    << count_requested_homogeneous_space_compaction_.LoadSequentiallyConsistent()
+                    << " performed defragmentation "
+                    << count_performed_homogeneous_space_compaction_.LoadSequentiallyConsistent()
+                    << " ignored homogeneous space compaction "
+                    << count_ignored_homogeneous_space_compaction_.LoadSequentiallyConsistent()
+                    << " delayed count = "
+                    << count_delayed_oom_.LoadSequentiallyConsistent();
         }
+        break;
       }
-      // Always print that we ran homogeneous space compation since this can cause jank.
-      VLOG(heap) << "Ran heap homogeneous space compaction, "
-                << " requested defragmentation "
-                << count_requested_homogeneous_space_compaction_.LoadSequentiallyConsistent()
-                << " performed defragmentation "
-                << count_performed_homogeneous_space_compaction_.LoadSequentiallyConsistent()
-                << " ignored homogeneous space compaction "
-                << count_ignored_homogeneous_space_compaction_.LoadSequentiallyConsistent()
-                << " delayed count = "
-                << count_delayed_oom_.LoadSequentiallyConsistent();
+      case kAllocatorTypeNonMoving: {
+        // Try to transition the heap if the allocation failure was due to the space being full.
+        if (!IsOutOfMemoryOnAllocation<false>(allocator, alloc_size)) {
+          // If we aren't out of memory then the OOM was probably from the non moving space being
+          // full. Attempt to disable compaction and turn the main space into a non moving space.
+          DisableMovingGc();
+          // If we are still a moving GC then something must have caused the transition to fail.
+          if (IsMovingGc(collector_type_)) {
+            MutexLock mu(self, *gc_complete_lock_);
+            // If we couldn't disable moving GC, just throw OOME and return null.
+            LOG(WARNING) << "Couldn't disable moving GC with disable GC count "
+                         << disable_moving_gc_count_;
+          } else {
+            LOG(WARNING) << "Disabled moving GC due to the non moving space being full";
+            ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated,
+                                            usable_size);
+          }
+        }
+        break;
+      }
+      default: {
+        // Do nothing for others allocators.
+      }
     }
   }
   // If the allocation hasn't succeeded by this point, throw an OOM error.
@@ -1473,9 +1524,10 @@ HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
     WaitForGcToCompleteLocked(kGcCauseHomogeneousSpaceCompact, self);
     // Homogeneous space compaction is a copying transition, can't run it if the moving GC disable count
     // is non zero.
-    // If the collecotr type changed to something which doesn't benefit from homogeneous space compaction,
+    // If the collector type changed to something which doesn't benefit from homogeneous space compaction,
     // exit.
-    if (disable_moving_gc_count_ != 0 || IsMovingGc(collector_type_)) {
+    if (disable_moving_gc_count_ != 0 || IsMovingGc(collector_type_) ||
+        !main_space_->CanMoveObjects()) {
       return HomogeneousSpaceCompactResult::kErrorReject;
     }
     collector_type_running_ = kCollectorTypeHomogeneousSpaceCompact;
@@ -1534,8 +1586,9 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   Thread* const self = Thread::Current();
   ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
-  const bool copying_transition =
-      IsMovingGc(background_collector_type_) || IsMovingGc(foreground_collector_type_);
+  // Currently we only need a heap transition if we switch from a moving collector to a non moving
+  // one, or visa versa.
+  const bool copying_transition = IsMovingGc(collector_type_) != IsMovingGc(collector_type);
   // Busy wait until we can GC (StartGC can fail if we have a non-zero
   // compacting_gc_disable_count_, this should rarely occurs).
   for (;;) {
@@ -1835,9 +1888,9 @@ void Heap::PreZygoteFork() {
   // The end of the non-moving space may be protected, unprotect it so that we can copy the zygote
   // there.
   non_moving_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
-  // Change the collector to the post zygote one.
-  bool same_space = non_moving_space_ == main_space_;
+  const bool same_space = non_moving_space_ == main_space_;
   if (kCompactZygote) {
+    // Can't compact if the non moving space is the same as the main space.
     DCHECK(semi_space_collector_ != nullptr);
     // Temporarily disable rosalloc verification because the zygote
     // compaction will mess up the rosalloc internal metadata.
@@ -1882,6 +1935,7 @@ void Heap::PreZygoteFork() {
     non_moving_space_->SetLimit(target_space.Limit());
     VLOG(heap) << "Zygote space size " << non_moving_space_->Size() << " bytes";
   }
+  // Change the collector to the post zygote one.
   ChangeCollector(foreground_collector_type_);
   // Save the old space so that we can remove it after we complete creating the zygote space.
   space::MallocSpace* old_alloc_space = non_moving_space_;
