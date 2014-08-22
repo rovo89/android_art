@@ -824,7 +824,7 @@ const uint64_t MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
   DF_NOP,
 
   // 108 MIR_NULL_CHECK
-  0,
+  DF_UA | DF_REF_A | DF_NULL_CHK_0 | DF_LVN,
 
   // 109 MIR_RANGE_CHECK
   0,
