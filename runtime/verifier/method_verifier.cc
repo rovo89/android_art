@@ -138,6 +138,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
   while (it.HasNextStaticField() || it.HasNextInstanceField()) {
     it.Next();
   }
+  Thread* self = Thread::Current();
   size_t error_count = 0;
   bool hard_fail = false;
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
@@ -156,17 +157,19 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
         linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader,
                               NullHandle<mirror::ArtMethod>(), type);
     if (method == NULL) {
-      DCHECK(Thread::Current()->IsExceptionPending());
+      DCHECK(self->IsExceptionPending());
       // We couldn't resolve the method, but continue regardless.
-      Thread::Current()->ClearException();
+      self->ClearException();
     }
+    StackHandleScope<1> hs(self);
+    Handle<mirror::ArtMethod> h_method(hs.NewHandle(method));
     MethodVerifier::FailureKind result = VerifyMethod(method_idx,
                                                       dex_file,
                                                       dex_cache,
                                                       class_loader,
                                                       class_def,
                                                       it.GetMethodCodeItem(),
-                                                      method,
+                                                      h_method,
                                                       it.GetMemberAccessFlags(),
                                                       allow_soft_failures,
                                                       false);
@@ -200,17 +203,19 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
         linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader,
                               NullHandle<mirror::ArtMethod>(), type);
     if (method == NULL) {
-      DCHECK(Thread::Current()->IsExceptionPending());
+      DCHECK(self->IsExceptionPending());
       // We couldn't resolve the method, but continue regardless.
-      Thread::Current()->ClearException();
+      self->ClearException();
     }
+    StackHandleScope<1> hs(self);
+    Handle<mirror::ArtMethod> h_method(hs.NewHandle(method));
     MethodVerifier::FailureKind result = VerifyMethod(method_idx,
                                                       dex_file,
                                                       dex_cache,
                                                       class_loader,
                                                       class_def,
                                                       it.GetMethodCodeItem(),
-                                                      method,
+                                                      h_method,
                                                       it.GetMemberAccessFlags(),
                                                       allow_soft_failures,
                                                       false);
@@ -242,7 +247,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx,
                                                          Handle<mirror::ClassLoader> class_loader,
                                                          const DexFile::ClassDef* class_def,
                                                          const DexFile::CodeItem* code_item,
-                                                         mirror::ArtMethod* method,
+                                                         Handle<mirror::ArtMethod> method,
                                                          uint32_t method_access_flags,
                                                          bool allow_soft_failures,
                                                          bool need_precise_constants) {
@@ -250,8 +255,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx,
   uint64_t start_ns = NanoTime();
 
   MethodVerifier verifier(dex_file, &dex_cache, &class_loader, class_def, code_item,
-                           method_idx, method, method_access_flags, true, allow_soft_failures,
-                           need_precise_constants);
+                          method_idx, method, method_access_flags, true, allow_soft_failures,
+                          need_precise_constants);
   if (verifier.Verify()) {
     // Verification completed, however failures may be pending that didn't cause the verification
     // to hard fail.
@@ -289,7 +294,7 @@ void MethodVerifier::VerifyMethodAndDump(std::ostream& os, uint32_t dex_method_i
                                          Handle<mirror::ClassLoader> class_loader,
                                          const DexFile::ClassDef* class_def,
                                          const DexFile::CodeItem* code_item,
-                                         mirror::ArtMethod* method,
+                                         Handle<mirror::ArtMethod> method,
                                          uint32_t method_access_flags) {
   MethodVerifier verifier(dex_file, &dex_cache, &class_loader, class_def, code_item,
                           dex_method_idx, method, method_access_flags, true, true, true);
@@ -303,7 +308,7 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, Handle<mirror::DexCache>
                                Handle<mirror::ClassLoader>* class_loader,
                                const DexFile::ClassDef* class_def,
                                const DexFile::CodeItem* code_item, uint32_t dex_method_idx,
-                               mirror::ArtMethod* method, uint32_t method_access_flags,
+                               Handle<mirror::ArtMethod> method, uint32_t method_access_flags,
                                bool can_load_classes, bool allow_soft_failures,
                                bool need_precise_constants)
     : reg_types_(can_load_classes),
@@ -340,12 +345,13 @@ MethodVerifier::~MethodVerifier() {
 
 void MethodVerifier::FindLocksAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc,
                                       std::vector<uint32_t>* monitor_enter_dex_pcs) {
-  StackHandleScope<2> hs(Thread::Current());
+  StackHandleScope<3> hs(Thread::Current());
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(m->GetDexCache()));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(m->GetClassLoader()));
+  Handle<mirror::ArtMethod> method(hs.NewHandle(m));
   MethodVerifier verifier(m->GetDexFile(), &dex_cache, &class_loader, &m->GetClassDef(),
-                          m->GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(), false,
-                          true, false);
+                          m->GetCodeItem(), m->GetDexMethodIndex(), method, m->GetAccessFlags(),
+                          false, true, false);
   verifier.interesting_dex_pc_ = dex_pc;
   verifier.monitor_enter_dex_pcs_ = monitor_enter_dex_pcs;
   verifier.FindLocksAtDexPc();
@@ -364,12 +370,13 @@ void MethodVerifier::FindLocksAtDexPc() {
 
 mirror::ArtField* MethodVerifier::FindAccessedFieldAtDexPc(mirror::ArtMethod* m,
                                                            uint32_t dex_pc) {
-  StackHandleScope<2> hs(Thread::Current());
+  StackHandleScope<3> hs(Thread::Current());
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(m->GetDexCache()));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(m->GetClassLoader()));
+  Handle<mirror::ArtMethod> method(hs.NewHandle(m));
   MethodVerifier verifier(m->GetDexFile(), &dex_cache, &class_loader, &m->GetClassDef(),
-                          m->GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(), true,
-                          true, false);
+                          m->GetCodeItem(), m->GetDexMethodIndex(), method, m->GetAccessFlags(),
+                          true, true, false);
   return verifier.FindAccessedFieldAtDexPc(dex_pc);
 }
 
@@ -394,12 +401,13 @@ mirror::ArtField* MethodVerifier::FindAccessedFieldAtDexPc(uint32_t dex_pc) {
 
 mirror::ArtMethod* MethodVerifier::FindInvokedMethodAtDexPc(mirror::ArtMethod* m,
                                                             uint32_t dex_pc) {
-  StackHandleScope<2> hs(Thread::Current());
+  StackHandleScope<3> hs(Thread::Current());
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(m->GetDexCache()));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(m->GetClassLoader()));
+  Handle<mirror::ArtMethod> method(hs.NewHandle(m));
   MethodVerifier verifier(m->GetDexFile(), &dex_cache, &class_loader, &m->GetClassDef(),
-                          m->GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(), true,
-                          true, false);
+                          m->GetCodeItem(), m->GetDexMethodIndex(), method, m->GetAccessFlags(),
+                          true, true, false);
   return verifier.FindInvokedMethodAtDexPc(dex_pc);
 }
 
@@ -4017,14 +4025,10 @@ InstructionFlags* MethodVerifier::CurrentInsnFlags() {
 
 RegType& MethodVerifier::GetMethodReturnType() {
   if (return_type_ == nullptr) {
-    if (mirror_method_ != NULL) {
+    if (mirror_method_.Get() != nullptr) {
       Thread* self = Thread::Current();
-      StackHandleScope<1> hs(self);
       mirror::Class* return_type_class;
-      {
-        HandleWrapper<mirror::ArtMethod> h_mirror_method(hs.NewHandleWrapper(&mirror_method_));
-        return_type_class = MethodHelper(h_mirror_method).GetReturnType(can_load_classes_);
-      }
+      return_type_class = MethodHelper(mirror_method_).GetReturnType(can_load_classes_);
       if (return_type_class != nullptr) {
         return_type_ = &reg_types_.FromClass(mirror_method_->GetReturnTypeDescriptor(),
                                              return_type_class,
@@ -4050,7 +4054,7 @@ RegType& MethodVerifier::GetDeclaringClass() {
     const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx_);
     const char* descriptor
         = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(method_id.class_idx_));
-    if (mirror_method_ != NULL) {
+    if (mirror_method_.Get() != nullptr) {
       mirror::Class* klass = mirror_method_->GetDeclaringClass();
       declaring_class_ = &reg_types_.FromClass(descriptor, klass,
                                                klass->CannotBeAssignedFromOtherTypes());

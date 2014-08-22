@@ -206,12 +206,13 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     const Instruction* inst = Instruction::At(code_item->insns_ + dex_pc);
     uint32_t new_dex_pc = dex_pc + inst->SizeInCodeUnits();
     ShadowFrame* new_frame = ShadowFrame::Create(num_regs, nullptr, m, new_dex_pc);
-    StackHandleScope<2> hs(self_);
+    StackHandleScope<3> hs(self_);
     mirror::Class* declaring_class = m->GetDeclaringClass();
     Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
     Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
+    Handle<mirror::ArtMethod> h_method(hs.NewHandle(m));
     verifier::MethodVerifier verifier(h_dex_cache->GetDexFile(), &h_dex_cache, &h_class_loader,
-                                      &m->GetClassDef(), code_item, m->GetDexMethodIndex(), m,
+                                      &m->GetClassDef(), code_item, m->GetDexMethodIndex(), h_method,
                                       m->GetAccessFlags(), false, true, true);
     verifier.Verify();
     const std::vector<int32_t> kinds(verifier.DescribeVRegs(dex_pc));

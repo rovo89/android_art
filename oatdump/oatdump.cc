@@ -427,12 +427,13 @@ class OatDumper {
       Runtime* runtime = Runtime::Current();
       if (runtime != nullptr) {
         ScopedObjectAccess soa(Thread::Current());
-        StackHandleScope<1> hs(soa.Self());
+        StackHandleScope<2> hs(soa.Self());
         Handle<mirror::DexCache> dex_cache(
             hs.NewHandle(runtime->GetClassLinker()->FindDexCache(dex_file)));
         NullHandle<mirror::ClassLoader> class_loader;
+        Handle<mirror::ArtMethod> method(hs.NewHandle<mirror::ArtMethod>(nullptr));
         verifier::MethodVerifier verifier(&dex_file, &dex_cache, &class_loader, &class_def,
-                                          code_item, dex_method_idx, nullptr, method_access_flags,
+                                          code_item, dex_method_idx, method, method_access_flags,
                                           true, true, true);
         verifier.Verify();
         DumpCode(*indent2_os, &verifier, oat_method, code_item);
@@ -698,12 +699,13 @@ class OatDumper {
                     uint32_t method_access_flags) {
     if ((method_access_flags & kAccNative) == 0) {
       ScopedObjectAccess soa(Thread::Current());
-      StackHandleScope<2> hs(soa.Self());
+      StackHandleScope<3> hs(soa.Self());
       Handle<mirror::DexCache> dex_cache(
           hs.NewHandle(Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file)));
       auto class_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
+      Handle<mirror::ArtMethod> method(hs.NewHandle<mirror::ArtMethod>(nullptr));
       verifier::MethodVerifier::VerifyMethodAndDump(os, dex_method_idx, dex_file, dex_cache,
-                                                    class_loader, &class_def, code_item, nullptr,
+                                                    class_loader, &class_def, code_item, method,
                                                     method_access_flags);
     }
   }

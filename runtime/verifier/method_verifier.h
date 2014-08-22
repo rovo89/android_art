@@ -27,6 +27,7 @@
 #include "class_reference.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
+#include "handle.h"
 #include "instruction_flags.h"
 #include "method_reference.h"
 #include "reg_type.h"
@@ -152,7 +153,7 @@ class MethodVerifier {
                                   Handle<mirror::ClassLoader> class_loader,
                                   const DexFile::ClassDef* class_def,
                                   const DexFile::CodeItem* code_item,
-                                  mirror::ArtMethod* method, uint32_t method_access_flags)
+                                  Handle<mirror::ArtMethod> method, uint32_t method_access_flags)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uint8_t EncodePcToReferenceMapData() const;
@@ -203,7 +204,7 @@ class MethodVerifier {
 
   MethodVerifier(const DexFile* dex_file, Handle<mirror::DexCache>* dex_cache,
                  Handle<mirror::ClassLoader>* class_loader, const DexFile::ClassDef* class_def,
-                 const DexFile::CodeItem* code_item, uint32_t method_idx, mirror::ArtMethod* method,
+                 const DexFile::CodeItem* code_item, uint32_t method_idx, Handle<mirror::ArtMethod> method,
                  uint32_t access_flags, bool can_load_classes, bool allow_soft_failures,
                  bool need_precise_constants)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -256,7 +257,7 @@ class MethodVerifier {
                                   Handle<mirror::ClassLoader> class_loader,
                                   const DexFile::ClassDef* class_def_idx,
                                   const DexFile::CodeItem* code_item,
-                                  mirror::ArtMethod* method, uint32_t method_access_flags,
+                                  Handle<mirror::ArtMethod> method, uint32_t method_access_flags,
                                   bool allow_soft_failures, bool need_precise_constants)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -639,7 +640,7 @@ class MethodVerifier {
 
   const uint32_t dex_method_idx_;  // The method we're working on.
   // Its object representation if known.
-  mirror::ArtMethod* mirror_method_ GUARDED_BY(Locks::mutator_lock_);
+  Handle<mirror::ArtMethod> mirror_method_ GUARDED_BY(Locks::mutator_lock_);
   const uint32_t method_access_flags_;  // Method's access flags.
   RegType* return_type_;  // Lazily computed return type of the method.
   const DexFile* const dex_file_;  // The dex file containing the method.
