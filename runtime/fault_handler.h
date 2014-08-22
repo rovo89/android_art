@@ -39,6 +39,7 @@ class FaultManager {
   ~FaultManager();
 
   void Init();
+  void Shutdown();
 
   void HandleFault(int sig, siginfo_t* info, void* context);
   void AddHandler(FaultHandler* handler, bool generated_code);
@@ -58,6 +59,7 @@ class FaultManager {
   std::vector<FaultHandler*> generated_code_handlers_;
   std::vector<FaultHandler*> other_handlers_;
   struct sigaction oldaction_;
+  bool initialized_;
   DISALLOW_COPY_AND_ASSIGN(FaultManager);
 };
 
