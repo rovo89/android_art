@@ -3031,12 +3031,13 @@ static bool IsMethodPossiblyInlined(Thread* self, mirror::ArtMethod* m)
     // should never be null. We could just check we never encounter this case.
     return false;
   }
-  StackHandleScope<2> hs(self);
+  StackHandleScope<3> hs(self);
   mirror::Class* declaring_class = m->GetDeclaringClass();
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
+  Handle<mirror::ArtMethod> method(hs.NewHandle(m));
   verifier::MethodVerifier verifier(dex_cache->GetDexFile(), &dex_cache, &class_loader,
-                                    &m->GetClassDef(), code_item, m->GetDexMethodIndex(), m,
+                                    &m->GetClassDef(), code_item, m->GetDexMethodIndex(), method,
                                     m->GetAccessFlags(), false, true, false);
   // Note: we don't need to verify the method.
   return InlineMethodAnalyser::AnalyseMethodCode(&verifier, nullptr);
