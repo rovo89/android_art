@@ -712,11 +712,12 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   self->ClearException();
 
   // Look for a native bridge.
-  native_bridge_library_path_ = options->native_bridge_library_path_;
-  if (!native_bridge_library_path_.empty()) {
-    android::SetupNativeBridge(native_bridge_library_path_.c_str(), &native_bridge_art_callbacks_);
-    VLOG(startup) << "Runtime::Setup native bridge library: " << native_bridge_library_path_;
-  }
+  native_bridge_library_filename_ = options->native_bridge_library_filename_;
+  android::SetupNativeBridge(native_bridge_library_filename_.c_str(), &native_bridge_art_callbacks_);
+  VLOG(startup) << "Runtime::Setup native bridge library: "
+                << (native_bridge_library_filename_.empty() ?
+                    "(empty)" : native_bridge_library_filename_);
+
   VLOG(startup) << "Runtime::Init exiting";
   return true;
 }
