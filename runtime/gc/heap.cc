@@ -224,7 +224,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
                                      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
   */
   bool support_homogeneous_space_compaction =
-      background_collector_type == gc::kCollectorTypeHomogeneousSpaceCompact ||
+      background_collector_type_ == gc::kCollectorTypeHomogeneousSpaceCompact ||
       use_homogeneous_space_compaction_for_oom;
   // We may use the same space the main space for the non moving space if we don't need to compact
   // from the main space.
