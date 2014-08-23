@@ -69,6 +69,7 @@ class ParsedOptions {
   size_t heap_growth_limit_;
   size_t heap_min_free_;
   size_t heap_max_free_;
+  size_t heap_non_moving_space_capacity_;
   double heap_target_utilization_;
   double foreground_heap_growth_multiplier_;
   unsigned int parallel_gc_threads_;
