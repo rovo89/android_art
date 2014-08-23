@@ -367,7 +367,7 @@ void CommonCompilerTest::CompileMethod(mirror::ArtMethod* method) {
   MakeExecutable(method);
 }
 
-void CommonCompilerTest::CompileDirectMethod(Handle<mirror::ClassLoader> class_loader,
+void CommonCompilerTest::CompileDirectMethod(ConstHandle<mirror::ClassLoader> class_loader,
                                              const char* class_name, const char* method_name,
                                              const char* signature) {
   std::string class_descriptor(DotToDescriptor(class_name));
@@ -380,9 +380,9 @@ void CommonCompilerTest::CompileDirectMethod(Handle<mirror::ClassLoader> class_l
   CompileMethod(method);
 }
 
-void CommonCompilerTest::CompileVirtualMethod(Handle<mirror::ClassLoader> class_loader, const char* class_name,
-                                              const char* method_name, const char* signature)
-SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+void CommonCompilerTest::CompileVirtualMethod(ConstHandle<mirror::ClassLoader> class_loader,
+                                              const char* class_name, const char* method_name,
+                                              const char* signature) {
   std::string class_descriptor(DotToDescriptor(class_name));
   Thread* self = Thread::Current();
   mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), class_loader);

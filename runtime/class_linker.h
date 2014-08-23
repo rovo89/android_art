@@ -46,6 +46,7 @@ namespace mirror {
   class StackTraceElement;
 }  // namespace mirror
 
+template<class T> class ConstHandle;
 class InternTable;
 template<class T> class ObjectLock;
 class ScopedObjectAccessAlreadyRunnable;
@@ -72,7 +73,7 @@ class ClassLinker {
   // Finds a class by its descriptor, loading it if necessary.
   // If class_loader is null, searches boot_class_path_.
   mirror::Class* FindClass(Thread* self, const char* descriptor,
-                           Handle<mirror::ClassLoader> class_loader)
+                           ConstHandle<mirror::ClassLoader> class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds a class by its descriptor using the "system" class loader, ie by searching the
@@ -89,7 +90,7 @@ class ClassLinker {
 
   // Define a new a class based on a ClassDef from a DexFile
   mirror::Class* DefineClass(const char* descriptor,
-                             Handle<mirror::ClassLoader> class_loader,
+                             ConstHandle<mirror::ClassLoader> class_loader,
                              const DexFile& dex_file, const DexFile::ClassDef& dex_class_def)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -133,7 +134,7 @@ class ClassLinker {
   // Resolve a String with the given index from the DexFile, storing the
   // result in the DexCache.
   mirror::String* ResolveString(const DexFile& dex_file, uint32_t string_idx,
-                                Handle<mirror::DexCache> dex_cache)
+                                ConstHandle<mirror::DexCache> dex_cache)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a Type with the given index from the DexFile, storing the
@@ -156,8 +157,8 @@ class ClassLinker {
   // type, since it may be referenced from but not contained within
   // the given DexFile.
   mirror::Class* ResolveType(const DexFile& dex_file, uint16_t type_idx,
-                             Handle<mirror::DexCache> dex_cache,
-                             Handle<mirror::ClassLoader> class_loader)
+                             ConstHandle<mirror::DexCache> dex_cache,
+                             ConstHandle<mirror::ClassLoader> class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a method with a given ID from the DexFile, storing the
@@ -167,9 +168,9 @@ class ClassLinker {
   // virtual method.
   mirror::ArtMethod* ResolveMethod(const DexFile& dex_file,
                                    uint32_t method_idx,
-                                   Handle<mirror::DexCache> dex_cache,
-                                   Handle<mirror::ClassLoader> class_loader,
-                                   Handle<mirror::ArtMethod> referrer,
+                                   ConstHandle<mirror::DexCache> dex_cache,
+                                   ConstHandle<mirror::ClassLoader> class_loader,
+                                   ConstHandle<mirror::ArtMethod> referrer,
                                    InvokeType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -193,8 +194,8 @@ class ClassLinker {
   // field.
   mirror::ArtField* ResolveField(const DexFile& dex_file,
                                  uint32_t field_idx,
-                                 Handle<mirror::DexCache> dex_cache,
-                                 Handle<mirror::ClassLoader> class_loader,
+                                 ConstHandle<mirror::DexCache> dex_cache,
+                                 ConstHandle<mirror::ClassLoader> class_loader,
                                  bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -203,8 +204,8 @@ class ClassLinker {
   // in ResolveType. No is_static argument is provided so that Java
   // field resolution semantics are followed.
   mirror::ArtField* ResolveFieldJLS(const DexFile& dex_file, uint32_t field_idx,
-                                    Handle<mirror::DexCache> dex_cache,
-                                    Handle<mirror::ClassLoader> class_loader)
+                                    ConstHandle<mirror::DexCache> dex_cache,
+                                    ConstHandle<mirror::ClassLoader> class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get shorty from method index without resolution. Used to do handlerization.
@@ -214,7 +215,7 @@ class ClassLinker {
   // Returns true on success, false if there's an exception pending.
   // can_run_clinit=false allows the compiler to attempt to init a class,
   // given the restriction that no <clinit> execution is possible.
-  bool EnsureInitialized(Handle<mirror::Class> c, bool can_init_fields, bool can_init_parents)
+  bool EnsureInitialized(ConstHandle<mirror::Class> c, bool can_init_fields, bool can_init_parents)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Initializes classes that have instances in the image but that have
@@ -224,7 +225,7 @@ class ClassLinker {
   void RegisterDexFile(const DexFile& dex_file)
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void RegisterDexFile(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
+  void RegisterDexFile(const DexFile& dex_file, ConstHandle<mirror::DexCache> dex_cache)
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -311,12 +312,12 @@ class ClassLinker {
                                                                               size_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VerifyClass(Handle<mirror::Class> klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void VerifyClass(ConstHandle<mirror::Class> klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class* klass,
                                mirror::Class::Status& oat_file_class_status)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ResolveClassExceptionHandlerTypes(const DexFile& dex_file,
-                                         Handle<mirror::Class> klass)
+                                         ConstHandle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ResolveMethodExceptionHandlerTypes(const DexFile& dex_file, mirror::ArtMethod* klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -429,16 +430,17 @@ class ClassLinker {
 
 
   mirror::Class* CreateArrayClass(Thread* self, const char* descriptor,
-                                  Handle<mirror::ClassLoader> class_loader)
+                                  ConstHandle<mirror::ClassLoader> class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void AppendToBootClassPath(const DexFile& dex_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void AppendToBootClassPath(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
+  void AppendToBootClassPath(const DexFile& dex_file, ConstHandle<mirror::DexCache> dex_cache)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ConstructFieldArray(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
-                           mirror::Class* c, Handle<mirror::ObjectArray<mirror::ArtField>> field_array)
+                           mirror::Class* c,
+                           ConstHandle<mirror::ObjectArray<mirror::ArtField>> field_array)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Precomputes size needed for Class, in the case of a non-temporary class this size must be
@@ -448,23 +450,23 @@ class ClassLinker {
 
   void LoadClass(const DexFile& dex_file,
                  const DexFile::ClassDef& dex_class_def,
-                 Handle<mirror::Class> klass,
+                 ConstHandle<mirror::Class> klass,
                  mirror::ClassLoader* class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void LoadClassMembers(const DexFile& dex_file,
                         const byte* class_data,
-                        Handle<mirror::Class> klass,
+                        ConstHandle<mirror::Class> klass,
                         mirror::ClassLoader* class_loader,
                         const OatFile::OatClass* oat_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void LoadField(const DexFile& dex_file, const ClassDataItemIterator& it,
-                 Handle<mirror::Class> klass, Handle<mirror::ArtField> dst)
+                 ConstHandle<mirror::Class> klass, ConstHandle<mirror::ArtField> dst)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::ArtMethod* LoadMethod(Thread* self, const DexFile& dex_file,
                                 const ClassDataItemIterator& dex_method,
-                                Handle<mirror::Class> klass)
+                                ConstHandle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void FixupStaticTrampolines(mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -474,23 +476,23 @@ class ClassLinker {
   OatFile::OatClass FindOatClass(const DexFile& dex_file, uint16_t class_def_idx, bool* found)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void RegisterDexFileLocked(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
+  void RegisterDexFileLocked(const DexFile& dex_file, ConstHandle<mirror::DexCache> dex_cache)
       EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsDexFileRegisteredLocked(const DexFile& dex_file)
       SHARED_LOCKS_REQUIRED(dex_lock_, Locks::mutator_lock_);
 
-  bool InitializeClass(Handle<mirror::Class> klass, bool can_run_clinit,
+  bool InitializeClass(ConstHandle<mirror::Class> klass, bool can_run_clinit,
                        bool can_init_parents)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool WaitForInitializeClass(Handle<mirror::Class> klass, Thread* self,
+  bool WaitForInitializeClass(ConstHandle<mirror::Class> klass, Thread* self,
                               ObjectLock<mirror::Class>& lock);
-  bool ValidateSuperClassDescriptors(Handle<mirror::Class> klass)
+  bool ValidateSuperClassDescriptors(ConstHandle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsSameDescriptorInDifferentClassContexts(Thread* self, const char* descriptor,
-                                                Handle<mirror::ClassLoader> class_loader1,
-                                                Handle<mirror::ClassLoader> class_loader2)
+                                                ConstHandle<mirror::ClassLoader> class_loader1,
+                                                ConstHandle<mirror::ClassLoader> class_loader2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsSameMethodSignatureInDifferentClassContexts(Thread* self, mirror::ArtMethod* method,
@@ -498,43 +500,43 @@ class ClassLinker {
                                                      mirror::Class* klass2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool LinkClass(Thread* self, const char* descriptor, Handle<mirror::Class> klass,
-                 Handle<mirror::ObjectArray<mirror::Class>> interfaces,
+  bool LinkClass(Thread* self, const char* descriptor, ConstHandle<mirror::Class> klass,
+                 ConstHandle<mirror::ObjectArray<mirror::Class>> interfaces,
                  mirror::Class** new_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool LinkSuperClass(Handle<mirror::Class> klass)
+  bool LinkSuperClass(ConstHandle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool LoadSuperAndInterfaces(Handle<mirror::Class> klass, const DexFile& dex_file)
+  bool LoadSuperAndInterfaces(ConstHandle<mirror::Class> klass, const DexFile& dex_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool LinkMethods(Thread* self, Handle<mirror::Class> klass,
-                   Handle<mirror::ObjectArray<mirror::Class>> interfaces)
+  bool LinkMethods(Thread* self, ConstHandle<mirror::Class> klass,
+                   ConstHandle<mirror::ObjectArray<mirror::Class>> interfaces)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass)
+  bool LinkVirtualMethods(Thread* self, ConstHandle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool LinkInterfaceMethods(Handle<mirror::Class> klass,
-                            Handle<mirror::ObjectArray<mirror::Class>> interfaces)
+  bool LinkInterfaceMethods(ConstHandle<mirror::Class> klass,
+                            ConstHandle<mirror::ObjectArray<mirror::Class>> interfaces)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool LinkStaticFields(Handle<mirror::Class> klass, size_t* class_size)
+  bool LinkStaticFields(ConstHandle<mirror::Class> klass, size_t* class_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool LinkInstanceFields(Handle<mirror::Class> klass)
+  bool LinkInstanceFields(ConstHandle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool LinkFields(Handle<mirror::Class> klass, bool is_static, size_t* class_size)
+  bool LinkFields(ConstHandle<mirror::Class> klass, bool is_static, size_t* class_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void LinkCode(Handle<mirror::ArtMethod> method, const OatFile::OatClass* oat_class,
+  void LinkCode(ConstHandle<mirror::ArtMethod> method, const OatFile::OatClass* oat_class,
                 const DexFile& dex_file, uint32_t dex_method_index, uint32_t method_index)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void CreateReferenceInstanceOffsets(Handle<mirror::Class> klass)
+  void CreateReferenceInstanceOffsets(ConstHandle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void CreateReferenceStaticOffsets(Handle<mirror::Class> klass)
+  void CreateReferenceStaticOffsets(ConstHandle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void CreateReferenceOffsets(Handle<mirror::Class> klass, bool is_static,
+  void CreateReferenceOffsets(ConstHandle<mirror::Class> klass, bool is_static,
                               uint32_t reference_offsets)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -617,11 +619,11 @@ class ClassLinker {
   bool VerifyOatWithDexFile(const OatFile* oat_file, const char* dex_location,
                             std::string* error_msg);
 
-  mirror::ArtMethod* CreateProxyConstructor(Thread* self, Handle<mirror::Class> klass,
+  mirror::ArtMethod* CreateProxyConstructor(Thread* self, ConstHandle<mirror::Class> klass,
                                             mirror::Class* proxy_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::ArtMethod* CreateProxyMethod(Thread* self, Handle<mirror::Class> klass,
-                                       Handle<mirror::ArtMethod> prototype)
+  mirror::ArtMethod* CreateProxyMethod(Thread* self, ConstHandle<mirror::Class> klass,
+                                       ConstHandle<mirror::ArtMethod> prototype)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   std::vector<const DexFile*> boot_class_path_;
