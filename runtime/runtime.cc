@@ -594,6 +594,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
                        options->heap_target_utilization_,
                        options->foreground_heap_growth_multiplier_,
                        options->heap_maximum_size_,
+                       options->heap_non_moving_space_capacity_,
                        options->image_,
                        options->image_isa_,
                        options->collector_type_,

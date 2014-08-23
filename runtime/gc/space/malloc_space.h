@@ -133,6 +133,10 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
     return can_move_objects_;
   }
 
+  void DisableMovingObjects() {
+    can_move_objects_ = false;
+  }
+
  protected:
   MallocSpace(const std::string& name, MemMap* mem_map, byte* begin, byte* end,
               byte* limit, size_t growth_limit, bool create_bitmaps, bool can_move_objects,
@@ -175,7 +179,7 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   size_t growth_limit_;
 
   // True if objects in the space are movable.
-  const bool can_move_objects_;
+  bool can_move_objects_;
 
   // Starting and initial sized, used when you reset the space.
   const size_t starting_size_;
