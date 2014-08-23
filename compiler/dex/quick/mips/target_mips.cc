@@ -20,6 +20,7 @@
 
 #include <string>
 
+#include "backend_mips.h"
 #include "dex/compiler_internals.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "mips_lir.h"

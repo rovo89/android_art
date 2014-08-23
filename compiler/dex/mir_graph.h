@@ -19,9 +19,10 @@
 
 #include <stdint.h>
 
+#include "compiler_ir.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
-#include "compiler_ir.h"
+#include "driver/dex_compilation_unit.h"
 #include "invoke_type.h"
 #include "mir_field_info.h"
 #include "mir_method_info.h"

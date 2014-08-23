@@ -20,6 +20,7 @@
 
 #include <string>
 
+#include "backend_arm64.h"
 #include "dex/compiler_internals.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2014 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DEX_COMPILER_INTERNALS_H_
-#define ART_COMPILER_DEX_COMPILER_INTERNALS_H_
+#ifndef ART_COMPILER_DEX_QUICK_QUICK_COMPILER_H_
+#define ART_COMPILER_DEX_QUICK_QUICK_COMPILER_H_
 
-#include <assert.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
+namespace art {
 
-#include "base/logging.h"
-#include "mir_graph.h"
-#include "compiler_ir.h"
-#include "frontend.h"  // Debug flags.
-#include "utils.h"
+class Compiler;
+class CompilerDriver;
 
-#endif  // ART_COMPILER_DEX_COMPILER_INTERNALS_H_
+Compiler* CreateQuickCompiler(CompilerDriver* driver);
+
+}  // namespace art
+
+#endif  // ART_COMPILER_DEX_QUICK_QUICK_COMPILER_H_

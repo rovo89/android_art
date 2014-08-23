@@ -14,18 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DEX_COMPILER_INTERNALS_H_
-#define ART_COMPILER_DEX_COMPILER_INTERNALS_H_
+#ifndef ART_COMPILER_JNI_QUICK_JNI_COMPILER_H_
+#define ART_COMPILER_JNI_QUICK_JNI_COMPILER_H_
 
-#include <assert.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
+#include "dex_file.h"
 
-#include "base/logging.h"
-#include "mir_graph.h"
-#include "compiler_ir.h"
-#include "frontend.h"  // Debug flags.
-#include "utils.h"
+namespace art {
 
-#endif  // ART_COMPILER_DEX_COMPILER_INTERNALS_H_
+class CompilerDriver;
+class CompiledMethod;
+
+CompiledMethod* ArtQuickJniCompileMethod(CompilerDriver* compiler, uint32_t access_flags,
+                                         uint32_t method_idx, const DexFile& dex_file);
+
+}  // namespace art
+
+#endif  // ART_COMPILER_JNI_QUICK_JNI_COMPILER_H_
