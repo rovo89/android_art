@@ -17,6 +17,7 @@
 #include <string>
 #include <inttypes.h>
 
+#include "backend_x86.h"
 #include "codegen_x86.h"
 #include "dex/compiler_internals.h"
 #include "dex/quick/mir_to_lir-inl.h"

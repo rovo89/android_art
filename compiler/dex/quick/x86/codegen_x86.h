@@ -18,6 +18,7 @@
 #define ART_COMPILER_DEX_QUICK_X86_CODEGEN_X86_H_
 
 #include "dex/compiler_internals.h"
+#include "dex/quick/mir_to_lir.h"
 #include "x86_lir.h"
 
 #include <map>

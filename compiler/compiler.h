@@ -26,12 +26,18 @@ class Backend;
 struct CompilationUnit;
 class CompilerDriver;
 class CompiledMethod;
-class MIRGraph;
 class OatWriter;
 
 namespace mirror {
   class ArtMethod;
 }
+
+// Base class for compiler-specific thread-local storage for compiler worker threads
+class CompilerTls {
+  public:
+    CompilerTls() {}
+    ~CompilerTls() {}
+};
 
 class Compiler {
  public:
@@ -46,6 +52,9 @@ class Compiler {
   virtual void Init() const = 0;
 
   virtual void UnInit() const = 0;
+
+  virtual bool CanCompileMethod(uint32_t method_idx, const DexFile& dex_file, CompilationUnit* cu)
+      const = 0;
 
   virtual CompiledMethod* Compile(const DexFile::CodeItem* code_item,
                                   uint32_t access_flags,
@@ -106,6 +115,10 @@ class Compiler {
    */
   virtual std::vector<uint8_t>* GetCallFrameInformationInitialization(const CompilerDriver& driver)
       const {
+    return nullptr;
+  }
+
+  virtual CompilerTls* CreateNewCompilerTls() {
     return nullptr;
   }
 

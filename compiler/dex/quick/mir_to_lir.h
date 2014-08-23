@@ -38,14 +38,6 @@
 
 namespace art {
 
-/*
- * TODO: refactoring pass to move these (and other) typdefs towards usage style of runtime to
- * add type safety (see runtime/offsets.h).
- */
-typedef uint32_t DexOffset;          // Dex offset in code units.
-typedef uint16_t NarrowDexOffset;    // For use in structs, Dex offsets range from 0 .. 0xffff.
-typedef uint32_t CodeOffset;         // Native code offset in bytes.
-
 // Set to 1 to measure cost of suspend check.
 #define NO_SUSPEND 0
 
@@ -186,16 +178,6 @@ struct LIR {
   } u;
   int32_t operands[5];           // [0..4] = [dest, src1, src2, extra, extra2].
 };
-
-// Target-specific initialization.
-Mir2Lir* ArmCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
-                          ArenaAllocator* const arena);
-Mir2Lir* Arm64CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
-                            ArenaAllocator* const arena);
-Mir2Lir* MipsCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
-                          ArenaAllocator* const arena);
-Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
-                          ArenaAllocator* const arena);
 
 // Utility macros to traverse the LIR list.
 #define NEXT_LIR(lir) (lir->next)

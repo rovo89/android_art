@@ -141,7 +141,7 @@ CompileDexMethod(DexCompilationUnit* dex_compilation_unit, InvokeType invoke_typ
   cunit->SetDexCompilationUnit(dex_compilation_unit);
   cunit->SetCompilerDriver(compiler_driver_);
   // TODO: consolidate ArtCompileMethods
-  CompileOneMethod(*compiler_driver_,
+  CompileOneMethod(compiler_driver_,
                    compiler_driver_->GetCompiler(),
                    dex_compilation_unit->GetCodeItem(),
                    dex_compilation_unit->GetAccessFlags(),
@@ -172,68 +172,62 @@ CompileNativeMethod(DexCompilationUnit* dex_compilation_unit) {
 }
 
 
-}  // namespace llvm
-}  // namespace art
-
-static art::llvm::CompilerLLVM* ContextOf(art::CompilerDriver* driver) {
+static CompilerLLVM* ContextOf(art::CompilerDriver* driver) {
   void *compiler_context = driver->GetCompilerContext();
   CHECK(compiler_context != NULL);
-  return reinterpret_cast<art::llvm::CompilerLLVM*>(compiler_context);
+  return reinterpret_cast<CompilerLLVM*>(compiler_context);
 }
 
-static art::llvm::CompilerLLVM* ContextOf(const art::CompilerDriver& driver) {
+static CompilerLLVM* ContextOf(const art::CompilerDriver& driver) {
   void *compiler_context = driver.GetCompilerContext();
   CHECK(compiler_context != NULL);
-  return reinterpret_cast<art::llvm::CompilerLLVM*>(compiler_context);
+  return reinterpret_cast<CompilerLLVM*>(compiler_context);
 }
 
-extern "C" void ArtInitCompilerContext(art::CompilerDriver* driver) {
+void ArtInitCompilerContext(CompilerDriver* driver) {
   CHECK(driver->GetCompilerContext() == nullptr);
 
-  art::llvm::CompilerLLVM* compiler_llvm = new art::llvm::CompilerLLVM(driver,
-                                                                       driver->GetInstructionSet());
+  CompilerLLVM* compiler_llvm = new CompilerLLVM(driver, driver->GetInstructionSet());
 
   driver->SetCompilerContext(compiler_llvm);
 }
 
-extern "C" void ArtUnInitCompilerContext(art::CompilerDriver* driver) {
+void ArtUnInitCompilerContext(CompilerDriver* driver) {
   delete ContextOf(driver);
   driver->SetCompilerContext(nullptr);
 }
-extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver* driver,
-                                                 const art::DexFile::CodeItem* code_item,
-                                                 uint32_t access_flags,
-                                                 art::InvokeType invoke_type,
-                                                 uint16_t class_def_idx,
-                                                 uint32_t method_idx,
-                                                 jobject class_loader,
-                                                 const art::DexFile& dex_file) {
+
+CompiledMethod* ArtCompileMethod(CompilerDriver* driver, const DexFile::CodeItem* code_item,
+                                 uint32_t access_flags, InvokeType invoke_type,
+                                 uint16_t class_def_idx, uint32_t method_idx, jobject class_loader,
+                                 const DexFile& dex_file) {
   UNUSED(class_def_idx);  // TODO: this is used with Compiler::RequiresConstructorBarrier.
-  art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
+  ClassLinker *class_linker = Runtime::Current()->GetClassLinker();
 
-  art::DexCompilationUnit dex_compilation_unit(
-    NULL, class_loader, class_linker, dex_file, code_item,
-    class_def_idx, method_idx, access_flags, driver->GetVerifiedMethod(&dex_file, method_idx));
-  art::llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);
-  art::CompiledMethod* result = compiler_llvm->CompileDexMethod(&dex_compilation_unit, invoke_type);
+  DexCompilationUnit dex_compilation_unit(nullptr, class_loader, class_linker, dex_file, code_item,
+                                          class_def_idx, method_idx, access_flags,
+                                          driver->GetVerifiedMethod(&dex_file, method_idx));
+  CompilerLLVM* compiler_llvm = ContextOf(driver);
+  CompiledMethod* result = compiler_llvm->CompileDexMethod(&dex_compilation_unit, invoke_type);
   return result;
 }
 
-extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver* driver,
-                                                        uint32_t access_flags, uint32_t method_idx,
-                                                        const art::DexFile& dex_file) {
-  art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
+CompiledMethod* ArtLLVMJniCompileMethod(CompilerDriver* driver, uint32_t access_flags,
+                                        uint32_t method_idx, const DexFile& dex_file) {
+  ClassLinker *class_linker = Runtime::Current()->GetClassLinker();
 
-  art::DexCompilationUnit dex_compilation_unit(
-      nullptr, nullptr, class_linker, dex_file, nullptr,
-      0, method_idx, access_flags, nullptr);
+  DexCompilationUnit dex_compilation_unit(nullptr, nullptr, class_linker, dex_file, nullptr,
+                                          0, method_idx, access_flags, nullptr);
 
-  art::llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);
-  art::CompiledMethod* result = compiler_llvm->CompileNativeMethod(&dex_compilation_unit);
+  CompilerLLVM* compiler_llvm = ContextOf(driver);
+  CompiledMethod* result = compiler_llvm->CompileNativeMethod(&dex_compilation_unit);
   return result;
 }
 
-extern "C" void compilerLLVMSetBitcodeFileName(const art::CompilerDriver& driver,
-                                               const std::string& filename) {
+void compilerLLVMSetBitcodeFileName(const CompilerDriver& driver, const std::string& filename) {
   ContextOf(driver)->SetBitcodeFileName(filename);
 }
+
+}  // namespace llvm
+}  // namespace art
+

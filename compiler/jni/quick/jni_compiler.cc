@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "jni_compiler.h"
+
 #include <algorithm>
 #include <memory>
 #include <vector>
@@ -546,10 +548,9 @@ static void SetNativeParameter(Assembler* jni_asm,
   }
 }
 
-}  // namespace art
-
-extern "C" art::CompiledMethod* ArtQuickJniCompileMethod(art::CompilerDriver* compiler,
-                                                         uint32_t access_flags, uint32_t method_idx,
-                                                         const art::DexFile& dex_file) {
+CompiledMethod* ArtQuickJniCompileMethod(CompilerDriver* compiler, uint32_t access_flags,
+                                         uint32_t method_idx, const DexFile& dex_file) {
   return ArtJniCompileMethodInternal(compiler, access_flags, method_idx, dex_file);
 }
+
+}  // namespace art

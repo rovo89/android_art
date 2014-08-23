@@ -19,6 +19,7 @@
 #include <vector>
 #include <set>
 
+#include "class_linker.h"
 #include "elf_file.h"
 #include "elf_utils.h"
 #include "mirror/art_field-inl.h"
