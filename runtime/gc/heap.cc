@@ -513,7 +513,7 @@ void Heap::DisableMovingGc() {
   ScopedThreadStateChange tsc(self, kSuspended);
   tl->SuspendAll();
   // Something may have caused the transition to fail.
-  if (!IsMovingGc(foreground_collector_type_) && non_moving_space_ != main_space_) {
+  if (!IsMovingGc(collector_type_) && non_moving_space_ != main_space_) {
     CHECK(main_space_ != nullptr);
     // The allocation stack may have non movable objects in it. We need to flush it since the GC
     // can't only handle marking allocation stack objects of one non moving space and one main
@@ -1614,9 +1614,6 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   Thread* const self = Thread::Current();
   ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
-  // Currently we only need a heap transition if we switch from a moving collector to a non moving
-  // one, or visa versa.
-  const bool copying_transition = IsMovingGc(collector_type_) != IsMovingGc(collector_type);
   // Busy wait until we can GC (StartGC can fail if we have a non-zero
   // compacting_gc_disable_count_, this should rarely occurs).
   for (;;) {
@@ -1625,6 +1622,9 @@ void Heap::TransitionCollector(CollectorType collector_type) {
       MutexLock mu(self, *gc_complete_lock_);
       // Ensure there is only one GC at a time.
       WaitForGcToCompleteLocked(kGcCauseCollectorTransition, self);
+      // Currently we only need a heap transition if we switch from a moving collector to a
+      // non-moving one, or visa versa.
+      const bool copying_transition = IsMovingGc(collector_type_) != IsMovingGc(collector_type);
       // If someone else beat us to it and changed the collector before we could, exit.
       // This is safe to do before the suspend all since we set the collector_type_running_ before
       // we exit the loop. If another thread attempts to do the heap transition before we exit,
