@@ -134,6 +134,7 @@ class Heap {
   static constexpr size_t kDefaultStartingSize = kPageSize;
   static constexpr size_t kDefaultInitialSize = 2 * MB;
   static constexpr size_t kDefaultMaximumSize = 256 * MB;
+  static constexpr size_t kDefaultNonMovingSpaceCapacity = 64 * MB;
   static constexpr size_t kDefaultMaxFree = 2 * MB;
   static constexpr size_t kDefaultMinFree = kDefaultMaxFree / 4;
   static constexpr size_t kDefaultLongPauseLogThreshold = MsToNs(5);
@@ -156,6 +157,7 @@ class Heap {
   explicit Heap(size_t initial_size, size_t growth_limit, size_t min_free,
                 size_t max_free, double target_utilization,
                 double foreground_heap_growth_multiplier, size_t capacity,
+                size_t non_moving_space_capacity,
                 const std::string& original_image_file_name,
                 InstructionSet image_instruction_set,
                 CollectorType foreground_collector_type, CollectorType background_collector_type,
@@ -255,7 +257,7 @@ class Heap {
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Returns true if there is any chance that the object (obj) will move.
-  bool IsMovableObject(const mirror::Object* obj) const;
+  bool IsMovableObject(const mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Enables us to compacting GC until objects are released.
   void IncrementDisableMovingGC(Thread* self);
@@ -514,8 +516,8 @@ class Heap {
   // Assumes there is only one image space.
   space::ImageSpace* GetImageSpace() const;
 
-  // Permenantly disable compaction.
-  void DisableCompaction();
+  // Permenantly disable moving garbage collection.
+  void DisableMovingGc();
 
   space::DlMallocSpace* GetDlMallocSpace() const {
     return dlmalloc_space_;
