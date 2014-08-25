@@ -195,10 +195,13 @@ ClassLinker::ClassLinker(InternTable* intern_table)
 
 // To set a value for generic JNI. May be necessary in compiler tests.
 extern "C" void art_quick_generic_jni_trampoline(mirror::ArtMethod*);
+extern "C" void art_quick_resolution_trampoline(mirror::ArtMethod*);
+extern "C" void art_quick_imt_conflict_trampoline(mirror::ArtMethod*);
+extern "C" void art_quick_to_interpreter_bridge(mirror::ArtMethod*);
 
-void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class_path) {
+void ClassLinker::InitWithoutImage(const std::vector<const DexFile*>& boot_class_path) {
   VLOG(startup) << "ClassLinker::Init";
-  CHECK(Runtime::Current()->IsCompiler());
+  CHECK(!Runtime::Current()->GetHeap()->HasImageSpace()) << "Runtime has image. We should use it.";
 
   CHECK(!init_done_);
 
@@ -370,6 +373,12 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   // Set up GenericJNI entrypoint. That is mainly a hack for common_compiler_test.h so that
   // we do not need friend classes or a publicly exposed setter.
   quick_generic_jni_trampoline_ = reinterpret_cast<void*>(art_quick_generic_jni_trampoline);
+  if (!runtime->IsCompiler()) {
+    // We need to set up the generic trampolines since we don't have an image.
+    quick_resolution_trampoline_ = reinterpret_cast<void*>(art_quick_resolution_trampoline);
+    quick_imt_conflict_trampoline_ = reinterpret_cast<void*>(art_quick_imt_conflict_trampoline);
+    quick_to_interpreter_bridge_trampoline_ = reinterpret_cast<void*>(art_quick_to_interpreter_bridge);
+  }
 
   // Object, String and DexCache need to be rerun through FindSystemClass to finish init
   java_lang_Object->SetStatus(mirror::Class::kStatusNotReady, self);
@@ -589,6 +598,13 @@ bool ClassLinker::GenerateOatFile(const char* dex_filename,
 
   gc::Heap* heap = Runtime::Current()->GetHeap();
   std::string boot_image_option("--boot-image=");
+  if (heap->GetImageSpace() == nullptr) {
+    // TODO If we get a dex2dex compiler working we could maybe use that, OTOH since we are likely
+    // out of space anyway it might not matter.
+    *error_msg = StringPrintf("Cannot create oat file for '%s' because we are running "
+                              "without an image.", dex_filename);
+    return false;
+  }
   boot_image_option += heap->GetImageSpace()->GetImageLocation();
 
   std::string dex_file_option("--dex-file=");
@@ -879,16 +895,17 @@ bool ClassLinker::OpenDexFilesFromOat(const char* dex_location, const char* oat_
     oat_location = cache_location.c_str();
   }
 
+  bool has_flock = true;
   // Definitely need to lock now.
   if (!scoped_flock.HasFile()) {
     std::string error_msg;
     if (!scoped_flock.Init(oat_location, &error_msg)) {
       error_msgs->push_back(error_msg);
-      return false;
+      has_flock = false;
     }
   }
 
-  if (Runtime::Current()->IsDex2OatEnabled()) {
+  if (Runtime::Current()->IsDex2OatEnabled() && has_flock && scoped_flock.HasFile()) {
     // Create the oat file.
     open_oat_file.reset(CreateOatFileForDexLocation(dex_location, scoped_flock.GetFile()->Fd(),
                                                     oat_location, error_msgs));
@@ -1003,6 +1020,9 @@ bool ClassLinker::VerifyOatImageChecksum(const OatFile* oat_file,
                                          const InstructionSet instruction_set) {
   Runtime* runtime = Runtime::Current();
   const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+  if (image_space == nullptr) {
+    return false;
+  }
   uint32_t image_oat_checksum = 0;
   if (instruction_set == kRuntimeISA) {
     const ImageHeader& image_header = image_space->GetImageHeader();
@@ -1020,6 +1040,10 @@ bool ClassLinker::VerifyOatChecksums(const OatFile* oat_file,
                                      std::string* error_msg) {
   Runtime* runtime = Runtime::Current();
   const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+  if (image_space == nullptr) {
+    *error_msg = "No image space for verification against";
+    return false;
+  }
 
   // If the requested instruction set is the same as the current runtime,
   // we can use the checksums directly. If it isn't, we'll have to read the
@@ -1270,13 +1294,15 @@ const OatFile* ClassLinker::OpenOatFileFromDexLocation(const std::string& dex_lo
   std::string error_msg;
   if (runtime->CanRelocate()) {
     // Run relocation
-    const std::string& image_location =
-        Runtime::Current()->GetHeap()->GetImageSpace()->GetImageLocation();
-    if (odex_checksum_verified && should_patch_system) {
-      ret = PatchAndRetrieveOat(odex_filename, cache_filename, image_location, isa, &error_msg);
-    } else if (cache_checksum_verified && should_patch_cache) {
-      CHECK(have_dalvik_cache);
-      ret = PatchAndRetrieveOat(cache_filename, cache_filename, image_location, isa, &error_msg);
+    gc::space::ImageSpace* space = Runtime::Current()->GetHeap()->GetImageSpace();
+    if (space != nullptr) {
+      const std::string& image_location = space->GetImageLocation();
+      if (odex_checksum_verified && should_patch_system) {
+        ret = PatchAndRetrieveOat(odex_filename, cache_filename, image_location, isa, &error_msg);
+      } else if (cache_checksum_verified && should_patch_cache) {
+        CHECK(have_dalvik_cache);
+        ret = PatchAndRetrieveOat(cache_filename, cache_filename, image_location, isa, &error_msg);
+      }
     }
   }
   if (ret == nullptr && have_dalvik_cache && OS::FileExists(cache_filename.c_str())) {
@@ -1340,6 +1366,12 @@ const OatFile* ClassLinker::PatchAndRetrieveOat(const std::string& input_oat,
                                                 const std::string& image_location,
                                                 InstructionSet isa,
                                                 std::string* error_msg) {
+  if (!Runtime::Current()->GetHeap()->HasImageSpace()) {
+    // We don't have an image space so there is no point in trying to patchoat.
+    LOG(WARNING) << "Patching of oat file '" << input_oat << "' not attempted because we are "
+                 << "running without an image. Attempting to use oat file for interpretation.";
+    return GetInterpretedOnlyOat(input_oat, isa, error_msg);
+  }
   if (!Runtime::Current()->IsDex2OatEnabled()) {
     // We don't have dex2oat so we can assume we don't have patchoat either. We should just use the
     // input_oat but make sure we only do interpretation on it's dex files.
@@ -1402,6 +1434,7 @@ int32_t ClassLinker::GetRequiredDelta(const OatFile* oat_file, InstructionSet is
   Runtime* runtime = Runtime::Current();
   int32_t real_patch_delta;
   const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+  CHECK(image_space != nullptr);
   if (isa == Runtime::Current()->GetInstructionSet()) {
     const ImageHeader& image_header = image_space->GetImageHeader();
     real_patch_delta = image_header.GetPatchDelta();
@@ -1423,6 +1456,10 @@ bool ClassLinker::CheckOatFile(const OatFile* oat_file, InstructionSet isa,
   void* real_image_oat_offset;
   int32_t real_patch_delta;
   const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+  if (image_space == nullptr) {
+    *error_msg = "No image space present";
+    return false;
+  }
   if (isa == Runtime::Current()->GetInstructionSet()) {
     const ImageHeader& image_header = image_space->GetImageHeader();
     real_image_checksum = image_header.GetOatChecksum();
@@ -2275,8 +2312,11 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
   }
   Runtime* runtime = Runtime::Current();
   if (!runtime->IsStarted() || runtime->UseCompileTimeClassPath()) {
-    return;  // OAT file unavailable.
+    if (runtime->IsCompiler() || runtime->GetHeap()->HasImageSpace()) {
+      return;  // OAT file unavailable.
+    }
   }
+
   const DexFile& dex_file = klass->GetDexFile();
   const DexFile::ClassDef* dex_class_def = klass->GetClassDef();
   CHECK(dex_class_def != nullptr);
