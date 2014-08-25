@@ -31,12 +31,12 @@ static unsigned int Predecessors(BasicBlock* bb) {
 }
 
 /* Setup a constant value for opcodes thare have the DF_SETS_CONST attribute */
-void MIRGraph::SetConstant(int32_t ssa_reg, int value) {
+void MIRGraph::SetConstant(int32_t ssa_reg, int32_t value) {
   is_constant_v_->SetBit(ssa_reg);
   constant_values_[ssa_reg] = value;
 }
 
-void MIRGraph::SetConstantWide(int ssa_reg, int64_t value) {
+void MIRGraph::SetConstantWide(int32_t ssa_reg, int64_t value) {
   is_constant_v_->SetBit(ssa_reg);
   is_constant_v_->SetBit(ssa_reg + 1);
   constant_values_[ssa_reg] = Low32Bits(value);

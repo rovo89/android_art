@@ -724,11 +724,38 @@ class MIRGraph {
     return constant_values_[s_reg];
   }
 
+  /**
+   * @brief Used to obtain 64-bit value of a pair of ssa registers.
+   * @param s_reg_low The ssa register representing the low bits.
+   * @param s_reg_high The ssa register representing the high bits.
+   * @return Retusn the 64-bit constant value.
+   */
+  int64_t ConstantValueWide(int32_t s_reg_low, int32_t s_reg_high) const {
+    DCHECK(IsConst(s_reg_low));
+    DCHECK(IsConst(s_reg_high));
+    return (static_cast<int64_t>(constant_values_[s_reg_high]) << 32) |
+        Low32Bits(static_cast<int64_t>(constant_values_[s_reg_low]));
+  }
+
   int64_t ConstantValueWide(RegLocation loc) const {
     DCHECK(IsConst(loc));
     return (static_cast<int64_t>(constant_values_[loc.orig_sreg + 1]) << 32) |
         Low32Bits(static_cast<int64_t>(constant_values_[loc.orig_sreg]));
   }
+
+  /**
+   * @brief Used to mark ssa register as being constant.
+   * @param ssa_reg The ssa register.
+   * @param value The constant value of ssa register.
+   */
+  void SetConstant(int32_t ssa_reg, int32_t value);
+
+  /**
+   * @brief Used to mark ssa register and its wide counter-part as being constant.
+   * @param ssa_reg The ssa register.
+   * @param value The 64-bit constant value of ssa register and its pair.
+   */
+  void SetConstantWide(int32_t ssa_reg, int64_t value);
 
   bool IsConstantNullRef(RegLocation loc) const {
     return loc.ref && loc.is_const && (ConstantValue(loc) == 0);
@@ -1114,8 +1141,6 @@ class MIRGraph {
   void MarkPreOrder(BasicBlock* bb);
   void RecordDFSOrders(BasicBlock* bb);
   void ComputeDomPostOrderTraversal(BasicBlock* bb);
-  void SetConstant(int32_t ssa_reg, int value);
-  void SetConstantWide(int ssa_reg, int64_t value);
   int GetSSAUseCount(int s_reg);
   bool BasicBlockOpt(BasicBlock* bb);
   bool BuildExtendedBBList(struct BasicBlock* bb);
