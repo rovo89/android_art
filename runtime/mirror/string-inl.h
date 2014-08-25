@@ -29,7 +29,7 @@ namespace mirror {
 
 inline uint32_t String::ClassSize() {
   uint32_t vtable_entries = Object::kVTableLength + 51;
-  return Class::ComputeClassSize(true, vtable_entries, 1, 1, 2);
+  return Class::ComputeClassSize(true, vtable_entries, 0, 1, 0, 1, 2);
 }
 
 inline CharArray* String::GetCharArray() {

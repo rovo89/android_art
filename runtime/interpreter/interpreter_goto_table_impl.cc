@@ -1369,6 +1369,30 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   }
   HANDLE_INSTRUCTION_END();
 
+  HANDLE_INSTRUCTION_START(IPUT_BOOLEAN_QUICK) {
+    bool success = DoIPutQuick<Primitive::kPrimBoolean, transaction_active>(shadow_frame, inst, inst_data);
+    POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
+  }
+  HANDLE_INSTRUCTION_END();
+
+  HANDLE_INSTRUCTION_START(IPUT_BYTE_QUICK) {
+    bool success = DoIPutQuick<Primitive::kPrimByte, transaction_active>(shadow_frame, inst, inst_data);
+    POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
+  }
+  HANDLE_INSTRUCTION_END();
+
+  HANDLE_INSTRUCTION_START(IPUT_CHAR_QUICK) {
+    bool success = DoIPutQuick<Primitive::kPrimChar, transaction_active>(shadow_frame, inst, inst_data);
+    POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
+  }
+  HANDLE_INSTRUCTION_END();
+
+  HANDLE_INSTRUCTION_START(IPUT_SHORT_QUICK) {
+    bool success = DoIPutQuick<Primitive::kPrimShort, transaction_active>(shadow_frame, inst, inst_data);
+    POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
+  }
+  HANDLE_INSTRUCTION_END();
+
   HANDLE_INSTRUCTION_START(IPUT_WIDE_QUICK) {
     bool success = DoIPutQuick<Primitive::kPrimLong, transaction_active>(shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
@@ -2301,22 +2325,6 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_7A)
-    UnexpectedOpcode(inst, mh);
-  HANDLE_INSTRUCTION_END();
-
-  HANDLE_INSTRUCTION_START(UNUSED_EB)
-    UnexpectedOpcode(inst, mh);
-  HANDLE_INSTRUCTION_END();
-
-  HANDLE_INSTRUCTION_START(UNUSED_EC)
-    UnexpectedOpcode(inst, mh);
-  HANDLE_INSTRUCTION_END();
-
-  HANDLE_INSTRUCTION_START(UNUSED_ED)
-    UnexpectedOpcode(inst, mh);
-  HANDLE_INSTRUCTION_END();
-
-  HANDLE_INSTRUCTION_START(UNUSED_EE)
     UnexpectedOpcode(inst, mh);
   HANDLE_INSTRUCTION_END();
 

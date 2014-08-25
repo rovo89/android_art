@@ -29,7 +29,7 @@ namespace mirror {
 
 inline uint32_t Array::ClassSize() {
   uint32_t vtable_entries = Object::kVTableLength;
-  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0);
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0);
 }
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>

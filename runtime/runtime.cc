@@ -1207,6 +1207,34 @@ void Runtime::ExitTransactionMode() {
   preinitialization_transaction_ = nullptr;
 }
 
+void Runtime::RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset,
+                                      uint8_t value, bool is_volatile) const {
+  DCHECK(IsCompiler());
+  DCHECK(IsActiveTransaction());
+  preinitialization_transaction_->RecordWriteFieldBoolean(obj, field_offset, value, is_volatile);
+}
+
+void Runtime::RecordWriteFieldByte(mirror::Object* obj, MemberOffset field_offset,
+                                   int8_t value, bool is_volatile) const {
+  DCHECK(IsCompiler());
+  DCHECK(IsActiveTransaction());
+  preinitialization_transaction_->RecordWriteFieldByte(obj, field_offset, value, is_volatile);
+}
+
+void Runtime::RecordWriteFieldChar(mirror::Object* obj, MemberOffset field_offset,
+                                   uint16_t value, bool is_volatile) const {
+  DCHECK(IsCompiler());
+  DCHECK(IsActiveTransaction());
+  preinitialization_transaction_->RecordWriteFieldChar(obj, field_offset, value, is_volatile);
+}
+
+void Runtime::RecordWriteFieldShort(mirror::Object* obj, MemberOffset field_offset,
+                                    int16_t value, bool is_volatile) const {
+  DCHECK(IsCompiler());
+  DCHECK(IsActiveTransaction());
+  preinitialization_transaction_->RecordWriteFieldShort(obj, field_offset, value, is_volatile);
+}
+
 void Runtime::RecordWriteField32(mirror::Object* obj, MemberOffset field_offset,
                                  uint32_t value, bool is_volatile) const {
   DCHECK(IsCompiler());

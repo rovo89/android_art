@@ -84,10 +84,6 @@ class Primitive {
     }
   }
 
-  static size_t FieldSize(Type type) {
-    return ComponentSize(type) <= 4 ? 4 : 8;
-  }
-
   static const char* Descriptor(Type type) {
     switch (type) {
       case kPrimBoolean:
