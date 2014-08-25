@@ -25,7 +25,8 @@ LIBARTTEST_COMMON_SRC_FILES := \
   004-StackWalk/stack_walk_jni.cc \
   004-UnsafeTest/unsafe_test.cc \
   116-nodex2oat/nodex2oat.cc \
-  117-nopatchoat/nopatchoat.cc
+  117-nopatchoat/nopatchoat.cc \
+  118-noimage-dex2oat/noimage-dex2oat.cc
 
 ART_TARGET_LIBARTTEST_$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttest.so
 ifdef TARGET_2ND_ARCH
