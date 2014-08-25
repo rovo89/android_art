@@ -2629,6 +2629,18 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::IPUT_QUICK:
       VerifyIPutQuick(inst, reg_types_.Integer(), true);
       break;
+    case Instruction::IPUT_BOOLEAN_QUICK:
+        VerifyIPutQuick(inst, reg_types_.Boolean(), true);
+      break;
+    case Instruction::IPUT_BYTE_QUICK:
+        VerifyIPutQuick(inst, reg_types_.Byte(), true);
+      break;
+    case Instruction::IPUT_CHAR_QUICK:
+        VerifyIPutQuick(inst, reg_types_.Char(), true);
+      break;
+    case Instruction::IPUT_SHORT_QUICK:
+        VerifyIPutQuick(inst, reg_types_.Short(), true);
+      break;
     case Instruction::IPUT_WIDE_QUICK:
       VerifyIPutQuick(inst, reg_types_.LongLo(), true);
       break;
@@ -2661,10 +2673,6 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::UNUSED_43:
     case Instruction::UNUSED_79:
     case Instruction::UNUSED_7A:
-    case Instruction::UNUSED_EB:
-    case Instruction::UNUSED_EC:
-    case Instruction::UNUSED_ED:
-    case Instruction::UNUSED_EE:
     case Instruction::UNUSED_EF:
     case Instruction::UNUSED_F0:
     case Instruction::UNUSED_F1:

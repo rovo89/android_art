@@ -203,6 +203,77 @@ ENTRY \c_name
 END \c_name
 .endm
 
+.macro  RETURN_OR_DELIVER_PENDING_EXCEPTION_REG reg
+    ldr \reg, [r9, #THREAD_EXCEPTION_OFFSET]   // Get exception field.
+    cbnz \reg, 1f
+    bx lr
+1:
+    DELIVER_PENDING_EXCEPTION
+.endm
+
+.macro  RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+    RETURN_OR_DELIVER_PENDING_EXCEPTION_REG r1
+.endm
+
+.macro RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
+    RETURN_IF_RESULT_IS_ZERO
+    DELIVER_PENDING_EXCEPTION
+.endm
+
+// Macros taking opportunity of code similarities for downcalls with referrer for non-wide fields.
+.macro  ONE_ARG_REF_DOWNCALL name, entrypoint, return
+    .extern \entrypoint
+ENTRY \name
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    ldr    r1, [sp, #32]                 @ pass referrer
+    mov    r2, r9                        @ pass Thread::Current
+    mov    r3, sp                        @ pass SP
+    bl     \entrypoint                   @ (uint32_t field_idx, const Method* referrer, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    \return
+END \name
+.endm
+
+.macro  TWO_ARG_REF_DOWNCALL name, entrypoint, return
+    .extern \entrypoint
+ENTRY \name
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    ldr    r2, [sp, #32]                 @ pass referrer
+    mov    r3, r9                        @ pass Thread::Current
+    mov    r12, sp
+    str    r12, [sp, #-16]!              @ expand the frame and pass SP
+    .pad #16
+    .cfi_adjust_cfa_offset 16
+    bl     \entrypoint                   @ (field_idx, Object*, referrer, Thread*, SP)
+    add    sp, #16                       @ strip the extra frame
+    .cfi_adjust_cfa_offset -16
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    \return
+END \name
+.endm
+
+.macro  THREE_ARG_REF_DOWNCALL name, entrypoint, return
+    .extern \entrypoint
+ENTRY \name
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    ldr    r3, [sp, #32]                 @ pass referrer
+    mov    r12, sp                       @ save SP
+    sub    sp, #8                        @ grow frame for alignment with stack args
+    .pad #8
+    .cfi_adjust_cfa_offset 8
+    push   {r9, r12}                     @ pass Thread::Current and SP
+    .save {r9, r12}
+    .cfi_adjust_cfa_offset 8
+    .cfi_rel_offset r9, 0
+    .cfi_rel_offset r12, 4
+    bl     \entrypoint                   @ (field_idx, Object*, new_val, referrer, Thread*, SP)
+    add    sp, #16                       @ release out args
+    .cfi_adjust_cfa_offset -16
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME   @ TODO: we can clearly save an add here
+    \return
+END \name
+.endm
+
     /*
      * Called by managed code, saves callee saves and then calls artThrowException
      * that will place a mock Method* at the bottom of the stack. Arg1 holds the exception.
@@ -601,23 +672,14 @@ ENTRY art_quick_initialize_type_and_verify_access
 END art_quick_initialize_type_and_verify_access
 
     /*
-     * Called by managed code to resolve a static field and load a 32-bit primitive value.
+     * Called by managed code to resolve a static field and load a non-wide value.
      */
-    .extern artGet32StaticFromCode
-ENTRY art_quick_get32_static
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    ldr    r1, [sp, #32]                 @ pass referrer
-    mov    r2, r9                        @ pass Thread::Current
-    mov    r3, sp                        @ pass SP
-    bl     artGet32StaticFromCode        @ (uint32_t field_idx, const Method* referrer, Thread*, SP)
-    ldr    r1, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    cbnz   r1, 1f                        @ success if no exception pending
-    bx     lr                            @ return on success
-1:
-    DELIVER_PENDING_EXCEPTION
-END art_quick_get32_static
-
+ONE_ARG_REF_DOWNCALL art_quick_get_byte_static, artGetByteStaticFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+ONE_ARG_REF_DOWNCALL art_quick_get_boolean_static, artGetBooleanStaticFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+ONE_ARG_REF_DOWNCALL art_quick_get_short_static, artGetShortStaticFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+ONE_ARG_REF_DOWNCALL art_quick_get_char_static, artGetCharStaticFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+ONE_ARG_REF_DOWNCALL art_quick_get32_static, artGet32StaticFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+ONE_ARG_REF_DOWNCALL art_quick_get_obj_static, artGetObjStaticFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
     /*
      * Called by managed code to resolve a static field and load a 64-bit primitive value.
      */
@@ -637,43 +699,14 @@ ENTRY art_quick_get64_static
 END art_quick_get64_static
 
     /*
-     * Called by managed code to resolve a static field and load an object reference.
+     * Called by managed code to resolve an instance field and load a non-wide value.
      */
-    .extern artGetObjStaticFromCode
-ENTRY art_quick_get_obj_static
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    ldr    r1, [sp, #32]                 @ pass referrer
-    mov    r2, r9                        @ pass Thread::Current
-    mov    r3, sp                        @ pass SP
-    bl     artGetObjStaticFromCode       @ (uint32_t field_idx, const Method* referrer, Thread*, SP)
-    ldr    r1, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    cbnz   r1, 1f                        @ success if no exception pending
-    bx     lr                            @ return on success
-1:
-    DELIVER_PENDING_EXCEPTION
-END art_quick_get_obj_static
-
-    /*
-     * Called by managed code to resolve an instance field and load a 32-bit primitive value.
-     */
-    .extern artGet32InstanceFromCode
-ENTRY art_quick_get32_instance
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    ldr    r2, [sp, #32]                 @ pass referrer
-    mov    r3, r9                        @ pass Thread::Current
-    mov    r12, sp
-    str    r12, [sp, #-16]!              @ expand the frame and pass SP
-    bl     artGet32InstanceFromCode      @ (field_idx, Object*, referrer, Thread*, SP)
-    add    sp, #16                       @ strip the extra frame
-    ldr    r1, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    cbnz   r1, 1f                        @ success if no exception pending
-    bx     lr                            @ return on success
-1:
-    DELIVER_PENDING_EXCEPTION
-END art_quick_get32_instance
-
+TWO_ARG_REF_DOWNCALL art_quick_get_byte_instance, artGetByteInstanceFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+TWO_ARG_REF_DOWNCALL art_quick_get_boolean_instance, artGetBooleanInstanceFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+TWO_ARG_REF_DOWNCALL art_quick_get_short_instance, artGetShortInstanceFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+TWO_ARG_REF_DOWNCALL art_quick_get_char_instance, artGetCharInstanceFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+TWO_ARG_REF_DOWNCALL art_quick_get32_instance, artGet32InstanceFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+TWO_ARG_REF_DOWNCALL art_quick_get_obj_instance, artGetObjInstanceFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
     /*
      * Called by managed code to resolve an instance field and load a 64-bit primitive value.
      */
@@ -698,48 +731,12 @@ ENTRY art_quick_get64_instance
 END art_quick_get64_instance
 
     /*
-     * Called by managed code to resolve an instance field and load an object reference.
+     * Called by managed code to resolve a static field and store a non-wide value.
      */
-    .extern artGetObjInstanceFromCode
-ENTRY art_quick_get_obj_instance
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    ldr    r2, [sp, #32]                 @ pass referrer
-    mov    r3, r9                        @ pass Thread::Current
-    mov    r12, sp
-    str    r12, [sp, #-16]!              @ expand the frame and pass SP
-    .pad #16
-    .cfi_adjust_cfa_offset 16
-    bl     artGetObjInstanceFromCode     @ (field_idx, Object*, referrer, Thread*, SP)
-    add    sp, #16                       @ strip the extra frame
-    .cfi_adjust_cfa_offset -16
-    ldr    r1, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    cbnz   r1, 1f                        @ success if no exception pending
-    bx     lr                            @ return on success
-1:
-    DELIVER_PENDING_EXCEPTION
-END art_quick_get_obj_instance
-
-    /*
-     * Called by managed code to resolve a static field and store a 32-bit primitive value.
-     */
-    .extern artSet32StaticFromCode
-ENTRY art_quick_set32_static
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    ldr    r2, [sp, #32]                 @ pass referrer
-    mov    r3, r9                        @ pass Thread::Current
-    mov    r12, sp
-    str    r12, [sp, #-16]!              @ expand the frame and pass SP
-    .pad #16
-    .cfi_adjust_cfa_offset 16
-    bl     artSet32StaticFromCode        @ (field_idx, new_val, referrer, Thread*, SP)
-    add    sp, #16                       @ strip the extra frame
-    .cfi_adjust_cfa_offset -16
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    RETURN_IF_RESULT_IS_ZERO
-    DELIVER_PENDING_EXCEPTION
-END art_quick_set32_static
-
+TWO_ARG_REF_DOWNCALL art_quick_set8_static, artSet8StaticFromCode, RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
+TWO_ARG_REF_DOWNCALL art_quick_set16_static, artSet16StaticFromCode, RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
+TWO_ARG_REF_DOWNCALL art_quick_set32_static, artSet32StaticFromCode, RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
+TWO_ARG_REF_DOWNCALL art_quick_set_obj_static, artSetObjStaticFromCode, RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
     /*
      * Called by managed code to resolve a static field and store a 64-bit primitive value.
      * On entry r0 holds field index, r1:r2 hold new_val
@@ -767,53 +764,16 @@ ENTRY art_quick_set64_static
 END art_quick_set64_static
 
     /*
-     * Called by managed code to resolve a static field and store an object reference.
+     * Called by managed code to resolve an instance field and store a non-wide value.
      */
-    .extern artSetObjStaticFromCode
-ENTRY art_quick_set_obj_static
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    ldr    r2, [sp, #32]                 @ pass referrer
-    mov    r3, r9                        @ pass Thread::Current
-    mov    r12, sp
-    str    r12, [sp, #-16]!              @ expand the frame and pass SP
-    .pad #16
-    .cfi_adjust_cfa_offset 16
-    bl     artSetObjStaticFromCode       @ (field_idx, new_val, referrer, Thread*, SP)
-    add    sp, #16                       @ strip the extra frame
-    .cfi_adjust_cfa_offset -16
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    RETURN_IF_RESULT_IS_ZERO
-    DELIVER_PENDING_EXCEPTION
-END art_quick_set_obj_static
-
-    /*
-     * Called by managed code to resolve an instance field and store a 32-bit primitive value.
-     */
-    .extern artSet32InstanceFromCode
-ENTRY art_quick_set32_instance
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    ldr    r3, [sp, #32]                 @ pass referrer
-    mov    r12, sp                       @ save SP
-    sub    sp, #8                        @ grow frame for alignment with stack args
-    .pad #8
-    .cfi_adjust_cfa_offset 8
-    push   {r9, r12}                     @ pass Thread::Current and SP
-    .save {r9, r12}
-    .cfi_adjust_cfa_offset 8
-    .cfi_rel_offset r9, 0
-    .cfi_rel_offset r12, 4
-    bl     artSet32InstanceFromCode      @ (field_idx, Object*, new_val, referrer, Thread*, SP)
-    add    sp, #16                       @ release out args
-    .cfi_adjust_cfa_offset -16
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME   @ TODO: we can clearly save an add here
-    RETURN_IF_RESULT_IS_ZERO
-    DELIVER_PENDING_EXCEPTION
-END art_quick_set32_instance
-
+THREE_ARG_REF_DOWNCALL art_quick_set8_instance, artSet8InstanceFromCode, RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
+THREE_ARG_REF_DOWNCALL art_quick_set16_instance, artSet16InstanceFromCode, RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
+THREE_ARG_REF_DOWNCALL art_quick_set32_instance, artSet32InstanceFromCode, RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
+THREE_ARG_REF_DOWNCALL art_quick_set_obj_instance, artSetObjInstanceFromCode, RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
     /*
      * Called by managed code to resolve an instance field and store a 64-bit primitive value.
      */
-    .extern artSet32InstanceFromCode
+    .extern artSet64InstanceFromCode
 ENTRY art_quick_set64_instance
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     mov    r12, sp                       @ save SP
@@ -831,29 +791,6 @@ ENTRY art_quick_set64_instance
     RETURN_IF_RESULT_IS_ZERO
     DELIVER_PENDING_EXCEPTION
 END art_quick_set64_instance
-
-    /*
-     * Called by managed code to resolve an instance field and store an object reference.
-     */
-    .extern artSetObjInstanceFromCode
-ENTRY art_quick_set_obj_instance
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    ldr    r3, [sp, #32]                 @ pass referrer
-    mov    r12, sp                       @ save SP
-    sub    sp, #8                        @ grow frame for alignment with stack args
-    .pad #8
-    .cfi_adjust_cfa_offset 8
-    push   {r9, r12}                     @ pass Thread::Current and SP
-    .save {r9, r12}
-    .cfi_adjust_cfa_offset 8
-    .cfi_rel_offset r9, 0
-    bl     artSetObjInstanceFromCode     @ (field_idx, Object*, new_val, referrer, Thread*, SP)
-    add    sp, #16                       @ release out args
-    .cfi_adjust_cfa_offset -16
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME   @ TODO: we can clearly save an add here
-    RETURN_IF_RESULT_IS_ZERO
-    DELIVER_PENDING_EXCEPTION
-END art_quick_set_obj_instance
 
     /*
      * Entry from managed code to resolve a string, this stub will allocate a String and deliver an

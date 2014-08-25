@@ -38,12 +38,24 @@
   V(InitializeType, void*, uint32_t, void*) \
   V(ResolveString, void*, void*, uint32_t) \
 \
+  V(Set8Instance, int, uint32_t, void*, int8_t) \
+  V(Set8Static, int, uint32_t, int8_t) \
+  V(Set16Instance, int, uint32_t, void*, int16_t) \
+  V(Set16Static, int, uint32_t, int16_t) \
   V(Set32Instance, int, uint32_t, void*, int32_t) \
   V(Set32Static, int, uint32_t, int32_t) \
   V(Set64Instance, int, uint32_t, void*, int64_t) \
   V(Set64Static, int, uint32_t, int64_t) \
   V(SetObjInstance, int, uint32_t, void*, void*) \
   V(SetObjStatic, int, uint32_t, void*) \
+  V(GetByteInstance, int8_t, uint32_t, void*) \
+  V(GetBooleanInstance, uint8_t, uint32_t, void*) \
+  V(GetByteStatic, int8_t, uint32_t) \
+  V(GetBooleanStatic, uint8_t, uint32_t) \
+  V(GetShortInstance, int16_t, uint32_t, void*) \
+  V(GetCharInstance, uint16_t, uint32_t, void*) \
+  V(GetShortStatic, int16_t, uint32_t) \
+  V(GetCharStatic, uint16_t, uint32_t) \
   V(Get32Instance, int32_t, uint32_t, void*) \
   V(Get32Static, int32_t, uint32_t) \
   V(Get64Instance, int64_t, uint32_t, void*) \

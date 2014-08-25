@@ -1944,6 +1944,10 @@ uint32_t SSARepresentation::GetStartUseIndex(Instruction::Code opcode) {
     case Instruction::IPUT_SHORT:
     case Instruction::IPUT_QUICK:
     case Instruction::IPUT_OBJECT_QUICK:
+    case Instruction::IPUT_BOOLEAN_QUICK:
+    case Instruction::IPUT_BYTE_QUICK:
+    case Instruction::IPUT_CHAR_QUICK:
+    case Instruction::IPUT_SHORT_QUICK:
     case Instruction::APUT:
     case Instruction::APUT_OBJECT:
     case Instruction::APUT_BOOLEAN:

@@ -1158,12 +1158,12 @@ bool Mir2Lir::GenInlinedReferenceGet(CallInfo* info) {
 
   // intrinsic logic start.
   RegLocation rl_obj = info->args[0];
-  rl_obj = LoadValue(rl_obj);
+  rl_obj = LoadValue(rl_obj, kRefReg);
 
   RegStorage reg_slow_path = AllocTemp();
   RegStorage reg_disabled = AllocTemp();
-  Load32Disp(reg_class, slow_path_flag_offset, reg_slow_path);
-  Load32Disp(reg_class, disable_flag_offset, reg_disabled);
+  Load8Disp(reg_class, slow_path_flag_offset, reg_slow_path);
+  Load8Disp(reg_class, disable_flag_offset, reg_disabled);
   FreeTemp(reg_class);
   LIR* or_inst = OpRegRegReg(kOpOr, reg_slow_path, reg_slow_path, reg_disabled);
   FreeTemp(reg_disabled);
@@ -1297,10 +1297,10 @@ bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {
     return false;
   }
   RegLocation rl_src_i = info->args[0];
-  RegLocation rl_i = (size == k64) ? LoadValueWide(rl_src_i, kCoreReg) : LoadValue(rl_src_i, kCoreReg);
-  RegLocation rl_dest = (size == k64) ? InlineTargetWide(info) : InlineTarget(info);  // result reg
+  RegLocation rl_i = IsWide(size) ? LoadValueWide(rl_src_i, kCoreReg) : LoadValue(rl_src_i, kCoreReg);
+  RegLocation rl_dest = IsWide(size) ? InlineTargetWide(info) : InlineTarget(info);  // result reg
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  if (size == k64) {
+  if (IsWide(size)) {
     if (cu_->instruction_set == kArm64 || cu_->instruction_set == kX86_64) {
       OpRegReg(kOpRev, rl_result.reg, rl_i.reg);
       StoreValueWide(rl_dest, rl_result);

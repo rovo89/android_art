@@ -1306,6 +1306,288 @@ TEST_F(StubTest, StringCompareTo) {
 }
 
 
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
+extern "C" void art_quick_set8_static(void);
+extern "C" void art_quick_get_byte_static(void);
+extern "C" void art_quick_get_boolean_static(void);
+#endif
+
+static void GetSetBooleanStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
+                           mirror::ArtMethod* referrer, StubTest* test)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
+  constexpr size_t num_values = 5;
+  uint8_t values[num_values] = { 0, 1, 2, 128, 0xFF };
+
+  for (size_t i = 0; i < num_values; ++i) {
+    test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                              static_cast<size_t>(values[i]),
+                              0U,
+                              StubTest::GetEntrypoint(self, kQuickSet8Static),
+                              self,
+                              referrer);
+
+    size_t res = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                                           0U, 0U,
+                                           StubTest::GetEntrypoint(self, kQuickGetBooleanStatic),
+                                           self,
+                                           referrer);
+    // Boolean currently stores bools as uint8_t, be more zealous about asserting correct writes/gets.
+    EXPECT_EQ(values[i], static_cast<uint8_t>(res)) << "Iteration " << i;
+  }
+#else
+  LOG(INFO) << "Skipping set_boolean_static as I don't know how to do that on " << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping set_boolean_static as I don't know how to do that on " << kRuntimeISA << std::endl;
+#endif
+}
+static void GetSetByteStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
+                           mirror::ArtMethod* referrer, StubTest* test)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
+  constexpr size_t num_values = 5;
+  int8_t values[num_values] = { -128, -64, 0, 64, 127 };
+
+  for (size_t i = 0; i < num_values; ++i) {
+    test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                              static_cast<size_t>(values[i]),
+                              0U,
+                              StubTest::GetEntrypoint(self, kQuickSet8Static),
+                              self,
+                              referrer);
+
+    size_t res = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                                           0U, 0U,
+                                           StubTest::GetEntrypoint(self, kQuickGetByteStatic),
+                                           self,
+                                           referrer);
+    EXPECT_EQ(values[i], static_cast<int8_t>(res)) << "Iteration " << i;
+  }
+#else
+  LOG(INFO) << "Skipping set_byte_static as I don't know how to do that on " << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping set_byte_static as I don't know how to do that on " << kRuntimeISA << std::endl;
+#endif
+}
+
+
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
+extern "C" void art_quick_set8_instance(void);
+extern "C" void art_quick_get_byte_instance(void);
+extern "C" void art_quick_get_boolean_instance(void);
+#endif
+
+static void GetSetBooleanInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f,
+                             Thread* self, mirror::ArtMethod* referrer, StubTest* test)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
+  constexpr size_t num_values = 5;
+  uint8_t values[num_values] = { 0, true, 2, 128, 0xFF };
+
+  for (size_t i = 0; i < num_values; ++i) {
+    test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                              reinterpret_cast<size_t>(obj->Get()),
+                              static_cast<size_t>(values[i]),
+                              StubTest::GetEntrypoint(self, kQuickSet8Instance),
+                              self,
+                              referrer);
+
+    uint8_t res = f->Get()->GetBoolean(obj->Get());
+    EXPECT_EQ(values[i], res) << "Iteration " << i;
+
+    f->Get()->SetBoolean<false>(obj->Get(), res);
+
+    size_t res2 = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                                            reinterpret_cast<size_t>(obj->Get()),
+                                            0U,
+                                            StubTest::GetEntrypoint(self, kQuickGetBooleanInstance),
+                                            self,
+                                            referrer);
+    EXPECT_EQ(res, static_cast<uint8_t>(res2));
+  }
+#else
+  LOG(INFO) << "Skipping set_boolean_instance as I don't know how to do that on " << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping set_boolean_instance as I don't know how to do that on " << kRuntimeISA << std::endl;
+#endif
+}
+static void GetSetByteInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f,
+                             Thread* self, mirror::ArtMethod* referrer, StubTest* test)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
+  constexpr size_t num_values = 5;
+  int8_t values[num_values] = { -128, -64, 0, 64, 127 };
+
+  for (size_t i = 0; i < num_values; ++i) {
+    test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                              reinterpret_cast<size_t>(obj->Get()),
+                              static_cast<size_t>(values[i]),
+                              StubTest::GetEntrypoint(self, kQuickSet8Instance),
+                              self,
+                              referrer);
+
+    int8_t res = f->Get()->GetByte(obj->Get());
+    EXPECT_EQ(res, values[i]) << "Iteration " << i;
+    f->Get()->SetByte<false>(obj->Get(), ++res);
+
+    size_t res2 = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                                            reinterpret_cast<size_t>(obj->Get()),
+                                            0U,
+                                            StubTest::GetEntrypoint(self, kQuickGetByteInstance),
+                                            self,
+                                            referrer);
+    EXPECT_EQ(res, static_cast<int8_t>(res2));
+  }
+#else
+  LOG(INFO) << "Skipping set_byte_instance as I don't know how to do that on " << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping set_byte_instance as I don't know how to do that on " << kRuntimeISA << std::endl;
+#endif
+}
+
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
+extern "C" void art_quick_set16_static(void);
+extern "C" void art_quick_get_short_static(void);
+extern "C" void art_quick_get_char_static(void);
+#endif
+
+static void GetSetCharStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
+                           mirror::ArtMethod* referrer, StubTest* test)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
+  constexpr size_t num_values = 6;
+  uint16_t values[num_values] = { 0, 1, 2, 255, 32768, 0xFFFF };
+
+  for (size_t i = 0; i < num_values; ++i) {
+    test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                              static_cast<size_t>(values[i]),
+                              0U,
+                              StubTest::GetEntrypoint(self, kQuickSet16Static),
+                              self,
+                              referrer);
+
+    size_t res = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                                           0U, 0U,
+                                           StubTest::GetEntrypoint(self, kQuickGetCharStatic),
+                                           self,
+                                           referrer);
+
+    EXPECT_EQ(values[i], static_cast<uint16_t>(res)) << "Iteration " << i;
+  }
+#else
+  LOG(INFO) << "Skipping set_char_static as I don't know how to do that on " << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping set_char_static as I don't know how to do that on " << kRuntimeISA << std::endl;
+#endif
+}
+static void GetSetShortStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
+                           mirror::ArtMethod* referrer, StubTest* test)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
+  constexpr size_t num_values = 6;
+  int16_t values[num_values] = { -0x7FFF, -32768, 0, 255, 32767, 0x7FFE };
+
+  for (size_t i = 0; i < num_values; ++i) {
+    test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                              static_cast<size_t>(values[i]),
+                              0U,
+                              StubTest::GetEntrypoint(self, kQuickSet16Static),
+                              self,
+                              referrer);
+
+    size_t res = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                                           0U, 0U,
+                                           StubTest::GetEntrypoint(self, kQuickGetShortStatic),
+                                           self,
+                                           referrer);
+
+    EXPECT_EQ(static_cast<int16_t>(res), values[i]) << "Iteration " << i;
+  }
+#else
+  LOG(INFO) << "Skipping set_short_static as I don't know how to do that on " << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping set_short_static as I don't know how to do that on " << kRuntimeISA << std::endl;
+#endif
+}
+
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
+extern "C" void art_quick_set16_instance(void);
+extern "C" void art_quick_get_short_instance(void);
+extern "C" void art_quick_get_char_instance(void);
+#endif
+
+static void GetSetCharInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f,
+                             Thread* self, mirror::ArtMethod* referrer, StubTest* test)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
+  constexpr size_t num_values = 6;
+  uint16_t values[num_values] = { 0, 1, 2, 255, 32768, 0xFFFF };
+
+  for (size_t i = 0; i < num_values; ++i) {
+    test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                              reinterpret_cast<size_t>(obj->Get()),
+                              static_cast<size_t>(values[i]),
+                              StubTest::GetEntrypoint(self, kQuickSet16Instance),
+                              self,
+                              referrer);
+
+    uint16_t res = f->Get()->GetChar(obj->Get());
+    EXPECT_EQ(res, values[i]) << "Iteration " << i;
+    f->Get()->SetChar<false>(obj->Get(), ++res);
+
+    size_t res2 = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                                            reinterpret_cast<size_t>(obj->Get()),
+                                            0U,
+                                            StubTest::GetEntrypoint(self, kQuickGetCharInstance),
+                                            self,
+                                            referrer);
+    EXPECT_EQ(res, static_cast<uint16_t>(res2));
+  }
+#else
+  LOG(INFO) << "Skipping set_char_instance as I don't know how to do that on " << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping set_char_instance as I don't know how to do that on " << kRuntimeISA << std::endl;
+#endif
+}
+static void GetSetShortInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f,
+                             Thread* self, mirror::ArtMethod* referrer, StubTest* test)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
+  constexpr size_t num_values = 6;
+  int16_t values[num_values] = { -0x7FFF, -32768, 0, 255, 32767, 0x7FFE };
+
+  for (size_t i = 0; i < num_values; ++i) {
+    test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                              reinterpret_cast<size_t>(obj->Get()),
+                              static_cast<size_t>(values[i]),
+                              StubTest::GetEntrypoint(self, kQuickSet16Instance),
+                              self,
+                              referrer);
+
+    int16_t res = f->Get()->GetShort(obj->Get());
+    EXPECT_EQ(res, values[i]) << "Iteration " << i;
+    f->Get()->SetShort<false>(obj->Get(), ++res);
+
+    size_t res2 = test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
+                                            reinterpret_cast<size_t>(obj->Get()),
+                                            0U,
+                                            StubTest::GetEntrypoint(self, kQuickGetShortInstance),
+                                            self,
+                                            referrer);
+    EXPECT_EQ(res, static_cast<int16_t>(res2));
+  }
+#else
+  LOG(INFO) << "Skipping set_short_instance as I don't know how to do that on " << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping set_short_instance as I don't know how to do that on " << kRuntimeISA << std::endl;
+#endif
+}
+
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
+extern "C" void art_quick_set32_static(void);
+extern "C" void art_quick_get32_static(void);
+#endif
+
 static void GetSet32Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
                            mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -1555,6 +1837,26 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
 
       Primitive::Type type = f->GetTypeAsPrimitiveType();
       switch (type) {
+        case Primitive::Type::kPrimBoolean:
+          if (test_type == type) {
+            GetSetBooleanStatic(&obj, &f, self, m.Get(), test);
+          }
+          break;
+        case Primitive::Type::kPrimByte:
+          if (test_type == type) {
+            GetSetByteStatic(&obj, &f, self, m.Get(), test);
+          }
+          break;
+        case Primitive::Type::kPrimChar:
+          if (test_type == type) {
+            GetSetCharStatic(&obj, &f, self, m.Get(), test);
+          }
+          break;
+        case Primitive::Type::kPrimShort:
+          if (test_type == type) {
+            GetSetShortStatic(&obj, &f, self, m.Get(), test);
+          }
+          break;
         case Primitive::Type::kPrimInt:
           if (test_type == type) {
             GetSet32Static(&obj, &f, self, m.Get(), test);
@@ -1590,6 +1892,26 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
 
       Primitive::Type type = f->GetTypeAsPrimitiveType();
       switch (type) {
+        case Primitive::Type::kPrimBoolean:
+          if (test_type == type) {
+            GetSetBooleanInstance(&obj, &f, self, m.Get(), test);
+          }
+          break;
+        case Primitive::Type::kPrimByte:
+          if (test_type == type) {
+            GetSetByteInstance(&obj, &f, self, m.Get(), test);
+          }
+          break;
+        case Primitive::Type::kPrimChar:
+          if (test_type == type) {
+            GetSetCharInstance(&obj, &f, self, m.Get(), test);
+          }
+          break;
+        case Primitive::Type::kPrimShort:
+          if (test_type == type) {
+            GetSetShortInstance(&obj, &f, self, m.Get(), test);
+          }
+          break;
         case Primitive::Type::kPrimInt:
           if (test_type == type) {
             GetSet32Instance(&obj, &f, self, m.Get(), test);
@@ -1618,6 +1940,33 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
   // TODO: Deallocate things.
 }
 
+TEST_F(StubTest, Fields8) {
+  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+
+  Thread* self = Thread::Current();
+
+  self->TransitionFromSuspendedToRunnable();
+  LoadDex("AllFields");
+  bool started = runtime_->Start();
+  CHECK(started);
+
+  TestFields(self, this, Primitive::Type::kPrimBoolean);
+  TestFields(self, this, Primitive::Type::kPrimByte);
+}
+
+TEST_F(StubTest, Fields16) {
+  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+
+  Thread* self = Thread::Current();
+
+  self->TransitionFromSuspendedToRunnable();
+  LoadDex("AllFields");
+  bool started = runtime_->Start();
+  CHECK(started);
+
+  TestFields(self, this, Primitive::Type::kPrimChar);
+  TestFields(self, this, Primitive::Type::kPrimShort);
+}
 
 TEST_F(StubTest, Fields32) {
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();

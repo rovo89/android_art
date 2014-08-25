@@ -47,12 +47,24 @@ extern "C" void* art_quick_initialize_type_and_verify_access(uint32_t, void*);
 extern "C" void* art_quick_resolve_string(void*, uint32_t);
 
 // Field entrypoints.
+extern "C" int art_quick_set8_instance(uint32_t, void*, int8_t);
+extern "C" int art_quick_set8_static(uint32_t, int8_t);
+extern "C" int art_quick_set16_instance(uint32_t, void*, int16_t);
+extern "C" int art_quick_set16_static(uint32_t, int16_t);
 extern "C" int art_quick_set32_instance(uint32_t, void*, int32_t);
 extern "C" int art_quick_set32_static(uint32_t, int32_t);
 extern "C" int art_quick_set64_instance(uint32_t, void*, int64_t);
 extern "C" int art_quick_set64_static(uint32_t, int64_t);
 extern "C" int art_quick_set_obj_instance(uint32_t, void*, void*);
 extern "C" int art_quick_set_obj_static(uint32_t, void*);
+extern "C" int8_t art_quick_get_byte_instance(uint32_t, void*);
+extern "C" uint8_t art_quick_get_boolean_instance(uint32_t, void*);
+extern "C" int8_t art_quick_get_byte_static(uint32_t);
+extern "C" uint8_t art_quick_get_boolean_static(uint32_t);
+extern "C" int16_t art_quick_get_short_instance(uint32_t, void*);
+extern "C" uint16_t art_quick_get_char_instance(uint32_t, void*);
+extern "C" int16_t art_quick_get_short_static(uint32_t);
+extern "C" uint16_t art_quick_get_char_static(uint32_t);
 extern "C" int32_t art_quick_get32_instance(uint32_t, void*);
 extern "C" int32_t art_quick_get32_static(uint32_t);
 extern "C" int64_t art_quick_get64_instance(uint32_t, void*);
@@ -137,15 +149,27 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pResolveString = art_quick_resolve_string;
 
   // Field
+  qpoints->pSet8Instance = art_quick_set8_instance;
+  qpoints->pSet8Static = art_quick_set8_static;
+  qpoints->pSet16Instance = art_quick_set16_instance;
+  qpoints->pSet16Static = art_quick_set16_static;
   qpoints->pSet32Instance = art_quick_set32_instance;
   qpoints->pSet32Static = art_quick_set32_static;
   qpoints->pSet64Instance = art_quick_set64_instance;
   qpoints->pSet64Static = art_quick_set64_static;
   qpoints->pSetObjInstance = art_quick_set_obj_instance;
   qpoints->pSetObjStatic = art_quick_set_obj_static;
+  qpoints->pGetByteInstance = art_quick_get_byte_instance;
+  qpoints->pGetBooleanInstance = art_quick_get_boolean_instance;
+  qpoints->pGetShortInstance = art_quick_get_short_instance;
+  qpoints->pGetCharInstance = art_quick_get_char_instance;
   qpoints->pGet32Instance = art_quick_get32_instance;
   qpoints->pGet64Instance = art_quick_get64_instance;
   qpoints->pGetObjInstance = art_quick_get_obj_instance;
+  qpoints->pGetByteStatic = art_quick_get_byte_static;
+  qpoints->pGetBooleanStatic = art_quick_get_boolean_static;
+  qpoints->pGetShortStatic = art_quick_get_short_static;
+  qpoints->pGetCharStatic = art_quick_get_char_static;
   qpoints->pGet32Static = art_quick_get32_static;
   qpoints->pGet64Static = art_quick_get64_static;
   qpoints->pGetObjStatic = art_quick_get_obj_static;

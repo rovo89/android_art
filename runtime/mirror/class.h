@@ -502,6 +502,8 @@ class MANAGED Class FINAL : public Object {
   // Compute how many bytes would be used a class with the given elements.
   static uint32_t ComputeClassSize(bool has_embedded_tables,
                                    uint32_t num_vtable_entries,
+                                   uint32_t num_8bit_static_fields,
+                                   uint32_t num_16bit_static_fields,
                                    uint32_t num_32bit_static_fields,
                                    uint32_t num_64bit_static_fields,
                                    uint32_t num_ref_static_fields);
@@ -510,12 +512,12 @@ class MANAGED Class FINAL : public Object {
   static uint32_t ClassClassSize() {
     // The number of vtable entries in java.lang.Class.
     uint32_t vtable_entries = Object::kVTableLength + 64;
-    return ComputeClassSize(true, vtable_entries, 0, 1, 0);
+    return ComputeClassSize(true, vtable_entries, 0, 0, 0, 1, 0);
   }
 
   // The size of a java.lang.Class representing a primitive such as int.class.
   static uint32_t PrimitiveClassSize() {
-    return ComputeClassSize(false, 0, 0, 0, 0);
+    return ComputeClassSize(false, 0, 0, 0, 0, 0, 0);
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,

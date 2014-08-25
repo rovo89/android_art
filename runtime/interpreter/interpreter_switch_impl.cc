@@ -1266,6 +1266,30 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
         break;
       }
+      case Instruction::IPUT_BOOLEAN_QUICK: {
+        PREAMBLE();
+        bool success = DoIPutQuick<Primitive::kPrimBoolean, transaction_active>(shadow_frame, inst, inst_data);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
+        break;
+      }
+      case Instruction::IPUT_BYTE_QUICK: {
+        PREAMBLE();
+        bool success = DoIPutQuick<Primitive::kPrimByte, transaction_active>(shadow_frame, inst, inst_data);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
+        break;
+      }
+      case Instruction::IPUT_CHAR_QUICK: {
+        PREAMBLE();
+        bool success = DoIPutQuick<Primitive::kPrimChar, transaction_active>(shadow_frame, inst, inst_data);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
+        break;
+      }
+      case Instruction::IPUT_SHORT_QUICK: {
+        PREAMBLE();
+        bool success = DoIPutQuick<Primitive::kPrimShort, transaction_active>(shadow_frame, inst, inst_data);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
+        break;
+      }
       case Instruction::IPUT_WIDE_QUICK: {
         PREAMBLE();
         bool success = DoIPutQuick<Primitive::kPrimLong, transaction_active>(shadow_frame, inst, inst_data);
@@ -2164,7 +2188,7 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         inst = inst->Next_2xx();
         break;
       case Instruction::UNUSED_3E ... Instruction::UNUSED_43:
-      case Instruction::UNUSED_EB ... Instruction::UNUSED_FF:
+      case Instruction::UNUSED_EF ... Instruction::UNUSED_FF:
       case Instruction::UNUSED_79:
       case Instruction::UNUSED_7A:
         UnexpectedOpcode(inst, mh);

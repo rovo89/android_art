@@ -939,15 +939,26 @@ class ImageDumper {
       StackHandleScope<1> hs(Thread::Current());
       FieldHelper fh(hs.NewHandle(field));
       mirror::Class* type = fh.GetType();
+      DCHECK(type->IsPrimitive());
       if (type->IsPrimitiveLong()) {
         os << StringPrintf("%" PRId64 " (0x%" PRIx64 ")\n", field->Get64(obj), field->Get64(obj));
       } else if (type->IsPrimitiveDouble()) {
         os << StringPrintf("%f (%a)\n", field->GetDouble(obj), field->GetDouble(obj));
       } else if (type->IsPrimitiveFloat()) {
         os << StringPrintf("%f (%a)\n", field->GetFloat(obj), field->GetFloat(obj));
-      } else {
-        DCHECK(type->IsPrimitive());
+      } else if (type->IsPrimitiveInt()) {
         os << StringPrintf("%d (0x%x)\n", field->Get32(obj), field->Get32(obj));
+      } else if (type->IsPrimitiveChar()) {
+        os << StringPrintf("%u (0x%x)\n", field->GetChar(obj), field->GetChar(obj));
+      } else if (type->IsPrimitiveShort()) {
+        os << StringPrintf("%d (0x%x)\n", field->GetShort(obj), field->GetShort(obj));
+      } else if (type->IsPrimitiveBoolean()) {
+        os << StringPrintf("%s (0x%x)\n", field->GetBoolean(obj)? "true" : "false",
+            field->GetBoolean(obj));
+      } else if (type->IsPrimitiveByte()) {
+        os << StringPrintf("%d (0x%x)\n", field->GetByte(obj), field->GetByte(obj));
+      } else {
+        LOG(FATAL) << "Unknown type: " << PrettyClass(type);
       }
     } else {
       // Get the value, don't compute the type unless it is non-null as we don't want
