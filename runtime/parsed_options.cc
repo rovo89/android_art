@@ -183,6 +183,7 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
   heap_maximum_size_ = gc::Heap::kDefaultMaximumSize;
   heap_min_free_ = gc::Heap::kDefaultMinFree;
   heap_max_free_ = gc::Heap::kDefaultMaxFree;
+  heap_non_moving_space_capacity_ = gc::Heap::kDefaultNonMovingSpaceCapacity;
   heap_target_utilization_ = gc::Heap::kDefaultTargetUtilization;
   foreground_heap_growth_multiplier_ = gc::Heap::kDefaultHeapGrowthMultiplier;
   heap_growth_limit_ = 0;  // 0 means no growth limit .
@@ -356,6 +357,14 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
         return false;
       }
       heap_max_free_ = size;
+    } else if (StartsWith(option, "-XX:NonMovingSpaceCapacity=")) {
+      size_t size = ParseMemoryOption(
+          option.substr(strlen("-XX:NonMovingSpaceCapacity=")).c_str(), 1024);
+      if (size == 0) {
+        Usage("Failed to parse memory option %s\n", option.c_str());
+        return false;
+      }
+      heap_non_moving_space_capacity_ = size;
     } else if (StartsWith(option, "-XX:HeapTargetUtilization=")) {
       if (!ParseDouble(option, '=', 0.1, 0.9, &heap_target_utilization_)) {
         return false;
@@ -757,6 +766,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -XX:HeapGrowthLimit=N\n");
   UsageMessage(stream, "  -XX:HeapMinFree=N\n");
   UsageMessage(stream, "  -XX:HeapMaxFree=N\n");
+  UsageMessage(stream, "  -XX:NonMovingSpaceCapacity=N\n");
   UsageMessage(stream, "  -XX:HeapTargetUtilization=doublevalue\n");
   UsageMessage(stream, "  -XX:ForegroundHeapGrowthMultiplier=doublevalue\n");
   UsageMessage(stream, "  -XX:LowMemoryMode\n");
