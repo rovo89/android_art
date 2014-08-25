@@ -20,6 +20,7 @@
 #include <map>
 #include <memory>
 
+#include "base/allocator.h"
 #include "base/logging.h"
 
 namespace art {
@@ -27,7 +28,7 @@ namespace art {
 // Equivalent to std::map, but without operator[] and its bug-prone semantics (in particular,
 // the implicit insertion of a default-constructed value on failed lookups).
 template <typename K, typename V, typename Comparator = std::less<K>,
-          typename Allocator = std::allocator<std::pair<const K, V>>>
+          typename Allocator = TrackingAllocator<std::pair<const K, V>, kAllocatorTagSafeMap>>
 class SafeMap {
  private:
   typedef SafeMap<K, V, Comparator, Allocator> Self;
@@ -129,6 +130,11 @@ bool operator!=(const SafeMap<K, V, Comparator, Allocator>& lhs,
                 const SafeMap<K, V, Comparator, Allocator>& rhs) {
   return !(lhs == rhs);
 }
+
+template<class Key, class T, AllocatorTag kTag, class Compare = std::less<Key>>
+class AllocationTrackingSafeMap : public SafeMap<
+    Key, T, Compare, TrackingAllocator<std::pair<Key, T>, kTag>> {
+};
 
 }  // namespace art
 

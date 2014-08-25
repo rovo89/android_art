@@ -312,7 +312,7 @@ class OatFile {
   // therefore we're using the OatDexFile::dex_file_location_ as the backing storage
   // for keys in oat_dex_files_ and the string_cache_ entries for the backing storage
   // of keys in secondary_oat_dex_files_ and oat_dex_files_by_canonical_location_.
-  typedef SafeMap<StringPiece, const OatDexFile*> Table;
+  typedef AllocationTrackingSafeMap<StringPiece, const OatDexFile*, kAllocatorTagOatFile> Table;
 
   // Map each plain dex file location retrieved from the oat file to its OatDexFile.
   // This map doesn't change after it's constructed in Setup() and therefore doesn't

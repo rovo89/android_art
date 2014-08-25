@@ -47,7 +47,6 @@ LIBART_COMMON_SRC_FILES := \
   gc/allocator/dlmalloc.cc \
   gc/allocator/rosalloc.cc \
   gc/accounting/card_table.cc \
-  gc/accounting/gc_allocator.cc \
   gc/accounting/heap_bitmap.cc \
   gc/accounting/mod_union_table.cc \
   gc/accounting/remembered_set.cc \
@@ -295,6 +294,7 @@ LIBART_HOST_SRC_FILES_64 := \
 
 LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   arch/x86_64/registers_x86_64.h \
+  base/allocator.h \
   base/mutex.h \
   dex_file.h \
   dex_instruction.h \

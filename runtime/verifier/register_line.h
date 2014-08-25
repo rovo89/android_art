@@ -293,14 +293,14 @@ class RegisterLine {
 
  private:
   void CopyRegToLockDepth(size_t dst, size_t src) {
-    SafeMap<uint32_t, uint32_t>::iterator it = reg_to_lock_depths_.find(src);
+    auto it = reg_to_lock_depths_.find(src);
     if (it != reg_to_lock_depths_.end()) {
       reg_to_lock_depths_.Put(dst, it->second);
     }
   }
 
   bool IsSetLockDepth(size_t reg, size_t depth) {
-    SafeMap<uint32_t, uint32_t>::iterator it = reg_to_lock_depths_.find(reg);
+    auto it = reg_to_lock_depths_.find(reg);
     if (it != reg_to_lock_depths_.end()) {
       return (it->second & (1 << depth)) != 0;
     } else {
@@ -311,7 +311,7 @@ class RegisterLine {
   void SetRegToLockDepth(size_t reg, size_t depth) {
     CHECK_LT(depth, 32u);
     DCHECK(!IsSetLockDepth(reg, depth));
-    SafeMap<uint32_t, uint32_t>::iterator it = reg_to_lock_depths_.find(reg);
+    auto it = reg_to_lock_depths_.find(reg);
     if (it == reg_to_lock_depths_.end()) {
       reg_to_lock_depths_.Put(reg, 1 << depth);
     } else {
@@ -322,7 +322,7 @@ class RegisterLine {
   void ClearRegToLockDepth(size_t reg, size_t depth) {
     CHECK_LT(depth, 32u);
     DCHECK(IsSetLockDepth(reg, depth));
-    SafeMap<uint32_t, uint32_t>::iterator it = reg_to_lock_depths_.find(reg);
+    auto it = reg_to_lock_depths_.find(reg);
     DCHECK(it != reg_to_lock_depths_.end());
     uint32_t depths = it->second ^ (1 << depth);
     if (depths != 0) {
@@ -337,8 +337,7 @@ class RegisterLine {
   }
 
   RegisterLine(size_t num_regs, MethodVerifier* verifier)
-      : verifier_(verifier),
-        num_regs_(num_regs) {
+      : verifier_(verifier), num_regs_(num_regs) {
     memset(&line_, 0, num_regs_ * sizeof(uint16_t));
     SetResultTypeToUnknown();
   }
@@ -352,11 +351,11 @@ class RegisterLine {
   // Length of reg_types_
   const uint32_t num_regs_;
   // A stack of monitor enter locations
-  std::vector<uint32_t> monitors_;
+  std::vector<uint32_t, TrackingAllocator<uint32_t, kAllocatorTagVerifier>> monitors_;
   // A map from register to a bit vector of indices into the monitors_ stack. As we pop the monitor
   // stack we verify that monitor-enter/exit are correctly nested. That is, if there was a
   // monitor-enter on v5 and then on v6, we expect the monitor-exit to be on v6 then on v5
-  SafeMap<uint32_t, uint32_t> reg_to_lock_depths_;
+  AllocationTrackingSafeMap<uint32_t, uint32_t, kAllocatorTagVerifier> reg_to_lock_depths_;
 
   // An array of RegType Ids associated with each dex register.
   uint16_t line_[0];

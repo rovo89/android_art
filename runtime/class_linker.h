@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/allocator.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "dex_file.h"
@@ -632,7 +633,7 @@ class ClassLinker {
   // multimap from a string hash code of a class descriptor to
   // mirror::Class* instances. Results should be compared for a matching
   // Class::descriptor_ and Class::class_loader_.
-  typedef std::multimap<size_t, GcRoot<mirror::Class>> Table;
+  typedef AllocationTrackingMultiMap<size_t, GcRoot<mirror::Class>, kAllocatorTagClassTable> Table;
   // This contains strong roots. To enable concurrent root scanning of
   // the class table, be careful to use a read barrier when accessing this.
   Table class_table_ GUARDED_BY(Locks::classlinker_classes_lock_);

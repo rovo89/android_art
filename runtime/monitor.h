@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "atomic.h"
+#include "base/allocator.h"
 #include "base/mutex.h"
 #include "gc_root.h"
 #include "object_callbacks.h"
@@ -275,6 +276,8 @@ class MonitorList {
   size_t DeflateMonitors() LOCKS_EXCLUDED(monitor_list_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  typedef std::list<Monitor*, TrackingAllocator<Monitor*, kAllocatorTagMonitorList>> Monitors;
+
  private:
   // During sweeping we may free an object and on a separate thread have an object created using
   // the newly freed memory. That object may then have its lock-word inflated and a monitor created.
@@ -283,7 +286,7 @@ class MonitorList {
   bool allow_new_monitors_ GUARDED_BY(monitor_list_lock_);
   Mutex monitor_list_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ConditionVariable monitor_add_condition_ GUARDED_BY(monitor_list_lock_);
-  std::list<Monitor*> list_ GUARDED_BY(monitor_list_lock_);
+  Monitors list_ GUARDED_BY(monitor_list_lock_);
 
   friend class Monitor;
   DISALLOW_COPY_AND_ASSIGN(MonitorList);
