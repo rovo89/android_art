@@ -362,8 +362,8 @@ ImageSpace* ImageSpace::Create(const char* image_location,
       // we leave Create.
       ScopedFlock image_lock;
       image_lock.Init(image_filename->c_str(), error_msg);
-      LOG(INFO) << "Using image file " << image_filename->c_str() << " for image location "
-                << image_location;
+      VLOG(startup) << "Using image file " << image_filename->c_str() << " for image location "
+                    << image_location;
       // If we are in /system we can assume the image is good. We can also
       // assume this if we are using a relocated image (i.e. image checksum
       // matches) since this is only different by the offset. We need this to
