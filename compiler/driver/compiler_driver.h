@@ -76,20 +76,6 @@ enum DexToDexCompilationLevel {
   kOptimize               // Perform required transformation and peep-hole optimizations.
 };
 
-// Thread-local storage compiler worker threads
-class CompilerTls {
-  public:
-    CompilerTls() : llvm_info_(NULL) {}
-    ~CompilerTls() {}
-
-    void* GetLLVMInfo() { return llvm_info_; }
-
-    void SetLLVMInfo(void* llvm_info) { llvm_info_ = llvm_info; }
-
-  private:
-    void* llvm_info_;
-};
-
 class CompilerDriver {
  public:
   // Create a compiler targeting the requested "instruction_set".

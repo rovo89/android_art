@@ -20,16 +20,11 @@
 #include "dex_file.h"
 #include "invoke_type.h"
 
-namespace llvm {
-  class Module;
-  class LLVMContext;
-}
-
 namespace art {
-namespace llvm {
-  class IntrinsicHelper;
-  class IRBuilder;
-}
+
+class CompiledMethod;
+class Compiler;
+class CompilerDriver;
 
 /*
  * Assembly is an iterative process, and usually terminates within
@@ -81,48 +76,17 @@ enum debugControlVector {
   kDebugCodegenDump
 };
 
-class LLVMInfo {
-  public:
-    LLVMInfo();
-    ~LLVMInfo();
-
-    ::llvm::LLVMContext* GetLLVMContext() {
-      return llvm_context_.get();
-    }
-
-    ::llvm::Module* GetLLVMModule() {
-      return llvm_module_;
-    }
-
-    art::llvm::IntrinsicHelper* GetIntrinsicHelper() {
-      return intrinsic_helper_.get();
-    }
-
-    art::llvm::IRBuilder* GetIRBuilder() {
-      return ir_builder_.get();
-    }
-
-  private:
-    std::unique_ptr< ::llvm::LLVMContext> llvm_context_;
-    ::llvm::Module* llvm_module_;  // Managed by context_.
-    std::unique_ptr<art::llvm::IntrinsicHelper> intrinsic_helper_;
-    std::unique_ptr<art::llvm::IRBuilder> ir_builder_;
-};
-
-class CompiledMethod;
-class CompilerDriver;
+CompiledMethod* CompileOneMethod(CompilerDriver* driver,
+                                 const Compiler* compiler,
+                                 const DexFile::CodeItem* code_item,
+                                 uint32_t access_flags,
+                                 InvokeType invoke_type,
+                                 uint16_t class_def_idx,
+                                 uint32_t method_idx,
+                                 jobject class_loader,
+                                 const DexFile& dex_file,
+                                 void* compilation_unit);
 
 }  // namespace art
-
-extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
-                                                 const art::DexFile::CodeItem* code_item,
-                                                 uint32_t access_flags,
-                                                 art::InvokeType invoke_type,
-                                                 uint16_t class_def_idx,
-                                                 uint32_t method_idx,
-                                                 jobject class_loader,
-                                                 const art::DexFile& dex_file);
-
-
 
 #endif  // ART_COMPILER_DEX_FRONTEND_H_

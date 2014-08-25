@@ -22,6 +22,7 @@
 #include "dex/global_value_numbering.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
+#include "stack.h"
 #include "utils/scoped_arena_containers.h"
 
 namespace art {

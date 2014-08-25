@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_DEX_POST_OPT_PASSES_H_
 #define ART_COMPILER_DEX_POST_OPT_PASSES_H_
 
+#include "dex/quick/mir_to_lir.h"
 #include "compiler_internals.h"
 #include "pass_me.h"
 

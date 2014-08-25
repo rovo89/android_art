@@ -29,6 +29,7 @@
 #include "dex/quick/dex_file_method_inliner.h"
 #include "leb128.h"
 #include "pass_driver_me_post_opt.h"
+#include "stack.h"
 #include "utils/scoped_arena_containers.h"
 
 namespace art {

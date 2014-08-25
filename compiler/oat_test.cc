@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "class_linker.h"
 #include "common_compiler_test.h"
 #include "compiler.h"
 #include "dex/verification_results.h"
