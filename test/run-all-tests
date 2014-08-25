@@ -101,6 +101,12 @@ while true; do
     elif [ "x$1" = "x--prebuild" ]; then
         run_args="${run_args} --prebuild"
         shift;
+    elif [ "x$1" = "x--no-dex2oat" ]; then
+        run_args="${run_args} --no-dex2oat"
+        shift;
+    elif [ "x$1" = "x--no-patchoat" ]; then
+        run_args="${run_args} --no-patchoat"
+        shift;
     elif [ "x$1" = "x--always-clean" ]; then
         run_args="${run_args} --always-clean"
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
@@ -123,6 +129,7 @@ if [ "$usage" = "yes" ]; then
         echo "    --debug --dev --host --interpreter --jvm --no-optimize"
         echo "    --no-verify -O --update --valgrind --zygote --64 --relocate"
         echo "    --prebuild --always-clean --gcstress --gcverify --trace"
+        echo "    --no-patchoat --no-dex2oat"
         echo "  Specific Runtime Options:"
         echo "    --seq                Run tests one-by-one, avoiding failures caused by busy CPU"
     ) 1>&2
