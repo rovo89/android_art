@@ -38,7 +38,8 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(mirror::ArtMethod* 
   } else {
     result = instrumentation->GetQuickCodeFor(method);
   }
-  DCHECK(result != Runtime::Current()->GetClassLinker()->GetQuickToInterpreterBridgeTrampoline());
+  DCHECK((result != Runtime::Current()->GetClassLinker()->GetQuickToInterpreterBridgeTrampoline())
+         || !Runtime::Current()->GetHeap()->HasImageSpace());
   bool interpreter_entry = (result == GetQuickToInterpreterBridge());
   instrumentation->PushInstrumentationStackFrame(self, method->IsStatic() ? nullptr : this_object,
                                                  method, lr, interpreter_entry);

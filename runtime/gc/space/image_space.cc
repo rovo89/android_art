@@ -283,8 +283,8 @@ static bool ChecksumsMatch(const char* image_a, const char* image_b) {
 }
 
 ImageSpace* ImageSpace::Create(const char* image_location,
-                               const InstructionSet image_isa) {
-  std::string error_msg;
+                               const InstructionSet image_isa,
+                               std::string* error_msg) {
   std::string system_filename;
   bool has_system = false;
   std::string cache_filename;
@@ -296,14 +296,18 @@ ImageSpace* ImageSpace::Create(const char* image_location,
 
   ImageSpace* space;
   bool relocate = Runtime::Current()->ShouldRelocate();
+  bool can_compile = Runtime::Current()->IsImageDex2OatEnabled();
   if (found_image) {
     const std::string* image_filename;
     bool is_system = false;
     bool relocated_version_used = false;
     if (relocate) {
-      CHECK(dalvik_cache_exists) << "Requiring relocation for image " << image_location << " "
-                                 << "at " << system_filename << " but we do not have any "
-                                 << "dalvik_cache to find/place it in.";
+      if (!dalvik_cache_exists) {
+        *error_msg = StringPrintf("Requiring relocation for image '%s' at '%s' but we do not have "
+                                  "any dalvik_cache to find/place it in.",
+                                  image_location, system_filename.c_str());
+        return nullptr;
+      }
       if (has_system) {
         if (has_cache && ChecksumsMatch(system_filename.c_str(), cache_filename.c_str())) {
           // We already have a relocated version
@@ -311,14 +315,20 @@ ImageSpace* ImageSpace::Create(const char* image_location,
           relocated_version_used = true;
         } else {
           // We cannot have a relocated version, Relocate the system one and use it.
-          if (RelocateImage(image_location, cache_filename.c_str(), image_isa,
-                            &error_msg)) {
+          if (can_compile && RelocateImage(image_location, cache_filename.c_str(), image_isa,
+                                           error_msg)) {
             relocated_version_used = true;
             image_filename = &cache_filename;
           } else {
-            LOG(FATAL) << "Unable to relocate image " << image_location << " "
-                       << "from " << system_filename << " to " << cache_filename << ": "
-                       << error_msg;
+            std::string reason;
+            if (can_compile) {
+              reason = StringPrintf(": %s", error_msg->c_str());
+            } else {
+              reason = " because image dex2oat is disabled.";
+            }
+            *error_msg = StringPrintf("Unable to relocate image '%s' from '%s' to '%s'%s",
+                                      image_location, system_filename.c_str(),
+                                      cache_filename.c_str(), reason.c_str());
             return nullptr;
           }
         }
@@ -351,7 +361,7 @@ ImageSpace* ImageSpace::Create(const char* image_location,
       // descriptor (and the associated exclusive lock) to be released when
       // we leave Create.
       ScopedFlock image_lock;
-      image_lock.Init(image_filename->c_str(), &error_msg);
+      image_lock.Init(image_filename->c_str(), error_msg);
       LOG(INFO) << "Using image file " << image_filename->c_str() << " for image location "
                 << image_location;
       // If we are in /system we can assume the image is good. We can also
@@ -359,7 +369,7 @@ ImageSpace* ImageSpace::Create(const char* image_location,
       // matches) since this is only different by the offset. We need this to
       // make sure that host tests continue to work.
       space = ImageSpace::Init(image_filename->c_str(), image_location,
-                               !(is_system || relocated_version_used), &error_msg);
+                               !(is_system || relocated_version_used), error_msg);
     }
     if (space != nullptr) {
       return space;
@@ -374,29 +384,38 @@ ImageSpace* ImageSpace::Create(const char* image_location,
                  << "but image failed to load: " << error_msg;
       return nullptr;
     } else if (is_system) {
-      LOG(FATAL) << "Failed to load /system image '" << *image_filename << "': " << error_msg;
+      *error_msg = StringPrintf("Failed to load /system image '%s': %s",
+                                image_filename->c_str(), error_msg->c_str());
       return nullptr;
     } else {
-      LOG(WARNING) << error_msg;
+      LOG(WARNING) << *error_msg;
     }
   }
 
-  CHECK(dalvik_cache_exists) << "No place to put generated image.";
-  CHECK(GenerateImage(cache_filename, &error_msg))
-      << "Failed to generate image '" << cache_filename << "': " << error_msg;
-  {
+  if (!can_compile) {
+    *error_msg = "Not attempting to compile image because -Xnoimage-dex2oat";
+    return nullptr;
+  } else if (!dalvik_cache_exists) {
+    *error_msg = StringPrintf("No place to put generated image.");
+    return nullptr;
+  } else if (!GenerateImage(cache_filename, error_msg)) {
+    *error_msg = StringPrintf("Failed to generate image '%s': %s",
+                              cache_filename.c_str(), error_msg->c_str());
+    return nullptr;
+  } else {
     // Note that we must not use the file descriptor associated with
     // ScopedFlock::GetFile to Init the image file. We want the file
     // descriptor (and the associated exclusive lock) to be released when
     // we leave Create.
     ScopedFlock image_lock;
-    image_lock.Init(cache_filename.c_str(), &error_msg);
-    space = ImageSpace::Init(cache_filename.c_str(), image_location, true, &error_msg);
+    image_lock.Init(cache_filename.c_str(), error_msg);
+    space = ImageSpace::Init(cache_filename.c_str(), image_location, true, error_msg);
+    if (space == nullptr) {
+      *error_msg = StringPrintf("Failed to load generated image '%s': %s",
+                                cache_filename.c_str(), error_msg->c_str());
+    }
+    return space;
   }
-  if (space == nullptr) {
-    LOG(FATAL) << "Failed to load generated image '" << cache_filename << "': " << error_msg;
-  }
-  return space;
 }
 
 void ImageSpace::VerifyImageAllocations() {
