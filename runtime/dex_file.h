@@ -201,6 +201,24 @@ class DexFile {
     uint32_t class_data_off_;  // file offset to class_data_item
     uint32_t static_values_off_;  // file offset to EncodedArray
 
+    // Returns the valid access flags, that is, Java modifier bits relevant to the ClassDef type
+    // (class or interface). These are all in the lower 16b and do not contain runtime flags.
+    uint32_t GetJavaAccessFlags() const {
+      // Make sure that none of our runtime-only flags are set.
+      COMPILE_ASSERT((kAccValidClassFlags & kAccJavaFlagsMask) == kAccValidClassFlags,
+                     valid_class_flags_not_subset_of_java_flags);
+      COMPILE_ASSERT((kAccValidInterfaceFlags & kAccJavaFlagsMask) == kAccValidInterfaceFlags,
+                     valid_interface_flags_not_subset_of_java_flags);
+
+      if ((access_flags_ & kAccInterface) != 0) {
+        // Interface.
+        return access_flags_ & kAccValidInterfaceFlags;
+      } else {
+        // Class.
+        return access_flags_ & kAccValidClassFlags;
+      }
+    }
+
    private:
     DISALLOW_COPY_AND_ASSIGN(ClassDef);
   };
@@ -1112,7 +1130,7 @@ class ClassDataItemIterator {
       return last_idx_ + method_.method_idx_delta_;
     }
   }
-  uint32_t GetMemberAccessFlags() const {
+  uint32_t GetRawMemberAccessFlags() const {
     if (pos_ < EndOfInstanceFieldsPos()) {
       return field_.access_flags_;
     } else {
@@ -1120,18 +1138,30 @@ class ClassDataItemIterator {
       return method_.access_flags_;
     }
   }
+  uint32_t GetFieldAccessFlags() const {
+    return GetRawMemberAccessFlags() & kAccValidFieldFlags;
+  }
+  uint32_t GetMethodAccessFlags() const {
+    return GetRawMemberAccessFlags() & kAccValidMethodFlags;
+  }
+  bool MemberIsNative() const {
+    return GetRawMemberAccessFlags() & kAccNative;
+  }
+  bool MemberIsFinal() const {
+    return GetRawMemberAccessFlags() & kAccFinal;
+  }
   InvokeType GetMethodInvokeType(const DexFile::ClassDef& class_def) const {
     if (HasNextDirectMethod()) {
-      if ((GetMemberAccessFlags() & kAccStatic) != 0) {
+      if ((GetRawMemberAccessFlags() & kAccStatic) != 0) {
         return kStatic;
       } else {
         return kDirect;
       }
     } else {
-      DCHECK_EQ(GetMemberAccessFlags() & kAccStatic, 0U);
+      DCHECK_EQ(GetRawMemberAccessFlags() & kAccStatic, 0U);
       if ((class_def.access_flags_ & kAccInterface) != 0) {
         return kInterface;
-      } else if ((GetMemberAccessFlags() & kAccConstructor) != 0) {
+      } else if ((GetRawMemberAccessFlags() & kAccConstructor) != 0) {
         return kSuper;
       } else {
         return kVirtual;
