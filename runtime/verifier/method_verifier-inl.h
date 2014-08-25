@@ -39,11 +39,11 @@ inline const InstructionFlags& MethodVerifier::GetInstructionFlags(size_t index)
 }
 
 inline mirror::ClassLoader* MethodVerifier::GetClassLoader() {
-  return class_loader_->Get();
+  return class_loader_.Get();
 }
 
 inline mirror::DexCache* MethodVerifier::GetDexCache() {
-  return dex_cache_->Get();
+  return dex_cache_.Get();
 }
 
 inline MethodReference MethodVerifier::GetMethodReference() const {

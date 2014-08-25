@@ -146,9 +146,9 @@ class Handle : public ConstHandle<T> {
 
 // A special case of Handle that only holds references to null.
 template<class T>
-class NullHandle : public Handle<T> {
+class NullHandle : public ConstHandle<T> {
  public:
-  NullHandle() : Handle<T>(&null_ref_) {
+  NullHandle() : ConstHandle<T>(&null_ref_) {
   }
 
  private:
