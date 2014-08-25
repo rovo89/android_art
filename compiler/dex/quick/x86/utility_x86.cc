@@ -875,6 +875,17 @@ LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r
 
   // StoreBaseDisp() will emit correct insn for atomic store on x86
   // assuming r_dest is correctly prepared using RegClassForFieldLoadStore().
+  // x86 only allows registers EAX-EDX to be used as byte registers, if the input src is not
+  // valid, allocate a temp.
+  bool allocated_temp = false;
+  if (size == kUnsignedByte || size == kSignedByte) {
+    if (!cu_->target64 && !r_src.Low4()) {
+      RegStorage r_input = r_src;
+      r_src = AllocateByteRegister();
+      OpRegCopy(r_src, r_input);
+      allocated_temp = true;
+    }
+  }
 
   LIR* store = StoreBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_src, size);
 
@@ -882,6 +893,10 @@ LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r
     // A volatile load might follow the volatile store so insert a StoreLoad barrier.
     // This does require a fence, even on x86.
     GenMemBarrier(kAnyAny);
+  }
+
+  if (allocated_temp) {
+    FreeTemp(r_src);
   }
 
   return store;

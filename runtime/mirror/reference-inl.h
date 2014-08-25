@@ -24,7 +24,7 @@ namespace mirror {
 
 inline uint32_t Reference::ClassSize() {
   uint32_t vtable_entries = Object::kVTableLength + 5;
-  return Class::ComputeClassSize(false, vtable_entries, 2, 0, 0);
+  return Class::ComputeClassSize(false, vtable_entries, 2, 0, 0, 0, 0);
 }
 
 inline bool Reference::IsEnqueuable() {

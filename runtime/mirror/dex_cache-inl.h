@@ -28,7 +28,7 @@ namespace mirror {
 
 inline uint32_t DexCache::ClassSize() {
   uint32_t vtable_entries = Object::kVTableLength + 1;
-  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0);
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0);
 }
 
 inline ArtMethod* DexCache::GetResolvedMethod(uint32_t method_idx)

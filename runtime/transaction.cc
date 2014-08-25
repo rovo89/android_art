@@ -57,6 +57,40 @@ Transaction::~Transaction() {
   }
 }
 
+void Transaction::RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset,
+                                          uint8_t value, bool is_volatile) {
+  DCHECK(obj != nullptr);
+  MutexLock mu(Thread::Current(), log_lock_);
+  ObjectLog& object_log = object_logs_[obj];
+  object_log.LogBooleanValue(field_offset, value, is_volatile);
+}
+
+void Transaction::RecordWriteFieldByte(mirror::Object* obj, MemberOffset field_offset,
+                                       int8_t value, bool is_volatile) {
+  DCHECK(obj != nullptr);
+  MutexLock mu(Thread::Current(), log_lock_);
+  ObjectLog& object_log = object_logs_[obj];
+  object_log.LogByteValue(field_offset, value, is_volatile);
+}
+
+void Transaction::RecordWriteFieldChar(mirror::Object* obj, MemberOffset field_offset,
+                                       uint16_t value, bool is_volatile) {
+  DCHECK(obj != nullptr);
+  MutexLock mu(Thread::Current(), log_lock_);
+  ObjectLog& object_log = object_logs_[obj];
+  object_log.LogCharValue(field_offset, value, is_volatile);
+}
+
+
+void Transaction::RecordWriteFieldShort(mirror::Object* obj, MemberOffset field_offset,
+                                        int16_t value, bool is_volatile) {
+  DCHECK(obj != nullptr);
+  MutexLock mu(Thread::Current(), log_lock_);
+  ObjectLog& object_log = object_logs_[obj];
+  object_log.LogShortValue(field_offset, value, is_volatile);
+}
+
+
 void Transaction::RecordWriteField32(mirror::Object* obj, MemberOffset field_offset, uint32_t value,
                                      bool is_volatile) {
   DCHECK(obj != nullptr);
@@ -223,35 +257,42 @@ void Transaction::VisitStringLogs(RootCallback* callback, void* arg) {
   }
 }
 
+void Transaction::ObjectLog::LogBooleanValue(MemberOffset offset, uint8_t value, bool is_volatile) {
+  LogValue(ObjectLog::kBoolean, offset, value, is_volatile);
+}
+
+void Transaction::ObjectLog::LogByteValue(MemberOffset offset, int8_t value, bool is_volatile) {
+  LogValue(ObjectLog::kByte, offset, value, is_volatile);
+}
+
+void Transaction::ObjectLog::LogCharValue(MemberOffset offset, uint16_t value, bool is_volatile) {
+  LogValue(ObjectLog::kChar, offset, value, is_volatile);
+}
+
+void Transaction::ObjectLog::LogShortValue(MemberOffset offset, int16_t value, bool is_volatile) {
+  LogValue(ObjectLog::kShort, offset, value, is_volatile);
+}
+
 void Transaction::ObjectLog::Log32BitsValue(MemberOffset offset, uint32_t value, bool is_volatile) {
-  auto it = field_values_.find(offset.Uint32Value());
-  if (it == field_values_.end()) {
-    ObjectLog::FieldValue field_value;
-    field_value.value = value;
-    field_value.is_volatile = is_volatile;
-    field_value.kind = ObjectLog::k32Bits;
-    field_values_.insert(std::make_pair(offset.Uint32Value(), field_value));
-  }
+  LogValue(ObjectLog::k32Bits, offset, value, is_volatile);
 }
 
 void Transaction::ObjectLog::Log64BitsValue(MemberOffset offset, uint64_t value, bool is_volatile) {
+  LogValue(ObjectLog::k64Bits, offset, value, is_volatile);
+}
+
+void Transaction::ObjectLog::LogReferenceValue(MemberOffset offset, mirror::Object* obj, bool is_volatile) {
+  LogValue(ObjectLog::kReference, offset, reinterpret_cast<uintptr_t>(obj), is_volatile);
+}
+
+void Transaction::ObjectLog::LogValue(ObjectLog::FieldValueKind kind,
+                                      MemberOffset offset, uint64_t value, bool is_volatile) {
   auto it = field_values_.find(offset.Uint32Value());
   if (it == field_values_.end()) {
     ObjectLog::FieldValue field_value;
     field_value.value = value;
     field_value.is_volatile = is_volatile;
-    field_value.kind = ObjectLog::k64Bits;
-    field_values_.insert(std::make_pair(offset.Uint32Value(), field_value));
-  }
-}
-
-void Transaction::ObjectLog::LogReferenceValue(MemberOffset offset, mirror::Object* obj, bool is_volatile) {
-  auto it = field_values_.find(offset.Uint32Value());
-  if (it == field_values_.end()) {
-    ObjectLog::FieldValue field_value;
-    field_value.value = reinterpret_cast<uintptr_t>(obj);
-    field_value.is_volatile = is_volatile;
-    field_value.kind = ObjectLog::kReference;
+    field_value.kind = kind;
     field_values_.insert(std::make_pair(offset.Uint32Value(), field_value));
   }
 }
@@ -281,6 +322,42 @@ void Transaction::ObjectLog::UndoFieldWrite(mirror::Object* obj, MemberOffset fi
   // we'd need to disable the check.
   constexpr bool kCheckTransaction = true;
   switch (field_value.kind) {
+    case kBoolean:
+      if (UNLIKELY(field_value.is_volatile)) {
+        obj->SetFieldBooleanVolatile<false, kCheckTransaction>(field_offset,
+                                                         static_cast<bool>(field_value.value));
+      } else {
+        obj->SetFieldBoolean<false, kCheckTransaction>(field_offset,
+                                                 static_cast<bool>(field_value.value));
+      }
+      break;
+    case kByte:
+      if (UNLIKELY(field_value.is_volatile)) {
+        obj->SetFieldByteVolatile<false, kCheckTransaction>(field_offset,
+                                                         static_cast<int8_t>(field_value.value));
+      } else {
+        obj->SetFieldByte<false, kCheckTransaction>(field_offset,
+                                                 static_cast<int8_t>(field_value.value));
+      }
+      break;
+    case kChar:
+      if (UNLIKELY(field_value.is_volatile)) {
+        obj->SetFieldCharVolatile<false, kCheckTransaction>(field_offset,
+                                                          static_cast<uint16_t>(field_value.value));
+      } else {
+        obj->SetFieldChar<false, kCheckTransaction>(field_offset,
+                                                  static_cast<uint16_t>(field_value.value));
+      }
+      break;
+    case kShort:
+      if (UNLIKELY(field_value.is_volatile)) {
+        obj->SetFieldShortVolatile<false, kCheckTransaction>(field_offset,
+                                                          static_cast<int16_t>(field_value.value));
+      } else {
+        obj->SetFieldShort<false, kCheckTransaction>(field_offset,
+                                                  static_cast<int16_t>(field_value.value));
+      }
+      break;
     case k32Bits:
       if (UNLIKELY(field_value.is_volatile)) {
         obj->SetField32Volatile<false, kCheckTransaction>(field_offset,
