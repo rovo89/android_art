@@ -252,7 +252,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
     // Special-case handling for format 35c/3rc invokes
     Instruction::Code opcode = mir->dalvikInsn.opcode;
     int flags = MIR::DecodedInstruction::IsPseudoMirOp(opcode) ?
-                  0 : Instruction::FlagsOf(mir->dalvikInsn.opcode);
+                  0 : mir->dalvikInsn.FlagsOf();
     if ((flags & Instruction::kInvoke) &&
         (attrs & (DF_FORMAT_35C | DF_FORMAT_3RC))) {
       DCHECK_EQ(next, 0);
