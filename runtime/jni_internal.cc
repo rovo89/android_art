@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "atomic.h"
+#include "base/allocator.h"
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "base/stl_util.h"
@@ -564,7 +565,7 @@ class Libraries {
   }
 
  private:
-  SafeMap<std::string, SharedLibrary*> libraries_;
+  AllocationTrackingSafeMap<std::string, SharedLibrary*, kAllocatorTagJNILibrarires> libraries_;
 };
 
 #define CHECK_NON_NULL_ARGUMENT(value) \
