@@ -211,9 +211,9 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
     Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
     Handle<mirror::ArtMethod> h_method(hs.NewHandle(m));
-    verifier::MethodVerifier verifier(h_dex_cache->GetDexFile(), &h_dex_cache, &h_class_loader,
-                                      &m->GetClassDef(), code_item, m->GetDexMethodIndex(), h_method,
-                                      m->GetAccessFlags(), false, true, true);
+    verifier::MethodVerifier verifier(h_dex_cache->GetDexFile(), h_dex_cache, h_class_loader,
+                                      &m->GetClassDef(), code_item, m->GetDexMethodIndex(),
+                                      h_method, m->GetAccessFlags(), false, true, true);
     verifier.Verify();
     const std::vector<int32_t> kinds(verifier.DescribeVRegs(dex_pc));
     for (uint16_t reg = 0; reg < num_regs; ++reg) {
