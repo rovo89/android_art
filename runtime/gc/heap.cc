@@ -258,6 +258,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
         MemMap::MapAnonymous("non moving space", requested_alloc_space_begin,
                              non_moving_space_capacity, PROT_READ | PROT_WRITE, true, &error_str));
     CHECK(non_moving_space_mem_map != nullptr) << error_str;
+    // Try to reserve virtual memory at a lower address if we have a separate non moving space.
+    request_begin = reinterpret_cast<byte*>(0x1000000);
   }
   // Attempt to create 2 mem maps at or after the requested begin.
   main_mem_map_1.reset(MapAnonymousPreferredAddress(kMemMapSpaceName[0], request_begin, capacity_,
