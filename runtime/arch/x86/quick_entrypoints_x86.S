@@ -408,7 +408,7 @@ MACRO3(TWO_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     mov 32(%esp), %edx            // get referrer
-    subl LITERAL(12), %esp        // alignment padding
+    subl MACRO_LITERAL(12), %esp  // alignment padding
     CFI_ADJUST_CFA_OFFSET(12)
     PUSH ebx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
@@ -418,7 +418,7 @@ MACRO3(TWO_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     PUSH ecx                      // pass arg2
     PUSH eax                      // pass arg1
     call VAR(cxx_name, 1)     // cxx_name(arg1, arg2, referrer, Thread*, SP)
-    addl LITERAL(32), %esp        // pop arguments
+    addl MACRO_LITERAL(32), %esp  // pop arguments
     CFI_ADJUST_CFA_OFFSET(-32)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     CALL_MACRO(return_macro, 2)   // return or deliver exception
