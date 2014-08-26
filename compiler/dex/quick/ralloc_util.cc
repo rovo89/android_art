@@ -359,19 +359,19 @@ RegStorage Mir2Lir::AllocTempBody(GrowableArray<RegisterInfo*> &regs, int* next_
     RegisterInfo* info = regs.Get(next);
     // Try to allocate a register that doesn't hold a live value.
     if (info->IsTemp() && !info->InUse() && info->IsDead()) {
+      // If it's wide, split it up.
+      if (info->IsWide()) {
+        // If the pair was associated with a wide value, unmark the partner as well.
+        if (info->SReg() != INVALID_SREG) {
+          RegisterInfo* partner = GetRegInfo(info->Partner());
+          DCHECK_EQ(info->GetReg().GetRegNum(), partner->Partner().GetRegNum());
+          DCHECK(partner->IsWide());
+          partner->SetIsWide(false);
+        }
+        info->SetIsWide(false);
+      }
       Clobber(info->GetReg());
       info->MarkInUse();
-      /*
-       * NOTE: "wideness" is an attribute of how the container is used, not its physical size.
-       * The caller will set wideness as appropriate.
-       */
-      if (info->IsWide()) {
-        RegisterInfo* partner = GetRegInfo(info->Partner());
-        DCHECK_EQ(info->GetReg().GetRegNum(), partner->Partner().GetRegNum());
-        DCHECK(partner->IsWide());
-        info->SetIsWide(false);
-        partner->SetIsWide(false);
-      }
       *next_temp = next + 1;
       return info->GetReg();
     }
