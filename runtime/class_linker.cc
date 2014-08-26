@@ -5152,7 +5152,11 @@ mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file, uint32_t 
           }
           break;
         case kSuper:
-          ThrowNoSuchMethodError(type, klass, name, signature);
+          if (resolved != nullptr) {
+            ThrowIncompatibleClassChangeError(type, kDirect, resolved, referrer.Get());
+          } else {
+            ThrowNoSuchMethodError(type, klass, name, signature);
+          }
           break;
         case kVirtual:
           if (resolved != nullptr) {
