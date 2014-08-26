@@ -625,7 +625,7 @@ void ThreadList::SuspendAllForDebugger() {
 #endif
   AssertThreadsAreSuspended(self, self, debug_thread);
 
-  VLOG(threads) << *self << " SuspendAll complete";
+  VLOG(threads) << *self << " SuspendAllForDebugger complete";
 }
 
 void ThreadList::SuspendSelfForDebugger() {
