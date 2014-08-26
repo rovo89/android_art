@@ -3644,6 +3644,11 @@ mirror::ArtField* MethodVerifier::GetInstanceField(RegType& obj_type, int field_
   } else if (obj_type.IsZero()) {
     // Cannot infer and check type, however, access will cause null pointer exception
     return field;
+  } else if (!obj_type.IsReferenceTypes()) {
+    // Trying to read a field from something that isn't a reference
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "instance field access on object that has "
+                                      << "non-reference type " << obj_type;
+    return NULL;
   } else {
     mirror::Class* klass = field->GetDeclaringClass();
     RegType& field_klass =
