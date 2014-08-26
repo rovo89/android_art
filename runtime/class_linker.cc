@@ -3992,23 +3992,23 @@ bool ClassLinker::InitializeClass(ConstHandle<mirror::Class> klass, bool can_ini
     StackHandleScope<3> hs(self);
     Handle<mirror::ClassLoader> class_loader(hs.NewHandle(klass->GetClassLoader()));
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(klass->GetDexCache()));
-    EncodedStaticFieldValueIterator it(dex_file, &dex_cache, &class_loader,
-                                       this, *dex_class_def);
-    if (it.HasNext()) {
+    EncodedStaticFieldValueIterator value_it(dex_file, &dex_cache, &class_loader,
+                                             this, *dex_class_def);
+    const byte* class_data = dex_file.GetClassData(*dex_class_def);
+    ClassDataItemIterator field_it(dex_file, class_data);
+    if (value_it.HasNext()) {
+      DCHECK(field_it.HasNextStaticField());
       CHECK(can_init_statics);
-      // We reordered the fields, so we need to be able to map the
-      // field indexes to the right fields.
-      Handle<mirror::ObjectArray<mirror::ArtField>>
-          field_array(hs.NewHandle(AllocArtFieldArray(self, klass->NumStaticFields())));
-      ConstructFieldArray(dex_file, *dex_class_def, klass.Get(), field_array);
-      for (size_t i = 0; it.HasNext(); i++, it.Next()) {
+      for ( ; value_it.HasNext(); value_it.Next(), field_it.Next()) {
         StackHandleScope<1> hs(self);
-        Handle<mirror::ArtField> field(hs.NewHandle(field_array->Get(i)));
+        Handle<mirror::ArtField> field(hs.NewHandle(
+            ResolveField(dex_file, field_it.GetMemberIndex(), dex_cache, class_loader, true)));
         if (Runtime::Current()->IsActiveTransaction()) {
-          it.ReadValueToField<true>(field);
+          value_it.ReadValueToField<true>(field);
         } else {
-          it.ReadValueToField<false>(field);
+          value_it.ReadValueToField<false>(field);
         }
+        DCHECK(!value_it.HasNext() || field_it.HasNextStaticField());
       }
     }
   }
@@ -4144,23 +4144,6 @@ bool ClassLinker::EnsureInitialized(ConstHandle<mirror::Class> c, bool can_init_
     CHECK(Thread::Current()->IsExceptionPending()) << PrettyClass(c.Get());
   }
   return success;
-}
-
-void ClassLinker::ConstructFieldArray(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
-                                      mirror::Class* c,
-                                      ConstHandle<mirror::ObjectArray<mirror::ArtField>> field_array) {
-  const byte* class_data = dex_file.GetClassData(dex_class_def);
-  ClassDataItemIterator it(dex_file, class_data);
-  StackHandleScope<2> hs(Thread::Current());
-  Handle<mirror::DexCache> dex_cache(hs.NewHandle(c->GetDexCache()));
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(c->GetClassLoader()));
-  for (size_t i = 0; it.HasNextStaticField(); i++, it.Next()) {
-    if (Runtime::Current()->IsActiveTransaction()) {
-      field_array->Set<true>(i, ResolveField(dex_file, it.GetMemberIndex(), dex_cache, class_loader, true));
-    } else {
-      field_array->Set<false>(i, ResolveField(dex_file, it.GetMemberIndex(), dex_cache, class_loader, true));
-    }
-  }
 }
 
 void ClassLinker::FixupTemporaryDeclaringClass(mirror::Class* temp_class, mirror::Class* new_class) {
