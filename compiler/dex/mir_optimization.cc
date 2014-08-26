@@ -1255,7 +1255,7 @@ void MIRGraph::InlineSpecialMethods(BasicBlock* bb) {
     if (MIR::DecodedInstruction::IsPseudoMirOp(mir->dalvikInsn.opcode)) {
       continue;
     }
-    if (!(Instruction::FlagsOf(mir->dalvikInsn.opcode) & Instruction::kInvoke)) {
+    if (!(mir->dalvikInsn.FlagsOf() & Instruction::kInvoke)) {
       continue;
     }
     const MirMethodLoweringInfo& method_info = GetMethodLoweringInfo(mir);

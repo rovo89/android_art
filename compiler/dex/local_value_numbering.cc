@@ -464,7 +464,7 @@ void LocalValueNumbering::PruneNonAliasingRefsForCatch() {
     const MIR* mir = fall_through_bb->first_mir_insn;
     DCHECK(mir != nullptr);
     // Only INVOKEs can leak and clobber non-aliasing references if they throw.
-    if ((Instruction::FlagsOf(mir->dalvikInsn.opcode) & Instruction::kInvoke) != 0) {
+    if ((mir->dalvikInsn.FlagsOf() & Instruction::kInvoke) != 0) {
       for (uint16_t i = 0u; i != mir->ssa_rep->num_uses; ++i) {
         uint16_t value_name = lvn->GetOperandValue(mir->ssa_rep->uses[i]);
         non_aliasing_refs_.erase(value_name);
