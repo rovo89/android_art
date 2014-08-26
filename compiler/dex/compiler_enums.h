@@ -234,6 +234,10 @@ enum ExtendedMIROpcode {
   // @note: All currently reserved vector registers are returned to the temporary pool.
   kMirOpReturnVectorRegisters,
 
+  // @brief Create a memory barrier.
+  // vA: a constant defined by enum MemBarrierKind.
+  kMirOpMemBarrier,
+
   kMirOpLast,
 };
 
@@ -249,6 +253,7 @@ enum MIROptimizationFlagPositions {
   kMIRIgnoreSuspendCheck,
   kMIRDup,
   kMIRMark,                           // Temporary node mark.
+  kMIRStoreNonTemporal,
   kMIRLastMIRFlag,
 };
 
@@ -453,12 +458,15 @@ std::ostream& operator<<(std::ostream& os, const DividePattern& pattern);
  * -# Use LoadAny barrier ~= (LoadLoad | LoadStore) ~= acquire barrierafter each volatile load.
  * -# Use StoreStore barrier after all stores but before return from any constructor whose
  *    class has final fields.
+ * -# Use NTStoreStore to order non-temporal stores with respect to all later
+ *    store-to-memory instructions.  Only generated together with non-temporal stores.
  */
 enum MemBarrierKind {
   kAnyStore,
   kLoadAny,
   kStoreStore,
-  kAnyAny
+  kAnyAny,
+  kNTStoreStore,
 };
 
 std::ostream& operator<<(std::ostream& os, const MemBarrierKind& kind);

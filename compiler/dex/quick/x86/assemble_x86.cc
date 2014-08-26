@@ -188,6 +188,8 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
 
   { kX86Mov32MR, kMemReg,    IS_STORE | IS_TERTIARY_OP | REG_USE02,      { 0,             0, 0x89, 0, 0, 0, 0, 0, false }, "Mov32MR", "[!0r+!1d],!2r" },
   { kX86Mov32AR, kArrayReg,  IS_STORE | IS_QUIN_OP     | REG_USE014,     { 0,             0, 0x89, 0, 0, 0, 0, 0, false }, "Mov32AR", "[!0r+!1r<<!2d+!3d],!4r" },
+  { kX86Movnti32MR, kMemReg,    IS_STORE | IS_TERTIARY_OP | REG_USE02,   { 0x0F,          0, 0xC3, 0, 0, 0, 0, 0, false }, "Movnti32MR", "[!0r+!1d],!2r" },
+  { kX86Movnti32AR, kArrayReg,  IS_STORE | IS_QUIN_OP     | REG_USE014,  { 0x0F,          0, 0xC3, 0, 0, 0, 0, 0, false }, "Movnti32AR", "[!0r+!1r<<!2d+!3d],!4r" },
   { kX86Mov32TR, kThreadReg, IS_STORE | IS_BINARY_OP   | REG_USE1,       { THREAD_PREFIX, 0, 0x89, 0, 0, 0, 0, 0, false }, "Mov32TR", "fs:[!0d],!1r" },
   { kX86Mov32RR, kRegReg,               IS_BINARY_OP   | REG_DEF0_USE1,  { 0,             0, 0x8B, 0, 0, 0, 0, 0, false }, "Mov32RR", "!0r,!1r" },
   { kX86Mov32RM, kRegMem,    IS_LOAD  | IS_TERTIARY_OP | REG_DEF0_USE1,  { 0,             0, 0x8B, 0, 0, 0, 0, 0, false }, "Mov32RM", "!0r,[!1r+!2d]" },
@@ -203,6 +205,8 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
 
   { kX86Mov64MR, kMemReg,    IS_STORE | IS_TERTIARY_OP | REG_USE02,      { REX_W,             0, 0x89, 0, 0, 0, 0, 0, false }, "Mov64MR", "[!0r+!1d],!2r" },
   { kX86Mov64AR, kArrayReg,  IS_STORE | IS_QUIN_OP     | REG_USE014,     { REX_W,             0, 0x89, 0, 0, 0, 0, 0, false }, "Mov64AR", "[!0r+!1r<<!2d+!3d],!4r" },
+  { kX86Movnti64MR, kMemReg,    IS_STORE | IS_TERTIARY_OP | REG_USE02,   { 0x0F,              0, 0xC3, 0, 0, 0, 0, 0, false }, "Movnti64MR", "[!0r+!1d],!2r" },
+  { kX86Movnti64AR, kArrayReg,  IS_STORE | IS_QUIN_OP     | REG_USE014,  { 0x0F,              0, 0xC3, 0, 0, 0, 0, 0, false }, "Movnti64AR", "[!0r+!1r<<!2d+!3d],!4r" },
   { kX86Mov64TR, kThreadReg, IS_STORE | IS_BINARY_OP   | REG_USE1,       { THREAD_PREFIX, REX_W, 0x89, 0, 0, 0, 0, 0, false }, "Mov64TR", "fs:[!0d],!1r" },
   { kX86Mov64RR, kRegReg,               IS_BINARY_OP   | REG_DEF0_USE1,  { REX_W,             0, 0x8B, 0, 0, 0, 0, 0, false }, "Mov64RR", "!0r,!1r" },
   { kX86Mov64RM, kRegMem,    IS_LOAD  | IS_TERTIARY_OP | REG_DEF0_USE1,  { REX_W,             0, 0x8B, 0, 0, 0, 0, 0, false }, "Mov64RM", "!0r,[!1r+!2d]" },
@@ -486,7 +490,9 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
 
   // TODO: load/store?
   // Encode the modrm opcode as an extra opcode byte to avoid computation during assembly.
+  { kX86Lfence, kReg,                 NO_OPERAND,     { 0, 0, 0x0F, 0xAE, 0, 5, 0, 0, false }, "Lfence", "" },
   { kX86Mfence, kReg,                 NO_OPERAND,     { 0, 0, 0x0F, 0xAE, 0, 6, 0, 0, false }, "Mfence", "" },
+  { kX86Sfence, kReg,                 NO_OPERAND,     { 0, 0, 0x0F, 0xAE, 0, 7, 0, 0, false }, "Sfence", "" },
 
   EXT_0F_ENCODING_MAP(Imul16,  0x66, 0xAF, REG_USE0 | REG_DEF0 | SETS_CCODES),
   EXT_0F_ENCODING_MAP(Imul32,  0x00, 0xAF, REG_USE0 | REG_DEF0 | SETS_CCODES),
