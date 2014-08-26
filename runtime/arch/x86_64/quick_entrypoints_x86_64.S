@@ -1593,3 +1593,17 @@ DEFINE_FUNCTION art_quick_assignable_from_code
     RESTORE_FP_CALLEE_SAVE_FRAME
     ret
 END_FUNCTION art_quick_assignable_from_code
+
+
+// Return from a nested signal:
+// Entry:
+//  rdi: address of jmp_buf in TLS
+
+DEFINE_FUNCTION art_nested_signal_return
+                                    // first arg to longjmp is already in correct register
+    movq LITERAL(1), %rsi           // second arg to longjmp (1)
+    call PLT_SYMBOL(longjmp)
+    int3                            // won't get here
+END_FUNCTION art_nested_signal_return
+
+

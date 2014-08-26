@@ -42,6 +42,7 @@ class FaultManager {
   void Shutdown();
 
   void HandleFault(int sig, siginfo_t* info, void* context);
+  void HandleNestedSignal(int sig, siginfo_t* info, void* context);
   void AddHandler(FaultHandler* handler, bool generated_code);
   void RemoveHandler(FaultHandler* handler);
 

@@ -37,6 +37,20 @@ extern "C" void art_quick_implicit_suspend();
 
 namespace art {
 
+void FaultManager::HandleNestedSignal(int sig, siginfo_t* info, void* context) {
+  // To match the case used in ARM we return directly to the longjmp function
+  // rather than through a trivial assembly language stub.
+
+  struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
+  struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
+  Thread* self = Thread::Current();
+  CHECK(self != nullptr);       // This will cause a SIGABRT if self is nullptr.
+
+  sc->regs[0] = reinterpret_cast<uintptr_t>(*self->GetNestedSignalState());
+  sc->regs[1] = 1;
+  sc->pc = reinterpret_cast<uintptr_t>(longjmp);
+}
+
 void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
                                              mirror::ArtMethod** out_method,
                                              uintptr_t* out_return_pc, uintptr_t* out_sp) {
