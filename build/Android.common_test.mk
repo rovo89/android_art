@@ -49,7 +49,13 @@ ART_TEST_KNOWN_FAILING :=
 ART_TEST_KEEP_GOING ?= true
 
 # Do you want all tests, even those that are time consuming?
-ART_TEST_FULL ?= true
+ART_TEST_FULL ?= false
+
+# Do you want default compiler tests run?
+ART_TEST_DEFAULT_COMPILER ?= true
+
+# Do you want interpreter tests run?
+ART_TEST_INTERPRETER ?= $(ART_TEST_FULL)
 
 # Do you want optimizing compiler tests run?
 ART_TEST_OPTIMIZING ?= $(ART_TEST_FULL)
@@ -63,17 +69,14 @@ ART_TEST_GC_VERIFY ?= $(ART_TEST_FULL)
 # Do you want tests with the GC stress mode enabled run?
 ART_TEST_GC_STRESS ?= $(ART_TEST_FULL)
 
-# Do you want run-tests with relocation enabled?
-ART_TEST_RUN_TEST_RELOCATE ?= $(ART_TEST_FULL)
+# Do you want tests with the JNI forcecopy mode enabled run?
+ART_TEST_JNI_FORCECOPY ?= $(ART_TEST_FULL)
 
-# Do you want run-tests with relocation disabled?
+# Do you want run-tests with relocation disabled run?
 ART_TEST_RUN_TEST_NO_RELOCATE ?= $(ART_TEST_FULL)
 
-# Do you want run-tests with prebuild disabled?
+# Do you want run-tests with no prebuilding enabled run?
 ART_TEST_RUN_TEST_NO_PREBUILD ?= $(ART_TEST_FULL)
-
-# Do you want run-tests with prebuild enabled?
-ART_TEST_RUN_TEST_PREBUILD ?= true
 
 # Do you want failed tests to have their artifacts cleaned up?
 ART_TEST_RUN_TEST_ALWAYS_CLEAN ?= true
