@@ -439,11 +439,6 @@ class ClassLinker {
   void AppendToBootClassPath(const DexFile& dex_file, ConstHandle<mirror::DexCache> dex_cache)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void ConstructFieldArray(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
-                           mirror::Class* c,
-                           ConstHandle<mirror::ObjectArray<mirror::ArtField>> field_array)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Precomputes size needed for Class, in the case of a non-temporary class this size must be
   // sufficient to hold all static fields.
   uint32_t SizeOfClassWithoutEmbeddedTables(const DexFile& dex_file,
