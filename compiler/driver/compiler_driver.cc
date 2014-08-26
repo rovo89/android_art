@@ -1565,6 +1565,7 @@ static void CheckAndClearResolveException(Thread* self)
       "Ljava/lang/IllegalAccessError;",
       "Ljava/lang/IncompatibleClassChangeError;",
       "Ljava/lang/InstantiationError;",
+      "Ljava/lang/LinkageError;",
       "Ljava/lang/NoClassDefFoundError;",
       "Ljava/lang/NoSuchFieldError;",
       "Ljava/lang/NoSuchMethodError;"
@@ -1576,7 +1577,7 @@ static void CheckAndClearResolveException(Thread* self)
     }
   }
   if (!found) {
-    LOG(FATAL) << "Unexpected exeption " << exception->Dump();
+    LOG(FATAL) << "Unexpected exception " << exception->Dump();
   }
   self->ClearException();
 }
