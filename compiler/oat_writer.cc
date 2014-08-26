@@ -527,7 +527,14 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
                                                       NullHandle<mirror::ClassLoader>(),
                                                       NullHandle<mirror::ArtMethod>(),
                                                       invoke_type);
-    CHECK(method != NULL) << PrettyMethod(it.GetMemberIndex(), *dex_file_, true);
+    if (method == nullptr) {
+      LOG(ERROR) << "Unexpected failure to resolve a method: "
+                 << PrettyMethod(it.GetMemberIndex(), *dex_file_, true);
+      soa.Self()->AssertPendingException();
+      mirror::Throwable* exc = soa.Self()->GetException(nullptr);
+      std::string dump = exc->Dump();
+      LOG(FATAL) << dump;
+    }
     // Portable code offsets are set by ElfWriterMclinker::FixupCompiledCodeOffset after linking.
     method->SetQuickOatCodeOffset(offsets.code_offset_);
     method->SetOatNativeGcMapOffset(offsets.gc_map_offset_);
