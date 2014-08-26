@@ -889,6 +889,9 @@ const uint32_t MIRGraph::analysis_attributes_[kMirOpLast] = {
 
   // 129 MirOpReturnVectorRegisters
   AN_NONE,
+
+  // 130 MirOpMemBarrier
+  AN_NONE,
 };
 
 struct MethodStats {

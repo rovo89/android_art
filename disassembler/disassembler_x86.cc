@@ -764,6 +764,7 @@ DISASSEMBLER_ENTRY(cmp,
       case 0xB7: opcode << "movzxw"; has_modrm = true; load = true; break;
       case 0xBE: opcode << "movsxb"; has_modrm = true; load = true; byte_second_operand = true; rex |= (rex == 0 ? 0 : 0b1000); break;
       case 0xBF: opcode << "movsxw"; has_modrm = true; load = true; break;
+      case 0xC3: opcode << "movnti"; store = true; has_modrm = true; break;
       case 0xC5:
         if (prefix[2] == 0x66) {
           opcode << "pextrw";
