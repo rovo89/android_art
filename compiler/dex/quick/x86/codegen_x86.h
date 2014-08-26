@@ -408,7 +408,7 @@ class X86Mir2Lir : public Mir2Lir {
   LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
                            RegStorage r_dest, OpSize size);
   LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
-                            RegStorage r_src, OpSize size);
+                            RegStorage r_src, OpSize size, int opt_flags = 0);
 
   RegStorage GetCoreArgMappingToPhysicalReg(int core_arg_num);
 

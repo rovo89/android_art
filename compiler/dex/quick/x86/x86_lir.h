@@ -440,12 +440,12 @@ enum X86OpCode {
   kX86Mov16MR, kX86Mov16AR, kX86Mov16TR,
   kX86Mov16RR, kX86Mov16RM, kX86Mov16RA, kX86Mov16RT,
   kX86Mov16RI, kX86Mov16MI, kX86Mov16AI, kX86Mov16TI,
-  kX86Mov32MR, kX86Mov32AR, kX86Mov32TR,
+  kX86Mov32MR, kX86Mov32AR, kX86Movnti32MR, kX86Movnti32AR, kX86Mov32TR,
   kX86Mov32RR, kX86Mov32RM, kX86Mov32RA, kX86Mov32RT,
   kX86Mov32RI, kX86Mov32MI, kX86Mov32AI, kX86Mov32TI,
   kX86Lea32RM,
   kX86Lea32RA,
-  kX86Mov64MR, kX86Mov64AR, kX86Mov64TR,
+  kX86Mov64MR, kX86Mov64AR, kX86Movnti64MR, kX86Movnti64AR, kX86Mov64TR,
   kX86Mov64RR, kX86Mov64RM, kX86Mov64RA, kX86Mov64RT,
   kX86Mov64RI32, kX86Mov64RI64, kX86Mov64MI, kX86Mov64AI, kX86Mov64TI,
   kX86Lea64RM,
@@ -620,7 +620,12 @@ enum X86OpCode {
   kX86MovdrxRR, kX86MovdrxMR, kX86MovdrxAR,  // move into reg from xmm
   kX86MovsxdRR, kX86MovsxdRM, kX86MovsxdRA,  // move 32 bit to 64 bit with sign extension
   kX86Set8R, kX86Set8M, kX86Set8A,  // set byte depending on condition operand
-  kX86Mfence,                   // memory barrier
+  kX86Lfence,                   // memory barrier to serialize all previous
+                                // load-from-memory instructions
+  kX86Mfence,                   // memory barrier to serialize all previous
+                                // load-from-memory and store-to-memory instructions
+  kX86Sfence,                   // memory barrier to serialize all previous
+                                // store-to-memory instructions
   Binary0fOpCode(kX86Imul16),   // 16bit multiply
   Binary0fOpCode(kX86Imul32),   // 32bit multiply
   Binary0fOpCode(kX86Imul64),   // 64bit multiply
