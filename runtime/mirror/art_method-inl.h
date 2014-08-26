@@ -163,7 +163,9 @@ inline bool ArtMethod::CheckIncompatibleClassChange(InvokeType type) {
       return IsDirect() || (methods_class->IsInterface() && !IsMiranda());
     }
     case kSuper:
-      return false;  // TODO: appropriate checks for call to super class.
+      // Constructors and static methods are called with invoke-direct.
+      // Interface methods cannot be invoked with invoke-super.
+      return IsConstructor() || IsStatic() || GetDeclaringClass()->IsInterface();
     case kInterface: {
       Class* methods_class = GetDeclaringClass();
       return IsDirect() || !(methods_class->IsInterface() || methods_class->IsObjectClass());
