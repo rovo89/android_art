@@ -562,7 +562,7 @@ class Locks {
   static Mutex* thread_list_lock_ ACQUIRED_AFTER(trace_lock_);
 
   // Guards breakpoints.
-  static Mutex* breakpoint_lock_ ACQUIRED_AFTER(thread_list_lock_);
+  static ReaderWriterMutex* breakpoint_lock_ ACQUIRED_AFTER(thread_list_lock_);
 
   // Guards lists of classes within the class linker.
   static ReaderWriterMutex* classlinker_classes_lock_ ACQUIRED_AFTER(breakpoint_lock_);
