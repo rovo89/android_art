@@ -171,10 +171,8 @@ if [ "$INTERPRETER" = "y" ]; then
 fi
 
 if [ "$HAVE_IMAGE" = "n" ]; then
-    # Set image to a place were there isn't one and then set the bootclasspath
-    # so we can create it.
-    BOOT_OPT="-Ximage:/system/framework/boot.art"
-    BOOT_OPT="${BOOT_OPT} -Xbootclasspath:$ANDROID_HOST_OUT/../common/obj/JAVA_LIBRARIES/core-libart-hostdex_intermediates/javalib.jar"
+    # Set image to a place were there isn't one.
+    BOOT_OPT="-Ximage:/system/non-existant/core.art"
 fi
 
 if [ "$RELOCATE" = "y" ]; then

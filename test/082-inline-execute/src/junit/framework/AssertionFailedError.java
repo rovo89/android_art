@@ -3,11 +3,18 @@ package junit.framework;
 /**
  * Thrown when an assertion failed.
  */
-public class AssertionFailedError extends Error {
+public class AssertionFailedError extends AssertionError {
 
-    public AssertionFailedError () {
-    }
-    public AssertionFailedError (String message) {
-        super (message);
-    }
+	private static final long serialVersionUID= 1L;
+
+	public AssertionFailedError() {
+	}
+
+	public AssertionFailedError(String message) {
+		super(defaultString(message));
+	}
+
+	private static String defaultString(String message) {
+		return message == null ? "" : message;
+	}
 }
