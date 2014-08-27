@@ -22,6 +22,7 @@
 #include <iosfwd>
 #include <list>
 #include <memory>
+#include <setjmp.h>
 #include <string>
 
 #include "atomic.h"
@@ -848,6 +849,10 @@ class Thread {
     tls32_.handling_signal_ = false;
   }
 
+  jmp_buf* GetNestedSignalState() {
+    return tlsPtr_.nested_signal_state;
+  }
+
  private:
   explicit Thread(bool daemon);
   ~Thread() LOCKS_EXCLUDED(Locks::mutator_lock_,
@@ -1136,6 +1141,9 @@ class Thread {
 
     // Support for Mutex lock hierarchy bug detection.
     BaseMutex* held_mutexes[kLockLevelCount];
+
+    // Recorded thread state for nested signals.
+    jmp_buf* nested_signal_state;
   } tlsPtr_;
 
   // Guards the 'interrupted_' and 'wait_monitor_' members.

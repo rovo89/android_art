@@ -45,8 +45,8 @@ class SignalAction {
 
   // Unclaim the signal and restore the old action.
   void Unclaim(int signal) {
-    sigaction(signal, &action_, NULL);        // Restore old action.
     claimed_ = false;
+    sigaction(signal, &action_, NULL);        // Restore old action.
   }
 
   // Get the action associated with this signal.
@@ -155,8 +155,12 @@ int sigaction(int signal, const struct sigaction* new_action, struct sigaction* 
 
   void* linked_sigaction_sym = dlsym(RTLD_NEXT, "sigaction");
   if (linked_sigaction_sym == nullptr) {
-    log("Unable to find next sigaction in signal chain");
-    abort();
+    linked_sigaction_sym = dlsym(RTLD_DEFAULT, "sigaction");
+    if (linked_sigaction_sym == nullptr ||
+        linked_sigaction_sym == reinterpret_cast<void*>(sigaction)) {
+      log("Unable to find next sigaction in signal chain");
+      abort();
+    }
   }
 
   typedef int (*SigAction)(int, const struct sigaction*, struct sigaction*);
@@ -184,8 +188,12 @@ int sigprocmask(int how, const sigset_t* bionic_new_set, sigset_t* bionic_old_se
 
   void* linked_sigprocmask_sym = dlsym(RTLD_NEXT, "sigprocmask");
   if (linked_sigprocmask_sym == nullptr) {
-    log("Unable to find next sigprocmask in signal chain");
-    abort();
+    linked_sigprocmask_sym = dlsym(RTLD_DEFAULT, "sigprocmask");
+    if (linked_sigprocmask_sym == nullptr ||
+        linked_sigprocmask_sym == reinterpret_cast<void*>(sigprocmask)) {
+      log("Unable to find next sigprocmask in signal chain");
+      abort();
+    }
   }
 
   typedef int (*SigProcMask)(int how, const sigset_t*, sigset_t*);
