@@ -119,9 +119,10 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       arena_(arena),
       backward_branches_(0),
       forward_branches_(0),
-      compiler_temps_(arena, 6, kGrowableArrayMisc),
       num_non_special_compiler_temps_(0),
-      max_available_non_special_compiler_temps_(0),
+      max_available_special_compiler_temps_(1),  // We only need the method ptr as a special temp for now.
+      requested_backend_temp_(false),
+      compiler_temps_committed_(false),
       punt_to_interpreter_(false),
       merged_df_flags_(0u),
       ifield_lowering_infos_(arena, 0u),
@@ -129,8 +130,20 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       method_lowering_infos_(arena, 0u),
       gen_suspend_test_list_(arena, 0u) {
   try_block_addr_ = new (arena_) ArenaBitVector(arena_, 0, true /* expandable */);
-  max_available_special_compiler_temps_ = std::abs(static_cast<int>(kVRegNonSpecialTempBaseReg))
-      - std::abs(static_cast<int>(kVRegTempBaseReg));
+
+
+  if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
+    // X86 requires a temp to keep track of the method address.
+    // TODO For x86_64, addressing can be done with RIP. When that is implemented,
+    // this needs to be updated to reserve 0 temps for BE.
+    max_available_non_special_compiler_temps_ = cu_->target64 ? 2 : 1;
+    reserved_temps_for_backend_ = max_available_non_special_compiler_temps_;
+  } else {
+    // Other architectures do not have a known lower bound for non-special temps.
+    // We allow the update of the max to happen at BE initialization stage and simply set 0 for now.
+    max_available_non_special_compiler_temps_ = 0;
+    reserved_temps_for_backend_ = 0;
+  }
 }
 
 MIRGraph::~MIRGraph() {
@@ -702,11 +715,6 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     cu_->access_flags = access_flags;
     cu_->invoke_type = invoke_type;
     cu_->shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
-    cu_->num_ins = current_code_item_->ins_size_;
-    cu_->num_regs = current_code_item_->registers_size_ - cu_->num_ins;
-    cu_->num_outs = current_code_item_->outs_size_;
-    cu_->num_dalvik_registers = current_code_item_->registers_size_;
-    cu_->insns = current_code_item_->insns_;
     cu_->code_item = current_code_item_;
   } else {
     UNIMPLEMENTED(FATAL) << "Nested inlining not implemented.";
@@ -1429,7 +1437,7 @@ void MIRGraph::DumpMIRGraph() {
   };
 
   LOG(INFO) << "Compiling " << PrettyMethod(cu_->method_idx, *cu_->dex_file);
-  LOG(INFO) << cu_->insns << " insns";
+  LOG(INFO) << GetInsns(0) << " insns";
   LOG(INFO) << GetNumBlocks() << " blocks in total";
   GrowableArray<BasicBlock*>::Iterator iterator(&block_list_);
 
@@ -1516,6 +1524,9 @@ void MIRGraph::InitializeMethodUses() {
   int num_ssa_regs = GetNumSSARegs();
   use_counts_.Resize(num_ssa_regs + 32);
   raw_use_counts_.Resize(num_ssa_regs + 32);
+  // Resize does not actually reset the number of used, so reset before initialization.
+  use_counts_.Reset();
+  raw_use_counts_.Reset();
   // Initialize list.
   for (int i = 0; i < num_ssa_regs; i++) {
     use_counts_.Insert(0);
@@ -1526,7 +1537,7 @@ void MIRGraph::InitializeMethodUses() {
 void MIRGraph::SSATransformationStart() {
   DCHECK(temp_scoped_alloc_.get() == nullptr);
   temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
-  temp_bit_vector_size_ = cu_->num_dalvik_registers;
+  temp_bit_vector_size_ = GetNumOfCodeAndTempVRs();
   temp_bit_vector_ = new (temp_scoped_alloc_.get()) ArenaBitVector(
       temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapRegisterV);
 

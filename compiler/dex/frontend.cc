@@ -110,8 +110,6 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
         (cu.instruction_set == kX86_64) ||
         (cu.instruction_set == kMips));
 
-  /* Adjust this value accordingly once inlining is performed */
-  cu.num_dalvik_registers = code_item->registers_size_;
   // TODO: set this from command line
   cu.compiler_flip_match = false;
   bool use_match = !cu.compiler_method_match.empty();

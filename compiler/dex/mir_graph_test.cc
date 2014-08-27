@@ -103,6 +103,10 @@ class TopologicalSortOrderTest : public testing::Test {
     ASSERT_EQ(kEntryBlock, cu_.mir_graph->entry_block_->block_type);
     cu_.mir_graph->exit_block_ = cu_.mir_graph->block_list_.Get(2);
     ASSERT_EQ(kExitBlock, cu_.mir_graph->exit_block_->block_type);
+
+    DexFile::CodeItem* code_item = static_cast<DexFile::CodeItem*>(cu_.arena.Alloc(sizeof(DexFile::CodeItem),
+                                                                                   kArenaAllocMisc));
+    cu_.mir_graph->current_code_item_ = cu_.code_item = code_item;
   }
 
   template <size_t count>

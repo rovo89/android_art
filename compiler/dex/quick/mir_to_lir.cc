@@ -599,7 +599,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       break;
 
     case Instruction::FILL_ARRAY_DATA:
-      GenFillArrayData(vB, rl_src[0]);
+      GenFillArrayData(mir, vB, rl_src[0]);
       break;
 
     case Instruction::FILLED_NEW_ARRAY:
@@ -1200,9 +1200,8 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
 
   if (bb->block_type == kEntryBlock) {
     ResetRegPool();
-    int start_vreg = cu_->num_dalvik_registers - cu_->num_ins;
-    GenEntrySequence(&mir_graph_->reg_location_[start_vreg],
-                         mir_graph_->reg_location_[mir_graph_->GetMethodSReg()]);
+    int start_vreg = mir_graph_->GetFirstInVR();
+    GenEntrySequence(&mir_graph_->reg_location_[start_vreg], mir_graph_->GetMethodLoc());
   } else if (bb->block_type == kExitBlock) {
     ResetRegPool();
     GenExitSequence();

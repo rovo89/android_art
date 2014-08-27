@@ -957,7 +957,8 @@ void X86Mir2Lir::AnalyzeMIR() {
 
   // Did we need a pointer to the method code?
   if (store_method_addr_) {
-    base_of_code_ = mir_graph_->GetNewCompilerTemp(kCompilerTempVR, cu_->target64 == true);
+    base_of_code_ = mir_graph_->GetNewCompilerTemp(kCompilerTempBackend, cu_->target64 == true);
+    DCHECK(base_of_code_ != nullptr);
   } else {
     base_of_code_ = nullptr;
   }

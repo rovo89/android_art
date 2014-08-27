@@ -75,33 +75,36 @@ namespace art {
  *  ST1 .. ST7: caller save
  *
  *  Stack frame diagram (stack grows down, higher addresses at top):
+ *  For a more detailed view of each region see stack.h.
  *
- * +------------------------+
- * | IN[ins-1]              |  {Note: resides in caller's frame}
- * |       .                |
- * | IN[0]                  |
- * | caller's Method*       |
- * +========================+  {Note: start of callee's frame}
- * | return address         |  {pushed by call}
- * | spill region           |  {variable sized}
- * +------------------------+
- * | ...filler word...      |  {Note: used as 2nd word of V[locals-1] if long]
- * +------------------------+
- * | V[locals-1]            |
- * | V[locals-2]            |
- * |      .                 |
- * |      .                 |
- * | V[1]                   |
- * | V[0]                   |
- * +------------------------+
- * |  0 to 3 words padding  |
- * +------------------------+
- * | OUT[outs-1]            |
- * | OUT[outs-2]            |
- * |       .                |
- * | OUT[0]                 |
- * | cur_method*            | <<== sp w/ 16-byte alignment
- * +========================+
+ * +---------------------------+
+ * | IN[ins-1]                 |  {Note: resides in caller's frame}
+ * |       .                   |
+ * | IN[0]                     |
+ * | caller's Method*          |
+ * +===========================+  {Note: start of callee's frame}
+ * | return address            |  {pushed by call}
+ * | spill region              |  {variable sized}
+ * +---------------------------+
+ * | ...filler 4-bytes...      |  {Note: used as 2nd word of V[locals-1] if long]
+ * +---------------------------+
+ * | V[locals-1]               |
+ * | V[locals-2]               |
+ * |      .                    |
+ * |      .                    |
+ * | V[1]                      |
+ * | V[0]                      |
+ * +---------------------------+
+ * | 0 to 12-bytes padding     |
+ * +---------------------------+
+ * | compiler temp region      |
+ * +---------------------------+
+ * | OUT[outs-1]               |
+ * | OUT[outs-2]               |
+ * |       .                   |
+ * | OUT[0]                    |
+ * | StackReference<ArtMethod> | <<== sp w/ 16-byte alignment
+ * +===========================+
  */
 
 enum X86ResourceEncodingPos {

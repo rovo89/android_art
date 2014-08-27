@@ -268,8 +268,8 @@ void Mir2Lir::DumpLIRInsn(LIR* lir, unsigned char* base_addr) {
 }
 
 void Mir2Lir::DumpPromotionMap() {
-  int num_regs = cu_->num_dalvik_registers + mir_graph_->GetNumUsedCompilerTemps();
-  for (int i = 0; i < num_regs; i++) {
+  uint32_t num_regs = mir_graph_->GetNumOfCodeAndTempVRs();
+  for (uint32_t i = 0; i < num_regs; i++) {
     PromotionMap v_reg_map = promotion_map_[i];
     std::string buf;
     if (v_reg_map.fp_location == kLocPhysReg) {
@@ -277,12 +277,13 @@ void Mir2Lir::DumpPromotionMap() {
     }
 
     std::string buf3;
-    if (i < cu_->num_dalvik_registers) {
+    if (i < mir_graph_->GetNumOfCodeVRs()) {
       StringAppendF(&buf3, "%02d", i);
-    } else if (i == mir_graph_->GetMethodSReg()) {
+    } else if (i == mir_graph_->GetNumOfCodeVRs()) {
       buf3 = "Method*";
     } else {
-      StringAppendF(&buf3, "ct%d", i - cu_->num_dalvik_registers);
+      uint32_t diff = i - mir_graph_->GetNumOfCodeVRs();
+      StringAppendF(&buf3, "ct%d", diff);
     }
 
     LOG(INFO) << StringPrintf("V[%s] -> %s%d%s", buf3.c_str(),
@@ -313,9 +314,9 @@ void Mir2Lir::CodegenDump() {
   LIR* lir_insn;
   int insns_size = cu_->code_item->insns_size_in_code_units_;
 
-  LOG(INFO) << "Regs (excluding ins) : " << cu_->num_regs;
-  LOG(INFO) << "Ins          : " << cu_->num_ins;
-  LOG(INFO) << "Outs         : " << cu_->num_outs;
+  LOG(INFO) << "Regs (excluding ins) : " << mir_graph_->GetNumOfLocalCodeVRs();
+  LOG(INFO) << "Ins          : " << mir_graph_->GetNumOfInVRs();
+  LOG(INFO) << "Outs         : " << mir_graph_->GetNumOfOutVRs();
   LOG(INFO) << "CoreSpills       : " << num_core_spills_;
   LOG(INFO) << "FPSpills       : " << num_fp_spills_;
   LOG(INFO) << "CompilerTemps    : " << mir_graph_->GetNumUsedCompilerTemps();
@@ -1117,7 +1118,8 @@ size_t Mir2Lir::GetNumBytesForCompilerTempSpillRegion() {
   // By default assume that the Mir2Lir will need one slot for each temporary.
   // If the backend can better determine temps that have non-overlapping ranges and
   // temps that do not need spilled, it can actually provide a small region.
-  return (mir_graph_->GetNumUsedCompilerTemps() * sizeof(uint32_t));
+  mir_graph_->CommitCompilerTemps();
+  return mir_graph_->GetNumBytesForSpecialTemps() + mir_graph_->GetMaximumBytesForNonSpecialTemps();
 }
 
 int Mir2Lir::ComputeFrameSize() {
@@ -1125,7 +1127,8 @@ int Mir2Lir::ComputeFrameSize() {
   uint32_t size = num_core_spills_ * GetBytesPerGprSpillLocation(cu_->instruction_set)
                   + num_fp_spills_ * GetBytesPerFprSpillLocation(cu_->instruction_set)
                   + sizeof(uint32_t)  // Filler.
-                  + (cu_->num_regs + cu_->num_outs) * sizeof(uint32_t)
+                  + mir_graph_->GetNumOfLocalCodeVRs()  * sizeof(uint32_t)
+                  + mir_graph_->GetNumOfOutVRs() * sizeof(uint32_t)
                   + GetNumBytesForCompilerTempSpillRegion();
   /* Align and set */
   return RoundUp(size, kStackAlignment);

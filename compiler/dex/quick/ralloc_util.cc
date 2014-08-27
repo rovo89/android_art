@@ -252,20 +252,7 @@ int Mir2Lir::SRegToPMap(int s_reg) {
   DCHECK_LT(s_reg, mir_graph_->GetNumSSARegs());
   DCHECK_GE(s_reg, 0);
   int v_reg = mir_graph_->SRegToVReg(s_reg);
-  if (v_reg >= 0) {
-    DCHECK_LT(v_reg, cu_->num_dalvik_registers);
-    return v_reg;
-  } else {
-    /*
-     * It must be the case that the v_reg for temporary is less than or equal to the
-     * base reg for temps. For that reason, "position" must be zero or positive.
-     */
-    unsigned int position = std::abs(v_reg) - std::abs(static_cast<int>(kVRegTempBaseReg));
-
-    // The temporaries are placed after dalvik registers in the promotion map
-    DCHECK_LT(position, mir_graph_->GetNumUsedCompilerTemps());
-    return cu_->num_dalvik_registers + position;
-  }
+  return v_reg;
 }
 
 // TODO: refactor following Alloc/Record routines - much commonality.
@@ -1211,8 +1198,7 @@ void Mir2Lir::DumpCounts(const RefCounts* arr, int size, const char* msg) {
  * optimization is disabled.
  */
 void Mir2Lir::DoPromotion() {
-  int dalvik_regs = cu_->num_dalvik_registers;
-  int num_regs = dalvik_regs + mir_graph_->GetNumUsedCompilerTemps();
+  int num_regs = mir_graph_->GetNumOfCodeAndTempVRs();
   const int promotion_threshold = 1;
   // Allocate the promotion map - one entry for each Dalvik vReg or compiler temp
   promotion_map_ = static_cast<PromotionMap*>
@@ -1241,15 +1227,8 @@ void Mir2Lir::DoPromotion() {
       static_cast<RefCounts *>(arena_->Alloc(sizeof(RefCounts) * fp_reg_count_size,
                                              kArenaAllocRegAlloc));
   // Set ssa names for original Dalvik registers
-  for (int i = 0; i < dalvik_regs; i++) {
+  for (int i = 0; i < num_regs; i++) {
     core_regs[i].s_reg = fp_regs[i].s_reg = i;
-  }
-
-  // Set ssa names for compiler temporaries
-  for (unsigned int ct_idx = 0; ct_idx < mir_graph_->GetNumUsedCompilerTemps(); ct_idx++) {
-    CompilerTemp* ct = mir_graph_->GetCompilerTemp(ct_idx);
-    core_regs[dalvik_regs + ct_idx].s_reg = ct->s_reg_low;
-    fp_regs[dalvik_regs + ct_idx].s_reg = ct->s_reg_low;
   }
 
   // Duplicate in upper half to represent possible wide starting sregs.

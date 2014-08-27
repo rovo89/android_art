@@ -28,7 +28,7 @@ namespace art {
  * pairs.
  */
 void X86Mir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
-  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   if (cu_->verbose) {
     DumpSparseSwitchTable(table);
   }
@@ -61,7 +61,7 @@ void X86Mir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocat
  * done:
  */
 void X86Mir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
-  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   if (cu_->verbose) {
     DumpPackedSwitchTable(table);
   }
@@ -134,8 +134,8 @@ void X86Mir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocat
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
-  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+void X86Mir2Lir::GenFillArrayData(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
+  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   // Add the table to the list - we'll process it later
   FillArrayData* tab_rec =
       static_cast<FillArrayData*>(arena_->Alloc(sizeof(FillArrayData), kArenaAllocData));
