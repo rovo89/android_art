@@ -1369,5 +1369,18 @@ DEFINE_FUNCTION art_quick_string_compareto
     ret
 END_FUNCTION art_quick_string_compareto
 
+// Return from a nested signal:
+// Entry:
+//  eax: address of jmp_buf in TLS
+
+DEFINE_FUNCTION art_nested_signal_return
+    SETUP_GOT_NOSAVE                // sets %ebx for call into PLT
+    movl LITERAL(1), %ecx
+    pushl %ecx                      // second arg to longjmp (1)
+    pushl %eax                      // first arg to longjmp (jmp_buf)
+    call PLT_SYMBOL(longjmp)
+    int3                            // won't get here.
+END_FUNCTION art_nested_signal_return
+
     // TODO: implement these!
 UNIMPLEMENTED art_quick_memcmp16

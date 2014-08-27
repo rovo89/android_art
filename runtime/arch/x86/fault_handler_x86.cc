@@ -35,12 +35,14 @@
 #define CTX_EIP uc_mcontext->__ss.__rip
 #define CTX_EAX uc_mcontext->__ss.__rax
 #define CTX_METHOD uc_mcontext->__ss.__rdi
+#define CTX_JMP_BUF uc_mcontext->__ss.__rdi
 #else
 // 32 bit mac build.
 #define CTX_ESP uc_mcontext->__ss.__esp
 #define CTX_EIP uc_mcontext->__ss.__eip
 #define CTX_EAX uc_mcontext->__ss.__eax
 #define CTX_METHOD uc_mcontext->__ss.__eax
+#define CTX_JMP_BUF uc_mcontext->__ss.__eax
 #endif
 
 #elif defined(__x86_64__)
@@ -49,12 +51,15 @@
 #define CTX_EIP uc_mcontext.gregs[REG_RIP]
 #define CTX_EAX uc_mcontext.gregs[REG_RAX]
 #define CTX_METHOD uc_mcontext.gregs[REG_RDI]
+#define CTX_RDI uc_mcontext.gregs[REG_RDI]
+#define CTX_JMP_BUF uc_mcontext.gregs[REG_RDI]
 #else
 // 32 bit linux build.
 #define CTX_ESP uc_mcontext.gregs[REG_ESP]
 #define CTX_EIP uc_mcontext.gregs[REG_EIP]
 #define CTX_EAX uc_mcontext.gregs[REG_EAX]
 #define CTX_METHOD uc_mcontext.gregs[REG_EAX]
+#define CTX_JMP_BUF uc_mcontext.gregs[REG_EAX]
 #endif
 
 //
@@ -75,6 +80,12 @@ extern "C" void art_quick_throw_stack_overflow();
 extern "C" void art_quick_test_suspend();
 #define EXT_SYM(sym) sym
 #endif
+
+// Note this is different from the others (no underscore on 64 bit mac) due to
+// the way the symbol is defined in the .S file.
+// TODO: fix the symbols for 64 bit mac - there is a double underscore prefix for some
+// of them.
+extern "C" void art_nested_signal_return();
 
 // Get the size of an instruction in bytes.
 // Return 0 if the instruction is not handled.
@@ -213,6 +224,21 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
 
   VLOG(signals) << "x86 instruction length calculated as " << (pc - startpc);
   return pc - startpc;
+}
+
+void FaultManager::HandleNestedSignal(int sig, siginfo_t* info, void* context) {
+  // For the Intel architectures we need to go to an assembly language
+  // stub.  This is because the 32 bit call to longjmp is much different
+  // from the 64 bit ABI call and pushing things onto the stack inside this
+  // handler was unwieldy and ugly.  The use of the stub means we can keep
+  // this code the same for both 32 and 64 bit.
+
+  Thread* self = Thread::Current();
+  CHECK(self != nullptr);       // This will cause a SIGABRT if self is nullptr.
+
+  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
+  uc->CTX_JMP_BUF = reinterpret_cast<uintptr_t>(*self->GetNestedSignalState());
+  uc->CTX_EIP = reinterpret_cast<uintptr_t>(art_nested_signal_return);
 }
 
 void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
