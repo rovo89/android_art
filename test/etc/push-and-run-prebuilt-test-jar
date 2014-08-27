@@ -150,8 +150,7 @@ fi
 msg "------------------------------"
 
 if [ "$HAVE_IMAGE" = "n" ]; then
-    BOOT_OPT="-Ximage:/system/non-existant/boot.art"
-    BOOT_OPT="${BOOT_OPT} -Xbootclasspath:/system/framework/core-libart.jar"
+    BOOT_OPT="-Ximage:/system/non-existant/core.art"
 fi
 
 ARCH=$(adb shell ls -F /data/dalvik-cache | grep -Ewo "${ARCHITECTURES_PATTERN}")

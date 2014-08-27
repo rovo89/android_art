@@ -25,8 +25,10 @@ include art/build/Android.common_path.mk
 
 # Use dex2oat debug version for better error reporting
 # $(1): 2ND_ or undefined, 2ND_ for 32-bit host builds.
+# NB depending on HOST_CORE_DEX_LOCATIONS so we are sure to have the dex files in frameworks for
+# run-test --no-image
 define create-core-oat-host-rules
-$$($(1)HOST_CORE_IMG_OUT): $$(HOST_CORE_DEX_FILES) $$(DEX2OATD_DEPENDENCY)
+$$($(1)HOST_CORE_IMG_OUT): $$(HOST_CORE_DEX_LOCATIONS) $$(DEX2OATD_DEPENDENCY)
 	@echo "host dex2oat: $$@ ($$?)"
 	@mkdir -p $$(dir $$@)
 	$$(hide) $$(DEX2OATD) --runtime-arg -Xms$(DEX2OAT_IMAGE_XMS) --runtime-arg -Xmx$(DEX2OAT_IMAGE_XMX) \
