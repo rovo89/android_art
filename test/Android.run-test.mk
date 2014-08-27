@@ -123,7 +123,7 @@ TEST_ART_BROKEN_PREBUILD_RUN_TESTS := \
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),prebuild, \
     $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-    $(TEST_ART_BROKEN_PREBUILD_RUN_TESTS), $(ALL_ADDRESS_SIZES))
+    $(IMAGE_TYPES), $(TEST_ART_BROKEN_PREBUILD_RUN_TESTS), $(ALL_ADDRESS_SIZES))
 
 # NB 117-nopatchoat is not broken per-se it just doesn't work (and isn't meant to) without --prebuild --relocate
 TEST_ART_BROKEN_NO_RELOCATE_TESTS := \
@@ -131,14 +131,14 @@ TEST_ART_BROKEN_NO_RELOCATE_TESTS := \
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES), \
     $(COMPILER_TYPES), no-relocate,$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-    $(TEST_ART_BROKEN_NO_RELOCATE_TESTS), $(ALL_ADDRESS_SIZES))
+    $(IMAGE_TYPES), $(TEST_ART_BROKEN_NO_RELOCATE_TESTS), $(ALL_ADDRESS_SIZES))
 
 TEST_ART_BROKEN_NO_PREBUILD_TESTS := \
   117-nopatchoat
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),no-prebuild, \
     $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-    $(TEST_ART_BROKEN_NO_PREBUILD_TESTS), $(ALL_ADDRESS_SIZES))
+    $(IMAGE_TYPES), $(TEST_ART_BROKEN_NO_PREBUILD_TESTS), $(ALL_ADDRESS_SIZES))
 
 # Tests that are broken with tracing.
 TEST_ART_BROKEN_TRACE_RUN_TESTS := \
@@ -554,3 +554,6 @@ GC_TYPES :=
 JNI_TYPES :=
 IMAGE_TYPES :=
 ALL_ADDRESS_SIZES :=
+
+include $(LOCAL_PATH)/Android.libarttest.mk
+include art/test/Android.libnativebridgetest.mk
