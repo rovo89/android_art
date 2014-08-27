@@ -17,6 +17,8 @@
 #ifndef ART_COMPILER_DEX_PASS_DRIVER_ME_H_
 #define ART_COMPILER_DEX_PASS_DRIVER_ME_H_
 
+#include <cstdlib>
+#include <cstring>
 #include "bb_optimizations.h"
 #include "dataflow_iterator.h"
 #include "dataflow_iterator-inl.h"
@@ -94,19 +96,27 @@ class PassDriverME: public PassDriver<PassDriverType> {
       c_unit->NewTimingSplit(pass->GetName());
     }
 
+    // First, work on determining pass verbosity.
+    bool old_print_pass = c_unit->print_pass;
+    c_unit->print_pass = PassDriver<PassDriverType>::default_print_passes_;
+    const char* print_pass_list = PassDriver<PassDriverType>::print_pass_list_.c_str();
+    if (print_pass_list != nullptr && strstr(print_pass_list, pass->GetName()) != nullptr) {
+      c_unit->print_pass = true;
+    }
+
+    // Next, check if there are any overridden settings for the pass that change default configuration.
+    c_unit->overridden_pass_options.clear();
+    FillOverriddenPassSettings(pass->GetName(), c_unit->overridden_pass_options);
+    if (c_unit->print_pass) {
+      for (auto setting_it : c_unit->overridden_pass_options) {
+        LOG(INFO) << "Overridden option \"" << setting_it.first << ":"
+          << setting_it.second << "\" for pass \"" << pass->GetName() << "\"";
+      }
+    }
+
     // Check the pass gate first.
     bool should_apply_pass = pass->Gate(&pass_me_data_holder_);
     if (should_apply_pass) {
-      bool old_print_pass = c_unit->print_pass;
-
-      c_unit->print_pass = PassDriver<PassDriverType>::default_print_passes_;
-
-      const char* print_pass_list = PassDriver<PassDriverType>::print_pass_list_.c_str();
-
-      if (print_pass_list != nullptr && strstr(print_pass_list, pass->GetName()) != nullptr) {
-        c_unit->print_pass = true;
-      }
-
       // Applying the pass: first start, doWork, and end calls.
       this->ApplyPass(&pass_me_data_holder_, pass);
 
@@ -137,9 +147,10 @@ class PassDriverME: public PassDriver<PassDriverType> {
           }
         }
       }
-
-      c_unit->print_pass = old_print_pass;
     }
+
+    // Before wrapping up with this pass, restore old pass verbosity flag.
+    c_unit->print_pass = old_print_pass;
 
     // If the pass gate passed, we can declare success.
     return should_apply_pass;
@@ -147,6 +158,18 @@ class PassDriverME: public PassDriver<PassDriverType> {
 
   const char* GetDumpCFGFolder() const {
     return dump_cfg_folder_;
+  }
+
+  static void PrintPassOptions() {
+    for (auto pass : PassDriver<PassDriverType>::g_default_pass_list) {
+      const PassME* me_pass = down_cast<const PassME*>(pass);
+      if (me_pass->HasOptions()) {
+        LOG(INFO) << "Pass options for \"" << me_pass->GetName() << "\" are:";
+        SafeMap<const std::string, int> overridden_settings;
+        FillOverriddenPassSettings(me_pass->GetName(), overridden_settings);
+        me_pass->PrintPassOptions(overridden_settings);
+      }
+    }
   }
 
  protected:
@@ -175,6 +198,97 @@ class PassDriverME: public PassDriver<PassDriverType> {
       Iterator iterator(c_unit->mir_graph.get());
       DoWalkBasicBlocks(data, pass, &iterator);
     }
+
+  /**
+   * @brief Fills the settings_to_fill by finding all of the applicable options in the overridden_pass_options_list_.
+   * @param pass_name The pass name for which to fill settings.
+   * @param settings_to_fill Fills the options to contain the mapping of name of option to the new configuration.
+   */
+  static void FillOverriddenPassSettings(const char* pass_name, SafeMap<const std::string, int>& settings_to_fill) {
+    const std::string& settings = PassDriver<PassDriverType>::overridden_pass_options_list_;
+    const size_t settings_len = settings.size();
+
+    // Before anything, check if we care about anything right now.
+    if (settings_len == 0) {
+      return;
+    }
+
+    const size_t pass_name_len = strlen(pass_name);
+    const size_t min_setting_size = 4;  // 2 delimiters, 1 setting name, 1 setting
+    size_t search_pos = 0;
+
+    // If there is no room for pass options, exit early.
+    if (settings_len < pass_name_len + min_setting_size) {
+      return;
+    }
+
+    do {
+      search_pos = settings.find(pass_name, search_pos);
+
+      // Check if we found this pass name in rest of string.
+      if (search_pos == std::string::npos) {
+        // No more settings for this pass.
+        break;
+      }
+
+      // The string contains the pass name. Now check that there is
+      // room for the settings: at least one char for setting name,
+      // two chars for two delimiter, and at least one char for setting.
+      if (search_pos + pass_name_len + min_setting_size >= settings_len) {
+        // No more settings for this pass.
+        break;
+      }
+
+      // Update the current search position to not include the pass name.
+      search_pos += pass_name_len;
+
+      // The format must be "PassName:SettingName:#" where # is the setting.
+      // Thus look for the first ":" which must exist.
+      if (settings[search_pos] != ':') {
+        // Missing delimiter right after pass name.
+        continue;
+      } else {
+        search_pos += 1;
+      }
+
+      // Now look for the actual setting by finding the next ":" delimiter.
+      const size_t setting_name_pos = search_pos;
+      size_t setting_pos = settings.find(':', setting_name_pos);
+
+      if (setting_pos == std::string::npos) {
+        // Missing a delimiter that would capture where setting starts.
+        continue;
+      } else if (setting_pos == setting_name_pos) {
+        // Missing setting thus did not move from setting name
+        continue;
+      } else {
+        // Skip the delimiter.
+        setting_pos += 1;
+      }
+
+      // Look for the terminating delimiter which must be a comma.
+      size_t next_configuration_separator = settings.find(',', setting_pos);
+      if (next_configuration_separator == std::string::npos) {
+        next_configuration_separator = settings_len;
+      }
+
+      // Prevent end of string errors.
+      if (next_configuration_separator == setting_pos) {
+          continue;
+      }
+
+      // Get the actual setting itself. Strtol is being used to convert because it is
+      // exception safe. If the input is not sane, it will set a setting of 0.
+      std::string setting_string = settings.substr(setting_pos, next_configuration_separator - setting_pos);
+      int setting = std::strtol(setting_string.c_str(), 0, 0);
+
+      std::string setting_name = settings.substr(setting_name_pos, setting_pos - setting_name_pos - 1);
+
+      settings_to_fill.Put(setting_name, setting);
+
+      search_pos = next_configuration_separator;
+    } while (true);
+  }
 };
 }  // namespace art
 #endif  // ART_COMPILER_DEX_PASS_DRIVER_ME_H_

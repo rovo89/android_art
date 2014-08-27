@@ -69,6 +69,10 @@ std::string PassDriver<PassDriverMEOpts>::print_pass_list_ = std::string();
 template<>
 bool PassDriver<PassDriverMEOpts>::default_print_passes_ = false;
 
+// By default, there are no overridden pass settings.
+template<>
+std::string PassDriver<PassDriverMEOpts>::overridden_pass_options_list_ = std::string();
+
 void PassDriverMEOpts::ApplyPass(PassDataHolder* data, const Pass* pass) {
   // First call the base class' version.
   PassDriver::ApplyPass(data, pass);
