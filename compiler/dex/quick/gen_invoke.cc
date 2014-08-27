@@ -381,11 +381,11 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
     StoreRefDisp(TargetPtrReg(kSp), 0, rl_src.reg, kNotVolatile);
   }
 
-  if (cu_->num_ins == 0) {
+  if (mir_graph_->GetNumOfInVRs() == 0) {
     return;
   }
 
-  int start_vreg = cu_->num_dalvik_registers - cu_->num_ins;
+  int start_vreg = mir_graph_->GetFirstInVR();
   /*
    * Copy incoming arguments to their proper home locations.
    * NOTE: an older version of dx had an issue in which
@@ -399,7 +399,7 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
    * half to memory as well.
    */
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-  for (int i = 0; i < cu_->num_ins; i++) {
+  for (uint32_t i = 0; i < mir_graph_->GetNumOfInVRs(); i++) {
     PromotionMap* v_map = &promotion_map_[start_vreg + i];
     RegStorage reg = GetArgMappingToPhysicalReg(i);
 
@@ -932,9 +932,6 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
       next_arg++;
     }
   }
-
-  // Logic below assumes that Method pointer is at offset zero from SP.
-  DCHECK_EQ(VRegOffset(static_cast<int>(kVRegMethodPtrBaseReg)), 0);
 
   // The first 3 arguments are passed via registers.
   // TODO: For 64-bit, instead of hardcoding 4 for Method* size, we should either

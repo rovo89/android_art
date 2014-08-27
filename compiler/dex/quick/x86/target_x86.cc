@@ -2234,11 +2234,11 @@ RegStorage X86Mir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
   }
 
   if (!in_to_reg_storage_mapping_.IsInitialized()) {
-    int start_vreg = cu_->num_dalvik_registers - cu_->num_ins;
+    int start_vreg = cu_->mir_graph->GetFirstInVR();
     RegLocation* arg_locs = &mir_graph_->reg_location_[start_vreg];
 
     InToRegStorageX86_64Mapper mapper(this);
-    in_to_reg_storage_mapping_.Initialize(arg_locs, cu_->num_ins, &mapper);
+    in_to_reg_storage_mapping_.Initialize(arg_locs, mir_graph_->GetNumOfInVRs(), &mapper);
   }
   return in_to_reg_storage_mapping_.Get(arg_num);
 }
@@ -2287,11 +2287,11 @@ void X86Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
     StoreRefDisp(rs_rX86_SP, 0, As32BitReg(TargetReg(kArg0, kRef)), kNotVolatile);
   }
 
-  if (cu_->num_ins == 0) {
+  if (mir_graph_->GetNumOfInVRs() == 0) {
     return;
   }
 
-  int start_vreg = cu_->num_dalvik_registers - cu_->num_ins;
+  int start_vreg = cu_->mir_graph->GetFirstInVR();
   /*
    * Copy incoming arguments to their proper home locations.
    * NOTE: an older version of dx had an issue in which
@@ -2305,7 +2305,7 @@ void X86Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
    * half to memory as well.
    */
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-  for (int i = 0; i < cu_->num_ins; i++) {
+  for (uint32_t i = 0; i < mir_graph_->GetNumOfInVRs(); i++) {
     // get reg corresponding to input
     RegStorage reg = GetArgMappingToPhysicalReg(i);
 
@@ -2436,9 +2436,6 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
         next_arg++;
       }
     }
-
-    // Logic below assumes that Method pointer is at offset zero from SP.
-    DCHECK_EQ(VRegOffset(static_cast<int>(kVRegMethodPtrBaseReg)), 0);
 
     // The rest can be copied together
     int start_offset = SRegOffset(info->args[last_mapped_in + size_of_the_last_mapped].s_reg_low);

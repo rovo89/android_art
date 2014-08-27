@@ -233,14 +233,27 @@ int MIRGraph::GetSSAUseCount(int s_reg) {
   return raw_use_counts_.Get(s_reg);
 }
 
-size_t MIRGraph::GetNumAvailableNonSpecialCompilerTemps() {
-  if (num_non_special_compiler_temps_ >= max_available_non_special_compiler_temps_) {
-    return 0;
-  } else {
-    return max_available_non_special_compiler_temps_ - num_non_special_compiler_temps_;
-  }
+size_t MIRGraph::GetNumBytesForSpecialTemps() const {
+  // This logic is written with assumption that Method* is only special temp.
+  DCHECK_EQ(max_available_special_compiler_temps_, 1u);
+  return sizeof(StackReference<mirror::ArtMethod>);
 }
 
+size_t MIRGraph::GetNumAvailableVRTemps() {
+  // First take into account all temps reserved for backend.
+  if (max_available_non_special_compiler_temps_ < reserved_temps_for_backend_) {
+    return 0;
+  }
+
+  // Calculate remaining ME temps available.
+  size_t remaining_me_temps = max_available_non_special_compiler_temps_ - reserved_temps_for_backend_;
+
+  if (num_non_special_compiler_temps_ >= remaining_me_temps) {
+    return 0;
+  } else {
+    return remaining_me_temps - num_non_special_compiler_temps_;
+  }
+}
 
 // FIXME - will probably need to revisit all uses of this, as type not defined.
 static const RegLocation temp_loc = {kLocCompilerTemp,
@@ -248,12 +261,31 @@ static const RegLocation temp_loc = {kLocCompilerTemp,
                                      RegStorage(), INVALID_SREG, INVALID_SREG};
 
 CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) {
-  // There is a limit to the number of non-special temps so check to make sure it wasn't exceeded.
-  if (ct_type == kCompilerTempVR) {
-    size_t available_temps = GetNumAvailableNonSpecialCompilerTemps();
-    if (available_temps <= 0 || (available_temps <= 1 && wide)) {
-      return 0;
+  // Once the compiler temps have been committed, new ones cannot be requested anymore.
+  DCHECK_EQ(compiler_temps_committed_, false);
+  // Make sure that reserved for BE set is sane.
+  DCHECK_LE(reserved_temps_for_backend_, max_available_non_special_compiler_temps_);
+
+  bool verbose = cu_->verbose;
+  const char* ct_type_str = nullptr;
+
+  if (verbose) {
+    switch (ct_type) {
+      case kCompilerTempBackend:
+        ct_type_str = "backend";
+        break;
+      case kCompilerTempSpecialMethodPtr:
+        ct_type_str = "method*";
+        break;
+      case kCompilerTempVR:
+        ct_type_str = "VR";
+        break;
+      default:
+        ct_type_str = "unknown";
+        break;
     }
+    LOG(INFO) << "CompilerTemps: A compiler temp of type " << ct_type_str << " that is "
+        << (wide ? "wide is being requested." : "not wide is being requested.");
   }
 
   CompilerTemp *compiler_temp = static_cast<CompilerTemp *>(arena_->Alloc(sizeof(CompilerTemp),
@@ -262,51 +294,100 @@ CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) 
   // Create the type of temp requested. Special temps need special handling because
   // they have a specific virtual register assignment.
   if (ct_type == kCompilerTempSpecialMethodPtr) {
+    // This has a special location on stack which is 32-bit or 64-bit depending
+    // on mode. However, we don't want to overlap with non-special section
+    // and thus even for 64-bit, we allow only a non-wide temp to be requested.
     DCHECK_EQ(wide, false);
-    compiler_temp->v_reg = static_cast<int>(kVRegMethodPtrBaseReg);
-    compiler_temp->s_reg_low = AddNewSReg(compiler_temp->v_reg);
 
-    // The MIR graph keeps track of the sreg for method pointer specially, so record that now.
-    method_sreg_ = compiler_temp->s_reg_low;
+    // The vreg is always the first special temp for method ptr.
+    compiler_temp->v_reg = GetFirstSpecialTempVR();
+
+  } else if (ct_type == kCompilerTempBackend) {
+    requested_backend_temp_ = true;
+
+    // Make sure that we are not exceeding temps reserved for BE.
+    // Since VR temps cannot be requested once the BE temps are requested, we
+    // allow reservation of VR temps as well for BE. We
+    size_t available_temps = reserved_temps_for_backend_ + GetNumAvailableVRTemps();
+    if (available_temps <= 0 || (available_temps <= 1 && wide)) {
+      if (verbose) {
+        LOG(INFO) << "CompilerTemps: Not enough temp(s) of type " << ct_type_str << " are available.";
+      }
+      return nullptr;
+    }
+
+    // Update the remaining reserved temps since we have now used them.
+    // Note that the code below is actually subtracting to remove them from reserve
+    // once they have been claimed. It is careful to not go below zero.
+    if (reserved_temps_for_backend_ >= 1) {
+      reserved_temps_for_backend_--;
+    }
+    if (wide && reserved_temps_for_backend_ >= 1) {
+      reserved_temps_for_backend_--;
+    }
+
+    // The new non-special compiler temp must receive a unique v_reg.
+    compiler_temp->v_reg = GetFirstNonSpecialTempVR() + num_non_special_compiler_temps_;
+    num_non_special_compiler_temps_++;
+  } else if (ct_type == kCompilerTempVR) {
+    // Once we start giving out BE temps, we don't allow anymore ME temps to be requested.
+    // This is done in order to prevent problems with ssa since these structures are allocated
+    // and managed by the ME.
+    DCHECK_EQ(requested_backend_temp_, false);
+
+    // There is a limit to the number of non-special temps so check to make sure it wasn't exceeded.
+    size_t available_temps = GetNumAvailableVRTemps();
+    if (available_temps <= 0 || (available_temps <= 1 && wide)) {
+      if (verbose) {
+        LOG(INFO) << "CompilerTemps: Not enough temp(s) of type " << ct_type_str << " are available.";
+      }
+      return nullptr;
+    }
+
+    // The new non-special compiler temp must receive a unique v_reg.
+    compiler_temp->v_reg = GetFirstNonSpecialTempVR() + num_non_special_compiler_temps_;
+    num_non_special_compiler_temps_++;
   } else {
-    DCHECK_EQ(ct_type, kCompilerTempVR);
+    UNIMPLEMENTED(FATAL) << "No handling for compiler temp type " << ct_type_str << ".";
+  }
 
-    // The new non-special compiler temp must receive a unique v_reg with a negative value.
-    compiler_temp->v_reg = static_cast<int>(kVRegNonSpecialTempBaseReg) -
-        num_non_special_compiler_temps_;
-    compiler_temp->s_reg_low = AddNewSReg(compiler_temp->v_reg);
+  // We allocate an sreg as well to make developer life easier.
+  // However, if this is requested from an ME pass that will recalculate ssa afterwards,
+  // this sreg is no longer valid. The caller should be aware of this.
+  compiler_temp->s_reg_low = AddNewSReg(compiler_temp->v_reg);
+
+  if (verbose) {
+    LOG(INFO) << "CompilerTemps: New temp of type " << ct_type_str << " with v" << compiler_temp->v_reg
+        << " and s" << compiler_temp->s_reg_low << " has been created.";
+  }
+
+  if (wide) {
+    // Only non-special temps are handled as wide for now.
+    // Note that the number of non special temps is incremented below.
+    DCHECK(ct_type == kCompilerTempBackend || ct_type == kCompilerTempVR);
+
+    // Ensure that the two registers are consecutive.
+    int ssa_reg_low = compiler_temp->s_reg_low;
+    int ssa_reg_high = AddNewSReg(compiler_temp->v_reg + 1);
     num_non_special_compiler_temps_++;
 
-    if (wide) {
-      // Create a new CompilerTemp for the high part.
-      CompilerTemp *compiler_temp_high =
-          static_cast<CompilerTemp *>(arena_->Alloc(sizeof(CompilerTemp), kArenaAllocRegAlloc));
-      compiler_temp_high->v_reg = compiler_temp->v_reg;
-      compiler_temp_high->s_reg_low = compiler_temp->s_reg_low;
-      compiler_temps_.Insert(compiler_temp_high);
+    if (verbose) {
+      LOG(INFO) << "CompilerTemps: The wide part of temp of type " << ct_type_str << " is v"
+          << compiler_temp->v_reg + 1 << " and s" << ssa_reg_high << ".";
+    }
 
-      // Ensure that the two registers are consecutive. Since the virtual registers used for temps
-      // grow in a negative fashion, we need the smaller to refer to the low part. Thus, we
-      // redefine the v_reg and s_reg_low.
-      compiler_temp->v_reg--;
-      int ssa_reg_high = compiler_temp->s_reg_low;
-      compiler_temp->s_reg_low = AddNewSReg(compiler_temp->v_reg);
-      int ssa_reg_low = compiler_temp->s_reg_low;
-
-      // If needed initialize the register location for the high part.
-      // The low part is handled later in this method on a common path.
-      if (reg_location_ != nullptr) {
-        reg_location_[ssa_reg_high] = temp_loc;
-        reg_location_[ssa_reg_high].high_word = 1;
-        reg_location_[ssa_reg_high].s_reg_low = ssa_reg_low;
-        reg_location_[ssa_reg_high].wide = true;
-      }
-
-      num_non_special_compiler_temps_++;
+    if (reg_location_ != nullptr) {
+      reg_location_[ssa_reg_high] = temp_loc;
+      reg_location_[ssa_reg_high].high_word = true;
+      reg_location_[ssa_reg_high].s_reg_low = ssa_reg_low;
+      reg_location_[ssa_reg_high].wide = true;
     }
   }
 
-  // Have we already allocated the register locations?
+  // If the register locations have already been allocated, add the information
+  // about the temp. We will not overflow because they have been initialized
+  // to support the maximum number of temps. For ME temps that have multiple
+  // ssa versions, the structures below will be expanded on the post pass cleanup.
   if (reg_location_ != nullptr) {
     int ssa_reg_low = compiler_temp->s_reg_low;
     reg_location_[ssa_reg_low] = temp_loc;
@@ -314,7 +395,6 @@ CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) 
     reg_location_[ssa_reg_low].wide = wide;
   }
 
-  compiler_temps_.Insert(compiler_temp);
   return compiler_temp;
 }
 
@@ -749,13 +829,13 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
     if (bb->block_type == kEntryBlock) {
       ssa_regs_to_check->ClearAllBits();
       // Assume all ins are objects.
-      for (uint16_t in_reg = cu_->num_dalvik_registers - cu_->num_ins;
-           in_reg < cu_->num_dalvik_registers; in_reg++) {
+      for (uint16_t in_reg = GetFirstInVR();
+           in_reg < GetNumOfCodeVRs(); in_reg++) {
         ssa_regs_to_check->SetBit(in_reg);
       }
       if ((cu_->access_flags & kAccStatic) == 0) {
         // If non-static method, mark "this" as non-null
-        int this_reg = cu_->num_dalvik_registers - cu_->num_ins;
+        int this_reg = GetFirstInVR();
         ssa_regs_to_check->ClearBit(this_reg);
       }
     } else if (bb->predecessors->Size() == 1) {

@@ -54,50 +54,6 @@ enum VRegKind {
   kUndefined,
 };
 
-/**
- * @brief Represents the virtual register numbers that denote special meaning.
- * @details This is used to make some virtual register numbers to have specific
- * semantic meaning. This is done so that the compiler can treat all virtual
- * registers the same way and only special case when needed. For example,
- * calculating SSA does not care whether a virtual register is a normal one or
- * a compiler temporary, so it can deal with them in a consistent manner. But,
- * for example if backend cares about temporaries because it has custom spill
- * location, then it can special case them only then.
- */
-enum VRegBaseRegNum : int {
-  /**
-   * @brief Virtual registers originating from dex have number >= 0.
-   */
-  kVRegBaseReg = 0,
-
-  /**
-   * @brief Invalid virtual register number.
-   */
-  kVRegInvalid = -1,
-
-  /**
-   * @brief Used to denote the base register for compiler temporaries.
-   * @details Compiler temporaries are virtual registers not originating
-   * from dex but that are created by compiler.  All virtual register numbers
-   * that are <= kVRegTempBaseReg are categorized as compiler temporaries.
-   */
-  kVRegTempBaseReg = -2,
-
-  /**
-   * @brief Base register of temporary that holds the method pointer.
-   * @details This is a special compiler temporary because it has a specific
-   * location on stack.
-   */
-  kVRegMethodPtrBaseReg = kVRegTempBaseReg,
-
-  /**
-   * @brief Base register of non-special compiler temporary.
-   * @details A non-special compiler temporary is one whose spill location
-   * is flexible.
-   */
-  kVRegNonSpecialTempBaseReg = -3,
-};
-
 // A reference from the shadow stack to a MirrorType object within the Java heap.
 template<class MirrorType>
 class MANAGED StackReference : public mirror::ObjectReference<false, MirrorType> {
@@ -612,75 +568,76 @@ class StackVisitor {
   /*
    * Return sp-relative offset for a Dalvik virtual register, compiler
    * spill or Method* in bytes using Method*.
-   * Note that (reg >= 0) refers to a Dalvik register, (reg == -1)
-   * denotes an invalid Dalvik register, (reg == -2) denotes Method*
-   * and (reg <= -3) denotes a compiler temporary. A compiler temporary
-   * can be thought of as a virtual register that does not exist in the
-   * dex but holds intermediate values to help optimizations and code
-   * generation. A special compiler temporary is one whose location
-   * in frame is well known while non-special ones do not have a requirement
-   * on location in frame as long as code generator itself knows how
-   * to access them.
+   * Note that (reg == -1) denotes an invalid Dalvik register. For the
+   * positive values, the Dalvik registers come first, followed by the
+   * Method*, followed by other special temporaries if any, followed by
+   * regular compiler temporary. As of now we only have the Method* as
+   * as a special compiler temporary.
+   * A compiler temporary can be thought of as a virtual register that
+   * does not exist in the dex but holds intermediate values to help
+   * optimizations and code generation. A special compiler temporary is
+   * one whose location in frame is well known while non-special ones
+   * do not have a requirement on location in frame as long as code
+   * generator itself knows how to access them.
    *
-   *     +---------------------------+
-   *     | IN[ins-1]                 |  {Note: resides in caller's frame}
-   *     |       .                   |
-   *     | IN[0]                     |
-   *     | caller's ArtMethod        |  ... StackReference<ArtMethod>
-   *     +===========================+  {Note: start of callee's frame}
-   *     | core callee-save spill    |  {variable sized}
-   *     +---------------------------+
-   *     | fp callee-save spill      |
-   *     +---------------------------+
-   *     | filler word               |  {For compatibility, if V[locals-1] used as wide
-   *     +---------------------------+
-   *     | V[locals-1]               |
-   *     | V[locals-2]               |
-   *     |      .                    |
-   *     |      .                    |  ... (reg == 2)
-   *     | V[1]                      |  ... (reg == 1)
-   *     | V[0]                      |  ... (reg == 0) <---- "locals_start"
-   *     +---------------------------+
-   *     | Compiler temp region      |  ... (reg <= -3)
-   *     |                           |
-   *     |                           |
-   *     +---------------------------+
-   *     | stack alignment padding   |  {0 to (kStackAlignWords-1) of padding}
-   *     +---------------------------+
-   *     | OUT[outs-1]               |
-   *     | OUT[outs-2]               |
-   *     |       .                   |
-   *     | OUT[0]                    |
-   *     | StackReference<ArtMethod> |  ... (reg == -2) <<== sp, 16-byte aligned
-   *     +===========================+
+   *     +-------------------------------+
+   *     | IN[ins-1]                     |  {Note: resides in caller's frame}
+   *     |       .                       |
+   *     | IN[0]                         |
+   *     | caller's ArtMethod            |  ... StackReference<ArtMethod>
+   *     +===============================+  {Note: start of callee's frame}
+   *     | core callee-save spill        |  {variable sized}
+   *     +-------------------------------+
+   *     | fp callee-save spill          |
+   *     +-------------------------------+
+   *     | filler word                   |  {For compatibility, if V[locals-1] used as wide
+   *     +-------------------------------+
+   *     | V[locals-1]                   |
+   *     | V[locals-2]                   |
+   *     |      .                        |
+   *     |      .                        |  ... (reg == 2)
+   *     | V[1]                          |  ... (reg == 1)
+   *     | V[0]                          |  ... (reg == 0) <---- "locals_start"
+   *     +-------------------------------+
+   *     | stack alignment padding       |  {0 to (kStackAlignWords-1) of padding}
+   *     +-------------------------------+
+   *     | Compiler temp region          |  ... (reg >= max_num_special_temps)
+   *     |      .                        |
+   *     |      .                        |
+   *     | V[max_num_special_temps + 1] |
+   *     | V[max_num_special_temps + 0] |
+   *     +-------------------------------+
+   *     | OUT[outs-1]                   |
+   *     | OUT[outs-2]                   |
+   *     |       .                       |
+   *     | OUT[0]                        |
+   *     | StackReference<ArtMethod>     |  ... (reg == num_total_code_regs == special_temp_value) <<== sp, 16-byte aligned
+   *     +===============================+
    */
   static int GetVRegOffset(const DexFile::CodeItem* code_item,
                            uint32_t core_spills, uint32_t fp_spills,
                            size_t frame_size, int reg, InstructionSet isa) {
     DCHECK_EQ(frame_size & (kStackAlignment - 1), 0U);
-    DCHECK_NE(reg, static_cast<int>(kVRegInvalid));
+    DCHECK_NE(reg, -1);
     int spill_size = POPCOUNT(core_spills) * GetBytesPerGprSpillLocation(isa)
         + POPCOUNT(fp_spills) * GetBytesPerFprSpillLocation(isa)
         + sizeof(uint32_t);  // Filler.
-    int num_ins = code_item->ins_size_;
-    int num_regs = code_item->registers_size_ - num_ins;
-    int locals_start = frame_size - spill_size - num_regs * sizeof(uint32_t);
-    if (reg == static_cast<int>(kVRegMethodPtrBaseReg)) {
+    int num_regs = code_item->registers_size_ - code_item->ins_size_;
+    int temp_threshold = code_item->registers_size_;
+    const int max_num_special_temps = 1;
+    if (reg == temp_threshold) {
       // The current method pointer corresponds to special location on stack.
       return 0;
-    } else if (reg <= static_cast<int>(kVRegNonSpecialTempBaseReg)) {
+    } else if (reg >= temp_threshold + max_num_special_temps) {
       /*
        * Special temporaries may have custom locations and the logic above deals with that.
-       * However, non-special temporaries are placed relative to the locals. Since the
-       * virtual register numbers for temporaries "grow" in negative direction, reg number
-       * will always be <= to the temp base reg. Thus, the logic ensures that the first
-       * temp is at offset -4 bytes from locals, the second is at -8 bytes from locals,
-       * and so on.
+       * However, non-special temporaries are placed relative to the outs.
        */
-      int relative_offset =
-          (reg + std::abs(static_cast<int>(kVRegNonSpecialTempBaseReg)) - 1) * sizeof(uint32_t);
-      return locals_start + relative_offset;
+      int temps_start = sizeof(StackReference<mirror::ArtMethod>) + code_item->outs_size_ * sizeof(uint32_t);
+      int relative_offset = (reg - (temp_threshold + max_num_special_temps)) * sizeof(uint32_t);
+      return temps_start + relative_offset;
     }  else if (reg < num_regs) {
+      int locals_start = frame_size - spill_size - num_regs * sizeof(uint32_t);
       return locals_start + (reg * sizeof(uint32_t));
     } else {
       // Handle ins.

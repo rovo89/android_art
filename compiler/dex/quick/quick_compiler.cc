@@ -495,8 +495,8 @@ static bool CanCompileShorty(const char* shorty, InstructionSet instruction_set)
 bool QuickCompiler::CanCompileMethod(uint32_t method_idx, const DexFile& dex_file,
                                      CompilationUnit* cu) const {
   // This is a limitation in mir_graph. See MirGraph::SetNumSSARegs.
-  if (cu->num_dalvik_registers > kMaxAllowedDalvikRegisters) {
-    VLOG(compiler) << "Too many dalvik registers : " << cu->num_dalvik_registers;
+  if (cu->mir_graph->GetNumOfCodeAndTempVRs() > kMaxAllowedDalvikRegisters) {
+    VLOG(compiler) << "Too many dalvik registers : " << cu->mir_graph->GetNumOfCodeAndTempVRs();
     return false;
   }
 
