@@ -1079,6 +1079,7 @@ Thread::Thread(bool daemon) : tls32_(daemon), wait_monitor_(nullptr), interrupte
   tlsPtr_.single_step_control = new SingleStepControl;
   tlsPtr_.instrumentation_stack = new std::deque<instrumentation::InstrumentationStackFrame>;
   tlsPtr_.name = new std::string(kThreadNameDuringStartup);
+  tlsPtr_.nested_signal_state = static_cast<jmp_buf*>(malloc(sizeof(jmp_buf)));
 
   CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
   tls32_.state_and_flags.as_struct.flags = 0;
@@ -1211,6 +1212,7 @@ Thread::~Thread() {
   delete tlsPtr_.instrumentation_stack;
   delete tlsPtr_.name;
   delete tlsPtr_.stack_trace_sample;
+  free(tlsPtr_.nested_signal_state);
 
   Runtime::Current()->GetHeap()->RevokeThreadLocalBuffers(this);
 
