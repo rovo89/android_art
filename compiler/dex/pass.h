@@ -81,7 +81,7 @@ class Pass {
    * @param data the object containing data necessary for the pass.
    * @return whether or not there is a change when walking the BasicBlock
    */
-  virtual bool Worker(const PassDataHolder* data) const {
+  virtual bool Worker(PassDataHolder* data) const {
     // Unused parameter.
     UNUSED(data);
 
