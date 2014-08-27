@@ -73,4 +73,8 @@ std::string PassDriver<PassDriverMEPostOpt>::print_pass_list_ = std::string();
 template<>
 bool PassDriver<PassDriverMEPostOpt>::default_print_passes_ = false;
 
+// By default, there are no overridden pass settings.
+template<>
+std::string PassDriver<PassDriverMEPostOpt>::overridden_pass_options_list_ = std::string();
+
 }  // namespace art

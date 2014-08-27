@@ -161,6 +161,17 @@ class PassDriver {
     print_pass_list_ = list;
   }
 
+  /**
+   * @brief Used to set a string that contains the overridden pass options.
+   * @details An overridden pass option means that the pass uses this option
+   * instead of using its default option.
+   * @param s The string passed by user with overridden options. The string is in format
+   * Pass1Name:Pass1Option:Pass1Setting,Pass2Name:Pass2Option::Pass2Setting
+   */
+  static void SetOverriddenPassOptions(const std::string& s) {
+    overridden_pass_options_list_ = s;
+  }
+
   void SetDefaultPasses() {
     pass_list_ = PassDriver<PassDriverType>::g_default_pass_list;
   }
@@ -206,6 +217,9 @@ class PassDriver {
 
   /** @brief What are the passes we want to be dumping the CFG? */
   static std::string dump_pass_list_;
+
+  /** @brief String of all options that should be overridden for selected passes */
+  static std::string overridden_pass_options_list_;
 };
 
 }  // namespace art
