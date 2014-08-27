@@ -21,21 +21,30 @@ flags="${@/--no-relocate/--relocate}"
 RUN="${RUN/push-and-run-prebuilt-test-jar/push-and-run-test-jar}"
 
 if [ $(basename $RUN) == 'host-run-test-jar' ]; then
-  BPATH="--runtime-option -Xbootclasspath:$ANDROID_HOST_OUT/../common/obj/JAVA_LIBRARIES/core-libart-hostdex_intermediates/javalib.jar"
-  # Remove prebuild from the flags, this test is for testing not having oat files.
-  flags="${flags/--prebuild/}"
+    framework="${ANDROID_HOST_OUT}/framework"
+    bpath_suffix="-hostdex"
+    # Remove prebuild from the flags, this test is for testing not having oat files.
+    flags="${flags/--prebuild/}"
 else
-  BPATH="--runtime-option -Xbootclasspath:/system/framework/core-libart.jar"
+    framework="/system/framework"
+    bpath_suffix=""
 fi
+bpath="${framework}/core-libart${bpath_suffix}.jar"
+bpath="${bpath}:${framework}/conscrypt${bpath_suffix}.jar"
+bpath="${bpath}:${framework}/okhttp${bpath_suffix}.jar"
+bpath="${bpath}:${framework}/core-junit${bpath_suffix}.jar"
+bpath="${bpath}:${framework}/bouncycastle${bpath_suffix}.jar"
+bpath_arg="--runtime-option -Xbootclasspath:${bpath}"
+
 
 # Make sure we can run without an oat file,
 echo "Run -Xnoimage-dex2oat"
-${RUN} ${flags} ${BPATH} --runtime-option -Xnoimage-dex2oat --runtime-option -Xnodex2oat
+${RUN} ${flags} ${bpath_arg} --runtime-option -Xnoimage-dex2oat --runtime-option -Xnodex2oat
 
 # Make sure we can run with the oat file.
 echo "Run -Ximage-dex2oat"
-${RUN} ${flags} ${BPATH} --runtime-option -Ximage-dex2oat
+${RUN} ${flags} ${bpath_arg} --runtime-option -Ximage-dex2oat
 
 # Make sure we can run with the default settings.
 echo "Run default"
-${RUN} ${flags} ${BPATH}
+${RUN} ${flags} ${bpath_arg}

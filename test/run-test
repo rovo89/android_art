@@ -317,6 +317,26 @@ elif [ "$runtime" = "art" ]; then
 fi
 
 if [ "$have_image" = "no" ]; then
+    if [ "$runtime" != "art" ]; then
+        echo "--no-image is only supported on the art runtime"
+        exit 1
+    fi
+    if [ "$target_mode" = "no" ]; then
+        framework="${ANDROID_HOST_OUT}/framework"
+        bpath_suffix="-hostdex"
+    else
+        framework="/system/framework"
+        bpath_suffix=""
+    fi
+    # TODO If the target was compiled WITH_DEXPREOPT=true then these tests will
+    # fail since these jar files will be stripped.
+    bpath="${framework}/core-libart${bpath_suffix}.jar"
+    bpath="${bpath}:${framework}/conscrypt${bpath_suffix}.jar"
+    bpath="${bpath}:${framework}/okhttp${bpath_suffix}.jar"
+    bpath="${bpath}:${framework}/core-junit${bpath_suffix}.jar"
+    bpath="${bpath}:${framework}/bouncycastle${bpath_suffix}.jar"
+    # Pass down the bootclasspath
+    run_args="${run_args} --runtime-option -Xbootclasspath:${bpath}"
     run_args="${run_args} --no-image"
 fi
 
