@@ -726,6 +726,8 @@ class MIRGraph {
 
   int64_t ConstantValueWide(RegLocation loc) const {
     DCHECK(IsConst(loc));
+    DCHECK(!loc.high_word);  // Do not allow asking for the high partner.
+    DCHECK_LT(loc.orig_sreg + 1, GetNumSSARegs());
     return (static_cast<int64_t>(constant_values_[loc.orig_sreg + 1]) << 32) |
         Low32Bits(static_cast<int64_t>(constant_values_[loc.orig_sreg]));
   }
