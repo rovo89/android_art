@@ -24,6 +24,7 @@
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "elf_file.h"
+#include "elf_utils.h"
 #include "oat.h"
 #include "mirror/art_method.h"
 #include "mirror/art_method-inl.h"
@@ -38,6 +39,17 @@ namespace art {
 
 void OatFile::CheckLocation(const std::string& location) {
   CHECK(!location.empty());
+}
+
+OatFile* OatFile::OpenWithElfFile(ElfFile* elf_file,
+                                  const std::string& location,
+                                  std::string* error_msg) {
+  std::unique_ptr<OatFile> oat_file(new OatFile(location, false));
+  oat_file->elf_file_.reset(elf_file);
+  Elf32_Shdr* hdr = elf_file->FindSectionByName(".rodata");
+  oat_file->begin_ = elf_file->Begin() + hdr->sh_offset;
+  oat_file->end_ = elf_file->Begin() + hdr->sh_size + hdr->sh_offset;
+  return oat_file->Setup(error_msg) ? oat_file.release() : nullptr;
 }
 
 OatFile* OatFile::OpenMemory(std::vector<uint8_t>& oat_contents,

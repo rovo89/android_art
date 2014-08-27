@@ -81,6 +81,9 @@ basic_verify="false"
 gc_verify="false"
 gc_stress="false"
 always_clean="no"
+have_dex2oat="yes"
+have_patchoat="yes"
+have_image="yes"
 
 while true; do
     if [ "x$1" = "x--host" ]; then
@@ -98,6 +101,15 @@ while true; do
     elif [ "x$1" = "x--dalvik" ]; then
         lib="libdvm.so"
         runtime="dalvik"
+        shift
+    elif [ "x$1" = "x--no-dex2oat" ]; then
+        have_dex2oat="no"
+        shift
+    elif [ "x$1" = "x--no-patchoat" ]; then
+        have_patchoat="no"
+        shift
+    elif [ "x$1" = "x--no-image" ]; then
+        have_image="no"
         shift
     elif [ "x$1" = "x--relocate" ]; then
         relocate="yes"
@@ -261,6 +273,14 @@ else
     fi
 fi
 
+if [ "$have_patchoat" = "no" ]; then
+  run_args="${run_args} --no-patchoat"
+fi
+
+if [ "$have_dex2oat" = "no" ]; then
+  run_args="${run_args} --no-dex2oat"
+fi
+
 if [ ! "$runtime" = "jvm" ]; then
   run_args="${run_args} --lib $lib"
 fi
@@ -294,6 +314,10 @@ elif [ "$runtime" = "art" ]; then
     else
       run_args="${run_args} --no-relocate"
     fi
+fi
+
+if [ "$have_image" = "no" ]; then
+    run_args="${run_args} --no-image"
 fi
 
 if [ "$dev_mode" = "yes" -a "$update_mode" = "yes" ]; then
@@ -347,6 +371,8 @@ if [ "$usage" = "yes" ]; then
         echo "    --zygote             Spawn the process from the Zygote." \
              "If used, then the"
         echo "                         other runtime options are ignored."
+        echo "    --no-dex2oat         Run as though dex2oat was failing."
+        echo "    --no-patchoat        Run as though patchoat was failing."
         echo "    --prebuild           Run dex2oat on the files before starting test. (default)"
         echo "    --no-prebuild        Do not run dex2oat on the files before starting"
         echo "                         the test."

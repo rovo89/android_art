@@ -1168,6 +1168,7 @@ const OatFile* ClassLinker::FindOatFileContainingDexFileFromDexLocation(
                                        error_msg.c_str()));
     return nullptr;
   } else if (!oat_file->IsExecutable() &&
+             Runtime::Current()->GetHeap()->HasImageSpace() &&
              !VerifyOatImageChecksum(oat_file.get(), isa)) {
     error_msgs->push_back(StringPrintf("Failed to verify non-executable oat file '%s' found for "
                                        "dex location '%s'. Image checksum incorrect.",
@@ -1250,6 +1251,7 @@ const OatFile* ClassLinker::OpenOatFileFromDexLocation(const std::string& dex_lo
   std::string odex_error_msg;
   bool should_patch_system = false;
   bool odex_checksum_verified = false;
+  bool have_system_odex = false;
   {
     // There is a high probability that these both these oat files map similar/the same address
     // spaces so we must scope them like this so they each gets its turn.
@@ -1260,13 +1262,17 @@ const OatFile* ClassLinker::OpenOatFileFromDexLocation(const std::string& dex_lo
                                                        &odex_error_msg)) {
       error_msgs->push_back(odex_error_msg);
       return odex_oat_file.release();
-    } else if (odex_checksum_verified) {
-      // We can just relocate
-      should_patch_system = true;
-      odex_error_msg = "Image Patches are incorrect";
+    } else {
+      if (odex_checksum_verified) {
+        // We can just relocate
+        should_patch_system = true;
+        odex_error_msg = "Image Patches are incorrect";
+      }
+      if (odex_oat_file.get() != nullptr) {
+        have_system_odex = true;
+      }
     }
   }
-
 
   std::string cache_error_msg;
   bool should_patch_cache = false;
@@ -1303,6 +1309,8 @@ const OatFile* ClassLinker::OpenOatFileFromDexLocation(const std::string& dex_lo
         CHECK(have_dalvik_cache);
         ret = PatchAndRetrieveOat(cache_filename, cache_filename, image_location, isa, &error_msg);
       }
+    } else if (have_system_odex) {
+      ret = GetInterpretedOnlyOat(odex_filename, isa, &error_msg);
     }
   }
   if (ret == nullptr && have_dalvik_cache && OS::FileExists(cache_filename.c_str())) {
@@ -1352,7 +1360,8 @@ const OatFile* ClassLinker::GetInterpretedOnlyOat(const std::string& oat_path,
   if (output.get() == nullptr) {
     return nullptr;
   }
-  if (VerifyOatImageChecksum(output.get(), isa)) {
+  if (!Runtime::Current()->GetHeap()->HasImageSpace() ||
+      VerifyOatImageChecksum(output.get(), isa)) {
     return output.release();
   } else {
     *error_msg = StringPrintf("Could not use oat file '%s', image checksum failed to verify.",
