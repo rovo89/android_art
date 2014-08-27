@@ -47,7 +47,7 @@
 namespace art {
 namespace verifier {
 
-static constexpr bool kTimeVerifyMethod = !kIsDebugBuild;
+static constexpr bool kTimeVerifyMethod = false;
 static constexpr bool gDebugVerify = false;
 // TODO: Add a constant to method_verifier to turn on verbose logging?
 
