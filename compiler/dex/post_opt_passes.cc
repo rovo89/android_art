@@ -36,9 +36,9 @@ bool MethodUseCount::Gate(const PassDataHolder* data) const {
   return res;
 }
 
-bool MethodUseCount::Worker(const PassDataHolder* data) const {
+bool MethodUseCount::Worker(PassDataHolder* data) const {
   DCHECK(data != nullptr);
-  const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
+  PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
   CompilationUnit* c_unit = pass_me_data_holder->c_unit;
   DCHECK(c_unit != nullptr);
   BasicBlock* bb = pass_me_data_holder->bb;
@@ -49,9 +49,9 @@ bool MethodUseCount::Worker(const PassDataHolder* data) const {
 }
 
 
-bool ClearPhiInstructions::Worker(const PassDataHolder* data) const {
+bool ClearPhiInstructions::Worker(PassDataHolder* data) const {
   DCHECK(data != nullptr);
-  const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
+  PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
   CompilationUnit* c_unit = pass_me_data_holder->c_unit;
   DCHECK(c_unit != nullptr);
   BasicBlock* bb = pass_me_data_holder->bb;

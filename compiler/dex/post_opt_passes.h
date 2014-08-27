@@ -53,7 +53,7 @@ class MethodUseCount : public PassME {
   MethodUseCount() : PassME("UseCount") {
   }
 
-  bool Worker(const PassDataHolder* data) const;
+  bool Worker(PassDataHolder* data) const;
 
   bool Gate(const PassDataHolder* data) const;
 };
@@ -67,7 +67,7 @@ class ClearPhiInstructions : public PassME {
   ClearPhiInstructions() : PassME("ClearPhiInstructions") {
   }
 
-  bool Worker(const PassDataHolder* data) const;
+  bool Worker(PassDataHolder* data) const;
 };
 
 /**
@@ -223,11 +223,11 @@ class PhiNodeOperands : public PassME {
   PhiNodeOperands() : PassME("PhiNodeOperands", kPreOrderDFSTraversal) {
   }
 
-  bool Worker(const PassDataHolder* data) const {
+  bool Worker(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
-    BasicBlock* bb = down_cast<const PassMEDataHolder*>(data)->bb;
+    BasicBlock* bb = down_cast<PassMEDataHolder*>(data)->bb;
     DCHECK(bb != nullptr);
     c_unit->mir_graph->InsertPhiNodeOperands(bb);
     // No need of repeating, so just return false.
@@ -261,11 +261,11 @@ class ConstantPropagation : public PassME {
   ConstantPropagation() : PassME("ConstantPropagation") {
   }
 
-  bool Worker(const PassDataHolder* data) const {
+  bool Worker(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
-    BasicBlock* bb = down_cast<const PassMEDataHolder*>(data)->bb;
+    BasicBlock* bb = down_cast<PassMEDataHolder*>(data)->bb;
     DCHECK(bb != nullptr);
     c_unit->mir_graph->DoConstantPropagation(bb);
     // No need of repeating, so just return false.
