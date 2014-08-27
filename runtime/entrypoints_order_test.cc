@@ -15,6 +15,7 @@
  */
 
 #include <memory>
+#include <setjmp.h>
 
 #include "base/macros.h"
 #include "common_runtime_test.h"
@@ -130,7 +131,7 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
                         kPointerSize);
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_alloc_stack_end, held_mutexes, kPointerSize);
     EXPECT_OFFSET_DIFF(Thread, tlsPtr_.held_mutexes, Thread, wait_mutex_,
-                       kPointerSize * kLockLevelCount, thread_tlsptr_end);
+                       kPointerSize * kLockLevelCount + kPointerSize, thread_tlsptr_end);
   }
 
   void CheckInterpreterEntryPoints() {
