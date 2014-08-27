@@ -40,6 +40,10 @@ class OatHeader;
 
 class OatFile {
  public:
+  // Opens an oat file contained within the given elf file. This is always opened as
+  // non-executable at the moment.
+  static OatFile* OpenWithElfFile(ElfFile* elf_file, const std::string& location,
+                                  std::string* error_msg);
   // Open an oat file. Returns NULL on failure.  Requested base can
   // optionally be used to request where the file should be loaded.
   static OatFile* Open(const std::string& filename,
