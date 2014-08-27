@@ -61,7 +61,7 @@
 
 namespace art {
 
-static constexpr bool kTimeCompileMethod = !kIsDebugBuild;
+static constexpr bool kTimeCompileMethod = false;
 
 static double Percentage(size_t x, size_t y) {
   return 100.0 * (static_cast<double>(x)) / (static_cast<double>(x + y));
