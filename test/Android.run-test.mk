@@ -70,14 +70,53 @@ TEST_ART_RUN_TEST_BUILD_RULES :=
 #    {5: trace or no-trace}-{6: gcstress gcverify cms}-{7: forcecopy checkjni jni}-
 #    {8: no-image or image}-{9: test name}{10: 32 or 64}
 TARGET_TYPES := host target
-PREBUILD_TYPES := prebuild no-prebuild no-dex2oat
-COMPILER_TYPES := default interpreter optimizing
-RELOCATE_TYPES := relocate no-relocate relocate-no-patchoat
-TRACE_TYPES := trace no-trace
-GC_TYPES := gcstress gcverify cms
-JNI_TYPES := jni checkjni forcecopy
-IMAGE_TYPES := image no-image
+PREBUILD_TYPES := prebuild
+ifeq ($(ART_TEST_RUN_TEST_NO_PREBUILD),true)
+  PREBUILD_TYPES += no-prebuild
+endif
+ifeq ($(ART_TEST_RUN_TEST_NO_DEX2OAT),true)
+  PREBUILD_TYPES += no-dex2oat
+endif
+COMPILER_TYPES :=
+ifeq ($(ART_TEST_DEFAULT_COMPILER),true)
+  COMPILER_TYPES += default
+endif
+ifeq ($(ART_TEST_INTERPRETER),true)
+  COMPILER_TYPES += interpreter
+endif
+ifeq ($(ART_TEST_OPTIMIZING),true)
+  COMPILER_TYPES += optimizing
+endif
+RELOCATE_TYPES := relocate
+ifeq ($(ART_TEST_RUN_TEST_NO_RELOCATE),true)
+  RELOCATE_TYPES += no-relocate
+endif
+ifeq ($(ART_TEST_RUN_TEST_RELOCATE_NO_PATCHOAT),true)
+  RELOCATE_TYPES := relocate-no-patchoat
+endif
+TRACE_TYPES := no-trace
+ifeq ($(ART_TEST_TRACE),true)
+  TRACE_TYPES += trace
+endif
+GC_TYPES := cms
+ifeq ($(ART_TEST_GCSTRESS),true)
+  GC_TYPES += gcstress
+endif
+ifeq ($(ART_TEST_GCVERIFY),true)
+  GC_TYPES += gcverify
+endif
+JNI_TYPES := checkjni
+ifeq ($(ART_TEST_JNI_FORCECOPY),true)
+  JNI_TYPES += forcecopy
+endif
+IMAGE_TYPES := image
+ifeq ($(ART_TEST_RUN_TEST_NO_IMAGE),true)
+  IMAGE_TYPES += no-image
+endif
+ADDRESS_SIZES_TARGET := $(ART_PHONY_TEST_TARGET_SUFFIX) $(2ND_ART_PHONY_TEST_TARGET_SUFFIX)
+ADDRESS_SIZES_HOST := $(ART_PHONY_TEST_HOST_SUFFIX) $(2ND_ART_PHONY_TEST_HOST_SUFFIX)
 ALL_ADDRESS_SIZES := 64 32
+
 # List all run test names with number arguments agreeing with the comment above.
 define all-run-test-names
   $(foreach target, $(1), \
@@ -96,8 +135,8 @@ endef  # all-run-test-names
 
 # To generate a full list or tests:
 # $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES),$(COMPILER_TYPES), \
-#        $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(TEST_ART_RUN_TESTS), \
-#        $(ALL_ADDRESS_SIZES))
+#        $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
+#        $(TEST_ART_RUN_TESTS), $(ALL_ADDRESS_SIZES))
 
 # Convert's a rule name to the form used in variables, e.g. no-relocate to NO_RELOCATE
 define name-to-var
@@ -113,9 +152,10 @@ TEST_ART_TIMING_SENSITIVE_RUN_TESTS := \
 ifdef dist_goal
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES), \
         $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-        $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(ALL_ADDRESS_SIZES)), \
         $(IMAGE_TYPES), $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(ALL_ADDRESS_SIZES))
 endif
+
+TEST_ART_TIMING_SENSITIVE_RUN_TESTS :=
 
 # NB 116-nodex2oat is not broken per-se it just doesn't (and isn't meant to) work with --prebuild.
 TEST_ART_BROKEN_PREBUILD_RUN_TESTS := \
@@ -125,6 +165,8 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),prebuild, \
     $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
     $(IMAGE_TYPES), $(TEST_ART_BROKEN_PREBUILD_RUN_TESTS), $(ALL_ADDRESS_SIZES))
 
+TEST_ART_BROKEN_PREBUILD_RUN_TESTS :=
+
 # NB 117-nopatchoat is not broken per-se it just doesn't work (and isn't meant to) without --prebuild --relocate
 TEST_ART_BROKEN_NO_RELOCATE_TESTS := \
   117-nopatchoat
@@ -133,12 +175,16 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TY
     $(COMPILER_TYPES), no-relocate,$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
     $(IMAGE_TYPES), $(TEST_ART_BROKEN_NO_RELOCATE_TESTS), $(ALL_ADDRESS_SIZES))
 
+TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
+
 TEST_ART_BROKEN_NO_PREBUILD_TESTS := \
   117-nopatchoat
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),no-prebuild, \
     $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
     $(IMAGE_TYPES), $(TEST_ART_BROKEN_NO_PREBUILD_TESTS), $(ALL_ADDRESS_SIZES))
+
+TEST_ART_BROKEN_NO_PREBUILD_TESTS :=
 
 # Tests that are broken with tracing.
 TEST_ART_BROKEN_TRACE_RUN_TESTS := \
@@ -178,6 +224,8 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TY
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES),$(COMPILER_TYPES), \
     relocate-no-patchoat,$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
     $(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+
+TEST_ART_BROKEN_FALLBACK_RUN_TESTS :=
 
 # Clear variables ahead of appending to them when defining tests.
 $(foreach target, $(TARGET_TYPES), $(eval ART_RUN_TEST_$(call name-to-var,$(target))_RULES :=))
@@ -325,11 +373,11 @@ define define-test-art-run-test
     endif
   endif
   ifeq ($(6),gcverify)
-    test_groups += ART_RUN_TEST_$$(uc_host_or_target)_GC_VERIFY_RULES
+    test_groups += ART_RUN_TEST_$$(uc_host_or_target)_GCVERIFY_RULES
     run_test_options += --gcverify
   else
     ifeq ($(6),gcstress)
-      test_groups += ART_RUN_TEST_$$(uc_host_or_target)_GC_STRESS_RULES
+      test_groups += ART_RUN_TEST_$$(uc_host_or_target)_GCSTRESS_RULES
       run_test_options += --gcstress
     else
       ifeq ($(6),cms)
@@ -340,14 +388,14 @@ define define-test-art-run-test
     endif
   endif
   ifeq ($(7),forcecopy)
-    test_groups += ART_RUN_TEST_$$(uc_host_or_target)_FORCE_COPY_RULES
+    test_groups += ART_RUN_TEST_$$(uc_host_or_target)_FORCECOPY_RULES
     run_test_options += --runtime-option -Xjniopts:forcecopy
     ifneq ($$(ART_TEST_JNI_FORCECOPY),true)
       skip_test := true
     endif
   else
     ifeq ($(7),checkjni)
-      test_groups += ART_RUN_TEST_$$(uc_host_or_target)_CHECK_JNI_RULES
+      test_groups += ART_RUN_TEST_$$(uc_host_or_target)_CHECKJNI_RULES
       run_test_options += --runtime-option -Xcheck:jni
     else
       ifeq ($(7),jni)
@@ -403,76 +451,19 @@ $$(run_test_rule_name): $(DX) $(HOST_OUT_EXECUTABLES)/jasmin $$(prereq_rule)
   prereq_rule :=
 endef  # define-test-art-run-test
 
-test_prebuild_types := prebuild
-ifeq ($(ART_TEST_RUN_TEST_NO_PREBUILD),true)
-  test_prebuild_types += no-prebuild
-endif
-ifeq ($(ART_TEST_RUN_TEST_NO_DEX2OAT),true)
-  test_prebuild_types += no-dex2oat
-endif
-test_compiler_types :=
-ifeq ($(ART_TEST_DEFAULT_COMPILER),true)
-  test_compiler_types += default
-endif
-ifeq ($(ART_TEST_INTERPRETER),true)
-  test_compiler_types += interpreter
-endif
-ifeq ($(ART_TEST_OPTIMIZING),true)
-  test_compiler_types += optimizing
-endif
-test_relocate_types := relocate
-ifeq ($(ART_TEST_RUN_TEST_NO_RELOCATE),true)
-  test_relocate_types += no-relocate
-endif
-ifeq ($(ART_TEST_RUN_TEST_RELOCATE_NO_PATCHOAT),true)
-  test_relocate_types := relocate-no-patchoat
-endif
-test_trace_types := no-trace
-ifeq ($(ART_TEST_TRACE),true)
-  test_trace_types += trace
-endif
-test_gc_types := cms
-ifeq ($(ART_TEST_GCSTRESS),true)
-  test_gc_types += gcstress
-endif
-ifeq ($(ART_TEST_GCVERIFY),true)
-  test_gc_types += gcverify
-endif
-test_jni_types := checkjni
-ifeq ($(ART_TEST_JNI_FORCECOPY),true)
-  test_jni_types += forcecopy
-endif
-test_image_types := image
-ifeq ($(ART_TEST_RUN_TEST_NO_IMAGE),true)
-  test_image_types += no-image
-endif
-
-ADDRESS_SIZES_TARGET := $(ART_PHONY_TEST_TARGET_SUFFIX) $(2ND_ART_PHONY_TEST_TARGET_SUFFIX)
-ADDRESS_SIZES_HOST := $(ART_PHONY_TEST_HOST_SUFFIX) $(2ND_ART_PHONY_TEST_HOST_SUFFIX)
-
 $(foreach target, $(TARGET_TYPES), \
   $(foreach test, $(TEST_ART_RUN_TESTS), \
     $(foreach address_size, $(ADDRESS_SIZES_$(call name-to-var,$(target))), \
-      $(foreach prebuild, $(test_prebuild_types), \
-        $(foreach compiler, $(test_compiler_types), \
-          $(foreach relocate, $(test_relocate_types), \
-            $(foreach trace, $(test_trace_types), \
-              $(foreach gc, $(test_gc_types), \
-                $(foreach jni, $(test_jni_types), \
-                  $(foreach image, $(test_image_types), \
+      $(foreach prebuild, $(PREBUILD_TYPES), \
+        $(foreach compiler, $(COMPILER_TYPES), \
+          $(foreach relocate, $(RELOCATE_TYPES), \
+            $(foreach trace, $(TRACE_TYPES), \
+              $(foreach gc, $(GC_TYPES), \
+                $(foreach jni, $(JNI_TYPES), \
+                  $(foreach image, $(IMAGE_TYPES), \
                     $(eval $(call define-test-art-run-test,$(target),$(prebuild),$(compiler),$(relocate),$(trace),$(gc),$(jni),$(image),$(test),$(address_size))) \
                 ))))))))))
 define-test-art-run-test :=
-test_prebuild_types :=
-test_compiler_types :=
-test_relocate_types :=
-test_trace_types :=
-test_gc_types :=
-test_jni_types :=
-test_image_types :=
-ART_TEST_HOST_RUN_TEST_DEPENDENCIES :=
-ADDRESS_SIZES_TARGET :=
-ADDRESS_SIZES_HOST :=
 
 # Define a phony rule whose purpose is to test its prerequisites.
 # $(1): host or target
@@ -512,7 +503,7 @@ $(foreach target, $(TARGET_TYPES), \
   $(foreach test, $(TEST_ART_RUN_TESTS), $(eval \
     $(call define-test-art-run-test-group,test-art-$(target)-run-test-$(test),$(ART_RUN_TEST_$(call name-to-var,$(target))_$(call name-to-var,$(test))_RULES)))))
 $(foreach target, $(TARGET_TYPES), \
-  $(foreach address_size, $(ALL_ADDRESS_SIZES), $(eval \
+  $(foreach address_size, $(ADDRESS_SIZES_$(call name-to-var,$(target))), $(eval \
     $(call define-test-art-run-test-group,test-art-$(target)-run-test-$(address_size),$(ART_RUN_TEST_$(address_size)_RULES)))))
 
 # Clear variables now we're finished with them.
@@ -553,6 +544,8 @@ TRACE_TYPES :=
 GC_TYPES :=
 JNI_TYPES :=
 IMAGE_TYPES :=
+ADDRESS_SIZES_TARGET :=
+ADDRESS_SIZES_HOST :=
 ALL_ADDRESS_SIZES :=
 
 include $(LOCAL_PATH)/Android.libarttest.mk
