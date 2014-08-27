@@ -26,6 +26,10 @@ FLAGS=""
 TARGET_SUFFIX="32"
 GDB_TARGET_SUFFIX=""
 COMPILE_FLAGS=""
+FALSE_BIN="/system/bin/false"
+PATCHOAT=""
+DEX2OAT=""
+HAVE_IMAGE="y"
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -55,11 +59,20 @@ while true; do
         BOOT_OPT="$1"
         BUILD_BOOT_OPT="--boot-image=${1#-Ximage:}"
         shift
+    elif [ "x$1" = "x--no-dex2oat" ]; then
+        DEX2OAT="-Xcompiler:${FALSE_BIN}"
+        shift
+    elif [ "x$1" = "x--no-patchoat" ]; then
+        PATCHOAT="-Xpatchoat:${FALSE_BIN}"
+        shift
     elif [ "x$1" = "x--relocate" ]; then
         RELOCATE="y"
         shift
     elif [ "x$1" = "x--no-relocate" ]; then
         RELOCATE="n"
+        shift
+    elif [ "x$1" = "x--no-image" ]; then
+        HAVE_IMAGE="n"
         shift
     elif [ "x$1" = "x--debug" ]; then
         DEBUGGER="y"
@@ -136,6 +149,11 @@ fi
 
 msg "------------------------------"
 
+if [ "$HAVE_IMAGE" = "n" ]; then
+    BOOT_OPT="-Ximage:/system/non-existant/boot.art"
+    BOOT_OPT="${BOOT_OPT} -Xbootclasspath:/system/framework/core-libart.jar"
+fi
+
 ARCH=$(adb shell ls -F /data/dalvik-cache | grep -Ewo "${ARCHITECTURES_PATTERN}")
 if [ x"$ARCH" = "x" ]; then
   echo "Unable to determine architecture"
@@ -194,7 +212,7 @@ fi
 cmdline="cd $DEX_LOCATION && export ANDROID_DATA=$DEX_LOCATION && export DEX_LOCATION=$DEX_LOCATION && \
     mkdir -p $DEX_LOCATION/dalvik-cache/$ARCH/ && \
     $INVOKE_WITH /system/bin/dex2oatd $COMPILE_FLAGS $BUILD_BOOT_OPT $BUILD_RELOCATE_OPT  --runtime-arg -classpath --runtime-arg $DEX_LOCATION/$TEST_NAME.jar --dex-file=$DEX_LOCATION/$TEST_NAME.jar --oat-file=$DEX_LOCATION/dalvik-cache/$ARCH/$(echo $DEX_LOCATION/$TEST_NAME.jar/classes.dex | cut -d/ -f 2- | sed "s:/:@:g") --instruction-set=$ARCH && \
-    $INVOKE_WITH $gdb /system/bin/dalvikvm$TARGET_SUFFIX $FLAGS $gdbargs -XXlib:$LIB $ZYGOTE $JNI_OPTS $RELOCATE_OPT $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar Main $@"
+    $INVOKE_WITH $gdb /system/bin/dalvikvm$TARGET_SUFFIX $FLAGS $gdbargs -XXlib:$LIB $PATCHOAT $DEX2OAT $ZYGOTE $JNI_OPTS $RELOCATE_OPT $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar Main $@"
 cmdfile=$(tempfile -p "cmd-" -s "-$TEST_NAME")
 echo "$cmdline" > $cmdfile
 

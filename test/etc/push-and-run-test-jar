@@ -22,6 +22,10 @@ INVOKE_WITH=""
 FLAGS=""
 TARGET_SUFFIX="32"
 GDB_TARGET_SUFFIX=""
+FALSE_BIN="/system/bin/false"
+PATCHOAT=""
+DEX2OAT=""
+HAVE_IMAGE="y"
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -39,6 +43,15 @@ while true; do
         shift
         option="$1"
         FLAGS="${FLAGS} -Xcompiler-option $option"
+        shift
+    elif [ "x$1" = "x--no-image" ]; then
+        HAVE_IMAGE="n"
+        shift
+    elif [ "x$1" = "x--no-dex2oat" ]; then
+        DEX2OAT="-Xcompiler:${FALSE_BIN}"
+        shift
+    elif [ "x$1" = "x--no-patchoat" ]; then
+        PATCHOAT="-Xpatchoat:${FALSE_BIN}"
         shift
     elif [ "x$1" = "x--runtime-option" ]; then
         shift
@@ -129,6 +142,11 @@ fi
 
 msg "------------------------------"
 
+if [ "$HAVE_IMAGE" = "n" ]; then
+    BOOT_OPT="-Ximage:/system/non-existant/boot.art"
+    BOOT_OPT="${BOOT_OPT} -Xbootclasspath:/system/framework/core-libart.jar"
+fi
+
 if [ "$QUIET" = "n" ]; then
   adb shell rm -r $DEX_LOCATION
   adb shell mkdir -p $DEX_LOCATION
@@ -172,7 +190,7 @@ else
 fi
 
 cmdline="cd $DEX_LOCATION && export ANDROID_DATA=$DEX_LOCATION && export DEX_LOCATION=$DEX_LOCATION && \
-    $INVOKE_WITH $gdb /system/bin/dalvikvm$TARGET_SUFFIX $FLAGS $gdbargs -XXlib:$LIB $ZYGOTE $JNI_OPTS $RELOCATE_OPT $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar Main"
+    $INVOKE_WITH $gdb /system/bin/dalvikvm$TARGET_SUFFIX $FLAGS $gdbargs -XXlib:$LIB $PATCHOAT $DEX2OAT $ZYGOTE $JNI_OPTS $RELOCATE_OPT $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar Main"
 if [ "$DEV_MODE" = "y" ]; then
   echo $cmdline "$@"
 fi
