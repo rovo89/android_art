@@ -129,9 +129,9 @@ class MirConverter : public Backend {
     ::llvm::Type* LlvmTypeFromLocRec(RegLocation loc);
     void InitIR();
     ::llvm::BasicBlock* FindCaseTarget(uint32_t vaddr);
-    void ConvertPackedSwitch(BasicBlock* bb, int32_t table_offset,
+    void ConvertPackedSwitch(BasicBlock* bb, MIR* mir, int32_t table_offset,
                              RegLocation rl_src);
-    void ConvertSparseSwitch(BasicBlock* bb, int32_t table_offset,
+    void ConvertSparseSwitch(BasicBlock* bb, MIR* mir, int32_t table_offset,
                              RegLocation rl_src);
     void ConvertSget(int32_t field_index,
                      art::llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_dest);

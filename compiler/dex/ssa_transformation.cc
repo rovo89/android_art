@@ -147,8 +147,8 @@ bool MIRGraph::FillDefBlockMatrix(BasicBlock* bb) {
 }
 
 void MIRGraph::ComputeDefBlockMatrix() {
-  int num_registers = cu_->num_dalvik_registers;
-  /* Allocate num_dalvik_registers bit vector pointers */
+  int num_registers = GetNumOfCodeAndTempVRs();
+  /* Allocate num_registers bit vector pointers */
   def_block_matrix_ = static_cast<ArenaBitVector**>
       (arena_->Alloc(sizeof(ArenaBitVector *) * num_registers,
                      kArenaAllocDFInfo));
@@ -159,6 +159,7 @@ void MIRGraph::ComputeDefBlockMatrix() {
     def_block_matrix_[i] =
         new (arena_) ArenaBitVector(arena_, GetNumBlocks(), false, kBitMapBMatrix);
   }
+
   AllNodesIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     FindLocalLiveIn(bb);
@@ -172,8 +173,8 @@ void MIRGraph::ComputeDefBlockMatrix() {
    * Also set the incoming parameters as defs in the entry block.
    * Only need to handle the parameters for the outer method.
    */
-  int num_regs = cu_->num_dalvik_registers;
-  int in_reg = num_regs - cu_->num_ins;
+  int num_regs = GetNumOfCodeVRs();
+  int in_reg = GetFirstInVR();
   for (; in_reg < num_regs; in_reg++) {
     def_block_matrix_[in_reg]->SetBit(GetEntryBlock()->id);
   }
@@ -457,7 +458,7 @@ void MIRGraph::ComputeSuccLineIn(ArenaBitVector* dest, const ArenaBitVector* src
  * insert a phi node if the variable is live-in to the block.
  */
 bool MIRGraph::ComputeBlockLiveIns(BasicBlock* bb) {
-  DCHECK_EQ(temp_bit_vector_size_, cu_->num_dalvik_registers);
+  DCHECK_EQ(temp_bit_vector_size_, cu_->mir_graph.get()->GetNumOfCodeAndTempVRs());
   ArenaBitVector* temp_dalvik_register_v = temp_bit_vector_;
 
   if (bb->data_flow_info == NULL) {
@@ -508,7 +509,7 @@ void MIRGraph::InsertPhiNodes() {
   }
 
   /* Iterate through each Dalvik register */
-  for (dalvik_reg = cu_->num_dalvik_registers - 1; dalvik_reg >= 0; dalvik_reg--) {
+  for (dalvik_reg = GetNumOfCodeAndTempVRs() - 1; dalvik_reg >= 0; dalvik_reg--) {
     input_blocks->Copy(def_block_matrix_[dalvik_reg]);
     phi_blocks->ClearAllBits();
     do {
@@ -587,7 +588,7 @@ void MIRGraph::DoDFSPreOrderSSARename(BasicBlock* block) {
 
   /* Process this block */
   DoSSAConversion(block);
-  int map_size = sizeof(int) * cu_->num_dalvik_registers;
+  int map_size = sizeof(int) * GetNumOfCodeAndTempVRs();
 
   /* Save SSA map snapshot */
   ScopedArenaAllocator allocator(&cu_->arena_stack);

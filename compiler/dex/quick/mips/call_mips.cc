@@ -62,7 +62,7 @@ bool MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
  *
  */
 void MipsMir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
-  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   if (cu_->verbose) {
     DumpSparseSwitchTable(table);
   }
@@ -139,7 +139,7 @@ void MipsMir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLoca
  * done:
  */
 void MipsMir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
-  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   if (cu_->verbose) {
     DumpPackedSwitchTable(table);
   }
@@ -220,8 +220,8 @@ void MipsMir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLoca
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void MipsMir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
-  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+void MipsMir2Lir::GenFillArrayData(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
+  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   // Add the table to the list - we'll process it later
   FillArrayData* tab_rec =
       reinterpret_cast<FillArrayData*>(arena_->Alloc(sizeof(FillArrayData),
