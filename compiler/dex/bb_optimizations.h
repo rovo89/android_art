@@ -96,9 +96,9 @@ class SpecialMethodInliner : public PassME {
     cUnit->mir_graph->InlineSpecialMethodsStart();
   }
 
-  bool Worker(const PassDataHolder* data) const {
+  bool Worker(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
+    PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
     CompilationUnit* cUnit = pass_me_data_holder->c_unit;
     DCHECK(cUnit != nullptr);
     BasicBlock* bb = pass_me_data_holder->bb;
@@ -132,7 +132,7 @@ class CodeLayout : public PassME {
     cUnit->mir_graph->VerifyDataflow();
   }
 
-  bool Worker(const PassDataHolder* data) const;
+  bool Worker(PassDataHolder* data) const;
 };
 
 /**
@@ -152,9 +152,9 @@ class NullCheckEliminationAndTypeInference : public PassME {
     cUnit->mir_graph->EliminateNullChecksAndInferTypesStart();
   }
 
-  bool Worker(const PassDataHolder* data) const {
+  bool Worker(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
+    PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
     CompilationUnit* cUnit = pass_me_data_holder->c_unit;
     DCHECK(cUnit != nullptr);
     BasicBlock* bb = pass_me_data_holder->bb;
@@ -183,9 +183,9 @@ class ClassInitCheckElimination : public PassME {
     return cUnit->mir_graph->EliminateClassInitChecksGate();
   }
 
-  bool Worker(const PassDataHolder* data) const {
+  bool Worker(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
+    PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
     CompilationUnit* cUnit = pass_me_data_holder->c_unit;
     DCHECK(cUnit != nullptr);
     BasicBlock* bb = pass_me_data_holder->bb;
@@ -218,9 +218,9 @@ class GlobalValueNumberingPass : public PassME {
     return cUnit->mir_graph->ApplyGlobalValueNumberingGate();
   }
 
-  bool Worker(const PassDataHolder* data) const OVERRIDE {
+  bool Worker(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
+    PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
     CompilationUnit* cUnit = pass_me_data_holder->c_unit;
     DCHECK(cUnit != nullptr);
     BasicBlock* bb = pass_me_data_holder->bb;
@@ -252,7 +252,7 @@ class BBCombine : public PassME {
     return ((cUnit->disable_opt & (1 << kSuppressExceptionEdges)) != 0);
   }
 
-  bool Worker(const PassDataHolder* data) const;
+  bool Worker(PassDataHolder* data) const;
 };
 
 /**
