@@ -47,6 +47,8 @@ static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
     if (klass == NULL) {
       DCHECK(self->IsExceptionPending());
       return nullptr;  // Failure
+    } else {
+      DCHECK(!self->IsExceptionPending());
     }
   }
   if (kAccessCheck) {
@@ -79,6 +81,8 @@ static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
     if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_klass, true, true)) {
       DCHECK(self->IsExceptionPending());
       return nullptr;  // Failure
+    } else {
+      DCHECK(!self->IsExceptionPending());
     }
     return h_klass.Get();
   }
