@@ -47,6 +47,7 @@
 namespace art {
 namespace verifier {
 
+static constexpr bool kTimeVerifyMethod = !kIsDebugBuild;
 static constexpr bool gDebugVerify = false;
 // TODO: Add a constant to method_verifier to turn on verbose logging?
 
@@ -247,7 +248,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx,
                                                          bool allow_soft_failures,
                                                          bool need_precise_constants) {
   MethodVerifier::FailureKind result = kNoFailure;
-  uint64_t start_ns = NanoTime();
+  uint64_t start_ns = kTimeVerifyMethod ? NanoTime() : 0;
 
   MethodVerifier verifier(dex_file, &dex_cache, &class_loader, class_def, code_item,
                            method_idx, method, method_access_flags, true, allow_soft_failures,
@@ -275,10 +276,12 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx,
     }
     result = kHardFailure;
   }
-  uint64_t duration_ns = NanoTime() - start_ns;
-  if (duration_ns > MsToNs(100) && !kIsDebugBuild) {
-    LOG(WARNING) << "Verification of " << PrettyMethod(method_idx, *dex_file)
-                 << " took " << PrettyDuration(duration_ns);
+  if (kTimeVerifyMethod) {
+    uint64_t duration_ns = NanoTime() - start_ns;
+    if (duration_ns > MsToNs(100)) {
+      LOG(WARNING) << "Verification of " << PrettyMethod(method_idx, *dex_file)
+                   << " took " << PrettyDuration(duration_ns);
+    }
   }
   return result;
 }
