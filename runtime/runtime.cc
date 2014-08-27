@@ -46,6 +46,7 @@
 #include "atomic.h"
 #include "class_linker.h"
 #include "debugger.h"
+#include "elf_file.h"
 #include "fault_handler.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
@@ -66,6 +67,7 @@
 #include "native_bridge_art_interface.h"
 #include "parsed_options.h"
 #include "oat_file.h"
+#include "os.h"
 #include "quick/quick_method_frame_info.h"
 #include "reflection.h"
 #include "ScopedLocalRef.h"
@@ -547,9 +549,74 @@ void Runtime::StartDaemonThreads() {
   VLOG(startup) << "Runtime::StartDaemonThreads exiting";
 }
 
+static bool OpenDexFilesFromImage(const std::vector<std::string>& dex_filenames,
+                                  const std::string& image_location,
+                                  std::vector<const DexFile*>& dex_files,
+                                  size_t* failures) {
+  std::string system_filename;
+  bool has_system = false;
+  std::string cache_filename_unused;
+  bool dalvik_cache_exists_unused;
+  bool has_cache_unused;
+  bool found_image = gc::space::ImageSpace::FindImageFilename(image_location.c_str(),
+                                                              kRuntimeISA,
+                                                              &system_filename,
+                                                              &has_system,
+                                                              &cache_filename_unused,
+                                                              &dalvik_cache_exists_unused,
+                                                              &has_cache_unused);
+  *failures = 0;
+  if (!found_image || !has_system) {
+    return false;
+  }
+  std::string error_msg;
+  // We are falling back to non-executable use of the oat file because patching failed, presumably
+  // due to lack of space.
+  std::string oat_filename = ImageHeader::GetOatLocationFromImageLocation(system_filename.c_str());
+  std::string oat_location = ImageHeader::GetOatLocationFromImageLocation(image_location.c_str());
+  std::unique_ptr<File> file(OS::OpenFileForReading(oat_filename.c_str()));
+  if (file.get() == nullptr) {
+    return false;
+  }
+  std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.release(), false, false, &error_msg));
+  if (elf_file.get() == nullptr) {
+    return false;
+  }
+  std::unique_ptr<OatFile> oat_file(OatFile::OpenWithElfFile(elf_file.release(), oat_location,
+                                                             &error_msg));
+  if (oat_file.get() == nullptr) {
+    LOG(INFO) << "Unable to use '" << oat_filename << "' because " << error_msg;
+    return false;
+  }
+
+  std::vector<const OatFile::OatDexFile*> oat_dex_files = oat_file->GetOatDexFiles();
+  for (size_t i = 0; i < oat_dex_files.size(); i++) {
+    const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
+    if (oat_dex_file == nullptr) {
+      *failures += 1;
+      continue;
+    }
+    const DexFile* dex_file = oat_dex_file->OpenDexFile(&error_msg);
+    if (dex_file == nullptr) {
+      *failures += 1;
+    } else {
+      dex_files.push_back(dex_file);
+    }
+  }
+  Runtime::Current()->GetClassLinker()->RegisterOatFile(oat_file.release());
+  return true;
+}
+
+
 static size_t OpenDexFiles(const std::vector<std::string>& dex_filenames,
+                           const std::string& image_location,
                            std::vector<const DexFile*>& dex_files) {
   size_t failure_count = 0;
+  if (!image_location.empty() && OpenDexFilesFromImage(dex_filenames, image_location, dex_files,
+                                                       &failure_count)) {
+    return failure_count;
+  }
+  failure_count = 0;
   for (size_t i = 0; i < dex_filenames.size(); i++) {
     const char* dex_filename = dex_filenames[i].c_str();
     std::string error_msg;
@@ -713,7 +780,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     std::vector<std::string> dex_filenames;
     Split(boot_class_path_string_, ':', dex_filenames);
     std::vector<const DexFile*> boot_class_path;
-    OpenDexFiles(dex_filenames, boot_class_path);
+    OpenDexFiles(dex_filenames, options->image_, boot_class_path);
     class_linker_->InitWithoutImage(boot_class_path);
     // TODO: Should we move the following to InitWithoutImage?
     SetInstructionSet(kRuntimeISA);

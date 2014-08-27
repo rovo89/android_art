@@ -78,6 +78,15 @@ ART_TEST_RUN_TEST_NO_RELOCATE ?= $(ART_TEST_FULL)
 # Do you want run-tests with no prebuilding enabled run?
 ART_TEST_RUN_TEST_NO_PREBUILD ?= $(ART_TEST_FULL)
 
+# Do you want run-tests without a pregenerated core.art?
+ART_TEST_RUN_TEST_NO_IMAGE ?= $(ART_TEST_FULL)
+
+# Do you want run-tests with relocation enabled but patchoat failing?
+ART_TEST_RUN_TEST_RELOCATE_NO_PATCHOAT ?= $(ART_TEST_FULL)
+
+# Do you want run-tests without a dex2oat?
+ART_TEST_RUN_TEST_NO_DEX2OAT ?= $(ART_TEST_FULL)
+
 # Do you want failed tests to have their artifacts cleaned up?
 ART_TEST_RUN_TEST_ALWAYS_CLEAN ?= true
 
