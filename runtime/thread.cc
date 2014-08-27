@@ -487,11 +487,14 @@ void Thread::SetThreadName(const char* name) {
 void Thread::InitStackHwm() {
   void* read_stack_base;
   size_t read_stack_size;
-  GetThreadStack(tlsPtr_.pthread_self, &read_stack_base, &read_stack_size);
+  size_t read_guard_size;
+  GetThreadStack(tlsPtr_.pthread_self, &read_stack_base, &read_stack_size, &read_guard_size);
 
-  // TODO: include this in the thread dumps; potentially useful in SIGQUIT output?
-  VLOG(threads) << StringPrintf("Native stack is at %p (%s)", read_stack_base,
-                                PrettySize(read_stack_size).c_str());
+  // This is included in the SIGQUIT output, but it's useful here for thread debugging.
+  VLOG(threads) << StringPrintf("Native stack is at %p (%s with %s guard)",
+                                read_stack_base,
+                                PrettySize(read_stack_size).c_str(),
+                                PrettySize(read_guard_size).c_str());
 
   tlsPtr_.stack_begin = reinterpret_cast<byte*>(read_stack_base);
   tlsPtr_.stack_size = read_stack_size;
@@ -544,28 +547,13 @@ void Thread::InitStackHwm() {
 
   // Install the protected region if we are doing implicit overflow checks.
   if (implicit_stack_check) {
-    size_t guardsize;
-    pthread_attr_t attributes;
-    CHECK_PTHREAD_CALL(pthread_attr_init, (&attributes), "guard size query");
-    CHECK_PTHREAD_CALL(pthread_attr_getguardsize, (&attributes, &guardsize), "guard size query");
-    CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), "guard size query");
     // The thread might have protected region at the bottom.  We need
     // to install our own region so we need to move the limits
     // of the stack to make room for it.
 
-#if defined(__i386__) || defined(__x86_64__)
-    // Work around issue trying to read last page of stack on Intel.
-    // The bug for this is b/17111575.  The problem is that we are
-    // unable to read the page just above the guard page on the
-    // main stack on an intel target.  When the bug is fixed
-    // this can be removed.
-    if (::art::GetTid() == getpid()) {
-      guardsize += 4 * KB;
-    }
-#endif
-    tlsPtr_.stack_begin += guardsize + kStackOverflowProtectedSize;
-    tlsPtr_.stack_end += guardsize + kStackOverflowProtectedSize;
-    tlsPtr_.stack_size -= guardsize;
+    tlsPtr_.stack_begin += read_guard_size + kStackOverflowProtectedSize;
+    tlsPtr_.stack_end += read_guard_size + kStackOverflowProtectedSize;
+    tlsPtr_.stack_size -= read_guard_size;
 
     InstallImplicitProtection();
   }
