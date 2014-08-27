@@ -99,10 +99,10 @@ ifeq ($(ART_TEST_TRACE),true)
   TRACE_TYPES += trace
 endif
 GC_TYPES := cms
-ifeq ($(ART_TEST_GCSTRESS),true)
+ifeq ($(ART_TEST_GC_STRESS),true)
   GC_TYPES += gcstress
 endif
-ifeq ($(ART_TEST_GCVERIFY),true)
+ifeq ($(ART_TEST_GC_VERIFY),true)
   GC_TYPES += gcverify
 endif
 JNI_TYPES := checkjni
