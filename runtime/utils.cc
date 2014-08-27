@@ -83,7 +83,7 @@ std::string GetThreadName(pid_t tid) {
   return result;
 }
 
-void GetThreadStack(pthread_t thread, void** stack_base, size_t* stack_size) {
+void GetThreadStack(pthread_t thread, void** stack_base, size_t* stack_size, size_t* guard_size) {
 #if defined(__APPLE__)
   *stack_size = pthread_get_stacksize_np(thread);
   void* stack_addr = pthread_get_stackaddr_np(thread);
@@ -96,10 +96,17 @@ void GetThreadStack(pthread_t thread, void** stack_base, size_t* stack_size) {
   } else {
     *stack_base = stack_addr;
   }
+
+  // This is wrong, but there doesn't seem to be a way to get the actual value on the Mac.
+  pthread_attr_t attributes;
+  CHECK_PTHREAD_CALL(pthread_attr_init, (&attributes), __FUNCTION__);
+  CHECK_PTHREAD_CALL(pthread_attr_getguardsize, (&attributes, guard_size), __FUNCTION__);
+  CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
 #else
   pthread_attr_t attributes;
   CHECK_PTHREAD_CALL(pthread_getattr_np, (thread, &attributes), __FUNCTION__);
   CHECK_PTHREAD_CALL(pthread_attr_getstack, (&attributes, stack_base, stack_size), __FUNCTION__);
+  CHECK_PTHREAD_CALL(pthread_attr_getguardsize, (&attributes, guard_size), __FUNCTION__);
   CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
 #endif
 }
