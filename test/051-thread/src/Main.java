@@ -25,6 +25,7 @@ public class Main {
         testThreadCapacity();
         testThreadDaemons();
         testSleepZero();
+        testSetName();
         System.out.println("thread test done");
     }
 
@@ -111,5 +112,25 @@ public class Main {
             }
         }
         System.out.print("testSleepZero finished\n");
+    }
+
+    private static void testSetName() throws Exception {
+        System.out.print("testSetName starting\n");
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                System.out.print("testSetName running\n");
+            }
+        };
+        thread.start();
+        thread.setName("HelloWorld");  // b/17302037 hang if setName called after start
+        if (!thread.getName().equals("HelloWorld")) {
+            throw new AssertionError("Unexpected thread name: " + thread.getName());
+        }
+        thread.join();
+        if (!thread.getName().equals("HelloWorld")) {
+            throw new AssertionError("Unexpected thread name after join: " + thread.getName());
+        }
+        System.out.print("testSetName finished\n");
     }
 }
