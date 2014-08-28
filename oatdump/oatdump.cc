@@ -196,7 +196,7 @@ class OatDumper {
 
     for (size_t i = 0; i < oat_dex_files_.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
-      CHECK(oat_dex_file != NULL);
+      CHECK(oat_dex_file != nullptr);
       DumpOatDexFile(os, *oat_dex_file);
     }
   }
@@ -230,7 +230,7 @@ class OatDumper {
       } else {
         const DexFile::ClassDef* class_def =
             dex_file->FindClassDef(m->GetDeclaringClassDescriptor());
-        if (class_def != NULL) {
+        if (class_def != nullptr) {
           uint16_t class_def_index = dex_file->GetIndexForClassDef(*class_def);
           const OatFile::OatClass oat_class = oat_dex_file->GetOatClass(class_def_index);
           size_t method_index = m->GetMethodIndex();
@@ -238,7 +238,7 @@ class OatDumper {
         }
       }
     }
-    return NULL;
+    return nullptr;
   }
 
  private:
@@ -249,7 +249,7 @@ class OatDumper {
     // of a piece of code by using upper_bound to find the start of the next region.
     for (size_t i = 0; i < oat_dex_files_.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
-      CHECK(oat_dex_file != NULL);
+      CHECK(oat_dex_file != nullptr);
       std::string error_msg;
       std::unique_ptr<const DexFile> dex_file(oat_dex_file->OpenDexFile(&error_msg));
       if (dex_file.get() == nullptr) {
@@ -264,7 +264,7 @@ class OatDumper {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
         const OatFile::OatClass oat_class = oat_dex_file->GetOatClass(class_def_index);
         const byte* class_data = dex_file->GetClassData(class_def);
-        if (class_data != NULL) {
+        if (class_data != nullptr) {
           ClassDataItemIterator it(*dex_file, class_data);
           SkipAllFields(it);
           uint32_t class_method_index = 0;
@@ -306,7 +306,7 @@ class OatDumper {
 
     std::string error_msg;
     std::unique_ptr<const DexFile> dex_file(oat_dex_file.OpenDexFile(&error_msg));
-    if (dex_file.get() == NULL) {
+    if (dex_file.get() == nullptr) {
       os << "NOT FOUND: " << error_msg << "\n\n";
       return;
     }
@@ -340,7 +340,7 @@ class OatDumper {
   void DumpOatClass(std::ostream& os, const OatFile::OatClass& oat_class, const DexFile& dex_file,
                     const DexFile::ClassDef& class_def) {
     const byte* class_data = dex_file.GetClassData(class_def);
-    if (class_data == NULL) {  // empty class such as a marker interface?
+    if (class_data == nullptr) {  // empty class such as a marker interface?
       return;
     }
     ClassDataItemIterator it(dex_file, class_data);
@@ -380,10 +380,12 @@ class OatDumper {
       *indent1_os << "DEX CODE:\n";
       DumpDexCode(*indent2_os, dex_file, code_item);
     }
-    if (Runtime::Current() != NULL) {
+
+    std::unique_ptr<verifier::MethodVerifier> verifier;
+    if (Runtime::Current() != nullptr) {
       *indent1_os << "VERIFIER TYPE ANALYSIS:\n";
-      DumpVerifier(*indent2_os, dex_method_idx, &dex_file, class_def, code_item,
-                   method_access_flags);
+      verifier.reset(DumpVerifier(*indent2_os, dex_method_idx, &dex_file, class_def, code_item,
+                                  method_access_flags));
     }
     {
       *indent1_os << "OAT DATA:\n";
@@ -424,21 +426,7 @@ class OatDumper {
                                  code_size,
                                  code != nullptr ? "..." : "");
 
-      Runtime* runtime = Runtime::Current();
-      if (runtime != nullptr) {
-        ScopedObjectAccess soa(Thread::Current());
-        StackHandleScope<1> hs(soa.Self());
-        Handle<mirror::DexCache> dex_cache(
-            hs.NewHandle(runtime->GetClassLinker()->FindDexCache(dex_file)));
-        NullHandle<mirror::ClassLoader> class_loader;
-        verifier::MethodVerifier verifier(&dex_file, &dex_cache, &class_loader, &class_def,
-                                          code_item, dex_method_idx, nullptr, method_access_flags,
-                                          true, true, true);
-        verifier.Verify();
-        DumpCode(*indent2_os, &verifier, oat_method, code_item);
-      } else {
-        DumpCode(*indent2_os, nullptr, oat_method, code_item);
-      }
+      DumpCode(*indent2_os, verifier.get(), oat_method, code_item);
     }
   }
 
@@ -467,7 +455,7 @@ class OatDumper {
 
   void DumpVmap(std::ostream& os, const OatFile::OatMethod& oat_method) {
     const uint8_t* raw_table = oat_method.GetVmapTable();
-    if (raw_table != NULL) {
+    if (raw_table != nullptr) {
       const VmapTable vmap_table(raw_table);
       bool first = true;
       bool processing_fp = false;
@@ -495,7 +483,7 @@ class OatDumper {
   void DescribeVReg(std::ostream& os, const OatFile::OatMethod& oat_method,
                     const DexFile::CodeItem* code_item, size_t reg, VRegKind kind) {
     const uint8_t* raw_table = oat_method.GetVmapTable();
-    if (raw_table != NULL) {
+    if (raw_table != nullptr) {
       const VmapTable vmap_table(raw_table);
       uint32_t vmap_offset;
       if (vmap_table.IsInContext(reg, kind, &vmap_offset)) {
@@ -618,7 +606,7 @@ class OatDumper {
   void DumpGcMapAtNativePcOffset(std::ostream& os, const OatFile::OatMethod& oat_method,
                                  const DexFile::CodeItem* code_item, size_t native_pc_offset) {
     const uint8_t* gc_map_raw = oat_method.GetNativeGcMap();
-    if (gc_map_raw != NULL) {
+    if (gc_map_raw != nullptr) {
       NativePcOffsetToReferenceMap map(gc_map_raw);
       if (map.HasEntry(native_pc_offset)) {
         size_t num_regs = map.RegWidth() * 8;
@@ -683,7 +671,7 @@ class OatDumper {
 
 
   void DumpDexCode(std::ostream& os, const DexFile& dex_file, const DexFile::CodeItem* code_item) {
-    if (code_item != NULL) {
+    if (code_item != nullptr) {
       size_t i = 0;
       while (i < code_item->insns_size_in_code_units_) {
         const Instruction* instruction = Instruction::At(&code_item->insns_[i]);
@@ -693,19 +681,23 @@ class OatDumper {
     }
   }
 
-  void DumpVerifier(std::ostream& os, uint32_t dex_method_idx, const DexFile* dex_file,
-                    const DexFile::ClassDef& class_def, const DexFile::CodeItem* code_item,
-                    uint32_t method_access_flags) {
+  verifier::MethodVerifier* DumpVerifier(std::ostream& os, uint32_t dex_method_idx,
+                                         const DexFile* dex_file,
+                                         const DexFile::ClassDef& class_def,
+                                         const DexFile::CodeItem* code_item,
+                                         uint32_t method_access_flags) {
     if ((method_access_flags & kAccNative) == 0) {
       ScopedObjectAccess soa(Thread::Current());
       StackHandleScope<2> hs(soa.Self());
       Handle<mirror::DexCache> dex_cache(
           hs.NewHandle(Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file)));
       auto class_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
-      verifier::MethodVerifier::VerifyMethodAndDump(os, dex_method_idx, dex_file, dex_cache,
-                                                    class_loader, &class_def, code_item, nullptr,
-                                                    method_access_flags);
+      return verifier::MethodVerifier::VerifyMethodAndDump(os, dex_method_idx, dex_file, dex_cache,
+                                                           class_loader, &class_def, code_item,
+                                                           nullptr, method_access_flags);
     }
+
+    return nullptr;
   }
 
   void DumpCode(std::ostream& os, verifier::MethodVerifier* verifier,
@@ -806,7 +798,7 @@ class ImageDumper {
               indent2_os << StringPrintf("%d to %zd: ", i, i + run);
               i = i + run;
             }
-            if (value != NULL) {
+            if (value != nullptr) {
               PrettyObjectValue(indent2_os, value->GetClass(), value);
             } else {
               indent2_os << i << ": null\n";
@@ -825,7 +817,7 @@ class ImageDumper {
     std::string error_msg;
     const OatFile* oat_file = class_linker->FindOpenedOatFileFromOatLocation(oat_location);
     if (oat_file == nullptr) {
-      oat_file = OatFile::Open(oat_location, oat_location, NULL, false, &error_msg);
+      oat_file = OatFile::Open(oat_location, oat_location, nullptr, false, &error_msg);
       if (oat_file == nullptr) {
         os << "NOT FOUND: " << error_msg << "\n";
         return;
@@ -839,7 +831,7 @@ class ImageDumper {
         dump_raw_gc_map_));
 
     for (const OatFile::OatDexFile* oat_dex_file : oat_file->GetOatDexFiles()) {
-      CHECK(oat_dex_file != NULL);
+      CHECK(oat_dex_file != nullptr);
       stats_.oat_dex_file_sizes.push_back(std::make_pair(oat_dex_file->GetDexFileLocation(),
                                                          oat_dex_file->FileSize()));
     }
@@ -887,10 +879,10 @@ class ImageDumper {
     }
     os << "STATS:\n" << std::flush;
     std::unique_ptr<File> file(OS::OpenFileForReading(image_filename.c_str()));
-    if (file.get() == NULL) {
+    if (file.get() == nullptr) {
       LOG(WARNING) << "Failed to find image in " << image_filename;
     }
-    if (file.get() != NULL) {
+    if (file.get() != nullptr) {
       stats_.file_bytes = file->GetLength();
     }
     size_t header_bytes = sizeof(ImageHeader);
@@ -910,8 +902,8 @@ class ImageDumper {
  private:
   static void PrettyObjectValue(std::ostream& os, mirror::Class* type, mirror::Object* value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CHECK(type != NULL);
-    if (value == NULL) {
+    CHECK(type != nullptr);
+    if (value == nullptr) {
       os << StringPrintf("null   %s\n", PrettyDescriptor(type).c_str());
     } else if (type->IsStringClass()) {
       mirror::String* string = value->AsString();
@@ -953,14 +945,14 @@ class ImageDumper {
       // Get the value, don't compute the type unless it is non-null as we don't want
       // to cause class loading.
       mirror::Object* value = field->GetObj(obj);
-      if (value == NULL) {
+      if (value == nullptr) {
         os << StringPrintf("null   %s\n", PrettyDescriptor(descriptor).c_str());
       } else {
         // Grab the field type without causing resolution.
         StackHandleScope<1> hs(Thread::Current());
         FieldHelper fh(hs.NewHandle(field));
         mirror::Class* field_type = fh.GetType(false);
-        if (field_type != NULL) {
+        if (field_type != nullptr) {
           PrettyObjectValue(os, field_type, value);
         } else {
           os << StringPrintf("%p   %s\n", value, PrettyDescriptor(descriptor).c_str());
@@ -972,11 +964,11 @@ class ImageDumper {
   static void DumpFields(std::ostream& os, mirror::Object* obj, mirror::Class* klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::Class* super = klass->GetSuperClass();
-    if (super != NULL) {
+    if (super != nullptr) {
       DumpFields(os, obj, super);
     }
     mirror::ObjectArray<mirror::ArtField>* fields = klass->GetIFields();
-    if (fields != NULL) {
+    if (fields != nullptr) {
       for (int32_t i = 0; i < fields->GetLength(); i++) {
         mirror::ArtField* field = fields->Get(i);
         PrintField(os, field, obj);
@@ -1012,16 +1004,16 @@ class ImageDumper {
   const void* GetQuickOatCodeEnd(mirror::ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const uint8_t* oat_code_begin = reinterpret_cast<const uint8_t*>(GetQuickOatCodeBegin(m));
-    if (oat_code_begin == NULL) {
-      return NULL;
+    if (oat_code_begin == nullptr) {
+      return nullptr;
     }
     return oat_code_begin + GetQuickOatCodeSize(m);
   }
 
   static void Callback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(obj != NULL);
-    DCHECK(arg != NULL);
+    DCHECK(obj != nullptr);
+    DCHECK(arg != nullptr);
     ImageDumper* state = reinterpret_cast<ImageDumper*>(arg);
     if (!state->InDumpSpace(obj)) {
       return;
@@ -1076,12 +1068,12 @@ class ImageDumper {
           i = i + run;
         }
         mirror::Class* value_class =
-            (value == NULL) ? obj_class->GetComponentType() : value->GetClass();
+            (value == nullptr) ? obj_class->GetComponentType() : value->GetClass();
         PrettyObjectValue(indent_os, value_class, value);
       }
     } else if (obj->IsClass()) {
       mirror::ObjectArray<mirror::ArtField>* sfields = obj->AsClass()->GetSFields();
-      if (sfields != NULL) {
+      if (sfields != nullptr) {
         indent_os << "STATICS:\n";
         Indenter indent2_filter(indent_os.rdbuf(), kIndentChar, kIndentBy1Count);
         std::ostream indent2_os(&indent2_filter);
@@ -1109,8 +1101,8 @@ class ImageDumper {
       } else if (method->IsAbstract() || method->IsCalleeSaveMethod() ||
           method->IsResolutionMethod() || method->IsImtConflictMethod() ||
           method->IsClassInitializer()) {
-        DCHECK(method->GetNativeGcMap() == NULL) << PrettyMethod(method);
-        DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
+        DCHECK(method->GetNativeGcMap() == nullptr) << PrettyMethod(method);
+        DCHECK(method->GetMappingTable() == nullptr) << PrettyMethod(method);
       } else {
         const DexFile::CodeItem* code_item = method->GetCodeItem();
         size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;
@@ -1479,9 +1471,9 @@ static int oatdump(int argc, char** argv) {
     usage();
   }
 
-  const char* oat_filename = NULL;
-  const char* image_location = NULL;
-  const char* boot_image_location = NULL;
+  const char* oat_filename = nullptr;
+  const char* image_location = nullptr;
+  const char* boot_image_location = nullptr;
   InstructionSet instruction_set = kRuntimeISA;
   std::string elf_filename_prefix;
   std::ostream* os = &std::cout;
@@ -1533,21 +1525,21 @@ static int oatdump(int argc, char** argv) {
     }
   }
 
-  if (image_location == NULL && oat_filename == NULL) {
+  if (image_location == nullptr && oat_filename == nullptr) {
     fprintf(stderr, "Either --image or --oat must be specified\n");
     return EXIT_FAILURE;
   }
 
-  if (image_location != NULL && oat_filename != NULL) {
+  if (image_location != nullptr && oat_filename != nullptr) {
     fprintf(stderr, "Either --image or --oat must be specified but not both\n");
     return EXIT_FAILURE;
   }
 
-  if (oat_filename != NULL) {
+  if (oat_filename != nullptr) {
     std::string error_msg;
     OatFile* oat_file =
-        OatFile::Open(oat_filename, oat_filename, NULL, false, &error_msg);
-    if (oat_file == NULL) {
+        OatFile::Open(oat_filename, oat_filename, nullptr, false, &error_msg);
+    if (oat_file == nullptr) {
       fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
       return EXIT_FAILURE;
     }
@@ -1566,15 +1558,15 @@ static int oatdump(int argc, char** argv) {
   NoopCompilerCallbacks callbacks;
   options.push_back(std::make_pair("compilercallbacks", &callbacks));
 
-  if (boot_image_location != NULL) {
+  if (boot_image_location != nullptr) {
     boot_image_option += "-Ximage:";
     boot_image_option += boot_image_location;
-    options.push_back(std::make_pair(boot_image_option.c_str(), reinterpret_cast<void*>(NULL)));
+    options.push_back(std::make_pair(boot_image_option.c_str(), nullptr));
   }
-  if (image_location != NULL) {
+  if (image_location != nullptr) {
     image_option += "-Ximage:";
     image_option += image_location;
-    options.push_back(std::make_pair(image_option.c_str(), reinterpret_cast<void*>(NULL)));
+    options.push_back(std::make_pair(image_option.c_str(), nullptr));
   }
   options.push_back(
       std::make_pair("imageinstructionset",
@@ -1591,7 +1583,7 @@ static int oatdump(int argc, char** argv) {
   ScopedObjectAccess soa(Thread::Current());
   gc::Heap* heap = Runtime::Current()->GetHeap();
   gc::space::ImageSpace* image_space = heap->GetImageSpace();
-  CHECK(image_space != NULL);
+  CHECK(image_space != nullptr);
   const ImageHeader& image_header = image_space->GetImageHeader();
   if (!image_header.IsValid()) {
     fprintf(stderr, "Invalid image header %s\n", image_location);

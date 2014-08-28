@@ -79,7 +79,7 @@ enum DexToDexCompilationLevel {
 // Thread-local storage compiler worker threads
 class CompilerTls {
   public:
-    CompilerTls() : llvm_info_(NULL) {}
+    CompilerTls() : llvm_info_(nullptr) {}
     ~CompilerTls() {}
 
     void* GetLLVMInfo() { return llvm_info_; }
@@ -95,7 +95,7 @@ class CompilerDriver {
   // Create a compiler targeting the requested "instruction_set".
   // "image" should be true if image specific optimizations should be
   // enabled.  "image_classes" lets the compiler know what classes it
-  // can assume will be in the image, with NULL implying all available
+  // can assume will be in the image, with nullptr implying all available
   // classes.
   explicit CompilerDriver(const CompilerOptions* compiler_options,
                           VerificationResults* verification_results,
@@ -197,9 +197,9 @@ class CompilerDriver {
 
   // Are runtime access checks necessary in the compiled code?
   bool CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexFile& dex_file,
-                                  uint32_t type_idx, bool* type_known_final = NULL,
-                                  bool* type_known_abstract = NULL,
-                                  bool* equals_referrers_class = NULL)
+                                  uint32_t type_idx, bool* type_known_final = nullptr,
+                                  bool* type_known_abstract = nullptr,
+                                  bool* equals_referrers_class = nullptr)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Are runtime access and instantiable checks necessary in the code?
@@ -447,7 +447,7 @@ class CompilerDriver {
         referrer_class_def_idx_(referrer_class_def_idx),
         referrer_method_idx_(referrer_method_idx),
         literal_offset_(literal_offset) {
-      CHECK(dex_file_ != NULL);
+      CHECK(dex_file_ != nullptr);
     }
     virtual ~PatchInformation() {}
 
@@ -667,6 +667,13 @@ class CompilerDriver {
                      ThreadPool* thread_pool, TimingLogger* timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
+  void SetVerified(jobject class_loader, const std::vector<const DexFile*>& dex_files,
+                   ThreadPool* thread_pool, TimingLogger* timings);
+  void SetVerifiedDexFile(jobject class_loader, const DexFile& dex_file,
+                          const std::vector<const DexFile*>& dex_files,
+                          ThreadPool* thread_pool, TimingLogger* timings)
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
+
   void InitializeClasses(jobject class_loader, const std::vector<const DexFile*>& dex_files,
                          ThreadPool* thread_pool, TimingLogger* timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
@@ -724,7 +731,7 @@ class CompilerDriver {
   const bool image_;
 
   // If image_ is true, specifies the classes that will be included in
-  // the image. Note if image_classes_ is NULL, all classes are
+  // the image. Note if image_classes_ is nullptr, all classes are
   // included in the image.
   std::unique_ptr<std::set<std::string>> image_classes_;
 
