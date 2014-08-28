@@ -1069,10 +1069,6 @@ std::string GetSchedulerGroupName(pid_t tid) {
 
 void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     mirror::ArtMethod* current_method) {
-  // We may be called from contexts where current_method is not null, so we must assert this.
-  if (current_method != nullptr) {
-    Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
-  }
 #ifdef __linux__
   std::unique_ptr<Backtrace> backtrace(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, tid));
   if (!backtrace->Unwind(0)) {
@@ -1104,7 +1100,9 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
         if (it->func_offset != 0) {
           os << "+" << it->func_offset;
         }
-      } else if (current_method != nullptr && current_method->IsWithinQuickCode(it->pc)) {
+      } else if (current_method != nullptr &&
+                 Locks::mutator_lock_->IsSharedHeld(Thread::Current()) &&
+                 current_method->IsWithinQuickCode(it->pc)) {
         const void* start_of_code = current_method->GetEntryPointFromQuickCompiledCode();
         os << JniLongName(current_method) << "+"
            << (it->pc - reinterpret_cast<uintptr_t>(start_of_code));
