@@ -406,7 +406,8 @@ void ThreadList::ResumeAll() {
 void ThreadList::Resume(Thread* thread, bool for_debugger) {
   Thread* self = Thread::Current();
   DCHECK_NE(thread, self);
-  VLOG(threads) << "Resume(" << *thread << ") starting..." << (for_debugger ? " (debugger)" : "");
+  VLOG(threads) << "Resume(" << reinterpret_cast<void*>(thread) << ") starting..."
+      << (for_debugger ? " (debugger)" : "");
 
   {
     // To check Contains.
@@ -415,18 +416,22 @@ void ThreadList::Resume(Thread* thread, bool for_debugger) {
     MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
     DCHECK(thread->IsSuspended());
     if (!Contains(thread)) {
+      // We only expect threads within the thread-list to have been suspended otherwise we can't
+      // stop such threads from delete-ing themselves.
+      LOG(ERROR) << "Resume(" << reinterpret_cast<void*>(thread)
+          << ") thread not within thread list";
       return;
     }
     thread->ModifySuspendCount(self, -1, for_debugger);
   }
 
   {
-    VLOG(threads) << "Resume(" << *thread << ") waking others";
+    VLOG(threads) << "Resume(" << reinterpret_cast<void*>(thread) << ") waking others";
     MutexLock mu(self, *Locks::thread_suspend_count_lock_);
     Thread::resume_cond_->Broadcast(self);
   }
 
-  VLOG(threads) << "Resume(" << *thread << ") complete";
+  VLOG(threads) << "Resume(" << reinterpret_cast<void*>(thread) << ") complete";
 }
 
 static void ThreadSuspendByPeerWarning(Thread* self, int level, const char* message, jobject peer) {
@@ -451,6 +456,7 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
   bool did_suspend_request = false;
   *timed_out = false;
   Thread* self = Thread::Current();
+  VLOG(threads) << "SuspendThreadByPeer starting";
   while (true) {
     Thread* thread;
     {
@@ -462,10 +468,16 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
       ScopedObjectAccess soa(self);
       MutexLock mu(self, *Locks::thread_list_lock_);
       thread = Thread::FromManagedThread(soa, peer);
-      if (thread == NULL) {
+      if (thread == nullptr) {
         ThreadSuspendByPeerWarning(self, WARNING, "No such thread for suspend", peer);
-        return NULL;
+        return nullptr;
       }
+      if (!Contains(thread)) {
+        VLOG(threads) << "SuspendThreadByPeer failed for unattached thread: "
+            << reinterpret_cast<void*>(thread);
+        return nullptr;
+      }
+      VLOG(threads) << "SuspendThreadByPeer found thread: " << *thread;
       {
         MutexLock mu(self, *Locks::thread_suspend_count_lock_);
         if (request_suspension) {
@@ -485,6 +497,7 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
         // count, or else we've waited and it has self suspended) or is the current thread, we're
         // done.
         if (thread->IsSuspended()) {
+          VLOG(threads) << "SuspendThreadByPeer thread suspended: " << *thread;
           return thread;
         }
         if (total_delay_us >= kTimeoutUs) {
@@ -493,11 +506,12 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
             thread->ModifySuspendCount(soa.Self(), -1, debug_suspension);
           }
           *timed_out = true;
-          return NULL;
+          return nullptr;
         }
       }
       // Release locks and come out of runnable state.
     }
+    VLOG(threads) << "SuspendThreadByPeer sleeping to allow thread chance to suspend";
     ThreadSuspendSleep(self, &delay_us, &total_delay_us);
   }
 }
@@ -515,6 +529,7 @@ Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspe
   Thread* suspended_thread = nullptr;
   Thread* self = Thread::Current();
   CHECK_NE(thread_id, kInvalidThreadId);
+  VLOG(threads) << "SuspendThreadByThreadId starting";
   while (true) {
     {
       // Note: this will transition to runnable and potentially suspend. We ensure only one thread
@@ -536,8 +551,10 @@ Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspe
             << " no longer in thread list";
         // There's a race in inflating a lock and the owner giving up ownership and then dying.
         ThreadSuspendByThreadIdWarning(WARNING, "No such thread id for suspend", thread_id);
-        return NULL;
+        return nullptr;
       }
+      VLOG(threads) << "SuspendThreadByThreadId found thread: " << *thread;
+      DCHECK(Contains(thread));
       {
         MutexLock mu(self, *Locks::thread_suspend_count_lock_);
         if (suspended_thread == nullptr) {
@@ -557,6 +574,7 @@ Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspe
         // count, or else we've waited and it has self suspended) or is the current thread, we're
         // done.
         if (thread->IsSuspended()) {
+          VLOG(threads) << "SuspendThreadByThreadId thread suspended: " << *thread;
           return thread;
         }
         if (total_delay_us >= kTimeoutUs) {
@@ -565,11 +583,12 @@ Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspe
             thread->ModifySuspendCount(soa.Self(), -1, debug_suspension);
           }
           *timed_out = true;
-          return NULL;
+          return nullptr;
         }
       }
       // Release locks and come out of runnable state.
     }
+    VLOG(threads) << "SuspendThreadByThreadId sleeping to allow thread chance to suspend";
     ThreadSuspendSleep(self, &delay_us, &total_delay_us);
   }
 }
