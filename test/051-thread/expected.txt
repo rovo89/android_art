@@ -6,4 +6,7 @@ testThreadDaemons @ Got expected setDaemon exception
 testThreadDaemons @ Thread bailing
 testThreadDaemons finished
 testSleepZero finished
+testSetName starting
+testSetName running
+testSetName finished
 thread test done
