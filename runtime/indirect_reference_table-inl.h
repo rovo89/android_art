@@ -79,7 +79,7 @@ inline mirror::Object* IndirectReferenceTable::Get(IndirectRef iref) const {
   mirror::Object* obj = table_[idx].Read<kWithoutReadBarrier>();
   if (LIKELY(obj != kClearedJniWeakGlobal)) {
     // The read barrier or VerifyObject won't handle kClearedJniWeakGlobal.
-    obj = table_[idx].Read();
+    obj = table_[idx].Read<kReadBarrierOption>();
     VerifyObject(obj);
   }
   return obj;
