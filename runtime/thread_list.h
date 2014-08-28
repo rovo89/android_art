@@ -66,8 +66,8 @@ class ThreadList {
   // If the thread should be suspended then value of request_suspension should be true otherwise
   // the routine will wait for a previous suspend request. If the suspension times out then *timeout
   // is set to true.
-  static Thread* SuspendThreadByPeer(jobject peer, bool request_suspension, bool debug_suspension,
-                                     bool* timed_out)
+  Thread* SuspendThreadByPeer(jobject peer, bool request_suspension, bool debug_suspension,
+                              bool* timed_out)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_suspend_thread_lock_)
       LOCKS_EXCLUDED(Locks::mutator_lock_,
                      Locks::thread_list_lock_,

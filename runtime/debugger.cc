@@ -2281,8 +2281,9 @@ JDWP::JdwpError Dbg::SuspendThread(JDWP::ObjectId thread_id, bool request_suspen
   // trying to suspend this one.
   MutexLock mu(self, *Locks::thread_list_suspend_thread_lock_);
   bool timed_out;
-  Thread* thread = ThreadList::SuspendThreadByPeer(peer.get(), request_suspension, true,
-                                                   &timed_out);
+  ThreadList* thread_list = Runtime::Current()->GetThreadList();
+  Thread* thread = thread_list->SuspendThreadByPeer(peer.get(), request_suspension, true,
+                                                    &timed_out);
   if (thread != NULL) {
     return JDWP::ERR_NONE;
   } else if (timed_out) {
@@ -3171,8 +3172,8 @@ class ScopedThreadSuspension {
         {
           // Take suspend thread lock to avoid races with threads trying to suspend this one.
           MutexLock mu(soa.Self(), *Locks::thread_list_suspend_thread_lock_);
-          suspended_thread = ThreadList::SuspendThreadByPeer(thread_peer, true, true,
-                                                             &timed_out);
+          ThreadList* thread_list = Runtime::Current()->GetThreadList();
+          suspended_thread = thread_list->SuspendThreadByPeer(thread_peer, true, true, &timed_out);
         }
         CHECK_EQ(soa.Self()->TransitionFromSuspendedToRunnable(), kWaitingForDebuggerSuspension);
         if (suspended_thread == nullptr) {

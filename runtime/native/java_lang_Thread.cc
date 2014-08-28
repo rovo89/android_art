@@ -128,19 +128,20 @@ static void Thread_nativeSetName(JNIEnv* env, jobject peer, jstring java_name) {
   // Suspend thread to avoid it from killing itself while we set its name. We don't just hold the
   // thread list lock to avoid this, as setting the thread name causes mutator to lock/unlock
   // in the DDMS send code.
+  ThreadList* thread_list = Runtime::Current()->GetThreadList();
   bool timed_out;
   // Take suspend thread lock to avoid races with threads trying to suspend this one.
   Thread* thread;
   {
     MutexLock mu(self, *Locks::thread_list_suspend_thread_lock_);
-    thread = ThreadList::SuspendThreadByPeer(peer, true, false, &timed_out);
+    thread = thread_list->SuspendThreadByPeer(peer, true, false, &timed_out);
   }
   if (thread != NULL) {
     {
       ScopedObjectAccess soa(env);
       thread->SetThreadName(name.c_str());
     }
-    Runtime::Current()->GetThreadList()->Resume(thread, false);
+    thread_list->Resume(thread, false);
   } else if (timed_out) {
     LOG(ERROR) << "Trying to set thread name to '" << name.c_str() << "' failed as the thread "
         "failed to suspend within a generous timeout.";
