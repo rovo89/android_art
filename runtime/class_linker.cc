@@ -2065,6 +2065,7 @@ mirror::Class* ClassLinker::DefineClass(const char* descriptor,
     }
     return nullptr;
   }
+  self->AssertNoPendingException();
   CHECK(new_class != nullptr) << descriptor;
   CHECK(new_class->IsResolved()) << descriptor;
 
@@ -3808,6 +3809,8 @@ bool ClassLinker::InitializeClass(Handle<mirror::Class> klass, bool can_init_sta
           CHECK_EQ(klass->GetStatus(), mirror::Class::kStatusRetryVerificationAtRuntime);
         }
         return false;
+      } else {
+        self->AssertNoPendingException();
       }
     }
 
@@ -3817,6 +3820,10 @@ bool ClassLinker::InitializeClass(Handle<mirror::Class> klass, bool can_init_sta
     // invocation of InitializeClass will not be responsible for
     // running <clinit> and will return.
     if (klass->GetStatus() == mirror::Class::kStatusInitializing) {
+      // Could have got an exception during verification.
+      if (self->IsExceptionPending()) {
+        return false;
+      }
       // We caught somebody else in the act; was it us?
       if (klass->GetClinitThreadId() == self->GetTid()) {
         // Yes. That's fine. Return so we can continue initializing.
@@ -4018,9 +4025,17 @@ bool ClassLinker::ValidateSuperClassDescriptors(Handle<mirror::Class> klass) {
 bool ClassLinker::EnsureInitialized(Handle<mirror::Class> c, bool can_init_fields,
                                     bool can_init_parents) {
   DCHECK(c.Get() != nullptr);
-  const bool success = c->IsInitialized() || InitializeClass(c, can_init_fields, can_init_parents);
-  if (!success && can_init_fields && can_init_parents) {
-    CHECK(Thread::Current()->IsExceptionPending()) << PrettyClass(c.Get());
+  if (c->IsInitialized()) {
+    return true;
+  }
+  const bool success = InitializeClass(c, can_init_fields, can_init_parents);
+  Thread* self = Thread::Current();
+  if (!success) {
+    if (can_init_fields && can_init_parents) {
+      CHECK(self->IsExceptionPending()) << PrettyClass(c.Get());
+    }
+  } else {
+    self->AssertNoPendingException();
   }
   return success;
 }
