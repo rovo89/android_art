@@ -947,9 +947,9 @@ void Mir2Lir::MarkInUse(RegStorage reg) {
 bool Mir2Lir::CheckCorePoolSanity() {
   GrowableArray<RegisterInfo*>::Iterator it(&tempreg_info_);
   for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
-    if (info->IsTemp() && info->IsLive() && info->IsWide()) {
+    int my_sreg = info->SReg();
+    if (info->IsTemp() && info->IsLive() && info->IsWide() && my_sreg != INVALID_SREG) {
       RegStorage my_reg = info->GetReg();
-      int my_sreg = info->SReg();
       RegStorage partner_reg = info->Partner();
       RegisterInfo* partner = GetRegInfo(partner_reg);
       DCHECK(partner != NULL);
@@ -957,12 +957,8 @@ bool Mir2Lir::CheckCorePoolSanity() {
       DCHECK_EQ(my_reg.GetReg(), partner->Partner().GetReg());
       DCHECK(partner->IsLive());
       int partner_sreg = partner->SReg();
-      if (my_sreg == INVALID_SREG) {
-        DCHECK_EQ(partner_sreg, INVALID_SREG);
-      } else {
-        int diff = my_sreg - partner_sreg;
-        DCHECK((diff == 0) || (diff == -1) || (diff == 1));
-      }
+      int diff = my_sreg - partner_sreg;
+      DCHECK((diff == 0) || (diff == -1) || (diff == 1));
     }
     if (info->Master() != info) {
       // Aliased.
