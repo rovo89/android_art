@@ -527,19 +527,6 @@ class ClassLinker {
   void LinkCode(ConstHandle<mirror::ArtMethod> method, const OatFile::OatClass* oat_class,
                 const DexFile& dex_file, uint32_t dex_method_index, uint32_t method_index)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  template<int n>
-  void AlignFields(size_t& current_field, const size_t num_fields,
-                   MemberOffset& field_offset,
-                   mirror::ObjectArray<mirror::ArtField>* fields,
-                   std::deque<mirror::ArtField*>& grouped_and_sorted_fields)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  template<int n>
-  void ShuffleForward(size_t& current_field, const size_t num_fields,
-                      MemberOffset& field_offset,
-                      mirror::ObjectArray<mirror::ArtField>* fields,
-                      std::deque<mirror::ArtField*>& grouped_and_sorted_fields)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   void CreateReferenceInstanceOffsets(ConstHandle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void CreateReferenceStaticOffsets(ConstHandle<mirror::Class> klass)

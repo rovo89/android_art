@@ -599,11 +599,6 @@ inline uint32_t Class::ComputeClassSize(bool has_embedded_tables,
       (num_16bit_static_fields * sizeof(uint16_t)) +
       (num_32bit_static_fields * sizeof(uint32_t)) +
       (num_64bit_static_fields * sizeof(uint64_t));
-  // For now, the start of of subclass expects to be 4-byte aligned, pad end of object to ensure
-  // alignment.
-  if (!IsAligned<4>(size)) {
-    size = RoundUp(size, 4);
-  }
   return size;
 }
 
