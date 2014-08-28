@@ -3776,6 +3776,10 @@ mirror::ArtMethod* ClassLinker::CreateProxyConstructor(Thread* self,
       proxy_class->GetDirectMethods();
   CHECK_EQ(proxy_direct_methods->GetLength(), 16);
   mirror::ArtMethod* proxy_constructor = proxy_direct_methods->Get(2);
+  // Ensure constructor is in dex cache so that we can use the dex cache to look up the overridden
+  // constructor method.
+  proxy_class->GetDexCache()->SetResolvedMethod(proxy_constructor->GetDexMethodIndex(),
+                                                proxy_constructor);
   // Clone the existing constructor of Proxy (our constructor would just invoke it so steal its
   // code_ too)
   mirror::ArtMethod* constructor = down_cast<mirror::ArtMethod*>(proxy_constructor->Clone(self));
