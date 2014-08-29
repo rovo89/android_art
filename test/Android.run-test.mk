@@ -189,6 +189,7 @@ TEST_ART_BROKEN_NO_PREBUILD_TESTS :=
 # Tests that are broken with tracing.
 TEST_ART_BROKEN_TRACE_RUN_TESTS := \
   004-SignalTest \
+  004-SignalTest2 \
   018-stack-overflow \
   097-duplicate-method \
   107-int-math2

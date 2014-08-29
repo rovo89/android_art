@@ -34,7 +34,7 @@ namespace art {
 
 class SignalAction {
  public:
-  SignalAction() : claimed_(false) {
+  SignalAction() : claimed_(false), uses_old_style_(false) {
   }
 
   // Claim the signal and keep the action specified.
@@ -60,13 +60,22 @@ class SignalAction {
   }
 
   // Change the recorded action to that specified.
-  void SetAction(const struct sigaction& action) {
+  // If oldstyle is true then this action is from an older style signal()
+  // call as opposed to sigaction().  In this case the sa_handler is
+  // used when invoking the user's handler.
+  void SetAction(const struct sigaction& action, bool oldstyle) {
     action_ = action;
+    uses_old_style_ = oldstyle;
+  }
+
+  bool OldStyle() const {
+    return uses_old_style_;
   }
 
  private:
   struct sigaction action_;     // Action to be performed.
   bool claimed_;                // Whether signal is claimed or not.
+  bool uses_old_style_;         // Action is created using signal().  Use sa_handler.
 };
 
 // User's signal handlers
@@ -115,7 +124,7 @@ void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context) {
   }
 
   const struct sigaction& action = user_sigactions[sig].GetAction();
-  if ((action.sa_flags & SA_SIGINFO) == 0) {
+  if (user_sigactions[sig].OldStyle()) {
     if (action.sa_handler != NULL) {
       action.sa_handler(sig);
     } else {
@@ -145,7 +154,7 @@ int sigaction(int signal, const struct sigaction* new_action, struct sigaction* 
       *old_action = user_sigactions[signal].GetAction();
     }
     if (new_action != NULL) {
-      user_sigactions[signal].SetAction(*new_action);
+      user_sigactions[signal].SetAction(*new_action, false);
     }
     return 0;
   }
@@ -166,6 +175,45 @@ int sigaction(int signal, const struct sigaction* new_action, struct sigaction* 
   typedef int (*SigAction)(int, const struct sigaction*, struct sigaction*);
   SigAction linked_sigaction = reinterpret_cast<SigAction>(linked_sigaction_sym);
   return linked_sigaction(signal, new_action, old_action);
+}
+
+sighandler_t signal(int signal, sighandler_t handler) {
+  struct sigaction sa;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_handler = handler;
+  sa.sa_flags = SA_RESTART;
+  sighandler_t oldhandler;
+
+  // If this signal has been claimed as a signal chain, record the user's
+  // action but don't pass it on to the kernel.
+  // Note that we check that the signal number is in range here.  An out of range signal
+  // number should behave exactly as the libc sigaction.
+  if (signal > 0 && signal < _NSIG && user_sigactions[signal].IsClaimed()) {
+    oldhandler = reinterpret_cast<sighandler_t>(user_sigactions[signal].GetAction().sa_handler);
+    user_sigactions[signal].SetAction(sa, true);
+    return oldhandler;
+  }
+
+  // Will only get here if the signal chain has not been claimed.  We want
+  // to pass the sigaction on to the kernel via the real sigaction in libc.
+
+  void* linked_sigaction_sym = dlsym(RTLD_NEXT, "sigaction");
+  if (linked_sigaction_sym == nullptr) {
+    linked_sigaction_sym = dlsym(RTLD_DEFAULT, "sigaction");
+    if (linked_sigaction_sym == nullptr ||
+        linked_sigaction_sym == reinterpret_cast<void*>(sigaction)) {
+      log("Unable to find next sigaction in signal chain");
+      abort();
+    }
+  }
+
+  typedef int (*SigAction)(int, const struct sigaction*, struct sigaction*);
+  SigAction linked_sigaction = reinterpret_cast<SigAction>(linked_sigaction_sym);
+  if (linked_sigaction(signal, &sa, &sa) == -1) {
+    return SIG_ERR;
+  }
+
+  return reinterpret_cast<sighandler_t>(sa.sa_handler);
 }
 
 int sigprocmask(int how, const sigset_t* bionic_new_set, sigset_t* bionic_old_set) {

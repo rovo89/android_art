@@ -87,12 +87,12 @@ extern "C" JNIEXPORT void JNICALL Java_Main_terminateSignalTest(JNIEnv*, jclass)
 
 // Prevent the compiler being a smart-alec and optimizing out the assignment
 // to nullptr.
-char *p = nullptr;
+char *go_away_compiler = nullptr;
 
 extern "C" JNIEXPORT jint JNICALL Java_Main_testSignal(JNIEnv*, jclass) {
 #if defined(__arm__) || defined(__i386__) || defined(__x86_64__) || defined(__aarch64__)
   // On supported architectures we cause a real SEGV.
-  *p = 'a';
+  *go_away_compiler = 'a';
 #else
   // On other architectures we simulate SEGV.
   kill(getpid(), SIGSEGV);
