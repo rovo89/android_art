@@ -1027,31 +1027,35 @@ const OatFile* ClassLinker::FindOatFileInOatLocationForDexFile(const char* dex_l
     return nullptr;
   }
   Runtime* runtime = Runtime::Current();
-  const ImageHeader& image_header = runtime->GetHeap()->GetImageSpace()->GetImageHeader();
-  uint32_t expected_image_oat_checksum = image_header.GetOatChecksum();
-  uint32_t actual_image_oat_checksum = oat_file->GetOatHeader().GetImageFileLocationOatChecksum();
-  if (expected_image_oat_checksum != actual_image_oat_checksum) {
-    *error_msg = StringPrintf("Failed to find oat file at '%s' with expected image oat checksum of "
-                              "0x%x, found 0x%x", oat_location, expected_image_oat_checksum,
-                              actual_image_oat_checksum);
-    return nullptr;
+  const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+  if (image_space != nullptr) {
+    const ImageHeader& image_header = image_space->GetImageHeader();
+    uint32_t expected_image_oat_checksum = image_header.GetOatChecksum();
+    uint32_t actual_image_oat_checksum = oat_file->GetOatHeader().GetImageFileLocationOatChecksum();
+    if (expected_image_oat_checksum != actual_image_oat_checksum) {
+      *error_msg = StringPrintf("Failed to find oat file at '%s' with expected image oat checksum of "
+                                "0x%x, found 0x%x", oat_location, expected_image_oat_checksum,
+                                actual_image_oat_checksum);
+      return nullptr;
+    }
+
+    uintptr_t expected_image_oat_offset = reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin());
+    uint32_t actual_image_oat_offset = oat_file->GetOatHeader().GetImageFileLocationOatDataBegin();
+    if (expected_image_oat_offset != actual_image_oat_offset) {
+      *error_msg = StringPrintf("Failed to find oat file at '%s' with expected image oat offset %"
+                                PRIuPTR ", found %ud", oat_location, expected_image_oat_offset,
+                                actual_image_oat_offset);
+      return nullptr;
+    }
+    int32_t expected_patch_delta = image_header.GetPatchDelta();
+    int32_t actual_patch_delta = oat_file->GetOatHeader().GetImagePatchDelta();
+    if (expected_patch_delta != actual_patch_delta) {
+      *error_msg = StringPrintf("Failed to find oat file at '%s' with expected patch delta %d, "
+                                " found %d", oat_location, expected_patch_delta, actual_patch_delta);
+      return nullptr;
+    }
   }
 
-  uintptr_t expected_image_oat_offset = reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin());
-  uint32_t actual_image_oat_offset = oat_file->GetOatHeader().GetImageFileLocationOatDataBegin();
-  if (expected_image_oat_offset != actual_image_oat_offset) {
-    *error_msg = StringPrintf("Failed to find oat file at '%s' with expected image oat offset %"
-                              PRIuPTR ", found %ud", oat_location, expected_image_oat_offset,
-                              actual_image_oat_offset);
-    return nullptr;
-  }
-  int32_t expected_patch_delta = image_header.GetPatchDelta();
-  int32_t actual_patch_delta = oat_file->GetOatHeader().GetImagePatchDelta();
-  if (expected_patch_delta != actual_patch_delta) {
-    *error_msg = StringPrintf("Failed to find oat file at '%s' with expected patch delta %d, "
-                              " found %d", oat_location, expected_patch_delta, actual_patch_delta);
-    return nullptr;
-  }
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location,
                                                                     &dex_location_checksum);
   if (oat_dex_file == nullptr) {
