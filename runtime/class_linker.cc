@@ -1747,6 +1747,7 @@ void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) {
   if (dex_cache_image_class_lookup_required_) {
     MoveImageClassesToClassTable();
   }
+  // TODO: why isn't this a ReaderMutexLock?
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   for (std::pair<const size_t, GcRoot<mirror::Class> >& it : class_table_) {
     mirror::Class* c = it.second.Read();
@@ -1756,18 +1757,75 @@ void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) {
   }
 }
 
-static bool GetClassesVisitor(mirror::Class* c, void* arg) {
+static bool GetClassesVisitorSet(mirror::Class* c, void* arg) {
   std::set<mirror::Class*>* classes = reinterpret_cast<std::set<mirror::Class*>*>(arg);
   classes->insert(c);
   return true;
 }
 
+struct GetClassesVisitorArrayArg {
+  Handle<mirror::ObjectArray<mirror::Class>>* classes;
+  int32_t index;
+  bool success;
+};
+
+static bool GetClassesVisitorArray(mirror::Class* c, void* varg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  GetClassesVisitorArrayArg* arg = reinterpret_cast<GetClassesVisitorArrayArg*>(varg);
+  if (arg->index < (*arg->classes)->GetLength()) {
+    (*arg->classes)->Set(arg->index, c);
+    arg->index++;
+    return true;
+  } else {
+    arg->success = false;
+    return false;
+  }
+}
+
 void ClassLinker::VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* arg) {
-  std::set<mirror::Class*> classes;
-  VisitClasses(GetClassesVisitor, &classes);
-  for (mirror::Class* klass : classes) {
-    if (!visitor(klass, arg)) {
-      return;
+  // TODO: it may be possible to avoid secondary storage if we iterate over dex caches. The problem
+  // is avoiding duplicates.
+  if (!kMovingClasses) {
+    std::set<mirror::Class*> classes;
+    VisitClasses(GetClassesVisitorSet, &classes);
+    for (mirror::Class* klass : classes) {
+      if (!visitor(klass, arg)) {
+        return;
+      }
+    }
+  } else {
+    Thread* self = Thread::Current();
+    StackHandleScope<1> hs(self);
+    Handle<mirror::ObjectArray<mirror::Class>> classes =
+        hs.NewHandle<mirror::ObjectArray<mirror::Class>>(nullptr);
+    GetClassesVisitorArrayArg local_arg;
+    local_arg.classes = &classes;
+    local_arg.success = false;
+    // We size the array assuming classes won't be added to the class table during the visit.
+    // If this assumption fails we iterate again.
+    while (!local_arg.success) {
+      size_t class_table_size;
+      {
+        ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+        class_table_size = class_table_.size();
+      }
+      mirror::Class* class_type = mirror::Class::GetJavaLangClass();
+      mirror::Class* array_of_class = FindArrayClass(self, &class_type);
+      classes.Assign(
+          mirror::ObjectArray<mirror::Class>::Alloc(self, array_of_class, class_table_size));
+      CHECK(classes.Get() != nullptr);  // OOME.
+      local_arg.index = 0;
+      local_arg.success = true;
+      VisitClasses(GetClassesVisitorArray, &local_arg);
+    }
+    for (int32_t i = 0; i < classes->GetLength(); ++i) {
+      // If the class table shrank during creation of the clases array we expect null elements. If
+      // the class table grew then the loop repeats. If classes are created after the loop has
+      // finished then we don't visit.
+      mirror::Class* klass = classes->Get(i);
+      if (klass != nullptr && !visitor(klass, arg)) {
+        return;
+      }
     }
   }
 }
