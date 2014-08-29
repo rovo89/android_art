@@ -23,6 +23,10 @@
 
 #include <sys/ucontext.h>
 
+#if defined(__APPLE__)
+#define sighandler_t sig_t
+#endif
+
 static int signal_count;
 static const int kMaxSignal = 2;
 
