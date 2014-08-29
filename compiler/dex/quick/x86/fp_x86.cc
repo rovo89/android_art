@@ -730,6 +730,25 @@ bool X86Mir2Lir::GenInlinedMinMaxFP(CallInfo* info, bool is_min, bool is_double)
     // Handle NaN.
     branch_nan->target = NewLIR0(kPseudoTargetLabel);
     LoadConstantWide(rl_result.reg, INT64_C(0x7ff8000000000000));
+
+    // The base_of_code_ compiler temp is non-null when it is reserved
+    // for being able to do data accesses relative to method start.
+    if (base_of_code_ != nullptr) {
+      // Loading from the constant pool may have used base of code register.
+      // However, the code here generates logic in diamond shape and not all
+      // paths load base of code register. Therefore, we ensure it is clobbered so
+      // that the temp caching system does not believe it is live at merge point.
+      RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
+      if (rl_method.wide) {
+        rl_method = UpdateLocWide(rl_method);
+      } else {
+        rl_method = UpdateLoc(rl_method);
+      }
+      if (rl_method.location == kLocPhysReg) {
+        Clobber(rl_method.reg);
+      }
+    }
+
     LIR* branch_exit_nan = NewLIR1(kX86Jmp8, 0);
     // Handle Min/Max. Copy greater/lesser value from src2.
     branch_cond1->target = NewLIR0(kPseudoTargetLabel);
