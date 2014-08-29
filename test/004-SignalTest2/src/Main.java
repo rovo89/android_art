@@ -18,10 +18,6 @@ public class Main {
     private static native void initSignalTest2();
     private static native void testSignal2();
 
-    private static void stackOverflow() {
-       stackOverflow();
-    }
-
     public static void main(String[] args) {
         System.loadLibrary("arttest");
 
@@ -37,15 +33,6 @@ public class Main {
         } catch (NullPointerException e) {
             System.out.println("Caught NullPointerException");
         }
-        try {
-            stackOverflow();
-
-            // Should never get here.
-            throw new AssertionError();
-        } catch (StackOverflowError e) {
-            System.out.println("Caught StackOverflowError");
-        }
-
         // Test that a signal in native code works.
         testSignal2();
     }
