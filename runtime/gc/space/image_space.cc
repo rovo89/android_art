@@ -89,8 +89,6 @@ static void RealPruneDexCache(const std::string& cache_dir_path) {
     PLOG(WARNING) << "Unable to open " << cache_dir_path << " to delete it's contents";
     return;
   }
-  int dir_fd = dirfd(cache_dir);
-  CHECK_GE(dir_fd, 0);
 
   for (struct dirent* de = readdir(cache_dir); de != nullptr; de = readdir(cache_dir)) {
     const char* name = de->d_name;
@@ -105,8 +103,11 @@ static void RealPruneDexCache(const std::string& cache_dir_path) {
       }
       continue;
     }
-    if (TEMP_FAILURE_RETRY(unlinkat(dir_fd, name, 0)) != 0) {
-      PLOG(ERROR) << "Unable to unlink " << cache_dir_path << "/" << name;
+    std::string cache_file(cache_dir_path);
+    cache_file += '/';
+    cache_file += name;
+    if (TEMP_FAILURE_RETRY(unlink(cache_file.c_str())) != 0) {
+      PLOG(ERROR) << "Unable to unlink " << cache_file;
       continue;
     }
   }
