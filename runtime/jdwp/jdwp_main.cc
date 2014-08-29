@@ -143,7 +143,7 @@ bool JdwpState::IsConnected() {
 }
 
 void JdwpState::SendBufferedRequest(uint32_t type, const std::vector<iovec>& iov) {
-  if (netState->clientSock < 0) {
+  if (!IsConnected()) {
     // Can happen with some DDMS events.
     VLOG(jdwp) << "Not sending JDWP packet: no debugger attached!";
     return;
@@ -167,7 +167,7 @@ void JdwpState::SendBufferedRequest(uint32_t type, const std::vector<iovec>& iov
 }
 
 void JdwpState::SendRequest(ExpandBuf* pReq) {
-  if (netState->clientSock < 0) {
+  if (!IsConnected()) {
     // Can happen with some DDMS events.
     VLOG(jdwp) << "Not sending JDWP packet: no debugger attached!";
     return;
