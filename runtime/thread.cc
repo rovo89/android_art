@@ -507,39 +507,8 @@ void Thread::InitStackHwm() {
     + 4 * KB;
   if (read_stack_size <= min_stack) {
     LOG(FATAL) << "Attempt to attach a thread with a too-small stack (" << read_stack_size
-        << " bytes)";
+               << " bytes)";
   }
-
-  // TODO: move this into the Linux GetThreadStack implementation.
-#if !defined(__APPLE__)
-  // If we're the main thread, check whether we were run with an unlimited stack. In that case,
-  // glibc will have reported a 2GB stack for our 32-bit process, and our stack overflow detection
-  // will be broken because we'll die long before we get close to 2GB.
-  bool is_main_thread = (::art::GetTid() == getpid());
-  if (is_main_thread) {
-    rlimit stack_limit;
-    if (getrlimit(RLIMIT_STACK, &stack_limit) == -1) {
-      PLOG(FATAL) << "getrlimit(RLIMIT_STACK) failed";
-    }
-    if (stack_limit.rlim_cur == RLIM_INFINITY) {
-      // Find the default stack size for new threads...
-      pthread_attr_t default_attributes;
-      size_t default_stack_size;
-      CHECK_PTHREAD_CALL(pthread_attr_init, (&default_attributes), "default stack size query");
-      CHECK_PTHREAD_CALL(pthread_attr_getstacksize, (&default_attributes, &default_stack_size),
-                         "default stack size query");
-      CHECK_PTHREAD_CALL(pthread_attr_destroy, (&default_attributes), "default stack size query");
-
-      // ...and use that as our limit.
-      size_t old_stack_size = read_stack_size;
-      tlsPtr_.stack_size = default_stack_size;
-      tlsPtr_.stack_begin += (old_stack_size - default_stack_size);
-      VLOG(threads) << "Limiting unlimited stack (reported as " << PrettySize(old_stack_size) << ")"
-                    << " to " << PrettySize(default_stack_size)
-                    << " with base " << reinterpret_cast<void*>(tlsPtr_.stack_begin);
-    }
-  }
-#endif
 
   // Set stack_end_ to the bottom of the stack saving space of stack overflows
 
