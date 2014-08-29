@@ -107,12 +107,44 @@ enum LIRPseudoOpcode {
 enum ExtendedMIROpcode {
   kMirOpFirst = kNumPackedOpcodes,
   kMirOpPhi = kMirOpFirst,
+
+  // @brief Copy from one VR to another.
+  // @details
+  // vA: destination VR
+  // vB: source VR
   kMirOpCopy,
+
+  // @brief Used to do float comparison with less-than bias.
+  // @details Unlike cmpl-float, this does not store result of comparison in VR.
+  // vA: left-hand side VR for comparison.
+  // vB: right-hand side VR for comparison.
   kMirOpFusedCmplFloat,
+
+  // @brief Used to do float comparison with greater-than bias.
+  // @details Unlike cmpg-float, this does not store result of comparison in VR.
+  // vA: left-hand side VR for comparison.
+  // vB: right-hand side VR for comparison.
   kMirOpFusedCmpgFloat,
+
+  // @brief Used to do double comparison with less-than bias.
+  // @details Unlike cmpl-double, this does not store result of comparison in VR.
+  // vA: left-hand side wide VR for comparison.
+  // vB: right-hand side wide VR for comparison.
   kMirOpFusedCmplDouble,
+
+  // @brief Used to do double comparison with greater-than bias.
+  // @details Unlike cmpl-double, this does not store result of comparison in VR.
+  // vA: left-hand side wide VR for comparison.
+  // vB: right-hand side wide VR for comparison.
   kMirOpFusedCmpgDouble,
+
+  // @brief Used to do comparison of 64-bit long integers.
+  // @details Unlike cmp-long, this does not store result of comparison in VR.
+  // vA: left-hand side wide VR for comparison.
+  // vB: right-hand side wide VR for comparison.
   kMirOpFusedCmpLong,
+
+  // @brief This represents no-op.
   kMirOpNop,
 
   // @brief Do a null check on the object register.
