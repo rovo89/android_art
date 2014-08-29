@@ -592,7 +592,6 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
                            kDouble, kNotVolatile);
         res->target = data_target;
         res->flags.fixup = kFixupLoad;
-        Clobber(rl_method.reg);
         store_method_addr_used_ = true;
       } else {
         if (r_dest.IsPair()) {
@@ -1025,6 +1024,7 @@ void X86Mir2Lir::AnalyzeMIR(int opcode, BasicBlock * bb, MIR *mir) {
       store_method_addr_ = true;
       break;
     case Instruction::INVOKE_STATIC:
+    case Instruction::INVOKE_STATIC_RANGE:
       AnalyzeInvokeStatic(opcode, bb, mir);
       break;
     default:
