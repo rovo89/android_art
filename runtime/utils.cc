@@ -108,6 +108,31 @@ void GetThreadStack(pthread_t thread, void** stack_base, size_t* stack_size, siz
   CHECK_PTHREAD_CALL(pthread_attr_getstack, (&attributes, stack_base, stack_size), __FUNCTION__);
   CHECK_PTHREAD_CALL(pthread_attr_getguardsize, (&attributes, guard_size), __FUNCTION__);
   CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
+
+#if defined(__GLIBC__)
+  // If we're the main thread, check whether we were run with an unlimited stack. In that case,
+  // glibc will have reported a 2GB stack for our 32-bit process, and our stack overflow detection
+  // will be broken because we'll die long before we get close to 2GB.
+  bool is_main_thread = (::art::GetTid() == getpid());
+  if (is_main_thread) {
+    rlimit stack_limit;
+    if (getrlimit(RLIMIT_STACK, &stack_limit) == -1) {
+      PLOG(FATAL) << "getrlimit(RLIMIT_STACK) failed";
+    }
+    if (stack_limit.rlim_cur == RLIM_INFINITY) {
+      size_t old_stack_size = *stack_size;
+
+      // Use the kernel default limit as our size, and adjust the base to match.
+      *stack_size = 8 * MB;
+      *stack_base = reinterpret_cast<uint8_t*>(*stack_base) + (old_stack_size - *stack_size);
+
+      VLOG(threads) << "Limiting unlimited stack (reported as " << PrettySize(old_stack_size) << ")"
+                    << " to " << PrettySize(*stack_size)
+                    << " with base " << *stack_base;
+    }
+  }
+#endif
+
 #endif
 }
 
