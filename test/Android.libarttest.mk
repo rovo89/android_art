@@ -21,6 +21,7 @@ include art/build/Android.common_build.mk
 LIBARTTEST_COMMON_SRC_FILES := \
   004-JniTest/jni_test.cc \
   004-SignalTest/signaltest.cc \
+  004-SignalTest2/signaltest.cc \
   004-ReferenceMap/stack_walk_refmap_jni.cc \
   004-StackWalk/stack_walk_jni.cc \
   004-UnsafeTest/unsafe_test.cc \
