@@ -930,27 +930,7 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
                 bb->first_mir_insn ? " | " : " ");
         for (mir = bb->first_mir_insn; mir; mir = mir->next) {
             int opcode = mir->dalvikInsn.opcode;
-            if (opcode > kMirOpSelect && opcode < kMirOpLast) {
-              if (opcode == kMirOpConstVector) {
-                fprintf(file, "    {%04x %s %d %d %d %d %d %d\\l}%s\\\n", mir->offset,
-                        extended_mir_op_names_[kMirOpConstVector - kMirOpFirst],
-                        mir->dalvikInsn.vA,
-                        mir->dalvikInsn.vB,
-                        mir->dalvikInsn.arg[0],
-                        mir->dalvikInsn.arg[1],
-                        mir->dalvikInsn.arg[2],
-                        mir->dalvikInsn.arg[3],
-                        mir->next ? " | " : " ");
-              } else {
-                fprintf(file, "    {%04x %s %d %d %d\\l}%s\\\n", mir->offset,
-                        extended_mir_op_names_[opcode - kMirOpFirst],
-                        mir->dalvikInsn.vA,
-                        mir->dalvikInsn.vB,
-                        mir->dalvikInsn.vC,
-                        mir->next ? " | " : " ");
-              }
-            } else {
-              fprintf(file, "    {%04x %s %s %s %s %s\\l}%s\\\n", mir->offset,
+            fprintf(file, "    {%04x %s %s %s %s %s %s %s\\l}%s\\\n", mir->offset,
                       mir->ssa_rep ? GetDalvikDisassembly(mir) :
                       !MIR::DecodedInstruction::IsPseudoMirOp(opcode) ?
                         Instruction::Name(mir->dalvikInsn.opcode) :
@@ -959,8 +939,9 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
                       (mir->optimization_flags & MIR_IGNORE_NULL_CHECK) != 0 ? " no_nullcheck" : " ",
                       (mir->optimization_flags & MIR_IGNORE_SUSPEND_CHECK) != 0 ? " no_suspendcheck" : " ",
                       (mir->optimization_flags & MIR_STORE_NON_TEMPORAL) != 0 ? " non_temporal" : " ",
+                      (mir->optimization_flags & MIR_CALLEE) != 0 ? " inlined" : " ",
+                      (mir->optimization_flags & MIR_IGNORE_CLINIT_CHECK) != 0 ? " no_clinit" : " ",
                       mir->next ? " | " : " ");
-            }
         }
         fprintf(file, "  }\"];\n\n");
     } else if (bb->block_type == kExceptionHandling) {
@@ -1230,6 +1211,186 @@ MIR* BasicBlock::GetNextUnconditionalMir(MIRGraph* mir_graph, MIR* current) {
   return next_mir;
 }
 
+static void FillTypeSizeString(uint32_t type_size, std::string* decoded_mir) {
+  DCHECK(decoded_mir != nullptr);
+  OpSize type = static_cast<OpSize>(type_size >> 16);
+  uint16_t vect_size = (type_size & 0xFFFF);
+
+  // Now print the type and vector size.
+  std::stringstream ss;
+  ss << " (type:";
+  ss << type;
+  ss << " vectsize:";
+  ss << vect_size;
+  ss << ")";
+
+  decoded_mir->append(ss.str());
+}
+
+void MIRGraph::DisassembleExtendedInstr(const MIR* mir, std::string* decoded_mir) {
+  DCHECK(decoded_mir != nullptr);
+  int opcode = mir->dalvikInsn.opcode;
+  SSARepresentation* ssa_rep = mir->ssa_rep;
+  int defs = (ssa_rep != nullptr) ? ssa_rep->num_defs : 0;
+  int uses = (ssa_rep != nullptr) ? ssa_rep->num_uses : 0;
+
+  decoded_mir->append(extended_mir_op_names_[opcode - kMirOpFirst]);
+
+  switch (opcode) {
+    case kMirOpPhi: {
+      if (defs > 0 && uses > 0) {
+        BasicBlockId* incoming = mir->meta.phi_incoming;
+        decoded_mir->append(StringPrintf(" %s = (%s",
+                           GetSSANameWithConst(ssa_rep->defs[0], true).c_str(),
+                           GetSSANameWithConst(ssa_rep->uses[0], true).c_str()));
+        decoded_mir->append(StringPrintf(":%d", incoming[0]));
+        for (int i = 1; i < uses; i++) {
+          decoded_mir->append(StringPrintf(", %s:%d", GetSSANameWithConst(ssa_rep->uses[i], true).c_str(), incoming[i]));
+        }
+        decoded_mir->append(")");
+      }
+      break;
+    }
+    case kMirOpCopy:
+      if (ssa_rep != nullptr) {
+        decoded_mir->append(" ");
+        decoded_mir->append(GetSSANameWithConst(ssa_rep->defs[0], false));
+        if (defs > 1) {
+          decoded_mir->append(", ");
+          decoded_mir->append(GetSSANameWithConst(ssa_rep->defs[1], false));
+        }
+        decoded_mir->append(" = ");
+        decoded_mir->append(GetSSANameWithConst(ssa_rep->uses[0], false));
+        if (uses > 1) {
+          decoded_mir->append(", ");
+          decoded_mir->append(GetSSANameWithConst(ssa_rep->uses[1], false));
+        }
+      } else {
+        decoded_mir->append(StringPrintf(" v%d = v%d", mir->dalvikInsn.vA, mir->dalvikInsn.vB));
+      }
+      break;
+    case kMirOpFusedCmplFloat:
+    case kMirOpFusedCmpgFloat:
+    case kMirOpFusedCmplDouble:
+    case kMirOpFusedCmpgDouble:
+    case kMirOpFusedCmpLong:
+      if (ssa_rep != nullptr) {
+        decoded_mir->append(" ");
+        decoded_mir->append(GetSSANameWithConst(ssa_rep->uses[0], false));
+        for (int i = 1; i < uses; i++) {
+          decoded_mir->append(", ");
+          decoded_mir->append(GetSSANameWithConst(ssa_rep->uses[i], false));
+        }
+      } else {
+        decoded_mir->append(StringPrintf(" v%d, v%d", mir->dalvikInsn.vA, mir->dalvikInsn.vB));
+      }
+      break;
+    case kMirOpMoveVector:
+      decoded_mir->append(StringPrintf(" vect%d = vect%d", mir->dalvikInsn.vA, mir->dalvikInsn.vB));
+      FillTypeSizeString(mir->dalvikInsn.vC, decoded_mir);
+      break;
+    case kMirOpPackedAddition:
+      decoded_mir->append(StringPrintf(" vect%d = vect%d + vect%d", mir->dalvikInsn.vA, mir->dalvikInsn.vA, mir->dalvikInsn.vB));
+      FillTypeSizeString(mir->dalvikInsn.vC, decoded_mir);
+      break;
+    case kMirOpPackedMultiply:
+      decoded_mir->append(StringPrintf(" vect%d = vect%d * vect%d", mir->dalvikInsn.vA, mir->dalvikInsn.vA, mir->dalvikInsn.vB));
+      FillTypeSizeString(mir->dalvikInsn.vC, decoded_mir);
+      break;
+    case kMirOpPackedSubtract:
+      decoded_mir->append(StringPrintf(" vect%d = vect%d - vect%d", mir->dalvikInsn.vA, mir->dalvikInsn.vA, mir->dalvikInsn.vB));
+      FillTypeSizeString(mir->dalvikInsn.vC, decoded_mir);
+      break;
+    case kMirOpPackedAnd:
+      decoded_mir->append(StringPrintf(" vect%d = vect%d & vect%d", mir->dalvikInsn.vA, mir->dalvikInsn.vA, mir->dalvikInsn.vB));
+      FillTypeSizeString(mir->dalvikInsn.vC, decoded_mir);
+      break;
+    case kMirOpPackedOr:
+      decoded_mir->append(StringPrintf(" vect%d = vect%d \\| vect%d", mir->dalvikInsn.vA, mir->dalvikInsn.vA, mir->dalvikInsn.vB));
+      FillTypeSizeString(mir->dalvikInsn.vC, decoded_mir);
+      break;
+    case kMirOpPackedXor:
+      decoded_mir->append(StringPrintf(" vect%d = vect%d ^ vect%d", mir->dalvikInsn.vA, mir->dalvikInsn.vA, mir->dalvikInsn.vB));
+      FillTypeSizeString(mir->dalvikInsn.vC, decoded_mir);
+      break;
+    case kMirOpPackedShiftLeft:
+      decoded_mir->append(StringPrintf(" vect%d = vect%d \\<\\< %d", mir->dalvikInsn.vA, mir->dalvikInsn.vA, mir->dalvikInsn.vB));
+      FillTypeSizeString(mir->dalvikInsn.vC, decoded_mir);
+      break;
+    case kMirOpPackedUnsignedShiftRight:
+      decoded_mir->append(StringPrintf(" vect%d = vect%d \\>\\>\\> %d", mir->dalvikInsn.vA, mir->dalvikInsn.vA, mir->dalvikInsn.vB));
+      FillTypeSizeString(mir->dalvikInsn.vC, decoded_mir);
+      break;
+    case kMirOpPackedSignedShiftRight:
+      decoded_mir->append(StringPrintf(" vect%d = vect%d \\>\\> %d", mir->dalvikInsn.vA, mir->dalvikInsn.vA, mir->dalvikInsn.vB));
+      FillTypeSizeString(mir->dalvikInsn.vC, decoded_mir);
+      break;
+    case kMirOpConstVector:
+      decoded_mir->append(StringPrintf(" vect%d = %x, %x, %x, %x", mir->dalvikInsn.vA, mir->dalvikInsn.arg[0],
+                                      mir->dalvikInsn.arg[1], mir->dalvikInsn.arg[2], mir->dalvikInsn.arg[3]));
+      break;
+    case kMirOpPackedSet:
+      if (ssa_rep != nullptr) {
+        decoded_mir->append(StringPrintf(" vect%d = %s", mir->dalvikInsn.vA,
+              GetSSANameWithConst(ssa_rep->uses[0], false).c_str()));
+        if (uses > 1) {
+          decoded_mir->append(", ");
+          decoded_mir->append(GetSSANameWithConst(ssa_rep->uses[1], false));
+        }
+      } else {
+        decoded_mir->append(StringPrintf(" vect%d = v%d", mir->dalvikInsn.vA, mir->dalvikInsn.vB));
+      }
+      FillTypeSizeString(mir->dalvikInsn.vC, decoded_mir);
+      break;
+    case kMirOpPackedAddReduce:
+      if (ssa_rep != nullptr) {
+        decoded_mir->append(" ");
+        decoded_mir->append(GetSSANameWithConst(ssa_rep->defs[0], false));
+        if (defs > 1) {
+          decoded_mir->append(", ");
+          decoded_mir->append(GetSSANameWithConst(ssa_rep->defs[1], false));
+        }
+        decoded_mir->append(StringPrintf(" = vect%d + %s", mir->dalvikInsn.vB,
+            GetSSANameWithConst(ssa_rep->uses[0], false).c_str()));
+        if (uses > 1) {
+          decoded_mir->append(", ");
+          decoded_mir->append(GetSSANameWithConst(ssa_rep->uses[1], false));
+        }
+      } else {
+        decoded_mir->append(StringPrintf("v%d = vect%d + v%d", mir->dalvikInsn.vA, mir->dalvikInsn.vB, mir->dalvikInsn.vA));
+      }
+      FillTypeSizeString(mir->dalvikInsn.vC, decoded_mir);
+      break;
+    case kMirOpPackedReduce:
+      if (ssa_rep != nullptr) {
+        decoded_mir->append(" ");
+        decoded_mir->append(GetSSANameWithConst(ssa_rep->defs[0], false));
+        if (defs > 1) {
+          decoded_mir->append(", ");
+          decoded_mir->append(GetSSANameWithConst(ssa_rep->defs[1], false));
+        }
+        decoded_mir->append(StringPrintf(" = vect%d", mir->dalvikInsn.vB));
+      } else {
+        decoded_mir->append(StringPrintf(" v%d = vect%d", mir->dalvikInsn.vA, mir->dalvikInsn.vB));
+      }
+      FillTypeSizeString(mir->dalvikInsn.vC, decoded_mir);
+      break;
+    case kMirOpReserveVectorRegisters:
+    case kMirOpReturnVectorRegisters:
+      decoded_mir->append(StringPrintf(" vect%d - vect%d", mir->dalvikInsn.vA, mir->dalvikInsn.vB));
+      break;
+    case kMirOpMemBarrier: {
+      decoded_mir->append(" type:");
+      std::stringstream ss;
+      ss << static_cast<MemBarrierKind>(mir->dalvikInsn.vA);
+      decoded_mir->append(ss.str());
+      break;
+    }
+    default:
+      break;
+  }
+}
+
 char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
   MIR::DecodedInstruction insn = mir->dalvikInsn;
   std::string str;
@@ -1240,7 +1401,7 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
   SSARepresentation* ssa_rep = mir->ssa_rep;
   Instruction::Format dalvik_format = Instruction::k10x;  // Default to no-operand format.
 
-  // Handle special cases.
+  // Handle special cases that recover the original dalvik instruction.
   if ((opcode == kMirOpCheck) || (opcode == kMirOpCheckPart2)) {
     str.append(extended_mir_op_names_[opcode - kMirOpFirst]);
     str.append(": ");
@@ -1259,76 +1420,66 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
   int uses = (ssa_rep != NULL) ? ssa_rep->num_uses : 0;
 
   if (MIR::DecodedInstruction::IsPseudoMirOp(opcode)) {
-    str.append(extended_mir_op_names_[opcode - kMirOpFirst]);
+    // Note that this does not check the MIR's opcode in all cases. In cases where it
+    // recovered dalvik instruction, it uses opcode of that instead of the extended one.
+    DisassembleExtendedInstr(mir, &str);
   } else {
     dalvik_format = Instruction::FormatOf(insn.opcode);
     flags = insn.FlagsOf();
     str.append(Instruction::Name(insn.opcode));
-  }
 
-  if (opcode == kMirOpPhi) {
-    BasicBlockId* incoming = mir->meta.phi_incoming;
-    if (defs > 0 && uses > 0) {
-      str.append(StringPrintf(" %s = (%s",
-                 GetSSANameWithConst(ssa_rep->defs[0], true).c_str(),
-                 GetSSANameWithConst(ssa_rep->uses[0], true).c_str()));
-      str.append(StringPrintf(":%d", incoming[0]));
-      int i;
-      for (i = 1; i < uses; i++) {
-        str.append(StringPrintf(", %s:%d",
-                                GetSSANameWithConst(ssa_rep->uses[i], true).c_str(),
-                                incoming[i]));
-      }
-      str.append(")");
-    } else {
-      str.append(StringPrintf(" v%d", mir->dalvikInsn.vA));
-    }
-  } else {
     // For invokes-style formats, treat wide regs as a pair of singles.
     bool show_singles = ((dalvik_format == Instruction::k35c) ||
                          (dalvik_format == Instruction::k3rc));
     if (defs != 0) {
-      str.append(StringPrintf(" %s", GetSSANameWithConst(ssa_rep->defs[0], false).c_str()));
+      str.append(" ");
+      str.append(GetSSANameWithConst(ssa_rep->defs[0], false));
+      if (defs > 1) {
+        str.append(", ");
+        str.append(GetSSANameWithConst(ssa_rep->defs[1], false));
+      }
       if (uses != 0) {
         str.append(", ");
       }
     }
     for (int i = 0; i < uses; i++) {
-      str.append(
-          StringPrintf(" %s", GetSSANameWithConst(ssa_rep->uses[i], show_singles).c_str()));
+      str.append(" ");
+      str.append(GetSSANameWithConst(ssa_rep->uses[i], show_singles));
       if (!show_singles && (reg_location_ != NULL) && reg_location_[i].wide) {
         // For the listing, skip the high sreg.
         i++;
       }
-      if (i != (uses -1)) {
+      if (i != (uses - 1)) {
         str.append(",");
       }
     }
+
     switch (dalvik_format) {
       case Instruction::k11n:  // Add one immediate from vB.
       case Instruction::k21s:
       case Instruction::k31i:
       case Instruction::k21h:
-        str.append(StringPrintf(", #%d", insn.vB));
+        str.append(StringPrintf(", #0x%x", insn.vB));
         break;
       case Instruction::k51l:  // Add one wide immediate.
         str.append(StringPrintf(", #%" PRId64, insn.vB_wide));
         break;
       case Instruction::k21c:  // One register, one string/type/method index.
       case Instruction::k31c:
-        str.append(StringPrintf(", index #%d", insn.vB));
+        str.append(StringPrintf(", index #0x%x", insn.vB));
         break;
       case Instruction::k22c:  // Two registers, one string/type/method index.
-        str.append(StringPrintf(", index #%d", insn.vC));
+        str.append(StringPrintf(", index #0x%x", insn.vC));
         break;
       case Instruction::k22s:  // Add one immediate from vC.
       case Instruction::k22b:
-        str.append(StringPrintf(", #%d", insn.vC));
+        str.append(StringPrintf(", #0x%x", insn.vC));
         break;
-      default: {
+      default:
         // Nothing left to print.
-      }
+        break;
     }
+
     if ((flags & Instruction::kBranch) != 0) {
       // For branches, decode the instructions to print out the branch targets.
       int offset = 0;
@@ -1346,13 +1497,15 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
           break;
         default:
           LOG(FATAL) << "Unexpected branch format " << dalvik_format << " from " << insn.opcode;
+          break;
       }
-      str.append(StringPrintf(" 0x%x (%c%x)", mir->offset + offset,
+      str.append(StringPrintf(", 0x%x (%c%x)", mir->offset + offset,
                               offset > 0 ? '+' : '-', offset > 0 ? offset : -offset));
     }
-  }
-  if (nop) {
-    str.append("]--optimized away");
+
+    if (nop) {
+      str.append("]--optimized away");
+    }
   }
   int length = str.length() + 1;
   ret = static_cast<char*>(arena_->Alloc(length, kArenaAllocDFInfo));
@@ -1375,7 +1528,12 @@ std::string MIRGraph::GetSSAName(int ssa_reg) {
   // TODO: This value is needed for LLVM and debugging. Currently, we compute this and then copy to
   //       the arena. We should be smarter and just place straight into the arena, or compute the
   //       value more lazily.
-  return StringPrintf("v%d_%d", SRegToVReg(ssa_reg), GetSSASubscript(ssa_reg));
+  int vreg = SRegToVReg(ssa_reg);
+  if (vreg >= static_cast<int>(GetFirstTempVR())) {
+    return StringPrintf("t%d_%d", SRegToVReg(ssa_reg), GetSSASubscript(ssa_reg));
+  } else {
+    return StringPrintf("v%d_%d", SRegToVReg(ssa_reg), GetSSASubscript(ssa_reg));
+  }
 }
 
 // Similar to GetSSAName, but if ssa name represents an immediate show that as well.
@@ -1393,7 +1551,12 @@ std::string MIRGraph::GetSSANameWithConst(int ssa_reg, bool singles_only) {
                           ConstantValue(reg_location_[ssa_reg]));
     }
   } else {
-    return StringPrintf("v%d_%d", SRegToVReg(ssa_reg), GetSSASubscript(ssa_reg));
+    int vreg = SRegToVReg(ssa_reg);
+    if (vreg >= static_cast<int>(GetFirstTempVR())) {
+      return StringPrintf("t%d_%d", SRegToVReg(ssa_reg), GetSSASubscript(ssa_reg));
+    } else {
+      return StringPrintf("v%d_%d", SRegToVReg(ssa_reg), GetSSASubscript(ssa_reg));
+    }
   }
 }
 
