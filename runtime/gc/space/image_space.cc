@@ -16,6 +16,9 @@
 
 #include "image_space.h"
 
+#include <dirent.h>
+#include <sys/types.h>
+
 #include <random>
 
 #include "base/stl_util.h"
@@ -65,13 +68,64 @@ static int32_t ChooseRelocationOffsetDelta(int32_t min_delta, int32_t max_delta)
   return r;
 }
 
-static bool GenerateImage(const std::string& image_filename, std::string* error_msg) {
+// We are relocating or generating the core image. We should get rid of everything. It is all
+// out-of-date. We also don't really care if this fails since it is just a convienence.
+// Adapted from prune_dex_cache(const char* subdir) in frameworks/native/cmds/installd/commands.c
+// Note this should only be used during first boot.
+static void RealPruneDexCache(const std::string& cache_dir_path);
+static void PruneDexCache(InstructionSet isa) {
+  CHECK_NE(isa, kNone);
+  // Prune the base /data/dalvik-cache
+  RealPruneDexCache(GetDalvikCacheOrDie(".", false));
+  // prune /data/dalvik-cache/<isa>
+  RealPruneDexCache(GetDalvikCacheOrDie(GetInstructionSetString(isa), false));
+}
+static void RealPruneDexCache(const std::string& cache_dir_path) {
+  if (!OS::DirectoryExists(cache_dir_path.c_str())) {
+    return;
+  }
+  DIR* cache_dir = opendir(cache_dir_path.c_str());
+  if (cache_dir == nullptr) {
+    PLOG(WARNING) << "Unable to open " << cache_dir_path << " to delete it's contents";
+    return;
+  }
+  int dir_fd = dirfd(cache_dir);
+  CHECK_GE(dir_fd, 0);
+
+  for (struct dirent* de = readdir(cache_dir); de != nullptr; de = readdir(cache_dir)) {
+    const char* name = de->d_name;
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
+      continue;
+    }
+    // We only want to delete regular files.
+    if (de->d_type != DT_REG) {
+      if (de->d_type != DT_DIR) {
+        // We do expect some directories (namely the <isa> for pruning the base dalvik-cache).
+        LOG(WARNING) << "Unexpected file type of " << std::hex << de->d_type << " encountered.";
+      }
+      continue;
+    }
+    if (TEMP_FAILURE_RETRY(unlinkat(dir_fd, name, 0)) != 0) {
+      PLOG(ERROR) << "Unable to unlink " << cache_dir_path << "/" << name;
+      continue;
+    }
+  }
+  CHECK_EQ(0, TEMP_FAILURE_RETRY(closedir(cache_dir))) << "Unable to close directory.";
+}
+
+static bool GenerateImage(const std::string& image_filename, InstructionSet image_isa,
+                          std::string* error_msg) {
   const std::string boot_class_path_string(Runtime::Current()->GetBootClassPathString());
   std::vector<std::string> boot_class_path;
   Split(boot_class_path_string, ':', boot_class_path);
   if (boot_class_path.empty()) {
     *error_msg = "Failed to generate image because no boot class path specified";
     return false;
+  }
+  // We should clean up so we are more likely to have room for the image.
+  if (Runtime::Current()->IsZygote()) {
+    LOG(INFO) << "Pruning dalvik-cache since we are relocating an image and will need to recompile";
+    PruneDexCache(image_isa);
   }
 
   std::vector<std::string> arg_vector;
@@ -94,6 +148,7 @@ static bool GenerateImage(const std::string& image_filename, std::string* error_
   arg_vector.push_back(oat_file_option_string);
 
   Runtime::Current()->AddCurrentRuntimeFeaturesAsDex2OatArguments(&arg_vector);
+  CHECK_EQ(isa, kRuntimeISA) << "We should always be generating an image for the current isa.";
 
   int32_t base_offset = ChooseRelocationOffsetDelta(ART_BASE_ADDRESS_MIN_DELTA,
                                                     ART_BASE_ADDRESS_MAX_DELTA);
@@ -169,6 +224,12 @@ static bool ReadSpecificImageHeader(const char* filename, ImageHeader* image_hea
 // Relocate the image at image_location to dest_filename and relocate it by a random amount.
 static bool RelocateImage(const char* image_location, const char* dest_filename,
                                InstructionSet isa, std::string* error_msg) {
+  // We should clean up so we are more likely to have room for the image.
+  if (Runtime::Current()->IsZygote()) {
+    LOG(INFO) << "Pruning dalvik-cache since we are relocating an image and will need to recompile";
+    PruneDexCache(isa);
+  }
+
   std::string patchoat(Runtime::Current()->GetPatchoatExecutable());
 
   std::string input_image_location_arg("--input-image-location=");
@@ -398,7 +459,7 @@ ImageSpace* ImageSpace::Create(const char* image_location,
   } else if (!dalvik_cache_exists) {
     *error_msg = StringPrintf("No place to put generated image.");
     return nullptr;
-  } else if (!GenerateImage(cache_filename, error_msg)) {
+  } else if (!GenerateImage(cache_filename, image_isa, error_msg)) {
     *error_msg = StringPrintf("Failed to generate image '%s': %s",
                               cache_filename.c_str(), error_msg->c_str());
     return nullptr;
