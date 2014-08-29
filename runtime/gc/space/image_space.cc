@@ -148,7 +148,7 @@ static bool GenerateImage(const std::string& image_filename, InstructionSet imag
   arg_vector.push_back(oat_file_option_string);
 
   Runtime::Current()->AddCurrentRuntimeFeaturesAsDex2OatArguments(&arg_vector);
-  CHECK_EQ(isa, kRuntimeISA) << "We should always be generating an image for the current isa.";
+  CHECK_EQ(image_isa, kRuntimeISA) << "We should always be generating an image for the current isa.";
 
   int32_t base_offset = ChooseRelocationOffsetDelta(ART_BASE_ADDRESS_MIN_DELTA,
                                                     ART_BASE_ADDRESS_MAX_DELTA);
