@@ -1,4 +1,0 @@
-init signal test
-Caught NullPointerException
-signal caught
-Signal test OK
