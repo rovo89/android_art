@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "base/allocator.h"
 #include "base/mutex.h"
 #include "gc_root.h"
 #include "object_callbacks.h"
@@ -51,7 +52,8 @@ class ReferenceTable {
   void VisitRoots(RootCallback* visitor, void* arg, uint32_t tid, RootType root_type);
 
  private:
-  typedef std::vector<GcRoot<mirror::Object>> Table;
+  typedef std::vector<GcRoot<mirror::Object>,
+                      TrackingAllocator<GcRoot<mirror::Object>, kAllocatorTagReferenceTable>> Table;
   static void Dump(std::ostream& os, Table& entries)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   friend class IndirectReferenceTable;  // For Dump.

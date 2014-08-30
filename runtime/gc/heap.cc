@@ -23,6 +23,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/allocator.h"
 #include "base/histogram-inl.h"
 #include "base/stl_util.h"
 #include "common_throws.h"
@@ -146,7 +147,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       total_objects_freed_ever_(0),
       num_bytes_allocated_(0),
       native_bytes_allocated_(0),
-      gc_memory_overhead_(0),
       verify_missing_card_marks_(false),
       verify_system_weaks_(false),
       verify_pre_gc_heap_(verify_pre_gc_heap),
@@ -790,14 +790,6 @@ void Heap::RemoveSpace(space::Space* space) {
   }
 }
 
-void Heap::RegisterGCAllocation(size_t bytes) {
-  gc_memory_overhead_.FetchAndAddSequentiallyConsistent(bytes);
-}
-
-void Heap::RegisterGCDeAllocation(size_t bytes) {
-  gc_memory_overhead_.FetchAndSubSequentiallyConsistent(bytes);
-}
-
 void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   // Dump cumulative timings.
   os << "Dumping cumulative Gc timings\n";
@@ -839,7 +831,6 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   }
   os << "Total mutator paused time: " << PrettyDuration(total_paused_time) << "\n";
   os << "Total time waiting for GC to complete: " << PrettyDuration(total_wait_time_) << "\n";
-  os << "Approximate GC data structures memory overhead: " << gc_memory_overhead_.LoadRelaxed();
   BaseMutex::DumpAll(os);
 }
 
