@@ -62,19 +62,10 @@ void String::ResetClass() {
   java_lang_String_ = GcRoot<Class>(nullptr);
 }
 
-int32_t String::GetHashCode() {
-  int32_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_));
-  if (UNLIKELY(result == 0)) {
-    ComputeHashCode();
-  }
-  result = GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_));
-  DCHECK(result != 0 || ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength()) == 0)
-          << ToModifiedUtf8() << " " << result;
-  return result;
-}
-
-void String::ComputeHashCode() {
-  SetHashCode(ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength()));
+int32_t String::ComputeHashCode() {
+  const int32_t hash_code = ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength());
+  SetHashCode(hash_code);
+  return hash_code;
 }
 
 int32_t String::GetUtfLength() {

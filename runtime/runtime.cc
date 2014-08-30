@@ -1330,28 +1330,28 @@ void Runtime::RecordWriteArray(mirror::Array* array, size_t index, uint64_t valu
   preinitialization_transaction_->RecordWriteArray(array, index, value);
 }
 
-void Runtime::RecordStrongStringInsertion(mirror::String* s, uint32_t hash_code) const {
+void Runtime::RecordStrongStringInsertion(mirror::String* s) const {
   DCHECK(IsCompiler());
   DCHECK(IsActiveTransaction());
-  preinitialization_transaction_->RecordStrongStringInsertion(s, hash_code);
+  preinitialization_transaction_->RecordStrongStringInsertion(s);
 }
 
-void Runtime::RecordWeakStringInsertion(mirror::String* s, uint32_t hash_code) const {
+void Runtime::RecordWeakStringInsertion(mirror::String* s) const {
   DCHECK(IsCompiler());
   DCHECK(IsActiveTransaction());
-  preinitialization_transaction_->RecordWeakStringInsertion(s, hash_code);
+  preinitialization_transaction_->RecordWeakStringInsertion(s);
 }
 
-void Runtime::RecordStrongStringRemoval(mirror::String* s, uint32_t hash_code) const {
+void Runtime::RecordStrongStringRemoval(mirror::String* s) const {
   DCHECK(IsCompiler());
   DCHECK(IsActiveTransaction());
-  preinitialization_transaction_->RecordStrongStringRemoval(s, hash_code);
+  preinitialization_transaction_->RecordStrongStringRemoval(s);
 }
 
-void Runtime::RecordWeakStringRemoval(mirror::String* s, uint32_t hash_code) const {
+void Runtime::RecordWeakStringRemoval(mirror::String* s) const {
   DCHECK(IsCompiler());
   DCHECK(IsActiveTransaction());
-  preinitialization_transaction_->RecordWeakStringRemoval(s, hash_code);
+  preinitialization_transaction_->RecordWeakStringRemoval(s);
 }
 
 void Runtime::SetFaultMessage(const std::string& message) {
