@@ -50,20 +50,6 @@ namespace art {
 const byte DexFile::kDexMagic[] = { 'd', 'e', 'x', '\n' };
 const byte DexFile::kDexMagicVersion[] = { '0', '3', '5', '\0' };
 
-DexFile::ClassPathEntry DexFile::FindInClassPath(const char* descriptor,
-                                                 const ClassPath& class_path) {
-  for (size_t i = 0; i != class_path.size(); ++i) {
-    const DexFile* dex_file = class_path[i];
-    const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
-    if (dex_class_def != NULL) {
-      return ClassPathEntry(dex_file, dex_class_def);
-    }
-  }
-  // TODO: remove reinterpret_cast when issue with -std=gnu++0x host issue resolved
-  return ClassPathEntry(reinterpret_cast<const DexFile*>(NULL),
-                        reinterpret_cast<const DexFile::ClassDef*>(NULL));
-}
-
 static int OpenAndReadMagic(const char* filename, uint32_t* magic, std::string* error_msg) {
   CHECK(magic != NULL);
   ScopedFd fd(open(filename, O_RDONLY, 0));
@@ -366,7 +352,10 @@ DexFile::DexFile(const byte* base, size_t size,
       field_ids_(reinterpret_cast<const FieldId*>(base + header_->field_ids_off_)),
       method_ids_(reinterpret_cast<const MethodId*>(base + header_->method_ids_off_)),
       proto_ids_(reinterpret_cast<const ProtoId*>(base + header_->proto_ids_off_)),
-      class_defs_(reinterpret_cast<const ClassDef*>(base + header_->class_defs_off_)) {
+      class_defs_(reinterpret_cast<const ClassDef*>(base + header_->class_defs_off_)),
+      find_class_def_misses_(0),
+      class_def_index_(nullptr),
+      build_class_def_index_mutex_("DexFile index creation mutex") {
   CHECK(begin_ != NULL) << GetLocation();
   CHECK_GT(size_, 0U) << GetLocation();
 }
@@ -376,6 +365,8 @@ DexFile::~DexFile() {
   // that's only called after DetachCurrentThread, which means there's no JNIEnv. We could
   // re-attach, but cleaning up these global references is not obviously useful. It's not as if
   // the global reference table is otherwise empty!
+  // Remove the index if one were created.
+  delete class_def_index_.LoadRelaxed();
 }
 
 bool DexFile::Init(std::string* error_msg) {
@@ -424,26 +415,51 @@ uint32_t DexFile::GetVersion() const {
 }
 
 const DexFile::ClassDef* DexFile::FindClassDef(const char* descriptor) const {
-  size_t num_class_defs = NumClassDefs();
+  // If we have an index lookup the descriptor via that as its constant time to search.
+  Index* index = class_def_index_.LoadSequentiallyConsistent();
+  if (index != nullptr) {
+    auto it = index->find(descriptor);
+    return (it == index->end()) ? nullptr : it->second;
+  }
+  // Fast path for rate no class defs case.
+  uint32_t num_class_defs = NumClassDefs();
   if (num_class_defs == 0) {
-    return NULL;
+    return nullptr;
   }
+  // Search for class def with 2 binary searches and then a linear search.
   const StringId* string_id = FindStringId(descriptor);
-  if (string_id == NULL) {
-    return NULL;
-  }
-  const TypeId* type_id = FindTypeId(GetIndexForStringId(*string_id));
-  if (type_id == NULL) {
-    return NULL;
-  }
-  uint16_t type_idx = GetIndexForTypeId(*type_id);
-  for (size_t i = 0; i < num_class_defs; ++i) {
-    const ClassDef& class_def = GetClassDef(i);
-    if (class_def.class_idx_ == type_idx) {
-      return &class_def;
+  if (string_id != nullptr) {
+    const TypeId* type_id = FindTypeId(GetIndexForStringId(*string_id));
+    if (type_id != nullptr) {
+      uint16_t type_idx = GetIndexForTypeId(*type_id);
+      for (size_t i = 0; i < num_class_defs; ++i) {
+        const ClassDef& class_def = GetClassDef(i);
+        if (class_def.class_idx_ == type_idx) {
+          return &class_def;
+        }
+      }
     }
   }
-  return NULL;
+  // A miss. If we've had kMaxFailedDexClassDefLookups misses then build an index to speed things
+  // up. This isn't done eagerly at construction as construction is not performed in multi-threaded
+  // sections of tools like dex2oat. If we're lazy we hopefully increase the chance of balancing
+  // out which thread builds the index.
+  find_class_def_misses_++;
+  const uint32_t kMaxFailedDexClassDefLookups = 100;
+  if (find_class_def_misses_ > kMaxFailedDexClassDefLookups) {
+    MutexLock mu(Thread::Current(), build_class_def_index_mutex_);
+    // Are we the first ones building the index?
+    if (class_def_index_.LoadSequentiallyConsistent() == nullptr) {
+      index = new Index(num_class_defs);
+      for (uint32_t i = 0; i < num_class_defs;  ++i) {
+        const ClassDef& class_def = GetClassDef(i);
+        const char* descriptor = GetClassDescriptor(class_def);
+        index->insert(std::make_pair(descriptor, &class_def));
+      }
+      class_def_index_.StoreSequentiallyConsistent(index);
+    }
+  }
+  return nullptr;
 }
 
 const DexFile::ClassDef* DexFile::FindClassDef(uint16_t type_idx) const {
