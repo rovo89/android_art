@@ -17,8 +17,8 @@
 #ifndef ART_RUNTIME_GC_ACCOUNTING_HEAP_BITMAP_H_
 #define ART_RUNTIME_GC_ACCOUNTING_HEAP_BITMAP_H_
 
+#include "base/allocator.h"
 #include "base/logging.h"
-#include "gc_allocator.h"
 #include "object_callbacks.h"
 #include "space_bitmap.h"
 
@@ -68,11 +68,14 @@ class HeapBitmap {
   void RemoveLargeObjectBitmap(LargeObjectBitmap* bitmap);
 
   // Bitmaps covering continuous spaces.
-  std::vector<ContinuousSpaceBitmap*, GcAllocator<ContinuousSpaceBitmap*>>
+  std::vector<ContinuousSpaceBitmap*,
+              TrackingAllocator<ContinuousSpaceBitmap*, kAllocatorTagHeapBitmap>>
       continuous_space_bitmaps_;
 
   // Sets covering discontinuous spaces.
-  std::vector<LargeObjectBitmap*, GcAllocator<LargeObjectBitmap*>> large_object_bitmaps_;
+  std::vector<LargeObjectBitmap*,
+              TrackingAllocator<LargeObjectBitmap*, kAllocatorTagHeapBitmapLOS>>
+      large_object_bitmaps_;
 
   friend class art::gc::Heap;
 };

@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "base/mutex.h"
-#include "gc_allocator.h"
 #include "globals.h"
 #include "object_callbacks.h"
 
