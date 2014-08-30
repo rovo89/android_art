@@ -424,13 +424,13 @@ class Runtime {
                                  mirror::Object* value, bool is_volatile) const;
   void RecordWriteArray(mirror::Array* array, size_t index, uint64_t value) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void RecordStrongStringInsertion(mirror::String* s, uint32_t hash_code) const
+  void RecordStrongStringInsertion(mirror::String* s) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void RecordWeakStringInsertion(mirror::String* s, uint32_t hash_code) const
+  void RecordWeakStringInsertion(mirror::String* s) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void RecordStrongStringRemoval(mirror::String* s, uint32_t hash_code) const
+  void RecordStrongStringRemoval(mirror::String* s) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void RecordWeakStringRemoval(mirror::String* s, uint32_t hash_code) const
+  void RecordWeakStringRemoval(mirror::String* s) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
 
   void SetFaultMessage(const std::string& message);
