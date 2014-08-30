@@ -59,7 +59,7 @@ static std::ostream& operator<<(
   return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const std::multimap<void*, MemMap*>& mem_maps) {
+std::ostream& operator<<(std::ostream& os, const MemMap::Maps& mem_maps) {
   os << "MemMap:" << std::endl;
   for (auto it = mem_maps.begin(); it != mem_maps.end(); ++it) {
     void* base = it->first;
@@ -70,7 +70,7 @@ std::ostream& operator<<(std::ostream& os, const std::multimap<void*, MemMap*>& 
   return os;
 }
 
-std::multimap<void*, MemMap*> MemMap::maps_;
+MemMap::Maps MemMap::maps_;
 
 #if USE_ART_LOW_4G_ALLOCATOR
 // Handling mem_map in 32b address range for 64b architectures that do not support MAP_32BIT.
@@ -604,16 +604,12 @@ bool MemMap::CheckNoGaps(MemMap* begin_map, MemMap* end_map) {
 }
 
 void MemMap::DumpMaps(std::ostream& os) {
-  DumpMaps(os, maps_);
-}
-
-void MemMap::DumpMaps(std::ostream& os, const std::multimap<void*, MemMap*>& mem_maps) {
   MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
-  DumpMapsLocked(os, mem_maps);
+  DumpMapsLocked(os);
 }
 
-void MemMap::DumpMapsLocked(std::ostream& os, const std::multimap<void*, MemMap*>& mem_maps) {
-  os << mem_maps;
+void MemMap::DumpMapsLocked(std::ostream& os) {
+  os << maps_;
 }
 
 bool MemMap::HasMemMap(MemMap* map) {

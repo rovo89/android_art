@@ -19,6 +19,7 @@
 
 #include <map>
 
+#include "base/allocator.h"
 #include "base/mutex.h"
 #include "gc_root.h"
 #include "object_callbacks.h"
@@ -78,7 +79,8 @@ class InternTable {
   void AllowNewInterns() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  typedef std::multimap<int32_t, GcRoot<mirror::String>> Table;
+  typedef AllocationTrackingMultiMap<int32_t, GcRoot<mirror::String>,
+                                     kAllocatorTagInternTable> Table;
 
   mirror::String* Insert(mirror::String* s, bool is_strong)
       LOCKS_EXCLUDED(Locks::intern_table_lock_)
