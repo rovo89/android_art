@@ -66,7 +66,7 @@ ParsedOptions::ParsedOptions()
     heap_target_utilization_(gc::Heap::kDefaultTargetUtilization),
     foreground_heap_growth_multiplier_(gc::Heap::kDefaultHeapGrowthMultiplier),
     parallel_gc_threads_(1),
-    conc_gc_threads_(1),                            // Only the main GC thread, no workers.
+    conc_gc_threads_(0),                            // Only the main GC thread, no workers.
     collector_type_(                                // The default GC type is set in makefiles.
 #if ART_DEFAULT_GC_TYPE_IS_CMS
         gc::kCollectorTypeCMS),
