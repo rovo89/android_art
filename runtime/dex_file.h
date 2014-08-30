@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "base/logging.h"
@@ -27,7 +28,7 @@
 #include "invoke_type.h"
 #include "jni.h"
 #include "modifiers.h"
-#include "safe_map.h"
+#include "utf.h"
 
 namespace art {
 
@@ -346,13 +347,6 @@ class DexFile {
     DISALLOW_COPY_AND_ASSIGN(AnnotationItem);
   };
 
-  typedef std::pair<const DexFile*, const DexFile::ClassDef*> ClassPathEntry;
-  typedef std::vector<const DexFile*> ClassPath;
-
-  // Search a collection of DexFiles for a descriptor
-  static ClassPathEntry FindInClassPath(const char* descriptor,
-                                        const ClassPath& class_path);
-
   // Returns the checksum of a file for comparison with GetLocationChecksum().
   // For .dex files, this is the header checksum.
   // For zip files, this is the classes.dex zip entry CRC32 checksum.
@@ -468,7 +462,7 @@ class DexFile {
   const StringId* FindStringId(const uint16_t* string) const;
 
   // Returns the number of type identifiers in the .dex file.
-  size_t NumTypeIds() const {
+  uint32_t NumTypeIds() const {
     DCHECK(header_ != NULL) << GetLocation();
     return header_->type_ids_size_;
   }
@@ -597,7 +591,7 @@ class DexFile {
     return StringDataAndUtf16LengthByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_, length);
   }
   // Returns the number of class definitions in the .dex file.
-  size_t NumClassDefs() const {
+  uint32_t NumClassDefs() const {
     DCHECK(header_ != NULL) << GetLocation();
     return header_->class_defs_size_;
   }
@@ -959,6 +953,23 @@ class DexFile {
 
   // Points to the base of the class definition list.
   const ClassDef* const class_defs_;
+
+  // Number of misses finding a class def from a descriptor.
+  mutable Atomic<uint32_t> find_class_def_misses_;
+
+  struct UTF16HashCmp {
+    // Hash function.
+    size_t operator()(const char* key) const {
+      return ComputeUtf8Hash(key);
+    }
+    // std::equal function.
+    bool operator()(const char* a, const char* b) const {
+      return CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(a, b) == 0;
+    }
+  };
+  typedef std::unordered_map<const char*, const ClassDef*, UTF16HashCmp, UTF16HashCmp> Index;
+  mutable Atomic<Index*> class_def_index_;
+  mutable Mutex build_class_def_index_mutex_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 };
 std::ostream& operator<<(std::ostream& os, const DexFile& dex_file);
 

@@ -70,8 +70,6 @@ class ClassLinker {
   // Initialize class linker from one or more images.
   void InitFromImage() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsInBootClassPath(const char* descriptor);
-
   // Finds a class by its descriptor, loading it if necessary.
   // If class_loader is null, searches boot_class_path_.
   mirror::Class* FindClass(Thread* self, const char* descriptor,
@@ -643,7 +641,7 @@ class ClassLinker {
   bool dex_cache_image_class_lookup_required_;
   // Number of times we've searched dex caches for a class. After a certain number of misses we move
   // the classes into the class_table_ to avoid dex cache based searches.
-  AtomicInteger failed_dex_cache_class_lookups_;
+  Atomic<uint32_t> failed_dex_cache_class_lookups_;
 
   mirror::Class* LookupClassFromTableLocked(const char* descriptor,
                                             const mirror::ClassLoader* class_loader,
