@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_GC_SPACE_LARGE_OBJECT_SPACE_H_
 #define ART_RUNTIME_GC_SPACE_LARGE_OBJECT_SPACE_H_
 
-#include "gc/accounting/gc_allocator.h"
+#include "base/allocator.h"
 #include "dlmalloc_space.h"
 #include "safe_map.h"
 #include "space.h"
@@ -135,10 +135,10 @@ class LargeObjectMapSpace : public LargeObjectSpace {
 
   // Used to ensure mutual exclusion when the allocation spaces data structures are being modified.
   mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  std::vector<mirror::Object*,
-      accounting::GcAllocator<mirror::Object*>> large_objects_ GUARDED_BY(lock_);
+  std::vector<mirror::Object*, TrackingAllocator<mirror::Object*, kAllocatorTagLOS>> large_objects_
+      GUARDED_BY(lock_);
   typedef SafeMap<mirror::Object*, MemMap*, std::less<mirror::Object*>,
-      accounting::GcAllocator<std::pair<mirror::Object*, MemMap*>>> MemMaps;
+      TrackingAllocator<std::pair<mirror::Object*, MemMap*>, kAllocatorTagLOSMaps>> MemMaps;
   MemMaps mem_maps_ GUARDED_BY(lock_);
 };
 
@@ -259,7 +259,7 @@ class FreeListSpace FINAL : public LargeObjectSpace {
   AllocationHeader* GetAllocationHeader(const mirror::Object* obj);
 
   typedef std::set<AllocationHeader*, AllocationHeader::SortByPrevFree,
-                   accounting::GcAllocator<AllocationHeader*>> FreeBlocks;
+                   TrackingAllocator<AllocationHeader*, kAllocatorTagLOSFreeList>> FreeBlocks;
 
   // There is not footer for any allocations at the end of the space, so we keep track of how much
   // free space there is at the end manually.

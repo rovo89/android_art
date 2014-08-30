@@ -26,6 +26,7 @@
 #include <sys/mman.h>  // For the PROT_* and MAP_* constants.
 #include <sys/types.h>
 
+#include "base/allocator.h"
 #include "globals.h"
 
 namespace art {
@@ -135,13 +136,13 @@ class MemMap {
   static void DumpMaps(std::ostream& os)
       LOCKS_EXCLUDED(Locks::mem_maps_lock_);
 
+  typedef AllocationTrackingMultiMap<void*, MemMap*, kAllocatorTagMaps> Maps;
+
  private:
   MemMap(const std::string& name, byte* begin, size_t size, void* base_begin, size_t base_size,
          int prot, bool reuse) LOCKS_EXCLUDED(Locks::mem_maps_lock_);
 
-  static void DumpMaps(std::ostream& os, const std::multimap<void*, MemMap*>& mem_maps)
-      LOCKS_EXCLUDED(Locks::mem_maps_lock_);
-  static void DumpMapsLocked(std::ostream& os, const std::multimap<void*, MemMap*>& mem_maps)
+  static void DumpMapsLocked(std::ostream& os)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mem_maps_lock_);
   static bool HasMemMap(MemMap* map)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mem_maps_lock_);
@@ -166,7 +167,7 @@ class MemMap {
 #endif
 
   // All the non-empty MemMaps. Use a multimap as we do a reserve-and-divide (eg ElfMap::Load()).
-  static std::multimap<void*, MemMap*> maps_ GUARDED_BY(Locks::mem_maps_lock_);
+  static Maps maps_ GUARDED_BY(Locks::mem_maps_lock_);
 
   friend class MemMapTest;  // To allow access to base_begin_ and base_size_.
 };

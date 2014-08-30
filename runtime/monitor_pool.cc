@@ -57,7 +57,7 @@ void MonitorPool::AllocateChunk() {
   }
 
   // Allocate the chunk.
-  void* chunk = malloc(kChunkSize);
+  void* chunk = allocator_.allocate(kChunkSize);
   // Check we allocated memory.
   CHECK_NE(reinterpret_cast<uintptr_t>(nullptr), reinterpret_cast<uintptr_t>(chunk));
   // Check it is aligned as we need it.
@@ -131,7 +131,7 @@ void MonitorPool::ReleaseMonitorToPool(Thread* self, Monitor* monitor) {
   monitor->monitor_id_ = id;
 }
 
-void MonitorPool::ReleaseMonitorsToPool(Thread* self, std::list<Monitor*>* monitors) {
+void MonitorPool::ReleaseMonitorsToPool(Thread* self, MonitorList::Monitors* monitors) {
   for (Monitor* mon : *monitors) {
     ReleaseMonitorToPool(self, mon);
   }

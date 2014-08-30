@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/allocator.h"
 #include "compiler_callbacks.h"
 #include "gc_root.h"
 #include "instrumentation.h"
@@ -600,7 +601,9 @@ class Runtime {
   size_t method_trace_file_size_;
   instrumentation::Instrumentation instrumentation_;
 
-  typedef SafeMap<jobject, std::vector<const DexFile*>, JobjectComparator> CompileTimeClassPaths;
+  typedef AllocationTrackingSafeMap<jobject, std::vector<const DexFile*>,
+                                    kAllocatorTagCompileTimeClassPath, JobjectComparator>
+      CompileTimeClassPaths;
   CompileTimeClassPaths compile_time_class_paths_;
   bool use_compile_time_class_path_;
 

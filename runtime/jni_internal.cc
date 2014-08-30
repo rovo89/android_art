@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "atomic.h"
+#include "base/allocator.h"
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "base/stl_util.h"

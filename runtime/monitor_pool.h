@@ -19,6 +19,7 @@
 
 #include "monitor.h"
 
+#include "base/allocator.h"
 #ifdef __LP64__
 #include <stdint.h>
 #include "atomic.h"
@@ -58,7 +59,7 @@ class MonitorPool {
 #endif
   }
 
-  static void ReleaseMonitors(Thread* self, std::list<Monitor*>* monitors) {
+  static void ReleaseMonitors(Thread* self, MonitorList::Monitors* monitors) {
 #ifndef __LP64__
     STLDeleteElements(monitors);
 #else
@@ -110,7 +111,7 @@ class MonitorPool {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ReleaseMonitorToPool(Thread* self, Monitor* monitor);
-  void ReleaseMonitorsToPool(Thread* self, std::list<Monitor*>* monitors);
+  void ReleaseMonitorsToPool(Thread* self, MonitorList::Monitors* monitors);
 
   // Note: This is safe as we do not ever move chunks.
   Monitor* LookupMonitor(MonitorId mon_id) {
@@ -170,6 +171,9 @@ class MonitorPool {
 
   // To avoid race issues when resizing, we keep all the previous arrays.
   std::vector<uintptr_t*> old_chunk_arrays_ GUARDED_BY(Locks::allocated_monitor_ids_lock_);
+
+  typedef TrackingAllocator<byte, kAllocatorTagMonitorPool> Allocator;
+  Allocator allocator_;
 
   // Start of free list of monitors.
   // Note: these point to the right memory regions, but do *not* denote initialized objects.
