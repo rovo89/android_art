@@ -249,7 +249,7 @@ inline void Mir2Lir::SetupResourceMasks(LIR* lir) {
   }
 
   // Handle target-specific actions
-  SetupTargetResourceMasks(lir, flags, &def_mask, &use_mask);
+  SetupTargetResourceMasks(lir, flags, &use_mask, &def_mask);
 
   lir->u.m.use_mask = mask_cache_.GetMask(use_mask);
   lir->u.m.def_mask = mask_cache_.GetMask(def_mask);
