@@ -1407,26 +1407,7 @@ static JdwpError ER_Clear(JdwpState* state, Request& request, ExpandBuf*)
  */
 static JdwpError SF_GetValues(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = request.ReadThreadId();
-  FrameId frame_id = request.ReadFrameId();
-  int32_t slot_count = request.ReadSigned32("slot count");
-
-  expandBufAdd4BE(pReply, slot_count);     /* "int values" */
-  for (int32_t i = 0; i < slot_count; ++i) {
-    uint32_t slot = request.ReadUnsigned32("slot");
-    JDWP::JdwpTag reqSigByte = request.ReadTag();
-
-    VLOG(jdwp) << "    --> slot " << slot << " " << reqSigByte;
-
-    size_t width = Dbg::GetTagWidth(reqSigByte);
-    uint8_t* ptr = expandBufAddSpace(pReply, width+1);
-    JdwpError error = Dbg::GetLocalValue(thread_id, frame_id, slot, reqSigByte, ptr, width);
-    if (error != ERR_NONE) {
-      return error;
-    }
-  }
-
-  return ERR_NONE;
+  return Dbg::GetLocalValues(&request, pReply);
 }
 
 /*
@@ -1434,24 +1415,7 @@ static JdwpError SF_GetValues(JdwpState*, Request& request, ExpandBuf* pReply)
  */
 static JdwpError SF_SetValues(JdwpState*, Request& request, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = request.ReadThreadId();
-  FrameId frame_id = request.ReadFrameId();
-  int32_t slot_count = request.ReadSigned32("slot count");
-
-  for (int32_t i = 0; i < slot_count; ++i) {
-    uint32_t slot = request.ReadUnsigned32("slot");
-    JDWP::JdwpTag sigByte = request.ReadTag();
-    size_t width = Dbg::GetTagWidth(sigByte);
-    uint64_t value = request.ReadValue(width);
-
-    VLOG(jdwp) << "    --> slot " << slot << " " << sigByte << " " << value;
-    JdwpError error = Dbg::SetLocalValue(thread_id, frame_id, slot, sigByte, value, width);
-    if (error != ERR_NONE) {
-      return error;
-    }
-  }
-
-  return ERR_NONE;
+  return Dbg::SetLocalValues(&request);
 }
 
 static JdwpError SF_ThisObject(JdwpState*, Request& request, ExpandBuf* reply)

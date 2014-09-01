@@ -2405,298 +2405,325 @@ JDWP::JdwpError Dbg::GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame
   return JDWP::ERR_NONE;
 }
 
-JDWP::JdwpError Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int slot,
-                                   JDWP::JdwpTag tag, uint8_t* buf, size_t width) {
-  struct GetLocalVisitor : public StackVisitor {
-    GetLocalVisitor(const ScopedObjectAccessUnchecked& soa, Thread* thread, Context* context,
-                    JDWP::FrameId frame_id, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t width)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        : StackVisitor(thread, context), soa_(soa), frame_id_(frame_id), slot_(slot), tag_(tag),
-          buf_(buf), width_(width), error_(JDWP::ERR_NONE) {}
+// Walks the stack until we find the frame with the given FrameId.
+class FindFrameVisitor FINAL : public StackVisitor {
+ public:
+  FindFrameVisitor(Thread* thread, Context* context, JDWP::FrameId frame_id)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : StackVisitor(thread, context), frame_id_(frame_id), error_(JDWP::ERR_INVALID_FRAMEID) {}
 
-    // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
-    // annotalysis.
-    bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
-      if (GetFrameId() != frame_id_) {
-        return true;  // Not our frame, carry on.
-      }
-      // TODO: check that the tag is compatible with the actual type of the slot!
-      // TODO: check slot is valid for this method or return INVALID_SLOT error.
-      mirror::ArtMethod* m = GetMethod();
-      if (m->IsNative()) {
-        // We can't read local value from native method.
-        error_ = JDWP::ERR_OPAQUE_FRAME;
-        return false;
-      }
-      uint16_t reg = DemangleSlot(slot_, m);
-      constexpr JDWP::JdwpError kFailureErrorCode = JDWP::ERR_ABSENT_INFORMATION;
-      switch (tag_) {
-        case JDWP::JT_BOOLEAN: {
-          CHECK_EQ(width_, 1U);
-          uint32_t intVal;
-          if (GetVReg(m, reg, kIntVReg, &intVal)) {
-            VLOG(jdwp) << "get boolean local " << reg << " = " << intVal;
-            JDWP::Set1(buf_+1, intVal != 0);
-          } else {
-            VLOG(jdwp) << "failed to get boolean local " << reg;
-            error_ = kFailureErrorCode;
-          }
-          break;
-        }
-        case JDWP::JT_BYTE: {
-          CHECK_EQ(width_, 1U);
-          uint32_t intVal;
-          if (GetVReg(m, reg, kIntVReg, &intVal)) {
-            VLOG(jdwp) << "get byte local " << reg << " = " << intVal;
-            JDWP::Set1(buf_+1, intVal);
-          } else {
-            VLOG(jdwp) << "failed to get byte local " << reg;
-            error_ = kFailureErrorCode;
-          }
-          break;
-        }
-        case JDWP::JT_SHORT:
-        case JDWP::JT_CHAR: {
-          CHECK_EQ(width_, 2U);
-          uint32_t intVal;
-          if (GetVReg(m, reg, kIntVReg, &intVal)) {
-            VLOG(jdwp) << "get short/char local " << reg << " = " << intVal;
-            JDWP::Set2BE(buf_+1, intVal);
-          } else {
-            VLOG(jdwp) << "failed to get short/char local " << reg;
-            error_ = kFailureErrorCode;
-          }
-          break;
-        }
-        case JDWP::JT_INT: {
-          CHECK_EQ(width_, 4U);
-          uint32_t intVal;
-          if (GetVReg(m, reg, kIntVReg, &intVal)) {
-            VLOG(jdwp) << "get int local " << reg << " = " << intVal;
-            JDWP::Set4BE(buf_+1, intVal);
-          } else {
-            VLOG(jdwp) << "failed to get int local " << reg;
-            error_ = kFailureErrorCode;
-          }
-          break;
-        }
-        case JDWP::JT_FLOAT: {
-          CHECK_EQ(width_, 4U);
-          uint32_t intVal;
-          if (GetVReg(m, reg, kFloatVReg, &intVal)) {
-            VLOG(jdwp) << "get float local " << reg << " = " << intVal;
-            JDWP::Set4BE(buf_+1, intVal);
-          } else {
-            VLOG(jdwp) << "failed to get float local " << reg;
-            error_ = kFailureErrorCode;
-          }
-          break;
-        }
-        case JDWP::JT_ARRAY:
-        case JDWP::JT_CLASS_LOADER:
-        case JDWP::JT_CLASS_OBJECT:
-        case JDWP::JT_OBJECT:
-        case JDWP::JT_STRING:
-        case JDWP::JT_THREAD:
-        case JDWP::JT_THREAD_GROUP: {
-          CHECK_EQ(width_, sizeof(JDWP::ObjectId));
-          uint32_t intVal;
-          if (GetVReg(m, reg, kReferenceVReg, &intVal)) {
-            mirror::Object* o = reinterpret_cast<mirror::Object*>(intVal);
-            VLOG(jdwp) << "get " << tag_ << " object local " << reg << " = " << o;
-            if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(o)) {
-              LOG(FATAL) << "Register " << reg << " expected to hold " << tag_ << " object: " << o;
-            }
-            tag_ = TagFromObject(soa_, o);
-            JDWP::SetObjectId(buf_+1, gRegistry->Add(o));
-          } else {
-            VLOG(jdwp) << "failed to get " << tag_ << " object local " << reg;
-            error_ = kFailureErrorCode;
-          }
-          break;
-        }
-        case JDWP::JT_DOUBLE: {
-          CHECK_EQ(width_, 8U);
-          uint64_t longVal;
-          if (GetVRegPair(m, reg, kDoubleLoVReg, kDoubleHiVReg, &longVal)) {
-            VLOG(jdwp) << "get double local " << reg << " = " << longVal;
-            JDWP::Set8BE(buf_+1, longVal);
-          } else {
-            VLOG(jdwp) << "failed to get double local " << reg;
-            error_ = kFailureErrorCode;
-          }
-          break;
-        }
-        case JDWP::JT_LONG: {
-          CHECK_EQ(width_, 8U);
-          uint64_t longVal;
-          if (GetVRegPair(m, reg, kLongLoVReg, kLongHiVReg, &longVal)) {
-            VLOG(jdwp) << "get long local " << reg << " = " << longVal;
-            JDWP::Set8BE(buf_+1, longVal);
-          } else {
-            VLOG(jdwp) << "failed to get long local " << reg;
-            error_ = kFailureErrorCode;
-          }
-          break;
-        }
-        default:
-          LOG(FATAL) << "Unknown tag " << tag_;
-          break;
-      }
-
-      // Prepend tag, which may have been updated.
-      JDWP::Set1(buf_, tag_);
-      return false;
+  // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
+  // annotalysis.
+  bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
+    if (GetFrameId() != frame_id_) {
+      return true;  // Not our frame, carry on.
     }
-    const ScopedObjectAccessUnchecked& soa_;
-    const JDWP::FrameId frame_id_;
-    const int slot_;
-    JDWP::JdwpTag tag_;
-    uint8_t* const buf_;
-    const size_t width_;
-    JDWP::JdwpError error_;
-  };
+    mirror::ArtMethod* m = GetMethod();
+    if (m->IsNative()) {
+      // We can't read/write local value from/into native method.
+      error_ = JDWP::ERR_OPAQUE_FRAME;
+    } else {
+      // We found our frame.
+      error_ = JDWP::ERR_NONE;
+    }
+    return false;
+  }
+
+  JDWP::JdwpError GetError() const {
+    return error_;
+  }
+
+ private:
+  const JDWP::FrameId frame_id_;
+  JDWP::JdwpError error_;
+};
+
+JDWP::JdwpError Dbg::GetLocalValues(JDWP::Request* request, JDWP::ExpandBuf* pReply) {
+  JDWP::ObjectId thread_id = request->ReadThreadId();
+  JDWP::FrameId frame_id = request->ReadFrameId();
 
   ScopedObjectAccessUnchecked soa(Thread::Current());
-  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread;
-  JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
-  if (error != JDWP::ERR_NONE) {
-    return error;
+  {
+    MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
+    JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
+    if (error != JDWP::ERR_NONE) {
+      return error;
+    }
   }
-  // TODO check thread is suspended by the debugger ?
+  // Find the frame with the given frame_id.
   std::unique_ptr<Context> context(Context::Create());
-  GetLocalVisitor visitor(soa, thread, context.get(), frame_id, slot, tag, buf, width);
+  FindFrameVisitor visitor(thread, context.get(), frame_id);
   visitor.WalkStack();
-  return visitor.error_;
+  if (visitor.GetError() != JDWP::ERR_NONE) {
+    return visitor.GetError();
+  }
+
+  // Read the values from visitor's context.
+  int32_t slot_count = request->ReadSigned32("slot count");
+  expandBufAdd4BE(pReply, slot_count);     /* "int values" */
+  for (int32_t i = 0; i < slot_count; ++i) {
+    uint32_t slot = request->ReadUnsigned32("slot");
+    JDWP::JdwpTag reqSigByte = request->ReadTag();
+
+    VLOG(jdwp) << "    --> slot " << slot << " " << reqSigByte;
+
+    size_t width = Dbg::GetTagWidth(reqSigByte);
+    uint8_t* ptr = expandBufAddSpace(pReply, width+1);
+    JDWP::JdwpError error = Dbg::GetLocalValue(visitor, soa, slot, reqSigByte, ptr, width);
+    if (error != JDWP::ERR_NONE) {
+      return error;
+    }
+  }
+  return JDWP::ERR_NONE;
 }
 
-JDWP::JdwpError Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int slot,
-                                   JDWP::JdwpTag tag, uint64_t value, size_t width) {
-  struct SetLocalVisitor : public StackVisitor {
-    SetLocalVisitor(Thread* thread, Context* context,
-                    JDWP::FrameId frame_id, int slot, JDWP::JdwpTag tag, uint64_t value,
-                    size_t width)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        : StackVisitor(thread, context),
-          frame_id_(frame_id), slot_(slot), tag_(tag), value_(value), width_(width),
-          error_(JDWP::ERR_NONE) {}
-
-    // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
-    // annotalysis.
-    bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
-      if (GetFrameId() != frame_id_) {
-        return true;  // Not our frame, carry on.
+JDWP::JdwpError Dbg::GetLocalValue(const StackVisitor& visitor, ScopedObjectAccessUnchecked& soa,
+                                   int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t width) {
+  mirror::ArtMethod* m = visitor.GetMethod();
+  uint16_t reg = DemangleSlot(slot, m);
+  // TODO: check that the tag is compatible with the actual type of the slot!
+  // TODO: check slot is valid for this method or return INVALID_SLOT error.
+  constexpr JDWP::JdwpError kFailureErrorCode = JDWP::ERR_ABSENT_INFORMATION;
+  switch (tag) {
+    case JDWP::JT_BOOLEAN: {
+      CHECK_EQ(width, 1U);
+      uint32_t intVal;
+      if (visitor.GetVReg(m, reg, kIntVReg, &intVal)) {
+        VLOG(jdwp) << "get boolean local " << reg << " = " << intVal;
+        JDWP::Set1(buf + 1, intVal != 0);
+      } else {
+        VLOG(jdwp) << "failed to get boolean local " << reg;
+        return kFailureErrorCode;
       }
-      // TODO: check that the tag is compatible with the actual type of the slot!
-      // TODO: check slot is valid for this method or return INVALID_SLOT error.
-      mirror::ArtMethod* m = GetMethod();
-      if (m->IsNative()) {
-        // We can't read local value from native method.
-        error_ = JDWP::ERR_OPAQUE_FRAME;
-        return false;
-      }
-      uint16_t reg = DemangleSlot(slot_, m);
-      constexpr JDWP::JdwpError kFailureErrorCode = JDWP::ERR_ABSENT_INFORMATION;
-      switch (tag_) {
-        case JDWP::JT_BOOLEAN:
-        case JDWP::JT_BYTE:
-          CHECK_EQ(width_, 1U);
-          if (!SetVReg(m, reg, static_cast<uint32_t>(value_), kIntVReg)) {
-            VLOG(jdwp) << "failed to set boolean/byte local " << reg << " = "
-                       << static_cast<uint32_t>(value_);
-            error_ = kFailureErrorCode;
-          }
-          break;
-        case JDWP::JT_SHORT:
-        case JDWP::JT_CHAR:
-          CHECK_EQ(width_, 2U);
-          if (!SetVReg(m, reg, static_cast<uint32_t>(value_), kIntVReg)) {
-            VLOG(jdwp) << "failed to set short/char local " << reg << " = "
-                       << static_cast<uint32_t>(value_);
-            error_ = kFailureErrorCode;
-          }
-          break;
-        case JDWP::JT_INT:
-          CHECK_EQ(width_, 4U);
-          if (!SetVReg(m, reg, static_cast<uint32_t>(value_), kIntVReg)) {
-            VLOG(jdwp) << "failed to set int local " << reg << " = "
-                       << static_cast<uint32_t>(value_);
-            error_ = kFailureErrorCode;
-          }
-          break;
-        case JDWP::JT_FLOAT:
-          CHECK_EQ(width_, 4U);
-          if (!SetVReg(m, reg, static_cast<uint32_t>(value_), kFloatVReg)) {
-            VLOG(jdwp) << "failed to set float local " << reg << " = "
-                       << static_cast<uint32_t>(value_);
-            error_ = kFailureErrorCode;
-          }
-          break;
-        case JDWP::JT_ARRAY:
-        case JDWP::JT_CLASS_LOADER:
-        case JDWP::JT_CLASS_OBJECT:
-        case JDWP::JT_OBJECT:
-        case JDWP::JT_STRING:
-        case JDWP::JT_THREAD:
-        case JDWP::JT_THREAD_GROUP: {
-          CHECK_EQ(width_, sizeof(JDWP::ObjectId));
-          mirror::Object* o = gRegistry->Get<mirror::Object*>(static_cast<JDWP::ObjectId>(value_));
-          if (o == ObjectRegistry::kInvalidObject) {
-            VLOG(jdwp) << tag_ << " object " << o << " is an invalid object";
-            error_ = JDWP::ERR_INVALID_OBJECT;
-          } else if (!SetVReg(m, reg, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o)),
-                              kReferenceVReg)) {
-            VLOG(jdwp) << "failed to set " << tag_ << " object local " << reg << " = " << o;
-            error_ = kFailureErrorCode;
-          }
-          break;
-        }
-        case JDWP::JT_DOUBLE: {
-          CHECK_EQ(width_, 8U);
-          bool success = SetVRegPair(m, reg, value_, kDoubleLoVReg, kDoubleHiVReg);
-          if (!success) {
-            VLOG(jdwp) << "failed to set double local " << reg << " = " << value_;
-            error_ = kFailureErrorCode;
-          }
-          break;
-        }
-        case JDWP::JT_LONG: {
-          CHECK_EQ(width_, 8U);
-          bool success = SetVRegPair(m, reg, value_, kLongLoVReg, kLongHiVReg);
-          if (!success) {
-            VLOG(jdwp) << "failed to set double local " << reg << " = " << value_;
-            error_ = kFailureErrorCode;
-          }
-          break;
-        }
-        default:
-          LOG(FATAL) << "Unknown tag " << tag_;
-          break;
-      }
-      return false;
+      break;
     }
+    case JDWP::JT_BYTE: {
+      CHECK_EQ(width, 1U);
+      uint32_t intVal;
+      if (visitor.GetVReg(m, reg, kIntVReg, &intVal)) {
+        VLOG(jdwp) << "get byte local " << reg << " = " << intVal;
+        JDWP::Set1(buf + 1, intVal);
+      } else {
+        VLOG(jdwp) << "failed to get byte local " << reg;
+        return kFailureErrorCode;
+      }
+      break;
+    }
+    case JDWP::JT_SHORT:
+    case JDWP::JT_CHAR: {
+      CHECK_EQ(width, 2U);
+      uint32_t intVal;
+      if (visitor.GetVReg(m, reg, kIntVReg, &intVal)) {
+        VLOG(jdwp) << "get short/char local " << reg << " = " << intVal;
+        JDWP::Set2BE(buf + 1, intVal);
+      } else {
+        VLOG(jdwp) << "failed to get short/char local " << reg;
+        return kFailureErrorCode;
+      }
+      break;
+    }
+    case JDWP::JT_INT: {
+      CHECK_EQ(width, 4U);
+      uint32_t intVal;
+      if (visitor.GetVReg(m, reg, kIntVReg, &intVal)) {
+        VLOG(jdwp) << "get int local " << reg << " = " << intVal;
+        JDWP::Set4BE(buf + 1, intVal);
+      } else {
+        VLOG(jdwp) << "failed to get int local " << reg;
+        return kFailureErrorCode;
+      }
+      break;
+    }
+    case JDWP::JT_FLOAT: {
+      CHECK_EQ(width, 4U);
+      uint32_t intVal;
+      if (visitor.GetVReg(m, reg, kFloatVReg, &intVal)) {
+        VLOG(jdwp) << "get float local " << reg << " = " << intVal;
+        JDWP::Set4BE(buf + 1, intVal);
+      } else {
+        VLOG(jdwp) << "failed to get float local " << reg;
+        return kFailureErrorCode;
+      }
+      break;
+    }
+    case JDWP::JT_ARRAY:
+    case JDWP::JT_CLASS_LOADER:
+    case JDWP::JT_CLASS_OBJECT:
+    case JDWP::JT_OBJECT:
+    case JDWP::JT_STRING:
+    case JDWP::JT_THREAD:
+    case JDWP::JT_THREAD_GROUP: {
+      CHECK_EQ(width, sizeof(JDWP::ObjectId));
+      uint32_t intVal;
+      if (visitor.GetVReg(m, reg, kReferenceVReg, &intVal)) {
+        mirror::Object* o = reinterpret_cast<mirror::Object*>(intVal);
+        VLOG(jdwp) << "get " << tag << " object local " << reg << " = " << o;
+        if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(o)) {
+          LOG(FATAL) << "Register " << reg << " expected to hold " << tag << " object: " << o;
+        }
+        tag = TagFromObject(soa, o);
+        JDWP::SetObjectId(buf + 1, gRegistry->Add(o));
+      } else {
+        VLOG(jdwp) << "failed to get " << tag << " object local " << reg;
+        return kFailureErrorCode;
+      }
+      break;
+    }
+    case JDWP::JT_DOUBLE: {
+      CHECK_EQ(width, 8U);
+      uint64_t longVal;
+      if (visitor.GetVRegPair(m, reg, kDoubleLoVReg, kDoubleHiVReg, &longVal)) {
+        VLOG(jdwp) << "get double local " << reg << " = " << longVal;
+        JDWP::Set8BE(buf + 1, longVal);
+      } else {
+        VLOG(jdwp) << "failed to get double local " << reg;
+        return kFailureErrorCode;
+      }
+      break;
+    }
+    case JDWP::JT_LONG: {
+      CHECK_EQ(width, 8U);
+      uint64_t longVal;
+      if (visitor.GetVRegPair(m, reg, kLongLoVReg, kLongHiVReg, &longVal)) {
+        VLOG(jdwp) << "get long local " << reg << " = " << longVal;
+        JDWP::Set8BE(buf + 1, longVal);
+      } else {
+        VLOG(jdwp) << "failed to get long local " << reg;
+        return kFailureErrorCode;
+      }
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unknown tag " << tag;
+      break;
+  }
 
-    const JDWP::FrameId frame_id_;
-    const int slot_;
-    const JDWP::JdwpTag tag_;
-    const uint64_t value_;
-    const size_t width_;
-    JDWP::JdwpError error_;
-  };
+  // Prepend tag, which may have been updated.
+  JDWP::Set1(buf, tag);
+  return JDWP::ERR_NONE;
+}
+
+JDWP::JdwpError Dbg::SetLocalValues(JDWP::Request* request) {
+  JDWP::ObjectId thread_id = request->ReadThreadId();
+  JDWP::FrameId frame_id = request->ReadFrameId();
 
   ScopedObjectAccessUnchecked soa(Thread::Current());
-  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread;
-  JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
-  if (error != JDWP::ERR_NONE) {
-    return error;
+  {
+    MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
+    JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
+    if (error != JDWP::ERR_NONE) {
+      return error;
+    }
   }
-  // TODO check thread is suspended by the debugger ?
+  // Find the frame with the given frame_id.
   std::unique_ptr<Context> context(Context::Create());
-  SetLocalVisitor visitor(thread, context.get(), frame_id, slot, tag, value, width);
+  FindFrameVisitor visitor(thread, context.get(), frame_id);
   visitor.WalkStack();
-  return visitor.error_;
+  if (visitor.GetError() != JDWP::ERR_NONE) {
+    return visitor.GetError();
+  }
+
+  // Writes the values into visitor's context.
+  int32_t slot_count = request->ReadSigned32("slot count");
+  for (int32_t i = 0; i < slot_count; ++i) {
+    uint32_t slot = request->ReadUnsigned32("slot");
+    JDWP::JdwpTag sigByte = request->ReadTag();
+    size_t width = Dbg::GetTagWidth(sigByte);
+    uint64_t value = request->ReadValue(width);
+
+    VLOG(jdwp) << "    --> slot " << slot << " " << sigByte << " " << value;
+    JDWP::JdwpError error = Dbg::SetLocalValue(visitor, slot, sigByte, value, width);
+    if (error != JDWP::ERR_NONE) {
+      return error;
+    }
+  }
+  return JDWP::ERR_NONE;
+}
+
+JDWP::JdwpError Dbg::SetLocalValue(StackVisitor& visitor, int slot, JDWP::JdwpTag tag,
+                                   uint64_t value, size_t width) {
+  mirror::ArtMethod* m = visitor.GetMethod();
+  uint16_t reg = DemangleSlot(slot, m);
+  // TODO: check that the tag is compatible with the actual type of the slot!
+  // TODO: check slot is valid for this method or return INVALID_SLOT error.
+  constexpr JDWP::JdwpError kFailureErrorCode = JDWP::ERR_ABSENT_INFORMATION;
+  switch (tag) {
+    case JDWP::JT_BOOLEAN:
+    case JDWP::JT_BYTE:
+      CHECK_EQ(width, 1U);
+      if (!visitor.SetVReg(m, reg, static_cast<uint32_t>(value), kIntVReg)) {
+        VLOG(jdwp) << "failed to set boolean/byte local " << reg << " = "
+                   << static_cast<uint32_t>(value);
+        return kFailureErrorCode;
+      }
+      break;
+    case JDWP::JT_SHORT:
+    case JDWP::JT_CHAR:
+      CHECK_EQ(width, 2U);
+      if (!visitor.SetVReg(m, reg, static_cast<uint32_t>(value), kIntVReg)) {
+        VLOG(jdwp) << "failed to set short/char local " << reg << " = "
+                   << static_cast<uint32_t>(value);
+        return kFailureErrorCode;
+      }
+      break;
+    case JDWP::JT_INT:
+      CHECK_EQ(width, 4U);
+      if (!visitor.SetVReg(m, reg, static_cast<uint32_t>(value), kIntVReg)) {
+        VLOG(jdwp) << "failed to set int local " << reg << " = "
+                   << static_cast<uint32_t>(value);
+        return kFailureErrorCode;
+      }
+      break;
+    case JDWP::JT_FLOAT:
+      CHECK_EQ(width, 4U);
+      if (!visitor.SetVReg(m, reg, static_cast<uint32_t>(value), kFloatVReg)) {
+        VLOG(jdwp) << "failed to set float local " << reg << " = "
+                   << static_cast<uint32_t>(value);
+        return kFailureErrorCode;
+      }
+      break;
+    case JDWP::JT_ARRAY:
+    case JDWP::JT_CLASS_LOADER:
+    case JDWP::JT_CLASS_OBJECT:
+    case JDWP::JT_OBJECT:
+    case JDWP::JT_STRING:
+    case JDWP::JT_THREAD:
+    case JDWP::JT_THREAD_GROUP: {
+      CHECK_EQ(width, sizeof(JDWP::ObjectId));
+      mirror::Object* o = gRegistry->Get<mirror::Object*>(static_cast<JDWP::ObjectId>(value));
+      if (o == ObjectRegistry::kInvalidObject) {
+        VLOG(jdwp) << tag << " object " << o << " is an invalid object";
+        return JDWP::ERR_INVALID_OBJECT;
+      } else if (!visitor.SetVReg(m, reg, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o)),
+                          kReferenceVReg)) {
+        VLOG(jdwp) << "failed to set " << tag << " object local " << reg << " = " << o;
+        return kFailureErrorCode;
+      }
+      break;
+    }
+    case JDWP::JT_DOUBLE: {
+      CHECK_EQ(width, 8U);
+      if (!visitor.SetVRegPair(m, reg, value, kDoubleLoVReg, kDoubleHiVReg)) {
+        VLOG(jdwp) << "failed to set double local " << reg << " = " << value;
+        return kFailureErrorCode;
+      }
+      break;
+    }
+    case JDWP::JT_LONG: {
+      CHECK_EQ(width, 8U);
+      if (!visitor.SetVRegPair(m, reg, value, kLongLoVReg, kLongHiVReg)) {
+        VLOG(jdwp) << "failed to set double local " << reg << " = " << value;
+        return kFailureErrorCode;
+      }
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unknown tag " << tag;
+      break;
+  }
+  return JDWP::ERR_NONE;
 }
 
 static void SetEventLocation(JDWP::EventLocation* location, mirror::ArtMethod* m, uint32_t dex_pc)
