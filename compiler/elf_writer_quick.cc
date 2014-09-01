@@ -979,27 +979,33 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
   Elf32_Word oat_data_size = oat_header.GetExecutableOffset();
   uint32_t oat_exec_size = oat_writer->GetSize() - oat_data_size;
 
-  ElfBuilder builder(oat_writer, elf_file_, compiler_driver_->GetInstructionSet(), 0,
-                     oat_data_size, oat_data_size, oat_exec_size,
-                     compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols(),
-                     debug);
+  std::unique_ptr<ElfBuilder> builder(new ElfBuilder(
+      oat_writer,
+      elf_file_,
+      compiler_driver_->GetInstructionSet(),
+      0,
+      oat_data_size,
+      oat_data_size,
+      oat_exec_size,
+      compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols(),
+      debug));
 
-  if (!builder.Init()) {
+  if (!builder->Init()) {
     return false;
   }
 
   if (compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols()) {
-    WriteDebugSymbols(&builder, oat_writer);
+    WriteDebugSymbols(builder.get(), oat_writer);
   }
 
   if (compiler_driver_->GetCompilerOptions().GetIncludePatchInformation()) {
     ElfRawSectionBuilder oat_patches(".oat_patches", SHT_OAT_PATCH, 0, NULL, 0,
                                      sizeof(uintptr_t), sizeof(uintptr_t));
     ReservePatchSpace(oat_patches.GetBuffer(), debug);
-    builder.RegisterRawSection(oat_patches);
+    builder->RegisterRawSection(oat_patches);
   }
 
-  return builder.Write();
+  return builder->Write();
 }
 
 void ElfWriterQuick::WriteDebugSymbols(ElfBuilder* builder, OatWriter* oat_writer) {
