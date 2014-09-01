@@ -28,6 +28,7 @@
 
 #if defined(__APPLE__)
 #define _NSIG NSIG
+#define sighandler_t sig_t
 #endif
 
 namespace art {
