@@ -23,9 +23,6 @@
 
 namespace art {
 
-template <typename Elf_Word, typename Elf_Sword, typename Elf_Addr,
-          typename Elf_Dyn, typename Elf_Sym, typename Elf_Ehdr,
-          typename Elf_Phdr, typename Elf_Shdr>
 class ElfWriterQuick FINAL : public ElfWriter {
  public:
   // Write an ELF file. Returns true on success, false on failure.
@@ -56,9 +53,9 @@ class ElfWriterQuick FINAL : public ElfWriter {
 
   class ElfSectionBuilder {
    public:
-    ElfSectionBuilder(const std::string& sec_name, Elf_Word type, Elf_Word flags,
-                      const ElfSectionBuilder *link, Elf_Word info, Elf_Word align,
-                      Elf_Word entsize)
+    ElfSectionBuilder(const std::string& sec_name, Elf32_Word type, Elf32_Word flags,
+                      const ElfSectionBuilder *link, Elf32_Word info, Elf32_Word align,
+                      Elf32_Word entsize)
         : name_(sec_name), link_(link) {
       memset(&section_, 0, sizeof(section_));
       section_.sh_type = type;
@@ -70,14 +67,14 @@ class ElfWriterQuick FINAL : public ElfWriter {
 
     virtual ~ElfSectionBuilder() {}
 
-    Elf_Shdr section_;
-    Elf_Word section_index_ = 0;
+    Elf32_Shdr section_;
+    Elf32_Word section_index_ = 0;
 
    protected:
     const std::string name_;
     const ElfSectionBuilder* link_;
 
-    Elf_Word GetLink() {
+    Elf32_Word GetLink() {
       return (link_) ? link_->section_index_ : 0;
     }
 
@@ -87,22 +84,22 @@ class ElfWriterQuick FINAL : public ElfWriter {
 
   class ElfDynamicBuilder : public ElfSectionBuilder {
    public:
-    void AddDynamicTag(Elf_Sword tag, Elf_Word d_un);
-    void AddDynamicTag(Elf_Sword tag, Elf_Word offset, ElfSectionBuilder* section);
+    void AddDynamicTag(Elf32_Sword tag, Elf32_Word d_un);
+    void AddDynamicTag(Elf32_Sword tag, Elf32_Word offset, ElfSectionBuilder* section);
 
     ElfDynamicBuilder(const std::string& sec_name, ElfSectionBuilder *link)
         : ElfSectionBuilder(sec_name, SHT_DYNAMIC, SHF_ALLOC | SHF_ALLOC, link,
-                            0, kPageSize, sizeof(Elf_Dyn)) {}
+                            0, kPageSize, sizeof(Elf32_Dyn)) {}
     ~ElfDynamicBuilder() {}
 
    protected:
     struct ElfDynamicState {
       ElfSectionBuilder* section_;
-      Elf_Sword tag_;
-      Elf_Word off_;
+      Elf32_Sword tag_;
+      Elf32_Word off_;
     };
     std::vector<ElfDynamicState> dynamics_;
-    Elf_Word GetSize() {
+    Elf32_Word GetSize() {
       // Add 1 for the DT_NULL, 1 for DT_STRSZ, and 1 for DT_SONAME. All of
       // these must be added when we actually put the file together because
       // their values are very dependent on state.
@@ -113,7 +110,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
     // table and soname_off should be the offset of the soname in .dynstr.
     // Since niether can be found prior to final layout we will wait until here
     // to add them.
-    std::vector<Elf_Dyn> GetDynamics(Elf_Word strsz, Elf_Word soname_off);
+    std::vector<Elf32_Dyn> GetDynamics(Elf32_Word strsz, Elf32_Word soname_off);
 
    private:
     friend class ElfBuilder;
@@ -121,9 +118,9 @@ class ElfWriterQuick FINAL : public ElfWriter {
 
   class ElfRawSectionBuilder : public ElfSectionBuilder {
    public:
-    ElfRawSectionBuilder(const std::string& sec_name, Elf_Word type, Elf_Word flags,
-                         const ElfSectionBuilder* link, Elf_Word info, Elf_Word align,
-                         Elf_Word entsize)
+    ElfRawSectionBuilder(const std::string& sec_name, Elf32_Word type, Elf32_Word flags,
+                         const ElfSectionBuilder* link, Elf32_Word info, Elf32_Word align,
+                         Elf32_Word entsize)
         : ElfSectionBuilder(sec_name, type, flags, link, info, align, entsize) {}
     ~ElfRawSectionBuilder() {}
     std::vector<uint8_t>* GetBuffer() { return &buf_; }
@@ -138,17 +135,17 @@ class ElfWriterQuick FINAL : public ElfWriter {
 
   class ElfOatSectionBuilder : public ElfSectionBuilder {
    public:
-    ElfOatSectionBuilder(const std::string& sec_name, Elf_Word size, Elf_Word offset,
-                         Elf_Word type, Elf_Word flags)
+    ElfOatSectionBuilder(const std::string& sec_name, Elf32_Word size, Elf32_Word offset,
+                         Elf32_Word type, Elf32_Word flags)
         : ElfSectionBuilder(sec_name, type, flags, NULL, 0, kPageSize, 0),
           offset_(offset), size_(size) {}
     ~ElfOatSectionBuilder() {}
 
    protected:
     // Offset of the content within the file.
-    Elf_Word offset_;
+    Elf32_Word offset_;
     // Size of the content within the file.
-    Elf_Word size_;
+    Elf32_Word size_;
 
    private:
     friend class ElfBuilder;
@@ -160,27 +157,27 @@ class ElfWriterQuick FINAL : public ElfWriter {
     // 'relative_addr' within the given section and has the given attributes.
     void AddSymbol(const std::string& name,
                    const ElfSectionBuilder* section,
-                   Elf_Addr addr,
+                   Elf32_Addr addr,
                    bool is_relative,
-                   Elf_Word size,
+                   Elf32_Word size,
                    uint8_t binding,
                    uint8_t type,
                    uint8_t other = 0);
 
-    ElfSymtabBuilder(const std::string& sec_name, Elf_Word type,
-                     const std::string& str_name, Elf_Word str_type, bool alloc)
+    ElfSymtabBuilder(const std::string& sec_name, Elf32_Word type,
+                     const std::string& str_name, Elf32_Word str_type, bool alloc)
         : ElfSectionBuilder(sec_name, type, ((alloc) ? SHF_ALLOC : 0U), &strtab_, 0,
-                            sizeof(Elf_Word), sizeof(Elf_Sym)),
+                            sizeof(Elf32_Word), sizeof(Elf32_Sym)),
           str_name_(str_name), str_type_(str_type),
           strtab_(str_name, str_type, ((alloc) ? SHF_ALLOC : 0U), NULL, 0, 1, 1) {}
     ~ElfSymtabBuilder() {}
 
    protected:
-    std::vector<Elf_Word> GenerateHashContents();
+    std::vector<Elf32_Word> GenerateHashContents();
     std::string GenerateStrtab();
-    std::vector<Elf_Sym> GenerateSymtab();
+    std::vector<Elf32_Sym> GenerateSymtab();
 
-    Elf_Word GetSize() {
+    Elf32_Word GetSize() {
       // 1 is for the implicit NULL symbol.
       return symbols_.size() + 1;
     }
@@ -188,18 +185,18 @@ class ElfWriterQuick FINAL : public ElfWriter {
     struct ElfSymbolState {
       const std::string name_;
       const ElfSectionBuilder* section_;
-      Elf_Addr addr_;
-      Elf_Word size_;
+      Elf32_Addr addr_;
+      Elf32_Word size_;
       bool is_relative_;
       uint8_t info_;
       uint8_t other_;
       // Used during Write() to temporarially hold name index in the strtab.
-      Elf_Word name_idx_;
+      Elf32_Word name_idx_;
     };
 
     // Information for the strsym for dynstr sections.
     const std::string str_name_;
-    Elf_Word str_type_;
+    Elf32_Word str_type_;
     // The symbols in the same order they will be in the symbol table.
     std::vector<ElfSymbolState> symbols_;
     ElfSectionBuilder strtab_;
@@ -213,10 +210,10 @@ class ElfWriterQuick FINAL : public ElfWriter {
     ElfBuilder(OatWriter* oat_writer,
                File* elf_file,
                InstructionSet isa,
-               Elf_Word rodata_relative_offset,
-               Elf_Word rodata_size,
-               Elf_Word text_relative_offset,
-               Elf_Word text_size,
+               Elf32_Word rodata_relative_offset,
+               Elf32_Word rodata_size,
+               Elf32_Word text_relative_offset,
+               Elf32_Word text_size,
                const bool add_symbols,
                bool debug = false)
         : oat_writer_(oat_writer),
@@ -230,7 +227,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
           dynsym_builder_(".dynsym", SHT_DYNSYM, ".dynstr", SHT_STRTAB, true),
           symtab_builder_(".symtab", SHT_SYMTAB, ".strtab", SHT_STRTAB, false),
           hash_builder_(".hash", SHT_HASH, SHF_ALLOC, &dynsym_builder_, 0,
-                        sizeof(Elf_Word), sizeof(Elf_Word)),
+                        sizeof(Elf32_Word), sizeof(Elf32_Word)),
           dynamic_builder_(".dynamic", &dynsym_builder_),
           shstrtab_builder_(".shstrtab", SHT_STRTAB, 0, NULL, 0, 1, 1) {
       SetupEhdr();
@@ -258,7 +255,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
     bool fatal_error_ = false;
 
     // What phdr is.
-    static const uint32_t PHDR_OFFSET = sizeof(Elf_Ehdr);
+    static const uint32_t PHDR_OFFSET = sizeof(Elf32_Ehdr);
     enum : uint8_t {
       PH_PHDR     = 0,
       PH_LOAD_R__ = 1,
@@ -267,18 +264,18 @@ class ElfWriterQuick FINAL : public ElfWriter {
       PH_DYNAMIC  = 4,
       PH_NUM      = 5,
     };
-    static const uint32_t PHDR_SIZE = sizeof(Elf_Phdr) * PH_NUM;
-    Elf_Phdr program_headers_[PH_NUM];
+    static const uint32_t PHDR_SIZE = sizeof(Elf32_Phdr) * PH_NUM;
+    Elf32_Phdr program_headers_[PH_NUM];
 
-    Elf_Ehdr elf_header_;
+    Elf32_Ehdr elf_header_;
 
-    Elf_Shdr null_hdr_;
+    Elf32_Shdr null_hdr_;
     std::string shstrtab_;
     uint32_t section_index_;
     std::string dynstr_;
     uint32_t dynstr_soname_offset_;
-    std::vector<Elf_Shdr*> section_ptrs_;
-    std::vector<Elf_Word> hash_;
+    std::vector<Elf32_Shdr*> section_ptrs_;
+    std::vector<Elf32_Word> hash_;
 
    public:
     ElfOatSectionBuilder text_builder_;
@@ -315,14 +312,14 @@ class ElfWriterQuick FINAL : public ElfWriter {
     void SetupRequiredSymbols();
     void AssignSectionStr(ElfSectionBuilder *builder, std::string* strtab);
     struct ElfFilePiece {
-      ElfFilePiece(const std::string& name, Elf_Word offset, const void* data, Elf_Word size)
+      ElfFilePiece(const std::string& name, Elf32_Word offset, const void* data, Elf32_Word size)
           : dbg_name_(name), offset_(offset), data_(data), size_(size) {}
       ~ElfFilePiece() {}
 
       const std::string& dbg_name_;
-      Elf_Word offset_;
+      Elf32_Word offset_;
       const void *data_;
-      Elf_Word size_;
+      Elf32_Word size_;
       static bool Compare(ElfFilePiece a, ElfFilePiece b) {
         return a.offset_ < b.offset_;
       }
@@ -346,12 +343,6 @@ class ElfWriterQuick FINAL : public ElfWriter {
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(ElfWriterQuick);
 };
-
-// Explicitly instantiated in elf_writer_quick.cc
-typedef ElfWriterQuick<Elf32_Word, Elf32_Sword, Elf32_Addr, Elf32_Dyn,
-                       Elf32_Sym, Elf32_Ehdr, Elf32_Phdr, Elf32_Shdr> ElfWriterQuick32;
-typedef ElfWriterQuick<Elf64_Word, Elf64_Sword, Elf64_Addr, Elf64_Dyn,
-                       Elf64_Sym, Elf64_Ehdr, Elf64_Phdr, Elf64_Shdr> ElfWriterQuick64;
 
 }  // namespace art
 

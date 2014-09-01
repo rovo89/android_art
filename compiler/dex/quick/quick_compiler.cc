@@ -608,8 +608,8 @@ bool QuickCompiler::WriteElf(art::File* file,
                              const std::vector<const art::DexFile*>& dex_files,
                              const std::string& android_root,
                              bool is_host) const {
-  return art::ElfWriterQuick32::Create(file, oat_writer, dex_files, android_root, is_host,
-                                       *GetCompilerDriver());
+  return art::ElfWriterQuick::Create(file, oat_writer, dex_files, android_root, is_host,
+                                     *GetCompilerDriver());
 }
 
 Backend* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const {
