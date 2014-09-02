@@ -1046,7 +1046,8 @@ bool DexFileVerifier::CheckIntraAnnotationsDirectoryItem() {
   return true;
 }
 
-bool DexFileVerifier::CheckIntraSectionIterate(size_t offset, uint32_t count, uint16_t type) {
+bool DexFileVerifier::CheckIntraSectionIterate(size_t offset, uint32_t section_count,
+                                               uint16_t type) {
   // Get the right alignment mask for the type of section.
   size_t alignment_mask;
   switch (type) {
@@ -1063,7 +1064,7 @@ bool DexFileVerifier::CheckIntraSectionIterate(size_t offset, uint32_t count, ui
   }
 
   // Iterate through the items in the section.
-  for (uint32_t i = 0; i < count; i++) {
+  for (uint32_t i = 0; i < section_count; i++) {
     size_t aligned_offset = (offset + alignment_mask) & ~alignment_mask;
 
     // Check the padding between items.
@@ -1129,7 +1130,7 @@ bool DexFileVerifier::CheckIntraSectionIterate(size_t offset, uint32_t count, ui
           return false;
         }
 
-        ptr_ += count;
+        ptr_ += list_size;
         break;
       }
       case DexFile::kDexTypeAnnotationSetRefList: {
