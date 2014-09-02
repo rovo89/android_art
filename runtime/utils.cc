@@ -598,10 +598,10 @@ std::string PrintableChar(uint16_t ch) {
   return result;
 }
 
-std::string PrintableString(const std::string& utf) {
+std::string PrintableString(const char* utf) {
   std::string result;
   result += '"';
-  const char* p = utf.c_str();
+  const char* p = utf;
   size_t char_count = CountModifiedUtf8Chars(p);
   for (size_t i = 0; i < char_count; ++i) {
     uint16_t ch = GetUtf16FromUtf8(&p);

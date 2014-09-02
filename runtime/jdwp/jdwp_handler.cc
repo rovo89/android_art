@@ -921,7 +921,7 @@ static JdwpError SR_Value(JdwpState*, Request& request, ExpandBuf* pReply)
   ObjectId stringObject = request.ReadObjectId();
   std::string str(Dbg::StringToUtf8(stringObject));
 
-  VLOG(jdwp) << StringPrintf("    --> %s", PrintableString(str).c_str());
+  VLOG(jdwp) << StringPrintf("    --> %s", PrintableString(str.c_str()).c_str());
 
   expandBufAddUtf8String(pReply, str);
 

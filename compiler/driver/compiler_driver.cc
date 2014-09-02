@@ -1495,51 +1495,6 @@ class ParallelCompilationManager {
   DISALLOW_COPY_AND_ASSIGN(ParallelCompilationManager);
 };
 
-static bool SkipClassCheckClassPath(const char* descriptor, const DexFile& dex_file,
-                                    const std::vector<const DexFile*>& classpath) {
-  DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, classpath);
-  CHECK(pair.second != NULL);
-  if (pair.first != &dex_file) {
-    LOG(WARNING) << "Skipping class " << descriptor << " from " << dex_file.GetLocation()
-                 << " previously found in " << pair.first->GetLocation();
-    return true;
-  }
-  return false;
-}
-
-// Return true if the class should be skipped during compilation.
-//
-// The first case where we skip is for redundant class definitions in
-// the boot classpath. We skip all but the first definition in that case.
-//
-// The second case where we skip is when an app bundles classes found
-// in the boot classpath. Since at runtime we will select the class from
-// the boot classpath, we ignore the one from the app.
-//
-// The third case is if the app itself has the class defined in multiple dex files. Then we skip
-// it if it is not the first occurrence.
-static bool SkipClass(ClassLinker* class_linker, jobject class_loader, const DexFile& dex_file,
-                      const std::vector<const DexFile*>& dex_files,
-                      const DexFile::ClassDef& class_def) {
-  const char* descriptor = dex_file.GetClassDescriptor(class_def);
-
-  if (class_loader == NULL) {
-    return SkipClassCheckClassPath(descriptor, dex_file, class_linker->GetBootClassPath());
-  }
-
-  if (class_linker->IsInBootClassPath(descriptor)) {
-    return true;
-  }
-
-  if (dex_files.size() > 1) {
-    // Multi-dex compilation, only take first class.
-    return SkipClassCheckClassPath(descriptor, dex_file, dex_files);
-  } else {
-    // Single dex, take everything.
-    return false;
-  }
-}
-
 // A fast version of SkipClass above if the class pointer is available
 // that avoids the expensive FindInClassPath search.
 static bool SkipClass(jobject class_loader, const DexFile& dex_file, mirror::Class* klass)
@@ -1606,81 +1561,84 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
   // definitions, since many of them many never be referenced by
   // generated code.
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
-  if (!SkipClass(class_linker, jclass_loader, dex_file, manager->GetDexFiles(), class_def)) {
-    ScopedObjectAccess soa(self);
-    StackHandleScope<2> hs(soa.Self());
-    Handle<mirror::ClassLoader> class_loader(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(dex_file)));
-    // Resolve the class.
-    mirror::Class* klass = class_linker->ResolveType(dex_file, class_def.class_idx_, dex_cache,
-                                                     class_loader);
-    bool resolve_fields_and_methods;
-    if (klass == NULL) {
-      // Class couldn't be resolved, for example, super-class is in a different dex file. Don't
-      // attempt to resolve methods and fields when there is no declaring class.
-      CheckAndClearResolveException(soa.Self());
-      resolve_fields_and_methods = false;
-    } else {
-      resolve_fields_and_methods = manager->GetCompiler()->IsImage();
+  ScopedObjectAccess soa(self);
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(dex_file)));
+  // Resolve the class.
+  mirror::Class* klass = class_linker->ResolveType(dex_file, class_def.class_idx_, dex_cache,
+                                                   class_loader);
+  bool resolve_fields_and_methods;
+  if (klass == nullptr) {
+    // Class couldn't be resolved, for example, super-class is in a different dex file. Don't
+    // attempt to resolve methods and fields when there is no declaring class.
+    CheckAndClearResolveException(soa.Self());
+    resolve_fields_and_methods = false;
+  } else {
+    // We successfully resolved a class, should we skip it?
+    if (SkipClass(jclass_loader, dex_file, klass)) {
+      return;
     }
-    // Note the class_data pointer advances through the headers,
-    // static fields, instance fields, direct methods, and virtual
-    // methods.
-    const byte* class_data = dex_file.GetClassData(class_def);
-    if (class_data == NULL) {
-      // Empty class such as a marker interface.
-      requires_constructor_barrier = false;
-    } else {
-      ClassDataItemIterator it(dex_file, class_data);
-      while (it.HasNextStaticField()) {
-        if (resolve_fields_and_methods) {
-          mirror::ArtField* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(),
-                                                               dex_cache, class_loader, true);
-          if (field == NULL) {
-            CheckAndClearResolveException(soa.Self());
-          }
+    // We want to resolve the methods and fields eagerly.
+    resolve_fields_and_methods = true;
+  }
+  // Note the class_data pointer advances through the headers,
+  // static fields, instance fields, direct methods, and virtual
+  // methods.
+  const byte* class_data = dex_file.GetClassData(class_def);
+  if (class_data == NULL) {
+    // Empty class such as a marker interface.
+    requires_constructor_barrier = false;
+  } else {
+    ClassDataItemIterator it(dex_file, class_data);
+    while (it.HasNextStaticField()) {
+      if (resolve_fields_and_methods) {
+        mirror::ArtField* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(),
+                                                             dex_cache, class_loader, true);
+        if (field == NULL) {
+          CheckAndClearResolveException(soa.Self());
         }
-        it.Next();
       }
-      // We require a constructor barrier if there are final instance fields.
-      requires_constructor_barrier = false;
-      while (it.HasNextInstanceField()) {
-        if ((it.GetMemberAccessFlags() & kAccFinal) != 0) {
-          requires_constructor_barrier = true;
-        }
-        if (resolve_fields_and_methods) {
-          mirror::ArtField* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(),
-                                                               dex_cache, class_loader, false);
-          if (field == NULL) {
-            CheckAndClearResolveException(soa.Self());
-          }
-        }
-        it.Next();
+      it.Next();
+    }
+    // We require a constructor barrier if there are final instance fields.
+    requires_constructor_barrier = false;
+    while (it.HasNextInstanceField()) {
+      if ((it.GetMemberAccessFlags() & kAccFinal) != 0) {
+        requires_constructor_barrier = true;
       }
       if (resolve_fields_and_methods) {
-        while (it.HasNextDirectMethod()) {
-          mirror::ArtMethod* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(),
-                                                                  dex_cache, class_loader,
-                                                                  NullHandle<mirror::ArtMethod>(),
-                                                                  it.GetMethodInvokeType(class_def));
-          if (method == NULL) {
-            CheckAndClearResolveException(soa.Self());
-          }
-          it.Next();
+        mirror::ArtField* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(),
+                                                             dex_cache, class_loader, false);
+        if (field == NULL) {
+          CheckAndClearResolveException(soa.Self());
         }
-        while (it.HasNextVirtualMethod()) {
-          mirror::ArtMethod* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(),
-                                                                  dex_cache, class_loader,
-                                                                  NullHandle<mirror::ArtMethod>(),
-                                                                  it.GetMethodInvokeType(class_def));
-          if (method == NULL) {
-            CheckAndClearResolveException(soa.Self());
-          }
-          it.Next();
-        }
-        DCHECK(!it.HasNext());
       }
+      it.Next();
+    }
+    if (resolve_fields_and_methods) {
+      while (it.HasNextDirectMethod()) {
+        mirror::ArtMethod* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(),
+                                                                dex_cache, class_loader,
+                                                                NullHandle<mirror::ArtMethod>(),
+                                                                it.GetMethodInvokeType(class_def));
+        if (method == NULL) {
+          CheckAndClearResolveException(soa.Self());
+        }
+        it.Next();
+      }
+      while (it.HasNextVirtualMethod()) {
+        mirror::ArtMethod* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(),
+                                                                dex_cache, class_loader,
+                                                                NullHandle<mirror::ArtMethod>(),
+                                                                it.GetMethodInvokeType(class_def));
+        if (method == NULL) {
+          CheckAndClearResolveException(soa.Self());
+        }
+        it.Next();
+      }
+      DCHECK(!it.HasNext());
     }
   }
   if (requires_constructor_barrier) {
