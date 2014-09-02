@@ -1117,14 +1117,19 @@ bool DexFileVerifier::CheckIntraSectionIterate(size_t offset, uint32_t count, ui
       }
       case DexFile::kDexTypeTypeList: {
         const DexFile::TypeList* list = reinterpret_cast<const DexFile::TypeList*>(ptr_);
-        const DexFile::TypeItem* item = &list->GetTypeItem(0);
-        uint32_t count = list->Size();
 
-        if (!CheckListSize(list, 1, sizeof(DexFile::TypeList), "type_list") ||
-            !CheckListSize(item, count, sizeof(DexFile::TypeItem), "type_list size")) {
+        // Check that at least the header (size) is available.
+        if (!CheckListSize(list, 1, DexFile::TypeList::GetHeaderSize(), "type_list")) {
           return false;
         }
-        ptr_ = reinterpret_cast<const byte*>(item + count);
+
+        // Check that the whole list is available.
+        const size_t list_size = DexFile::TypeList::GetListSize(list->Size());
+        if (!CheckListSize(list, 1, list_size, "type_list size")) {
+          return false;
+        }
+
+        ptr_ += count;
         break;
       }
       case DexFile::kDexTypeAnnotationSetRefList: {

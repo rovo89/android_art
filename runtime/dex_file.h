@@ -224,6 +224,16 @@ class DexFile {
       return this->list_[idx];
     }
 
+    // Size in bytes of the part of the list that is common.
+    static constexpr size_t GetHeaderSize() {
+      return 4U;
+    }
+
+    // Size in bytes of the whole type list including all the stored elements.
+    static constexpr size_t GetListSize(size_t count) {
+      return GetHeaderSize() + sizeof(TypeItem) * count;
+    }
+
    private:
     uint32_t size_;  // size of the list, in entries
     TypeItem list_[1];  // elements of the list
