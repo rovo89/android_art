@@ -108,7 +108,7 @@ class ParsedOptions {
   uint64_t min_interval_homogeneous_space_compaction_by_oom_;
 
  private:
-  ParsedOptions() {}
+  ParsedOptions();
 
   void Usage(const char* fmt, ...);
   void UsageMessage(FILE* stream, const char* fmt, ...);
