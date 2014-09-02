@@ -636,7 +636,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   CHECK_EQ(sysconf(_SC_PAGE_SIZE), kPageSize);
 
   std::unique_ptr<ParsedOptions> options(ParsedOptions::Create(raw_options, ignore_unrecognized));
-  if (options.get() == NULL) {
+  if (options.get() == nullptr) {
     LOG(ERROR) << "Failed to parse options";
     return false;
   }
@@ -759,9 +759,9 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   // ClassLinker needs an attached thread, but we can't fully attach a thread without creating
   // objects. We can't supply a thread group yet; it will be fixed later. Since we are the main
   // thread, we do not get a java peer.
-  Thread* self = Thread::Attach("main", false, NULL, false);
+  Thread* self = Thread::Attach("main", false, nullptr, false);
   CHECK_EQ(self->GetThreadId(), ThreadList::kMainThreadId);
-  CHECK(self != NULL);
+  CHECK(self != nullptr);
 
   // Set us to runnable so tools using a runtime can allocate and GC by default
   self->TransitionFromSuspendedToRunnable();
@@ -791,11 +791,11 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
       }
     }
   } else {
-    CHECK(options->boot_class_path_ != NULL);
+    CHECK(options->boot_class_path_ != nullptr);
     CHECK_NE(options->boot_class_path_->size(), 0U);
     class_linker_->InitWithoutImage(*options->boot_class_path_);
   }
-  CHECK(class_linker_ != NULL);
+  CHECK(class_linker_ != nullptr);
   verifier::MethodVerifier::Init();
 
   method_trace_ = options->method_trace_;
@@ -819,6 +819,13 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
                           "OutOfMemoryError thrown while trying to throw OutOfMemoryError; "
                           "no stack available");
   pre_allocated_OutOfMemoryError_ = GcRoot<mirror::Throwable>(self->GetException(NULL));
+  self->ClearException();
+
+  // Pre-allocate a NoClassDefFoundError for the common case of failing to find a system class
+  // ahead of checking the application's class loader.
+  self->ThrowNewException(ThrowLocation(), "Ljava/lang/NoClassDefFoundError;",
+                          "Class not found using the boot class loader; no stack available");
+  pre_allocated_NoClassDefFoundError_ = GcRoot<mirror::Throwable>(self->GetException(NULL));
   self->ClearException();
 
   // Look for a native bridge.
@@ -1031,10 +1038,18 @@ void Runtime::DetachCurrentThread() {
 
 mirror::Throwable* Runtime::GetPreAllocatedOutOfMemoryError() {
   mirror::Throwable* oome = pre_allocated_OutOfMemoryError_.Read();
-  if (oome == NULL) {
+  if (oome == nullptr) {
     LOG(ERROR) << "Failed to return pre-allocated OOME";
   }
   return oome;
+}
+
+mirror::Throwable* Runtime::GetPreAllocatedNoClassDefFoundError() {
+  mirror::Throwable* ncdfe = pre_allocated_NoClassDefFoundError_.Read();
+  if (ncdfe == nullptr) {
+    LOG(ERROR) << "Failed to return pre-allocated NoClassDefFoundError";
+  }
+  return ncdfe;
 }
 
 void Runtime::VisitConstantRoots(RootCallback* callback, void* arg) {
@@ -1075,6 +1090,10 @@ void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
   }
   resolution_method_.VisitRoot(callback, arg, 0, kRootVMInternal);
   DCHECK(!resolution_method_.IsNull());
+  if (!pre_allocated_NoClassDefFoundError_.IsNull()) {
+    pre_allocated_NoClassDefFoundError_.VisitRoot(callback, arg, 0, kRootVMInternal);
+    DCHECK(!pre_allocated_NoClassDefFoundError_.IsNull());
+  }
   if (HasImtConflictMethod()) {
     imt_conflict_method_.VisitRoot(callback, arg, 0, kRootVMInternal);
   }

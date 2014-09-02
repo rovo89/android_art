@@ -85,7 +85,7 @@ class ClassLinker {
   mirror::Class* FindArrayClass(Thread* self, mirror::Class** element_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Reutrns true if the class linker is initialized.
+  // Returns true if the class linker is initialized.
   bool IsInitialized() const;
 
   // Define a new a class based on a ClassDef from a DexFile
