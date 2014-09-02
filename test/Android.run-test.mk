@@ -151,40 +151,47 @@ TEST_ART_TIMING_SENSITIVE_RUN_TESTS := \
  # disable timing sensitive tests on "dist" builds.
 ifdef dist_goal
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES), \
-        $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+        $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
         $(IMAGE_TYPES), $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(ALL_ADDRESS_SIZES))
 endif
 
 TEST_ART_TIMING_SENSITIVE_RUN_TESTS :=
 
-# NB 116-nodex2oat is not broken per-se it just doesn't (and isn't meant to) work with --prebuild.
+# Note 116-nodex2oat is not broken per-se it just doesn't (and isn't meant to) work with --prebuild.
 TEST_ART_BROKEN_PREBUILD_RUN_TESTS := \
   116-nodex2oat
 
-ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),prebuild, \
-    $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-    $(IMAGE_TYPES), $(TEST_ART_BROKEN_PREBUILD_RUN_TESTS), $(ALL_ADDRESS_SIZES))
+ifneq (,$(filter prebuild,$(PREBUILD_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),prebuild, \
+      $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES), $(TEST_ART_BROKEN_PREBUILD_RUN_TESTS), $(ALL_ADDRESS_SIZES))
+endif
 
 TEST_ART_BROKEN_PREBUILD_RUN_TESTS :=
-
-# NB 117-nopatchoat is not broken per-se it just doesn't work (and isn't meant to) without --prebuild --relocate
-TEST_ART_BROKEN_NO_RELOCATE_TESTS := \
-  117-nopatchoat
-
-ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES), \
-    $(COMPILER_TYPES), no-relocate,$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-    $(IMAGE_TYPES), $(TEST_ART_BROKEN_NO_RELOCATE_TESTS), $(ALL_ADDRESS_SIZES))
-
-TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
 
 TEST_ART_BROKEN_NO_PREBUILD_TESTS := \
   117-nopatchoat
 
-ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),no-prebuild, \
-    $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-    $(IMAGE_TYPES), $(TEST_ART_BROKEN_NO_PREBUILD_TESTS), $(ALL_ADDRESS_SIZES))
+ifneq (,$(filter no-prebuild,$(PREBUILD_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),no-prebuild, \
+      $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES), $(TEST_ART_BROKEN_NO_PREBUILD_TESTS), $(ALL_ADDRESS_SIZES))
+endif
 
 TEST_ART_BROKEN_NO_PREBUILD_TESTS :=
+
+# Note 117-nopatchoat is not broken per-se it just doesn't work (and isn't meant to) without
+# --prebuild --relocate
+TEST_ART_BROKEN_NO_RELOCATE_TESTS := \
+  117-nopatchoat
+
+ifneq (,$(filter no-relocate,$(RELOCATE_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES), \
+      $(COMPILER_TYPES), no-relocate,$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES), $(TEST_ART_BROKEN_NO_RELOCATE_TESTS), $(ALL_ADDRESS_SIZES))
+endif
+
+TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
 
 # Tests that are broken with tracing.
 TEST_ART_BROKEN_TRACE_RUN_TESTS := \
@@ -193,11 +200,25 @@ TEST_ART_BROKEN_TRACE_RUN_TESTS := \
   097-duplicate-method \
   107-int-math2
 
-ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES), \
-    $(COMPILER_TYPES), $(RELOCATE_TYPES),trace,$(GC_TYPES),$(JNI_TYPES), \
-    $(IMAGE_TYPES), $(TEST_ART_BROKEN_TRACE_RUN_TESTS), $(ALL_ADDRESS_SIZES))
+ifneq (,$(filter trace,$(TRACE_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES), \
+      $(COMPILER_TYPES),$(RELOCATE_TYPES),trace,$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES), $(TEST_ART_BROKEN_TRACE_RUN_TESTS), $(ALL_ADDRESS_SIZES))
+endif
 
 TEST_ART_BROKEN_TRACE_RUN_TESTS :=
+
+# Tests that are broken with GC stress.
+TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
+  004-SignalTest
+
+ifneq (,$(filter gcstress,$(GC_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES), \
+      $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),gcstress,$(JNI_TYPES), \
+      $(IMAGE_TYPES), $(TEST_ART_BROKEN_GCSTRESS_RUN_TESTS), $(ALL_ADDRESS_SIZES))
+endif
+
+TEST_ART_BROKEN_GCSTRESS_RUN_TESTS :=
 
 # 115-native-bridge setup is complicated. Need to implement it correctly for the target.
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(PREBUILD_TYPES),$(COMPILER_TYPES), \
@@ -213,17 +234,24 @@ TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
   118-noimage-dex2oat \
   119-noimage-patchoat
 
-ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),no-dex2oat,$(COMPILER_TYPES), \
-    $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
-    $(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+ifneq (,$(filter no-dex2oat,$(PREBUILD_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),no-dex2oat, \
+      $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
+      $(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
 
-ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES),$(COMPILER_TYPES), \
-    $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),no-image, \
-    $(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 
-ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES),$(COMPILER_TYPES), \
-    relocate-no-patchoat,$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
-    $(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+ifneq (,$(filter no-image,$(IMAGE_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES), \
+      $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),no-image, \
+      $(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
+
+ifneq (,$(filter relocate-no-patchoat,$(RELOCATE_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES), \
+      $(COMPILER_TYPES), relocate-no-patchoat,$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES),$(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
 
 TEST_ART_BROKEN_FALLBACK_RUN_TESTS :=
 
