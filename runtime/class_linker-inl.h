@@ -29,11 +29,6 @@
 
 namespace art {
 
-inline bool ClassLinker::IsInBootClassPath(const char* descriptor) {
-  DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, boot_class_path_);
-  return pair.second != nullptr;
-}
-
 inline mirror::Class* ClassLinker::FindSystemClass(Thread* self, const char* descriptor) {
   return FindClass(self, descriptor, NullHandle<mirror::ClassLoader>());
 }
