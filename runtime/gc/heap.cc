@@ -138,7 +138,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       growth_limit_(growth_limit),
       max_allowed_footprint_(initial_size),
       native_footprint_gc_watermark_(initial_size),
-      native_footprint_limit_(2 * initial_size),
       native_need_to_run_finalization_(false),
       // Initially assume we perceive jank in case the process state is never updated.
       process_state_(kProcessStateJankPerceptible),
@@ -2833,7 +2832,6 @@ void Heap::UpdateMaxNativeFootprint() {
     target_size = native_size + min_free_;
   }
   native_footprint_gc_watermark_ = target_size;
-  native_footprint_limit_ = 2 * target_size - native_size;
 }
 
 collector::GarbageCollector* Heap::FindCollectorByGcType(collector::GcType gc_type) {
@@ -3105,14 +3103,14 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
 
     // The second watermark is higher than the gc watermark. If you hit this it means you are
     // allocating native objects faster than the GC can keep up with.
-    if (new_native_bytes_allocated > native_footprint_limit_) {
+    if (new_native_bytes_allocated > growth_limit_) {
       if (WaitForGcToComplete(kGcCauseForNativeAlloc, self) != collector::kGcTypeNone) {
         // Just finished a GC, attempt to run finalizers.
         RunFinalization(env);
         CHECK(!env->ExceptionCheck());
       }
       // If we still are over the watermark, attempt a GC for alloc and run finalizers.
-      if (new_native_bytes_allocated > native_footprint_limit_) {
+      if (new_native_bytes_allocated > growth_limit_) {
         CollectGarbageInternal(gc_type, kGcCauseForNativeAlloc, false);
         RunFinalization(env);
         native_need_to_run_finalization_ = false;
