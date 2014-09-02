@@ -605,9 +605,18 @@ class ClassLinker {
                                                              bool* obsolete_file_cleanup_failed)
       LOCKS_EXCLUDED(dex_lock_, Locks::mutator_lock_);
 
-  // verify an oat file with the given dex file. Will return false when the dex file could not be
-  // verified. Will return true otherwise.
+  // Verifies:
+  //  - that the oat file contains the dex file (with a matching checksum, which may be null if the
+  // file was pre-opted)
+  //  - the checksums of the oat file (against the image space)
+  //  - the checksum of the dex file against dex_location_checksum
+  //  - that the dex file can be opened
+  // Returns true iff all verification succeed.
+  //
+  // The dex_location is the dex location as stored in the oat file header.
+  // (see DexFile::GetDexCanonicalLocation for a description of location conventions)
   bool VerifyOatWithDexFile(const OatFile* oat_file, const char* dex_location,
+                            const uint32_t* dex_location_checksum,
                             std::string* error_msg);
 
   mirror::ArtMethod* CreateProxyConstructor(Thread* self, Handle<mirror::Class> klass,
