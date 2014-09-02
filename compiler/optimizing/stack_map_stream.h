@@ -26,9 +26,9 @@
 namespace art {
 
 /**
- * Collects and builds a CodeInfo for a method.
+ * Collects and builds stack maps for a method. All the stack maps
+ * for a method are placed in a CodeInfo object.
  */
-template<typename T>
 class StackMapStream : public ValueObject {
  public:
   explicit StackMapStream(ArenaAllocator* allocator)
@@ -47,7 +47,7 @@ class StackMapStream : public ValueObject {
   // See runtime/stack_map.h to know what these fields contain.
   struct StackMapEntry {
     uint32_t dex_pc;
-    T native_pc;
+    uint32_t native_pc_offset;
     uint32_t register_mask;
     BitVector* sp_mask;
     uint32_t num_dex_registers;
@@ -66,14 +66,14 @@ class StackMapStream : public ValueObject {
   };
 
   void AddStackMapEntry(uint32_t dex_pc,
-                        T native_pc,
+                        uint32_t native_pc_offset,
                         uint32_t register_mask,
                         BitVector* sp_mask,
                         uint32_t num_dex_registers,
                         uint8_t inlining_depth) {
     StackMapEntry entry;
     entry.dex_pc = dex_pc;
-    entry.native_pc = native_pc;
+    entry.native_pc_offset = native_pc_offset;
     entry.register_mask = register_mask;
     entry.sp_mask = sp_mask;
     entry.num_dex_registers = num_dex_registers;
@@ -82,7 +82,9 @@ class StackMapStream : public ValueObject {
     entry.inline_infos_start_index = inline_infos_.Size();
     stack_maps_.Add(entry);
 
-    stack_mask_max_ = std::max(stack_mask_max_, sp_mask->GetHighestBitSet());
+    if (sp_mask != nullptr) {
+      stack_mask_max_ = std::max(stack_mask_max_, sp_mask->GetHighestBitSet());
+    }
     if (inlining_depth > 0) {
       number_of_stack_maps_with_inline_info_++;
     }
@@ -102,14 +104,14 @@ class StackMapStream : public ValueObject {
   }
 
   size_t ComputeNeededSize() const {
-    return CodeInfo<T>::kFixedSize
+    return CodeInfo::kFixedSize
         + ComputeStackMapSize()
         + ComputeDexRegisterMapSize()
         + ComputeInlineInfoSize();
   }
 
   size_t ComputeStackMapSize() const {
-    return stack_maps_.Size() * (StackMap<T>::kFixedSize + StackMaskEncodingSize(stack_mask_max_));
+    return stack_maps_.Size() * (StackMap::kFixedSize + StackMaskEncodingSize(stack_mask_max_));
   }
 
   size_t ComputeDexRegisterMapSize() const {
@@ -130,11 +132,12 @@ class StackMapStream : public ValueObject {
   }
 
   size_t ComputeDexRegisterMapStart() const {
-    return CodeInfo<T>::kFixedSize + ComputeStackMapSize();
+    return CodeInfo::kFixedSize + ComputeStackMapSize();
   }
 
   void FillIn(MemoryRegion region) {
-    CodeInfo<T> code_info(region);
+    CodeInfo code_info(region);
+    code_info.SetOverallSize(region.size());
 
     size_t stack_mask_size = StackMaskEncodingSize(stack_mask_max_);
     uint8_t* memory_start = region.start();
@@ -153,13 +156,15 @@ class StackMapStream : public ValueObject {
     uintptr_t next_dex_register_map_offset = 0;
     uintptr_t next_inline_info_offset = 0;
     for (size_t i = 0, e = stack_maps_.Size(); i < e; ++i) {
-      StackMap<T> stack_map = code_info.GetStackMapAt(i);
+      StackMap stack_map = code_info.GetStackMapAt(i);
       StackMapEntry entry = stack_maps_.Get(i);
 
       stack_map.SetDexPc(entry.dex_pc);
-      stack_map.SetNativePc(entry.native_pc);
+      stack_map.SetNativePcOffset(entry.native_pc_offset);
       stack_map.SetRegisterMask(entry.register_mask);
-      stack_map.SetStackMask(*entry.sp_mask);
+      if (entry.sp_mask != nullptr) {
+        stack_map.SetStackMask(*entry.sp_mask);
+      }
 
       // Set the register map.
       MemoryRegion region = dex_register_maps_region.Subregion(

@@ -47,7 +47,7 @@ class BlockInfo : public ArenaObject {
 };
 
 /**
- * A live range contains the start and end of a range where an instruction
+ * A live range contains the start and end of a range where an instruction or a temporary
  * is live.
  */
 class LiveRange : public ArenaObject {
@@ -76,7 +76,7 @@ class LiveRange : public ArenaObject {
 
  private:
   size_t start_;
-  size_t end_;
+  const size_t end_;
   LiveRange* next_;
 
   friend class LiveInterval;
@@ -133,7 +133,12 @@ class UsePosition : public ArenaObject {
  */
 class LiveInterval : public ArenaObject {
  public:
-  LiveInterval(ArenaAllocator* allocator, Primitive::Type type, HInstruction* defined_by = nullptr)
+  LiveInterval(ArenaAllocator* allocator,
+               Primitive::Type type,
+               HInstruction* defined_by = nullptr,
+               bool is_fixed = false,
+               int reg = kNoRegister,
+               bool is_temp = false)
       : allocator_(allocator),
         first_range_(nullptr),
         last_range_(nullptr),
@@ -141,16 +146,20 @@ class LiveInterval : public ArenaObject {
         type_(type),
         next_sibling_(nullptr),
         parent_(this),
-        register_(kNoRegister),
+        register_(reg),
         spill_slot_(kNoSpillSlot),
-        is_fixed_(false),
+        is_fixed_(is_fixed),
+        is_temp_(is_temp),
         defined_by_(defined_by) {}
 
   static LiveInterval* MakeFixedInterval(ArenaAllocator* allocator, int reg, Primitive::Type type) {
-    LiveInterval* interval = new (allocator) LiveInterval(allocator, type);
-    interval->SetRegister(reg);
-    interval->is_fixed_ = true;
-    return interval;
+    return new (allocator) LiveInterval(allocator, type, nullptr, true, reg, false);
+  }
+
+  static LiveInterval* MakeTempInterval(ArenaAllocator* allocator,
+                                        HInstruction* defined_by,
+                                        Primitive::Type type) {
+    return new (allocator) LiveInterval(allocator, type, defined_by, false, kNoRegister, true);
   }
 
   bool IsFixed() const { return is_fixed_; }
@@ -192,8 +201,10 @@ class LiveInterval : public ArenaObject {
     } else if (first_range_->GetStart() == end) {
       // There is a use in the following block.
       first_range_->start_ = start;
+    } else if (first_range_->GetStart() == start && first_range_->GetEnd() == end) {
+      DCHECK(is_fixed_);
     } else {
-      DCHECK(first_range_->GetStart() > end);
+      DCHECK_GT(first_range_->GetStart(), end);
       // There is a hole in the interval. Create a new range.
       first_range_ = new (allocator_) LiveRange(start, end, first_range_);
     }
@@ -215,7 +226,11 @@ class LiveInterval : public ArenaObject {
   }
 
   bool HasSpillSlot() const { return spill_slot_ != kNoSpillSlot; }
-  void SetSpillSlot(int slot) { spill_slot_ = slot; }
+  void SetSpillSlot(int slot) {
+    DCHECK(!is_fixed_);
+    DCHECK(!is_temp_);
+    spill_slot_ = slot;
+  }
   int GetSpillSlot() const { return spill_slot_; }
 
   void SetFrom(size_t from) {
@@ -243,6 +258,9 @@ class LiveInterval : public ArenaObject {
   }
 
   bool Covers(size_t position) const {
+    if (IsDeadAt(position)) {
+      return false;
+    }
     LiveRange* current = first_range_;
     while (current != nullptr) {
       if (position >= current->GetStart() && position < current->GetEnd()) {
@@ -288,6 +306,9 @@ class LiveInterval : public ArenaObject {
   }
 
   size_t FirstRegisterUseAfter(size_t position) const {
+    if (is_temp_) {
+      return position == GetStart() ? position : kNoLifetime;
+    }
     if (position == GetStart() && defined_by_ != nullptr) {
       LocationSummary* locations = defined_by_->GetLocations();
       Location location = locations->Out();
@@ -342,6 +363,7 @@ class LiveInterval : public ArenaObject {
    * [position ... end)
    */
   LiveInterval* SplitAt(size_t position) {
+    DCHECK(!is_temp_);
     DCHECK(!is_fixed_);
     DCHECK_GT(position, GetStart());
 
@@ -453,7 +475,10 @@ class LiveInterval : public ArenaObject {
   int spill_slot_;
 
   // Whether the interval is for a fixed register.
-  bool is_fixed_;
+  const bool is_fixed_;
+
+  // Whether the interval is for a temporary.
+  const bool is_temp_;
 
   // The instruction represented by this interval.
   HInstruction* const defined_by_;

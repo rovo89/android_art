@@ -140,7 +140,7 @@ OatWriter::~OatWriter() {
 
 struct OatWriter::GcMapDataAccess {
   static const std::vector<uint8_t>* GetData(const CompiledMethod* compiled_method) ALWAYS_INLINE {
-    return &compiled_method->GetGcMap();
+    return compiled_method->GetGcMap();
   }
 
   static uint32_t GetOffset(OatClass* oat_class, size_t method_offsets_index) ALWAYS_INLINE {
@@ -434,13 +434,15 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
         } else {
           status = mirror::Class::kStatusNotReady;
         }
-        const std::vector<uint8_t>& gc_map = compiled_method->GetGcMap();
-        size_t gc_map_size = gc_map.size() * sizeof(gc_map[0]);
-        bool is_native = (it.GetMemberAccessFlags() & kAccNative) != 0;
-        CHECK(gc_map_size != 0 || is_native || status < mirror::Class::kStatusVerified)
-            << &gc_map << " " << gc_map_size << " " << (is_native ? "true" : "false") << " "
-            << (status < mirror::Class::kStatusVerified) << " " << status << " "
-            << PrettyMethod(it.GetMemberIndex(), *dex_file_);
+        std::vector<uint8_t> const * gc_map = compiled_method->GetGcMap();
+        if (gc_map != nullptr) {
+          size_t gc_map_size = gc_map->size() * sizeof(gc_map[0]);
+          bool is_native = (it.GetMemberAccessFlags() & kAccNative) != 0;
+          CHECK(gc_map_size != 0 || is_native || status < mirror::Class::kStatusVerified)
+              << gc_map << " " << gc_map_size << " " << (is_native ? "true" : "false") << " "
+              << (status < mirror::Class::kStatusVerified) << " " << status << " "
+              << PrettyMethod(it.GetMemberIndex(), *dex_file_);
+        }
       }
 
       DCHECK_LT(method_offsets_index_, oat_class->method_offsets_.size());
@@ -475,7 +477,7 @@ class OatWriter::InitMapMethodVisitor : public OatDexMethodVisitor {
       DCHECK_EQ(DataAccess::GetOffset(oat_class, method_offsets_index_), 0u);
 
       const std::vector<uint8_t>* map = DataAccess::GetData(compiled_method);
-      uint32_t map_size = map->size() * sizeof((*map)[0]);
+      uint32_t map_size = map == nullptr ? 0 : map->size() * sizeof((*map)[0]);
       if (map_size != 0u) {
         auto lb = dedupe_map_.lower_bound(map);
         if (lb != dedupe_map_.end() && !dedupe_map_.key_comp()(map, lb->first)) {
@@ -645,7 +647,7 @@ class OatWriter::WriteMapMethodVisitor : public OatDexMethodVisitor {
 
       // Write deduplicated map.
       const std::vector<uint8_t>* map = DataAccess::GetData(compiled_method);
-      size_t map_size = map->size() * sizeof((*map)[0]);
+      size_t map_size = map == nullptr ? 0 : map->size() * sizeof((*map)[0]);
       DCHECK((map_size == 0u && map_offset == 0u) ||
             (map_size != 0u && map_offset != 0u && map_offset <= offset_))
           << PrettyMethod(it.GetMemberIndex(), *dex_file_);

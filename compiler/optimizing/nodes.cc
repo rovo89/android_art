@@ -414,6 +414,10 @@ void HInstruction::ReplaceWith(HInstruction* other) {
   env_uses_ = nullptr;
 }
 
+size_t HInstruction::EnvironmentSize() const {
+  return HasEnvironment() ? environment_->Size() : 0;
+}
+
 void HPhi::AddInput(HInstruction* input) {
   DCHECK(input->GetBlock() != nullptr);
   inputs_.Add(input);
