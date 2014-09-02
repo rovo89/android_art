@@ -90,23 +90,23 @@ void Transaction::RecordWriteArray(mirror::Array* array, size_t index, uint64_t 
   array_log.LogValue(index, value);
 }
 
-void Transaction::RecordStrongStringInsertion(mirror::String* s, uint32_t hash_code) {
-  InternStringLog log(s, hash_code, InternStringLog::kStrongString, InternStringLog::kInsert);
+void Transaction::RecordStrongStringInsertion(mirror::String* s) {
+  InternStringLog log(s, InternStringLog::kStrongString, InternStringLog::kInsert);
   LogInternedString(log);
 }
 
-void Transaction::RecordWeakStringInsertion(mirror::String* s, uint32_t hash_code) {
-  InternStringLog log(s, hash_code, InternStringLog::kWeakString, InternStringLog::kInsert);
+void Transaction::RecordWeakStringInsertion(mirror::String* s) {
+  InternStringLog log(s, InternStringLog::kWeakString, InternStringLog::kInsert);
   LogInternedString(log);
 }
 
-void Transaction::RecordStrongStringRemoval(mirror::String* s, uint32_t hash_code) {
-  InternStringLog log(s, hash_code, InternStringLog::kStrongString, InternStringLog::kRemove);
+void Transaction::RecordStrongStringRemoval(mirror::String* s) {
+  InternStringLog log(s, InternStringLog::kStrongString, InternStringLog::kRemove);
   LogInternedString(log);
 }
 
-void Transaction::RecordWeakStringRemoval(mirror::String* s, uint32_t hash_code) {
-  InternStringLog log(s, hash_code, InternStringLog::kWeakString, InternStringLog::kRemove);
+void Transaction::RecordWeakStringRemoval(mirror::String* s) {
+  InternStringLog log(s, InternStringLog::kWeakString, InternStringLog::kRemove);
   LogInternedString(log);
 }
 
@@ -332,10 +332,10 @@ void Transaction::InternStringLog::Undo(InternTable* intern_table) {
       case InternStringLog::kInsert: {
         switch (string_kind_) {
           case InternStringLog::kStrongString:
-            intern_table->RemoveStrongFromTransaction(str_, hash_code_);
+            intern_table->RemoveStrongFromTransaction(str_);
             break;
           case InternStringLog::kWeakString:
-            intern_table->RemoveWeakFromTransaction(str_, hash_code_);
+            intern_table->RemoveWeakFromTransaction(str_);
             break;
           default:
             LOG(FATAL) << "Unknown interned string kind";
@@ -346,10 +346,10 @@ void Transaction::InternStringLog::Undo(InternTable* intern_table) {
       case InternStringLog::kRemove: {
         switch (string_kind_) {
           case InternStringLog::kStrongString:
-            intern_table->InsertStrongFromTransaction(str_, hash_code_);
+            intern_table->InsertStrongFromTransaction(str_);
             break;
           case InternStringLog::kWeakString:
-            intern_table->InsertWeakFromTransaction(str_, hash_code_);
+            intern_table->InsertWeakFromTransaction(str_);
             break;
           default:
             LOG(FATAL) << "Unknown interned string kind";

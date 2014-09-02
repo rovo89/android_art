@@ -66,7 +66,8 @@ class MANAGED String FINAL : public Object {
 
   int32_t GetHashCode() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void ComputeHashCode() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // Computes, stores, and returns the hash code.
+  int32_t ComputeHashCode() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t GetUtfLength() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

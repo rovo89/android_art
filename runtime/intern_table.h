@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_INTERN_TABLE_H_
 #define ART_RUNTIME_INTERN_TABLE_H_
 
-#include <map>
+#include <unordered_set>
 
 #include "base/allocator.h"
 #include "base/mutex.h"
@@ -79,42 +79,48 @@ class InternTable {
   void AllowNewInterns() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  typedef AllocationTrackingMultiMap<int32_t, GcRoot<mirror::String>,
-                                     kAllocatorTagInternTable> Table;
+  class StringHashEquals {
+   public:
+    std::size_t operator()(const GcRoot<mirror::String>& root) NO_THREAD_SAFETY_ANALYSIS;
+    bool operator()(const GcRoot<mirror::String>& a, const GcRoot<mirror::String>& b)
+        NO_THREAD_SAFETY_ANALYSIS;
+  };
+  typedef std::unordered_set<GcRoot<mirror::String>, StringHashEquals, StringHashEquals,
+      TrackingAllocator<GcRoot<mirror::String>, kAllocatorTagInternTable>> Table;
 
   mirror::String* Insert(mirror::String* s, bool is_strong)
       LOCKS_EXCLUDED(Locks::intern_table_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::String* LookupStrong(mirror::String* s, int32_t hash_code)
+  mirror::String* LookupStrong(mirror::String* s)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::String* LookupWeak(mirror::String* s, int32_t hash_code)
+  mirror::String* LookupWeak(mirror::String* s)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::String* Lookup(Table* table, mirror::String* s, int32_t hash_code)
+  mirror::String* Lookup(Table* table, mirror::String* s)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::String* InsertStrong(mirror::String* s, int32_t hash_code)
+  mirror::String* InsertStrong(mirror::String* s)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  mirror::String* InsertWeak(mirror::String* s, int32_t hash_code)
+  mirror::String* InsertWeak(mirror::String* s)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void RemoveStrong(mirror::String* s, int32_t hash_code)
+  void RemoveStrong(mirror::String* s)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void RemoveWeak(mirror::String* s, int32_t hash_code)
+  void RemoveWeak(mirror::String* s)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void Remove(Table* table, mirror::String* s, int32_t hash_code)
+  void Remove(Table* table, mirror::String* s)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
 
   // Transaction rollback access.
-  mirror::String* InsertStrongFromTransaction(mirror::String* s, int32_t hash_code)
+  mirror::String* InsertStrongFromTransaction(mirror::String* s)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  mirror::String* InsertWeakFromTransaction(mirror::String* s, int32_t hash_code)
+  mirror::String* InsertWeakFromTransaction(mirror::String* s)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void RemoveStrongFromTransaction(mirror::String* s, int32_t hash_code)
+  void RemoveStrongFromTransaction(mirror::String* s)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void RemoveWeakFromTransaction(mirror::String* s, int32_t hash_code)
+  void RemoveWeakFromTransaction(mirror::String* s)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
   friend class Transaction;
@@ -127,7 +133,7 @@ class InternTable {
   // directly access the strings in it. Use functions that contain
   // read barriers.
   Table strong_interns_ GUARDED_BY(Locks::intern_table_lock_);
-  std::vector<std::pair<int32_t, GcRoot<mirror::String>>> new_strong_intern_roots_
+  std::vector<GcRoot<mirror::String>> new_strong_intern_roots_
       GUARDED_BY(Locks::intern_table_lock_);
   // Since this contains (weak) roots, they need a read barrier. Do
   // not directly access the strings in it. Use functions that contain
