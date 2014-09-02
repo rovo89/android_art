@@ -1979,6 +1979,23 @@ mirror::Class* ClassLinker::EnsureResolved(Thread* self, const char* descriptor,
   return klass;
 }
 
+typedef std::pair<const DexFile*, const DexFile::ClassDef*> ClassPathEntry;
+
+// Search a collection of DexFiles for a descriptor
+ClassPathEntry FindInClassPath(const char* descriptor,
+                               const std::vector<const DexFile*>& class_path) {
+  for (size_t i = 0; i != class_path.size(); ++i) {
+    const DexFile* dex_file = class_path[i];
+    const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
+    if (dex_class_def != NULL) {
+      return ClassPathEntry(dex_file, dex_class_def);
+    }
+  }
+  // TODO: remove reinterpret_cast when issue with -std=gnu++0x host issue resolved
+  return ClassPathEntry(reinterpret_cast<const DexFile*>(NULL),
+                        reinterpret_cast<const DexFile::ClassDef*>(NULL));
+}
+
 mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
                                       ConstHandle<mirror::ClassLoader> class_loader) {
   DCHECK_NE(*descriptor, '\0') << "descriptor is empty string";
@@ -1991,25 +2008,31 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
   }
   // Find the class in the loaded classes table.
   mirror::Class* klass = LookupClass(descriptor, class_loader.Get());
-  if (klass != NULL) {
+  if (klass != nullptr) {
     return EnsureResolved(self, descriptor, klass);
   }
   // Class is not yet loaded.
   if (descriptor[0] == '[') {
     return CreateArrayClass(self, descriptor, class_loader);
   } else if (class_loader.Get() == nullptr) {
-    DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, boot_class_path_);
-    if (pair.second != NULL) {
+    ClassPathEntry pair = FindInClassPath(descriptor, boot_class_path_);
+    if (pair.second != nullptr) {
       StackHandleScope<1> hs(self);
       return DefineClass(descriptor, NullHandle<mirror::ClassLoader>(), *pair.first, *pair.second);
     }
   } else if (Runtime::Current()->UseCompileTimeClassPath()) {
-    // First try the boot class path, we check the descriptor first to avoid an unnecessary
-    // throw of a NoClassDefFoundError.
-    if (IsInBootClassPath(descriptor)) {
-      mirror::Class* system_class = FindSystemClass(self, descriptor);
-      CHECK(system_class != NULL);
-      return system_class;
+    // First try with the bootstrap class loader.
+    if (class_loader.Get() != nullptr) {
+      klass = LookupClass(descriptor, nullptr);
+      if (klass != nullptr) {
+        return EnsureResolved(self, descriptor, klass);
+      }
+    }
+    // If the lookup failed search the boot class path. We don't perform a recursive call to avoid a NoClassDefFoundError being allocated.
+    ClassPathEntry pair = FindInClassPath(descriptor, boot_class_path_);
+    if (pair.second != nullptr) {
+      StackHandleScope<1> hs(self);
+      return DefineClass(descriptor, NullHandle<mirror::ClassLoader>(), *pair.first, *pair.second);
     }
     // Next try the compile time class path.
     const std::vector<const DexFile*>* class_path;
@@ -2019,38 +2042,36 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
                                             soa.AddLocalReference<jobject>(class_loader.Get()));
       class_path = &Runtime::Current()->GetCompileTimeClassPath(jclass_loader.get());
     }
-
-    DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, *class_path);
-    if (pair.second != NULL) {
+    pair = FindInClassPath(descriptor, *class_path);
+    if (pair.second != nullptr) {
       return DefineClass(descriptor, class_loader, *pair.first, *pair.second);
     }
-
   } else {
     ScopedObjectAccessUnchecked soa(self);
     ScopedLocalRef<jobject> class_loader_object(soa.Env(),
                                                 soa.AddLocalReference<jobject>(class_loader.Get()));
     std::string class_name_string(DescriptorToDot(descriptor));
-    ScopedLocalRef<jobject> result(soa.Env(), NULL);
+    ScopedLocalRef<jobject> result(soa.Env(), nullptr);
     {
       ScopedThreadStateChange tsc(self, kNative);
       ScopedLocalRef<jobject> class_name_object(soa.Env(),
                                                 soa.Env()->NewStringUTF(class_name_string.c_str()));
-      if (class_name_object.get() == NULL) {
-        return NULL;
+      if (class_name_object.get() == nullptr) {
+        return nullptr;
       }
-      CHECK(class_loader_object.get() != NULL);
+      CHECK(class_loader_object.get() != nullptr);
       result.reset(soa.Env()->CallObjectMethod(class_loader_object.get(),
                                                WellKnownClasses::java_lang_ClassLoader_loadClass,
                                                class_name_object.get()));
     }
     if (self->IsExceptionPending()) {
       // If the ClassLoader threw, pass that exception up.
-      return NULL;
-    } else if (result.get() == NULL) {
+      return nullptr;
+    } else if (result.get() == nullptr) {
       // broken loader - throw NPE to be compatible with Dalvik
-      ThrowNullPointerException(NULL, StringPrintf("ClassLoader.loadClass returned null for %s",
+      ThrowNullPointerException(nullptr, StringPrintf("ClassLoader.loadClass returned null for %s",
                                                    class_name_string.c_str()).c_str());
-      return NULL;
+      return nullptr;
     } else {
       // success, return mirror::Class*
       return soa.Decode<mirror::Class*>(result.get());
@@ -2058,7 +2079,7 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
   }
 
   ThrowNoClassDefFoundError("Class %s not found", PrintableString(descriptor).c_str());
-  return NULL;
+  return nullptr;
 }
 
 mirror::Class* ClassLinker::DefineClass(const char* descriptor,
@@ -3211,7 +3232,7 @@ mirror::Class* ClassLinker::LookupClass(const char* descriptor,
       // Searching the image dex files/caches failed, we don't want to get into this situation
       // often as map searches are faster, so after kMaxFailedDexCacheLookups move all image
       // classes into the class table.
-      const int32_t kMaxFailedDexCacheLookups = 1000;
+      constexpr uint32_t kMaxFailedDexCacheLookups = 1000;
       if (++failed_dex_cache_class_lookups_ > kMaxFailedDexCacheLookups) {
         MoveImageClassesToClassTable();
       }

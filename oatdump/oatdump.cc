@@ -916,7 +916,7 @@ class ImageDumper {
     } else if (type->IsStringClass()) {
       mirror::String* string = value->AsString();
       os << StringPrintf("%p   String: %s\n", string,
-                         PrintableString(string->ToModifiedUtf8()).c_str());
+                         PrintableString(string->ToModifiedUtf8().c_str()).c_str());
     } else if (type->IsClassClass()) {
       mirror::Class* klass = value->AsClass();
       os << StringPrintf("%p   Class: %s\n", klass, PrettyDescriptor(klass).c_str());
@@ -1060,7 +1060,7 @@ class ImageDumper {
                          PrettyMethod(obj->AsArtMethod()).c_str());
     } else if (obj_class->IsStringClass()) {
       os << StringPrintf("%p: java.lang.String %s\n", obj,
-                         PrintableString(obj->AsString()->ToModifiedUtf8()).c_str());
+                         PrintableString(obj->AsString()->ToModifiedUtf8().c_str()).c_str());
     } else {
       os << StringPrintf("%p: %s\n", obj, PrettyDescriptor(obj_class).c_str());
     }
