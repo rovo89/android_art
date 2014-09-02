@@ -23,6 +23,7 @@
 #include "runtime.h"
 #include "string.h"
 #include "thread.h"
+#include "utf.h"
 
 namespace art {
 namespace mirror {
@@ -65,6 +66,16 @@ inline uint16_t String::CharAt(int32_t index) {
     return 0;
   }
   return GetCharArray()->Get(index + GetOffset());
+}
+
+inline int32_t String::GetHashCode() {
+  int32_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_));
+  if (UNLIKELY(result == 0)) {
+    result = ComputeHashCode();
+  }
+  DCHECK(result != 0 || ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength()) == 0)
+      << ToModifiedUtf8() << " " << result;
+  return result;
 }
 
 }  // namespace mirror
