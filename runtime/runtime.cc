@@ -930,6 +930,7 @@ void Runtime::DumpForSigQuit(std::ostream& os) {
   GetInternTable()->DumpForSigQuit(os);
   GetJavaVM()->DumpForSigQuit(os);
   GetHeap()->DumpForSigQuit(os);
+  TrackedAllocators::Dump(os);
   os << "\n";
 
   thread_list_->DumpForSigQuit(os);

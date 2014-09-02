@@ -17,13 +17,14 @@
 #ifndef ART_RUNTIME_GC_ROOT_H_
 #define ART_RUNTIME_GC_ROOT_H_
 
+#include "base/macros.h"
 #include "base/mutex.h"       // For Locks::mutator_lock_.
 #include "object_callbacks.h"
 
 namespace art {
 
 template<class MirrorType>
-class GcRoot {
+class PACKED(4) GcRoot {
  public:
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE MirrorType* Read() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

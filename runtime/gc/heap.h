@@ -810,10 +810,12 @@ class Heap {
   std::unique_ptr<accounting::CardTable> card_table_;
 
   // A mod-union table remembers all of the references from the it's space to other spaces.
-  SafeMap<space::Space*, accounting::ModUnionTable*> mod_union_tables_;
+  AllocationTrackingSafeMap<space::Space*, accounting::ModUnionTable*, kAllocatorTagHeap>
+      mod_union_tables_;
 
   // A remembered set remembers all of the references from the it's space to the target space.
-  SafeMap<space::Space*, accounting::RememberedSet*> remembered_sets_;
+  AllocationTrackingSafeMap<space::Space*, accounting::RememberedSet*, kAllocatorTagHeap>
+      remembered_sets_;
 
   // The current collector type.
   CollectorType collector_type_;
@@ -916,9 +918,6 @@ class Heap {
 
   // Bytes which are allocated and managed by native code but still need to be accounted for.
   Atomic<size_t> native_bytes_allocated_;
-
-  // Data structure GC overhead.
-  Atomic<size_t> gc_memory_overhead_;
 
   // Info related to the current or previous GC iteration.
   collector::Iteration current_gc_iteration_;

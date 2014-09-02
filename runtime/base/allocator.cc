@@ -19,9 +19,15 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
+#include "atomic.h"
 #include "base/logging.h"
+#include "thread-inl.h"
 
 namespace art {
+
+Atomic<uint64_t> TrackedAllocators::bytes_used_[kAllocatorTagCount];
+Atomic<uint64_t> TrackedAllocators::max_bytes_used_[kAllocatorTagCount];
+Atomic<uint64_t> TrackedAllocators::total_bytes_used_[kAllocatorTagCount];
 
 class MallocAllocator FINAL : public Allocator {
  public:
@@ -70,5 +76,19 @@ Allocator* Allocator::GetNoopAllocator() {
   return &g_noop_allocator;
 }
 
+void TrackedAllocators::Dump(std::ostream& os) {
+  if (kEnableTrackingAllocator) {
+    os << "Dumping native memory usage\n";
+    for (size_t i = 0; i < kAllocatorTagCount; ++i) {
+      uint64_t bytes_used = bytes_used_[i].LoadRelaxed();
+      uint64_t max_bytes_used = max_bytes_used_[i].LoadRelaxed();
+      uint64_t total_bytes_used = total_bytes_used_[i].LoadRelaxed();
+      if (total_bytes_used != 0) {
+        os << static_cast<AllocatorTag>(i) << " active=" << bytes_used << " max="
+           << max_bytes_used << " total=" << total_bytes_used << "\n";
+      }
+    }
+  }
+}
 
 }  // namespace art

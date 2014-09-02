@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_GC_ACCOUNTING_MOD_UNION_TABLE_H_
 #define ART_RUNTIME_GC_ACCOUNTING_MOD_UNION_TABLE_H_
 
-#include "gc_allocator.h"
+#include "base/allocator.h"
 #include "globals.h"
 #include "object_callbacks.h"
 #include "safe_map.h"
@@ -50,7 +50,8 @@ class HeapBitmap;
 // cleared between GC phases, reducing the number of dirty cards that need to be scanned.
 class ModUnionTable {
  public:
-  typedef std::set<byte*, std::less<byte*>, GcAllocator<byte*>> CardSet;
+  typedef std::set<byte*, std::less<byte*>,
+                   TrackingAllocator<byte*, kAllocatorTagModUnionCardSet>> CardSet;
 
   explicit ModUnionTable(const std::string& name, Heap* heap, space::ContinuousSpace* space)
       : name_(name),
@@ -130,9 +131,8 @@ class ModUnionTableReferenceCache : public ModUnionTable {
   ModUnionTable::CardSet cleared_cards_;
 
   // Maps from dirty cards to their corresponding alloc space references.
-  SafeMap<const byte*, std::vector<mirror::HeapReference<mirror::Object>*>, std::less<const byte*>,
-      GcAllocator<std::pair<const byte*, std::vector<mirror::HeapReference<mirror::Object>*>>> >
-      references_;
+  AllocationTrackingSafeMap<const byte*, std::vector<mirror::HeapReference<mirror::Object>*>,
+                            kAllocatorTagModUnionReferenceArray> references_;
 };
 
 // Card caching implementation. Keeps track of which cards we cleared and only this information.

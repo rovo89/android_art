@@ -111,7 +111,7 @@ class DexFileVerifier {
   const char* const location_;
   const DexFile::Header* const header_;
 
-  SafeMap<uint32_t, uint16_t> offset_to_type_map_;
+  AllocationTrackingSafeMap<uint32_t, uint16_t, kAllocatorTagDexFileVerifier> offset_to_type_map_;
   const byte* ptr_;
   const void* previous_item_;
 
