@@ -692,33 +692,27 @@ RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src,
     Clobber(rs_r2);
     LockTemp(rs_r2);
 
-    // Assume that the result will be in EDX.
-    rl_result = {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, rs_r2, INVALID_SREG, INVALID_SREG};
+    // Assume that the result will be in EDX for divide, and EAX for remainder.
+    rl_result = {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, is_div ? rs_r2 : rs_r0,
+                 INVALID_SREG, INVALID_SREG};
 
-    // Numerator into EAX.
-    RegStorage numerator_reg;
-    if (!is_div || (imm > 0 && magic < 0) || (imm < 0 && magic > 0)) {
-      // We will need the value later.
-      rl_src = LoadValue(rl_src, kCoreReg);
-      numerator_reg = rl_src.reg;
-      OpRegCopy(rs_r0, numerator_reg);
-    } else {
-      // Only need this once.  Just put it into EAX.
-      LoadValueDirectFixed(rl_src, rs_r0);
-    }
+    // We need the value at least twice.  Load into a temp.
+    rl_src = LoadValue(rl_src, kCoreReg);
+    RegStorage numerator_reg = rl_src.reg;
 
-    // Check if numerator is 0
-    OpRegImm(kOpCmp, rs_r0, 0);
+    // Check if numerator is 0.
+    OpRegImm(kOpCmp, numerator_reg, 0);
     LIR* branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
-    LoadConstantNoClobber(rs_r2, 0);
+    // Return result 0 if numerator was 0.
+    LoadConstantNoClobber(rl_result.reg, 0);
     LIR* done = NewLIR1(kX86Jmp8, 0);
     branch->target = NewLIR0(kPseudoTargetLabel);
 
-    // EDX = magic.
-    LoadConstantNoClobber(rs_r2, magic);
+    // EAX = magic.
+    LoadConstant(rs_r0, magic);
 
-    // EDX:EAX = magic & dividend.
-    NewLIR1(kX86Imul32DaR, rs_r2.GetReg());
+    // EDX:EAX = magic * numerator.
+    NewLIR1(kX86Imul32DaR, numerator_reg.GetReg());
 
     if (imm > 0 && magic < 0) {
       // Add numerator to EDX.
@@ -756,11 +750,10 @@ RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src,
       // EAX = numerator * imm.
       OpRegRegImm(kOpMul, rs_r2, rs_r2, imm);
 
-      // EDX -= EAX.
+      // EAX -= EDX.
       NewLIR2(kX86Sub32RR, rs_r0.GetReg(), rs_r2.GetReg());
 
       // For this case, return the result in EAX.
-      rl_result.reg.SetReg(r0);
     }
     done->target = NewLIR0(kPseudoTargetLabel);
   }
@@ -2045,7 +2038,8 @@ void X86Mir2Lir::GenDivRemLongLit(RegLocation rl_dest, RegLocation rl_src,
     Clobber(rs_r2q);
     LockTemp(rs_r2q);
 
-    RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, rs_r2q, INVALID_SREG, INVALID_SREG};
+    RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1,
+                             is_div ? rs_r2q : rs_r0q, INVALID_SREG, INVALID_SREG};
 
     // Use H.S.Warren's Hacker's Delight Chapter 10 and
     // T,Grablund, P.L.Montogomery's Division by invariant integers using multiplication.
@@ -2069,23 +2063,34 @@ void X86Mir2Lir::GenDivRemLongLit(RegLocation rl_dest, RegLocation rl_src,
      * 5. Thus, RDX is the quotient
      */
 
-    // Numerator into RAX.
+    // RAX = magic.
+    LoadConstantWide(rs_r0q, magic);
+
+    // Multiply by numerator.
     RegStorage numerator_reg;
     if (!is_div || (imm > 0 && magic < 0) || (imm < 0 && magic > 0)) {
       // We will need the value later.
       rl_src = LoadValueWide(rl_src, kCoreReg);
       numerator_reg = rl_src.reg;
-      OpRegCopyWide(rs_r0q, numerator_reg);
+
+      // RDX:RAX = magic * numerator.
+      NewLIR1(kX86Imul64DaR, numerator_reg.GetReg());
     } else {
-      // Only need this once.  Just put it into RAX.
-      LoadValueDirectWideFixed(rl_src, rs_r0q);
+      // Only need this once.  Multiply directly from the value.
+      rl_src = UpdateLocWideTyped(rl_src, kCoreReg);
+      if (rl_src.location != kLocPhysReg) {
+        // Okay, we can do this from memory.
+        ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+        int displacement = SRegOffset(rl_src.s_reg_low);
+        // RDX:RAX = magic * numerator.
+        LIR *m = NewLIR2(kX86Imul64DaM, rs_rX86_SP.GetReg(), displacement);
+        AnnotateDalvikRegAccess(m, displacement >> 2,
+                                true /* is_load */, true /* is_64bit */);
+      } else {
+        // RDX:RAX = magic * numerator.
+        NewLIR1(kX86Imul64DaR, rl_src.reg.GetReg());
+      }
     }
-
-    // RDX = magic.
-    LoadConstantWide(rs_r2q, magic);
-
-    // RDX:RAX = magic & dividend.
-    NewLIR1(kX86Imul64DaR, rs_r2q.GetReg());
 
     if (imm > 0 && magic < 0) {
       // Add numerator to RDX.
@@ -2134,14 +2139,12 @@ void X86Mir2Lir::GenDivRemLongLit(RegLocation rl_dest, RegLocation rl_src,
         NewLIR3(kX86Imul64RRI, rs_r2q.GetReg(), rs_r2q.GetReg(), short_imm);
       }
 
-      // RDX -= RAX.
+      // RAX -= RDX.
       OpRegReg(kOpSub, rs_r0q, rs_r2q);
 
-      // Store result.
-      OpRegCopyWide(rl_result.reg, rs_r0q);
+      // Result in RAX.
     } else {
-      // Store result.
-      OpRegCopyWide(rl_result.reg, rs_r2q);
+      // Result in RDX.
     }
     StoreValueWide(rl_dest, rl_result);
     FreeTemp(rs_r0q);
