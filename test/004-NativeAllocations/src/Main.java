@@ -15,6 +15,7 @@
  */
 
 import java.lang.reflect.*;
+import java.lang.Runtime;
 
 public class Main {
     static Object nativeLock = new Object();
@@ -22,7 +23,7 @@ public class Main {
     static Object runtime;
     static Method register_native_allocation;
     static Method register_native_free;
-    static int maxMem = 64 * 1024 * 1024;
+    static long maxMem = 0;
 
     static class NativeAllocation {
         private int bytes;
@@ -52,8 +53,9 @@ public class Main {
         runtime = get_runtime.invoke(null);
         register_native_allocation = vm_runtime.getDeclaredMethod("registerNativeAllocation", Integer.TYPE);
         register_native_free = vm_runtime.getDeclaredMethod("registerNativeFree", Integer.TYPE);
+        maxMem = Runtime.getRuntime().maxMemory();
         int count = 16;
-        int size = 512 * 0x400;
+        int size = (int)(maxMem / 2 / count);
         int allocation_count = 256;
         NativeAllocation[] allocations = new NativeAllocation[count];
         for (int i = 0; i < allocation_count; ++i) {
