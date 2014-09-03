@@ -32,7 +32,7 @@ namespace art {
 Mutex* Locks::abort_lock_ = nullptr;
 Mutex* Locks::allocated_monitor_ids_lock_ = nullptr;
 Mutex* Locks::allocated_thread_ids_lock_ = nullptr;
-Mutex* Locks::breakpoint_lock_ = nullptr;
+ReaderWriterMutex* Locks::breakpoint_lock_ = nullptr;
 ReaderWriterMutex* Locks::classlinker_classes_lock_ = nullptr;
 ReaderWriterMutex* Locks::heap_bitmap_lock_ = nullptr;
 Mutex* Locks::jni_libraries_lock_ = nullptr;
@@ -886,7 +886,7 @@ void Locks::Init() {
 
     UPDATE_CURRENT_LOCK_LEVEL(kBreakpointLock);
     DCHECK(breakpoint_lock_ == nullptr);
-    breakpoint_lock_ = new Mutex("breakpoint lock", current_lock_level);
+    breakpoint_lock_ = new ReaderWriterMutex("breakpoint lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kClassLinkerClassesLock);
     DCHECK(classlinker_classes_lock_ == nullptr);
