@@ -103,7 +103,7 @@ mirror::String* InternTable::Lookup(Table* table, mirror::String* s) {
   Locks::intern_table_lock_->AssertHeld(Thread::Current());
   auto it = table->find(GcRoot<mirror::String>(s));
   if (LIKELY(it != table->end())) {
-    return const_cast<GcRoot<mirror::String>&>(*it).Read<kWithReadBarrier>();
+    return const_cast<GcRoot<mirror::String>&>(*it).Read();
   }
   return nullptr;
 }
@@ -299,7 +299,7 @@ void InternTable::SweepInternTableWeaks(IsMarkedCallback* callback, void* arg) {
     if (new_object == nullptr) {
       it = weak_interns_.erase(it);
     } else {
-      root.Assign(down_cast<mirror::String*>(new_object));
+      root = GcRoot<mirror::String>(down_cast<mirror::String*>(new_object));
       ++it;
     }
   }
@@ -309,8 +309,7 @@ std::size_t InternTable::StringHashEquals::operator()(const GcRoot<mirror::Strin
   if (kIsDebugBuild) {
     Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
   }
-  return static_cast<size_t>(
-      const_cast<GcRoot<mirror::String>&>(root).Read<kWithoutReadBarrier>()->GetHashCode());
+  return static_cast<size_t>(const_cast<GcRoot<mirror::String>&>(root).Read()->GetHashCode());
 }
 
 bool InternTable::StringHashEquals::operator()(const GcRoot<mirror::String>& a,
@@ -318,8 +317,8 @@ bool InternTable::StringHashEquals::operator()(const GcRoot<mirror::String>& a,
   if (kIsDebugBuild) {
     Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
   }
-  return const_cast<GcRoot<mirror::String>&>(a).Read<kWithoutReadBarrier>()->Equals(
-      const_cast<GcRoot<mirror::String>&>(b).Read<kWithoutReadBarrier>());
+  return const_cast<GcRoot<mirror::String>&>(a).Read()->Equals(
+      const_cast<GcRoot<mirror::String>&>(b).Read());
 }
 
 }  // namespace art
