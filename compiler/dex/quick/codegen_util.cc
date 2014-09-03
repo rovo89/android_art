@@ -57,16 +57,23 @@ bool Mir2Lir::IsInexpensiveConstant(RegLocation rl_src) {
   bool res = false;
   if (rl_src.is_const) {
     if (rl_src.wide) {
+      // For wide registers, check whether we're the high partner. In that case we need to switch
+      // to the lower one for the correct value.
+      if (rl_src.high_word) {
+        rl_src.high_word = false;
+        rl_src.s_reg_low--;
+        rl_src.orig_sreg--;
+      }
       if (rl_src.fp) {
-         res = InexpensiveConstantDouble(mir_graph_->ConstantValueWide(rl_src));
+        res = InexpensiveConstantDouble(mir_graph_->ConstantValueWide(rl_src));
       } else {
-         res = InexpensiveConstantLong(mir_graph_->ConstantValueWide(rl_src));
+        res = InexpensiveConstantLong(mir_graph_->ConstantValueWide(rl_src));
       }
     } else {
       if (rl_src.fp) {
-         res = InexpensiveConstantFloat(mir_graph_->ConstantValue(rl_src));
+        res = InexpensiveConstantFloat(mir_graph_->ConstantValue(rl_src));
       } else {
-         res = InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src));
+        res = InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src));
       }
     }
   }
