@@ -1565,11 +1565,11 @@ HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
   count_performed_homogeneous_space_compaction_++;
   // Print statics log and resume all threads.
   uint64_t duration = NanoTime() - start_time;
-  VLOG(gc) << "Heap homogeneous space compaction took " << PrettyDuration(duration) << " size: "
-            << PrettySize(space_size_before_compaction) << " -> "
-            << PrettySize(space_size_after_compaction) << " compact-ratio: "
-            << std::fixed << static_cast<double>(space_size_after_compaction) /
-            static_cast<double>(space_size_before_compaction);
+  VLOG(heap) << "Heap homogeneous space compaction took " << PrettyDuration(duration) << " size: "
+             << PrettySize(space_size_before_compaction) << " -> "
+             << PrettySize(space_size_after_compaction) << " compact-ratio: "
+             << std::fixed << static_cast<double>(space_size_after_compaction) /
+             static_cast<double>(space_size_before_compaction);
   tl->ResumeAll();
   // Finish GC.
   reference_processor_.EnqueueClearedReferences(self);
@@ -1716,7 +1716,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   } else {
     saved_str = " expanded " + PrettySize(-delta_allocated);
   }
-  VLOG(gc) << "Heap transition to " << process_state_ << " took "
+  VLOG(heap) << "Heap transition to " << process_state_ << " took "
       << PrettyDuration(duration) << saved_str;
 }
 
