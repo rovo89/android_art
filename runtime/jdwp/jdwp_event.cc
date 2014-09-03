@@ -781,7 +781,7 @@ static void LogMatchingEventsAndThread(JdwpEvent** match_list, size_t match_coun
                << StringPrintf(" (requestId=%#" PRIx32 ")", pEvent->requestId);
   }
   std::string thread_name;
-  JdwpError error = Dbg::GetThreadName(basket.threadId, thread_name);
+  JdwpError error = Dbg::GetThreadName(basket.threadId, &thread_name);
   if (error != JDWP::ERR_NONE) {
     thread_name = "<unknown>";
   }
@@ -924,7 +924,7 @@ bool JdwpState::PostFieldEvent(const JdwpLocation* pLoc, RefTypeId typeId, Field
 
   // Get instance type tag.
   uint8_t tag;
-  error = Dbg::GetObjectTag(thisPtr, tag);
+  error = Dbg::GetObjectTag(thisPtr, &tag);
   if (error != ERR_NONE) {
     return false;
   }

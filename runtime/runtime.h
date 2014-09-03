@@ -244,6 +244,12 @@ class Runtime {
     return monitor_pool_;
   }
 
+  // Is the given object the special object used to mark a cleared JNI weak global?
+  bool IsClearedJniWeakGlobal(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Get the special object used to mark a cleared JNI weak global.
+  mirror::Object* GetClearedJniWeakGlobal() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   mirror::Throwable* GetPreAllocatedOutOfMemoryError() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::Throwable* GetPreAllocatedNoClassDefFoundError()
@@ -516,6 +522,10 @@ class Runtime {
   GcRoot<mirror::ArtMethod> resolution_method_;
   GcRoot<mirror::ArtMethod> imt_conflict_method_;
   GcRoot<mirror::ObjectArray<mirror::ArtMethod>> default_imt_;
+
+  // Special sentinel object used to invalid conditions in JNI (cleared weak references) and
+  // JDWP (invalid references).
+  GcRoot<mirror::Object> sentinel_;
 
   InstructionSet instruction_set_;
   QuickMethodFrameInfo callee_save_method_frame_infos_[kLastCalleeSaveType];

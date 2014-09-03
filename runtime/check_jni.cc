@@ -650,6 +650,24 @@ class ScopedCheck {
     }
 
     mirror::Object* obj = soa.Decode<mirror::Object*>(java_object);
+    if (obj == nullptr) {
+      // Either java_object is invalid or is a cleared weak.
+      IndirectRef ref = reinterpret_cast<IndirectRef>(java_object);
+      bool okay;
+      if (GetIndirectRefKind(ref) != kWeakGlobal) {
+        okay = false;
+      } else {
+        obj = soa.Vm()->DecodeWeakGlobal(soa.Self(), ref);
+        okay = Runtime::Current()->IsClearedJniWeakGlobal(obj);
+      }
+      if (!okay) {
+        AbortF("%s is an invalid %s: %p (%p)",
+               what, ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(),
+               java_object, obj);
+        return false;
+      }
+    }
+
     if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(obj)) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
       AbortF("%s is an invalid %s: %p (%p)",
@@ -784,8 +802,7 @@ class ScopedCheck {
         mirror::Class* c = soa.Decode<mirror::Class*>(jc);
         if (c == nullptr) {
           *msg += "NULL";
-        } else if (c == kInvalidIndirectRefObject ||
-            !Runtime::Current()->GetHeap()->IsValidObjectAddress(c)) {
+        } else if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(c)) {
           StringAppendF(msg, "INVALID POINTER:%p", jc);
         } else if (!c->IsClass()) {
           *msg += "INVALID NON-CLASS OBJECT OF TYPE:" + PrettyTypeOf(c);
@@ -1453,12 +1470,13 @@ class CheckJNI {
   }
 
   static jobjectRefType GetObjectRefType(JNIEnv* env, jobject obj) {
-    // Note: we use "Ep" rather than "EL" because this is the one JNI function that it's okay to
-    // pass an invalid reference to.
+    // Note: we use "EL" here but "Ep" has been used in the past on the basis that we'd like to
+    // know the object is invalid. The spec says that passing invalid objects or even ones that
+    // are deleted isn't supported.
     ScopedObjectAccess soa(env);
     ScopedCheck sc(kFlag_Default, __FUNCTION__);
-    JniValueType args[2] = {{.E = env }, {.p = obj}};
-    if (sc.Check(soa, true, "Ep", args)) {
+    JniValueType args[2] = {{.E = env }, {.L = obj}};
+    if (sc.Check(soa, true, "EL", args)) {
       JniValueType result;
       result.w = baseEnv(env)->GetObjectRefType(env, obj);
       if (sc.Check(soa, false, "w", &result)) {

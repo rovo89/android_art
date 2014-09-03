@@ -24,6 +24,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/string-inl.h"
+#include "runtime-inl.h"
 #include "thread.h"
 #include "utils.h"
 
@@ -62,7 +63,9 @@ void ReferenceTable::Remove(mirror::Object* obj) {
 // If "obj" is an array, return the number of elements in the array.
 // Otherwise, return zero.
 static size_t GetElementCount(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (obj == NULL || obj == kClearedJniWeakGlobal || !obj->IsArrayInstance()) {
+  // We assume the special cleared value isn't an array in the if statement below.
+  DCHECK(!Runtime::Current()->GetClearedJniWeakGlobal()->IsArrayInstance());
+  if (obj == nullptr || !obj->IsArrayInstance()) {
     return 0;
   }
   return obj->AsArray()->GetLength();
@@ -81,9 +84,10 @@ struct ObjectComparator {
     } else if (obj2 == NULL) {
       return false;
     }
-    if (obj1 == kClearedJniWeakGlobal) {
+    Runtime* runtime = Runtime::Current();
+    if (runtime->IsClearedJniWeakGlobal(obj1)) {
       return true;
-    } else if (obj2 == kClearedJniWeakGlobal) {
+    } else if (runtime->IsClearedJniWeakGlobal(obj2)) {
       return false;
     }
 
@@ -116,7 +120,7 @@ static void DumpSummaryLine(std::ostream& os, mirror::Object* obj, size_t elemen
     os << "    NULL reference (count=" << equiv << ")\n";
     return;
   }
-  if (obj == kClearedJniWeakGlobal) {
+  if (Runtime::Current()->IsClearedJniWeakGlobal(obj)) {
     os << "    cleared jweak (count=" << equiv << ")\n";
     return;
   }
@@ -167,7 +171,7 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
     if (ref == NULL) {
       continue;
     }
-    if (ref == kClearedJniWeakGlobal) {
+    if (Runtime::Current()->IsClearedJniWeakGlobal(ref)) {
       os << StringPrintf("    %5d: cleared jweak\n", idx);
       continue;
     }
@@ -209,7 +213,8 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
     sorted_entries.pop_back();
   }
   while (!sorted_entries.empty() &&
-         sorted_entries.back().Read<kWithoutReadBarrier>() == kClearedJniWeakGlobal) {
+         Runtime::Current()->IsClearedJniWeakGlobal(
+             sorted_entries.back().Read<kWithoutReadBarrier>())) {
     sorted_entries.pop_back();
   }
   if (sorted_entries.empty()) {

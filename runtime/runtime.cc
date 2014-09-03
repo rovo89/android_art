@@ -796,6 +796,10 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     class_linker_->InitWithoutImage(*options->boot_class_path_);
   }
   CHECK(class_linker_ != nullptr);
+
+  // Initialize the special sentinel_ value early.
+  sentinel_ = GcRoot<mirror::Object>(class_linker_->AllocObject(self));
+
   verifier::MethodVerifier::Init();
 
   method_trace_ = options->method_trace_;
@@ -1084,6 +1088,10 @@ void Runtime::VisitConcurrentRoots(RootCallback* callback, void* arg, VisitRootF
 
 void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
   java_vm_->VisitRoots(callback, arg);
+  if (!sentinel_.IsNull()) {
+    sentinel_.VisitRoot(callback, arg, 0, kRootVMInternal);
+    DCHECK(!sentinel_.IsNull());
+  }
   if (!pre_allocated_OutOfMemoryError_.IsNull()) {
     pre_allocated_OutOfMemoryError_.VisitRoot(callback, arg, 0, kRootVMInternal);
     DCHECK(!pre_allocated_OutOfMemoryError_.IsNull());

@@ -155,6 +155,11 @@ inline mirror::ArtField* ClassLinker::ResolveField(uint32_t field_idx, mirror::A
   return resolved_field;
 }
 
+inline mirror::Object* ClassLinker::AllocObject(Thread* self) {
+  return GetClassRoot(kJavaLangObject)->Alloc<false, false>(self,
+      Runtime::Current()->GetHeap()->GetCurrentAllocator());
+}
+
 template <class T>
 inline mirror::ObjectArray<T>* ClassLinker::AllocObjectArray(Thread* self, size_t length) {
   return mirror::ObjectArray<T>::Alloc(self, GetClassRoot(kObjectArrayClass), length);
