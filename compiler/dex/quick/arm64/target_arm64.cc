@@ -249,19 +249,22 @@ static void DecodeRegExtendOrShift(int operand, char *buf, size_t buf_size) {
   }
 }
 
-#define BIT_MASK(w) ((UINT64_C(1) << (w)) - UINT64_C(1))
+static uint64_t bit_mask(unsigned width) {
+  DCHECK_LE(width, 64U);
+  return (width == 64) ? static_cast<uint64_t>(-1) : ((UINT64_C(1) << (width)) - UINT64_C(1));
+}
 
 static uint64_t RotateRight(uint64_t value, unsigned rotate, unsigned width) {
   DCHECK_LE(width, 64U);
   rotate &= 63;
-  value = value & BIT_MASK(width);
-  return ((value & BIT_MASK(rotate)) << (width - rotate)) | (value >> rotate);
+  value = value & bit_mask(width);
+  return ((value & bit_mask(rotate)) << (width - rotate)) | (value >> rotate);
 }
 
 static uint64_t RepeatBitsAcrossReg(bool is_wide, uint64_t value, unsigned width) {
   unsigned i;
   unsigned reg_size = (is_wide) ? 64 : 32;
-  uint64_t result = value & BIT_MASK(width);
+  uint64_t result = value & bit_mask(width);
   for (i = width; i < reg_size; i *= 2) {
     result |= (result << i);
   }
@@ -300,7 +303,7 @@ uint64_t Arm64Mir2Lir::DecodeLogicalImmediate(bool is_wide, int value) {
 
   if (n == 1) {
     DCHECK_NE(imm_s, 0x3fU);
-    uint64_t bits = BIT_MASK(imm_s + 1);
+    uint64_t bits = bit_mask(imm_s + 1);
     return RotateRight(bits, imm_r, 64);
   } else {
     DCHECK_NE((imm_s >> 1), 0x1fU);
@@ -308,7 +311,7 @@ uint64_t Arm64Mir2Lir::DecodeLogicalImmediate(bool is_wide, int value) {
       if ((imm_s & width) == 0) {
         unsigned mask = (unsigned)(width - 1);
         DCHECK_NE((imm_s & mask), mask);
-        uint64_t bits = BIT_MASK((imm_s & mask) + 1);
+        uint64_t bits = bit_mask((imm_s & mask) + 1);
         return RepeatBitsAcrossReg(is_wide, RotateRight(bits, imm_r & mask, width), width);
       }
     }
