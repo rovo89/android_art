@@ -309,7 +309,7 @@ class StubTest : public CommonRuntimeTest {
         "addl $16, %%esp"           // Pop referrer
         : "=a" (result)
           // Use the result from eax
-        : "a"(arg0), "c"(arg1), "d"(arg2), "D"(code), [referrer]"m"(referrer), [hidden]"r"(hidden)
+        : "a"(arg0), "c"(arg1), "d"(arg2), "D"(code), [referrer]"r"(referrer), [hidden]"m"(hidden)
           // This places code into edi, arg0 into eax, arg1 into ecx, and arg2 into edx
         : "memory");  // clobber.
     // TODO: Should we clobber the other registers? EBX gets clobbered by some of the stubs,
@@ -398,7 +398,7 @@ class StubTest : public CommonRuntimeTest {
         // Load call params into the right registers.
         "ldp x0, x1, [sp]\n\t"
         "ldp x2, x3, [sp, #16]\n\t"
-        "ldp x18, x12, [sp, #32]\n\t"
+        "ldp x18, x17, [sp, #32]\n\t"
         "add sp, sp, #48\n\t"
         ".cfi_adjust_cfa_offset -48\n\t"
 
@@ -489,19 +489,17 @@ class StubTest : public CommonRuntimeTest {
     // Note: Uses the native convention
     // TODO: Set the thread?
     __asm__ __volatile__(
-        "movq %[hidden], %%r9\n\t"     // No need to save r9, listed as clobbered
-        "movd %%r9, %%xmm0\n\t"
         "pushq %[referrer]\n\t"        // Push referrer
         "pushq (%%rsp)\n\t"            // & 16B alignment padding
         ".cfi_adjust_cfa_offset 16\n\t"
-        "call *%%rax\n\t"              // Call the stub
+        "call *%%rbx\n\t"              // Call the stub
         "addq $16, %%rsp\n\t"          // Pop nullptr and padding
         ".cfi_adjust_cfa_offset -16\n\t"
         : "=a" (result)
         // Use the result from rax
-        : "D"(arg0), "S"(arg1), "d"(arg2), "a"(code), [referrer] "m"(referrer), [hidden] "m"(hidden)
+        : "D"(arg0), "S"(arg1), "d"(arg2), "b"(code), [referrer] "c"(referrer), [hidden] "a"(hidden)
         // This places arg0 into rdi, arg1 into rsi, arg2 into rdx, and code into rax
-        : "rbx", "rcx", "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
+        : "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
           "memory");  // clobber all
     // TODO: Should we clobber the other registers?
 #else
@@ -1306,12 +1304,6 @@ TEST_F(StubTest, StringCompareTo) {
 }
 
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-extern "C" void art_quick_set8_static(void);
-extern "C" void art_quick_get_byte_static(void);
-extern "C" void art_quick_get_boolean_static(void);
-#endif
-
 static void GetSetBooleanStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
                            mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -1370,12 +1362,6 @@ static void GetSetByteStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtFiel
 #endif
 }
 
-
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-extern "C" void art_quick_set8_instance(void);
-extern "C" void art_quick_get_byte_instance(void);
-extern "C" void art_quick_get_boolean_instance(void);
-#endif
 
 static void GetSetBooleanInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f,
                              Thread* self, mirror::ArtMethod* referrer, StubTest* test)
@@ -1445,12 +1431,6 @@ static void GetSetByteInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtFi
 #endif
 }
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-extern "C" void art_quick_set16_static(void);
-extern "C" void art_quick_get_short_static(void);
-extern "C" void art_quick_get_char_static(void);
-#endif
-
 static void GetSetCharStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
                            mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -1509,12 +1489,6 @@ static void GetSetShortStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtFie
   std::cout << "Skipping set_short_static as I don't know how to do that on " << kRuntimeISA << std::endl;
 #endif
 }
-
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-extern "C" void art_quick_set16_instance(void);
-extern "C" void art_quick_get_short_instance(void);
-extern "C" void art_quick_get_char_instance(void);
-#endif
 
 static void GetSetCharInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f,
                              Thread* self, mirror::ArtMethod* referrer, StubTest* test)
@@ -1582,11 +1556,6 @@ static void GetSetShortInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtF
   std::cout << "Skipping set_short_instance as I don't know how to do that on " << kRuntimeISA << std::endl;
 #endif
 }
-
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-extern "C" void art_quick_set32_static(void);
-extern "C" void art_quick_get32_static(void);
-#endif
 
 static void GetSet32Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
                            mirror::ArtMethod* referrer, StubTest* test)
@@ -2007,7 +1976,6 @@ TEST_F(StubTest, Fields64) {
   TestFields(self, this, Primitive::Type::kPrimLong);
 }
 
-
 TEST_F(StubTest, IMT) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
@@ -2058,19 +2026,6 @@ TEST_F(StubTest, IMT) {
   jmethodID obj_constructor = env->GetMethodID(obj_jclass, "<init>", "()V");
   ASSERT_NE(nullptr, obj_constructor);
 
-  // Sanity check: check that there is a conflict for List.contains in ArrayList.
-
-  mirror::Class* arraylist_class = soa.Decode<mirror::Class*>(arraylist_jclass);
-  mirror::ArtMethod* m = arraylist_class->GetEmbeddedImTableEntry(
-      inf_contains->GetDexMethodIndex() % mirror::Class::kImtSize);
-
-  if (!m->IsImtConflictMethod()) {
-    LOG(WARNING) << "Test is meaningless, no IMT conflict in setup: " <<
-        PrettyMethod(m, true);
-    LOG(WARNING) << "Please update StubTest.IMT.";
-    return;
-  }
-
   // Create instances.
 
   jobject jarray_list = env->NewObject(arraylist_jclass, arraylist_constructor);
@@ -2081,7 +2036,11 @@ TEST_F(StubTest, IMT) {
   ASSERT_NE(nullptr, jobj);
   Handle<mirror::Object> obj(hs.NewHandle(soa.Decode<mirror::Object*>(jobj)));
 
-  // Invoke.
+  // Invocation tests.
+
+  // 1. imt_conflict
+
+  // Contains.
 
   size_t result =
       Invoke3WithReferrerAndHidden(0U, reinterpret_cast<size_t>(array_list.Get()),
@@ -2099,7 +2058,7 @@ TEST_F(StubTest, IMT) {
 
   ASSERT_FALSE(self->IsExceptionPending()) << PrettyTypeOf(self->GetException(nullptr));
 
-  // Invoke again.
+  // Contains.
 
   result = Invoke3WithReferrerAndHidden(0U, reinterpret_cast<size_t>(array_list.Get()),
                                         reinterpret_cast<size_t>(obj.Get()),
@@ -2109,6 +2068,28 @@ TEST_F(StubTest, IMT) {
 
   ASSERT_FALSE(self->IsExceptionPending());
   EXPECT_EQ(static_cast<size_t>(JNI_TRUE), result);
+
+  // 2. regular interface trampoline
+
+  result = Invoke3WithReferrer(static_cast<size_t>(inf_contains.Get()->GetDexMethodIndex()),
+                               reinterpret_cast<size_t>(array_list.Get()),
+                               reinterpret_cast<size_t>(obj.Get()),
+                               StubTest::GetEntrypoint(self,
+                                   kQuickInvokeInterfaceTrampolineWithAccessCheck),
+                               self, contains_amethod.Get());
+
+  ASSERT_FALSE(self->IsExceptionPending());
+  EXPECT_EQ(static_cast<size_t>(JNI_TRUE), result);
+
+  result = Invoke3WithReferrer(static_cast<size_t>(inf_contains.Get()->GetDexMethodIndex()),
+                               reinterpret_cast<size_t>(array_list.Get()),
+                               reinterpret_cast<size_t>(array_list.Get()),
+                               StubTest::GetEntrypoint(self,
+                                   kQuickInvokeInterfaceTrampolineWithAccessCheck),
+                               self, contains_amethod.Get());
+
+  ASSERT_FALSE(self->IsExceptionPending());
+  EXPECT_EQ(static_cast<size_t>(JNI_FALSE), result);
 #else
   LOG(INFO) << "Skipping imt as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
