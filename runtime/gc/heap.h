@@ -894,9 +894,6 @@ class Heap {
   // The watermark at which a concurrent GC is requested by registerNativeAllocation.
   size_t native_footprint_gc_watermark_;
 
-  // The watermark at which a GC is performed inside of registerNativeAllocation.
-  size_t native_footprint_limit_;
-
   // Whether or not we need to run finalizers in the next native allocation.
   bool native_need_to_run_finalization_;
 
