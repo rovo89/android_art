@@ -258,7 +258,7 @@ std::string PrintableChar(uint16_t ch);
 
 // Returns an ASCII string corresponding to the given UTF-8 string.
 // Java escapes are used for non-ASCII characters.
-std::string PrintableString(const std::string& utf8);
+std::string PrintableString(const char* utf8);
 
 // Tests whether 's' starts with 'prefix'.
 bool StartsWith(const std::string& s, const char* prefix);
