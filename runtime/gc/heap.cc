@@ -2831,7 +2831,7 @@ void Heap::UpdateMaxNativeFootprint() {
   } else if (target_size < native_size + min_free_) {
     target_size = native_size + min_free_;
   }
-  native_footprint_gc_watermark_ = target_size;
+  native_footprint_gc_watermark_ = std::min(growth_limit_, target_size);
 }
 
 collector::GarbageCollector* Heap::FindCollectorByGcType(collector::GcType gc_type) {
@@ -3085,9 +3085,11 @@ void Heap::RunFinalization(JNIEnv* env) {
   }
   env->CallStaticVoidMethod(WellKnownClasses::java_lang_System,
                             WellKnownClasses::java_lang_System_runFinalization);
+  env->CallStaticVoidMethod(WellKnownClasses::java_lang_System,
+                            WellKnownClasses::java_lang_System_runFinalization);
 }
 
-void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
+void Heap::RegisterNativeAllocation(JNIEnv* env, size_t bytes) {
   Thread* self = ThreadForEnv(env);
   if (native_need_to_run_finalization_) {
     RunFinalization(env);
@@ -3129,19 +3131,19 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
   }
 }
 
-void Heap::RegisterNativeFree(JNIEnv* env, int bytes) {
-  int expected_size, new_size;
+void Heap::RegisterNativeFree(JNIEnv* env, size_t bytes) {
+  size_t expected_size;
   do {
     expected_size = native_bytes_allocated_.LoadRelaxed();
-    new_size = expected_size - bytes;
-    if (UNLIKELY(new_size < 0)) {
+    if (UNLIKELY(bytes > expected_size)) {
       ScopedObjectAccess soa(env);
       env->ThrowNew(WellKnownClasses::java_lang_RuntimeException,
-                    StringPrintf("Attempted to free %d native bytes with only %d native bytes "
+                    StringPrintf("Attempted to free %zd native bytes with only %zd native bytes "
                                  "registered as allocated", bytes, expected_size).c_str());
       break;
     }
-  } while (!native_bytes_allocated_.CompareExchangeWeakRelaxed(expected_size, new_size));
+  } while (!native_bytes_allocated_.CompareExchangeWeakRelaxed(expected_size,
+                                                               expected_size - bytes));
 }
 
 size_t Heap::GetTotalMemory() const {
