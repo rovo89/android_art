@@ -28,6 +28,7 @@ class PACKED(4) GcRoot {
  public:
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE MirrorType* Read() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE void Assign(MirrorType* value) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void VisitRoot(RootCallback* callback, void* arg, uint32_t thread_id, RootType root_type) {
     callback(reinterpret_cast<mirror::Object**>(&root_), arg, thread_id, root_type);
