@@ -114,11 +114,6 @@ void ThrowStackOverflowError(Thread* self) {
     // We don't fail here because SetStackEndForStackOverflow will print better diagnostics.
   }
 
-  if (Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()) {
-    // Remove extra entry pushed onto second stack during method tracing.
-    Runtime::Current()->GetInstrumentation()->PopMethodForUnwind(self, false);
-  }
-
   self->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute.
   JNIEnvExt* env = self->GetJniEnv();
   std::string msg("stack size ");

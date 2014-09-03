@@ -80,11 +80,7 @@ ifdef dist_goal
 endif
 
 # Tests that are broken in --trace mode.
-TEST_ART_BROKEN_TRACE_RUN_TESTS := \
-  004-SignalTest \
-  018-stack-overflow \
-  097-duplicate-method \
-  107-int-math2
+TEST_ART_BROKEN_TRACE_RUN_TESTS :=
 
 ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_TRACE_RUN_TESTS), $(call all-run-test-names,$(test),-trace,-relocate))
 ART_TEST_KNOWN_BROKEN += $(foreach test, $(TEST_ART_BROKEN_TRACE_RUN_TESTS), $(call all-run-test-names,$(test),-trace,-no-prebuild))
