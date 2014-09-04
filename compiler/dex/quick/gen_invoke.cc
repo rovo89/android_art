@@ -1193,7 +1193,7 @@ bool Mir2Lir::GenInlinedReferenceGetReferent(CallInfo* info) {
 
   LIR* intrinsic_finish = NewLIR0(kPseudoTargetLabel);
   AddIntrinsicSlowPath(info, slow_path_branch, intrinsic_finish);
-
+  ClobberCallerSave();  // We must clobber everything because slow path will return here
   return true;
 }
 
@@ -1492,6 +1492,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
     LIR* resume_tgt = NewLIR0(kPseudoTargetLabel);
     info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've null checked.
     AddIntrinsicSlowPath(info, high_code_point_branch, resume_tgt);
+    ClobberCallerSave();  // We must clobber everything because slow path will return here
   } else {
     DCHECK_EQ(mir_graph_->ConstantValue(rl_char) & ~0xFFFF, 0);
     DCHECK(high_code_point_branch == nullptr);
