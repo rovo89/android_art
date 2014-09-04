@@ -990,6 +990,17 @@ void X86Mir2Lir::AnalyzeExtendedMIR(int opcode, BasicBlock * bb, MIR *mir) {
     case kMirOpConstVector:
       store_method_addr_ = true;
       break;
+    case kMirOpPackedMultiply:
+    case kMirOpPackedShiftLeft:
+    case kMirOpPackedSignedShiftRight:
+    case kMirOpPackedUnsignedShiftRight: {
+      // Byte emulation requires constants from the literal pool.
+      OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
+      if (opsize == kSignedByte || opsize == kUnsignedByte) {
+        store_method_addr_ = true;
+      }
+      break;
+    }
     default:
       // Ignore the rest.
       break;

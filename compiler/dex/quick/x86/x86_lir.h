@@ -555,20 +555,27 @@ enum X86OpCode {
   Binary0fOpCode(kX86Subss),    // float subtract
   Binary0fOpCode(kX86Divsd),    // double divide
   Binary0fOpCode(kX86Divss),    // float divide
-  Binary0fOpCode(kX86Punpckldq),  // Interleave low-order double words
+  Binary0fOpCode(kX86Punpcklbw),  // Interleave low-order bytes
+  Binary0fOpCode(kX86Punpcklwd),  // Interleave low-order single words (16-bits)
+  Binary0fOpCode(kX86Punpckldq),  // Interleave low-order double words (32-bit)
+  Binary0fOpCode(kX86Punpcklqdq),  // Interleave low-order quad word
   Binary0fOpCode(kX86Sqrtsd),   // square root
   Binary0fOpCode(kX86Pmulld),   // parallel integer multiply 32 bits x 4
   Binary0fOpCode(kX86Pmullw),   // parallel integer multiply 16 bits x 8
+  Binary0fOpCode(kX86Pmuludq),   // parallel unsigned 32 integer and stores result as 64
   Binary0fOpCode(kX86Mulps),    // parallel FP multiply 32 bits x 4
   Binary0fOpCode(kX86Mulpd),    // parallel FP multiply 64 bits x 2
   Binary0fOpCode(kX86Paddb),    // parallel integer addition 8 bits x 16
   Binary0fOpCode(kX86Paddw),    // parallel integer addition 16 bits x 8
   Binary0fOpCode(kX86Paddd),    // parallel integer addition 32 bits x 4
+  Binary0fOpCode(kX86Paddq),    // parallel integer addition 64 bits x 2
+  Binary0fOpCode(kX86Psadbw),   // computes sum of absolute differences for unsigned byte integers
   Binary0fOpCode(kX86Addps),    // parallel FP addition 32 bits x 4
   Binary0fOpCode(kX86Addpd),    // parallel FP addition 64 bits x 2
   Binary0fOpCode(kX86Psubb),    // parallel integer subtraction 8 bits x 16
   Binary0fOpCode(kX86Psubw),    // parallel integer subtraction 16 bits x 8
   Binary0fOpCode(kX86Psubd),    // parallel integer subtraction 32 bits x 4
+  Binary0fOpCode(kX86Psubq),    // parallel integer subtraction 32 bits x 4
   Binary0fOpCode(kX86Subps),    // parallel FP subtraction 32 bits x 4
   Binary0fOpCode(kX86Subpd),    // parallel FP subtraction 64 bits x 2
   Binary0fOpCode(kX86Pand),     // parallel AND 128 bits x 1
@@ -593,6 +600,7 @@ enum X86OpCode {
   kX86PsrlwRI,                  // logical right shift of floating point registers 16 bits x 8
   kX86PsrldRI,                  // logical right shift of floating point registers 32 bits x 4
   kX86PsrlqRI,                  // logical right shift of floating point registers 64 bits x 2
+  kX86PsrldqRI,                 // logical shift of 128-bit vector register, immediate in bytes
   kX86PsllwRI,                  // left shift of floating point registers 16 bits x 8
   kX86PslldRI,                  // left shift of floating point registers 32 bits x 4
   kX86PsllqRI,                  // left shift of floating point registers 64 bits x 2
@@ -607,8 +615,8 @@ enum X86OpCode {
   kX86Fprem,                    // remainder from dividing of two floating point values
   kX86Fucompp,                  // compare floating point values and pop x87 fp stack twice
   kX86Fstsw16R,                 // store FPU status word
-  Binary0fOpCode(kX86Mova128),  // move 128 bits aligned
-  kX86Mova128MR, kX86Mova128AR,  // store 128 bit aligned from xmm1 to m128
+  Binary0fOpCode(kX86Movdqa),   // move 128 bits aligned
+  kX86MovdqaMR, kX86MovdqaAR,   // store 128 bit aligned from xmm1 to m128
   Binary0fOpCode(kX86Movups),   // load unaligned packed single FP values from xmm2/m128 to xmm1
   kX86MovupsMR, kX86MovupsAR,   // store unaligned packed single FP values from xmm1 to m128
   Binary0fOpCode(kX86Movaps),   // load aligned packed single FP values from xmm2/m128 to xmm1

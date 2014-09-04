@@ -16,6 +16,7 @@
 
 #include "codegen_x86.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "oat.h"
 #include "x86_lir.h"
 
 namespace art {
@@ -389,20 +390,27 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   EXT_0F_ENCODING_MAP(Subss,     0xF3, 0x5C, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Divsd,     0xF2, 0x5E, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Divss,     0xF3, 0x5E, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Punpcklbw, 0x66, 0x60, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Punpcklwd, 0x66, 0x61, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Punpckldq, 0x66, 0x62, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Punpcklqdq, 0x66, 0x6C, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Sqrtsd,    0xF2, 0x51, REG_DEF0_USE0),
   EXT_0F_ENCODING2_MAP(Pmulld,   0x66, 0x38, 0x40, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Pmullw,    0x66, 0xD5, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Pmuludq,   0x66, 0xF4, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Mulps,     0x00, 0x59, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Mulpd,     0x66, 0x59, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Paddb,     0x66, 0xFC, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Paddw,     0x66, 0xFD, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Paddd,     0x66, 0xFE, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Paddq,     0x66, 0xD4, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Psadbw,    0x66, 0xF6, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Addps,     0x00, 0x58, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Addpd,     0xF2, 0x58, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Psubb,     0x66, 0xF8, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Psubw,     0x66, 0xF9, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Psubd,     0x66, 0xFA, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Psubq,     0x66, 0xFB, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Subps,     0x00, 0x5C, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Subpd,     0x66, 0x5C, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Pand,      0x66, 0xDB, REG_DEF0_USE0),
@@ -431,6 +439,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86PsrlwRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x71, 0, 2, 0, 1, false }, "PsrlwRI", "!0r,!1d" },
   { kX86PsrldRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x72, 0, 2, 0, 1, false }, "PsrldRI", "!0r,!1d" },
   { kX86PsrlqRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x73, 0, 2, 0, 1, false }, "PsrlqRI", "!0r,!1d" },
+  { kX86PsrldqRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x73, 0, 3, 0, 1, false }, "PsrldqRI", "!0r,!1d" },
   { kX86PsllwRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x71, 0, 6, 0, 1, false }, "PsllwRI", "!0r,!1d" },
   { kX86PslldRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x72, 0, 6, 0, 1, false }, "PslldRI", "!0r,!1d" },
   { kX86PsllqRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x73, 0, 6, 0, 1, false }, "PsllqRI", "!0r,!1d" },
@@ -447,9 +456,9 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86Fucompp,  kNullary, NO_OPERAND | USE_FP_STACK,                          { 0xDA, 0,    0xE9, 0,    0, 0, 0, 0, false }, "Fucompp",  "" },
   { kX86Fstsw16R, kNullary, NO_OPERAND | REG_DEFA | USE_FP_STACK,               { 0x9B, 0xDF, 0xE0, 0,    0, 0, 0, 0, false }, "Fstsw16R", "ax" },
 
-  EXT_0F_ENCODING_MAP(Mova128,    0x66, 0x6F, REG_DEF0),
-  { kX86Mova128MR, kMemReg,   IS_STORE | IS_TERTIARY_OP | REG_USE02,  { 0x66, 0, 0x0F, 0x6F, 0, 0, 0, 0, false }, "Mova128MR", "[!0r+!1d],!2r" },
-  { kX86Mova128AR, kArrayReg, IS_STORE | IS_QUIN_OP     | REG_USE014, { 0x66, 0, 0x0F, 0x6F, 0, 0, 0, 0, false }, "Mova128AR", "[!0r+!1r<<!2d+!3d],!4r" },
+  EXT_0F_ENCODING_MAP(Movdqa,    0x66, 0x6F, REG_DEF0),
+  { kX86MovdqaMR, kMemReg,   IS_STORE | IS_TERTIARY_OP | REG_USE02,  { 0x66, 0, 0x0F, 0x6F, 0, 0, 0, 0, false }, "MovdqaMR", "[!0r+!1d],!2r" },
+  { kX86MovdqaAR, kArrayReg, IS_STORE | IS_QUIN_OP     | REG_USE014, { 0x66, 0, 0x0F, 0x6F, 0, 0, 0, 0, false }, "MovdqaAR", "[!0r+!1r<<!2d+!3d],!4r" },
 
 
   EXT_0F_ENCODING_MAP(Movups,    0x0, 0x10, REG_DEF0),
@@ -1956,17 +1965,12 @@ void X86Mir2Lir::AssignOffsets() {
   int offset = AssignInsnOffsets();
 
   if (const_vectors_ != nullptr) {
-    /* assign offsets to vector literals */
-
-    // First, get offset to 12 mod 16 to align to 16 byte boundary.
-    // This will ensure that the vector is 16 byte aligned, as the procedure is
-    // always aligned at at 4 mod 16.
-    int align_size = (16-4) - (offset & 0xF);
-    if (align_size < 0) {
-      align_size += 16;
-    }
-
-    offset += align_size;
+    // Vector literals must be 16-byte aligned. The header that is placed
+    // in the code section causes misalignment so we take it into account.
+    // Otherwise, we are sure that for x86 method is aligned to 16.
+    DCHECK_EQ(GetInstructionSetAlignment(cu_->instruction_set), 16u);
+    uint32_t bytes_to_fill = (0x10 - ((offset + sizeof(OatQuickMethodHeader)) & 0xF)) & 0xF;
+    offset += bytes_to_fill;
 
     // Now assign each literal the right offset.
     for (LIR *p = const_vectors_; p != nullptr; p = p->next) {

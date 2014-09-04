@@ -256,19 +256,46 @@ enum ExtendedMIROpcode {
   // vC: TypeSize
   kMirOpPackedSet,
 
-  // @brief Reserve N vector registers (named 0..N-1)
-  // vA: Number of registers
+  // @brief Reserve a range of vector registers.
+  // vA: Start vector register to reserve.
+  // vB: Inclusive end vector register to reserve.
   // @note: The backend may choose to map vector numbers used in vector opcodes.
   //  Reserved registers are removed from the list of backend temporary pool.
   kMirOpReserveVectorRegisters,
 
-  // @brief Free Reserved vector registers
+  // @brief Free a range of reserved vector registers
+  // vA: Start vector register to unreserve.
+  // vB: Inclusive end vector register to unreserve.
   // @note: All currently reserved vector registers are returned to the temporary pool.
   kMirOpReturnVectorRegisters,
 
   // @brief Create a memory barrier.
   // vA: a constant defined by enum MemBarrierKind.
   kMirOpMemBarrier,
+
+  // @brief Used to fill a vector register with array values.
+  // @details Just as with normal arrays, access on null object register must ensure NullPointerException
+  // and invalid index must ensure ArrayIndexOutOfBoundsException. Exception behavior must be the same
+  // as the aget it replaced and must happen at same index. Therefore, it is generally recommended that
+  // before using this MIR, it is proven that exception is guaranteed to not be thrown and marked with
+  // MIR_IGNORE_NULL_CHECK and MIR_IGNORE_RANGE_CHECK.
+  // vA: destination vector register
+  // vB: array register
+  // vC: index register
+  // arg[0]: TypeSize (most other vector opcodes have this in vC)
+  kMirOpPackedArrayGet,
+
+  // @brief Used to store a vector register into array.
+  // @details Just as with normal arrays, access on null object register must ensure NullPointerException
+  // and invalid index must ensure ArrayIndexOutOfBoundsException. Exception behavior must be the same
+  // as the aget it replaced and must happen at same index. Therefore, it is generally recommended that
+  // before using this MIR, it is proven that exception is guaranteed to not be thrown and marked with
+  // MIR_IGNORE_NULL_CHECK and MIR_IGNORE_RANGE_CHECK.
+  // vA: source vector register
+  // vB: array register
+  // vC: index register
+  // arg[0]: TypeSize (most other vector opcodes have this in vC)
+  kMirOpPackedArrayPut,
 
   kMirOpLast,
 };

@@ -829,68 +829,74 @@ const uint64_t MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
   // 109 MIR_RANGE_CHECK
   0,
 
-  // 110 MIR_DIV_ZERO_CHECK
+  // 10A MIR_DIV_ZERO_CHECK
   0,
 
-  // 111 MIR_CHECK
+  // 10B MIR_CHECK
   0,
 
-  // 112 MIR_CHECKPART2
+  // 10C MIR_CHECKPART2
   0,
 
-  // 113 MIR_SELECT
+  // 10D MIR_SELECT
   DF_DA | DF_UB,
 
-  // 114 MirOpConstVector
-  DF_DA,
-
-  // 115 MirOpMoveVector
+  // 10E MirOpConstVector
   0,
 
-  // 116 MirOpPackedMultiply
+  // 10F MirOpMoveVector
   0,
 
-  // 117 MirOpPackedAddition
+  // 110 MirOpPackedMultiply
   0,
 
-  // 118 MirOpPackedSubtract
+  // 111 MirOpPackedAddition
   0,
 
-  // 119 MirOpPackedShiftLeft
+  // 112 MirOpPackedSubtract
   0,
 
-  // 120 MirOpPackedSignedShiftRight
+  // 113 MirOpPackedShiftLeft
   0,
 
-  // 121 MirOpPackedUnsignedShiftRight
+  // 114 MirOpPackedSignedShiftRight
   0,
 
-  // 122 MirOpPackedAnd
+  // 115 MirOpPackedUnsignedShiftRight
   0,
 
-  // 123 MirOpPackedOr
+  // 116 MirOpPackedAnd
   0,
 
-  // 124 MirOpPackedXor
+  // 117 MirOpPackedOr
   0,
 
-  // 125 MirOpPackedAddReduce
-  DF_DA | DF_UA,
-
-  // 126 MirOpPackedReduce
-  DF_DA,
-
-  // 127 MirOpPackedSet
-  DF_UB,
-
-  // 128 MirOpReserveVectorRegisters
+  // 118 MirOpPackedXor
   0,
 
-  // 129 MirOpReturnVectorRegisters
+  // 119 MirOpPackedAddReduce
+  DF_FORMAT_EXTENDED,
+
+  // 11A MirOpPackedReduce
+  DF_FORMAT_EXTENDED,
+
+  // 11B MirOpPackedSet
+  DF_FORMAT_EXTENDED,
+
+  // 11C MirOpReserveVectorRegisters
   0,
 
-  // 130 MirOpMemBarrier
+  // 11D MirOpReturnVectorRegisters
   0,
+
+  // 11E MirOpMemBarrier
+  0,
+
+  // 11F MirOpPackedArrayGet
+  DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_REF_B | DF_CORE_C | DF_LVN,
+
+  // 120 MirOpPackedArrayPut
+  DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_REF_B | DF_CORE_C | DF_LVN,
 };
 
 /* Return the base virtual register for a SSA name */
@@ -915,7 +921,36 @@ void MIRGraph::HandleDef(ArenaBitVector* def_v, int dalvik_reg_id) {
 void MIRGraph::HandleExtended(ArenaBitVector* use_v, ArenaBitVector* def_v,
                             ArenaBitVector* live_in_v,
                             const MIR::DecodedInstruction& d_insn) {
+  // For vector MIRs, vC contains type information
+  bool is_vector_type_wide = false;
+  int type_size = d_insn.vC >> 16;
+  if (type_size == k64 || type_size == kDouble) {
+    is_vector_type_wide = true;
+  }
+
   switch (static_cast<int>(d_insn.opcode)) {
+    case kMirOpPackedAddReduce:
+      HandleLiveInUse(use_v, def_v, live_in_v, d_insn.vA);
+      if (is_vector_type_wide == true) {
+        HandleLiveInUse(use_v, def_v, live_in_v, d_insn.vA + 1);
+      }
+      HandleDef(def_v, d_insn.vA);
+      if (is_vector_type_wide == true) {
+        HandleDef(def_v, d_insn.vA + 1);
+      }
+      break;
+    case kMirOpPackedReduce:
+      HandleDef(def_v, d_insn.vA);
+      if (is_vector_type_wide == true) {
+        HandleDef(def_v, d_insn.vA + 1);
+      }
+      break;
+    case kMirOpPackedSet:
+      HandleLiveInUse(use_v, def_v, live_in_v, d_insn.vB);
+      if (is_vector_type_wide == true) {
+        HandleLiveInUse(use_v, def_v, live_in_v, d_insn.vB + 1);
+      }
+      break;
     default:
       LOG(ERROR) << "Unexpected Extended Opcode " << d_insn.opcode;
       break;
@@ -1064,7 +1099,46 @@ void MIRGraph::DataFlowSSAFormat3RC(MIR* mir) {
 }
 
 void MIRGraph::DataFlowSSAFormatExtended(MIR* mir) {
+  const MIR::DecodedInstruction& d_insn = mir->dalvikInsn;
+  // For vector MIRs, vC contains type information
+  bool is_vector_type_wide = false;
+  int type_size = d_insn.vC >> 16;
+  if (type_size == k64 || type_size == kDouble) {
+    is_vector_type_wide = true;
+  }
+
   switch (static_cast<int>(mir->dalvikInsn.opcode)) {
+    case kMirOpPackedAddReduce:
+      // We have one use, plus one more for wide
+      AllocateSSAUseData(mir, is_vector_type_wide ? 2 : 1);
+      HandleSSAUse(mir->ssa_rep->uses, d_insn.vA, 0);
+      if (is_vector_type_wide == true) {
+        HandleSSAUse(mir->ssa_rep->uses, d_insn.vA + 1, 1);
+      }
+
+      // We have a def, plus one more for wide
+      AllocateSSADefData(mir, is_vector_type_wide ? 2 : 1);
+      HandleSSADef(mir->ssa_rep->defs, d_insn.vA, 0);
+      if (is_vector_type_wide == true) {
+        HandleSSADef(mir->ssa_rep->defs, d_insn.vA + 1, 1);
+      }
+      break;
+    case kMirOpPackedReduce:
+      // We have a def, plus one more for wide
+      AllocateSSADefData(mir, is_vector_type_wide ? 2 : 1);
+      HandleSSADef(mir->ssa_rep->defs, d_insn.vA, 0);
+      if (is_vector_type_wide == true) {
+        HandleSSADef(mir->ssa_rep->defs, d_insn.vA + 1, 1);
+      }
+      break;
+    case kMirOpPackedSet:
+      // We have one use, plus one more for wide
+      AllocateSSAUseData(mir, is_vector_type_wide ? 2 : 1);
+      HandleSSAUse(mir->ssa_rep->uses, d_insn.vB, 0);
+      if (is_vector_type_wide == true) {
+        HandleSSAUse(mir->ssa_rep->uses, d_insn.vB + 1, 1);
+      }
+      break;
     default:
       LOG(ERROR) << "Missing case for extended MIR: " << mir->dalvikInsn.opcode;
       break;
