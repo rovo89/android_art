@@ -237,12 +237,14 @@ class ClassLinker {
   }
 
   void VisitClasses(ClassVisitor* visitor, void* arg)
-      LOCKS_EXCLUDED(dex_lock_)
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  // Less efficient variant of VisitClasses that doesn't hold the classlinker_classes_lock_
-  // when calling the visitor.
+
+  // Less efficient variant of VisitClasses that copies the class_table_ into secondary storage
+  // so that it can visit individual classes without holding the doesn't hold the
+  // Locks::classlinker_classes_lock_. As the Locks::classlinker_classes_lock_ isn't held this code
+  // can race with insertion and deletion of classes while the visitor is being called.
   void VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* arg)
-      LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void VisitClassRoots(RootCallback* callback, void* arg, VisitRootFlags flags)
@@ -623,6 +625,33 @@ class ClassLinker {
                                        ConstHandle<mirror::ArtMethod> prototype)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  mirror::Class* LookupClassFromTableLocked(const char* descriptor,
+                                            const mirror::ClassLoader* class_loader,
+                                            size_t hash)
+      SHARED_LOCKS_REQUIRED(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
+
+  mirror::Class* UpdateClass(const char* descriptor, mirror::Class* klass, size_t hash)
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void MoveImageClassesToClassTable() LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Class* LookupClassFromImage(const char* descriptor)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // EnsureResolved is called to make sure that a class in the class_table_ has been resolved
+  // before returning it to the caller. Its the responsibility of the thread that placed the class
+  // in the table to make it resolved. The thread doing resolution must notify on the class' lock
+  // when resolution has occurred. This happens in mirror::Class::SetStatus. As resolution may
+  // retire a class, the version of the class in the table is returned and this may differ from
+  // the class passed in.
+  mirror::Class* EnsureResolved(Thread* self, const char* descriptor, mirror::Class* klass)
+      WARN_UNUSED SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void FixupTemporaryDeclaringClass(mirror::Class* temp_class, mirror::Class* new_class)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   std::vector<const DexFile*> boot_class_path_;
 
   mutable ReaderWriterMutex dex_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
@@ -645,32 +674,6 @@ class ClassLinker {
   // Number of times we've searched dex caches for a class. After a certain number of misses we move
   // the classes into the class_table_ to avoid dex cache based searches.
   Atomic<uint32_t> failed_dex_cache_class_lookups_;
-
-  mirror::Class* LookupClassFromTableLocked(const char* descriptor,
-                                            const mirror::ClassLoader* class_loader,
-                                            size_t hash)
-      SHARED_LOCKS_REQUIRED(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
-
-  mirror::Class* UpdateClass(const char* descriptor, mirror::Class* klass, size_t hash)
-      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  void MoveImageClassesToClassTable() LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::Class* LookupClassFromImage(const char* descriptor)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // EnsureResolved is called to make sure that a class in the class_table_ has been resolved
-  // before returning it to the caller. Its the responsibility of the thread that placed the class
-  // in the table to make it resolved. The thread doing resolution must notify on the class' lock
-  // when resolution has occurred. This happens in mirror::Class::SetStatus. As resolution may
-  // retire a class, the version of the class in the table is returned and this may differ from
-  // the class passed in.
-  mirror::Class* EnsureResolved(Thread* self, const char* descriptor, mirror::Class* klass)
-      WARN_UNUSED SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  void FixupTemporaryDeclaringClass(mirror::Class* temp_class, mirror::Class* new_class)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // indexes into class_roots_.
   // needs to be kept in sync with class_roots_descriptors_.
