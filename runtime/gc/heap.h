@@ -212,8 +212,8 @@ class Heap {
   void CheckPreconditionsForAllocObject(mirror::Class* c, size_t byte_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void RegisterNativeAllocation(JNIEnv* env, int bytes);
-  void RegisterNativeFree(JNIEnv* env, int bytes);
+  void RegisterNativeAllocation(JNIEnv* env, size_t bytes);
+  void RegisterNativeFree(JNIEnv* env, size_t bytes);
 
   // Change the allocator, updates entrypoints.
   void ChangeAllocator(AllocatorType allocator)
