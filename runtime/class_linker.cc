@@ -2309,7 +2309,9 @@ const OatFile::OatMethod ClassLinker::FindOatMethodFor(mirror::ArtMethod* method
     size_t end = declaring_class->NumVirtualMethods();
     bool found = false;
     for (size_t i = 0; i < end; i++) {
-      if (declaring_class->GetVirtualMethod(i) == method) {
+      // Check method index instead of identity in case of duplicate method definitions.
+      if (method->GetDexMethodIndex() ==
+          declaring_class->GetVirtualMethod(i)->GetDexMethodIndex()) {
         found = true;
         break;
       }
@@ -2716,6 +2718,8 @@ void ClassLinker::LoadClassMembers(const DexFile& dex_file,
     klass->SetVirtualMethods(virtuals);
   }
   size_t class_def_method_index = 0;
+  uint32_t last_dex_method_index = DexFile::kDexNoIndex;
+  size_t last_class_def_method_index = 0;
   for (size_t i = 0; it.HasNextDirectMethod(); i++, it.Next()) {
     StackHandleScope<1> hs(self);
     Handle<mirror::ArtMethod> method(hs.NewHandle(LoadMethod(self, dex_file, it, klass)));
@@ -2725,7 +2729,15 @@ void ClassLinker::LoadClassMembers(const DexFile& dex_file,
     }
     klass->SetDirectMethod(i, method.Get());
     LinkCode(method, oat_class, dex_file, it.GetMemberIndex(), class_def_method_index);
-    method->SetMethodIndex(class_def_method_index);
+    uint32_t it_method_index = it.GetMemberIndex();
+    if (last_dex_method_index == it_method_index) {
+      // duplicate case
+      method->SetMethodIndex(last_class_def_method_index);
+    } else {
+      method->SetMethodIndex(class_def_method_index);
+      last_dex_method_index = it_method_index;
+      last_class_def_method_index = class_def_method_index;
+    }
     class_def_method_index++;
   }
   for (size_t i = 0; it.HasNextVirtualMethod(); i++, it.Next()) {
