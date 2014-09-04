@@ -396,6 +396,7 @@ class OatDumper {
       *indent2_os << StringPrintf("\nvmap_table: %p (offset=0x%08x)\n",
                                   oat_method.GetVmapTable(), oat_method.GetVmapTableOffset());
       DumpVmap(*indent2_os, oat_method);
+      DumpVregLocations(*indent2_os, oat_method, code_item);
       *indent2_os << StringPrintf("mapping_table: %p (offset=0x%08x)\n",
                                   oat_method.GetMappingTable(), oat_method.GetMappingTableOffset());
       if (dump_raw_mapping_table_) {
@@ -488,6 +489,45 @@ class OatDumper {
           spill_mask = oat_method.GetFpSpillMask();
         }
       }
+      os << "\n";
+    }
+  }
+
+  void DumpVregLocations(std::ostream& os, const OatFile::OatMethod& oat_method,
+                         const DexFile::CodeItem* code_item) {
+    if (code_item != nullptr) {
+      size_t num_locals_ins = code_item->registers_size_;
+      size_t num_ins = code_item->ins_size_;
+      size_t num_locals = num_locals_ins - num_ins;
+      size_t num_outs = code_item->outs_size_;
+
+      os << "vr_stack_locations:";
+      for (size_t reg = 0; reg <= num_locals_ins; reg++) {
+        // For readability, delimit the different kinds of VRs.
+        if (reg == num_locals_ins) {
+          os << "\n\tmethod*:";
+        } else if (reg == num_locals && num_ins > 0) {
+          os << "\n\tins:";
+        } else if (reg == 0 && num_locals > 0) {
+          os << "\n\tlocals:";
+        }
+
+        uint32_t offset = StackVisitor::GetVRegOffset(code_item, oat_method.GetCoreSpillMask(),
+                                                      oat_method.GetFpSpillMask(),
+                                                      oat_method.GetFrameSizeInBytes(), reg,
+                                                      GetInstructionSet());
+        os << " v" << reg << "[sp + #" << offset << "]";
+      }
+
+      for (size_t out_reg = 0; out_reg < num_outs; out_reg++) {
+        if (out_reg == 0) {
+          os << "\n\touts:";
+        }
+
+        uint32_t offset = StackVisitor::GetOutVROffset(out_reg, GetInstructionSet());
+        os << " v" << out_reg << "[sp + #" << offset << "]";
+      }
+
       os << "\n";
     }
   }
