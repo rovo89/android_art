@@ -274,7 +274,6 @@ void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   // Avoid using float regs here.
   RegisterClass src_reg_class = rl_src.ref ? kRefReg : kCoreReg;
   RegisterClass result_reg_class = rl_dest.ref ? kRefReg : kCoreReg;
-  rl_src = LoadValue(rl_src, src_reg_class);
   ConditionCode ccode = mir->meta.ccode;
 
   // The kMirOpSelect has two variants, one for constants and one for moves.
@@ -283,58 +282,68 @@ void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   if (is_constant_case) {
     int true_val = mir->dalvikInsn.vB;
     int false_val = mir->dalvikInsn.vC;
-    rl_result = EvalLoc(rl_dest, result_reg_class, true);
 
-    /*
-     * For ccode == kCondEq:
-     *
-     * 1) When the true case is zero and result_reg is not same as src_reg:
-     *     xor result_reg, result_reg
-     *     cmp $0, src_reg
-     *     mov t1, $false_case
-     *     cmovnz result_reg, t1
-     * 2) When the false case is zero and result_reg is not same as src_reg:
-     *     xor result_reg, result_reg
-     *     cmp $0, src_reg
-     *     mov t1, $true_case
-     *     cmovz result_reg, t1
-     * 3) All other cases (we do compare first to set eflags):
-     *     cmp $0, src_reg
-     *     mov result_reg, $false_case
-     *     mov t1, $true_case
-     *     cmovz result_reg, t1
-     */
-    // FIXME: depending on how you use registers you could get a false != mismatch when dealing
-    // with different views of the same underlying physical resource (i.e. solo32 vs. solo64).
-    const bool result_reg_same_as_src =
-        (rl_src.location == kLocPhysReg && rl_src.reg.GetRegNum() == rl_result.reg.GetRegNum());
-    const bool true_zero_case = (true_val == 0 && false_val != 0 && !result_reg_same_as_src);
-    const bool false_zero_case = (false_val == 0 && true_val != 0 && !result_reg_same_as_src);
-    const bool catch_all_case = !(true_zero_case || false_zero_case);
+    // simplest strange case
+    if (true_val == false_val) {
+      rl_result = EvalLoc(rl_dest, result_reg_class, true);
+      LoadConstantNoClobber(rl_result.reg, true_val);
+    } else {
+      // TODO: use GenSelectConst32 and handle additional opcode patterns such as
+      // "cmp; setcc; movzx" or "cmp; sbb r0,r0; and r0,$mask; add r0,$literal".
+      rl_src = LoadValue(rl_src, src_reg_class);
+      rl_result = EvalLoc(rl_dest, result_reg_class, true);
+      /*
+       * For ccode == kCondEq:
+       *
+       * 1) When the true case is zero and result_reg is not same as src_reg:
+       *     xor result_reg, result_reg
+       *     cmp $0, src_reg
+       *     mov t1, $false_case
+       *     cmovnz result_reg, t1
+       * 2) When the false case is zero and result_reg is not same as src_reg:
+       *     xor result_reg, result_reg
+       *     cmp $0, src_reg
+       *     mov t1, $true_case
+       *     cmovz result_reg, t1
+       * 3) All other cases (we do compare first to set eflags):
+       *     cmp $0, src_reg
+       *     mov result_reg, $false_case
+       *     mov t1, $true_case
+       *     cmovz result_reg, t1
+       */
+      // FIXME: depending on how you use registers you could get a false != mismatch when dealing
+      // with different views of the same underlying physical resource (i.e. solo32 vs. solo64).
+      const bool result_reg_same_as_src =
+          (rl_src.location == kLocPhysReg && rl_src.reg.GetRegNum() == rl_result.reg.GetRegNum());
+      const bool true_zero_case = (true_val == 0 && false_val != 0 && !result_reg_same_as_src);
+      const bool false_zero_case = (false_val == 0 && true_val != 0 && !result_reg_same_as_src);
+      const bool catch_all_case = !(true_zero_case || false_zero_case);
 
-    if (true_zero_case || false_zero_case) {
-      OpRegReg(kOpXor, rl_result.reg, rl_result.reg);
-    }
+      if (true_zero_case || false_zero_case) {
+        OpRegReg(kOpXor, rl_result.reg, rl_result.reg);
+      }
 
-    if (true_zero_case || false_zero_case || catch_all_case) {
-      OpRegImm(kOpCmp, rl_src.reg, 0);
-    }
+      if (true_zero_case || false_zero_case || catch_all_case) {
+        OpRegImm(kOpCmp, rl_src.reg, 0);
+      }
 
-    if (catch_all_case) {
-      OpRegImm(kOpMov, rl_result.reg, false_val);
-    }
+      if (catch_all_case) {
+        OpRegImm(kOpMov, rl_result.reg, false_val);
+      }
 
-    if (true_zero_case || false_zero_case || catch_all_case) {
-      ConditionCode cc = true_zero_case ? NegateComparison(ccode) : ccode;
-      int immediateForTemp = true_zero_case ? false_val : true_val;
-      RegStorage temp1_reg = AllocTypedTemp(false, result_reg_class);
-      OpRegImm(kOpMov, temp1_reg, immediateForTemp);
+      if (true_zero_case || false_zero_case || catch_all_case) {
+        ConditionCode cc = true_zero_case ? NegateComparison(ccode) : ccode;
+        int immediateForTemp = true_zero_case ? false_val : true_val;
+        RegStorage temp1_reg = AllocTypedTemp(false, result_reg_class);
+        OpRegImm(kOpMov, temp1_reg, immediateForTemp);
 
-      OpCondRegReg(kOpCmov, cc, rl_result.reg, temp1_reg);
+        OpCondRegReg(kOpCmov, cc, rl_result.reg, temp1_reg);
 
-      FreeTemp(temp1_reg);
+        FreeTemp(temp1_reg);
+      }
     }
   } else {
+    rl_src = LoadValue(rl_src, src_reg_class);
     RegLocation rl_true = mir_graph_->GetSrc(mir, 1);
     RegLocation rl_false = mir_graph_->GetSrc(mir, 2);
     rl_true = LoadValue(rl_true, result_reg_class);
