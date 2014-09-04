@@ -49,8 +49,8 @@ void X86Mir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
     return;
   }
 
-  FlushAllRegs();
-  LockCallTemps();  // Prepare for explicit register usage
+  // Prepare for explicit register usage
+  ExplicitTempRegisterLock(this, 4, &rs_r0, &rs_r1, &rs_r2, &rs_r3);
   RegStorage r_tmp1 = RegStorage::MakeRegPair(rs_r0, rs_r1);
   RegStorage r_tmp2 = RegStorage::MakeRegPair(rs_r2, rs_r3);
   LoadValueDirectWideFixed(rl_src1, r_tmp1);
@@ -398,8 +398,8 @@ void X86Mir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
     return;
   }
 
-  FlushAllRegs();
-  LockCallTemps();  // Prepare for explicit register usage
+  // Prepare for explicit register usage
+  ExplicitTempRegisterLock(this, 4, &rs_r0, &rs_r1, &rs_r2, &rs_r3);
   RegStorage r_tmp1 = RegStorage::MakeRegPair(rs_r0, rs_r1);
   RegStorage r_tmp2 = RegStorage::MakeRegPair(rs_r2, rs_r3);
   LoadValueDirectWideFixed(rl_src1, r_tmp1);
@@ -768,8 +768,9 @@ RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest, RegStorage reg_lo, RegSto
 RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
                                   RegLocation rl_src2, bool is_div, bool check_zero) {
   // We have to use fixed registers, so flush all the temps.
-  FlushAllRegs();
-  LockCallTemps();  // Prepare for explicit register usage.
+
+  // Prepare for explicit register usage.
+  ExplicitTempRegisterLock(this, 3, &rs_r0, &rs_r1, &rs_r2);
 
   // Load LHS into EAX.
   LoadValueDirectFixed(rl_src1, rs_r0);
@@ -791,11 +792,11 @@ RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
 
   // Have to catch 0x80000000/-1 case, or we will get an exception!
   OpRegImm(kOpCmp, rs_r1, -1);
-  LIR *minus_one_branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
+  LIR* minus_one_branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
 
   // RHS is -1.
   OpRegImm(kOpCmp, rs_r0, 0x80000000);
-  LIR * minint_branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
+  LIR* minint_branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
 
   branch->target = NewLIR0(kPseudoTargetLabel);
 
@@ -1606,8 +1607,8 @@ bool X86Mir2Lir::GenMulLongConst(RegLocation rl_dest, RegLocation rl_src1, int64
   if (!cu_->target64) {
     int32_t val_lo = Low32Bits(val);
     int32_t val_hi = High32Bits(val);
-    FlushAllRegs();
-    LockCallTemps();  // Prepare for explicit register usage.
+    // Prepare for explicit register usage.
+    ExplicitTempRegisterLock(this, 3, &rs_r0, &rs_r1, &rs_r2);
     rl_src1 = UpdateLocWideTyped(rl_src1, kCoreReg);
     bool src1_in_reg = rl_src1.location == kLocPhysReg;
     int displacement = SRegOffset(rl_src1.s_reg_low);
@@ -1690,8 +1691,8 @@ void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation 
   bool is_square = mir_graph_->SRegToVReg(rl_src1.s_reg_low) ==
                    mir_graph_->SRegToVReg(rl_src2.s_reg_low);
 
-  FlushAllRegs();
-  LockCallTemps();  // Prepare for explicit register usage.
+  // Prepare for explicit register usage.
+  ExplicitTempRegisterLock(this, 3, &rs_r0, &rs_r1, &rs_r2);
   rl_src1 = UpdateLocWideTyped(rl_src1, kCoreReg);
   rl_src2 = UpdateLocWideTyped(rl_src2, kCoreReg);
 
@@ -1714,7 +1715,7 @@ void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation 
       NewLIR2(kX86Imul32RR, rs_r1.GetReg(), rl_src2.reg.GetLowReg());
     } else {
       int displacement = SRegOffset(rl_src2.s_reg_low);
-      LIR *m = NewLIR3(kX86Imul32RM, rs_r1.GetReg(), rs_rX86_SP.GetReg(),
+      LIR* m = NewLIR3(kX86Imul32RM, rs_r1.GetReg(), rs_rX86_SP.GetReg(),
                        displacement + LOWORD_OFFSET);
       AnnotateDalvikRegAccess(m, (displacement + LOWORD_OFFSET) >> 2,
                               true /* is_load */, true /* is_64bit */);
@@ -2154,8 +2155,8 @@ void X86Mir2Lir::GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocati
   }
 
   // We have to use fixed registers, so flush all the temps.
-  FlushAllRegs();
-  LockCallTemps();  // Prepare for explicit register usage.
+  // Prepare for explicit register usage.
+  ExplicitTempRegisterLock(this, 4, &rs_r0q, &rs_r1q, &rs_r2q, &rs_r6q);
 
   // Load LHS into RAX.
   LoadValueDirectWideFixed(rl_src1, rs_r0q);
@@ -2171,7 +2172,7 @@ void X86Mir2Lir::GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocati
 
   // Have to catch 0x8000000000000000/-1 case, or we will get an exception!
   NewLIR2(kX86Cmp64RI8, rs_r1q.GetReg(), -1);
-  LIR *minus_one_branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
+  LIR* minus_one_branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
 
   // RHS is -1.
   LoadConstantWide(rs_r6q, 0x8000000000000000);
