@@ -70,6 +70,7 @@ public class Main {
             th.printStackTrace();
         }
         InternedString.run();
+        GenSelect.run();
     }
 
     public static void assertTrue(boolean condition) {
