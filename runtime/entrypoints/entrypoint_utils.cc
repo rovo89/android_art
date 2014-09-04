@@ -215,21 +215,18 @@ void ThrowStackOverflowError(Thread* self) {
 }
 
 void CheckReferenceResult(mirror::Object* o, Thread* self) {
-  if (o == NULL) {
+  if (o == nullptr) {
     return;
   }
-  mirror::ArtMethod* m = self->GetCurrentMethod(NULL);
-  if (o == kInvalidIndirectRefObject) {
-    Runtime::Current()->GetJavaVM()->JniAbortF(NULL, "invalid reference returned from %s",
-                                               PrettyMethod(m).c_str());
-  }
+  mirror::ArtMethod* m = self->GetCurrentMethod(nullptr);
   // Make sure that the result is an instance of the type this method was expected to return.
   StackHandleScope<1> hs(self);
   Handle<mirror::ArtMethod> h_m(hs.NewHandle(m));
   mirror::Class* return_type = MethodHelper(h_m).GetReturnType();
 
   if (!o->InstanceOf(return_type)) {
-    Runtime::Current()->GetJavaVM()->JniAbortF(NULL, "attempt to return an instance of %s from %s",
+    Runtime::Current()->GetJavaVM()->JniAbortF(nullptr,
+                                               "attempt to return an instance of %s from %s",
                                                PrettyTypeOf(o).c_str(),
                                                PrettyMethod(h_m.Get()).c_str());
   }

@@ -373,7 +373,7 @@ bool JdwpState::HandlePacket() {
   JDWP::Request request(netStateBase->input_buffer_, netStateBase->input_count_);
 
   ExpandBuf* pReply = expandBufAlloc();
-  size_t replyLength = ProcessRequest(request, pReply);
+  size_t replyLength = ProcessRequest(&request, pReply);
   ssize_t cc = netStateBase->WritePacket(pReply, replyLength);
 
   /*

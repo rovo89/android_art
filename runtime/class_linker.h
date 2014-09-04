@@ -288,6 +288,9 @@ class ClassLinker {
                                            InstructionSet instruction_set,
                                            std::string* error_msg);
 
+  // Allocate an instance of a java.lang.Object.
+  mirror::Object* AllocObject(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // TODO: replace this with multiple methods that allocate the correct managed type.
   template <class T>
   mirror::ObjectArray<T>* AllocObjectArray(Thread* self, size_t length)

@@ -21,8 +21,6 @@
 
 namespace art {
 
-mirror::Object* const ObjectRegistry::kInvalidObject = reinterpret_cast<mirror::Object*>(1);
-
 std::ostream& operator<<(std::ostream& os, const ObjectRegistryEntry& rhs) {
   os << "ObjectRegistryEntry[" << rhs.jni_reference_type
      << ",reference=" << rhs.jni_reference
@@ -129,14 +127,16 @@ void ObjectRegistry::Clear() {
   id_to_entry_.clear();
 }
 
-mirror::Object* ObjectRegistry::InternalGet(JDWP::ObjectId id) {
+mirror::Object* ObjectRegistry::InternalGet(JDWP::ObjectId id, JDWP::JdwpError* error) {
   Thread* self = Thread::Current();
   MutexLock mu(self, lock_);
   auto it = id_to_entry_.find(id);
   if (it == id_to_entry_.end()) {
-    return kInvalidObject;
+    *error = JDWP::ERR_INVALID_OBJECT;
+    return nullptr;
   }
   ObjectRegistryEntry& entry = *it->second;
+  *error = JDWP::ERR_NONE;
   return self->DecodeJObject(entry.jni_reference);
 }
 
