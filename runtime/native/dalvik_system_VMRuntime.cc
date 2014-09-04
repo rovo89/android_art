@@ -184,7 +184,7 @@ static void VMRuntime_registerNativeAllocation(JNIEnv* env, jobject, jint bytes)
     ThrowRuntimeException("allocation size negative %d", bytes);
     return;
   }
-  Runtime::Current()->GetHeap()->RegisterNativeAllocation(env, bytes);
+  Runtime::Current()->GetHeap()->RegisterNativeAllocation(env, static_cast<size_t>(bytes));
 }
 
 static void VMRuntime_registerNativeFree(JNIEnv* env, jobject, jint bytes) {
@@ -193,7 +193,7 @@ static void VMRuntime_registerNativeFree(JNIEnv* env, jobject, jint bytes) {
     ThrowRuntimeException("allocation size negative %d", bytes);
     return;
   }
-  Runtime::Current()->GetHeap()->RegisterNativeFree(env, bytes);
+  Runtime::Current()->GetHeap()->RegisterNativeFree(env, static_cast<size_t>(bytes));
 }
 
 static void VMRuntime_updateProcessState(JNIEnv* env, jobject, jint process_state) {
