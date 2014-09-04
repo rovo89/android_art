@@ -428,7 +428,7 @@ bool Runtime::Start() {
       return false;
     }
   } else {
-    DidForkFromZygote();
+    DidForkFromZygote(NativeBridgeAction::kInitialize);
   }
 
   StartDaemonThreads();
@@ -506,8 +506,18 @@ bool Runtime::InitZygote() {
 #endif
 }
 
-void Runtime::DidForkFromZygote() {
+void Runtime::DidForkFromZygote(NativeBridgeAction action) {
   is_zygote_ = false;
+
+  switch (action) {
+    case NativeBridgeAction::kUnload:
+      android::UnloadNativeBridge();
+      break;
+
+    case NativeBridgeAction::kInitialize:
+      android::InitializeNativeBridge();
+      break;
+  }
 
   // Create the thread pool.
   heap_->CreateThreadPool();
@@ -833,8 +843,34 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   self->ClearException();
 
   // Look for a native bridge.
+  //
+  // The intended flow here is, in the case of a running system:
+  //
+  // Runtime::Init() (zygote):
+  //   LoadNativeBridge -> dlopen from cmd line parameter.
+  //  |
+  //  V
+  // Runtime::Start() (zygote):
+  //   No-op wrt native bridge.
+  //  |
+  //  | start app
+  //  V
+  // DidForkFromZygote(action)
+  //   action = kUnload -> dlclose native bridge.
+  //   action = kInitialize -> initialize library
+  //
+  //
+  // The intended flow here is, in the case of a simple dalvikvm call:
+  //
+  // Runtime::Init():
+  //   LoadNativeBridge -> dlopen from cmd line parameter.
+  //  |
+  //  V
+  // Runtime::Start():
+  //   DidForkFromZygote(kInitialize) -> try to initialize any native bridge given.
+  //   No-op wrt native bridge.
   native_bridge_library_filename_ = options->native_bridge_library_filename_;
-  android::SetupNativeBridge(native_bridge_library_filename_.c_str(), &native_bridge_art_callbacks_);
+  android::LoadNativeBridge(native_bridge_library_filename_.c_str(), &native_bridge_art_callbacks_);
   VLOG(startup) << "Runtime::Setup native bridge library: "
                 << (native_bridge_library_filename_.empty() ?
                     "(empty)" : native_bridge_library_filename_);
