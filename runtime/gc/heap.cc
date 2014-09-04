@@ -1210,6 +1210,8 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
                                              size_t* usable_size,
                                              mirror::Class** klass) {
   bool was_default_allocator = allocator == GetCurrentAllocator();
+  // Make sure there is no pending exception since we may need to throw an OOME.
+  self->AssertNoPendingException();
   DCHECK(klass != nullptr);
   StackHandleScope<1> hs(self);
   HandleWrapper<mirror::Class> h(hs.NewHandleWrapper(klass));
