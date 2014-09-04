@@ -1039,6 +1039,7 @@ bool ArmMir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
   jmp_to_ret->target = return_point;
 
   AddIntrinsicSlowPath(info, launchpad_branch, return_point);
+  ClobberCallerSave();  // We must clobber everything because slow path will return here
 
   return true;
 }

@@ -900,6 +900,7 @@ bool Arm64Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
   loop_finished->target = return_point;
 
   AddIntrinsicSlowPath(info, launchpad_branch, return_point);
+  ClobberCallerSave();  // We must clobber everything because slow path will return here
 
   return true;
 }
