@@ -38,14 +38,15 @@ class Backend {
 
     /*
      * Return the number of reservable vector registers supported
-     * @param fp_used  ‘true’ if floating point computations will be
-     * executed while vector registers are reserved.
+     * @param long_or_fp ‘true’ if floating point computations will be
+     * executed or the operations will be long type while vector
+     * registers are reserved.
      * @return the number of vector registers that are available
      * @note The backend should ensure that sufficient vector registers
      * are held back to generate scalar code without exhausting vector
      * registers, if scalar code also uses the vector registers.
      */
-    virtual int NumReservableVectorRegisters(bool fp_used) { return 0; }
+    virtual int NumReservableVectorRegisters(bool long_or_fp) { return 0; }
 
   protected:
     explicit Backend(ArenaAllocator* arena) : arena_(arena) {}
