@@ -911,7 +911,6 @@ struct StackDumpVisitor : public StackVisitor {
   std::ostream& os;
   const Thread* thread;
   const bool can_allocate;
-  mirror::ArtMethod* method;
   mirror::ArtMethod* last_method;
   int last_line_number;
   int repetition_count;
@@ -1238,7 +1237,7 @@ void Thread::RemoveFromThreadGroup(ScopedObjectAccess& soa) {
 
 size_t Thread::NumHandleReferences() {
   size_t count = 0;
-  for (HandleScope* cur = tlsPtr_.top_handle_scope; cur; cur = cur->GetLink()) {
+  for (HandleScope* cur = tlsPtr_.top_handle_scope; cur != nullptr; cur = cur->GetLink()) {
     count += cur->NumberOfReferences();
   }
   return count;
@@ -1247,7 +1246,7 @@ size_t Thread::NumHandleReferences() {
 bool Thread::HandleScopeContains(jobject obj) const {
   StackReference<mirror::Object>* hs_entry =
       reinterpret_cast<StackReference<mirror::Object>*>(obj);
-  for (HandleScope* cur = tlsPtr_.top_handle_scope; cur; cur = cur->GetLink()) {
+  for (HandleScope* cur = tlsPtr_.top_handle_scope; cur!= nullptr; cur = cur->GetLink()) {
     if (cur->Contains(hs_entry)) {
       return true;
     }
@@ -1280,6 +1279,7 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
   IndirectRef ref = reinterpret_cast<IndirectRef>(obj);
   IndirectRefKind kind = GetIndirectRefKind(ref);
   mirror::Object* result;
+  bool expect_null = false;
   // The "kinds" below are sorted by the frequency we expect to encounter them.
   if (kind == kLocal) {
     IndirectReferenceTable& locals = tlsPtr_.jni_env->locals;
@@ -1293,20 +1293,23 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
       result = reinterpret_cast<StackReference<mirror::Object>*>(obj)->AsMirrorPtr();
       VerifyObject(result);
     } else {
-      result = kInvalidIndirectRefObject;
+      tlsPtr_.jni_env->vm->JniAbortF(nullptr, "use of invalid jobject %p", obj);
+      expect_null = true;
+      result = nullptr;
     }
   } else if (kind == kGlobal) {
     result = tlsPtr_.jni_env->vm->DecodeGlobal(const_cast<Thread*>(this), ref);
   } else {
     DCHECK_EQ(kind, kWeakGlobal);
     result = tlsPtr_.jni_env->vm->DecodeWeakGlobal(const_cast<Thread*>(this), ref);
-    if (result == kClearedJniWeakGlobal) {
+    if (Runtime::Current()->IsClearedJniWeakGlobal(result)) {
       // This is a special case where it's okay to return nullptr.
-      return nullptr;
+      expect_null = true;
+      result = nullptr;
     }
   }
 
-  if (UNLIKELY(result == nullptr)) {
+  if (UNLIKELY(!expect_null && result == nullptr)) {
     tlsPtr_.jni_env->vm->JniAbortF(nullptr, "use of deleted %s %p",
                                    ToStr<IndirectRefKind>(kind).c_str(), obj);
   }

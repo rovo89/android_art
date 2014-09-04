@@ -105,10 +105,6 @@ class MemMap;
  */
 typedef void* IndirectRef;
 
-// Magic failure values; must not pass Heap::ValidateObject() or Heap::IsHeapAddress().
-static mirror::Object* const kInvalidIndirectRefObject = reinterpret_cast<mirror::Object*>(0xdead4321);
-static mirror::Object* const kClearedJniWeakGlobal = reinterpret_cast<mirror::Object*>(0xdead1234);
-
 /*
  * Indirect reference kind, used as the two low bits of IndirectRef.
  *
@@ -229,18 +225,11 @@ class IrtIterator {
   }
 
  private:
-  void SkipNullsAndTombstones() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // We skip NULLs and tombstones. Clients don't want to see implementation details.
-    while (i_ < capacity_ &&
-           (table_[i_].IsNull() ||
-            table_[i_].Read<kWithoutReadBarrier>() == kClearedJniWeakGlobal)) {
-      ++i_;
-    }
-  }
+  void SkipNullsAndTombstones() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   GcRoot<mirror::Object>* const table_;
   size_t i_;
-  size_t capacity_;
+  const size_t capacity_;
 };
 
 bool inline operator==(const IrtIterator& lhs, const IrtIterator& rhs) {
