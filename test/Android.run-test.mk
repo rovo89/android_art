@@ -193,21 +193,6 @@ endif
 
 TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
 
-# Tests that are broken with tracing.
-TEST_ART_BROKEN_TRACE_RUN_TESTS := \
-  004-SignalTest \
-  018-stack-overflow \
-  097-duplicate-method \
-  107-int-math2
-
-ifneq (,$(filter trace,$(TRACE_TYPES)))
-  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES), \
-      $(COMPILER_TYPES),$(RELOCATE_TYPES),trace,$(GC_TYPES),$(JNI_TYPES), \
-      $(IMAGE_TYPES), $(TEST_ART_BROKEN_TRACE_RUN_TESTS), $(ALL_ADDRESS_SIZES))
-endif
-
-TEST_ART_BROKEN_TRACE_RUN_TESTS :=
-
 # Tests that are broken with GC stress.
 TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
   004-SignalTest
