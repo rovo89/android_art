@@ -830,68 +830,74 @@ const uint32_t MIRGraph::analysis_attributes_[kMirOpLast] = {
   // 109 MIR_RANGE_CHECK
   AN_NONE,
 
-  // 110 MIR_DIV_ZERO_CHECK
+  // 10A MIR_DIV_ZERO_CHECK
   AN_NONE,
 
-  // 111 MIR_CHECK
+  // 10B MIR_CHECK
   AN_NONE,
 
-  // 112 MIR_CHECKPART2
+  // 10C MIR_CHECKPART2
   AN_NONE,
 
-  // 113 MIR_SELECT
+  // 10D MIR_SELECT
   AN_NONE,
 
-  // 114 MirOpConstVector
+  // 10E MirOpConstVector
   AN_NONE,
 
-  // 115 MirOpMoveVector
+  // 10F MirOpMoveVector
   AN_NONE,
 
-  // 116 MirOpPackedMultiply
+  // 110 MirOpPackedMultiply
   AN_NONE,
 
-  // 117 MirOpPackedAddition
+  // 111 MirOpPackedAddition
   AN_NONE,
 
-  // 118 MirOpPackedSubtract
+  // 112 MirOpPackedSubtract
   AN_NONE,
 
-  // 119 MirOpPackedShiftLeft
+  // 113 MirOpPackedShiftLeft
   AN_NONE,
 
-  // 120 MirOpPackedSignedShiftRight
+  // 114 MirOpPackedSignedShiftRight
   AN_NONE,
 
-  // 121 MirOpPackedUnsignedShiftRight
+  // 115 MirOpPackedUnsignedShiftRight
   AN_NONE,
 
-  // 122 MirOpPackedAnd
+  // 116 MirOpPackedAnd
   AN_NONE,
 
-  // 123 MirOpPackedOr
+  // 117 MirOpPackedOr
   AN_NONE,
 
-  // 124 MirOpPackedXor
+  // 118 MirOpPackedXor
   AN_NONE,
 
-  // 125 MirOpPackedAddReduce
+  // 119 MirOpPackedAddReduce
   AN_NONE,
 
-  // 126 MirOpPackedReduce
+  // 11A MirOpPackedReduce
   AN_NONE,
 
-  // 127 MirOpPackedSet
+  // 11B MirOpPackedSet
   AN_NONE,
 
-  // 128 MirOpReserveVectorRegisters
+  // 11C MirOpReserveVectorRegisters
   AN_NONE,
 
-  // 129 MirOpReturnVectorRegisters
+  // 11D MirOpReturnVectorRegisters
   AN_NONE,
 
-  // 130 MirOpMemBarrier
+  // 11E MirOpMemBarrier
   AN_NONE,
+
+  // 11F MirOpPackedArrayGet
+  AN_ARRAYOP,
+
+  // 120 MirOpPackedArrayPut
+  AN_ARRAYOP,
 };
 
 struct MethodStats {
