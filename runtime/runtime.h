@@ -393,9 +393,13 @@ class Runtime {
 
   void SetStatsEnabled(bool new_state);
 
+  enum class NativeBridgeAction {  // private
+    kUnload,
+    kInitialize
+  };
   void PreZygoteFork();
   bool InitZygote();
-  void DidForkFromZygote();
+  void DidForkFromZygote(NativeBridgeAction action);
 
   const instrumentation::Instrumentation* GetInstrumentation() const {
     return &instrumentation_;

@@ -17,9 +17,11 @@
 #include <stdlib.h>
 
 #include "debugger.h"
+#include "instruction_set.h"
 #include "java_vm_ext.h"
 #include "jni_internal.h"
 #include "JNIHelp.h"
+#include "ScopedUtfChars.h"
 #include "thread-inl.h"
 
 #if defined(HAVE_PRCTL)
@@ -102,17 +104,27 @@ static jlong ZygoteHooks_nativePreFork(JNIEnv* env, jclass) {
   return reinterpret_cast<jlong>(self);
 }
 
-static void ZygoteHooks_nativePostForkChild(JNIEnv* env, jclass, jlong token, jint debug_flags) {
+static void ZygoteHooks_nativePostForkChild(JNIEnv* env, jclass, jlong token, jint debug_flags,
+                                            jstring instruction_set) {
   Thread* thread = reinterpret_cast<Thread*>(token);
   // Our system thread ID, etc, has changed so reset Thread state.
   thread->InitAfterFork();
   EnableDebugFeatures(debug_flags);
-  Runtime::Current()->DidForkFromZygote();
+
+  Runtime::NativeBridgeAction action = Runtime::NativeBridgeAction::kUnload;
+  if (instruction_set != nullptr) {
+    ScopedUtfChars isa_string(env, instruction_set);
+    InstructionSet isa = GetInstructionSetFromString(isa_string.c_str());
+    if (isa != kNone && isa != kRuntimeISA) {
+      action = Runtime::NativeBridgeAction::kInitialize;
+    }
+  }
+  Runtime::Current()->DidForkFromZygote(action);
 }
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(ZygoteHooks, nativePreFork, "()J"),
-  NATIVE_METHOD(ZygoteHooks, nativePostForkChild, "(JI)V"),
+  NATIVE_METHOD(ZygoteHooks, nativePostForkChild, "(JILjava/lang/String;)V"),
 };
 
 void register_dalvik_system_ZygoteHooks(JNIEnv* env) {
