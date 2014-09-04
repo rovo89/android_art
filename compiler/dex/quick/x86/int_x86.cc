@@ -607,6 +607,12 @@ RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src,
     rl_result = EvalLoc(rl_dest, kCoreReg, true);
     if (is_div) {
       LoadValueDirectFixed(rl_src, rl_result.reg);
+
+      // Check if numerator is 0
+      OpRegImm(kOpCmp, rl_result.reg, 0);
+      LIR* branch = NewLIR2(kX86Jcc8, 0, kX86CondEq);
+
+      // handle 0x80000000 / -1
       OpRegImm(kOpCmp, rl_result.reg, 0x80000000);
       LIR *minint_branch = NewLIR2(kX86Jcc8, 0, kX86CondEq);
 
@@ -615,6 +621,7 @@ RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src,
 
       // EAX already contains the right value (0x80000000),
       minint_branch->target = NewLIR0(kPseudoTargetLabel);
+      branch->target = NewLIR0(kPseudoTargetLabel);
     } else {
       // x % -1 == 0.
       LoadConstantNoClobber(rl_result.reg, 0);
@@ -627,6 +634,14 @@ RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src,
       RegStorage rs_temp = AllocTypedTemp(false, kCoreReg);
       rl_result.reg.SetReg(rs_temp.GetReg());
     }
+
+    // Check if numerator is 0
+    OpRegImm(kOpCmp, rl_src.reg, 0);
+    LIR* branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
+    LoadConstantNoClobber(rl_result.reg, 0);
+    LIR* done = NewLIR1(kX86Jmp8, 0);
+    branch->target = NewLIR0(kPseudoTargetLabel);
+
     NewLIR3(kX86Lea32RM, rl_result.reg.GetReg(), rl_src.reg.GetReg(), std::abs(imm) - 1);
     NewLIR2(kX86Test32RR, rl_src.reg.GetReg(), rl_src.reg.GetReg());
     OpCondRegReg(kOpCmov, kCondPl, rl_result.reg, rl_src.reg);
@@ -635,6 +650,7 @@ RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src,
     if (imm < 0) {
       OpReg(kOpNeg, rl_result.reg);
     }
+    done->target = NewLIR0(kPseudoTargetLabel);
   } else {
     CHECK(imm <= -2 || imm >= 2);
 
@@ -681,6 +697,13 @@ RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src,
       // Only need this once.  Just put it into EAX.
       LoadValueDirectFixed(rl_src, rs_r0);
     }
+
+    // Check if numerator is 0
+    OpRegImm(kOpCmp, rs_r0, 0);
+    LIR* branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
+    LoadConstantNoClobber(rs_r2, 0);
+    LIR* done = NewLIR1(kX86Jmp8, 0);
+    branch->target = NewLIR0(kPseudoTargetLabel);
 
     // EDX = magic.
     LoadConstantNoClobber(rs_r2, magic);
@@ -730,6 +753,7 @@ RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src,
       // For this case, return the result in EAX.
       rl_result.reg.SetReg(r0);
     }
+    done->target = NewLIR0(kPseudoTargetLabel);
   }
 
   return rl_result;
@@ -761,6 +785,10 @@ RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
     GenDivZeroCheck(rs_r1);
   }
 
+  // Check if numerator is 0
+  OpRegImm(kOpCmp, rs_r0, 0);
+  LIR* branch = NewLIR2(kX86Jcc8, 0, kX86CondEq);
+
   // Have to catch 0x80000000/-1 case, or we will get an exception!
   OpRegImm(kOpCmp, rs_r1, -1);
   LIR *minus_one_branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
@@ -768,6 +796,8 @@ RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
   // RHS is -1.
   OpRegImm(kOpCmp, rs_r0, 0x80000000);
   LIR * minint_branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
+
+  branch->target = NewLIR0(kPseudoTargetLabel);
 
   // In 0x80000000/-1 case.
   if (!is_div) {

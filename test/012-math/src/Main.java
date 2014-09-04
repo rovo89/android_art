@@ -99,7 +99,27 @@ public class Main {
         f %= g;
         System.out.println("f:" +f);
     }
+    public static void math_012_numerator(int a, int b, int d, int e, int f) {
+        int c = 0;
+        c /= b;
+        System.out.println(c);
+        c %= b;
+        System.out.println(c);
+        c = a / b;
+        System.out.println(c);
+        c = a % b;
+        System.out.println(c);
+        c = c / d;
+        System.out.println(c);
+        c = c / e;
+        System.out.println(c);
+        c = c / f;
+        System.out.println(c);
+        c = c % f;
+        System.out.println(c);
+    }
     public static void main(String args[]) {
       math_012();
+      math_012_numerator(0, 3, -1, 4, 5);
     }
 }
