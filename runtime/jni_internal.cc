@@ -2261,25 +2261,15 @@ class JNI {
     IndirectRef ref = reinterpret_cast<IndirectRef>(java_object);
     IndirectRefKind kind = GetIndirectRefKind(ref);
     switch (kind) {
-    case kLocal: {
-      ScopedObjectAccess soa(env);
-      // The local refs don't need a read barrier.
-      if (static_cast<JNIEnvExt*>(env)->locals.Get<kWithoutReadBarrier>(ref) !=
-          kInvalidIndirectRefObject) {
-        return JNILocalRefType;
-      }
-      return JNIInvalidRefType;
-    }
+    case kLocal:
+      return JNILocalRefType;
     case kGlobal:
       return JNIGlobalRefType;
     case kWeakGlobal:
       return JNIWeakGlobalRefType;
     case kHandleScopeOrInvalid:
-      // Is it in a stack IRT?
-      if (static_cast<JNIEnvExt*>(env)->self->HandleScopeContains(java_object)) {
-        return JNILocalRefType;
-      }
-      return JNIInvalidRefType;
+      // Assume value is in a handle scope.
+      return JNILocalRefType;
     }
     LOG(FATAL) << "IndirectRefKind[" << kind << "]";
     return JNIInvalidRefType;

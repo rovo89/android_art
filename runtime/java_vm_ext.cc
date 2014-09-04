@@ -28,6 +28,7 @@
 #include "nativebridge/native_bridge.h"
 #include "java_vm_ext.h"
 #include "parsed_options.h"
+#include "runtime-inl.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
@@ -761,7 +762,7 @@ void JavaVMExt::SweepJniWeakGlobals(IsMarkedCallback* callback, void* arg) {
     mirror::Object* obj = *entry;
     mirror::Object* new_obj = callback(obj, arg);
     if (new_obj == nullptr) {
-      new_obj = kClearedJniWeakGlobal;
+      new_obj = Runtime::Current()->GetClearedJniWeakGlobal();
     }
     *entry = new_obj;
   }

@@ -19,12 +19,22 @@
 
 #include "indirect_reference_table.h"
 
+#include "runtime-inl.h"
 #include "verify_object-inl.h"
 
 namespace art {
 namespace mirror {
 class Object;
 }  // namespace mirror
+
+inline void IrtIterator::SkipNullsAndTombstones() {
+  // We skip NULLs and tombstones. Clients don't want to see implementation details.
+  while (i_ < capacity_ &&
+         (table_[i_].IsNull() ||
+          Runtime::Current()->IsClearedJniWeakGlobal(table_[i_].Read<kWithoutReadBarrier>()))) {
+    ++i_;
+  }
+}
 
 // Verifies that the indirect table lookup is valid.
 // Returns "false" if something looks bad.
@@ -73,15 +83,11 @@ inline bool IndirectReferenceTable::CheckEntry(const char* what, IndirectRef ire
 template<ReadBarrierOption kReadBarrierOption>
 inline mirror::Object* IndirectReferenceTable::Get(IndirectRef iref) const {
   if (!GetChecked(iref)) {
-    return kInvalidIndirectRefObject;
+    return nullptr;
   }
   uint32_t idx = ExtractIndex(iref);
-  mirror::Object* obj = table_[idx].Read<kWithoutReadBarrier>();
-  if (LIKELY(obj != kClearedJniWeakGlobal)) {
-    // The read barrier or VerifyObject won't handle kClearedJniWeakGlobal.
-    obj = table_[idx].Read<kReadBarrierOption>();
-    VerifyObject(obj);
-  }
+  mirror::Object* obj = table_[idx].Read<kReadBarrierOption>();
+  VerifyObject(obj);
   return obj;
 }
 

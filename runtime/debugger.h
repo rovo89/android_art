@@ -248,9 +248,9 @@ class Dbg {
    */
   static std::string GetClassName(JDWP::RefTypeId id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& class_object_id)
+  static JDWP::JdwpError GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId* class_object_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& superclass_id)
+  static JDWP::JdwpError GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId* superclass_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetClassLoader(JDWP::RefTypeId id, JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -258,38 +258,38 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetReflectedType(JDWP::RefTypeId class_id, JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void GetClassList(std::vector<JDWP::RefTypeId>& classes)
+  static void GetClassList(std::vector<JDWP::RefTypeId>* classes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetClassInfo(JDWP::RefTypeId class_id, JDWP::JdwpTypeTag* pTypeTag,
                                       uint32_t* pStatus, std::string* pDescriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>& ids)
+  static void FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>* ids)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetReferenceType(JDWP::ObjectId object_id, JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetSignature(JDWP::RefTypeId ref_type_id, std::string* signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetSourceFile(JDWP::RefTypeId ref_type_id, std::string& source_file)
+  static JDWP::JdwpError GetSourceFile(JDWP::RefTypeId ref_type_id, std::string* source_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetObjectTag(JDWP::ObjectId object_id, uint8_t& tag)
+  static JDWP::JdwpError GetObjectTag(JDWP::ObjectId object_id, uint8_t* tag)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static size_t GetTagWidth(JDWP::JdwpTag tag);
 
-  static JDWP::JdwpError GetArrayLength(JDWP::ObjectId array_id, int& length)
+  static JDWP::JdwpError GetArrayLength(JDWP::ObjectId array_id, int32_t* length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError OutputArray(JDWP::ObjectId array_id, int offset, int count,
                                      JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError SetArrayElements(JDWP::ObjectId array_id, int offset, int count,
-                                          JDWP::Request& request)
+                                          JDWP::Request* request)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static JDWP::ObjectId CreateString(const std::string& str)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError CreateObject(JDWP::RefTypeId class_id, JDWP::ObjectId& new_object)
+  static JDWP::JdwpError CreateObject(JDWP::RefTypeId class_id, JDWP::ObjectId* new_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError CreateArrayObject(JDWP::RefTypeId array_class_id, uint32_t length,
-                                           JDWP::ObjectId& new_array)
+                                           JDWP::ObjectId* new_array)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static bool MatchType(JDWP::RefTypeId instance_class_id, JDWP::RefTypeId class_id)
@@ -301,12 +301,12 @@ class Dbg {
   static JDWP::JdwpError GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* reply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetOwnedMonitors(JDWP::ObjectId thread_id,
-                                          std::vector<JDWP::ObjectId>& monitors,
-                                          std::vector<uint32_t>& stack_depths)
+                                          std::vector<JDWP::ObjectId>* monitors,
+                                          std::vector<uint32_t>* stack_depths)
       LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetContendedMonitor(JDWP::ObjectId thread_id,
-                                             JDWP::ObjectId& contended_monitor)
+                                             JDWP::ObjectId* contended_monitor)
       LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -314,19 +314,19 @@ class Dbg {
   // Heap.
   //
   static JDWP::JdwpError GetInstanceCounts(const std::vector<JDWP::RefTypeId>& class_ids,
-                                           std::vector<uint64_t>& counts)
+                                           std::vector<uint64_t>* counts)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetInstances(JDWP::RefTypeId class_id, int32_t max_count,
-                                      std::vector<JDWP::ObjectId>& instances)
+                                      std::vector<JDWP::ObjectId>* instances)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetReferringObjects(JDWP::ObjectId object_id, int32_t max_count,
-                                             std::vector<JDWP::ObjectId>& referring_objects)
+                                             std::vector<JDWP::ObjectId>* referring_objects)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError DisableCollection(JDWP::ObjectId object_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError EnableCollection(JDWP::ObjectId object_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError IsCollected(JDWP::ObjectId object_id, bool& is_collected)
+  static JDWP::JdwpError IsCollected(JDWP::ObjectId object_id, bool* is_collected)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DisposeObject(JDWP::ObjectId object_id, uint32_t reference_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -358,7 +358,7 @@ class Dbg {
                                JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetBytecodes(JDWP::RefTypeId class_id, JDWP::MethodId method_id,
-                                      std::vector<uint8_t>& bytecodes)
+                                      std::vector<uint8_t>* bytecodes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static std::string GetFieldName(JDWP::FieldId field_id)
@@ -387,7 +387,7 @@ class Dbg {
   /*
    * Thread, ThreadGroup, Frame
    */
-  static JDWP::JdwpError GetThreadName(JDWP::ObjectId thread_id, std::string& name)
+  static JDWP::JdwpError GetThreadName(JDWP::ObjectId thread_id, std::string* name)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_);
   static JDWP::JdwpError GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* pReply)
@@ -412,12 +412,13 @@ class Dbg {
 
   // Fills 'thread_ids' with the threads in the given thread group. If thread_group_id == 0,
   // returns all threads.
-  static void GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& thread_ids)
+  static void GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>* thread_ids)
       LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void GetChildThreadGroups(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& child_thread_group_ids);
+  static void GetChildThreadGroups(JDWP::ObjectId thread_group_id,
+                                   std::vector<JDWP::ObjectId>* child_thread_group_ids);
 
-  static JDWP::JdwpError GetThreadFrameCount(JDWP::ObjectId thread_id, size_t& result)
+  static JDWP::JdwpError GetThreadFrameCount(JDWP::ObjectId thread_id, size_t* result)
       LOCKS_EXCLUDED(Locks::thread_list_lock_);
   static JDWP::JdwpError GetThreadFrames(JDWP::ObjectId thread_id, size_t start_frame,
                                          size_t frame_count, JDWP::ExpandBuf* buf)
@@ -542,7 +543,7 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DdmSetThreadNotification(bool enable)
       LOCKS_EXCLUDED(Locks::thread_list_lock_);
-  static bool DdmHandlePacket(JDWP::Request& request, uint8_t** pReplyBuf, int* pReplyLen);
+  static bool DdmHandlePacket(JDWP::Request* request, uint8_t** pReplyBuf, int* pReplyLen);
   static void DdmConnected() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DdmDisconnected() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DdmSendChunk(uint32_t type, const std::vector<uint8_t>& bytes)
@@ -595,8 +596,8 @@ class Dbg {
   static void DdmSendHeapSegments(bool native)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static TypeCache& GetTypeCache() {
-    return type_cache_;
+  static TypeCache* GetTypeCache() {
+    return &type_cache_;
   }
 
  private:

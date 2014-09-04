@@ -276,10 +276,6 @@ void IndirectReferenceTable::Dump(std::ostream& os) const {
     mirror::Object* obj = table_[i].Read<kWithoutReadBarrier>();
     if (UNLIKELY(obj == nullptr)) {
       // Remove NULLs.
-    } else if (UNLIKELY(obj == kClearedJniWeakGlobal)) {
-      // ReferenceTable::Dump() will handle kClearedJniWeakGlobal
-      // while the read barrier won't.
-      entries.push_back(GcRoot<mirror::Object>(obj));
     } else {
       obj = table_[i].Read();
       entries.push_back(GcRoot<mirror::Object>(obj));
