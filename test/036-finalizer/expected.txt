@@ -11,3 +11,4 @@ gc + finalize
 sleep
 reborn: [FinalizerTest message=nothing, finalized=false]
 wimp: null
+Finalized 1024 / 1024
