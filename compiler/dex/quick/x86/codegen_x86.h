@@ -22,6 +22,7 @@
 #include "x86_lir.h"
 
 #include <map>
+#include <vector>
 
 namespace art {
 
@@ -59,6 +60,15 @@ class X86Mir2Lir : public Mir2Lir {
     int max_mapped_in_;
     bool is_there_stack_mapped_;
     bool initialized_;
+  };
+
+  class ExplicitTempRegisterLock {
+  public:
+    ExplicitTempRegisterLock(X86Mir2Lir* mir_to_lir, int n_regs, ...);
+    ~ExplicitTempRegisterLock();
+  protected:
+    std::vector<RegStorage> temp_regs_;
+    X86Mir2Lir* const mir_to_lir_;
   };
 
  public:
