@@ -186,8 +186,6 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
   action.sa_restorer = nullptr;
 #endif
 
-  bool signal_handled = false;
-
   // Catch SIGSEGV and SIGABRT to invoke our nested handler
   int e1 = sigaction(SIGSEGV, &action, &oldsegvaction);
   int e2 = sigaction(SIGABRT, &action, &oldabortaction);
@@ -200,8 +198,12 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
     if (setjmp(*self->GetNestedSignalState()) == 0) {
       for (const auto& handler : other_handlers_) {
         if (handler->Action(sig, info, context)) {
-          signal_handled = true;
-          break;
+          // Restore the signal handlers, reinit the fault manager and return.  Signal was
+          // handled.
+          sigaction(SIGSEGV, &oldsegvaction, nullptr);
+          sigaction(SIGABRT, &oldabortaction, nullptr);
+          fault_manager.Init();
+          return;
         }
       }
     } else {
@@ -216,13 +218,11 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
   // Now put the fault manager back in place.
   fault_manager.Init();
 
-  if (!signal_handled) {
-    // Set a breakpoint in this function to catch unhandled signals.
-    art_sigsegv_fault();
+  // Set a breakpoint in this function to catch unhandled signals.
+  art_sigsegv_fault();
 
-    // Pass this on to the next handler in the chain, or the default if none.
-    InvokeUserSignalHandler(sig, info, context);
-  }
+  // Pass this on to the next handler in the chain, or the default if none.
+  InvokeUserSignalHandler(sig, info, context);
 }
 
 void FaultManager::AddHandler(FaultHandler* handler, bool generated_code) {
