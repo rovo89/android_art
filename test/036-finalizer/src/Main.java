@@ -120,6 +120,39 @@ public class Main {
 
         System.out.println("reborn: " + FinalizerTest.mReborn);
         System.out.println("wimp: " + wimpString(wimp));
+        // Test runFinalization with multiple objects.
+        runFinalizationTest();
+    }
+
+    static class FinalizeCounter {
+      private static Object finalizeLock = new Object();
+      private static volatile int finalizeCount = 0;
+      private int index;
+      static int getCount() {
+        return finalizeCount;
+      }
+      FinalizeCounter(int index) {
+        this.index = index;
+      }
+      protected void finalize() {
+        synchronized(finalizeLock) {
+          ++finalizeCount;
+        }
+      }
+    }
+
+    private static void runFinalizationTest() {
+      int count = 1024;
+      Object[] objs = new Object[count];
+      for (int i = 0; i < count; ++i) {
+        objs[i] = new FinalizeCounter(i);
+      }
+      for (int i = 0; i < count; ++i) {
+        objs[i] = null;
+      }
+      System.gc();
+      System.runFinalization();
+      System.out.println("Finalized " + FinalizeCounter.getCount() + " / "  + count);
     }
 
     public static class FinalizerTest {
