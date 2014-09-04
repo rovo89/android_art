@@ -33,8 +33,11 @@ static void SigAltStack(stack_t* new_stack, stack_t* old_stack) {
 }
 
 // The default SIGSTKSZ on linux is 8K.  If we do any logging in a signal
-// handler this is too small.  We allocate 16K instead.
-static constexpr int kHostAltSigStackSize = 16*1024;    // 16K signal stack.
+// handler this is too small.  We allocate 16K instead or the minimum signal
+// stack size.
+// TODO: We shouldn't do logging (with locks) in signal handlers.
+static constexpr int kHostAltSigStackSize =
+    16 * KB < MINSIGSTKSZ ? MINSIGSTKSZ : 16 * KB;
 
 void Thread::SetUpAlternateSignalStack() {
   // Create and set an alternate signal stack.
