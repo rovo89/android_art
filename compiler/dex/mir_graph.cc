@@ -1510,6 +1510,9 @@ void MIRGraph::InitializeMethodUses() {
   int num_ssa_regs = GetNumSSARegs();
   use_counts_.Resize(num_ssa_regs + 32);
   raw_use_counts_.Resize(num_ssa_regs + 32);
+  // reset both lists to restart fresh
+  use_counts_.Reset();
+  raw_use_counts_.Reset();
   // Initialize list.
   for (int i = 0; i < num_ssa_regs; i++) {
     use_counts_.Insert(0);
