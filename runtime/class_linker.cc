@@ -785,7 +785,19 @@ const OatFile* ClassLinker::FindOpenedOatFile(const char* oat_location, const ch
   return NULL;
 }
 
-static bool LoadMultiDexFilesFromOatFile(const OatFile* oat_file, const char* dex_location,
+
+// Loads all multi dex files from the given oat file returning true on success.
+//
+// Parameters:
+//   oat_file - the oat file to load from
+//   dex_location - the dex location used to generate the oat file
+//   dex_location_checksum - the checksum of the dex_location (may be null for pre-opted files)
+//   generated - whether or not the oat_file existed before or was just (re)generated
+//   error_msgs - any error messages will be appended here
+//   dex_files - the loaded dex_files will be appended here (only if the loading succeeds)
+static bool LoadMultiDexFilesFromOatFile(const OatFile* oat_file,
+                                         const char* dex_location,
+                                         const uint32_t* dex_location_checksum,
                                          bool generated,
                                          std::vector<std::string>* error_msgs,
                                          std::vector<const DexFile*>* dex_files) {
@@ -800,12 +812,20 @@ static bool LoadMultiDexFilesFromOatFile(const OatFile* oat_file, const char* de
     std::string next_name_str = DexFile::GetMultiDexClassesDexName(i, dex_location);
     const char* next_name = next_name_str.c_str();
 
-    uint32_t dex_location_checksum;
-    uint32_t* dex_location_checksum_pointer = &dex_location_checksum;
+    uint32_t next_location_checksum;
+    uint32_t* next_location_checksum_pointer = &next_location_checksum;
     std::string error_msg;
-    if (!DexFile::GetChecksum(next_name, dex_location_checksum_pointer, &error_msg)) {
+    if ((i == 0) && (strcmp(next_name, dex_location) == 0)) {
+      // When i=0 the multidex name should be the same as the location name. We already have the
+      // checksum it so we don't need to recompute it.
+      if (dex_location_checksum == nullptr) {
+        next_location_checksum_pointer = nullptr;
+      } else {
+        next_location_checksum = *dex_location_checksum;
+      }
+    } else if (!DexFile::GetChecksum(next_name, next_location_checksum_pointer, &error_msg)) {
       DCHECK_EQ(false, i == 0 && generated);
-      dex_location_checksum_pointer = nullptr;
+      next_location_checksum_pointer = nullptr;
     }
 
     const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(next_name, nullptr, false);
@@ -814,7 +834,7 @@ static bool LoadMultiDexFilesFromOatFile(const OatFile* oat_file, const char* de
       if (i == 0 && generated) {
         std::string error_msg;
         error_msg = StringPrintf("\nFailed to find dex file '%s' (checksum 0x%x) in generated out "
-                                 " file'%s'", dex_location, dex_location_checksum,
+                                 " file'%s'", dex_location, next_location_checksum,
                                  oat_file->GetLocation().c_str());
         error_msgs->push_back(error_msg);
       }
@@ -823,8 +843,8 @@ static bool LoadMultiDexFilesFromOatFile(const OatFile* oat_file, const char* de
 
     // Checksum test. Test must succeed when generated.
     success = !generated;
-    if (dex_location_checksum_pointer != nullptr) {
-      success = dex_location_checksum == oat_dex_file->GetDexFileLocationChecksum();
+    if (next_location_checksum_pointer != nullptr) {
+      success = next_location_checksum == oat_dex_file->GetDexFileLocationChecksum();
     }
 
     if (success) {
@@ -840,7 +860,7 @@ static bool LoadMultiDexFilesFromOatFile(const OatFile* oat_file, const char* de
     // When we generated the file, we expect success, or something is terribly wrong.
     CHECK_EQ(false, generated && !success)
         << "dex_location=" << next_name << " oat_location=" << oat_file->GetLocation().c_str()
-        << std::hex << " dex_location_checksum=" << dex_location_checksum
+        << std::hex << " dex_location_checksum=" << next_location_checksum
         << " OatDexFile::GetLocationChecksum()=" << oat_dex_file->GetDexFileLocationChecksum();
   }
 
@@ -877,6 +897,7 @@ bool ClassLinker::OpenDexFilesFromOat(const char* dex_location, const char* oat_
   bool have_checksum = true;
   std::string checksum_error_msg;
   if (!DexFile::GetChecksum(dex_location, dex_location_checksum_pointer, &checksum_error_msg)) {
+    // This happens for pre-opted files since the corresponding dex files are no longer on disk.
     dex_location_checksum_pointer = nullptr;
     have_checksum = false;
   }
@@ -942,8 +963,9 @@ bool ClassLinker::OpenDexFilesFromOat(const char* dex_location, const char* oat_
 
   // 3) If we have an oat file, check all contained multidex files for our dex_location.
   // Note: LoadMultiDexFilesFromOatFile will check for nullptr in the first argument.
-  bool success = LoadMultiDexFilesFromOatFile(open_oat_file.get(), dex_location, false, error_msgs,
-                                              dex_files);
+  bool success = LoadMultiDexFilesFromOatFile(open_oat_file.get(), dex_location,
+                                              dex_location_checksum_pointer,
+                                              false, error_msgs, dex_files);
   if (success) {
     const OatFile* oat_file = open_oat_file.release();  // Avoid deleting it.
     if (needs_registering) {
@@ -1004,8 +1026,8 @@ bool ClassLinker::OpenDexFilesFromOat(const char* dex_location, const char* oat_
   }
 
   // Try to load again, but stronger checks.
-  success = LoadMultiDexFilesFromOatFile(open_oat_file.get(), dex_location, true, error_msgs,
-                                         dex_files);
+  success = LoadMultiDexFilesFromOatFile(open_oat_file.get(), dex_location, dex_location_checksum_pointer,
+                                         true, error_msgs, dex_files);
   if (success) {
     RegisterOatFile(open_oat_file.release());
     return true;
@@ -1195,12 +1217,12 @@ bool ClassLinker::VerifyOatAndDexFileChecksums(const OatFile* oat_file,
 
 bool ClassLinker::VerifyOatWithDexFile(const OatFile* oat_file,
                                        const char* dex_location,
+                                       const uint32_t* dex_location_checksum,
                                        std::string* error_msg) {
   CHECK(oat_file != nullptr);
   CHECK(dex_location != nullptr);
   std::unique_ptr<const DexFile> dex_file;
-  uint32_t dex_location_checksum;
-  if (!DexFile::GetChecksum(dex_location, &dex_location_checksum, error_msg)) {
+  if (dex_location_checksum == nullptr) {
     // If no classes.dex found in dex_location, it has been stripped or is corrupt, assume oat is
     // up-to-date. This is the common case in user builds for jar's and apk's in the /system
     // directory.
@@ -1213,13 +1235,13 @@ bool ClassLinker::VerifyOatWithDexFile(const OatFile* oat_file,
     }
     dex_file.reset(oat_dex_file->OpenDexFile(error_msg));
   } else {
-    bool verified = VerifyOatAndDexFileChecksums(oat_file, dex_location, dex_location_checksum,
+    bool verified = VerifyOatAndDexFileChecksums(oat_file, dex_location, *dex_location_checksum,
                                                  kRuntimeISA, error_msg);
     if (!verified) {
       return false;
     }
     dex_file.reset(oat_file->GetOatDexFile(dex_location,
-                                           &dex_location_checksum)->OpenDexFile(error_msg));
+                                           dex_location_checksum)->OpenDexFile(error_msg));
   }
   return dex_file.get() != nullptr;
 }
@@ -1243,7 +1265,8 @@ const OatFile* ClassLinker::FindOatFileContainingDexFileFromDexLocation(
                                        dex_location));
     return nullptr;
   } else if (oat_file->IsExecutable() &&
-             !VerifyOatWithDexFile(oat_file.get(), dex_location, &error_msg)) {
+             !VerifyOatWithDexFile(oat_file.get(), dex_location,
+                                   dex_location_checksum, &error_msg)) {
     error_msgs->push_back(StringPrintf("Failed to verify oat file '%s' found for dex location "
                                        "'%s': %s", oat_file->GetLocation().c_str(), dex_location,
                                        error_msg.c_str()));
