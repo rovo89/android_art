@@ -30,21 +30,23 @@
 namespace art {
 
 Mutex* Locks::abort_lock_ = nullptr;
+Mutex* Locks::alloc_tracker_lock_ = nullptr;
 Mutex* Locks::allocated_monitor_ids_lock_ = nullptr;
 Mutex* Locks::allocated_thread_ids_lock_ = nullptr;
 ReaderWriterMutex* Locks::breakpoint_lock_ = nullptr;
 ReaderWriterMutex* Locks::classlinker_classes_lock_ = nullptr;
+Mutex* Locks::deoptimization_lock_ = nullptr;
 ReaderWriterMutex* Locks::heap_bitmap_lock_ = nullptr;
 Mutex* Locks::logging_lock_ = nullptr;
 Mutex* Locks::mem_maps_lock_ = nullptr;
 Mutex* Locks::modify_ldt_lock_ = nullptr;
 ReaderWriterMutex* Locks::mutator_lock_ = nullptr;
+Mutex* Locks::profiler_lock_ = nullptr;
 Mutex* Locks::runtime_shutdown_lock_ = nullptr;
 Mutex* Locks::thread_list_lock_ = nullptr;
 Mutex* Locks::thread_list_suspend_thread_lock_ = nullptr;
 Mutex* Locks::thread_suspend_count_lock_ = nullptr;
 Mutex* Locks::trace_lock_ = nullptr;
-Mutex* Locks::profiler_lock_ = nullptr;
 Mutex* Locks::unexpected_signal_lock_ = nullptr;
 Mutex* Locks::intern_table_lock_ = nullptr;
 
@@ -829,20 +831,22 @@ void Locks::Init() {
       DCHECK(modify_ldt_lock_ == nullptr);
     }
     DCHECK(abort_lock_ != nullptr);
+    DCHECK(alloc_tracker_lock_ != nullptr);
     DCHECK(allocated_monitor_ids_lock_ != nullptr);
     DCHECK(allocated_thread_ids_lock_ != nullptr);
     DCHECK(breakpoint_lock_ != nullptr);
     DCHECK(classlinker_classes_lock_ != nullptr);
+    DCHECK(deoptimization_lock_ != nullptr);
     DCHECK(heap_bitmap_lock_ != nullptr);
+    DCHECK(intern_table_lock_ != nullptr);
     DCHECK(logging_lock_ != nullptr);
     DCHECK(mutator_lock_ != nullptr);
+    DCHECK(profiler_lock_ != nullptr);
     DCHECK(thread_list_lock_ != nullptr);
     DCHECK(thread_list_suspend_thread_lock_ != nullptr);
     DCHECK(thread_suspend_count_lock_ != nullptr);
     DCHECK(trace_lock_ != nullptr);
-    DCHECK(profiler_lock_ != nullptr);
     DCHECK(unexpected_signal_lock_ != nullptr);
-    DCHECK(intern_table_lock_ != nullptr);
   } else {
     // Create global locks in level order from highest lock level to lowest.
     LockLevel current_lock_level = kThreadListSuspendThreadLock;
@@ -851,7 +855,12 @@ void Locks::Init() {
         new Mutex("thread list suspend thread by .. lock", current_lock_level);
 
     #define UPDATE_CURRENT_LOCK_LEVEL(new_level) \
-      DCHECK_LT(new_level, current_lock_level); \
+      if (new_level >= current_lock_level) { \
+        /* Do not use CHECKs or FATAL here, abort_lock_ is not setup yet. */ \
+        fprintf(stderr, "New local level %d is not less than current level %d\n", \
+                new_level, current_lock_level); \
+        exit(1); \
+      } \
       current_lock_level = new_level;
 
     UPDATE_CURRENT_LOCK_LEVEL(kMutatorLock);
@@ -873,6 +882,14 @@ void Locks::Init() {
     UPDATE_CURRENT_LOCK_LEVEL(kTraceLock);
     DCHECK(trace_lock_ == nullptr);
     trace_lock_ = new Mutex("trace lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kDeoptimizationLock);
+    DCHECK(deoptimization_lock_ == nullptr);
+    deoptimization_lock_ = new Mutex("Deoptimization lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kAllocTrackerLock);
+    DCHECK(alloc_tracker_lock_ == nullptr);
+    alloc_tracker_lock_ = new Mutex("AllocTracker lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kThreadListLock);
     DCHECK(thread_list_lock_ == nullptr);
@@ -904,7 +921,6 @@ void Locks::Init() {
     UPDATE_CURRENT_LOCK_LEVEL(kInternTableLock);
     DCHECK(intern_table_lock_ == nullptr);
     intern_table_lock_ = new Mutex("InternTable lock", current_lock_level);
-
 
     UPDATE_CURRENT_LOCK_LEVEL(kAbortLock);
     DCHECK(abort_lock_ == nullptr);
