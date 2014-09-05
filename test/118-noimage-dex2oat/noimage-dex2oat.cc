@@ -28,9 +28,9 @@ class NoDex2OatTest {
     ScopedObjectAccess soa(Thread::Current());
     mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
     const DexFile& dex_file = klass->GetDexFile();
-    const OatFile* oat_file =
-        Runtime::Current()->GetClassLinker()->FindOpenedOatFileForDexFile(dex_file);
-    return oat_file != nullptr;
+    const OatFile::OatDexFile* oat_dex_file =
+        Runtime::Current()->GetClassLinker()->FindOpenedOatDexFileForDexFile(dex_file);
+    return oat_dex_file != nullptr;
   }
 };
 

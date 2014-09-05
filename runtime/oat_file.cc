@@ -140,7 +140,7 @@ OatFile::OatFile(const std::string& location, bool is_executable)
 }
 
 OatFile::~OatFile() {
-  STLDeleteValues(&oat_dex_files_);
+  STLDeleteElements(&oat_dex_files_storage_);
   if (dlopen_handle_ != NULL) {
     dlclose(dlopen_handle_);
   }
@@ -238,7 +238,9 @@ bool OatFile::Setup(std::string* error_msg) {
     return false;
   }
 
-  for (size_t i = 0; i < GetOatHeader().GetDexFileCount(); i++) {
+  uint32_t dex_file_count = GetOatHeader().GetDexFileCount();
+  oat_dex_files_storage_.reserve(dex_file_count);
+  for (size_t i = 0; i < dex_file_count; i++) {
     uint32_t dex_file_location_size = *reinterpret_cast<const uint32_t*>(oat);
     if (UNLIKELY(dex_file_location_size == 0U)) {
       *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd with empty location name",
@@ -315,14 +317,24 @@ bool OatFile::Setup(std::string* error_msg) {
       return false;
     }
 
-    // Create the OatDexFile and add it to the owning map indexed by the dex file location.
+    std::string canonical_location = DexFile::GetDexCanonicalLocation(dex_file_location.c_str());
+
+    // Create the OatDexFile and add it to the owning container.
     OatDexFile* oat_dex_file = new OatDexFile(this,
                                               dex_file_location,
+                                              canonical_location,
                                               dex_file_checksum,
                                               dex_file_pointer,
                                               methods_offsets_pointer);
+    oat_dex_files_storage_.push_back(oat_dex_file);
+
+    // Add the location and canonical location (if different) to the oat_dex_files_ table.
     StringPiece key(oat_dex_file->GetDexFileLocation());
     oat_dex_files_.Put(key, oat_dex_file);
+    if (canonical_location != dex_file_location) {
+      StringPiece canonical_key(oat_dex_file->GetCanonicalDexFileLocation());
+      oat_dex_files_.Put(canonical_key, oat_dex_file);
+    }
   }
   return true;
 }
@@ -370,20 +382,13 @@ const OatFile::OatDexFile* OatFile::GetOatDexFile(const char* dex_location,
       oat_dex_file = secondary_lb->second;  // May be nullptr.
     } else {
       // We haven't seen this dex_location before, we must check the canonical location.
-      if (UNLIKELY(oat_dex_files_by_canonical_location_.empty())) {
-        // Lazily fill in the oat_dex_files_by_canonical_location_.
-        for (const auto& entry : oat_dex_files_) {
-          const std::string& dex_location = entry.second->GetDexFileLocation();
-          string_cache_.emplace_back(DexFile::GetDexCanonicalLocation(dex_location.c_str()));
-          StringPiece canonical_location_key(string_cache_.back());
-          oat_dex_files_by_canonical_location_.Put(canonical_location_key, entry.second);
-        }
-      }
       std::string dex_canonical_location = DexFile::GetDexCanonicalLocation(dex_location);
-      StringPiece canonical_key(dex_canonical_location);
-      auto canonical_it = oat_dex_files_by_canonical_location_.find(canonical_key);
-      if (canonical_it != oat_dex_files_by_canonical_location_.end()) {
-        oat_dex_file = canonical_it->second;
+      if (dex_canonical_location != dex_location) {
+        StringPiece canonical_key(dex_canonical_location);
+        auto canonical_it = oat_dex_files_.find(canonical_key);
+        if (canonical_it != oat_dex_files_.end()) {
+          oat_dex_file = canonical_it->second;
+        }  // else keep nullptr.
       }  // else keep nullptr.
 
       // Copy the key to the string_cache_ and store the result in secondary map.
@@ -408,11 +413,11 @@ const OatFile::OatDexFile* OatFile::GetOatDexFile(const char* dex_location,
                  << " ( canonical path " << dex_canonical_location << ")"
                  << " with checksum " << checksum << " in OatFile " << GetLocation();
     if (kIsDebugBuild) {
-      for (Table::const_iterator it = oat_dex_files_.begin(); it != oat_dex_files_.end(); ++it) {
+      for (const OatDexFile* odf : oat_dex_files_storage_) {
         LOG(WARNING) << "OatFile " << GetLocation()
-                     << " contains OatDexFile " << it->second->GetDexFileLocation()
-                     << " (canonical path " << it->first << ")"
-                     << " with checksum 0x" << std::hex << it->second->GetDexFileLocationChecksum();
+                     << " contains OatDexFile " << odf->GetDexFileLocation()
+                     << " (canonical path " << odf->GetCanonicalDexFileLocation() << ")"
+                     << " with checksum 0x" << std::hex << odf->GetDexFileLocationChecksum();
       }
     }
   }
@@ -420,21 +425,15 @@ const OatFile::OatDexFile* OatFile::GetOatDexFile(const char* dex_location,
   return NULL;
 }
 
-std::vector<const OatFile::OatDexFile*> OatFile::GetOatDexFiles() const {
-  std::vector<const OatFile::OatDexFile*> result;
-  for (Table::const_iterator it = oat_dex_files_.begin(); it != oat_dex_files_.end(); ++it) {
-    result.push_back(it->second);
-  }
-  return result;
-}
-
 OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
                                 const std::string& dex_file_location,
+                                const std::string& canonical_dex_file_location,
                                 uint32_t dex_file_location_checksum,
                                 const byte* dex_file_pointer,
                                 const uint32_t* oat_class_offsets_pointer)
     : oat_file_(oat_file),
       dex_file_location_(dex_file_location),
+      canonical_dex_file_location_(canonical_dex_file_location),
       dex_file_location_checksum_(dex_file_location_checksum),
       dex_file_pointer_(dex_file_pointer),
       oat_class_offsets_pointer_(oat_class_offsets_pointer) {}
