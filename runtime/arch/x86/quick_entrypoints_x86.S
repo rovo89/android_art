@@ -1255,6 +1255,7 @@ DEFINE_FUNCTION art_quick_instrumentation_entry
     PUSH ecx                      // Pass receiver.
     PUSH eax                      // Pass Method*.
     call SYMBOL(artInstrumentationMethodEntryFromCode) // (Method*, Object*, Thread*, SP, LR)
+    SETUP_GOT_NOSAVE
     addl LITERAL(28), %esp        // Pop arguments upto saved Method*.
     movl 28(%esp), %edi           // Restore edi.
     movl %eax, 28(%esp)           // Place code* over edi, just under return pc.
