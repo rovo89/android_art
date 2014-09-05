@@ -192,9 +192,11 @@ class Dbg {
   class TypeCache {
    public:
     // Returns a weak global for the input type. Deduplicates.
-    jobject Add(mirror::Class* t) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    jobject Add(mirror::Class* t) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_,
+                                                        Locks::alloc_tracker_lock_);
     // Clears the type cache and deletes all the weak global refs.
-    void Clear();
+    void Clear() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_,
+                                       Locks::alloc_tracker_lock_);
 
    private:
     std::multimap<int32_t, jobject> objects_;
@@ -221,8 +223,8 @@ class Dbg {
    */
   static void Connected();
   static void GoActive()
-      LOCKS_EXCLUDED(Locks::breakpoint_lock_, deoptimization_lock_, Locks::mutator_lock_);
-  static void Disconnected() LOCKS_EXCLUDED(deoptimization_lock_, Locks::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::breakpoint_lock_, Locks::deoptimization_lock_, Locks::mutator_lock_);
+  static void Disconnected() LOCKS_EXCLUDED(Locks::deoptimization_lock_, Locks::mutator_lock_);
   static void Disposed();
 
   // Returns true if we're actually debugging with a real debugger, false if it's
@@ -493,20 +495,20 @@ class Dbg {
 
   // Records deoptimization request in the queue.
   static void RequestDeoptimization(const DeoptimizationRequest& req)
-      LOCKS_EXCLUDED(deoptimization_lock_)
+      LOCKS_EXCLUDED(Locks::deoptimization_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Support delayed full undeoptimization requests. This is currently only used for single-step
   // events.
-  static void DelayFullUndeoptimization() LOCKS_EXCLUDED(deoptimization_lock_);
+  static void DelayFullUndeoptimization() LOCKS_EXCLUDED(Locks::deoptimization_lock_);
   static void ProcessDelayedFullUndeoptimizations()
-      LOCKS_EXCLUDED(deoptimization_lock_)
+      LOCKS_EXCLUDED(Locks::deoptimization_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Manage deoptimization after updating JDWP events list. Suspends all threads, processes each
   // request and finally resumes all threads.
   static void ManageDeoptimization()
-      LOCKS_EXCLUDED(deoptimization_lock_)
+      LOCKS_EXCLUDED(Locks::deoptimization_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Breakpoints.
@@ -560,17 +562,17 @@ class Dbg {
    * Recent allocation tracking support.
    */
   static void RecordAllocation(mirror::Class* type, size_t byte_count)
-      LOCKS_EXCLUDED(alloc_tracker_lock_)
+      LOCKS_EXCLUDED(Locks::alloc_tracker_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void SetAllocTrackingEnabled(bool enabled) LOCKS_EXCLUDED(alloc_tracker_lock_);
+  static void SetAllocTrackingEnabled(bool enabled) LOCKS_EXCLUDED(Locks::alloc_tracker_lock_);
   static bool IsAllocTrackingEnabled() {
     return recent_allocation_records_ != nullptr;
   }
   static jbyteArray GetRecentAllocations()
-      LOCKS_EXCLUDED(alloc_tracker_lock_)
+      LOCKS_EXCLUDED(Locks::alloc_tracker_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static size_t HeadIndex() EXCLUSIVE_LOCKS_REQUIRED(alloc_tracker_lock_);
-  static void DumpRecentAllocations() LOCKS_EXCLUDED(alloc_tracker_lock_);
+  static size_t HeadIndex() EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_);
+  static void DumpRecentAllocations() LOCKS_EXCLUDED(Locks::alloc_tracker_lock_);
 
   enum HpifWhen {
     HPIF_WHEN_NEVER = 0,
@@ -596,10 +598,6 @@ class Dbg {
   static void DdmSendHeapSegments(bool native)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static TypeCache* GetTypeCache() {
-    return &type_cache_;
-  }
-
  private:
   static void DdmBroadcast(bool connect) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadStartOrStop(Thread*, uint32_t)
@@ -617,52 +615,47 @@ class Dbg {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void RequestDeoptimizationLocked(const DeoptimizationRequest& req)
-      EXCLUSIVE_LOCKS_REQUIRED(deoptimization_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::deoptimization_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static Mutex* alloc_tracker_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-
-  static AllocRecord* recent_allocation_records_ PT_GUARDED_BY(alloc_tracker_lock_);
-  static size_t alloc_record_max_ GUARDED_BY(alloc_tracker_lock_);
-  static size_t alloc_record_head_ GUARDED_BY(alloc_tracker_lock_);
-  static size_t alloc_record_count_ GUARDED_BY(alloc_tracker_lock_);
-
-  // Guards deoptimization requests.
-  // TODO rename to instrumentation_update_lock.
-  static Mutex* deoptimization_lock_ ACQUIRED_AFTER(Locks::breakpoint_lock_);
+  static AllocRecord* recent_allocation_records_ PT_GUARDED_BY(Locks::alloc_tracker_lock_);
+  static size_t alloc_record_max_ GUARDED_BY(Locks::alloc_tracker_lock_);
+  static size_t alloc_record_head_ GUARDED_BY(Locks::alloc_tracker_lock_);
+  static size_t alloc_record_count_ GUARDED_BY(Locks::alloc_tracker_lock_);
 
   // Deoptimization requests to be processed each time the event list is updated. This is used when
   // registering and unregistering events so we do not deoptimize while holding the event list
   // lock.
   // TODO rename to instrumentation_requests.
-  static std::vector<DeoptimizationRequest> deoptimization_requests_ GUARDED_BY(deoptimization_lock_);
+  static std::vector<DeoptimizationRequest> deoptimization_requests_ GUARDED_BY(Locks::deoptimization_lock_);
 
   // Count the number of events requiring full deoptimization. When the counter is > 0, everything
   // is deoptimized, otherwise everything is undeoptimized.
   // Note: we fully deoptimize on the first event only (when the counter is set to 1). We fully
   // undeoptimize when the last event is unregistered (when the counter is set to 0).
-  static size_t full_deoptimization_event_count_ GUARDED_BY(deoptimization_lock_);
+  static size_t full_deoptimization_event_count_ GUARDED_BY(Locks::deoptimization_lock_);
 
   // Count the number of full undeoptimization requests delayed to next resume or end of debug
   // session.
-  static size_t delayed_full_undeoptimization_count_ GUARDED_BY(deoptimization_lock_);
+  static size_t delayed_full_undeoptimization_count_ GUARDED_BY(Locks::deoptimization_lock_);
 
   static size_t* GetReferenceCounterForEvent(uint32_t instrumentation_event);
 
   // Weak global type cache, TODO improve this.
-  static TypeCache type_cache_;
+  static TypeCache type_cache_ GUARDED_BY(Locks::alloc_tracker_lock_);
 
   // Instrumentation event reference counters.
   // TODO we could use an array instead of having all these dedicated counters. Instrumentation
   // events are bits of a mask so we could convert them to array index.
-  static size_t dex_pc_change_event_ref_count_ GUARDED_BY(deoptimization_lock_);
-  static size_t method_enter_event_ref_count_ GUARDED_BY(deoptimization_lock_);
-  static size_t method_exit_event_ref_count_ GUARDED_BY(deoptimization_lock_);
-  static size_t field_read_event_ref_count_ GUARDED_BY(deoptimization_lock_);
-  static size_t field_write_event_ref_count_ GUARDED_BY(deoptimization_lock_);
-  static size_t exception_catch_event_ref_count_ GUARDED_BY(deoptimization_lock_);
+  static size_t dex_pc_change_event_ref_count_ GUARDED_BY(Locks::deoptimization_lock_);
+  static size_t method_enter_event_ref_count_ GUARDED_BY(Locks::deoptimization_lock_);
+  static size_t method_exit_event_ref_count_ GUARDED_BY(Locks::deoptimization_lock_);
+  static size_t field_read_event_ref_count_ GUARDED_BY(Locks::deoptimization_lock_);
+  static size_t field_write_event_ref_count_ GUARDED_BY(Locks::deoptimization_lock_);
+  static size_t exception_catch_event_ref_count_ GUARDED_BY(Locks::deoptimization_lock_);
   static uint32_t instrumentation_events_ GUARDED_BY(Locks::mutator_lock_);
 
+  friend class AllocRecord;  // For type_cache_ with proper annotalysis.
   DISALLOW_COPY_AND_ASSIGN(Dbg);
 };
 

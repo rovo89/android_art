@@ -61,7 +61,15 @@
 namespace art {
 
 static const size_t kMaxAllocRecordStackDepth = 16;  // Max 255.
-static const size_t kDefaultNumAllocRecords = 64*1024;  // Must be a power of 2.
+static const size_t kDefaultNumAllocRecords = 64*1024;  // Must be a power of 2. 2BE can hold 64k-1.
+
+// Limit alloc_record_count to the 2BE value that is the limit of the current protocol.
+static uint16_t CappedAllocRecordCount(size_t alloc_record_count) {
+  if (alloc_record_count > 0xffff) {
+    return 0xffff;
+  }
+  return alloc_record_count;
+}
 
 class AllocRecordStackTraceElement {
  public:
@@ -116,9 +124,10 @@ jobject Dbg::TypeCache::Add(mirror::Class* t) {
 }
 
 void Dbg::TypeCache::Clear() {
-  ScopedObjectAccess soa(Thread::Current());
+  JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+  Thread* self = Thread::Current();
   for (const auto& p : objects_) {
-    soa.Vm()->DeleteWeakGlobalRef(soa.Self(), p.second);
+    vm->DeleteWeakGlobalRef(self, p.second);
   }
   objects_.clear();
 }
@@ -131,8 +140,9 @@ class AllocRecord {
     return down_cast<mirror::Class*>(Thread::Current()->DecodeJObject(type_));
   }
 
-  void SetType(mirror::Class* t) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    type_ = Dbg::GetTypeCache()->Add(t);
+  void SetType(mirror::Class* t) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_,
+                                                       Locks::alloc_tracker_lock_) {
+    type_ = Dbg::type_cache_.Add(t);
   }
 
   size_t GetDepth() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -304,7 +314,6 @@ static Dbg::HpsgWhat gDdmNhsgWhat;
 static ObjectRegistry* gRegistry = nullptr;
 
 // Recent allocation tracking.
-Mutex* Dbg::alloc_tracker_lock_ = nullptr;
 AllocRecord* Dbg::recent_allocation_records_ = nullptr;  // TODO: CircularBuffer<AllocRecord>
 size_t Dbg::alloc_record_max_ = 0;
 size_t Dbg::alloc_record_head_ = 0;
@@ -312,7 +321,6 @@ size_t Dbg::alloc_record_count_ = 0;
 Dbg::TypeCache Dbg::type_cache_;
 
 // Deoptimization support.
-Mutex* Dbg::deoptimization_lock_ = nullptr;
 std::vector<DeoptimizationRequest> Dbg::deoptimization_requests_;
 size_t Dbg::full_deoptimization_event_count_ = 0;
 size_t Dbg::delayed_full_undeoptimization_count_ = 0;
@@ -642,8 +650,6 @@ void Dbg::StartJdwp() {
   CHECK(gRegistry == nullptr);
   gRegistry = new ObjectRegistry;
 
-  alloc_tracker_lock_ = new Mutex("AllocTracker lock");
-  deoptimization_lock_ = new Mutex("deoptimization lock", kDeoptimizationLock);
   // Init JDWP if the debugger is enabled. This may connect out to a
   // debugger, passively listen for a debugger, or block waiting for a
   // debugger.
@@ -677,10 +683,6 @@ void Dbg::StopJdwp() {
   gJdwpState = nullptr;
   delete gRegistry;
   gRegistry = nullptr;
-  delete alloc_tracker_lock_;
-  alloc_tracker_lock_ = nullptr;
-  delete deoptimization_lock_;
-  deoptimization_lock_ = nullptr;
 }
 
 void Dbg::GcDidFinish() {
@@ -747,7 +749,7 @@ void Dbg::GoActive() {
   }
 
   {
-    MutexLock mu(Thread::Current(), *deoptimization_lock_);
+    MutexLock mu(Thread::Current(), *Locks::deoptimization_lock_);
     CHECK_EQ(deoptimization_requests_.size(), 0U);
     CHECK_EQ(full_deoptimization_event_count_, 0U);
     CHECK_EQ(delayed_full_undeoptimization_count_, 0U);
@@ -792,7 +794,7 @@ void Dbg::Disconnected() {
       // Since we're going to disable deoptimization, we clear the deoptimization requests queue.
       // This prevents us from having any pending deoptimization request when the debugger attaches
       // to us again while no event has been requested yet.
-      MutexLock mu(Thread::Current(), *deoptimization_lock_);
+      MutexLock mu(Thread::Current(), *Locks::deoptimization_lock_);
       deoptimization_requests_.clear();
       full_deoptimization_event_count_ = 0U;
       delayed_full_undeoptimization_count_ = 0U;
@@ -2922,7 +2924,7 @@ void Dbg::ProcessDeoptimizationRequest(const DeoptimizationRequest& request) {
 }
 
 void Dbg::DelayFullUndeoptimization() {
-  MutexLock mu(Thread::Current(), *deoptimization_lock_);
+  MutexLock mu(Thread::Current(), *Locks::deoptimization_lock_);
   ++delayed_full_undeoptimization_count_;
   DCHECK_LE(delayed_full_undeoptimization_count_, full_deoptimization_event_count_);
 }
@@ -2930,7 +2932,7 @@ void Dbg::DelayFullUndeoptimization() {
 void Dbg::ProcessDelayedFullUndeoptimizations() {
   // TODO: avoid taking the lock twice (once here and once in ManageDeoptimization).
   {
-    MutexLock mu(Thread::Current(), *deoptimization_lock_);
+    MutexLock mu(Thread::Current(), *Locks::deoptimization_lock_);
     while (delayed_full_undeoptimization_count_ > 0) {
       DeoptimizationRequest req;
       req.SetKind(DeoptimizationRequest::kFullUndeoptimization);
@@ -2947,7 +2949,7 @@ void Dbg::RequestDeoptimization(const DeoptimizationRequest& req) {
     // Nothing to do.
     return;
   }
-  MutexLock mu(Thread::Current(), *deoptimization_lock_);
+  MutexLock mu(Thread::Current(), *Locks::deoptimization_lock_);
   RequestDeoptimizationLocked(req);
 }
 
@@ -3025,7 +3027,7 @@ void Dbg::ManageDeoptimization() {
   Thread* const self = Thread::Current();
   {
     // Avoid suspend/resume if there is no pending request.
-    MutexLock mu(self, *deoptimization_lock_);
+    MutexLock mu(self, *Locks::deoptimization_lock_);
     if (deoptimization_requests_.empty()) {
       return;
     }
@@ -3037,7 +3039,7 @@ void Dbg::ManageDeoptimization() {
   runtime->GetThreadList()->SuspendAll();
   const ThreadState old_state = self->SetStateUnsafe(kRunnable);
   {
-    MutexLock mu(self, *deoptimization_lock_);
+    MutexLock mu(self, *Locks::deoptimization_lock_);
     size_t req_index = 0;
     for (DeoptimizationRequest& request : deoptimization_requests_) {
       VLOG(jdwp) << "Process deoptimization request #" << req_index++;
@@ -4318,30 +4320,40 @@ static size_t GetAllocTrackerMax() {
   return kDefaultNumAllocRecords;
 }
 
-void Dbg::SetAllocTrackingEnabled(bool enabled) {
-  if (enabled) {
+void Dbg::SetAllocTrackingEnabled(bool enable) {
+  Thread* self = Thread::Current();
+  if (enable) {
     {
-      MutexLock mu(Thread::Current(), *alloc_tracker_lock_);
-      if (recent_allocation_records_ == nullptr) {
-        alloc_record_max_ = GetAllocTrackerMax();
-        LOG(INFO) << "Enabling alloc tracker (" << alloc_record_max_ << " entries of "
-            << kMaxAllocRecordStackDepth << " frames, taking "
-            << PrettySize(sizeof(AllocRecord) * alloc_record_max_) << ")";
-        alloc_record_head_ = alloc_record_count_ = 0;
-        recent_allocation_records_ = new AllocRecord[alloc_record_max_];
-        CHECK(recent_allocation_records_ != nullptr);
+      MutexLock mu(self, *Locks::alloc_tracker_lock_);
+      if (recent_allocation_records_ != nullptr) {
+        return;  // Already enabled, bail.
       }
+      alloc_record_max_ = GetAllocTrackerMax();
+      LOG(INFO) << "Enabling alloc tracker (" << alloc_record_max_ << " entries of "
+                << kMaxAllocRecordStackDepth << " frames, taking "
+                << PrettySize(sizeof(AllocRecord) * alloc_record_max_) << ")";
+      DCHECK_EQ(alloc_record_head_, 0U);
+      DCHECK_EQ(alloc_record_count_, 0U);
+      recent_allocation_records_ = new AllocRecord[alloc_record_max_];
+      CHECK(recent_allocation_records_ != NULL);
     }
     Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints();
   } else {
-    Runtime::Current()->GetInstrumentation()->UninstrumentQuickAllocEntryPoints();
     {
-      MutexLock mu(Thread::Current(), *alloc_tracker_lock_);
+      ScopedObjectAccess soa(self);  // For type_cache_.Clear();
+      MutexLock mu(self, *Locks::alloc_tracker_lock_);
+      if (recent_allocation_records_ == NULL) {
+        return;  // Already disabled, bail.
+      }
       LOG(INFO) << "Disabling alloc tracker";
       delete[] recent_allocation_records_;
       recent_allocation_records_ = nullptr;
+      alloc_record_head_ = 0;
+      alloc_record_count_ = 0;
       type_cache_.Clear();
     }
+    // If an allocation comes in before we uninstrument, we will safely drop it on the floor.
+    Runtime::Current()->GetInstrumentation()->UninstrumentQuickAllocEntryPoints();
   }
 }
 
@@ -4381,8 +4393,9 @@ void Dbg::RecordAllocation(mirror::Class* type, size_t byte_count) {
   Thread* self = Thread::Current();
   CHECK(self != nullptr);
 
-  MutexLock mu(self, *alloc_tracker_lock_);
+  MutexLock mu(self, *Locks::alloc_tracker_lock_);
   if (recent_allocation_records_ == nullptr) {
+    // In the process of shutting down recording, bail.
     return;
   }
 
@@ -4408,12 +4421,12 @@ void Dbg::RecordAllocation(mirror::Class* type, size_t byte_count) {
 
 // Returns the index of the head element.
 //
-// We point at the most-recently-written record, so if gAllocRecordCount is 1
+// We point at the most-recently-written record, so if alloc_record_count_ is 1
 // we want to use the current element.  Take "head+1" and subtract count
 // from it.
 //
 // We need to handle underflow in our circular buffer, so we add
-// gAllocRecordMax and then mask it back down.
+// alloc_record_max_ and then mask it back down.
 size_t Dbg::HeadIndex() {
   return (Dbg::alloc_record_head_ + 1 + Dbg::alloc_record_max_ - Dbg::alloc_record_count_) &
       (Dbg::alloc_record_max_ - 1);
@@ -4421,7 +4434,7 @@ size_t Dbg::HeadIndex() {
 
 void Dbg::DumpRecentAllocations() {
   ScopedObjectAccess soa(Thread::Current());
-  MutexLock mu(soa.Self(), *alloc_tracker_lock_);
+  MutexLock mu(soa.Self(), *Locks::alloc_tracker_lock_);
   if (recent_allocation_records_ == nullptr) {
     LOG(INFO) << "Not recording tracked allocations";
     return;
@@ -4430,7 +4443,8 @@ void Dbg::DumpRecentAllocations() {
   // "i" is the head of the list.  We want to start at the end of the
   // list and move forward to the tail.
   size_t i = HeadIndex();
-  size_t count = alloc_record_count_;
+  const uint16_t capped_count = CappedAllocRecordCount(Dbg::alloc_record_count_);
+  uint16_t count = capped_count;
 
   LOG(INFO) << "Tracked allocations, (head=" << alloc_record_head_ << " count=" << count << ")";
   while (count--) {
@@ -4534,7 +4548,7 @@ static const char* GetMethodSourceFile(mirror::ArtMethod* method)
  * followed by UTF-16 data.
  *
  * We send up 16-bit unsigned indexes into string tables.  In theory there
- * can be (kMaxAllocRecordStackDepth * gAllocRecordMax) unique strings in
+ * can be (kMaxAllocRecordStackDepth * alloc_record_max_) unique strings in
  * each table, but in practice there should be far fewer.
  *
  * The chief reason for using a string table here is to keep the size of
@@ -4554,7 +4568,7 @@ jbyteArray Dbg::GetRecentAllocations() {
   Thread* self = Thread::Current();
   std::vector<uint8_t> bytes;
   {
-    MutexLock mu(self, *alloc_tracker_lock_);
+    MutexLock mu(self, *Locks::alloc_tracker_lock_);
     //
     // Part 1: generate string tables.
     //
@@ -4562,8 +4576,9 @@ jbyteArray Dbg::GetRecentAllocations() {
     StringTable method_names;
     StringTable filenames;
 
-    int count = alloc_record_count_;
-    int idx = HeadIndex();
+    const uint16_t capped_count = CappedAllocRecordCount(Dbg::alloc_record_count_);
+    uint16_t count = capped_count;
+    size_t idx = HeadIndex();
     while (count--) {
       AllocRecord* record = &recent_allocation_records_[idx];
       std::string temp;
@@ -4580,7 +4595,7 @@ jbyteArray Dbg::GetRecentAllocations() {
       idx = (idx + 1) & (alloc_record_max_ - 1);
     }
 
-    LOG(INFO) << "allocation records: " << alloc_record_count_;
+    LOG(INFO) << "allocation records: " << capped_count;
 
     //
     // Part 2: Generate the output and store it in the buffer.
@@ -4601,7 +4616,7 @@ jbyteArray Dbg::GetRecentAllocations() {
     // (2b) number of class name strings
     // (2b) number of method name strings
     // (2b) number of source file name strings
-    JDWP::Append2BE(bytes, alloc_record_count_);
+    JDWP::Append2BE(bytes, capped_count);
     size_t string_table_offset = bytes.size();
     JDWP::Append4BE(bytes, 0);  // We'll patch this later...
     JDWP::Append2BE(bytes, class_names.Size());
@@ -4610,7 +4625,7 @@ jbyteArray Dbg::GetRecentAllocations() {
 
     idx = HeadIndex();
     std::string temp;
-    for (count = alloc_record_count_; count != 0; --count) {
+    for (count = capped_count; count != 0; --count) {
       // For each entry:
       // (4b) total allocation size
       // (2b) thread id

@@ -85,6 +85,7 @@ enum LockLevel {
   kJniLoadLibraryLock,
   kThreadListLock,
   kBreakpointInvokeLock,
+  kAllocTrackerLock,
   kDeoptimizationLock,
   kTraceLock,
   kProfilerLock,
@@ -557,9 +558,17 @@ class Locks {
   // Guards trace (ie traceview) requests.
   static Mutex* trace_lock_ ACQUIRED_AFTER(profiler_lock_);
 
+  // Guards debugger recent allocation records.
+  static Mutex* alloc_tracker_lock_ ACQUIRED_AFTER(trace_lock_);
+
+  // Guards updates to instrumentation to ensure mutual exclusion of
+  // events like deoptimization requests.
+  // TODO: improve name, perhaps instrumentation_update_lock_.
+  static Mutex* deoptimization_lock_ ACQUIRED_AFTER(alloc_tracker_lock_);
+
   // The thread_list_lock_ guards ThreadList::list_. It is also commonly held to stop threads
   // attaching and detaching.
-  static Mutex* thread_list_lock_ ACQUIRED_AFTER(trace_lock_);
+  static Mutex* thread_list_lock_ ACQUIRED_AFTER(deoptimization_lock_);
 
   // Guards maintaining loading library data structures.
   static Mutex* jni_libraries_lock_ ACQUIRED_AFTER(thread_list_lock_);
@@ -586,7 +595,7 @@ class Locks {
   static Mutex* intern_table_lock_ ACQUIRED_AFTER(modify_ldt_lock_);
 
   // Have an exclusive aborting thread.
-  static Mutex* abort_lock_ ACQUIRED_AFTER(classlinker_classes_lock_);
+  static Mutex* abort_lock_ ACQUIRED_AFTER(intern_table_lock_);
 
   // Allow mutual exclusion when manipulating Thread::suspend_count_.
   // TODO: Does the trade-off of a per-thread lock make sense?
