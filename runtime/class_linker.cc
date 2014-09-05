@@ -1189,13 +1189,7 @@ bool ClassLinker::VerifyOatAndDexFileChecksums(const OatFile* oat_file,
     return false;
   }
 
-  if (dex_location_checksum != oat_dex_file->GetDexFileLocationChecksum()) {
-    *error_msg = StringPrintf("oat file '%s' mismatch (0x%x) with '%s' (0x%x)",
-                              oat_file->GetLocation().c_str(),
-                              oat_dex_file->GetDexFileLocationChecksum(),
-                              dex_location, dex_location_checksum);
-    return false;
-  }
+  DCHECK_EQ(dex_location_checksum, oat_dex_file->GetDexFileLocationChecksum());
   return true;
 }
 
