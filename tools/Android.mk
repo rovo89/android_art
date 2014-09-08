@@ -27,3 +27,13 @@ $(LOCAL_BUILT_MODULE): $(LOCAL_PATH)/art $(ACP)
 	@echo "Copy: $(PRIVATE_MODULE) ($@)"
 	$(copy-file-to-new-target)
 	$(hide) chmod 755 $@
+
+# Copy the art shell script to the target's bin directory
+include $(CLEAR_VARS)
+LOCAL_MODULE_CLASS := EXECUTABLES
+LOCAL_MODULE := art
+include $(BUILD_SYSTEM)/base_rules.mk
+$(LOCAL_BUILT_MODULE): $(LOCAL_PATH)/art $(ACP)
+	@echo "Copy: $(PRIVATE_MODULE) ($@)"
+	$(copy-file-to-new-target)
+	$(hide) chmod 755 $@
