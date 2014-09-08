@@ -1,0 +1,29 @@
+Super.<init>
+Super.<init>
+Subclass.<init>
+Super.<init>
+Super.<init>
+Subclass.<init>
+Super.<init>
+RUNNING super object, super class, super nonstatic
+Super.nonstaticMethod
+PASSED super object, super class, super nonstatic
+Super.<init>
+RUNNING super object, sub class, super nonstatic
+Super.nonstaticMethod
+PASSED super object, sub class, super nonstatic
+Super.<init>
+Subclass.<init>
+RUNNING sub object, super class, super nonstatic
+Super.nonstaticMethod
+PASSED sub object, super class, super nonstatic
+Super.<init>
+Subclass.<init>
+RUNNING sub object, sub class, super nonstatic
+Super.nonstaticMethod
+PASSED sub object, sub class, super nonstatic
+Super.<init>
+Subclass.<init>
+RUNNING sub object, sub class, sub nonstatic
+Subclass.nonstaticMethod
+PASSED sub object, sub class, sub nonstatic
