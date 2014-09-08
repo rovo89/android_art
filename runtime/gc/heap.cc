@@ -120,7 +120,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       desired_collector_type_(foreground_collector_type_),
       heap_trim_request_lock_(nullptr),
       last_trim_time_(0),
-      last_heap_transition_time_(0),
+      heap_transition_or_trim_target_time_(0),
       heap_trim_request_pending_(false),
       parallel_gc_threads_(parallel_gc_threads),
       conc_gc_threads_(conc_gc_threads),
@@ -916,6 +916,35 @@ void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, AllocatorType 
 }
 
 void Heap::DoPendingTransitionOrTrim() {
+  Thread* self = Thread::Current();
+  CollectorType desired_collector_type;
+  // Wait until we reach the desired transition time.
+  while (true) {
+    uint64_t wait_time;
+    {
+      MutexLock mu(self, *heap_trim_request_lock_);
+      desired_collector_type = desired_collector_type_;
+      uint64_t current_time = NanoTime();
+      if (current_time >= heap_transition_or_trim_target_time_) {
+        break;
+      }
+      wait_time = heap_transition_or_trim_target_time_ - current_time;
+    }
+    ScopedThreadStateChange tsc(self, kSleeping);
+    usleep(wait_time / 1000);  // Usleep takes microseconds.
+  }
+  // Launch homogeneous space compaction if it is desired.
+  if (desired_collector_type == kCollectorTypeHomogeneousSpaceCompact) {
+    if (!CareAboutPauseTimes()) {
+      PerformHomogeneousSpaceCompact();
+    }
+    // No need to Trim(). Homogeneous space compaction may free more virtual and physical memory.
+    desired_collector_type = collector_type_;
+    return;
+  }
+  // Transition the collector if the desired collector type is not the same as the current
+  // collector type.
+  TransitionCollector(desired_collector_type);
   if (!CareAboutPauseTimes()) {
     // Deflate the monitors, this can cause a pause but shouldn't matter since we don't care
     // about pauses.
@@ -927,23 +956,7 @@ void Heap::DoPendingTransitionOrTrim() {
         << PrettyDuration(NanoTime() - start_time);
     runtime->GetThreadList()->ResumeAll();
   }
-  if (NanoTime() - last_heap_transition_time_ > kCollectorTransitionWait) {
-    // Launch homogeneous space compaction if it is desired.
-    if (desired_collector_type_ == kCollectorTypeHomogeneousSpaceCompact) {
-      if (!CareAboutPauseTimes()) {
-        PerformHomogeneousSpaceCompact();
-        last_heap_transition_time_ = NanoTime();
-      }
-      desired_collector_type_ = collector_type_;
-    } else {
-      // Transition the collector if the desired collector type is not the same as the current
-      // collector type.
-      TransitionCollector(desired_collector_type_);
-      last_heap_transition_time_ = NanoTime();
-    }
-  }
-  // Do a heap trim if it is needed. This is good to do even with hspace compaction since it may
-  // trim the native heap and dlmalloc spaces.
+  // Do a heap trim if it is needed.
   Trim();
 }
 
@@ -2977,6 +2990,8 @@ void Heap::RequestCollectorTransition(CollectorType desired_collector_type, uint
     if (desired_collector_type_ == desired_collector_type) {
       return;
     }
+    heap_transition_or_trim_target_time_ =
+        std::max(heap_transition_or_trim_target_time_, NanoTime() + delta_time);
     desired_collector_type_ = desired_collector_type;
   }
   SignalHeapTrimDaemon(self);
@@ -3012,6 +3027,10 @@ void Heap::RequestHeapTrim() {
       return;
     }
     heap_trim_request_pending_ = true;
+    uint64_t current_time = NanoTime();
+    if (heap_transition_or_trim_target_time_ < current_time) {
+      heap_transition_or_trim_target_time_ = current_time + kHeapTrimWait;
+    }
   }
   // Notify the daemon thread which will actually do the heap trim.
   SignalHeapTrimDaemon(self);
