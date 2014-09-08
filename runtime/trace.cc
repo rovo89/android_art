@@ -334,8 +334,14 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
       return;
     }
   }
-  Runtime* runtime = Runtime::Current();
-  runtime->GetThreadList()->SuspendAll();
+
+  // Check interval if sampling is enabled
+  if (sampling_enabled && interval_us <= 0) {
+    LOG(ERROR) << "Invalid sampling interval: " << interval_us;
+    ScopedObjectAccess soa(self);
+    ThrowRuntimeException("Invalid sampling interval: %d", interval_us);
+    return;
+  }
 
   // Open trace file if not going directly to ddms.
   std::unique_ptr<File> trace_file;
@@ -348,12 +354,14 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
     }
     if (trace_file.get() == NULL) {
       PLOG(ERROR) << "Unable to open trace file '" << trace_filename << "'";
-      runtime->GetThreadList()->ResumeAll();
       ScopedObjectAccess soa(self);
       ThrowRuntimeException("Unable to open trace file '%s'", trace_filename);
       return;
     }
   }
+
+  Runtime* runtime = Runtime::Current();
+  runtime->GetThreadList()->SuspendAll();
 
   // Create Trace object.
   {
@@ -383,6 +391,7 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
       }
     }
   }
+
   runtime->GetThreadList()->ResumeAll();
 }
 
@@ -399,7 +408,6 @@ void Trace::Stop() {
       the_trace = the_trace_;
       the_trace_ = NULL;
       sampling_pthread = sampling_pthread_;
-      sampling_pthread_ = 0U;
     }
   }
   if (the_trace != NULL) {
@@ -421,6 +429,7 @@ void Trace::Stop() {
 
   if (sampling_pthread != 0U) {
     CHECK_PTHREAD_CALL(pthread_join, (sampling_pthread, NULL), "sampling thread shutdown");
+    sampling_pthread_ = 0U;
   }
 }
 
