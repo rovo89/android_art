@@ -1364,7 +1364,6 @@ const OatFile* ClassLinker::OpenOatFileFromDexLocation(const std::string& dex_lo
     if (odex_oat_file.get() != nullptr && CheckOatFile(odex_oat_file.get(), isa,
                                                        &odex_checksum_verified,
                                                        &odex_error_msg)) {
-      error_msgs->push_back(odex_error_msg);
       return odex_oat_file.release();
     } else {
       if (odex_checksum_verified) {
@@ -1387,7 +1386,6 @@ const OatFile* ClassLinker::OpenOatFileFromDexLocation(const std::string& dex_lo
     if (cache_oat_file.get() != nullptr && CheckOatFile(cache_oat_file.get(), isa,
                                                         &cache_checksum_verified,
                                                         &cache_error_msg)) {
-      error_msgs->push_back(cache_error_msg);
       return cache_oat_file.release();
     } else if (cache_checksum_verified) {
       // We can just relocate
@@ -1563,17 +1561,16 @@ int32_t ClassLinker::GetRequiredDelta(const OatFile* oat_file, InstructionSet is
 bool ClassLinker::CheckOatFile(const OatFile* oat_file, InstructionSet isa,
                                bool* checksum_verified,
                                std::string* error_msg) {
-  std::string compound_msg("Oat file failed to verify: ");
   Runtime* runtime = Runtime::Current();
-  uint32_t real_image_checksum;
-  void* real_image_oat_offset;
-  int32_t real_patch_delta;
   const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
   if (image_space == nullptr) {
     *error_msg = "No image space present";
     return false;
   }
-  if (isa == Runtime::Current()->GetInstructionSet()) {
+  uint32_t real_image_checksum;
+  void* real_image_oat_offset;
+  int32_t real_patch_delta;
+  if (isa == runtime->GetInstructionSet()) {
     const ImageHeader& image_header = image_space->GetImageHeader();
     real_image_checksum = image_header.GetOatChecksum();
     real_image_oat_offset = image_header.GetOatDataBegin();
@@ -1587,32 +1584,33 @@ bool ClassLinker::CheckOatFile(const OatFile* oat_file, InstructionSet isa,
   }
 
   const OatHeader& oat_header = oat_file->GetOatHeader();
+  std::string compound_msg;
 
   uint32_t oat_image_checksum = oat_header.GetImageFileLocationOatChecksum();
   *checksum_verified = oat_image_checksum == real_image_checksum;
   if (!*checksum_verified) {
-    compound_msg += StringPrintf(" Oat Image Checksum Incorrect (expected 0x%x, recieved 0x%x)",
-                                 real_image_checksum, oat_image_checksum);
+    StringAppendF(&compound_msg, " Oat Image Checksum Incorrect (expected 0x%x, received 0x%x)",
+                  real_image_checksum, oat_image_checksum);
   }
 
   void* oat_image_oat_offset =
       reinterpret_cast<void*>(oat_header.GetImageFileLocationOatDataBegin());
   bool offset_verified = oat_image_oat_offset == real_image_oat_offset;
   if (!offset_verified) {
-    compound_msg += StringPrintf(" Oat Image oat offset incorrect (expected 0x%p, recieved 0x%p)",
-                                 real_image_oat_offset, oat_image_oat_offset);
+    StringAppendF(&compound_msg, " Oat Image oat offset incorrect (expected 0x%p, received 0x%p)",
+                  real_image_oat_offset, oat_image_oat_offset);
   }
 
   int32_t oat_patch_delta = oat_header.GetImagePatchDelta();
   bool patch_delta_verified = oat_patch_delta == real_patch_delta;
   if (!patch_delta_verified) {
-    compound_msg += StringPrintf(" Oat image patch delta incorrect (expected 0x%x, recieved 0x%x)",
-                                 real_patch_delta, oat_patch_delta);
+    StringAppendF(&compound_msg, " Oat image patch delta incorrect (expected 0x%x, received 0x%x)",
+                  real_patch_delta, oat_patch_delta);
   }
 
   bool ret = (*checksum_verified && offset_verified && patch_delta_verified);
-  if (ret) {
-    *error_msg = compound_msg;
+  if (!ret) {
+    *error_msg = "Oat file failed to verify:" + compound_msg;
   }
   return ret;
 }
