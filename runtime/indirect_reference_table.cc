@@ -161,10 +161,12 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {
 }
 
 void IndirectReferenceTable::AssertEmpty() {
-  if (UNLIKELY(begin() != end())) {
-    ScopedObjectAccess soa(Thread::Current());
-    LOG(FATAL) << "Internal Error: non-empty local reference table\n"
-               << MutatorLockedDumpable<IndirectReferenceTable>(*this);
+  for (size_t i = 0; i < Capacity(); ++i) {
+    if (!table_[i].IsNull()) {
+      ScopedObjectAccess soa(Thread::Current());
+      LOG(FATAL) << "Internal Error: non-empty local reference table\n"
+                 << MutatorLockedDumpable<IndirectReferenceTable>(*this);
+    }
   }
 }
 
@@ -264,6 +266,11 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
 void IndirectReferenceTable::VisitRoots(RootCallback* callback, void* arg, uint32_t tid,
                                         RootType root_type) {
   for (auto ref : *this) {
+    if (*ref == nullptr) {
+      // Need to skip null entries to make it possible to do the
+      // non-null check after the call back.
+      continue;
+    }
     callback(ref, arg, tid, root_type);
     DCHECK(*ref != nullptr);
   }

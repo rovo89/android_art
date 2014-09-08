@@ -809,6 +809,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
 
   // Initialize the special sentinel_ value early.
   sentinel_ = GcRoot<mirror::Object>(class_linker_->AllocObject(self));
+  CHECK(sentinel_.Read() != nullptr);
 
   verifier::MethodVerifier::Init();
 
