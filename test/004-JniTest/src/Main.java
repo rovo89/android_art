@@ -32,6 +32,7 @@ public class Main {
         testIsAssignableFromOnPrimitiveTypes();
         testShallowGetCallingClassLoader();
         testShallowGetStackClass2();
+        testCallNonvirtual();
     }
 
     private static native void testFindClassOnAttachedNativeThread();
@@ -94,7 +95,7 @@ public class Main {
 
     // Test sign-extension for values < 32b
 
-    native static byte byteMethod(byte b1, byte b2, byte b3, byte b4, byte b5, byte b6, byte b7,
+    static native byte byteMethod(byte b1, byte b2, byte b3, byte b4, byte b5, byte b6, byte b7,
         byte b8, byte b9, byte b10);
 
     private static void testByteMethod() {
@@ -109,7 +110,7 @@ public class Main {
       }
     }
 
-    native static short shortMethod(short s1, short s2, short s3, short s4, short s5, short s6, short s7,
+    private static native short shortMethod(short s1, short s2, short s3, short s4, short s5, short s6, short s7,
         short s8, short s9, short s10);
 
     private static void testShortMethod() {
@@ -126,7 +127,7 @@ public class Main {
 
     // Test zero-extension for values < 32b
 
-    native static boolean booleanMethod(boolean b1, boolean b2, boolean b3, boolean b4, boolean b5, boolean b6, boolean b7,
+    private static native boolean booleanMethod(boolean b1, boolean b2, boolean b3, boolean b4, boolean b5, boolean b6, boolean b7,
         boolean b8, boolean b9, boolean b10);
 
     private static void testBooleanMethod() {
@@ -139,7 +140,7 @@ public class Main {
       }
     }
 
-    native static char charMethod(char c1, char c2, char c3, char c4, char c5, char c6, char c7,
+    private static native char charMethod(char c1, char c2, char c3, char c4, char c5, char c6, char c7,
         char c8, char c9, char c10);
 
     private static void testCharMethod() {
@@ -168,17 +169,55 @@ public class Main {
       }
     }
 
-    native static boolean nativeIsAssignableFrom(Class<?> from, Class<?> to);
+    private static native boolean nativeIsAssignableFrom(Class<?> from, Class<?> to);
 
-    static void testShallowGetCallingClassLoader() {
+    private static void testShallowGetCallingClassLoader() {
         nativeTestShallowGetCallingClassLoader();
     }
 
-    native static void nativeTestShallowGetCallingClassLoader();
+    private native static void nativeTestShallowGetCallingClassLoader();
 
-    static void testShallowGetStackClass2() {
+    private static void testShallowGetStackClass2() {
         nativeTestShallowGetStackClass2();
     }
 
-    native static void nativeTestShallowGetStackClass2();
+    private static native void nativeTestShallowGetStackClass2();
+
+    private static native void testCallNonvirtual();
+}
+
+class JniCallNonvirtualTest {
+    public boolean nonstaticMethodSuperCalled = false;
+    public boolean nonstaticMethodSubCalled = false;
+
+    private static native void testCallNonvirtual();
+
+    public JniCallNonvirtualTest() {
+        System.out.println("Super.<init>");
+    }
+
+    public static void staticMethod() {
+        System.out.println("Super.staticMethod");
+    }
+
+    public void nonstaticMethod() {
+        System.out.println("Super.nonstaticMethod");
+        nonstaticMethodSuperCalled = true;
+    }
+}
+
+class JniCallNonvirtualTestSubclass extends JniCallNonvirtualTest {
+
+    public JniCallNonvirtualTestSubclass() {
+        System.out.println("Subclass.<init>");
+    }
+
+    public static void staticMethod() {
+        System.out.println("Subclass.staticMethod");
+    }
+
+    public void nonstaticMethod() {
+        System.out.println("Subclass.nonstaticMethod");
+        nonstaticMethodSubCalled = true;
+    }
 }
