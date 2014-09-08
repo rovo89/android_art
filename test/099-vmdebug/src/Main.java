@@ -41,6 +41,10 @@ public class Main {
         File tempFile = new File(tempFileName);
         tempFile.delete();
 
+        if (VMDebug.getMethodTracingMode() != 0) {
+            VMDebug.stopMethodTracing();
+        }
+
         System.out.println("Confirm enable/disable");
         System.out.println("status=" + VMDebug.getMethodTracingMode());
         VMDebug.startMethodTracing(tempFileName, 0, 0, false, 0);
