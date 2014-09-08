@@ -23,6 +23,7 @@
 #include "locations.h"
 #include "memory_region.h"
 #include "nodes.h"
+#include "stack_map_stream.h"
 #include "utils/assembler.h"
 
 namespace art {
@@ -97,7 +98,7 @@ class CodeGenerator : public ArenaObject {
   virtual HGraphVisitor* GetInstructionVisitor() = 0;
   virtual Assembler* GetAssembler() = 0;
   virtual size_t GetWordSize() const = 0;
-  void ComputeFrameSize(size_t number_of_spill_slots);
+  void ComputeFrameSize(size_t number_of_spill_slots, size_t number_of_out_slots);
   virtual size_t FrameEntrySpillSize() const = 0;
   int32_t GetStackSlot(HLocal* local) const;
   Location GetTemporaryLocation(HTemporary* temp) const;
@@ -114,12 +115,7 @@ class CodeGenerator : public ArenaObject {
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const = 0;
   virtual InstructionSet GetInstructionSet() const = 0;
 
-  void RecordPcInfo(uint32_t dex_pc) {
-    struct PcInfo pc_info;
-    pc_info.dex_pc = dex_pc;
-    pc_info.native_pc = GetAssembler()->CodeSize();
-    pc_infos_.Add(pc_info);
-  }
+  void RecordPcInfo(HInstruction* instruction, uint32_t dex_pc);
 
   void AddSlowPath(SlowPathCode* slow_path) {
     slow_paths_.Add(slow_path);
@@ -131,6 +127,7 @@ class CodeGenerator : public ArenaObject {
   void BuildVMapTable(std::vector<uint8_t>* vector) const;
   void BuildNativeGCMap(
       std::vector<uint8_t>* vector, const DexCompilationUnit& dex_compilation_unit) const;
+  void BuildStackMaps(std::vector<uint8_t>* vector);
 
   bool IsLeafMethod() const {
     return is_leaf_;
@@ -149,7 +146,8 @@ class CodeGenerator : public ArenaObject {
         pc_infos_(graph->GetArena(), 32),
         slow_paths_(graph->GetArena(), 8),
         blocked_registers_(graph->GetArena()->AllocArray<bool>(number_of_registers)),
-        is_leaf_(true) {}
+        is_leaf_(true),
+        stack_map_stream_(graph->GetArena()) {}
   ~CodeGenerator() {}
 
   // Register allocation logic.
@@ -183,6 +181,8 @@ class CodeGenerator : public ArenaObject {
   bool* const blocked_registers_;
 
   bool is_leaf_;
+
+  StackMapStream stack_map_stream_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGenerator);
 };

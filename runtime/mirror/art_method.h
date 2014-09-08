@@ -25,6 +25,7 @@
 #include "object_callbacks.h"
 #include "quick/quick_method_frame_info.h"
 #include "read_barrier_option.h"
+#include "stack_map.h"
 
 namespace art {
 
@@ -148,6 +149,13 @@ class MANAGED ArtMethod FINAL : public Object {
   void SetPreverified() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(!IsPreverified());
     SetAccessFlags(GetAccessFlags() | kAccPreverified);
+  }
+
+  bool IsOptimized() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Temporary solution for detecting if a method has been optimized: the compiler
+    // does not create a GC map. Instead, the vmap table contains the stack map
+    // (as in stack_map.h).
+    return (GetEntryPointFromQuickCompiledCode() != nullptr) && (GetNativeGcMap() == nullptr);
   }
 
   bool IsPortableCompiled() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -339,6 +347,8 @@ class MANAGED ArtMethod FINAL : public Object {
   const uint8_t* GetVmapTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const uint8_t* GetVmapTable(const void* code_pointer)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  StackMap GetStackMap(uint32_t native_pc_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const uint8_t* GetNativeGcMap() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetFieldPtr<uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, gc_map_));

@@ -413,6 +413,7 @@ bool HGraphBuilder::BuildFieldAccess(const Instruction& instruction,
     current_block_->AddInstruction(new (arena_) HInstanceFieldSet(
         null_check,
         value,
+        field_type,
         resolved_field->GetOffset()));
   } else {
     current_block_->AddInstruction(new (arena_) HInstanceFieldGet(
@@ -453,7 +454,8 @@ void HGraphBuilder::BuildArrayAccess(const Instruction& instruction,
   if (is_put) {
     HInstruction* value = LoadLocal(source_or_dest_reg, anticipated_type);
     // TODO: Insert a type check node if the type is Object.
-    current_block_->AddInstruction(new (arena_) HArraySet(object, index, value, dex_offset));
+    current_block_->AddInstruction(new (arena_) HArraySet(
+        object, index, value, anticipated_type, dex_offset));
   } else {
     current_block_->AddInstruction(new (arena_) HArrayGet(object, index, anticipated_type));
     UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction());
@@ -749,6 +751,13 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
     ARRAY_XX(_BYTE, Primitive::kPrimByte);
     ARRAY_XX(_CHAR, Primitive::kPrimChar);
     ARRAY_XX(_SHORT, Primitive::kPrimShort);
+
+    case Instruction::ARRAY_LENGTH: {
+      HInstruction* object = LoadLocal(instruction.VRegB_12x(), Primitive::kPrimNot);
+      current_block_->AddInstruction(new (arena_) HArrayLength(object));
+      UpdateLocal(instruction.VRegA_12x(), current_block_->GetLastInstruction());
+      break;
+    }
 
     default:
       return false;

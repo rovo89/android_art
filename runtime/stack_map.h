@@ -64,9 +64,9 @@ class InlineInfo {
 
   MemoryRegion region_;
 
-  template<typename T> friend class CodeInfo;
-  template<typename T> friend class StackMap;
-  template<typename T> friend class StackMapStream;
+  friend class CodeInfo;
+  friend class StackMap;
+  friend class StackMapStream;
 };
 
 /**
@@ -77,13 +77,15 @@ class InlineInfo {
  * The location_kind for a Dex register can either be:
  * - Constant: register_value holds the constant,
  * - Stack: register_value holds the stack offset,
- * - Register: register_value holds the register number.
+ * - Register: register_value holds the physical register number.
+ * - None: the register has no location yet, meaning it has not been set.
  */
 class DexRegisterMap {
  public:
   explicit DexRegisterMap(MemoryRegion region) : region_(region) {}
 
   enum LocationKind {
+    kNone,
     kInStack,
     kInRegister,
     kConstant
@@ -114,8 +116,8 @@ class DexRegisterMap {
 
   MemoryRegion region_;
 
-  template <typename T> friend class CodeInfo;
-  template <typename T> friend class StackMapStream;
+  friend class CodeInfo;
+  friend class StackMapStream;
 };
 
 /**
@@ -127,12 +129,11 @@ class DexRegisterMap {
  * - Knowing the values of dex registers.
  *
  * The information is of the form:
- * [dex_pc, native_pc, dex_register_map_offset, inlining_info_offset, register_mask, stack_mask].
+ * [dex_pc, native_pc_offset, dex_register_map_offset, inlining_info_offset, register_mask, stack_mask].
  *
  * Note that register_mask is fixed size, but stack_mask is variable size, depending on the
  * stack size of a method.
  */
-template <typename T>
 class StackMap {
  public:
   explicit StackMap(MemoryRegion region) : region_(region) {}
@@ -145,12 +146,12 @@ class StackMap {
     region_.Store<uint32_t>(kDexPcOffset, dex_pc);
   }
 
-  T GetNativePc() const {
-    return region_.Load<T>(kNativePcOffset);
+  uint32_t GetNativePcOffset() const {
+    return region_.Load<uint32_t>(kNativePcOffsetOffset);
   }
 
-  void SetNativePc(T native_pc) {
-    return region_.Store<T>(kNativePcOffset, native_pc);
+  void SetNativePcOffset(uint32_t native_pc_offset) {
+    return region_.Store<uint32_t>(kNativePcOffsetOffset, native_pc_offset);
   }
 
   uint32_t GetDexRegisterMapOffset() const {
@@ -199,8 +200,8 @@ class StackMap {
 
  private:
   static constexpr int kDexPcOffset = 0;
-  static constexpr int kNativePcOffset = kDexPcOffset + sizeof(uint32_t);
-  static constexpr int kDexRegisterMapOffsetOffset = kNativePcOffset + sizeof(T);
+  static constexpr int kNativePcOffsetOffset = kDexPcOffset + sizeof(uint32_t);
+  static constexpr int kDexRegisterMapOffsetOffset = kNativePcOffsetOffset + sizeof(uint32_t);
   static constexpr int kInlineDescriptorOffsetOffset =
       kDexRegisterMapOffsetOffset + sizeof(uint32_t);
   static constexpr int kRegisterMaskOffset = kInlineDescriptorOffsetOffset + sizeof(uint32_t);
@@ -211,24 +212,36 @@ class StackMap {
 
   MemoryRegion region_;
 
-  template <typename U> friend class CodeInfo;
-  template <typename U> friend class StackMapStream;
+  friend class CodeInfo;
+  friend class StackMapStream;
 };
 
 
 /**
  * Wrapper around all compiler information collected for a method.
  * The information is of the form:
- * [number_of_stack_maps, stack_mask_size, StackMap+, DexRegisterInfo+, InlineInfo*].
+ * [overall_size, number_of_stack_maps, stack_mask_size, StackMap+, DexRegisterInfo+, InlineInfo*].
  */
-template <typename T>
 class CodeInfo {
  public:
   explicit CodeInfo(MemoryRegion region) : region_(region) {}
 
-  StackMap<T> GetStackMapAt(size_t i) const {
+  explicit CodeInfo(const void* data) {
+    uint32_t size = reinterpret_cast<const uint32_t*>(data)[0];
+    region_ = MemoryRegion(const_cast<void*>(data), size);
+  }
+
+  StackMap GetStackMapAt(size_t i) const {
     size_t size = StackMapSize();
-    return StackMap<T>(GetStackMaps().Subregion(i * size, size));
+    return StackMap(GetStackMaps().Subregion(i * size, size));
+  }
+
+  uint32_t GetOverallSize() const {
+    return region_.Load<uint32_t>(kOverallSizeOffset);
+  }
+
+  void SetOverallSize(uint32_t size) {
+    region_.Store<uint32_t>(kOverallSizeOffset, size);
   }
 
   uint32_t GetStackMaskSize() const {
@@ -248,47 +261,48 @@ class CodeInfo {
   }
 
   size_t StackMapSize() const {
-    return StackMap<T>::kFixedSize + GetStackMaskSize();
+    return StackMap::kFixedSize + GetStackMaskSize();
   }
 
-  DexRegisterMap GetDexRegisterMapOf(StackMap<T> stack_map, uint32_t number_of_dex_registers) {
+  DexRegisterMap GetDexRegisterMapOf(StackMap stack_map, uint32_t number_of_dex_registers) {
     uint32_t offset = stack_map.GetDexRegisterMapOffset();
     return DexRegisterMap(region_.Subregion(offset,
         DexRegisterMap::kFixedSize + number_of_dex_registers * DexRegisterMap::SingleEntrySize()));
   }
 
-  InlineInfo GetInlineInfoOf(StackMap<T> stack_map) {
+  InlineInfo GetInlineInfoOf(StackMap stack_map) {
     uint32_t offset = stack_map.GetInlineDescriptorOffset();
     uint8_t depth = region_.Load<uint8_t>(offset);
     return InlineInfo(region_.Subregion(offset,
         InlineInfo::kFixedSize + depth * InlineInfo::SingleEntrySize()));
   }
 
-  StackMap<T> GetStackMapForDexPc(uint32_t dex_pc) {
+  StackMap GetStackMapForDexPc(uint32_t dex_pc) {
     for (size_t i = 0, e = GetNumberOfStackMaps(); i < e; ++i) {
-      StackMap<T> stack_map = GetStackMapAt(i);
+      StackMap stack_map = GetStackMapAt(i);
       if (stack_map.GetDexPc() == dex_pc) {
         return stack_map;
       }
     }
     LOG(FATAL) << "Unreachable";
-    return StackMap<T>(MemoryRegion());
+    return StackMap(MemoryRegion());
   }
 
-  StackMap<T> GetStackMapForNativePc(T native_pc) {
+  StackMap GetStackMapForNativePcOffset(uint32_t native_pc_offset) {
     // TODO: stack maps are sorted by native pc, we can do a binary search.
     for (size_t i = 0, e = GetNumberOfStackMaps(); i < e; ++i) {
-      StackMap<T> stack_map = GetStackMapAt(i);
-      if (stack_map.GetNativePc() == native_pc) {
+      StackMap stack_map = GetStackMapAt(i);
+      if (stack_map.GetNativePcOffset() == native_pc_offset) {
         return stack_map;
       }
     }
     LOG(FATAL) << "Unreachable";
-    return StackMap<T>(MemoryRegion());
+    return StackMap(MemoryRegion());
   }
 
  private:
-  static constexpr int kNumberOfStackMapsOffset = 0;
+  static constexpr int kOverallSizeOffset = 0;
+  static constexpr int kNumberOfStackMapsOffset = kOverallSizeOffset + sizeof(uint32_t);
   static constexpr int kStackMaskSizeOffset = kNumberOfStackMapsOffset + sizeof(uint32_t);
   static constexpr int kFixedSize = kStackMaskSizeOffset + sizeof(uint32_t);
 
@@ -299,7 +313,7 @@ class CodeInfo {
   }
 
   MemoryRegion region_;
-  template<typename U> friend class StackMapStream;
+  friend class StackMapStream;
 };
 
 }  // namespace art
