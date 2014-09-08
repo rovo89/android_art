@@ -3014,7 +3014,10 @@ void Heap::RequestHeapTrim() {
 
   Thread* self = Thread::Current();
   Runtime* runtime = Runtime::Current();
-  if (runtime == nullptr || !runtime->IsFinishedStarting() || runtime->IsShuttingDown(self)) {
+  if (runtime == nullptr || !runtime->IsFinishedStarting() || runtime->IsShuttingDown(self) ||
+      runtime->IsZygote()) {
+    // Ignore the request if we are the zygote to prevent app launching lag due to sleep in heap
+    // trimmer daemon. b/17310019
     // Heap trimming isn't supported without a Java runtime or Daemons (such as at dex2oat time)
     // Also: we do not wish to start a heap trim if the runtime is shutting down (a racy check
     // as we don't hold the lock while requesting the trim).
