@@ -353,3 +353,198 @@ static void testShallowGetStackClass2(JNIEnv* env) {
 extern "C" JNIEXPORT void JNICALL Java_Main_nativeTestShallowGetStackClass2(JNIEnv* env, jclass) {
   PthreadHelper(&testShallowGetStackClass2);
 }
+
+class JniCallNonvirtualVoidMethodTest {
+ public:
+  explicit JniCallNonvirtualVoidMethodTest(JNIEnv* env)
+      : env_(env),
+        check_jni_ri_(true),
+        check_jni_android_(true),
+        super_(GetClass("JniCallNonvirtualTest")),
+        sub_(GetClass("JniCallNonvirtualTestSubclass")),
+        super_constructor_(GetMethodID(super_, true, "<init>")),
+        super_static_(GetMethodID(super_, false, "staticMethod")),
+        super_nonstatic_(GetMethodID(super_, true, "nonstaticMethod")),
+        sub_constructor_(GetMethodID(sub_, true, "<init>")),
+        sub_static_(GetMethodID(sub_, false, "staticMethod")),
+        sub_nonstatic_(GetMethodID(sub_, true, "nonstaticMethod")),
+        super_field_(GetFieldID(super_, "nonstaticMethodSuperCalled")),
+        sub_field_(GetFieldID(super_, "nonstaticMethodSubCalled")) {}
+
+  void Test() {
+    TestStaticCallNonvirtualMethod();
+    TestNewObject();
+    TestnonstaticCallNonvirtualMethod();
+  }
+
+  JNIEnv* const env_;
+
+  bool const check_jni_ri_;
+  bool const check_jni_android_;
+
+  jclass const super_;
+  jclass const sub_;
+
+  jmethodID const super_constructor_;
+  jmethodID const super_static_;
+  jmethodID const super_nonstatic_;
+  jmethodID const sub_constructor_;
+  jmethodID const sub_static_;
+  jmethodID const sub_nonstatic_;
+
+  jfieldID const super_field_;
+  jfieldID const sub_field_;
+
+ private:
+  jclass GetClass(const char* class_name) {
+    jclass c = env_->FindClass(class_name);
+    if (env_->ExceptionCheck()) {
+      env_->ExceptionDescribe();
+      env_->FatalError(__FUNCTION__);
+    }
+    assert(!env_->ExceptionCheck());
+    assert(c != nullptr);
+    return c;
+  }
+
+  jmethodID GetMethodID(jclass c, bool nonstatic, const char* method_name) {
+    jmethodID m = ((nonstatic) ?
+                   env_->GetMethodID(c, method_name, "()V") :
+                   env_->GetStaticMethodID(c, method_name, "()V"));
+    if (env_->ExceptionCheck()) {
+      env_->ExceptionDescribe();
+      env_->FatalError(__FUNCTION__);
+    }
+    assert(m != nullptr);
+    return m;
+  }
+
+  jobject CallConstructor(jclass c, jmethodID m) {
+    jobject o = env_->NewObject(c, m);
+    if (env_->ExceptionCheck()) {
+      env_->ExceptionDescribe();
+      env_->FatalError(__FUNCTION__);
+    }
+    assert(o != nullptr);
+    return o;
+  }
+
+  void CallMethod(jobject o, jclass c, jmethodID m, bool nonstatic, const char* test_case) {
+    printf("RUNNING %s\n", test_case);
+    env_->CallNonvirtualVoidMethod(o, c, m);
+    bool exception_check = env_->ExceptionCheck();
+    if (c == nullptr || !nonstatic) {
+      if (!exception_check) {
+        printf("FAILED %s due to missing exception\n", test_case);
+        env_->FatalError("Expected NullPointerException with null jclass");
+      }
+      env_->ExceptionClear();
+    } else if (exception_check) {
+      printf("FAILED %s due to pending exception\n", test_case);
+      env_->ExceptionDescribe();
+      env_->FatalError(test_case);
+    }
+    printf("PASSED %s\n", test_case);
+  }
+
+  jfieldID GetFieldID(jclass c, const char* field_name) {
+    jfieldID m = env_->GetFieldID(c, field_name, "Z");
+    if (env_->ExceptionCheck()) {
+      env_->ExceptionDescribe();
+      env_->FatalError(__FUNCTION__);
+    }
+    assert(m != nullptr);
+    return m;
+  }
+
+  jboolean GetBooleanField(jobject o, jfieldID f) {
+    jboolean b = env_->GetBooleanField(o, f);
+    if (env_->ExceptionCheck()) {
+      env_->ExceptionDescribe();
+      env_->FatalError(__FUNCTION__);
+    }
+    return b;
+  }
+
+  void TestStaticCallNonvirtualMethod() {
+    if (!check_jni_ri_&& !check_jni_android_) {
+      CallMethod(nullptr, nullptr, super_static_, false, "null object, null class, super static");
+    }
+    if (!check_jni_android_) {
+      CallMethod(nullptr, super_, super_static_, false, "null object, super class, super static");
+    }
+    if (!check_jni_android_) {
+      CallMethod(nullptr, sub_, super_static_, false, "null object, sub class, super static");
+    }
+
+    if (!check_jni_ri_ && !check_jni_android_) {
+      CallMethod(nullptr, nullptr, sub_static_, false, "null object, null class, sub static");
+    }
+    if (!check_jni_android_) {
+      CallMethod(nullptr, sub_, sub_static_, false, "null object, super class, sub static");
+    }
+    if (!check_jni_android_) {
+      CallMethod(nullptr, super_, sub_static_, false, "null object, super class, sub static");
+    }
+  }
+
+  void TestNewObject() {
+    jobject super_super = CallConstructor(super_, super_constructor_);
+    jobject super_sub = CallConstructor(super_, sub_constructor_);
+    jobject sub_super = CallConstructor(sub_, super_constructor_);
+    jobject sub_sub = CallConstructor(sub_, sub_constructor_);
+
+    assert(env_->IsInstanceOf(super_super, super_));
+    assert(!env_->IsInstanceOf(super_super, sub_));
+
+    // Note that even though we called (and ran) the subclass
+    // constructor, we are not the subclass.
+    assert(env_->IsInstanceOf(super_sub, super_));
+    assert(!env_->IsInstanceOf(super_sub, sub_));
+
+    // Note that even though we called the superclass constructor, we
+    // are still the subclass.
+    assert(env_->IsInstanceOf(sub_super, super_));
+    assert(env_->IsInstanceOf(sub_super, sub_));
+
+    assert(env_->IsInstanceOf(sub_sub, super_));
+    assert(env_->IsInstanceOf(sub_sub, sub_));
+  }
+
+  void TestnonstaticCallNonvirtualMethod(bool super_object, bool super_class, bool super_method, const char* test_case) {
+    if (check_jni_android_) {
+      if (super_object && !super_method) {
+        return;  // We don't allow a call with sub class method on the super class instance.
+      }
+      if (super_class && !super_method) {
+        return;  // We don't allow a call with the sub class method with the super class argument.
+      }
+    }
+    jobject o = ((super_object) ?
+                 CallConstructor(super_, super_constructor_) :
+                 CallConstructor(sub_, sub_constructor_));
+    jclass c = (super_class) ? super_ : sub_;
+    jmethodID m = (super_method) ? super_nonstatic_ : sub_nonstatic_;
+    CallMethod(o, c, m, true, test_case);
+    jboolean super_field = GetBooleanField(o, super_field_);
+    jboolean sub_field = GetBooleanField(o, sub_field_);
+    assert(super_field == super_method);
+    assert(sub_field != super_method);
+  }
+
+  void TestnonstaticCallNonvirtualMethod() {
+    TestnonstaticCallNonvirtualMethod(true, true, true, "super object, super class, super nonstatic");
+    TestnonstaticCallNonvirtualMethod(true, false, true, "super object, sub class, super nonstatic");
+    TestnonstaticCallNonvirtualMethod(true, false, false, "super object, sub class, sub nonstatic");
+    TestnonstaticCallNonvirtualMethod(true, true, false, "super object, super class, sub nonstatic");
+
+    TestnonstaticCallNonvirtualMethod(false, true, true, "sub object, super class, super nonstatic");
+    TestnonstaticCallNonvirtualMethod(false, false, true, "sub object, sub class, super nonstatic");
+    TestnonstaticCallNonvirtualMethod(false, false, false, "sub object, sub class, sub nonstatic");
+    TestnonstaticCallNonvirtualMethod(false, true, false, "sub object, super class, sub nonstatic");
+  }
+};
+
+extern "C" void JNICALL Java_Main_testCallNonvirtual(JNIEnv* env, jclass) {
+  JniCallNonvirtualVoidMethodTest(env).Test();
+}
