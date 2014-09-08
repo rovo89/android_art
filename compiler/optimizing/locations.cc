@@ -20,12 +20,28 @@
 
 namespace art {
 
-LocationSummary::LocationSummary(HInstruction* instruction)
+LocationSummary::LocationSummary(HInstruction* instruction, CallKind call_kind)
     : inputs_(instruction->GetBlock()->GetGraph()->GetArena(), instruction->InputCount()),
-      temps_(instruction->GetBlock()->GetGraph()->GetArena(), 0) {
+      temps_(instruction->GetBlock()->GetGraph()->GetArena(), 0),
+      environment_(instruction->GetBlock()->GetGraph()->GetArena(),
+                   instruction->EnvironmentSize()),
+      call_kind_(call_kind),
+      stack_mask_(nullptr),
+      register_mask_(0),
+      live_registers_(0) {
   inputs_.SetSize(instruction->InputCount());
-  for (size_t i = 0; i < instruction->InputCount(); i++) {
+  for (size_t i = 0; i < instruction->InputCount(); ++i) {
     inputs_.Put(i, Location());
+  }
+  environment_.SetSize(instruction->EnvironmentSize());
+  for (size_t i = 0; i < instruction->EnvironmentSize(); ++i) {
+    environment_.Put(i, Location());
+  }
+  instruction->SetLocations(this);
+
+  if (NeedsSafepoint()) {
+    ArenaAllocator* arena = instruction->GetBlock()->GetGraph()->GetArena();
+    stack_mask_ = new (arena) ArenaBitVector(arena, 0, true);
   }
 }
 

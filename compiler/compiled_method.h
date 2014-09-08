@@ -173,7 +173,7 @@ class SrcMap FINAL : public std::vector<SrcMapElem> {
 
 class CompiledMethod FINAL : public CompiledCode {
  public:
-  // Constructs a CompiledMethod for the non-LLVM compilers.
+  // Constructs a CompiledMethod for Quick.
   CompiledMethod(CompilerDriver* driver,
                  InstructionSet instruction_set,
                  const std::vector<uint8_t>& quick_code,
@@ -185,6 +185,16 @@ class CompiledMethod FINAL : public CompiledCode {
                  const std::vector<uint8_t>& vmap_table,
                  const std::vector<uint8_t>& native_gc_map,
                  const std::vector<uint8_t>* cfi_info);
+
+  // Constructs a CompiledMethod for Optimizing.
+  CompiledMethod(CompilerDriver* driver,
+                 InstructionSet instruction_set,
+                 const std::vector<uint8_t>& quick_code,
+                 const size_t frame_size_in_bytes,
+                 const uint32_t core_spill_mask,
+                 const uint32_t fp_spill_mask,
+                 const std::vector<uint8_t>& mapping_table,
+                 const std::vector<uint8_t>& vmap_table);
 
   // Constructs a CompiledMethod for the QuickJniCompiler.
   CompiledMethod(CompilerDriver* driver,
@@ -232,9 +242,8 @@ class CompiledMethod FINAL : public CompiledCode {
     return *vmap_table_;
   }
 
-  const std::vector<uint8_t>& GetGcMap() const {
-    DCHECK(gc_map_ != nullptr);
-    return *gc_map_;
+  std::vector<uint8_t> const* GetGcMap() const {
+    return gc_map_;
   }
 
   const std::vector<uint8_t>* GetCFIInfo() const {

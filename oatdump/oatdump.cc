@@ -386,7 +386,7 @@ class OatDumper {
                            GetQuickToInterpreterBridgeOffset);
 #undef DUMP_OAT_HEADER_OFFSET
 
-    os << "IMAGE PATCH DELTA:\n" << oat_header.GetImagePatchDelta();
+    os << "IMAGE PATCH DELTA:\n" << oat_header.GetImagePatchDelta() << "\n\n";
 
     os << "IMAGE FILE LOCATION OAT CHECKSUM:\n";
     os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationOatChecksum());
@@ -616,7 +616,11 @@ class OatDumper {
       DumpSpillMask(*indent2_os, oat_method.GetFpSpillMask(), true);
       *indent2_os << StringPrintf("\nvmap_table: %p (offset=0x%08x)\n",
                                   oat_method.GetVmapTable(), oat_method.GetVmapTableOffset());
-      DumpVmap(*indent2_os, oat_method);
+
+      if (oat_method.GetNativeGcMap() != nullptr) {
+        // The native GC map is null for methods compiled with the optimizing compiler.
+        DumpVmap(*indent2_os, oat_method);
+      }
       DumpVregLocations(*indent2_os, oat_method, code_item);
       *indent2_os << StringPrintf("mapping_table: %p (offset=0x%08x)\n",
                                   oat_method.GetMappingTable(), oat_method.GetMappingTableOffset());

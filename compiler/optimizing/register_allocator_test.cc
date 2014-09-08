@@ -66,11 +66,11 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
     intervals.Add(BuildInterval(ranges, arraysize(ranges), &allocator, 0));
     intervals.Add(BuildInterval(ranges, arraysize(ranges), &allocator, 1));
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, *codegen, &allocator, true, false));
 
     intervals.Get(1)->SetRegister(0);
     ASSERT_FALSE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, *codegen, &allocator, true, false));
     intervals.Reset();
   }
 
@@ -81,11 +81,11 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
     static constexpr size_t ranges2[][2] = {{42, 43}};
     intervals.Add(BuildInterval(ranges2, arraysize(ranges2), &allocator, 1));
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, *codegen, &allocator, true, false));
 
     intervals.Get(1)->SetRegister(0);
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, *codegen, &allocator, true, false));
     intervals.Reset();
   }
 
@@ -96,11 +96,11 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
     static constexpr size_t ranges2[][2] = {{42, 43}};
     intervals.Add(BuildInterval(ranges2, arraysize(ranges2), &allocator, 1));
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, *codegen, &allocator, true, false));
 
     intervals.Get(1)->SetRegister(0);
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, *codegen, &allocator, true, false));
     intervals.Reset();
   }
 
@@ -111,11 +111,11 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
     static constexpr size_t ranges2[][2] = {{42, 47}};
     intervals.Add(BuildInterval(ranges2, arraysize(ranges2), &allocator, 1));
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, *codegen, &allocator, true, false));
 
     intervals.Get(1)->SetRegister(0);
     ASSERT_FALSE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, *codegen, &allocator, true, false));
     intervals.Reset();
   }
 
@@ -127,16 +127,16 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
     static constexpr size_t ranges2[][2] = {{42, 47}};
     intervals.Add(BuildInterval(ranges2, arraysize(ranges2), &allocator, 1));
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, *codegen, &allocator, true, false));
 
     intervals.Get(1)->SetRegister(0);
     // Sibling of the first interval has no register allocated to it.
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, *codegen, &allocator, true, false));
 
     intervals.Get(0)->GetNextSibling()->SetRegister(0);
     ASSERT_FALSE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, *codegen, &allocator, true, false));
   }
 }
 
