@@ -3064,8 +3064,6 @@ void Heap::RunFinalization(JNIEnv* env) {
   }
   env->CallStaticVoidMethod(WellKnownClasses::java_lang_System,
                             WellKnownClasses::java_lang_System_runFinalization);
-  env->CallStaticVoidMethod(WellKnownClasses::java_lang_System,
-                            WellKnownClasses::java_lang_System_runFinalization);
 }
 
 void Heap::RegisterNativeAllocation(JNIEnv* env, size_t bytes) {
