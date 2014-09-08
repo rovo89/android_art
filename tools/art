@@ -14,40 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-lib=-XXlib:libart.so
-invoke_with=
-
-while true; do
-  if [ "$1" = "--invoke-with" ]; then
-    shift
-    invoke_with="$1"
-    shift
-  elif [ "$1" = "-d" ]; then
-    lib="-XXlib:libartd.so"
-    shift
-  elif expr "$1" : "--" >/dev/null 2>&1; then
-    echo "unknown option: $1" 1>&2
-    exit 1
-  else
-    break
-  fi
-done
-
 function follow_links() {
-  file="$1"
+  if [ z"$BASH_SOURCE" != z ]; then
+    file="$BASH_SOURCE"
+  else
+    file="$0"
+  fi
   while [ -h "$file" ]; do
     # On Mac OS, readlink -f doesn't work.
     file="$(readlink "$file")"
   done
   echo "$file"
 }
-
-PROG_NAME="$(follow_links "$BASH_SOURCE")"
-PROG_DIR="$(cd "${PROG_NAME%/*}" ; pwd -P)"
-ANDROID_BUILD_TOP="$(cd "${PROG_DIR}/../../../../" ; pwd -P)/"
-ANDROID_HOST_OUT=$PROG_DIR/..
-ANDROID_DATA=$PWD/android-data$$
-DALVIKVM_EXECUTABLE=$ANDROID_HOST_OUT/bin/dalvikvm
 
 function find_libdir() {
   if [ "$(readlink "$DALVIKVM_EXECUTABLE")" = "dalvikvm64" ]; then
@@ -57,14 +35,39 @@ function find_libdir() {
   fi
 }
 
-LD_LIBRARY_PATH=$ANDROID_HOST_OUT/"$(find_libdir)"
+PROG_NAME="$(follow_links)"
+PROG_DIR="$(cd "${PROG_NAME%/*}" ; pwd -P)"
+ANDROID_ROOT=$PROG_DIR/..
+ANDROID_DATA=$PWD/android-data$$
+DALVIKVM_EXECUTABLE=$ANDROID_ROOT/bin/dalvikvm
+LIBDIR=$(find_libdir)
+LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBDIR
 
-mkdir -p $ANDROID_DATA/dalvik-cache/{x86,x86_64}
+lib=-XXlib:$ANDROID_ROOT/$LIBDIR/libart.so
+invoke_with=
+
+while true; do
+  if [ "$1" = "--invoke-with" ]; then
+    shift
+    invoke_with="$1"
+    shift
+  elif [ "$1" = "-d" ]; then
+    lib="-XXlib:$LIBDIR/libartd.so"
+    shift
+  elif expr "$1" : "--" >/dev/null 2>&1; then
+    echo "unknown option: $1" 1>&2
+    exit 1
+  else
+    break
+  fi
+done
+
+mkdir -p $ANDROID_DATA/dalvik-cache/{arm,arm64,x86,x86_64}
 ANDROID_DATA=$ANDROID_DATA \
-  ANDROID_ROOT=$ANDROID_HOST_OUT \
+  ANDROID_ROOT=$ANDROID_ROOT \
   LD_LIBRARY_PATH=$LD_LIBRARY_PATH \
   $invoke_with $DALVIKVM_EXECUTABLE $lib \
-    -Ximage:$ANDROID_HOST_OUT/framework/core.art \
+    -Ximage:$ANDROID_ROOT/framework/core.art \
      "$@"
 EXIT_STATUS=$?
 rm -rf $ANDROID_DATA
