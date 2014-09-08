@@ -28,23 +28,16 @@ function follow_links() {
 }
 
 function find_libdir() {
-  if [ "$(readlink "$DALVIKVM_EXECUTABLE")" = "dalvikvm64" ]; then
+  if [ "$(readlink "$ANDROID_ROOT/bin/$DALVIKVM")" = "dalvikvm64" ]; then
     echo "lib64"
   else
     echo "lib"
   fi
 }
 
-PROG_NAME="$(follow_links)"
-PROG_DIR="$(cd "${PROG_NAME%/*}" ; pwd -P)"
-ANDROID_ROOT=$PROG_DIR/..
-ANDROID_DATA=$PWD/android-data$$
-DALVIKVM_EXECUTABLE=$ANDROID_ROOT/bin/dalvikvm
-LIBDIR=$(find_libdir)
-LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBDIR
-
-lib=-XXlib:$ANDROID_ROOT/$LIBDIR/libart.so
 invoke_with=
+DALVIKVM=dalvikvm
+LIBART=libart.so
 
 while true; do
   if [ "$1" = "--invoke-with" ]; then
@@ -52,7 +45,13 @@ while true; do
     invoke_with="$1"
     shift
   elif [ "$1" = "-d" ]; then
-    lib="-XXlib:$LIBDIR/libartd.so"
+    LIBART="libartd.so"
+    shift
+  elif [ "$1" = "--32" ]; then
+    DALVIKVM=dalvikvm32
+    shift
+  elif [ "$1" = "--64" ]; then
+    DALVIKVM=dalvikvm64
     shift
   elif expr "$1" : "--" >/dev/null 2>&1; then
     echo "unknown option: $1" 1>&2
@@ -62,11 +61,19 @@ while true; do
   fi
 done
 
+PROG_NAME="$(follow_links)"
+PROG_DIR="$(cd "${PROG_NAME%/*}" ; pwd -P)"
+ANDROID_ROOT=$PROG_DIR/..
+ANDROID_DATA=$PWD/android-data$$
+LIBDIR=$(find_libdir)
+LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBDIR
+
 mkdir -p $ANDROID_DATA/dalvik-cache/{arm,arm64,x86,x86_64}
 ANDROID_DATA=$ANDROID_DATA \
   ANDROID_ROOT=$ANDROID_ROOT \
   LD_LIBRARY_PATH=$LD_LIBRARY_PATH \
-  $invoke_with $DALVIKVM_EXECUTABLE $lib \
+  $invoke_with $ANDROID_ROOT/bin/$DALVIKVM $lib \
+    -XXlib:$LIBART \
     -Ximage:$ANDROID_ROOT/framework/core.art \
      "$@"
 EXIT_STATUS=$?

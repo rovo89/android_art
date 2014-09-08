@@ -123,6 +123,9 @@ ART_TARGET_DEPENDENCIES := \
 ifdef TARGET_2ND_ARCH
 ART_TARGET_DEPENDENCIES += $(2ND_TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
 endif
+ifdef HOST_2ND_ARCH
+ART_HOST_DEPENDENCIES += $(2ND_HOST_OUT_SHARED_LIBRARIES)/libjavacore.so
+endif
 
 ########################################################################
 # test rules
@@ -349,27 +352,10 @@ oat-target-sync: oat-target
 build-art: build-art-host build-art-target
 
 .PHONY: build-art-host
-build-art-host:   $(ART_HOST_EXECUTABLES)   $(ART_HOST_GTEST_EXECUTABLES)   $(HOST_CORE_IMG_OUT)   $(ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
+build-art-host:   $(HOST_OUT_EXECUTABLES)/art $(ART_HOST_DEPENDENCIES) $(HOST_CORE_IMG_OUT) $(2ND_HOST_CORE_IMG_OUT)
 
 .PHONY: build-art-target
-build-art-target: $(ART_TARGET_EXECUTABLES) $(ART_TARGET_GTEST_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
-
-########################################################################
-# "m art-host" for just building the files needed to run the art script on the host.
-.PHONY: art-host
-ifeq ($(HOST_PREFER_32_BIT),true)
-art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm32 $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_OUT)/bin/patchoat $(HOST_CORE_IMG_OUT) $(HOST_OUT)/lib/libjavacore.so $(HOST_OUT)/bin/dalvikvm
-else
-art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm64 $(HOST_OUT)/bin/dalvikvm32 $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_OUT)/bin/patchoat $(HOST_CORE_IMG_OUT) $(HOST_OUT)/lib/libjavacore.so $(HOST_OUT)/lib64/libjavacore.so $(HOST_OUT)/bin/dalvikvm
-endif
-
-# "m art-target" for just building the files needed to run the art script on the target.
-# Note that the script can run a dalvikvm executable that is not necessarily /system/bin/dalvikvm.
-.PHONY: art-target
-art-target: adb build-art-target art libnativehelper libjavacore
-
-.PHONY: art-host-debug
-art-host-debug:   art-host $(HOST_OUT)/lib/libartd.so $(HOST_OUT)/bin/dex2oatd $(HOST_OUT)/bin/patchoatd
+build-art-target: $(TARGET_OUT_EXECUTABLES)/art $(ART_TARGET_DEPENDENCIES) $(TARGET_CORE_IMG_OUT) $(2ND_TARGET_CORE_IMG_OUT)
 
 ########################################################################
 # targets to switch back and forth from libdvm to libart
