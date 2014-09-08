@@ -1,0 +1,19 @@
+Confirm enable/disable
+status=0
+status=1
+status=0
+Confirm sampling
+status=2
+status=0
+Test starting when already started
+status=1
+status=1
+Test stopping when already stopped
+status=0
+status=0
+Test tracing with empty filename
+Got expected exception
+Test tracing with bogus (< 1024 && != 0) filesize
+Got expected exception
+Test sampling with bogus (<= 0) interval
+Got expected exception
