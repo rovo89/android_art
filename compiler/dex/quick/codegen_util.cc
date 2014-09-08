@@ -447,15 +447,16 @@ static void Push32(std::vector<uint8_t>&buf, int data) {
   buf.push_back((data >> 24) & 0xff);
 }
 
-// Push 8 bytes on 64-bit target systems; 4 on 32-bit target systems.
-static void PushPointer(std::vector<uint8_t>&buf, const void* pointer, bool target64) {
-  uint64_t data = reinterpret_cast<uintptr_t>(pointer);
-  if (target64) {
-    Push32(buf, data & 0xFFFFFFFF);
-    Push32(buf, (data >> 32) & 0xFFFFFFFF);
-  } else {
-    Push32(buf, static_cast<uint32_t>(data));
-  }
+/**
+ * @brief Push a compressed reference which needs patching at link/patchoat-time.
+ * @details This needs to be kept consistent with the code which actually does the patching in
+ *   oat_writer.cc and in the patchoat tool.
+ */
+static void PushUnpatchedReference(std::vector<uint8_t>&buf) {
+  // Note that we can safely initialize the patches to zero. The code deduplication mechanism takes
+  // the patches into account when determining whether two pieces of codes are functionally
+  // equivalent.
+  Push32(buf, UINT32_C(0));
 }
 
 static void AlignBuffer(std::vector<uint8_t>&buf, size_t offset) {
@@ -481,9 +482,7 @@ void Mir2Lir::InstallLiteralPools() {
         reinterpret_cast<const DexFile*>(UnwrapPointer(data_lir->operands[1]));
     patches_.push_back(LinkerPatch::CodePatch(code_buffer_.size(),
                                               target_dex_file, target_method_idx));
-    const DexFile::MethodId& target_method_id = target_dex_file->GetMethodId(target_method_idx);
-    // unique value based on target to ensure code deduplication works
-    PushPointer(code_buffer_, &target_method_id, cu_->target64);
+    PushUnpatchedReference(code_buffer_);
     data_lir = NEXT_LIR(data_lir);
   }
   data_lir = method_literal_list_;
@@ -493,9 +492,7 @@ void Mir2Lir::InstallLiteralPools() {
         reinterpret_cast<const DexFile*>(UnwrapPointer(data_lir->operands[1]));
     patches_.push_back(LinkerPatch::MethodPatch(code_buffer_.size(),
                                                 target_dex_file, target_method_idx));
-    const DexFile::MethodId& target_method_id = target_dex_file->GetMethodId(target_method_idx);
-    // unique value based on target to ensure code deduplication works
-    PushPointer(code_buffer_, &target_method_id, cu_->target64);
+    PushUnpatchedReference(code_buffer_);
     data_lir = NEXT_LIR(data_lir);
   }
   // Push class literals.
@@ -506,9 +503,7 @@ void Mir2Lir::InstallLiteralPools() {
       reinterpret_cast<const DexFile*>(UnwrapPointer(data_lir->operands[1]));
     patches_.push_back(LinkerPatch::TypePatch(code_buffer_.size(),
                                               class_dex_file, target_type_idx));
-    const DexFile::TypeId& target_method_id = class_dex_file->GetTypeId(target_type_idx);
-    // unique value based on target to ensure code deduplication works
-    PushPointer(code_buffer_, &target_method_id, cu_->target64);
+    PushUnpatchedReference(code_buffer_);
     data_lir = NEXT_LIR(data_lir);
   }
 }
@@ -772,7 +767,9 @@ void Mir2Lir::CreateNativeGcMap() {
 /* Determine the offset of each literal field */
 int Mir2Lir::AssignLiteralOffset(CodeOffset offset) {
   offset = AssignLiteralOffsetCommon(literal_list_, offset);
-  unsigned int ptr_size = GetInstructionSetPointerSize(cu_->instruction_set);
+  constexpr unsigned int ptr_size = sizeof(uint32_t);
+  COMPILE_ASSERT(ptr_size >= sizeof(mirror::HeapReference<mirror::Object>),
+                 ptr_size_cannot_hold_a_heap_reference);
   offset = AssignLiteralPointerOffsetCommon(code_literal_list_, offset, ptr_size);
   offset = AssignLiteralPointerOffsetCommon(method_literal_list_, offset, ptr_size);
   offset = AssignLiteralPointerOffsetCommon(class_literal_list_, offset, ptr_size);
